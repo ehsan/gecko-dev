@@ -96,8 +96,8 @@ public:
 
 private:
     friend class nsMemoryCacheDeviceInfo;
-    enum      { DELETE_ENTRY        = true,
-                DO_NOT_DELETE_ENTRY = false };
+    enum      { DELETE_ENTRY        = PR_TRUE,
+                DO_NOT_DELETE_ENTRY = PR_FALSE };
 
     void      AdjustMemoryLimits( PRInt32  softLimit, PRInt32  hardLimit);
     void      EvictEntry( nsCacheEntry * entry , bool deleteEntry);

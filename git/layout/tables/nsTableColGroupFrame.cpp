@@ -182,7 +182,7 @@ nsTableColGroupFrame::SetInitialChildList(ChildListID     aListID,
 
   if (aChildList.IsEmpty()) {
     tableFrame->AppendAnonymousColFrames(this, GetSpan(), eColAnonymousColGroup, 
-                                         false);
+                                         PR_FALSE);
     return NS_OK; 
   }
 
@@ -205,7 +205,7 @@ nsTableColGroupFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
       return; // this is a degenerated colgroup 
     nsRect damageArea(GetFirstColumn()->GetColIndex(), 0, colCount,
                       tableFrame->GetRowCount());
-    tableFrame->AddBCDamageArea(damageArea);
+    tableFrame->SetBCDamageArea(damageArea);
   }
   return;
 }
@@ -283,7 +283,7 @@ void
 nsTableColGroupFrame::InsertColsReflow(PRInt32                   aColIndex,
                                        const nsFrameList::Slice& aCols)
 {
-  AddColsToTable(aColIndex, true, aCols);
+  AddColsToTable(aColIndex, PR_TRUE, aCols);
 
   PresContext()->PresShell()->FrameNeedsReflow(this,
                                                nsIPresShell::eTreeChange,
@@ -330,7 +330,7 @@ nsTableColGroupFrame::RemoveFrame(ChildListID     aListID,
   if (nsGkAtoms::tableColFrame == aOldFrame->GetType()) {
     nsTableColFrame* colFrame = (nsTableColFrame*)aOldFrame;
     if (colFrame->GetColType() == eColContent) {
-      contentRemoval = true;
+      contentRemoval = PR_TRUE;
       // Remove any anonymous column frames this <col> produced via a colspan
       nsTableColFrame* col = colFrame->GetNextCol();
       nsTableColFrame* nextCol;
@@ -356,17 +356,17 @@ nsTableColGroupFrame::RemoveFrame(ChildListID     aListID,
     
     PRInt32 colIndex = colFrame->GetColIndex();
     // The RemoveChild call handles calling FrameNeedsReflow on us.
-    RemoveChild(*colFrame, true);
+    RemoveChild(*colFrame, PR_TRUE);
     
     nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
     if (!tableFrame)
       return NS_ERROR_NULL_POINTER;
 
-    tableFrame->RemoveCol(this, colIndex, true, true);
+    tableFrame->RemoveCol(this, colIndex, PR_TRUE, PR_TRUE);
     if (mFrames.IsEmpty() && contentRemoval && 
         GetColType() == eColGroupContent) {
       tableFrame->AppendAnonymousColFrames(this, GetSpan(),
-                                           eColAnonymousColGroup, true);
+                                           eColAnonymousColGroup, PR_TRUE);
     }
   }
   else {
@@ -404,7 +404,7 @@ NS_METHOD nsTableColGroupFrame::Reflow(nsPresContext*          aPresContext,
   if (collapseGroup) {
     nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
     if (tableFrame)  {
-      tableFrame->SetNeedToCollapse(true);;
+      tableFrame->SetNeedToCollapse(PR_TRUE);;
     }
   }
   // for every content child that (is a column thingy and does not already have a frame)

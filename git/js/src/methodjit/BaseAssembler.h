@@ -42,6 +42,7 @@
 #define jsjaeger_baseassembler_h__
 
 #include "jscntxt.h"
+#include "jstl.h"
 #include "assembler/assembler/MacroAssemblerCodeRef.h"
 #include "assembler/assembler/MacroAssembler.h"
 #include "assembler/assembler/LinkBuffer.h"
@@ -180,20 +181,22 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
         return differenceBetween(startLabel, l);
     }
 
-    void loadPtrFromImm(void *ptr, RegisterID reg) {
-        loadPtr(ptr, reg);
+    void load32FromImm(void *ptr, RegisterID reg) {
+        load32(ptr, reg);
     }
 
     void loadShape(RegisterID obj, RegisterID shape) {
-        loadPtr(Address(obj, JSObject::offsetOfShape()), shape);
-    }
-
-    Jump guardShape(RegisterID objReg, const Shape *shape) {
-        return branchPtr(NotEqual, Address(objReg, JSObject::offsetOfShape()), ImmPtr(shape));
+        load32(Address(obj, offsetof(JSObject, objShape)), shape);
     }
 
     Jump guardShape(RegisterID objReg, JSObject *obj) {
-        return guardShape(objReg, obj->lastProperty());
+        return branch32(NotEqual, Address(objReg, offsetof(JSObject, objShape)),
+                        Imm32(obj->shape()));
+    }
+
+    Jump testFunction(Condition cond, RegisterID fun) {
+        return branchPtr(cond, Address(fun, JSObject::offsetOfClassPointer()),
+                         ImmPtr(&FunctionClass));
     }
 
     /*
@@ -558,16 +561,6 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
     //
     // After callWithABI(), the call state is reset, so a new call may begin.
     Call callWithABI(void *fun, bool canThrow) {
-#ifdef JS_CPU_ARM
-        // the repatcher requires that these instructions are adjacent in
-        // memory, make sure that they are in fact adjacent.
-        // Theoretically, this requires only 12 bytes of space, however
-        // there are at least a couple of off-by-one errors that I've noticed
-        // that make 12 insufficent.  In case 16 is also insufficent, I've bumped
-        // it to 20.
-        ensureSpace(20);
-        int initFlushCount = flushCount();
-#endif
         // [Bug 614953]: This can only be made conditional once the ARM back-end
         // is able to distinguish and patch both call sequences. Other
         // architecutres are unaffected regardless.
@@ -582,9 +575,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
 
         Call cl = call();
         callPatches.append(CallPatch(cl, fun));
-#ifdef JS_CPU_ARM
-        JS_ASSERT(initFlushCount == flushCount());
-#endif
+
         if (stackAdjust)
             addPtr(Imm32(stackAdjust), stackPointerRegister);
 
@@ -634,7 +625,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
             addPtr(Imm32(sizeof(StackFrame) + frameDepth * sizeof(jsval)),
                    JSFrameReg,
                    Registers::ClobberInCall);
-            storePtr(Registers::ClobberInCall, FrameAddress(VMFrame::offsetOfRegsSp()));
+            storePtr(Registers::ClobberInCall, FrameAddress(offsetof(VMFrame, regs.sp)));
         }
     }
 
@@ -655,7 +646,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
         storePtr(JSFrameReg, FrameAddress(VMFrame::offsetOfFp));
 
         /* PC -> regs->pc :( */
-        storePtr(ImmPtr(pc), FrameAddress(VMFrame::offsetOfRegsPc()));
+        storePtr(ImmPtr(pc), FrameAddress(offsetof(VMFrame, regs.pc)));
 
         if (inlining) {
             /* inlined -> regs->inlined :( */
@@ -673,7 +664,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
 
         /* Store fp and pc */
         storePtr(JSFrameReg, FrameAddress(VMFrame::offsetOfFp));
-        storePtr(ImmPtr(pc), FrameAddress(VMFrame::offsetOfRegsPc()));
+        storePtr(ImmPtr(pc), FrameAddress(offsetof(VMFrame, regs.pc)));
 
         if (inlining) {
             /* ABI calls cannot be made from inlined frames. */
@@ -765,15 +756,14 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
         Jump holeCheck;
     };
 
-    // Guard an extent (capacity, length or initialized length) on an array or typed array.
-    Jump guardArrayExtent(int offset, RegisterID reg,
-                          const Int32Key &key, Condition cond) {
-        Address extent(reg, offset);
+    // Guard an array's capacity, length or initialized length.
+    Jump guardArrayExtent(uint32 offset, RegisterID objReg, const Int32Key &key, Condition cond) {
+        Address initlen(objReg, offset);
         if (key.isConstant()) {
             JS_ASSERT(key.index() >= 0);
-            return branch32(cond, extent, Imm32(key.index()));
+            return branch32(cond, initlen, Imm32(key.index()));
         }
-        return branch32(cond, extent, key.reg());
+        return branch32(cond, initlen, key.reg());
     }
 
     // Load a jsval from an array slot, given a key. |objReg| is clobbered.
@@ -781,19 +771,19 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
                                      RegisterID typeReg, RegisterID dataReg) {
         JS_ASSERT(objReg != typeReg);
 
-        RegisterID elementsReg = objReg;
-        loadPtr(Address(objReg, JSObject::offsetOfElements()), elementsReg);
-
         FastArrayLoadFails fails;
-        fails.rangeCheck = guardArrayExtent(ObjectElements::offsetOfInitializedLength(),
+        fails.rangeCheck = guardArrayExtent(offsetof(JSObject, initializedLength),
                                             objReg, key, BelowOrEqual);
+
+        RegisterID dslotsReg = objReg;
+        loadPtr(Address(objReg, JSObject::offsetOfSlots()), dslotsReg);
 
         // Load the slot out of the array.
         if (key.isConstant()) {
-            Address slot(elementsReg, key.index() * sizeof(Value));
+            Address slot(objReg, key.index() * sizeof(Value));
             fails.holeCheck = fastArrayLoadSlot(slot, true, typeReg, dataReg);
         } else {
-            BaseIndex slot(elementsReg, key.reg(), JSVAL_SCALE);
+            BaseIndex slot(objReg, key.reg(), JSVAL_SCALE);
             fails.holeCheck = fastArrayLoadSlot(slot, true, typeReg, dataReg);
         }
 
@@ -828,27 +818,16 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
         addPtr(JSFrameReg, reg);
     }
 
-    void loadBaseShape(RegisterID obj, RegisterID dest) {
-        loadPtr(Address(obj, JSObject::offsetOfShape()), dest);
-        loadPtr(Address(dest, Shape::offsetOfBase()), dest);
-    }
-
-    void loadObjClass(RegisterID obj, RegisterID dest) {
-        loadBaseShape(obj, dest);
-        loadPtr(Address(dest, BaseShape::offsetOfClass()), dest);
+    void loadObjClass(RegisterID objReg, RegisterID destReg) {
+        loadPtr(Address(objReg, JSObject::offsetOfClassPointer()), destReg);
     }
 
     Jump testClass(Condition cond, RegisterID claspReg, js::Class *clasp) {
         return branchPtr(cond, claspReg, ImmPtr(clasp));
     }
 
-    Jump testObjClass(Condition cond, RegisterID obj, RegisterID temp, js::Class *clasp) {
-        loadBaseShape(obj, temp);
-        return branchPtr(cond, Address(temp, BaseShape::offsetOfClass()), ImmPtr(clasp));
-    }
-
-    Jump testFunction(Condition cond, RegisterID fun, RegisterID temp) {
-        return testObjClass(cond, fun, temp, &js::FunctionClass);
+    Jump testObjClass(Condition cond, RegisterID objReg, js::Class *clasp) {
+        return branchPtr(cond, Address(objReg, JSObject::offsetOfClassPointer()), ImmPtr(clasp));
     }
 
     void branchValue(Condition cond, RegisterID reg, int32 value, RegisterID result)
@@ -896,10 +875,13 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
                      const js::Shape *shape,
                      RegisterID typeReg, RegisterID dataReg)
     {
-        if (obj->isFixedSlot(shape->slot()))
-            loadInlineSlot(objReg, shape->slot(), typeReg, dataReg);
+        JS_ASSERT(shape->hasSlot());
+        if (shape->isMethod())
+            loadValueAsComponents(ObjectValue(shape->methodObject()), typeReg, dataReg);
+        else if (obj->isFixedSlot(shape->slot))
+            loadInlineSlot(objReg, shape->slot, typeReg, dataReg);
         else
-            loadDynamicSlot(objReg, obj->dynamicSlotIndex(shape->slot()), typeReg, dataReg);
+            loadDynamicSlot(objReg, obj->dynamicSlotIndex(shape->slot), typeReg, dataReg);
     }
 
 #ifdef JS_METHODJIT_TYPED_ARRAY
@@ -1220,12 +1202,21 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
 
             loadPayload(address, reg);
 
+            Jump notSingleton = branchTest32(Assembler::Zero,
+                                             Address(reg, offsetof(JSObject, flags)),
+                                             Imm32(JSObject::SINGLETON_TYPE));
+
             for (unsigned i = 0; i < count; i++) {
                 if (JSObject *object = types->getSingleObject(i)) {
                     if (!matches.append(branchPtr(Assembler::Equal, reg, ImmPtr(object))))
                         return false;
                 }
             }
+
+            if (!mismatches->append(jump()))
+                return false;
+
+            notSingleton.linkTo(label(), this);
 
             loadPtr(Address(reg, JSObject::offsetOfType()), reg);
 
@@ -1259,8 +1250,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
         int thingSize = (int)gc::Arena::thingSize(allocKind);
 
         JS_ASSERT(cx->typeInferenceEnabled());
-        JS_ASSERT(!templateObject->hasDynamicSlots());
-        JS_ASSERT(!templateObject->hasDynamicElements());
+        JS_ASSERT(!templateObject->hasSlotsArray());
 
 #ifdef JS_GC_ZEAL
         if (cx->runtime->needZealousGC())
@@ -1290,50 +1280,36 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
          * pinned against GC either by the script or by some type object.
          */
 
-        int elementsOffset = JSObject::offsetOfFixedElements();
-
         /*
-         * Write out the elements pointer before readjusting the result register,
+         * Write out the slots pointer before readjusting the result register,
          * as for dense arrays we will need to get the address of the fixed
-         * elements first.
+         * slots first.
          */
         if (templateObject->isDenseArray()) {
-            JS_ASSERT(!templateObject->getDenseArrayInitializedLength());
-            addPtr(Imm32(-thingSize + elementsOffset), result);
-            storePtr(result, Address(result, -elementsOffset + JSObject::offsetOfElements()));
-            addPtr(Imm32(-elementsOffset), result);
+            JS_ASSERT(!templateObject->initializedLength);
+            addPtr(Imm32(-thingSize + sizeof(JSObject)), result);
+            storePtr(result, Address(result, -(int)sizeof(JSObject) + JSObject::offsetOfSlots()));
+            addPtr(Imm32(-(int)sizeof(JSObject)), result);
         } else {
+            JS_ASSERT(!templateObject->newType);
             addPtr(Imm32(-thingSize), result);
-            storePtr(ImmPtr(emptyObjectElements), Address(result, JSObject::offsetOfElements()));
+            storePtr(ImmPtr(NULL), Address(result, JSObject::offsetOfSlots()));
         }
 
-        storePtr(ImmPtr(templateObject->lastProperty()), Address(result, JSObject::offsetOfShape()));
+        storePtr(ImmPtr(templateObject->lastProp), Address(result, offsetof(JSObject, lastProp)));
+        storePtr(ImmPtr(templateObject->getClass()), Address(result, JSObject::offsetOfClassPointer()));
+        store32(Imm32(templateObject->flags), Address(result, offsetof(JSObject, flags)));
+        store32(Imm32(templateObject->objShape), Address(result, offsetof(JSObject, objShape)));
+        storePtr(ImmPtr(templateObject->newType), Address(result, offsetof(JSObject, newType)));
+        storePtr(ImmPtr(templateObject->parent), Address(result, offsetof(JSObject, parent)));
+        storePtr(ImmPtr(templateObject->privateData), Address(result, offsetof(JSObject, privateData)));
+        storePtr(ImmPtr((void *) templateObject->capacity), Address(result, offsetof(JSObject, capacity)));
         storePtr(ImmPtr(templateObject->type()), Address(result, JSObject::offsetOfType()));
-        storePtr(ImmPtr(NULL), Address(result, JSObject::offsetOfSlots()));
 
-        if (templateObject->isDenseArray()) {
-            /* Fill in the elements header. */
-            store32(Imm32(templateObject->getDenseArrayCapacity()),
-                    Address(result, elementsOffset + ObjectElements::offsetOfCapacity()));
-            store32(Imm32(templateObject->getDenseArrayInitializedLength()),
-                    Address(result, elementsOffset + ObjectElements::offsetOfInitializedLength()));
-            store32(Imm32(templateObject->getArrayLength()),
-                    Address(result, elementsOffset + ObjectElements::offsetOfLength()));
-        } else {
-            /*
-             * Fixed slots of non-array objects are required to be initialized;
-             * Use the values currently in the template object.
-             */
-            for (unsigned i = 0; i < templateObject->slotSpan(); i++) {
-                storeValue(templateObject->getFixedSlot(i),
-                           Address(result, JSObject::getFixedSlotOffset(i)));
-            }
-        }
-
-        if (templateObject->hasPrivate()) {
-            uint32 nfixed = templateObject->numFixedSlots();
-            storePtr(ImmPtr(templateObject->getPrivate()),
-                     Address(result, JSObject::getPrivateDataOffset(nfixed)));
+        /* Fixed slots of non-array objects are required to be initialized. */
+        if (!templateObject->isDenseArray()) {
+            for (unsigned i = 0; i < templateObject->numFixedSlots(); i++)
+                storeValue(UndefinedValue(), Address(result, JSObject::getFixedSlotOffset(i)));
         }
 
         return jump;
@@ -1348,19 +1324,12 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
         storeDouble(Registers::FPConversionTemp, Address(scratch));
     }
 
-    /* Add one to the accumulator 'counter'. */
-    void bumpCounter(double *counter, RegisterID scratch)
-    {
-        addCounter(&oneDouble, counter, scratch);
-    }
-
     /* Bump the stub call count for script/pc if they are being counted. */
     void bumpStubCounter(JSScript *script, jsbytecode *pc, RegisterID scratch)
     {
         if (script->pcCounters) {
-            OpcodeCounts counts = script->getCounts(pc);
-            double *counter = &counts.get(OpcodeCounts::BASE_METHODJIT_STUBS);
-            bumpCounter(counter, scratch);
+            double *counter = &script->pcCounters.get(JSPCCounters::METHODJIT_STUBS, pc - script->code);
+            addCounter(&oneDouble, counter, scratch);
         }
     }
 

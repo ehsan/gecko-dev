@@ -438,7 +438,7 @@ inline BCData::BCData()
   mLeftStart = mTopStart = 1;
   mLeftSize = mCornerSubSize = mTopSize = 0;
   mCornerSide = NS_SIDE_TOP;
-  mCornerBevel = false;
+  mCornerBevel = PR_FALSE;
 }
 
 inline BCData::~BCData()

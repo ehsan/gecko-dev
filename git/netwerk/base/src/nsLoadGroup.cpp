@@ -71,6 +71,9 @@ static PRLogModuleInfo* gLoadGroupLog = nsnull;
 
 #define LOG(args) PR_LOG(gLoadGroupLog, PR_LOG_DEBUG, args)
 
+#define HISTOGRAM_TIME_DELTA(start, end) \
+    (PRUint32)((end - start).ToMilliseconds())
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class RequestMapEntry : public PLDHashEntryHdr
@@ -113,7 +116,7 @@ RequestHashInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
 
     // Initialize the entry with placement new
     new (entry) RequestMapEntry(request);
-    return true;
+    return PR_TRUE;
 }
 
 
@@ -142,7 +145,7 @@ nsLoadGroup::nsLoadGroup(nsISupports* outer)
     , mLoadFlags(LOAD_NORMAL)
     , mStatus(NS_OK)
     , mPriority(PRIORITY_NORMAL)
-    , mIsCanceling(false)
+    , mIsCanceling(PR_FALSE)
     , mDefaultLoadIsTimed(false)
     , mTimedRequests(0)
     , mCachedRequests(0)
@@ -234,7 +237,7 @@ nsLoadGroup::GetName(nsACString &result)
 NS_IMETHODIMP
 nsLoadGroup::IsPending(bool *aResult)
 {
-    *aResult = (mForegroundCount > 0) ? true : false;
+    *aResult = (mForegroundCount > 0) ? PR_TRUE : PR_FALSE;
     return NS_OK;
 }
 
@@ -299,7 +302,7 @@ nsLoadGroup::Cancel(nsresult status)
     // Set the flag indicating that the loadgroup is being canceled...  This
     // prevents any new channels from being added during the operation.
     //
-    mIsCanceling = true;
+    mIsCanceling = PR_TRUE;
 
     nsresult firstError = NS_OK;
 
@@ -352,7 +355,7 @@ nsLoadGroup::Cancel(nsresult status)
 #endif
 
     mStatus = NS_OK;
-    mIsCanceling = false;
+    mIsCanceling = PR_FALSE;
 
     return firstError;
 }
@@ -518,7 +521,7 @@ nsLoadGroup::SetDefaultLoadRequest(nsIRequest *aRequest)
         mDefaultLoadIsTimed = timedChannel != nsnull;
         if (mDefaultLoadIsTimed) {
             timedChannel->GetChannelCreation(&mDefaultRequestCreationTime);
-            timedChannel->SetTimingEnabled(true);
+            timedChannel->SetTimingEnabled(PR_TRUE);
         }
     }
     // Else, do not change the group's load flags (see bug 95981)
@@ -592,7 +595,7 @@ nsLoadGroup::AddRequest(nsIRequest *request, nsISupports* ctxt)
 
     nsCOMPtr<nsITimedChannel> timedChannel = do_QueryInterface(request);
     if (timedChannel)
-        timedChannel->SetTimingEnabled(true);
+        timedChannel->SetTimingEnabled(PR_TRUE);
 
     if (!(flags & nsIRequest::LOAD_BACKGROUND)) {
         // Update the count of foreground URIs..
@@ -690,16 +693,16 @@ nsLoadGroup::RemoveRequest(nsIRequest *request, nsISupports* ctxt,
 
             rv = timedChannel->GetAsyncOpen(&timeStamp);
             if (NS_SUCCEEDED(rv) && !timeStamp.IsNull()) {
-                Telemetry::AccumulateTimeDelta(
+                Telemetry::Accumulate(
                     Telemetry::HTTP_SUBITEM_OPEN_LATENCY_TIME,
-                    mDefaultRequestCreationTime, timeStamp);
+                    HISTOGRAM_TIME_DELTA(mDefaultRequestCreationTime, timeStamp));
             }
 
             rv = timedChannel->GetResponseStart(&timeStamp);
             if (NS_SUCCEEDED(rv) && !timeStamp.IsNull()) {
-                Telemetry::AccumulateTimeDelta(
+                Telemetry::Accumulate(
                     Telemetry::HTTP_SUBITEM_FIRST_BYTE_LATENCY_TIME,
-                    mDefaultRequestCreationTime, timeStamp);
+                    HISTOGRAM_TIME_DELTA(mDefaultRequestCreationTime, timeStamp));
             }
 
             TelemetryReportChannel(timedChannel, false);
@@ -937,71 +940,71 @@ nsLoadGroup::TelemetryReportChannel(nsITimedChannel *aTimedChannel,
 
 #define HTTP_REQUEST_HISTOGRAMS(prefix)                                        \
     if (!domainLookupStart.IsNull()) {                                         \
-        Telemetry::AccumulateTimeDelta(                                        \
+        Telemetry::Accumulate(                                                 \
             Telemetry::HTTP_##prefix##_DNS_ISSUE_TIME,                         \
-            asyncOpen, domainLookupStart);                                     \
+            HISTOGRAM_TIME_DELTA(asyncOpen, domainLookupStart));               \
     }                                                                          \
                                                                                \
     if (!domainLookupStart.IsNull() && !domainLookupEnd.IsNull()) {            \
-        Telemetry::AccumulateTimeDelta(                                        \
+        Telemetry::Accumulate(                                                 \
             Telemetry::HTTP_##prefix##_DNS_LOOKUP_TIME,                        \
-            domainLookupStart, domainLookupEnd);                               \
+            HISTOGRAM_TIME_DELTA(domainLookupStart, domainLookupEnd));         \
     }                                                                          \
                                                                                \
     if (!connectStart.IsNull() && !connectEnd.IsNull()) {                      \
-        Telemetry::AccumulateTimeDelta(                                        \
+        Telemetry::Accumulate(                                                 \
             Telemetry::HTTP_##prefix##_TCP_CONNECTION,                         \
-            connectStart, connectEnd);                                         \
+            HISTOGRAM_TIME_DELTA(connectStart, connectEnd));                   \
     }                                                                          \
                                                                                \
                                                                                \
     if (!requestStart.IsNull() && !responseEnd.IsNull()) {                     \
-        Telemetry::AccumulateTimeDelta(                                        \
+        Telemetry::Accumulate(                                                 \
             Telemetry::HTTP_##prefix##_OPEN_TO_FIRST_SENT,                     \
-            asyncOpen, requestStart);                                          \
+            HISTOGRAM_TIME_DELTA(asyncOpen, requestStart));                    \
                                                                                \
-        Telemetry::AccumulateTimeDelta(                                        \
+        Telemetry::Accumulate(                                                 \
             Telemetry::HTTP_##prefix##_FIRST_SENT_TO_LAST_RECEIVED,            \
-            requestStart, responseEnd);                                        \
+            HISTOGRAM_TIME_DELTA(requestStart, responseEnd));                  \
                                                                                \
         if (cacheReadStart.IsNull() && !responseStart.IsNull()) {              \
-            Telemetry::AccumulateTimeDelta(                                    \
+            Telemetry::Accumulate(                                             \
                 Telemetry::HTTP_##prefix##_OPEN_TO_FIRST_RECEIVED,             \
-                asyncOpen, responseStart);                                     \
+                HISTOGRAM_TIME_DELTA(asyncOpen, responseStart));               \
         }                                                                      \
     }                                                                          \
                                                                                \
     if (!cacheReadStart.IsNull() && !cacheReadEnd.IsNull()) {                  \
-        Telemetry::AccumulateTimeDelta(                                        \
+        Telemetry::Accumulate(                                                 \
             Telemetry::HTTP_##prefix##_OPEN_TO_FIRST_FROM_CACHE,               \
-            asyncOpen, cacheReadStart);                                        \
+            HISTOGRAM_TIME_DELTA(asyncOpen, cacheReadStart));                  \
                                                                                \
-        Telemetry::AccumulateTimeDelta(                                        \
+        Telemetry::Accumulate(                                                 \
             Telemetry::HTTP_##prefix##_CACHE_READ_TIME,                        \
-            cacheReadStart, cacheReadEnd);                                     \
+            HISTOGRAM_TIME_DELTA(cacheReadStart, cacheReadEnd));               \
                                                                                \
         if (!requestStart.IsNull() && !responseEnd.IsNull()) {                 \
-            Telemetry::AccumulateTimeDelta(                                    \
+            Telemetry::Accumulate(                                             \
                 Telemetry::HTTP_##prefix##_REVALIDATION,                       \
-                requestStart, responseEnd);                                    \
+                HISTOGRAM_TIME_DELTA(requestStart, responseEnd));              \
         }                                                                      \
     }                                                                          \
                                                                                \
     if (!cacheReadEnd.IsNull()) {                                              \
-        Telemetry::AccumulateTimeDelta(                                        \
+        Telemetry::Accumulate(                                                 \
             Telemetry::HTTP_##prefix##_COMPLETE_LOAD,                          \
-            asyncOpen, cacheReadEnd);                                          \
-        Telemetry::AccumulateTimeDelta(                                        \
+            HISTOGRAM_TIME_DELTA(asyncOpen, cacheReadEnd));                    \
+        Telemetry::Accumulate(                                                 \
             Telemetry::HTTP_##prefix##_COMPLETE_LOAD_CACHED,                   \
-            asyncOpen, cacheReadEnd);                                          \
+            HISTOGRAM_TIME_DELTA(asyncOpen, cacheReadEnd));                    \
     }                                                                          \
     else if (!responseEnd.IsNull()) {                                          \
-        Telemetry::AccumulateTimeDelta(                                        \
+        Telemetry::Accumulate(                                                 \
             Telemetry::HTTP_##prefix##_COMPLETE_LOAD,                          \
-            asyncOpen, responseEnd);                                           \
-        Telemetry::AccumulateTimeDelta(                                        \
+            HISTOGRAM_TIME_DELTA(asyncOpen, responseEnd));                     \
+        Telemetry::Accumulate(                                                 \
             Telemetry::HTTP_##prefix##_COMPLETE_LOAD_NET,                      \
-            asyncOpen, responseEnd);                                           \
+            HISTOGRAM_TIME_DELTA(asyncOpen, responseEnd));                     \
     }
 
     if (aDefaultRequest) {

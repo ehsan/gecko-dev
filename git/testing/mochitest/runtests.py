@@ -515,11 +515,21 @@ class Mochitest(object):
     """
     return self.getFullPath(logFile)
 
+  def installSpecialPowersExtension(self, options):
+    """ install the Special Powers extension for special testing capabilities """
+    extensionSource = os.path.normpath(os.path.join(self.SCRIPT_DIRECTORY, "specialpowers"))
+    self.automation.log.info("INFO | runtests.py | Installing extension at %s to %s." % 
+                             (extensionSource, options.profilePath))
+
+    self.automation.installExtension(extensionSource, options.profilePath, "special-powers@mozilla.org")
+    self.automation.log.info("INFO | runtests.py | Done installing extension.")
+
   def buildProfile(self, options):
     """ create the profile and add optional chrome bits and files if requested """
     self.automation.initializeProfile(options.profilePath, options.extraPrefs, useServerLocations = True)
     manifest = self.addChromeToProfile(options)
     self.copyExtraFilesToProfile(options)
+    self.installSpecialPowersExtension(options)
     self.installExtensionsToProfile(options)
     return manifest
 
@@ -551,7 +561,7 @@ class Mochitest(object):
         URL parameters to test URL:
 
         autorun -- kick off tests automatically
-        closeWhenDone -- closes the browser after the tests
+        closeWhenDone -- runs quit.js after tests
         hideResultsTable -- hides the table of individual test results
         logFile -- logs test run to an absolute path
         totalChunks -- how many chunks to split tests into
@@ -803,8 +813,16 @@ toolbar#nav-bar {
 overlay chrome://browser/content/browser.xul chrome://mochikit/content/browser-test-overlay.xul
 overlay chrome://navigator/content/navigator.xul chrome://mochikit/content/browser-test-overlay.xul
 """
+    else:
+      #only do the ipc-overlay.xul for mochitest-plain.  
+      #Currently there are focus issues in chrome tests and issues with new windows and dialogs when using ipc
+      chrome += """
+overlay chrome://browser/content/browser.xul chrome://mochikit/content/ipc-overlay.xul
+overlay chrome://navigator/content/navigator.xul chrome://mochikit/content/ipc-overlay.xul
+"""
 
     self.installChromeJar(jarDir, chrome, options)
+
     return manifest
 
   def installChromeJar(self, jarDirName, chrome, options):
@@ -815,7 +833,7 @@ overlay chrome://navigator/content/navigator.xul chrome://mochikit/content/brows
                                      options.profilePath, "mochikit@mozilla.org")
 
     # Write chrome.manifest.
-    with open(os.path.join(options.profilePath, "extensions", "staged", "mochikit@mozilla.org", "chrome.manifest"), "a") as mfile:
+    with open(os.path.join(options.profilePath, "extensions", "mochikit@mozilla.org", "chrome.manifest"), "a") as mfile:
       mfile.write(chrome)
 
   def copyTestsJarToProfile(self, options):
@@ -840,33 +858,17 @@ overlay chrome://navigator/content/navigator.xul chrome://mochikit/content/brows
         self.automation.log.warning("WARNING | runtests.py | Failed to copy %s to profile", abspath)
         continue
 
-  def installExtensionFromPath(self, options, path, extensionID = None):
-    extensionPath = self.getFullPath(path)
-
-    self.automation.log.info("INFO | runtests.py | Installing extension at %s to %s." %
-                            (extensionPath, options.profilePath))
-    self.automation.installExtension(extensionPath, options.profilePath,
-                                     extensionID)
-
   def installExtensionsToProfile(self, options):
-    "Install special testing extensions, application distributed extensions, and specified on the command line ones to testing profile."
-    extensionDirs = [
-      # Extensions distributed with the test harness.
-      os.path.normpath(os.path.join(self.SCRIPT_DIRECTORY, "extensions")),
-      # Extensions distributed with the application.
-      os.path.join(options.app[ : options.app.rfind(os.sep)], "distribution", "extensions")
-    ]
+    "Install application distributed extensions and specified on the command line ones to testing profile."
+    # Install distributed extensions, if application has any.
+    distExtDir = os.path.join(options.app[ : options.app.rfind(os.sep)], "distribution", "extensions")
+    if os.path.isdir(distExtDir):
+      for f in os.listdir(distExtDir):
+        self.automation.installExtension(os.path.join(distExtDir, f), options.profilePath)
 
-    for extensionDir in extensionDirs:
-      if os.path.isdir(extensionDir):
-        for dirEntry in os.listdir(extensionDir):
-          path = os.path.join(extensionDir, dirEntry)
-          if os.path.isdir(path) or (os.path.isfile(path) and path.endswith(".xpi")):
-            self.installExtensionFromPath(options, path)
-
-    # Install custom extensions passed on the command line.
-    for path in options.extensionsToInstall:
-      self.installExtensionFromPath(options, path)
+    # Install custom extensions.
+    for f in options.extensionsToInstall:
+      self.automation.installExtension(self.getFullPath(f), options.profilePath)
 
 def main():
   automation = Automation()

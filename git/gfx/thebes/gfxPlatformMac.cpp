@@ -41,7 +41,6 @@
 #include "gfxImageSurface.h"
 #include "gfxQuartzSurface.h"
 #include "gfxQuartzImageSurface.h"
-#include "mozilla/gfx/2D.h"
 
 #include "gfxMacPlatformFontList.h"
 #include "gfxMacFont.h"
@@ -59,7 +58,6 @@
 #include <dlfcn.h>
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 
 // cribbed from CTFontManager.h
 enum {
@@ -138,7 +136,7 @@ gfxPlatformMac::CreateOffscreenSurface(const gfxIntSize& size,
     NS_IF_ADDREF(newSurface);
     return newSurface;
 }
-    
+
 already_AddRefed<gfxASurface>
 gfxPlatformMac::OptimizeImage(gfxImageSurface *aSurface,
                               gfxASurface::gfxImageFormat format)
@@ -159,20 +157,6 @@ gfxPlatformMac::OptimizeImage(gfxImageSurface *aSurface,
     return ret.forget();
 }
 
-RefPtr<ScaledFont>
-gfxPlatformMac::GetScaledFontForFont(gfxFont *aFont)
-{
-    gfxMacFont *font = static_cast<gfxMacFont*>(aFont);
-    return font->GetScaledFont();
-}
-
-bool
-gfxPlatformMac::SupportsAzure(BackendType& aBackend)
-{
-  aBackend = BACKEND_SKIA;
-  return true;
-}
-
 nsresult
 gfxPlatformMac::ResolveFontName(const nsAString& aFontName,
                                 FontResolverCallback aCallback,
@@ -181,7 +165,7 @@ gfxPlatformMac::ResolveFontName(const nsAString& aFontName,
     nsAutoString resolvedName;
     if (!gfxPlatformFontList::PlatformFontList()->
              ResolveFontName(aFontName, resolvedName)) {
-        aAborted = false;
+        aAborted = PR_FALSE;
         return NS_OK;
     }
     aAborted = !(*aCallback)(resolvedName, aClosure);
@@ -236,16 +220,16 @@ gfxPlatformMac::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
                         gfxUserFontSet::FLAG_FORMAT_OPENTYPE | 
                         gfxUserFontSet::FLAG_FORMAT_TRUETYPE | 
                         gfxUserFontSet::FLAG_FORMAT_TRUETYPE_AAT)) {
-        return true;
+        return PR_TRUE;
     }
 
     // reject all other formats, known and unknown
     if (aFormatFlags != 0) {
-        return false;
+        return PR_FALSE;
     }
 
     // no format hint set, need to look at data
-    return true;
+    return PR_TRUE;
 }
 
 // these will also move to gfxPlatform once all platforms support the fontlist

@@ -125,7 +125,7 @@ class nsClientAuthRememberEntry : public PLDHashEntryHdr
       return PL_DHashStringKey(nsnull, aKey);
     }
 
-    enum { ALLOW_MEMMOVE = false };
+    enum { ALLOW_MEMMOVE = PR_FALSE };
 
     // get methods
     inline const nsCString &HostWithCert() const { return mHostWithCert; }

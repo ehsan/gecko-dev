@@ -79,7 +79,7 @@ public:
           mQuery(aQuery),
           mInstantiations(aInstantiations),
           mCurrent(nsnull),
-          mCheckedNext(false)
+          mCheckedNext(PR_FALSE)
     { }
 
     ~nsXULTemplateResultSetRDF()

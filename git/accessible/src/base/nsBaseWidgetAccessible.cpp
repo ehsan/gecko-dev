@@ -45,6 +45,7 @@
 #include "nsCoreUtils.h"
 #include "nsHyperTextAccessibleWrap.h"
 
+#include "nsIDOMNSHTMLElement.h"
 #include "nsGUIEvent.h"
 #include "nsILink.h"
 #include "nsIFrame.h"
@@ -94,8 +95,8 @@ nsLinkableAccessible::
   nsLinkableAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
   nsAccessibleWrap(aContent, aShell),
   mActionAcc(nsnull),
-  mIsLink(false),
-  mIsOnclick(false)
+  mIsLink(PR_FALSE),
+  mIsOnclick(PR_FALSE)
 {
 }
 
@@ -185,8 +186,8 @@ nsLinkableAccessible::AccessKey() const
 void
 nsLinkableAccessible::Shutdown()
 {
-  mIsLink = false;
-  mIsOnclick = false;
+  mIsLink = PR_FALSE;
+  mIsOnclick = PR_FALSE;
   mActionAcc = nsnull;
   nsAccessibleWrap::Shutdown();
 }
@@ -219,11 +220,11 @@ nsLinkableAccessible::BindToParent(nsAccessible* aParent,
 
   // Cache action content.
   mActionAcc = nsnull;
-  mIsLink = false;
-  mIsOnclick = false;
+  mIsLink = PR_FALSE;
+  mIsOnclick = PR_FALSE;
 
   if (nsCoreUtils::HasClickListener(mContent)) {
-    mIsOnclick = true;
+    mIsOnclick = PR_TRUE;
     return;
   }
 
@@ -234,14 +235,14 @@ nsLinkableAccessible::BindToParent(nsAccessible* aParent,
   while ((walkUpAcc = walkUpAcc->Parent()) && !walkUpAcc->IsDoc()) {
     if (walkUpAcc->Role() == nsIAccessibleRole::ROLE_LINK &&
         walkUpAcc->State() & states::LINKED) {
-      mIsLink = true;
+      mIsLink = PR_TRUE;
       mActionAcc = walkUpAcc;
       return;
     }
 
     if (nsCoreUtils::HasClickListener(walkUpAcc->GetContent())) {
       mActionAcc = walkUpAcc;
-      mIsOnclick = true;
+      mIsOnclick = PR_TRUE;
       return;
     }
   }

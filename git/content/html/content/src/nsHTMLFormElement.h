@@ -74,7 +74,7 @@ public:
   KeyType GetKey() const { return mStr; }
   bool KeyEquals(const KeyTypePointer aKey) const
   {
-    return mStr.Equals(*aKey, nsCaseInsensitiveStringComparator());
+    return mStr.Equals(*aKey,nsCaseInsensitiveStringComparator());
   }
 
   static KeyTypePointer KeyToPointer(KeyType aKey) { return &aKey; }
@@ -84,7 +84,7 @@ public:
       ToLowerCase(tmKey);
       return HashString(tmKey);
   }
-  enum { ALLOW_MEMMOVE = true };
+  enum { ALLOW_MEMMOVE = PR_TRUE };
 
 private:
   const nsString mStr;

@@ -62,7 +62,7 @@ class nsCanvasFrame : public nsHTMLContainerFrame,
 public:
   nsCanvasFrame(nsStyleContext* aContext)
   : nsHTMLContainerFrame(aContext),
-    mDoPaintFocus(false),
+    mDoPaintFocus(PR_FALSE),
     mAddedScrollPositionListener(false) {}
 
   NS_DECL_QUERYFRAME_TARGET(nsCanvasFrame)
@@ -95,7 +95,7 @@ public:
   }
 
   /** SetHasFocus tells the CanvasFrame to draw with focus ring
-   *  @param aHasFocus true to show focus ring, false to hide it
+   *  @param aHasFocus PR_TRUE to show focus ring, PR_FALSE to hide it
    */
   NS_IMETHOD SetHasFocus(bool aHasFocus);
 
@@ -124,7 +124,7 @@ public:
 
     // nsCanvasFrame keeps overflow container continuations of its child
     // frame in main child list
-    nsresult rv = nsContainerFrame::StealFrame(aPresContext, aChild, true);
+    nsresult rv = nsContainerFrame::StealFrame(aPresContext, aChild, PR_TRUE);
     if (NS_FAILED(rv)) {
       rv = nsContainerFrame::StealFrame(aPresContext, aChild);
     }
@@ -173,7 +173,7 @@ public:
                                    bool* aForceTransparentSurface = nsnull)
   {
     if (aForceTransparentSurface) {
-      *aForceTransparentSurface = false;
+      *aForceTransparentSurface = PR_FALSE;
     }
     if (NS_GET_A(mExtraBackgroundColor) == 255)
       return nsRegion(GetBounds(aBuilder));
@@ -183,12 +183,12 @@ public:
   {
     nscolor background;
     if (!nsDisplayBackground::IsUniform(aBuilder, &background))
-      return false;
+      return PR_FALSE;
     NS_ASSERTION(background == NS_RGBA(0,0,0,0),
                  "The nsDisplayBackground for a canvas frame doesn't paint "
                  "its background color normally");
     *aColor = mExtraBackgroundColor;
-    return true;
+    return PR_TRUE;
   }
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder)
   {

@@ -90,6 +90,23 @@ static const char kCookiesAskPermission[] = "network.cookie.warnAboutCookies";
 
 static const char kPermissionType[] = "cookie";
 
+#ifdef MOZ_MAIL_NEWS
+// returns PR_TRUE if URI appears to be the URI of a mailnews protocol
+// XXXbz this should be a protocol flag, not a scheme list, dammit!
+static bool
+IsFromMailNews(nsIURI *aURI)
+{
+  static const char *kMailNewsProtocols[] =
+      { "imap", "news", "snews", "mailbox", nsnull };
+  bool result;
+  for (const char **p = kMailNewsProtocols; *p; ++p) {
+    if (NS_SUCCEEDED(aURI->SchemeIs(*p, &result)) && result)
+      return PR_TRUE;
+  }
+  return PR_FALSE;
+}
+#endif
+
 NS_IMPL_ISUPPORTS2(nsCookiePermission,
                    nsICookiePermission,
                    nsIObserver)
@@ -108,9 +125,9 @@ nsCookiePermission::Init()
   nsCOMPtr<nsIPrefBranch2> prefBranch =
       do_GetService(NS_PREFSERVICE_CONTRACTID);
   if (prefBranch) {
-    prefBranch->AddObserver(kCookiesLifetimePolicy, this, false);
-    prefBranch->AddObserver(kCookiesLifetimeDays, this, false);
-    prefBranch->AddObserver(kCookiesAlwaysAcceptSession, this, false);
+    prefBranch->AddObserver(kCookiesLifetimePolicy, this, PR_FALSE);
+    prefBranch->AddObserver(kCookiesLifetimeDays, this, PR_FALSE);
+    prefBranch->AddObserver(kCookiesAlwaysAcceptSession, this, PR_FALSE);
     PrefChanged(prefBranch, nsnull);
 
     // migration code for original cookie prefs
@@ -137,7 +154,7 @@ nsCookiePermission::Init()
         else
           prefBranch->SetIntPref(kCookiesLifetimePolicy, ACCEPT_SESSION);
       }
-      prefBranch->SetBoolPref(kCookiesPrefsMigrated, true);
+      prefBranch->SetBoolPref(kCookiesPrefsMigrated, PR_TRUE);
     }
   }
 
@@ -189,22 +206,21 @@ nsCookiePermission::CanAccess(nsIURI         *aURI,
                               nsIChannel     *aChannel,
                               nsCookieAccess *aResult)
 {
-  // Check this protocol doesn't allow cookies
-  bool hasFlags;
-  nsresult rv =
-    NS_URIChainHasFlags(aURI, nsIProtocolHandler::URI_FORBIDS_COOKIE_ACCESS,
-                        &hasFlags);
-  if (NS_FAILED(rv) || hasFlags) {
+#ifdef MOZ_MAIL_NEWS
+  // If this URI is a mailnews one (e.g. imap etc), don't allow cookies for
+  // it.
+  if (IsFromMailNews(aURI)) {
     *aResult = ACCESS_DENY;
     return NS_OK;
   }
+#endif // MOZ_MAIL_NEWS
 
   // Lazily initialize ourselves
   if (!EnsureInitialized())
     return NS_ERROR_UNEXPECTED;
 
   // finally, check with permission manager...
-  rv = mPermMgr->TestPermission(aURI, kPermissionType, (PRUint32 *) aResult);
+  nsresult rv = mPermMgr->TestPermission(aURI, kPermissionType, (PRUint32 *) aResult);
   if (NS_SUCCEEDED(rv)) {
     switch (*aResult) {
     // if we have one of the publicly-available values, just return it
@@ -248,14 +264,14 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
   mPermMgr->TestPermission(aURI, kPermissionType, &perm);
   switch (perm) {
   case nsICookiePermission::ACCESS_SESSION:
-    *aIsSession = true;
+    *aIsSession = PR_TRUE;
 
   case nsIPermissionManager::ALLOW_ACTION: // ACCESS_ALLOW
-    *aResult = true;
+    *aResult = PR_TRUE;
     break;
 
   case nsIPermissionManager::DENY_ACTION:  // ACCESS_DENY
-    *aResult = false;
+    *aResult = PR_FALSE;
     break;
 
   default:
@@ -266,7 +282,7 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
     // now we need to figure out what type of accept policy we're dealing with
     // if we accept cookies normally, just bail and return
     if (mCookiesLifetimePolicy == ACCEPT_NORMALLY) {
-      *aResult = true;
+      *aResult = PR_TRUE;
       return NS_OK;
     }
     
@@ -281,12 +297,12 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
       // accept the cookie and return
       if ((*aIsSession && mCookiesAlwaysAcceptSession) ||
           InPrivateBrowsing()) {
-        *aResult = true;
+        *aResult = PR_TRUE;
         return NS_OK;
       }
       
       // default to rejecting, in case the prompting process fails
-      *aResult = false;
+      *aResult = PR_FALSE;
 
       nsCAutoString hostPort;
       aURI->GetHostPort(hostPort);
@@ -346,7 +362,7 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
       if (!foundCookie && !*aIsSession && delta <= 0) {
         // the cookie has already expired. accept it, and let the backend figure
         // out it's expired, so that we get correct logging & notifications.
-        *aResult = true;
+        *aResult = PR_TRUE;
         return rv;
       }
 
@@ -359,7 +375,7 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
 
       *aResult = !!dialogRes;
       if (dialogRes == nsICookiePromptService::ACCEPT_SESSION_COOKIE)
-        *aIsSession = true;
+        *aIsSession = PR_TRUE;
 
       if (rememberDecision) {
         switch (dialogRes) {
@@ -385,7 +401,7 @@ nsCookiePermission::CanSetCookie(nsIURI     *aURI,
       if (!*aIsSession && delta > 0) {
         if (mCookiesLifetimePolicy == ACCEPT_SESSION) {
           // limit lifetime to session
-          *aIsSession = true;
+          *aIsSession = PR_TRUE;
         } else if (delta > mCookiesLifetimeSec) {
           // limit lifetime to specified time
           *aExpiry = currentTime + mCookiesLifetimeSec;

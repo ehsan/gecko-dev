@@ -322,7 +322,6 @@ private:
   nsIDOMCSSValue* DoGetWordWrap();
   nsIDOMCSSValue* DoGetHyphens();
   nsIDOMCSSValue* DoGetMozTabSize();
-  nsIDOMCSSValue* DoGetTextSizeAdjust();
 
   /* Visibility properties */
   nsIDOMCSSValue* DoGetOpacity();
@@ -432,21 +431,21 @@ private:
                             nsROCSSPrimitiveValue* aValue);
 
   /**
-   * A method to get a percentage base for a percentage value.  Returns true
-   * if a percentage base value was determined, false otherwise.
+   * A method to get a percentage base for a percentage value.  Returns PR_TRUE
+   * if a percentage base value was determined, PR_FALSE otherwise.
    */
   typedef bool (nsComputedDOMStyle::*PercentageBaseGetter)(nscoord&);
 
   /**
    * Method to set aValue to aCoord.  If aCoord is a percentage value and
    * aPercentageBaseGetter is not null, aPercentageBaseGetter is called.  If it
-   * returns true, the percentage base it outputs in its out param is used
-   * to compute an nscoord value.  If the getter is null or returns false,
+   * returns PR_TRUE, the percentage base it outputs in its out param is used
+   * to compute an nscoord value.  If the getter is null or returns PR_FALSE,
    * the percent value of aCoord is set as a percent value on aValue.  aTable,
    * if not null, is the keyword table to handle eStyleUnit_Enumerated.  When
    * calling SetAppUnits on aValue (for coord or percent values), the value
-   * passed in will be clamped to be no less than aMinAppUnits and no more than
-   * aMaxAppUnits.
+   * passed in will be NS_MAX of the value in aMinAppUnits and the NS_MIN of
+   * the actual value in aCoord and the value in aMaxAppUnits.
    *
    * XXXbz should caller pass in some sort of bitfield indicating which units
    * can be expected or something?

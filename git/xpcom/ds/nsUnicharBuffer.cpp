@@ -116,9 +116,9 @@ UnicharBufferImpl::Grow(PRInt32 aNewSize)
     }
     delete[] mBuffer;
     mBuffer = newbuf;
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 nsresult

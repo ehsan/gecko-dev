@@ -144,16 +144,16 @@ static nsPreflightCache* sPreflightCache = nsnull;
 static bool EnsurePreflightCache()
 {
   if (sPreflightCache)
-    return true;
+    return PR_TRUE;
 
   nsAutoPtr<nsPreflightCache> newCache(new nsPreflightCache());
 
   if (newCache->Initialize()) {
     sPreflightCache = newCache.forget();
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 void
@@ -185,7 +185,7 @@ nsPreflightCache::CacheEntry::CheckRequest(const nsCString& aMethod,
         break;
     }
     if (i == mMethods.Length()) {
-      return false;
+      return PR_FALSE;
     }
   }
 
@@ -198,11 +198,11 @@ nsPreflightCache::CacheEntry::CheckRequest(const nsCString& aMethod,
       }
     }
     if (j == mHeaders.Length()) {
-      return false;
+      return PR_FALSE;
     }
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 nsPreflightCache::CacheEntry*
@@ -282,13 +282,13 @@ nsPreflightCache::RemoveEntries(nsIURI* aURI, nsIPrincipal* aPrincipal)
 {
   CacheEntry* entry;
   nsCString key;
-  if (GetCacheKey(aURI, aPrincipal, true, key) &&
+  if (GetCacheKey(aURI, aPrincipal, PR_TRUE, key) &&
       mTable.Get(key, &entry)) {
     PR_REMOVE_LINK(entry);
     mTable.Remove(key);
   }
 
-  if (GetCacheKey(aURI, aPrincipal, false, key) &&
+  if (GetCacheKey(aURI, aPrincipal, PR_FALSE, key) &&
       mTable.Get(key, &entry)) {
     PR_REMOVE_LINK(entry);
     mTable.Remove(key);
@@ -334,7 +334,7 @@ nsPreflightCache::GetCacheKey(nsIURI* aURI,
 
   nsCOMPtr<nsIURI> uri;
   nsresult rv = aPrincipal->GetURI(getter_AddRefs(uri));
-  NS_ENSURE_SUCCESS(rv, false);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
   
   nsCAutoString scheme, host, port;
   if (uri) {
@@ -353,12 +353,12 @@ nsPreflightCache::GetCacheKey(nsIURI* aURI,
 
   nsCAutoString spec;
   rv = aURI->GetSpec(spec);
-  NS_ENSURE_SUCCESS(rv, false);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
   _retval.Assign(cred + space + scheme + space + host + space + port + space +
                  spec);
 
-  return true;
+  return PR_TRUE;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -394,9 +394,9 @@ nsCORSListenerProxy::nsCORSListenerProxy(nsIStreamListener* aOuter,
   : mOuterListener(aOuter),
     mRequestingPrincipal(aRequestingPrincipal),
     mWithCredentials(aWithCredentials && !gDisableCORSPrivateData),
-    mRequestApproved(false),
-    mHasBeenCrossSite(false),
-    mIsPreflight(false)
+    mRequestApproved(PR_FALSE),
+    mHasBeenCrossSite(PR_FALSE),
+    mIsPreflight(PR_FALSE)
 {
   aChannel->GetNotificationCallbacks(getter_AddRefs(mOuterNotificationCallbacks));
   aChannel->SetNotificationCallbacks(this);
@@ -419,9 +419,9 @@ nsCORSListenerProxy::nsCORSListenerProxy(nsIStreamListener* aOuter,
   : mOuterListener(aOuter),
     mRequestingPrincipal(aRequestingPrincipal),
     mWithCredentials(aWithCredentials && !gDisableCORSPrivateData),
-    mRequestApproved(false),
-    mHasBeenCrossSite(false),
-    mIsPreflight(true),
+    mRequestApproved(PR_FALSE),
+    mHasBeenCrossSite(PR_FALSE),
+    mIsPreflight(PR_TRUE),
     mPreflightMethod(aPreflightMethod),
     mPreflightHeaders(aPreflightHeaders)
 {
@@ -471,7 +471,7 @@ bool
 IsValidHTTPToken(const nsCSubstring& aToken)
 {
   if (aToken.IsEmpty()) {
-    return false;
+    return PR_FALSE;
   }
 
   nsCSubstring::const_char_iterator iter, end;
@@ -499,12 +499,12 @@ IsValidHTTPToken(const nsCSubstring& aToken)
         *iter == '=' ||
         *iter == '{' ||
         *iter == '}') {
-      return false;
+      return PR_FALSE;
     }
     ++iter;
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 nsresult
@@ -745,15 +745,15 @@ nsCORSListenerProxy::UpdateChannel(nsIChannel* aChannel)
   }
 
   if (!mHasBeenCrossSite &&
-      NS_SUCCEEDED(mRequestingPrincipal->CheckMayLoad(uri, false)) &&
+      NS_SUCCEEDED(mRequestingPrincipal->CheckMayLoad(uri, PR_FALSE)) &&
       (originalURI == uri ||
        NS_SUCCEEDED(mRequestingPrincipal->CheckMayLoad(originalURI,
-                                                       false)))) {
+                                                       PR_FALSE)))) {
     return NS_OK;
   }
 
   // It's a cross site load
-  mHasBeenCrossSite = true;
+  mHasBeenCrossSite = PR_TRUE;
 
   nsCString userpass;
   uri->GetUserPass(userpass);
@@ -767,14 +767,14 @@ nsCORSListenerProxy::UpdateChannel(nsIChannel* aChannel)
   nsCOMPtr<nsIHttpChannel> http = do_QueryInterface(aChannel);
   NS_ENSURE_TRUE(http, NS_ERROR_FAILURE);
 
-  rv = http->SetRequestHeader(NS_LITERAL_CSTRING("Origin"), origin, false);
+  rv = http->SetRequestHeader(NS_LITERAL_CSTRING("Origin"), origin, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Add preflight headers if this is a preflight request
   if (mIsPreflight) {
     rv = http->
       SetRequestHeader(NS_LITERAL_CSTRING("Access-Control-Request-Method"),
-                       mPreflightMethod, false);
+                       mPreflightMethod, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!mPreflightHeaders.IsEmpty()) {
@@ -787,7 +787,7 @@ nsCORSListenerProxy::UpdateChannel(nsIChannel* aChannel)
       }
       rv = http->
         SetRequestHeader(NS_LITERAL_CSTRING("Access-Control-Request-Headers"),
-                         headers, false);
+                         headers, PR_FALSE);
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
@@ -896,7 +896,7 @@ nsCORSPreflightListener::AddResultToCache(nsIRequest *aRequest)
 
   nsPreflightCache::CacheEntry* entry =
     sPreflightCache->GetEntry(uri, mReferrerPrincipal, mWithCredentials,
-                              true);
+                              PR_TRUE);
   if (!entry) {
     return;
   }
@@ -1054,7 +1054,7 @@ NS_StartCORSPreflight(nsIChannel* aRequestChannel,
 
   nsPreflightCache::CacheEntry* entry =
     sPreflightCache ?
-    sPreflightCache->GetEntry(uri, aPrincipal, aWithCredentials, false) :
+    sPreflightCache->GetEntry(uri, aPrincipal, aWithCredentials, PR_FALSE) :
     nsnull;
 
   if (entry && entry->CheckRequest(method, aUnsafeHeaders)) {

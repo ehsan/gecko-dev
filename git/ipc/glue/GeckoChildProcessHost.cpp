@@ -43,7 +43,7 @@
 #include "base/string_util.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/process_watcher.h"
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
 #include "chrome/common/mach_ipc_mac.h"
 #include "base/rand_util.h"
 #include "nsILocalFileMac.h"
@@ -70,14 +70,14 @@
 #define NS_TASKBAR_CONTRACTID "@mozilla.org/windows-taskbar;1"
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
 #include "APKOpen.h"
 #endif
 
 using mozilla::MonitorAutoLock;
 using mozilla::ipc::GeckoChildProcessHost;
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
 // Like its predecessor in nsExceptionHandler.cpp, this is
 // the magic number of a file descriptor remapping we must
 // preserve for the child process.
@@ -106,7 +106,7 @@ GeckoChildProcessHost::GeckoChildProcessHost(GeckoProcessType aProcessType,
     mChannelInitialized(false),
     mDelegate(aDelegate),
     mChildProcessHandle(0)
-#if defined(MOZ_WIDGET_COCOA)
+#if defined(XP_MACOSX)
   , mChildTask(MACH_PORT_NULL)
 #endif
 {
@@ -132,7 +132,7 @@ GeckoChildProcessHost::~GeckoChildProcessHost()
 #endif
     );
 
-#if defined(MOZ_WIDGET_COCOA)
+#if defined(XP_MACOSX)
   if (mChildTask != MACH_PORT_NULL)
     mach_port_deallocate(mach_task_self(), mChildTask);
 #endif
@@ -155,7 +155,7 @@ void GetPathToBinary(FilePath& exePath)
         nsCString path;
         greDir->GetNativePath(path);
         exePath = FilePath(path.get());
-#ifdef MOZ_WIDGET_COCOA
+#ifdef OS_MACOSX
         // We need to use an App Bundle on OS X so that we can hide
         // the dock icon. See Bug 557225.
         exePath = exePath.AppendASCII(MOZ_CHILD_PROCESS_BUNDLE);
@@ -173,7 +173,7 @@ void GetPathToBinary(FilePath& exePath)
 #endif
 }
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
 class AutoCFTypeObject {
 public:
   AutoCFTypeObject(CFTypeRef object)
@@ -193,7 +193,7 @@ nsresult GeckoChildProcessHost::GetArchitecturesForBinary(const char *path, uint
 {
   *result = 0;
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
   CFURLRef url = ::CFURLCreateFromFileSystemRepresentation(kCFAllocatorDefault,
                                                            (const UInt8*)path,
                                                            strlen(path),
@@ -239,7 +239,7 @@ nsresult GeckoChildProcessHost::GetArchitecturesForBinary(const char *path, uint
 
 uint32 GeckoChildProcessHost::GetSupportedArchitecturesForProcessType(GeckoProcessType type)
 {
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
   if (type == GeckoProcessType_Plugin) {
     // Cache this, it shouldn't ever change.
     static uint32 pluginContainerArchs = 0;
@@ -446,9 +446,9 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
         nsCString path;
         greDir->GetNativePath(path);
 # ifdef OS_LINUX
-#  ifdef MOZ_WIDGET_ANDROID
+#  ifdef ANDROID
         path += "/lib";
-#  endif  // MOZ_WIDGET_ANDROID
+#  endif  // ANDROID
         const char *ld_library_path = PR_GetEnv("LD_LIBRARY_PATH");
         nsCString new_ld_lib_path;
         if (ld_library_path && *ld_library_path) {
@@ -489,7 +489,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
   FilePath exePath;
   GetPathToBinary(exePath);
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
   // The java wrapper unpacks this for us but can't make it executable
   chmod(exePath.value().c_str(), 0700);
   int cacheCount = 0;
@@ -521,7 +521,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
     snprintf(buf, sizeof(buf), "%d%s", kMagicAndroidSystemPropFd, szptr);
     newEnvVars["ANDROID_PROPERTY_WORKSPACE"] = buf;
   }
-#endif  // MOZ_WIDGET_ANDROID
+#endif  // ANDROID
 
   // remap the IPC socket fd to a well-known int, as the OS does for
   // STDOUT_FILENO, for example
@@ -571,12 +571,12 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
     // "false" == crash reporting disabled
     childArgv.push_back("false");
   }
-#  elif defined(MOZ_WIDGET_COCOA)
+#  elif defined(XP_MACOSX)
   childArgv.push_back(CrashReporter::GetChildNotificationPipe());
 #  endif  // OS_LINUX
 #endif
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
   // Add a mach port to the command line so the child can communicate its
   // 'task_t' back to the parent.
   //
@@ -589,7 +589,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
 
   childArgv.push_back(childProcessType);
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
   childArgv.push_back(cacheStr.get());
 #endif
 
@@ -599,7 +599,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
 #endif
                   false, &process, arch);
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
   // Wait for the child process to send us its 'task_t' data.
   const int kTimeoutMs = 10000;
 
@@ -690,7 +690,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
     return false;
   }
   SetHandle(process);
-#if defined(MOZ_WIDGET_COCOA)
+#if defined(XP_MACOSX)
   mChildTask = child_task;
 #endif
 

@@ -447,7 +447,7 @@ int main(int argc, char **argv)
                     relativePath = argv[i+1];
                     i++;
                 }
-                bMakeAbs = true;
+                bMakeAbs = PR_TRUE;
             }
             else if (PL_strcasecmp(argv[i], "-file") == 0)
             {

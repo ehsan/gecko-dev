@@ -118,7 +118,7 @@ nsXULSelectableAccessible::SelectedItems()
         GetAccService()->GetAccessibleInWeakShell(itemNode, mWeakShell);
       if (item)
         selectedItems->AppendElement(static_cast<nsIAccessible*>(item),
-                                     false);
+                                     PR_FALSE);
     }
   }
   else {  // Single select?
@@ -130,7 +130,7 @@ nsXULSelectableAccessible::SelectedItems()
         GetAccService()->GetAccessibleInWeakShell(itemNode, mWeakShell);
       if (item)
         selectedItems->AppendElement(static_cast<nsIAccessible*>(item),
-                                     false);
+                                     PR_FALSE);
     }
   }
 
@@ -356,7 +356,7 @@ nsXULMenuitemAccessible::NativeState()
     bool isCollapsed = false;
     nsAccessible* parent = Parent();
     if (parent && parent->State() & states::INVISIBLE)
-      isCollapsed = true;
+      isCollapsed = PR_TRUE;
 
     if (isSelected) {
       state |= states::SELECTED;
@@ -463,7 +463,11 @@ nsXULMenuitemAccessible::KeyboardShortcut() const
   if (keyElmId.IsEmpty())
     return KeyBinding();
 
-  nsIContent* keyElm = mContent->OwnerDoc()->GetElementById(keyElmId);
+  nsIDocument* document = mContent->GetOwnerDoc();
+  if (!document)
+    return KeyBinding();
+
+  nsIContent* keyElm = document->GetElementById(keyElmId);
   if (!keyElm)
     return KeyBinding();
 
@@ -561,7 +565,7 @@ bool
 nsXULMenuitemAccessible::GetAllowsAnonChildAccessibles()
 {
   // That indicates we don't walk anonymous children for menuitems
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP nsXULMenuitemAccessible::DoAction(PRUint8 index)

@@ -49,36 +49,19 @@
  * of zero, and that bucket counts should be >= 3.
  */
 
-/* Convenience macro for BOOLEAN histograms. */
-#define HISTOGRAM_BOOLEAN(id, message) HISTOGRAM(id, 0, 1, 2, BOOLEAN, message)
-
 /**
  * a11y telemetry
  */
-HISTOGRAM_BOOLEAN(A11Y_INSTANTIATED, "has accessibility support been instantiated")
-HISTOGRAM_BOOLEAN(ISIMPLE_DOM_USAGE, "have the ISimpleDOM* accessibility interfaces been used")
-HISTOGRAM_BOOLEAN(IACCESSIBLE_TABLE_USAGE, "has the IAccessibleTable accessibility interface been used")
+HISTOGRAM(A11Y_INSTANTIATED, 0, 1, 2, BOOLEAN, "has accessibility support been instantiated")
+HISTOGRAM(ISIMPLE_DOM_USAGE, 0, 1, 2, BOOLEAN, "have the ISimpleDOM* accessibility interfaces been used")
+HISTOGRAM(IACCESSIBLE_TABLE_USAGE, 0, 1, 2, BOOLEAN, "has the IAccessibleTable accessibility interface been used")
 
-/**
- * Cycle collector telemetry
- */
 HISTOGRAM(CYCLE_COLLECTOR, 1, 10000, 50, EXPONENTIAL, "Time spent on one cycle collection (ms)")
 HISTOGRAM(CYCLE_COLLECTOR_VISITED_REF_COUNTED, 1, 300000, 50, EXPONENTIAL, "Number of ref counted objects visited by the cycle collector")
 HISTOGRAM(CYCLE_COLLECTOR_VISITED_GCED, 1, 300000, 50, EXPONENTIAL, "Number of JS objects visited by the cycle collector")
 HISTOGRAM(CYCLE_COLLECTOR_COLLECTED, 1, 100000, 50, EXPONENTIAL, "Number of objects collected by the cycle collector")
-
-/**
- * GC telemetry
- */
-HISTOGRAM(GC_REASON, 0, 20, 20, LINEAR, "Reason (enum value) for initiating a GC")
-HISTOGRAM_BOOLEAN(GC_IS_COMPARTMENTAL, "Is it a compartmental GC?")
-HISTOGRAM_BOOLEAN(GC_IS_SHAPE_REGEN, "Is it a shape regenerating GC?")
-HISTOGRAM(GC_MS, 1, 10000, 50, EXPONENTIAL, "Time spent running JS GC (ms)")
-HISTOGRAM(GC_MARK_MS, 1, 10000, 50, EXPONENTIAL, "Time spent running JS GC mark phase (ms)")
-HISTOGRAM(GC_SWEEP_MS, 1, 10000, 50, EXPONENTIAL, "Time spent running JS GC sweep phase (ms)")
-
 HISTOGRAM(TELEMETRY_PING, 1, 3000, 10, EXPONENTIAL, "Time taken to submit telemetry info (ms)")
-HISTOGRAM_BOOLEAN(TELEMETRY_SUCCESS,  "Successful telemetry submission")
+HISTOGRAM(TELEMETRY_SUCCESS, 0, 1, 2, BOOLEAN,  "Successful telemetry submission")
 HISTOGRAM(MEMORY_JS_COMPARTMENTS_SYSTEM, 1, 1000, 50, EXPONENTIAL, "Total JavaScript compartments used for add-ons and internals.")
 HISTOGRAM(MEMORY_JS_COMPARTMENTS_USER, 1, 1000, 50, EXPONENTIAL, "Total JavaScript compartments used for web pages")
 HISTOGRAM(MEMORY_JS_GC_HEAP, 1024, 512 * 1024, 50, EXPONENTIAL, "Memory used by the garbage-collected JavaScript heap (KB)")
@@ -87,9 +70,6 @@ HISTOGRAM(MEMORY_STORAGE_SQLITE, 1024, 512 * 1024, 50, EXPONENTIAL, "Memory used
 HISTOGRAM(MEMORY_IMAGES_CONTENT_USED_UNCOMPRESSED, 1024, 1024 * 1024, 50, EXPONENTIAL, "Memory used for uncompressed, in-use content images (KB)")
 HISTOGRAM(MEMORY_HEAP_ALLOCATED, 1024, 1024 * 1024, 50, EXPONENTIAL, "Heap memory allocated (KB)")
 HISTOGRAM(MEMORY_EXPLICIT, 1024, 1024 * 1024, 50, EXPONENTIAL, "Explicit memory allocations (KB)")
-#if defined(XP_MACOSX)
-HISTOGRAM(MEMORY_FREE_PURGED_PAGES_MS, 1, 1024, 10, EXPONENTIAL, "Time(ms) to purge MADV_FREE'd heap pages.")
-#endif
 #if defined(XP_WIN)
 HISTOGRAM(EARLY_GLUESTARTUP_READ_OPS, 1, 100, 12, LINEAR, "ProcessIoCounters.ReadOperationCount before glue startup")
 HISTOGRAM(EARLY_GLUESTARTUP_READ_TRANSFER, 1, 50 * 1024, 12, EXPONENTIAL, "ProcessIoCounters.ReadTransferCount before glue startup (KB)")
@@ -108,18 +88,14 @@ HISTOGRAM(DWRITEFONT_INITFONTLIST_INIT, 1, 30000, 10, EXPONENTIAL, "gfxDWriteFon
 HISTOGRAM(DWRITEFONT_INITFONTLIST_GDI, 1, 30000, 10, EXPONENTIAL, "gfxDWriteFontList::InitFontList GdiInterop object (ms)")
 HISTOGRAM(DWRITEFONT_DELAYEDINITFONTLIST_TOTAL, 1, 30000, 10, EXPONENTIAL, "gfxDWriteFontList::DelayedInitFontList Total (ms)")
 HISTOGRAM(DWRITEFONT_DELAYEDINITFONTLIST_COUNT, 1, 10000, 10, EXPONENTIAL, "gfxDWriteFontList::DelayedInitFontList Font Family Count")
-HISTOGRAM_BOOLEAN(DWRITEFONT_DELAYEDINITFONTLIST_GDI_TABLE, "gfxDWriteFontList::DelayedInitFontList GDI Table Access")
+HISTOGRAM(DWRITEFONT_DELAYEDINITFONTLIST_GDI_TABLE, 0, 1, 2, BOOLEAN, "gfxDWriteFontList::DelayedInitFontList GDI Table Access")
 HISTOGRAM(DWRITEFONT_DELAYEDINITFONTLIST_COLLECT, 1, 30000, 10, EXPONENTIAL, "gfxDWriteFontList::DelayedInitFontList GetSystemFontCollection (ms)")
 HISTOGRAM(DWRITEFONT_DELAYEDINITFONTLIST_ITERATE, 1, 30000, 10, EXPONENTIAL, "gfxDWriteFontList::DelayedInitFontList iterate over families (ms)")
 HISTOGRAM(GDI_INITFONTLIST_TOTAL, 1, 30000, 10, EXPONENTIAL, "gfxGDIFontList::InitFontList Total (ms)")
 #elif defined(XP_MACOSX)
 HISTOGRAM(MAC_INITFONTLIST_TOTAL, 1, 30000, 10, EXPONENTIAL, "gfxMacPlatformFontList::InitFontList Total (ms)")
 #endif
-
-HISTOGRAM(SYSTEM_FONT_FALLBACK, 1, 100000, 50, EXPONENTIAL, "System font fallback (us)")
-HISTOGRAM(SYSTEM_FONT_FALLBACK_FIRST, 1, 40000, 20, EXPONENTIAL, "System font fallback, first call (ms)")
-
-HISTOGRAM_BOOLEAN(SHUTDOWN_OK, "Did the browser start after a successful shutdown")
+HISTOGRAM(SHUTDOWN_OK, 0, 1, 2, BOOLEAN, "Did the browser start after a successful shutdown")
 
 HISTOGRAM(IMAGE_DECODE_LATENCY, 50,  5000000, 100, EXPONENTIAL, "Time spent decoding an image chunk (us)")
 HISTOGRAM(IMAGE_DECODE_TIME,    50, 50000000, 100, EXPONENTIAL, "Time spent decoding an image (us)")
@@ -130,8 +106,8 @@ HISTOGRAM(IMAGE_DECODE_SPEED_JPEG, 500, 50000000,  50, EXPONENTIAL, "JPEG image 
 HISTOGRAM(IMAGE_DECODE_SPEED_GIF,  500, 50000000,  50, EXPONENTIAL, "GIF image decode speed (Kbytes/sec)")
 HISTOGRAM(IMAGE_DECODE_SPEED_PNG,  500, 50000000,  50, EXPONENTIAL, "PNG image decode speed (Kbytes/sec)")
 
-HISTOGRAM_BOOLEAN(CANVAS_2D_USED, "2D canvas used")
-HISTOGRAM_BOOLEAN(CANVAS_WEBGL_USED, "WebGL canvas used")
+HISTOGRAM(CANVAS_2D_USED, 0, 1, 2, BOOLEAN, "2D canvas used")
+HISTOGRAM(CANVAS_WEBGL_USED, 0, 1, 2, BOOLEAN, "WebGL canvas used")
 
 /**
  * Networking telemetry
@@ -162,24 +138,6 @@ HISTOGRAM(HTTP_REQUEST_PER_PAGE_FROM_CACHE, 1, 101, 102, LINEAR, "HTTP: Requests
 HTTP_HISTOGRAMS(PAGE, "page: ")
 HTTP_HISTOGRAMS(SUB, "subitem: ")
 
-HISTOGRAM(SPDY_PARALLEL_STREAMS, 1, 1000, 50, EXPONENTIAL, "SPDY: Streams concurrent active per connection")
-HISTOGRAM(SPDY_TOTAL_STREAMS, 1, 100000, 50, EXPONENTIAL,  "SPDY: Streams created per connection")
-HISTOGRAM(SPDY_SERVER_INITIATED_STREAMS, 1, 100000, 250, EXPONENTIAL,  "SPDY: Streams recevied per connection")
-HISTOGRAM(SPDY_CHUNK_RECVD, 1, 1000, 100, EXPONENTIAL,  "SPDY: Recvd Chunk Size (rounded to KB)")
-HISTOGRAM(SPDY_SYN_SIZE, 20, 20000, 50, EXPONENTIAL,  "SPDY: SYN Frame Header Size")
-HISTOGRAM(SPDY_SYN_RATIO, 1, 99, 20, LINEAR,  "SPDY: SYN Frame Header Ratio (lower better)")
-HISTOGRAM(SPDY_SYN_REPLY_SIZE, 16, 20000, 50, EXPONENTIAL,  "SPDY: SYN Reply Header Size")
-HISTOGRAM(SPDY_SYN_REPLY_RATIO, 1, 99, 20, LINEAR,  "SPDY: SYN Reply Header Ratio (lower better)")
-HISTOGRAM(SPDY_NPN_CONNECT, 0, 1, 2, BOOLEAN,  "SPDY: NPN Negotiated")
-
-HISTOGRAM(SPDY_SETTINGS_UL_BW, 1, 10000, 100, EXPONENTIAL,  "SPDY: Settings Upload Bandwidth")
-HISTOGRAM(SPDY_SETTINGS_DL_BW, 1, 10000, 100, EXPONENTIAL,  "SPDY: Settings Download Bandwidth")
-HISTOGRAM(SPDY_SETTINGS_RTT, 1, 1000, 100, EXPONENTIAL,  "SPDY: Settings RTT")
-HISTOGRAM(SPDY_SETTINGS_MAX_STREAMS, 1, 5000, 100, EXPONENTIAL,  "SPDY: Settings Max Streams parameter")
-HISTOGRAM(SPDY_SETTINGS_CWND, 1, 500, 50, EXPONENTIAL,  "SPDY: Settings CWND (packets)")
-HISTOGRAM(SPDY_SETTINGS_RETRANS, 1, 100, 50, EXPONENTIAL,  "SPDY: Retransmission Rate")
-HISTOGRAM(SPDY_SETTINGS_IW, 1, 1000, 50, EXPONENTIAL,  "SPDY: Settings IW (rounded to KB)")
-
 #undef _HTTP_HIST
 #undef HTTP_HISTOGRAMS
 
@@ -187,11 +145,6 @@ HISTOGRAM(HTTP_CACHE_DISPOSITION, 1, 5, 5, LINEAR, "HTTP Cache Hit, Reval, Faile
 HISTOGRAM(HTTP_DISK_CACHE_DISPOSITION, 1, 5, 5, LINEAR, "HTTP Disk Cache Hit, Reval, Failed-Reval, Miss")
 HISTOGRAM(HTTP_MEMORY_CACHE_DISPOSITION, 1, 5, 5, LINEAR, "HTTP Memory Cache Hit, Reval, Failed-Reval, Miss")
 HISTOGRAM(HTTP_OFFLINE_CACHE_DISPOSITION, 1, 5, 5, LINEAR, "HTTP Offline Cache Hit, Reval, Failed-Reval, Miss")
-HISTOGRAM(CACHE_DEVICE_SEARCH, 1, 100, 100, LINEAR, "Time to search cache (ms)")
-HISTOGRAM(CACHE_MEMORY_SEARCH, 1, 100, 100, LINEAR, "Time to search memory cache (ms)")
-HISTOGRAM(CACHE_DISK_SEARCH, 1, 100, 100, LINEAR, "Time to search disk cache (ms)")
-HISTOGRAM(CACHE_OFFLINE_SEARCH, 1, 100, 100, LINEAR, "Time to search offline cache (ms)")
-HISTOGRAM(HTTP_DISK_CACHE_OVERHEAD, 1, 32000000, 100, EXPONENTIAL, "HTTP Disk cache memory overhead (bytes)")
 
 HISTOGRAM(FIND_PLUGINS, 1, 3000, 10, EXPONENTIAL, "Time spent scanning filesystem for plugins (ms)")
 HISTOGRAM(CHECK_JAVA_ENABLED, 1, 3000, 10, EXPONENTIAL, "Time spent checking if Java is enabled (ms)")
@@ -209,8 +162,7 @@ HISTOGRAM(CHECK_JAVA_ENABLED, 1, 3000, 10, EXPONENTIAL, "Time spent checking if 
   SQLITE_TIME_SPENT(OTHER_ ## NAME, DESC) \
   SQLITE_TIME_SPENT(PLACES_ ## NAME, DESC) \
   SQLITE_TIME_SPENT(COOKIES_ ## NAME, DESC) \
-  SQLITE_TIME_SPENT(URLCLASSIFIER_ ## NAME, DESC) \
-  SQLITE_TIME_SPENT(WEBAPPS_ ## NAME, DESC)
+  SQLITE_TIME_SPENT(URLCLASSIFIER_ ## NAME, DESC)
 
 SQLITE_TIME_SPENT(OPEN, "Time spent on SQLite open() (ms)")
 SQLITE_TIME_SPENT(TRUNCATE, "Time spent on SQLite truncate() (ms)")
@@ -223,21 +175,14 @@ HISTOGRAM(MOZ_SQLITE_OTHER_READ_B, 1, 32768, 3, LINEAR, "SQLite read() (bytes)")
 HISTOGRAM(MOZ_SQLITE_PLACES_READ_B, 1, 32768, 3, LINEAR, "SQLite read() (bytes)")
 HISTOGRAM(MOZ_SQLITE_COOKIES_READ_B, 1, 32768, 3, LINEAR, "SQLite read() (bytes)")
 HISTOGRAM(MOZ_SQLITE_URLCLASSIFIER_READ_B, 1, 32768, 3, LINEAR, "SQLite read() (bytes)")
-HISTOGRAM(MOZ_SQLITE_WEBAPPS_READ_B, 1, 32768, 3, LINEAR, "SQLite read() (bytes)")
 HISTOGRAM(MOZ_SQLITE_PLACES_WRITE_B, 1, 32768, 3, LINEAR, "SQLite write (bytes)")
 HISTOGRAM(MOZ_SQLITE_COOKIES_WRITE_B, 1, 32768, 3, LINEAR, "SQLite write (bytes)")
 HISTOGRAM(MOZ_SQLITE_URLCLASSIFIER_WRITE_B, 1, 32768, 3, LINEAR, "SQLite write (bytes)")
-HISTOGRAM(MOZ_SQLITE_WEBAPPS_WRITE_B, 1, 32768, 3, LINEAR, "SQLite write (bytes)")
 HISTOGRAM(MOZ_SQLITE_OTHER_WRITE_B, 1, 32768, 3, LINEAR, "SQLite write (bytes)")
-HISTOGRAM(MOZ_STORAGE_ASYNC_REQUESTS_MS, 1, 32768, 20, EXPONENTIAL, "mozStorage async requests completion (ms)")
-HISTOGRAM_BOOLEAN(MOZ_STORAGE_ASYNC_REQUESTS_SUCCESS, "mozStorage async requests success")
-HISTOGRAM(STARTUP_MEASUREMENT_ERRORS, 1, mozilla::StartupTimeline::MAX_EVENT_ID, mozilla::StartupTimeline::MAX_EVENT_ID + 1, LINEAR, "Flags errors in startup calculation()")
+HISTOGRAM(STARTUP_MEASUREMENT_ERRORS, 1, 4, 5, LINEAR, "Flags errors in startup calculation()")
 HISTOGRAM(NETWORK_DISK_CACHE_OPEN, 1, 10000, 10, EXPONENTIAL, "Time spent opening disk cache (ms)")
 HISTOGRAM(NETWORK_DISK_CACHE_TRASHRENAME, 1, 10000, 10, EXPONENTIAL, "Time spent renaming bad Cache to Cache.Trash (ms)")
 HISTOGRAM(NETWORK_DISK_CACHE_DELETEDIR, 1, 10000, 10, EXPONENTIAL, "Time spent deleting disk cache (ms)")
-HISTOGRAM(NETWORK_DISK_CACHE_DELETEDIR_SHUTDOWN, 1, 10000, 10, EXPONENTIAL, "Time spent during showdown stopping thread deleting old disk cache (ms)")
-HISTOGRAM(NETWORK_DISK_CACHE_SHUTDOWN, 1, 10000, 10, EXPONENTIAL, "Total Time spent (ms) during disk cache showdown")
-HISTOGRAM(NETWORK_DISK_CACHE_SHUTDOWN_CLEAR_PRIVATE, 1, 10000, 10, EXPONENTIAL, "Time spent (ms) during showdown deleting disk cache for 'clear private data' option")
 
 /**
  * Url-Classifier telemetry
@@ -274,35 +219,3 @@ HISTOGRAM(THUNDERBIRD_GLODA_SIZE_MB, 1, 1000, 40, LINEAR, "Gloda: size of global
 HISTOGRAM(THUNDERBIRD_CONVERSATIONS_TIME_TO_2ND_GLODA_QUERY_MS, 1, 10000, 30, EXPONENTIAL, "Conversations: time between the moment we click and the second gloda query returns (ms)")
 HISTOGRAM(THUNDERBIRD_INDEXING_RATE_MSG_PER_S, 1, 100, 20, LINEAR, "Gloda: indexing rate (message/s)")
 #endif
-
-/**
- * Firefox-specific telemetry.
- */
-#ifdef MOZ_PHOENIX
-HISTOGRAM(FX_CONTEXT_SEARCH_AND_TAB_SELECT, 0, 1, 2, BOOLEAN, "Firefox: Background tab was selected within 5 seconds of searching from the context menu")
-#endif
-
-HISTOGRAM_BOOLEAN(INNERWINDOWS_WITH_MUTATION_LISTENERS, "Deleted or to-be-reused innerwindow which has had mutation event listeners.")
-HISTOGRAM(XUL_REFLOW_MS, 1, 3000, 10, EXPONENTIAL, "xul reflows")
-HISTOGRAM(XUL_INITIAL_FRAME_CONSTRUCTION, 1, 3000, 10, EXPONENTIAL, "initial xul frame construction")
-HISTOGRAM_BOOLEAN(XMLHTTPREQUEST_ASYNC_OR_SYNC, "Type of XMLHttpRequest, async or sync")
-
-/**
- * DOM Storage telemetry.
- */
-#define DOMSTORAGE_HISTOGRAM(PREFIX, TYPE, TYPESTRING, DESCRIPTION) \
-  HISTOGRAM(PREFIX ## DOMSTORAGE_ ## TYPE ## _SIZE_BYTES, \
-            1024, 32768, 10, EXPONENTIAL, "DOM storage: size of " TYPESTRING "s stored in " DESCRIPTION "Storage")
-#define DOMSTORAGE_KEY_VAL_SIZE(PREFIX, DESCRIPTION) \
-  DOMSTORAGE_HISTOGRAM(PREFIX, KEY, "key", DESCRIPTION) \
-  DOMSTORAGE_HISTOGRAM(PREFIX, VALUE, "value", DESCRIPTION)
-
-DOMSTORAGE_KEY_VAL_SIZE(GLOBAL, "global")
-DOMSTORAGE_KEY_VAL_SIZE(LOCAL, "local")
-DOMSTORAGE_KEY_VAL_SIZE(SESSION, "session")
-
-#undef DOMSTORAGE_KEY_VAL_SIZE
-#undef DOMSTORAGE_HISTOGRAM
-
-
-#undef HISTOGRAM_BOOLEAN

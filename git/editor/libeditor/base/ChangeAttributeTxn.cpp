@@ -72,7 +72,7 @@ NS_IMETHODIMP ChangeAttributeTxn::Init(nsIEditor      *aEditor,
   mAttribute = aAttribute;
   mValue = aValue;
   mRemoveAttribute = aRemoveAttribute;
-  mAttributeWasSet=false;
+  mAttributeWasSet=PR_FALSE;
   mUndoValue.Truncate();
   return NS_OK;
 }
@@ -86,7 +86,7 @@ NS_IMETHODIMP ChangeAttributeTxn::DoTransaction(void)
   nsresult result = mEditor->GetAttributeValue(mElement, mAttribute, mUndoValue, &mAttributeWasSet);
   // XXX: hack until attribute-was-set code is implemented
   if (!mUndoValue.IsEmpty())
-    mAttributeWasSet = true;
+    mAttributeWasSet = PR_TRUE;
   // XXX: end hack
   
   // now set the attribute to the new value

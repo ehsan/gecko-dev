@@ -101,7 +101,7 @@ typedef void (* nsAsyncCopyCallbackFun)(void *closure, nsresult status);
  *
  * Source and sink are closed by default when copying finishes or when error
  * occurs. Caller can prevent closing source or sink by setting aCloseSource
- * or aCloseSink to false.
+ * or aCloseSink to PR_FALSE.
  *
  * Caller can obtain aCopierCtx to be able to cancel copying.
  */

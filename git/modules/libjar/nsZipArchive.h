@@ -221,12 +221,6 @@ public:
    */
   const PRUint8* GetData(nsZipItem* aItem);
 
-  /**
-   * Gets the amount of memory taken up by the archive's mapping.
-   * @return the size
-   */
-  PRInt64 SizeOfMapping();
-
 private:
   //--- private members ---
 
@@ -387,8 +381,6 @@ public:
 
   NS_METHOD_(nsrefcnt) AddRef(void);
   NS_METHOD_(nsrefcnt) Release(void);
-
-  PRInt64 SizeOfMapping();
 
 protected:
   const PRUint8 * mFileData; /* pointer to mmaped file */

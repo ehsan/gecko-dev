@@ -77,9 +77,8 @@ Omnijar::InitOne(nsIFile *aPath, Type aType)
     } else {
         nsCOMPtr<nsIFile> dir;
         nsDirectoryService::gService->Get(SPROP(aType), NS_GET_IID(nsIFile), getter_AddRefs(dir));
-        NS_NAMED_LITERAL_CSTRING (kOmnijarName, NS_STRINGIFY(OMNIJAR_NAME));
         if (NS_FAILED(dir->Clone(getter_AddRefs(file))) ||
-            NS_FAILED(file->AppendNative(kOmnijarName)))
+            NS_FAILED(file->AppendNative(NS_LITERAL_CSTRING("omni.jar"))))
             return;
     }
     bool isFile;
@@ -92,7 +91,7 @@ Omnijar::InitOne(nsIFile *aPath, Type aType)
             nsDirectoryService::gService->Get(SPROP(GRE), NS_GET_IID(nsIFile), getter_AddRefs(greDir));
             nsDirectoryService::gService->Get(SPROP(APP), NS_GET_IID(nsIFile), getter_AddRefs(appDir));
             if (NS_SUCCEEDED(greDir->Equals(appDir, &equals)) && equals)
-                sIsUnified = true;
+                sIsUnified = PR_TRUE;
         }
         return;
     }
@@ -102,7 +101,7 @@ Omnijar::InitOne(nsIFile *aPath, Type aType)
         NS_SUCCEEDED(sPath[GRE]->Equals(file, &equals)) && equals) {
         // If we're using omni.jar on both GRE and APP and their path
         // is the same, we're in the unified case.
-        sIsUnified = true;
+        sIsUnified = PR_TRUE;
         return;
     }
 
@@ -126,7 +125,7 @@ Omnijar::Init(nsIFile *aGrePath, nsIFile *aAppPath)
 {
     InitOne(aGrePath, GRE);
     InitOne(aAppPath, APP);
-    sInitialized = true;
+    sInitialized = PR_TRUE;
 }
 
 void
@@ -134,7 +133,7 @@ Omnijar::CleanUp()
 {
     CleanUpOne(GRE);
     CleanUpOne(APP);
-    sInitialized = false;
+    sInitialized = PR_FALSE;
 }
 
 nsZipArchive *

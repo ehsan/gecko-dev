@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "ManifestParser.h"
 
 #include <string.h>
@@ -52,7 +50,7 @@
 #include <gtk/gtk.h>
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
 #include "AndroidBridge.h"
 #endif
 
@@ -67,8 +65,6 @@
 #include "nsIScriptError.h"
 #include "nsIXULAppInfo.h"
 #include "nsIXULRuntime.h"
-
-using namespace mozilla;
 
 struct ManifestDirective
 {
@@ -502,7 +498,7 @@ ParseManifestCommon(NSLocationType aType, nsILocalFile* aFile,
   nsTextFormatter::ssprintf(osVersion, NS_LITERAL_STRING("%ld.%ld").get(),
                                        gtk_major_version,
                                        gtk_minor_version);
-#elif defined(MOZ_WIDGET_ANDROID)
+#elif defined(ANDROID)
   if (mozilla::AndroidBridge::Bridge()) {
     mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build$VERSION", "RELEASE", osVersion);
   }
@@ -544,7 +540,7 @@ ParseManifestCommon(NSLocationType aType, nsILocalFile* aFile,
 
     const ManifestDirective* directive = NULL;
     for (const ManifestDirective* d = kParsingTable;
-	 d < ArrayEnd(kParsingTable);
+	 d < kParsingTable + NS_ARRAY_LENGTH(kParsingTable);
 	 ++d) {
       if (!strcmp(d->directive, token)) {
 	directive = d;

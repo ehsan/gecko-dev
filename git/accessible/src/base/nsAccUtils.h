@@ -146,7 +146,7 @@ public:
    * property is not present, or is "" or "undefined". Do not call 
    * this method for properties of type string, decimal, IDREF or IDREFS.
    * 
-   * Return true if the ARIA property is defined, otherwise false
+   * Return PR_TRUE if the ARIA property is defined, otherwise PR_FALSE
    */
   static bool HasDefinedARIAToken(nsIContent *aContent, nsIAtom *aAtom);
 

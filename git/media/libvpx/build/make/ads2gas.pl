@@ -21,14 +21,8 @@ print "@ This file was created from a .asm file\n";
 print "@  using the ads2gas.pl script.\n";
 print "\t.equ DO1STROUNDING, 0\n";
 
-# Stack of procedure names.
-@proc_stack = ();
-
 while (<STDIN>)
 {
-    # Load and store alignment
-    s/@/,:/g;
-
     # Comment character
     s/;/@/g;
 
@@ -123,8 +117,8 @@ while (<STDIN>)
     # put the colon at the end of the line in the macro
     s/^([a-zA-Z_0-9\$]+)/$1:/ if !/EQU/;
 
-    # ALIGN directive
-    s/ALIGN/.balign/g;
+    # Strip ALIGN
+    s/\sALIGN/@ ALIGN/g;
 
     # Strip ARM
     s/\sARM/@ ARM/g;
@@ -136,23 +130,9 @@ while (<STDIN>)
     # Strip PRESERVE8
     s/\sPRESERVE8/@ PRESERVE8/g;
 
-    # Use PROC and ENDP to give the symbols a .size directive.
-    # This makes them show up properly in debugging tools like gdb and valgrind.
-    if (/\bPROC\b/)
-    {
-        my $proc;
-        /^_([\.0-9A-Z_a-z]\w+)\b/;
-        $proc = $1;
-        push(@proc_stack, $proc) if ($proc);
-        s/\bPROC\b/@ $&/;
-    }
-    if (/\bENDP\b/)
-    {
-        my $proc;
-        s/\bENDP\b/@ $&/;
-        $proc = pop(@proc_stack);
-        $_ = "\t.size $proc, .-$proc".$_ if ($proc);
-    }
+    # Strip PROC and ENDPROC
+    s/\sPROC/@/g;
+    s/\sENDP/@/g;
 
     # EQU directive
     s/(.*)EQU(.*)/.equ $1, $2/;
@@ -171,6 +151,3 @@ while (<STDIN>)
     next if /^\s*END\s*$/;
     print;
 }
-
-# Mark that this object doesn't need an executable stack.
-printf ("\t.section\t.note.GNU-stack,\"\",\%\%progbits\n");

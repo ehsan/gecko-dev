@@ -123,7 +123,7 @@ nsMIMEHeaderParamImpl::DoGetParameter(const nsACString& aHeaderVal,
     // if necessary.
     
     nsCAutoString str1;
-    rv = DecodeParameter(med, charset.get(), nsnull, false, str1);
+    rv = DecodeParameter(med, charset.get(), nsnull, PR_FALSE, str1);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!aFallbackCharset.IsEmpty())
@@ -133,7 +133,7 @@ nsMIMEHeaderParamImpl::DoGetParameter(const nsACString& aHeaderVal,
           cvtUTF8(do_GetService(NS_UTF8CONVERTERSERVICE_CONTRACTID));
         if (cvtUTF8 &&
             NS_SUCCEEDED(cvtUTF8->ConvertStringToUTF8(str1, 
-                PromiseFlatCString(aFallbackCharset).get(), false, str2))) {
+                PromiseFlatCString(aFallbackCharset).get(), PR_FALSE, str2))) {
           CopyUTF8toUTF16(str2, aResult);
           return NS_OK;
         }
@@ -278,7 +278,7 @@ nsMIMEHeaderParamImpl::DoParameterInternal(const char *aHeaderValue,
     while (nsCRT::IsAsciiSpace(*str)) ++str;
     if (*str == '=') {
       ++str;
-      seenEquals = true;
+      seenEquals = PR_TRUE;
     }
     while (nsCRT::IsAsciiSpace(*str)) ++str;
 
@@ -297,7 +297,7 @@ nsMIMEHeaderParamImpl::DoParameterInternal(const char *aHeaderValue,
     else
     {
       // The value is a quoted string.
-      needUnquote = true;
+      needUnquote = PR_TRUE;
       
       ++str;
       valueStart = str;
@@ -354,7 +354,7 @@ nsMIMEHeaderParamImpl::DoParameterInternal(const char *aHeaderValue,
  
       // CaseB and start of CaseC: requires charset and optional language
       // in quotes (quotes required even if lang is blank)
-      if (caseB || (caseCorDStart && acceptContinuations))
+      if (!needUnquote && (caseB || (caseCorDStart && acceptContinuations)))
       {
         if (caseCorDStart) {
           if (nextContinuation++ != 0)
@@ -512,7 +512,7 @@ nsMIMEHeaderParamImpl::DecodeRFC2047Header(const char* aHeaderVal,
              (PL_strchr(aHeaderVal, '\n') || PL_strchr(aHeaderVal, '\r'))) {
     aResult = aHeaderVal;
   } else {
-    aEatContinuations = false;
+    aEatContinuations = PR_FALSE;
     aResult = aHeaderVal;
   }
 
@@ -572,7 +572,7 @@ nsMIMEHeaderParamImpl::DecodeParameter(const nsACString& aParamValue,
 
   // Try RFC 2047 encoding, instead.
   nsresult rv = DecodeRFC2047Header(unQuoted.get(), aDefaultCharset, 
-                                    aOverrideCharset, true, decoded);
+                                    aOverrideCharset, PR_TRUE, decoded);
   
   if (NS_SUCCEEDED(rv) && !decoded.IsEmpty())
     aResult = decoded;
@@ -651,8 +651,8 @@ bool Is7bitNonAsciiString(const char *input, PRUint32 len)
   while (len) {
     c = PRUint8(*input++);
     len--;
-    if (c & 0x80) return false;
-    if (c == 0x1B) return true;
+    if (c & 0x80) return PR_FALSE;
+    if (c == 0x1B) return PR_TRUE;
     if (c == '~') {
       switch (hz_state) {
       case hz_initial:

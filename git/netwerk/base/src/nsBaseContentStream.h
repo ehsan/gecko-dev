@@ -94,7 +94,7 @@ public:
   void DispatchCallback(bool async = true);
 
   // Helper function to make code more self-documenting.
-  void DispatchCallbackSync() { DispatchCallback(false); }
+  void DispatchCallbackSync() { DispatchCallback(PR_FALSE); }
 
 protected:
   virtual ~nsBaseContentStream() {}

@@ -38,11 +38,11 @@ function runTests()
 
   let contentMenu = gScratchpadWindow.document.getElementById("sp-menu-content");
   let browserMenu = gScratchpadWindow.document.getElementById("sp-menu-browser");
-  let notificationBox = sp.notificationBox;
+  let statusbar = sp.statusbarStatus;
 
   ok(contentMenu, "found #sp-menu-content");
   ok(browserMenu, "found #sp-menu-browser");
-  ok(notificationBox, "found Scratchpad.notificationBox");
+  ok(statusbar, "found Scratchpad.statusbarStatus");
 
   sp.setContentContext();
 
@@ -55,8 +55,8 @@ function runTests()
   ok(!browserMenu.hasAttribute("checked"),
      "chrome menuitem is not checked");
 
-  is(notificationBox.currentNotification, null,
-     "there is no notification currently shown for content context");
+  is(statusbar.getAttribute("label"), contentMenu.getAttribute("label"),
+     "statusbar label is correct");
 
   sp.setText("window.foosbug653108 = 'aloha';");
 
@@ -97,10 +97,14 @@ function runTests3() {
   // Check that the sandbox is not cached.
 
   sp.setText("typeof foosbug653108;");
-  is(sp.run()[2], "undefined", "global variable does not exist");
+  is(sp.run()[1], "undefined", "global variable does not exist");
 
+  gScratchpadWindow.close();
+  gScratchpadWindow = null;
   tab1 = null;
   tab2 = null;
   sp = null;
+  gBrowser.removeCurrentTab();
+  gBrowser.removeCurrentTab();
   finish();
 }

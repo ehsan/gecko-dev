@@ -147,7 +147,7 @@ for makefile in makefiles:
             for k, v in data.iteritems():
                 d['env'][k] = v
         elif key == 'grep-for':
-            d['grepfor'] = data
+            grepfor = data
         elif key == 'fail':
             d['pass'] = False
         elif key == 'skip':

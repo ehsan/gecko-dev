@@ -40,6 +40,10 @@ srcdir		= @srcdir@
 VPATH		= @srcdir@
 relativesrcdir  = browser/base/content/test
 
+DIRS += \
+		tabview \
+		$(NULL)
+
 include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
 
@@ -48,6 +52,8 @@ _TEST_FILES = \
 		feed_discovery.html \
 		test_bug395533.html \
 		bug395533-data.txt \
+		test_contextmenu.html \
+		subtst_contextmenu.html \
 		ctxmenu-image.png \
 		video.ogg \
 		test_offlineNotification.html \
@@ -69,14 +75,6 @@ _TEST_FILES = \
 		gZipOfflineChild.cacheManifest \
 		gZipOfflineChild.cacheManifest^headers^ \
 		$(NULL)
-
-# test_contextmenu.html is disabled on Linux due to bug 513558
-ifneq (gtk2,$(MOZ_WIDGET_TOOLKIT))
-_TEST_FILES += \
-		test_contextmenu.html \
-		subtst_contextmenu.html \
-		$(NULL)
-endif
 
 # The following tests are disabled because they are unreliable:
 #   browser_bug423833.js is bug 428712
@@ -212,7 +210,6 @@ _BROWSER_FILES = \
                  browser_tabs_isActive.js \
                  browser_tabs_owner.js \
                  browser_urlbarCopying.js \
-                 browser_urlbarEnter.js \
                  browser_urlbarTrimURLs.js \
                  browser_urlHighlight.js \
                  browser_visibleFindSelection.js \
@@ -252,8 +249,6 @@ _BROWSER_FILES = \
                  test_wyciwyg_copying.html \
                  authenticate.sjs \
                  browser_minimize.js \
-								 browser_aboutSyncProgress.js \
-                 browser_middleMouse_inherit.js \
                  $(NULL)
 
 ifneq (cocoa,$(MOZ_WIDGET_TOOLKIT))

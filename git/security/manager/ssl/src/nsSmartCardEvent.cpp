@@ -83,7 +83,7 @@ NS_IMETHODIMP nsSmartCardEvent::Init(nsIDOMEvent * aInner)
   if (NS_FAILED(rv)) {
     return rv;
   }
-  return mPrivate->SetTrusted(true);
+  return mPrivate->SetTrusted(PR_TRUE);
 }
 
 // nsSmartCard Specific methods
@@ -230,12 +230,6 @@ NS_IMETHODIMP nsSmartCardEvent::StopPropagation()
 {
   NS_ASSERTION(mInner, "SmartCardEvent called without Init");
   return mInner->StopPropagation();
-}
-
-NS_IMETHODIMP nsSmartCardEvent::StopImmediatePropagation()
-{
-  NS_ASSERTION(mInner, "SmartCardEvent called without Init");
-  return mInner->StopImmediatePropagation();
 }
 
 NS_IMETHODIMP nsSmartCardEvent::PreventDefault()

@@ -137,7 +137,7 @@ AtomTableMatchKey(PLDHashTable *table, const PLDHashEntryHdr *entry,
 
   PRUint32 length = he->mAtom->GetLength();
   if (length != k->mLength) {
-    return false;
+    return PR_FALSE;
   }
 
   return memcmp(he->mAtom->GetUTF16String(),
@@ -168,7 +168,7 @@ AtomTableInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
 {
   static_cast<AtomTableEntry*>(entry)->mAtom = nsnull;
 
-  return true;
+  return PR_TRUE;
 }
 
 
@@ -316,13 +316,13 @@ NS_IMETHODIMP_(nsrefcnt) PermanentAtomImpl::Release()
 /* virtual */ bool
 AtomImpl::IsPermanent()
 {
-  return false;
+  return PR_FALSE;
 }
 
 /* virtual */ bool
 PermanentAtomImpl::IsPermanent()
 {
-  return true;
+  return PR_TRUE;
 }
 
 void* PermanentAtomImpl::operator new ( size_t size, AtomImpl* aAtom ) CPP_THROW_NEW {
@@ -589,5 +589,5 @@ NS_GetStaticAtom(const nsAString& aUTF16String)
 void
 NS_SealStaticAtomTable()
 {
-  gStaticAtomTableSealed = true;
+  gStaticAtomTableSealed = PR_TRUE;
 }

@@ -62,7 +62,7 @@ public:
     bool isStripSpaceAllowed(const txXPathNode& aNode)
     {
         NS_NOTREACHED("shouldn't depend on this context");
-        return false;
+        return PR_FALSE;
     }
     void* getPrivateContext()
     {

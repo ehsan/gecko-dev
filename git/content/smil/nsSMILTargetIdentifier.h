@@ -59,7 +59,7 @@ struct nsSMILTargetIdentifier
 {
   nsSMILTargetIdentifier()
     : mElement(nsnull), mAttributeName(nsnull),
-      mAttributeNamespaceID(kNameSpaceID_Unknown), mIsCSS(false) {}
+      mAttributeNamespaceID(kNameSpaceID_Unknown), mIsCSS(PR_FALSE) {}
 
   inline bool Equals(const nsSMILTargetIdentifier& aOther) const
   {
@@ -90,7 +90,7 @@ class nsSMILWeakTargetIdentifier
 public:
   // Trivial constructor
   nsSMILWeakTargetIdentifier()
-    : mElement(nsnull), mAttributeName(nsnull), mIsCSS(false) {}
+    : mElement(nsnull), mAttributeName(nsnull), mIsCSS(PR_FALSE) {}
 
   // Allow us to update a weak identifier to match a given non-weak identifier
   nsSMILWeakTargetIdentifier&

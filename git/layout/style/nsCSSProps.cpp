@@ -42,8 +42,6 @@
  * values they accept
  */
 
-#include "mozilla/Util.h"
-
 #include "nsCSSProps.h"
 #include "nsCSSKeywords.h"
 #include "nsStyleConsts.h"
@@ -56,8 +54,6 @@
 #include "nsReadableUtils.h"
 #include "nsStaticNameTable.h"
 #include "prlog.h" // for PR_STATIC_ASSERT
-
-using namespace mozilla;
 
 // required to make the symbol external, so that TestCSSPropertyLookup.cpp can link with it
 extern const char* const kCSSRawProperties[];
@@ -203,7 +199,7 @@ nsCSSProps::BuildShorthandsContainingTable()
 
   gShorthandsContainingPool = new nsCSSProperty[poolEntries];
   if (!gShorthandsContainingPool)
-    return false;
+    return PR_FALSE;
 
   // Initialize all entries to point to their null-terminator.
   {
@@ -227,12 +223,13 @@ nsCSSProps::BuildShorthandsContainingTable()
 
   // Sort with lowest count at the start and highest at the end, and
   // within counts sort in reverse property index order.
-  NS_QuickSort(&subpropCounts, ArrayLength(subpropCounts),
+  NS_QuickSort(&subpropCounts, NS_ARRAY_LENGTH(subpropCounts),
                sizeof(subpropCounts[0]), SortPropertyAndCount, nsnull);
 
   // Fill in all the entries in gShorthandsContainingTable
   for (const PropertyAndCount *shorthandAndCount = subpropCounts,
-                           *shorthandAndCountEnd = ArrayEnd(subpropCounts);
+                           *shorthandAndCountEnd =
+                                subpropCounts + NS_ARRAY_LENGTH(subpropCounts);
        shorthandAndCount < shorthandAndCountEnd;
        ++shorthandAndCount) {
 #ifdef DEBUG_SHORTHANDS_CONTAINING
@@ -305,7 +302,7 @@ nsCSSProps::BuildShorthandsContainingTable()
   }
 #endif
 
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -347,7 +344,7 @@ nsCSSProps::LookupProperty(const nsACString& aProperty)
   nsCSSProperty res = nsCSSProperty(gPropertyTable->Lookup(aProperty));
   if (res == eCSSProperty_UNKNOWN) {
     for (const CSSPropertyAlias *alias = gAliases,
-                            *alias_end = ArrayEnd(gAliases);
+                            *alias_end = gAliases + NS_ARRAY_LENGTH(gAliases);
          alias < alias_end; ++alias) {
       if (aProperty.LowerCaseEqualsASCII(alias->name)) {
         res = alias->id;
@@ -368,7 +365,7 @@ nsCSSProps::LookupProperty(const nsAString& aProperty)
   nsCSSProperty res = nsCSSProperty(gPropertyTable->Lookup(aProperty));
   if (res == eCSSProperty_UNKNOWN) {
     for (const CSSPropertyAlias *alias = gAliases,
-                            *alias_end = ArrayEnd(gAliases);
+                            *alias_end = gAliases + NS_ARRAY_LENGTH(gAliases);
          alias < alias_end; ++alias) {
       if (aProperty.LowerCaseEqualsASCII(alias->name)) {
         res = alias->id;
@@ -442,7 +439,7 @@ nsCSSProps::OtherNameFor(nsCSSProperty aProperty)
     case eCSSProperty_padding_right_value:
       return eCSSProperty_padding_right;
     default:
-      NS_ABORT_IF_FALSE(false, "bad caller");
+      NS_ABORT_IF_FALSE(PR_FALSE, "bad caller");
   }
   return eCSSProperty_UNKNOWN;
 }
@@ -1259,8 +1256,6 @@ const PRInt32 nsCSSProps::kUnicodeBidiKTable[] = {
   eCSSKeyword_normal, NS_STYLE_UNICODE_BIDI_NORMAL,
   eCSSKeyword_embed, NS_STYLE_UNICODE_BIDI_EMBED,
   eCSSKeyword_bidi_override, NS_STYLE_UNICODE_BIDI_OVERRIDE,
-  eCSSKeyword__moz_isolate, NS_STYLE_UNICODE_BIDI_ISOLATE,
-  eCSSKeyword__moz_plaintext, NS_STYLE_UNICODE_BIDI_PLAINTEXT,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1479,11 +1474,11 @@ nsCSSProps::FindKeyword(nsCSSKeyword aKeyword, const PRInt32 aTable[], PRInt32& 
   while (eCSSKeyword_UNKNOWN != nsCSSKeyword(aTable[index])) {
     if (aKeyword == nsCSSKeyword(aTable[index])) {
       aResult = aTable[index+1];
-      return true;
+      return PR_TRUE;
     }
     index += 2;
   }
-  return false;
+  return PR_FALSE;
 }
 
 nsCSSKeyword
@@ -1552,7 +1547,7 @@ bool nsCSSProps::GetColorName(PRInt32 aPropValue, nsCString &aStr)
     nsCSSKeywords::AddRefTable();
     aStr = nsCSSKeywords::GetStringValue(keyword);
     nsCSSKeywords::ReleaseTable();
-    rv = true;
+    rv = PR_TRUE;
   }
   return rv;
 }

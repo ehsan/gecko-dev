@@ -89,7 +89,7 @@ public:
   virtual ~nsBox();
 
   /**
-   * Returns true if this box clips its children, e.g., if this box is an sc
+   * Returns PR_TRUE if this box clips its children, e.g., if this box is an sc
 rollbox.
   */
   virtual bool DoesClipChildren();

@@ -67,10 +67,10 @@ protected:
     : nsSVGGlyphFrameBase(aContext),
       mTextRun(nsnull),
       mStartIndex(0),
-      mCompressWhitespace(true),
-      mTrimLeadingWhitespace(false),
-      mTrimTrailingWhitespace(false),
-      mPropagateTransform(true)
+      mCompressWhitespace(PR_TRUE),
+      mTrimLeadingWhitespace(PR_FALSE),
+      mTrimTrailingWhitespace(PR_FALSE),
+      mPropagateTransform(PR_TRUE)
       {}
   ~nsSVGGlyphFrame()
   {

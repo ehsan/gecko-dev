@@ -82,7 +82,7 @@ function runInspectorTests()
   salutation = doc.getElementById("salutation");
   InspectorUI.inspectNode(salutation);
 
-  let button = document.getElementById("highlighter-closebutton");
+  let button = document.getElementById("highlighter-close-button");
   button.click();
 }
 
@@ -127,7 +127,6 @@ function finishInspectorTests()
 function test()
 {
   waitForExplicitFinish();
-  ignoreAllUncaughtExceptions();
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.selectedBrowser.addEventListener("load", function() {
     gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);

@@ -85,7 +85,7 @@ public:
   static KeyTypePointer KeyToPointer(KeyType aKey) { return &aKey; }
   static PLDHashNumber HashKey(KeyTypePointer aKey)
     { return static_cast<PRUint32>((*aKey) & PR_UINT32_MAX); }
-  enum { ALLOW_MEMMOVE = true };
+  enum { ALLOW_MEMMOVE = PR_TRUE };
 
 private:
   const PRInt64 mValue;
@@ -310,7 +310,8 @@ public:
   // would take a vtable slot for every one of (potentially very many) nodes.
   // Note that GetType() already has a vtable slot because its on the iface.
   bool IsTypeContainer(PRUint32 type) {
-    return (type == nsINavHistoryResultNode::RESULT_TYPE_QUERY ||
+    return (type == nsINavHistoryResultNode::RESULT_TYPE_DYNAMIC_CONTAINER ||
+            type == nsINavHistoryResultNode::RESULT_TYPE_QUERY ||
             type == nsINavHistoryResultNode::RESULT_TYPE_FOLDER ||
             type == nsINavHistoryResultNode::RESULT_TYPE_FOLDER_SHORTCUT);
   }
@@ -318,6 +319,11 @@ public:
     PRUint32 type;
     GetType(&type);
     return IsTypeContainer(type);
+  }
+  bool IsDynamicContainer() {
+    PRUint32 type;
+    GetType(&type);
+    return (type == nsINavHistoryResultNode::RESULT_TYPE_DYNAMIC_CONTAINER);
   }
   static bool IsTypeURI(PRUint32 type) {
     return (type == nsINavHistoryResultNode::RESULT_TYPE_URI ||
@@ -486,7 +492,25 @@ public:
                                PRInt64 aItemId, bool aRecursive, \
                                nsINavHistoryResultNode** _retval) \
     { return nsNavHistoryContainerResultNode::FindNodeByDetails(aURIString, aTime, aItemId, \
-                                                                aRecursive, _retval); }
+                                                                aRecursive, _retval); } \
+  NS_IMETHOD GetDynamicContainerType(nsACString& aDynamicContainerType) \
+    { return nsNavHistoryContainerResultNode::GetDynamicContainerType(aDynamicContainerType); } \
+  NS_IMETHOD AppendURINode(const nsACString& aURI, const nsACString& aTitle, PRUint32 aAccessCount, PRTime aTime, const nsACString& aIconURI, nsINavHistoryResultNode **_retval) \
+    { return nsNavHistoryContainerResultNode::AppendURINode(aURI, aTitle, aAccessCount, aTime, aIconURI, _retval); } \
+  NS_IMETHOD AppendFolderNode(PRInt64 aFolderId, nsINavHistoryContainerResultNode **_retval) \
+    { return nsNavHistoryContainerResultNode::AppendFolderNode(aFolderId, _retval); }
+/* Untested container API functions
+  NS_IMETHOD AppendVisitNode(const nsACString& aURI, const nsACString & aTitle, PRUint32 aAccessCount, PRTime aTime, const nsACString & aIconURI, PRInt64 aSession, nsINavHistoryVisitResultNode **_retval) \
+    { return nsNavHistoryContainerResultNode::AppendVisitNode(aURI, aTitle, aAccessCount, aTime, aIconURI, aSession, _retval); } \
+  NS_IMETHOD AppendFullVisitNode(const nsACString& aURI, const nsACString & aTitle, PRUint32 aAccessCount, PRTime aTime, const nsACString & aIconURI, PRInt64 aSession, PRInt64 aVisitId, PRInt64 aReferringVisitId, PRInt32 aTransitionType, nsINavHistoryFullVisitResultNode **_retval) \
+    { return nsNavHistoryContainerResultNode::AppendFullVisitNode(aURI, aTitle, aAccessCount, aTime, aIconURI, aSession, aVisitId, aReferringVisitId, aTransitionType, _retval); } \
+  NS_IMETHOD AppendContainerNode(const nsACString & aTitle, const nsACString & aIconURI, PRUint32 aContainerType, const nsACString & aRemoteContainerType, nsINavHistoryContainerResultNode **_retval) \
+    { return nsNavHistoryContainerResultNode::AppendContainerNode(aTitle, aIconURI, aContainerType, aRemoteContainerType, _retval); } \
+  NS_IMETHOD AppendQueryNode(const nsACString& aQueryURI, const nsACString & aTitle, const nsACString & aIconURI, nsINavHistoryQueryResultNode **_retval) \
+    { return nsNavHistoryContainerResultNode::AppendQueryNode(aQueryURI, aTitle, aIconURI, _retval); } \
+  NS_IMETHOD ClearContents() \
+    { return nsNavHistoryContainerResultNode::ClearContents(); }
+*/
 
 #define NS_NAVHISTORYCONTAINERRESULTNODE_IID \
   { 0x6e3bf8d3, 0x22aa, 0x4065, { 0x86, 0xbc, 0x37, 0x46, 0xb5, 0xb3, 0x2c, 0xe8 } }
@@ -498,12 +522,14 @@ public:
   nsNavHistoryContainerResultNode(
     const nsACString& aURI, const nsACString& aTitle,
     const nsACString& aIconURI, PRUint32 aContainerType,
-    bool aReadOnly, nsNavHistoryQueryOptions* aOptions);
+    bool aReadOnly, const nsACString& aDynamicContainerType,
+    nsNavHistoryQueryOptions* aOptions);
   nsNavHistoryContainerResultNode(
     const nsACString& aURI, const nsACString& aTitle,
     PRTime aTime,
     const nsACString& aIconURI, PRUint32 aContainerType,
-    bool aReadOnly, nsNavHistoryQueryOptions* aOptions);
+    bool aReadOnly, const nsACString& aDynamicContainerType,
+    nsNavHistoryQueryOptions* aOptions);
 
   virtual nsresult Refresh();
   virtual ~nsNavHistoryContainerResultNode();
@@ -551,6 +577,9 @@ public:
   bool mChildrenReadOnly;
 
   nsCOMPtr<nsNavHistoryQueryOptions> mOptions;
+
+  // ID of a dynamic container interface that we can use GetService to get.
+  nsCString mDynamicContainerType;
 
   void FillStats();
   nsresult ReverseUpdateStats(PRInt32 aAccessCountChange);
@@ -639,7 +668,7 @@ public:
   {
     nsCAutoString spec;
     if (NS_FAILED(aURI->GetSpec(spec)))
-      return false;
+      return PR_FALSE;
     return FindChildURI(spec, aNodeIndex);
   }
   nsNavHistoryResultNode* FindChildURI(const nsACString& aSpec,
@@ -778,7 +807,8 @@ class nsNavHistoryFolderResultNode : public nsNavHistoryContainerResultNode,
 public:
   nsNavHistoryFolderResultNode(const nsACString& aTitle,
                                nsNavHistoryQueryOptions* options,
-                               PRInt64 aFolderId);
+                               PRInt64 aFolderId,
+                               const nsACString& aDynamicContainerType);
 
   virtual ~nsNavHistoryFolderResultNode();
 

@@ -240,12 +240,12 @@ nsMathMLFrame::GetAttribute(nsIContent* aContent,
   // see if we can get the attribute from the content
   if (aContent && aContent->GetAttr(kNameSpaceID_None, aAttributeAtom,
                                     aValue)) {
-    return true;
+    return PR_TRUE;
   }
 
   // see if we can get the attribute from the mstyle frame
   if (!aMathMLmstyleFrame) {
-    return false;
+    return PR_FALSE;
   }
 
   nsIFrame* mstyleParent = aMathMLmstyleFrame->GetParent();
@@ -347,7 +347,7 @@ nsMathMLFrame::ParseNamedSpaceValue(nsIFrame*   aMathMLmstyleFrame,
 {
   aCSSValue.Reset();
   aString.CompressWhitespace(); //  aString is not a const in this code...
-  if (!aString.Length()) return false;
+  if (!aString.Length()) return PR_FALSE;
 
   // See if it is one of the 'namedspace' (ranging 1/18em...7/18em)
   PRInt32 i = 0;
@@ -418,17 +418,17 @@ nsMathMLFrame::ParseNamedSpaceValue(nsIFrame*   aMathMLmstyleFrame,
       if (!value.IsEmpty()) {
         if (ParseNumericValue(value, aCSSValue) &&
             aCSSValue.IsLengthUnit()) {
-          return true;
+          return PR_TRUE;
         }
       }
     }
 
     // fall back to the default value
     aCSSValue.SetFloatValue(float(i)/float(18), eCSSUnit_EM);
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 // ================
@@ -516,7 +516,7 @@ void nsDisplayMathMLBar::Paint(nsDisplayListBuilder* aBuilder,
                                nsRenderingContext* aCtx)
 {
   // paint the bar with the current text color
-  aCtx->SetColor(mFrame->GetVisitedDependentColor(eCSSProperty_color));
+  aCtx->SetColor(mFrame->GetStyleColor()->mColor);
   aCtx->FillRect(mRect + ToReferenceFrame());
 }
 

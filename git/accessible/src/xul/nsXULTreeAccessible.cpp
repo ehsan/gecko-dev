@@ -300,7 +300,7 @@ nsXULTreeAccessible::SelectedItems()
     for (PRInt32 rowIdx = firstIdx; rowIdx <= lastIdx; rowIdx++) {
       nsIAccessible* item = GetTreeItemAccessible(rowIdx);
       if (item)
-        selectedItems->AppendElement(item, false);
+        selectedItems->AppendElement(item, PR_FALSE);
     }
   }
 
@@ -883,7 +883,12 @@ nsXULTreeItemAccessibleBase::DoAction(PRUint8 aIndex)
 bool
 nsXULTreeItemAccessibleBase::IsDefunct() const
 {
-  return nsAccessibleWrap::IsDefunct() || !mTree || !mTreeView || mRow < 0;
+  if (nsAccessibleWrap::IsDefunct() || !mTree || !mTreeView || mRow < 0)
+    return PR_TRUE;
+
+  PRInt32 rowCount = 0;
+  nsresult rv = mTreeView->GetRowCount(&rowCount);
+  return NS_FAILED(rv) || mRow >= rowCount;
 }
 
 void
@@ -1078,12 +1083,12 @@ nsXULTreeItemAccessibleBase::IsExpandable()
         columns->GetPrimaryColumn(getter_AddRefs(primaryColumn));
         if (primaryColumn &&
             !nsCoreUtils::IsColumnHidden(primaryColumn))
-          return true;
+          return PR_TRUE;
       }
     }
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 void
@@ -1164,10 +1169,10 @@ bool
 nsXULTreeItemAccessible::Init()
 {
   if (!nsXULTreeItemAccessibleBase::Init())
-    return false;
+    return PR_FALSE;
 
   GetName(mCachedName);
-  return true;
+  return PR_TRUE;
 }
 
 void

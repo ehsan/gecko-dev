@@ -550,8 +550,7 @@ nsComponentManagerImpl::RegisterJarManifest(NSLocationType aType, nsIZipReader* 
 {
     nsCOMPtr<nsIInputStream> is = LoadEntry(aReader, aPath);
     if (!is) {
-        if (NS_BOOTSTRAPPED_LOCATION != aType)
-            LogMessage("Could not find jar manifest entry '%s'.", aPath);
+        LogMessage("Could not find jar manifest entry '%s'.", aPath);
         return;
     }
 
@@ -620,8 +619,7 @@ nsComponentManagerImpl::RegisterManifestFile(NSLocationType aType,
     if (NS_FAILED(rv)) {
         nsCAutoString path;
         aFile->GetNativePath(path);
-        if (NS_BOOTSTRAPPED_LOCATION != aType)
-            LogMessage("Could not read chrome manifest file '%s'.", path.get());
+        LogMessage("Could not read chrome manifest file '%s'.", path.get());
         return;
     }
 
@@ -1477,7 +1475,7 @@ nsComponentManagerImpl::GetService(const nsCID& aClass,
 
         // This will process a single event or yield the thread if no event is
         // pending.
-        if (!NS_ProcessNextEvent(currentThread, false)) {
+        if (!NS_ProcessNextEvent(currentThread, PR_FALSE)) {
             PR_Sleep(PR_INTERVAL_NO_WAIT);
         }
 
@@ -1672,7 +1670,7 @@ nsComponentManagerImpl::GetServiceByContractID(const char* aContractID,
 
         // This will process a single event or yield the thread if no event is
         // pending.
-        if (!NS_ProcessNextEvent(currentThread, false)) {
+        if (!NS_ProcessNextEvent(currentThread, PR_FALSE)) {
             PR_Sleep(PR_INTERVAL_NO_WAIT);
         }
 
@@ -1855,9 +1853,9 @@ nsComponentManagerImpl::IsContractIDRegistered(const char *aClass,
     nsFactoryEntry *entry = GetFactoryEntry(aClass, strlen(aClass));
 
     if (entry)
-        *_retval = true;
+        *_retval = PR_TRUE;
     else
-        *_retval = false;
+        *_retval = PR_FALSE;
     return NS_OK;
 }
 

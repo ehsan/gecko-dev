@@ -143,7 +143,7 @@ class PrefCallback : public PLDHashEntryHdr {
         return this == aKey;
 
       if (mCanonical != aKey->mCanonical)
-        return false;
+        return PR_FALSE;
 
       return mDomain.Equals(aKey->mDomain);
     }
@@ -180,13 +180,13 @@ class PrefCallback : public PLDHashEntryHdr {
     bool IsExpired() const
     {
       if (!IsWeak())
-        return false;
+        return PR_FALSE;
 
       nsCOMPtr<nsIObserver> observer(do_QueryReferent(mWeakRef));
       return !observer;
     }
 
-    enum { ALLOW_MEMMOVE = true };
+    enum { ALLOW_MEMMOVE = PR_TRUE };
 
   private:
     nsCString             mDomain;

@@ -5580,7 +5580,7 @@ struct cs_info * get_current_cs(const char * es) {
       if (rv != NS_OK || charLength != 1 || uniLength != 1)
         break;
 
-      success = true;
+      success = PR_TRUE;
     } while (0);
 
     if (success) {

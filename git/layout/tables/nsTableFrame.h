@@ -58,7 +58,6 @@ class nsStyleContext;
 
 struct nsTableReflowState;
 struct nsStylePosition;
-struct BCPropertyData;
 
 static inline bool IS_TABLE_CELL(nsIAtom* frameType) {
   return nsGkAtoms::tableCellFrame == frameType ||
@@ -70,7 +69,7 @@ class nsDisplayTableItem : public nsDisplayItem
 public:
   nsDisplayTableItem(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame) : 
       nsDisplayItem(aBuilder, aFrame),
-      mPartHasFixedBackground(false) {}
+      mPartHasFixedBackground(PR_FALSE) {}
 
   virtual bool IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuilder,
                                                 nsIFrame* aFrame);
@@ -233,7 +232,7 @@ public:
                                       nsIAtom*        aChildType);
   bool IsAutoHeight();
   
-  /** @return true if aDisplayType represents a rowgroup of any sort
+  /** @return PR_TRUE if aDisplayType represents a rowgroup of any sort
     * (header, footer, or body)
     */
   bool IsRowGroup(PRInt32 aDisplayType) const;
@@ -292,7 +291,7 @@ public:
 
   friend class nsDelayedCalcBCBorders;
   
-  void AddBCDamageArea(const nsRect& aValue);
+  void SetBCDamageArea(const nsRect& aValue);
   bool BCRecalcNeeded(nsStyleContext* aOldStyleContext,
                         nsStyleContext* aNewStyleContext);
   void PaintBCBorders(nsRenderingContext& aRenderingContext,
@@ -626,12 +625,12 @@ public:
   // Return the tfoot, if any
   nsTableRowGroupFrame* GetTFoot() const;
 
-  // Returns true if there are any cells above the row at
+  // Returns PR_TRUE if there are any cells above the row at
   // aRowIndex and spanning into the row at aRowIndex, the number of
   // effective columns limits the search up to that column
   bool RowIsSpannedInto(PRInt32 aRowIndex, PRInt32 aNumEffCols);
 
-  // Returns true if there is a cell originating in aRowIndex
+  // Returns PR_TRUE if there is a cell originating in aRowIndex
   // which spans into the next row,  the number of effective
   // columns limits the search up to that column
   bool RowHasSpanningCells(PRInt32 aRowIndex, PRInt32 aNumEffCols);
@@ -662,8 +661,8 @@ public:
     * dirty, but resizing optimizations should still apply to the
     * contents of the individual cells.
     */
-  void SetGeometryDirty() { mBits.mGeometryDirty = true; }
-  void ClearGeometryDirty() { mBits.mGeometryDirty = false; }
+  void SetGeometryDirty() { mBits.mGeometryDirty = PR_TRUE; }
+  void ClearGeometryDirty() { mBits.mGeometryDirty = PR_FALSE; }
   bool IsGeometryDirty() const { return mBits.mGeometryDirty; }
 
   /** Get the cell map for this table frame.  It is not always mCellMap.
@@ -689,13 +688,10 @@ public:
 
   nsTArray<nsTableColFrame*>& GetColCache();
 
-
 protected:
 
   void SetBorderCollapse(bool aValue);
 
-  BCPropertyData* GetBCProperty(bool aCreateIfNecessary = false) const;
-  void SetFullBCDamageArea();
   void CalcBCBorders();
 
   void ExpandBCDamageArea(nsRect& aRect) const;
@@ -730,7 +726,7 @@ public: /* ----- Cell Map public methods ----- */
   // return the last col index which isn't of type eColAnonymousCell
   PRInt32 GetIndexOfLastRealCol();
 
-  /** returns true if table-layout:auto  */
+  /** returns PR_TRUE if table-layout:auto  */
   virtual bool IsAutoLayout();
 
   /*---------------- nsITableLayout methods ------------------------*/
@@ -927,11 +923,11 @@ protected:
 };
 
 #define ABORT0() \
-{NS_ASSERTION(false, "CellIterator program error"); \
+{NS_ASSERTION(PR_FALSE, "CellIterator program error"); \
 return;}
 
 #define ABORT1(aReturn) \
-{NS_ASSERTION(false, "CellIterator program error"); \
+{NS_ASSERTION(PR_FALSE, "CellIterator program error"); \
 return aReturn;} 
 
 #endif

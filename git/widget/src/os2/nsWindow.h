@@ -166,6 +166,8 @@ public:
                                const nsIntRect& aRect,
                                EVENT_CALLBACK aHandleEventFunction,
                                nsDeviceContext* aContext,
+                               nsIAppShell* aAppShell = nsnull,
+                               nsIToolkit* aToolkit = nsnull,
                                nsWidgetInitData* aInitData = nsnull);
   NS_IMETHOD            Destroy();
   virtual nsIWidget*    GetParent();
@@ -206,22 +208,13 @@ public:
   NS_IMETHOD            SetCursor(imgIContainer* aCursor,
                                   PRUint32 aHotspotX, PRUint32 aHotspotY);
   NS_IMETHOD            CaptureRollupEvents(nsIRollupListener* aListener,
+                                            nsIMenuRollup* aMenuRollup,
                                             bool aDoCapture, bool aConsumeRollupEvent);
   NS_IMETHOD            GetToggledKeyState(PRUint32 aKeyCode,
                                            bool* aLEDState);
   NS_IMETHOD            DispatchEvent(nsGUIEvent* event,
                                       nsEventStatus& aStatus);
   NS_IMETHOD            ReparentNativeWidget(nsIWidget* aNewParent);
-
-  NS_IMETHOD_(void)     SetInputContext(const InputContext& aInputContext,
-                                        const InputContextAction& aAction)
-  {
-    mInputContext = aInputContext;
-  }
-  NS_IMETHOD_(InputContext) GetInputContext()
-  {
-    return mInputContext;
-  }
 
   // nsWindow
   static void           ReleaseGlobals();
@@ -304,7 +297,6 @@ protected:
 #ifdef DEBUG_FOCUS
   int           mWindowIdentifier;  // a serial number for each new window
 #endif
-  InputContext  mInputContext;
 };
 
 //=============================================================================

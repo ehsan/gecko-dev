@@ -102,13 +102,11 @@ class nsPIDOMWindow;
 struct nsPoint;
 struct nsIntPoint;
 struct nsIntRect;
-class nsRegion;
 class nsRefreshDriver;
 class nsARefreshObserver;
 #ifdef ACCESSIBILITY
 class nsAccessibilityService;
 #endif
-class nsIWidget;
 
 typedef short SelectionType;
 typedef PRUint64 nsFrameState;
@@ -141,8 +139,8 @@ typedef struct CapturingContentInfo {
 } CapturingContentInfo;
 
 #define NS_IPRESSHELL_IID    \
-{ 0x4e23d557, 0x741a, 0x4fd0,\
-  { 0x91, 0x52, 0x34, 0xe2, 0xb4, 0xef, 0xe8, 0x2e } }
+{ 0x67eab923, 0x5c15, 0x4c13,\
+  { 0xb5, 0xcc, 0xb2, 0x75, 0xb3, 0x5a, 0xa5, 0x38 } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -476,7 +474,7 @@ public:
 
   /**
    * Determine if it is safe to flush all pending notifications
-   * @param aIsSafeToFlush true if it is safe, false otherwise.
+   * @param aIsSafeToFlush PR_TRUE if it is safe, PR_FALSE otherwise.
    * 
    */
   virtual NS_HIDDEN_(bool) IsSafeToFlush() const = 0;
@@ -666,8 +664,8 @@ public:
    * by the frames.  Visual effects may not effect layout, only display.
    * Takes effect on next repaint, does not force a repaint itself.
    *
-   * @param aInEnable  if true, visual selection effects are enabled
-   *                   if false visual selection effects are disabled
+   * @param aInEnable  if PR_TRUE, visual selection effects are enabled
+   *                   if PR_FALSE visual selection effects are disabled
    */
   NS_IMETHOD SetSelectionFlags(PRInt16 aInEnable) = 0;
 
@@ -723,7 +721,7 @@ public:
 
   /**
    * Determine if reflow is currently locked
-   * returns true if reflow is locked, false otherwise
+   * returns PR_TRUE if reflow is locked, PR_FALSE otherwise
    */
   bool IsReflowLocked() const { return mIsReflowing; }
 
@@ -745,7 +743,7 @@ public:
   void DisableThemeSupport()
   {
     // Doesn't have to be dynamic.  Just set the bool.
-    mIsThemeSupportDisabled = true;
+    mIsThemeSupportDisabled = PR_TRUE;
   }
 
   /**
@@ -790,7 +788,7 @@ public:
    * See if reflow verification is enabled. To enable reflow verification add
    * "verifyreflow:1" to your NSPR_LOG_MODULES environment variable
    * (any non-zero debug level will work). Or, call SetVerifyReflowEnable
-   * with true.
+   * with PR_TRUE.
    */
   static bool GetVerifyReflowEnable();
 
@@ -1138,20 +1136,6 @@ public:
    */
   virtual void SynthesizeMouseMove(bool aFromScroll) = 0;
 
-  virtual void Paint(nsIView* aViewToPaint, nsIWidget* aWidget,
-                     const nsRegion& aDirtyRegion, const nsIntRegion& aIntDirtyRegion,
-                     bool aPaintDefaultBackground, bool aWillSendDidPaint) = 0;
-  virtual nsresult HandleEvent(nsIFrame*       aFrame,
-                               nsGUIEvent*     aEvent,
-                               bool            aDontRetargetEvents,
-                               nsEventStatus*  aEventStatus) = 0;
-  virtual bool ShouldIgnoreInvalidation() = 0;
-  virtual void WillPaint(bool aWillSendDidPaint) = 0;
-  virtual void DidPaint() = 0;
-  virtual void ClearMouseCaptureOnView(nsIView* aView) = 0;
-  virtual bool IsVisible() = 0;
-  virtual void DispatchSynthMouseMove(nsGUIEvent *aEvent, bool aFlushOnHoverChange) = 0;
-
   /**
    * Refresh observer management.
    */
@@ -1188,10 +1172,6 @@ public:
    */
   static void InitializeStatics();
   static void ReleaseStatics();
-
-  // If a frame in the subtree rooted at aFrame is capturing the mouse then
-  // clears that capture.
-  static void ClearMouseCapture(nsIFrame* aFrame);
 
 protected:
   friend class nsRefreshDriver;

@@ -152,7 +152,7 @@ public:
    */
   virtual bool IsScriptExecuting()
   {
-    return false;
+    return PR_FALSE;
   }
   
 };

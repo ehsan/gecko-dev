@@ -173,10 +173,10 @@ bool nsDeque::GrowCapacity() {
   PRInt32 theNewSize=mCapacity<<2;
   NS_ASSERTION(theNewSize>mCapacity, "Overflow");
   if (theNewSize<=mCapacity)
-    return false;
+    return PR_FALSE;
   void** temp=(void**)malloc(theNewSize * sizeof(void*));
   if (!temp)
-    return false;
+    return PR_FALSE;
 
   //Here's the interesting part: You can't just move the elements
   //directly (in situ) from the old buffer to the new one.
@@ -194,7 +194,7 @@ bool nsDeque::GrowCapacity() {
   mOrigin=0; //now realign the origin...
   mData=temp;
 
-  return true;
+  return PR_TRUE;
 }
 
 /**

@@ -48,13 +48,13 @@ bool nsCharSetProber::FilterWithoutEnglishLetters(const char* aBuf, PRUint32 aLe
   bool meetMSB = false;   
   newptr = *newBuf = (char*)PR_Malloc(aLen);
   if (!newptr)
-    return false;
+    return PR_FALSE;
 
   for (curPtr = prevPtr = (char*)aBuf; curPtr < aBuf+aLen; curPtr++)
   {
     if (*curPtr & 0x80)
     {
-      meetMSB = true;
+      meetMSB = PR_TRUE;
     }
     else if (*curPtr < 'A' || (*curPtr > 'Z' && *curPtr < 'a') || *curPtr > 'z') 
     {
@@ -65,7 +65,7 @@ bool nsCharSetProber::FilterWithoutEnglishLetters(const char* aBuf, PRUint32 aLe
         while (prevPtr < curPtr) *newptr++ = *prevPtr++;  
         prevPtr++;
         *newptr++ = ' ';
-        meetMSB = false;
+        meetMSB = PR_FALSE;
       }
       else //ignore current segment. (either because it is just a symbol or just an English word)
         prevPtr = curPtr+1;
@@ -76,7 +76,7 @@ bool nsCharSetProber::FilterWithoutEnglishLetters(const char* aBuf, PRUint32 aLe
 
   newLen = newptr - *newBuf;
 
-  return true;
+  return PR_TRUE;
 }
 
 //This filter applies to all scripts which contain both English characters and upper ASCII characters.
@@ -89,14 +89,14 @@ bool nsCharSetProber::FilterWithEnglishLetters(const char* aBuf, PRUint32 aLen, 
 
   newptr = *newBuf = (char*)PR_Malloc(aLen);
   if (!newptr)
-    return false;
+    return PR_FALSE;
 
   for (curPtr = prevPtr = (char*)aBuf; curPtr < aBuf+aLen; curPtr++)
   {
     if (*curPtr == '>')
-      isInTag = false;
+      isInTag = PR_FALSE;
     else if (*curPtr == '<')
-      isInTag = true;
+      isInTag = PR_TRUE;
 
     if (!(*curPtr & 0x80) &&
         (*curPtr < 'A' || (*curPtr > 'Z' && *curPtr < 'a') || *curPtr > 'z') )
@@ -121,5 +121,5 @@ bool nsCharSetProber::FilterWithEnglishLetters(const char* aBuf, PRUint32 aLen, 
 
   newLen = newptr - *newBuf;
 
-  return true;
+  return PR_TRUE;
 }

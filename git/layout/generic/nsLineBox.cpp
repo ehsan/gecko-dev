@@ -280,16 +280,16 @@ nsLineBox::IsEmpty() const
        --n, kid = kid->GetNextSibling())
   {
     if (!kid->IsEmpty())
-      return false;
+      return PR_FALSE;
   }
   if (HasBullet()) {
-    return false;
+    return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
 bool
-nsLineBox::CachedIsEmpty()
+nsLineBox::CachedIsEmpty() const
 {
   if (mFlags.mDirty) {
     return IsEmpty();
@@ -305,22 +305,22 @@ nsLineBox::CachedIsEmpty()
   } else {
     PRInt32 n;
     nsIFrame *kid;
-    result = true;
+    result = PR_TRUE;
     for (n = GetChildCount(), kid = mFirstChild;
          n > 0;
          --n, kid = kid->GetNextSibling())
       {
         if (!kid->CachedIsEmpty()) {
-          result = false;
+          result = PR_FALSE;
           break;
         }
       }
     if (HasBullet()) {
-      result = false;
+      result = PR_FALSE;
     }
   }
 
-  mFlags.mEmptyCacheValid = true;
+  mFlags.mEmptyCacheValid = PR_TRUE;
   mFlags.mEmptyCacheState = result;
   return result;
 }
@@ -379,14 +379,14 @@ nsLineBox::RFindLineContaining(nsIFrame* aFrame,
     while (i >= 0) {
       if (curFrame == aFrame) {
         *aFrameIndexInLine = i;
-        return true;
+        return PR_TRUE;
       }
       --i;
       curFrame = curFrame->GetPrevSibling();
     }
   }
   *aFrameIndexInLine = -1;
-  return false;
+  return PR_FALSE;
 }
 
 nsCollapsingMargin
@@ -484,10 +484,10 @@ nsLineBox::RemoveFloat(nsIFrame* aFrame)
       mInlineData->mFloats.Remove(fc);
       delete fc;
       MaybeFreeData();
-      return true;
+      return PR_TRUE;
     }
   }
-  return false;
+  return PR_FALSE;
 }
 
 void
@@ -529,7 +529,7 @@ nsLineIterator::nsLineIterator()
   mLines = gDummyLines;
   mNumLines = 0;
   mIndex = 0;
-  mRightToLeft = false;
+  mRightToLeft = PR_FALSE;
 }
 
 nsLineIterator::~nsLineIterator()
@@ -651,7 +651,7 @@ nsLineIterator::CheckLineOrder(PRInt32                  aLine,
   nsLineBox* line = mLines[aLine];
 
   if (!line->mFirstChild) { // empty line
-    *aIsReordered = false;
+    *aIsReordered = PR_FALSE;
     *aFirstVisual = nsnull;
     *aLastVisual = nsnull;
     return NS_OK;
@@ -688,8 +688,8 @@ nsLineIterator::FindFrameAt(PRInt32 aLineNumber,
   nsLineBox* line = mLines[aLineNumber];
   if (!line) {
     *aFrameFound = nsnull;
-    *aXIsBeforeFirstFrame = true;
-    *aXIsAfterLastFrame = false;
+    *aXIsBeforeFirstFrame = PR_TRUE;
+    *aXIsAfterLastFrame = PR_FALSE;
     return NS_OK;
   }
 

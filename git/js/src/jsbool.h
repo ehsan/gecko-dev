@@ -58,7 +58,16 @@ extern bool
 BooleanToStringBuffer(JSContext *cx, JSBool b, StringBuffer &sb);
 
 inline bool
-BooleanGetPrimitiveValue(JSContext *cx, JSObject &obj, Value *vp);
+BooleanGetPrimitiveValue(JSContext *cx, JSObject &obj, Value *vp)
+{
+    if (obj.isBoolean()) {
+        *vp = obj.getPrimitiveThis();
+        return true;
+    }
+
+    extern bool BooleanGetPrimitiveValueSlow(JSContext *, JSObject &, Value *);
+    return BooleanGetPrimitiveValueSlow(cx, obj, vp);
+}
 
 } /* namespace js */
 

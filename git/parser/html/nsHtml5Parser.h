@@ -56,7 +56,7 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsIInputStream.h"
 #include "nsDetectionConfident.h"
-#include "nsHtml5OwningUTF16Buffer.h"
+#include "nsHtml5UTF16Buffer.h"
 #include "nsHtml5TreeOpExecutor.h"
 #include "nsHtml5StreamParser.h"
 #include "nsHtml5AtomTable.h"
@@ -137,7 +137,7 @@ class nsHtml5Parser : public nsIParser,
     /**
      * Get the stream parser for this parser
      */
-    virtual nsIStreamListener* GetStreamListener();
+    NS_IMETHOD GetStreamListener(nsIStreamListener** aListener);
 
     /**
      * Don't call. For interface compat only.
@@ -167,7 +167,7 @@ class nsHtml5Parser : public nsIParser,
     /**
      * Set up request observer.
      *
-     * @param   aURL used for View Source title
+     * @param   aURL ignored (for interface compat only)
      * @param   aListener a listener to forward notifications to
      * @param   aKey the root context key (used for document.write)
      * @param   aMode ignored (for interface compat only)
@@ -182,7 +182,7 @@ class nsHtml5Parser : public nsIParser,
      *
      * @param   aSourceBuffer the argument of document.write (empty for .close())
      * @param   aKey a key unique to the script element that caused this call
-     * @param   aContentType "text/html" for HTML mode, else text/plain mode
+     * @param   aContentType ignored (for interface compat only)
      * @param   aLastCall true if .close() false if .write()
      * @param   aMode ignored (for interface compat only)
      */
@@ -246,11 +246,8 @@ class nsHtml5Parser : public nsIParser,
     /**
      * Marks the HTML5 parser as not a script-created parser: Prepares the 
      * parser to be able to read a stream.
-     *
-     * @param aCommand the parser command (Yeah, this is bad API design. Let's
-     * make this better when retiring nsIParser)
      */
-    virtual void MarkAsNotScriptCreated(const char* aCommand);
+    virtual void MarkAsNotScriptCreated();
 
     /**
      * True if this is a script-created HTML5 parser.
@@ -357,8 +354,6 @@ class nsHtml5Parser : public nsIParser,
      */
     bool                          mDocumentClosed;
 
-    bool                          mInDocumentWrite;
-
     // Gecko integration
     void*                         mRootContextKey;
 
@@ -366,13 +361,13 @@ class nsHtml5Parser : public nsIParser,
     /**
      * The first buffer in the pending UTF-16 buffer queue
      */
-    nsRefPtr<nsHtml5OwningUTF16Buffer>  mFirstBuffer;
+    nsRefPtr<nsHtml5UTF16Buffer>  mFirstBuffer;
 
     /**
-     * The last buffer in the pending UTF-16 buffer queue. Always points
-     * to a sentinel object with nsnull as its parser key.
+     * The last buffer in the pending UTF-16 buffer queue
      */
-    nsHtml5OwningUTF16Buffer* mLastBuffer; // weak ref;
+    nsHtml5UTF16Buffer*           mLastBuffer; // weak ref; always points to
+                      // a buffer of the size NS_HTML5_PARSER_READ_BUFFER_SIZE
 
     /**
      * The tree operation executor

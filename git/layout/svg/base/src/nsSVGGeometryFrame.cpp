@@ -120,8 +120,7 @@ nsSVGGeometryFrame::GetStrokeDashArray(gfxFloat **aDashes, PRUint32 *aCount)
     gfxFloat pathScale = 1.0;
 
     if (mContent->Tag() == nsGkAtoms::path) {
-      pathScale = static_cast<nsSVGPathElement*>(mContent)->
-                    GetPathLengthScale(nsSVGPathElement::eForStroking);
+      pathScale = static_cast<nsSVGPathElement*>(mContent)->GetScale();
       if (pathScale <= 0) {
         return NS_OK;
       }
@@ -230,7 +229,7 @@ nsSVGGeometryFrame::SetupCairoFill(gfxContext *aContext)
 {
   const nsStyleSVG* style = GetStyleSVG();
   if (style->mFill.mType == eStyleSVGPaintType_None)
-    return false;
+    return PR_FALSE;
 
   if (style->mFillRule == NS_STYLE_FILL_RULE_EVENODD)
     aContext->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
@@ -242,7 +241,7 @@ nsSVGGeometryFrame::SetupCairoFill(gfxContext *aContext)
   nsSVGPaintServerFrame *ps =
     GetPaintServer(&style->mFill, nsSVGEffects::FillProperty());
   if (ps && ps->SetupPaintServer(aContext, this, opacity))
-    return true;
+    return PR_TRUE;
 
   // On failure, use the fallback colour in case we have an
   // objectBoundingBox where the width or height of the object is zero.
@@ -250,7 +249,7 @@ nsSVGGeometryFrame::SetupCairoFill(gfxContext *aContext)
   SetupFallbackOrPaintColor(aContext, GetStyleContext(),
                             &nsStyleSVG::mFill, opacity);
 
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -317,7 +316,7 @@ bool
 nsSVGGeometryFrame::SetupCairoStroke(gfxContext *aContext)
 {
   if (!HasStroke()) {
-    return false;
+    return PR_FALSE;
   }
   SetupCairoStrokeHitGeometry(aContext);
 
@@ -327,7 +326,7 @@ nsSVGGeometryFrame::SetupCairoStroke(gfxContext *aContext)
   nsSVGPaintServerFrame *ps =
     GetPaintServer(&style->mStroke, nsSVGEffects::StrokeProperty());
   if (ps && ps->SetupPaintServer(aContext, this, opacity))
-    return true;
+    return PR_TRUE;
 
   // On failure, use the fallback colour in case we have an
   // objectBoundingBox where the width or height of the object is zero.
@@ -335,7 +334,7 @@ nsSVGGeometryFrame::SetupCairoStroke(gfxContext *aContext)
   SetupFallbackOrPaintColor(aContext, GetStyleContext(),
                             &nsStyleSVG::mStroke, opacity);
 
-  return true;
+  return PR_TRUE;
 }
 
 PRUint16

@@ -65,6 +65,8 @@
 #define UNIVERSALCHARDET_MODULE
 #endif
 
+#define GFX_MODULES MODULE(nsGfxModule)
+
 #ifdef XP_WIN
 #  define WIDGET_MODULES MODULE(nsWidgetModule)
 #elif defined(XP_MACOSX)
@@ -77,8 +79,6 @@
 #  define WIDGET_MODULES MODULE(nsWidgetQtModule)
 #elif defined(MOZ_WIDGET_ANDROID)
 #  define WIDGET_MODULES MODULE(nsWidgetAndroidModule)
-#elif defined(MOZ_WIDGET_GONK)
-#  define WIDGET_MODULES MODULE(nsWidgetGonkModule)
 #else
 #  error Unknown widget module.
 #endif
@@ -87,6 +87,14 @@
 #define ICON_MODULE MODULE(nsIconDecoderModule)
 #else
 #define ICON_MODULE
+#endif
+
+#ifdef MOZ_RDF
+#define RDF_MODULES \
+    MODULE(nsRDFModule) \
+    MODULE(nsWindowDataSourceModule)
+#else
+#define RDF_MODULES
 #endif
 
 #ifdef ACCESSIBILITY
@@ -104,6 +112,7 @@
 #ifdef MOZ_PREF_EXTENSIONS
 #ifdef MOZ_ENABLE_GTK2
 #define SYSTEMPREF_MODULES \
+    MODULE(nsSystemPrefModule) \
     MODULE(nsAutoConfigModule)
 #else
 #define SYSTEMPREF_MODULES MODULE(nsAutoConfigModule)
@@ -124,6 +133,9 @@
 #else
 #define JETPACK_MODULES
 #endif
+
+#define PLUGINS_MODULES \
+    MODULE(nsPluginModule)
 
 #ifdef MOZ_JSDEBUGGER
 #define JSDEBUGGER_MODULES \
@@ -196,6 +208,10 @@
 #define JSCTYPES_MODULE
 #endif
 
+#define JSREFLECT_MODULE MODULE(jsreflect)
+
+#define SERVICES_CRYPTO_MODULE MODULE(nsServicesCryptoModule)
+
 #ifndef MOZ_APP_COMPONENT_MODULES
 #if defined(MOZ_APP_COMPONENT_INCLUDE)
 #include MOZ_APP_COMPONENT_INCLUDE
@@ -217,16 +233,14 @@
     ZIPWRITER_MODULE                         \
     MODULE(StartupCacheModule)               \
     MODULE(nsPrefModule)                     \
-    MODULE(nsRDFModule)                      \
-    MODULE(nsWindowDataSourceModule)         \
+    RDF_MODULES                              \
     MODULE(nsParserModule)                   \
-    MODULE(nsGfxModule)                      \
-    MODULE(nsProfilerModule)                 \
+    GFX_MODULES                              \
     WIDGET_MODULES                           \
     MODULE(nsImageLib2Module)                \
     ICON_MODULE                              \
     JETPACK_MODULES                          \
-    MODULE(nsPluginModule)                   \
+    PLUGINS_MODULES                          \
     MODULE(nsLayoutModule)                   \
     MODULE(docshell_provider)                \
     MODULE(embedcomponents)                  \
@@ -254,9 +268,9 @@
     OSXPROXY_MODULE                          \
     WINDOWSPROXY_MODULE                      \
     JSCTYPES_MODULE                          \
-    MODULE(jsreflect)                        \
+    JSREFLECT_MODULE                         \
     MODULE(jsperf)                           \
-    MODULE(nsServicesCryptoModule)           \
+    SERVICES_CRYPTO_MODULE                   \
     MOZ_APP_COMPONENT_MODULES                \
     MODULE(nsTelemetryModule)                \
     MODULE(jsdebugger)                       \

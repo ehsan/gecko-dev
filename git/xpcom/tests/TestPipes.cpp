@@ -146,7 +146,7 @@ public:
         char buf[101];
         PRUint32 count;
         PRIntervalTime start = PR_IntervalNow();
-        while (true) {
+        while (PR_TRUE) {
             rv = mIn->Read(buf, 100, &count);
             if (NS_FAILED(rv)) {
                 printf("read failed\n");
@@ -237,7 +237,7 @@ public:
         char buf[101];
         PRUint32 count;
         PRUint32 total = 0;
-        while (true) {
+        while (PR_TRUE) {
             //if (gTrace)
             //    printf("calling Read\n");
             rv = mIn->Read(buf, 100, &count);
@@ -354,7 +354,7 @@ public:
     NS_IMETHOD Run() {
         nsresult rv;
         PRUint32 count;
-        while (true) {
+        while (PR_TRUE) {
             rv = mOut->WriteFrom(mIn, ~0U, &count);
             if (NS_FAILED(rv)) {
                 printf("Write failed\n");
@@ -486,7 +486,7 @@ main(int argc, char* argv[])
     if (NS_FAILED(rv)) return rv;
 
     if (argc > 1 && nsCRT::strcmp(argv[1], "-trace") == 0)
-        gTrace = true;
+        gTrace = PR_TRUE;
 
     rv = TestChainedPipes();
     NS_ASSERTION(NS_SUCCEEDED(rv), "TestChainedPipes failed");

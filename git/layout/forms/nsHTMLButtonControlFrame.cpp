@@ -87,7 +87,7 @@ nsHTMLButtonControlFrame::~nsHTMLButtonControlFrame()
 void
 nsHTMLButtonControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
-  nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), false);
+  nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
   DestroyAbsoluteFrames(aDestructRoot);
   nsHTMLContainerFrame::DestroyFrom(aDestructRoot);
 }
@@ -240,7 +240,7 @@ nsHTMLButtonControlFrame::Reflow(nsPresContext* aPresContext,
                   "Should have real computed width by now");
 
   if (mState & NS_FRAME_FIRST_REFLOW) {
-    nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), true);
+    nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_TRUE);
   }
 
   // Reflow the child
@@ -372,7 +372,7 @@ nsresult nsHTMLButtonControlFrame::SetFormProperty(nsIAtom* aName, const nsAStri
 {
   if (nsGkAtoms::value == aName) {
     return mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::value,
-                             aValue, true);
+                             aValue, PR_TRUE);
   }
   return NS_OK;
 }

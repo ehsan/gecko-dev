@@ -15,9 +15,7 @@ const EVENT_MENUPOPUP_END = nsIAccessibleEvent.EVENT_MENUPOPUP_END;
 const EVENT_OBJECT_ATTRIBUTE_CHANGED = nsIAccessibleEvent.EVENT_OBJECT_ATTRIBUTE_CHANGED;
 const EVENT_REORDER = nsIAccessibleEvent.EVENT_REORDER;
 const EVENT_SCROLLING_START = nsIAccessibleEvent.EVENT_SCROLLING_START;
-const EVENT_SELECTION = nsIAccessibleEvent.EVENT_SELECTION;
 const EVENT_SELECTION_ADD = nsIAccessibleEvent.EVENT_SELECTION_ADD;
-const EVENT_SELECTION_REMOVE = nsIAccessibleEvent.EVENT_SELECTION_REMOVE;
 const EVENT_SELECTION_WITHIN = nsIAccessibleEvent.EVENT_SELECTION_WITHIN;
 const EVENT_SHOW = nsIAccessibleEvent.EVENT_SHOW;
 const EVENT_STATE_CHANGE = nsIAccessibleEvent.EVENT_STATE_CHANGE;
@@ -25,7 +23,6 @@ const EVENT_TEXT_ATTRIBUTE_CHANGED = nsIAccessibleEvent.EVENT_TEXT_ATTRIBUTE_CHA
 const EVENT_TEXT_CARET_MOVED = nsIAccessibleEvent.EVENT_TEXT_CARET_MOVED;
 const EVENT_TEXT_INSERTED = nsIAccessibleEvent.EVENT_TEXT_INSERTED;
 const EVENT_TEXT_REMOVED = nsIAccessibleEvent.EVENT_TEXT_REMOVED;
-const EVENT_TEXT_SELECTION_CHANGED = nsIAccessibleEvent.EVENT_TEXT_SELECTION_CHANGED;
 const EVENT_VALUE_CHANGE = nsIAccessibleEvent.EVENT_VALUE_CHANGE;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -826,7 +823,7 @@ function synthClick(aNodeOrID, aCheckerOrEventSeq, aArgs)
     }
 
     // Scroll the node into view, otherwise synth click may fail.
-    if (targetNode instanceof nsIDOMHTMLElement) {
+    if (targetNode instanceof nsIDOMNSHTMLElement) {
       targetNode.scrollIntoView(true);
     } else if (targetNode instanceof nsIDOMXULElement) {
       var targetAcc = getAccessible(targetNode);
@@ -835,7 +832,7 @@ function synthClick(aNodeOrID, aCheckerOrEventSeq, aArgs)
 
     var x = 1, y = 1;
     if (aArgs && ("where" in aArgs) && aArgs.where == "right") {
-      if (targetNode instanceof nsIDOMHTMLElement)
+      if (targetNode instanceof nsIDOMNSHTMLElement)
         x = targetNode.offsetWidth - 1;
       else if (targetNode instanceof nsIDOMXULElement)
         x = targetNode.boxObject.width - 1;
@@ -1355,10 +1352,9 @@ function stateChangeChecker(aState, aIsExtraState, aIsEnabled,
     if (!event)
       return;
 
+    is(event.state, aState, "Wrong state of the statechange event.");
     is(event.isExtraState(), aIsExtraState,
        "Wrong extra state bit of the statechange event.");
-    isState(event.state, aState, aIsExtraState,
-            "Wrong state of the statechange event.");
     is(event.isEnabled(), aIsEnabled,
       "Wrong state of statechange event state");
 

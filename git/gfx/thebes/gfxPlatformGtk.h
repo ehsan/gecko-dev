@@ -135,9 +135,9 @@ public:
         // with bad drivers where we'd like to also use client side 
         // rendering, but until we have the ability to featuer test 
         // this, we'll only disable this for maemo.
-        return true;
+        return PR_TRUE;
 #else
-        return false;
+        return PR_FALSE;
 #endif
     }
 

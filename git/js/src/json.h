@@ -40,8 +40,7 @@
 
 #include "jsprvtd.h"
 #include "jspubtd.h"
-
-#include "js/Vector.h"
+#include "jsvector.h"
 
 #define JSON_MAX_DEPTH  2048
 #define JSON_PARSER_BUFSIZE 1024

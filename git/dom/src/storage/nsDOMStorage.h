@@ -62,6 +62,8 @@
 #include "nsITimer.h"
 #include "nsWeakReference.h"
 
+#define NS_DOMSTORAGE_FLUSH_TIMER_OBSERVER "domstorage-flush-timer"
+
 #include "nsDOMStorageDBWrapper.h"
 
 #define IS_PERMISSION_ALLOWED(perm) \
@@ -105,7 +107,6 @@ public:
 
 class nsDOMStorageManager : public nsIDOMStorageManager
                           , public nsIObserver
-                          , public nsSupportsWeakReference
 {
 public:
   // nsISupports
@@ -129,7 +130,6 @@ public:
   static nsresult Initialize();
   static nsDOMStorageManager* GetInstance();
   static void Shutdown();
-  static void ShutdownDB();
 
   /**
    * Checks whether there is any data waiting to be flushed from a temp table.

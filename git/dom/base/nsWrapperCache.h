@@ -158,15 +158,7 @@ public:
 
   void SetIsProxy()
   {
-    NS_ASSERTION(!mWrapperPtrBits,
-                 "This flag should be set before creating any wrappers.");
-    mWrapperPtrBits = WRAPPER_IS_PROXY;
-  }
-  void ClearIsProxy()
-  {
-    NS_ASSERTION(!mWrapperPtrBits || mWrapperPtrBits == WRAPPER_IS_PROXY,
-                 "This flag should be cleared before creating any wrappers.");
-    mWrapperPtrBits = 0;
+    mWrapperPtrBits |= WRAPPER_IS_PROXY;
   }
 
   bool IsProxy() const

@@ -116,7 +116,7 @@ nsHttpNegotiateAuth::ChallengeReceived(nsIHttpAuthenticableChannel *authChannel,
 {
     nsIAuthModule *module = (nsIAuthModule *) *continuationState;
 
-    *identityInvalid = false;
+    *identityInvalid = PR_FALSE;
     if (module)
         return NS_OK;
 
@@ -321,12 +321,12 @@ nsHttpNegotiateAuth::TestBoolPref(const char *pref)
 {
     nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (!prefs)
-        return false;
+        return PR_FALSE;
 
     bool val;
     nsresult rv = prefs->GetBoolPref(pref, &val);
     if (NS_FAILED(rv))
-        return false;
+        return PR_FALSE;
 
     return val;
 }
@@ -336,21 +336,21 @@ nsHttpNegotiateAuth::TestPref(nsIURI *uri, const char *pref)
 {
     nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (!prefs)
-        return false;
+        return PR_FALSE;
 
     nsCAutoString scheme, host;
     PRInt32 port;
 
     if (NS_FAILED(uri->GetScheme(scheme)))
-        return false;
+        return PR_FALSE;
     if (NS_FAILED(uri->GetAsciiHost(host)))
-        return false;
+        return PR_FALSE;
     if (NS_FAILED(uri->GetPort(&port)))
-        return false;
+        return PR_FALSE;
 
     char *hostList;
     if (NS_FAILED(prefs->GetCharPref(pref, &hostList)) || !hostList)
-        return false;
+        return PR_FALSE;
 
     // pseudo-BNF
     // ----------
@@ -375,14 +375,14 @@ nsHttpNegotiateAuth::TestPref(nsIURI *uri, const char *pref)
         if (start == end)
             break;
         if (MatchesBaseURI(scheme, host, port, start, end))
-            return true;
+            return PR_TRUE;
         if (*end == '\0')
             break;
         start = end + 1;
     }
     
     nsMemory::Free(hostList);
-    return false;
+    return PR_FALSE;
 }
 
 bool
@@ -399,7 +399,7 @@ nsHttpNegotiateAuth::MatchesBaseURI(const nsCSubstring &matchScheme,
     if (schemeEnd) {
         // the given scheme must match the parsed scheme exactly
         if (!matchScheme.Equals(Substring(baseStart, schemeEnd)))
-            return false;
+            return PR_FALSE;
         hostStart = schemeEnd + 3;
     }
     else
@@ -411,7 +411,7 @@ nsHttpNegotiateAuth::MatchesBaseURI(const nsCSubstring &matchScheme,
         // the given port must match the parsed port exactly
         int port = atoi(hostEnd + 1);
         if (matchPort != (PRInt32) port)
-            return false;
+            return PR_FALSE;
     }
     else
         hostEnd = baseEnd;
@@ -419,13 +419,13 @@ nsHttpNegotiateAuth::MatchesBaseURI(const nsCSubstring &matchScheme,
 
     // if we didn't parse out a host, then assume we got a match.
     if (hostStart == hostEnd)
-        return true;
+        return PR_TRUE;
 
     PRUint32 hostLen = hostEnd - hostStart;
 
     // matchHost must either equal host or be a subdomain of host
     if (matchHost.Length() < hostLen)
-        return false;
+        return PR_FALSE;
 
     const char *end = matchHost.EndReading();
     if (PL_strncasecmp(end - hostLen, hostStart, hostLen) == 0) {
@@ -435,8 +435,8 @@ nsHttpNegotiateAuth::MatchesBaseURI(const nsCSubstring &matchScheme,
         if (matchHost.Length() == hostLen ||
             *(end - hostLen) == '.' ||
             *(end - hostLen - 1) == '.')
-            return true;
+            return PR_TRUE;
     }
 
-    return false;
+    return PR_FALSE;
 }

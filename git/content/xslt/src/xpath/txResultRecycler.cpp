@@ -78,12 +78,12 @@ txResultRecycler::init()
 
     NS_ADDREF(mEmptyStringResult);
 
-    mTrueResult = new BooleanResult(true);
+    mTrueResult = new BooleanResult(PR_TRUE);
     NS_ENSURE_TRUE(mTrueResult, NS_ERROR_OUT_OF_MEMORY);
 
     NS_ADDREF(mTrueResult);
 
-    mFalseResult = new BooleanResult(false);
+    mFalseResult = new BooleanResult(PR_FALSE);
     NS_ENSURE_TRUE(mFalseResult, NS_ERROR_OUT_OF_MEMORY);
 
     NS_ADDREF(mFalseResult);

@@ -34,9 +34,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
-#include "mozilla/Util.h"
-
 #include "nsIDOMHTMLOListElement.h"
 #include "nsIDOMHTMLDListElement.h"
 #include "nsIDOMHTMLUListElement.h"
@@ -46,8 +43,6 @@
 #include "nsStyleConsts.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
-
-using namespace mozilla;
 
 class nsHTMLSharedListElement : public nsGenericHTMLElement,
                                 public nsIDOMHTMLOListElement,
@@ -187,8 +182,8 @@ nsHTMLSharedListElement::ParseAttribute(PRInt32 aNamespaceID,
     if (mNodeInfo->Equals(nsGkAtoms::ol) ||
         mNodeInfo->Equals(nsGkAtoms::ul)) {
       if (aAttribute == nsGkAtoms::type) {
-        return aResult.ParseEnumValue(aValue, kListTypeTable, false) ||
-               aResult.ParseEnumValue(aValue, kOldListTypeTable, true);
+        return aResult.ParseEnumValue(aValue, kListTypeTable, PR_FALSE) ||
+               aResult.ParseEnumValue(aValue, kOldListTypeTable, PR_TRUE);
       }
       if (aAttribute == nsGkAtoms::start) {
         return aResult.ParseIntValue(aValue);
@@ -235,7 +230,7 @@ nsHTMLSharedListElement::IsAttributeMapped(const nsIAtom* aAttribute) const
       sCommonAttributeMap,
     };
 
-    return FindAttributeDependence(aAttribute, map, ArrayLength(map));
+    return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
   }
 
   return nsGenericHTMLElement::IsAttributeMapped(aAttribute);

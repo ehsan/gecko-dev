@@ -37,8 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "RuntimeService.h"
 
 #include "nsIDOMChromeWindow.h"
@@ -56,7 +54,7 @@
 #include "mozilla/Preferences.h"
 #include "nsContentUtils.h"
 #include "nsDOMJSUtils.h"
-#include <Navigator.h>
+#include "nsGlobalWindow.h"
 #include "nsNetUtil.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
@@ -68,8 +66,6 @@
 #include "EventTarget.h"
 #include "Worker.h"
 #include "WorkerPrivate.h"
-
-using namespace mozilla;
 
 USING_WORKERS_NAMESPACE
 
@@ -150,7 +146,9 @@ enum {
   PREF_strict = 0,
   PREF_werror,
   PREF_relimit,
+  PREF_tracejit,
   PREF_methodjit,
+  PREF_jitprofiling,
   PREF_methodjit_always,
 
 #ifdef JS_GC_ZEAL
@@ -166,7 +164,9 @@ const char* gPrefsToWatch[] = {
   JS_OPTIONS_DOT_STR "strict",
   JS_OPTIONS_DOT_STR "werror",
   JS_OPTIONS_DOT_STR "relimit",
+  JS_OPTIONS_DOT_STR "tracejit.content",
   JS_OPTIONS_DOT_STR "methodjit.content",
+  JS_OPTIONS_DOT_STR "jitprofiling.content",
   JS_OPTIONS_DOT_STR "methodjit_always"
 
 #ifdef JS_GC_ZEAL
@@ -197,8 +197,14 @@ PrefCallback(const char* aPrefName, void* aClosure)
     if (Preferences::GetBool(gPrefsToWatch[PREF_relimit])) {
       newOptions |= JSOPTION_RELIMIT;
     }
+    if (Preferences::GetBool(gPrefsToWatch[PREF_tracejit])) {
+      newOptions |= JSOPTION_JIT;
+    }
     if (Preferences::GetBool(gPrefsToWatch[PREF_methodjit])) {
       newOptions |= JSOPTION_METHODJIT;
+    }
+    if (Preferences::GetBool(gPrefsToWatch[PREF_jitprofiling])) {
+      newOptions |= JSOPTION_PROFILING;
     }
     if (Preferences::GetBool(gPrefsToWatch[PREF_methodjit_always])) {
       newOptions |= JSOPTION_METHODJIT_ALWAYS;
@@ -209,7 +215,7 @@ PrefCallback(const char* aPrefName, void* aClosure)
 #ifdef JS_GC_ZEAL
   else if (!strcmp(aPrefName, gPrefsToWatch[PREF_gczeal])) {
     PRInt32 gczeal = Preferences::GetInt(gPrefsToWatch[PREF_gczeal]);
-    RuntimeService::SetDefaultGCZeal(PRUint8(clamped(gczeal, 0, 3)));
+    RuntimeService::SetDefaultGCZeal(PRUint8(NS_MIN(NS_MAX(gczeal, 0), 3)));
     rts->UpdateAllWorkerGCZeal();
   }
 #endif
@@ -379,7 +385,7 @@ ResolveWorkerClasses(JSContext* aCx, JSObject* aObj, jsid aId, uintN aFlags,
       bool enabled;
       if (NS_FAILED(ssm->IsCapabilityEnabled("UniversalXPConnect", &enabled))) {
         NS_WARNING("IsCapabilityEnabled failed!");
-        isChrome = false;
+        isChrome = PR_FALSE;
       }
 
       isChrome = !!enabled;
@@ -453,51 +459,6 @@ ResumeWorkersForWindow(JSContext* aCx, nsPIDOMWindow* aWindow)
   if (runtime) {
     runtime->ResumeWorkersForWindow(aCx, aWindow);
   }
-}
-
-namespace {
-
-class WorkerTaskRunnable : public WorkerRunnable
-{
-public:
-  WorkerTaskRunnable(WorkerPrivate* aPrivate, WorkerTask* aTask)
-    : WorkerRunnable(aPrivate, WorkerThread, UnchangedBusyCount),
-      mTask(aTask)
-  { }
-
-  virtual bool PreDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate) {
-    return true;
-  }
-
-  virtual void PostDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
-                            bool aDispatchResult)
-  { }
-
-  virtual bool WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate);
-
-private:
-  nsRefPtr<WorkerTask> mTask;
-};
-
-bool
-WorkerTaskRunnable::WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
-{
-  return mTask->RunTask(aCx);
-}
-
-}
-
-bool
-WorkerCrossThreadDispatcher::PostTask(WorkerTask* aTask)
-{
-  mozilla::MutexAutoLock lock(mMutex);
-  if (!mPrivate) {
-    return false;
-  }
-
-  nsRefPtr<WorkerTaskRunnable> runnable = new WorkerTaskRunnable(mPrivate, aTask);
-  runnable->Dispatch(nsnull);
-  return true;
 }
 
 END_WORKERS_NAMESPACE
@@ -871,12 +832,12 @@ RuntimeService::Init()
     do_GetService(NS_OBSERVERSERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = obs->AddObserver(this, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID, false);
+  rv = obs->AddObserver(this, NS_XPCOM_SHUTDOWN_THREADS_OBSERVER_ID, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   mObserved = true;
 
-  for (PRUint32 index = 0; index < ArrayLength(gPrefsToWatch); index++) {
+  for (PRUint32 index = 0; index < NS_ARRAY_LENGTH(gPrefsToWatch); index++) {
     if (NS_FAILED(Preferences::RegisterCallback(PrefCallback,
                                                 gPrefsToWatch[index], this))) {
       NS_WARNING("Failed to register pref callback?!");
@@ -991,7 +952,7 @@ RuntimeService::Cleanup()
   }
 
   if (mObserved) {
-    for (PRUint32 index = 0; index < ArrayLength(gPrefsToWatch); index++) {
+    for (PRUint32 index = 0; index < NS_ARRAY_LENGTH(gPrefsToWatch); index++) {
       Preferences::UnregisterCallback(PrefCallback, gPrefsToWatch[index], this);
     }
 

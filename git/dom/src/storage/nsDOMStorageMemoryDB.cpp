@@ -67,7 +67,7 @@ AllKeyEnum(nsSessionStorageEntry* aEntry, void* userArg)
   aEntry->mItem->GetValue(item->mValue);
   nsresult rv = aEntry->mItem->GetSecure(&item->mSecure);
   if (NS_FAILED(rv))
-    item->mSecure = false;
+    item->mSecure = PR_FALSE;
 
   target->Put(aEntry->GetKey(), item);
   return PL_DHASH_NEXT;
@@ -100,9 +100,9 @@ nsDOMStorageMemoryDB::GetItemsTable(DOMStorageImpl* aStorage,
     rv = mPreloadDB->GetAllKeys(aStorage, &keys);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    mPreloading = true;
+    mPreloading = PR_TRUE;
     keys.EnumerateEntries(AllKeyEnum, &storageData->mTable);
-    mPreloading = false;
+    mPreloading = PR_FALSE;
   }
 
   mData.Put(aStorage->GetScopeDBKey(), storageData);
@@ -353,7 +353,7 @@ nsDOMStorageMemoryDB::RemoveOwner(const nsACString& aOwner,
 
   RemoveOwnersStruc struc;
   struc.mSubDomain = &subdomainsDBKey;
-  struc.mMatch = true;
+  struc.mMatch = PR_TRUE;
   mData.Enumerate(RemoveOwnersEnum, &struc);
 
   MarkAllScopesDirty();
@@ -423,11 +423,11 @@ nsDOMStorageMemoryDB::GetUsage(const nsACString& aDomain,
   nsCAutoString quotadomainDBKey;
   rv = nsDOMStorageDBWrapper::CreateQuotaDomainDBKey(aDomain,
                                                      aIncludeSubDomains,
-                                                     false,
+                                                     PR_FALSE,
                                                      quotadomainDBKey);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return GetUsageInternal(quotadomainDBKey, false, aUsage);
+  return GetUsageInternal(quotadomainDBKey, PR_FALSE, aUsage);
 }
 
 struct GetUsageEnumStruc

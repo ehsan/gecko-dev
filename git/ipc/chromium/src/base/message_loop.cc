@@ -27,7 +27,7 @@
 #include "base/message_pump_qt.h"
 #endif
 #endif
-#ifdef ANDROID
+#ifdef MOZ_WIDGET_ANDROID
 #include "base/message_pump_android.h"
 #endif
 

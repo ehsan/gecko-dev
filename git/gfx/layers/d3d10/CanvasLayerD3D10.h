@@ -53,9 +53,9 @@ public:
   CanvasLayerD3D10(LayerManagerD3D10 *aManager)
     : CanvasLayer(aManager, NULL)
     , LayerD3D10(aManager)
-    , mDataIsPremultiplied(false)
-    , mNeedsYFlip(false)
-    , mHasAlpha(true)
+    , mDataIsPremultiplied(PR_FALSE)
+    , mNeedsYFlip(PR_FALSE)
+    , mHasAlpha(PR_TRUE)
   {
       mImplData = static_cast<LayerD3D10*>(this);
   }

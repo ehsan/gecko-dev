@@ -278,10 +278,10 @@ IDRefsIterator::IDRefsIterator(nsIContent* aContent, nsIAtom* aIDRefsAttr) :
     return;
 
   if (aContent->IsInAnonymousSubtree()) {
-    mXBLDocument = do_QueryInterface(aContent->OwnerDoc());
+    mXBLDocument = do_QueryInterface(aContent->GetOwnerDoc());
     mBindingParent = do_QueryInterface(aContent->GetBindingParent());
   } else {
-    mDocument = aContent->OwnerDoc();
+    mDocument = aContent->GetOwnerDoc();
   }
 }
 

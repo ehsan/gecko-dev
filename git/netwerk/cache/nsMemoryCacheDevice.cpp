@@ -48,7 +48,6 @@
 #include "nsCRT.h"
 #include "nsCache.h"
 #include "nsReadableUtils.h"
-#include "mozilla/Telemetry.h"
 
 // The memory cache implements the "LRU-SP" caching algorithm
 // described in "LRU-SP: A Size-Adjusted and Popularity-Aware LRU Replacement
@@ -63,7 +62,7 @@
 const char *gMemoryDeviceID      = "memory";
 
 nsMemoryCacheDevice::nsMemoryCacheDevice()
-    : mInitialized(false),
+    : mInitialized(PR_FALSE),
       mEvictionThreshold(PR_INT32_MAX),
       mHardLimit(4 * 1024 * 1024),       // default, if no pref
       mSoftLimit((mHardLimit * 9) / 10), // default, if no pref
@@ -131,7 +130,7 @@ nsMemoryCacheDevice::Shutdown()
     NS_ASSERTION(mInactiveSize == 0, "### mem cache leaking entries?");
     NS_ASSERTION(mEntryCount == 0, "### mem cache leaking entries?");
     
-    mInitialized = false;
+    mInitialized = PR_FALSE;
 
     return NS_OK;
 }
@@ -147,7 +146,6 @@ nsMemoryCacheDevice::GetDeviceID()
 nsCacheEntry *
 nsMemoryCacheDevice::FindEntry(nsCString * key, bool *collision)
 {
-    mozilla::Telemetry::AutoTimer<mozilla::Telemetry::CACHE_MEMORY_SEARCH> timer;
     nsCacheEntry * entry = mMemCacheEntries.GetEntry(key);
     if (!entry)  return nsnull;
 

@@ -75,7 +75,7 @@ NS_NewHTMLCanvasElement(already_AddRefed<nsINodeInfo> aNodeInfo,
 }
 
 nsHTMLCanvasElement::nsHTMLCanvasElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : nsGenericHTMLElement(aNodeInfo), mWriteOnly(false)
+  : nsGenericHTMLElement(aNodeInfo), mWriteOnly(PR_FALSE)
 {
 }
 
@@ -156,7 +156,7 @@ nsHTMLCanvasElement::CopyInnerTo(nsGenericElement* aDest) const
 {
   nsresult rv = nsGenericHTMLElement::CopyInnerTo(aDest);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (aDest->OwnerDoc()->IsStaticDocument()) {
+  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
     nsHTMLCanvasElement* dest = static_cast<nsHTMLCanvasElement*>(aDest);
     nsCOMPtr<nsISupports> cxt;
     dest->GetContext(NS_LITERAL_STRING("2d"), JSVAL_VOID, getter_AddRefs(cxt));
@@ -277,7 +277,7 @@ nsHTMLCanvasElement::ExtractData(const nsAString& aType,
 
   NS_ENSURE_SUCCESS(rv, rv);
 
-  imgStream.forget(aStream);
+  return CallQueryInterface(imgStream, aStream);
   return NS_OK;
 }
 
@@ -331,7 +331,7 @@ nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
                                                     paramString.Length() - 
                                                     mozParseOptions.Length());
       params.Append(parseOptions);
-      usingCustomParseOptions = true;
+      usingCustomParseOptions = PR_TRUE;
     }
   }
 
@@ -406,8 +406,7 @@ nsHTMLCanvasElement::MozGetAsFileImpl(const nsAString& aName,
   nsRefPtr<nsDOMMemoryFile> file =
     new nsDOMMemoryFile(imgData, imgSize, aName, type);
 
-  file.forget(aResult);
-  return NS_OK;
+  return CallQueryInterface(file, aResult);
 }
 
 nsresult
@@ -458,7 +457,7 @@ nsHTMLCanvasElement::GetContextHelper(const nsAString& aContextId,
     return rv;
   }
 
-  ctx.forget(aContext);
+  *aContext = ctx.forget().get();
 
   return rv;
 }
@@ -502,24 +501,24 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
 
         JSObject *opts = JSVAL_TO_OBJECT(aContextOptions);
         JSIdArray *props = JS_Enumerate(cx, opts);
-        for (int i = 0; props && i < JS_IdArrayLength(cx, props); ++i) {
-          jsid propid = JS_IdArrayGet(cx, props, i);
+        for (int i = 0; props && i < props->length; ++i) {
+          jsid propid = props->vector[i];
           jsval propname, propval;
           if (!JS_IdToValue(cx, propid, &propname) ||
-              !JS_GetPropertyById(cx, opts, propid, &propval)) {
+              !JS_GetPropertyById(cx, opts, propid, &propval))
+          {
             continue;
           }
 
           JSString *propnameString = JS_ValueToString(cx, propname);
           nsDependentJSString pstr;
           if (!propnameString || !pstr.init(cx, propnameString)) {
-            JS_DestroyIdArray(cx, props);
             mCurrentContext = nsnull;
             return NS_ERROR_FAILURE;
           }
 
           if (JSVAL_IS_BOOLEAN(propval)) {
-            contextProps->SetPropertyAsBool(pstr, propval == JSVAL_TRUE ? true : false);
+            contextProps->SetPropertyAsBool(pstr, propval == JSVAL_TRUE ? PR_TRUE : PR_FALSE);
           } else if (JSVAL_IS_INT(propval)) {
             contextProps->SetPropertyAsInt32(pstr, JSVAL_TO_INT(propval));
           } else if (JSVAL_IS_DOUBLE(propval)) {
@@ -528,7 +527,6 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
             JSString *propvalString = JS_ValueToString(cx, propval);
             nsDependentJSString vstr;
             if (!propvalString || !vstr.init(cx, propvalString)) {
-              JS_DestroyIdArray(cx, props);
               mCurrentContext = nsnull;
               return NS_ERROR_FAILURE;
             }
@@ -536,7 +534,6 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
             contextProps->SetPropertyAsAString(pstr, vstr);
           }
         }
-        JS_DestroyIdArray(cx, props);
       }
     }
 
@@ -544,7 +541,7 @@ nsHTMLCanvasElement::GetContext(const nsAString& aContextId,
     if (NS_FAILED(rv)) {
       if (!forceThebes) {
         // Try again with a Thebes context
-        forceThebes = true;
+        forceThebes = PR_TRUE;
         continue;
       }
       return rv;
@@ -575,14 +572,16 @@ nsHTMLCanvasElement::MozGetIPCContext(const nsAString& aContextId,
   if (!aContextId.Equals(NS_LITERAL_STRING("2d")))
     return NS_ERROR_INVALID_ARG;
 
+  nsresult rv;
+
   if (mCurrentContextId.IsEmpty()) {
-    nsresult rv = GetContextHelper(aContextId, false, getter_AddRefs(mCurrentContext));
+    rv = GetContextHelper(aContextId, PR_FALSE, getter_AddRefs(mCurrentContext));
     NS_ENSURE_SUCCESS(rv, rv);
     if (!mCurrentContext) {
       return NS_OK;
     }
 
-    mCurrentContext->SetIsIPC(true);
+    mCurrentContext->SetIsIPC(PR_TRUE);
 
     rv = UpdateContext();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -603,26 +602,27 @@ nsHTMLCanvasElement::UpdateContext(nsIPropertyBag *aNewContextOptions)
   if (!mCurrentContext)
     return NS_OK;
 
+  nsresult rv = NS_OK;
   nsIntSize sz = GetWidthHeight();
 
-  nsresult rv = mCurrentContext->SetIsOpaque(GetIsOpaque());
+  rv = mCurrentContext->SetIsOpaque(GetIsOpaque());
   if (NS_FAILED(rv)) {
     mCurrentContext = nsnull;
-    mCurrentContextId.Truncate();
+    mCurrentContextId.AssignLiteral("");
     return rv;
   }
 
   rv = mCurrentContext->SetContextOptions(aNewContextOptions);
   if (NS_FAILED(rv)) {
     mCurrentContext = nsnull;
-    mCurrentContextId.Truncate();
+    mCurrentContextId.AssignLiteral("");
     return rv;
   }
 
   rv = mCurrentContext->SetDimensions(sz.width, sz.height);
   if (NS_FAILED(rv)) {
     mCurrentContext = nsnull;
-    mCurrentContextId.Truncate();
+    mCurrentContextId.AssignLiteral("");
     return rv;
   }
 
@@ -650,7 +650,7 @@ nsHTMLCanvasElement::IsWriteOnly()
 void
 nsHTMLCanvasElement::SetWriteOnly()
 {
-  mWriteOnly = true;
+  mWriteOnly = PR_TRUE;
 }
 
 void
@@ -715,10 +715,10 @@ nsHTMLCanvasElement::CountContexts()
 }
 
 nsICanvasRenderingContextInternal *
-nsHTMLCanvasElement::GetContextAtIndex(PRInt32 index)
+nsHTMLCanvasElement::GetContextAtIndex (PRInt32 index)
 {
   if (mCurrentContext && index == 0)
-    return mCurrentContext;
+    return mCurrentContext.get();
 
   return NULL;
 }

@@ -75,7 +75,6 @@
 #include "nsGkAtoms.h"
 #include "nsDebug.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/Element.h"
 
 // Drag & Drop, Clipboard
 #include "nsIClipboard.h"
@@ -88,9 +87,9 @@ using namespace mozilla;
 
 nsPlaintextEditor::nsPlaintextEditor()
 : nsEditor()
-, mIgnoreSpuriousDragEvent(false)
+, mIgnoreSpuriousDragEvent(PR_FALSE)
 , mRules(nsnull)
-, mWrapToWindow(false)
+, mWrapToWindow(PR_FALSE)
 , mWrapColumn(0)
 , mMaxTextLength(-1)
 , mInitTriggerCounter(0)
@@ -222,8 +221,8 @@ nsPlaintextEditor::EndEditorInit()
     if (NS_SUCCEEDED(res)) {
       // Throw away the old transaction manager if this is not the first time that
       // we're initializing the editor.
-      EnableUndo(false);
-      EnableUndo(true);
+      EnableUndo(PR_FALSE);
+      EnableUndo(PR_TRUE);
     }
   }
   return res;
@@ -279,7 +278,7 @@ nsPlaintextEditor::SetDocumentCharacterSet(const nsACString & characterSet)
                                               Substring(originalStart, start) +
                                               charsetEquals + NS_ConvertASCIItoUTF16(characterSet)); 
               if (NS_SUCCEEDED(result)) 
-                newMetaCharset = false; 
+                newMetaCharset = PR_FALSE; 
               break; 
             } 
           } 
@@ -336,7 +335,7 @@ nsPlaintextEditor::GetIsDocumentEditable(bool *aIsDocumentEditable)
 
   nsCOMPtr<nsIDOMDocument> doc;
   GetDocument(getter_AddRefs(doc));
-  *aIsDocumentEditable = doc ? IsModifiable() : false;
+  *aIsDocumentEditable = doc ? IsModifiable() : PR_FALSE;
 
   return NS_OK;
 }
@@ -501,13 +500,13 @@ NS_IMETHODIMP nsPlaintextEditor::CreateBRImpl(nsCOMPtr<nsIDOMNode> *aInOutParent
     if (aSelect == eNext)
     {
       // position selection after br
-      selPriv->SetInterlinePosition(true);
+      selPriv->SetInterlinePosition(PR_TRUE);
       res = selection->Collapse(parent, offset+1);
     }
     else if (aSelect == ePrevious)
     {
       // position selection before br
-      selPriv->SetInterlinePosition(true);
+      selPriv->SetInterlinePosition(PR_TRUE);
       res = selection->Collapse(parent, offset);
     }
   }
@@ -553,7 +552,7 @@ NS_IMETHODIMP nsPlaintextEditor::InsertBR(nsCOMPtr<nsIDOMNode> *outBRNode)
   res = GetNodeLocation(*outBRNode, address_of(selNode), &selOffset);
   NS_ENSURE_SUCCESS(res, res);
   nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));
-  selPriv->SetInterlinePosition(true);
+  selPriv->SetInterlinePosition(PR_TRUE);
   return selection->Collapse(selNode, selOffset+1);
 }
 
@@ -572,8 +571,7 @@ nsPlaintextEditor::GetTextSelectionOffsets(nsISelection *aSelection,
   aSelection->GetFocusNode(getter_AddRefs(endNode));
   aSelection->GetFocusOffset(&endNodeOffset);
 
-  dom::Element *rootElement = GetRoot();
-  nsCOMPtr<nsIDOMNode> rootNode = do_QueryInterface(rootElement);
+  nsIDOMElement* rootNode = GetRoot();
   NS_ENSURE_TRUE(rootNode, NS_ERROR_NULL_POINTER);
 
   PRInt32 startOffset = -1;
@@ -587,7 +585,8 @@ nsPlaintextEditor::GetTextSelectionOffsets(nsISelection *aSelection,
   PRInt32 nodeCount = 0; // only needed for the assertions below
 #endif
   PRUint32 totalLength = 0;
-  iter->Init(rootElement);
+  nsCOMPtr<nsIContent> rootContent = do_QueryInterface(rootNode);
+  iter->Init(rootContent);
   for (; !iter->IsDone() && (startOffset == -1 || endOffset == -1); iter->Next()) {
     nsCOMPtr<nsIDOMNode> currentNode = do_QueryInterface(iter->GetCurrentNode());
     nsCOMPtr<nsIDOMCharacterData> textNode = do_QueryInterface(currentNode);
@@ -667,13 +666,13 @@ nsPlaintextEditor::ExtendSelectionForDelete(nsISelection *aSelection,
     switch (*aAction)
     {
       case eNextWord:
-        result = selCont->WordExtendForDelete(true);
+        result = selCont->WordExtendForDelete(PR_TRUE);
         // DeleteSelectionImpl doesn't handle these actions
         // because it's inside batching, so don't confuse it:
         *aAction = eNone;
         break;
       case ePreviousWord:
-        result = selCont->WordExtendForDelete(false);
+        result = selCont->WordExtendForDelete(PR_FALSE);
         *aAction = eNone;
         break;
       case eNext:
@@ -708,12 +707,12 @@ nsPlaintextEditor::ExtendSelectionForDelete(nsISelection *aSelection,
         break;
       }
       case eToBeginningOfLine:
-        selCont->IntraLineMove(true, false);          // try to move to end
-        result = selCont->IntraLineMove(false, true); // select to beginning
+        selCont->IntraLineMove(PR_TRUE, PR_FALSE);          // try to move to end
+        result = selCont->IntraLineMove(PR_FALSE, PR_TRUE); // select to beginning
         *aAction = eNone;
         break;
       case eToEndOfLine:
-        result = selCont->IntraLineMove(true, true);
+        result = selCont->IntraLineMove(PR_TRUE, PR_TRUE);
         *aAction = eNext;
         break;
       default:       // avoid several compiler warnings
@@ -899,19 +898,19 @@ NS_IMETHODIMP nsPlaintextEditor::InsertLineBreak()
 
         if (NS_SUCCEEDED(res) && endNode == selNode && endOffset == selOffset)
         {
-          // SetInterlinePosition(true) means we want the caret to stick to the content on the "right".
+          // SetInterlinePosition(PR_TRUE) means we want the caret to stick to the content on the "right".
           // We want the caret to stick to whatever is past the break.  This is
           // because the break is on the same line we were on, but the next content
           // will be on the following line.
           nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));
-          selPriv->SetInterlinePosition(true);
+          selPriv->SetInterlinePosition(PR_TRUE);
         }
       }
     }
   }
   if (!cancel)
   {
-    // post-process, always called if WillInsertBreak didn't return cancel==true
+    // post-process, always called if WillInsertBreak didn't return cancel==PR_TRUE
     res = mRules->DidDoAction(selection, &ruleInfo, res);
   }
 
@@ -1021,15 +1020,16 @@ nsPlaintextEditor::GetTextLength(PRInt32 *aCount)
   if (docEmpty)
     return NS_OK;
 
-  dom::Element *rootElement = GetRoot();
-  NS_ENSURE_TRUE(rootElement, NS_ERROR_NULL_POINTER);
+  nsIDOMElement* rootNode = GetRoot();
+  NS_ENSURE_TRUE(rootNode, NS_ERROR_NULL_POINTER);
 
   nsCOMPtr<nsIContentIterator> iter =
     do_CreateInstance("@mozilla.org/content/post-content-iterator;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRUint32 totalLength = 0;
-  iter->Init(rootElement);
+  nsCOMPtr<nsIContent> rootContent = do_QueryInterface(rootNode);
+  iter->Init(rootContent);
   for (; !iter->IsDone(); iter->Next()) {
     nsCOMPtr<nsIDOMNode> currentNode = do_QueryInterface(iter->GetCurrentNode());
     nsCOMPtr<nsIDOMCharacterData> textNode = do_QueryInterface(currentNode);
@@ -1078,10 +1078,10 @@ nsPlaintextEditor::GetWrapWidth(PRInt32 *aWrapColumn)
 static void CutStyle(const char* stylename, nsString& styleValue)
 {
   // Find the current wrapping type:
-  PRInt32 styleStart = styleValue.Find(stylename, true);
+  PRInt32 styleStart = styleValue.Find(stylename, PR_TRUE);
   if (styleStart >= 0)
   {
-    PRInt32 styleEnd = styleValue.Find(";", false, styleStart);
+    PRInt32 styleEnd = styleValue.Find(";", PR_FALSE, styleStart);
     if (styleEnd > styleStart)
       styleValue.Cut(styleStart, styleEnd - styleStart + 1);
     else
@@ -1104,12 +1104,13 @@ nsPlaintextEditor::SetWrapWidth(PRInt32 aWrapColumn)
 
   // Ought to set a style sheet here ...
   // Probably should keep around an mPlaintextStyleSheet for this purpose.
-  dom::Element *rootElement = GetRoot();
+  nsIDOMElement *rootElement = GetRoot();
   NS_ENSURE_TRUE(rootElement, NS_ERROR_NULL_POINTER);
 
   // Get the current style for this root element:
+  NS_NAMED_LITERAL_STRING(styleName, "style");
   nsAutoString styleValue;
-  nsresult res = rootElement->GetAttr(kNameSpaceID_None, nsGkAtoms::style, styleValue);
+  nsresult res = rootElement->GetAttribute(styleName, styleValue);
   NS_ENSURE_SUCCESS(res, res);
 
   // We'll replace styles for these values:
@@ -1121,7 +1122,7 @@ nsPlaintextEditor::SetWrapWidth(PRInt32 aWrapColumn)
   // or whitespace, then add a known semicolon-space:
   if (!styleValue.IsEmpty())
   {
-    styleValue.Trim("; \t", false, true);
+    styleValue.Trim("; \t", PR_FALSE, PR_TRUE);
     styleValue.AppendLiteral("; ");
   }
 
@@ -1153,7 +1154,7 @@ nsPlaintextEditor::SetWrapWidth(PRInt32 aWrapColumn)
   else
     styleValue.AppendLiteral("white-space: pre;");
 
-  return rootElement->SetAttr(kNameSpaceID_None, nsGkAtoms::style, styleValue, true);
+  return rootElement->SetAttribute(styleName, styleValue);
 }
 
 NS_IMETHODIMP 
@@ -1251,7 +1252,7 @@ nsPlaintextEditor::CanCutOrCopy()
 {
   nsCOMPtr<nsISelection> selection;
   if (NS_FAILED(GetSelection(getter_AddRefs(selection))))
-    return false;
+    return PR_FALSE;
 
   bool isCollapsed;
   selection->GetIsCollapsed(&isCollapsed);
@@ -1265,14 +1266,14 @@ nsPlaintextEditor::FireClipboardEvent(PRInt32 aType)
     ForceCompositionEnd();
 
   nsCOMPtr<nsIPresShell> presShell = GetPresShell();
-  NS_ENSURE_TRUE(presShell, false);
+  NS_ENSURE_TRUE(presShell, PR_FALSE);
 
   nsCOMPtr<nsISelection> selection;
   if (NS_FAILED(GetSelection(getter_AddRefs(selection))))
-    return false;
+    return PR_FALSE;
 
   if (!nsCopySupport::FireClipboardEvent(aType, presShell, selection))
-    return false;
+    return PR_FALSE;
 
   // If the event handler caused the editor to be destroyed, return false.
   // Otherwise return true to indicate that the event was not cancelled.
@@ -1353,7 +1354,7 @@ nsPlaintextEditor::GetAndInitDocEncoder(const nsAString& aFormatType,
   // in which case we set the selection to encompass the root.
   else
   {
-    nsCOMPtr<nsIDOMElement> rootElement = do_QueryInterface(GetRoot());
+    nsIDOMElement *rootElement = GetRoot();
     NS_ENSURE_TRUE(rootElement, NS_ERROR_FAILURE);
     if (!nsTextEditUtils::IsBody(rootElement))
     {
@@ -1683,7 +1684,7 @@ nsPlaintextEditor::SelectEntireDocument(nsISelection *aSelection)
   if (NS_SUCCEEDED(mRules->DocumentIsEmpty(&bDocIsEmpty)) && bDocIsEmpty)
   {
     // get root node
-    nsCOMPtr<nsIDOMElement> rootElement = do_QueryInterface(GetRoot());
+    nsIDOMElement *rootElement = GetRoot();
     NS_ENSURE_TRUE(rootElement, NS_ERROR_FAILURE);
 
     // if it's empty don't select entire doc - that would select the bogus node

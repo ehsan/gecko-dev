@@ -105,8 +105,8 @@ nsDOMDesktopNotification::nsDOMDesktopNotification(const nsAString & title,
   , mDescription(description)
   , mIconURL(iconURL)
   , mURI(uri)
-  , mAllow(false)
-  , mShowHasBeenCalled(false)
+  , mAllow(PR_FALSE)
+  , mShowHasBeenCalled(PR_FALSE)
 {
   mOwner = aWindow;
   mScriptContext = aScriptContext;
@@ -119,7 +119,7 @@ nsDOMDesktopNotification::nsDOMDesktopNotification(const nsAString & title,
   // and we are suppose to allow requests, then just post an allow event.
   if (Preferences::GetBool("notification.prompt.testing", false) &&
       Preferences::GetBool("notification.prompt.testing.allow", true)) {
-    mAllow = true;
+    mAllow = PR_TRUE;
     return;
   }
 
@@ -172,10 +172,10 @@ nsDOMDesktopNotification::DispatchNotificationEvent(const nsString& aName)
   nsresult rv = NS_NewDOMEvent(getter_AddRefs(event), nsnull, nsnull);
   if (NS_SUCCEEDED(rv)) {
     // it doesn't bubble, and it isn't cancelable
-    rv = event->InitEvent(aName, false, false);
+    rv = event->InitEvent(aName, PR_FALSE, PR_FALSE);
     if (NS_SUCCEEDED(rv)) {
       nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(event);
-      privateEvent->SetTrusted(true);
+      privateEvent->SetTrusted(PR_TRUE);
       DispatchDOMEvent(nsnull, event, nsnull, nsnull);
     }
   }
@@ -207,7 +207,7 @@ nsDOMDesktopNotification::HandleAlertServiceNotification(const char *aTopic)
 NS_IMETHODIMP
 nsDOMDesktopNotification::Show()
 {
-  mShowHasBeenCalled = true;
+  mShowHasBeenCalled = PR_TRUE;
 
   if (!mAllow)
     return NS_OK;
@@ -312,7 +312,7 @@ nsDesktopNotificationRequest::GetElement(nsIDOMElement * *aElement)
 NS_IMETHODIMP
 nsDesktopNotificationRequest::Cancel()
 {
-  mDesktopNotification->SetAllow(false);
+  mDesktopNotification->SetAllow(PR_FALSE);
   mDesktopNotification = nsnull;
   return NS_OK;
 }
@@ -320,7 +320,7 @@ nsDesktopNotificationRequest::Cancel()
 NS_IMETHODIMP
 nsDesktopNotificationRequest::Allow()
 {
-  mDesktopNotification->SetAllow(true);
+  mDesktopNotification->SetAllow(PR_TRUE);
   mDesktopNotification = nsnull;
   return NS_OK;
 }

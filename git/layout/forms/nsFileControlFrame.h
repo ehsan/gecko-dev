@@ -45,7 +45,9 @@
 #include "nsICapturePicker.h"
 #include "nsCOMPtr.h"
 
-class nsTextControlFrame;
+#include "nsTextControlFrame.h"
+typedef   nsTextControlFrame nsNewFrame;
+
 class nsIDOMDragEvent;
 
 class nsFileControlFrame : public nsBlockFrame,
@@ -73,6 +75,11 @@ public:
 
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
   
+  NS_IMETHOD Reflow(nsPresContext*          aCX,
+                    nsHTMLReflowMetrics&     aDesiredSize,
+                    const nsHTMLReflowState& aReflowState,
+                    nsReflowStatus&          aStatus);
+
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
 #ifdef NS_DEBUG
@@ -98,6 +105,8 @@ public:
 
   typedef bool (*AcceptAttrCallback)(const nsAString&, void*);
   void ParseAcceptAttribute(AcceptAttrCallback aCallback, void* aClosure) const;
+
+  nsIFrame* GetTextFrame() { return mTextFrame; }
 
 protected:
 
@@ -165,6 +174,11 @@ protected:
   virtual PRIntn GetSkipSides() const;
 
   /**
+   * The text frame (populated on initial reflow).
+   * @see nsFileControlFrame::Reflow
+   */
+  nsNewFrame* mTextFrame;
+  /**
    * The text box input.
    * @see nsFileControlFrame::CreateAnonymousContent
    */
@@ -187,11 +201,19 @@ protected:
   nsRefPtr<BrowseMouseListener> mMouseListener;
   nsRefPtr<CaptureMouseListener> mCaptureMouseListener;
 
-protected:
+private:
   /**
+   * Find the first text frame child (first frame child whose content has input
+   * type=text) of a frame.
+   * XXX this is an awfully complicated implementation of something we could
+   * likely do by just doing GetPrimaryFrame on mTextContent
+   *
+   * @param aPresContext the current pres context
+   * @param aStart the parent frame to search children of
    * @return the text control frame, or null if not found
    */
-  nsTextControlFrame* GetTextControlFrame();
+  nsNewFrame* GetTextControlFrame(nsPresContext* aPresContext,
+                                  nsIFrame* aStart);
 
   /**
    * Copy an attribute from file content to text and button content.

@@ -40,147 +40,7 @@
 
 /* API for getting a stack trace of the C/C++ stack on the current thread */
 
-#include "mozilla/Util.h"
-#include "nsDebug.h"
-#include "nsStackWalkPrivate.h"
-
 #include "nsStackWalk.h"
-
-// The presence of this address is the stack must stop the stack walk. If
-// there is no such address, the structure will be {NULL, true}.
-struct CriticalAddress {
-  void* mAddr;
-  bool mInit;
-};
-static CriticalAddress gCriticalAddress;
-
-#if defined(HAVE_DLOPEN) || defined(XP_MACOSX)
-#include <dlfcn.h>
-#endif
-
-#ifdef XP_MACOSX
-#include <pthread.h>
-#include <errno.h>
-#include <CoreServices/CoreServices.h>
-
-typedef void
-malloc_logger_t(uint32_t type, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3,
-                uintptr_t result, uint32_t num_hot_frames_to_skip);
-extern malloc_logger_t *malloc_logger;
-
-static void
-stack_callback(void *pc, void *closure)
-{
-  const char *name = reinterpret_cast<char *>(closure);
-  Dl_info info;
-
-  // On Leopard dladdr returns the wrong value for "new_sem_from_pool". The
-  // stack shows up as having two pthread_cond_wait$UNIX2003 frames. The
-  // correct one is the first that we find on our way up, so the
-  // following check for gCriticalAddress.mAddr is critical.
-  if (gCriticalAddress.mAddr || dladdr(pc, &info) == 0  ||
-      info.dli_sname == NULL || strcmp(info.dli_sname, name) != 0)
-    return;
-  gCriticalAddress.mAddr = pc;
-}
-
-#define MAC_OS_X_VERSION_10_7_HEX 0x00001070
-#define MAC_OS_X_VERSION_10_6_HEX 0x00001060
-
-static PRInt32 OSXVersion()
-{
-  static PRInt32 gOSXVersion = 0x0;
-  if (gOSXVersion == 0x0) {
-    OSErr err = ::Gestalt(gestaltSystemVersion, (SInt32*)&gOSXVersion);
-    MOZ_ASSERT(err == noErr);
-  }
-  return gOSXVersion;
-}
-
-static bool OnLionOrLater()
-{
-  return (OSXVersion() >= MAC_OS_X_VERSION_10_7_HEX);
-}
-
-static bool OnSnowLeopardOrLater()
-{
-  return (OSXVersion() >= MAC_OS_X_VERSION_10_6_HEX);
-}
-
-static void
-my_malloc_logger(uint32_t type, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3,
-                 uintptr_t result, uint32_t num_hot_frames_to_skip)
-{
-  static bool once = false;
-  if (once)
-    return;
-  once = true;
-
-  // On Leopard dladdr returns the wrong value for "new_sem_from_pool". The
-  // stack shows up as having two pthread_cond_wait$UNIX2003 frames.
-  const char *name = OnSnowLeopardOrLater() ? "new_sem_from_pool" :
-    "pthread_cond_wait$UNIX2003";
-  NS_StackWalk(stack_callback, 0, const_cast<char*>(name));
-}
-
-void
-StackWalkInitCriticalAddress()
-{
-  if(gCriticalAddress.mInit)
-    return;
-  gCriticalAddress.mInit = true;
-  // We must not do work when 'new_sem_from_pool' calls realloc, since
-  // it holds a non-reentrant spin-lock and we will quickly deadlock.
-  // new_sem_from_pool is not directly accessible using dlsym, so
-  // we force a situation where new_sem_from_pool is on the stack and
-  // use dladdr to check the addresses.
-
-  MOZ_ASSERT(malloc_logger == NULL);
-  malloc_logger = my_malloc_logger;
-
-  pthread_cond_t cond;
-  int r = pthread_cond_init(&cond, 0);
-  MOZ_ASSERT(r == 0);
-  pthread_mutex_t mutex;
-  r = pthread_mutex_init(&mutex,0);
-  MOZ_ASSERT(r == 0);
-  r = pthread_mutex_lock(&mutex);
-  MOZ_ASSERT(r == 0);
-  struct timespec abstime = {0, 1};
-  r = pthread_cond_timedwait_relative_np(&cond, &mutex, &abstime);
-  malloc_logger = NULL;
-
-  // On Lion, malloc is no longer called from pthread_cond_*wait*. This prevents
-  // us from finding the address, but that is fine, since with no call to malloc
-  // there is no critical address.
-  MOZ_ASSERT(OnLionOrLater() || gCriticalAddress.mAddr != NULL);
-  MOZ_ASSERT(r == ETIMEDOUT);
-  r = pthread_mutex_unlock(&mutex);
-  MOZ_ASSERT(r == 0);
-  r = pthread_mutex_destroy(&mutex);
-  MOZ_ASSERT(r == 0);
-  r = pthread_cond_destroy(&cond);
-  MOZ_ASSERT(r == 0);
-}
-
-static bool IsCriticalAddress(void* aPC)
-{
-  return gCriticalAddress.mAddr == aPC;
-}
-#else
-static bool IsCriticalAddress(void* aPC)
-{
-  return false;
-}
-// We still initialize gCriticalAddress.mInit so that this code behaves
-// the same on all platforms. Otherwise a failure to init would be visible
-// only on OS X.
-void
-StackWalkInitCriticalAddress()
-{
-  gCriticalAddress.mInit = true;
-}
-#endif
 
 #if defined(_WIN32) && (defined(_M_IX86) || defined(_M_AMD64) || defined(_M_IA64)) // WIN32 x86 stack walking code
 
@@ -189,6 +49,7 @@ StackWalkInitCriticalAddress()
 #include <process.h>
 #include <stdio.h>
 #include "plstr.h"
+#include "nsMemory.h" // for NS_ARRAY_LENGTH
 #include "mozilla/FunctionTimer.h"
 
 #include "nspr.h"
@@ -201,8 +62,6 @@ StackWalkInitCriticalAddress()
 #define USING_WXP_VERSION 1
 #endif
 #endif
-
-using namespace mozilla;
 
 // Define these as static pointers so that we can load the DLL on the
 // fly (and not introduce a link-time dependency on it). Tip o' the
@@ -462,7 +321,7 @@ EnsureImageHlpInitialized()
     gStackWalkThread = threadID;
     if (hStackWalkThread == NULL) {
         PrintError("CreateThread");
-        return false;
+        return PR_FALSE;
     }
     ::CloseHandle(hStackWalkThread);
 
@@ -475,70 +334,70 @@ EnsureImageHlpInitialized()
     HMODULE module = ::LoadLibraryW(L"DBGHELP.DLL");
     if (!module) {
         module = ::LoadLibraryW(L"IMAGEHLP.DLL");
-        if (!module) return false;
+        if (!module) return PR_FALSE;
     }
 
     _SymSetOptions = (SYMSETOPTIONSPROC) ::GetProcAddress(module, "SymSetOptions");
-    if (!_SymSetOptions) return false;
+    if (!_SymSetOptions) return PR_FALSE;
 
     _SymInitialize = (SYMINITIALIZEPROC) ::GetProcAddress(module, "SymInitialize");
-    if (!_SymInitialize) return false;
+    if (!_SymInitialize) return PR_FALSE;
 
     _SymCleanup = (SYMCLEANUPPROC)GetProcAddress(module, "SymCleanup");
-    if (!_SymCleanup) return false;
+    if (!_SymCleanup) return PR_FALSE;
 
 #ifdef USING_WXP_VERSION
     _StackWalk64 = (STACKWALKPROC64)GetProcAddress(module, "StackWalk64");
 #endif
     _StackWalk = (STACKWALKPROC)GetProcAddress(module, "StackWalk");
-    if (!_StackWalk64  && !_StackWalk) return false;
+    if (!_StackWalk64  && !_StackWalk) return PR_FALSE;
 
 #ifdef USING_WXP_VERSION
     _SymFunctionTableAccess64 = (SYMFUNCTIONTABLEACCESSPROC64) GetProcAddress(module, "SymFunctionTableAccess64");
 #endif
     _SymFunctionTableAccess = (SYMFUNCTIONTABLEACCESSPROC) GetProcAddress(module, "SymFunctionTableAccess");
-    if (!_SymFunctionTableAccess64 && !_SymFunctionTableAccess) return false;
+    if (!_SymFunctionTableAccess64 && !_SymFunctionTableAccess) return PR_FALSE;
 
 #ifdef USING_WXP_VERSION
     _SymGetModuleBase64 = (SYMGETMODULEBASEPROC64)GetProcAddress(module, "SymGetModuleBase64");
 #endif
     _SymGetModuleBase = (SYMGETMODULEBASEPROC)GetProcAddress(module, "SymGetModuleBase");
-    if (!_SymGetModuleBase64 && !_SymGetModuleBase) return false;
+    if (!_SymGetModuleBase64 && !_SymGetModuleBase) return PR_FALSE;
 
     _SymGetSymFromAddr = (SYMGETSYMFROMADDRPROC)GetProcAddress(module, "SymGetSymFromAddr");
 #ifdef USING_WXP_VERSION
     _SymFromAddr = (SYMFROMADDRPROC)GetProcAddress(module, "SymFromAddr");
 #endif
-    if (!_SymFromAddr && !_SymGetSymFromAddr) return false;
+    if (!_SymFromAddr && !_SymGetSymFromAddr) return PR_FALSE;
 
 #ifdef USING_WXP_VERSION
     _SymLoadModule64 = (SYMLOADMODULE64)GetProcAddress(module, "SymLoadModule64");
 #endif
     _SymLoadModule = (SYMLOADMODULE)GetProcAddress(module, "SymLoadModule");
-    if (!_SymLoadModule64 && !_SymLoadModule) return false;
+    if (!_SymLoadModule64 && !_SymLoadModule) return PR_FALSE;
 
     _SymUnDName = (SYMUNDNAME)GetProcAddress(module, "SymUnDName");
-    if (!_SymUnDName) return false;
+    if (!_SymUnDName) return PR_FALSE;
 
 #ifdef USING_WXP_VERSION
     _SymGetModuleInfo64 = (SYMGETMODULEINFO64)GetProcAddress(module, "SymGetModuleInfo64");
 #endif
     _SymGetModuleInfo = (SYMGETMODULEINFO)GetProcAddress(module, "SymGetModuleInfo");
-    if (!_SymGetModuleInfo64 && !_SymGetModuleInfo) return false;
+    if (!_SymGetModuleInfo64 && !_SymGetModuleInfo) return PR_FALSE;
 
 #ifdef USING_WXP_VERSION
     _EnumerateLoadedModules64 = (ENUMLOADEDMODULES64)GetProcAddress(module, "EnumerateLoadedModules64");
 #endif
     _EnumerateLoadedModules = (ENUMLOADEDMODULES)GetProcAddress(module, "EnumerateLoadedModules");
-    if (!_EnumerateLoadedModules64 && !_EnumerateLoadedModules) return false;
+    if (!_EnumerateLoadedModules64 && !_EnumerateLoadedModules) return PR_FALSE;
 
 #ifdef USING_WXP_VERSION
     _SymGetLineFromAddr64 = (SYMGETLINEFROMADDRPROC64)GetProcAddress(module, "SymGetLineFromAddr64");
 #endif
     _SymGetLineFromAddr = (SYMGETLINEFROMADDRPROC)GetProcAddress(module, "SymGetLineFromAddr");
-    if (!_SymGetLineFromAddr64 && !_SymGetLineFromAddr) return false;
+    if (!_SymGetLineFromAddr64 && !_SymGetLineFromAddr) return PR_FALSE;
 
-    return gInitialized = true;
+    return gInitialized = PR_TRUE;
 }
 
 void
@@ -793,13 +652,12 @@ EXPORT_XPCOM_API(nsresult)
 NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
              void *aClosure)
 {
-    MOZ_ASSERT(gCriticalAddress.mInit);
     HANDLE myProcess, myThread;
     DWORD walkerReturn;
     struct WalkStackData data;
 
     if (!EnsureImageHlpInitialized())
-        return false;
+        return PR_FALSE;
 
     // Have to duplicate handle to get a real handle.
     if (!::DuplicateHandle(::GetCurrentProcess(),
@@ -830,7 +688,7 @@ NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
     void *local_pcs[1024];
     data.pcs = local_pcs;
     data.pc_count = 0;
-    data.pc_size = ArrayLength(local_pcs);
+    data.pc_size = NS_ARRAY_LENGTH(local_pcs);
 
     ::PostThreadMessage(gStackWalkThread, WM_USER, 0, (LPARAM)&data);
 
@@ -857,7 +715,7 @@ NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
     for (PRUint32 i = 0; i < data.pc_count; ++i)
         (*aCallback)(data.pcs[i], aClosure);
 
-    if (data.pc_size > ArrayLength(local_pcs))
+    if (data.pc_size > NS_ARRAY_LENGTH(local_pcs))
         free(data.pcs);
 
     return NS_OK;
@@ -1093,7 +951,7 @@ EnsureSymInitialized()
     NS_TIME_FUNCTION;
 
     if (!EnsureImageHlpInitialized())
-        return false;
+        return PR_FALSE;
 
     _SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_UNDNAME);
     retStat = _SymInitialize(GetCurrentPIDorHandle(), NULL, TRUE);
@@ -1278,6 +1136,12 @@ NS_FormatCodeAddressDetails(void *aPC, const nsCodeAddressDetails *aDetails,
 #if (__GLIBC_MINOR__ >= 1) && !defined(__USE_GNU)
 #define __USE_GNU
 #endif
+
+#if defined(HAVE_DLOPEN) || defined(XP_MACOSX)
+#include <dlfcn.h>
+#endif
+
+
 
 // This thing is exported by libstdc++
 // Yes, this is a gcc only hack
@@ -1481,7 +1345,6 @@ EXPORT_XPCOM_API(nsresult)
 NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
              void *aClosure)
 {
-    MOZ_ASSERT(gCriticalAddress.mInit);
     struct my_user_args args;
 
     if (!initialized)
@@ -1556,12 +1419,58 @@ NS_FormatCodeAddressDetails(void *aPC, const nsCodeAddressDetails *aDetails,
 extern void *__libc_stack_end; // from ld-linux.so
 #endif
 
+#ifdef XP_MACOSX
+struct AddressRange {
+  void* mStart;
+  void* mEnd;
+};
+// Addresses in this range must stop the stack walk
+static AddressRange gCriticalRange;
+
+static void FindFunctionAddresses(const char* aName, AddressRange* aRange)
+{
+  aRange->mStart = dlsym(RTLD_DEFAULT, aName);
+  if (!aRange->mStart)
+    return;
+  aRange->mEnd = aRange->mStart;
+  while (PR_TRUE) {
+    Dl_info info;
+    if (!dladdr(aRange->mEnd, &info))
+      break;
+    if (strcmp(info.dli_sname, aName))
+      break;
+    aRange->mEnd = (char*)aRange->mEnd + 1;
+  }
+}
+
+static void InitCriticalRanges()
+{
+  if (gCriticalRange.mStart)
+    return;
+  // We must not do work when 'new_sem_from_pool' calls realloc, since
+  // it holds a non-reentrant spin-lock and we will quickly deadlock.
+  // new_sem_from_pool is not directly accessible using dladdr but its
+  // code is bundled with pthread_cond_wait$UNIX2003 (on
+  // Leopard anyway).
+  FindFunctionAddresses("pthread_cond_wait$UNIX2003", &gCriticalRange);
+}
+
+static bool InCriticalRange(void* aPC)
+{
+  return gCriticalRange.mStart &&
+    gCriticalRange.mStart <= aPC && aPC < gCriticalRange.mEnd;
+}
+#else
+static void InitCriticalRanges() {}
+static bool InCriticalRange(void* aPC) { return false; }
+#endif
+
 EXPORT_XPCOM_API(nsresult)
 NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
              void *aClosure)
 {
-  MOZ_ASSERT(gCriticalAddress.mInit);
   // Stack walking code courtesy Kipp's "leaky".
+  InitCriticalRanges();
 
   // Get the frame pointer
   void **bp;
@@ -1594,8 +1503,8 @@ NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
 #else // i386 or powerpc32 linux
     void *pc = *(bp+1);
 #endif
-    if (IsCriticalAddress(pc)) {
-      printf("Aborting stack trace, PC is critical\n");
+    if (InCriticalRange(pc)) {
+      printf("Aborting stack trace, PC in critical range\n");
       return NS_ERROR_UNEXPECTED;
     }
     if (--skip < 0) {
@@ -1621,16 +1530,10 @@ static _Unwind_Reason_Code
 unwind_callback (struct _Unwind_Context *context, void *closure)
 {
     unwind_info *info = static_cast<unwind_info *>(closure);
-    void *pc = reinterpret_cast<void *>(_Unwind_GetIP(context));
-    if (IsCriticalAddress(pc)) {
-        printf("Aborting stack trace, PC is critical\n");
-        /* We just want to stop the walk, so any error code will do.
-           Using _URC_NORMAL_STOP would probably be the most accurate,
-           but it is not defined on Android for ARM. */
-        return _URC_FOREIGN_EXCEPTION_CAUGHT;
-    }
-    if (--info->skip < 0)
+    if (--info->skip < 0) {
+        void *pc = reinterpret_cast<void *>(_Unwind_GetIP(context));
         (*info->callback)(pc, info->closure);
+    }
     return _URC_NO_REASON;
 }
 
@@ -1638,15 +1541,13 @@ EXPORT_XPCOM_API(nsresult)
 NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
              void *aClosure)
 {
-    MOZ_ASSERT(gCriticalAddress.mInit);
     unwind_info info;
     info.callback = aCallback;
     info.skip = aSkipFrames + 1;
     info.closure = aClosure;
 
-    _Unwind_Reason_Code t = _Unwind_Backtrace(unwind_callback, &info);
-    if (t != _URC_END_OF_STACK)
-        return NS_ERROR_UNEXPECTED;
+    _Unwind_Backtrace(unwind_callback, &info);
+
     return NS_OK;
 }
 
@@ -1716,7 +1617,6 @@ EXPORT_XPCOM_API(nsresult)
 NS_StackWalk(NS_WalkStackCallback aCallback, PRUint32 aSkipFrames,
              void *aClosure)
 {
-    MOZ_ASSERT(gCriticalAddress.mInit);
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 

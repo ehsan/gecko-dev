@@ -160,7 +160,7 @@ inline nsresult nsZipDataStream::CompleteEntry()
     NS_ENSURE_SUCCESS(rv, rv);
 
     mHeader->mCSize = pos - mHeader->mOffset - mHeader->GetFileHeaderLength();
-    mHeader->mWriteOnClose = true;
+    mHeader->mWriteOnClose = PR_TRUE;
     return NS_OK;
 }
 

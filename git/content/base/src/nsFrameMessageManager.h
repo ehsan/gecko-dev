@@ -51,7 +51,6 @@
 #include "nsDataHashtable.h"
 #include "mozilla/Services.h"
 #include "nsIObserverService.h"
-#include "nsThreadUtils.h"
 
 namespace mozilla {
 namespace dom {
@@ -113,7 +112,7 @@ public:
   {
     for (PRInt32 i = mChildManagers.Count(); i > 0; --i) {
       static_cast<nsFrameMessageManager*>(mChildManagers[i - 1])->
-        Disconnect(false);
+        Disconnect(PR_FALSE);
     }
     if (mIsProcessManager) {
       if (this == sParentProcessManager) {
@@ -121,11 +120,6 @@ public:
       }
       if (this == sChildProcessManager) {
         sChildProcessManager = nsnull;
-        delete sPendingSameProcessAsyncMessages;
-        sPendingSameProcessAsyncMessages = nsnull;
-      }
-      if (this == sSameProcessParentManager) {
-        sSameProcessParentManager = nsnull;
       }
     }
   }
@@ -196,8 +190,6 @@ protected:
 public:
   static nsFrameMessageManager* sParentProcessManager;
   static nsFrameMessageManager* sChildProcessManager;
-  static nsFrameMessageManager* sSameProcessParentManager;
-  static nsTArray<nsCOMPtr<nsIRunnable> >* sPendingSameProcessAsyncMessages;
 };
 
 void
@@ -223,7 +215,7 @@ public:
 protected:
   friend class nsFrameScriptCx;
   nsFrameScriptExecutor() : mCx(nsnull), mCxStackRefCnt(0),
-                            mDelayedCxDestroy(false)
+                            mDelayedCxDestroy(PR_FALSE)
   { MOZ_COUNT_CTOR(nsFrameScriptExecutor); }
   ~nsFrameScriptExecutor()
   { MOZ_COUNT_DTOR(nsFrameScriptExecutor); }
@@ -231,7 +223,6 @@ protected:
   // Call this when you want to destroy mCx.
   void DestroyCx();
   void LoadFrameScriptInternal(const nsAString& aURL);
-  bool InitTabChildGlobalInternal(nsISupports* aScope);
   static void Traverse(nsFrameScriptExecutor *tmp,
                        nsCycleCollectionTraversalCallback &cb);
   nsCOMPtr<nsIXPConnectJSObjectHolder> mGlobal;
@@ -270,7 +261,7 @@ class nsScriptCacheCleaner : public nsIObserver
   {
     nsCOMPtr<nsIObserverService> obsSvc = mozilla::services::GetObserverService();
     if (obsSvc)
-      obsSvc->AddObserver(this, "xpcom-shutdown", false);
+      obsSvc->AddObserver(this, "xpcom-shutdown", PR_FALSE);
   }
 
   NS_IMETHODIMP Observe(nsISupports *aSubject,

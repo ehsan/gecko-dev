@@ -85,7 +85,6 @@
 #include "nsIConsoleService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsStringGlue.h"
-#include "nsIClipboardHelper.h"
 
 using mozilla::CheckedInt;
 
@@ -367,13 +366,13 @@ gfxASurface::CheckSurfaceSize(const gfxIntSize& sz, PRInt32 limit)
 {
     if (sz.width < 0 || sz.height < 0) {
         NS_WARNING("Surface width or height < 0!");
-        return false;
+        return PR_FALSE;
     }
 
     // reject images with sides bigger than limit
     if (limit && (sz.width > limit || sz.height > limit)) {
         NS_WARNING("Surface size too large (exceeds caller's limit)!");
-        return false;
+        return PR_FALSE;
     }
 
 #if defined(XP_MACOSX)
@@ -381,7 +380,7 @@ gfxASurface::CheckSurfaceSize(const gfxIntSize& sz, PRInt32 limit)
     // so clamp all surfaces on the Mac to that height
     if (sz.height > SHRT_MAX) {
         NS_WARNING("Surface size too large (exceeds CoreGraphics limit)!");
-        return false;
+        return PR_FALSE;
     }
 #endif
 
@@ -390,7 +389,7 @@ gfxASurface::CheckSurfaceSize(const gfxIntSize& sz, PRInt32 limit)
     tmp *= sz.height;
     if (!tmp.valid()) {
         NS_WARNING("Surface size too large (would overflow)!");
-        return false;
+        return PR_FALSE;
     }
 
     // assuming 4-byte stride, make sure the allocation size
@@ -398,10 +397,10 @@ gfxASurface::CheckSurfaceSize(const gfxIntSize& sz, PRInt32 limit)
     tmp *= 4;
     if (!tmp.valid()) {
         NS_WARNING("Allocation too large (would overflow)!");
-        return false;
+        return PR_FALSE;
     }
 
-    return true;
+    return PR_TRUE;
 }
 
 /* static */
@@ -489,11 +488,11 @@ bool
 gfxASurface::GetSubpixelAntialiasingEnabled()
 {
     if (!mSurfaceValid)
-      return false;
+      return PR_FALSE;
 #ifdef MOZ_TREE_CAIRO
     return cairo_surface_get_subpixel_antialiasing(mSurface) == CAIRO_SUBPIXEL_ANTIALIASING_ENABLED;
 #else
-    return true;
+    return PR_TRUE;
 #endif
 }
 
@@ -712,69 +711,43 @@ gfxASurface::RecordMemoryFreed()
     }
 }
 
-#ifdef MOZ_DUMP_PAINTING
 void
-gfxASurface::WriteAsPNG(const char* aFile)
+gfxASurface::DumpAsDataURL()
 {
-    FILE *file = fopen(aFile, "wb");
-    if (file) {
-      WriteAsPNG_internal(file, true);
-      fclose(file);
-    } else {
-      NS_WARNING("Failed to create file!\n");
-    }
-}
-    
-void 
-gfxASurface::DumpAsDataURL() 
-{ 
-  WriteAsPNG_internal(stdout, false);
-}
-
-void 
-gfxASurface::CopyAsDataURL() 
-{ 
-  WriteAsPNG_internal(nsnull, false);
-}
-
-/**
- * Write to a PNG file. If aBinary is true, then it is written
- * as binary, otherwise as a data URL. If no file is specified then
- * data is copied to the clipboard (must not be binary!).
- */
-void
-gfxASurface::WriteAsPNG_internal(FILE* aFile, bool aBinary)
-{
-  nsRefPtr<gfxImageSurface> imgsurf = GetAsImageSurface();
-  gfxIntSize size;
-
-  if (!imgsurf) {
-    size = GetSize();
-    if (size.width == -1 && size.height == -1) {
-      printf("Could not determine surface size\n");
-      return;
-    }
-
-    imgsurf = 
-      new gfxImageSurface(gfxIntSize(size.width, size.height),
-                          gfxASurface::ImageFormatARGB32);
-
-    if (!imgsurf || imgsurf->CairoStatus()) {
-      printf("Could not allocate image surface\n");
-      return;
-    }
-
-    nsRefPtr<gfxContext> ctx = new gfxContext(imgsurf);
-    if (!ctx || ctx->HasError()) {
-      printf("Could not allocate image context\n");
-      return;
-    }
-
-    ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-    ctx->SetSource(this, gfxPoint(0, 0));
-    ctx->Paint();
+  gfxIntSize size = GetSize();
+  if (size.width == -1 && size.height == -1) {
+    printf("Could not determine surface size\n");
+    return;
   }
-  size = imgsurf->GetSize();
+
+  nsAutoArrayPtr<PRUint8> imageBuffer(new (std::nothrow) PRUint8[size.width * 
+                                                                 size.height * 
+                                                                 4]);
+  if (!imageBuffer) {
+    printf("Could not allocate image buffer\n");
+    return;
+  }
+ 
+  nsRefPtr<gfxImageSurface> imgsurf = 
+    new gfxImageSurface(imageBuffer.get(),
+                        gfxIntSize(size.width, size.height),
+                        size.width * 4,
+                        gfxASurface::ImageFormatARGB32);
+
+  if (!imgsurf || imgsurf->CairoStatus()) {
+    printf("Could not allocate image surface\n");
+    return;
+  }
+
+  nsRefPtr<gfxContext> ctx = new gfxContext(imgsurf);
+  if (!ctx || ctx->HasError()) {
+    printf("Could not allocate image context\n");
+    return;
+  }
+
+  ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+  ctx->SetSource(this, gfxPoint(0, 0));
+  ctx->Paint();
 
   nsCOMPtr<imgIEncoder> encoder =
     do_CreateInstance("@mozilla.org/image/encoder;2?type=image/png");
@@ -784,18 +757,18 @@ gfxASurface::WriteAsPNG_internal(FILE* aFile, bool aBinary)
     printf("Could not create encoder. Printing %dx%d pixels.\n", w, h);
     for (PRInt32 y = 0; y < h; ++y) {
       for (PRInt32 x = 0; x < w; ++x) {
-        printf("%x ", reinterpret_cast<PRUint32*>(imgsurf->Data())[y*imgsurf->Stride()+ x]);
+        printf("%x ", reinterpret_cast<PRUint32*>(imageBuffer.get())[y*size.width + x]);
       }
       printf("\n");
     }
     return;
   }
 
-  nsresult rv = encoder->InitFromData(imgsurf->Data(),
+  nsresult rv = encoder->InitFromData(imageBuffer.get(),
                                       size.width * size.height * 4, 
                                       size.width, 
                                       size.height, 
-                                      imgsurf->Stride(),
+                                      size.width * 4,
                                       imgIEncoder::INPUT_FORMAT_HOSTARGB,
                                       NS_LITERAL_STRING(""));
   if (NS_FAILED(rv))
@@ -835,38 +808,18 @@ gfxASurface::WriteAsPNG_internal(FILE* aFile, bool aBinary)
       imgData = newImgData;
     }
   }
-
-  if (aBinary) {
-    if (aFile) {
-      fwrite(imgData, 1, imgSize, aFile); 
-    } else {
-      NS_WARNING("Can't write binary image data without a file!");
-    }
-    return;
-  }
   
   // base 64, result will be NULL terminated
   char* encodedImg = PL_Base64Encode(imgData, imgSize, nsnull);
   PR_Free(imgData);
   if (!encodedImg) // not sure why this would fail
     return;
-
-  nsCString string("data:image/png;base64,");
-  string.Append(encodedImg);
-
-  if (aFile) {
-    fprintf(aFile, "%s", string.BeginReading());
-    fprintf(aFile, "\n");
-  } else {
-    nsCOMPtr<nsIClipboardHelper> clipboard(do_GetService("@mozilla.org/widget/clipboardhelper;1", &rv));
-    if (clipboard) {
-      clipboard->CopyString(NS_ConvertASCIItoUTF16(string));
-    }
-  }
-
+ 
+  printf("data:image/png;base64,");
+  printf("%s", encodedImg);
+  printf("\n");
   PR_Free(encodedImg);
 
   return;
 }
-#endif
 

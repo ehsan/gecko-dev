@@ -151,7 +151,7 @@ class nsXULTemplateQueryProcessorXML : public nsIXULTemplateQueryProcessor,
 public:
 
     nsXULTemplateQueryProcessorXML()
-        : mGenerationStarted(false)
+        : mGenerationStarted(PR_FALSE)
     {}
 
     // nsISupports interface

@@ -59,11 +59,11 @@ static bool IsDiscardable(PRUnichar ch, PRUint32* aFlags)
   // text containing \r\n.
   if (ch == CH_SHY) {
     *aFlags |= nsTextFrameUtils::TEXT_HAS_SHY;
-    return true;
+    return PR_TRUE;
   }
   if ((ch & 0xFF00) != 0x2000) {
     // Not a Bidi control character
-    return false;
+    return PR_FALSE;
   }
   return IS_BIDI_CONTROL_CHAR(ch);
 }
@@ -72,9 +72,9 @@ static bool IsDiscardable(PRUint8 ch, PRUint32* aFlags)
 {
   if (ch == CH_SHY) {
     *aFlags |= nsTextFrameUtils::TEXT_HAS_SHY;
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 PRUnichar*
@@ -123,7 +123,7 @@ nsTextFrameUtils::TransformText(const PRUnichar* aText, PRUint32 aLength,
       if (ch == ' ' &&
           (i + 1 >= aLength ||
            !IsSpaceCombiningSequenceTail(aText, aLength - (i + 1)))) {
-        nowInWhitespace = true;
+        nowInWhitespace = PR_TRUE;
       } else if (ch == '\n' && aCompression == COMPRESS_WHITESPACE_NEWLINE) {
         if (i > 0 && IS_CJ_CHAR(aText[-1]) &&
             i + 1 < aLength && IS_CJ_CHAR(aText[1])) {
@@ -132,7 +132,7 @@ nsTextFrameUtils::TransformText(const PRUnichar* aText, PRUint32 aLength,
           aSkipChars->SkipChar();
           continue;
         }
-        nowInWhitespace = true;
+        nowInWhitespace = PR_TRUE;
       } else {
         nowInWhitespace = ch == '\t';
       }
@@ -258,11 +258,11 @@ bool nsSkipCharsRunIterator::NextRun() {
       }
     }
     if (!mRemainingLength)
-      return false;
+      return PR_FALSE;
     PRInt32 length;
     mSkipped = mIterator.IsOriginalCharSkipped(&length);
     mRunLength = NS_MIN(length, mRemainingLength);
   } while (!mVisitSkipped && mSkipped);
 
-  return true;
+  return PR_TRUE;
 }

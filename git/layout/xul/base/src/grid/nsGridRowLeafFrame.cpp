@@ -59,7 +59,7 @@ NS_NewGridRowLeafFrame(nsIPresShell* aPresShell,
     return nsnull;
   }
   
-  return new (aPresShell) nsGridRowLeafFrame(aPresShell, aContext, false,
+  return new (aPresShell) nsGridRowLeafFrame(aPresShell, aContext, PR_FALSE,
                                              layout);
 }
 

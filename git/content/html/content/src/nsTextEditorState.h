@@ -209,7 +209,7 @@ public:
   /**
    * Get the maxlength attribute
    * @param aMaxLength the value of the max length attr
-   * @returns false if attr not defined
+   * @returns PR_FALSE if attr not defined
    */
   bool GetMaxLength(PRInt32* aMaxLength);
 
@@ -235,7 +235,7 @@ public:
   SelectionProperties& GetSelectionProperties() {
     return mSelectionProperties;
   }
-  void WillInitEagerly() { mSelectionRestoreEagerInit = true; }
+  void WillInitEagerly() { mSelectionRestoreEagerInit = PR_TRUE; }
   bool HasNeverInitializedBefore() const { return !mEverInited; }
 
 private:
@@ -261,16 +261,16 @@ private:
   public:
     explicit InitializationGuard(nsTextEditorState& aState) :
       mState(aState),
-      mGuardSet(false)
+      mGuardSet(PR_FALSE)
     {
       if (!mState.mInitializing) {
-        mGuardSet = true;
-        mState.mInitializing = true;
+        mGuardSet = PR_TRUE;
+        mState.mInitializing = PR_TRUE;
       }
     }
     ~InitializationGuard() {
       if (mGuardSet) {
-        mState.mInitializing = false;
+        mState.mInitializing = PR_FALSE;
       }
     }
     bool IsInitializingRecursively() const {

@@ -40,7 +40,6 @@
 #include "nsIDeviceMotion.h"
 #include "nsIDOMDeviceMotionEvent.h"
 #include "nsCOMArray.h"
-#include "nsTArray.h"
 #include "nsCOMPtr.h"
 #include "nsITimer.h"
 

@@ -67,7 +67,7 @@ nsProfileDirServiceProvider::nsProfileDirServiceProvider(bool aNotifyObservers) 
   mProfileDirLock(nsnull),
 #endif
   mNotifyObservers(aNotifyObservers),
-  mSharingEnabled(false)
+  mSharingEnabled(PR_FALSE)
 {
 }
 
@@ -188,7 +188,7 @@ nsProfileDirServiceProvider::GetFile(const char *prop, bool *persistant, nsIFile
   if (!mProfileDir)
     return NS_ERROR_FAILURE;
 
-  *persistant = true;
+  *persistant = PR_TRUE;
   nsIFile* domainDir = mProfileDir;
 
   nsCOMPtr<nsIFile>  localFile;

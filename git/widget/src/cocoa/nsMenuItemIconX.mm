@@ -48,7 +48,7 @@
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsINameSpaceManager.h"
-#include "nsGkAtoms.h"
+#include "nsWidgetAtoms.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIDOMCSSValue.h"
@@ -188,8 +188,8 @@ nsMenuItemIconX::GetIconURI(nsIURI** aIconURI)
   // First, look at the content node's "image" attribute.
   nsAutoString imageURIString;
   bool hasImageAttr = mContent->GetAttr(kNameSpaceID_None,
-                                        nsGkAtoms::image,
-                                        imageURIString);
+                                          nsWidgetAtoms::image,
+                                          imageURIString);
 
   nsresult rv;
   nsCOMPtr<nsIDOMCSSValue> cssValue;
@@ -307,7 +307,8 @@ nsMenuItemIconX::LoadIcon(nsIURI* aIconURI)
 
   if (!mContent) return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIDocument> document = mContent->OwnerDoc();
+  nsCOMPtr<nsIDocument> document = mContent->GetOwnerDoc();
+  if (!document) return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsILoadGroup> loadGroup = document->GetDocumentLoadGroup();
   if (!loadGroup) return NS_ERROR_FAILURE;
@@ -556,12 +557,6 @@ nsMenuItemIconX::OnStopRequest(imgIRequest* aRequest,
 
 NS_IMETHODIMP
 nsMenuItemIconX::OnDiscard(imgIRequest* aRequest)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsMenuItemIconX::OnImageIsAnimated(imgIRequest* aRequest)
 {
   return NS_OK;
 }

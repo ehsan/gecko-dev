@@ -101,7 +101,7 @@ nsComposeTxtSrvFilterConstructorForComposer(nsISupports *aOuter,
                                             REFNSIID aIID,
                                             void **aResult)
 {
-    return nsComposeTxtSrvFilterConstructor(aOuter, aIID, aResult, false);
+    return nsComposeTxtSrvFilterConstructor(aOuter, aIID, aResult, PR_FALSE);
 }
 
 static nsresult
@@ -109,7 +109,7 @@ nsComposeTxtSrvFilterConstructorForMail(nsISupports *aOuter,
                                         REFNSIID aIID,
                                         void **aResult)
 {
-    return nsComposeTxtSrvFilterConstructor(aOuter, aIID, aResult, true);
+    return nsComposeTxtSrvFilterConstructor(aOuter, aIID, aResult, PR_TRUE);
 }
 
 

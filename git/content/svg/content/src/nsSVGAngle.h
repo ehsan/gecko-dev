@@ -55,7 +55,7 @@ public:
     mAnimVal = mBaseVal = aValue;
     mAnimValUnit = mBaseValUnit = aUnitType;
     mAttrEnum = aAttrEnum;
-    mIsAnimated = false;
+    mIsAnimated = PR_FALSE;
   }
 
   nsresult SetBaseValueString(const nsAString& aValue,
@@ -80,8 +80,10 @@ public:
   static nsresult ToDOMSVGAngle(nsIDOMSVGAngle **aResult);
   nsresult ToDOMAnimatedAngle(nsIDOMSVGAnimatedAngle **aResult,
                               nsSVGElement* aSVGElement);
+#ifdef MOZ_SMIL
   // Returns a new nsISMILAttr object that the caller must delete
   nsISMILAttr* ToSMILAttr(nsSVGElement* aSVGElement);
+#endif // MOZ_SMIL
 
   static float GetDegreesPerUnit(PRUint8 aUnit);
 
@@ -128,7 +130,7 @@ public:
         return NS_OK; }
 
     NS_IMETHOD SetValueAsString(const nsAString& aValue)
-      { return mVal->SetBaseValueString(aValue, mSVGElement, true); }
+      { return mVal->SetBaseValueString(aValue, mSVGElement, PR_TRUE); }
     NS_IMETHOD GetValueAsString(nsAString& aValue)
       { mVal->GetBaseValueString(aValue); return NS_OK; }
 
@@ -196,6 +198,7 @@ public:
       { return mVal->ToDOMAnimVal(aAnimVal, mSVGElement); }
   };
 
+#ifdef MOZ_SMIL
   // We do not currently implemente a SMILAngle struct because in SVG 1.1 the
   // only *animatable* attribute that takes an <angle> is 'orient', on the
   // 'marker' element, and 'orient' must be special cased since it can also
@@ -228,6 +231,7 @@ public:
     virtual void ClearAnimValue();
     virtual nsresult SetAnimValue(const nsSMILValue& aValue);
   };
+#endif // MOZ_SMIL
 };
 
 nsresult

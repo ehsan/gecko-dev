@@ -35,7 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Hal.h"
 #include "nsILocalFile.h"
 #include "nsString.h"
 
@@ -44,7 +43,6 @@
 #include <jni.h>
 #include <pthread.h>
 #include <dlfcn.h>
-#include <stdio.h>
 
 #include "nsAppShell.h"
 #include "nsWindow.h"
@@ -53,22 +51,13 @@
 #include "mozilla/Services.h"
 #include "nsINetworkLinkService.h"
 
-#ifdef MOZ_ANDROID_HISTORY
-#include "nsAndroidHistory.h"
-#endif
-
 #ifdef MOZ_CRASHREPORTER
 #include "nsICrashReporter.h"
 #include "nsExceptionHandler.h"
 #endif
 
-#include "mozilla/dom/sms/SmsMessage.h"
-#include "mozilla/dom/sms/Constants.h"
-#include "mozilla/dom/sms/Types.h"
-#include "mozilla/dom/sms/PSms.h"
 
 using namespace mozilla;
-using namespace mozilla::dom::sms;
 
 /* Forward declare all the JNI methods as extern "C" */
 
@@ -76,7 +65,6 @@ extern "C" {
     NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_nativeInit(JNIEnv *, jclass);
     NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_notifyGeckoOfEvent(JNIEnv *, jclass, jobject event);
     NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_processNextNativeEvent(JNIEnv *, jclass);
-    NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_setSoftwareLayerClient(JNIEnv *jenv, jclass, jobject sv);
     NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_setSurfaceView(JNIEnv *jenv, jclass, jobject sv);
     NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_onResume(JNIEnv *, jclass);
     NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_onLowMemory(JNIEnv *, jclass);
@@ -85,10 +73,6 @@ extern "C" {
     NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_onChangeNetworkLinkStatus(JNIEnv *, jclass, jstring status);
     NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_reportJavaCrash(JNIEnv *, jclass, jstring stack);
     NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_executeNextRunnable(JNIEnv *, jclass);
-    NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_notifyUriVisited(JNIEnv *, jclass, jstring uri);
-    NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_notifyBatteryChange(JNIEnv* jenv, jclass, jdouble, jboolean, jdouble);
-    NS_EXPORT bool JNICALL Java_org_mozilla_gecko_GeckoAppShell_canCreateFixupURI(JNIEnv* jenv, jclass, jstring text);
-    NS_EXPORT void JNICALL Java_org_mozilla_gecko_GeckoAppShell_notifySmsReceived(JNIEnv* jenv, jclass, jstring, jstring, jlong);
 }
 
 
@@ -115,19 +99,13 @@ Java_org_mozilla_gecko_GeckoAppShell_processNextNativeEvent(JNIEnv *jenv, jclass
 {
     // poke the appshell
     if (nsAppShell::gAppShell)
-        nsAppShell::gAppShell->ProcessNextNativeEvent(false);
+        nsAppShell::gAppShell->ProcessNextNativeEvent(PR_FALSE);
 }
 
 NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_setSurfaceView(JNIEnv *jenv, jclass, jobject obj)
 {
     AndroidBridge::Bridge()->SetSurfaceView(jenv->NewGlobalRef(obj));
-}
-
-NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_setSoftwareLayerClient(JNIEnv *jenv, jclass, jobject obj)
-{
-    AndroidBridge::Bridge()->SetSoftwareLayerClient(jenv->NewGlobalRef(obj));
 }
 
 NS_EXPORT void JNICALL
@@ -207,87 +185,4 @@ Java_org_mozilla_gecko_GeckoAppShell_executeNextRunnable(JNIEnv *, jclass)
     }
     AndroidBridge::Bridge()->ExecuteNextRunnable();
     __android_log_print(ANDROID_LOG_INFO, "GeckoJNI", "leaving %s", __PRETTY_FUNCTION__);
-}
-
-NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_notifyUriVisited(JNIEnv *jenv, jclass, jstring uri)
-{
-#ifdef MOZ_ANDROID_HISTORY
-    nsAndroidHistory::NotifyURIVisited(nsJNIString(uri, jenv));
-#endif
-}
-
-NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_notifyBatteryChange(JNIEnv* jenv, jclass,
-                                                         jdouble aLevel,
-                                                         jboolean aCharging,
-                                                         jdouble aRemainingTime)
-{
-    class NotifyBatteryChangeRunnable : public nsRunnable {
-    public:
-      NotifyBatteryChangeRunnable(double aLevel, bool aCharging, double aRemainingTime)
-        : mLevel(aLevel)
-        , mCharging(aCharging)
-        , mRemainingTime(aRemainingTime)
-      {}
-
-      NS_IMETHODIMP Run() {
-        hal::NotifyBatteryChange(hal::BatteryInformation(mLevel, mCharging, mRemainingTime));
-        return NS_OK;
-      }
-
-    private:
-      double mLevel;
-      bool   mCharging;
-      double mRemainingTime;
-    };
-
-    nsCOMPtr<nsIRunnable> runnable = new NotifyBatteryChangeRunnable(aLevel, aCharging, aRemainingTime);
-    NS_DispatchToMainThread(runnable);
-}
-
-NS_EXPORT bool JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_canCreateFixupURI(JNIEnv* jenv, jclass, jstring text)
-{
-    __android_log_print(ANDROID_LOG_INFO, "GeckoJNI", "%s", __PRETTY_FUNCTION__);
-
-    const jchar *textChars = jenv->GetStringChars(text, NULL);
-    NS_ConvertUTF16toUTF8 uriString(textChars);
-    jenv->ReleaseStringChars(text, textChars);
-
-    return AndroidBridge::Bridge()->CanCreateFixupURI(uriString);
-}
-
-NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_notifySmsReceived(JNIEnv* jenv, jclass,
-                                                       jstring aSender,
-                                                       jstring aBody,
-                                                       jlong aTimestamp)
-{
-    class NotifySmsReceivedRunnable : public nsRunnable {
-    public:
-      NotifySmsReceivedRunnable(const SmsMessageData& aMessageData)\
-        : mMessageData(aMessageData)
-      {}
-
-      NS_IMETHODIMP Run() {
-        nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
-        if (!obs) {
-          return NS_OK;
-        }
-
-        nsCOMPtr<nsIDOMMozSmsMessage> message = new SmsMessage(mMessageData);
-        obs->NotifyObservers(message, kSmsReceivedObserverTopic, nsnull);
-        return NS_OK;
-      }
-
-    private:
-      SmsMessageData mMessageData;
-    };
-
-    SmsMessageData message(0, eDeliveryState_Received, nsJNIString(aSender, jenv), EmptyString(),
-                           nsJNIString(aBody, jenv), aTimestamp);
-
-    nsCOMPtr<nsIRunnable> runnable = new NotifySmsReceivedRunnable(message);
-    NS_DispatchToMainThread(runnable);
 }

@@ -208,35 +208,53 @@ nsContainerFrame::RemoveFrame(ChildListID aListID,
     }
   }
 
-  // Loop and destroy aOldFrame and all of its continuations.
-  // Request a reflow on the parent frames involved unless we were explicitly
-  // told not to (kNoReflowPrincipalList).
-  bool generateReflowCommand = true;
+  if (aOldFrame) {
+    // Loop and destroy the frame and all of its continuations.
+    // If the frame we are removing is a brFrame, we need a reflow so
+    // the line the brFrame was on can attempt to pull up any frames
+    // that can fit from lines below it.
+    bool generateReflowCommand = true;
 #ifdef IBMBIDI
-  if (kNoReflowPrincipalList == aListID) {
-    generateReflowCommand = false;
-  }
+    if (kNoReflowPrincipalList == aListID) {
+      generateReflowCommand = PR_FALSE;
+    }
 #endif
-  nsPresContext* pc = PresContext();
-  nsContainerFrame* lastParent = nsnull;
-  while (aOldFrame) {
-    //XXXfr probably should use StealFrame here. I'm not sure if we need to
-    //      check the overflow lists atm, but we'll need a prescontext lookup
-    //      for overflow containers once we can split abspos elements with
-    //      inline containing blocks.
-    nsIFrame* oldFrameNextContinuation = aOldFrame->GetNextContinuation();
-    nsContainerFrame* parent =
-      static_cast<nsContainerFrame*>(aOldFrame->GetParent());
-    parent->StealFrame(pc, aOldFrame, true);
-    aOldFrame->Destroy();
-    aOldFrame = oldFrameNextContinuation;
-    if (parent != lastParent && generateReflowCommand) {
-      pc->PresShell()->
-        FrameNeedsReflow(parent, nsIPresShell::eTreeChange,
+    nsContainerFrame* parent = static_cast<nsContainerFrame*>(aOldFrame->GetParent());
+    while (aOldFrame) {
+      // When the parent is an inline frame we have a simple task - just
+      // remove the frame from its parents list and generate a reflow
+      // command.
+      nsIFrame* oldFrameNextContinuation = aOldFrame->GetNextContinuation();
+      //XXXfr probably should use StealFrame here. I'm not sure if we need to
+      //      check the overflow lists atm, but we'll need a prescontext lookup
+      //      for overflow containers once we can split abspos elements with
+      //      inline containing blocks.
+      if (parent == this) {
+        if (!parent->mFrames.DestroyFrameIfPresent(aOldFrame)) {
+          // Try to remove it from our overflow list, if we have one.
+          // The simplest way is to reuse StealFrame.
+          StealFrame(PresContext(), aOldFrame, PR_TRUE);
+          aOldFrame->Destroy();
+        }
+      } else {
+        // This recursive call takes care of all continuations after aOldFrame,
+        // so we don't need to loop anymore.
+        parent->RemoveFrame(kPrincipalList, aOldFrame);
+        break;
+      }
+      aOldFrame = oldFrameNextContinuation;
+      if (aOldFrame) {
+        parent = static_cast<nsContainerFrame*>(aOldFrame->GetParent());
+      }
+    }
+
+    if (generateReflowCommand) {
+      PresContext()->PresShell()->
+        FrameNeedsReflow(this, nsIPresShell::eTreeChange,
                          NS_FRAME_HAS_DIRTY_CHILDREN);
-      lastParent = parent;
     }
   }
+
   return NS_OK;
 }
 
@@ -245,7 +263,7 @@ nsContainerFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   // Prevent event dispatch during destruction
   if (HasView()) {
-    GetView()->SetFrame(nsnull);
+    GetView()->SetClientData(nsnull);
   }
 
   // Delete the primary child list
@@ -371,7 +389,7 @@ nsContainerFrame::ChildIsDirty(nsIFrame* aChild)
 bool
 nsContainerFrame::IsLeaf() const
 {
-  return false;
+  return PR_FALSE;
 }
 
 bool
@@ -379,7 +397,7 @@ nsContainerFrame::PeekOffsetNoAmount(bool aForward, PRInt32* aOffset)
 {
   NS_ASSERTION (aOffset && *aOffset <= 1, "aOffset out of range");
   // Don't allow the caret to stay in an empty (leaf) container frame.
-  return false;
+  return PR_FALSE;
 }
 
 bool
@@ -388,7 +406,7 @@ nsContainerFrame::PeekOffsetCharacter(bool aForward, PRInt32* aOffset,
 {
   NS_ASSERTION (aOffset && *aOffset <= 1, "aOffset out of range");
   // Don't allow the caret to stay in an empty (leaf) container frame.
-  return false;
+  return PR_FALSE;
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -467,7 +485,7 @@ nsContainerFrame::CreateViewForFrame(nsIFrame* aFrame,
 
   nsIView* insertBefore = nsLayoutUtils::FindSiblingViewFor(parentView, aFrame);
   // we insert this view 'above' the insertBefore view, unless insertBefore is null,
-  // in which case we want to call with aAbove == false to insert at the beginning
+  // in which case we want to call with aAbove == PR_FALSE to insert at the beginning
   // in document order
   viewManager->InsertChild(parentView, view, insertBefore, insertBefore != nsnull);
 
@@ -734,7 +752,7 @@ nsContainerFrame::SyncFrameViewAfterReflow(nsPresContext* aPresContext,
   if (0 == (aFlags & NS_FRAME_NO_SIZE_VIEW)) {
     nsIViewManager* vm = aView->GetViewManager();
 
-    vm->ResizeView(aView, aVisualOverflowArea, true);
+    vm->ResizeView(aView, aVisualOverflowArea, PR_TRUE);
   }
 }
 
@@ -775,7 +793,7 @@ nsContainerFrame::SyncFrameViewProperties(nsPresContext*  aPresContext,
   bool    autoZIndex = false;
 
   if (!isPositioned) {
-    autoZIndex = true;
+    autoZIndex = PR_TRUE;
   } else {
     // Make sure z-index is correct
     const nsStylePosition* position = aStyleContext->GetStylePosition();
@@ -783,7 +801,7 @@ nsContainerFrame::SyncFrameViewProperties(nsPresContext*  aPresContext,
     if (position->mZIndex.GetUnit() == eStyleUnit_Integer) {
       zIndex = position->mZIndex.GetIntValue();
     } else if (position->mZIndex.GetUnit() == eStyleUnit_Auto) {
-      autoZIndex = true;
+      autoZIndex = PR_TRUE;
     }
   }
 
@@ -952,7 +970,7 @@ nsContainerFrame::ReflowChild(nsIFrame*                aKidFrame,
       // parent is not this because we are executing pullup code)
       if (aTracker) aTracker->Finish(aKidFrame);
       static_cast<nsContainerFrame*>(kidNextInFlow->GetParent())
-        ->DeleteNextInFlowChild(aPresContext, kidNextInFlow, true);
+        ->DeleteNextInFlowChild(aPresContext, kidNextInFlow, PR_TRUE);
     }
   }
   return result;
@@ -1097,7 +1115,7 @@ nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPres
   if (!overflowContainers)
     return NS_OK; // nothing to reflow
 
-  nsOverflowContinuationTracker tracker(aPresContext, this, false, false);
+  nsOverflowContinuationTracker tracker(aPresContext, this, PR_FALSE, PR_FALSE);
   bool shouldReflowAllKids = aReflowState.ShouldReflowAllKids();
 
   for (nsIFrame* frame = overflowContainers->FirstChild(); frame;
@@ -1230,7 +1248,7 @@ nsContainerFrame::StealFrame(nsPresContext* aPresContext,
   }
   else {
     if (!mFrames.RemoveFrameIfPresent(aChild)) {
-      removed = false;
+      removed = PR_FALSE;
       // We didn't find the child in the parent's principal child list.
       // Maybe it's on the overflow list?
       nsFrameList* frameList = GetOverflowFrames();
@@ -1388,12 +1406,12 @@ nsContainerFrame::RemovePropTableFrame(nsPresContext*                 aPresConte
   nsFrameList* frameList = RemovePropTableFrames(aPresContext, aProperty);
   if (!frameList) {
     // No such list
-    return false;
+    return PR_FALSE;
   }
   if (!frameList->RemoveFrameIfPresent(aFrame)) {
     // Found list, but it doesn't have the frame. Put list back.
     SetPropTableFrames(aPresContext, frameList, aProperty);
-    return false;
+    return PR_FALSE;
   }
 
   if (frameList->IsEmpty()) {
@@ -1404,7 +1422,7 @@ nsContainerFrame::RemovePropTableFrame(nsPresContext*                 aPresConte
     // Removed frame, but list not empty. Put it back.
     SetPropTableFrames(aPresContext, frameList, aProperty);
   }
-  return true;
+  return PR_TRUE;
 }
 
 nsresult
@@ -1473,7 +1491,7 @@ nsContainerFrame::PushChildren(nsPresContext* aPresContext,
  *
  * Updates this frame's child count and content mapping.
  *
- * @return  true if any frames were moved and false otherwise
+ * @return  PR_TRUE if any frames were moved and PR_FALSE otherwise
  */
 bool
 nsContainerFrame::MoveOverflowToChildList(nsPresContext* aPresContext)
@@ -1495,7 +1513,7 @@ nsContainerFrame::MoveOverflowToChildList(nsPresContext* aPresContext)
                                               *prevOverflowFrames,
                                               prevInFlow, this);
       mFrames.AppendFrames(this, *prevOverflowFrames);
-      result = true;
+      result = PR_TRUE;
     }
   }
 
@@ -1504,7 +1522,7 @@ nsContainerFrame::MoveOverflowToChildList(nsPresContext* aPresContext)
   if (overflowFrames) {
     NS_ASSERTION(mFrames.NotEmpty(), "overflow list w/o frames");
     mFrames.AppendFrames(nsnull, *overflowFrames);
-    result = true;
+    result = PR_TRUE;
   }
   return result;
 }
@@ -1631,7 +1649,7 @@ nsOverflowContinuationTracker::Insert(nsIFrame*       aOverflowCont,
     }
     else {
       aOverflowCont->AddStateBits(NS_FRAME_IS_OVERFLOW_CONTAINER);
-      convertedToOverflowContainer = true;
+      convertedToOverflowContainer = PR_TRUE;
     }
     if (!mOverflowContList) {
       mOverflowContList = new nsFrameList();
@@ -1771,7 +1789,7 @@ nsContainerFrame::List(FILE* out, PRInt32 aIndent) const
     if (outputOneList) {
       IndentBy(out, aIndent);
     }
-    outputOneList = true;
+    outputOneList = PR_TRUE;
     fputs(mozilla::layout::ChildListName(lists.CurrentID()), out);
     fputs("<\n", out);
     nsFrameList::Enumerator childFrames(lists.CurrentList());

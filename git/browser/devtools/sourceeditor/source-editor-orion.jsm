@@ -57,8 +57,7 @@ const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
  * SourceEditor.THEMES to Orion CSS files.
  */
 const ORION_THEMES = {
-  textmate: ["chrome://browser/content/orion.css",
-             "chrome://browser/content/orion-mozilla.css"],
+  textmate: "chrome://browser/content/orion.css",
 };
 
 /**
@@ -197,9 +196,9 @@ SourceEditor.prototype = {
     });
 
     if (config.showLineNumbers) {
-      this._lines_ruler = new textview.LineNumberRuler(null, "left",
-        {styleClass: "rulerLines"}, {styleClass: "rulerLine odd"},
-        {styleClass: "rulerLine even"});
+      this._lines_ruler = new textview.LineNumberRuler("left",
+        {styleClass: "ruler_lines", style: {minWidth: "1.4em"}},
+        {styleClass: "ruler_lines_even"}, {styleClass: "ruler_lines_even"});
 
       this._view.addRuler(this._lines_ruler);
     }
@@ -222,17 +221,7 @@ SourceEditor.prototype = {
     }, this);
 
     if (aCallback) {
-      let iframe = this._view._frame;
-      let document = iframe.contentDocument;
-      if (!document || document.readyState != "complete") {
-        let onIframeLoad = function () {
-          iframe.contentWindow.removeEventListener("load", onIframeLoad, false);
-          aCallback(this);
-        }.bind(this);
-        iframe.contentWindow.addEventListener("load", onIframeLoad, false);
-      } else {
-        aCallback(this);
-      }
+      aCallback(this);
     }
   },
 
@@ -401,7 +390,7 @@ SourceEditor.prototype = {
 
     let model = this._model;
     let lineIndex = model.getLineAtOffset(selection.start);
-    let lineText = model.getLine(lineIndex, true);
+    let lineText = model.getLine(lineIndex);
     let lineStart = model.getLineStart(lineIndex);
     let index = 0;
     let lineOffset = selection.start - lineStart;
@@ -555,28 +544,6 @@ SourceEditor.prototype = {
   focus: function SE_focus()
   {
     this._view.focus();
-  },
-
-  /**
-   * Get the first visible line number.
-   *
-   * @return number
-   *         The line number, counting from 0.
-   */
-  getTopIndex: function SE_getTopIndex()
-  {
-    return this._view.getTopIndex();
-  },
-
-  /**
-   * Set the first visible line number.
-   *
-   * @param number aTopIndex
-   *         The line number, counting from 0.
-   */
-  setTopIndex: function SE_setTopIndex(aTopIndex)
-  {
-    this._view.setTopIndex(aTopIndex);
   },
 
   /**

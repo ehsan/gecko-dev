@@ -65,7 +65,7 @@
 nsUnknownDecoder::nsUnknownDecoder()
   : mBuffer(nsnull)
   , mBufferLen(0)
-  , mRequireHTMLsuffix(false)
+  , mRequireHTMLsuffix(PR_FALSE)
 {
   nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
   if (prefs) {
@@ -279,26 +279,26 @@ nsUnknownDecoder::GetMIMETypeFromContent(nsIRequest* aRequest,
 bool nsUnknownDecoder::AllowSniffing(nsIRequest* aRequest)
 {
   if (!mRequireHTMLsuffix) {
-    return true;
+    return PR_TRUE;
   }
   
   nsCOMPtr<nsIChannel> channel = do_QueryInterface(aRequest);
   if (!channel) {
     NS_ERROR("QI failed");
-    return false;
+    return PR_FALSE;
   }
 
   nsCOMPtr<nsIURI> uri;
   if (NS_FAILED(channel->GetURI(getter_AddRefs(uri))) || !uri) {
-    return false;
+    return PR_FALSE;
   }
   
   bool isLocalFile = false;
   if (NS_FAILED(uri->SchemeIs("file", &isLocalFile)) || isLocalFile) {
-    return false;
+    return PR_FALSE;
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 /**
@@ -307,7 +307,7 @@ bool nsUnknownDecoder::AllowSniffing(nsIRequest* aRequest)
  * these with the SNIFFER_ENTRY macro) or a function to be executed
  * (set these with the SNIFFER_ENTRY_WITH_FUNC macro).  The function
  * should take a single nsIRequest* and returns bool -- true if
- * it sets mContentType, false otherwise
+ * it sets mContentType, PR_FALSE otherwise
  */
 nsUnknownDecoder::nsSnifferEntry nsUnknownDecoder::sSnifferEntries[] = {
   SNIFFER_ENTRY("%PDF-", APPLICATION_PDF),
@@ -396,13 +396,13 @@ bool nsUnknownDecoder::TryContentSniffers(nsIRequest* aRequest)
   // Enumerate content sniffers
   nsCOMPtr<nsICategoryManager> catMan(do_GetService("@mozilla.org/categorymanager;1"));
   if (!catMan) {
-    return false;
+    return PR_FALSE;
   }
 
   nsCOMPtr<nsISimpleEnumerator> sniffers;
   catMan->EnumerateCategory("content-sniffing-services", getter_AddRefs(sniffers));
   if (!sniffers) {
-    return false;
+    return PR_FALSE;
   }
 
   bool hasMore;
@@ -427,11 +427,11 @@ bool nsUnknownDecoder::TryContentSniffers(nsIRequest* aRequest)
     rv = sniffer->GetMIMETypeFromContent(aRequest, (const PRUint8*)mBuffer,
                                          mBufferLen, mContentType);
     if (NS_SUCCEEDED(rv)) {
-      return true;
+      return PR_TRUE;
     }
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 bool nsUnknownDecoder::SniffForHTML(nsIRequest* aRequest)
@@ -442,7 +442,7 @@ bool nsUnknownDecoder::SniffForHTML(nsIRequest* aRequest)
    * are set right
    */
   if (!AllowSniffing(aRequest)) {
-    return false;
+    return PR_FALSE;
   }
   
   // Now look for HTML.
@@ -456,13 +456,13 @@ bool nsUnknownDecoder::SniffForHTML(nsIRequest* aRequest)
 
   // did we find something like a start tag?
   if (str == end || *str != '<' || ++str == end) {
-    return false;
+    return PR_FALSE;
   }
 
   // If we seem to be SGML or XML and we got down here, just pretend we're HTML
   if (*str == '!' || *str == '?') {
     mContentType = TEXT_HTML;
-    return true;
+    return PR_TRUE;
   }
   
   PRUint32 bufSize = end - str;
@@ -504,19 +504,19 @@ bool nsUnknownDecoder::SniffForHTML(nsIRequest* aRequest)
       MATCHES_TAG("pre")) {
   
     mContentType = TEXT_HTML;
-    return true;
+    return PR_TRUE;
   }
 
 #undef MATCHES_TAG
   
-  return false;
+  return PR_FALSE;
 }
 
 bool nsUnknownDecoder::SniffForXML(nsIRequest* aRequest)
 {
   // Just like HTML, this should be able to be shut off.
   if (!AllowSniffing(aRequest)) {
-    return false;
+    return PR_FALSE;
   }
 
   // First see whether we can glean anything from the uri...
@@ -525,7 +525,7 @@ bool nsUnknownDecoder::SniffForXML(nsIRequest* aRequest)
     mContentType = TEXT_XML;
   }
   
-  return true;
+  return PR_TRUE;
 }
 
 bool nsUnknownDecoder::SniffURI(nsIRequest* aRequest)
@@ -541,13 +541,13 @@ bool nsUnknownDecoder::SniffURI(nsIRequest* aRequest)
         result = mimeService->GetTypeFromURI(uri, type);
         if (NS_SUCCEEDED(result)) {
           mContentType = type;
-          return true;
+          return PR_TRUE;
         }
       }
     }
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 // This macro is based on RFC 2046 Section 4.1.2.  Treat any char 0-31
@@ -573,7 +573,7 @@ bool nsUnknownDecoder::LastDitchSniff(nsIRequest* aRequest)
         (buf[0] == 0 && buf[1] == 0 && buf[2] == 0xFE && buf[3] == 0xFF)) { // UCS-4, Big Endian
         
       mContentType = TEXT_PLAIN;
-      return true;
+      return PR_TRUE;
     }
   }
   
@@ -590,7 +590,7 @@ bool nsUnknownDecoder::LastDitchSniff(nsIRequest* aRequest)
     mContentType = APPLICATION_OCTET_STREAM;
   }
 
-  return true;    
+  return PR_TRUE;    
 }
 
 

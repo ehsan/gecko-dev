@@ -110,9 +110,9 @@ nsSVGMarkerFrame::GetCanvasTM()
 
   nsSVGMarkerElement *content = static_cast<nsSVGMarkerElement*>(mContent);
   
-  mInUse2 = true;
+  mInUse2 = PR_TRUE;
   gfxMatrix markedTM = mMarkedFrame->GetCanvasTM();
-  mInUse2 = false;
+  mInUse2 = PR_FALSE;
 
   gfxMatrix markerTM = content->GetMarkerTransform(mStrokeWidth, mX, mY, mAutoAngle);
   gfxMatrix viewBoxTM = content->GetViewBoxTransform();
@@ -173,6 +173,37 @@ nsSVGMarkerFrame::PaintMark(nsSVGRenderState *aContext,
     gfx->Restore();
 
   return NS_OK;
+}
+
+
+nsRect
+nsSVGMarkerFrame::RegionMark(nsSVGPathGeometryFrame *aMarkedFrame,
+                             const nsSVGMark *aMark, float aStrokeWidth)
+{
+  // If the flag is set when we get here, it means this marker frame
+  // has already been used in calculating the current mark region, and
+  // the document has a marker reference loop.
+  if (mInUse)
+    return nsRect(0,0,0,0);
+
+  AutoMarkerReferencer markerRef(this, aMarkedFrame);
+
+  mStrokeWidth = aStrokeWidth;
+  mX = aMark->x;
+  mY = aMark->y;
+  mAutoAngle = aMark->angle;
+
+  // Force children to update their covered region
+  for (nsIFrame* kid = mFrames.FirstChild();
+       kid;
+       kid = kid->GetNextSibling()) {
+    nsISVGChildFrame* child = do_QueryFrame(kid);
+    if (child)
+      child->UpdateCoveredRegion();
+  }
+
+  // Now get the combined covered region
+  return nsSVGUtils::GetCoveredRegion(mFrames);
 }
 
 gfxRect
@@ -241,7 +272,7 @@ nsSVGMarkerFrame::AutoMarkerReferencer::AutoMarkerReferencer(
     nsSVGPathGeometryFrame *aMarkedFrame)
       : mFrame(aFrame)
 {
-  mFrame->mInUse = true;
+  mFrame->mInUse = PR_TRUE;
   mFrame->mMarkedFrame = aMarkedFrame;
 
   nsSVGSVGElement *ctx =
@@ -254,5 +285,5 @@ nsSVGMarkerFrame::AutoMarkerReferencer::~AutoMarkerReferencer()
   mFrame->SetParentCoordCtxProvider(nsnull);
 
   mFrame->mMarkedFrame = nsnull;
-  mFrame->mInUse = false;
+  mFrame->mInUse = PR_FALSE;
 }

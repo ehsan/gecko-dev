@@ -77,7 +77,7 @@
 #include "nsIXULDocument.h"
 #endif
 
-using namespace mozilla;
+namespace dom = mozilla::dom;
 using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -311,8 +311,7 @@ nsDocAccessible::NativeState()
     state |= states::BUSY;
 
   nsIFrame* frame = GetFrame();
-  if (!frame ||
-      !frame->IsVisibleConsideringAncestors(nsIFrame::VISIBILITY_CROSS_CHROME_CONTENT_BOUNDARY)) {
+  if (!frame || !nsCoreUtils::CheckVisibilityInParentChain(frame)) {
     state |= states::INVISIBLE | states::OFFSCREEN;
   }
 
@@ -588,7 +587,7 @@ nsDocAccessible::Init()
   nsCOMPtr<nsIPresShell> shell(GetPresShell());
   mNotificationController = new NotificationController(this, shell);
   if (!mNotificationController)
-    return false;
+    return PR_FALSE;
 
   // Mark the document accessible as loaded if its DOM document was loaded at
   // this point (this can happen because a11y is started late or DOM document
@@ -597,7 +596,7 @@ nsDocAccessible::Init()
     mLoadState |= eDOMLoaded;
 
   AddEventListeners();
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -880,7 +879,7 @@ NS_IMETHODIMP nsDocAccessible::Observe(nsISupports *aSubject, const char *aTopic
     // accessible object. See the AccStateChangeEvent constructor for details
     // about this exceptional case.
     nsRefPtr<AccEvent> event =
-      new AccStateChangeEvent(this, states::EDITABLE, true);
+      new AccStateChangeEvent(this, states::EDITABLE, PR_TRUE);
     FireDelayedAccessibleEvent(event);
   }
 
@@ -1042,23 +1041,32 @@ nsDocAccessible::AttributeChangedImpl(nsIContent* aContent, PRInt32 aNameSpaceID
     return;
   }
 
-  // ARIA or XUL selection
-  if ((aContent->IsXUL() && aAttribute == nsGkAtoms::selected) ||
+  if (aAttribute == nsGkAtoms::selected ||
       aAttribute == nsGkAtoms::aria_selected) {
-    nsAccessible* item = GetAccessible(aContent);
-    nsAccessible* widget =
-      nsAccUtils::GetSelectableContainer(item, item->State());
-    if (widget) {
-      AccSelChangeEvent::SelChangeType selChangeType =
-        aContent->AttrValueIs(aNameSpaceID, aAttribute,
-                              nsGkAtoms::_true, eCaseMatters) ?
-          AccSelChangeEvent::eSelectionAdd : AccSelChangeEvent::eSelectionRemove;
+    // ARIA or XUL selection
 
-      nsRefPtr<AccEvent> event =
-        new AccSelChangeEvent(widget, item, selChangeType);
-      FireDelayedAccessibleEvent(event);
+    nsAccessible *multiSelect =
+      nsAccUtils::GetMultiSelectableContainer(aContent);
+    // XXX: Multi selects are handled here only (bug 414302).
+    if (multiSelect) {
+      // Need to find the right event to use here, SELECTION_WITHIN would
+      // seem right but we had started using it for something else
+      FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_SELECTION_WITHIN,
+                                 multiSelect->GetNode(),
+                                 AccEvent::eAllowDupes);
+
+      static nsIContent::AttrValuesArray strings[] =
+        {&nsGkAtoms::_empty, &nsGkAtoms::_false, nsnull};
+      if (aContent->FindAttrValueIn(kNameSpaceID_None, aAttribute,
+                                    strings, eCaseMatters) >= 0) {
+        FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_SELECTION_REMOVE,
+                                   aContent);
+        return;
+      }
+
+      FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_SELECTION_ADD,
+                                 aContent);
     }
-    return;
   }
 
   if (aAttribute == nsGkAtoms::contenteditable) {
@@ -1174,7 +1182,7 @@ nsDocAccessible::ARIAActiveDescendantChanged(nsIContent* aElm)
   if (FocusMgr()->HasDOMFocus(aElm)) {
     nsAutoString id;
     if (aElm->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_activedescendant, id)) {
-      nsIDocument* DOMDoc = aElm->OwnerDoc();
+      nsIDocument* DOMDoc = aElm->GetOwnerDoc();
       dom::Element* activeDescendantElm = DOMDoc->GetElementById(id);
       if (activeDescendantElm) {
         nsAccessible* activeDescendant = GetAccessible(activeDescendantElm);
@@ -1200,23 +1208,12 @@ void nsDocAccessible::ContentStateChanged(nsIDocument* aDocument,
                                           nsEventStates aStateMask)
 {
   if (aStateMask.HasState(NS_EVENT_STATE_CHECKED)) {
-    nsAccessible* item = GetAccessible(aContent);
-    if (item) {
-      nsAccessible* widget = item->ContainerWidget();
-      if (widget && widget->IsSelect()) {
-        AccSelChangeEvent::SelChangeType selChangeType =
-          aContent->AsElement()->State().HasState(NS_EVENT_STATE_CHECKED) ?
-            AccSelChangeEvent::eSelectionAdd : AccSelChangeEvent::eSelectionRemove;
-        nsRefPtr<AccEvent> event = new AccSelChangeEvent(widget, item,
-                                                         selChangeType);
-        FireDelayedAccessibleEvent(event);
-      }
-    }
+    nsHTMLSelectOptionAccessible::SelectionChangedIfOption(aContent);
   }
 
   if (aStateMask.HasState(NS_EVENT_STATE_INVALID)) {
     nsRefPtr<AccEvent> event =
-      new AccStateChangeEvent(aContent, states::INVALID, true);
+      new AccStateChangeEvent(aContent, states::INVALID, PR_TRUE);
     FireDelayedAccessibleEvent(event);
    }
 }
@@ -1495,7 +1492,7 @@ nsDocAccessible::NotifyOfLoading(bool aIsReloading)
   // Fire state busy change event. Use delayed event since we don't care
   // actually if event isn't delivered when the document goes away like a shot.
   nsRefPtr<AccEvent> stateEvent =
-    new AccStateChangeEvent(mDocument, states::BUSY, true);
+    new AccStateChangeEvent(mDocument, states::BUSY, PR_TRUE);
   FireDelayedAccessibleEvent(stateEvent);
 }
 
@@ -1550,7 +1547,7 @@ nsDocAccessible::ProcessLoad()
 
   // Fire busy state change event.
   nsRefPtr<AccEvent> stateEvent =
-    new AccStateChangeEvent(this, states::BUSY, false);
+    new AccStateChangeEvent(this, states::BUSY, PR_FALSE);
   nsEventShell::FireEvent(stateEvent);
 }
 
@@ -1733,26 +1730,33 @@ nsDocAccessible::FireDelayedAccessibleEvent(AccEvent* aEvent)
 void
 nsDocAccessible::ProcessPendingEvent(AccEvent* aEvent)
 {
+  nsAccessible* accessible = aEvent->GetAccessible();
+  if (!accessible)
+    return;
+
   PRUint32 eventType = aEvent->GetEventType();
   if (eventType == nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED) {
-    nsHyperTextAccessible* hyperText = aEvent->GetAccessible()->AsHyperText();
+    nsCOMPtr<nsIAccessibleText> accessibleText = do_QueryObject(accessible);
     PRInt32 caretOffset;
-    if (hyperText &&
-        NS_SUCCEEDED(hyperText->GetCaretOffset(&caretOffset))) {
+    if (accessibleText &&
+        NS_SUCCEEDED(accessibleText->GetCaretOffset(&caretOffset))) {
 #ifdef DEBUG_A11Y
       PRUnichar chAtOffset;
-      hyperText->GetCharacterAtOffset(caretOffset, &chAtOffset);
+      accessibleText->GetCharacterAtOffset(caretOffset, &chAtOffset);
       printf("\nCaret moved to %d with char %c", caretOffset, chAtOffset);
 #endif
       nsRefPtr<AccEvent> caretMoveEvent =
-        new AccCaretMoveEvent(hyperText, caretOffset);
+          new AccCaretMoveEvent(accessible, caretOffset);
+      if (!caretMoveEvent)
+        return;
+
       nsEventShell::FireEvent(caretMoveEvent);
 
       PRInt32 selectionCount;
-      hyperText->GetSelectionCount(&selectionCount);
+      accessibleText->GetSelectionCount(&selectionCount);
       if (selectionCount) {  // There's a selection so fire selection change as well
         nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_TEXT_SELECTION_CHANGED,
-                                hyperText);
+                                accessible);
       }
     }
   }
@@ -1761,7 +1765,7 @@ nsDocAccessible::ProcessPendingEvent(AccEvent* aEvent)
 
     // Post event processing
     if (eventType == nsIAccessibleEvent::EVENT_HIDE)
-      ShutdownChildrenInSubtree(aEvent->GetAccessible());
+      ShutdownChildrenInSubtree(accessible);
   }
 }
 
@@ -1851,7 +1855,11 @@ nsDocAccessible::UpdateTree(nsAccessible* aContainer, nsIContent* aChildNode,
     }
   }
 
-  MaybeNotifyOfValueChange(aContainer);
+  // Fire value change event.
+  if (aContainer->Role() == nsIAccessibleRole::ROLE_ENTRY) {
+    FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE,
+                               aContainer->GetNode());
+  }
 
   // Fire reorder event so the MSAA clients know the children have changed. Also
   // the event is used internally by MSAA layer.

@@ -47,7 +47,7 @@ void
 SMILBoolType::Init(nsSMILValue& aValue) const
 {
   NS_PRECONDITION(aValue.IsNull(), "Unexpected value type");
-  aValue.mU.mBool = false;
+  aValue.mU.mBool = PR_FALSE;
   aValue.mType = this;
 }
 
@@ -55,7 +55,7 @@ void
 SMILBoolType::Destroy(nsSMILValue& aValue) const
 {
   NS_PRECONDITION(aValue.mType == this, "Unexpected SMIL value");
-  aValue.mU.mBool = false;
+  aValue.mU.mBool = PR_FALSE;
   aValue.mType = &nsSMILNullType::sSingleton;
 }
 

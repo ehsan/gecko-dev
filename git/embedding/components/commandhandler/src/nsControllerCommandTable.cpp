@@ -50,8 +50,8 @@ NS_NewControllerCommandTable(nsIControllerCommandTable** aResult);
 
 
 nsControllerCommandTable::nsControllerCommandTable()
-: mCommandsTable(NUM_COMMANDS_BOUNDS, false)
-, mMutable(true)
+: mCommandsTable(NUM_COMMANDS_BOUNDS, PR_FALSE)
+, mMutable(PR_TRUE)
 {
 }
 
@@ -65,7 +65,7 @@ NS_IMPL_ISUPPORTS2(nsControllerCommandTable, nsIControllerCommandTable, nsISuppo
 NS_IMETHODIMP
 nsControllerCommandTable::MakeImmutable(void)
 {
-  mMutable = false;
+  mMutable = PR_FALSE;
   return NS_OK;
 }
 
@@ -122,7 +122,7 @@ nsControllerCommandTable::IsCommandEnabled(const char * aCommandName, nsISupport
 {
   NS_ENSURE_ARG_POINTER(aResult);
 
-  *aResult = false;
+  *aResult = PR_FALSE;
       
   // find the command  
   nsCOMPtr<nsIControllerCommand> commandHandler;
@@ -163,7 +163,7 @@ nsControllerCommandTable::SupportsCommand(const char * aCommandName, nsISupports
 
   // XXX: need to check the readonly and disabled states
 
-  *aResult = false;
+  *aResult = PR_FALSE;
   
   // find the command  
   nsCOMPtr<nsIControllerCommand> commandHandler;

@@ -242,16 +242,16 @@ NS_IMETHODIMP nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
   else
     dragimage.hImage  = WinQuerySysPointer(HWND_DESKTOP, SPTR_FILE, FALSE);
     
-  mDoingDrag = true;
+  mDoingDrag = PR_TRUE;
   LONG escState = WinGetKeyState(HWND_DESKTOP, VK_ESC) & 0x01;
   HWND hwndDest = DrgDrag(mDragWnd, pDragInfo, &dragimage, 1, VK_BUTTON2,
                   (void*)0x80000000L); // Don't lock the desktop PS
 
     // determine whether the drag ended because Escape was pressed
   if (hwndDest == 0 && (WinGetKeyState(HWND_DESKTOP, VK_ESC) & 0x01) != escState)
-    mUserCancelled = true;
+    mUserCancelled = PR_TRUE;
   FireDragEventAtSource(NS_DRAGDROP_END);
-  mDoingDrag = false;
+  mDoingDrag = PR_FALSE;
 
     // do clean up;  if the drop completed,
     // the target will delete the string handles
@@ -269,8 +269,8 @@ NS_IMETHODIMP nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
   mSourceNode = nsnull;
   mSelection = nsnull;
   mDataTransfer = nsnull;
-  mUserCancelled = false;
-  mHasImage = false;
+  mUserCancelled = PR_FALSE;
+  mHasImage = PR_FALSE;
   mImage = nsnull;
   mImageX = 0;
   mImageY = 0;
@@ -461,7 +461,7 @@ NS_IMETHODIMP nsDragService::IsDataFlavorSupported(const char *aDataFlavor,
   if (!_retval)
     return NS_ERROR_INVALID_ARG;
 
-  *_retval = false;
+  *_retval = PR_FALSE;
 
   PRUint32 numDragItems = 0;
   if (mSourceDataItems)
@@ -470,9 +470,9 @@ NS_IMETHODIMP nsDragService::IsDataFlavorSupported(const char *aDataFlavor,
     return NS_OK;
 
 // return true if all items support this flavor
-//  for (PRUint32 itemIndex = 0, *_retval = true;
+//  for (PRUint32 itemIndex = 0, *_retval = PR_TRUE;
 //       itemIndex < numDragItems && *_retval; ++itemIndex) {
-//    *_retval = false;
+//    *_retval = PR_FALSE;
 
 // return true if any item supports this flavor
   for (PRUint32 itemIndex = 0;
@@ -500,7 +500,7 @@ NS_IMETHODIMP nsDragService::IsDataFlavorSupported(const char *aDataFlavor,
             nsXPIDLCString flavorStr;
             currentFlavor->ToString ( getter_Copies(flavorStr) );
             if (strcmp(flavorStr, aDataFlavor) == 0) {
-              *_retval = true;
+              *_retval = PR_TRUE;
               break;
             }
           }
@@ -528,7 +528,7 @@ nsresult nsDragService::SaveAsContents(PCSZ pszDest, nsIURL* aURL)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsILocalFile> file;
-  NS_NewNativeLocalFile(nsDependentCString(pszDest), true,
+  NS_NewNativeLocalFile(nsDependentCString(pszDest), PR_TRUE,
                         getter_AddRefs(file));
   if (!file)
     return NS_ERROR_FAILURE;
@@ -557,7 +557,7 @@ nsresult nsDragService::SaveAsURL(PCSZ pszDest, nsIURI* aURI)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsILocalFile> file;
-  NS_NewNativeLocalFile(nsDependentCString(pszDest), true,
+  NS_NewNativeLocalFile(nsDependentCString(pszDest), PR_TRUE,
                         getter_AddRefs(file));
   if (!file)
     return NS_ERROR_FAILURE;
@@ -589,7 +589,7 @@ nsresult nsDragService::SaveAsText(PCSZ pszDest, nsISupportsString* aString)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsILocalFile> file;
-  NS_NewNativeLocalFile(nsDependentCString(pszDest), true,
+  NS_NewNativeLocalFile(nsDependentCString(pszDest), PR_TRUE,
                         getter_AddRefs(file));
   if (!file)
     return NS_ERROR_FAILURE;
@@ -815,7 +815,7 @@ NS_IMETHODIMP nsDragService::DragOverMsg(PDRAGINFO pdinfo, MRESULT &mr,
 
     // if we're in a drag, set it up to be dispatched
   if (mDoingDrag) {
-    SetCanDrop(false);
+    SetCanDrop(PR_FALSE);
     switch (pdinfo->usOperation) {
       case DO_COPY:
         SetDragAction(DRAGDROP_ACTION_COPY);
@@ -910,7 +910,7 @@ NS_IMETHODIMP nsDragService::NativeDragEnter(PDRAGINFO pdinfo)
         if (isFQFile && !isAlt &&
             NS_SUCCEEDED(GetFileName(pditem, getter_Copies(someText)))) {
           nsCOMPtr<nsILocalFile> file;
-          if (NS_SUCCEEDED(NS_NewNativeLocalFile(someText, true,
+          if (NS_SUCCEEDED(NS_NewNativeLocalFile(someText, PR_TRUE,
                                                  getter_AddRefs(file)))) {
             nsCAutoString textStr;
             NS_GetURLSpecFromFile(file, textStr);
@@ -1125,7 +1125,7 @@ NS_IMETHODIMP nsDragService::DropMsg(PDRAGINFO pdinfo, HWND hwnd,
 NS_IMETHODIMP nsDragService::NativeDrop(PDRAGINFO pdinfo, HWND hwnd,
                                         bool* rendering)
 {
-  *rendering = false;
+  *rendering = PR_FALSE;
 
   nsresult rv = NS_ERROR_FAILURE;
   PDRAGITEM pditem = DrgQueryDragitemPtr(pdinfo, 0);
@@ -1145,7 +1145,7 @@ NS_IMETHODIMP nsDragService::NativeDrop(PDRAGINFO pdinfo, HWND hwnd,
   if (DrgVerifyRMF(pditem, "DRM_DTSHARE", 0)) {
     rv = RenderToDTShare( pditem, hwnd);
     if (NS_SUCCEEDED(rv))
-      *rendering = true;
+      *rendering = PR_TRUE;
   }
 
     // DRM_OS2FILE - get the file's path or contents if it exists;
@@ -1159,7 +1159,7 @@ NS_IMETHODIMP nsDragService::NativeDrop(PDRAGINFO pdinfo, HWND hwnd,
     if (!pditem->hstrContainerName || !pditem->hstrSourceName) {
       rv = RenderToOS2File( pditem, hwnd);
       if (NS_SUCCEEDED(rv))
-        *rendering = true;
+        *rendering = PR_TRUE;
     }
       // for Url objects and 'Alt+Drop', get the file's contents;
       // otherwise, convert it's path to a Url
@@ -1169,10 +1169,10 @@ NS_IMETHODIMP nsDragService::NativeDrop(PDRAGINFO pdinfo, HWND hwnd,
         if (isUrl || isAlt)
           rv = GetFileContents(fileName.get(), getter_Copies(dropText));
         else {
-          isUrl = true;
+          isUrl = PR_TRUE;
           nsCOMPtr<nsILocalFile> file;
           if (NS_SUCCEEDED(NS_NewNativeLocalFile(fileName,
-                                         true, getter_AddRefs(file)))) {
+                                         PR_TRUE, getter_AddRefs(file)))) {
             nsCAutoString textStr;
             NS_GetURLSpecFromFile(file, textStr);
             if (!textStr.IsEmpty()) {
@@ -1273,7 +1273,7 @@ NS_IMETHODIMP nsDragService::NativeRenderComplete(PDRAGTRANSFER pdxfer,
     else
     if (!strcmp(rmf.get(), OS2FILE_TXTRMF) ||
         !strcmp(rmf.get(), OS2FILE_UNKRMF))
-      rv = RenderToOS2FileComplete(pdxfer, usResult, true,
+      rv = RenderToOS2FileComplete(pdxfer, usResult, PR_TRUE,
                                    getter_Copies(dropText));
 
     if (NS_SUCCEEDED(rv)) {
@@ -1465,7 +1465,7 @@ nsresult RenderToOS2FileComplete(PDRAGTRANSFER pdxfer, USHORT usResult,
   nsresult rv = NS_ERROR_FAILURE;
 
     // for now, override content flag & always return content
-  content = true;
+  content = PR_TRUE;
 
   if (usResult & DMFL_RENDEROK) {
     if (NS_SUCCEEDED(GetAtom( pdxfer->hstrRenderToName, &gTempFile))) {
@@ -1474,7 +1474,7 @@ nsresult RenderToOS2FileComplete(PDRAGTRANSFER pdxfer, USHORT usResult,
       else {
         nsCOMPtr<nsILocalFile> file;
         if (NS_SUCCEEDED(NS_NewNativeLocalFile(nsDependentCString(gTempFile),
-                                         true, getter_AddRefs(file)))) {
+                                         PR_TRUE, getter_AddRefs(file)))) {
           nsCAutoString textStr;
           NS_GetURLSpecFromFile(file, textStr);
           if (!textStr.IsEmpty()) {

@@ -149,9 +149,9 @@ NS_IMETHODIMP
 nsDebugImpl::GetIsDebugBuild(bool* aResult)
 {
 #ifdef DEBUG
-  *aResult = true;
+  *aResult = PR_TRUE;
 #else
-  *aResult = false;
+  *aResult = PR_FALSE;
 #endif
   return NS_OK;
 }
@@ -459,7 +459,7 @@ Break(const char *aMsg)
        NULL != 
        wcscpy((WCHAR*)
        pName+1, L"windbgdlg.exe") &&
-       CreateProcessW((LPCWSTR)executable, (LPWSTR)msgCopy, NULL, NULL, false,
+       CreateProcessW((LPCWSTR)executable, (LPWSTR)msgCopy, NULL, NULL, PR_FALSE,
                      DETACHED_PROCESS | NORMAL_PRIORITY_CLASS,
                      NULL, NULL, &si, &pi)) {
       WaitForSingleObject(pi.hProcess, INFINITE);
@@ -564,6 +564,6 @@ bool sXPCOMHasLoadedNewDLLs = false;
 NS_EXPORT void
 NS_SetHasLoadedNewDLLs()
 {
-  sXPCOMHasLoadedNewDLLs = true;
+  sXPCOMHasLoadedNewDLLs = PR_TRUE;
 }
 #endif

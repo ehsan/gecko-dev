@@ -234,7 +234,7 @@ nsTextAttrsMgr::GetRange(const nsTArray<nsITextAttr*>& aTextAttrArray,
     for (PRUint32 attrIdx = 0; attrIdx < attrLen; attrIdx++) {
       nsITextAttr *textAttr = aTextAttrArray[attrIdx];
       if (!textAttr->Equal(currElm)) {
-        offsetFound = true;
+        offsetFound = PR_TRUE;
         break;
       }
     }
@@ -262,7 +262,7 @@ nsTextAttrsMgr::GetRange(const nsTArray<nsITextAttr*>& aTextAttrArray,
       // Alter the end offset when text attribute changes its value and stop
       // the search.
       if (!textAttr->Equal(currElm)) {
-        offsetFound = true;
+        offsetFound = PR_TRUE;
         break;
       }
     }
@@ -336,19 +336,19 @@ nsCSSTextAttr::GetValueFor(nsIContent *aContent, nsAutoString *aValue)
   nsCOMPtr<nsIDOMCSSStyleDeclaration> currStyleDecl =
     nsCoreUtils::GetComputedStyleDeclaration(EmptyString(), aContent);
   if (!currStyleDecl)
-    return false;
+    return PR_FALSE;
 
   NS_ConvertASCIItoUTF16 cssName(gCSSTextAttrsMap[mIndex].mCSSName);
 
   nsresult rv = currStyleDecl->GetPropertyValue(cssName, *aValue);
   if (NS_FAILED(rv))
-    return true;
+    return PR_TRUE;
 
   const char *cssValue = gCSSTextAttrsMap[mIndex].mCSSValue;
   if (cssValue != kAnyValue && !aValue->EqualsASCII(cssValue))
-    return false;
+    return PR_FALSE;
 
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -379,7 +379,7 @@ nsBGColorTextAttr::GetValueFor(nsIContent *aContent, nscolor *aValue)
 {
   nsIFrame *frame = aContent->GetPrimaryFrame();
   if (!frame)
-    return false;
+    return PR_FALSE;
 
   return GetColor(frame, aValue);
 }
@@ -407,20 +407,20 @@ nsBGColorTextAttr::GetColor(nsIFrame *aFrame, nscolor *aColor)
 
   if (NS_GET_A(styleBackground->mBackgroundColor) > 0) {
     *aColor = styleBackground->mBackgroundColor;
-    return true;
+    return PR_TRUE;
   }
 
   nsIFrame *parentFrame = aFrame->GetParent();
   if (!parentFrame) {
     *aColor = aFrame->PresContext()->DefaultBackgroundColor();
-    return true;
+    return PR_TRUE;
   }
 
   // Each frame of parents chain for the initially passed 'aFrame' has
   // transparent background color. So background color isn't changed from
   // 'mRootFrame' to initially passed 'aFrame'.
   if (parentFrame == mRootFrame)
-    return false;
+    return PR_FALSE;
 
   return GetColor(parentFrame, aColor);
 }
@@ -436,11 +436,11 @@ nsFontSizeTextAttr::nsFontSizeTextAttr(nsIFrame *aRootFrame, nsIFrame *aFrame) :
   mDC = aRootFrame->PresContext()->DeviceContext();
 
   mRootNativeValue = GetFontSize(aRootFrame);
-  mIsRootDefined = true;
+  mIsRootDefined = PR_TRUE;
 
   if (aFrame) {
     mNativeValue = GetFontSize(aFrame);
-    mIsDefined = true;
+    mIsDefined = PR_TRUE;
   }
 }
 
@@ -449,10 +449,10 @@ nsFontSizeTextAttr::GetValueFor(nsIContent *aContent, nscoord *aValue)
 {
   nsIFrame *frame = aContent->GetPrimaryFrame();
   if (!frame)
-    return false;
+    return PR_FALSE;
   
   *aValue = GetFontSize(frame);
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -493,11 +493,11 @@ nsFontWeightTextAttr::nsFontWeightTextAttr(nsIFrame *aRootFrame,
   nsTextAttr<PRInt32>(aFrame == nsnull)
 {
   mRootNativeValue = GetFontWeight(aRootFrame);
-  mIsRootDefined = true;
+  mIsRootDefined = PR_TRUE;
 
   if (aFrame) {
     mNativeValue = GetFontWeight(aFrame);
-    mIsDefined = true;
+    mIsDefined = PR_TRUE;
   }
 }
 
@@ -506,10 +506,10 @@ nsFontWeightTextAttr::GetValueFor(nsIContent *aContent, PRInt32 *aValue)
 {
   nsIFrame *frame = aContent->GetPrimaryFrame();
   if (!frame)
-    return false;
+    return PR_FALSE;
 
   *aValue = GetFontWeight(frame);
-  return true;
+  return PR_TRUE;
 }
 
 void

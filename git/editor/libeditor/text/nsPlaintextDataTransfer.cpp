@@ -35,7 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
 
 #include "nsPlaintextEditor.h"
 
@@ -70,8 +69,6 @@
 #include "nsFrameSelection.h"
 #include "nsEventDispatcher.h"
 #include "nsContentUtils.h"
-
-using namespace mozilla;
 
 NS_IMETHODIMP nsPlaintextEditor::PrepareTransferable(nsITransferable **transferable)
 {
@@ -155,7 +152,7 @@ NS_IMETHODIMP nsPlaintextEditor::InsertTextFromTransferable(nsITransferable *aTr
   // After ScrollSelectionIntoView(), the pending notifications might be flushed
   // and PresShell/PresContext/Frames may be dead. See bug 418470.
   if (NS_SUCCEEDED(rv))
-    ScrollSelectionIntoView(false);
+    ScrollSelectionIntoView(PR_FALSE);
 
   return rv;
 }
@@ -257,7 +254,7 @@ NS_IMETHODIMP nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
       // Dragging from another window onto a selection
       // XXX Decision made to NOT do this,
       //     note that 4.x does replace if dropped on
-      //deleteSelection = true;
+      //deleteSelection = PR_TRUE;
     }
     else 
     {
@@ -272,7 +269,7 @@ NS_IMETHODIMP nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
       else
       {
         // Different source doc: Don't delete
-        deleteSelection = false;
+        deleteSelection = PR_FALSE;
       }
     }
   }
@@ -315,14 +312,14 @@ NS_IMETHODIMP nsPlaintextEditor::CanDrag(nsIDOMEvent *aDragEvent, bool *aCanDrag
   /* we really should be checking the XY coordinates of the mouseevent and ensure that
    * that particular point is actually within the selection (not just that there is a selection)
    */
-  *aCanDrag = false;
+  *aCanDrag = PR_FALSE;
  
   // KLUDGE to work around bug 50703
   // After double click and object property editing, 
   //  we get a spurious drag event
   if (mIgnoreSpuriousDragEvent)
   {
-    mIgnoreSpuriousDragEvent = false;
+    mIgnoreSpuriousDragEvent = PR_FALSE;
     return NS_OK;
   }
    
@@ -352,7 +349,7 @@ NS_IMETHODIMP nsPlaintextEditor::CanDrag(nsIDOMEvent *aDragEvent, bool *aCanDrag
     if ( eventTargetDomNode )
     {
       bool isTargetedCorrectly = false;
-      res = selection->ContainsNode(eventTargetDomNode, false, &isTargetedCorrectly);
+      res = selection->ContainsNode(eventTargetDomNode, PR_FALSE, &isTargetedCorrectly);
       NS_ENSURE_SUCCESS(res, res);
 
       *aCanDrag = isTargetedCorrectly;
@@ -442,7 +439,7 @@ NS_IMETHODIMP nsPlaintextEditor::Paste(PRInt32 aSelectionType)
 
       // Beware! This may flush notifications via synchronous
       // ScrollSelectionIntoView.
-      rv = InsertTextFromTransferable(trans, nsnull, nsnull, true);
+      rv = InsertTextFromTransferable(trans, nsnull, nsnull, PR_TRUE);
     }
   }
 
@@ -465,13 +462,13 @@ NS_IMETHODIMP nsPlaintextEditor::PasteTransferable(nsITransferable *aTransferabl
 
   // Beware! This may flush notifications via synchronous
   // ScrollSelectionIntoView.
-  return InsertTextFromTransferable(aTransferable, nsnull, nsnull, true);
+  return InsertTextFromTransferable(aTransferable, nsnull, nsnull, PR_TRUE);
 }
 
 NS_IMETHODIMP nsPlaintextEditor::CanPaste(PRInt32 aSelectionType, bool *aCanPaste)
 {
   NS_ENSURE_ARG_POINTER(aCanPaste);
-  *aCanPaste = false;
+  *aCanPaste = PR_FALSE;
 
   // can't paste if readonly
   if (!IsModifiable())
@@ -486,7 +483,7 @@ NS_IMETHODIMP nsPlaintextEditor::CanPaste(PRInt32 aSelectionType, bool *aCanPast
 
   bool haveFlavors;
   rv = clipboard->HasDataMatchingFlavors(textEditorFlavors,
-                                         ArrayLength(textEditorFlavors),
+                                         NS_ARRAY_LENGTH(textEditorFlavors),
                                          aSelectionType, &haveFlavors);
   NS_ENSURE_SUCCESS(rv, rv);
   
@@ -501,13 +498,13 @@ NS_IMETHODIMP nsPlaintextEditor::CanPasteTransferable(nsITransferable *aTransfer
 
   // can't paste if readonly
   if (!IsModifiable()) {
-    *aCanPaste = false;
+    *aCanPaste = PR_FALSE;
     return NS_OK;
   }
 
   // If |aTransferable| is null, assume that a paste will succeed.
   if (!aTransferable) {
-    *aCanPaste = true;
+    *aCanPaste = PR_TRUE;
     return NS_OK;
   }
 
@@ -517,9 +514,9 @@ NS_IMETHODIMP nsPlaintextEditor::CanPasteTransferable(nsITransferable *aTransfer
                                                getter_AddRefs(data),
                                                &dataLen);
   if (NS_SUCCEEDED(rv) && data)
-    *aCanPaste = true;
+    *aCanPaste = PR_TRUE;
   else
-    *aCanPaste = false;
+    *aCanPaste = PR_FALSE;
   
   return NS_OK;
 }

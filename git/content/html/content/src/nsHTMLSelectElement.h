@@ -218,15 +218,15 @@ public:
   nsSafeOptionListMutation(nsIContent* aSelect, nsIContent* aParent,
                            nsIContent* aKid, PRUint32 aIndex, bool aNotify);
   ~nsSafeOptionListMutation();
-  void MutationFailed() { mNeedsRebuild = true; }
+  void MutationFailed() { mNeedsRebuild = PR_TRUE; }
 private:
   static void* operator new(size_t) CPP_THROW_NEW { return 0; }
   static void operator delete(void*, size_t) {}
   /** The select element which option list is being mutated. */
   nsRefPtr<nsHTMLSelectElement> mSelect;
-  /** true if the current mutation is the first one in the stack. */
+  /** PR_TRUE if the current mutation is the first one in the stack. */
   bool                       mTopLevelMutation;
-  /** true if it is known that the option list must be recreated. */
+  /** PR_TRUE if it is known that the option list must be recreated. */
   bool                       mNeedsRebuild;
   /** Option list must be recreated if more than one mutation is detected. */
   nsMutationGuard            mGuard;
@@ -265,24 +265,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLFormElement::)
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_BASIC(nsGenericHTMLFormElement::)
-  NS_SCRIPTABLE NS_IMETHOD Click() {
-    return nsGenericHTMLFormElement::Click();
-  }
-  NS_SCRIPTABLE NS_IMETHOD GetTabIndex(PRInt32* aTabIndex);
-  NS_SCRIPTABLE NS_IMETHOD SetTabIndex(PRInt32 aTabIndex);
-  NS_SCRIPTABLE NS_IMETHOD Focus() {
-    return nsGenericHTMLFormElement::Focus();
-  }
-  NS_SCRIPTABLE NS_IMETHOD GetDraggable(bool* aDraggable) {
-    return nsGenericHTMLFormElement::GetDraggable(aDraggable);
-  }
-  NS_SCRIPTABLE NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML) {
-    return nsGenericHTMLFormElement::GetInnerHTML(aInnerHTML);
-  }
-  NS_SCRIPTABLE NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML) {
-    return nsGenericHTMLFormElement::SetInnerHTML(aInnerHTML);
-  }
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLFormElement::)
 
   // nsIDOMHTMLSelectElement
   NS_DECL_NSIDOMHTMLSELECTELEMENT
@@ -398,7 +381,7 @@ public:
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              bool aNotify);
   
-  virtual void DoneAddingChildren(bool aHaveNotified);
+  virtual nsresult DoneAddingChildren(bool aHaveNotified);
   virtual bool IsDoneAddingChildren() {
     return mIsDoneAddingChildren;
   }
@@ -579,7 +562,7 @@ protected:
    */
   bool IsCombobox() {
     if (HasAttr(kNameSpaceID_None, nsGkAtoms::multiple)) {
-      return false;
+      return PR_FALSE;
     }
 
     PRInt32 size = 1;

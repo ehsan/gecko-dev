@@ -95,18 +95,14 @@ NS_IMPL_CYCLE_COLLECTION_3(mozHunspell,
                            mEncoder,
                            mDecoder)
 
-// Memory reporting stuff.
+// Memory reporting stuff
 static PRInt64 gHunspellAllocatedSize = 0;
 
 void HunspellReportMemoryAllocation(void* ptr) {
-  // |computedSize| is zero because we don't know what it is.
-  gHunspellAllocatedSize +=
-    mozilla::MemoryReporterMallocSizeOfForCounterInc(ptr, 0);
+  gHunspellAllocatedSize += moz_malloc_usable_size(ptr);
 }
 void HunspellReportMemoryDeallocation(void* ptr) {
-  // |computedSize| is zero because we don't know what it is.
-  gHunspellAllocatedSize -=
-    mozilla::MemoryReporterMallocSizeOfForCounterDec(ptr, 0);
+  gHunspellAllocatedSize -= moz_malloc_usable_size(ptr);
 }
 static PRInt64 HunspellGetCurrentAllocatedSize() {
   return gHunspellAllocatedSize;
@@ -131,8 +127,8 @@ mozHunspell::Init()
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (obs) {
-    obs->AddObserver(this, "profile-do-change", true);
-    obs->AddObserver(this, "profile-after-change", true);
+    obs->AddObserver(this, "profile-do-change", PR_TRUE);
+    obs->AddObserver(this, "profile-after-change", PR_TRUE);
   }
 
   mHunspellReporter = new NS_MEMORY_REPORTER_NAME(Hunspell);
@@ -272,7 +268,7 @@ NS_IMETHODIMP mozHunspell::GetProvidesPersonalDictionary(bool *aProvidesPersonal
 {
   NS_ENSURE_ARG_POINTER(aProvidesPersonalDictionary);
 
-  *aProvidesPersonalDictionary = false;
+  *aProvidesPersonalDictionary = PR_FALSE;
   return NS_OK;
 }
 
@@ -281,7 +277,7 @@ NS_IMETHODIMP mozHunspell::GetProvidesWordUtils(bool *aProvidesWordUtils)
 {
   NS_ENSURE_ARG_POINTER(aProvidesWordUtils);
 
-  *aProvidesWordUtils = false;
+  *aProvidesWordUtils = PR_FALSE;
   return NS_OK;
 }
 
@@ -324,7 +320,7 @@ AppendNewString(const nsAString& aString, nsIFile* aFile, void* aClosure)
   AppendNewStruct *ans = (AppendNewStruct*) aClosure;
   ans->dics[ans->count] = ToNewUnicode(aString);
   if (!ans->dics[ans->count]) {
-    ans->failed = true;
+    ans->failed = PR_TRUE;
     return PL_DHASH_STOP;
   }
 
@@ -342,7 +338,7 @@ NS_IMETHODIMP mozHunspell::GetDictionaryList(PRUnichar ***aDictionaries,
   AppendNewStruct ans = {
     (PRUnichar**) NS_Alloc(sizeof(PRUnichar*) * mDictionaries.Count()),
     0,
-    false
+    PR_FALSE
   };
 
   // This pointer is used during enumeration

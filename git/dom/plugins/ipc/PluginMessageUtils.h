@@ -110,7 +110,6 @@ typedef nsCString Buffer;
 
 struct NPRemoteWindow
 {
-  NPRemoteWindow();
   uint64_t window;
   int32_t x;
   int32_t y;
@@ -253,7 +252,7 @@ NullableString(const char* aString)
 {
     if (!aString) {
         nsCString str;
-        str.SetIsVoid(true);
+        str.SetIsVoid(PR_TRUE);
         return str;
     }
     return nsCString(aString);

@@ -76,7 +76,7 @@ nsInstantiationNode::Propagate(InstantiationSet& aInstantiations,
     // data for all queries are calculated at once.
     nsresult rv = NS_OK;
 
-    aTakenInstantiations = false;
+    aTakenInstantiations = PR_FALSE;
 
     if (aIsUpdate) {
         // Iterate through newly added keys to determine which rules fired.
@@ -114,7 +114,7 @@ nsInstantiationNode::Propagate(InstantiationSet& aInstantiations,
     else {
         nsresult rv = mQuery->SetCachedResults(mProcessor, aInstantiations);
         if (NS_SUCCEEDED(rv))
-            aTakenInstantiations = true;
+            aTakenInstantiations = PR_TRUE;
     }
 
     return rv;

@@ -66,7 +66,7 @@ class nsWifiListener
   nsWifiListener(nsIWifiListener* aListener)
   {
     mListener = aListener;
-    mHasSentData = false;
+    mHasSentData = PR_FALSE;
   }
   ~nsWifiListener() {}
 

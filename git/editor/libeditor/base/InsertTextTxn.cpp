@@ -149,7 +149,7 @@ NS_IMETHODIMP InsertTextTxn::Merge(nsITransaction *aTransaction, bool *aDidMerge
 {
   // set out param default value
   if (aDidMerge)
-    *aDidMerge = false;
+    *aDidMerge = PR_FALSE;
   nsresult result = NS_OK;
   if (aDidMerge && aTransaction)
   {
@@ -164,7 +164,7 @@ NS_IMETHODIMP InsertTextTxn::Merge(nsITransaction *aTransaction, bool *aDidMerge
         nsAutoString otherData;
         otherInsTxn->GetData(otherData);
         mStringToInsert += otherData;
-        *aDidMerge = true;
+        *aDidMerge = PR_TRUE;
 #ifdef NS_DEBUG
         if (gNoisy)
         {
@@ -202,7 +202,7 @@ bool InsertTextTxn::IsSequentialInsert(InsertTextTxn *aOtherTxn)
     // here, we need to compare offsets.
     PRInt32 length = mStringToInsert.Length();
     if (aOtherTxn->mOffset == (mOffset + length))
-      return true;
+      return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }

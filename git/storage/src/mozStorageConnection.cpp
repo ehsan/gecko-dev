@@ -72,13 +72,6 @@
 
 #define MIN_AVAILABLE_BYTES_PER_CHUNKED_GROWTH 524288000 // 500 MiB
 
-// Maximum size of the pages cache per connection.  If the default cache_size
-// value evaluates to a larger size, it will be reduced to save memory.
-#define MAX_CACHE_SIZE_BYTES 4194304 // 4 MiB
-
-// Default maximum number of pages to allow in the connection pages cache.
-#define DEFAULT_CACHE_SIZE_PAGES 2000
-
 #ifdef PR_LOGGING
 PRLogModuleInfo* gStorageLog = nsnull;
 #endif
@@ -461,48 +454,35 @@ Connection::Connection(Service *aService,
 , threadOpenedOn(do_GetCurrentThread())
 , mDBConn(nsnull)
 , mAsyncExecutionThreadShuttingDown(false)
-, mTransactionInProgress(false)
+, mTransactionInProgress(PR_FALSE)
 , mProgressHandler(nsnull)
 , mFlags(aFlags)
 , mStorageService(aService)
 {
   mFunctions.Init();
-  mStorageService->registerConnection(this);
 }
 
 Connection::~Connection()
 {
   (void)Close();
+
+  // The memory reporters should have been already unregistered if the APIs
+  // have been used properly.  But if an async connection hasn't been closed
+  // with asyncClose(), the connection is about to leak and it's too late to do
+  // anything about it.  So we mark the memory reporters accordingly so that
+  // the leak will be obvious in about:memory.
+  for (PRUint32 i = 0; i < mMemoryReporters.Length(); i++) {
+    if (mMemoryReporters[i]) {
+      mMemoryReporters[i]->markAsLeaked();
+    }
+  }
 }
 
-NS_IMPL_THREADSAFE_ADDREF(Connection)
-NS_IMPL_THREADSAFE_QUERY_INTERFACE2(
+NS_IMPL_THREADSAFE_ISUPPORTS2(
   Connection,
   mozIStorageConnection,
   nsIInterfaceRequestor
 )
-
-// This is identical to what NS_IMPL_THREADSAFE_RELEASE provides, but with the
-// extra |1 == count| case.
-NS_IMETHODIMP_(nsrefcnt) Connection::Release(void)
-{
-  NS_PRECONDITION(0 != mRefCnt, "dup release");
-  nsrefcnt count = NS_AtomicDecrementRefcnt(mRefCnt);
-  NS_LOG_RELEASE(this, count, "Connection");
-  if (1 == count) {
-    // If the refcount is 1, the single reference must be from
-    // gService->mConnections (in class |Service|).  Which means we can
-    // unregister it safely.
-    mStorageService->unregisterConnection(this);
-  } else if (0 == count) {
-    mRefCnt = 1; /* stabilize */
-    /* enable this to find non-threadsafe destructors: */
-    /* NS_ASSERT_OWNINGTHREAD(Connection); */
-    delete (this);
-    return 0;
-  }
-  return count;
-}
 
 nsIEventTarget *
 Connection::getAsyncExecutionTarget()
@@ -568,37 +548,14 @@ Connection::initialize(nsIFile *aDatabaseFile,
   PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Opening connection to '%s' (%p)",
                                       leafName.get(), this));
 #endif
-
-  // Set page_size to the preferred default value.  This is effective only if
-  // the database has just been created, otherwise, if the database does not
-  // use WAL journal mode, a VACUUM operation will updated its page_size.
-  PRInt64 pageSize = DEFAULT_PAGE_SIZE;
-  nsCAutoString pageSizeQuery("PRAGMA page_size = ");
-  pageSizeQuery.AppendInt(pageSize);
-  rv = ExecuteSimpleSQL(pageSizeQuery);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Get the current page_size, since it may differ from the specified value.
+  // Switch db to preferred page size in case the user vacuums.
   sqlite3_stmt *stmt;
-  srv = prepareStmt(mDBConn, NS_LITERAL_CSTRING("PRAGMA page_size"), &stmt);
+  nsCAutoString pageSizeQuery(NS_LITERAL_CSTRING("PRAGMA page_size = "));
+  pageSizeQuery.AppendInt(DEFAULT_PAGE_SIZE);
+  srv = prepareStmt(mDBConn, pageSizeQuery, &stmt);
   if (srv == SQLITE_OK) {
-    if (SQLITE_ROW == stepStmt(stmt)) {
-      pageSize = ::sqlite3_column_int64(stmt, 0);
-    }
+    (void)stepStmt(stmt);
     (void)::sqlite3_finalize(stmt);
-  }
-
-  // Setting the cache_size forces the database open, verifying if it is valid
-  // or corrupt.  So this is executed regardless it being actually needed.
-  // The cache_size is calculated from the actual page_size, to save memory.
-  nsCAutoString cacheSizeQuery("PRAGMA cache_size = ");
-  cacheSizeQuery.AppendInt(NS_MIN(DEFAULT_CACHE_SIZE_PAGES,
-                                  PRInt32(MAX_CACHE_SIZE_BYTES / pageSize)));
-  srv = ::sqlite3_exec(mDBConn, cacheSizeQuery.get(), NULL, NULL, NULL);
-  if (srv != SQLITE_OK) {
-    ::sqlite3_close(mDBConn);
-    mDBConn = nsnull;
-    return convertResultCode(srv);
   }
 
   // Register our built-in SQL functions.
@@ -617,6 +574,25 @@ Connection::initialize(nsIFile *aDatabaseFile,
     return convertResultCode(srv);
   }
 
+  // Execute a dummy statement to force the db open, and to verify if it is
+  // valid or not.
+  srv = prepareStmt(mDBConn, NS_LITERAL_CSTRING("SELECT * FROM sqlite_master"),
+                    &stmt);
+  if (srv == SQLITE_OK) {
+    srv = stepStmt(stmt);
+
+    if (srv == SQLITE_DONE || srv == SQLITE_ROW)
+        srv = SQLITE_OK;
+    ::sqlite3_finalize(stmt);
+  }
+
+  if (srv != SQLITE_OK) {
+    ::sqlite3_close(mDBConn);
+    mDBConn = nsnull;
+
+    return convertResultCode(srv);
+  }
+
   // Set the synchronous PRAGMA, according to the preference.
   switch (Service::getSynchronousPref()) {
     case 2:
@@ -632,6 +608,28 @@ Connection::initialize(nsIFile *aDatabaseFile,
       (void)ExecuteSimpleSQL(NS_LITERAL_CSTRING(
           "PRAGMA synchronous = NORMAL;"));
       break;
+  }
+
+  nsRefPtr<StorageMemoryReporter> reporter;
+  nsCString filename = this->getFilename();
+
+  reporter =
+    new StorageMemoryReporter(this->mDBConn, filename,
+                              StorageMemoryReporter::Cache_Used);
+  mMemoryReporters.AppendElement(reporter);
+
+  reporter =
+    new StorageMemoryReporter(this->mDBConn, filename,
+                              StorageMemoryReporter::Schema_Used);
+  mMemoryReporters.AppendElement(reporter);
+
+  reporter =
+    new StorageMemoryReporter(this->mDBConn, filename,
+                              StorageMemoryReporter::Stmt_Used);
+  mMemoryReporters.AppendElement(reporter);
+
+  for (PRUint32 i = 0; i < mMemoryReporters.Length(); i++) {
+    (void)::NS_RegisterMemoryReporter(mMemoryReporters[i]);
   }
 
   return NS_OK;
@@ -667,11 +665,11 @@ Connection::databaseElementExists(enum DatabaseElementType aElementType,
   (void)::sqlite3_finalize(stmt);
 
   if (srv == SQLITE_ROW) {
-    *_exists = true;
+    *_exists = PR_TRUE;
     return NS_OK;
   }
   if (srv == SQLITE_DONE) {
-    *_exists = false;
+    *_exists = PR_FALSE;
     return NS_OK;
   }
 
@@ -770,6 +768,11 @@ Connection::internalClose()
   }
 #endif
 
+  for (PRUint32 i = 0; i < mMemoryReporters.Length(); i++) {
+    (void)::NS_UnregisterMemoryReporter(mMemoryReporters[i]);
+    mMemoryReporters[i] = nsnull;
+  }
+
   int srv = ::sqlite3_close(mDBConn);
   NS_ASSERTION(srv == SQLITE_OK,
                "sqlite3_close failed. There are probably outstanding statements that are listed above!");
@@ -814,9 +817,8 @@ Connection::Close()
     return NS_ERROR_NOT_INITIALIZED;
 
   { // Make sure we have not executed any asynchronous statements.
-    // If this fails, the mDBConn will be left open, resulting in a leak.
-    // Ideally we'd schedule some code to destroy the mDBConn once all its
-    // async statements have finished executing;  see bug 704030.
+    // If this fails, the connection will be left open!  See ~Connection() for
+    // more details.
     MutexAutoLock lockedScope(sharedAsyncExecutionMutex);
     bool asyncCloseWasCalled = !mAsyncExecutionThread;
     NS_ENSURE_TRUE(asyncCloseWasCalled, NS_ERROR_UNEXPECTED);
@@ -879,36 +881,6 @@ Connection::Clone(bool aReadOnly,
 
   nsresult rv = clone->initialize(mDatabaseFile);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  // Copy over pragmas from the original connection.
-  static const char * pragmas[] = {
-    "cache_size",
-    "temp_store",
-    "foreign_keys",
-    "journal_size_limit",
-    "synchronous",
-    "wal_autocheckpoint",
-  };
-  for (PRUint32 i = 0; i < ArrayLength(pragmas); ++i) {
-    // Read-only connections just need cache_size and temp_store pragmas.
-    if (aReadOnly && ::strcmp(pragmas[i], "cache_size") != 0 &&
-                     ::strcmp(pragmas[i], "temp_store") != 0) {
-      continue;
-    }
-
-    nsCAutoString pragmaQuery("PRAGMA ");
-    pragmaQuery.Append(pragmas[i]);
-    nsCOMPtr<mozIStorageStatement> stmt;
-    rv = CreateStatement(pragmaQuery, getter_AddRefs(stmt));
-    MOZ_ASSERT(NS_SUCCEEDED(rv));
-    bool hasResult = false;
-    if (stmt && NS_SUCCEEDED(stmt->ExecuteStep(&hasResult)) && hasResult) {
-      pragmaQuery.AppendLiteral(" = ");
-      pragmaQuery.AppendInt(stmt->AsInt32(0));
-      rv = clone->ExecuteSimpleSQL(pragmaQuery);
-      MOZ_ASSERT(NS_SUCCEEDED(rv));
-    }
-  }
 
   // Copy any functions that have been added to this connection.
   (void)mFunctions.EnumerateRead(copyFunctionEnumerator, clone);
@@ -1123,7 +1095,7 @@ Connection::BeginTransactionAs(PRInt32 aTransactionType)
       return NS_ERROR_ILLEGAL_VALUE;
   }
   if (NS_SUCCEEDED(rv))
-    mTransactionInProgress = true;
+    mTransactionInProgress = PR_TRUE;
   return rv;
 }
 
@@ -1139,7 +1111,7 @@ Connection::CommitTransaction()
 
   nsresult rv = ExecuteSimpleSQL(NS_LITERAL_CSTRING("COMMIT TRANSACTION"));
   if (NS_SUCCEEDED(rv))
-    mTransactionInProgress = false;
+    mTransactionInProgress = PR_FALSE;
   return rv;
 }
 
@@ -1155,7 +1127,7 @@ Connection::RollbackTransaction()
 
   nsresult rv = ExecuteSimpleSQL(NS_LITERAL_CSTRING("ROLLBACK TRANSACTION"));
   if (NS_SUCCEEDED(rv))
-    mTransactionInProgress = false;
+    mTransactionInProgress = PR_FALSE;
   return rv;
 }
 

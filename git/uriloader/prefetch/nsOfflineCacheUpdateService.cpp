@@ -206,8 +206,7 @@ nsOfflineCachePendingUpdate::OnStateChange(nsIWebProgress* aWebProgress,
 NS_IMETHODIMP
 nsOfflineCachePendingUpdate::OnLocationChange(nsIWebProgress* aWebProgress,
                                               nsIRequest* aRequest,
-                                              nsIURI *location,
-                                              PRUint32 aFlags)
+                                              nsIURI *location)
 {
     NS_NOTREACHED("notification excluded in AddProgressListener(...)");
     return NS_OK;
@@ -246,8 +245,8 @@ NS_IMPL_ISUPPORTS3(nsOfflineCacheUpdateService,
 //-----------------------------------------------------------------------------
 
 nsOfflineCacheUpdateService::nsOfflineCacheUpdateService()
-    : mDisabled(false)
-    , mUpdateRunning(false)
+    : mDisabled(PR_FALSE)
+    , mUpdateRunning(PR_FALSE)
 {
 }
 
@@ -272,7 +271,7 @@ nsOfflineCacheUpdateService::Init()
 
     nsresult rv = observerService->AddObserver(this,
                                                NS_XPCOM_SHUTDOWN_OBSERVER_ID,
-                                               true);
+                                               PR_TRUE);
     NS_ENSURE_SUCCESS(rv, rv);
 
     gOfflineCacheUpdateService = this;
@@ -370,7 +369,7 @@ nsOfflineCacheUpdateService::UpdateFinished(nsOfflineCacheUpdate *aUpdate)
     // keep this item alive until we're done notifying observers
     nsRefPtr<nsOfflineCacheUpdate> update = mUpdates[0];
     mUpdates.RemoveElementAt(0);
-    mUpdateRunning = false;
+    mUpdateRunning = PR_FALSE;
 
     ProcessNextUpdate();
 
@@ -394,7 +393,7 @@ nsOfflineCacheUpdateService::ProcessNextUpdate()
         return NS_OK;
 
     if (mUpdates.Length() > 0) {
-        mUpdateRunning = true;
+        mUpdateRunning = PR_TRUE;
         return mUpdates[0]->Begin();
     }
 
@@ -513,7 +512,7 @@ nsOfflineCacheUpdateService::Observe(nsISupports     *aSubject,
     if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
         if (mUpdates.Length() > 0)
             mUpdates[0]->Cancel();
-        mDisabled = true;
+        mDisabled = PR_TRUE;
     }
 
     return NS_OK;
@@ -540,7 +539,7 @@ nsOfflineCacheUpdateService::OfflineAppAllowedForURI(nsIURI *aURI,
                                                      nsIPrefBranch *aPrefBranch,
                                                      bool *aAllowed)
 {
-    *aAllowed = false;
+    *aAllowed = PR_FALSE;
     if (!aURI)
         return NS_OK;
 
@@ -585,7 +584,7 @@ nsOfflineCacheUpdateService::OfflineAppAllowedForURI(nsIURI *aURI,
         return NS_OK;
     }
 
-    *aAllowed = true;
+    *aAllowed = PR_TRUE;
 
     return NS_OK;
 }

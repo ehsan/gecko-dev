@@ -49,7 +49,7 @@
 nsDocAccessibleWrap::
     nsDocAccessibleWrap(nsIDocument *aDocument, nsIContent *aRootContent,
                         nsIWeakReference *aShell) :
-    nsDocAccessible(aDocument, aRootContent, aShell), mActivated(false)
+    nsDocAccessible(aDocument, aRootContent, aShell), mActivated(PR_FALSE)
 {
 }
 

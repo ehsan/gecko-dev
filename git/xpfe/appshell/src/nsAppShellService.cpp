@@ -75,7 +75,6 @@
 #include "nsIChromeRegistry.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/StartupTimeline.h"
 
 using namespace mozilla;
 
@@ -85,17 +84,17 @@ using namespace mozilla;
 class nsIAppShell;
 
 nsAppShellService::nsAppShellService() : 
-  mXPCOMWillShutDown(false),
-  mXPCOMShuttingDown(false),
+  mXPCOMWillShutDown(PR_FALSE),
+  mXPCOMShuttingDown(PR_FALSE),
   mModalWindowCount(0),
-  mApplicationProvidedHiddenWindow(false)
+  mApplicationProvidedHiddenWindow(PR_FALSE)
 {
   nsCOMPtr<nsIObserverService> obs
     (do_GetService("@mozilla.org/observer-service;1"));
 
   if (obs) {
-    obs->AddObserver(this, "xpcom-will-shutdown", false);
-    obs->AddObserver(this, "xpcom-shutdown", false);
+    obs->AddObserver(this, "xpcom-will-shutdown", PR_FALSE);
+    obs->AddObserver(this, "xpcom-shutdown", PR_FALSE);
   }
 }
 
@@ -112,7 +111,7 @@ NS_IMPL_ISUPPORTS2(nsAppShellService,
                    nsIObserver)
 
 NS_IMETHODIMP
-nsAppShellService::CreateHiddenWindow()
+nsAppShellService::CreateHiddenWindow(nsIAppShell* aAppShell)
 {
   nsresult rv;
   PRInt32 initialHeight = 100, initialWidth = 100;
@@ -122,7 +121,7 @@ nsAppShellService::CreateHiddenWindow()
   nsAdoptingCString prefVal =
       Preferences::GetCString("browser.hiddenWindowChromeURL");
   const char* hiddenWindowURL = prefVal.get() ? prefVal.get() : DEFAULT_HIDDENWINDOW_URL;
-  mApplicationProvidedHiddenWindow = prefVal.get() ? true : false;
+  mApplicationProvidedHiddenWindow = prefVal.get() ? PR_TRUE : PR_FALSE;
 #else
   static const char hiddenWindowURL[] = DEFAULT_HIDDENWINDOW_URL;
   PRUint32    chromeMask =  nsIWebBrowserChrome::CHROME_ALL;
@@ -135,7 +134,7 @@ nsAppShellService::CreateHiddenWindow()
   nsRefPtr<nsWebShellWindow> newWindow;
   rv = JustCreateTopWindow(nsnull, url,
                            chromeMask, initialWidth, initialHeight,
-                           true, getter_AddRefs(newWindow));
+                           PR_TRUE, aAppShell, getter_AddRefs(newWindow));
   NS_ENSURE_SUCCESS(rv, rv);
 
   mHiddenWindow.swap(newWindow);
@@ -157,6 +156,8 @@ nsAppShellService::DestroyHiddenWindow()
   return NS_OK;
 }
 
+PRTime gCreateTopLevelWindowTimestamp = 0;
+
 /*
  * Create a new top level window and display the given URL within it...
  */
@@ -166,17 +167,19 @@ nsAppShellService::CreateTopLevelWindow(nsIXULWindow *aParent,
                                         PRUint32 aChromeMask,
                                         PRInt32 aInitialWidth,
                                         PRInt32 aInitialHeight,
+                                        nsIAppShell* aAppShell,
                                         nsIXULWindow **aResult)
 
 {
   nsresult rv;
 
-  StartupTimeline::RecordOnce(StartupTimeline::CREATE_TOP_LEVEL_WINDOW);
+  if (!gCreateTopLevelWindowTimestamp)
+    gCreateTopLevelWindowTimestamp = PR_Now();
 
   nsWebShellWindow *newWindow = nsnull;
   rv = JustCreateTopWindow(aParent, aUrl,
                            aChromeMask, aInitialWidth, aInitialHeight,
-                           false, &newWindow);  // addrefs
+                           PR_FALSE, aAppShell, &newWindow);  // addrefs
 
   *aResult = newWindow; // transfer ref
 
@@ -237,18 +240,18 @@ CheckForFullscreenWindow()
 {
   nsCOMPtr<nsIWindowMediator> wm(do_GetService(NS_WINDOWMEDIATOR_CONTRACTID));
   if (!wm)
-    return false;
+    return PR_FALSE;
 
   nsCOMPtr<nsISimpleEnumerator> windowList;
   wm->GetXULWindowEnumerator(nsnull, getter_AddRefs(windowList));
   if (!windowList)
-    return false;
+    return PR_FALSE;
 
   for (;;) {
     bool more = false;
     windowList->HasMoreElements(&more);
     if (!more)
-      return false;
+      return PR_FALSE;
 
     nsCOMPtr<nsISupports> supportsWindow;
     windowList->GetNext(getter_AddRefs(supportsWindow));
@@ -259,11 +262,11 @@ CheckForFullscreenWindow()
       baseWin->GetMainWidget(getter_AddRefs(widget));
       if (widget && NS_SUCCEEDED(widget->GetSizeMode(&sizeMode)) && 
           sizeMode == nsSizeMode_Fullscreen) {
-        return true;
+        return PR_TRUE;
       }
     }
   }
-  return false;
+  return PR_FALSE;
 }
 #endif
 
@@ -277,6 +280,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
                                        PRInt32 aInitialWidth,
                                        PRInt32 aInitialHeight,
                                        bool aIsHiddenWindow,
+                                       nsIAppShell* aAppShell,
                                        nsWebShellWindow **aResult)
 {
   *aResult = nsnull;
@@ -294,7 +298,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
   // full screen states. This way new browser windows open on top of fullscreen
   // windows normally.
   if (window && CheckForFullscreenWindow())
-    window->IgnoreXULSizeMode(true);
+    window->IgnoreXULSizeMode(PR_TRUE);
 #endif
 
   nsWidgetInitData widgetInitData;
@@ -325,7 +329,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
 #if defined(XP_WIN)
   if (widgetInitData.mWindowType == eWindowType_toplevel ||
       widgetInitData.mWindowType == eWindowType_dialog)
-    widgetInitData.clipChildren = true;
+    widgetInitData.clipChildren = PR_TRUE;
 #endif
 
   // note default chrome overrides other OS chrome settings, but
@@ -361,7 +365,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
       aInitialHeight == nsIAppShellService::SIZE_TO_CONTENT) {
     aInitialWidth = 1;
     aInitialHeight = 1;
-    window->SetIntrinsicallySized(true);
+    window->SetIntrinsicallySized(PR_TRUE);
   }
 
   bool center = aChromeMask & nsIWebBrowserChrome::CHROME_CENTER_SCREEN;
@@ -377,7 +381,8 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
   }
 
   nsresult rv = window->Initialize(parent, center ? aParent : nsnull,
-                                   aUrl, aInitialWidth, aInitialHeight,
+                                   aAppShell, aUrl,
+                                   aInitialWidth, aInitialHeight,
                                    aIsHiddenWindow, widgetInitData);
       
   NS_ENSURE_SUCCESS(rv, rv);
@@ -387,7 +392,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
     parent->AddChildWindow(*aResult);
 
   if (center)
-    rv = (*aResult)->Center(parent, parent ? false : true, false);
+    rv = (*aResult)->Center(parent, parent ? PR_FALSE : PR_TRUE, PR_FALSE);
 
   return rv;
 }
@@ -568,9 +573,9 @@ nsAppShellService::Observe(nsISupports* aSubject, const char *aTopic,
                            const PRUnichar *aData)
 {
   if (!strcmp(aTopic, "xpcom-will-shutdown")) {
-    mXPCOMWillShutDown = true;
+    mXPCOMWillShutDown = PR_TRUE;
   } else if (!strcmp(aTopic, "xpcom-shutdown")) {
-    mXPCOMShuttingDown = true;
+    mXPCOMShuttingDown = PR_TRUE;
     if (mHiddenWindow) {
       mHiddenWindow->Destroy();
     }

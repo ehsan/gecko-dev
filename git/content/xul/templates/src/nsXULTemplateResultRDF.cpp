@@ -72,7 +72,7 @@ nsXULTemplateResultRDF::~nsXULTemplateResultRDF()
 NS_IMETHODIMP
 nsXULTemplateResultRDF::GetIsContainer(bool* aIsContainer)
 {
-    *aIsContainer = false;
+    *aIsContainer = PR_FALSE;
 
     if (mNode) {
         nsXULTemplateQueryProcessorRDF* processor = GetProcessor();
@@ -86,7 +86,7 @@ nsXULTemplateResultRDF::GetIsContainer(bool* aIsContainer)
 NS_IMETHODIMP
 nsXULTemplateResultRDF::GetIsEmpty(bool* aIsEmpty)
 {
-    *aIsEmpty = true;
+    *aIsEmpty = PR_TRUE;
 
     if (mNode) {
         nsXULTemplateQueryProcessorRDF* processor = GetProcessor();
@@ -101,7 +101,7 @@ NS_IMETHODIMP
 nsXULTemplateResultRDF::GetMayProcessChildren(bool* aMayProcessChildren)
 {
     // RDF always allows recursion
-    *aMayProcessChildren = true;
+    *aMayProcessChildren = PR_TRUE;
     return NS_OK;
 }
 
@@ -222,7 +222,7 @@ nsXULTemplateResultRDF::SyncAssignments(nsIRDFResource* aSubject,
             this, mBindingValues);
     }
 
-    return false;
+    return PR_FALSE;
 }
 
 bool
@@ -232,8 +232,8 @@ nsXULTemplateResultRDF::HasMemoryElement(const MemoryElement& aMemoryElement)
     for (MemoryElementSet::ConstIterator element = mInst.mSupport.First();
                                          element != last; ++element) {
         if ((*element).Equals(aMemoryElement))
-            return true;
+            return PR_TRUE;
     }
 
-    return false;
+    return PR_FALSE;
 }

@@ -1134,7 +1134,7 @@ nsSOCKSIOLayerAddToSocket(PRInt32 family,
         nsSOCKSIOLayerMethods.listen	= nsSOCKSIOLayerListen;
         nsSOCKSIOLayerMethods.close	= nsSOCKSIOLayerClose;
 
-        firstTime			= false;
+        firstTime			= PR_FALSE;
 
 #if defined(PR_LOGGING)
         gSOCKSLog = PR_NewLogModule("SOCKS");

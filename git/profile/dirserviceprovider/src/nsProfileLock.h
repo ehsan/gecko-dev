@@ -86,7 +86,7 @@ public:
     /**
      * Unlock a profile directory.  If you're unlocking the directory because
      * the application is in the process of shutting down because of a fatal
-     * signal, set aFatalSignal to true.
+     * signal, set aFatalSignal to PR_TRUE.
      */
     nsresult                Unlock(bool aFatalSignal = false);
         
@@ -102,7 +102,7 @@ private:
     struct RemovePidLockFilesExiting {
         RemovePidLockFilesExiting() {}
         ~RemovePidLockFilesExiting() {
-            RemovePidLockFiles(false);
+            RemovePidLockFiles(PR_FALSE);
         }
     };
 

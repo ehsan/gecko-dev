@@ -150,8 +150,8 @@ public:
     bool    ValidRecord()
     {
         if ((mDataLocation & eReservedMask) || (mMetaLocation & eReservedMask))
-            return false;
-        return true;
+            return PR_FALSE;
+        return PR_TRUE;
     }
     
     // HashNumber accessors
@@ -365,7 +365,7 @@ struct nsDiskCacheHeader {
         : mVersion(nsDiskCache::kCurrentVersion)
         , mDataSize(0)
         , mEntryCount(0)
-        , mIsDirty(true)
+        , mIsDirty(PR_TRUE)
         , mRecordCount(0)
     {}
 
@@ -420,7 +420,7 @@ public:
     { }
 
     ~nsDiskCacheMap() {
-        (void) Close(true);
+        (void) Close(PR_TRUE);
     }
 
 /**
@@ -481,14 +481,14 @@ public:
     void     IncrementTotalSize( PRUint32  delta)
              {
                 mHeader.mDataSize += delta;
-                mHeader.mIsDirty   = true;
+                mHeader.mIsDirty   = PR_TRUE;
              }
              
     void     DecrementTotalSize( PRUint32  delta)
              {
                 NS_ASSERTION(mHeader.mDataSize >= delta, "disk cache size negative?");
                 mHeader.mDataSize  = mHeader.mDataSize > delta ? mHeader.mDataSize - delta : 0;               
-                mHeader.mIsDirty   = true;
+                mHeader.mIsDirty   = PR_TRUE;
              }
     
     inline void IncrementTotalSize( PRUint32  blocks, PRUint32 blockSize)

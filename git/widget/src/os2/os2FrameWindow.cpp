@@ -86,8 +86,8 @@ os2FrameWindow::os2FrameWindow(nsWindow* aOwner)
   mMinMax           = 0;
   mSavedStyle       = 0;
   mFrameIcon        = 0;
-  mChromeHidden     = false;
-  mNeedActivation   = false;
+  mChromeHidden     = PR_FALSE;
+  mNeedActivation   = PR_FALSE;
   mPrevFrameProc    = 0;
   mFrameBounds      = nsIntRect(0, 0, 0, 0);
 }
@@ -130,7 +130,7 @@ HWND os2FrameWindow::CreateFrameWindow(nsWindow* aParent,
   }
 
   // Hide from the Window List until shown.
-  SetWindowListVisibility(false);
+  SetWindowListVisibility(PR_FALSE);
 
   // This prevents a modal dialog from being covered by its disabled parent.
   if (aParentWnd != HWND_DESKTOP) {
@@ -353,7 +353,7 @@ void os2FrameWindow::ActivateTopLevelWidget()
     PRInt32 sizeMode;
     mOwner->GetSizeMode(&sizeMode);
     if (sizeMode != nsSizeMode_Minimized) {
-      mNeedActivation = false;
+      mNeedActivation = PR_FALSE;
       DEBUGFOCUS(NS_ACTIVATE);
       mOwner->DispatchActivationEvent(NS_ACTIVATE);
     }
@@ -435,10 +435,10 @@ nsresult os2FrameWindow::HideWindowChrome(bool aShouldHide)
   HWND hParent;
   if (aShouldHide) {
     hParent = HWND_OBJECT;
-    mChromeHidden = true;
+    mChromeHidden = PR_TRUE;
   } else {
     hParent = mFrameWnd;
-    mChromeHidden = false;
+    mChromeHidden = PR_FALSE;
   }
 
   // Hide or show the frame controls.
@@ -574,7 +574,7 @@ nsresult os2FrameWindow::ConstrainPosition(bool aAllowSlop,
       screenRect.xRight = left+width;
       screenRect.yTop = top;
       screenRect.yBottom = top+height;
-      doConstrain = true;
+      doConstrain = PR_TRUE;
     }
   }
 
@@ -630,7 +630,7 @@ MRESULT EXPENTRY fnwpFrame(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
         msg == WM_BUTTON3DOWN) {
       // Rollup if the event is outside the popup
       if (!nsWindow::EventIsInsideWindow((nsWindow*)gRollupWidget)) {
-        gRollupListener->Rollup(PR_UINT32_MAX);
+        gRollupListener->Rollup(PR_UINT32_MAX, nsnull);
       }
     }
   }
@@ -667,11 +667,11 @@ MRESULT os2FrameWindow::ProcessFrameMessage(ULONG msg, MPARAM mp1, MPARAM mp2)
         mFrameBounds.width = pSwp->cx;
         mFrameBounds.height = pSwp->cy;
         mresult = (*mPrevFrameProc)(mFrameWnd, msg, mp1, mp2);
-        isDone = true;
+        isDone = PR_TRUE;
       }
 
       if (pSwp->fl & (SWP_MAXIMIZE | SWP_MINIMIZE | SWP_RESTORE)) {
-        nsSizeModeEvent event(true, NS_SIZEMODE, mOwner);
+        nsSizeModeEvent event(PR_TRUE, NS_SIZEMODE, mOwner);
         if (pSwp->fl & SWP_MAXIMIZE) {
           event.mSizeMode = nsSizeMode_Maximized;
         } else if (pSwp->fl & SWP_MINIMIZE) {
@@ -723,7 +723,7 @@ MRESULT os2FrameWindow::ProcessFrameMessage(ULONG msg, MPARAM mp1, MPARAM mp2)
                    MPFROM2SHORT(SC_SYSMENU, FALSE), MPARAM(&menuitem));
         mresult = (*mPrevFrameProc)(mFrameWnd, msg, mp1, mp2);
         WinEnableMenuItem(menuitem.hwndSubMenu, SC_MAXIMIZE, FALSE);
-        isDone = true;
+        isDone = PR_TRUE;
       }
       break;
 
@@ -732,7 +732,7 @@ MRESULT os2FrameWindow::ProcessFrameMessage(ULONG msg, MPARAM mp1, MPARAM mp2)
       if (mChromeHidden &&
           SHORT1FROMMP(mp1) == SC_MAXIMIZE &&
           WinQueryWindowULong(mFrameWnd, QWL_STYLE) & WS_MINIMIZED) {
-        isDone = true;
+        isDone = PR_TRUE;
       }
       break;
 
@@ -742,9 +742,9 @@ MRESULT os2FrameWindow::ProcessFrameMessage(ULONG msg, MPARAM mp1, MPARAM mp2)
     case WM_ACTIVATE:
       DEBUGFOCUS(WM_ACTIVATE);
       if (mp1) {
-        mNeedActivation = true;
+        mNeedActivation = PR_TRUE;
       } else {
-        mNeedActivation = false;
+        mNeedActivation = PR_FALSE;
         DEBUGFOCUS(NS_DEACTIVATE);
         mOwner->DispatchActivationEvent(NS_DEACTIVATE);
         // Prevent the frame from automatically focusing any window

@@ -179,7 +179,7 @@ HTML2text(nsString& inString, nsString& inType, nsString& outType,
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
-  rv = parser->Parse(inString, 0, NS_LossyConvertUTF16toASCII(inType), true);
+  rv = parser->Parse(inString, 0, NS_LossyConvertUTF16toASCII(inType), PR_TRUE);
   if (NS_FAILED(rv))
   {
     printf("Parse() failed! 0x%x\n", rv);

@@ -216,6 +216,8 @@ public:
                                    const nsIntRect &aRect,
                                    EVENT_CALLBACK aHandleEventFunction,
                                    nsDeviceContext *aContext,
+                                   nsIAppShell *aAppShell = nsnull,
+                                   nsIToolkit *aToolkit = nsnull,
                                    nsWidgetInitData *aInitData = nsnull);
 
     NS_IMETHOD              Destroy();
@@ -260,7 +262,8 @@ public:
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                           bool* aAllowRetaining = nsnull);
     NS_IMETHOD DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus) ;
-    NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, bool aDoCapture, bool aConsumeRollupEvent);
+    NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, nsIMenuRollup * aMenuRollup,
+                                   bool aDoCapture, bool aConsumeRollupEvent);
     NS_IMETHOD GetAttention(PRInt32 aCycleCount);
     virtual bool HasPendingInputEvent();
     virtual nsTransparencyMode GetTransparencyMode();
@@ -286,16 +289,9 @@ public:
     void SetMenuBar(nsMenuBarX* aMenuBar);
     nsMenuBarX *GetMenuBar();
 
+    // nsIKBStateControl interface
     NS_IMETHOD ResetInputState();
-    NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
-                                      const InputContextAction& aAction)
-    {
-      mInputContext = aContext;
-    }
-    NS_IMETHOD_(InputContext) GetInputContext()
-    {
-      return mInputContext;
-    }
+    
     NS_IMETHOD BeginSecureKeyboardInput();
     NS_IMETHOD EndSecureKeyboardInput();
 
@@ -312,7 +308,9 @@ protected:
                                           bool aRectIsFrameRect);
   nsresult             CreatePopupContentView(const nsIntRect &aRect,
                                               EVENT_CALLBACK aHandleEventFunction,
-                                              nsDeviceContext *aContext);
+                                              nsDeviceContext *aContext,
+                                              nsIAppShell *aAppShell,
+                                              nsIToolkit *aToolkit);
   void                 DestroyNativeWindow();
   void                 AdjustWindowShadow();
   void                 SetUpWindowFilter();
@@ -343,7 +341,6 @@ protected:
   bool                 mModal;
 
   PRInt32              mNumModalDescendents;
-  InputContext         mInputContext;
 };
 
 #endif // nsCocoaWindow_h_

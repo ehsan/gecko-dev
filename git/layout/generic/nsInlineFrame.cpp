@@ -105,7 +105,7 @@ nsInlineFrame::IsSelfEmpty()
   // I used to think inline frames worked this way, but it seems they
   // don't.  At least not in our codebase.
   if (GetPresContext()->CompatibilityMode() == eCompatibility_FullStandards) {
-    return false;
+    return PR_FALSE;
   }
 #endif
   const nsStyleMargin* margin = GetStyleMargin();
@@ -143,24 +143,24 @@ nsInlineFrame::IsSelfEmpty()
         (!haveStart || nsLayoutUtils::FrameIsNonFirstInIBSplit(firstCont)) &&
         (!haveEnd || nsLayoutUtils::FrameIsNonLastInIBSplit(firstCont));
     }
-    return false;
+    return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
 bool
 nsInlineFrame::IsEmpty()
 {
   if (!IsSelfEmpty()) {
-    return false;
+    return PR_FALSE;
   }
 
   for (nsIFrame *kid = mFrames.FirstChild(); kid; kid = kid->GetNextSibling()) {
     if (!kid->IsEmpty())
-      return false;
+      return PR_FALSE;
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -177,7 +177,7 @@ nsInlineFrame::PeekOffsetCharacter(bool aForward, PRInt32* aOffset,
     // skip to the other side, but keep going.
     *aOffset = 1 - startOffset;
   }
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP
@@ -270,8 +270,8 @@ nsInlineFrame::ReparentFloatsForInlineChild(nsIFrame* aOurLineContainer,
   const nsFrameList& blockChildren(ancestor->PrincipalChildList());
   bool isOverflow = !blockChildren.ContainsFrame(ancestorBlockChild);
 
-  while (true) {
-    ourBlock->ReparentFloats(aFrame, frameBlock, isOverflow, false);
+  while (PR_TRUE) {
+    ourBlock->ReparentFloats(aFrame, frameBlock, isOverflow, PR_FALSE);
 
     if (!aReparentSiblings)
       return;
@@ -344,13 +344,13 @@ nsInlineFrame::Reflow(nsPresContext*          aPresContext,
         // to do this until we actually reflow the frame. If the overflow list contains
         // thousands of frames this is a big performance issue (see bug #5588)
         mFrames.SetFrames(*prevOverflowFrames);
-        lazilySetParentPointer = true;
+        lazilySetParentPointer = PR_TRUE;
       } else {
         // Assign all floats to our block if necessary
         if (lineContainer && lineContainer->GetPrevContinuation()) {
           ReparentFloatsForInlineChild(lineContainer,
                                        prevOverflowFrames->FirstChild(),
-                                       true);
+                                       PR_TRUE);
         }
         // Insert the new frames at the beginning of the child list
         // and set their parent pointer
@@ -427,7 +427,7 @@ nsInlineFrame::Reflow(nsPresContext*          aPresContext,
 nsInlineFrame::CanContinueTextRun() const
 {
   // We can continue a text run through an inline frame
-  return true;
+  return PR_TRUE;
 }
 
 /* virtual */ void
@@ -499,7 +499,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
         // came from. If we really really have to optimize this we could
         // cache whether frame->GetParent() is under its containing blocks
         // overflowList or not.
-        ReparentFloatsForInlineChild(irs.mLineContainer, frame, false);
+        ReparentFloatsForInlineChild(irs.mLineContainer, frame, PR_FALSE);
       }
       frame->SetParent(this);
       if (inFirstLine) {
@@ -517,7 +517,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
         // not, then something is wrong
         NS_ASSERTION(mFrames.ContainsFrame(nextInFlow), "unexpected flow");
         if (havePrevBlock) {
-          ReparentFloatsForInlineChild(irs.mLineContainer, nextInFlow, false);
+          ReparentFloatsForInlineChild(irs.mLineContainer, nextInFlow, PR_FALSE);
         }
         nextInFlow->SetParent(this);
         if (inFirstLine) {
@@ -560,12 +560,12 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
     }
     rv = ReflowInlineFrame(aPresContext, aReflowState, irs, frame, aStatus);
     if (NS_FAILED(rv)) {
-      done = true;
+      done = PR_TRUE;
       break;
     }
     if (NS_INLINE_IS_BREAK(aStatus) || 
         (!reflowingFirstLetter && NS_FRAME_IS_NOT_COMPLETE(aStatus))) {
-      done = true;
+      done = PR_TRUE;
       break;
     }
     irs.mPrevFrame = frame;
@@ -592,12 +592,12 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
       }
       rv = ReflowInlineFrame(aPresContext, aReflowState, irs, frame, aStatus);
       if (NS_FAILED(rv)) {
-        done = true;
+        done = PR_TRUE;
         break;
       }
       if (NS_INLINE_IS_BREAK(aStatus) || 
           (!reflowingFirstLetter && NS_FRAME_IS_NOT_COMPLETE(aStatus))) {
-        done = true;
+        done = PR_TRUE;
         break;
       }
       irs.mPrevFrame = frame;
@@ -646,8 +646,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   }
 
   nsRefPtr<nsFontMetrics> fm;
-  float inflation = nsLayoutUtils::FontSizeInflationFor(aReflowState);
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm), inflation);
+  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
   aReflowState.rendContext->SetFont(fm);
 
   if (fm) {
@@ -721,7 +720,7 @@ nsInlineFrame::ReflowInlineFrame(nsPresContext* aPresContext,
       if (irs.mSetParentPointer) {
         if (irs.mLineContainer && irs.mLineContainer->GetPrevContinuation()) {
           ReparentFloatsForInlineChild(irs.mLineContainer, aFrame->GetNextSibling(),
-                                       true);
+                                       PR_TRUE);
         }
         for (nsIFrame* f = aFrame->GetNextSibling(); f; f = f->GetNextSibling()) {
           f->SetParent(this);
@@ -803,7 +802,7 @@ nsInlineFrame::PullOneFrame(nsPresContext* aPresContext,
         // The blockChildren.ContainsFrame check performed by
         // ReparentFloatsForInlineChild will be fast because frame's ancestor
         // will be the first child of its containing block.
-        ReparentFloatsForInlineChild(irs.mLineContainer, frame, false);
+        ReparentFloatsForInlineChild(irs.mLineContainer, frame, PR_FALSE);
       }
       nextInFlow->mFrames.RemoveFirstChild();
 
@@ -817,7 +816,7 @@ nsInlineFrame::PullOneFrame(nsPresContext* aPresContext,
       }
 
       mFrames.InsertFrame(this, irs.mPrevFrame, frame);
-      isComplete = false;
+      isComplete = PR_FALSE;
       if (irs.mLineLayout) {
         irs.mLineLayout->SetDirtyNextLine();
       }
@@ -1017,7 +1016,7 @@ nsFirstLineFrame::Reflow(nsPresContext* aPresContext,
       if (lineContainer && lineContainer->GetPrevContinuation()) {
         ReparentFloatsForInlineChild(lineContainer,
                                      prevOverflowFrames->FirstChild(),
-                                     true);
+                                     PR_TRUE);
       }
       const nsFrameList::Slice& newFrames =
         mFrames.InsertFrames(this, nsnull, *prevOverflowFrames);
@@ -1102,9 +1101,9 @@ nsFirstLineFrame::Reflow(nsPresContext* aPresContext,
 
   NS_ASSERTION(!aReflowState.mLineLayout->GetInFirstLine(),
                "Nested first-line frames? BOGUS");
-  aReflowState.mLineLayout->SetInFirstLine(true);
+  aReflowState.mLineLayout->SetInFirstLine(PR_TRUE);
   rv = ReflowFrames(aPresContext, aReflowState, irs, aMetrics, aStatus);
-  aReflowState.mLineLayout->SetInFirstLine(false);
+  aReflowState.mLineLayout->SetInFirstLine(PR_FALSE);
 
   ReflowAbsoluteFrames(aPresContext, aMetrics, aReflowState, aStatus);
 

@@ -69,7 +69,6 @@ Histograms gHistograms[] = {
   SQLITE_TELEMETRY("places.sqlite", PLACES),
   SQLITE_TELEMETRY("urlclassifier3.sqlite", URLCLASSIFIER),
   SQLITE_TELEMETRY("cookies.sqlite", COOKIES),
-  SQLITE_TELEMETRY("webappsstore.sqlite", WEBAPPS),
   SQLITE_TELEMETRY(NULL, OTHER)
 };
 #undef SQLITE_TELEMETRY
@@ -95,8 +94,8 @@ public:
 
   ~IOThreadAutoTimer() {
     PRUint32 mainThread = NS_IsMainThread() ? 1 : 0;
-    Telemetry::AccumulateTimeDelta(static_cast<Telemetry::ID>(id + mainThread),
-                                   start);
+    Telemetry::Accumulate(static_cast<Telemetry::ID>(id + mainThread),
+                          (TimeStamp::Now() - start).ToMilliseconds());
   }
 
 private:

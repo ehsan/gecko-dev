@@ -39,8 +39,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "application.ini.h"
-
 #include <android/log.h>
 
 #include <jni.h>
@@ -59,13 +57,16 @@
 
 #define LOG(args...) __android_log_print(ANDROID_LOG_INFO, MOZ_APP_NAME, args)
 
+#define _STR(s) # s
+#define STR(s) _STR(s)
+
 struct AutoAttachJavaThread {
     AutoAttachJavaThread() {
         attached = mozilla_AndroidBridge_SetMainThread((void*)pthread_self());
     }
     ~AutoAttachJavaThread() {
         mozilla_AndroidBridge_SetMainThread(nsnull);
-        attached = false;
+        attached = PR_FALSE;
     }
 
     bool attached;
@@ -92,6 +93,41 @@ GeckoStart(void *data)
         return 0;
     }
 
+    nsresult rv;
+    nsCOMPtr<nsILocalFile> appini;
+    char* greHome = getenv("GRE_HOME");
+    if (!greHome) {
+        LOG("Failed to get GRE_HOME from the env vars");
+        return 0;
+    }
+
+    nsCOMPtr<nsILocalFile> xreDir;
+    rv = NS_NewNativeLocalFile(nsDependentCString(greHome), PR_FALSE, getter_AddRefs(xreDir));
+    if (NS_FAILED(rv)) {
+        LOG("Failed to create nsIFile for xreDirectory");
+        return 0;
+    }
+
+    nsXREAppData appData = {
+        sizeof(nsXREAppData),
+        xreDir.get(),
+        "Mozilla",
+        "Fennec",
+        STR(APP_VERSION),
+        STR(GRE_BUILDID),
+        "{a23983c0-fd0e-11dc-95ff-0800200c9a66}",
+        NULL,
+#ifdef MOZILLA_OFFICIAL
+        NS_XRE_ENABLE_EXTENSION_MANAGER | NS_XRE_ENABLE_CRASH_REPORTER,
+#else
+        NS_XRE_ENABLE_EXTENSION_MANAGER,
+#endif
+        xreDir.get(),
+        STR(GRE_MILESTONE),
+        STR(GRE_MILESTONE),
+        "https://crash-reports.mozilla.com/submit"
+    };
+
     nsTArray<char *> targs;
     char *arg = strtok(static_cast<char *>(data), " ");
     while (arg) {
@@ -100,7 +136,7 @@ GeckoStart(void *data)
     }
     targs.AppendElement(static_cast<char *>(nsnull));
 
-    int result = XRE_main(targs.Length() - 1, targs.Elements(), &sAppData);
+    int result = XRE_main(targs.Length() - 1, targs.Elements(), &appData);
 
     if (result)
         LOG("XRE_main returned %d", result);

@@ -53,8 +53,6 @@
 #include "nsISerializable.h"
 #include "nsSerializationHelper.h"
 
-#include "mozilla/Telemetry.h"
-
 /******************************************************************************
  *  nsDiskCacheMap
  *****************************************************************************/
@@ -162,23 +160,14 @@ nsDiskCacheMap::Open(nsILocalFile *  cacheDirectory)
     if (NS_FAILED(rv))  goto error_exit;
 
     // set dirty bit and flush header
-    mHeader.mIsDirty    = true;
+    mHeader.mIsDirty    = PR_TRUE;
     rv = FlushHeader();
     if (NS_FAILED(rv))  goto error_exit;
     
-    {
-        // extra scope so the compiler doesn't barf on the above gotos jumping
-        // past this declaration down here
-        PRUint32 overhead =
-            moz_malloc_size_of(mRecordArray, mHeader.mRecordCount * sizeof(nsDiskCacheRecord));
-        mozilla::Telemetry::Accumulate(mozilla::Telemetry::HTTP_DISK_CACHE_OVERHEAD,
-                overhead);
-    }
-
     return NS_OK;
     
 error_exit:
-    (void) Close(false);
+    (void) Close(PR_FALSE);
        
     return rv;
 }
@@ -195,10 +184,10 @@ nsDiskCacheMap::Close(bool flush)
         rv = CloseBlockFiles(flush);
         if (NS_SUCCEEDED(rv) && flush && mRecordArray) {
             // write the map records
-            rv = FlushRecords(false);   // don't bother swapping buckets back
+            rv = FlushRecords(PR_FALSE);   // don't bother swapping buckets back
             if (NS_SUCCEEDED(rv)) {
                 // clear dirty bit
-                mHeader.mIsDirty = false;
+                mHeader.mIsDirty = PR_FALSE;
                 rv = FlushHeader();
             }
         }
@@ -640,7 +629,7 @@ nsDiskCacheMap::OpenBlockFiles()
     }
     // close all files in case of any error
     if (NS_FAILED(rv)) 
-        (void)CloseBlockFiles(false); // we already have an error to report
+        (void)CloseBlockFiles(PR_FALSE); // we already have an error to report
 
     return rv;
 }
@@ -667,13 +656,13 @@ nsDiskCacheMap::CacheFilesExist()
     for (int i = 0; i < kNumBlockFiles; ++i) {
         bool exists;
         rv = GetBlockFileForIndex(i, getter_AddRefs(blockFile));
-        if (NS_FAILED(rv))  return false;
+        if (NS_FAILED(rv))  return PR_FALSE;
 
         rv = blockFile->Exists(&exists);
-        if (NS_FAILED(rv) || !exists)  return false;
+        if (NS_FAILED(rv) || !exists)  return PR_FALSE;
     }
 
-    return true;
+    return PR_TRUE;
 }
 
 
@@ -720,7 +709,7 @@ nsDiskCacheMap::ReadDiskCacheEntry(nsDiskCacheRecord * record)
         nsCOMPtr<nsILocalFile> file;
         rv = GetLocalFileForDiskCacheRecord(record,
                                             nsDiskCache::kMetaData,
-                                            false,
+                                            PR_FALSE,
                                             getter_AddRefs(file));
         NS_ENSURE_SUCCESS(rv, nsnull);
 
@@ -903,7 +892,7 @@ nsDiskCacheMap::WriteDiskCacheEntry(nsDiskCacheBinding *  binding)
         nsCOMPtr<nsILocalFile> localFile;
         rv = GetLocalFileForDiskCacheRecord(&binding->mRecord,
                                             nsDiskCache::kMetaData,
-                                            true,
+                                            PR_TRUE,
                                             getter_AddRefs(localFile));
         NS_ENSURE_SUCCESS(rv, rv);
         
@@ -1014,9 +1003,9 @@ nsDiskCacheMap::DeleteStorage(nsDiskCacheRecord * record, bool metaData)
         PRUint32  sizeK = metaData ? record->MetaFileSize() : record->DataFileSize();
         // XXX if sizeK == USHRT_MAX, stat file for actual size
 
-        rv = GetFileForDiskCacheRecord(record, metaData, false, getter_AddRefs(file));
+        rv = GetFileForDiskCacheRecord(record, metaData, PR_FALSE, getter_AddRefs(file));
         if (NS_SUCCEEDED(rv)) {
-            rv = file->Remove(false);    // false == non-recursive
+            rv = file->Remove(PR_FALSE);    // false == non-recursive
         }
         DecrementTotalSize(sizeK);
         

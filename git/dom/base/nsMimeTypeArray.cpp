@@ -52,7 +52,7 @@
 nsMimeTypeArray::nsMimeTypeArray(nsIDOMNavigator* navigator)
   : mNavigator(navigator),
     mPluginMimeTypeCount(0),
-    mInited(false)
+    mInited(PR_FALSE)
 {
 }
 
@@ -210,23 +210,20 @@ nsMimeTypeArray::NamedItem(const nsAString& aName, nsIDOMMimeType** aReturn)
   return rv;
 }
 
-void
-nsMimeTypeArray::Clear()
+void  nsMimeTypeArray::Clear()
 {
-  mInited = false;
+  mInited = PR_FALSE;
   mMimeTypeArray.Clear();
   mPluginMimeTypeCount = 0;
 }
 
-void
-nsMimeTypeArray::Refresh()
+nsresult nsMimeTypeArray::Refresh()
 {
   Clear();
-  GetMimeTypes();
+  return GetMimeTypes();
 }
 
-nsresult
-nsMimeTypeArray::GetMimeTypes()
+nsresult nsMimeTypeArray::GetMimeTypes()
 {
   NS_PRECONDITION(!mInited && mPluginMimeTypeCount==0,
                       "already initialized");
@@ -259,7 +256,7 @@ nsMimeTypeArray::GetMimeTypes()
         return NS_ERROR_OUT_OF_MEMORY;
 
       mPluginMimeTypeCount = pluginMimeTypeCount;
-      mInited = true;
+      mInited = PR_TRUE;
 
       PRUint32 k;
       for (k = 0; k < pluginCount; k++) {

@@ -74,7 +74,7 @@ endif
 #
 
 ifndef MOZ_NATIVE_JPEG
-tier_platform_dirs	+= media/libjpeg
+tier_platform_dirs	+= jpeg
 endif
 
 ifdef MOZ_UPDATER
@@ -95,7 +95,7 @@ tier_platform_dirs += ipc js/ipc js/jetpack
 
 tier_platform_dirs += \
 		hal \
-		js/xpconnect \
+		js/src/xpconnect \
 		intl/chardet \
 		$(NULL)
 
@@ -117,7 +117,9 @@ tier_platform_dirs += \
 		$(NULL)
 endif
 
+ifdef MOZ_RDF
 tier_platform_dirs += rdf
+endif
 
 ifdef MOZ_JSDEBUGGER
 tier_platform_dirs += js/jsd
@@ -156,7 +158,7 @@ tier_platform_dirs += \
 endif
 
 ifndef MOZ_NATIVE_PNG
-tier_platform_dirs += media/libpng
+tier_platform_dirs += modules/libimg/png
 endif
 
 tier_platform_dirs	+= \
@@ -164,7 +166,7 @@ tier_platform_dirs	+= \
 		caps \
 		parser \
 		gfx \
-		image \
+		modules/libpr0n \
 		dom \
 		view \
 		widget \
@@ -194,8 +196,6 @@ tier_platform_dirs += profile
 ifdef MOZ_JPROF
 tier_platform_dirs        += tools/jprof
 endif
-
-tier_platform_dirs  += tools/profiler
 
 tier_platform_dirs	+= xpfe/components
 
@@ -265,9 +265,8 @@ endif
 
 ifdef ENABLE_TESTS
 tier_platform_dirs += testing/mochitest
-tier_platform_dirs += testing/xpcshell
+tier_platform_dirs += testing/xpcshell 
+tier_platform_dirs += testing/mozmill
 tier_platform_dirs += testing/tools/screenshot
-tier_platform_dirs += testing/peptest
-tier_platform_dirs += testing/mozbase
 endif
 

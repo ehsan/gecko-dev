@@ -34,13 +34,17 @@
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
+#include "nsIDocument.h"
 #include "nsTraceRefcnt.h"
 #include "jArray.h"
+#include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
-#include "nsAHtml5TreeBuilderState.h"
+#include "nsHtml5NamedCharacters.h"
+#include "nsHtml5NamedCharactersAccel.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
+#include "nsAHtml5TreeBuilderState.h"
 #include "nsHtml5Macros.h"
 
 class nsHtml5StreamParser;
@@ -62,6 +66,7 @@ class nsHtml5UTF16Buffer
     PRInt32 start;
     PRInt32 end;
   public:
+    nsHtml5UTF16Buffer(PRUnichar* buffer, PRInt32 start, PRInt32 end);
     PRInt32 getStart();
     void setStart(PRInt32 start);
     PRUnichar* getBuffer();

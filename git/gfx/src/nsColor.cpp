@@ -35,8 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "plstr.h"
 #include "nsColor.h"
 #include "nsColorNames.h"
@@ -48,8 +46,6 @@
 #include <math.h>
 #include "prprf.h"
 #include "nsStaticNameTable.h"
-
-using namespace mozilla;
 
 // define an array of all color names
 #define GFX_COLOR(_name, _value) #_name,
@@ -65,7 +61,7 @@ static const nscolor kColors[] = {
 };
 #undef GFX_COLOR
 
-#define eColorName_COUNT (ArrayLength(kColorNames))
+#define eColorName_COUNT (NS_ARRAY_LENGTH(kColorNames))
 #define eColorName_UNKNOWN (-1)
 
 static nsStaticCaseInsensitiveNameTable* gColorTable = nsnull;
@@ -140,7 +136,7 @@ NS_GFX_(bool) NS_HexToRGB(const nsString& aColorSpec,
         continue;
       }
       // Whoops. Illegal character.
-      return false;
+      return PR_FALSE;
     }
 
     // Convert the ascii to binary
@@ -160,11 +156,11 @@ NS_GFX_(bool) NS_HexToRGB(const nsString& aColorSpec,
     NS_ASSERTION((g >= 0) && (g <= 255), "bad g");
     NS_ASSERTION((b >= 0) && (b <= 255), "bad b");
     *aResult = NS_RGB(r, g, b);
-    return true;
+    return PR_TRUE;
   }
 
   // Improperly formatted color value
-  return false;
+  return PR_FALSE;
 }
 
 // This implements part of the algorithm for legacy behavior described in
@@ -172,7 +168,7 @@ NS_GFX_(bool) NS_HexToRGB(const nsString& aColorSpec,
 NS_GFX_(bool) NS_LooseHexToRGB(const nsString& aColorSpec, nscolor* aResult)
 {
   if (aColorSpec.EqualsLiteral("transparent")) {
-    return false;
+    return PR_FALSE;
   }
 
   int nameLen = aColorSpec.Length();
@@ -209,7 +205,7 @@ NS_GFX_(bool) NS_LooseHexToRGB(const nsString& aColorSpec, nscolor* aResult)
       if (('1' <= ch && ch <= '9') ||
           ('A' <= ch && ch <= 'F') ||
           ('a' <= ch && ch <= 'f')) {
-        haveNonzero = true;
+        haveNonzero = PR_TRUE;
         break;
       }
     }
@@ -230,12 +226,12 @@ NS_GFX_(bool) NS_LooseHexToRGB(const nsString& aColorSpec, nscolor* aResult)
   NS_ASSERTION((b >= 0) && (b <= 255), "bad b");
 
   *aResult = NS_RGB(r, g, b);
-  return true;
+  return PR_TRUE;
 }
 
 NS_GFX_(bool) NS_ColorNameToRGB(const nsAString& aColorName, nscolor* aResult)
 {
-  if (!gColorTable) return false;
+  if (!gColorTable) return PR_FALSE;
 
   PRInt32 id = gColorTable->Lookup(aColorName);
   if (eColorName_UNKNOWN < id) {
@@ -244,9 +240,9 @@ NS_GFX_(bool) NS_ColorNameToRGB(const nsAString& aColorName, nscolor* aResult)
     if (aResult) {
       *aResult = kColors[id];
     }
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 // Macro to blend two colors

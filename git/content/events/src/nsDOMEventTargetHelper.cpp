@@ -95,15 +95,13 @@ nsDOMEventTargetHelper::RemoveEventListener(const nsAString& aType,
                                             nsIDOMEventListener* aListener,
                                             bool aUseCapture)
 {
-  nsEventListenerManager* elm = GetListenerManager(false);
+  nsEventListenerManager* elm = GetListenerManager(PR_FALSE);
   if (elm) {
     elm->RemoveEventListener(aType, aListener, aUseCapture);
   }
 
   return NS_OK;
 }
-
-NS_IMPL_REMOVE_SYSTEM_EVENT_LISTENER(nsDOMEventTargetHelper)
 
 NS_IMETHODIMP
 nsDOMEventTargetHelper::AddEventListener(const nsAString& aType,
@@ -114,7 +112,7 @@ nsDOMEventTargetHelper::AddEventListener(const nsAString& aType,
 {
   NS_ASSERTION(!aWantsUntrusted || aOptionalArgc > 1,
                "Won't check if this is chrome, you want to set "
-               "aWantsUntrusted to false or make the aWantsUntrusted "
+               "aWantsUntrusted to PR_FALSE or make the aWantsUntrusted "
                "explicit by making aOptionalArgc non-zero.");
 
   if (aOptionalArgc < 2) {
@@ -126,35 +124,10 @@ nsDOMEventTargetHelper::AddEventListener(const nsAString& aType,
     aWantsUntrusted = doc && !nsContentUtils::IsChromeDoc(doc);
   }
 
-  nsEventListenerManager* elm = GetListenerManager(true);
+  nsEventListenerManager* elm = GetListenerManager(PR_TRUE);
   NS_ENSURE_STATE(elm);
   elm->AddEventListener(aType, aListener, aUseCapture, aWantsUntrusted);
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMEventTargetHelper::AddSystemEventListener(const nsAString& aType,
-                                               nsIDOMEventListener *aListener,
-                                               bool aUseCapture,
-                                               bool aWantsUntrusted,
-                                               PRUint8 aOptionalArgc)
-{
-  NS_ASSERTION(!aWantsUntrusted || aOptionalArgc > 1,
-               "Won't check if this is chrome, you want to set "
-               "aWantsUntrusted to false or make the aWantsUntrusted "
-               "explicit by making aOptionalArgc non-zero.");
-
-  if (aOptionalArgc < 2) {
-    nsresult rv;
-    nsIScriptContext* context = GetContextForEventHandlers(&rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-    nsCOMPtr<nsIDocument> doc =
-      nsContentUtils::GetDocumentFromScriptContext(context);
-    aWantsUntrusted = doc && !nsContentUtils::IsChromeDoc(doc);
-  }
-
-  return NS_AddSystemEventListener(this, aType, aListener, aUseCapture,
-                                   aWantsUntrusted);
 }
 
 NS_IMETHODIMP
@@ -174,13 +147,13 @@ nsDOMEventTargetHelper::RemoveAddEventListener(const nsAString& aType,
                                                nsIDOMEventListener* aNew)
 {
   if (aCurrent) {
-    RemoveEventListener(aType, aCurrent, false);
+    RemoveEventListener(aType, aCurrent, PR_FALSE);
     aCurrent = nsnull;
   }
   if (aNew) {
     aCurrent = new nsDOMEventListenerWrapper(aNew);
     NS_ENSURE_TRUE(aCurrent, NS_ERROR_OUT_OF_MEMORY);
-    nsIDOMEventTarget::AddEventListener(aType, aCurrent, false);
+    nsIDOMEventTarget::AddEventListener(aType, aCurrent, PR_FALSE);
   }
   return NS_OK;
 }
@@ -202,7 +175,7 @@ nsDOMEventTargetHelper::GetInnerEventListener(nsRefPtr<nsDOMEventListenerWrapper
 nsresult
 nsDOMEventTargetHelper::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
-  aVisitor.mCanHandle = true;
+  aVisitor.mCanHandle = PR_TRUE;
   aVisitor.mParentTarget = nsnull;
   return NS_OK;
 }

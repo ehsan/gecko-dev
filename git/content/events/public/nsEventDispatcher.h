@@ -57,7 +57,7 @@ template<class E> class nsCOMArray;
  * nsEventDispatcher::DispatchDOMEvent is called an event target chain is
  * created. nsEventDispatcher creates the chain by calling PreHandleEvent 
  * on each event target and the creation continues until either the mCanHandle
- * member of the nsEventChainPreVisitor object is false or the mParentTarget
+ * member of the nsEventChainPreVisitor object is PR_FALSE or the mParentTarget
  * does not point to a new target. The event target chain is created in the
  * heap.
  *
@@ -134,18 +134,18 @@ public:
                          nsEventStatus aEventStatus,
                          bool aIsInAnon)
   : nsEventChainVisitor(aPresContext, aEvent, aDOMEvent, aEventStatus),
-    mCanHandle(true), mForceContentDispatch(false),
-    mRelatedTargetIsInAnon(false), mOriginalTargetIsInAnon(aIsInAnon),
-    mWantsWillHandleEvent(false), mMayHaveListenerManager(true),
+    mCanHandle(PR_TRUE), mForceContentDispatch(PR_FALSE),
+    mRelatedTargetIsInAnon(PR_FALSE), mOriginalTargetIsInAnon(aIsInAnon),
+    mWantsWillHandleEvent(PR_FALSE), mMayHaveListenerManager(PR_TRUE),
     mParentTarget(nsnull), mEventTargetAtParent(nsnull) {}
 
   void Reset() {
     mItemFlags = 0;
     mItemData = nsnull;
-    mCanHandle = true;
-    mForceContentDispatch = false;
-    mWantsWillHandleEvent = false;
-    mMayHaveListenerManager = true;
+    mCanHandle = PR_TRUE;
+    mForceContentDispatch = PR_FALSE;
+    mWantsWillHandleEvent = PR_FALSE;
+    mMayHaveListenerManager = PR_TRUE;
     mParentTarget = nsnull;
     mEventTargetAtParent = nsnull;
   }
@@ -159,33 +159,33 @@ public:
   bool                  mCanHandle;
 
   /**
-   * If mForceContentDispatch is set to true,
+   * If mForceContentDispatch is set to PR_TRUE,
    * content dispatching is not disabled for this event target.
    * FIXME! This is here for backward compatibility. Bug 329119
    */
   bool                  mForceContentDispatch;
 
   /**
-   * true if it is known that related target is or is a descendant of an
+   * PR_TRUE if it is known that related target is or is a descendant of an
    * element which is anonymous for events.
    */
   bool                  mRelatedTargetIsInAnon;
 
   /**
-   * true if the original target of the event is inside anonymous content.
+   * PR_TRUE if the original target of the event is inside anonymous content.
    * This is set before calling PreHandleEvent on event targets.
    */
   bool                  mOriginalTargetIsInAnon;
 
   /**
    * Whether or not nsIDOMEventTarget::WillHandleEvent will be
-   * called. Default is false;
+   * called. Default is PR_FALSE;
    */
   bool                  mWantsWillHandleEvent;
 
   /**
    * If it is known that the current target doesn't have a listener manager
-   * when PreHandleEvent is called, set this to false.
+   * when PreHandleEvent is called, set this to PR_FALSE.
    */
   bool                  mMayHaveListenerManager;
 

@@ -54,7 +54,7 @@ static PRInt32          gInstanceCount = 0;
 NS_IMPL_ISUPPORTS1(nsScriptableUnicodeConverter, nsIScriptableUnicodeConverter)
 
 nsScriptableUnicodeConverter::nsScriptableUnicodeConverter()
-: mIsInternal(false)
+: mIsInternal(PR_FALSE)
 {
   PR_ATOMIC_INCREMENT(&gInstanceCount);
 }

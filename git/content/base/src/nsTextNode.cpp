@@ -99,7 +99,7 @@ public:
 
   // Public method for the event to run
   void UpdateText() {
-    UpdateText(true);
+    UpdateText(PR_TRUE);
   }
 
 private:
@@ -301,7 +301,7 @@ nsAttributeTextNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
   // Note that there is no need to notify here, since we have no
   // frame yet at this point.
-  UpdateText(false);
+  UpdateText(PR_FALSE);
 
   return NS_OK;
 }

@@ -46,7 +46,6 @@ DIRS	= \
   actions \
   attributes \
   editabletext \
-  elm \
   events \
   focus \
   hyperlink \
@@ -57,7 +56,6 @@ DIRS	= \
   states \
   table \
   text \
-  textselection \
   tree \
   treeupdate \
   value \
@@ -95,6 +93,10 @@ _TEST_FILES =\
 		test_childAtPoint.html \
 		test_childAtPoint.xul \
 		test_descr.html \
+		test_elm_landmarks.html \
+		test_elm_listbox.xul \
+		test_elm_nsApplicationAcc.html \
+		test_elm_plugin.html \
 		test_nsIAccessibleDocument.html \
 		test_nsIAccessibleImage.html \
 		test_nsIAccessNode_utils.html \

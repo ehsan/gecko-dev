@@ -72,8 +72,8 @@ bool
 nsAutodial::ShouldDialOnNetworkError()
 {
   if (nsQtNetworkManager::get()->isOnline()) {
-    return false;
+    return PR_FALSE;
   }
 
-  return true;
+  return PR_TRUE;
 }

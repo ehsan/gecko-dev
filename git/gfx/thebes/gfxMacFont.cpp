@@ -49,7 +49,6 @@
 #include "cairo-quartz.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 
 gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyle,
                        bool aNeedsBold)
@@ -62,7 +61,7 @@ gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyl
 
     mCGFont = aFontEntry->GetFontRef();
     if (!mCGFont) {
-        mIsValid = false;
+        mIsValid = PR_FALSE;
         return;
     }
 
@@ -76,7 +75,7 @@ gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyl
 
     cairo_status_t cairoerr = cairo_font_face_status(mFontFace);
     if (cairoerr != CAIRO_STATUS_SUCCESS) {
-        mIsValid = false;
+        mIsValid = PR_FALSE;
 #ifdef DEBUG
         char warnBuf[1024];
         sprintf(warnBuf, "Failed to create Cairo font face: %s status: %d",
@@ -124,7 +123,7 @@ gfxMacFont::gfxMacFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aFontStyl
 
     cairoerr = cairo_scaled_font_status(mScaledFont);
     if (cairoerr != CAIRO_STATUS_SUCCESS) {
-        mIsValid = false;
+        mIsValid = PR_FALSE;
 #ifdef DEBUG
         char warnBuf[1024];
         sprintf(warnBuf, "Failed to create scaled font: %s status: %d",
@@ -159,7 +158,7 @@ gfxMacFont::InitTextRun(gfxContext *aContext,
 {
     if (!mIsValid) {
         NS_WARNING("invalid font! expect incorrect text rendering");
-        return false;
+        return PR_FALSE;
     }
 
     bool ok = gfxFont::InitTextRun(aContext, aTextRun, aString,
@@ -183,10 +182,10 @@ gfxMacFont::SetupCairoFont(gfxContext *aContext)
     if (cairo_scaled_font_status(mScaledFont) != CAIRO_STATUS_SUCCESS) {
         // Don't cairo_set_scaled_font as that would propagate the error to
         // the cairo_t, precluding any further drawing.
-        return false;
+        return PR_FALSE;
     }
     cairo_set_scaled_font(aContext->GetCairo(), mScaledFont);
-    return true;
+    return PR_TRUE;
 }
 
 gfxFont::RunMetrics
@@ -214,7 +213,7 @@ gfxMacFont::Measure(gfxTextRun *aTextRun,
 void
 gfxMacFont::InitMetrics()
 {
-    mIsValid = false;
+    mIsValid = PR_FALSE;
     ::memset(&mMetrics, 0, sizeof(mMetrics));
 
     PRUint32 upem = 0;
@@ -459,7 +458,7 @@ gfxMacFont::InitMetricsFromPlatform()
 
     ::CFRelease(ctFont);
 
-    mIsValid = true;
+    mIsValid = PR_TRUE;
 }
 
 // For OS X 10.5, try to initialize font metrics via ATS font metrics APIs,
@@ -494,20 +493,5 @@ gfxMacFont::InitMetricsFromATSMetrics(ATSFontRef aFontRef)
     mMetrics.aveCharWidth = atsMetrics.avgAdvanceWidth * mAdjustedSize;
     mMetrics.xHeight = atsMetrics.xHeight * mAdjustedSize;
 
-    mIsValid = true;
+    mIsValid = PR_TRUE;
 }
-
-RefPtr<ScaledFont>
-gfxMacFont::GetScaledFont()
-{
-  if (!mAzureFont) {
-    NativeFont nativeFont;
-    nativeFont.mType = NATIVE_FONT_MAC_FONT_FACE;
-    nativeFont.mFont = GetCGFontRef();
-    mAzureFont =
-      mozilla::gfx::Factory::CreateScaledFontForNativeFont(nativeFont, GetAdjustedSize());
-  }
-
-  return mAzureFont;
-}
-

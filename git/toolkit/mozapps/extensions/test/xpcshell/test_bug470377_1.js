@@ -37,8 +37,7 @@
  */
 
 // Disables security checking our updates which haven't been signed
-Services.prefs.setBoolPref(PREF_EM_CHECK_UPDATE_SECURITY, false);
-Services.prefs.setBoolPref(PREF_EM_STRICT_COMPATIBILITY, false);
+Services.prefs.setBoolPref("extensions.checkUpdateSecurity", false);
 
 var ADDONS = [
   "test_bug470377_1",
@@ -71,8 +70,8 @@ function run_test() {
                                  "bug470377_5@tests.mozilla.org"],
                                  function([a1, a2, a3, a4, a5]) {
       do_check_eq(a1, null);
-      do_check_neq(a2, null);
-      do_check_neq(a3, null);
+      do_check_eq(a2, null);
+      do_check_eq(a3, null);
       do_check_neq(a4, null);
       do_check_neq(a5, null);
 

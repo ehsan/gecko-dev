@@ -60,7 +60,7 @@ nsAsyncStreamCopier::nsAsyncStreamCopier()
     , mMode(NS_ASYNCCOPY_VIA_READSEGMENTS)
     , mChunkSize(nsIOService::gDefaultSegmentSize)
     , mStatus(NS_OK)
-    , mIsPending(false)
+    , mIsPending(PR_FALSE)
 {
 #if defined(PR_LOGGING)
     if (!gStreamCopierLog)
@@ -95,7 +95,7 @@ nsAsyncStreamCopier::Complete(nsresult status)
         mCopierCtx = nsnull;
 
         if (mIsPending) {
-            mIsPending = false;
+            mIsPending = PR_FALSE;
             mStatus = status;
 
             // setup OnStopRequest callback and release references...
@@ -265,7 +265,7 @@ nsAsyncStreamCopier::AsyncCopy(nsIRequestObserver *observer, nsISupports *ctx)
 
     // from this point forward, AsyncCopy is going to return NS_OK.  any errors
     // will be reported via OnStopRequest.
-    mIsPending = true;
+    mIsPending = PR_TRUE;
 
     mObserverContext = ctx;
     if (mObserver) {

@@ -105,7 +105,7 @@ class nsDisplayItem;
  */
 
 // All types are defined in nsDisplayItemTypes.h
-#ifdef MOZ_DUMP_PAINTING
+#ifdef NS_DEBUG
 #define NS_DISPLAY_DECL_NAME(n, e) \
   virtual const char* Name() { return n; } \
   virtual Type GetType() { return e; }
@@ -132,7 +132,7 @@ public:
   /**
    * @param aReferenceFrame the frame at the root of the subtree; its origin
    * is the origin of the reference coordinate system for this display list
-   * @param aIsForEvents true if we're creating this list in order to
+   * @param aIsForEvents PR_TRUE if we're creating this list in order to
    * determine which frame is under the mouse position
    * @param aBuildCaret whether or not we should include the caret in any
    * display lists that we make.
@@ -147,21 +147,21 @@ public:
   ~nsDisplayListBuilder();
 
   /**
-   * @return true if the display is being built in order to determine which
+   * @return PR_TRUE if the display is being built in order to determine which
    * frame is under the mouse position.
    */
   bool IsForEventDelivery() { return mMode == EVENT_DELIVERY; }
   /**
-   * @return true if the display list is being built to compute geometry
+   * @return PR_TRUE if the display list is being built to compute geometry
    * for plugins.
    */
   bool IsForPluginGeometry() { return mMode == PLUGIN_GEOMETRY; }
   /**
-   * @return true if the display list is being built for painting.
+   * @return PR_TRUE if the display list is being built for painting.
    */
   bool IsForPainting() { return mMode == PAINTING; }
   /**
-   * @return true if "painting is suppressed" during page load and we
+   * @return PR_TRUE if "painting is suppressed" during page load and we
    * should paint only the background of the document.
    */
   bool IsBackgroundOnly() {
@@ -170,7 +170,7 @@ public:
     return CurrentPresShellState()->mIsBackgroundOnly;
   }
   /**
-   * @return true if the currently active BuildDisplayList call is being
+   * @return PR_TRUE if the currently active BuildDisplayList call is being
    * applied to a frame at the root of a pseudo stacking context. A pseudo
    * stacking context is either a real stacking context or basically what
    * CSS2.1 appendix E refers to with "treat the element as if it created
@@ -214,25 +214,25 @@ public:
    * frames in the display list, wherever they may be positioned (even
    * outside the dirty rects).
    */
-  void SetIncludeAllOutOfFlows() { mIncludeAllOutOfFlows = true; }
+  void SetIncludeAllOutOfFlows() { mIncludeAllOutOfFlows = PR_TRUE; }
   bool GetIncludeAllOutOfFlows() const { return mIncludeAllOutOfFlows; }
   /**
    * Calling this setter makes us exclude all leaf frames that does
    * not have the NS_FRAME_SELECTED_CONTENT bit.
    */
-  void SetSelectedFramesOnly() { mSelectedFramesOnly = true; }
+  void SetSelectedFramesOnly() { mSelectedFramesOnly = PR_TRUE; }
   bool GetSelectedFramesOnly() { return mSelectedFramesOnly; }
   /**
    * Calling this setter makes us compute accurate visible regions at the cost
    * of performance if regions get very complex.
    */
-  void SetAccurateVisibleRegions() { mAccurateVisibleRegions = true; }
+  void SetAccurateVisibleRegions() { mAccurateVisibleRegions = PR_TRUE; }
   bool GetAccurateVisibleRegions() { return mAccurateVisibleRegions; }
   /**
    * Allows callers to selectively override the regular paint suppression checks,
    * so that methods like GetFrameForPoint work when painting is suppressed.
    */
-  void IgnorePaintSuppression() { mIgnoreSuppression = true; }
+  void IgnorePaintSuppression() { mIgnoreSuppression = PR_TRUE; }
   /**
    * @return Returns if this builder will ignore paint suppression.
    */
@@ -303,7 +303,7 @@ public:
    * children, or when we construct an item which will return true from
    * ShouldFixToViewport()
    */
-  void SetHasFixedItems() { mHasFixedItems = true; }
+  void SetHasFixedItems() { mHasFixedItems = PR_TRUE; }
   bool GetHasFixedItems() { return mHasFixedItems; }
 
   /**
@@ -317,7 +317,7 @@ public:
   void SetSnappingEnabled(bool aSnappingEnabled) { mSnappingEnabled = aSnappingEnabled; }
 
   /**
-   * @return true if images have been set to decode synchronously.
+   * @return PR_TRUE if images have been set to decode synchronously.
    */
   bool ShouldSyncDecodeImages() { return mSyncDecodeImages; }
 
@@ -658,33 +658,33 @@ public:
                                    bool* aForceTransparentSurface = nsnull)
   {
     if (aForceTransparentSurface) {
-      *aForceTransparentSurface = false;
+      *aForceTransparentSurface = PR_FALSE;
     }
     return nsRegion();
   }
   /**
    * If this returns true, then aColor is set to the uniform color
-   * @return true if the item is guaranteed to paint every pixel in its
+   * @return PR_TRUE if the item is guaranteed to paint every pixel in its
    * bounds with the same (possibly translucent) color
    */
   virtual bool IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor) { return false; }
   /**
-   * @return false if the painting performed by the item is invariant
+   * @return PR_FALSE if the painting performed by the item is invariant
    * when the item's underlying frame is moved relative to aFrame.
    * In other words, if you render the item at locations P and P', the rendering
    * only differs by the translation.
-   * It return true for all wrapped lists.
+   * It return PR_TRUE for all wrapped lists.
    */
   virtual bool IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuilder,
                                                 nsIFrame* aFrame)
-  { return false; }
+  { return PR_FALSE; }
   /**
-   * @return true if the contents of this item are rendered fixed relative
+   * @return PR_TRUE if the contents of this item are rendered fixed relative
    * to the nearest viewport *and* they cover the viewport's scrollport.
    * Only return true if the contents actually vary when scrolling in the viewport.
    */
   virtual bool ShouldFixToViewport(nsDisplayListBuilder* aBuilder)
-  { return false; }
+  { return PR_FALSE; }
 
   /**
    * @return LAYER_NONE if BuildLayer will return null. In this case
@@ -751,7 +751,7 @@ public:
    * expand the visible region and is only used for making sure the
    * background behind a plugin is visible.
    *
-   * @return true if the item is visible, false if no part of the item
+   * @return PR_TRUE if the item is visible, PR_FALSE if no part of the item
    * is visible.
    */
   virtual bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
@@ -766,20 +766,20 @@ public:
    * content element into a single opacity group (correctness), and will be
    * used by nsDisplayOutline to merge multiple outlines for the same element
    * (also for correctness).
-   * @return true if the merge was successful and the other item should be deleted
+   * @return PR_TRUE if the merge was successful and the other item should be deleted
    */
   virtual bool TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem) {
-    return false;
+    return PR_FALSE;
   }
 
   /**
    * During the visibility computation and after TryMerge, display lists may
-   * return true here to flatten themselves away, removing them. This
+   * return PR_TRUE here to flatten themselves away, removing them. This
    * flattening is distinctly different from FlattenTo, which occurs before
    * items are merged together.
    */
   virtual bool ShouldFlattenAway(nsDisplayListBuilder* aBuilder) {
-    return false;
+    return PR_FALSE;
   }
 
   /**
@@ -794,7 +794,7 @@ public:
    */
   const nsRect& GetVisibleRect() { return mVisibleRect; }
   
-#ifdef MOZ_DUMP_PAINTING
+#ifdef NS_DEBUG
   /**
    * For debugging and stuff
    */
@@ -877,12 +877,12 @@ public:
    * Create an empty list.
    */
   nsDisplayList() :
-    mIsOpaque(false)
+    mIsOpaque(PR_FALSE)
   {
     mTop = &mSentinel;
     mSentinel.mAbove = nsnull;
 #ifdef DEBUG
-    mDidComputeVisibility = false;
+    mDidComputeVisibility = PR_FALSE;
 #endif
   }
   ~nsDisplayList() {
@@ -1292,7 +1292,7 @@ public:
   nsDisplayGeneric(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
                    PaintCallback aPaint, const char* aName, Type aType)
     : nsDisplayItem(aBuilder, aFrame), mPaint(aPaint)
-#ifdef MOZ_DUMP_PAINTING
+#ifdef DEBUG
       , mName(aName)
 #endif
       , mType(aType)
@@ -1318,7 +1318,7 @@ public:
 
 protected:
   PaintCallback mPaint;
-#ifdef MOZ_DUMP_PAINTING
+#ifdef DEBUG
   const char*   mName;
 #endif
   Type mType;
@@ -1488,7 +1488,7 @@ public:
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                                    bool* aOutTransparentBackground = nsnull) {
     if (aOutTransparentBackground) {
-      *aOutTransparentBackground = false;
+      *aOutTransparentBackground = PR_FALSE;
     }
     nsRegion result;
     if (NS_GET_A(mColor) == 255) {
@@ -1500,7 +1500,7 @@ public:
   virtual bool IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor)
   {
     *aColor = mColor;
-    return true;
+    return PR_TRUE;
   }
 
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx);
@@ -1685,7 +1685,7 @@ public:
                                    const nsRect& aAllowVisibleRegionExpansion);
   virtual bool TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem) {
     NS_WARNING("This list should already have been flattened!!!");
-    return false;
+    return PR_FALSE;
   }
   NS_DISPLAY_DECL_NAME("WrapList", TYPE_WRAP_LIST)
 
@@ -1796,7 +1796,7 @@ public:
   virtual bool TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem)
   {
     // Don't allow merging, each sublist must have its own layer
-    return false;
+    return PR_FALSE;
   }
   NS_DISPLAY_DECL_NAME("OwnLayer", TYPE_OWN_LAYER)
 };
@@ -2052,10 +2052,6 @@ public:
 
   nsIFrame* GetEffectsFrame() { return mEffectsFrame; }
 
-#ifdef MOZ_DUMP_PAINTING
-  void PrintEffects(FILE* aOutput);
-#endif
-
 private:
   nsIFrame* mEffectsFrame;
   // relative to mEffectsFrame
@@ -2263,6 +2259,24 @@ public:
 
   nscoord mLeftEdge;  // length from the left side
   nscoord mRightEdge; // length from the right side
+};
+
+
+/**
+ * This is a dummy item that reports true for IsVaryingRelativeToMovingFrame.
+ * It forces the bounds of its frame to be repainted every time it is scrolled.
+ * It is transparent to events and does not paint anything.
+ */
+class nsDisplayForcePaintOnScroll : public nsDisplayItem
+{
+public:
+  nsDisplayForcePaintOnScroll(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame);
+#ifdef NS_BUILD_REFCNT_LOGGING
+  virtual ~nsDisplayForcePaintOnScroll();
+#endif
+  NS_DISPLAY_DECL_NAME("ForcePaintOnScroll", TYPE_FORCEPAINTONSCROLL)
+  virtual bool IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuilder,
+                                                nsIFrame* aFrame);
 };
 
 #endif /*NSDISPLAYLIST_H_*/

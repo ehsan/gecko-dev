@@ -22,7 +22,6 @@
 #  Patrick Walton <pcwalton@mozilla.com>
 #  Mihai Șucan <mihai.sucan@gmail.com>
 #  Rob Campbell <rcampbell@mozilla.com>
-#  Sonny Piers <sonny.piers@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -82,6 +81,10 @@ _BROWSER_TEST_FILES = \
 	browser_webconsole_property_panel.js \
 	browser_webconsole_property_provider.js \
 	browser_webconsole_registries.js \
+	browser_webconsole_storage_create_display.js \
+	browser_webconsole_storage_iteration.js \
+	browser_webconsole_storage_record_entry.js \
+	browser_webconsole_storage_record_many_entries.js \
 	browser_webconsole_bug_587617_output_copy.js \
 	browser_webconsole_bug_585237_line_limit.js \
 	browser_webconsole_bug_581231_close_button.js \
@@ -105,6 +108,7 @@ _BROWSER_TEST_FILES = \
 	browser_webconsole_bug_600183_charset.js \
 	browser_webconsole_bug_601177_log_levels.js \
 	browser_webconsole_bug_597460_filter_scroll.js \
+	browser_webconsole_gcli_require.js \
 	browser_webconsole_console_extras.js \
 	browser_webconsole_bug_598357_jsterm_output.js \
 	browser_webconsole_bug_603750_websocket.js \
@@ -142,12 +146,6 @@ _BROWSER_TEST_FILES = \
 	browser_webconsole_bug_659907_console_dir.js \
 	browser_webconsole_bug_678816.js \
 	browser_webconsole_bug_664131_console_group.js \
-	browser_gcli_inspect.js \
-	browser_gcli_integrate.js \
-	browser_gcli_require.js \
-	browser_gcli_web.js \
-	browser_webconsole_bug_658368_time_methods.js \
-	browser_webconsole_bug_622303_persistent_filters.js \
 	head.js \
 	$(NULL)
 
@@ -218,8 +216,6 @@ _BROWSER_TEST_PAGES = \
 	test-bug-646025-console-file-location.html \
 	test-bug-678816-content.js \
 	test-file-location.js \
-	browser_gcli_inspect.html \
-	test-bug-658368-time-methods.html \
 	$(NULL)
 
 libs:: $(_BROWSER_TEST_FILES)

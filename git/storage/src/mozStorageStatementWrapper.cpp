@@ -79,9 +79,6 @@ StatementWrapper::Initialize(mozIStorageStatement *aStatement)
   NS_ENSURE_ARG_POINTER(aStatement);
 
   mStatement = static_cast<Statement *>(aStatement);
-  PRInt32 state;
-  (void)mStatement->GetState(&state);
-  NS_ENSURE_TRUE(state != mozIStorageStatement::MOZ_STORAGE_STATEMENT_INVALID, NS_ERROR_FAILURE);
 
   // fetch various things we care about
   (void)mStatement->GetParameterCount(&mParamCount);
@@ -120,7 +117,7 @@ StatementWrapper::Step(bool *_hasMoreResults)
   bool hasMore = false;
   nsresult rv = mStatement->ExecuteStep(&hasMore);
   if (NS_SUCCEEDED(rv) && !hasMore) {
-    *_hasMoreResults = false;
+    *_hasMoreResults = PR_FALSE;
     (void)mStatement->Reset();
     return NS_OK;
   }
@@ -197,7 +194,7 @@ StatementWrapper::Call(nsIXPConnectWrappedNative *aWrapper,
     return NS_ERROR_FAILURE;
 
   if (aArgc != mParamCount) {
-    *_retval = false;
+    *_retval = PR_FALSE;
     return NS_ERROR_FAILURE;
   }
 
@@ -209,7 +206,7 @@ StatementWrapper::Call(nsIXPConnectWrappedNative *aWrapper,
     nsCOMPtr<nsIVariant> variant(convertJSValToVariant(aCtx, aArgv[i]));
     if (!variant ||
         NS_FAILED(mStatement->BindByIndex(i, variant))) {
-      *_retval = false;
+      *_retval = PR_FALSE;
       return NS_ERROR_INVALID_ARG;
     }
   }
@@ -219,7 +216,7 @@ StatementWrapper::Call(nsIXPConnectWrappedNative *aWrapper,
     (void)mStatement->Execute();
 
   *_vp = JSVAL_TRUE;
-  *_retval = true;
+  *_retval = PR_TRUE;
   return NS_OK;
 }
 

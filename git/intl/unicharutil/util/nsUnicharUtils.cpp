@@ -524,18 +524,18 @@ CaseInsensitiveUTF8CharsEqual(const char* aLeft, const char* aRight,
 
   PRUint32 leftChar = GetLowerUTF8Codepoint(aLeft, aLeftEnd, aLeftNext);
   if (NS_UNLIKELY(leftChar == PRUint32(-1))) {
-    *aErr = true;
-    return false;
+    *aErr = PR_TRUE;
+    return PR_FALSE;
   }
 
   PRUint32 rightChar = GetLowerUTF8Codepoint(aRight, aRightEnd, aRightNext);
   if (NS_UNLIKELY(rightChar == PRUint32(-1))) {
-    *aErr = true;
-    return false;
+    *aErr = PR_TRUE;
+    return PR_FALSE;
   }
 
   // Can't have an error past this point.
-  *aErr = false;
+  *aErr = PR_FALSE;
 
   return leftChar == rightChar;
 }

@@ -105,14 +105,14 @@ Listener::OnThreadCreated()
     if (!thread) {
       gCreatedThreadList[i] = current;
       if (i == (NUMBER_OF_THREADS - 1)) {
-        gAllThreadsCreated = true;
+        gAllThreadsCreated = PR_TRUE;
         mon.NotifyAll();
       }
       return NS_OK;
     }
   }
 
-  TEST_ASSERTION(false, "Too many threads!");
+  TEST_ASSERTION(PR_FALSE, "Too many threads!");
   return NS_ERROR_FAILURE;
 }
 
@@ -131,14 +131,14 @@ Listener::OnThreadShuttingDown()
     if (!thread) {
       gShutDownThreadList[i] = current;
       if (i == (NUMBER_OF_THREADS - 1)) {
-        gAllThreadsShutDown = true;
+        gAllThreadsShutDown = PR_TRUE;
         mon.NotifyAll();
       }
       return NS_OK;
     }
   }
 
-  TEST_ASSERTION(false, "Too many threads!");
+  TEST_ASSERTION(PR_FALSE, "Too many threads!");
   return NS_ERROR_FAILURE;
 }
 
@@ -215,7 +215,7 @@ int main(int argc, char** argv)
       NS_ENSURE_SUCCESS(rv, 1);
     }
 
-    gAllRunnablesPosted = true;
+    gAllRunnablesPosted = PR_TRUE;
     mon.NotifyAll();
   }
 
@@ -246,7 +246,7 @@ int main(int argc, char** argv)
       NS_ENSURE_TRUE(destroyed, 1);
 
       if (destroyed == created) {
-        match = true;
+        match = PR_TRUE;
         break;
       }
     }

@@ -75,6 +75,6 @@ nsDOMSettableTokenList::SetValue(const nsAString& aValue)
     return NS_OK;
   }
 
-  return mElement->SetAttr(kNameSpaceID_None, mAttrAtom, aValue, true);
+  return mElement->SetAttr(kNameSpaceID_None, mAttrAtom, aValue, PR_TRUE);
 }
 

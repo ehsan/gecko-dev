@@ -63,18 +63,18 @@ bool
 nsGenConList::DestroyNodesFor(nsIFrame* aFrame)
 {
   if (!mFirstNode)
-    return false; // list empty
+    return PR_FALSE; // list empty
   nsGenConNode* node;
   bool destroyed = false;
   while (mFirstNode->mPseudoFrame == aFrame) {
-    destroyed = true;
+    destroyed = PR_TRUE;
     node = Next(mFirstNode);
     bool isLastNode = node == mFirstNode; // before they're dangling
     Remove(mFirstNode);
     delete mFirstNode;
     if (isLastNode) {
       mFirstNode = nsnull;
-      return true;
+      return PR_TRUE;
     }
     else {
       mFirstNode = node;
@@ -83,7 +83,7 @@ nsGenConList::DestroyNodesFor(nsIFrame* aFrame)
   node = Next(mFirstNode);
   while (node != mFirstNode) {
     if (node->mPseudoFrame == aFrame) {
-      destroyed = true;
+      destroyed = PR_TRUE;
       nsGenConNode *nextNode = Next(node);
       Remove(node);
       delete node;

@@ -189,9 +189,9 @@ nsMathMLmfracFrame::MeasureForWidth(nsRenderingContext& aRenderingContext,
                                     nsHTMLReflowMetrics& aDesiredSize)
 {
   return PlaceInternal(aRenderingContext,
-                       false,
+                       PR_FALSE,
                        aDesiredSize,
-                       true);
+                       PR_TRUE);
 }
 
 nscoord
@@ -212,7 +212,7 @@ nsMathMLmfracFrame::Place(nsRenderingContext& aRenderingContext,
   return PlaceInternal(aRenderingContext,
                        aPlaceOrigin,
                        aDesiredSize,
-                       false);
+                       PR_FALSE);
 }
 
 nsresult
@@ -575,7 +575,7 @@ void nsDisplayMathMLSlash::Paint(nsDisplayListBuilder* aBuilder,
   gfxRect rect = presContext->AppUnitsToGfxUnits(mRect + ToReferenceFrame());
   
   // paint with the current text color
-  aCtx->SetColor(mFrame->GetVisitedDependentColor(eCSSProperty_color));
+  aCtx->SetColor(mFrame->GetStyleColor()->mColor);
  
   // draw the slash as a parallelogram 
   gfxContext *gfxCtx = aCtx->ThebesContext();

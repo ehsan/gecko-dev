@@ -44,10 +44,6 @@
   ${RegCleanMain} "Software\Mozilla"
   ${RegCleanUninstall}
   ${UpdateProtocolHandlers}
-
-  ; setup the application model id registration value
-  ${InitHashAppModelId} "$INSTDIR" "Software\Mozilla\${AppName}\TaskBarIDs"
-
   ; Win7 taskbar and start menu link maintenance
   Call FixShortcutAppModelIDs
 
@@ -194,8 +190,7 @@
     ${If} ${FileExists} "$DESKTOP\${BrandFullName}.lnk"
       ShellLink::SetShortCutWorkingDirectory "$DESKTOP\${BrandFullName}.lnk" "$INSTDIR"
       ${If} ${AtLeastWin7}
-      ${AndIf} "$AppUserModelID" != ""
-        ApplicationID::Set "$DESKTOP\${BrandFullName}.lnk" "$AppUserModelID"
+        ApplicationID::Set "$DESKTOP\${BrandFullName}.lnk" "${AppUserModelID}"
       ${EndIf}
     ${Else}
       SetShellVarContext current  ; Set $DESKTOP to the current user's desktop
@@ -205,8 +200,7 @@
           ShellLink::SetShortCutWorkingDirectory "$DESKTOP\${BrandFullName}.lnk" \
                                                  "$INSTDIR"
           ${If} ${AtLeastWin7}
-          ${AndIf} "$AppUserModelID" != ""
-            ApplicationID::Set "$DESKTOP\${BrandFullName}.lnk" "$AppUserModelID"
+            ApplicationID::Set "$DESKTOP\${BrandFullName}.lnk" "${AppUserModelID}"
           ${EndIf}
         ${EndIf}
       ${EndUnless}
@@ -220,8 +214,7 @@
       ShellLink::SetShortCutWorkingDirectory "$SMPROGRAMS\${BrandFullName}.lnk" \
                                              "$INSTDIR"
       ${If} ${AtLeastWin7}
-      ${AndIf} "$AppUserModelID" != ""
-        ApplicationID::Set "$SMPROGRAMS\${BrandFullName}.lnk" "$AppUserModelID"
+        ApplicationID::Set "$SMPROGRAMS\${BrandFullName}.lnk" "${AppUserModelID}"
       ${EndIf}
     ${Else}
       SetShellVarContext current  ; Set $SMPROGRAMS to the current user's Start
@@ -232,8 +225,7 @@
           ShellLink::SetShortCutWorkingDirectory "$SMPROGRAMS\${BrandFullName}.lnk" \
                                                  "$INSTDIR"
           ${If} ${AtLeastWin7}
-          ${AndIf} "$AppUserModelID" != ""
-            ApplicationID::Set "$SMPROGRAMS\${BrandFullName}.lnk" "$AppUserModelID"
+            ApplicationID::Set "$SMPROGRAMS\${BrandFullName}.lnk" "${AppUserModelID}"
           ${EndIf}
         ${EndIf}
       ${EndUnless}
@@ -297,7 +289,7 @@
 
   ; An empty string is used for the 5th param because FirefoxHTML is not a
   ; protocol handler
-  ${AddDDEHandlerValues} "FirefoxHTML" "$2" "$8,1" "${AppRegName} HTML Document" "" \
+  ${AddDDEHandlerValues} "FirefoxHTML" "$2" "$8,1" "${AppRegName} Document" "" \
                          "${DDEApplication}" "$3" "WWW_OpenURL"
 
   ${AddDDEHandlerValues} "FirefoxURL" "$2" "$8,1" "${AppRegName} URL" "true" \
@@ -517,7 +509,7 @@
   ${If} "$R9" == "true"
     ; An empty string is used for the 5th param because FirefoxHTML is not a
     ; protocol handler.
-    ${AddDDEHandlerValues} "FirefoxHTML" "$2" "$8,1" "${AppRegName} HTML Document" "" \
+    ${AddDDEHandlerValues} "FirefoxHTML" "$2" "$8,1" "${AppRegName} Document" "" \
                            "${DDEApplication}" "$3" "WWW_OpenURL"
   ${EndIf}
 
@@ -701,38 +693,8 @@
   ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0026-ABCDEFFEDCBA}"
     RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0026-ABCDEFFEDCBA}"
   ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0027-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0027-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0028-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0028-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0029-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0029-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0030-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0030-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0031-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0031-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0032-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0016-0000-0032-ABCDEFFEDCBA}"
-  ${EndIf}
   ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0000-ABCDEFFEDCBA}"
     RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0000-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0001-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0001-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0002-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0002-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0003-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0003-ABCDEFFEDCBA}"
-  ${EndIf}
-  ${If} ${FileExists} "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0004-ABCDEFFEDCBA}"
-    RmDir /r /REBOOTOK "$INSTDIR\extensions\{CAFEEFAC-0017-0000-0004-ABCDEFFEDCBA}"
   ${EndIf}
 !macroend
 !define RemoveDeprecatedFiles "!insertmacro RemoveDeprecatedFiles"
@@ -791,9 +753,7 @@
               ${If} ${FileExists} "$SMPROGRAMS\$1"
                 ShellLink::SetShortCutWorkingDirectory "$SMPROGRAMS\$1" \
                                                        "$INSTDIR"
-                ${If} "$AppUserModelID" != ""
-                  ApplicationID::Set "$SMPROGRAMS\$1" "$AppUserModelID"
-                ${EndIf}
+                ApplicationID::Set "$SMPROGRAMS\$1" "${AppUserModelID}"
               ${EndIf}
             ${EndUnless}
           ${EndUnless}
@@ -875,9 +835,8 @@
                   ShellLink::SetShortCutWorkingDirectory "$SMPROGRAMS\${BrandFullName}.lnk" \
                                                          "$INSTDIR"
                   ${If} ${AtLeastWin7}
-                  ${AndIf} "$AppUserModelID" != ""
                     ApplicationID::Set "$SMPROGRAMS\${BrandFullName}.lnk" \
-                                       "$AppUserModelID"
+                                       "${AppUserModelID}"
                   ${EndIf}
                 ${EndIf}
               ${EndIf}
@@ -983,6 +942,7 @@
 !macroend
 !define PushFilesToCheck "!insertmacro PushFilesToCheck"
 
+
 ; Sets this installation as the default browser by setting the registry keys
 ; under HKEY_CURRENT_USER via registry calls and using the AppAssocReg NSIS
 ; plugin for Vista and above. This is a function instead of a macro so it is
@@ -1026,10 +986,7 @@ FunctionEnd
 
 ; Helper for updating the shortcut application model IDs.
 Function FixShortcutAppModelIDs
-  ${If} ${AtLeastWin7}
-  ${AndIf} "$AppUserModelID" != ""
-    ${UpdateShortcutAppModelIDs} "$INSTDIR\${FileMainEXE}" "$AppUserModelID" $0
-  ${EndIf}
+  ${UpdateShortcutAppModelIDs} "$INSTDIR\${FileMainEXE}" "${AppUserModelID}" $0
 FunctionEnd
 
 ; The !ifdef NO_LOG prevents warnings when compiling the installer.nsi due to

@@ -44,10 +44,10 @@
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jsprvtd.h"
+#include "jshashtable.h"
 #include "jslock.h"
 #include "jscell.h"
 
-#include "js/HashTable.h"
 #include "vm/Unicode.h"
 
 namespace js {
@@ -204,7 +204,7 @@ CompareStrings(JSContext *cx, JSString *str1, JSString *str2, int32 *result);
 extern bool
 StringEqualsAscii(JSLinearString *str, const char *asciiBytes);
 
-} /* namespace js */
+} /* namespacejs */
 
 extern size_t
 js_strlen(const jschar *s);
@@ -275,17 +275,16 @@ DeflateStringToUTF8Buffer(JSContext *cx, const jschar *chars,
                           size_t charsLength, char *bytes, size_t *length,
                           FlationCoding fc = NormalEncoding);
 
+} /* namespace js */
+
 /*
  * The String.prototype.replace fast-native entry point is exported for joined
  * function optimization in js{interp,tracer}.cpp.
  */
+namespace js {
 extern JSBool
 str_replace(JSContext *cx, uintN argc, js::Value *vp);
-
-extern JSBool
-str_fromCharCode(JSContext *cx, uintN argc, Value *vp);
-
-} /* namespace js */
+}
 
 extern JSBool
 js_str_toString(JSContext *cx, uintN argc, js::Value *vp);
@@ -337,15 +336,6 @@ FileEscapedString(FILE *fp, JSLinearString *str, uint32 quote)
 {
     return PutEscapedStringImpl(NULL, 0, fp, str, quote) != size_t(-1);
 }
-
-JSBool
-str_match(JSContext *cx, uintN argc, Value *vp);
-
-JSBool
-str_search(JSContext *cx, uintN argc, Value *vp);
-
-JSBool
-str_split(JSContext *cx, uintN argc, Value *vp);
 
 } /* namespace js */
 

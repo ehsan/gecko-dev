@@ -59,7 +59,7 @@ public:
         if (aIndex < Length()) {
             RemoveElementAt(aIndex);
         }
-        return true;
+        return PR_TRUE;
     }
     PRUint32 ValueAt(PRUint32 aIndex) const
     {
@@ -141,7 +141,7 @@ public:
     static inline bool isHTMLElementInHTMLDocument(const txXPathNode& aNode)
     {
       if (!aNode.isContent()) {
-        return false;
+        return PR_FALSE;
       }
       nsIContent* content = aNode.Content();
       return content->IsHTML() && content->IsInHTMLDocument();

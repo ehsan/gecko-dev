@@ -86,7 +86,7 @@ nsresult NS_NewXHTMLContentSerializer(nsIContentSerializer** aSerializer)
 }
 
 nsXHTMLContentSerializer::nsXHTMLContentSerializer()
-  : mIsHTMLSerializer(false)
+  : mIsHTMLSerializer(PR_FALSE)
 {
 }
 
@@ -114,11 +114,11 @@ nsXHTMLContentSerializer::Init(PRUint32 aFlags, PRUint32 aWrapColumn,
 
   mRewriteEncodingDeclaration = aRewriteEncodingDeclaration;
   mIsCopying = aIsCopying;
-  mIsFirstChildOfOL = false;
+  mIsFirstChildOfOL = PR_FALSE;
   mInBody = 0;
   mDisableEntityEncoding = 0;
-  mBodyOnly = (mFlags & nsIDocumentEncoder::OutputBodyOnly) ? true
-                                                            : false;
+  mBodyOnly = (mFlags & nsIDocumentEncoder::OutputBodyOnly) ? PR_TRUE
+                                                            : PR_FALSE;
 
   // set up entity converter if we are going to need it
   if (mFlags & nsIDocumentEncoder::OutputEncodeW3CEntities) {
@@ -147,7 +147,7 @@ nsXHTMLContentSerializer::HasLongLines(const nsString& text, PRInt32& aLastNewli
       aLastNewlineOffset = eol;
     }
     if (PRInt32(eol - start) > kLongLineLen)
-      rv = true;
+      rv = PR_TRUE;
     start = eol + 1;
   }
   return rv;
@@ -164,7 +164,7 @@ nsXHTMLContentSerializer::AppendText(nsIContent* aText,
   nsAutoString data;
   nsresult rv;
 
-  rv = AppendTextData(aText, aStartOffset, aEndOffset, data, true);
+  rv = AppendTextData(aText, aStartOffset, aEndOffset, data, PR_TRUE);
   if (NS_FAILED(rv))
     return NS_ERROR_FAILURE;
 
@@ -181,9 +181,9 @@ nsXHTMLContentSerializer::AppendText(nsIContent* aText,
     PRInt32 lastNewlineOffset = kNotFound;
     if (HasLongLines(data, lastNewlineOffset)) {
       // We have long lines, rewrap
-      mDoWrap = true;
+      mDoWrap = PR_TRUE;
       AppendToStringWrapped(data, aStr);
-      mDoWrap = false;
+      mDoWrap = PR_FALSE;
     }
     else {
       AppendToStringConvertLF(data, aStr);
@@ -299,7 +299,7 @@ nsXHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
         else
           startAttrVal = 0;
       }
-      olState state (startAttrVal, true);
+      olState state (startAttrVal, PR_TRUE);
       mOLStateStack.AppendElement(state);
     }
     else if (aTagName == nsGkAtoms::li) {
@@ -316,10 +316,10 @@ nsXHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
   if (aAddNSAttr) {
     if (aTagPrefix.IsEmpty()) {
       // Serialize default namespace decl
-      SerializeAttr(EmptyString(), xmlnsStr, aTagNamespaceURI, aStr, true);
+      SerializeAttr(EmptyString(), xmlnsStr, aTagNamespaceURI, aStr, PR_TRUE);
     } else {
       // Serialize namespace decl
-      SerializeAttr(xmlnsStr, aTagPrefix, aTagNamespaceURI, aStr, true);
+      SerializeAttr(xmlnsStr, aTagPrefix, aTagNamespaceURI, aStr, PR_TRUE);
     }
     PushNameSpaceDecl(aTagPrefix, aTagNamespaceURI, aOriginalElement);
   }
@@ -359,7 +359,7 @@ nsXHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
     bool addNSAttr = false;
     if (kNameSpaceID_XMLNS != namespaceID) {
       nsContentUtils::NameSpaceManager()->GetNameSpaceURI(namespaceID, uriStr);
-      addNSAttr = ConfirmPrefix(prefixStr, uriStr, aOriginalElement, true);
+      addNSAttr = ConfirmPrefix(prefixStr, uriStr, aOriginalElement, PR_TRUE);
     }
 
     aContent->GetAttr(namespaceID, attrName, valueStr);
@@ -435,7 +435,7 @@ nsXHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
     if (addNSAttr) {
       NS_ASSERTION(!prefixStr.IsEmpty(),
                    "Namespaced attributes must have a prefix");
-      SerializeAttr(xmlnsStr, prefixStr, uriStr, aStr, true);
+      SerializeAttr(xmlnsStr, prefixStr, uriStr, aStr, PR_TRUE);
       PushNameSpaceDecl(prefixStr, uriStr, aOriginalElement);
     }
   }
@@ -507,7 +507,7 @@ nsXHTMLContentSerializer::AfterElementStart(nsIContent * aContent,
         child->GetAttr(kNameSpaceID_None, nsGkAtoms::httpEquiv, header);
 
         if (header.LowerCaseEqualsLiteral("content-type")) {
-          hasMeta = true;
+          hasMeta = PR_TRUE;
           break;
         }
       }
@@ -575,14 +575,14 @@ nsXHTMLContentSerializer::CheckElementStart(nsIContent * aContent,
     if (name == nsGkAtoms::br && mPreLevel > 0 && 
         (mFlags & nsIDocumentEncoder::OutputNoFormattingInPre)) {
       AppendNewLineToString(aStr);
-      return false;
+      return PR_FALSE;
     }
 
     if (name == nsGkAtoms::body) {
       ++mInBody;
     }
   }
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -622,14 +622,14 @@ nsXHTMLContentSerializer::CheckElementEnd(nsIContent * aContent,
         if (!isContainer) {
           // non-container HTML elements are already closed,
           // see AppendEndOfElementStart
-          return false;
+          return PR_FALSE;
         }
       }
     }
     // for backward compatibility with old HTML user agents,
     // empty elements should have an ending tag, so we mustn't call
     // nsXMLContentSerializer::CheckElementEnd
-    return true;
+    return PR_TRUE;
   }
 
   bool dummyFormat;
@@ -659,7 +659,7 @@ nsXHTMLContentSerializer::IsShorthandAttr(const nsIAtom* aAttrName,
   // checked
   if ((aAttrName == nsGkAtoms::checked) &&
       (aElementName == nsGkAtoms::input)) {
-    return true;
+    return PR_TRUE;
   }
 
   // compact
@@ -669,19 +669,19 @@ nsXHTMLContentSerializer::IsShorthandAttr(const nsIAtom* aAttrName,
        aElementName == nsGkAtoms::menu ||
        aElementName == nsGkAtoms::ol ||
        aElementName == nsGkAtoms::ul)) {
-    return true;
+    return PR_TRUE;
   }
 
   // declare
   if ((aAttrName == nsGkAtoms::declare) &&
       (aElementName == nsGkAtoms::object)) {
-    return true;
+    return PR_TRUE;
   }
 
   // defer
   if ((aAttrName == nsGkAtoms::defer) &&
       (aElementName == nsGkAtoms::script)) {
-    return true;
+    return PR_TRUE;
   }
 
   // disabled
@@ -692,64 +692,64 @@ nsXHTMLContentSerializer::IsShorthandAttr(const nsIAtom* aAttrName,
        aElementName == nsGkAtoms::option ||
        aElementName == nsGkAtoms::select ||
        aElementName == nsGkAtoms::textarea)) {
-    return true;
+    return PR_TRUE;
   }
 
   // ismap
   if ((aAttrName == nsGkAtoms::ismap) &&
       (aElementName == nsGkAtoms::img ||
        aElementName == nsGkAtoms::input)) {
-    return true;
+    return PR_TRUE;
   }
 
   // multiple
   if ((aAttrName == nsGkAtoms::multiple) &&
       (aElementName == nsGkAtoms::select)) {
-    return true;
+    return PR_TRUE;
   }
 
   // noresize
   if ((aAttrName == nsGkAtoms::noresize) &&
       (aElementName == nsGkAtoms::frame)) {
-    return true;
+    return PR_TRUE;
   }
 
   // noshade
   if ((aAttrName == nsGkAtoms::noshade) &&
       (aElementName == nsGkAtoms::hr)) {
-    return true;
+    return PR_TRUE;
   }
 
   // nowrap
   if ((aAttrName == nsGkAtoms::nowrap) &&
       (aElementName == nsGkAtoms::td ||
        aElementName == nsGkAtoms::th)) {
-    return true;
+    return PR_TRUE;
   }
 
   // readonly
   if ((aAttrName == nsGkAtoms::readonly) &&
       (aElementName == nsGkAtoms::input ||
        aElementName == nsGkAtoms::textarea)) {
-    return true;
+    return PR_TRUE;
   }
 
   // selected
   if ((aAttrName == nsGkAtoms::selected) &&
       (aElementName == nsGkAtoms::option)) {
-    return true;
+    return PR_TRUE;
   }
 
 #ifdef MOZ_MEDIA
   // autoplay and controls
   if ((aElementName == nsGkAtoms::video || aElementName == nsGkAtoms::audio) &&
-    (aAttrName == nsGkAtoms::autoplay || aAttrName == nsGkAtoms::muted ||
+    (aAttrName == nsGkAtoms::autoplay ||
      aAttrName == nsGkAtoms::controls)) {
-    return true;
+    return PR_TRUE;
   }
 #endif
 
-  return false;
+  return PR_FALSE;
 }
 
 bool
@@ -768,7 +768,7 @@ nsXHTMLContentSerializer::LineBreakBeforeOpen(PRInt32 aNamespaceID, nsIAtom* aNa
       aName == nsGkAtoms::option ||
       aName == nsGkAtoms::script ||
       aName == nsGkAtoms::html) {
-    return true;
+    return PR_TRUE;
   }
   else {
     nsIParserService* parserService = nsContentUtils::GetParserService();
@@ -789,7 +789,7 @@ nsXHTMLContentSerializer::LineBreakAfterOpen(PRInt32 aNamespaceID, nsIAtom* aNam
 {
 
   if (aNamespaceID != kNameSpaceID_XHTML) {
-    return false;
+    return PR_FALSE;
   }
 
   if ((aName == nsGkAtoms::html) ||
@@ -809,10 +809,10 @@ nsXHTMLContentSerializer::LineBreakAfterOpen(PRInt32 aNamespaceID, nsIAtom* aNam
       (aName == nsGkAtoms::map) ||
       (aName == nsGkAtoms::area) ||
       (aName == nsGkAtoms::style)) {
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 bool 
@@ -820,7 +820,7 @@ nsXHTMLContentSerializer::LineBreakBeforeClose(PRInt32 aNamespaceID, nsIAtom* aN
 {
 
   if (aNamespaceID != kNameSpaceID_XHTML) {
-    return false;
+    return PR_FALSE;
   }
 
   if ((aName == nsGkAtoms::html) ||
@@ -832,9 +832,9 @@ nsXHTMLContentSerializer::LineBreakBeforeClose(PRInt32 aNamespaceID, nsIAtom* aN
       (aName == nsGkAtoms::select) ||
       (aName == nsGkAtoms::table) ||
       (aName == nsGkAtoms::tbody)) {
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 bool 
@@ -842,7 +842,7 @@ nsXHTMLContentSerializer::LineBreakAfterClose(PRInt32 aNamespaceID, nsIAtom* aNa
 {
 
   if (aNamespaceID != kNameSpaceID_XHTML) {
-    return false;
+    return PR_FALSE;
   }
 
   if ((aName == nsGkAtoms::html) ||
@@ -862,7 +862,7 @@ nsXHTMLContentSerializer::LineBreakAfterClose(PRInt32 aNamespaceID, nsIAtom* aNa
       (aName == nsGkAtoms::p) ||
       (aName == nsGkAtoms::map) ||
       (aName == nsGkAtoms::div)) {
-    return true;
+    return PR_TRUE;
   }
   else {
     nsIParserService* parserService = nsContentUtils::GetParserService();
@@ -875,7 +875,7 @@ nsXHTMLContentSerializer::LineBreakAfterClose(PRInt32 aNamespaceID, nsIAtom* aNa
     }
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 
@@ -928,13 +928,13 @@ nsXHTMLContentSerializer::SerializeLIValueAttribute(nsIContent* aElement,
   nsCOMPtr<nsIDOMNode> currNode = do_QueryInterface(aElement);
   nsAutoString valueStr;
 
-  olState state (0, false);
+  olState state (0, PR_FALSE);
 
   if (!mOLStateStack.IsEmpty()) {
     state = mOLStateStack[mOLStateStack.Length()-1];
     // isFirstListItem should be true only before the serialization of the
     // first item in the list.
-    state.isFirstListItem = false;
+    state.isFirstListItem = PR_FALSE;
     mOLStateStack[mOLStateStack.Length()-1] = state;
   }
 
@@ -954,7 +954,7 @@ nsXHTMLContentSerializer::SerializeLIValueAttribute(nsIContent* aElement,
         if (valueStr.IsEmpty())
           offset++;
         else {
-          found = true;
+          found = PR_TRUE;
           PRInt32 rv = 0;
           startVal = valueStr.ToInteger(&rv);
         }
@@ -969,7 +969,7 @@ nsXHTMLContentSerializer::SerializeLIValueAttribute(nsIContent* aElement,
   if (offset == 0 && found) {
     // offset = 0 => LI itself has the value attribute and we did not need to traverse back.
     // Just serialize value attribute like other tags.
-    SerializeAttr(EmptyString(), NS_LITERAL_STRING("value"), valueStr, aStr, false);
+    SerializeAttr(EmptyString(), NS_LITERAL_STRING("value"), valueStr, aStr, PR_FALSE);
   }
   else if (offset == 1 && !found) {
     /*(offset = 1 && !found) means either LI is the first child node of OL
@@ -984,7 +984,7 @@ nsXHTMLContentSerializer::SerializeLIValueAttribute(nsIContent* aElement,
 
     //As serializer needs to use this valueAttr we are creating here, 
     valueStr.AppendInt(startVal + offset);
-    SerializeAttr(EmptyString(), NS_LITERAL_STRING("value"), valueStr, aStr, false);
+    SerializeAttr(EmptyString(), NS_LITERAL_STRING("value"), valueStr, aStr, PR_FALSE);
   }
 }
 
@@ -999,20 +999,20 @@ nsXHTMLContentSerializer::IsFirstChildOfOL(nsIContent* aElement)
   if (parentNode)
     parentNode->GetNodeName(parentName);
   else
-    return false;
+    return PR_FALSE;
 
   if (parentName.LowerCaseEqualsLiteral("ol")) {
 
     if (!mOLStateStack.IsEmpty()) {
       olState state = mOLStateStack[mOLStateStack.Length()-1];
       if (state.isFirstListItem)
-        return true;
+        return PR_TRUE;
     }
 
-    return false;
+    return PR_FALSE;
   }
   else
-    return false;
+    return PR_FALSE;
 }
 
 bool
@@ -1023,11 +1023,11 @@ nsXHTMLContentSerializer::HasNoChildren(nsIContent * aContent) {
        child = child->GetNextSibling()) {
        
     if (!child->IsNodeOfType(nsINode::eTEXT))
-      return false;
+      return PR_FALSE;
 
     if (child->TextLength())
-      return false;
+      return PR_FALSE;
   }
 
-  return true;
+  return PR_TRUE;
 }

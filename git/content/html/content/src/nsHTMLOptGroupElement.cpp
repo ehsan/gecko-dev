@@ -135,7 +135,7 @@ NS_IMPL_STRING_ATTR(nsHTMLOptGroupElement, Label, label)
 nsresult
 nsHTMLOptGroupElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
-  aVisitor.mCanHandle = false;
+  aVisitor.mCanHandle = PR_FALSE;
   // Do not process any DOM events if the element is disabled
   // XXXsmaug This is not the right thing to do. But what is?
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {

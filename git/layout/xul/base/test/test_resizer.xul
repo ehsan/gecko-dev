@@ -16,7 +16,6 @@ XUL <resizer> tests
   <!-- test code goes here -->
   <script type="application/javascript"><![CDATA[
     SimpleTest.waitForExplicitFinish();
-    SimpleTest.ignoreAllUncaughtExceptions();
 
     function openPopup()
     {

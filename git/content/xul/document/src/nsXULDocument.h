@@ -260,6 +260,11 @@ protected:
 
     already_AddRefed<nsPIWindowRoot> GetWindowRoot();
 
+    PRInt32 GetDefaultNamespaceID() const
+    {
+        return kNameSpaceID_XUL;
+    }
+
     static NS_HIDDEN_(int) DirectionChanged(const char* aPrefName, void* aData);
 
     // pseudo constants
@@ -357,6 +362,8 @@ protected:
         nsresult Peek(nsXULPrototypeElement** aPrototype, nsIContent** aElement, PRInt32* aIndex);
 
         nsresult SetTopIndex(PRInt32 aIndex);
+
+        bool IsInsideXULTemplate();
     };
 
     friend class ContextStack;
@@ -389,7 +396,7 @@ protected:
      * Execute the precompiled script object scoped by this XUL document's
      * containing window object, and using its associated script context.
      */
-    nsresult ExecuteScript(nsIScriptContext *aContext, JSScript* aScriptObject);
+    nsresult ExecuteScript(nsIScriptContext *aContext, void* aScriptObject);
 
     /**
      * Helper method for the above that uses aScript to find the appropriate
@@ -486,7 +493,7 @@ protected:
                           mozilla::dom::Element* aObservesElement)
             : mDocument(aDocument),
               mObservesElement(aObservesElement),
-              mResolved(false)
+              mResolved(PR_FALSE)
         {
         }
 
@@ -513,7 +520,7 @@ protected:
 
     public:
         OverlayForwardReference(nsXULDocument* aDocument, nsIContent* aOverlay)
-            : mDocument(aDocument), mOverlay(aOverlay), mResolved(false) {}
+            : mDocument(aDocument), mOverlay(aOverlay), mResolved(PR_FALSE) {}
 
         virtual ~OverlayForwardReference();
 
@@ -700,7 +707,7 @@ protected:
                                nsIDOMElement* aListener,
                                const nsAString &aAttr)
       : mBroadcaster(aBroadcaster), mListener(aListener), mAttr(aAttr),
-        mSetAttr(false), mNeedsAttrChange(false) {}
+        mSetAttr(PR_FALSE), mNeedsAttrChange(PR_FALSE) {}
 
       nsDelayedBroadcastUpdate(nsIDOMElement* aBroadcaster,
                                nsIDOMElement* aListener,

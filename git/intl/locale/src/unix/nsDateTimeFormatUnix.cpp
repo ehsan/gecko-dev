@@ -145,19 +145,19 @@ void nsDateTimeFormatUnix::LocalePreferred24hour()
 
   (void) setlocale(LC_TIME, temp);
 
-  mLocalePreferred24hour = false;
+  mLocalePreferred24hour = PR_FALSE;
   for (i=0; str[i]; i++) {
     if (str[i] == '2') {    // if there is any '2', that locale use 0-23 time format
-        mLocalePreferred24hour = true;
+        mLocalePreferred24hour = PR_TRUE;
         break;
     }
   }
 
-  mLocaleAMPMfirst = true;
-  if (mLocalePreferred24hour == false) {
+  mLocaleAMPMfirst = PR_TRUE;
+  if (mLocalePreferred24hour == PR_FALSE) {
     if (str[0] && str[0] == '1') { // if the first character is '1' of 10:00,
 			           // AMPM string is located after 10:00
-      mLocaleAMPMfirst = false;
+      mLocaleAMPMfirst = PR_FALSE;
     }
   }
 }

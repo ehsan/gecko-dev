@@ -154,7 +154,7 @@ NS_GetAuthKey(nsIChannel* aChannel, nsIAuthInformation* aAuthInfo,
   nsCString host;
   PRInt32 port = -1;
 
-  NS_GetAuthHostPort(aChannel, aAuthInfo, true, host, &port);
+  NS_GetAuthHostPort(aChannel, aAuthInfo, PR_TRUE, host, &port);
 
   nsAutoString realm;
   aAuthInfo->GetRealm(realm);

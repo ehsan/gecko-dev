@@ -46,10 +46,11 @@ class nsIWidget;
 struct nsRect;
 class nsRegion;
 class nsDeviceContext;
+class nsIViewObserver;
 
 #define NS_IVIEWMANAGER_IID \
-{ 0x1262a33f, 0xc19f, 0x4e5b, \
-  { 0x85, 0x00, 0xab, 0xf3, 0x7d, 0xcf, 0x30, 0x1d } }
+{ 0x144ef328, 0xbece, 0x43d6, \
+  { 0xac, 0xac, 0x1a, 0x90, 0x4b, 0x5c, 0xc1, 0x11 } }
 
 class nsIViewManager : public nsISupports
 {
@@ -58,7 +59,7 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IVIEWMANAGER_IID)
   /**
    * Initialize the ViewManager
-   * Note: this instance does not hold a reference to the presshell
+   * Note: this instance does not hold a reference to the viewobserver
    * because it holds a reference to this instance.
    * @result The result of the initialization, NS_OK if no errors
    */
@@ -167,11 +168,11 @@ public:
    * Given a parent view, insert another view as its child.
    * aSibling and aAbove control the "document order" for the insertion.
    * If aSibling is null, the view is inserted at the end of the document order
-   * if aAfter is true, otherwise it is inserted at the beginning.
-   * If aSibling is non-null, then if aAfter is true, the view is inserted
+   * if aAfter is PR_TRUE, otherwise it is inserted at the beginning.
+   * If aSibling is non-null, then if aAfter is PR_TRUE, the view is inserted
    * after the sibling in document order (appearing above the sibling unless
    * overriden by z-order).
-   * If it is false, the view is inserted before the sibling.
+   * If it is PR_FALSE, the view is inserted before the sibling.
    * The view manager generates the appopriate dirty regions.
    * @param aParent parent view
    * @param aChild child view
@@ -210,8 +211,8 @@ public:
    * @param aView view to move
    * @param the new bounds relative to the current position
    * @param RepaintExposedAreaOnly
-   *     if true Repaint only the expanded or contracted region,
-   *     if false Repaint the union of the old and new rectangles.
+   *     if PR_TRUE Repaint only the expanded or contracted region,
+   *     if PR_FALSE Repaint the union of the old and new rectangles.
    */
   NS_IMETHOD  ResizeView(nsIView *aView, const nsRect &aRect,
                          bool aRepaintExposedAreaOnly = false) = 0;
@@ -242,7 +243,7 @@ public:
    * @param aZindex explicit z depth
    * @param aTopMost used when this view is z-index:auto to compare against 
    *        other z-index:auto views.
-   *        true if the view should be topmost when compared with 
+   *        PR_TRUE if the view should be topmost when compared with 
    *        other z-index:auto views.
    */
   NS_IMETHOD  SetViewZIndex(nsIView *aView, bool aAutoZIndex, PRInt32 aZindex, bool aTopMost = false) = 0;
@@ -257,15 +258,15 @@ public:
   NS_IMETHOD  SetViewFloating(nsIView *aView, bool aFloatingView) = 0;
 
   /**
-   * Set the presshell associated with this manager
-   * @param aPresShell - new presshell
+   * Set the view observer associated with this manager
+   * @param aObserver - new observer
    */
-  virtual void SetPresShell(nsIPresShell *aPresShell) = 0;
+  virtual void SetViewObserver(nsIViewObserver *aObserver) = 0;
 
   /**
-   * Get the pres shell associated with this manager
+   * Get the view observer associated with this manager
    */
-  virtual nsIPresShell* GetPresShell() = 0;
+  virtual nsIViewObserver* GetViewObserver() = 0;
 
   /**
    * Get the device context associated with this manager
@@ -364,8 +365,8 @@ public:
   /**
    * Indicate whether the viewmanager is currently painting
    *
-   * @param aPainting true if the viewmanager is painting
-   *                  false otherwise
+   * @param aPainting PR_TRUE if the viewmanager is painting
+   *                  PR_FALSE otherwise
    */
   NS_IMETHOD IsPainting(bool& aIsPainting)=0;
 
@@ -403,5 +404,8 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIViewManager, NS_IVIEWMANAGER_IID)
 // most immediate: force a call to nsViewManager::Composite, which
 // synchronously updates the window(s) right away before returning
 #define NS_VMREFRESH_IMMEDIATE          0x0002
+
+//animate scroll operation
+#define NS_VMREFRESH_SMOOTHSCROLL       0x0008
 
 #endif  // nsIViewManager_h___

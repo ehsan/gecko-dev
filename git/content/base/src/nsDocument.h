@@ -88,7 +88,7 @@
 #include "nsAttrAndChildArray.h"
 #include "nsDOMAttributeMap.h"
 #include "nsThreadUtils.h"
-#include "nsIContentViewer.h"
+#include "nsIDocumentViewer.h"
 #include "nsIDOMXPathNSResolver.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsILoadContext.h"
@@ -172,12 +172,6 @@ public:
    */
   Element* GetIdElement();
   /**
-   * Returns the list of all elements associated with this id.
-   */
-  const nsSmallVoidArray* GetIdElements() const {
-    return &mIdContentList;
-  }
-  /**
    * If this entry has a non-null image element set (using SetImageElement),
    * the image element will be returned, otherwise the same as GetIdElement().
    */
@@ -198,7 +192,7 @@ public:
   void RemoveIdElement(Element* aElement);
   /**
    * Set the image element override for this ID. This will be returned by
-   * GetIdElement(true) if non-null.
+   * GetIdElement(PR_TRUE) if non-null.
    */
   void SetImageElement(Element* aElement);
 
@@ -241,7 +235,7 @@ public:
       return (NS_PTR_TO_INT32(aKey->mCallback) >> 2) ^
              (NS_PTR_TO_INT32(aKey->mData));
     }
-    enum { ALLOW_MEMMOVE = true };
+    enum { ALLOW_MEMMOVE = PR_TRUE };
     
     ChangeCallback mKey;
   };
@@ -250,7 +244,7 @@ private:
   void FireChangeCallbacks(Element* aOldElement, Element* aNewElement,
                            bool aImageOnly = false);
 
-  // empty if there are no elements with this ID.
+  // empty if there are no elementswith this ID.
   // The elements are stored as weak pointers.
   nsSmallVoidArray mIdContentList;
   nsRefPtr<nsBaseContentList> mNameContentList;
@@ -364,7 +358,7 @@ public:
   {
     mPendingLoads.Clear();
     mMap.Clear();
-    mHaveShutDown = true;
+    mHaveShutDown = PR_TRUE;
   }
 
   bool HaveShutDown() const
@@ -407,10 +401,10 @@ protected:
     nsresult StartLoad(nsIURI* aURI, nsINode* aRequestingNode);
 
     /**
-     * Set up an nsIContentViewer based on aRequest.  This is guaranteed to
+     * Set up an nsIDocumentViewer based on aRequest.  This is guaranteed to
      * put null in *aViewer and *aLoadGroup on all failures.
      */
-    nsresult SetupViewer(nsIRequest* aRequest, nsIContentViewer** aViewer,
+    nsresult SetupViewer(nsIRequest* aRequest, nsIDocumentViewer** aViewer,
                          nsILoadGroup** aLoadGroup);
 
   private:
@@ -473,7 +467,7 @@ protected:
    * function makes sure to remove the pending load for aURI, if any, from our
    * hashtable, and to notify its observers, if any.
    */
-  nsresult AddExternalResource(nsIURI* aURI, nsIContentViewer* aViewer,
+  nsresult AddExternalResource(nsIURI* aURI, nsIDocumentViewer* aViewer,
                                nsILoadGroup* aLoadGroup,
                                nsIDocument* aDisplayDocument);
   
@@ -594,10 +588,10 @@ public:
                                nsIPresShell** aInstancePtrResult);
   virtual void DeleteShell();
 
-  virtual nsresult SetSubDocumentFor(Element* aContent,
+  virtual nsresult SetSubDocumentFor(nsIContent *aContent,
                                      nsIDocument* aSubDoc);
-  virtual nsIDocument* GetSubDocumentFor(nsIContent* aContent) const;
-  virtual Element* FindContentForSubDocument(nsIDocument *aDocument) const;
+  virtual nsIDocument* GetSubDocumentFor(nsIContent *aContent) const;
+  virtual nsIContent* FindContentForSubDocument(nsIDocument *aDocument) const;
   virtual Element* GetRootElementInternal() const;
 
   /**
@@ -804,6 +798,7 @@ public:
 
   virtual nsresult CreateElem(const nsAString& aName, nsIAtom *aPrefix,
                               PRInt32 aNamespaceID,
+                              bool aDocumentDefaultType,
                               nsIContent **aResult);
 
   nsresult CreateElement(const nsAString& aTagName,
@@ -865,9 +860,11 @@ public:
 
   nsTArray<nsCString> mFileDataUris;
 
+#ifdef MOZ_SMIL
   // Returns our (lazily-initialized) animation controller.
   // If HasAnimationController is true, this is guaranteed to return non-null.
   nsSMILAnimationController* GetAnimationController();
+#endif // MOZ_SMIL
 
   void SetImagesNeedAnimating(bool aAnimating);
 
@@ -891,10 +888,6 @@ public:
   }
 
   void SetLoadedAsData(bool aLoadedAsData) { mLoadedAsData = aLoadedAsData; }
-  void SetLoadedAsInteractiveData(bool aLoadedAsInteractiveData)
-  {
-    mLoadedAsInteractiveData = aLoadedAsInteractiveData;
-  }
 
   nsresult CloneDocHelper(nsDocument* clone) const;
 
@@ -934,7 +927,6 @@ public:
                            const nsAString& aLocalName);
 
   virtual Element *GetElementById(const nsAString& aElementId);
-  virtual const nsSmallVoidArray* GetAllElementsForId(const nsAString& aElementId) const;
 
   virtual Element *LookupImageElement(const nsAString& aElementId);
 
@@ -949,58 +941,28 @@ public:
 
   virtual Element* FindImageMap(const nsAString& aNormalizedMapName);
 
-  virtual void NotifyAudioAvailableListener();
-
-  bool HasAudioAvailableListeners()
-  {
-    return mHasAudioAvailableListener;
-  }
-
+  virtual void ResetFullScreenElement();
   virtual Element* GetFullScreenElement();
-  virtual void AsyncRequestFullScreen(Element* aElement);
+  virtual void RequestFullScreen(Element* aElement);
   virtual void CancelFullScreen();
+  virtual void UpdateFullScreenStatus(bool aIsFullScreen);
   virtual bool IsFullScreenDoc();
-
-  // This is called asynchronously by nsIDocument::AsyncRequestFullScreen()
-  // to move document into full-screen mode if allowed. aWasCallerChrome
-  // should be true when nsIDocument::AsyncRequestFullScreen() was called
-  // by chrome code.
-  void RequestFullScreen(Element* aElement, bool aWasCallerChrome);
-
-  // Returns true if making this change results in a change in the full-screen
-  // state of this document.
-  bool SetFullScreenState(Element* aElement, bool aIsFullScreen);
- 
-  // This method may fire a DOM event; if it does so it will happen
-  // synchronously.
-  void UpdateVisibilityState();
-  // Posts an event to call UpdateVisibilityState
-  virtual void PostVisibilityUpdateEvent();
 
 protected:
   friend class nsNodeUtils;
 
-  // Returns true if a request for DOM full-screen is currently enabled in
-  // this document. This returns true if there are no windowed plugins in this
-  // doc tree, and if the document is visible, and if the api is not
-  // disabled by pref. aIsCallerChrome must contain the return value of
-  // nsContentUtils::IsCallerChrome() from the context we're checking.
-  // If aLogFailure is true, an appropriate warning message is logged to the
-  // console, and a "mozfullscreenerror" event is dispatched to this document.
-  bool IsFullScreenEnabled(bool aIsCallerChrome, bool aLogFailure);
-
   /**
    * Check that aId is not empty and log a message to the console
    * service if it is.
-   * @returns true if aId looks correct, false otherwise.
+   * @returns PR_TRUE if aId looks correct, PR_FALSE otherwise.
    */
   inline bool CheckGetElementByIdArg(const nsAString& aId)
   {
     if (aId.IsEmpty()) {
       ReportEmptyGetElementByIdArg();
-      return false;
+      return PR_FALSE;
     }
-    return true;
+    return PR_TRUE;
   }
 
   void ReportEmptyGetElementByIdArg();
@@ -1042,6 +1004,11 @@ protected:
   // Return whether all the presshells for this document are safe to flush
   bool IsSafeToFlush() const;
   
+  virtual PRInt32 GetDefaultNamespaceID() const
+  {
+    return kNameSpaceID_None;
+  }
+
   void DispatchPageTransition(nsIDOMEventTarget* aDispatchTarget,
                               const nsAString& aType,
                               bool aPersisted);
@@ -1099,17 +1066,6 @@ protected:
   // is a weak reference to avoid leaks due to circular references.
   nsWeakPtr mScopeObject;
 
-  // The document which requested (and was granted) full-screen. All ancestors
-  // of this document will also be full-screen.
-  static nsWeakPtr sFullScreenDoc;
-
-  // The root document of the doctree containing the document which requested
-  // full-screen. This root document will also be in full-screen state, as will
-  // all the descendents down to the document which requested full-screen. This
-  // reference allows us to reset full-screen state on all documents when a
-  // document is hidden/navigation occurs.
-  static nsWeakPtr sFullScreenRootDoc;
-
   nsRefPtr<nsEventListenerManager> mListenerManager;
   nsCOMPtr<nsIDOMStyleSheetList> mDOMStyleSheets;
   nsRefPtr<nsDOMStyleSheetSetList> mStyleSheetSetList;
@@ -1164,14 +1120,12 @@ protected:
   // Whether we currently require our images to animate
   bool mAnimatingImages:1;
 
-  // Whether some node in this document has a listener for the
-  // "mozaudioavailable" event.
-  bool mHasAudioAvailableListener:1;
-
   // Whether we are currently in full-screen mode, as per the DOM API.
   bool mIsFullScreen:1;
 
   PRUint8 mXMLDeclarationBits;
+
+  PRUint8 mDefaultElementType;
 
   nsInterfaceHashtable<nsVoidPtrHashKey, nsPIBoxObject> *mBoxObjectTable;
 
@@ -1196,14 +1150,6 @@ protected:
   nsRefPtr<nsDOMNavigationTiming> mTiming;
 private:
   friend class nsUnblockOnloadEvent;
-  // This needs to stay in sync with the list in GetMozVisibilityState.
-  enum VisibilityState {
-    eHidden = 0,
-    eVisible,
-    eVisibilityStateCount
-  };
-  // Recomputes the visibility state but doesn't set the new value.
-  VisibilityState GetVisibilityState() const;
 
   void PostUnblockOnloadEvent();
   void DoUnblockOnload();
@@ -1283,8 +1229,6 @@ private:
 
   // Tracking for images in the document.
   nsDataHashtable< nsPtrHashKey<imgIRequest>, PRUint32> mImageTracker;
-
-  VisibilityState mVisibilityState;
 
 #ifdef DEBUG
 protected:

@@ -37,7 +37,7 @@
 #include "AssemblerBuffer.h"
 #include "jsstdint.h"
 #include "assembler/wtf/Assertions.h"
-#include "js/Vector.h"
+#include "jsvector.h"
 
 #include "methodjit/Logging.h"
 #define IPFX  "        %s"

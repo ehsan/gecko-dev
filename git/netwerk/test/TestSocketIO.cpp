@@ -274,7 +274,7 @@ main(int argc, char* argv[])
     if (nsCRT::strcasecmp(argv[1], "-sync") == 0) {
         if (argc < 4)
             usage(argv);
-        sync = true;
+        sync = PR_TRUE;
         i = 1;
     }
 

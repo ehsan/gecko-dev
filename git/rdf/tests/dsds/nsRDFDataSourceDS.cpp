@@ -143,7 +143,7 @@ NS_IMETHODIMP nsRDFDataSourceDataSource::GetLoaded(bool *aLoaded)
     if (remote) {
         return remote->GetLoaded(aLoaded);
     }
-    *aLoaded = true;
+    *aLoaded = PR_TRUE;
     return NS_OK;
 }
 
@@ -311,7 +311,7 @@ nsRDFDataSourceDataSource::GetTargets(nsIRDFResource *aSource,
 
       // get all the resources on the ends of the arc arcs
       nsCOMPtr<nsISimpleEnumerator> targetEnumerator;
-      rv = mDataSource->GetTargets(aSource, arc, true,
+      rv = mDataSource->GetTargets(aSource, arc, PR_TRUE,
                                    getter_AddRefs(targetEnumerator));
 
       bool hasMoreTargets;

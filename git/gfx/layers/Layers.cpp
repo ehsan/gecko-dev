@@ -218,8 +218,8 @@ TemporaryRef<DrawTarget>
 LayerManager::CreateDrawTarget(const IntSize &aSize,
                                SurfaceFormat aFormat)
 {
-  return gfxPlatform::GetPlatform()->
-    CreateOffscreenDrawTarget(aSize, aFormat);
+  // Right now this doesn't work on the general layer manager.
+  return NULL;
 }
 
 #ifdef DEBUG
@@ -238,7 +238,7 @@ Layer::CanUseOpaqueSurface()
   // If the visible content in the layer is opaque, there is no need
   // for an alpha channel.
   if (GetContentFlags() & CONTENT_OPAQUE)
-    return true;
+    return PR_TRUE;
   // Also, if this layer is the bottommost layer in a container which
   // doesn't need an alpha channel, we can use an opaque surface for this
   // layer too. Any transparent areas must be covered by something else
@@ -410,10 +410,10 @@ ContainerLayer::HasMultipleChildren()
       continue;
     ++count;
     if (count > 1)
-      return true;
+      return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 void
@@ -450,9 +450,9 @@ ContainerLayer::DefaultComputeEffectiveTransforms(const gfx3DMatrix& aTransformT
   bool useIntermediateSurface;
   float opacity = GetEffectiveOpacity();
   if (opacity != 1.0f && HasMultipleChildren()) {
-    useIntermediateSurface = true;
+    useIntermediateSurface = PR_TRUE;
   } else {
-    useIntermediateSurface = false;
+    useIntermediateSurface = PR_FALSE;
     gfxMatrix contTransform;
     if (!mEffectiveTransform.Is2D(&contTransform) ||
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
@@ -467,7 +467,7 @@ ContainerLayer::DefaultComputeEffectiveTransforms(const gfx3DMatrix& aTransformT
          * the calculations performed by CalculateScissorRect above.
          */
         if (clipRect && !clipRect->IsEmpty() && !child->GetVisibleRegion().IsEmpty()) {
-          useIntermediateSurface = true;
+          useIntermediateSurface = PR_TRUE;
           break;
         }
       }
@@ -510,7 +510,7 @@ void
 ContainerLayer::DidInsertChild(Layer* aLayer)
 {
   if (aLayer->GetType() == TYPE_READBACK) {
-    mMayHaveReadbackChild = true;
+    mMayHaveReadbackChild = PR_TRUE;
   }
 }
 

@@ -63,13 +63,13 @@ GetCSSComputedValue(nsIContent* aElem,
     // This can happen if we process certain types of restyles mid-sample
     // and remove anonymous animated content from the document as a result.
     // See bug 534975.
-    return false;
+    return PR_FALSE;
   }
 
   nsIPresShell* shell = doc->GetShell();
   if (!shell) {
     NS_WARNING("Unable to look up computed style -- no pres shell");
-    return false;
+    return PR_FALSE;
   }
 
   nsRefPtr<nsComputedDOMStyle> computedStyle;
@@ -79,9 +79,9 @@ GetCSSComputedValue(nsIContent* aElem,
 
   if (NS_SUCCEEDED(rv)) {
     computedStyle->GetPropertyValue(aPropID, aResult);
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 // Class Methods
@@ -173,7 +173,7 @@ nsSMILCSSProperty::ValueFromString(const nsAString& aStr,
   // culprit), when we have animation setting display:none on a <use> element,
   // if we DON'T set the property every sample, chaos ensues.
   if (!aPreventCachingOfSandwich && mPropID == eCSSProperty_display) {
-    aPreventCachingOfSandwich = true;
+    aPreventCachingOfSandwich = PR_TRUE;
   }
 
   return aValue.IsNull() ? NS_ERROR_FAILURE : NS_OK;
@@ -280,7 +280,7 @@ nsSMILCSSProperty::IsPropertyAnimatable(nsCSSProperty aPropID)
     case eCSSProperty_text_rendering:
     case eCSSProperty_visibility:
     case eCSSProperty_word_spacing:
-      return true;
+      return PR_TRUE;
 
     // EXPLICITLY NON-ANIMATABLE PROPERTIES:
     // (Some of these aren't supported at all in Gecko -- I've commented those
@@ -292,9 +292,9 @@ nsSMILCSSProperty::IsPropertyAnimatable(nsCSSProperty aPropID)
     // case eCSSProperty_writing_mode:
     case eCSSProperty_direction:
     case eCSSProperty_unicode_bidi:
-      return false;
+      return PR_FALSE;
 
     default:
-      return false;
+      return PR_FALSE;
   }
 }

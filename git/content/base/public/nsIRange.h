@@ -58,9 +58,9 @@ public:
     : mRoot(nsnull),
       mStartOffset(0),
       mEndOffset(0),
-      mIsPositioned(false),
-      mIsDetached(false),
-      mMaySpanAnonymousSubtrees(false)
+      mIsPositioned(PR_FALSE),
+      mIsDetached(PR_FALSE),
+      mMaySpanAnonymousSubtrees(PR_FALSE)
   {
   }
 

@@ -185,8 +185,7 @@ protected:
 
     void FireOnLocationChange(nsIWebProgress* aWebProgress,
                               nsIRequest* aRequest,
-                              nsIURI *aUri,
-                              PRUint32 aFlags);
+                              nsIURI *aUri);
 
     bool RefreshAttempted(nsIWebProgress* aWebProgress,
                             nsIURI *aURI,
@@ -222,7 +221,7 @@ protected:
     // handler.
     void ChildDoneWithOnload(nsIDocumentLoader* aChild) {
         mChildrenInOnload.RemoveObject(aChild);
-        DocLoaderIsEmpty(true);
+        DocLoaderIsEmpty(PR_TRUE);
     }        
 
 protected:

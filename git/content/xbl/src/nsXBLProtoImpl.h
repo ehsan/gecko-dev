@@ -73,7 +73,7 @@ public:
   nsresult InitTargetObjects(nsXBLPrototypeBinding* aBinding, nsIScriptContext* aContext, 
                              nsIContent* aBoundElement, 
                              nsIXPConnectJSObjectHolder** aScriptObjectHolder,
-                             JSObject** aTargetClassObject);
+                             void** aTargetClassObject);
   nsresult CompilePrototypeMembers(nsXBLPrototypeBinding* aBinding);
 
   void SetMemberList(nsXBLProtoImplMember* aMemberList)
@@ -105,34 +105,15 @@ public:
     return mClassObject != nsnull;
   }
 
-  nsresult Read(nsIScriptContext* aContext,
-                nsIObjectInputStream* aStream,
-                nsXBLPrototypeBinding* aBinding,
-                nsIScriptGlobalObject* aGlobal);
-  nsresult Write(nsIScriptContext* aContext,
-                 nsIObjectOutputStream* aStream,
-                 nsXBLPrototypeBinding* aBinding);
-
 protected:
-  // used by Read to add each member
-  nsXBLProtoImplMember* AddMember(nsXBLProtoImplMember* aMember,
-                                  nsXBLProtoImplMember* aPreviousMember)
-  {
-    if (aPreviousMember)
-      aPreviousMember->SetNext(aMember);
-    else
-      mMembers = aMember;
-    return aMember;
-  }
-
   void DestroyMembers();
   
 public:
   nsCString mClassName; // The name of the class. 
 
 protected:
-  JSObject* mClassObject; // The class object for the binding. We'll use this to pre-compile properties
-                          // and methods for the binding.
+  void* mClassObject;   // The class object for the binding. We'll use this to pre-compile properties 
+                        // and methods for the binding.
 
   nsXBLProtoImplMember* mMembers; // The members of an implementation are chained in this singly-linked list.
 

@@ -76,11 +76,7 @@ static nsSystemFontsMac *gSystemFonts = nsnull;
 #include "nsSystemFontsQt.h"
 #include "gfxPDFSurface.h"
 static nsSystemFontsQt *gSystemFonts = nsnull;
-#elif defined(MOZ_WIDGET_ANDROID)
-#include "nsSystemFontsAndroid.h"
-#include "gfxPDFSurface.h"
-static nsSystemFontsAndroid *gSystemFonts = nsnull;
-#elif defined(MOZ_WIDGET_GONK)
+#elif defined(ANDROID)
 #include "nsSystemFontsAndroid.h"
 #include "gfxPDFSurface.h"
 static nsSystemFontsAndroid *gSystemFonts = nsnull;
@@ -130,7 +126,7 @@ nsFontCache::Init(nsDeviceContext* aContext)
     // in low-memory situations.
     nsCOMPtr<nsIObserverService> obs = GetObserverService();
     if (obs)
-        obs->AddObserver(this, "memory-pressure", false);
+        obs->AddObserver(this, "memory-pressure", PR_FALSE);
 
     nsCOMPtr<nsILanguageAtomService> langService;
     langService = do_GetService(NS_LANGUAGEATOMSERVICE_CONTRACTID);
@@ -733,27 +729,27 @@ nsDeviceContext::CalcPrintingSize()
     gfxSize size(0, 0);
     switch (mPrintingSurface->GetType()) {
     case gfxASurface::SurfaceTypeImage:
-        inPoints = false;
+        inPoints = PR_FALSE;
         size = reinterpret_cast<gfxImageSurface*>(mPrintingSurface.get())->GetSize();
         break;
 
 #if defined(MOZ_PDF_PRINTING)
     case gfxASurface::SurfaceTypePDF:
-        inPoints = true;
+        inPoints = PR_TRUE;
         size = reinterpret_cast<gfxPDFSurface*>(mPrintingSurface.get())->GetSize();
         break;
 #endif
 
 #ifdef MOZ_ENABLE_GTK2
     case gfxASurface::SurfaceTypePS:
-        inPoints = true;
+        inPoints = PR_TRUE;
         size = reinterpret_cast<gfxPSSurface*>(mPrintingSurface.get())->GetSize();
         break;
 #endif
 
 #ifdef XP_MACOSX
     case gfxASurface::SurfaceTypeQuartz:
-        inPoints = true; // this is really only true when we're printing
+        inPoints = PR_TRUE; // this is really only true when we're printing
         size = reinterpret_cast<gfxQuartzSurface*>(mPrintingSurface.get())->GetSize();
         break;
 #endif
@@ -762,7 +758,7 @@ nsDeviceContext::CalcPrintingSize()
     case gfxASurface::SurfaceTypeWin32:
     case gfxASurface::SurfaceTypeWin32Printing:
         {
-            inPoints = false;
+            inPoints = PR_FALSE;
             HDC dc = reinterpret_cast<gfxWindowsSurface*>(mPrintingSurface.get())->GetDC();
             if (!dc)
                 dc = GetDC((HWND)mWidget->GetNativeData(NS_NATIVE_WIDGET));
@@ -778,7 +774,7 @@ nsDeviceContext::CalcPrintingSize()
 #ifdef XP_OS2
     case gfxASurface::SurfaceTypeOS2:
         {
-            inPoints = false;
+            inPoints = PR_FALSE;
             // we already set the size in the surface constructor we set for
             // printing, so just get those values here
             size = reinterpret_cast<gfxOS2Surface*>(mPrintingSurface.get())->GetSize();
@@ -825,7 +821,7 @@ nsDeviceContext::SetPixelScale(float aScale)
 {
     if (aScale <= 0) {
         NS_NOTREACHED("Invalid pixel scale value");
-        return false;
+        return PR_FALSE;
     }
     PRInt32 oldAppUnitsPerDevPixel = mAppUnitsPerDevPixel;
     mPixelScale = aScale;

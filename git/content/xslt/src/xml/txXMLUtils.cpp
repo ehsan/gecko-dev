@@ -51,7 +51,7 @@
 
 nsresult
 txExpandedName::init(const nsAString& aQName, txNamespaceMap* aResolver,
-                     bool aUseDefault)
+                     MBool aUseDefault)
 {
     const nsAFlatString& qName = PromiseFlatString(aQName);
     const PRUnichar* colon;
@@ -191,10 +191,10 @@ bool XMLUtils::isWhitespace(const nsAFlatString& aText)
     aText.EndReading(end);
     for ( ; start != end; ++start) {
         if (!isWhitespace(*start)) {
-            return false;
+            return PR_FALSE;
         }
     }
-    return true;
+    return PR_TRUE;
 }
 
 /**
@@ -230,20 +230,20 @@ void XMLUtils::normalizePIValue(nsAString& piValue)
 }
 
 //static
-bool XMLUtils::getXMLSpacePreserve(const txXPathNode& aNode)
+MBool XMLUtils::getXMLSpacePreserve(const txXPathNode& aNode)
 {
     nsAutoString value;
     txXPathTreeWalker walker(aNode);
     do {
         if (walker.getAttr(nsGkAtoms::space, kNameSpaceID_XML, value)) {
             if (TX_StringEqualsAtom(value, nsGkAtoms::preserve)) {
-                return true;
+                return PR_TRUE;
             }
             if (TX_StringEqualsAtom(value, nsGkAtoms::_default)) {
-                return false;
+                return PR_FALSE;
             }
         }
     } while (walker.moveToParent());
 
-    return false;
+    return PR_FALSE;
 }

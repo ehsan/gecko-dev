@@ -61,7 +61,7 @@ protected:
 
   /**
    * Import profiles from ~/.firefox/
-   * @return true if any profiles imported.
+   * @return PR_TRUE if any profiles imported.
    */
   bool ImportRegistryProfiles(const nsACString& aAppName);
 };

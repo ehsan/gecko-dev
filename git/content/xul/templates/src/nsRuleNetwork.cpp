@@ -50,8 +50,6 @@
 
  */
 
-#include "mozilla/Util.h"
-
 #include "nscore.h"
 #include "nsCOMPtr.h"
 #include "nsCRT.h"
@@ -75,8 +73,6 @@ extern PRLogModuleInfo* gXULTemplateLog;
 #include "nsRDFConMemberTestNode.h"
 #include "nsRDFPropertyTestNode.h"
 
-using namespace mozilla;
-
 bool MemoryElement::gPoolInited;
 nsFixedSizeAllocator MemoryElement::gPool;
 
@@ -91,13 +87,13 @@ MemoryElement::Init()
         };
 
         if (NS_FAILED(gPool.Init("MemoryElement", bucketsizes,
-                                 ArrayLength(bucketsizes), 256)))
-            return false;
+                                 NS_ARRAY_LENGTH(bucketsizes), 256)))
+            return PR_FALSE;
 
-        gPoolInited = true;
+        gPoolInited = PR_TRUE;
     }
 
-    return true;
+    return PR_TRUE;
 }
 
 //----------------------------------------------------------------------
@@ -170,10 +166,10 @@ nsAssignmentSet::HasAssignment(nsIAtom* aVariable, nsIRDFNode* aValue) const
 {
     for (ConstIterator assignment = First(); assignment != Last(); ++assignment) {
         if (assignment->mVariable == aVariable && assignment->mValue == aValue)
-            return true;
+            return PR_TRUE;
     }
 
-    return false;
+    return PR_FALSE;
 }
 
 bool
@@ -181,10 +177,10 @@ nsAssignmentSet::HasAssignmentFor(nsIAtom* aVariable) const
 {
     for (ConstIterator assignment = First(); assignment != Last(); ++assignment) {
         if (assignment->mVariable == aVariable)
-            return true;
+            return PR_TRUE;
     }
 
-    return false;
+    return PR_FALSE;
 }
 
 bool
@@ -194,35 +190,35 @@ nsAssignmentSet::GetAssignmentFor(nsIAtom* aVariable, nsIRDFNode** aValue) const
         if (assignment->mVariable == aVariable) {
             *aValue = assignment->mValue;
             NS_IF_ADDREF(*aValue);
-            return true;
+            return PR_TRUE;
         }
     }
 
     *aValue = nsnull;
-    return false;
+    return PR_FALSE;
 }
 
 bool
 nsAssignmentSet::Equals(const nsAssignmentSet& aSet) const
 {
     if (aSet.mAssignments == mAssignments)
-        return true;
+        return PR_TRUE;
 
     // If they have a different number of assignments, then they're different.
     if (Count() != aSet.Count())
-        return false;
+        return PR_FALSE;
 
     // XXX O(n^2)! Ugh!
     nsCOMPtr<nsIRDFNode> value;
     for (ConstIterator assignment = First(); assignment != Last(); ++assignment) {
         if (! aSet.GetAssignmentFor(assignment->mVariable, getter_AddRefs(value)))
-            return false;
+            return PR_FALSE;
 
         if (assignment->mValue != value)
-            return false;
+            return PR_FALSE;
     }
 
-    return true;
+    return PR_TRUE;
 }
 
 //----------------------------------------------------------------------
@@ -332,7 +328,7 @@ InstantiationSet::Erase(Iterator aIterator)
 bool
 InstantiationSet::HasAssignmentFor(nsIAtom* aVariable) const
 {
-    return !Empty() ? First()->mAssignments.HasAssignmentFor(aVariable) : false;
+    return !Empty() ? First()->mAssignments.HasAssignmentFor(aVariable) : PR_FALSE;
 }
 
 //----------------------------------------------------------------------
@@ -363,7 +359,7 @@ TestNode::Propagate(InstantiationSet& aInstantiations,
     PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
            ("TestNode[%p]: Propagate() begin", this));
 
-    aTakenInstantiations = false;
+    aTakenInstantiations = PR_FALSE;
 
     nsresult rv = FilterInstantiations(aInstantiations, nsnull);
     if (NS_FAILED(rv))
@@ -451,6 +447,13 @@ TestNode::Constrain(InstantiationSet& aInstantiations)
            ("TestNode[%p]: Constrain() end", this));
 
     return rv;
+}
+
+
+bool
+TestNode::HasAncestor(const ReteNode* aNode) const
+{
+    return aNode == this || (mParent && mParent->HasAncestor(aNode));
 }
 
 

@@ -348,7 +348,7 @@ nsNativeCharsetConverter::LazyInit()
     // Most, if not all, Unixen supporting UTF-8 and nl_langinfo(CODESET) 
     // return 'UTF-8' (or 'utf-8')
     if (!PL_strcasecmp(native_charset, "UTF-8"))
-        gIsNativeUTF8 = true;
+        gIsNativeUTF8 = PR_TRUE;
 
     gNativeToUnicode = xp_iconv_open(UTF_16_NAMES, native_charset_list);
     gUnicodeToNative = xp_iconv_open(native_charset_list, UTF_16_NAMES);
@@ -403,7 +403,7 @@ nsNativeCharsetConverter::LazyInit()
     }
 #endif
 
-    gInitialized = true;
+    gInitialized = PR_TRUE;
 }
 
 void
@@ -449,7 +449,7 @@ nsNativeCharsetConverter::GlobalShutdown()
     }
 #endif
 
-    gInitialized = false;
+    gInitialized = PR_FALSE;
 }
 
 nsNativeCharsetConverter::nsNativeCharsetConverter()
@@ -793,7 +793,7 @@ nsNativeCharsetConverter::UnicodeToNative(const PRUnichar **input,
 bool
 nsNativeCharsetConverter::IsNativeUTF8()
 {
-    return false;
+    return PR_FALSE;
 }
 
 #endif // USE_STDCONV

@@ -59,7 +59,7 @@ public:
         return mInner->getVariable(aNamespace, aLName, aResult);
     }
 
-    bool isStripSpaceAllowed(const txXPathNode& aNode)
+    MBool isStripSpaceAllowed(const txXPathNode& aNode)
     {
         NS_ASSERTION(mInner, "mInner is null!!!");
         return mInner->isStripSpaceAllowed(aNode);

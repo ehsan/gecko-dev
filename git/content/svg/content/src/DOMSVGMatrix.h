@@ -129,7 +129,7 @@ private:
   }
 
   bool IsAnimVal() const {
-    return mTransform ? mTransform->IsAnimVal() : false;
+    return mTransform ? mTransform->IsAnimVal() : PR_FALSE;
   }
 
   nsRefPtr<DOMSVGTransform> mTransform;

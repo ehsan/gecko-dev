@@ -41,9 +41,11 @@
 #include "nsSVGElement.h"
 #include "nsDOMError.h"
 
+#ifdef MOZ_SMIL
 #include "nsISMILAttr.h"
 class nsSMILValue;
 class nsISMILType;
+#endif // MOZ_SMIL
 
 class nsSVGIntegerPair
 {
@@ -58,8 +60,8 @@ public:
     mAnimVal[0] = mBaseVal[0] = aValue1;
     mAnimVal[1] = mBaseVal[1] = aValue2;
     mAttrEnum = aAttrEnum;
-    mIsAnimated = false;
-    mIsBaseSet = false;
+    mIsAnimated = PR_FALSE;
+    mIsBaseSet = PR_FALSE;
   }
 
   nsresult SetBaseValueString(const nsAString& aValue,
@@ -74,10 +76,10 @@ public:
   PRInt32 GetAnimValue(PairIndex aIndex) const
     { return mAnimVal[aIndex == eFirst ? 0 : 1]; }
 
-  // Returns true if the animated value of this integer has been explicitly
+  // Returns PR_TRUE if the animated value of this integer has been explicitly
   // set (either by animation, or by taking on the base value which has been
-  // explicitly set by markup or a DOM call), false otherwise.
-  // If this returns false, the animated value is still valid, that is,
+  // explicitly set by markup or a DOM call), PR_FALSE otherwise.
+  // If this returns PR_FALSE, the animated value is still valid, that is,
   // useable, and represents the default base value of the attribute.
   bool IsExplicitlySet() const
     { return mIsAnimated || mIsBaseSet; }
@@ -85,8 +87,10 @@ public:
   nsresult ToDOMAnimatedInteger(nsIDOMSVGAnimatedInteger **aResult,
                                 PairIndex aIndex,
                                 nsSVGElement* aSVGElement);
+#ifdef MOZ_SMIL
   // Returns a new nsISMILAttr object that the caller must delete
   nsISMILAttr* ToSMILAttr(nsSVGElement* aSVGElement);
+#endif // MOZ_SMIL
 
 private:
 
@@ -121,12 +125,15 @@ public:
     // need to flush any resample requests to reflect these modifications.
     NS_IMETHOD GetAnimVal(PRInt32* aResult)
     {
+#ifdef MOZ_SMIL
       mSVGElement->FlushAnimations();
+#endif
       *aResult = mVal->GetAnimValue(mIndex);
       return NS_OK;
     }
   };
 
+#ifdef MOZ_SMIL
   struct SMILIntegerPair : public nsISMILAttr
   {
   public:
@@ -148,6 +155,7 @@ public:
     virtual void ClearAnimValue();
     virtual nsresult SetAnimValue(const nsSMILValue& aValue);
   };
+#endif // MOZ_SMIL
 };
 
 #endif //__NS_SVGINTEGERPAIR_H__

@@ -45,13 +45,13 @@
 nsDOMDragEvent::nsDOMDragEvent(nsPresContext* aPresContext,
                                nsInputEvent* aEvent)
   : nsDOMMouseEvent(aPresContext, aEvent ? aEvent :
-                    new nsDragEvent(false, 0, nsnull))
+                    new nsDragEvent(PR_FALSE, 0, nsnull))
 {
   if (aEvent) {
-    mEventIsInternal = false;
+    mEventIsInternal = PR_FALSE;
   }
   else {
-    mEventIsInternal = true;
+    mEventIsInternal = PR_TRUE;
     mEvent->time = PR_Now();
     mEvent->refPoint.x = mEvent->refPoint.y = 0;
     static_cast<nsMouseEvent*>(mEvent)->inputSource = nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;

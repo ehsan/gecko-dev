@@ -424,9 +424,6 @@ class FrameState
      */
     inline RegisterID tempRegForType(FrameEntry *fe, RegisterID fallback);
 
-    inline void loadTypeIntoReg(const FrameEntry *fe, RegisterID reg);
-    inline void loadDataIntoReg(const FrameEntry *fe, RegisterID reg);
-
     /*
      * Returns a register that is guaranteed to contain the frame entry's
      * data payload. The compiler may not modify the contents of the register.
@@ -735,7 +732,7 @@ class FrameState
         void reset() { PodZero(this); }
     };
     StackEntryExtra& extra(const FrameEntry *fe) {
-        JS_ASSERT(fe >= a->args && fe < a->sp);
+        JS_ASSERT(fe >= a->spBase && fe < a->sp);
         return extraArray[fe - entries];
     }
     StackEntryExtra& extra(uint32 slot) { return extra(entries + slot); }
@@ -781,8 +778,6 @@ class FrameState
      * be Equal or NotEqual.
      */
     inline Jump testObject(Assembler::Condition cond, FrameEntry *fe);
-
-    inline Jump testGCThing(FrameEntry *fe);
 
     /*
      * Helper function. Tests if a slot's type is primitive. Condition must
@@ -966,8 +961,6 @@ class FrameState
      * The compiler owns the result's base register.
      */
     inline Address loadNameAddress(const analyze::ScriptAnalysis::NameAccess &access);
-    inline Address loadNameAddress(const analyze::ScriptAnalysis::NameAccess &access,
-                                   RegisterID reg);
 
   private:
     inline AnyRegisterID allocAndLoadReg(FrameEntry *fe, bool fp, RematInfo::RematType type);
@@ -997,7 +990,8 @@ class FrameState
     inline void forgetAllRegs(FrameEntry *fe);
     inline void swapInTracker(FrameEntry *lhs, FrameEntry *rhs);
 #if defined JS_NUNBOX32
-    void syncFancy(Assembler &masm, Registers avail, int trackerIndex) const;
+    void syncFancy(Assembler &masm, Registers avail, FrameEntry *resumeAt,
+                   FrameEntry *bottom) const;
 #endif
     inline bool tryFastDoubleLoad(FrameEntry *fe, FPRegisterID fpReg, Assembler &masm) const;
     void resetInternalState();
@@ -1052,7 +1046,7 @@ class FrameState
     inline bool isConstructorThis(const FrameEntry *fe) const;
 
     bool isArg(const FrameEntry *fe) const {
-        return a->script->function() && fe >= a->args && fe - a->args < a->script->function()->nargs;
+        return a->script->hasFunction && fe >= a->args && fe - a->args < a->script->function()->nargs;
     }
 
     bool isLocal(const FrameEntry *fe) const {

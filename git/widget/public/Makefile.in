@@ -74,6 +74,7 @@ EXPORTS		= \
 		nsIPluginWidget.h \
 		nsINativeKeyBindings.h \
 		nsIDeviceContextSpec.h \
+		nsIMenuRollup.h \
 		nsIRollupListener.h \
 		$(NULL)
 
@@ -88,7 +89,7 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
 EXPORTS		+= nsIDragSessionOS2.h
 endif
 
-ifneq (,$(filter android gonk,$(MOZ_WIDGET_TOOLKIT)))
+ifeq ($(MOZ_WIDGET_TOOLKIT),android)
 EXPORTS		+= \
 		nsIPrintDialogService.h \
 		$(NULL)
@@ -104,6 +105,7 @@ endif
 XPIDLSRCS	= \
 		nsIAppShell.idl \
 		nsIFilePicker.idl \
+		nsIToolkit.idl \
 		nsISound.idl \
 		nsITransferable.idl \
 		nsIClipboardDragDropHooks.idl \

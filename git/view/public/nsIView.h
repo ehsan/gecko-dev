@@ -45,7 +45,6 @@
 #include "nsNativeWidget.h"
 #include "nsIWidget.h"
 #include "nsWidgetInitData.h"
-#include "nsIFrame.h"
 
 class nsIViewManager;
 class nsViewManager;
@@ -63,8 +62,14 @@ enum nsViewVisibility {
 };
 
 #define NS_IVIEW_IID    \
-  { 0xda62efbf, 0x0711, 0x4b79, \
-    { 0x87, 0x85, 0x9e, 0xec, 0xed, 0xf5, 0xb0, 0x32 } }
+  { 0xe0a3b0ee, 0x8d0f, 0x4dcb, \
+    { 0x89, 0x04, 0x81, 0x2d, 0xfd, 0x90, 0x00, 0x73 } }
+
+// Public view flags are defined in this file
+#define NS_VIEW_FLAGS_PUBLIC              0x00FF
+// Private view flags are private to the view module,
+// and are defined in nsView.h
+#define NS_VIEW_FLAGS_PRIVATE             0xFF00
 
 // Public view flags
 
@@ -78,6 +83,15 @@ enum nsViewVisibility {
 // displayed above z-index:auto views if this view 
 // is z-index:auto also
 #define NS_VIEW_FLAG_TOPMOST              0x0010
+
+struct nsViewZIndex {
+  bool mIsAuto;
+  PRInt32 mZIndex;
+  bool mIsTopmost;
+  
+  nsViewZIndex(bool aIsAuto, PRInt32 aZIndex, bool aIsTopmost)
+    : mIsAuto(aIsAuto), mZIndex(aZIndex), mIsTopmost(aIsTopmost) {}
+};
 
 //----------------------------------------------------------------------
 
@@ -221,12 +235,25 @@ public:
   nsViewVisibility GetVisibility() const { return mVis; }
 
   /**
+   * Called to query the z-index of a view.
+   * The z-index is relative to all siblings of the view.
+   * @result mZIndex: explicit z-index value or 0 if none is set
+   *         mIsAuto: PR_TRUE if the view is zindex:auto
+   *         mIsTopMost: used when this view is zindex:auto
+   *                     PR_TRUE if the view is topmost when compared
+   *                     with another z-index:auto view
+   */
+  nsViewZIndex GetZIndex() const { return nsViewZIndex((mVFlags & NS_VIEW_FLAG_AUTO_ZINDEX) != 0,
+                                                       mZIndex,
+                                                       (mVFlags & NS_VIEW_FLAG_TOPMOST) != 0); }
+
+  /**
    * Get whether the view "floats" above all other views,
    * which tells the compositor not to consider higher views in
    * the view hierarchy that would geometrically intersect with
    * this view. This is a hack, but it fixes some problems with
    * views that need to be drawn in front of all other views.
-   * @result true if the view floats, false otherwise.
+   * @result PR_TRUE if the view floats, PR_FALSE otherwise.
    */
   bool GetFloating() const { return (mVFlags & NS_VIEW_FLAG_FLOATING) != 0; }
 
@@ -252,14 +279,16 @@ public:
   }
 
   /**
-   * Set the view's frame.
+   * Set the view's link to client owned data.
+   * @param aData - data to associate with view. nsnull to disassociate
    */
-  void SetFrame(nsIFrame* aRootFrame) { mFrame = aRootFrame; }
+  void SetClientData(void *aData) { mClientData = aData; }
 
   /**
-   * Retrieve the view's frame.
+   * Query the view for it's link to client owned data.
+   * @result data associated with view or nsnull if there is none.
    */
-  nsIFrame* GetFrame() const { return mFrame; }
+  void* GetClientData() const { return mClientData; }
 
   /**
    * Get the nearest widget in this view or a parent of this view and
@@ -347,7 +376,7 @@ public:
   nsIWidget* GetWidget() const { return mWindow; }
 
   /**
-   * Returns true if the view has a widget associated with it.
+   * Returns PR_TRUE if the view has a widget associated with it.
    */
   bool HasWidget() const { return mWindow != nsnull; }
 
@@ -398,7 +427,7 @@ protected:
   nsIWidget         *mWindow;
   nsView            *mNextSibling;
   nsView            *mFirstChild;
-  nsIFrame          *mFrame;
+  void              *mClientData;
   PRInt32           mZIndex;
   nsViewVisibility  mVis;
   // position relative our parent view origin but in our appunits

@@ -468,7 +468,7 @@ nsObjectFrame::CreateWidget(nscoord aWidth,
     // mWidget isn't the view's designated widget.
     EVENT_CALLBACK eventHandler = mInnerView->AttachWidgetEventHandler(mWidget);
     rv = mWidget->Create(parentWidget, nsnull, nsIntRect(0,0,0,0),
-                         eventHandler, dx, &initData);
+                         eventHandler, dx, nsnull, nsnull, &initData);
     if (NS_FAILED(rv)) {
       mWidget->Destroy();
       mWidget = nsnull;
@@ -582,14 +582,14 @@ nsObjectFrame::GetDesiredSize(nsPresContext* aPresContext,
   nsIAtom *atom = mContent->Tag();
   if (atom == nsGkAtoms::applet || atom == nsGkAtoms::embed) {
     if (aMetrics.width == NS_UNCONSTRAINEDSIZE) {
-      aMetrics.width = clamped(nsPresContext::CSSPixelsToAppUnits(EMBED_DEF_WIDTH),
-                               aReflowState.mComputedMinWidth,
-                               aReflowState.mComputedMaxWidth);
+      aMetrics.width = NS_MIN(NS_MAX(nsPresContext::CSSPixelsToAppUnits(EMBED_DEF_WIDTH),
+                                     aReflowState.mComputedMinWidth),
+                              aReflowState.mComputedMaxWidth);
     }
     if (aMetrics.height == NS_UNCONSTRAINEDSIZE) {
-      aMetrics.height = clamped(nsPresContext::CSSPixelsToAppUnits(EMBED_DEF_HEIGHT),
-                                aReflowState.mComputedMinHeight,
-                                aReflowState.mComputedMaxHeight);
+      aMetrics.height = NS_MIN(NS_MAX(nsPresContext::CSSPixelsToAppUnits(EMBED_DEF_HEIGHT),
+                                      aReflowState.mComputedMinHeight),
+                               aReflowState.mComputedMaxHeight);
     }
 
 #if defined (MOZ_WIDGET_GTK2)
@@ -711,7 +711,7 @@ nsObjectFrame::InstantiatePlugin(nsPluginHost* aPluginHost,
 
   NS_ASSERTION(mContent, "We should have a content node.");
 
-  nsIDocument* doc = mContent->OwnerDoc();
+  nsIDocument* doc = mContent->GetOwnerDoc();
   nsCOMPtr<nsIPluginDocument> pDoc (do_QueryInterface(doc));
   bool fullPageMode = false;
   if (pDoc) {
@@ -751,11 +751,7 @@ nsObjectFrame::FixupWindow(const nsSize& aSize)
   NS_ENSURE_TRUE(window, /**/);
 
 #ifdef XP_MACOSX
-  nsWeakFrame weakFrame(this);
   mInstanceOwner->FixUpPluginWindow(nsPluginInstanceOwner::ePluginPaintDisable);
-  if (!weakFrame.IsAlive()) {
-    return;
-  }
 #endif
 
   bool windowless = (window->type == NPWindowTypeDrawable);
@@ -799,11 +795,7 @@ nsObjectFrame::CallSetWindow(bool aCheckIsHidden)
 
   nsPluginNativeWindow *window = (nsPluginNativeWindow *)win;
 #ifdef XP_MACOSX
-  nsWeakFrame weakFrame(this);
   mInstanceOwner->FixUpPluginWindow(nsPluginInstanceOwner::ePluginPaintDisable);
-  if (!weakFrame.IsAlive()) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
 #endif
 
   if (aCheckIsHidden && IsHidden())
@@ -827,13 +819,8 @@ nsObjectFrame::CallSetWindow(bool aCheckIsHidden)
   window->width = intBounds.width;
   window->height = intBounds.height;
 
-  // Calling SetWindow might destroy this frame. We need to use the instance
-  // owner to clean up so hold a ref.
-  nsRefPtr<nsPluginInstanceOwner> instanceOwnerRef(mInstanceOwner);
-
-  // This will call pi->SetWindow and take care of window subclassing
-  // if needed, see bug 132759. Calling SetWindow can destroy this frame
-  // so check for that before doing anything else with this frame's memory.
+  // this will call pi->SetWindow and take care of window subclassing
+  // if needed, see bug 132759.
   if (mInstanceOwner->UseAsyncRendering()) {
     rv = pi->AsyncSetWindow(window);
   }
@@ -841,8 +828,7 @@ nsObjectFrame::CallSetWindow(bool aCheckIsHidden)
     rv = window->CallSetWindow(pi);
   }
 
-  instanceOwnerRef->ReleasePluginPort(window->window);
-
+  mInstanceOwner->ReleasePluginPort(window->window);
   return rv;
 }
 
@@ -1497,7 +1483,7 @@ nsObjectFrame::GetImageContainer(LayerManager* aManager)
   bool retain = false;
 
   if (!manager) {
-    manager = nsContentUtils::LayerManagerForDocument(mContent->OwnerDoc(), &retain);
+    manager = nsContentUtils::LayerManagerForDocument(mContent->GetOwnerDoc(), &retain);
   }
   if (!manager) {
     return nsnull;
@@ -1705,7 +1691,7 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
                            nsRenderingContext& aRenderingContext,
                            const nsRect& aDirtyRect, const nsRect& aPluginRect)
 {
-#if defined(MOZ_WIDGET_ANDROID)
+#if defined(ANDROID)
   if (mInstanceOwner) {
     NPWindow *window;
     mInstanceOwner->GetWindow(window);

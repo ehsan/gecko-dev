@@ -70,11 +70,11 @@ class AutoSelectFont // select a font into the given DC, and auto-restore
 {
 public:
     AutoSelectFont(HDC aDC, LOGFONTW *aLogFont)
-        : mOwnsFont(false)
+        : mOwnsFont(PR_FALSE)
     {
         mFont = ::CreateFontIndirectW(aLogFont);
         if (mFont) {
-            mOwnsFont = true;
+            mOwnsFont = PR_TRUE;
             mDC = aDC;
             mOldFont = (HFONT)::SelectObject(aDC, mFont);
         } else {
@@ -83,7 +83,7 @@ public:
     }
 
     AutoSelectFont(HDC aDC, HFONT aFont)
-        : mOwnsFont(false)
+        : mOwnsFont(PR_FALSE)
     {
         mDC = aDC;
         mFont = aFont;
@@ -183,7 +183,7 @@ public:
 
     virtual bool MatchesGenericFamily(const nsACString& aGeneric) const {
         if (aGeneric.IsEmpty()) {
-            return true;
+            return PR_TRUE;
         }
 
         // Japanese 'Mincho' fonts do not belong to FF_MODERN even if
@@ -201,7 +201,7 @@ public:
         // All other fonts will be grouped correctly using family...
         switch (mWindowsFamily) {
         case FF_DONTCARE:
-            return false;
+            return PR_FALSE;
         case FF_ROMAN:
             return aGeneric.EqualsLiteral("serif");
         case FF_SWISS:
@@ -214,12 +214,12 @@ public:
             return aGeneric.EqualsLiteral("fantasy");
         }
 
-        return false;
+        return PR_FALSE;
     }
 
     virtual bool SupportsLangGroup(nsIAtom* aLangGroup) const {
         if (!aLangGroup || aLangGroup == gfxAtoms::x_unicode) {
-            return true;
+            return PR_TRUE;
         }
 
         PRInt16 bit = -1;
@@ -261,7 +261,7 @@ public:
             return mCharset.test(bit);
         }
 
-        return false;
+        return PR_FALSE;
     }
 
     virtual bool SupportsRange(PRUint8 range) {

@@ -41,7 +41,6 @@
 #include "nsWeakReference.h"
 #include "nsIObserver.h"
 #include "nsIContent.h"
-#include "nsIWidget.h"
 
 #define FOCUSMETHOD_MASK 0xF000
 #define FOCUSMETHODANDRING_MASK 0xF0F000
@@ -68,8 +67,6 @@ class nsFocusManager : public nsIFocusManager,
                        public nsIObserver,
                        public nsSupportsWeakReference
 {
-  typedef mozilla::widget::InputContextAction InputContextAction;
-
 public:
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsFocusManager, nsIFocusManager)
@@ -134,9 +131,11 @@ public:
   static nsIContent* GetRedirectedFocus(nsIContent* aContent);
 
   /**
-   * Returns an InputContextAction cause for aFlags.
+   * Returns a flag indicating the source and/or reason of the focus change.
+   * This is used to indicate to the IME code if the focus come from a user 
+   * input or a script for example.
    */
-  static InputContextAction::Cause GetFocusMoveActionCause(PRUint32 aFlags);
+  static PRUint32 GetFocusMoveReason(PRUint32 aFlags);
 
   static bool sMouseFocusesFormControl;
 

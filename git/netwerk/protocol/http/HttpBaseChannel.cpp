@@ -66,21 +66,20 @@ HttpBaseChannel::HttpBaseChannel()
   , mPriority(PRIORITY_NORMAL)
   , mCaps(0)
   , mRedirectionLimit(gHttpHandler->RedirectionLimit())
-  , mApplyConversion(true)
-  , mCanceled(false)
-  , mIsPending(false)
-  , mWasOpened(false)
-  , mResponseHeadersModified(false)
-  , mAllowPipelining(true)
-  , mForceAllowThirdPartyCookie(false)
-  , mUploadStreamHasHeaders(false)
-  , mInheritApplicationCache(true)
-  , mChooseApplicationCache(false)
-  , mLoadedFromApplicationCache(false)
-  , mChannelIsForDownload(false)
-  , mTracingEnabled(true)
-  , mTimingEnabled(false)
-  , mAllowSpdy(true)
+  , mApplyConversion(PR_TRUE)
+  , mCanceled(PR_FALSE)
+  , mIsPending(PR_FALSE)
+  , mWasOpened(PR_FALSE)
+  , mResponseHeadersModified(PR_FALSE)
+  , mAllowPipelining(PR_TRUE)
+  , mForceAllowThirdPartyCookie(PR_FALSE)
+  , mUploadStreamHasHeaders(PR_FALSE)
+  , mInheritApplicationCache(PR_TRUE)
+  , mChooseApplicationCache(PR_FALSE)
+  , mLoadedFromApplicationCache(PR_FALSE)
+  , mChannelIsForDownload(PR_FALSE)
+  , mTracingEnabled(PR_TRUE)
+  , mTimingEnabled(PR_FALSE)
   , mSuspendCount(0)
   , mRedirectedCachekeys(nsnull)
 {
@@ -476,7 +475,7 @@ HttpBaseChannel::SetUploadStream(nsIInputStream *stream,
 
   if (stream) {
     if (contentType.IsEmpty()) {
-      mUploadStreamHasHeaders = true;
+      mUploadStreamHasHeaders = PR_TRUE;
       mRequestHead.SetMethod(nsHttp::Post); // POST request
     } else {
       if (contentLength < 0) {
@@ -492,14 +491,14 @@ HttpBaseChannel::SetUploadStream(nsIInputStream *stream,
       nsCAutoString contentLengthStr;
       contentLengthStr.AppendInt(PRInt64(contentLength));
       SetRequestHeader(NS_LITERAL_CSTRING("Content-Length"), contentLengthStr, 
-                       false);
+                       PR_FALSE);
       SetRequestHeader(NS_LITERAL_CSTRING("Content-Type"), contentType, 
-                       false);
-      mUploadStreamHasHeaders = false;
+                       PR_FALSE);
+      mUploadStreamHasHeaders = PR_FALSE;
       mRequestHead.SetMethod(nsHttp::Put); // PUT request
     }
   } else {
-    mUploadStreamHasHeaders = false;
+    mUploadStreamHasHeaders = PR_FALSE;
     mRequestHead.SetMethod(nsHttp::Get); // revert to GET request
   }
   mUploadStream = stream;
@@ -538,9 +537,9 @@ HttpBaseChannel::ExplicitSetUploadStream(nsIInputStream *aStream,
     nsCAutoString contentLengthStr;
     contentLengthStr.AppendInt(aContentLength);
     SetRequestHeader(NS_LITERAL_CSTRING("Content-Length"), contentLengthStr, 
-                     false);
+                     PR_FALSE);
     SetRequestHeader(NS_LITERAL_CSTRING("Content-Type"), aContentType, 
-                     false);
+                     PR_FALSE);
   }
 
   mUploadStreamHasHeaders = aStreamHasHeaders;
@@ -643,7 +642,7 @@ HttpBaseChannel::nsContentEncodings::nsContentEncodings(nsIHttpChannel* aChannel
                                                         const char* aEncodingHeader)
   : mEncodingHeader(aEncodingHeader)
   , mChannel(aChannel)
-  , mReady(false)
+  , mReady(PR_FALSE)
 {
   mCurEnd = aEncodingHeader + strlen(aEncodingHeader);
   mCurStart = mCurEnd;
@@ -661,7 +660,7 @@ NS_IMETHODIMP
 HttpBaseChannel::nsContentEncodings::HasMore(bool* aMoreEncodings)
 {
   if (mReady) {
-    *aMoreEncodings = true;
+    *aMoreEncodings = PR_TRUE;
     return NS_OK;
   }
 
@@ -690,14 +689,14 @@ HttpBaseChannel::nsContentEncodings::GetNext(nsACString& aNextEncoding)
   bool haveType = false;
   if (CaseInsensitiveFindInReadable(NS_LITERAL_CSTRING("gzip"), start, end)) {
     aNextEncoding.AssignLiteral(APPLICATION_GZIP);
-    haveType = true;
+    haveType = PR_TRUE;
   }
 
   if (!haveType) {
     encoding.BeginReading(start);
     if (CaseInsensitiveFindInReadable(NS_LITERAL_CSTRING("compress"), start, end)) {
       aNextEncoding.AssignLiteral(APPLICATION_COMPRESS);
-      haveType = true;
+      haveType = PR_TRUE;
     }
   }
     
@@ -705,13 +704,13 @@ HttpBaseChannel::nsContentEncodings::GetNext(nsACString& aNextEncoding)
     encoding.BeginReading(start);
     if (CaseInsensitiveFindInReadable(NS_LITERAL_CSTRING("deflate"), start, end)) {
       aNextEncoding.AssignLiteral(APPLICATION_ZIP);
-      haveType = true;
+      haveType = PR_TRUE;
     }
   }
 
   // Prepare to fetch the next encoding
   mCurEnd = mCurStart;
-  mReady = false;
+  mReady = PR_FALSE;
   
   if (haveType)
     return NS_OK;
@@ -765,7 +764,7 @@ HttpBaseChannel::nsContentEncodings::PrepareForNext(void)
     return PrepareForNext();
   }
         
-  mReady = true;
+  mReady = PR_TRUE;
   return NS_OK;
 }
 
@@ -881,7 +880,7 @@ HttpBaseChannel::SetReferrer(nsIURI *referrer)
     "gopher",
     nsnull
   };
-  match = false;
+  match = PR_FALSE;
   const char *const *scheme = referrerWhiteList;
   for (; *scheme && !match; ++scheme) {
     rv = referrer->SchemeIs(*scheme, &match);
@@ -1032,7 +1031,7 @@ HttpBaseChannel::SetResponseHeader(const nsACString& header,
       atom == nsHttp::Transfer_Encoding)
     return NS_ERROR_ILLEGAL_VALUE;
 
-  mResponseHeadersModified = true;
+  mResponseHeadersModified = PR_TRUE;
 
   return mResponseHead->SetHeader(atom, value, merge);
 }
@@ -1311,22 +1310,6 @@ HttpBaseChannel::HTTPUpgrade(const nsACString &aProtocolName,
     return NS_OK;
 }
 
-NS_IMETHODIMP
-HttpBaseChannel::GetAllowSpdy(bool *aAllowSpdy)
-{
-  NS_ENSURE_ARG_POINTER(aAllowSpdy);
-
-  *aAllowSpdy = mAllowSpdy;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpBaseChannel::SetAllowSpdy(bool aAllowSpdy)
-{
-  mAllowSpdy = aAllowSpdy;
-  return NS_OK;
-}
-
 //-----------------------------------------------------------------------------
 // HttpBaseChannel::nsISupportsPriority
 //-----------------------------------------------------------------------------
@@ -1449,17 +1432,17 @@ HttpBaseChannel::SetNewListener(nsIStreamListener *aListener, nsIStreamListener 
 void
 HttpBaseChannel::DoNotifyListener()
 {
-  // Make sure mIsPending is set to false. At this moment we are done from
+  // Make sure mIsPending is set to PR_FALSE. At this moment we are done from
   // the point of view of our consumer and we have to report our self
   // as not-pending.
   if (mListener) {
     mListener->OnStartRequest(this, mListenerContext);
-    mIsPending = false;
+    mIsPending = PR_FALSE;
     mListener->OnStopRequest(this, mListenerContext, mStatus);
     mListener = 0;
     mListenerContext = 0;
   } else {
-    mIsPending = false;
+    mIsPending = PR_FALSE;
   }
   // We have to make sure to drop the reference to the callbacks too
   mCallbacks = nsnull;
@@ -1499,7 +1482,7 @@ HttpBaseChannel::AddCookiesToRequest()
 
   // If we are in the child process, we want the parent seeing any
   // cookie headers that might have been set by SetRequestHeader()
-  SetRequestHeader(nsDependentCString(nsHttp::Cookie), cookie, false);
+  SetRequestHeader(nsDependentCString(nsHttp::Cookie), cookie, PR_FALSE);
 }
 
 static PLDHashOperator
@@ -1509,41 +1492,6 @@ CopyProperties(const nsAString& aKey, nsIVariant *aData, void *aClosure)
                                            (aClosure);
   bag->SetProperty(aKey, aData);
   return PL_DHASH_NEXT;
-}
-
-// Return whether upon a redirect code of httpStatus for method, the
-// request method should be rewritten to GET.
-//
-bool
-HttpBaseChannel::ShouldRewriteRedirectToGET(PRUint32 httpStatus,
-                                            nsHttpAtom method)
-{
-  // always rewrite for 301 and 302, but see bug 598304
-  // and  RFC 2616, Section 8.3.
-  if (httpStatus == 301 || httpStatus == 302)
-    return true;
-
-  // always rewrite for 303
-  if (httpStatus == 303)
-    return true;
-
-  // otherwise, such as for 307, do not rewrite
-  return false;
-}   
-
-// Return whether the specified method is safe as per RFC 2616, Section 9.1.1.
-bool
-HttpBaseChannel::IsSafeMethod(nsHttpAtom method)
-{
-  // This code will need to be extended for new safe methods, otherwise
-  // they'll default to "not safe".
-  return method == nsHttp::Get ||
-         method == nsHttp::Head ||
-         method == nsHttp::Options ||
-         method == nsHttp::Propfind ||
-         method == nsHttp::Report ||
-         method == nsHttp::Search ||
-         method == nsHttp::Trace;
 }
 
 nsresult
@@ -1636,8 +1584,6 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
   if (httpInternal) {
     // convey the mForceAllowThirdPartyCookie flag
     httpInternal->SetForceAllowThirdPartyCookie(mForceAllowThirdPartyCookie);
-    // convey the spdy flag
-    httpInternal->SetAllowSpdy(mAllowSpdy);
 
     // update the DocumentURI indicator since we are being redirected.
     // if this was a top-level document channel, then the new channel

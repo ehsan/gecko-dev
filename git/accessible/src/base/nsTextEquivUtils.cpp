@@ -120,7 +120,7 @@ nsTextEquivUtils::AppendTextEquivFromContent(nsAccessible *aInitiatorAcc,
 
   nsCOMPtr<nsIWeakReference> shell = nsCoreUtils::GetWeakShellFor(aContent);
   if (!shell) {
-    NS_ASSERTION(true, "There is no presshell!");
+    NS_ASSERTION(PR_TRUE, "There is no presshell!");
     gInitiatorAcc = nsnull;
     return NS_ERROR_UNEXPECTED;
   }
@@ -139,7 +139,7 @@ nsTextEquivUtils::AppendTextEquivFromContent(nsAccessible *aInitiatorAcc,
       GetAccService()->GetAccessibleInWeakShell(aContent, shell);
     if (accessible) {
       rv = AppendFromAccessible(accessible, aString);
-      goThroughDOMSubtree = false;
+      goThroughDOMSubtree = PR_FALSE;
     }
   }
 
@@ -167,7 +167,7 @@ nsTextEquivUtils::AppendTextEquivFromTextContent(nsIContent *aContent,
         const nsStyleDisplay* display = frame->GetStyleDisplay();
         if (display->IsBlockOutside() ||
             display->mDisplay == NS_STYLE_DISPLAY_TABLE_CELL) {
-          isHTMLBlock = true;
+          isHTMLBlock = PR_TRUE;
           if (!aString->IsEmpty()) {
             aString->Append(PRUnichar(' '));
           }
@@ -250,7 +250,7 @@ nsTextEquivUtils::AppendFromAccessible(nsAccessible *aAccessible,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (rv != NS_OK_NO_NAME_CLAUSE_HANDLED)
-    isEmptyTextEquiv = false;
+    isEmptyTextEquiv = PR_FALSE;
 
   // Implementation of g) step of text equivalent computation guide. Go down
   // into subtree if accessible allows "text equivalent from subtree rule" or
@@ -262,7 +262,7 @@ nsTextEquivUtils::AppendFromAccessible(nsAccessible *aAccessible,
       NS_ENSURE_SUCCESS(rv, rv);
 
       if (rv != NS_OK_NO_NAME_CLAUSE_HANDLED)
-        isEmptyTextEquiv = false;
+        isEmptyTextEquiv = PR_FALSE;
     }
   }
 
@@ -382,13 +382,13 @@ nsTextEquivUtils::AppendString(nsAString *aString,
 {
   // Insert spaces to insure that words from controls aren't jammed together.
   if (aTextEquivalent.IsEmpty())
-    return false;
+    return PR_FALSE;
 
   if (!aString->IsEmpty())
     aString->Append(PRUnichar(' '));
 
   aString->Append(aTextEquivalent);
-  return true;
+  return PR_TRUE;
 }
 
 bool

@@ -62,24 +62,20 @@ CanvasLayerD3D9::Initialize(const Data& aData)
 {
   NS_ASSERTION(mSurface == nsnull, "BasicCanvasLayer::Initialize called twice!");
 
-  if (aData.mDrawTarget) {
-    mDrawTarget = aData.mDrawTarget;
-    mNeedsYFlip = false;
-    mDataIsPremultiplied = true;
-  } else if (aData.mSurface) {
+  if (aData.mSurface) {
     mSurface = aData.mSurface;
     NS_ASSERTION(aData.mGLContext == nsnull,
                  "CanvasLayer can't have both surface and GLContext");
-    mNeedsYFlip = false;
-    mDataIsPremultiplied = true;
+    mNeedsYFlip = PR_FALSE;
+    mDataIsPremultiplied = PR_TRUE;
   } else if (aData.mGLContext) {
     NS_ASSERTION(aData.mGLContext->IsOffscreen(), "canvas gl context isn't offscreen");
     mGLContext = aData.mGLContext;
     mCanvasFramebuffer = mGLContext->GetOffscreenFBO();
     mDataIsPremultiplied = aData.mGLBufferIsPremultiplied;
-    mNeedsYFlip = true;
+    mNeedsYFlip = PR_TRUE;
   } else {
-    NS_ERROR("CanvasLayer created without mSurface, mGLContext or mDrawTarget?");
+    NS_ERROR("CanvasLayer created without mSurface or mGLContext?");
   }
 
   mBounds.SetRect(0, 0, aData.mSize.width, aData.mSize.height);
@@ -92,7 +88,7 @@ CanvasLayerD3D9::UpdateSurface()
 {
   if (!mDirty)
     return;
-  mDirty = false;
+  mDirty = PR_FALSE;
 
   if (!mTexture) {
     CreateTexture();
@@ -154,7 +150,7 @@ CanvasLayerD3D9::UpdateSurface()
       }
       delete [] destination;
     }
-  } else {
+  } else if (mSurface) {
     RECT r;
     r.left = mBounds.x;
     r.top = mBounds.y;
@@ -170,18 +166,11 @@ CanvasLayerD3D9::UpdateSurface()
     D3DLOCKED_RECT lockedRect = textureLock.GetLockRect();
 
     nsRefPtr<gfxImageSurface> sourceSurface;
-    nsRefPtr<gfxASurface> tempSurface;
-    if (mDrawTarget) {
-      tempSurface = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mDrawTarget);
-    }
-    else {
-      tempSurface = mSurface;
-    }
 
-    if (tempSurface->GetType() == gfxASurface::SurfaceTypeWin32) {
-      sourceSurface = tempSurface->GetAsImageSurface();
-    } else if (tempSurface->GetType() == gfxASurface::SurfaceTypeImage) {
-      sourceSurface = static_cast<gfxImageSurface*>(tempSurface.get());
+    if (mSurface->GetType() == gfxASurface::SurfaceTypeWin32) {
+      sourceSurface = mSurface->GetAsImageSurface();
+    } else if (mSurface->GetType() == gfxASurface::SurfaceTypeImage) {
+      sourceSurface = static_cast<gfxImageSurface*>(mSurface.get());
       if (sourceSurface->Format() != gfxASurface::ImageFormatARGB32 &&
           sourceSurface->Format() != gfxASurface::ImageFormatRGB24)
       {
@@ -289,29 +278,23 @@ CanvasLayerD3D9::LayerManagerDestroyed()
 void
 CanvasLayerD3D9::CreateTexture()
 {
-  HRESULT hr;
   if (mD3DManager->deviceManager()->HasDynamicTextures()) {
-    hr = device()->CreateTexture(mBounds.width, mBounds.height, 1, D3DUSAGE_DYNAMIC,
-                                 D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT,
-                                 getter_AddRefs(mTexture), NULL);
+    device()->CreateTexture(mBounds.width, mBounds.height, 1, D3DUSAGE_DYNAMIC,
+                            D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT,
+                            getter_AddRefs(mTexture), NULL);    
   } else {
     // D3DPOOL_MANAGED is fine here since we require Dynamic Textures for D3D9Ex
     // devices.
-    hr = device()->CreateTexture(mBounds.width, mBounds.height, 1, 0,
-                                 D3DFMT_A8R8G8B8, D3DPOOL_MANAGED,
-                                 getter_AddRefs(mTexture), NULL);
-  }
-  if (FAILED(hr)) {
-    mD3DManager->ReportFailure(NS_LITERAL_CSTRING("CanvasLayerD3D9::CreateTexture() failed"),
-                                 hr);
-    return;
+    device()->CreateTexture(mBounds.width, mBounds.height, 1, 0,
+                            D3DFMT_A8R8G8B8, D3DPOOL_MANAGED,
+                            getter_AddRefs(mTexture), NULL);
   }
 }
 
 ShadowCanvasLayerD3D9::ShadowCanvasLayerD3D9(LayerManagerD3D9* aManager)
   : ShadowCanvasLayer(aManager, nsnull)
   , LayerD3D9(aManager)
-  , mNeedsYFlip(false)
+  , mNeedsYFlip(PR_FALSE)
 {
   mImplData = static_cast<LayerD3D9*>(this);
 }

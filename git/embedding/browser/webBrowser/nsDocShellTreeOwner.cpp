@@ -642,12 +642,26 @@ NS_IMETHODIMP
 nsDocShellTreeOwner::GetEnabled(bool *aEnabled)
 {
   NS_ENSURE_ARG_POINTER(aEnabled);
-  *aEnabled = true;
+  *aEnabled = PR_TRUE;
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 nsDocShellTreeOwner::SetEnabled(bool aEnabled)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsDocShellTreeOwner::GetBlurSuppression(bool *aBlurSuppression)
+{
+  NS_ENSURE_ARG_POINTER(aBlurSuppression);
+  *aBlurSuppression = PR_FALSE;
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsDocShellTreeOwner::SetBlurSuppression(bool aBlurSuppression)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -723,8 +737,7 @@ nsDocShellTreeOwner::OnStateChange(nsIWebProgress* aProgress,
 NS_IMETHODIMP
 nsDocShellTreeOwner::OnLocationChange(nsIWebProgress* aWebProgress,
                                       nsIRequest* aRequest,
-                                      nsIURI* aURI,
-                                      PRUint32 aFlags)
+                                      nsIURI* aURI)
 {
     return NS_OK;
 }
@@ -873,7 +886,7 @@ nsDocShellTreeOwner::AddChromeListeners()
   nsCOMPtr<nsIDOMEventTarget> target;
   GetDOMEventTarget(mWebBrowser, getter_AddRefs(target));
 
-  nsEventListenerManager* elmP = target->GetListenerManager(true);
+  nsEventListenerManager* elmP = target->GetListenerManager(PR_TRUE);
   if (elmP) {
     elmP->AddEventListenerByType(this, NS_LITERAL_STRING("dragover"),
                                  NS_EVENT_FLAG_BUBBLE |
@@ -905,7 +918,7 @@ nsDocShellTreeOwner::RemoveChromeListeners()
   if (!piTarget)
     return NS_OK;
 
-  nsEventListenerManager* elmP = piTarget->GetListenerManager(true);
+  nsEventListenerManager* elmP = piTarget->GetListenerManager(PR_TRUE);
   if (elmP)
   {
     elmP->RemoveEventListenerByType(this, NS_LITERAL_STRING("dragover"),
@@ -939,7 +952,7 @@ nsDocShellTreeOwner::HandleEvent(nsIDOMEvent* aEvent)
     aEvent->GetType(eventType);
     if (eventType.EqualsLiteral("dragover")) {
       bool canDropLink;
-      handler->CanDropLink(dragEvent, false, &canDropLink);
+      handler->CanDropLink(dragEvent, PR_FALSE, &canDropLink);
       if (canDropLink)
         aEvent->PreventDefault();
     }
@@ -1039,12 +1052,12 @@ UseSVGTitle(nsIDOMElement *currElement)
 {
   nsCOMPtr<nsIDOMSVGElement> svgContent(do_QueryInterface(currElement));
   if (!svgContent)
-    return false;
+    return PR_FALSE;
 
   nsCOMPtr<nsIDOMNode> parent;
   currElement->GetParentNode(getter_AddRefs(parent));
   if (!parent)
-    return false;
+    return PR_FALSE;
 
   PRUint16 nodeType;
   nsresult rv = parent->GetNodeType(&nodeType);
@@ -1100,7 +1113,7 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
           // first try the normal title attribute...
           currElement->GetAttribute(NS_LITERAL_STRING("title"), outText);
           if ( outText.Length() )
-            found = true;
+            found = PR_TRUE;
           else {
             // ...ok, that didn't work, try it in the XLink namespace
             NS_NAMED_LITERAL_STRING(xlinkNS, "http://www.w3.org/1999/xlink");
@@ -1110,7 +1123,7 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
               if (uri) {
                 currElement->GetAttributeNS(NS_LITERAL_STRING("http://www.w3.org/1999/xlink"), NS_LITERAL_STRING("title"), outText);
                 if ( outText.Length() )
-                  found = true;
+                  found = PR_TRUE;
               }
             }
             else {
@@ -1129,7 +1142,7 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
                   if (titleElement) {
                     titleElement->GetTextContent(outText);
                     if ( outText.Length() )
-                      found = true;
+                      found = PR_TRUE;
                     break;
                   }
                 }
@@ -1164,9 +1177,9 @@ NS_IMPL_ISUPPORTS1(ChromeTooltipListener, nsIDOMEventListener)
 ChromeTooltipListener::ChromeTooltipListener(nsWebBrowser* inBrowser,
                                              nsIWebBrowserChrome* inChrome) 
   : mWebBrowser(inBrowser), mWebBrowserChrome(inChrome),
-     mTooltipListenerInstalled(false),
+     mTooltipListenerInstalled(PR_FALSE),
      mMouseClientX(0), mMouseClientY(0),
-     mShowingTooltip(false)
+     mShowingTooltip(PR_FALSE)
 {
   mTooltipTextProvider = do_GetService(NS_TOOLTIPTEXTPROVIDER_CONTRACTID);
   if (!mTooltipTextProvider) {
@@ -1224,19 +1237,19 @@ ChromeTooltipListener::AddTooltipListener()
 {
   if (mEventTarget) {
     nsresult rv = mEventTarget->AddEventListener(NS_LITERAL_STRING("keydown"),
-                                                 this, false, false);
+                                                 this, PR_FALSE, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = mEventTarget->AddEventListener(NS_LITERAL_STRING("mousedown"), this,
-                                        false, false);
+                                        PR_FALSE, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = mEventTarget->AddEventListener(NS_LITERAL_STRING("mouseout"), this,
-                                        false, false);
+                                        PR_FALSE, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = mEventTarget->AddEventListener(NS_LITERAL_STRING("mousemove"), this,
-                                        false, false);
+                                        PR_FALSE, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    mTooltipListenerInstalled = true;
+    mTooltipListenerInstalled = PR_TRUE;
   }
 
   return NS_OK;
@@ -1276,19 +1289,19 @@ ChromeTooltipListener::RemoveTooltipListener()
   if (mEventTarget) {
     nsresult rv =
       mEventTarget->RemoveEventListener(NS_LITERAL_STRING("keydown"), this,
-                                        false);
+                                        PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = mEventTarget->RemoveEventListener(NS_LITERAL_STRING("mousedown"),
-                                           this, false);
+                                           this, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = mEventTarget->RemoveEventListener(NS_LITERAL_STRING("mouseout"), this,
-                                           false);
+                                           PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = mEventTarget->RemoveEventListener(NS_LITERAL_STRING("mousemove"),
-                                           this, false);
+                                           this, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    mTooltipListenerInstalled = false;
+    mTooltipListenerInstalled = PR_FALSE;
   }
 
   return NS_OK;
@@ -1383,7 +1396,7 @@ ChromeTooltipListener::ShowTooltip(PRInt32 inXCoords, PRInt32 inYCoords,
   if ( tooltipListener ) {
     rv = tooltipListener->OnShowTooltip ( inXCoords, inYCoords, PromiseFlatString(inTipText).get() ); 
     if ( NS_SUCCEEDED(rv) )
-      mShowingTooltip = true;
+      mShowingTooltip = PR_TRUE;
   }
 
   return rv;
@@ -1420,7 +1433,7 @@ ChromeTooltipListener::HideTooltip()
     if ( tooltipListener ) {
       rv = tooltipListener->OnHideTooltip ( );
       if ( NS_SUCCEEDED(rv) )
-        mShowingTooltip = false;
+        mShowingTooltip = PR_FALSE;
     }
   }
 
@@ -1554,7 +1567,7 @@ NS_IMPL_ISUPPORTS1(ChromeContextMenuListener, nsIDOMEventListener)
 // ChromeTooltipListener ctor
 //
 ChromeContextMenuListener::ChromeContextMenuListener(nsWebBrowser* inBrowser, nsIWebBrowserChrome* inChrome ) 
-  : mContextMenuListenerInstalled(false),
+  : mContextMenuListenerInstalled(PR_FALSE),
     mWebBrowser(inBrowser),
     mWebBrowserChrome(inChrome)
 {
@@ -1581,10 +1594,10 @@ ChromeContextMenuListener::AddContextMenuListener()
   if (mEventTarget) {
     nsresult rv =
       mEventTarget->AddEventListener(NS_LITERAL_STRING("contextmenu"), this,
-                                     false, false);
+                                     PR_FALSE, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    mContextMenuListenerInstalled = true;
+    mContextMenuListenerInstalled = PR_TRUE;
   }
 
   return NS_OK;
@@ -1602,10 +1615,10 @@ ChromeContextMenuListener::RemoveContextMenuListener()
   if (mEventTarget) {
     nsresult rv =
       mEventTarget->RemoveEventListener(NS_LITERAL_STRING("contextmenu"), this,
-                                        false);
+                                        PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    mContextMenuListenerInstalled = false;
+    mContextMenuListenerInstalled = PR_FALSE;
   }
 
   return NS_OK;
@@ -1743,7 +1756,7 @@ ChromeContextMenuListener::HandleEvent(nsIDOMEvent* aMouseEvent)
           flags2 |= nsIContextMenuListener2::CONTEXT_INPUT;
 
           if (menuListener2) {
-            if (formControl->IsSingleLineTextControl(false)) {
+            if (formControl->IsSingleLineTextControl(PR_FALSE)) {
               flags2 |= nsIContextMenuListener2::CONTEXT_TEXT;
             }
           }

@@ -73,7 +73,7 @@ static PRLogModuleInfo* sLog = PR_NewLogModule("nsStorageStream");
 #define LOG(args) PR_LOG(sLog, PR_LOG_DEBUG, args)
 
 nsStorageStream::nsStorageStream()
-    : mSegmentedBuffer(0), mSegmentSize(0), mWriteInProgress(false),
+    : mSegmentedBuffer(0), mSegmentSize(0), mWriteInProgress(PR_FALSE),
       mLastSegmentNum(-1), mWriteCursor(0), mSegmentEnd(0), mLogicalLength(0)
 {
     LOG(("Creating nsStorageStream [%p].\n", this));
@@ -123,15 +123,15 @@ nsStorageStream::GetOutputStream(PRInt32 aStartingOffset,
     // all the other segments in the buffer.  (It may have been realloc'ed
     // smaller in the Close() method.)
     if (mLastSegmentNum >= 0)
-        if (mSegmentedBuffer->ReallocLastSegment(mSegmentSize)) {
-            // Need to re-Seek, since realloc changed segment base pointer
-            rv = Seek(aStartingOffset);
-            if (NS_FAILED(rv)) return rv;
-        }
+        mSegmentedBuffer->ReallocLastSegment(mSegmentSize);
+
+    // Need to re-Seek, since realloc might have changed segment base pointer
+    rv = Seek(aStartingOffset);
+    if (NS_FAILED(rv)) return rv;
 
     NS_ADDREF(this);
     *aOutputStream = static_cast<nsIOutputStream*>(this);
-    mWriteInProgress = true;
+    mWriteInProgress = PR_TRUE;
     return NS_OK;
 }
 
@@ -140,7 +140,7 @@ nsStorageStream::Close()
 {
     NS_ENSURE_TRUE(mSegmentedBuffer, NS_ERROR_NOT_INITIALIZED);
     
-    mWriteInProgress = false;
+    mWriteInProgress = PR_FALSE;
     
     PRInt32 segmentOffset = SegOffset(mLogicalLength);
 
@@ -189,7 +189,7 @@ nsStorageStream::Write(const char *aBuffer, PRUint32 aCount, PRUint32 *aNumWritt
     // initialize internal buffers).
     bool firstTime = mSegmentedBuffer->GetSegmentCount() == 0;
     while (remaining || NS_UNLIKELY(firstTime)) {
-        firstTime = false;
+        firstTime = PR_FALSE;
         availableInSegment = mSegmentEnd - mWriteCursor;
         if (!availableInSegment) {
             mWriteCursor = mSegmentedBuffer->AppendNewSegment();
@@ -238,7 +238,7 @@ nsStorageStream::WriteSegments(nsReadSegmentFun reader, void * closure, PRUint32
 NS_IMETHODIMP 
 nsStorageStream::IsNonBlocking(bool *aNonBlocking)
 {
-    *aNonBlocking = false;
+    *aNonBlocking = PR_TRUE;
     return NS_OK;
 }
 
@@ -463,7 +463,7 @@ nsStorageInputStream::ReadSegments(nsWriteSegmentFun writer, void * closure, PRU
 
     bool isWriteInProgress = false;
     if (NS_FAILED(mStorageStream->GetWriteInProgress(&isWriteInProgress)))
-        isWriteInProgress = false;
+        isWriteInProgress = PR_FALSE;
 
     if (*aNumRead == 0 && isWriteInProgress)
         return NS_BASE_STREAM_WOULD_BLOCK;
@@ -477,7 +477,7 @@ nsStorageInputStream::IsNonBlocking(bool *aNonBlocking)
     // TODO: This class should implement nsIAsyncInputStream so that callers
     // have some way of dealing with NS_BASE_STREAM_WOULD_BLOCK errors.
  
-    *aNonBlocking = true;
+    *aNonBlocking = PR_TRUE;
     return NS_OK;
 }
 

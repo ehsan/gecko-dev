@@ -129,9 +129,6 @@ public:
             const IPC::URI& aReferrer);
     virtual bool DeallocPExternalHelperApp(PExternalHelperAppChild *aService);
 
-    virtual PSmsChild* AllocPSms();
-    virtual bool DeallocPSms(PSmsChild*);
-
     virtual PStorageChild* AllocPStorage(const StorageConstructData& aData);
     virtual bool DeallocPStorage(PStorageChild* aActor);
 
@@ -171,7 +168,6 @@ public:
     virtual bool RecvCycleCollect();
 
     virtual bool RecvAppInfo(const nsCString& version, const nsCString& buildID);
-    virtual bool RecvSetID(const PRUint64 &id);
 
 #ifdef ANDROID
     gfxIntSize GetScreenSize() { return mScreenSize; }
@@ -180,8 +176,6 @@ public:
     // Get the directory for IndexedDB files. We query the parent for this and
     // cache the value
     nsString &GetIndexedDBPath();
-
-    PRUint64 GetID() { return mID; }
 
 private:
     NS_OVERRIDE
@@ -203,15 +197,6 @@ private:
 #endif
 
     AppInfo mAppInfo;
-
-    /**
-     * An ID unique to the process containing our corresponding
-     * content parent.
-     *
-     * We expect our content parent to set this ID immediately after opening a
-     * channel to us.
-     */
-    PRUint64 mID;
 
     static ContentChild* sSingleton;
 

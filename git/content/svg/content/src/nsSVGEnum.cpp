@@ -37,8 +37,10 @@
 #include "nsSVGEnum.h"
 #include "nsIAtom.h"
 #include "nsSVGElement.h"
+#ifdef MOZ_SMIL
 #include "nsSMILValue.h"
 #include "SMILEnumType.h"
+#endif // MOZ_SMIL
 
 using namespace mozilla;
 
@@ -76,15 +78,17 @@ nsSVGEnum::SetBaseValueString(const nsAString& aValue,
 
   while (mapping && mapping->mKey) {
     if (valAtom == *(mapping->mKey)) {
-      mIsBaseSet = true;
+      mIsBaseSet = PR_TRUE;
       if (mBaseVal != mapping->mVal) {
         mBaseVal = mapping->mVal;
         if (!mIsAnimated) {
           mAnimVal = mBaseVal;
         }
+#ifdef MOZ_SMIL
         else {
           aSVGElement->AnimationNeedsResample();
         }
+#endif
         // We don't need to call DidChange* here - we're only called by
         // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
         // which takes care of notifying.
@@ -122,15 +126,17 @@ nsSVGEnum::SetBaseValue(PRUint16 aValue,
 
   while (mapping && mapping->mKey) {
     if (mapping->mVal == aValue) {
-      mIsBaseSet = true;
+      mIsBaseSet = PR_TRUE;
       if (mBaseVal != PRUint8(aValue)) {
         mBaseVal = PRUint8(aValue);
         if (!mIsAnimated) {
           mAnimVal = mBaseVal;
         }
+#ifdef MOZ_SMIL
         else {
           aSVGElement->AnimationNeedsResample();
         }
+#endif
         aSVGElement->DidChangeEnum(mAttrEnum, true);
       }
       return NS_OK;
@@ -144,7 +150,7 @@ void
 nsSVGEnum::SetAnimValue(PRUint16 aValue, nsSVGElement *aSVGElement)
 {
   mAnimVal = aValue;
-  mIsAnimated = true;
+  mIsAnimated = PR_TRUE;
   aSVGElement->DidAnimateEnum(mAttrEnum);
 }
 
@@ -160,6 +166,7 @@ nsSVGEnum::ToDOMAnimatedEnum(nsIDOMSVGAnimatedEnumeration **aResult,
   return NS_OK;
 }
 
+#ifdef MOZ_SMIL
 nsISMILAttr*
 nsSVGEnum::ToSMILAttr(nsSVGElement *aSVGElement)
 {
@@ -180,7 +187,7 @@ nsSVGEnum::SMILEnum::ValueFromString(const nsAString& aStr,
       nsSMILValue val(&SMILEnumType::sSingleton);
       val.mU.mUint = mapping->mVal;
       aValue = val;
-      aPreventCachingOfSandwich = false;
+      aPreventCachingOfSandwich = PR_FALSE;
       return NS_OK;
     }
     mapping++;
@@ -204,7 +211,7 @@ nsSVGEnum::SMILEnum::ClearAnimValue()
 {
   if (mVal->mIsAnimated) {
     mVal->SetAnimValue(mVal->mBaseVal, mSVGElement);
-    mVal->mIsAnimated = false;
+    mVal->mIsAnimated = PR_FALSE;
   }
 }
 
@@ -220,3 +227,4 @@ nsSVGEnum::SMILEnum::SetAnimValue(const nsSMILValue& aValue)
   }
   return NS_OK;
 }
+#endif // MOZ_SMIL

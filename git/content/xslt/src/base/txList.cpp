@@ -243,7 +243,7 @@ void txList::clear()
 txListIterator::txListIterator(txList* list) {
    this->list   = list;
    currentItem  = 0;
-   atEndOfList  = false;
+   atEndOfList  = MB_FALSE;
 } //-- txListIterator
 
 /**
@@ -276,11 +276,11 @@ nsresult txListIterator::addBefore(void* objPtr)
 
 /**
  * Returns true if a successful call to the next() method can be made
- * @return true if a successful call to the next() method can be made,
- * otherwise false
+ * @return MB_TRUE if a successful call to the next() method can be made,
+ * otherwise MB_FALSE
 **/
-bool txListIterator::hasNext() {
-    bool hasNext = false;
+MBool txListIterator::hasNext() {
+    MBool hasNext = MB_FALSE;
     if (currentItem)
         hasNext = (currentItem->nextItem != 0);
     else if (!atEndOfList)
@@ -291,11 +291,11 @@ bool txListIterator::hasNext() {
 
 /**
  * Returns true if a successful call to the previous() method can be made
- * @return true if a successful call to the previous() method can be made,
- * otherwise false
+ * @return MB_TRUE if a successful call to the previous() method can be made,
+ * otherwise MB_FALSE
 **/
-bool txListIterator::hasPrevious() {
-    bool hasPrevious = false;
+MBool txListIterator::hasPrevious() {
+    MBool hasPrevious = MB_FALSE;
     if (currentItem)
         hasPrevious = (currentItem->prevItem != 0);
     else if (atEndOfList)
@@ -318,7 +318,7 @@ void* txListIterator::next() {
     if (currentItem)
         obj = currentItem->objPtr;
     else
-        atEndOfList = true;
+        atEndOfList = MB_TRUE;
 
     return obj;
 } //-- next
@@ -338,7 +338,7 @@ void* txListIterator::previous() {
     if (currentItem)
         obj = currentItem->objPtr;
 
-    atEndOfList = false;
+    atEndOfList = MB_FALSE;
 
     return obj;
 } //-- previous
@@ -379,7 +379,7 @@ void* txListIterator::advance(int i) {
         for (; currentItem && i < 0; i++)
             currentItem = currentItem->prevItem;
 
-        atEndOfList = false;
+        atEndOfList = MB_FALSE;
     }
 
     if (currentItem)
@@ -409,7 +409,7 @@ void* txListIterator::remove() {
  * Resets the current location within the txList to the beginning of the txList
 **/
 void txListIterator::reset() {
-   atEndOfList = false;
+   atEndOfList = MB_FALSE;
    currentItem = 0;
 } //-- reset
 
@@ -417,6 +417,6 @@ void txListIterator::reset() {
  * Move the iterator to right after the last element
 **/
 void txListIterator::resetToEnd() {
-   atEndOfList = true;
+   atEndOfList = MB_TRUE;
    currentItem = 0;
 } //-- moveToEnd

@@ -156,7 +156,7 @@ main(int argc, char* argv[])
         // is to be uploaded.
         nsCOMPtr<nsIInputStream> uploadStream;
         rv = NS_NewPostDataStream(getter_AddRefs(uploadStream),
-                                  true,
+                                  PR_TRUE,
                                   nsDependentCString(fileName), // XXX UTF-8
                                   0, ioService);
         if (NS_FAILED(rv)) return rv;

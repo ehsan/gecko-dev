@@ -65,7 +65,7 @@ public:
   ~nsAtomList(void);
 
   /** Do a deep clone.  Should be used only on the first in the linked list. */
-  nsAtomList* Clone() const { return Clone(true); }
+  nsAtomList* Clone() const { return Clone(PR_TRUE); }
 
   nsCOMPtr<nsIAtom> mAtom;
   nsAtomList*       mNext;
@@ -87,7 +87,7 @@ public:
   ~nsPseudoClassList(void);
 
   /** Do a deep clone.  Should be used only on the first in the linked list. */
-  nsPseudoClassList* Clone() const { return Clone(true); }
+  nsPseudoClassList* Clone() const { return Clone(PR_TRUE); }
 
   union {
     // For a given value of mType, we have either:
@@ -133,7 +133,7 @@ public:
   ~nsAttrSelector(void);
 
   /** Do a deep clone.  Should be used only on the first in the linked list. */
-  nsAttrSelector* Clone() const { return Clone(true); }
+  nsAttrSelector* Clone() const { return Clone(PR_TRUE); }
 
   nsString        mValue;
   nsAttrSelector* mNext;
@@ -157,7 +157,7 @@ public:
   ~nsCSSSelector(void);
 
   /** Do a deep clone.  Should be used only on the first in the linked list. */
-  nsCSSSelector* Clone() const { return Clone(true, true); }
+  nsCSSSelector* Clone() const { return Clone(PR_TRUE, PR_TRUE); }
 
   void Reset(void);
   void SetNameSpace(PRInt32 aNameSpace);
@@ -269,7 +269,7 @@ struct nsCSSSelectorList {
   /**
    * Do a deep clone.  Should be used only on the first in the list.
    */
-  nsCSSSelectorList* Clone() const { return Clone(true); }
+  nsCSSSelectorList* Clone() const { return Clone(PR_TRUE); }
 
   nsCSSSelector*     mSelectors;
   PRInt32            mWeight;
@@ -318,7 +318,7 @@ protected:
   friend class StyleRule;
 };
 
-class StyleRule : public Rule
+class NS_FINAL_CLASS StyleRule : public Rule
 {
  public:
   StyleRule(nsCSSSelectorList* aSelector,

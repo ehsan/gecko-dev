@@ -64,16 +64,16 @@ bool
 nsAccessibleWrap::Init () 
 {
   if (!nsAccessible::Init())
-    return false;
+    return PR_FALSE;
 
   if (!mNativeWrapper && !AncestorIsFlat()) {
     // Create our native object using the class type specified in GetNativeType().
     mNativeWrapper = new AccessibleWrapper (this, GetNativeType());
     if (!mNativeWrapper)
-      return false;
+      return PR_FALSE;
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 NS_IMETHODIMP
@@ -210,6 +210,42 @@ nsAccessibleWrap::InvalidateChildren()
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+PRInt32
+nsAccessibleWrap::GetUnignoredChildCount(bool aDeepCount)
+{
+  // if we're flat, we have no children.
+  if (nsAccUtils::MustPrune(this))
+    return 0;
+
+  PRInt32 resultChildCount = 0;
+
+  PRInt32 childCount = GetChildCount();
+  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
+    nsAccessibleWrap *childAcc =
+      static_cast<nsAccessibleWrap*>(GetChildAt(childIdx));
+
+    // if the current child is not ignored, count it.
+    if (!childAcc->IsIgnored())
+      ++resultChildCount;
+
+    // if it's flat, we don't care to inspect its children.
+    if (nsAccUtils::MustPrune(childAcc))
+      continue;
+
+    if (aDeepCount) {
+      // recursively count the unignored children of our children since it's a deep count.
+      resultChildCount += childAcc->GetUnignoredChildCount(PR_TRUE);
+    } else {
+      // no deep counting, but if the child is ignored, we want to substitute it for its
+      // children.
+      if (childAcc->IsIgnored()) 
+        resultChildCount += childAcc->GetUnignoredChildCount(PR_FALSE);
+    }
+  } 
+  
+  return resultChildCount;
+}
+
 // if we for some reason have no native accessible, we should be skipped over (and traversed)
 // when fetching all unignored children, etc.  when counting unignored children, we will not be counted.
 bool 
@@ -280,10 +316,10 @@ nsAccessibleWrap::AncestorIsFlat()
   nsAccessible* parent = Parent();
   while (parent) {
     if (nsAccUtils::MustPrune(parent))
-      return true;
+      return PR_TRUE;
 
     parent = parent->Parent();
   }
   // no parent was flat
-  return false;
+  return PR_FALSE;
 }

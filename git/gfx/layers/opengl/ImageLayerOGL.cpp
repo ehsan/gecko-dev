@@ -373,11 +373,11 @@ ImageContainerOGL::SetLayerManager(LayerManager *aManager)
     // XXX if we don't have context sharing, we should tell our images
     // that their textures are no longer valid.
     mManager = nsnull;
-    return true;
+    return PR_TRUE;
   }
 
   if (aManager->GetBackendType() != LayerManager::LAYERS_OPENGL) {
-    return false;
+    return PR_FALSE;
   }
 
   LayerManagerOGL* lmOld = static_cast<LayerManagerOGL*>(mManager);
@@ -393,7 +393,7 @@ ImageContainerOGL::SetLayerManager(LayerManager *aManager)
 
   lmNew->RememberImageContainer(this);
 
-  return true;
+  return PR_TRUE;
 }
 
 Layer*
@@ -662,7 +662,7 @@ InitTexture(GLContext* aGL, GLuint aTexture, GLenum aFormat, const gfxIntSize& a
 
 PlanarYCbCrImageOGL::PlanarYCbCrImageOGL(LayerManagerOGL *aManager,
                                          RecycleBin *aRecycleBin)
-  : PlanarYCbCrImage(nsnull), mRecycleBin(aRecycleBin), mHasData(false)
+  : PlanarYCbCrImage(nsnull), mRecycleBin(aRecycleBin), mHasData(PR_FALSE)
 {
 #if 0
   // We really want to allocate this on the decode thread -- but to do that,
@@ -697,7 +697,7 @@ PlanarYCbCrImageOGL::SetData(const PlanarYCbCrImage::Data &aData)
   
   mBuffer = CopyData(mData, mSize, mBufferSize, aData);
 
-  mHasData = true;
+  mHasData = PR_TRUE;
 }
 
 void
@@ -794,10 +794,12 @@ CairoImageOGL::SetData(const CairoImage::Data &aData)
   }
 #endif
 
+  InitTexture(gl, tex, LOCAL_GL_RGBA, mSize);
+
   mLayerProgram =
     gl->UploadSurfaceToTexture(aData.mSurface,
                                nsIntRect(0,0, mSize.width, mSize.height),
-                               tex, true);
+                               tex);
 }
 
 void CairoImageOGL::SetTiling(bool aTiling)
@@ -840,7 +842,7 @@ ShadowImageLayerOGL::Init(const SharedImage& aFront)
     mTexImage = gl()->CreateTextureImage(nsIntSize(mSize.width, mSize.height),
                                          surf->GetContentType(),
                                          LOCAL_GL_CLAMP_TO_EDGE);
-    return true;
+    return PR_TRUE;
   } else {
     YUVImage yuv = aFront.get_YUVImage();
 
@@ -869,9 +871,9 @@ ShadowImageLayerOGL::Init(const SharedImage& aFront)
     InitTexture(gl(), mYUVTexture[0].GetTextureID(), LOCAL_GL_LUMINANCE, mSize);
     InitTexture(gl(), mYUVTexture[1].GetTextureID(), LOCAL_GL_LUMINANCE, mCbCrSize);
     InitTexture(gl(), mYUVTexture[2].GetTextureID(), LOCAL_GL_LUMINANCE, mCbCrSize);
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 void
@@ -883,8 +885,7 @@ ShadowImageLayerOGL::Swap(const SharedImage& aNewFront,
       nsRefPtr<gfxASurface> surf =
         ShadowLayerForwarder::OpenDescriptor(aNewFront.get_SurfaceDescriptor());
       gfxIntSize size = surf->GetSize();
-      if (mSize != size || !mTexImage ||
-          mTexImage->GetContentType() != surf->GetContentType()) {
+      if (mSize != size || !mTexImage) {
         Init(aNewFront);
       }
       // XXX this is always just ridiculously slow
@@ -933,7 +934,7 @@ void
 ShadowImageLayerOGL::Destroy()
 {
   if (!mDestroyed) {
-    mDestroyed = true;
+    mDestroyed = PR_TRUE;
     mTexImage = nsnull;
   }
 }

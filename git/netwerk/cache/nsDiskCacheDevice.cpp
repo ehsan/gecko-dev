@@ -91,7 +91,7 @@ public:
     nsDiskCacheDeviceDeactivateEntryEvent(nsDiskCacheDevice *device,
                                           nsCacheEntry * entry,
                                           nsDiskCacheBinding * binding)
-        : mCanceled(false),
+        : mCanceled(PR_FALSE),
           mEntry(entry),
           mDevice(device),
           mBinding(binding)
@@ -110,7 +110,7 @@ public:
         return NS_OK;
     }
 
-    void CancelEvent() { mCanceled = true; }
+    void CancelEvent() { mCanceled = PR_TRUE; }
 private:
     bool mCanceled;
     nsCacheEntry *mEntry;
@@ -182,7 +182,7 @@ nsDiskCacheEvictor::VisitRecord(nsDiskCacheRecord *  mapRecord)
         // We are currently using this entry, so all we can do is doom it.
         // Since we're enumerating the records, we don't want to call
         // DeleteRecord when nsCacheService::DoomEntry() calls us back.
-        binding->mDoomed = true;         // mark binding record as 'deleted'
+        binding->mDoomed = PR_TRUE;         // mark binding record as 'deleted'
         nsCacheService::DoomEntry(binding->mCacheEntry);
     } else {
         // entry not in use, just delete storage because we're enumerating the records
@@ -388,7 +388,7 @@ nsDiskCache::Truncate(PRFileDesc *  fd, PRUint32  newEOF)
 nsDiskCacheDevice::nsDiskCacheDevice()
     : mCacheCapacity(0)
     , mMaxEntrySize(-1) // -1 means "no limit"
-    , mInitialized(false)
+    , mInitialized(PR_FALSE)
 {
 }
 
@@ -419,17 +419,15 @@ nsDiskCacheDevice::Init()
     rv = mBindery.Init();
     if (NS_FAILED(rv))
         return rv;
-
-    nsDeleteDir::RemoveOldTrashes(mCacheDirectory);
-
+    
     // Open Disk Cache
     rv = OpenDiskCache();
     if (NS_FAILED(rv)) {
-        (void) mCacheMap.Close(false);
+        (void) mCacheMap.Close(PR_FALSE);
         return rv;
     }
 
-    mInitialized = true;
+    mInitialized = PR_TRUE;
     return NS_OK;
 }
 
@@ -442,9 +440,20 @@ nsDiskCacheDevice::Shutdown()
 {
     nsCacheService::AssertOwnsLock();
 
-    nsresult rv = Shutdown_Private(true);
+    nsresult rv = Shutdown_Private(PR_TRUE);
     if (NS_FAILED(rv))
         return rv;
+
+    if (mCacheDirectory) {
+        // delete any trash files left-over before shutting down.
+        nsCOMPtr<nsIFile> trashDir;
+        GetTrashDir(mCacheDirectory, &trashDir);
+        if (trashDir) {
+            bool exists;
+            if (NS_SUCCEEDED(trashDir->Exists(&exists)) && exists)
+                DeleteDir(trashDir, PR_FALSE, PR_TRUE);
+        }
+    }
 
     return NS_OK;
 }
@@ -469,7 +478,7 @@ nsDiskCacheDevice::Shutdown_Private(bool    flush)
 
         mBindery.Reset();
 
-        mInitialized = false;
+        mInitialized = PR_FALSE;
     }
 
     return NS_OK;
@@ -494,17 +503,16 @@ nsDiskCacheDevice::GetDeviceID()
 nsCacheEntry *
 nsDiskCacheDevice::FindEntry(nsCString * key, bool *collision)
 {
-    Telemetry::AutoTimer<Telemetry::CACHE_DISK_SEARCH> timer;
     if (!Initialized())  return nsnull;  // NS_ERROR_NOT_INITIALIZED
     nsDiskCacheRecord       record;
     nsDiskCacheBinding *    binding = nsnull;
     PLDHashNumber           hashNumber = nsDiskCache::Hash(key->get());
 
-    *collision = false;
+    *collision = PR_FALSE;
 
     binding = mBindery.FindActiveBinding(hashNumber);
     if (binding && !binding->mCacheEntry->Key()->Equals(*key)) {
-        *collision = true;
+        *collision = PR_TRUE;
         return nsnull;
     } else if (binding && binding->mDeactivateEvent) {
         binding->mDeactivateEvent->CancelEvent();
@@ -528,7 +536,7 @@ nsDiskCacheDevice::FindEntry(nsCString * key, bool *collision)
     
     // compare key to be sure
     if (!key->Equals(diskEntry->Key())) {
-        *collision = true;
+        *collision = PR_TRUE;
         return nsnull;
     }
     
@@ -590,7 +598,7 @@ nsDiskCacheDevice::DeactivateEntry_Private(nsCacheEntry * entry,
             // clean up as best we can
             (void) mCacheMap.DeleteStorage(&binding->mRecord);
             (void) mCacheMap.DeleteRecord(&binding->mRecord);
-            binding->mDoomed = true; // record is no longer in cache map
+            binding->mDoomed = PR_TRUE; // record is no longer in cache map
         }
     }
 
@@ -726,7 +734,7 @@ nsDiskCacheDevice::DoomEntry(nsCacheEntry * entry)
 #endif
             mCacheMap.DeleteRecord(&binding->mRecord);
         NS_ASSERTION(NS_SUCCEEDED(rv),"DeleteRecord failed.");
-        binding->mDoomed = true; // record in no longer in cache map
+        binding->mDoomed = PR_TRUE; // record in no longer in cache map
     }
 }
 
@@ -824,7 +832,7 @@ nsDiskCacheDevice::GetFileForEntry(nsCacheEntry *    entry,
     nsCOMPtr<nsIFile>  file;
     rv = mCacheMap.GetFileForDiskCacheRecord(&binding->mRecord,
                                              nsDiskCache::kData,
-                                             false,
+                                             PR_FALSE,
                                              getter_AddRefs(file));
     if (NS_FAILED(rv))  return rv;
     
@@ -995,16 +1003,18 @@ nsDiskCacheDevice::OpenDiskCache()
     if (NS_FAILED(rv))
         return rv;
 
+    bool trashing = false;
     if (exists) {
         // Try opening cache map file.
         rv = mCacheMap.Open(mCacheDirectory);        
         // move "corrupt" caches to trash
         if (rv == NS_ERROR_FILE_CORRUPTED) {
             // delay delete by 1 minute to avoid IO thrash at startup
-            rv = nsDeleteDir::DeleteDir(mCacheDirectory, true, 60000);
+            rv = DeleteDir(mCacheDirectory, PR_TRUE, PR_FALSE, 60000);
             if (NS_FAILED(rv))
                 return rv;
-            exists = false;
+            exists = PR_FALSE;
+            trashing = PR_TRUE;
         }
         else if (NS_FAILED(rv))
             return rv;
@@ -1024,6 +1034,19 @@ nsDiskCacheDevice::OpenDiskCache()
             return rv;
     }
 
+    if (!trashing) {
+        // delete any trash files leftover from a previous run
+        nsCOMPtr<nsIFile> trashDir;
+        GetTrashDir(mCacheDirectory, &trashDir);
+        if (trashDir) {
+            bool exists;
+            if (NS_SUCCEEDED(trashDir->Exists(&exists)) && exists) {
+                // be paranoid and delete immediately if leftover
+                DeleteDir(trashDir, PR_FALSE, PR_FALSE);
+            }
+        }
+    }
+
     return NS_OK;
 }
 
@@ -1034,13 +1057,13 @@ nsDiskCacheDevice::ClearDiskCache()
     if (mBindery.ActiveBindings())
         return NS_ERROR_CACHE_IN_USE;
 
-    nsresult rv = Shutdown_Private(false);  // false: don't bother flushing
+    nsresult rv = Shutdown_Private(PR_FALSE);  // false: don't bother flushing
     if (NS_FAILED(rv))
         return rv;
 
     // If the disk cache directory is already gone, then it's not an error if
     // we fail to delete it ;-)
-    rv = nsDeleteDir::DeleteDir(mCacheDirectory, true);
+    rv = DeleteDir(mCacheDirectory, PR_TRUE, PR_FALSE);
     if (NS_FAILED(rv) && rv != NS_ERROR_FILE_TARGET_DOES_NOT_EXIST)
         return rv;
 
@@ -1076,7 +1099,7 @@ nsDiskCacheDevice::SetCacheParentDirectory(nsILocalFile * parentDir)
     bool    exists;
 
     if (Initialized()) {
-        NS_ASSERTION(false, "Cannot switch cache directory when initialized");
+        NS_ASSERTION(PR_FALSE, "Cannot switch cache directory when initialized");
         return;
     }
 

@@ -60,7 +60,7 @@ class txPushNewContext;
 class txStylesheetCompiler;
 class txInScopeVariable;
 
-class txElementContext : public txObject
+class txElementContext : public TxObject
 {
 public:
     txElementContext(const nsAString& aBaseURI);
@@ -77,8 +77,8 @@ public:
 class txACompileObserver
 {
 public:
-    NS_IMETHOD_(nsrefcnt) AddRef() = 0;
-    NS_IMETHOD_(nsrefcnt) Release() = 0;
+    virtual void AddRef() = 0;
+    virtual void Release() = 0;
 
     virtual nsresult loadURI(const nsAString& aUri,
                              const nsAString& aReferrerUri,
@@ -122,8 +122,8 @@ public:
     void popSorter();
     nsresult pushChooseGotoList();
     void popChooseGotoList();
-    nsresult pushObject(txObject* aObject);
-    txObject* popObject();
+    nsresult pushObject(TxObject* aObject);
+    TxObject* popObject();
     nsresult pushPtr(void* aPtr);
     void* popPtr();
 

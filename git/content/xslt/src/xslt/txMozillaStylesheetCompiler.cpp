@@ -133,7 +133,7 @@ protected:
 txStylesheetSink::txStylesheetSink(txStylesheetCompiler* aCompiler,
                                    nsIParser* aParser)
     : mCompiler(aCompiler),
-      mCheckedForXML(false)
+      mCheckedForXML(PR_FALSE)
 {
     mListener = do_QueryInterface(aParser);
 }
@@ -239,7 +239,7 @@ txStylesheetSink::ReportError(const PRUnichar *aErrorText,
     NS_PRECONDITION(aError && aSourceText && aErrorText, "Check arguments!!!");
 
     // The expat driver should report the error.
-    *_retval = true;
+    *_retval = PR_TRUE;
 
     mCompiler->cancel(NS_ERROR_FAILURE, aErrorText, aSourceText);
 
@@ -262,7 +262,7 @@ txStylesheetSink::OnDataAvailable(nsIRequest *aRequest, nsISupports *aContext,
         nsCOMPtr<nsIDTD> dtd;
         parser->GetDTD(getter_AddRefs(dtd));
         if (dtd) {
-            mCheckedForXML = true;
+            mCheckedForXML = PR_TRUE;
             if (!(dtd->GetType() & NS_IPARSER_FLAG_XML)) {
                 nsCOMPtr<nsIChannel> channel = do_QueryInterface(aRequest);
                 nsAutoString spec;
@@ -499,7 +499,7 @@ txCompileObserver::startLoad(nsIURI* aUri, txStylesheetCompiler* aCompiler,
     if (httpChannel) {
         httpChannel->SetRequestHeader(NS_LITERAL_CSTRING("Accept"),
                                       NS_LITERAL_CSTRING("*/*"),
-                                      false);
+                                      PR_FALSE);
 
         nsCOMPtr<nsIURI> referrerURI;
         aReferrerPrincipal->GetURI(getter_AddRefs(referrerURI));
@@ -523,7 +523,7 @@ txCompileObserver::startLoad(nsIURI* aUri, txStylesheetCompiler* aCompiler,
     // Always install in case of redirects
     nsCOMPtr<nsIStreamListener> listener =
         new nsCORSListenerProxy(sink, aReferrerPrincipal, channel,
-                                false, &rv);
+                                PR_FALSE, &rv);
     NS_ENSURE_TRUE(listener, NS_ERROR_OUT_OF_MEMORY);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -691,7 +691,7 @@ txSyncCompileObserver::loadURI(const nsAString& aUri,
     // make sense.
     nsCOMPtr<nsIDOMDocument> document;
     rv = nsSyncLoadService::LoadDocument(uri, referrerPrincipal, nsnull,
-                                         false, getter_AddRefs(document));
+                                         PR_FALSE, getter_AddRefs(document));
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(document);
@@ -720,7 +720,8 @@ TX_CompileStylesheet(nsINode* aNode, txMozillaXSLTProcessor* aProcessor,
                      txStylesheet** aStylesheet)
 {
     // If we move GetBaseURI to nsINode this can be simplified.
-    nsCOMPtr<nsIDocument> doc = aNode->OwnerDoc();
+    nsCOMPtr<nsIDocument> doc = aNode->GetOwnerDoc();
+    NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
 
     nsCOMPtr<nsIURI> uri;
     if (aNode->IsNodeOfType(nsINode::eCONTENT)) {

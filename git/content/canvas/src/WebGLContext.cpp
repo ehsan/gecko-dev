@@ -223,20 +223,27 @@ WebGLContext::WebGLContext()
 {
     mWidth = mHeight = 0;
     mGeneration = 0;
-    mInvalidated = false;
-    mResetLayer = true;
-    mVerbose = false;
-    mOptionsFrozen = false;
+    mInvalidated = PR_FALSE;
+    mResetLayer = PR_TRUE;
+    mVerbose = PR_FALSE;
+    mOptionsFrozen = PR_FALSE;
 
     mActiveTexture = 0;
     mWebGLError = LOCAL_GL_NO_ERROR;
-    mPixelStoreFlipY = false;
-    mPixelStorePremultiplyAlpha = false;
+    mPixelStoreFlipY = PR_FALSE;
+    mPixelStorePremultiplyAlpha = PR_FALSE;
     mPixelStoreColorspaceConversion = BROWSER_DEFAULT_WEBGL;
 
-    mShaderValidation = true;
+    mShaderValidation = PR_TRUE;
 
-    mBlackTexturesAreInitialized = false;
+    mMapBuffers.Init();
+    mMapTextures.Init();
+    mMapPrograms.Init();
+    mMapShaders.Init();
+    mMapFramebuffers.Init();
+    mMapRenderbuffers.Init();
+
+    mBlackTexturesAreInitialized = PR_FALSE;
     mFakeBlackStatus = DoNotNeedFakeBlack;
 
     mVertexAttrib0Vector[0] = 0;
@@ -289,22 +296,80 @@ WebGLContext::WebGLContext()
     // See OpenGL ES 2.0.25 spec, 6.2 State Tables, table 6.13
     mPixelStorePackAlignment = 4;
     mPixelStoreUnpackAlignment = 4;
-
+    
     WebGLMemoryReporter::AddWebGLContext(this);
-
-    mContextLost = false;
-    mAllowRestore = false;
-    mRobustnessTimerRunning = false;
-    mDrawSinceRobustnessTimerSet = false;
-    mContextRestorer = do_CreateInstance("@mozilla.org/timer;1");
 }
 
 WebGLContext::~WebGLContext()
 {
     DestroyResourcesAndContext();
     WebGLMemoryReporter::RemoveWebGLContext(this);
-    TerminateRobustnessTimer();
-    mContextRestorer = nsnull;
+}
+
+static PLDHashOperator
+DeleteTextureFunction(const PRUint32& aKey, WebGLTexture *aValue, void *aData)
+{
+    gl::GLContext *gl = (gl::GLContext *) aData;
+    NS_ASSERTION(!aValue->Deleted(), "Texture is still in mMapTextures, but is deleted?");
+    GLuint name = aValue->GLName();
+    gl->fDeleteTextures(1, &name);
+    aValue->Delete();
+    return PL_DHASH_NEXT;
+}
+
+static PLDHashOperator
+DeleteBufferFunction(const PRUint32& aKey, WebGLBuffer *aValue, void *aData)
+{
+    gl::GLContext *gl = (gl::GLContext *) aData;
+    NS_ASSERTION(!aValue->Deleted(), "Buffer is still in mMapBuffers, but is deleted?");
+    GLuint name = aValue->GLName();
+    gl->fDeleteBuffers(1, &name);
+    aValue->Delete();
+    return PL_DHASH_NEXT;
+}
+
+static PLDHashOperator
+DeleteFramebufferFunction(const PRUint32& aKey, WebGLFramebuffer *aValue, void *aData)
+{
+    gl::GLContext *gl = (gl::GLContext *) aData;
+    NS_ASSERTION(!aValue->Deleted(), "Framebuffer is still in mMapFramebuffers, but is deleted?");
+    GLuint name = aValue->GLName();
+    gl->fDeleteFramebuffers(1, &name);
+    aValue->Delete();
+    return PL_DHASH_NEXT;
+}
+
+static PLDHashOperator
+DeleteRenderbufferFunction(const PRUint32& aKey, WebGLRenderbuffer *aValue, void *aData)
+{
+    gl::GLContext *gl = (gl::GLContext *) aData;
+    NS_ASSERTION(!aValue->Deleted(), "Renderbuffer is still in mMapRenderbuffers, but is deleted?");
+    GLuint name = aValue->GLName();
+    gl->fDeleteRenderbuffers(1, &name);
+    aValue->Delete();
+    return PL_DHASH_NEXT;
+}
+
+static PLDHashOperator
+DeleteProgramFunction(const PRUint32& aKey, WebGLProgram *aValue, void *aData)
+{
+    gl::GLContext *gl = (gl::GLContext *) aData;
+    NS_ASSERTION(!aValue->Deleted(), "Program is still in mMapPrograms, but is deleted?");
+    GLuint name = aValue->GLName();
+    gl->fDeleteProgram(name);
+    aValue->Delete();
+    return PL_DHASH_NEXT;
+}
+
+static PLDHashOperator
+DeleteShaderFunction(const PRUint32& aKey, WebGLShader *aValue, void *aData)
+{
+    gl::GLContext *gl = (gl::GLContext *) aData;
+    NS_ASSERTION(!aValue->Deleted(), "Shader is still in mMapShaders, but is deleted?");
+    GLuint name = aValue->GLName();
+    gl->fDeleteShader(name);
+    aValue->Delete();
+    return PL_DHASH_NEXT;
 }
 
 void
@@ -315,35 +380,28 @@ WebGLContext::DestroyResourcesAndContext()
 
     gl->MakeCurrent();
 
-    mBound2DTextures.Clear();
-    mBoundCubeMapTextures.Clear();
-    mBoundArrayBuffer = nsnull;
-    mBoundElementArrayBuffer = nsnull;
-    mCurrentProgram = nsnull;
-    mBoundFramebuffer = nsnull;
-    mBoundRenderbuffer = nsnull;
+    mMapTextures.EnumerateRead(DeleteTextureFunction, gl);
+    mMapTextures.Clear();
 
-    mAttribBuffers.Clear();
+    mMapBuffers.EnumerateRead(DeleteBufferFunction, gl);
+    mMapBuffers.Clear();
 
-    while (mTextures.Length())
-        mTextures.Last()->DeleteOnce();
-    while (mBuffers.Length())
-        mBuffers.Last()->DeleteOnce();
-    while (mRenderbuffers.Length())
-        mRenderbuffers.Last()->DeleteOnce();
-    while (mFramebuffers.Length())
-        mFramebuffers.Last()->DeleteOnce();
-    while (mShaders.Length())
-        mShaders.Last()->DeleteOnce();
-    while (mPrograms.Length())
-        mPrograms.Last()->DeleteOnce();
-    while (mUniformLocations.Length())
-        mUniformLocations.Last()->DeleteOnce();
+    mMapPrograms.EnumerateRead(DeleteProgramFunction, gl);
+    mMapPrograms.Clear();
+
+    mMapShaders.EnumerateRead(DeleteShaderFunction, gl);
+    mMapShaders.Clear();
+
+    mMapFramebuffers.EnumerateRead(DeleteFramebufferFunction, gl);
+    mMapFramebuffers.Clear();
+
+    mMapRenderbuffers.EnumerateRead(DeleteRenderbufferFunction, gl);
+    mMapRenderbuffers.Clear();
 
     if (mBlackTexturesAreInitialized) {
         gl->fDeleteTextures(1, &mBlackTexture2D);
         gl->fDeleteTextures(1, &mBlackTextureCubeMap);
-        mBlackTexturesAreInitialized = false;
+        mBlackTexturesAreInitialized = PR_FALSE;
     }
 
     if (mFakeVertexAttrib0BufferObject) {
@@ -370,7 +428,7 @@ WebGLContext::Invalidate()
 
     nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
 
-    mInvalidated = true;
+    mInvalidated = PR_TRUE;
     HTMLCanvasElement()->InvalidateCanvasContent(nsnull);
 }
 
@@ -469,15 +527,15 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
         height = 1;
     }
 
-    // If we already have a gl context, then we just need to resize it
-    if (gl) {
-        gl->ResizeOffscreen(gfxIntSize(width, height)); // Doesn't matter if it succeeds (soft-fail)
-        // It's unlikely that we'll get a proper-sized context if we recreate if we didn't on resize
-
+    // If we already have a gl context, then we just need to resize
+    // FB0.
+    if (gl &&
+        gl->ResizeOffscreen(gfxIntSize(width, height)))
+    {
         // everything's good, we're done here
-        mWidth = gl->OffscreenActualSize().width;
-        mHeight = gl->OffscreenActualSize().height;
-        mResetLayer = true;
+        mWidth = width;
+        mHeight = height;
+        mResetLayer = PR_TRUE;
         return NS_OK;
     }
 
@@ -543,46 +601,34 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
         format.minAlpha = 0;
     }
 
-    bool forceMSAA =
-        Preferences::GetBool("webgl.msaa-force", false);
-
-    PRInt32 status;
-    nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
-    if (mOptions.antialias &&
-        gfxInfo &&
-        NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_WEBGL_MSAA, &status))) {
-        if (status == nsIGfxInfo::FEATURE_NO_INFO || forceMSAA) {
-            PRUint32 msaaLevel = Preferences::GetUint("webgl.msaa-level", 2);
-            format.samples = msaaLevel*msaaLevel;
-        }
-    }
-
     if (PR_GetEnv("MOZ_WEBGL_PREFER_EGL")) {
-        preferEGL = true;
+        preferEGL = PR_TRUE;
     }
 
     // Ask GfxInfo about what we should use
     bool useOpenGL = true;
     bool useANGLE = true;
 
+    nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
     if (gfxInfo && !forceEnabled) {
+        PRInt32 status;
         if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_WEBGL_OPENGL, &status))) {
             if (status != nsIGfxInfo::FEATURE_NO_INFO) {
-                useOpenGL = false;
+                useOpenGL = PR_FALSE;
             }
         }
         if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_WEBGL_ANGLE, &status))) {
             if (status != nsIGfxInfo::FEATURE_NO_INFO) {
-                useANGLE = false;
+                useANGLE = PR_FALSE;
             }
         }
     }
 
     // allow forcing GL and not EGL/ANGLE
     if (PR_GetEnv("MOZ_WEBGL_FORCE_OPENGL")) {
-        preferEGL = false;
-        useANGLE = false;
-        useOpenGL = true;
+        preferEGL = PR_FALSE;
+        useANGLE = PR_FALSE;
+        useOpenGL = PR_TRUE;
     }
 
     // if we're forcing osmesa, do it first
@@ -642,10 +688,8 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
 
     mWidth = width;
     mHeight = height;
-    mResetLayer = true;
-    mOptionsFrozen = true;
-
-    mHasRobustness = gl->HasRobustness();
+    mResetLayer = PR_TRUE;
+    mOptionsFrozen = PR_TRUE;
 
     // increment the generation number
     ++mGeneration;
@@ -755,40 +799,24 @@ WebGLContext::GetThebesSurface(gfxASurface **surface)
 
 static PRUint8 gWebGLLayerUserData;
 
-namespace mozilla {
-
 class WebGLContextUserData : public LayerUserData {
 public:
     WebGLContextUserData(nsHTMLCanvasElement *aContent)
     : mContent(aContent) {}
-
-  /** DidTransactionCallback gets called by the Layers code everytime the WebGL canvas gets composite,
-    * so it really is the right place to put actions that have to be performed upon compositing
-    */
   static void DidTransactionCallback(void* aData)
   {
-    WebGLContextUserData *userdata = static_cast<WebGLContextUserData*>(aData);
-    nsHTMLCanvasElement *canvas = userdata->mContent;
-    WebGLContext *context = static_cast<WebGLContext*>(canvas->GetContextAtIndex(0));
-
-    context->mBackbufferClearingStatus = BackbufferClearingStatus::NotClearedSinceLastPresented;
-    canvas->MarkContextClean();
+    static_cast<WebGLContextUserData*>(aData)->mContent->MarkContextClean();
   }
 
 private:
   nsRefPtr<nsHTMLCanvasElement> mContent;
 };
 
-} // end namespace mozilla
-
 already_AddRefed<layers::CanvasLayer>
 WebGLContext::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
                              CanvasLayer *aOldLayer,
                              LayerManager *aManager)
 {
-    if (mContextLost)
-        return nsnull;
-
     if (!mResetLayer && aOldLayer &&
         aOldLayer->HasUserData(&gWebGLLayerUserData)) {
         NS_ADDREF(aOldLayer);
@@ -835,14 +863,16 @@ WebGLContext::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
     }
 
     data.mSize = nsIntSize(mWidth, mHeight);
-    data.mGLBufferIsPremultiplied = mOptions.premultipliedAlpha ? true : false;
+    data.mGLBufferIsPremultiplied = mOptions.premultipliedAlpha ? PR_TRUE : PR_FALSE;
 
     canvasLayer->Initialize(data);
     PRUint32 flags = gl->CreationFormat().alpha == 0 ? Layer::CONTENT_OPAQUE : 0;
     canvasLayer->SetContentFlags(flags);
     canvasLayer->Updated();
 
-    mResetLayer = false;
+    mResetLayer = PR_FALSE;
+
+    mBackbufferClearingStatus = BackbufferClearingStatus::NotClearedSinceLastPresented;
 
     return canvasLayer.forget().get();
 }
@@ -850,12 +880,6 @@ WebGLContext::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
 NS_IMETHODIMP
 WebGLContext::GetContextAttributes(jsval *aResult)
 {
-    if (mContextLost)
-    {
-        *aResult = OBJECT_TO_JSVAL(NULL);
-        return NS_OK;
-    }
-
     JSContext *cx = nsContentUtils::GetCurrentJSContext();
     if (!cx)
         return NS_ERROR_FAILURE;
@@ -874,7 +898,7 @@ WebGLContext::GetContextAttributes(jsval *aResult)
                            NULL, NULL, JSPROP_ENUMERATE) ||
         !JS_DefineProperty(cx, obj, "stencil", cf.stencil > 0 ? JSVAL_TRUE : JSVAL_FALSE,
                            NULL, NULL, JSPROP_ENUMERATE) ||
-        !JS_DefineProperty(cx, obj, "antialias", cf.samples > 0 ? JSVAL_TRUE : JSVAL_FALSE,
+        !JS_DefineProperty(cx, obj, "antialias", JSVAL_FALSE,
                            NULL, NULL, JSPROP_ENUMERATE) ||
         !JS_DefineProperty(cx, obj, "premultipliedAlpha",
                            mOptions.premultipliedAlpha ? JSVAL_TRUE : JSVAL_FALSE,
@@ -894,10 +918,7 @@ WebGLContext::GetContextAttributes(jsval *aResult)
 NS_IMETHODIMP
 WebGLContext::MozGetUnderlyingParamString(PRUint32 pname, nsAString& retval)
 {
-    if (mContextLost)
-        return NS_OK;
-
-    retval.SetIsVoid(true);
+    retval.SetIsVoid(PR_TRUE);
 
     MakeContextCurrent();
 
@@ -933,10 +954,6 @@ bool WebGLContext::IsExtensionSupported(WebGLExtensionID ei)
             // We always support this extension.
             isSupported = true;
             break;
-        case WebGL_WEBGL_EXT_lose_context:
-            // We always support this extension.
-            isSupported = true;
-            break;
         default:
             isSupported = false;
     }
@@ -948,12 +965,6 @@ NS_IMETHODIMP
 WebGLContext::GetExtension(const nsAString& aName, nsIWebGLExtension **retval)
 {
     *retval = nsnull;
-    if (mContextLost)
-        return NS_OK;
-    
-    if (mDisableExtensions) {
-        return NS_OK;
-    }
 
     // handle simple extensions that don't need custom objects first
     WebGLExtensionID ei = WebGLExtensionID_Max;
@@ -965,19 +976,12 @@ WebGLContext::GetExtension(const nsAString& aName, nsIWebGLExtension **retval)
         if (IsExtensionSupported(WebGL_OES_standard_derivatives))
             ei = WebGL_OES_standard_derivatives;
     }
-    else if (aName.EqualsLiteral("WEBGL_EXT_lose_context")) {
-        if (IsExtensionSupported(WebGL_WEBGL_EXT_lose_context))
-            ei = WebGL_WEBGL_EXT_lose_context;
-    }
 
     if (ei != WebGLExtensionID_Max) {
         if (!IsExtensionEnabled(ei)) {
             switch (ei) {
                 case WebGL_OES_standard_derivatives:
                     mEnabledExtensions[ei] = new WebGLExtensionStandardDerivatives(this);
-                    break;
-                case WebGL_WEBGL_EXT_lose_context:
-                    mEnabledExtensions[ei] = new WebGLExtensionLoseContext(this);
                     break;
                 // create an extension for any types that don't
                 // have any additional tokens or methods
@@ -1082,96 +1086,6 @@ WebGLContext::EnsureBackbufferClearedAsNeeded()
     Invalidate();
 }
 
-NS_IMETHODIMP
-WebGLContext::Notify(nsITimer* timer)
-{
-    TerminateRobustnessTimer();
-    MaybeRestoreContext();
-    return NS_OK;
-}
-
-void
-WebGLContext::MaybeRestoreContext()
-{
-    if (mContextLost || mAllowRestore)
-        return;
-
-    GLContext::ContextResetARB resetStatus = GLContext::CONTEXT_NO_ERROR;
-    if (mHasRobustness) {
-        gl->MakeCurrent();
-        resetStatus = (GLContext::ContextResetARB) gl->fGetGraphicsResetStatus();
-    // This call is safe as it does not actually interact with GL, so the
-    // context does not have to be current.
-    } else if (gl->GetContextType() == GLContext::ContextTypeEGL) {
-        // Simulate a ARB_robustness guilty context loss for when we
-        // get an EGL_CONTEXT_LOST error. It may not actually be guilty,
-        // but we can't make any distinction, so we must assume the worst
-        // case.
-        if (!gl->MakeCurrent(true) && gl->IsContextLost()) {
-            resetStatus = GLContext::CONTEXT_GUILTY_CONTEXT_RESET_ARB;
-        }
-    }
-    
-    if (resetStatus != GLContext::CONTEXT_NO_ERROR) {
-        // It's already lost, but clean up after it and signal to JS that it is
-        // lost.
-        ForceLoseContext();
-    }
-
-    switch (resetStatus) {
-        case GLContext::CONTEXT_NO_ERROR:
-            // If there has been activity since the timer was set, it's possible
-            // that we did or are going to miss something, so clear this flag and
-            // run it again some time later.
-            if (mDrawSinceRobustnessTimerSet)
-                SetupRobustnessTimer();
-            return;
-        case GLContext::CONTEXT_GUILTY_CONTEXT_RESET_ARB:
-            NS_WARNING("WebGL content on the page caused the graphics card to reset; not restoring the context");
-            return;
-        case GLContext::CONTEXT_INNOCENT_CONTEXT_RESET_ARB:
-            break;
-        case GLContext::CONTEXT_UNKNOWN_CONTEXT_RESET_ARB:
-            NS_WARNING("WebGL content on the page might have caused the graphics card to reset");
-            break;
-    }
-
-    ForceRestoreContext();
-}
-
-void
-WebGLContext::ForceLoseContext()
-{
-    TerminateRobustnessTimer();
-
-    mWebGLError = LOCAL_GL_CONTEXT_LOST;
-
-    bool defaultAction;
-    mContextLost = true;
-    DestroyResourcesAndContext();
-    nsContentUtils::DispatchTrustedEvent(HTMLCanvasElement()->OwnerDoc(), 
-                                         (nsIDOMHTMLCanvasElement*) HTMLCanvasElement(), 
-                                         NS_LITERAL_STRING("webglcontextlost"), 
-                                         PR_TRUE, 
-                                         PR_TRUE,
-                                         &defaultAction);
-    if (defaultAction)
-        mAllowRestore = false;
-}
-
-void
-WebGLContext::ForceRestoreContext()
-{
-    mContextLost = false;
-    mAllowRestore = false;
-    SetDimensions(mHeight, mWidth);
-    nsContentUtils::DispatchTrustedEvent(HTMLCanvasElement()->OwnerDoc(), 
-                                         (nsIDOMHTMLCanvasElement*) HTMLCanvasElement(), 
-                                         NS_LITERAL_STRING("webglcontextrestored"), 
-                                         PR_TRUE, 
-                                         PR_TRUE);
-}
-
 //
 // XPCOM goop
 //
@@ -1193,7 +1107,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(WebGLContext)
   NS_INTERFACE_MAP_ENTRY(nsIDOMWebGLRenderingContext)
   NS_INTERFACE_MAP_ENTRY(nsICanvasRenderingContextInternal)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
-  NS_INTERFACE_MAP_ENTRY(nsITimerCallback)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMWebGLRenderingContext)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WebGLRenderingContext)
 NS_INTERFACE_MAP_END
@@ -1204,6 +1117,7 @@ NS_IMPL_RELEASE(WebGLBuffer)
 DOMCI_DATA(WebGLBuffer, WebGLBuffer)
 
 NS_INTERFACE_MAP_BEGIN(WebGLBuffer)
+  NS_INTERFACE_MAP_ENTRY(WebGLBuffer)
   NS_INTERFACE_MAP_ENTRY(nsIWebGLBuffer)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WebGLBuffer)
@@ -1215,6 +1129,7 @@ NS_IMPL_RELEASE(WebGLTexture)
 DOMCI_DATA(WebGLTexture, WebGLTexture)
 
 NS_INTERFACE_MAP_BEGIN(WebGLTexture)
+  NS_INTERFACE_MAP_ENTRY(WebGLTexture)
   NS_INTERFACE_MAP_ENTRY(nsIWebGLTexture)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WebGLTexture)
@@ -1226,6 +1141,7 @@ NS_IMPL_RELEASE(WebGLProgram)
 DOMCI_DATA(WebGLProgram, WebGLProgram)
 
 NS_INTERFACE_MAP_BEGIN(WebGLProgram)
+  NS_INTERFACE_MAP_ENTRY(WebGLProgram)
   NS_INTERFACE_MAP_ENTRY(nsIWebGLProgram)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WebGLProgram)
@@ -1237,6 +1153,7 @@ NS_IMPL_RELEASE(WebGLShader)
 DOMCI_DATA(WebGLShader, WebGLShader)
 
 NS_INTERFACE_MAP_BEGIN(WebGLShader)
+  NS_INTERFACE_MAP_ENTRY(WebGLShader)
   NS_INTERFACE_MAP_ENTRY(nsIWebGLShader)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WebGLShader)
@@ -1248,6 +1165,7 @@ NS_IMPL_RELEASE(WebGLFramebuffer)
 DOMCI_DATA(WebGLFramebuffer, WebGLFramebuffer)
 
 NS_INTERFACE_MAP_BEGIN(WebGLFramebuffer)
+  NS_INTERFACE_MAP_ENTRY(WebGLFramebuffer)
   NS_INTERFACE_MAP_ENTRY(nsIWebGLFramebuffer)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WebGLFramebuffer)
@@ -1259,6 +1177,7 @@ NS_IMPL_RELEASE(WebGLRenderbuffer)
 DOMCI_DATA(WebGLRenderbuffer, WebGLRenderbuffer)
 
 NS_INTERFACE_MAP_BEGIN(WebGLRenderbuffer)
+  NS_INTERFACE_MAP_ENTRY(WebGLRenderbuffer)
   NS_INTERFACE_MAP_ENTRY(nsIWebGLRenderbuffer)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WebGLRenderbuffer)
@@ -1270,6 +1189,7 @@ NS_IMPL_RELEASE(WebGLUniformLocation)
 DOMCI_DATA(WebGLUniformLocation, WebGLUniformLocation)
 
 NS_INTERFACE_MAP_BEGIN(WebGLUniformLocation)
+  NS_INTERFACE_MAP_ENTRY(WebGLUniformLocation)
   NS_INTERFACE_MAP_ENTRY(nsIWebGLUniformLocation)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WebGLUniformLocation)
@@ -1281,6 +1201,7 @@ NS_IMPL_RELEASE(WebGLActiveInfo)
 DOMCI_DATA(WebGLActiveInfo, WebGLActiveInfo)
 
 NS_INTERFACE_MAP_BEGIN(WebGLActiveInfo)
+  NS_INTERFACE_MAP_ENTRY(WebGLActiveInfo)
   NS_INTERFACE_MAP_ENTRY(nsIWebGLActiveInfo)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WebGLActiveInfo)
@@ -1305,6 +1226,7 @@ NS_IMPL_RELEASE(WebGLExtension)
 DOMCI_DATA(WebGLExtension, WebGLExtension)
 
 NS_INTERFACE_MAP_BEGIN(WebGLExtension)
+  NS_INTERFACE_MAP_ENTRY(WebGLExtension)
   NS_INTERFACE_MAP_ENTRY(nsIWebGLExtension)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WebGLExtension)
@@ -1316,29 +1238,17 @@ NS_IMPL_RELEASE(WebGLExtensionStandardDerivatives)
 DOMCI_DATA(WebGLExtensionStandardDerivatives, WebGLExtensionStandardDerivatives)
 
 NS_INTERFACE_MAP_BEGIN(WebGLExtensionStandardDerivatives)
+  //NS_INTERFACE_MAP_ENTRY(WebGLExtensionStandardDerivatives)
+  //NS_INTERFACE_MAP_ENTRY(WebGLExtension)
   NS_INTERFACE_MAP_ENTRY(nsIWebGLExtensionStandardDerivatives)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, WebGLExtension)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WebGLExtensionStandardDerivatives)
-NS_INTERFACE_MAP_END_INHERITING(WebGLExtension)
-
-NS_IMPL_ADDREF(WebGLExtensionLoseContext)
-NS_IMPL_RELEASE(WebGLExtensionLoseContext)
-
-DOMCI_DATA(WebGLExtensionLoseContext, WebGLExtensionLoseContext)
-
-NS_INTERFACE_MAP_BEGIN(WebGLExtensionLoseContext)
-  NS_INTERFACE_MAP_ENTRY(nsIWebGLExtensionLoseContext)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, WebGLExtension)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WebGLExtensionLoseContext)
 NS_INTERFACE_MAP_END_INHERITING(WebGLExtension)
 
 /* readonly attribute WebGLsizei drawingBufferWidth; */
 NS_IMETHODIMP
 WebGLContext::GetDrawingBufferWidth(WebGLsizei *aWidth)
 {
-    if (mContextLost)
-        return NS_OK;
-
     *aWidth = mWidth;
     return NS_OK;
 }
@@ -1347,9 +1257,6 @@ WebGLContext::GetDrawingBufferWidth(WebGLsizei *aWidth)
 NS_IMETHODIMP
 WebGLContext::GetDrawingBufferHeight(WebGLsizei *aHeight)
 {
-    if (mContextLost)
-        return NS_OK;
-
     *aHeight = mHeight;
     return NS_OK;
 }
@@ -1394,14 +1301,6 @@ WebGLActiveInfo::GetName(nsAString & aName)
 NS_IMETHODIMP
 WebGLContext::GetSupportedExtensions(nsIVariant **retval)
 {
-    *retval = nsnull;
-    if (mContextLost)
-        return NS_OK;
-    
-    if (mDisableExtensions) {
-        return NS_OK;
-    }
-    
     nsCOMPtr<nsIWritableVariant> wrval = do_CreateInstance("@mozilla.org/variant;1");
     NS_ENSURE_TRUE(wrval, NS_ERROR_FAILURE);
 
@@ -1411,8 +1310,6 @@ WebGLContext::GetSupportedExtensions(nsIVariant **retval)
         extList.InsertElementAt(extList.Length(), "OES_texture_float");
     if (IsExtensionSupported(WebGL_OES_standard_derivatives))
         extList.InsertElementAt(extList.Length(), "OES_standard_derivatives");
-    if (IsExtensionSupported(WebGL_WEBGL_EXT_lose_context))
-        extList.InsertElementAt(extList.Length(), "WEBGL_EXT_lose_context");
 
     nsresult rv;
     if (extList.Length() > 0) {
@@ -1431,7 +1328,7 @@ WebGLContext::GetSupportedExtensions(nsIVariant **retval)
 NS_IMETHODIMP
 WebGLContext::IsContextLost(WebGLboolean *retval)
 {
-    *retval = mContextLost;
+    *retval = PR_FALSE;
     return NS_OK;
 }
 

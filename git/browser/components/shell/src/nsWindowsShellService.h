@@ -49,7 +49,7 @@
 class nsWindowsShellService : public nsIWindowsShellService
 {
 public:
-  nsWindowsShellService() : mCheckedThisSession(false) {}; 
+  nsWindowsShellService() : mCheckedThisSession(PR_FALSE) {}; 
   virtual ~nsWindowsShellService() {};
 
   NS_DECL_ISUPPORTS
@@ -58,6 +58,8 @@ public:
 
 protected:
   bool      IsDefaultBrowserVista(bool* aIsDefaultBrowser);
+
+  bool      GetMailAccountKey(HKEY* aResult);
 
 private:
   bool      mCheckedThisSession;

@@ -45,7 +45,6 @@
 #include "nsColor.h"
 #include "nsCOMArray.h"
 #include "nsCOMPtr.h"
-#include "nsTArray.h"
 
 class nsCSSStyleSheet;
 class nsIPrincipal;
@@ -205,7 +204,7 @@ public:
   bool ParseKeyframeSelectorString(const nsSubstring& aSelectorString,
                                    nsIURI*            aURL,
                                    PRUint32           aLineNumber,
-                                   InfallibleTArray<float>& aSelectorList);
+                                   nsTArray<float>&   aSelectorList);
 
 protected:
   // This is a CSSParserImpl*, but if we expose that type name in this

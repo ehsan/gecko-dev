@@ -85,7 +85,7 @@ NS_IMETHODIMP
 nsMemoryImpl::IsLowMemory(bool *result)
 {
     NS_ERROR("IsLowMemory is deprecated.  See bug 592308.");
-    *result = false;
+    *result = PR_FALSE;
     return NS_OK;
 }
 
@@ -192,13 +192,29 @@ nsMemoryImpl::sFlushEvent;
 XPCOM_API(void*)
 NS_Alloc(PRSize size)
 {
-    return moz_xmalloc(size);
+    if (size > PR_INT32_MAX)
+        return nsnull;
+
+    void* result = moz_malloc(size);
+    if (! result) {
+        // Request an asynchronous flush
+        sGlobalMemory.FlushMemory(NS_LITERAL_STRING("alloc-failure").get(), PR_FALSE);
+    }
+    return result;
 }
 
 XPCOM_API(void*)
 NS_Realloc(void* ptr, PRSize size)
 {
-    return moz_xrealloc(ptr, size);
+    if (size > PR_INT32_MAX)
+        return nsnull;
+
+    void* result = moz_realloc(ptr, size);
+    if (! result && size != 0) {
+        // Request an asynchronous flush
+        sGlobalMemory.FlushMemory(NS_LITERAL_STRING("alloc-failure").get(), PR_FALSE);
+    }
+    return result;
 }
 
 XPCOM_API(void)

@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Vladimir Vukicevic <vladimir@pobox.com> (original author)
- *   Nicholas Nethercote <nnethercote@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -43,29 +42,8 @@
 #include "nsMemoryReporterManager.h"
 #include "nsArrayEnumerator.h"
 #include "nsISimpleEnumerator.h"
-#include "mozilla/Telemetry.h"
 
-using namespace mozilla;
-
-#if defined(MOZ_MEMORY)
-#  if defined(XP_WIN) || defined(SOLARIS) || defined(ANDROID) || defined(XP_MACOSX)
-#    define HAVE_JEMALLOC_STATS 1
-#    include "jemalloc.h"
-#  elif defined(XP_LINUX)
-#    define HAVE_JEMALLOC_STATS 1
-#    include "jemalloc_types.h"
-// jemalloc is directly linked into firefox-bin; libxul doesn't link
-// with it.  So if we tried to use jemalloc_stats directly here, it
-// wouldn't be defined.  Instead, we don't include the jemalloc header
-// and weakly link against jemalloc_stats.
-extern "C" {
-extern void jemalloc_stats(jemalloc_stats_t* stats)
-  NS_VISIBILITY_DEFAULT __attribute__((weak));
-}
-#  endif  // XP_LINUX
-#endif  // MOZ_MEMORY
-
-#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(SOLARIS)
+#if defined(XP_LINUX) || defined(XP_MACOSX)
 
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -106,7 +84,7 @@ static PRInt64 GetProcSelfStatmField(int n)
     NS_ASSERTION(n < MAX_FIELD, "bad field number");
     FILE *f = fopen("/proc/self/statm", "r");
     if (f) {
-        int nread = fscanf(f, "%zu %zu", &fields[0], &fields[1]);
+        int nread = fscanf(f, "%lu %lu", &fields[0], &fields[1]);
         fclose(f);
         return (PRInt64) ((nread == MAX_FIELD) ? fields[n]*getpagesize() : -1);
     }
@@ -121,52 +99,6 @@ static PRInt64 GetVsize()
 static PRInt64 GetResident()
 {
     return GetProcSelfStatmField(1);
-}
-
-#elif defined(SOLARIS)
-
-#include <procfs.h>
-#include <fcntl.h>
-#include <unistd.h>
-
-static void XMappingIter(PRInt64& Vsize, PRInt64& Resident)
-{
-    int mapfd = open("/proc/self/xmap", O_RDONLY);
-    struct stat st;
-    prxmap_t *prmapp;
-    if (mapfd >= 0) {
-        if (!fstat(mapfd, &st)) {
-            int nmap = st.st_size / sizeof(prxmap_t);
-            prmapp = (prxmap_t*)malloc((nmap + 1) * sizeof(prxmap_t));
-            int n = read(mapfd, prmapp, (nmap + 1) * sizeof(prxmap_t));
-            if (n > 0) {
-                Vsize = 0;
-                Resident = 0;
-                for (int i = 0; i < n / sizeof(prxmap_t); i++) {
-                    Vsize += prmapp[i].pr_size;
-                    Resident += prmapp[i].pr_rss * prmapp[i].pr_pagesize;
-                }
-            }
-            free(prmapp);
-        }
-        close(mapfd);
-    }
-}
-
-static PRInt64 GetVsize()
-{
-    PRInt64 Vsize = -1;
-    PRInt64 Resident = -1;
-    XMappingIter(Vsize, Resident);
-    return Vsize;
-}
-
-static PRInt64 GetResident()
-{
-    PRInt64 Vsize = -1;
-    PRInt64 Resident = -1;
-    XMappingIter(Vsize, Resident);
-    return Resident;
 }
 
 #elif defined(XP_MACOSX)
@@ -193,20 +125,6 @@ static PRInt64 GetVsize()
 
 static PRInt64 GetResident()
 {
-#ifdef HAVE_JEMALLOC_STATS
-    // If we're using jemalloc on Mac, we need to instruct jemalloc to purge
-    // the pages it has madvise(MADV_FREE)'d before we read our RSS.  The OS
-    // will take away MADV_FREE'd pages when there's memory pressure, so they
-    // shouldn't count against our RSS.
-    //
-    // Purging these pages shouldn't take more than 10ms or so, but we want to
-    // keep an eye on it since GetResident() is called on each Telemetry ping.
-    {
-      Telemetry::AutoTimer<Telemetry::MEMORY_FREE_PURGED_PAGES_MS> timer;
-      jemalloc_purge_freed_pages();
-    }
-#endif
-
     task_basic_info ti;
     return (PRInt64) (GetTaskBasicInfo(&ti) ? ti.resident_size : -1);
 }
@@ -271,7 +189,7 @@ static PRInt64 GetResident()
 
 #endif
 
-#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(XP_WIN) || defined(SOLARIS)
+#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(XP_WIN)
 NS_MEMORY_REPORTER_IMPLEMENT(Vsize,
     "vsize",
     KIND_OTHER,
@@ -286,7 +204,7 @@ NS_MEMORY_REPORTER_IMPLEMENT(Vsize,
     "measure of the memory resources used by the process.")
 #endif
 
-#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(SOLARIS)
+#if defined(XP_LINUX) || defined(XP_MACOSX)
 NS_MEMORY_REPORTER_IMPLEMENT(PageFaultsSoft,
     "page-faults-soft",
     KIND_OTHER,
@@ -337,6 +255,24 @@ NS_MEMORY_REPORTER_IMPLEMENT(Resident,
  ** at least -- on OSX, there are sometimes other zones in use).
  **/
 
+#if defined(MOZ_MEMORY)
+#  if defined(XP_WIN) || defined(SOLARIS) || defined(ANDROID) || defined(XP_MACOSX)
+#    define HAVE_JEMALLOC_STATS 1
+#    include "jemalloc.h"
+#  elif defined(XP_LINUX)
+#    define HAVE_JEMALLOC_STATS 1
+#    include "jemalloc_types.h"
+// jemalloc is directly linked into firefox-bin; libxul doesn't link
+// with it.  So if we tried to use jemalloc_stats directly here, it
+// wouldn't be defined.  Instead, we don't include the jemalloc header
+// and weakly link against jemalloc_stats.
+extern "C" {
+extern void jemalloc_stats(jemalloc_stats_t* stats)
+  NS_VISIBILITY_DEFAULT __attribute__((weak));
+}
+#  endif  // XP_LINUX
+#endif  // MOZ_MEMORY
+
 #if HAVE_JEMALLOC_STATS
 
 static PRInt64 GetHeapUnallocated()
@@ -360,13 +296,6 @@ static PRInt64 GetHeapCommitted()
     return (PRInt64) stats.committed;
 }
 
-static PRInt64 GetHeapCommittedFragmentation()
-{
-    jemalloc_stats_t stats;
-    jemalloc_stats(&stats);
-    return (PRInt64) 10000 * (1 - stats.allocated / (double)stats.committed);
-}
-
 static PRInt64 GetHeapDirty()
 {
     jemalloc_stats_t stats;
@@ -385,16 +314,6 @@ NS_MEMORY_REPORTER_IMPLEMENT(HeapCommitted,
     "external fragmentation; that is, the allocator allocated a large block of "
     "memory and is unable to decommit it because a small part of that block is "
     "currently in use.")
-
-NS_MEMORY_REPORTER_IMPLEMENT(HeapCommittedFragmentation,
-    "heap-committed-fragmentation",
-    KIND_OTHER,
-    UNITS_PERCENTAGE,
-    GetHeapCommittedFragmentation,
-    "Fraction of committed bytes which do not correspond to an active "
-    "allocation; i.e., 1 - (heap-allocated / heap-committed).  Although the "
-    "allocator will waste some space under any circumstances, a large value here "
-    "may indicate that the heap is highly fragmented.")
 
 NS_MEMORY_REPORTER_IMPLEMENT(HeapDirty,
     "heap-dirty",
@@ -504,11 +423,11 @@ nsMemoryReporterManager::Init()
     REGISTER(HeapUnallocated);
     REGISTER(Resident);
 
-#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(XP_WIN) || defined(SOLARIS)
+#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(XP_WIN)
     REGISTER(Vsize);
 #endif
 
-#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(SOLARIS)
+#if defined(XP_LINUX) || defined(XP_MACOSX)
     REGISTER(PageFaultsSoft);
     REGISTER(PageFaultsHard);
 #endif
@@ -517,9 +436,19 @@ nsMemoryReporterManager::Init()
     REGISTER(Private);
 #endif
 
-#if defined(HAVE_JEMALLOC_STATS)
+#if defined(HAVE_JEMALLOC_STATS) && defined(XP_WIN)
+    // heap-committed is only meaningful where we have MALLOC_DECOMMIT defined
+    // (currently, just on Windows).  Elsewhere, it's the same as
+    // stats->mapped, which is heap-allocated + heap-unallocated.
+    //
+    // Ideally, we'd check for MALLOC_DECOMMIT in the #if defined above, but
+    // MALLOC_DECOMMIT is defined in jemalloc.c, not a header, so we'll just
+    // have to settle for the OS check for now.
+
     REGISTER(HeapCommitted);
-    REGISTER(HeapCommittedFragmentation);
+#endif
+
+#if defined(HAVE_JEMALLOC_STATS)
     REGISTER(HeapDirty);
 #elif defined(XP_MACOSX) && !defined(MOZ_MEMORY)
     REGISTER(HeapZone0Committed);
@@ -857,11 +786,3 @@ NS_UnregisterMemoryMultiReporter (nsIMemoryMultiReporter *reporter)
     return mgr->UnregisterMultiReporter(reporter);
 }
 
-namespace mozilla {
-
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(MemoryReporterMallocSizeOf, "default")
-
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(MemoryReporterMallocSizeOfForCounterInc, "default")
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(MemoryReporterMallocSizeOfForCounterDec, "default")
-
-}

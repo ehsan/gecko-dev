@@ -66,19 +66,19 @@ nsGNOMERegistry::HandlerExists(const char *aProtocolScheme)
     nsCOMPtr<nsIGIOMimeApp> app;
     if (NS_FAILED(giovfs->GetAppForURIScheme(nsDependentCString(aProtocolScheme),
                                              getter_AddRefs(app))))
-      return false;
+      return PR_FALSE;
     else
-      return true;
+      return PR_TRUE;
   } else if (gconf) {
     bool isEnabled;
     nsCAutoString handler;
     if (NS_FAILED(gconf->GetAppForProtocol(nsDependentCString(aProtocolScheme), &isEnabled, handler)))
-      return false;
+      return PR_FALSE;
 
     return isEnabled;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 // XXX Check HandlerExists() before calling LoadURL.

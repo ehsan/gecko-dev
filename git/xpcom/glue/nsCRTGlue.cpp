@@ -224,20 +224,20 @@ bool NS_IsAscii(const PRUnichar *aString)
 {
   while(*aString) {
     if( 0x0080 <= *aString)
-      return false;
+      return PR_FALSE;
     aString++;
   }
-  return true;
+  return PR_TRUE;
 }
 
 bool NS_IsAscii(const char *aString)
 {
   while(*aString) {
     if( 0x80 & *aString)
-      return false;
+      return PR_FALSE;
     aString++;
   }
-  return true;
+  return PR_TRUE;
 }
 
 bool NS_IsAscii(const char* aString, PRUint32 aLength)
@@ -245,10 +245,10 @@ bool NS_IsAscii(const char* aString, PRUint32 aLength)
   const char* end = aString + aLength;
   while (aString < end) {
     if (0x80 & *aString)
-      return false;
+      return PR_FALSE;
     ++aString;
   }
-  return true;
+  return PR_TRUE;
 }
 
 bool NS_IsAsciiAlpha(PRUnichar aChar)

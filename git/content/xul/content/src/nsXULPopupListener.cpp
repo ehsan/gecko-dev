@@ -185,7 +185,7 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
         if (node->NodePrincipal() != system) {
           // This isn't chrome.  Cancel the preventDefault() and
           // let the event go forth.
-          preventDefault = false;
+          preventDefault = PR_FALSE;
         }
       }
     }
@@ -266,7 +266,7 @@ nsXULPopupListener::FireFocusOnTargetContent(nsIDOMNode* aTargetNode)
     // Look for the nearest enclosing focusable frame.
     while (currFrame) {
         PRInt32 tabIndexUnused;
-        if (currFrame->IsFocusable(&tabIndexUnused, true)) {
+        if (currFrame->IsFocusable(&tabIndexUnused, PR_TRUE)) {
           newFocus = currFrame->GetContent();
           nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(newFocus));
           if (domElement) {
@@ -311,7 +311,7 @@ nsXULPopupListener::ClosePopup()
     // fire events during destruction.  
     nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
     if (pm)
-      pm->HidePopup(mPopupContent, false, true, true);
+      pm->HidePopup(mPopupContent, PR_FALSE, PR_TRUE, PR_TRUE);
     mPopupContent = nsnull;  // release the popup
   }
 } // ClosePopup
@@ -442,7 +442,7 @@ nsXULPopupListener::LaunchPopup(nsIDOMEvent* aEvent, nsIContent* aTargetContent)
        (mPopupContent->HasAttr(kNameSpaceID_None, nsGkAtoms::popupanchor) &&
         mPopupContent->HasAttr(kNameSpaceID_None, nsGkAtoms::popupalign)))) {
     pm->ShowPopup(mPopupContent, content, EmptyString(), 0, 0,
-                  false, true, false, aEvent);
+                  PR_FALSE, PR_TRUE, PR_FALSE, aEvent);
   }
   else {
     PRInt32 xPos = 0, yPos = 0;

@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsGkAtoms.h"
 #include "nsIDOMSVGPathSeg.h"
 #include "DOMSVGPathSeg.h"
@@ -54,7 +52,7 @@
 using namespace mozilla;
 
 nsSVGElement::NumberInfo nsSVGPathElement::sNumberInfo = 
-{ &nsGkAtoms::pathLength, 0, false };
+{ &nsGkAtoms::pathLength, 0, PR_FALSE };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Path)
 
@@ -353,7 +351,7 @@ nsSVGPathElement::GetNumberInfo()
 NS_IMETHODIMP nsSVGPathElement::GetPathSegList(nsIDOMSVGPathSegList * *aPathSegList)
 {
   void *key = mD.GetBaseValKey();
-  *aPathSegList = DOMSVGPathSegList::GetDOMWrapper(key, this, false).get();
+  *aPathSegList = DOMSVGPathSegList::GetDOMWrapper(key, this, PR_FALSE).get();
   return *aPathSegList ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
@@ -368,7 +366,7 @@ NS_IMETHODIMP nsSVGPathElement::GetAnimatedPathSegList(nsIDOMSVGPathSegList * *a
 {
   void *key = mD.GetAnimValKey();
   *aAnimatedPathSegList =
-    DOMSVGPathSegList::GetDOMWrapper(key, this, true).get();
+    DOMSVGPathSegList::GetDOMWrapper(key, this, PR_TRUE).get();
   return *aAnimatedPathSegList ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
@@ -388,7 +386,7 @@ nsSVGPathElement::IsAttributeMapped(const nsIAtom* name) const
     sMarkersMap
   };
 
-  return FindAttributeDependence(name, map, ArrayLength(map)) ||
+  return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
     nsSVGPathElementBase::IsAttributeMapped(name);
 }
 
@@ -411,7 +409,7 @@ nsSVGPathElement::AttributeDefinesGeometry(const nsIAtom *aName)
 bool
 nsSVGPathElement::IsMarkable()
 {
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -427,24 +425,16 @@ nsSVGPathElement::ConstructPath(gfxContext *aCtx)
 }
 
 gfxFloat
-nsSVGPathElement::GetPathLengthScale(PathLengthScaleForType aFor)
+nsSVGPathElement::GetScale()
 {
-  NS_ABORT_IF_FALSE(aFor == eForTextPath || aFor == eForStroking,
-                    "Unknown enum");
   if (mPathLength.IsExplicitlySet()) {
-    float authorsPathLengthEstimate = mPathLength.GetAnimValue();
-    if (authorsPathLengthEstimate > 0) {
-      gfxMatrix matrix;
-      if (aFor == eForTextPath) {
-        // For textPath, a transform on the referenced path affects the
-        // textPath layout, so when calculating the actual path length
-        // we need to take that into account.
-        matrix = PrependLocalTransformTo(matrix);
-      }
-      nsRefPtr<gfxFlattenedPath> path = GetFlattenedPath(matrix);
-      if (path) {
-        return path->GetLength() / authorsPathLengthEstimate;
-      }
+
+    nsRefPtr<gfxFlattenedPath> flat =
+      GetFlattenedPath(PrependLocalTransformTo(gfxMatrix()));
+    float pathLength = mPathLength.GetAnimValue();
+
+    if (flat && pathLength != 0) {
+      return flat->GetLength() / pathLength;
     }
   }
   return 1.0;

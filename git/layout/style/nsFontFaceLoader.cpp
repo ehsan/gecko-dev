@@ -221,10 +221,7 @@ nsFontFaceLoader::OnStreamComplete(nsIStreamLoader* aLoader,
     // because HTTP responses such as 404 (Not Found) will still result in
     // a success code and potentially an HTML error page from the server
     // as the resulting data. We don't want to use that as a font.
-    nsCOMPtr<nsIRequest> request;
-    nsCOMPtr<nsIHttpChannel> httpChannel;
-    aLoader->GetRequest(getter_AddRefs(request));
-    httpChannel = do_QueryInterface(request);
+    nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(mChannel);
     if (httpChannel) {
       bool succeeded;
       nsresult rv = httpChannel->GetRequestSucceeded(&succeeded);
@@ -429,7 +426,7 @@ nsUserFontSet::StartLoad(gfxProxyFontEntry *aProxy,
   } else {
     nsCOMPtr<nsIStreamListener> listener =
       new nsCORSListenerProxy(streamLoader, principal, channel, 
-                              false, &rv);
+                              PR_FALSE, &rv);
     if (NS_FAILED(rv)) {
       fontLoader->DropChannel();  // explicitly need to break ref cycle
     }
@@ -455,7 +452,7 @@ nsUserFontSet::UpdateRules(const nsTArray<nsFontFaceRuleContainer>& aRules)
   // destroy any current loaders, as the entries they refer to
   // may be about to get replaced
   if (mLoaders.Count() > 0) {
-    modified = true; // trigger reflow so that any necessary downloads
+    modified = PR_TRUE; // trigger reflow so that any necessary downloads
                         // will be reinitiated
   }
   mLoaders.EnumerateEntries(DestroyIterator, nsnull);
@@ -477,7 +474,7 @@ nsUserFontSet::UpdateRules(const nsTArray<nsFontFaceRuleContainer>& aRules)
 
   // if any rules are left in the old list, note that the set has changed
   if (oldRules.Length() > 0) {
-    modified = true;
+    modified = PR_TRUE;
   }
 
   if (modified) {
@@ -526,7 +523,7 @@ nsUserFontSet::InsertRule(nsCSSFontFaceRule *aRule, PRUint8 aSheetType,
       // note the set has been modified if an old rule was skipped to find
       // this one - something has been dropped, or ordering changed
       if (i > 0) {
-        aFontSetModified = true;
+        aFontSetModified = PR_TRUE;
       }
       return;
     }
@@ -619,12 +616,12 @@ nsUserFontSet::InsertRule(nsCSSFontFaceRule *aRule, PRUint8 aSheetType,
 
       case eCSSUnit_Local_Font:
         val.GetStringValue(face->mLocalName);
-        face->mIsLocal = true;
+        face->mIsLocal = PR_TRUE;
         face->mURI = nsnull;
         face->mFormatFlags = 0;
         break;
       case eCSSUnit_URL:
-        face->mIsLocal = false;
+        face->mIsLocal = PR_FALSE;
         face->mURI = val.GetURLValue();
         NS_ASSERTION(face->mURI, "null url in @font-face rule");
         face->mReferrer = val.GetURLStructValue()->mReferrer;
@@ -684,7 +681,7 @@ nsUserFontSet::InsertRule(nsCSSFontFaceRule *aRule, PRUint8 aSheetType,
       mRules.AppendElement(ruleRec);
     }
     // this was a new rule and fontEntry, so note that the set was modified
-    aFontSetModified = true;
+    aFontSetModified = PR_TRUE;
   }
 }
 

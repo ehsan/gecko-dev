@@ -125,7 +125,7 @@ NS_IMETHODIMP nsDeviceContextSpecQt::GetSurfaceForPrinter(
 
     nsresult rv = NS_NewNativeLocalFile(
             nsDependentCString(file.fileName().toAscii().constData()),
-            false,
+            PR_FALSE,
             getter_AddRefs(mSpoolFile));
     if (NS_FAILED(rv)) {
         file.remove();
@@ -220,7 +220,7 @@ NS_IMETHODIMP nsDeviceContextSpecQt::EndDocument()
     mPrintSettings->GetToFileName(getter_Copies(targetPath));
 
     nsresult rv = NS_NewNativeLocalFile(NS_ConvertUTF16toUTF8(targetPath),
-            false, getter_AddRefs(destFile));
+            PR_FALSE, getter_AddRefs(destFile));
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsAutoString destLeafName;

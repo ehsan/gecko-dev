@@ -47,6 +47,7 @@
 #include "nsChildView.h"
 #include "nsWindowMap.h"
 #include "nsAppShell.h"
+#include "nsIAppShell.h"
 #include "nsIAppShellService.h"
 #include "nsIBaseWindow.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -61,6 +62,7 @@
 #include "nsStyleConsts.h"
 #include "nsNativeThemeColors.h"
 #include "nsChildView.h"
+#include "nsIMenuRollup.h"
 
 #include "gfxPlatform.h"
 #include "qcms.h"
@@ -94,6 +96,7 @@ extern NSMenu* sApplicationMenu; // Application menu shared by all menubars
 
 // defined in nsChildView.mm
 extern nsIRollupListener * gRollupListener;
+extern nsIMenuRollup     * gMenuRollup;
 extern nsIWidget         * gRollupWidget;
 extern BOOL                gSomeMenuBarPainted;
 
@@ -124,7 +127,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsCocoaWindow, Inherited, nsPIWidgetCocoa)
 static void RollUpPopups()
 {
   if (gRollupListener && gRollupWidget)
-    gRollupListener->Rollup(0);
+    gRollupListener->Rollup(nsnull, nsnull);
 }
 
 nsCocoaWindow::nsCocoaWindow()
@@ -244,6 +247,8 @@ nsresult nsCocoaWindow::Create(nsIWidget *aParent,
                                const nsIntRect &aRect,
                                EVENT_CALLBACK aHandleEventFunction,
                                nsDeviceContext *aContext,
+                               nsIAppShell *aAppShell,
+                               nsIToolkit *aToolkit,
                                nsWidgetInitData *aInitData)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -280,11 +285,8 @@ nsresult nsCocoaWindow::Create(nsIWidget *aParent,
   mWindowType = eWindowType_toplevel;
   mBorderStyle = eBorderStyle_default;
 
-  // Ensure that the toolkit is created.
-  nsToolkit::GetToolkit();
-
-  Inherited::BaseCreate(aParent, newBounds, aHandleEventFunction, aContext,
-                        aInitData);
+  Inherited::BaseCreate(aParent, newBounds, aHandleEventFunction, aContext, aAppShell,
+                        aToolkit, aInitData);
 
   mParent = aParent;
 
@@ -300,7 +302,7 @@ nsresult nsCocoaWindow::Create(nsIWidget *aParent,
     if (aInitData->mIsDragPopup) {
       [mWindow setIgnoresMouseEvents:YES];
     }
-    return CreatePopupContentView(newBounds, aHandleEventFunction, aContext);
+    return CreatePopupContentView(newBounds, aHandleEventFunction, aContext, aAppShell, aToolkit);
   }
 
   return NS_OK;
@@ -477,7 +479,9 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect &aRect,
 
 NS_IMETHODIMP nsCocoaWindow::CreatePopupContentView(const nsIntRect &aRect,
                              EVENT_CALLBACK aHandleEventFunction,
-                             nsDeviceContext *aContext)
+                             nsDeviceContext *aContext,
+                             nsIAppShell *aAppShell,
+                             nsIToolkit *aToolkit)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -490,7 +494,7 @@ NS_IMETHODIMP nsCocoaWindow::CreatePopupContentView(const nsIntRect &aRect,
 
   nsIWidget* thisAsWidget = static_cast<nsIWidget*>(this);
   mPopupContentView->Create(thisAsWidget, nsnull, aRect, aHandleEventFunction,
-                            aContext, nsnull);
+                            aContext, aAppShell, aToolkit, nsnull);
 
   ChildView* newContentView = (ChildView*)mPopupContentView->GetNativeData(NS_NATIVE_WIDGET);
   [mWindow setContentView:newContentView];
@@ -1484,17 +1488,22 @@ nsMenuBarX* nsCocoaWindow::GetMenuBar()
   return mMenuBar;
 }
 
-NS_IMETHODIMP nsCocoaWindow::CaptureRollupEvents(nsIRollupListener * aListener,
-                                                 bool aDoCapture,
+NS_IMETHODIMP nsCocoaWindow::CaptureRollupEvents(nsIRollupListener * aListener, 
+                                                 nsIMenuRollup * aMenuRollup,
+                                                 bool aDoCapture, 
                                                  bool aConsumeRollupEvent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   gRollupListener = nsnull;
+  NS_IF_RELEASE(gMenuRollup);
   NS_IF_RELEASE(gRollupWidget);
   
   if (aDoCapture) {
     gRollupListener = aListener;
+    NS_IF_RELEASE(gMenuRollup);
+    gMenuRollup = aMenuRollup;
+    NS_IF_ADDREF(aMenuRollup);
     gRollupWidget = this;
     NS_ADDREF(this);
 

@@ -94,7 +94,7 @@ nsTableColFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   if (tableFrame->IsBorderCollapse() &&
       tableFrame->BCRecalcNeeded(aOldStyleContext, GetStyleContext())) {
     nsRect damageArea = nsRect(GetColIndex(), 0, 1, tableFrame->GetRowCount());
-    tableFrame->AddBCDamageArea(damageArea);
+    tableFrame->SetBCDamageArea(damageArea);
   }
   return;
 }
@@ -131,7 +131,7 @@ NS_METHOD nsTableColFrame::Reflow(nsPresContext*          aPresContext,
   if (collapseCol) {
     nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
     if (tableFrame)  {
-      tableFrame->SetNeedToCollapse(true);
+      tableFrame->SetNeedToCollapse(PR_TRUE);
     }    
   }
   aStatus = NS_FRAME_COMPLETE;

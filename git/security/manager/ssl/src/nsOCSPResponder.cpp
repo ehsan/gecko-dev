@@ -93,21 +93,21 @@ bool nsOCSPResponder::IncludeCert(CERTCertificate *aCert)
 
   // Check that trust is non-null //
   if (trust == nsnull) {
-    return false;
+    return PR_FALSE;
   }
 
   if ( ( ( trust->sslFlags & CERTDB_INVISIBLE_CA ) ||
          (trust->emailFlags & CERTDB_INVISIBLE_CA ) ||
          (trust->objectSigningFlags & CERTDB_INVISIBLE_CA ) ) ||
        nickname == NULL) {
-      return false;
+      return PR_FALSE;
   }
   if ((trust->sslFlags & CERTDB_VALID_CA) ||
       (trust->emailFlags & CERTDB_VALID_CA) ||
       (trust->objectSigningFlags & CERTDB_VALID_CA)) {
-      return true;
+      return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 // CmpByCAName

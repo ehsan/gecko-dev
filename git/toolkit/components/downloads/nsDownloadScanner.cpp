@@ -177,7 +177,7 @@ private:
 };
 
 nsDownloadScanner::nsDownloadScanner() :
-  mAESExists(false)
+  mAESExists(PR_FALSE)
 {
 }
  
@@ -203,7 +203,7 @@ nsDownloadScanner::Init()
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  mAESExists = true;
+  mAESExists = PR_TRUE;
 
   // Initialize scanning
   mWatchdog = new nsDownloadScannerWatchdog();
@@ -231,9 +231,9 @@ nsDownloadScanner::IsAESAvailable()
                         IID_IAttachmentExecute, getter_AddRefs(ae));
   if (FAILED(hr)) {
     NS_WARNING("Could not instantiate attachment execution service\n");
-    return false;
+    return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
 // If IAttachementExecute is available, use the CheckPolicy call to find out
@@ -342,7 +342,7 @@ nsresult ReleaseDispatcher::Run() {
 nsDownloadScanner::Scan::Scan(nsDownloadScanner *scanner, nsDownload *download)
   : mDLScanner(scanner), mThread(NULL), 
     mDownload(download), mStatus(AVSCAN_NOTSTARTED),
-    mSkipSource(false)
+    mSkipSource(PR_FALSE)
 {
   InitializeCriticalSection(&mStateSync);
 }
@@ -502,13 +502,13 @@ nsDownloadScanner::Scan::DoScanAES()
         // Save() will invoke the scanner
         hr = ae->Save();
       } MOZ_SEH_EXCEPT(ExceptionFilterFunction(GetExceptionCode())) {
-        gotException = true;
+        gotException = PR_TRUE;
       }
 
       MOZ_SEH_TRY {
         ae = NULL;
       } MOZ_SEH_EXCEPT(ExceptionFilterFunction(GetExceptionCode())) {
-        gotException = true;
+        gotException = PR_TRUE;
       }
 
       if(gotException) {
@@ -534,7 +534,7 @@ nsDownloadScanner::Scan::DoScanAES()
     }
     return CheckAndSetState(newState, AVSCAN_SCANNING);
   }
-  return false;
+  return PR_FALSE;
 }
 #pragma warning(default: 4509)
 

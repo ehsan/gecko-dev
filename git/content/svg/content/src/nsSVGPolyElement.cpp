@@ -34,8 +34,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsSVGPolyElement.h"
 #include "DOMSVGPointList.h"
 #include "gfxContext.h"
@@ -70,7 +68,7 @@ NS_IMETHODIMP
 nsSVGPolyElement::GetPoints(nsIDOMSVGPointList * *aPoints)
 {
   void *key = mPoints.GetBaseValKey();
-  *aPoints = DOMSVGPointList::GetDOMWrapper(key, this, false).get();
+  *aPoints = DOMSVGPointList::GetDOMWrapper(key, this, PR_FALSE).get();
   return NS_OK;
 }
 
@@ -79,7 +77,7 @@ NS_IMETHODIMP
 nsSVGPolyElement::GetAnimatedPoints(nsIDOMSVGPointList * *aAnimatedPoints)
 {
   void *key = mPoints.GetAnimValKey();
-  *aAnimatedPoints = DOMSVGPointList::GetDOMWrapper(key, this, true).get();
+  *aAnimatedPoints = DOMSVGPointList::GetDOMWrapper(key, this, PR_TRUE).get();
   return NS_OK;
 }
 
@@ -93,7 +91,7 @@ nsSVGPolyElement::IsAttributeMapped(const nsIAtom* name) const
     sMarkersMap
   };
   
-  return FindAttributeDependence(name, map, ArrayLength(map)) ||
+  return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
     nsSVGPolyElementBase::IsAttributeMapped(name);
 }
 
@@ -104,9 +102,9 @@ bool
 nsSVGPolyElement::AttributeDefinesGeometry(const nsIAtom *aName)
 {
   if (aName == nsGkAtoms::points)
-    return true;
+    return PR_TRUE;
 
-  return false;
+  return PR_FALSE;
 }
 
 void

@@ -58,7 +58,7 @@ public:
   NS_IMETHOD Run()
   {
     NS_ASSERTION(NS_IsMainThread(), "Not running on the main thread?");
-    if (gTestsIndex < int(mozilla::ArrayLength(gTests))) {
+    if (gTestsIndex < int(NS_ARRAY_LENGTH(gTests))) {
       do_test_pending();
       Test &test = gTests[gTestsIndex++];
       (void)fprintf(stderr, TEST_INFO_STR "Running %s.\n", TEST_FILE,
@@ -114,8 +114,9 @@ int
 main(int aArgc,
      char** aArgv)
 {
-  ProfileScopedXPCOM xpcom(TEST_NAME);
-  nsCOMPtr<nsIFile> profile = xpcom.GetProfileDirectory();
+  ScopedXPCOM xpcom(TEST_NAME);
+  nsRefPtr<ShutdownObserver> shutdownObserver = new ShutdownObserver();
+
 
   // Tinderboxes are constantly on idle.  Since idle tasks can interact with
   // tests, causing random failures, disable the idle service.

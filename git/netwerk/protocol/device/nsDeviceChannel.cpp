@@ -41,11 +41,11 @@
 #include "nsDeviceCaptureProvider.h"
 #include "mozilla/Preferences.h"
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
 #include "AndroidCaptureProvider.h"
 #endif
 
-// Copied from image/decoders/icon/nsIconURI.cpp
+// Copied from modules/libpr0n/decoders/icon/nsIconURI.cpp
 // takes a string like ?size=32&contentType=text/html and returns a new string
 // containing just the attribute values. i.e you could pass in this string with
 // an attribute name of "size=", this will return 32
@@ -120,13 +120,13 @@ nsDeviceChannel::OpenContentStream(bool aAsync,
   nsCaptureParams captureParams;
   captureParams.camera = 0;
   if (kNotFound != spec.Find(NS_LITERAL_CSTRING("type=image/png"),
-                             true,
+                             PR_TRUE,
                              0,
                              -1)) {
     type.AssignLiteral("image/png");
     SetContentType(type);
-    captureParams.captureAudio = false;
-    captureParams.captureVideo = true;
+    captureParams.captureAudio = PR_FALSE;
+    captureParams.captureVideo = PR_TRUE;
     captureParams.timeLimit = 0;
     captureParams.frameLimit = 1;
     nsCAutoString buffer;
@@ -140,17 +140,17 @@ nsDeviceChannel::OpenContentStream(bool aAsync,
     if (!captureParams.height)
       captureParams.height = 480;
     captureParams.bpp = 32;
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
     capture = GetAndroidCaptureProvider();
 #endif
   } else if (kNotFound != spec.Find(NS_LITERAL_CSTRING("type=video/x-raw-yuv"),
-                                    true,
+                                    PR_TRUE,
                                     0,
                                     -1)) {
     type.AssignLiteral("video/x-raw-yuv");
     SetContentType(type);
-    captureParams.captureAudio = false;
-    captureParams.captureVideo = true;
+    captureParams.captureAudio = PR_FALSE;
+    captureParams.captureVideo = PR_TRUE;
     nsCAutoString buffer;
     extractAttributeValue(spec.get(), "width=", buffer);
     nsresult err;
@@ -164,7 +164,7 @@ nsDeviceChannel::OpenContentStream(bool aAsync,
     captureParams.bpp = 32;
     captureParams.timeLimit = 0;
     captureParams.frameLimit = 60000;
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
     // only enable if "device.camera.enabled" is true.
     if (mozilla::Preferences::GetBool("device.camera.enabled", false) == true)
       capture = GetAndroidCaptureProvider();

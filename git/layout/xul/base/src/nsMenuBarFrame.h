@@ -106,7 +106,7 @@ public:
   nsMenuFrame* ToggleMenuActiveState();
 
   bool IsActiveByKeyboard() { return mActiveByKeyboard; }
-  void SetActiveByKeyboard() { mActiveByKeyboard = true; }
+  void SetActiveByKeyboard() { mActiveByKeyboard = PR_TRUE; }
 
   // indicate that a menu on the menubar was closed. Returns true if the caller
   // may deselect the menuitem.
@@ -123,7 +123,7 @@ public:
   {
     // Override bogus IsFrameOfType in nsBoxFrame.
     if (aFlags & (nsIFrame::eReplacedContainsBlock | nsIFrame::eReplaced))
-      return false;
+      return PR_FALSE;
     return nsBoxFrame::IsFrameOfType(aFlags);
   }
 

@@ -99,7 +99,7 @@ txStylesheet::init()
 
     nt.forget();
 
-    mCharactersTemplate = new txValueOf(nodeExpr, false);
+    mCharactersTemplate = new txValueOf(nodeExpr, PR_FALSE);
     NS_ENSURE_TRUE(mCharactersTemplate, NS_ERROR_OUT_OF_MEMORY);
 
     mCharactersTemplate->mNext = new txReturn();
@@ -270,20 +270,20 @@ txStylesheet::isStripSpaceAllowed(const txXPathNode& aNode, txIMatchContext* aCo
 {
     PRInt32 frameCount = mStripSpaceTests.Length();
     if (frameCount == 0) {
-        return false;
+        return PR_FALSE;
     }
 
     txXPathTreeWalker walker(aNode);
 
     if (txXPathNodeUtils::isText(walker.getCurrentPosition()) &&
         (!txXPathNodeUtils::isWhitespace(aNode) || !walker.moveToParent())) {
-        return false;
+        return PR_FALSE;
     }
 
     const txXPathNode& node = walker.getCurrentPosition();
 
     if (!txXPathNodeUtils::isElement(node)) {
-        return false;
+        return PR_FALSE;
     }
 
     // check Whitespace stipping handling list against given Node
@@ -295,7 +295,7 @@ txStylesheet::isStripSpaceAllowed(const txXPathNode& aNode, txIMatchContext* aCo
         }
     }
 
-    return false;
+    return PR_FALSE;
 }
 
 nsresult
@@ -442,9 +442,9 @@ txStylesheet::addTemplate(txTemplateItem* aTemplate,
     PRUint32 unionPos = 1; // only used when unionPattern is set
     while (simple) {
         double priority = aTemplate->mPrio;
-        if (txDouble::isNaN(priority)) {
+        if (Double::isNaN(priority)) {
             priority = simple->getDefaultPriority();
-            NS_ASSERTION(!txDouble::isNaN(priority),
+            NS_ASSERTION(!Double::isNaN(priority),
                          "simple pattern without default priority");
         }
 

@@ -249,7 +249,7 @@ nsFrameManager::Destroy()
   NS_ASSERTION(mPresShell, "Frame manager already shut down.");
 
   // Destroy the frame hierarchy.
-  mPresShell->SetIgnoreFrameDestruction(true);
+  mPresShell->SetIgnoreFrameDestruction(PR_TRUE);
 
   // Unregister all placeholders before tearing down the frame tree
   nsFrameManager::ClearPlaceholderFrameMap();
@@ -457,7 +457,7 @@ nsFrameManager::ClearAllUndisplayedContentIn(nsIContent* aParentContent)
   // the content list via GetXBLChildNodesFor and just ignore any nodes we
   // don't care about.
   nsINodeList* list =
-    aParentContent->OwnerDoc()->BindingManager()->GetXBLChildNodesFor(aParentContent);
+    aParentContent->GetOwnerDoc()->BindingManager()->GetXBLChildNodesFor(aParentContent);
   if (list) {
     PRUint32 length;
     list->GetLength(&length);
@@ -510,7 +510,7 @@ nsFrameManager::RemoveFrame(ChildListID     aListID,
                             nsIFrame*       aOldFrame)
 {
   bool wasDestroyingFrames = mIsDestroyingFrames;
-  mIsDestroyingFrames = true;
+  mIsDestroyingFrames = PR_TRUE;
 
   // In case the reflow doesn't invalidate anything since it just leaves
   // a gap where the old frame was, we invalidate it here.  (This is
@@ -1097,7 +1097,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
 
 #ifdef ACCESSIBILITY
     bool wasFrameVisible = nsIPresShell::IsAccessibilityActive() ?
-      oldContext->GetStyleVisibility()->IsVisible() : false;
+      oldContext->GetStyleVisibility()->IsVisible() : PR_FALSE;
 #endif
 
     nsIAtom* const pseudoTag = oldContext->GetPseudo();
@@ -1111,7 +1111,6 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
     nsIContent* content = localContent ? localContent : aParentContent;
 
     if (content && content->IsElement()) {
-      content->OwnerDoc()->FlushPendingLinkUpdates();
       RestyleTracker::RestyleData restyleData;
       if (aRestyleTracker.GetRestyleData(content->AsElement(), &restyleData)) {
         if (NS_UpdateHint(aMinChange, restyleData.mChangeHint)) {
@@ -1665,7 +1664,7 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
 
   FramePropertyTable *propTable = GetPresContext()->PropertyTable();
 
-  TreeMatchContext treeMatchContext(true,
+  TreeMatchContext treeMatchContext(PR_TRUE,
                                     nsRuleWalker::eRelevantLinkUnvisited,
                                     mPresShell->GetDocument());
   nsTArray<nsIContent*> visibleKidsOfHiddenElement;

@@ -164,14 +164,14 @@ nsTString_CharT::ToInteger( PRInt32* aErrorCode, PRUint32 aRadix ) const
         case 'a': case 'b': case 'c': case 'd': case 'e': case 'f':
         case 'A': case 'B': case 'C': case 'D': case 'E': case 'F':
           theRadix=16;
-          done=true;
+          done=PR_TRUE;
           break;
         case '0': case '1': case '2': case '3': case '4': 
         case '5': case '6': case '7': case '8': case '9':
-          done=true;
+          done=PR_TRUE;
           break;
         case '-': 
-          negate=true; //fall through...
+          negate=PR_TRUE; //fall through...
           break;
         case 'X': case 'x': 
           theRadix=16;
@@ -198,7 +198,7 @@ nsTString_CharT::ToInteger( PRInt32* aErrorCode, PRUint32 aRadix ) const
         theChar=*cp++;
         if(('0'<=theChar) && (theChar<='9')){
           result = (theRadix * result) + (theChar-'0');
-          haveValue = true;
+          haveValue = PR_TRUE;
         }
         else if((theChar>='A') && (theChar<='F')) {
           if(10==theRadix) {
@@ -206,7 +206,7 @@ nsTString_CharT::ToInteger( PRInt32* aErrorCode, PRUint32 aRadix ) const
               theRadix=16;
               cp=first; //backup
               result=0;
-              haveValue = false;
+              haveValue = PR_FALSE;
             }
             else {
               *aErrorCode=NS_ERROR_ILLEGAL_VALUE;
@@ -216,7 +216,7 @@ nsTString_CharT::ToInteger( PRInt32* aErrorCode, PRUint32 aRadix ) const
           }
           else {
             result = (theRadix * result) + ((theChar-'A')+10);
-            haveValue = true;
+            haveValue = PR_TRUE;
           }
         }
         else if((theChar>='a') && (theChar<='f')) {
@@ -225,7 +225,7 @@ nsTString_CharT::ToInteger( PRInt32* aErrorCode, PRUint32 aRadix ) const
               theRadix=16;
               cp=first; //backup
               result=0;
-              haveValue = false;
+              haveValue = PR_FALSE;
             }
             else {
               *aErrorCode=NS_ERROR_ILLEGAL_VALUE;
@@ -235,7 +235,7 @@ nsTString_CharT::ToInteger( PRInt32* aErrorCode, PRUint32 aRadix ) const
           }
           else {
             result = (theRadix * result) + ((theChar-'a')+10);
-            haveValue = true;
+            haveValue = PR_TRUE;
           }
         }
         else if((('X'==theChar) || ('x'==theChar)) && (!haveValue || result == 0)) {
@@ -288,12 +288,12 @@ bool
 nsTString_CharT::SetCharAt( PRUnichar aChar, PRUint32 aIndex )
   {
     if (aIndex >= mLength)
-      return false;
+      return PR_FALSE;
 
     EnsureMutable();
 
     mData[aIndex] = CharT(aChar);
-    return true;
+    return PR_TRUE;
   }
 
  
@@ -367,7 +367,7 @@ nsTString_CharT::ReplaceSubstring( const self_type& aTarget, const self_type& aN
     PRUint32 i = 0;
     while (i < mLength)
       {
-        PRInt32 r = FindSubstring(mData + i, mLength - i, aTarget.Data(), aTarget.Length(), false);
+        PRInt32 r = FindSubstring(mData + i, mLength - i, aTarget.Data(), aTarget.Length(), PR_FALSE);
         if (r == kNotFound)
           break;
 

@@ -88,10 +88,6 @@ function startAnimatedScrollBy(dx, dy) {
 
     var sentScrollBy = false;
     function nudgeScroll(now) {
-	if (!scrolling) {
-	    // we've been canceled
-	    return;
-	}
         var ddx = dx * (now - prevNow) / kDurationMs;
         var ddy = dy * (now - prevNow) / kDurationMs;
 
@@ -114,14 +110,18 @@ function startAnimatedScrollBy(dx, dy) {
             rootView().scrollBy(fixupDx, fixupDy);
 
             scrolling = false;
+            removeEventListener("MozBeforePaint", nudgeScroll, false);
         }
         else {
-            mozRequestAnimationFrame(nudgeScroll);
+            mozRequestAnimationFrame();
         }
 
         prevNow = now;
     }
 
     nudgeScroll(start);
-    mozRequestAnimationFrame(nudgeScroll);
+    addEventListener("MozBeforePaint",
+                     function (e) { nudgeScroll(e.timeStamp); },
+                     false);
+    mozRequestAnimationFrame();
 }

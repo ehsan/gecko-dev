@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "txExpr.h"
 #include "nsAutoPtr.h"
 #include "txNodeSet.h"
@@ -48,8 +46,6 @@
 #include <math.h>
 #include "txStringUtils.h"
 #include "txXMLUtils.h"
-
-using namespace mozilla;
 
 struct txCoreFunctionDescriptor
 {
@@ -274,7 +270,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             NS_ENSURE_SUCCESS(rv, rv);
 
             if (arg2.IsEmpty()) {
-                aContext->recycler()->getBoolResult(true, aResult);
+                aContext->recycler()->getBoolResult(PR_TRUE, aResult);
             }
             else {
                 nsAutoString arg1;
@@ -303,23 +299,23 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             rv = aContext->recycler()->getStringResult(getter_AddRefs(strRes));
             NS_ENSURE_SUCCESS(rv, rv);
 
-            bool addSpace = false;
-            bool first = true;
+            MBool addSpace = MB_FALSE;
+            MBool first = MB_TRUE;
             strRes->mValue.SetCapacity(resultStr.Length());
             PRUnichar c;
             PRUint32 src;
             for (src = 0; src < resultStr.Length(); src++) {
                 c = resultStr.CharAt(src);
                 if (XMLUtils::isWhitespace(c)) {
-                    addSpace = true;
+                    addSpace = MB_TRUE;
                 }
                 else {
                     if (addSpace && !first)
                         strRes->mValue.Append(PRUnichar(' '));
 
                     strRes->mValue.Append(c);
-                    addSpace = false;
-                    first = false;
+                    addSpace = MB_FALSE;
+                    first = MB_FALSE;
                 }
             }
             *aResult = strRes;
@@ -335,7 +331,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
 
             bool result = false;
             if (arg2.IsEmpty()) {
-                result = true;
+                result = PR_TRUE;
             }
             else {
                 nsAutoString arg1;
@@ -396,8 +392,8 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             NS_ENSURE_SUCCESS(rv, rv);
 
             // check for NaN or +/-Inf
-            if (txDouble::isNaN(start) ||
-                txDouble::isInfinite(start) ||
+            if (Double::isNaN(start) ||
+                Double::isInfinite(start) ||
                 start >= src.Length() + 0.5) {
                 aContext->recycler()->getEmptyStringResult(aResult);
 
@@ -412,7 +408,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
                 NS_ENSURE_SUCCESS(rv, rv);
 
                 end += start;
-                if (txDouble::isNaN(end) || end < 0) {
+                if (Double::isNaN(end) || end < 0) {
                     aContext->recycler()->getEmptyStringResult(aResult);
 
                     return NS_OK;
@@ -546,7 +542,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
                 nsAutoString resultStr;
                 txXPathNodeUtils::appendNodeValue(aContext->getContextNode(),
                                                   resultStr);
-                res = txDouble::toDouble(resultStr);
+                res = Double::toDouble(resultStr);
             }
             return aContext->recycler()->getNumberResult(res, aResult);
         }
@@ -556,8 +552,8 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             rv = evaluateToNumber(mParams[0], aContext, &dbl);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            if (!txDouble::isNaN(dbl) && !txDouble::isInfinite(dbl)) {
-                if (txDouble::isNeg(dbl) && dbl >= -0.5) {
+            if (!Double::isNaN(dbl) && !Double::isInfinite(dbl)) {
+                if (Double::isNeg(dbl) && dbl >= -0.5) {
                     dbl *= 0;
                 }
                 else {
@@ -573,9 +569,9 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             rv = evaluateToNumber(mParams[0], aContext, &dbl);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            if (!txDouble::isNaN(dbl) &&
-                !txDouble::isInfinite(dbl) &&
-                !(dbl == 0 && txDouble::isNeg(dbl))) {
+            if (!Double::isNaN(dbl) &&
+                !Double::isInfinite(dbl) &&
+                !(dbl == 0 && Double::isNeg(dbl))) {
                 dbl = floor(dbl);
             }
 
@@ -587,8 +583,8 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             rv = evaluateToNumber(mParams[0], aContext, &dbl);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            if (!txDouble::isNaN(dbl) && !txDouble::isInfinite(dbl)) {
-                if (txDouble::isNeg(dbl) && dbl > -1) {
+            if (!Double::isNaN(dbl) && !Double::isInfinite(dbl)) {
+                if (Double::isNeg(dbl) && dbl > -1) {
                     dbl *= 0;
                 }
                 else {
@@ -610,7 +606,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             for (i = 0; i < nodes->size(); ++i) {
                 nsAutoString resultStr;
                 txXPathNodeUtils::appendNodeValue(nodes->get(i), resultStr);
-                res += txDouble::toDouble(resultStr);
+                res += Double::toDouble(resultStr);
             }
             return aContext->recycler()->getNumberResult(res, aResult);
         }
@@ -629,7 +625,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
         }
         case _FALSE:
         {
-            aContext->recycler()->getBoolResult(false, aResult);
+            aContext->recycler()->getBoolResult(PR_FALSE, aResult);
 
             return NS_OK;
         }
@@ -645,7 +641,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             } while (!found && walker.moveToParent());
 
             if (!found) {
-                aContext->recycler()->getBoolResult(false, aResult);
+                aContext->recycler()->getBoolResult(PR_FALSE, aResult);
 
                 return NS_OK;
             }
@@ -676,7 +672,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
         }
         case _TRUE:
         {
-            aContext->recycler()->getBoolResult(true, aResult);
+            aContext->recycler()->getBoolResult(PR_TRUE, aResult);
 
             return NS_OK;
         }
@@ -750,7 +746,7 @@ txCoreFunctionCall::isSensitiveTo(ContextSensitivity aContext)
     }
 
     NS_NOTREACHED("how'd we get here?");
-    return true;
+    return PR_TRUE;
 }
 
 // static
@@ -758,15 +754,15 @@ bool
 txCoreFunctionCall::getTypeFromAtom(nsIAtom* aName, eType& aType)
 {
     PRUint32 i;
-    for (i = 0; i < ArrayLength(descriptTable); ++i) {
+    for (i = 0; i < NS_ARRAY_LENGTH(descriptTable); ++i) {
         if (aName == *descriptTable[i].mName) {
             aType = static_cast<eType>(i);
 
-            return true;
+            return PR_TRUE;
         }
     }
 
-    return false;
+    return PR_FALSE;
 }
 
 #ifdef TX_TO_STRING

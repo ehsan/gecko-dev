@@ -158,7 +158,6 @@ public:
   PRUint8 mSize;   // NS_STYLE_GRADIENT_SIZE_*;
                    // not used (must be FARTHEST_CORNER) for linear shape
   bool mRepeating;
-  bool mToCorner;
 
   nsStyleCoord mBgPosX; // percent, coord, calc, none
   nsStyleCoord mBgPosY; // percent, coord, calc, none
@@ -247,9 +246,9 @@ struct nsStyleImage {
    * The computation involves converting percentage unit to pixel unit and
    * clamping each side value to fit in the source image bounds.
    * @param aActualCropRect the computed actual crop rect.
-   * @param aIsEntireImage true iff |aActualCropRect| is identical to the
+   * @param aIsEntireImage PR_TRUE iff |aActualCropRect| is identical to the
    * source image bounds.
-   * @return true iff |aActualCropRect| holds a meaningful value.
+   * @return PR_TRUE iff |aActualCropRect| holds a meaningful value.
    */
   bool ComputeActualCropRect(nsIntRect& aActualCropRect,
                                bool* aIsEntireImage = nsnull) const;
@@ -259,18 +258,18 @@ struct nsStyleImage {
    */
   nsresult RequestDecode() const;
   /**
-   * @return true if the item is definitely opaque --- i.e., paints every
+   * @return PR_TRUE if the item is definitely opaque --- i.e., paints every
    * pixel within its bounds opaquely, and the bounds contains at least a pixel.
    */
   bool IsOpaque() const;
   /**
-   * @return true if this image is fully loaded, and its size is calculated;
-   * always returns true if |mType| is |eStyleImageType_Gradient| or
+   * @return PR_TRUE if this image is fully loaded, and its size is calculated;
+   * always returns PR_TRUE if |mType| is |eStyleImageType_Gradient| or
    * |eStyleImageType_Element|.
    */
   bool IsComplete() const;
   /**
-   * @return true if it is 100% confident that this image contains no pixel
+   * @return PR_TRUE if it is 100% confident that this image contains no pixel
    * to draw.
    */
   bool IsEmpty() const {
@@ -555,9 +554,9 @@ struct nsStyleMargin {
   {
     if (mHasCachedMargin) {
       aMargin = mCachedMargin;
-      return true;
+      return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
   }
 
 protected:
@@ -590,9 +589,9 @@ struct nsStylePadding {
   {
     if (mHasCachedPadding) {
       aPadding = mCachedPadding;
-      return true;
+      return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
   }
 
 protected:
@@ -608,15 +607,15 @@ struct nsBorderColors {
   nsBorderColors(const nscolor& aColor) : mNext(nsnull), mColor(aColor) {}
   ~nsBorderColors();
 
-  nsBorderColors* Clone() const { return Clone(true); }
+  nsBorderColors* Clone() const { return Clone(PR_TRUE); }
 
   static bool Equal(const nsBorderColors* c1,
                       const nsBorderColors* c2) {
     if (c1 == c2)
-      return true;
+      return PR_TRUE;
     while (c1 && c2) {
       if (c1->mColor != c2->mColor)
-        return false;
+        return PR_FALSE;
       c1 = c1->mNext;
       c2 = c2->mNext;
     }
@@ -639,7 +638,7 @@ struct nsCSSShadowItem {
   bool mHasColor; // Whether mColor should be used
   bool mInset;
 
-  nsCSSShadowItem() : mHasColor(false) {
+  nsCSSShadowItem() : mHasColor(PR_FALSE) {
     MOZ_COUNT_CTOR(nsCSSShadowItem);
   }
   ~nsCSSShadowItem() {
@@ -839,12 +838,12 @@ struct nsStyleBorder {
   void GetBorderColor(mozilla::css::Side aSide, nscolor& aColor,
                       bool& aForeground) const
   {
-    aForeground = false;
+    aForeground = PR_FALSE;
     NS_ASSERTION(aSide <= NS_SIDE_LEFT, "bad side");
     if ((mBorderStyle[aSide] & BORDER_COLOR_SPECIAL) == 0)
       aColor = mBorderColor[aSide];
     else if (mBorderStyle[aSide] & BORDER_COLOR_FOREGROUND)
-      aForeground = true;
+      aForeground = PR_TRUE;
     else
       NS_NOTREACHED("OUTLINE_COLOR_INITIAL should not be set here");
   }
@@ -975,9 +974,9 @@ struct nsStyleOutline {
   {
     if (mHasCachedOutline) {
       aWidth = mCachedOutlineWidth;
-      return true;
+      return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
   }
 
   PRUint8 GetOutlineStyle(void) const
@@ -991,14 +990,14 @@ struct nsStyleOutline {
     mOutlineStyle |= (aStyle & BORDER_STYLE_MASK);
   }
 
-  // false means initial value
+  // PR_FALSE means initial value
   bool GetOutlineColor(nscolor& aColor) const
   {
     if ((mOutlineStyle & BORDER_COLOR_SPECIAL) == 0) {
       aColor = mOutlineColor;
-      return true;
+      return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
   }
 
   void SetOutlineColor(nscolor aColor)
@@ -1149,7 +1148,6 @@ struct nsStyleTextOverflowSide {
 };
 
 struct nsStyleTextOverflow {
-  nsStyleTextOverflow() : mLogicalDirections(true) {}
   bool operator==(const nsStyleTextOverflow& aOther) const {
     return mLeft == aOther.mLeft && mRight == aOther.mRight;
   }
@@ -1157,35 +1155,8 @@ struct nsStyleTextOverflow {
     return !(*this == aOther);
   }
 
-  // Returns the value to apply on the left side.
-  const nsStyleTextOverflowSide& GetLeft(PRUint8 aDirection) const {
-    NS_ASSERTION(aDirection == NS_STYLE_DIRECTION_LTR ||
-                 aDirection == NS_STYLE_DIRECTION_RTL, "bad direction");
-    return !mLogicalDirections || aDirection == NS_STYLE_DIRECTION_LTR ?
-             mLeft : mRight;
-  }
-
-  // Returns the value to apply on the right side.
-  const nsStyleTextOverflowSide& GetRight(PRUint8 aDirection) const {
-    NS_ASSERTION(aDirection == NS_STYLE_DIRECTION_LTR ||
-                 aDirection == NS_STYLE_DIRECTION_RTL, "bad direction");
-    return !mLogicalDirections || aDirection == NS_STYLE_DIRECTION_LTR ?
-             mRight : mLeft;
-  }
-
-  // Returns the first value that was specified.
-  const nsStyleTextOverflowSide* GetFirstValue() const {
-    return mLogicalDirections ? &mRight : &mLeft;
-  }
-
-  // Returns the second value, or null if there was only one value specified.
-  const nsStyleTextOverflowSide* GetSecondValue() const {
-    return mLogicalDirections ? nsnull : &mRight;
-  }
-
-  nsStyleTextOverflowSide mLeft;  // start side when mLogicalDirections is true
-  nsStyleTextOverflowSide mRight; // end side when mLogicalDirections is true
-  bool mLogicalDirections;  // true when only one value was specified
+  nsStyleTextOverflowSide mLeft;
+  nsStyleTextOverflowSide mRight;
 };
 
 struct nsStyleTextReset {
@@ -1216,11 +1187,11 @@ struct nsStyleTextReset {
 
   void GetDecorationColor(nscolor& aColor, bool& aForeground) const
   {
-    aForeground = false;
+    aForeground = PR_FALSE;
     if ((mTextDecorationStyle & BORDER_COLOR_SPECIAL) == 0) {
       aColor = mTextDecorationColor;
     } else if (mTextDecorationStyle & BORDER_COLOR_FOREGROUND) {
-      aForeground = true;
+      aForeground = PR_TRUE;
     } else {
       NS_NOTREACHED("OUTLINE_COLOR_INITIAL should not be set here");
     }
@@ -1280,7 +1251,6 @@ struct nsStyleText {
   PRUint8 mWhiteSpace;                  // [inherited] see nsStyleConsts.h
   PRUint8 mWordWrap;                    // [inherited] see nsStyleConsts.h
   PRUint8 mHyphens;                     // [inherited] see nsStyleConsts.h
-  PRUint8 mTextSizeAdjust;              // [inherited] see nsStyleConsts.h
   PRInt32 mTabSize;                     // [inherited] see nsStyleConsts.h
 
   nsStyleCoord  mLetterSpacing;         // [inherited] coord, normal
@@ -1540,13 +1510,9 @@ struct nsStyleDisplay {
   float   mOpacity;             // [reset]
   PRUint8 mDisplay;             // [reset] see nsStyleConsts.h NS_STYLE_DISPLAY_*
   PRUint8 mOriginalDisplay;     // [reset] saved mDisplay for position:absolute/fixed
-                                //         and float:left/right; otherwise equal
-                                //         to mDisplay
   PRUint8 mAppearance;          // [reset]
   PRUint8 mPosition;            // [reset] see nsStyleConsts.h
   PRUint8 mFloats;              // [reset] see nsStyleConsts.h NS_STYLE_FLOAT_*
-  PRUint8 mOriginalFloats;      // [reset] saved mFloats for position:absolute/fixed;
-                                //         otherwise equal to mFloats
   PRUint8 mBreakType;           // [reset] see nsStyleConsts.h NS_STYLE_CLEAR_*
   bool mBreakBefore;    // [reset]
   bool mBreakAfter;     // [reset]

@@ -46,7 +46,7 @@ class txListIterator;
 /**
  * Represents an ordered list of Object pointers. Modeled after a Java 2 List.
 **/
-class txList : public txObject {
+class txList : public TxObject {
 
 friend class txListIterator;
 
@@ -161,17 +161,17 @@ public:
 
     /**
      * Returns true if a successful call to the next() method can be made
-     * @return true if a successful call to the next() method can be made,
-     * otherwise false
+     * @return MB_TRUE if a successful call to the next() method can be made,
+     * otherwise MB_FALSE
     **/
-    bool  hasNext();
+    MBool  hasNext();
 
     /**
      * Returns true if a successful call to the previous() method can be made
-     * @return true if a successful call to the previous() method can be made,
-     * otherwise false
+     * @return MB_TRUE if a successful call to the previous() method can be made,
+     * otherwise MB_FALSE
     **/
-    bool  hasPrevious();
+    MBool  hasPrevious();
 
     /**
      * Returns the next Object pointer from the list
@@ -218,7 +218,7 @@ private:
    txList* list;
 
    //-- we've moved off the end of the list
-   bool atEndOfList;
+   MBool atEndOfList;
 };
 
 typedef txList List;

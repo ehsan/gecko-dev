@@ -60,7 +60,6 @@
 #include "mozilla/ipc/XPCShellEnvironment.h"
 #include "mozilla/jsipc/PContextWrapperChild.h"
 #include "mozilla/net/NeckoChild.h"
-#include "mozilla/Preferences.h"
 
 #if defined(MOZ_SYDNEYAUDIO)
 #include "nsAudioStream.h"
@@ -69,6 +68,7 @@
 #include "nsIObserverService.h"
 #include "nsTObserverArray.h"
 #include "nsIObserver.h"
+#include "nsIPrefService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsXULAppAPI.h"
 #include "nsWeakReference.h"
@@ -98,7 +98,7 @@
 
 #include "nsDeviceMotion.h"
 
-#if defined(MOZ_WIDGET_ANDROID)
+#if defined(ANDROID)
 #include "APKOpen.h"
 #endif
 
@@ -111,14 +111,11 @@
 #include "nsIAccessibilityService.h"
 #endif
 
-#include "mozilla/dom/sms/SmsChild.h"
-
 using namespace mozilla::hal_sandbox;
 using namespace mozilla::ipc;
 using namespace mozilla::net;
 using namespace mozilla::places;
 using namespace mozilla::docshell;
-using namespace mozilla::dom::sms;
 
 namespace mozilla {
 namespace dom {
@@ -236,7 +233,6 @@ ContentChild* ContentChild::sSingleton;
 ContentChild::ContentChild()
 #ifdef ANDROID
  : mScreenSize(0, 0)
- , mID(PRUint64(-1))
 #endif
 {
 }
@@ -275,7 +271,7 @@ ContentChild::Init(MessageLoop* aIOLoop,
 #ifdef MOZ_CRASHREPORTER
     SendPCrashReporterConstructor(CrashReporter::CurrentThreadId(),
                                   XRE_GetProcessType());
-#if defined(MOZ_WIDGET_ANDROID)
+#if defined(ANDROID)
     PCrashReporterChild* crashreporter = ManagedPCrashReporterChild()[0];
 
     InfallibleTArray<Mapping> mappings;
@@ -538,19 +534,6 @@ ContentChild::DeallocPExternalHelperApp(PExternalHelperAppChild* aService)
     return true;
 }
 
-PSmsChild*
-ContentChild::AllocPSms()
-{
-    return new SmsChild();
-}
-
-bool
-ContentChild::DeallocPSms(PSmsChild* aSms)
-{
-    delete aSms;
-    return true;
-}
-
 PStorageChild*
 ContentChild::AllocPStorage(const StorageConstructData& aData)
 {
@@ -655,14 +638,24 @@ ContentChild::AddRemoteAlertObserver(const nsString& aData,
 bool
 ContentChild::RecvPreferenceUpdate(const PrefTuple& aPref)
 {
-    Preferences::SetPreference(&aPref);
+    nsCOMPtr<nsIPrefServiceInternal> prefs = do_GetService("@mozilla.org/preferences-service;1");
+    if (!prefs)
+        return false;
+
+    prefs->SetPreference(&aPref);
+
     return true;
 }
 
 bool
 ContentChild::RecvClearUserPreference(const nsCString& aPrefName)
 {
-    Preferences::ClearContentPref(aPrefName.get());
+    nsCOMPtr<nsIPrefServiceInternal> prefs = do_GetService("@mozilla.org/preferences-service;1");
+    if (!prefs)
+        return false;
+
+    prefs->ClearContentPref(aPrefName);
+
     return true;
 }
 
@@ -700,7 +693,7 @@ ContentChild::RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON)
   nsRefPtr<nsFrameMessageManager> cpm = nsFrameMessageManager::sChildProcessManager;
   if (cpm) {
     cpm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(cpm.get()),
-                        aMsg, false, aJSON, nsnull, nsnull);
+                        aMsg, PR_FALSE, aJSON, nsnull, nsnull);
   }
   return true;
 }
@@ -817,16 +810,6 @@ ContentChild::RecvAppInfo(const nsCString& version, const nsCString& buildID)
 {
     mAppInfo.version.Assign(version);
     mAppInfo.buildID.Assign(buildID);
-    return true;
-}
-
-bool
-ContentChild::RecvSetID(const PRUint64 &id)
-{
-    if (mID != PRUint64(-1)) {
-        NS_WARNING("Setting content child's ID twice?");
-    }
-    mID = id;
     return true;
 }
 

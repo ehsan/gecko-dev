@@ -38,8 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsMathMLElement.h"
 #include "nsDOMClassInfoID.h" // for eDOMClassInfo_MathElement_id.
 #include "nsGkAtoms.h"
@@ -53,8 +51,6 @@
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "mozAutoDocUpdate.h"
-
-using namespace mozilla;
 
 //----------------------------------------------------------------------
 // nsISupports methods:
@@ -89,23 +85,19 @@ nsMathMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                                 aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aDocument) {
-    aDocument->RegisterPendingLinkUpdate(this);
-    
-    if (!aDocument->GetMathMLEnabled()) {
-      // Enable MathML and setup the style sheet during binding, not element
-      // construction, because we could move a MathML element from the document
-      // that created it to another document.
-      aDocument->SetMathMLEnabled();
-      aDocument->EnsureCatalogStyleSheet(kMathMLStyleSheetURI);
+  if (aDocument && !aDocument->GetMathMLEnabled()) {
+    // Enable MathML and setup the style sheet during binding, not element
+    // construction, because we could move a MathML element from the document
+    // that created it to another document.
+    aDocument->SetMathMLEnabled();
+    aDocument->EnsureCatalogStyleSheet(kMathMLStyleSheetURI);
 
-      // Rebuild style data for the presshell, because style system
-      // optimizations may have taken place assuming MathML was disabled.
-      // (See nsRuleNode::CheckSpecifiedProperties.)
-      nsCOMPtr<nsIPresShell> shell = aDocument->GetShell();
-      if (shell) {
-        shell->GetPresContext()->PostRebuildAllStyleDataEvent(nsChangeHint(0));
-      }
+    // Rebuild style data for the presshell, because style system
+    // optimizations may have taken place assuming MathML was disabled.
+    // (See nsRuleNode::CheckSpecifiedProperties.)
+    nsCOMPtr<nsIPresShell> shell = aDocument->GetShell();
+    if (shell) {
+      shell->GetPresContext()->PostRebuildAllStyleDataEvent(nsChangeHint(0));
     }
   }
 
@@ -118,11 +110,6 @@ nsMathMLElement::UnbindFromTree(bool aDeep, bool aNullParent)
   // If this link is ever reinserted into a document, it might
   // be under a different xml:base, so forget the cached state now.
   Link::ResetLinkState(false);
-  
-  nsIDocument* doc = GetCurrentDoc();
-  if (doc) {
-    doc->UnregisterPendingLinkUpdate(this);
-  }
 
   nsMathMLElementBase::UnbindFromTree(aDeep, aNullParent);
 }
@@ -190,11 +177,11 @@ nsMathMLElement::IsAttributeMapped(const nsIAtom* aAttribute) const
       tag == nsGkAtoms::mn_ || tag == nsGkAtoms::mo_ ||
       tag == nsGkAtoms::mtext_ || tag == nsGkAtoms::mspace_)
     return FindAttributeDependence(aAttribute, tokenMap,
-                                   ArrayLength(tokenMap));
+                                   NS_ARRAY_LENGTH(tokenMap));
   if (tag == nsGkAtoms::mstyle_ ||
       tag == nsGkAtoms::math)
     return FindAttributeDependence(aAttribute, mstyleMap,
-                                   ArrayLength(mstyleMap));
+                                   NS_ARRAY_LENGTH(mstyleMap));
 
   if (tag == nsGkAtoms::maction_ ||
       tag == nsGkAtoms::maligngroup_ ||
@@ -220,10 +207,10 @@ nsMathMLElement::IsAttributeMapped(const nsIAtom* aAttribute) const
       tag == nsGkAtoms::munderover_ ||
       tag == nsGkAtoms::none) {
     return FindAttributeDependence(aAttribute, commonPresMap,
-                                   ArrayLength(commonPresMap));
+                                   NS_ARRAY_LENGTH(commonPresMap));
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 nsMapRuleToAttributesFunc
@@ -271,7 +258,7 @@ nsMathMLElement::ParseNumericValue(const nsString& aString,
 
   PRInt32 stringLength = str.Length();
   if (!stringLength)
-    return false;
+    return PR_FALSE;
 
   nsAutoString number, unit;
 
@@ -292,9 +279,9 @@ nsMathMLElement::ParseNumericValue(const nsString& aString,
   for ( ; i < stringLength; i++) {
     c = str[i];
     if (gotDot && c == '.')
-      return false;  // two dots encountered
+      return PR_FALSE;  // two dots encountered
     else if (c == '.')
-      gotDot = true;
+      gotDot = PR_TRUE;
     else if (!nsCRT::IsAsciiDigit(c)) {
       str.Right(unit, stringLength - i);
       // some authors leave blanks before the unit, but that shouldn't
@@ -308,9 +295,9 @@ nsMathMLElement::ParseNumericValue(const nsString& aString,
   PRInt32 errorCode;
   float floatValue = number.ToFloat(&errorCode);
   if (NS_FAILED(errorCode))
-    return false;
+    return PR_FALSE;
   if (floatValue < 0 && !(aFlags & PARSE_ALLOW_NEGATIVE))
-    return false;
+    return PR_FALSE;
 
   nsCSSUnit cssUnit;
   if (unit.IsEmpty()) {
@@ -322,13 +309,13 @@ nsMathMLElement::ParseNumericValue(const nsString& aString,
       // If the value is 0 we can just call it "pixels" otherwise
       // this is illegal.
       if (floatValue != 0.0)
-        return false;
+        return PR_FALSE;
       cssUnit = eCSSUnit_Pixel;
     }
   }
   else if (unit.EqualsLiteral("%")) {
     aCSSValue.SetPercentValue(floatValue / 100.0f);
-    return true;
+    return PR_TRUE;
   }
   else if (unit.EqualsLiteral("em")) cssUnit = eCSSUnit_EM;
   else if (unit.EqualsLiteral("ex")) cssUnit = eCSSUnit_XHeight;
@@ -339,10 +326,10 @@ nsMathMLElement::ParseNumericValue(const nsString& aString,
   else if (unit.EqualsLiteral("pt")) cssUnit = eCSSUnit_Point;
   else if (unit.EqualsLiteral("pc")) cssUnit = eCSSUnit_Pica;
   else // unexpected unit
-    return false;
+    return PR_FALSE;
 
   aCSSValue.SetFloatValue(floatValue, cssUnit);
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -403,7 +390,7 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
     bool parseSizeKeywords = true;
     value = aAttributes->GetAttr(nsGkAtoms::mathsize_);
     if (!value) {
-      parseSizeKeywords = false;
+      parseSizeKeywords = PR_FALSE;
       value = aAttributes->GetAttr(nsGkAtoms::fontsize_);
     }
     nsCSSValue* fontSize = aData->ValueForFontSize();
@@ -418,7 +405,7 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
           NS_STYLE_FONT_SIZE_LARGE
         };
         str.CompressWhitespace();
-        for (PRUint32 i = 0; i < ArrayLength(sizes); ++i) {
+        for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(sizes); ++i) {
           if (str.EqualsASCII(sizes[i])) {
             fontSize->SetIntValue(values[i], eCSSUnit_Enumerated);
             break;
@@ -515,14 +502,14 @@ nsMathMLElement::IsFocusable(PRInt32 *aTabIndex, bool aWithMouse)
     if (aTabIndex) {
       *aTabIndex = ((sTabFocusModel & eTabFocus_linksMask) == 0 ? -1 : 0);
     }
-    return true;
+    return PR_TRUE;
   }
 
   if (aTabIndex) {
     *aTabIndex = -1;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 bool
@@ -536,7 +523,7 @@ nsMathMLElement::IsLink(nsIURI** aURI) const
       tag == nsGkAtoms::malignmark_  ||
       tag == nsGkAtoms::maligngroup_) {
     *aURI = nsnull;
-    return false;
+    return PR_FALSE;
   }
 
   bool hasHref = false;
@@ -546,7 +533,7 @@ nsMathMLElement::IsLink(nsIURI** aURI) const
     // MathML href
     // The REC says: "When user agents encounter MathML elements with both href
     // and xlink:href attributes, the href attribute should take precedence."
-    hasHref = true;
+    hasHref = PR_TRUE;
   } else {
     // To be a clickable XLink for styling and interaction purposes, we require:
     //
@@ -556,7 +543,7 @@ nsMathMLElement::IsLink(nsIURI** aURI) const
     //   xlink:actuate - must be unset or set to "" or "onRequest"
     //
     // For any other values, we're either not a *clickable* XLink, or the end
-    // result is poorly specified. Either way, we return false.
+    // result is poorly specified. Either way, we return PR_FALSE.
     
     static nsIContent::AttrValuesArray sTypeVals[] =
       { &nsGkAtoms::_empty, &nsGkAtoms::simple, nsnull };
@@ -580,7 +567,7 @@ nsMathMLElement::IsLink(nsIURI** aURI) const
         FindAttrValueIn(kNameSpaceID_XLink, nsGkAtoms::actuate,
                         sActuateVals, eCaseMatters) !=
         nsIContent::ATTR_VALUE_NO_MATCH) {
-      hasHref = true;
+      hasHref = PR_TRUE;
     }
   }
 
@@ -590,13 +577,13 @@ nsMathMLElement::IsLink(nsIURI** aURI) const
     nsAutoString hrefStr;
     href->ToString(hrefStr); 
     nsContentUtils::NewURIWithDocumentCharset(aURI, hrefStr,
-                                              OwnerDoc(), baseURI);
+                                              GetOwnerDoc(), baseURI);
     // must promise out param is non-null if we return true
     return !!*aURI;
   }
 
   *aURI = nsnull;
-  return false;
+  return PR_FALSE;
 }
 
 void
@@ -621,7 +608,10 @@ nsMathMLElement::GetLinkTarget(nsAString& aTarget)
     case 1:
       return;
     }
-    OwnerDoc()->GetBaseTarget(aTarget);
+    nsIDocument* ownerDoc = GetOwnerDoc();
+    if (ownerDoc) {
+      ownerDoc->GetBaseTarget(aTarget);
+    }
   }
 }
 
@@ -629,6 +619,12 @@ nsLinkState
 nsMathMLElement::GetLinkState() const
 {
   return Link::GetLinkState();
+}
+
+void
+nsMathMLElement::RequestLinkStateUpdate()
+{
+  UpdateLinkState(Link::LinkState());
 }
 
 already_AddRefed<nsIURI>

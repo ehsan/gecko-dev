@@ -120,7 +120,7 @@ public:
                     && mContainerTest == element.mContainerTest
                     && mEmptyTest == element.mEmptyTest;
             }
-            return false; }
+            return PR_FALSE; }
 
     protected:
         nsCOMPtr<nsIRDFResource> mContainer;

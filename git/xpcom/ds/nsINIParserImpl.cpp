@@ -106,7 +106,7 @@ SectionCB(const char* aSection, void *aClosure)
   nsTArray<nsCString> *strings = static_cast<nsTArray<nsCString>*>(aClosure);
 
   strings->AppendElement(nsDependentCString(aSection));
-  return true;
+  return PR_TRUE;
 }
 
 NS_IMETHODIMP
@@ -132,7 +132,7 @@ KeyCB(const char* aKey, const char *aValue, void *aClosure)
   nsTArray<nsCString> *strings = static_cast<nsTArray<nsCString>*>(aClosure);
 
   strings->AppendElement(nsDependentCString(aKey));
-  return true;
+  return PR_TRUE;
 }
 
 NS_IMETHODIMP

@@ -160,7 +160,7 @@ nsSVGAnimationElement::GetTargetAttributeName(PRInt32 *aNamespaceID,
     = mAttrsAndChildren.GetAttr(nsGkAtoms::attributeName);
 
   if (!nameAttr)
-    return false;
+    return PR_FALSE;
 
   NS_ASSERTION(nameAttr->Type() == nsAttrValue::eAtom,
     "attributeName should have been parsed as an atom");
@@ -310,9 +310,12 @@ nsSVGAnimationElement::BindToTree(nsIDocument* aDocument,
 void
 nsSVGAnimationElement::UnbindFromTree(bool aDeep, bool aNullParent)
 {
-  nsSMILAnimationController *controller = OwnerDoc()->GetAnimationController();
-  if (controller) {
-    controller->UnregisterAnimationElement(this);
+  nsIDocument *doc = GetOwnerDoc();
+  if (doc) {
+    nsSMILAnimationController *controller = doc->GetAnimationController();
+    if (controller) {
+      controller->UnregisterAnimationElement(this);
+    }
   }
 
   mHrefTarget.Unlink();
@@ -335,7 +338,7 @@ nsSVGAnimationElement::ParseAttribute(PRInt32 aNamespaceID,
         aAttribute == nsGkAtoms::attributeType) {
       aResult.ParseAtom(aValue);
       AnimationNeedsResample();
-      return true;
+      return PR_TRUE;
     }
 
     nsresult rv = NS_ERROR_FAILURE;
@@ -354,10 +357,10 @@ nsSVGAnimationElement::ParseAttribute(PRInt32 aNamespaceID,
     if (foundMatch) {
       AnimationNeedsResample();
       if (NS_FAILED(rv)) {
-        ReportAttributeParseFailure(OwnerDoc(), aAttribute, aValue);
-        return false;
+        ReportAttributeParseFailure(GetOwnerDoc(), aAttribute, aValue);
+        return PR_FALSE;
       }
-      return true;
+      return PR_TRUE;
     }
   }
 
@@ -497,7 +500,7 @@ nsSVGAnimationElement::UpdateHrefTarget(nsIContent* aNodeForContext,
   nsCOMPtr<nsIURI> targetURI;
   nsCOMPtr<nsIURI> baseURI = GetBaseURI();
   nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(targetURI),
-                                            aHrefStr, OwnerDoc(), baseURI);
+                                            aHrefStr, GetOwnerDoc(), baseURI);
   mHrefTarget.Reset(aNodeForContext, targetURI);
   AnimationTargetChanged();
 }

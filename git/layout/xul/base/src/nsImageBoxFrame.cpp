@@ -72,7 +72,6 @@
 #include "nsIDOMDocument.h"
 #include "nsTransform2D.h"
 #include "nsITheme.h"
-#include "nsIImageLoadingContent.h"
 
 #include "nsIServiceManager.h"
 #include "nsIURI.h"
@@ -102,7 +101,12 @@ private:
 NS_IMETHODIMP
 nsImageBoxFrameEvent::Run()
 {
-  nsIPresShell *pres_shell = mContent->OwnerDoc()->GetShell();
+  nsIDocument* doc = mContent->GetOwnerDoc();
+  if (!doc) {
+    return NS_OK;
+  }
+
+  nsIPresShell *pres_shell = doc->GetShell();
   if (!pres_shell) {
     return NS_OK;
   }
@@ -113,7 +117,7 @@ nsImageBoxFrameEvent::Run()
   }
 
   nsEventStatus status = nsEventStatus_eIgnore;
-  nsEvent event(true, mMessage);
+  nsEvent event(PR_TRUE, mMessage);
 
   event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
   nsEventDispatcher::Dispatch(mContent, pres_context, &event, nsnull, &status);
@@ -174,10 +178,9 @@ nsImageBoxFrame::AttributeChanged(PRInt32 aNameSpaceID,
 nsImageBoxFrame::nsImageBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext):
   nsLeafBoxFrame(aShell, aContext),
   mIntrinsicSize(0,0),
-  mRequestRegistered(false),
   mLoadFlags(nsIRequest::LOAD_NORMAL),
-  mUseSrcAttr(false),
-  mSuppressStyleCheck(false)
+  mUseSrcAttr(PR_FALSE),
+  mSuppressStyleCheck(PR_FALSE)
 {
   MarkIntrinsicWidthsDirty();
 }
@@ -197,13 +200,9 @@ nsImageBoxFrame::MarkIntrinsicWidthsDirty()
 void
 nsImageBoxFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
-  if (mImageRequest) {
-    nsLayoutUtils::DeregisterImageRequest(PresContext(), mImageRequest,
-                                          &mRequestRegistered);
-
-    // Release image loader first so that it's refcnt can go to zero
+  // Release image loader first so that it's refcnt can go to zero
+  if (mImageRequest)
     mImageRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
-  }
 
   if (mListener)
     reinterpret_cast<nsImageBoxListener*>(mListener.get())->SetFrame(nsnull); // set the frame to null so we don't send messages to a dead object.
@@ -225,9 +224,9 @@ nsImageBoxFrame::Init(nsIContent*      aContent,
     NS_RELEASE(listener);
   }
 
-  mSuppressStyleCheck = true;
+  mSuppressStyleCheck = PR_TRUE;
   nsresult rv = nsLeafBoxFrame::Init(aContent, aParent, aPrevInFlow);
-  mSuppressStyleCheck = false;
+  mSuppressStyleCheck = PR_FALSE;
 
   UpdateLoadFlags();
   UpdateImage();
@@ -238,11 +237,7 @@ nsImageBoxFrame::Init(nsIContent*      aContent,
 void
 nsImageBoxFrame::UpdateImage()
 {
-  nsPresContext* presContext = PresContext();
-
   if (mImageRequest) {
-    nsLayoutUtils::DeregisterImageRequest(presContext, mImageRequest,
-                                          &mRequestRegistered);
     mImageRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
     mImageRequest = nsnull;
   }
@@ -269,18 +264,12 @@ nsImageBoxFrame::UpdateImage()
       nsContentUtils::LoadImage(uri, doc, mContent->NodePrincipal(),
                                 doc->GetDocumentURI(), mListener, mLoadFlags,
                                 getter_AddRefs(mImageRequest));
-
-      if (mImageRequest) {
-        nsLayoutUtils::RegisterImageRequestIfAnimated(presContext,
-                                                      mImageRequest,
-                                                      &mRequestRegistered);
-      }
     }
   } else {
     // Only get the list-style-image if we aren't being drawn
     // by a native theme.
     PRUint8 appearance = GetStyleDisplay()->mAppearance;
-    if (!(appearance && nsBox::gTheme &&
+    if (!(appearance && nsBox::gTheme && 
           nsBox::gTheme->ThemeSupportsWidget(nsnull, this, appearance))) {
       // get the list-style-image
       imgIRequest *styleRequest = GetStyleList()->GetListStyleImage();
@@ -353,7 +342,7 @@ NS_IMETHODIMP
 nsImageBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                   const nsRect&           aDirtyRect,
                                   const nsDisplayListSet& aLists)
-{
+{       
   nsresult rv = nsLeafBoxFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -420,7 +409,7 @@ nsImageBoxFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 
   // If we're using a native theme implementation, we shouldn't draw anything.
   const nsStyleDisplay* disp = GetStyleDisplay();
-  if (disp->mAppearance && nsBox::gTheme &&
+  if (disp->mAppearance && nsBox::gTheme && 
       nsBox::gTheme->ThemeSupportsWidget(nsnull, this, disp->mAppearance))
     return;
 
@@ -477,7 +466,7 @@ nsImageBoxFrame::GetPrefSize(nsBoxLayoutState& aState)
   bool widthSet, heightSet;
   nsIBox::AddCSSPrefSize(this, size, widthSet, heightSet);
   NS_ASSERTION(size.width != NS_INTRINSICSIZE && size.height != NS_INTRINSICSIZE,
-               "non-intrinsic size expected");
+               "non-nintrinsic size expected");
 
   nsSize minSize = GetMinSize(aState);
   nsSize maxSize = GetMaxSize(aState);
@@ -496,7 +485,7 @@ nsImageBoxFrame::GetPrefSize(nsBoxLayoutState& aState)
                                                                  maxSize.width, maxSize.height,
                                                                  intrinsicSize.width, intrinsicSize.height);
     NS_ASSERTION(size.width != NS_INTRINSICSIZE && size.height != NS_INTRINSICSIZE,
-                 "non-intrinsic size expected");
+                 "non-nintrinsic size expected");
     size.width += borderPadding.LeftRight();
     size.height += borderPadding.TopBottom();
     return size;
@@ -617,15 +606,6 @@ NS_IMETHODIMP nsImageBoxFrame::OnStopDecode(imgIRequest *request,
   return NS_OK;
 }
 
-NS_IMETHODIMP nsImageBoxFrame::OnImageIsAnimated(imgIRequest *aRequest)
-{
-  // Register with our refresh driver, if we're animated.
-  nsLayoutUtils::RegisterImageRequest(PresContext(), aRequest,
-                                      &mRequestRegistered);
-
-  return NS_OK;
-}
-
 NS_IMETHODIMP nsImageBoxFrame::FrameChanged(imgIContainer *aContainer,
                                             const nsIntRect *aDirtyRect)
 {
@@ -649,7 +629,7 @@ NS_IMETHODIMP nsImageBoxListener::OnStartContainer(imgIRequest *request,
                                                    imgIContainer *image)
 {
   if (!mFrame)
-    return NS_OK;
+    return NS_ERROR_FAILURE;
 
   return mFrame->OnStartContainer(request, image);
 }
@@ -658,7 +638,7 @@ NS_IMETHODIMP nsImageBoxListener::OnStopContainer(imgIRequest *request,
                                                   imgIContainer *image)
 {
   if (!mFrame)
-    return NS_OK;
+    return NS_ERROR_FAILURE;
 
   return mFrame->OnStopContainer(request, image);
 }
@@ -668,17 +648,9 @@ NS_IMETHODIMP nsImageBoxListener::OnStopDecode(imgIRequest *request,
                                                const PRUnichar *statusArg)
 {
   if (!mFrame)
-    return NS_OK;
+    return NS_ERROR_FAILURE;
 
   return mFrame->OnStopDecode(request, status, statusArg);
-}
-
-NS_IMETHODIMP nsImageBoxListener::OnImageIsAnimated(imgIRequest* aRequest)
-{
-  if (!mFrame)
-    return NS_OK;
-
-  return mFrame->OnImageIsAnimated(aRequest);
 }
 
 NS_IMETHODIMP nsImageBoxListener::FrameChanged(imgIContainer *aContainer,

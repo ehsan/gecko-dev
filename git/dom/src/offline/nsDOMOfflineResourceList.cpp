@@ -140,7 +140,7 @@ nsDOMOfflineResourceList::nsDOMOfflineResourceList(nsIURI *aManifestURI,
                                                    nsIURI *aDocumentURI,
                                                    nsPIDOMWindow *aWindow,
                                                    nsIScriptContext* aScriptContext)
-  : mInitialized(false)
+  : mInitialized(PR_FALSE)
   , mManifestURI(aManifestURI)
   , mDocumentURI(aDocumentURI)
   , mExposeCacheUpdateStatus(true)
@@ -171,7 +171,7 @@ nsDOMOfflineResourceList::Init()
   mManifestURI->GetAsciiSpec(mManifestSpec);
 
   nsresult rv = nsContentUtils::GetSecurityManager()->
-                   CheckSameOriginURI(mManifestURI, mDocumentURI, true);
+                   CheckSameOriginURI(mManifestURI, mDocumentURI, PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Dynamically-managed resources are stored as a separate ownership list
@@ -211,12 +211,12 @@ nsDOMOfflineResourceList::Init()
   if (!observerService)
     return NS_ERROR_FAILURE;
 
-  rv = observerService->AddObserver(this, "offline-cache-update-added", true);
+  rv = observerService->AddObserver(this, "offline-cache-update-added", PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = observerService->AddObserver(this, "offline-cache-update-completed", true);
+  rv = observerService->AddObserver(this, "offline-cache-update-completed", PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mInitialized = true;
+  mInitialized = PR_TRUE;
 
   return NS_OK;
 }
@@ -304,7 +304,7 @@ nsDOMOfflineResourceList::MozHasItem(const nsAString& aURI, bool* aExists)
   PRUint32 types;
   rv = appCache->GetTypes(key, &types);
   if (rv == NS_ERROR_CACHE_KEY_NOT_FOUND) {
-    *aExists = false;
+    *aExists = PR_FALSE;
     return NS_OK;
   }
   NS_ENSURE_SUCCESS(rv, rv);
@@ -709,10 +709,10 @@ nsDOMOfflineResourceList::SendEvent(const nsAString &aEventName)
     return NS_ERROR_FAILURE;
   }
 
-  event->InitEvent(aEventName, false, true);
+  event->InitEvent(aEventName, PR_FALSE, PR_TRUE);
 
   // We assume anyone that managed to call SendEvent is trusted
-  privevent->SetTrusted(true);
+  privevent->SetTrusted(PR_TRUE);
 
   // If the window is frozen or we're still catching up on events that were
   // queued while frozen, save the event for later.
@@ -845,7 +845,7 @@ nsDOMOfflineResourceList::UpdateAdded(nsIOfflineCacheUpdate *aUpdate)
   // are no listeners to accept signals anyway.
 
   mCacheUpdate = aUpdate;
-  mCacheUpdate->AddObserver(this, true);
+  mCacheUpdate->AddObserver(this, PR_TRUE);
 
   return NS_OK;
 }

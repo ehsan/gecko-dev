@@ -52,16 +52,15 @@
 #endif
 
 #include "jspubtd.h"
-#include "jstypes.h"
 #include "jsutil.h"
+#include "jstypes.h"
 #include "jsstdint.h"
+#include "jsbit.h"
 #include "jscntxt.h"
 #include "jsgc.h"
 #include "jslock.h"
 #include "jsscope.h"
 #include "jsstr.h"
-
-#include "jsscopeinlines.h"
 
 using namespace js;
 
@@ -505,7 +504,7 @@ js_SetupLocks(int listc, int globc)
     if (globc > 100 || globc < 0)   /* globc == number of global locks */
         printf("Bad number %d in js_SetupLocks()!\n", listc);
 #endif
-    global_locks_log2 = JS_CEILING_LOG2W(globc);
+    global_locks_log2 = JS_CeilingLog2(globc);
     global_locks_mask = JS_BITMASK(global_locks_log2);
     global_lock_count = JS_BIT(global_locks_log2);
     global_locks = (PRLock **) OffTheBooks::malloc_(global_lock_count * sizeof(PRLock*));
@@ -764,5 +763,4 @@ js_IsRuntimeLocked(JSRuntime *rt)
     return js_CurrentThreadId() == rt->rtLockOwner;
 }
 #endif /* DEBUG */
-
 #endif /* JS_THREADSAFE */

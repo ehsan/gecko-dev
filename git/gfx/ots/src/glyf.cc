@@ -111,16 +111,13 @@ bool ParseSimpleGlyph(ots::OpenTypeFile *file, const uint8_t *data,
 
   if (ots::g_transcode_hints) {
     glyf->iov.push_back(std::make_pair(
-        data + gly_offset,
-        static_cast<size_t>(gly_header_length + bytecode_length)));
+        data + gly_offset, gly_header_length + bytecode_length));
   } else {
     // enqueue two vectors: the glyph data up to the bytecode length, then
     // a pointer to a static uint16_t 0 to overwrite the length.
     glyf->iov.push_back(std::make_pair(
-        data + gly_offset,
-        static_cast<size_t>(gly_header_length - 2)));
-    glyf->iov.push_back(std::make_pair((const uint8_t*) "\x00\x00",
-                                       static_cast<size_t>(2)));
+        data + gly_offset, gly_header_length - 2));
+    glyf->iov.push_back(std::make_pair((const uint8_t*) "\x00\x00", 2));
   }
 
   if (!table->Skip(bytecode_length)) {
@@ -156,7 +153,7 @@ bool ParseSimpleGlyph(ots::OpenTypeFile *file, const uint8_t *data,
 
   glyf->iov.push_back(std::make_pair(
       data + gly_offset + gly_header_length + bytecode_length,
-      static_cast<size_t>(flags_count_physical + xy_coordinates_length)));
+      flags_count_physical + xy_coordinates_length));
 
   *new_size
       = gly_header_length + flags_count_physical + xy_coordinates_length;
@@ -250,8 +247,7 @@ bool ots_glyf_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
       }
     } else {
       // it's a composite glyph without any bytecode. Enqueue the whole thing
-      glyf->iov.push_back(std::make_pair(data + gly_offset,
-                                         static_cast<size_t>(gly_length)));
+      glyf->iov.push_back(std::make_pair(data + gly_offset, gly_length));
       new_size = gly_length;
     }
 
@@ -262,8 +258,7 @@ bool ots_glyf_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
     const unsigned padding = (4 - (new_size & 3)) % 4;
     if (padding) {
       glyf->iov.push_back(std::make_pair(
-          reinterpret_cast<const uint8_t*>("\x00\x00\x00\x00"),
-          static_cast<size_t>(padding)));
+          reinterpret_cast<const uint8_t*>("\x00\x00\x00\x00"), padding));
       new_size += padding;
     }
     current_offset += new_size;

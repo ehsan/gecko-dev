@@ -81,8 +81,6 @@
  * it took for the event to be serviced.
  */
 
-#include "sampler.h"
-
 #include "EventTracer.h"
 
 #include <stdio.h>
@@ -151,7 +149,6 @@ void TracerThread(void *arg)
 
   while (!sExit) {
     TimeStamp start(TimeStamp::Now());
-    SAMPLER_RESPONSIVENESS(start);
     PRIntervalTime next_sleep = interval;
 
     //TODO: only wait up to a maximum of interval; return
@@ -213,9 +210,6 @@ bool InitEventTracing()
 void ShutdownEventTracing()
 {
   sExit = true;
-  // Ensure that the tracer thread doesn't hang.
-  SignalTracerThread();
-
   if (sTracerThread)
     PR_JoinThread(sTracerThread);
   sTracerThread = NULL;

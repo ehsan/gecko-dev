@@ -42,13 +42,13 @@
 nsDOMXULCommandEvent::nsDOMXULCommandEvent(nsPresContext* aPresContext,
                                            nsInputEvent* aEvent)
   : nsDOMUIEvent(aPresContext,
-                 aEvent ? aEvent : new nsInputEvent(false, 0, nsnull))
+                 aEvent ? aEvent : new nsInputEvent(PR_FALSE, 0, nsnull))
 {
   if (aEvent) {
-    mEventIsInternal = false;
+    mEventIsInternal = PR_FALSE;
   }
   else {
-    mEventIsInternal = true;
+    mEventIsInternal = PR_TRUE;
     mEvent->time = PR_Now();
   }
 }

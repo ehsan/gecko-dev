@@ -179,9 +179,11 @@ nsDOMAttribute::SetOwnerDocument(nsIDocument* aDocument)
 {
   NS_ASSERTION(aDocument, "Missing document");
 
-  nsIDocument *doc = OwnerDoc();
+  nsIDocument *doc = GetOwnerDoc();
   NS_ASSERTION(doc != aDocument, "bad call to nsDOMAttribute::SetOwnerDocument");
-  doc->DeleteAllPropertiesFor(this);
+  if (doc) {
+    doc->DeleteAllPropertiesFor(this);
+  }
 
   nsCOMPtr<nsINodeInfo> newNodeInfo;
   newNodeInfo = aDocument->NodeInfoManager()->
@@ -249,7 +251,7 @@ nsDOMAttribute::SetValue(const nsAString& aValue)
                           nameAtom,
                           mNodeInfo->GetPrefixAtom(),
                           aValue,
-                          true);
+                          PR_TRUE);
   }
   else {
     mValue = aValue;
@@ -258,7 +260,7 @@ nsDOMAttribute::SetValue(const nsAString& aValue)
       if (mValue.IsEmpty()) {
         doRemoveChild(true);
       } else {
-        mChild->SetText(mValue, false);
+        mChild->SetText(mValue, PR_FALSE);
       }
     } else {
       EnsureChildState();
@@ -273,9 +275,11 @@ NS_IMETHODIMP
 nsDOMAttribute::GetSpecified(bool* aSpecified)
 {
   NS_ENSURE_ARG_POINTER(aSpecified);
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eSpecified);
-
-  *aSpecified = true;
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eSpecified);
+  }
+  *aSpecified = PR_TRUE;
   return NS_OK;
 }
 
@@ -283,7 +287,11 @@ NS_IMETHODIMP
 nsDOMAttribute::GetOwnerElement(nsIDOMElement** aOwnerElement)
 {
   NS_ENSURE_ARG_POINTER(aOwnerElement);
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eOwnerElement);
+
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eOwnerElement);
+  }
 
   nsIContent* content = GetContentInternal();
   if (content) {
@@ -298,7 +306,10 @@ nsDOMAttribute::GetOwnerElement(nsIDOMElement** aOwnerElement)
 NS_IMETHODIMP
 nsDOMAttribute::GetNodeName(nsAString& aNodeName)
 {
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eNodeName);
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eNodeName);
+  }
 
   return GetName(aNodeName);
 }
@@ -306,7 +317,10 @@ nsDOMAttribute::GetNodeName(nsAString& aNodeName)
 NS_IMETHODIMP
 nsDOMAttribute::GetNodeValue(nsAString& aNodeValue)
 {
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eNodeValue);
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eNodeValue);
+  }
 
   return GetValue(aNodeValue);
 }
@@ -314,7 +328,10 @@ nsDOMAttribute::GetNodeValue(nsAString& aNodeValue)
 NS_IMETHODIMP
 nsDOMAttribute::SetNodeValue(const nsAString& aNodeValue)
 {
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eNodeValue);
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eNodeValue);
+  }
 
   return SetValue(aNodeValue);
 }
@@ -323,7 +340,11 @@ NS_IMETHODIMP
 nsDOMAttribute::GetNodeType(PRUint16* aNodeType)
 {
   NS_ENSURE_ARG_POINTER(aNodeType);
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eNodeType);
+
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eNodeType);
+  }
 
   *aNodeType = (PRUint16)nsIDOMNode::ATTRIBUTE_NODE;
   return NS_OK;
@@ -333,7 +354,11 @@ NS_IMETHODIMP
 nsDOMAttribute::GetParentNode(nsIDOMNode** aParentNode)
 {
   NS_ENSURE_ARG_POINTER(aParentNode);
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eParentNode);
+
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eParentNode);
+  }
 
   *aParentNode = nsnull;
   return NS_OK;
@@ -349,7 +374,10 @@ nsDOMAttribute::GetParentElement(nsIDOMElement** aParentElement)
 NS_IMETHODIMP
 nsDOMAttribute::GetChildNodes(nsIDOMNodeList** aChildNodes)
 {
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eChildNodes);
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eChildNodes);
+  }
 
   return nsINode::GetChildNodes(aChildNodes);
 }
@@ -357,7 +385,10 @@ nsDOMAttribute::GetChildNodes(nsIDOMNodeList** aChildNodes)
 NS_IMETHODIMP
 nsDOMAttribute::HasChildNodes(bool* aHasChildNodes)
 {
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eHasChildNodes);
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eHasChildNodes);
+  }
 
   *aHasChildNodes = mFirstChild != nsnull;
 
@@ -368,9 +399,13 @@ NS_IMETHODIMP
 nsDOMAttribute::HasAttributes(bool* aHasAttributes)
 {
   NS_ENSURE_ARG_POINTER(aHasAttributes);
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eHasAttributes);
 
-  *aHasAttributes = false;
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eHasAttributes);
+  }
+
+  *aHasAttributes = PR_FALSE;
 
   return NS_OK;
 }
@@ -380,7 +415,10 @@ nsDOMAttribute::GetFirstChild(nsIDOMNode** aFirstChild)
 {
   *aFirstChild = nsnull;
 
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eFirstChild);
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eFirstChild);
+  }
 
   if (mFirstChild) {
     CallQueryInterface(mFirstChild, aFirstChild);
@@ -392,8 +430,10 @@ nsDOMAttribute::GetFirstChild(nsIDOMNode** aFirstChild)
 NS_IMETHODIMP
 nsDOMAttribute::GetLastChild(nsIDOMNode** aLastChild)
 {
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eLastChild);
-
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eLastChild);
+  }
   return GetFirstChild(aLastChild);
 }
 
@@ -402,7 +442,10 @@ nsDOMAttribute::GetPreviousSibling(nsIDOMNode** aPreviousSibling)
 {
   NS_ENSURE_ARG_POINTER(aPreviousSibling);
 
-  OwnerDoc()->WarnOnceAbout(nsIDocument::ePreviousSibling);
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::ePreviousSibling);
+  }
 
   *aPreviousSibling = nsnull;
   return NS_OK;
@@ -413,7 +456,10 @@ nsDOMAttribute::GetNextSibling(nsIDOMNode** aNextSibling)
 {
   NS_ENSURE_ARG_POINTER(aNextSibling);
 
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eNextSibling);
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eNextSibling);
+  }
 
   *aNextSibling = nsnull;
   return NS_OK;
@@ -424,7 +470,10 @@ nsDOMAttribute::GetAttributes(nsIDOMNamedNodeMap** aAttributes)
 {
   NS_ENSURE_ARG_POINTER(aAttributes);
 
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eAttributes);
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eAttributes);
+  }
 
   *aAttributes = nsnull;
   return NS_OK;
@@ -433,23 +482,32 @@ nsDOMAttribute::GetAttributes(nsIDOMNamedNodeMap** aAttributes)
 NS_IMETHODIMP
 nsDOMAttribute::InsertBefore(nsIDOMNode* aNewChild, nsIDOMNode* aRefChild, nsIDOMNode** aReturn)
 {
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eInsertBefore);
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eInsertBefore);
+  }
 
-  return ReplaceOrInsertBefore(false, aNewChild, aRefChild, aReturn);
+  return ReplaceOrInsertBefore(PR_FALSE, aNewChild, aRefChild, aReturn);
 }
 
 NS_IMETHODIMP
 nsDOMAttribute::ReplaceChild(nsIDOMNode* aNewChild, nsIDOMNode* aOldChild, nsIDOMNode** aReturn)
 {
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eReplaceChild);
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eReplaceChild);
+  }
 
-  return ReplaceOrInsertBefore(true, aNewChild, aOldChild, aReturn);
+  return ReplaceOrInsertBefore(PR_TRUE, aNewChild, aOldChild, aReturn);
 }
 
 NS_IMETHODIMP
 nsDOMAttribute::RemoveChild(nsIDOMNode* aOldChild, nsIDOMNode** aReturn)
 {
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eRemoveChild);
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eRemoveChild);
+  }
 
   return nsINode::RemoveChild(aOldChild, aReturn);
 }
@@ -457,7 +515,10 @@ nsDOMAttribute::RemoveChild(nsIDOMNode* aOldChild, nsIDOMNode** aReturn)
 NS_IMETHODIMP
 nsDOMAttribute::AppendChild(nsIDOMNode* aNewChild, nsIDOMNode** aReturn)
 {
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eAppendChild);
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eAppendChild);
+  }
 
   return InsertBefore(aNewChild, nsnull, aReturn);
 }
@@ -482,15 +543,21 @@ nsDOMAttribute::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 NS_IMETHODIMP
 nsDOMAttribute::CloneNode(bool aDeep, nsIDOMNode** aResult)
 {
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eCloneNode);
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eCloneNode);
+  }
 
-  return nsNodeUtils::CloneNodeImpl(this, aDeep, true, aResult);
+  return nsNodeUtils::CloneNodeImpl(this, aDeep, PR_TRUE, aResult);
 }
 
 NS_IMETHODIMP
 nsDOMAttribute::GetOwnerDocument(nsIDOMDocument** aOwnerDocument)
 {
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eOwnerDocument);
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eOwnerDocument);
+  }
 
   return nsINode::GetOwnerDocument(aOwnerDocument);
 }
@@ -518,7 +585,10 @@ nsDOMAttribute::GetLocalName(nsAString& aLocalName)
 NS_IMETHODIMP
 nsDOMAttribute::Normalize()
 {
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eNormalize);
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eNormalize);
+  }
 
   // Nothing to do here
   return NS_OK;
@@ -529,8 +599,10 @@ nsDOMAttribute::IsSupported(const nsAString& aFeature,
                             const nsAString& aVersion,
                             bool* aReturn)
 {
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eIsSupported);
-
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eIsSupported);
+  }
   return nsGenericElement::InternalIsSupported(static_cast<nsIDOMAttr*>(this), 
                                                aFeature, aVersion, aReturn);
 }
@@ -559,25 +631,43 @@ nsDOMAttribute::CompareDocumentPosition(nsIDOMNode *other,
 NS_IMETHODIMP
 nsDOMAttribute::IsEqualNode(nsIDOMNode* aOther, bool* aResult)
 {
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eIsEqualNode);
-
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eIsEqualNode);
+  }
   return nsINode::IsEqualNode(aOther, aResult);
 }
 
 NS_IMETHODIMP
 nsDOMAttribute::GetTextContent(nsAString &aTextContent)
 {
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eTextContent);
-
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eTextContent);
+  }
   return GetNodeValue(aTextContent);
 }
 
 NS_IMETHODIMP
 nsDOMAttribute::SetTextContent(const nsAString& aTextContent)
 {
-  OwnerDoc()->WarnOnceAbout(nsIDocument::eTextContent);
-
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eTextContent);
+  }
   return SetNodeValue(aTextContent);
+}
+
+NS_IMETHODIMP
+nsDOMAttribute::IsSameNode(nsIDOMNode *other, bool *aResult)
+{
+  nsIDocument* document = GetOwnerDoc();
+  if (document) {
+    document->WarnOnceAbout(nsIDocument::eIsSameNode);
+  }
+
+  *aResult = other == this;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -630,14 +720,14 @@ nsDOMAttribute::GetIsId(bool* aReturn)
   nsIContent* content = GetContentInternal();
   if (!content)
   {
-    *aReturn = false;
+    *aReturn = PR_FALSE;
     return NS_OK;
   }
 
   nsIAtom* idAtom = content->GetIDAttributeName();
   if (!idAtom)
   {
-    *aReturn = false;
+    *aReturn = PR_FALSE;
     return NS_OK;
   }
 
@@ -703,7 +793,7 @@ nsDOMAttribute::RemoveChildAt(PRUint32 aIndex, bool aNotify)
   {
     nsCOMPtr<nsIContent> child = mChild;
     nsMutationGuard::DidMutate();
-    mozAutoDocUpdate updateBatch(OwnerDoc(), UPDATE_CONTENT_MODEL, aNotify);
+    mozAutoDocUpdate updateBatch(GetOwnerDoc(), UPDATE_CONTENT_MODEL, aNotify);
 
     doRemoveChild(aNotify);
   }
@@ -717,7 +807,7 @@ nsDOMAttribute::RemoveChildAt(PRUint32 aIndex, bool aNotify)
 nsresult
 nsDOMAttribute::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
-  aVisitor.mCanHandle = true;
+  aVisitor.mCanHandle = PR_TRUE;
   return NS_OK;
 }
 
@@ -735,7 +825,7 @@ nsDOMAttribute::EnsureChildState()
     static_cast<nsTextNode*>(mChild)->BindToAttribute(this);
     mFirstChild = mChild;
 
-    mChild->SetText(value, false);
+    mChild->SetText(value, PR_FALSE);
   }
 }
 
@@ -772,13 +862,13 @@ nsDOMAttribute::AttributeChanged(nsIDocument* aDocument,
 void
 nsDOMAttribute::Initialize()
 {
-  sInitialized = true;
+  sInitialized = PR_TRUE;
 }
 
 void
 nsDOMAttribute::Shutdown()
 {
-  sInitialized = false;
+  sInitialized = PR_FALSE;
 }
 
 void

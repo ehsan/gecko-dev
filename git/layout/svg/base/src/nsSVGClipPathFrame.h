@@ -49,7 +49,7 @@ class nsSVGClipPathFrame : public nsSVGClipPathFrameBase
 protected:
   nsSVGClipPathFrame(nsStyleContext* aContext) :
     nsSVGClipPathFrameBase(aContext),
-    mInUse(false) {}
+    mInUse(PR_FALSE) {}
 
 public:
   NS_DECL_FRAMEARENA_HELPERS
@@ -104,10 +104,10 @@ public:
     AutoClipPathReferencer(nsSVGClipPathFrame *aFrame)
        : mFrame(aFrame) {
       NS_ASSERTION(!mFrame->mInUse, "reference loop!");
-      mFrame->mInUse = true;
+      mFrame->mInUse = PR_TRUE;
     }
     ~AutoClipPathReferencer() {
-      mFrame->mInUse = false;
+      mFrame->mInUse = PR_FALSE;
     }
   private:
     nsSVGClipPathFrame *mFrame;

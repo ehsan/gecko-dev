@@ -66,8 +66,7 @@ nsSHEntry::nsSHEntry()
   , mID(gEntryID++)
   , mScrollPositionX(0)
   , mScrollPositionY(0)
-  , mParent(nsnull)
-  , mURIWasModified(false)
+  , mURIWasModified(PR_FALSE)
 {
   mShared = new nsSHEntryShared();
 }
@@ -82,7 +81,6 @@ nsSHEntry::nsSHEntry(const nsSHEntry &other)
   , mID(other.mID)
   , mScrollPositionX(0)  // XXX why not copy?
   , mScrollPositionY(0)  // XXX why not copy?
-  , mParent(other.mParent)
   , mURIWasModified(other.mURIWasModified)
   , mStateData(other.mStateData)
 {
@@ -94,7 +92,7 @@ ClearParentPtr(nsISHEntry* aEntry, void* /* aData */)
   if (aEntry) {
     aEntry->SetParent(nsnull);
   }
-  return true;
+  return PR_TRUE;
 }
 
 nsSHEntry::~nsSHEntry()
@@ -395,14 +393,14 @@ nsSHEntry::Create(nsIURI * aURI, const nsAString &aTitle,
   // By default all entries are set false for subframe flag. 
   // nsDocShell::CloneAndReplace() which creates entries for
   // all subframe navigations, sets the flag to true.
-  mShared->mIsFrameNavigation = false;
+  mShared->mIsFrameNavigation = PR_FALSE;
 
   // By default we save LayoutHistoryState
-  mShared->mSaveLayoutState = true;
+  mShared->mSaveLayoutState = PR_TRUE;
   mShared->mLayoutHistoryState = aLayoutHistoryState;
 
   //By default the page is not expired
-  mShared->mExpired = false;
+  mShared->mExpired = PR_FALSE;
 
   return NS_OK;
 }
@@ -419,7 +417,7 @@ NS_IMETHODIMP
 nsSHEntry::GetParent(nsISHEntry ** aResult)
 {
   NS_ENSURE_ARG_POINTER(aResult);
-  *aResult = mParent;
+  *aResult = mShared->mParent;
   NS_IF_ADDREF(*aResult);
   return NS_OK;
 }
@@ -432,7 +430,7 @@ nsSHEntry::SetParent(nsISHEntry * aParent)
    *
    * XXX this method should not be scriptable if this is the case!!
    */
-  mParent = aParent;
+  mShared->mParent = aParent;
   return NS_OK;
 }
 
@@ -776,7 +774,7 @@ nsSHEntry::IsDynamicallyAdded(bool* aAdded)
 NS_IMETHODIMP
 nsSHEntry::HasDynamicallyAddedChild(bool* aAdded)
 {
-  *aAdded = false;
+  *aAdded = PR_FALSE;
   for (PRInt32 i = 0; i < mChildren.Count(); ++i) {
     nsISHEntry* entry = mChildren[i];
     if (entry) {

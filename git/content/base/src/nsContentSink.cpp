@@ -241,7 +241,7 @@ void
 nsContentSink::InitializeStatics()
 {
   Preferences::AddBoolVarCache(&sNotifyOnTimer,
-                               "content.notify.ontimer", true);
+                               "content.notify.ontimer", PR_TRUE);
   // -1 means never.
   Preferences::AddIntVarCache(&sBackoffCount,
                               "content.notify.backoffcount", -1);
@@ -273,7 +273,7 @@ nsContentSink::InitializeStatics()
   Preferences::AddIntVarCache(&sEnablePerfMode,
                               "content.sink.enable_perf_mode", 0);
   Preferences::AddBoolVarCache(&sCanInterruptParser,
-                               "content.interrupt.parsing", true);
+                               "content.interrupt.parsing", PR_TRUE);
 }
 
 nsresult
@@ -353,7 +353,7 @@ nsContentSink::StyleSheetLoaded(nsCSSStyleSheet* aSheet,
         // that if mDeferredLayoutStart is true, that means any subclass
         // StartLayout() stuff that needs to happen has already happened, so we
         // don't need to worry about it.
-        StartLayout(false);
+        StartLayout(PR_FALSE);
       }
 
       // Go ahead and try to scroll to our ref if we have one
@@ -567,7 +567,7 @@ nsContentSink::LinkContextIsOurDocument(const nsSubstring& aAnchor)
 {
   if (aAnchor.IsEmpty()) {
     // anchor parameter not present or empty -> same document reference
-    return true;
+    return PR_TRUE;
   }
 
   nsIURI* docUri = mDocument->GetDocumentURI();
@@ -580,7 +580,7 @@ nsContentSink::LinkContextIsOurDocument(const nsSubstring& aAnchor)
   
   if (NS_FAILED(rv)) {
     // copying failed
-    return false;
+    return PR_FALSE;
   }
   
   // resolve anchor against context    
@@ -590,14 +590,14 @@ nsContentSink::LinkContextIsOurDocument(const nsSubstring& aAnchor)
   
   if (NS_FAILED(rv)) {
     // resolving failed
-    return false;
+    return PR_FALSE;
   }
 
   bool same;
   rv = contextUri->Equals(resolvedUri, &same); 
   if (NS_FAILED(rv)) {
     // comparison failed
-    return false;
+    return PR_FALSE;
   }
 
   return same;
@@ -715,7 +715,7 @@ nsContentSink::ProcessLinkHeader(nsIContent* aElement,
         }
       } else {
         PRUnichar* equals = start;
-        seenParameters = true;
+        seenParameters = PR_TRUE;
 
         while ((*equals != kNullCh) && (*equals != kEqual)) {
           equals++;
@@ -798,7 +798,7 @@ nsContentSink::ProcessLinkHeader(nsIContent* aElement,
       media.Truncate();
       anchor.Truncate();
       
-      seenParameters = false;
+      seenParameters = PR_FALSE;
     }
 
     start = ++end;
@@ -819,7 +819,9 @@ nsContentSink::ProcessLink(nsIContent* aElement,
                            const nsSubstring& aRel, const nsSubstring& aTitle,
                            const nsSubstring& aType, const nsSubstring& aMedia)
 {
-  PRUint32 linkTypes = nsStyleLinkElement::ParseLinkTypes(aRel);
+  // XXX seems overkill to generate this string array
+  nsTArray<nsString> linkTypes;
+  nsStyleLinkElement::ParseLinkTypes(aRel, linkTypes);
 
   // The link relation may apply to a different resource, specified
   // in the anchor parameter. For the link relations supported so far,
@@ -829,22 +831,22 @@ nsContentSink::ProcessLink(nsIContent* aElement,
     return NS_OK;
   }
   
-  bool hasPrefetch = linkTypes & PREFETCH;
+  bool hasPrefetch = linkTypes.Contains(NS_LITERAL_STRING("prefetch"));
   // prefetch href if relation is "next" or "prefetch"
-  if (hasPrefetch || (linkTypes & NEXT)) {
+  if (hasPrefetch || linkTypes.Contains(NS_LITERAL_STRING("next"))) {
     PrefetchHref(aHref, aElement, hasPrefetch);
   }
 
-  if (!aHref.IsEmpty() && (linkTypes & DNS_PREFETCH)) {
+  if ((!aHref.IsEmpty()) && linkTypes.Contains(NS_LITERAL_STRING("dns-prefetch"))) {
     PrefetchDNS(aHref);
   }
 
   // is it a stylesheet link?
-  if (!(linkTypes & STYLESHEET)) {
+  if (!linkTypes.Contains(NS_LITERAL_STRING("stylesheet"))) {
     return NS_OK;
   }
 
-  bool isAlternate = linkTypes & ALTERNATE;
+  bool isAlternate = linkTypes.Contains(NS_LITERAL_STRING("alternate"));
   return ProcessStyleLink(aElement, aHref, isAlternate, aTitle, aType,
                           aMedia);
 }
@@ -1199,7 +1201,7 @@ nsContentSink::ProcessOfflineManifest(const nsAString& aManifestSpec)
     }
 
     // Documents must list a manifest from the same origin
-    rv = mDocument->NodePrincipal()->CheckMayLoad(manifestURI, true);
+    rv = mDocument->NodePrincipal()->CheckMayLoad(manifestURI, PR_TRUE);
     if (NS_FAILED(rv)) {
       action = CACHE_SELECTION_RESELECT_WITHOUT_MANIFEST;
     }
@@ -1266,7 +1268,7 @@ nsContentSink::ProcessOfflineManifest(const nsAString& aManifestSpec)
     break;
   }
   default:
-    NS_ASSERTION(false,
+    NS_ASSERTION(PR_FALSE,
           "Cache selection algorithm didn't decide on proper action");
     break;
   }
@@ -1286,14 +1288,14 @@ nsContentSink::StartLayout(bool aIgnorePendingSheets)
     return;
   }
   
-  mDeferredLayoutStart = true;
+  mDeferredLayoutStart = PR_TRUE;
 
   if (!aIgnorePendingSheets && WaitForPendingSheets()) {
     // Bail out; we'll start layout when the sheets load
     return;
   }
 
-  mDeferredLayoutStart = false;
+  mDeferredLayoutStart = PR_FALSE;
 
   // Notify on all our content.  If none of our presshells have started layout
   // yet it'll be a no-op except for updating our data structures, a la
@@ -1303,10 +1305,10 @@ nsContentSink::StartLayout(bool aIgnorePendingSheets)
   // loop over the shells.
   FlushTags();
 
-  mLayoutStarted = true;
+  mLayoutStarted = PR_TRUE;
   mLastNotificationTime = PR_Now();
 
-  mDocument->SetMayStartLayout(true);
+  mDocument->SetMayStartLayout(PR_TRUE);
   nsCOMPtr<nsIPresShell> shell = mDocument->GetShell();
   // Make sure we don't call InitialReflow() for a shell that has
   // already called it. This can happen when the layout frame for
@@ -1356,7 +1358,7 @@ nsContentSink::Notify(nsITimer *timer)
 {
   if (mParsing) {
     // We shouldn't interfere with our normal DidProcessAToken logic
-    mDroppedTimer = true;
+    mDroppedTimer = PR_TRUE;
     return NS_OK;
   }
   
@@ -1381,7 +1383,7 @@ nsContentSink::Notify(nsITimer *timer)
 #endif
 
   if (WaitForPendingSheets()) {
-    mDeferredFlushTags = true;
+    mDeferredFlushTags = PR_TRUE;
   } else {
     FlushTags();
 
@@ -1399,12 +1401,12 @@ nsContentSink::IsTimeToNotify()
 {
   if (!sNotifyOnTimer || !mLayoutStarted || !mBackoffCount ||
       mInMonolithicContainer) {
-    return false;
+    return PR_FALSE;
   }
 
   if (WaitForPendingSheets()) {
-    mDeferredFlushTags = true;
-    return false;
+    mDeferredFlushTags = PR_TRUE;
+    return PR_FALSE;
   }
 
   PRTime now = PR_Now();
@@ -1415,10 +1417,10 @@ nsContentSink::IsTimeToNotify()
 
   if (LL_CMP(diff, >, interval)) {
     mBackoffCount--;
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 nsresult
@@ -1430,7 +1432,7 @@ nsContentSink::WillInterruptImpl()
              ("nsContentSink::WillInterrupt: this=%p", this));
 #ifndef SINK_NO_INCREMENTAL
   if (WaitForPendingSheets()) {
-    mDeferredFlushTags = true;
+    mDeferredFlushTags = PR_TRUE;
   } else if (sNotifyOnTimer && mLayoutStarted) {
     if (mBackoffCount && !mInMonolithicContainer) {
       PRInt64 now = PR_Now();
@@ -1446,7 +1448,7 @@ nsContentSink::WillInterruptImpl()
         result = FlushTags();
         if (mDroppedTimer) {
           ScrollToRef();
-          mDroppedTimer = false;
+          mDroppedTimer = PR_FALSE;
         }
       } else if (!mNotificationTimer) {
         interval -= diff;
@@ -1479,7 +1481,7 @@ nsContentSink::WillInterruptImpl()
   }
 #endif
 
-  mParsing = false;
+  mParsing = PR_FALSE;
 
   return result;
 }
@@ -1490,7 +1492,7 @@ nsContentSink::WillResumeImpl()
   SINK_TRACE(gContentSinkLogModuleInfo, SINK_TRACE_CALLS,
              ("nsContentSink::WillResume: this=%p", this));
 
-  mParsing = true;
+  mParsing = PR_TRUE;
 
   return NS_OK;
 }
@@ -1599,7 +1601,7 @@ nsContentSink::DidBuildModelImpl(bool aTerminated)
   }
 
   if (!mDocument->HaveFiredDOMTitleChange()) {
-    mDocument->NotifyPossibleTitleChange(false);
+    mDocument->NotifyPossibleTitleChange(PR_FALSE);
   }
 
   // Cancel a timer if we had one out there
@@ -1632,11 +1634,11 @@ nsContentSink::DropParserAndPerfHint(void)
   if (mDynamicLowerValue) {
     // Reset the performance hint which was set to FALSE
     // when mDynamicLowerValue was set.
-    FavorPerformanceHint(true, 0);
+    FavorPerformanceHint(PR_TRUE, 0);
   }
 
   if (mCanInterruptParser) {
-    mDocument->UnblockOnload(true);
+    mDocument->UnblockOnload(PR_TRUE);
   }
 }
 
@@ -1677,7 +1679,7 @@ nsContentSink::WillParseImpl(void)
   }
   
   mDeflectedCount = 0;
-  mHasPendingEvent = false;
+  mHasPendingEvent = PR_FALSE;
 
   mCurrentParseEndTime = currentTime +
     (mDynamicLowerValue ? sInteractiveParseTime : sPerfParseTime);

@@ -37,8 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "Exceptions.h"
 
 #include "jsapi.h"
@@ -56,7 +54,6 @@
 #define CONSTANT_FLAGS \
   JSPROP_ENUMERATE | JSPROP_SHARED | JSPROP_PERMANENT | JSPROP_READONLY
 
-using namespace mozilla;
 USING_WORKERS_NAMESPACE
 
 namespace {
@@ -122,9 +119,6 @@ private:
   ToString(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     JSClass* classPtr;
     if (!obj || ((classPtr = JS_GET_CLASS(aCx, obj)) != &sClass)) {
@@ -212,9 +206,6 @@ JSPropertySpec DOMException::sStaticProperties[] = {
 #define EXCEPTION_ENTRY(_name) \
   { #_name, _name, CONSTANT_FLAGS, GetConstant, NULL },
 
-  // Make sure this one is always first.
-  EXCEPTION_ENTRY(UNKNOWN_ERR)
-
   EXCEPTION_ENTRY(INDEX_SIZE_ERR)
   EXCEPTION_ENTRY(DOMSTRING_SIZE_ERR)
   EXCEPTION_ENTRY(HIERARCHY_REQUEST_ERR)
@@ -256,16 +247,16 @@ DOMException::Create(JSContext* aCx, intN aCode)
   }
 
   size_t foundIndex = size_t(-1);
-  for (size_t index = 0; index < ArrayLength(sStaticProperties) - 1; index++) {
+  for (size_t index = 0;
+       index < JS_ARRAY_LENGTH(sStaticProperties) - 1;
+       index++) {
     if (sStaticProperties[index].tinyid == aCode) {
       foundIndex = index;
       break;
     }
   }
 
-  if (foundIndex == size_t(-1)) {
-    foundIndex = 0;
-  }
+  JS_ASSERT(foundIndex != size_t(-1));
 
   JSString* name = JS_NewStringCopyZ(aCx, sStaticProperties[foundIndex].name);
   if (!name) {
@@ -406,7 +397,9 @@ FileException::Create(JSContext* aCx, intN aCode)
   }
 
   size_t foundIndex = size_t(-1);
-  for (size_t index = 0; index < ArrayLength(sStaticProperties) - 1; index++) {
+  for (size_t index = 0;
+       index < JS_ARRAY_LENGTH(sStaticProperties) - 1;
+       index++) {
     if (sStaticProperties[index].tinyid == aCode) {
       foundIndex = index;
       break;

@@ -139,9 +139,9 @@ GetUnsignedIntAndEndParen(const nsAString& aStr, PRUint32& aResult)
 
   // Make sure the string is only digit+')'
   if (intLen == 0 || start + intLen + 1 != end || *(start + intLen) != ')')
-    return false;
+    return PR_FALSE;
 
-  return true;
+  return PR_TRUE;
 }
 
 inline bool
@@ -150,13 +150,13 @@ ConsumeSubstring(const char*& aStart, const char* aEnd, const char* aSubstring)
   size_t substrLen = PL_strlen(aSubstring);
 
   if (static_cast<size_t>(aEnd - aStart) < substrLen)
-    return false;
+    return PR_FALSE;
 
   bool result = false;
 
   if (PL_strstr(aStart, aSubstring) == aStart) {
     aStart += substrLen;
-    result = true;
+    result = PR_TRUE;
   }
 
   return result;
@@ -176,17 +176,17 @@ ParseClockComponent(const char*& aStart,
 
   // Check a number was found
   if (NS_FAILED(rv))
-    return false;
+    return PR_FALSE;
 
   // Check that it's not expressed in exponential form
   size_t len = aStart - begin;
   bool isExp = (PL_strnpbrk(begin, "eE", len) != nsnull);
   if (isExp)
-    return false;
+    return PR_FALSE;
 
   // Don't allow real numbers of the form "23."
   if (*(aStart - 1) == '.')
-    return false;
+    return PR_FALSE;
 
   // Number looks good
   aResult = value;
@@ -200,7 +200,7 @@ ParseClockComponent(const char*& aStart,
   aCouldBeSec &= (len >= 2 &&
       (begin[2] == '\0' || begin[2] == '.' || IsSpace(begin[2])));
 
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -218,23 +218,23 @@ ParseMetricMultiplicand(const char*& aStart,
     {
       case 'h':
         multiplicand = MSEC_PER_HOUR;
-        result = true;
+        result = PR_TRUE;
         break;
       case 'm':
         if (len >= 2) {
           if (*cur == 's') {
             ++cur;
             multiplicand = 1;
-            result = true;
+            result = PR_TRUE;
           } else if (len >= 3 && *cur++ == 'i' && *cur++ == 'n') {
             multiplicand = MSEC_PER_MIN;
-            result = true;
+            result = PR_TRUE;
           }
         }
         break;
       case 's':
         multiplicand = MSEC_PER_SEC;
-        result = true;
+        result = PR_TRUE;
         break;
     }
   }
@@ -257,8 +257,7 @@ ParseOptionalOffset(const nsAString& aSpec, nsSMILTimeValueSpecParams& aResult)
   if (aSpec.First() != '+' && aSpec.First() != '-')
     return NS_ERROR_FAILURE;
 
-  return nsSMILParserUtils::ParseClockValue(aSpec, &aResult.mOffset,
-     nsSMILParserUtils::kClockValueAllowSign);
+  return nsSMILParserUtils::ParseClockValue(aSpec, &aResult.mOffset, PR_TRUE);
 }
 
 nsresult
@@ -341,11 +340,11 @@ Unescape(nsAString& aStr)
   while (read != end) {
     NS_ABORT_IF_FALSE(write <= read, "Writing past where we've read");
     if (!escape && *read == '\\') {
-      escape = true;
+      escape = PR_TRUE;
       ++read;
     } else {
       *write++ = *read++;
-      escape = false;
+      escape = PR_FALSE;
     }
   }
 
@@ -372,7 +371,7 @@ ParseElementBaseTimeValueSpec(const nsAString& aSpec,
   //
 
   const PRUnichar* tokenStart = aSpec.BeginReading();
-  const PRUnichar* tokenEnd = GetTokenEnd(aSpec, true);
+  const PRUnichar* tokenEnd = GetTokenEnd(aSpec, PR_TRUE);
   nsAutoString token(Substring(tokenStart, tokenEnd));
   Unescape(token);
 
@@ -380,7 +379,7 @@ ParseElementBaseTimeValueSpec(const nsAString& aSpec,
     return NS_ERROR_FAILURE;
 
   // Whether the token is an id-ref or event-symbol it should be a valid NCName
-  if (NS_FAILED(nsContentUtils::CheckQName(token, false)))
+  if (NS_FAILED(nsContentUtils::CheckQName(token, PR_FALSE)))
     return NS_ERROR_FAILURE;
 
   // Parse the second token if there is one
@@ -388,7 +387,7 @@ ParseElementBaseTimeValueSpec(const nsAString& aSpec,
     result.mDependentElemID = do_GetAtom(token);
 
     tokenStart = ++tokenEnd;
-    tokenEnd = GetTokenEnd(Substring(tokenStart, aSpec.EndReading()), false);
+    tokenEnd = GetTokenEnd(Substring(tokenStart, aSpec.EndReading()), PR_FALSE);
 
     // Don't unescape the token unless we need to and not until after we've
     // tested it
@@ -397,11 +396,11 @@ ParseElementBaseTimeValueSpec(const nsAString& aSpec,
     // element-name.begin
     if (rawToken2.Equals(NS_LITERAL_STRING("begin"))) {
       result.mType = nsSMILTimeValueSpecParams::SYNCBASE;
-      result.mSyncBegin = true;
+      result.mSyncBegin = PR_TRUE;
     // element-name.end
     } else if (rawToken2.Equals(NS_LITERAL_STRING("end"))) {
       result.mType = nsSMILTimeValueSpecParams::SYNCBASE;
-      result.mSyncBegin = false;
+      result.mSyncBegin = PR_FALSE;
     // element-name.repeat(digit+)
     } else if (StringBeginsWith(rawToken2, REPEAT_PREFIX)) {
       result.mType = nsSMILTimeValueSpecParams::REPEAT;
@@ -415,7 +414,7 @@ ParseElementBaseTimeValueSpec(const nsAString& aSpec,
       Unescape(token2);
       result.mType = nsSMILTimeValueSpecParams::EVENT;
       if (token2.IsEmpty() ||
-          NS_FAILED(nsContentUtils::CheckQName(token2, false)))
+          NS_FAILED(nsContentUtils::CheckQName(token2, PR_FALSE)))
         return NS_ERROR_FAILURE;
       result.mEventSymbol = do_GetAtom(token2);
     }
@@ -574,7 +573,7 @@ public:
       return NS_ERROR_OUT_OF_MEMORY;
     }
     if (tmpPreventCachingOfSandwich) {
-      *mPreventCachingOfSandwich = true;
+      *mPreventCachingOfSandwich = PR_TRUE;
     }
     return NS_OK;
   }
@@ -593,7 +592,7 @@ nsSMILParserUtils::ParseValues(const nsAString& aSpec,
                                bool& aPreventCachingOfSandwich)
 {
   // Assume all results can be cached, until we find one that can't.
-  aPreventCachingOfSandwich = false;
+  aPreventCachingOfSandwich = PR_FALSE;
   SMILValueParser valueParser(aSrcElement, &aAttribute,
                               &aValuesArray, &aPreventCachingOfSandwich);
   return ParseValuesGeneric(aSpec, valueParser);
@@ -687,8 +686,7 @@ nsSMILParserUtils::ParseTimeValueSpecParams(const nsAString& aSpec,
 
   // offset type
   if (*start == '+' || *start == '-' || NS_IsAsciiDigit(*start)) {
-    rv = ParseClockValue(spec, &aResult.mOffset,
-                         nsSMILParserUtils::kClockValueAllowSign);
+    rv = ParseClockValue(spec, &aResult.mOffset, PR_TRUE);
     if (NS_SUCCEEDED(rv)) {
       aResult.mType = nsSMILTimeValueSpecParams::OFFSET;
     }
@@ -731,9 +729,8 @@ nsSMILParserUtils::ParseClockValue(const nsAString& aSpec,
   PRInt8 sign = 0;
   PRUint8 colonCount = 0;
 
-  // Indicates we have started parsing a clock-value (not including the optional
-  // +/- that precedes the clock-value) or keyword ("media", "indefinite")
   bool started = false;
+  bool isValid = true;
 
   PRInt32 metricMultiplicand = MSEC_PER_SEC;
 
@@ -744,7 +741,7 @@ nsSMILParserUtils::ParseClockValue(const nsAString& aSpec,
   bool isIndefinite = false;
 
   if (aIsMedia) {
-    *aIsMedia = false;
+    *aIsMedia = PR_FALSE;
   }
 
   NS_ConvertUTF16toUTF8 spec(aSpec);
@@ -753,15 +750,25 @@ nsSMILParserUtils::ParseClockValue(const nsAString& aSpec,
 
   while (start != end) {
     if (IsSpace(*start)) {
-      ++start;
       if (started) {
+        ++start;
         break;
       }
-    } else if (!started && (aFlags & kClockValueAllowSign) &&
-               (*start == '+' || *start == '-')) {
-      // check sign has not already been set (e.g. ++10s)
+      // else, we haven't started yet, ignore initial whitespace
+      ++start;
+
+    } else if ((aFlags & kClockValueAllowSign)
+               && (*start == '+' || *start == '-')) {
       if (sign != 0) {
-        return NS_ERROR_FAILURE;
+        // sign has already been set
+        isValid = PR_FALSE;
+        break;
+      }
+
+      if (started) {
+        // sign appears in the middle of the string
+        isValid = PR_FALSE;
+        break;
       }
 
       sign = (*start == '+') ? 1 : -1;
@@ -772,110 +779,117 @@ nsSMILParserUtils::ParseClockValue(const nsAString& aSpec,
 
       if (!ParseClockComponent(start, end, component, numIsReal, numCouldBeMin,
                                numCouldBeSec)) {
-        return NS_ERROR_FAILURE;
+        isValid = PR_FALSE;
+        break;
       }
-      started = true;
-    } else if (started && *start == ':') {
+
+      started = PR_TRUE;
+    } else if (*start == ':') {
       ++colonCount;
 
       // Neither minutes nor hours can be reals
       if (numIsReal) {
-        return NS_ERROR_FAILURE;
+        isValid = PR_FALSE;
+        break;
+      }
+
+      // Clock value can't start with a ':'
+      if (!started) {
+        isValid = PR_FALSE;
+        break;
       }
 
       // Can't have more than two colons
       if (colonCount > 2) {
-        return NS_ERROR_FAILURE;
+        isValid = PR_FALSE;
+        break;
       }
 
       // Multiply the offset by 60 and add the last accumulated component
-      offset = offset * 60 + nsSMILTime(component);
+      offset = offset * 60 + PRInt64(component);
 
       component = 0.0;
       ++start;
     } else if (NS_IS_ALPHA(*start)) {
       if (colonCount > 0) {
-        return NS_ERROR_FAILURE;
+        isValid = PR_FALSE;
+        break;
       }
 
-      if (!started && (aFlags & kClockValueAllowIndefinite) &&
-          ConsumeSubstring(start, end, "indefinite")) {
+      if ((aFlags & kClockValueAllowIndefinite)
+          && ConsumeSubstring(start, end, "indefinite")) {
         // We set a separate flag because we don't know what the state of the
         // passed in time value is and we shouldn't change it in the case of a
         // bad input string (so we can't initialise it to 0ms for example).
-        isIndefinite = true;
+        isIndefinite = PR_TRUE;
         if (aResult) {
           aResult->SetIndefinite();
         }
-        started = true;
-      } else if (!started && aIsMedia &&
-                 ConsumeSubstring(start, end, "media")) {
-        *aIsMedia = true;
-        started = true;
+      } else if (aIsMedia && ConsumeSubstring(start, end, "media")) {
+        *aIsMedia = PR_TRUE;
       } else if (!ParseMetricMultiplicand(start, end, metricMultiplicand)) {
-        return NS_ERROR_FAILURE;
+        isValid = PR_FALSE;
+        break;
       }
 
       // Nothing must come after the string except whitespace
       break;
     } else {
-      return NS_ERROR_FAILURE;
+      isValid = PR_FALSE;
+      break;
     }
   }
 
-  // Whitespace/empty string
   if (!started) {
-    return NS_ERROR_FAILURE;
+    isValid = PR_FALSE;
   }
 
   // Process remainder of string (if any) to ensure it is only trailing
   // whitespace (embedded whitespace is not allowed)
   SkipBeginWsp(start, end);
   if (start != end) {
-    return NS_ERROR_FAILURE;
+    isValid = PR_FALSE;
   }
 
   // No more processing required if the value was "indefinite" or "media".
-  if (isIndefinite || (aIsMedia && *aIsMedia)) {
+  if (isIndefinite || (aIsMedia && *aIsMedia))
     return NS_OK;
-  }
 
   // If there is more than one colon then the previous component must be a
   // correctly formatted minute (i.e. two digits between 00 and 59) and the
   // latest component must be a correctly formatted second (i.e. two digits
   // before the .)
   if (colonCount > 0 && (!prevNumCouldBeMin || !numCouldBeSec)) {
-    return NS_ERROR_FAILURE;
+    isValid = PR_FALSE;
   }
 
-  // Tack on the last component
-  if (colonCount > 0) {
-    offset *= 60 * 1000;
-    component *= 1000;
-    // rounding
-    component = (component >= 0) ? component + 0.5 : component - 0.5;
-    offset += nsSMILTime(component);
-  } else {
-    component *= metricMultiplicand;
-    // rounding
-    component = (component >= 0) ? component + 0.5 : component - 0.5;
-    offset = nsSMILTime(component);
-  }
-
-  // we haven't applied the sign yet so if the result is negative we must have
-  // overflowed
-  if (offset < 0) {
-    return NS_ERROR_FAILURE;
-  }
-
-  if (aResult) {
-    if (sign == -1) {
-      offset = -offset;
+  if (isValid) {
+    // Tack on the last component
+    if (colonCount > 0) {
+      offset = offset * 60 * 1000;
+      component *= 1000;
+      // rounding
+      component = (component >= 0) ? component + 0.5 : component - 0.5;
+      offset += PRInt64(component);
+    } else {
+      component *= metricMultiplicand;
+      // rounding
+      component = (component >= 0) ? component + 0.5 : component - 0.5;
+      offset = PRInt64(component);
     }
-    aResult->SetMillis(offset);
+
+    if (aResult) {
+      nsSMILTime millis = offset;
+
+      if (sign == -1) {
+        millis = -offset;
+      }
+
+      aResult->SetMillis(millis);
+    }
   }
 
-  return NS_OK;
+  return (isValid) ? NS_OK : NS_ERROR_FAILURE;
 }
 
 PRInt32

@@ -49,8 +49,6 @@
 #include <QImageWriter>
 #include <QBuffer>
 
-#include "mozilla/Util.h"
-
 #include "nsClipboard.h"
 #include "nsISupportsPrimitives.h"
 #include "nsXPIDLString.h"
@@ -62,8 +60,6 @@
 
 #include "imgIContainer.h"
 #include "gfxImageSurface.h"
-
-using namespace mozilla;
 
 NS_IMPL_ISUPPORTS1(nsClipboard, nsIClipboard)
 
@@ -198,7 +194,7 @@ nsClipboard::SetNativeClipboardData( nsITransferable *aTransferable,
                 static const char* const imageMimeTypes[] = {
                     kNativeImageMime, kPNGImageMime, kJPEGImageMime, kGIFImageMime };
                 nsCOMPtr<nsISupportsInterfacePointer> ptrPrimitive;
-                for (PRUint32 i = 0; !ptrPrimitive && i < ArrayLength(imageMimeTypes); i++)
+                for (PRUint32 i = 0; !ptrPrimitive && i < NS_ARRAY_LENGTH(imageMimeTypes); i++)
                 {
                     aTransferable->GetTransferData(imageMimeTypes[i], getter_AddRefs(clip), &len);
                     ptrPrimitive = do_QueryInterface(clip);
@@ -431,7 +427,7 @@ NS_IMETHODIMP
 nsClipboard::HasDataMatchingFlavors(const char** aFlavorList, PRUint32 aLength,
                                     PRInt32 aWhichClipboard, bool *_retval)
 {
-    *_retval = false;
+    *_retval = PR_FALSE;
     if (aWhichClipboard != kGlobalClipboard)
         return NS_OK;
 
@@ -458,7 +454,7 @@ nsClipboard::HasDataMatchingFlavors(const char** aFlavorList, PRUint32 aLength,
                 strcmp(flavor, kUnicodeMime) == 0)
             {
                 // A match has been found, return'
-                *_retval = true;
+                *_retval = PR_TRUE;
                 break;
             }
         }
@@ -578,11 +574,11 @@ nsClipboard::SupportsSelectionClipboard(bool *_retval)
     QClipboard *cb = QApplication::clipboard();
     if (cb->supportsSelection())
     {
-        *_retval = true; // we support the selection clipboard 
+        *_retval = PR_TRUE; // we support the selection clipboard 
     }
     else
     {
-        *_retval = false;
+        *_retval = PR_FALSE;
     }
 
     return NS_OK;

@@ -86,7 +86,7 @@ public:
      the protocol.
   */
   template<class Toplevel>
-  static bool CreateCrashReporter(Toplevel* actor);
+  static void CreateCrashReporter(Toplevel* actor);
 #endif
   /* Initialize this reporter with data from the child process */
   void
@@ -176,7 +176,7 @@ CrashReporterParent::GenerateCrashReport(Toplevel* t,
 }
 
 template<class Toplevel>
-/* static */ bool
+/* static */ void
 CrashReporterParent::CreateCrashReporter(Toplevel* actor)
 {
 #ifdef MOZ_CRASHREPORTER
@@ -189,9 +189,7 @@ CrashReporterParent::CreateCrashReporter(Toplevel* actor)
   } else {
     NS_ERROR("Error creating crash reporter actor");
   }
-  return !!p;
 #endif
-  return false;
 }
 
 #endif

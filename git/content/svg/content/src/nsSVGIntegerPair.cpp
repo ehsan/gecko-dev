@@ -39,8 +39,10 @@
 #include "nsCharSeparatedTokenizer.h"
 #include "nsDOMError.h"
 #include "nsMathUtils.h"
+#ifdef MOZ_SMIL
 #include "nsSMILValue.h"
 #include "SVGIntegerPairSMILType.h"
+#endif // MOZ_SMIL
 
 using namespace mozilla;
 
@@ -112,14 +114,16 @@ nsSVGIntegerPair::SetBaseValueString(const nsAString &aValueAsString,
 
   mBaseVal[0] = val[0];
   mBaseVal[1] = val[1];
-  mIsBaseSet = true;
+  mIsBaseSet = PR_TRUE;
   if (!mIsAnimated) {
     mAnimVal[0] = mBaseVal[0];
     mAnimVal[1] = mBaseVal[1];
   }
+#ifdef MOZ_SMIL
   else {
     aSVGElement->AnimationNeedsResample();
   }
+#endif
 
   // We don't need to call DidChange* here - we're only called by
   // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
@@ -144,13 +148,15 @@ nsSVGIntegerPair::SetBaseValue(PRInt32 aValue, PairIndex aPairIndex,
 {
   PRUint32 index = (aPairIndex == eFirst ? 0 : 1);
   mBaseVal[index] = aValue;
-  mIsBaseSet = true;
+  mIsBaseSet = PR_TRUE;
   if (!mIsAnimated) {
     mAnimVal[index] = aValue;
   }
+#ifdef MOZ_SMIL
   else {
     aSVGElement->AnimationNeedsResample();
   }
+#endif
   aSVGElement->DidChangeIntegerPair(mAttrEnum, true);
 }
 
@@ -160,14 +166,16 @@ nsSVGIntegerPair::SetBaseValues(PRInt32 aValue1, PRInt32 aValue2,
 {
   mBaseVal[0] = aValue1;
   mBaseVal[1] = aValue2;
-  mIsBaseSet = true;
+  mIsBaseSet = PR_TRUE;
   if (!mIsAnimated) {
     mAnimVal[0] = aValue1;
     mAnimVal[1] = aValue2;
   }
+#ifdef MOZ_SMIL
   else {
     aSVGElement->AnimationNeedsResample();
   }
+#endif
   aSVGElement->DidChangeIntegerPair(mAttrEnum, true);
 }
 
@@ -176,7 +184,7 @@ nsSVGIntegerPair::SetAnimValue(const PRInt32 aValue[2], nsSVGElement *aSVGElemen
 {
   mAnimVal[0] = aValue[0];
   mAnimVal[1] = aValue[1];
-  mIsAnimated = true;
+  mIsAnimated = PR_TRUE;
   aSVGElement->DidAnimateIntegerPair(mAttrEnum);
 }
 
@@ -190,6 +198,7 @@ nsSVGIntegerPair::ToDOMAnimatedInteger(nsIDOMSVGAnimatedInteger **aResult,
   return NS_OK;
 }
 
+#ifdef MOZ_SMIL
 nsISMILAttr*
 nsSVGIntegerPair::ToSMILAttr(nsSVGElement *aSVGElement)
 {
@@ -213,7 +222,7 @@ nsSVGIntegerPair::SMILIntegerPair::ValueFromString(const nsAString& aStr,
   val.mU.mIntPair[0] = values[0];
   val.mU.mIntPair[1] = values[1];
   aValue = val;
-  aPreventCachingOfSandwich = false;
+  aPreventCachingOfSandwich = PR_FALSE;
 
   return NS_OK;
 }
@@ -232,7 +241,7 @@ nsSVGIntegerPair::SMILIntegerPair::ClearAnimValue()
 {
   if (mVal->mIsAnimated) {
     mVal->SetAnimValue(mVal->mBaseVal, mSVGElement);
-    mVal->mIsAnimated = false;
+    mVal->mIsAnimated = PR_FALSE;
   }
 }
 
@@ -246,3 +255,4 @@ nsSVGIntegerPair::SMILIntegerPair::SetAnimValue(const nsSMILValue& aValue)
   }
   return NS_OK;
 }
+#endif // MOZ_SMIL

@@ -67,6 +67,7 @@ nsICharsetConverterManager *nsStandardURL::gCharsetMgr = nsnull;
 bool nsStandardURL::gInitialized = false;
 bool nsStandardURL::gEscapeUTF8 = true;
 bool nsStandardURL::gAlwaysEncodeInUTF8 = true;
+bool nsStandardURL::gEncodeQueryInUTF8 = true;
 
 #if defined(PR_LOGGING)
 //
@@ -143,6 +144,7 @@ end:
 #define NS_NET_PREF_ESCAPEUTF8         "network.standard-url.escape-utf8"
 #define NS_NET_PREF_ENABLEIDN          "network.enableIDN"
 #define NS_NET_PREF_ALWAYSENCODEINUTF8 "network.standard-url.encode-utf8"
+#define NS_NET_PREF_ENCODEQUERYINUTF8  "network.standard-url.encode-query-utf8"
 
 NS_IMPL_ISUPPORTS1(nsStandardURL::nsPrefObserver, nsIObserver)
 
@@ -181,7 +183,7 @@ nsSegmentEncoder::EncodeSegmentCount(const char *str,
     // extraLen is characters outside the segment that will be 
     // added when the segment is not empty (like the @ following
     // a username).
-    appended = false;
+    appended = PR_FALSE;
     if (!str)
         return 0;
     PRInt32 len = 0;
@@ -215,12 +217,12 @@ nsSegmentEncoder::EncodeSegmentCount(const char *str,
         // now perform any required escaping
         if (NS_EscapeURL(str + pos, len, mask | escapeFlags, result)) {
             len = result.Length() - initLen;
-            appended = true;
+            appended = PR_TRUE;
         }
         else if (str == encBuf.get()) {
             result += encBuf; // append only!!
             len = encBuf.Length();
-            appended = true;
+            appended = PR_TRUE;
         }
         len += extraLen;
     }
@@ -250,7 +252,7 @@ nsSegmentEncoder::InitUnicodeEncoder()
                             &gCharsetMgr);
         if (NS_FAILED(rv)) {
             NS_ERROR("failed to get charset-converter-manager");
-            return false;
+            return PR_FALSE;
         }
     }
 
@@ -258,10 +260,10 @@ nsSegmentEncoder::InitUnicodeEncoder()
     if (NS_FAILED(rv)) {
         NS_ERROR("failed to get unicode encoder");
         mEncoder = 0; // just in case
-        return false;
+        return PR_FALSE;
     }
 
-    return true;
+    return PR_TRUE;
 }
 
 #define GET_SEGMENT_ENCODER_INTERNAL(name, useUTF8) \
@@ -271,7 +273,8 @@ nsSegmentEncoder::InitUnicodeEncoder()
     GET_SEGMENT_ENCODER_INTERNAL(name, gAlwaysEncodeInUTF8)
 
 #define GET_QUERY_ENCODER(name) \
-    GET_SEGMENT_ENCODER_INTERNAL(name, false)
+    GET_SEGMENT_ENCODER_INTERNAL(name, gAlwaysEncodeInUTF8 && \
+                                 gEncodeQueryInUTF8)
 
 //----------------------------------------------------------------------------
 // nsStandardURL <public>
@@ -288,7 +291,7 @@ nsStandardURL::nsStandardURL(bool aSupportsFileURL)
     , mHostEncoding(eEncoding_ASCII)
     , mSpecEncoding(eEncoding_Unknown)
     , mURLType(URLTYPE_STANDARD)
-    , mMutable(true)
+    , mMutable(PR_TRUE)
     , mSupportsFileURL(aSupportsFileURL)
 {
 #if defined(PR_LOGGING)
@@ -299,7 +302,7 @@ nsStandardURL::nsStandardURL(bool aSupportsFileURL)
     LOG(("Creating nsStandardURL @%p\n", this));
 
     if (!gInitialized) {
-        gInitialized = true;
+        gInitialized = PR_TRUE;
         InitGlobalObjects();
     }
 
@@ -345,9 +348,10 @@ nsStandardURL::InitGlobalObjects()
     nsCOMPtr<nsIPrefBranch2> prefBranch( do_GetService(NS_PREFSERVICE_CONTRACTID) );
     if (prefBranch) {
         nsCOMPtr<nsIObserver> obs( new nsPrefObserver() );
-        prefBranch->AddObserver(NS_NET_PREF_ESCAPEUTF8, obs.get(), false);
-        prefBranch->AddObserver(NS_NET_PREF_ALWAYSENCODEINUTF8, obs.get(), false);
-        prefBranch->AddObserver(NS_NET_PREF_ENABLEIDN, obs.get(), false);
+        prefBranch->AddObserver(NS_NET_PREF_ESCAPEUTF8, obs.get(), PR_FALSE);
+        prefBranch->AddObserver(NS_NET_PREF_ALWAYSENCODEINUTF8, obs.get(), PR_FALSE);
+        prefBranch->AddObserver(NS_NET_PREF_ENCODEQUERYINUTF8, obs.get(), PR_FALSE);
+        prefBranch->AddObserver(NS_NET_PREF_ENABLEIDN, obs.get(), PR_FALSE);
 
         PrefsChanged(prefBranch, nsnull);
     }
@@ -419,9 +423,9 @@ nsStandardURL::EscapeIPv6(const char *host, nsCString &result)
         result.Assign('[');
         result.Append(host);
         result.Append(']');
-        return true;
+        return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
 }
 
 bool
@@ -430,7 +434,7 @@ nsStandardURL::NormalizeIDN(const nsCSubstring &host, nsCString &result)
     // If host is ACE, then convert to UTF-8.  Else, if host is already UTF-8,
     // then make sure it is normalized per IDN.
 
-    // this function returns true if normalization succeeds.
+    // this function returns PR_TRUE if normalization succeeds.
 
     // NOTE: As a side-effect this function sets mHostEncoding.  While it would
     // be nice to avoid side-effects in this function, the implementation of
@@ -446,11 +450,11 @@ nsStandardURL::NormalizeIDN(const nsCSubstring &host, nsCString &result)
         if (!isASCII)
           mHostEncoding = eEncoding_UTF8;
 
-        return true;
+        return PR_TRUE;
     }
 
     result.Truncate();
-    return false;
+    return PR_FALSE;
 }
 
 void
@@ -521,7 +525,7 @@ nsStandardURL::BuildNormalizedSpec(const char *spec)
 
     // the scheme is already ASCII
     if (mScheme.mLen > 0)
-        approxLen += mScheme.mLen + 3; // includes room for "://", which we insert always
+        approxLen += mScheme.mLen + 3; // includes room for "://";
 
     // encode URL segments; convert UTF-8 to origin charset and possibly escape.
     // results written to encXXX variables only if |spec| is not already in the
@@ -532,9 +536,8 @@ nsStandardURL::BuildNormalizedSpec(const char *spec)
         // Items using an extraLen of 1 don't add anything unless mLen > 0
         // Username@
         approxLen += encoder.EncodeSegmentCount(spec, mUsername,  esc_Username,      encUsername,  useEncUsername, 1);
-        // :password - we insert the ':' even if there's no actual password if "user:@" was in the spec
-        if (mPassword.mLen >= 0)
-            approxLen += 1 + encoder.EncodeSegmentCount(spec, mPassword,  esc_Password,      encPassword,  useEncPassword);
+        // :Password
+        approxLen += encoder.EncodeSegmentCount(spec, mPassword,  esc_Password,      encPassword,  useEncPassword, 1);
         // mHost is handled differently below due to encoding differences
         NS_ABORT_IF_FALSE(mPort > 0 || mPort == -1, "Invalid negative mPort");
         if (mPort != -1 && mPort != mDefaultPort)
@@ -564,7 +567,6 @@ nsStandardURL::BuildNormalizedSpec(const char *spec)
     // already point to a [ ] delimited IPv6 address literal.
     // However, perform Unicode normalization on it, as IDN does.
     mHostEncoding = eEncoding_ASCII;
-    // Note that we don't disallow URLs without a host - file:, etc
     if (mHost.mLen > 0) {
         const nsCSubstring& tempHost =
             Substring(spec + mHost.mPos, spec + mHost.mPos + mHost.mLen);
@@ -707,7 +709,7 @@ nsStandardURL::SegmentIs(const URLSegment &seg, const char *val, bool ignoreCase
     if (!val || mSpec.IsEmpty())
         return (!val && (mSpec.IsEmpty() || seg.mLen < 0));
     if (seg.mLen < 0)
-        return false;
+        return PR_FALSE;
     // if the first |seg.mLen| chars of |val| match, then |val| must
     // also be null terminated at |seg.mLen|.
     if (ignoreCase)
@@ -725,7 +727,7 @@ nsStandardURL::SegmentIs(const char* spec, const URLSegment &seg, const char *va
     if (!val || !spec)
         return (!val && (!spec || seg.mLen < 0));
     if (seg.mLen < 0)
-        return false;
+        return PR_FALSE;
     // if the first |seg.mLen| chars of |val| match, then |val| must
     // also be null terminated at |seg.mLen|.
     if (ignoreCase)
@@ -740,11 +742,11 @@ bool
 nsStandardURL::SegmentIs(const URLSegment &seg1, const char *val, const URLSegment &seg2, bool ignoreCase)
 {
     if (seg1.mLen != seg2.mLen)
-        return false;
+        return PR_FALSE;
     if (seg1.mLen == -1 || (!val && mSpec.IsEmpty()))
-        return true; // both are empty
+        return PR_TRUE; // both are empty
     if (!val)
-        return false;
+        return PR_FALSE;
     if (ignoreCase)
         return !PL_strncasecmp(mSpec.get() + seg1.mPos, val + seg2.mPos, seg1.mLen); 
     else
@@ -954,6 +956,12 @@ nsStandardURL::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             gAlwaysEncodeInUTF8 = val;
         LOG(("encode in UTF-8 %s\n", gAlwaysEncodeInUTF8 ? "enabled" : "disabled"));
     }
+
+    if (PREF_CHANGED(NS_NET_PREF_ENCODEQUERYINUTF8)) {
+        if (GOT_PREF(NS_NET_PREF_ENCODEQUERYINUTF8, val))
+            gEncodeQueryInUTF8 = val;
+        LOG(("encode query in UTF-8 %s\n", gEncodeQueryInUTF8 ? "enabled" : "disabled"));
+    }
 #undef PREF_CHANGED
 #undef GOT_PREF
 }
@@ -1098,7 +1106,7 @@ nsStandardURL::GetAsciiSpec(nsACString &result)
 
     result = Substring(mSpec, 0, mScheme.mLen + 3);
 
-    NS_EscapeURL(Userpass(true), esc_OnlyNonASCII | esc_AlwaysCopy, result);
+    NS_EscapeURL(Userpass(PR_TRUE), esc_OnlyNonASCII | esc_AlwaysCopy, result);
 
     // get escaped host
     nsCAutoString escHostport;
@@ -1656,14 +1664,14 @@ nsStandardURL::EqualsInternal(nsIURI *unknownOther,
     nsresult rv = unknownOther->QueryInterface(kThisImplCID,
                                                getter_AddRefs(other));
     if (NS_FAILED(rv)) {
-        *result = false;
+        *result = PR_FALSE;
         return NS_OK;
     }
 
     // First, check whether one URIs is an nsIFileURL while the other
     // is not.  If that's the case, they're different.
     if (mSupportsFileURL != other->mSupportsFileURL) {
-        *result = false;
+        *result = PR_FALSE;
         return NS_OK;
     }
 
@@ -1679,13 +1687,13 @@ nsStandardURL::EqualsInternal(nsIURI *unknownOther,
         Port() != other->Port()) {
         // No need to compare files or other URI parts -- these are different
         // beasties
-        *result = false;
+        *result = PR_FALSE;
         return NS_OK;
     }
 
     if (refHandlingMode == eHonorRef &&
         !SegmentIs(mRef, other->mSpec.get(), other->mRef)) {
-        *result = false;
+        *result = PR_FALSE;
         return NS_OK;
     }
     
@@ -1693,7 +1701,7 @@ nsStandardURL::EqualsInternal(nsIURI *unknownOther,
     if (SegmentIs(mDirectory, other->mSpec.get(), other->mDirectory) &&
         SegmentIs(mBasename, other->mSpec.get(), other->mBasename) &&
         SegmentIs(mExtension, other->mSpec.get(), other->mExtension)) {
-        *result = true;
+        *result = PR_TRUE;
         return NS_OK;
     }
 
@@ -1704,7 +1712,7 @@ nsStandardURL::EqualsInternal(nsIURI *unknownOther,
     if (mSupportsFileURL) {
         // Assume not equal for failure cases... but failures in GetFile are
         // really failures, more or less, so propagate them to caller.
-        *result = false;
+        *result = PR_FALSE;
 
         rv = EnsureFile();
         nsresult rv2 = other->EnsureFile();
@@ -1730,7 +1738,7 @@ nsStandardURL::EqualsInternal(nsIURI *unknownOther,
 
     // The URLs are not identical, and they do not correspond to the
     // same file, so they are different.
-    *result = false;
+    *result = PR_FALSE;
 
     return NS_OK;
 }
@@ -1793,7 +1801,7 @@ nsStandardURL::CloneInternal(nsStandardURL::RefHandlingEnum refHandlingMode,
     clone->mParser = mParser;
     clone->mFile = mFile;
     clone->mHostA = mHostA ? nsCRT::strdup(mHostA) : nsnull;
-    clone->mMutable = true;
+    clone->mMutable = PR_TRUE;
     clone->mSupportsFileURL = mSupportsFileURL;
     clone->mHostEncoding = mHostEncoding;
     clone->mSpecEncoding = mSpecEncoding;
@@ -1860,7 +1868,7 @@ nsStandardURL::Resolve(const nsACString &in, nsACString &out)
     if (scheme.mLen >= 0) {
         // add some flags to coalesceFlag if it is an ftp-url
         // need this later on when coalescing the resulting URL
-        if (SegmentIs(relpath, scheme, "ftp", true)) {
+        if (SegmentIs(relpath, scheme, "ftp", PR_TRUE)) {
             coalesceFlag = (netCoalesceFlags) (coalesceFlag 
                                         | NET_COALESCE_ALLOW_RELATIVE_ROOT
                                         | NET_COALESCE_DOUBLE_SLASH_IS_ROOT);
@@ -1868,7 +1876,7 @@ nsStandardURL::Resolve(const nsACString &in, nsACString &out)
         }
         // this URL appears to be absolute
         // but try to find out more
-        if (SegmentIs(mScheme, relpath, scheme, true)) {
+        if (SegmentIs(mScheme, relpath, scheme, PR_TRUE)) {
             // mScheme and Scheme are the same 
             // but this can still be relative
             if (nsCRT::strncmp(relpath + scheme.mPos + scheme.mLen,
@@ -1880,7 +1888,7 @@ nsStandardURL::Resolve(const nsACString &in, nsACString &out)
                 // This is a deprecated form of relative urls like
                 // http:file or http:/path/file
                 // we will support it for now ...
-                relative = true;
+                relative = PR_TRUE;
                 offset = scheme.mLen + 1;
             }
         } else {
@@ -1901,7 +1909,7 @@ nsStandardURL::Resolve(const nsACString &in, nsACString &out)
             result = AppendToSubstring(mScheme.mPos, mScheme.mLen + 1, relpath);
         } else {
             // then it must be relative 
-            relative = true;
+            relative = PR_TRUE;
         }
     }
     if (relative) {
@@ -2792,7 +2800,7 @@ nsStandardURL::Read(nsIObjectInputStream *stream)
     bool isMutable;
     rv = stream->ReadBoolean(&isMutable);
     if (NS_FAILED(rv)) return rv;
-    if (isMutable != true && isMutable != false) {
+    if (isMutable != PR_TRUE && isMutable != PR_FALSE) {
         NS_WARNING("Unexpected boolean value");
         return NS_ERROR_UNEXPECTED;
     }
@@ -2801,7 +2809,7 @@ nsStandardURL::Read(nsIObjectInputStream *stream)
     bool supportsFileURL;
     rv = stream->ReadBoolean(&supportsFileURL);
     if (NS_FAILED(rv)) return rv;
-    if (supportsFileURL != true && supportsFileURL != false) {
+    if (supportsFileURL != PR_TRUE && supportsFileURL != PR_FALSE) {
         NS_WARNING("Unexpected boolean value");
         return NS_ERROR_UNEXPECTED;
     }
@@ -2925,7 +2933,7 @@ nsStandardURL::Read(const IPC::Message *aMsg, void **aIter)
     
     PRUint32 urlType;
     if (!ReadParam(aMsg, aIter, &urlType))
-        return false;
+        return PR_FALSE;
     
     mURLType = urlType;
     switch (mURLType) {
@@ -2940,7 +2948,7 @@ nsStandardURL::Read(const IPC::Message *aMsg, void **aIter)
             break;
         default:
             NS_NOTREACHED("bad urlType");
-            return false;
+            return PR_FALSE;
     }
 
     PRUint32 hostEncoding;
@@ -2964,11 +2972,11 @@ nsStandardURL::Read(const IPC::Message *aMsg, void **aIter)
         !ReadParam(aMsg, aIter, &isMutable) ||
         !ReadParam(aMsg, aIter, &supportsFileURL) ||
         !ReadParam(aMsg, aIter, &hostEncoding))
-        return false;
+        return PR_FALSE;
 
     if (hostEncoding != eEncoding_ASCII && hostEncoding != eEncoding_UTF8) {
         NS_WARNING("Unexpected host encoding");
-        return false;
+        return PR_FALSE;
     }
     mHostEncoding = hostEncoding;
     mMutable = isMutable;
@@ -2976,7 +2984,7 @@ nsStandardURL::Read(const IPC::Message *aMsg, void **aIter)
 
     // mSpecEncoding and mHostA are just caches that can be recovered as needed.
 
-    return true;
+    return PR_TRUE;
 }
 
 void

@@ -505,9 +505,9 @@ nsWindowsRegKey::HasChanged(bool *result)
     // another event to watch.
     StopWatching();
     StartWatching(mWatchRecursive);
-    *result = true;
+    *result = PR_TRUE;
   } else {
-    *result = false;
+    *result = PR_FALSE;
   }
   return NS_OK;
 }

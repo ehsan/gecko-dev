@@ -72,7 +72,7 @@ namespace css = mozilla::css;
   { return this; }
 #define IMPL_STYLE_RULE_INHERIT_MAP_RULE_INFO_INTO(class_, super_) \
 /* virtual */ void class_::MapRuleInfoInto(nsRuleData* aRuleData) \
-  { NS_ABORT_IF_FALSE(false, "should not be called"); }
+  { NS_ABORT_IF_FALSE(PR_FALSE, "should not be called"); }
 
 #define IMPL_STYLE_RULE_INHERIT(class_, super_) \
 IMPL_STYLE_RULE_INHERIT_GET_DOM_RULE_WEAK(class_, super_) \
@@ -120,7 +120,7 @@ Rule::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
 // Style Rule List for group rules
 //
 
-class GroupRuleRuleList : public nsICSSRuleList
+class NS_FINAL_CLASS GroupRuleRuleList : public nsICSSRuleList
 {
 public:
   GroupRuleRuleList(GroupRule *aGroupRule);
@@ -499,7 +499,7 @@ CloneRuleInto(css::Rule* aRule, void* aArray)
 {
   nsRefPtr<css::Rule> clone = aRule->Clone();
   static_cast<nsCOMArray<css::Rule>*>(aArray)->AppendObject(clone);
-  return true;
+  return PR_TRUE;
 }
 
 namespace mozilla {
@@ -515,7 +515,7 @@ SetParentRuleReference(Rule* aRule, void* aParentRule)
 {
   GroupRule* parentRule = static_cast<GroupRule*>(aParentRule);
   aRule->SetParentRule(parentRule);
-  return true;
+  return PR_TRUE;
 }
 
 GroupRule::GroupRule(const GroupRule& aCopy)
@@ -541,7 +541,7 @@ SetStyleSheetReference(Rule* aRule, void* aSheet)
 {
   nsCSSStyleSheet* sheet = (nsCSSStyleSheet*)aSheet;
   aRule->SetStyleSheet(sheet);
-  return true;
+  return PR_TRUE;
 }
 
 /* virtual */ void
@@ -861,7 +861,7 @@ MediaRule::UseForPresentation(nsPresContext* aPresContext,
   if (mMedia) {
     return mMedia->Matches(aPresContext, &aKey);
   }
-  return true;
+  return PR_TRUE;
 }
 
 } // namespace css
@@ -1035,11 +1035,11 @@ DocumentRule::UseForPresentation(nsPresContext* aPresContext,
     switch (url->func) {
       case eURL: {
         if (docURISpec == url->url)
-          return true;
+          return PR_TRUE;
       } break;
       case eURLPrefix: {
         if (StringBeginsWith(docURISpec, url->url))
-          return true;
+          return PR_TRUE;
       } break;
       case eDomain: {
         nsCAutoString host;
@@ -1048,24 +1048,24 @@ DocumentRule::UseForPresentation(nsPresContext* aPresContext,
         PRInt32 lenDiff = host.Length() - url->url.Length();
         if (lenDiff == 0) {
           if (host == url->url)
-            return true;
+            return PR_TRUE;
         } else {
           if (StringEndsWith(host, url->url) &&
               host.CharAt(lenDiff - 1) == '.')
-            return true;
+            return PR_TRUE;
         }
       } break;
       case eRegExp: {
         NS_ConvertUTF8toUTF16 spec(docURISpec);
         NS_ConvertUTF8toUTF16 regex(url->url);
         if (nsContentUtils::IsPatternMatching(spec, regex, doc)) {
-          return true;
+          return PR_TRUE;
         }
       } break;
     }
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 DocumentRule::URL::~URL()
@@ -1851,7 +1851,7 @@ nsCSSKeyframeRule::SetKeyText(const nsAString& aKeyText)
 {
   nsCSSParser parser;
 
-  InfallibleTArray<float> newSelectors;
+  nsTArray<float> newSelectors;
   // FIXME: pass filename and line number
   if (parser.ParseKeyframeSelectorString(aKeyText, nsnull, 0, newSelectors)) {
     newSelectors.SwapElements(mKeys);
@@ -2033,7 +2033,7 @@ nsCSSKeyframesRule::FindRuleIndexForKey(const nsAString& aKey)
 {
   nsCSSParser parser;
 
-  InfallibleTArray<float> keys;
+  nsTArray<float> keys;
   // FIXME: pass filename and line number
   if (parser.ParseKeyframeSelectorString(aKey, nsnull, 0, keys)) {
     // The spec isn't clear, but we'll match on the key list, which
@@ -2082,7 +2082,7 @@ nsCSSKeyframesRule::FindRule(const nsAString& aKey,
 nsCSSKeyframesRule::UseForPresentation(nsPresContext* aPresContext,
                                        nsMediaQueryResultCacheKey& aKey)
 {
-  NS_ABORT_IF_FALSE(false, "should not be called");
-  return false;
+  NS_ABORT_IF_FALSE(PR_FALSE, "should not be called");
+  return PR_FALSE;
 }
 

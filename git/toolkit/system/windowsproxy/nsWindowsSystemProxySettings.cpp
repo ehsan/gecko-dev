@@ -124,7 +124,7 @@ nsWindowsSystemProxySettings::MatchOverride(const nsACString& aHost)
 
     rv = mKey->ReadStringValue(NS_LITERAL_STRING("ProxyOverride"), buf);
     if (NS_FAILED(rv))
-        return false;
+        return PR_FALSE;
 
     NS_ConvertUTF16toUTF8 cbuf(buf);
 
@@ -151,9 +151,9 @@ nsWindowsSystemProxySettings::MatchOverride(const nsACString& aHost)
                 // This override matches local addresses.
                 if (host.EqualsLiteral("localhost") ||
                     host.EqualsLiteral("127.0.0.1"))
-                    return true;
+                    return PR_TRUE;
             } else if (PatternMatch(host, override)) {
-                return true;
+                return PR_TRUE;
             }
         }
 
@@ -162,7 +162,7 @@ nsWindowsSystemProxySettings::MatchOverride(const nsACString& aHost)
         start = ++delimiter;
     }
 
-    return false;
+    return PR_FALSE;
 }
 
 bool
@@ -179,7 +179,7 @@ nsWindowsSystemProxySettings::PatternMatch(const nsACString& aHost,
     while (tokenStart < overrideLength) {
         PRInt32 tokenEnd = override.FindChar('*', tokenStart);
         if (tokenEnd == tokenStart) {
-            star = true;
+            star = PR_TRUE;
             tokenStart++;
             // If the character following the '*' is a '.' character then skip
             // it so that "*.foo.com" allows "foo.com".
@@ -192,8 +192,8 @@ nsWindowsSystemProxySettings::PatternMatch(const nsACString& aHost,
                                           tokenEnd - tokenStart));
             offset = host.Find(token, offset);
             if (offset == -1 || (!star && offset))
-                return false;
-            star = false;
+                return PR_FALSE;
+            star = PR_FALSE;
             tokenStart = tokenEnd;
             offset += token.Length();
         }

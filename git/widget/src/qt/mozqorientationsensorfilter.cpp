@@ -39,7 +39,6 @@
 #ifdef MOZ_ENABLE_MEEGOTOUCH
 #include <MApplication>
 #include <MWindow>
-#include <MSceneManager>
 #endif
 #include "nsXULAppAPI.h"
 
@@ -82,10 +81,8 @@ MozQOrientationSensorFilter::filter(QOrientationReading* reading)
 #ifdef MOZ_ENABLE_MEEGOTOUCH
     if (XRE_GetProcessType() == GeckoProcessType_Default) {
         MWindow* window = MApplication::activeWindow();
-        if (window && window->sceneManager()) {
-            window->sceneManager()->
-                setOrientationAngle((M::OrientationAngle)mWindowRotationAngle,
-                                    MSceneManager::ImmediateTransition);
+        if (window) {
+            window->setOrientationAngle((M::OrientationAngle)mWindowRotationAngle);
         }
     }
 #else

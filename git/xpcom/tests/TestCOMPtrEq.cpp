@@ -99,7 +99,7 @@ main()
     nsICOMPtrEqTestFoo2* d2 = s2;
 #endif
 
-    return (!(true &&
+    return (!(PR_TRUE &&
               (s == s) &&
               (s == r) &&
               (s == sc) &&
@@ -200,5 +200,5 @@ main()
               (d == rkc2) &&
               (d == d2) &&
 #endif
-              true));
+              PR_TRUE));
   }

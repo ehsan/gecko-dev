@@ -110,10 +110,6 @@ public: /*ITfContextOwnerCompositionSink*/
   STDMETHODIMP OnUpdateComposition(ITfCompositionView*, ITfRange*);
   STDMETHODIMP OnEndComposition(ITfCompositionView*);
 
-protected:
-  typedef mozilla::widget::IMEState IMEState;
-  typedef mozilla::widget::InputContext InputContext;
-
 public:
   static void     Initialize(void);
   static void     Terminate(void);
@@ -126,13 +122,13 @@ public:
     sTsfTextStore->CommitCompositionInternal(aDiscard);
   }
 
-  static void     SetInputContext(const InputContext& aContext)
+  static void     SetInputMode(const IMEContext& aContext)
   {
     if (!sTsfTextStore) return;
-    sTsfTextStore->SetInputContextInternal(aContext.mIMEState.mEnabled);
+    sTsfTextStore->SetInputModeInternal(aContext.mStatus);
   }
 
-  static nsresult OnFocusChange(bool, nsWindow*, IMEState::Enabled);
+  static nsresult OnFocusChange(bool, nsWindow*, PRUint32);
 
   static nsresult OnTextChange(PRUint32 aStart,
                                PRUint32 aOldEnd,
@@ -184,7 +180,7 @@ protected:
   nsTextStore();
   ~nsTextStore();
 
-  bool     Create(nsWindow*, IMEState::Enabled);
+  bool     Create(nsWindow*, PRUint32);
   bool     Destroy(void);
 
   // If aDispatchTextEvent is true, this method will dispatch text event if
@@ -195,7 +191,7 @@ protected:
                                 bool aDispatchTextEvent = false);
   HRESULT  OnStartCompositionInternal(ITfCompositionView*, ITfRange*, bool);
   void     CommitCompositionInternal(bool);
-  void     SetInputContextInternal(IMEState::Enabled aState);
+  void     SetInputModeInternal(PRUint32 aState);
   nsresult OnTextChangeInternal(PRUint32, PRUint32, PRUint32);
   void     OnTextChangeMsgInternal(void);
   nsresult OnSelectionChangeInternal(void);

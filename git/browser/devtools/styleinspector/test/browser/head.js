@@ -150,15 +150,6 @@ function findLogEntry(aString)
   testLogEntry(outputNode, aString, "found " + aString);
 }
 
-function addStyle(aDocument, aString)
-{
-  let node = aDocument.createElement('style');
-  node.setAttribute("type", "text/css");
-  node.textContent = aString;
-  aDocument.getElementsByTagName("head")[0].appendChild(node);
-  return node;
-}
-
 function openConsole()
 {
   HUDService.activateHUDForContext(tab);

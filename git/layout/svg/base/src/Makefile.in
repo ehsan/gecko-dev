@@ -63,10 +63,7 @@ CPPSRCS		= \
 		nsSVGImageFrame.cpp \
 		nsSVGInnerSVGFrame.cpp \
 		nsSVGIntegrationUtils.cpp \
-		SVGFEContainerFrame.cpp \
-		SVGFEImageFrame.cpp \
-		SVGFELeafFrame.cpp \
-		SVGFEUnstyledLeafFrame.cpp \
+		nsSVGLeafFrame.cpp \
 		nsSVGMarkerFrame.cpp \
 		nsSVGMaskFrame.cpp \
 		nsSVGOuterSVGFrame.cpp \

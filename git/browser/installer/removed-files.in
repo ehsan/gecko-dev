@@ -14,7 +14,6 @@
 @DLL_PREFIX@mozjs@DLL_SUFFIX@
 #endif
 LICENSE
-update.locale
 browserconfig.properties
 chrome/US.jar
 chrome/app-chrome.manifest
@@ -68,10 +67,6 @@ components/nsUrlClassifierTable.js
 components/nsXmlRpcClient.js
 components/pluginGlue.js
 components/sidebar.xpt
-#ifdef MOZ_B2G_RIL
-components/dom_telephony.xpt
-components/dom_telephony_worker.xpt
-#endif
 components/WeaveCrypto.js
 components/WeaveCrypto.manifest
 components/xmlextras.xpt
@@ -234,8 +229,6 @@ greprefs/xpinstall.js
 install.rdf
 modules/ISO8601DateUtils.jsm
 modules/JSON.jsm
-modules/SpatialNavigation.js
-modules/utils.js
 mozilla-runtime@BIN_SUFFIX@
 old-homepage-default.properties
 README.txt
@@ -257,7 +250,6 @@ res/fonts/mathfontMath4.properties
 res/fonts/mathfontPUA.properties
 res/fonts/pangoFontEncoding.properties
 res/forms.css
-res/full-screen-override.css
 res/hiddenWindow.html
 res/html.css
 res/html/gopher-audio.gif
@@ -320,7 +312,6 @@ searchplugins/atlas-sk.src
 searchplugins/baidu.gif
 searchplugins/baidu.png
 searchplugins/baidu.src
-searchplugins/bluu.xml
 searchplugins/bok-NO.gif
 searchplugins/bok-NO.png
 searchplugins/bok-NO.src
@@ -692,7 +683,6 @@ uninstall/uninst.exe
 uninstall/uninstall.exe
 xpicleanup@BIN_SUFFIX@
 #ifdef MOZ_OMNIJAR
-  omni.jar
   chrome/af.jar
   chrome/af.manifest
   chrome/ar.jar
@@ -917,12 +907,6 @@ xpicleanup@BIN_SUFFIX@
   components/PlacesProtocolHandler.js
   components/storage-Legacy.js
   components/storage-mozStorage.js
-#ifdef MOZ_B2G_RIL
-  components/nsTelephonyWorker.manifest
-  components/nsTelephonyWorker.js
-  components/Telephony.manifest
-  components/Telephony.js
-#endif
   components/txEXSLTRegExFunctions.js
   components/Weave.js
   components/WebContentConverter.js
@@ -939,42 +923,6 @@ xpicleanup@BIN_SUFFIX@
   defaults/profile/mimeTypes.rdf
   defaults/profile/prefs.js
   greprefs.js
-  hyphenation/
-  hyphenation/hyph_af.dic
-  hyphenation/hyph_bg.dic
-  hyphenation/hyph_ca.dic
-  hyphenation/hyph_cy.dic
-  hyphenation/hyph_da.dic
-  hyphenation/hyph_de-1901.dic
-  hyphenation/hyph_de-1996.dic
-  hyphenation/hyph_de-CH.dic
-  hyphenation/hyph_en_US.dic
-  hyphenation/hyph_eo.dic
-  hyphenation/hyph_es.dic
-  hyphenation/hyph_et.dic
-  hyphenation/hyph_fi.dic
-  hyphenation/hyph_fr.dic
-  hyphenation/hyph_gl.dic
-  hyphenation/hyph_hr.dic
-  hyphenation/hyph_hsb.dic
-  hyphenation/hyph_hu.dic
-  hyphenation/hyph_ia.dic
-  hyphenation/hyph_is.dic
-  hyphenation/hyph_it.dic
-  hyphenation/hyph_kmr.dic
-  hyphenation/hyph_la.dic
-  hyphenation/hyph_lt.dic
-  hyphenation/hyph_mn.dic
-  hyphenation/hyph_nb.dic
-  hyphenation/hyph_nl.dic
-  hyphenation/hyph_nn.dic
-  hyphenation/hyph_pt.dic
-  hyphenation/hyph_ru.dic
-  hyphenation/hyph_sh.dic
-  hyphenation/hyph_sl.dic
-  hyphenation/hyph_sv.dic
-  hyphenation/hyph_tr.dic
-  hyphenation/hyph_uk.dic
   modules/AddonLogging.jsm
   modules/AddonManager.jsm
   modules/AddonRepository.jsm
@@ -1049,6 +997,7 @@ xpicleanup@BIN_SUFFIX@
   modules/tabview/AllTabs.jsm
   modules/tabview/groups.jsm
   modules/tabview/utils.jsm
+  modules/utils.js
   modules/WindowDraggingUtils.jsm
   #ifdef XP_WIN
     modules/WindowsJumpLists.jsm
@@ -1102,7 +1051,6 @@ xpicleanup@BIN_SUFFIX@
 #else
   components/binary.manifest
   omni.jar
-  omni.ja
 #endif
 #ifdef XP_MACOSX
   ../Plug-Ins/PrintPDE.plugin/Contents/Info.plist
@@ -1140,10 +1088,6 @@ xpicleanup@BIN_SUFFIX@
   components/docshell.xpt
   components/dom.xpt
   components/dom_base.xpt
-#ifdef MOZ_B2G_RIL
-  components/dom_telephony.xpt
-  components/dom_telephony_worker.xpt
-#endif
   components/dom_canvas.xpt
   components/dom_core.xpt
   components/dom_css.xpt
@@ -1313,7 +1257,6 @@ xpicleanup@BIN_SUFFIX@
     components/libimgicon.so
     dictionaries/PL.aff
     dictionaries/PL.dic
-    icons/document.png
     icons/mozicon16.xpm
     icons/mozicon50.xpm
     plugins/libnullplugin.so
@@ -1330,24 +1273,20 @@ xpicleanup@BIN_SUFFIX@
   js3250.dll
   plugins/npnul32.dll
   #if _MSC_VER != 1400
-    Microsoft.VC80.CRT.manifest
-    msvcm80.dll
-    msvcp80.dll
-    msvcr80.dll
+    @BINPATH@/Microsoft.VC80.CRT.manifest
+    @BINPATH@/msvcm80.dll
+    @BINPATH@/msvcp80.dll
+    @BINPATH@/msvcr80.dll
   #endif
   #if _MSC_VER != 1500
-    Microsoft.VC90.CRT.manifest
-    msvcm90.dll
-    msvcp90.dll
-    msvcr90.dll
+    @BINPATH@/Microsoft.VC90.CRT.manifest
+    @BINPATH@/msvcm90.dll
+    @BINPATH@/msvcp90.dll
+    @BINPATH@/msvcr90.dll
   #endif
   #if _MSC_VER != 1600
-    msvcp100.dll
-    msvcr100.dll
-  #endif
-  #if _MSC_VER != 1700
-    msvcp110.dll
-    msvcr110.dll
+    @BINPATH@/msvcp100.dll
+    @BINPATH@/msvcr100.dll
   #endif
   mozcrt19.dll
   mozcpp19.dll

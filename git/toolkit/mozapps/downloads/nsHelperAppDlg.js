@@ -109,7 +109,7 @@ nsUnkownContentTypeDialogProgressListener.prototype = {
   onStateChange: function( aWebProgress, aRequest, aStateFlags, aStatus ) {
   },
 
-  onLocationChange: function( aWebProgress, aRequest, aLocation, aFlags ) {
+  onLocationChange: function( aWebProgress, aRequest, aLocation ) {
   },
 
   onSecurityChange: function( aWebProgress, aRequest, state ) {
@@ -311,9 +311,13 @@ nsUnknownContentTypeDialog.prototype = {
                             .getService(Components.interfaces.nsIDownloadManager);
     picker.displayDirectory = dnldMgr.userDownloadsDirectory;
 
+    var relatedURI = null;
+    if (aContext.document)
+      relatedURI = aContext.document.documentURIObject;
+
     // The last directory preference may not exist, which will throw.
     try {
-      var lastDir = gDownloadLastDir.getFile(aLauncher.source);
+      var lastDir = gDownloadLastDir.getFile(relatedURI);
       if (isUsableDirectory(lastDir))
         picker.displayDirectory = lastDir;
     }
@@ -342,7 +346,7 @@ nsUnknownContentTypeDialog.prototype = {
       var newDir = result.parent.QueryInterface(Components.interfaces.nsILocalFile);
 
       // Do not store the last save directory as a pref inside the private browsing mode
-      gDownloadLastDir.setFile(aLauncher.source, newDir);
+      gDownloadLastDir.setFile(relatedURI, newDir);
 
       result = this.validateLeafName(newDir, result.leafName, null);
     }

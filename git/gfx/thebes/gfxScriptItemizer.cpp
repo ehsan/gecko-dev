@@ -247,7 +247,7 @@ gfxScriptItemizer::Next(PRUint32& aRunStart, PRUint32& aRunLimit,
 {
     /* if we've fallen off the end of the text, we're done */
     if (scriptLimit >= textLength) {
-        return false;
+        return PR_FALSE;
     }
 
     SYNC_FIXUP();
@@ -341,5 +341,5 @@ gfxScriptItemizer::Next(PRUint32& aRunStart, PRUint32& aRunLimit,
     aRunLimit = scriptLimit;
     aRunScript = scriptCode;
 
-    return true;
+    return PR_TRUE;
 }

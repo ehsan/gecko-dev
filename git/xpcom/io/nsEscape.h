@@ -194,9 +194,9 @@ NS_Escape(const nsCString& aOriginal, nsCString& aEscaped,
 {
   char* esc = nsEscape(aOriginal.get(), aMask);
   if (! esc)
-    return false;
+    return PR_FALSE;
   aEscaped.Adopt(esc);
-  return true;
+  return PR_TRUE;
 }
 
 /**

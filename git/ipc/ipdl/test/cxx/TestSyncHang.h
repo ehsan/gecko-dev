@@ -17,10 +17,6 @@ public:
     TestSyncHangParent();
     virtual ~TestSyncHangParent();
 
-    static bool RunTestInProcesses() { return true; }
-    // FIXME/bug 703323 Could work if modified
-    static bool RunTestInThreads() { return false; }
-
     void Main();
 
 protected:    

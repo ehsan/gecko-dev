@@ -39,8 +39,6 @@
 #include "nsIDOMHTMLMenuItemElement.h"
 #include "nsXULContextMenuBuilder.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
 
 nsXULContextMenuBuilder::nsXULContextMenuBuilder()
   : mCurrentGeneratedItemId(0)
@@ -90,17 +88,17 @@ nsXULContextMenuBuilder::OpenContainer(const nsAString& aLabel)
     nsresult rv = CreateElement(nsGkAtoms::menu, nsnull, getter_AddRefs(menu));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    menu->SetAttr(kNameSpaceID_None, nsGkAtoms::label, aLabel, false);
+    menu->SetAttr(kNameSpaceID_None, nsGkAtoms::label, aLabel, PR_FALSE);
 
     nsCOMPtr<nsIContent> menuPopup;
     rv = CreateElement(nsGkAtoms::menupopup, nsnull,
                        getter_AddRefs(menuPopup));
     NS_ENSURE_SUCCESS(rv, rv);
         
-    rv = menu->AppendChildTo(menuPopup, false);
+    rv = menu->AppendChildTo(menuPopup, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = mCurrentNode->AppendChildTo(menu, false);
+    rv = mCurrentNode->AppendChildTo(menu, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
     mCurrentNode = menuPopup;
@@ -128,26 +126,26 @@ nsXULContextMenuBuilder::AddItemFor(nsIDOMHTMLMenuItemElement* aElement,
     // The menu is only temporary, so we don't need to handle
     // the radio type precisely.
     menuitem->SetAttr(kNameSpaceID_None, nsGkAtoms::type,
-                      NS_LITERAL_STRING("checkbox"), false);
+                      NS_LITERAL_STRING("checkbox"), PR_FALSE);
     bool checked;
     aElement->GetChecked(&checked);
     if (checked) {
       menuitem->SetAttr(kNameSpaceID_None, nsGkAtoms::checked,
-                        NS_LITERAL_STRING("true"), false);
+                        NS_LITERAL_STRING("true"), PR_FALSE);
     }
   }
 
   nsAutoString label;
   aElement->GetLabel(label);
-  menuitem->SetAttr(kNameSpaceID_None, nsGkAtoms::label, label, false);
+  menuitem->SetAttr(kNameSpaceID_None, nsGkAtoms::label, label, PR_FALSE);
 
   nsAutoString icon;
   aElement->GetIcon(icon);
   if (!icon.IsEmpty()) {
     menuitem->SetAttr(kNameSpaceID_None, nsGkAtoms::_class,
-                      NS_LITERAL_STRING("menuitem-iconic"), false);
+                      NS_LITERAL_STRING("menuitem-iconic"), PR_FALSE);
     if (aCanLoadIcon) {
-      menuitem->SetAttr(kNameSpaceID_None, nsGkAtoms::image, icon, false);
+      menuitem->SetAttr(kNameSpaceID_None, nsGkAtoms::image, icon, PR_FALSE);
     }
   }
 
@@ -155,10 +153,10 @@ nsXULContextMenuBuilder::AddItemFor(nsIDOMHTMLMenuItemElement* aElement,
   aElement->GetDisabled(&disabled);
   if (disabled) {
     menuitem->SetAttr(kNameSpaceID_None, nsGkAtoms::disabled,
-                      NS_LITERAL_STRING("true"), false);
+                      NS_LITERAL_STRING("true"), PR_FALSE);
   }
 
-  return mCurrentNode->AppendChildTo(menuitem, false);
+  return mCurrentNode->AppendChildTo(menuitem, PR_FALSE);
 }
 
 NS_IMETHODIMP
@@ -173,7 +171,7 @@ nsXULContextMenuBuilder::AddSeparator()
                               getter_AddRefs(menuseparator));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return mCurrentNode->AppendChildTo(menuseparator, false);
+  return mCurrentNode->AppendChildTo(menuseparator, PR_FALSE);
 }
 
 NS_IMETHODIMP
@@ -189,7 +187,7 @@ nsXULContextMenuBuilder::UndoAddSeparator()
     return NS_OK;
   }
 
-  return mCurrentNode->RemoveChildAt(count - 1, false);
+  return mCurrentNode->RemoveChildAt(count - 1, PR_FALSE);
 }
 
 NS_IMETHODIMP
@@ -249,7 +247,8 @@ nsXULContextMenuBuilder::CreateElement(nsIAtom* aTag,
     aTag, nsnull, kNameSpaceID_XUL, nsIDOMNode::ELEMENT_NODE);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  nsresult rv = NS_NewElement(aResult, nodeInfo.forget(), NOT_FROM_PARSER);
+  nsresult rv = NS_NewElement(aResult, kNameSpaceID_XUL, nodeInfo.forget(),
+                              mozilla::dom::NOT_FROM_PARSER);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -262,7 +261,7 @@ nsXULContextMenuBuilder::CreateElement(nsIAtom* aTag,
   }
 
   (*aResult)->SetAttr(kNameSpaceID_None, mGeneratedItemIdAttr, generateditemid,
-                      false);
+                      PR_FALSE);
 
   return NS_OK;
 }

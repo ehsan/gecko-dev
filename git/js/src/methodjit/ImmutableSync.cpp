@@ -156,6 +156,10 @@ ImmutableSync::entryFor(FrameEntry *fe)
 void
 ImmutableSync::sync(FrameEntry *fe)
 {
+#ifdef DEBUG
+    top = fe;
+#endif
+
     if (fe->isCopy())
         syncCopy(fe);
     else

@@ -124,7 +124,7 @@ void
 nsImageControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   if (!GetPrevInFlow()) {
-    nsFormControlFrame::RegUnRegAccessKey(this, false);
+    nsFormControlFrame::RegUnRegAccessKey(this, PR_FALSE);
   }
   nsImageControlFrameSuper::DestroyFrom(aDestructRoot);
 }
@@ -193,7 +193,7 @@ nsImageControlFrame::Reflow(nsPresContext*         aPresContext,
   DO_GLOBAL_REFLOW_COUNT("nsImageControlFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
   if (!GetPrevInFlow() && (mState & NS_FRAME_FIRST_REFLOW)) {
-    nsFormControlFrame::RegUnRegAccessKey(this, true);
+    nsFormControlFrame::RegUnRegAccessKey(this, PR_TRUE);
   }
   return nsImageControlFrameSuper::Reflow(aPresContext, aDesiredSize, aReflowState, aStatus);
 }

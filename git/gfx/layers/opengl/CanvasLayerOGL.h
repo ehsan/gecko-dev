@@ -58,7 +58,7 @@ public:
     : CanvasLayer(aManager, NULL),
       LayerOGL(aManager),
       mTexture(0),
-      mDelayedUpdates(false)
+      mDelayedUpdates(PR_FALSE)
 #if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
       ,mPixmap(0)
 #endif
@@ -82,7 +82,6 @@ protected:
   nsRefPtr<gfxASurface> mCanvasSurface;
   nsRefPtr<GLContext> mCanvasGLContext;
   gl::ShaderProgramType mLayerProgram;
-  RefPtr<gfx::DrawTarget> mDrawTarget;
 
   void MakeTexture();
   GLuint mTexture;

@@ -87,7 +87,7 @@ SetUpEncoder(nsIDOMNode *aRoot, const nsACString& aCharset,
   bool entireDocument = true;
   nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(aRoot));
   if (!domDoc) {
-    entireDocument = false;
+    entireDocument = PR_FALSE;
     rv = aRoot->GetOwnerDocument(getter_AddRefs(domDoc));
     if (NS_FAILED(rv))
       return rv;

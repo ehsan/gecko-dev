@@ -141,8 +141,6 @@
 #endif
 
   </keyset>
-  
-  <tooltip id="aHTMLTooltip" onpopupshowing="return FillInHTMLTooltip(document.tooltipNode);"/>
 
   <menupopup id="viewSourceContextMenu">
     <menuitem id="context-back"
@@ -238,7 +236,7 @@
   <vbox id="appcontent" flex="1">
 
     <browser id="content" type="content-primary" name="content" src="about:blank" flex="1"
-             context="viewSourceContextMenu" showcaret="true" tooltip="aHTMLTooltip"/>
+             context="viewSourceContextMenu" showcaret="true"/>
     <findbar id="FindToolbar" browserid="content"/>
   </vbox> 
 

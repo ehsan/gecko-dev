@@ -53,12 +53,6 @@
 #include "nsIURI.h"
 #include "nsTArray.h"
 
-#define PREFETCH      0x00000001
-#define DNS_PREFETCH  0x00000002
-#define STYLESHEET    0x00000004
-#define NEXT          0x00000008
-#define ALTERNATE     0x00000010
-
 class nsIDocument;
 
 class nsStyleLinkElement : public nsIDOMLinkStyle,
@@ -86,14 +80,14 @@ public:
   virtual void OverrideBaseURI(nsIURI* aNewBaseURI);
   virtual void SetLineNumber(PRUint32 aLineNumber);
 
-  static PRUint32 ParseLinkTypes(const nsAString& aTypes);
-  
+  static void ParseLinkTypes(const nsAString& aTypes, nsTArray<nsString>& aResult);
+
   void UpdateStyleSheetInternal() { UpdateStyleSheetInternal(nsnull); }
 protected:
   /**
    * @param aOldDocument should be non-null only if we're updating because we
    *                     removed the node from the document.
-   * @param aForceUpdate true will force the update even if the URI has not
+   * @param aForceUpdate PR_TRUE will force the update even if the URI has not
    *                     changed.  This should be used in cases when something
    *                     about the content that affects the resulting sheet
    *                     changed but the URI may not have changed.
@@ -113,7 +107,7 @@ private:
   /**
    * @param aOldDocument should be non-null only if we're updating because we
    *                     removed the node from the document.
-   * @param aForceUpdate true will force the update even if the URI has not
+   * @param aForceUpdate PR_TRUE will force the update even if the URI has not
    *                     changed.  This should be used in cases when something
    *                     about the content that affects the resulting sheet
    *                     changed but the URI may not have changed.

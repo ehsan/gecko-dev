@@ -73,7 +73,7 @@ PostEvent(nsServerSocket *s, nsServerSocketFunc func)
 nsServerSocket::nsServerSocket()
   : mLock("nsServerSocket.mLock")
   , mFD(nsnull)
-  , mAttached(false)
+  , mAttached(PR_FALSE)
 {
   // we want to be able to access the STS directly, and it may not have been
   // constructed yet.  the STS constructor sets gSocketTransportService.
@@ -170,7 +170,7 @@ nsServerSocket::TryAttach()
   if (NS_FAILED(rv))
     return rv;
 
-  mAttached = true;
+  mAttached = PR_TRUE;
 
   //
   // now, configure our poll flags for listening...
@@ -301,11 +301,11 @@ nsServerSocket::InitWithAddress(const PRNetAddr *aAddr, PRInt32 aBackLog)
   PRSocketOptionData opt;
 
   opt.option = PR_SockOpt_Reuseaddr;
-  opt.value.reuse_addr = true;
+  opt.value.reuse_addr = PR_TRUE;
   PR_SetSocketOption(mFD, &opt);
 
   opt.option = PR_SockOpt_Nonblocking;
-  opt.value.non_blocking = true;
+  opt.value.non_blocking = PR_TRUE;
   PR_SetSocketOption(mFD, &opt);
 
   if (PR_Bind(mFD, aAddr) != PR_SUCCESS)

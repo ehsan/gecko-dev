@@ -55,6 +55,8 @@
 #include "TextInputHandler.h"
 #include "nsCocoaUtils.h"
 
+#include "nsIAppShell.h"
+
 #include "nsString.h"
 #include "nsIDragService.h"
 
@@ -396,6 +398,8 @@ public:
                                  const nsIntRect &aRect,
                                  EVENT_CALLBACK aHandleEventFunction,
                                  nsDeviceContext *aContext,
+                                 nsIAppShell *aAppShell = nsnull,
+                                 nsIToolkit *aToolkit = nsnull,
                                  nsWidgetInitData *aInitData = nsnull);
 
   NS_IMETHOD              Destroy();
@@ -435,7 +439,8 @@ public:
   NS_IMETHOD        SetCursor(nsCursor aCursor);
   NS_IMETHOD        SetCursor(imgIContainer* aCursor, PRUint32 aHotspotX, PRUint32 aHotspotY);
   
-  NS_IMETHOD        CaptureRollupEvents(nsIRollupListener * aListener, bool aDoCapture, bool aConsumeRollupEvent);
+  NS_IMETHOD        CaptureRollupEvents(nsIRollupListener * aListener, nsIMenuRollup * aMenuRollup, 
+                                        bool aDoCapture, bool aConsumeRollupEvent);
   NS_IMETHOD        SetTitle(const nsAString& title);
 
   NS_IMETHOD        GetAttention(PRInt32 aCycleCount);
@@ -446,9 +451,10 @@ public:
   NS_IMETHOD        ForceUpdateNativeMenuAt(const nsAString& indexString);
 
   NS_IMETHOD        ResetInputState();
-  NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
-                                    const InputContextAction& aAction);
-  NS_IMETHOD_(InputContext) GetInputContext();
+  NS_IMETHOD        SetIMEOpenState(bool aState);
+  NS_IMETHOD        GetIMEOpenState(bool* aState);
+  NS_IMETHOD        SetInputMode(const IMEContext& aContext);
+  NS_IMETHOD        GetInputMode(IMEContext& aContext);
   NS_IMETHOD        CancelIMEComposition();
   NS_IMETHOD        GetToggledKeyState(PRUint32 aKeyCode,
                                        bool* aLEDState);
@@ -542,7 +548,7 @@ protected:
 
   NSView<mozView>*      mView;      // my parallel cocoa view (ChildView or NativeScrollbarView), [STRONG]
   nsRefPtr<mozilla::widget::TextInputHandler> mTextInputHandler;
-  InputContext          mInputContext;
+  IMEContext            mIMEContext;
 
   NSView<mozView>*      mParentView;
   nsIWidget*            mParentWidget;

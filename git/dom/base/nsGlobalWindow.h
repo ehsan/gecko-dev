@@ -61,7 +61,11 @@
 #include "nsIBrowserDOMWindow.h"
 #include "nsIDocShellTreeOwner.h"
 #include "nsIDocShellTreeItem.h"
+#include "nsIDOMClientInformation.h"
 #include "nsIDOMEventTarget.h"
+#include "nsIDOMNavigator.h"
+#include "nsIDOMNavigatorGeolocation.h"
+#include "nsIDOMNavigatorDesktopNotification.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIDOMJSWindow.h"
@@ -81,6 +85,8 @@
 #include "nsIDOMCrypto.h"
 #endif
 #include "nsIPrincipal.h"
+#include "nsPluginArray.h"
+#include "nsMimeTypeArray.h"
 #include "nsIXPCScriptable.h"
 #include "nsPoint.h"
 #include "nsSize.h"
@@ -124,6 +130,7 @@ class nsIControllers;
 
 class nsBarProp;
 class nsLocation;
+class nsNavigator;
 class nsScreen;
 class nsHistory;
 class nsPerformance;
@@ -136,17 +143,13 @@ class PostMessageEvent;
 class nsRunnable;
 
 class nsDOMOfflineResourceList;
+class nsGeolocation;
+class nsDesktopNotificationCenter;
 class nsDOMMozURLProperty;
 
 #ifdef MOZ_DISABLE_DOMCRYPTO
 class nsIDOMCrypto;
 #endif
-
-namespace mozilla {
-namespace dom {
-class Navigator;
-} // namespace dom
-} // namespace mozilla
 
 extern nsresult
 NS_CreateJSTimeoutHandler(nsGlobalWindow *aWindow,
@@ -242,7 +245,6 @@ public:
     return true;
   }
   JSString *obj_toString(JSContext *cx, JSObject *wrapper);
-  void finalize(JSContext *cx, JSObject *proxy);
 
   static nsOuterWindowProxy singleton;
 };
@@ -287,7 +289,6 @@ public:
 
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::TimeDuration TimeDuration;
-  typedef mozilla::dom::Navigator Navigator;
   typedef nsDataHashtable<nsUint64HashKey, nsGlobalWindow*> WindowByIdTable;
 
   // public methods
@@ -297,16 +298,6 @@ public:
 
   // nsISupports
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-
-  // nsWrapperCache
-  JSObject *WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
-                       bool *triedToWrap)
-  {
-    NS_ASSERTION(IsOuterWindow(),
-                 "Inner window supports nsWrapperCache, fix WrapObject!");
-    *triedToWrap = true;
-    return EnsureInnerWindow() ? GetWrapper() : nsnull;
-  }
 
   // nsIScriptGlobalObject
   virtual nsIScriptContext *GetContext();
@@ -319,6 +310,7 @@ public:
   virtual nsresult EnsureScriptEnvironment(PRUint32 aLangID);
 
   virtual nsIScriptContext *GetScriptContext(PRUint32 lang);
+  virtual void *GetScriptGlobal(PRUint32 lang);
 
   // Set a new script language context for this global.  The native global
   // for the context is created by the context's GetNativeGlobal() method.
@@ -447,8 +439,6 @@ public:
   // Prevent further dialogs in this (top level) window
   void PreventFurtherDialogs();
 
-  virtual void SetHasAudioAvailableEventListeners();
-
   nsIScriptContext *GetContextInternal()
   {
     if (mOuterWindow) {
@@ -513,7 +503,7 @@ public:
 
   void InitJavaProperties();
 
-  virtual NS_HIDDEN_(JSObject*)
+  virtual NS_HIDDEN_(void*)
     GetCachedXBLPrototypeHandler(nsXBLPrototypeHandler* aKey);
 
   virtual NS_HIDDEN_(void)
@@ -608,7 +598,7 @@ protected:
   bool IsPopupSpamWindow()
   {
     if (IsInnerWindow() && !mOuterWindow) {
-      return false;
+      return PR_FALSE;
     }
 
     return GetOuterWindowInternal()->mIsPopupSpam;
@@ -684,6 +674,7 @@ protected:
 
   // JS specific timeout functions (JS args grabbed from context).
   nsresult SetTimeoutOrInterval(bool aIsInterval, PRInt32* aReturn);
+  nsresult ClearTimeoutOrInterval();
   nsresult ResetTimersForNonBackgroundWindow();
 
   // The timeout implementation functions.
@@ -760,13 +751,13 @@ protected:
   void Freeze()
   {
     NS_ASSERTION(!IsFrozen(), "Double-freezing?");
-    mIsFrozen = true;
+    mIsFrozen = PR_TRUE;
     NotifyDOMWindowFrozen(this);
   }
 
   void Thaw()
   {
-    mIsFrozen = false;
+    mIsFrozen = PR_FALSE;
     NotifyDOMWindowThawed(this);
   }
 
@@ -905,7 +896,7 @@ protected:
   nsCOMPtr<nsIArray>            mArguments;
   nsCOMPtr<nsIArray>            mArgumentsLast;
   nsCOMPtr<nsIPrincipal>        mArgumentsOrigin;
-  nsRefPtr<Navigator>           mNavigator;
+  nsRefPtr<nsNavigator>         mNavigator;
   nsRefPtr<nsScreen>            mScreen;
   nsRefPtr<nsPerformance>       mPerformance;
   nsRefPtr<nsDOMWindowList>     mFrames;
@@ -975,7 +966,7 @@ protected:
 
   nsCOMPtr<nsIDOMOfflineResourceList> mApplicationCache;
 
-  nsDataHashtable<nsVoidPtrHashKey, JSObject*> mCachedXBLPrototypeHandlers;
+  nsDataHashtable<nsVoidPtrHashKey, void*> mCachedXBLPrototypeHandlers;
 
   nsCOMPtr<nsIDocument> mSuspendedDoc;
 
@@ -1021,8 +1012,8 @@ public:
   nsGlobalChromeWindow(nsGlobalWindow *aOuterWindow)
     : nsGlobalWindow(aOuterWindow)
   {
-    mIsChrome = true;
-    mCleanMessageManager = true;
+    mIsChrome = PR_TRUE;
+    mCleanMessageManager = PR_TRUE;
   }
 
   ~nsGlobalChromeWindow()
@@ -1034,7 +1025,7 @@ public:
         mMessageManager.get())->Disconnect();
     }
 
-    mCleanMessageManager = false;
+    mCleanMessageManager = PR_FALSE;
   }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsGlobalChromeWindow,
@@ -1056,7 +1047,7 @@ public:
   nsGlobalModalWindow(nsGlobalWindow *aOuterWindow)
     : nsGlobalWindow(aOuterWindow)
   {
-    mIsModalContentWindow = true;
+    mIsModalContentWindow = PR_TRUE;
   }
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -1071,6 +1062,52 @@ public:
 protected:
   nsCOMPtr<nsIVariant> mReturnValue;
 };
+
+
+//*****************************************************************************
+// nsNavigator: Script "navigator" object
+//*****************************************************************************
+
+class nsNavigator : public nsIDOMNavigator,
+                    public nsIDOMClientInformation,
+                    public nsIDOMNavigatorGeolocation,
+                    public nsIDOMNavigatorDesktopNotification
+{
+public:
+  nsNavigator(nsIDocShell *aDocShell);
+  virtual ~nsNavigator();
+
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOMNAVIGATOR
+  NS_DECL_NSIDOMCLIENTINFORMATION
+  NS_DECL_NSIDOMNAVIGATORGEOLOCATION
+  NS_DECL_NSIDOMNAVIGATORDESKTOPNOTIFICATION
+  
+  void SetDocShell(nsIDocShell *aDocShell);
+  nsIDocShell *GetDocShell()
+  {
+    return mDocShell;
+  }
+
+  void LoadingNewDocument();
+  nsresult RefreshMIMEArray();
+
+  static bool HasDesktopNotificationSupport();
+
+  PRInt64 SizeOf() const;
+
+protected:
+  nsRefPtr<nsMimeTypeArray> mMimeTypes;
+  nsRefPtr<nsPluginArray> mPlugins;
+  nsRefPtr<nsGeolocation> mGeolocation;
+  nsRefPtr<nsDesktopNotificationCenter> mNotification;
+  nsIDocShell* mDocShell; // weak reference
+};
+
+nsresult NS_GetNavigatorUserAgent(nsAString& aUserAgent);
+nsresult NS_GetNavigatorPlatform(nsAString& aPlatform);
+nsresult NS_GetNavigatorAppVersion(nsAString& aAppVersion);
+nsresult NS_GetNavigatorAppName(nsAString& aAppName);
 
 /* factory function */
 nsresult

@@ -67,7 +67,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGForeignObjectFrame)
 
 nsSVGForeignObjectFrame::nsSVGForeignObjectFrame(nsStyleContext* aContext)
   : nsSVGForeignObjectFrameBase(aContext),
-    mInReflow(false)
+    mInReflow(PR_FALSE)
 {
   AddStateBits(NS_FRAME_REFLOW_ROOT | NS_FRAME_MAY_BE_TRANSFORMED);
 }
@@ -394,7 +394,7 @@ nsSVGForeignObjectFrame::NotifySVGChanged(PRUint32 aFlags)
       static_cast<nsSVGForeignObjectElement*>(mContent);
     if (fO->mLengthAttributes[nsSVGForeignObjectElement::WIDTH].IsPercentage() ||
         fO->mLengthAttributes[nsSVGForeignObjectElement::HEIGHT].IsPercentage()) {
-      reflow = true;
+      reflow = PR_TRUE;
     }
   }
 
@@ -436,6 +436,9 @@ gfxRect
 nsSVGForeignObjectFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
                                              PRUint32 aFlags)
 {
+  NS_ASSERTION(!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
+               "Should not be calling this on a non-display child");
+
   nsSVGForeignObjectElement *content =
     static_cast<nsSVGForeignObjectElement*>(mContent);
 
@@ -582,7 +585,7 @@ nsSVGForeignObjectFrame::DoReflow()
   nsSize size(nsPresContext::CSSPixelsToAppUnits(width),
               nsPresContext::CSSPixelsToAppUnits(height));
 
-  mInReflow = true;
+  mInReflow = PR_TRUE;
 
   nsHTMLReflowState reflowState(presContext, kid,
                                 renderingContext,
@@ -607,7 +610,7 @@ nsSVGForeignObjectFrame::DoReflow()
   FinishReflowChild(kid, presContext, &reflowState, desiredSize, 0, 0,
                     NS_FRAME_NO_MOVE_FRAME);
   
-  mInReflow = false;
+  mInReflow = PR_FALSE;
   FlushDirtyRegion(0);
 }
 

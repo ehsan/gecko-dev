@@ -205,7 +205,9 @@ public:
     return IsCurrentThread(mAudioThread);
   }
 
-  bool OnStateMachineThread() const;
+  bool OnStateMachineThread() const {
+    return IsCurrentThread(GetStateMachineThread());
+  }
  
   nsresult GetBuffered(nsTimeRanges* aBuffered);
 
@@ -264,10 +266,6 @@ public:
 
   // Drop reference to decoder.  Only called during shutdown dance.
   void ReleaseDecoder() { mDecoder = nsnull; }
-
-   // Called when a "MozAudioAvailable" event listener is added to the media
-   // element. Called on the main thread.
-   void NotifyAudioAvailableListener();
 
 protected:
 

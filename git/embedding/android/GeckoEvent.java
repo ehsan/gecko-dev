@@ -74,7 +74,6 @@ public class GeckoEvent {
     public static final int GECKO_EVENT_SYNC = 15;
     public static final int ACTIVITY_START = 17;
     public static final int SAVE_STATE = 18;
-    public static final int BROADCAST = 19;
 
     public static final int IME_COMPOSITION_END = 0;
     public static final int IME_COMPOSITION_BEGIN = 1;
@@ -106,7 +105,7 @@ public class GeckoEvent {
     public int mMetaState, mFlags;
     public int mKeyCode, mUnicodeChar;
     public int mOffset, mCount;
-    public String mCharacters, mCharactersExtra;
+    public String mCharacters;
     public int mRangeType, mRangeStyles;
     public int mRangeForeColor, mRangeBackColor;
     public Location mLocation;
@@ -148,9 +147,9 @@ public class GeckoEvent {
 
         if (s.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
             mType = ACCELERATION_EVENT;
-            mX = s.values[0];
-            mY = s.values[1];
-            mZ = s.values[2];
+            mX = s.values[0] / SensorManager.GRAVITY_EARTH;
+            mY = s.values[1] / SensorManager.GRAVITY_EARTH;
+            mZ = s.values[2] / SensorManager.GRAVITY_EARTH;
         }
         else {
             mType = ORIENTATION_EVENT;
@@ -223,12 +222,6 @@ public class GeckoEvent {
 
         mP0 = new Point(w, h);
         mP1 = new Point(screenw, screenh);
-    }
-
-    public GeckoEvent(String subject, String data) {
-        mType = BROADCAST;
-        mCharacters = subject;
-        mCharactersExtra = data;
     }
 
     public GeckoEvent(String uri) {

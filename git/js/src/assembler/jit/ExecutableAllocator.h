@@ -28,14 +28,13 @@
 
 #include <stddef.h> // for ptrdiff_t
 #include <limits>
-
-#include "jsalloc.h"
-#include "jsapi.h"
-#include "jsprvtd.h"
-
 #include "assembler/wtf/Assertions.h"
-#include "js/HashTable.h"
-#include "js/Vector.h"
+
+#include "jsapi.h"
+#include "jshashtable.h"
+#include "jsprvtd.h"
+#include "jsvector.h"
+#include "jslock.h"
 
 #if WTF_CPU_SPARC
 #ifdef linux  // bugzilla 502369
@@ -166,12 +165,10 @@ private:
 };
 
 class ExecutableAllocator {
-    typedef void (*DestroyCallback)(void* addr, size_t size);
     enum ProtectionSetting { Writable, Executable };
-    DestroyCallback destroyCallback;
 
 public:
-    ExecutableAllocator() : destroyCallback(NULL)
+    ExecutableAllocator()
     {
         if (!pageSize) {
             pageSize = determinePageSize();
@@ -224,17 +221,11 @@ public:
 
     void releasePoolPages(ExecutablePool *pool) {
         JS_ASSERT(pool->m_allocation.pages);
-        if (destroyCallback)
-            destroyCallback(pool->m_allocation.pages, pool->m_allocation.size);
         systemRelease(pool->m_allocation);
         m_pools.remove(m_pools.lookup(pool));   // this asserts if |pool| is not in m_pools
     }
 
-    void sizeOfCode(size_t *method, size_t *regexp, size_t *unused) const;
-
-    void setDestroyCallback(DestroyCallback destroyCallback) {
-        this->destroyCallback = destroyCallback;
-    }
+    void getCodeStats(size_t& method, size_t& regexp, size_t& unused) const;
 
 private:
     static size_t pageSize;

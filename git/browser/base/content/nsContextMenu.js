@@ -277,10 +277,9 @@ nsContextMenu.prototype = {
     // View image depends on having an image that's not standalone
     // (or is in a frame), or a canvas.
     this.showItem("context-viewimage", (this.onImage &&
-                  (!this.inSyntheticDoc || this.inFrame)) || this.onCanvas);
+                  (!this.onStandaloneImage || this.inFrame)) || this.onCanvas);
 
-    // View video depends on not having a standalone video.
-    this.showItem("context-viewvideo", this.onVideo && (!this.inSyntheticDoc || this.inFrame));
+    this.showItem("context-viewvideo", this.onVideo);
     this.setItemAttr("context-viewvideo",  "disabled", !this.mediaURL);
 
     // View background image depends on whether there is one.
@@ -418,7 +417,7 @@ nsContextMenu.prototype = {
     this.showItem("context-media-unmute", onMedia && this.target.muted);
     this.showItem("context-media-showcontrols", onMedia && !this.target.controls);
     this.showItem("context-media-hidecontrols", onMedia && this.target.controls);
-    this.showItem("context-video-fullscreen", this.onVideo && this.target.ownerDocument.mozFullScreenElement == null);
+    this.showItem("context-video-fullscreen", this.onVideo);
     var statsShowing = this.onVideo && this.target.wrappedJSObject.mozMediaStatisticsShowing;
     this.showItem("context-video-showstats", this.onVideo && this.target.controls && !statsShowing);
     this.showItem("context-video-hidestats", this.onVideo && this.target.controls && statsShowing);
@@ -467,6 +466,7 @@ nsContextMenu.prototype = {
     this.onImage           = false;
     this.onLoadedImage     = false;
     this.onCompletedImage  = false;
+    this.onStandaloneImage = false;
     this.onCanvas          = false;
     this.onVideo           = false;
     this.onAudio           = false;
@@ -482,7 +482,6 @@ nsContextMenu.prototype = {
     this.linkProtocol      = "";
     this.onMathML          = false;
     this.inFrame           = false;
-    this.inSyntheticDoc    = false;
     this.hasBGImage        = false;
     this.bgImageURL        = "";
     this.onEditableArea    = false;
@@ -501,8 +500,6 @@ nsContextMenu.prototype = {
     // Remember the node that was clicked.
     this.target = aNode;
 
-    // Check if we are in a synthetic document (stand alone image, video, etc.).
-    this.inSyntheticDoc =  this.target.ownerDocument.mozSyntheticDocument;
     // First, do checks for nodes that never have children.
     if (this.target.nodeType == Node.ELEMENT_NODE) {
       // See if the user clicked on an image.
@@ -518,6 +515,8 @@ nsContextMenu.prototype = {
           this.onCompletedImage = true;
 
         this.mediaURL = this.target.currentURI.spec;
+        if (this.target.ownerDocument instanceof ImageDocument)
+          this.onStandaloneImage = true;
       }
       else if (this.target instanceof HTMLCanvasElement) {
         this.onCanvas = true;
@@ -855,19 +854,14 @@ nsContextMenu.prototype = {
     canvas.height = video.videoHeight;
     var ctxDraw = canvas.getContext("2d");
     ctxDraw.drawImage(video, 0, 0);
-    saveImageURL(canvas.toDataURL("image/jpeg", ""), name, "SaveImageTitle", true, false, document.documentURIObject);
+    saveImageURL(canvas.toDataURL("image/jpg", ""), name, "SaveImageTitle", true, false, document.documentURIObject);
   },
 
   fullScreenVideo: function () {
-    let video = this.target;
-    if (document.mozFullScreenEnabled)
-      video.mozRequestFullScreen();
-    else {
-      // Fallback for the legacy full-screen video implementation.
-      video.pause();
-      openDialog("chrome://browser/content/fullscreen-video.xhtml",
-                  "", "chrome,centerscreen,dialog=no", video);
-    }
+    this.target.pause();
+
+    openDialog("chrome://browser/content/fullscreen-video.xhtml",
+               "", "chrome,centerscreen,dialog=no", this.target);
   },
 
   // Change current window to the URL of the background image.
@@ -1403,23 +1397,11 @@ nsContextMenu.prototype = {
     if (itemId == -1) {
       var title = doc.title;
       var description = PlacesUIUtils.getDescriptionFromDocument(doc);
-      PlacesUIUtils.showBookmarkDialog({ action: "add"
-                                       , type: "bookmark"
-                                       , uri: uri
-                                       , title: title
-                                       , description: description
-                                       , hiddenRows: [ "description"
-                                                     , "location"
-                                                     , "loadInSidebar"
-                                                     , "keyword" ]
-                                       }, window.top);
+      PlacesUIUtils.showMinimalAddBookmarkUI(uri, title, description);
     }
-    else {
-      PlacesUIUtils.showBookmarkDialog({ action: "edit"
-                                       , type: "bookmark"
-                                       , itemId: itemId
-                                       }, window.top);
-    }
+    else
+      PlacesUIUtils.showItemProperties(itemId,
+                                       PlacesUtils.bookmarks.TYPE_BOOKMARK);
   },
 
   savePageAs: function CM_savePageAs() {

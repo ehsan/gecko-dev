@@ -58,9 +58,11 @@
 #include "nsCRT.h"
 #include "nsEscape.h"
 #include "nsIEnumerator.h"
+#ifdef MOZ_RDF
 #include "nsIRDFService.h"
 #include "nsRDFCID.h"
 #include "rdf.h"
+#endif
 #include "nsIScriptContext.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIServiceManager.h"
@@ -98,7 +100,9 @@ static const int FORMAT_XUL = 3;
 // Common CIDs
 //
 
+#ifdef MOZ_RDF
 static NS_DEFINE_CID(kRDFServiceCID,             NS_RDFSERVICE_CID);
+#endif
 
 // Various protocols we have to special case
 static const char               kFTPProtocol[] = "ftp://";
@@ -108,6 +112,7 @@ static const char               kFTPProtocol[] = "ftp://";
 // nsHTTPIndex
 //
 
+#ifdef MOZ_RDF
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsHTTPIndex)
     NS_INTERFACE_MAP_ENTRY(nsIHTTPIndex)
     NS_INTERFACE_MAP_ENTRY(nsIRDFDataSource)
@@ -261,7 +266,7 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
   // Unless we don't have a container to start with
   // (ie called from bookmarks as an rdf datasource)
   if (mBindToGlobalObject && mRequestor) {
-    mBindToGlobalObject = false;
+    mBindToGlobalObject = PR_FALSE;
 
     // Now get the content viewer container's script object.
     nsCOMPtr<nsIScriptGlobalObject> scriptGlobal(do_GetInterface(mRequestor));
@@ -326,7 +331,7 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
     nsCOMPtr<nsIRDFLiteral> URLVal;
     rv = mDirRDF->GetLiteral(uriUnicode.get(), getter_AddRefs(URLVal));
 
-    Assert(entry, kNC_URL, URLVal, true);
+    Assert(entry, kNC_URL, URLVal, PR_TRUE);
     mDirectory = do_QueryInterface(entry);
   }
   else
@@ -342,7 +347,7 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
 
   // Mark the directory as "loading"
   rv = Assert(mDirectory, kNC_Loading,
-                           kTrueLiteral, true);
+                           kTrueLiteral, PR_TRUE);
   if (NS_FAILED(rv)) return rv;
 
   return NS_OK;
@@ -371,7 +376,7 @@ nsHTTPIndex::OnStopRequest(nsIRequest *request,
   rv = mDirRDF->GetLiteral(NS_ConvertASCIItoUTF16(commentStr).get(), getter_AddRefs(comment));
   if (NS_FAILED(rv)) return rv;
 
-  rv = Assert(mDirectory, kNC_Comment, comment, true);
+  rv = Assert(mDirectory, kNC_Comment, comment, PR_TRUE);
   if (NS_FAILED(rv)) return rv;
 
   // hack: Remove the 'loading' annotation (ignore errors)
@@ -451,7 +456,7 @@ nsHTTPIndex::OnIndexAvailable(nsIRequest* aRequest, nsISupports *aContext,
     rv = mDirRDF->GetLiteral(str.get(), getter_AddRefs(lit));
 
     if (NS_SUCCEEDED(rv)) {
-      rv = Assert(entry, kNC_URL, lit, true);
+      rv = Assert(entry, kNC_URL, lit, PR_TRUE);
       if (NS_FAILED(rv)) return rv;
       
       nsXPIDLString xpstr;
@@ -464,7 +469,7 @@ nsHTTPIndex::OnIndexAvailable(nsIRequest* aRequest, nsISupports *aContext,
 
       rv = mDirRDF->GetLiteral(xpstr.get(), getter_AddRefs(lit));
       if (NS_FAILED(rv)) return rv;
-      rv = Assert(entry, kNC_Description, lit, true);
+      rv = Assert(entry, kNC_Description, lit, PR_TRUE);
       if (NS_FAILED(rv)) return rv;
       
       // contentlength
@@ -479,7 +484,7 @@ nsHTTPIndex::OnIndexAvailable(nsIRequest* aRequest, nsISupports *aContext,
         nsCOMPtr<nsIRDFInt> val;
         rv = mDirRDF->GetIntLiteral(intSize, getter_AddRefs(val));
         if (NS_FAILED(rv)) return rv;
-        rv = Assert(entry, kNC_ContentLength, val, true);
+        rv = Assert(entry, kNC_ContentLength, val, PR_TRUE);
         if (NS_FAILED(rv)) return rv;
       }
 
@@ -491,7 +496,7 @@ nsHTTPIndex::OnIndexAvailable(nsIRequest* aRequest, nsISupports *aContext,
         nsCOMPtr<nsIRDFDate> val;
         rv = mDirRDF->GetDateLiteral(tm, getter_AddRefs(val));
         if (NS_FAILED(rv)) return rv;
-        rv = Assert(entry, kNC_LastModified, val, true);
+        rv = Assert(entry, kNC_LastModified, val, PR_TRUE);
       }
 
       // filetype
@@ -513,7 +518,7 @@ nsHTTPIndex::OnIndexAvailable(nsIRequest* aRequest, nsISupports *aContext,
       }
       
       if (NS_FAILED(rv)) return rv;
-      rv = Assert(entry, kNC_FileType, lit, true);
+      rv = Assert(entry, kNC_FileType, lit, PR_TRUE);
       if (NS_FAILED(rv)) return rv;
     }
 
@@ -521,12 +526,12 @@ nsHTTPIndex::OnIndexAvailable(nsIRequest* aRequest, nsISupports *aContext,
     // to do string comparisons all the time.
     // But we're told if we're a container right here - so save that fact
     if (isDirType)
-      Assert(entry, kNC_IsContainer, kTrueLiteral, true);
+      Assert(entry, kNC_IsContainer, kTrueLiteral, PR_TRUE);
     else
-      Assert(entry, kNC_IsContainer, kFalseLiteral, true);
+      Assert(entry, kNC_IsContainer, kFalseLiteral, PR_TRUE);
     
 //   instead of
-//       rv = Assert(parentRes, kNC_Child, entry, true);
+//       rv = Assert(parentRes, kNC_Child, entry, PR_TRUE);
 //       if (NS_FAILED(rv)) return rv;
 //   defer insertion onto a timer so that the UI isn't starved
     AddElement(parentRes, kNC_Child, entry);
@@ -548,14 +553,14 @@ nsHTTPIndex::OnInformationAvailable(nsIRequest *aRequest,
 //
 
 nsHTTPIndex::nsHTTPIndex()
-  : mBindToGlobalObject(true),
+  : mBindToGlobalObject(PR_TRUE),
     mRequestor(nsnull)
 {
 }
 
 
 nsHTTPIndex::nsHTTPIndex(nsIInterfaceRequestor* aRequestor)
-  : mBindToGlobalObject(true),
+  : mBindToGlobalObject(PR_TRUE),
     mRequestor(aRequestor)
 {
 }
@@ -651,7 +656,7 @@ nsHTTPIndex::Init()
 	if (NS_FAILED(rv))	return(rv);
 
 	// (do this last) register this as a named data source with the RDF service
-	rv = mDirRDF->RegisterDataSource(this, false);
+	rv = mDirRDF->RegisterDataSource(this, PR_FALSE);
 	if (NS_FAILED(rv)) return(rv);
 
 	return(NS_OK);
@@ -679,7 +684,7 @@ nsHTTPIndex::Init(nsIURI* aBaseURL)
   // Mark the base url as a container
   nsCOMPtr<nsIRDFResource> baseRes;
   mDirRDF->GetResource(mBaseURL, getter_AddRefs(baseRes));
-  Assert(baseRes, kNC_IsContainer, kTrueLiteral, true);
+  Assert(baseRes, kNC_IsContainer, kTrueLiteral, PR_TRUE);
 
   return NS_OK;
 }
@@ -735,7 +740,7 @@ void nsHTTPIndex::GetDestination(nsIRDFResource* r, nsXPIDLCString& dest) {
   // First try the URL attribute
   nsCOMPtr<nsIRDFNode> node;
   
-  GetTarget(r, kNC_URL, true, getter_AddRefs(node));
+  GetTarget(r, kNC_URL, PR_TRUE, getter_AddRefs(node));
   nsCOMPtr<nsIRDFLiteral> url;
   
   if (node)
@@ -774,7 +779,7 @@ bool
 nsHTTPIndex::isWellknownContainerURI(nsIRDFResource *r)
 {
   nsCOMPtr<nsIRDFNode> node;
-  GetTarget(r, kNC_IsContainer, true, getter_AddRefs(node));
+  GetTarget(r, kNC_IsContainer, PR_TRUE, getter_AddRefs(node));
   if (node) {
     bool isContainerFlag;
     if (NS_SUCCEEDED(node->EqualsNode(kTrueLiteral, &isContainerFlag)))
@@ -884,7 +889,7 @@ nsHTTPIndex::GetTargets(nsIRDFResource *aSource, nsIRDFResource *aProperty, bool
 			bool hasResults;
 			if (NS_SUCCEEDED((*_retval)->HasMoreElements(&hasResults)) &&
 			    hasResults)
-			  doNetworkRequest = false;
+			  doNetworkRequest = PR_FALSE;
 		}
 
         // Note: if we need to do a network request, do it out-of-band
@@ -1030,7 +1035,7 @@ nsHTTPIndex::FireTimer(nsITimer* aTimer, void* aClosure)
                     }
                     else
                     {
-                        httpIndex->Assert(src, prop, target, true);
+                        httpIndex->Assert(src, prop, target, PR_TRUE);
                     }
                 }
             }                
@@ -1044,7 +1049,7 @@ nsHTTPIndex::FireTimer(nsITimer* aTimer, void* aClosure)
         httpIndex->mConnectionList->Count(&numItems);
         if (numItems > 0)
         {
-            refireTimer = true;
+            refireTimer = PR_TRUE;
         }
         else
         {
@@ -1056,7 +1061,7 @@ nsHTTPIndex::FireTimer(nsITimer* aTimer, void* aClosure)
         httpIndex->mNodeList->Count(&numItems);
         if (numItems > 0)
         {
-            refireTimer = true;
+            refireTimer = PR_TRUE;
         }
         else
         {
@@ -1169,7 +1174,7 @@ NS_IMETHODIMP
 nsHTTPIndex::HasArcIn(nsIRDFNode *aNode, nsIRDFResource *aArc, bool *result)
 {
   if (!mInner) {
-    *result = false;
+    *result = PR_FALSE;
     return NS_OK;
   }
   return mInner->HasArcIn(aNode, aArc, result);
@@ -1179,7 +1184,7 @@ NS_IMETHODIMP
 nsHTTPIndex::HasArcOut(nsIRDFResource *aSource, nsIRDFResource *aArc, bool *result)
 {
     if (aArc == kNC_Child && isWellknownContainerURI(aSource)) {
-      *result = true;
+      *result = PR_TRUE;
       return NS_OK;
     }
 
@@ -1187,7 +1192,7 @@ nsHTTPIndex::HasArcOut(nsIRDFResource *aSource, nsIRDFResource *aArc, bool *resu
       return mInner->HasArcOut(aSource, aArc, result);
     }
 
-    *result = false;
+    *result = PR_FALSE;
     return NS_OK;
 }
 
@@ -1295,6 +1300,8 @@ nsHTTPIndex::GetAllCmds(nsIRDFResource *aSource, nsISimpleEnumerator **_retval)
 	return(rv);
 }
 
+#endif /* MOZ_RDF */
+
 
 //----------------------------------------------------------------------
 //
@@ -1328,6 +1335,8 @@ nsDirectoryViewerFactory::CreateInstance(const char *aCommand,
   nsresult rv;
 
   bool viewSource = (PL_strstr(aContentType,"view-source") != 0);
+  
+#ifdef MOZ_RDF
 
   if (!viewSource &&
       Preferences::GetInt("network.dir.format", FORMAT_XUL) == FORMAT_XUL) {
@@ -1388,6 +1397,7 @@ nsDirectoryViewerFactory::CreateInstance(const char *aCommand,
     
     return NS_OK;
   }
+#endif
 
   // setup the original channel's content type
   (void)aChannel->SetContentType(NS_LITERAL_CSTRING("text/html"));

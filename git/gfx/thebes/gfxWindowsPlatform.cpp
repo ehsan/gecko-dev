@@ -38,8 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "gfxWindowsPlatform.h"
 
 #include "gfxImageSurface.h"
@@ -75,7 +73,6 @@
 
 #include <string>
 
-using namespace mozilla;
 using namespace mozilla::gfx;
 
 #ifdef CAIRO_HAS_D2D_SURFACE
@@ -140,9 +137,9 @@ NS_MEMORY_REPORTER_IMPLEMENT(
 // DirectWrite is not available on all platforms, we need to use the function
 // pointer.
 typedef HRESULT (WINAPI*DWriteCreateFactoryFunc)(
-  DWRITE_FACTORY_TYPE factoryType,
-  REFIID iid,
-  IUnknown **factory
+  __in   DWRITE_FACTORY_TYPE factoryType,
+  __in   REFIID iid,
+  __out  IUnknown **factory
 );
 #endif
 
@@ -178,7 +175,7 @@ gfxWindowsPlatform::gfxWindowsPlatform()
     mUseClearTypeForDownloadableFonts = UNINITIALIZED_VALUE;
     mUseClearTypeAlways = UNINITIALIZED_VALUE;
 
-    mUsingGDIFonts = false;
+    mUsingGDIFonts = PR_FALSE;
 
     /* 
      * Initialize COM 
@@ -243,11 +240,11 @@ gfxWindowsPlatform::UpdateRenderMode()
         PRInt32 status;
         if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT2D, &status))) {
             if (status != nsIGfxInfo::FEATURE_NO_INFO) {
-                d2dDisabled = true;
+                d2dDisabled = PR_TRUE;
                 if (status == nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION ||
                     status == nsIGfxInfo::FEATURE_BLOCKED_DEVICE)
                 {
-                    d2dBlocked = true;
+                    d2dBlocked = PR_TRUE;
                 }
             }
         }
@@ -268,7 +265,7 @@ gfxWindowsPlatform::UpdateRenderMode()
         VerifyD2DDevice(d2dForceEnabled);
         if (mD2DDevice) {
             mRenderMode = RENDER_DIRECT2D;
-            mUseDirectWrite = true;
+            mUseDirectWrite = PR_TRUE;
         }
     } else {
         mD2DDevice = nsnull;
@@ -414,17 +411,17 @@ AllowDirectWrite()
         buildNum < WINDOWS7_RTM_BUILD)
     {
         // don't use Direct2D/DirectWrite on older versions of Windows 7
-        return false;
+        return PR_FALSE;
     }
 
-    return true;
+    return PR_TRUE;
 }
 #endif
 
 gfxPlatformFontList*
 gfxWindowsPlatform::CreatePlatformFontList()
 {
-    mUsingGDIFonts = false;
+    mUsingGDIFonts = PR_FALSE;
     gfxPlatformFontList *pfl;
 #ifdef CAIRO_HAS_DWRITE_FONT
     if (AllowDirectWrite() && GetDWriteFactory()) {
@@ -440,7 +437,7 @@ gfxWindowsPlatform::CreatePlatformFontList()
     }
 #endif
     pfl = new gfxGDIFontList();
-    mUsingGDIFonts = true;
+    mUsingGDIFonts = PR_TRUE;
 
     if (NS_SUCCEEDED(pfl->InitFontList())) {
         return pfl;
@@ -489,13 +486,7 @@ gfxWindowsPlatform::GetScaledFontForFont(gfxFont *aFont)
     return scaledFont;
   }
 
-  NativeFont nativeFont;
-  nativeFont.mType = NATIVE_FONT_GDI_FONT_FACE;
-  nativeFont.mFont = aFont;
-  RefPtr<ScaledFont> scaledFont =
-    Factory::CreateScaledFontForNativeFont(nativeFont, aFont->GetAdjustedSize());
-
-  return scaledFont;
+  return NULL;
 }
 
 already_AddRefed<gfxASurface>
@@ -522,23 +513,6 @@ gfxWindowsPlatform::GetThebesSurfaceForDrawTarget(DrawTarget *aTarget)
 #endif
 
   return gfxPlatform::GetThebesSurfaceForDrawTarget(aTarget);
-}
-
-bool
-gfxWindowsPlatform::SupportsAzure(BackendType& aBackend)
-{
-#ifdef CAIRO_HAS_D2D_SURFACE
-  if (mRenderMode == RENDER_DIRECT2D) {
-      aBackend = BACKEND_DIRECT2D;
-      return true;
-  }
-#endif
-  
-  if (Preferences::GetBool("gfx.canvas.azure.prefer-skia", false)) {
-    aBackend = BACKEND_SKIA;
-    return true;
-  }
-  return false;
 }
 
 nsresult
@@ -589,7 +563,7 @@ gfxWindowsPlatform::ResolveFontName(const nsAString& aFontName,
     nsAutoString resolvedName;
     if (!gfxPlatformFontList::PlatformFontList()->
              ResolveFontName(aFontName, resolvedName)) {
-        aAborted = false;
+        aAborted = PR_FALSE;
         return NS_OK;
     }
     aAborted = !(*aCallback)(resolvedName, aClosure);
@@ -639,16 +613,16 @@ gfxWindowsPlatform::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlag
     if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_WOFF     |
                         gfxUserFontSet::FLAG_FORMAT_OPENTYPE | 
                         gfxUserFontSet::FLAG_FORMAT_TRUETYPE)) {
-        return true;
+        return PR_TRUE;
     }
 
     // reject all other formats, known and unknown
     if (aFormatFlags != 0) {
-        return false;
+        return PR_FALSE;
     }
 
     // no format hint set, need to look at data
-    return true;
+    return PR_TRUE;
 }
 
 gfxFontFamily *
@@ -825,7 +799,7 @@ gfxWindowsPlatform::GetCleartypeParams(nsTArray<ClearTypeParameterInfo>& aParams
 
     // enumerate over subkeys
     for (i = 0, rv = ERROR_SUCCESS; rv != ERROR_NO_MORE_ITEMS; i++) {
-        size = ArrayLength(displayName);
+        size = NS_ARRAY_LENGTH(displayName);
         rv = RegEnumKeyExW(hKey, i, displayName, &size, NULL, NULL, NULL, NULL);
         if (rv != ERROR_SUCCESS) {
             continue;
@@ -837,7 +811,7 @@ gfxWindowsPlatform::GetCleartypeParams(nsTArray<ClearTypeParameterInfo>& aParams
         DWORD subrv, value;
         bool foundData = false;
 
-        swprintf_s(subkeyName, ArrayLength(subkeyName),
+        swprintf_s(subkeyName, NS_ARRAY_LENGTH(subkeyName),
                    L"Software\\Microsoft\\Avalon.Graphics\\%s", displayName);
 
         // subkey for gamma, pixel structure
@@ -913,7 +887,7 @@ gfxWindowsPlatform::FontsPrefsChanged(const char *aPref)
     } else if (!strncmp(GFX_CLEARTYPE_PARAMS, aPref, strlen(GFX_CLEARTYPE_PARAMS))) {
         SetupClearTypeParams();
     } else {
-        clearTextFontCaches = false;
+        clearTextFontCaches = PR_FALSE;
     }
 
     if (clearTextFontCaches) {    

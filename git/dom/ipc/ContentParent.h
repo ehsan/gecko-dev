@@ -161,9 +161,6 @@ private:
             const IPC::URI& aReferrer);
     virtual bool DeallocPExternalHelperApp(PExternalHelperAppParent* aService);
 
-    virtual PSmsParent* AllocPSms();
-    virtual bool DeallocPSms(PSmsParent*);
-
     virtual PStorageParent* AllocPStorage(const StorageConstructData& aData);
     virtual bool DeallocPStorage(PStorageParent* aActor);
 
@@ -235,6 +232,7 @@ private:
     PRInt32 mGeolocationWatchID;
     int mRunToCompletionDepth;
     bool mShouldCallUnblockChild;
+    nsCOMPtr<nsIThreadObserver> mOldObserver;
 
     // This is a cache of all of the memory reporters
     // registered in the child process.  To update this, one
@@ -243,7 +241,7 @@ private:
     nsCOMArray<nsIMemoryReporter> mMemoryReporters;
 
     bool mIsAlive;
-    nsCOMPtr<nsIPrefService> mPrefService;
+    nsCOMPtr<nsIPrefServiceInternal> mPrefService;
 
     bool mSendPermissionUpdates;
 

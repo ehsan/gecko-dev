@@ -45,7 +45,7 @@
 #define nsContentList_h___
 
 #include "nsISupports.h"
-#include "nsTArray.h"
+#include "nsCOMArray.h"
 #include "nsString.h"
 #include "nsIHTMLCollection.h"
 #include "nsIDOMNodeList.h"
@@ -100,15 +100,12 @@ public:
   virtual PRInt32 IndexOf(nsIContent* aContent);
   
   PRUint32 Length() const { 
-    return mElements.Length();
+    return mElements.Count();
   }
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsBaseContentList)
 
-  void AppendElement(nsIContent *aContent)
-  {
-    mElements.AppendElement(aContent);
-  }
+  void AppendElement(nsIContent *aContent);
   void MaybeAppendElement(nsIContent* aContent)
   {
     if (aContent)
@@ -121,16 +118,9 @@ public:
    * @param aContent Element to insert, must not be null
    * @param aIndex Index to insert the element at.
    */
-  void InsertElementAt(nsIContent* aContent, PRInt32 aIndex)
-  {
-    NS_ASSERTION(aContent, "Element to insert must not be null");
-    mElements.InsertElementAt(aIndex, aContent);
-  }
+  void InsertElementAt(nsIContent* aContent, PRInt32 aIndex);
 
-  void RemoveElement(nsIContent *aContent)
-  {
-    mElements.RemoveElement(aContent);
-  }
+  void RemoveElement(nsIContent *aContent); 
 
   void Reset() {
     mElements.Clear();
@@ -142,7 +132,7 @@ public:
                                bool *triedToWrap) = 0;
 
 protected:
-  nsTArray< nsCOMPtr<nsIContent> > mElements;
+  nsCOMArray<nsIContent> mElements;
 };
 
 
@@ -381,9 +371,9 @@ protected:
   /**
    * @param  aContainer a content node which must be a descendant of
    *         mRootNode
-   * @return true if children or descendants of aContainer could match our
+   * @return PR_TRUE if children or descendants of aContainer could match our
    *                 criterion.
-   *         false otherwise.
+   *         PR_FALSE otherwise.
    */
   bool MayContainRelevantNodes(nsINode* aContainer)
   {

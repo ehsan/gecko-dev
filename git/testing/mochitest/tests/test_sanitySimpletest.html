@@ -43,7 +43,9 @@ function starttest() {
       $('textB').focus();
       SimpleTest.waitForClipboard("a",
         function () {
-          SpecialPowers.clipboardCopyString("a");
+          Components.classes["@mozilla.org/widget/clipboardhelper;1"]
+                    .getService(Components.interfaces.nsIClipboardHelper)
+                    .copyString("a");
         },
         function () {
           check = true;

@@ -131,8 +131,6 @@ public:
                 ViewConfig aConfig = ViewConfig())
     : mViewportSize(0, 0)
     , mContentSize(0, 0)
-    , mParentScaleX(1.0)
-    , mParentScaleY(1.0)
     , mFrameLoader(aFrameLoader)
     , mScrollId(aScrollId)
     , mConfig(aConfig)
@@ -152,8 +150,6 @@ public:
 
   nsSize mViewportSize;
   nsSize mContentSize;
-  float mParentScaleX;
-  float mParentScaleY;
 
   nsFrameLoader* mFrameLoader;  // WEAK
 
@@ -178,7 +174,7 @@ protected:
 
 public:
   ~nsFrameLoader() {
-    mNeedsAsyncDestroy = true;
+    mNeedsAsyncDestroy = PR_TRUE;
     if (mMessageManager) {
       mMessageManager->Disconnect();
     }
@@ -249,8 +245,8 @@ public:
    * Return the document that owns this, or null if we don't have
    * an owner.
    */
-  nsIDocument* OwnerDoc() const
-  { return mOwnerContent ? mOwnerContent->OwnerDoc() : nsnull; }
+  nsIDocument* GetOwnerDoc() const
+  { return mOwnerContent ? mOwnerContent->GetOwnerDoc() : nsnull; }
 
   PBrowserParent* GetRemoteBrowser();
 
@@ -286,8 +282,6 @@ public:
 
   mozilla::dom::Element* GetOwnerContent() { return mOwnerContent; }
   void SetOwnerContent(mozilla::dom::Element* aContent);
-
-  bool ShouldClipSubdocument() { return mClipSubdocument; }
 
 private:
 
@@ -340,9 +334,7 @@ private:
 
   bool mDelayRemoteDialogs : 1;
   bool mRemoteBrowserShown : 1;
-  bool mRemoteFrame : 1;
-  bool mClipSubdocument : 1;
-
+  bool mRemoteFrame;
   // XXX leaking
   nsCOMPtr<nsIObserver> mChildHost;
   RenderFrameParent* mCurrentRemoteFrame;

@@ -86,7 +86,7 @@ nsXULTemplateResultXML::GetIsContainer(bool* aIsContainer)
     if (mNode)
         mNode->HasChildNodes(aIsContainer);
     else
-        *aIsContainer = false;
+        *aIsContainer = PR_FALSE;
     return NS_OK;
 }
 
@@ -100,20 +100,20 @@ nsXULTemplateResultXML::GetIsEmpty(bool* aIsEmpty)
              child;
              child = child->GetNextSibling()) {
             if (child->IsElement()) {
-                *aIsEmpty = false;
+                *aIsEmpty = PR_FALSE;
                 return NS_OK;
             }
         }
     }
 
-    *aIsEmpty = true;
+    *aIsEmpty = PR_TRUE;
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsXULTemplateResultXML::GetMayProcessChildren(bool* aMayProcessChildren)
 {
-    *aMayProcessChildren = true;
+    *aMayProcessChildren = PR_TRUE;
     return NS_OK;
 }
 

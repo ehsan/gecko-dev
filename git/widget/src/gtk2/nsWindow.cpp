@@ -40,8 +40,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #ifdef MOZ_PLATFORM_MAEMO
 // needed to include hildon parts in gtk.h
 #define MAEMO_CHANGES
@@ -51,6 +49,7 @@
 #include "nsWindow.h"
 #include "nsGTKToolkit.h"
 #include "nsIRollupListener.h"
+#include "nsIMenuRollup.h"
 #include "nsIDOMNode.h"
 
 #include "nsWidgetsCID.h"
@@ -90,7 +89,7 @@
 #include "gtk2compat.h"
 #endif
 
-#include "nsGkAtoms.h"
+#include "nsWidgetAtoms.h"
 
 #ifdef MOZ_ENABLE_STARTUP_NOTIFICATION
 #define SN_API_NOT_YET_FROZEN
@@ -99,7 +98,7 @@
 
 #include "mozilla/Preferences.h"
 #include "nsIPrefService.h"
-#include "nsIGConfService.h"
+#include "nsIPrefBranch.h"
 #include "nsIServiceManager.h"
 #include "nsIStringBundle.h"
 #include "nsGfxCIID.h"
@@ -115,15 +114,13 @@
 #include "stdlib.h"
 
 using namespace mozilla;
-using namespace mozilla::widget;
 
 static bool sAccessibilityChecked = false;
 /* static */
 bool nsWindow::sAccessibilityEnabled = false;
+static const char sSysPrefService [] = "@mozilla.org/system-preference-service;1";
 static const char sAccEnv [] = "GNOME_ACCESSIBILITY";
-static const char sUseSystemPrefsKey[] = "config.use_system_prefs";
 static const char sAccessibilityKey [] = "config.use_system_prefs.accessibility";
-static const char sGconfAccessibilityKey[] = "/desktop/gnome/interface/accessibility";
 #endif
 
 /* For SetIcon */
@@ -174,7 +171,6 @@ D_DEBUG_DOMAIN( ns_Window, "nsWindow", "nsWindow" );
 #endif
 
 using namespace mozilla;
-using namespace mozilla::widget;
 using mozilla::gl::GLContext;
 using mozilla::layers::LayerManagerOGL;
 
@@ -334,6 +330,7 @@ static bool              gRaiseWindows         = true;
 static nsWindow         *gPluginFocusWindow    = NULL;
 
 static nsIRollupListener*          gRollupListener;
+static nsIMenuRollup*              gMenuRollup;
 static nsWeakPtr                   gRollupWindow;
 static bool                        gConsumeRollupEvent;
 
@@ -484,7 +481,7 @@ nsWindow::~nsWindow()
 /* static */ void
 nsWindow::ReleaseGlobals()
 {
-  for (PRUint32 i = 0; i < ArrayLength(gCursorCache); ++i) {
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gCursorCache); ++i) {
     if (gCursorCache[i]) {
       gdk_cursor_unref(gCursorCache[i]);
       gCursorCache[i] = nsnull;
@@ -773,7 +770,8 @@ nsWindow::Destroy(void)
     nsCOMPtr<nsIWidget> rollupWidget = do_QueryReferent(gRollupWindow);
     if (static_cast<nsIWidget *>(this) == rollupWidget.get()) {
         if (gRollupListener)
-            gRollupListener->Rollup(0);
+            gRollupListener->Rollup(nsnull, nsnull);
+        NS_IF_RELEASE(gMenuRollup);
         gRollupWindow = nsnull;
         gRollupListener = nsnull;
     }
@@ -900,17 +898,15 @@ nsWindow::GetDPI()
 NS_IMETHODIMP
 nsWindow::SetParent(nsIWidget *aNewParent)
 {
-    if (mContainer || !mGdkWindow) {
-        NS_NOTREACHED("nsWindow::SetParent called illegally");
+    if (mContainer || !mGdkWindow || !mParent) {
+        NS_NOTREACHED("nsWindow::SetParent - reparenting a non-child window");
         return NS_ERROR_NOT_IMPLEMENTED;
     }
 
     NS_ASSERTION(!mTransientParent, "child widget with transient parent");
 
     nsCOMPtr<nsIWidget> kungFuDeathGrip = this;
-    if (mParent) {
-        mParent->RemoveChild(this);
-    }
+    mParent->RemoveChild(this);
 
     mParent = aNewParent;
 
@@ -1007,10 +1003,6 @@ nsWindow::ReparentNativeWidgetInternal(nsIWidget* aNewParent,
             NS_ABORT_IF_FALSE(!gdk_window_is_destroyed(aNewParentWindow),
                               "destroyed GdkWindow with widget");
             SetWidgetForHierarchy(mGdkWindow, aOldContainer, aNewContainer);
-
-            if (aOldContainer == gInvisibleContainer) {
-                CheckDestroyInvisibleContainer();
-            }
         }
 
         if (!mIsTopLevel) {
@@ -1413,10 +1405,13 @@ typedef void (* SetUserTimeFunc)(GdkWindow* aWindow, guint32 aTimestamp);
 static void
 SetUserTimeAndStartupIDForActivatedWindow(GtkWidget* aWindow)
 {
-    nsGTKToolkit* GTKToolkit = nsGTKToolkit::GetToolkit();
-    if (!GTKToolkit)
+    nsCOMPtr<nsIToolkit> toolkit;
+    NS_GetCurrentToolkit(getter_AddRefs(toolkit));
+    if (!toolkit)
         return;
 
+    nsGTKToolkit* GTKToolkit = static_cast<nsGTKToolkit*>
+                                          (static_cast<nsIToolkit*>(toolkit));
     nsCAutoString desktopStartupID;
     GTKToolkit->GetDesktopStartupID(&desktopStartupID);
     if (desktopStartupID.IsEmpty()) {
@@ -1577,57 +1572,6 @@ nsWindow::GetScreenBounds(nsIntRect &aRect)
     LOG(("GetScreenBounds %d,%d | %dx%d\n",
          aRect.x, aRect.y, aRect.width, aRect.height));
     return NS_OK;
-}
-
-NS_IMETHODIMP
-nsWindow::GetClientBounds(nsIntRect &aRect)
-{
-    // GetBounds returns a rect whose top left represents the top left of the
-    // outer bounds, but whose width/height represent the size of the inner
-    // bounds (which is messed up).
-    GetBounds(aRect);
-    aRect.MoveBy(GetClientOffset());
-
-    return NS_OK;
-}
-
-nsIntPoint
-nsWindow::GetClientOffset()
-{
-    if (!mIsTopLevel) {
-        return nsIntPoint(0, 0);
-    }
-
-    GdkAtom cardinal_atom = gdk_x11_xatom_to_atom(XA_CARDINAL);
-
-    GdkAtom type_returned;
-    int format_returned;
-    int length_returned;
-    long *frame_extents;
-
-    if (!mShell || !mShell->window ||
-        !gdk_property_get(mShell->window,
-                          gdk_atom_intern ("_NET_FRAME_EXTENTS", FALSE),
-                          cardinal_atom,
-                          0, // offset
-                          4*4, // length
-                          FALSE, // delete
-                          &type_returned,
-                          &format_returned,
-                          &length_returned,
-                          (guchar **) &frame_extents) ||
-        length_returned/sizeof(glong) != 4) {
-
-        return nsIntPoint(0, 0);
-    }
-
-    // data returned is in the order left, right, top, bottom
-    PRInt32 left = PRInt32(frame_extents[0]);
-    PRInt32 top = PRInt32(frame_extents[2]);
-
-    g_free(frame_extents);
-
-    return nsIntPoint(left, top);
 }
 
 NS_IMETHODIMP
@@ -1798,9 +1742,8 @@ nsWindow::GetNativeData(PRUint32 aDataType)
 
     case NS_NATIVE_GRAPHIC: {
 #if defined(MOZ_WIDGET_GTK2)
-        nsGTKToolkit* toolkit = nsGTKToolkit::GetToolkit();
-        NS_ASSERTION(nsnull != toolkit, "NULL toolkit, unable to get a GC");    
-        return toolkit->GetSharedGC();
+        NS_ASSERTION(nsnull != mToolkit, "NULL toolkit, unable to get a GC");    
+        return (void *)static_cast<nsGTKToolkit *>(mToolkit)->GetSharedGC();
 #else
         return nsnull;
 #endif
@@ -1858,9 +1801,9 @@ nsWindow::SetIcon(const nsAString& aIconSpec)
     const char extensions[6][7] = { ".png", "16.png", "32.png", "48.png",
                                     ".xpm", "16.xpm" };
 
-    for (PRUint32 i = 0; i < ArrayLength(extensions); i++) {
+    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(extensions); i++) {
         // Don't bother looking for XPM versions if we found a PNG.
-        if (i == ArrayLength(extensions) - 2 && iconList.Length())
+        if (i == NS_ARRAY_LENGTH(extensions) - 2 && iconList.Length())
             break;
 
         nsAutoString extension;
@@ -1924,6 +1867,7 @@ nsWindow::CaptureMouse(bool aCapture)
 
 NS_IMETHODIMP
 nsWindow::CaptureRollupEvents(nsIRollupListener *aListener,
+                              nsIMenuRollup     *aMenuRollup,
                               bool               aDoCapture,
                               bool               aConsumeRollupEvent)
 {
@@ -1939,6 +1883,9 @@ nsWindow::CaptureRollupEvents(nsIRollupListener *aListener,
     if (aDoCapture) {
         gConsumeRollupEvent = aConsumeRollupEvent;
         gRollupListener = aListener;
+        NS_IF_RELEASE(gMenuRollup);
+        gMenuRollup = aMenuRollup;
+        NS_IF_ADDREF(aMenuRollup);
         gRollupWindow = do_GetWeakReference(static_cast<nsIWidget*>
                                                        (this));
         // real grab is only done when there is no dragging
@@ -1956,6 +1903,7 @@ nsWindow::CaptureRollupEvents(nsIRollupListener *aListener,
         // was not added to this widget.
         gtk_grab_remove(widget);
         gRollupListener = nsnull;
+        NS_IF_RELEASE(gMenuRollup);
         gRollupWindow = nsnull;
     }
 
@@ -2390,16 +2338,17 @@ nsWindow::OnConfigureEvent(GtkWidget *aWidget, GdkEventConfigure *aEvent)
     LOG(("configure event [%p] %d %d %d %d\n", (void *)this,
          aEvent->x, aEvent->y, aEvent->width, aEvent->height));
 
-    nsIntRect screenBounds;
-    GetScreenBounds(screenBounds);
+    // mBounds.x/y are set to the window manager frame top-left when Move() or
+    // Resize()d from within Gecko, so comparing with the client window
+    // top-left is weird.  However, mBounds.x/y are set to client window
+    // position below, so this check avoids unwanted rollup on spurious
+    // configure events from Cygwin/X (bug 672103).
+    if (mBounds.x == aEvent->x &&
+        mBounds.y == aEvent->y)
+        return FALSE;
 
     if (mWindowType == eWindowType_toplevel || mWindowType == eWindowType_dialog) {
-        // This check avoids unwanted rollup on spurious configure events from
-        // Cygwin/X (bug 672103).
-        if (mBounds.x != screenBounds.x ||
-            mBounds.y != screenBounds.y) {
-            check_for_rollup(aEvent->window, 0, 0, false, true);
-        }
+        check_for_rollup(aEvent->window, 0, 0, false, true);
     }
 
     // This event indicates that the window position may have changed.
@@ -2427,7 +2376,11 @@ nsWindow::OnConfigureEvent(GtkWidget *aWidget, GdkEventConfigure *aEvent)
         return FALSE;
     }
 
-    mBounds.MoveTo(screenBounds.TopLeft());
+    // This is wrong, but noautohide titlebar panels currently depend on it
+    // (bug 601545#c13).  mBounds.TopLeft() should refer to the
+    // window-manager frame top-left, but WidgetToScreenOffset() gives the
+    // client window origin.
+    mBounds.MoveTo(WidgetToScreenOffset());
 
     nsGUIEvent event(true, NS_MOVE, this);
 
@@ -2899,10 +2852,10 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
         }
     // Map buttons 8-9 to back/forward
     case 8:
-        DispatchCommandEvent(nsGkAtoms::Back);
+        DispatchCommandEvent(nsWidgetAtoms::Back);
         return;
     case 9:
-        DispatchCommandEvent(nsGkAtoms::Forward);
+        DispatchCommandEvent(nsWidgetAtoms::Forward);
         return;
     default:
         return;
@@ -3048,7 +3001,7 @@ bool
 nsWindow::DispatchCommandEvent(nsIAtom* aCommand)
 {
     nsEventStatus status;
-    nsCommandEvent event(true, nsGkAtoms::onAppCommand, aCommand, this);
+    nsCommandEvent event(true, nsWidgetAtoms::onAppCommand, aCommand, this);
     DispatchEvent(&event, status);
     return TRUE;
 }
@@ -3199,19 +3152,19 @@ nsWindow::OnKeyPressEvent(GtkWidget *aWidget, GdkEventKey *aEvent)
     // Look for specialized app-command keys
     switch (aEvent->keyval) {
         case XF86XK_Back:
-            return DispatchCommandEvent(nsGkAtoms::Back);
+            return DispatchCommandEvent(nsWidgetAtoms::Back);
         case XF86XK_Forward:
-            return DispatchCommandEvent(nsGkAtoms::Forward);
+            return DispatchCommandEvent(nsWidgetAtoms::Forward);
         case XF86XK_Refresh:
-            return DispatchCommandEvent(nsGkAtoms::Reload);
+            return DispatchCommandEvent(nsWidgetAtoms::Reload);
         case XF86XK_Stop:
-            return DispatchCommandEvent(nsGkAtoms::Stop);
+            return DispatchCommandEvent(nsWidgetAtoms::Stop);
         case XF86XK_Search:
-            return DispatchCommandEvent(nsGkAtoms::Search);
+            return DispatchCommandEvent(nsWidgetAtoms::Search);
         case XF86XK_Favorites:
-            return DispatchCommandEvent(nsGkAtoms::Bookmarks);
+            return DispatchCommandEvent(nsWidgetAtoms::Bookmarks);
         case XF86XK_HomePage:
-            return DispatchCommandEvent(nsGkAtoms::Home);
+            return DispatchCommandEvent(nsWidgetAtoms::Home);
         case XF86XK_Copy:
         case GDK_F16:  // F16, F20, F18, F14 are old keysyms for Copy Cut Paste Undo
             return DispatchContentCommandEvent(NS_CONTENT_COMMAND_COPY);
@@ -3925,6 +3878,8 @@ nsWindow::Create(nsIWidget        *aParent,
                  const nsIntRect  &aRect,
                  EVENT_CALLBACK    aHandleEventFunction,
                  nsDeviceContext *aContext,
+                 nsIAppShell      *aAppShell,
+                 nsIToolkit       *aToolkit,
                  nsWidgetInitData *aInitData)
 {
     // only set the base parent if we're going to be a dialog or a
@@ -3937,11 +3892,9 @@ nsWindow::Create(nsIWidget        *aParent,
 
     NS_ASSERTION(!mWindowGroup, "already have window group (leaking it)");
 
-    // Ensure that the toolkit is created.
-    nsGTKToolkit::GetToolkit();
-
     // initialize all the common bits of this class
-    BaseCreate(baseParent, aRect, aHandleEventFunction, aContext, aInitData);
+    BaseCreate(baseParent, aRect, aHandleEventFunction, aContext,
+               aAppShell, aToolkit, aInitData);
 
     // Do we need to listen for resizes?
     bool listenForResizes = false;;
@@ -4342,20 +4295,17 @@ nsWindow::Create(nsIWidget        *aParent,
             LOG(("Accessibility Env %s=%s\n", sAccEnv, envValue));
         }
         //check gconf-2 setting
-        else if (Preferences::GetBool(sUseSystemPrefsKey, false)) {
-            nsCOMPtr<nsIGConfService> gconf =
-                do_GetService(NS_GCONFSERVICE_CONTRACTID, &rv); 
-            if (NS_SUCCEEDED(rv) && gconf) {
+        else {
+            nsCOMPtr<nsIPrefBranch> sysPrefService =
+                do_GetService(sSysPrefService, &rv);
+            if (NS_SUCCEEDED(rv) && sysPrefService) {
 
                 // do the work to get gconf setting.
                 // will be done soon later.
-                gconf->GetBool(NS_LITERAL_CSTRING(sGconfAccessibilityKey),
-                               &sAccessibilityEnabled);
+                sysPrefService->GetBoolPref(sAccessibilityKey,
+                                            &sAccessibilityEnabled);
             }
 
-        } else {
-            sAccessibilityEnabled =
-                Preferences::GetBool(sAccessibilityKey, false);
         }
     }
 #endif
@@ -5407,16 +5357,16 @@ check_for_rollup(GdkWindow *aWindow, gdouble aMouseX, gdouble aMouseY,
         if (aAlwaysRollup || !is_mouse_in_window(currentPopup, aMouseX, aMouseY)) {
             bool rollup = true;
             if (aIsWheel) {
-                rollup = gRollupListener->ShouldRollupOnMouseWheelEvent();
+                gRollupListener->ShouldRollupOnMouseWheelEvent(&rollup);
                 retVal = true;
             }
             // if we're dealing with menus, we probably have submenus and
             // we don't want to rollup if the click is in a parent menu of
             // the current submenu
             PRUint32 popupsToRollup = PR_UINT32_MAX;
-            if (!aAlwaysRollup) {
+            if (gMenuRollup && !aAlwaysRollup) {
                 nsAutoTArray<nsIWidget*, 5> widgetChain;
-                PRUint32 sameTypeCount = gRollupListener->GetSubmenuWidgetChain(&widgetChain);
+                PRUint32 sameTypeCount = gMenuRollup->GetSubmenuWidgetChain(&widgetChain);
                 for (PRUint32 i=0; i<widgetChain.Length(); ++i) {
                     nsIWidget* widget = widgetChain[i];
                     GdkWindow* currWindow =
@@ -5440,7 +5390,7 @@ check_for_rollup(GdkWindow *aWindow, gdouble aMouseX, gdouble aMouseY,
 
             // if we've determined that we should still rollup, do it.
             if (rollup) {
-                gRollupListener->Rollup(popupsToRollup);
+                gRollupListener->Rollup(popupsToRollup, nsnull);
                 if (popupsToRollup == PR_UINT32_MAX) {
                     retVal = true;
                 }
@@ -5449,6 +5399,7 @@ check_for_rollup(GdkWindow *aWindow, gdouble aMouseX, gdouble aMouseY,
     } else {
         gRollupWindow = nsnull;
         gRollupListener = nsnull;
+        NS_IF_RELEASE(gMenuRollup);
     }
 
     return retVal;
@@ -6623,27 +6574,20 @@ nsWindow::ResetInputState()
     return mIMModule ? mIMModule->ResetInputState(this) : NS_OK;
 }
 
-NS_IMETHODIMP_(void)
-nsWindow::SetInputContext(const InputContext& aContext,
-                          const InputContextAction& aAction)
+NS_IMETHODIMP
+nsWindow::SetInputMode(const IMEContext& aContext)
 {
-    if (!mIMModule) {
-        return;
-    }
-    mIMModule->SetInputContext(this, &aContext, &aAction);
+    return mIMModule ? mIMModule->SetInputMode(this, &aContext) : NS_OK;
 }
 
-NS_IMETHODIMP_(InputContext)
-nsWindow::GetInputContext()
+NS_IMETHODIMP
+nsWindow::GetInputMode(IMEContext& aContext)
 {
-  InputContext context;
   if (!mIMModule) {
-      context.mIMEState.mEnabled = IMEState::DISABLED;
-      context.mIMEState.mOpen = IMEState::OPEN_STATE_NOT_SUPPORTED;
-  } else {
-      context = mIMModule->GetInputContext();
+      aContext.mStatus = nsIWidget::IME_STATUS_DISABLED;
+      return NS_OK;
   }
-  return context;
+  return mIMModule->GetInputMode(&aContext);
 }
 
 NS_IMETHODIMP

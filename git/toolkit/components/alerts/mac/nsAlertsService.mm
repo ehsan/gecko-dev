@@ -92,7 +92,8 @@ DispatchNamedNotification(const nsAString &aName,
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  if ([GrowlApplicationBridge isGrowlRunning] == NO)
+  if ([GrowlApplicationBridge isGrowlInstalled] == NO ||
+      [GrowlApplicationBridge isGrowlRunning] == NO)
     return NS_ERROR_NOT_AVAILABLE;
 
   mozGrowlDelegate *delegate =
@@ -145,6 +146,9 @@ nsAlertsService::Init()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
+  if ([GrowlApplicationBridge isGrowlInstalled] == NO)
+    return NS_ERROR_SERVICE_NOT_AVAILABLE;
+
   NS_ASSERTION([GrowlApplicationBridge growlDelegate] == nil,
                "We already registered with Growl!");
 
@@ -166,8 +170,8 @@ nsAlertsService::Init()
   // registers with Growl
   [GrowlApplicationBridge setGrowlDelegate: mDelegate->delegate];
 
-  (void)os->AddObserver(this, DOM_WINDOW_DESTROYED_TOPIC, false);
-  (void)os->AddObserver(this, "profile-before-change", false);
+  (void)os->AddObserver(this, DOM_WINDOW_DESTROYED_TOPIC, PR_FALSE);
+  (void)os->AddObserver(this, "profile-before-change", PR_FALSE);
 
   return NS_OK;
 

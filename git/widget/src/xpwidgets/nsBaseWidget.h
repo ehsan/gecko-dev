@@ -40,6 +40,8 @@
 #include "nsRect.h"
 #include "nsIWidget.h"
 #include "nsWidgetsCID.h"
+#include "nsIToolkit.h"
+#include "nsIAppShell.h"
 #include "nsILocalFile.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
@@ -112,6 +114,7 @@ public:
   NS_IMETHOD              HideWindowChrome(bool aShouldHide);
   NS_IMETHOD              MakeFullScreen(bool aFullScreen);
   virtual nsDeviceContext* GetDeviceContext();
+  virtual nsIToolkit*     GetToolkit();
   virtual LayerManager*   GetLayerManager(PLayersChild* aShadowManager = nsnull,
                                           LayersBackend aBackendHint = LayerManager::LAYERS_NONE,
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
@@ -122,15 +125,10 @@ public:
   virtual gfxASurface*    GetThebesSurface();
   NS_IMETHOD              SetModal(bool aModal); 
   NS_IMETHOD              SetWindowClass(const nsAString& xulWinType);
-  NS_IMETHOD              MoveClient(PRInt32 aX, PRInt32 aY);
-  NS_IMETHOD              ResizeClient(PRInt32 aWidth, PRInt32 aHeight, bool aRepaint);
-  NS_IMETHOD              ResizeClient(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, bool aRepaint);
   NS_IMETHOD              SetBounds(const nsIntRect &aRect);
   NS_IMETHOD              GetBounds(nsIntRect &aRect);
   NS_IMETHOD              GetClientBounds(nsIntRect &aRect);
   NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
-  NS_IMETHOD              GetNonClientMargins(nsIntMargin &margins);
-  NS_IMETHOD              SetNonClientMargins(nsIntMargin &margins);
   virtual nsIntPoint      GetClientOffset();
   NS_IMETHOD              EnableDragDrop(bool aEnable);
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
@@ -147,6 +145,12 @@ public:
   virtual nsresult        ActivateNativeMenuItemAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
   virtual nsresult        ForceUpdateNativeMenuAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              ResetInputState() { return NS_OK; }
+  NS_IMETHOD              SetIMEOpenState(bool aState) { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              GetIMEOpenState(bool* aState) { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              SetInputMode(const IMEContext& aContext) { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              GetInputMode(IMEContext& aContext) { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              SetIMEEnabled(PRUint32 aState);
+  NS_IMETHOD              GetIMEEnabled(PRUint32* aState);
   NS_IMETHOD              CancelIMEComposition() { return NS_OK; }
   NS_IMETHOD              SetAcceleratedRendering(bool aEnabled);
   virtual bool            GetAcceleratedRendering();
@@ -155,19 +159,23 @@ public:
   NS_IMETHOD              OnIMEFocusChange(bool aFocus) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnIMETextChange(PRUint32 aStart, PRUint32 aOldEnd, PRUint32 aNewEnd) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnIMESelectionChange(void) { return NS_ERROR_NOT_IMPLEMENTED; }
-  virtual nsIMEUpdatePreference GetIMEUpdatePreference() { return nsIMEUpdatePreference(false, false); }
+  virtual nsIMEUpdatePreference GetIMEUpdatePreference() { return nsIMEUpdatePreference(PR_FALSE, PR_FALSE); }
   NS_IMETHOD              OnDefaultButtonLoaded(const nsIntRect &aButtonRect) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta, bool aIsHorizontal, PRInt32 &aOverriddenDelta);
   virtual already_AddRefed<nsIWidget>
   CreateChild(const nsIntRect  &aRect,
               EVENT_CALLBACK   aHandleEventFunction,
               nsDeviceContext *aContext,
+              nsIAppShell      *aAppShell = nsnull,
+              nsIToolkit       *aToolkit = nsnull,
               nsWidgetInitData *aInitData = nsnull,
               bool             aForceUseIWidgetParent = false);
-  NS_IMETHOD              SetEventCallback(EVENT_CALLBACK aEventFunction, nsDeviceContext *aContext);
   NS_IMETHOD              AttachViewToTopLevel(EVENT_CALLBACK aViewEventFunction, nsDeviceContext *aContext);
   virtual ViewWrapper*    GetAttachedViewPtr();
   NS_IMETHOD              SetAttachedViewPtr(ViewWrapper* aViewWrapper);
+  NS_IMETHOD              ResizeClient(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, bool aRepaint);
+  NS_IMETHOD              GetNonClientMargins(nsIntMargin &margins);
+  NS_IMETHOD              SetNonClientMargins(nsIntMargin &margins);
   NS_IMETHOD              RegisterTouchWindow();
   NS_IMETHOD              UnregisterTouchWindow();
 
@@ -228,6 +236,8 @@ protected:
                                      const nsIntRect &aRect,
                                      EVENT_CALLBACK aHandleEventFunction,
                                      nsDeviceContext *aContext,
+                                     nsIAppShell *aAppShell,
+                                     nsIToolkit *aToolkit,
                                      nsWidgetInitData *aInitData);
 
   virtual nsIContent* GetLastRollup()
@@ -267,6 +277,7 @@ protected:
   EVENT_CALLBACK    mEventCallback;
   EVENT_CALLBACK    mViewCallback;
   nsDeviceContext* mContext;
+  nsIToolkit*       mToolkit;
   nsRefPtr<LayerManager> mLayerManager;
   nsRefPtr<LayerManager> mBasicLayerManager;
   nscolor           mBackground;

@@ -135,8 +135,6 @@ MOZALLOC_EXPORT char* moz_strdup(const char* str)
 
 MOZALLOC_EXPORT size_t moz_malloc_usable_size(void *ptr);
 
-MOZALLOC_EXPORT size_t moz_malloc_size_of(const void *ptr, size_t computedSize);
-
 #if defined(HAVE_STRNDUP)
 MOZALLOC_EXPORT char* moz_xstrndup(const char* str, size_t strsize)
     NS_ATTR_MALLOC NS_WARN_UNUSED_RESULT;
@@ -215,13 +213,15 @@ MOZALLOC_EXPORT void* moz_valloc(size_t size)
  * to suppress build warning spam (bug 578546).
  */
 #define MOZALLOC_THROW_IF_HAS_EXCEPTIONS /**/
-#define MOZALLOC_THROW_BAD_ALLOC_IF_HAS_EXCEPTIONS
 #else
 #define MOZALLOC_THROW_IF_HAS_EXCEPTIONS throw()
-#define MOZALLOC_THROW_BAD_ALLOC_IF_HAS_EXCEPTIONS throw(std::bad_alloc)
 #endif
 
-#define MOZALLOC_THROW_BAD_ALLOC MOZALLOC_THROW_BAD_ALLOC_IF_HAS_EXCEPTIONS
+#ifdef MOZ_CPP_EXCEPTIONS
+#define MOZALLOC_THROW_BAD_ALLOC throw(std::bad_alloc)
+#else
+#define MOZALLOC_THROW_BAD_ALLOC MOZALLOC_THROW_IF_HAS_EXCEPTIONS
+#endif
 
 MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
 void* operator new(size_t size) MOZALLOC_THROW_BAD_ALLOC

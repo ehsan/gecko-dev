@@ -56,22 +56,22 @@ static bool test_consume_stream() {
              getter_AddRefs(output),
              10, PR_UINT32_MAX);
   if (!input || !output)
-    return false;
+    return PR_FALSE;
 
   PRUint32 n = 0;
   output->Write(kData, sizeof(kData) - 1, &n);
   if (n != (sizeof(kData) - 1))
-    return false;
+    return PR_FALSE;
   output = nsnull;  // close output
 
   nsCString buf;
   if (NS_FAILED(NS_ConsumeStream(input, PR_UINT32_MAX, buf)))
-    return false;
+    return PR_FALSE;
 
   if (!buf.Equals(kData))
-    return false;
+    return PR_FALSE;
 
-  return true; 
+  return PR_TRUE; 
 }
 
 //----

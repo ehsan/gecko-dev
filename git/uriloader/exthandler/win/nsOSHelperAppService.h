@@ -76,7 +76,7 @@ public:
                                           nsIHandlerInfo **_retval);
 
   /** Get the string value of a registry value and store it in result.
-   * @return true on success, false on failure
+   * @return PR_TRUE on success, PR_FALSE on failure
    */
   static bool GetValueString(HKEY hKey, const PRUnichar* pValueName, nsAString& result);
 

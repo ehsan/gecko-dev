@@ -54,9 +54,9 @@ public:
   {
     mDERCert.len = 0;
     mDERCert.data = nsnull;
-    isDomainMismatch = false;
-    isNotValidAtThisTime = false;
-    isUntrusted = false;
+    isDomainMismatch = PR_FALSE;
+    isNotValidAtThisTime = PR_FALSE;
+    isUntrusted = PR_FALSE;
   }
 
   ~RecentBadCert()

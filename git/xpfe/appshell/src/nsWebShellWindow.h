@@ -51,6 +51,7 @@
 
 /* Forward declarations.... */
 class nsIURI;
+class nsIAppShell;
 
 class nsWebShellWindow : public nsXULWindow,
                          public nsIWebProgressListener
@@ -63,7 +64,7 @@ public:
 
   // nsWebShellWindow methods...
   nsresult Initialize(nsIXULWindow * aParent, nsIXULWindow * aOpener,
-                      nsIURI* aUrl,
+                      nsIAppShell* aShell, nsIURI* aUrl,
                       PRInt32 aInitialWidth, PRInt32 aInitialHeight,
                       bool aIsHiddenWindow,
                       nsWidgetInitData& widgetInitData);
@@ -79,6 +80,8 @@ public:
 protected:
   
   virtual ~nsWebShellWindow();
+
+  nsCOMPtr<nsIDOMDocument> GetNamedDOMDoc(const nsAString & aWebShellName);
 
   void                     LoadContentAreas();
   bool                     ExecuteCloseHandler();

@@ -106,7 +106,8 @@ public:
   nsresult PreHandleEvent(nsPresContext* aPresContext,
                           nsEvent *aEvent,
                           nsIFrame* aTargetFrame,
-                          nsEventStatus* aStatus);
+                          nsEventStatus* aStatus,
+                          nsIView* aView);
 
   /* The PostHandleEvent method should contain all system processing which
    * should occur conditionally based on DOM or frame processing.  It should
@@ -116,7 +117,8 @@ public:
   nsresult PostHandleEvent(nsPresContext* aPresContext,
                            nsEvent *aEvent,
                            nsIFrame* aTargetFrame,
-                           nsEventStatus* aStatus);
+                           nsEventStatus* aStatus,
+                           nsIView* aView);
 
   void NotifyDestroyPresContext(nsPresContext* aPresContext);
   void SetPresContext(nsPresContext* aPresContext);
@@ -129,7 +131,7 @@ public:
    * Notify that the given NS_EVENT_STATE_* bit has changed for this content.
    * @param aContent Content which has changed states
    * @param aState   Corresponding state flags such as NS_EVENT_STATE_FOCUS
-   * @return  Whether the content was able to change all states. Returns false
+   * @return  Whether the content was able to change all states. Returns PR_FALSE
    *                  if a resulting DOM event causes the content node passed in
    *                  to not change states. Note, the frame for the content may
    *                  change as a result of the content state change, because of
@@ -190,7 +192,7 @@ public:
   static bool IsHandlingUserInput()
   {
     if (sUserInputEventDepth <= 0) {
-      return false;
+      return PR_FALSE;
     }
     TimeDuration timeout = nsContentUtils::HandlingUserInputTimeout();
     return timeout <= TimeDuration(0) ||
@@ -225,8 +227,6 @@ public:
 
   // Sets the full-screen event state on aElement to aIsFullScreen.
   static void SetFullScreenState(mozilla::dom::Element* aElement, bool aIsFullScreen);
-
-  static bool IsRemoteTarget(nsIContent* aTarget);
 
 protected:
   friend class MouseEnterLeaveDispatcher;
@@ -465,6 +465,7 @@ protected:
   bool IsTargetCrossProcess(nsGUIEvent *aEvent);
 
   void DispatchCrossProcessEvent(nsEvent* aEvent, nsIFrameLoader* remote);
+  bool IsRemoteTarget(nsIContent* target);
   bool HandleCrossProcessEvent(nsEvent *aEvent,
                                  nsIFrame* aTargetFrame,
                                  nsEventStatus *aStatus);
@@ -572,18 +573,18 @@ public:
                                      nsIDocument* aDocument)
     : mIsHandlingUserInput(aIsHandlingUserInput),
       mIsMouseDown(aEvent && aEvent->message == NS_MOUSE_BUTTON_DOWN),
-      mResetFMMouseDownState(false)
+      mResetFMMouseDownState(PR_FALSE)
   {
     if (aIsHandlingUserInput) {
       nsEventStateManager::StartHandlingUserInput();
       if (mIsMouseDown) {
         nsIPresShell::SetCapturingContent(nsnull, 0);
-        nsIPresShell::AllowMouseCapture(true);
+        nsIPresShell::AllowMouseCapture(PR_TRUE);
         if (aDocument && NS_IS_TRUSTED_EVENT(aEvent)) {
           nsFocusManager* fm = nsFocusManager::GetFocusManager();
           if (fm) {
             fm->SetMouseButtonDownHandlingDocument(aDocument);
-            mResetFMMouseDownState = true;
+            mResetFMMouseDownState = PR_TRUE;
           }
         }
       }
@@ -595,7 +596,7 @@ public:
     if (mIsHandlingUserInput) {
       nsEventStateManager::StopHandlingUserInput();
       if (mIsMouseDown) {
-        nsIPresShell::AllowMouseCapture(false);
+        nsIPresShell::AllowMouseCapture(PR_FALSE);
         if (mResetFMMouseDownState) {
           nsFocusManager* fm = nsFocusManager::GetFocusManager();
           if (fm) {

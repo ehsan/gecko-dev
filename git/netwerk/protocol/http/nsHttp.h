@@ -131,11 +131,6 @@ typedef PRUint8 nsHttpVersion;
 // host. Used by a forced reload to reset the connection states.
 #define NS_HTTP_CLEAR_KEEPALIVES     (1<<6)
 
-// Disallow the use of the SPDY protocol. This is meant for the contexts
-// such as HTTP upgrade which are nonsensical for SPDY, it is not the
-// SPDY configuration variable.
-#define NS_HTTP_DISALLOW_SPDY        (1<<7)
-
 //-----------------------------------------------------------------------------
 // some default values
 //-----------------------------------------------------------------------------
@@ -194,8 +189,8 @@ struct nsHttp
                                  const char *separators);
 
     // This function parses a string containing a decimal-valued, non-negative
-    // 64-bit integer.  If the value would exceed LL_MAXINT, then false is
-    // returned.  Otherwise, this function returns true and stores the
+    // 64-bit integer.  If the value would exceed LL_MAXINT, then PR_FALSE is
+    // returned.  Otherwise, this function returns PR_TRUE and stores the
     // parsed value in |result|.  The next unparsed character in |input| is
     // optionally returned via |next| if |next| is non-null.
     //

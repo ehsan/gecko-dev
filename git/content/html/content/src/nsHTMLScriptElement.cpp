@@ -81,26 +81,8 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_BASIC(nsGenericHTMLElement::)
-  NS_SCRIPTABLE NS_IMETHOD Click() {
-    return nsGenericHTMLElement::Click();
-  }
-  NS_SCRIPTABLE NS_IMETHOD GetTabIndex(PRInt32* aTabIndex) {
-    return nsGenericHTMLElement::GetTabIndex(aTabIndex);
-  }
-  NS_SCRIPTABLE NS_IMETHOD SetTabIndex(PRInt32 aTabIndex) {
-    return nsGenericHTMLElement::SetTabIndex(aTabIndex);
-  }
-  NS_SCRIPTABLE NS_IMETHOD Focus() {
-    return nsGenericHTMLElement::Focus();
-  }
-  NS_SCRIPTABLE NS_IMETHOD GetDraggable(bool* aDraggable) {
-    return nsGenericHTMLElement::GetDraggable(aDraggable);
-  }
-  NS_SCRIPTABLE NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML);
-  NS_SCRIPTABLE NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML);
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
-  // nsIDOMHTMLScriptElement
   NS_DECL_NSIDOMHTMLSCRIPTELEMENT
 
   // nsIScriptElement
@@ -114,6 +96,11 @@ public:
                               nsIContent* aBindingParent,
                               bool aCompileEventHandlers);
 
+  virtual nsresult GetInnerHTML(nsAString& aInnerHTML);
+  virtual nsresult SetInnerHTML(const nsAString& aInnerHTML);
+  virtual nsresult DoneAddingChildren(bool aHaveNotified);
+  virtual bool IsDoneAddingChildren();
+
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   // nsGenericElement
@@ -122,8 +109,11 @@ public:
 
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
+  bool IsOnloadEventForWindow();
+
   // nsScriptElement
   virtual bool HasScriptContent();
+  virtual nsresult MaybeProcessScript();
 };
 
 
@@ -204,14 +194,14 @@ nsHTMLScriptElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 NS_IMETHODIMP
 nsHTMLScriptElement::GetText(nsAString& aValue)
 {
-  nsContentUtils::GetNodeTextContent(this, false, aValue);
+  nsContentUtils::GetNodeTextContent(this, PR_FALSE, aValue);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsHTMLScriptElement::SetText(const nsAString& aValue)
 {
-  return nsContentUtils::SetNodeTextContent(this, aValue, true);
+  return nsContentUtils::SetNodeTextContent(this, aValue, PR_TRUE);
 }
 
 
@@ -226,7 +216,7 @@ nsresult
 nsHTMLScriptElement::GetAsync(bool* aValue)
 {
   if (mForceAsync) {
-    *aValue = true;
+    *aValue = PR_TRUE;
     return NS_OK;
   }
   return GetBoolAttr(nsGkAtoms::async, aValue);
@@ -235,7 +225,7 @@ nsHTMLScriptElement::GetAsync(bool* aValue)
 nsresult
 nsHTMLScriptElement::SetAsync(bool aValue)
 {
-  mForceAsync = false;
+  mForceAsync = PR_FALSE;
   return SetBoolAttr(nsGkAtoms::async, aValue);
 }
 
@@ -244,7 +234,7 @@ nsHTMLScriptElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                                   const nsAString* aValue, bool aNotify)
 {
   if (nsGkAtoms::async == aName && kNameSpaceID_None == aNamespaceID) {
-    mForceAsync = false;
+    mForceAsync = PR_FALSE;
   }
   return nsGenericHTMLElement::AfterSetAttr(aNamespaceID, aName, aValue,
                                             aNotify);
@@ -253,14 +243,33 @@ nsHTMLScriptElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
 nsresult
 nsHTMLScriptElement::GetInnerHTML(nsAString& aInnerHTML)
 {
-  nsContentUtils::GetNodeTextContent(this, false, aInnerHTML);
+  nsContentUtils::GetNodeTextContent(this, PR_FALSE, aInnerHTML);
   return NS_OK;
 }
 
 nsresult
 nsHTMLScriptElement::SetInnerHTML(const nsAString& aInnerHTML)
 {
-  return nsContentUtils::SetNodeTextContent(this, aInnerHTML, true);
+  return nsContentUtils::SetNodeTextContent(this, aInnerHTML, PR_TRUE);
+}
+
+nsresult
+nsHTMLScriptElement::DoneAddingChildren(bool aHaveNotified)
+{
+  mDoneAddingChildren = PR_TRUE;
+  nsresult rv = MaybeProcessScript();
+  if (!mAlreadyStarted) {
+    // Need to lose parser-insertedness here to allow another script to cause
+    // execution later.
+    LoseParserInsertedness();
+  }
+  return rv;
+}
+
+bool
+nsHTMLScriptElement::IsDoneAddingChildren()
+{
+  return mDoneAddingChildren;
 }
 
 // variation of this code in nsSVGScriptElement - check if changes
@@ -298,7 +307,7 @@ nsHTMLScriptElement::FreezeUriAsyncDefer()
     GetSrc(src);
     NS_NewURI(getter_AddRefs(mUri), src);
     // At this point mUri will be null for invalid URLs.
-    mExternal = true;
+    mExternal = PR_TRUE;
 
     bool defer, async;
     GetAsync(&async);
@@ -308,7 +317,7 @@ nsHTMLScriptElement::FreezeUriAsyncDefer()
     mAsync = async;
   }
   
-  mFrozen = true;
+  mFrozen = PR_TRUE;
 }
 
 bool
@@ -316,4 +325,15 @@ nsHTMLScriptElement::HasScriptContent()
 {
   return (mFrozen ? mExternal : HasAttr(kNameSpaceID_None, nsGkAtoms::src)) ||
          nsContentUtils::HasNonEmptyTextContent(this);
+}
+
+nsresult
+nsHTMLScriptElement::MaybeProcessScript()
+{
+  nsresult rv = nsScriptElement::MaybeProcessScript();
+  if (rv == NS_CONTENT_SCRIPT_IS_EVENTHANDLER)
+    // Don't return NS_CONTENT_SCRIPT_IS_EVENTHANDLER since callers can't deal
+    rv = NS_OK;
+
+  return rv;
 }

@@ -129,7 +129,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsJSScriptTimeoutHandler)
     }
     else if (tmp->mFunObj) {
       JSFunction* fun = JS_GetObjectFunction(tmp->mFunObj);
-      if (fun && JS_GetFunctionId(fun)) {
+      if (JS_GetFunctionId(fun)) {
         JSFlatString *funId = JS_ASSERT_STRING_IS_FLAT(JS_GetFunctionId(fun));
         size_t size = 1 + JS_PutEscapedFlatString(NULL, 0, funId, 0);
         char *name = new char[size];
@@ -250,7 +250,7 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
   if (argc == 1) {
     // If no interval was specified, treat this like a timeout, to avoid
     // setting an interval of 0 milliseconds.
-    *aIsInterval = false;
+    *aIsInterval = PR_FALSE;
   }
 
   switch (::JS_TypeOfValue(cx, argv[0])) {

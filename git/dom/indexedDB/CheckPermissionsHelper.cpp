@@ -141,8 +141,7 @@ CheckPermissionsHelper::Run()
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
-  else if (permission == nsIPermissionManager::UNKNOWN_ACTION &&
-           mPromptAllowed) {
+  else if (permission == nsIPermissionManager::UNKNOWN_ACTION) {
     nsCOMPtr<nsIObserverService> obs = GetObserverService();
     rv = obs->NotifyObservers(static_cast<nsIRunnable*>(this),
                               TOPIC_PERMISSIONS_PROMPT, nsnull);
@@ -151,7 +150,7 @@ CheckPermissionsHelper::Run()
     return NS_OK;
   }
 
-  nsRefPtr<OpenDatabaseHelper> helper;
+  nsRefPtr<AsyncConnectionHelper> helper;
   helper.swap(mHelper);
 
   nsCOMPtr<nsIDOMWindow> window;
@@ -169,8 +168,7 @@ CheckPermissionsHelper::Run()
                "Unknown permission!");
 
   helper->SetError(NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR);
-
-  return helper->RunImmediately();
+  return helper->Run();
 }
 
 NS_IMETHODIMP
@@ -197,9 +195,8 @@ CheckPermissionsHelper::Observe(nsISupports* aSubject,
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!strcmp(aTopic, TOPIC_PERMISSIONS_RESPONSE), "Bad topic!");
-  NS_ASSERTION(mPromptAllowed, "How did we get here?");
 
-  mHasPrompted = true;
+  mHasPrompted = PR_TRUE;
 
   nsresult rv;
   mPromptResult = nsDependentString(aData).ToInteger(&rv);
@@ -208,7 +205,7 @@ CheckPermissionsHelper::Observe(nsISupports* aSubject,
   IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
   NS_ASSERTION(mgr, "This should never be null!");
 
-  rv = NS_DispatchToCurrentThread(this);
+  rv = mgr->WaitForOpenAllowed(mName, mASCIIOrigin, this);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;

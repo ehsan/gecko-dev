@@ -254,7 +254,7 @@ AudioParent::RecvPause()
 {
   if (!mStream)
     return false;
-  nsCOMPtr<nsIRunnable> event = new AudioPauseEvent(mStream, true);
+  nsCOMPtr<nsIRunnable> event = new AudioPauseEvent(mStream, PR_TRUE);
   nsCOMPtr<nsIThread> thread = mStream->GetThread();
   thread->Dispatch(event, nsIEventTarget::DISPATCH_NORMAL);
   return true;
@@ -265,7 +265,7 @@ AudioParent::RecvResume()
 {
   if (!mStream)
     return false;
-  nsCOMPtr<nsIRunnable> event = new AudioPauseEvent(mStream, false);
+  nsCOMPtr<nsIRunnable> event = new AudioPauseEvent(mStream, PR_FALSE);
   nsCOMPtr<nsIThread> thread = mStream->GetThread();
   thread->Dispatch(event, nsIEventTarget::DISPATCH_NORMAL);
   return true;
@@ -296,7 +296,7 @@ AudioParent::SendDrainDone()
 }
 
 AudioParent::AudioParent(PRInt32 aNumChannels, PRInt32 aRate, PRInt32 aFormat)
-  : mIPCOpen(true)
+  : mIPCOpen(PR_TRUE)
 {
   mStream = nsAudioStream::AllocateStream();
   NS_ASSERTION(mStream, "AudioStream allocation failed.");
@@ -319,7 +319,7 @@ AudioParent::~AudioParent()
 void
 AudioParent::ActorDestroy(ActorDestroyReason aWhy)
 {
-  mIPCOpen = false;
+  mIPCOpen = PR_FALSE;
 
   Shutdown();
 }

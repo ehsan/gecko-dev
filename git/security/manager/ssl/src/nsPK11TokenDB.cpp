@@ -84,7 +84,7 @@ nsPK11Token::refreshTokenInfo()
       ccLabel, 
       ccLabel+PL_strnlen(ccLabel, sizeof(tok_info.label)));
     mTokenLabel = NS_ConvertUTF8toUTF16(cLabel);
-    mTokenLabel.Trim(" ", false, true);
+    mTokenLabel.Trim(" ", PR_FALSE, PR_TRUE);
 
     // Set the Manufacturer field
     const char *ccManID = (const char*)tok_info.manufacturerID;
@@ -92,7 +92,7 @@ nsPK11Token::refreshTokenInfo()
       ccManID, 
       ccManID+PL_strnlen(ccManID, sizeof(tok_info.manufacturerID)));
     mTokenManID = NS_ConvertUTF8toUTF16(cManID);
-    mTokenManID.Trim(" ", false, true);
+    mTokenManID.Trim(" ", PR_FALSE, PR_TRUE);
 
     // Set the Hardware Version field
     mTokenHWVersion.AppendInt(tok_info.hardwareVersion.major);
@@ -108,7 +108,7 @@ nsPK11Token::refreshTokenInfo()
       ccSerial, 
       ccSerial+PL_strnlen(ccSerial, sizeof(tok_info.serialNumber)));
     mTokenSerialNum = NS_ConvertUTF8toUTF16(cSerial);
-    mTokenSerialNum.Trim(" ", false, true);
+    mTokenSerialNum.Trim(" ", PR_FALSE, PR_TRUE);
   }
 
 }
@@ -245,7 +245,7 @@ nsPK11Token::Login(bool force)
   }
   rv = setPassword(mSlot, mUIContext);
   if (NS_FAILED(rv)) return rv;
-  srv = PK11_Authenticate(mSlot, true, mUIContext);
+  srv = PK11_Authenticate(mSlot, PR_TRUE, mUIContext);
   return (srv == SECSuccess) ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -322,14 +322,14 @@ NS_IMETHODIMP nsPK11Token::CheckPassword(const PRUnichar *password, bool *_retva
   srv = PK11_CheckUserPassword(mSlot, 
                   const_cast<char *>(aUtf8Password.get()));
   if (srv != SECSuccess) {
-    *_retval =  false;
+    *_retval =  PR_FALSE;
     prerr = PR_GetError();
     if (prerr != SEC_ERROR_BAD_PASSWORD) {
       /* something really bad happened - throw an exception */
       return NS_ERROR_FAILURE;
     }
   } else {
-    *_retval =  true;
+    *_retval =  PR_TRUE;
   }
   return NS_OK;
 }
@@ -526,10 +526,10 @@ NS_IMETHODIMP nsPK11TokenDB::ListTokens(nsIEnumerator* *_retval)
   /* List all tokens, creating PK11Token objects and putting them
    * into the array.
    */
-  list = PK11_GetAllTokens(CKM_INVALID_MECHANISM, false, false, 0);
+  list = PK11_GetAllTokens(CKM_INVALID_MECHANISM, PR_FALSE, PR_FALSE, 0);
   if (!list) { rv = NS_ERROR_FAILURE; goto done; }
 
-  for (le = PK11_GetFirstSafe(list); le; le = PK11_GetNextSafe(list, le, false)) {
+  for (le = PK11_GetFirstSafe(list); le; le = PK11_GetNextSafe(list, le, PR_FALSE)) {
     nsCOMPtr<nsIPK11Token> token = new nsPK11Token(le->slot);
     rv = token
       ? array->AppendElement(token)

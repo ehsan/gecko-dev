@@ -40,16 +40,13 @@ function tryBadScripts() {
   }
 }
 
-const url = "data:text/plain,const startResponse = 'started';";
-importScripts(url);
-
 onmessage = function(event) {
   switch (event.data) {
     case 'start':
       importScripts("importScripts_worker_imported2.js");
       importedScriptFunction2();
       tryBadScripts();
-      postMessage(startResponse);
+      postMessage('started');
       break;
     case 'stop':
       tryBadScripts();

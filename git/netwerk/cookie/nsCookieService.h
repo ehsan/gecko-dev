@@ -130,7 +130,7 @@ class nsCookieEntry : public PLDHashEntryHdr
       return HashString(*aKey);
     }
 
-    enum { ALLOW_MEMMOVE = true };
+    enum { ALLOW_MEMMOVE = PR_TRUE };
 
     inline ArrayType& GetCookies() { return mCookies; }
 

@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsClipboardPrivacyHandler.h"
 #include "nsITransferable.h"
 #include "nsISupportsPrimitives.h"
@@ -54,8 +52,6 @@
 #include <ole2.h>
 #endif
 
-using namespace mozilla;
-
 #define NS_MOZ_DATA_FROM_PRIVATEBROWSING "application/x-moz-private-browsing"
 
 NS_IMPL_ISUPPORTS2(nsClipboardPrivacyHandler, nsIObserver, nsISupportsWeakReference)
@@ -68,7 +64,7 @@ nsClipboardPrivacyHandler::Init()
   if (!observerService)
     return NS_ERROR_FAILURE;
   return observerService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC,
-                                      true);
+                                      PR_TRUE);
 }
 
 /**
@@ -84,7 +80,7 @@ nsClipboardPrivacyHandler::PrepareDataForClipboard(nsITransferable * aTransferab
   if (InPrivateBrowsing()) {
     nsCOMPtr<nsISupportsPRBool> data = do_CreateInstance(NS_SUPPORTS_PRBOOL_CONTRACTID);
     if (data) {
-      rv = data->SetData(true);
+      rv = data->SetData(PR_TRUE);
       NS_ENSURE_SUCCESS(rv, rv);
 
       rv = aTransferable->AddDataFlavor(NS_MOZ_DATA_FROM_PRIVATEBROWSING);
@@ -110,7 +106,7 @@ nsClipboardPrivacyHandler::Observe(nsISupports *aSubject, char const *aTopic, PR
     const char * flavors[] = { NS_MOZ_DATA_FROM_PRIVATEBROWSING };
     bool haveFlavors;
     rv = clipboard->HasDataMatchingFlavors(flavors,
-                                           ArrayLength(flavors),
+                                           NS_ARRAY_LENGTH(flavors),
                                            nsIClipboard::kGlobalClipboard,
                                            &haveFlavors);
     if (NS_SUCCEEDED(rv) && haveFlavors) {

@@ -51,6 +51,7 @@
 #include "nsIDOMWindow.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefBranch2.h"
+#include "nsIPrefService.h"
 #include "nsIPrefLocalizedString.h"
 #include "nsIObserverService.h"
 #include "nsContentUtils.h"
@@ -106,16 +107,12 @@
 
 #ifdef ANDROID
 #include "gfxAndroidPlatform.h"
-#endif
-#ifdef MOZ_WIDGET_ANDROID
 #include "AndroidBridge.h"
 #endif
 
 #include "nsIClipboard.h"
 #include "nsWidgetsCID.h"
 #include "nsISupportsPrimitives.h"
-#include "mozilla/dom/sms/SmsParent.h"
-
 static NS_DEFINE_CID(kCClipboardCID, NS_CLIPBOARD_CID);
 static const char* sClipboardTextFlavors[] = { kUnicodeMime };
 
@@ -126,7 +123,6 @@ using namespace mozilla::net;
 using namespace mozilla::places;
 using mozilla::unused; // heh
 using base::KillProcess;
-using namespace mozilla::dom::sms;
 
 namespace mozilla {
 namespace dom {
@@ -167,9 +163,6 @@ MemoryReportRequestParent::~MemoryReportRequestParent()
 
 nsTArray<ContentParent*>* ContentParent::gContentParents;
 
-// The first content child has ID 1, so the chrome process can have ID 0.
-static PRUint64 gContentChildID = 1;
-
 ContentParent*
 ContentParent::GetNewOrUsed()
 {
@@ -208,24 +201,25 @@ ContentParent::Init()
 {
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs) {
-        obs->AddObserver(this, "xpcom-shutdown", false);
-        obs->AddObserver(this, NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC, false);
-        obs->AddObserver(this, "child-memory-reporter-request", false);
-        obs->AddObserver(this, "memory-pressure", false);
-        obs->AddObserver(this, "child-gc-request", false);
-        obs->AddObserver(this, "child-cc-request", false);
+        obs->AddObserver(this, "xpcom-shutdown", PR_FALSE);
+        obs->AddObserver(this, NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC, PR_FALSE);
+        obs->AddObserver(this, "child-memory-reporter-request", PR_FALSE);
+        obs->AddObserver(this, "memory-pressure", PR_FALSE);
+        obs->AddObserver(this, "child-gc-request", PR_FALSE);
+        obs->AddObserver(this, "child-cc-request", PR_FALSE);
 #ifdef ACCESSIBILITY
-        obs->AddObserver(this, "a11y-init-or-shutdown", false);
+        obs->AddObserver(this, "a11y-init-or-shutdown", PR_FALSE);
 #endif
     }
     nsCOMPtr<nsIPrefBranch2> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
     if (prefs) {
-        prefs->AddObserver("", this, false);
+        prefs->AddObserver("", this, PR_FALSE);
     }
     nsCOMPtr<nsIThreadInternal>
             threadInt(do_QueryInterface(NS_GetCurrentThread()));
     if (threadInt) {
-        threadInt->AddObserver(this);
+        threadInt->GetObserver(getter_AddRefs(mOldObserver));
+        threadInt->SetObserver(this);
     }
     if (obs) {
         obs->NotifyObservers(static_cast<nsIObserver*>(this), "ipc:content-created", nsnull);
@@ -343,7 +337,7 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     nsCOMPtr<nsIThreadInternal>
         threadInt(do_QueryInterface(NS_GetCurrentThread()));
     if (threadInt)
-        threadInt->RemoveObserver(this);
+        threadInt->SetObserver(mOldObserver);
     if (mRunToCompletionDepth)
         mRunToCompletionDepth = 0;
 
@@ -362,7 +356,7 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
         props->Init();
 
         if (AbnormalShutdown == why) {
-            props->SetPropertyAsBool(NS_LITERAL_STRING("abnormal"), true);
+            props->SetPropertyAsBool(NS_LITERAL_STRING("abnormal"), PR_TRUE);
 
 #ifdef MOZ_CRASHREPORTER
             MOZ_ASSERT(ManagedPCrashReporterParent().Length() > 0);
@@ -431,7 +425,6 @@ ContentParent::ContentParent()
     mSubprocess = new GeckoChildProcessHost(GeckoProcessType_Content);
     mSubprocess->AsyncLaunch();
     Open(mSubprocess->GetChannel(), mSubprocess->GetChildProcessHandle());
-    unused << SendSetID(gContentChildID++);
 
     nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
     nsChromeRegistryChrome* chromeRegistry =
@@ -468,7 +461,7 @@ bool
 ContentParent::RecvReadPrefsArray(InfallibleTArray<PrefTuple> *prefs)
 {
     EnsurePrefService();
-    Preferences::MirrorPreferences(prefs);
+    mPrefService->MirrorPreferences(prefs);
     return true;
 }
 
@@ -640,7 +633,7 @@ ContentParent::RecvClipboardHasText(bool* hasText)
 bool
 ContentParent::RecvGetSystemColors(const PRUint32& colorsCount, InfallibleTArray<PRUint32>* colors)
 {
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
     NS_ASSERTION(AndroidBridge::Bridge() != nsnull, "AndroidBridge is not available");
     if (AndroidBridge::Bridge() == nsnull) {
         // Do not fail - the colors won't be right, but it's not critical
@@ -659,7 +652,7 @@ ContentParent::RecvGetSystemColors(const PRUint32& colorsCount, InfallibleTArray
 bool
 ContentParent::RecvGetIconForExtension(const nsCString& aFileExt, const PRUint32& aIconSize, InfallibleTArray<PRUint8>* bits)
 {
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
     NS_ASSERTION(AndroidBridge::Bridge() != nsnull, "AndroidBridge is not available");
     if (AndroidBridge::Bridge() == nsnull) {
         // Do not fail - just no icon will be shown
@@ -677,8 +670,8 @@ bool
 ContentParent::RecvGetShowPasswordSetting(bool* showPassword)
 {
     // default behavior is to show the last password character
-    *showPassword = true;
-#ifdef MOZ_WIDGET_ANDROID
+    *showPassword = PR_TRUE;
+#ifdef ANDROID
     NS_ASSERTION(AndroidBridge::Bridge() != nsnull, "AndroidBridge is not available");
     if (AndroidBridge::Bridge() != nsnull)
         *showPassword = AndroidBridge::Bridge()->GetShowPasswordSetting();
@@ -714,9 +707,33 @@ ContentParent::Observe(nsISupports* aSubject,
         // We know prefs are ASCII here.
         NS_LossyConvertUTF16toASCII strData(aData);
 
-        PrefTuple pref;
-        bool prefNeedUpdate = Preferences::MirrorPreference(strData.get(), &pref);
+        nsCOMPtr<nsIPrefServiceInternal> prefService =
+          do_GetService("@mozilla.org/preferences-service;1");
+
+        bool prefNeedUpdate;
+        prefService->PrefHasUserValue(strData, &prefNeedUpdate);
+
+        // If the pref does not have a user value, check if it exist on the
+        // default branch or not
+        if (!prefNeedUpdate) {
+          nsCOMPtr<nsIPrefBranch> defaultBranch;
+          nsCOMPtr<nsIPrefService> prefsService = do_QueryInterface(prefService);
+          prefsService->GetDefaultBranch(nsnull, getter_AddRefs(defaultBranch));
+
+          PRInt32 prefType = nsIPrefBranch::PREF_INVALID;
+          defaultBranch->GetPrefType(strData.get(), &prefType);
+          prefNeedUpdate = (prefType != nsIPrefBranch::PREF_INVALID);
+        }
+
         if (prefNeedUpdate) {
+          // Pref was created, or previously existed and its value
+          // changed.
+          PrefTuple pref;
+#ifdef DEBUG
+          nsresult rv =
+#endif
+          prefService->MirrorPreference(strData, &pref);
+          NS_ASSERTION(NS_SUCCEEDED(rv), "Pref has value but can't mirror?");
           if (!SendPreferenceUpdate(pref)) {
               return NS_ERROR_NOT_AVAILABLE;
           }
@@ -934,19 +951,6 @@ ContentParent::DeallocPExternalHelperApp(PExternalHelperAppParent* aService)
     return true;
 }
 
-PSmsParent*
-ContentParent::AllocPSms()
-{
-    return new SmsParent();
-}
-
-bool
-ContentParent::DeallocPSms(PSmsParent* aSms)
-{
-    delete aSms;
-    return true;
-}
-
 PStorageParent*
 ContentParent::AllocPStorage(const StorageConstructData& aData)
 {
@@ -1118,8 +1122,10 @@ ContentParent::RecvLoadURIExternal(const IPC::URI& uri)
 NS_IMETHODIMP
 ContentParent::OnDispatchedEvent(nsIThreadInternal *thread)
 {
-   NS_NOTREACHED("OnDispatchedEvent unimplemented");
-   return NS_ERROR_NOT_IMPLEMENTED;
+    if (mOldObserver)
+        return mOldObserver->OnDispatchedEvent(thread);
+
+    return NS_OK;
 }
 
 /* void onProcessNextEvent (in nsIThreadInternal thread, in boolean mayWait, in unsigned long recursionDepth); */
@@ -1130,6 +1136,9 @@ ContentParent::OnProcessNextEvent(nsIThreadInternal *thread,
 {
     if (mRunToCompletionDepth)
         ++mRunToCompletionDepth;
+
+    if (mOldObserver)
+        return mOldObserver->OnProcessNextEvent(thread, mayWait, recursionDepth);
 
     return NS_OK;
 }
@@ -1149,6 +1158,9 @@ ContentParent::AfterProcessNextEvent(nsIThreadInternal *thread,
                 UnblockChild();
             }
     }
+
+    if (mOldObserver)
+        return mOldObserver->AfterProcessNextEvent(thread, recursionDepth);
 
     return NS_OK;
 }
@@ -1174,7 +1186,7 @@ ContentParent::RecvSyncMessage(const nsString& aMsg, const nsString& aJSON,
   nsRefPtr<nsFrameMessageManager> ppm = mMessageManager;
   if (ppm) {
     ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
-                        aMsg,true, aJSON, nsnull, aRetvals);
+                        aMsg,PR_TRUE, aJSON, nsnull, aRetvals);
   }
   return true;
 }
@@ -1185,7 +1197,7 @@ ContentParent::RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON)
   nsRefPtr<nsFrameMessageManager> ppm = mMessageManager;
   if (ppm) {
     ppm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(ppm.get()),
-                        aMsg, false, aJSON, nsnull, nsnull);
+                        aMsg, PR_FALSE, aJSON, nsnull, nsnull);
   }
   return true;
 }

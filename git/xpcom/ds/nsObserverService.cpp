@@ -76,7 +76,7 @@
 NS_IMPL_THREADSAFE_ISUPPORTS2(nsObserverService, nsIObserverService, nsObserverService)
 
 nsObserverService::nsObserverService() :
-    mShuttingDown(false)
+    mShuttingDown(PR_FALSE)
 {
     mObserverTopicTable.Init();
 }
@@ -89,7 +89,7 @@ nsObserverService::~nsObserverService(void)
 void
 nsObserverService::Shutdown()
 {
-    mShuttingDown = true;
+    mShuttingDown = PR_TRUE;
 
     if (mObserverTopicTable.IsInitialized())
         mObserverTopicTable.Clear();

@@ -267,7 +267,6 @@ nsresult nsBuiltinDecoderReader::DecodeToTarget(PRInt64 aTarget)
   if (HasVideo()) {
     bool eof = false;
     PRInt64 startTime = -1;
-    nsAutoPtr<VideoData> video;
     while (HasVideo() && !eof) {
       while (mVideoQueue.GetSize() == 0 && !eof) {
         bool skip = false;
@@ -280,13 +279,9 @@ nsresult nsBuiltinDecoderReader::DecodeToTarget(PRInt64 aTarget)
         }
       }
       if (mVideoQueue.GetSize() == 0) {
-        // Hit end of file, we want to display the last frame of the video.
-        if (video) {
-          mVideoQueue.PushFront(video.forget());
-        }
         break;
       }
-      video = mVideoQueue.PeekFront();
+      nsAutoPtr<VideoData> video(mVideoQueue.PeekFront());
       // If the frame end time is less than the seek target, we won't want
       // to display this frame after the seek, so discard it.
       if (video && video->mEndTime <= aTarget) {
@@ -294,6 +289,7 @@ nsresult nsBuiltinDecoderReader::DecodeToTarget(PRInt64 aTarget)
           startTime = video->mTime;
         }
         mVideoQueue.PopFront();
+        video = nsnull;
       } else {
         video.forget();
         break;

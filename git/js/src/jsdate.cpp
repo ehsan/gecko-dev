@@ -56,9 +56,6 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "mozilla/Util.h"
-
 #include "jstypes.h"
 #include "jsstdint.h"
 #include "jsprf.h"
@@ -66,6 +63,7 @@
 #include "jsutil.h"
 #include "jsapi.h"
 #include "jsversion.h"
+#include "jsbuiltins.h"
 #include "jscntxt.h"
 #include "jsdate.h"
 #include "jsinterp.h"
@@ -81,7 +79,6 @@
 
 #include "vm/Stack-inl.h"
 
-using namespace mozilla;
 using namespace js;
 using namespace js::types;
 
@@ -850,12 +847,7 @@ date_parseISOString(JSLinearString *str, jsdouble *result, JSContext *cx)
             tzMul = -1;
         ++i;
         NEED_NDIGITS(2, tzHour);
-        /*
-         * Non-standard extension to the ISO date format (permitted by ES5):
-         * allow "-0700" as a time zone offset, not just "-07:00".
-         */
-        if (PEEK(':'))
-          ++i;
+        NEED(':');
         NEED_NDIGITS(2, tzMin);
     } else {
         isLocalTime = JS_TRUE;
@@ -1041,7 +1033,7 @@ date_parseString(JSLinearString *str, jsdouble *result, JSContext *cx)
             }
             if (i <= st + 1)
                 goto syntax;
-            for (k = ArrayLength(wtb); --k >= 0;)
+            for (k = JS_ARRAY_LENGTH(wtb); --k >= 0;)
                 if (date_regionMatches(wtb[k], 0, s, st, i-st, 1)) {
                     int action = ttb[k];
                     if (action != 0) {
@@ -1220,6 +1212,14 @@ date_now(JSContext *cx, uintN argc, Value *vp)
     return JS_TRUE;
 }
 
+#ifdef JS_TRACER
+static jsdouble FASTCALL
+date_now_tn(JSContext*)
+{
+    return NowAsMillis();
+}
+#endif
+
 /*
  * Set UTC time to a given time and invalidate cached local time.
  */
@@ -1228,11 +1228,9 @@ SetUTCTime(JSContext *cx, JSObject *obj, jsdouble t, Value *vp = NULL)
 {
     JS_ASSERT(obj->isDate());
 
-    for (size_t ind = JSObject::JSSLOT_DATE_COMPONENTS_START;
-         ind < JSObject::DATE_CLASS_RESERVED_SLOTS;
-         ind++) {
+    size_t slotCap = JS_MIN(obj->numSlots(), JSObject::DATE_CLASS_RESERVED_SLOTS);
+    for (size_t ind = JSObject::JSSLOT_DATE_COMPONENTS_START; ind < slotCap; ind++)
         obj->setSlot(ind, UndefinedValue());
-    }
 
     obj->setDateUTCTime(DoubleValue(t));
     if (vp)
@@ -1258,6 +1256,12 @@ FillLocalTimes(JSContext *cx, JSObject *obj)
     JS_ASSERT(obj->isDate());
 
     jsdouble utcTime = obj->getDateUTCTime().toNumber();
+
+    /* Make sure there are slots to store the cached information. */
+    if (obj->numSlots() < JSObject::DATE_CLASS_RESERVED_SLOTS) {
+        if (!obj->growSlots(cx, JSObject::DATE_CLASS_RESERVED_SLOTS))
+            return false;
+    }
 
     if (!JSDOUBLE_IS_FINITE(utcTime)) {
         for (size_t ind = JSObject::JSSLOT_DATE_COMPONENTS_START;
@@ -2143,6 +2147,7 @@ date_toJSON(JSContext *cx, uintN argc, Value *vp)
     }
 
     /* Step 6. */
+    LeaveTrace(cx);
     InvokeArgsGuard args;
     if (!cx->stack.pushInvokeArgs(cx, 0, &args))
         return false;
@@ -2508,38 +2513,42 @@ date_toString(JSContext *cx, uintN argc, Value *vp)
 static JSBool
 date_valueOf(JSContext *cx, uintN argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    bool ok;
-    JSObject *obj = NonGenericMethodGuard(cx, args, date_valueOf, &DateClass, &ok);
-    if (!obj)
-        return ok;
+    /*
+     * It is an error to call date_valueOf on a non-date object, but we don't
+     * need to check for that explicitly here because every path calls
+     * GetUTCTime, which does the check.
+     */
 
     /* If called directly with no arguments, convert to a time number. */
-    if (argc == 0) {
-        args.rval() = obj->getDateUTCTime();
-        return true;
-    }
+    if (argc == 0)
+        return date_getTime(cx, argc, vp);
+
+    /* Verify this before extracting a string from the first argument. */
+    JSObject *obj = ToObject(cx, &vp[1]);
+    if (!obj)
+        return false;
 
     /* Convert to number only if the hint was given, otherwise favor string. */
-    JSString *str = js_ValueToString(cx, args[0]);
+    JSString *str = js_ValueToString(cx, vp[2]);
     if (!str)
         return false;
     JSLinearString *linear_str = str->ensureLinear(cx);
     if (!linear_str)
         return false;
     JSAtom *number_str = cx->runtime->atomState.typeAtoms[JSTYPE_NUMBER];
-    if (EqualStrings(linear_str, number_str)) {
-        args.rval() = obj->getDateUTCTime();
-        return true;
-    }
-    return date_format(cx, obj->getDateUTCTime().toNumber(), FORMATSPEC_FULL, args);
+    if (EqualStrings(linear_str, number_str))
+        return date_getTime(cx, argc, vp);
+    return date_toString(cx, argc, vp);
 }
+
+// Don't really need an argument here, but we don't support arg-less builtins
+JS_DEFINE_TRCINFO_1(date_now,
+    (1, (static, DOUBLE, date_now_tn, CONTEXT, 0, nanojit::ACCSET_STORE_ANY)))
 
 static JSFunctionSpec date_static_methods[] = {
     JS_FN("UTC",                 date_UTC,                MAXARGS,0),
     JS_FN("parse",               date_parse,              1,0),
-    JS_FN("now",                 date_now,                0,0),
+    JS_TN("now",                 date_now,                0,0, &date_now_trcinfo),
     JS_FS_END
 };
 
@@ -2692,6 +2701,8 @@ js_InitDateClass(JSContext *cx, JSObject *obj)
     {
         return NULL;
     }
+    if (!cx->typeInferenceEnabled())
+        dateProto->brand(cx);
 
     if (!DefineConstructorAndPrototype(cx, global, JSProto_Date, ctor, dateProto))
         return NULL;
@@ -2703,7 +2714,7 @@ JS_FRIEND_API(JSObject *)
 js_NewDateObjectMsec(JSContext *cx, jsdouble msec_time)
 {
     JSObject *obj = NewBuiltinClassInstance(cx, &DateClass);
-    if (!obj)
+    if (!obj || !obj->ensureSlots(cx, JSObject::DATE_CLASS_RESERVED_SLOTS))
         return NULL;
     if (!SetUTCTime(cx, obj, msec_time))
         return NULL;

@@ -44,15 +44,15 @@
 nsDOMTransitionEvent::nsDOMTransitionEvent(nsPresContext *aPresContext,
                                            nsTransitionEvent *aEvent)
   : nsDOMEvent(aPresContext, aEvent ? aEvent
-                                    : new nsTransitionEvent(false, 0,
+                                    : new nsTransitionEvent(PR_FALSE, 0,
                                                             EmptyString(),
                                                             0.0))
 {
   if (aEvent) {
-    mEventIsInternal = false;
+    mEventIsInternal = PR_FALSE;
   }
   else {
-    mEventIsInternal = true;
+    mEventIsInternal = PR_TRUE;
     mEvent->time = PR_Now();
   }
 }

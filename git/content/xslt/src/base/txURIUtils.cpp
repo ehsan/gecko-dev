@@ -87,7 +87,14 @@ URIUtils::ResetWithSource(nsIDocument *aNewDoc, nsIDOMNode *aSourceNode)
         return;
     }
 
-    nsCOMPtr<nsIDocument> sourceDoc = node->OwnerDoc();
+    nsCOMPtr<nsIDocument> sourceDoc = node->GetOwnerDoc();
+    if (!sourceDoc) {
+        NS_ERROR("no source document found");
+        // XXXbz passing nsnull as the first arg to Reset is illegal
+        aNewDoc->Reset(nsnull, nsnull);
+        return;
+    }
+
     nsIPrincipal* sourcePrincipal = sourceDoc->NodePrincipal();
 
     // Copy the channel and loadgroup from the source document.

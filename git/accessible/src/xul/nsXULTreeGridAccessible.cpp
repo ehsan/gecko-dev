@@ -210,7 +210,7 @@ nsXULTreeGridAccessible::GetSelectedCells(nsIArray **aCells)
       for (PRInt32 colIdx = 0; colIdx < columnCount; colIdx++) {
         nsCOMPtr<nsIAccessible> cell;
         GetCellAt(rowIdx, colIdx, getter_AddRefs(cell));
-        selCells->AppendElement(cell, false);
+        selCells->AppendElement(cell, PR_FALSE);
       }
     }
   }
@@ -494,7 +494,7 @@ nsXULTreeGridAccessible::IsColumnSelected(PRInt32 aColumnIndex,
                                           bool *aIsSelected)
 {
   NS_ENSURE_ARG_POINTER(aIsSelected);
-  *aIsSelected = false;
+  *aIsSelected = PR_FALSE;
 
   if (IsDefunct())
     return NS_ERROR_FAILURE;
@@ -518,7 +518,7 @@ NS_IMETHODIMP
 nsXULTreeGridAccessible::IsRowSelected(PRInt32 aRowIndex, bool *aIsSelected)
 {
   NS_ENSURE_ARG_POINTER(aIsSelected);
-  *aIsSelected = false;
+  *aIsSelected = PR_FALSE;
 
   if (IsDefunct())
     return NS_ERROR_FAILURE;
@@ -573,7 +573,7 @@ NS_IMETHODIMP
 nsXULTreeGridAccessible::IsProbablyForLayout(bool *aIsProbablyForLayout)
 {
   NS_ENSURE_ARG_POINTER(aIsProbablyForLayout);
-  *aIsProbablyForLayout = false;
+  *aIsProbablyForLayout = PR_FALSE;
 
   return NS_OK;
 }
@@ -1083,7 +1083,7 @@ nsXULTreeGridCellAccessible::GetColumnHeaderCells(nsIArray **aHeaderCells)
 
   if (headerCell)
     headerCells->AppendElement(static_cast<nsIAccessible*>(headerCell),
-                               false);
+                               PR_FALSE);
 
   NS_ADDREF(*aHeaderCells = headerCells);
   return NS_OK;
@@ -1111,7 +1111,7 @@ NS_IMETHODIMP
 nsXULTreeGridCellAccessible::IsSelected(bool *aIsSelected)
 {
   NS_ENSURE_ARG_POINTER(aIsSelected);
-  *aIsSelected = false;
+  *aIsSelected = PR_FALSE;
 
   if (IsDefunct())
     return NS_ERROR_FAILURE;
@@ -1137,7 +1137,7 @@ bool
 nsXULTreeGridCellAccessible::Init()
 {
   if (!nsLeafAccessible::Init())
-    return false;
+    return PR_FALSE;
 
   PRInt16 type;
   mColumn->GetType(&type);
@@ -1146,7 +1146,7 @@ nsXULTreeGridCellAccessible::Init()
   else
     mTreeView->GetCellText(mRow, mColumn, mCachedTextEquiv);
 
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -1337,19 +1337,19 @@ nsXULTreeGridCellAccessible::IsEditable() const
   bool isEditable = false;
   nsresult rv = mTreeView->IsEditable(mRow, mColumn, &isEditable);
   if (NS_FAILED(rv) || !isEditable)
-    return false;
+    return PR_FALSE;
 
   nsCOMPtr<nsIDOMElement> columnElm;
   mColumn->GetElement(getter_AddRefs(columnElm));
   if (!columnElm)
-    return false;
+    return PR_FALSE;
 
   nsCOMPtr<nsIContent> columnContent(do_QueryInterface(columnElm));
   if (!columnContent->AttrValueIs(kNameSpaceID_None,
                                   nsGkAtoms::editable,
                                   nsGkAtoms::_true,
                                   eCaseMatters))
-    return false;
+    return PR_FALSE;
 
   return mContent->AttrValueIs(kNameSpaceID_None,
                                nsGkAtoms::editable,

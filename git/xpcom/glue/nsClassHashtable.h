@@ -124,13 +124,13 @@ nsClassHashtable<KeyClass,T>::Get(KeyType aKey, T** retVal) const
     if (retVal)
       *retVal = ent->mData;
 
-    return true;
+    return PR_TRUE;
   }
 
   if (retVal)
     *retVal = nsnull;
 
-  return false;
+  return PR_FALSE;
 }
 
 template<class KeyClass,class T>
@@ -182,7 +182,7 @@ nsClassHashtableMT<KeyClass,T>::Get(KeyType aKey, T** retVal) const
 
     PR_Unlock(this->mLock);
 
-    return true;
+    return PR_TRUE;
   }
 
   if (retVal)
@@ -190,7 +190,7 @@ nsClassHashtableMT<KeyClass,T>::Get(KeyType aKey, T** retVal) const
 
   PR_Unlock(this->mLock);
 
-  return false;
+  return PR_FALSE;
 }
 
 #endif // nsClassHashtable_h__

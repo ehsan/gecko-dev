@@ -38,13 +38,10 @@
 
 #include "nsRootAccessibleWrap.h"
 
-#include "Compatibility.h"
 #include "nsWinUtils.h"
 
 #include "nsIDOMEventTarget.h"
 #include "nsEventListenerManager.h"
-
-using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Constructor/desctructor
@@ -66,7 +63,7 @@ nsRootAccessibleWrap::~nsRootAccessibleWrap()
 void
 nsRootAccessibleWrap::DocumentActivated(nsDocAccessible* aDocument)
 {
-  if (Compatibility::IsDolphin() &&
+  if (nsWinUtils::IsWindowEmulationFor(kDolphinModuleHandle) &&
       nsCoreUtils::IsTabDocument(aDocument->GetDocumentNode())) {
     PRUint32 count = mChildDocuments.Length();
     for (PRUint32 idx = 0; idx < count; idx++) {

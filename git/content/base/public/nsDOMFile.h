@@ -49,12 +49,11 @@
 #include "nsIMutable.h"
 #include "nsCOMArray.h"
 #include "nsCOMPtr.h"
+#include "mozilla/AutoRestore.h"
 #include "nsString.h"
 #include "nsIXMLHttpRequest.h"
 #include "prmem.h"
 #include "nsAutoPtr.h"
-
-#include "mozilla/GuardObjects.h"
 
 #ifndef PR_UINT64_MAX
 #define PR_UINT64_MAX (~(PRUint64)(0))
@@ -79,7 +78,7 @@ public:
       mName(aName), mStart(0), mLength(aLength)
   {
     // Ensure non-null mContentType by default
-    mContentType.SetIsVoid(false);
+    mContentType.SetIsVoid(PR_FALSE);
   }
 
   nsDOMFileBase(const nsAString& aContentType, PRUint64 aLength)
@@ -87,7 +86,7 @@ public:
       mStart(0), mLength(aLength)
   {
     // Ensure non-null mContentType by default
-    mContentType.SetIsVoid(false);
+    mContentType.SetIsVoid(PR_FALSE);
   }
 
   nsDOMFileBase(const nsAString& aContentType,
@@ -98,7 +97,7 @@ public:
     NS_ASSERTION(aLength != PR_UINT64_MAX,
                  "Must know length when creating slice");
     // Ensure non-null mContentType by default
-    mContentType.SetIsVoid(false);
+    mContentType.SetIsVoid(PR_FALSE);
   }
 
   virtual ~nsDOMFileBase() {}
@@ -139,7 +138,7 @@ public:
   {
     NS_ASSERTION(mFile, "must have file");
     // Lazily get the content type and size
-    mContentType.SetIsVoid(true);
+    mContentType.SetIsVoid(PR_TRUE);
     mFile->GetLeafName(mName);
   }
 
@@ -159,8 +158,8 @@ public:
       mWholeFile(true)
   {
     // Lazily get the content type and size
-    mContentType.SetIsVoid(true);
-    mName.SetIsVoid(true);
+    mContentType.SetIsVoid(PR_TRUE);
+    mName.SetIsVoid(PR_TRUE);
   }
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -245,7 +244,7 @@ protected:
   friend class DataOwnerAdapter; // Needs to see DataOwner
   class DataOwner {
   public:
-    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(DataOwner)
+    NS_INLINE_DECL_REFCOUNTING(DataOwner)
     DataOwner(void* aMemoryBuffer)
       : mData(aMemoryBuffer)
     {

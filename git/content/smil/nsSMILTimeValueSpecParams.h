@@ -54,7 +54,7 @@ public:
   nsSMILTimeValueSpecParams()
   :
     mType(INDEFINITE),
-    mSyncBegin(false),
+    mSyncBegin(PR_FALSE),
     mRepeatIterationOrAccessKey(0)
   { }
 

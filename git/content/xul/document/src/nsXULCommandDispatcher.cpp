@@ -153,7 +153,7 @@ nsXULCommandDispatcher::GetRootFocusedContentAndWindow(nsPIDOMWindow** aWindow)
     if (win) {
       nsCOMPtr<nsPIDOMWindow> rootWindow = win->GetPrivateRoot();
       if (rootWindow) {
-        return nsFocusManager::GetFocusedDescendant(rootWindow, true, aWindow);
+        return nsFocusManager::GetFocusedDescendant(rootWindow, PR_TRUE, aWindow);
       }
     }
   }
@@ -450,7 +450,7 @@ nsXULCommandDispatcher::UpdateCommands(const nsAString& aEventName)
       // Handle the DOM event
       nsEventStatus status = nsEventStatus_eIgnore;
 
-      nsEvent event(true, NS_XUL_COMMAND_UPDATE);
+      nsEvent event(PR_TRUE, NS_XUL_COMMAND_UPDATE);
 
       nsEventDispatcher::Dispatch(content, context, &event, nsnull, &status);
     }
@@ -463,27 +463,27 @@ nsXULCommandDispatcher::Matches(const nsString& aList,
                                 const nsAString& aElement)
 {
   if (aList.EqualsLiteral("*"))
-    return true; // match _everything_!
+    return PR_TRUE; // match _everything_!
 
   PRInt32 indx = aList.Find(PromiseFlatString(aElement));
   if (indx == -1)
-    return false; // not in the list at all
+    return PR_FALSE; // not in the list at all
 
   // okay, now make sure it's not a substring snafu; e.g., 'ur'
   // found inside of 'blur'.
   if (indx > 0) {
     PRUnichar ch = aList[indx - 1];
     if (! nsCRT::IsAsciiSpace(ch) && ch != PRUnichar(','))
-      return false;
+      return PR_FALSE;
   }
 
   if (indx + aElement.Length() < aList.Length()) {
     PRUnichar ch = aList[indx + aElement.Length()];
     if (! nsCRT::IsAsciiSpace(ch) && ch != PRUnichar(','))
-      return false;
+      return PR_FALSE;
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 NS_IMETHODIMP
@@ -507,7 +507,7 @@ nsXULCommandDispatcher::GetControllerForCommand(const char *aCommand, nsIControl
 NS_IMETHODIMP
 nsXULCommandDispatcher::GetSuppressFocusScroll(bool* aSuppressFocusScroll)
 {
-  *aSuppressFocusScroll = false;
+  *aSuppressFocusScroll = PR_FALSE;
   return NS_OK;
 }
 

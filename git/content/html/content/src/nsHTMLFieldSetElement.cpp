@@ -54,7 +54,7 @@ nsHTMLFieldSetElement::nsHTMLFieldSetElement(already_AddRefed<nsINodeInfo> aNode
   , mFirstLegend(nsnull)
 {
   // <fieldset> is always barred from constraint validation.
-  SetBarredFromConstraintValidation(true);
+  SetBarredFromConstraintValidation(PR_TRUE);
 
   // We start out enabled
   AddStatesSilently(NS_EVENT_STATE_ENABLED);
@@ -63,7 +63,7 @@ nsHTMLFieldSetElement::nsHTMLFieldSetElement(already_AddRefed<nsINodeInfo> aNode
 nsHTMLFieldSetElement::~nsHTMLFieldSetElement()
 {
   PRUint32 length = mDependentElements.Length();
-  for (PRUint32 i = 0; i < length; ++i) {
+  for (PRUint32 i=0; i<length; ++i) {
     mDependentElements[i]->ForgetFieldSet(this);
   }
 }
@@ -109,7 +109,7 @@ nsresult
 nsHTMLFieldSetElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   // Do not process any DOM events if the element is disabled.
-  aVisitor.mCanHandle = false;
+  aVisitor.mCanHandle = PR_FALSE;
   if (IsElementDisabledForEvents(aVisitor.mEvent->message, NULL)) {
     return NS_OK;
   }
@@ -125,10 +125,10 @@ nsHTMLFieldSetElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       nsINode::GetFirstChild()) {
     if (!mElements) {
       mElements = new nsContentList(this, MatchListedElements, nsnull, nsnull,
-                                    true);
+                                    PR_TRUE);
     }
 
-    PRUint32 length = mElements->Length(true);
+    PRUint32 length = mElements->Length(PR_TRUE);
     for (PRUint32 i=0; i<length; ++i) {
       static_cast<nsGenericHTMLFormElement*>(mElements->GetNodeAt(i))
         ->FieldSetDisabledChanged(aNotify);
@@ -169,7 +169,7 @@ nsHTMLFieldSetElement::GetElements(nsIDOMHTMLCollection** aElements)
 {
   if (!mElements) {
     mElements = new nsContentList(this, MatchListedElements, nsnull, nsnull,
-                                  true);
+                                  PR_TRUE);
   }
 
   NS_ADDREF(*aElements = mElements);
@@ -260,11 +260,11 @@ nsHTMLFieldSetElement::NotifyElementsForFirstLegendChange(bool aNotify)
    */
   if (!mElements) {
     mElements = new nsContentList(this, MatchListedElements, nsnull, nsnull,
-                                  true);
+                                  PR_TRUE);
   }
 
-  PRUint32 length = mElements->Length(true);
-  for (PRUint32 i = 0; i < length; ++i) {
+  PRUint32 length = mElements->Length(PR_TRUE);
+  for (PRUint32 i=0; i<length; ++i) {
     static_cast<nsGenericHTMLFormElement*>(mElements->GetNodeAt(i))
       ->FieldSetFirstLegendChanged(aNotify);
   }

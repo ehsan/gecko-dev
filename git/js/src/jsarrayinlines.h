@@ -41,13 +41,22 @@
 #define jsarrayinlines_h___
 
 #include "jsinferinlines.h"
-#include "jsobjinlines.h"
 
 inline void
 JSObject::markDenseArrayNotPacked(JSContext *cx)
 {
     JS_ASSERT(isDenseArray());
-    MarkTypeObjectFlags(cx, this, js::types::OBJECT_FLAG_NON_PACKED_ARRAY);
+    if (flags & PACKED_ARRAY) {
+        flags ^= PACKED_ARRAY;
+        MarkTypeObjectFlags(cx, this, js::types::OBJECT_FLAG_NON_PACKED_ARRAY);
+    }
+}
+
+inline void
+JSObject::backfillDenseArrayHoles(JSContext *cx)
+{
+    /* Ensure an array's elements are fully initialized. */
+    ensureDenseArrayInitializedLength(cx, getDenseArrayCapacity(), 0);
 }
 
 inline void
@@ -58,15 +67,13 @@ JSObject::ensureDenseArrayInitializedLength(JSContext *cx, uint32 index, uint32 
      * mark the elements through 'index + extra' as initialized in preparation
      * for a write.
      */
-    JS_ASSERT(index + extra <= getDenseArrayCapacity());
-    uint32 &initlen = getElementsHeader()->initializedLength;
-    if (initlen < index)
+    JS_ASSERT(index + extra <= capacity);
+    if (initializedLength < index) {
         markDenseArrayNotPacked(cx);
-
-    if (initlen < index + extra) {
-        js::InitValueRange(elements + initlen, index + extra - initlen, true);
-        initlen = index + extra;
+        js::ClearValueRange(slots + initializedLength, index - initializedLength, true);
     }
+    if (initializedLength < index + extra)
+        initializedLength = index + extra;
 }
 
 inline JSObject::EnsureDenseResult
@@ -74,7 +81,13 @@ JSObject::ensureDenseArrayElements(JSContext *cx, uintN index, uintN extra)
 {
     JS_ASSERT(isDenseArray());
 
-    uintN currentCapacity = getDenseArrayCapacity();
+    uintN currentCapacity = numSlots();
+
+    /*
+     * Don't take excessive slow paths when inference is disabled, due to
+     * uninitialized slots between initializedLength and capacity.
+     */
+    JS_ASSERT_IF(!cx->typeInferenceEnabled(), currentCapacity == getDenseArrayInitializedLength());
 
     uintN requiredCapacity;
     if (extra == 1) {
@@ -108,7 +121,7 @@ JSObject::ensureDenseArrayElements(JSContext *cx, uintN index, uintN extra)
         willBeSparseDenseArray(requiredCapacity, extra)) {
         return ED_SPARSE;
     }
-    if (!growElements(cx, requiredCapacity))
+    if (!growSlots(cx, requiredCapacity))
         return ED_FAILED;
 
     ensureDenseArrayInitializedLength(cx, index, extra);

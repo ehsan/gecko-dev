@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -11,11 +13,11 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is GCLI
+ * The Original Code is Bespin.
  *
  * The Initial Developer of the Original Code is
  * The Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2011
+ * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
@@ -37,10 +39,14 @@
  * ***** END LICENSE BLOCK ***** */
 
 
-var EXPORTED_SYMBOLS = [ "Templater" ];
+var EXPORTED_SYMBOLS = ["Templater"];
 
-Components.utils.import("resource://gre/modules/Services.jsm");
-const Node = Components.interfaces.nsIDOMNode;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+
+Cu.import("resource://gre/modules/Services.jsm");
+
+const Node = Ci.nsIDOMNode;
 
 // WARNING: do not 'use_strict' without reading the notes in _envEval();
 
@@ -257,9 +263,9 @@ Templater.prototype._processForEachMember = function(member, template, siblingNo
   try {
     this._handleAsync(member, siblingNode, function(reply, node) {
       data[paramName] = reply;
-      if (template.nodeName.toLowerCase() === 'loop') {
-        for (var i = 0; i < template.childNodes.length; i++) {
-          var clone = template.childNodes[i].cloneNode(true);
+      if (node.nodeName.toLowerCase() === 'loop') {
+        for (var i = 0; i < node.childNodes.length; i++) {
+          var clone = node.childNodes[i].cloneNode(true);
           node.parentNode.insertBefore(clone, node);
           this.processNode(clone, data);
         }
@@ -325,7 +331,7 @@ Templater.prototype._toNode = function(thing, document) {
   if (thing == null) {
     thing = '' + thing;
   }
-  // if thing isn't a DOM element then wrap its string value in one
+  // if (isDOMElement(reply)) { ... }
   if (typeof thing.cloneNode !== 'function') {
     thing = document.createTextNode(thing.toString());
   }
@@ -343,7 +349,7 @@ Templater.prototype._toNode = function(thing, document) {
  * then _handleAsync() is just 'inserter(thing, siblingNode)'
  */
 Templater.prototype._handleAsync = function(thing, siblingNode, inserter) {
-  if (thing != null && typeof thing.then === 'function') {
+  if (typeof thing.then === 'function') {
     // Placeholder element to be replaced once we have the real data
     var tempNode = siblingNode.ownerDocument.createElement('span');
     siblingNode.parentNode.insertBefore(tempNode, siblingNode);
@@ -381,7 +387,7 @@ Templater.prototype._stripBraces = function(str) {
  * </ul>
  * @param path An array of strings indicating the path through the data, or
  * a string to be cut into an array using <tt>split('.')</tt>
- * @param data the data to use for node processing
+ * @param data An object to look in for the <tt>path</tt> argument
  * @param newValue (optional) If defined, this value will replace the
  * original value for the data at the path specified.
  * @return The value pointed to by <tt>path</tt> before any
@@ -464,3 +470,4 @@ Templater.prototype._handleError = function(message, ex) {
 Templater.prototype._logError = function(message) {
   Services.console.logStringMessage(message);
 };
+

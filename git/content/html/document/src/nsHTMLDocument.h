@@ -135,8 +135,7 @@ public:
                                     nsWrapperCache **aCache,
                                     nsresult *aResult);
 
-  nsIContent *GetBody();
-  Element *GetHead() { return GetHeadElement(); }
+  nsIContent *GetBody(nsresult *aResult);
   already_AddRefed<nsContentList> GetElementsByName(const nsAString & aName)
   {
     return NS_GetFuncStringContentList(this, MatchNameAttribute, nsnull,
@@ -172,7 +171,7 @@ public:
 
   virtual void DisableCookieAccess()
   {
-    mDisableCookieAccess = true;
+    mDisableCookieAccess = PR_TRUE;
   }
 
   class nsAutoEditingState {
@@ -237,6 +236,11 @@ protected:
   bool IsEditingOnAfterFlush();
 
   void *GenerateParserKey(void);
+
+  virtual PRInt32 GetDefaultNamespaceID() const
+  {
+    return kNameSpaceID_XHTML;
+  }
 
   nsCOMPtr<nsIDOMHTMLCollection> mImages;
   nsCOMPtr<nsIDOMHTMLCollection> mApplets;

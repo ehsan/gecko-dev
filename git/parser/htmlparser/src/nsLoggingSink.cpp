@@ -406,9 +406,9 @@ nsLoggingSink::WillWriteAttributes(const nsIParserNode& aNode)
 {
   PRInt32 ac = aNode.GetAttributeCount();
   if (0 != ac) {
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 nsresult

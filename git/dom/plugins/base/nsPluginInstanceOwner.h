@@ -184,7 +184,6 @@ public:
   static void AddToCARefreshTimer(nsPluginInstanceOwner *aPluginInstance);
   static void RemoveFromCARefreshTimer(nsPluginInstanceOwner *aPluginInstance);
   void SetupCARefresh();
-  // This calls into the plugin (NPP_SetWindow) and can run script.
   void* FixUpPluginWindow(PRInt32 inPaintState);
   void HidePluginWindow();
   // Set a flag that (if true) indicates the plugin port info has changed and
@@ -310,10 +309,7 @@ private:
   
   void FixUpURLS(const nsString &name, nsAString &value);
 #ifdef ANDROID
-  bool AddPluginView(const gfxRect& aRect);
   void RemovePluginView();
-  bool mPluginViewAdded;
-  gfxRect mLastPluginRect;
 #endif 
  
   nsPluginNativeWindow       *mPluginWindow;

@@ -48,14 +48,14 @@ public:
     /**
      * OnConnectionFailed
      *
-     * Return true if the connection should be re-attempted.
+     * Return PR_TRUE if the connection should be re-attempted.
      */
     static bool OnConnectionFailed(const PRUnichar* hostName);
 
     /**
      * IsAutoDialEnabled
      *
-     * Return true if autodial is enabled in the operating system.
+     * Return PR_TRUE if autodial is enabled in the operating system.
      */   
     static bool IsAutodialEnabled();
 };

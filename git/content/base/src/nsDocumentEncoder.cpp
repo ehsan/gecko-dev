@@ -137,16 +137,16 @@ protected:
         if (!frame) {
           if (aNode->IsNodeOfType(nsINode::eTEXT)) {
             // We have already checked that our parent is visible.
-            return true;
+            return PR_TRUE;
           }
-          return false;
+          return PR_FALSE;
         }
         bool isVisible = frame->GetStyleVisibility()->IsVisible();
         if (!isVisible && aNode->IsNodeOfType(nsINode::eTEXT))
-          return false;
+          return PR_FALSE;
       }
     }
-    return true;
+    return PR_TRUE;
   }
 
   static bool IsTag(nsIContent* aContent, nsIAtom* aAtom);
@@ -224,8 +224,8 @@ void nsDocumentEncoder::Initialize(bool aClearCachedSerializer)
   mEndDepth = 0;
   mStartRootIndex = 0;
   mEndRootIndex = 0;
-  mHaltRangeHint = false;
-  mNodeIsContainer = false;
+  mHaltRangeHint = PR_FALSE;
+  mNodeIsContainer = PR_FALSE;
   if (aClearCachedSerializer) {
     mSerializer = nsnull;
   }
@@ -267,7 +267,7 @@ nsDocumentEncoder::NativeInit(nsIDocument* aDocument,
   mMimeType = aMimeType;
 
   mFlags = aFlags;
-  mIsCopying = false;
+  mIsCopying = PR_FALSE;
 
   return NS_OK;
 }
@@ -296,23 +296,15 @@ nsDocumentEncoder::SetRange(nsIDOMRange* aRange)
 NS_IMETHODIMP
 nsDocumentEncoder::SetNode(nsIDOMNode* aNode)
 {
-  mNodeIsContainer = false;
+  mNodeIsContainer = PR_FALSE;
   mNode = do_QueryInterface(aNode);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocumentEncoder::SetNativeNode(nsINode* aNode)
-{
-  mNodeIsContainer = false;
-  mNode = aNode;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDocumentEncoder::SetContainerNode(nsIDOMNode *aContainer)
 {
-  mNodeIsContainer = true;
+  mNodeIsContainer = PR_TRUE;
   mNode = do_QueryInterface(aContainer);
   return NS_OK;
 }
@@ -320,7 +312,7 @@ nsDocumentEncoder::SetContainerNode(nsIDOMNode *aContainer)
 NS_IMETHODIMP
 nsDocumentEncoder::SetNativeContainerNode(nsINode* aContainer)
 {
-  mNodeIsContainer = true;
+  mNodeIsContainer = PR_TRUE;
   mNode = aContainer;
   return NS_OK;
 }
@@ -343,7 +335,7 @@ nsDocumentEncoder::GetMimeType(nsAString& aMimeType)
 bool
 nsDocumentEncoder::IncludeInContext(nsINode *aNode)
 {
-  return false;
+  return PR_FALSE;
 }
 
 nsresult
@@ -466,7 +458,7 @@ nsDocumentEncoder::SerializeToStringRecursive(nsINode* aNode,
         bool isSelectable;
         frame->IsSelectable(&isSelectable, nsnull);
         if (!isSelectable){
-          aDontSerializeRoot = true;
+          aDontSerializeRoot = PR_TRUE;
         }
       }
     }
@@ -481,7 +473,7 @@ nsDocumentEncoder::SerializeToStringRecursive(nsINode* aNode,
 
   for (nsINode* child = node->GetFirstChild(); child;
        child = child->GetNextSibling()) {
-    rv = SerializeToStringRecursive(child, aStr, false);
+    rv = SerializeToStringRecursive(child, aStr, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -490,7 +482,7 @@ nsDocumentEncoder::SerializeToStringRecursive(nsINode* aNode,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  return FlushText(aStr, false);
+  return FlushText(aStr, PR_FALSE);
 }
 
 nsresult
@@ -753,7 +745,7 @@ static nsresult GetLengthOfDOMNode(nsIDOMNode *aNode, PRUint32 &aCount)
   {
     bool hasChildNodes;
     aNode->HasChildNodes(&hasChildNodes);
-    if (true==hasChildNodes)
+    if (PR_TRUE==hasChildNodes)
     {
       nsCOMPtr<nsIDOMNodeList>nodeList;
       result = aNode->GetChildNodes(getter_AddRefs(nodeList));
@@ -795,7 +787,7 @@ nsDocumentEncoder::SerializeRangeNodes(nsIRange* aRange,
   {
     // node is completely contained in range.  Serialize the whole subtree
     // rooted by this node.
-    rv = SerializeToStringRecursive(aNode, aString, false);
+    rv = SerializeToStringRecursive(aNode, aString, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
   }
   else
@@ -826,7 +818,7 @@ nsDocumentEncoder::SerializeRangeNodes(nsIRange* aRange,
         {
           // halt the incrementing of mStartDepth/mEndDepth.  This is
           // so paste client will include this node in paste.
-          mHaltRangeHint = true;
+          mHaltRangeHint = PR_TRUE;
         }
         if ((startNode == content) && !mHaltRangeHint) mStartDepth++;
         if ((endNode == content) && !mHaltRangeHint) mEndDepth++;
@@ -871,7 +863,7 @@ nsDocumentEncoder::SerializeRangeNodes(nsIRange* aRange,
         if ((j==startOffset) || (j==endOffset-1))
           rv = SerializeRangeNodes(aRange, childAsNode, aString, aDepth+1);
         else
-          rv = SerializeToStringRecursive(childAsNode, aString, false);
+          rv = SerializeToStringRecursive(childAsNode, aString, PR_FALSE);
 
         NS_ENSURE_SUCCESS(rv, rv);
       }
@@ -1021,7 +1013,7 @@ nsDocumentEncoder::EncodeToString(nsAString& aOutputString)
   NS_ASSERTION(!mCachedBuffer->IsReadonly(),
                "DocumentEncoder shouldn't keep reference to non-readonly buffer!");
   static_cast<PRUnichar*>(mCachedBuffer->Data())[0] = PRUnichar(0);
-  mCachedBuffer->ToString(0, output, true);
+  mCachedBuffer->ToString(0, output, PR_TRUE);
   // output owns the buffer now!
   mCachedBuffer = nsnull;
   
@@ -1106,7 +1098,7 @@ nsDocumentEncoder::EncodeToString(nsAString& aOutputString)
     rv = mSerializer->AppendDocumentStart(mDocument, output);
 
     if (NS_SUCCEEDED(rv)) {
-      rv = SerializeToStringRecursive(mDocument, output, false);
+      rv = SerializeToStringRecursive(mDocument, output, PR_FALSE);
     }
   }
 
@@ -1125,7 +1117,7 @@ nsDocumentEncoder::EncodeToString(nsAString& aOutputString)
     } else {
       if (NS_SUCCEEDED(rv)) {
         mCachedBuffer->ToString(output.Length(), aOutputString);
-        setOutput = true;
+        setOutput = PR_TRUE;
       }
       mCachedBuffer = nsnull;
     }
@@ -1167,7 +1159,7 @@ nsDocumentEncoder::EncodeToStream(nsIOutputStream* aStream)
   rv = EncodeToString(buf);
 
   // Force a flush of the last chunk of data.
-  FlushText(buf, true);
+  FlushText(buf, PR_TRUE);
 
   mStream = nsnull;
   mUnicodeEncoder = nsnull;
@@ -1246,7 +1238,7 @@ protected:
 
 nsHTMLCopyEncoder::nsHTMLCopyEncoder()
 {
-  mIsTextWidget = false;
+  mIsTextWidget = PR_FALSE;
 }
 
 nsHTMLCopyEncoder::~nsHTMLCopyEncoder()
@@ -1261,10 +1253,10 @@ nsHTMLCopyEncoder::Init(nsIDOMDocument* aDocument,
   if (!aDocument)
     return NS_ERROR_INVALID_ARG;
 
-  mIsTextWidget = false;
+  mIsTextWidget = PR_FALSE;
   Initialize();
 
-  mIsCopying = true;
+  mIsCopying = PR_TRUE;
   mDocument = do_QueryInterface(aDocument);
   NS_ENSURE_TRUE(mDocument, NS_ERROR_FAILURE);
 
@@ -1319,7 +1311,7 @@ nsHTMLCopyEncoder::SetSelection(nsISelection* aSelection)
     if (atom == nsGkAtoms::input ||
         atom == nsGkAtoms::textarea)
     {
-      mIsTextWidget = true;
+      mIsTextWidget = PR_TRUE;
       break;
     }
     else if (atom == nsGkAtoms::body)
@@ -1332,7 +1324,7 @@ nsHTMLCopyEncoder::SetSelection(nsISelection* aSelection)
       rv = bodyElem->GetAttribute(NS_LITERAL_STRING("style"), wsVal);
       if (NS_SUCCEEDED(rv) && (kNotFound != wsVal.Find(NS_LITERAL_STRING("pre-wrap"))))
       {
-        mIsTextWidget = true;
+        mIsTextWidget = PR_TRUE;
         break;
       }
     }
@@ -1341,7 +1333,7 @@ nsHTMLCopyEncoder::SetSelection(nsISelection* aSelection)
   // also consider ourselves in a text widget if we can't find an html document
   nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(mDocument);
   if (!(htmlDoc && mDocument->IsHTML()))
-    mIsTextWidget = true;
+    mIsTextWidget = PR_TRUE;
   
   // normalize selection if we are not in a widget
   if (mIsTextWidget) 
@@ -1460,7 +1452,7 @@ nsHTMLCopyEncoder::IncludeInContext(nsINode *aNode)
   nsCOMPtr<nsIContent> content(do_QueryInterface(aNode));
 
   if (!content)
-    return false;
+    return PR_FALSE;
 
   nsIAtom *tag = content->Tag();
 
@@ -1564,7 +1556,7 @@ nsHTMLCopyEncoder::PromoteAncestorChain(nsCOMPtr<nsIDOMNode> *ioNode,
   {
     rv = (*ioNode)->GetParentNode(getter_AddRefs(parent));
     if ((NS_FAILED(rv)) || !parent)
-      done = true;
+      done = PR_TRUE;
     else
     {
       // passing parent as last param to GetPromotedPoint() allows it to promote only one level
@@ -1579,7 +1571,7 @@ nsHTMLCopyEncoder::PromoteAncestorChain(nsCOMPtr<nsIDOMNode> *ioNode,
       // if both endpoints were promoted one level and isEditable is the same as the original node, 
       // keep looping - otherwise we are done.
       if ( (frontNode != parent) || (endNode != parent) || (frontINode->IsEditable() != isEditable) )
-        done = true;
+        done = PR_TRUE;
       else
       {
         *ioNode = frontNode;  
@@ -1626,7 +1618,7 @@ nsHTMLCopyEncoder::GetPromotedPoint(Endpoint aWhere, nsIDOMNode *aNode, PRInt32 
         text.CompressWhitespace();
         if (!text.IsEmpty())
           return NS_OK;
-        bResetPromotion = true;
+        bResetPromotion = PR_TRUE;
       }
       // else
       rv = GetNodeLocation(aNode, address_of(parent), &offset);
@@ -1659,7 +1651,7 @@ nsHTMLCopyEncoder::GetPromotedPoint(Endpoint aWhere, nsIDOMNode *aNode, PRInt32 
             parserService->IsBlock(parserService->HTMLAtomTagToId(content->Tag()), isBlock);
             if (isBlock)
             {
-              bResetPromotion = false;
+              bResetPromotion = PR_FALSE;
             }
           }   
         }
@@ -1709,7 +1701,7 @@ nsHTMLCopyEncoder::GetPromotedPoint(Endpoint aWhere, nsIDOMNode *aNode, PRInt32 
         text.CompressWhitespace();
         if (!text.IsEmpty())
           return NS_OK;
-        bResetPromotion = true;
+        bResetPromotion = PR_TRUE;
       }
       rv = GetNodeLocation(aNode, address_of(parent), &offset);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -1742,7 +1734,7 @@ nsHTMLCopyEncoder::GetPromotedPoint(Endpoint aWhere, nsIDOMNode *aNode, PRInt32 
             parserService->IsBlock(parserService->HTMLAtomTagToId(content->Tag()), isBlock);
             if (isBlock)
             {
-              bResetPromotion = false;
+              bResetPromotion = PR_FALSE;
             }
           }   
         }
@@ -1806,11 +1798,11 @@ nsHTMLCopyEncoder::IsMozBR(nsIDOMNode* aNode)
       nsresult rv = elem->GetAttribute(typeAttrName, typeAttrVal);
       ToLowerCase(typeAttrVal);
       if (NS_SUCCEEDED(rv) && (typeAttrVal.EqualsLiteral("_moz")))
-        return true;
+        return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 nsresult 
@@ -1849,7 +1841,7 @@ nsHTMLCopyEncoder::IsRoot(nsIDOMNode* aNode)
             IsTag(content, nsGkAtoms::td)   ||
             IsTag(content, nsGkAtoms::th));
   }
-  return false;
+  return PR_FALSE;
 }
 
 bool
@@ -1861,12 +1853,12 @@ nsHTMLCopyEncoder::IsFirstNode(nsIDOMNode *aNode)
   if (NS_FAILED(rv)) 
   {
     NS_NOTREACHED("failure in IsFirstNode");
-    return false;
+    return PR_FALSE;
   }
   if (offset == 0)  // easy case, we are first dom child
-    return true;
+    return PR_TRUE;
   if (!parent)  
-    return true;
+    return PR_TRUE;
   
   // need to check if any nodes before us are really visible.
   // Mike wrote something for me along these lines in nsSelectionController,
@@ -1880,16 +1872,16 @@ nsHTMLCopyEncoder::IsFirstNode(nsIDOMNode *aNode)
   if (NS_FAILED(rv) || !childList) 
   {
     NS_NOTREACHED("failure in IsFirstNode");
-    return true;
+    return PR_TRUE;
   }
   while (j < offset)
   {
     childList->Item(j, getter_AddRefs(child));
     if (!IsEmptyTextContent(child)) 
-      return false;
+      return PR_FALSE;
     j++;
   }
-  return true;
+  return PR_TRUE;
 }
 
 
@@ -1903,13 +1895,13 @@ nsHTMLCopyEncoder::IsLastNode(nsIDOMNode *aNode)
   if (NS_FAILED(rv)) 
   {
     NS_NOTREACHED("failure in IsLastNode");
-    return false;
+    return PR_FALSE;
   }
   GetLengthOfDOMNode(parent, numChildren); 
   if (offset+1 == (PRInt32)numChildren) // easy case, we are last dom child
-    return true;
+    return PR_TRUE;
   if (!parent)
-    return true;
+    return PR_TRUE;
   // need to check if any nodes after us are really visible.
   // Mike wrote something for me along these lines in nsSelectionController,
   // but I don't think it's ready for use yet - revisit.
@@ -1922,7 +1914,7 @@ nsHTMLCopyEncoder::IsLastNode(nsIDOMNode *aNode)
   if (NS_FAILED(rv) || !childList) 
   {
     NS_NOTREACHED("failure in IsLastNode");
-    return true;
+    return PR_TRUE;
   }
   while (j > offset)
   {
@@ -1931,9 +1923,9 @@ nsHTMLCopyEncoder::IsLastNode(nsIDOMNode *aNode)
     if (IsMozBR(child))  // we ignore trailing moz BRs.  
       continue;
     if (!IsEmptyTextContent(child)) 
-      return false;
+      return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
 bool

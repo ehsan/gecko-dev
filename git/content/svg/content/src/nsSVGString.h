@@ -48,30 +48,32 @@ public:
   void Init(PRUint8 aAttrEnum) {
     mAnimVal = nsnull;
     mAttrEnum = aAttrEnum;
-    mIsBaseSet = false;
+    mIsBaseSet = PR_FALSE;
   }
 
   void SetBaseValue(const nsAString& aValue,
                     nsSVGElement *aSVGElement,
                     bool aDoSetAttr);
-  void GetBaseValue(nsAString& aValue, const nsSVGElement *aSVGElement) const
+  void GetBaseValue(nsAString& aValue, nsSVGElement *aSVGElement) const
     { aSVGElement->GetStringBaseValue(mAttrEnum, aValue); }
 
   void SetAnimValue(const nsAString& aValue, nsSVGElement *aSVGElement);
   void GetAnimValue(nsAString& aValue, const nsSVGElement *aSVGElement) const;
 
-  // Returns true if the animated value of this string has been explicitly
+  // Returns PR_TRUE if the animated value of this string has been explicitly
   // set (either by animation, or by taking on the base value which has been
-  // explicitly set by markup or a DOM call), false otherwise.
-  // If this returns false, the animated value is still valid, that is,
+  // explicitly set by markup or a DOM call), PR_FALSE otherwise.
+  // If this returns PR_FALSE, the animated value is still valid, that is,
   // useable, and represents the default base value of the attribute.
   bool IsExplicitlySet() const
     { return !!mAnimVal || mIsBaseSet; }
 
   nsresult ToDOMAnimatedString(nsIDOMSVGAnimatedString **aResult,
                                nsSVGElement *aSVGElement);
+#ifdef MOZ_SMIL
   // Returns a new nsISMILAttr object that the caller must delete
   nsISMILAttr* ToSMILAttr(nsSVGElement *aSVGElement);
+#endif // MOZ_SMIL
 
 private:
 
@@ -94,15 +96,18 @@ public:
     NS_IMETHOD GetBaseVal(nsAString & aResult)
       { mVal->GetBaseValue(aResult, mSVGElement); return NS_OK; }
     NS_IMETHOD SetBaseVal(const nsAString & aValue)
-      { mVal->SetBaseValue(aValue, mSVGElement, true); return NS_OK; }
+      { mVal->SetBaseValue(aValue, mSVGElement, PR_TRUE); return NS_OK; }
 
     NS_IMETHOD GetAnimVal(nsAString & aResult)
     { 
+#ifdef MOZ_SMIL
       mSVGElement->FlushAnimations();
+#endif
       mVal->GetAnimValue(aResult, mSVGElement); return NS_OK;
     }
 
   };
+#ifdef MOZ_SMIL
   struct SMILString : public nsISMILAttr
   {
   public:
@@ -124,5 +129,6 @@ public:
     virtual void ClearAnimValue();
     virtual nsresult SetAnimValue(const nsSMILValue& aValue);
   };
+#endif // MOZ_SMIL
 };
 #endif //__NS_SVGSTRING_H__

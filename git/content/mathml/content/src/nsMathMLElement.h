@@ -60,7 +60,7 @@ class nsMathMLElement : public nsMathMLElementBase,
 public:
   nsMathMLElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsMathMLElementBase(aNodeInfo), Link(this),
-      mIncrementScriptLevel(false)
+      mIncrementScriptLevel(PR_FALSE)
   {}
 
   // Implementation of nsISupports is inherited from nsMathMLElementBase
@@ -116,6 +116,7 @@ public:
   virtual bool IsLink(nsIURI** aURI) const;
   virtual void GetLinkTarget(nsAString& aTarget);
   virtual nsLinkState GetLinkState() const;
+  virtual void RequestLinkStateUpdate();
   virtual already_AddRefed<nsIURI> GetHrefURI() const;
   nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)

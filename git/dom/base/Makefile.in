@@ -52,13 +52,7 @@ EXTRA_PP_COMPONENTS = \
 		ConsoleAPI.manifest \
 		$(NULL)
 
-EXTRA_COMPONENTS = \
-	        Webapps.js \
-	        Webapps.manifest \
-		$(NULL)
-
 EXTRA_JS_MODULES = ConsoleAPIStorage.jsm \
-                Webapps.jsm \
 		$(NULL)
 
 XPIDLSRCS = \
@@ -128,7 +122,6 @@ CPPSRCS =			\
 	nsDOMNavigationTiming.cpp \
 	nsPerformance.cpp	\
 	nsDOMMemoryReporter.cpp \
-	Navigator.cpp \
 	$(NULL)
 
 include $(topsrcdir)/dom/dom-config.mk
@@ -143,8 +136,8 @@ include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
 
 LOCAL_INCLUDES += \
-		-I$(topsrcdir)/js/xpconnect/src \
-		-I$(topsrcdir)/js/xpconnect/wrappers \
+		-I$(srcdir)/../../js/src/xpconnect/src \
+		-I$(srcdir)/../../js/src/xpconnect/wrappers \
 		-I$(topsrcdir)/xpcom/ds \
 		$(NULL)
 

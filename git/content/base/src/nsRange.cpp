@@ -286,7 +286,7 @@ nsRange::CharacterDataChanged(nsIDocument* aDocument,
       NS_ASSERTION(aInfo->mDetails->mType ==
                    CharacterDataChangeInfo::Details::eSplit,
                    "only a split can start before the end");
-      NS_ASSERTION(static_cast<PRUint32>(mStartOffset) <= aInfo->mChangeEnd + 1,
+      NS_ASSERTION(static_cast<PRUint32>(mStartOffset) <= aInfo->mChangeEnd,
                    "mStartOffset is beyond the end of this node");
       newStartOffset = static_cast<PRUint32>(mStartOffset) - aInfo->mChangeStart;
       newStartNode = aInfo->mDetails->mNextSibling;
@@ -313,7 +313,7 @@ nsRange::CharacterDataChanged(nsIDocument* aDocument,
       NS_ASSERTION(aInfo->mDetails->mType ==
                    CharacterDataChangeInfo::Details::eSplit,
                    "only a split can start before the end");
-      NS_ASSERTION(static_cast<PRUint32>(mEndOffset) <= aInfo->mChangeEnd + 1,
+      NS_ASSERTION(static_cast<PRUint32>(mEndOffset) <= aInfo->mChangeEnd,
                    "mEndOffset is beyond the end of this node");
       newEndOffset = static_cast<PRUint32>(mEndOffset) - aInfo->mChangeStart;
       newEndNode = aInfo->mDetails->mNextSibling;
@@ -357,7 +357,7 @@ nsRange::CharacterDataChanged(nsIDocument* aDocument,
     DoSetRange(newStartNode, newStartOffset, newEndNode, newEndOffset,
                newRoot ? newRoot : mRoot.get()
 #ifdef DEBUG
-               , !newEndNode->GetParent() || !newStartNode->GetParent()
+               , !newEndNode->GetParent()
 #endif
                );
   }
@@ -440,7 +440,7 @@ nsRange::IsPointInRange(nsIDOMNode* aParent, PRInt32 aOffset, bool* aResult)
   nsresult rv = ComparePoint(aParent, aOffset, &compareResult);
   // If the node isn't in the range's document, it clearly isn't in the range.
   if (rv == NS_ERROR_DOM_WRONG_DOCUMENT_ERR) {
-    *aResult = false;
+    *aResult = PR_FALSE;
     return NS_OK;
   }
 
@@ -1207,9 +1207,9 @@ CollapseRangeAfterDelete(nsIDOMRange *aRange)
   // between the 2 end points!
 
   if (startContainer == commonAncestor)
-    return aRange->Collapse(true);
+    return aRange->Collapse(PR_TRUE);
   if (endContainer == commonAncestor)
-    return aRange->Collapse(false);
+    return aRange->Collapse(PR_FALSE);
 
   // End points are at differing levels. We want to collapse to the
   // point that is between the 2 subtrees that contain each point,
@@ -1234,7 +1234,7 @@ CollapseRangeAfterDelete(nsIDOMRange *aRange)
   res = aRange->SelectNode(nodeToSelect);
   if (NS_FAILED(res)) return res;
 
-  return aRange->Collapse(false);
+  return aRange->Collapse(PR_FALSE);
 }
 
 /**
@@ -1256,7 +1256,7 @@ RemoveNode(nsIDOMNode* aNode)
  * @param aStartNode          The original node we are trying to split.
  * @param aStartIndex         The index at which to split.
  * @param aEndNode            The second node.
- * @param aCloneAfterOriginal Set false if the original node should be the
+ * @param aCloneAfterOriginal Set PR_FALSE if the original node should be the
  *                            latter one after split.
  */
 static nsresult SplitDataNode(nsIDOMCharacterData* aStartNode,
@@ -1295,7 +1295,9 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
 
   nsresult rv;
 
-  nsCOMPtr<nsIDocument> doc = mStartParent->OwnerDoc();
+  nsCOMPtr<nsIDocument> doc =
+    do_QueryInterface(mStartParent->GetOwnerDoc());
+  if (!doc) return NS_ERROR_UNEXPECTED;
 
   nsCOMPtr<nsIDOMNode> commonAncestor;
   rv = GetCommonAncestorContainer(getter_AddRefs(commonAncestor));
@@ -1311,7 +1313,7 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
   nsCOMPtr<nsIDOMNode> commonCloneAncestor(do_QueryInterface(retval));
 
   // Batch possible DOMSubtreeModified events.
-  mozAutoSubtreeModified subtree(mRoot ? mRoot->OwnerDoc(): nsnull, nsnull);
+  mozAutoSubtreeModified subtree(mRoot ? mRoot->GetOwnerDoc(): nsnull, nsnull);
 
   // Save the range end points locally to avoid interference
   // of Range gravity during our edits!
@@ -1359,7 +1361,7 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
 
     iter.Prev();
 
-    handled = false;
+    handled = PR_FALSE;
 
     // If it's CharacterData, make sure we might need to delete
     // part of the data, instead of removing the whole node.
@@ -1388,7 +1390,7 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
                                            cutValue);
               NS_ENSURE_SUCCESS(rv, rv);
               nsCOMPtr<nsIDOMNode> clone;
-              rv = charData->CloneNode(false, getter_AddRefs(clone));
+              rv = charData->CloneNode(PR_FALSE, getter_AddRefs(clone));
               NS_ENSURE_SUCCESS(rv, rv);
               clone->SetNodeValue(cutValue);
               nodeToResult = clone;
@@ -1398,7 +1400,7 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
             NS_ENSURE_SUCCESS(rv, rv);
           }
 
-          handled = true;
+          handled = PR_TRUE;
         }
         else
         {
@@ -1415,7 +1417,7 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
             nodeToResult = cutNode;
           }
 
-          handled = true;
+          handled = PR_TRUE;
         }
       }
       else if (node == endContainer)
@@ -1426,15 +1428,15 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
         {
           nsCOMPtr<nsIDOMCharacterData> cutNode;
           /* The Range spec clearly states clones get cut and original nodes
-             remain behind, so use false as the last parameter.
+             remain behind, so use PR_FALSE as the last parameter.
           */
           rv = SplitDataNode(charData, endOffset, getter_AddRefs(cutNode),
-                             false);
+                             PR_FALSE);
           NS_ENSURE_SUCCESS(rv, rv);
           nodeToResult = cutNode;
         }
 
-        handled = true;
+        handled = PR_TRUE;
       }       
     }
 
@@ -1448,11 +1450,11 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
       {
         if (retval) {
           nsCOMPtr<nsIDOMNode> clone;
-          rv = node->CloneNode(false, getter_AddRefs(clone));
+          rv = node->CloneNode(PR_FALSE, getter_AddRefs(clone));
           NS_ENSURE_SUCCESS(rv, rv);
           nodeToResult = clone;
         }
-        handled = true;
+        handled = PR_TRUE;
       }
     }
 
@@ -1619,7 +1621,7 @@ nsRange::CloneParentsBetween(nsIDOMNode *aAncestor,
   {
     nsCOMPtr<nsIDOMNode> clone, tmpNode;
 
-    res = parent->CloneNode(false, getter_AddRefs(clone));
+    res = parent->CloneNode(PR_FALSE, getter_AddRefs(clone));
 
     if (NS_FAILED(res)) return res;
     if (!clone)         return NS_ERROR_FAILURE;
@@ -1660,7 +1662,7 @@ nsRange::CloneContents(nsIDOMDocumentFragment** aReturn)
   if (NS_FAILED(res)) return res;
 
   nsCOMPtr<nsIDOMDocument> document =
-    do_QueryInterface(mStartParent->OwnerDoc());
+    do_QueryInterface(mStartParent->GetOwnerDoc());
   NS_ASSERTION(document, "CloneContents needs a document to continue.");
   if (!document) return NS_ERROR_FAILURE;
 
@@ -2113,7 +2115,7 @@ nsRange::Detach()
   if(mIsDetached)
     return NS_ERROR_DOM_INVALID_STATE_ERR;
 
-  mIsDetached = true;
+  mIsDetached = PR_TRUE;
 
   DoSetRange(nsnull, 0, nsnull, 0, nsnull);
   
@@ -2127,7 +2129,7 @@ nsRange::CreateContextualFragment(const nsAString& aFragment,
 {
   if (mIsPositioned) {
     return nsContentUtils::CreateContextualFragment(mStartParent, aFragment,
-                                                    false, aReturn);
+                                                    PR_FALSE, aReturn);
   }
   return NS_ERROR_FAILURE;
 }
@@ -2167,9 +2169,9 @@ static nsresult GetPartialTextRect(nsLayoutUtils::RectCallback* aCallback,
         continue;
 
       // overlapping with the offset we want
-      f->EnsureTextRun(nsTextFrame::eInflated);
-      NS_ENSURE_TRUE(f->GetTextRun(nsTextFrame::eInflated), NS_ERROR_OUT_OF_MEMORY);
-      bool rtl = f->GetTextRun(nsTextFrame::eInflated)->IsRightToLeft();
+      f->EnsureTextRun();
+      NS_ENSURE_TRUE(f->GetTextRun(), NS_ERROR_OUT_OF_MEMORY);
+      bool rtl = f->GetTextRun()->IsRightToLeft();
       nsRect r(f->GetOffsetTo(relativeTo), f->GetSize());
       if (fstart < aStartOffset) {
         // aStartOffset is within this frame
@@ -2220,13 +2222,13 @@ static void CollectClientRects(nsLayoutUtils::RectCallback* aCollector,
         nsTextFrame* textFrame = static_cast<nsTextFrame*>(frame);
         PRInt32 outOffset;
         nsIFrame* outFrame;
-        textFrame->GetChildFrameContainingOffset(aStartOffset, false, 
+        textFrame->GetChildFrameContainingOffset(aStartOffset, PR_FALSE, 
           &outOffset, &outFrame);
         if (outFrame) {
            nsIFrame* relativeTo = 
              nsLayoutUtils::GetContainingBlockForClientRect(outFrame);
            nsRect r(outFrame->GetOffsetTo(relativeTo), outFrame->GetSize());
-           ExtractRectFromOffset(outFrame, relativeTo, aStartOffset, &r, false);
+           ExtractRectFromOffset(outFrame, relativeTo, aStartOffset, &r, PR_FALSE);
            r.width = 0;
            aCollector->AddRect(r);
         }
@@ -2321,7 +2323,7 @@ nsRange::GetUsedFontFaces(nsIDOMFontFaceList** aResult)
   nsCOMPtr<nsIDOMNode> endContainer = do_QueryInterface(mEndParent);
 
   // Flush out layout so our frames are up to date.
-  nsIDocument* doc = mStartParent->OwnerDoc();
+  nsIDocument* doc = mStartParent->GetOwnerDoc();
   NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
   doc->FlushPendingNotifications(Flush_Frames);
 
@@ -2353,12 +2355,12 @@ nsRange::GetUsedFontFaces(nsIDOMFontFaceList** aResult)
          PRInt32 offset = startContainer == endContainer ? 
            mEndOffset : content->GetText()->GetLength();
          nsLayoutUtils::GetFontFacesForText(frame, mStartOffset, offset,
-                                            true, fontFaceList);
+                                            PR_TRUE, fontFaceList);
          continue;
        }
        if (node == endContainer) {
          nsLayoutUtils::GetFontFacesForText(frame, 0, mEndOffset,
-                                            true, fontFaceList);
+                                            PR_TRUE, fontFaceList);
          continue;
        }
     }

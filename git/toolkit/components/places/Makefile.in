@@ -62,6 +62,7 @@ XPIDLSRCS += \
   mozIPlacesAutoComplete.idl \
   nsIAnnotationService.idl \
   nsIBrowserHistory.idl \
+  nsIDynamicContainer.idl \
   nsIFaviconService.idl \
   nsILivemarkService.idl \
   nsINavBookmarksService.idl \
@@ -75,7 +76,6 @@ EXPORTS_NAMESPACES = mozilla/places
 
 EXPORTS_mozilla/places = \
   History.h \
-  Database.h \
   $(NULL)
 
 CPPSRCS = \
@@ -95,18 +95,12 @@ CPPSRCS = \
   AsyncFaviconHelpers.cpp \
   PlaceInfo.cpp \
   VisitInfo.cpp \
-  Database.cpp \
   $(NULL)
 
 LOCAL_INCLUDES += -I$(srcdir)/../build
 
-ifdef MOZ_ANDROID_HISTORY
-CPPSRCS += nsAndroidHistory.cpp
-LOCAL_INCLUDES += \
-  -I$(topsrcdir)/docshell/base \
-  -I$(topsrcdir)/content/base/src \
-  $(NULL)
-endif
+# This is the default value.  Must be in sync with the one defined in SQLite.
+DEFINES += -DSQLITE_DEFAULT_PAGE_SIZE=32768
 
 EXTRA_COMPONENTS = \
   toolkitplaces.manifest \
@@ -122,6 +116,7 @@ endif
 
 EXTRA_JS_MODULES = \
   PlacesDBUtils.jsm \
+  utils.js \
   $(NULL)
 
 EXTRA_PP_JS_MODULES = \

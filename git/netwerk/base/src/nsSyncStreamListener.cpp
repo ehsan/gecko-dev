@@ -45,14 +45,14 @@ nsSyncStreamListener::Init()
                       getter_AddRefs(mPipeOut),
                       nsIOService::gDefaultSegmentSize,
                       PR_UINT32_MAX, // no size limit
-                      false,
-                      false);
+                      PR_FALSE,
+                      PR_FALSE);
 }
 
 nsresult
 nsSyncStreamListener::WaitForData()
 {
-    mKeepWaiting = true;
+    mKeepWaiting = PR_TRUE;
 
     while (mKeepWaiting)
         NS_ENSURE_STATE(NS_ProcessNextEvent(NS_GetCurrentThread()));
@@ -114,7 +114,7 @@ nsSyncStreamListener::OnDataAvailable(nsIRequest     *request,
     // the pipe was created to have "infinite" room.
     NS_ASSERTION(bytesWritten == count, "did not write all data"); 
 
-    mKeepWaiting = false; // unblock Read
+    mKeepWaiting = PR_FALSE; // unblock Read
     return NS_OK;
 }
 
@@ -124,8 +124,8 @@ nsSyncStreamListener::OnStopRequest(nsIRequest  *request,
                                     nsresult     status)
 {
     mStatus = status;
-    mKeepWaiting = false; // unblock Read
-    mDone = true;
+    mKeepWaiting = PR_FALSE; // unblock Read
+    mDone = PR_TRUE;
     return NS_OK;
 }
 
@@ -137,7 +137,7 @@ NS_IMETHODIMP
 nsSyncStreamListener::Close()
 {
     mStatus = NS_BASE_STREAM_CLOSED;
-    mDone = true;
+    mDone = PR_TRUE;
 
     // It'd be nice if we could explicitly cancel the request at this point,
     // but we don't have a reference to it, so the best we can do is close the
@@ -206,6 +206,6 @@ nsSyncStreamListener::ReadSegments(nsWriteSegmentFun  writer,
 NS_IMETHODIMP
 nsSyncStreamListener::IsNonBlocking(bool *result)
 {
-    *result = false;
+    *result = PR_FALSE;
     return NS_OK;
 }

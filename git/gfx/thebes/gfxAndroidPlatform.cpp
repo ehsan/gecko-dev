@@ -37,7 +37,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "gfxAndroidPlatform.h"
-#include "mozilla/gfx/2D.h"
 
 #include "gfxFT2FontList.h"
 #include "gfxImageSurface.h"
@@ -46,8 +45,6 @@
 
 #include "ft2build.h"
 #include FT_FREETYPE_H
-using namespace mozilla;
-using namespace mozilla::gfx;
 
 static FT_Library gPlatformFTLibrary = NULL;
 
@@ -112,7 +109,7 @@ gfxAndroidPlatform::ResolveFontName(const nsAString& aFontName,
     nsAutoString resolvedName;
     if (!gfxPlatformFontList::PlatformFontList()->
              ResolveFontName(aFontName, resolvedName)) {
-        aAborted = false;
+        aAborted = PR_FALSE;
         return NS_OK;
     }
     aAborted = !(*aCallback)(resolvedName, aClosure);
@@ -148,16 +145,16 @@ gfxAndroidPlatform::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlag
     if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_OPENTYPE |
                         gfxUserFontSet::FLAG_FORMAT_WOFF |
                         gfxUserFontSet::FLAG_FORMAT_TRUETYPE)) {
-        return true;
+        return PR_TRUE;
     }
 
     // reject all other formats, known and unknown
     if (aFormatFlags != 0) {
-        return false;
+        return PR_FALSE;
     }
 
     // no format hint set, need to look at data
-    return true;
+    return PR_TRUE;
 }
 
 gfxFontGroup *
@@ -181,17 +178,5 @@ gfxAndroidPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
     return gfxPlatformFontList::PlatformFontList()->MakePlatformFont(aProxyEntry,
                                                                      aFontData,
                                                                      aLength);
-}
-
-RefPtr<ScaledFont>
-gfxAndroidPlatform::GetScaledFontForFont(gfxFont *aFont)
-{
-    NativeFont nativeFont;
-    nativeFont.mType = NATIVE_FONT_SKIA_FONT_FACE;
-    nativeFont.mFont = aFont;
-    RefPtr<ScaledFont> scaledFont =
-      Factory::CreateScaledFontForNativeFont(nativeFont, aFont->GetAdjustedSize());
-
-    return scaledFont;
 }
 

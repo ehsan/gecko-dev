@@ -43,13 +43,14 @@
 #include "nsComponentManagerUtils.h"
 #include "nsReadableUtils.h"
 #include "nsNSSComponent.h"
+#include "nsIWindowWatcher.h"
 #include "nsCOMPtr.h"
+#include "nsIPrompt.h"
 #include "nsICertificateDialogs.h"
 #include "nsIMutableArray.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsNSSShutDown.h"
-#include "nsThreadUtils.h"
 
 #include "nsNSSCertHeader.h"
 
@@ -82,11 +83,6 @@ nsCRLManager::~nsCRLManager()
 NS_IMETHODIMP 
 nsCRLManager::ImportCrl (PRUint8 *aData, PRUint32 aLength, nsIURI * aURI, PRUint32 aType, bool doSilentDownload, const PRUnichar* crlKey)
 {
-  if (!NS_IsMainThread()) {
-    NS_ERROR("nsCRLManager::ImportCrl called off the main thread");
-    return NS_ERROR_NOT_SAME_THREAD;
-  }
-  
   nsNSSShutDownPreventionLock locker;
   nsresult rv;
   PRArenaPool *arena = NULL;
@@ -149,11 +145,11 @@ nsCRLManager::ImportCrl (PRUint8 *aData, PRUint32 aLength, nsIURI * aURI, PRUint
   SSL_ClearSessionCache();
   SEC_DestroyCrl(crl);
   
-  importSuccessful = true;
+  importSuccessful = PR_TRUE;
   goto done;
 
 loser:
-  importSuccessful = false;
+  importSuccessful = PR_FALSE;
   errorCode = PR_GetError();
   switch (errorCode) {
     case SEC_ERROR_CRL_EXPIRED:
@@ -188,14 +184,24 @@ done:
     if (!importSuccessful){
       nsString message;
       nsString temp;
-      nssComponent->GetPIPNSSBundleString("CrlImportFailure1x", message);
-      message.Append(NS_LITERAL_STRING("\n").get());
-      message.Append(errorMessage);
-      nssComponent->GetPIPNSSBundleString("CrlImportFailure2", temp);
-      message.Append(NS_LITERAL_STRING("\n").get());
-      message.Append(temp);
-
-      nsNSSComponent::ShowAlertWithConstructedString(message);
+      nsCOMPtr<nsIWindowWatcher> wwatch(do_GetService(NS_WINDOWWATCHER_CONTRACTID));
+      nsCOMPtr<nsIPrompt> prompter;
+      if (wwatch){
+        wwatch->GetNewPrompter(0, getter_AddRefs(prompter));
+        nssComponent->GetPIPNSSBundleString("CrlImportFailure1x", message);
+        message.Append(NS_LITERAL_STRING("\n").get());
+        message.Append(errorMessage);
+        nssComponent->GetPIPNSSBundleString("CrlImportFailure2", temp);
+        message.Append(NS_LITERAL_STRING("\n").get());
+        message.Append(temp);
+     
+        if(prompter) {
+          nsPSMUITracker tracker;
+          if (!tracker.isUIForbidden()) {
+            prompter->Alert(0, message.get());
+          }
+        }
+      }
     } else {
       nsCOMPtr<nsICertificateDialogs> certDialogs;
       // Not being able to display the success dialog should not
@@ -267,9 +273,9 @@ done:
         //session anymore - or else, we land into a loop. It would anyway be
         //imported once the browser is restarted.
         PRTime nextTime;
-        PR_ParseTimeString(updateTimeStr.get(),true, &nextTime);
+        PR_ParseTimeString(updateTimeStr.get(),PR_TRUE, &nextTime);
         if(LL_CMP(nextTime, > , PR_Now())){
-          toBeRescheduled = true;
+          toBeRescheduled = PR_TRUE;
         }
       }
       
@@ -312,15 +318,15 @@ nsCRLManager::UpdateCRLFromURL( const PRUnichar *url, const PRUnichar* key, bool
   nsAutoString dbKey(key);
   nsCOMPtr<nsINSSComponent> nssComponent(do_GetService(kNSSComponentCID, &rv));
   if(NS_FAILED(rv)){
-    *res = false;
+    *res = PR_FALSE;
     return rv;
   }
 
   rv = nssComponent->DownloadCRLDirectly(downloadUrl, dbKey);
   if(NS_FAILED(rv)){
-    *res = false;
+    *res = PR_FALSE;
   } else {
-    *res = true;
+    *res = PR_TRUE;
   }
   return NS_OK;
 
@@ -367,9 +373,9 @@ nsCRLManager::GetCrls(nsIArray ** aCrls)
     for (node=head->first; node != nsnull; node = node->next) {
 
       nsCOMPtr<nsICRLInfo> entry = new nsCRLInfo((node->crl));
-      crlsArray->AppendElement(entry, false);
+      crlsArray->AppendElement(entry, PR_FALSE);
     }
-    PORT_FreeArena(head->arena, false);
+    PORT_FreeArena(head->arena, PR_FALSE);
   }
 
   *aCrls = crlsArray;
@@ -408,7 +414,7 @@ nsCRLManager::DeleteCrl(PRUint32 aCrlIndex)
       SEC_DestroyCrl(realCrl);
       SSL_ClearSessionCache();
     }
-    PORT_FreeArena(head->arena, false);
+    PORT_FreeArena(head->arena, PR_FALSE);
   }
   return NS_OK;
 }

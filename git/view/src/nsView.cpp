@@ -207,15 +207,16 @@ nsView::nsView(nsViewManager* aViewManager, nsViewVisibility aVisibility)
   mViewManager = aViewManager;
   mDirtyRegion = nsnull;
   mDeletionObserver = nsnull;
-  mHaveInvalidationDimensions = false;
-  mWidgetIsTopLevel = false;
+  mHaveInvalidationDimensions = PR_FALSE;
+  mWidgetIsTopLevel = PR_FALSE;
 }
 
 void nsView::DropMouseGrabbing()
 {
-  nsIPresShell* presShell = mViewManager->GetPresShell();
-  if (presShell)
-    presShell->ClearMouseCaptureOnView(this);
+  nsCOMPtr<nsIViewObserver> viewObserver = mViewManager->GetViewObserver();
+  if (viewObserver) {
+    viewObserver->ClearMouseCapture(this);
+  }
 }
 
 nsView::~nsView()
@@ -351,12 +352,22 @@ void nsView::SetPosition(nscoord aX, nscoord aY)
   NS_ASSERTION(GetParent() || (aX == 0 && aY == 0),
                "Don't try to move the root widget to something non-zero");
 
-  ResetWidgetBounds(true, true, false);
+  ResetWidgetBounds(PR_TRUE, PR_TRUE, PR_FALSE);
 }
 
 void nsIView::SetInvalidationDimensions(const nsRect* aRect)
 {
   return Impl()->SetInvalidationDimensions(aRect);
+}
+
+void nsView::SetPositionIgnoringChildWidgets(nscoord aX, nscoord aY)
+{
+  mDimBounds.x += aX - mPosX;
+  mDimBounds.y += aY - mPosY;
+  mPosX = aX;
+  mPosY = aY;
+
+  ResetWidgetBounds(PR_FALSE, PR_TRUE, PR_FALSE);
 }
 
 void nsView::ResetWidgetBounds(bool aRecurse, bool aMoveOnly,
@@ -374,7 +385,7 @@ void nsView::ResetWidgetBounds(bool aRecurse, bool aMoveOnly,
   } else if (aRecurse) {
     // reposition any widgets under this view
     for (nsView* v = GetFirstChild(); v; v = v->GetNextSibling()) {
-      v->ResetWidgetBounds(true, aMoveOnly, aInvalidateChangedSize);
+      v->ResetWidgetBounds(PR_TRUE, aMoveOnly, aInvalidateChangedSize);
     }
   }
 }
@@ -383,9 +394,9 @@ bool nsIView::IsEffectivelyVisible()
 {
   for (nsIView* v = this; v; v = v->mParent) {
     if (v->GetVisibility() == nsViewVisibility_kHide)
-      return false;
+      return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
 nsIntRect nsIView::CalcWidgetBounds(nsWindowType aType)
@@ -438,7 +449,7 @@ void nsView::DoResetWidgetBounds(bool aMoveOnly,
   }
   
   nsIntRect curBounds;
-  mWindow->GetClientBounds(curBounds);
+  mWindow->GetBounds(curBounds);
 
   nsWindowType type;
   mWindow->GetWindowType(type);
@@ -462,16 +473,14 @@ void nsView::DoResetWidgetBounds(bool aMoveOnly,
   // Child views are never attached to top level widgets, this is safe.
   if (changedPos) {
     if (changedSize && !aMoveOnly) {
-      mWindow->ResizeClient(newBounds.x, newBounds.y,
-                            newBounds.width, newBounds.height,
-                            aInvalidateChangedSize);
+      mWindow->Resize(newBounds.x, newBounds.y, newBounds.width, newBounds.height,
+                      aInvalidateChangedSize);
     } else {
-      mWindow->MoveClient(newBounds.x, newBounds.y);
+      mWindow->Move(newBounds.x, newBounds.y);
     }
   } else {
     if (changedSize && !aMoveOnly) {
-      mWindow->ResizeClient(newBounds.width, newBounds.height,
-                            aInvalidateChangedSize);
+      mWindow->Resize(newBounds.width, newBounds.height, aInvalidateChangedSize);
     } // else do nothing!
   }
 }
@@ -492,7 +501,7 @@ void nsView::SetDimensions(const nsRect& aRect, bool aPaint, bool aResizeWidget)
   mDimBounds = dims;
 
   if (aResizeWidget) {
-    ResetWidgetBounds(false, false, aPaint);
+    ResetWidgetBounds(PR_FALSE, PR_FALSE, aPaint);
   }
 }
 
@@ -514,11 +523,11 @@ void nsView::NotifyEffectiveVisibilityChanged(bool aEffectivelyVisible)
   {
     if (aEffectivelyVisible)
     {
-      DoResetWidgetBounds(false, true);
-      mWindow->Show(true);
+      DoResetWidgetBounds(PR_FALSE, PR_TRUE);
+      mWindow->Show(PR_TRUE);
     }
     else
-      mWindow->Show(false);
+      mWindow->Show(PR_FALSE);
   }
 
   for (nsView* child = mFirstChild; child; child = child->mNextSibling) {
@@ -614,7 +623,7 @@ void nsView::RemoveChild(nsView *child)
           mFirstChild = kid->GetNextSibling();
         }
         child->SetParent(nsnull);
-        found = true;
+        found = PR_TRUE;
         break;
       }
       prevKid = kid;
@@ -702,8 +711,8 @@ struct DefaultWidgetInitData : public nsWidgetInitData {
   DefaultWidgetInitData() : nsWidgetInitData()
   {
     mWindowType = eWindowType_child;
-    clipChildren = true;
-    clipSiblings = true;
+    clipChildren = PR_TRUE;
+    clipSiblings = PR_TRUE;
   }
 };
 
@@ -738,8 +747,8 @@ nsresult nsView::CreateWidget(nsWidgetInitData *aWidgetInitData,
   // XXX: using aForceUseIWidgetParent=true to preserve previous
   // semantics.  It's not clear that it's actually needed.
   mWindow = parentWidget->CreateChild(trect, ::HandleEvent,
-                                      dx, aWidgetInitData,
-                                      true).get();
+                                      dx, nsnull, nsnull, aWidgetInitData,
+                                      PR_TRUE).get();
   if (!mWindow) {
     return NS_ERROR_FAILURE;
   }
@@ -770,7 +779,7 @@ nsresult nsView::CreateWidgetForParent(nsIWidget* aParentWidget,
 
   mWindow =
     aParentWidget->CreateChild(trect, ::HandleEvent,
-                               dx, aWidgetInitData).get();
+                               dx, nsnull, nsnull, aWidgetInitData).get();
   if (!mWindow) {
     return NS_ERROR_FAILURE;
   }
@@ -803,8 +812,8 @@ nsresult nsView::CreateWidgetForPopup(nsWidgetInitData *aWidgetInitData,
     // XXX: using aForceUseIWidgetParent=true to preserve previous
     // semantics.  It's not clear that it's actually needed.
     mWindow = aParentWidget->CreateChild(trect, ::HandleEvent,
-                                         dx, aWidgetInitData,
-                                         true).get();
+                                         dx, nsnull, nsnull, aWidgetInitData,
+                                         PR_TRUE).get();
   }
   else {
     nsIWidget* nearestParent = GetParent() ? GetParent()->GetNearestWidget(nsnull)
@@ -817,7 +826,7 @@ nsresult nsView::CreateWidgetForPopup(nsWidgetInitData *aWidgetInitData,
 
     mWindow =
       nearestParent->CreateChild(trect, ::HandleEvent,
-                                 dx, aWidgetInitData).get();
+                                 dx, nsnull, nsnull, aWidgetInitData).get();
   }
   if (!mWindow) {
     return NS_ERROR_FAILURE;
@@ -838,7 +847,7 @@ nsView::InitializeWindow(bool aEnableDragDrop, bool aResetVisibility)
   mWindow->SetClientData(wrapper);
 
   if (aEnableDragDrop) {
-    mWindow->EnableDragDrop(true);
+    mWindow->EnableDragDrop(PR_TRUE);
   }
       
   // propagate the z-index to the widget.
@@ -878,8 +887,8 @@ nsresult nsIView::AttachToTopLevelWidget(nsIWidget* aWidget)
   ViewWrapper* wrapper = new ViewWrapper(Impl());
   NS_ADDREF(wrapper);
   mWindow->SetAttachedViewPtr(wrapper);
-  mWindow->EnableDragDrop(true);
-  mWidgetIsTopLevel = true;
+  mWindow->EnableDragDrop(PR_TRUE);
+  mWidgetIsTopLevel = PR_TRUE;
 
   // Refresh the view bounds
   nsWindowType type;
@@ -902,7 +911,7 @@ nsresult nsIView::DetachFromTopLevelWidget()
   mWindow->SetAttachedViewPtr(nsnull);
   NS_RELEASE(mWindow);
 
-  mWidgetIsTopLevel = false;
+  mWidgetIsTopLevel = PR_FALSE;
   
   return NS_OK;
 }
@@ -984,8 +993,8 @@ void nsIView::List(FILE* out, PRInt32 aIndent) const
   nsRect brect = GetBounds();
   fprintf(out, "{%d,%d,%d,%d}",
           brect.x, brect.y, brect.width, brect.height);
-  fprintf(out, " z=%d vis=%d frame=%p <\n",
-          mZIndex, mVis, mFrame);
+  fprintf(out, " z=%d vis=%d clientData=%p <\n",
+          mZIndex, mVis, mClientData);
   for (nsView* kid = mFirstChild; kid; kid = kid->GetNextSibling()) {
     NS_ASSERTION(kid->GetParent() == this, "incorrect parent");
     kid->List(out, aIndent + 1);

@@ -49,7 +49,7 @@ const CSS_TYPE_SHORTHAND_AND_LONGHAND = 2;
 
 // Each property has the following fields:
 //	 domProp: The name of the relevant member of nsIDOM[NS]CSS2Properties
-//	 inherited: Whether the property is inherited by default (stated as
+//	 inherited: Whether the property is inherited by default (stated as 
 //	   yes or no in the property header in all CSS specs)
 //	 type: see above
 //	 get_computed: if present, the property's computed value shows up on
@@ -925,14 +925,6 @@ var gCSSProperties = {
 		other_values: [ "0", "3", "99", "12000" ],
 		invalid_values: [ "-1", "-808", "3.0", "17.5" ]
 	},
-	"-moz-text-size-adjust": {
-		domProp: "MozTextSizeAdjust",
-		inherited: true,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "auto" ],
-		other_values: [ "none" ],
-		invalid_values: [ "-5%", "0", "100", "0%", "50%", "100%", "220.3%" ]
-	},
 	"-moz-transform": {
 		domProp: "MozTransform",
 		inherited: false,
@@ -1199,19 +1191,6 @@ var gCSSProperties = {
 		"-moz-linear-gradient(#ffff00, #ef3, rgba(10, 20, 30, 0.4))",
 		"-moz-linear-gradient(rgba(10, 20, 30, 0.4), #ffff00, #ef3)",
 
-		"-moz-linear-gradient(to top, red, blue)",
-		"-moz-linear-gradient(to bottom, red, blue)",
-		"-moz-linear-gradient(to left, red, blue)",
-		"-moz-linear-gradient(to right, red, blue)",
-		"-moz-linear-gradient(to top left, red, blue)",
-		"-moz-linear-gradient(to top right, red, blue)",
-		"-moz-linear-gradient(to bottom left, red, blue)",
-		"-moz-linear-gradient(to bottom right, red, blue)",
-		"-moz-linear-gradient(to left top, red, blue)",
-		"-moz-linear-gradient(to left bottom, red, blue)",
-		"-moz-linear-gradient(to right top, red, blue)",
-		"-moz-linear-gradient(to right bottom, red, blue)",
-
 		"-moz-linear-gradient(top left, red, blue)",
 		"-moz-linear-gradient(0 0, red, blue)",
 		"-moz-linear-gradient(20% bottom, red, blue)",
@@ -1289,19 +1268,6 @@ var gCSSProperties = {
 		"-moz-repeating-linear-gradient(red -99px, yellow, green, blue 120%)",
 		"-moz-repeating-linear-gradient(#ffff00, #ef3, rgba(10, 20, 30, 0.4))",
 		"-moz-repeating-linear-gradient(rgba(10, 20, 30, 0.4), #ffff00, #ef3)",
-
-		"-moz-repeating-linear-gradient(to top, red, blue)",
-		"-moz-repeating-linear-gradient(to bottom, red, blue)",
-		"-moz-repeating-linear-gradient(to left, red, blue)",
-		"-moz-repeating-linear-gradient(to right, red, blue)",
-		"-moz-repeating-linear-gradient(to top left, red, blue)",
-		"-moz-repeating-linear-gradient(to top right, red, blue)",
-		"-moz-repeating-linear-gradient(to bottom left, red, blue)",
-		"-moz-repeating-linear-gradient(to bottom right, red, blue)",
-		"-moz-repeating-linear-gradient(to left top, red, blue)",
-		"-moz-repeating-linear-gradient(to left bottom, red, blue)",
-		"-moz-repeating-linear-gradient(to right top, red, blue)",
-		"-moz-repeating-linear-gradient(to right bottom, red, blue)",
 
 		"-moz-repeating-linear-gradient(top left, red, blue)",
 		"-moz-repeating-linear-gradient(0 0, red, blue)",
@@ -1432,28 +1398,6 @@ var gCSSProperties = {
 			"-moz-radial-gradient(contain contain, red, blue)",
 			"-moz-radial-gradient(ellipse circle, red, blue)",
 
-			"-moz-linear-gradient(to 0 0, red, blue)",
-			"-moz-linear-gradient(to 20% bottom, red, blue)",
-			"-moz-linear-gradient(to center 20%, red, blue)",
-			"-moz-linear-gradient(to left 35px, red, blue)",
-			"-moz-linear-gradient(to 10% 10em, red, blue)",
-			"-moz-linear-gradient(to 44px top, red, blue)",
-			"-moz-linear-gradient(to top left 45deg, red, blue)",
-			"-moz-linear-gradient(to 20% bottom -300deg, red, blue)",
-			"-moz-linear-gradient(to center 20% 1.95929rad, red, blue)",
-			"-moz-linear-gradient(to left 35px 30grad, red, blue)",
-			"-moz-linear-gradient(to 10% 10em 99999deg, red, blue)",
-			"-moz-linear-gradient(to 44px top -33deg, red, blue)",
-			"-moz-linear-gradient(to -33deg, red, blue)",
-			"-moz-linear-gradient(to 30grad left 35px, red, blue)",
-			"-moz-linear-gradient(to 10deg 20px, red, blue)",
-			"-moz-linear-gradient(to .414rad bottom, red, blue)",
-
-			"-moz-linear-gradient(to top top, red, blue)",
-			"-moz-linear-gradient(to bottom bottom, red, blue)",
-			"-moz-linear-gradient(to left left, red, blue)",
-			"-moz-linear-gradient(to right right, red, blue)",
-
 			"-moz-repeating-linear-gradient(10px 10px, 20px, 30px 30px, 40px, blue 0, red 100%)",
 			"-moz-repeating-radial-gradient(20px 20px, 10px 10px, from(green), to(#ff00ff))",
 			"-moz-repeating-radial-gradient(10px 10px, 20%, 40px 40px, 10px, from(green), to(#ff00ff))",
@@ -1464,29 +1408,7 @@ var gCSSProperties = {
 			"-moz-repeating-linear-gradient(left left, top top, blue 0)",
 			"-moz-repeating-linear-gradient(inherit, 10px 10px, blue 0)",
 			"-moz-repeating-linear-gradient(left left blue red)",
-			"-moz-repeating-linear-gradient()",
-
-			"-moz-repeating-linear-gradient(to 0 0, red, blue)",
-			"-moz-repeating-linear-gradient(to 20% bottom, red, blue)",
-			"-moz-repeating-linear-gradient(to center 20%, red, blue)",
-			"-moz-repeating-linear-gradient(to left 35px, red, blue)",
-			"-moz-repeating-linear-gradient(to 10% 10em, red, blue)",
-			"-moz-repeating-linear-gradient(to 44px top, red, blue)",
-			"-moz-repeating-linear-gradient(to top left 45deg, red, blue)",
-			"-moz-repeating-linear-gradient(to 20% bottom -300deg, red, blue)",
-			"-moz-repeating-linear-gradient(to center 20% 1.95929rad, red, blue)",
-			"-moz-repeating-linear-gradient(to left 35px 30grad, red, blue)",
-			"-moz-repeating-linear-gradient(to 10% 10em 99999deg, red, blue)",
-			"-moz-repeating-linear-gradient(to 44px top -33deg, red, blue)",
-			"-moz-repeating-linear-gradient(to -33deg, red, blue)",
-			"-moz-repeating-linear-gradient(to 30grad left 35px, red, blue)",
-			"-moz-repeating-linear-gradient(to 10deg 20px, red, blue)",
-			"-moz-repeating-linear-gradient(to .414rad bottom, red, blue)",
-
-			"-moz-repeating-linear-gradient(to top top, red, blue)",
-			"-moz-repeating-linear-gradient(to bottom bottom, red, blue)",
-			"-moz-repeating-linear-gradient(to left left, red, blue)",
-			"-moz-repeating-linear-gradient(to right right, red, blue)" ]
+			"-moz-repeating-linear-gradient()" ]
 	},
 	"background-origin": {
 		domProp: "backgroundOrigin",
@@ -1911,7 +1833,7 @@ var gCSSProperties = {
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "show" ],
-		other_values: [ "hide", "-moz-show-background" ],
+		other_values: [ "hide" ],
 		invalid_values: []
 	},
 	"float": {
@@ -1952,7 +1874,7 @@ var gCSSProperties = {
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "normal" ],
-		other_values: [ "'ENG'", "'TRK'", "\"TRK\"", "'N\\'Ko'" ],
+		other_values: [ "'TRK'", "\"TRK\"", "'N\\'Ko'" ],
 		invalid_values: [ "TRK" ]
 	},
 	"font-size": {
@@ -2013,7 +1935,7 @@ var gCSSProperties = {
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "normal", "400" ],
 		other_values: [ "bold", "100", "200", "300", "500", "600", "700", "800", "900", "bolder", "lighter" ],
-		invalid_values: [ "0", "100.0", "107", "399", "401", "699", "710", "1000" ]
+		invalid_values: [ "107", "399", "401", "699", "710" ]
 	},
 	"height": {
 		domProp: "height",
@@ -2646,8 +2568,8 @@ var gCSSProperties = {
 		domProp: "textOverflow",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "clip" ],
-		other_values: [ "ellipsis", '""', "''", '"hello"', 'clip clip', 'ellipsis ellipsis', 'clip ellipsis', 'clip ""', '"hello" ""', '"" ellipsis' ],
+		initial_values: [ "clip", "clip clip" ],
+		other_values: [ "ellipsis", '""', "''", '"hello"', 'clip ellipsis', 'clip ""', '"hello" ""', '"" ellipsis' ],
 		invalid_values: [ "none", "auto", '"hello" inherit', 'inherit "hello"', 'clip initial', 'initial clip', 'initial inherit', 'inherit initial', 'inherit none']
 	},
 	"text-shadow": {
@@ -2745,8 +2667,8 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "normal" ],
-		other_values: [ "embed", "bidi-override", "-moz-isolate", "-moz-plaintext", "-moz-isolate bidi-override", "bidi-override -moz-isolate" ],
-		invalid_values: [ "auto", "none", "normal embed", "normal bidi-override", "normal -moz-isolate", "normal -moz-plaintext", "embed normal", "embed -moz-isolate", "embed bidi-override", "embed -moz-plaintext", "bidi-override normal", "bidi-override embed", "bidi-override -moz-plaintext", "-moz-isolate normal", "-moz-isolate embed", "-moz-isolate -moz-plaintext", "-moz-plaintext normal", "-moz-plaintext embed", "-moz-plaintext bidi-override", "-moz-plaintext -moz-isolate" ]
+		other_values: [ "embed", "bidi-override" ],
+		invalid_values: [ "auto", "none" ]
 	},
 	"vertical-align": {
 		domProp: "verticalAlign",

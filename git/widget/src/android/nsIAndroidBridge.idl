@@ -1,13 +1,7 @@
 #include "nsISupports.idl"
 
-[scriptable, function, uuid(9feed1e5-bb90-4663-b70a-e03cb27a9e8b)]
-interface nsIAndroidDrawMetadataProvider : nsISupports {
-  AString getDrawMetadata();
-};
-
-[scriptable, uuid(7dd8441a-4f38-49b2-bd90-da69d02a96cf)]
+[scriptable, uuid(32c345d4-9f45-446a-8a93-8939f3453e87)]
 interface nsIAndroidBridge : nsISupports
 {
-  AString handleGeckoMessage(in AString message);
-  void setDrawMetadataProvider(in nsIAndroidDrawMetadataProvider provider);
+  void handleGeckoMessage(in AString message);
 };

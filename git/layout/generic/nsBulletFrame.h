@@ -46,9 +46,6 @@
 #include "imgIRequest.h"
 #include "imgIDecoderObserver.h"
 
-#define BULLET_FRAME_IMAGE_LOADING NS_FRAME_STATE_BIT(63)
-#define BULLET_FRAME_HAS_FONT_INFLATION NS_FRAME_STATE_BIT(62)
-
 /**
  * A simple class that manages the layout and rendering of html bullets.
  * This class also supports the CSS list-style properties.
@@ -57,10 +54,7 @@ class nsBulletFrame : public nsFrame {
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
-  nsBulletFrame(nsStyleContext* aContext)
-    : nsFrame(aContext)
-  {
-  }
+  nsBulletFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
   virtual ~nsBulletFrame();
 
   // nsIFrame
@@ -93,7 +87,6 @@ public:
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest,
                           nsresult aStatus,
                           const PRUnichar *aStatusArg);
-  NS_IMETHOD OnImageIsAnimated(imgIRequest *aRequest);
   NS_IMETHOD FrameChanged(imgIContainer *aContainer,
                           const nsIntRect *aDirtyRect);
 
@@ -113,17 +106,10 @@ public:
   virtual bool IsSelfEmpty();
   virtual nscoord GetBaseline() const;
 
-  float GetFontSizeInflation() const;
-  bool HasFontSizeInflation() const {
-    return (GetStateBits() & BULLET_FRAME_HAS_FONT_INFLATION) != 0;
-  }
-  void SetFontSizeInflation(float aInflation);
-
 protected:
   void GetDesiredSize(nsPresContext* aPresContext,
                       nsRenderingContext *aRenderingContext,
-                      nsHTMLReflowMetrics& aMetrics,
-                      float aFontSizeInflation);
+                      nsHTMLReflowMetrics& aMetrics);
 
   void GetLoadGroup(nsPresContext *aPresContext, nsILoadGroup **aLoadGroup);
 
@@ -135,12 +121,6 @@ protected:
   nsSize mComputedSize;
   PRInt32 mOrdinal;
   bool mTextIsRTL;
-
-private:
-
-  // This is a boolean flag indicating whether or not the current image request
-  // has been registered with the refresh driver.
-  bool mRequestRegistered;
 };
 
 #endif /* nsBulletFrame_h___ */

@@ -49,13 +49,13 @@ RedirectChannelRegistrar::nsCOMPtrHashtable<KeyClass,T>::Get(KeyType aKey, T** r
     if (retVal)
       NS_IF_ADDREF(*retVal = ent->mData);
 
-    return true;
+    return PR_TRUE;
   }
 
   if (retVal)
     *retVal = nsnull;
 
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMPL_ISUPPORTS1(RedirectChannelRegistrar, nsIRedirectChannelRegistrar)

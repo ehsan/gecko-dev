@@ -41,8 +41,6 @@
 #ifndef mozilla_ipc_Shmem_h
 #define mozilla_ipc_Shmem_h
 
-#include "mozilla/Attributes.h"
-
 #include "base/basictypes.h"
 #include "base/process.h"
 
@@ -89,7 +87,7 @@
 namespace mozilla {
 namespace ipc {
 
-class Shmem MOZ_FINAL
+class NS_FINAL_CLASS Shmem
 {
   friend struct IPC::ParamTraits<mozilla::ipc::Shmem>;
 

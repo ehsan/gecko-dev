@@ -85,8 +85,7 @@ public:
   void BeginLineReflow(nscoord aX, nscoord aY,
                        nscoord aWidth, nscoord aHeight,
                        bool aImpactedByFloats,
-                       bool aIsTopOfPage,
-                       PRUint8 aDirection);
+                       bool aIsTopOfPage);
 
   void EndLineReflow();
 
@@ -116,7 +115,7 @@ public:
 
   bool IsZeroHeight();
 
-  // Reflows the frame and returns the reflow status. aPushedFrame is true
+  // Reflows the frame and returns the reflow status. aPushedFrame is PR_TRUE
   // if the frame is pushed to the next line because it doesn't fit
   nsresult ReflowFrame(nsIFrame* aFrame,
                        nsReflowStatus& aReflowStatus,
@@ -165,7 +164,7 @@ protected:
   void SetFlag(PRUint32 aFlag, bool aValue)
   {
     NS_ASSERTION(aFlag<=LL_LASTFLAG, "bad flag");
-    NS_ASSERTION(aValue==false || aValue==true, "bad value");
+    NS_ASSERTION(aValue==PR_FALSE || aValue==PR_TRUE, "bad value");
     if (aValue) { // set flag
       mFlags |= aFlag;
     }
@@ -261,7 +260,7 @@ public:
   // Calling this during block reflow ensures that the next line of inlines
   // will be marked dirty, if there is one.
   void SetDirtyNextLine() {
-    SetFlag(LL_DIRTYNEXTLINE, true);
+    SetFlag(LL_DIRTYNEXTLINE, PR_TRUE);
   }
   bool GetDirtyNextLine() {
     return GetFlag(LL_DIRTYNEXTLINE);
@@ -292,7 +291,7 @@ public:
    * prioritizing break opportunities, we will not set a break if we have
    * already set a break with a higher priority. @see gfxBreakPriority.
    *
-   * @return true if we are actually reflowing with forced break position and we
+   * @return PR_TRUE if we are actually reflowing with forced break position and we
    * should break here
    */
   bool NotifyOptionalBreakPosition(nsIContent* aContent, PRInt32 aOffset,
@@ -325,7 +324,7 @@ public:
    * Signal that no backing up will be required after all.
    */
   void ClearOptionalBreakPosition() {
-    SetFlag(LL_NEEDBACKUP, false);
+    SetFlag(LL_NEEDBACKUP, PR_FALSE);
     mLastOptionalBreakContent = nsnull;
     mLastOptionalBreakContentOffset = -1;
     mLastOptionalBreakPriority = eNoBreak;
@@ -369,9 +368,6 @@ public:
    * context (e.g. MathML or floating first-letter).
    */
   nsIFrame* GetLineContainerFrame() const { return mBlockReflowState->frame; }
-  const nsHTMLReflowState* GetLineContainerRS() const {
-    return mBlockReflowState;
-  }
   const nsLineList::iterator* GetLine() const {
     return GetFlag(LL_GOTLINEBOX) ? &mLineBox : nsnull;
   }
@@ -461,7 +457,7 @@ protected:
     {
       NS_ASSERTION(aFlag<=PFD_LASTFLAG, "bad flag");
       NS_ASSERTION(aFlag<=PR_UINT8_MAX, "bad flag");
-      NS_ASSERTION(aValue==false || aValue==true, "bad value");
+      NS_ASSERTION(aValue==PR_FALSE || aValue==PR_TRUE, "bad value");
       if (aValue) { // set flag
         mFlags |= aFlag;
       }
@@ -549,8 +545,6 @@ protected:
   nscoord mTopEdge;
   nscoord mMaxTopBoxHeight;
   nscoord mMaxBottomBoxHeight;
-
-  nscoord mInflationMinFontSize;
 
   // Final computed line-height value after VerticalAlignFrames for
   // the block has been called.

@@ -48,19 +48,19 @@
 /* Implementation file */
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsX509CertValidity, nsIX509CertValidity)
 
-nsX509CertValidity::nsX509CertValidity() : mTimesInitialized(false)
+nsX509CertValidity::nsX509CertValidity() : mTimesInitialized(PR_FALSE)
 {
   /* member initializers and constructor code */
 }
 
 nsX509CertValidity::nsX509CertValidity(CERTCertificate *cert) : 
-                                           mTimesInitialized(false)
+                                           mTimesInitialized(PR_FALSE)
 {
   nsNSSShutDownPreventionLock locker;
   if (cert) {
     SECStatus rv = CERT_GetCertTimes(cert, &mNotBefore, &mNotAfter);
     if (rv == SECSuccess)
-      mTimesInitialized = true;
+      mTimesInitialized = PR_TRUE;
   }
 }
 

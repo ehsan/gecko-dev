@@ -227,7 +227,7 @@ public: //for methods who access nsTextControlFrame directly
       NS_ASSERTION(aFrame, "Should pass a valid frame");
     }
     void Cancel() {
-      mInited = false;
+      mInited = PR_FALSE;
     }
     void Init() {
       // Since this code does not handle user-generated changes to the text,
@@ -239,16 +239,16 @@ public: //for methods who access nsTextControlFrame directly
       // we must wait until we unwind to re-enable oninput events.
       mOuterTransaction = mFrame->mNotifyOnInput;
       if (mOuterTransaction)
-        mFrame->mNotifyOnInput = false;
+        mFrame->mNotifyOnInput = PR_FALSE;
 
-      mInited = true;
+      mInited = PR_TRUE;
     }
     ~ValueSetter() {
       if (!mInited)
         return;
 
       if (mOuterTransaction)
-        mFrame->mNotifyOnInput = true;
+        mFrame->mNotifyOnInput = PR_TRUE;
 
       if (mFocusValueInit) {
         // Reset mFocusedValue so the onchange event doesn't fire incorrectly.
@@ -306,7 +306,7 @@ protected:
         nsCOMPtr<nsIPresShell> shell =
           mFrame->PresContext()->GetPresShell();
         bool observes = shell->ObservesNativeAnonMutationsForPrint();
-        shell->ObserveNativeAnonMutationsForPrint(true);
+        shell->ObserveNativeAnonMutationsForPrint(PR_TRUE);
         // This can cause the frame to be destroyed (and call Revoke())
         mFrame->EnsureEditorInitialized();
         shell->ObserveNativeAnonMutationsForPrint(observes);
@@ -370,14 +370,14 @@ protected:
   /**
    * Get the maxlength attribute
    * @param aMaxLength the value of the max length attr
-   * @returns false if attr not defined
+   * @returns PR_FALSE if attr not defined
    */
   bool GetMaxLength(PRInt32* aMaxLength);
 
   /**
    * Find out whether an attribute exists on the content or not.
    * @param aAtt the attribute to determine the existence of
-   * @returns false if it does not exist
+   * @returns PR_FALSE if it does not exist
    */
   bool AttributeExists(nsIAtom *aAtt) const
   { return mContent && mContent->HasAttr(kNameSpaceID_None, aAtt); }
@@ -392,8 +392,7 @@ protected:
   // etc.  Just the size of our actual area for the text (and the scrollbars,
   // for <textarea>).
   nsresult CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
-                             nsSize&             aIntrinsicSize,
-                             float               aFontSizeInflation);
+                             nsSize&              aIntrinsicSize);
 
   nsresult ScrollSelectionIntoView();
 

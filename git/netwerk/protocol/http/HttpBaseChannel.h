@@ -167,9 +167,6 @@ public:
   NS_IMETHOD GetLocalPort(PRInt32* port);
   NS_IMETHOD GetRemoteAddress(nsACString& addr);
   NS_IMETHOD GetRemotePort(PRInt32* port);
-  NS_IMETHOD GetAllowSpdy(bool *aAllowSpdy);
-  NS_IMETHOD SetAllowSpdy(bool aAllowSpdy);
-  
   inline void CleanRedirectCacheChainIfNecessary()
   {
       if (mRedirectedCachekeys) {
@@ -219,9 +216,6 @@ public:
 
 public: /* Necko internal use only... */
 
-  bool ShouldRewriteRedirectToGET(PRUint32 httpStatus, nsHttpAtom method);
-  bool IsSafeMethod(nsHttpAtom method);
-  
 protected:
 
   // Handle notifying listener, removing from loadgroup if request failed.
@@ -298,7 +292,6 @@ protected:
   PRUint32                          mTracingEnabled             : 1;
   // True if timing collection is enabled
   PRUint32                          mTimingEnabled              : 1;
-  PRUint32                          mAllowSpdy                  : 1;
 
   // Current suspension depth for this channel object
   PRUint32                          mSuspendCount;
@@ -345,7 +338,7 @@ nsresult HttpAsyncAborter<T>::AsyncAbort(nsresult status)
   LOG(("HttpAsyncAborter::AsyncAbort [this=%p status=%x]\n", mThis, status));
 
   mThis->mStatus = status;
-  mThis->mIsPending = false;
+  mThis->mIsPending = PR_FALSE;
 
   // if this fails?  Callers ignore our return value anyway....
   return AsyncCall(&T::HandleAsyncAbort);

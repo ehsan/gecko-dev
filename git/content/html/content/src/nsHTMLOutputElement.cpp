@@ -77,7 +77,7 @@ public:
   NS_IMETHOD Reset();
   NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
 
-  virtual bool IsDisabled() const { return false; }
+  virtual bool IsDisabled() const { return PR_FALSE; }
 
   nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
 
@@ -173,7 +173,9 @@ NS_IMETHODIMP
 nsHTMLOutputElement::Reset()
 {
   mValueModeFlag = eModeDefault;
-  return nsContentUtils::SetNodeTextContent(this, mDefaultValue, true);
+  nsresult rv = nsContentUtils::SetNodeTextContent(this, mDefaultValue,
+                                                   PR_TRUE);
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -190,7 +192,7 @@ nsHTMLOutputElement::ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::_for) {
       aResult.ParseAtomArray(aValue);
-      return true;
+      return PR_TRUE;
     }
   }
 
@@ -256,7 +258,7 @@ nsHTMLOutputElement::GetType(nsAString& aType)
 NS_IMETHODIMP
 nsHTMLOutputElement::GetValue(nsAString& aValue)
 {
-  nsContentUtils::GetNodeTextContent(this, true, aValue);
+  nsContentUtils::GetNodeTextContent(this, PR_TRUE, aValue);
   return NS_OK;
 }
 
@@ -264,7 +266,7 @@ NS_IMETHODIMP
 nsHTMLOutputElement::SetValue(const nsAString& aValue)
 {
   mValueModeFlag = eModeValue;
-  return nsContentUtils::SetNodeTextContent(this, aValue, true);
+  return nsContentUtils::SetNodeTextContent(this, aValue, PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -279,7 +281,7 @@ nsHTMLOutputElement::SetDefaultValue(const nsAString& aDefaultValue)
 {
   mDefaultValue = aDefaultValue;
   if (mValueModeFlag == eModeDefault) {
-    return nsContentUtils::SetNodeTextContent(this, mDefaultValue, true);
+    return nsContentUtils::SetNodeTextContent(this, mDefaultValue, PR_TRUE);
   }
 
   return NS_OK;
@@ -300,7 +302,7 @@ nsHTMLOutputElement::GetHtmlFor(nsIDOMDOMSettableTokenList** aResult)
 void nsHTMLOutputElement::DescendantsChanged()
 {
   if (mValueModeFlag == eModeDefault) {
-    nsContentUtils::GetNodeTextContent(this, true, mDefaultValue);
+    nsContentUtils::GetNodeTextContent(this, PR_TRUE, mDefaultValue);
   }
 }
 

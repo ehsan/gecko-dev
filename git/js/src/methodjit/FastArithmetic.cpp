@@ -1162,7 +1162,7 @@ mjit::Compiler::jsop_equality_int_string(JSOp op, BoolStub stub,
         ic.stubEntry = stubEntry;
         ic.stub = stub;
 
-        bool useIC = !a->parent;
+        bool useIC = (!addTraceHints || target >= PC) && !a->parent;
 
         /* Call the IC stub, which may generate a fast path. */
         if (useIC) {
@@ -1230,10 +1230,10 @@ mjit::Compiler::jsop_equality_int_string(JSOp op, BoolStub stub,
 #endif
 
         /*
-         * NB: jumpAndRun emits to the OOL path, so make sure not to use it
+         * NB: jumpAndTrace emits to the OOL path, so make sure not to use it
          * in the middle of an in-progress slow path.
          */
-        if (!jumpAndRun(fast, target, &stubBranch, ptrampoline))
+        if (!jumpAndTrace(fast, target, &stubBranch, ptrampoline))
             return false;
 
 #ifdef JS_MONOIC
@@ -1449,10 +1449,10 @@ mjit::Compiler::jsop_relational_double(JSOp op, BoolStub stub, jsbytecode *targe
         stubcc.rejoin(Changes(0));
 
         /*
-         * NB: jumpAndRun emits to the OOL path, so make sure not to use it
+         * NB: jumpAndTrace emits to the OOL path, so make sure not to use it
          * in the middle of an in-progress slow path.
          */
-        if (!jumpAndRun(j, target, &sj))
+        if (!jumpAndTrace(j, target, &sj))
             return false;
     } else {
         stubcc.leave();
@@ -1518,7 +1518,7 @@ mjit::Compiler::jsop_relational_int(JSOp op, jsbytecode *target, JSOp fused)
         Jump sj = stubcc.masm.branchTest32(GetStubCompareCondition(fused),
                                            Registers::ReturnReg, Registers::ReturnReg);
 
-        return jumpAndRun(fast, target, &sj);
+        return jumpAndTrace(fast, target, &sj);
     } else {
         RegisterID result = frame.allocReg();
         RegisterID lreg = frame.tempRegForData(lhs);
@@ -1656,6 +1656,7 @@ mjit::Compiler::jsop_relational_full(JSOp op, BoolStub stub, jsbytecode *target,
         Jump j2 = stubcc.masm.jump();
         stubcc.crossJump(j2, masm.label());
 
+        /* :TODO: make double path invoke tracer. */
         if (hasDoublePath) {
             j.linkTo(stubcc.masm.label(), &stubcc.masm);
             doubleTest.get().linkTo(stubcc.masm.label(), &stubcc.masm);
@@ -1663,10 +1664,10 @@ mjit::Compiler::jsop_relational_full(JSOp op, BoolStub stub, jsbytecode *target,
         }
 
         /*
-         * NB: jumpAndRun emits to the OOL path, so make sure not to use it
+         * NB: jumpAndTrace emits to the OOL path, so make sure not to use it
          * in the middle of an in-progress slow path.
          */
-        if (!jumpAndRun(fast, target, &j))
+        if (!jumpAndTrace(fast, target, &j))
             return false;
 
         /* Rejoin from the double path. */

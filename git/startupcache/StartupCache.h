@@ -95,8 +95,6 @@
  * provide some convenience in writing out data.
  */
 
-class nsIMemoryReporter;
-
 namespace mozilla {
 namespace scache {
 
@@ -150,8 +148,6 @@ public:
   static StartupCache* GetSingleton();
   static void DeleteSingleton();
 
-  PRInt64 SizeOfMapping();
-
 private:
   StartupCache();
   ~StartupCache();
@@ -182,8 +178,6 @@ private:
 #ifdef DEBUG
   nsTHashtable<nsISupportsHashKey> mWriteObjectMap;
 #endif
-
-  nsIMemoryReporter* mMemoryReporter;
 };
 
 // This debug outputstream attempts to detect if clients are writing multiple

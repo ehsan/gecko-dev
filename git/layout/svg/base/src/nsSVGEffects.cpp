@@ -69,7 +69,7 @@ nsSVGRenderingObserver::StopListening()
     target->RemoveMutationObserver(this);
     if (mInObserverList) {
       nsSVGEffects::RemoveRenderingObserver(target, this);
-      mInObserverList = false;
+      mInObserverList = PR_FALSE;
     }
   }
   NS_ASSERTION(!mInObserverList, "still in an observer list?");
@@ -111,7 +111,7 @@ nsSVGIDRenderingObserver::nsSVGIDRenderingObserver(nsIURI *aURI,
 #endif
 {
   // Start watching the target element
-  mElement.Reset(aFrame->GetContent(), aURI, true, aReferenceImage);
+  mElement.Reset(aFrame->GetContent(), aURI, PR_TRUE, aReferenceImage);
   StartListening();
 }
 
@@ -142,7 +142,7 @@ nsSVGRenderingObserver::GetReferencedElement()
 #endif
   if (target && !mInObserverList) {
     nsSVGEffects::AddRenderingObserver(target, this);
-    mInObserverList = true;
+    mInObserverList = PR_TRUE;
   }
   return target;
 }
@@ -162,7 +162,7 @@ nsSVGRenderingObserver::GetReferencedFrame(nsIAtom* aFrameType, bool* aOK)
     if (frame->GetType() == aFrameType)
       return frame;
     if (aOK) {
-      *aOK = false;
+      *aOK = PR_FALSE;
     }
   }
   return nsnull;
@@ -178,7 +178,7 @@ nsSVGIDRenderingObserver::DoUpdate()
   }
   if (mElement.get() && mInObserverList) {
     nsSVGEffects::RemoveRenderingObserver(mElement.get(), this);
-    mInObserverList = false;
+    mInObserverList = PR_FALSE;
   }
   if (mFrame && mFrame->IsFrameOfType(nsIFrame::eSVG)) {
     // Changes should propagate out to things that might be observing
@@ -190,14 +190,14 @@ nsSVGIDRenderingObserver::DoUpdate()
 void
 nsSVGRenderingObserver::InvalidateViaReferencedElement()
 {
-  mInObserverList = false;
+  mInObserverList = PR_FALSE;
   DoUpdate();
 }
 
 void
 nsSVGRenderingObserver::NotifyEvictedFromRenderingObserverList()
 {
-  mInObserverList = false; // We've been removed from rendering-obs. list.
+  mInObserverList = PR_FALSE; // We've been removed from rendering-obs. list.
   StopListening();            // Remove ourselves from mutation-obs. list.
 }
 
@@ -366,7 +366,7 @@ GetEffectProperty(nsIURI *aURI, nsIFrame *aFrame,
     static_cast<nsSVGRenderingObserver*>(props.Get(aProperty));
   if (prop)
     return prop;
-  prop = aCreate(aURI, aFrame, false);
+  prop = aCreate(aURI, aFrame, PR_FALSE);
   if (!prop)
     return nsnull;
   NS_ADDREF(prop);

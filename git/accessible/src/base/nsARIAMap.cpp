@@ -440,8 +440,7 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kNoReqStates,
-    eARIAOrientation
+    kNoReqStates
   },
   {
     "slider",
@@ -451,7 +450,6 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eNoAction,
     eNoLiveAttr,
     kNoReqStates,
-    eARIAOrientation,
     eARIAReadonly
   },
   {
@@ -615,11 +613,11 @@ nsStateMapEntry nsARIAMap::gWAIStateMap[] = {
 
   // eARIACheckableBool
   nsStateMapEntry(&nsGkAtoms::aria_checked, kBoolType,
-                  states::CHECKABLE, states::CHECKED, 0, true),
+                  states::CHECKABLE, states::CHECKED, 0, PR_TRUE),
 
   // eARIACheckableMixed
   nsStateMapEntry(&nsGkAtoms::aria_checked, kMixedType,
-                  states::CHECKABLE, states::CHECKED, 0, true),
+                  states::CHECKABLE, states::CHECKED, 0, PR_TRUE),
 
   // eARIACheckedMixed
   nsStateMapEntry(&nsGkAtoms::aria_checked, kMixedType,
@@ -643,7 +641,7 @@ nsStateMapEntry nsARIAMap::gWAIStateMap[] = {
 
   // eARIAMultiline
   nsStateMapEntry(&nsGkAtoms::aria_multiline, kBoolType,
-                  0, states::MULTI_LINE, states::SINGLE_LINE, true),
+                  0, states::MULTI_LINE, states::SINGLE_LINE, PR_TRUE),
 
   // eARIAMultiSelectable
   nsStateMapEntry(&nsGkAtoms::aria_multiselectable, kBoolType,
@@ -651,8 +649,8 @@ nsStateMapEntry nsARIAMap::gWAIStateMap[] = {
 
   // eARIAOrientation
   nsStateMapEntry(&nsGkAtoms::aria_orientation, eUseFirstState,
-                  "horizontal", states::HORIZONTAL,
-                  "vertical", states::VERTICAL),
+                  "vertical", states::VERTICAL,
+                  "horizontal", states::HORIZONTAL),
 
   // eARIAPressed
   nsStateMapEntry(&nsGkAtoms::aria_pressed, kMixedType,
@@ -664,7 +662,7 @@ nsStateMapEntry nsARIAMap::gWAIStateMap[] = {
 
   // eARIAReadonlyOrEditable
   nsStateMapEntry(&nsGkAtoms::aria_readonly, kBoolType,
-                  0, states::READONLY, states::EDITABLE, true),
+                  0, states::READONLY, states::EDITABLE, PR_TRUE),
 
   // eARIARequired
   nsStateMapEntry(&nsGkAtoms::aria_required, kBoolType,
@@ -672,7 +670,7 @@ nsStateMapEntry nsARIAMap::gWAIStateMap[] = {
 
   // eARIASelectable
   nsStateMapEntry(&nsGkAtoms::aria_selected, kBoolType,
-                  states::SELECTABLE, states::SELECTED, 0, true)
+                  states::SELECTABLE, states::SELECTED, 0, PR_TRUE)
 };
 
 /**
@@ -741,7 +739,7 @@ PRUint32 nsARIAMap::gWAIUnivAttrMapLength = NS_ARRAY_LENGTH(nsARIAMap::gWAIUnivA
 
 nsStateMapEntry::nsStateMapEntry() :
   mAttributeName(nsnull),
-  mIsToken(false),
+  mIsToken(PR_FALSE),
   mPermanentState(0),
   mValue1(nsnull),
   mState1(0),
@@ -750,7 +748,7 @@ nsStateMapEntry::nsStateMapEntry() :
   mValue3(nsnull),
   mState3(0),
   mDefaultState(0),
-  mDefinedIfAbsent(false)
+  mDefinedIfAbsent(PR_FALSE)
 {}
 
 nsStateMapEntry::nsStateMapEntry(nsIAtom** aAttrName, eStateValueType aType,
@@ -759,7 +757,7 @@ nsStateMapEntry::nsStateMapEntry(nsIAtom** aAttrName, eStateValueType aType,
                                  PRUint64 aFalseState,
                                  bool aDefinedIfAbsent) :
   mAttributeName(aAttrName),
-  mIsToken(true),
+  mIsToken(PR_TRUE),
   mPermanentState(aPermanentState),
   mValue1("false"),
   mState1(aFalseState),
@@ -780,11 +778,11 @@ nsStateMapEntry::nsStateMapEntry(nsIAtom** aAttrName,
                                  const char* aValue1, PRUint64 aState1,
                                  const char* aValue2, PRUint64 aState2,
                                  const char* aValue3, PRUint64 aState3) :
-  mAttributeName(aAttrName), mIsToken(false), mPermanentState(0),
+  mAttributeName(aAttrName), mIsToken(PR_FALSE), mPermanentState(0),
   mValue1(aValue1), mState1(aState1),
   mValue2(aValue2), mState2(aState2),
   mValue3(aValue3), mState3(aState3),
-  mDefaultState(0), mDefinedIfAbsent(false)
+  mDefaultState(0), mDefinedIfAbsent(PR_FALSE)
 {
 }
 
@@ -793,11 +791,11 @@ nsStateMapEntry::nsStateMapEntry(nsIAtom** aAttrName,
                                  const char* aValue1, PRUint64 aState1,
                                  const char* aValue2, PRUint64 aState2,
                                  const char* aValue3, PRUint64 aState3) :
-  mAttributeName(aAttrName), mIsToken(true), mPermanentState(0),
+  mAttributeName(aAttrName), mIsToken(PR_TRUE), mPermanentState(0),
   mValue1(aValue1), mState1(aState1),
   mValue2(aValue2), mState2(aState2),
   mValue3(aValue3), mState3(aState3),
-  mDefaultState(0), mDefinedIfAbsent(true)
+  mDefaultState(0), mDefinedIfAbsent(PR_TRUE)
 {
   if (aDefaultStateRule == eUseFirstState)
     mDefaultState = aState1;
@@ -809,7 +807,7 @@ nsStateMapEntry::MapToStates(nsIContent* aContent, PRUint64* aState,
 {
   // Return true if we should continue.
   if (aStateMapEntryID == eARIANone)
-    return false;
+    return PR_FALSE;
 
   const nsStateMapEntry& entry = nsARIAMap::gWAIStateMap[aStateMapEntryID];
 
@@ -822,7 +820,7 @@ nsStateMapEntry::MapToStates(nsIContent* aContent, PRUint64* aState,
         *aState |= entry.mPermanentState;
       if (entry.mState1)
         *aState |= entry.mState1;
-      return true;
+      return PR_TRUE;
     }
 
     // We only have attribute state mappings for NMTOKEN (and boolean) based
@@ -840,7 +838,7 @@ nsStateMapEntry::MapToStates(nsIContent* aContent, PRUint64* aState,
 
       if (entry.mPermanentState)
         *aState &= ~entry.mPermanentState;
-      return true;
+      return PR_TRUE;
     }
 
     if (entry.mPermanentState)
@@ -849,27 +847,27 @@ nsStateMapEntry::MapToStates(nsIContent* aContent, PRUint64* aState,
 
   nsAutoString attrValue;
   if (!aContent->GetAttr(kNameSpaceID_None, *entry.mAttributeName, attrValue))
-    return true;
+    return PR_TRUE;
 
   // Apply states for matched value. If no values was matched then apply default
   // states.
   bool applyDefaultStates = true;
   if (entry.mValue1) {
     if (attrValue.EqualsASCII(entry.mValue1)) {
-      applyDefaultStates = false;
+      applyDefaultStates = PR_FALSE;
 
       if (entry.mState1)
         *aState |= entry.mState1;
     } else if (entry.mValue2) {
       if (attrValue.EqualsASCII(entry.mValue2)) {
-        applyDefaultStates = false;
+        applyDefaultStates = PR_FALSE;
 
         if (entry.mState2)
           *aState |= entry.mState2;
 
       } else if (entry.mValue3) {
         if (attrValue.EqualsASCII(entry.mValue3)) {
-          applyDefaultStates = false;
+          applyDefaultStates = PR_FALSE;
 
           if (entry.mState3)
             *aState |= entry.mState3;
@@ -884,5 +882,5 @@ nsStateMapEntry::MapToStates(nsIContent* aContent, PRUint64* aState,
       *aState |= entry.mDefaultState;
   }
 
-  return true;
+  return PR_TRUE;
 }

@@ -55,14 +55,14 @@
 nsDOMUIEvent::nsDOMUIEvent(nsPresContext* aPresContext, nsGUIEvent* aEvent)
   : nsDOMEvent(aPresContext, aEvent ?
                static_cast<nsEvent *>(aEvent) :
-               static_cast<nsEvent *>(new nsUIEvent(false, 0, 0)))
+               static_cast<nsEvent *>(new nsUIEvent(PR_FALSE, 0, 0)))
   , mClientPoint(0, 0), mLayerPoint(0, 0), mPagePoint(0, 0)
 {
   if (aEvent) {
-    mEventIsInternal = false;
+    mEventIsInternal = PR_FALSE;
   }
   else {
-    mEventIsInternal = true;
+    mEventIsInternal = PR_TRUE;
     mEvent->time = PR_Now();
   }
   
@@ -304,7 +304,7 @@ nsDOMUIEvent::GetCancelBubble(bool* aCancelBubble)
 {
   NS_ENSURE_ARG_POINTER(aCancelBubble);
   *aCancelBubble =
-    (mEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH) ? true : false;
+    (mEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH) ? PR_TRUE : PR_FALSE;
   return NS_OK;
 }
 
@@ -371,7 +371,7 @@ nsDOMUIEvent::GetIsChar(bool* aIsChar)
       *aIsChar = ((nsTextEvent*)mEvent)->isChar;
       return NS_OK;
     default:
-      *aIsChar = false;
+      *aIsChar = PR_FALSE;
       return NS_OK;
   }
 }
@@ -398,7 +398,7 @@ nsDOMUIEvent::Serialize(IPC::Message* aMsg, bool aSerializeInterfaceType)
     IPC::WriteParam(aMsg, NS_LITERAL_STRING("uievent"));
   }
 
-  nsDOMEvent::Serialize(aMsg, false);
+  nsDOMEvent::Serialize(aMsg, PR_FALSE);
 
   PRInt32 detail = 0;
   GetDetail(&detail);
@@ -408,9 +408,9 @@ nsDOMUIEvent::Serialize(IPC::Message* aMsg, bool aSerializeInterfaceType)
 bool
 nsDOMUIEvent::Deserialize(const IPC::Message* aMsg, void** aIter)
 {
-  NS_ENSURE_TRUE(nsDOMEvent::Deserialize(aMsg, aIter), false);
-  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &mDetail), false);
-  return true;
+  NS_ENSURE_TRUE(nsDOMEvent::Deserialize(aMsg, aIter), PR_FALSE);
+  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &mDetail), PR_FALSE);
+  return PR_TRUE;
 }
 
 nsresult NS_NewDOMUIEvent(nsIDOMEvent** aInstancePtrResult,

@@ -52,8 +52,6 @@
 #include "nsDisplayList.h"
 #include "nsCSSRendering.h"
 
-using namespace mozilla;
-
 class nsColumnSetFrame : public nsHTMLContainerFrame {
 public:
   NS_DECL_FRAMEARENA_HELPERS
@@ -94,7 +92,7 @@ public:
                               nsIFrame*      aChild,
                               bool           aForceNormal)
   { // nsColumnSetFrame keeps overflow containers in main child list
-    return nsContainerFrame::StealFrame(aPresContext, aChild, true);
+    return nsContainerFrame::StealFrame(aPresContext, aChild, PR_TRUE);
   }
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -165,7 +163,7 @@ protected:
   ReflowConfig ChooseColumnStrategy(const nsHTMLReflowState& aReflowState);
 
   /**
-   * Reflow column children. Returns true iff the content that was reflowed 
+   * Reflow column children. Returns PR_TRUE iff the content that was reflowed 
    * fit into the mColMaxHeight.
    */
   bool ReflowChildren(nsHTMLReflowMetrics& aDesiredSize,
@@ -651,8 +649,8 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
       nsHTMLReflowState kidReflowState(PresContext(), aReflowState, child,
                                        availSize, availSize.width,
                                        aReflowState.ComputedHeight());
-      kidReflowState.mFlags.mIsTopOfPage = true;
-      kidReflowState.mFlags.mTableIsSplittable = false;
+      kidReflowState.mFlags.mIsTopOfPage = PR_TRUE;
+      kidReflowState.mFlags.mTableIsSplittable = PR_FALSE;
           
 #ifdef DEBUG_roc
       printf("*** Reflowing child #%d %p: availHeight=%d\n",
@@ -664,7 +662,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
       if (child->GetNextSibling() &&
           !(GetStateBits() & NS_FRAME_IS_DIRTY) &&
         !(child->GetNextSibling()->GetStateBits() & NS_FRAME_IS_DIRTY)) {
-        kidReflowState.mFlags.mNextInFlowUntouched = true;
+        kidReflowState.mFlags.mNextInFlowUntouched = PR_TRUE;
       }
     
       nsHTMLReflowMetrics kidDesiredSize(aDesiredSize.mFlags);
@@ -698,7 +696,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
 
       childContentBottom = nsLayoutUtils::CalculateContentBottom(child);
       if (childContentBottom > aConfig.mColMaxHeight) {
-        allFit = false;
+        allFit = PR_FALSE;
       }
       if (childContentBottom > availSize.height) {
         aColData.mMaxOverflowingHeight = NS_MAX(childContentBottom,
@@ -745,13 +743,13 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
       if (NS_FRAME_OVERFLOW_IS_INCOMPLETE(aStatus)) {
         if (!(kidNextInFlow->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER)) {
           aStatus |= NS_FRAME_REFLOW_NEXTINFLOW;
-          reflowNext = true;
+          reflowNext = PR_TRUE;
           kidNextInFlow->AddStateBits(NS_FRAME_IS_OVERFLOW_CONTAINER);
         }
       }
       else if (kidNextInFlow->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER) {
         aStatus |= NS_FRAME_REFLOW_NEXTINFLOW;
-        reflowNext = true;
+        reflowNext = PR_TRUE;
         kidNextInFlow->RemoveStateBits(NS_FRAME_IS_OVERFLOW_CONTAINER);
       }
         
@@ -1004,7 +1002,7 @@ nsColumnSetFrame::Reflow(nsPresContext*           aPresContext,
         // We decreased the feasible height by one twip only. This could
         // indicate that there is a continuously breakable child frame
         // that we are crawling through.
-        maybeContinuousBreakingDetected = true;
+        maybeContinuousBreakingDetected = PR_TRUE;
       }
 
       nscoord nextGuess = (knownFeasibleHeight + knownInfeasibleHeight)/2;
@@ -1021,8 +1019,8 @@ nsColumnSetFrame::Reflow(nsPresContext*           aPresContext,
         // 600 twips is arbitrary. It's about two line-heights.
         nextGuess = colData.mSumHeight/config.mBalanceColCount + 600;
         // Sanitize it
-        nextGuess = clamped(nextGuess, knownInfeasibleHeight + 1,
-                                       knownFeasibleHeight - 1);
+        nextGuess = NS_MIN(NS_MAX(nextGuess, knownInfeasibleHeight + 1),
+                           knownFeasibleHeight - 1);
       } else if (knownFeasibleHeight == NS_INTRINSICSIZE) {
         // This can happen when we had a next-in-flow so we didn't
         // want to do an unbounded height measuring step. Let's just increase
@@ -1038,10 +1036,10 @@ nsColumnSetFrame::Reflow(nsPresContext*           aPresContext,
 
       config.mColMaxHeight = nextGuess;
       
-      unboundedLastColumn = false;
+      unboundedLastColumn = PR_FALSE;
       AddStateBits(NS_FRAME_IS_DIRTY);
       feasible = ReflowChildren(aDesiredSize, aReflowState,
-                                aStatus, config, false, 
+                                aStatus, config, PR_FALSE, 
                                 &carriedOutBottomMargin, colData);
     }
 
@@ -1052,7 +1050,7 @@ nsColumnSetFrame::Reflow(nsPresContext*           aPresContext,
       if (knownInfeasibleHeight >= availableContentHeight) {
         config.mColMaxHeight = availableContentHeight;
         if (mLastBalanceHeight == availableContentHeight) {
-          skip = true;
+          skip = PR_TRUE;
         }
       } else {
         config.mColMaxHeight = knownFeasibleHeight;

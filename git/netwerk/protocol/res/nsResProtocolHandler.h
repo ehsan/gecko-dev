@@ -53,7 +53,7 @@ struct ResourceMapping;
 class nsResURL : public nsStandardURL
 {
 public:
-    nsResURL() : nsStandardURL(true) {}
+    nsResURL() : nsStandardURL(PR_TRUE) {}
     virtual nsStandardURL* StartClone();
     virtual nsresult EnsureFile();
     NS_IMETHOD GetClassIDNoAlloc(nsCID *aCID);

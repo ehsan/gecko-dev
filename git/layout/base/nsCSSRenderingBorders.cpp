@@ -197,7 +197,7 @@ nsCSSBorderRenderer::nsCSSBorderRenderer(PRInt32 aAppUnitsPerPixel,
 
   mOneUnitBorder = CheckFourFloatsEqual(mBorderWidths, 1.0);
   mNoBorderRadius = AllCornersZeroSize(mBorderRadii);
-  mAvoidStroke = false;
+  mAvoidStroke = PR_FALSE;
 }
 
 /* static */ void
@@ -275,7 +275,7 @@ nsCSSBorderRenderer::AreBorderSideFinalStylesSame(PRUint8 aSides)
         mBorderColors[firstStyle] != mBorderColors[i] ||
         !nsBorderColors::Equal(mCompositeColors[firstStyle],
                                mCompositeColors[i]))
-      return false;
+      return PR_FALSE;
   }
 
   /* Then if it's one of the two-tone styles and we're not
@@ -289,7 +289,7 @@ nsCSSBorderRenderer::AreBorderSideFinalStylesSame(PRUint8 aSides)
               (aSides & ~(SIDE_BIT_BOTTOM | SIDE_BIT_RIGHT)) == 0);
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -299,7 +299,7 @@ nsCSSBorderRenderer::IsSolidCornerStyle(PRUint8 aStyle, mozilla::css::Corner aCo
     case NS_STYLE_BORDER_STYLE_DOTTED:
     case NS_STYLE_BORDER_STYLE_DASHED:
     case NS_STYLE_BORDER_STYLE_SOLID:
-      return true;
+      return PR_TRUE;
 
     case NS_STYLE_BORDER_STYLE_INSET:
     case NS_STYLE_BORDER_STYLE_OUTSET:
@@ -313,7 +313,7 @@ nsCSSBorderRenderer::IsSolidCornerStyle(PRUint8 aStyle, mozilla::css::Corner aCo
       return mOneUnitBorder;
 
     default:
-      return false;
+      return PR_FALSE;
   }
 }
 
@@ -545,10 +545,10 @@ nsCSSBorderRenderer::FillSolidBorder(const gfxRect& aOuterRect,
     mContext->NewPath();
 
     // do the outer border
-    mContext->RoundedRectangle(aOuterRect, aBorderRadii, true);
+    mContext->RoundedRectangle(aOuterRect, aBorderRadii, PR_TRUE);
 
     // then do the inner border CCW
-    mContext->RoundedRectangle(aInnerRect, innerRadii, false);
+    mContext->RoundedRectangle(aInnerRect, innerRadii, PR_FALSE);
 
     mContext->Fill();
 
@@ -637,7 +637,7 @@ nsCSSBorderRenderer::FillSolidBorder(const gfxRect& aOuterRect,
   for (PRUint32 i = 0; i < 4; i++) {
     if (aSides & (1 << i)) {
       mContext->NewPath();
-      mContext->Rectangle(r[i], true);
+      mContext->Rectangle(r[i], PR_TRUE);
       mContext->Fill();
     }
   }
@@ -1391,7 +1391,7 @@ nsCSSBorderRenderer::DrawBorders()
     if (!mat.HasNonAxisAlignedTransform()) {
       // Scale + transform. Avoid stroke fast-paths so that we have a chance
       // of snapping to pixel boundaries.
-      mAvoidStroke = true;
+      mAvoidStroke = PR_TRUE;
     }
   } else {
     mat.x0 = floor(mat.x0 + 0.5);
@@ -1535,7 +1535,7 @@ nsCSSBorderRenderer::DrawBorders()
   // then use separate corners so we get OPERATOR_ADD for the corners.
   // Otherwise, we'll get artifacts as we draw stacked 1px-wide curves.
   if (allBordersSame && mCompositeColors[0] != nsnull && !mNoBorderRadius)
-    forceSeparateCorners = true;
+    forceSeparateCorners = PR_TRUE;
 
   S(" mOuterRect: "), S(mOuterRect), SN();
   S(" mInnerRect: "), S(mInnerRect), SN();
@@ -1557,7 +1557,7 @@ nsCSSBorderRenderer::DrawBorders()
     {
       // pretend that all borders aren't the same; we need to draw
       // things separately for dashed/dotting
-      allBordersSame = false;
+      allBordersSame = PR_FALSE;
       dashedSides |= (1 << i);
     }
   }

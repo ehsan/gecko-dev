@@ -220,7 +220,6 @@ static const char *gPrefLangNames[] = {
 };
 
 gfxPlatform::gfxPlatform()
-  : mAzureBackendCollector(this, &gfxPlatform::GetAzureBackendInfo)
 {
     mUseHarfBuzzScripts = UNINITIALIZED_VALUE;
     mAllowDownloadableFonts = UNINITIALIZED_VALUE;
@@ -480,24 +479,6 @@ gfxPlatform::GetSourceSurfaceForSurface(DrawTarget *aTarget, gfxASurface *aSurfa
       ctx->Paint();
     }
 
-    gfxImageFormat cairoFormat = imgSurface->Format();
-    switch(cairoFormat) {
-      case gfxASurface::ImageFormatARGB32:
-        format = FORMAT_B8G8R8A8;
-        break;
-      case gfxASurface::ImageFormatRGB24:
-        format = FORMAT_B8G8R8X8;
-        break;
-      case gfxASurface::ImageFormatA8:
-        format = FORMAT_A8;
-        break;
-      case gfxASurface::ImageFormatRGB16_565:
-        format = FORMAT_R5G6B5;
-        break;
-      default:
-        NS_RUNTIMEABORT("Invalid surface format!");
-    }
-
     srcBuffer = aTarget->CreateSourceSurfaceFromData(imgSurface->Data(),
                                                      IntSize(imgSurface->GetSize().width, imgSurface->GetSize().height),
                                                      imgSurface->Stride(),
@@ -516,42 +497,11 @@ gfxPlatform::GetScaledFontForFont(gfxFont *aFont)
   return NULL;
 }
 
-cairo_user_data_key_t kDrawSourceSurface;
-static void
-DataSourceSurfaceDestroy(void *dataSourceSurface)
-{
-      static_cast<DataSourceSurface*>(dataSourceSurface)->Release();
-}
-
 already_AddRefed<gfxASurface>
 gfxPlatform::GetThebesSurfaceForDrawTarget(DrawTarget *aTarget)
 {
-  RefPtr<SourceSurface> source = aTarget->Snapshot();
-  RefPtr<DataSourceSurface> data = source->GetDataSurface();
-
-  if (!data) {
-    return NULL;
-  }
-
-  IntSize size = data->GetSize();
-  gfxASurface::gfxImageFormat format = gfxASurface::FormatFromContent(ContentForFormat(data->GetFormat()));
-  
-  nsRefPtr<gfxImageSurface> image =
-    new gfxImageSurface(data->GetData(), gfxIntSize(size.width, size.height),
-                        data->Stride(), format);
-
-  image->SetData(&kDrawSourceSurface, data.forget().drop(), DataSourceSurfaceDestroy);
-  return image.forget();
-}
-
-RefPtr<DrawTarget>
-gfxPlatform::CreateOffscreenDrawTarget(const IntSize& aSize, SurfaceFormat aFormat)
-{
-  BackendType backend;
-  if (!SupportsAzure(backend)) {
-    return NULL;
-  }
-  return Factory::CreateDrawTarget(backend, aSize, aFormat); 
+  // Don't know how to do this outside of Windows with D2D yet.
+  return NULL;
 }
 
 nsresult
@@ -673,7 +623,7 @@ gfxPlatform::GetPrefFonts(nsIAtom *aLanguage, nsString& aFonts, bool aAppendUnic
 bool gfxPlatform::ForEachPrefFont(eFontPrefLang aLangArray[], PRUint32 aLangArrayLen, PrefFontCallback aCallback,
                                     void *aClosure)
 {
-    NS_ENSURE_TRUE(Preferences::GetRootBranch(), false);
+    NS_ENSURE_TRUE(Preferences::GetRootBranch(), PR_FALSE);
 
     PRUint32    i;
     for (i = 0; i < aLangArrayLen; i++) {
@@ -695,7 +645,7 @@ bool gfxPlatform::ForEachPrefFont(eFontPrefLang aLangArray[], PRUint32 aLangArra
         nsAdoptingCString nameValue = Preferences::GetCString(prefName.get());
         if (nameValue) {
             if (!aCallback(prefLang, NS_ConvertUTF8toUTF16(nameValue), aClosure))
-                return false;
+                return PR_FALSE;
         }
     
         // fetch font.name-list.xxx value                   
@@ -719,15 +669,15 @@ bool gfxPlatform::ForEachPrefFont(eFontPrefLang aLangArray[], PRUint32 aLangArra
                 while (++p != p_end && *p != kComma)
                     /* nothing */ ;
                 nsCAutoString fontName(Substring(start, p));
-                fontName.CompressWhitespace(false, true);
+                fontName.CompressWhitespace(PR_FALSE, PR_TRUE);
                 if (!aCallback(prefLang, NS_ConvertUTF8toUTF16(fontName), aClosure))
-                    return false;
+                    return PR_FALSE;
                 p++;
             }
         }
     }
 
-    return true;
+    return PR_TRUE;
 }
 
 eFontPrefLang
@@ -807,9 +757,9 @@ gfxPlatform::IsLangCJK(eFontPrefLang aLang)
         case eFontPrefLang_ChineseHK:
         case eFontPrefLang_Korean:
         case eFontPrefLang_CJKSet:
-            return true;
+            return PR_TRUE;
         default:
-            return false;
+            return PR_FALSE;
     }
 }
 
@@ -858,7 +808,7 @@ gfxPlatform::AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, eFon
                 while (++p != p_end && *p != kComma)
                     /* nothing */ ;
                 nsCAutoString lang(Substring(start, p));
-                lang.CompressWhitespace(false, true);
+                lang.CompressWhitespace(PR_FALSE, PR_TRUE);
                 eFontPrefLang fpl = gfxPlatform::GetFontPrefLangFor(lang.get());
                 switch (fpl) {
                     case eFontPrefLang_Japanese:
@@ -953,8 +903,8 @@ gfxPlatform::AppendPrefLang(eFontPrefLang aPrefLangs[], PRUint32& aLen, eFontPre
 eCMSMode
 gfxPlatform::GetCMSMode()
 {
-    if (gCMSInitialized == false) {
-        gCMSInitialized = true;
+    if (gCMSInitialized == PR_FALSE) {
+        gCMSInitialized = PR_TRUE;
         nsresult rv;
 
         PRInt32 mode;
@@ -1189,7 +1139,7 @@ static void ShutdownCMS()
     // Reset the state variables
     gCMSIntent = -2;
     gCMSMode = eCMSMode_Off;
-    gCMSInitialized = false;
+    gCMSInitialized = PR_FALSE;
 }
 
 static void MigratePrefs()
@@ -1220,7 +1170,7 @@ gfxPlatform::SetupClusterBoundaries(gfxTextRun *aTextRun, const PRUnichar *aStri
     }
 
     gfxTextRun::CompressedGlyph extendCluster;
-    extendCluster.SetComplex(false, true, 0);
+    extendCluster.SetComplex(PR_FALSE, PR_TRUE, 0);
 
     PRUint32 i, length = aTextRun->GetLength();
     gfxUnicodeProperties::HSType hangulState = gfxUnicodeProperties::HST_NONE;
@@ -1232,7 +1182,7 @@ gfxPlatform::SetupClusterBoundaries(gfxTextRun *aTextRun, const PRUnichar *aStri
             i < length - 1 && NS_IS_LOW_SURROGATE(aString[i+1]))
         {
             ch = SURROGATE_TO_UCS4(ch, aString[i+1]);
-            surrogatePair = true;
+            surrogatePair = PR_TRUE;
         }
 
         PRUint8 category = gfxUnicodeProperties::GetGeneralCategory(ch);

@@ -139,21 +139,21 @@ nsresult txPatternParser::createLocPathPattern(txExprLexer& aLexer,
 {
     nsresult rv = NS_OK;
 
-    bool isChild = true;
-    bool isAbsolute = false;
+    MBool isChild = MB_TRUE;
+    MBool isAbsolute = MB_FALSE;
     txPattern* stepPattern = 0;
     txLocPathPattern* pathPattern = 0;
 
     Token::Type type = aLexer.peek()->mType;
     switch (type) {
         case Token::ANCESTOR_OP:
-            isChild = false;
-            isAbsolute = true;
+            isChild = MB_FALSE;
+            isAbsolute = MB_TRUE;
             aLexer.nextToken();
             break;
         case Token::PARENT_OP:
             aLexer.nextToken();
-            isAbsolute = true;
+            isAbsolute = MB_TRUE;
             if (aLexer.peek()->mType == Token::END || 
                 aLexer.peek()->mType == Token::UNION_OP) {
                 aPattern = new txRootPattern();
@@ -207,7 +207,7 @@ nsresult txPatternParser::createLocPathPattern(txExprLexer& aLexer,
         }
 
 #ifdef TX_TO_STRING
-        root->setSerialize(false);
+        root->setSerialize(PR_FALSE);
 #endif
 
         rv = pathPattern->addStep(root, isChild);
@@ -299,11 +299,11 @@ nsresult txPatternParser::createStepPattern(txExprLexer& aLexer,
                                             txPattern*& aPattern)
 {
     nsresult rv = NS_OK;
-    bool isAttr = false;
+    MBool isAttr = MB_FALSE;
     Token* tok = aLexer.peek();
     if (tok->mType == Token::AXIS_IDENTIFIER) {
         if (TX_StringEqualsAtom(tok->Value(), nsGkAtoms::attribute)) {
-            isAttr = true;
+            isAttr = MB_TRUE;
         }
         else if (!TX_StringEqualsAtom(tok->Value(), nsGkAtoms::child)) {
             // all done already for CHILD_AXIS, for all others
@@ -314,7 +314,7 @@ nsresult txPatternParser::createStepPattern(txExprLexer& aLexer,
     }
     else if (tok->mType == Token::AT_SIGN) {
         aLexer.nextToken();
-        isAttr = true;
+        isAttr = MB_TRUE;
     }
     tok = aLexer.nextToken();
 
@@ -324,7 +324,7 @@ nsresult txPatternParser::createStepPattern(txExprLexer& aLexer,
         nsCOMPtr<nsIAtom> prefix, lName;
         PRInt32 nspace;
         rv = resolveQName(tok->Value(), getter_AddRefs(prefix), aContext,
-                          getter_AddRefs(lName), nspace, true);
+                          getter_AddRefs(lName), nspace, PR_TRUE);
         if (NS_FAILED(rv)) {
             // XXX error report namespace resolve failed
             return rv;

@@ -48,6 +48,7 @@ EXPORTS		= \
 		nsIView.h \
 		nsIViewManager.h \
 		nsViewsCID.h \
+		nsIViewObserver.h \
 		nsIScrollPositionListener.h \
 		$(NULL)
 

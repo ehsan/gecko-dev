@@ -115,7 +115,7 @@ public:
     PlanarYCbCrImage(static_cast<BasicImageImplData*>(this)),
     mScaleHint(aScaleHint),
     mOffscreenFormat(gfxASurface::ImageFormatUnknown),
-    mDelayedConversion(false)
+    mDelayedConversion(PR_FALSE)
     {}
 
   virtual void SetData(const Data& aData);
@@ -145,9 +145,8 @@ void
 BasicPlanarYCbCrImage::SetData(const Data& aData)
 {
   // Do some sanity checks to prevent integer overflow
-  if (aData.mYSize.width > PlanarYCbCrImage::MAX_DIMENSION ||
-      aData.mYSize.height > PlanarYCbCrImage::MAX_DIMENSION) {
-    NS_ERROR("Illegal image source width or height");
+  if (aData.mYSize.width > 16384 || aData.mYSize.height > 16384) {
+    NS_ERROR("Illegal width or height");
     return;
   }
   
@@ -160,11 +159,6 @@ BasicPlanarYCbCrImage::SetData(const Data& aData)
 
   gfxIntSize size(mScaleHint);
   gfxUtils::GetYCbCrToRGBDestFormatAndSize(aData, format, size);
-  if (size.width > PlanarYCbCrImage::MAX_DIMENSION ||
-      size.height > PlanarYCbCrImage::MAX_DIMENSION) {
-    NS_ERROR("Illegal image dest width or height");
-    return;
-  }
 
   mStride = gfxASurface::FormatStrideForWidth(format, size.width);
   mBuffer = AllocateBuffer(size.height * mStride);
@@ -239,7 +233,7 @@ public:
     ImageContainer(nsnull),
     mScaleHint(-1, -1),
     mOffscreenFormat(gfxASurface::ImageFormatUnknown),
-    mDelayed(false)
+    mDelayed(PR_FALSE)
   {}
   virtual already_AddRefed<Image> CreateImage(const Image::Format* aFormats,
                                               PRUint32 aNumFormats);
@@ -269,10 +263,10 @@ FormatInList(const Image::Format* aFormats, PRUint32 aNumFormats,
 {
   for (PRUint32 i = 0; i < aNumFormats; ++i) {
     if (aFormats[i] == aFormat) {
-      return true;
+      return PR_TRUE;
     }
   }
-  return false;
+  return PR_FALSE;
 }
 
 already_AddRefed<Image>
@@ -346,10 +340,10 @@ BasicImageContainer::SetLayerManager(LayerManager *aManager)
   if (aManager &&
       aManager->GetBackendType() != LayerManager::LAYERS_BASIC)
   {
-    return false;
+    return PR_FALSE;
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 already_AddRefed<ImageContainer>

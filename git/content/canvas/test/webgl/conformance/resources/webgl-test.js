@@ -100,11 +100,7 @@ function getGLErrorAsString(ctx, err) {
   return "0x" + err.toString(16);
 }
 
-// Pass undefined for glError to test that it at least throws some error
-function shouldGenerateGLError(ctx, glErrors, evalStr) {
-  if (!glErrors.length) {
-    glErrors = [glErrors];
-  }
+function shouldGenerateGLError(ctx, glError, evalStr) {
   var exception;
   try {
     eval(evalStr);
@@ -115,14 +111,10 @@ function shouldGenerateGLError(ctx, glErrors, evalStr) {
     testFailed(evalStr + " threw exception " + exception);
   } else {
     var err = ctx.getError();
-    if (glErrors.indexOf(err) < 0) {
-      var errStrs = [];
-      for (var ii = 0; ii < glErrors.length; ++ii) {
-        errStrs.push(getGLErrorAsString(ctx, glErrors[ii]));
-      }
-      testFailed(evalStr + " expected: " + errStrs.join(" or ") + ". Was " + getGLErrorAsString(ctx, err) + ".");
+    if (err != glError) {
+      testFailed(evalStr + " expected: " + getGLErrorAsString(ctx, glError) + ". Was " + getGLErrorAsString(ctx, err) + ".");
     } else {
-      testPassed(evalStr + " generated expected GL error: " + getGLErrorAsString(ctx, err) + ".");
+      testPassed(evalStr + " generated expected GL error: " + getGLErrorAsString(ctx, glError) + ".");
     }
   }
 }
@@ -130,33 +122,18 @@ function shouldGenerateGLError(ctx, glErrors, evalStr) {
 /**
  * Tests that the first error GL returns is the specified error.
  * @param {!WebGLContext} gl The WebGLContext to use.
- * @param {number|!Array.<number>} glError The expected gl
- *        error. Multiple errors can be passed in using an
- *        array.
+ * @param {number} glError The expected gl error.
  * @param {string} opt_msg Optional additional message.
  */
-function glErrorShouldBe(gl, glErrors, opt_msg) {
-  if (!glErrors.length) {
-    glErrors = [glErrors];
-  }
+function glErrorShouldBe(gl, glError, opt_msg) {
   opt_msg = opt_msg || "";
   var err = gl.getError();
-  var ndx = glErrors.indexOf(err);
-  if (ndx < 0) {
-    if (glErrors.length == 1) {
-      testFailed("getError expected: " + getGLErrorAsString(gl, glErrors[0]) +
-                 ". Was " + getGLErrorAsString(gl, err) + " : " + opt_msg);
-    } else {
-      var errs = [];
-      for (var ii = 0; ii < glErrors.length; ++ii) {
-        errs.push(getGLErrorAsString(gl, glErrors[ii]));
-      }
-      testFailed("getError expected one of: [" + errs.join(", ") +
-                 "]. Was " + getGLErrorAsString(gl, err) + " : " + opt_msg);
-    }
+  if (err != glError) {
+    testFailed("getError expected: " + getGLErrorAsString(gl, glError) +
+               ". Was " + getGLErrorAsString(gl, err) + " : " + opt_msg);
   } else {
     testPassed("getError was expected value: " +
-                getGLErrorAsString(gl, err) + " : " + opt_msg);
+                getGLErrorAsString(gl, glError) + " : " + opt_msg);
   }
 };
 
@@ -197,8 +174,8 @@ function createProgram(gl, vshaders, fshaders, attribs)
   }
 
   if (attribs) {
-    for (var i = 0; i < attribs.length; ++i) {
-      gl.bindAttribLocation(prog, i, attribs[i]);
+    for (var i in attribs) {
+      gl.bindAttribLocation(prog, parseInt(i), attribs[i]);
     }
   }
 
@@ -360,34 +337,12 @@ function loadProgram(context, vertexShaderPath, fragmentShaderPath, isFile) {
     return program;
 }
 
-var getBasePathForResources = function() {
-  var expectedBase = "webgl-test.js";
-  var scripts = document.getElementsByTagName('script');
-  for (var script, i = 0; script = scripts[i]; i++) {
-    var src = script.src;
-    var l = src.length;
-    if (src.substr(l - expectedBase.length) == expectedBase) {
-      return src.substr(0, l - expectedBase.length);
-    }
-  }
-  throw 'oops';
-};
-
-
 function loadStandardVertexShader(context) {
-    return loadShader(
-        context,
-        getBasePathForResources() + "vertexShader.vert",
-        context.VERTEX_SHADER,
-        true);
+    return loadShader(context, "resources/vertexShader.vert", context.VERTEX_SHADER, true);
 }
 
 function loadStandardFragmentShader(context) {
-    return loadShader(
-        context,
-        getBasePathForResources() + "fragmentShader.frag",
-        context.FRAGMENT_SHADER,
-        true);
+    return loadShader(context, "resources/fragmentShader.frag", context.FRAGMENT_SHADER, true);
 }
 
 //

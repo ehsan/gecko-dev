@@ -319,7 +319,6 @@ pref("browser.fixup.alternate.enabled", true);
 pref("browser.fixup.alternate.prefix", "www.");
 pref("browser.fixup.alternate.suffix", ".com");
 pref("browser.fixup.hide_user_pass", true);
-pref("browser.fixup.use-utf8", false);
 
 // Location Bar AutoComplete
 pref("browser.urlbar.autocomplete.enabled", true);
@@ -417,6 +416,10 @@ pref("capability.policy.default.History.toString", "UniversalBrowserRead");
 pref("capability.policy.default.Location.hash.set", "allAccess");
 pref("capability.policy.default.Location.href.set", "allAccess");
 pref("capability.policy.default.Location.replace.get", "allAccess");
+
+pref("capability.policy.default.Navigator.preference", "allAccess");
+pref("capability.policy.default.Navigator.preferenceinternal.get", "UniversalPreferencesRead");
+pref("capability.policy.default.Navigator.preferenceinternal.set", "UniversalPreferencesWrite");
 
 pref("capability.policy.default.Window.blur.get", "allAccess");
 pref("capability.policy.default.Window.close.get", "allAccess");
@@ -622,12 +625,15 @@ pref("javascript.options.strict",           false);
 pref("javascript.options.strict.debug",     true);
 #endif
 pref("javascript.options.relimit",          true);
+pref("javascript.options.tracejit.content",  true);
+pref("javascript.options.tracejit.chrome",   true);
 pref("javascript.options.methodjit.content", true);
 pref("javascript.options.methodjit.chrome",  true);
+pref("javascript.options.jitprofiling.content", true);
+pref("javascript.options.jitprofiling.chrome",  true);
 pref("javascript.options.pccounts.content", false);
 pref("javascript.options.pccounts.chrome",  false);
 pref("javascript.options.methodjit_always", false);
-pref("javascript.options.jit_hardening", true);
 pref("javascript.options.typeinference", true);
 // This preference limits the memory usage of javascript.
 // If you want to change these values for your device,
@@ -785,14 +791,7 @@ pref("network.http.connection-retry-timeout", 250);
 
 // Disable IPv6 for backup connections to workaround problems about broken
 // IPv6 connectivity.
-pref("network.http.fast-fallback-to-IPv4", true);
-
-// Try and use SPDY when using SSL
-pref("network.http.spdy.enabled", false);
-pref("network.http.spdy.chunk-size", 4096);
-pref("network.http.spdy.timeout", 180);
-pref("network.http.spdy.coalesce-hostnames", true);
-pref("network.http.spdy.use-alternate-protocol", true);
+pref("network.http.fast-fallback-to-IPv4", false);
 
 // default values for FTP
 // in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
@@ -989,6 +988,10 @@ pref("network.standard-url.escape-utf8", true);
 // This preference controls whether or not URLs are always encoded and sent as
 // UTF-8.
 pref("network.standard-url.encode-utf8", true);
+
+// This preference controls whether or not queries are encoded and sent as
+// UTF-8.
+pref("network.standard-url.encode-query-utf8", false);
 
 // Idle timeout for ftp control connections - 5 minute default
 pref("network.ftp.idleConnectionTimeout", 300);
@@ -1467,23 +1470,17 @@ pref("editor.positioning.offset",            0);
 pref("dom.max_chrome_script_run_time", 20);
 pref("dom.max_script_run_time", 10);
 
-// Hang monitor timeout after which we kill the browser, in seconds
-// (0 is disabled)
-// Disabled on all platforms per bug 705748 until the found issues are
-// resolved.
-pref("hangmonitor.timeout", 0);
-
 #ifndef DEBUG
 // How long a plugin is allowed to process a synchronous IPC message
 // before we consider it "hung".
-pref("dom.ipc.plugins.timeoutSecs", 25);
+pref("dom.ipc.plugins.timeoutSecs", 45);
 // How long a plugin process will wait for a response from the parent
 // to a synchronous request before terminating itself. After this
 // point the child assumes the parent is hung.
 pref("dom.ipc.plugins.parentTimeoutSecs", 15);
 // How long a plugin launch is allowed to take before
 // we consider it failed.
-pref("dom.ipc.plugins.processLaunchTimeoutSecs", 25);
+pref("dom.ipc.plugins.processLaunchTimeoutSecs", 45);
 #else
 // No timeout in DEBUG builds
 pref("dom.ipc.plugins.timeoutSecs", 0);
@@ -1542,29 +1539,6 @@ pref("font.minimum-size.x-cans", 0);
 pref("font.minimum-size.x-western", 0);
 pref("font.minimum-size.x-unicode", 0);
 pref("font.minimum-size.x-user-def", 0);
-
-/*
- * A value greater than zero enables font size inflation for
- * pan-and-zoom UIs, so that the fonts in a block are at least the size
- * that, if a block's width is scaled to match the device's width, the
- * fonts in the block are big enough that at most the pref value ems of
- * text fit in *the width of the device*.
- *
- * When both this pref and the next are set, the larger inflation is
- * used.
- */
-pref("font.size.inflation.emPerLine", 0);
-/*
- * A value greater than zero enables font size inflation for
- * pan-and-zoom UIs, so that if a block's width is scaled to match the
- * device's width, the fonts in a block are at least the font size
- * given.  The value given is in twips, i.e., 1/20 of a point, or 1/1440
- * of an inch.
- *
- * When both this pref and the previous are set, the larger inflation is
- * used.
- */
-pref("font.size.inflation.minTwips", 0);
 
 #ifdef XP_WIN
 
@@ -2699,6 +2673,11 @@ pref("helpers.global_mime_types_file", "/etc/mime.types");
 pref("helpers.global_mailcap_file", "/etc/mailcap");
 pref("helpers.private_mime_types_file", "~/.mime.types");
 pref("helpers.private_mailcap_file", "~/.mailcap");
+pref("java.global_java_version_file", "/etc/.java/versions");
+pref("java.private_java_version_file", "~/.java/versions");
+pref("java.default_java_location_solaris", "/usr/j2se");
+pref("java.default_java_location_others", "/usr/java");
+pref("java.java_plugin_library_name", "javaplugin_oji");
 pref("applications.telnet", "xterm -e telnet %h %p");
 pref("applications.tn3270", "xterm -e tn3270 %h");
 pref("applications.rlogin", "xterm -e rlogin %h");
@@ -2714,6 +2693,7 @@ pref("print.print_paper_size", 0);
 // around the content of the page for Print Preview only
 pref("print.print_extra_margin", 0); // twips
 
+pref("font.allow_double_byte_special_chars", true);
 // font names
 
 pref("font.alias-list", "sans,sans-serif,serif,monospace");
@@ -2964,6 +2944,11 @@ pref("helpers.global_mime_types_file", "/etc/mime.types");
 pref("helpers.global_mailcap_file", "/etc/mailcap");
 pref("helpers.private_mime_types_file", "~/.mime.types");
 pref("helpers.private_mailcap_file", "~/.mailcap");
+pref("java.global_java_version_file", "/etc/.java/versions");
+pref("java.private_java_version_file", "~/.java/versions");
+pref("java.default_java_location_solaris", "/usr/j2se");
+pref("java.default_java_location_others", "/usr/java");
+pref("java.java_plugin_library_name", "javaplugin_oji");
 pref("applications.telnet", "xterm -e telnet %h %p");
 pref("applications.tn3270", "xterm -e tn3270 %h");
 pref("applications.rlogin", "xterm -e rlogin %h");
@@ -2979,6 +2964,7 @@ pref("print.print_paper_size", 0);
 // around the content of the page for Print Preview only
 pref("print.print_extra_margin", 0); // twips
 
+pref("font.allow_double_byte_special_chars", true);
 // font names
 
 pref("font.alias-list", "sans,sans-serif,serif,monospace");
@@ -3301,10 +3287,6 @@ pref("webgl.force_osmesa", false);
 pref("webgl.osmesalib", "");
 pref("webgl.verbose", false);
 pref("webgl.prefer-native-gl", false);
-pref("webgl.min_capability_mode", false);
-pref("webgl.disable-extensions", false);
-pref("webgl.msaa-level", 2);
-pref("webgl.msaa-force", false);
 
 #ifdef XP_WIN
 // The default TCP send window on Windows is too small, and autotuning only occurs on receive
@@ -3344,6 +3326,8 @@ pref("geo.enabled", true);
 // Enable/Disable the orientation API for content
 pref("device.motion.enabled", true);
 
+// Enable/Disable HTML5 parser
+pref("html5.parser.enable", true);
 // Toggle which thread the HTML5 parser uses for stream parsing
 pref("html5.offmainthread", true);
 // Time in milliseconds between the time a network buffer is seen and the 
@@ -3363,7 +3347,6 @@ pref("browser.history.maxStateObjectSize", 655360);
 // XPInstall prefs
 pref("xpinstall.whitelist.required", true);
 pref("extensions.alwaysUnpack", false);
-pref("extensions.minCompatiblePlatformVersion", "2.0");
 
 pref("network.buffer.cache.count", 24);
 pref("network.buffer.cache.size",  32768);
@@ -3381,7 +3364,6 @@ pref("alerts.disableSlidingEffect", false);
 pref("full-screen-api.enabled", false);
 pref("full-screen-api.allow-trusted-requests-only", true);
 pref("full-screen-api.key-input-restricted", true);
-pref("full-screen-api.warning.enabled", true);
 
 // Time limit, in milliseconds, for nsEventStateManager::IsHandlingUserInput().
 // Used to detect long running handlers of user-generated events.
@@ -3389,13 +3371,3 @@ pref("dom.event.handling-user-input-time-limit", 1000);
  
 //3D Transforms
 pref("layout.3d-transforms.enabled", true);
-
-// Battery API
-pref("dom.battery.enabled", true);
-
-// WebSMS
-pref("dom.sms.enabled", false);
-pref("dom.sms.whitelist", "");
-
-// enable JS dump() function.
-pref("browser.dom.window.dump.enabled", false);

@@ -90,7 +90,7 @@ NS_IMETHODIMP nsTransactionList::ItemIsBatch(PRInt32 aIndex, bool *aIsBatch)
 {
   NS_ENSURE_TRUE(aIsBatch, NS_ERROR_NULL_POINTER);
 
-  *aIsBatch = false;
+  *aIsBatch = PR_FALSE;
 
   nsCOMPtr<nsITransactionManager> txMgr = do_QueryReferent(mTxnMgr);
 

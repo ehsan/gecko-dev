@@ -57,17 +57,16 @@ class nsAttrName;
 class nsTextFragment;
 class nsIDocShell;
 class nsIFrame;
+#ifdef MOZ_SMIL
 class nsISMILAttr;
 class nsIDOMCSSStyleDeclaration;
+#endif // MOZ_SMIL
 
 namespace mozilla {
 namespace css {
 class StyleRule;
-} // namespace css
-namespace widget {
-struct IMEState;
-} // namespace widget
-} // namespace mozilla
+}
+}
 
 enum nsLinkState {
   eLinkState_Unknown    = 0,
@@ -77,9 +76,9 @@ enum nsLinkState {
 };
 
 // IID for the nsIContent interface
-#define NS_ICONTENT_IID \
-{ 0xed40a3e5, 0xd7ed, 0x473e, \
- { 0x85, 0xe3, 0x82, 0xc3, 0xf0, 0x41, 0xdb, 0x52 } }
+#define NS_ICONTENT_IID       \
+{ 0xdec4b381, 0xa3fc, 0x402b, \
+ { 0x83, 0x96, 0x0a, 0x7b, 0x37, 0x52, 0xcf, 0x70 } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -87,8 +86,6 @@ enum nsLinkState {
  */
 class nsIContent : public nsINode {
 public:
-  typedef mozilla::widget::IMEState IMEState;
-
 #ifdef MOZILLA_INTERNAL_API
   // If you're using the external API, the only thing you can know about
   // nsIContent is that it exists with an IID
@@ -142,7 +139,7 @@ public:
    * parent's child list and after the nsIDocumentObserver notifications for
    * the removal have been dispatched.   
    * @param aDeep Whether to recursively unbind the entire subtree rooted at
-   *        this node.  The only time false should be passed is when the
+   *        this node.  The only time PR_FALSE should be passed is when the
    *        parent node of the content is being destroyed.
    * @param aNullParent Whether to null out the parent pointer as well.  This
    *        is usually desirable.  This argument should only be false while
@@ -281,7 +278,9 @@ public:
    */
   inline bool IsInHTMLDocument() const
   {
-    return OwnerDoc()->IsHTML();
+    nsIDocument* doc = GetOwnerDoc();
+    return doc && // XXX clean up after bug 335998 lands
+           doc->IsHTML();
   }
 
   /**
@@ -399,8 +398,8 @@ public:
    * @param aNameSpaceID the namespace of the attr
    * @param aName the name of the attr
    * @param aResult the value (may legitimately be the empty string) [OUT]
-   * @returns true if the attribute was set (even when set to empty string)
-   *          false when not set.
+   * @returns PR_TRUE if the attribute was set (even when set to empty string)
+   *          PR_FALSE when not set.
    */
   virtual bool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, 
                          nsAString& aResult) const = 0;
@@ -429,7 +428,7 @@ public:
                              const nsAString& aValue,
                              nsCaseTreatment aCaseSensitive) const
   {
-    return false;
+    return PR_FALSE;
   }
   
   /**
@@ -447,7 +446,7 @@ public:
                              nsIAtom* aValue,
                              nsCaseTreatment aCaseSensitive) const
   {
-    return false;
+    return PR_FALSE;
   }
   
   enum {
@@ -526,7 +525,7 @@ public:
   virtual PRUint32 TextLength() = 0;
 
   /**
-   * Set the text to the given value. If aNotify is true then
+   * Set the text to the given value. If aNotify is PR_TRUE then
    * the document is notified of the content change.
    * NOTE: For elements this always ASSERTS and returns NS_ERROR_FAILURE
    */
@@ -534,7 +533,7 @@ public:
                            bool aNotify) = 0;
 
   /**
-   * Append the given value to the current text. If aNotify is true then
+   * Append the given value to the current text. If aNotify is PR_TRUE then
    * the document is notified of the content change.
    * NOTE: For elements this always ASSERTS and returns NS_ERROR_FAILURE
    */
@@ -542,7 +541,7 @@ public:
                               bool aNotify) = 0;
 
   /**
-   * Set the text to the given value. If aNotify is true then
+   * Set the text to the given value. If aNotify is PR_TRUE then
    * the document is notified of the content change.
    * NOTE: For elements this always asserts and returns NS_ERROR_FAILURE
    */
@@ -553,7 +552,7 @@ public:
 
   /**
    * Query method to see if the frame is nothing but whitespace
-   * NOTE: Always returns false for elements
+   * NOTE: Always returns PR_FALSE for elements
    */
   virtual bool TextIsOnlyWhitespace() = 0;
 
@@ -589,7 +588,7 @@ public:
   {
     if (aTabIndex) 
       *aTabIndex = -1; // Default, not tabbable
-    return false;
+    return PR_FALSE;
   }
 
   /**
@@ -609,18 +608,40 @@ public:
    * Get desired IME state for the content.
    *
    * @return The desired IME status for the content.
-   *         This is a combination of an IME enabled value and
-   *         an IME open value of widget::IMEState.
-   *         If you return DISABLED, you should not set the OPEN and CLOSE
-   *         value.
-   *         PASSWORD should be returned only from password editor, this value
-   *         has a special meaning. It is used as alternative of DISABLED.
-   *         PLUGIN should be returned only when plug-in has focus.  When a
-   *         plug-in is focused content, we should send native events directly.
-   *         Because we don't process some native events, but they may be needed
-   *         by the plug-in.
+   *         This is a combination of IME_STATUS_* flags,
+   *         controlling what happens to IME when the content takes focus.
+   *         If this is IME_STATUS_NONE, IME remains in its current state.
+   *         IME_STATUS_ENABLE and IME_STATUS_DISABLE must not be set
+   *         together; likewise IME_STATUS_OPEN and IME_STATUS_CLOSE must
+   *         not be set together.
+   *         If you return IME_STATUS_DISABLE, you should not set the
+   *         OPEN or CLOSE flag; that way, when IME is next enabled,
+   *         the previous OPEN/CLOSE state will be restored (unless the newly
+   *         focused content specifies the OPEN/CLOSE state by setting the OPEN
+   *         or CLOSE flag with the ENABLE flag).
+   *         IME_STATUS_PASSWORD should be returned only from password editor,
+   *         this value has a special meaning. It is used as alternative of
+   *         IME_STATUS_DISABLED.
+   *         IME_STATUS_PLUGIN should be returned only when plug-in has focus.
+   *         When a plug-in is focused content, we should send native events
+   *         directly. Because we don't process some native events, but they may
+   *         be needed by the plug-in.
    */
-  virtual IMEState GetDesiredIMEState();
+  enum {
+    IME_STATUS_NONE     = 0x0000,
+    IME_STATUS_ENABLE   = 0x0001,
+    IME_STATUS_DISABLE  = 0x0002,
+    IME_STATUS_PASSWORD = 0x0004,
+    IME_STATUS_PLUGIN   = 0x0008,
+    IME_STATUS_OPEN     = 0x0010,
+    IME_STATUS_CLOSE    = 0x0020
+  };
+  enum {
+    IME_STATUS_MASK_ENABLED = IME_STATUS_ENABLE | IME_STATUS_DISABLE |
+                              IME_STATUS_PASSWORD | IME_STATUS_PLUGIN,
+    IME_STATUS_MASK_OPENED  = IME_STATUS_OPEN | IME_STATUS_CLOSE
+  };
+  virtual PRUint32 GetDesiredIMEState();
 
   /**
    * Gets content node with the binding (or native code, possibly on the
@@ -651,7 +672,7 @@ public:
    *             set to this link's URI will be passed out.
    *
    * @note The out param, aURI, is guaranteed to be set to a non-null pointer
-   *   when the return value is true.
+   *   when the return value is PR_TRUE.
    *
    * XXXjwatt: IMO IsInteractiveLink would be a better name.
    */
@@ -736,26 +757,36 @@ public:
    * have the parser pass true.  See nsHTMLInputElement.cpp and
    * nsHTMLContentSink::MakeContentObject().
    *
+   * It is ok to ignore an error returned from this function. However the
+   * following errors may be of interest to some callers:
+   *
+   *   NS_ERROR_HTMLPARSER_BLOCK  Returned by script elements to indicate
+   *                              that a script will be loaded asynchronously
+   *
+   * This means that implementations will have to deal with returned error
+   * codes being ignored.
+   *
    * @param aHaveNotified Whether there has been a
    *        ContentInserted/ContentAppended notification for this content node
    *        yet.
    */
-  virtual void DoneAddingChildren(bool aHaveNotified)
+  virtual nsresult DoneAddingChildren(bool aHaveNotified)
   {
+    return NS_OK;
   }
 
   /**
    * For HTML textarea, select, applet, and object elements, returns
-   * true if all children have been added OR if the element was not
-   * created by the parser. Returns true for all other elements.
-   * @returns false if the element was created by the parser and
+   * PR_TRUE if all children have been added OR if the element was not
+   * created by the parser. Returns PR_TRUE for all other elements.
+   * @returns PR_FALSE if the element was created by the parser and
    *                   it is an HTML textarea, select, applet, or object
    *                   element and not all children have been added.
-   * @returns true otherwise.
+   * @returns PR_TRUE otherwise.
    */
   virtual bool IsDoneAddingChildren()
   {
-    return true;
+    return PR_TRUE;
   }
 
   /**
@@ -862,6 +893,7 @@ public:
     mPrimaryFrame = aFrame;
   }
 
+#ifdef MOZ_SMIL
   /*
    * Returns a new nsISMILAttr that allows the caller to animate the given
    * attribute on this element.
@@ -894,6 +926,7 @@ public:
    */
   virtual nsresult SetSMILOverrideStyleRule(mozilla::css::StyleRule* aStyleRule,
                                             bool aNotify) = 0;
+#endif // MOZ_SMIL
 
   nsresult LookupNamespaceURI(const nsAString& aNamespacePrefix,
                               nsAString& aNamespaceURI) const;

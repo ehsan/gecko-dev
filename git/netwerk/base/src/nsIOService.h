@@ -134,7 +134,6 @@ private:
     NS_HIDDEN_(void) ParsePortList(nsIPrefBranch *prefBranch, const char *pref, bool remove);
 
     nsresult InitializeSocketTransportService();
-    nsresult InitializeNetworkLinkService();
 
 private:
     bool                                 mOffline;
@@ -152,8 +151,7 @@ private:
     nsCOMPtr<nsPIDNSService>             mDNSService;
     nsCOMPtr<nsIProtocolProxyService2>   mProxyService;
     nsCOMPtr<nsINetworkLinkService>      mNetworkLinkService;
-    bool                                 mNetworkLinkServiceInitialized;
-
+    
     // Cached protocol handlers
     nsWeakPtr                            mWeakHandler[NS_N(gScheme)];
 

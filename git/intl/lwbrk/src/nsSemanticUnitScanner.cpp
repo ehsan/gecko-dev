@@ -68,7 +68,7 @@ NS_IMETHODIMP nsSemanticUnitScanner::Next(const PRUnichar *text, PRInt32 length,
     if (pos >= length) {
        *begin = pos;
        *end = pos;
-       *_retval = false;
+       *_retval = PR_FALSE;
        return NS_OK;
     }
 
@@ -79,7 +79,7 @@ NS_IMETHODIMP nsSemanticUnitScanner::Next(const PRUnichar *text, PRInt32 length,
     if (kWbClassHanLetter == char_class) {
        *begin = pos;
        *end = pos+1;
-       *_retval = true;
+       *_retval = PR_TRUE;
        return NS_OK;
     }
 
@@ -105,7 +105,7 @@ NS_IMETHODIMP nsSemanticUnitScanner::Next(const PRUnichar *text, PRInt32 length,
     // for the rest, return 
     *begin = pos;
     *end = next;
-    *_retval = true;
+    *_retval = PR_TRUE;
     return NS_OK;
 }
 

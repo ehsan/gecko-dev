@@ -24,7 +24,6 @@
  *   Philipp von Weitershausen <philipp@weitershausen.de>
  *   Paul O’Shannessy <paul@oshannessy.com>
  *   Richard Newman <rnewman@mozilla.com>
- *   Allison Naaktgeboren <ally@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -54,6 +53,7 @@ const EXISTING_ACCOUNT_CONNECT_PAGE = 3;
 const EXISTING_ACCOUNT_LOGIN_PAGE   = 4;
 const OPTIONS_PAGE                  = 5;
 const OPTIONS_CONFIRM_PAGE          = 6;
+const SETUP_SUCCESS_PAGE            = 7;
 
 // Broader than we'd like, but after this changed from api-secure.recaptcha.net
 // we had no choice. At least we only do this for the duration of setup.
@@ -411,7 +411,6 @@ var gSyncSetup = {
         this.checkFields();
         break;
       case EXISTING_ACCOUNT_CONNECT_PAGE:
-        Weave.Svc.Prefs.set("firstSync", "existingAccount");
         this.wizard.getButton("next").hidden = false;
         this.wizard.getButton("back").hidden = false;
         this.wizard.getButton("extra1").hidden = false;
@@ -425,6 +424,18 @@ var gSyncSetup = {
         this.wizard.getButton("extra1").hidden = false;
         this.wizard.canRewind = true;
         this.checkFields();
+        break;
+      case SETUP_SUCCESS_PAGE:
+        this.wizard.canRewind = false;
+        this.wizard.canAdvance = true;
+        this.wizard.getButton("back").hidden = true;
+        this.wizard.getButton("next").hidden = true;
+        this.wizard.getButton("cancel").hidden = true;
+        this.wizard.getButton("finish").hidden = false;
+        this._handleSuccess();
+        if (this.wizardType == "pair") {
+          this.completePairing();
+        }
         break;
       case OPTIONS_PAGE:
         this.wizard.canRewind = false;
@@ -462,7 +473,7 @@ var gSyncSetup = {
         !Weave.Utils.ensureMPUnlocked()) {
       return false;
     }
-
+      
     switch (this.wizard.pageIndex) {
       case PAIR_PAGE:
         this.startPairing();
@@ -508,8 +519,7 @@ var gSyncSetup = {
           Weave.Service.password = password;
           Weave.Service.passphrase = Weave.Utils.generatePassphrase();
           this._handleNoScript(false);
-          Weave.Svc.Prefs.set("firstSync", "newAccount");
-          this.wizardFinish();
+          this.wizard.pageIndex = SETUP_SUCCESS_PAGE;
           return false;
         }
 
@@ -522,9 +532,8 @@ var gSyncSetup = {
         Weave.Service.password = document.getElementById("existingPassword").value;
         let pp = document.getElementById("existingPassphrase").value;
         Weave.Service.passphrase = Weave.Utils.normalizePassphrase(pp);
-        if (Weave.Service.login()) {
-          this.wizardFinish();
-        }
+        if (Weave.Service.login())
+          this.wizard.pageIndex = SETUP_SUCCESS_PAGE;
         return false;
       case OPTIONS_PAGE:
         let desc = document.getElementById("mergeChoiceRadio").selectedIndex;
@@ -535,7 +544,8 @@ var gSyncSetup = {
         return this._handleChoice();
       case OPTIONS_CONFIRM_PAGE:
         if (this._resettingSync) {
-          this.wizardFinish();
+          this.onWizardFinish();
+          window.close();
           return false;
         }
         return this.returnFromOptions();
@@ -570,12 +580,8 @@ var gSyncSetup = {
     return true;
   },
 
-  wizardFinish: function () {
+  onWizardFinish: function () {
     this.setupInitialSync();
-
-    if (this.wizardType == "pair") {
-      this.completePairing();
-    }
 
     if (!this._resettingSync) {
       function isChecked(element) {
@@ -592,17 +598,22 @@ var gSyncSetup = {
 
       Weave.Service.persistLogin();
       Weave.Svc.Obs.notify("weave:service:setup-complete");
-
-      gSyncUtils.openFirstSyncProgressPage();
+      if (this._settingUpNew)
+        gSyncUtils.openFirstClientFirstrun();
+      else
+        gSyncUtils.openAddedClientFirstrun();
     }
     Weave.Utils.nextTick(Weave.Service.sync, Weave.Service);
-    window.close();
   },
 
   onWizardCancel: function () {
     if (this._resettingSync)
       return;
 
+    if (this.wizard.pageIndex == SETUP_SUCCESS_PAGE) {
+      this.onWizardFinish();
+      return;
+    }
     this.abortEasySetup();
     this._handleNoScript(false);
     Weave.Service.startOver();
@@ -703,7 +714,7 @@ var gSyncSetup = {
         Weave.Service.password = credentials.password;
         Weave.Service.passphrase = credentials.synckey;
         Weave.Service.serverURL = credentials.serverURL;
-        gSyncSetup.wizardFinish();
+        self.wizard.pageIndex = SETUP_SUCCESS_PAGE;
       },
 
       onAbort: function onAbort(error) {
@@ -893,6 +904,25 @@ var gSyncSetup = {
       Weave.Svc.Prefs.reset("serverURL");
 
     return valid;
+  },
+
+  _handleSuccess: function() {
+    let self = this;
+    function fill(id, string)
+      document.getElementById(id).firstChild.nodeValue =
+        string ? self._stringBundle.GetStringFromName(string) : "";
+
+    fill("firstSyncAction", "");
+    fill("firstSyncActionWarning", "");
+    if (this._settingUpNew) {
+      fill("firstSyncAction", "newAccount.action.label");
+      fill("firstSyncActionChange", "newAccount.change.label");
+      return;
+    }
+    fill("firstSyncActionChange", "existingAccount.change.label");
+    let action = document.getElementById("mergeChoiceRadio").selectedItem.id;
+    let id = action == "resetClient" ? "firstSyncAction" : "firstSyncActionWarning";
+    fill(id, action + ".change.label");
   },
 
   _handleChoice: function () {

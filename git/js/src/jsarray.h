@@ -51,9 +51,35 @@
 /* Small arrays are dense, no matter what. */
 const uintN MIN_SPARSE_INDEX = 256;
 
+inline uint32
+JSObject::getDenseArrayInitializedLength()
+{
+    JS_ASSERT(isDenseArray());
+    return initializedLength;
+}
+
+inline void
+JSObject::setDenseArrayInitializedLength(uint32 length)
+{
+    JS_ASSERT(isDenseArray());
+    JS_ASSERT(length <= getDenseArrayCapacity());
+    initializedLength = length;
+}
+
+inline bool
+JSObject::isPackedDenseArray()
+{
+    JS_ASSERT(isDenseArray());
+    return flags & PACKED_ARRAY;
+}
+
 namespace js {
 /* 2^32-2, inclusive */
 const uint32 MAX_ARRAY_INDEX = 4294967294u;
+    
+extern bool
+StringIsArrayIndex(JSLinearString *str, jsuint *indexp);
+    
 }
 
 inline JSBool
@@ -147,11 +173,11 @@ js_SetLengthProperty(JSContext *cx, JSObject *obj, jsdouble length);
 namespace js {
 
 extern JSBool
-array_defineElement(JSContext *cx, JSObject *obj, uint32 index, const Value *value,
-                    PropertyOp getter, StrictPropertyOp setter, uintN attrs);
+array_defineProperty(JSContext *cx, JSObject *obj, jsid id, const Value *value,
+                     PropertyOp getter, StrictPropertyOp setter, uintN attrs);
 
 extern JSBool
-array_deleteElement(JSContext *cx, JSObject *obj, uint32 index, Value *rval, JSBool strict);
+array_deleteProperty(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool strict);
 
 /*
  * Copy 'length' elements from aobj to vp.
@@ -164,6 +190,31 @@ GetElements(JSContext *cx, JSObject *aobj, jsuint length, js::Value *vp);
 
 }
 
+/*
+ * JS-specific merge sort function.
+ */
+typedef JSBool (*JSComparator)(void *arg, const void *a, const void *b,
+                               int *result);
+
+enum JSMergeSortElemType {
+    JS_SORTING_VALUES,
+    JS_SORTING_GENERIC
+};
+
+/*
+ * NB: vec is the array to be sorted, tmp is temporary space at least as big
+ * as vec. Both should be GC-rooted if appropriate.
+ *
+ * isValue should true iff vec points to an array of js::Value
+ *
+ * The sorted result is in vec. vec may be in an inconsistent state if the
+ * comparator function cmp returns an error inside a comparison, so remember
+ * to check the return value of this function.
+ */
+extern bool
+js_MergeSort(void *vec, size_t nel, size_t elsize, JSComparator cmp,
+             void *arg, void *tmp, JSMergeSortElemType elemType);
+
 /* Natives exposed for optimization by the interpreter and JITs. */
 namespace js {
 
@@ -175,12 +226,6 @@ array_push(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
 array_pop(JSContext *cx, uintN argc, js::Value *vp);
-
-extern JSBool
-array_concat(JSContext *cx, uintN argc, js::Value *vp);
-
-extern JSBool
-array_shift(JSContext *cx, uintN argc, js::Value *vp);
 
 } /* namespace js */
 

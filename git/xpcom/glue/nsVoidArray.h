@@ -39,13 +39,15 @@
 
 //#define DEBUG_VOIDARRAY 1
 
+#include "nscore.h"
+#include "nsStringGlue.h"
 #include "nsDebug.h"
 
 // Comparator callback function for sorting array values.
 typedef int (* nsVoidArrayComparatorFunc)
             (const void* aElement1, const void* aElement2, void* aData);
 
-// Enumerator callback function. Return false to stop
+// Enumerator callback function. Return PR_FALSE to stop
 typedef bool (* nsVoidArrayEnumFunc)(void* aElement, void *aData);
 
 /// A basic zero-based array of void*'s that manages its own memory
@@ -190,8 +192,8 @@ public:
 
   void ResetToAutoBuffer()
   {
-    SetArray(reinterpret_cast<Impl*>(mAutoBuf), kAutoBufSize, 0, false,
-             true);
+    SetArray(reinterpret_cast<Impl*>(mAutoBuf), kAutoBufSize, 0, PR_FALSE,
+             PR_TRUE);
   }
 
   nsAutoVoidArray& operator=(const nsVoidArray& other)
@@ -203,6 +205,74 @@ public:
 protected:
   // The internal storage
   char mAutoBuf[sizeof(Impl) + (kAutoBufSize - 1) * sizeof(void*)];
+};
+
+
+class nsCString;
+
+typedef int (* nsCStringArrayComparatorFunc)
+            (const nsCString* aElement1, const nsCString* aElement2, void* aData);
+
+typedef bool (*nsCStringArrayEnumFunc)(nsCString& aElement, void *aData);
+
+class NS_COM_GLUE nsCStringArray: private nsVoidArray
+{
+public:
+  nsCStringArray(void);
+  nsCStringArray(PRInt32 aCount); // Storage for aCount elements will be pre-allocated
+  ~nsCStringArray(void);
+
+  nsCStringArray& operator=(const nsCStringArray& other);
+
+  PRInt32 Count(void) const {
+    return nsVoidArray::Count();
+  }
+
+  void CStringAt(PRInt32 aIndex, nsACString& aCString) const;
+  nsCString* CStringAt(PRInt32 aIndex) const;
+  nsCString* operator[](PRInt32 aIndex) const { return CStringAt(aIndex); }
+
+  PRInt32 IndexOf(const nsACString& aPossibleString) const;
+
+#ifdef MOZILLA_INTERNAL_API
+  PRInt32 IndexOfIgnoreCase(const nsACString& aPossibleString) const;
+#endif
+
+  bool InsertCStringAt(const nsACString& aCString, PRInt32 aIndex);
+
+  bool ReplaceCStringAt(const nsACString& aCString, PRInt32 aIndex);
+
+  bool AppendCString(const nsACString& aCString) {
+    return InsertCStringAt(aCString, Count());
+  }
+
+  bool RemoveCString(const nsACString& aCString);
+
+#ifdef MOZILLA_INTERNAL_API
+  bool RemoveCStringIgnoreCase(const nsACString& aCString);
+#endif
+
+  bool RemoveCStringAt(PRInt32 aIndex);
+  void   Clear(void);
+
+  void Compact(void) {
+    nsVoidArray::Compact();
+  }
+
+  void Sort(void);
+
+#ifdef MOZILLA_INTERNAL_API
+  void SortIgnoreCase(void);
+#endif
+
+  void Sort(nsCStringArrayComparatorFunc aFunc, void* aData);
+
+  bool EnumerateForwards(nsCStringArrayEnumFunc aFunc, void* aData);
+  bool EnumerateBackwards(nsCStringArrayEnumFunc aFunc, void* aData);
+
+private:
+  /// Copy constructors are not allowed
+  nsCStringArray(const nsCStringArray& other);
 };
 
 

@@ -115,15 +115,9 @@ public:
                                  const nsCString& aClassStr) = 0;
   virtual nsresult CompileMember(nsIScriptContext* aContext,
                                  const nsCString& aClassStr,
-                                 JSObject* aClassObject) = 0;
+                                 void* aClassObject)=0;
 
   virtual void Trace(TraceCallback aCallback, void *aClosure) const = 0;
-
-  virtual nsresult Write(nsIScriptContext* aContext,
-                         nsIObjectOutputStream* aStream)
-  {
-    return NS_OK;
-  }
 
 protected:
   nsXBLProtoImplMember* mNext;  // The members of an implementation are chained.

@@ -188,13 +188,13 @@ nsOuterDocAccessible::AppendChild(nsAccessible *aAccessible)
     mChildren[0]->Shutdown();
 
   if (!nsAccessible::AppendChild(aAccessible))
-    return false;
+    return PR_FALSE;
 
   NS_LOG_ACCDOCCREATE("append document to outerdoc",
                       aAccessible->GetDocumentNode())
   NS_LOG_ACCDOCCREATE_ACCADDRESS("outerdoc", this)
 
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -203,7 +203,7 @@ nsOuterDocAccessible::RemoveChild(nsAccessible *aAccessible)
   nsAccessible *child = mChildren.SafeElementAt(0, nsnull);
   if (child != aAccessible) {
     NS_ERROR("Wrong child to remove!");
-    return false;
+    return PR_FALSE;
   }
 
   NS_LOG_ACCDOCDESTROY_FOR("remove document from outerdoc",

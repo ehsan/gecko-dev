@@ -54,8 +54,6 @@
 #include "mozIStorageFunction.h"
 #include "nsNetUtil.h"
 
-using namespace mozilla;
-
 // Temporary tables for a storage scope will be flushed if found older
 // then this time in seconds since the load
 #define TEMP_TABLE_MAX_AGE (10) // seconds
@@ -201,7 +199,7 @@ nsDOMStoragePersistentDB::Init(const nsString& aDatabaseName)
   rv = service->OpenDatabase(storageFile, getter_AddRefs(mConnection));
   if (rv == NS_ERROR_FILE_CORRUPTED) {
     // delete the db and try opening again
-    rv = storageFile->Remove(false);
+    rv = storageFile->Remove(PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = service->OpenDatabase(storageFile, getter_AddRefs(mConnection));
   }
@@ -211,7 +209,7 @@ nsDOMStoragePersistentDB::Init(const nsString& aDatabaseName)
         "PRAGMA temp_store = MEMORY"));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mozStorageTransaction transaction(mConnection, false);
+  mozStorageTransaction transaction(mConnection, PR_FALSE);
 
   // Ensure Gecko 1.9.1 storage table
   rv = mConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
@@ -449,28 +447,6 @@ nsDOMStoragePersistentDB::Init(const nsString& aDatabaseName)
   return NS_OK;
 }
 
-void
-nsDOMStoragePersistentDB::Close()
-{
-  // Null the statements, this will finalize them.
-  mCopyToTempTableStatement = nsnull;
-  mCopyBackToDiskStatement = nsnull;
-  mDeleteTemporaryTableStatement = nsnull;
-  mGetAllKeysStatement = nsnull;
-  mGetKeyValueStatement = nsnull;
-  mInsertKeyStatement = nsnull;
-  mSetSecureStatement = nsnull;
-  mRemoveKeyStatement = nsnull;
-  mRemoveOwnerStatement = nsnull;
-  mRemoveStorageStatement = nsnull;
-  mRemoveAllStatement = nsnull;
-  mGetOfflineExcludedUsageStatement = nsnull;
-  mGetFullUsageStatement = nsnull;
-
-  DebugOnly<nsresult> rv = mConnection->Close();
-  MOZ_ASSERT(NS_SUCCEEDED(rv));
-}
-
 nsresult
 nsDOMStoragePersistentDB::EnsureLoadTemporaryTableForStorage(DOMStorageImpl* aStorage)
 {
@@ -555,7 +531,7 @@ nsDOMStoragePersistentDB::FlushTemporaryTable(nsCStringHashKey::KeyType aKey,
 nsresult
 nsDOMStoragePersistentDB::FlushTemporaryTables(bool force)
 {
-  mozStorageTransaction trans(mConnection, false);
+  mozStorageTransaction trans(mConnection, PR_FALSE);
 
   nsresult rv;
 
@@ -1021,11 +997,11 @@ nsDOMStoragePersistentDB::GetUsage(const nsACString& aDomain,
   nsCAutoString quotadomainDBKey;
   rv = nsDOMStorageDBWrapper::CreateQuotaDomainDBKey(aDomain,
                                                      aIncludeSubDomains,
-                                                     false,
+                                                     PR_FALSE,
                                                      quotadomainDBKey);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return GetUsageInternal(quotadomainDBKey, false, aUsage);
+  return GetUsageInternal(quotadomainDBKey, PR_FALSE, aUsage);
 }
 
 nsresult

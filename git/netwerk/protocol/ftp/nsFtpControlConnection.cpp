@@ -113,7 +113,7 @@ bool
 nsFtpControlConnection::IsAlive()
 {
     if (!mSocket) 
-        return false;
+        return PR_FALSE;
 
     bool isAlive = false;
     mSocket->IsAlive(&isAlive);

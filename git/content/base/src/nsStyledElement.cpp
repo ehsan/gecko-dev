@@ -102,13 +102,13 @@ nsStyledElementNotElementCSSInlineStyle::ParseAttribute(PRInt32 aNamespaceID,
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::style) {
       SetMayHaveStyle();
-      ParseStyleAttribute(aValue, aResult, false);
-      return true;
+      ParseStyleAttribute(aValue, aResult, PR_FALSE);
+      return PR_TRUE;
     }
     if (aAttribute == nsGkAtoms::_class) {
       SetFlags(NODE_MAY_HAVE_CLASS);
       aResult.ParseAtomArray(aValue);
-      return true;
+      return PR_TRUE;
     }
     if (aAttribute == nsGkAtoms::id) {
       // Store id as an atom.  id="" means that the element has no id,
@@ -116,12 +116,12 @@ nsStyledElementNotElementCSSInlineStyle::ParseAttribute(PRInt32 aNamespaceID,
       RemoveFromIdTable();
       if (aValue.IsEmpty()) {
         ClearHasID();
-        return false;
+        return PR_FALSE;
       }
       aResult.ParseAtom(aValue);
       SetHasID();
       AddToIdTable(aResult.GetAtomValue());
-      return true;
+      return PR_TRUE;
     }
   }
 
@@ -234,7 +234,7 @@ nsStyledElementNotElementCSSInlineStyle::BindToTree(nsIDocument* aDocument,
   if (!IsXUL()) {
     // XXXbz if we already have a style attr parsed, this won't do
     // anything... need to fix that.
-    ReparseStyleAttribute(false);
+    ReparseStyleAttribute(PR_FALSE);
   }
 
   return NS_OK;
@@ -269,9 +269,13 @@ nsStyledElementNotElementCSSInlineStyle::GetStyle(nsresult* retval)
 
   if (!slots->mStyle) {
     // Just in case...
-    ReparseStyleAttribute(true);
+    ReparseStyleAttribute(PR_TRUE);
 
-    slots->mStyle = new nsDOMCSSAttributeDeclaration(this, false);
+    slots->mStyle = new nsDOMCSSAttributeDeclaration(this
+#ifdef MOZ_SMIL
+                                                     , PR_FALSE
+#endif // MOZ_SMIL
+                                                     );
     SetMayHaveStyle();
   }
 
@@ -306,11 +310,11 @@ nsStyledElementNotElementCSSInlineStyle::ParseStyleAttribute(const nsAString& aV
                                                              nsAttrValue& aResult,
                                                              bool aForceInDataDoc)
 {
-  nsIDocument* doc = OwnerDoc();
+  nsIDocument* doc = GetOwnerDoc();
 
-  if (aForceInDataDoc ||
-      !doc->IsLoadedAsData() ||
-      doc->IsStaticDocument()) {
+  if (doc && (aForceInDataDoc ||
+              !doc->IsLoadedAsData() ||
+              doc->IsStaticDocument())) {
     bool isCSS = true; // assume CSS until proven otherwise
 
     if (!IsInNativeAnonymousSubtree()) {  // native anonymous content

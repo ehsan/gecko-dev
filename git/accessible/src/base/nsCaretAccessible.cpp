@@ -226,10 +226,6 @@ nsCaretAccessible::NotifySelectionChanged(nsIDOMDocument* aDOMDocument,
     printf("\nSelection changed, selection type: %s, notification %s\n",
            (isNormalSelection ? "normal" : "spellcheck"),
            (isIgnored ? "ignored" : "pending"));
-  } else {
-    bool isIgnored = !document || !document->IsContentLoaded();
-    printf("\nSelection changed, selection type: unknown, notification %s\n",
-               (isIgnored ? "ignored" : "pending"));
   }
 #endif
 
@@ -386,7 +382,11 @@ nsCaretAccessible::GetSelectionControllerForNode(nsIContent *aContent)
   if (!aContent)
     return nsnull;
 
-  nsIPresShell *presShell = aContent->OwnerDoc()->GetShell();
+  nsIDocument *document = aContent->GetOwnerDoc();
+  if (!document)
+    return nsnull;
+
+  nsIPresShell *presShell = document->GetShell();
   if (!presShell)
     return nsnull;
 

@@ -73,17 +73,17 @@ struct NS_STACK_CLASS TreeMatchContext {
   // Reset this context for matching for the style-if-:visited.
   void ResetForVisitedMatching() {
     NS_PRECONDITION(mForStyling, "Why is this being called?");
-    mHaveRelevantLink = false;
+    mHaveRelevantLink = PR_FALSE;
     mVisitedHandling = nsRuleWalker::eRelevantLinkVisited;
   }
   
   void ResetForUnvisitedMatching() {
     NS_PRECONDITION(mForStyling, "Why is this being called?");
-    mHaveRelevantLink = false;
+    mHaveRelevantLink = PR_FALSE;
     mVisitedHandling = nsRuleWalker::eRelevantLinkUnvisited;
   }
 
-  void SetHaveRelevantLink() { mHaveRelevantLink = true; }
+  void SetHaveRelevantLink() { mHaveRelevantLink = PR_TRUE; }
   bool HaveRelevantLink() const { return mHaveRelevantLink; }
 
   nsRuleWalker::VisitedHandlingType VisitedHandling() const
@@ -133,7 +133,7 @@ struct NS_STACK_CLASS TreeMatchContext {
                    nsRuleWalker::VisitedHandlingType aVisitedHandling,
                    nsIDocument* aDocument)
     : mForStyling(aForStyling)
-    , mHaveRelevantLink(false)
+    , mHaveRelevantLink(PR_FALSE)
     , mVisitedHandling(aVisitedHandling)
     , mDocument(aDocument)
     , mScopedRoot(nsnull)
@@ -157,7 +157,7 @@ struct NS_STACK_CLASS RuleProcessorData  {
     , mTreeMatchContext(aTreeMatchContext)
   {
     NS_ASSERTION(aElement, "null element leaked into SelectorMatches");
-    NS_ASSERTION(aElement->OwnerDoc(), "Document-less node here?");
+    NS_ASSERTION(aElement->GetOwnerDoc(), "Document-less node here?");
     NS_PRECONDITION(aTreeMatchContext.mForStyling == !!aRuleWalker,
                     "Should be styling if and only if we have a rule walker");
   }

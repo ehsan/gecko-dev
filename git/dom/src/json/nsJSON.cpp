@@ -94,21 +94,15 @@ WarnDeprecatedMethod(DeprecationWarning warning)
 }
 
 NS_IMETHODIMP
-nsJSON::Encode(const JS::Value& aValue, JSContext* cx, PRUint8 aArgc, nsAString &aJSON)
+nsJSON::Encode(nsAString &aJSON)
 {
   // This function should only be called from JS.
   nsresult rv = WarnDeprecatedMethod(EncodeWarning);
   if (NS_FAILED(rv))
     return rv;
 
-  if (aArgc == 0) {
-    aJSON.Truncate();
-    aJSON.SetIsVoid(true);
-    return NS_OK;
-  }
-
   nsJSONWriter writer;
-  rv = EncodeInternal(cx, aValue, &writer);
+  rv = EncodeInternal(&writer);
 
   // FIXME: bug 408838. Get exception types sorted out
   if (NS_SUCCEEDED(rv) || rv == NS_ERROR_INVALID_ARG) {
@@ -116,7 +110,7 @@ nsJSON::Encode(const JS::Value& aValue, JSContext* cx, PRUint8 aArgc, nsAString 
     // if we didn't consume anything, it's not JSON, so return null
     if (!writer.DidWrite()) {
       aJSON.Truncate();
-      aJSON.SetIsVoid(true);
+      aJSON.SetIsVoid(PR_TRUE);
     } else {
       writer.FlushBuffer();
       aJSON.Append(writer.mOutputString);
@@ -145,10 +139,7 @@ static nsresult CheckCharset(const char* aCharset)
 NS_IMETHODIMP
 nsJSON::EncodeToStream(nsIOutputStream *aStream,
                        const char* aCharset,
-                       const bool aWriteBOM,
-                       const JS::Value& val,
-                       JSContext* cx,
-                       PRUint8 aArgc)
+                       const bool aWriteBOM)
 {
   // This function should only be called from JS.
   NS_ENSURE_ARG(aStream);
@@ -183,11 +174,7 @@ nsJSON::EncodeToStream(nsIOutputStream *aStream,
   rv = writer.SetCharset(aCharset);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aArgc == 0) {
-    return NS_OK;
-  }
-
-  rv = EncodeInternal(cx, val, &writer);
+  rv = EncodeInternal(&writer);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = bufferedStream->Flush();
@@ -251,22 +238,52 @@ nsJSON::EncodeFromJSVal(jsval *value, JSContext *cx, nsAString &result)
 }
 
 nsresult
-nsJSON::EncodeInternal(JSContext* cx, const JS::Value& aValue, nsJSONWriter* writer)
+nsJSON::EncodeInternal(nsJSONWriter *writer)
 {
+  nsresult rv;
+  nsIXPConnect *xpc = nsContentUtils::XPConnect();
+  if (!xpc)
+    return NS_ERROR_FAILURE;
+
+  // Now fish for the JS argument. If it's a call to encode, we'll
+  // want the first argument. If it's a call to encodeToStream,
+  // we'll want the forth.
+  const PRUint32 firstArg = writer->mStream ? 3 : 0;
+
+  nsAXPCNativeCallContext *cc = nsnull;
+  rv = xpc->GetCurrentNativeCallContext(&cc);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  PRUint32 argc = 0;
+  rv = cc->GetArgc(&argc);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // If the argument wasn't provided, there's nothing to serialize.
+  if (argc <= firstArg)
+    return NS_OK;
+
+  JSContext *cx = nsnull;
+  rv = cc->GetJSContext(&cx);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   JSAutoRequest ar(cx);
 
+  // Get the object we're going to serialize.
+  jsval *argv = nsnull;
+  rv = cc->GetArgvPtr(&argv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // If the argument wasn't provided, there's nothing to serialize.
+  if (argc <= firstArg)
+    return NS_ERROR_INVALID_ARG;
+
+  jsval *vp = &argv[firstArg];
+  
   // Backward compatibility:
   // nsIJSON does not allow to serialize anything other than objects
-  if (!JSVAL_IS_OBJECT(aValue)) {
+  JSObject *obj;
+  if (!JSVAL_IS_OBJECT(*vp) || !(obj = JSVAL_TO_OBJECT(*vp)))
     return NS_ERROR_INVALID_ARG;
-  }
-
-  JSObject* obj = JSVAL_TO_OBJECT(aValue);
-  if (!obj) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  JS::Value val = aValue;
 
   /* Backward compatibility:
    * Manually call toJSON if implemented by the object and check that
@@ -278,8 +295,9 @@ nsJSON::EncodeInternal(JSContext* cx, const JS::Value& aValue, nsJSONWriter* wri
   if (JS_GetMethod(cx, obj, "toJSON", NULL, &toJSON) &&
       !JSVAL_IS_PRIMITIVE(toJSON) &&
       JS_ObjectIsCallable(cx, JSVAL_TO_OBJECT(toJSON))) {
+
     // If toJSON is implemented, it must not throw
-    if (!JS_CallFunctionValue(cx, obj, toJSON, 0, NULL, &val)) {
+    if (!JS_CallFunctionValue(cx, obj, toJSON, 0, NULL, vp)) {
       if (JS_IsExceptionPending(cx))
         // passing NS_OK will throw the pending exception
         return NS_OK;
@@ -290,7 +308,7 @@ nsJSON::EncodeInternal(JSContext* cx, const JS::Value& aValue, nsJSONWriter* wri
 
     // Backward compatibility:
     // nsIJSON does not allow to serialize anything other than objects
-    if (JSVAL_IS_PRIMITIVE(val))
+    if (JSVAL_IS_PRIMITIVE(*vp))
       return NS_ERROR_INVALID_ARG;
   }
   // GetMethod may have thrown
@@ -300,12 +318,12 @@ nsJSON::EncodeInternal(JSContext* cx, const JS::Value& aValue, nsJSONWriter* wri
 
   // Backward compatibility:
   // function/xml shall not pass, just "plain" objects and arrays
-  JSType type = JS_TypeOfValue(cx, val);
+  JSType type = JS_TypeOfValue(cx, *vp);
   if (type == JSTYPE_FUNCTION || type == JSTYPE_XML)
     return NS_ERROR_INVALID_ARG;
 
   // We're good now; try to stringify
-  if (!JS_Stringify(cx, &val, NULL, JSVAL_NULL, WriteCallback, writer))
+  if (!JS_Stringify(cx, vp, NULL, JSVAL_NULL, WriteCallback, writer))
     return NS_ERROR_FAILURE;
 
   return NS_OK;
@@ -315,7 +333,7 @@ nsJSON::EncodeInternal(JSContext* cx, const JS::Value& aValue, nsJSONWriter* wri
 nsJSONWriter::nsJSONWriter() : mStream(nsnull),
                                mBuffer(nsnull),
                                mBufferCount(0),
-                               mDidWrite(false),
+                               mDidWrite(PR_FALSE),
                                mEncoder(nsnull)
 {
 }
@@ -323,7 +341,7 @@ nsJSONWriter::nsJSONWriter() : mStream(nsnull),
 nsJSONWriter::nsJSONWriter(nsIOutputStream *aStream) : mStream(aStream),
                                                        mBuffer(nsnull),
                                                        mBufferCount(0),
-                                                       mDidWrite(false),
+                                                       mDidWrite(PR_FALSE),
                                                        mEncoder(nsnull)
 {
 }
@@ -362,7 +380,7 @@ nsJSONWriter::Write(const PRUnichar *aBuffer, PRUint32 aLength)
     mBuffer = new PRUnichar[JSON_STREAM_BUFSIZE];
     if (!mBuffer)
       return NS_ERROR_OUT_OF_MEMORY;
-    mDidWrite = true;
+    mDidWrite = PR_TRUE;
   }
 
   if (JSON_STREAM_BUFSIZE <= aLength + mBufferCount) {
@@ -417,13 +435,13 @@ nsJSONWriter::WriteToStream(nsIOutputStream *aStream,
     rv = aStream->Write(destBuf, aDestLength, &bytesWritten);
 
   NS_Free(destBuf);
-  mDidWrite = true;
+  mDidWrite = PR_TRUE;
 
   return rv;
 }
 
 NS_IMETHODIMP
-nsJSON::Decode(const nsAString& json, JSContext* cx, JS::Value* aRetval)
+nsJSON::Decode(const nsAString& json)
 {
   nsresult rv = WarnDeprecatedMethod(DecodeWarning);
   if (NS_FAILED(rv))
@@ -437,14 +455,13 @@ nsJSON::Decode(const nsAString& json, JSContext* cx, JS::Value* aRetval)
                              len * sizeof(PRUnichar),
                              NS_ASSIGNMENT_DEPEND);
   NS_ENSURE_SUCCESS(rv, rv);
-  return DecodeInternal(cx, stream, len, false, aRetval);
+  return DecodeInternal(stream, len, PR_FALSE);
 }
 
 NS_IMETHODIMP
-nsJSON::DecodeFromStream(nsIInputStream *aStream, PRInt32 aContentLength,
-                         JSContext* cx, JS::Value* aRetval)
+nsJSON::DecodeFromStream(nsIInputStream *aStream, PRInt32 aContentLength)
 {
-  return DecodeInternal(cx, aStream, aContentLength, true, aRetval);
+  return DecodeInternal(aStream, aContentLength, PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -452,8 +469,8 @@ nsJSON::DecodeToJSVal(const nsAString &str, JSContext *cx, jsval *result)
 {
   JSAutoRequest ar(cx);
 
-  if (!JS_ParseJSON(cx, static_cast<const jschar*>(PromiseFlatString(str).get()),
-                    str.Length(), result)) {
+  if (!JS_ParseJSON(cx, (jschar*)PromiseFlatString(str).get(),
+                    (uint32)str.Length(), result)) {
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -461,13 +478,28 @@ nsJSON::DecodeToJSVal(const nsAString &str, JSContext *cx, jsval *result)
 }
 
 nsresult
-nsJSON::DecodeInternal(JSContext* cx,
-                       nsIInputStream *aStream,
+nsJSON::DecodeInternal(nsIInputStream *aStream,
                        PRInt32 aContentLength,
                        bool aNeedsConverter,
-                       JS::Value* aRetval,
                        DecodingMode mode /* = STRICT */)
 {
+  nsresult rv;
+  nsIXPConnect *xpc = nsContentUtils::XPConnect();
+  if (!xpc)
+    return NS_ERROR_FAILURE;
+
+  nsAXPCNativeCallContext *cc = nsnull;
+  rv = xpc->GetCurrentNativeCallContext(&cc);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  jsval *retvalPtr;
+  rv = cc->GetRetValPtr(&retvalPtr);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  JSContext *cx = nsnull;
+  rv = cc->GetJSContext(&cx);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   JSAutoRequest ar(cx);
 
   // Consume the stream
@@ -478,14 +510,16 @@ nsJSON::DecodeInternal(JSContext* cx,
       return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  nsresult rv =
-    NS_NewInputStreamChannel(getter_AddRefs(jsonChannel), mURI, aStream,
-                             NS_LITERAL_CSTRING("application/json"));
+  rv = NS_NewInputStreamChannel(getter_AddRefs(jsonChannel), mURI, aStream,
+                                NS_LITERAL_CSTRING("application/json"));
   if (!jsonChannel || NS_FAILED(rv))
     return NS_ERROR_FAILURE;
 
-  nsRefPtr<nsJSONListener> jsonListener =
-    new nsJSONListener(cx, aRetval, aNeedsConverter, mode);
+  nsRefPtr<nsJSONListener>
+    jsonListener(new nsJSONListener(cx, retvalPtr, aNeedsConverter, mode));
+
+  if (!jsonListener)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   //XXX this stream pattern should be consolidated in netwerk
   rv = jsonListener->OnStartRequest(jsonChannel, nsnull);
@@ -526,12 +560,15 @@ nsJSON::DecodeInternal(JSContext* cx,
   rv = jsonListener->OnStopRequest(jsonChannel, nsnull, status);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  rv = cc->SetReturnValueWasSet(PR_TRUE);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   return NS_OK;
 }
 
 
 NS_IMETHODIMP
-nsJSON::LegacyDecode(const nsAString& json, JSContext* cx, JS::Value* aRetval)
+nsJSON::LegacyDecode(const nsAString& json)
 {
   const PRUnichar *data;
   PRUint32 len = NS_StringGetData(json, &data);
@@ -541,14 +578,13 @@ nsJSON::LegacyDecode(const nsAString& json, JSContext* cx, JS::Value* aRetval)
                                       len * sizeof(PRUnichar),
                                       NS_ASSIGNMENT_DEPEND);
   NS_ENSURE_SUCCESS(rv, rv);
-  return DecodeInternal(cx, stream, len, false, aRetval, LEGACY);
+  return DecodeInternal(stream, len, PR_FALSE, LEGACY);
 }
 
 NS_IMETHODIMP
-nsJSON::LegacyDecodeFromStream(nsIInputStream *aStream, PRInt32 aContentLength,
-                               JSContext* cx, JS::Value* aRetval)
+nsJSON::LegacyDecodeFromStream(nsIInputStream *aStream, PRInt32 aContentLength)
 {
-  return DecodeInternal(cx, aStream, aContentLength, true, aRetval, LEGACY);
+  return DecodeInternal(aStream, aContentLength, PR_TRUE, LEGACY);
 }
 
 NS_IMETHODIMP
@@ -556,8 +592,8 @@ nsJSON::LegacyDecodeToJSVal(const nsAString &str, JSContext *cx, jsval *result)
 {
   JSAutoRequest ar(cx);
 
-  if (!js::ParseJSONWithReviver(cx, static_cast<const jschar*>(PromiseFlatString(str).get()),
-                                str.Length(), JS::NullValue(),
+  if (!js::ParseJSONWithReviver(cx, (jschar*)PromiseFlatString(str).get(),
+                                (uint32)str.Length(), js::NullValue(),
                                 result, LEGACY)) {
     return NS_ERROR_UNEXPECTED;
   }

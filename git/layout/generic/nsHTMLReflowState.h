@@ -49,6 +49,7 @@ class nsRenderingContext;
 class nsFloatManager;
 class nsLineLayout;
 class nsIPercentHeightObserver;
+class nsPlaceholderFrame;
 
 struct nsStyleDisplay;
 struct nsStyleVisibility;
@@ -190,14 +191,14 @@ private:
   /**
    * Computes margin values from the specified margin style information, and
    * fills in the mComputedMargin member.
-   * @return true if the margin is dependent on the containing block width
+   * @return PR_TRUE if the margin is dependent on the containing block width
    */
   bool ComputeMargin(nscoord aContainingBlockWidth);
   
   /**
    * Computes padding values from the specified padding style information, and
    * fills in the mComputedPadding member.
-   * @return true if the padding is dependent on the containing block width
+   * @return PR_TRUE if the padding is dependent on the containing block width
    */
    bool ComputePadding(nscoord aContainingBlockWidth, nsIAtom* aFrameType);
 
@@ -419,14 +420,9 @@ public:
    *                     Only used with line-height:-moz-block-height.
    *                     NS_AUTOHEIGHT results in a normal line-height for
    *                     line-height:-moz-block-height.
-   * @param aFontSizeInflation The result of the appropriate
-   *                           nsLayoutUtils::FontSizeInflationFor call,
-   *                           or 1.0 if during intrinsic size
-   *                           calculation.
    */
   static nscoord CalcLineHeight(nsStyleContext* aStyleContext,
-                                nscoord aBlockHeight,
-                                float aFontSizeInflation);
+                                nscoord aBlockHeight);
 
 
   void ComputeContainingBlockRectangle(nsPresContext*          aPresContext,
@@ -516,7 +512,7 @@ protected:
                                         nscoord& aCBWidth);
 
   void CalculateHypotheticalBox(nsPresContext*    aPresContext,
-                                nsIFrame*         aPlaceholderFrame,
+                                nsPlaceholderFrame* aPlaceholderFrame,
                                 nsIFrame*         aContainingBlock,
                                 nscoord           aBlockLeftContentEdge,
                                 nscoord           aBlockContentWidth,

@@ -37,10 +37,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/layers/PLayers.h"
-
-/* This must occur *after* layers/PLayers.h to avoid typedefs conflicts. */
-#include "mozilla/Util.h"
-
 #include "mozilla/layers/ShadowLayers.h"
 
 #include "ThebesLayerBuffer.h"
@@ -151,6 +147,8 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
 
     if (passes == 2) {
       ComponentAlphaTextureLayerProgram *alphaProgram;
+      NS_ASSERTION(!mTexImage->IsRGB() && !mTexImageOnWhite->IsRGB(),
+                   "Only BGR image surported with component alpha (currently!)");
       if (pass == 1) {
         alphaProgram = aManager->GetComponentAlphaPass1LayerProgram();
         gl()->fBlendFuncSeparate(LOCAL_GL_ZERO, LOCAL_GL_ONE_MINUS_SRC_COLOR,
@@ -273,18 +271,6 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
                   tileRegionRect.MoveBy(-currentTileRect.TopLeft());
               }
 
-#ifdef ANDROID
-              // Bug 691354
-              // Using the LINEAR filter we get unexplained artifacts.
-              // Use NEAREST when no scaling is required.
-              gfxMatrix matrix;
-              bool is2D = mLayer->GetEffectiveTransform().Is2D(&matrix);
-              if (is2D && !matrix.HasNonTranslationOrFlip()) {
-                gl()->ApplyFilterToBoundTexture(gfxPattern::FILTER_NEAREST);
-              } else {
-                mTexImage->ApplyFilter();
-              }
-#endif
               program->SetLayerQuadRect(tileScreenRect);
               aManager->BindAndDrawQuadWithTextureRect(program, tileRegionRect,
                                                        tileRect.Size(),
@@ -433,7 +419,7 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
   bool canReuseBuffer;
   nsIntRect destBufferRect;
 
-  while (true) {
+  while (PR_TRUE) {
     mode = mLayer->GetSurfaceMode();
     contentType = aContentType;
     neededRegion = mLayer->GetVisibleRegion();
@@ -506,8 +492,8 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
   if (result.mRegionToDraw.IsEmpty())
     return result;
 
-  if (destBufferRect.width > gl()->GetMaxTextureImageSize() ||
-      destBufferRect.height > gl()->GetMaxTextureImageSize()) {
+  if (destBufferRect.width > gl()->GetMaxTextureSize() ||
+      destBufferRect.height > gl()->GetMaxTextureSize()) {
     return result;
   }
 
@@ -649,7 +635,7 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
     FillSurface(onBlack, result.mRegionToDraw, nsIntPoint(0,0), gfxRGBA(0.0, 0.0, 0.0, 1.0));
     FillSurface(onWhite, result.mRegionToDraw, nsIntPoint(0,0), gfxRGBA(1.0, 1.0, 1.0, 1.0));
     gfxASurface* surfaces[2] = { onBlack, onWhite };
-    nsRefPtr<gfxTeeSurface> surf = new gfxTeeSurface(surfaces, ArrayLength(surfaces));
+    nsRefPtr<gfxTeeSurface> surf = new gfxTeeSurface(surfaces, NS_ARRAY_LENGTH(surfaces));
 
     // XXX If the device offset is set on the individual surfaces instead of on
     // the tee surface, we render in the wrong place. Why?
@@ -661,7 +647,7 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
     // Using this surface as a source will likely go horribly wrong, since
     // only the onBlack surface will really be used, so alpha information will
     // be incorrect.
-    surf->SetAllowUseAsSource(false);
+    surf->SetAllowUseAsSource(PR_FALSE);
     result.mContext = new gfxContext(surf);
   } else {
     result.mContext = new gfxContext(mTexImage->BeginUpdate(result.mRegionToDraw));
@@ -711,7 +697,7 @@ ThebesLayerOGL::Destroy()
 {
   if (!mDestroyed) {
     mBuffer = nsnull;
-    mDestroyed = true;
+    mDestroyed = PR_TRUE;
   }
 }
 
@@ -721,7 +707,7 @@ ThebesLayerOGL::CreateSurface()
   NS_ASSERTION(!mBuffer, "buffer already created?");
 
   if (mVisibleRegion.IsEmpty()) {
-    return false;
+    return PR_FALSE;
   }
 
   if (gl()->TextureImageSupportsGetBackingSurface()) {
@@ -730,7 +716,7 @@ ThebesLayerOGL::CreateSurface()
   } else {
     mBuffer = new BasicBufferOGL(this);
   }
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -850,9 +836,7 @@ ShadowBufferOGL::Upload(gfxASurface* aUpdate, const nsIntRegion& aUpdated,
                         const nsIntRect& aRect, const nsIntPoint& aRotation)
 {
   gfxIntSize size = aUpdate->GetSize();
-  if (!mTexImage ||
-      GetSize() != nsIntSize(size.width, size.height) ||
-      mTexImage->GetContentType() != aUpdate->GetContentType()) {
+  if (GetSize() != nsIntSize(size.width, size.height)) {
     // XXX we should do something here to decide whether to use REPEAT or not,
     // but I'm not sure what
     mTexImage = CreateClampOrRepeatTextureImage(gl(),
@@ -895,17 +879,30 @@ ShadowThebesLayerOGL::~ShadowThebesLayerOGL()
 {}
 
 void
+ShadowThebesLayerOGL::SetFrontBuffer(const OptionalThebesBuffer& aNewFront,
+                                     const nsIntRegion& aValidRegion)
+{
+  if (mDestroyed) {
+    return;
+  }
+
+  if (!mBuffer) {
+    mBuffer = new ShadowBufferOGL(this);
+  }
+
+  NS_ASSERTION(OptionalThebesBuffer::Tnull_t == aNewFront.type(),
+               "Only one system-memory buffer expected");
+}
+
+void
 ShadowThebesLayerOGL::Swap(const ThebesBuffer& aNewFront,
                            const nsIntRegion& aUpdatedRegion,
-                           OptionalThebesBuffer* aNewBack,
+                           ThebesBuffer* aNewBack,
                            nsIntRegion* aNewBackValidRegion,
                            OptionalThebesBuffer* aReadOnlyFront,
                            nsIntRegion* aFrontUpdatedRegion)
 {
-  if (!mDestroyed) {
-    if (!mBuffer) {
-      mBuffer = new ShadowBufferOGL(this);
-    }
+  if (!mDestroyed && mBuffer) {
     nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(aNewFront.buffer());
     mBuffer->Upload(surf, aUpdatedRegion, aNewFront.rect(), aNewFront.rotation());
   }
@@ -932,7 +929,7 @@ void
 ShadowThebesLayerOGL::Destroy()
 {
   if (!mDestroyed) {
-    mDestroyed = true;
+    mDestroyed = PR_TRUE;
     mBuffer = nsnull;
   }
 }

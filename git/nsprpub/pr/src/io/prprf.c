@@ -86,9 +86,6 @@ struct NumArg {
 	double d;
 	const char *s;
 	int *ip;
-#ifdef WIN32
-	const WCHAR *ws;
-#endif
     } u;
 };
 
@@ -106,9 +103,6 @@ struct NumArg {
 #define TYPE_STRING	8
 #define TYPE_DOUBLE	9
 #define TYPE_INTSTR	10
-#ifdef WIN32
-#define TYPE_WSTRING	11
-#endif
 #define TYPE_UNKNOWN	20
 
 #define FLAG_LEFT	0x1
@@ -579,12 +573,8 @@ static struct NumArg* BuildArgArray( const char *fmt, va_list ap, int* rv, struc
 	    }
 	    break;
 
-	case 'S':
-#ifdef WIN32
-	    nas[ cn ].type = TYPE_WSTRING;
-	    break;
-#endif
 	case 'C':
+	case 'S':
 	case 'E':
 	case 'G':
 	    /* XXX not supported I suppose */
@@ -663,12 +653,6 @@ static struct NumArg* BuildArgArray( const char *fmt, va_list ap, int* rv, struc
 	    nas[cn].u.s = va_arg( ap, char* );
 	    break;
 
-#ifdef WIN32
-	case TYPE_WSTRING:
-	    nas[cn].u.s = va_arg( ap, WCHAR* );
-	    break;
-#endif
-
 	case TYPE_INTSTR:
 	    nas[cn].u.ip = va_arg( ap, int* );
 	    break;
@@ -706,9 +690,6 @@ static int dosprintf(SprintfState *ss, const char *fmt, va_list ap)
 	double d;
 	const char *s;
 	int *ip;
-#ifdef WIN32
-	WCHAR *ws;
-#endif
     } u;
     const char *fmt0;
     static char *hex = "0123456789abcdef";
@@ -720,9 +701,7 @@ static int dosprintf(SprintfState *ss, const char *fmt, va_list ap)
     struct NumArg  nasArray[ NAS_DEFAULT_NUM ];
     char  pattern[20];
     const char* dolPt = NULL;  /* in "%4$.2f", dolPt will point to . */
-#ifdef WIN32
-    char *pBuf = NULL;
-#endif
+
 
     /*
     ** build an argument array, IF the fmt is numbered argument
@@ -986,43 +965,14 @@ static int dosprintf(SprintfState *ss, const char *fmt, va_list ap)
 	    radix = 16;
 	    goto fetch_and_convert;
 
-#ifndef WIN32
-	  case 'S':
-	    /* XXX not supported I suppose */
-	    PR_ASSERT(0);
-	    break;
-#endif
-
 #if 0
 	  case 'C':
+	  case 'S':
 	  case 'E':
 	  case 'G':
 	    /* XXX not supported I suppose */
 	    PR_ASSERT(0);
 	    break;
-#endif
-
-#ifdef WIN32
-	  case 'S':
-	    u.ws = nas ? nap->u.ws : va_arg(ap, const WCHAR*);
-
-	    /* Get the required size in rv */
-	    rv = WideCharToMultiByte(CP_ACP, 0, u.ws, -1, NULL, 0, NULL, NULL);
-	    if (rv == 0)
-		rv = 1;
-	    pBuf = PR_MALLOC(rv);
-	    WideCharToMultiByte(CP_ACP, 0, u.ws, -1, pBuf, (int)rv, NULL, NULL);
-	    pBuf[rv-1] = '\0';
-
-	    rv = cvt_s(ss, pBuf, width, prec, flags);
-
-	    /* We don't need the allocated buffer anymore */
-	    PR_Free(pBuf);
-	    if (rv < 0) {
-		return rv;
-	    }
-	    break;
-
 #endif
 
 	  case 's':

@@ -121,7 +121,7 @@ nsAtomList::Clone(bool aDeep) const
     return nsnull;
 
   if (aDeep)
-    NS_CSS_CLONE_LIST_MEMBER(nsAtomList, this, mNext, result, (false));
+    NS_CSS_CLONE_LIST_MEMBER(nsAtomList, this, mNext, result, (PR_FALSE));
   return result;
 }
 
@@ -199,7 +199,7 @@ nsPseudoClassList::Clone(bool aDeep) const
 
   if (aDeep)
     NS_CSS_CLONE_LIST_MEMBER(nsPseudoClassList, this, mNext, result,
-                             (false));
+                             (PR_FALSE));
 
   return result;
 }
@@ -274,7 +274,7 @@ nsAttrSelector::Clone(bool aDeep) const
                        mFunction, mValue, mCaseSensitive);
 
   if (aDeep)
-    NS_CSS_CLONE_LIST_MEMBER(nsAttrSelector, this, mNext, result, (false));
+    NS_CSS_CLONE_LIST_MEMBER(nsAttrSelector, this, mNext, result, (PR_FALSE));
 
   return result;
 }
@@ -330,12 +330,12 @@ nsCSSSelector::Clone(bool aDeepNext, bool aDeepNegations) const
                "mNegations can't have non-null mNext");
   if (aDeepNegations) {
     NS_CSS_CLONE_LIST_MEMBER(nsCSSSelector, this, mNegations, result,
-                             (true, false));
+                             (PR_TRUE, PR_FALSE));
   }
 
   if (aDeepNext) {
     NS_CSS_CLONE_LIST_MEMBER(nsCSSSelector, this, mNext, result,
-                             (false, true));
+                             (PR_FALSE, PR_TRUE));
   }
 
   return result;
@@ -564,13 +564,13 @@ void
 nsCSSSelector::AppendToStringWithoutCombinators
                    (nsAString& aString, nsCSSStyleSheet* aSheet) const
 {
-  AppendToStringWithoutCombinatorsOrNegations(aString, aSheet, false);
+  AppendToStringWithoutCombinatorsOrNegations(aString, aSheet, PR_FALSE);
 
   for (const nsCSSSelector* negation = mNegations; negation;
        negation = negation->mNegations) {
     aString.AppendLiteral(":not(");
     negation->AppendToStringWithoutCombinatorsOrNegations(aString, aSheet,
-                                                          true);
+                                                          PR_TRUE);
     aString.Append(PRUnichar(')'));
   }
 }
@@ -600,7 +600,7 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
                    "How did we get this namespace?");
       if (mNameSpace == kNameSpaceID_None) {
         aString.Append(PRUnichar('|'));
-        wroteNamespace = true;
+        wroteNamespace = PR_TRUE;
       }
     } else if (sheetNS->FindNameSpaceID(nsnull) == mNameSpace) {
       // We have the default namespace (possibly including the wildcard
@@ -612,7 +612,7 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
       NS_ASSERTION(CanBeNamespaced(aIsNegated),
                    "How did we end up with this namespace?");
       aString.Append(PRUnichar('|'));
-      wroteNamespace = true;
+      wroteNamespace = PR_TRUE;
     } else if (mNameSpace != kNameSpaceID_Unknown) {
       NS_ASSERTION(CanBeNamespaced(aIsNegated),
                    "How did we end up with this namespace?");
@@ -622,7 +622,7 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
       nsStyleUtil::AppendEscapedCSSIdent(nsDependentAtomString(prefixAtom),
                                          aString);
       aString.Append(PRUnichar('|'));
-      wroteNamespace = true;
+      wroteNamespace = PR_TRUE;
     } else {
       // A selector for an element in any namespace, while the default
       // namespace is something else.  :not() is special in that the default
@@ -631,7 +631,7 @@ nsCSSSelector::AppendToStringWithoutCombinatorsOrNegations
       // namespace here, since those default to a wildcard namespace.
       if (CanBeNamespaced(aIsNegated)) {
         aString.AppendLiteral("*|");
-        wroteNamespace = true;
+        wroteNamespace = PR_TRUE;
       }
     }
   }
@@ -850,7 +850,7 @@ nsCSSSelectorList::ToString(nsAString& aResult, nsCSSStyleSheet* aSheet)
   aResult.Truncate();
   nsCSSSelectorList *p = this;
   for (;;) {
-    p->mSelectors->ToString(aResult, aSheet, true);
+    p->mSelectors->ToString(aResult, aSheet, PR_TRUE);
     p = p->mNext;
     if (!p)
       break;
@@ -867,7 +867,7 @@ nsCSSSelectorList::Clone(bool aDeep) const
 
   if (aDeep) {
     NS_CSS_CLONE_LIST_MEMBER(nsCSSSelectorList, this, mNext, result,
-                             (false));
+                             (PR_FALSE));
   }
   return result;
 }
@@ -1058,10 +1058,10 @@ DOMCSSDeclarationImpl::SetCSSDeclaration(css::Declaration* aDecl)
     owningDoc = sheet->GetOwningDocument();
   }
 
-  mozAutoDocUpdate updateBatch(owningDoc, UPDATE_STYLE, true);
+  mozAutoDocUpdate updateBatch(owningDoc, UPDATE_STYLE, PR_TRUE);
 
   nsRefPtr<css::StyleRule> oldRule = mRule;
-  mRule = oldRule->DeclarationChanged(aDecl, true).get();
+  mRule = oldRule->DeclarationChanged(aDecl, PR_TRUE).get();
   if (!mRule)
     return NS_ERROR_OUT_OF_MEMORY;
   nsrefcnt cnt = mRule->Release();
@@ -1209,7 +1209,7 @@ StyleRule::StyleRule(nsCSSSelectorList* aSelector,
     mImportantRule(nsnull),
     mDOMRule(nsnull),
     mLineNumber(0),
-    mWasMatched(false)
+    mWasMatched(PR_FALSE)
 {
   NS_PRECONDITION(aDeclaration, "must have a declaration");
 }
@@ -1222,7 +1222,7 @@ StyleRule::StyleRule(const StyleRule& aCopy)
     mImportantRule(nsnull),
     mDOMRule(nsnull),
     mLineNumber(aCopy.mLineNumber),
-    mWasMatched(false)
+    mWasMatched(PR_FALSE)
 {
   // rest is constructed lazily on existing data
 }
@@ -1236,7 +1236,7 @@ StyleRule::StyleRule(StyleRule& aCopy,
     mImportantRule(nsnull),
     mDOMRule(aCopy.mDOMRule),
     mLineNumber(aCopy.mLineNumber),
-    mWasMatched(false)
+    mWasMatched(PR_FALSE)
 {
   // The DOM rule is replacing |aCopy| with |this|, so transfer
   // the reverse pointer as well (and transfer ownership).
@@ -1287,7 +1287,7 @@ StyleRule::RuleMatched()
   if (!mWasMatched) {
     NS_ABORT_IF_FALSE(!mImportantRule, "should not have important rule yet");
 
-    mWasMatched = true;
+    mWasMatched = PR_TRUE;
     mDeclaration->SetImmutable();
     if (mDeclaration->HasImportantData()) {
       NS_ADDREF(mImportantRule = new ImportantRule(mDeclaration));

@@ -62,7 +62,6 @@
 #include "nsChildView.h"
 #include "nsToolkit.h"
 #include "TextInputHandler.h"
-#include "mozilla/HangMonitor.h"
 
 #include "npapi.h"
 
@@ -183,10 +182,8 @@ bool nsCocoaAppModalWindowList::GeckoModalAboveCocoaModal()
 @end
 
 @implementation GeckoNSApplication
-
 - (void)sendEvent:(NSEvent *)anEvent
 {
-  mozilla::HangMonitor::NotifyActivity();
   if ([anEvent type] == NSApplicationDefined &&
       [anEvent subtype] == kEventSubtypeTrace) {
     mozilla::SignalTracerThread();
@@ -194,19 +191,6 @@ bool nsCocoaAppModalWindowList::GeckoModalAboveCocoaModal()
   }
   [super sendEvent:anEvent];
 }
-
-- (NSEvent*)nextEventMatchingMask:(NSUInteger)mask
-                        untilDate:(NSDate*)expiration
-                           inMode:(NSString*)mode
-                          dequeue:(BOOL)flag
-{
-  if (expiration) {
-    mozilla::HangMonitor::Suspend();
-  }
-  return [super nextEventMatchingMask:mask
-          untilDate:expiration inMode:mode dequeue:flag];
-}
-
 @end
 
 
@@ -661,10 +645,6 @@ nsAppShell::ProcessNextNativeEvent(bool aMayWait)
 
     NSEvent* nextEvent = nil;
 
-    if (aMayWait) {
-      mozilla::HangMonitor::Suspend();
-    }
-
     // If we're running modal (or not in a Gecko "main" event loop) we still
     // need to use nextEventMatchingMask and sendEvent -- otherwise (in
     // Minefield) the modal window (or non-main event loop) won't receive key
@@ -686,9 +666,6 @@ nsAppShell::ProcessNextNativeEvent(bool aMayWait)
         NSModalSession currentAppModalSession = nil;
         if (gCocoaAppModalWindowList)
           currentAppModalSession = gCocoaAppModalWindowList->CurrentSession();
-
-        mozilla::HangMonitor::NotifyActivity();
-
         if (currentAppModalSession) {
           [NSApp _modalSession:currentAppModalSession sendEvent:nextEvent];
         } else {
@@ -1002,7 +979,7 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
   NSString *sender = [aNotification object];
   if (!sender || ![sender isEqualToString:@"org.mozilla.gecko.PopupWindow"]) {
     if (gRollupListener && gRollupWidget)
-      gRollupListener->Rollup(0);
+      gRollupListener->Rollup(nsnull, nsnull);
   }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;

@@ -1442,23 +1442,20 @@ class IDLParser(object):
         p[0].insert(0, p[1])
 
     def p_error(self, t):
-        if not t:
-            raise IDLError("Syntax Error at end of file. Possibly due to missing semicolon(;), braces(}) or both", None)
-        else:
-            location = Location(self.lexer, t.lineno, t.lexpos)
-            raise IDLError("invalid syntax", location)
+        location = Location(self.lexer, t.lineno, t.lexpos)
+        raise IDLError("invalid syntax", location)
 
-    def __init__(self, outputdir=''):
+    def __init__(self, outputdir='', regen=False):
         self._doccomments = []
         self.lexer = lex.lex(object=self,
                              outputdir=outputdir,
                              lextab='xpidllex',
-                             optimize=1)
+                             optimize=0 if regen else 1)
         self.parser = yacc.yacc(module=self,
                                 outputdir=outputdir,
                                 debugfile='xpidl_debug',
                                 tabmodule='xpidlyacc',
-                                optimize=1)
+                                optimize=0 if regen else 1)
 
     def clearComments(self):
         self._doccomments = []

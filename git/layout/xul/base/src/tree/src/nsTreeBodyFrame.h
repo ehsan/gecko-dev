@@ -44,8 +44,6 @@
 #ifndef nsTreeBodyFrame_h
 #define nsTreeBodyFrame_h
 
-#include "mozilla/Attributes.h"
-
 #include "nsLeafBoxFrame.h"
 #include "nsITreeView.h"
 #include "nsICSSPseudoComparator.h"
@@ -56,6 +54,7 @@
 #include "nsTArray.h"
 #include "nsTreeStyleCache.h"
 #include "nsTreeColumns.h"
+#include "nsTreeImageListener.h"
 #include "nsAutoPtr.h"
 #include "nsDataHashtable.h"
 #include "imgIRequest.h"
@@ -65,7 +64,6 @@
 #include "mozilla/LookAndFeel.h"
 
 class nsOverflowChecker;
-class nsTreeImageListener;
 
 // An entry in the tree's image cache
 struct nsTreeImageCacheEntry
@@ -79,7 +77,7 @@ struct nsTreeImageCacheEntry
 };
 
 // The actual frame that paints the cells and rows.
-class nsTreeBodyFrame MOZ_FINAL
+class NS_FINAL_CLASS nsTreeBodyFrame
   : public nsLeafBoxFrame
   , public nsICSSPseudoComparator
   , public nsIScrollbarMediator
@@ -92,11 +90,6 @@ public:
   NS_DECL_QUERYFRAME_TARGET(nsTreeBodyFrame)
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
-
-  // Callback handler methods for refresh driver based animations.
-  // Calls to these functions are forwarded from nsTreeImageListener. These
-  // mirror how nsImageFrame works.
-  nsresult OnImageIsAnimated(imgIRequest* aRequest);
 
   // non-virtual signatures like nsITreeBodyFrame
   nsresult GetColumns(nsITreeColumns **aColumns);
@@ -374,9 +367,9 @@ protected:
   // Check overflow and generate events.
   void CheckOverflow(const ScrollParts& aParts);
 
-  // Calls UpdateScrollbars, Invalidate aNeedsFullInvalidation if true,
+  // Calls UpdateScrollbars, Invalidate aNeedsFullInvalidation if PR_TRUE,
   // InvalidateScrollbars and finally CheckOverflow.
-  // returns true if the frame is still alive after the method call.
+  // returns PR_TRUE if the frame is still alive after the method call.
   bool FullScrollbarsUpdate(bool aNeedsFullInvalidation);
 
   // Use to auto-fill some of the common properties without the view having to do it.
@@ -442,15 +435,6 @@ public:
     return col;
   }
 
-  /**
-   * Remove an nsITreeImageListener from being tracked by this frame. Only tree
-   * image listeners that are created by this frame are tracked.
-   *
-   * @param aListener A pointer to an nsTreeImageListener to no longer
-   *        track.
-   */
-  void RemoveTreeImageListener(nsTreeImageListener* aListener);
-
 protected:
 
   // Create a new timer. This method is used to delay various actions like
@@ -480,12 +464,6 @@ protected:
 
   void PostScrollEvent();
   void FireScrollEvent();
-
-  /**
-   * Clear the pointer to this frame for all nsTreeImageListeners that were
-   * created by this frame.
-   */
-  void DetachImageListeners();
 
 #ifdef ACCESSIBILITY
   /**
@@ -624,11 +602,6 @@ protected: // Data Members
   bool mHorizontalOverflow;
 
   bool mReflowCallbackPosted;
-
-  // Hash table to keep track of which listeners we created and thus
-  // have pointers to us.
-  nsTHashtable<nsPtrHashKey<nsTreeImageListener> > mCreatedListeners;
-
 }; // class nsTreeBodyFrame
 
 #endif

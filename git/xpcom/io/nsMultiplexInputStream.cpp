@@ -105,7 +105,7 @@ NS_IMPL_CI_INTERFACE_GETTER4(nsMultiplexInputStream,
 
 nsMultiplexInputStream::nsMultiplexInputStream()
     : mCurrentStream(0),
-      mStartedReadingCurrent(false),
+      mStartedReadingCurrent(PR_FALSE),
       mStatus(NS_OK)
 {
 }
@@ -146,7 +146,7 @@ nsMultiplexInputStream::RemoveStream(PRUint32 aIndex)
     if (mCurrentStream > aIndex)
         --mCurrentStream;
     else if (mCurrentStream == aIndex)
-        mStartedReadingCurrent = false;
+        mStartedReadingCurrent = PR_FALSE;
 
     return NS_OK;
 }
@@ -235,14 +235,14 @@ nsMultiplexInputStream::Read(char * aBuf, PRUint32 aCount, PRUint32 *_retval)
 
         if (read == 0) {
             ++mCurrentStream;
-            mStartedReadingCurrent = false;
+            mStartedReadingCurrent = PR_FALSE;
         }
         else {
             NS_ASSERTION(aCount >= read, "Read more than requested");
             *_retval += read;
             aCount -= read;
             aBuf += read;
-            mStartedReadingCurrent = true;
+            mStartedReadingCurrent = PR_TRUE;
         }
     }
     return *_retval ? NS_OK : rv;
@@ -270,7 +270,7 @@ nsMultiplexInputStream::ReadSegments(nsWriteSegmentFun aWriter, void *aClosure,
     state.mOffset = 0;
     state.mWriter = aWriter;
     state.mClosure = aClosure;
-    state.mDone = false;
+    state.mDone = PR_FALSE;
     
     PRUint32 len = mStreams.Count();
     while (mCurrentStream < len && aCount) {
@@ -292,13 +292,13 @@ nsMultiplexInputStream::ReadSegments(nsWriteSegmentFun aWriter, void *aClosure,
         // if stream is empty, then advance to the next stream.
         if (read == 0) {
             ++mCurrentStream;
-            mStartedReadingCurrent = false;
+            mStartedReadingCurrent = PR_FALSE;
         }
         else {
             NS_ASSERTION(aCount >= read, "Read more than requested");
             state.mOffset += read;
             aCount -= read;
-            mStartedReadingCurrent = true;
+            mStartedReadingCurrent = PR_TRUE;
         }
     }
 
@@ -322,7 +322,7 @@ nsMultiplexInputStream::ReadSegCb(nsIInputStream* aIn, void* aClosure,
                           aCount,
                           aWriteCount);
     if (NS_FAILED(rv))
-        state->mDone = true;
+        state->mDone = PR_TRUE;
     return rv;
 }
 
@@ -365,7 +365,7 @@ nsMultiplexInputStream::Seek(PRInt32 aWhence, PRInt64 aOffset)
             NS_ENSURE_SUCCESS(rv, rv);
         }
         mCurrentStream = 0;
-        mStartedReadingCurrent = false;
+        mStartedReadingCurrent = PR_FALSE;
         return NS_OK;
     }
 
@@ -433,25 +433,25 @@ nsMultiplexInputStream::Read(const IPC::Message *aMsg, void **aIter)
 
     PRUint32 count;
     if (!ReadParam(aMsg, aIter, &count))
-        return false;
+        return PR_FALSE;
 
     for (PRUint32 i = 0; i < count; i++) {
         IPC::InputStream inputStream;
         if (!ReadParam(aMsg, aIter, &inputStream))
-            return false;
+            return PR_FALSE;
 
         nsCOMPtr<nsIInputStream> stream(inputStream);
         nsresult rv = AppendStream(stream);
         if (NS_FAILED(rv))
-            return false;
+            return PR_FALSE;
     }
 
     if (!ReadParam(aMsg, aIter, &mCurrentStream) ||
         !ReadParam(aMsg, aIter, &mStartedReadingCurrent) ||
         !ReadParam(aMsg, aIter, &mStatus))
-        return false;
+        return PR_FALSE;
 
-    return true;
+    return PR_TRUE;
 }
 
 void

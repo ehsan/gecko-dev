@@ -197,15 +197,15 @@ typedef enum nsBidiDirection nsBidiDirection;
 /* additional macros used by constructor - always allow allocation */
 #define GETINITIALDIRPROPSMEMORY(length) \
                                          GetMemory((void **)&mDirPropsMemory, &mDirPropsSize, \
-                                         true, (length))
+                                         PR_TRUE, (length))
 
 #define GETINITIALLEVELSMEMORY(length) \
                                        GetMemory((void **)&mLevelsMemory, &mLevelsSize, \
-                                       true, (length))
+                                       PR_TRUE, (length))
 
 #define GETINITIALRUNSMEMORY(length) \
                                      GetMemory((void **)&mRunsMemory, &mRunsSize, \
-                                     true, (length)*sizeof(Run))
+                                     PR_TRUE, (length)*sizeof(Run))
 
 /*
  * Sometimes, bit values are more appropriate
@@ -385,7 +385,7 @@ typedef PRUint8 DirProp;
 #define UTF_APPEND_CHAR_UNSAFE(s, i, c)              UTF16_APPEND_CHAR_UNSAFE(s, i, c)
 #define UTF_APPEND_CHAR_SAFE(s, i, length, c)        UTF16_APPEND_CHAR_SAFE(s, i, length, c)
 
-#define UTF_PREV_CHAR(s, start, i, c)                UTF_PREV_CHAR_SAFE(s, start, i, c, false)
+#define UTF_PREV_CHAR(s, start, i, c)                UTF_PREV_CHAR_SAFE(s, start, i, c, PR_FALSE)
 #define UTF_BACK_1(s, start, i)                      UTF_BACK_1_SAFE(s, start, i)
 #define UTF_BACK_N(s, start, i, n)                   UTF_BACK_N_SAFE(s, start, i, n)
 #define UTF_APPEND_CHAR(s, i, length, c)             UTF_APPEND_CHAR_SAFE(s, i, length, c)
@@ -521,15 +521,6 @@ public:
    */
   nsresult GetDirection(nsBidiDirection* aDirection);
 
-  /**
-   * Get the paragraph level of the text.
-   *
-   * @param aParaLevel receives a <code>NSBIDI_XXX</code> value indicating the paragraph level
-   *
-   * @see nsBidiLevel
-   */
-  nsresult GetParaLevel(nsBidiLevel* aParaLevel);
-
 #ifdef FULL_BIDI_ENGINE
   /**
    * <code>SetLine</code> sets an <code>nsBidi</code> to
@@ -572,6 +563,15 @@ public:
    * @param aLength receives the length of the text that the nsBidi object was created for.
    */
   nsresult GetLength(PRInt32* aLength);
+
+  /**
+   * Get the paragraph level of the text.
+   *
+   * @param aParaLevel receives a <code>NSBIDI_XXX</code> value indicating the paragraph level
+   *
+   * @see nsBidiLevel
+   */
+  nsresult GetParaLevel(nsBidiLevel* aParaLevel);
 
   /**
    * Get the level for one character.

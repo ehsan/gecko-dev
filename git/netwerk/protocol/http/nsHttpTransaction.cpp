@@ -119,21 +119,21 @@ nsHttpTransaction::nsHttpTransaction()
     , mPriority(0)
     , mRestartCount(0)
     , mCaps(0)
-    , mClosed(false)
-    , mConnected(false)
-    , mHaveStatusLine(false)
-    , mHaveAllHeaders(false)
-    , mTransactionDone(false)
-    , mResponseIsComplete(false)
-    , mDidContentStart(false)
-    , mNoContent(false)
-    , mSentData(false)
-    , mReceivedData(false)
-    , mStatusEventPending(false)
-    , mHasRequestBody(false)
-    , mSSLConnectFailed(false)
-    , mHttpResponseMatched(false)
-    , mPreserveStream(false)
+    , mClosed(PR_FALSE)
+    , mConnected(PR_FALSE)
+    , mHaveStatusLine(PR_FALSE)
+    , mHaveAllHeaders(PR_FALSE)
+    , mTransactionDone(PR_FALSE)
+    , mResponseIsComplete(PR_FALSE)
+    , mDidContentStart(PR_FALSE)
+    , mNoContent(PR_FALSE)
+    , mSentData(PR_FALSE)
+    , mReceivedData(PR_FALSE)
+    , mStatusEventPending(PR_FALSE)
+    , mHasRequestBody(PR_FALSE)
+    , mSSLConnectFailed(PR_FALSE)
+    , mHttpResponseMatched(PR_FALSE)
+    , mPreserveStream(PR_FALSE)
 {
     LOG(("Creating nsHttpTransaction @%x\n", this));
 }
@@ -184,7 +184,7 @@ nsHttpTransaction::Init(PRUint8 caps,
              "this=%x", this));
     } else {
         // there is no observer, so don't use it
-        activityDistributorActive = false;
+        activityDistributorActive = PR_FALSE;
         mActivityDistributor = nsnull;
     }
 
@@ -203,7 +203,7 @@ nsHttpTransaction::Init(PRUint8 caps,
     mCaps = caps;
 
     if (requestHead->Method() == nsHttp::Head)
-        mNoContent = true;
+        mNoContent = PR_TRUE;
 
     // Make sure that there is "Content-Length: 0" header in the requestHead
     // in case of POST and PUT methods when there is no requestBody and
@@ -266,7 +266,7 @@ nsHttpTransaction::Init(PRUint8 caps,
     if (NS_FAILED(rv)) return rv;
 
     if (requestBody) {
-        mHasRequestBody = true;
+        mHasRequestBody = PR_TRUE;
 
         // wrap the headers and request body in a multiplexed input stream.
         nsCOMPtr<nsIMultiplexInputStream> multi =
@@ -295,7 +295,7 @@ nsHttpTransaction::Init(PRUint8 caps,
     // create pipe for response stream
     rv = NS_NewPipe2(getter_AddRefs(mPipeIn),
                      getter_AddRefs(mPipeOut),
-                     true, true,
+                     PR_TRUE, PR_TRUE,
                      nsIOService::gDefaultSegmentSize,
                      nsIOService::gDefaultSegmentCount,
                      nsIOService::gBufferCache);
@@ -303,12 +303,6 @@ nsHttpTransaction::Init(PRUint8 caps,
 
     NS_ADDREF(*responseBody = mPipeIn);
     return NS_OK;
-}
-
-nsAHttpConnection *
-nsHttpTransaction::Connection()
-{
-    return mConnection;
 }
 
 nsHttpResponseHead *
@@ -327,7 +321,7 @@ nsHttpTransaction::TakeResponseHead()
 void
 nsHttpTransaction::SetSSLConnectFailed()
 {
-    mSSLConnectFailed = true;
+    mSSLConnectFailed = PR_TRUE;
 }
 
 nsHttpRequestHead *
@@ -469,7 +463,7 @@ nsHttpTransaction::ReadRequestSegment(nsIInputStream *stream,
         // First data we're sending -> this is requestStart
         trans->mTimings.requestStart = mozilla::TimeStamp::Now();
     }
-    trans->mSentData = true;
+    trans->mSentData = PR_TRUE;
     return NS_OK;
 }
 
@@ -485,7 +479,7 @@ nsHttpTransaction::ReadSegments(nsAHttpSegmentReader *reader,
     }
 
     if (!mConnected) {
-        mConnected = true;
+        mConnected = PR_TRUE;
         mConnection->GetSecurityInfo(getter_AddRefs(mSecurityInfo));
     }
 
@@ -540,7 +534,7 @@ nsHttpTransaction::WritePipeSegment(nsIOutputStream *stream,
     if (NS_FAILED(rv)) return rv; // caller didn't want to write anything
 
     NS_ASSERTION(*countWritten > 0, "bad writer");
-    trans->mReceivedData = true;
+    trans->mReceivedData = PR_TRUE;
 
     // Let the transaction "play" with the buffer.  It is free to modify
     // the contents of the buffer and/or modify countWritten.
@@ -622,7 +616,7 @@ nsHttpTransaction::Close(nsresult reason)
     bool connReused = false;
     if (mConnection)
         connReused = mConnection->IsReused();
-    mConnected = false;
+    mConnected = PR_FALSE;
 
     //
     // if the connection was reset or closed before we wrote any part of the
@@ -670,14 +664,14 @@ nsHttpTransaction::Close(nsresult reason)
 
         // honor the sticky connection flag...
         if (mCaps & NS_HTTP_STICKY_CONNECTION)
-            relConn = false;
+            relConn = PR_FALSE;
     }
     if (relConn && mConnection)
         NS_RELEASE(mConnection);
 
     mStatus = reason;
-    mTransactionDone = true; // forcibly flag the transaction as complete
-    mClosed = true;
+    mTransactionDone = PR_TRUE; // forcibly flag the transaction as complete
+    mClosed = PR_TRUE;
 
     // release some resources that we no longer need
     mRequestStream = nsnull;
@@ -786,7 +780,7 @@ nsHttpTransaction::LocateHttpStart(char *buf, PRUint32 len,
         }
 
         if (!nsCRT::IsAsciiSpace(*buf))
-            firstByte = false;
+            firstByte = PR_FALSE;
         buf++;
         len--;
     }
@@ -801,10 +795,10 @@ nsHttpTransaction::ParseLine(char *line)
     
     if (!mHaveStatusLine) {
         mResponseHead->ParseStatusLine(line);
-        mHaveStatusLine = true;
+        mHaveStatusLine = PR_TRUE;
         // XXX this should probably never happen
         if (mResponseHead->Version() == NS_HTTP_VERSION_0_9)
-            mHaveAllHeaders = true;
+            mHaveAllHeaders = PR_TRUE;
     }
     else {
         rv = mResponseHead->ParseHeaderLine(line);
@@ -842,13 +836,13 @@ nsHttpTransaction::ParseLineSegment(char *segment, PRUint32 len)
         PRUint16 status = mResponseHead->Status();
         if ((status != 101) && (status / 100 == 1)) {
             LOG(("ignoring 1xx response\n"));
-            mHaveStatusLine = false;
-            mHttpResponseMatched = false;
-            mConnection->SetLastTransactionExpectedNoContent(true);
+            mHaveStatusLine = PR_FALSE;
+            mHttpResponseMatched = PR_FALSE;
+            mConnection->SetLastTransactionExpectedNoContent(PR_TRUE);
             mResponseHead->Reset();
             return NS_OK;
         }
-        mHaveAllHeaders = true;
+        mHaveAllHeaders = PR_TRUE;
     }
     return NS_OK;
 }
@@ -891,16 +885,16 @@ nsHttpTransaction::ParseHead(char *buf,
         // though it wasn't allowed.
         if (!mConnection || !mConnection->LastTransactionExpectedNoContent()) {
             // tolerate only minor junk before the status line
-            mHttpResponseMatched = true;
-            char *p = LocateHttpStart(buf, NS_MIN<PRUint32>(count, 11), true);
+            mHttpResponseMatched = PR_TRUE;
+            char *p = LocateHttpStart(buf, NS_MIN<PRUint32>(count, 11), PR_TRUE);
             if (!p) {
                 // Treat any 0.9 style response of a put as a failure.
                 if (mRequestHead->Method() == nsHttp::Put)
                     return NS_ERROR_ABORT;
 
                 mResponseHead->ParseStatusLine("");
-                mHaveStatusLine = true;
-                mHaveAllHeaders = true;
+                mHaveStatusLine = PR_TRUE;
+                mHaveAllHeaders = PR_TRUE;
                 return NS_OK;
             }
             if (p > buf) {
@@ -911,12 +905,12 @@ nsHttpTransaction::ParseHead(char *buf,
             }
         }
         else {
-            char *p = LocateHttpStart(buf, count, false);
+            char *p = LocateHttpStart(buf, count, PR_FALSE);
             if (p) {
                 mInvalidResponseBytesRead += p - buf;
                 *countRead = p - buf;
                 buf = p;
-                mHttpResponseMatched = true;
+                mHttpResponseMatched = PR_TRUE;
             } else {
                 mInvalidResponseBytesRead += count;
                 *countRead = count;
@@ -987,7 +981,7 @@ nsHttpTransaction::HandleContentStart()
         if (LOG3_ENABLED()) {
             LOG3(("http response [\n"));
             nsCAutoString headers;
-            mResponseHead->Flatten(headers, false);
+            mResponseHead->Flatten(headers, PR_FALSE);
             LogHeaders(headers.get());
             LOG3(("]\n"));
         }
@@ -999,11 +993,11 @@ nsHttpTransaction::HandleContentStart()
         // looks like we should ignore this response, resetting...
         if (reset) {
             LOG(("resetting transaction's response head\n"));
-            mHaveAllHeaders = false;
-            mHaveStatusLine = false;
-            mReceivedData = false;
-            mSentData = false;
-            mHttpResponseMatched = false;
+            mHaveAllHeaders = PR_FALSE;
+            mHaveStatusLine = PR_FALSE;
+            mReceivedData = PR_FALSE;
+            mSentData = PR_FALSE;
+            mHttpResponseMatched = PR_FALSE;
             mResponseHead->Reset();
             // wait to be called again...
             return NS_OK;
@@ -1012,11 +1006,11 @@ nsHttpTransaction::HandleContentStart()
         // check if this is a no-content response
         switch (mResponseHead->Status()) {
         case 101:
-            mPreserveStream = true;    // fall through to other no content
+            mPreserveStream = PR_TRUE;    // fall through to other no content
         case 204:
         case 205:
         case 304:
-            mNoContent = true;
+            mNoContent = PR_TRUE;
             LOG(("this response should not contain a body.\n"));
             break;
         }
@@ -1050,7 +1044,7 @@ nsHttpTransaction::HandleContentStart()
         }
     }
 
-    mDidContentStart = true;
+    mDidContentStart = PR_TRUE;
     return NS_OK;
 }
 
@@ -1126,8 +1120,8 @@ nsHttpTransaction::HandleContent(char *buf,
     if ((mContentRead == mContentLength) ||
         (mChunkedDecoder && mChunkedDecoder->ReachedEOF())) {
         // the transaction is done with a complete response.
-        mTransactionDone = true;
-        mResponseIsComplete = true;
+        mTransactionDone = PR_TRUE;
+        mResponseIsComplete = PR_TRUE;
 
         if (TimingEnabled())
             mTimings.responseEnd = mozilla::TimeStamp::Now();
@@ -1179,7 +1173,7 @@ nsHttpTransaction::ProcessData(char *buf, PRUint32 count, PRUint32 *countRead)
         // report the completed response header
         if (mActivityDistributor && mResponseHead && mHaveAllHeaders) {
             nsCAutoString completeResponseHeaders;
-            mResponseHead->Flatten(completeResponseHeaders, false);
+            mResponseHead->Flatten(completeResponseHeaders, PR_FALSE);
             completeResponseHeaders.AppendLiteral("\r\n");
             mActivityDistributor->ObserveActivity(
                 mChannel,
@@ -1293,7 +1287,7 @@ NS_IMETHODIMP
 nsHttpTransaction::OnInputStreamReady(nsIAsyncInputStream *out)
 {
     if (mConnection) {
-        nsresult rv = mConnection->ResumeSend(this);
+        nsresult rv = mConnection->ResumeSend();
         if (NS_FAILED(rv))
             NS_ERROR("ResumeSend failed");
     }
@@ -1309,7 +1303,7 @@ NS_IMETHODIMP
 nsHttpTransaction::OnOutputStreamReady(nsIAsyncOutputStream *out)
 {
     if (mConnection) {
-        nsresult rv = mConnection->ResumeRecv(this);
+        nsresult rv = mConnection->ResumeRecv();
         if (NS_FAILED(rv))
             NS_ERROR("ResumeRecv failed");
     }

@@ -56,7 +56,7 @@ else
    ifeq (,$(filter-out gtk2 qt, $(MOZ_WIDGET_TOOLKIT)))
       MOZ_PKG_FORMAT  = BZ2
    else
-      ifeq (android,$(MOZ_WIDGET_TOOLKIT))
+      ifeq (Android,$(OS_TARGET))
           MOZ_PKG_FORMAT = APK
       else
           MOZ_PKG_FORMAT = TGZ
@@ -103,9 +103,6 @@ JSSHELL_BINS += $(DIST)/bin/msvcr90.dll
 endif
 ifeq ($(_MSC_VER),1600)
 JSSHELL_BINS += $(DIST)/bin/msvcr100.dll
-endif
-ifeq ($(_MSC_VER),1700)
-JSSHELL_BINS += $(DIST)/bin/msvcr110.dll
 endif
 else
 JSSHELL_BINS += \
@@ -270,7 +267,7 @@ DIST_FILES = \
   components \
   defaults \
   modules \
-  hyphenation \
+  hyphenation/hyph_en_US.dic \
   res \
   lib \
   lib.id \
@@ -319,18 +316,13 @@ ABI_DIR = armeabi
 endif
 endif
 
-ifeq ($(MOZ_BUILD_APP),mobile/xul)
-GECKO_APP_AP_PATH = ../embedding/android
-else
-GECKO_APP_AP_PATH = ../mobile/android/base
-endif
-
 PKG_SUFFIX      = .apk
 INNER_MAKE_PACKAGE	= \
-  make -C $(GECKO_APP_AP_PATH) gecko.ap_ && \
-  cp $(GECKO_APP_AP_PATH)/gecko.ap_ $(_ABS_DIST) && \
+  make -C ../embedding/android gecko.ap_ && \
+  cp ../embedding/android/gecko.ap_ $(_ABS_DIST) && \
   ( cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && \
     mkdir -p lib/$(ABI_DIR) && \
+    cp lib*.so lib && \
     mv libmozutils.so $(MOZ_CHILD_PROCESS_NAME) lib/$(ABI_DIR) && \
     rm -f lib.id && \
     for SOMELIB in *.so ; \
@@ -448,11 +440,11 @@ PRECOMPILE_GRE=$$PWD
 endif
 
 GENERATE_CACHE = \
-  $(_ABS_RUN_TEST_PROGRAM) $(LIBXUL_DIST)/bin/xpcshell$(BIN_SUFFIX) -g "$(PRECOMPILE_GRE)" -a "$$PWD" -f $(call core_abspath,$(MOZILLA_DIR)/toolkit/mozapps/installer/precompile_cache.js) -e "populate_startupcache('$(PRECOMPILE_DIR)', '$(OMNIJAR_NAME)', 'startupCache.zip');" && \
+  $(_ABS_RUN_TEST_PROGRAM) $(LIBXUL_DIST)/bin/xpcshell$(BIN_SUFFIX) -g "$(PRECOMPILE_GRE)" -a "$$PWD" -f $(call core_abspath,$(MOZILLA_DIR)/toolkit/mozapps/installer/precompile_cache.js) -e "populate_startupcache('$(PRECOMPILE_DIR)', 'omni.jar', 'startupCache.zip');" && \
   rm -rf jsloader && \
   $(UNZIP) startupCache.zip && \
   rm startupCache.zip && \
-  $(ZIP) -r9m $(OMNIJAR_NAME) jsloader/resource/$(PRECOMPILE_RESOURCE)
+  $(ZIP) -r9m omni.jar jsloader/resource/$(PRECOMPILE_RESOURCE)
 else
 GENERATE_CACHE = true
 endif
@@ -471,8 +463,6 @@ OMNIJAR_FILES	= \
   defaults \
   greprefs.js \
   jsloader \
-  hyphenation \
-  update.locale \
   $(NULL)
 
 NON_OMNIJAR_FILES += \
@@ -483,20 +473,20 @@ NON_OMNIJAR_FILES += \
   $(NULL)
 
 PACK_OMNIJAR	= \
-  rm -f $(OMNIJAR_NAME) components/binary.manifest && \
+  rm -f omni.jar components/binary.manifest && \
   grep -h '^binary-component' components/*.manifest > binary.manifest ; \
   for m in components/*.manifest; do \
     sed -e 's/^binary-component/\#binary-component/' $$m > tmp.manifest && \
     mv tmp.manifest $$m; \
   done; \
-  $(ZIP) -r9m $(OMNIJAR_NAME) $(OMNIJAR_FILES) -x $(NON_OMNIJAR_FILES) && \
+  $(ZIP) -r9m omni.jar $(OMNIJAR_FILES) -x $(NON_OMNIJAR_FILES) && \
   $(GENERATE_CACHE) && \
   $(OPTIMIZE_JARS_CMD) --optimize $(JARLOG_DIR_AB_CD) ./ ./ && \
   mv binary.manifest components && \
   printf "manifest components/binary.manifest\n" > chrome.manifest
 UNPACK_OMNIJAR	= \
   $(OPTIMIZE_JARS_CMD) --deoptimize $(JARLOG_DIR_AB_CD) ./ ./ && \
-  $(UNZIP) -o $(OMNIJAR_NAME) && \
+  $(UNZIP) -o omni.jar && \
   rm -f components/binary.manifest && \
   for m in components/*.manifest; do \
     sed -e 's/^\#binary-component/binary-component/' $$m > tmp.manifest && \
@@ -631,7 +621,7 @@ PKG_ARG = , "$(pkg)"
 
 # Define packager macro to work around make 3.81 backslash issue (bug #339933)
 define PACKAGER_COPY
-$(PERL) -I$(MOZILLA_DIR)/toolkit/mozapps/installer -e 'use Packager; \
+$(PERL) -I$(MOZILLA_DIR)/xpinstall/packager -e 'use Packager; \
        Packager::Copy($1,$2,$3,$4,$5,$6,$7);'
 endef
 
@@ -668,7 +658,7 @@ ifdef USE_ELF_HACK
 	@echo === and your environment \(compiler and linker versions\), and use
 	@echo === --disable-elf-hack until this is fixed.
 	@echo ===
-	cd $(DIST)/bin; find . -name "*$(DLL_SUFFIX)" | xargs ../../build/unix/elfhack/elfhack
+	cd $(DIST)/bin; find . -name "*$(DLL_SUFFIX)" | xargs $(DEPTH)/build/unix/elfhack/elfhack
 endif
 
 stage-package: $(MOZ_PKG_MANIFEST) $(MOZ_PKG_REMOVALS_GEN) elfhack
@@ -685,7 +675,7 @@ ifdef MOZ_PKG_MANIFEST
 	$(call PACKAGER_COPY, "$(call core_abspath,$(DIST))",\
 	  "$(call core_abspath,$(DIST)/$(MOZ_PKG_DIR))", \
 	  "$(MOZ_PKG_MANIFEST)", "$(PKGCP_OS)", 1, 0, 1)
-	$(PERL) $(MOZILLA_DIR)/toolkit/mozapps/installer/xptlink.pl -s $(DIST) -d $(DIST)/xpt -f $(DIST)/$(MOZ_PKG_DIR)/$(_BINPATH)/components -v -x "$(XPIDL_LINK)"
+	$(PERL) $(MOZILLA_DIR)/xpinstall/packager/xptlink.pl -s $(DIST) -d $(DIST)/xpt -f $(DIST)/$(MOZ_PKG_DIR)/$(_BINPATH)/components -v -x "$(XPIDL_LINK)"
 	$(PYTHON) $(MOZILLA_DIR)/toolkit/mozapps/installer/link-manifests.py \
 	  $(DIST)/$(MOZ_PKG_DIR)/$(_BINPATH)/components/components.manifest \
 	  $(patsubst %,$(DIST)/manifests/%/components,$(MOZ_NONLOCALIZED_PKG_LIST))

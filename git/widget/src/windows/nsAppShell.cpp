@@ -46,7 +46,6 @@
 #include "nsString.h"
 #include "nsIMM32Handler.h"
 #include "mozilla/widget/AudioSession.h"
-#include "mozilla/HangMonitor.h"
 
 // For skidmark code
 #include <windows.h> 
@@ -147,6 +146,10 @@ nsAppShell::Init()
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
   sTaskbarButtonCreatedMsg = ::RegisterWindowMessageW(kTaskbarButtonEventId);
   NS_ASSERTION(sTaskbarButtonCreatedMsg, "Could not register taskbar button creation message");
+
+  // Global app registration id for Win7 and up. See
+  // WinTaskbar.cpp for details.
+  mozilla::widget::WinTaskbar::RegisterAppUserModelID();
 #endif
 
   WNDCLASSW wc;
@@ -339,13 +342,11 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         ::PostQuitMessage(msg.wParam);
         Exit();
       } else {
-        mozilla::HangMonitor::NotifyActivity();
         ::TranslateMessage(&msg);
         ::DispatchMessageW(&msg);
       }
     } else if (mayWait) {
       // Block and wait for any posted application message
-      mozilla::HangMonitor::Suspend();
       ::WaitMessage();
     }
   } while (!gotMessage && mayWait);

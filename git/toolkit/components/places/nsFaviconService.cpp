@@ -51,10 +51,14 @@
 
 #include "nsFaviconService.h"
 
-#include "nsNavHistory.h"
+#include "nsPlacesTables.h"
 #include "nsPlacesMacros.h"
 #include "Helpers.h"
 #include "AsyncFaviconHelpers.h"
+
+#include "nsNavBookmarks.h"
+#include "nsNavHistory.h"
+#include "nsIPrefService.h"
 
 #include "nsNetUtil.h"
 #include "nsReadableUtils.h"
@@ -62,8 +66,6 @@
 #include "nsStringStream.h"
 #include "plbase64.h"
 #include "nsIClassInfoImpl.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/Util.h"
 
 // For large favicons optimization.
 #include "imgITools.h"
@@ -87,7 +89,6 @@
 // OptimizeFaviconImage.
 #define DEFAULT_MIME_TYPE "image/png"
 
-using namespace mozilla;
 using namespace mozilla::places;
 
 /**
@@ -115,9 +116,11 @@ NS_IMPL_ISUPPORTS2_CI(
 )
 
 nsFaviconService::nsFaviconService()
-  : mFaviconsExpirationRunning(false)
-  , mOptimizedIconDimension(OPTIMIZED_FAVICON_DIMENSION)
-  , mFailedFaviconSerial(0)
+: mSyncStatements(mDBConn)
+, mFaviconsExpirationRunning(false)
+, mOptimizedIconDimension(OPTIMIZED_FAVICON_DIMENSION)
+, mFailedFaviconSerial(0)
+, mShuttingDown(false)
 {
   NS_ASSERTION(!gFaviconService,
                "Attempting to create two instances of the service!");
@@ -137,47 +140,108 @@ nsFaviconService::~nsFaviconService()
 nsresult
 nsFaviconService::Init()
 {
-  mDB = Database::GetDatabase();
-  NS_ENSURE_STATE(mDB);
+  // Creation of history service will call InitTables.
+  nsNavHistory* historyService = nsNavHistory::GetHistoryService();
+  NS_ENSURE_TRUE(historyService, NS_ERROR_OUT_OF_MEMORY);
+  mDBConn = historyService->GetStorageConnection();
+  NS_ENSURE_TRUE(mDBConn, NS_ERROR_FAILURE);
 
   // Init failed favicon cache.
   if (!mFailedFavicons.Init(MAX_FAVICON_CACHE_SIZE))
     return NS_ERROR_OUT_OF_MEMORY;
 
-  mOptimizedIconDimension = Preferences::GetInt(
-    "places.favicons.optimizeToDimension", OPTIMIZED_FAVICON_DIMENSION
-  );
+  nsCOMPtr<nsIPrefBranch> pb = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (pb) {
+    (void)pb->GetIntPref("places.favicons.optimizeToDimension",
+                         &mOptimizedIconDimension);
+  }
 
   return NS_OK;
 }
+
+
+mozIStorageStatement*
+nsFaviconService::GetStatement(const nsCOMPtr<mozIStorageStatement>& aStmt)
+{
+  if (mShuttingDown)
+    return nsnull;
+
+  RETURN_IF_STMT(mDBGetIconInfo, NS_LITERAL_CSTRING(
+    "SELECT id, length(data), expiration FROM moz_favicons "
+    "WHERE url = :icon_url"));
+
+  RETURN_IF_STMT(mDBGetURL, NS_LITERAL_CSTRING(
+    "SELECT f.id, f.url, length(f.data), f.expiration "
+    "FROM moz_places h "
+    "JOIN moz_favicons f ON h.favicon_id = f.id "
+    "WHERE h.url = :page_url "
+    "LIMIT 1"));
+
+  RETURN_IF_STMT(mDBGetData, NS_LITERAL_CSTRING(
+    "SELECT f.data, f.mime_type FROM moz_favicons f WHERE url = :icon_url"));
+
+  RETURN_IF_STMT(mDBInsertIcon, NS_LITERAL_CSTRING(
+    "INSERT INTO moz_favicons (id, url, data, mime_type, expiration) "
+      "VALUES (:icon_id, :icon_url, :data, :mime_type, :expiration)"));
+
+  RETURN_IF_STMT(mDBUpdateIcon, NS_LITERAL_CSTRING(
+    "UPDATE moz_favicons SET data = :data, mime_type = :mime_type, "
+                            "expiration = :expiration "
+    "WHERE id = :icon_id"));
+
+  RETURN_IF_STMT(mDBSetPageFavicon, NS_LITERAL_CSTRING(
+    "UPDATE moz_places SET favicon_id = :icon_id WHERE id = :page_id"));
+
+  RETURN_IF_STMT(mDBRemoveOnDiskReferences, NS_LITERAL_CSTRING(
+    "UPDATE moz_places "
+    "SET favicon_id = NULL "
+    "WHERE favicon_id NOT NULL"));
+
+  RETURN_IF_STMT(mDBRemoveAllFavicons, NS_LITERAL_CSTRING(
+    "DELETE FROM moz_favicons WHERE id NOT IN ("
+      "SELECT favicon_id FROM moz_places WHERE favicon_id NOT NULL "
+    ")"));
+
+  return nsnull;
+}
+
+
+// nsFaviconService::InitTables
+//
+//    Called by the history service to create the favicon table. The history
+//    service uses this table in its queries, so it must exist even if
+//    nobody has called the favicon service.
+
+nsresult // static
+nsFaviconService::InitTables(mozIStorageConnection* aDBConn)
+{
+  nsresult rv;
+  bool exists = false;
+  aDBConn->TableExists(NS_LITERAL_CSTRING("moz_favicons"), &exists);
+  if (!exists) {
+    rv = aDBConn->ExecuteSimpleSQL(CREATE_MOZ_FAVICONS);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  return NS_OK;
+}
+
 
 NS_IMETHODIMP
 nsFaviconService::ExpireAllFavicons()
 {
   mFaviconsExpirationRunning = true;
-  nsCOMPtr<mozIStorageAsyncStatement> unlinkIconsStmt = mDB->GetAsyncStatement(
-    "UPDATE moz_places "
-    "SET favicon_id = NULL "
-    "WHERE favicon_id NOT NULL"
-  );
-  NS_ENSURE_STATE(unlinkIconsStmt);
-  nsCOMPtr<mozIStorageAsyncStatement> removeIconsStmt = mDB->GetAsyncStatement(
-    "DELETE FROM moz_favicons WHERE id NOT IN ("
-      "SELECT favicon_id FROM moz_places WHERE favicon_id NOT NULL "
-    ")"
-  );
-  NS_ENSURE_STATE(removeIconsStmt);
-  
-  mozIStorageBaseStatement* stmts[] = {
-    unlinkIconsStmt.get()
-  , removeIconsStmt.get()
+
+  mozIStorageBaseStatement *stmts[] = {
+    GetStatement(mDBRemoveOnDiskReferences),
+    GetStatement(mDBRemoveAllFavicons),
   };
+  NS_ENSURE_STATE(stmts[0] && stmts[1]);
   nsCOMPtr<mozIStoragePendingStatement> ps;
-  nsRefPtr<ExpireFaviconsStatementCallbackNotifier> callback =
+  nsCOMPtr<ExpireFaviconsStatementCallbackNotifier> callback =
     new ExpireFaviconsStatementCallbackNotifier(&mFaviconsExpirationRunning);
-  nsresult rv = mDB->MainConn()->ExecuteAsync(
-    stmts, ArrayLength(stmts), callback, getter_AddRefs(ps)
-  );
+  nsresult rv = mDBConn->ExecuteAsync(stmts, NS_ARRAY_LENGTH(stmts), callback,
+                                      getter_AddRefs(ps));
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -209,13 +273,7 @@ nsFaviconService::SetFaviconUrlForPage(nsIURI* aPageURI, nsIURI* aFaviconURI)
   PRInt64 iconId = -1;
   bool hasData = false;
   {
-    nsCOMPtr<mozIStorageStatement> stmt = mDB->GetStatement(
-      "SELECT id, length(data), expiration FROM moz_favicons "
-      "WHERE url = :icon_url"
-    );
-    NS_ENSURE_STATE(stmt);
-    mozStorageStatementScoper scoper(stmt);
-
+    DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(stmt, mDBGetIconInfo);
     rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("icon_url"), aFaviconURI);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -228,25 +286,16 @@ nsFaviconService::SetFaviconUrlForPage(nsIURI* aPageURI, nsIURI* aFaviconURI)
       rv = stmt->GetInt32(1, &dataSize);
       NS_ENSURE_SUCCESS(rv, rv);
       if (dataSize > 0) {
-        hasData = true;
+        hasData = PR_TRUE;
       }
     }
   }
 
-  mozStorageTransaction transaction(mDB->MainConn(), false);
+  mozStorageTransaction transaction(mDBConn, PR_FALSE);
 
   if (iconId == -1) {
     // We did not find any entry for this icon, so create a new one.
-    nsCOMPtr<mozIStorageStatement> stmt = mDB->GetStatement(
-      "INSERT INTO moz_favicons (id, url, data, mime_type, expiration, guid) "
-      "VALUES (:icon_id, :icon_url, :data, :mime_type, :expiration, "
-              "COALESCE(:guid, GENERATE_GUID()))"
-    );
-    NS_ENSURE_STATE(stmt);
-    mozStorageStatementScoper scoper(stmt);
-
-    rv = stmt->BindNullByName(NS_LITERAL_CSTRING("guid"));
-    NS_ENSURE_SUCCESS(rv, rv);
+    DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(stmt, mDBInsertIcon);
     rv = stmt->BindNullByName(NS_LITERAL_CSTRING("icon_id"));
     NS_ENSURE_SUCCESS(rv, rv);
     rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("icon_url"), aFaviconURI);
@@ -261,13 +310,7 @@ nsFaviconService::SetFaviconUrlForPage(nsIURI* aPageURI, nsIURI* aFaviconURI)
     NS_ENSURE_SUCCESS(rv, rv);
 
     {
-      nsCOMPtr<mozIStorageStatement> getInfoStmt = mDB->GetStatement(
-        "SELECT id, length(data), expiration FROM moz_favicons "
-        "WHERE url = :icon_url"
-      );
-      NS_ENSURE_STATE(getInfoStmt);
-      mozStorageStatementScoper scoper(getInfoStmt);
-
+      DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(getInfoStmt, mDBGetIconInfo);
       rv = URIBinder::Bind(getInfoStmt, NS_LITERAL_CSTRING("icon_url"), aFaviconURI);
       NS_ENSURE_SUCCESS(rv, rv);
       bool hasResult;
@@ -284,12 +327,7 @@ nsFaviconService::SetFaviconUrlForPage(nsIURI* aPageURI, nsIURI* aFaviconURI)
   rv = history->GetOrCreateIdForPage(aPageURI, &pageId, guid);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<mozIStorageStatement> stmt = mDB->GetStatement(
-    "UPDATE moz_places SET favicon_id = :icon_id WHERE id = :page_id"
-  );
-  NS_ENSURE_STATE(stmt);
-  mozStorageStatementScoper scoper(stmt);
-
+  DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(stmt, mDBSetPageFavicon);
   rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("page_id"), pageId);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("icon_id"), iconId);
@@ -366,7 +404,7 @@ nsFaviconService::SetAndLoadFaviconForPage(nsIURI* aPageURI,
   // Finally associate the icon to the requested page if not yet associated.
   rv = AsyncFetchAndSetIconForPage::start(
     aFaviconURI, aPageURI, aForceReload ? FETCH_ALWAYS : FETCH_IF_MISSING,
-    aCallback
+    mDBConn, aCallback
   );
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -422,17 +460,11 @@ nsFaviconService::SetFaviconData(nsIURI* aFaviconURI, const PRUint8* aData,
     }
   }
 
-  nsCOMPtr<mozIStorageStatement> statement;
+  mozIStorageStatement* statement;
   {
     // this block forces the scoper to reset our statement: necessary for the
     // next statement
-    nsCOMPtr<mozIStorageStatement> stmt = mDB->GetStatement(
-      "SELECT id, length(data), expiration FROM moz_favicons "
-      "WHERE url = :icon_url"
-    );
-    NS_ENSURE_STATE(stmt);
-    mozStorageStatementScoper scoper(stmt);
-
+    DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(stmt, mDBGetIconInfo);
     rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("icon_url"), aFaviconURI);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -445,18 +477,8 @@ nsFaviconService::SetFaviconData(nsIURI* aFaviconURI, const PRUint8* aData,
       PRInt64 id;
       rv = stmt->GetInt64(0, &id);
       NS_ENSURE_SUCCESS(rv, rv);
-      statement = mDB->GetStatement(
-        "UPDATE moz_favicons SET "
-               "guid       = COALESCE(:guid, guid), "
-               "data       = :data, "
-               "mime_type  = :mime_type, "
-               "expiration = :expiration "
-        "WHERE id = :icon_id"
-      );
+      statement = GetStatement(mDBUpdateIcon);
       NS_ENSURE_STATE(statement);
-
-      rv = statement->BindNullByName(NS_LITERAL_CSTRING("guid"));
-      NS_ENSURE_SUCCESS(rv, rv);
       rv = statement->BindInt64ByName(NS_LITERAL_CSTRING("icon_id"), id);
       NS_ENSURE_SUCCESS(rv, rv);
       rv = statement->BindBlobByName(NS_LITERAL_CSTRING("data"), data, dataLen);
@@ -468,12 +490,8 @@ nsFaviconService::SetFaviconData(nsIURI* aFaviconURI, const PRUint8* aData,
     }
     else {
       // Insert a new entry.
-      statement = mDB->GetStatement(
-       "INSERT INTO moz_favicons (id, url, data, mime_type, expiration, guid) "
-       "VALUES (:icon_id, :icon_url, :data, :mime_type, :expiration, "
-               "COALESCE(:guid, GENERATE_GUID()))");
+      statement = GetStatement(mDBInsertIcon);
       NS_ENSURE_STATE(statement);
-
       rv = statement->BindNullByName(NS_LITERAL_CSTRING("icon_id"));
       NS_ENSURE_SUCCESS(rv, rv);
       rv = URIBinder::Bind(statement, NS_LITERAL_CSTRING("icon_url"), aFaviconURI);
@@ -484,11 +502,10 @@ nsFaviconService::SetFaviconData(nsIURI* aFaviconURI, const PRUint8* aData,
       NS_ENSURE_SUCCESS(rv, rv);
       rv = statement->BindInt64ByName(NS_LITERAL_CSTRING("expiration"), aExpiration);
       NS_ENSURE_SUCCESS(rv, rv);
-      rv = statement->BindNullByName(NS_LITERAL_CSTRING("guid"));
-      NS_ENSURE_SUCCESS(rv, rv);
     }
   }
-  mozStorageStatementScoper statementScoper(statement);
+
+  mozStorageStatementScoper scoper(statement);
 
   rv = statement->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -590,12 +607,7 @@ nsFaviconService::GetFaviconData(nsIURI* aFaviconURI, nsACString& aMimeType,
     return NS_OK;
   }
 
-  nsCOMPtr<mozIStorageStatement> stmt = mDB->GetStatement(
-    "SELECT f.data, f.mime_type FROM moz_favicons f WHERE url = :icon_url"
-  );
-  NS_ENSURE_STATE(stmt);
-  mozStorageStatementScoper scoper(stmt);
-
+  DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(stmt, mDBGetData);
   rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("icon_url"), aFaviconURI);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -651,7 +663,7 @@ nsFaviconService::GetFaviconDataAsDataURL(nsIURI* aFaviconURI,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!data) {
-    aDataURL.SetIsVoid(true);
+    aDataURL.SetIsVoid(PR_TRUE);
     return NS_OK;
   }
 
@@ -678,16 +690,7 @@ nsFaviconService::GetFaviconForPage(nsIURI* aPageURI, nsIURI** _retval)
   NS_ENSURE_ARG(aPageURI);
   NS_ENSURE_ARG_POINTER(_retval);
 
-  nsCOMPtr<mozIStorageStatement> stmt = mDB->GetStatement(
-    "SELECT f.id, f.url, length(f.data), f.expiration "
-    "FROM moz_places h "
-    "JOIN moz_favicons f ON h.favicon_id = f.id "
-    "WHERE h.url = :page_url "
-    "LIMIT 1"
-  );
-  NS_ENSURE_STATE(stmt);
-  mozStorageStatementScoper scoper(stmt);
-
+  DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(stmt, mDBGetURL);
   nsresult rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("page_url"), aPageURI);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -710,7 +713,7 @@ nsFaviconService::GetFaviconURLForPage(nsIURI *aPageURI,
   NS_ENSURE_ARG(aPageURI);
   NS_ENSURE_ARG(aCallback);
 
-  nsresult rv = AsyncGetFaviconURLForPage::start(aPageURI, aCallback);
+  nsresult rv = AsyncGetFaviconURLForPage::start(aPageURI, mDBConn, aCallback);
   NS_ENSURE_SUCCESS(rv, rv);
   return NS_OK;
 }
@@ -722,7 +725,7 @@ nsFaviconService::GetFaviconDataForPage(nsIURI* aPageURI,
   NS_ENSURE_ARG(aPageURI);
   NS_ENSURE_ARG(aCallback);
 
-  nsresult rv = AsyncGetFaviconDataForPage::start(aPageURI, aCallback);
+  nsresult rv = AsyncGetFaviconDataForPage::start(aPageURI, mDBConn, aCallback);
   NS_ENSURE_SUCCESS(rv, rv);
   return NS_OK;
 }
@@ -733,16 +736,7 @@ nsFaviconService::GetFaviconImageForPage(nsIURI* aPageURI, nsIURI** _retval)
   NS_ENSURE_ARG(aPageURI);
   NS_ENSURE_ARG_POINTER(_retval);
 
-  nsCOMPtr<mozIStorageStatement> stmt = mDB->GetStatement(
-    "SELECT f.id, f.url, length(f.data), f.expiration "
-    "FROM moz_places h "
-    "JOIN moz_favicons f ON h.favicon_id = f.id "
-    "WHERE h.url = :page_url "
-    "LIMIT 1"
-  );
-  NS_ENSURE_STATE(stmt);
-  mozStorageStatementScoper scoper(stmt);
-
+  DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(stmt, mDBGetURL);
   nsresult rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("page_url"), aPageURI);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -941,16 +935,46 @@ nsFaviconService::OptimizeFaviconImage(const PRUint8* aData, PRUint32 aDataLen,
   return NS_OK;
 }
 
+
+nsresult
+nsFaviconService::FinalizeStatements() {
+  mShuttingDown = true;
+
+  mozIStorageStatement* stmts[] = {
+    mDBGetURL,
+    mDBGetData,
+    mDBGetIconInfo,
+    mDBInsertIcon,
+    mDBUpdateIcon,
+    mDBSetPageFavicon,
+    mDBRemoveOnDiskReferences,
+    mDBRemoveAllFavicons,
+  };
+
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(stmts); i++) {
+    nsresult rv = nsNavHistory::FinalizeStatement(stmts[i]);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  // Finalize the statementCache on the correct thread.
+  nsRefPtr<FinalizeStatementCacheProxy<mozIStorageStatement> > event =
+    new FinalizeStatementCacheProxy<mozIStorageStatement>(
+        mSyncStatements, NS_ISUPPORTS_CAST(nsIFaviconService*, this));
+  nsCOMPtr<nsIEventTarget> target = do_GetInterface(mDBConn);
+  NS_ENSURE_TRUE(target, NS_ERROR_OUT_OF_MEMORY);
+  nsresult rv = target->Dispatch(event, NS_DISPATCH_NORMAL);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
+}
+
+
 nsresult
 nsFaviconService::GetFaviconDataAsync(nsIURI* aFaviconURI,
                                       mozIStorageStatementCallback *aCallback)
 {
   NS_ASSERTION(aCallback, "Doesn't make sense to call this without a callback");
-  nsCOMPtr<mozIStorageAsyncStatement> stmt = mDB->GetAsyncStatement(
-    "SELECT f.data, f.mime_type FROM moz_favicons f WHERE url = :icon_url"
-  );
-  NS_ENSURE_STATE(stmt);
-
+  DECLARE_AND_ASSIGN_LAZY_STMT(stmt, mDBGetData);
   nsresult rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("icon_url"), aFaviconURI);
   NS_ENSURE_SUCCESS(rv, rv);
 

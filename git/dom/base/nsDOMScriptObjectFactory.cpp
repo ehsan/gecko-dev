@@ -72,12 +72,12 @@ static NS_DEFINE_CID(kDOMScriptObjectFactoryCID, NS_DOM_SCRIPT_OBJECT_FACTORY_CI
 nsIExceptionProvider* gExceptionProvider = nsnull;
 
 nsDOMScriptObjectFactory::nsDOMScriptObjectFactory() :
-  mLoadedAllLanguages(false)
+  mLoadedAllLanguages(PR_FALSE)
 {
   nsCOMPtr<nsIObserverService> observerService =
     mozilla::services::GetObserverService();
   if (observerService) {
-    observerService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
+    observerService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
   }
 
   nsCOMPtr<nsIExceptionProvider> provider(new nsDOMExceptionProvider());

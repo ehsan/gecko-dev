@@ -244,7 +244,7 @@ gfxContext::Rectangle(const gfxRect& rect, bool snapToPixels)
     if (snapToPixels) {
         gfxRect snappedRect(rect);
 
-        if (UserToDevicePixelSnapped(snappedRect, true))
+        if (UserToDevicePixelSnapped(snappedRect, PR_TRUE))
         {
             cairo_matrix_t mat;
             cairo_get_matrix(mCairo, &mat);
@@ -289,7 +289,7 @@ gfxContext::DrawSurface(gfxASurface *surface, const gfxSize& size)
     cairo_new_path(mCairo);
 
     // pixel-snap this
-    Rectangle(gfxRect(gfxPoint(0.0, 0.0), size), true);
+    Rectangle(gfxRect(gfxPoint(0.0, 0.0), size), PR_TRUE);
 
     cairo_fill(mCairo);
     cairo_restore(mCairo);
@@ -420,7 +420,7 @@ bool
 gfxContext::UserToDevicePixelSnapped(gfxRect& rect, bool ignoreScale) const
 {
     if (GetFlags() & FLAG_DISABLE_SNAPPING)
-        return false;
+        return PR_FALSE;
 
     // if we're not at 1.0 scale, don't snap, unless we're
     // ignoring the scale.  If we're not -just- a scale,
@@ -432,7 +432,7 @@ gfxContext::UserToDevicePixelSnapped(gfxRect& rect, bool ignoreScale) const
     if (!ignoreScale &&
         (!WITHIN_E(mat.xx,1.0) || !WITHIN_E(mat.yy,1.0) ||
          !WITHIN_E(mat.xy,0.0) || !WITHIN_E(mat.yx,0.0)))
-        return false;
+        return PR_FALSE;
 #undef WITHIN_E
 
     gfxPoint p1 = UserToDevice(rect.TopLeft());
@@ -452,17 +452,17 @@ gfxContext::UserToDevicePixelSnapped(gfxRect& rect, bool ignoreScale) const
         rect.MoveTo(gfxPoint(NS_MIN(p1.x, p3.x), NS_MIN(p1.y, p3.y)));
         rect.SizeTo(gfxSize(NS_MAX(p1.x, p3.x) - rect.X(),
                             NS_MAX(p1.y, p3.y) - rect.Y()));
-        return true;
+        return PR_TRUE;
     }
 
-    return false;
+    return PR_FALSE;
 }
 
 bool
 gfxContext::UserToDevicePixelSnapped(gfxPoint& pt, bool ignoreScale) const
 {
     if (GetFlags() & FLAG_DISABLE_SNAPPING)
-        return false;
+        return PR_FALSE;
 
     // if we're not at 1.0 scale, don't snap, unless we're
     // ignoring the scale.  If we're not -just- a scale,
@@ -471,11 +471,11 @@ gfxContext::UserToDevicePixelSnapped(gfxPoint& pt, bool ignoreScale) const
     cairo_get_matrix(mCairo, &mat);
     if ((!ignoreScale && (mat.xx != 1.0 || mat.yy != 1.0)) ||
         (mat.xy != 0.0 || mat.yx != 0.0))
-        return false;
+        return PR_FALSE;
 
     pt = UserToDevice(pt);
     pt.Round();
-    return true;
+    return PR_TRUE;
 }
 
 void
@@ -709,7 +709,7 @@ gfxContext::ClipContainsRect(const gfxRect& aRect)
             gfxRect rect(clip->rectangles[i].x, clip->rectangles[i].y,
                          clip->rectangles[i].width, clip->rectangles[i].height);
             if (rect.Contains(aRect)) {
-                result = true;
+                result = PR_TRUE;
                 break;
             }
         }
@@ -1067,38 +1067,3 @@ gfxContext::RoundedRectangle(const gfxRect& rect,
 
     cairo_close_path (mCairo);
 }
-
-#ifdef MOZ_DUMP_PAINTING
-void
-gfxContext::WriteAsPNG(const char* aFile)
-{ 
-  nsRefPtr<gfxASurface> surf = CurrentSurface();
-  if (surf) {
-    surf->WriteAsPNG(aFile);
-  } else {
-    NS_WARNING("No surface found!");
-  }
-}
-
-void 
-gfxContext::DumpAsDataURL()
-{ 
-  nsRefPtr<gfxASurface> surf = CurrentSurface();
-  if (surf) {
-    surf->DumpAsDataURL();
-  } else {
-    NS_WARNING("No surface found!");
-  }
-}
-
-void 
-gfxContext::CopyAsDataURL()
-{ 
-  nsRefPtr<gfxASurface> surf = CurrentSurface();
-  if (surf) {
-    surf->CopyAsDataURL();
-  } else {
-    NS_WARNING("No surface found!");
-  }
-}
-#endif

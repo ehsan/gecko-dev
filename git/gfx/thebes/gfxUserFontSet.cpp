@@ -76,7 +76,7 @@ gfxProxyFontEntry::gfxProxyFontEntry(const nsTArray<gfxFontFaceSrc>& aFontFaceSr
     : gfxFontEntry(NS_LITERAL_STRING("Proxy"), aFamily),
       mLoadingState(NOT_LOADING)
 {
-    mIsProxy = true;
+    mIsProxy = PR_TRUE;
     mSrcList = aFontFaceSrcList;
     mSrcIndex = 0;
     mWeight = aWeight;
@@ -84,7 +84,7 @@ gfxProxyFontEntry::gfxProxyFontEntry(const nsTArray<gfxFontFaceSrc>& aFontFaceSr
     mItalic = (aItalicStyle & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE)) != 0;
     mFeatureSettings.AppendElements(aFeatureSettings);
     mLanguageOverride = aLanguageOverride;
-    mIsUserFont = true;
+    mIsUserFont = PR_TRUE;
 }
 
 gfxProxyFontEntry::~gfxProxyFontEntry()
@@ -187,16 +187,16 @@ gfxUserFontSet::FindFontEntry(const nsAString& aName,
                               bool& aNeedsBold,
                               bool& aWaitForUserFont)
 {
-    aWaitForUserFont = false;
+    aWaitForUserFont = PR_FALSE;
     gfxMixedFontFamily *family = GetFamily(aName);
 
     // no user font defined for this name
     if (!family) {
-        aFoundFamily = false;
+        aFoundFamily = PR_FALSE;
         return nsnull;
     }
 
-    aFoundFamily = true;
+    aFoundFamily = PR_TRUE;
     gfxFontEntry* fe = family->FindFontForStyle(aFontStyle, aNeedsBold);
 
     // if not a proxy, font has already been loaded
@@ -556,7 +556,7 @@ gfxUserFontSet::OnLoadComplete(gfxProxyFontEntry *aProxy,
 #endif
             ReplaceFontEntry(aProxy, fe);
             IncrementGeneration();
-            return true;
+            return PR_TRUE;
         } else {
 #ifdef PR_LOGGING
             if (LOG_ENABLED()) {
@@ -579,14 +579,15 @@ gfxUserFontSet::OnLoadComplete(gfxProxyFontEntry *aProxy,
     }
 
     // error occurred, load next src
-    (void)LoadNext(aProxy);
+    LoadStatus status;
 
-    // We ignore the status returned by LoadNext();
-    // even if loading failed, we need to bump the font-set generation
+    status = LoadNext(aProxy);
+
+    // Even if loading failed, we need to bump the font-set generation
     // and return true in order to trigger reflow, so that fallback
     // will be used where the text was "masked" by the pending download
     IncrementGeneration();
-    return true;
+    return PR_TRUE;
 }
 
 

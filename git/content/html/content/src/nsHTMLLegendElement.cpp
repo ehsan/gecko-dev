@@ -83,7 +83,7 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLLegendElement)
 NS_IMETHODIMP
 nsHTMLLegendElement::GetForm(nsIDOMHTMLFormElement** aForm)
 {
-  Element* form = GetFormElement();
+  Element *form = GetFormElement();
 
   return form ? CallQueryInterface(form, aForm) : NS_OK;
 }
@@ -106,7 +106,7 @@ nsHTMLLegendElement::GetFieldSet()
 {
   nsIContent* parent = GetParent();
 
-  if (parent && parent->IsHTML(nsGkAtoms::fieldset)) {
+  if (parent && parent->IsHTML() && parent->Tag() == nsGkAtoms::fieldset) {
     return parent;
   }
 
@@ -120,7 +120,7 @@ nsHTMLLegendElement::ParseAttribute(PRInt32 aNamespaceID,
                                     nsAttrValue& aResult)
 {
   if (aAttribute == nsGkAtoms::align && aNamespaceID == kNameSpaceID_None) {
-    return aResult.ParseEnumValue(aValue, kAlignTable, false);
+    return aResult.ParseEnumValue(aValue, kAlignTable, PR_FALSE);
   }
 
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
@@ -178,7 +178,7 @@ nsHTMLLegendElement::Focus()
     return NS_OK;
 
   PRInt32 tabIndex;
-  if (frame->IsFocusable(&tabIndex, false))
+  if (frame->IsFocusable(&tabIndex, PR_FALSE))
     return nsGenericHTMLElement::Focus();
 
   // If the legend isn't focusable, focus whatever is focusable following

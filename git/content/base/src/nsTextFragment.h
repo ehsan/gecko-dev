@@ -43,8 +43,6 @@
 #ifndef nsTextFragment_h___
 #define nsTextFragment_h___
 
-#include "mozilla/Attributes.h"
-
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsTraceRefcnt.h"
@@ -82,7 +80,7 @@ class nsCString;
  * This class does not have a virtual destructor therefore it is not
  * meant to be subclassed.
  */
-class nsTextFragment MOZ_FINAL {
+class NS_FINAL_CLASS nsTextFragment {
 public:
   static nsresult Init();
   static void Shutdown();
@@ -106,7 +104,7 @@ public:
   nsTextFragment& operator=(const nsTextFragment& aOther);
 
   /**
-   * Return true if this fragment is represented by PRUnichar data
+   * Return PR_TRUE if this fragment is represented by PRUnichar data
    */
   bool Is2b() const
   {
@@ -114,7 +112,7 @@ public:
   }
 
   /**
-   * Return true if this fragment contains Bidi text
+   * Return PR_TRUE if this fragment contains Bidi text
    * For performance reasons this flag is only set if explicitely requested (by
    * setting the aUpdateBidi argument on SetTo or Append to true).
    */
@@ -231,7 +229,7 @@ public:
   PRInt64 SizeOf() const
   {
     PRInt64 size = sizeof(*this);
-    size += GetLength() * (Is2b() ? sizeof(*m2b) : sizeof(*m1b));
+    size += GetLength() * Is2b() ? sizeof(*m2b) : sizeof(*m1b);
     return size;
   }
 

@@ -108,8 +108,8 @@ class nsHashKey {
 
 // Return values for nsHashtableEnumFunc
 enum {
-    kHashEnumerateStop      = false,
-    kHashEnumerateNext      = true
+    kHashEnumerateStop      = PR_FALSE,
+    kHashEnumerateNext      = PR_TRUE
 };
 
 typedef bool
@@ -267,8 +267,6 @@ class nsISupportsKey : public nsHashKey {
 
     nsISupportsKey(nsIObjectInputStream* aStream, nsresult *aResult);
     nsresult Write(nsIObjectOutputStream* aStream) const;
-
-    nsISupports* GetValue() { return mKey; }
 };
 
 

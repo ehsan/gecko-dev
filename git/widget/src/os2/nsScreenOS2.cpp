@@ -91,10 +91,11 @@ nsScreenOS2 :: GetAvailRect(PRInt32 *outLeft, PRInt32 *outTop, PRInt32 *outWidth
   if ( !rc && !pfnQueryDesktopWorkArea )
   {
       HMODULE hmod = 0;
-      rc = DosQueryModuleHandle( "PMMERGE", &hmod );
+      rc = DosLoadModule( NULL, 0, "PMMERGE", &hmod );
       if ( !rc )
       {
           rc = DosQueryProcAddr( hmod, 5469, NULL, (PFN*) &pfnQueryDesktopWorkArea ); // WinQueryDesktopWorkArea
+          DosFreeModule(hmod);
       }
   }
   if ( pfnQueryDesktopWorkArea && !rc )

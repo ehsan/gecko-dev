@@ -599,7 +599,7 @@ public:
 
   bool UseConservativeBreaking(PRUint32 aOffset = 0) {
     if (mHasCJKChar)
-      return false;
+      return PR_FALSE;
     PRUint32 index = mIndex + aOffset;
     bool result = (index < CONSERVATIVE_BREAK_RANGE ||
                      mLength - index < CONSERVATIVE_BREAK_RANGE ||
@@ -613,35 +613,35 @@ public:
     // Note that index is always larger than CONSERVATIVE_BREAK_RANGE here.
     for (PRUint32 i = index; index - CONSERVATIVE_BREAK_RANGE < i; --i) {
       if (IS_NONBREAKABLE_SPACE(GetCharAt(i - 1)))
-        return true;
+        return PR_TRUE;
     }
     // Note that index is always less than mLength - CONSERVATIVE_BREAK_RANGE.
     for (PRUint32 i = index + 1; i < index + CONSERVATIVE_BREAK_RANGE; ++i) {
       if (IS_NONBREAKABLE_SPACE(GetCharAt(i)))
-        return true;
+        return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
   }
 
   bool HasPreviousEqualsSign() const {
     return mHasPreviousEqualsSign;
   }
   void NotifySeenEqualsSign() {
-    mHasPreviousEqualsSign = true;
+    mHasPreviousEqualsSign = PR_TRUE;
   }
 
   bool HasPreviousSlash() const {
     return mHasPreviousSlash;
   }
   void NotifySeenSlash() {
-    mHasPreviousSlash = true;
+    mHasPreviousSlash = PR_TRUE;
   }
 
   bool HasPreviousBackslash() const {
     return mHasPreviousBackslash;
   }
   void NotifySeenBackslash() {
-    mHasPreviousBackslash = true;
+    mHasPreviousBackslash = PR_TRUE;
   }
 
   PRUnichar GetPreviousNonHyphenCharacter() const {
@@ -658,9 +658,9 @@ private:
     mPreviousNonHyphenCharacter = U_NULL;
     mHasCJKChar = 0;
     mHasNonbreakableSpace = 0;
-    mHasPreviousEqualsSign = false;
-    mHasPreviousSlash = false;
-    mHasPreviousBackslash = false;
+    mHasPreviousEqualsSign = PR_FALSE;
+    mHasPreviousSlash = PR_FALSE;
+    mHasPreviousBackslash = PR_FALSE;
 
     for (PRUint32 i = 0; i < mLength; ++i) {
       PRUnichar u = GetCharAt(i);
@@ -776,12 +776,12 @@ nsJISx4051LineBreaker::WordMove(const PRUnichar* aText, PRUint32 aLen,
 
   for (begin = aPos; begin > 0 && !NS_IsSpace(aText[begin - 1]); --begin) {
     if (IS_CJK_CHAR(aText[begin]) || NS_NeedsPlatformNativeHandling(aText[begin])) {
-      textNeedsJISx4051 = true;
+      textNeedsJISx4051 = PR_TRUE;
     }
   }
   for (end = aPos + 1; end < PRInt32(aLen) && !NS_IsSpace(aText[end]); ++end) {
     if (IS_CJK_CHAR(aText[end]) || NS_NeedsPlatformNativeHandling(aText[end])) {
-      textNeedsJISx4051 = true;
+      textNeedsJISx4051 = PR_TRUE;
     }
   }
 
@@ -864,7 +864,7 @@ nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUnichar* aChars, PRUint32 aLeng
       else
         allowBreak = GetPair(lastClass, cl);
     } else {
-      allowBreak = false;
+      allowBreak = PR_FALSE;
     }
     aBreakBefore[cur] = allowBreak;
     if (allowBreak)
@@ -919,7 +919,7 @@ nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUint8* aChars, PRUint32 aLength
       else
         allowBreak = GetPair(lastClass, cl);
     } else {
-      allowBreak = false;
+      allowBreak = PR_FALSE;
     }
     aBreakBefore[cur] = allowBreak;
     if (allowBreak)

@@ -262,7 +262,7 @@ nsGridRowGroupLayout::BuildRows(nsIBox* aBox, nsGridRow* aRows)
         continue;
       }
 
-      aRows[rowCount].Init(child, true);
+      aRows[rowCount].Init(child, PR_TRUE);
 
       child = child->GetNextBox();
 

@@ -170,7 +170,7 @@ nsFileCopyEvent::Dispatch(nsIRunnable *callback,
 
   // Build a coalescing proxy for progress events
   nsresult rv = net_NewTransportEventSinkProxy(getter_AddRefs(mSink), sink,
-                                               target, true);
+                                               target, PR_TRUE);
   if (NS_FAILED(rv))
     return rv;
 
@@ -367,11 +367,11 @@ nsFileChannel::OpenContentStream(bool async, nsIInputStream **result,
       SetContentType(NS_LITERAL_CSTRING(APPLICATION_OCTET_STREAM));
   } else {
     nsCAutoString contentType;
-    rv = MakeFileInputStream(file, stream, contentType);
+    nsresult rv = MakeFileInputStream(file, stream, contentType);
     if (NS_FAILED(rv))
       return rv;
 
-    EnableSynthesizedProgressEvents(true);
+    EnableSynthesizedProgressEvents(PR_TRUE);
 
     // fixup content length and type
     if (ContentLength64() < 0) {

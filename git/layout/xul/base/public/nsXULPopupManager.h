@@ -45,6 +45,7 @@
 #include "nsGUIEvent.h"
 #include "nsIContent.h"
 #include "nsIRollupListener.h"
+#include "nsIMenuRollup.h"
 #include "nsIDOMEventListener.h"
 #include "nsPoint.h"
 #include "nsCOMPtr.h"
@@ -81,6 +82,7 @@ class nsMenuBarFrame;
 class nsMenuParent;
 class nsIDOMKeyEvent;
 class nsIDocShellTreeItem;
+class nsIView;
 
 // when a menu command is executed, the closemenu attribute may be used
 // to define how the menu should be closed up
@@ -170,8 +172,8 @@ public:
     : mFrame(aFrame),
       mPopupType(aPopupType),
       mIsContext(aIsContext),
-      mOnMenuBar(false),
-      mIgnoreKeys(false),
+      mOnMenuBar(PR_FALSE),
+      mIgnoreKeys(PR_FALSE),
       mParent(nsnull),
       mChild(nsnull)
   {
@@ -300,6 +302,7 @@ private:
 };
 
 class nsXULPopupManager : public nsIDOMEventListener,
+                          public nsIMenuRollup,
                           public nsIRollupListener,
                           public nsITimerCallback,
                           public nsIObserver
@@ -316,10 +319,12 @@ public:
   NS_DECL_NSIDOMEVENTLISTENER
 
   // nsIRollupListener
-  virtual nsIContent* Rollup(PRUint32 aCount, bool aGetLastRolledUp = false);
-  virtual bool ShouldRollupOnMouseWheelEvent();
-  virtual bool ShouldRollupOnMouseActivate();
+  NS_IMETHOD Rollup(PRUint32 aCount, nsIContent **aContent);
+  NS_IMETHOD ShouldRollupOnMouseWheelEvent(bool *aShould);
+  NS_IMETHOD ShouldRollupOnMouseActivate(bool *aShould);
+
   virtual PRUint32 GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain);
+  virtual void AdjustPopupsOnWindowChange(nsPIDOMWindow* aWindow);
 
   static nsXULPopupManager* sInstance;
 
@@ -330,8 +335,6 @@ public:
   // returns a weak reference to the popup manager instance, could return null
   // if a popup manager could not be allocated
   static nsXULPopupManager* GetInstance();
-
-  void AdjustPopupsOnWindowChange(nsPIDOMWindow* aWindow);
 
   // get the frame for a content node aContent if the frame's type
   // matches aFrameType. Otherwise, return null. If aShouldFlush is true,
@@ -477,10 +480,9 @@ public:
                  nsIContent* aLastPopup = nsnull);
 
   /**
-   * Hide the popup aFrame. This method is called by the view manager when the
-   * close button is pressed.
+   * Hide the popup associated the view aView
    */
-  void HidePopup(nsIFrame* aFrame);
+  void HidePopup(nsIView* aView);
 
   /**
    * Hide a popup after a short delay. This is used when rolling over menu items.
@@ -534,12 +536,12 @@ public:
    */
   already_AddRefed<nsIDOMNode> GetLastTriggerPopupNode(nsIDocument* aDocument)
   {
-    return GetLastTriggerNode(aDocument, false);
+    return GetLastTriggerNode(aDocument, PR_FALSE);
   }
 
   already_AddRefed<nsIDOMNode> GetLastTriggerTooltipNode(nsIDocument* aDocument)
   {
-    return GetLastTriggerNode(aDocument, true);
+    return GetLastTriggerNode(aDocument, PR_TRUE);
   }
 
   /**
@@ -553,13 +555,13 @@ public:
    * Indicate that the popup associated with aView has been moved to the
    * specified screen coordiates.
    */
-  void PopupMoved(nsIFrame* aFrame, nsIntPoint aPoint);
+  void PopupMoved(nsIView* aView, nsIntPoint aPoint);
 
   /**
    * Indicate that the popup associated with aView has been resized to the
    * specified screen width and height.
    */
-  void PopupResized(nsIFrame* aFrame, nsIntSize ASize);
+  void PopupResized(nsIView* aView, nsIntSize ASize);
 
   /**
    * Called when a popup frame is destroyed. In this case, just remove the
@@ -787,5 +789,8 @@ protected:
   // popupshowing event
   nsCOMPtr<nsIContent> mOpeningPopup;
 };
+
+nsresult
+NS_NewXULPopupManager(nsISupports** aResult);
 
 #endif

@@ -59,7 +59,7 @@ public:
     /*
      * Determines whether this Pattern matches the given node.
      */
-    virtual bool matches(const txXPathNode& aNode,
+    virtual MBool matches(const txXPathNode& aNode,
                           txIMatchContext* aContext) = 0;
 
     /*
@@ -119,7 +119,7 @@ public:
 };
 
 #define TX_DECL_PATTERN_BASE \
-    bool matches(const txXPathNode& aNode, txIMatchContext* aContext); \
+    MBool matches(const txXPathNode& aNode, txIMatchContext* aContext); \
     double getDefaultPriority(); \
     virtual Expr* getSubExprAt(PRUint32 aPos); \
     virtual void setSubExprAt(PRUint32 aPos, Expr* aExpr); \
@@ -196,7 +196,7 @@ class txRootPattern : public txPattern
 public:
 #ifdef TX_TO_STRING
     txRootPattern()
-        : mSerialize(true)
+        : mSerialize(PR_TRUE)
     {
     }
 #endif

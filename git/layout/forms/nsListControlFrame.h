@@ -239,16 +239,14 @@ public:
    * that PaintFocus will or could have painted --- basically the whole
    * GetOptionsContainer, plus some extra stuff if there are no options. This
    * must be called every time mEndSelectionIndex changes.
-   *
-   * Pass non-null aReflowState if during reflow.
    */
-  void InvalidateFocus(const nsHTMLReflowState* aReflowState = nsnull);
+  void InvalidateFocus();
 
   /**
    * Function to calculate the height a row, for use with the "size" attribute.
    * Can't be const because GetNumberOfOptions() isn't const.
    */
-  nscoord CalcHeightOfARow(const nsHTMLReflowState& aReflowState);
+  nscoord CalcHeightOfARow();
 
   /**
    * Function to ask whether we're currently in what might be the
@@ -289,7 +287,7 @@ public:
 protected:
   /**
    * Updates the selected text in a combobox and then calls FireOnChange().
-   * Returns false if calling it destroyed |this|.
+   * Returns PR_FALSE if calling it destroyed |this|.
    */
   bool       UpdateSelection();
 
@@ -334,11 +332,8 @@ protected:
   /**
    * Resets the select back to it's original default values;
    * those values as determined by the original HTML
-   *
-   * Pass non-null aReflowState if during reflow.
    */
-  virtual void ResetList(bool aAllowScrolling,
-                         const nsHTMLReflowState* aReflowState = nsnull);
+  virtual void ResetList(bool aAllowScrolling);
 
   nsListControlFrame(nsIPresShell* aShell, nsIDocument* aDocument, nsStyleContext* aContext);
   virtual ~nsListControlFrame();
@@ -364,7 +359,7 @@ protected:
   /** 
    * For a given piece of content, it determines whether the 
    * content (an option) is selected or not.
-   * @return true if it is, false if it is NOT.
+   * @return PR_TRUE if it is, PR_FALSE if it is NOT.
    */
   bool     IsContentSelected(nsIContent* aContent) const;
 
@@ -378,7 +373,7 @@ protected:
   bool     IsLeftButton(nsIDOMEvent* aMouseEvent);
 
   // guess at a row height based on our own style.
-  nscoord  CalcFallbackRowHeight(float aFontSizeInflation);
+  nscoord  CalcFallbackRowHeight();
 
   // CalcIntrinsicHeight computes our intrinsic height (taking the "size"
   // attribute into account).  This should only be called in non-dropdown mode.
@@ -446,7 +441,7 @@ protected:
 
   /**
    * Set to aPresContext->HasPendingInterrupt() at the start of Reflow.
-   * Set to false at the end of DidReflow.
+   * Set to PR_FALSE at the end of DidReflow.
    */
   bool mHasPendingInterruptAtStartOfReflow:1;
 

@@ -205,7 +205,7 @@ nsViewSourceChannel::Open(nsIInputStream **_retval)
 
     nsresult rv = mChannel->Open(_retval);
     if (NS_SUCCEEDED(rv)) {
-        mOpened = true;
+        mOpened = PR_TRUE;
     }
     
     return rv;
@@ -238,7 +238,7 @@ nsViewSourceChannel::AsyncOpen(nsIStreamListener *aListener, nsISupports *ctxt)
                                  nsnull, rv);
 
     if (NS_SUCCEEDED(rv)) {
-        mOpened = true;
+        mOpened = PR_TRUE;
     }
     
     return rv;
@@ -288,7 +288,7 @@ nsViewSourceChannel::SetLoadFlags(PRUint32 aLoadFlags)
     // the win32 compiler fails to deal due to amiguous inheritance.
     // nsIChannel::LOAD_DOCUMENT_URI/nsIRequest::LOAD_FROM_CACHE also fails; the
     // Win32 compiler thinks that's supposed to be a method.
-    mIsDocument = (aLoadFlags & ::nsIChannel::LOAD_DOCUMENT_URI) ? true : false;
+    mIsDocument = (aLoadFlags & ::nsIChannel::LOAD_DOCUMENT_URI) ? PR_TRUE : PR_FALSE;
 
     return mChannel->SetLoadFlags((aLoadFlags |
                                    ::nsIRequest::LOAD_FROM_CACHE) &

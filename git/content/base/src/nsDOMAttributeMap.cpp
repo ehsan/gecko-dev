@@ -181,7 +181,7 @@ nsDOMAttributeMap::RemoveAttribute(nsINodeInfo* aNodeInfo, nsIDOMNode** aReturn)
     mContent->GetAttr(aNodeInfo->NamespaceID(), aNodeInfo->NameAtom(), value);
     nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
     nsCOMPtr<nsIDOMNode> newAttr =
-      new nsDOMAttribute(nsnull, ni.forget(), value, true);
+      new nsDOMAttribute(nsnull, ni.forget(), value, PR_TRUE);
     if (!newAttr) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -229,7 +229,7 @@ nsDOMAttributeMap::GetNamedItem(const nsAString& aAttrName, nsresult *aResult)
     nsCOMPtr<nsINodeInfo> ni =
       mContent->GetExistingAttrNameFromQName(aAttrName);
     if (ni) {
-      return GetAttribute(ni, false);
+      return GetAttribute(ni, PR_FALSE);
     }
   }
 
@@ -251,13 +251,13 @@ nsDOMAttributeMap::GetNamedItem(const nsAString& aAttrName,
 NS_IMETHODIMP
 nsDOMAttributeMap::SetNamedItem(nsIDOMNode *aNode, nsIDOMNode **aReturn)
 {
-  return SetNamedItemInternal(aNode, aReturn, false);
+  return SetNamedItemInternal(aNode, aReturn, PR_FALSE);
 }
 
 NS_IMETHODIMP
 nsDOMAttributeMap::SetNamedItemNS(nsIDOMNode *aNode, nsIDOMNode **aReturn)
 {
-  return SetNamedItemInternal(aNode, aReturn, true);
+  return SetNamedItemInternal(aNode, aReturn, PR_TRUE);
 }
 
 nsresult
@@ -299,7 +299,7 @@ nsDOMAttributeMap::SetNamedItemInternal(nsIDOMNode *aNode,
 
     if (!mContent->HasSameOwnerDoc(iAttribute)) {
       nsCOMPtr<nsIDOMDocument> domDoc =
-        do_QueryInterface(mContent->OwnerDoc(), &rv);
+        do_QueryInterface(mContent->GetOwnerDoc(), &rv);
       NS_ENSURE_SUCCESS(rv, rv);
 
       nsCOMPtr<nsIDOMNode> adoptedNode;
@@ -359,7 +359,7 @@ nsDOMAttributeMap::SetNamedItemInternal(nsIDOMNode *aNode,
     iAttribute->SetMap(this);
 
     rv = mContent->SetAttr(ni->NamespaceID(), ni->NameAtom(),
-                           ni->GetPrefixAtom(), value, true);
+                           ni->GetPrefixAtom(), value, PR_TRUE);
     if (NS_FAILED(rv)) {
       DropAttribute(ni->NamespaceID(), ni->NameAtom());
     }
@@ -385,10 +385,10 @@ nsDOMAttributeMap::RemoveNamedItem(const nsAString& aName,
       return NS_ERROR_DOM_NOT_FOUND_ERR;
     }
 
-    NS_ADDREF(*aReturn = GetAttribute(ni, true));
+    NS_ADDREF(*aReturn = GetAttribute(ni, PR_TRUE));
 
     // This removes the attribute node from the attribute map.
-    rv = mContent->UnsetAttr(ni->NamespaceID(), ni->NameAtom(), true);
+    rv = mContent->UnsetAttr(ni->NamespaceID(), ni->NameAtom(), PR_TRUE);
   }
 
   return rv;
@@ -411,7 +411,7 @@ nsDOMAttributeMap::GetItemAt(PRUint32 aIndex, nsresult *aResult)
       GetNodeInfo(name->LocalName(), name->GetPrefix(), name->NamespaceID(),
                   nsIDOMNode::ATTRIBUTE_NODE);
     if (ni) {
-      node = GetAttribute(ni, true);
+      node = GetAttribute(ni, PR_TRUE);
     }
     else {
       *aResult = NS_ERROR_OUT_OF_MEMORY;
@@ -494,7 +494,7 @@ nsDOMAttributeMap::GetNamedItemNSInternal(const nsAString& aNamespaceURI,
         return RemoveAttribute(ni, aReturn);
       }
 
-      NS_ADDREF(*aReturn = GetAttribute(ni, true));
+      NS_ADDREF(*aReturn = GetAttribute(ni, PR_TRUE));
 
       return NS_OK;
     }
@@ -514,7 +514,7 @@ nsDOMAttributeMap::RemoveNamedItemNS(const nsAString& aNamespaceURI,
   nsresult rv = GetNamedItemNSInternal(aNamespaceURI,
                                        aLocalName,
                                        aReturn,
-                                       true);
+                                       PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!*aReturn) {
@@ -527,7 +527,7 @@ nsDOMAttributeMap::RemoveNamedItemNS(const nsAString& aNamespaceURI,
   NS_ENSURE_TRUE(attr, NS_ERROR_UNEXPECTED);
 
   nsINodeInfo *ni = attr->NodeInfo();
-  mContent->UnsetAttr(ni->NamespaceID(), ni->NameAtom(), true);
+  mContent->UnsetAttr(ni->NamespaceID(), ni->NameAtom(), PR_TRUE);
 
   return NS_OK;
 }

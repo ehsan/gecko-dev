@@ -35,8 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #define CreateEvent CreateEventA
 #include "nsIDOMDocument.h"
 
@@ -85,7 +83,7 @@
 #include "nsIXULWindow.h"
 #endif
 
-using namespace mozilla;
+namespace dom = mozilla::dom;
 using namespace mozilla::a11y;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -257,10 +255,10 @@ nsresult nsRootAccessible::AddEventListeners()
 
   if (nstarget) {
     for (const char* const* e = docEvents,
-                   * const* e_end = ArrayEnd(docEvents);
+                   * const* e_end = docEvents + NS_ARRAY_LENGTH(docEvents);
          e < e_end; ++e) {
       nsresult rv = nstarget->AddEventListener(NS_ConvertASCIItoUTF16(*e),
-                                               this, true, true, 2);
+                                               this, PR_TRUE, PR_TRUE, 2);
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
@@ -277,9 +275,9 @@ nsresult nsRootAccessible::RemoveEventListeners()
   nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(mDocument));
   if (target) { 
     for (const char* const* e = docEvents,
-                   * const* e_end = ArrayEnd(docEvents);
+                   * const* e_end = docEvents + NS_ARRAY_LENGTH(docEvents);
          e < e_end; ++e) {
-      nsresult rv = target->RemoveEventListener(NS_ConvertASCIItoUTF16(*e), this, true);
+      nsresult rv = target->RemoveEventListener(NS_ConvertASCIItoUTF16(*e), this, PR_TRUE);
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
@@ -324,7 +322,7 @@ nsRootAccessible::HandleEvent(nsIDOMEvent* aDOMEvent)
     return NS_OK;
 
   nsDocAccessible* document =
-    GetAccService()->GetDocAccessible(origTargetNode->OwnerDoc());
+    GetAccService()->GetDocAccessible(origTargetNode->GetOwnerDoc());
 
   if (document) {
 #ifdef DEBUG_NOTIFICATIONS
@@ -391,11 +389,14 @@ nsRootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
   nsINode* targetNode = accessible->GetNode();
 
 #ifdef MOZ_XUL
-  nsRefPtr<nsXULTreeAccessible> treeAcc;
-  if (targetNode->IsElement() &&
-      targetNode->AsElement()->NodeInfo()->Equals(nsGkAtoms::tree,
-                                                  kNameSpaceID_XUL)) {
-    treeAcc = do_QueryObject(accessible);
+  bool isTree = targetNode->IsElement() &&
+    targetNode->AsElement()->NodeInfo()->Equals(nsGkAtoms::tree, kNameSpaceID_XUL);
+
+  if (isTree) {
+    nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(accessible);
+    NS_ASSERTION(treeAcc,
+                 "Accessible for xul:tree isn't nsXULTreeAccessible.");
+
     if (treeAcc) {
       if (eventType.EqualsLiteral("TreeViewChanged")) {
         treeAcc->TreeViewChanged();
@@ -406,7 +407,7 @@ nsRootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
         HandleTreeRowCountChangedEvent(aDOMEvent, treeAcc);
         return;
       }
-
+      
       if (eventType.EqualsLiteral("TreeInvalidated")) {
         HandleTreeInvalidatedEvent(aDOMEvent, treeAcc);
         return;
@@ -448,16 +449,18 @@ nsRootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
     return;
   }
 
-  nsAccessible* treeItemAcc = nsnull;
+  nsAccessible *treeItemAccessible = nsnull;
 #ifdef MOZ_XUL
-  // If it's a tree element, need the currently selected item.
-  if (treeAcc) {
-    treeItemAcc = accessible->CurrentItem();
-    if (treeItemAcc)
-      accessible = treeItemAcc;
+  // If it's a tree element, need the currently selected item
+  if (isTree) {
+    treeItemAccessible = accessible->CurrentItem();
+    if (treeItemAccessible)
+      accessible = treeItemAccessible;
   }
+#endif
 
-  if (treeItemAcc && eventType.EqualsLiteral("OpenStateChange")) {
+#ifdef MOZ_XUL
+  if (treeItemAccessible && eventType.EqualsLiteral("OpenStateChange")) {
     PRUint64 state = accessible->State();
     bool isEnabled = (state & states::EXPANDED) != 0;
 
@@ -467,9 +470,7 @@ nsRootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
     return;
   }
 
-  if (treeItemAcc && eventType.EqualsLiteral("select")) {
-    // XXX: We shouldn't be based on DOM select event which doesn't provide us
-    // any context info. We should integrate into nsTreeSelection instead.
+  if (treeItemAccessible && eventType.EqualsLiteral("select")) {
     // If multiselect tree, we should fire selectionadd or selection removed
     if (FocusMgr()->HasDOMFocus(targetNode)) {
       nsCOMPtr<nsIDOMXULMultiSelectControlElement> multiSel =
@@ -486,10 +487,8 @@ nsRootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
         return;
       }
 
-      nsRefPtr<AccSelChangeEvent> selChangeEvent =
-        new AccSelChangeEvent(treeAcc, treeItemAcc,
-                              AccSelChangeEvent::eSelectionAdd);
-      nsEventShell::FireEvent(selChangeEvent);
+      nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_SELECTION,
+                              treeItemAccessible);
       return;
     }
   }
@@ -677,7 +676,7 @@ nsRootAccessible::HandlePopupShownEvent(nsAccessible* aAccessible)
     if (comboboxRole == nsIAccessibleRole::ROLE_COMBOBOX ||
         comboboxRole == nsIAccessibleRole::ROLE_AUTOCOMPLETE) {
       nsRefPtr<AccEvent> event =
-        new AccStateChangeEvent(combobox, states::EXPANDED, true);
+        new AccStateChangeEvent(combobox, states::EXPANDED, PR_TRUE);
       if (event)
         nsEventShell::FireEvent(event);
     }
@@ -783,7 +782,7 @@ nsRootAccessible::HandlePopupHidingEvent(nsINode* aPopupNode)
   // Fire expanded state change event.
   if (notifyOf & kNotifyOfState) {
     nsRefPtr<AccEvent> event =
-      new AccStateChangeEvent(widget, states::EXPANDED, false);
+      new AccStateChangeEvent(widget, states::EXPANDED, PR_FALSE);
     document->FireDelayedAccessibleEvent(event);
   }
 }

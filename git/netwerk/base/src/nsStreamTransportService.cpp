@@ -77,8 +77,8 @@ public:
         , mOffset(offset)
         , mLimit(limit)
         , mCloseWhenDone(closeWhenDone)
-        , mFirstTime(true)
-        , mInProgress(false)
+        , mFirstTime(PR_TRUE)
+        , mInProgress(PR_FALSE)
     {
     }
 
@@ -134,11 +134,11 @@ nsInputStreamTransport::OpenInputStream(PRUint32 flags,
     nsCOMPtr<nsIAsyncOutputStream> pipeOut;
     rv = NS_NewPipe2(getter_AddRefs(mPipeIn),
                      getter_AddRefs(pipeOut),
-                     nonblocking, true,
+                     nonblocking, PR_TRUE,
                      segsize, segcount, segalloc);
     if (NS_FAILED(rv)) return rv;
 
-    mInProgress = true;
+    mInProgress = PR_TRUE;
 
     // startup async copy process...
     rv = NS_AsyncCopy(this, pipeOut, target,
@@ -206,7 +206,7 @@ NS_IMETHODIMP
 nsInputStreamTransport::Read(char *buf, PRUint32 count, PRUint32 *result)
 {
     if (mFirstTime) {
-        mFirstTime = false;
+        mFirstTime = PR_FALSE;
         if (mOffset != 0) {
             // read from current position if offset equal to max
             if (mOffset != LL_MAXUINT) {
@@ -249,7 +249,7 @@ nsInputStreamTransport::ReadSegments(nsWriteSegmentFun writer, void *closure,
 NS_IMETHODIMP
 nsInputStreamTransport::IsNonBlocking(bool *result)
 {
-    *result = false;
+    *result = PR_FALSE;
     return NS_OK;
 }
 
@@ -277,8 +277,8 @@ public:
         , mOffset(offset)
         , mLimit(limit)
         , mCloseWhenDone(closeWhenDone)
-        , mFirstTime(true)
-        , mInProgress(false)
+        , mFirstTime(PR_TRUE)
+        , mInProgress(PR_FALSE)
     {
     }
 
@@ -345,11 +345,11 @@ nsOutputStreamTransport::OpenOutputStream(PRUint32 flags,
     nsCOMPtr<nsIAsyncInputStream> pipeIn;
     rv = NS_NewPipe2(getter_AddRefs(pipeIn),
                      getter_AddRefs(mPipeOut),
-                     true, nonblocking,
+                     PR_TRUE, nonblocking,
                      segsize, segcount, segalloc);
     if (NS_FAILED(rv)) return rv;
 
-    mInProgress = true;
+    mInProgress = PR_TRUE;
 
     // startup async copy process...
     rv = NS_AsyncCopy(pipeIn, this, target,
@@ -406,7 +406,7 @@ NS_IMETHODIMP
 nsOutputStreamTransport::Write(const char *buf, PRUint32 count, PRUint32 *result)
 {
     if (mFirstTime) {
-        mFirstTime = false;
+        mFirstTime = PR_FALSE;
         if (mOffset != 0) {
             // write to current position if offset equal to max
             if (mOffset != LL_MAXUINT) {
@@ -455,7 +455,7 @@ nsOutputStreamTransport::WriteFrom(nsIInputStream *in, PRUint32 count, PRUint32 
 NS_IMETHODIMP
 nsOutputStreamTransport::IsNonBlocking(bool *result)
 {
-    *result = false;
+    *result = PR_FALSE;
     return NS_OK;
 }
 
@@ -482,7 +482,7 @@ nsStreamTransportService::Init()
     nsCOMPtr<nsIObserverService> obsSvc =
         mozilla::services::GetObserverService();
     if (obsSvc)
-        obsSvc->AddObserver(this, "xpcom-shutdown-threads", false);
+        obsSvc->AddObserver(this, "xpcom-shutdown-threads", PR_FALSE);
     return NS_OK;
 }
 

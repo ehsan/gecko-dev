@@ -78,7 +78,7 @@ public:
   virtual void OnDonePrinting() = 0;
 
   /**
-   * Returns true is InitializeForPrintPreview() has been called.
+   * Returns PR_TRUE is InitializeForPrintPreview() has been called.
    */
   virtual bool IsInitializedForPrintPreview() = 0;
 

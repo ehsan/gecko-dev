@@ -83,7 +83,7 @@ nsTransformedTextRun::SetCapitalization(PRUint32 aStart, PRUint32 aLength,
     memset(mCapitalize.Elements(), 0, GetLength()*sizeof(bool));
   }
   memcpy(mCapitalize.Elements() + aStart, aCapitalization, aLength*sizeof(bool));
-  mNeedsRebuild = true;
+  mNeedsRebuild = PR_TRUE;
 }
 
 bool
@@ -94,31 +94,9 @@ nsTransformedTextRun::SetPotentialLineBreaks(PRUint32 aStart, PRUint32 aLength,
   bool changed = gfxTextRun::SetPotentialLineBreaks(aStart, aLength,
       aBreakBefore, aRefContext);
   if (changed) {
-    mNeedsRebuild = true;
+    mNeedsRebuild = PR_TRUE;
   }
   return changed;
-}
-
-size_t
-nsTransformedTextRun::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
-{
-  size_t total = gfxTextRun::SizeOfExcludingThis(aMallocSizeOf);
-  total += mStyles.SizeOf();
-  total += mCapitalize.SizeOf();
-  if (mOwnsFactory) {
-    // It's not worth the effort to get all the sub-class cases right for a
-    // small size in the fallback case.  So we use a |computedSize| of 0, which
-    // disables any usable vs. computedSize checking done by aMallocSizeOf.
-    total += aMallocSizeOf(mFactory, 0);
-  }
-  return total;
-}
-
-size_t
-nsTransformedTextRun::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
-{
-  return aMallocSizeOf(this, sizeof(nsTransformedTextRun)) +
-         SizeOfExcludingThis(aMallocSizeOf);
 }
 
 nsTransformedTextRun*
@@ -176,7 +154,7 @@ MergeCharactersInTextRun(gfxTextRun* aDest, gfxTextRun* aSrc,
   while (iter.NextRun()) {
     gfxTextRun::GlyphRun* run = iter.GetGlyphRun();
     nsresult rv = aDest->AddGlyphRun(run->mFont, run->mMatchType,
-                                     offset, false);
+                                     offset, PR_FALSE);
     if (NS_FAILED(rv))
       return;
 
@@ -196,7 +174,7 @@ MergeCharactersInTextRun(gfxTextRun* aDest, gfxTextRun* aSrc,
         }
       } else {
         if (g.IsMissing()) {
-          anyMissing = true;
+          anyMissing = PR_TRUE;
           glyphs.Clear();
         }
         if (g.GetGlyphCount() > 0) {
@@ -227,14 +205,14 @@ MergeCharactersInTextRun(gfxTextRun* aDest, gfxTextRun* aSrc,
         if (anyMissing) {
           g.SetMissing(glyphs.Length());
         } else {
-          g.SetComplex(true, true, glyphs.Length());
+          g.SetComplex(PR_TRUE, PR_TRUE, glyphs.Length());
         }
         aDest->SetGlyphs(offset, g, glyphs.Elements());
         ++offset;
       }
 
       glyphs.Clear();
-      anyMissing = false;
+      anyMissing = PR_FALSE;
       mergeRunStart = k + 1;
     }
     NS_ASSERTION(glyphs.Length() == 0,
@@ -279,7 +257,7 @@ nsFontVariantTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
   if (!inner.get())
     return;
 
-  nsCaseTransformTextRunFactory uppercaseFactory(nsnull, true);
+  nsCaseTransformTextRunFactory uppercaseFactory(nsnull, PR_TRUE);
 
   aTextRun->ResetGlyphRuns();
 
@@ -315,7 +293,7 @@ nsFontVariantTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
 
       if (runIsLowercase) {
         transformedChild = uppercaseFactory.MakeTextRun(str + runStart, i - runStart,
-            &innerParams, smallFont, flags, styleArray.Elements(), false);
+            &innerParams, smallFont, flags, styleArray.Elements(), PR_FALSE);
         child = transformedChild;
       } else {
         cachedChild =
@@ -367,7 +345,7 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
   for (i = 0; i < length; ++i) {
     PRUnichar ch = str[i];
 
-    charsToMergeArray.AppendElement(false);
+    charsToMergeArray.AppendElement(PR_FALSE);
     styleArray.AppendElement(styles[i]);
     canBreakBeforeArray.AppendElement(aTextRun->CanBreakLineBefore(i));
 
@@ -382,7 +360,7 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
     case NS_STYLE_TEXT_TRANSFORM_UPPERCASE:
       if (ch == SZLIG) {
         convertedString.Append('S');
-        extraChar = true;
+        extraChar = PR_TRUE;
         ch = 'S';
       } else {
         ch = ToUpperCase(ch);
@@ -392,7 +370,7 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
       if (i < aTextRun->mCapitalize.Length() && aTextRun->mCapitalize[i]) {
         if (ch == SZLIG) {
           convertedString.Append('S');
-          extraChar = true;
+          extraChar = PR_TRUE;
           ch = 'S';
         } else {
           ch = ToTitleCase(ch);
@@ -406,9 +384,9 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
     convertedString.Append(ch);
     if (extraChar) {
       ++extraCharsCount;
-      charsToMergeArray.AppendElement(true);
+      charsToMergeArray.AppendElement(PR_TRUE);
       styleArray.AppendElement(styles[i]);
-      canBreakBeforeArray.AppendElement(false);
+      canBreakBeforeArray.AppendElement(PR_FALSE);
     }
   }
 
@@ -424,7 +402,7 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
   if (mInnerTransformingTextRunFactory) {
     transformedChild = mInnerTransformingTextRunFactory->MakeTextRun(
         convertedString.BeginReading(), convertedString.Length(),
-        &innerParams, fontGroup, flags, styleArray.Elements(), false);
+        &innerParams, fontGroup, flags, styleArray.Elements(), PR_FALSE);
     child = transformedChild.get();
   } else {
     cachedChild = gfxTextRunCache::MakeTextRun(

@@ -50,7 +50,7 @@ SVGMotionSMILAnimationFunction::SVGMotionSMILAnimationFunction()
   : mRotateType(eRotateType_Explicit),
     mRotateAngle(0.0f),
     mPathSourceType(ePathSourceType_None),
-    mIsPathStale(true)  // Try to initialize path on first GetValues call
+    mIsPathStale(PR_TRUE)  // Try to initialize path on first GetValues call
 {
 }
 
@@ -69,12 +69,12 @@ SVGMotionSMILAnimationFunction::MarkStaleIfAttributeAffectsPath(nsIAtom* aAttrib
     isAffected = (mPathSourceType <= ePathSourceType_ByAttr);
   } else {
     NS_NOTREACHED("Should only call this method for path-describing attrs");
-    isAffected = false;
+    isAffected = PR_FALSE;
   }
 
   if (isAffected) {
-    mIsPathStale = true;
-    mHasChanged = true;
+    mIsPathStale = PR_TRUE;
+    mHasChanged = PR_TRUE;
   }
 }
 
@@ -112,7 +112,7 @@ SVGMotionSMILAnimationFunction::SetAttr(nsIAtom* aAttribute,
                                             aResult, aParseResult);
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -133,7 +133,7 @@ SVGMotionSMILAnimationFunction::UnsetAttr(nsIAtom* aAttribute)
     return nsSMILAnimationFunction::UnsetAttr(aAttribute);
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 nsSMILAnimationFunction::nsSMILCalcMode
@@ -211,7 +211,7 @@ SVGMotionSMILAnimationFunction::
       if (!HasAttr(nsGkAtoms::to)) {
         mPathVertices.AppendElement(0.0);
       }
-      success = true;
+      success = PR_TRUE;
     }
 
     // Apply 'to' or 'by' value
@@ -306,17 +306,17 @@ SVGMotionSMILAnimationFunction::
 
   if (firstMpathChild) {
     RebuildPathAndVerticesFromMpathElem(firstMpathChild);
-    mValueNeedsReparsingEverySample = false;
+    mValueNeedsReparsingEverySample = PR_FALSE;
   } else if (HasAttr(nsGkAtoms::path)) {
     RebuildPathAndVerticesFromPathAttr();
-    mValueNeedsReparsingEverySample = false;
+    mValueNeedsReparsingEverySample = PR_FALSE;
   } else {
     // Get path & vertices from basic SMIL attrs: from/by/to/values
 
     RebuildPathAndVerticesFromBasicAttrs(aTargetElement);
-    mValueNeedsReparsingEverySample = true;
+    mValueNeedsReparsingEverySample = PR_TRUE;
   }
-  mIsPathStale = false;
+  mIsPathStale = PR_FALSE;
 }
 
 bool
@@ -337,10 +337,10 @@ SVGMotionSMILAnimationFunction::
     if (!aResult.AppendElement(
           SVGMotionSMILType::ConstructSMILValue(aPath, curDist,
                                                 mRotateType, mRotateAngle))) {
-      return false;
+      return PR_FALSE;
     }
   }
-  return true;
+  return PR_TRUE;
 }
 
 nsresult
@@ -403,12 +403,12 @@ SVGMotionSMILAnimationFunction::CheckKeyPoints()
 
   // attribute is ignored for calcMode="paced" (even if it's got errors)
   if (GetCalcMode() == CALC_PACED) {
-    SetKeyPointsErrorFlag(false);
+    SetKeyPointsErrorFlag(PR_FALSE);
   }
 
   if (mKeyPoints.IsEmpty()) {
     // keyPoints attr is set, but array is empty => it failed preliminary checks
-    SetKeyPointsErrorFlag(true);
+    SetKeyPointsErrorFlag(PR_TRUE);
     return;
   }
 
@@ -430,7 +430,7 @@ SVGMotionSMILAnimationFunction::SetKeyPoints(const nsAString& aKeyPoints,
   aResult.SetTo(aKeyPoints);
 
   nsresult rv =
-    nsSMILParserUtils::ParseSemicolonDelimitedProgressList(aKeyPoints, false,
+    nsSMILParserUtils::ParseSemicolonDelimitedProgressList(aKeyPoints, PR_FALSE,
                                                            mKeyPoints);
 
   if (NS_SUCCEEDED(rv) && mKeyPoints.Length() < 1)
@@ -440,7 +440,7 @@ SVGMotionSMILAnimationFunction::SetKeyPoints(const nsAString& aKeyPoints,
     mKeyPoints.Clear();
   }
 
-  mHasChanged = true;
+  mHasChanged = PR_TRUE;
 
   return NS_OK;
 }
@@ -449,15 +449,15 @@ void
 SVGMotionSMILAnimationFunction::UnsetKeyPoints()
 {
   mKeyTimes.Clear();
-  SetKeyPointsErrorFlag(false);
-  mHasChanged = true;
+  SetKeyPointsErrorFlag(PR_FALSE);
+  mHasChanged = PR_TRUE;
 }
 
 nsresult
 SVGMotionSMILAnimationFunction::SetRotate(const nsAString& aRotate,
                                           nsAttrValue& aResult)
 {
-  mHasChanged = true;
+  mHasChanged = PR_TRUE;
 
   aResult.SetTo(aRotate);
   if (aRotate.EqualsLiteral("auto")) {
@@ -470,7 +470,7 @@ SVGMotionSMILAnimationFunction::SetRotate(const nsAString& aRotate,
     // Parse numeric angle string, with the help of a temp nsSVGAngle.
     nsSVGAngle svgAngle;
     svgAngle.Init();
-    nsresult rv = svgAngle.SetBaseValueString(aRotate, nsnull, false);
+    nsresult rv = svgAngle.SetBaseValueString(aRotate, nsnull, PR_FALSE);
     if (NS_FAILED(rv)) { // Parse error
       mRotateAngle = 0.0f; // set default rotate angle
       // XXX report to console?
@@ -494,7 +494,7 @@ SVGMotionSMILAnimationFunction::UnsetRotate()
 {
   mRotateAngle = 0.0f; // default value
   mRotateType = eRotateType_Explicit;
-  mHasChanged = true;
+  mHasChanged = PR_TRUE;
 }
 
 } // namespace mozilla

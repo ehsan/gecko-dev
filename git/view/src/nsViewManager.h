@@ -46,7 +46,7 @@
 #include "nsVoidArray.h"
 #include "nsThreadUtils.h"
 #include "nsView.h"
-#include "nsIPresShell.h"
+#include "nsIViewObserver.h"
 #include "nsDeviceContext.h"
 
 
@@ -132,8 +132,8 @@ public:
 
   NS_IMETHOD  SetViewZIndex(nsIView *aView, bool aAuto, PRInt32 aZIndex, bool aTopMost=false);
 
-  virtual void SetPresShell(nsIPresShell *aPresShell) { mPresShell = aPresShell; }
-  virtual nsIPresShell* GetPresShell() { return mPresShell; }
+  virtual void SetViewObserver(nsIViewObserver *aObserver) { mObserver = aObserver; }
+  virtual nsIViewObserver* GetViewObserver() { return mObserver; }
 
   NS_IMETHOD  GetDeviceContext(nsDeviceContext *&aContext);
 
@@ -174,7 +174,8 @@ private:
   void TriggerRefresh(PRUint32 aUpdateFlags);
 
   // aView is the view for aWidget and aRegion is relative to aWidget.
-  void Refresh(nsView *aView, nsIWidget *aWidget, const nsIntRegion& aRegion);
+  void Refresh(nsView *aView, nsIWidget *aWidget,
+               const nsIntRegion& aRegion, PRUint32 aUpdateFlags);
   // aRootView is the view for aWidget, aRegion is relative to aRootView, and
   // aIntRegion is relative to aWidget.
   void RenderViews(nsView *aRootView, nsIWidget *aWidget,
@@ -244,11 +245,13 @@ public: // NOT in nsIViewManager, so private to the view module
   nsViewManager* RootViewManager() const { return mRootViewManager; }
   bool IsRootVM() const { return this == RootViewManager(); }
 
+  nsEventStatus HandleEvent(nsView* aView, nsGUIEvent* aEvent);
+
   bool IsRefreshEnabled() { return RootViewManager()->mUpdateBatchCnt == 0; }
 
   // Call this when you need to let the viewmanager know that it now has
   // pending updates.
-  void PostPendingUpdate() { RootViewManager()->mHasPendingUpdates = true; }
+  void PostPendingUpdate() { RootViewManager()->mHasPendingUpdates = PR_TRUE; }
 
   PRUint32 AppUnitsPerDevPixel() const
   {
@@ -257,7 +260,7 @@ public: // NOT in nsIViewManager, so private to the view module
 
 private:
   nsRefPtr<nsDeviceContext> mContext;
-  nsIPresShell   *mPresShell;
+  nsIViewObserver   *mObserver;
 
   // The size for a resize that we delayed until the root view becomes
   // visible again.
@@ -293,6 +296,9 @@ private:
 
   void PostInvalidateEvent();
 };
+
+//when the refresh happens, should it be double buffered?
+#define NS_VMREFRESH_DOUBLE_BUFFER      0x0001
 
 class nsInvalidateEvent : public nsRunnable {
 public:

@@ -158,7 +158,7 @@ class nsAutoTObserverArray : protected nsTObserverArray_base {
     // for the first element in this array that is equal to the given element.
     // 'operator==' must be defined for elem_type.
     // @param item   The item to search for.
-    // @return       true if the element was found.
+    // @return       PR_TRUE if the element was found.
     template<class Item>
     bool Contains(const Item& item) const {
       return IndexOf(item) != array_type::NoIndex;
@@ -182,7 +182,7 @@ class nsAutoTObserverArray : protected nsTObserverArray_base {
     // Prepend an element to the array unless it already exists in the array.
     // 'operator==' must be defined for elem_type.
     // @param item   The item to prepend.
-    // @return       true if the element was found, or inserted successfully.
+    // @return       PR_TRUE if the element was found, or inserted successfully.
     template<class Item>
     bool PrependElementUnlessExists(const Item& item) {
       return Contains(item) || mArray.InsertElementAt(0, item) != nsnull;
@@ -205,7 +205,7 @@ class nsAutoTObserverArray : protected nsTObserverArray_base {
     // Append an element to the array unless it already exists in the array.
     // 'operator==' must be defined for elem_type.
     // @param item   The item to append.
-    // @return       true if the element was found, or inserted successfully.
+    // @return       PR_TRUE if the element was found, or inserted successfully.
     template<class Item>
     bool AppendElementUnlessExists(const Item& item) {
       return Contains(item) || AppendElement(item) != nsnull;
@@ -223,16 +223,16 @@ class nsAutoTObserverArray : protected nsTObserverArray_base {
     // and destroy" the first element that is equal to the given element.
     // 'operator==' must be defined for elem_type.
     // @param item  The item to search for.
-    // @return true if the element was found and removed.
+    // @return PR_TRUE if the element was found and removed.
     template<class Item>
     bool RemoveElement(const Item& item) {
       index_type index = mArray.IndexOf(item, 0);
       if (index == array_type::NoIndex)
-        return false;
+        return PR_FALSE;
 
       mArray.RemoveElementAt(index);
       AdjustIterators(index, -1);
-      return true;
+      return PR_TRUE;
     }
 
     // Removes all observers and collapses all iterators to the beginning of
@@ -241,12 +241,6 @@ class nsAutoTObserverArray : protected nsTObserverArray_base {
     void Clear() {
       mArray.Clear();
       ClearIterators();
-    }
-
-    // Returns the number of bytes on the heap taken up by this object, not
-    // including sizeof(*this).
-    PRUint64 SizeOf() {
-      return mArray.SizeOf();
     }
 
     //
@@ -303,8 +297,8 @@ class nsAutoTObserverArray : protected nsTObserverArray_base {
           return base_type::mPosition < aOther.mPosition;
         }
 
-        // Returns true if there are more elements to iterate.
-        // This must precede a call to GetNext(). If false is
+        // Returns PR_TRUE if there are more elements to iterate.
+        // This must precede a call to GetNext(). If PR_FALSE is
         // returned, GetNext() must not be called.
         bool HasMore() const {
           return base_type::mPosition < base_type::mArray.Length();
@@ -331,8 +325,8 @@ class nsAutoTObserverArray : protected nsTObserverArray_base {
             mEnd(aArray, aArray.Length()) {
         }
 
-        // Returns true if there are more elements to iterate.
-        // This must precede a call to GetNext(). If false is
+        // Returns PR_TRUE if there are more elements to iterate.
+        // This must precede a call to GetNext(). If PR_FALSE is
         // returned, GetNext() must not be called.
         bool HasMore() const {
           return *this < mEnd;

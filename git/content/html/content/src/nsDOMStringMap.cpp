@@ -66,7 +66,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMStringMap)
 
 nsDOMStringMap::nsDOMStringMap(nsGenericHTMLElement* aElement)
   : mElement(aElement),
-    mRemovingProp(false)
+    mRemovingProp(PR_FALSE)
 {
 }
 
@@ -106,12 +106,12 @@ NS_IMETHODIMP_(bool) nsDOMStringMap::HasDataAttr(const nsAString& aProp)
 {
   nsAutoString attr;
   if (!DataPropToAttr(aProp, attr)) {
-    return false;
+    return PR_FALSE;
   }
 
   nsCOMPtr<nsIAtom> attrAtom = do_GetAtom(attr);
   if (!attrAtom) {
-    return false;
+    return PR_FALSE;
   }
 
   return mElement->HasAttr(kNameSpaceID_None, attrAtom);
@@ -124,7 +124,7 @@ NS_IMETHODIMP nsDOMStringMap::GetDataAttr(const nsAString& aProp,
   nsAutoString attr;
 
   if (!DataPropToAttr(aProp, attr)) {
-    aResult.SetIsVoid(true);
+    aResult.SetIsVoid(PR_TRUE);
     return NS_OK;
   }
 
@@ -132,7 +132,7 @@ NS_IMETHODIMP nsDOMStringMap::GetDataAttr(const nsAString& aProp,
   NS_ENSURE_TRUE(attrAtom, NS_ERROR_OUT_OF_MEMORY);
 
   if (!mElement->GetAttr(kNameSpaceID_None, attrAtom, aResult)) {
-    aResult.SetIsVoid(true);
+    aResult.SetIsVoid(PR_TRUE);
     return NS_OK;
   }
 
@@ -146,13 +146,13 @@ NS_IMETHODIMP nsDOMStringMap::SetDataAttr(const nsAString& aProp,
   nsAutoString attr;
   NS_ENSURE_TRUE(DataPropToAttr(aProp, attr), NS_ERROR_DOM_SYNTAX_ERR);
 
-  nsresult rv = nsContentUtils::CheckQName(attr, false);
+  nsresult rv = nsContentUtils::CheckQName(attr, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIAtom> attrAtom = do_GetAtom(attr);
   NS_ENSURE_TRUE(attrAtom, NS_ERROR_OUT_OF_MEMORY);
 
-  return mElement->SetAttr(kNameSpaceID_None, attrAtom, aValue, true);
+  return mElement->SetAttr(kNameSpaceID_None, attrAtom, aValue, PR_TRUE);
 }
 
 /* [notxpcom] void removeDataAttr (in DOMString prop); */
@@ -173,7 +173,7 @@ NS_IMETHODIMP_(void) nsDOMStringMap::RemoveDataAttr(const nsAString& aProp)
     return;
   }
 
-  mElement->UnsetAttr(kNameSpaceID_None, attrAtom, true);
+  mElement->UnsetAttr(kNameSpaceID_None, attrAtom, PR_TRUE);
 }
 
 nsGenericHTMLElement* nsDOMStringMap::GetElement()
@@ -196,7 +196,7 @@ nsresult nsDOMStringMap::RemovePropInternal(nsIAtom* aAttr)
 
   jsval val;
   JSContext* cx = nsContentUtils::GetCurrentJSContext();
-  nsresult rv = nsContentUtils::WrapNative(cx, JS_GetGlobalForScopeChain(cx),
+  nsresult rv = nsContentUtils::WrapNative(cx, JS_GetScopeChain(cx),
                                            this, &val);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -212,11 +212,11 @@ nsresult nsDOMStringMap::RemovePropInternal(nsIAtom* aAttr)
   // RemoveDataAttr
   // ...
   // RemoveProp
-  mRemovingProp = true;
+  mRemovingProp = PR_TRUE;
   jsval dummy;
   JS_DeleteUCProperty2(cx, JSVAL_TO_OBJECT(val), prop.get(), prop.Length(),
                        &dummy);
-  mRemovingProp = false;
+  mRemovingProp = PR_FALSE;
 
   return NS_OK;
 }
@@ -274,7 +274,7 @@ bool nsDOMStringMap::DataPropToAttr(const nsAString& aProp,
     if (PRUnichar('-') == *cur && next < end &&
         PRUnichar('a') <= *next && *next <= PRUnichar('z')) {
       // Syntax error if character following "-" is in range "a" to "z".
-      return false;
+      return PR_FALSE;
     }
 
     if (PRUnichar('A') <= *cur && *cur <= PRUnichar('Z')) {
@@ -287,7 +287,7 @@ bool nsDOMStringMap::DataPropToAttr(const nsAString& aProp,
   }
 
   aResult.Assign(attr);
-  return true;
+  return PR_TRUE;
 }
 
 /**
@@ -300,7 +300,7 @@ bool nsDOMStringMap::AttrToDataProp(const nsAString& aAttr,
   // If the attribute name does not begin with "data-" then it can not be
   // a data attribute.
   if (!StringBeginsWith(aAttr, NS_LITERAL_STRING("data-"))) {
-    return false;
+    return PR_FALSE;
   }
 
   // Start reading attribute from first character after "data-".
@@ -330,5 +330,5 @@ bool nsDOMStringMap::AttrToDataProp(const nsAString& aAttr,
   }
 
   aResult.Assign(prop);
-  return true;
+  return PR_TRUE;
 }

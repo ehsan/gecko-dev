@@ -113,8 +113,8 @@ NS_IMPL_CI_INTERFACE_GETTER4(nsMIMEInputStream,
                              nsISeekableStream,
                              nsIIPCSerializable)
 
-nsMIMEInputStream::nsMIMEInputStream() : mAddContentLength(false),
-                                         mStartedReading(false)
+nsMIMEInputStream::nsMIMEInputStream() : mAddContentLength(PR_FALSE),
+                                         mStartedReading(PR_FALSE)
 {
 }
 
@@ -199,7 +199,7 @@ void nsMIMEInputStream::InitStreams()
     NS_ASSERTION(!mStartedReading,
                  "Don't call initStreams twice without rewinding");
 
-    mStartedReading = true;
+    mStartedReading = PR_TRUE;
 
     // We'll use the content-length stream to add the final \r\n
     if (mAddContentLength) {
@@ -234,7 +234,7 @@ nsMIMEInputStream::Seek(PRInt32 whence, PRInt64 offset)
     if (whence == NS_SEEK_SET && LL_EQ(offset, LL_Zero())) {
         rv = stream->Seek(whence, offset);
         if (NS_SUCCEEDED(rv))
-            mStartedReading = false;
+            mStartedReading = PR_FALSE;
     }
     else {
         INITSTREAMS;
@@ -334,7 +334,7 @@ nsMIMEInputStream::Read(const IPC::Message *aMsg, void **aIter)
     if (!ReadParam(aMsg, aIter, &mHeaders) ||
         !ReadParam(aMsg, aIter, &mContentLength) ||
         !ReadParam(aMsg, aIter, &mStartedReading))
-        return false;
+        return PR_FALSE;
 
     // nsMIMEInputStream::Init() already appended mHeaderStream & mCLStream
     mHeaderStream->ShareData(mHeaders.get(),
@@ -344,20 +344,20 @@ nsMIMEInputStream::Read(const IPC::Message *aMsg, void **aIter)
 
     IPC::InputStream inputStream;
     if (!ReadParam(aMsg, aIter, &inputStream))
-        return false;
+        return PR_FALSE;
 
     nsCOMPtr<nsIInputStream> stream(inputStream);
     mData = stream;
     if (stream) {
         nsresult rv = mStream->AppendStream(mData);
         if (NS_FAILED(rv))
-            return false;
+            return PR_FALSE;
     }
 
     if (!ReadParam(aMsg, aIter, &mAddContentLength))
-        return false;
+        return PR_FALSE;
 
-    return true;
+    return PR_TRUE;
 }
 
 void

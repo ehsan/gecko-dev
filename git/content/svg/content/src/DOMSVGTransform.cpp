@@ -104,7 +104,7 @@ DOMSVGTransform::DOMSVGTransform(DOMSVGTransformList *aList,
 DOMSVGTransform::DOMSVGTransform()
   : mList(nsnull)
   , mListIndex(0)
-  , mIsAnimValItem(false)
+  , mIsAnimValItem(PR_FALSE)
   , mTransform(new SVGTransform()) // Default ctor for objects not in a list
                                    // initialises to matrix type with identity
                                    // matrix
@@ -115,7 +115,7 @@ DOMSVGTransform::DOMSVGTransform()
 DOMSVGTransform::DOMSVGTransform(const gfxMatrix &aMatrix)
   : mList(nsnull)
   , mListIndex(0)
-  , mIsAnimValItem(false)
+  , mIsAnimValItem(PR_FALSE)
   , mTransform(new SVGTransform(aMatrix))
   , mMatrixTearoff(nsnull)
 {
@@ -124,7 +124,7 @@ DOMSVGTransform::DOMSVGTransform(const gfxMatrix &aMatrix)
 DOMSVGTransform::DOMSVGTransform(const SVGTransform &aTransform)
   : mList(nsnull)
   , mListIndex(0)
-  , mIsAnimValItem(false)
+  , mIsAnimValItem(PR_FALSE)
   , mTransform(new SVGTransform(aTransform))
   , mMatrixTearoff(nsnull)
 {
@@ -285,7 +285,7 @@ DOMSVGTransform::RemovingFromList()
 
   mTransform = new SVGTransform(InternalItem());
   mList = nsnull;
-  mIsAnimValItem = false;
+  mIsAnimValItem = PR_FALSE;
 }
 
 SVGTransform&
@@ -344,10 +344,12 @@ void
 DOMSVGTransform::NotifyElementOfChange()
 {
   if (HasOwner()) {
-    Element()->DidChangeTransformList(true);
+    Element()->DidChangeTransformList(PR_TRUE);
+#ifdef MOZ_SMIL
     if (mList->mAList->IsAnimating()) {
       Element()->AnimationNeedsResample();
     }
+#endif // MOZ_SMIL
   }
 }
 

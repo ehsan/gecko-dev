@@ -34,13 +34,17 @@
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
+#include "nsIDocument.h"
 #include "nsTraceRefcnt.h"
 #include "jArray.h"
+#include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
-#include "nsAHtml5TreeBuilderState.h"
+#include "nsHtml5NamedCharacters.h"
+#include "nsHtml5NamedCharactersAccel.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
+#include "nsAHtml5TreeBuilderState.h"
 #include "nsHtml5Macros.h"
 
 #include "nsHtml5Tokenizer.h"
@@ -202,10 +206,10 @@ nsHtml5HtmlAttributes::contains(nsHtml5AttributeName* name)
 {
   for (PRInt32 i = 0; i < length; i++) {
     if (name->equalsAnother(names[i])) {
-      return true;
+      return PR_TRUE;
     }
   }
-  return false;
+  return PR_FALSE;
 }
 
 void 
@@ -237,24 +241,24 @@ nsHtml5HtmlAttributes::equalsAnother(nsHtml5HtmlAttributes* other)
 
   PRInt32 otherLength = other->getLength();
   if (length != otherLength) {
-    return false;
+    return PR_FALSE;
   }
   for (PRInt32 i = 0; i < length; i++) {
     bool found = false;
     nsIAtom* ownLocal = names[i]->getLocal(NS_HTML5ATTRIBUTE_NAME_HTML);
     for (PRInt32 j = 0; j < otherLength; j++) {
       if (ownLocal == other->names[j]->getLocal(NS_HTML5ATTRIBUTE_NAME_HTML)) {
-        found = true;
+        found = PR_TRUE;
         if (!nsHtml5Portability::stringEqualsString(values[i], other->values[j])) {
-          return false;
+          return PR_FALSE;
         }
       }
     }
     if (!found) {
-      return false;
+      return PR_FALSE;
     }
   }
-  return true;
+  return PR_TRUE;
 }
 
 void

@@ -121,11 +121,11 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
     nsCOMPtr<nsIImageLoadingContent> imgContent = do_QueryInterface(mPosterImage);
     NS_ENSURE_TRUE(imgContent, NS_ERROR_FAILURE);
 
-    imgContent->ForceImageState(true, 0);
+    imgContent->ForceImageState(PR_TRUE, 0);
     // And now have it update its internal state
     element->UpdateState(false);
 
-    nsresult res = UpdatePosterSource(false);
+    nsresult res = UpdatePosterSource(PR_FALSE);
     NS_ENSURE_SUCCESS(res,res);
 
     if (!aElements.AppendElement(mPosterImage))
@@ -166,7 +166,7 @@ nsVideoFrame::DestroyFrom(nsIFrame* aDestructRoot)
 bool
 nsVideoFrame::IsLeaf() const
 {
-  return true;
+  return PR_TRUE;
 }
 
 // Return the largest rectangle that fits in aRect and has the
@@ -288,7 +288,7 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
   transform.Translate(r.TopLeft());
   transform.Scale(r.Width()/frameSize.width, r.Height()/frameSize.height);
   layer->SetTransform(gfx3DMatrix::From2D(transform));
-  layer->SetVisibleRegion(nsIntRect(0, 0, frameSize.width, frameSize.height));
+  layer->SetVisibleRegion(nsIntRect(0, 0, videoSize.width, videoSize.height));
   nsRefPtr<Layer> result = layer.forget();
   return result.forget();
 }
@@ -546,28 +546,28 @@ nsSize nsVideoFrame::GetIntrinsicRatio()
 bool nsVideoFrame::ShouldDisplayPoster()
 {
   if (!HasVideoElement())
-    return false;
+    return PR_FALSE;
 
   nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
   if (element->GetPlayedOrSeeked() && HasVideoData())
-    return false;
+    return PR_FALSE;
 
   nsCOMPtr<nsIImageLoadingContent> imgContent = do_QueryInterface(mPosterImage);
-  NS_ENSURE_TRUE(imgContent, false);
+  NS_ENSURE_TRUE(imgContent, PR_FALSE);
 
   nsCOMPtr<imgIRequest> request;
   nsresult res = imgContent->GetRequest(nsIImageLoadingContent::CURRENT_REQUEST,
                                         getter_AddRefs(request));
   if (NS_FAILED(res) || !request) {
-    return false;
+    return PR_FALSE;
   }
 
   PRUint32 status = 0;
   res = request->GetImageStatus(&status);
   if (NS_FAILED(res) || (status & imgIRequest::STATUS_ERROR))
-    return false;
+    return PR_FALSE;
 
-  return true;
+  return PR_TRUE;
 }
 
 nsSize
@@ -631,7 +631,7 @@ nsVideoFrame::AttributeChanged(PRInt32 aNameSpaceID,
                                PRInt32 aModType)
 {
   if (aAttribute == nsGkAtoms::poster && HasVideoElement()) {
-    nsresult res = UpdatePosterSource(true);
+    nsresult res = UpdatePosterSource(PR_TRUE);
     NS_ENSURE_SUCCESS(res,res);
   }
   return nsContainerFrame::AttributeChanged(aNameSpaceID,
@@ -647,7 +647,7 @@ bool nsVideoFrame::HasVideoElement() {
 bool nsVideoFrame::HasVideoData()
 {
   if (!HasVideoElement())
-    return false;
+    return PR_FALSE;
   nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
   nsIntSize size = element->GetVideoSize(nsIntSize(0,0));
   return size != nsIntSize(0,0);

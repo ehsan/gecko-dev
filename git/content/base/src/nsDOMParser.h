@@ -73,7 +73,7 @@ private:
     {}
 
     ~AttemptedInitMarker() {
-      *mAttemptedInit = true;
+      *mAttemptedInit = PR_TRUE;
     }
 
   private:

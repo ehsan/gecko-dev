@@ -150,7 +150,7 @@ public:
    *                                   aPossibleAncestorNode
    * @param  aRootNode               [in, optional] the root node that search
    *                                   search should be performed within
-   * @return true                     if aPossibleAncestorNode is an ancestor of
+   * @return PR_TRUE                  if aPossibleAncestorNode is an ancestor of
    *                                   aPossibleDescendantNode
    */
    static bool IsAncestorOf(nsINode *aPossibleAncestorNode,
@@ -254,7 +254,8 @@ public:
    */
   static nsIPresShell *GetPresShellFor(nsINode *aNode)
   {
-    return aNode->OwnerDoc()->GetShell();
+    nsIDocument *document = aNode->GetOwnerDoc();
+    return document ? document->GetShell() : nsnull;
   }
   static already_AddRefed<nsIWeakReference> GetWeakShellFor(nsINode *aNode)
   {
@@ -273,7 +274,7 @@ public:
    * Get the ID for an element, in some types of XML this may not be the ID attribute
    * @param aContent  Node to get the ID for
    * @param aID       Where to put ID string
-   * @return          true if there is an ID set for this node
+   * @return          PR_TRUE if there is an ID set for this node
    */
   static bool GetID(nsIContent *aContent, nsAString& aID);
 
@@ -288,7 +289,7 @@ public:
    * Check if the given element is XLink.
    *
    * @param aContent  the given element
-   * @return          true if the given element is XLink
+   * @return          PR_TRUE if the given element is XLink
    */
   static bool IsXLink(nsIContent *aContent);
 
@@ -328,6 +329,12 @@ public:
     GetFirstSensibleColumn(nsITreeBoxObject *aTree);
 
   /**
+   * Return last sensible column for the given tree box object.
+   */
+  static already_AddRefed<nsITreeColumn>
+    GetLastSensibleColumn(nsITreeBoxObject *aTree);
+
+  /**
    * Return sensible columns count for the given tree box object.
    */
   static PRUint32 GetSensibleColumnCount(nsITreeBoxObject *aTree);
@@ -363,6 +370,11 @@ public:
     return aContent->NodeInfo()->Equals(nsGkAtoms::th) ||
       aContent->HasAttr(kNameSpaceID_None, nsGkAtoms::scope);
   }
+
+  /**
+   * Check the visibility across both parent content and chrome.
+   */
+  static bool CheckVisibilityInParentChain(nsIFrame* aFrame);
 
 };
 

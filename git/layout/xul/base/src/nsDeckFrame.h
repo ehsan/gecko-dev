@@ -51,8 +51,6 @@
 class nsDeckFrame : public nsBoxFrame
 {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsDeckFrame)
-  NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
   friend nsIFrame* NS_NewDeckFrame(nsIPresShell* aPresShell,
@@ -76,6 +74,16 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
+  // Override SetInitialChildList/AppendFrames/InsertFrames to
+  // create views for our child frames if necessary
+  NS_IMETHOD  SetInitialChildList(ChildListID     aListID,
+                                  nsFrameList&    aChildList);
+  NS_IMETHOD AppendFrames(ChildListID     aListID,
+                          nsFrameList&    aFrameList);
+  NS_IMETHOD InsertFrames(ChildListID     aListID,
+                          nsIFrame*       aPrevFrame,
+                          nsFrameList&    aFrameList);
+
   virtual nsIAtom* GetType() const;
 
 #ifdef NS_DEBUG
@@ -87,13 +95,14 @@ public:
 
   nsDeckFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-  nsIFrame* GetSelectedBox();
-
 protected:
 
-  void IndexChanged();
+  // REVIEW: Sorry, I couldn't resist devirtualizing these.
+  nsIBox* GetSelectedBox();
+  void IndexChanged(nsPresContext* aPresContext);
   PRInt32 GetSelectedIndex();
-  void HideBox(nsIBox* aBox);
+  void HideBox(nsPresContext* aPresContext, nsIBox* aBox);
+  void ShowBox(nsPresContext* aPresContext, nsIBox* aBox);
 
 private:
 

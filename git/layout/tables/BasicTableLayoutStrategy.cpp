@@ -128,7 +128,7 @@ GetWidthInfo(nsRenderingContext *aRenderingContext,
     // idea for what to do with them.  This means calc() is basically
     // handled like 'auto' for table cells and columns.
     if (unit == eStyleUnit_Coord) {
-        hasSpecifiedWidth = true;
+        hasSpecifiedWidth = PR_TRUE;
         nscoord w = nsLayoutUtils::ComputeWidthValue(aRenderingContext,
                                                      aFrame, 0, 0, 0, width);
         // Quirk: A cell with "nowrap" set and a coord value for the
@@ -235,14 +235,14 @@ static inline CellWidthInfo
 GetCellWidthInfo(nsRenderingContext *aRenderingContext,
                  nsTableCellFrame *aCellFrame)
 {
-    return GetWidthInfo(aRenderingContext, aCellFrame, true);
+    return GetWidthInfo(aRenderingContext, aCellFrame, PR_TRUE);
 }
 
 static inline CellWidthInfo
 GetColWidthInfo(nsRenderingContext *aRenderingContext,
                 nsIFrame *aFrame)
 {
-    return GetWidthInfo(aRenderingContext, aFrame, false);
+    return GetWidthInfo(aRenderingContext, aFrame, PR_FALSE);
 }
 
 
@@ -320,7 +320,7 @@ BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths(nsRenderingContext* aRend
     }
 #ifdef DEBUG_TABLE_STRATEGY
     printf("ComputeColumnIntrinsicWidths single\n");
-    mTableFrame->Dump(false, true, false);
+    mTableFrame->Dump(PR_FALSE, PR_TRUE, PR_FALSE);
 #endif
 
     // Consider the cells with a colspan that we saved in the loop above
@@ -408,7 +408,7 @@ BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths(nsRenderingContext* aRend
 
 #ifdef DEBUG_TABLE_STRATEGY
     printf("ComputeColumnIntrinsicWidths spanning\n");
-    mTableFrame->Dump(false, true, false);
+    mTableFrame->Dump(PR_FALSE, PR_TRUE, PR_FALSE);
 #endif
 }
 
@@ -529,11 +529,11 @@ BasicTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
     if (colCount <= 0)
         return; // nothing to do
 
-    DistributeWidthToColumns(width, 0, colCount, BTLS_FINAL_WIDTH, false);
+    DistributeWidthToColumns(width, 0, colCount, BTLS_FINAL_WIDTH, PR_FALSE);
 
 #ifdef DEBUG_TABLE_STRATEGY
     printf("ComputeColumnWidths final\n");
-    mTableFrame->Dump(false, true, false);
+    mTableFrame->Dump(PR_FALSE, PR_TRUE, PR_FALSE);
 #endif
 }
 

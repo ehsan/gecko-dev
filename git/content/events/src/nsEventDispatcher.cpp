@@ -203,7 +203,7 @@ public:
         return NS_OK;
       }
       mManager =
-        static_cast<nsEventListenerManager*>(mTarget->GetListenerManager(false));
+        static_cast<nsEventListenerManager*>(mTarget->GetListenerManager(PR_FALSE));
     }
     if (mManager) {
       NS_ASSERTION(aVisitor.mEvent->currentTarget == nsnull,
@@ -376,9 +376,9 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
 
   if (!(aFlags & NS_EVENT_FLAG_SYSTEM_EVENT)) {
     // Dispatch to the system event group.  Make sure to clear the
-    // STOP_DISPATCH flag since this resets for each event group.
-    aVisitor.mEvent->flags &=
-      ~(NS_EVENT_FLAG_STOP_DISPATCH | NS_EVENT_FLAG_STOP_DISPATCH_IMMEDIATELY);
+    // STOP_DISPATCH flag since this resets for each event group
+    // per DOM3 Events.
+    aVisitor.mEvent->flags &= ~NS_EVENT_FLAG_STOP_DISPATCH;
 
     // Setting back the original target of the event.
     aVisitor.mEvent->target = aVisitor.mEvent->originalTarget;
@@ -396,11 +396,6 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
                            aCallback,
                            createdELMs != nsEventListenerManager::sCreatedCount,
                            aPusher);
-
-    // After dispatch, clear all the propagation flags so that
-    // system group listeners don't affect to the event.
-    aVisitor.mEvent->flags &=
-      ~(NS_EVENT_FLAG_STOP_DISPATCH | NS_EVENT_FLAG_STOP_DISPATCH_IMMEDIATELY);
   }
 
   return NS_OK;
@@ -505,7 +500,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
 
       aEvent->originalTarget = target;
       target = newTarget;
-      retargeted = true;
+      retargeted = PR_TRUE;
     }
   }
 
@@ -519,7 +514,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
     }
 
     NS_ENSURE_STATE(node);
-    nsIDocument* doc = node->OwnerDoc();
+    nsIDocument* doc = node->GetOwnerDoc();
     if (!nsContentUtils::IsChromeDoc(doc)) {
       nsPIDOMWindow* win = doc ? doc->GetInnerWindow() : nsnull;
       // If we can't dispatch the event to chrome, do nothing.
@@ -548,7 +543,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
     if (target->GetContextForEventHandlers(&rv) ||
         NS_FAILED(rv)) {
       nsCOMPtr<nsINode> node = do_QueryInterface(target);
-      if (node && nsContentUtils::IsChromeDoc(node->OwnerDoc())) {
+      if (node && nsContentUtils::IsChromeDoc(node->GetOwnerDoc())) {
         NS_WARNING("Fix the caller!");
       } else {
         NS_ERROR("This is unsafe! Fix the caller!");
@@ -673,7 +668,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
                                              NS_EVENT_FLAG_BUBBLE |
                                              NS_EVENT_FLAG_CAPTURE,
                                              aCallback,
-                                             false,
+                                             PR_FALSE,
                                              &pusher);
   
         preVisitor.mEventStatus = postVisitor.mEventStatus;
@@ -792,8 +787,10 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     case NS_SVGZOOM_EVENT:
       return NS_NewDOMSVGZoomEvent(aDOMEvent, aPresContext,
                                    static_cast<nsGUIEvent*>(aEvent));
+#ifdef MOZ_SMIL
     case NS_SMIL_TIME_EVENT:
       return NS_NewDOMTimeEvent(aDOMEvent, aPresContext, aEvent);
+#endif // MOZ_SMIL
 
     case NS_COMMAND_EVENT:
       return NS_NewDOMCommandEvent(aDOMEvent, aPresContext,
@@ -857,9 +854,11 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
   if (aEventType.LowerCaseEqualsLiteral("svgzoomevent") ||
       aEventType.LowerCaseEqualsLiteral("svgzoomevents"))
     return NS_NewDOMSVGZoomEvent(aDOMEvent, aPresContext, nsnull);
+#ifdef MOZ_SMIL
   if (aEventType.LowerCaseEqualsLiteral("timeevent") ||
       aEventType.LowerCaseEqualsLiteral("timeevents"))
     return NS_NewDOMTimeEvent(aDOMEvent, aPresContext, nsnull);
+#endif // MOZ_SMIL
   if (aEventType.LowerCaseEqualsLiteral("xulcommandevent") ||
       aEventType.LowerCaseEqualsLiteral("xulcommandevents"))
     return NS_NewDOMXULCommandEvent(aDOMEvent, aPresContext, nsnull);
@@ -904,8 +903,6 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     return NS_NewDOMHashChangeEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("customevent"))
     return NS_NewDOMCustomEvent(aDOMEvent, aPresContext, nsnull);
-  if (aEventType.LowerCaseEqualsLiteral("mozsmsevent"))
-    return NS_NewDOMSmsEvent(aDOMEvent, aPresContext, nsnull);
 
   return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
 }

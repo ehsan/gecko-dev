@@ -73,12 +73,6 @@ class nsFontFaceList;
 class nsBlockFrame;
 class gfxDrawable;
 
-namespace mozilla {
-namespace dom {
-class Element;
-} // namespace dom
-} // namespace mozilla
-
 /**
  * nsLayoutUtils is a namespace class used for various helper
  * functions that are useful in multiple places in layout.  The goal
@@ -167,7 +161,7 @@ public:
   static nsIFrame* GetStyleFrame(nsIFrame* aPrimaryFrame);
 
   /**
-   * IsGeneratedContentFor returns true if aFrame is the outermost
+   * IsGeneratedContentFor returns PR_TRUE if aFrame is the outermost
    * frame for generated content of type aPseudoElement for aContent.
    * aFrame *might not* have the aPseudoElement pseudo-style! For example
    * it might be a table outer frame and the inner table frame might
@@ -348,7 +342,8 @@ public:
     * @param aView is the view to return the root frame for
     * @return the root frame for the view
     */
-  static nsIFrame* GetFrameFor(nsIView *aView) { return aView->GetFrame(); }
+  static nsIFrame* GetFrameFor(nsIView *aView)
+  { return static_cast<nsIFrame*>(aView->GetClientData()); }
 
   /**
     * GetScrollableFrameFor returns the scrollable frame for a scrolled frame
@@ -383,9 +378,9 @@ public:
   static nsIScrollableFrame* GetNearestScrollableFrame(nsIFrame* aFrame);
 
   /**
-   * HasPseudoStyle returns true if aContent (whose primary style
+   * HasPseudoStyle returns PR_TRUE if aContent (whose primary style
    * context is aStyleContext) has the aPseudoElement pseudo-style
-   * attached to it; returns false otherwise.
+   * attached to it; returns PR_FALSE otherwise.
    *
    * @param aContent the content node we're looking at
    * @param aStyleContext aContent's style context
@@ -747,23 +742,19 @@ public:
    * Get the font metrics corresponding to the frame's style data.
    * @param aFrame the frame
    * @param aFontMetrics the font metrics result
-   * @param aSizeInflation number to multiply font size by
    * @return success or failure code
    */
   static nsresult GetFontMetricsForFrame(const nsIFrame* aFrame,
-                                         nsFontMetrics** aFontMetrics,
-                                         float aSizeInflation = 1.0f);
+                                         nsFontMetrics** aFontMetrics);
 
   /**
    * Get the font metrics corresponding to the given style data.
    * @param aStyleContext the style data
    * @param aFontMetrics the font metrics result
-   * @param aSizeInflation number to multiply font size by
    * @return success or failure code
    */
   static nsresult GetFontMetricsForStyleContext(nsStyleContext* aStyleContext,
-                                                nsFontMetrics** aFontMetrics,
-                                                float aSizeInflation = 1.0f);
+                                                nsFontMetrics** aFontMetrics);
 
   /**
    * Find the immediate child of aParent whose frame subtree contains
@@ -1232,7 +1223,7 @@ public:
   /**
    * Determine if any corner radius is of nonzero size
    *   @param aCorners the |nsStyleCorners| object to check
-   *   @return true unless all the coordinates are 0%, 0 or null.
+   *   @return PR_TRUE unless all the coordinates are 0%, 0 or null.
    *
    * A corner radius with one dimension zero and one nonzero is
    * treated as a nonzero-radius corner, even though it will end up
@@ -1367,7 +1358,7 @@ public:
   struct SurfaceFromElementResult {
     SurfaceFromElementResult() :
       // Use safe default values here
-      mIsWriteOnly(true), mIsStillLoading(false), mCORSUsed(false) {}
+      mIsWriteOnly(PR_TRUE), mIsStillLoading(PR_FALSE), mCORSUsed(PR_FALSE) {}
 
     /* mSurface will contain the resulting surface, or will be NULL on error */
     nsRefPtr<gfxASurface> mSurface;
@@ -1387,7 +1378,7 @@ public:
     bool mCORSUsed;
   };
 
-  static SurfaceFromElementResult SurfaceFromElement(mozilla::dom::Element *aElement,
+  static SurfaceFromElementResult SurfaceFromElement(nsIDOMElement *aElement,
                                                      PRUint32 aSurfaceFlags = 0);
 
   /**
@@ -1443,137 +1434,11 @@ public:
                                       nsFontFaceList* aFontFaceList);
 
   /**
-   * Walks the frame tree starting at aFrame looking for textRuns.
-   * If |clear| is true, just clears the TEXT_RUN_MEMORY_ACCOUNTED flag
-   * on each textRun found (and |aMallocSizeOf| is not used).
-   * If |clear| is false, adds the storage used for each textRun to the
-   * total, and sets the TEXT_RUN_MEMORY_ACCOUNTED flag to avoid double-
-   * accounting. (Runs with this flag already set will be skipped.)
-   * Expected usage pattern is therefore to call twice:
-   *    (void)SizeOfTextRunsForFrames(rootFrame, nsnull, true);
-   *    total = SizeOfTextRunsForFrames(rootFrame, mallocSizeOf, false);
-   */
-  static size_t SizeOfTextRunsForFrames(nsIFrame* aFrame,
-                                        nsMallocSizeOfFun aMallocSizeOf,
-                                        bool clear);
-
-  /**
    * Checks if CSS 3D transforms are currently enabled.
    */
   static bool Are3DTransformsEnabled();
 
-  /**
-   * Return whether this is a frame whose width is used when computing
-   * the font size inflation of its descendants.
-   */
-  static bool IsContainerForFontSizeInflation(const nsIFrame *aFrame);
-
-  /**
-   * Return the font size inflation *ratio* for a given frame.  This is
-   * the factor by which font sizes should be inflated; it is never
-   * smaller than 1.
-   *
-   * There are three variants: pass a reflow state if the frame or any
-   * of its ancestors are currently being reflowed and a frame
-   * otherwise, or, if you know the width of the inflation container (a
-   * somewhat sketchy assumption), its width.
-   */
-  static float FontSizeInflationFor(const nsHTMLReflowState &aReflowState);
-  static float FontSizeInflationFor(const nsIFrame *aFrame);
-  static float FontSizeInflationFor(const nsIFrame *aFrame,
-                                    nscoord aInflationContainerWidth);
-
-  /**
-   * Perform the first half of the computation of FontSizeInflationFor
-   * (see above).
-   * This includes determining whether inflation should be performed
-   * within this container and returning 0 if it should not be.
-   *
-   * The result is guaranteed not to vary between line participants
-   * (inlines, text frames) within a line.
-   *
-   * The result should not be used directly since font sizes slightly
-   * above the minimum should always be adjusted as done by
-   * FontSizeInflationInner.
-   */
-  static nscoord InflationMinFontSizeFor(const nsHTMLReflowState
-                                                 &aReflowState);
-  static nscoord InflationMinFontSizeFor(const nsIFrame *aFrame);
-  static nscoord InflationMinFontSizeFor(const nsIFrame *aFrame,
-                                         nscoord aInflationContainerWidth);
-
-  /**
-   * Perform the second half of the computation done by
-   * FontSizeInflationFor (see above).
-   *
-   * aMinFontSize must be the result of one of the
-   *   InflationMinFontSizeFor methods above.
-   */
-  static float FontSizeInflationInner(const nsIFrame *aFrame,
-                                      nscoord aMinFontSize);
-
-  static bool FontSizeInflationEnabled(nsPresContext *aPresContext);
-
-  static void Initialize();
   static void Shutdown();
-
-  /**
-   * Register an imgIRequest object with a refresh driver.
-   *
-   * @param aPresContext The nsPresContext whose refresh driver we want to
-   *        register with.
-   * @param aRequest A pointer to the imgIRequest object which the client wants
-   *        to register with the refresh driver.
-   * @param aRequestRegistered A pointer to a boolean value which indicates
-   *        whether the given image request is registered. If
-   *        *aRequestRegistered is true, then this request will not be
-   *        registered again. If the request is registered by this function,
-   *        then *aRequestRegistered will be set to true upon the completion of
-   *        this function.
-   *
-   */
-  static void RegisterImageRequest(nsPresContext* aPresContext,
-                                   imgIRequest* aRequest,
-                                   bool* aRequestRegistered);
-
-  /**
-   * Register an imgIRequest object with a refresh driver, but only if the
-   * request is for an image that is animated.
-   *
-   * @param aPresContext The nsPresContext whose refresh driver we want to
-   *        register with.
-   * @param aRequest A pointer to the imgIRequest object which the client wants
-   *        to register with the refresh driver.
-   * @param aRequestRegistered A pointer to a boolean value which indicates
-   *        whether the given image request is registered. If
-   *        *aRequestRegistered is true, then this request will not be
-   *        registered again. If the request is registered by this function,
-   *        then *aRequestRegistered will be set to true upon the completion of
-   *        this function.
-   *
-   */
-  static void RegisterImageRequestIfAnimated(nsPresContext* aPresContext,
-                                             imgIRequest* aRequest,
-                                             bool* aRequestRegistered);
-
-  /**
-   * Deregister an imgIRequest object from a refresh driver.
-   *
-   * @param aPresContext The nsPresContext whose refresh driver we want to
-   *        deregister from.
-   * @param aRequest A pointer to the imgIRequest object with which the client
-   *        previously registered and now wants to deregister from the refresh
-   *        driver.
-   * @param aRequestRegistered A pointer to a boolean value which indicates
-   *        whether the given image request is registered. If
-   *        *aRequestRegistered is false, then this request will not be
-   *        deregistered. If the request is deregistered by this function,
-   *        then *aRequestRegistered will be set to false upon the completion of
-   *        this function.
-   */
-  static void DeregisterImageRequest(nsPresContext* aPresContext,
-                                     imgIRequest* aRequest,
-                                     bool* aRequestRegistered);
 
 #ifdef DEBUG
   /**

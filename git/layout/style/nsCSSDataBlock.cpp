@@ -242,13 +242,13 @@ nsCSSCompressedDataBlock::TryReplaceValue(nsCSSProperty aProperty,
 
     const nsCSSValue* oldValue = ValueFor(aProperty);
     if (!oldValue) {
-        *aChanged = false;
-        return false;
+        *aChanged = PR_FALSE;
+        return PR_FALSE;
     }
 
     *aChanged = MoveValue(newValue, const_cast<nsCSSValue*>(oldValue));
     aFromBlock.ClearPropertyBit(aProperty);
-    return true;
+    return PR_TRUE;
 }
 
 nsCSSCompressedDataBlock*
@@ -363,9 +363,9 @@ nsCSSExpandedDataBlock::Expand(nsCSSCompressedDataBlock *aNormalBlock,
     NS_ABORT_IF_FALSE(aNormalBlock, "unexpected null block");
     AssertInitialState();
 
-    DoExpand(aNormalBlock, false);
+    DoExpand(aNormalBlock, PR_FALSE);
     if (aImportantBlock) {
-        DoExpand(aImportantBlock, true);
+        DoExpand(aImportantBlock, PR_TRUE);
     }
 }
 
@@ -548,7 +548,7 @@ nsCSSExpandedDataBlock::DoTransferFromBlock(nsCSSExpandedDataBlock& aFromBlock,
   NS_ABORT_IF_FALSE(aFromBlock.HasPropertyBit(aPropID), "oops");
   if (aIsImportant) {
     if (!HasImportantBit(aPropID))
-      changed = true;
+      changed = PR_TRUE;
     SetImportantBit(aPropID);
   } else {
     if (HasImportantBit(aPropID)) {
@@ -559,9 +559,9 @@ nsCSSExpandedDataBlock::DoTransferFromBlock(nsCSSExpandedDataBlock& aFromBlock,
       // overwrite the property.
       if (!aOverrideImportant) {
         aFromBlock.ClearLonghandProperty(aPropID);
-        return false;
+        return PR_FALSE;
       }
-      changed = true;
+      changed = PR_TRUE;
       ClearImportantBit(aPropID);
     }
   }

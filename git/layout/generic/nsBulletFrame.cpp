@@ -65,9 +65,7 @@
 #include "nsAccessibilityService.h"
 #endif
 
-using namespace mozilla;
-
-NS_DECLARE_FRAME_PROPERTY(FontSizeInflationProperty, nsnull)
+#define BULLET_FRAME_IMAGE_LOADING NS_FRAME_STATE_BIT(63)
 
 class nsBulletListener : public nsStubImageDecoderObserver
 {
@@ -82,8 +80,6 @@ public:
                              const nsIntRect *aRect);
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
                           const PRUnichar *statusArg);
-  NS_IMETHOD OnImageIsAnimated(imgIRequest *aRequest);
-
   // imgIContainerObserver (override nsStubImageDecoderObserver)
   NS_IMETHOD FrameChanged(imgIContainer *aContainer,
                           const nsIntRect *dirtyRect);
@@ -105,10 +101,6 @@ nsBulletFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   // Stop image loading first
   if (mImageRequest) {
-    // Deregister our image request from the refresh driver
-    nsLayoutUtils::DeregisterImageRequest(PresContext(),
-                                          mImageRequest,
-                                          &mRequestRegistered);
     mImageRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
     mImageRequest = nsnull;
   }
@@ -176,10 +168,8 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
         bool same;
         newURI->Equals(oldURI, &same);
         if (same) {
-          needNewRequest = false;
+          needNewRequest = PR_FALSE;
         } else {
-          nsLayoutUtils::DeregisterImageRequest(PresContext(), mImageRequest,
-                                                &mRequestRegistered);
           mImageRequest->Cancel(NS_ERROR_FAILURE);
           mImageRequest = nsnull;
         }
@@ -188,18 +178,10 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 
     if (needNewRequest) {
       newRequest->Clone(mListener, getter_AddRefs(mImageRequest));
-      if (mImageRequest) {
-        nsLayoutUtils::RegisterImageRequestIfAnimated(PresContext(),
-                                                      mImageRequest,
-                                                      &mRequestRegistered);
-      }
     }
   } else {
     // No image request on the new style context
     if (mImageRequest) {
-      nsLayoutUtils::DeregisterImageRequest(PresContext(), mImageRequest,
-                                            &mRequestRegistered);
-
       mImageRequest->Cancel(NS_ERROR_FAILURE);
       mImageRequest = nsnull;
     }
@@ -244,7 +226,7 @@ public:
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder)
   {
-    return mFrame->GetVisualOverflowRectRelativeToSelf() + ToReferenceFrame();
+    return mFrame->GetVisualOverflowRect() + ToReferenceFrame();
   }
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
@@ -310,7 +292,7 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
   nsRefPtr<nsFontMetrics> fm;
   aRenderingContext.SetColor(nsLayoutUtils::GetColor(this, eCSSProperty_color));
 
-  mTextIsRTL = false;
+  mTextIsRTL = PR_FALSE;
 
   nsAutoString text;
   switch (listStyleType) {
@@ -398,8 +380,7 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
   case NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_HALEHAME_AM:
   case NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_HALEHAME_TI_ER:
   case NS_STYLE_LIST_STYLE_MOZ_ETHIOPIC_HALEHAME_TI_ET:
-    nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm),
-                                          GetFontSizeInflation());
+    nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
     GetListItemText(*myList, text);
     aRenderingContext.SetFont(fm);
     nscoord ascent = fm->MaxAscent();
@@ -444,8 +425,8 @@ nsBulletFrame::SetListItemOrdinal(PRInt32 aNextOrdinal,
 // maxnegint will work
 
 /**
- * For all functions below, a return value of true means that we
- * could represent mOrder in the desired numbering system.  false
+ * For all functions below, a return value of PR_TRUE means that we
+ * could represent mOrder in the desired numbering system.  PR_FALSE
  * means we had to fall back to decimal
  */
 static bool DecimalToText(PRInt32 ordinal, nsString& result)
@@ -453,14 +434,14 @@ static bool DecimalToText(PRInt32 ordinal, nsString& result)
    char cbuf[40];
    PR_snprintf(cbuf, sizeof(cbuf), "%ld", ordinal);
    result.AppendASCII(cbuf);
-   return true;
+   return PR_TRUE;
 }
 static bool DecimalLeadingZeroToText(PRInt32 ordinal, nsString& result)
 {
    char cbuf[40];
    PR_snprintf(cbuf, sizeof(cbuf), "%02ld", ordinal);
    result.AppendASCII(cbuf);
-   return true;
+   return PR_TRUE;
 }
 static bool OtherDecimalToText(PRInt32 ordinal, PRUnichar zeroChar, nsString& result)
 {
@@ -473,7 +454,7 @@ static bool OtherDecimalToText(PRInt32 ordinal, PRUnichar zeroChar, nsString& re
    }     
    for(; nsnull != *p ; p++) 
       *p += diff;
-   return true;
+   return PR_TRUE;
 }
 static bool TamilToText(PRInt32 ordinal,  nsString& result)
 {
@@ -481,13 +462,13 @@ static bool TamilToText(PRInt32 ordinal,  nsString& result)
    DecimalToText(ordinal, result); 
    if (ordinal < 1 || ordinal > 9999) {
      // Can't do those in this system.
-     return false;
+     return PR_FALSE;
    }
    PRUnichar* p = result.BeginWriting();
    for(; nsnull != *p ; p++) 
       if(*p != PRUnichar('0'))
          *p += diff;
-   return true;
+   return PR_TRUE;
 }
 
 
@@ -500,7 +481,7 @@ static bool RomanToText(PRInt32 ordinal, nsString& result, const char* achars, c
 {
   if (ordinal < 1 || ordinal > 3999) {
     DecimalToText(ordinal, result);
-    return false;
+    return PR_FALSE;
   }
   nsAutoString addOn, decStr;
   decStr.AppendInt(ordinal, 10);
@@ -542,7 +523,7 @@ static bool RomanToText(PRInt32 ordinal, nsString& result, const char* achars, c
     }
     result.Append(addOn);
   }
-  return true;
+  return PR_TRUE;
 }
 
 #define ALPHA_SIZE 26
@@ -729,7 +710,7 @@ static bool CharListToText(PRInt32 ordinal, nsString& result, const PRUnichar* c
   PRInt32 idx = NUM_BUF_SIZE;
   if (ordinal < 1) {
     DecimalToText(ordinal, result);
-    return false;
+    return PR_FALSE;
   }
   do {
     ordinal--; // a == 0
@@ -738,7 +719,7 @@ static bool CharListToText(PRInt32 ordinal, nsString& result, const PRUnichar* c
     ordinal /= aBase ;
   } while ( ordinal > 0);
   result.Append(buf+idx,NUM_BUF_SIZE-idx);
-  return true;
+  return PR_TRUE;
 }
 
 
@@ -795,7 +776,7 @@ static const bool CJKIdeographicToText(PRInt32 ordinal, nsString& result,
 // {
   if (ordinal < 0) {
     DecimalToText(ordinal, result);
-    return false;
+    return PR_FALSE;
   }
   PRUnichar c10kUnit = 0;
   PRUnichar cUnit = 0;
@@ -814,14 +795,14 @@ static const bool CJKIdeographicToText(PRInt32 ordinal, nsString& result,
     {
       cUnit = 0;
       if(bOutputZero) {
-        bOutputZero = false;
+        bOutputZero = PR_FALSE;
         if(0 != cDigit)
           buf[--idx] = cDigit;
       }
     }
     else
     {
-      bOutputZero = true;
+      bOutputZero = PR_TRUE;
       cUnit = unit[ud%4];
 
       if(0 != c10kUnit)
@@ -840,7 +821,7 @@ static const bool CJKIdeographicToText(PRInt32 ordinal, nsString& result,
   } while( ordinal > 0);
   result.Append(buf+idx,NUM_BUF_SIZE-idx);
 // }
-  return true;
+  return PR_TRUE;
 }
 
 #define HEBREW_GERESH       0x05F3
@@ -858,7 +839,7 @@ static bool HebrewToText(PRInt32 ordinal, nsString& result)
 {
   if (ordinal < 1 || ordinal > 999999) {
     DecimalToText(ordinal, result);
-    return false;
+    return PR_FALSE;
   }
   bool outputSep = false;
   nsAutoString allText, thousandsGroup;
@@ -905,11 +886,11 @@ static bool HebrewToText(PRInt32 ordinal, nsString& result)
     else
       allText = thousandsGroup + allText;
     ordinal /= 1000;
-    outputSep = true;
+    outputSep = PR_TRUE;
   } while (ordinal >= 1);
 
   result.Append(allText);
-  return true;
+  return PR_TRUE;
 }
 
 
@@ -917,7 +898,7 @@ static bool ArmenianToText(PRInt32 ordinal, nsString& result)
 {
   if (ordinal < 1 || ordinal > 9999) { // zero or reach the limit of Armenian numbering system
     DecimalToText(ordinal, result);
-    return false;
+    return PR_FALSE;
   }
 
   PRUnichar buf[NUM_BUF_SIZE];
@@ -934,7 +915,7 @@ static bool ArmenianToText(PRInt32 ordinal, nsString& result)
     ordinal /= 10;
   } while (ordinal > 0);
   result.Append(buf + idx, NUM_BUF_SIZE - idx);
-  return true;
+  return PR_TRUE;
 }
 
 
@@ -954,7 +935,7 @@ static bool GeorgianToText(PRInt32 ordinal, nsString& result)
 {
   if (ordinal < 1 || ordinal > 19999) { // zero or reach the limit of Georgian numbering system
     DecimalToText(ordinal, result);
-    return false;
+    return PR_FALSE;
   }
 
   PRUnichar buf[NUM_BUF_SIZE];
@@ -971,7 +952,7 @@ static bool GeorgianToText(PRInt32 ordinal, nsString& result)
     ordinal /= 10;
   } while (ordinal > 0);
   result.Append(buf + idx, NUM_BUF_SIZE - idx);
-  return true;
+  return PR_TRUE;
 }
 
 // Convert ordinal to Ethiopic numeric representation.
@@ -990,7 +971,7 @@ static bool EthiopicToText(PRInt32 ordinal, nsString& result)
   DecimalToText(ordinal, asciiNumberString);
   if (ordinal < 1) {
     result.Append(asciiNumberString);
-    return false;
+    return PR_FALSE;
   }
   PRUint8 asciiStringLength = asciiNumberString.Length();
 
@@ -1045,7 +1026,7 @@ static bool EthiopicToText(PRInt32 ordinal, nsString& result)
       }
     }
   }
-  return true;
+  return PR_TRUE;
 }
 
 
@@ -1297,7 +1278,7 @@ nsBulletFrame::GetListItemText(const nsStyleList& aListStyle,
   bool success =
     AppendCounterText(aListStyle.mListStyleType, mOrdinal, result);
   if (success && aListStyle.mListStyleType == NS_STYLE_LIST_STYLE_HEBREW)
-    mTextIsRTL = true;
+    mTextIsRTL = PR_TRUE;
 
   // XXX For some of these systems, "." is wrong!  This should really be
   // pushed down into the individual cases!
@@ -1319,8 +1300,7 @@ nsBulletFrame::GetListItemText(const nsStyleList& aListStyle,
 void
 nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
                               nsRenderingContext *aRenderingContext,
-                              nsHTMLReflowMetrics& aMetrics,
-                              float aFontSizeInflation)
+                              nsHTMLReflowMetrics& aMetrics)
 {
   // Reset our padding.  If we need it, we'll set it below.
   mPadding.SizeTo(0, 0, 0, 0);
@@ -1357,8 +1337,7 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
   mIntrinsicSize.SizeTo(0, 0);
 
   nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm),
-                                        aFontSizeInflation);
+  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
   nscoord bulletSize;
 
   nsAutoString text;
@@ -1447,11 +1426,8 @@ nsBulletFrame::Reflow(nsPresContext* aPresContext,
   DO_GLOBAL_REFLOW_COUNT("nsBulletFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aMetrics, aStatus);
 
-  float inflation = nsLayoutUtils::FontSizeInflationFor(aReflowState);
-  SetFontSizeInflation(inflation);
-
   // Get the base size
-  GetDesiredSize(aPresContext, aReflowState.rendContext, aMetrics, inflation);
+  GetDesiredSize(aPresContext, aReflowState.rendContext, aMetrics);
 
   // Add in the border and padding; split the top/bottom between the
   // ascent and descent to make things look nice
@@ -1476,7 +1452,7 @@ nsBulletFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 {
   nsHTMLReflowMetrics metrics;
   DISPLAY_MIN_WIDTH(this, metrics.width);
-  GetDesiredSize(PresContext(), aRenderingContext, metrics, 1.0f);
+  GetDesiredSize(PresContext(), aRenderingContext, metrics);
   return metrics.width;
 }
 
@@ -1485,7 +1461,7 @@ nsBulletFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 {
   nsHTMLReflowMetrics metrics;
   DISPLAY_PREF_WIDTH(this, metrics.width);
-  GetDesiredSize(PresContext(), aRenderingContext, metrics, 1.0f);
+  GetDesiredSize(PresContext(), aRenderingContext, metrics);
   return metrics.width;
 }
 
@@ -1556,22 +1532,10 @@ NS_IMETHODIMP nsBulletFrame::OnStopDecode(imgIRequest *aRequest,
   if (NS_FAILED(aStatus)) {
     // We failed to load the image. Notify the pres shell
     if (NS_FAILED(aStatus) && (mImageRequest == aRequest || !mImageRequest)) {
-      imageFailed = true;
+      imageFailed = PR_TRUE;
     }
   }
 #endif
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsBulletFrame::OnImageIsAnimated(imgIRequest* aRequest)
-{
-  // Register the image request with the refresh driver now that we know it's
-  // animated.
-  if (aRequest == mImageRequest) {
-    nsLayoutUtils::RegisterImageRequest(PresContext(), mImageRequest,
-                                        &mRequestRegistered);
-  }
 
   return NS_OK;
 }
@@ -1606,41 +1570,6 @@ nsBulletFrame::GetLoadGroup(nsPresContext *aPresContext, nsILoadGroup **aLoadGro
   *aLoadGroup = doc->GetDocumentLoadGroup().get();  // already_AddRefed
 }
 
-union VoidPtrOrFloat {
-  VoidPtrOrFloat() : p(nsnull) {}
-
-  void *p;
-  float f;
-};
-
-float
-nsBulletFrame::GetFontSizeInflation() const
-{
-  if (!HasFontSizeInflation()) {
-    return 1.0f;
-  }
-  VoidPtrOrFloat u;
-  u.p = Properties().Get(FontSizeInflationProperty());
-  return u.f;
-}
-
-void
-nsBulletFrame::SetFontSizeInflation(float aInflation)
-{
-  if (aInflation == 1.0f) {
-    if (HasFontSizeInflation()) {
-      RemoveStateBits(BULLET_FRAME_HAS_FONT_INFLATION);
-      Properties().Delete(FontSizeInflationProperty());
-    }
-    return;
-  }
-
-  AddStateBits(BULLET_FRAME_HAS_FONT_INFLATION);
-  VoidPtrOrFloat u;
-  u.f = aInflation;
-  Properties().Set(FontSizeInflationProperty(), u.p);
-}
-
 nscoord
 nsBulletFrame::GetBaseline() const
 {
@@ -1649,8 +1578,7 @@ nsBulletFrame::GetBaseline() const
     ascent = GetRect().height;
   } else {
     nsRefPtr<nsFontMetrics> fm;
-    nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm),
-                                          GetFontSizeInflation());
+    nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
     const nsStyleList* myList = GetStyleList();
     switch (myList->mListStyleType) {
       case NS_STYLE_LIST_STYLE_NONE:
@@ -1706,7 +1634,7 @@ NS_IMETHODIMP nsBulletListener::OnDataAvailable(imgIRequest *aRequest,
                                                 const nsIntRect *aRect)
 {
   if (!mFrame)
-    return NS_OK;
+    return NS_ERROR_FAILURE;
 
   return mFrame->OnDataAvailable(aRequest, aCurrentFrame, aRect);
 }
@@ -1716,24 +1644,16 @@ NS_IMETHODIMP nsBulletListener::OnStopDecode(imgIRequest *aRequest,
                                              const PRUnichar *statusArg)
 {
   if (!mFrame)
-    return NS_OK;
+    return NS_ERROR_FAILURE;
   
   return mFrame->OnStopDecode(aRequest, status, statusArg);
-}
-
-NS_IMETHODIMP nsBulletListener::OnImageIsAnimated(imgIRequest *aRequest)
-{
-  if (!mFrame)
-    return NS_OK;
-
-  return mFrame->OnImageIsAnimated(aRequest);
 }
 
 NS_IMETHODIMP nsBulletListener::FrameChanged(imgIContainer *aContainer,
                                              const nsIntRect *aDirtyRect)
 {
   if (!mFrame)
-    return NS_OK;
+    return NS_ERROR_FAILURE;
 
   return mFrame->FrameChanged(aContainer, aDirtyRect);
 }

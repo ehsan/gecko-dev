@@ -39,7 +39,6 @@
 
 #include "mozilla/Monitor.h"
 #include "nsThreadUtils.h"
-#include "nsIObserver.h"
 
 namespace mozilla { namespace psm {
 
@@ -56,18 +55,6 @@ protected:
   virtual void RunOnTargetThread() = 0;
 private:
   mozilla::Monitor monitor;
-};
-
-class NotifyObserverRunnable : public nsRunnable
-{
-public:
-  NotifyObserverRunnable(nsIObserver * observer,
-                         const char * topicStringLiteral)
-    : mObserver(), mTopic(topicStringLiteral) { mObserver = observer; }
-  NS_DECL_NSIRUNNABLE
-private:
-  nsCOMPtr<nsIObserver> mObserver;
-  const char * const mTopic;
 };
 
 } } // namespace mozilla::psm

@@ -153,8 +153,8 @@ public:
    * Inform the control that it got (or lost) focus.
    * If it lost focus, the dropdown menu will be rolled up if needed,
    * and FireOnChange() will be called.
-   * @param aOn true if got focus, false if lost focus.
-   * @param aRepaint if true then force repaint (NOTE: we always force repaint currently)
+   * @param aOn PR_TRUE if got focus, PR_FALSE if lost focus.
+   * @param aRepaint if PR_TRUE then force repaint (NOTE: we always force repaint currently)
    * @note This method might destroy |this|.
    */
   virtual void SetFocus(bool aOn, bool aRepaint);
@@ -192,24 +192,20 @@ public:
    * Hide the dropdown menu and stop capturing mouse events.
    * @note This method might destroy |this|.
    */
-  virtual nsIContent* Rollup(PRUint32 aCount, bool aGetLastRolledUp = false);
-
+  NS_IMETHOD Rollup(PRUint32 aCount, nsIContent** aLastRolledUp);
   /**
    * A combobox should roll up if a mousewheel event happens outside of
    * the popup area.
    */
-  virtual bool ShouldRollupOnMouseWheelEvent()
-    { return true; }
+  NS_IMETHOD ShouldRollupOnMouseWheelEvent(bool *aShouldRollup)
+    { *aShouldRollup = PR_TRUE; return NS_OK;}
 
   /**
    * A combobox should not roll up if activated by a mouse activate message
    * (eg. X-mouse).
    */
-  virtual bool ShouldRollupOnMouseActivate()
-    { return false; }
-
-  virtual PRUint32 GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain)
-    { return 0; }
+  NS_IMETHOD ShouldRollupOnMouseActivate(bool *aShouldRollup)
+    { *aShouldRollup = PR_FALSE; return NS_OK;}
 
   //nsIStatefulFrame
   NS_IMETHOD SaveState(SpecialStateID aStateID, nsPresState** aState);
@@ -247,9 +243,9 @@ protected:
 
   /**
    * Show or hide the dropdown list.
-   * @param aShowList true to show, false to hide the dropdown.
+   * @param aShowList PR_TRUE to show, PR_FALSE to hide the dropdown.
    * @note This method might destroy |this|.
-   * @return false if this frame is destroyed, true if still alive.
+   * @return PR_FALSE if this frame is destroyed, PR_TRUE if still alive.
    */
   bool ShowList(bool aShowList);
   void CheckFireOnChange();

@@ -269,12 +269,10 @@ public:
 
     friend class OnLinkClickEvent;
 
-    // We need dummy OnLocationChange in some cases to update the UI without
-    // updating security info.
+    // We need dummy OnLocationChange in some cases to update the UI.
     void FireDummyOnLocationChange()
     {
-        FireOnLocationChange(this, nsnull, mCurrentURI,
-                             LOCATION_CHANGE_SAME_DOCUMENT);
+      FireOnLocationChange(this, nsnull, mCurrentURI);
     }
 
     nsresult HistoryTransactionRemoved(PRInt32 aIndex);
@@ -343,20 +341,20 @@ protected:
     nsresult SerializeJSValVariant(JSContext *aCx, nsIVariant *aData,
                                    nsAString &aResult);
 
-    // Returns true if would have called FireOnLocationChange,
+    // Returns PR_TRUE if would have called FireOnLocationChange,
     // but did not because aFireOnLocationChange was false on entry.
     // In this case it is the caller's responsibility to ensure
     // FireOnLocationChange is called.
-    // In all other cases false is returned.
+    // In all other cases PR_FALSE is returned.
     bool OnLoadingSite(nsIChannel * aChannel,
                          bool aFireOnLocationChange,
                          bool aAddToGlobalHistory = true);
 
-    // Returns true if would have called FireOnLocationChange,
+    // Returns PR_TRUE if would have called FireOnLocationChange,
     // but did not because aFireOnLocationChange was false on entry.
     // In this case it is the caller's responsibility to ensure
     // FireOnLocationChange is called.
-    // In all other cases false is returned.
+    // In all other cases PR_FALSE is returned.
     // Either aChannel or aOwner must be null.  If aChannel is
     // present, the owner should be gotten from it.
     // If OnNewURI calls AddToSessionHistory, it will pass its
@@ -589,14 +587,13 @@ protected:
     static bool ValidateOrigin(nsIDocShellTreeItem* aOriginTreeItem,
                                  nsIDocShellTreeItem* aTargetTreeItem);
 
-    // Returns true if would have called FireOnLocationChange,
+    // Returns PR_TRUE if would have called FireOnLocationChange,
     // but did not because aFireOnLocationChange was false on entry.
     // In this case it is the caller's responsibility to ensure
     // FireOnLocationChange is called.
-    // In all other cases false is returned.
+    // In all other cases PR_FALSE is returned.
     bool SetCurrentURI(nsIURI *aURI, nsIRequest *aRequest,
-                       bool aFireOnLocationChange,
-                       PRUint32 aLocationFlags);
+                         bool aFireOnLocationChange);
 
     // The following methods deal with saving and restoring content viewers
     // in session history.
@@ -646,7 +643,7 @@ protected:
     // RestoreFromHistory is called from a PLEvent.
     nsresult RestorePresentation(nsISHEntry *aSHEntry, bool *aRestoring);
 
-    // Call BeginRestore(nsnull, false) for each child of this shell.
+    // Call BeginRestore(nsnull, PR_FALSE) for each child of this shell.
     nsresult BeginRestoreChildren();
 
     // Method to get our current position and size without flushing

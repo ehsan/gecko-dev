@@ -101,7 +101,7 @@ nsHtml5Atom::ToUTF8String(nsACString& aReturn)
 NS_IMETHODIMP_(bool)
 nsHtml5Atom::IsStaticAtom()
 {
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP
@@ -115,5 +115,5 @@ NS_IMETHODIMP_(bool)
 nsHtml5Atom::EqualsUTF8(const nsACString& aString)
 {
   NS_NOTREACHED("Should not attempt to compare with an UTF-8 string.");
-  return false;
+  return PR_FALSE;
 }

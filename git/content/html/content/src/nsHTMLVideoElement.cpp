@@ -35,9 +35,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
-#include "mozilla/Util.h"
-
 #include "nsIDOMHTMLVideoElement.h"
 #include "nsIDOMHTMLSourceElement.h"
 #include "nsHTMLVideoElement.h"
@@ -67,7 +64,6 @@
 #include "nsIDOMProgressEvent.h"
 #include "nsMediaError.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Video)
@@ -154,7 +150,7 @@ nsHTMLVideoElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     sCommonAttributeMap
   };
 
-  return FindAttributeDependence(aAttribute, map, ArrayLength(map));
+  return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
 }
 
 nsMapRuleToAttributesFunc
@@ -165,22 +161,22 @@ nsHTMLVideoElement::GetAttributeMappingFunction() const
 
 nsresult nsHTMLVideoElement::SetAcceptHeader(nsIHttpChannel* aChannel)
 {
-  nsCAutoString value(
+    nsCAutoString value(
 #ifdef MOZ_WEBM
-      "video/webm,"
+        "video/webm,"
 #endif
 #ifdef MOZ_OGG
-      "video/ogg,"
+        "video/ogg,"
 #endif
-      "video/*;q=0.9,"
+        "video/*;q=0.9,"
 #ifdef MOZ_OGG
-      "application/ogg;q=0.7,"
+        "application/ogg;q=0.7,"
 #endif
-      "audio/*;q=0.6,*/*;q=0.5");
+        "audio/*;q=0.6,*/*;q=0.5");
 
-  return aChannel->SetRequestHeader(NS_LITERAL_CSTRING("Accept"),
-                                    value,
-                                    false);
+    return aChannel->SetRequestHeader(NS_LITERAL_CSTRING("Accept"),
+                                      value,
+                                      false);
 }
 
 NS_IMPL_URI_ATTR(nsHTMLVideoElement, Poster, poster)

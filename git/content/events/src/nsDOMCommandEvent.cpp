@@ -41,13 +41,13 @@
 nsDOMCommandEvent::nsDOMCommandEvent(nsPresContext* aPresContext,
                                      nsCommandEvent* aEvent)
   : nsDOMEvent(aPresContext, aEvent ? aEvent :
-               new nsCommandEvent(false, nsnull, nsnull, nsnull))
+               new nsCommandEvent(PR_FALSE, nsnull, nsnull, nsnull))
 {
   mEvent->time = PR_Now();
   if (aEvent) {
-    mEventIsInternal = false;
+    mEventIsInternal = PR_FALSE;
   } else {
-    mEventIsInternal = true;
+    mEventIsInternal = PR_TRUE;
   }
 }
 

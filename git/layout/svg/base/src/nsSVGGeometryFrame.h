@@ -82,11 +82,11 @@ public:
 
   /*
    * Set up a cairo context for filling a path
-   * @return false to skip rendering
+   * @return PR_FALSE to skip rendering
    */
   bool SetupCairoFill(gfxContext *aContext);
   /*
-   * @return false if there is no stroke
+   * @return PR_FALSE if there is no stroke
    */
   bool HasStroke();
   /*
@@ -99,7 +99,7 @@ public:
   void SetupCairoStrokeHitGeometry(gfxContext *aContext);
   /*
    * Set up a cairo context for stroking a path
-   * @return false to skip rendering
+   * @return PR_FALSE to skip rendering
    */
   bool SetupCairoStroke(gfxContext *aContext);
 

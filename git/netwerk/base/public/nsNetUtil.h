@@ -232,7 +232,7 @@ NS_NewChannel(nsIChannel           **result,
             if (loadFlags != nsIRequest::LOAD_NORMAL)
                 rv |= chan->SetLoadFlags(loadFlags);
             if (channelPolicy) {
-                nsCOMPtr<nsIWritablePropertyBag2> props = do_QueryInterface(chan);
+                nsCOMPtr<nsIWritablePropertyBag2> props = do_QueryInterface(chan, &rv);
                 if (props) {
                     props->SetPropertyAsInterface(NS_CHANNEL_PROP_CHANNEL_POLICY,
                                                   channelPolicy);
@@ -386,12 +386,12 @@ NS_StringToACE(const nsACString &idn, nsACString &result)
 {
   nsCOMPtr<nsIIDNService> idnSrv = do_GetService(NS_IDNSERVICE_CONTRACTID);
   if (!idnSrv)
-    return false;
+    return PR_FALSE;
   nsresult rv = idnSrv->ConvertUTF8toACE(idn, result);
   if (NS_FAILED(rv))
-    return false;
+    return PR_FALSE;
   
-  return true;
+  return PR_TRUE;
 }
 
 /**
@@ -1025,7 +1025,7 @@ NS_BackgroundInputStream(nsIInputStream **result,
     if (NS_SUCCEEDED(rv)) {
         nsCOMPtr<nsITransport> inTransport;
         rv = sts->CreateInputTransport(stream, PRInt64(-1), PRInt64(-1),
-                                       true, getter_AddRefs(inTransport));
+                                       PR_TRUE, getter_AddRefs(inTransport));
         if (NS_SUCCEEDED(rv))
             rv = inTransport->OpenInputStream(nsITransport::OPEN_BLOCKING,
                                               segmentSize, segmentCount,
@@ -1049,7 +1049,7 @@ NS_BackgroundOutputStream(nsIOutputStream **result,
     if (NS_SUCCEEDED(rv)) {
         nsCOMPtr<nsITransport> inTransport;
         rv = sts->CreateOutputTransport(stream, PRInt64(-1), PRInt64(-1),
-                                        true, getter_AddRefs(inTransport));
+                                        PR_TRUE, getter_AddRefs(inTransport));
         if (NS_SUCCEEDED(rv))
             rv = inTransport->OpenOutputStream(nsITransport::OPEN_BLOCKING,
                                                segmentSize, segmentCount,
@@ -1133,7 +1133,7 @@ NS_NewPostDataStream(nsIInputStream  **result,
         nsCOMPtr<nsILocalFile> file;
         nsCOMPtr<nsIInputStream> fileStream;
 
-        rv = NS_NewNativeLocalFile(data, false, getter_AddRefs(file));
+        rv = NS_NewNativeLocalFile(data, PR_FALSE, getter_AddRefs(file));
         if (NS_SUCCEEDED(rv)) {
             rv = NS_NewLocalFileInputStream(getter_AddRefs(fileStream), file);
             if (NS_SUCCEEDED(rv)) {
@@ -1512,7 +1512,7 @@ NS_TryToSetImmutable(nsIURI* uri)
 {
     nsCOMPtr<nsIMutable> mutableObj(do_QueryInterface(uri));
     if (mutableObj) {
-        mutableObj->SetMutable(false);
+        mutableObj->SetMutable(PR_FALSE);
     }
 }
 
@@ -1656,12 +1656,12 @@ NS_SecurityCompareURIs(nsIURI* aSourceURI,
     // unfortunate.
     if (aSourceURI && aSourceURI == aTargetURI)
     {
-        return true;
+        return PR_TRUE;
     }
 
     if (!aTargetURI || !aSourceURI)
     {
-        return false;
+        return PR_FALSE;
     }
 
     // If either URI is a nested URI, get the base URI
@@ -1680,7 +1680,7 @@ NS_SecurityCompareURIs(nsIURI* aSourceURI,
     }
 
     if (!sourceBaseURI || !targetBaseURI)
-        return false;
+        return PR_FALSE;
 
     // Compare schemes
     nsCAutoString targetScheme;
@@ -1690,7 +1690,7 @@ NS_SecurityCompareURIs(nsIURI* aSourceURI,
         !sameScheme)
     {
         // Not same-origin if schemes differ
-        return false;
+        return PR_FALSE;
     }
 
     // special handling for file: URIs
@@ -1698,13 +1698,13 @@ NS_SecurityCompareURIs(nsIURI* aSourceURI,
     {
         // in traditional unsafe behavior all files are the same origin
         if (!aStrictFileOriginPolicy)
-            return true;
+            return PR_TRUE;
 
         nsCOMPtr<nsIFileURL> sourceFileURL(do_QueryInterface(sourceBaseURI));
         nsCOMPtr<nsIFileURL> targetFileURL(do_QueryInterface(targetBaseURI));
 
         if (!sourceFileURL || !targetFileURL)
-            return false;
+            return PR_FALSE;
 
         nsCOMPtr<nsIFile> sourceFile, targetFile;
 
@@ -1712,7 +1712,7 @@ NS_SecurityCompareURIs(nsIURI* aSourceURI,
         targetFileURL->GetFile(getter_AddRefs(targetFile));
 
         if (!sourceFile || !targetFile)
-            return false;
+            return PR_FALSE;
 
         // Otherwise they had better match
         bool filesAreEqual = false;
@@ -1740,14 +1740,14 @@ NS_SecurityCompareURIs(nsIURI* aSourceURI,
     if (NS_FAILED( targetBaseURI->GetAsciiHost(targetHost) ) ||
         NS_FAILED( sourceBaseURI->GetAsciiHost(sourceHost) ))
     {
-        return false;
+        return PR_FALSE;
     }
 
     nsCOMPtr<nsIStandardURL> targetURL(do_QueryInterface(targetBaseURI));
     nsCOMPtr<nsIStandardURL> sourceURL(do_QueryInterface(sourceBaseURI));
     if (!targetURL || !sourceURL)
     {
-        return false;
+        return PR_FALSE;
     }
 
 #ifdef MOZILLA_INTERNAL_API
@@ -1756,7 +1756,7 @@ NS_SecurityCompareURIs(nsIURI* aSourceURI,
     if (!targetHost.Equals(sourceHost, CaseInsensitiveCompare))
 #endif
     {
-        return false;
+        return PR_FALSE;
     }
 
     return NS_GetRealPort(targetBaseURI) == NS_GetRealPort(sourceBaseURI);
@@ -1768,7 +1768,7 @@ NS_IsInternalSameURIRedirect(nsIChannel *aOldChannel,
                              PRUint32 aFlags)
 {
   if (!(aFlags & nsIChannelEventSink::REDIRECT_INTERNAL)) {
-    return false;
+    return PR_FALSE;
   }
 
   nsCOMPtr<nsIURI> oldURI, newURI;
@@ -1776,7 +1776,7 @@ NS_IsInternalSameURIRedirect(nsIChannel *aOldChannel,
   aNewChannel->GetURI(getter_AddRefs(newURI));
 
   if (!oldURI || !newURI) {
-    return false;
+    return PR_FALSE;
   }
 
   bool res;
@@ -1840,7 +1840,7 @@ NS_MakeRandomInvalidURLString(nsCString& result)
 inline nsresult
 NS_CheckIsJavaCompatibleURLString(nsCString& urlString, bool *result)
 {
-  *result = false; // Default to "no"
+  *result = PR_FALSE; // Default to "no"
 
   nsresult rv = NS_OK;
   nsCOMPtr<nsIURLParser> urlParser =
@@ -1885,9 +1885,9 @@ NS_CheckIsJavaCompatibleURLString(nsCString& urlString, bool *result)
         PL_strcasecmp(scheme.get(), "ftp") &&
         PL_strcasecmp(scheme.get(), "gopher") &&
         PL_strcasecmp(scheme.get(), "chrome"))
-      compatible = false;
+      compatible = PR_FALSE;
   } else {
-    compatible = false;
+    compatible = PR_FALSE;
   }
 
   *result = compatible;
@@ -1941,7 +1941,7 @@ NS_GetContentDispositionFromHeader(const nsACString& aHeader, nsIChannel *aChan 
   }
 
   nsAutoString dispToken;
-  rv = mimehdrpar->GetParameter(aHeader, "", fallbackCharset, true, nsnull,
+  rv = mimehdrpar->GetParameter(aHeader, "", fallbackCharset, PR_TRUE, nsnull,
                                 dispToken);
 
   if (NS_FAILED(rv)) {
@@ -1980,12 +1980,12 @@ NS_GetFilenameFromDisposition(nsAString& aFilename,
     url->GetOriginCharset(fallbackCharset);
   // Get the value of 'filename' parameter
   rv = mimehdrpar->GetParameter(aDisposition, "filename",
-                                fallbackCharset, true, nsnull,
+                                fallbackCharset, PR_TRUE, nsnull,
                                 aFilename);
   if (NS_FAILED(rv) || aFilename.IsEmpty()) {
     // Try 'name' parameter, instead.
     rv = mimehdrpar->GetParameter(aDisposition, "name", fallbackCharset,
-                                  true, nsnull, aFilename);
+                                  PR_TRUE, nsnull, aFilename);
   }
 
   if (NS_FAILED(rv)) {

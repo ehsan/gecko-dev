@@ -63,7 +63,7 @@ extern "C" {
 #include "nsCocoaUtils.h"
 #include "nsObjCExceptions.h"
 
-#include "nsGkAtoms.h"
+#include "nsWidgetAtoms.h"
 #include "nsIRollupListener.h"
 #include "nsIWidget.h"
 
@@ -80,16 +80,17 @@ extern nsIWidget         * gRollupWidget;
 
 static io_connect_t gRootPort = MACH_PORT_NULL;
 
-nsToolkit* nsToolkit::gToolkit = nsnull;
+// Static thread local storage index of the Toolkit 
+// object associated with a given thread...
+static PRUintn gToolkitTLSIndex = 0;
 
 nsToolkit::nsToolkit()
-: mSleepWakeNotificationRLS(nsnull)
+: mInited(false)
+, mSleepWakeNotificationRLS(nsnull)
 , mEventTapPort(nsnull)
 , mEventTapRLS(nsnull)
 {
   MOZ_COUNT_CTOR(nsToolkit);
-  RegisterForSleepWakeNotifcations();
-  RegisterForAllProcessMouseEvents();
 }
 
 nsToolkit::~nsToolkit()
@@ -97,6 +98,28 @@ nsToolkit::~nsToolkit()
   MOZ_COUNT_DTOR(nsToolkit);
   RemoveSleepWakeNotifcations();
   UnregisterAllProcessMouseEventHandlers();
+  // Remove the TLS reference to the toolkit...
+  PR_SetThreadPrivate(gToolkitTLSIndex, nsnull);
+}
+
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsToolkit, nsIToolkit);
+
+NS_IMETHODIMP
+nsToolkit::Init(PRThread * aThread)
+{
+  nsWidgetAtoms::RegisterAtoms();
+  
+  mInited = true;
+  
+  RegisterForSleepWakeNotifcations();
+  RegisterForAllProcessMouseEvents();
+
+  return NS_OK;
+}
+
+nsToolkit* NS_CreateToolkitInstance()
+{
+  return new nsToolkit();
 }
 
 void
@@ -218,7 +241,7 @@ static CGEventRef EventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
   // so would break the corresponding context menu).
   if (NSPointInRect(screenLocation, [ctxMenuWindow frame]))
     return event;
-  gRollupListener->Rollup(0);
+  gRollupListener->Rollup(nsnull, nsnull);
   return event;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NULL);
@@ -298,20 +321,44 @@ nsToolkit::UnregisterAllProcessMouseEventHandlers()
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-// Return the nsToolkit instance.  If a toolkit does not yet exist, then one
-// will be created.
-// static
-nsToolkit* nsToolkit::GetToolkit()
+// Return the nsIToolkit for the current thread.  If a toolkit does not
+// yet exist, then one will be created...
+NS_IMETHODIMP NS_GetCurrentToolkit(nsIToolkit* *aResult)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  if (!gToolkit) {
-    gToolkit = new nsToolkit();
+  NS_ENSURE_ARG_POINTER(aResult);
+  *aResult = nsnull;
+  
+  // Create the TLS index the first time through...
+  if (gToolkitTLSIndex == 0) {
+    PRStatus status = PR_NewThreadPrivateIndex(&gToolkitTLSIndex, NULL);
+    if (PR_FAILURE == status)
+      return NS_ERROR_FAILURE;
   }
+  
+  // Create a new toolkit for this thread...
+  nsToolkit* toolkit = (nsToolkit*)PR_GetThreadPrivate(gToolkitTLSIndex);
+  if (!toolkit) {
+    toolkit = NS_CreateToolkitInstance();
+    if (!toolkit)
+      return NS_ERROR_OUT_OF_MEMORY;
+    
+    NS_ADDREF(toolkit);
+    toolkit->Init(PR_GetCurrentThread());
+    //
+    // The reference stored in the TLS is weak.  It is removed in the
+    // nsToolkit destructor...
+    //
+    PR_SetThreadPrivate(gToolkitTLSIndex, (void*)toolkit);
+  }
+  else {
+    NS_ADDREF(toolkit);
+  }
+  *aResult = toolkit;
+  return NS_OK;
 
-  return gToolkit;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsnull);
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 PRInt32 nsToolkit::OSXVersion()

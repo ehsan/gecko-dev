@@ -45,7 +45,7 @@
 #include "nsGUIEvent.h"
 
 nsPLDOMEvent::nsPLDOMEvent(nsINode *aEventNode, nsEvent &aEvent)
-  : mEventNode(aEventNode), mDispatchChromeOnly(false)
+  : mEventNode(aEventNode), mDispatchChromeOnly(PR_FALSE)
 {
   bool trusted = NS_IS_TRUSTED_EVENT(&aEvent);
   nsEventDispatcher::CreateEvent(nsnull, &aEvent, EmptyString(),
@@ -69,13 +69,15 @@ NS_IMETHODIMP nsPLDOMEvent::Run()
     bool defaultActionEnabled; // This is not used because the caller is async
     target->DispatchEvent(mEvent, &defaultActionEnabled);
   } else {
-    nsIDocument* doc = mEventNode->OwnerDoc();
-    if (mDispatchChromeOnly) {
-      nsContentUtils::DispatchChromeEvent(doc, mEventNode, mEventType,
-                                          mBubbles, false);
-    } else {
-      nsContentUtils::DispatchTrustedEvent(doc, mEventNode, mEventType,
-                                           mBubbles, false);
+    nsIDocument* doc = mEventNode->GetOwnerDoc();
+    if (doc) {
+      if (mDispatchChromeOnly) {
+        nsContentUtils::DispatchChromeEvent(doc, mEventNode, mEventType,
+                                            mBubbles, PR_FALSE);
+      } else {
+        nsContentUtils::DispatchTrustedEvent(doc, mEventNode, mEventType,
+                                             mBubbles, PR_FALSE);
+      }
     }
   }
 
@@ -95,6 +97,6 @@ void nsPLDOMEvent::RunDOMEventWhenSafe()
 nsLoadBlockingPLDOMEvent::~nsLoadBlockingPLDOMEvent()
 {
   if (mBlockedDoc) {
-    mBlockedDoc->UnblockOnload(true);
+    mBlockedDoc->UnblockOnload(PR_TRUE);
   }
 }

@@ -63,7 +63,7 @@ nsSimpleNestedURI::Read(nsIObjectInputStream* aStream)
 
     NS_ASSERTION(!mMutable, "How did that happen?");
 
-    rv = aStream->ReadObject(true, getter_AddRefs(mInnerURI));
+    rv = aStream->ReadObject(PR_TRUE, getter_AddRefs(mInnerURI));
     if (NS_FAILED(rv)) return rv;
 
     NS_TryToSetImmutable(mInnerURI);
@@ -84,7 +84,7 @@ nsSimpleNestedURI::Write(nsIObjectOutputStream* aStream)
     if (NS_FAILED(rv)) return rv;
 
     rv = aStream->WriteCompoundObject(mInnerURI, NS_GET_IID(nsIURI),
-                                      true);
+                                      PR_TRUE);
     return rv;
 }
 
@@ -94,15 +94,15 @@ bool
 nsSimpleNestedURI::Read(const IPC::Message *aMsg, void **aIter)
 {
     if (!nsSimpleURI::Read(aMsg, aIter))
-        return false;
+        return PR_FALSE;
 
     IPC::URI uri;
     if (!ReadParam(aMsg, aIter, &uri))
-        return false;
+        return PR_FALSE;
 
     mInnerURI = uri;
 
-    return true;
+    return PR_TRUE;
 }
 
 void
@@ -136,7 +136,7 @@ nsSimpleNestedURI::EqualsInternal(nsIURI* other,
                                   nsSimpleURI::RefHandlingEnum refHandlingMode,
                                   bool* result)
 {
-    *result = false;
+    *result = PR_FALSE;
     NS_ENSURE_TRUE(mInnerURI, NS_ERROR_NOT_INITIALIZED);
     
     if (other) {
@@ -176,7 +176,7 @@ nsSimpleNestedURI::StartClone(nsSimpleURI::RefHandlingEnum refHandlingMode)
     }
 
     nsSimpleNestedURI* url = new nsSimpleNestedURI(innerClone);
-    url->SetMutable(false);
+    url->SetMutable(PR_FALSE);
 
     return url;
 }

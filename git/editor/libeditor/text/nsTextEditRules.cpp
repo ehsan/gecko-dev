@@ -68,14 +68,13 @@
 
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/dom/Element.h"
 
 using namespace mozilla;
 
 #define CANCEL_OPERATION_IF_READONLY_OR_DISABLED \
   if (IsReadonly() || IsDisabled()) \
   {                     \
-    *aCancel = true; \
+    *aCancel = PR_TRUE; \
     return NS_OK;       \
   };
 
@@ -90,8 +89,8 @@ nsTextEditRules::nsTextEditRules()
 , mPasswordIMEText()
 , mPasswordIMEIndex(0)
 , mActionNesting(0)
-, mLockRulesSniffing(false)
-, mDidExplicitlySetInterline(false)
+, mLockRulesSniffing(PR_FALSE)
+, mDidExplicitlySetInterline(PR_FALSE)
 , mTheAction(0)
 , mLastStart(0)
 , mLastLength(0)
@@ -179,7 +178,7 @@ nsTextEditRules::BeforeEdit(PRInt32 action, nsIEditor::EDirection aDirection)
   if (mLockRulesSniffing) return NS_OK;
   
   nsAutoLockRulesSniffing lockIt(this);
-  mDidExplicitlySetInterline = false;
+  mDidExplicitlySetInterline = PR_FALSE;
   if (!mActionNesting)
   {
     // let rules remember the top level action
@@ -251,8 +250,8 @@ nsTextEditRules::WillDoAction(nsISelection *aSelection,
   printf("nsTextEditRules::WillDoAction action= %d", aInfo->action);
 #endif
 
-  *aCancel = false;
-  *aHandled = false;
+  *aCancel = PR_FALSE;
+  *aHandled = PR_FALSE;
 
   // my kingdom for dynamic cast
   nsTextRulesInfo *info = static_cast<nsTextRulesInfo*>(aInfo);
@@ -353,7 +352,7 @@ nsTextEditRules::WillInsert(nsISelection *aSelection, bool *aCancel)
   CANCEL_OPERATION_IF_READONLY_OR_DISABLED
 
   // initialize out param
-  *aCancel = false;
+  *aCancel = PR_FALSE;
   
   // check for the magic content node and delete it if it exists
   if (mBogusNode)
@@ -379,9 +378,9 @@ nsTextEditRules::WillInsertBreak(nsISelection *aSelection,
 {
   if (!aSelection || !aCancel || !aHandled) { return NS_ERROR_NULL_POINTER; }
   CANCEL_OPERATION_IF_READONLY_OR_DISABLED
-  *aHandled = false;
+  *aHandled = PR_FALSE;
   if (IsSingleLineEditor()) {
-    *aCancel = true;
+    *aCancel = PR_TRUE;
   }
   else 
   {
@@ -394,11 +393,11 @@ nsTextEditRules::WillInsertBreak(nsISelection *aSelection,
                                              aMaxLength, &didTruncate);
     NS_ENSURE_SUCCESS(res, res);
     if (didTruncate) {
-      *aCancel = true;
+      *aCancel = PR_TRUE;
       return NS_OK;
     }
 
-    *aCancel = false;
+    *aCancel = PR_FALSE;
 
     // if the selection isn't collapsed, delete it.
     bool bCollapsed;
@@ -414,7 +413,7 @@ nsTextEditRules::WillInsertBreak(nsISelection *aSelection,
     NS_ENSURE_SUCCESS(res, res);
     // initialize out param
     // we want to ignore result of WillInsert()
-    *aCancel = false;
+    *aCancel = PR_FALSE;
   
   }
   return NS_OK;
@@ -461,7 +460,8 @@ nsTextEditRules::CollapseSelectionToTrailingBRIfNeeded(nsISelection* aSelection)
                                   &parentOffset);
   NS_ENSURE_SUCCESS(res, res);
 
-  nsCOMPtr<nsIDOMNode> root = do_QueryInterface(mEditor->GetRoot());
+  nsIDOMElement *rootElem = mEditor->GetRoot();
+  nsCOMPtr<nsIDOMNode> root = do_QueryInterface(rootElem);
   NS_ENSURE_TRUE(root, NS_ERROR_NULL_POINTER);
   if (parentNode != root) return NS_OK;
 
@@ -487,7 +487,7 @@ GetTextNode(nsISelection *selection, nsEditor *editor) {
     // if node is null, return it to indicate there's no text
     NS_ENSURE_TRUE(node, nsnull);
     // This should be the root node, walk the tree looking for text nodes
-    nsNodeIterator iter(node, nsIDOMNodeFilter::SHOW_TEXT, nsnull, true);
+    nsNodeIterator iter(node, nsIDOMNodeFilter::SHOW_TEXT, nsnull, PR_TRUE);
     while (!editor->IsTextNode(selNode)) {
       if (NS_FAILED(res = iter.NextNode(getter_AddRefs(selNode))) || !selNode) {
         return nsnull;
@@ -522,7 +522,7 @@ nsTextEditRules::HandleNewLines(nsString &aString,
   {
   case nsIPlaintextEditor::eNewlinesReplaceWithSpaces:
     // Strip trailing newlines first so we don't wind up with trailing spaces
-    aString.Trim(CRLF, false, true);
+    aString.Trim(CRLF, PR_FALSE, PR_TRUE);
     aString.ReplaceChar(CRLF, ' ');
     break;
   case nsIPlaintextEditor::eNewlinesStrip:
@@ -547,7 +547,7 @@ nsTextEditRules::HandleNewLines(nsString &aString,
     }
     break;
   case nsIPlaintextEditor::eNewlinesReplaceWithCommas:
-    aString.Trim(CRLF, true, true);
+    aString.Trim(CRLF, PR_TRUE, PR_TRUE);
     aString.ReplaceChar(CRLF, ',');
     break;
   case nsIPlaintextEditor::eNewlinesStripSurroundingWhitespace:
@@ -572,7 +572,7 @@ nsTextEditRules::HandleNewLines(nsString &aString,
     break;
   case nsIPlaintextEditor::eNewlinesPasteIntact:
     // even if we're pasting newlines, don't paste leading/trailing ones
-    aString.Trim(CRLF, true, true);
+    aString.Trim(CRLF, PR_TRUE, PR_TRUE);
     break;
   }
 }
@@ -595,14 +595,14 @@ nsTextEditRules::WillInsertText(PRInt32          aAction,
     // because IME transaction depend on them
     // There is more work to do to make the 
     // world safe for IME.
-    *aCancel = true;
-    *aHandled = false;
+    *aCancel = PR_TRUE;
+    *aHandled = PR_FALSE;
     return NS_OK;
   }
   
   // initialize out param
-  *aCancel = false;
-  *aHandled = true;
+  *aCancel = PR_FALSE;
+  *aHandled = PR_TRUE;
 
   // handle docs with a max length
   // NOTE, this function copies inString into outString for us.
@@ -613,7 +613,7 @@ nsTextEditRules::WillInsertText(PRInt32          aAction,
   // If we're exceeding the maxlength when composing IME, we need to clean up
   // the composing text, so we shouldn't return early.
   if (truncated && outString->IsEmpty() && aAction != kInsertTextIME) {
-    *aCancel = true;
+    *aCancel = PR_TRUE;
     return NS_OK;
   }
   
@@ -642,7 +642,7 @@ nsTextEditRules::WillInsertText(PRInt32          aAction,
   NS_ENSURE_SUCCESS(res, res);
   // initialize out param
   // we want to ignore result of WillInsert()
-  *aCancel = false;
+  *aCancel = PR_FALSE;
   
   // handle password field data
   // this has the side effect of changing all the characters in aOutString
@@ -768,7 +768,7 @@ nsTextEditRules::WillSetTextProperty(nsISelection *aSelection, bool *aCancel, bo
 
   // XXX: should probably return a success value other than NS_OK that means "not allowed"
   if (IsPlaintextEditor()) {
-    *aCancel = true;
+    *aCancel = PR_TRUE;
   }
   return NS_OK;
 }
@@ -787,7 +787,7 @@ nsTextEditRules::WillRemoveTextProperty(nsISelection *aSelection, bool *aCancel,
 
   // XXX: should probably return a success value other than NS_OK that means "not allowed"
   if (IsPlaintextEditor()) {
-    *aCancel = true;
+    *aCancel = PR_TRUE;
   }
   return NS_OK;
 }
@@ -808,12 +808,12 @@ nsTextEditRules::WillDeleteSelection(nsISelection *aSelection,
   CANCEL_OPERATION_IF_READONLY_OR_DISABLED
 
   // initialize out param
-  *aCancel = false;
-  *aHandled = false;
+  *aCancel = PR_FALSE;
+  *aHandled = PR_FALSE;
   
   // if there is only bogus content, cancel the operation
   if (mBogusNode) {
-    *aCancel = true;
+    *aCancel = PR_TRUE;
     return NS_OK;
   }
 
@@ -880,7 +880,7 @@ nsTextEditRules::WillDeleteSelection(nsISelection *aSelection,
   res = mEditor->DeleteSelectionImpl(aCollapsedAction);
   NS_ENSURE_SUCCESS(res, res);
 
-  *aHandled = true;
+  *aHandled = PR_TRUE;
   ASSERT_PASSWORD_LENGTHS_EQUAL()
   return NS_OK;
 }
@@ -916,7 +916,7 @@ nsTextEditRules::DidDeleteSelection(nsISelection *aSelection,
     // We prevent the caret from sticking on the left of prior BR
     // (i.e. the end of previous line) after this deletion.  Bug 92124
     nsCOMPtr<nsISelectionPrivate> selPriv = do_QueryInterface(aSelection);
-    if (selPriv) res = selPriv->SetInterlinePosition(true);
+    if (selPriv) res = selPriv->SetInterlinePosition(PR_TRUE);
   }
   return res;
 }
@@ -927,8 +927,8 @@ nsTextEditRules::WillUndo(nsISelection *aSelection, bool *aCancel, bool *aHandle
   if (!aSelection || !aCancel || !aHandled) { return NS_ERROR_NULL_POINTER; }
   CANCEL_OPERATION_IF_READONLY_OR_DISABLED
   // initialize out param
-  *aCancel = false;
-  *aHandled = false;
+  *aCancel = PR_FALSE;
+  *aHandled = PR_FALSE;
   return NS_OK;
 }
 
@@ -949,7 +949,7 @@ nsTextEditRules::DidUndo(nsISelection *aSelection, nsresult aResult)
     }
     else
     {
-      nsCOMPtr<nsIDOMElement> theRoot = do_QueryInterface(mEditor->GetRoot());
+      nsIDOMElement *theRoot = mEditor->GetRoot();
       NS_ENSURE_TRUE(theRoot, NS_ERROR_FAILURE);
       nsCOMPtr<nsIDOMNode> node = mEditor->GetLeftmostChild(theRoot);
       if (node && mEditor->IsMozEditorBogusNode(node))
@@ -965,8 +965,8 @@ nsTextEditRules::WillRedo(nsISelection *aSelection, bool *aCancel, bool *aHandle
   if (!aSelection || !aCancel || !aHandled) { return NS_ERROR_NULL_POINTER; }
   CANCEL_OPERATION_IF_READONLY_OR_DISABLED
   // initialize out param
-  *aCancel = false;
-  *aHandled = false;
+  *aCancel = PR_FALSE;
+  *aHandled = PR_FALSE;
   return NS_OK;
 }
 
@@ -982,7 +982,7 @@ nsTextEditRules::DidRedo(nsISelection *aSelection, nsresult aResult)
     }
     else
     {
-      nsCOMPtr<nsIDOMElement> theRoot = do_QueryInterface(mEditor->GetRoot());
+      nsIDOMElement *theRoot = mEditor->GetRoot();
       NS_ENSURE_TRUE(theRoot, NS_ERROR_FAILURE);
       
       nsCOMPtr<nsIDOMNodeList> nodeList;
@@ -1018,8 +1018,8 @@ nsTextEditRules::WillOutputText(nsISelection *aSelection,
     { return NS_ERROR_NULL_POINTER; }
 
   // initialize out param
-  *aCancel = false;
-  *aHandled = false;
+  *aCancel = PR_FALSE;
+  *aHandled = PR_FALSE;
 
   nsAutoString outputFormat(*aOutputFormat);
   ToLowerCase(outputFormat);
@@ -1028,12 +1028,12 @@ nsTextEditRules::WillOutputText(nsISelection *aSelection,
     if (IsPasswordEditor())
     {
       *aOutString = mPasswordText;
-      *aHandled = true;
+      *aHandled = PR_TRUE;
     }
     else if (mBogusNode)
     { // this means there's no content, so output null string
       aOutString->Truncate();
-      *aHandled = true;
+      *aHandled = PR_TRUE;
     }
   }
   return NS_OK;
@@ -1056,7 +1056,7 @@ nsTextEditRules::RemoveRedundantTrailingBR()
   if (IsSingleLineEditor())
     return NS_OK;
 
-  nsCOMPtr<nsIDOMNode> body = do_QueryInterface(mEditor->GetRoot());
+  nsIDOMNode* body = mEditor->GetRoot();
   if (!body)
     return NS_ERROR_NULL_POINTER;
 
@@ -1098,7 +1098,7 @@ nsTextEditRules::RemoveRedundantTrailingBR()
         // give it the bogus node attribute
         nsCOMPtr<nsIContent> content = do_QueryInterface(elem);
         content->SetAttr(kNameSpaceID_None, kMOZEditorBogusNodeAttrAtom,
-                         kMOZEditorBogusNodeValue, false);
+                         kMOZEditorBogusNodeValue, PR_FALSE);
       }
     }
   }
@@ -1111,7 +1111,7 @@ nsTextEditRules::CreateTrailingBRIfNeeded()
   // but only if we aren't a single line edit field
   if (IsSingleLineEditor())
     return NS_OK;
-  nsCOMPtr<nsIDOMNode> body = do_QueryInterface(mEditor->GetRoot());
+  nsIDOMNode *body = mEditor->GetRoot();
   NS_ENSURE_TRUE(body, NS_ERROR_NULL_POINTER);
   nsCOMPtr<nsIDOMNode> lastChild;
   nsresult res = body->GetLastChild(getter_AddRefs(lastChild));
@@ -1141,7 +1141,7 @@ nsTextEditRules::CreateBogusNodeIfNeeded(nsISelection *aSelection)
   // tell rules system to not do any post-processing
   nsAutoRules beginRulesSniffing(mEditor, nsEditor::kOpIgnore, nsIEditor::eNone);
 
-  nsCOMPtr<nsIDOMNode> body = do_QueryInterface(mEditor->GetRoot());
+  nsIDOMNode* body = mEditor->GetRoot();
   if (!body)
   {
     // we don't even have a body yet, don't insert any bogus nodes at
@@ -1162,7 +1162,7 @@ nsTextEditRules::CreateBogusNodeIfNeeded(nsISelection *aSelection)
         !mEditor->IsEditable(body) ||
         mEditor->IsEditable(bodyChild))
     {
-      needsBogusContent = false;
+      needsBogusContent = PR_FALSE;
       break;
     }
     nsCOMPtr<nsIDOMNode>temp;
@@ -1184,7 +1184,7 @@ nsTextEditRules::CreateBogusNodeIfNeeded(nsISelection *aSelection)
 
     // give it a special attribute
     newContent->SetAttr(kNameSpaceID_None, kMOZEditorBogusNodeAttrAtom,
-                        kMOZEditorBogusNodeValue, false);
+                        kMOZEditorBogusNodeValue, PR_FALSE);
     
     // put the node in the document
     res = mEditor->InsertNode(mBogusNode, body, 0);
@@ -1209,7 +1209,7 @@ nsTextEditRules::TruncateInsertionIfNeeded(nsISelection *aSelection,
   nsresult res = NS_OK;
   *aOutString = *aInString;
   if (aTruncated) {
-    *aTruncated = false;
+    *aTruncated = PR_FALSE;
   }
   
   if ((-1 != aMaxLength) && IsPlaintextEditor() && !mEditor->IsIMEComposing() )
@@ -1244,7 +1244,7 @@ nsTextEditRules::TruncateInsertionIfNeeded(nsISelection *aSelection,
     {
       aOutString->Truncate();
       if (aTruncated) {
-        *aTruncated = true;
+        *aTruncated = PR_TRUE;
       }
     }
     else
@@ -1254,7 +1254,7 @@ nsTextEditRules::TruncateInsertionIfNeeded(nsISelection *aSelection,
       {
         aOutString->Truncate(aMaxLength - resultingDocLength);
         if (aTruncated) {
-          *aTruncated = true;
+          *aTruncated = PR_TRUE;
         }
       }
     }

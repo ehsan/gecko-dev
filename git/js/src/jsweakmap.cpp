@@ -42,8 +42,8 @@
 #include <string.h>
 #include "jsapi.h"
 #include "jscntxt.h"
-#include "jsfriendapi.h"
 #include "jsgc.h"
+#include "jshashtable.h"
 #include "jsobj.h"
 #include "jsgc.h"
 #include "jsgcmark.h"
@@ -78,17 +78,9 @@ WeakMapBase::sweepAll(JSTracer *tracer)
         m->sweep(tracer);
 }
 
-void
-WeakMapBase::traceAllMappings(WeakMapTracer *tracer)
-{
-    JSRuntime *rt = tracer->context->runtime;
-    for (WeakMapBase *m = rt->gcWeakMapList; m; m = m->next)
-        m->traceMappings(tracer);
-}
-
 } /* namespace js */
 
-typedef WeakMap<HeapPtr<JSObject>, HeapValue> ObjectValueMap;
+typedef WeakMap<JSObject *, Value> ObjectValueMap;
 
 static ObjectValueMap *
 GetObjectMap(JSObject *obj)
@@ -223,7 +215,7 @@ WeakMap_set(JSContext *cx, uintN argc, Value *vp)
 
     ObjectValueMap *map = GetObjectMap(obj);
     if (!map) {
-        map = cx->new_<ObjectValueMap>(cx, obj);
+        map = cx->new_<ObjectValueMap>(cx);
         if (!map->init()) {
             cx->delete_(map);
             goto out_of_memory;
@@ -231,35 +223,14 @@ WeakMap_set(JSContext *cx, uintN argc, Value *vp)
         obj->setPrivate(map);
     }
 
+    args.thisv() = UndefinedValue();
     if (!map->put(key, value))
         goto out_of_memory;
-    args.rval().setUndefined();
     return true;
 
   out_of_memory:
     JS_ReportOutOfMemory(cx);
     return false;
-}
-
-JS_FRIEND_API(JSBool)
-JS_NondeterministicGetWeakMapKeys(JSContext *cx, JSObject *obj, JSObject **ret)
-{
-    if (!obj || !obj->isWeakMap()) {
-        *ret = NULL;
-        return true;
-    }
-    JSObject *arr = NewDenseEmptyArray(cx);
-    if (!arr)
-        return false;
-    ObjectValueMap *map = GetObjectMap(obj);
-    if (map) {
-        for (ObjectValueMap::Range r = map->nondeterministicAll(); !r.empty(); r.popFront()) {
-            if (!js_NewbornArrayPush(cx, arr, ObjectValue(*r.front().key)))
-                return false;
-        }
-    }
-    *ret = arr;
-    return true;
 }
 
 static void
@@ -282,6 +253,8 @@ WeakMap_construct(JSContext *cx, uintN argc, Value *vp)
     JSObject *obj = NewBuiltinClassInstance(cx, &WeakMapClass);
     if (!obj)
         return false;
+
+    obj->setPrivate(NULL);
 
     vp->setObject(*obj);
     return true;
@@ -326,6 +299,7 @@ js_InitWeakMapClass(JSContext *cx, JSObject *obj)
     JSObject *weakMapProto = global->createBlankPrototype(cx, &WeakMapClass);
     if (!weakMapProto)
         return NULL;
+    weakMapProto->setPrivate(NULL);
 
     JSFunction *ctor = global->createConstructor(cx, WeakMap_construct, &WeakMapClass,
                                                  CLASS_ATOM(cx, WeakMap), 0);

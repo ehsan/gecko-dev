@@ -41,8 +41,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #ifdef MOZ_LOGGING
 #define FORCE_PR_LOG
 #endif
@@ -66,6 +64,7 @@
 #include "nsILocalFile.h"
 #include "nsILocalFileMac.h"
 #include "nsGfxCIID.h"
+#include "nsIMenuRollup.h"
 #include "nsIDOMSimpleGestureEvent.h"
 #include "nsNPAPIPluginInstance.h"
 #include "nsThemeConstants.h"
@@ -94,7 +93,6 @@
 
 #include <ApplicationServices/ApplicationServices.h>
 
-using namespace mozilla;
 using namespace mozilla::layers;
 using namespace mozilla::gl;
 using namespace mozilla::widget;
@@ -138,6 +136,7 @@ static void blinkRgn(RgnHandle rgn);
 #endif
 
 nsIRollupListener * gRollupListener = nsnull;
+nsIMenuRollup     * gMenuRollup = nsnull;
 nsIWidget         * gRollupWidget   = nsnull;
 
 bool gUserCancelledDrag = false;
@@ -292,6 +291,8 @@ nsresult nsChildView::Create(nsIWidget *aParent,
                              const nsIntRect &aRect,
                              EVENT_CALLBACK aHandleEventFunction,
                              nsDeviceContext *aContext,
+                             nsIAppShell *aAppShell,
+                             nsIToolkit *aToolkit,
                              nsWidgetInitData *aInitData)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -322,10 +323,8 @@ nsresult nsChildView::Create(nsIWidget *aParent,
 
   mBounds = aRect;
 
-  // Ensure that the toolkit is created.
-  nsToolkit::GetToolkit();
-
-  BaseCreate(aParent, aRect, aHandleEventFunction, aContext, aInitData);
+  BaseCreate(aParent, aRect, aHandleEventFunction, 
+             aContext, aAppShell, aToolkit, aInitData);
 
   // inherit things from the parent view and create our parallel 
   // NSView in the Cocoa display system
@@ -705,30 +704,26 @@ nsChildView::SetParent(nsIWidget* aNewParent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
+  NS_ENSURE_ARG(aNewParent);
+
   if (mOnDestroyCalled)
     return NS_OK;
 
+  // make sure we stay alive
   nsCOMPtr<nsIWidget> kungFuDeathGrip(this);
   
-  if (mParentWidget) {
+  // remove us from our existing parent
+  if (mParentWidget)
     mParentWidget->RemoveChild(this);
-  }
 
-  if (aNewParent) {
-    ReparentNativeWidget(aNewParent);
-  } else {
-    [mView removeFromSuperview];
-    mParentView = nil;
-  }
+  nsresult rv = ReparentNativeWidget(aNewParent);
+  if (NS_SUCCEEDED(rv))
+    mParentWidget = aNewParent;
 
-  mParentWidget = aNewParent;
-
-  if (mParentWidget) {
-    mParentWidget->AddChild(this);
-  }
-
+  // add us to the new parent
+  mParentWidget->AddChild(this);
   return NS_OK;
-
+  
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
@@ -748,7 +743,7 @@ nsChildView::ReparentNativeWidget(nsIWidget* aNewParent)
 
   // we hold a ref to mView, so this is safe
   [mView removeFromSuperview];
-  mParentView = newParentView;
+  mParentView   = newParentView;
   [mParentView addSubview:mView];
   return NS_OK;
 
@@ -1589,6 +1584,7 @@ nsIntPoint nsChildView::WidgetToScreenOffset()
 }
 
 NS_IMETHODIMP nsChildView::CaptureRollupEvents(nsIRollupListener * aListener, 
+                                               nsIMenuRollup * aMenuRollup,
                                                bool aDoCapture, 
                                                bool aConsumeRollupEvent)
 {
@@ -1642,7 +1638,7 @@ PRUint32 nsChildView::GetCurrentInputEventCount()
   };
 
   PRUint32 eventCount = 0;
-  for (PRUint32 i = 0; i < ArrayLength(eventTypes); ++i) {
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(eventTypes); ++i) {
     eventCount +=
       CGEventSourceCounterForEventType(kCGEventSourceStateCombinedSessionState,
                                        eventTypes[i]);
@@ -1673,52 +1669,50 @@ NS_IMETHODIMP nsChildView::ResetInputState()
   return NS_OK;
 }
 
-NS_IMETHODIMP_(void)
-nsChildView::SetInputContext(const InputContext& aContext,
-                             const InputContextAction& aAction)
+// 'open' means that it can take non-ASCII chars
+NS_IMETHODIMP nsChildView::SetIMEOpenState(bool aState)
 {
-  NS_ENSURE_TRUE(mTextInputHandler, );
-  mInputContext = aContext;
-  switch (aContext.mIMEState.mEnabled) {
-    case IMEState::ENABLED:
-    case IMEState::PLUGIN:
+  NS_ENSURE_TRUE(mTextInputHandler, NS_ERROR_NOT_AVAILABLE);
+  mTextInputHandler->SetIMEOpenState(aState);
+  return NS_OK;
+}
+
+// 'open' means that it can take non-ASCII chars
+NS_IMETHODIMP nsChildView::GetIMEOpenState(bool* aState)
+{
+  NS_ENSURE_TRUE(mTextInputHandler, NS_ERROR_NOT_AVAILABLE);
+  *aState = mTextInputHandler->IsIMEOpened();
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsChildView::SetInputMode(const IMEContext& aContext)
+{
+  NS_ENSURE_TRUE(mTextInputHandler, NS_ERROR_NOT_AVAILABLE);
+  mIMEContext = aContext;
+  switch (aContext.mStatus) {
+    case nsIWidget::IME_STATUS_ENABLED:
+    case nsIWidget::IME_STATUS_PLUGIN:
       mTextInputHandler->SetASCIICapableOnly(false);
       mTextInputHandler->EnableIME(true);
-      if (mInputContext.mIMEState.mOpen != IMEState::DONT_CHANGE_OPEN_STATE) {
-        mTextInputHandler->SetIMEOpenState(
-          mInputContext.mIMEState.mOpen == IMEState::OPEN);
-      }
       break;
-    case IMEState::DISABLED:
+    case nsIWidget::IME_STATUS_DISABLED:
       mTextInputHandler->SetASCIICapableOnly(false);
       mTextInputHandler->EnableIME(false);
       break;
-    case IMEState::PASSWORD:
+    case nsIWidget::IME_STATUS_PASSWORD:
       mTextInputHandler->SetASCIICapableOnly(true);
       mTextInputHandler->EnableIME(false);
       break;
     default:
       NS_ERROR("not implemented!");
   }
+  return NS_OK;
 }
 
-NS_IMETHODIMP_(InputContext)
-nsChildView::GetInputContext()
+NS_IMETHODIMP nsChildView::GetInputMode(IMEContext& aContext)
 {
-  switch (mInputContext.mIMEState.mEnabled) {
-    case IMEState::ENABLED:
-    case IMEState::PLUGIN:
-      if (mTextInputHandler) {
-        mInputContext.mIMEState.mOpen =
-          mTextInputHandler->IsIMEOpened() ? IMEState::OPEN : IMEState::CLOSED;
-        break;
-      }
-      // If mTextInputHandler is null, set CLOSED instead...
-    default:
-      mInputContext.mIMEState.mOpen = IMEState::CLOSED;
-      break;
-  }
-  return mInputContext;
+  aContext = mIMEContext;
+  return NS_OK;
 }
 
 // Destruct and don't commit the IME composition string.
@@ -2762,7 +2756,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
       // check to see if scroll events should roll up the popup
       if ([theEvent type] == NSScrollWheel) {
-        shouldRollup = gRollupListener->ShouldRollupOnMouseWheelEvent();
+        gRollupListener->ShouldRollupOnMouseWheelEvent(&shouldRollup);
         // always consume scroll events that aren't over the popup
         consumeEvent = YES;
       }
@@ -2771,10 +2765,10 @@ NSEvent* gLastDragMouseDownEvent = nil;
       // we don't want to rollup if the click is in a parent menu of
       // the current submenu
       PRUint32 popupsToRollup = PR_UINT32_MAX;
-      if (gRollupListener) {
+      if (gMenuRollup) {
         nsAutoTArray<nsIWidget*, 5> widgetChain;
-        gRollupListener->GetSubmenuWidgetChain(&widgetChain);
-        PRUint32 sameTypeCount = gRollupListener->GetSubmenuWidgetChain(&widgetChain);
+        gMenuRollup->GetSubmenuWidgetChain(&widgetChain);
+        PRUint32 sameTypeCount = gMenuRollup->GetSubmenuWidgetChain(&widgetChain);
         for (PRUint32 i = 0; i < widgetChain.Length(); i++) {
           nsIWidget* widget = widgetChain[i];
           NSWindow* currWindow = (NSWindow*)widget->GetNativeData(NS_NATIVE_WINDOW);
@@ -2795,7 +2789,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
       }
 
       if (shouldRollup) {
-        gRollupListener->Rollup(popupsToRollup);
+        gRollupListener->Rollup(popupsToRollup, nsnull);
         consumeEvent = (BOOL)gConsumeRollupEvent;
       }
     }
@@ -3097,10 +3091,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
              dampenAmountThresholdMin:-1
                                   max:1
                          usingHandler:^(CGFloat gestureAmount, NSEventPhase phase, BOOL isComplete, BOOL *stop) {
-      // Since this tracking handler can be called asynchronously, mGeckoChild
-      // might have become NULL here (our child widget might have been
-      // destroyed).
-      if (animationCancelled || !mGeckoChild) {
+      if (animationCancelled) {
         *stop = YES;
         return;
       }

@@ -120,10 +120,10 @@ nsRecentBadCertsService::GetRecentBadCert(const nsAString & aHostNameWithPort,
     if (!nssCert) 
       nssCert = CERT_NewTempCertificate(certdb, &foundDER,
                                         nsnull, // no nickname
-                                        false, // not perm
-                                        true); // copy der
+                                        PR_FALSE, // not perm
+                                        PR_TRUE); // copy der
 
-    SECITEM_FreeItem(&foundDER, false);
+    SECITEM_FreeItem(&foundDER, PR_FALSE);
 
     if (!nssCert)
       return NS_ERROR_FAILURE;
@@ -131,7 +131,7 @@ nsRecentBadCertsService::GetRecentBadCert(const nsAString & aHostNameWithPort,
     status->mServerCert = nsNSSCertificate::Create(nssCert);
     CERT_DestroyCertificate(nssCert);
 
-    status->mHaveCertErrorBits = true;
+    status->mHaveCertErrorBits = PR_TRUE;
     status->mIsDomainMismatch = isDomainMismatch;
     status->mIsNotValidAtThisTime = isNotValidAtThisTime;
     status->mIsUntrusted = isUntrusted;

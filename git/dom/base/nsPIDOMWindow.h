@@ -80,8 +80,8 @@ class nsIArray;
 class nsPIWindowRoot;
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x29e6cc54, 0x10da, 0x4a68, \
-  { 0xb7, 0x68, 0xfe, 0xa7, 0x71, 0x17, 0x93, 0x81 } }
+{ 0x8ce567b5, 0xcc8d, 0x410b, \
+  { 0xa2, 0x7b, 0x07, 0xaf, 0x31, 0xc0, 0x33, 0xb8 } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -97,29 +97,21 @@ public:
 
   virtual void SetActive(bool aActive)
   {
-    NS_PRECONDITION(IsOuterWindow(),
-                    "active state is only maintained on outer windows");
     mIsActive = aActive;
   }
 
   bool IsActive()
   {
-    NS_PRECONDITION(IsOuterWindow(),
-                    "active state is only maintained on outer windows");
     return mIsActive;
   }
 
   virtual void SetIsBackground(bool aIsBackground)
   {
-    NS_PRECONDITION(IsOuterWindow(),
-                    "background state is only maintained on outer windows");
     mIsBackground = aIsBackground;
   }
 
   bool IsBackground()
   {
-    NS_PRECONDITION(IsOuterWindow(),
-                    "background state is only maintained on outer windows");
     return mIsBackground;
   }
 
@@ -148,13 +140,13 @@ public:
       if (!win) {
         NS_ERROR("No current inner window available!");
 
-        return false;
+        return PR_FALSE;
       }
     } else {
       if (!mOuterWindow) {
         NS_ERROR("HasMutationListeners() called on orphan inner window!");
 
-        return false;
+        return PR_FALSE;
       }
 
       win = this;
@@ -251,13 +243,13 @@ public:
       if (!win) {
         NS_ERROR("No current inner window available!");
 
-        return false;
+        return PR_FALSE;
       }
     } else {
       if (!mOuterWindow) {
         NS_ERROR("IsLoading() called on orphan inner window!");
 
-        return false;
+        return PR_FALSE;
       }
 
       win = this;
@@ -276,13 +268,13 @@ public:
       if (!win) {
         NS_ERROR("No current inner window available!");
 
-        return false;
+        return PR_FALSE;
       }
     } else {
       if (!mOuterWindow) {
         NS_ERROR("IsHandlingResizeEvent() called on orphan inner window!");
 
-        return false;
+        return PR_FALSE;
       }
 
       win = this;
@@ -430,7 +422,7 @@ public:
    */
   void SetHasPaintEventListeners()
   {
-    mMayHavePaintEventListener = true;
+    mMayHavePaintEventListener = PR_TRUE;
   }
 
   /**
@@ -448,7 +440,7 @@ public:
    */
   void SetHasTouchEventListeners()
   {
-    mMayHaveTouchEventListener = true;
+    mMayHaveTouchEventListener = PR_TRUE;
     MaybeUpdateTouchState();
   }
 
@@ -458,10 +450,22 @@ public:
   }
 
   /**
-   * Call this to indicate that some node (this window, its document,
-   * or content in that document) has a "MozAudioAvailable" event listener.
+   * Call this to check whether some node (this window, its document,
+   * or content in that document) has a MozAudioAvailable event listener.
    */
-  virtual void SetHasAudioAvailableEventListeners() = 0;
+  bool HasAudioAvailableEventListeners()
+  {
+    return mMayHaveAudioAvailableEventListener;
+  }
+
+  /**
+   * Call this to indicate that some node (this window, its document,
+   * or content in that document) has a MozAudioAvailable event listener.
+   */
+  void SetHasAudioAvailableEventListeners()
+  {
+    mMayHaveAudioAvailableEventListener = PR_TRUE;
+  }
 
   /**
    * Call this to check whether some node (this window, its document,
@@ -478,7 +482,7 @@ public:
    */
   void SetHasMouseEnterLeaveEventListeners()
   {
-    mMayHaveMouseEnterLeaveEventListener = true;
+    mMayHaveMouseEnterLeaveEventListener = PR_TRUE;
   }  
 
   /**
@@ -486,7 +490,7 @@ public:
    */
   virtual void InitJavaProperties() = 0;
 
-  virtual JSObject* GetCachedXBLPrototypeHandler(nsXBLPrototypeHandler* aKey) = 0;
+  virtual void* GetCachedXBLPrototypeHandler(nsXBLPrototypeHandler* aKey) = 0;
   virtual void CacheXBLPrototypeHandler(nsXBLPrototypeHandler* aKey,
                                         nsScriptObjectHolder& aHandler) = 0;
 
@@ -645,6 +649,7 @@ protected:
   bool                   mIsInnerWindow;
   bool                   mMayHavePaintEventListener;
   bool                   mMayHaveTouchEventListener;
+  bool                   mMayHaveAudioAvailableEventListener;
   bool                   mMayHaveMouseEnterLeaveEventListener;
 
   // This variable is used on both inner and outer windows (and they
@@ -716,7 +721,7 @@ public:
     : mWindow(aWindow), mOldState(openAbused)
   {
     if (aWindow) {
-      mOldState = aWindow->PushPopupControlState(aState, false);
+      mOldState = aWindow->PushPopupControlState(aState, PR_FALSE);
     }
   }
 

@@ -73,7 +73,7 @@ struct DCFromContext {
              aSurface->GetType() == gfxASurface::SurfaceTypeWin32Printing))
         {
             dc = static_cast<gfxWindowsSurface*>(aSurface.get())->GetDC();
-            needsRelease = false;
+            needsRelease = PR_FALSE;
             SaveDC(dc);
             cairo_scaled_font_t* scaled =
                 cairo_get_scaled_font(aContext->GetCairo());
@@ -82,7 +82,7 @@ struct DCFromContext {
         if (!dc) {
             dc = GetDC(NULL);
             SetGraphicsMode(dc, GM_ADVANCED);
-            needsRelease = true;
+            needsRelease = PR_TRUE;
         }
     }
 
@@ -131,8 +131,6 @@ public:
       GetScaledFontForFont(gfxFont *aFont);
     virtual already_AddRefed<gfxASurface>
       GetThebesSurfaceForDrawTarget(mozilla::gfx::DrawTarget *aTarget);
-    
-    virtual bool SupportsAzure(mozilla::gfx::BackendType& aBackend);
 
     enum RenderMode {
         /* Use GDI and windows surfaces */
