@@ -257,7 +257,3 @@ void TIntermBranch::traverse(TIntermTraverser *it)
         it->visitBranch(PostVisit, this);
 }
 
-void TIntermRaw::traverse(TIntermTraverser *it)
-{
-    it->visitRaw(this);
-}

@@ -183,6 +183,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     mozilla::Maybe<AutoRooter> autoRooter_;
     mozilla::Maybe<IonContext> ionContext_;
     mozilla::Maybe<AutoIonContextAlloc> alloc_;
+    bool embedsNurseryPointers_;
 
     // SPS instrumentation, only used for Ion caches.
     mozilla::Maybe<IonInstrumentation> spsInstrumentation_;
@@ -205,7 +206,8 @@ class MacroAssembler : public MacroAssemblerSpecific
     // provided, but otherwise it can be safely omitted to prevent all
     // instrumentation from being emitted.
     MacroAssembler()
-      : sps_(nullptr)
+      : embedsNurseryPointers_(false),
+        sps_(nullptr)
     {
         IonContext *icx = GetIonContext();
         JSContext *cx = icx->cx;
@@ -228,7 +230,8 @@ class MacroAssembler : public MacroAssemblerSpecific
     // (for example, Trampoline-$(ARCH).cpp and IonCaches.cpp).
     explicit MacroAssembler(JSContext *cx, IonScript *ion = nullptr,
                             JSScript *script = nullptr, jsbytecode *pc = nullptr)
-      : sps_(nullptr)
+      : embedsNurseryPointers_(false),
+        sps_(nullptr)
     {
         constructRoot(cx);
         ionContext_.emplace(cx, (js::jit::TempAllocator *)nullptr);
@@ -254,7 +257,8 @@ class MacroAssembler : public MacroAssemblerSpecific
     // asm.js compilation handles its own IonContext-pushing
     struct AsmJSToken {};
     explicit MacroAssembler(AsmJSToken)
-      : sps_(nullptr)
+      : embedsNurseryPointers_(false),
+        sps_(nullptr)
     {
 #ifdef JS_CODEGEN_ARM
         initWithAllocator();
@@ -282,6 +286,10 @@ class MacroAssembler : public MacroAssemblerSpecific
 
     size_t instructionsSize() const {
         return size();
+    }
+
+    bool embedsNurseryPointers() const {
+        return embedsNurseryPointers_;
     }
 
     // Emits a test of a value against all types in a TypeSet. A scratch
@@ -680,6 +688,10 @@ class MacroAssembler : public MacroAssemblerSpecific
         align(8);
         bind(&done);
     }
+
+    void branchNurseryPtr(Condition cond, const Address &ptr1, ImmMaybeNurseryPtr ptr2,
+                          Label *label);
+    void moveNurseryPtr(ImmMaybeNurseryPtr ptr, Register reg);
 
     void canonicalizeDouble(FloatRegister reg) {
         Label notNaN;

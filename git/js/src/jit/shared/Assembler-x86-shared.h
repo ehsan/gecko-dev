@@ -196,6 +196,12 @@ class AssemblerX86Shared : public AssemblerShared
     CompactBufferWriter dataRelocations_;
     CompactBufferWriter preBarriers_;
 
+    void writeDataRelocation(const Value &val) {
+        if (val.isMarkable()) {
+            JS_ASSERT(static_cast<gc::Cell*>(val.toGCThing())->isTenured());
+            dataRelocations_.writeUnsigned(masm.currentOffset());
+        }
+    }
     void writeDataRelocation(ImmGCPtr ptr) {
         if (ptr.value)
             dataRelocations_.writeUnsigned(masm.currentOffset());

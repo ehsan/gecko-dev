@@ -415,7 +415,7 @@ public:
     /**
      * Web components custom element data.
      */
-    nsRefPtr<CustomElementData> mCustomElementData;
+    nsAutoPtr<CustomElementData> mCustomElementData;
   };
 
 protected:

@@ -13,7 +13,6 @@
 #include "nsIDocument.h"
 #include "nsIURI.h"
 #include "nsStyleUtil.h"
-#include "xpcpublic.h"
 
 namespace mozilla {
 namespace dom {
@@ -26,14 +25,14 @@ struct SupportsParsingInfo
 };
 
 static nsresult
-GetParsingInfo(const GlobalObject& aGlobal,
+GetParsingInfo(nsISupports* aGlobal,
                SupportsParsingInfo& aInfo)
 {
-  nsGlobalWindow* win = xpc::WindowOrNull(aGlobal.Get());
-  if (!win) {
+  if (!aGlobal) {
     return NS_ERROR_FAILURE;
   }
 
+  nsGlobalWindow* win = nsGlobalWindow::FromSupports(aGlobal);
   nsCOMPtr<nsIDocument> doc = win->GetDoc();
   if (!doc) {
     return NS_ERROR_FAILURE;
@@ -54,7 +53,7 @@ CSS::Supports(const GlobalObject& aGlobal,
   nsCSSParser parser;
   SupportsParsingInfo info;
 
-  nsresult rv = GetParsingInfo(aGlobal, info);
+  nsresult rv = GetParsingInfo(aGlobal.GetAsSupports(), info);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return false;
@@ -72,7 +71,7 @@ CSS::Supports(const GlobalObject& aGlobal,
   nsCSSParser parser;
   SupportsParsingInfo info;
 
-  nsresult rv = GetParsingInfo(aGlobal, info);
+  nsresult rv = GetParsingInfo(aGlobal.GetAsSupports(), info);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return false;

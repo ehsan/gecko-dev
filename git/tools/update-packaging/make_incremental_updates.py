@@ -418,8 +418,11 @@ def get_buildid(work_dir):
     if not os.path.exists(ini):
         ini = '%s/Contents/Resources/application.ini' % work_dir
         if not os.path.exists(ini):
-            print 'WARNING: application.ini not found, cannot find build ID'
-            return ''
+            # Try the old (pre Gecko 34) location
+            ini = '%s/Contents/MacOS/application.ini' % work_dir
+            if not os.path.exists(ini):
+                print 'WARNING: application.ini not found, cannot find build ID'
+                return ''
 
     file = bz2.BZ2File(ini)
     for line in file:

@@ -176,20 +176,20 @@ body {
 }
 
 .button.button-accept {
-  background-color: #5bc0a4;
-  border-color: #5bc0a4;
+  background-color: #74bf43;
+  border-color: #74bf43;
   color: #fff;
 }
 
 .button.button-accept:hover {
-  background-color: #47b396;
-  border-color: #47b396;
+  background-color: #6cb23e;
+  border-color: #6cb23e;
   color: #fff;
 }
 
 .button.button-accept:hover:active {
-  background-color: #3aa689;
-  border-color: #3aa689;
+  background-color: #64a43a;
+  border-color: #64a43a;
   color: #fff;
 }
 

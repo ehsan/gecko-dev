@@ -7376,7 +7376,7 @@ IonBuilder::getElemTryCache(bool *emitted, MDefinition *obj, MDefinition *index)
     if (needsToMonitorMissingProperties(types))
         barrier = BarrierKind::TypeSet;
 
-    MInstruction *ins = MGetElementCache::New(alloc(), obj, index, barrier == BarrierKind::TypeSet);
+    MInstruction *ins = MGetElementCache::New(alloc(), obj, index, barrier != BarrierKind::NoBarrier);
 
     current->add(ins);
     current->push(ins);
@@ -9234,17 +9234,11 @@ IonBuilder::getPropTryCache(bool *emitted, MDefinition *obj, PropertyName *name,
 
     // Caches can read values from prototypes, so update the barrier to
     // reflect such possible values.
-    if (barrier != BarrierKind::TypeSet) {
-        BarrierKind protoBarrier =
-            PropertyReadOnPrototypeNeedsTypeBarrier(constraints(), obj, name, types);
-        if (protoBarrier != BarrierKind::NoBarrier) {
-            MOZ_ASSERT(barrier <= protoBarrier);
-            barrier = protoBarrier;
-        }
-    }
+    if (barrier == BarrierKind::NoBarrier)
+        barrier = PropertyReadOnPrototypeNeedsTypeBarrier(constraints(), obj, name, types);
 
     MGetPropertyCache *load = MGetPropertyCache::New(alloc(), obj, name,
-                                                     barrier == BarrierKind::TypeSet);
+                                                     barrier != BarrierKind::NoBarrier);
 
     // Try to mark the cache as idempotent.
     //
