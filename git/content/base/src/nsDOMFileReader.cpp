@@ -30,6 +30,7 @@
 #include "nsIURI.h"
 #include "nsStreamUtils.h"
 #include "nsXPCOM.h"
+#include "nsIPrivateDOMEvent.h"
 #include "nsIDOMEventListener.h"
 #include "nsIJSContextStack.h"
 #include "nsJSEnvironment.h"

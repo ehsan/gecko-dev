@@ -2516,8 +2516,6 @@ PresShell::FrameNeedsReflow(nsIFrame *aFrame, IntrinsicDirty aIntrinsicDirty,
     if (aIntrinsicDirty == eStyleChange) {
       // Mark all descendants dirty (using an nsTArray stack rather than
       // recursion).
-      // Note that nsHTMLReflowState::InitResizeFlags has some similar
-      // code; see comments there for how and why it differs.
       nsAutoTArray<nsIFrame*, 32> stack;
       stack.AppendElement(subtreeRoot);
 
@@ -6408,10 +6406,8 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
         }
         else {
           nsCOMPtr<nsIContent> targetContent;
-          if (mCurrentEventFrame) {
-            rv = mCurrentEventFrame->GetContentForEvent(aEvent,
-                                                        getter_AddRefs(targetContent));
-          }
+          rv = mCurrentEventFrame->GetContentForEvent(aEvent,
+                                                      getter_AddRefs(targetContent));
           if (NS_SUCCEEDED(rv) && targetContent) {
             nsEventDispatcher::Dispatch(targetContent, mPresContext, aEvent,
                                         nsnull, aStatus, &eventCB);

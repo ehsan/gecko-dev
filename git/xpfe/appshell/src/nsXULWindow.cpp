@@ -25,6 +25,7 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDOMElement.h"
+#include "nsIPrivateDOMEvent.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMXULElement.h"
 #include "nsPIDOMWindow.h"
@@ -244,7 +245,8 @@ NS_IMETHODIMP nsXULWindow::SetZLevel(PRUint32 aLevel)
       if (event) {
         event->InitEvent(NS_LITERAL_STRING("windowZLevel"), true, false);
 
-        event->SetTrusted(true);
+        nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
+        privateEvent->SetTrusted(true);
 
         nsCOMPtr<nsIDOMEventTarget> targ = do_QueryInterface(domDoc);
         if (targ) {

@@ -107,6 +107,7 @@
 #include "nsILoadContext.h"
 #include "nsIMarkupDocumentViewer.h"
 #include "nsIPresShell.h"
+#include "nsIPrivateDOMEvent.h"
 #include "nsIProgrammingLanguage.h"
 #include "nsIServiceManager.h"
 #include "nsIScriptGlobalObjectOwner.h"
@@ -5603,7 +5604,8 @@ nsGlobalWindow::FirePopupBlockedEvent(nsIDOMDocument* aDoc,
                                   true, true, aRequestingWindow,
                                   aPopupURI, aPopupWindowName,
                                   aPopupWindowFeatures);
-      event->SetTrusted(true);
+      nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
+      privateEvent->SetTrusted(true);
 
       nsCOMPtr<nsIDOMEventTarget> targ(do_QueryInterface(aDoc));
       bool defaultActionEnabled;
@@ -6181,8 +6183,9 @@ PostMessageEvent::Run()
   if (shell)
     presContext = shell->GetPresContext();
 
-  message->SetTrusted(mTrustedCaller);
-  nsEvent *internalEvent = message->GetInternalNSEvent();
+  nsCOMPtr<nsIPrivateDOMEvent> privEvent = do_QueryInterface(message);
+  privEvent->SetTrusted(mTrustedCaller);
+  nsEvent *internalEvent = privEvent->GetInternalNSEvent();
 
   nsEventStatus status = nsEventStatus_eIgnore;
   nsEventDispatcher::Dispatch(static_cast<nsPIDOMWindow*>(mTargetWindow),
@@ -7912,6 +7915,9 @@ nsGlobalWindow::FireHashchange(const nsAString &aOldURL,
                                    getter_AddRefs(domEvent));
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(domEvent);
+  NS_ENSURE_TRUE(privateEvent, NS_ERROR_UNEXPECTED);
+
   nsCOMPtr<nsIDOMHashChangeEvent> hashchangeEvent = do_QueryInterface(domEvent);
   NS_ENSURE_TRUE(hashchangeEvent, NS_ERROR_UNEXPECTED);
 
@@ -7921,7 +7927,7 @@ nsGlobalWindow::FireHashchange(const nsAString &aOldURL,
                                             aOldURL, aNewURL);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = domEvent->SetTrusted(true);
+  rv = privateEvent->SetTrusted(true);
   NS_ENSURE_SUCCESS(rv, rv);
 
   bool dummy;
@@ -7969,6 +7975,9 @@ nsGlobalWindow::DispatchSyncPopState()
                                       getter_AddRefs(domEvent));
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(domEvent);
+  NS_ENSURE_TRUE(privateEvent, NS_ERROR_FAILURE);
+
   // Initialize the popstate event, which does bubble but isn't cancellable.
   nsCOMPtr<nsIDOMPopStateEvent> popstateEvent = do_QueryInterface(domEvent);
   rv = popstateEvent->InitPopStateEvent(NS_LITERAL_STRING("popstate"),
@@ -7976,14 +7985,14 @@ nsGlobalWindow::DispatchSyncPopState()
                                         stateObj);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = domEvent->SetTrusted(true);
+  rv = privateEvent->SetTrusted(true);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDOMEventTarget> outerWindow =
     do_QueryInterface(GetOuterWindow());
   NS_ENSURE_TRUE(outerWindow, NS_ERROR_UNEXPECTED);
 
-  rv = domEvent->SetTarget(outerWindow);
+  rv = privateEvent->SetTarget(outerWindow);
   NS_ENSURE_SUCCESS(rv, rv);
 
   bool dummy; // default action
@@ -8450,10 +8459,13 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
                            event);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    event->SetTrusted(true);
+    nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(event, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    privateEvent->SetTrusted(true);
 
     if (fireMozStorageChanged) {
-      nsEvent *internalEvent = event->GetInternalNSEvent();
+      nsEvent *internalEvent = privateEvent->GetInternalNSEvent();
       internalEvent->flags |= NS_EVENT_FLAG_ONLY_CHROME_DISPATCH;
     }
 
@@ -10363,8 +10375,9 @@ nsGlobalChromeWindow::BeginWindowMove(nsIDOMEvent *aMouseDownEvent, nsIDOMElemen
     return NS_OK;
   }
 
-  NS_ENSURE_TRUE(aMouseDownEvent, NS_ERROR_FAILURE);
-  nsEvent *internalEvent = aMouseDownEvent->GetInternalNSEvent();
+  nsCOMPtr<nsIPrivateDOMEvent> privEvent = do_QueryInterface(aMouseDownEvent);
+  NS_ENSURE_TRUE(privEvent, NS_ERROR_FAILURE);
+  nsEvent *internalEvent = privEvent->GetInternalNSEvent();
   NS_ENSURE_TRUE(internalEvent &&
                  internalEvent->eventStructType == NS_MOUSE_EVENT,
                  NS_ERROR_FAILURE);

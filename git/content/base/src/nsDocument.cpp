@@ -22,6 +22,7 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsDocument.h"
 #include "nsUnicharUtils.h"
+#include "nsIPrivateDOMEvent.h"
 #include "nsContentList.h"
 #include "nsIObserver.h"
 #include "nsIBaseWindow.h"
@@ -4128,18 +4129,20 @@ nsDocument::DispatchContentLoadedEvents()
       nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(parent);
 
       nsCOMPtr<nsIDOMEvent> event;
+      nsCOMPtr<nsIPrivateDOMEvent> privateEvent;
       if (domDoc) {
         domDoc->CreateEvent(NS_LITERAL_STRING("Events"),
                             getter_AddRefs(event));
 
+        privateEvent = do_QueryInterface(event);
       }
 
-      if (event) {
+      if (event && privateEvent) {
         event->InitEvent(NS_LITERAL_STRING("DOMFrameContentLoaded"), true,
                          true);
 
-        event->SetTarget(target_frame);
-        event->SetTrusted(true);
+        privateEvent->SetTarget(target_frame);
+        privateEvent->SetTrusted(true);
 
         // To dispatch this event we must manually call
         // nsEventDispatcher::Dispatch() on the ancestor document since the
@@ -4147,7 +4150,7 @@ nsDocument::DispatchContentLoadedEvents()
         // the ancestor document if we used the normal event
         // dispatching code.
 
-        nsEvent* innerEvent = event->GetInternalNSEvent();
+        nsEvent* innerEvent = privateEvent->GetInternalNSEvent();
         if (innerEvent) {
           nsEventStatus status = nsEventStatus_eIgnore;
 
@@ -7198,11 +7201,12 @@ nsDocument::DispatchPageTransition(nsIDOMEventTarget* aDispatchTarget,
     nsCOMPtr<nsIDOMEvent> event;
     CreateEvent(NS_LITERAL_STRING("pagetransition"), getter_AddRefs(event));
     nsCOMPtr<nsIDOMPageTransitionEvent> ptEvent = do_QueryInterface(event);
-    if (ptEvent && NS_SUCCEEDED(ptEvent->InitPageTransitionEvent(aType, true,
-                                                                 true,
-                                                                 aPersisted))) {
-      event->SetTrusted(true);
-      event->SetTarget(this);
+    nsCOMPtr<nsIPrivateDOMEvent> pEvent = do_QueryInterface(ptEvent);
+    if (pEvent && NS_SUCCEEDED(ptEvent->InitPageTransitionEvent(aType, true,
+                                                                true,
+                                                                aPersisted))) {
+      pEvent->SetTrusted(true);
+      pEvent->SetTarget(this);
       nsEventDispatcher::DispatchDOMEvent(aDispatchTarget, nsnull, event,
                                           nsnull, nsnull);
     }

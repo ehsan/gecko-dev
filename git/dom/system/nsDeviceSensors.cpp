@@ -14,6 +14,7 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIServiceManager.h"
+#include "nsIPrivateDOMEvent.h"
 #include "nsIServiceManager.h"
 
 #include "mozilla/Preferences.h"
@@ -225,7 +226,10 @@ nsDeviceSensors::FireDOMLightEvent(nsIDOMEventTarget *aTarget,
                           false,
                           aValue);
 
-  event->SetTrusted(true);
+  nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(event);
+  if (privateEvent) {
+    privateEvent->SetTrusted(true);
+  }
 
   bool defaultActionEnabled;
   aTarget->DispatchEvent(event, &defaultActionEnabled);
@@ -248,8 +252,10 @@ nsDeviceSensors::FireDOMProximityEvent(nsIDOMEventTarget *aTarget,
                                aMin,
                                aMax);
 
-  event->SetTrusted(true);
-
+  nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(event);
+  if (privateEvent) {
+    privateEvent->SetTrusted(true);
+  }
   bool defaultActionEnabled;
   aTarget->DispatchEvent(event, &defaultActionEnabled);
 
@@ -277,8 +283,10 @@ nsDeviceSensors::FireDOMUserProximityEvent(nsIDOMEventTarget *aTarget, bool aNea
                              false,
                              aNear);
 
-  event->SetTrusted(true);
-
+  nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(event);
+  if (privateEvent) {
+    privateEvent->SetTrusted(true);
+  }
   bool defaultActionEnabled;
   aTarget->DispatchEvent(event, &defaultActionEnabled);
 }
@@ -308,7 +316,9 @@ nsDeviceSensors::FireDOMOrientationEvent(nsIDOMDocument *domdoc,
                                  gamma,
                                  true);
 
-  event->SetTrusted(true);
+  nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(event);
+  if (privateEvent)
+    privateEvent->SetTrusted(true);
   
   target->DispatchEvent(event, &defaultActionEnabled);
 }
@@ -356,7 +366,9 @@ nsDeviceSensors::FireDOMMotionEvent(nsIDOMDocument *domdoc,
                             mLastRotationRate,
                             DEFAULT_SENSOR_POLL);
 
-  event->SetTrusted(true);
+  nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(event);
+  if (privateEvent)
+    privateEvent->SetTrusted(true);
 
   bool defaultActionEnabled = true;
   target->DispatchEvent(event, &defaultActionEnabled);

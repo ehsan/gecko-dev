@@ -37,6 +37,7 @@
 #include "nsUnicharUtils.h"
 #include "nsEventStateManager.h"
 #include "nsIDOMEvent.h"
+#include "nsIPrivateDOMEvent.h"
 #include "nsDOMCID.h"
 #include "nsIServiceManager.h"
 #include "nsIDOMCSSStyleDeclaration.h"
