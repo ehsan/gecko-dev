@@ -58,7 +58,7 @@ nsLineLayout::nsLineLayout(nsPresContext* aPresContext,
   : mPresContext(aPresContext),
     mFloatManager(aFloatManager),
     mBlockReflowState(aOuterReflowState),
-    mBaseLineLayout(aBaseLineLayout),
+    mBaseLineLayout(aBaseLineLayout ? aBaseLineLayout->mBaseLineLayout : this),
     mLastOptionalBreakFrame(nullptr),
     mForceBreakFrame(nullptr),
     mBlockRS(nullptr),/* XXX temporary */
@@ -67,6 +67,7 @@ nsLineLayout::nsLineLayout(nsPresContext* aPresContext,
     mForceBreakFrameOffset(-1),
     mMinLineBSize(0),
     mTextIndent(0),
+    mRubyReflowState(nullptr),
     mFirstLetterStyleOK(false),
     mIsTopOfPage(false),
     mImpactedByFloats(false),
@@ -86,11 +87,6 @@ nsLineLayout::nsLineLayout(nsPresContext* aPresContext,
   NS_ASSERTION(aFloatManager || aOuterReflowState->frame->GetType() ==
                                   nsGkAtoms::letterFrame,
                "float manager should be present");
-  MOZ_ASSERT((!!mBaseLineLayout) ==
-             (aOuterReflowState->frame->GetType() ==
-              nsGkAtoms::rubyTextContainerFrame),
-             "Only ruby text container frames have "
-             "a different base line layout");
   MOZ_COUNT_CTOR(nsLineLayout);
 
   // Stash away some style data that we need
@@ -186,7 +182,7 @@ nsLineLayout::BeginLineReflow(nscoord aICoord, nscoord aBCoord,
   mIsTopOfPage = aIsTopOfPage;
   mImpactedByFloats = aImpactedByFloats;
   mTotalPlacedFrames = 0;
-  if (!mBaseLineLayout) {
+  if (mBaseLineLayout == this) {
     mLineIsEmpty = true;
     mLineAtStart = true;
   } else {
@@ -257,21 +253,6 @@ nsLineLayout::BeginLineReflow(nscoord aICoord, nscoord aBCoord,
   pfd->mAscent = 0;
   pfd->mSpan = psd;
   psd->mFrame = pfd;
-  nsIFrame* frame = mBlockReflowState->frame;
-  if (frame->GetType() == nsGkAtoms::rubyTextContainerFrame) {
-    // Ruby text container won't be reflowed via ReflowFrame, hence the
-    // relative positioning information should be recorded here.
-    MOZ_ASSERT(mBaseLineLayout != this);
-    pfd->mRelativePos =
-      mBlockReflowState->mStyleDisplay->IsRelativelyPositionedStyle();
-    if (pfd->mRelativePos) {
-      MOZ_ASSERT(
-        mBlockReflowState->GetWritingMode() == frame->GetWritingMode(),
-        "mBlockReflowState->frame == frame, "
-        "hence they should have identical writing mode");
-      pfd->mOffsets = mBlockReflowState->ComputedLogicalOffsets();
-    }
-  }
 }
 
 void
@@ -282,7 +263,7 @@ nsLineLayout::EndLineReflow()
   printf(": EndLineReflow: width=%d\n", mRootSpan->mICoord - mRootSpan->mIStart);
 #endif
 
-  NS_ASSERTION(!mBaseLineLayout ||
+  NS_ASSERTION(mBaseLineLayout == this ||
                (!mSpansAllocated && !mSpansFreed && !mSpanFreeList &&
                 !mFramesAllocated && !mFramesFreed && !mFrameFreeList),
                "Allocated frames or spans on non-base line layout?");
@@ -405,19 +386,18 @@ nsLineLayout::UpdateBand(WritingMode aWM,
 nsLineLayout::PerSpanData*
 nsLineLayout::NewPerSpanData()
 {
-  nsLineLayout* outerLineLayout = GetOutermostLineLayout();
-  PerSpanData* psd = outerLineLayout->mSpanFreeList;
+  PerSpanData* psd = mBaseLineLayout->mSpanFreeList;
   if (!psd) {
     void *mem;
     size_t sz = sizeof(PerSpanData);
-    PL_ARENA_ALLOCATE(mem, &outerLineLayout->mArena, sz);
+    PL_ARENA_ALLOCATE(mem, &mBaseLineLayout->mArena, sz);
     if (!mem) {
       NS_ABORT_OOM(sz);
     }
     psd = reinterpret_cast<PerSpanData*>(mem);
   }
   else {
-    outerLineLayout->mSpanFreeList = psd->mNextFreeSpan;
+    mBaseLineLayout->mSpanFreeList = psd->mNextFreeSpan;
   }
   psd->mParent = nullptr;
   psd->mFrame = nullptr;
@@ -428,7 +408,7 @@ nsLineLayout::NewPerSpanData()
   psd->mHasNonemptyContent = false;
 
 #ifdef DEBUG
-  outerLineLayout->mSpansAllocated++;
+  mBaseLineLayout->mSpansAllocated++;
 #endif
   return psd;
 }
@@ -493,21 +473,13 @@ nsLineLayout::EndSpan(nsIFrame* aFrame)
 void
 nsLineLayout::AttachFrameToBaseLineLayout(PerFrameData* aFrame)
 {
-  NS_PRECONDITION(mBaseLineLayout,
+  NS_PRECONDITION(this != mBaseLineLayout,
                   "This method must not be called in a base line layout.");
 
   PerFrameData* baseFrame = mBaseLineLayout->LastFrame();
   MOZ_ASSERT(aFrame && baseFrame);
   MOZ_ASSERT(!aFrame->mIsLinkedToBase,
              "The frame must not have been linked with the base");
-#ifdef DEBUG
-  nsIAtom* baseType = baseFrame->mFrame->GetType();
-  nsIAtom* annotationType = aFrame->mFrame->GetType();
-  MOZ_ASSERT((baseType == nsGkAtoms::rubyBaseContainerFrame &&
-              annotationType == nsGkAtoms::rubyTextContainerFrame) ||
-             (baseType == nsGkAtoms::rubyBaseFrame &&
-              annotationType == nsGkAtoms::rubyTextFrame));
-#endif
 
   aFrame->mNextAnnotation = baseFrame->mNextAnnotation;
   baseFrame->mNextAnnotation = aFrame;
@@ -631,11 +603,10 @@ nsLineLayout::FreeFrame(PerFrameData* pfd)
   if (nullptr != pfd->mSpan) {
     FreeSpan(pfd->mSpan);
   }
-  nsLineLayout* outerLineLayout = GetOutermostLineLayout();
-  pfd->mNext = outerLineLayout->mFrameFreeList;
-  outerLineLayout->mFrameFreeList = pfd;
+  pfd->mNext = mBaseLineLayout->mFrameFreeList;
+  mBaseLineLayout->mFrameFreeList = pfd;
 #ifdef DEBUG
-  outerLineLayout->mFramesFreed++;
+  mBaseLineLayout->mFramesFreed++;
 #endif
 }
 
@@ -645,12 +616,11 @@ nsLineLayout::FreeSpan(PerSpanData* psd)
   // Unlink its frames
   UnlinkFrame(psd->mFirstFrame);
 
-  nsLineLayout* outerLineLayout = GetOutermostLineLayout();
   // Now put the span on the free list since it's free too
-  psd->mNextFreeSpan = outerLineLayout->mSpanFreeList;
-  outerLineLayout->mSpanFreeList = psd;
+  psd->mNextFreeSpan = mBaseLineLayout->mSpanFreeList;
+  mBaseLineLayout->mSpanFreeList = psd;
 #ifdef DEBUG
-  outerLineLayout->mSpansFreed++;
+  mBaseLineLayout->mSpansFreed++;
 #endif
 }
 
@@ -671,19 +641,18 @@ nsLineLayout::IsZeroBSize()
 nsLineLayout::PerFrameData*
 nsLineLayout::NewPerFrameData(nsIFrame* aFrame)
 {
-  nsLineLayout* outerLineLayout = GetOutermostLineLayout();
-  PerFrameData* pfd = outerLineLayout->mFrameFreeList;
+  PerFrameData* pfd = mBaseLineLayout->mFrameFreeList;
   if (!pfd) {
     void *mem;
     size_t sz = sizeof(PerFrameData);
-    PL_ARENA_ALLOCATE(mem, &outerLineLayout->mArena, sz);
+    PL_ARENA_ALLOCATE(mem, &mBaseLineLayout->mArena, sz);
     if (!mem) {
       NS_ABORT_OOM(sz);
     }
     pfd = reinterpret_cast<PerFrameData*>(mem);
   }
   else {
-    outerLineLayout->mFrameFreeList = pfd->mNext;
+    mBaseLineLayout->mFrameFreeList = pfd->mNext;
   }
   pfd->mSpan = nullptr;
   pfd->mNext = nullptr;
@@ -706,7 +675,6 @@ nsLineLayout::NewPerFrameData(nsIFrame* aFrame)
   WritingMode frameWM = aFrame->GetWritingMode();
   WritingMode lineWM = mRootSpan->mWritingMode;
   pfd->mBounds = LogicalRect(lineWM);
-  pfd->mOverflowAreas.Clear();
   pfd->mMargin = LogicalMargin(lineWM);
   pfd->mBorderPadding = LogicalMargin(lineWM);
   pfd->mOffsets = LogicalMargin(frameWM);
@@ -716,7 +684,7 @@ nsLineLayout::NewPerFrameData(nsIFrame* aFrame)
 
 #ifdef DEBUG
   pfd->mBlockDirAlign = 0xFF;
-  outerLineLayout->mFramesAllocated++;
+  mBaseLineLayout->mFramesAllocated++;
 #endif
   return pfd;
 }
@@ -902,6 +870,10 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
                               aFrame, availSize);
     nsHTMLReflowState& reflowState = *reflowStateHolder;
     reflowState.mLineLayout = this;
+    if (mRubyReflowState) {
+      reflowState.mRubyReflowState = mRubyReflowState;
+      mRubyReflowState = nullptr;
+    }
     reflowState.mFlags.mIsTopOfPage = mIsTopOfPage;
     if (reflowState.ComputedISize() == NS_UNCONSTRAINEDSIZE) {
       reflowState.AvailableISize() = availableSpaceOnLine;
@@ -998,8 +970,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
           // We might as well allow zero-width floats to be placed, though.
           availableISize = 0;
         }
-        placedFloat = GetOutermostLineLayout()->
-          AddFloat(outOfFlowFrame, availableISize);
+        placedFloat = mBaseLineLayout->AddFloat(outOfFlowFrame, availableISize);
         NS_ASSERTION(!(outOfFlowFrame->GetType() == nsGkAtoms::letterFrame &&
                        GetFirstLetterStyleOK()),
                     "FirstLetterStyle set on line with floating first letter");
@@ -2878,14 +2849,7 @@ nsLineLayout::ExpandRubyBoxWithAnnotations(PerFrameData* aFrame,
     // Add one gap at each side of this annotation.
     computeState.mFirstParticipant->mJustificationAssignment.mGapsAtStart = 1;
     computeState.mLastParticipant->mJustificationAssignment.mGapsAtEnd = 1;
-    nsIFrame* parentFrame = annotation->mFrame->GetParent();
-    nscoord containerWidth = parentFrame->GetRect().Width();
-    MOZ_ASSERT(containerWidth == aContainerWidth ||
-               parentFrame->GetType() == nsGkAtoms::rubyTextContainerFrame,
-               "Container width should only be different when the current "
-               "annotation is a ruby text frame, whose parent is not same "
-               "as its base frame.");
-    ExpandRubyBox(annotation, reservedISize, containerWidth);
+    ExpandRubyBox(annotation, reservedISize, aContainerWidth);
     ExpandInlineRubyBoxes(annotation->mSpan);
   }
 }
@@ -3057,45 +3021,6 @@ nsLineLayout::RelativePositionFrames(nsOverflowAreas& aOverflowAreas)
   RelativePositionFrames(mRootSpan, aOverflowAreas);
 }
 
-// This method applies any relative positioning to the given frame.
-void
-nsLineLayout::ApplyRelativePositioning(PerFrameData* aPFD)
-{
-  if (!aPFD->mRelativePos) {
-    return;
-  }
-
-  nsIFrame* frame = aPFD->mFrame;
-  WritingMode frameWM = frame->GetWritingMode();
-  LogicalPoint origin = frame->GetLogicalPosition(mContainerWidth);
-  // right and bottom are handled by
-  // nsHTMLReflowState::ComputeRelativeOffsets
-  nsHTMLReflowState::ApplyRelativePositioning(frame, frameWM,
-                                              aPFD->mOffsets, &origin,
-                                              mContainerWidth);
-  frame->SetPosition(frameWM, origin, mContainerWidth);
-}
-
-// This method do relative positioning for ruby annotations.
-void
-nsLineLayout::RelativePositionAnnotations(PerSpanData* aRubyPSD,
-                                          nsOverflowAreas& aOverflowAreas)
-{
-  MOZ_ASSERT(aRubyPSD->mFrame->mFrame->GetType() == nsGkAtoms::rubyFrame);
-  for (PerFrameData* pfd = aRubyPSD->mFirstFrame; pfd; pfd = pfd->mNext) {
-    MOZ_ASSERT(pfd->mFrame->GetType() == nsGkAtoms::rubyBaseContainerFrame);
-    for (PerFrameData* rtc = pfd->mNextAnnotation;
-         rtc; rtc = rtc->mNextAnnotation) {
-      nsIFrame* rtcFrame = rtc->mFrame;
-      MOZ_ASSERT(rtcFrame->GetType() == nsGkAtoms::rubyTextContainerFrame);
-      ApplyRelativePositioning(rtc);
-      nsOverflowAreas rtcOverflowAreas;
-      RelativePositionFrames(rtc->mSpan, rtcOverflowAreas);
-      aOverflowAreas.UnionWith(rtcOverflowAreas + rtcFrame->GetPosition());
-    }
-  }
-}
-
 void
 nsLineLayout::RelativePositionFrames(PerSpanData* psd, nsOverflowAreas& aOverflowAreas)
 {
@@ -3134,7 +3059,16 @@ nsLineLayout::RelativePositionFrames(PerSpanData* psd, nsOverflowAreas& aOverflo
     nsIFrame* frame = pfd->mFrame;
 
     // Adjust the origin of the frame
-    ApplyRelativePositioning(pfd);
+    if (pfd->mRelativePos) {
+      WritingMode frameWM = frame->GetWritingMode();
+      LogicalPoint origin = frame->GetLogicalPosition(mContainerWidth);
+      // right and bottom are handled by
+      // nsHTMLReflowState::ComputeRelativeOffsets
+      nsHTMLReflowState::ApplyRelativePositioning(frame, frameWM,
+                                                  pfd->mOffsets, &origin,
+                                                  mContainerWidth);
+      frame->SetPosition(frameWM, origin, mContainerWidth);
+    }
 
     // We must position the view correctly before positioning its
     // descendants so that widgets are positioned properly (since only
@@ -3188,11 +3122,6 @@ nsLineLayout::RelativePositionFrames(PerSpanData* psd, nsOverflowAreas& aOverflo
                                                  NS_FRAME_NO_MOVE_VIEW);
 
     overflowAreas.UnionWith(r + frame->GetPosition());
-  }
-
-  // Also compute relative position in the annotations.
-  if (psd->mFrame->mFrame->GetType() == nsGkAtoms::rubyFrame) {
-    RelativePositionAnnotations(psd, overflowAreas);
   }
 
   // If we just computed a spans combined area, we need to update its

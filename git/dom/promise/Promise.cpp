@@ -418,7 +418,6 @@ Promise::JSCallback(JSContext* aCx, unsigned aArgc, JS::Value* aVp)
     }
   }
 
-  args.rval().setUndefined();
   return true;
 }
 
@@ -435,7 +434,6 @@ Promise::ThenableResolverCommon(JSContext* aCx, uint32_t aTask,
   JS::Rooted<JSObject*> thisFunc(aCx, &args.callee());
   if (!MarkAsCalledIfNotCalledBefore(aCx, thisFunc)) {
     // A function from this pair has been called before.
-    args.rval().setUndefined();
     return true;
   }
 
@@ -447,8 +445,6 @@ Promise::ThenableResolverCommon(JSContext* aCx, uint32_t aTask,
   } else {
     promise->RejectInternal(aCx, args.get(0));
   }
-
-  args.rval().setUndefined();
   return true;
 }
 

@@ -56,12 +56,36 @@ public:
   template <class T>
   bool constructed() const { return state == Type2State<T>::result; }
 
-  template <class T, class... Args>
-  void construct(Args&&... aArgs)
+  template <class T>
+  void construct()
   {
     MOZ_ASSERT(state == None);
     state = Type2State<T>::result;
-    ::new (storage.addr()) T(Forward<Args>(aArgs)...);
+    ::new (storage.addr()) T();
+  }
+
+  template <class T, class U>
+  void construct(U&& aU)
+  {
+    MOZ_ASSERT(state == None);
+    state = Type2State<T>::result;
+    ::new (storage.addr()) T(Move(aU));
+  }
+
+  template <class T, class U1>
+  void construct(const U1& aU1)
+  {
+    MOZ_ASSERT(state == None);
+    state = Type2State<T>::result;
+    ::new (storage.addr()) T(aU1);
+  }
+
+  template <class T, class U1, class U2>
+  void construct(const U1& aU1, const U2& aU2)
+  {
+    MOZ_ASSERT(state == None);
+    state = Type2State<T>::result;
+    ::new (storage.addr()) T(aU1, aU2);
   }
 
   template <class T>

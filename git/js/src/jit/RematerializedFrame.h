@@ -76,9 +76,6 @@ class RematerializedFrame
     void setPrevUpToDate() {
         prevUpToDate_ = true;
     }
-    void unsetPrevUpToDate() {
-        prevUpToDate_ = false;
-    }
 
     bool isDebuggee() const {
         return isDebuggee_;

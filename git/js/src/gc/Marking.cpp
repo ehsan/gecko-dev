@@ -1452,8 +1452,8 @@ ScanTypeObject(GCMarker *gcmarker, types::TypeObject *type)
     if (TypeDescr *descr = type->maybeTypeDescr())
         PushMarkStack(gcmarker, descr);
 
-    if (JSFunction *fun = type->maybeInterpretedFunction())
-        PushMarkStack(gcmarker, fun);
+    if (type->interpretedFunction)
+        PushMarkStack(gcmarker, type->interpretedFunction);
 }
 
 static void
@@ -1480,10 +1480,8 @@ gc::MarkChildren(JSTracer *trc, types::TypeObject *type)
         type->setTypeDescr(&descr->as<TypeDescr>());
     }
 
-    if (JSObject *fun = type->maybeInterpretedFunction()) {
-        MarkObjectUnbarriered(trc, &fun, "type_function");
-        type->setInterpretedFunction(&fun->as<JSFunction>());
-    }
+    if (type->interpretedFunction)
+        MarkObject(trc, &type->interpretedFunction, "type_function");
 }
 
 static void
