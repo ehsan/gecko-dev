@@ -548,8 +548,7 @@ public:
    *                           or 1.0 if during intrinsic size
    *                           calculation.
    */
-  static nscoord CalcLineHeight(nsIContent* aContent,
-                                nsStyleContext* aStyleContext,
+  static nscoord CalcLineHeight(nsStyleContext* aStyleContext,
                                 nscoord aBlockHeight,
                                 float aFontSizeInflation);
 

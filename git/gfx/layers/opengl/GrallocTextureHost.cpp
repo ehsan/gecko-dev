@@ -104,7 +104,7 @@ GrallocTextureSourceOGL::~GrallocTextureSourceOGL()
 }
 
 void
-GrallocTextureSourceOGL::BindTexture(GLenum aTextureUnit, gfx::Filter aFilter)
+GrallocTextureSourceOGL::BindTexture(GLenum aTextureUnit)
 {
   MOZ_ASSERT(gl());
   if (!IsValid()) {
@@ -118,7 +118,7 @@ GrallocTextureSourceOGL::BindTexture(GLenum aTextureUnit, gfx::Filter aFilter)
   gl()->fActiveTexture(aTextureUnit);
   gl()->fBindTexture(textureTarget, tex);
 
-  ApplyFilterToBoundTexture(gl(), aFilter, textureTarget);
+  gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
 }
 
 void GrallocTextureSourceOGL::Lock()
