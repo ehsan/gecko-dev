@@ -4,8 +4,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-LIBRARY_NAME = 'mozillapkix_gtest'
-
 SOURCES += [
     'nssgtest.cpp',
     'pkixbuild_tests.cpp',
@@ -18,7 +16,6 @@ SOURCES += [
     'pkixder_input_tests.cpp',
     'pkixder_pki_types_tests.cpp',
     'pkixder_universal_types_tests.cpp',
-    'pkixgtest.cpp',
     'pkixocsp_CreateEncodedOCSPRequest_tests.cpp',
     'pkixocsp_VerifyEncodedOCSPResponse.cpp',
 ]

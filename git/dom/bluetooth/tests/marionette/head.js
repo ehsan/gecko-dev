@@ -705,17 +705,13 @@ function getDefaultAdapter() {
 }
 
 /**
- * Flush permission settings and call |finish()|.
+ * Wait for pending emulator transactions and call |finish()|.
  */
 function cleanUp() {
-  waitFor(function() {
-    SpecialPowers.flushPermissions(function() {
-      // Use ok here so that we have at least one test run.
-      ok(true, "permissions flushed");
+  // Use ok here so that we have at least one test run.
+  ok(true, ":: CLEANING UP ::");
 
-      finish();
-    });
-  }, function() {
+  waitFor(finish, function() {
     return pendingEmulatorCmdCount === 0;
   });
 }
@@ -730,7 +726,7 @@ function startBluetoothTestBase(aPermissions, aTestCaseMain) {
 }
 
 function startBluetoothTest(aReenable, aTestCaseMain) {
-  startBluetoothTestBase(["settings-read", "settings-write"], function() {
+  startBluetoothTestBase(["settings-read", "settings-write", "settings-api-read", "settings-api-write"], function() {
     let origEnabled, needEnable;
 
     return getBluetoothEnabled()

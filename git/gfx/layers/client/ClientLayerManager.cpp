@@ -6,7 +6,7 @@
 #include "ClientLayerManager.h"
 #include "CompositorChild.h"            // for CompositorChild
 #include "GeckoProfiler.h"              // for PROFILER_LABEL
-#include "gfxPrefs.h"                   // for gfxPrefs::LayersTileWidth/Height
+#include "gfxPrefs.h"                   // for gfxPrefs::LayersTile...
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/Hal.h"
 #include "mozilla/dom/ScreenOrientation.h"  // for ScreenOrientation
@@ -21,6 +21,7 @@
 #include "mozilla/layers/LayerTransactionChild.h"
 #include "mozilla/layers/TextureClientPool.h" // for TextureClientPool
 #include "mozilla/layers/SimpleTextureClientPool.h" // for SimpleTextureClientPool
+#include "ClientReadbackLayer.h"        // for ClientReadbackLayer
 #include "nsAString.h"
 #include "nsIWidget.h"                  // for nsIWidget
 #include "nsIWidgetListener.h"
@@ -28,8 +29,10 @@
 #include "nsXULAppAPI.h"                // for XRE_GetProcessType, etc
 #include "TiledLayerBuffer.h"
 #include "mozilla/dom/WindowBinding.h"  // for Overfill Callback
+#include "gfxPrefs.h"
 #ifdef MOZ_WIDGET_ANDROID
 #include "AndroidBridge.h"
+#include "LayerMetricsWrapper.h"
 #endif
 
 namespace mozilla {
@@ -115,10 +118,18 @@ ClientLayerManager::Mutated(Layer* aLayer)
   mForwarder->Mutated(Hold(aLayer));
 }
 
+already_AddRefed<ReadbackLayer>
+ClientLayerManager::CreateReadbackLayer()
+{
+  nsRefPtr<ReadbackLayer> layer = new ClientReadbackLayer(this);
+  return layer.forget();
+}
+
 void
 ClientLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
 {
   mInTransaction = true;
+  mTransactionStart = TimeStamp::Now();
 
 #ifdef MOZ_LAYERS_HAVE_LOG
   MOZ_LAYERS_LOG(("[----- BeginTransaction"));
@@ -165,7 +176,7 @@ ClientLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
   }
 
   // If this is a new paint, increment the paint sequence number.
-  if (!mIsRepeatTransaction) {
+  if (!mIsRepeatTransaction && gfxPrefs::APZTestLoggingEnabled()) {
     ++mPaintSequenceNumber;
     mApzTestData.StartNewPaint(mPaintSequenceNumber);
   }
@@ -174,7 +185,6 @@ ClientLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
 void
 ClientLayerManager::BeginTransaction()
 {
-  mInTransaction = true;
   BeginTransactionWithTarget(nullptr);
 }
 
@@ -250,6 +260,9 @@ ClientLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
   for (size_t i = 0; i < mTexturePools.Length(); i++) {
     mTexturePools[i]->ReturnDeferredClients();
   }
+
+  mInTransaction = false;
+  mTransactionStart = TimeStamp();
 }
 
 bool
@@ -324,6 +337,14 @@ ClientLayerManager::GetCompositorSideAPZTestData(APZTestData* aData) const
   }
 }
 
+void
+ClientLayerManager::StartNewRepaintRequest(SequenceNumber aSequenceNumber)
+{
+  if (gfxPrefs::APZTestLoggingEnabled()) {
+    mApzTestData.StartNewRepaintRequest(aSequenceNumber);
+  }
+}
+
 bool
 ClientLayerManager::RequestOverfill(mozilla::dom::OverfillCallback* aCallback)
 {
@@ -351,14 +372,6 @@ ClientLayerManager::RunOverfillCallback(const uint32_t aOverfill)
   }
 
   mOverfillCallbacks.Clear();
-}
-
-static nsIntRect
-ToOutsideIntRect(const gfxRect &aRect)
-{
-  gfxRect r = aRect;
-  r.RoundOut();
-  return nsIntRect(r.X(), r.Y(), r.Width(), r.Height());
 }
 
 void
@@ -438,12 +451,19 @@ ClientLayerManager::ForwardTransaction(bool aScheduleComposite)
   mPhase = PHASE_FORWARD;
 
   mLatestTransactionId = mTransactionIdAllocator->GetTransactionId();
+  TimeStamp transactionStart;
+  if (!mTransactionIdAllocator->GetTransactionStart().IsNull()) {
+    transactionStart = mTransactionIdAllocator->GetTransactionStart();
+  } else {
+    transactionStart = mTransactionStart;
+  }
 
   // forward this transaction's changeset to our LayerManagerComposite
   bool sent;
   AutoInfallibleTArray<EditReply, 10> replies;
-  if (HasShadowManager() && mForwarder->EndTransaction(&replies, mRegionToClear,
-        mLatestTransactionId, aScheduleComposite, mPaintSequenceNumber, &sent)) {
+  if (mForwarder->EndTransaction(&replies, mRegionToClear,
+        mLatestTransactionId, aScheduleComposite, mPaintSequenceNumber,
+        mIsRepeatTransaction, transactionStart, &sent)) {
     for (nsTArray<EditReply>::size_type i = 0; i < replies.Length(); ++i) {
       const EditReply& reply = replies[i];
 
@@ -497,14 +517,15 @@ ClientLayerManager::ForwardTransaction(bool aScheduleComposite)
     if (sent) {
       mNeedsComposite = false;
     }
-    if (!sent || mForwarder->GetShadowManager()->HasNoCompositor()) {
-      // Clear the transaction id so that it doesn't get returned
-      // unless we forwarded to somewhere that doesn't actually
-      // have a compositor.
-      mTransactionIdAllocator->RevokeTransactionId(mLatestTransactionId);
-    }
   } else if (HasShadowManager()) {
     NS_WARNING("failed to forward Layers transaction");
+  }
+
+  if (!sent) {
+    // Clear the transaction id so that it doesn't get returned
+    // unless we forwarded to somewhere that doesn't actually
+    // have a compositor.
+    mTransactionIdAllocator->RevokeTransactionId(mLatestTransactionId);
   }
 
   mForwarder->RemoveTexturesIfNecessary();
@@ -562,6 +583,8 @@ ClientLayerManager::GetTexturePool(SurfaceFormat aFormat)
   mTexturePools.AppendElement(
       new TextureClientPool(aFormat, IntSize(gfxPrefs::LayersTileWidth(),
                                              gfxPrefs::LayersTileHeight()),
+                            gfxPrefs::LayersTileMaxPoolSize(),
+                            gfxPrefs::LayersTileShrinkPoolTimeout(),
                             mForwarder));
 
   return mTexturePools.LastElement();
@@ -576,6 +599,8 @@ ClientLayerManager::GetSimpleTileTexturePool(SurfaceFormat aFormat)
   if (mSimpleTilePools[index].get() == nullptr) {
     mSimpleTilePools[index] = new SimpleTextureClientPool(aFormat, IntSize(gfxPrefs::LayersTileWidth(),
                                                                            gfxPrefs::LayersTileHeight()),
+                                                          gfxPrefs::LayersTileMaxPoolSize(),
+                                                          gfxPrefs::LayersTileShrinkPoolTimeout(),
                                                           mForwarder);
   }
 
@@ -626,30 +651,26 @@ ClientLayerManager::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
                                               bool aDrawingCritical)
 {
 #ifdef MOZ_WIDGET_ANDROID
-  Layer* primaryScrollable = GetPrimaryScrollableLayer();
-  if (primaryScrollable) {
-    const FrameMetrics& metrics = primaryScrollable->AsContainerLayer()->GetFrameMetrics();
+  MOZ_ASSERT(aMetrics.IsScrollable());
+  // This is derived from the code in
+  // gfx/layers/ipc/CompositorParent.cpp::TransformShadowTree.
+  CSSToLayerScale paintScale = aMetrics.LayersPixelsPerCSSPixel();
+  const CSSRect& metricsDisplayPort =
+    (aDrawingCritical && !aMetrics.mCriticalDisplayPort.IsEmpty()) ?
+      aMetrics.mCriticalDisplayPort : aMetrics.mDisplayPort;
+  LayerRect displayPort = (metricsDisplayPort + aMetrics.GetScrollOffset()) * paintScale;
 
-    // This is derived from the code in
-    // gfx/layers/ipc/CompositorParent.cpp::TransformShadowTree.
-    CSSToLayerScale paintScale = metrics.LayersPixelsPerCSSPixel();
-    const CSSRect& metricsDisplayPort =
-      (aDrawingCritical && !metrics.mCriticalDisplayPort.IsEmpty()) ?
-        metrics.mCriticalDisplayPort : metrics.mDisplayPort;
-    LayerRect displayPort = (metricsDisplayPort + metrics.GetScrollOffset()) * paintScale;
-
-    ScreenPoint scrollOffset;
-    CSSToScreenScale zoom;
-    bool ret = AndroidBridge::Bridge()->ProgressiveUpdateCallback(
-      aHasPendingNewThebesContent, displayPort, paintScale.scale, aDrawingCritical,
-      scrollOffset, zoom);
-    aMetrics.SetScrollOffset(scrollOffset / zoom);
-    aMetrics.SetZoom(zoom);
-    return ret;
-  }
-#endif
-
+  ScreenPoint scrollOffset;
+  CSSToScreenScale zoom;
+  bool ret = AndroidBridge::Bridge()->ProgressiveUpdateCallback(
+    aHasPendingNewThebesContent, displayPort, paintScale.scale, aDrawingCritical,
+    scrollOffset, zoom);
+  aMetrics.SetScrollOffset(scrollOffset / zoom);
+  aMetrics.SetZoom(zoom);
+  return ret;
+#else
   return false;
+#endif
 }
 
 ClientLayer::~ClientLayer()

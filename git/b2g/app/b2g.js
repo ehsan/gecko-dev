@@ -54,7 +54,7 @@ pref("browser.cache.memory_limit", 2048); // 2 MB
 /* image cache prefs */
 pref("image.cache.size", 1048576); // bytes
 pref("image.high_quality_downscaling.enabled", false);
-pref("canvas.image.cache.limit", 10485760); // 10 MB
+pref("canvas.image.cache.limit", 20971520); // 20 MB
 
 /* offline cache prefs */
 pref("browser.offline-apps.notify", false);
@@ -309,7 +309,10 @@ pref("dom.indexedDB.warningQuota", 5);
 pref("media.preload.default", 1); // default to preload none
 pref("media.preload.auto", 2);    // preload metadata if preload=auto
 pref("media.cache_size", 4096);    // 4MB media cache
-
+#ifdef MOZ_FMP4
+// Enable/Disable Gonk Decoder Module
+pref("media.fragmented-mp4.gonk.enabled", false);
+#endif
 // The default number of decoded video frames that are enqueued in
 // MediaDecoderReader's mVideoQueue.
 pref("media.video-queue.default-size", 3);
@@ -392,7 +395,7 @@ pref("browser.dom.window.dump.enabled", false);
 // Default Content Security Policy to apply to privileged and certified apps
 pref("security.apps.privileged.CSP.default", "default-src *; script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline'");
 // If you change this CSP, make sure to update the fast path in nsCSPService.cpp
-pref("security.apps.certified.CSP.default", "default-src *; script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline'");
+pref("security.apps.certified.CSP.default", "default-src *; script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline' app://theme.gaiamobile.org");
 
 // Temporarily force-enable GL compositing.  This is default-disabled
 // deep within the bowels of the widgetry system.  Remove me when GL
@@ -427,8 +430,6 @@ pref("network.gonk.ms-release-mms-connection", 30000);
 
 // WebContacts
 pref("dom.mozContacts.enabled", true);
-pref("dom.navigator-property.disable.mozContacts", false);
-pref("dom.global-constructor.disable.mozContact", false);
 
 // Shortnumber matching needed for e.g. Brazil:
 // 03187654321 can be found with 87654321
@@ -493,7 +494,6 @@ pref("dom.mozApps.single_variant_sourcedir", "/persist/svoperapps");
 
 // WebSettings
 pref("dom.mozSettings.enabled", true);
-pref("dom.navigator-property.disable.mozSettings", false);
 pref("dom.mozPermissionSettings.enabled", true);
 
 // controls if we want camera support
@@ -889,6 +889,10 @@ pref("network.sntp.timeout", 30); // In seconds.
 
 // Enable dataStore
 pref("dom.datastore.enabled", true);
+// When an entry is changed, use two timers to fire system messages in a more
+// moderate pattern.
+pref("dom.datastore.sysMsgOnChangeShortTimeoutSec", 10);
+pref("dom.datastore.sysMsgOnChangeLongTimeoutSec", 60);
 
 // DOM Inter-App Communication API.
 pref("dom.inter-app-communication-api.enabled", true);
@@ -923,6 +927,11 @@ pref("gfx.gralloc.fence-with-readpixels", true);
 
 // The url of the page used to display network error details.
 pref("b2g.neterror.url", "app://system.gaiamobile.org/net_error.html");
+
+// The origin used for the shared themes uri space.
+pref("b2g.theme.origin", "app://theme.gaiamobile.org");
+pref("dom.mozApps.themable", true);
+pref("dom.mozApps.selected_theme", "default_theme.gaiamobile.org");
 
 // Enable Web Speech synthesis API
 pref("media.webspeech.synth.enabled", true);
@@ -969,8 +978,7 @@ pref("apz.subframe.enabled", true);
 pref("apz.overscroll.enabled", true);
 pref("apz.overscroll.fling_friction", "0.02");
 pref("apz.overscroll.fling_stopped_threshold", "0.4");
-pref("apz.overscroll.clamping", "0.5");
-pref("apz.overscroll.z_effect", "0.5");
+pref("apz.overscroll.stretch_factor", "0.5");
 pref("apz.overscroll.snap_back.spring_stiffness", "0.6");
 pref("apz.overscroll.snap_back.spring_friction", "0.1");
 pref("apz.overscroll.snap_back.mass", "1200");
@@ -992,8 +1000,8 @@ pref("browser.autofocus", false);
 // Enable wakelock
 pref("dom.wakelock.enabled", true);
 
-// Disable touch caret by default
-pref("touchcaret.enabled", false);
+// Enable touch caret by default
+pref("touchcaret.enabled", true);
 
 // Disable selection caret by default
 pref("selectioncaret.enabled", false);
@@ -1009,3 +1017,6 @@ pref("services.mobileid.server.uri", "https://msisdn.services.mozilla.com");
 #ifndef XP_WIN
 pref("dom.mapped_arraybuffer.enabled", true);
 #endif
+
+// UDPSocket API
+pref("dom.udpsocket.enabled", true);

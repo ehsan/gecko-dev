@@ -412,19 +412,6 @@ class MarionetteJSTestCase(CommonTestCase):
         js = f.read()
         args = []
 
-        # if this is a browser_ test, prepend head.js to it
-        if os.path.basename(self.jsFile).startswith('browser_'):
-            local_head = open(os.path.join(os.path.dirname(__file__), 'tests', 'head.js'), 'r')
-            js = local_head.read() + js
-            head = open(os.path.join(os.path.dirname(self.jsFile), 'head.js'), 'r')
-            for line in head:
-                # we need a bigger timeout than the default specified by the
-                # 'real' head.js
-                if 'const kDefaultWait' in line:
-                    js += 'const kDefaultWait = 45000;\n'
-                else:
-                    js += line
-
         if os.path.basename(self.jsFile).startswith('test_'):
             head_js = self.head_js_re.search(js);
             if head_js:
@@ -508,7 +495,7 @@ setReq.onerror = function() {
                             'expected timeout not triggered')
 
             if 'fail' in self.jsFile:
-                self.assertTrue(results['failed'] > 0,
+                self.assertTrue(len(results['failures']) > 0,
                                 "expected test failures didn't occur")
             else:
                 logger = get_default_logger()
@@ -517,10 +504,27 @@ setReq.onerror = function() {
                     name = "got false, expected true" if failure.get('name') is None else failure['name']
                     logger.test_status(self.test_name, name, 'FAIL',
                                        message=diag)
-                self.assertEqual(0, results['failed'],
-                                 '%d tests failed' % (results['failed']))
+                for failure in results['expectedFailures']:
+                    diag = "" if failure.get('diag') is None else failure['diag']
+                    name = "got false, expected false" if failure.get('name') is None else failure['name']
+                    logger.test_status(self.test_name, name, 'FAIL',
+                                       expected='FAIL', message=diag)
+                for failure in results['unexpectedSuccesses']:
+                    diag = "" if failure.get('diag') is None else failure['diag']
+                    name = "got true, expected false" if failure.get('name') is None else failure['name']
+                    logger.test_status(self.test_name, name, 'PASS',
+                                       expected='FAIL', message=diag)
+                self.assertEqual(0, len(results['failures']),
+                                 '%d tests failed' % len(results['failures']))
+                if len(results['unexpectedSuccesses']) > 0:
+                    raise _UnexpectedSuccess('')
+                if len(results['expectedFailures']) > 0:
+                    raise _ExpectedFailure((AssertionError, AssertionError(''), None))
 
-            self.assertTrue(results['passed'] + results['failed'] > 0,
+            self.assertTrue(results['passed']
+                            + len(results['failures'])
+                            + len(results['expectedFailures'])
+                            + len(results['unexpectedSuccesses']) > 0,
                             'no tests run')
 
         except ScriptTimeoutException:

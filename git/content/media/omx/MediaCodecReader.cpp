@@ -17,6 +17,7 @@
 #include <stagefright/foundation/AMessage.h>
 #include <stagefright/MediaBuffer.h>
 #include <stagefright/MediaCodec.h>
+#include <stagefright/MediaDefs.h>
 #include <stagefright/MediaExtractor.h>
 #include <stagefright/MediaSource.h>
 #include <stagefright/MetaData.h>
@@ -27,7 +28,10 @@
 #include "gfx2DGlue.h"
 
 #include "MediaStreamSource.h"
+#include "MediaTaskQueue.h"
+#include "nsThreadUtils.h"
 #include "ImageContainer.h"
+#include "SharedThreadPool.h"
 #include "VideoFrameContainer.h"
 
 using namespace android;
@@ -42,9 +46,9 @@ enum {
 static const int64_t sInvalidDurationUs = INT64_C(-1);
 static const int64_t sInvalidTimestampUs = INT64_C(-1);
 
-// Try not to spend more than this much time (in seconds) in a single call to DecodeAudioData.
+// Try not to spend more than this much time (in seconds) in a single call
+// to GetCodecOutputData.
 static const double sMaxAudioDecodeDurationS = 0.1;
-// Try not to spend more than this much time (in seconds) in a single call to DecodeVideoFrame.
 static const double sMaxVideoDecodeDurationS = 0.1;
 
 static CheckedUint32 sInvalidInputIndex = INT32_C(-1);
@@ -61,7 +65,7 @@ IsValidTimestampUs(int64_t aTimestamp)
   return aTimestamp >= INT64_C(0);
 }
 
-MediaCodecReader::MessageHandler::MessageHandler(MediaCodecReader *aReader)
+MediaCodecReader::MessageHandler::MessageHandler(MediaCodecReader* aReader)
   : mReader(aReader)
 {
 }
@@ -72,14 +76,16 @@ MediaCodecReader::MessageHandler::~MessageHandler()
 }
 
 void
-MediaCodecReader::MessageHandler::onMessageReceived(const android::sp<android::AMessage> &aMessage)
+MediaCodecReader::MessageHandler::onMessageReceived(
+  const sp<AMessage>& aMessage)
 {
-  if (mReader != nullptr) {
+  if (mReader) {
     mReader->onMessageReceived(aMessage);
   }
 }
 
-MediaCodecReader::VideoResourceListener::VideoResourceListener(MediaCodecReader *aReader)
+MediaCodecReader::VideoResourceListener::VideoResourceListener(
+  MediaCodecReader* aReader)
   : mReader(aReader)
 {
 }
@@ -92,7 +98,7 @@ MediaCodecReader::VideoResourceListener::~VideoResourceListener()
 void
 MediaCodecReader::VideoResourceListener::codecReserved()
 {
-  if (mReader != nullptr) {
+  if (mReader) {
     mReader->codecReserved(mReader->mVideoTrack);
   }
 }
@@ -100,18 +106,68 @@ MediaCodecReader::VideoResourceListener::codecReserved()
 void
 MediaCodecReader::VideoResourceListener::codecCanceled()
 {
-  if (mReader != nullptr) {
+  if (mReader) {
     mReader->codecCanceled(mReader->mVideoTrack);
   }
 }
 
+bool
+MediaCodecReader::TrackInputCopier::Copy(MediaBuffer* aSourceBuffer,
+                                         sp<ABuffer> aCodecBuffer)
+{
+  if (aSourceBuffer == nullptr ||
+      aCodecBuffer == nullptr ||
+      aSourceBuffer->range_length() > aCodecBuffer->capacity()) {
+    return false;
+  }
+
+  aCodecBuffer->setRange(0, aSourceBuffer->range_length());
+  memcpy(aCodecBuffer->data(),
+         (uint8_t*)aSourceBuffer->data() + aSourceBuffer->range_offset(),
+         aSourceBuffer->range_length());
+
+  return true;
+}
+
 MediaCodecReader::Track::Track()
-  : mDurationUs(INT64_C(0))
+  : mSourceIsStopped(true)
+  , mDurationUs(INT64_C(0))
   , mInputIndex(sInvalidInputIndex)
-  , mEndOfStream(false)
+  , mInputEndOfStream(false)
+  , mOutputEndOfStream(false)
   , mSeekTimeUs(sInvalidTimestampUs)
   , mFlushed(false)
+  , mDiscontinuity(false)
+  , mTaskQueue(nullptr)
 {
+}
+
+// Append the value of |kKeyValidSamples| to the end of each vorbis buffer.
+// https://github.com/mozilla-b2g/platform_frameworks_av/blob/master/media/libstagefright/OMXCodec.cpp#L3128
+// https://github.com/mozilla-b2g/platform_frameworks_av/blob/master/media/libstagefright/NuMediaExtractor.cpp#L472
+bool
+MediaCodecReader::VorbisInputCopier::Copy(MediaBuffer* aSourceBuffer,
+                                          sp<ABuffer> aCodecBuffer)
+{
+  if (aSourceBuffer == nullptr ||
+      aCodecBuffer == nullptr ||
+      aSourceBuffer->range_length() + sizeof(int32_t) > aCodecBuffer->capacity()) {
+    return false;
+  }
+
+  int32_t numPageSamples = 0;
+  if (!aSourceBuffer->meta_data()->findInt32(kKeyValidSamples, &numPageSamples)) {
+    numPageSamples = -1;
+  }
+
+  aCodecBuffer->setRange(0, aSourceBuffer->range_length() + sizeof(int32_t));
+  memcpy(aCodecBuffer->data(),
+         (uint8_t*)aSourceBuffer->data() + aSourceBuffer->range_offset(),
+         aSourceBuffer->range_length());
+  memcpy(aCodecBuffer->data() + aSourceBuffer->range_length(),
+         &numPageSamples, sizeof(numPageSamples));
+
+  return true;
 }
 
 MediaCodecReader::AudioTrack::AudioTrack()
@@ -138,8 +194,9 @@ MediaCodecReader::CodecBufferInfo::CodecBufferInfo()
 }
 
 MediaCodecReader::MediaCodecReader(AbstractMediaDecoder* aDecoder)
-  : MediaDecoderReader(aDecoder)
+  : MediaOmxCommonReader(aDecoder)
   , mColorConverterBufferSize(0)
+  , mExtractor(nullptr)
 {
   mHandler = new MessageHandler(this);
   mVideoListener = new VideoResourceListener(this);
@@ -165,12 +222,22 @@ MediaCodecReader::IsWaitingMediaResources()
 bool
 MediaCodecReader::IsDormantNeeded()
 {
-  return mVideoTrack.mCodec != nullptr;
+  return mVideoTrack.mSource != nullptr;
 }
 
 void
 MediaCodecReader::ReleaseMediaResources()
 {
+  // Stop the mSource because we are in the dormant state and the stop function
+  // will rewind the mSource to the beginning of the stream.
+  if (mVideoTrack.mSource != nullptr) {
+    mVideoTrack.mSource->stop();
+    mVideoTrack.mSourceIsStopped = true;
+  }
+  if (mAudioTrack.mSource != nullptr) {
+    mAudioTrack.mSource->stop();
+    mAudioTrack.mSourceIsStopped = true;
+  }
   ReleaseCriticalResources();
 }
 
@@ -180,27 +247,87 @@ MediaCodecReader::Shutdown()
   ReleaseResources();
 }
 
-bool
-MediaCodecReader::DecodeAudioData()
+void
+MediaCodecReader::DispatchAudioTask()
 {
-  MOZ_ASSERT(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  if (mAudioTrack.mTaskQueue && mAudioTrack.mTaskQueue->IsEmpty()) {
+    RefPtr<nsIRunnable> task =
+      NS_NewRunnableMethod(this,
+                           &MediaCodecReader::DecodeAudioDataTask);
+    mAudioTrack.mTaskQueue->Dispatch(task);
+  }
+}
 
-  if (mAudioTrack.mCodec == nullptr || !mAudioTrack.mCodec->allocated()) {
+void
+MediaCodecReader::DispatchVideoTask(int64_t aTimeThreshold)
+{
+  if (mVideoTrack.mTaskQueue && mVideoTrack.mTaskQueue->IsEmpty()) {
+    RefPtr<nsIRunnable> task =
+      NS_NewRunnableMethodWithArg<int64_t>(this,
+                                           &MediaCodecReader::DecodeVideoFrameTask,
+                                           aTimeThreshold);
+    mVideoTrack.mTaskQueue->Dispatch(task);
+  }
+}
+
+void
+MediaCodecReader::RequestAudioData()
+{
+  MOZ_ASSERT(GetTaskQueue()->IsCurrentThreadIn());
+  MOZ_ASSERT(HasAudio());
+  if (CheckAudioResources()) {
+    DispatchAudioTask();
+  }
+}
+
+void
+MediaCodecReader::RequestVideoData(bool aSkipToNextKeyframe,
+                                   int64_t aTimeThreshold)
+{
+  MOZ_ASSERT(GetTaskQueue()->IsCurrentThreadIn());
+  MOZ_ASSERT(HasVideo());
+
+  int64_t threshold = sInvalidTimestampUs;
+  if (aSkipToNextKeyframe && IsValidTimestampUs(aTimeThreshold)) {
+    mVideoTrack.mTaskQueue->Flush();
+    threshold = aTimeThreshold;
+  }
+  if (CheckVideoResources()) {
+    DispatchVideoTask(threshold);
+  }
+}
+
+bool
+MediaCodecReader::DecodeAudioDataSync()
+{
+  if (mAudioTrack.mCodec == nullptr || !mAudioTrack.mCodec->allocated() ||
+      mAudioTrack.mOutputEndOfStream) {
     return false;
   }
 
   // Get one audio output data from MediaCodec
   CodecBufferInfo bufferInfo;
-  TimeStamp timeout = TimeStamp::Now() + TimeDuration::FromSeconds(sMaxAudioDecodeDurationS);
+  status_t status;
+  TimeStamp timeout = TimeStamp::Now() +
+                      TimeDuration::FromSeconds(sMaxAudioDecodeDurationS);
   while (true) {
-    if (timeout < TimeStamp::Now()) {
-      return true; // Try it again later.
-    }
-    status_t status = GetCodecOutputData(mAudioTrack, bufferInfo, sInvalidTimestampUs, timeout);
-    if (status == OK) {
+    // Try to fill more input buffers and then get one output buffer.
+    // FIXME: use callback from MediaCodec
+    FillCodecInputData(mAudioTrack);
+
+    status = GetCodecOutputData(mAudioTrack, bufferInfo, sInvalidTimestampUs,
+                                timeout);
+    if (status == OK || status == ERROR_END_OF_STREAM) {
       break;
     } else if (status == -EAGAIN) {
-      return true; // Try it again later.
+      if (TimeStamp::Now() > timeout) {
+        // Don't let this loop run for too long. Try it again later.
+        if (CheckAudioResources()) {
+          DispatchAudioTask();
+        }
+        return true;
+      }
+      continue; // Try it again now.
     } else if (status == INFO_FORMAT_CHANGED) {
       if (UpdateAudioInfo()) {
         continue; // Try it again now.
@@ -212,57 +339,191 @@ MediaCodecReader::DecodeAudioData()
     }
   }
 
-  bool result = true;
-
-  if (bufferInfo.mBuffer != nullptr && bufferInfo.mSize > 0 && bufferInfo.mBuffer->data() != nullptr) {
+  bool result = false;
+  if (bufferInfo.mBuffer != nullptr && bufferInfo.mSize > 0 &&
+      bufferInfo.mBuffer->data() != nullptr) {
     // This is the approximate byte position in the stream.
     int64_t pos = mDecoder->GetResource()->Tell();
 
-    uint32_t frames = bufferInfo.mSize / (mInfo.mAudio.mChannels * sizeof(AudioDataValue));
+    uint32_t frames = bufferInfo.mSize /
+                      (mInfo.mAudio.mChannels * sizeof(AudioDataValue));
 
     result = mAudioCompactor.Push(
-        pos,
-        bufferInfo.mTimeUs,
-        mInfo.mAudio.mRate,
-        frames,
-        mInfo.mAudio.mChannels,
-        AudioCompactor::NativeCopy(
-            bufferInfo.mBuffer->data() + bufferInfo.mOffset,
-            bufferInfo.mSize,
-            mInfo.mAudio.mChannels));
+      pos,
+      bufferInfo.mTimeUs,
+      mInfo.mAudio.mRate,
+      frames,
+      mInfo.mAudio.mChannels,
+      AudioCompactor::NativeCopy(
+        bufferInfo.mBuffer->data() + bufferInfo.mOffset,
+        bufferInfo.mSize,
+        mInfo.mAudio.mChannels));
   }
 
+  if ((bufferInfo.mFlags & MediaCodec::BUFFER_FLAG_EOS) ||
+      (status == ERROR_END_OF_STREAM)) {
+    AudioQueue().Finish();
+  }
   mAudioTrack.mCodec->releaseOutputBuffer(bufferInfo.mIndex);
 
   return result;
 }
 
 bool
-MediaCodecReader::DecodeVideoFrame(bool &aKeyframeSkip, int64_t aTimeThreshold)
+MediaCodecReader::DecodeAudioDataTask()
+{
+  bool result = DecodeAudioDataSync();
+  if (AudioQueue().GetSize() > 0) {
+    AudioData* a = AudioQueue().PopFront();
+    if (a) {
+      if (mAudioTrack.mDiscontinuity) {
+        a->mDiscontinuity = true;
+        mAudioTrack.mDiscontinuity = false;
+      }
+      GetCallback()->OnAudioDecoded(a);
+    }
+  }
+  if (AudioQueue().AtEndOfStream()) {
+    GetCallback()->OnAudioEOS();
+  }
+  return result;
+}
+
+bool
+MediaCodecReader::DecodeVideoFrameTask(int64_t aTimeThreshold)
+{
+  bool result = DecodeVideoFrameSync(aTimeThreshold);
+  if (VideoQueue().GetSize() > 0) {
+    VideoData* v = VideoQueue().PopFront();
+    if (v) {
+      if (mVideoTrack.mDiscontinuity) {
+        v->mDiscontinuity = true;
+        mVideoTrack.mDiscontinuity = false;
+      }
+      GetCallback()->OnVideoDecoded(v);
+    }
+  }
+  if (VideoQueue().AtEndOfStream()) {
+    GetCallback()->OnVideoEOS();
+  }
+  return result;
+}
+
+bool
+MediaCodecReader::HasAudio()
+{
+  return mInfo.mAudio.mHasAudio;
+}
+
+bool
+MediaCodecReader::HasVideo()
+{
+  return mInfo.mVideo.mHasVideo;
+}
+
+nsresult
+MediaCodecReader::ReadMetadata(MediaInfo* aInfo,
+                               MetadataTags** aTags)
 {
   MOZ_ASSERT(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 
-  if (mVideoTrack.mCodec == nullptr || !mVideoTrack.mCodec->allocated()) {
-    return false;
+  if (!ReallocateResources()) {
+    return NS_ERROR_FAILURE;
   }
 
-  int64_t threshold = sInvalidTimestampUs;
-  if (aKeyframeSkip && IsValidTimestampUs(aTimeThreshold)) {
-    threshold = aTimeThreshold;
+#ifdef MOZ_AUDIO_OFFLOAD
+  CheckAudioOffload();
+#endif
+
+  if (IsWaitingMediaResources()) {
+    return NS_OK;
+  }
+
+  // TODO: start streaming
+
+  if (!UpdateDuration()) {
+    return NS_ERROR_FAILURE;
+  }
+
+  if (!UpdateAudioInfo()) {
+    return NS_ERROR_FAILURE;
+  }
+
+  if (!UpdateVideoInfo()) {
+    return NS_ERROR_FAILURE;
+  }
+
+  // Set the total duration (the max of the audio and video track).
+  int64_t duration = mAudioTrack.mDurationUs > mVideoTrack.mDurationUs ?
+    mAudioTrack.mDurationUs : mVideoTrack.mDurationUs;
+  if (duration >= 0LL) {
+    ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
+    mDecoder->SetMediaDuration(duration);
+  }
+
+  // Video track's frame sizes will not overflow. Activate the video track.
+  VideoFrameContainer* container = mDecoder->GetVideoFrameContainer();
+  if (container) {
+    container->SetCurrentFrame(
+      gfxIntSize(mInfo.mVideo.mDisplay.width, mInfo.mVideo.mDisplay.height),
+      nullptr,
+      mozilla::TimeStamp::Now());
+  }
+
+  *aInfo = mInfo;
+  *aTags = nullptr;
+
+  return NS_OK;
+}
+
+nsresult
+MediaCodecReader::ResetDecode()
+{
+  if (CheckAudioResources()) {
+    mAudioTrack.mTaskQueue->Flush();
+    FlushCodecData(mAudioTrack);
+    mAudioTrack.mDiscontinuity = true;
+  }
+  if (CheckVideoResources()) {
+    mVideoTrack.mTaskQueue->Flush();
+    FlushCodecData(mVideoTrack);
+    mVideoTrack.mDiscontinuity = true;
+  }
+
+  return MediaDecoderReader::ResetDecode();
+}
+
+bool
+MediaCodecReader::DecodeVideoFrameSync(int64_t aTimeThreshold)
+{
+  if (mVideoTrack.mCodec == nullptr || !mVideoTrack.mCodec->allocated() ||
+      mVideoTrack.mOutputEndOfStream) {
+    return false;
   }
 
   // Get one video output data from MediaCodec
   CodecBufferInfo bufferInfo;
-  TimeStamp timeout = TimeStamp::Now() + TimeDuration::FromSeconds(sMaxVideoDecodeDurationS);
+  status_t status;
+  TimeStamp timeout = TimeStamp::Now() +
+                      TimeDuration::FromSeconds(sMaxVideoDecodeDurationS);
   while (true) {
-    if (timeout < TimeStamp::Now()) {
-      return true; // Try it again later.
-    }
-    status_t status = GetCodecOutputData(mVideoTrack, bufferInfo, threshold, timeout);
-    if (status == OK) {
+    // Try to fill more input buffers and then get one output buffer.
+    // FIXME: use callback from MediaCodec
+    FillCodecInputData(mVideoTrack);
+
+    status = GetCodecOutputData(mVideoTrack, bufferInfo, aTimeThreshold,
+                                timeout);
+    if (status == OK || status == ERROR_END_OF_STREAM) {
       break;
     } else if (status == -EAGAIN) {
-      return true; // Try it again later.
+      if (TimeStamp::Now() > timeout) {
+        // Don't let this loop run for too long. Try it again later.
+        if (CheckVideoResources()) {
+          DispatchVideoTask(aTimeThreshold);
+        }
+        return true;
+      }
+      continue; // Try it again now.
     } else if (status == INFO_FORMAT_CHANGED) {
       if (UpdateVideoInfo()) {
         continue; // Try it again now.
@@ -274,10 +535,10 @@ MediaCodecReader::DecodeVideoFrame(bool &aKeyframeSkip, int64_t aTimeThreshold)
     }
   }
 
-  bool result = true;
-
-  if (bufferInfo.mBuffer != nullptr && bufferInfo.mSize > 0 && bufferInfo.mBuffer->data() != nullptr) {
-    uint8_t *yuv420p_buffer = bufferInfo.mBuffer->data();
+  bool result = false;
+  if (bufferInfo.mBuffer != nullptr && bufferInfo.mSize > 0 &&
+      bufferInfo.mBuffer->data() != nullptr) {
+    uint8_t* yuv420p_buffer = bufferInfo.mBuffer->data();
     int32_t stride = mVideoTrack.mStride;
     int32_t slice_height = mVideoTrack.mSliceHeight;
 
@@ -289,9 +550,11 @@ MediaCodecReader::DecodeVideoFrame(bool &aKeyframeSkip, int64_t aTimeThreshold)
       crop.left = 0;
       crop.right = mVideoTrack.mWidth;
 
-      yuv420p_buffer = GetColorConverterBuffer(mVideoTrack.mWidth, mVideoTrack.mHeight);
+      yuv420p_buffer = GetColorConverterBuffer(mVideoTrack.mWidth,
+                                               mVideoTrack.mHeight);
       if (mColorConverter.convertDecoderOutputToI420(
-          bufferInfo.mBuffer->data(), mVideoTrack.mWidth, mVideoTrack.mHeight, crop, yuv420p_buffer) != OK) {
+            bufferInfo.mBuffer->data(), mVideoTrack.mWidth, mVideoTrack.mHeight,
+            crop, yuv420p_buffer) != OK) {
         mVideoTrack.mCodec->releaseOutputBuffer(bufferInfo.mIndex);
         NS_WARNING("Unable to convert color format");
         return false;
@@ -303,9 +566,9 @@ MediaCodecReader::DecodeVideoFrame(bool &aKeyframeSkip, int64_t aTimeThreshold)
 
     size_t yuv420p_y_size = stride * slice_height;
     size_t yuv420p_u_size = ((stride + 1) / 2) * ((slice_height + 1) / 2);
-    uint8_t *yuv420p_y = yuv420p_buffer;
-    uint8_t *yuv420p_u = yuv420p_y + yuv420p_y_size;
-    uint8_t *yuv420p_v = yuv420p_u + yuv420p_u_size;
+    uint8_t* yuv420p_y = yuv420p_buffer;
+    uint8_t* yuv420p_u = yuv420p_y + yuv420p_y_size;
+    uint8_t* yuv420p_v = yuv420p_u + yuv420p_u_size;
 
     // This is the approximate byte position in the stream.
     int64_t pos = mDecoder->GetResource()->Tell();
@@ -333,92 +596,31 @@ MediaCodecReader::DecodeVideoFrame(bool &aKeyframeSkip, int64_t aTimeThreshold)
     b.mPlanes[2].mSkip = 0;
 
     VideoData *v = VideoData::Create(
-        mInfo.mVideo,
-        mDecoder->GetImageContainer(),
-        pos,
-        bufferInfo.mTimeUs,
-        1, // We don't know the duration.
-        b,
-        bufferInfo.mFlags & MediaCodec::BUFFER_FLAG_SYNCFRAME,
-        -1,
-        mVideoTrack.mRelativePictureRect);
+      mInfo.mVideo,
+      mDecoder->GetImageContainer(),
+      pos,
+      bufferInfo.mTimeUs,
+      1, // We don't know the duration.
+      b,
+      bufferInfo.mFlags & MediaCodec::BUFFER_FLAG_SYNCFRAME,
+      -1,
+      mVideoTrack.mRelativePictureRect);
 
-    if (v != nullptr) {
+    if (v) {
       result = true;
-      mVideoQueue.Push(v);
-      aKeyframeSkip = false;
+      VideoQueue().Push(v);
     } else {
       NS_WARNING("Unable to create VideoData");
     }
   }
 
+  if ((bufferInfo.mFlags & MediaCodec::BUFFER_FLAG_EOS) ||
+      (status == ERROR_END_OF_STREAM)) {
+    VideoQueue().Finish();
+  }
   mVideoTrack.mCodec->releaseOutputBuffer(bufferInfo.mIndex);
 
   return result;
-}
-
-bool
-MediaCodecReader::HasAudio()
-{
-  return mInfo.mAudio.mHasAudio;
-}
-
-bool
-MediaCodecReader::HasVideo()
-{
-  return mInfo.mVideo.mHasVideo;
-}
-
-nsresult
-MediaCodecReader::ReadMetadata(MediaInfo* aInfo,
-                               MetadataTags** aTags)
-{
-  MOZ_ASSERT(mDecoder->OnDecodeThread(), "Should be on decode thread.");
-
-  if (!ReallocateResources()) {
-    return NS_ERROR_FAILURE;
-  }
-
-  if (IsWaitingMediaResources()) {
-    return NS_OK;
-  }
-
-  // TODO: start streaming
-
-  if (!UpdateDuration()) {
-    return NS_ERROR_FAILURE;
-  }
-
-  if (!UpdateAudioInfo()) {
-    return NS_ERROR_FAILURE;
-  }
-
-  if (!UpdateVideoInfo()) {
-    return NS_ERROR_FAILURE;
-  }
-
-  // Set the total duration (the max of the audio and video track).
-  int64_t duration = mAudioTrack.mDurationUs > mVideoTrack.mDurationUs
-      ? mAudioTrack.mDurationUs
-      : mVideoTrack.mDurationUs;
-  if (duration >= 0LL) {
-    ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-    mDecoder->SetMediaDuration(duration);
-  }
-
-  // Video track's frame sizes will not overflow. Activate the video track.
-  VideoFrameContainer* container = mDecoder->GetVideoFrameContainer();
-  if (container) {
-    container->SetCurrentFrame(
-        gfxIntSize(mInfo.mVideo.mDisplay.width, mInfo.mVideo.mDisplay.height),
-        nullptr,
-        mozilla::TimeStamp::Now());
-  }
-
-  *aInfo = mInfo;
-  *aTags = nullptr;
-
-  return NS_OK;
 }
 
 nsresult
@@ -429,43 +631,54 @@ MediaCodecReader::Seek(int64_t aTime,
 {
   MOZ_ASSERT(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 
-  VideoFrameContainer* videoframe = mDecoder->GetVideoFrameContainer();
-  if (videoframe != nullptr) {
-    mozilla::layers::ImageContainer *image = videoframe->GetImageContainer();
-    if (image != nullptr) {
-      image->ClearAllImagesExceptFront();
-    }
-  }
-
-  mAudioTrack.mEndOfStream = false;
-  mVideoTrack.mEndOfStream = false;
-
-  mAudioTrack.mSeekTimeUs = aTime;
   mVideoTrack.mSeekTimeUs = aTime;
-
+  mAudioTrack.mSeekTimeUs = aTime;
+  mVideoTrack.mInputEndOfStream = false;
+  mVideoTrack.mOutputEndOfStream = false;
+  mAudioTrack.mInputEndOfStream = false;
+  mAudioTrack.mOutputEndOfStream = false;
   mAudioTrack.mFlushed = false;
   mVideoTrack.mFlushed = false;
 
-  // Regulate the seek time to the closest sync point of video data.
-  if (HasVideo() && mVideoTrack.mSource != nullptr) {
-    MediaBuffer *source_buffer = nullptr;
+  if (CheckVideoResources()) {
+    VideoFrameContainer* videoframe = mDecoder->GetVideoFrameContainer();
+    if (videoframe) {
+      layers::ImageContainer* image = videoframe->GetImageContainer();
+      if (image) {
+        image->ClearAllImagesExceptFront();
+      }
+    }
+
+    MediaBuffer* source_buffer = nullptr;
     MediaSource::ReadOptions options;
+    int64_t timestamp = sInvalidTimestampUs;
     options.setSeekTo(aTime, MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC);
-    if (mVideoTrack.mSource->read(&source_buffer, &options) != OK || source_buffer == nullptr) {
+    if (mVideoTrack.mSource->read(&source_buffer, &options) != OK ||
+        source_buffer == nullptr) {
       return NS_ERROR_FAILURE;
     }
     sp<MetaData> format = source_buffer->meta_data();
     if (format != nullptr) {
-      int64_t timestamp = sInvalidTimestampUs;
-      if (format->findInt64(kKeyTime, &timestamp) && IsValidTimestampUs(timestamp)) {
-        mAudioTrack.mSeekTimeUs = timestamp;
+      if (format->findInt64(kKeyTime, &timestamp) &&
+          IsValidTimestampUs(timestamp)) {
         mVideoTrack.mSeekTimeUs = timestamp;
+        mAudioTrack.mSeekTimeUs = timestamp;
       }
       format = nullptr;
     }
     source_buffer->release();
-  }
 
+    MOZ_ASSERT(mVideoTrack.mTaskQueue->IsEmpty());
+    DispatchVideoTask(mVideoTrack.mSeekTimeUs);
+
+    if (CheckAudioResources()) {
+      MOZ_ASSERT(mAudioTrack.mTaskQueue->IsEmpty());
+      DispatchAudioTask();
+    }
+  } else if (CheckAudioResources()) {// Audio only
+    MOZ_ASSERT(mAudioTrack.mTaskQueue->IsEmpty());
+    DispatchAudioTask();
+  }
   return NS_OK;
 }
 
@@ -473,7 +686,14 @@ bool
 MediaCodecReader::IsMediaSeekable()
 {
   // Check the MediaExtract flag if the source is seekable.
-  return (mExtractor != nullptr) && (mExtractor->flags() & MediaExtractor::CAN_SEEK);
+  return (mExtractor != nullptr) &&
+         (mExtractor->flags() & MediaExtractor::CAN_SEEK);
+}
+
+sp<MediaSource>
+MediaCodecReader::GetAudioOffloadTrack()
+{
+  return mAudioOffloadTrack.mSource;
 }
 
 bool
@@ -482,7 +702,8 @@ MediaCodecReader::ReallocateResources()
   if (CreateLooper() &&
       CreateExtractor() &&
       CreateMediaSources() &&
-      CreateMediaCodecs()) {
+      CreateMediaCodecs() &&
+      CreateTaskQueues()) {
     return true;
   }
 
@@ -497,7 +718,7 @@ MediaCodecReader::ReleaseCriticalResources()
   // Before freeing a video codec, all video buffers needed to be released
   // even from graphics pipeline.
   VideoFrameContainer* videoframe = mDecoder->GetVideoFrameContainer();
-  if (videoframe != nullptr) {
+  if (videoframe) {
     videoframe->ClearCurrentFrame();
   }
 
@@ -513,6 +734,7 @@ MediaCodecReader::ReleaseResources()
   DestroyMediaSources();
   DestroyExtractor();
   DestroyLooper();
+  ShutdownTaskQueues();
 }
 
 bool
@@ -602,7 +824,7 @@ MediaCodecReader::CreateMediaSources()
   for (size_t i = 0; i < mExtractor->countTracks(); ++i) {
     sp<MetaData> trackFormat = mExtractor->getTrackMetaData(i);
 
-    const char *mime;
+    const char* mime;
     if (!trackFormat->findCString(kKeyMIMEType, &mime)) {
       continue;
     }
@@ -626,19 +848,23 @@ MediaCodecReader::CreateMediaSources()
     sp<MediaSource> audioSource = mExtractor->getTrack(audioTrackIndex);
     if (audioSource != nullptr && audioSource->start() == OK) {
       mAudioTrack.mSource = audioSource;
+      mAudioTrack.mSourceIsStopped = false;
     }
+    // Get one another track instance for audio offload playback.
+    mAudioOffloadTrack.mSource = mExtractor->getTrack(audioTrackIndex);
   }
 
   if (videoTrackIndex != invalidTrackIndex && mVideoTrack.mSource == nullptr) {
     sp<MediaSource> videoSource = mExtractor->getTrack(videoTrackIndex);
     if (videoSource != nullptr && videoSource->start() == OK) {
       mVideoTrack.mSource = videoSource;
+      mVideoTrack.mSourceIsStopped = false;
     }
   }
 
   return
-      (audioTrackIndex == invalidTrackIndex || mAudioTrack.mSource != nullptr) &&
-      (videoTrackIndex == invalidTrackIndex || mVideoTrack.mSource != nullptr);
+    (audioTrackIndex == invalidTrackIndex || mAudioTrack.mSource != nullptr) &&
+    (videoTrackIndex == invalidTrackIndex || mVideoTrack.mSource != nullptr);
 }
 
 void
@@ -646,6 +872,39 @@ MediaCodecReader::DestroyMediaSources()
 {
   mAudioTrack.mSource = nullptr;
   mVideoTrack.mSource = nullptr;
+  mAudioOffloadTrack.mSource = nullptr;
+}
+
+void
+MediaCodecReader::ShutdownTaskQueues()
+{
+  if(mAudioTrack.mTaskQueue) {
+    mAudioTrack.mTaskQueue->Shutdown();
+    mAudioTrack.mTaskQueue = nullptr;
+  }
+  if(mVideoTrack.mTaskQueue) {
+    mVideoTrack.mTaskQueue->Shutdown();
+    mVideoTrack.mTaskQueue = nullptr;
+  }
+}
+
+bool
+MediaCodecReader::CreateTaskQueues()
+{
+  if (mAudioTrack.mSource != nullptr && mAudioTrack.mCodec != nullptr &&
+      !mAudioTrack.mTaskQueue) {
+    mAudioTrack.mTaskQueue = new MediaTaskQueue(
+      SharedThreadPool::Get(NS_LITERAL_CSTRING("MediaCodecReader Audio"), 1));
+    NS_ENSURE_TRUE(mAudioTrack.mTaskQueue, false);
+  }
+ if (mVideoTrack.mSource != nullptr && mVideoTrack.mCodec != nullptr &&
+     !mVideoTrack.mTaskQueue) {
+    mVideoTrack.mTaskQueue = new MediaTaskQueue(
+      SharedThreadPool::Get(NS_LITERAL_CSTRING("MediaCodecReader Video"), 1));
+    NS_ENSURE_TRUE(mVideoTrack.mTaskQueue, false);
+  }
+
+  return true;
 }
 
 bool
@@ -660,15 +919,15 @@ MediaCodecReader::CreateMediaCodecs()
 }
 
 bool
-MediaCodecReader::CreateMediaCodec(sp<ALooper> &aLooper,
-                                   Track &aTrack,
+MediaCodecReader::CreateMediaCodec(sp<ALooper>& aLooper,
+                                   Track& aTrack,
                                    bool aAsync,
                                    wp<MediaCodecProxy::CodecResourceListener> aListener)
 {
   if (aTrack.mSource != nullptr && aTrack.mCodec == nullptr) {
     sp<MetaData> sourceFormat = aTrack.mSource->getFormat();
 
-    const char *mime;
+    const char* mime;
     if (sourceFormat->findCString(kKeyMIMEType, &mime)) {
       aTrack.mCodec = MediaCodecProxy::CreateByType(aLooper, mime, false, aAsync, aListener);
     }
@@ -676,6 +935,12 @@ MediaCodecReader::CreateMediaCodec(sp<ALooper> &aLooper,
     if (aTrack.mCodec == nullptr) {
       NS_WARNING("Couldn't create MediaCodecProxy");
       return false;
+    }
+
+    if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_VORBIS)) {
+      aTrack.mInputCopier = new VorbisInputCopier;
+    } else {
+      aTrack.mInputCopier = new TrackInputCopier;
     }
 
     if (!aAsync) {
@@ -693,7 +958,7 @@ MediaCodecReader::CreateMediaCodec(sp<ALooper> &aLooper,
 }
 
 bool
-MediaCodecReader::ConfigureMediaCodec(Track &aTrack)
+MediaCodecReader::ConfigureMediaCodec(Track& aTrack)
 {
 
   if (aTrack.mSource != nullptr && aTrack.mCodec != nullptr) {
@@ -739,7 +1004,7 @@ MediaCodecReader::DestroyMediaCodecs()
 }
 
 void
-MediaCodecReader::DestroyMediaCodecs(Track &aTrack)
+MediaCodecReader::DestroyMediaCodecs(Track& aTrack)
 {
   aTrack.mCodec = nullptr;
 }
@@ -783,7 +1048,8 @@ MediaCodecReader::UpdateAudioInfo()
     return true;
   }
 
-  if (mAudioTrack.mSource == nullptr || mAudioTrack.mCodec == nullptr || !mAudioTrack.mCodec->allocated()) {
+  if (mAudioTrack.mSource == nullptr || mAudioTrack.mCodec == nullptr ||
+      !mAudioTrack.mCodec->allocated()) {
     // Something wrong.
     MOZ_ASSERT(mAudioTrack.mSource != nullptr, "mAudioTrack.mSource should not be nullptr");
     MOZ_ASSERT(mAudioTrack.mCodec != nullptr, "mAudioTrack.mCodec should not be nullptr");
@@ -804,7 +1070,8 @@ MediaCodecReader::UpdateAudioInfo()
 
   // read audio metadata from MediaCodec
   sp<AMessage> audioCodecFormat;
-  if (mAudioTrack.mCodec->getOutputFormat(&audioCodecFormat) != OK || audioCodecFormat == nullptr) {
+  if (mAudioTrack.mCodec->getOutputFormat(&audioCodecFormat) != OK ||
+      audioCodecFormat == nullptr) {
     return false;
   }
 
@@ -833,7 +1100,8 @@ MediaCodecReader::UpdateVideoInfo()
     return true;
   }
 
-  if (mVideoTrack.mSource == nullptr || mVideoTrack.mCodec == nullptr || !mVideoTrack.mCodec->allocated()) {
+  if (mVideoTrack.mSource == nullptr || mVideoTrack.mCodec == nullptr ||
+      !mVideoTrack.mCodec->allocated()) {
     // Something wrong.
     MOZ_ASSERT(mVideoTrack.mSource != nullptr, "mVideoTrack.mSource should not be nullptr");
     MOZ_ASSERT(mVideoTrack.mCodec != nullptr, "mVideoTrack.mCodec should not be nullptr");
@@ -865,7 +1133,8 @@ MediaCodecReader::UpdateVideoInfo()
 
   // read video metadata from MediaCodec
   sp<AMessage> videoCodecFormat;
-  if (mVideoTrack.mCodec->getOutputFormat(&videoCodecFormat) != OK || videoCodecFormat == nullptr) {
+  if (mVideoTrack.mCodec->getOutputFormat(&videoCodecFormat) != OK ||
+      videoCodecFormat == nullptr) {
     return false;
   }
   AString codec_mime;
@@ -884,7 +1153,8 @@ MediaCodecReader::UpdateVideoInfo()
       !videoCodecFormat->findInt32("stride", &codec_stride) ||
       !videoCodecFormat->findInt32("slice-height", &codec_slice_height) ||
       !videoCodecFormat->findInt32("color-format", &codec_color_format) ||
-      !videoCodecFormat->findRect("crop", &codec_crop_left, &codec_crop_top, &codec_crop_right, &codec_crop_bottom)) {
+      !videoCodecFormat->findRect("crop", &codec_crop_left, &codec_crop_top,
+                                  &codec_crop_right, &codec_crop_bottom)) {
     return false;
   }
 
@@ -911,10 +1181,14 @@ MediaCodecReader::UpdateVideoInfo()
     // Frame size is different from what the container reports. This is legal,
     // and we will preserve the ratio of the crop rectangle as it
     // was reported relative to the picture size reported by the container.
-    relative_picture_rect.x = (picture_rect.x * mVideoTrack.mWidth) / mVideoTrack.mFrameSize.width;
-    relative_picture_rect.y = (picture_rect.y * mVideoTrack.mHeight) / mVideoTrack.mFrameSize.height;
-    relative_picture_rect.width = (picture_rect.width * mVideoTrack.mWidth) / mVideoTrack.mFrameSize.width;
-    relative_picture_rect.height = (picture_rect.height * mVideoTrack.mHeight) / mVideoTrack.mFrameSize.height;
+    relative_picture_rect.x = (picture_rect.x * mVideoTrack.mWidth) /
+                              mVideoTrack.mFrameSize.width;
+    relative_picture_rect.y = (picture_rect.y * mVideoTrack.mHeight) /
+                              mVideoTrack.mFrameSize.height;
+    relative_picture_rect.width = (picture_rect.width * mVideoTrack.mWidth) /
+                                  mVideoTrack.mFrameSize.width;
+    relative_picture_rect.height = (picture_rect.height * mVideoTrack.mHeight) /
+                                   mVideoTrack.mFrameSize.height;
   }
 
   // Update VideoInfo
@@ -927,9 +1201,10 @@ MediaCodecReader::UpdateVideoInfo()
 }
 
 status_t
-MediaCodecReader::FlushCodecData(Track &aTrack)
+MediaCodecReader::FlushCodecData(Track& aTrack)
 {
-  if (aTrack.mSource == nullptr || aTrack.mCodec == nullptr || !aTrack.mCodec->allocated()) {
+  if (aTrack.mSource == nullptr || aTrack.mCodec == nullptr ||
+      !aTrack.mCodec->allocated()) {
     return UNKNOWN_ERROR;
   }
 
@@ -945,13 +1220,14 @@ MediaCodecReader::FlushCodecData(Track &aTrack)
 // Keep filling data if there are available buffers.
 // FIXME: change to non-blocking read
 status_t
-MediaCodecReader::FillCodecInputData(Track &aTrack)
+MediaCodecReader::FillCodecInputData(Track& aTrack)
 {
-  if (aTrack.mSource == nullptr || aTrack.mCodec == nullptr || !aTrack.mCodec->allocated()) {
+  if (aTrack.mSource == nullptr || aTrack.mCodec == nullptr ||
+      !aTrack.mCodec->allocated()) {
     return UNKNOWN_ERROR;
   }
 
-  if (aTrack.mEndOfStream) {
+  if (aTrack.mInputEndOfStream) {
     return ERROR_END_OF_STREAM;
   }
 
@@ -960,13 +1236,22 @@ MediaCodecReader::FillCodecInputData(Track &aTrack)
   }
 
   size_t index = 0;
-  while (aTrack.mInputIndex.isValid() || aTrack.mCodec->dequeueInputBuffer(&index) == OK) {
+  while (aTrack.mInputIndex.isValid() ||
+         aTrack.mCodec->dequeueInputBuffer(&index) == OK) {
     if (!aTrack.mInputIndex.isValid()) {
       aTrack.mInputIndex = index;
     }
     MOZ_ASSERT(aTrack.mInputIndex.isValid(), "aElement.mInputIndex should be valid");
 
-    MediaBuffer *source_buffer = nullptr;
+    // Start the mSource before we read it.
+    if (aTrack.mSourceIsStopped) {
+      if (aTrack.mSource->start() == OK) {
+        aTrack.mSourceIsStopped = false;
+      } else {
+        return UNKNOWN_ERROR;
+      }
+    }
+    MediaBuffer* source_buffer = nullptr;
     status_t status = OK;
     if (IsValidTimestampUs(aTrack.mSeekTimeUs)) {
       MediaSource::ReadOptions options;
@@ -980,8 +1265,10 @@ MediaCodecReader::FillCodecInputData(Track &aTrack)
     if (status == INFO_FORMAT_CHANGED) {
       return INFO_FORMAT_CHANGED;
     } else if (status == ERROR_END_OF_STREAM) {
-      aTrack.mEndOfStream = true;
-      aTrack.mCodec->signalEndOfInputStream();
+      aTrack.mInputEndOfStream = true;
+      aTrack.mCodec->queueInputBuffer(aTrack.mInputIndex.value(),
+                                      0, 0, 0,
+                                      MediaCodec::BUFFER_FLAG_EOS);
       return ERROR_END_OF_STREAM;
     } else if (status == -ETIMEDOUT) {
       return OK; // try it later
@@ -992,19 +1279,16 @@ MediaCodecReader::FillCodecInputData(Track &aTrack)
     }
 
     // read() successes
-    aTrack.mEndOfStream = false;
+    aTrack.mInputEndOfStream = false;
     aTrack.mSeekTimeUs = sInvalidTimestampUs;
 
     sp<ABuffer> input_buffer = nullptr;
     if (aTrack.mInputIndex.value() < aTrack.mInputBuffers.size()) {
       input_buffer = aTrack.mInputBuffers[aTrack.mInputIndex.value()];
     }
-    if (input_buffer != nullptr && input_buffer->capacity() >= source_buffer->range_length()) {
-      input_buffer->setRange(0, source_buffer->range_length());
-      memcpy((uint8_t *)input_buffer->data() + input_buffer->offset(),
-          (uint8_t *)source_buffer->data() + source_buffer->range_offset(),
-          source_buffer->range_length());
-
+    if (input_buffer != nullptr &&
+        aTrack.mInputCopier != nullptr &&
+        aTrack.mInputCopier->Copy(source_buffer, input_buffer)) {
       int64_t timestamp = sInvalidTimestampUs;
       sp<MetaData> codec_format = source_buffer->meta_data();
       if (codec_format != nullptr) {
@@ -1012,7 +1296,8 @@ MediaCodecReader::FillCodecInputData(Track &aTrack)
       }
 
       status = aTrack.mCodec->queueInputBuffer(
-          aTrack.mInputIndex.value(), input_buffer->offset(), input_buffer->size(), timestamp, 0);
+        aTrack.mInputIndex.value(), input_buffer->offset(),
+        input_buffer->size(), timestamp, 0);
       if (status == OK) {
         aTrack.mInputIndex = sInvalidInputIndex;
       }
@@ -1028,27 +1313,33 @@ MediaCodecReader::FillCodecInputData(Track &aTrack)
 }
 
 status_t
-MediaCodecReader::GetCodecOutputData(Track &aTrack,
-                                     CodecBufferInfo &aBuffer,
+MediaCodecReader::GetCodecOutputData(Track& aTrack,
+                                     CodecBufferInfo& aBuffer,
                                      int64_t aThreshold,
-                                     const TimeStamp &aTimeout)
+                                     const TimeStamp& aTimeout)
 {
   // Read next frame.
   CodecBufferInfo info;
+  status_t status = OK;
+  while (status == OK || status == INFO_OUTPUT_BUFFERS_CHANGED ||
+         status == -EAGAIN) {
 
-  // Try to fill more input buffers and then get one output buffer.
-  // FIXME: use callback from MediaCodec
-  status_t status = FillCodecInputData(aTrack);
-  int64_t duration = (int64_t)(aTimeout - TimeStamp::Now()).ToMicroseconds();
-  if (!IsValidDurationUs(duration)) {
-    return -EAGAIN;
-  }
-  if (status == OK) {
-    status = aTrack.mCodec->dequeueOutputBuffer(
-        &info.mIndex, &info.mOffset, &info.mSize, &info.mTimeUs, &info.mFlags, duration);
-  }
+    int64_t duration = (int64_t)(aTimeout - TimeStamp::Now()).ToMicroseconds();
+    if (!IsValidDurationUs(duration)) {
+      return -EAGAIN;
+    }
 
-  while (status == OK || status == INFO_OUTPUT_BUFFERS_CHANGED || status == -EAGAIN) {
+    status = aTrack.mCodec->dequeueOutputBuffer(&info.mIndex, &info.mOffset,
+      &info.mSize, &info.mTimeUs, &info.mFlags, duration);
+    // Check EOS first.
+    if (status == ERROR_END_OF_STREAM ||
+        (info.mFlags & MediaCodec::BUFFER_FLAG_EOS)) {
+      aBuffer = info;
+      aBuffer.mBuffer = aTrack.mOutputBuffers[info.mIndex];
+      aTrack.mOutputEndOfStream = true;
+      return ERROR_END_OF_STREAM;
+    }
+
     if (status == OK) {
       if (!IsValidTimestampUs(aThreshold) || info.mTimeUs >= aThreshold) {
         // Get a valid output buffer.
@@ -1069,21 +1360,6 @@ MediaCodecReader::GetCodecOutputData(Track &aTrack,
       // Don't let this loop run for too long. Try it again later.
       return -EAGAIN;
     }
-
-    // FIXME: use callback from MediaCodec
-    status = FillCodecInputData(aTrack);
-    if (status == INFO_OUTPUT_BUFFERS_CHANGED) {
-      continue;
-    } else if (status != OK) {
-      return status;
-    }
-
-    duration = (int64_t)(aTimeout - TimeStamp::Now()).ToMicroseconds();
-    if (!IsValidDurationUs(duration)) {
-      return -EAGAIN;
-    }
-    status = aTrack.mCodec->dequeueOutputBuffer(
-        &info.mIndex, &info.mOffset, &info.mSize, &info.mTimeUs, &info.mFlags, duration);
   }
 
   if (status != OK) {
@@ -1104,9 +1380,10 @@ MediaCodecReader::GetCodecOutputData(Track &aTrack,
 }
 
 bool
-MediaCodecReader::EnsureCodecFormatParsed(Track &aTrack)
+MediaCodecReader::EnsureCodecFormatParsed(Track& aTrack)
 {
-  if (aTrack.mSource == nullptr || aTrack.mCodec == nullptr || !aTrack.mCodec->allocated()) {
+  if (aTrack.mSource == nullptr || aTrack.mCodec == nullptr ||
+      !aTrack.mCodec->allocated()) {
     return false;
   }
 
@@ -1121,7 +1398,8 @@ MediaCodecReader::EnsureCodecFormatParsed(Track &aTrack)
   size_t size = 0;
   int64_t timeUs = 0LL;
   uint32_t flags = 0;
-  while ((status = aTrack.mCodec->dequeueOutputBuffer(&index, &offset, &size, &timeUs, &flags)) != INFO_FORMAT_CHANGED) {
+  while ((status = aTrack.mCodec->dequeueOutputBuffer(&index, &offset, &size,
+                     &timeUs, &flags)) != INFO_FORMAT_CHANGED) {
     if (status == OK) {
       aTrack.mCodec->releaseOutputBuffer(index);
     }
@@ -1135,7 +1413,7 @@ MediaCodecReader::EnsureCodecFormatParsed(Track &aTrack)
   return aTrack.mCodec->getOutputFormat(&format) == OK;
 }
 
-uint8_t *
+uint8_t*
 MediaCodecReader::GetColorConverterBuffer(int32_t aWidth, int32_t aHeight)
 {
   // Allocate a temporary YUV420Planer buffer.
@@ -1160,7 +1438,7 @@ MediaCodecReader::ClearColorConverterBuffer()
 
 // Called on MediaCodecReader::mLooper thread.
 void
-MediaCodecReader::onMessageReceived(const sp<AMessage> &aMessage)
+MediaCodecReader::onMessageReceived(const sp<AMessage>& aMessage)
 {
   switch (aMessage->what()) {
 
@@ -1177,8 +1455,6 @@ MediaCodecReader::onMessageReceived(const sp<AMessage> &aMessage)
       ReleaseCriticalResources();
       break;
     }
-
-    // TODO
 
     default:
       TRESPASS();

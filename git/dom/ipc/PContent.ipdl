@@ -57,6 +57,12 @@ using mozilla::dom::NativeThreadId from "mozilla/dom/TabMessageUtils.h";
 using mozilla::hal::ProcessPriority from "mozilla/HalTypes.h";
 using gfxIntSize from "nsSize.h";
 
+union ChromeRegistryItem
+{
+    ChromePackage;
+    OverrideMapping;
+};
+
 namespace mozilla {
 namespace dom {
 
@@ -381,7 +387,8 @@ child:
     PTestShell();
 
     RegisterChrome(ChromePackage[] packages, ResourceMapping[] resources,
-                   OverrideMapping[] overrides, nsCString locale);
+                   OverrideMapping[] overrides, nsCString locale, bool reset);
+    RegisterChromeItem(ChromeRegistryItem item);
 
     async SetOffline(bool offline);
 
@@ -440,6 +447,12 @@ child:
      * Notify idle observers in the child
      */
     NotifyIdleObserver(uint64_t observerId, nsCString topic, nsString str);
+
+    /**
+     * Notify windows in the child to apply a new app style.
+     */
+    OnAppThemeChanged();
+
 parent:
     /**
      * Tell the content process some attributes of itself.  This is
@@ -478,13 +491,16 @@ parent:
 
     async GetSystemMemory(uint64_t getterId);
 
+    sync IsSecureURI(uint32_t type, URIParams uri, uint32_t flags)
+        returns (bool isSecureURI);
+
     PHal();
 
     PIndexedDB();
 
     PNecko();
 
-    sync PScreenManager()
+    rpc PScreenManager()
         returns (uint32_t numberOfScreens,
                  float systemDefaultScale,
                  bool success);
@@ -532,6 +548,7 @@ parent:
                           nsString name,
                           nsString bidi,
                           nsString lang,
+                          nsString data,
                           Principal principal);
 
     CloseAlert(nsString name, Principal principal);
@@ -593,7 +610,7 @@ parent:
     async AudioChannelChangedNotification();
     async AudioChannelChangeDefVolChannel(int32_t aChannel, bool aHidden);
 
-    sync DataStoreGetStores(nsString aName, Principal aPrincipal)
+    sync DataStoreGetStores(nsString aName, nsString aOwner, Principal aPrincipal)
         returns (DataStoreSetting[] dataStores);
 
     async FilePathUpdateNotify(nsString aType,

@@ -564,6 +564,9 @@ pref("ui.dragThresholdY", 25);
 pref("layers.acceleration.disabled", false);
 pref("layers.offmainthreadcomposition.enabled", true);
 pref("layers.async-video.enabled", true);
+#ifdef MOZ_ANDROID_APZ
+pref("layers.async-pan-zoom.enabled", true);
+#endif
 pref("layers.progressive-paint", true);
 pref("layers.low-precision-buffer", true);
 pref("layers.low-precision-resolution", "0.25");
@@ -833,6 +836,7 @@ pref("browser.snippets.statsUrl", "https://snippets-stats.mozilla.org/mobile");
 // These prefs require a restart to take effect.
 pref("browser.snippets.enabled", true);
 pref("browser.snippets.syncPromo.enabled", true);
+pref("browser.snippets.firstrunHomepage.enabled", true);
 
 // The URL of the APK factory from which we obtain APKs for webapps.
 pref("browser.webapps.apkFactoryUrl", "https://controller.apk.firefox.com/application.apk");
@@ -865,3 +869,6 @@ pref("home.sync.updateMode", 0);
 
 // How frequently to check if we should sync home provider data.
 pref("home.sync.checkIntervalSecs", 3600);
+
+// Enable device storage API
+pref("device.storage.enabled", true);

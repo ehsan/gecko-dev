@@ -24,80 +24,121 @@ loop.conversation = (function(OT, mozL10n) {
   var IncomingCallView = React.createClass({
 
     propTypes: {
-      model: React.PropTypes.func.isRequired
+      model: React.PropTypes.object.isRequired
     },
 
-    /**
-     * Used for adding different styles to the panel
-     * @returns {String} Corresponds to the client platform
-     * */
-    _getTargetPlatform: function() {
-      var platform="unknown_platform";
-
-      if (navigator.platform.indexOf("Win") !== -1) {
-        platform = "windows";
-      }
-      if (navigator.platform.indexOf("Mac") !== -1) {
-        platform = "mac";
-      }
-      if (navigator.platform.indexOf("Linux") !== -1) {
-        platform = "linux";
-      }
-
-      return platform;
+    getInitialState: function() {
+      return {showDeclineMenu: false};
     },
 
-    _handleAccept: function() {
-      this.props.model.trigger("accept");
+    componentDidMount: function() {
+      window.addEventListener("click", this.clickHandler);
+      window.addEventListener("blur", this._hideDeclineMenu);
+    },
+
+    componentWillUnmount: function() {
+      window.removeEventListener("click", this.clickHandler);
+      window.removeEventListener("blur", this._hideDeclineMenu);
+    },
+
+    clickHandler: function(e) {
+      var target = e.target;
+      if (!target.classList.contains('btn-chevron')) {
+        this._hideDeclineMenu();
+      }
+    },
+
+    _handleAccept: function(callType) {
+      return function() {
+        this.props.model.set("selectedCallType", callType);
+        this.props.model.trigger("accept");
+      }.bind(this);
     },
 
     _handleDecline: function() {
       this.props.model.trigger("decline");
     },
 
+    _handleDeclineBlock: function(e) {
+      this.props.model.trigger("declineAndBlock");
+      /* Prevent event propagation
+       * stop the click from reaching parent element */
+      return false;
+    },
+
+    _toggleDeclineMenu: function() {
+      var currentState = this.state.showDeclineMenu;
+      this.setState({showDeclineMenu: !currentState});
+    },
+
+    _hideDeclineMenu: function() {
+      this.setState({showDeclineMenu: false});
+    },
+
     render: function() {
       /* jshint ignore:start */
-      var btnClassAccept = "btn btn-error btn-decline";
-      var btnClassDecline = "btn btn-success btn-accept";
-      var conversationPanelClass = "incoming-call " + this._getTargetPlatform();
+      var btnClassAccept = "btn btn-accept";
+      var btnClassDecline = "btn btn-error btn-decline";
+      var conversationPanelClass = "incoming-call";
+      var dropdownMenuClassesDecline = React.addons.classSet({
+        "native-dropdown-menu": true,
+        "conversation-window-dropdown": true,
+        "visually-hidden": !this.state.showDeclineMenu
+      });
       return (
         <div className={conversationPanelClass}>
-          <h2>{__("incoming_call")}</h2>
-          <div className="button-group">
-            <button className={btnClassAccept} onClick={this._handleDecline}>
-              {__("incoming_call_decline_button")}
-            </button>
-            <button className={btnClassDecline} onClick={this._handleAccept}>
-              {__("incoming_call_answer_button")}
-            </button>
+          <h2>{__("incoming_call_title2")}</h2>
+          <div className="btn-group incoming-call-action-group">
+
+            <div className="fx-embedded-incoming-call-button-spacer"></div>
+
+            <div className="btn-chevron-menu-group">
+              <div className="btn-group-chevron">
+                <div className="btn-group">
+
+                  <button className={btnClassDecline}
+                          onClick={this._handleDecline}>
+                    {__("incoming_call_cancel_button")}
+                  </button>
+                  <div className="btn-chevron"
+                       onClick={this._toggleDeclineMenu}>
+                  </div>
+                </div>
+
+                <ul className={dropdownMenuClassesDecline}>
+                  <li className="btn-block" onClick={this._handleDeclineBlock}>
+                    {__("incoming_call_cancel_and_block_button")}
+                  </li>
+                </ul>
+
+              </div>
+            </div>
+
+            <div className="fx-embedded-incoming-call-button-spacer"></div>
+
+            <div className="btn-chevron-menu-group">
+              <div className="btn-group">
+                <button className={btnClassAccept}
+                        onClick={this._handleAccept("audio-video")}>
+                  <span className="fx-embedded-answer-btn-text">
+                    {__("incoming_call_accept_button")}
+                  </span>
+                  <span className="fx-embedded-btn-icon-video">
+                  </span>
+                </button>
+                <div className="call-audio-only"
+                     onClick={this._handleAccept("audio")}
+                     title={__("incoming_call_accept_audio_only_tooltip")} >
+                </div>
+              </div>
+            </div>
+
+            <div className="fx-embedded-incoming-call-button-spacer"></div>
+
           </div>
         </div>
       );
       /* jshint ignore:end */
-    }
-  });
-
-  /**
-   * Call ended view.
-   * @type {loop.shared.views.BaseView}
-   */
-  var EndedCallView = sharedViews.BaseView.extend({
-    template: _.template([
-      '<p>',
-      '  <button class="btn btn-info" data-l10n-id="close_window"></button>',
-      '</p>'
-    ].join("")),
-
-    className: "call-ended",
-
-    events: {
-      "click button": "closeWindow"
-    },
-
-    closeWindow: function(event) {
-      event.preventDefault();
-      // XXX For now, we just close the window.
-      window.close();
     }
   });
 
@@ -116,7 +157,8 @@ loop.conversation = (function(OT, mozL10n) {
       "call/accept": "accept",
       "call/decline": "decline",
       "call/ongoing": "conversation",
-      "call/ended": "ended"
+      "call/declineAndBlock": "declineAndBlock",
+      "call/feedback": "feedback"
     },
 
     /**
@@ -130,7 +172,7 @@ loop.conversation = (function(OT, mozL10n) {
      * @override {loop.shared.router.BaseConversationRouter.endCall}
      */
     endCall: function() {
-      this.navigate("call/ended", {trigger: true});
+      this.navigate("call/feedback", {trigger: true});
     },
 
     /**
@@ -140,7 +182,7 @@ loop.conversation = (function(OT, mozL10n) {
      *                             by the router from the URL.
      */
     incoming: function(loopVersion) {
-      window.navigator.mozLoop.startAlerting();
+      navigator.mozLoop.startAlerting();
       this._conversation.set({loopVersion: loopVersion});
       this._conversation.once("accept", function() {
         this.navigate("call/accept", {trigger: true});
@@ -148,29 +190,112 @@ loop.conversation = (function(OT, mozL10n) {
       this._conversation.once("decline", function() {
         this.navigate("call/decline", {trigger: true});
       }.bind(this));
-      this.loadReactComponent(loop.conversation.IncomingCallView({
-        model: this._conversation
-      }));
+      this._conversation.once("declineAndBlock", function() {
+        this.navigate("call/declineAndBlock", {trigger: true});
+      }.bind(this));
+      this._conversation.once("call:incoming", this.startCall, this);
+      this._conversation.once("change:publishedStream", this._checkConnected, this);
+      this._conversation.once("change:subscribedStream", this._checkConnected, this);
+
+      this._client.requestCallsInfo(loopVersion, function(err, sessionData) {
+        if (err) {
+          console.error("Failed to get the sessionData", err);
+          // XXX Not the ideal response, but bug 1047410 will be replacing
+          // this by better "call failed" UI.
+          this._notifier.errorL10n("cannot_start_call_session_not_ready");
+          return;
+        }
+
+        // XXX For incoming calls we might have more than one call queued.
+        // For now, we'll just assume the first call is the right information.
+        // We'll probably really want to be getting this data from the
+        // background worker on the desktop client.
+        // Bug 1032700 should fix this.
+        this._conversation.setIncomingSessionData(sessionData[0]);
+
+        this._setupWebSocketAndCallView();
+      }.bind(this));
+    },
+
+    /**
+     * Used to set up the web socket connection and navigate to the
+     * call view if appropriate.
+     */
+    _setupWebSocketAndCallView: function() {
+      this._websocket = new loop.CallConnectionWebSocket({
+        url: this._conversation.get("progressURL"),
+        websocketToken: this._conversation.get("websocketToken"),
+        callId: this._conversation.get("callId"),
+      });
+      this._websocket.promiseConnect().then(function() {
+        this.loadReactComponent(loop.conversation.IncomingCallView({
+          model: this._conversation,
+          video: {enabled: this._conversation.hasVideoStream("incoming")}
+        }));
+      }.bind(this), function() {
+        this._handleSessionError();
+        return;
+      }.bind(this));
+    },
+
+    /**
+     * Checks if the streams have been connected, and notifies the
+     * websocket that the media is now connected.
+     */
+    _checkConnected: function() {
+      // Check we've had both local and remote streams connected before
+      // sending the media up message.
+      if (this._conversation.streamsConnected()) {
+        this._websocket.mediaUp();
+      }
     },
 
     /**
      * Accepts an incoming call.
      */
     accept: function() {
-      window.navigator.mozLoop.stopAlerting();
-      this._conversation.initiate({
-        client: new loop.Client(),
-        outgoing: false
-      });
+      navigator.mozLoop.stopAlerting();
+      this._websocket.accept();
+      this._conversation.incoming();
+    },
+
+    /**
+     * Declines a call and handles closing of the window.
+     */
+    _declineCall: function() {
+      this._websocket.decline();
+      // XXX Don't close the window straight away, but let any sends happen
+      // first. Ideally we'd wait to close the window until after we have a
+      // response from the server, to know that everything has completed
+      // successfully. However, that's quite difficult to ensure at the
+      // moment so we'll add it later.
+      setTimeout(window.close, 0);
     },
 
     /**
      * Declines an incoming call.
      */
     decline: function() {
-      window.navigator.mozLoop.stopAlerting();
-      // XXX For now, we just close the window
-      window.close();
+      navigator.mozLoop.stopAlerting();
+      this._declineCall();
+    },
+
+    /**
+     * Decline and block an incoming call
+     * @note:
+     * - loopToken is the callUrl identifier. It gets set in the panel
+     *   after a callUrl is received
+     */
+    declineAndBlock: function() {
+      navigator.mozLoop.stopAlerting();
+      var token = this._conversation.get("callToken");
+      this._client.deleteCallUrl(token, function(error) {
+        // XXX The conversation window will be closed when this cb is triggered
+        // figure out if there is a better way to report the error to the user
+        // (bug 1048909).
+        console.log(error);
+      });
+      this._declineCall();
     },
 
     /**
@@ -181,22 +306,51 @@ loop.conversation = (function(OT, mozL10n) {
       if (!this._conversation.isSessionReady()) {
         console.error("Error: navigated to conversation route without " +
           "the start route to initialise the call first");
-        this._notifier.errorL10n("cannot_start_call_session_not_ready");
+        this._handleSessionError();
         return;
       }
+
+      var callType = this._conversation.get("selectedCallType");
+      var videoStream = callType === "audio" ? false : true;
 
       /*jshint newcap:false*/
       this.loadReactComponent(sharedViews.ConversationView({
         sdk: OT,
-        model: this._conversation
+        model: this._conversation,
+        video: {enabled: videoStream}
       }));
     },
 
     /**
-     * XXX: load a view with a close button for now?
+     * Handles a error starting the session
      */
-    ended: function() {
-      this.loadView(new EndedCallView());
+    _handleSessionError: function() {
+      // XXX Not the ideal response, but bug 1047410 will be replacing
+      // this by better "call failed" UI.
+      this._notifier.errorL10n("cannot_start_call_session_not_ready");
+    },
+
+    /**
+     * Call has ended, display a feedback form.
+     */
+    feedback: function() {
+      document.title = mozL10n.get("conversation_has_ended");
+
+      var feebackAPIBaseUrl = navigator.mozLoop.getLoopCharPref(
+        "feedback.baseUrl");
+
+      var appVersionInfo = navigator.mozLoop.appVersionInfo;
+
+      var feedbackClient = new loop.FeedbackAPIClient(feebackAPIBaseUrl, {
+        product: navigator.mozLoop.getLoopCharPref("feedback.product"),
+        platform: appVersionInfo.OS,
+        channel: appVersionInfo.channel,
+        version: appVersionInfo.version
+      });
+
+      this.loadReactComponent(sharedViews.FeedbackView({
+        feedbackApiClient: feedbackClient
+      }));
     }
   });
 
@@ -206,12 +360,18 @@ loop.conversation = (function(OT, mozL10n) {
   function init() {
     // Do the initial L10n setup, we do this before anything
     // else to ensure the L10n environment is setup correctly.
-    mozL10n.initialize(window.navigator.mozLoop);
+    mozL10n.initialize(navigator.mozLoop);
 
-    document.title = mozL10n.get("incoming_call_title");
+    document.title = mozL10n.get("incoming_call_title2");
 
+    document.body.classList.add(loop.shared.utils.getTargetPlatform());
+
+    var client = new loop.Client();
     router = new ConversationRouter({
-      conversation: new loop.shared.models.ConversationModel({}, {sdk: OT}),
+      client: client,
+      conversation: new loop.shared.models.ConversationModel(
+        {},         // Model attributes
+        {sdk: OT}), // Model dependencies
       notifier: new sharedViews.NotificationListView({el: "#messages"})
     });
     Backbone.history.start();
@@ -219,7 +379,6 @@ loop.conversation = (function(OT, mozL10n) {
 
   return {
     ConversationRouter: ConversationRouter,
-    EndedCallView: EndedCallView,
     IncomingCallView: IncomingCallView,
     init: init
   };

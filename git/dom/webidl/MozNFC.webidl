@@ -4,8 +4,7 @@
 
  /* Copyright © 2013 Deutsche Telekom, Inc. */
 
-[NoInterfaceObject,
- CheckPermissions="nfc-manager"]
+[NoInterfaceObject]
 interface MozNFCManager {
    /**
     * API to check if the given application's manifest
@@ -44,13 +43,25 @@ interface MozNFCManager {
 
 [JSImplementation="@mozilla.org/navigatorNfc;1",
  NavigatorProperty="mozNfc",
- Func="Navigator::HasNFCSupport"]
+ Func="Navigator::HasNFCSupport",
+ CheckPermissions="nfc-read nfc-write",
+ AvailableIn="CertifiedApps"]
 interface MozNFC : EventTarget {
-   [Throws]
-   MozNFCTag getNFCTag(DOMString sessionId);
-   [Throws]
-   MozNFCPeer getNFCPeer(DOMString sessionId);
+   /**
+    * Returns MozNFCTag object or null in case of invalid sessionToken
+    */
+   MozNFCTag? getNFCTag(DOMString sessionToken);
 
+   /**
+    * Returns MozNFCPeer object or null in case of invalid sessionToken
+    */
+   MozNFCPeer? getNFCPeer(DOMString sessionToken);
+
+   /**
+    * This event will be fired when another NFCPeer is detected, and user confirms
+    * to share data to the NFCPeer object by calling mozNFC.notifyUserAcceptedP2P.
+    * The event will be type of NFCPeerEvent.
+    */
    [CheckPermissions="nfc-write"]
    attribute EventHandler onpeerready;
    [CheckPermissions="nfc-write"]

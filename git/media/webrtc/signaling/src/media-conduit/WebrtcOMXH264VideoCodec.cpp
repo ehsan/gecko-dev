@@ -23,6 +23,7 @@ using namespace android;
 // WebRTC
 #include "common_video/interface/texture_video_frame.h"
 #include "video_engine/include/vie_external_codec.h"
+#include "runnable_utils.h"
 
 // Gecko
 #include "GonkNativeWindow.h"
@@ -104,6 +105,12 @@ struct EncodedFrame
   int64_t mRenderTimeMs;
 };
 
+static void
+ShutdownThread(nsCOMPtr<nsIThread>& aThread)
+{
+  aThread->Shutdown();
+}
+
 // Base runnable class to repeatly pull OMX output buffers in seperate thread.
 // How to use:
 // - implementing DrainOutput() to get output. Remember to return false to tell
@@ -137,7 +144,9 @@ public:
     if (mThread != nullptr) {
       MonitorAutoUnlock unlock(mMonitor);
       CODEC_LOGD("OMXOutputDrain thread shutdown");
-      mThread->Shutdown();
+      NS_DispatchToMainThread(
+        WrapRunnableNM<decltype(&ShutdownThread),
+                       nsCOMPtr<nsIThread> >(&ShutdownThread, mThread));
       mThread = nullptr;
     }
     CODEC_LOGD("OMXOutputDrain stopped");
@@ -225,6 +234,7 @@ public:
     , mStarted(false)
     , mDecodedFrameLock("WebRTC decoded frame lock")
     , mCallback(aCallback)
+    , mEnding(false)
   {
     // Create binder thread pool required by stagefright.
     android::ProcessState::self()->startThreadPool();
@@ -238,6 +248,7 @@ public:
 
   virtual ~WebrtcOMXDecoder()
   {
+    CODEC_LOGD("WebrtcOMXH264VideoDecoder:%p OMX destructor", this);
     if (mStarted) {
       Stop();
     }
@@ -285,6 +296,7 @@ public:
       mNativeWindow->setNewFrameCallback(this);
       // XXX remove buffer changes after a better solution lands - bug 1009420
       sp<GonkBufferQueue> bq = mNativeWindow->getBufferQueue();
+      bq->setSynchronousMode(false);
       // More spare buffers to avoid OMX decoder waiting for native window
       bq->setMaxAcquiredBufferCount(WEBRTC_OMX_H264_MIN_DECODE_BUFFERS);
       surface = new Surface(bq);
@@ -417,6 +429,10 @@ public:
       {
         // Store info of this frame. OnNewFrame() will need the timestamp later.
         MutexAutoLock lock(mDecodedFrameLock);
+        if (mEnding) {
+          mCodec->releaseOutputBuffer(index);
+          return err;
+        }
         mDecodedFrames.push(frame);
       }
       // Ask codec to queue buffer back to native window. OnNewFrame() will be
@@ -436,7 +452,10 @@ public:
   void OnNewFrame() MOZ_OVERRIDE
   {
     RefPtr<layers::TextureClient> buffer = mNativeWindow->getCurrentBuffer();
-    MOZ_ASSERT(buffer != nullptr);
+    if (!buffer) {
+      CODEC_LOGE("Decoder NewFrame: Get null buffer");
+      return;
+    }
 
     layers::GrallocImage::GrallocData grallocData;
     grallocData.mPicSize = buffer->GetSize();
@@ -500,6 +519,10 @@ private:
       return OK;
     }
 
+    {
+      MutexAutoLock lock(mDecodedFrameLock);
+      mEnding = false;
+    }
     status_t err = mCodec->start();
     if (err == OK) {
       mStarted = true;
@@ -521,12 +544,14 @@ private:
     // Drop all 'pending to render' frames.
     {
       MutexAutoLock lock(mDecodedFrameLock);
+      mEnding = true;
       while (!mDecodedFrames.empty()) {
         mDecodedFrames.pop();
       }
     }
 
     if (mOutputDrain != nullptr) {
+      CODEC_LOGD("decoder's OutputDrain stopping");
       mOutputDrain->Stop();
       mOutputDrain = nullptr;
     }
@@ -540,7 +565,6 @@ private:
       MOZ_ASSERT(false);
     }
     CODEC_LOGD("OMXOutputDrain decoder stopped");
-
     return err;
   }
 
@@ -557,8 +581,9 @@ private:
   RefPtr<OutputDrain> mOutputDrain;
   webrtc::DecodedImageCallback* mCallback;
 
-  Mutex mDecodedFrameLock; // To protect mDecodedFrames.
+  Mutex mDecodedFrameLock; // To protect mDecodedFrames and mEnding
   std::queue<EncodedFrame> mDecodedFrames;
+  bool mEnding;
 };
 
 class EncOutputDrain : public OMXOutputDrain
@@ -592,7 +617,8 @@ protected:
       return false;
     }
 
-    uint32_t target_timestamp = (timeUs * 90ll) / 1000; // us -> 90KHz
+    // Conversion to us rounds down, so we need to round up for us->90KHz
+    uint32_t target_timestamp = (timeUs * 90ll + 999) / 1000; // us -> 90KHz
     bool isParamSets = (flags & MediaCodec::BUFFER_FLAG_CODECCONFIG);
     bool isIFrame = (flags & MediaCodec::BUFFER_FLAG_SYNCFRAME);
     CODEC_LOGD("OMX: encoded frame (%d): time %lld (%u), flags x%x",
@@ -612,34 +638,29 @@ protected:
       EncodedFrame input_frame;
       {
         MonitorAutoLock lock(mMonitor);
-#ifdef OMX_OUTPUT_TIMESTAMPS_WORK
-        // will sps/pps have the same timestamp as their iframe?
-        do {
-          if (mInputFrames.empty()) {
-            // Let's assume it was the last item in the queue, but leave it there
-            mInputFrames.push(input_frame);
-            CODEC_LOGE("OMX: encoded timestamp %u which doesn't match input queue!!",
-                       target_timestamp);
-            break;
-          }
+        // will sps/pps have the same timestamp as their iframe? Initial one on 8x10 has
+        // 0 timestamp.
+        if (isParamSets) {
+          // Let's assume it was the first item in the queue, but leave it there since an
+          // IDR will follow
+          input_frame = mInputFrames.front();
+        } else {
+          do {
+            if (mInputFrames.empty()) {
+              // Let's assume it was the last item in the queue, but leave it there
+              mInputFrames.push(input_frame);
+              CODEC_LOGE("OMX: encoded timestamp %u which doesn't match input queue!! (head %u)",
+                         target_timestamp, input_frame.mTimestamp);
+              break;
+            }
 
-          input_frame = mInputFrames.front();
-          mInputFrames.pop();
-          if (input_frame.mTimestamp != target_timestamp) {
-            CODEC_LOGD("OMX: encoder skipped frame timestamp %u", input_frame.mTimestamp);
-          }
-        } while (input_frame.mTimestamp != target_timestamp);
-#else
-        // Assume no Encode() buffering, drop all frames but the last one submitted to Encode()
-        MOZ_ASSERT(!mInputFrames.empty());
-        do {
-          input_frame = mInputFrames.front();
-          mInputFrames.pop();
-          if (!mInputFrames.empty()) {
-            CODEC_LOGD("OMX: Encoded frame: skipped frame timestamp %u", input_frame.mTimestamp);
-          }
-        } while (!mInputFrames.empty());
-#endif
+            input_frame = mInputFrames.front();
+            mInputFrames.pop();
+            if (input_frame.mTimestamp != target_timestamp) {
+              CODEC_LOGD("OMX: encoder skipped frame timestamp %u", input_frame.mTimestamp);
+            }
+          } while (input_frame.mTimestamp != target_timestamp);
+        }
       }
 
       encoded._encodedWidth = input_frame.mWidth;
@@ -888,13 +909,13 @@ WebrtcOMXH264VideoEncoder::Encode(const webrtc::I420VideoFrame& aInputImage,
 
   CODEC_LOGD("Encode frame: %dx%d, timestamp %u (%lld), renderTimeMs %u",
              aInputImage.width(), aInputImage.height(),
-             aInputImage.timestamp(), aInputImage.timestamp() * 100011 / 90,
+             aInputImage.timestamp(), aInputImage.timestamp() * 1000ll / 90,
              aInputImage.render_time_ms());
 
   nsresult rv = mOMX->Encode(&img,
                              yuvData.mYSize.width,
                              yuvData.mYSize.height,
-                             aInputImage.timestamp() * 100011 / 90, // 90kHz -> us.
+                             aInputImage.timestamp() * 1000ll / 90, // 90kHz -> us.
                              0);
   if (rv == NS_OK) {
     if (mOutputDrain == nullptr) {
@@ -1111,7 +1132,7 @@ WebrtcOMXH264VideoDecoder::Release()
 {
   CODEC_LOGD("WebrtcOMXH264VideoDecoder:%p will be released", this);
 
-  mOMX = nullptr;
+  mOMX = nullptr; // calls Stop()
   mReservation->ReleaseOMXCodec();
 
   return WEBRTC_VIDEO_CODEC_OK;

@@ -123,6 +123,7 @@ const LEVELS = {
   info: SEVERITY_INFO,
   log: SEVERITY_LOG,
   trace: SEVERITY_LOG,
+  table: SEVERITY_LOG,
   debug: SEVERITY_LOG,
   dir: SEVERITY_LOG,
   group: SEVERITY_LOG,
@@ -1209,6 +1210,11 @@ WebConsoleFrame.prototype = {
       case "assert":
       case "debug": {
         let msg = new Messages.ConsoleGeneric(aMessage);
+        node = msg.init(this.output).render().element;
+        break;
+      }
+      case "table": {
+        let msg = new Messages.ConsoleTable(aMessage);
         node = msg.init(this.output).render().element;
         break;
       }
@@ -3137,7 +3143,11 @@ JSTerm.prototype = {
       inputContainer.style.display = "none";
     }
     else {
-      this._onPaste = WebConsoleUtils.pasteHandlerGen(this.inputNode, doc.getElementById("webconsole-notificationbox"));
+      let okstring = l10n.getStr("selfxss.okstring");
+      let msg = l10n.getFormatStr("selfxss.msg", [okstring]);
+      this._onPaste = WebConsoleUtils.pasteHandlerGen(this.inputNode,
+                                                      doc.getElementById("webconsole-notificationbox"),
+                                                      msg, okstring);
       this.inputNode.addEventListener("keypress", this._keyPress, false);
       this.inputNode.addEventListener("paste", this._onPaste);
       this.inputNode.addEventListener("drop", this._onPaste);
@@ -3264,6 +3274,12 @@ JSTerm.prototype = {
       return;
     }
 
+    let selectedNodeActor = null;
+    let inspectorSelection = this.hud.owner.getInspectorSelection();
+    if (inspectorSelection) {
+      selectedNodeActor = inspectorSelection.nodeFront.actorID;
+    }
+
     let message = new Messages.Simple(aExecuteString, {
       category: "input",
       severity: "log",
@@ -3271,7 +3287,11 @@ JSTerm.prototype = {
     this.hud.output.addMessage(message);
     let onResult = this._executeResultCallback.bind(this, message, aCallback);
 
-    let options = { frame: this.SELECTED_FRAME };
+    let options = {
+      frame: this.SELECTED_FRAME,
+      selectedNodeActor: selectedNodeActor,
+    };
+
     this.requestEvaluation(aExecuteString, options).then(onResult, onResult);
 
     // Append a new value in the history of executed code, or overwrite the most
@@ -3301,6 +3321,9 @@ JSTerm.prototype = {
    *        user-selected stackframe.
    *        If you do not provide a |frame| the string will be evaluated in the
    *        global content window.
+   *        - selectedNodeActor: tells the NodeActor ID of the current selection in
+   *        the Inspector, if such a selection exists. This is used by helper
+   *        functions that can evaluate on the current selection.
    * @return object
    *         A promise object that is resolved when the server response is
    *         received.
@@ -3326,6 +3349,7 @@ JSTerm.prototype = {
     let evalOptions = {
       bindObjectActor: aOptions.bindObjectActor,
       frameActor: frameActor,
+      selectedNodeActor: aOptions.selectedNodeActor,
     };
 
     this.webConsoleClient.evaluateJS(aString, onResult, evalOptions);
@@ -4021,7 +4045,25 @@ JSTerm.prototype = {
         break;
 
       case Ci.nsIDOMKeyEvent.DOM_VK_HOME:
+        if (this.autocompletePopup.isOpen) {
+          this.autocompletePopup.selectedIndex = 0;
+          aEvent.preventDefault();
+        } else if (this.inputNode.value.length <= 0) {
+          this.hud.outputNode.parentNode.scrollTop = 0;
+          aEvent.preventDefault();
+        }
+        break;
+
       case Ci.nsIDOMKeyEvent.DOM_VK_END:
+        if (this.autocompletePopup.isOpen) {
+          this.autocompletePopup.selectedIndex = this.autocompletePopup.itemCount - 1;
+          aEvent.preventDefault();
+        } else if (this.inputNode.value.length <= 0) {
+          this.hud.outputNode.parentNode.scrollTop = this.hud.outputNode.parentNode.scrollHeight;
+          aEvent.preventDefault();
+        }
+        break;
+
       case Ci.nsIDOMKeyEvent.DOM_VK_LEFT:
         if (this.autocompletePopup.isOpen || this.lastCompletion.value) {
           this.clearCompletion();

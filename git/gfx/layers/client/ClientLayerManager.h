@@ -38,12 +38,12 @@ class PLayerChild;
 class TextureClientPool;
 class SimpleTextureClientPool;
 
-class ClientLayerManager : public LayerManager
+class ClientLayerManager MOZ_FINAL : public LayerManager
 {
   typedef nsTArray<nsRefPtr<Layer> > LayerRefArray;
 
 public:
-  ClientLayerManager(nsIWidget* aWidget);
+  explicit ClientLayerManager(nsIWidget* aWidget);
 
 protected:
   virtual ~ClientLayerManager();
@@ -88,6 +88,7 @@ public:
   virtual already_AddRefed<ContainerLayer> CreateContainerLayer();
   virtual already_AddRefed<ImageLayer> CreateImageLayer();
   virtual already_AddRefed<CanvasLayer> CreateCanvasLayer();
+  virtual already_AddRefed<ReadbackLayer> CreateReadbackLayer();
   virtual already_AddRefed<ColorLayer> CreateColorLayer();
   virtual already_AddRefed<RefLayer> CreateRefLayer();
 
@@ -203,10 +204,8 @@ public:
   // Log APZ test data for a repaint request. The sequence number must be
   // passed in from outside, and APZTestData::StartNewRepaintRequest() needs
   // to be called from the outside as well when a new repaint request is started.
-  void StartNewRepaintRequest(SequenceNumber aSequenceNumber)
-  {
-    mApzTestData.StartNewRepaintRequest(aSequenceNumber);
-  }
+  void StartNewRepaintRequest(SequenceNumber aSequenceNumber);
+
   // TODO(botond): When we start using this and write a wrapper similar to
   // nsLayoutUtils::LogTestDataForPaint(), make sure that wrapper checks
   // gfxPrefs::APZTestLoggingEnabled().
@@ -301,6 +300,7 @@ private:
   RefPtr<ShadowLayerForwarder> mForwarder;
   nsAutoTArray<RefPtr<TextureClientPool>,2> mTexturePools;
   nsAutoTArray<dom::OverfillCallback*,0> mOverfillCallbacks;
+  mozilla::TimeStamp mTransactionStart;
 
   // indexed by gfx::SurfaceFormat
   nsTArray<RefPtr<SimpleTextureClientPool> > mSimpleTilePools;
@@ -335,6 +335,7 @@ public:
   virtual void ClearCachedResources() { }
 
   virtual void RenderLayer() = 0;
+  virtual void RenderLayerWithReadback(ReadbackProcessor *aReadback) { RenderLayer(); }
 
   virtual ClientThebesLayer* AsThebes() { return nullptr; }
 

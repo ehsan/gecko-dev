@@ -139,8 +139,9 @@ MediaEngineWebRTCVideoSource::NotifyPull(MediaStreamGraph* aGraph,
   VideoSegment segment;
 
   MonitorAutoLock lock(mMonitor);
-  if (mState != kStarted)
-    return;
+  // B2G does AddTrack, but holds kStarted until the hardware changes state.
+  // So mState could be kReleased here.  We really don't care about the state,
+  // though.
 
   // Note: we're not giving up mImage here
   nsRefPtr<layers::Image> image = mImage;
@@ -217,7 +218,7 @@ MediaEngineWebRTCVideoSource::ChooseCapability(
   return GuessCapability(aConstraints, aPrefs);
 #else
   NS_ConvertUTF16toUTF8 uniqueId(mUniqueId);
-  int num = mViECapture->NumberOfCapabilities(uniqueId.get(), kMaxUniqueIdLength);
+  int num = mViECapture->NumberOfCapabilities(uniqueId.get(), KMaxUniqueIdLength);
   if (num <= 0) {
     // Mac doesn't support capabilities.
     return GuessCapability(aConstraints, aPrefs);
@@ -239,7 +240,7 @@ MediaEngineWebRTCVideoSource::ChooseCapability(
 
   for (uint32_t i = 0; i < candidateSet.Length();) {
     webrtc::CaptureCapability cap;
-    mViECapture->GetCaptureCapability(uniqueId.get(), kMaxUniqueIdLength,
+    mViECapture->GetCaptureCapability(uniqueId.get(), KMaxUniqueIdLength,
                                       candidateSet[i], cap);
     if (!SatisfyConstraintSet(aConstraints.mRequired, cap)) {
       candidateSet.RemoveElementAt(i);
@@ -259,7 +260,7 @@ MediaEngineWebRTCVideoSource::ChooseCapability(
       SourceSet rejects;
       for (uint32_t j = 0; j < candidateSet.Length();) {
         webrtc::CaptureCapability cap;
-        mViECapture->GetCaptureCapability(uniqueId.get(), kMaxUniqueIdLength,
+        mViECapture->GetCaptureCapability(uniqueId.get(), KMaxUniqueIdLength,
                                           candidateSet[j], cap);
         if (!SatisfyConstraintSet(array[i], cap)) {
           rejects.AppendElement(candidateSet[j]);
@@ -287,7 +288,7 @@ MediaEngineWebRTCVideoSource::ChooseCapability(
   bool higher = true;
   for (uint32_t i = 0; i < candidateSet.Length(); i++) {
     mViECapture->GetCaptureCapability(NS_ConvertUTF16toUTF8(mUniqueId).get(),
-                                      kMaxUniqueIdLength, candidateSet[i], cap);
+                                      KMaxUniqueIdLength, candidateSet[i], cap);
     if (higher) {
       if (i == 0 ||
           (mCapability.width > cap.width && mCapability.height > cap.height)) {
@@ -450,7 +451,7 @@ MediaEngineWebRTCVideoSource::Allocate(const VideoTrackConstraintsN &aConstraint
     ChooseCapability(aConstraints, aPrefs);
 
     if (mViECapture->AllocateCaptureDevice(NS_ConvertUTF16toUTF8(mUniqueId).get(),
-                                           kMaxUniqueIdLength, mCaptureIndex)) {
+                                           KMaxUniqueIdLength, mCaptureIndex)) {
       return NS_ERROR_FAILURE;
     }
     mState = kAllocated;
@@ -653,11 +654,13 @@ MediaEngineWebRTCVideoSource::Init()
     return;
   }
 
-  char deviceName[kMaxDeviceNameLength];
-  char uniqueId[kMaxUniqueIdLength];
+  const uint32_t KMaxDeviceNameLength = 128;
+  const uint32_t KMaxUniqueIdLength = 256;
+  char deviceName[KMaxDeviceNameLength];
+  char uniqueId[KMaxUniqueIdLength];
   if (mViECapture->GetCaptureDevice(mCaptureIndex,
-                                    deviceName, kMaxDeviceNameLength,
-                                    uniqueId, kMaxUniqueIdLength)) {
+                                    deviceName, KMaxDeviceNameLength,
+                                    uniqueId, KMaxUniqueIdLength)) {
     return;
   }
 
@@ -704,21 +707,15 @@ void MediaEngineWebRTCVideoSource::Refresh(int aIndex) {
   // Caller looked up this source by uniqueId; since deviceName == uniqueId nothing else changes
 #else
   // Caller looked up this source by uniqueId, so it shouldn't change
-  char deviceName[kMaxDeviceNameLength];
-  char uniqueId[kMaxUniqueIdLength];
-
+  const uint32_t KMaxDeviceNameLength = 128;
+  char deviceName[KMaxDeviceNameLength];
   if (mViECapture->GetCaptureDevice(aIndex,
-                                    deviceName, sizeof(deviceName),
-                                    uniqueId, sizeof(uniqueId))) {
+                                    deviceName, KMaxDeviceNameLength,
+                                    nullptr, 0)) {
     return;
   }
 
   CopyUTF8toUTF16(deviceName, mDeviceName);
-#ifdef DEBUG
-  nsString temp;
-  CopyUTF8toUTF16(uniqueId, temp);
-  MOZ_ASSERT(temp.Equals(mUniqueId));
-#endif
 #endif
 }
 

@@ -111,14 +111,6 @@ BasicLayerManager::PushGroupForLayer(gfxContext* aContext, Layer* aLayer,
 }
 
 static nsIntRect
-ToOutsideIntRect(const gfxRect &aRect)
-{
-  gfxRect r = aRect;
-  r.RoundOut();
-  return nsIntRect(r.X(), r.Y(), r.Width(), r.Height());
-}
-
-static nsIntRect
 ToInsideIntRect(const gfxRect& aRect)
 {
   gfxRect r = aRect;
@@ -897,8 +889,7 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
       temp->Paint();
     }
 #endif
-    gfx3DMatrix effectiveTransform;
-    gfx::To3DMatrix(aLayer->GetEffectiveTransform(), effectiveTransform);
+    gfx3DMatrix effectiveTransform = gfx::To3DMatrix(aLayer->GetEffectiveTransform());
     nsRefPtr<gfxASurface> result =
       Transform3D(untransformedDT->Snapshot(), aTarget, bounds,
                   effectiveTransform, destRect);

@@ -46,7 +46,7 @@ enum MediaSourceType {
   Screen = (int) dom::MediaSourceEnum::Screen,
   Application = (int) dom::MediaSourceEnum::Application,
   Window, // = (int) dom::MediaSourceEnum::Window, // XXX bug 1038926
-  //Browser = (int) dom::MediaSourceEnum::Browser, // proposed in WG, unclear if it's useful
+  Browser = (int) dom::MediaSourceEnum::Browser, // proposed in WG, unclear if it's useful
   Microphone
 };
 
@@ -83,11 +83,6 @@ protected:
 class MediaEngineSource : public nsISupports
 {
 public:
-  // code inside webrtc.org assumes these sizes; don't use anything smaller
-  // without verifying it's ok
-  static const unsigned int kMaxDeviceNameLength = 128;
-  static const unsigned int kMaxUniqueIdLength = 256;
-
   virtual ~MediaEngineSource() {}
 
   /* Populate the human readable name of this device in the nsAString */

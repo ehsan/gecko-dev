@@ -13,19 +13,30 @@
 }
 
 body {
-  margin: 0;
-  padding: 0;
-  font-family: "Helvetica Neue", Helvetica, Arial, sans;
-  font-size: 14px;
+  font-family: "Lucida Grande", sans-serif;
+  font-size: 12px;
   background: #fbfbfb;
 }
 
 button {
-  font-size: .9em; /* for some reason, text is larger within <button> */
+  /* Resetting default <button> font properties; eg. strangely enough, FF mac
+     wants to use Helvetica/12px whatever we define for parent elements */
+  font-family: "Lucida Grande", sans-serif;
+  font-size: 1em;
 }
 
 img {
   border: none;
+}
+
+h1, h2, h3 {
+  font-family: "Open Sans", sans-serif;
+  color: #666;
+}
+
+/* choose a sane default for paragraphs, since reset.css' 0px is not what we want */
+p {
+  margin: 1em 0;
 }
 
 /* Helpers */
@@ -41,8 +52,8 @@ img {
  */
 .cf:before,
 .cf:after {
-  content: " ";   /* 1 */
-  display: table; /* 2 */
+  display: table; /* 1 */
+  content: " ";   /* 2 */
 }
 
 .cf:after {
@@ -50,7 +61,17 @@ img {
 }
 
 .hide {
-  display: none;
+  /**
+   * Force the display: none as it can conflict with other display.
+   * You usually want to avoid !important statements as much as
+   * possible. In this case, it makes sense as it's unlikely we want a
+   * class to undo the hide feature.
+   */
+  display: none !important;
+}
+
+.visually-hidden {
+  visibility: hidden;
 }
 
 .tc {
@@ -61,68 +82,131 @@ img {
   width: 100%;
 }
 
-/* Buttons */
+/* A reset for all button-appearing elements, with the lowest-common
+ * denominator of the needed rules.  Intended to be used as a base class
+ * together with .btn-*
+ */
 
 .btn {
   display: inline-block;
-  background: #a5a;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
   border: none;
+  background: #a5a;
   color: #fff;
+  text-align: center;
   text-decoration: none;
-  height: 26px;
-  padding: 0 0.5em;
-  border-radius: 2px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .9em;
   cursor: pointer;
 }
 
 .btn-info {
-  background: #0096dd;
+  background-color: #0096dd;
   border: 1px solid #0095dd;
 }
 
   .btn-info:hover {
-    background: #008acb;
+    background-color: #008acb;
     border: 1px solid #008acb;
   }
 
   .btn-info:active {
-    background: #006b9d;
+    background-color: #006b9d;
     border: 1px solid #006b9d;
   }
 
-.btn-success {
-  background: #74bf43;
+.btn-accept,
+.btn-success,
+.btn-accept + .btn-chevron {
+  background-color: #74bf43;
   border: 1px solid #74bf43;
 }
 
-  .btn-success:hover {
-    background: #6cb23e;
+  .btn-accept:hover,
+  .btn-success:hover,
+  .btn-accept + .btn-chevron:hover {
+    background-color: #6cb23e;
     border: 1px solid #6cb23e;
   }
 
-  .btn-success:active {
-    background: #64a43a;
+  .btn-accept:active,
+  .btn-success:active,
+  .btn-accept + .btn-chevron:active {
+    background-color: #64a43a;
     border: 1px solid #64a43a;
   }
 
 .btn-warning {
-  background: #f0ad4e;
+  background-color: #f0ad4e;
 }
 
-.btn-error {
-  background: #d74345;
+.btn-error,
+.btn-hangup,
+.btn-error + .btn-chevron {
+  background-color: #d74345;
   border: 1px solid #d74345;
 }
 
-  .btn-error:hover {
-    background: #c53436;
+  .btn-error:hover,
+  .btn-hangup:hover,
+  .btn-error + .btn-chevron:hover {
+    background-color: #c53436;
     border: 1px solid #c53436;
   }
 
-  .btn-error:active {
-    background: #ae2325;
+  .btn-error:active,
+  .btn-hangup:active,
+  .btn-error + .btn-chevron:active {
+    background-color: #ae2325;
     border: 1px solid #ae2325;
   }
+
+.btn-chevron {
+  width: 26px;
+  height: 26px;
+  border-top-right-radius: 2px;
+  border-bottom-right-radius: 2px;
+}
+
+/* Groups together a button and a chevron */
+.btn-group-chevron {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+/* Groups together a button-group-chevron
+ * and the dropdown menu */
+.btn-chevron-menu-group {
+  display: flex;
+  justify-content: space-between;
+  flex: 8;
+}
+
+.btn-group-chevron .btn {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  flex: 2;
+}
+
+  .btn + .btn-chevron,
+  .btn + .btn-chevron:hover,
+  .btn + .btn-chevron:active {
+    border-left: 1px solid rgba(255,255,255,.4);
+    background-image: url("../img/dropdown-inverse.png");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 10px;
+  }
+
+@media (min-resolution: 2dppx) {
+  .btn-chevron {
+    background-image: url(../img/dropdown-inverse@2x.png);
+  }
+}
 
 .disabled, button[disabled] {
   cursor: not-allowed;
@@ -130,15 +214,16 @@ img {
   opacity: 0.65;
 }
 
-.button-group {
+.btn-group {
   display: flex;
-  width: 100%;
-  padding: 1em;
+  align-content: space-between;
+  justify-content: center;
 }
 
-.button-group .btn {
+.btn-group .btn {
   flex: 1;
-  margin: 0 .3em;
+  border-bottom-right-radius: 0;
+  border-top-right-radius: 0;
 }
 
 /* Alerts */
@@ -171,6 +256,17 @@ img {
 
 /* Misc */
 
+.call-url,
+.overflow-text-ellipsis,
+.standalone-call-btn-text,
+.fx-embedded-answer-btn-text {
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
 .close {
   float: right;
   font-size: 20px;
@@ -195,6 +291,38 @@ img {
 .fade-out {
   transition: opacity 0.5s ease-in;
   opacity: 0;
+}
+
+.icon,
+.icon-small,
+.icon-audio,
+.icon-video {
+  background-size: 20px;
+  background-repeat: no-repeat;
+  vertical-align: top;
+  background-position: 80% center;
+}
+
+.icon-small {
+  background-size: 10px;
+}
+
+.icon-video {
+  background-image: url("../img/video-inverse-14x14.png");
+}
+
+.icon-audio {
+  background-image: url("../img/audio-default-16x16@1.5x.png");
+}
+
+@media (min-resolution: 2dppx) {
+  .icon-video {
+    background-image: url("../img/video-inverse-14x14@2x.png");
+  }
+
+  .icon-audio {
+    background-image: url("../img/audio-default-16x16@2x.png");
+  }
 }
 
 /*
@@ -222,35 +350,46 @@ img {
   font-family: 'Segoe';
 }
 
-  .windows p {
-    font-size: 12px;
-  }
-
-  .windows h1 {
-    font-family: 'Segoe Bold';
-  }
-
 .mac {
   font-family: 'Lucida Grande';
 }
-
-  .mac p {
-    font-size: 11.5px;
-  }
-
-  .mac h1 {
-    font-family: 'Lucida Grande Bold';
-  }
 
 .linux {
   /* XXX requires fallbacks */
   font-family: 'Ubuntu', sans-serif;
 }
 
-  .linux p {
-    font-size: 12px;
-  }
+/* Web panel */
 
-  .linux h1 {
-    font-family: 'Ubuntu Bold';
-  }
+.info-panel {
+  border-radius: 4px;
+  background: #fff;
+  padding: 20px 0;
+  border: 1px solid #e7e7e7;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, .03);
+  margin-bottom: 25px;
+}
+
+.info-panel h1 {
+  font-size: 1.2em;
+  font-weight: 700;
+  padding: 20px 0;
+  text-align: center;
+}
+
+.info-panel h4 {
+  color: #aaa;
+  text-align: center;
+  font-weight: 300;
+  margin: 0;
+}
+
+/* Logos */
+
+.firefox-logo {
+  margin: 0 auto; /* horizontal block centering */
+  width: 100px;
+  height: 100px;
+  background: transparent url(../img/firefox-logo.png) no-repeat center center;
+  background-size: contain;
+}

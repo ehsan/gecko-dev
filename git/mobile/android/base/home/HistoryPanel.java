@@ -12,12 +12,11 @@ import org.mozilla.gecko.R;
 import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.TelemetryContract;
 import org.mozilla.gecko.db.BrowserContract.Combined;
+import org.mozilla.gecko.db.BrowserContract.History;
 import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.db.BrowserDB.URLColumns;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -60,27 +59,6 @@ public class HistoryPanel extends HomeFragment {
     // Callbacks used for the search and favicon cursor loaders
     private CursorLoaderCallbacks mCursorLoaderCallbacks;
 
-    // On URL open listener
-    private OnUrlOpenListener mUrlOpenListener;
-
-    @Override
-    public void onAttach(Activity activity) {
-        super.onAttach(activity);
-
-        try {
-            mUrlOpenListener = (OnUrlOpenListener) activity;
-        } catch (ClassCastException e) {
-            throw new ClassCastException(activity.toString()
-                    + " must implement HomePager.OnUrlOpenListener");
-        }
-    }
-
-    @Override
-    public void onDetach() {
-        super.onDetach();
-        mUrlOpenListener = null;
-    }
-
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         return inflater.inflate(R.layout.home_history_panel, container, false);
@@ -96,7 +74,7 @@ public class HistoryPanel extends HomeFragment {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 position -= mAdapter.getMostRecentSectionsCountBefore(position);
                 final Cursor c = mAdapter.getCursor(position);
-                final String url = c.getString(c.getColumnIndexOrThrow(URLColumns.URL));
+                final String url = c.getString(c.getColumnIndexOrThrow(History.URL));
 
                 Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL, TelemetryContract.Method.LIST_ITEM);
 
@@ -385,7 +363,7 @@ public class HistoryPanel extends HomeFragment {
 
             do {
                 final int position = c.getPosition();
-                final long time = c.getLong(c.getColumnIndexOrThrow(URLColumns.DATE_LAST_VISITED));
+                final long time = c.getLong(c.getColumnIndexOrThrow(History.DATE_LAST_VISITED));
                 final MostRecentSection itemSection = HistoryAdapter.getMostRecentSectionForTime(today, time);
 
                 if (section != itemSection) {

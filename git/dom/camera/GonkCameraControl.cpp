@@ -122,7 +122,11 @@ nsGonkCameraControl::StartImpl(const Configuration* aInitialConfig)
   }
 
   OnHardwareStateChange(CameraControlListener::kHardwareOpen);
-  return StartPreviewImpl();
+  if (aInitialConfig) {
+    return StartPreviewImpl();
+  }
+
+  return NS_OK;
 }
 
 nsresult
@@ -173,18 +177,22 @@ nsGonkCameraControl::Initialize()
   mParams.Get(CAMERA_PARAM_FLASHMODE, flashMode);
   mFlashSupported = !flashMode.IsEmpty();
 
+  double quality; // informational only
+  mParams.Get(CAMERA_PARAM_PICTURE_QUALITY, quality);
+
   DOM_CAMERA_LOGI(" - maximum metering areas:        %u\n", mCurrentConfiguration.mMaxMeteringAreas);
   DOM_CAMERA_LOGI(" - maximum focus areas:           %u\n", mCurrentConfiguration.mMaxFocusAreas);
   DOM_CAMERA_LOGI(" - default picture size:          %u x %u\n",
     mLastPictureSize.width, mLastPictureSize.height);
+  DOM_CAMERA_LOGI(" - default picture file format:   %s\n",
+    NS_ConvertUTF16toUTF8(mFileFormat).get());
+  DOM_CAMERA_LOGI(" - default picture quality:       %f\n", quality);
   DOM_CAMERA_LOGI(" - default thumbnail size:        %u x %u\n",
     mLastThumbnailSize.width, mLastThumbnailSize.height);
   DOM_CAMERA_LOGI(" - default preview size:          %u x %u\n",
     mCurrentConfiguration.mPreviewSize.width, mCurrentConfiguration.mPreviewSize.height);
   DOM_CAMERA_LOGI(" - default video recorder size:   %u x %u\n",
     mLastRecorderSize.width, mLastRecorderSize.height);
-  DOM_CAMERA_LOGI(" - default picture file format:   %s\n",
-    NS_ConvertUTF16toUTF8(mFileFormat).get());
   DOM_CAMERA_LOGI(" - luminance reporting:           %ssupported\n",
     mLuminanceSupported ? "" : "NOT ");
   if (mFlashSupported) {
@@ -256,6 +264,11 @@ nsGonkCameraControl::SetConfigurationImpl(const Configuration& aConfig)
 {
   DOM_CAMERA_LOGT("%s:%d\n", __func__, __LINE__);
   MOZ_ASSERT(NS_GetCurrentThread() == mCameraThread);
+
+  if (aConfig.mMode == kUnspecifiedMode) {
+    DOM_CAMERA_LOGW("Can't set camera mode to 'unspecified', ignoring\n");
+    return NS_ERROR_INVALID_ARG;
+  }
 
   // Stop any currently running preview
   nsresult rv = PausePreview();

@@ -47,6 +47,7 @@ namespace mozilla {
 MediaEngineWebRTC::MediaEngineWebRTC(MediaEnginePrefs &aPrefs)
     : mMutex("mozilla::MediaEngineWebRTC")
     , mScreenEngine(nullptr)
+    , mBrowserEngine(nullptr)
     , mWinEngine(nullptr)
     , mAppEngine(nullptr)
     , mVideoEngine(nullptr)
@@ -54,6 +55,7 @@ MediaEngineWebRTC::MediaEngineWebRTC(MediaEnginePrefs &aPrefs)
     , mVideoEngineInit(false)
     , mAudioEngineInit(false)
     , mScreenEngineInit(false)
+    , mBrowserEngineInit(false)
     , mAppEngineInit(false)
 {
 #ifndef MOZ_B2G_CAMERA
@@ -171,6 +173,17 @@ MediaEngineWebRTC::EnumerateVideoDevices(MediaSourceType aMediaSource,
       videoEngine = mScreenEngine;
       videoEngineInit = &mScreenEngineInit;
       break;
+    case MediaSourceType::Browser:
+      mBrowserEngineConfig.Set<webrtc::CaptureDeviceInfo>(
+          new webrtc::CaptureDeviceInfo(webrtc::CaptureDeviceType::Browser));
+      if (!mBrowserEngine) {
+        if (!(mBrowserEngine = webrtc::VideoEngine::Create(mBrowserEngineConfig))) {
+          return;
+        }
+      }
+      videoEngine = mBrowserEngine;
+      videoEngineInit = &mBrowserEngineInit;
+      break;
     case MediaSourceType::Camera:
       // fall through
     default:
@@ -212,8 +225,10 @@ MediaEngineWebRTC::EnumerateVideoDevices(MediaSourceType aMediaSource,
   }
 
   for (int i = 0; i < num; i++) {
-    char deviceName[MediaEngineSource::kMaxDeviceNameLength];
-    char uniqueId[MediaEngineSource::kMaxUniqueIdLength];
+    const unsigned int kMaxDeviceNameLength = 128; // XXX FIX!
+    const unsigned int kMaxUniqueIdLength = 256;
+    char deviceName[kMaxDeviceNameLength];
+    char uniqueId[kMaxUniqueIdLength];
 
     // paranoia
     deviceName[0] = '\0';
@@ -231,12 +246,10 @@ MediaEngineWebRTC::EnumerateVideoDevices(MediaSourceType aMediaSource,
     LOG(("  Capture Device Index %d, Name %s", i, deviceName));
 
     webrtc::CaptureCapability cap;
-    int numCaps = ptrViECapture->NumberOfCapabilities(uniqueId,
-                                                      MediaEngineSource::kMaxUniqueIdLength);
+    int numCaps = ptrViECapture->NumberOfCapabilities(uniqueId, kMaxUniqueIdLength);
     LOG(("Number of Capabilities %d", numCaps));
     for (int j = 0; j < numCaps; j++) {
-      if (ptrViECapture->GetCaptureCapability(uniqueId,
-                                              MediaEngineSource::kMaxUniqueIdLength,
+      if (ptrViECapture->GetCaptureCapability(uniqueId, kMaxUniqueIdLength,
                                               j, cap ) != 0 ) {
         break;
       }
@@ -384,6 +397,10 @@ MediaEngineWebRTC::Shutdown()
     mWinEngine->SetTraceCallback(nullptr);
     webrtc::VideoEngine::Delete(mWinEngine);
   }
+  if (mBrowserEngine) {
+    mBrowserEngine->SetTraceCallback(nullptr);
+    webrtc::VideoEngine::Delete(mBrowserEngine);
+  }
   if (mAppEngine) {
     mAppEngine->SetTraceCallback(nullptr);
     webrtc::VideoEngine::Delete(mAppEngine);
@@ -398,6 +415,7 @@ MediaEngineWebRTC::Shutdown()
   mVoiceEngine = nullptr;
   mScreenEngine = nullptr;
   mWinEngine = nullptr;
+  mBrowserEngine = nullptr;
   mAppEngine = nullptr;
 
   if (mThread) {

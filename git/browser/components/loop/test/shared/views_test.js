@@ -212,9 +212,25 @@ describe("loop.shared.views", function() {
       it("should start a session", function() {
         sandbox.stub(model, "startSession");
 
-        mountTestComponent({sdk: fakeSDK, model: model});
+        mountTestComponent({
+          sdk: fakeSDK,
+          model: model,
+          video: {enabled: true}
+        });
 
         sinon.assert.calledOnce(model.startSession);
+      });
+
+      it("should set the correct stream publish options", function() {
+
+        var component = mountTestComponent({
+          sdk: fakeSDK,
+          model: model,
+          video: {enabled: false}
+        });
+
+        expect(component.publisherConfig.publishVideo).to.eql(false);
+
       });
     });
 
@@ -222,7 +238,11 @@ describe("loop.shared.views", function() {
       var comp;
 
       beforeEach(function() {
-        comp = mountTestComponent({sdk: fakeSDK, model: model});
+        comp = mountTestComponent({
+          sdk: fakeSDK,
+          model: model,
+          video: {enabled: false}
+        });
       });
 
       describe("#hangup", function() {
@@ -293,7 +313,11 @@ describe("loop.shared.views", function() {
         var comp;
 
         beforeEach(function() {
-          comp = mountTestComponent({sdk: fakeSDK, model: model});
+          comp = mountTestComponent({
+            sdk: fakeSDK,
+            model: model,
+            video: {enabled: false}
+          });
           comp.startPublishing();
         });
 
@@ -333,15 +357,14 @@ describe("loop.shared.views", function() {
           sinon.assert.calledOnce(fakeSDK.initPublisher);
         });
 
-        it("should publish remote streams on session:stream-created",
+        it("should publish remote stream on session:stream-created",
           function() {
             var s1 = {connection: {connectionId: 42}};
-            var s2 = {connection: {connectionId: 43}};
 
-            model.trigger("session:stream-created", {streams: [s1, s2]});
+            model.trigger("session:stream-created", {stream: s1});
 
             sinon.assert.calledOnce(fakeSession.subscribe);
-            sinon.assert.calledWith(fakeSession.subscribe, s2);
+            sinon.assert.calledWith(fakeSession.subscribe, s1);
           });
 
         it("should unpublish local stream on session:ended", function() {
@@ -397,6 +420,179 @@ describe("loop.shared.views", function() {
           expect(comp.state.audio.enabled).eql(false);
           expect(comp.state.video.enabled).eql(false);
         });
+      });
+    });
+  });
+
+  describe("FeedbackView", function() {
+    var comp, fakeFeedbackApiClient;
+
+    beforeEach(function() {
+      sandbox.stub(l10n, "get", function(x) {
+        return x;
+      });
+      fakeFeedbackApiClient = {send: sandbox.stub()};
+      comp = TestUtils.renderIntoDocument(sharedViews.FeedbackView({
+        feedbackApiClient: fakeFeedbackApiClient
+      }));
+    });
+
+    // local test helpers
+    function clickHappyFace(comp) {
+      var happyFace = comp.getDOMNode().querySelector(".face-happy");
+      TestUtils.Simulate.click(happyFace);
+    }
+
+    function clickSadFace(comp) {
+      var sadFace = comp.getDOMNode().querySelector(".face-sad");
+      TestUtils.Simulate.click(sadFace);
+    }
+
+    function fillSadFeedbackForm(comp, category, text) {
+      TestUtils.Simulate.change(
+        comp.getDOMNode().querySelector("[value='" + category + "']"));
+
+      if (text) {
+        TestUtils.Simulate.change(
+          comp.getDOMNode().querySelector("[name='description']"), {
+            target: {value: "fake reason"}
+          });
+      }
+    }
+
+    function submitSadFeedbackForm(comp, category, text) {
+      TestUtils.Simulate.submit(comp.getDOMNode().querySelector("form"));
+    }
+
+    describe("Happy feedback", function() {
+      it("should send feedback data when clicking on the happy face",
+        function() {
+          clickHappyFace(comp);
+
+          sinon.assert.calledOnce(fakeFeedbackApiClient.send);
+          sinon.assert.calledWith(fakeFeedbackApiClient.send, {happy: true});
+        });
+
+      it("should thank the user once happy feedback data is sent", function() {
+        fakeFeedbackApiClient.send = function(data, cb) {
+          cb();
+        };
+
+        clickHappyFace(comp);
+
+        expect(comp.getDOMNode()
+                   .querySelectorAll(".feedback .thank-you").length).eql(1);
+        expect(comp.getDOMNode().querySelector("button.back")).to.be.a("null");
+      });
+    });
+
+    describe("Sad feedback", function() {
+      it("should bring the user to feedback form when clicking on the sad face",
+        function() {
+          clickSadFace(comp);
+
+          expect(comp.getDOMNode().querySelectorAll("form").length).eql(1);
+        });
+
+      it("should disable the form submit button when no category is chosen",
+        function() {
+          clickSadFace(comp);
+
+          expect(comp.getDOMNode()
+                     .querySelector("form button").disabled).eql(true);
+        });
+
+      it("should disable the form submit button when the 'other' category is " +
+         "chosen but no description has been entered yet",
+        function() {
+          clickSadFace(comp);
+          fillSadFeedbackForm(comp, "other");
+
+          expect(comp.getDOMNode()
+                     .querySelector("form button").disabled).eql(true);
+        });
+
+      it("should enable the form submit button when the 'other' category is " +
+         "chosen and a description is entered",
+        function() {
+          clickSadFace(comp);
+          fillSadFeedbackForm(comp, "other", "fake");
+
+          expect(comp.getDOMNode()
+                     .querySelector("form button").disabled).eql(false);
+        });
+
+      it("should empty the description field when a predefined category is " +
+         "chosen",
+        function() {
+          clickSadFace(comp);
+
+          fillSadFeedbackForm(comp, "confusing");
+
+          expect(comp.getDOMNode()
+                     .querySelector("form input[type='text']").value).eql("");
+        });
+
+      it("should enable the form submit button once a predefined category is " +
+         "chosen",
+        function() {
+          clickSadFace(comp);
+
+          fillSadFeedbackForm(comp, "confusing");
+
+          expect(comp.getDOMNode()
+                     .querySelector("form button").disabled).eql(false);
+        });
+
+      it("should disable the form submit button once the form is submitted",
+        function() {
+          clickSadFace(comp);
+          fillSadFeedbackForm(comp, "confusing");
+
+          submitSadFeedbackForm(comp);
+
+          expect(comp.getDOMNode()
+                     .querySelector("form button").disabled).eql(true);
+        });
+
+      it("should send feedback data when the form is submitted", function() {
+        clickSadFace(comp);
+        fillSadFeedbackForm(comp, "confusing");
+
+        submitSadFeedbackForm(comp);
+
+        sinon.assert.calledOnce(fakeFeedbackApiClient.send);
+        sinon.assert.calledWithMatch(fakeFeedbackApiClient.send, {
+          happy: false,
+          category: "confusing"
+        });
+      });
+
+      it("should send feedback data when user has entered a custom description",
+        function() {
+          clickSadFace(comp);
+
+          fillSadFeedbackForm(comp, "other", "fake reason");
+          submitSadFeedbackForm(comp);
+
+          sinon.assert.calledOnce(fakeFeedbackApiClient.send);
+          sinon.assert.calledWith(fakeFeedbackApiClient.send, {
+            happy: false,
+            category: "other",
+            description: "fake reason"
+          });
+        });
+
+      it("should thank the user when feedback data has been sent", function() {
+        fakeFeedbackApiClient.send = function(data, cb) {
+          cb();
+        };
+        clickSadFace(comp);
+        fillSadFeedbackForm(comp, "confusing");
+        submitSadFeedbackForm(comp);
+
+        expect(comp.getDOMNode()
+                   .querySelectorAll(".feedback .thank-you").length).eql(1);
       });
     });
   });

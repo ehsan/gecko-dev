@@ -361,7 +361,7 @@ private:
 class ConsoleListener MOZ_FINAL : public nsIConsoleListener
 {
 public:
-    ConsoleListener(ContentChild* aChild)
+    explicit ConsoleListener(ContentChild* aChild)
     : mChild(aChild) {}
 
     NS_DECL_ISUPPORTS
@@ -565,6 +565,10 @@ ContentChild::Init(MessageLoop* aIOLoop,
     Open(aChannel, aParentHandle, aIOLoop);
     sSingleton = this;
 
+    // Make sure there's an nsAutoScriptBlocker on the stack when dispatching
+    // urgent messages.
+    GetIPCChannel()->BlockScripts();
+
 #ifdef MOZ_X11
     // Send the parent our X socket to act as a proxy reference for our X
     // resources.
@@ -588,6 +592,7 @@ ContentChild::Init(MessageLoop* aIOLoop,
 void
 ContentChild::InitProcessAttributes()
 {
+#ifdef MOZ_WIDGET_GONK
 #ifdef MOZ_NUWA_PROCESS
     if (IsNuwaProcess()) {
         SetProcessName(NS_LITERAL_STRING("(Nuwa)"), false);
@@ -599,7 +604,9 @@ ContentChild::InitProcessAttributes()
     } else {
         SetProcessName(NS_LITERAL_STRING("Browser"), false);
     }
-
+#else
+    SetProcessName(NS_LITERAL_STRING("Web Content"), true);
+#endif
 }
 
 void
@@ -710,7 +717,7 @@ class MemoryReportsWrapper MOZ_FINAL : public nsISupports {
     ~MemoryReportsWrapper() {}
 public:
     NS_DECL_ISUPPORTS
-    MemoryReportsWrapper(InfallibleTArray<MemoryReport> *r) : mReports(r) { }
+    explicit MemoryReportsWrapper(InfallibleTArray<MemoryReport>* r) : mReports(r) { }
     InfallibleTArray<MemoryReport> *mReports;
 };
 NS_IMPL_ISUPPORTS0(MemoryReportsWrapper)
@@ -720,7 +727,7 @@ class MemoryReportCallback MOZ_FINAL : public nsIMemoryReporterCallback
 public:
     NS_DECL_ISUPPORTS
 
-    MemoryReportCallback(const nsACString &aProcess)
+    explicit MemoryReportCallback(const nsACString& aProcess)
     : mProcess(aProcess)
     {
     }
@@ -914,13 +921,21 @@ ContentChild::AllocPBackgroundChild(Transport* aTransport,
 bool
 ContentChild::RecvSetProcessSandbox()
 {
-  // We may want to move the sandbox initialization somewhere else
-  // at some point; see bug 880808.
+    // We may want to move the sandbox initialization somewhere else
+    // at some point; see bug 880808.
 #if defined(MOZ_CONTENT_SANDBOX)
 #if defined(XP_LINUX)
-    if (CanSandboxContentProcess()) {
-        SetContentProcessSandbox();
+#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 19
+    // For B2G >= KitKat, sandboxing is mandatory; this has already
+    // been enforced by ContentParent::StartUp().
+    MOZ_ASSERT(CanSandboxContentProcess());
+#else
+    // Otherwise, sandboxing is best-effort.
+    if (!CanSandboxContentProcess()) {
+        return true;
     }
+#endif
+    SetContentProcessSandbox();
 #elif defined(XP_WIN)
     mozilla::SandboxTarget::Instance()->StartSandbox();
 #endif
@@ -932,6 +947,7 @@ bool
 ContentChild::RecvSpeakerManagerNotify()
 {
 #ifdef MOZ_WIDGET_GONK
+    // Only notify the process which has the SpeakerManager instance.
     nsRefPtr<SpeakerManagerService> service =
         SpeakerManagerService::GetSpeakerManagerService();
     if (service) {
@@ -1376,12 +1392,37 @@ bool
 ContentChild::RecvRegisterChrome(const InfallibleTArray<ChromePackage>& packages,
                                  const InfallibleTArray<ResourceMapping>& resources,
                                  const InfallibleTArray<OverrideMapping>& overrides,
-                                 const nsCString& locale)
+                                 const nsCString& locale,
+                                 const bool& reset)
 {
     nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
     nsChromeRegistryContent* chromeRegistry =
         static_cast<nsChromeRegistryContent*>(registrySvc.get());
-    chromeRegistry->RegisterRemoteChrome(packages, resources, overrides, locale);
+    chromeRegistry->RegisterRemoteChrome(packages, resources, overrides,
+                                         locale, reset);
+    return true;
+}
+
+bool
+ContentChild::RecvRegisterChromeItem(const ChromeRegistryItem& item)
+{
+    nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
+    nsChromeRegistryContent* chromeRegistry =
+        static_cast<nsChromeRegistryContent*>(registrySvc.get());
+    switch (item.type()) {
+        case ChromeRegistryItem::TChromePackage:
+            chromeRegistry->RegisterPackage(item.get_ChromePackage());
+            break;
+
+        case ChromeRegistryItem::TOverrideMapping:
+            chromeRegistry->RegisterOverride(item.get_OverrideMapping());
+            break;
+
+        default:
+            MOZ_ASSERT(false, "bad chrome item");
+            return false;
+    }
+
     return true;
 }
 
@@ -1623,8 +1664,8 @@ ContentChild::RecvActivateA11y()
 #ifdef ACCESSIBILITY
     // Start accessibility in content process if it's running in chrome
     // process.
-    nsCOMPtr<nsIAccessibilityService> accService =
-        do_GetService("@mozilla.org/accessibilityService;1");
+	nsCOMPtr<nsIAccessibilityService> accService =
+        services::GetAccessibilityService();
 #endif
     return true;
 }
@@ -1968,6 +2009,16 @@ ContentChild::RecvNuwaFork()
 #else
     return false; // Makes the underlying IPC channel abort.
 #endif
+}
+
+bool
+ContentChild::RecvOnAppThemeChanged()
+{
+    nsCOMPtr<nsIObserverService> os = services::GetObserverService();
+    if (os) {
+        os->NotifyObservers(nullptr, "app-theme-changed", nullptr);
+    }
+    return true;
 }
 
 } // namespace dom

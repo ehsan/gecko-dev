@@ -86,10 +86,6 @@ let DirectoryLinksProvider = {
   }),
 
   get _linksURL() {
-    if (!this.enabled) {
-      return "data:application/json,{}";
-    }
-
     if (!this.__linksURL) {
       try {
         this.__linksURL = Services.prefs.getCharPref(this._observedPrefs["linksURL"]);
@@ -272,10 +268,6 @@ let DirectoryLinksProvider = {
    * @return a promise resolved to valid list of links or [] if read or parse fails
    */
   _readDirectoryLinksFile: function DirectoryLinksProvider_readDirectoryLinksFile() {
-    if (!this.enabled) {
-      return Promise.resolve([]);
-    }
-
     return OS.File.read(this._directoryFilePath).then(binaryData => {
       let output;
       try {
@@ -303,10 +295,6 @@ let DirectoryLinksProvider = {
    * @return download promise
    */
   reportSitesAction: function DirectoryLinksProvider_reportSitesAction(sites, action, triggeringSiteIndex) {
-    if (!this.enabled) {
-      return Promise.resolve();
-    }
-
     let newtabEnhanced = false;
     let pingEndPoint = "";
     try {
@@ -395,8 +383,6 @@ let DirectoryLinksProvider = {
   },
 
   init: function DirectoryLinksProvider_init() {
-    this.enabled = this.locale == "en-US";
-
     this._setDefaultEnhanced();
     this._addPrefsObserver();
     // setup directory file path and last download timestamp

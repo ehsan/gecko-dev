@@ -1,20 +1,21 @@
 var gBasePath = "tests/dom/apps/tests/";
 var gAppTemplatePath = "tests/dom/apps/tests/file_app.template.html";
 var gAppcacheTemplatePath = "tests/dom/apps/tests/file_cached_app.template.appcache";
+var gWidgetTemplatePath = "tests/dom/apps/tests/file_widget_app.template.html";
 var gDefaultIcon = "default_icon";
 
-function makeResource(templatePath, version, apptype) {
+function makeResource(templatePath, version, apptype, role) {
   let icon = getState('icon') || gDefaultIcon;
   var res = readTemplate(templatePath).replace(/VERSIONTOKEN/g, version)
                                       .replace(/APPTYPETOKEN/g, apptype)
-                                      .replace(/ICONTOKEN/g, icon);
+                                      .replace(/ICONTOKEN/g, icon)
+                                      .replace(/ROLE/g, role);
 
   // Hack - This is necessary to make the tests pass, but hbambas says it
   // shouldn't be necessary. Comment it out and watch the tests fail.
   if (templatePath == gAppTemplatePath && apptype == 'cached') {
     res = res.replace('<html>', '<html manifest="file_app.sjs?apptype=cached&getappcache=true">');
   }
-
   return res;
 }
 
@@ -46,8 +47,10 @@ function handleRequest(request, response) {
 
   // Get the app type.
   var apptype = query.apptype;
-  if (apptype != 'hosted' && apptype != 'cached')
+  if (apptype != 'hosted' && apptype != 'cached' && apptype != 'widget'  && apptype != 'invalidWidget')
     throw "Invalid app type: " + apptype;
+
+  var role = query.role;
 
   // Get the version from server state and handle the etag.
   var version = Number(getState('version'));
@@ -70,7 +73,7 @@ function handleRequest(request, response) {
   if ('getmanifest' in query) {
     var template = gBasePath + 'file_' + apptype + '_app.template.webapp';
     response.setHeader("Content-Type", "application/x-web-app-manifest+json", false);
-    response.write(makeResource(template, version, apptype));
+    response.write(makeResource(template, version, apptype, role));
     return;
   }
 
@@ -80,13 +83,18 @@ function handleRequest(request, response) {
   //     state is shared.
   if (apptype == 'cached' && 'getappcache' in query) {
     response.setHeader("Content-Type", "text/cache-manifest", false);
-    response.write(makeResource(gAppcacheTemplatePath, version, apptype));
+    response.write(makeResource(gAppcacheTemplatePath, version, apptype, role));
     return;
   }
-
+  else if (apptype == 'widget' || apptype == 'invalidWidget')
+  {
+    response.setHeader("Content-Type", "text/html", false);
+    response.write(makeResource(gWidgetTemplatePath, version, apptype, role));
+    return;
+  }
   // Generate the app.
   response.setHeader("Content-Type", "text/html", false);
-  response.write(makeResource(gAppTemplatePath, version, apptype));
+  response.write(makeResource(gAppTemplatePath, version, apptype, role));
 }
 
 function getEtag(request, version) {
