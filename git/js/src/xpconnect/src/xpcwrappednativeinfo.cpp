@@ -661,11 +661,7 @@ XPCNativeSet::GetNewOrUsed(XPCCallContext& ccx, nsIClassInfo* classInfo)
     if(set)
     {   // scoped lock
         XPCAutoLock lock(rt->GetMapLock());
-
-#ifdef DEBUG
-        XPCNativeSet* set2 =
-#endif
-          map->Add(classInfo, set);
+        XPCNativeSet* set2 = map->Add(classInfo, set);
         NS_ASSERTION(set2, "failed to add our set!");
         NS_ASSERTION(set2 == set, "hashtables inconsistent!");
     }

@@ -966,7 +966,7 @@ const STATE_WAITING_FOR_REFTEST_WAIT_REMOVAL = 1;
 const STATE_WAITING_TO_FINISH = 2;
 const STATE_COMPLETED = 3;
 
-function WaitForTestEnd(contentRootElement, inPrintMode) {
+function WaitForTestEnd(contentRootElement) {
     var stopAfterPaintReceived = false;
     var state = STATE_WAITING_TO_FIRE_INVALIDATE_EVENT;
 
@@ -1076,11 +1076,9 @@ function WaitForTestEnd(contentRootElement, inPrintMode) {
             state = STATE_WAITING_FOR_REFTEST_WAIT_REMOVAL;
             var hasReftestWait = shouldWaitForReftestWaitRemoval(contentRootElement);            
             // Notify the test document that now is a good time to test some invalidation
-            if (contentRootElement) {
-                var notification = document.createEvent("Events");
-                notification.initEvent("MozReftestInvalidate", true, false);
-                contentRootElement.dispatchEvent(notification);
-            }
+            var notification = document.createEvent("Events");
+            notification.initEvent("MozReftestInvalidate", true, false);
+            contentRootElement.dispatchEvent(notification);
             if (hasReftestWait && !shouldWaitForReftestWaitRemoval(contentRootElement)) {
                 // MozReftestInvalidate handler removed reftest-wait.
                 // We expect something to have been invalidated...
@@ -1102,9 +1100,10 @@ function WaitForTestEnd(contentRootElement, inPrintMode) {
                 return;
             }
             state = STATE_WAITING_TO_FINISH;
-            if (!inPrintMode && doPrintMode(contentRootElement)) {
+            if (doPrintMode(contentRootElement)) {
                 LogInfo("MakeProgress: setting up print mode");
                 setupPrintMode();
+                didPrintMode = true;
             }
             // Try next state
             MakeProgress();
@@ -1179,17 +1178,13 @@ function OnDocumentLoad(event)
         // we should wait, since this might trigger dispatching of
         // MozPaintWait events and make shouldWaitForExplicitPaintWaiters() true
         // below.
-        var painted = InitCurrentCanvasWithSnapshot();
+        InitCurrentCanvasWithSnapshot();
 
         if (shouldWaitForExplicitPaintWaiters() ||
-            (!inPrintMode && doPrintMode(contentRootElement)) ||
-            // If we didn't force a paint above, in
-            // InitCurrentCanvasWithSnapshot, so we should wait for a
-            // paint before we consider them done.
-            !painted) {
+            (!inPrintMode && doPrintMode(contentRootElement))) {
             LogInfo("AfterOnLoadScripts belatedly entering WaitForTestEnd");
             // Go into reftest-wait mode belatedly.
-            WaitForTestEnd(contentRootElement, inPrintMode);
+            WaitForTestEnd(contentRootElement);
         } else {
             RecordResult();
         }
@@ -1201,7 +1196,7 @@ function OnDocumentLoad(event)
         // unsuppressed, after the onload event has finished dispatching.
         gFailureReason = "timed out waiting for test to complete (trying to get into WaitForTestEnd)";
         LogInfo("OnDocumentLoad triggering WaitForTestEnd");
-        setTimeout(WaitForTestEnd, 0, contentRootElement, inPrintMode);
+        setTimeout(WaitForTestEnd, 0, contentRootElement);
     } else {
         if (doPrintMode(contentRootElement)) {
             LogInfo("OnDocumentLoad setting up print mode");
@@ -1280,7 +1275,7 @@ function InitCurrentCanvasWithSnapshot()
 {
     if (gURLs[0].type == TYPE_LOAD || gURLs[0].type == TYPE_SCRIPT) {
         // We don't want to snapshot this kind of test
-        return false;
+        return;
     }
 
     if (!gCurrentCanvas) {
@@ -1289,7 +1284,6 @@ function InitCurrentCanvasWithSnapshot()
 
     var ctx = gCurrentCanvas.getContext("2d");
     DoDrawWindow(ctx, 0, 0, gCurrentCanvas.width, gCurrentCanvas.height);
-    return true;
 }
 
 function roundTo(x, fraction)

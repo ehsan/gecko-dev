@@ -90,7 +90,6 @@ public:
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
   virtual void InvalidateChildren();
-  virtual PRBool RemoveChild(nsAccessible* aAccessible);
 
   // nsHyperTextAccessible (static helper method)
 
