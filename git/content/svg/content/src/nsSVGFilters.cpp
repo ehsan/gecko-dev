@@ -80,6 +80,7 @@
 #define NUM_ENTRIES_IN_4x5_MATRIX 20
 
 using namespace mozilla;
+using namespace mozilla::dom;
 
 static void
 CopyDataRect(PRUint8 *aDest, const PRUint8 *aSrc, PRUint32 aStride,
@@ -306,7 +307,7 @@ nsSVGFE::GetLengthInfo()
                               NS_ARRAY_LENGTH(sLengthInfo));
 }
 
-inline static void DidAnimateAttr(nsSVGFE *aFilterPrimitive)
+inline static void DidAnimateAttr(Element *aFilterPrimitive)
 {
   // nsSVGLeafFrame doesn't implement AttributeChanged.
   nsIFrame* frame = aFilterPrimitive->GetPrimaryFrame();
@@ -430,8 +431,8 @@ private:
 
 nsSVGElement::NumberInfo nsSVGFEGaussianBlurElement::sNumberInfo[2] =
 {
-  { &nsGkAtoms::stdDeviation, 0 },
-  { &nsGkAtoms::stdDeviation, 0 }
+  { &nsGkAtoms::stdDeviation, 0, PR_FALSE },
+  { &nsGkAtoms::stdDeviation, 0, PR_FALSE }
 };
 
 nsSVGElement::StringInfo nsSVGFEGaussianBlurElement::sStringInfo[2] =
@@ -1415,10 +1416,10 @@ protected:
 
 nsSVGElement::NumberInfo nsSVGFECompositeElement::sNumberInfo[4] =
 {
-  { &nsGkAtoms::k1, 0 },
-  { &nsGkAtoms::k2, 0 },
-  { &nsGkAtoms::k3, 0 },
-  { &nsGkAtoms::k4, 0 }
+  { &nsGkAtoms::k1, 0, PR_FALSE },
+  { &nsGkAtoms::k2, 0, PR_FALSE },
+  { &nsGkAtoms::k3, 0, PR_FALSE },
+  { &nsGkAtoms::k4, 0, PR_FALSE }
 };
 
 nsSVGEnumMapping nsSVGFECompositeElement::sOperatorMap[] = {
@@ -1779,10 +1780,23 @@ public:
 
 protected:
   virtual NumberAttributesInfo GetNumberInfo();
+  virtual void DidAnimateNumber(PRUint8 aAttrEnum) {
+    // No frame, use parent's
+    NS_ASSERTION(!GetPrimaryFrame(), "Not expecting a frame");
+    DidAnimateAttr(nsSVGUtils::GetParentElement(this));
+  }
   virtual EnumAttributesInfo GetEnumInfo();
+  virtual void DidAnimateEnum(PRUint8 aAttrEnum) {
+    // No frame, use parent's
+    NS_ASSERTION(!GetPrimaryFrame(), "Not expecting a frame");
+    DidAnimateAttr(nsSVGUtils::GetParentElement(this));
+  }
   virtual NumberListAttributesInfo GetNumberListInfo();
-
-  virtual void DidAnimateNumberList(PRUint8 aAttrEnum);
+  virtual void DidAnimateNumberList(PRUint8 aAttrEnum) {
+    // No frame, use parent's
+    NS_ASSERTION(!GetPrimaryFrame(), "Not expecting a frame");
+    DidAnimateAttr(nsSVGUtils::GetParentElement(this));
+  }
 
   // nsIDOMSVGComponentTransferFunctionElement properties:
   enum { TABLEVALUES };
@@ -1857,11 +1871,11 @@ nsSVGElement::NumberListInfo nsSVGComponentTransferFunctionElement::sNumberListI
 
 nsSVGElement::NumberInfo nsSVGComponentTransferFunctionElement::sNumberInfo[5] =
 {
-  { &nsGkAtoms::slope,     1 },
-  { &nsGkAtoms::intercept, 0 },
-  { &nsGkAtoms::amplitude, 1 },
-  { &nsGkAtoms::exponent,  1 },
-  { &nsGkAtoms::offset,    0 }
+  { &nsGkAtoms::slope,     1, PR_FALSE },
+  { &nsGkAtoms::intercept, 0, PR_FALSE },
+  { &nsGkAtoms::amplitude, 1, PR_FALSE },
+  { &nsGkAtoms::exponent,  1, PR_FALSE },
+  { &nsGkAtoms::offset,    0, PR_FALSE }
 };
 
 nsSVGEnumMapping nsSVGComponentTransferFunctionElement::sTypeMap[] = {
@@ -2052,22 +2066,6 @@ nsSVGComponentTransferFunctionElement::GetNumberInfo()
   return NumberAttributesInfo(mNumberAttributes, sNumberInfo,
                               NS_ARRAY_LENGTH(sNumberInfo));
 }
-
-void
-nsSVGComponentTransferFunctionElement::DidAnimateNumberList(PRUint8 aAttrEnum)
-{
-  // We don't have a frame, so use our parent's
-  nsCOMPtr<nsIDOMSVGFEComponentTransferElement> compTrans =
-    do_QueryInterface(GetParent());
-  if (compTrans) {
-    // nsSVGLeafFrame doesn't implement AttributeChanged.
-    nsIFrame* frame = static_cast<nsSVGFE*>(GetParent())->GetPrimaryFrame();
-    if (frame) {
-      nsSVGEffects::InvalidateRenderingObservers(frame);
-    }
-  }
-}
-
 
 class nsSVGFEFuncRElement : public nsSVGComponentTransferFunctionElement,
                             public nsIDOMSVGFEFuncRElement
@@ -2521,8 +2519,8 @@ protected:
 
 nsSVGElement::NumberInfo nsSVGFEOffsetElement::sNumberInfo[2] =
 {
-  { &nsGkAtoms::dx, 0 },
-  { &nsGkAtoms::dy, 0 }
+  { &nsGkAtoms::dx, 0, PR_FALSE },
+  { &nsGkAtoms::dy, 0, PR_FALSE }
 };
 
 nsSVGElement::StringInfo nsSVGFEOffsetElement::sStringInfo[2] =
@@ -3128,9 +3126,9 @@ private:
 
 nsSVGElement::NumberInfo nsSVGFETurbulenceElement::sNumberInfo[3] =
 {
-  { &nsGkAtoms::baseFrequency, 0 },
-  { &nsGkAtoms::baseFrequency, 0 },
-  { &nsGkAtoms::seed, 0 }
+  { &nsGkAtoms::baseFrequency, 0, PR_FALSE },
+  { &nsGkAtoms::baseFrequency, 0, PR_FALSE },
+  { &nsGkAtoms::seed, 0, PR_FALSE }
 };
 
 nsSVGElement::IntegerInfo nsSVGFETurbulenceElement::sIntegerInfo[1] =
@@ -3586,8 +3584,8 @@ protected:
 
 nsSVGElement::NumberInfo nsSVGFEMorphologyElement::sNumberInfo[2] =
 {
-  { &nsGkAtoms::radius, 0 },
-  { &nsGkAtoms::radius, 0 }
+  { &nsGkAtoms::radius, 0, PR_FALSE },
+  { &nsGkAtoms::radius, 0, PR_FALSE }
 };
 
 nsSVGEnumMapping nsSVGFEMorphologyElement::sOperatorMap[] = {
@@ -3929,10 +3927,10 @@ protected:
 
 nsSVGElement::NumberInfo nsSVGFEConvolveMatrixElement::sNumberInfo[4] =
 {
-  { &nsGkAtoms::divisor, 1 },
-  { &nsGkAtoms::bias, 0 },
-  { &nsGkAtoms::kernelUnitLength, 0 },
-  { &nsGkAtoms::kernelUnitLength, 0 }
+  { &nsGkAtoms::divisor, 1, PR_FALSE },
+  { &nsGkAtoms::bias, 0, PR_FALSE },
+  { &nsGkAtoms::kernelUnitLength, 0, PR_FALSE },
+  { &nsGkAtoms::kernelUnitLength, 0, PR_FALSE }
 };
 
 nsSVGElement::IntegerInfo nsSVGFEConvolveMatrixElement::sIntegerInfo[4] =
@@ -4335,6 +4333,11 @@ public:
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
   virtual NumberAttributesInfo GetNumberInfo();
+  virtual void DidAnimateNumber(PRUint8 aAttrEnum) {
+    // No frame, use parent's
+    NS_ASSERTION(!GetPrimaryFrame(), "Not expecting a frame");
+    DidAnimateAttr(nsSVGUtils::GetParentElement(this));
+  }
 
   enum { AZIMUTH, ELEVATION };
   nsSVGNumber2 mNumberAttributes[2];
@@ -4345,8 +4348,8 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(FEDistantLight)
 
 nsSVGElement::NumberInfo nsSVGFEDistantLightElement::sNumberInfo[2] =
 {
-  { &nsGkAtoms::azimuth,   0 },
-  { &nsGkAtoms::elevation, 0 }
+  { &nsGkAtoms::azimuth,   0, PR_FALSE },
+  { &nsGkAtoms::elevation, 0, PR_FALSE }
 };
 
 //----------------------------------------------------------------------
@@ -4423,6 +4426,11 @@ public:
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
   virtual NumberAttributesInfo GetNumberInfo();
+  virtual void DidAnimateNumber(PRUint8 aAttrEnum) {
+    // No frame, use parent's
+    NS_ASSERTION(!GetPrimaryFrame(), "Not expecting a frame");
+    DidAnimateAttr(nsSVGUtils::GetParentElement(this));
+  }
 
   enum { X, Y, Z };
   nsSVGNumber2 mNumberAttributes[3];
@@ -4433,9 +4441,9 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(FEPointLight)
 
 nsSVGElement::NumberInfo nsSVGFEPointLightElement::sNumberInfo[3] =
 {
-  { &nsGkAtoms::x, 0 },
-  { &nsGkAtoms::y, 0 },
-  { &nsGkAtoms::z, 0 }
+  { &nsGkAtoms::x, 0, PR_FALSE },
+  { &nsGkAtoms::y, 0, PR_FALSE },
+  { &nsGkAtoms::z, 0, PR_FALSE }
 };
 
 //----------------------------------------------------------------------
@@ -4516,6 +4524,11 @@ public:
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
   virtual NumberAttributesInfo GetNumberInfo();
+  virtual void DidAnimateNumber(PRUint8 aAttrEnum) {
+    // No frame, use parent's
+    NS_ASSERTION(!GetPrimaryFrame(), "Not expecting a frame");
+    DidAnimateAttr(nsSVGUtils::GetParentElement(this));
+  }
 
   enum { X, Y, Z, POINTS_AT_X, POINTS_AT_Y, POINTS_AT_Z,
          SPECULAR_EXPONENT, LIMITING_CONE_ANGLE };
@@ -4527,14 +4540,14 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(FESpotLight)
 
 nsSVGElement::NumberInfo nsSVGFESpotLightElement::sNumberInfo[8] =
 {
-  { &nsGkAtoms::x, 0 },
-  { &nsGkAtoms::y, 0 },
-  { &nsGkAtoms::z, 0 },
-  { &nsGkAtoms::pointsAtX, 0 },
-  { &nsGkAtoms::pointsAtY, 0 },
-  { &nsGkAtoms::pointsAtZ, 0 },
-  { &nsGkAtoms::specularExponent, 1 },
-  { &nsGkAtoms::limitingConeAngle, 0 }
+  { &nsGkAtoms::x, 0, PR_FALSE },
+  { &nsGkAtoms::y, 0, PR_FALSE },
+  { &nsGkAtoms::z, 0, PR_FALSE },
+  { &nsGkAtoms::pointsAtX, 0, PR_FALSE },
+  { &nsGkAtoms::pointsAtY, 0, PR_FALSE },
+  { &nsGkAtoms::pointsAtZ, 0, PR_FALSE },
+  { &nsGkAtoms::specularExponent, 1, PR_FALSE },
+  { &nsGkAtoms::limitingConeAngle, 0, PR_FALSE }
 };
 
 //----------------------------------------------------------------------
@@ -4676,12 +4689,12 @@ protected:
 
 nsSVGElement::NumberInfo nsSVGFELightingElement::sNumberInfo[6] =
 {
-  { &nsGkAtoms::surfaceScale, 1 },
-  { &nsGkAtoms::diffuseConstant, 1 },
-  { &nsGkAtoms::specularConstant, 1 },
-  { &nsGkAtoms::specularExponent, 1 },
-  { &nsGkAtoms::kernelUnitLength, 0 },
-  { &nsGkAtoms::kernelUnitLength, 0 }
+  { &nsGkAtoms::surfaceScale, 1, PR_FALSE },
+  { &nsGkAtoms::diffuseConstant, 1, PR_FALSE },
+  { &nsGkAtoms::specularConstant, 1, PR_FALSE },
+  { &nsGkAtoms::specularExponent, 1, PR_FALSE },
+  { &nsGkAtoms::kernelUnitLength, 0, PR_FALSE },
+  { &nsGkAtoms::kernelUnitLength, 0, PR_FALSE }
 };
 
 nsSVGElement::StringInfo nsSVGFELightingElement::sStringInfo[2] =
@@ -5714,7 +5727,7 @@ protected:
 
 nsSVGElement::NumberInfo nsSVGFEDisplacementMapElement::sNumberInfo[1] =
 {
-  { &nsGkAtoms::scale, 0 },
+  { &nsGkAtoms::scale, 0, PR_FALSE },
 };
 
 nsSVGEnumMapping nsSVGFEDisplacementMapElement::sChannelMap[] = {

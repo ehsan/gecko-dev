@@ -91,14 +91,17 @@ class Element;
 #endif
 
 // SVG Frame state bits
-#define NS_STATE_IS_OUTER_SVG         NS_FRAME_STATE_BIT(20)
+#define NS_STATE_IS_OUTER_SVG                    NS_FRAME_STATE_BIT(20)
 
-#define NS_STATE_SVG_DIRTY            NS_FRAME_STATE_BIT(21)
+#define NS_STATE_SVG_DIRTY                       NS_FRAME_STATE_BIT(21)
 
 /* are we the child of a non-display container? */
-#define NS_STATE_SVG_NONDISPLAY_CHILD NS_FRAME_STATE_BIT(22)
+#define NS_STATE_SVG_NONDISPLAY_CHILD            NS_FRAME_STATE_BIT(22)
 
-#define NS_STATE_SVG_PROPAGATE_TRANSFORM NS_FRAME_STATE_BIT(23)
+#define NS_STATE_SVG_PROPAGATE_TRANSFORM         NS_FRAME_STATE_BIT(23)
+
+// If this bit is set, we are a <clipPath> element or descendant.
+#define NS_STATE_SVG_CLIPPATH_CHILD              NS_FRAME_STATE_BIT(24)
 
 /**
  * Byte offsets of channels in a native packed gfxColor or cairo image surface.
@@ -585,17 +588,6 @@ public:
    * another non-foreignObject SVG element.
    */
   static PRBool IsInnerSVG(nsIContent* aContent);
-
-  /**
-   * Parse a string that may contain either a CSS <number> or, if
-   * aAllowPercentages is set to true, a CSS <percentage>, and return the
-   * number as a float.
-   *
-   * This helper returns PR_TRUE if a number was successfully parsed from the
-   * string and no characters were left, else it returns PR_FALSE.
-   */
-  static PRBool NumberFromString(const nsAString& aString, float* aValue,
-                                 PRBool aAllowPercentages = PR_FALSE);
 
   /**
    * Convert a floating-point value to a 32-bit integer value, clamping to

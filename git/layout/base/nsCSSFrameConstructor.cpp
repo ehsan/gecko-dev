@@ -4779,7 +4779,11 @@ nsCSSFrameConstructor::FindSVGData(nsIContent* aContent,
   }
 
   if ((aTag != nsGkAtoms::svg && !parentIsSVG) ||
-      (aTag == nsGkAtoms::desc || aTag == nsGkAtoms::title)) {
+      (aTag == nsGkAtoms::desc || aTag == nsGkAtoms::title ||
+       aTag == nsGkAtoms::feFuncR || aTag == nsGkAtoms::feFuncG ||
+       aTag == nsGkAtoms::feFuncB || aTag == nsGkAtoms::feFuncA ||
+       aTag == nsGkAtoms::feDistantLight || aTag == nsGkAtoms::fePointLight ||
+       aTag == nsGkAtoms::feSpotLight)) {
     // Sections 5.1 and G.4 of SVG 1.1 say that SVG elements other than
     // svg:svg not contained within svg:svg are incorrect, although they
     // don't seem to specify error handling.  Ignore them, since many of
@@ -4791,6 +4795,9 @@ nsCSSFrameConstructor::FindSVGData(nsIContent* aContent,
     // adding to the undisplayed content map.
     //
     // We don't currently handle any UI for desc/title
+    //
+    // The filter types are children of filter elements that use their
+    // parent frames when necessary
     return &sSuppressData;
   }
 
@@ -4799,27 +4806,25 @@ nsCSSFrameConstructor::FindSVGData(nsIContent* aContent,
     return &sSuppressData;
   }
 
-  // Elements with failing conditional processing attributes never get
-  // rendered.  Note that this is not where we select which frame in a
-  // <switch> to render!  That happens in nsSVGSwitchFrame::PaintSVG.
-  if (!nsSVGFeatures::PassesConditionalProcessingTests(aContent)) {
-    return &sContainerData;
-  }
-
-  // Special case for aTag == nsGkAtoms::svg because we don't want to
-  // have to recompute parentIsSVG for it.
-  if (aTag == nsGkAtoms::svg) {
-    if (parentIsSVG) {
-      static const FrameConstructionData sInnerSVGData =
-        SIMPLE_SVG_FCDATA(NS_NewSVGInnerSVGFrame);
-      return &sInnerSVGData;
-    }
-
+  if (aTag == nsGkAtoms::svg && !parentIsSVG) {
+    // We need outer <svg> elements to have an nsSVGOuterSVGFrame regardless
+    // of whether they fail conditional processing attributes, since various
+    // SVG frames assume that one exists.  We handle the non-rendering
+    // of failing outer <svg> element contents like <switch> statements,
+    // and do the PassesConditionalProcessingTests call in
+    // nsSVGOuterSVGFrame::Init.
     static const FrameConstructionData sOuterSVGData =
       FCDATA_DECL(FCDATA_FORCE_VIEW | FCDATA_SKIP_ABSPOS_PUSH |
                   FCDATA_DISALLOW_GENERATED_CONTENT,
                   NS_NewSVGOuterSVGFrame);
     return &sOuterSVGData;
+  }
+  
+  if (!nsSVGFeatures::PassesConditionalProcessingTests(aContent)) {
+    // Elements with failing conditional processing attributes never get
+    // rendered.  Note that this is not where we select which frame in a
+    // <switch> to render!  That happens in nsSVGSwitchFrame::PaintSVG.
+    return &sContainerData;
   }
 
   // Special cases for text/tspan/textPath, because the kind of frame
@@ -4851,6 +4856,7 @@ nsCSSFrameConstructor::FindSVGData(nsIContent* aContent,
   }
 
   static const FrameConstructionDataByTag sSVGData[] = {
+    SIMPLE_SVG_CREATE(svg, NS_NewSVGInnerSVGFrame),
     SIMPLE_SVG_CREATE(g, NS_NewSVGGFrame),
     SIMPLE_SVG_CREATE(svgSwitch, NS_NewSVGSwitchFrame),
     SIMPLE_SVG_CREATE(polygon, NS_NewSVGPathGeometryFrame),
@@ -4880,15 +4886,8 @@ nsCSSFrameConstructor::FindSVGData(nsIContent* aContent,
     SIMPLE_SVG_CREATE(filter, NS_NewSVGFilterFrame),
     SIMPLE_SVG_CREATE(pattern, NS_NewSVGPatternFrame),
     SIMPLE_SVG_CREATE(mask, NS_NewSVGMaskFrame),
-    SIMPLE_SVG_CREATE(feDistantLight, NS_NewSVGLeafFrame),
-    SIMPLE_SVG_CREATE(fePointLight, NS_NewSVGLeafFrame),
-    SIMPLE_SVG_CREATE(feSpotLight, NS_NewSVGLeafFrame),
     SIMPLE_SVG_CREATE(feBlend, NS_NewSVGLeafFrame),
     SIMPLE_SVG_CREATE(feColorMatrix, NS_NewSVGLeafFrame),
-    SIMPLE_SVG_CREATE(feFuncR, NS_NewSVGLeafFrame),
-    SIMPLE_SVG_CREATE(feFuncG, NS_NewSVGLeafFrame),
-    SIMPLE_SVG_CREATE(feFuncB, NS_NewSVGLeafFrame),
-    SIMPLE_SVG_CREATE(feFuncA, NS_NewSVGLeafFrame),
     SIMPLE_SVG_CREATE(feComposite, NS_NewSVGLeafFrame),
     SIMPLE_SVG_CREATE(feComponentTransfer, NS_NewSVGLeafFrame),
     SIMPLE_SVG_CREATE(feConvolveMatrix, NS_NewSVGLeafFrame),
@@ -5161,6 +5160,32 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
   }
 
   PRBool isText = aContent->IsNodeOfType(nsINode::eTEXT);
+
+  // never create frames for non-option/optgroup kids of <select> and
+  // non-option kids of <optgroup> inside a <select>.
+  // XXXbz it's not clear how this should best work with XBL.
+  nsIContent *parent = aContent->GetParent();
+  if (parent) {
+    // Check tag first, since that check will usually fail
+    nsIAtom* parentTag = parent->Tag();
+    if ((parentTag == nsGkAtoms::select || parentTag == nsGkAtoms::optgroup) &&
+        parent->IsHTML() &&
+        // <option> is ok no matter what
+        !aContent->IsHTML(nsGkAtoms::option) &&
+        // <optgroup> is OK in <select> but not in <optgroup>
+        (!aContent->IsHTML(nsGkAtoms::optgroup) ||
+         parentTag != nsGkAtoms::select) &&
+        // Allow native anonymous content no matter what
+        !aContent->IsRootOfNativeAnonymousSubtree()) {
+      // No frame for aContent
+      if (!isText) {
+        SetAsUndisplayedContent(aState.mFrameManager, aContent, styleContext,
+                                isGeneratedContent);
+      }
+      return;
+    }
+  }
+
   PRBool isPopup = PR_FALSE;
   // Try to find frame construction data for this content
   const FrameConstructionData* data;

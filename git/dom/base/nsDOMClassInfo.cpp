@@ -1635,6 +1635,7 @@ jsid nsDOMClassInfo::sOnmessage_id       = JSID_VOID;
 jsid nsDOMClassInfo::sOnbeforescriptexecute_id = JSID_VOID;
 jsid nsDOMClassInfo::sOnafterscriptexecute_id = JSID_VOID;
 jsid nsDOMClassInfo::sWrappedJSObject_id = JSID_VOID;
+jsid nsDOMClassInfo::sURL_id             = JSID_VOID;
 
 static const JSClass *sObjectClass = nsnull;
 
@@ -1860,6 +1861,7 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
   SET_JSID_TO_STRING(sOnafterscriptexecute_id, cx, "onafterscriptexecute");
 #endif // MOZ_MEDIA
   SET_JSID_TO_STRING(sWrappedJSObject_id, cx, "wrappedJSObject");
+  SET_JSID_TO_STRING(sURL_id,             cx, "URL");
 
   return NS_OK;
 }
@@ -4701,7 +4703,7 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
   // XXX Is there a better way to check this?
   nsISupports *globalNative = XPConnect()->GetNativeOfWrapper(cx, global);
   nsCOMPtr<nsPIDOMWindow> piwin = do_QueryInterface(globalNative);
-  if(!piwin) {
+  if (!piwin) {
     return NS_OK;
   }
 
@@ -4709,6 +4711,15 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
   if (win->IsClosedOrClosing()) {
     return NS_OK;
   }
+
+  // If the window is in a different compartment than the global object, then
+  // it's likely that global is a sandbox object whose prototype is a window.
+  // Don't do anything in this case.
+  if (win->FastGetGlobalJSObject() &&
+      global->compartment() != win->FastGetGlobalJSObject()->compartment()) {
+    return NS_OK;
+  }
+
   if (win->IsOuterWindow()) {
     // XXXjst: Do security checks here when we remove the security
     // checks on the inner window.
@@ -4946,7 +4957,7 @@ nsWindowSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
     }
 
     *parentObj = win->GetCurrentInnerWindowInternal()->FastGetGlobalJSObject();
-    return win->IsChromeWindow() ? NS_OK : NS_SUCCESS_NEEDS_XOW;
+    return NS_OK;
   }
 
   JSObject *winObj = win->FastGetGlobalJSObject();
@@ -6332,6 +6343,13 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
     if (name_struct->mChromeOnly &&
         !nsContentUtils::IsSystemPrincipal(aWin->GetPrincipal())) {
       return NS_OK;
+    }
+
+    // For now don't expose web sockets unless user has explicitly enabled them
+    if (name_struct->mDOMClassInfoID == eDOMClassInfo_WebSocket_id) {
+      if (!nsWebSocket::PrefEnabled()) {
+        return NS_OK;
+      }
     }
 
     // Create the XPConnect prototype for our classinfo, PostCreateProto will

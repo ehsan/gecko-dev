@@ -153,8 +153,10 @@
                     key="key_viewSource"/>
           <menuseparator/>
 #define ID_PREFIX appmenu_developer_
+#define OMIT_ACCESSKEYS
 #include browser-charsetmenu.inc
 #undef ID_PREFIX
+#undef OMIT_ACCESSKEYS
           <menuseparator/>
           <menuitem label="&goOfflineCmd.label;"
                     type="checkbox"
@@ -164,8 +166,10 @@
       </menu>
       <menuseparator class="appmenu-menuseparator"/>
 #define ID_PREFIX appmenu_
+#define OMIT_ACCESSKEYS
 #include browser-charsetmenu.inc
 #undef ID_PREFIX
+#undef OMIT_ACCESSKEYS
       <menuitem id="appmenu_fullScreen"
                 class="menuitem-tooltip"
                 label="&fullScreenCmd.label;"
@@ -279,14 +283,14 @@
                   label="&historyUndoMenu.label;"
                   disabled="true">
               <menupopup id="appmenu_recentlyClosedTabsMenupopup"
-                         onpopupshowing="document.getElementById('appmenu_historyMenu')._placesView.populateUndoSubmenu();"/>
+                         onpopupshowing="document.getElementById('appmenu_history')._placesView.populateUndoSubmenu();"/>
             </menu>
             <menu id="appmenu_recentlyClosedWindowsMenu"
                   class="recentlyClosedWindowsMenu"
                   label="&historyUndoWindowMenu.label;"
                   disabled="true">
               <menupopup id="appmenu_recentlyClosedWindowsMenupopup"
-                         onpopupshowing="document.getElementById('appmenu_historyMenu')._placesView.populateUndoWindowSubmenu();"/>
+                         onpopupshowing="document.getElementById('appmenu_history')._placesView.populateUndoWindowSubmenu();"/>
             </menu>
             <menuseparator/>
           </menupopup>
@@ -351,7 +355,6 @@
                       onclick="checkForMiddleClick(this, event);"/>
             <menuseparator/>
             <menuitem id="appmenu_safeMode"
-                      accesskey="&appMenuSafeMode.accesskey;"
                       label="&appMenuSafeMode.label;"
                       oncommand="safeModeRestart();"/>
             <menuseparator/>

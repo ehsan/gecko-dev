@@ -267,6 +267,7 @@ public:
 
 
 class nsPluginInstanceOwner : public nsIPluginInstanceOwner,
+                              public nsIPluginInstanceOwner_MOZILLA_2_0_BRANCH,
                               public nsIPluginTagInfo,
                               public nsIDOMMouseListener,
                               public nsIDOMMouseMotionListener,
@@ -282,6 +283,7 @@ public:
 
   //nsIPluginInstanceOwner interface
   NS_DECL_NSIPLUGININSTANCEOWNER
+  NS_DECL_NSIPLUGININSTANCEOWNER_MOZILLA_2_0_BRANCH
 
   NS_IMETHOD GetURL(const char *aURL, const char *aTarget,
                     nsIInputStream *aPostStream, 
@@ -387,7 +389,7 @@ public:
   void EndCGPaint();
 #else // XP_MACOSX
   void UpdateWindowPositionAndClipRect(PRBool aSetWindow);
-  void SetWindow();
+  void CallSetWindow();
   void UpdateWindowVisibility(PRBool aVisible);
 #endif // XP_MACOSX
 
@@ -458,8 +460,7 @@ public:
                                      nsIDOMClientRect* clip);
 #endif
 
-  void NotifyPaintWaiter(nsDisplayListBuilder* aBuilder,
-                         LayerManager* aManager);
+  void NotifyPaintWaiter(nsDisplayListBuilder* aBuilder);
   // Return true if we set image with valid surface
   PRBool SetCurrentImage(ImageContainer* aContainer);
 
@@ -1091,19 +1092,19 @@ nsObjectFrame::FixupWindow(const nsSize& aSize)
   NotifyPluginReflowObservers();
 }
 
-void
+nsresult
 nsObjectFrame::CallSetWindow()
 {
   NPWindow *win = nsnull;
  
-  nsresult rv;
+  nsresult rv = NS_ERROR_FAILURE;
   nsCOMPtr<nsIPluginInstance> pi; 
   if (!mInstanceOwner ||
       NS_FAILED(rv = mInstanceOwner->GetInstance(*getter_AddRefs(pi))) ||
       !pi ||
       NS_FAILED(rv = mInstanceOwner->GetWindow(win)) || 
       !win)
-    return;
+    return rv;
 
   nsPluginNativeWindow *window = (nsPluginNativeWindow *)win;
 #ifdef XP_MACOSX
@@ -1111,7 +1112,7 @@ nsObjectFrame::CallSetWindow()
 #endif
 
   if (IsHidden())
-    return;
+    return NS_ERROR_FAILURE;
 
   // refresh the plugin port as well
   window->window = mInstanceOwner->GetPluginPortFromWidget();
@@ -1121,7 +1122,7 @@ nsObjectFrame::CallSetWindow()
   nsPresContext* presContext = PresContext();
   nsRootPresContext* rootPC = presContext->GetRootPresContext();
   if (!rootPC)
-    return;
+    return NS_ERROR_FAILURE;
   PRInt32 appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
   nsIFrame* rootFrame = rootPC->PresShell()->FrameManager()->GetRootFrame();
   nsRect bounds = GetContentRect() + GetParent()->GetOffsetToCrossDoc(rootFrame);
@@ -1134,13 +1135,14 @@ nsObjectFrame::CallSetWindow()
   // this will call pi->SetWindow and take care of window subclassing
   // if needed, see bug 132759.
   if (mInstanceOwner->UseLayers()) {
-    pi->AsyncSetWindow(window);
+    rv = pi->AsyncSetWindow(window);
   }
   else {
-    window->CallSetWindow(pi);
+    rv = window->CallSetWindow(pi);
   }
 
   mInstanceOwner->ReleasePluginPort(window->window);
+  return rv;
 }
 
 PRBool
@@ -1701,8 +1703,7 @@ nsObjectFrame::GetImageContainer()
 }
 
 void
-nsPluginInstanceOwner::NotifyPaintWaiter(nsDisplayListBuilder* aBuilder,
-                                         LayerManager* aManager)
+nsPluginInstanceOwner::NotifyPaintWaiter(nsDisplayListBuilder* aBuilder)
 {
   // This is notification for reftests about async plugin paint start
   if (!mWaitingForPaint && !IsUpToDate() && aBuilder->ShouldSyncDecodeImages()) {
@@ -1777,7 +1778,7 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
     (aBuilder->LayerBuilder()->GetLeafLayerFor(aBuilder, aManager, aItem));
 
   if (!layer) {
-    mInstanceOwner->NotifyPaintWaiter(aBuilder, aManager);
+    mInstanceOwner->NotifyPaintWaiter(aBuilder);
     // Initialize ImageLayer
     layer = aManager->CreateImageLayer();
   }
@@ -1800,6 +1801,10 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
   imglayer->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(this));
 
   layer->SetContentFlags(IsOpaque() ? Layer::CONTENT_OPAQUE : 0);
+
+  if (container->GetCurrentSize() != gfxIntSize(window->width, window->height)) {
+    mInstanceOwner->NotifyPaintWaiter(aBuilder);
+  }
 
   // Set a transform on the layer to draw the plugin in the right place
   gfxMatrix transform;
@@ -2905,6 +2910,7 @@ NS_IMPL_RELEASE(nsPluginInstanceOwner)
 
 NS_INTERFACE_MAP_BEGIN(nsPluginInstanceOwner)
   NS_INTERFACE_MAP_ENTRY(nsIPluginInstanceOwner)
+  NS_INTERFACE_MAP_ENTRY(nsIPluginInstanceOwner_MOZILLA_2_0_BRANCH)
   NS_INTERFACE_MAP_ENTRY(nsIPluginTagInfo)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMouseListener)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMouseMotionListener)
@@ -3278,6 +3284,12 @@ NS_IMETHODIMP nsPluginInstanceOwner::SetEventModel(PRInt32 eventModel)
 #else
   return NS_ERROR_NOT_IMPLEMENTED;
 #endif
+}
+
+NS_IMETHODIMP nsPluginInstanceOwner::SetWindow()
+{
+  NS_ENSURE_TRUE(mObjectFrame, NS_ERROR_NULL_POINTER);
+  return mObjectFrame->CallSetWindow();
 }
 
 NPError nsPluginInstanceOwner::ShowNativeContextMenu(NPMenu* menu, void* event)
@@ -6506,12 +6518,12 @@ void nsPluginInstanceOwner::UpdateWindowPositionAndClipRect(PRBool aSetWindow)
       mPluginWindow->clipRect.top    != oldWindow.clipRect.top    ||
       mPluginWindow->clipRect.right  != oldWindow.clipRect.right  ||
       mPluginWindow->clipRect.bottom != oldWindow.clipRect.bottom) {
-    SetWindow();
+    CallSetWindow();
   }
 }
 
 void
-nsPluginInstanceOwner::SetWindow()
+nsPluginInstanceOwner::CallSetWindow()
 {
   if (!mInstance)
     return;

@@ -378,7 +378,7 @@ public:
         // EGL_KHR_image in the middle of the string, or right at the
         // end.  It's a prefix for other extensions, so we have to do
         // this...
-        PRBool hasKHRImage;
+        PRBool hasKHRImage = PR_FALSE;
         if (strstr(extensions, "EGL_KHR_image ") ||
             (strlen(extensions) >= strlen("EGL_KHR_image") &&
              strcmp(extensions+(strlen(extensions)-strlen("EGL_KHR_image")), "EGL_KHR_image")))
@@ -1543,7 +1543,7 @@ TRY_AGAIN_NO_SHARING:
     if (!glContext->Init())
         return nsnull;
 
-#ifdef XP_WIN
+#if defined(XP_WIN) || defined(ANDROID)
     glContext->SetIsDoubleBuffered(PR_TRUE);
 #endif
 
