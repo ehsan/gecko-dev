@@ -1036,7 +1036,6 @@ SourceScripts.prototype = {
     if (item) {
       DebuggerView.Sources.callMethod("checkItem", item.target, !isBlackBoxed);
     }
-    DebuggerView.Sources.maybeShowBlackBoxMessage();
   },
 
   /**

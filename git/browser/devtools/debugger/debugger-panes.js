@@ -19,7 +19,6 @@ function SourcesView() {
   this._onSourceClick = this._onSourceClick.bind(this);
   this._onBreakpointRemoved = this._onBreakpointRemoved.bind(this);
   this._onSourceCheck = this._onSourceCheck.bind(this);
-  this._onStopBlackBoxing = this._onStopBlackBoxing.bind(this);
   this._onBreakpointClick = this._onBreakpointClick.bind(this);
   this._onBreakpointCheckboxClick = this._onBreakpointCheckboxClick.bind(this);
   this._onConditionalPopupShowing = this._onConditionalPopupShowing.bind(this);
@@ -49,15 +48,12 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     this._cmPopup = document.getElementById("sourceEditorContextMenu");
     this._cbPanel = document.getElementById("conditional-breakpoint-panel");
     this._cbTextbox = document.getElementById("conditional-breakpoint-panel-textbox");
-    this._editorDeck = document.getElementById("editor-deck");
-    this._stopBlackBoxButton = document.getElementById("black-boxed-message-button");
 
     window.addEventListener("Debugger:EditorLoaded", this._onEditorLoad, false);
     window.addEventListener("Debugger:EditorUnloaded", this._onEditorUnload, false);
     this.widget.addEventListener("select", this._onSourceSelect, false);
     this.widget.addEventListener("click", this._onSourceClick, false);
     this.widget.addEventListener("check", this._onSourceCheck, false);
-    this._stopBlackBoxButton.addEventListener("click", this._onStopBlackBoxing, false);
     this._cbPanel.addEventListener("popupshowing", this._onConditionalPopupShowing, false);
     this._cbPanel.addEventListener("popupshown", this._onConditionalPopupShown, false);
     this._cbPanel.addEventListener("popuphiding", this._onConditionalPopupHiding, false);
@@ -81,7 +77,6 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     this.widget.removeEventListener("select", this._onSourceSelect, false);
     this.widget.removeEventListener("click", this._onSourceClick, false);
     this.widget.removeEventListener("check", this._onSourceCheck, false);
-    this._stopBlackBoxButton.removeEventListener("click", this._onStopBlackBoxing, false);
     this._cbPanel.removeEventListener("popupshowing", this._onConditionalPopupShowing, false);
     this._cbPanel.removeEventListener("popupshowing", this._onConditionalPopupShown, false);
     this._cbPanel.removeEventListener("popuphiding", this._onConditionalPopupHiding, false);
@@ -643,18 +638,6 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
     if (DebuggerView.editorSource != selectedSource) {
       DebuggerView.editorSource = selectedSource;
     }
-
-    this.maybeShowBlackBoxMessage();
-  },
-
-  /**
-   * Show or hide the black box message vs. source editor depending on if the
-   * selected source is black boxed or not.
-   */
-  maybeShowBlackBoxMessage: function () {
-    const source = DebuggerController.activeThread.source(
-      DebuggerView.editorSource);
-    this._editorDeck.selectedIndex = source.isBlackBoxed ? 1 : 0;
   },
 
   /**
@@ -671,14 +654,6 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
   _onSourceCheck: function({ detail: { checked }, target }) {
     let item = this.getItemForElement(target);
     DebuggerController.SourceScripts.blackBox(item.attachment.source, !checked);
-  },
-
-  /**
-   * The click listener for the stop black boxing button.
-   */
-  _onStopBlackBoxing: function() {
-    DebuggerController.SourceScripts.blackBox(DebuggerView.editorSource,
-                                              false);
   },
 
   /**

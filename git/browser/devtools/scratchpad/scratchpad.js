@@ -419,7 +419,8 @@ var Scratchpad = {
         this.writeAsErrorComment(aError.exception).then(resolve, reject);
       }
       else if (VariablesView.isPrimitive({ value: aResult })) {
-        this._writePrimitiveAsComment(aResult).then(resolve, reject);
+        this.writeAsComment(aResult.type || aResult);
+        resolve();
       }
       else {
         this.deselect();
@@ -487,13 +488,13 @@ var Scratchpad = {
         this.writeAsErrorComment(aError.exception).then(resolve, reject);
       }
       else if (VariablesView.isPrimitive({ value: aResult })) {
-        this._writePrimitiveAsComment(aResult).then(resolve, reject);
+        this.writeAsComment(aResult.type || aResult);
+        resolve();
       }
       else {
         let gripClient = new GripClient(this.debuggerClient, aResult);
         gripClient.getDisplayString(aResponse => {
           if (aResponse.error) {
-            reportError("display", aResponse);
             reject(aResponse);
           }
           else {
@@ -510,41 +511,6 @@ var Scratchpad = {
     }, reject);
 
     return deferred.promise;
-  },
-
-  /**
-   * Writes out a primitive value as a comment. This handles values which are
-   * to be printed directly (number, string) as well as grips to values
-   * (null, undefined, longString).
-   *
-   * @param any aValue
-   *        The value to print.
-   * @return Promise
-   *         The promise that resolves after the value has been printed.
-   */
-  _writePrimitiveAsComment: function SP__writePrimitiveAsComment(aValue)
-  {
-    let deferred = promise.defer();
-
-    if (aValue.type == "longString") {
-      let client = this.webConsoleClient;
-      client.longString(aValue).substring(0, aValue.length, aResponse => {
-        if (aResponse.error) {
-          reportError("display", aResponse);
-          deferred.reject(aResponse);
-        }
-        else {
-          deferred.resolve(aResponse.substring);
-        }
-      });
-    }
-    else {
-      deferred.resolve(aValue.type || aValue);
-    }
-
-    return deferred.promise.then(aComment => {
-      this.writeAsComment(aComment);
-    });
   },
 
   /**

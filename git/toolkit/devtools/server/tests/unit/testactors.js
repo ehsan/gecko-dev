@@ -60,40 +60,19 @@ function TestTabActor(aConnection, aGlobal)
   this._threadActor = new ThreadActor(this, this._global);
   this.conn.addActor(this._threadActor);
   this._attached = false;
-  this._extraActors = {};
 }
 
 TestTabActor.prototype = {
   constructor: TestTabActor,
   actorPrefix: "TestTabActor",
 
-  get contentWindow() {
-    return { wrappedJSObject: this._global };
-  },
-
   grip: function() {
-    let response = { actor: this.actorID, title: this._global.__name };
-
-    // Walk over tab actors added by extensions and add them to a new ActorPool.
-    let actorPool = new ActorPool(this.conn);
-    this._createExtraActors(DebuggerServer.tabActorFactories, actorPool);
-    if (!actorPool.isEmpty()) {
-      this._tabActorPool = actorPool;
-      this.conn.addActorPool(this._tabActorPool);
-    }
-
-    this._appendExtraActors(response);
-
-    return response;
+    return { actor: this.actorID, title: this._global.__name };
   },
 
   onAttach: function(aRequest) {
     this._attached = true;
-
-    let response = { type: "tabAttached", threadActor: this._threadActor.actorID };
-    this._appendExtraActors(response);
-
-    return response;
+    return { type: "tabAttached", threadActor: this._threadActor.actorID };
   },
 
   onDetach: function(aRequest) {
@@ -102,10 +81,6 @@ TestTabActor.prototype = {
     }
     return { type: "detached" };
   },
-
-  /* Support for DebuggerServer.addTabActor. */
-  _createExtraActors: CommonCreateExtraActors,
-  _appendExtraActors: CommonAppendExtraActors,
 
   // Hooks for use by TestTabActors.
   addToParentPool: function(aActor) {
