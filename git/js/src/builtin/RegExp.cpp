@@ -528,8 +528,7 @@ js_InitRegExpClass(JSContext *cx, HandleObject obj)
 }
 
 RegExpRunStatus
-js::ExecuteRegExp(JSContext *cx, HandleObject regexp, HandleString string,
-                  MatchConduit &matches, RegExpStaticsUpdate staticsUpdate)
+js::ExecuteRegExp(JSContext *cx, HandleObject regexp, HandleString string, MatchConduit &matches)
 {
     /* Step 1 (b) was performed by CallNonGenericMethod. */
     Rooted<RegExpObject*> reobj(cx, &regexp->as<RegExpObject>());
@@ -538,7 +537,7 @@ js::ExecuteRegExp(JSContext *cx, HandleObject regexp, HandleString string,
     if (!reobj->getShared(cx, &re))
         return RegExpRunStatus_Error;
 
-    RegExpStatics *res = (staticsUpdate == UpdateRegExpStatics) ? cx->regExpStatics() : NULL;
+    RegExpStatics *res = cx->regExpStatics();
 
     /* Step 3. */
     Rooted<JSLinearString*> input(cx, string->ensureLinear(cx));
@@ -608,19 +607,27 @@ ExecuteRegExp(JSContext *cx, CallArgs args, MatchConduit &matches)
     if (!string)
         return RegExpRunStatus_Error;
 
-    return ExecuteRegExp(cx, regexp, string, matches, UpdateRegExpStatics);
+    return ExecuteRegExp(cx, regexp, string, matches);
 }
 
 /* ES5 15.10.6.2. */
 static bool
-regexp_exec_impl(JSContext *cx, CallArgs args, HandleObject regexp, HandleString string,
-                 RegExpStaticsUpdate staticsUpdate)
+regexp_exec_impl(JSContext *cx, CallArgs args)
 {
     /* Execute regular expression and gather matches. */
     ScopedMatchPairs matches(&cx->tempLifoAlloc());
     MatchConduit conduit(&matches);
 
-    RegExpRunStatus status = ExecuteRegExp(cx, regexp, string, conduit, staticsUpdate);
+    /*
+     * Extract arguments to share between ExecuteRegExp()
+     * and CreateRegExpMatchResult().
+     */
+    RootedObject regexp(cx, &args.thisv().toObject());
+    RootedString string(cx, ToString<CanGC>(cx, args.handleOrUndefinedAt(0)));
+    if (!string)
+        return false;
+
+    RegExpRunStatus status = ExecuteRegExp(cx, regexp, string, conduit);
 
     if (status == RegExpRunStatus_Error)
         return false;
@@ -633,36 +640,11 @@ regexp_exec_impl(JSContext *cx, CallArgs args, HandleObject regexp, HandleString
     return CreateRegExpMatchResult(cx, string, matches, args.rval());
 }
 
-static bool
-regexp_exec_impl(JSContext *cx, CallArgs args)
-{
-    RootedObject regexp(cx, &args.thisv().toObject());
-    RootedString string(cx, ToString<CanGC>(cx, args.handleOrUndefinedAt(0)));
-    if (!string)
-        return false;
-
-    return regexp_exec_impl(cx, args, regexp, string, UpdateRegExpStatics);
-}
-
 JSBool
 js::regexp_exec(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     return CallNonGenericMethod(cx, IsRegExp, regexp_exec_impl, args);
-}
-
-JSBool
-js::regexp_exec_no_statics(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    JS_ASSERT(args.length() == 2);
-    JS_ASSERT(IsRegExp(args[0]));
-    JS_ASSERT(args[1].isString());
-
-    RootedObject regexp(cx, &args[0].toObject());
-    RootedString string(cx, args[1].toString());
-
-    return regexp_exec_impl(cx, args, regexp, string, DontUpdateRegExpStatics);
 }
 
 /* ES5 15.10.6.3. */
@@ -682,7 +664,7 @@ js::regexp_test_raw(JSContext *cx, HandleObject regexp, HandleString input, JSBo
 {
     MatchPair match;
     MatchConduit conduit(&match);
-    RegExpRunStatus status = ExecuteRegExp(cx, regexp, input, conduit, UpdateRegExpStatics);
+    RegExpRunStatus status = ExecuteRegExp(cx, regexp, input, conduit);
     *result = (status == RegExpRunStatus_Success);
     return (status != RegExpRunStatus_Error);
 }
@@ -692,22 +674,4 @@ js::regexp_test(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     return CallNonGenericMethod(cx, IsRegExp, regexp_test_impl, args);
-}
-
-JSBool
-js::regexp_test_no_statics(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    JS_ASSERT(args.length() == 2);
-    JS_ASSERT(IsRegExp(args[0]));
-    JS_ASSERT(args[1].isString());
-
-    RootedObject regexp(cx, &args[0].toObject());
-    RootedString string(cx, args[1].toString());
-
-    MatchPair match;
-    MatchConduit conduit(&match);
-    RegExpRunStatus status = ExecuteRegExp(cx, regexp, string, conduit, DontUpdateRegExpStatics);
-    args.rval().setBoolean(status == RegExpRunStatus_Success);
-    return (status != RegExpRunStatus_Error);
 }

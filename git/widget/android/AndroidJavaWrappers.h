@@ -571,8 +571,6 @@ public:
     nsGeoPosition* GeoPosition() { return mGeoPosition; }
     double Bandwidth() { return mBandwidth; }
     bool CanBeMetered() { return mCanBeMetered; }
-    bool IsWifi() { return mIsWifi; }
-    int DHCPGateway() { return mDHCPGateway; }
     short ScreenOrientation() { return mScreenOrientation; }
     RefCountedJavaObject* ByteBuffer() { return mByteBuffer; }
     int Width() { return mWidth; }
@@ -607,8 +605,6 @@ protected:
     nsRefPtr<nsGeoPosition> mGeoPosition;
     double mBandwidth;
     bool mCanBeMetered;
-    bool mIsWifi;
-    int mDHCPGateway;
     short mScreenOrientation;
     nsRefPtr<RefCountedJavaObject> mByteBuffer;
     int mWidth, mHeight;
@@ -674,8 +670,6 @@ protected:
 
     static jfieldID jBandwidthField;
     static jfieldID jCanBeMeteredField;
-    static jfieldID jIsWifiField;
-    static jfieldID jDHCPGatewayField;
 
     static jfieldID jScreenOrientationField;
     static jfieldID jByteBufferField;

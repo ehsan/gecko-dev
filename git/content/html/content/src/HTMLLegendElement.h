@@ -21,6 +21,7 @@ public:
   HTMLLegendElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
   {
+    SetIsDOMBinding();
   }
   virtual ~HTMLLegendElement();
 

@@ -1076,8 +1076,7 @@ public:
     : nsInputEvent(isTrusted, msg, w, NS_KEY_EVENT),
       keyCode(0), charCode(0),
       location(nsIDOMKeyEvent::DOM_KEY_LOCATION_STANDARD), isChar(0),
-      mKeyNameIndex(mozilla::widget::KEY_NAME_INDEX_Unidentified),
-      mNativeKeyEvent(nullptr)
+      mKeyNameIndex(mozilla::widget::KEY_NAME_INDEX_Unidentified)
   {
   }
 
@@ -1094,8 +1093,6 @@ public:
   bool            isChar;
   // DOM KeyboardEvent.key
   mozilla::widget::KeyNameIndex mKeyNameIndex;
-  // OS-specific native event can optionally be preserved
-  void*           mNativeKeyEvent;
 
   void GetDOMKeyName(nsAString& aKeyName)
   {

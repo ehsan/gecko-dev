@@ -173,8 +173,6 @@ public class GeckoEvent {
 
     private double mBandwidth;
     private boolean mCanBeMetered;
-    private boolean mIsWifi;
-    private int     mDHCPGateway;
 
     private int mNativeWindow;
 
@@ -649,13 +647,10 @@ public class GeckoEvent {
         return event;
     }
 
-    public static GeckoEvent createNetworkEvent(double bandwidth, boolean canBeMetered,
-                                                boolean isWifi, int DHCPGateway) {
+    public static GeckoEvent createNetworkEvent(double bandwidth, boolean canBeMetered) {
         GeckoEvent event = new GeckoEvent(NativeGeckoEvent.NETWORK_CHANGED);
         event.mBandwidth = bandwidth;
         event.mCanBeMetered = canBeMetered;
-        event.mIsWifi = isWifi;
-        event.mDHCPGateway = DHCPGateway;
         return event;
     }
 

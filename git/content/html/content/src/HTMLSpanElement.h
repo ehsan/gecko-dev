@@ -24,6 +24,7 @@ public:
   HTMLSpanElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
   {
+    SetIsDOMBinding();
   }
   virtual ~HTMLSpanElement();
 

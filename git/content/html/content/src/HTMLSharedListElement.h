@@ -25,6 +25,7 @@ public:
   HTMLSharedListElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
   {
+    SetIsDOMBinding();
   }
   virtual ~HTMLSharedListElement();
 

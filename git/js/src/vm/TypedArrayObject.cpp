@@ -1442,8 +1442,13 @@ class TypedArrayObjectTemplate : public TypedArrayObject
             return true;
         }
 
-        vp.setUndefined();
-        return true;
+        RootedObject proto(cx, tarray->getProto());
+        if (!proto) {
+            vp.setUndefined();
+            return true;
+        }
+
+        return JSObject::getElement(cx, proto, receiver, index, vp);
     }
 
     static JSBool

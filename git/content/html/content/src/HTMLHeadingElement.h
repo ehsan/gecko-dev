@@ -20,6 +20,7 @@ public:
   HTMLHeadingElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
   {
+    SetIsDOMBinding();
   }
   virtual ~HTMLHeadingElement();
 

@@ -24,6 +24,7 @@ public:
     : nsGenericHTMLFormElement(aNodeInfo),
       mHandlingEvent(false)
   {
+    SetIsDOMBinding();
   }
   virtual ~HTMLLabelElement();
 

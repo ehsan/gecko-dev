@@ -2036,7 +2036,7 @@ public class GeckoAppShell
     public interface AppStateListener {
         public void onPause();
         public void onResume();
-        public void onOrientationChanged();
+        public void onConfigurationChanged();
     }
 
     public interface GeckoInterface {

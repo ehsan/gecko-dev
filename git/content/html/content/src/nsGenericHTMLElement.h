@@ -509,7 +509,7 @@ public:
   /**
    * A style attribute mapping function for the most common attributes, to be
    * called by subclasses' attribute mapping functions.  Currently handles
-   * dir, lang and hidden, could handle others.
+   * dir and lang, could handle others.
    *
    * @param aAttributes the list of attributes to map
    * @param aData the returned rule data [INOUT]
@@ -517,15 +517,6 @@ public:
    */
   static void MapCommonAttributesInto(const nsMappedAttributes* aAttributes, 
                                       nsRuleData* aRuleData);
-  /**
-   * Same as MapCommonAttributesInto except that it does not handle hidden.
-   *
-   * @param aAttributes the list of attributes to map
-   * @param aData the returned rule data [INOUT]
-   * @see GetAttributeMappingFunction
-   */
-  static void MapCommonAttributesIntoExceptHidden(const nsMappedAttributes* aAttributes,
-                                                  nsRuleData* aRuleData);
 
   static const MappedAttributeEntry sCommonAttributeMap[];
   static const MappedAttributeEntry sImageMarginSizeAttributeMap[];

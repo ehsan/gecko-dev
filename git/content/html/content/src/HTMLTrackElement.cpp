@@ -72,6 +72,8 @@ HTMLTrackElement::HTMLTrackElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     gTrackElementLog = PR_NewLogModule("nsTrackElement");
   }
 #endif
+
+  SetIsDOMBinding();
 }
 
 HTMLTrackElement::~HTMLTrackElement()

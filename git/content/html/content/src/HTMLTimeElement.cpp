@@ -18,6 +18,7 @@ namespace dom {
 HTMLTimeElement::HTMLTimeElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
+  SetIsDOMBinding();
 }
 
 HTMLTimeElement::~HTMLTimeElement()

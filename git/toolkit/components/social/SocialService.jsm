@@ -96,7 +96,7 @@ let SocialServiceInternal = {
     let hosts = [];
     let providers = {};
 
-    for (let p of SocialServiceInternal.providerArray) {
+    for (p of SocialServiceInternal.providerArray) {
       p.frecency = 0;
       providers[p.domain] = p;
       hosts.push(p.domain);

@@ -322,7 +322,6 @@ public:
     mSubtreeRoot(this),
     mSlots(nullptr)
   {
-    SetIsDOMBinding();
   }
 
 #ifdef _MSC_VER

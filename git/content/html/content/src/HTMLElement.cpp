@@ -45,6 +45,7 @@ protected:
 HTMLElement::HTMLElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
+  SetIsDOMBinding();
 }
 
 HTMLElement::~HTMLElement()

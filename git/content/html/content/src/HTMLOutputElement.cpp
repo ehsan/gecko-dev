@@ -21,6 +21,8 @@ HTMLOutputElement::HTMLOutputElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLFormElement(aNodeInfo)
   , mValueModeFlag(eModeDefault)
 {
+  SetIsDOMBinding();
+
   AddMutationObserver(this);
 
   // We start out valid and ui-valid (since we have no form).

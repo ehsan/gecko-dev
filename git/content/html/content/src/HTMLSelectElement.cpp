@@ -124,6 +124,8 @@ HTMLSelectElement::HTMLSelectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
   AddStatesSilently(NS_EVENT_STATE_ENABLED |
                     NS_EVENT_STATE_OPTIONAL |
                     NS_EVENT_STATE_VALID);
+
+  SetIsDOMBinding();
 }
 
 HTMLSelectElement::~HTMLSelectElement()

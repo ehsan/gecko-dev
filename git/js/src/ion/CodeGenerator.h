@@ -212,6 +212,7 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitClampIToUint8(LClampIToUint8 *lir);
     bool visitClampDToUint8(LClampDToUint8 *lir);
     bool visitClampVToUint8(LClampVToUint8 *lir);
+    bool visitOutOfLineLoadTypedArray(OutOfLineLoadTypedArray *ool);
     bool visitCallIteratorStart(LCallIteratorStart *lir);
     bool visitIteratorStart(LIteratorStart *lir);
     bool visitIteratorNext(LIteratorNext *lir);

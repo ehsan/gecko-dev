@@ -21,6 +21,7 @@ private:
   {
     NS_ABORT_IF_FALSE(mNodeInfo->NodeType() == nsIDOMNode::CDATA_SECTION_NODE,
                       "Bad NodeType in aNodeInfo");
+    SetIsDOMBinding();
   }
 
 public:

@@ -65,6 +65,8 @@ HTMLButtonElement::HTMLButtonElement(already_AddRefed<nsINodeInfo> aNodeInfo,
 
   // Set up our default state: enabled
   AddStatesSilently(NS_EVENT_STATE_ENABLED);
+
+  SetIsDOMBinding();
 }
 
 HTMLButtonElement::~HTMLButtonElement()

@@ -1587,19 +1587,10 @@ abstract public class BrowserApp extends GeckoApp
         ThreadUtils.postToUiThread(new Runnable() {
             @Override
             public void run() {
-                if (fullscreen) {
+                if (fullscreen)
                     mBrowserToolbar.hide();
-                    if (isDynamicToolbarEnabled()) {
-                        mLayerView.getLayerMarginsAnimator().hideMargins(true);
-                        mLayerView.getLayerMarginsAnimator().setMaxMargins(0, 0, 0, 0);
-                    }
-                } else {
+                else
                     mBrowserToolbar.show();
-                    if (isDynamicToolbarEnabled()) {
-                        mLayerView.getLayerMarginsAnimator().showMargins(true);
-                        mLayerView.getLayerMarginsAnimator().setMaxMargins(0, mToolbarHeight, 0, 0);
-                    }
-                }
             }
         });
     }
@@ -1848,16 +1839,11 @@ abstract public class BrowserApp extends GeckoApp
             public synchronized String doInBackground(Void... params) {
                 // Get the most recent URL stored in browser history.
                 String url = "";
-                Cursor c = null;
-                try {
-                    c = BrowserDB.getRecentHistory(getContentResolver(), 1);
-                    if (c.moveToFirst()) {
-                        url = c.getString(c.getColumnIndexOrThrow(Combined.URL));
-                    }
-                } finally {
-                    if (c != null)
-                        c.close();
+                Cursor c = BrowserDB.getRecentHistory(getContentResolver(), 1);
+                if (c.moveToFirst()) {
+                    url = c.getString(c.getColumnIndexOrThrow(Combined.URL));
                 }
+                c.close();
                 return url;
             }
 

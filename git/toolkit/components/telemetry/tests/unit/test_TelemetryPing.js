@@ -18,6 +18,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
+const SERVER = "http://localhost:4444";
 const IGNORE_HISTOGRAM = "test::ignore_me";
 const IGNORE_HISTOGRAM_TO_CLONE = "MEMORY_HEAP_ALLOCATED";
 const IGNORE_CLONED_HISTOGRAM = "test::ignore_me_also";
@@ -40,18 +41,13 @@ const Telemetry = Cc["@mozilla.org/base/telemetry;1"].getService(Ci.nsITelemetry
 const TelemetryPing = Cc["@mozilla.org/base/telemetry-ping;1"].getService(Ci.nsITelemetryPing);
 
 var httpserver = new HttpServer();
-var serverStarted = false;
 var gFinished = false;
 
 function telemetry_ping () {
   TelemetryPing.gatherStartup();
   TelemetryPing.enableLoadSaveNotifications();
   TelemetryPing.cacheProfileDirectory();
-  if (serverStarted) {
-    TelemetryPing.testPing("http://localhost:" + httpserver.identity.primaryPort);
-  } else {
-    TelemetryPing.testPing("http://doesnotexist");
-  }
+  TelemetryPing.testPing(SERVER);
 }
 
 // Mostly useful so that you can dump payloads from decodeRequestPayload.
@@ -87,8 +83,7 @@ function registerPingHandler(handler) {
 }
 
 function nonexistentServerObserver(aSubject, aTopic, aData) {
-  httpserver.start(-1);
-  serverStarted = true;
+  httpserver.start(4444);
 
   // Provide a dummy function so it returns 200 instead of 404 to telemetry.
   registerPingHandler(dummyHandler);

@@ -22,6 +22,7 @@ public:
   HTMLParagraphElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
   {
+    SetIsDOMBinding();
   }
   virtual ~HTMLParagraphElement();
 

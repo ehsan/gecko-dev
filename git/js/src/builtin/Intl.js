@@ -67,21 +67,7 @@ function toASCIIUpperCase(s) {
  */
 var unicodeLocaleExtensionSequence = "-u(-[a-z0-9]{2,8})+";
 var unicodeLocaleExtensionSequenceRE = new RegExp(unicodeLocaleExtensionSequence);
-
-
-/**
- * Removes Unicode locale extension sequences from the given language tag.
- */
-function removeUnicodeExtensions(locale) {
-    // Don't use std_String_replace directly with a regular expression,
-    // as that would set RegExp statics.
-    var extensions;
-    while ((extensions = regexp_exec_no_statics(unicodeLocaleExtensionSequenceRE, locale)) !== null) {
-        locale = callFunction(std_String_replace, locale, extensions[0], "");
-        unicodeLocaleExtensionSequenceRE.lastIndex = 0;
-    }
-    return locale;
-}
+var unicodeLocaleExtensionSequenceGlobalRE = new RegExp(unicodeLocaleExtensionSequence, "g");
 
 
 /**
@@ -261,7 +247,7 @@ var duplicateSingletonRE = (function () {
  */
 function IsStructurallyValidLanguageTag(locale) {
     assert(typeof locale === "string", "IsStructurallyValidLanguageTag");
-    if (!regexp_test_no_statics(languageTagRE, locale))
+    if (!callFunction(std_RegExp_test, languageTagRE, locale))
         return false;
 
     // Before checking for duplicate variant or singleton subtags with
@@ -274,8 +260,8 @@ function IsStructurallyValidLanguageTag(locale) {
         locale = callFunction(std_String_substring, locale, 0, pos);
 
     // Check for duplicate variant or singleton subtags.
-    return !regexp_test_no_statics(duplicateVariantRE, locale) &&
-           !regexp_test_no_statics(duplicateSingletonRE, locale);
+    return !callFunction(std_RegExp_test, duplicateVariantRE, locale) &&
+           !callFunction(std_RegExp_test, duplicateSingletonRE, locale);
 }
 
 
@@ -457,7 +443,7 @@ function IsWellFormedCurrencyCode(currency) {
     var normalized = toASCIIUpperCase(c);
     if (normalized.length !== 3)
         return false;
-    return !regexp_test_no_statics(/[^A-Z]/, normalized);
+    return !callFunction(std_RegExp_test, /[^A-Z]/, normalized);
 }
 
 
@@ -562,7 +548,7 @@ function LookupMatcher(availableLocales, requestedLocales) {
     var locale, noExtensionsLocale;
     while (i < len && availableLocale === undefined) {
         locale = requestedLocales[i];
-        noExtensionsLocale = removeUnicodeExtensions(locale);
+        noExtensionsLocale = callFunction(std_String_replace, locale, unicodeLocaleExtensionSequenceGlobalRE, "");
         availableLocale = BestAvailableLocale(availableLocales, noExtensionsLocale);
         i++;
     }
@@ -571,7 +557,7 @@ function LookupMatcher(availableLocales, requestedLocales) {
     if (availableLocale !== undefined) {
         result.locale = availableLocale;
         if (locale !== noExtensionsLocale) {
-            var extensionMatch = regexp_exec_no_statics(unicodeLocaleExtensionSequenceRE, locale);
+            var extensionMatch = callFunction(std_String_match, locale, unicodeLocaleExtensionSequenceRE);
             var extension = extensionMatch[0];
             var extensionIndex = extensionMatch.index;
             result.extension = extension;
@@ -755,7 +741,7 @@ function LookupSupportedLocales(availableLocales, requestedLocales) {
     while (k < len) {
         // Steps 4.a-b.
         var locale = requestedLocales[k];
-        var noExtensionsLocale = removeUnicodeExtensions(locale);
+        var noExtensionsLocale = callFunction(std_String_replace, locale, unicodeLocaleExtensionSequenceGlobalRE, "");
 
         // Step 4.c-d.
         var availableLocale = BestAvailableLocale(availableLocales, noExtensionsLocale);
@@ -1392,7 +1378,7 @@ var currencyDigits = {
  */
 function CurrencyDigits(currency) {
     assert(typeof currency === "string", "CurrencyDigits");
-    assert(regexp_test_no_statics(/^[A-Z]{3}$/, currency), "CurrencyDigits");
+    assert(callFunction(std_RegExp_test, /^[A-Z]{3}$/, currency), "CurrencyDigits");
 
     if (callFunction(std_Object_hasOwnProperty, currencyDigits, currency))
         return currencyDigits[currency];

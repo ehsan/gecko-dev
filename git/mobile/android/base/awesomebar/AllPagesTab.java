@@ -866,11 +866,8 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
     }
 
     public void storeFaviconsInMemCache(Cursor c) {
-        if (c == null)
-            return;
-
         try {
-            if (!c.moveToFirst())
+            if (c == null || !c.moveToFirst())
                 return;
 
             do {
@@ -887,7 +884,8 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
                 Favicons.getInstance().putFaviconInMemCache(url, favicon);
             } while (c.moveToNext());
         } finally {
-            c.close();
+            if (c != null)
+                c.close();
         }
     }
 

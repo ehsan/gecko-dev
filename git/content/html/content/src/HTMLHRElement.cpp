@@ -14,6 +14,7 @@ namespace dom {
 HTMLHRElement::HTMLHRElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
+  SetIsDOMBinding();
 }
 
 HTMLHRElement::~HTMLHRElement()
