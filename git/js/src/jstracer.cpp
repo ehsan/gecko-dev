@@ -1352,11 +1352,7 @@ TraceRecorder::emitTreeCall(Fragment* inner, GuardRecord* lr)
     if (callDepth > 0) {
         /* Calculate the amount we have to lift the native stack pointer by to compensate for
            any outer frames that the inner tree doesn't expect but the outer tree has. */
-        ptrdiff_t sp_adj = nativeStackOffset(&cx->fp->argv[-2]);
-        /* sp points to the native stack base of the outer tree and the inner tree might
-           need a different native stack base, so compensate for that. */
-        sp_adj -= treeInfo->nativeStackBase;
-        sp_adj += ti->nativeStackBase;
+        ptrdiff_t sp_adj = nativeStackOffset(&cx->fp->argv[-1]);
         /* Calculate the amount we have to lift the call stack by */
         ptrdiff_t rp_adj = callDepth * sizeof(FrameInfo);
         /* Guard that we have enough stack space for the tree we are trying to call on top
@@ -2171,6 +2167,9 @@ TraceRecorder::cmp(LOpcode op, bool negate)
             return false;
         }
     } else if (isNumber(l) || isNumber(r)) {
+        jsval temp_r = r;
+        jsval temp_l = l;
+
         // TODO: coerce non-numbers to numbers if it's not string-on-string above
         LIns* l_ins = get(&l);
         LIns* r_ins = get(&r);
@@ -2191,7 +2190,7 @@ TraceRecorder::cmp(LOpcode op, bool negate)
         } else if (!isNumber(l)) {
             ABORT_TRACE("unsupported LHS type for cmp vs number");
         }
-        lnum = js_ValueToNumber(cx, &l);
+        lnum = js_ValueToNumber(cx, &temp_l);
 
         args[0] = get(&r);
         if (JSVAL_IS_STRING(r)) {
@@ -2202,9 +2201,10 @@ TraceRecorder::cmp(LOpcode op, bool negate)
         } else if (!isNumber(r)) {
             ABORT_TRACE("unsupported RHS type for cmp vs number");
         }
-        rnum = js_ValueToNumber(cx, &r);
+        rnum = js_ValueToNumber(cx, &temp_r);
 
         x = lir->ins2(op, l_ins, r_ins);
+
         if (negate)
             x = lir->ins_eq0(x);
         switch (op) {
