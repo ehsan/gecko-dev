@@ -79,7 +79,6 @@ nsXPConnect::nsXPConnect()
         mDefaultSecurityManager(nullptr),
         mDefaultSecurityManagerFlags(0),
         mShuttingDown(false),
-        mNeedGCBeforeCC(true),
         mEventDepth(0),
         mCycleCollectionContext(nullptr)
 {
@@ -317,7 +316,7 @@ nsXPConnect::GetInfoForName(const char * name, nsIInterfaceInfo** info)
 bool
 nsXPConnect::NeedCollect()
 {
-    return !!mNeedGCBeforeCC;
+    return !js::AreGCGrayBitsValid(GetRuntime()->GetJSRuntime());
 }
 
 void
@@ -590,98 +589,6 @@ xpc_GCThingIsGrayCCThing(void *thing)
            xpc_IsGrayGCThing(thing);
 }
 
-struct UnmarkGrayTracer : public JSTracer
-{
-    UnmarkGrayTracer() : mTracingShape(false), mPreviousShape(nullptr) {}
-    UnmarkGrayTracer(JSTracer *trc, bool aTracingShape)
-        : mTracingShape(aTracingShape), mPreviousShape(nullptr)
-    {
-        JS_TracerInit(this, trc->runtime, trc->callback);
-    }
-    bool mTracingShape; // true iff we are tracing the immediate children of a shape
-    void *mPreviousShape; // If mTracingShape, shape child or NULL. Otherwise, NULL.
-};
-
-/*
- * The GC and CC are run independently. Consequently, the following sequence of
- * events can occur:
- * 1. GC runs and marks an object gray.
- * 2. Some JS code runs that creates a pointer from a JS root to the gray
- *    object. If we re-ran a GC at this point, the object would now be black.
- * 3. Now we run the CC. It may think it can collect the gray object, even
- *    though it's reachable from the JS heap.
- *
- * To prevent this badness, we unmark the gray bit of an object when it is
- * accessed by callers outside XPConnect. This would cause the object to go
- * black in step 2 above. This must be done on everything reachable from the
- * object being returned. The following code takes care of the recursive
- * re-coloring.
- */
-static void
-UnmarkGrayChildren(JSTracer *trc, void **thingp, JSGCTraceKind kind)
-{
-    void *thing = *thingp;
-    int stackDummy;
-    if (!JS_CHECK_STACK_SIZE(js::GetNativeStackLimit(trc->runtime), &stackDummy)) {
-        /*
-         * If we run out of stack, we take a more drastic measure: require that
-         * we GC again before the next CC.
-         */
-        nsXPConnect* xpc = nsXPConnect::GetXPConnect();
-        xpc->EnsureGCBeforeCC();
-        return;
-    }
-
-    if (!xpc_IsGrayGCThing(thing))
-        return;
-
-    js::UnmarkGrayGCThing(thing);
-
-    /*
-     * Trace children of |thing|. If |thing| and its parent are both shapes, |thing| will
-     * get saved to mPreviousShape without being traced. The parent will later
-     * trace |thing|. This is done to avoid increasing the stack depth during shape
-     * tracing. It is safe to do because a shape can only have one child that is a shape.
-     */
-    UnmarkGrayTracer *tracer = static_cast<UnmarkGrayTracer*>(trc);
-    UnmarkGrayTracer childTracer(tracer, kind == JSTRACE_SHAPE);
-
-    if (kind != JSTRACE_SHAPE) {
-        JS_TraceChildren(&childTracer, thing, kind);
-        MOZ_ASSERT(!childTracer.mPreviousShape);
-        return;
-    }
-
-    if (tracer->mTracingShape) {
-        MOZ_ASSERT(!tracer->mPreviousShape);
-        tracer->mPreviousShape = thing;
-        return;
-    }
-
-    do {
-        MOZ_ASSERT(!xpc_IsGrayGCThing(thing));
-        JS_TraceChildren(&childTracer, thing, JSTRACE_SHAPE);
-        thing = childTracer.mPreviousShape;
-        childTracer.mPreviousShape = nullptr;
-    } while (thing);
-}
-
-void
-xpc_UnmarkGrayGCThingRecursive(void *thing, JSGCTraceKind kind)
-{
-    MOZ_ASSERT(thing, "Don't pass me null!");
-    MOZ_ASSERT(kind != JSTRACE_SHAPE, "UnmarkGrayGCThingRecursive not intended for Shapes");
-
-    // Unmark.
-    js::UnmarkGrayGCThing(thing);
-
-    // Trace children.
-    UnmarkGrayTracer trc;
-    JSRuntime *rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
-    JS_TracerInit(&trc, rt, UnmarkGrayChildren);
-    JS_TraceChildren(&trc, thing, kind);
-}
-
 struct TraversalTracer : public JSTracer
 {
     TraversalTracer(nsCycleCollectionTraversalCallback &aCb) : cb(aCb)
@@ -852,14 +759,13 @@ NoteGCThingXPCOMChildren(js::Class *clasp, JSObject *obj,
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "xpc_GetJSPrivate(obj)");
         cb.NoteXPCOMChild(static_cast<nsISupports*>(xpc_GetJSPrivate(obj)));
     } else {
-        const DOMClass* domClass;
-        DOMObjectSlot slot = GetDOMClass(obj, domClass);
-        if (slot != eNonDOMObject) {
+        const DOMClass* domClass = GetDOMClass(obj);
+        if (domClass) {
             NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "UnwrapDOMObject(obj)");
             if (domClass->mDOMObjectIsISupports) {
-                cb.NoteXPCOMChild(UnwrapDOMObject<nsISupports>(obj, slot));
+                cb.NoteXPCOMChild(UnwrapDOMObject<nsISupports>(obj));
             } else if (domClass->mParticipant) {
-                cb.NoteNativeChild(UnwrapDOMObject<void>(obj, slot),
+                cb.NoteNativeChild(UnwrapDOMObject<void>(obj),
                                    domClass->mParticipant);
             }
         }
@@ -915,10 +821,6 @@ public:
     }
     static NS_METHOD UnlinkImpl(void *n)
     {
-        JSContext *cx = static_cast<JSContext*>(n);
-        JSAutoRequest ar(cx);
-        NS_ASSERTION(JS_GetGlobalObject(cx), "global object NULL before unlinking");
-        JS_SetGlobalObject(cx, NULL);
         return NS_OK;
     }
     static NS_METHOD UnrootImpl(void *n)
@@ -1395,8 +1297,11 @@ nsXPConnect::GetNativeOfWrapper(JSContext * aJSContext,
     if (obj2)
         return (nsISupports*)xpc_GetJSPrivate(obj2);
 
+    JSObject* unsafeObj =
+        XPCWrapper::Unwrap(aJSContext, aJSObj, /* stopAtOuter = */ false);
+    JSObject* cur = unsafeObj ? unsafeObj : aJSObj;
     nsISupports* supports = nullptr;
-    mozilla::dom::UnwrapDOMObjectToISupports(aJSObj, supports);
+    mozilla::dom::UnwrapDOMObjectToISupports(cur, supports);
     nsCOMPtr<nsISupports> canonical = do_QueryInterface(supports);
     return canonical;
 }
@@ -1474,13 +1379,15 @@ nsXPConnect::GetWrappedNativeOfNativeObject(JSContext * aJSContext,
     return NS_OK;
 }
 
-/* nsIXPConnectJSObjectHolder reparentWrappedNativeIfFound (in JSContextPtr aJSContext, in JSObjectPtr aScope, in JSObjectPtr aNewParent, in nsISupports aCOMObj); */
+/* void reparentWrappedNativeIfFound (in JSContextPtr aJSContext,
+ *                                    in JSObjectPtr aScope,
+ *                                    in JSObjectPtr aNewParent,
+ *                                    in nsISupports aCOMObj); */
 NS_IMETHODIMP
 nsXPConnect::ReparentWrappedNativeIfFound(JSContext * aJSContext,
                                           JSObject * aScope,
                                           JSObject * aNewParent,
-                                          nsISupports *aCOMObj,
-                                          nsIXPConnectJSObjectHolder **_retval)
+                                          nsISupports *aCOMObj)
 {
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
     if (!ccx.IsValid())
@@ -1492,8 +1399,8 @@ nsXPConnect::ReparentWrappedNativeIfFound(JSContext * aJSContext,
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
     return XPCWrappedNative::
-        ReparentWrapperIfFound(ccx, scope, scope2, aNewParent, aCOMObj,
-                               (XPCWrappedNative**) _retval);
+        ReparentWrapperIfFound(ccx, scope, scope2, aNewParent,
+                               aCOMObj);
 }
 
 static JSDHashOperator
@@ -2029,26 +1936,25 @@ nsXPConnect::OnDispatchedEvent(nsIThreadInternal* aThread)
     return NS_ERROR_UNEXPECTED;
 }
 
-NS_IMETHODIMP
+void
 nsXPConnect::AddJSHolder(void* aHolder, nsScriptObjectTracer* aTracer)
 {
-    return mRuntime->AddJSHolder(aHolder, aTracer);
+    mRuntime->AddJSHolder(aHolder, aTracer);
 }
 
-NS_IMETHODIMP
+void
 nsXPConnect::RemoveJSHolder(void* aHolder)
 {
-    return mRuntime->RemoveJSHolder(aHolder);
+    mRuntime->RemoveJSHolder(aHolder);
 }
 
-NS_IMETHODIMP
-nsXPConnect::TestJSHolder(void* aHolder, bool* aRetval)
+bool
+nsXPConnect::TestJSHolder(void* aHolder)
 {
 #ifdef DEBUG
-    return mRuntime->TestJSHolder(aHolder, aRetval);
+    return mRuntime->TestJSHolder(aHolder);
 #else
-    MOZ_ASSERT(false);
-    return NS_ERROR_FAILURE;
+    return false;
 #endif
 }
 
@@ -2719,6 +2625,22 @@ nsXPConnect::ReadFunction(nsIObjectInputStream *stream, JSContext *cx, JSObject 
 {
     return ReadScriptOrFunction(stream, cx, nullptr, functionObjp);
 }
+
+#ifdef DEBUG
+void
+nsXPConnect::SetObjectToUnlink(void* aObject)
+{
+    if (mRuntime)
+        mRuntime->SetObjectToUnlink(aObject);
+}
+
+void
+nsXPConnect::AssertNoObjectsToTrace(void* aPossibleJSHolder)
+{
+    if (mRuntime)
+        mRuntime->AssertNoObjectsToTrace(aPossibleJSHolder);
+}
+#endif
 
 /* These are here to be callable from a debugger */
 JS_BEGIN_EXTERN_C

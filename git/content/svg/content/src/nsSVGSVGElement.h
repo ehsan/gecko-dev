@@ -6,28 +6,28 @@
 #ifndef __NS_SVGSVGELEMENT_H__
 #define __NS_SVGSVGELEMENT_H__
 
-#include "DOMSVGTests.h"
 #include "mozilla/dom/FromParser.h"
 #include "nsIDOMSVGFitToViewBox.h"
 #include "nsIDOMSVGLocatable.h"
-#include "nsIDOMSVGPoint.h"
+#include "nsISVGPoint.h"
 #include "nsIDOMSVGSVGElement.h"
 #include "nsIDOMSVGZoomAndPan.h"
 #include "nsSVGEnum.h"
 #include "nsSVGLength2.h"
-#include "nsSVGStylableElement.h"
+#include "SVGGraphicsElement.h"
 #include "nsSVGViewBox.h"
+#include "SVGPreserveAspectRatio.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
 #include "mozilla/Attributes.h"
 
-class nsIDOMSVGMatrix;
 class nsSMILTimeContainer;
 class nsSVGViewElement;
 namespace mozilla {
+  class DOMSVGMatrix;
   class SVGFragmentIdentifier;
 }
 
-typedef nsSVGStylableElement nsSVGSVGElementBase;
+typedef mozilla::dom::SVGGraphicsElement nsSVGSVGElementBase;
 
 class nsSVGSVGElement;
 
@@ -52,7 +52,7 @@ public:
   float GetY() const
     { return mY; }
 
-  nsresult ToDOMVal(nsSVGSVGElement *aElement, nsIDOMSVGPoint **aResult);
+  nsresult ToDOMVal(nsSVGSVGElement *aElement, nsISupports **aResult);
 
   bool operator!=(const nsSVGTranslatePoint &rhs) const {
     return mX != rhs.mX || mY != rhs.mY;
@@ -60,23 +60,21 @@ public:
 
 private:
 
-  struct DOMVal MOZ_FINAL : public nsIDOMSVGPoint {
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS(DOMVal)
-
+  struct DOMVal MOZ_FINAL : public mozilla::nsISVGPoint {
     DOMVal(nsSVGTranslatePoint* aVal, nsSVGSVGElement *aElement)
-      : mVal(aVal), mElement(aElement) {}
+      : mozilla::nsISVGPoint(), mVal(aVal), mElement(aElement) {}
 
-    NS_IMETHOD GetX(float *aValue)
-      { *aValue = mVal->GetX(); return NS_OK; }
-    NS_IMETHOD GetY(float *aValue)
-      { *aValue = mVal->GetY(); return NS_OK; }
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMVal)
 
-    NS_IMETHOD SetX(float aValue);
-    NS_IMETHOD SetY(float aValue);
+    // WebIDL
+    virtual float X() { return mVal->GetX(); }
+    virtual float Y() { return mVal->GetY(); }
+    virtual void SetX(float aValue, mozilla::ErrorResult& rv);
+    virtual void SetY(float aValue, mozilla::ErrorResult& rv);
+    virtual already_AddRefed<mozilla::nsISVGPoint> MatrixTransform(mozilla::DOMSVGMatrix& matrix);
 
-    NS_IMETHOD MatrixTransform(nsIDOMSVGMatrix *matrix,
-                               nsIDOMSVGPoint **_retval);
+    virtual nsISupports* GetParentObject() MOZ_OVERRIDE;
 
     nsSVGTranslatePoint *mVal; // kept alive because it belongs to mElement
     nsRefPtr<nsSVGSVGElement> mElement;
@@ -101,9 +99,7 @@ public:
 
 class nsSVGSVGElement : public nsSVGSVGElementBase,
                         public nsIDOMSVGSVGElement,
-                        public DOMSVGTests,
                         public nsIDOMSVGFitToViewBox,
-                        public nsIDOMSVGLocatable,
                         public nsIDOMSVGZoomAndPan
 {
   friend class nsSVGOuterSVGFrame;
@@ -126,7 +122,6 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsSVGSVGElement, nsSVGSVGElementBase)
   NS_DECL_NSIDOMSVGSVGELEMENT
   NS_DECL_NSIDOMSVGFITTOVIEWBOX
-  NS_DECL_NSIDOMSVGLOCATABLE
   NS_DECL_NSIDOMSVGZOOMANDPAN
   
   // xxx I wish we could use virtual inheritance
@@ -166,6 +161,8 @@ public:
   // nsIContent interface
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
+
+  virtual bool IsEventAttributeName(nsIAtom* aName) MOZ_OVERRIDE;
 
   // nsSVGElement specializations:
   virtual gfxMatrix PrependLocalTransformsTo(const gfxMatrix &aMatrix,
@@ -256,7 +253,6 @@ public:
 
 private:
   // nsSVGElement overrides
-  bool IsEventName(nsIAtom* aName);
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,

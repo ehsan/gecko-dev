@@ -7,16 +7,50 @@
 this.EXPORTED_SYMBOLS = ["webrtcUI"];
 
 const Cu = Components.utils;
+const Cc = Components.classes;
 const Ci = Components.interfaces;
 
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/PluralForm.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+
+XPCOMUtils.defineLazyServiceGetter(this, "MediaManagerService",
+                                   "@mozilla.org/mediaManagerService;1",
+                                   "nsIMediaManagerService");
 
 this.webrtcUI = {
   init: function () {
     Services.obs.addObserver(handleRequest, "getUserMedia:request", false);
+    Services.obs.addObserver(updateGlobalIndicator, "recording-device-events", false);
   },
+
   uninit: function () {
     Services.obs.removeObserver(handleRequest, "getUserMedia:request");
+    Services.obs.removeObserver(updateGlobalIndicator, "recording-device-events");
+  },
+
+  showGlobalIndicator: false,
+
+  get activeStreams() {
+    let contentWindowSupportsArray = MediaManagerService.activeMediaCaptureWindows;
+    let count = contentWindowSupportsArray.Count();
+    let activeStreams = [];
+    for (let i = 0; i < count; i++) {
+      let contentWindow = contentWindowSupportsArray.GetElementAt(i);
+      let browserWindow = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                       .getInterface(Ci.nsIWebNavigation)
+                                       .QueryInterface(Ci.nsIDocShell)
+                                       .chromeEventHandler.ownerDocument.defaultView;
+      let tab = browserWindow.gBrowser &&
+                browserWindow.gBrowser._getTabForContentWindow(contentWindow.top);
+      if (tab) {
+        activeStreams.push({
+          uri: contentWindow.location.href,
+          tab: tab
+        });
+      }
+    }
+    return activeStreams;
   }
 }
 
@@ -63,61 +97,92 @@ function prompt(aBrowser, aCallID, aAudioRequested, aVideoRequested, aDevices) {
 
   let requestType;
   if (audioDevices.length && videoDevices.length)
-    requestType = "shareCameraAndMicrophone";
+    requestType = "CameraAndMicrophone";
   else if (audioDevices.length)
-    requestType = "shareMicrophone";
+    requestType = "Microphone";
   else if (videoDevices.length)
-    requestType = "shareCamera";
+    requestType = "Camera";
   else
     return;
 
   let host = aBrowser.contentDocument.documentURIObject.asciiHost;
-  let chromeWin = aBrowser.ownerDocument.defaultView;
+  let chromeDoc = aBrowser.ownerDocument;
+  let chromeWin = chromeDoc.defaultView;
   let stringBundle = chromeWin.gNavigatorBundle;
-  let message = stringBundle.getFormattedString("getUserMedia." + requestType + ".message",
+  let message = stringBundle.getFormattedString("getUserMedia.share" + requestType + ".message",
                                                 [ host ]);
 
+  function listDevices(menupopup, devices) {
+    while (menupopup.lastChild)
+      menupopup.removeChild(menupopup.lastChild);
+
+    let deviceIndex = 0;
+    for (let device of devices) {
+      let menuitem = chromeDoc.createElement("menuitem");
+      menuitem.setAttribute("value", deviceIndex);
+      menuitem.setAttribute("label", device.name);
+      menuitem.setAttribute("tooltiptext", device.name);
+      menupopup.appendChild(menuitem);
+      deviceIndex++;
+    }
+  }
+
+  chromeDoc.getElementById("webRTC-selectCamera").hidden = !videoDevices.length;
+  chromeDoc.getElementById("webRTC-selectMicrophone").hidden = !audioDevices.length;
+  listDevices(chromeDoc.getElementById("webRTC-selectCamera-menupopup"), videoDevices);
+  listDevices(chromeDoc.getElementById("webRTC-selectMicrophone-menupopup"), audioDevices);
+
   let mainAction = {
-    label: stringBundle.getString("getUserMedia." + requestType + ".label"),
-    accessKey: stringBundle.getString("getUserMedia." + requestType + ".accesskey"),
+    label: PluralForm.get(requestType == "CameraAndMicrophone" ? 2 : 1,
+                          stringBundle.getString("getUserMedia.shareSelectedDevices.label")),
+    accessKey: stringBundle.getString("getUserMedia.shareSelectedDevices.accesskey"),
     callback: function () {
-      Services.obs.notifyObservers(null, "getUserMedia:response:allow", aCallID);
+      let allowedDevices = Cc["@mozilla.org/supports-array;1"]
+                             .createInstance(Ci.nsISupportsArray);
+      if (videoDevices.length) {
+        let videoDeviceIndex = chromeDoc.getElementById("webRTC-selectCamera-menulist").value;
+        allowedDevices.AppendElement(videoDevices[videoDeviceIndex]);
+      }
+      if (audioDevices.length) {
+        let audioDeviceIndex = chromeDoc.getElementById("webRTC-selectMicrophone-menulist").value;
+        allowedDevices.AppendElement(audioDevices[audioDeviceIndex]);
+      }
+      Services.obs.notifyObservers(allowedDevices, "getUserMedia:response:allow", aCallID);
+
+      // Show browser-specific indicator for the active camera/mic access.
+      let message = stringBundle.getFormattedString("getUserMedia.sharing" + requestType + ".message",
+                                                    [ host ]);
+      let mainAction = null;
+      let secondaryActions = null;
+      let options = {
+        dismissed: true
+      };
+      chromeWin.PopupNotifications.show(aBrowser, "webRTC-sharingDevices", message,
+                                        "webRTC-sharingDevices-notification-icon", mainAction,
+                                        secondaryActions, options);
     }
   };
 
-  let secondaryActions = [];
-  let selectableDevices = videoDevices.length ? videoDevices : audioDevices;
-  if (selectableDevices.length > 1) {
-    let selectableDeviceNumber = 0;
-    for (let device of selectableDevices) {
-      // See bug 449811 for why we do this
-      let actual_device = device;
-      selectableDeviceNumber++;
-      secondaryActions.push({
-        label: stringBundle.getFormattedString(
-                 device.type == "audio" ?
-                   "getUserMedia.shareSpecificMicrophone.label" :
-                   "getUserMedia.shareSpecificCamera.label",
-                 [ device.name ]),
-        accessKey: selectableDeviceNumber,
-        callback: function () {
-          Services.obs.notifyObservers(actual_device, "getUserMedia:response:allow", aCallID);
-        }
-      });
-    }
-  }
-  secondaryActions.push({
+  let secondaryActions = [{
     label: stringBundle.getString("getUserMedia.denyRequest.label"),
     accessKey: stringBundle.getString("getUserMedia.denyRequest.accesskey"),
     callback: function () {
       Services.obs.notifyObservers(null, "getUserMedia:response:deny", aCallID);
     }
-  });
+  }];
 
-  let options = {
-  };
+  let options = null;
 
   chromeWin.PopupNotifications.show(aBrowser, "webRTC-shareDevices", message,
-                                    "webRTC-notification-icon", mainAction,
+                                    "webRTC-shareDevices-notification-icon", mainAction,
                                     secondaryActions, options);
+}
+
+function updateGlobalIndicator() {
+  webrtcUI.showGlobalIndicator =
+    MediaManagerService.activeMediaCaptureWindows.Count() > 0;
+
+  let e = Services.wm.getEnumerator("navigator:browser");
+  while (e.hasMoreElements())
+    e.getNext().WebrtcIndicator.updateButton();
 }

@@ -23,7 +23,7 @@
 
 #include "nsFontMetrics.h"
 #include "nsIRollupListener.h"
-#include "nsIViewManager.h"
+#include "nsViewManager.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIFile.h"
 #include "nsILocalFileMac.h"
@@ -51,10 +51,11 @@
 #include "nsRegion.h"
 #include "Layers.h"
 #include "LayerManagerOGL.h"
-#include "GLContext.h"
+#include "GLTextureImage.h"
 #include "mozilla/layers/CompositorCocoaWidgetHelper.h"
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
+#include "mozilla/a11y/Platform.h"
 #endif
 
 #include "mozilla/Preferences.h"
@@ -795,15 +796,18 @@ NS_IMETHODIMP nsChildView::ConstrainPosition(bool aAllowSlop,
 }
 
 // Move this component, aX and aY are in the parent widget coordinate system
-NS_IMETHODIMP nsChildView::Move(int32_t aX, int32_t aY)
+NS_IMETHODIMP nsChildView::Move(double aX, double aY)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  if (!mView || (mBounds.x == aX && mBounds.y == aY))
+  int32_t x = NSToIntRound(aX);
+  int32_t y = NSToIntRound(aY);
+
+  if (!mView || (mBounds.x == x && mBounds.y == y))
     return NS_OK;
 
-  mBounds.x = aX;
-  mBounds.y = aY;
+  mBounds.x = x;
+  mBounds.y = y;
 
   [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
 
@@ -818,15 +822,18 @@ NS_IMETHODIMP nsChildView::Move(int32_t aX, int32_t aY)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-NS_IMETHODIMP nsChildView::Resize(int32_t aWidth, int32_t aHeight, bool aRepaint)
+NS_IMETHODIMP nsChildView::Resize(double aWidth, double aHeight, bool aRepaint)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  if (!mView || (mBounds.width == aWidth && mBounds.height == aHeight))
+  int32_t width = NSToIntRound(aWidth);
+  int32_t height = NSToIntRound(aHeight);
+
+  if (!mView || (mBounds.width == width && mBounds.height == height))
     return NS_OK;
 
-  mBounds.width  = aWidth;
-  mBounds.height = aHeight;
+  mBounds.width  = width;
+  mBounds.height = height;
 
   [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
 
@@ -841,22 +848,28 @@ NS_IMETHODIMP nsChildView::Resize(int32_t aWidth, int32_t aHeight, bool aRepaint
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-NS_IMETHODIMP nsChildView::Resize(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight, bool aRepaint)
+NS_IMETHODIMP nsChildView::Resize(double aX, double aY,
+                                  double aWidth, double aHeight, bool aRepaint)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  BOOL isMoving = (mBounds.x != aX || mBounds.y != aY);
-  BOOL isResizing = (mBounds.width != aWidth || mBounds.height != aHeight);
+  int32_t x = NSToIntRound(aX);
+  int32_t y = NSToIntRound(aY);
+  int32_t width = NSToIntRound(aWidth);
+  int32_t height = NSToIntRound(aHeight);
+
+  BOOL isMoving = (mBounds.x != x || mBounds.y != y);
+  BOOL isResizing = (mBounds.width != width || mBounds.height != height);
   if (!mView || (!isMoving && !isResizing))
     return NS_OK;
 
   if (isMoving) {
-    mBounds.x = aX;
-    mBounds.y = aY;
+    mBounds.x = x;
+    mBounds.y = y;
   }
   if (isResizing) {
-    mBounds.width  = aWidth;
-    mBounds.height = aHeight;
+    mBounds.width  = width;
+    mBounds.height = height;
   }
 
   [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
@@ -914,6 +927,8 @@ bool nsChildView::ShowsResizeIndicator(nsIntRect* aResizerRect)
 // specific code to work around this bug, which breaks when we fix it (see bmo
 // bug 477077).  So we'll need to coordinate releasing a fix for this bug with
 // Adobe and other major plugin vendors that support the CoreGraphics mode.
+//
+// outClipRect and outOrigin are in display pixels, not device pixels.
 NS_IMETHODIMP nsChildView::GetPluginClipRect(nsIntRect& outClipRect, nsIntPoint& outOrigin, bool& outWidgetVisible)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -951,7 +966,11 @@ NS_IMETHODIMP nsChildView::GetPluginClipRect(nsIntRect& outClipRect, nsIntPoint&
     if (mClipRects) {
       nsIntRect clipBounds;
       for (uint32_t i = 0; i < mClipRectCount; ++i) {
-        clipBounds.UnionRect(clipBounds, mClipRects[i]);
+        NSRect cocoaPoints = DevPixelsToCocoaPoints(mClipRects[i]);
+        clipBounds.UnionRect(clipBounds, nsIntRect(NSToIntRound(cocoaPoints.origin.x),
+                                                   NSToIntRound(cocoaPoints.origin.y),
+                                                   NSToIntRound(cocoaPoints.size.width),
+                                                   NSToIntRound(cocoaPoints.size.height)));
       }
       outClipRect.IntersectRect(outClipRect, clipBounds - outOrigin);
     }
@@ -1692,8 +1711,7 @@ nsChildView::CreateCompositor()
     LayerManagerOGL *manager =
       static_cast<LayerManagerOGL*>(compositor::GetLayerManager(mCompositorParent));
 
-    NSOpenGLContext *glContext =
-      (NSOpenGLContext *) manager->gl()->GetNativeData(GLContext::NativeGLContext);
+    NSOpenGLContext *glContext = (NSOpenGLContext *)manager->GetNSOpenGLContext();
 
     [(ChildView *)mView setGLContext:glContext];
     [(ChildView *)mView setUsingOMTCompositor:true];
@@ -1756,10 +1774,11 @@ nsChildView::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect)
   }
 
   if (!mResizerImage) {
-    mResizerImage = manager->gl()->CreateTextureImage(nsIntSize(15, 15),
-                                                      gfxASurface::CONTENT_COLOR_ALPHA,
-                                                      LOCAL_GL_CLAMP_TO_EDGE,
-                                                      TextureImage::UseNearestFilter);
+    mResizerImage = TextureImage::Create(manager->gl(),
+                                         nsIntSize(15, 15),
+                                         gfxASurface::CONTENT_COLOR_ALPHA,
+                                         LOCAL_GL_CLAMP_TO_EDGE,
+                                         TextureImage::UseNearestFilter);
 
     // Creation of texture images can fail.
     if (!mResizerImage)
@@ -2457,7 +2476,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
     LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(layerManager);
     manager->SetClippingRegion(region);
-    glContext = (NSOpenGLContext *)manager->gl()->GetNativeData(mozilla::gl::GLContext::NativeGLContext);
+    glContext = (NSOpenGLContext *)manager->GetNSOpenGLContext();
 
     if (!mGLContext) {
       [self setGLContext:glContext];
@@ -2660,9 +2679,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
 #endif /* MOZ_USE_NATIVE_POPUP_WINDOWS */
 
   nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
+  NS_ENSURE_TRUE_VOID(rollupListener);
   nsCOMPtr<nsIWidget> widget = rollupListener->GetRollupWidget();
-  if (!widget)
-    return;
+  NS_ENSURE_TRUE_VOID(widget);
 
   NSWindow *popupWindow = (NSWindow*)widget->GetNativeData(NS_NATIVE_WINDOW);
   if (!popupWindow || ![popupWindow isKindOfClass:[PopupWindow class]])
@@ -2685,6 +2704,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   BOOL consumeEvent = NO;
 
   nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
+  NS_ENSURE_TRUE(rollupListener, false);
   nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
   if (rollupWidget) {
     NSWindow* currentPopup = static_cast<NSWindow*>(rollupWidget->GetNativeData(NS_NATIVE_WINDOW));

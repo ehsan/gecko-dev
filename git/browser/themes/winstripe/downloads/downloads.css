@@ -29,10 +29,15 @@
 }
 
 @media (-moz-windows-default-theme) {
-  #downloadsSummary,
-  #downloadsPanel[hasdownloads] > #downloadsHistory {
+  #downloadsPanel[hasdownloads] > #downloadsFooter {
+%ifdef WINSTRIPE_AERO
+    background-color: #f1f5fb;
+%else
     background-color: hsla(216,45%,88%,.98);
+%endif
     box-shadow: 0px 1px 2px rgb(204,214,234) inset;
+    border-bottom-left-radius: 3px;
+    border-bottom-right-radius: 3px;
   }
 }
 
@@ -48,12 +53,16 @@ richlistitem[type="download"] {
 #downloadsSummary {
   padding: 8px 38px 8px 12px;
   cursor: pointer;
+  -moz-user-focus: normal;
+}
+
+#downloadsSummary:-moz-focusring {
+  outline: 1px -moz-dialogtext dotted;
+  outline-offset: -5px;
 }
 
 #downloadsSummary > .downloadTypeIcon {
-  height: 24px;
-  width: 24px;
-  list-style-image: url("chrome://mozapps/skin/downloads/downloadIcon.png");
+  list-style-image: url("chrome://browser/skin/downloads/download-summary.png");
 }
 
 #downloadsSummaryDescription {
@@ -136,50 +145,52 @@ richlistitem[type="download"][state="1"]:hover {
 .downloadButton.downloadCancel {
   -moz-image-region: rect(0px, 16px, 16px, 0px);
 }
-.downloadButton.downloadCancel:hover {
+richlistitem[type="download"]:hover > stack > .downloadButton.downloadCancel {
   -moz-image-region: rect(0px, 32px, 16px, 16px);
 }
-.downloadButton.downloadCancel:active {
+richlistitem[type="download"]:hover > stack > .downloadButton.downloadCancel:hover {
   -moz-image-region: rect(0px, 48px, 16px, 32px);
+}
+richlistitem[type="download"]:hover > stack > .downloadButton.downloadCancel:active {
+  -moz-image-region: rect(0px, 64px, 16px, 48px);
 }
 
 .downloadButton.downloadShow {
   -moz-image-region: rect(16px, 16px, 32px, 0px);
 }
-.downloadButton.downloadShow:hover {
+richlistitem[type="download"]:hover > stack > .downloadButton.downloadShow {
   -moz-image-region: rect(16px, 32px, 32px, 16px);
 }
-.downloadButton.downloadShow:active {
+richlistitem[type="download"]:hover > stack > .downloadButton.downloadShow:hover {
   -moz-image-region: rect(16px, 48px, 32px, 32px);
 }
+richlistitem[type="download"]:hover > stack > .downloadButton.downloadShow:active {
+  -moz-image-region: rect(16px, 64px, 32px, 48px);
+}
+%ifndef WINSTRIPE_AERO
+richlistitem[type="download"][state="1"]:hover > stack > .downloadButton.downloadShow {
+  -moz-image-region: rect(16px, 96px, 32px, 80px);
+}
+richlistitem[type="download"][state="1"]:hover > stack > .downloadButton.downloadShow:hover {
+  -moz-image-region: rect(16px, 112px, 32px, 96px);
+}
+richlistitem[type="download"][state="1"]:hover > stack > .downloadButton.downloadShow:active {
+  -moz-image-region: rect(16px, 128px, 32px, 112px);
+}
+%endif
 
 .downloadButton.downloadRetry {
   -moz-image-region: rect(32px, 16px, 48px, 0px);
 }
-.downloadButton.downloadRetry:hover {
+richlistitem[type="download"]:hover > stack > .downloadButton.downloadRetry {
   -moz-image-region: rect(32px, 32px, 48px, 16px);
 }
-.downloadButton.downloadRetry:active {
+richlistitem[type="download"]:hover > stack > .downloadButton.downloadRetry:hover {
   -moz-image-region: rect(32px, 48px, 48px, 32px);
 }
-
-%ifdef WINSTRIPE_AERO
-@media not all and (-moz-windows-default-theme) {
-%endif
-
-richlistitem[type="download"][state="1"]:hover > .downloadButton.downloadShow {
-  -moz-image-region: rect(48px, 16px, 64px, 0px);
+richlistitem[type="download"]:hover > stack > .downloadButton.downloadRetry:active {
+  -moz-image-region: rect(32px, 64px, 48px, 48px);
 }
-richlistitem[type="download"][state="1"]:hover > .downloadButton.downloadShow:hover {
-  -moz-image-region: rect(48px, 32px, 64px, 16px);
-}
-richlistitem[type="download"][state="1"]:hover > .downloadButton.downloadShow:active {
-  -moz-image-region: rect(48px, 48px, 64px, 32px);
-}
-
-%ifdef WINSTRIPE_AERO
-}
-%endif
 
 /*** Status and progress indicator ***/
 
@@ -218,34 +229,47 @@ richlistitem[type="download"][state="1"]:hover > .downloadButton.downloadShow:ac
   background-image: url("chrome://browser/skin/downloads/download-glow.png");
 }
 
-/*** Event notification ***/
+/*** Download notifications ***/
 
 #downloads-indicator-notification {
   opacity: 0;
-  background: url("chrome://browser/skin/downloads/download-notification.png")
-              center no-repeat;
   background-size: 16px;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
-@keyframes downloadsIndicatorNotificationRight {
+@keyframes downloadsIndicatorNotificationStartRight {
   from { opacity: 0; transform: translate(-128px, 128px) scale(8); }
   20%  { opacity: .85; animation-timing-function: ease-out; }
   to   { opacity: 0; transform: translate(0) scale(1); }
 }
 
-@keyframes downloadsIndicatorNotificationLeft {
+@keyframes downloadsIndicatorNotificationStartLeft {
   from { opacity: 0; transform: translate(128px, 128px) scale(8); }
   20%  { opacity: .85; animation-timing-function: ease-out; }
   to   { opacity: 0; transform: translate(0) scale(1); }
 }
 
-#downloads-indicator[notification] > #downloads-indicator-anchor > #downloads-indicator-notification {
-  animation-name: downloadsIndicatorNotificationRight;
+#downloads-indicator[notification="start"] > #downloads-indicator-anchor > #downloads-indicator-notification {
+  background-image: url("chrome://browser/skin/downloads/download-notification-start.png");
+  animation-name: downloadsIndicatorNotificationStartRight;
   animation-duration: 1s;
 }
 
-#downloads-indicator[notification]:-moz-locale-dir(rtl) > #downloads-indicator-anchor > #downloads-indicator-notification {
-  animation-name: downloadsIndicatorNotificationLeft;
+#downloads-indicator[notification="start"]:-moz-locale-dir(rtl) > #downloads-indicator-anchor > #downloads-indicator-notification {
+  animation-name: downloadsIndicatorNotificationStartLeft;
+}
+
+@keyframes downloadsIndicatorNotificationFinish {
+  from { opacity: 0; transform: scale(1); }
+  20%  { opacity: .65; animation-timing-function: ease-in; }
+  to   { opacity: 0; transform: scale(8); }
+}
+
+#downloads-indicator[notification="finish"] > #downloads-indicator-anchor > #downloads-indicator-notification {
+  background-image: url("chrome://browser/skin/downloads/download-notification-finish.png");
+  animation-name: downloadsIndicatorNotificationFinish;
+  animation-duration: 1s;
 }
 
 /*** Progress bar and text ***/
@@ -292,7 +316,7 @@ richlistitem[type="download"][state="1"]:hover > .downloadButton.downloadShow:ac
   -moz-appearance: none;
   min-width: 0;
   min-height: 0;
-  background-image: -moz-linear-gradient(#505050, #575757);
+  background-image: linear-gradient(#505050, #575757);
   border: 1px solid;
   border-color: hsla(0,0%,0%,.6) hsla(0,0%,0%,.4) hsla(0,0%,0%,.4);
   -moz-border-start: none;
@@ -304,5 +328,5 @@ richlistitem[type="download"][state="1"]:hover > .downloadButton.downloadShow:ac
 }
 
 #downloads-indicator[paused] > #downloads-indicator-anchor > #downloads-indicator-progress-area > #downloads-indicator-progress > .progress-remainder {
-  background-image: -moz-linear-gradient(#4b5000, #515700);
+  background-image: linear-gradient(#4b5000, #515700);
 }

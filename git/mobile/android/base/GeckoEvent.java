@@ -61,13 +61,12 @@ public class GeckoEvent {
     private static final int NETWORK_CHANGED = 22;
     private static final int UNUSED3_EVENT = 23;
     private static final int ACTIVITY_RESUMING = 24;
-    private static final int SCREENSHOT = 25;
+    private static final int THUMBNAIL = 25;
     private static final int UNUSED2_EVENT = 26;
     private static final int SCREENORIENTATION_CHANGED = 27;
     private static final int COMPOSITOR_PAUSE = 28;
     private static final int COMPOSITOR_RESUME = 29;
-    private static final int PAINT_LISTEN_START_EVENT = 30;
-    private static final int NATIVE_GESTURE_EVENT = 31;
+    private static final int NATIVE_GESTURE_EVENT = 30;
 
     /**
      * These DOM_KEY_LOCATION constants mirror the DOM KeyboardEvent's constants.
@@ -94,9 +93,17 @@ public class GeckoEvent {
     public static final int IME_RANGE_CONVERTEDTEXT = 4;
     public static final int IME_RANGE_SELECTEDCONVERTEDTEXT = 5;
 
+    public static final int IME_RANGE_LINE_NONE = 0;
+    public static final int IME_RANGE_LINE_DOTTED = 1;
+    public static final int IME_RANGE_LINE_DASHED = 2;
+    public static final int IME_RANGE_LINE_SOLID = 3;
+    public static final int IME_RANGE_LINE_DOUBLE = 4;
+    public static final int IME_RANGE_LINE_WAVY = 5;
+
     public static final int IME_RANGE_UNDERLINE = 1;
     public static final int IME_RANGE_FORECOLOR = 2;
     public static final int IME_RANGE_BACKCOLOR = 4;
+    public static final int IME_RANGE_LINECOLOR = 8;
 
     public static final int ACTION_MAGNIFY_START = 11;
     public static final int ACTION_MAGNIFY = 12;
@@ -120,8 +127,9 @@ public class GeckoEvent {
     public int mCount;
     public int mStart, mEnd;
     public String mCharacters, mCharactersExtra;
-    public int mRangeType, mRangeStyles;
-    public int mRangeForeColor, mRangeBackColor;
+    public int mRangeType, mRangeStyles, mRangeLineStyle;
+    public boolean mRangeBoldLine;
+    public int mRangeForeColor, mRangeBackColor, mRangeLineColor;
     public Location mLocation;
     public Address  mAddress;
     public int mDomKeyLocation;
@@ -499,16 +507,22 @@ public class GeckoEvent {
     public static GeckoEvent createIMERangeEvent(int start,
                                                  int end, int rangeType,
                                                  int rangeStyles,
+                                                 int rangeLineStyle,
+                                                 boolean rangeBoldLine,
                                                  int rangeForeColor,
-                                                 int rangeBackColor) {
+                                                 int rangeBackColor,
+                                                 int rangeLineColor) {
         GeckoEvent event = new GeckoEvent(IME_EVENT);
         event.mAction = IME_ADD_COMPOSITION_RANGE;
         event.mStart = start;
         event.mEnd = end;
         event.mRangeType = rangeType;
         event.mRangeStyles = rangeStyles;
+        event.mRangeLineStyle = rangeLineStyle;
+        event.mRangeBoldLine = rangeBoldLine;
         event.mRangeForeColor = rangeForeColor;
         event.mRangeBackColor = rangeBackColor;
+        event.mRangeLineColor = rangeLineColor;
         return event;
     }
 
@@ -580,16 +594,11 @@ public class GeckoEvent {
         return event;
     }
 
-    public static GeckoEvent createScreenshotEvent(int tabId, int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, int bw, int bh, int token, ByteBuffer buffer) {
-        GeckoEvent event = new GeckoEvent(SCREENSHOT);
-        event.mPoints = new Point[5];
-        event.mPoints[0] = new Point(sx, sy);
-        event.mPoints[1] = new Point(sw, sh);
-        event.mPoints[2] = new Point(dx, dy);
-        event.mPoints[3] = new Point(dw, dh);
-        event.mPoints[4] = new Point(bw, bh);
+    public static GeckoEvent createThumbnailEvent(int tabId, int bufw, int bufh, ByteBuffer buffer) {
+        GeckoEvent event = new GeckoEvent(THUMBNAIL);
+        event.mPoints = new Point[1];
+        event.mPoints[0] = new Point(bufw, bufh);
         event.mMetaState = tabId;
-        event.mFlags = token;
         event.mBuffer = buffer;
         return event;
     }
@@ -597,12 +606,6 @@ public class GeckoEvent {
     public static GeckoEvent createScreenOrientationEvent(short aScreenOrientation) {
         GeckoEvent event = new GeckoEvent(SCREENORIENTATION_CHANGED);
         event.mScreenOrientation = aScreenOrientation;
-        return event;
-    }
-
-    public static GeckoEvent createStartPaintListentingEvent(int tabId) {
-        GeckoEvent event = new GeckoEvent(PAINT_LISTEN_START_EVENT);
-        event.mMetaState = tabId;
         return event;
     }
 }

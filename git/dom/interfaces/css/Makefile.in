@@ -21,13 +21,14 @@ SDK_XPIDLSRCS = 				\
 	nsIDOMCSSStyleDeclaration.idl		\
 	nsIDOMCSSStyleSheet.idl			\
 	nsIDOMCSSValue.idl			\
-	nsIDOMCSSValueList.idl			\
 	nsIDOMElementCSSInlineStyle.idl		\
 	$(NULL)
 
 XPIDLSRCS =					\
 	nsIDOMCSSCharsetRule.idl		\
+	nsIDOMCSSConditionRule.idl		\
 	nsIDOMCSSFontFaceRule.idl		\
+	nsIDOMCSSGroupingRule.idl		\
 	nsIDOMCSSImportRule.idl			\
 	nsIDOMCSSMediaRule.idl			\
 	nsIDOMCSSMozDocumentRule.idl		\
@@ -38,9 +39,7 @@ XPIDLSRCS =					\
 	nsIDOMCSSStyleRule.idl			\
 	nsIDOMCSSUnknownRule.idl		\
 	nsIDOMCounter.idl			\
-	nsIDOMRGBColor.idl			\
 	nsIDOMRect.idl				\
-	nsIDOMNSRGBAColor.idl			\
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk

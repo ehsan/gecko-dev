@@ -52,8 +52,8 @@ public class LayerView extends FrameLayout {
     private LayerRenderer mRenderer;
     /* Must be a PAINT_xxx constant */
     private int mPaintState;
-    private int mCheckerboardColor;
-    private boolean mCheckerboardShouldShowChecks;
+    private int mBackgroundColor;
+    private boolean mFullScreen;
 
     private SurfaceView mSurfaceView;
     private TextureView mTextureView;
@@ -93,8 +93,7 @@ public class LayerView extends FrameLayout {
 
         mGLController = new GLController(this);
         mPaintState = PAINT_START;
-        mCheckerboardColor = Color.WHITE;
-        mCheckerboardShouldShowChecks = true;
+        mBackgroundColor = Color.WHITE;
     }
 
     public void initializeView(EventDispatcher eventDispatcher) {
@@ -187,21 +186,12 @@ public class LayerView extends FrameLayout {
         return mLayerClient.convertViewPointToLayerPoint(viewPoint);
     }
 
-    int getCheckerboardColor() {
-        return mCheckerboardColor;
+    int getBackgroundColor() {
+        return mBackgroundColor;
     }
 
-    public void setCheckerboardColor(int newColor) {
-        mCheckerboardColor = newColor;
-        requestRender();
-    }
-
-    boolean checkerboardShouldShowChecks() {
-        return mCheckerboardShouldShowChecks;
-    }
-
-    void setCheckerboardShouldShowChecks(boolean value) {
-        mCheckerboardShouldShowChecks = value;
+    public void setBackgroundColor(int newColor) {
+        mBackgroundColor = newColor;
         requestRender();
     }
 
@@ -329,6 +319,10 @@ public class LayerView extends FrameLayout {
         return getDrawable(R.drawable.shadow);
     }
 
+    Bitmap getScrollbarImage() {
+        return getDrawable(R.drawable.scrollbar);
+    }
+
     private void onSizeChanged(int width, int height) {
         mGLController.surfaceChanged(width, height);
 
@@ -425,5 +419,18 @@ public class LayerView extends FrameLayout {
     public void onFocusChanged (boolean gainFocus, int direction, Rect previouslyFocusedRect) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect);
         GeckoAccessibility.onLayerViewFocusChanged(this, gainFocus);
+    }
+
+    public void setFullScreen(boolean fullScreen) {
+        mFullScreen = fullScreen;
+    }
+
+    public boolean isFullScreen() {
+        return mFullScreen;
+    }
+
+    @Override
+    public boolean onGenericMotionEvent(MotionEvent event) {
+        return mTouchEventHandler == null ? false : mTouchEventHandler.handleEvent(event);
     }
 }

@@ -105,7 +105,8 @@ nsNavHistoryResultNode::nsNavHistoryResultNode(
   mDateAdded(0),
   mLastModified(0),
   mIndentLevel(-1),
-  mFrecency(0)
+  mFrecency(0),
+  mHidden(false)
 {
   mTags.SetIsVoid(true);
 }
@@ -880,7 +881,7 @@ bool
 nsNavHistoryContainerResultNode::DoesChildNeedResorting(uint32_t aIndex,
     SortComparator aComparator, const char* aData)
 {
-  NS_ASSERTION(aIndex >= 0 && aIndex < uint32_t(mChildren.Count()),
+  NS_ASSERTION(aIndex < uint32_t(mChildren.Count()),
                "Input index out of range");
   if (mChildren.Count() == 1)
     return false;
@@ -2529,8 +2530,12 @@ nsNavHistoryQueryResultNode::OnVisit(nsIURI* aURI, int64_t aVisitId,
                                      int64_t aReferringId,
                                      uint32_t aTransitionType,
                                      const nsACString& aGUID,
+                                     bool aHidden,
                                      uint32_t* aAdded)
 {
+  if (aHidden && !mOptions->IncludeHidden())
+    return NS_OK;
+
   nsNavHistoryResult* result = GetResult();
   NS_ENSURE_STATE(result);
   if (result->mBatchInProgress &&
@@ -2852,7 +2857,8 @@ NS_IMETHODIMP
 nsNavHistoryQueryResultNode::OnDeleteVisits(nsIURI* aURI,
                                             PRTime aVisitTime,
                                             const nsACString& aGUID,
-                                            uint16_t aReason)
+                                            uint16_t aReason,
+                                            uint32_t aTransitionType)
 {
   NS_PRECONDITION(mOptions->QueryType() == nsINavHistoryQueryOptions::QUERY_TYPE_HISTORY,
                   "Bookmarks queries should not get a OnDeleteVisits notification");
@@ -2862,6 +2868,15 @@ nsNavHistoryQueryResultNode::OnDeleteVisits(nsIURI* aURI,
     // query this is equivalent to a onDeleteURI notification.
     nsresult rv = OnDeleteURI(aURI, aGUID, aReason);
     NS_ENSURE_SUCCESS(rv, rv);
+  }
+  if (aTransitionType > 0) {
+    // All visits for aTransitionType have been removed, if the query is
+    // filtering on such transition type, this is equivalent to an onDeleteURI
+    // notification.
+    if ((mQueries[0]->Transitions()).Contains(aTransitionType)) {
+      nsresult rv = OnDeleteURI(aURI, aGUID, aReason);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
   }
 
   return NS_OK;
@@ -4024,8 +4039,7 @@ nsNavHistoryFolderResultNode::OnItemMoved(int64_t aItemId,
       NS_NOTREACHED("Can't find folder that is moving!");
       return NS_ERROR_FAILURE;
     }
-    NS_ASSERTION(index >= 0 && index < uint32_t(mChildren.Count()),
-                 "Invalid index!");
+    NS_ASSERTION(index < uint32_t(mChildren.Count()), "Invalid index!");
     node->mBookmarkIndex = aNewIndex;
 
     // adjust position
@@ -4720,13 +4734,13 @@ NS_IMETHODIMP
 nsNavHistoryResult::OnVisit(nsIURI* aURI, int64_t aVisitId, PRTime aTime,
                             int64_t aSessionId, int64_t aReferringId,
                             uint32_t aTransitionType, const nsACString& aGUID,
-                            uint32_t* aAdded)
+                            bool aHidden)
 {
   uint32_t added = 0;
 
   ENUMERATE_HISTORY_OBSERVERS(OnVisit(aURI, aVisitId, aTime, aSessionId,
                                       aReferringId, aTransitionType, aGUID,
-                                      &added));
+                                      aHidden, &added));
 
   if (!mRootNode->mExpanded)
     return NS_OK;
@@ -4833,8 +4847,10 @@ NS_IMETHODIMP
 nsNavHistoryResult::OnDeleteVisits(nsIURI* aURI,
                                    PRTime aVisitTime,
                                    const nsACString& aGUID,
-                                   uint16_t aReason)
+                                   uint16_t aReason,
+                                   uint32_t aTransitionType)
 {
-  ENUMERATE_HISTORY_OBSERVERS(OnDeleteVisits(aURI, aVisitTime, aGUID, aReason));
+  ENUMERATE_HISTORY_OBSERVERS(OnDeleteVisits(aURI, aVisitTime, aGUID, aReason,
+                                             aTransitionType));
   return NS_OK;
 }

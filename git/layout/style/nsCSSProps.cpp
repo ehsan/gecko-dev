@@ -854,6 +854,7 @@ const int32_t nsCSSProps::kColorKTable[] = {
   eCSSKeyword__moz_mac_secondaryhighlight, LookAndFeel::eColorID__moz_mac_secondaryhighlight,
   eCSSKeyword__moz_menuhover, LookAndFeel::eColorID__moz_menuhover,
   eCSSKeyword__moz_menuhovertext, LookAndFeel::eColorID__moz_menuhovertext,
+  eCSSKeyword__moz_menubar, LookAndFeel::eColorID__moz_menubar,
   eCSSKeyword__moz_menubartext, LookAndFeel::eColorID__moz_menubartext,
   eCSSKeyword__moz_menubarhovertext, LookAndFeel::eColorID__moz_menubarhovertext,
   eCSSKeyword__moz_oddtreerow, LookAndFeel::eColorID__moz_oddtreerow,
@@ -1583,6 +1584,12 @@ const int32_t nsCSSProps::kImageRenderingKTable[] = {
   eCSSKeyword_optimizespeed, NS_STYLE_IMAGE_RENDERING_OPTIMIZESPEED,
   eCSSKeyword_optimizequality, NS_STYLE_IMAGE_RENDERING_OPTIMIZEQUALITY,
   eCSSKeyword__moz_crisp_edges, NS_STYLE_IMAGE_RENDERING_CRISPEDGES,
+  eCSSKeyword_UNKNOWN, -1
+};
+
+const int32_t nsCSSProps::kMaskTypeKTable[] = {
+  eCSSKeyword_luminance, NS_STYLE_MASK_TYPE_LUMINANCE,
+  eCSSKeyword_alpha, NS_STYLE_MASK_TYPE_ALPHA,
   eCSSKeyword_UNKNOWN, -1
 };
 

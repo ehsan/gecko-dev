@@ -3,6 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+/* Font for code */
+
+.devtools-monospace {
+  font: message-box;
+  font-family: monospace;
+}
+
 /* Toolbar and Toolbar items */
 
 .devtools-toolbar {
@@ -40,6 +47,10 @@
 
 .devtools-toolbarbutton:not([label]) {
   min-width: 32px;
+}
+
+.devtools-toolbarbutton:not([label]) > .toolbarbutton-text {
+  display: none;
 }
 
 .devtools-toolbarbutton:not([checked=true]):hover:active {
@@ -117,25 +128,31 @@
   margin: 0 3px;
 }
 
-/* Search input */
+/* Text input */
 
+.devtools-textinput,
 .devtools-searchinput {
   -moz-appearance: none;
   margin: 0 3px;
   border: 1px solid hsla(210,8%,5%,.6);
   border-radius: 2px;
   background-color: transparent;
-  background-image: url(magnifying-glass.png), -moz-linear-gradient(hsla(210,16%,76%,.15), hsla(210,16%,76%,.35));
-  background-repeat: no-repeat;
-  background-position: 4px center, top left, top left;
-  padding-top: 0;
-  padding-bottom: 0;
-  -moz-padding-start: 18px;
-  -moz-padding-end: 12px;
+  background-image: -moz-linear-gradient(hsla(210,16%,76%,.15), hsla(210,16%,76%,.35));
+  padding: 3px;
   box-shadow: 0 1px 1px hsla(210,8%,5%,.3) inset,
               0 0 0 1px hsla(210,16%,76%,.1) inset,
               0 1px 0 hsla(210,16%,76%,.15);
   color: inherit;
+}
+
+.devtools-searchinput {
+  padding-top: 0;
+  padding-bottom: 0;
+  -moz-padding-start: 18px;
+  -moz-padding-end: 12px;
+  background-image: url(magnifying-glass.png), -moz-linear-gradient(hsla(210,16%,76%,.15), hsla(210,16%,76%,.35));
+  background-position: 4px center, top left, top left;
+  background-repeat: no-repeat;
 }
 
 .devtools-searchinput:-moz-locale-dir(rtl) {
@@ -186,6 +203,65 @@
   background-color: transparent;
   -moz-margin-end: -3px;
   position: relative;
+}
+
+/* In-tools sidebar */
+
+.devtools-sidebar-tabs {
+  -moz-appearance: none;
+  margin: 0;
+}
+
+.devtools-sidebar-tabs > tabpanels {
+  -moz-appearance: none;
+  padding: 0;
+  border: 0;
+}
+
+.devtools-sidebar-tabs > tabs {
+  -moz-appearance: none;
+  position: static;
+  box-shadow: 0 1px 0 0 hsla(210, 16%, 76%, .2) inset;
+  background-image: linear-gradient(to bottom, hsl(210,11%,36%), hsl(210,11%,18%));
+  color: hsl(210,30%,85%);
+  margin-bottom: 0;
+  padding: 0;
+}
+
+.devtools-sidebar-tabs > tabs > .tabs-right,
+.devtools-sidebar-tabs > tabs > .tabs-left {
+  display: none;
+}
+
+.devtools-sidebar-tabs > tabs > tab {
+  -moz-appearance: none;
+  padding: 0;
+  margin: 0;
+  min-width: 78px;
+  min-height: 22px;
+  text-shadow: 0 -1px 0 hsla(210,8%,5%,.45);
+  text-align: center;
+  color: inherit;
+  -moz-box-flex: 1;
+  border-width: 0;
+  -moz-border-end-width: 1px;
+  border-color: hsla(210,8%,5%,.6);
+  border-style: solid;
+  background: transparent;
+  border-radius: 0;
+}
+
+.devtools-sidebar-tabs > tabs > tab:-moz-focusring {
+  position: static;
+}
+
+.devtools-sidebar-tabs > tabs > tab:last-of-type {
+  -moz-border-end-width: 0;
+}
+
+.devtools-sidebar-tabs > tabs > tab[selected=true] {
+  background-image: linear-gradient(to bottom, hsl(201,45%,34%), hsl(205,44%,22%));
+  color: white !important;
 }
 
 /* Theme */

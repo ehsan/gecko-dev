@@ -1,3 +1,4 @@
+#filter substitution
 # -*- indent-tabs-mode: nil -*-
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -22,6 +23,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
 
 XPCOMUtils.defineLazyModuleGetter(this, "UserAgentOverrides",
                                   "resource://gre/modules/UserAgentOverrides.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
+                                  "resource://gre/modules/FileUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
                                   "resource://gre/modules/PlacesUtils.jsm");
@@ -52,6 +56,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
 
 XPCOMUtils.defineLazyModuleGetter(this, "KeywordURLResetPrompter",
                                   "resource:///modules/KeywordURLResetPrompter.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "RecentWindow",
+                                  "resource:///modules/RecentWindow.jsm");
 
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
@@ -274,6 +281,16 @@ BrowserGlue.prototype = {
       case "initial-migration-did-import-default-bookmarks":
         this._initPlaces(true);
         break;
+      case "handle-xul-text-link":
+        let linkHandled = subject.QueryInterface(Ci.nsISupportsPRBool);
+        if (!linkHandled.data) {
+          let win = this.getMostRecentBrowserWindow();
+          if (win) {
+            win.openUILinkIn(data, "tab");
+            linkHandled.data = true;
+          }
+        }
+        break;
     }
   }, 
 
@@ -305,6 +322,7 @@ BrowserGlue.prototype = {
     os.addObserver(this, "places-shutdown", false);
     this._isPlacesShutdownObserver = true;
     os.addObserver(this, "defaultURIFixup-using-keyword-pref", false);
+    os.addObserver(this, "handle-xul-text-link", false);
   },
 
   // cleanup (called on application shutdown)
@@ -335,6 +353,7 @@ BrowserGlue.prototype = {
     if (this._isPlacesShutdownObserver)
       os.removeObserver(this, "places-shutdown");
     os.removeObserver(this, "defaultURIFixup-using-keyword-pref");
+    os.removeObserver(this, "handle-xul-text-link");
     UserAgentOverrides.uninit();
     webappsUI.uninit();
     SignInToWebsiteUX.uninit();
@@ -445,14 +464,14 @@ BrowserGlue.prototype = {
     // them to the user.
     let changedIDs = AddonManager.getStartupChanges(AddonManager.STARTUP_CHANGE_INSTALLED);
     if (changedIDs.length > 0) {
-      let browser = this.getMostRecentBrowserWindow().gBrowser;
+      let win = this.getMostRecentBrowserWindow();
       AddonManager.getAddonsByIDs(changedIDs, function(aAddons) {
         aAddons.forEach(function(aAddon) {
           // If the add-on isn't user disabled or can't be enabled then skip it.
           if (!aAddon.userDisabled || !(aAddon.permissions & AddonManager.PERM_CAN_ENABLE))
             return;
 
-          browser.selectedTab = browser.addTab("about:newaddon?id=" + aAddon.id);
+          win.openUILinkIn("about:newaddon?id=" + aAddon.id, "tab");
         })
       });
     }
@@ -532,18 +551,20 @@ BrowserGlue.prototype = {
     //    browser.startup.page == 3 or browser.sessionstore.resume_session_once == true
     // 3. browser.warnOnQuit == false
     // 4. The browser is currently in Private Browsing mode
+    // 5. The browser will be restarted.
     //
     // Otherwise these are the conditions and the associated dialogs that will be shown:
     // 1. aQuitType == "lastwindow" or "quit" and browser.showQuitWarning == true
     //    - The quit dialog will be shown
-    // 2. aQuitType == "restart" && browser.warnOnRestart == true
-    //    - The restart dialog will be shown
-    // 3. aQuitType == "lastwindow" && browser.tabs.warnOnClose == true
+    // 2. aQuitType == "lastwindow" && browser.tabs.warnOnClose == true
     //    - The "closing multiple tabs" dialog will be shown
     //
     // aQuitType == "lastwindow" is overloaded. "lastwindow" is used to indicate
     // "the last window is closing but we're not quitting (a non-browser window is open)"
     // and also "we're quitting by closing the last window".
+
+    if (aQuitType == "restart")
+      return;
 
     var windowcount = 0;
     var pagecount = 0;
@@ -567,12 +588,10 @@ BrowserGlue.prototype = {
     if (!aQuitType)
       aQuitType = "quit";
 
-    var showPrompt = false;
     var mostRecentBrowserWindow;
 
     // browser.warnOnQuit is a hidden global boolean to override all quit prompts
     // browser.showQuitWarning specifically covers quitting
-    // browser.warnOnRestart specifically covers app-initiated restarts where we restart the app
     // browser.tabs.warnOnClose is the global "warn when closing multiple tabs" pref
 
     var sessionWillBeRestored = Services.prefs.getIntPref("browser.startup.page") == 3 ||
@@ -582,19 +601,15 @@ BrowserGlue.prototype = {
 
     // On last window close or quit && showQuitWarning, we want to show the
     // quit warning.
-    if (aQuitType != "restart" && Services.prefs.getBoolPref("browser.showQuitWarning")) {
-      showPrompt = true;
-    }
-    else if (aQuitType == "restart" && Services.prefs.getBoolPref("browser.warnOnRestart")) {
-      showPrompt = true;
-    }
-    else if (aQuitType == "lastwindow") {
-      // If aQuitType is "lastwindow" and we aren't showing the quit warning,
-      // we should show the window closing warning instead. warnAboutClosing
-      // tabs checks browser.tabs.warnOnClose and returns if it's ok to close
-      // the window. It doesn't actually close the window.
-      mostRecentBrowserWindow = Services.wm.getMostRecentWindow("navigator:browser");
-      aCancelQuit.data = !mostRecentBrowserWindow.gBrowser.warnAboutClosingTabs(true);
+    if (!Services.prefs.getBoolPref("browser.showQuitWarning")) {
+      if (aQuitType == "lastwindow") {
+        // If aQuitType is "lastwindow" and we aren't showing the quit warning,
+        // we should show the window closing warning instead. warnAboutClosing
+        // tabs checks browser.tabs.warnOnClose and returns if it's ok to close
+        // the window. It doesn't actually close the window.
+        mostRecentBrowserWindow = Services.wm.getMostRecentWindow("navigator:browser");
+        aCancelQuit.data = !mostRecentBrowserWindow.gBrowser.warnAboutClosingTabs(true);
+      }
       return;
     }
 
@@ -602,21 +617,15 @@ BrowserGlue.prototype = {
     if (allWindowsPrivate)
       return;
 
-    if (!showPrompt)
-      return;
-
     var quitBundle = Services.strings.createBundle("chrome://browser/locale/quitDialog.properties");
     var brandBundle = Services.strings.createBundle("chrome://branding/locale/brand.properties");
 
     var appName = brandBundle.GetStringFromName("brandShortName");
-    var quitTitleString = (aQuitType == "restart" ? "restart" : "quit") + "DialogTitle";
+    var quitTitleString = "quitDialogTitle";
     var quitDialogTitle = quitBundle.formatStringFromName(quitTitleString, [appName], 1);
 
     var message;
-    if (aQuitType == "restart")
-      message = quitBundle.formatStringFromName("messageRestart",
-                                                [appName], 1);
-    else if (windowcount == 1)
+    if (windowcount == 1)
       message = quitBundle.formatStringFromName("messageNoWindows",
                                                 [appName], 1);
     else
@@ -627,20 +636,14 @@ BrowserGlue.prototype = {
 
     var flags = promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_0 +
                 promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_1 +
+                promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_2 +
                 promptService.BUTTON_POS_0_DEFAULT;
 
     var neverAsk = {value:false};
-    var button0Title, button2Title;
+    var button0Title = quitBundle.GetStringFromName("saveTitle");
     var button1Title = quitBundle.GetStringFromName("cancelTitle");
+    var button2Title = quitBundle.GetStringFromName("quitTitle");
     var neverAskText = quitBundle.GetStringFromName("neverAsk");
-
-    if (aQuitType == "restart")
-      button0Title = quitBundle.GetStringFromName("restartTitle");
-    else {
-      flags += promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_2;
-      button0Title = quitBundle.GetStringFromName("saveTitle");
-      button2Title = quitBundle.GetStringFromName("quitTitle");
-    }
 
     // This wouldn't have been set above since we shouldn't be here for
     // aQuitType == "lastwindow"
@@ -663,12 +666,8 @@ BrowserGlue.prototype = {
     case 0: // Save & Quit
       this._saveSession = true;
       if (neverAsk.value) {
-        if (aQuitType == "restart")
-          Services.prefs.setBoolPref("browser.warnOnRestart", false);
-        else {
-          // always save state when shutting down
-          Services.prefs.setIntPref("browser.startup.page", 3);
-        }
+        // always save state when shutting down
+        Services.prefs.setIntPref("browser.startup.page", 3);
       }
       break;
     }
@@ -717,8 +716,7 @@ BrowserGlue.prototype = {
   _showRightsNotification: function BG__showRightsNotification() {
     // Stick the notification onto the selected tab of the active browser window.
     var win = this.getMostRecentBrowserWindow();
-    var browser = win.gBrowser; // for closure in notification bar callback
-    var notifyBox = browser.getNotificationBox();
+    var notifyBox = win.gBrowser.getNotificationBox();
 
     var brandBundle  = Services.strings.createBundle("chrome://branding/locale/brand.properties");
     var rightsBundle = Services.strings.createBundle("chrome://global/locale/aboutRights.properties");
@@ -734,7 +732,7 @@ BrowserGlue.prototype = {
                       accessKey: buttonAccessKey,
                       popup:     null,
                       callback: function(aNotificationBar, aButton) {
-                        browser.selectedTab = browser.addTab("about:rights");
+                        win.openUILinkIn("about:rights", "tab");
                       }
                     }
                   ];
@@ -799,8 +797,7 @@ BrowserGlue.prototype = {
                                  stringName: "pu.notifyButton.accesskey"});
 
       let win = this.getMostRecentBrowserWindow();
-      let browser = win.gBrowser; // for closure in notification bar callback
-      let notifyBox = browser.getNotificationBox();
+      let notifyBox = win.gBrowser.getNotificationBox();
 
       let buttons = [
                       {
@@ -808,7 +805,7 @@ BrowserGlue.prototype = {
                         accessKey: key,
                         popup:     null,
                         callback: function(aNotificationBar, aButton) {
-                          browser.selectedTab = browser.addTab(url);
+                          win.openUILinkIn(url, "tab");
                         }
                       }
                     ];
@@ -847,8 +844,7 @@ BrowserGlue.prototype = {
       if (topic != "alertclickcallback")
         return;
       let win = self.getMostRecentBrowserWindow();
-      let browser = win.gBrowser;
-      browser.selectedTab = browser.addTab(data);
+      win.openUILinkIn(data, "tab");
     }
 
     try {
@@ -863,15 +859,18 @@ BrowserGlue.prototype = {
 
 #ifdef MOZ_TELEMETRY_REPORTING
   _showTelemetryNotification: function BG__showTelemetryNotification() {
-    const PREF_TELEMETRY_PROMPTED = "toolkit.telemetry.prompted";
+#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
+    const PREF_TELEMETRY_ENABLED = "toolkit.telemetry.enabledPreRelease";
+    const PREF_TELEMETRY_DISPLAYED = "toolkit.telemetry.notifiedOptOut";
+#else
     const PREF_TELEMETRY_ENABLED  = "toolkit.telemetry.enabled";
+    const PREF_TELEMETRY_DISPLAYED = "toolkit.telemetry.prompted";
+#endif
     const PREF_TELEMETRY_REJECTED  = "toolkit.telemetry.rejected";
     const PREF_TELEMETRY_INFOURL  = "toolkit.telemetry.infoURL";
     const PREF_TELEMETRY_SERVER_OWNER = "toolkit.telemetry.server_owner";
-    const PREF_TELEMETRY_ENABLED_BY_DEFAULT = "toolkit.telemetry.enabledByDefault";
-    const PREF_TELEMETRY_NOTIFIED_OPTOUT = "toolkit.telemetry.notifiedOptOut";
-    // This is used to reprompt users when privacy message changes
-    const TELEMETRY_PROMPT_REV = 2;
+    // This is used to reprompt/renotify users when privacy message changes
+    const TELEMETRY_DISPLAY_REV = @MOZ_TELEMETRY_DISPLAY_REV@;
 
     // Stick notifications onto the selected tab of the active browser window.
     var win = this.getMostRecentBrowserWindow();
@@ -903,50 +902,81 @@ BrowserGlue.prototype = {
       return link;
     }
 
-    var telemetryEnabledByDefault = false;
+    /*
+     * Display an opt-out notification when telemetry is enabled by default,
+     * an opt-in prompt otherwise.
+     *
+     * But do not display this prompt/notification if:
+     *
+     * - The last accepted/refused policy (either by accepting the prompt or by
+     *   manually flipping the telemetry preference) is already at version
+     *   TELEMETRY_DISPLAY_REV or higher (to avoid the prompt in tests).
+     */
+    var telemetryDisplayed;
     try {
-      telemetryEnabledByDefault = Services.prefs.getBoolPref(PREF_TELEMETRY_ENABLED_BY_DEFAULT);
+      telemetryDisplayed = Services.prefs.getIntPref(PREF_TELEMETRY_DISPLAYED);
     } catch(e) {}
-    if (telemetryEnabledByDefault) {
-      var telemetryNotifiedOptOut = false;
-      try {
-        telemetryNotifiedOptOut = Services.prefs.getBoolPref(PREF_TELEMETRY_NOTIFIED_OPTOUT);
-      } catch(e) {}
-      if (telemetryNotifiedOptOut)
-        return;
+    if (telemetryDisplayed >= TELEMETRY_DISPLAY_REV)
+      return;
 
-      var telemetryPrompt = browserBundle.formatStringFromName("telemetryOptOutPrompt",
-                                                               [productName, serverOwner, productName], 3);
+#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
+    /*
+     * Additionally, in opt-out builds, don't display the notification if:
+     *
+     * - Telemetry is disabled
+     * - Telemetry was explicitly refused through the UI
+     * - Opt-in telemetry was already enabled, don't notify the user until next
+     *   policy update. (Do the check only at first run with opt-out builds)
+     */
 
-      Services.prefs.setBoolPref(PREF_TELEMETRY_NOTIFIED_OPTOUT, true);
+    var telemetryEnabled = Services.prefs.getBoolPref(PREF_TELEMETRY_ENABLED);
+    if (!telemetryEnabled)
+      return;
 
-      let notification = appendTelemetryNotification(telemetryPrompt, null, false);
-      let link = appendLearnMoreLink(notification);
-      link.addEventListener('click', function() {
-        // Open the learn more url in a new tab
-        let url = Services.urlFormatter.formatURLPref("app.support.baseURL");
-        url += "how-can-i-help-submitting-performance-data";
-        tabbrowser.selectedTab = tabbrowser.addTab(url);
-        // Remove the notification on which the user clicked
-        notification.parentNode.removeNotification(notification, true);
-      }, false);
+    // If telemetry was explicitly refused through the UI,
+    // also disable opt-out telemetry and bail out.
+    var telemetryRejected = false;
+    try {
+      telemetryRejected = Services.prefs.getBoolPref(PREF_TELEMETRY_REJECTED);
+    } catch(e) {}
+    if (telemetryRejected) {
+      Services.prefs.setBoolPref(PREF_TELEMETRY_ENABLED, false);
+      Services.prefs.setIntPref(PREF_TELEMETRY_DISPLAYED, TELEMETRY_DISPLAY_REV);
       return;
     }
 
-    var telemetryPrompted = null;
+    // If opt-in telemetry was enabled and this is the first run with opt-out,
+    // don't notify the user.
+    var optInTelemetryEnabled = false;
     try {
-      telemetryPrompted = Services.prefs.getIntPref(PREF_TELEMETRY_PROMPTED);
+      optInTelemetryEnabled = Services.prefs.getBoolPref("toolkit.telemetry.enabled");
     } catch(e) {}
-    // If the user has seen the latest telemetry prompt, do not prompt again
-    // else clear old prefs and reprompt
-    if (telemetryPrompted === TELEMETRY_PROMPT_REV)
+    if (optInTelemetryEnabled && telemetryDisplayed === undefined) {
+      Services.prefs.setBoolPref(PREF_TELEMETRY_REJECTED, false);
+      Services.prefs.setIntPref(PREF_TELEMETRY_DISPLAYED, TELEMETRY_DISPLAY_REV);
       return;
-    
-    Services.prefs.clearUserPref(PREF_TELEMETRY_PROMPTED);
-    Services.prefs.clearUserPref(PREF_TELEMETRY_ENABLED);
-    
-    var telemetryPrompt = browserBundle.formatStringFromName("telemetryOptInPrompt", [productName, serverOwner], 2);
+    }
 
+    var telemetryPrompt = browserBundle.formatStringFromName("telemetryOptOutPrompt",
+                                                            [productName, serverOwner, productName], 3);
+    var buttons = null;
+    var hideCloseButton = false;
+    function learnModeClickHandler() {
+      // Open the learn more url in a new tab
+      var url = Services.urlFormatter.formatURLPref("app.support.baseURL");
+      url += "how-can-i-help-submitting-performance-data";
+      tabbrowser.selectedTab = tabbrowser.addTab(url);
+      // Remove the notification on which the user clicked
+      notification.parentNode.removeNotification(notification, true);
+    }
+#else
+
+    // Clear old prefs and reprompt
+    Services.prefs.clearUserPref(PREF_TELEMETRY_ENABLED);
+    Services.prefs.clearUserPref(PREF_TELEMETRY_REJECTED);
+
+    var telemetryPrompt = browserBundle.formatStringFromName("telemetryOptInPrompt",
+                                                            [productName, serverOwner], 2);
     var buttons = [
                     {
                       label:     browserBundle.GetStringFromName("telemetryYesButtonLabel2"),
@@ -954,6 +984,7 @@ BrowserGlue.prototype = {
                       popup:     null,
                       callback:  function(aNotificationBar, aButton) {
                         Services.prefs.setBoolPref(PREF_TELEMETRY_ENABLED, true);
+                        Services.prefs.setBoolPref(PREF_TELEMETRY_REJECTED, false);
                       }
                     },
                     {
@@ -966,20 +997,24 @@ BrowserGlue.prototype = {
                     }
                   ];
 
-    // Set pref to indicate we've shown the notification.
-    Services.prefs.setIntPref(PREF_TELEMETRY_PROMPTED, TELEMETRY_PROMPT_REV);
-
-    let notification = appendTelemetryNotification(telemetryPrompt, buttons, true);
-    let link = appendLearnMoreLink(notification);
-    link.addEventListener('click', function() {
+    var hideCloseButton = true;
+    function learnModeClickHandler() {
       // Open the learn more url in a new tab
-      tabbrowser.selectedTab = tabbrowser.addTab(Services.prefs.getCharPref(PREF_TELEMETRY_INFOURL));
+      win.openUILinkIn(Services.prefs.getCharPref(PREF_TELEMETRY_INFOURL), "tab");
       // Remove the notification on which the user clicked
       notification.parentNode.removeNotification(notification, true);
       // Add a new notification to that tab, with no "Learn more" link
       notifyBox = tabbrowser.getNotificationBox();
       appendTelemetryNotification(telemetryPrompt, buttons, true);
-    }, false);
+    }
+#endif
+
+    // Set pref to indicate we've shown the notification.
+    Services.prefs.setIntPref(PREF_TELEMETRY_DISPLAYED, TELEMETRY_DISPLAY_REV);
+
+    var notification = appendTelemetryNotification(telemetryPrompt, buttons, hideCloseButton);
+    var link = appendLearnMoreLink(notification);
+    link.addEventListener('click', learnModeClickHandler, false);
   },
 #endif
 
@@ -991,8 +1026,7 @@ BrowserGlue.prototype = {
     var updateUrl = formatter.formatURLPref(PREF_PLUGINS_UPDATEURL);
 
     var win = this.getMostRecentBrowserWindow();
-    var browser = win.gBrowser;
-    browser.selectedTab = browser.addTab(updateUrl);
+    win.openUILinkIn(updateUrl, "tab");
   },
 
   /**
@@ -1119,19 +1153,20 @@ BrowserGlue.prototype = {
       if (bookmarksURI) {
         // Import from bookmarks.html file.
         try {
-          BookmarkHTMLUtils.importFromURL(bookmarksURI.spec, true, (function (success) {
-            if (success) {
+          BookmarkHTMLUtils.importFromURL(bookmarksURI.spec, true).then(null,
+            function onFailure() {
+              Cu.reportError("Bookmarks.html file could be corrupt.");
+            }
+          ).then(
+            function onComplete() {
               // Now apply distribution customized bookmarks.
               // This should always run after Places initialization.
               this._distributionCustomizer.applyBookmarks();
               // Ensure that smart bookmarks are created once the operation is
               // complete.
               this.ensurePlacesDefaultQueriesInitialized();
-            }
-            else {
-              Cu.reportError("Bookmarks.html file could be corrupt.");
-            }
-          }).bind(this));
+            }.bind(this)
+          );
         } catch (err) {
           Cu.reportError("Bookmarks.html file could be corrupt. " + err);
         }
@@ -1173,16 +1208,31 @@ BrowserGlue.prototype = {
 
     // Backup bookmarks to bookmarks.html to support apps that depend
     // on the legacy format.
-    var autoExportHTML = false;
     try {
-      autoExportHTML = Services.prefs.getBoolPref("browser.bookmarks.autoExportHTML");
+      // If this fails to get the preference value, we don't export.
+      if (Services.prefs.getBoolPref("browser.bookmarks.autoExportHTML")) {
+        // Exceptionally, since this is a non-default setting and HTML format is
+        // discouraged in favor of the JSON backups, we spin the event loop on
+        // shutdown, to wait for the export to finish.  We cannot safely spin
+        // the event loop on shutdown until we include a watchdog to prevent
+        // potential hangs (bug 518683).  The asynchronous shutdown operations
+        // will then be handled by a shutdown service (bug 435058).
+        let shutdownComplete = false;
+        BookmarkHTMLUtils.exportToFile(FileUtils.getFile("BMarks", [])).then(
+          function onSuccess() {
+            shutdownComplete = true;
+          },
+          function onFailure() {
+            // There is no point in reporting errors since we are shutting down.
+            shutdownComplete = true;
+          }
+        );
+        let thread = Services.tm.currentThread;
+        while (!shutdownComplete) {
+          thread.processNextEvent(true);
+        }
+      }
     } catch(ex) { /* Don't export */ }
-
-    if (autoExportHTML) {
-      Cc["@mozilla.org/browser/places/import-export-service;1"].
-        getService(Ci.nsIPlacesImportExportService).
-        backupBookmarksFile();
-    }
   },
 
   /**
@@ -1223,7 +1273,7 @@ BrowserGlue.prototype = {
               formatURLPref("app.support.baseURL");
     url += helpTopic;
 
-    var browser = this.getMostRecentBrowserWindow().gBrowser;
+    var win = this.getMostRecentBrowserWindow();
 
     var buttons = [
                     {
@@ -1231,12 +1281,12 @@ BrowserGlue.prototype = {
                       accessKey: accessKey,
                       popup:     null,
                       callback:  function(aNotificationBar, aButton) {
-                        browser.selectedTab = browser.addTab(url);
+                        win.openUILinkIn(url, "tab");
                       }
                     }
                   ];
 
-    var notifyBox = browser.getNotificationBox();
+    var notifyBox = win.gBrowser.getNotificationBox();
     var notification = notifyBox.appendNotification(text, title, null,
                                                     notifyBox.PRIORITY_CRITICAL_MEDIUM,
                                                     buttons);
@@ -1588,41 +1638,9 @@ BrowserGlue.prototype = {
     }
   },
 
-#ifndef XP_WIN
-#define BROKEN_WM_Z_ORDER
-#endif
-
   // this returns the most recent non-popup browser window
   getMostRecentBrowserWindow: function BG_getMostRecentBrowserWindow() {
-    function isFullBrowserWindow(win) {
-      return !win.closed &&
-             win.toolbar.visible;
-    }
-
-#ifdef BROKEN_WM_Z_ORDER
-    var win = Services.wm.getMostRecentWindow("navigator:browser");
-
-    // if we're lucky, this isn't a popup, and we can just return this
-    if (win && !isFullBrowserWindow(win)) {
-      win = null;
-      let windowList = Services.wm.getEnumerator("navigator:browser");
-      // this is oldest to newest, so this gets a bit ugly
-      while (windowList.hasMoreElements()) {
-        let nextWin = windowList.getNext();
-        if (isFullBrowserWindow(nextWin))
-          win = nextWin;
-      }
-    }
-    return win;
-#else
-    var windowList = Services.wm.getZOrderDOMWindowEnumerator("navigator:browser", true);
-    while (windowList.hasMoreElements()) {
-      let win = windowList.getNext();
-      if (isFullBrowserWindow(win))
-        return win;
-    }
-    return null;
-#endif
+    return RecentWindow.getMostRecentBrowserWindow();
   },
 
 #ifdef MOZ_SERVICES_SYNC
@@ -1753,6 +1771,10 @@ ContentPermissionPrompt.prototype = {
         });
       }
     }
+
+    var link = chromeWin.document.getElementById("geolocation-learnmore-link");
+    link.value = browserBundle.GetStringFromName("geolocation.learnMore");
+    link.href = Services.urlFormatter.formatURLPref("browser.geolocation.warning.infoURL");
 
     var browser = chromeWin.gBrowser.getBrowserForDocument(requestingWindow.document);
 
