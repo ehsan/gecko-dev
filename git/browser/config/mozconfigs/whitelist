@@ -34,6 +34,7 @@ whitelist['nightly']['linux32'] += [
     'export MOZ_TELEMETRY_REPORTING=1',
     "mk_add_options PROFILE_GEN_SCRIPT='$(PYTHON) @MOZ_OBJDIR@/_profile/pgo/profileserver.py 10'",
     'STRIP_FLAGS="--strip-debug"',
+    'ac_add_options --disable-elf-hack # --enable-elf-hack conflicts with --enable-profiling',
 ]
 
 whitelist['nightly']['linux64'] += [
@@ -43,6 +44,7 @@ whitelist['nightly']['linux64'] += [
     'STRIP_FLAGS="--strip-debug"',
     'ac_add_options --with-ccache=/usr/bin/ccache',
     '. "$topsrcdir/build/mozconfig.cache"',
+    'ac_add_options --disable-elf-hack # --enable-elf-hack conflicts with --enable-profiling',
 ]
 
 whitelist['nightly']['macosx-universal'] += [

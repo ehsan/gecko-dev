@@ -53,6 +53,7 @@ GonkVideoDecoderManager::GonkVideoDecoderManager(
                            mozilla::layers::ImageContainer* aImageContainer,
 		           const mp4_demuxer::VideoDecoderConfig& aConfig)
   : mImageContainer(aImageContainer)
+  , mConfig(aConfig)
   , mReaderCallback(nullptr)
   , mColorConverterBufferSize(0)
   , mNativeWindow(nullptr)
@@ -395,7 +396,7 @@ GonkVideoDecoderManager::Input(mp4_demuxer::MP4Sample* aSample)
   status_t rv;
   if (aSample != nullptr) {
     // We must prepare samples in AVC Annex B.
-    mp4_demuxer::AnnexB::ConvertSample(aSample);
+    mp4_demuxer::AnnexB::ConvertSample(aSample, mConfig.annex_b);
     // Forward sample data to the decoder.
 
     const uint8_t* data = reinterpret_cast<const uint8_t*>(aSample->data);

@@ -544,11 +544,8 @@ HandleClosingGeneratorReturn(JSContext *cx, const JitFrameIterator &frame, jsbyt
     cx->clearPendingException();
     frame.baselineFrame()->setReturnValue(UndefinedValue());
 
-    if (unwoundScopeToPc) {
-        if (frame.baselineFrame()->isDebuggee())
-            frame.baselineFrame()->setUnwoundScopeOverridePc(unwoundScopeToPc);
-        pc = unwoundScopeToPc;
-    }
+    if (frame.baselineFrame()->isDebuggee() && unwoundScopeToPc)
+        frame.baselineFrame()->setUnwoundScopeOverridePc(unwoundScopeToPc);
 
     ForcedReturn(cx, frame, pc, rfe, calledDebugEpilogue);
 }

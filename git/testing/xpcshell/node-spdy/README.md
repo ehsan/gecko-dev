@@ -5,11 +5,10 @@
 
 With this module you can create [SPDY](http://www.chromium.org/spdy) servers
 in node.js with natural http module interface and fallback to regular https
-(for browsers that don't support SPDY yet).
+(for browsers that doesn't support SPDY yet).
 
 ## Usage
 
-Server:
 ```javascript
 var spdy = require('spdy'),
     fs = require('fs');
@@ -17,13 +16,10 @@ var spdy = require('spdy'),
 var options = {
   key: fs.readFileSync(__dirname + '/keys/spdy-key.pem'),
   cert: fs.readFileSync(__dirname + '/keys/spdy-cert.pem'),
-  ca: fs.readFileSync(__dirname + '/keys/spdy-ca.pem'),
+  ca: fs.readFileSync(__dirname + '/keys/spdy-csr.pem'),
 
-  // **optional** SPDY-specific options
-  windowSize: 1024 * 1024, // Server's window size
-
-  // **optional** if true - server will send 3.1 frames on 3.0 *plain* spdy
-  autoSpdy31: false
+  // SPDY-specific options
+  windowSize: 1024, // Server's window size
 };
 
 var server = spdy.createServer(options, function(req, res) {
@@ -32,36 +28,6 @@ var server = spdy.createServer(options, function(req, res) {
 });
 
 server.listen(443);
-```
-
-Client:
-```javascript
-var spdy = require('spdy');
-var http = require('http');
-
-var agent = spdy.createAgent({
-  host: 'www.google.com',
-  port: 443,
-
-  // Optional SPDY options
-  spdy: {
-    plain: false or true,
-    ssl: false or true,
-    version: 3 // Force SPDY version
-  }
-});
-
-http.get({
-  host: 'www.google.com',
-  agent: agent
-}, function(response) {
-  console.log('yikes');
-  // Here it goes like with any other node.js HTTP request
-  // ...
-  // And once we're done - we may close TCP connection to server
-  // NOTE: All non-closed requests will die!
-  agent.close();
-}).end();
 ```
 
 And by popular demand - usage with
@@ -112,12 +78,11 @@ the client requests it.
 ```javascript
 spdy.createServer(options, function(req, res) {
   var headers = { 'content-type': 'application/javascript' };
-  var stream = res.push('/main.js', headers);
-  stream.on('acknowledge', function() {
+  res.push('/main.js', headers, function(err, stream) {
+    if (err) return;
+
+    stream.end('alert("hello from push stream!");');
   });
-  stream.on('error', function() {
-  });
-  stream.end('alert("hello from push stream!");');
 
   res.end('<script src="/main.js"></script>');
 }).listen(443);
@@ -135,70 +100,19 @@ will receive two arguments: `err` (if any error is happened) and `stream`
 (stream object have API compatible with a
 [net.Socket](http://nodejs.org/docs/latest/api/net.html#net.Socket) ).
 
-Client usage:
-```javascript
-var agent = spdy.createAgent({ /* ... */ });
-agent.on('push', function(stream) {
-  stream.on('error', function(err) {
-    // Handle error
-  });
-  // Read data from stream
-  // ...
-  // stream.associated points to associated client-initiated stream
-});
-```
-
-NOTE: You're responsible for the `stream` object once given it in `.push()`
-callback. Hence ignoring `error` events on it might result in uncaught
-exceptions and crash your program.
-
-### Trailing headers
-
-Server usage:
-```javascript
-function (req, res) {
-  // Send trailing headers to client
-  res.addTrailers({ header1: 'value1', header2: 'value2' });
-
-  // On client's trailing headers
-  req.on('trailers', function(headers) {
-    // ...
-  });
-}
-```
-
-Client usage:
-```javascript
-var req = http.request({ agent: spdyAgent, /* ... */ }).function (res) {
-  // On server's trailing headers
-  res.on('trailers', function(headers) {
-    // ...
-  });
-});
-req.write('stuff');
-req.addTrailers({ /* ... */ });
-req.end();
-```
-
 ### Options
 
 All options supported by
 [tls](http://nodejs.org/docs/latest/api/tls.html#tls.createServer) are working
 with node-spdy. In addition, `maxStreams` options is available. it allows you
-controlling [maximum concurrent streams](http://www.chromium.org/spdy/spdy-protocol/spdy-protocol-draft2#TOC-SETTINGS)
+controlling [maximum concurrent streams][http://www.chromium.org/spdy/spdy-protocol/spdy-protocol-draft2#TOC-SETTINGS]
 protocol option (if client will start more streams than that limit, RST_STREAM
 will be sent for each additional stream).
 
 Additional options:
 
-* `plain` - if defined, server will ignore NPN and ALPN data and choose whether
-  to use spdy or plain http by looking at first data packet.
-* `ssl` - if `false` and `options.plain` is `true`, `http.Server` will be used
-  as a `base` class for created server.
-* `maxChunk` - if set and non-falsy, limits number of bytes sent in one DATA
-  chunk. Setting it to non-zero value is recommended if you care about
-  interleaving of outgoing data from multiple different streams.
-  (defaults to 8192)
+* `plain` - if defined, server will accept only plain (non-encrypted)
+  connections.
 
 #### Contributors
 
@@ -214,7 +128,7 @@ Additional options:
 
 This software is licensed under the MIT License.
 
-Copyright Fedor Indutny, 2014.
+Copyright Fedor Indutny, 2012.
 
 Permission is hereby granted, free of charge, to any person obtaining a
 copy of this software and associated documentation files (the

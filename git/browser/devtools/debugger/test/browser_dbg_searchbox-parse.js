@@ -6,7 +6,7 @@
  */
 
 function test() {
-  initDebugger("about:blank").then(([aTab,, aPanel]) => {
+  initDebugger("about:blank").then(([aTab, aDebuggee, aPanel]) => {
     let filterView = aPanel.panelWin.DebuggerView.Filtering;
     let searchbox = aPanel.panelWin.DebuggerView.Filtering._searchbox;
 

@@ -1,57 +1,39 @@
 var spdy = require('../spdy'),
     utils = exports;
 
-var stream = require('stream'),
-    zlib = require('zlib'),
+var zlib = require('zlib'),
     Buffer = require('buffer').Buffer;
 
-// Export streams related stuff
-utils.isLegacy = !stream.Duplex;
-if (utils.isLegacy)
-  utils.DuplexStream = stream;
-else
-  utils.DuplexStream = stream.Duplex;
-
 //
-// ### function createDeflate (version, compression)
-// #### @version {Number} SPDY version
-// #### @compression {Boolean} whether to enable compression
+// ### function createDeflate ()
 // Creates deflate stream with SPDY dictionary
 //
-utils.createDeflate = function createDeflate(version, compression) {
+utils.createDeflate = function createDeflate(version) {
   var deflate = zlib.createDeflate({
-    dictionary: spdy.protocol.dictionary[version],
-    flush: zlib.Z_SYNC_FLUSH,
-    windowBits: 11,
-    level: compression ? zlib.Z_DEFAULT_COMPRESSION : zlib.Z_NO_COMPRESSION
+    dictionary: spdy.protocol[version].dictionary,
+    windowBits: 11
   });
 
   // Define lock information early
   deflate.locked = false;
-  deflate.lockQueue = [];
-  if (spdy.utils.isLegacy)
-    deflate._flush = zlib.Z_SYNC_FLUSH;
+  deflate.lockBuffer = [];
 
   return deflate;
 };
 
 //
-// ### function createInflate (version)
-// #### @version {Number} SPDY version
+// ### function createInflate ()
 // Creates inflate stream with SPDY dictionary
 //
 utils.createInflate = function createInflate(version) {
   var inflate = zlib.createInflate({
-    dictionary: spdy.protocol.dictionary[version],
-    flush: zlib.Z_SYNC_FLUSH,
+    dictionary: spdy.protocol[version].dictionary,
     windowBits: 15
   });
 
   // Define lock information early
   inflate.locked = false;
-  inflate.lockQueue = [];
-  if (spdy.utils.isLegacy)
-    inflate._flush = zlib.Z_SYNC_FLUSH;
+  inflate.lockBuffer = [];
 
   return inflate;
 };
@@ -63,14 +45,14 @@ utils.createInflate = function createInflate(version) {
 //
 utils.resetZlibStream = function resetZlibStream(stream, callback) {
   if (stream.locked) {
-    stream.lockQueue.push(function() {
+    stream.lockBuffer.push(function() {
       resetZlibStream(stream, callback);
     });
     return;
   }
 
   stream.reset();
-  stream.lockQueue = [];
+  stream.lockBuffer = [];
 
   callback(null);
 };
@@ -84,11 +66,12 @@ var delta = 0;
 // Compress/decompress data and pass it to callback
 //
 utils.zstream = function zstream(stream, buffer, callback) {
-  var chunks = [],
+  var flush = stream._flush,
+      chunks = [],
       total = 0;
 
   if (stream.locked) {
-    stream.lockQueue.push(function() {
+    stream.lockBuffer.push(function() {
       zstream(stream, buffer, callback);
     });
     return;
@@ -100,26 +83,23 @@ utils.zstream = function zstream(stream, buffer, callback) {
     total += chunk.length;
   }
   stream.on('data', collect);
-
-  stream.write(buffer, done);
-
-  function done() {
-    stream.removeAllListeners('data');
-    stream.removeAllListeners('error');
-
-    if (callback)
-      callback(null, chunks, total);
-
-    stream.locked = false;
-    var deferred = stream.lockQueue.shift();
-    if (deferred)
-      deferred();
-  };
+  stream.write(buffer);
 
   stream.once('error', function(err) {
     stream.removeAllListeners('data');
     callback(err);
-    callback = null;
+  });
+
+  stream.flush(function() {
+    stream.removeAllListeners('data');
+    stream.removeAllListeners('error');
+    stream._flush = flush;
+
+    callback(null, chunks, total);
+
+    stream.locked = false;
+    var deferred = stream.lockBuffer.shift();
+    if (deferred) deferred();
   });
 };
 
@@ -133,8 +113,3 @@ utils.zwrap = function zwrap(stream) {
     utils.zstream(stream, data, callback);
   };
 };
-
-if (typeof setImmediate === 'undefined')
-  utils.nextTick = process.nextTick.bind(process);
-else
-  utils.nextTick = setImmediate;

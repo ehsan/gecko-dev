@@ -3045,9 +3045,9 @@ CSS_PROP_TEXT(
     offsetof(nsStyleText, mTextCombineUpright),
     eStyleAnimType_EnumU8)
 CSS_PROP_TEXTRESET(
-    text-decoration-color,
+    -moz-text-decoration-color,
     text_decoration_color,
-    TextDecorationColor,
+    CSS_PROP_DOMPROP_PREFIXED(TextDecorationColor),
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
         CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
@@ -3058,9 +3058,9 @@ CSS_PROP_TEXTRESET(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_Custom)
 CSS_PROP_TEXTRESET(
-    text-decoration-line,
+    -moz-text-decoration-line,
     text_decoration_line,
-    TextDecorationLine,
+    CSS_PROP_DOMPROP_PREFIXED(TextDecorationLine),
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_PARSER_FUNCTION |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
@@ -3071,9 +3071,9 @@ CSS_PROP_TEXTRESET(
     offsetof(nsStyleTextReset, mTextDecorationLine),
     eStyleAnimType_EnumU8)
 CSS_PROP_TEXTRESET(
-    text-decoration-style,
+    -moz-text-decoration-style,
     text_decoration_style,
-    TextDecorationStyle,
+    CSS_PROP_DOMPROP_PREFIXED(TextDecorationStyle),
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
         CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,

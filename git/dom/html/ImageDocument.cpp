@@ -459,14 +459,20 @@ ImageDocument::Notify(imgIRequest* aRequest, int32_t aType, const nsIntRect* aDa
   if (aType == imgINotificationObserver::SIZE_AVAILABLE) {
     nsCOMPtr<imgIContainer> image;
     aRequest->GetImage(getter_AddRefs(image));
-    return OnSizeAvailable(aRequest, image);
+    return OnStartContainer(aRequest, image);
   }
 
-  // Run this using a script runner because HAS_TRANSPARENCY notifications can
-  // come during painting and this will trigger invalidation.
-  if (aType == imgINotificationObserver::HAS_TRANSPARENCY) {
+  // Do these two off a script runner because decode complete notifications often
+  // come during painting and these will trigger invalidation.
+  if (aType == imgINotificationObserver::DECODE_COMPLETE) {
     nsCOMPtr<nsIRunnable> runnable =
-      NS_NewRunnableMethod(this, &ImageDocument::OnHasTransparency);
+      NS_NewRunnableMethod(this, &ImageDocument::AddDecodedClass);
+    nsContentUtils::AddScriptRunner(runnable);
+  }
+
+  if (aType == imgINotificationObserver::DISCARD) {
+    nsCOMPtr<nsIRunnable> runnable =
+      NS_NewRunnableMethod(this, &ImageDocument::RemoveDecodedClass);
     nsContentUtils::AddScriptRunner(runnable);
   }
 
@@ -475,14 +481,14 @@ ImageDocument::Notify(imgIRequest* aRequest, int32_t aType, const nsIntRect* aDa
     aRequest->GetImageStatus(&reqStatus);
     nsresult status =
         reqStatus & imgIRequest::STATUS_ERROR ? NS_ERROR_FAILURE : NS_OK;
-    return OnLoadComplete(aRequest, status);
+    return OnStopRequest(aRequest, status);
   }
 
   return NS_OK;
 }
 
 void
-ImageDocument::OnHasTransparency()
+ImageDocument::AddDecodedClass()
 {
   if (!mImageContent || nsContentUtils::IsChildOfSameType(this)) {
     return;
@@ -490,7 +496,23 @@ ImageDocument::OnHasTransparency()
 
   nsDOMTokenList* classList = mImageContent->AsElement()->ClassList();
   mozilla::ErrorResult rv;
-  classList->Add(NS_LITERAL_STRING("transparent"), rv);
+  // Update the background-color of the image only after the
+  // image has been decoded to prevent flashes of just the
+  // background-color.
+  classList->Add(NS_LITERAL_STRING("decoded"), rv);
+}
+
+void
+ImageDocument::RemoveDecodedClass()
+{
+  if (!mImageContent || nsContentUtils::IsChildOfSameType(this)) {
+    return;
+  }
+
+  nsDOMTokenList* classList = mImageContent->AsElement()->ClassList();
+  mozilla::ErrorResult rv;
+  // Remove any decoded-related styling when the image is unloaded.
+  classList->Remove(NS_LITERAL_STRING("decoded"), rv);
 }
 
 void
@@ -513,7 +535,7 @@ ImageDocument::SetModeClass(eModeClasses mode)
 }
 
 nsresult
-ImageDocument::OnSizeAvailable(imgIRequest* aRequest, imgIContainer* aImage)
+ImageDocument::OnStartContainer(imgIRequest* aRequest, imgIContainer* aImage)
 {
   // Styles have not yet been applied, so we don't know the final size. For now,
   // default to the image's intrinsic size.
@@ -529,7 +551,8 @@ ImageDocument::OnSizeAvailable(imgIRequest* aRequest, imgIContainer* aImage)
 }
 
 nsresult
-ImageDocument::OnLoadComplete(imgIRequest* aRequest, nsresult aStatus)
+ImageDocument::OnStopRequest(imgIRequest *aRequest,
+                             nsresult aStatus)
 {
   UpdateTitleAndCharset();
 

@@ -631,9 +631,6 @@ struct ArenaHeader : public JS::shadow::ArenaHeader
     inline void setNextAllocDuringSweep(ArenaHeader *aheader);
     inline void unsetAllocDuringSweep();
 
-    inline void setNextArenaToUpdate(ArenaHeader *aheader);
-    inline ArenaHeader *getNextArenaToUpdateAndUnlink();
-
     void unmarkAll();
 
 #ifdef JSGC_COMPACTING
@@ -1150,23 +1147,6 @@ ArenaHeader::unsetAllocDuringSweep()
     MOZ_ASSERT(allocatedDuringIncremental);
     allocatedDuringIncremental = 0;
     auxNextLink = 0;
-}
-
-inline ArenaHeader *
-ArenaHeader::getNextArenaToUpdateAndUnlink()
-{
-    MOZ_ASSERT(!hasDelayedMarking && !allocatedDuringIncremental && !markOverflow);
-    ArenaHeader *next = &reinterpret_cast<Arena *>(auxNextLink << ArenaShift)->aheader;
-    auxNextLink = 0;
-    return next;
-}
-
-inline void
-ArenaHeader::setNextArenaToUpdate(ArenaHeader *aheader)
-{
-    MOZ_ASSERT(!hasDelayedMarking && !allocatedDuringIncremental && !markOverflow);
-    MOZ_ASSERT(!auxNextLink);
-    auxNextLink = aheader->arenaAddress() >> ArenaShift;
 }
 
 static void

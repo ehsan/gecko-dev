@@ -7,15 +7,16 @@
 
 const TAB_URL = EXAMPLE_URL + "doc_script-switching-01.html";
 
-let gTab, gPanel, gDebugger;
+let gTab, gDebuggee, gPanel, gDebugger;
 let gSources, gSearchView, gSearchBox;
 
 function test() {
   // Debug test slaves are a bit slow at this test.
   requestLongerTimeout(3);
 
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
     gSources = gDebugger.DebuggerView.Sources;
@@ -225,6 +226,7 @@ function verifyContents(aArgs) {
 
 registerCleanupFunction(function() {
   gTab = null;
+  gDebuggee = null;
   gPanel = null;
   gDebugger = null;
   gSources = null;

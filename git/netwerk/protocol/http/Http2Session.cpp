@@ -1636,7 +1636,7 @@ Http2Session::RecvPushPromise(Http2Session *self)
   if (NS_SUCCEEDED(rv)) {
     rv = Http2Stream::MakeOriginURL(pushedStream->Origin(), pushedURL);
   }
-  LOG3(("Http2Session::RecvPushPromise %p checking %s == %s", self,
+  LOG3(("Http2Session::RecvPushPromise %p checking %s == %s",
         associatedStream->Origin().get(), pushedStream->Origin().get()));
   bool match = false;
   if (NS_SUCCEEDED(rv)) {

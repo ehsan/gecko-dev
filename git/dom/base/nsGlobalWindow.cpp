@@ -14094,12 +14094,8 @@ void
 nsGlobalWindow::ClearDocumentDependentSlots(JSContext* aCx)
 {
   MOZ_ASSERT(IsInnerWindow());
-
-  // If JSAPI OOMs here, there is basically nothing we can do to recover safely.
-  if (!WindowBinding::ClearCachedDocumentValue(aCx, this) ||
-      !WindowBinding::ClearCachedPerformanceValue(aCx, this)) {
-    MOZ_CRASH("Unhandlable OOM while clearing document dependent slots.");
-  }
+  WindowBinding::ClearCachedDocumentValue(aCx, this);
+  WindowBinding::ClearCachedPerformanceValue(aCx, this);
 }
 
 /* static */

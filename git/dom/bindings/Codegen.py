@@ -3474,6 +3474,7 @@ class CGClearCachedValueMethod(CGAbstractMethod):
                 JSAutoCompartment ac(aCx, obj);
                 if (!get_${name}(aCx, obj, aObject, args)) {
                   js::SetReservedSlot(obj, ${slotIndex}, oldValue);
+                  nsJSUtils::ReportPendingException(aCx);
                   return false;
                 }
                 return true;

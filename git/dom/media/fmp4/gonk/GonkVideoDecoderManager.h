@@ -115,6 +115,7 @@ private:
   void ReleaseAllPendingVideoBuffersLocked();
   void PostReleaseVideoBuffer(android::MediaBuffer *aBuffer);
 
+  const mp4_demuxer::VideoDecoderConfig& mConfig;
   uint32_t mVideoWidth;
   uint32_t mVideoHeight;
   uint32_t mDisplayWidth;

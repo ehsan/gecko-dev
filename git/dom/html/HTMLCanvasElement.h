@@ -7,7 +7,6 @@
 #define mozilla_dom_HTMLCanvasElement_h
 
 #include "mozilla/Attributes.h"
-#include "mozilla/TypedEnum.h"
 #include "nsIDOMHTMLCanvasElement.h"
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
@@ -35,12 +34,6 @@ class File;
 class FileCallback;
 class HTMLCanvasPrintState;
 class PrintCallback;
-
-MOZ_BEGIN_ENUM_CLASS(CanvasContextType, uint8_t)
-  Canvas2D,
-  WebGL1,
-  WebGL2
-MOZ_END_ENUM_CLASS(CanvasContextType)
 
 class HTMLCanvasElement MOZ_FINAL : public nsGenericHTMLElement,
                                     public nsIDOMHTMLCanvasElement
@@ -236,9 +229,11 @@ protected:
   nsresult MozGetAsFileImpl(const nsAString& aName,
                             const nsAString& aType,
                             nsIDOMFile** aResult);
+  nsresult GetContextHelper(const nsAString& aContextId,
+                            nsICanvasRenderingContextInternal **aContext);
   void CallPrintCallback();
 
-  CanvasContextType mCurrentContextType;
+  nsString mCurrentContextId;
   nsRefPtr<HTMLCanvasElement> mOriginalCanvas;
   nsRefPtr<PrintCallback> mPrintCallback;
   nsCOMPtr<nsICanvasRenderingContextInternal> mCurrentContext;

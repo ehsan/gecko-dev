@@ -395,31 +395,31 @@ NS_INTERFACE_MAP_BEGIN(ImageLoader)
 NS_INTERFACE_MAP_END
 
 NS_IMETHODIMP
-ImageLoader::Notify(imgIRequest* aRequest, int32_t aType, const nsIntRect* aData)
+ImageLoader::Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect* aData)
 {
   if (aType == imgINotificationObserver::SIZE_AVAILABLE) {
     nsCOMPtr<imgIContainer> image;
     aRequest->GetImage(getter_AddRefs(image));
-    return OnSizeAvailable(aRequest, image);
+    return OnStartContainer(aRequest, image);
   }
 
   if (aType == imgINotificationObserver::IS_ANIMATED) {
     return OnImageIsAnimated(aRequest);
   }
 
-  if (aType == imgINotificationObserver::FRAME_COMPLETE) {
-    return OnFrameComplete(aRequest);
+  if (aType == imgINotificationObserver::LOAD_COMPLETE) {
+    return OnStopFrame(aRequest);
   }
 
   if (aType == imgINotificationObserver::FRAME_UPDATE) {
-    return OnFrameUpdate(aRequest);
+    return FrameChanged(aRequest);
   }
 
   return NS_OK;
 }
 
 nsresult
-ImageLoader::OnSizeAvailable(imgIRequest* aRequest, imgIContainer* aImage)
+ImageLoader::OnStartContainer(imgIRequest* aRequest, imgIContainer* aImage)
 { 
   nsPresContext* presContext = GetPresContext();
   if (!presContext) {
@@ -456,7 +456,7 @@ ImageLoader::OnImageIsAnimated(imgIRequest* aRequest)
 }
 
 nsresult
-ImageLoader::OnFrameComplete(imgIRequest* aRequest)
+ImageLoader::OnStopFrame(imgIRequest *aRequest)
 {
   if (!mDocument || mInClone) {
     return NS_OK;
@@ -478,7 +478,7 @@ ImageLoader::OnFrameComplete(imgIRequest* aRequest)
 }
 
 nsresult
-ImageLoader::OnFrameUpdate(imgIRequest* aRequest)
+ImageLoader::FrameChanged(imgIRequest *aRequest)
 {
   if (!mDocument || mInClone) {
     return NS_OK;

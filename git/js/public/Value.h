@@ -84,8 +84,7 @@ JS_ENUM_HEADER(JSValueType, uint8_t)
     JSVAL_TYPE_MISSING             = 0x21
 } JS_ENUM_FOOTER(JSValueType);
 
-static_assert(sizeof(JSValueType) == 1,
-              "compiler typed enum support is apparently buggy");
+JS_STATIC_ASSERT(sizeof(JSValueType) == 1);
 
 #if defined(JS_NUNBOX32)
 
@@ -103,8 +102,7 @@ JS_ENUM_HEADER(JSValueTag, uint32_t)
     JSVAL_TAG_OBJECT               = JSVAL_TAG_CLEAR | JSVAL_TYPE_OBJECT
 } JS_ENUM_FOOTER(JSValueTag);
 
-static_assert(sizeof(JSValueTag) == sizeof(uint32_t),
-              "compiler typed enum support is apparently buggy");
+JS_STATIC_ASSERT(sizeof(JSValueTag) == 4);
 
 #elif defined(JS_PUNBOX64)
 
@@ -122,8 +120,7 @@ JS_ENUM_HEADER(JSValueTag, uint32_t)
     JSVAL_TAG_OBJECT               = JSVAL_TAG_MAX_DOUBLE | JSVAL_TYPE_OBJECT
 } JS_ENUM_FOOTER(JSValueTag);
 
-static_assert(sizeof(JSValueTag) == sizeof(uint32_t),
-              "compiler typed enum support is apparently buggy");
+JS_STATIC_ASSERT(sizeof(JSValueTag) == sizeof(uint32_t));
 
 JS_ENUM_HEADER(JSValueShiftedTag, uint64_t)
 {
@@ -138,20 +135,9 @@ JS_ENUM_HEADER(JSValueShiftedTag, uint64_t)
     JSVAL_SHIFTED_TAG_OBJECT       = (((uint64_t)JSVAL_TAG_OBJECT)     << JSVAL_TAG_SHIFT)
 } JS_ENUM_FOOTER(JSValueShiftedTag);
 
-static_assert(sizeof(JSValueShiftedTag) == sizeof(uint64_t),
-              "compiler typed enum support is apparently buggy");
+JS_STATIC_ASSERT(sizeof(JSValueShiftedTag) == sizeof(uint64_t));
 
 #endif
-
-/*
- * All our supported compilers implement C++11 |enum Foo : T| syntax, so don't
- * expose these macros. (This macro exists *only* because gcc bug 51242
- * <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=51242> makes bit-fields of
- * typed enums trigger a warning that can't be turned off. Don't expose it
- * beyond this file!)
- */
-#undef JS_ENUM_HEADER
-#undef JS_ENUM_FOOTER
 
 #else  /* !defined(__SUNPRO_CC) && !defined(__xlC__) */
 

@@ -46,8 +46,6 @@ ScriptedNotificationObserver::Notify(imgIRequest* aRequest,
     return mInner->Discard(aRequest);
   if (aType == imgINotificationObserver::IS_ANIMATED)
     return mInner->IsAnimated(aRequest);
-  if (aType == imgINotificationObserver::HAS_TRANSPARENCY)
-    return mInner->HasTransparency(aRequest);
   return NS_OK;
 }
 

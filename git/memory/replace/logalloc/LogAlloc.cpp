@@ -48,20 +48,6 @@ extern "C" MOZ_EXPORT
 int pthread_atfork(void (*)(void), void (*)(void), void (*)(void));
 #endif
 
-class LogAllocBridge : public ReplaceMallocBridge
-{
-  virtual void InitDebugFd(mozilla::DebugFdRegistry& aRegistry) MOZ_OVERRIDE {
-    if (sFd > 2) {
-#ifdef _WIN32
-      intptr_t handle = _get_osfhandle(sFd);
-#else
-      intptr_t handle = sFd;
-#endif
-      aRegistry.RegisterHandle(handle);
-    }
-  }
-};
-
 void
 replace_init(const malloc_table_t* aTable)
 {
@@ -104,13 +90,6 @@ replace_init(const malloc_table_t* aTable)
       sFd = open(log, O_WRONLY | O_CREAT | O_APPEND, 0644);
     }
   }
-}
-
-ReplaceMallocBridge*
-replace_get_bridge()
-{
-  static LogAllocBridge bridge;
-  return &bridge;
 }
 
 /* Do a simple, text-form, log of all calls to replace-malloc functions.

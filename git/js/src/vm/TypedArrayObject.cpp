@@ -581,8 +581,9 @@ class TypedArrayObjectTemplate : public TypedArrayObject
     static bool
     maybeCreateArrayBuffer(JSContext *cx, uint32_t nelements, MutableHandle<ArrayBufferObject *> buffer)
     {
-        static_assert(INLINE_BUFFER_LIMIT % sizeof(NativeType) == 0,
-                      "ArrayBuffer inline storage shouldn't waste any space");
+        // Make sure that array elements evenly divide into the inline buffer's
+        // size, for the test below.
+        JS_STATIC_ASSERT((INLINE_BUFFER_LIMIT / sizeof(NativeType)) * sizeof(NativeType) == INLINE_BUFFER_LIMIT);
 
         if (nelements <= INLINE_BUFFER_LIMIT / sizeof(NativeType)) {
             // The array's data can be inline, and the buffer created lazily.
@@ -595,12 +596,8 @@ class TypedArrayObjectTemplate : public TypedArrayObject
             return false;
         }
 
-        ArrayBufferObject *buf = ArrayBufferObject::create(cx, nelements * sizeof(NativeType));
-        if (!buf)
-            return false;
-
-        buffer.set(buf);
-        return true;
+        buffer.set(ArrayBufferObject::create(cx, nelements * sizeof(NativeType)));
+        return !!buffer;
     }
 
     static JSObject *
@@ -847,9 +844,7 @@ template<typename NativeType>
 Value
 TypedArrayObjectTemplate<NativeType>::getIndexValue(JSObject *tarray, uint32_t index)
 {
-    static_assert(sizeof(NativeType) < 4,
-                  "this method must only handle NativeType values that are "
-                  "always exact int32_t values");
+    JS_STATIC_ASSERT(sizeof(NativeType) < 4);
 
     return Int32Value(getIndex(tarray, index));
 }

@@ -46,7 +46,7 @@ js::Debugger::onDebuggerStatement(JSContext *cx, AbstractFramePtr frame, Mutable
 {
     MOZ_ASSERT_IF(frame.script()->isDebuggee(), frame.isDebuggee());
     return frame.isDebuggee()
-           ? dispatchHook(cx, vp, OnDebuggerStatement, NullPtr())
+           ? dispatchHook(cx, vp, OnDebuggerStatement)
            : JSTRAP_CONTINUE;
 }
 

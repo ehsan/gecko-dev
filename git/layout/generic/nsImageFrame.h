@@ -221,10 +221,10 @@ protected:
 protected:
   friend class nsImageListener;
   friend class nsImageLoadingContent;
-
-  nsresult OnSizeAvailable(imgIRequest* aRequest, imgIContainer* aImage);
-  nsresult OnFrameUpdate(imgIRequest* aRequest, const nsIntRect* aRect);
-  nsresult OnLoadComplete(imgIRequest* aRequest, nsresult aStatus);
+  nsresult OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
+  nsresult OnDataAvailable(imgIRequest *aRequest, const nsIntRect *rect);
+  nsresult OnStopRequest(imgIRequest *aRequest,
+                         nsresult aStatus);
   nsresult FrameChanged(imgIRequest *aRequest,
                         imgIContainer *aContainer);
   /**

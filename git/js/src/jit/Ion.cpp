@@ -449,17 +449,14 @@ JitCompartment::notifyOfActiveParallelEntryScript(JSContext *cx, HandleScript sc
     }
 
     if (!activeParallelEntryScripts_) {
-        ScriptSet *scripts = js_new<ScriptSet>();
-        if (!scripts || !scripts->init()) {
-            js_delete(scripts);
-            js_ReportOutOfMemory(cx);
+        activeParallelEntryScripts_ = cx->new_<ScriptSet>(cx);
+        if (!activeParallelEntryScripts_ || !activeParallelEntryScripts_->init())
             return false;
-        }
-        activeParallelEntryScripts_ = scripts;
     }
 
     script->parallelIonScript()->setIsParallelEntryScript();
-    return activeParallelEntryScripts_->put(script);
+    ScriptSet::AddPtr p = activeParallelEntryScripts_->lookupForAdd(script);
+    return p || activeParallelEntryScripts_->add(p, script);
 }
 
 bool
@@ -591,7 +588,8 @@ JitCompartment::mark(JSTracer *trc, JSCompartment *compartment)
             // off-thread helper too late (i.e., the ForkJoin finished with
             // warmup doing all the work), remove it.
             if (!script->hasParallelIonScript() ||
-                !script->parallelIonScript()->isParallelEntryScript())
+                !script->parallelIonScript()->isParallelEntryScript() ||
+                trc->runtime()->gc.shouldCleanUpEverything())
             {
                 e.removeFront();
                 continue;
@@ -603,9 +601,7 @@ JitCompartment::mark(JSTracer *trc, JSCompartment *compartment)
             // Subtlety: We depend on the tracing of the parallel IonScript's
             // callTargetEntries to propagate the parallel age to the entire
             // call graph.
-            if (!trc->runtime()->gc.shouldCleanUpEverything() &&
-                script->parallelIonScript()->shouldPreserveParallelCode(IonScript::IncreaseAge))
-            {
+            if (script->parallelIonScript()->shouldPreserveParallelCode(IonScript::IncreaseAge)) {
                 MarkScript(trc, const_cast<PreBarrieredScript *>(&e.front()), "par-script");
                 MOZ_ASSERT(script == e.front());
             } else {

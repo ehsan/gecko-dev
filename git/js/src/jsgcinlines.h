@@ -379,9 +379,7 @@ class GCZonesIter
     ZonesIter zone;
 
   public:
-    explicit GCZonesIter(JSRuntime *rt, ZoneSelector selector = WithAtoms)
-      : zone(rt, selector)
-    {
+    explicit GCZonesIter(JSRuntime *rt) : zone(rt, WithAtoms) {
         if (!zone->isCollecting())
             next();
     }
@@ -392,7 +390,7 @@ class GCZonesIter
         MOZ_ASSERT(!done());
         do {
             zone.next();
-        } while (!zone.done() && !zone->isCollectingFromAnyThread());
+        } while (!zone.done() && !zone->isCollecting());
     }
 
     JS::Zone *get() const {

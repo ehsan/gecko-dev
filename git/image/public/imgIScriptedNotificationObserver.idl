@@ -18,5 +18,4 @@ interface imgIScriptedNotificationObserver : nsISupports
   void decodeComplete(in imgIRequest aRequest);
   void discard(in imgIRequest aRequest);
   void isAnimated(in imgIRequest aRequest);
-  void hasTransparency(in imgIRequest aRequest);
 };

@@ -51,6 +51,9 @@ public:
 
   void DefaultCheckOverflowing() { CheckOverflowing(mResizeImageByDefault); }
 
+  void AddDecodedClass();
+  void RemoveDecodedClass();
+
   // WebIDL API
   virtual JSObject* WrapNode(JSContext* aCx)
     MOZ_OVERRIDE;
@@ -104,9 +107,8 @@ protected:
   };
   void SetModeClass(eModeClasses mode);
 
-  nsresult OnSizeAvailable(imgIRequest* aRequest, imgIContainer* aImage);
-  nsresult OnLoadComplete(imgIRequest* aRequest, nsresult aStatus);
-  void OnHasTransparency();
+  nsresult OnStartContainer(imgIRequest* aRequest, imgIContainer* aImage);
+  nsresult OnStopRequest(imgIRequest *aRequest, nsresult aStatus);
 
   nsCOMPtr<nsIContent>          mImageContent;
 
