@@ -45,12 +45,11 @@
 
 /* XPConnect JavaScript interactive shell. */
 
-#ifdef MOZ_IPC
-#include "mozilla/dom/ContentProcessParent.h"
-#include "mozilla/ipc/TestShellParent.h"
-#endif
-
 #include <stdio.h>
+#include "jsapi.h"
+#include "jscntxt.h"
+#include "jsdbgapi.h"
+#include "jsprf.h"
 #include "nsXULAppAPI.h"
 #include "nsServiceManagerUtils.h"
 #include "nsComponentManagerUtils.h"
@@ -69,9 +68,6 @@
 #include "nsILocalFile.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsAppDirectoryServiceDefs.h"
-#include "jsapi.h"
-#include "jsdbgapi.h"
-#include "jsprf.h"
 #include "nscore.h"
 #include "nsArrayEnumerator.h"
 #include "nsCOMArray.h"
@@ -91,6 +87,11 @@
 #endif
 #ifdef __SYMBIAN32__
 #include <unistd.h>
+#endif
+
+#ifdef MOZ_IPC
+#include "mozilla/dom/ContentProcessParent.h"
+#include "mozilla/ipc/TestShellParent.h"
 #endif
 
 #ifndef XPCONNECT_STANDALONE
@@ -538,9 +539,6 @@ DumpXPC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         xpc->DebugDump((int16)depth);
     return JS_TRUE;
 }
-
-/* XXX needed only by GC() */
-#include "jscntxt.h"
 
 static JSBool
 GC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)

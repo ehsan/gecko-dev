@@ -152,7 +152,7 @@
 
 #include "mozAutoDocUpdate.h"
 
-#include "nsICSSParser.h"
+#include "nsCSSParser.h"
 
 #ifdef MOZ_SVG
 #include "nsSVGFeatures.h"
@@ -3002,14 +3002,13 @@ nsGenericElement::SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
 
   if (aNotify) {
     nsIDocument* doc = GetCurrentDoc();
-    // Only need to notify PresContexts if we're in a document.  (We might not
+    // Only need to request a restyle if we're in a document.  (We might not
     // be in a document, if we're clearing animation effects on a target node
     // that's been detached since the previous animation sample.)
     if (doc) {
       nsCOMPtr<nsIPresShell> shell = doc->GetPrimaryShell();
       if (shell) {
-        nsPresContext* presContext = shell->GetPresContext();
-        presContext->SMILOverrideStyleChanged(this);
+        shell->RestyleForAnimation(this);
       }
     }
   }
@@ -4265,8 +4264,7 @@ nsGenericElement::AddScriptEventListener(nsIAtom* aEventName,
 const nsAttrName*
 nsGenericElement::InternalGetExistingAttrNameFromQName(const nsAString& aStr) const
 {
-  return mAttrsAndChildren.GetExistingAttrNameFromQName(
-    NS_ConvertUTF16toUTF8(aStr));
+  return mAttrsAndChildren.GetExistingAttrNameFromQName(aStr);
 }
 
 nsresult
@@ -4423,12 +4421,11 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
     
     nsMutationEvent mutation(PR_TRUE, NS_MUTATION_ATTRMODIFIED);
 
-    nsAutoString attrName;
-    aName->ToString(attrName);
     nsCOMPtr<nsIDOMAttr> attrNode;
     nsAutoString ns;
     nsContentUtils::NameSpaceManager()->GetNameSpaceURI(aNamespaceID, ns);
-    GetAttributeNodeNS(ns, attrName, getter_AddRefs(attrNode));
+    GetAttributeNodeNS(ns, nsDependentAtomString(aName),
+                       getter_AddRefs(attrNode));
     mutation.mRelatedNode = attrNode;
 
     mutation.mAttrName = aName;
@@ -4626,11 +4623,10 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   // Grab the attr node if needed before we remove it from the attr map
   nsCOMPtr<nsIDOMAttr> attrNode;
   if (hasMutationListeners) {
-    nsAutoString attrName;
-    aName->ToString(attrName);
     nsAutoString ns;
     nsContentUtils::NameSpaceManager()->GetNameSpaceURI(aNameSpaceID, ns);
-    GetAttributeNodeNS(ns, attrName, getter_AddRefs(attrNode));
+    GetAttributeNodeNS(ns, nsDependentAtomString(aName),
+                       getter_AddRefs(attrNode));
   }
 
   // Clear binding to nsIDOMNamedNodeMap
@@ -5121,16 +5117,14 @@ ParseSelectorList(nsINode* aNode,
   nsIDocument* doc = aNode->GetOwnerDoc();
   NS_ENSURE_STATE(doc);
 
-  nsCOMPtr<nsICSSParser> parser;
-  nsresult rv = doc->CSSLoader()->GetParserFor(nsnull, getter_AddRefs(parser));
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCSSParser parser(doc->CSSLoader());
+  NS_ENSURE_TRUE(parser, NS_ERROR_OUT_OF_MEMORY);
 
   nsCSSSelectorList* selectorList;
-  rv = parser->ParseSelectorString(aSelectorString,
-                                   doc->GetDocumentURI(),
-                                   0, // XXXbz get the right line number!
-                                   &selectorList);
-  doc->CSSLoader()->RecycleParser(parser);
+  nsresult rv = parser.ParseSelectorString(aSelectorString,
+                                           doc->GetDocumentURI(),
+                                           0, // XXXbz get the line number!
+                                           &selectorList);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Filter out pseudo-element selectors from selectorList
@@ -5179,9 +5173,9 @@ TryMatchingElementsInSubtree(nsINode* aRoot,
    * cheaper than heap-allocating all the datas and keeping track of them all,
    * and helps a good bit in the common cases.  We also keep track of the whole
    * parent data chain, since we have those Around anyway */
-  char databuf[2 * sizeof(RuleProcessorData)];
+  union { char c[2 * sizeof(RuleProcessorData)]; void *p; } databuf;
   RuleProcessorData* prevSibling = nsnull;
-  RuleProcessorData* data = reinterpret_cast<RuleProcessorData*>(databuf);
+  RuleProcessorData* data = reinterpret_cast<RuleProcessorData*>(databuf.c);
 
   PRBool continueIteration = PR_TRUE;
   for (nsINode::ChildIterator iter(aRoot); !iter.IsDone(); iter.Next()) {
