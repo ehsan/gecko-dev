@@ -220,8 +220,9 @@ void RTSPSource::performPause() {
     for (size_t i = 0; i < mTracks.size(); ++i) {
       TrackInfo *info = &mTracks.editItemAt(i);
       info->mLatestPausedUnit = 0;
-      mLatestPausedUnit = 0;
     }
+    mLatestPausedUnit = 0;
+
     mState = PAUSING;
     mHandler->pause();
 }
@@ -242,8 +243,8 @@ void RTSPSource::performSeek(int64_t seekTimeUs) {
     for (size_t i = 0; i < mTracks.size(); ++i) {
       TrackInfo *info = &mTracks.editItemAt(i);
       info->mLatestPausedUnit = 0;
-      mLatestPausedUnit = 0;
     }
+    mLatestPausedUnit = 0;
 
     mState = SEEKING;
     mHandler->seek(seekTimeUs);
@@ -310,6 +311,14 @@ void RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
         case RtspConnectionHandler::kWhatSeekDone:
         {
             mState = PLAYING;
+            // Even if we have reset mLatestPausedUnit in performSeek(),
+            // it's still possible that kWhatPausedDone event may arrive
+            // because of previous performPause() command.
+            for (size_t i = 0; i < mTracks.size(); ++i) {
+                TrackInfo *info = &mTracks.editItemAt(i);
+                info->mLatestPausedUnit = 0;
+            }
+            mLatestPausedUnit = 0;
             break;
         }
 
@@ -449,10 +458,15 @@ void RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
 
 void RTSPSource::onConnected(bool isSeekable)
 {
-    CHECK(mAudioTrack == NULL);
-    CHECK(mVideoTrack == NULL);
     CHECK(mHandler != NULL);
     CHECK(mListener != NULL);
+
+    // Clean up audio and video tracks.
+    // In the case of RTSP reconnect, audio/video tracks might be created by
+    // previous onConnected event.
+    mAudioTrack = NULL;
+    mVideoTrack = NULL;
+    mTracks.clear();
 
     size_t numTracks = mHandler->countTracks();
     for (size_t i = 0; i < numTracks; ++i) {
@@ -570,7 +584,6 @@ void RTSPSource::onDisconnected(const sp<AMessage> &msg) {
 void RTSPSource::finishDisconnectIfPossible() {
     if (mState != DISCONNECTED) {
         mHandler->disconnect();
-        return;
     }
 
     (new AMessage)->postReply(mDisconnectReplyID);

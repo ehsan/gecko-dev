@@ -94,6 +94,7 @@
 #include "nsIWebBrowserChrome.h"
 #include "nsIDocShell.h"
 #include "mozilla/net/NeckoMessageUtils.h"
+#include "gfxPlatform.h"
 
 #if defined(ANDROID) || defined(LINUX)
 #include "nsSystemInfo.h"
@@ -485,6 +486,24 @@ ContentParent::GetInitialProcessPriority(Element* aFrameElement)
                PROCESS_PRIORITY_FOREGROUND;
 }
 
+bool
+ContentParent::PreallocatedProcessReady()
+{
+#ifdef MOZ_NUWA_PROCESS
+    return PreallocatedProcessManager::PreallocatedProcessReady();
+#else
+    return true;
+#endif
+}
+
+void
+ContentParent::RunAfterPreallocatedProcessReady(nsIRunnable* aRequest)
+{
+#ifdef MOZ_NUWA_PROCESS
+    PreallocatedProcessManager::RunAfterPreallocatedProcessReady(aRequest);
+#endif
+}
+
 /*static*/ TabParent*
 ContentParent::CreateBrowserOrApp(const TabContext& aContext,
                                   Element* aFrameElement)
@@ -559,6 +578,14 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
         p = MaybeTakePreallocatedAppProcess(manifestURL, privs,
                                             initialPriority);
         if (!p) {
+#ifdef MOZ_NUWA_PROCESS
+            if (Preferences::GetBool("dom.ipc.processPrelaunch.enabled",
+                                     false)) {
+                // Returning nullptr from here so the frame loader will retry
+                // later when we have a spare process.
+                return nullptr;
+            }
+#endif
             NS_WARNING("Unable to use pre-allocated app process");
             p = new ContentParent(ownApp,
                                   /* isForBrowserElement = */ false,
@@ -899,10 +926,11 @@ void
 ContentParent::OnChannelError()
 {
     nsRefPtr<ContentParent> content(this);
-    PContentParent::OnChannelError();
 #ifdef MOZ_NUWA_PROCESS
+    // Handle app or Nuwa process exit before normal channel error handling.
     PreallocatedProcessManager::MaybeForgetSpare(this);
 #endif
+    PContentParent::OnChannelError();
 }
 
 void
@@ -1249,93 +1277,13 @@ ContentParent::ContentParent(mozIApplication* aApp,
 
     Open(mSubprocess->GetChannel(), mSubprocess->GetOwnedChildProcessHandle());
 
-    // Set the subprocess's priority.  We do this early on because we're likely
-    // /lowering/ the process's CPU and memory priority, which it has inherited
-    // from this process.
-    //
-    // This call can cause us to send IPC messages to the child process, so it
-    // must come after the Open() call above.
-    ProcessPriorityManager::SetProcessPriority(this, aInitialPriority);
-
-    // NB: internally, this will send an IPC message to the child
-    // process to get it to create the CompositorChild.  This
-    // message goes through the regular IPC queue for this
-    // channel, so delivery will happen-before any other messages
-    // we send.  The CompositorChild must be created before any
-    // PBrowsers are created, because they rely on the Compositor
-    // already being around.  (Creation is async, so can't happen
-    // on demand.)
-    bool useOffMainThreadCompositing = !!CompositorParent::CompositorLoop();
-    if (useOffMainThreadCompositing) {
-        DebugOnly<bool> opened = PCompositor::Open(this);
-        MOZ_ASSERT(opened);
-
-        if (Preferences::GetBool("layers.async-video.enabled",false)) {
-            opened = PImageBridge::Open(this);
-            MOZ_ASSERT(opened);
-        }
-    }
-
-    nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
-    nsChromeRegistryChrome* chromeRegistry =
-        static_cast<nsChromeRegistryChrome*>(registrySvc.get());
-    chromeRegistry->SendRegisteredChrome(this);
-    mMessageManager = nsFrameMessageManager::NewProcessMessageManager(this);
-
-    if (gAppData) {
-        nsCString version(gAppData->version);
-        nsCString buildID(gAppData->buildID);
-        nsCString name(gAppData->name);
-        nsCString UAName(gAppData->UAName);
-
-        // Sending all information to content process.
-        unused << SendAppInfo(version, buildID, name, UAName);
-    }
-
-    nsStyleSheetService *sheetService = nsStyleSheetService::GetInstance();
-    if (sheetService) {
-        // This looks like a lot of work, but in a normal browser session we just
-        // send two loads.
-
-        nsCOMArray<nsIStyleSheet>& agentSheets = *sheetService->AgentStyleSheets();
-        for (uint32_t i = 0; i < agentSheets.Length(); i++) {
-            URIParams uri;
-            SerializeURI(agentSheets[i]->GetSheetURI(), uri);
-            unused << SendLoadAndRegisterSheet(uri, nsIStyleSheetService::AGENT_SHEET);
-        }
-
-        nsCOMArray<nsIStyleSheet>& userSheets = *sheetService->UserStyleSheets();
-        for (uint32_t i = 0; i < userSheets.Length(); i++) {
-            URIParams uri;
-            SerializeURI(userSheets[i]->GetSheetURI(), uri);
-            unused << SendLoadAndRegisterSheet(uri, nsIStyleSheetService::USER_SHEET);
-        }
-
-        nsCOMArray<nsIStyleSheet>& authorSheets = *sheetService->AuthorStyleSheets();
-        for (uint32_t i = 0; i < authorSheets.Length(); i++) {
-            URIParams uri;
-            SerializeURI(authorSheets[i]->GetSheetURI(), uri);
-            unused << SendLoadAndRegisterSheet(uri, nsIStyleSheetService::AUTHOR_SHEET);
-        }
-    }
-
-#ifdef MOZ_CONTENT_SANDBOX
-    // Bug 921817.  We enable the sandbox in RecvSetProcessPrivileges,
-    // which is where a preallocated process drops unnecessary privileges,
-    // but a non-preallocated process will already have changed its
-    // uid/gid/etc immediately after forking.  Thus, we send this message,
-    // which is otherwise a no-op, to sandbox it at an appropriate point
-    // during startup.
-    if (aOSPrivileges != base::PRIVILEGES_INHERIT) {
-        if (!SendSetProcessPrivileges(base::PRIVILEGES_INHERIT)) {
-            KillHard();
-        }
-    }
-#endif
+    InitInternal(aInitialPriority,
+                 true, /* Setup off-main thread compositing */
+                 true  /* Send registered chrome */);
 }
 
 #ifdef MOZ_NUWA_PROCESS
-static const FileDescriptor*
+static const mozilla::ipc::FileDescriptor*
 FindFdProtocolFdMapping(const nsTArray<ProtocolFdMapping>& aFds,
                         ProtocolId aProtoId)
 {
@@ -1401,8 +1349,9 @@ ContentParent::ContentParent(ContentParent* aTemplate,
         priority = PROCESS_PRIORITY_FOREGROUND;
     }
 
-    ProcessPriorityManager::SetProcessPriority(this, priority);
-    mMessageManager = nsFrameMessageManager::NewProcessMessageManager(this);
+    InitInternal(priority,
+                 false, /* Setup Off-main thread compositing */
+                 false  /* Send registered chrome */);
 }
 #endif  // MOZ_NUWA_PROCESS
 
@@ -1430,6 +1379,101 @@ ContentParent::~ContentParent()
         MOZ_ASSERT(!sAppContentParents ||
                    sAppContentParents->Get(mAppManifestURL) != this);
     }
+}
+
+void
+ContentParent::InitInternal(ProcessPriority aInitialPriority,
+                            bool aSetupOffMainThreadCompositing,
+                            bool aSendRegisteredChrome)
+{
+    // Set the subprocess's priority.  We do this early on because we're likely
+    // /lowering/ the process's CPU and memory priority, which it has inherited
+    // from this process.
+    //
+    // This call can cause us to send IPC messages to the child process, so it
+    // must come after the Open() call above.
+    ProcessPriorityManager::SetProcessPriority(this, aInitialPriority);
+
+    if (aSetupOffMainThreadCompositing) {
+        // NB: internally, this will send an IPC message to the child
+        // process to get it to create the CompositorChild.  This
+        // message goes through the regular IPC queue for this
+        // channel, so delivery will happen-before any other messages
+        // we send.  The CompositorChild must be created before any
+        // PBrowsers are created, because they rely on the Compositor
+        // already being around.  (Creation is async, so can't happen
+        // on demand.)
+        bool useOffMainThreadCompositing = !!CompositorParent::CompositorLoop();
+        if (useOffMainThreadCompositing) {
+            DebugOnly<bool> opened = PCompositor::Open(this);
+            MOZ_ASSERT(opened);
+
+            if (gfxPlatform::AsyncVideoEnabled()) {
+                opened = PImageBridge::Open(this);
+                MOZ_ASSERT(opened);
+            }
+        }
+    }
+
+    if (aSendRegisteredChrome) {
+        nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
+        nsChromeRegistryChrome* chromeRegistry =
+            static_cast<nsChromeRegistryChrome*>(registrySvc.get());
+        chromeRegistry->SendRegisteredChrome(this);
+    }
+
+    mMessageManager = nsFrameMessageManager::NewProcessMessageManager(this);
+
+    if (gAppData) {
+        nsCString version(gAppData->version);
+        nsCString buildID(gAppData->buildID);
+        nsCString name(gAppData->name);
+        nsCString UAName(gAppData->UAName);
+
+        // Sending all information to content process.
+        unused << SendAppInfo(version, buildID, name, UAName);
+    }
+
+    nsStyleSheetService *sheetService = nsStyleSheetService::GetInstance();
+    if (sheetService) {
+        // This looks like a lot of work, but in a normal browser session we just
+        // send two loads.
+
+        nsCOMArray<nsIStyleSheet>& agentSheets = *sheetService->AgentStyleSheets();
+        for (uint32_t i = 0; i < agentSheets.Length(); i++) {
+            URIParams uri;
+            SerializeURI(agentSheets[i]->GetSheetURI(), uri);
+            unused << SendLoadAndRegisterSheet(uri, nsIStyleSheetService::AGENT_SHEET);
+        }
+
+        nsCOMArray<nsIStyleSheet>& userSheets = *sheetService->UserStyleSheets();
+        for (uint32_t i = 0; i < userSheets.Length(); i++) {
+            URIParams uri;
+            SerializeURI(userSheets[i]->GetSheetURI(), uri);
+            unused << SendLoadAndRegisterSheet(uri, nsIStyleSheetService::USER_SHEET);
+        }
+
+        nsCOMArray<nsIStyleSheet>& authorSheets = *sheetService->AuthorStyleSheets();
+        for (uint32_t i = 0; i < authorSheets.Length(); i++) {
+            URIParams uri;
+            SerializeURI(authorSheets[i]->GetSheetURI(), uri);
+            unused << SendLoadAndRegisterSheet(uri, nsIStyleSheetService::AUTHOR_SHEET);
+        }
+    }
+
+#ifdef MOZ_CONTENT_SANDBOX
+    // Bug 921817.  We enable the sandbox in RecvSetProcessPrivileges,
+    // which is where a preallocated process drops unnecessary privileges,
+    // but a non-preallocated process will already have changed its
+    // uid/gid/etc immediately after forking.  Thus, we send this message,
+    // which is otherwise a no-op, to sandbox it at an appropriate point
+    // during startup.
+    if (mOSPrivileges != base::PRIVILEGES_INHERIT) {
+        if (!SendSetProcessPrivileges(base::PRIVILEGES_INHERIT)) {
+            KillHard();
+        }
+    }
+#endif
 }
 
 bool

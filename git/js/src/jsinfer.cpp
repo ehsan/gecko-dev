@@ -582,10 +582,10 @@ class types::CompilerConstraintList
     // OOM during generation of some constraint.
     bool failed_;
 
+#ifdef JS_ION
     // Allocator used for constraints.
     LifoAlloc *alloc_;
 
-#ifdef JS_ION
     // Constraints generated on heap properties.
     Vector<CompilerConstraint *, 0, jit::IonAllocPolicy> constraints;
 
@@ -596,8 +596,8 @@ class types::CompilerConstraintList
   public:
     CompilerConstraintList(jit::TempAllocator &alloc)
       : failed_(false)
-      , alloc_(alloc.lifoAlloc())
 #ifdef JS_ION
+      , alloc_(alloc.lifoAlloc())
       , constraints(alloc)
       , frozenScripts(alloc)
 #endif
@@ -669,14 +669,22 @@ class types::CompilerConstraintList
         failed_ = true;
     }
     LifoAlloc *alloc() const {
+#ifdef JS_ION
         return alloc_;
+#else
+        MOZ_CRASH();
+#endif
     }
 };
 
 CompilerConstraintList *
 types::NewCompilerConstraintList(jit::TempAllocator &alloc)
 {
+#ifdef JS_ION
     return alloc.lifoAlloc()->new_<CompilerConstraintList>(alloc);
+#else
+    MOZ_CRASH();
+#endif
 }
 
 /* static */ bool
@@ -881,10 +889,8 @@ CheckFrozenTypeSet(JSContext *cx, TemporaryTypeSet *frozen, StackTypeSet *actual
         TypeSet::TypeList list;
         frozen->enumerateTypes(&list);
 
-        for (size_t i = 0; i < list.length(); i++) {
-            // Note: On OOM this will preserve the type set's contents.
+        for (size_t i = 0; i < list.length(); i++)
             actual->addType(cx, list[i]);
-        }
     }
 
     return true;
@@ -986,6 +992,63 @@ types::FinishCompilation(JSContext *cx, HandleScript script, ExecutionMode execu
     }
 
     return true;
+}
+
+static void
+CheckDefinitePropertiesTypeSet(JSContext *cx, TemporaryTypeSet *frozen, StackTypeSet *actual)
+{
+    // The definite properties analysis happens on the main thread, so no new
+    // types can have been added to actual. The analysis may have updated the
+    // contents of |frozen| though with new speculative types, and these need
+    // to be reflected in |actual| for AddClearDefiniteFunctionUsesInScript
+    // to work.
+    if (!frozen->isSubset(actual)) {
+        TypeSet::TypeList list;
+        frozen->enumerateTypes(&list);
+
+        for (size_t i = 0; i < list.length(); i++)
+            actual->addType(cx, list[i]);
+    }
+}
+
+void
+types::FinishDefinitePropertiesAnalysis(JSContext *cx, CompilerConstraintList *constraints)
+{
+#ifdef DEBUG
+    // Assert no new types have been added to the StackTypeSets. Do this before
+    // calling CheckDefinitePropertiesTypeSet, as it may add new types to the
+    // StackTypeSets and break these invariants if a script is inlined more
+    // than once. See also CheckDefinitePropertiesTypeSet.
+    for (size_t i = 0; i < constraints->numFrozenScripts(); i++) {
+        const CompilerConstraintList::FrozenScript &entry = constraints->frozenScript(i);
+        JSScript *script = entry.script;
+        JS_ASSERT(script->types);
+
+        JS_ASSERT(TypeScript::ThisTypes(script)->isSubset(entry.thisTypes));
+
+        unsigned nargs = script->function() ? script->function()->nargs : 0;
+        for (size_t j = 0; j < nargs; j++)
+            JS_ASSERT(TypeScript::ArgTypes(script, j)->isSubset(&entry.argTypes[j]));
+
+        for (size_t j = 0; j < script->nTypeSets; j++)
+            JS_ASSERT(script->types->typeArray()[j].isSubset(&entry.bytecodeTypes[j]));
+    }
+#endif
+
+    for (size_t i = 0; i < constraints->numFrozenScripts(); i++) {
+        const CompilerConstraintList::FrozenScript &entry = constraints->frozenScript(i);
+        JSScript *script = entry.script;
+        JS_ASSERT(script->types);
+
+        CheckDefinitePropertiesTypeSet(cx, entry.thisTypes, TypeScript::ThisTypes(script));
+
+        unsigned nargs = script->function() ? script->function()->nargs : 0;
+        for (size_t j = 0; j < nargs; j++)
+            CheckDefinitePropertiesTypeSet(cx, &entry.argTypes[j], TypeScript::ArgTypes(script, j));
+
+        for (size_t j = 0; j < script->nTypeSets; j++)
+            CheckDefinitePropertiesTypeSet(cx, &entry.bytecodeTypes[j], &script->types->typeArray()[j]);
+    }
 }
 
 namespace {

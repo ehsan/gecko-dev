@@ -217,8 +217,6 @@
 #include "mozilla/dom/XPathEvaluator.h"
 #include "nsIDocumentEncoder.h"
 #include "nsIStructuredCloneContainer.h"
-#include "nsIMutableArray.h"
-#include "nsContentPermissionHelper.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -1641,7 +1639,8 @@ nsDocument::Release()
   NS_PRECONDITION(0 != mRefCnt, "dup release");
   NS_ASSERT_OWNINGTHREAD(nsDocument);
   nsISupports* base = NS_CYCLE_COLLECTION_CLASSNAME(nsDocument)::Upcast(this);
-  nsrefcnt count = mRefCnt.decr(base);
+  bool shouldDelete = false;
+  nsrefcnt count = mRefCnt.decr(base, &shouldDelete);
   NS_LOG_RELEASE(this, count, "nsDocument");
   if (count == 0) {
     if (mStackRefCnt && !mNeedsReleaseAfterStackRefCntRelease) {
@@ -1649,8 +1648,13 @@ nsDocument::Release()
       NS_ADDREF_THIS();
       return mRefCnt.get();
     }
-    NS_ASSERT_OWNINGTHREAD(nsDocument);
+    mRefCnt.incr();
     nsNodeUtils::LastRelease(this);
+    mRefCnt.decr(base);
+    if (shouldDelete) {
+      mRefCnt.stabilizeForDeletion();
+      DeleteCycleCollectable();
+    }
   }
   return count;
 }
@@ -2645,6 +2649,33 @@ nsDocument::InitCSP(nsIChannel* aChannel)
 #endif
 
   nsresult rv;
+
+  // If Document is an app check to see if we already set CSP and return early
+  // if that is indeed the case.
+  //
+  // In general (see bug 947831), we should not be setting CSP on a principal
+  // that aliases another document. For non-app code this is not a problem
+  // since we only share the underlying principal with nested browsing
+  // contexts for which a header cannot be set (e.g., about:blank and
+  // about:srcodoc iframes) and thus won't try to set the CSP again. This
+  // check ensures that we do not try to set CSP for an app.
+  if (applyAppDefaultCSP || applyAppManifestCSP) {
+    nsCOMPtr<nsIContentSecurityPolicy> csp;
+    rv = principal->GetCsp(getter_AddRefs(csp));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    if (csp) {
+#ifdef PR_LOGGING
+      PR_LOG(gCspPRLog, PR_LOG_DEBUG, ("%s %s %s",
+           "This document is sharing principal with another document.",
+           "Since the document is an app, CSP was already set.",
+           "Skipping attempt to set CSP."));
+#endif
+      return NS_OK;
+    }
+  }
+
+  // create new CSP object
   csp = do_CreateInstance("@mozilla.org/contentsecuritypolicy;1", &rv);
 
   if (NS_FAILED(rv)) {
@@ -2724,16 +2755,12 @@ nsDocument::InitCSP(nsIChannel* aChannel)
     }
   }
 
-  if (csp) {
-    // Copy into principal
-    nsIPrincipal* principal = GetPrincipal();
-    rv = principal->SetCsp(csp);
-    NS_ENSURE_SUCCESS(rv, rv);
+  rv = principal->SetCsp(csp);
+  NS_ENSURE_SUCCESS(rv, rv);
 #ifdef PR_LOGGING
-    PR_LOG(gCspPRLog, PR_LOG_DEBUG,
-           ("Inserted CSP into principal %p", principal));
+  PR_LOG(gCspPRLog, PR_LOG_DEBUG,
+         ("Inserted CSP into principal %p", principal));
 #endif
-  }
 
   return NS_OK;
 }
@@ -8543,11 +8570,17 @@ FireOrClearDelayedEvents(nsTArray<nsCOMPtr<nsIDocument> >& aDocuments,
     return;
 
   for (uint32_t i = 0; i < aDocuments.Length(); ++i) {
+    // NB: Don't bother trying to fire delayed events on documents that were
+    // closed before this event ran.
     if (!aDocuments[i]->EventHandlingSuppressed()) {
       fm->FireDelayedEvents(aDocuments[i]);
       nsCOMPtr<nsIPresShell> shell = aDocuments[i]->GetShell();
       if (shell) {
-        shell->FireOrClearDelayedEvents(aFireEvents);
+        // Only fire events for active documents.
+        bool fire = aFireEvents &&
+                    aDocuments[i]->GetInnerWindow() &&
+                    aDocuments[i]->GetInnerWindow()->IsCurrentInnerWindow();
+        shell->FireOrClearDelayedEvents(fire);
       }
     }
   }
@@ -10731,11 +10764,17 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsPointerLockPermissionRequest,
                              nsIContentPermissionRequest)
 
 NS_IMETHODIMP
-nsPointerLockPermissionRequest::GetTypes(nsIArray** aTypes)
+nsPointerLockPermissionRequest::GetType(nsACString& aType)
 {
-  return CreatePermissionArray(NS_LITERAL_CSTRING("pointerLock"),
-                               NS_LITERAL_CSTRING("unused"),
-                               aTypes);
+  aType = "pointerLock";
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPointerLockPermissionRequest::GetAccess(nsACString& aAccess)
+{
+  aAccess = "unused";
+  return NS_OK;
 }
 
 NS_IMETHODIMP

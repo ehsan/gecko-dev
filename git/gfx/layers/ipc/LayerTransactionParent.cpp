@@ -200,6 +200,9 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
     return true;
   }
 
+  // Clear ReleaseFence handles used in previous transaction.
+  ClearPrevReleaseFenceHandles();
+
   EditReplyVector replyv;
 
   layer_manager()->BeginTransactionWithDrawTarget(nullptr);
@@ -279,6 +282,8 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
                                      common.stickyScrollRangeOuter(),
                                      common.stickyScrollRangeInner());
       }
+      layer->SetScrollbarData(common.scrollbarTargetContainerId(),
+        static_cast<Layer::ScrollDirection>(common.scrollbarDirection()));
       if (PLayerParent* maskLayer = common.maskLayerParent()) {
         layer->SetMaskLayer(cast(maskLayer)->AsLayer());
       } else {

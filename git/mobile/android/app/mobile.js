@@ -166,7 +166,7 @@ pref("dom.experimental_forms", true);
 pref("dom.forms.number", true);
 // Don't enable <input type=color> yet as we don't have a color picker
 // implemented for Android (bug 875750)
-pref("dom.forms.color", false);
+pref("dom.forms.color", true);
 
 /* extension manager and xpinstall */
 pref("xpinstall.whitelist.add", "addons.mozilla.org");
@@ -721,7 +721,7 @@ pref("layout.imagevisibility.enabled", true);
 pref("layout.imagevisibility.numscrollportwidths", 1);
 pref("layout.imagevisibility.numscrollportheights", 1);
 
-pref("layers.force-tiles", true);
+pref("layers.enable-tiles", true);
 
 // Enable the dynamic toolbar
 pref("browser.chrome.dynamictoolbar", true);

@@ -256,11 +256,13 @@ MmsConnection.prototype = {
       let networkManager =
         Cc["@mozilla.org/network/manager;1"].getService(Ci.nsINetworkManager);
       let activeNetwork = networkManager.active;
-      if (activeNetwork.serviceId != this.serviceId) {
+
+      let rilNetwork = activeNetwork.QueryInterface(Ci.nsIRilNetworkInterface);
+      if (rilNetwork.serviceId != this.serviceId) {
+        if (DEBUG) debug("Sevice ID between active/MMS network doesn't match.");
         return;
       }
 
-      let rilNetwork = activeNetwork.QueryInterface(Ci.nsIRilNetworkInterface);
       // Set up the MMS APN setting based on the connected MMS network,
       // which is going to be used for the HTTP requests later.
       this.setApnSetting(rilNetwork);
@@ -2266,7 +2268,17 @@ MmsService.prototype = {
       // which could fail when the corresponding SIM card isn't installed.
       let serviceId;
       try {
-        serviceId = gRil.getClientIdByIccId(aMessageRecord.iccId);
+        if (aMessageRecord.iccId == null) {
+          // If the ICC ID isn't available, it means the MMS has been received
+          // during the previous version that didn't take the DSDS scenario
+          // into consideration. Tentatively, setting the service ID to be 0 by
+          // default is better than nothing. Although it might use the wrong
+          // SIM to download the desired MMS, eventually it would still fail to
+          // download due to the wrong MMSC and proxy settings.
+          serviceId = 0;
+        } else {
+          serviceId = gRil.getClientIdByIccId(aMessageRecord.iccId);
+        }
       } catch (e) {
         if (DEBUG) debug("RIL service is not available for ICC ID.");
         aRequest.notifyGetMessageFailed(Ci.nsIMobileMessageCallback.NO_SIM_CARD_ERROR);
@@ -2404,7 +2416,17 @@ MmsService.prototype = {
     // which could fail when the corresponding SIM card isn't installed.
     let serviceId;
     try {
-      serviceId = gRil.getClientIdByIccId(iccId);
+      if (iccId == null) {
+        // If the ICC ID isn't available, it means the MMS has been received
+        // during the previous version that didn't take the DSDS scenario
+        // into consideration. Tentatively, setting the service ID to be 0 by
+        // default is better than nothing. Although it might use the wrong
+        // SIM to send the read report for the desired MMS, eventually it
+        // would still fail to send due to the wrong MMSC and proxy settings.
+        serviceId = 0;
+      } else {
+        serviceId = gRil.getClientIdByIccId(iccId);
+      }
     } catch (e) {
       if (DEBUG) debug("RIL service is not available for ICC ID.");
       return;

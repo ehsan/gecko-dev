@@ -4110,6 +4110,10 @@ class MMul : public MBinaryArithInstruction
         return canBeNegativeZero_ || canOverflow();
     }
 
+    void setSpecialization(MIRType type) {
+        specialization_ = type;
+    }
+
     bool isFloat32Commutative() const { return true; }
 
     void computeRange(TempAllocator &alloc);
@@ -6985,6 +6989,9 @@ class MGetElementCache
     bool monitoredResult() const {
         return monitoredResult_;
     }
+
+    bool allowDoubleResult() const;
+
     TypePolicy *typePolicy() {
         if (type() == MIRType_Value)
             return &PolicyV;

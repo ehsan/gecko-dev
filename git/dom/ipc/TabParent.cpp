@@ -15,7 +15,6 @@
 #include "mozilla/BrowserElementParent.h"
 #include "mozilla/docshell/OfflineCacheUpdateParent.h"
 #include "mozilla/dom/ContentParent.h"
-#include "mozilla/dom/PContentPermissionRequestParent.h"
 #include "mozilla/Hal.h"
 #include "mozilla/ipc/DocumentRendererParent.h"
 #include "mozilla/layers/CompositorParent.h"
@@ -485,10 +484,6 @@ TabParent::UpdateDimensions(const nsRect& rect, const nsIntSize& size)
     mOrientation = orientation;
 
     unused << SendUpdateDimensions(mRect, mDimensions, mOrientation);
-    if (RenderFrameParent* rfp = GetRenderFrame()) {
-      rfp->NotifyDimensionsChanged(ScreenIntSize::FromUnknownSize(
-        gfx::IntSize(mDimensions.width, mDimensions.height)));
-    }
   }
 }
 
@@ -519,6 +514,27 @@ void TabParent::HandleLongTap(const CSSIntPoint& aPoint, int32_t aModifiers)
 {
   if (!mIsDestroyed) {
     unused << SendHandleLongTap(aPoint);
+  }
+}
+
+void TabParent::HandleLongTapUp(const CSSIntPoint& aPoint, int32_t aModifiers)
+{
+  if (!mIsDestroyed) {
+    unused << SendHandleLongTapUp(aPoint);
+  }
+}
+
+void TabParent::NotifyTransformBegin(ViewID aViewId)
+{
+  if (!mIsDestroyed) {
+    unused << SendNotifyTransformBegin(aViewId);
+  }
+}
+
+void TabParent::NotifyTransformEnd(ViewID aViewId)
+{
+  if (!mIsDestroyed) {
+    unused << SendNotifyTransformEnd(aViewId);
   }
 }
 
@@ -580,10 +596,9 @@ TabParent::DeallocPDocumentRendererParent(PDocumentRendererParent* actor)
 }
 
 PContentPermissionRequestParent*
-TabParent::AllocPContentPermissionRequestParent(const InfallibleTArray<PermissionRequest>& aRequests,
-                                                const IPC::Principal& aPrincipal)
+TabParent::AllocPContentPermissionRequestParent(const nsCString& type, const nsCString& access, const IPC::Principal& principal)
 {
-  return CreateContentPermissionRequestParent(aRequests, mFrameElement, aPrincipal);
+  return new ContentPermissionRequestParent(type, access, mFrameElement, principal);
 }
 
 bool
@@ -699,6 +714,15 @@ bool TabParent::SendHandleLongTap(const CSSIntPoint& aPoint)
   }
 
   return PBrowserParent::SendHandleLongTap(AdjustTapToChildWidget(aPoint));
+}
+
+bool TabParent::SendHandleLongTapUp(const CSSIntPoint& aPoint)
+{
+  if (mIsDestroyed) {
+    return false;
+  }
+
+  return PBrowserParent::SendHandleLongTapUp(AdjustTapToChildWidget(aPoint));
 }
 
 bool TabParent::SendHandleDoubleTap(const CSSIntPoint& aPoint)
@@ -1535,8 +1559,12 @@ TabParent::AllocPOfflineCacheUpdateParent(const URIParams& aManifestURI,
                                                     IsBrowserElement());
 
   nsresult rv = update->Schedule(aManifestURI, aDocumentURI, stickDocument);
-  if (NS_FAILED(rv))
-    return nullptr;
+  if (NS_FAILED(rv)) {
+    // Must dispatch since the parent is not at this moment ready yet.
+    nsRefPtr<nsRunnableMethod<mozilla::docshell::OfflineCacheUpdateParent> > event =
+      NS_NewRunnableMethod(update, &mozilla::docshell::OfflineCacheUpdateParent::Kill);
+    NS_DispatchToCurrentThread(event);
+  }
 
   POfflineCacheUpdateParent* result = update.get();
   update.forget();
@@ -1550,6 +1578,14 @@ TabParent::DeallocPOfflineCacheUpdateParent(mozilla::docshell::POfflineCacheUpda
     static_cast<mozilla::docshell::OfflineCacheUpdateParent*>(actor);
 
   update->Release();
+  return true;
+}
+
+bool
+TabParent::RecvSetOfflinePermission(const IPC::Principal& aPrincipal)
+{
+  nsIPrincipal* principal = aPrincipal;
+  nsContentUtils::MaybeAllowOfflineAppByDefault(principal, nullptr);
   return true;
 }
 
@@ -1659,12 +1695,6 @@ TabParent::RecvPRenderFrameConstructor(PRenderFrameParent* actor,
                                        TextureFactoryIdentifier* factoryIdentifier,
                                        uint64_t* layersId)
 {
-  RenderFrameParent* rfp = GetRenderFrame();
-  if (mDimensions != nsIntSize() && rfp) {
-    rfp->NotifyDimensionsChanged(ScreenIntSize::FromUnknownSize(
-      gfx::IntSize(mDimensions.width, mDimensions.height)));
-  }
-
   return true;
 }
 
@@ -1689,17 +1719,6 @@ TabParent::RecvUpdateZoomConstraints(const uint32_t& aPresShellId,
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
     rfp->UpdateZoomConstraints(aPresShellId, aViewId, aIsRoot, aAllowZoom, aMinZoom, aMaxZoom);
-  }
-  return true;
-}
-
-bool
-TabParent::RecvUpdateScrollOffset(const uint32_t& aPresShellId,
-                                  const ViewID& aViewId,
-                                  const CSSIntPoint& aScrollOffset)
-{
-  if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->UpdateScrollOffset(aPresShellId, aViewId, aScrollOffset);
   }
   return true;
 }

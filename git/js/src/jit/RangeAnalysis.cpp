@@ -413,7 +413,9 @@ Range::intersect(TempAllocator &alloc, const Range *lhs, const Range *rhs, bool 
     // Instead, we should use it to eliminate the dead block.
     // (Bug 765127)
     if (newUpper < newLower) {
-        *emptyRange = true;
+        // If both ranges can be NaN, the result can still be NaN.
+        if (!lhs->canBeNaN() || !rhs->canBeNaN())
+            *emptyRange = true;
         return nullptr;
     }
 
@@ -1367,7 +1369,6 @@ MToDouble::computeRange(TempAllocator &alloc)
 void
 MToFloat32::computeRange(TempAllocator &alloc)
 {
-    setRange(new(alloc) Range(getOperand(0)));
 }
 
 void

@@ -26,8 +26,6 @@ Cu.import('resource://gre/modules/NetworkStatsService.jsm');
 Cu.import('resource://gre/modules/SignInToWebsite.jsm');
 SignInToWebsiteController.init();
 
-Cu.import('resource://gre/modules/DownloadsAPI.jsm');
-
 XPCOMUtils.defineLazyServiceGetter(Services, 'env',
                                    '@mozilla.org/process/environment;1',
                                    'nsIEnvironment');
@@ -512,6 +510,9 @@ var shell = {
           Services.perms.addFromPrincipal(principal, 'offline-app',
                                           Ci.nsIPermissionManager.ALLOW_ACTION);
 
+          let documentURI = Services.io.newURI(contentWindow.document.documentURI,
+                                               null,
+                                               null);
           let manifestURI = Services.io.newURI(manifest, null, documentURI);
           let updateService = Cc['@mozilla.org/offlinecacheupdate-service;1']
                               .getService(Ci.nsIOfflineCacheUpdateService);
@@ -1123,14 +1124,16 @@ window.addEventListener('ContentStart', function ss_onContentStart() {
                                             'canvas');
       var width = window.innerWidth;
       var height = window.innerHeight;
-      canvas.setAttribute('width', width);
-      canvas.setAttribute('height', height);
+      var scale = window.devicePixelRatio;
+      canvas.setAttribute('width', width * scale);
+      canvas.setAttribute('height', height * scale);
 
       var context = canvas.getContext('2d');
       var flags =
         context.DRAWWINDOW_DRAW_CARET |
         context.DRAWWINDOW_DRAW_VIEW |
         context.DRAWWINDOW_USE_WIDGET_LAYERS;
+      context.scale(scale, scale);
       context.drawWindow(window, 0, 0, width, height,
                          'rgb(255,255,255)', flags);
 
@@ -1495,21 +1498,3 @@ Services.obs.addObserver(function resetProfile(subject, topic, data) {
                      .getService(Ci.nsIAppStartup);
   appStartup.quit(Ci.nsIAppStartup.eForceQuit);
 }, 'b2g-reset-profile', false);
-
-/**
-  * CID of our implementation of nsIDownloadManagerUI.
-  */
-const kTransferCid = Components.ID("{1b4c85df-cbdd-4bb6-b04e-613caece083c}");
-
-/**
-  * Contract ID of the service implementing nsITransfer.
-  */
-const kTransferContractId = "@mozilla.org/transfer;1";
-
-// Override Toolkit's nsITransfer implementation with the one from the
-// JavaScript API for downloads.  This will eventually be removed when
-// nsIDownloadManager will not be available anymore (bug 851471).  The
-// old code in this module will be removed in bug 899110.
-Components.manager.QueryInterface(Ci.nsIComponentRegistrar)
-                  .registerFactory(kTransferCid, "",
-                                   kTransferContractId, null);

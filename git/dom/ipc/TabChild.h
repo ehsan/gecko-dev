@@ -217,6 +217,9 @@ public:
     virtual bool RecvHandleDoubleTap(const CSSIntPoint& aPoint);
     virtual bool RecvHandleSingleTap(const CSSIntPoint& aPoint);
     virtual bool RecvHandleLongTap(const CSSIntPoint& aPoint);
+    virtual bool RecvHandleLongTapUp(const CSSIntPoint& aPoint);
+    virtual bool RecvNotifyTransformBegin(const ViewID& aViewId);
+    virtual bool RecvNotifyTransformEnd(const ViewID& aViewId);
     virtual bool RecvActivate();
     virtual bool RecvDeactivate();
     virtual bool RecvMouseEvent(const nsString& aType,
@@ -278,11 +281,13 @@ public:
 #ifdef DEBUG
     virtual PContentPermissionRequestChild*
     SendPContentPermissionRequestConstructor(PContentPermissionRequestChild* aActor,
-                                             const InfallibleTArray<PermissionRequest>& aRequests,
+                                             const nsCString& aType,
+                                             const nsCString& aAccess,
                                              const IPC::Principal& aPrincipal);
 #endif /* DEBUG */
 
-    virtual PContentPermissionRequestChild* AllocPContentPermissionRequestChild(const InfallibleTArray<PermissionRequest>& aRequests,
+    virtual PContentPermissionRequestChild* AllocPContentPermissionRequestChild(const nsCString& aType,
+                                                                                const nsCString& aAccess,
                                                                                 const IPC::Principal& aPrincipal);
     virtual bool DeallocPContentPermissionRequestChild(PContentPermissionRequestChild* actor);
 
@@ -462,7 +467,6 @@ private:
     nsCOMPtr<nsIWidget> mWidget;
     nsCOMPtr<nsIURI> mLastURI;
     FrameMetrics mLastRootMetrics;
-    FrameMetrics mLastSubFrameMetrics;
     RenderFrameChild* mRemoteFrame;
     nsRefPtr<ContentChild> mManager;
     nsRefPtr<TabChildGlobal> mTabChildGlobal;
@@ -492,6 +496,8 @@ private:
     bool mTriedBrowserInit;
     ScreenOrientation mOrientation;
     bool mUpdateHitRegion;
+    bool mContextMenuHandled;
+    bool mWaitingTouchListeners;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

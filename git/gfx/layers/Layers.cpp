@@ -184,6 +184,8 @@ Layer::Layer(LayerManager* aManager, void* aImplData) :
   mIsFixedPosition(false),
   mMargins(0, 0, 0, 0),
   mStickyPositionData(nullptr),
+  mScrollbarTargetId(FrameMetrics::NULL_SCROLL_ID),
+  mScrollbarDirection(ScrollDirection::NONE),
   mDebugColorIndex(0),
   mAnimationGeneration(0)
 {}
@@ -1278,8 +1280,15 @@ Layer::PrintInfo(nsACString& aTo, const char* aPrefix)
   if (GetContentFlags() & CONTENT_COMPONENT_ALPHA) {
     aTo += " [componentAlpha]";
   }
+  if (GetScrollbarDirection() == VERTICAL) {
+    aTo.AppendPrintf(" [vscrollbar=%lld]", GetScrollbarTargetContainerId());
+  }
+  if (GetScrollbarDirection() == HORIZONTAL) {
+    aTo.AppendPrintf(" [hscrollbar=%lld]", GetScrollbarTargetContainerId());
+  }
   if (GetIsFixedPosition()) {
-    aTo.AppendPrintf(" [isFixedPosition anchor=%f,%f]", mAnchor.x, mAnchor.y);
+    aTo.AppendPrintf(" [isFixedPosition anchor=%f,%f margin=%f,%f,%f,%f]", mAnchor.x, mAnchor.y,
+                     mMargins.top, mMargins.right, mMargins.bottom, mMargins.left);
   }
   if (GetIsStickyPosition()) {
     aTo.AppendPrintf(" [isStickyPosition scrollId=%d outer=%f,%f %fx%f "
