@@ -6,20 +6,19 @@
 
 #include "builtin/BinaryData.h"
 
-#include "mozilla/FloatingPoint.h"
-
 #include <vector>
+
+#include "mozilla/FloatingPoint.h"
 
 #include "jscompartment.h"
 #include "jsfun.h"
 #include "jsobj.h"
 #include "jsutil.h"
 
-#include "gc/Marking.h"
-#include "vm/GlobalObject.h"
+#include "vm/TypedArrayObject.h"
 #include "vm/String.h"
 #include "vm/StringBuffer.h"
-#include "vm/TypedArrayObject.h"
+#include "vm/GlobalObject.h"
 
 #include "jsatominlines.h"
 #include "jsobjinlines.h"
@@ -182,16 +181,9 @@ GetAlign(JSContext *cx, HandleObject type)
 
 struct FieldInfo
 {
-    HeapId name;
-    HeapPtrObject type;
+    jsid name;
+    JSObject *type;
     size_t offset;
-
-    FieldInfo() : offset(0) {}
-
-    FieldInfo(const FieldInfo &o)
-        : name(o.name.get()), type(o.type), offset(o.offset)
-    {
-    }
 };
 
 Class js::DataClass = {
@@ -270,7 +262,7 @@ IsSameStructType(JSContext *cx, HandleObject type1, HandleObject type2)
         FieldInfo fieldInfo1 = fieldList1->at(i);
         FieldInfo fieldInfo2 = fieldList2->at(i);
 
-        if (fieldInfo1.name.get() != fieldInfo2.name.get())
+        if (fieldInfo1.name != fieldInfo2.name)
             return false;
 
         if (fieldInfo1.offset != fieldInfo2.offset)
@@ -1435,11 +1427,11 @@ Class StructType::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     StructType::finalize,
-    NULL, /* checkAccess */
-    NULL, /* call */
-    NULL, /* hasInstance */
+    NULL,
+    NULL,
+    NULL,
     BinaryStruct::construct,
-    StructType::trace
+    NULL
 };
 
 Class BinaryStruct::class_ = {
@@ -1458,8 +1450,8 @@ Class BinaryStruct::class_ = {
     BinaryStruct::finalize,
     NULL,           /* checkAccess */
     NULL,           /* call        */
-    NULL,           /* hasInstance */
     NULL,           /* construct   */
+    NULL,           /* hasInstance */
     BinaryStruct::obj_trace,
     JS_NULL_CLASS_EXT,
     {
@@ -1696,17 +1688,6 @@ StructType::finalize(FreeOp *op, JSObject *obj)
 {
     FieldList *list = static_cast<FieldList *>(obj->getPrivate());
     delete list;
-}
-
-void
-StructType::trace(JSTracer *tracer, JSObject *obj)
-{
-    FieldList *fieldList = static_cast<FieldList *>(obj->getPrivate());
-    JS_ASSERT(fieldList);
-    for (FieldList::iterator it = fieldList->begin(); it != fieldList->end(); ++it) {
-        gc::MarkId(tracer, &(it->name), "structtype.field.name");
-        MarkObject(tracer, &(it->type), "structtype.field.type");
-    }
 }
 
 JSBool

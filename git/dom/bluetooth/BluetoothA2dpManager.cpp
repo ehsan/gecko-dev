@@ -45,9 +45,10 @@ BluetoothA2dpManager::Observe(nsISupports* aSubject,
 }
 
 BluetoothA2dpManager::BluetoothA2dpManager()
+  : mConnected(false)
+  , mPlaying(false)
+  , mSinkState(SinkState::SINK_DISCONNECTED)
 {
-  ResetA2dp();
-  ResetAvrcp();
 }
 
 bool
@@ -74,39 +75,20 @@ BluetoothA2dpManager::~BluetoothA2dpManager()
   }
 }
 
-void
-BluetoothA2dpManager::ResetA2dp()
-{
-  mA2dpConnected = false;
-  mPlaying = false;
-  mSinkState = SinkState::SINK_DISCONNECTED;
-}
-
-void
-BluetoothA2dpManager::ResetAvrcp()
-{
-  mAvrcpConnected = false;
-  mDuration = 0;
-  mMediaNumber = 0;
-  mTotalMediaCount = 0;
-  mPosition = 0;
-  mPlayStatus = ControlPlayStatus::PLAYSTATUS_UNKNOWN;
-}
-
-static BluetoothA2dpManager::SinkState
+static SinkState
 StatusStringToSinkState(const nsAString& aStatus)
 {
-  BluetoothA2dpManager::SinkState state;
+  SinkState state;
   if (aStatus.EqualsLiteral("disconnected")) {
-    state = BluetoothA2dpManager::SinkState::SINK_DISCONNECTED;
+    state = SinkState::SINK_DISCONNECTED;
   } else if (aStatus.EqualsLiteral("connecting")) {
-    state = BluetoothA2dpManager::SinkState::SINK_CONNECTING;
+    state = SinkState::SINK_CONNECTING;
   } else if (aStatus.EqualsLiteral("connected")) {
-    state = BluetoothA2dpManager::SinkState::SINK_CONNECTED;
+    state = SinkState::SINK_CONNECTED;
   } else if (aStatus.EqualsLiteral("playing")) {
-    state = BluetoothA2dpManager::SinkState::SINK_PLAYING;
+    state = SinkState::SINK_PLAYING;
   } else if (aStatus.EqualsLiteral("disconnecting")) {
-    state = BluetoothA2dpManager::SinkState::SINK_DISCONNECTING;
+    state = SinkState::SINK_DISCONNECTING;
   } else {
     MOZ_ASSERT(false, "Unknown sink state");
   }
@@ -158,7 +140,7 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress)
     return false;
   }
 
-  if (mA2dpConnected) {
+  if (mConnected) {
     NS_WARNING("BluetoothA2dpManager is connected");
     return false;
   }
@@ -176,7 +158,7 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress)
 void
 BluetoothA2dpManager::Disconnect()
 {
-  if (!mA2dpConnected) {
+  if (!mConnected) {
     NS_WARNING("BluetoothA2dpManager has been disconnected");
     return;
   }
@@ -203,7 +185,7 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
   if (name.EqualsLiteral("Connected")) {
     // Indicates if a stream is setup to a A2DP sink on the remote device.
     MOZ_ASSERT(value.type() == BluetoothValue::Tbool);
-    mA2dpConnected = value.get_bool();
+    mConnected = value.get_bool();
     NotifyStatusChanged();
     NotifyAudioManager();
   } else if (name.EqualsLiteral("Playing")) {
@@ -262,7 +244,7 @@ BluetoothA2dpManager::NotifyStatusChanged()
   NS_NAMED_LITERAL_STRING(type, BLUETOOTH_A2DP_STATUS_CHANGED_ID);
   InfallibleTArray<BluetoothNamedValue> parameters;
 
-  BluetoothValue v = mA2dpConnected;
+  BluetoothValue v = mConnected;
   parameters.AppendElement(
     BluetoothNamedValue(NS_LITERAL_STRING("connected"), v));
 
@@ -286,7 +268,7 @@ BluetoothA2dpManager::NotifyAudioManager()
   NS_ENSURE_TRUE_VOID(obs);
 
   nsAutoString data;
-  data.AppendInt(mA2dpConnected);
+  data.AppendInt(mConnected);
 
   if (NS_FAILED(obs->NotifyObservers(this,
                                      BLUETOOTH_A2DP_STATUS_CHANGED_ID,
@@ -311,89 +293,6 @@ void
 BluetoothA2dpManager::GetAddress(nsAString& aDeviceAddress)
 {
   aDeviceAddress = mDeviceAddress;
-}
-
-bool
-BluetoothA2dpManager::IsConnected()
-{
-  return mA2dpConnected;
-}
-
-void
-BluetoothA2dpManager::SetAvrcpConnected(bool aConnected)
-{
-  mAvrcpConnected = aConnected;
-  if (!aConnected) {
-    ResetAvrcp();
-  }
-}
-
-bool
-BluetoothA2dpManager::IsAvrcpConnected()
-{
-  return mAvrcpConnected;
-}
-
-void
-BluetoothA2dpManager::UpdateMetaData(const nsAString& aTitle,
-                                     const nsAString& aArtist,
-                                     const nsAString& aAlbum,
-                                     uint32_t aMediaNumber,
-                                     uint32_t aTotalMediaCount,
-                                     uint32_t aDuration)
-{
-  mTitle.Assign(aTitle);
-  mArtist.Assign(aArtist);
-  mAlbum.Assign(aAlbum);
-  mMediaNumber = aMediaNumber;
-  mTotalMediaCount = aTotalMediaCount;
-  mDuration = aDuration;
-}
-
-void
-BluetoothA2dpManager::UpdatePlayStatus(uint32_t aDuration,
-                                       uint32_t aPosition,
-                                       ControlPlayStatus aPlayStatus)
-{
-  mDuration = aDuration;
-  mPosition = aPosition;
-  mPlayStatus = aPlayStatus;
-}
-
-void
-BluetoothA2dpManager::GetAlbum(nsAString& aAlbum)
-{
-    aAlbum.Assign(mAlbum);
-}
-
-uint32_t
-BluetoothA2dpManager::GetDuration()
-{
-  return mDuration;
-}
-
-ControlPlayStatus
-BluetoothA2dpManager::GetPlayStatus()
-{
-  return mPlayStatus;
-}
-
-uint32_t
-BluetoothA2dpManager::GetPosition()
-{
-  return mPosition;
-}
-
-uint32_t
-BluetoothA2dpManager::GetMediaNumber()
-{
-  return mMediaNumber;
-}
-
-void
-BluetoothA2dpManager::GetTitle(nsAString& aTitle)
-{
-  aTitle.Assign(mTitle);
 }
 
 NS_IMPL_ISUPPORTS1(BluetoothA2dpManager, nsIObserver)
