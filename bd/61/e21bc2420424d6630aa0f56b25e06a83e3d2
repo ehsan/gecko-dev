@@ -1,0 +1,3 @@
+changeset 6650bbc62372ad0b47f8abeb6980c67a8b95fa82
+manifest ce4ef8d281211d4e7834079beb6b87e1bedd1c78
+files netwerk/base/nsStreamTransportService.cpp

@@ -1,0 +1,3 @@
+changeset 13e4ad55d827574e51c191ea6b9b2024b5884fda
+manifest 6d24c68096780de2f23c86fce0fd726c4ca34fd0
+files browser/devtools/netmonitor/test/browser_net_security-details.js
