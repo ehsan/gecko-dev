@@ -9,6 +9,7 @@
 #include "nsIURL.h"
 #include "nsIIOService.h"
 #include "nsIServiceManager.h"
+#include "nsILocalFile.h"
 #include "prenv.h"
 #include "prmem.h"
 #include "prprf.h"

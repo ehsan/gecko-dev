@@ -4999,39 +4999,13 @@ var SearchEngines = {
         };
       });
 
-      let suggestTemplate = null;
-      let suggestEngine = null;
-      if (Services.prefs.getBoolPref("browser.search.suggest.enabled")) {
-        let engine = this.getSuggestionEngine();
-        if (engine != null) {
-          suggestEngine = engine.name;
-          suggestTemplate = engine.getSubmission("__searchTerms__", "application/x-suggestions+json").uri.spec;
-        }
-      }
-
       sendMessageToJava({
         gecko: {
           type: "SearchEngines:Data",
-          searchEngines: searchEngines,
-          suggestEngine: suggestEngine,
-          suggestTemplate: suggestTemplate
+          searchEngines: searchEngines
         }
       });
     }
-  },
-
-  getSuggestionEngine: function () {
-    let engines = [ Services.search.currentEngine,
-                    Services.search.defaultEngine,
-                    Services.search.originalDefaultEngine ];
-
-    for (let i = 0; i < engines.length; i++) {
-      let engine = engines[i];
-      if (engine && engine.supportsResponseType("application/x-suggestions+json"))
-        return engine;
-    }
-
-    return null;
   },
 
   addEngine: function addEngine(aElement) {

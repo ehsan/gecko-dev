@@ -9,7 +9,7 @@
 #include "nsGNOMEShellService.h"
 #include "nsShellService.h"
 #include "nsIServiceManager.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIProperties.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsIPrefService.h"
@@ -107,8 +107,8 @@ nsGNOMEShellService::Init()
     (do_GetService("@mozilla.org/file/directory_service;1"));
   NS_ENSURE_TRUE(dirSvc, NS_ERROR_NOT_AVAILABLE);
 
-  nsCOMPtr<nsIFile> appPath;
-  rv = dirSvc->Get(NS_XPCOM_CURRENT_PROCESS_DIR, NS_GET_IID(nsIFile),
+  nsCOMPtr<nsILocalFile> appPath;
+  rv = dirSvc->Get(NS_XPCOM_CURRENT_PROCESS_DIR, NS_GET_IID(nsILocalFile),
                    getter_AddRefs(appPath));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -641,7 +641,7 @@ nsGNOMEShellService::OpenApplication(PRInt32 aApplication)
 }
 
 NS_IMETHODIMP
-nsGNOMEShellService::OpenApplicationWithURI(nsIFile* aApplication, const nsACString& aURI)
+nsGNOMEShellService::OpenApplicationWithURI(nsILocalFile* aApplication, const nsACString& aURI)
 {
   nsresult rv;
   nsCOMPtr<nsIProcess> process = 
@@ -659,7 +659,7 @@ nsGNOMEShellService::OpenApplicationWithURI(nsIFile* aApplication, const nsACStr
 }
 
 NS_IMETHODIMP
-nsGNOMEShellService::GetDefaultFeedReader(nsIFile** _retval)
+nsGNOMEShellService::GetDefaultFeedReader(nsILocalFile** _retval)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }

@@ -136,9 +136,6 @@ class nsNativeTheme : public nsITimerCallback
   bool IsIndeterminateProgress(nsIFrame* aFrame, nsEventStates aEventStates);
   bool IsVerticalProgress(nsIFrame* aFrame);
 
-  // meter:
-  bool IsVerticalMeter(nsIFrame* aFrame);
-
   // textfield:
   bool IsReadOnly(nsIFrame* aFrame) {
       return CheckBooleanAttr(aFrame, nsGkAtoms::readonly);

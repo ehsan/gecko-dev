@@ -16,7 +16,7 @@
 #include "nsXPIDLString.h"
 #include "nsIServiceManager.h"
 #include "nsCOMArray.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsEnumeratorUtils.h"
 #include "mozilla/Services.h"
 #include "WidgetUtils.h"
@@ -140,13 +140,13 @@ NS_IMETHODIMP nsBaseFilePicker::SetFilterIndex(PRInt32 aFilterIndex)
 NS_IMETHODIMP nsBaseFilePicker::GetFiles(nsISimpleEnumerator **aFiles)
 {
   NS_ENSURE_ARG_POINTER(aFiles);
-  nsCOMArray <nsIFile> files;
+  nsCOMArray <nsILocalFile> files;
   nsresult rv;
 
   // if we get into the base class, the platform
   // doesn't implement GetFiles() yet.
   // so we fake it.
-  nsCOMPtr <nsIFile> file;
+  nsCOMPtr <nsILocalFile> file;
   rv = GetFile(getter_AddRefs(file));
   NS_ENSURE_SUCCESS(rv,rv);
 
@@ -159,7 +159,7 @@ NS_IMETHODIMP nsBaseFilePicker::GetFiles(nsISimpleEnumerator **aFiles)
 #ifdef BASEFILEPICKER_HAS_DISPLAYDIRECTORY
 
 // Set the display directory
-NS_IMETHODIMP nsBaseFilePicker::SetDisplayDirectory(nsIFile *aDirectory)
+NS_IMETHODIMP nsBaseFilePicker::SetDisplayDirectory(nsILocalFile *aDirectory)
 {
   if (!aDirectory) {
     mDisplayDirectory = nsnull;
@@ -174,7 +174,7 @@ NS_IMETHODIMP nsBaseFilePicker::SetDisplayDirectory(nsIFile *aDirectory)
 }
 
 // Get the display directory
-NS_IMETHODIMP nsBaseFilePicker::GetDisplayDirectory(nsIFile **aDirectory)
+NS_IMETHODIMP nsBaseFilePicker::GetDisplayDirectory(nsILocalFile **aDirectory)
 {
   *aDirectory = nsnull;
   if (!mDisplayDirectory)

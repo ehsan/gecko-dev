@@ -71,16 +71,16 @@ NS_IMETHODIMP nsFilePicker::SetDefaultExtension(const nsAString & aDefaultExtens
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_IMETHODIMP nsFilePicker::GetDisplayDirectory(nsIFile **aDisplayDirectory)
+NS_IMETHODIMP nsFilePicker::GetDisplayDirectory(nsILocalFile **aDisplayDirectory)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
-NS_IMETHODIMP nsFilePicker::SetDisplayDirectory(nsIFile *aDisplayDirectory)
+NS_IMETHODIMP nsFilePicker::SetDisplayDirectory(nsILocalFile *aDisplayDirectory)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_IMETHODIMP nsFilePicker::GetFile(nsIFile **aFile)
+NS_IMETHODIMP nsFilePicker::GetFile(nsILocalFile **aFile)
 {
     NS_ENSURE_ARG_POINTER(aFile);
 
@@ -89,7 +89,7 @@ NS_IMETHODIMP nsFilePicker::GetFile(nsIFile **aFile)
         return NS_OK;
     }
 
-    nsCOMPtr<nsIFile> file(do_CreateInstance("@mozilla.org/file/local;1"));
+    nsCOMPtr<nsILocalFile> file(do_CreateInstance("@mozilla.org/file/local;1"));
     NS_ENSURE_TRUE(file, NS_ERROR_FAILURE);
 
     file->InitWithPath(mFilePath);
@@ -103,7 +103,7 @@ NS_IMETHODIMP nsFilePicker::GetFile(nsIFile **aFile)
 
 NS_IMETHODIMP nsFilePicker::GetFileURL(nsIURI **aFileURL)
 {
-    nsCOMPtr<nsIFile> file;
+    nsCOMPtr<nsILocalFile> file;
     GetFile(getter_AddRefs(file));
 
     nsCOMPtr<nsIURI> uri;

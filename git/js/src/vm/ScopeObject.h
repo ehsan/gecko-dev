@@ -12,8 +12,6 @@
 #include "jsobj.h"
 #include "jsweakmap.h"
 
-#include "gc/Barrier.h"
-
 namespace js {
 
 /*****************************************************************************/
@@ -404,7 +402,7 @@ class DebugScopeObject : public JSObject
     static const unsigned ENCLOSING_EXTRA = 0;
 
   public:
-    static DebugScopeObject *create(JSContext *cx, ScopeObject &scope, HandleObject enclosing);
+    static DebugScopeObject *create(JSContext *cx, ScopeObject &scope, JSObject &enclosing);
 
     ScopeObject &scope() const;
     JSObject &enclosingScope() const;

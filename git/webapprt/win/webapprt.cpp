@@ -12,7 +12,7 @@
 #include <windows.h>
 
 // Mozilla headers (alphabetical)
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsINIParser.h"
 #include "nsWindowsWMain.cpp"   // we want a wmain entry point
 #include "nsXPCOMGlue.h"
@@ -101,7 +101,7 @@ namespace {
         : mAppData(NULL) { }
 
       nsresult
-      create(nsIFile* aINIFile)
+      create(nsILocalFile* aINIFile)
       {
         return XRE_CreateAppData(aINIFile, &mAppData);
       }
@@ -274,7 +274,7 @@ namespace {
       NS_ENSURE_SUCCESS(rv, false);
 
       // Load the runtime's INI from its path.
-      nsCOMPtr<nsIFile> rtINI;
+      nsCOMPtr<nsILocalFile> rtINI;
       rv = XRE_GetFileFromPath(rtIniPath, getter_AddRefs(rtINI));
       NS_ENSURE_SUCCESS(rv, false);
 
@@ -289,11 +289,11 @@ namespace {
       SetAllocatedString(webShellAppData->profile, profile);
       SetAllocatedString(webShellAppData->name, profile);
 
-      nsCOMPtr<nsIFile> directory;
+      nsCOMPtr<nsILocalFile> directory;
       rv = XRE_GetFileFromPath(rtPath, getter_AddRefs(directory));
       NS_ENSURE_SUCCESS(rv, false);
 
-      nsCOMPtr<nsIFile> xreDir;
+      nsCOMPtr<nsILocalFile> xreDir;
       rv = XRE_GetFileFromPath(greDir, getter_AddRefs(xreDir));
       NS_ENSURE_SUCCESS(rv, false);
 

@@ -129,9 +129,9 @@ nsFilePicker::SetFilterIndex(PRInt32 aFilterIndex)
     return NS_OK;
 }
 
-/* readonly attribute nsIFile file; */
+/* readonly attribute nsILocalFile file; */
 NS_IMETHODIMP
-nsFilePicker::GetFile(nsIFile* *aFile)
+nsFilePicker::GetFile(nsILocalFile* *aFile)
 {
     NS_ENSURE_ARG_POINTER(aFile);
 
@@ -140,7 +140,7 @@ nsFilePicker::GetFile(nsIFile* *aFile)
         return NS_OK;
     }
 
-    nsCOMPtr<nsIFile> file(do_CreateInstance("@mozilla.org/file/local;1"));
+    nsCOMPtr<nsILocalFile> file(do_CreateInstance("@mozilla.org/file/local;1"));
     NS_ENSURE_TRUE(file, NS_ERROR_FAILURE);
 
     file->InitWithNativePath(mFile);
@@ -154,7 +154,7 @@ nsFilePicker::GetFile(nsIFile* *aFile)
 NS_IMETHODIMP
 nsFilePicker::GetFileURL(nsIURI* *aFileURL)
 {
-    nsCOMPtr<nsIFile> file;
+    nsCOMPtr<nsILocalFile> file;
     GetFile(getter_AddRefs(file));
 
     nsCOMPtr<nsIURI> uri;
@@ -275,7 +275,7 @@ nsFilePicker::Show(PRInt16* aReturn)
 
     *aReturn = nsIFilePicker::returnOK;
     if (mMode == modeSave) {
-        nsCOMPtr<nsIFile> file;
+        nsCOMPtr<nsILocalFile> file;
         GetFile(getter_AddRefs(file));
         if (file) {
             bool exists = false;

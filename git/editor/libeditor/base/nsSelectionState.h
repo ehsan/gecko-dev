@@ -11,7 +11,6 @@
 #include "nsIDOMNode.h"
 #include "nsIDOMRange.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsINode.h"
 
 class nsIDOMCharacterData;
 class nsISelection;
@@ -182,16 +181,16 @@ class NS_STACK_CLASS nsAutoRemoveContainerSelNotify
     PRUint32   mNodeOrigLen;
 
   public:
-    nsAutoRemoveContainerSelNotify(nsRangeUpdater& aRangeUpdater,
-                                   nsINode* aNode,
-                                   nsINode* aParent,
-                                   PRInt32 aOffset,
-                                   PRUint32 aNodeOrigLen)
-      : mRU(aRangeUpdater)
-      , mNode(aNode->AsDOMNode())
-      , mParent(aParent->AsDOMNode())
-      , mOffset(aOffset)
-      , mNodeOrigLen(aNodeOrigLen)
+    nsAutoRemoveContainerSelNotify(nsRangeUpdater &aRangeUpdater, 
+                                   nsIDOMNode *aNode, 
+                                   nsIDOMNode *aParent, 
+                                   PRInt32 aOffset, 
+                                   PRUint32 aNodeOrigLen) :
+    mRU(aRangeUpdater)
+    ,mNode(aNode)
+    ,mParent(aParent)
+    ,mOffset(aOffset)
+    ,mNodeOrigLen(aNodeOrigLen)
     {
       mRU.WillRemoveContainer();
     }

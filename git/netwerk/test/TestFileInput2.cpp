@@ -14,7 +14,7 @@
 #include "prinrval.h"
 #include "nsIFileStreams.h"
 #include "nsIFileChannel.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsNetUtil.h"
 #include <stdio.h>
 
@@ -424,11 +424,11 @@ main(int argc, char* argv[])
         if (registrar)
             registrar->AutoRegister(nsnull);
 
-        nsCOMPtr<nsIFile> inDirFile;
+        nsCOMPtr<nsILocalFile> inDirFile;
         rv = NS_NewNativeLocalFile(nsDependentCString(inDir), false, getter_AddRefs(inDirFile));
         if (NS_FAILED(rv)) return rv;
 
-        nsCOMPtr<nsIFile> outDirFile;
+        nsCOMPtr<nsILocalFile> outDirFile;
         rv = NS_NewNativeLocalFile(nsDependentCString(outDir), false, getter_AddRefs(outDirFile));
         if (NS_FAILED(rv)) return rv;
 

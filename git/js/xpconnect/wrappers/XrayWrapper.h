@@ -27,8 +27,6 @@ namespace XrayUtils {
 
 extern JSClass HolderClass;
 
-bool CloneExpandoChain(JSContext *cx, JSObject *src, JSObject *dst);
-
 JSObject *createHolder(JSContext *cx, JSObject *wrappedNative, JSObject *parent);
 
 bool

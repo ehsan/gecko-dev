@@ -6,6 +6,7 @@
 #include "nsICacheInfoChannel.idl"
 
 interface nsIFile;
+interface nsILocalFile;
 
 /**
  * A channel may optionally implement this interface to allow clients
@@ -91,7 +92,7 @@ interface nsICachingChannel : nsICacheInfoChannel
      * Override base (profile) directory to work with when accessing the cache.
      * When not specified, the current process' profile directory will be used.
      */
-    attribute nsIFile profileDirectory;
+    attribute nsILocalFile profileDirectory;
 
     /**
      * Get the "file" where the cached data can be found.  This is valid for

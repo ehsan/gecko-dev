@@ -68,7 +68,6 @@
 #include "nsGenericHTMLElement.h"
 #include "nsHTMLDNSPrefetch.h"
 #include "nsISupportsPrimitives.h"
-#include "nsIObserverService.h"
 #include "mozilla/Preferences.h"
 #include "nsParserConstants.h"
 

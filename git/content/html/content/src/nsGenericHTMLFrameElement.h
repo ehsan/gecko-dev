@@ -6,11 +6,9 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsGenericHTMLElement.h"
-#include "nsIFrameLoader.h"
+#include "nsIDOMHTMLFrameElement.h"
 #include "nsIMozBrowserFrame.h"
 #include "nsIDOMEventListener.h"
-
-#include "nsFrameLoader.h"
 
 /**
  * A helper class for frame elements

@@ -2329,11 +2329,11 @@ BEGIN_CASE(JSOP_GETXPROP)
 BEGIN_CASE(JSOP_LENGTH)
 BEGIN_CASE(JSOP_CALLPROP)
 {
-    RootedValue rval(cx);
-    if (!GetPropertyOperation(cx, regs.pc, regs.sp[-1], rval.address()))
+    Value rval;
+    if (!GetPropertyOperation(cx, regs.pc, regs.sp[-1], &rval))
         goto error;
 
-    TypeScript::Monitor(cx, script, regs.pc, rval.reference());
+    TypeScript::Monitor(cx, script, regs.pc, rval);
 
     regs.sp[-1] = rval;
     assertSameCompartment(cx, regs.sp[-1]);

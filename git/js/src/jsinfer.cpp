@@ -5508,18 +5508,15 @@ JSObject::shouldSplicePrototype(JSContext *cx)
 }
 
 bool
-JSObject::splicePrototype(JSContext *cx, JSObject *proto_)
+JSObject::splicePrototype(JSContext *cx, JSObject *proto)
 {
-    RootedObject proto(cx, proto_);
-    RootedObject self(cx, this);
-
     /*
      * For singleton types representing only a single JSObject, the proto
      * can be rearranged as needed without destroying type information for
      * the old or new types. Note that type constraints propagating properties
      * from the old prototype are not removed.
      */
-    JS_ASSERT_IF(cx->typeInferenceEnabled(), self->hasSingletonType());
+    JS_ASSERT_IF(cx->typeInferenceEnabled(), hasSingletonType());
 
     /* Inner objects may not appear on prototype chains. */
     JS_ASSERT_IF(proto, !proto->getClass()->ext.outerObject);
@@ -5528,7 +5525,7 @@ JSObject::splicePrototype(JSContext *cx, JSObject *proto_)
      * Force type instantiation when splicing lazy types. This may fail,
      * in which case inference will be disabled for the compartment.
      */
-    TypeObject *type = self->getType(cx);
+    TypeObject *type = getType(cx);
     TypeObject *protoType = NULL;
     if (proto) {
         protoType = proto->getType(cx);
@@ -5540,7 +5537,7 @@ JSObject::splicePrototype(JSContext *cx, JSObject *proto_)
         TypeObject *type = proto ? proto->getNewType(cx) : cx->compartment->getEmptyType(cx);
         if (!type)
             return false;
-        self->type_ = type;
+        type_ = type;
         return true;
     }
 

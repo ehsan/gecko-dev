@@ -459,7 +459,6 @@ bool
 IndirectProxyHandler::nativeCall(JSContext *cx, JSObject *proxy, Class *clasp,
                                  Native native, CallArgs args)
 {
-    args.thisv() = ObjectValue(*GetProxyTargetObject(proxy));
     return CallJSNative(cx, native, args);
 }
 

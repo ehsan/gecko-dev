@@ -118,7 +118,7 @@ public:
      * A tool to preload offline cache for profiles different from the current
      * application's profile directory.
      */
-    nsresult GetCustomOfflineDevice(nsIFile *aProfileDir,
+    nsresult GetCustomOfflineDevice(nsILocalFile *aProfileDir,
                                     PRInt32 aQuota,
                                     nsOfflineCacheDevice **aDevice);
 
@@ -193,7 +193,7 @@ private:
 
     nsresult         CreateDiskDevice();
     nsresult         CreateOfflineDevice();
-    nsresult         CreateCustomOfflineDevice(nsIFile *aProfileDir,
+    nsresult         CreateCustomOfflineDevice(nsILocalFile *aProfileDir,
                                                PRInt32 aQuota,
                                                nsOfflineCacheDevice **aDevice);
     nsresult         CreateMemoryDevice();

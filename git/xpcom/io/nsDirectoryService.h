@@ -8,7 +8,7 @@
 
 #include "nsIDirectoryService.h"
 #include "nsHashtable.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsISupportsArray.h"
 #include "nsIAtom.h"
 
@@ -45,7 +45,7 @@ class nsDirectoryService : public nsIDirectoryService,
   static nsDirectoryService* gService;
 
 private:
-    nsresult GetCurrentProcessDirectory(nsIFile** aFile);
+    nsresult GetCurrentProcessDirectory(nsILocalFile** aFile);
     
     static bool ReleaseValues(nsHashKey* key, void* data, void* closure);
     nsSupportsHashtable mHashtable;

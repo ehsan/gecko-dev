@@ -39,7 +39,6 @@ import android.widget.TextView;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -68,10 +67,9 @@ public class AwesomeBarTabs extends TabHost {
     private boolean mInflated;
     private LayoutInflater mInflater;
     private OnUrlOpenListener mUrlOpenListener;
+    private JSONArray mSearchEngines;
     private ContentResolver mContentResolver;
     private ContentObserver mContentObserver;
-    private SearchEngine mSuggestEngine;
-    private ArrayList<SearchEngine> mSearchEngines;
 
     private BookmarksQueryTask mBookmarksQueryTask;
     private HistoryQueryTask mHistoryQueryTask;
@@ -88,22 +86,14 @@ public class AwesomeBarTabs extends TabHost {
 
     public interface OnUrlOpenListener {
         public void onUrlOpen(String url);
-        public void onSearch(String engine, String text);
-        public void onEditSuggestion(String suggestion);
+        public void onSearch(String engine);
     }
 
-    private class AwesomeEntryViewHolder {
+    private class ViewHolder {
         public TextView titleView;
         public TextView urlView;
         public ImageView faviconView;
         public ImageView starView;
-    }
-
-    private class SearchEntryViewHolder {
-        public FlowLayout suggestionView;
-        public ImageView iconView;
-        public LinearLayout userEnteredView;
-        public TextView userEnteredTextView;
     }
 
     private class HistoryListAdapter extends SimpleExpandableListAdapter {
@@ -118,12 +108,12 @@ public class AwesomeBarTabs extends TabHost {
         @Override
         public View getChildView(int groupPosition, int childPosition, boolean isLastChild,
                 View convertView, ViewGroup parent) {
-            AwesomeEntryViewHolder viewHolder = null;
+            ViewHolder viewHolder = null;
 
             if (convertView == null) {
                 convertView = mInflater.inflate(R.layout.awesomebar_row, null);
 
-                viewHolder = new AwesomeEntryViewHolder();
+                viewHolder = new ViewHolder();
                 viewHolder.titleView = (TextView) convertView.findViewById(R.id.title);
                 viewHolder.urlView = (TextView) convertView.findViewById(R.id.url);
                 viewHolder.faviconView = (ImageView) convertView.findViewById(R.id.favicon);
@@ -131,7 +121,7 @@ public class AwesomeBarTabs extends TabHost {
 
                 convertView.setTag(viewHolder);
             } else {
-                viewHolder = (AwesomeEntryViewHolder) convertView.getTag();
+                viewHolder = (ViewHolder) convertView.getTag();
             }
 
             @SuppressWarnings("unchecked")
@@ -266,7 +256,7 @@ public class AwesomeBarTabs extends TabHost {
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             int viewType = getItemViewType(position);
-            AwesomeEntryViewHolder viewHolder = null;
+            ViewHolder viewHolder = null;
 
             if (convertView == null) {
                 if (viewType == VIEW_TYPE_ITEM)
@@ -274,7 +264,7 @@ public class AwesomeBarTabs extends TabHost {
                 else
                     convertView = mInflater.inflate(R.layout.awesomebar_folder_row, null);
 
-                viewHolder = new AwesomeEntryViewHolder();
+                viewHolder = new ViewHolder();
                 viewHolder.titleView = (TextView) convertView.findViewById(R.id.title);
                 viewHolder.faviconView = (ImageView) convertView.findViewById(R.id.favicon);
 
@@ -283,7 +273,7 @@ public class AwesomeBarTabs extends TabHost {
 
                 convertView.setTag(viewHolder);
             } else {
-                viewHolder = (AwesomeEntryViewHolder) convertView.getTag();
+                viewHolder = (ViewHolder) convertView.getTag();
             }
 
             Cursor cursor = getCursor();
@@ -618,48 +608,8 @@ public class AwesomeBarTabs extends TabHost {
         }
     }
 
-    private interface AwesomeBarItem {
-        public void onClick();
-    }
-
     private class AwesomeBarCursorAdapter extends SimpleCursorAdapter {
         private String mSearchTerm;
-
-        private static final int ROW_SEARCH = 0;
-        private static final int ROW_STANDARD = 1;
-
-        private class AwesomeBarCursorItem implements AwesomeBarItem {
-            private Cursor mCursor;
-
-            public AwesomeBarCursorItem(Cursor cursor) {
-                mCursor = cursor;
-            }
-
-            public void onClick() {
-                String url = mCursor.getString(mCursor.getColumnIndexOrThrow(URLColumns.URL));
-                if (mUrlOpenListener != null) {
-                    int display = mCursor.getInt(mCursor.getColumnIndexOrThrow(Combined.DISPLAY));
-                    if (display == Combined.DISPLAY_READER) {
-                        url = getReaderForUrl(url);
-                    }
-
-                    mUrlOpenListener.onUrlOpen(url);
-                }
-            }
-        }
-
-        private class AwesomeBarSearchEngineItem implements AwesomeBarItem {
-            private String mSearchEngine;
-
-            public AwesomeBarSearchEngineItem(String searchEngine) {
-                mSearchEngine = searchEngine;
-            }
-
-            public void onClick() {
-                if (mUrlOpenListener != null)
-                    mUrlOpenListener.onSearch(mSearchEngine, mSearchTerm);
-            }
-        }
 
         public AwesomeBarCursorAdapter(Context context) {
             super(context, -1, null, new String[] {}, new int[] {});
@@ -671,123 +621,58 @@ public class AwesomeBarTabs extends TabHost {
             getFilter().filter(searchTerm);
         }
 
-        private int getSuggestEngineCount() {
-            return (mSearchTerm.length() == 0 || mSuggestEngine == null) ? 0 : 1;
-        }
-
         // Add the search engines to the number of reported results.
         @Override
         public int getCount() {
             final int resultCount = super.getCount();
 
-            // don't show search engines or suggestions if search field is empty
+            // don't show additional search engines if search field is empty
             if (mSearchTerm.length() == 0)
                 return resultCount;
 
-            return resultCount + mSearchEngines.size() + getSuggestEngineCount();
+            return resultCount + mSearchEngines.length();
         }
 
         // If an item is part of the cursor result set, return that entry.
         // Otherwise, return the search engine data.
         @Override
         public Object getItem(int position) {
-            int engineIndex = getEngineIndex(position);
-
-            if (engineIndex == -1) {
-                // return awesomebar result
-                position -= getSuggestEngineCount();
-                return new AwesomeBarCursorItem((Cursor) super.getItem(position));
-            }
-
-            // return search engine
-            return new AwesomeBarSearchEngineItem(getEngine(engineIndex).name);
-        }
-
-        private SearchEngine getEngine(int index) {
-            final int suggestEngineCount = getSuggestEngineCount();
-            if (index < suggestEngineCount)
-                return mSuggestEngine;
-            return mSearchEngines.get(index - suggestEngineCount);
-        }
-
-        private int getEngineIndex(int position) {
             final int resultCount = super.getCount();
-            final int suggestEngineCount = getSuggestEngineCount();
+            if (position < resultCount)
+                return super.getItem(position);
 
-            // return suggest engine index
-            if (position < suggestEngineCount)
-                return 0;
-
-            // not an engine
-            if (position - suggestEngineCount < resultCount)
-                return -1;
-
-            // return search engine index
-            return position - resultCount;
-        }
-
-        @Override
-        public int getItemViewType(int position) {
-            return getEngineIndex(position) == -1 ? ROW_STANDARD : ROW_SEARCH;
-        }
-
-        @Override
-        public int getViewTypeCount() {
-            // view can be either a standard awesomebar row or a search engine row
-            return 2;
-        }
-
-        @Override
-        public boolean isEnabled(int position) {
-            // If the suggestion row only contains one item (the user-entered
-            // query), allow the entire row to be clickable; clicking the row
-            // has the same effect as clicking the single suggestion. If the
-            // row contains multiple items, clicking the row will do nothing.
-            int index = getEngineIndex(position);
-            if (index != -1) {
-                return getEngine(index).suggestions.isEmpty();
+            JSONObject engine;
+            String engineName = null;
+            try {
+                engine = mSearchEngines.getJSONObject(position - resultCount);
+                engineName = engine.getString("name");
+            } catch (JSONException e) {
+                Log.e(LOGTAG, "error getting json arguments");
             }
-            return true;
+
+            return engineName;
         }
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
-            if (getItemViewType(position) == ROW_SEARCH) {
-                SearchEntryViewHolder viewHolder = null;
+            ViewHolder viewHolder = null;
 
-                if (convertView == null) {
-                    convertView = mInflater.inflate(R.layout.awesomebar_suggestion_row, null);
+            if (convertView == null) {
+                convertView = mInflater.inflate(R.layout.awesomebar_row, null);
 
-                    viewHolder = new SearchEntryViewHolder();
-                    viewHolder.suggestionView = (FlowLayout) convertView.findViewById(R.id.suggestion_layout);
-                    viewHolder.iconView = (ImageView) convertView.findViewById(R.id.suggestion_icon);
-                    viewHolder.userEnteredView = (LinearLayout) convertView.findViewById(R.id.suggestion_user_entered);
-                    viewHolder.userEnteredTextView = (TextView) convertView.findViewById(R.id.suggestion_text);
+                viewHolder = new ViewHolder();
+                viewHolder.titleView = (TextView) convertView.findViewById(R.id.title);
+                viewHolder.urlView = (TextView) convertView.findViewById(R.id.url);
+                viewHolder.faviconView = (ImageView) convertView.findViewById(R.id.favicon);
+                viewHolder.starView = (ImageView) convertView.findViewById(R.id.bookmark_star);
 
-                    convertView.setTag(viewHolder);
-                } else {
-                    viewHolder = (SearchEntryViewHolder) convertView.getTag();
-                }
-
-                bindSearchEngineView(getEngine(getEngineIndex(position)), viewHolder);
+                convertView.setTag(viewHolder);
             } else {
-                AwesomeEntryViewHolder viewHolder = null;
+                viewHolder = (ViewHolder) convertView.getTag();
+            }
 
-                if (convertView == null) {
-                    convertView = mInflater.inflate(R.layout.awesomebar_row, null);
-
-                    viewHolder = new AwesomeEntryViewHolder();
-                    viewHolder.titleView = (TextView) convertView.findViewById(R.id.title);
-                    viewHolder.urlView = (TextView) convertView.findViewById(R.id.url);
-                    viewHolder.faviconView = (ImageView) convertView.findViewById(R.id.favicon);
-                    viewHolder.starView = (ImageView) convertView.findViewById(R.id.bookmark_star);
-
-                    convertView.setTag(viewHolder);
-                } else {
-                    viewHolder = (AwesomeEntryViewHolder) convertView.getTag();
-                }
-
-                position -= getSuggestEngineCount();
+            final int resultCount = super.getCount();
+            if (position < resultCount) {
                 Cursor cursor = getCursor();
                 if (!cursor.moveToPosition(position))
                     throw new IllegalStateException("Couldn't move cursor to position " + position);
@@ -796,69 +681,45 @@ public class AwesomeBarTabs extends TabHost {
                 updateUrl(viewHolder.urlView, cursor);
                 updateFavicon(viewHolder.faviconView, cursor);
                 updateBookmarkStar(viewHolder.starView, cursor);
+            } else {
+                bindSearchEngineView(position - resultCount, viewHolder);
             }
 
             return convertView;
         }
 
-        private void bindSearchEngineView(final SearchEngine engine, SearchEntryViewHolder viewHolder) {
-            // when a suggestion is clicked, do a search
-            OnClickListener clickListener = new OnClickListener() {
-                public void onClick(View v) {
-                    if (mUrlOpenListener != null) {
-                        String suggestion = ((TextView) v.findViewById(R.id.suggestion_text)).getText().toString();
-                        mUrlOpenListener.onSearch(engine.name, suggestion);
-                    }
-                }
-            };
+        private Drawable getDrawableFromDataURI(String dataURI) {
+            String base64 = dataURI.substring(dataURI.indexOf(',') + 1);
+            Drawable drawable = null;
+            try {
+                byte[] bytes = GeckoAppShell.decodeBase64(base64, GeckoAppShell.BASE64_DEFAULT);
+                ByteArrayInputStream stream = new ByteArrayInputStream(bytes);
+                drawable = Drawable.createFromStream(stream, "src");
+                stream.close();
+            } catch (IllegalArgumentException e) {
+                Log.i(LOGTAG, "exception while decoding drawable: " + base64, e);
+            } catch (IOException e) { }
+            return drawable;
+        }
 
-            // when a suggestion is long-clicked, copy the suggestion into the URL EditText
-            OnLongClickListener longClickListener = new OnLongClickListener() {
-                public boolean onLongClick(View v) {
-                    if (mUrlOpenListener != null) {
-                        String suggestion = ((TextView) v.findViewById(R.id.suggestion_text)).getText().toString();
-                        mUrlOpenListener.onEditSuggestion(suggestion);
-                        return true;
-                    }
-                    return false;
-                }
-            };
-
-            // set the search engine icon (e.g., Google) for the row
-            FlowLayout suggestionView = viewHolder.suggestionView;
-            viewHolder.iconView.setImageDrawable(engine.icon);
-
-            // user-entered search term is first suggestion
-            viewHolder.userEnteredTextView.setText(mSearchTerm);
-            viewHolder.userEnteredView.setOnClickListener(clickListener);
-            
-            // add additional suggestions given by this engine
-            int recycledSuggestionCount = suggestionView.getChildCount();
-            int suggestionCount = engine.suggestions.size();
-            int i = 0;
-            for (i = 0; i < suggestionCount; i++) {
-                String suggestion = engine.suggestions.get(i);
-                View suggestionItem = null;
-
-                // reuse suggestion views from recycled view, if possible
-                if (i+1 < recycledSuggestionCount) {
-                    suggestionItem = suggestionView.getChildAt(i+1);
-                    suggestionItem.setVisibility(View.VISIBLE);
-                } else {
-                    suggestionItem = mInflater.inflate(R.layout.awesomebar_suggestion_item, null);
-                    ((ImageView) suggestionItem.findViewById(R.id.suggestion_magnifier)).setVisibility(View.GONE);
-                    suggestionView.addView(suggestionItem);
-                }
-                ((TextView) suggestionItem.findViewById(R.id.suggestion_text)).setText(suggestion);
-
-                suggestionItem.setOnClickListener(clickListener);
-                suggestionItem.setOnLongClickListener(longClickListener);
+        private void bindSearchEngineView(int position, ViewHolder viewHolder) {
+            String name;
+            String iconURI;
+            String searchText = getResources().getString(R.string.awesomebar_search_engine, mSearchTerm);
+            try {
+                JSONObject searchEngine = mSearchEngines.getJSONObject(position);
+                name = searchEngine.getString("name");
+                iconURI = searchEngine.getString("iconURI");
+            } catch (JSONException e) {
+                Log.e(LOGTAG, "error getting json arguments");
+                return;
             }
-            
-            // hide extra suggestions that have been recycled
-            for (++i; i < recycledSuggestionCount; i++) {
-                suggestionView.getChildAt(i).setVisibility(View.GONE);
-            }
+
+            viewHolder.titleView.setText(name);
+            viewHolder.urlView.setText(searchText);
+            Drawable drawable = getDrawableFromDataURI(iconURI);
+            viewHolder.faviconView.setImageDrawable(drawable);
+            viewHolder.starView.setVisibility(View.GONE);
         }
     };
 
@@ -869,7 +730,7 @@ public class AwesomeBarTabs extends TabHost {
 
         mContext = context;
         mInflated = false;
-        mSearchEngines = new ArrayList<SearchEngine>();
+        mSearchEngines = new JSONArray();
         mContentResolver = context.getContentResolver();
         mContentObserver = null;
         mInflater = (LayoutInflater) mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
@@ -976,7 +837,7 @@ public class AwesomeBarTabs extends TabHost {
 
         allPagesList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                ((AwesomeBarItem) allPagesList.getItemAtPosition(position)).onClick();
+                handleItemClick(allPagesList, position);
             }
         });
 
@@ -1067,6 +928,28 @@ public class AwesomeBarTabs extends TabHost {
             mUrlOpenListener.onUrlOpen(url);
     }
 
+    private void handleItemClick(ListView list, int position) {
+        Object item = list.getItemAtPosition(position);
+        // If an AwesomeBar entry is clicked, item will be a Cursor containing
+        // the entry's data.  Otherwise, a search engine entry was clicked, and
+        // item will be a String containing the name of the search engine.
+        if (item instanceof Cursor) {
+            Cursor cursor = (Cursor) item;
+            String url = cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.URL));
+            if (mUrlOpenListener != null) {
+                int display = cursor.getInt(cursor.getColumnIndexOrThrow(Combined.DISPLAY));
+                if (display == Combined.DISPLAY_READER) {
+                    url = getReaderForUrl(url);
+                }
+
+                mUrlOpenListener.onUrlOpen(url);
+            }
+        } else {
+            if (mUrlOpenListener != null)
+                mUrlOpenListener.onSearch((String)item);
+        }
+    }
+
     private void updateFavicon(ImageView faviconView, Cursor cursor) {
         byte[] b = cursor.getBlob(cursor.getColumnIndexOrThrow(URLColumns.FAVICON));
         if (b == null) {
@@ -1145,98 +1028,10 @@ public class AwesomeBarTabs extends TabHost {
         mAllPagesCursorAdapter.filter(searchTerm);
     }
 
-    private Drawable getDrawableFromDataURI(String dataURI) {
-        String base64 = dataURI.substring(dataURI.indexOf(',') + 1);
-        Drawable drawable = null;
-        try {
-            byte[] bytes = GeckoAppShell.decodeBase64(base64, GeckoAppShell.BASE64_DEFAULT);
-            ByteArrayInputStream stream = new ByteArrayInputStream(bytes);
-            drawable = Drawable.createFromStream(stream, "src");
-            stream.close();
-        } catch (IllegalArgumentException e) {
-            Log.i(LOGTAG, "exception while decoding drawable: " + base64, e);
-        } catch (IOException e) { }
-        return drawable;
-    }
-
-    private class SearchEngine {
-        public String name;
-        public Drawable icon;
-        public ArrayList<String> suggestions;
-
-        public SearchEngine(String name) {
-            this(name, null);
-        }
-
-        public SearchEngine(String name, Drawable icon) {
-            this.name = name;
-            this.icon = icon;
-            this.suggestions = new ArrayList<String>();
-        }
-    };
-
-    /**
-     * Sets the suggest engine, which will show suggestions for user-entered queries.
-     * If the suggest engine has already been set, it will be replaced, and its
-     * suggestions will be copied to the new suggest engine.
-     */
-    public void setSuggestEngine(String name, Drawable icon) {
-        // We currently save the suggest engine in shared preferences, so this
-        // method is called immediately when the AwesomeBar is created. It's
-        // called again in setSuggestions(), when the list of search engines is
-        // received from Gecko (in case the suggestion engine has changed).
-        final SearchEngine suggestEngine = new SearchEngine(name, icon);
-        if (mSuggestEngine != null)
-            suggestEngine.suggestions = mSuggestEngine.suggestions;
-
+    public void setSearchEngines(final JSONArray engines) {
         GeckoAppShell.getMainHandler().post(new Runnable() {
             public void run() {
-                mSuggestEngine = suggestEngine;
-                mAllPagesCursorAdapter.notifyDataSetChanged();
-            }
-        });
-    }
-
-    /**
-     * Sets suggestions associated with the current suggest engine.
-     * If there is no suggest engine, this does nothing.
-     */
-    public void setSuggestions(final ArrayList<String> suggestions) {
-        GeckoAppShell.getMainHandler().post(new Runnable() {
-            public void run() {
-                if (mSuggestEngine != null) {
-                    mSuggestEngine.suggestions = suggestions;
-                    mAllPagesCursorAdapter.notifyDataSetChanged();
-                }
-            }
-        });
-    }
-
-    /**
-     * Sets search engines to be shown for user-entered queries.
-     */
-    public void setSearchEngines(String suggestEngine, JSONArray engines) {
-        final ArrayList<SearchEngine> searchEngines = new ArrayList<SearchEngine>();
-        for (int i = 0; i < engines.length(); i++) {
-            try {
-                JSONObject engineJSON = engines.getJSONObject(i);
-                String name = engineJSON.getString("name");
-                String iconURI = engineJSON.getString("iconURI");
-                Drawable icon = getDrawableFromDataURI(iconURI);
-                if (name.equals(suggestEngine)) {
-                    setSuggestEngine(name, icon);
-                } else {
-                    searchEngines.add(new SearchEngine(name, icon));
-                }
-            } catch (JSONException e) {
-                Log.e(LOGTAG, "Error getting search engine JSON", e);
-                return;
-            }
-        }
-
-        GeckoAppShell.getMainHandler().post(new Runnable() {
-            public void run() {
-                mSearchEngines = searchEngines;
+                mSearchEngines = engines;
                 mAllPagesCursorAdapter.notifyDataSetChanged();
             }
         });
@@ -1248,10 +1043,7 @@ public class AwesomeBarTabs extends TabHost {
 
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
-        // we should only have to hide the soft keyboard once - when the user
-        // initially touches the screen
-        if (ev.getAction() == MotionEvent.ACTION_DOWN)
-            hideSoftInput(this);
+        hideSoftInput(this);
 
         // the android docs make no sense, but returning false will cause this and other
         // motion events to be sent to the view the user tapped on

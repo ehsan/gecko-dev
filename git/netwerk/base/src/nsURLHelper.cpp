@@ -10,7 +10,7 @@
 #include "nsReadableUtils.h"
 #include "nsIServiceManager.h"
 #include "nsIIOService.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIURLParser.h"
 #include "nsIURI.h"
 #include "nsMemory.h"

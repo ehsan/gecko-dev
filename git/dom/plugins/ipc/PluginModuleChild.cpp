@@ -21,7 +21,7 @@
 #include <gtk/gtk.h>
 #endif
 
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 
 #include "pratom.h"
 #include "nsDebug.h"
@@ -152,7 +152,7 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
         return false;
 
     mPluginFilename = aPluginFilename.c_str();
-    nsCOMPtr<nsIFile> localFile;
+    nsCOMPtr<nsILocalFile> localFile;
     NS_NewLocalFile(NS_ConvertUTF8toUTF16(mPluginFilename),
                     true,
                     getter_AddRefs(localFile));

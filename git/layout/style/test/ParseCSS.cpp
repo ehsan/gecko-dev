@@ -15,7 +15,7 @@
 #include "nsXPCOM.h"
 #include "nsCOMPtr.h"
 
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsNetUtil.h"
 
 #include "nsContentCID.h"
@@ -25,7 +25,7 @@
 static already_AddRefed<nsIURI>
 FileToURI(const char *aFilename, nsresult *aRv = 0)
 {
-    nsCOMPtr<nsIFile> lf(do_CreateInstance(NS_LOCAL_FILE_CONTRACTID, aRv));
+    nsCOMPtr<nsILocalFile> lf(do_CreateInstance(NS_LOCAL_FILE_CONTRACTID, aRv));
     NS_ENSURE_TRUE(lf, nsnull);
     // XXX Handle relative paths somehow.
     lf->InitWithNativePath(nsDependentCString(aFilename));

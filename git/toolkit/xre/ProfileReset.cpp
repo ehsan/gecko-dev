@@ -5,7 +5,7 @@
 
 #include "nsIAppStartup.h"
 #include "nsIDOMWindow.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIStringBundle.h"
 #include "nsIToolkitProfile.h"
 #include "nsIWindowWatcher.h"
@@ -59,11 +59,11 @@ nsresult
 ProfileResetCleanup(nsIToolkitProfile* aOldProfile)
 {
   nsresult rv;
-  nsCOMPtr<nsIFile> profileDir;
+  nsCOMPtr<nsILocalFile> profileDir;
   rv = aOldProfile->GetRootDir(getter_AddRefs(profileDir));
   if (NS_FAILED(rv)) return rv;
 
-  nsCOMPtr<nsIFile> profileLocalDir;
+  nsCOMPtr<nsILocalFile> profileLocalDir;
   rv = aOldProfile->GetLocalDir(getter_AddRefs(profileLocalDir));
   if (NS_FAILED(rv)) return rv;
 

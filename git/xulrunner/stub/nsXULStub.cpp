@@ -8,7 +8,7 @@
 #include "nsXPCOMPrivate.h" // for XP MAXPATHLEN
 #include "nsMemory.h" // for NS_ARRAY_LENGTH
 #include "nsXULAppAPI.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 
 #include <stdarg.h>
 
@@ -137,7 +137,7 @@ static nsresult GetRealPath(const char* appDataFile, char* *aResult)
 class AutoAppData
 {
 public:
-  AutoAppData(nsIFile* aINIFile) : mAppData(nsnull) {
+  AutoAppData(nsILocalFile* aINIFile) : mAppData(nsnull) {
     nsresult rv = XRE_CreateAppData(aINIFile, &mAppData);
     if (NS_FAILED(rv))
       mAppData = nsnull;
@@ -442,7 +442,7 @@ main(int argc, char **argv)
   int retval;
 
   { // Scope COMPtr and AutoAppData
-    nsCOMPtr<nsIFile> iniFile;
+    nsCOMPtr<nsILocalFile> iniFile;
 #ifdef XP_WIN
     // On Windows iniPath is UTF-8 encoded so we need to convert it.
     rv = NS_NewLocalFile(NS_ConvertUTF8toUTF16(iniPath), false,

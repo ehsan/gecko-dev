@@ -58,7 +58,7 @@ using namespace mozilla;
 
 //----------------------------------------------------------------------------------------
 nsresult 
-nsDirectoryService::GetCurrentProcessDirectory(nsIFile** aFile)
+nsDirectoryService::GetCurrentProcessDirectory(nsILocalFile** aFile)
 //----------------------------------------------------------------------------------------
 {
     NS_ENSURE_ARG_POINTER(aFile);
@@ -77,8 +77,8 @@ nsDirectoryService::GetCurrentProcessDirectory(nsIFile** aFile)
 
     if (dirService)
     {
-      nsCOMPtr <nsIFile> aLocalFile;
-      dirService->Get(NS_XPCOM_INIT_CURRENT_PROCESS_DIR, NS_GET_IID(nsIFile), getter_AddRefs(aLocalFile));
+      nsCOMPtr <nsILocalFile> aLocalFile;
+      dirService->Get(NS_XPCOM_INIT_CURRENT_PROCESS_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(aLocalFile));
       if (aLocalFile)
       {
         *aFile = aLocalFile;
@@ -547,7 +547,7 @@ nsDirectoryService::UnregisterProvider(nsIDirectoryServiceProvider *prov)
 NS_IMETHODIMP
 nsDirectoryService::GetFile(const char *prop, bool *persistent, nsIFile **_retval)
 {
-    nsCOMPtr<nsIFile> localFile;
+    nsCOMPtr<nsILocalFile> localFile;
     nsresult rv = NS_ERROR_FAILURE;
 
     *_retval = nsnull;

@@ -1247,8 +1247,6 @@ protected:
     eDefaultFont_COUNT
   };
 
-  nscolor MakeColorPref(const nsString& aColor);
-
 #ifdef DEBUG
 private:
   friend struct nsAutoLayoutPhase;

@@ -185,16 +185,7 @@ protected:
                               bool aIsBlockIndentedWithCSS,
                               nsCOMPtr<nsIDOMNode> *aLeftNode = 0,
                               nsCOMPtr<nsIDOMNode> *aRightNode = 0);
-
-  nsresult ConvertListType(nsIDOMNode* aList,
-                           nsCOMPtr<nsIDOMNode>* outList,
-                           nsIAtom* aListType,
-                           nsIAtom* aItemType);
-  nsresult ConvertListType(nsINode* aList,
-                           mozilla::dom::Element** aOutList,
-                           nsIAtom* aListType,
-                           nsIAtom* aItemType);
-
+  nsresult ConvertListType(nsIDOMNode *aList, nsCOMPtr<nsIDOMNode> *outList, const nsAString& aListType, const nsAString& aItemType);
   nsresult CreateStyleForInsertText(nsISelection *aSelection, nsIDOMDocument *aDoc);
   nsresult IsEmptyBlock(nsIDOMNode *aNode, 
                         bool *outIsEmptyBlock, 

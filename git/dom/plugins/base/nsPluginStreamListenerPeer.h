@@ -17,10 +17,9 @@
 #include "nsNPAPIPluginInstance.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIChannelEventSink.h"
-#include "nsIObjectLoadingContent.h"
+#include "nsObjectLoadingContent.h"
 
 class nsIChannel;
-class nsObjectLoadingContent;
 
 /**
  * When a plugin requests opens multiple requests to the same URL and
@@ -48,6 +47,7 @@ class nsPluginStreamListenerPeer : public nsIStreamListener,
 public nsIProgressEventSink,
 public nsIHttpHeaderVisitor,
 public nsSupportsWeakReference,
+public nsINPAPIPluginStreamInfo,
 public nsIInterfaceRequestor,
 public nsIChannelEventSink
 {
@@ -63,6 +63,9 @@ public:
   NS_DECL_NSIINTERFACEREQUESTOR
   NS_DECL_NSICHANNELEVENTSINK
 
+  // nsINPAPIPluginStreamInfo interface
+  NS_DECL_NSIPLUGINSTREAMINFO
+  
   // Called by RequestRead
   void
   MakeByteRangeString(NPByteRange* aRangeList, nsACString &string, PRInt32 *numRequests);
@@ -86,53 +89,6 @@ public:
   
   nsNPAPIPluginInstance *GetPluginInstance() { return mPluginInstance; }
   
-  nsresult RequestRead(NPByteRange* rangeList);
-  nsresult GetLength(PRUint32* result);
-  nsresult GetURL(const char** result);
-  nsresult GetLastModified(PRUint32* result);
-  nsresult IsSeekable(bool* result);
-  nsresult GetContentType(char** result);
-  nsresult GetStreamOffset(PRInt32* result);
-  nsresult SetStreamOffset(PRInt32 value);
-
-  void TrackRequest(nsIRequest* request)
-  {
-    mRequests.AppendObject(request);
-  }
-
-  void ReplaceRequest(nsIRequest* oldRequest, nsIRequest* newRequest)
-  {
-    PRInt32 i = mRequests.IndexOfObject(oldRequest);
-    if (i == -1) {
-      NS_ASSERTION(mRequests.Count() == 0,
-                   "Only our initial stream should be unknown!");
-      mRequests.AppendObject(oldRequest);
-    }
-    else {
-      mRequests.ReplaceObjectAt(newRequest, i);
-    }
-  }
-  
-  void CancelRequests(nsresult status)
-  {
-    // Copy the array to avoid modification during the loop.
-    nsCOMArray<nsIRequest> requestsCopy(mRequests);
-    for (PRInt32 i = 0; i < requestsCopy.Count(); ++i)
-      requestsCopy[i]->Cancel(status);
-  }
-
-  void SuspendRequests() {
-    nsCOMArray<nsIRequest> requestsCopy(mRequests);
-    for (PRInt32 i = 0; i < requestsCopy.Count(); ++i)
-      requestsCopy[i]->Suspend();
-  }
-
-  void ResumeRequests() {
-    nsCOMArray<nsIRequest> requestsCopy(mRequests);
-    for (PRInt32 i = 0; i < requestsCopy.Count(); ++i)
-      requestsCopy[i]->Resume();
-  }
-
 private:
   nsresult SetUpStreamListener(nsIRequest* request, nsIURI* aURL);
   nsresult SetupPluginCacheFile(nsIChannel* channel);
@@ -176,7 +132,6 @@ public:
   PRInt32                 mPendingRequests;
   nsWeakPtr               mWeakPtrChannelCallbacks;
   nsWeakPtr               mWeakPtrChannelLoadGroup;
-  nsCOMArray<nsIRequest> mRequests;
 };
 
 #endif // nsPluginStreamListenerPeer_h_

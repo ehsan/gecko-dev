@@ -18,7 +18,7 @@
 #include "nsStringAPI.h"
 #include "nsIFileStreams.h"
 #include "nsIStreamListener.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsNetUtil.h"
 #include "nsAutoLock.h"
 #include "prlog.h"
@@ -158,7 +158,7 @@ main(int argc, char* argv[])
         gTestLog = PR_NewLogModule("Test");
 #endif
 
-        nsCOMPtr<nsIFile> file;
+        nsCOMPtr<nsILocalFile> file;
         rv = NS_NewNativeLocalFile(nsDependentCString(fileName), false, getter_AddRefs(file));
         if (NS_FAILED(rv)) return rv;
 

@@ -4,7 +4,7 @@
 
 #include "nsINIParserImpl.h"
 
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 
 #include "nsINIParser.h"
 #include "nsStringEnumerator.h"
@@ -17,7 +17,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIINIPARSER
 
-  nsresult Init(nsIFile* aINIFile) {
+  nsresult Init(nsILocalFile* aINIFile) {
     return mParser.Init(aINIFile);
   }
 
@@ -30,7 +30,7 @@ NS_IMPL_ISUPPORTS2(nsINIParserFactory,
                    nsIFactory)
 
 NS_IMETHODIMP
-nsINIParserFactory::CreateINIParser(nsIFile* aINIFile,
+nsINIParserFactory::CreateINIParser(nsILocalFile* aINIFile,
                                     nsIINIParser* *aResult)
 {
   *aResult = nsnull;

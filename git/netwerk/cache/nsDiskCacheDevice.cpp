@@ -213,8 +213,8 @@ NS_IMETHODIMP nsDiskCacheDeviceInfo::GetUsageReport(char ** usageReport)
     buffer.AssignLiteral("  <tr>\n"
                          "    <th>Cache Directory:</th>\n"
                          "    <td>");
-    nsCOMPtr<nsIFile> cacheDir;
-    nsAutoString path;
+    nsCOMPtr<nsILocalFile> cacheDir;
+    nsAutoString           path;
     mDevice->getCacheDirectory(getter_AddRefs(cacheDir)); 
     nsresult rv = cacheDir->GetPath(path);
     if (NS_SUCCEEDED(rv)) {
@@ -1068,7 +1068,7 @@ nsDiskCacheDevice::EvictDiskCacheEntries(PRUint32  targetCapacity)
  */
 
 void
-nsDiskCacheDevice::SetCacheParentDirectory(nsIFile * parentDir)
+nsDiskCacheDevice::SetCacheParentDirectory(nsILocalFile * parentDir)
 {
     nsresult rv;
     bool    exists;
@@ -1102,7 +1102,7 @@ nsDiskCacheDevice::SetCacheParentDirectory(nsIFile * parentDir)
 
 
 void
-nsDiskCacheDevice::getCacheDirectory(nsIFile ** result)
+nsDiskCacheDevice::getCacheDirectory(nsILocalFile ** result)
 {
     *result = mCacheDirectory;
     NS_IF_ADDREF(*result);

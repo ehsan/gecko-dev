@@ -7,7 +7,7 @@
 #include <QtCore/QUrl>
 #include "mozqwidgetfast.h"
 #include "nsFastStartupQt.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsStringGlue.h"
 #include "BinaryPath.h"
 

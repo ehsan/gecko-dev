@@ -11,7 +11,7 @@
 #include "nsReadableUtils.h"
 #include "nsMemory.h"
 #include "nsNetUtil.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIFileURL.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsIRwsService.h"

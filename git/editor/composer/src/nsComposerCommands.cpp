@@ -21,6 +21,7 @@
 #include "nsUnicharUtils.h"
 #include "nsICommandParams.h"
 #include "nsComponentManagerUtils.h"
+#include "nsCRT.h"
 
 #include "mozilla/Assertions.h"
 
@@ -1350,11 +1351,10 @@ nsInsertHTMLCommand::GetCommandStateParams(const char *aCommandName,
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsInsertTagCommand, nsBaseComposerCommand)
 
-nsInsertTagCommand::nsInsertTagCommand(nsIAtom* aTagName)
+nsInsertTagCommand::nsInsertTagCommand(const char* aTagName)
 : nsBaseComposerCommand()
 , mTagName(aTagName)
 {
-  MOZ_ASSERT(mTagName);
 }
 
 nsInsertTagCommand::~nsInsertTagCommand()
@@ -1380,17 +1380,21 @@ nsInsertTagCommand::IsCommandEnabled(const char * aCommandName,
 NS_IMETHODIMP
 nsInsertTagCommand::DoCommand(const char *aCmdName, nsISupports *refCon)
 {
-  NS_ENSURE_TRUE(mTagName == nsGkAtoms::hr, NS_ERROR_NOT_IMPLEMENTED);
+  if (0 == nsCRT::strcmp(mTagName, "hr"))
+  {
+    nsCOMPtr<nsIHTMLEditor> editor = do_QueryInterface(refCon);
+    NS_ENSURE_TRUE(editor, NS_ERROR_NOT_IMPLEMENTED);
 
-  nsCOMPtr<nsIHTMLEditor> editor = do_QueryInterface(refCon);
-  NS_ENSURE_TRUE(editor, NS_ERROR_NOT_IMPLEMENTED);
+    nsCOMPtr<nsIDOMElement> domElem;
+    nsresult rv;
+    rv = editor->CreateElementWithDefaults(NS_ConvertASCIItoUTF16(mTagName),
+                                           getter_AddRefs(domElem));
+    NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIDOMElement> domElem;
-  nsresult rv = editor->CreateElementWithDefaults(
-    nsDependentAtomString(mTagName), getter_AddRefs(domElem));
-  NS_ENSURE_SUCCESS(rv, rv);
+    return editor->InsertElementAtSelection(domElem, true);
+  }
 
-  return editor->InsertElementAtSelection(domElem, true);
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -1401,9 +1405,8 @@ nsInsertTagCommand::DoCommandParams(const char *aCommandName,
   NS_ENSURE_ARG_POINTER(refCon);
 
   // inserting an hr shouldn't have an parameters, just call DoCommand for that
-  if (mTagName == nsGkAtoms::hr) {
+  if (0 == nsCRT::strcmp(mTagName, "hr"))
     return DoCommand(aCommandName, refCon);
-  }
 
   NS_ENSURE_ARG_POINTER(aParams);
 
@@ -1421,16 +1424,16 @@ nsInsertTagCommand::DoCommandParams(const char *aCommandName,
 
   // filter out tags we don't know how to insert
   nsAutoString attributeType;
-  if (mTagName == nsGkAtoms::a) {
+  if (0 == nsCRT::strcmp(mTagName, "a")) {
     attributeType.AssignLiteral("href");
-  } else if (mTagName == nsGkAtoms::img) {
+  } else if (0 == nsCRT::strcmp(mTagName, "img")) {
     attributeType.AssignLiteral("src");
   } else {
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
   nsCOMPtr<nsIDOMElement> domElem;
-  rv = editor->CreateElementWithDefaults(nsDependentAtomString(mTagName),
+  rv = editor->CreateElementWithDefaults(NS_ConvertASCIItoUTF16(mTagName),
                                          getter_AddRefs(domElem));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1438,7 +1441,7 @@ nsInsertTagCommand::DoCommandParams(const char *aCommandName,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // do actual insertion
-  if (mTagName == nsGkAtoms::a)
+  if (0 == nsCRT::strcmp(mTagName, "a"))
     return editor->InsertLinkAroundSelection(domElem);
 
   return editor->InsertElementAtSelection(domElem, true);

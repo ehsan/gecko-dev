@@ -828,13 +828,12 @@ iterator_next(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    RootedObject thisObj(cx);
-    if (!NonGenericMethodGuard(cx, args, iterator_next, &IteratorClass, thisObj.address()))
-        return false;
-    if (!thisObj)
-        return true;
+    bool ok;
+    RootedObject obj(cx, NonGenericMethodGuard(cx, args, iterator_next, &IteratorClass, &ok));
+    if (!obj)
+        return ok;
 
-    if (!js_IteratorMore(cx, thisObj, &args.rval()))
+    if (!js_IteratorMore(cx, obj, &args.rval()))
         return false;
 
     if (!args.rval().toBoolean()) {
@@ -842,7 +841,7 @@ iterator_next(JSContext *cx, unsigned argc, Value *vp)
         return false;
     }
 
-    return js_IteratorNext(cx, thisObj, &args.rval());
+    return js_IteratorNext(cx, obj, &args.rval());
 }
 
 #define JSPROP_ROPERM   (JSPROP_READONLY | JSPROP_PERMANENT)
@@ -1583,13 +1582,12 @@ generator_op(JSContext *cx, Native native, JSGeneratorOp op, Value *vp, unsigned
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    JSObject *thisObj;
-    if (!NonGenericMethodGuard(cx, args, native, &GeneratorClass, &thisObj))
-        return false;
-    if (!thisObj)
-        return true;
+    bool ok;
+    JSObject *obj = NonGenericMethodGuard(cx, args, native, &GeneratorClass, &ok);
+    if (!obj)
+        return ok;
 
-    JSGenerator *gen = (JSGenerator *) thisObj->getPrivate();
+    JSGenerator *gen = (JSGenerator *) obj->getPrivate();
     if (!gen) {
         /* This happens when obj is the generator prototype. See bug 352885. */
         goto closed_generator;
@@ -1632,7 +1630,7 @@ generator_op(JSContext *cx, Native native, JSGeneratorOp op, Value *vp, unsigned
     }
 
     bool undef = ((op == JSGENOP_SEND || op == JSGENOP_THROW) && args.length() != 0);
-    if (!SendToGenerator(cx, op, thisObj, gen, undef ? args[0] : UndefinedValue()))
+    if (!SendToGenerator(cx, op, obj, gen, undef ? args[0] : UndefinedValue()))
         return false;
 
     args.rval() = gen->fp->returnValue();

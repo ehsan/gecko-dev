@@ -42,7 +42,7 @@ public:
                                    bool * aHandlerExists);
 
 protected:
-  virtual void FixFilePermissions(nsIFile* aFile);
+  virtual void FixFilePermissions(nsILocalFile* aFile);
 
 private:
   PRUint32 mPermissions;

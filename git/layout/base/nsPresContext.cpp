@@ -109,20 +109,18 @@ private:
 
 } // anonymous namespace
 
-nscolor
-nsPresContext::MakeColorPref(const nsString& aColor)
+static nscolor
+MakeColorPref(const nsString& aColor)
 {
-  nsCSSParser parser;
-  nsCSSValue value;
-  if (!parser.ParseColorString(aColor, nsnull, 0, value)) {
-    // Any better choices?
-    return NS_RGB(0, 0, 0);
-  }
-
   nscolor color;
-  return nsRuleNode::ComputeColor(value, this, nsnull, color)
-    ? color
-    : NS_RGB(0, 0, 0);
+  nsCSSParser parser;
+  nsresult rv =
+    parser.ParseColorString(aColor, nsnull, 0, &color);
+  if (NS_FAILED(rv)) {
+    // Any better choices?
+    color = NS_RGB(0, 0, 0);
+  }
+  return color;
 }
 
 int
