@@ -598,7 +598,7 @@ CanvasToImageSurface(nsIDOMHTMLCanvasElement *canvas)
   ctx->Paint();
 
   ctx->SetOperator(gfxContext::OPERATOR_OVER);
-  rv = elt->RenderContexts(ctx, gfxPattern::FILTER_NEAREST);
+  rv = elt->RenderContexts(ctx);
   if (NS_FAILED(rv))
     return nsnull;
 
