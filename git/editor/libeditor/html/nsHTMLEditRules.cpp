@@ -2408,7 +2408,6 @@ nsHTMLEditRules::WillDeleteSelection(nsISelection *aSelection,
       {
         // deleting across blocks
         // are the blocks of same type?
-        NS_ENSURE_STATE(leftParent && rightParent);
         
         // are the blocks siblings?
         nsCOMPtr<nsIDOMNode> leftBlockParent;

@@ -1986,11 +1986,8 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
   if (aLoadGroup) {
     mDocumentLoadGroup = do_GetWeakReference(aLoadGroup);
     // there was an assertion here that aLoadGroup was not null.  This
-    // is no longer valid: nsDocShell::SetDocument does not create a
-    // load group, and it works just fine
-
-    // XXXbz what does "just fine" mean exactly?  And given that there
-    // is no nsDocShell::SetDocument, what is this talking about?
+    // is no longer valid nsWebShell::SetDocument does not create a
+    // load group, and it works just fine.
   }
 
   mLastModified.Truncate();
