@@ -1,4 +1,5 @@
-function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState)
+function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
+                    aAbsentExtraState)
 {
   var [state, extraState] = getStates(aAccOrElmOrID);
 
@@ -12,6 +13,10 @@ function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState)
   if (aAbsentState)
     is(state & aAbsentState, 0,
        "state bits should not be present in ID " + aAccOrElmOrID + "!");
+
+  if (aAbsentExtraState)
+    is(extraState & aAbsentExtraState, 0,
+       "extraState bits should not be present in ID " + aAccOrElmOrID + "!");
 
   if (state & STATE_READONLY)
     is(extraState & EXT_STATE_EDITABLE, 0,
@@ -37,13 +42,7 @@ function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState)
 function getStringStates(aAccOrElmOrID)
 {
   var [state, extraState] = getStates(aAccOrElmOrID);
-  var list = gAccRetrieval.getStringStates(state, extraState);
-
-  var str = "";
-  for (var index = 0; index < list.length; index++)
-    str += list.item(index) + ", ";
-
-  return str;
+  return statesToString(state, extraState);
 }
 
 function getStates(aAccOrElmOrID)

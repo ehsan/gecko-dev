@@ -93,6 +93,7 @@ public:
   NS_IMETHOD WillParse(void);
   NS_IMETHOD WillBuildModel(void);
   NS_IMETHOD DidBuildModel(void);
+  virtual PRBool ReadyToCallDidBuildModel(PRBool aTerminated);
   NS_IMETHOD WillInterrupt(void);
   NS_IMETHOD WillResume(void);
   NS_IMETHOD SetParser(nsIParser* aParser);  
@@ -107,7 +108,7 @@ public:
   // nsICSSLoaderObserver
   NS_IMETHOD StyleSheetLoaded(nsICSSStyleSheet* aSheet, PRBool aWasAlternate,
                               nsresult aStatus);
-  static void ParsePIData(const nsString &aData, nsString &aHref,
+  static PRBool ParsePIData(const nsString &aData, nsString &aHref,
                           nsString &aTitle, nsString &aMedia,
                           PRBool &aIsAlternate);
 

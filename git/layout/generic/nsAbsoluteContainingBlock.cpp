@@ -116,7 +116,7 @@ nsAbsoluteContainingBlock::RemoveFrame(nsIFrame*       aDelegatingFrame,
   nsIFrame* nif = aOldFrame->GetNextInFlow();
   if (nif) {
     static_cast<nsContainerFrame*>(nif->GetParent())
-      ->DeleteNextInFlowChild(aOldFrame->PresContext(), nif);
+      ->DeleteNextInFlowChild(aOldFrame->PresContext(), nif, PR_FALSE);
   }
 
   PRBool result = mAbsoluteFrames.DestroyFrame(aOldFrame);
@@ -177,7 +177,7 @@ nsAbsoluteContainingBlock::Reflow(nsContainerFrame*        aDelegatingFrame,
         if (nextFrame) {
           tracker.Finish(kidFrame);
           static_cast<nsContainerFrame*>(nextFrame->GetParent())
-            ->DeleteNextInFlowChild(aPresContext, nextFrame);
+            ->DeleteNextInFlowChild(aPresContext, nextFrame, PR_TRUE);
         }
       }
     }
@@ -369,8 +369,8 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
     nsFrame::IndentBy(stdout,nsBlockFrame::gNoiseIndent);
     printf("abs pos ");
     if (nsnull != aKidFrame) {
-      nsIFrameDebug*  frameDebug;
-      if (NS_SUCCEEDED(CallQueryInterface(aKidFrame, &frameDebug))) {
+      nsIFrameDebug *frameDebug = do_QueryFrame(aKidFrame);
+      if (frameDebug) {
         nsAutoString name;
         frameDebug->GetFrameName(name);
         printf("%s ", NS_LossyConvertUTF16toASCII(name).get());
@@ -513,8 +513,8 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
     nsFrame::IndentBy(stdout,nsBlockFrame::gNoiseIndent - 1);
     printf("abs pos ");
     if (nsnull != aKidFrame) {
-      nsIFrameDebug*  frameDebug;
-      if (NS_SUCCEEDED(CallQueryInterface(aKidFrame, &frameDebug))) {
+      nsIFrameDebug *frameDebug = do_QueryFrame(aKidFrame);
+      if (frameDebug) {
         nsAutoString name;
         frameDebug->GetFrameName(name);
         printf("%s ", NS_LossyConvertUTF16toASCII(name).get());

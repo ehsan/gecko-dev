@@ -93,8 +93,9 @@ LCMS_INLINE void LCMSCPUID(DWORD fxn, LPDWORD a, LPDWORD b, LPDWORD c, LPDWORD d
 #define HAVE_SSE2_INTRINSICS
 #endif
 
-#if defined(__GNUC__) && defined(__i386__)
+#if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
 
+#if defined(__i386__)
 /* Get us a CPUID function. We can't use ebx because it's the PIC register on
    some platforms, so we use ESI instead and save ebx to avoid clobbering it. */
 LCMS_INLINE void LCMSCPUID(DWORD fxn, LPDWORD a, LPDWORD b, LPDWORD c, LPDWORD d) {
@@ -107,6 +108,7 @@ LCMS_INLINE void LCMSCPUID(DWORD fxn, LPDWORD a, LPDWORD b, LPDWORD c, LPDWORD d
 	   *c = c_;
 	   *d = d_;
  }
+#endif
 
 #define HAVE_SSE2_INTRINSICS
 /* XXX - the below wasn't in jpeg/jmorecfg.h - why? */
@@ -157,6 +159,9 @@ static LCMSBOOL SSE2Available() {
 // If we don't have compile-time support, we don't have runtime support
 #ifndef HAVE_SSE2_INTEL_MNEMONICS
               isAvailable = 0;
+#elif defined(__x86_64__)
+              /* x64 always supports SSE2 */
+              isAvailable = 1;
 #else
        /* We have CPUID macros defined if we have sse2 mnemonics. */
               LCMSCPUID(function, &a, &b, &c, &d);
@@ -264,7 +269,7 @@ void NullXFORM(_LPcmsTRANSFORM p,
                      // Copy in a nondestructive manner in case
                      // the buffers overlap for some reason
                      memmove(out, in, 
-                             Size * T_BYTES(p -> InputFormat) * T_CHANNELS(p -> InputFormat));
+                             Size * T_BYTES(p -> InputFormat) * (T_CHANNELS(p -> InputFormat) + T_EXTRA(p -> InputFormat)));
               }
 
               return;
@@ -654,9 +659,9 @@ void MatrixShaperXFORMFloat(_LPcmsTRANSFORM p,
               {
                      if (MatShaper->L2_Precache != NULL) 
                      {
-                     FloatVals->n[VX] = MatShaper->L2_Precache->Impl.LI16F_FORWARD.Cache[0][In[0]];
-                     FloatVals->n[VY] = MatShaper->L2_Precache->Impl.LI16F_FORWARD.Cache[1][In[1]];
-                     FloatVals->n[VZ] = MatShaper->L2_Precache->Impl.LI16F_FORWARD.Cache[2][In[2]];
+                     FloatVals->n[VX] = MatShaper->L2_Precache->Impl.LI8F_FORWARD.Cache[0][In[0]];
+                     FloatVals->n[VY] = MatShaper->L2_Precache->Impl.LI8F_FORWARD.Cache[1][In[1]];
+                     FloatVals->n[VZ] = MatShaper->L2_Precache->Impl.LI8F_FORWARD.Cache[2][In[2]];
                      }
                      else
                      {
@@ -711,6 +716,9 @@ void MatrixShaperXFORMFloat(_LPcmsTRANSFORM p,
                       : 
                       : "r" (MatPtr), "r" (clampMax), "r" (&floatScale)
                       : "memory"
+#if defined(__x86_64__)
+                        , "%xmm0", "%xmm1", "%xmm2", "%xmm3", "%xmm4", "%xmm5", "%xmm6", "%xmm7"
+#endif
                       );
 #else
                 ASM {
@@ -1023,8 +1031,14 @@ LPMATSHAPER cmsBuildOutputMatrixShaper(cmsHPROFILE OutputProfile)
        InverseShapes[0] = cmsReadICCGammaReversed(OutputProfile, icSigRedTRCTag);
        InverseShapes[1] = cmsReadICCGammaReversed(OutputProfile, icSigGreenTRCTag);
        InverseShapes[2] = cmsReadICCGammaReversed(OutputProfile, icSigBlueTRCTag);
-       
-       OutMatSh = cmsAllocMatShaper(&DoubleInv, InverseShapes, MATSHAPER_OUTPUT);
+
+       if (InverseShapes[0] &&
+           InverseShapes[1] &&
+           InverseShapes[2]) {
+               OutMatSh = cmsAllocMatShaper(&DoubleInv, InverseShapes, MATSHAPER_OUTPUT);
+       } else {
+               OutMatSh = NULL; 
+       } 
 
        cmsFreeGammaTriple(InverseShapes);
        
@@ -1060,7 +1074,7 @@ LCMSBOOL cmsBuildSmeltMatShaper(_LPcmsTRANSFORM p)
 
         // Check for the relevant precaches
         if (p -> dwOriginalFlags & cmsFLAGS_FLOATSHAPER) {
-               InPrecache = ((LPLCMSICCPROFILE)p->InputProfile)->Precache[CMS_PRECACHE_LI16F_FORWARD];
+               InPrecache = ((LPLCMSICCPROFILE)p->InputProfile)->Precache[CMS_PRECACHE_LI8F_FORWARD];
                OutPrecache = ((LPLCMSICCPROFILE)p->OutputProfile)->Precache[CMS_PRECACHE_LI168_REVERSE];
         }
         else {

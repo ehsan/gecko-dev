@@ -176,12 +176,14 @@ nsXFormsAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   NS_ENSURE_ARG_POINTER(aState);
   *aState = 0;
-  if (!mDOMNode) {
-    if (aExtraState) {
+
+  if (IsDefunct()) {
+    if (aExtraState)
       *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
-    }
-    return NS_OK;
+
+    return NS_OK_DEFUNCT_OBJECT;
   }
+
   if (aExtraState)
     *aExtraState = 0;
 
@@ -232,7 +234,9 @@ NS_IMETHODIMP
 nsXFormsAccessible::GetDescription(nsAString& aDescription)
 {
   nsAutoString description;
-  nsresult rv = GetTextFromRelationID(nsAccessibilityAtoms::aria_describedby, description);
+  nsresult rv = nsTextEquivUtils::
+    GetTextEquivFromIDRefs(this, nsAccessibilityAtoms::aria_describedby,
+                           description);
 
   if (NS_SUCCEEDED(rv) && !description.IsEmpty()) {
     aDescription = description;
@@ -241,23 +245,6 @@ nsXFormsAccessible::GetDescription(nsAString& aDescription)
 
   // search the xforms:hint element
   return GetBoundChildElementValue(NS_LITERAL_STRING("hint"), aDescription);
-}
-
-nsresult
-nsXFormsAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
-{
-  NS_ENSURE_ARG_POINTER(aAttributes);
-
-  nsresult rv = nsHyperTextAccessibleWrap::GetAttributesInternal(aAttributes);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsAutoString name;
-  rv = sXFormsService->GetBuiltinTypeName(mDOMNode, name);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsAutoString unused;
-  return aAttributes->SetStringProperty(NS_LITERAL_CSTRING("datatype"),
-                                        name, unused);
 }
 
 NS_IMETHODIMP
@@ -310,8 +297,9 @@ nsXFormsEditableAccessible::GetStateInternal(PRUint32 *aState,
   NS_ENSURE_ARG_POINTER(aState);
 
   nsresult rv = nsXFormsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!mDOMNode || !aExtraState)
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+
+  if (!aExtraState)
     return NS_OK;
 
   PRBool isReadonly = PR_FALSE;

@@ -81,8 +81,9 @@ static NS_DEFINE_CID(kRegionCID, NS_REGION_CID);
 
 NS_IMPL_ISUPPORTS1(nsThebesRenderingContext, nsIRenderingContext)
 
-nsThebesRenderingContext::nsThebesRenderingContext() :
-    mLineStyle(nsLineStyle_kNone)
+nsThebesRenderingContext::nsThebesRenderingContext()
+  : mLineStyle(nsLineStyle_kNone)
+  , mColor(NS_RGB(0,0,0))
 {
 }
 
@@ -783,12 +784,14 @@ nsThebesRenderingContext::SetTextRunRTL(PRBool aIsRTL)
 }
 
 NS_IMETHODIMP
-nsThebesRenderingContext::SetFont(const nsFont& aFont, nsIAtom* aLangGroup)
+nsThebesRenderingContext::SetFont(const nsFont& aFont, nsIAtom* aLangGroup,
+                                  gfxUserFontSet *aUserFontSet)
 {
     PR_LOG(gThebesGFXLog, PR_LOG_DEBUG, ("## %p nsTRC::SetFont %p\n", this, &aFont));
 
     nsCOMPtr<nsIFontMetrics> newMetrics;
-    mDeviceContext->GetMetricsFor(aFont, aLangGroup, *getter_AddRefs(newMetrics));
+    mDeviceContext->GetMetricsFor(aFont, aLangGroup, aUserFontSet,
+                                  *getter_AddRefs(newMetrics));
     mFontMetrics = reinterpret_cast<nsIThebesFontMetrics*>(newMetrics.get());
     return NS_OK;
 }

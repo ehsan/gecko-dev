@@ -44,9 +44,9 @@
 #include "gfxFont.h"
 
 #include "nsAutoRef.h"
+#include "nsTArray.h"
 
 #include <pango/pango.h>
-#include <fontconfig/fontconfig.h>
 
 // Control when we bypass Pango
 // Enable this to use FreeType to glyph-convert 8bit-only textruns, but use Pango
@@ -58,6 +58,9 @@
 //#define ENABLE_FAST_PATH_ALWAYS
 
 class gfxFcPangoFontSet;
+class gfxProxyFontEntry;
+typedef struct _FcPattern FcPattern;
+typedef struct FT_FaceRec_* FT_Face;
 
 class THEBES_API gfxPangoFontGroup : public gfxFontGroup {
 public:
@@ -76,7 +79,18 @@ public:
 
     virtual gfxFont *GetFontAt(PRInt32 i);
 
+    virtual void UpdateFontList();
+
     static void Shutdown();
+
+    // Used for @font-face { src: local(); }
+    static gfxFontEntry *NewFontEntry(const gfxProxyFontEntry &aProxyEntry,
+                                      const nsAString &aFullname);
+    // Used for @font-face { src: url(); }
+    static gfxFontEntry *NewFontEntry(const gfxProxyFontEntry &aProxyEntry,
+                                      nsISupports *aLoader,
+                                      const PRUint8 *aFontData,
+                                      PRUint32 aLength);
 
     // Interfaces used internally
     // (but public so that they can be accessed from non-member functions):
@@ -136,7 +150,7 @@ protected:
                                  const gchar *aUTF8, PRUint32 aUTF8Length);
 #endif
 
-    void GetFcFamilies(nsStringArray *aFcFamilyList,
+    void GetFcFamilies(nsTArray<nsString> *aFcFamilyList,
                        const nsACString& aLangGroup);
 
     // @param aLang [in] language to use for pref fonts and system font

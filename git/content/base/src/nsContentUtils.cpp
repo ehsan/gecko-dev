@@ -161,6 +161,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIOfflineCacheUpdate.h"
 #include "nsCPrefetchService.h"
 #include "nsIChromeRegistry.h"
+#include "nsIMIMEHeaderParam.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -462,7 +463,7 @@ nsContentUtils::InitializeEventTable() {
     { &nsGkAtoms::onloadstart,                   { NS_LOADSTART, EventNameType_HTML }},
     { &nsGkAtoms::onprogress,                    { NS_PROGRESS, EventNameType_HTML }},
     { &nsGkAtoms::onloadedmetadata,              { NS_LOADEDMETADATA, EventNameType_HTML }},
-    { &nsGkAtoms::onloadedfirstframe,            { NS_LOADEDFIRSTFRAME, EventNameType_HTML }},
+    { &nsGkAtoms::onloadeddata,                  { NS_LOADEDDATA, EventNameType_HTML }},
     { &nsGkAtoms::onemptied,                     { NS_EMPTIED, EventNameType_HTML }},
     { &nsGkAtoms::onstalled,                     { NS_STALLED, EventNameType_HTML }},
     { &nsGkAtoms::onplay,                        { NS_PLAY, EventNameType_HTML }},
@@ -472,8 +473,6 @@ nsContentUtils::InitializeEventTable() {
     { &nsGkAtoms::onseeked,                      { NS_SEEKED, EventNameType_HTML }},
     { &nsGkAtoms::ontimeupdate,                  { NS_TIMEUPDATE, EventNameType_HTML }},
     { &nsGkAtoms::onended,                       { NS_ENDED, EventNameType_HTML }},
-    { &nsGkAtoms::ondataunavailable,             { NS_DATAUNAVAILABLE, EventNameType_HTML }},
-    { &nsGkAtoms::oncanshowcurrentframe,         { NS_CANSHOWCURRENTFRAME, EventNameType_HTML }},
     { &nsGkAtoms::oncanplay,                     { NS_CANPLAY, EventNameType_HTML }},
     { &nsGkAtoms::oncanplaythrough,              { NS_CANPLAYTHROUGH, EventNameType_HTML }},
     { &nsGkAtoms::onratechange,                  { NS_RATECHANGE, EventNameType_HTML }},
@@ -2657,7 +2656,8 @@ nsContentUtils::GetEventArgNames(PRInt32 aNameSpaceID,
 }
 
 nsCxPusher::nsCxPusher()
-    : mScriptIsRunning(PR_FALSE)
+    : mScriptIsRunning(PR_FALSE),
+      mPushedSomething(PR_FALSE)
 {
 }
 
@@ -2702,7 +2702,7 @@ IsContextOnStack(nsIJSContextStack *aStack, JSContext *aContext)
 PRBool
 nsCxPusher::Push(nsPIDOMEventTarget *aCurrentTarget)
 {
-  if (mScx) {
+  if (mPushedSomething) {
     NS_ERROR("Whaaa! No double pushing with nsCxPusher::Push()!");
 
     return PR_FALSE;
@@ -2712,6 +2712,13 @@ nsCxPusher::Push(nsPIDOMEventTarget *aCurrentTarget)
   nsCOMPtr<nsIScriptContext> scx;
   nsresult rv = aCurrentTarget->GetContextForEventHandlers(getter_AddRefs(scx));
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
+
+  if (!scx) {
+    // Nothing to do here, I guess.  Have to return true so that event firing
+    // will still work correctly even if there is no associated JSContext
+    return PR_TRUE;
+  }
+
   JSContext* cx = nsnull;
 
   if (scx) {
@@ -2730,39 +2737,68 @@ nsCxPusher::Push(nsPIDOMEventTarget *aCurrentTarget)
 PRBool
 nsCxPusher::Push(JSContext *cx)
 {
-  if (mScx) {
+  if (mPushedSomething) {
     NS_ERROR("Whaaa! No double pushing with nsCxPusher::Push()!");
 
     return PR_FALSE;
   }
 
-  if (cx) {
-    mScx = GetScriptContextFromJSContext(cx);
-    if (!mScx) {
-      // Should probably return PR_FALSE. See bug 416916.
-      return PR_TRUE;
-    }
-
-    nsIThreadJSContextStack* stack = nsContentUtils::ThreadJSContextStack();
-    if (stack) {
-      if (IsContextOnStack(stack, cx)) {
-        // If the context is on the stack, that means that a script
-        // is running at the moment in the context.
-        mScriptIsRunning = PR_TRUE;
-      }
-
-      stack->Push(cx);
-    }
+  if (!cx) {
+    return PR_FALSE;
   }
+
+  // Hold a strong ref to the nsIScriptContext, just in case
+  // XXXbz do we really need to?  If we don't get one of these in Pop(), is
+  // that really a problem?  Or do we need to do this to effectively root |cx|?
+  mScx = GetScriptContextFromJSContext(cx);
+  if (!mScx) {
+    // Should probably return PR_FALSE. See bug 416916.
+    return PR_TRUE;
+  }
+
+  return DoPush(cx);
+}
+
+PRBool
+nsCxPusher::DoPush(JSContext* cx)
+{
+  nsIThreadJSContextStack* stack = nsContentUtils::ThreadJSContextStack();
+  if (!stack) {
+    return PR_TRUE;
+  }
+
+  if (cx && IsContextOnStack(stack, cx)) {
+    // If the context is on the stack, that means that a script
+    // is running at the moment in the context.
+    mScriptIsRunning = PR_TRUE;
+  }
+
+  if (NS_FAILED(stack->Push(cx))) {
+    mScriptIsRunning = PR_FALSE;
+    mScx = nsnull;
+    return PR_FALSE;
+  }
+
+  mPushedSomething = PR_TRUE;
+#ifdef DEBUG
+  mPushedContext = cx;
+#endif
   return PR_TRUE;
+}
+
+PRBool
+nsCxPusher::PushNull()
+{
+  return DoPush(nsnull);
 }
 
 void
 nsCxPusher::Pop()
 {
   nsIThreadJSContextStack* stack = nsContentUtils::ThreadJSContextStack();
-  if (!mScx || !stack) {
+  if (!mPushedSomething || !stack) {
     mScx = nsnull;
+    mPushedSomething = PR_FALSE;
 
     NS_ASSERTION(!mScriptIsRunning, "Huh, this can't be happening, "
                  "mScriptIsRunning can't be set here!");
@@ -2773,7 +2809,9 @@ nsCxPusher::Pop()
   JSContext *unused;
   stack->Pop(&unused);
 
-  if (!mScriptIsRunning) {
+  NS_ASSERTION(unused == mPushedContext, "Unexpected context popped");
+
+  if (!mScriptIsRunning && mScx) {
     // No JS is running in the context, but executing the event handler might have
     // caused some JS to run. Tell the script context that it's done.
 
@@ -2782,6 +2820,7 @@ nsCxPusher::Pop()
 
   mScx = nsnull;
   mScriptIsRunning = PR_FALSE;
+  mPushedSomething = PR_FALSE;
 }
 
 static const char gPropertiesFiles[nsContentUtils::PropertiesFile_COUNT][56] = {
@@ -3085,6 +3124,51 @@ nsContentUtils::DispatchTrustedEvent(nsIDocument* aDoc, nsISupports* aTarget,
   return target->DispatchEvent(event, aDefaultAction ? aDefaultAction : &dummy);
 }
 
+nsresult
+nsContentUtils::DispatchChromeEvent(nsIDocument *aDoc,
+                                    nsISupports *aTarget,
+                                    const nsAString& aEventName,
+                                    PRBool aCanBubble, PRBool aCancelable,
+                                    PRBool *aDefaultAction)
+{
+
+  NS_ENSURE_ARG_POINTER(aDoc);
+  NS_ENSURE_ARG_POINTER(aDoc->GetWindow());
+  NS_ENSURE_ARG_POINTER(aDoc->GetWindow()->GetChromeEventHandler());
+
+  nsCOMPtr<nsIDOMDocumentEvent> docEvent = do_QueryInterface(aDoc);
+  nsCOMPtr<nsIDOMEventTarget> originalTarget =
+    do_QueryInterface(aTarget);
+  NS_ENSURE_TRUE(docEvent && originalTarget, NS_ERROR_INVALID_ARG);
+
+  nsCOMPtr<nsIDOMEvent> event;
+  nsresult rv =
+    docEvent->CreateEvent(NS_LITERAL_STRING("Events"), getter_AddRefs(event));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(event);
+  NS_ENSURE_TRUE(privateEvent, NS_ERROR_FAILURE);
+
+  rv = event->InitEvent(aEventName, aCanBubble, aCancelable);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = privateEvent->SetTarget(originalTarget);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = privateEvent->SetTrusted(PR_TRUE);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsEventStatus status = nsEventStatus_eIgnore;
+  rv = aDoc->GetWindow()->GetChromeEventHandler()->DispatchDOMEvent(nsnull,
+                                                                    event,
+                                                                    nsnull,
+                                                                    &status);
+  if (aDefaultAction) {
+    *aDefaultAction = (status != nsEventStatus_eConsumeNoDefault);
+  }
+  return rv;
+}
+
 /* static */
 nsIContent*
 nsContentUtils::MatchElementId(nsIContent *aContent, nsIAtom* aId)
@@ -3171,7 +3255,7 @@ nsContentUtils::ConvertStringFromCharset(const nsACString& aCharset,
 /* static */
 PRBool
 nsContentUtils::CheckForBOM(const unsigned char* aBuffer, PRUint32 aLength,
-                            nsACString& aCharset)
+                            nsACString& aCharset, PRBool *bigEndian)
 {
   PRBool found = PR_TRUE;
   aCharset.Truncate();
@@ -3186,22 +3270,30 @@ nsContentUtils::CheckForBOM(const unsigned char* aBuffer, PRUint32 aLength,
            aBuffer[1] == 0x00 &&
            aBuffer[2] == 0xFE &&
            aBuffer[3] == 0xFF) {
-    aCharset = "UTF-32BE";
+    aCharset = "UTF-32";
+    if (bigEndian)
+      *bigEndian = PR_TRUE;
   }
   else if (aLength >= 4 &&
            aBuffer[0] == 0xFF &&
            aBuffer[1] == 0xFE &&
            aBuffer[2] == 0x00 &&
            aBuffer[3] == 0x00) {
-    aCharset = "UTF-32LE";
+    aCharset = "UTF-32";
+    if (bigEndian)
+      *bigEndian = PR_FALSE;
   }
   else if (aLength >= 2 &&
            aBuffer[0] == 0xFE && aBuffer[1] == 0xFF) {
-    aCharset = "UTF-16BE";
+    aCharset = "UTF-16";
+    if (bigEndian)
+      *bigEndian = PR_TRUE;
   }
   else if (aLength >= 2 &&
            aBuffer[0] == 0xFF && aBuffer[1] == 0xFE) {
-    aCharset = "UTF-16LE";
+    aCharset = "UTF-16";
+    if (bigEndian)
+      *bigEndian = PR_FALSE;
   } else {
     found = PR_FALSE;
   }
@@ -3240,8 +3332,7 @@ nsContentUtils::HasMutationListeners(nsINode* aNode,
   }
 
   // global object will be null for documents that don't have windows.
-  nsCOMPtr<nsPIDOMWindow> window;
-  window = do_QueryInterface(doc->GetScriptGlobalObject());
+  nsPIDOMWindow* window = doc->GetInnerWindow();
   // This relies on nsEventListenerManager::AddEventListener, which sets
   // all mutation bits when there is a listener for DOMSubtreeModified event.
   if (window && !window->HasMutationListeners(aType)) {
@@ -3256,15 +3347,17 @@ nsContentUtils::HasMutationListeners(nsINode* aNode,
   doc->MayDispatchMutationEvent(aTargetForSubtreeModified);
 
   // If we have a window, we can check it for mutation listeners now.
-  nsCOMPtr<nsPIDOMEventTarget> piTarget(do_QueryInterface(window));
-  if (piTarget) {
-    nsCOMPtr<nsIEventListenerManager> manager;
-    piTarget->GetListenerManager(PR_FALSE, getter_AddRefs(manager));
-    if (manager) {
-      PRBool hasListeners = PR_FALSE;
-      manager->HasMutationListeners(&hasListeners);
-      if (hasListeners) {
-        return PR_TRUE;
+  if (aNode->IsInDoc()) {
+    nsCOMPtr<nsPIDOMEventTarget> piTarget(do_QueryInterface(window));
+    if (piTarget) {
+      nsCOMPtr<nsIEventListenerManager> manager;
+      piTarget->GetListenerManager(PR_FALSE, getter_AddRefs(manager));
+      if (manager) {
+        PRBool hasListeners = PR_FALSE;
+        manager->HasMutationListeners(&hasListeners);
+        if (hasListeners) {
+          return PR_TRUE;
+        }
       }
     }
   }
@@ -3580,7 +3673,6 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
       break;
   }
 
-  // XXX Shouldn't we be returning rv if it's a failure code?
   rv = parser->ParseFragment(aFragment, nsnull, tagStack,
                              !bHTML, contentType, mode);
   if (NS_SUCCEEDED(rv)) {
@@ -3589,7 +3681,7 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
 
   document->SetFragmentParser(parser);
 
-  return NS_OK;
+  return rv;
 }
 
 /* static */
@@ -3609,6 +3701,9 @@ nsContentUtils::CreateDocument(const nsAString& aNamespaceURI,
 
   nsCOMPtr<nsIDocument> document = do_QueryInterface(*aResult);
   document->SetScriptHandlingObject(aEventObject);
+  
+  // created documents are immediately "complete" (ready to use)
+  document->SetReadyStateInternal(nsIDocument::READYSTATE_COMPLETE);
   return NS_OK;
 }
 
@@ -3855,6 +3950,8 @@ nsContentUtils::GetWidgetStatusFromIMEStatus(PRUint32 aState)
       return nsIWidget::IME_STATUS_ENABLED;
     case nsIContent::IME_STATUS_PASSWORD:
       return nsIWidget::IME_STATUS_PASSWORD;
+    case nsIContent::IME_STATUS_PLUGIN:
+      return nsIWidget::IME_STATUS_PLUGIN;
     default:
       NS_ERROR("The given state doesn't have valid enable state");
       return nsIWidget::IME_STATUS_ENABLED;
@@ -4487,17 +4584,26 @@ nsSameOriginChecker::OnChannelRedirect(nsIChannel *aOldChannel,
                                        PRUint32    aFlags)
 {
   NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
+  if (!nsContentUtils::GetSecurityManager()) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
 
-  nsCOMPtr<nsIURI> oldURI;
-  nsresult rv = aOldChannel->GetURI(getter_AddRefs(oldURI)); // The original URI
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIPrincipal> oldPrincipal;
+  nsContentUtils::GetSecurityManager()->
+    GetChannelPrincipal(aOldChannel, getter_AddRefs(oldPrincipal));
 
   nsCOMPtr<nsIURI> newURI;
-  rv = aNewChannel->GetURI(getter_AddRefs(newURI)); // The new URI
-  NS_ENSURE_SUCCESS(rv, rv);
+  aNewChannel->GetURI(getter_AddRefs(newURI));
+  nsCOMPtr<nsIURI> newOriginalURI;
+  aNewChannel->GetOriginalURI(getter_AddRefs(newOriginalURI));
 
-  return nsContentUtils::GetSecurityManager()->
-    CheckSameOriginURI(oldURI, newURI, PR_TRUE);
+  NS_ENSURE_STATE(oldPrincipal && newURI && newOriginalURI);
+
+  nsresult rv = oldPrincipal->CheckMayLoad(newURI, PR_FALSE);
+  if (NS_SUCCEEDED(rv) && newOriginalURI != newURI) {
+    rv = oldPrincipal->CheckMayLoad(newOriginalURI, PR_FALSE);
+  }
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -4506,3 +4612,141 @@ nsSameOriginChecker::GetInterface(const nsIID & aIID, void **aResult)
   return QueryInterface(aIID, aResult);
 }
 
+/* static */
+nsresult
+nsContentUtils::GetASCIIOrigin(nsIPrincipal* aPrincipal, nsCString& aOrigin)
+{
+  NS_PRECONDITION(aPrincipal, "missing principal");
+
+  aOrigin.Truncate();
+
+  nsCOMPtr<nsIURI> uri;
+  nsresult rv = aPrincipal->GetURI(getter_AddRefs(uri));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (uri) {
+    return GetASCIIOrigin(uri, aOrigin);
+  }
+
+  aOrigin.AssignLiteral("null");
+
+  return NS_OK;
+}
+
+/* static */
+nsresult
+nsContentUtils::GetASCIIOrigin(nsIURI* aURI, nsCString& aOrigin)
+{
+  NS_PRECONDITION(aURI, "missing uri");
+
+  aOrigin.Truncate();
+
+  nsCOMPtr<nsIURI> uri = NS_GetInnermostURI(aURI);
+  NS_ENSURE_TRUE(uri, NS_ERROR_UNEXPECTED);
+
+  nsCString host;
+  nsresult rv = uri->GetAsciiHost(host);
+
+  if (NS_SUCCEEDED(rv) && !host.IsEmpty()) {
+    nsCString scheme;
+    rv = uri->GetScheme(scheme);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    aOrigin = scheme + NS_LITERAL_CSTRING("://") + host;
+
+    // If needed, append the port
+    PRInt32 port;
+    uri->GetPort(&port);
+    if (port != -1) {
+      PRInt32 defaultPort = NS_GetDefaultPort(scheme.get());
+      if (port != defaultPort) {
+        aOrigin.Append(':');
+        aOrigin.AppendInt(port);
+      }
+    }
+  }
+  else {
+    aOrigin.AssignLiteral("null");
+  }
+
+  return NS_OK;
+}
+
+/* static */
+nsresult
+nsContentUtils::GetUTFOrigin(nsIPrincipal* aPrincipal, nsString& aOrigin)
+{
+  NS_PRECONDITION(aPrincipal, "missing principal");
+
+  aOrigin.Truncate();
+
+  nsCOMPtr<nsIURI> uri;
+  nsresult rv = aPrincipal->GetURI(getter_AddRefs(uri));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (uri) {
+    return GetUTFOrigin(uri, aOrigin);
+  }
+
+  aOrigin.AssignLiteral("null");
+
+  return NS_OK;
+}
+
+/* static */
+nsresult
+nsContentUtils::GetUTFOrigin(nsIURI* aURI, nsString& aOrigin)
+{
+  NS_PRECONDITION(aURI, "missing uri");
+
+  aOrigin.Truncate();
+
+  nsCOMPtr<nsIURI> uri = NS_GetInnermostURI(aURI);
+  NS_ENSURE_TRUE(uri, NS_ERROR_UNEXPECTED);
+
+  nsCString host;
+  nsresult rv = uri->GetHost(host);
+
+  if (NS_SUCCEEDED(rv) && !host.IsEmpty()) {
+    nsCString scheme;
+    rv = uri->GetScheme(scheme);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    aOrigin = NS_ConvertUTF8toUTF16(scheme + NS_LITERAL_CSTRING("://") + host);
+
+    // If needed, append the port
+    PRInt32 port;
+    uri->GetPort(&port);
+    if (port != -1) {
+      PRInt32 defaultPort = NS_GetDefaultPort(scheme.get());
+      if (port != defaultPort) {
+        aOrigin.Append(':');
+        aOrigin.AppendInt(port);
+      }
+    }
+  }
+  else {
+    aOrigin.AssignLiteral("null");
+  }
+  
+  return NS_OK;
+}
+nsContentTypeParser::nsContentTypeParser(const nsAString& aString)
+  : mString(aString), mService(nsnull)
+{
+  CallGetService("@mozilla.org/network/mime-hdrparam;1", &mService);
+}
+
+nsContentTypeParser::~nsContentTypeParser()
+{
+  NS_IF_RELEASE(mService);
+}
+
+nsresult
+nsContentTypeParser::GetParameter(const char* aParameterName, nsAString& aResult)
+{
+  NS_ENSURE_TRUE(mService, NS_ERROR_FAILURE);
+  return mService->GetParameter(mString, aParameterName,
+                                EmptyCString(), PR_FALSE, nsnull,
+                                aResult);
+}

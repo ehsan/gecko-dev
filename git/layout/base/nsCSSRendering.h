@@ -61,10 +61,17 @@ struct nsCSSRendering {
    */
   static void Shutdown();
   
-  static void PaintBoxShadow(nsPresContext* aPresContext,
-                             nsIRenderingContext& aRenderingContext,
-                             nsIFrame* aForFrame,
-                             const nsPoint& aForFramePt);
+  static void PaintBoxShadowInner(nsPresContext* aPresContext,
+                                  nsIRenderingContext& aRenderingContext,
+                                  nsIFrame* aForFrame,
+                                  const nsRect& aFrameArea,
+                                  const nsRect& aDirtyRect);
+
+  static void PaintBoxShadowOuter(nsPresContext* aPresContext,
+                                  nsIRenderingContext& aRenderingContext,
+                                  nsIFrame* aForFrame,
+                                  const nsRect& aFrameArea,
+                                  const nsRect& aDirtyRect);
 
   /**
    * Render the border for an element using css rendering rules
@@ -112,24 +119,37 @@ struct nsCSSRendering {
                          nscolor aColor);
 
   /**
-   * Fill in an nsStyleBackground to be used to paint the background for
-   * an element.  The nsStyleBackground should first be initialized
-   * using the pres context.  This applies the rules for propagating
+   * @return PR_TRUE if |aForFrame| is a canvas frame, in the CSS sense.
+   */
+  static PRBool IsCanvasFrame(nsIFrame* aFrame);
+
+  /**
+   * Fill in an nsStyleBackground to be used to paint the background
+   * for an element.  This applies the rules for propagating
    * backgrounds between BODY, the root element, and the canvas.
    * @return PR_TRUE if there is some meaningful background.
    */
   static PRBool FindBackground(nsPresContext* aPresContext,
                                nsIFrame* aForFrame,
-                               const nsStyleBackground** aBackground,
-                               PRBool* aIsCanvas);
-                               
+                               const nsStyleBackground** aBackground);
+
   /**
-   * Find a non-transparent background, for various table-related and
-   * HR-related backwards-compatibility hacks.  Be very hesitant if
-   * you're considering calling this function -- it's usually not what
-   * you want.
+   * As FindBackground, but the passed-in frame is known to be a root frame
+   * (returned from nsCSSFrameConstructor::GetRootElementStyleFrame())
+   * and there is always some meaningful background returned.
    */
-  static const nsStyleBackground*
+  static const nsStyleBackground* FindRootFrameBackground(nsIFrame* aForFrame);
+
+  /**
+   * Find a style context containing a non-transparent background,
+   * for various table-related and HR-related backwards-compatibility hacks.
+   * This function will also stop if it finds a -moz-appearance value, as
+   * the theme may draw a widget as a background.
+   *
+   * Be very hesitant if you're considering calling this function -- it's
+   * usually not what you want.
+   */
+  static nsStyleContext*
   FindNonTransparentBackground(nsStyleContext* aContext,
                                PRBool aStartAtParent = PR_FALSE);
 
@@ -288,6 +308,9 @@ public:
    *                             set the color on this context before
    *                             calling Init().
    *
+   * @param aDirtyRect           The absolute dirty rect in app units. Used to
+   *                             optimize the temporary surface size and speed up blur.
+   *
    * @return            A blank 8-bit alpha-channel-only graphics context to
    *                    draw on, or null on error. Must not be freed. The
    *                    context has a device offset applied to it given by
@@ -302,7 +325,8 @@ public:
    * directly on it instead of any temporary surface created in this class.
    */
   gfxContext* Init(const gfxRect& aRect, nscoord aBlurRadius,
-                   PRInt32 aAppUnitsPerDevPixel, gfxContext* aDestinationCtx);
+                   PRInt32 aAppUnitsPerDevPixel, gfxContext* aDestinationCtx,
+                   const gfxRect& aDirtyRect);
 
   /**
    * Does the actual blurring and mask applying. Users of this object *must*

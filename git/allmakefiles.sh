@@ -66,6 +66,11 @@ config/doxygen.cfg
 config/tests/src-simple/Makefile
 probes/Makefile
 extensions/Makefile
+build/wince/tools/Makefile
+build/wince/shunt/Makefile
+build/wince/shunt/include/windows.h
+build/wince/shunt/include/ymath.h
+build/wince/shunt/include/sys/Makefile
 "
 
 if [ "$MOZ_MEMORY" ]; then
@@ -95,12 +100,4 @@ done
 #
 if test -z "$LIBXUL_SDK"; then
   . "${srcdir}/toolkit/toolkit-makefiles.sh"
-fi
-
-if test -n "$MOZ_BRANDING_DIRECTORY"; then
-  add_makefiles "
-    $MOZ_BRANDING_DIRECTORY/Makefile
-    $MOZ_BRANDING_DIRECTORY/content/Makefile
-    $MOZ_BRANDING_DIRECTORY/locales/Makefile
-  "
 fi

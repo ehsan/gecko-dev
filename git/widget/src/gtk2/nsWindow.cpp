@@ -40,7 +40,6 @@
 
 #ifdef MOZ_PLATFORM_HILDON
 #define MAEMO_CHANGES
-#include <gtk/gtkimcontext.h>
 #endif
 
 #include "prlink.h"
@@ -61,7 +60,7 @@
 #include "nsGtkKeyUtils.h"
 #include "nsGtkCursors.h"
 
-#include <gtk/gtkwindow.h>
+#include <gtk/gtk.h>
 #ifdef MOZ_X11
 #include <gdk/gdkx.h>
 #include <X11/XF86keysym.h>
@@ -120,6 +119,13 @@ static const char sAccessibilityKey [] = "config.use_system_prefs.accessibility"
 #include "gfxXlibSurface.h"
 #endif
 
+#if defined(MOZ_PLATFORM_HILDON) && defined(MOZ_ENABLE_GCONF)
+#include "gconf/gconf-client.h"
+static PRBool gWidgetCompletionEnabled = PR_FALSE;
+static const char sWidgetCompletionGConfPref [] =
+    "/apps/osso/inputmethod/hildon-im-languages/en_GB/word-completion";
+#endif
+
 #ifdef MOZ_DFB
 extern "C" {
 #ifdef MOZ_DIRECT_DEBUG
@@ -135,6 +141,10 @@ D_DEBUG_DOMAIN( ns_Window, "nsWindow", "nsWindow" );
 #else
 #define D_DEBUG_AT(x,y...)    do {} while (0)
 #endif
+
+// Don't put more than this many rects in the dirty region, just fluff
+// out to the bounding-box if there are more
+#define MAX_RECTS_IN_REGION 100
 
 /* For PrepareNativeWidget */
 static NS_DEFINE_IID(kDeviceContextCID, NS_DEVICE_CONTEXT_CID);
@@ -302,8 +312,6 @@ static void IM_set_text_range         (const PRInt32 aLen,
                                        PRUint32 *aTextRangeListLengthResult,
                                        nsTextRangeArray *aTextRangeListResult);
 
-static nsWindow *IM_get_owning_window(MozDrawingarea *aArea);
-
 static GtkIMContext *IM_get_input_context(nsWindow *window);
 
 // If after selecting profile window, the startup fail, please refer to
@@ -398,6 +406,7 @@ nsWindow::nsWindow()
     mDragMotionY = 0;
     mDragMotionTime = 0;
     mDragMotionTimerID = 0;
+    mLastMotionPressure = 0;
 
 #ifdef USE_XIM
     mIMEData = nsnull;
@@ -423,7 +432,7 @@ nsWindow::nsWindow()
     mDFBLayer       = NULL;
 #endif
 
-    
+
     if (gUseBufferPixmap) {
         if (gBufferPixmapMaxSize.width == 0) {
             gBufferPixmapMaxSize.width = gdk_screen_width();
@@ -448,7 +457,7 @@ nsWindow::~nsWindow()
 #ifdef MOZ_DFB
     if (mDFBLayer)
          mDFBLayer->Release( mDFBLayer );
-         
+
     if (mDFB)
          mDFB->Release( mDFB );
 #endif
@@ -517,7 +526,7 @@ nsWindow::DispatchLostFocusEvent(void)
 
 
 void
-nsWindow::DispatchResizeEvent(nsRect &aRect, nsEventStatus &aStatus)
+nsWindow::DispatchResizeEvent(nsIntRect &aRect, nsEventStatus &aStatus)
 {
     nsSizeEvent event(PR_TRUE, NS_SIZE, this);
 
@@ -528,7 +537,7 @@ nsWindow::DispatchResizeEvent(nsRect &aRect, nsEventStatus &aStatus)
     event.mWinHeight = aRect.height;
 
     nsEventStatus status;
-    DispatchEvent(&event, status); 
+    DispatchEvent(&event, status);
 }
 
 void
@@ -610,7 +619,7 @@ nsWindow::AreBoundsSane(void)
 
 NS_IMETHODIMP
 nsWindow::Create(nsIWidget        *aParent,
-                 const nsRect     &aRect,
+                 const nsIntRect  &aRect,
                  EVENT_CALLBACK   aHandleEventFunction,
                  nsIDeviceContext *aContext,
                  nsIAppShell      *aAppShell,
@@ -624,7 +633,7 @@ nsWindow::Create(nsIWidget        *aParent,
 
 NS_IMETHODIMP
 nsWindow::Create(nsNativeWidget aParent,
-                 const nsRect     &aRect,
+                 const nsIntRect  &aRect,
                  EVENT_CALLBACK   aHandleEventFunction,
                  nsIDeviceContext *aContext,
                  nsIAppShell      *aAppShell,
@@ -709,7 +718,7 @@ nsWindow::Destroy(void)
     mThebesSurface = nsnull;
 
     if (mDragMotionTimerID) {
-        gtk_timeout_remove(mDragMotionTimerID);
+        g_source_remove(mDragMotionTimerID);
         mDragMotionTimerID = 0;
     }
 
@@ -894,7 +903,7 @@ nsWindow::Show(PRBool aState)
 NS_IMETHODIMP
 nsWindow::Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint)
 {
-    mBounds.SizeTo(GetSafeWindowSize(nsSize(aWidth, aHeight)));
+    mBounds.SizeTo(GetSafeWindowSize(nsIntSize(aWidth, aHeight)));
 
     if (!mCreated)
         return NS_OK;
@@ -953,7 +962,7 @@ nsWindow::Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint)
 
     // synthesize a resize event if this isn't a toplevel
     if (mIsTopLevel || mListenForResizes) {
-        nsRect rect(mBounds.x, mBounds.y, aWidth, aHeight);
+        nsIntRect rect(mBounds.x, mBounds.y, aWidth, aHeight);
         nsEventStatus status;
         DispatchResizeEvent(rect, status);
     }
@@ -967,7 +976,7 @@ nsWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight,
 {
     mBounds.x = aX;
     mBounds.y = aY;
-    mBounds.SizeTo(GetSafeWindowSize(nsSize(aWidth, aHeight)));
+    mBounds.SizeTo(GetSafeWindowSize(nsIntSize(aWidth, aHeight)));
 
     mPlaced = PR_TRUE;
 
@@ -1018,7 +1027,7 @@ nsWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight,
 
     if (mIsTopLevel || mListenForResizes) {
         // synthesize a resize event
-        nsRect rect(aX, aY, aWidth, aHeight);
+        nsIntRect rect(aX, aY, aWidth, aHeight);
         nsEventStatus status;
         DispatchResizeEvent(rect, status);
     }
@@ -1032,7 +1041,7 @@ nsWindow::GetPreferredSize(PRInt32 &aWidth,
 {
     aWidth  = mPreferredWidth;
     aHeight = mPreferredHeight;
-    return (mPreferredWidth != 0 && mPreferredHeight != 0) ? 
+    return (mPreferredWidth != 0 && mPreferredHeight != 0) ?
         NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -1125,7 +1134,7 @@ nsWindow::SetZIndex(PRInt32 aZIndex)
         if (mDrawingarea)
             gdk_window_raise(mDrawingarea->clip_window);
     } else {
-        // All the siblings before us need to be below our widget. 
+        // All the siblings before us need to be below our widget.
         for (nsWindow* w = this; w;
              w = static_cast<nsWindow*>(w->GetPrevSibling())) {
             if (w->mDrawingarea)
@@ -1200,7 +1209,7 @@ SetUserTimeAndStartupIDForActivatedWindow(GtkWidget* aWindow)
         }
         return;
     }
- 
+
 #ifdef MOZ_ENABLE_STARTUP_NOTIFICATION
     GdkDrawable* drawable = GDK_DRAWABLE(aWindow->window);
     GtkWindow* win = GTK_WINDOW(aWindow);
@@ -1237,9 +1246,9 @@ SetUserTimeAndStartupIDForActivatedWindow(GtkWidget* aWindow)
     sn_launchee_context_unref(ctx);
     sn_display_unref(snd);
 #endif
- 
+
     GTKToolkit->SetDesktopStartupID(EmptyCString());
-} 
+}
 
 NS_IMETHODIMP
 nsWindow::SetFocus(PRBool aRaise)
@@ -1248,9 +1257,6 @@ nsWindow::SetFocus(PRBool aRaise)
     // grab it.  Note that we don't set our focus flag in this case.
 
     LOGFOCUS(("  SetFocus [%p]\n", (void *)this));
-
-    if (!mDrawingarea)
-        return NS_ERROR_FAILURE;
 
     GtkWidget *owningWidget = GetMozContainerWidget();
     if (!owningWidget)
@@ -1280,13 +1286,13 @@ nsWindow::SetFocus(PRBool aRaise)
     if (!GTK_WIDGET_HAS_FOCUS(owningWidget)) {
         LOGFOCUS(("  grabbing focus for the toplevel [%p]\n", (void *)this));
         owningWindow->mContainerBlockFocus = PR_TRUE;
-        
+
         // Set focus to the window
         if (gRaiseWindows && aRaise && toplevelWidget &&
             !GTK_WIDGET_HAS_FOCUS(toplevelWidget) &&
             owningWindow->mIsShown && GTK_IS_WINDOW(owningWindow->mShell))
           gtk_window_present(GTK_WINDOW(owningWindow->mShell));
-        
+
         gtk_widget_grab_focus(owningWidget);
         owningWindow->mContainerBlockFocus = PR_FALSE;
 
@@ -1348,10 +1354,9 @@ nsWindow::SetFocus(PRBool aRaise)
 }
 
 NS_IMETHODIMP
-nsWindow::GetScreenBounds(nsRect &aRect)
+nsWindow::GetScreenBounds(nsIntRect &aRect)
 {
-    nsRect origin(0, 0, mBounds.width, mBounds.height);
-    WidgetToScreen(origin, aRect);
+    aRect = nsIntRect(WidgetToScreenOffset(), mBounds.Size());
     LOG(("GetScreenBounds %d %d | %d %d | %d %d\n",
          aRect.x, aRect.y,
          mBounds.width, mBounds.height,
@@ -1377,8 +1382,10 @@ nsWindow::SetCursor(nsCursor aCursor)
     // if we're not the toplevel window pass up the cursor request to
     // the toplevel window to handle it.
     if (!mContainer && mDrawingarea) {
-        nsWindow *window;
-        GetContainerWindow(&window);
+        nsWindow *window = GetContainerWindow();
+        if (!window)
+            return NS_ERROR_FAILURE;
+
         return window->SetCursor(aCursor);
     }
 
@@ -1408,7 +1415,7 @@ PRUint8* Data32BitTo1Bit(PRUint8* aImageData,
                          PRUint32 aWidth, PRUint32 aHeight)
 {
   PRUint32 outBpr = (aWidth + 7) / 8;
-  
+
   PRUint8* outData = new PRUint8[outBpr * aHeight];
   if (!outData)
       return NULL;
@@ -1458,8 +1465,10 @@ nsWindow::SetCursor(imgIContainer* aCursor,
     // if we're not the toplevel window pass up the cursor request to
     // the toplevel window to handle it.
     if (!mContainer && mDrawingarea) {
-        nsWindow *window;
-        GetContainerWindow(&window);
+        nsWindow *window = GetContainerWindow();
+        if (!window)
+            return NS_ERROR_FAILURE;
+
         return window->SetCursor(aCursor, aHotspotX, aHotspotY);
     }
 
@@ -1504,7 +1513,7 @@ nsWindow::SetCursor(imgIContainer* aCursor,
     // XXX ideally we should rescale. Also, we could modify the API to
     // allow trusted content to set larger cursors.
     if (width > 128 || height > 128) {
-        gdk_pixbuf_unref(pixbuf);
+        g_object_unref(pixbuf);
         return NS_ERROR_NOT_AVAILABLE;
     }
 
@@ -1513,7 +1522,7 @@ nsWindow::SetCursor(imgIContainer* aCursor,
     // So add one if there isn't one yet
     if (!gdk_pixbuf_get_has_alpha(pixbuf)) {
         GdkPixbuf* alphaBuf = gdk_pixbuf_add_alpha(pixbuf, FALSE, 0, 0, 0);
-        gdk_pixbuf_unref(pixbuf);
+        g_object_unref(pixbuf);
         if (!alphaBuf) {
             return NS_ERROR_OUT_OF_MEMORY;
         }
@@ -1525,7 +1534,7 @@ nsWindow::SetCursor(imgIContainer* aCursor,
         // Fallback to a monochrome cursor
         GdkPixmap* mask = gdk_pixmap_new(NULL, width, height, 1);
         if (!mask) {
-            gdk_pixbuf_unref(pixbuf);
+            g_object_unref(pixbuf);
             return NS_ERROR_OUT_OF_MEMORY;
         }
 
@@ -1534,7 +1543,7 @@ nsWindow::SetCursor(imgIContainer* aCursor,
                                         width, height);
         if (!data) {
             g_object_unref(mask);
-            gdk_pixbuf_unref(pixbuf);
+            g_object_unref(pixbuf);
             return NS_ERROR_OUT_OF_MEMORY;
         }
 
@@ -1543,7 +1552,7 @@ nsWindow::SetCursor(imgIContainer* aCursor,
         delete[] data;
         if (!image) {
             g_object_unref(mask);
-            gdk_pixbuf_unref(pixbuf);
+            g_object_unref(pixbuf);
             return NS_ERROR_OUT_OF_MEMORY;
         }
 
@@ -1563,7 +1572,7 @@ nsWindow::SetCursor(imgIContainer* aCursor,
                                              pixbuf,
                                              aHotspotX, aHotspotY);
     }
-    gdk_pixbuf_unref(pixbuf);
+    g_object_unref(pixbuf);
     nsresult rv = NS_ERROR_OUT_OF_MEMORY;
     if (cursor) {
         if (mContainer) {
@@ -1618,8 +1627,8 @@ nsWindow::Invalidate(PRBool aIsSynchronous)
 }
 
 NS_IMETHODIMP
-nsWindow::Invalidate(const nsRect &aRect,
-                     PRBool        aIsSynchronous)
+nsWindow::Invalidate(const nsIntRect &aRect,
+                     PRBool           aIsSynchronous)
 {
     GdkRectangle rect;
 
@@ -1685,9 +1694,9 @@ nsWindow::SetColorMap(nsColorMap *aColorMap)
 }
 
 NS_IMETHODIMP
-nsWindow::Scroll(PRInt32  aDx,
-                 PRInt32  aDy,
-                 nsRect  *aClipRect)
+nsWindow::Scroll(PRInt32     aDx,
+                 PRInt32     aDy,
+                 nsIntRect  *aClipRect)
 {
     if (!mDrawingarea)
         return NS_OK;
@@ -1703,7 +1712,7 @@ nsWindow::Scroll(PRInt32  aDx,
 
     // Update bounds on our child windows
     for (nsIWidget* kid = mFirstChild; kid; kid = kid->GetNextSibling()) {
-        nsRect bounds;
+        nsIntRect bounds;
         kid->GetBounds(bounds);
         bounds.x += aDx;
         bounds.y += aDy;
@@ -1727,9 +1736,9 @@ nsWindow::ScrollWidgets(PRInt32 aDx,
 }
 
 NS_IMETHODIMP
-nsWindow::ScrollRect(nsRect  &aSrcRect,
-                     PRInt32  aDx,
-                     PRInt32  aDy)
+nsWindow::ScrollRect(nsIntRect  &aSrcRect,
+                     PRInt32     aDx,
+                     PRInt32     aDy)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -1810,7 +1819,7 @@ nsWindow::SetIcon(const nsAString& aIconSpec)
 
     nsCOMPtr<nsILocalFile> iconFile;
     nsCAutoString path;
-    nsCStringArray iconList;
+    nsTArray<nsCString> iconList;
 
     // Look for icons with the following suffixes appended to the base name.
     // The last two entries (for the old XPM format) will be ignored unless
@@ -1821,7 +1830,7 @@ nsWindow::SetIcon(const nsAString& aIconSpec)
 
     for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(extensions); i++) {
         // Don't bother looking for XPM versions if we found a PNG.
-        if (i == NS_ARRAY_LENGTH(extensions) - 2 && iconList.Count())
+        if (i == NS_ARRAY_LENGTH(extensions) - 2 && iconList.Length())
             break;
 
         nsAutoString extension;
@@ -1830,12 +1839,12 @@ nsWindow::SetIcon(const nsAString& aIconSpec)
         ResolveIconName(aIconSpec, extension, getter_AddRefs(iconFile));
         if (iconFile) {
             iconFile->GetNativePath(path);
-            iconList.AppendCString(path);
+            iconList.AppendElement(path);
         }
     }
 
     // leave the default icon intact if no matching icons were found
-    if (iconList.Count() == 0)
+    if (iconList.Length() == 0)
         return NS_OK;
 
     return SetWindowIconList(iconList);
@@ -1853,48 +1862,22 @@ nsWindow::ShowMenuBar(PRBool aShow)
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_IMETHODIMP
-nsWindow::WidgetToScreen(const nsRect& aOldRect, nsRect& aNewRect)
+nsIntPoint
+nsWindow::WidgetToScreenOffset()
 {
     gint x = 0, y = 0;
 
     if (mContainer) {
         gdk_window_get_root_origin(GTK_WIDGET(mContainer)->window,
                                    &x, &y);
-        LOG(("WidgetToScreen (container) %d %d\n", x, y));
+        LOG(("WidgetToScreenOffset (container) %d %d\n", x, y));
     }
     else if (mDrawingarea) {
         gdk_window_get_origin(mDrawingarea->inner_window, &x, &y);
-        LOG(("WidgetToScreen (drawing) %d %d\n", x, y));
+        LOG(("WidgetToScreenOffset (drawing) %d %d\n", x, y));
     }
 
-    aNewRect.x = x + aOldRect.x;
-    aNewRect.y = y + aOldRect.y;
-    aNewRect.width = aOldRect.width;
-    aNewRect.height = aOldRect.height;
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsWindow::ScreenToWidget(const nsRect& aOldRect, nsRect& aNewRect)
-{
-    gint x = 0, y = 0;
-
-    if (mContainer) {
-        gdk_window_get_root_origin(GTK_WIDGET(mContainer)->window,
-                                   &x, &y);
-    }
-    else if (mDrawingarea) {
-        gdk_window_get_origin(mDrawingarea->inner_window, &x, &y);
-    }
-
-    aNewRect.x = aOldRect.x - x;
-    aNewRect.y = aOldRect.y - y;
-    aNewRect.width = aOldRect.width;
-    aNewRect.height = aOldRect.height;
-
-    return NS_OK;
+    return nsIntPoint(x, y);
 }
 
 NS_IMETHODIMP
@@ -1941,6 +1924,8 @@ nsWindow::CaptureMouse(PRBool aCapture)
         return NS_OK;
 
     GtkWidget *widget = GetMozContainerWidget();
+    if (!widget)
+        return NS_ERROR_FAILURE;
 
     if (aCapture) {
         gtk_grab_add(widget);
@@ -1963,6 +1948,8 @@ nsWindow::CaptureRollupEvents(nsIRollupListener *aListener,
         return NS_OK;
 
     GtkWidget *widget = GetMozContainerWidget();
+    if (!widget)
+        return NS_ERROR_FAILURE;
 
     LOG(("CaptureRollupEvents %p\n", (void *)this));
 
@@ -2066,12 +2053,12 @@ gdk_window_flash(GdkWindow *    aGdkWindow,
   gdk_gc_set_foreground(gc,&white);
   gdk_gc_set_function(gc,GDK_XOR);
   gdk_gc_set_subwindow(gc,GDK_INCLUDE_INFERIORS);
-  
+
   gdk_region_offset(aRegion, x, y);
   gdk_gc_set_clip_region(gc, aRegion);
 
   /*
-   * Need to do this twice so that the XOR effect can replace 
+   * Need to do this twice so that the XOR effect can replace
    * the original window contents.
    */
   for (i = 0; i < aTimes * 2; i++)
@@ -2085,7 +2072,7 @@ gdk_window_flash(GdkWindow *    aGdkWindow,
                        height);
 
     gdk_flush();
-    
+
     PR_Sleep(PR_MillisecondsToInterval(aInterval));
   }
 
@@ -2126,6 +2113,12 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
     gdk_region_get_rectangles(aEvent->region, &rects, &nrects);
     if (NS_UNLIKELY(!rects)) // OOM
         return FALSE;
+
+    if (nrects > MAX_RECTS_IN_REGION) {
+        // Just use the bounding box
+        rects[0] = aEvent->area;
+        nrects = 1;
+    }
 
     LOGDRAW(("sending expose event [%p] %p 0x%lx (rects follow):\n",
              (void *)this, (void *)aEvent->window,
@@ -2213,6 +2206,11 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
             depth = gdk_drawable_get_depth(GDK_DRAWABLE(mDrawingarea->inner_window));
         }
 
+        // Make sure we won't create something that will overload the X server
+        nsIntSize safeSize = GetSafeWindowSize(boundsRect.Size());
+        boundsRect.width = safeSize.width;
+        boundsRect.height = safeSize.height;
+
         if (!gUseBufferPixmap ||
             boundsRect.width > gBufferPixmapMaxSize.width ||
             boundsRect.height > gBufferPixmapMaxSize.height)
@@ -2249,14 +2247,14 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
 
         if (bufferPixmap) {
             bufferPixmapSurface = GetSurfaceForGdkDrawable(GDK_DRAWABLE(bufferPixmap),
-                                                           nsSize(bufferPixmapSize.width, bufferPixmapSize.height));
+                                                           nsIntSize(bufferPixmapSize.width, bufferPixmapSize.height));
 
             if (bufferPixmapSurface && bufferPixmapSurface->CairoStatus()) {
                 bufferPixmapSurface = nsnull;
             }
             if (bufferPixmapSurface) {
                 gfxPlatformGtk::GetPlatform()->SetGdkDrawable(
-                        static_cast<gfxASurface *>(bufferPixmapSurface), 
+                        static_cast<gfxASurface *>(bufferPixmapSurface),
                         GDK_DRAWABLE(bufferPixmap));
 
                 bufferPixmapSurface->SetDeviceOffset(gfxPoint(-boundsRect.x, -boundsRect.y));
@@ -2315,7 +2313,7 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
                                         gfxImageSurface::ImageFormatA8);
                 if (img && !img->CairoStatus()) {
                     img->SetDeviceOffset(gfxPoint(-boundsRect.x, -boundsRect.y));
-            
+
                     nsRefPtr<gfxContext> imgCtx = new gfxContext(img);
                     if (imgCtx) {
                         imgCtx->SetPattern(pattern);
@@ -2323,8 +2321,8 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
                         imgCtx->Paint();
                     }
 
-                    UpdateTranslucentWindowAlphaInternal(nsRect(boundsRect.x, boundsRect.y,
-                                                                boundsRect.width, boundsRect.height),
+                    UpdateTranslucentWindowAlphaInternal(nsIntRect(boundsRect.x, boundsRect.y,
+                                                                   boundsRect.width, boundsRect.height),
                                                          img->Data(), img->Stride());
                 }
             } else {
@@ -2375,10 +2373,7 @@ nsWindow::OnConfigureEvent(GtkWidget *aWidget, GdkEventConfigure *aEvent)
     if (mIsTopLevel) {
         mPlaced = PR_TRUE;
         // Need to translate this into the right coordinates
-        nsRect oldrect, newrect;
-        WidgetToScreen(oldrect, newrect);
-        mBounds.x = newrect.x;
-        mBounds.y = newrect.y;
+        mBounds.MoveTo(WidgetToScreenOffset());
     }
 
     nsGUIEvent event(PR_TRUE, NS_MOVE, this);
@@ -2401,8 +2396,8 @@ nsWindow::OnSizeAllocate(GtkWidget *aWidget, GtkAllocation *aAllocation)
          (void *)this, aAllocation->x, aAllocation->y,
          aAllocation->width, aAllocation->height));
 
-    nsRect rect(aAllocation->x, aAllocation->y,
-                aAllocation->width, aAllocation->height);
+    nsIntRect rect(aAllocation->x, aAllocation->y,
+                   aAllocation->width, aAllocation->height);
 
     ResizeTransparencyBitmap(rect.width, rect.height);
 
@@ -2529,11 +2524,16 @@ nsWindow::OnMotionNotifyEvent(GtkWidget *aWidget, GdkEventMotion *aEvent)
 
     nsMouseEvent event(PR_TRUE, NS_MOUSE_MOVE, this, nsMouseEvent::eReal);
 
-    nsRect windowRect;
-    ScreenToWidget(nsRect(nscoord(cursorX), nscoord(cursorY), 1, 1), windowRect);
+    // should we move this into !synthEvent?
+    gdouble pressure = 0;
+    gdk_event_get_axis ((GdkEvent*)aEvent, GDK_AXIS_PRESSURE, &pressure);
+    // Sometime gdk generate 0 pressure value between normal values
+    // We have to ignore that and use last valid value
+    if (pressure)
+      mLastMotionPressure = pressure;
+    event.pressure = mLastMotionPressure;
 
-    event.refPoint.x = windowRect.x;
-    event.refPoint.y = windowRect.y;
+    event.refPoint = nsIntPoint(cursorX, cursorY) - WidgetToScreenOffset();
 
     event.isShift   = (aEvent->state & GDK_SHIFT_MASK)
         ? PR_TRUE : PR_FALSE;
@@ -2582,6 +2582,14 @@ nsWindow::OnMotionNotifyEvent(GtkWidget *aWidget, GdkEventMotion *aEvent)
 
     nsMouseEvent event(PR_TRUE, NS_MOUSE_MOVE, this, nsMouseEvent::eReal);
 
+    gdouble pressure = 0;
+    gdk_event_get_axis ((GdkEvent*)aEvent, GDK_AXIS_PRESSURE, &pressure);
+    // Sometime gdk generate 0 pressure value between normal values
+    // We have to ignore that and use last valid value
+    if (pressure)
+      mLastMotionPressure = pressure;
+    event.pressure = mLastMotionPressure;
+
     if (synthEvent) {
 #ifdef MOZ_X11
         event.refPoint.x = nscoord(xevent.xmotion.x);
@@ -2615,11 +2623,8 @@ nsWindow::OnMotionNotifyEvent(GtkWidget *aWidget, GdkEventMotion *aEvent)
             event.refPoint.x = nscoord(aEvent->x);
             event.refPoint.y = nscoord(aEvent->y);
         } else {
-            nsRect windowRect;
-            ScreenToWidget(nsRect(nscoord(aEvent->x_root), nscoord(aEvent->y_root), 1, 1), windowRect);
-
-            event.refPoint.x = windowRect.x;
-            event.refPoint.y = windowRect.y;
+            nsIntPoint point(NSToIntFloor(aEvent->x_root), NSToIntFloor(aEvent->y_root));
+            event.refPoint = point - WidgetToScreenOffset();
         }
 
         event.isShift   = (aEvent->state & GDK_SHIFT_MASK)
@@ -2646,11 +2651,8 @@ nsWindow::InitButtonEvent(nsMouseEvent &aEvent,
         aEvent.refPoint.x = nscoord(aGdkEvent->x);
         aEvent.refPoint.y = nscoord(aGdkEvent->y);
     } else {
-        nsRect windowRect;
-        ScreenToWidget(nsRect(nscoord(aGdkEvent->x_root), nscoord(aGdkEvent->y_root), 1, 1), windowRect);
-
-        aEvent.refPoint.x = windowRect.x;
-        aEvent.refPoint.y = windowRect.y;
+        nsIntPoint point(NSToIntFloor(aGdkEvent->x_root), NSToIntFloor(aGdkEvent->y_root));
+        aEvent.refPoint = point - WidgetToScreenOffset();
     }
 
     aEvent.isShift   = (aGdkEvent->state & GDK_SHIFT_MASK) != 0;
@@ -2697,10 +2699,8 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
     mLastButtonReleaseTime = 0;
 
     // check to see if we should rollup
-    nsWindow *containerWindow;
-    GetContainerWindow(&containerWindow);
-
-    if (!gFocusWindow) {
+    nsWindow *containerWindow = GetContainerWindow();
+    if (!gFocusWindow && containerWindow) {
         containerWindow->mActivatePending = PR_FALSE;
         DispatchActivateEvent();
     }
@@ -2709,6 +2709,10 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
                                        aEvent->y_root, PR_FALSE);
     if (gConsumeRollupEvent && rolledUp)
             return;
+
+    gdouble pressure = 0;
+    gdk_event_get_axis ((GdkEvent*)aEvent, GDK_AXIS_PRESSURE, &pressure);
+    mLastMotionPressure = pressure;
 
     PRUint16 domButton;
     switch (aEvent->button) {
@@ -2726,6 +2730,7 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
     case 7:
         {
             nsMouseScrollEvent event(PR_TRUE, NS_MOUSE_SCROLL, this);
+            event.pressure = mLastMotionPressure;
             event.scrollFlags = nsMouseScrollEvent::kIsHorizontal;
             event.refPoint.x = nscoord(aEvent->x);
             event.refPoint.y = nscoord(aEvent->y);
@@ -2756,6 +2761,7 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
     nsMouseEvent event(PR_TRUE, NS_MOUSE_BUTTON_DOWN, this, nsMouseEvent::eReal);
     event.button = domButton;
     InitButtonEvent(event, aEvent);
+    event.pressure = mLastMotionPressure;
 
     DispatchEvent(&event, status);
 
@@ -2765,6 +2771,7 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
         nsMouseEvent contextMenuEvent(PR_TRUE, NS_CONTEXTMENU, this,
                                       nsMouseEvent::eReal);
         InitButtonEvent(contextMenuEvent, aEvent);
+        contextMenuEvent.pressure = mLastMotionPressure;
         DispatchEvent(&contextMenuEvent, status);
     }
 }
@@ -2792,9 +2799,13 @@ nsWindow::OnButtonReleaseEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
     nsMouseEvent event(PR_TRUE, NS_MOUSE_BUTTON_UP, this, nsMouseEvent::eReal);
     event.button = domButton;
     InitButtonEvent(event, aEvent);
+    gdouble pressure = 0;
+    gdk_event_get_axis ((GdkEvent*)aEvent, GDK_AXIS_PRESSURE, &pressure);
+    event.pressure = pressure ? pressure : mLastMotionPressure;
 
     nsEventStatus status;
     DispatchEvent(&event, status);
+    mLastMotionPressure = pressure;
 }
 
 void
@@ -2809,9 +2820,33 @@ nsWindow::OnContainerFocusInEvent(GtkWidget *aWidget, GdkEventFocus *aEvent)
         return;
     }
 
-    if (mIsTopLevel)
+    if (mIsTopLevel) {
         mActivatePending = PR_TRUE;
-
+#if defined(MOZ_PLATFORM_HILDON) && defined(MOZ_ENABLE_GCONF)
+        // For mobile/maemo, it is desired to disable the word completion widget
+        // at the bottom of the screen for some reasons: it interacts badly with
+        // keyboard events sometimes and disabling it will give more screen space
+        // for web content. So whenever a topLevel mobile window gets the focus we
+        // verify what is the current state of the widget-completion through query
+        // the proper gconf property. If it is enabled, we store the property value
+        // and disable it. Where the toplevel window loses the focus we restore the
+        // previous state of the widget completion property so other applications in
+        // the system do not get affected. See 'OnContainerFocusOutEvent'.
+        if (mWindowType == eWindowType_toplevel)
+            if (GConfClient *gConfClient = gconf_client_get_default()) {
+                GError* error = nsnull;
+                gWidgetCompletionEnabled = gconf_client_get_bool(gConfClient,
+                                                                 sWidgetCompletionGConfPref,
+                                                                 &error);
+                if (error)
+                    g_error_free(error);
+                else if (gWidgetCompletionEnabled)
+                    gconf_client_set_bool(gConfClient, sWidgetCompletionGConfPref,
+                                          PR_FALSE, nsnull);
+                g_object_unref(gConfClient);
+            }
+#endif
+    }
     // Unset the urgency hint, if possible
     GtkWidget* top_window = nsnull;
     GetToplevelWidget(&top_window);
@@ -2850,6 +2885,16 @@ nsWindow::OnContainerFocusOutEvent(GtkWidget *aWidget, GdkEventFocus *aEvent)
     if (!gFocusWindow)
         return;
 
+#if defined(MOZ_PLATFORM_HILDON) && defined(MOZ_ENABLE_GCONF)
+    if (mIsTopLevel && mWindowType == eWindowType_toplevel)
+        if(GConfClient *gConfClient = gconf_client_get_default()) {
+            GError* error = nsnull;
+            gconf_client_set_bool(gConfClient, sWidgetCompletionGConfPref, gWidgetCompletionEnabled, &error);
+            if (error)
+                g_error_free(error);
+            g_object_unref(gConfClient);
+        }
+#endif
     GdkWindow *tmpWindow;
     tmpWindow = (GdkWindow *)gFocusWindow->GetNativeData(NS_NATIVE_WINDOW);
     nsWindow *tmpnsWindow = get_window_for_gdk_window(tmpWindow);
@@ -2972,7 +3017,7 @@ nsWindow::OnKeyPressEvent(GtkWidget *aWidget, GdkEventKey *aEvent)
     // us.
 
     PRBool isKeyDownCancelled = PR_FALSE;
-    
+
     PRUint32 domVirtualKeyCode = GdkKeyCodeToDOMKeyCode(aEvent->keyval);
 
     if (!IsKeyDown(domVirtualKeyCode)) {
@@ -3190,18 +3235,15 @@ nsWindow::OnScrollEvent(GtkWidget *aWidget, GdkEventScroll *aEvent)
     }
 
     if (aEvent->window == mDrawingarea->inner_window) {
-        // we are the window that the event happened on so no need for expensive ScreenToWidget
+        // we are the window that the event happened on so no need for expensive WidgetToScreenOffset
         event.refPoint.x = nscoord(aEvent->x);
         event.refPoint.y = nscoord(aEvent->y);
     } else {
         // XXX we're never quite sure which GdkWindow the event came from due to our custom bubbling
         // in scroll_event_cb(), so use ScreenToWidget to translate the screen root coordinates into
         // coordinates relative to this widget.
-        nsRect windowRect;
-        ScreenToWidget(nsRect(nscoord(aEvent->x_root), nscoord(aEvent->y_root), 1, 1), windowRect);
-
-        event.refPoint.x = windowRect.x;
-        event.refPoint.y = windowRect.y;
+        nsIntPoint point(NSToIntFloor(aEvent->x_root), NSToIntFloor(aEvent->y_root));
+        event.refPoint = point - WidgetToScreenOffset();
     }
 
     event.isShift   = (aEvent->state & GDK_SHIFT_MASK) != 0;
@@ -3614,7 +3656,7 @@ nsWindow::OnDragEnter(nscoord aX, nscoord aY)
 static void
 GetBrandName(nsXPIDLString& brandName)
 {
-    nsCOMPtr<nsIStringBundleService> bundleService = 
+    nsCOMPtr<nsIStringBundleService> bundleService =
         do_GetService(NS_STRINGBUNDLE_CONTRACTID);
 
     nsCOMPtr<nsIStringBundle> bundle;
@@ -3635,7 +3677,7 @@ GetBrandName(nsXPIDLString& brandName)
 nsresult
 nsWindow::NativeCreate(nsIWidget        *aParent,
                        nsNativeWidget    aNativeParent,
-                       const nsRect     &aRect,
+                       const nsIntRect  &aRect,
                        EVENT_CALLBACK    aHandleEventFunction,
                        nsIDeviceContext *aContext,
                        nsIAppShell      *aAppShell,
@@ -4233,10 +4275,10 @@ nsWindow::NativeShow (PRBool  aAction)
     }
 }
 
-nsSize
-nsWindow::GetSafeWindowSize(nsSize aSize)
+nsIntSize
+nsWindow::GetSafeWindowSize(nsIntSize aSize)
 {
-    nsSize result = aSize;
+    nsIntSize result = aSize;
     const PRInt32 kInt16Max = 32767;
     if (result.width > kInt16Max) {
         NS_WARNING("Clamping huge window width");
@@ -4362,7 +4404,7 @@ nsWindow::ResizeTransparencyBitmap(PRInt32 aNewWidth, PRInt32 aNewHeight)
 
 static PRBool
 ChangedMaskBits(gchar* aMaskBits, PRInt32 aMaskWidth, PRInt32 aMaskHeight,
-        const nsRect& aRect, PRUint8* aAlphas, PRInt32 aStride)
+        const nsIntRect& aRect, PRUint8* aAlphas, PRInt32 aStride)
 {
     PRInt32 x, y, xMax = aRect.XMost(), yMax = aRect.YMost();
     PRInt32 maskBytesPerRow = (aMaskWidth + 7)/8;
@@ -4388,7 +4430,7 @@ ChangedMaskBits(gchar* aMaskBits, PRInt32 aMaskWidth, PRInt32 aMaskHeight,
 
 static
 void UpdateMaskBits(gchar* aMaskBits, PRInt32 aMaskWidth, PRInt32 aMaskHeight,
-        const nsRect& aRect, PRUint8* aAlphas, PRInt32 aStride)
+        const nsIntRect& aRect, PRUint8* aAlphas, PRInt32 aStride)
 {
     PRInt32 x, y, xMax = aRect.XMost(), yMax = aRect.YMost();
     PRInt32 maskBytesPerRow = (aMaskWidth + 7)/8;
@@ -4419,11 +4461,11 @@ nsWindow::ApplyTransparencyBitmap()
         return;
 
     gtk_widget_shape_combine_mask(mShell, maskBitmap, 0, 0);
-    gdk_bitmap_unref(maskBitmap);
+    g_object_unref(maskBitmap);
 }
 
 nsresult
-nsWindow::UpdateTranslucentWindowAlphaInternal(const nsRect& aRect,
+nsWindow::UpdateTranslucentWindowAlphaInternal(const nsIntRect& aRect,
                                                PRUint8* aAlphas, PRInt32 aStride)
 {
     if (!mShell) {
@@ -4498,6 +4540,9 @@ nsWindow::GrabPointer(void)
                                              GDK_BUTTON_RELEASE_MASK |
                                              GDK_ENTER_NOTIFY_MASK |
                                              GDK_LEAVE_NOTIFY_MASK |
+#ifdef HAVE_GTK_MOTION_HINTS
+                                             GDK_POINTER_MOTION_HINT_MASK |
+#endif
                                              GDK_POINTER_MOTION_MASK),
                               (GdkWindow *)NULL, NULL, GDK_CURRENT_TIME);
 
@@ -4569,9 +4614,6 @@ nsWindow::GetToplevelWidget(GtkWidget **aWidget)
         return;
     }
 
-    if (!mDrawingarea)
-        return;
-
     GtkWidget *widget = GetMozContainerWidget();
     if (!widget)
         return;
@@ -4582,22 +4624,24 @@ nsWindow::GetToplevelWidget(GtkWidget **aWidget)
 GtkWidget *
 nsWindow::GetMozContainerWidget()
 {
+    if (!mDrawingarea)
+        return NULL;
+
     GtkWidget *owningWidget =
         get_gtk_widget_for_gdk_window(mDrawingarea->inner_window);
-    NS_ASSERTION(IS_MOZ_CONTAINER(owningWidget), "Lost our MozContainer");
     return owningWidget;
 }
 
-void
-nsWindow::GetContainerWindow(nsWindow **aWindow)
+nsWindow *
+nsWindow::GetContainerWindow()
 {
-    if (!mDrawingarea)
-        return;
-
     GtkWidget *owningWidget = GetMozContainerWidget();
+    if (!owningWidget)
+        return nsnull;
 
-    *aWindow = get_window_for_gtk_widget(owningWidget);
-    NS_ASSERTION(*aWindow, "Lost our Container Window");
+    nsWindow *window = get_window_for_gtk_widget(owningWidget);
+    NS_ASSERTION(window, "No nsWindow for container widget");
+    return window;
 }
 
 void
@@ -4654,12 +4698,12 @@ nsWindow::SetupPluginPort(void)
 }
 
 nsresult
-nsWindow::SetWindowIconList(const nsCStringArray &aIconList)
+nsWindow::SetWindowIconList(const nsTArray<nsCString> &aIconList)
 {
     GList *list = NULL;
 
-    for (int i = 0; i < aIconList.Count(); ++i) {
-        const char *path = aIconList[i]->get();
+    for (PRUint32 i = 0; i < aIconList.Length(); ++i) {
+        const char *path = aIconList[i].get();
         LOG(("window [%p] Loading icon from %s\n", (void *)this, path));
 
         GdkPixbuf *icon = gdk_pixbuf_new_from_file(path, NULL);
@@ -4842,7 +4886,13 @@ nsWindow::HideWindowChrome(PRBool aShouldHide)
         // Pass the request to the toplevel window
         GtkWidget *topWidget = nsnull;
         GetToplevelWidget(&topWidget);
+        if (!topWidget)
+            return NS_ERROR_FAILURE;
+
         nsWindow *topWindow = get_window_for_gtk_widget(topWidget);
+        if (!topWindow)
+            return NS_ERROR_FAILURE;
+
         return topWindow->HideWindowChrome(aShouldHide);
     }
 
@@ -4950,17 +5000,14 @@ is_mouse_in_window (GdkWindow* aWindow, gdouble aMouseX, gdouble aMouseY)
     gint offsetX = 0;
     gint offsetY = 0;
 
-    GtkWidget *widget;
-    GdkWindow *window;
-
-    window = aWindow;
+    GdkWindow *window = aWindow;
 
     while (window) {
         gint tmpX = 0;
         gint tmpY = 0;
 
         gdk_window_get_position(window, &tmpX, &tmpY);
-        widget = get_gtk_widget_for_gdk_window(window);
+        GtkWidget *widget = get_gtk_widget_for_gdk_window(window);
 
         // if this is a window, compute x and y given its origin and our
         // offset
@@ -4975,7 +5022,7 @@ is_mouse_in_window (GdkWindow* aWindow, gdouble aMouseX, gdouble aMouseY)
         window = gdk_window_get_parent(window);
     }
 
-    gdk_window_get_size(aWindow, &w, &h);
+    gdk_drawable_get_size(aWindow, &w, &h);
 
     if (aMouseX > x && aMouseX < x + w &&
         aMouseY > y && aMouseY < y + h)
@@ -4988,11 +5035,7 @@ is_mouse_in_window (GdkWindow* aWindow, gdouble aMouseX, gdouble aMouseY)
 nsWindow *
 get_window_for_gtk_widget(GtkWidget *widget)
 {
-    gpointer user_data;
-    user_data = g_object_get_data(G_OBJECT(widget), "nsWindow");
-
-    if (!user_data)
-        return nsnull;
+    gpointer user_data = g_object_get_data(G_OBJECT(widget), "nsWindow");
 
     return static_cast<nsWindow *>(user_data);
 }
@@ -5001,11 +5044,7 @@ get_window_for_gtk_widget(GtkWidget *widget)
 nsWindow *
 get_window_for_gdk_window(GdkWindow *window)
 {
-    gpointer user_data;
-    user_data = g_object_get_data(G_OBJECT(window), "nsWindow");
-
-    if (!user_data)
-        return nsnull;
+    gpointer user_data = g_object_get_data(G_OBJECT(window), "nsWindow");
 
     return static_cast<nsWindow *>(user_data);
 }
@@ -5018,13 +5057,9 @@ get_owning_window_for_gdk_window(GdkWindow *window)
     if (!owningWidget)
         return nsnull;
 
-    gpointer user_data;
-    user_data = g_object_get_data(G_OBJECT(owningWidget), "nsWindow");
+    gpointer user_data = g_object_get_data(G_OBJECT(owningWidget), "nsWindow");
 
-    if (!user_data)
-        return nsnull;
-
-    return (nsWindow *)user_data;
+    return static_cast<nsWindow *>(user_data);
 }
 
 /* static */
@@ -5033,8 +5068,6 @@ get_gtk_widget_for_gdk_window(GdkWindow *window)
 {
     gpointer user_data = NULL;
     gdk_window_get_user_data(window, &user_data);
-    if (!user_data)
-        return NULL;
 
     return GTK_WIDGET(user_data);
 }
@@ -5180,7 +5213,7 @@ get_gtk_cursor(nsCursor aCursor)
                                         (char *)GtkCursors[newType].mask_bits,
                                         32, 32);
         if (!mask) {
-            gdk_bitmap_unref(cursor);
+            g_object_unref(cursor);
             return NULL;
         }
 
@@ -5188,8 +5221,8 @@ get_gtk_cursor(nsCursor aCursor)
                                                GtkCursors[newType].hot_x,
                                                GtkCursors[newType].hot_y);
 
-        gdk_bitmap_unref(mask);
-        gdk_bitmap_unref(cursor);
+        g_object_unref(mask);
+        g_object_unref(cursor);
     }
 
     gCursorCache[aCursor] = gdkcursor;
@@ -5328,6 +5361,9 @@ motion_notify_event_cb(GtkWidget *widget, GdkEventMotion *event)
 
     window->OnMotionNotifyEvent(widget, event);
 
+#ifdef HAVE_GTK_MOTION_HINTS
+    gdk_event_request_motions(event);
+#endif
     return TRUE;
 }
 
@@ -5388,9 +5424,7 @@ focus_out_event_cb(GtkWidget *widget, GdkEventFocus *event)
 GdkFilterReturn
 plugin_window_filter_func(GdkXEvent *gdk_xevent, GdkEvent *event, gpointer data)
 {
-    GtkWidget *widget;
     GdkWindow *plugin_window;
-    gpointer  user_data;
     XEvent    *xevent;
 
     nsRefPtr<nsWindow> nswindow = (nsWindow*)data;
@@ -5412,9 +5446,8 @@ plugin_window_filter_func(GdkXEvent *gdk_xevent, GdkEvent *event, gpointer data)
                 plugin_window = gdk_window_lookup (xevent->xreparent.window);
             }
             if (plugin_window) {
-                user_data = nsnull;
-                gdk_window_get_user_data(plugin_window, &user_data);
-                widget = GTK_WIDGET(user_data);
+                GtkWidget *widget =
+                    get_gtk_widget_for_gdk_window(plugin_window);
 
                 if (GTK_IS_XTBIN(widget)) {
                     nswindow->SetPluginType(nsWindow::PluginType_NONXEMBED);
@@ -5495,6 +5528,32 @@ key_press_event_cb(GtkWidget *widget, GdkEventKey *event)
         return FALSE;
 
     nsRefPtr<nsWindow> focusWindow = gFocusWindow ? gFocusWindow : window;
+
+#ifdef MOZ_X11
+    // Keyboard repeat can cause key press events to queue up when there are
+    // slow event handlers (bug 301029).  Throttle these events by removing
+    // consecutive pending duplicate KeyPress events to the same window.
+    // We use the event time of the last one.
+    // Note: GDK calls XkbSetDetectableAutorepeat so that KeyRelease events
+    // are generated only when the key is physically released.
+#define NS_GDKEVENT_MATCH_MASK 0x1FFF /* GDK_SHIFT_MASK .. GDK_BUTTON5_MASK */
+    GdkDisplay* gdkDisplay = gtk_widget_get_display(widget);
+    Display* dpy = GDK_DISPLAY_XDISPLAY(gdkDisplay);
+    while (XPending(dpy)) {
+        XEvent next_event;
+        XPeekEvent(dpy, &next_event);
+        GdkWindow* nextGdkWindow =
+            gdk_window_lookup_for_display(gdkDisplay, next_event.xany.window);
+        if (nextGdkWindow != event->window ||
+            next_event.type != KeyPress ||
+            next_event.xkey.keycode != event->hardware_keycode ||
+            next_event.xkey.state != (event->state & NS_GDKEVENT_MATCH_MASK)) {
+            break;
+        }
+        XNextEvent(dpy, &next_event);
+        event->time = next_event.xkey.time;
+    }
+#endif
 
     return focusWindow->OnKeyPressEvent(widget, event);
 }
@@ -5725,15 +5784,15 @@ nsWindow::ResetDragMotionTimer(GtkWidget *aWidget,
     // mDraMotionWidget be careful not to let the refcnt drop to zero.
     // Same with the drag context.
     if (aWidget)
-        gtk_widget_ref(aWidget);
+        g_object_ref(aWidget);
     if (mDragMotionWidget)
-        gtk_widget_unref(mDragMotionWidget);
+        g_object_unref(mDragMotionWidget);
     mDragMotionWidget = aWidget;
 
     if (aDragContext)
-        gdk_drag_context_ref(aDragContext);
+        g_object_ref(aDragContext);
     if (mDragMotionContext)
-        gdk_drag_context_unref(mDragMotionContext);
+        g_object_unref(mDragMotionContext);
     mDragMotionContext = aDragContext;
 
     mDragMotionX = aX;
@@ -5742,7 +5801,7 @@ nsWindow::ResetDragMotionTimer(GtkWidget *aWidget,
 
     // always clear the timer
     if (mDragMotionTimerID) {
-        gtk_timeout_remove(mDragMotionTimerID);
+        g_source_remove(mDragMotionTimerID);
         mDragMotionTimerID = 0;
         LOG(("*** canceled motion timer\n"));
     }
@@ -5754,9 +5813,9 @@ nsWindow::ResetDragMotionTimer(GtkWidget *aWidget,
     }
 
     // otherwise we create a new timer
-    mDragMotionTimerID = gtk_timeout_add(100,
-                                         (GtkFunction)DragMotionTimerCallback,
-                                         this);
+    mDragMotionTimerID = g_timeout_add(100,
+                                       (GtkFunction)DragMotionTimerCallback,
+                                       this);
 }
 
 void
@@ -5843,7 +5902,7 @@ void
 key_event_to_context_menu_event(nsMouseEvent &aEvent,
                                 GdkEventKey *aGdkEvent)
 {
-    aEvent.refPoint = nsPoint(0, 0);
+    aEvent.refPoint = nsIntPoint(0, 0);
     aEvent.isShift = PR_FALSE;
     aEvent.isControl = PR_FALSE;
     aEvent.isAlt = PR_FALSE;
@@ -6067,7 +6126,7 @@ nsWindow::IMEInitData(void)
 {
     if (mIMEData)
         return;
-    nsWindow *win = IMEGetOwningWindow();
+    nsWindow *win = GetContainerWindow();
     if (!win)
         return;
     mIMEData = win->mIMEData;
@@ -6095,8 +6154,8 @@ nsWindow::IMEReleaseData(void)
 // The GTK+ XIM and IIIM modules register handlers for the "closed" signal
 // on the display, but:
 //  * The signal handlers are not disconnected when the module is unloaded.
-// 
-// The GTK+ XIM module has another problem: 
+//
+// The GTK+ XIM module has another problem:
 //  * When the signal handler is run (with the module loaded) it tries
 //    XFree (and fails) on a pointer that did not come from Xmalloc.
 //
@@ -6104,7 +6163,7 @@ nsWindow::IMEReleaseData(void)
 // hold ref of GtkIMContext class.
 // For GTK+ XIM module, to prevent the signal handler from being run,
 // find the signal handlers and remove them.
-//  
+//
 // GtkIMContextXIMs share XOpenIM connections and display closed signal
 // handlers (where possible).
 
@@ -6341,7 +6400,8 @@ nsWindow::IMEGetContext()
 static PRBool
 IsIMEEnabledState(PRUint32 aState)
 {
-    return aState == nsIWidget::IME_STATUS_ENABLED;
+    return aState == nsIWidget::IME_STATUS_ENABLED ||
+           aState == nsIWidget::IME_STATUS_PLUGIN;
 }
 
 PRBool
@@ -6354,6 +6414,7 @@ static PRBool
 IsIMEEditableState(PRUint32 aState)
 {
     return aState == nsIWidget::IME_STATUS_ENABLED ||
+           aState == nsIWidget::IME_STATUS_PLUGIN ||
            aState == nsIWidget::IME_STATUS_PASSWORD;
 }
 
@@ -6367,13 +6428,6 @@ nsWindow*
 nsWindow::IMEComposingWindow(void)
 {
     return mIMEData ? mIMEData->mComposingWindow : nsnull;
-}
-
-nsWindow*
-nsWindow::IMEGetOwningWindow(void)
-{
-    nsWindow *window = IM_get_owning_window(this->mDrawingarea);
-    return window;
 }
 
 void
@@ -6455,7 +6509,7 @@ nsWindow::IMESetCursorPosition(const nsTextEventReply& aReply)
     }
     nsWindow* refWindow = static_cast<nsWindow*>(refWidget);
 
-    nsWindow* ownerWindow = IM_get_owning_window(mDrawingarea);
+    nsWindow* ownerWindow = GetContainerWindow();
     if (!ownerWindow) {
         NS_ERROR("there is no owner");
         return;
@@ -6552,6 +6606,18 @@ nsWindow::SetIMEEnabled(PRUint32 aState)
         focusedWin->IMESetFocus();
 #ifdef MOZ_PLATFORM_HILDON
         if (mIMEData->mEnabled) {
+            // It is not desired that the hildon's autocomplete mechanism displays
+            // user previous entered passwds, so lets make completions invisible
+            // in these cases.
+            int mode;
+            g_object_get (G_OBJECT(focusedIm), "hildon-input-mode", &mode, NULL);
+
+            if (mIMEData->mEnabled == IME_STATUS_ENABLED)
+                mode &= ~HILDON_GTK_INPUT_MODE_INVISIBLE;
+            else if (mIMEData->mEnabled == nsIWidget::IME_STATUS_PASSWORD)
+               mode |= HILDON_GTK_INPUT_MODE_INVISIBLE;
+
+            g_object_set (G_OBJECT(focusedIm), "hildon-input-mode", (HildonGtkInputMode)mode, NULL);
             gIMEVirtualKeyboardOpened = PR_TRUE;
             hildon_gtk_im_context_show (focusedIm);
         } else {
@@ -6559,7 +6625,7 @@ nsWindow::SetIMEEnabled(PRUint32 aState)
             hildon_gtk_im_context_hide (focusedIm);
         }
 #endif
-        
+
     } else {
         if (IsIMEEditableState(mIMEData->mEnabled))
             ResetInputState();
@@ -6647,7 +6713,7 @@ IM_preedit_changed_cb(GtkIMContext *aContext,
 
     // if gFocusWindow is null, use the last focused gIMEFocusWindow
     nsRefPtr<nsWindow> window = gFocusWindow ? gFocusWindow : gIMEFocusWindow;
-    if (!window)
+    if (!window || IM_get_input_context(window) != aContext)
         return;
 
     // Should use cursor_pos ?
@@ -6710,7 +6776,7 @@ IM_commit_cb(GtkIMContext *aContext,
     // if gFocusWindow is null, use the last focused gIMEFocusWindow
     nsRefPtr<nsWindow> window = gFocusWindow ? gFocusWindow : gIMEFocusWindow;
 
-    if (!window)
+    if (!window || IM_get_input_context(window) != aContext)
         return;
 
     /* If IME doesn't change they keyevent that generated this commit,
@@ -6882,19 +6948,6 @@ IM_set_text_range(const PRInt32 aLen,
 }
 
 /* static */
-nsWindow *
-IM_get_owning_window(MozDrawingarea *aArea)
-{
-    if (!aArea)
-        return nsnull;
-    GtkWidget *owningWidget =
-        get_gtk_widget_for_gdk_window(aArea->inner_window);
-    if (!owningWidget)
-        return nsnull;
-    return get_window_for_gtk_widget(owningWidget);
-}
-
-/* static */
 GtkIMContext *
 IM_get_input_context(nsWindow *aWindow)
 {
@@ -6903,7 +6956,8 @@ IM_get_input_context(nsWindow *aWindow)
     nsWindow::nsIMEData *data = aWindow->mIMEData;
     if (!data)
         return nsnull;
-    if (data->mEnabled == nsIWidget::IME_STATUS_ENABLED)
+    if (data->mEnabled == nsIWidget::IME_STATUS_ENABLED ||
+        data->mEnabled == nsIWidget::IME_STATUS_PLUGIN)
         return data->mContext;
     if (data->mEnabled == nsIWidget::IME_STATUS_PASSWORD)
         return data->mSimpleContext;
@@ -6915,7 +6969,7 @@ IM_get_input_context(nsWindow *aWindow)
 #ifdef MOZ_X11
 /* static */ already_AddRefed<gfxASurface>
 nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
-                                   const nsSize& aSize)
+                                   const nsIntSize& aSize)
 {
     GdkVisual* visual = gdk_drawable_get_visual(aDrawable);
     Display* xDisplay = gdk_x11_drawable_get_xdisplay(aDrawable);
@@ -7001,7 +7055,7 @@ nsWindow::BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVert
     }
 
     nsMouseEvent* mouse_event = static_cast<nsMouseEvent*>(aEvent);
-    
+
     if (mouse_event->button != nsMouseEvent::eLeftButton) {
       // you can only begin a resize drag with the left mouse button
       return NS_ERROR_INVALID_ARG;

@@ -632,7 +632,8 @@ nsMathMLmoFrame::Stretch(nsIRenderingContext& aRenderingContext,
 
   // get the axis height;
   nsCOMPtr<nsIFontMetrics> fm;
-  aRenderingContext.SetFont(GetStyleFont()->mFont, nsnull);
+  aRenderingContext.SetFont(GetStyleFont()->mFont, nsnull,
+                            PresContext()->GetUserFontSet());
   aRenderingContext.GetFontMetrics(*getter_AddRefs(fm));
   nscoord axisHeight, height;
   GetAxisHeight(aRenderingContext, fm, axisHeight);
@@ -1036,7 +1037,7 @@ nsMathMLmoFrame::AttributeChanged(PRInt32         aNameSpaceID,
     } while (embellishData.coreFrame == this);
 
     // we have automatic data to update in the children of the target frame
-    return ReLayoutChildren(target, NS_FRAME_IS_DIRTY);
+    return ReLayoutChildren(target);
   }
 
   return nsMathMLTokenFrame::

@@ -55,11 +55,13 @@
 #include "nsCOMPtr.h"
 #include "nsWeakReference.h"
 #include "nsAutoPtr.h"
+#include "nsStyleStruct.h"
 
 class nsComputedDOMStyle : public nsIComputedDOMStyle
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsComputedDOMStyle)
 
   NS_IMETHOD Init(nsIDOMElement *aElement,
                   const nsAString& aPseudoElt,
@@ -75,7 +77,10 @@ public:
   static void Shutdown();
 
 private:
-  void FlushPendingReflows();
+  void AssertFlushedPendingReflows() {
+    NS_ASSERTION(mFlushedPendingReflows,
+                 "property getter should have been marked layout-dependent");
+  }
   
 #define STYLE_STRUCT(name_, checkdata_cb_, ctor_args_)                  \
   const nsStyle##name_ * GetStyle##name_() {                            \
@@ -112,8 +117,13 @@ private:
 
   nsresult GetCSSShadowArray(nsCSSShadowArray* aArray,
                              const nscolor& aDefaultColor,
-                             PRBool aUsesSpread,
+                             PRBool aIsBoxShadow,
                              nsIDOMCSSValue** aValue);
+
+  nsresult GetBackgroundList(PRUint8 nsStyleBackground::Layer::* aMember,
+                             PRUint32 nsStyleBackground::* aCount,
+                             const PRInt32 aTable[],
+                             nsIDOMCSSValue** aResult);
 
   /* Properties Queryable as CSSValues */
 
@@ -143,9 +153,10 @@ private:
   /* Font properties */
   nsresult GetColor(nsIDOMCSSValue** aValue);
   nsresult GetFontFamily(nsIDOMCSSValue** aValue);
-  nsresult GetFontStyle(nsIDOMCSSValue** aValue);
   nsresult GetFontSize(nsIDOMCSSValue** aValue);
   nsresult GetFontSizeAdjust(nsIDOMCSSValue** aValue);
+  nsresult GetFontStretch(nsIDOMCSSValue** aValue);
+  nsresult GetFontStyle(nsIDOMCSSValue** aValue);
   nsresult GetFontWeight(nsIDOMCSSValue** aValue);
   nsresult GetFontVariant(nsIDOMCSSValue** aValue);
 
@@ -390,6 +401,7 @@ private:
 
     nsCSSProperty mProperty;
     ComputeMethod mGetter;
+    PRBool mNeedsLayoutFlush;
   };
 
   static const ComputedStyleMapEntry* GetQueryablePropertyMap(PRUint32* aLength);
@@ -429,6 +441,10 @@ private:
   nsIPresShell* mPresShell;
 
   PRInt32 mAppUnitsPerInch; /* For unit conversions */
+
+#ifdef DEBUG
+  PRBool mFlushedPendingReflows;
+#endif
 };
 
 #endif /* nsComputedDOMStyle_h__ */

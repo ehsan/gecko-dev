@@ -88,14 +88,19 @@ nsMenuX::nsMenuX()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  if (nsToolkit::OnLeopardOrLater() && !gMenuMethodsSwizzled) {
-    nsToolkit::SwizzleMethods([NSMenu class], @selector(_addItem:toTable:),
-                              @selector(nsMenuX_NSMenu_addItem:toTable:), PR_TRUE);
-    nsToolkit::SwizzleMethods([NSMenu class], @selector(_removeItem:fromTable:),
-                              @selector(nsMenuX_NSMenu_removeItem:fromTable:), PR_TRUE);
-    Class SCTGRLIndexClass = ::NSClassFromString(@"SCTGRLIndex");
-    nsToolkit::SwizzleMethods(SCTGRLIndexClass, @selector(indexMenuBarDynamically),
-                              @selector(nsMenuX_SCTGRLIndex_indexMenuBarDynamically));
+  if (!gMenuMethodsSwizzled) {
+    if (nsToolkit::OnLeopardOrLater()) {
+      nsToolkit::SwizzleMethods([NSMenu class], @selector(_addItem:toTable:),
+                                @selector(nsMenuX_NSMenu_addItem:toTable:), PR_TRUE);
+      nsToolkit::SwizzleMethods([NSMenu class], @selector(_removeItem:fromTable:),
+                                @selector(nsMenuX_NSMenu_removeItem:fromTable:), PR_TRUE);
+      Class SCTGRLIndexClass = ::NSClassFromString(@"SCTGRLIndex");
+      nsToolkit::SwizzleMethods(SCTGRLIndexClass, @selector(indexMenuBarDynamically),
+                                @selector(nsMenuX_SCTGRLIndex_indexMenuBarDynamically));
+    } else {
+      nsToolkit::SwizzleMethods([NSMenu class], @selector(performKeyEquivalent:),
+                                @selector(nsMenuX_NSMenu_performKeyEquivalent:));
+    }
     gMenuMethodsSwizzled = PR_TRUE;
   }
 
@@ -119,7 +124,9 @@ nsMenuX::~nsMenuX()
   [mNativeMenu setDelegate:nil];
   [mNativeMenu release];
   [mMenuDelegate release];
-  [mNativeMenuItem release];
+  // autorelease the native menu item so that anything else happening to this
+  // object happens before the native menu item actually dies
+  [mNativeMenuItem autorelease];
 
   // alert the change notifier we don't care no more
   if (mContent)
@@ -801,21 +808,19 @@ void nsMenuX::ObserveAttributeChanged(nsIDocument *aDocument, nsIContent *aConte
       }
     }
     else {
-      PRUint32 insertAfter = 0;
-      if (NS_SUCCEEDED(nsMenuUtilsX::CountVisibleBefore(mParent, this, &insertAfter))) {
-        if (parentType == eMenuBarObjectType || parentType == eSubmenuObjectType) {
-          if (parentType == eMenuBarObjectType) {
-            // Before inserting we need to figure out if we should take the native
-            // application menu into account.
-            nsMenuBarX* mb = static_cast<nsMenuBarX*>(mParent);
-            if (mb->MenuContainsAppMenu())
-              insertAfter++;
-          }
-          NSMenu* parentMenu = (NSMenu*)mParent->NativeData();
-          [parentMenu insertItem:mNativeMenuItem atIndex:insertAfter];
-          [mNativeMenuItem setSubmenu:mNativeMenu];
-          mVisible = PR_TRUE;
+      if (parentType == eMenuBarObjectType || parentType == eSubmenuObjectType) {
+        int insertionIndex = nsMenuUtilsX::CalculateNativeInsertionPoint(mParent, this);
+        if (parentType == eMenuBarObjectType) {
+          // Before inserting we need to figure out if we should take the native
+          // application menu into account.
+          nsMenuBarX* mb = static_cast<nsMenuBarX*>(mParent);
+          if (mb->MenuContainsAppMenu())
+            insertionIndex++;
         }
+        NSMenu* parentMenu = (NSMenu*)mParent->NativeData();
+        [parentMenu insertItem:mNativeMenuItem atIndex:insertionIndex];
+        [mNativeMenuItem setSubmenu:mNativeMenu];
+        mVisible = PR_TRUE;
       }
     }
   }
@@ -1120,6 +1125,7 @@ static NSMutableDictionary *gShadowKeyEquivDB = nil;
 @interface NSMenu (MethodSwizzling)
 + (void)nsMenuX_NSMenu_addItem:(NSMenuItem *)aItem toTable:(NSMapTable *)aTable;
 + (void)nsMenuX_NSMenu_removeItem:(NSMenuItem *)aItem fromTable:(NSMapTable *)aTable;
+- (BOOL)nsMenuX_NSMenu_performKeyEquivalent:(NSEvent *)theEvent;
 @end
 
 @implementation NSMenu (MethodSwizzling)
@@ -1163,6 +1169,20 @@ static NSMutableDictionary *gShadowKeyEquivDB = nil;
   }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+- (BOOL)nsMenuX_NSMenu_performKeyEquivalent:(NSEvent *)theEvent
+{
+  // On OS X 10.4.X (Tiger), Objective-C exceptions can occur during calls to
+  // [NSMenu performKeyEquivalent:] (from [GeckoNSMenu performKeyEquivalent:]
+  // or otherwise) that shouldn't be fatal (see bmo bug 461381).  So on Tiger
+  // we hook this system call to eat (and log) all Objective-C exceptions that
+  // occur during its execution.  Since we don't call XPCOM code from here,
+  // this will never cause XPCOM objects to be left on the stack without
+  // cleanup.
+  NS_OBJC_BEGIN_TRY_LOGONLY_BLOCK_RETURN;
+  return [self nsMenuX_NSMenu_performKeyEquivalent:theEvent];
+  NS_OBJC_END_TRY_LOGONLY_BLOCK_RETURN(NO);
 }
 
 @end

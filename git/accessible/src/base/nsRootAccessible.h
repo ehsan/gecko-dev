@@ -77,8 +77,8 @@ class nsRootAccessible : public nsDocAccessibleWrap,
     NS_IMETHOD GetName(nsAString& aName);
     NS_IMETHOD GetParent(nsIAccessible * *aParent);
     NS_IMETHOD GetRole(PRUint32 *aRole);
-    NS_IMETHOD GetAccessibleRelated(PRUint32 aRelationType,
-                                    nsIAccessible **aRelated);
+    NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
+                                 nsIAccessibleRelation **aRelation);
 
     // ----- nsPIAccessibleDocument -----------------------
     NS_IMETHOD FireDocLoadEvents(PRUint32 aEventType);
@@ -133,15 +133,15 @@ class nsRootAccessible : public nsDocAccessibleWrap,
     void GetChromeEventHandler(nsIDOMEventTarget **aChromeTarget);
 
     /**
-     * Handles 'TreeRowCountChanged' event. Used in HandleEventWithTarget().
+     * Used in HandleEventWithTarget().
      */
+    nsresult HandlePopupShownEvent(nsIAccessible *aAccessible);
+    nsresult HandlePopupHidingEvent(nsIDOMNode *aNode,
+                                    nsIAccessible *aAccessible);
+
 #ifdef MOZ_XUL
     nsresult HandleTreeRowCountChangedEvent(nsIDOMEvent *aEvent,
                                             nsIAccessibleTreeCache *aAccessible);
-
-    /**
-     * Handles 'TreeInvalidated' event. Used in HandleEventWithTarget().
-     */
     nsresult HandleTreeInvalidatedEvent(nsIDOMEvent *aEvent,
                                         nsIAccessibleTreeCache *aAccessible);
 

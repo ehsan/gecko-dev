@@ -95,7 +95,8 @@ gfxAtsuiFont::gfxAtsuiFont(MacOSFontEntry *aFontEntry,
                            const gfxFontStyle *fontStyle, PRBool aNeedsBold)
     : gfxFont(aFontEntry, fontStyle),
       mFontStyle(fontStyle), mATSUStyle(nsnull),
-      mHasMirroring(PR_FALSE), mHasMirroringLookedUp(PR_FALSE), mAdjustedSize(0.0f)
+      mHasMirroring(PR_FALSE), mHasMirroringLookedUp(PR_FALSE),
+      mFontFace(nsnull), mScaledFont(nsnull), mAdjustedSize(0.0f)
 {
     ATSUFontID fontID = aFontEntry->GetFontID();
     ATSFontRef fontRef = FMGetATSFontRefFromFont(fontID);
@@ -116,6 +117,9 @@ gfxAtsuiFont::gfxAtsuiFont(MacOSFontEntry *aFontEntry,
     }
 
     InitMetrics(fontID, fontRef);
+    if (!mIsValid) {
+        return;
+    }
 
     mFontFace = cairo_quartz_font_face_create_for_atsu_font_id(fontID);
 
@@ -170,7 +174,7 @@ ATSUFontID gfxAtsuiFont::GetATSUFontID()
 }
 
 static void
-DisableUncommonLigatures(ATSUStyle aStyle)
+DisableUncommonLigaturesAndLineBoundarySwashes(ATSUStyle aStyle)
 {
     static const ATSUFontFeatureType types[] = {
         kLigaturesType,
@@ -178,7 +182,9 @@ DisableUncommonLigatures(ATSUStyle aStyle)
         kLigaturesType,
         kLigaturesType,
         kLigaturesType,
-        kLigaturesType
+        kLigaturesType,
+        kSmartSwashType,
+        kSmartSwashType
     };
     static const ATSUFontFeatureType selectors[NS_ARRAY_LENGTH(types)] = {
         kRareLigaturesOffSelector,
@@ -186,7 +192,9 @@ DisableUncommonLigatures(ATSUStyle aStyle)
         kRebusPicturesOffSelector,
         kDiphthongLigaturesOffSelector,
         kSquaredLigaturesOffSelector,
-        kAbbrevSquaredLigaturesOffSelector
+        kAbbrevSquaredLigaturesOffSelector,
+        kLineInitialSwashesOffSelector,
+        kLineFinalSwashesOffSelector
     };
     ATSUSetFontFeatures(aStyle, NS_ARRAY_LENGTH(types), types, selectors);
 }
@@ -253,13 +261,30 @@ gfxAtsuiFont::InitMetrics(ATSUFontID aFontID, ATSFontRef aFontRef)
     // Disable uncommon ligatures, but *don't* enable common ones;
     // the font may have default settings that disable common ligatures
     // and we want to respect that.
-    DisableUncommonLigatures(mATSUStyle);
+    // Also disable line boundary swashes because we can't handle them properly;
+    // we don't know where the line-breaks are at the time we're applying shaping,
+    // and it would be bad to put words with line-end swashes into the text-run
+    // cache until we have a way to distinguish them from mid-line occurrences.
+    DisableUncommonLigaturesAndLineBoundarySwashes(mATSUStyle);
 
     /* Now pull out the metrics */
 
     ATSFontMetrics atsMetrics;
-    ATSFontGetHorizontalMetrics(aFontRef, kATSOptionFlagsDefault,
+    OSStatus err;
+    
+    err = ATSFontGetHorizontalMetrics(aFontRef, kATSOptionFlagsDefault,
                                 &atsMetrics);
+                                
+    if (err != noErr) {
+        mIsValid = PR_FALSE;
+        
+#ifdef DEBUG        
+        char warnBuf[1024];
+        sprintf(warnBuf, "Bad font metrics for: %s err: %8.8x", NS_ConvertUTF16toUTF8(GetName()).get(), PRUint32(err));
+        NS_WARNING(warnBuf);
+#endif
+        return;
+    }
 
     if (atsMetrics.xHeight)
         mMetrics.xHeight = atsMetrics.xHeight * size;
@@ -413,10 +438,13 @@ gfxAtsuiFont::GetCharHeight(PRUnichar c)
 
 gfxAtsuiFont::~gfxAtsuiFont()
 {
-    cairo_scaled_font_destroy(mScaledFont);
-    cairo_font_face_destroy(mFontFace);
+    if (mScaledFont)
+        cairo_scaled_font_destroy(mScaledFont);
+    if (mFontFace)
+        cairo_font_face_destroy(mFontFace);
 
-    ATSUDisposeStyle(mATSUStyle);
+    if (mATSUStyle)
+        ATSUDisposeStyle(mATSUStyle);
 }
 
 const gfxFont::Metrics&
@@ -514,45 +542,9 @@ gfxAtsuiFontGroup::gfxAtsuiFontGroup(const nsAString& families,
                                      gfxUserFontSet *aUserFontSet)
     : gfxFontGroup(families, aStyle, aUserFontSet)
 {
-    ForEachFont(FindATSUFont, this);
-
-    if (mFonts.Length() == 0) {
-        // XXX this will generate a list of the lang groups for which we have no
-        // default fonts for on the mac; we should fix this!
-        // Known:
-        // ja x-beng x-devanagari x-tamil x-geor x-ethi x-gujr x-mlym x-armn
-        // x-orya x-telu x-knda x-sinh
-
-        //fprintf (stderr, "gfxAtsuiFontGroup: %s [%s] -> %d fonts found\n", NS_ConvertUTF16toUTF8(families).get(), aStyle->langGroup.get(), mFonts.Length());
-
-        // If we get here, we most likely didn't have a default font for
-        // a specific langGroup.  Let's just pick the default OSX
-        // user font.
-
-        PRBool needsBold;
-        MacOSFontEntry *defaultFont = gfxQuartzFontCache::SharedFontCache()->GetDefaultFont(aStyle, needsBold);
-        NS_ASSERTION(defaultFont, "invalid default font returned by GetDefaultFont");
-
-        nsRefPtr<gfxAtsuiFont> font = GetOrMakeFont(defaultFont, aStyle, needsBold);
-
-        if (font) {
-            mFonts.AppendElement(font);
-        }
-    }
-
     mPageLang = gfxPlatform::GetFontPrefLangFor(mStyle.langGroup.get());
 
-    if (!mStyle.systemFont) {
-        for (PRUint32 i = 0; i < mFonts.Length(); ++i) {
-            gfxAtsuiFont* font = static_cast<gfxAtsuiFont*>(mFonts[i].get());
-            if (font->GetFontEntry()->mIsBadUnderlineFont) {
-                gfxFloat first = mFonts[0]->GetMetrics().underlineOffset;
-                gfxFloat bad = font->GetMetrics().underlineOffset;
-                mUnderlineOffset = PR_MIN(first, bad);
-                break;
-            }
-        }
-    }
+    InitFontList();
 }
 
 PRBool
@@ -962,7 +954,8 @@ gfxAtsuiFontGroup::UpdateFontList()
     if (mUserFontSet && mCurrGeneration != GetGeneration()) {
         // xxx - can probably improve this to detect when all fonts were found, so no need to update list
         mFonts.Clear();
-        ForEachFont(FindATSUFont, this);
+        mUnderlineOffset = UNDERLINE_OFFSET_NOT_SET;
+        InitFontList();
         mCurrGeneration = GetGeneration();
     }
 }
@@ -1146,7 +1139,7 @@ SetGlyphsForCharacterGroup(ATSLayoutRecord *aGlyphs, PRUint32 aGlyphCount,
                                        aAppUnitsPerDevUnit);
             }
             details->mYOffset = !aBaselineDeltas ? 0.0f
-                : FixedToFloat(aBaselineDeltas[i])*aAppUnitsPerDevUnit;
+                : - FixedToFloat(aBaselineDeltas[i])*aAppUnitsPerDevUnit;
         }
     }
     if (detailedGlyphs.Length() == 0) {
@@ -1597,3 +1590,44 @@ gfxAtsuiFontGroup::InitTextRun(gfxTextRun *aRun,
     return !closure.mOverrunningGlyphs;
 }
 
+void
+gfxAtsuiFontGroup::InitFontList()
+{
+    ForEachFont(FindATSUFont, this);
+
+    if (mFonts.Length() == 0) {
+        // XXX this will generate a list of the lang groups for which we have no
+        // default fonts for on the mac; we should fix this!
+        // Known:
+        // ja x-beng x-devanagari x-tamil x-geor x-ethi x-gujr x-mlym x-armn
+        // x-orya x-telu x-knda x-sinh
+
+        //fprintf (stderr, "gfxAtsuiFontGroup: %s [%s] -> %d fonts found\n", NS_ConvertUTF16toUTF8(families).get(), mStyle.langGroup.get(), mFonts.Length());
+
+        // If we get here, we most likely didn't have a default font for
+        // a specific langGroup.  Let's just pick the default OSX
+        // user font.
+
+        PRBool needsBold;
+        MacOSFontEntry *defaultFont = gfxQuartzFontCache::SharedFontCache()->GetDefaultFont(&mStyle, needsBold);
+        NS_ASSERTION(defaultFont, "invalid default font returned by GetDefaultFont");
+
+        nsRefPtr<gfxAtsuiFont> font = GetOrMakeFont(defaultFont, &mStyle, needsBold);
+
+        if (font) {
+            mFonts.AppendElement(font);
+        }
+    }
+
+    if (!mStyle.systemFont) {
+        for (PRUint32 i = 0; i < mFonts.Length(); ++i) {
+            gfxAtsuiFont* font = static_cast<gfxAtsuiFont*>(mFonts[i].get());
+            if (font->GetFontEntry()->mIsBadUnderlineFont) {
+                gfxFloat first = mFonts[0]->GetMetrics().underlineOffset;
+                gfxFloat bad = font->GetMetrics().underlineOffset;
+                mUnderlineOffset = PR_MIN(first, bad);
+                break;
+            }
+        }
+    }
+}

@@ -38,16 +38,12 @@
 #include "nsSVGUtils.h"
 #include "nsSVGOuterSVGFrame.h"
 
-//----------------------------------------------------------------------
-// nsISupports methods
-
-NS_INTERFACE_MAP_BEGIN(nsSVGDisplayContainerFrame)
-  NS_INTERFACE_MAP_ENTRY(nsISVGChildFrame)
-NS_INTERFACE_MAP_END_INHERITING(nsSVGContainerFrame)
+NS_QUERYFRAME_HEAD(nsSVGDisplayContainerFrame)
+  NS_QUERYFRAME_ENTRY(nsISVGChildFrame)
+NS_QUERYFRAME_TAIL_INHERITING(nsSVGContainerFrame)
 
 nsIFrame*
 NS_NewSVGContainerFrame(nsIPresShell* aPresShell,
-                        nsIContent* aContent,
                         nsStyleContext* aContext)
 {
   return new (aPresShell) nsSVGContainerFrame(aContext);
@@ -130,8 +126,7 @@ nsSVGDisplayContainerFrame::InsertFrames(nsIAtom* aListName,
 
     for (nsIFrame* kid = aFrameList; kid != end;
          kid = kid->GetNextSibling()) {
-      nsISVGChildFrame* SVGFrame = nsnull;
-      CallQueryInterface(kid, &SVGFrame);
+      nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
       if (SVGFrame) {
         SVGFrame->InitialUpdate(); 
       }
@@ -145,12 +140,7 @@ NS_IMETHODIMP
 nsSVGDisplayContainerFrame::RemoveFrame(nsIAtom* aListName,
                                         nsIFrame* aOldFrame)
 {
-  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
-    nsSVGOuterSVGFrame* outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(this);
-    NS_ASSERTION(outerSVGFrame, "no outer svg frame");
-    if (outerSVGFrame)
-      outerSVGFrame->InvalidateCoveredRegion(aOldFrame);
-  }
+  nsSVGUtils::InvalidateCoveredRegion(aOldFrame);
 
   nsresult rv = nsSVGContainerFrame::RemoveFrame(aListName, aOldFrame);
 
@@ -197,8 +187,7 @@ nsSVGDisplayContainerFrame::UpdateCoveredRegion()
 {
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
-    nsISVGChildFrame* SVGFrame = nsnull;
-    CallQueryInterface(kid, &SVGFrame);
+    nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
     if (SVGFrame) {
       SVGFrame->UpdateCoveredRegion();
     }
@@ -215,8 +204,7 @@ nsSVGDisplayContainerFrame::InitialUpdate()
 
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
-    nsISVGChildFrame* SVGFrame = nsnull;
-    CallQueryInterface(kid, &SVGFrame);
+    nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
     if (SVGFrame) {
       SVGFrame->InitialUpdate();
     }
@@ -246,8 +234,7 @@ nsSVGDisplayContainerFrame::NotifyRedrawSuspended()
 {
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
-    nsISVGChildFrame* SVGFrame=nsnull;
-    CallQueryInterface(kid, &SVGFrame);
+    nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
     if (SVGFrame) {
       SVGFrame->NotifyRedrawSuspended();
     }
@@ -260,8 +247,7 @@ nsSVGDisplayContainerFrame::NotifyRedrawUnsuspended()
 {
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
-    nsISVGChildFrame* SVGFrame = nsnull;
-    CallQueryInterface(kid, &SVGFrame);
+    nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
     if (SVGFrame) {
       SVGFrame->NotifyRedrawUnsuspended();
     }

@@ -58,7 +58,7 @@ interface nsIAccessibleRelation;
  *
  * @status UNDER_REVIEW
  */
-[scriptable, uuid(670fc322-14ec-4f3b-8279-9d62ab8895c0)]
+[scriptable, uuid(76c72c70-2c4b-4fce-8e75-b121db024333)]
 interface nsIAccessible : nsISupports
 {
   /**
@@ -103,7 +103,14 @@ interface nsIAccessible : nsISupports
   readonly attribute long indexInParent;
 
   /**
-   * Accessible name -- the main text equivalent for this node
+   * Accessible name -- the main text equivalent for this node. The name is
+   * specified by ARIA or by native markup. Example of ARIA markup is
+   * aria-labelledby attribute placed on element of this accessible. Example
+   * of native markup is HTML label linked with HTML element of this accessible.
+   *
+   * Value can be string or null. A null value indicates that AT may attempt to
+   * compute the name. Any string value, including the empty string, should be
+   * considered author-intentional, and respected.
    */
   attribute AString name;
 
@@ -244,10 +251,10 @@ interface nsIAccessible : nsISupports
   nsIAccessible getAccessibleBelow();
 
   /**
-   * Return accessible related to this one by the given relation type (see.
+   * Return accessible relation by the given relation type (see.
    * constants defined in nsIAccessibleRelation).
    */
-  nsIAccessible getAccessibleRelated(in unsigned long aRelationType);
+  nsIAccessibleRelation getRelationByType(in unsigned long aRelationType);
 
   /**
    * Returns the number of accessible relations for this object.

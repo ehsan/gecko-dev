@@ -125,6 +125,7 @@
 #include "nsIXULWindow.h"
 #include "nsXULPopupManager.h"
 #include "nsCCUncollectableMarker.h"
+#include "nsURILoader.h"
 
 //----------------------------------------------------------------------
 //
@@ -679,15 +680,28 @@ CanBroadcast(PRInt32 aNameSpaceID, nsIAtom* aAttribute)
     return PR_TRUE;
 }
 
+struct nsAttrNameInfo
+{
+  nsAttrNameInfo(PRInt32 aNamespaceID, nsIAtom* aName, nsIAtom* aPrefix) :
+    mNamespaceID(aNamespaceID), mName(aName), mPrefix(aPrefix) {}
+  nsAttrNameInfo(const nsAttrNameInfo& aOther) :
+    mNamespaceID(aOther.mNamespaceID), mName(aOther.mName),
+    mPrefix(aOther.mPrefix) {}
+  PRInt32           mNamespaceID;
+  nsCOMPtr<nsIAtom> mName;
+  nsCOMPtr<nsIAtom> mPrefix;
+};
+
 void
 nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
                                             nsIDOMElement   *aListener,
                                             const nsAString &aAttr)
 {
-    if (mUpdateNestLevel > 0) {
+    if (!nsContentUtils::IsSafeToRunScript()) {
         nsDelayedBroadcastUpdate delayedUpdate(aBroadcaster, aListener,
                                                aAttr);
         mDelayedBroadcasters.AppendElement(delayedUpdate);
+        MaybeBroadcast();
         return;
     }
     nsCOMPtr<nsIContent> broadcaster = do_QueryInterface(aBroadcaster);
@@ -699,8 +713,9 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
 
     if (aAttr.EqualsLiteral("*")) {
         PRUint32 count = broadcaster->GetAttrCount();
-        while (count-- > 0) {
-            const nsAttrName* attrName = broadcaster->GetAttrNameAt(count);
+        nsTArray<nsAttrNameInfo> attributes(count);
+        for (PRUint32 i = 0; i < count; ++i) {
+            const nsAttrName* attrName = broadcaster->GetAttrNameAt(i);
             PRInt32 nameSpaceID = attrName->NamespaceID();
             nsIAtom* name = attrName->LocalName();
 
@@ -708,10 +723,19 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
             if (! CanBroadcast(nameSpaceID, name))
                 continue;
 
+            attributes.AppendElement(nsAttrNameInfo(nameSpaceID, name,
+                                                    attrName->GetPrefix()));
+        }
+
+        count = attributes.Length();
+        while (count-- > 0) {
+            PRInt32 nameSpaceID = attributes[count].mNamespaceID;
+            nsIAtom* name = attributes[count].mName;
             nsAutoString value;
-            broadcaster->GetAttr(nameSpaceID, name, value);
-            listener->SetAttr(nameSpaceID, name, attrName->GetPrefix(), value, 
-                              mInitialLayoutComplete);
+            if (broadcaster->GetAttr(nameSpaceID, name, value)) {
+              listener->SetAttr(nameSpaceID, name, attributes[count].mPrefix,
+                                value, mInitialLayoutComplete);
+            }
 
 #if 0
             // XXX we don't fire the |onbroadcast| handler during
@@ -975,8 +999,9 @@ nsXULDocument::AttributeChanged(nsIDocument* aDocument,
     nsresult rv;
 
     // Synchronize broadcast listeners
-    if (mBroadcasterMap && CanBroadcast(aNameSpaceID, aAttribute)) {
-        nsCOMPtr<nsIDOMElement> domele = do_QueryInterface(aElement);
+    nsCOMPtr<nsIDOMElement> domele = do_QueryInterface(aElement);
+    if (domele && mBroadcasterMap &&
+        CanBroadcast(aNameSpaceID, aAttribute)) {
         BroadcasterMapEntry* entry =
             static_cast<BroadcasterMapEntry*>
                        (PL_DHashTableOperate(mBroadcasterMap, domele.get(),
@@ -987,7 +1012,6 @@ nsXULDocument::AttributeChanged(nsIDocument* aDocument,
             nsAutoString value;
             PRBool attrSet = aElement->GetAttr(kNameSpaceID_None, aAttribute, value);
 
-            nsCOMArray<nsIContent> listenerArray;
             PRInt32 i;
             for (i = entry->mListeners.Count() - 1; i >= 0; --i) {
                 BroadcastListener* bl =
@@ -995,26 +1019,42 @@ nsXULDocument::AttributeChanged(nsIDocument* aDocument,
 
                 if ((bl->mAttribute == aAttribute) ||
                     (bl->mAttribute == nsGkAtoms::_asterix)) {
-                    nsCOMPtr<nsIContent> listener
+                    nsCOMPtr<nsIDOMElement> listenerEl
                         = do_QueryReferent(bl->mListener);
-                    if (listener) {
-                      listenerArray.AppendObject(listener);
+                    nsCOMPtr<nsIContent> l = do_QueryInterface(listenerEl);
+                    if (l) {
+                        PRBool possibleCycle = PR_FALSE;
+                        for (PRUint32 j = 0; j < mDelayedAttrChangeBroadcasts.Length(); ++j) {
+                            if (mDelayedAttrChangeBroadcasts[j].mListener == listenerEl &&
+                                mDelayedAttrChangeBroadcasts[j].mAttrName == aAttribute) {
+                                possibleCycle = PR_TRUE;
+                                break;
+                            }
+                        }
+
+                        if (possibleCycle) {
+                            NS_WARNING("Broadcasting loop!");
+                        } else {
+                            nsAutoString currentValue;
+                            PRBool hasAttr = l->GetAttr(kNameSpaceID_None,
+                                                        aAttribute,
+                                                        currentValue);
+                            // We need to update listener only if we're
+                            // (1) removing an existing attribute,
+                            // (2) adding a new attribute or
+                            // (3) changing the value of an attribute.
+                            PRBool needsAttrChange =
+                                attrSet != hasAttr || !value.Equals(currentValue);
+                            nsDelayedBroadcastUpdate delayedUpdate(domele,
+                                                                   listenerEl,
+                                                                   aAttribute,
+                                                                   value,
+                                                                   attrSet,
+                                                                   needsAttrChange);
+                            mDelayedAttrChangeBroadcasts.AppendElement(delayedUpdate);
+                        }
                     }
                 }
-            }
-
-            for (i = 0; i < listenerArray.Count(); ++i) {
-                nsIContent* listener = listenerArray[i];
-                if (attrSet) {
-                    listener->SetAttr(kNameSpaceID_None, aAttribute, value,
-                                      PR_TRUE);
-                }
-                else {
-                    listener->UnsetAttr(kNameSpaceID_None, aAttribute,
-                                        PR_TRUE);
-                }
-                nsCOMPtr<nsIDOMElement> listenerEl = do_QueryInterface(listener);
-                ExecuteOnBroadcastHandlerFor(aElement, listenerEl, aAttribute);
             }
         }
     }
@@ -1993,8 +2033,6 @@ nsXULDocument::StartLayout(void)
         if (! docShell)
             return NS_ERROR_UNEXPECTED;
 
-        nsRect r = cx->GetVisibleArea();
-
         // Trigger a refresh before the call to InitialReflow(),
         // because the view manager's UpdateView() function is
         // dropping dirty rects if refresh is disabled rather than
@@ -2016,7 +2054,11 @@ nsXULDocument::StartLayout(void)
         }
 
         mMayStartLayout = PR_TRUE;
-        
+
+        // Don't try to call GetVisibleArea earlier than this --- the EnableRefresh call
+        // above can flush reflows, which can cause a parent document to be flushed,
+        // calling ResizeReflow on our document which does SetVisibleArea.
+        nsRect r = cx->GetVisibleArea();
         // Make sure we're holding a strong ref to |shell| before we call
         // InitialReflow()
         nsCOMPtr<nsIPresShell> shellGrip = shell;
@@ -3175,7 +3217,7 @@ nsXULDocument::DoneWalking()
         NS_WARN_IF_FALSE(mUpdateNestLevel == 0,
                          "Constructing XUL document in middle of an update?");
         if (mUpdateNestLevel == 0) {
-            InitializeFinalizeFrameLoaders();
+            MaybeInitializeFinalizeFrameLoaders();
         }
 
         NS_DOCUMENT_NOTIFY_OBSERVERS(EndLoad, (this));
@@ -3258,10 +3300,45 @@ nsXULDocument::StyleSheetLoaded(nsICSSStyleSheet* aSheet,
 }
 
 void
-nsXULDocument::EndUpdate(nsUpdateType aUpdateType)
+nsXULDocument::MaybeBroadcast()
 {
-    nsXMLDocument::EndUpdate(aUpdateType);
-    if (mUpdateNestLevel == 0) {
+    // Only broadcast when not in an update and when safe to run scripts.
+    if (mUpdateNestLevel == 0 &&
+        (mDelayedAttrChangeBroadcasts.Length() ||
+         mDelayedBroadcasters.Length())) {
+        if (!nsContentUtils::IsSafeToRunScript()) {
+            if (!mInDestructor) {
+                nsContentUtils::AddScriptRunner(
+                  NS_NEW_RUNNABLE_METHOD(nsXULDocument, this, MaybeBroadcast));
+            }
+            return;
+        }
+        if (!mHandlingDelayedAttrChange) {
+            mHandlingDelayedAttrChange = PR_TRUE;
+            for (PRUint32 i = 0; i < mDelayedAttrChangeBroadcasts.Length(); ++i) {
+                nsIAtom* attrName = mDelayedAttrChangeBroadcasts[i].mAttrName;
+                if (mDelayedAttrChangeBroadcasts[i].mNeedsAttrChange) {
+                    nsCOMPtr<nsIContent> listener =
+                        do_QueryInterface(mDelayedAttrChangeBroadcasts[i].mListener);
+                    nsString value = mDelayedAttrChangeBroadcasts[i].mAttr;
+                    if (mDelayedAttrChangeBroadcasts[i].mSetAttr) {
+                        listener->SetAttr(kNameSpaceID_None, attrName, value,
+                                          PR_TRUE);
+                    } else {
+                        listener->UnsetAttr(kNameSpaceID_None, attrName,
+                                            PR_TRUE);
+                    }
+                }
+                nsCOMPtr<nsIContent> broadcaster =
+                    do_QueryInterface(mDelayedAttrChangeBroadcasts[i].mBroadcaster);
+                ExecuteOnBroadcastHandlerFor(broadcaster,
+                                             mDelayedAttrChangeBroadcasts[i].mListener,
+                                             attrName);
+            }
+            mDelayedAttrChangeBroadcasts.Clear();
+            mHandlingDelayedAttrChange = PR_FALSE;
+        }
+
         PRUint32 length = mDelayedBroadcasters.Length();
         if (length) {
             nsTArray<nsDelayedBroadcastUpdate> delayedBroadcasters;
@@ -3273,6 +3350,14 @@ nsXULDocument::EndUpdate(nsUpdateType aUpdateType)
             }
         }
     }
+}
+
+void
+nsXULDocument::EndUpdate(nsUpdateType aUpdateType)
+{
+    nsXMLDocument::EndUpdate(aUpdateType);
+
+    MaybeBroadcast();
 }
 
 void
@@ -3834,10 +3919,8 @@ nsXULDocument::OverlayForwardReference::Resolve()
     nsresult rv;
     nsCOMPtr<nsIContent> target;
 
-    PRBool notify = PR_FALSE;
     nsIPresShell *shell = mDocument->GetPrimaryShell();
-    if (shell)
-        shell->GetDidInitialReflow(&notify);
+    PRBool notify = shell && shell->DidInitialReflow();
 
     nsAutoString id;
     mOverlay->GetAttr(kNameSpaceID_None, nsGkAtoms::id, id);
@@ -4328,6 +4411,8 @@ nsXULDocument::InsertElement(nsIContent* aParent, nsIContent* aChild, PRBool aNo
     if (!posStr.IsEmpty()) {
         nsCOMPtr<nsIDOMDocument> domDocument(
                do_QueryInterface(aParent->GetDocument()));
+        if (!domDocument) return NS_ERROR_FAILURE;
+
         nsCOMPtr<nsIDOMElement> domElement;
 
         char* str = ToNewCString(posStr);
@@ -4429,7 +4514,7 @@ NS_IMETHODIMP
 nsXULDocument::CachedChromeStreamListener::OnStartRequest(nsIRequest *request,
                                                           nsISupports* acontext)
 {
-    return NS_OK;
+    return NS_ERROR_PARSED_DATA_CACHED;
 }
 
 

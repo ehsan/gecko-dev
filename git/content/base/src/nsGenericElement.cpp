@@ -118,7 +118,7 @@
 #include "nsIDOMNSFeatureFactory.h"
 #include "nsIDOMDocumentType.h"
 #include "nsIDOMUserDataHandler.h"
-#include "nsIDOMNSEditableElement.h"
+#include "nsGenericHTMLElement.h"
 #include "nsIEditor.h"
 #include "nsIEditorDocShell.h"
 #include "nsEventDispatcher.h"
@@ -343,13 +343,15 @@ nsINode::GetTextEditorRootContent(nsIEditor** aEditor)
   if (aEditor)
     *aEditor = nsnull;
   for (nsINode* node = this; node; node = node->GetNodeParent()) {
-    nsCOMPtr<nsIDOMNSEditableElement> editableElement(do_QueryInterface(node));
-    if (!editableElement)
+    if (!node->IsNodeOfType(eHTML))
       continue;
 
     nsCOMPtr<nsIEditor> editor;
-    editableElement->GetEditor(getter_AddRefs(editor));
-    NS_ENSURE_TRUE(editor, nsnull);
+    static_cast<nsGenericHTMLElement*>(node)->
+        GetEditorInternal(getter_AddRefs(editor));
+    if (!editor)
+      continue;
+
     nsIContent* rootContent = GetEditorRootContent(editor);
     if (aEditor)
       editor.swap(*aEditor);
@@ -424,6 +426,103 @@ nsINode::GetSelectionRootContent(nsIPresShell* aPresShell)
   return doc->GetRootContent();
 }
 
+nsINodeList*
+nsINode::GetChildNodesList()
+{
+  nsSlots *slots = GetSlots();
+  if (!slots) {
+    return nsnull;
+  }
+
+  if (!slots->mChildNodes) {
+    slots->mChildNodes = new nsChildContentList(this);
+    if (slots->mChildNodes) {
+      NS_ADDREF(slots->mChildNodes);
+    }
+  }
+
+  return slots->mChildNodes;
+}
+
+nsresult
+nsINode::GetParentNode(nsIDOMNode** aParentNode)
+{
+  *aParentNode = nsnull;
+
+  nsINode *parent = GetNodeParent();
+
+  return parent ? CallQueryInterface(parent, aParentNode) : NS_OK;
+}
+
+nsresult
+nsINode::GetChildNodes(nsIDOMNodeList** aChildNodes)
+{
+  *aChildNodes = GetChildNodesList();
+  if (!*aChildNodes) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  NS_ADDREF(*aChildNodes);
+
+  return NS_OK;
+}
+
+nsresult
+nsINode::GetFirstChild(nsIDOMNode** aNode)
+{
+  nsIContent* child = GetChildAt(0);
+  if (child) {
+    return CallQueryInterface(child, aNode);
+  }
+
+  *aNode = nsnull;
+
+  return NS_OK;
+}
+
+nsresult
+nsINode::GetLastChild(nsIDOMNode** aNode)
+{
+  nsIContent* child = GetLastChild();
+  if (child) {
+    return CallQueryInterface(child, aNode);
+  }
+
+  *aNode = nsnull;
+
+  return NS_OK;
+}
+
+nsresult
+nsINode::GetPreviousSibling(nsIDOMNode** aPrevSibling)
+{
+  *aPrevSibling = nsnull;
+
+  nsIContent *sibling = GetSibling(-1);
+
+  return sibling ? CallQueryInterface(sibling, aPrevSibling) : NS_OK;
+}
+
+nsresult
+nsINode::GetNextSibling(nsIDOMNode** aNextSibling)
+{
+  *aNextSibling = nsnull;
+
+  nsIContent *sibling = GetSibling(1);
+
+  return sibling ? CallQueryInterface(sibling, aNextSibling) : NS_OK;
+}
+
+nsresult
+nsINode::GetOwnerDocument(nsIDOMDocument** aOwnerDocument)
+{
+  *aOwnerDocument = nsnull;
+
+  nsIDocument *ownerDoc = GetOwnerDocument();
+
+  return ownerDoc ? CallQueryInterface(ownerDoc, aOwnerDocument) : NS_OK;
+}
+
 //----------------------------------------------------------------------
 
 PRInt32
@@ -492,7 +591,7 @@ nsChildContentList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
   return CallQueryInterface(node, aReturn);
 }
 
-nsINode*
+nsIContent*
 nsChildContentList::GetNodeAt(PRUint32 aIndex)
 {
   if (mNode) {
@@ -500,6 +599,16 @@ nsChildContentList::GetNodeAt(PRUint32 aIndex)
   }
 
   return nsnull;
+}
+
+PRInt32
+nsChildContentList::IndexOf(nsIContent* aContent)
+{
+  if (mNode) {
+    return mNode->IndexOf(aContent);
+  }
+
+  return -1;
 }
 
 //----------------------------------------------------------------------
@@ -1020,12 +1129,9 @@ nsNSElementTearoff::GetScrollInfo(nsIScrollableView **aScrollableView,
   }
 
   // Get the scrollable frame
-  nsIScrollableFrame *scrollFrame = nsnull;
-  CallQueryInterface(frame, &scrollFrame);
-
+  nsIScrollableFrame *scrollFrame = do_QueryFrame(frame);
   if (!scrollFrame) {
-    nsIScrollableViewProvider *scrollProvider = nsnull;
-    CallQueryInterface(frame, &scrollProvider);
+    nsIScrollableViewProvider *scrollProvider = do_QueryFrame(frame);
     // menu frames implement nsIScrollableViewProvider but we don't want
     // to use it here.
     if (scrollProvider && frame->GetType() != nsGkAtoms::menuFrame) {
@@ -1054,7 +1160,7 @@ nsNSElementTearoff::GetScrollInfo(nsIScrollableView **aScrollableView,
           break;
         }
 
-        CallQueryInterface(frame, &scrollFrame);
+        scrollFrame = do_QueryFrame(frame);
       } while (!scrollFrame);
     }
 
@@ -1702,60 +1808,6 @@ nsGenericElement::GetNodeType(PRUint16* aNodeType)
 }
 
 NS_IMETHODIMP
-nsGenericElement::GetParentNode(nsIDOMNode** aParentNode)
-{
-  *aParentNode = nsnull;
-  nsINode *parent = GetNodeParent();
-
-  return parent ? CallQueryInterface(parent, aParentNode) : NS_OK;
-}
-
-NS_IMETHODIMP
-nsGenericElement::GetPreviousSibling(nsIDOMNode** aPrevSibling)
-{
-  *aPrevSibling = nsnull;
-
-  nsINode *parent = GetNodeParent();
-  if (!parent) {
-    return NS_OK;
-  }
-
-  PRInt32 pos = parent->IndexOf(this);
-  nsIContent *sibling = parent->GetChildAt(pos - 1);
-
-  return sibling ? CallQueryInterface(sibling, aPrevSibling) : NS_OK;
-}
-
-NS_IMETHODIMP
-nsGenericElement::GetNextSibling(nsIDOMNode** aNextSibling)
-{
-  *aNextSibling = nsnull;
-
-  nsINode *parent = GetNodeParent();
-  if (!parent) {
-    return NS_OK;
-  }
-
-  PRInt32 pos = parent->IndexOf(this);
-  nsIContent *sibling = parent->GetChildAt(pos + 1);
-
-  return sibling ? CallQueryInterface(sibling, aNextSibling) : NS_OK;
-}
-
-NS_IMETHODIMP
-nsGenericElement::GetOwnerDocument(nsIDOMDocument** aOwnerDocument)
-{
-  nsIDocument *doc = GetOwnerDoc();
-  if (doc) {
-    return CallQueryInterface(doc, aOwnerDocument);
-  }
-
-  *aOwnerDocument = nsnull;
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsGenericElement::GetNamespaceURI(nsAString& aNamespaceURI)
 {
   return mNodeInfo->GetNamespaceURI(aNamespaceURI);
@@ -1853,6 +1905,13 @@ nsGenericElement::InternalIsSupported(nsISupports* aObject,
     }
   }
 #endif /* MOZ_SVG */
+#ifdef MOZ_SMIL
+  else if (PL_strcasecmp(f, "TimeControl") == 0) {
+    if (aVersion.IsEmpty() || PL_strcmp(v, "1.0") == 0) {
+      *aReturn = PR_TRUE;
+    }
+  }
+#endif /* MOZ_SMIL */
   else {
     nsCOMPtr<nsIDOMNSFeatureFactory> factory =
       GetDOMFeatureFactory(aFeature, aVersion);
@@ -1947,58 +2006,9 @@ nsGenericElement::GetAttributes(nsIDOMNamedNodeMap** aAttributes)
 }
 
 nsresult
-nsGenericElement::GetChildNodes(nsIDOMNodeList** aChildNodes)
-{
-  nsSlots *slots = GetSlots();
-
-  if (!slots) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  if (!slots->mChildNodes) {
-    slots->mChildNodes = new nsChildContentList(this);
-    if (!slots->mChildNodes) {
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-    NS_ADDREF(slots->mChildNodes);
-  }
-
-  NS_ADDREF(*aChildNodes = slots->mChildNodes);
-
-  return NS_OK;
-}
-
-nsresult
 nsGenericElement::HasChildNodes(PRBool* aReturn)
 {
   *aReturn = mAttrsAndChildren.ChildCount() > 0;
-
-  return NS_OK;
-}
-
-nsresult
-nsGenericElement::GetFirstChild(nsIDOMNode** aNode)
-{
-  nsIContent* child = GetChildAt(0);
-  if (child) {
-    return CallQueryInterface(child, aNode);
-  }
-
-  *aNode = nsnull;
-
-  return NS_OK;
-}
-
-nsresult
-nsGenericElement::GetLastChild(nsIDOMNode** aNode)
-{
-  PRUint32 count = GetChildCount();
-  
-  if (count > 0) {
-    return CallQueryInterface(GetChildAt(count - 1), aNode);
-  }
-
-  *aNode = nsnull;
 
   return NS_OK;
 }
@@ -2532,11 +2542,10 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   }
   NS_ASSERTION(!aBindingParent || IsRootOfNativeAnonymousSubtree() ||
                !HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE) ||
-               aBindingParent->IsInNativeAnonymousSubtree(),
+               (aParent && aParent->IsInNativeAnonymousSubtree()),
                "Trying to re-bind content from native anonymous subtree to "
                "non-native anonymous parent!");
-  if (IsRootOfNativeAnonymousSubtree() ||
-      aParent && aParent->IsInNativeAnonymousSubtree()) {
+  if (aParent && aParent->IsInNativeAnonymousSubtree()) {
     SetFlags(NODE_IS_IN_ANONYMOUS_SUBTREE);
   }
 
@@ -2650,6 +2659,9 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   // Make sure to unbind this node before doing the kids
   nsIDocument *document =
     HasFlag(NODE_FORCE_XBL_BINDINGS) ? GetOwnerDoc() : GetCurrentDoc();
+
+  mParentPtrBits = aNullParent ? 0 : mParentPtrBits & ~PARENT_BIT_INDOCUMENT;
+
   if (document) {
     // Notify XBL- & nsIAnonymousContentCreator-generated
     // anonymous content that the document is changing.
@@ -2661,9 +2673,6 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 
     document->ClearBoxObjectFor(this);
   }
-
-  // Unset things in the reverse order from how we set them in BindToTree
-  mParentPtrBits = aNullParent ? 0 : mParentPtrBits & ~PARENT_BIT_INDOCUMENT;
 
   // Unset this since that's what the old code effectively did.
   UnsetFlags(NODE_FORCE_XBL_BINDINGS);
@@ -2802,7 +2811,9 @@ nsGenericElement::doPreHandleEvent(nsIContent* aContent,
     }
   }
 
-  nsCOMPtr<nsIContent> parent = aContent->GetParent();
+  nsIContent* parent = aContent->GetParent();
+  // Event may need to be retargeted if aContent is the root of a native
+  // anonymous content subtree or event is dispatched somewhere inside XBL.
   if (isAnonForEvents) {
     // If a DOM event is explicitly dispatched using node.dispatchEvent(), then
     // all the events are allowed even in the native anonymous content..
@@ -2810,7 +2821,7 @@ nsGenericElement::doPreHandleEvent(nsIContent* aContent,
                  aVisitor.mDOMEvent,
                  "Mutation event dispatched in native anonymous content!?!");
     aVisitor.mEventTargetAtParent = parent;
-  } else if (parent) {
+  } else if (parent && aVisitor.mOriginalTargetIsInAnon) {
     nsCOMPtr<nsIContent> content(do_QueryInterface(aVisitor.mEvent->target));
     if (content && content->GetBindingParent() == parent) {
       aVisitor.mEventTargetAtParent = parent;
@@ -3413,9 +3424,12 @@ nsGenericElement::DispatchClickEvent(nsPresContext* aPresContext,
                      aSourceEvent->widget, nsMouseEvent::eReal);
   event.refPoint = aSourceEvent->refPoint;
   PRUint32 clickCount = 1;
+  float pressure = 0;
   if (aSourceEvent->eventStructType == NS_MOUSE_EVENT) {
     clickCount = static_cast<nsMouseEvent*>(aSourceEvent)->clickCount;
+    pressure = static_cast<nsMouseEvent*>(aSourceEvent)->pressure;
   }
+  event.pressure = pressure;
   event.clickCount = clickCount;
   event.isShift = aSourceEvent->isShift;
   event.isControl = aSourceEvent->isControl;
@@ -3878,6 +3892,13 @@ nsGenericElement::doReplaceOrInsertBefore(PRBool aReplace,
   else {
     // Not inserting a fragment but rather a single node.
 
+    if (newContent->IsRootOfAnonymousSubtree()) {
+      // This is anonymous content.  Don't allow its insertion
+      // anywhere, since it might have UnbindFromTree calls coming
+      // its way.
+      return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+    }
+
     // Remove the element from the old parent if one exists
     nsINode* oldParent = newContent->GetNodeParent();
 
@@ -3886,6 +3907,7 @@ nsGenericElement::doReplaceOrInsertBefore(PRBool aReplace,
 
       if (removeIndex < 0) {
         // newContent is anonymous.  We can't deal with this, so just bail
+        NS_ERROR("How come our flags didn't catch this?");
         return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
       }
       
@@ -4044,8 +4066,11 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericElement)
     PRUint32 attrs = tmp->mAttrsAndChildren.AttrCount();
     for (i = 0; i < attrs; i++) {
       const nsAttrName* name = tmp->mAttrsAndChildren.AttrNameAt(i);
-      if (!name->IsAtom())
+      if (!name->IsAtom()) {
+        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb,
+                                           "mAttrsAndChildren[i]->NodeInfo()");
         cb.NoteXPCOMChild(name->NodeInfo());
+      }
     }
 
     PRUint32 kids = tmp->mAttrsAndChildren.ChildCount();
@@ -4250,11 +4275,9 @@ nsGenericElement::SetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
     attrValue.SetTo(aValue);
   }
 
-  rv = SetAttrAndNotify(aNamespaceID, aName, aPrefix, oldValue,
-                        attrValue, modification, hasListeners, aNotify);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return AfterSetAttr(aNamespaceID, aName, &aValue, aNotify);
+  return SetAttrAndNotify(aNamespaceID, aName, aPrefix, oldValue,
+                          attrValue, modification, hasListeners, aNotify,
+                          &aValue);
 }
   
 nsresult
@@ -4265,7 +4288,8 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
                                    nsAttrValue& aParsedValue,
                                    PRBool aModification,
                                    PRBool aFireMutation,
-                                   PRBool aNotify)
+                                   PRBool aNotify,
+                                   const nsAString* aValueForAfterSetAttr)
 {
   nsresult rv;
   PRUint8 modType = aModification ?
@@ -4324,7 +4348,16 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
     nsNodeUtils::AttributeChanged(this, aNamespaceID, aName, modType,
                                   stateMask);
   }
-  
+
+  if (aNamespaceID == kNameSpaceID_XMLEvents && 
+      aName == nsGkAtoms::event && mNodeInfo->GetDocument()) {
+    mNodeInfo->GetDocument()->AddXMLEventsContent(this);
+  }
+  if (aValueForAfterSetAttr) {
+    rv = AfterSetAttr(aNamespaceID, aName, aValueForAfterSetAttr, aNotify);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
   if (aFireMutation) {
     mozAutoRemovableBlockerRemover blockerRemover;
     
@@ -4351,11 +4384,6 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
 
     mozAutoSubtreeModified subtree(GetOwnerDoc(), this);
     nsEventDispatcher::Dispatch(this, nsnull, &mutation);
-  }
-
-  if (aNamespaceID == kNameSpaceID_XMLEvents && 
-      aName == nsGkAtoms::event && mNodeInfo->GetDocument()) {
-    mNodeInfo->GetDocument()->AddXMLEventsContent(this);
   }
 
   return NS_OK;
@@ -4582,6 +4610,9 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                   stateMask);
   }
 
+  rv = AfterSetAttr(aNameSpaceID, aName, nsnull, aNotify);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   if (hasMutationListeners) {
     mozAutoRemovableBlockerRemover blockerRemover;
 
@@ -4602,7 +4633,7 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     nsEventDispatcher::Dispatch(this, nsnull, &mutation);
   }
 
-  return AfterSetAttr(aNameSpaceID, aName, nsnull, aNotify);
+  return NS_OK;
 }
 
 const nsAttrName*
@@ -4828,9 +4859,9 @@ nsGenericElement::GetChildAt(PRUint32 aIndex) const
 }
 
 nsIContent * const *
-nsGenericElement::GetChildArray() const
+nsGenericElement::GetChildArray(PRUint32* aChildCount) const
 {
-  return mAttrsAndChildren.GetChildArray();
+  return mAttrsAndChildren.GetChildArray(aChildCount);
 }
 
 PRInt32
@@ -5084,7 +5115,6 @@ TryMatchingElementsInSubtree(nsINode* aRoot,
                              ElementMatchedCallback aCallback,
                              void* aClosure)
 {
-  PRUint32 count = aRoot->GetChildCount();
   /* To improve the performance of '+' and '~' combinators and the :nth-*
    * selectors, we keep track of the immediately previous sibling data.  That's
    * cheaper than heap-allocating all the datas and keeping track of them all,
@@ -5093,7 +5123,8 @@ TryMatchingElementsInSubtree(nsINode* aRoot,
   char databuf[2 * sizeof(RuleProcessorData)];
   RuleProcessorData* prevSibling = nsnull;
   RuleProcessorData* data = reinterpret_cast<RuleProcessorData*>(databuf);
-  nsIContent * const * kidSlot = aRoot->GetChildArray();
+  PRUint32 count;
+  nsIContent * const * kidSlot = aRoot->GetChildArray(&count);
   nsIContent * const * end = kidSlot + count;
 
 #ifdef DEBUG

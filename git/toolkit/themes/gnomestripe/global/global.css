@@ -166,11 +166,6 @@ statusbarpanel {
   padding: 0 1px;
 }
 
-resizer[dir="bottomright"] {
-  -moz-appearance: resizer;
-  cursor: se-resize;
-}
-
 /* XXXBlake yeah, shoot me -- these don't belong here.  I'll move them later. */
 
 sidebarheader {
@@ -184,6 +179,11 @@ sidebarheader > label {
 
 .toolbar-focustarget {
   -moz-user-focus: ignore !important;
+}
+
+toolbar[mode="text"] .toolbarbutton-text {
+  padding: 0 !important;
+  margin: 3px 5px !important;
 }
 
 /* ::::: miscellaneous formatting ::::: */
