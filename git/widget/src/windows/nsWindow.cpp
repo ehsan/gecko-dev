@@ -1886,35 +1886,8 @@ nsWindow::GetNonClientMargins(nsIntMargin &margins)
   return NS_OK;
 }
 
-void
-nsWindow::ResetLayout()
-{
-  // This will trigger a frame changed event, triggering
-  // nc calc size and a sizemode gecko event.
-  SetWindowPos(mWnd, 0, 0, 0, 0, 0,
-               SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOMOVE|
-               SWP_NOOWNERZORDER|SWP_NOSIZE|SWP_NOZORDER);
-
-  // If hidden, just send the frame changed event for now.
-  if (!mIsVisible)
-    return;
-
-  // Send a gecko size event to trigger reflow.
-  RECT clientRc = {0};
-  GetClientRect(mWnd, &clientRc);
-  nsIntRect evRect(nsWindowGfx::ToIntRect(clientRc));
-  OnResize(evRect);
-
-  // Invalidate and update
-  Invalidate(PR_FALSE);
-}
-
-// Called when the window layout changes: full screen mode transitions,
-// theme changes, and composition changes. Calculates the new non-client
-// margins and fires off a frame changed event, which triggers an nc calc
-// size windows event, kicking the changes in.
 PRBool
-nsWindow::UpdateNonClientMargins(PRInt32 aSizeMode, PRBool aReflowWindow)
+nsWindow::UpdateNonClientMargins(PRInt32 aSizeMode, PRBool aRefreshWindow)
 {
   if (!mCustomNonClient)
     return PR_FALSE;
@@ -1984,10 +1957,11 @@ nsWindow::UpdateNonClientMargins(PRInt32 aSizeMode, PRBool aReflowWindow)
   if (mNonClientOffset.bottom < 0)
     mNonClientOffset.bottom = 0;
 
-  if (aReflowWindow) {
-    // Force a reflow of content based on the new client
-    // dimensions.
-    ResetLayout();
+  if (aRefreshWindow) {
+    SetWindowPos(mWnd, 0, 0, 0, 0, 0,
+                 SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOMOVE|
+                 SWP_NOOWNERZORDER|SWP_NOSIZE|SWP_NOZORDER);
+    UpdateWindow(mWnd);
   }
 
   return PR_TRUE;
@@ -2006,9 +1980,10 @@ nsWindow::SetNonClientMargins(nsIntMargin &margins)
       margins.right == -1 && margins.bottom == -1) {
     mCustomNonClient = PR_FALSE;
     mNonClientMargins = margins;
-    // Force a reflow of content based on the new client
-    // dimensions.
-    ResetLayout();
+    SetWindowPos(mWnd, 0, 0, 0, 0, 0,
+                 SWP_FRAMECHANGED|SWP_NOACTIVATE|SWP_NOMOVE|
+                 SWP_NOOWNERZORDER|SWP_NOSIZE|SWP_NOZORDER);
+    UpdateWindow(mWnd);
     return NS_OK;
   }
 

@@ -56,7 +56,6 @@ _TEST_FILES = \
   browser_updatessl.rdf \
   browser_installssl.js \
   redirect.sjs \
-  browser_bug562992.js \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk

@@ -134,8 +134,7 @@ nsHTMLOptionElement::GetForm(nsIDOMHTMLFormElement** aForm)
   NS_ENSURE_ARG_POINTER(aForm);
   *aForm = nsnull;
 
-  nsCOMPtr<nsIDOMHTMLSelectElement> selectControl =
-    do_QueryInterface(GetSelect());
+  nsCOMPtr<nsIFormControl> selectControl = do_QueryInterface(GetSelect());
 
   if (selectControl) {
     selectControl->GetForm(aForm);

@@ -529,7 +529,7 @@ MockAddon.prototype = {
 
 /***** Mock AddonInstall object for the Mock Provider *****/
 
-function MockInstall(aName, aType, aAddonToInstall) {
+function MockInstall(aName, aType) {
   this.name = aName || "";
   this.type = aType || "extension";
   this.version = "1.0";
@@ -545,7 +545,6 @@ function MockInstall(aName, aType, aAddonToInstall) {
   this.certName = "";
   this.existingAddon = null;
   this.addon = null;
-  this._addonToInstall = aAddonToInstall;
   this.listeners = [];
 
   // Another type of install listener for tests that want to check the results
@@ -569,8 +568,7 @@ MockInstall.prototype = {
         }
 
         // Adding addon to MockProvider to be implemented when needed
-        this.addon = this._addonToInstall ||
-                     new MockAddon("", this.name, this.type);
+        this.addon = new MockAddon("", this.name, this.type);
         this.state = AddonManager.STATE_INSTALLED;
         this.callListeners("onInstallEnded");
         break;

@@ -226,17 +226,6 @@ function testConsoleLoggingAPI(aMethod)
   ok(count == 0, aMethod + " logging tunred off, 0 messages logged");
   HUDService.clearDisplay(hudId);
   filterBox.value = "";
-
-  // test for multiple arguments.
-  HUDService.clearDisplay(hudId);
-  HUDService.setFilterState(hudId, aMethod, true);
-  browser.contentWindow.wrappedJSObject.console[aMethod]("foo", "bar");
-
-  let HUD = HUDService.hudWeakReferences[hudId].get();
-  let jsterm = HUD.jsterm;
-  let outputLogNode = jsterm.outputNode;
-  ok(/foo bar/.test(outputLogNode.childNodes[0].childNodes[0].nodeValue),
-    "Emitted both console arguments");
 }
 
 function testLogEntry(aOutputNode, aMatchString, aSuccessErrObj)
@@ -273,52 +262,6 @@ function testNet()
   });
 }
 
-function testOutputOrder()
-{
-  let HUD = HUDService.hudWeakReferences[hudId].get();
-  let jsterm = HUD.jsterm;
-  let outputNode = jsterm.outputNode;
-
-  jsterm.clearOutput();
-  jsterm.execute("console.log('foo', 'bar');");
-
-  is(outputNode.childNodes.length, 3, "Three children in output");
-  let outputChildren = outputNode.childNodes;
-
-  let executedStringFirst =
-    /console\.log\('foo', 'bar'\);/.test(outputChildren[0].childNodes[0].nodeValue);
-
-  let outputSecond =
-    /foo bar/.test(outputChildren[1].childNodes[0].nodeValue);
-
-  ok(executedStringFirst && outputSecond, "executed string comes first");
-}
-
-function testNullUndefinedOutput()
-{
-  let HUD = HUDService.hudWeakReferences[hudId].get();
-  let jsterm = HUD.jsterm;
-  let outputNode = jsterm.outputNode;
-
-  jsterm.clearOutput();
-  jsterm.execute("null;");
-
-  is(outputNode.childNodes.length, 2, "Two children in output");
-  let outputChildren = outputNode.childNodes;
-
-  is (outputChildren[1].childNodes[0].nodeValue, "null",
-      "'null' printed to output");
-
-  jsterm.clearOutput();
-  jsterm.execute("undefined;");
-
-  is(outputNode.childNodes.length, 2, "Two children in output");
-  outputChildren = outputNode.childNodes;
-
-  is (outputChildren[1].childNodes[0].nodeValue, "undefined",
-      "'undefined' printed to output");
-}
-
 function testCreateDisplay() {
   ok(typeof cs.consoleDisplays == "object",
      "consoledisplays exist");
@@ -330,17 +273,6 @@ function testCreateDisplay() {
   ok(typeof cs.displayIndexes["foo"] == "object",
      "foo index exists");
 }
-
-function testExposedConsoleAPI()
-{
-  let apis = [];
-  for (var prop in browser.contentWindow.wrappedJSObject.console) {
-    apis.push(prop);
-  }
-
-  is(apis.join(" "), "log info warn error exception", "Only console API is exposed on console object");
-}
-
 
 function testRecordEntry() {
   var config = {
@@ -384,52 +316,6 @@ function testRecordManyEntries() {
      "1001 entries in foo now");
 }
 
-function testConsoleHistory()
-{
-  let HUD = HUDService.hudWeakReferences[hudId].get();
-  let jsterm = HUD.jsterm;
-  let input = jsterm.inputNode;
-
-  let executeList = ["document", "window", "window.location"];
-
-  for each (var item in executeList) {
-    input.value = item;
-    jsterm.execute();
-  }
-
-  for (var i = executeList.length - 1; i != -1; i--) {
-    jsterm.historyPeruse(true);
-    is (input.value, executeList[i], "check history previous idx:" + i);
-  }
-
-  jsterm.historyPeruse(true);
-  is (input.value, executeList[0], "test that item is still index 0");
-
-  jsterm.historyPeruse(true);
-  is (input.value, executeList[0], "test that item is still still index 0");
-
-
-  for (var i = 1; i < executeList.length; i++) {
-    jsterm.historyPeruse(false);
-    is (input.value, executeList[i], "check history next idx:" + i);
-  }
-
-  jsterm.historyPeruse(false);
-  is (input.value, "", "check input is empty again");
-
-  // Simulate pressing Arrow_Down a few times and then if Arrow_Up shows
-  // the previous item from history again.
-  jsterm.historyPeruse(false);
-  jsterm.historyPeruse(false);
-  jsterm.historyPeruse(false);
-
-  is (input.value, "", "check input is still empty");
-
-  let idxLast = executeList.length - 1;
-  jsterm.historyPeruse(true);
-  is (input.value, executeList[idxLast], "check history next idx:" + idxLast);
-}
-
 function testIteration() {
   var id = "foo";
   var it = cs.displayStore(id);
@@ -455,14 +341,6 @@ function testIteration() {
      "two distinct pages of log entries");
 }
 
-function testHUDGetters()
-{
-  var HUD = HUDService.hudWeakReferences[hudId].get();
-  var jsterm = HUD.jsterm;
-  var klass = jsterm.inputNode.getAttribute("class");
-  ok(klass == "jsterm-input-node", "We have the input node.");
-}
-
 let tab, browser, hudId, hud, filterBox, outputNode, cs;
 
 let win = gBrowser.selectedBrowser;
@@ -486,7 +364,6 @@ function test() {
     executeSoon(function () {
       testRegistries();
       testGetDisplayByURISpec();
-      testHUDGetters();
       introspectLogNodes();
       getAllHUDS();
       getHUDById();
@@ -508,9 +385,6 @@ function test() {
       testRecordEntry();
       testRecordManyEntries();
       testIteration();
-      testConsoleHistory();
-      testOutputOrder();
-      testNullUndefinedOutput();
 
       // testUnregister();
       executeSoon(function () {

@@ -325,7 +325,12 @@ protected:
    * Set accessible parent and index in parent.
    */
   void BindToParent(nsAccessible* aParent, PRUint32 aIndexInParent);
-  void UnbindFromParent();
+  void UnbindFromParent()
+  {
+    mParent = nsnull;
+    mIndexInParent = -1;
+    mGroupInfo = nsnull;
+  }
 
   /**
    * Return sibling accessible at the given offset.
@@ -455,4 +460,5 @@ protected:
 NS_DEFINE_STATIC_IID_ACCESSOR(nsAccessible,
                               NS_ACCESSIBLE_IMPL_IID)
 
-#endif
+#endif  
+

@@ -2392,9 +2392,9 @@ ContentPatternDrawCallback(void* aInfo, CGContextRef aContext)
         windowLocation = nsCocoaUtils::EventLocationForWindow(anEvent, self);
         target = [contentView hitTest:[contentView convertPoint:windowLocation fromView:nil]];
         // If the hit test failed, the event is targeted here but is not over the window.
-        // Send it to our content view.
+        // Target it at the first responder.
         if (!target)
-          target = contentView;
+          target = (NSView*)[self firstResponder];
       }
       break;
     default:
