@@ -20,6 +20,7 @@
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
+#   Jan Bambas <honzab@firemni.cz>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -39,19 +40,67 @@ DEPTH		= ../../../../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
-relativesrcdir	= dom/tests/mochitest/ajax/offline/namespace1
+relativesrcdir	= security/ssl/mixedcontent
 
 include $(DEPTH)/config/autoconf.mk
-
-DIRS = sub sub2
-
 include $(topsrcdir)/config/rules.mk
 
-_TEST_FILES	= \
-        opp.html \
-        script.js \
-        redirectToDifferentOrigin.sjs \
+_TEST_FILES = \
+        alloworigin.sjs \
+        backward.html \
+        bug329869.js \
+        bug383369step2.html \
+        bug383369step3.html \
+        download.auto \
+        download.auto^headers^ \
+        emptyimage.sjs \
+        hugebmp.sjs \
+        iframe.html \
+        iframe2.html \
+        iframeMetaRedirect.html \
+        iframesecredirect.sjs \
+        iframeunsecredirect.sjs \
+        imgsecredirect.sjs \
+        imgunsecredirect.sjs \
+        mixedContentTest.js \
+        moonsurface.jpg \
+        redirecttoemptyimage.sjs \
+        somestyle.css \
+        test_bug383369.html \
+        test_bug455367.html \
+        test_bug472986.html \
+        test_cssBefore1.html \
+        test_cssContent1.html \
+        test_cssContent2.html \
+        test_documentWrite1.html \
+        test_documentWrite2.html \
+        test_dynDelayedUnsecurePicture.html \
+        test_dynDelayedUnsecureXHR.html \
+        test_dynUnsecureBackground.html \
+        test_dynUnsecureIframeRedirect.html \
+        test_dynUnsecurePicture.html \
+        test_dynUnsecurePicturePreload.html \
+        test_dynUnsecureRedirect.html \
+        test_innerHtmlDelayedUnsecurePicture.html \
+        test_innerHtmlUnsecurePicture.html \
+        test_secureAll.html \
+        test_securePicture.html \
+        test_unsecureBackground.html \
+        test_unsecureCSS.html \
+        test_unsecureIframe.html \
+        test_unsecureIframe2.html \
+        test_unsecureIframeMetaRedirect.html \
+        test_unsecureIframeRedirect.html \
+        test_unsecurePicture.html \
+        test_unsecurePictureDup.html \
+        test_unsecurePictureInIframe.html \
+        test_unsecureRedirect.html \
+        unsecureIframe.html \
+        unsecurePictureDup.html \
         $(NULL)
 
-libs::	$(_TEST_FILES)
+#        test_bug329869.html \  leaks, bug 452401
+
+
+libs:: $(_TEST_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
