@@ -30,8 +30,8 @@ HttpBaseChannel::HttpBaseChannel()
   : mStartPos(UINT64_MAX)
   , mStatus(NS_OK)
   , mLoadFlags(LOAD_NORMAL)
-  , mCaps(0)
   , mPriority(PRIORITY_NORMAL)
+  , mCaps(0)
   , mRedirectionLimit(gHttpHandler->RedirectionLimit())
   , mApplyConversion(true)
   , mCanceled(false)
@@ -74,7 +74,7 @@ HttpBaseChannel::~HttpBaseChannel()
 
 nsresult
 HttpBaseChannel::Init(nsIURI *aURI,
-                      uint32_t aCaps,
+                      uint8_t aCaps,
                       nsProxyInfo *aProxyInfo,
                       uint32_t aProxyResolveFlags,
                       nsIURI *aProxyURI)

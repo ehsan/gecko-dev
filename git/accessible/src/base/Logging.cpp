@@ -176,13 +176,10 @@ static void
 LogPresShell(nsIDocument* aDocumentNode)
 {
   nsIPresShell* ps = aDocumentNode->GetShell();
-  printf("presshell: %p", static_cast<void*>(ps));
-
-  nsIScrollableFrame* sf = nullptr;
-  if (ps) {
-    printf(", is %s destroying", (ps->IsDestroying() ? "" : "not"));
-    sf = ps->GetRootScrollFrameAsScrollable();
-  }
+  printf("presshell: %p, is %s destroying", static_cast<void*>(ps),
+         (ps->IsDestroying() ? "" : "not"));
+  nsIScrollableFrame *sf = ps ?
+    ps->GetRootScrollFrameAsScrollableExternal() : nullptr;
   printf(", root scroll frame: %p", static_cast<void*>(sf));
 }
 

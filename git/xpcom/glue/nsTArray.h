@@ -454,12 +454,12 @@ public:
 
   // The array's copy-constructor performs a 'deep' copy of the given array.
   // @param other  The array object to copy.
-  explicit nsTArray(const self_type& other) {
+  nsTArray(const self_type& other) {
     AppendElements(other);
   }
 
   template<typename Allocator>
-  explicit nsTArray(const nsTArray<E, Allocator>& other) {
+  nsTArray(const nsTArray<E, Allocator>& other) {
     AppendElements(other);
   }
 
@@ -473,8 +473,7 @@ public:
 
   // Return true if this array has the same length and the same
   // elements as |other|.
-  template<typename Allocator>
-  bool operator==(const nsTArray<E, Allocator>& other) const {
+  bool operator==(const self_type& other) const {
     size_type len = Length();
     if (len != other.Length())
       return false;

@@ -337,22 +337,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp, JSObject *existing)
         if (!wrapped)
             return false;
         vp->setString(wrapped);
-        if (!crossCompartmentWrappers.put(orig, *vp))
-            return false;
-
-        if (str->compartment()->isGCMarking()) {
-            /*
-             * All string wrappers are dropped when collection starts, but we
-             * just created a new one.  Mark the wrapped string to stop it being
-             * finalized, because if it was then the pointer in this
-             * compartment's wrapper map would be left dangling.
-             */
-            JSString *tmp = str;
-            MarkStringUnbarriered(&rt->gcMarker, &tmp, "wrapped string");
-            JS_ASSERT(tmp == str);
-        }
-
-        return true;
+        return crossCompartmentWrappers.put(orig, *vp);
     }
 
     RootedObject obj(cx, &vp->toObject());

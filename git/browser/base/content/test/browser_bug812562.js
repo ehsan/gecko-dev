@@ -25,11 +25,7 @@ function finishTest() {
   gTestBrowser.removeEventListener("load", pageLoad, true);
   gBrowser.removeCurrentTab();
   window.focus();
-  setAndUpdateBlocklist(gHttpTestRoot + "blockNoPlugins.xml",
-  function() {
-    resetBlocklist();
-    finish();
-  });
+  resetBlocklist(finish);
 }
 
 function pageLoad(aEvent) {

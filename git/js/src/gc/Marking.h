@@ -342,7 +342,7 @@ IsAboutToBeFinalized(const js::ion::VMFunction **vmfunc)
 inline bool
 IsAboutToBeFinalized(ReadBarriered<js::ion::IonCode> code)
 {
-    return IsIonCodeAboutToBeFinalized(code.unsafeGet());
+    return IsIonCodeMarked(code.unsafeGet());
 }
 #endif
 

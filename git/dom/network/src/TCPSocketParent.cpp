@@ -15,7 +15,7 @@ namespace IPC {
 //Defined in TCPSocketChild.cpp
 extern bool
 DeserializeUint8Array(JSRawObject aObj,
-                      const InfallibleTArray<uint8_t>& aBuffer,
+                      const nsTArray<uint8_t>& aBuffer,
                       jsval* aVal);
 
 }

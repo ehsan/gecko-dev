@@ -550,7 +550,7 @@ nsHttpPipeline::Status()
     return mStatus;
 }
 
-uint32_t
+uint8_t
 nsHttpPipeline::Caps()
 {
     nsAHttpTransaction *trans = Request(0);

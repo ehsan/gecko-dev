@@ -166,7 +166,7 @@ nsHttpTransaction::Classify()
 }
 
 nsresult
-nsHttpTransaction::Init(uint32_t caps,
+nsHttpTransaction::Init(uint8_t caps,
                         nsHttpConnectionInfo *cinfo,
                         nsHttpRequestHead *requestHead,
                         nsIInputStream *requestBody,
@@ -499,7 +499,7 @@ nsHttpTransaction::Status()
     return mStatus;
 }
 
-uint32_t
+uint8_t
 nsHttpTransaction::Caps()
 { 
     return mCaps;

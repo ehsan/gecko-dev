@@ -26,6 +26,7 @@
 #include "jsprototypes.h"
 #include "jsutil.h"
 #include "prmjtime.h"
+#include "vm/threadpool.h"
 
 #include "ds/LifoAlloc.h"
 #include "gc/Statistics.h"
@@ -33,7 +34,6 @@
 #include "js/Vector.h"
 #include "vm/Stack.h"
 #include "vm/SPSProfiler.h"
-#include "vm/ThreadPool.h"
 
 #include "ion/PcScriptCache.h"
 

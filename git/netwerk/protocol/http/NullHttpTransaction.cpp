@@ -16,7 +16,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS0(NullHttpTransaction)
 
 NullHttpTransaction::NullHttpTransaction(nsHttpConnectionInfo *ci,
                                          nsIInterfaceRequestor *callbacks,
-                                         uint32_t caps)
+                                         uint8_t caps)
   : mStatus(NS_OK)
   , mCaps(caps | NS_HTTP_ALLOW_KEEPALIVE)
   , mCallbacks(callbacks)
@@ -70,7 +70,7 @@ NullHttpTransaction::Status()
   return mStatus;
 }
 
-uint32_t
+uint8_t
 NullHttpTransaction::Caps()
 {
   return mCaps;

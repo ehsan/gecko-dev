@@ -62,11 +62,6 @@ public:
     return mDestination;
   }
 
-  float SampleRate() const
-  {
-    return mSampleRate;
-  }
-
   AudioListener* Listener();
 
   already_AddRefed<AudioBufferSourceNode> CreateBufferSource();
@@ -95,7 +90,6 @@ private:
   nsCOMPtr<nsIDOMWindow> mWindow;
   nsRefPtr<AudioDestinationNode> mDestination;
   nsRefPtr<AudioListener> mListener;
-  float mSampleRate;
 };
 
 }

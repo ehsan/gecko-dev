@@ -76,9 +76,7 @@ public class GeckoLayerClient
 
     /* Used as the return value of progressiveUpdateCallback */
     private final ProgressiveUpdateData mProgressiveUpdateData;
-    private DisplayPortMetrics mProgressiveUpdateDisplayPort;
-    private boolean mLastProgressiveUpdateWasLowPrecision;
-    private boolean mProgressiveUpdateWasInDanger;
+    private RectF mProgressiveUpdateDisplayPort;
 
     /* This is written by the compositor thread and read by the UI thread. */
     private volatile boolean mCompositorCreated;
@@ -118,9 +116,7 @@ public class GeckoLayerClient
         mDrawTimingQueue = new DrawTimingQueue();
         mCurrentViewTransform = new ViewTransform(0, 0, 1);
         mProgressiveUpdateData = new ProgressiveUpdateData();
-        mProgressiveUpdateDisplayPort = new DisplayPortMetrics();
-        mLastProgressiveUpdateWasLowPrecision = false;
-        mProgressiveUpdateWasInDanger = false;
+        mProgressiveUpdateDisplayPort = new RectF();
         mCompositorCreated = false;
 
         mForceRedraw = true;
@@ -367,18 +363,6 @@ public class GeckoLayerClient
     public ProgressiveUpdateData progressiveUpdateCallback(boolean aHasPendingNewThebesContent,
                                                            float x, float y, float width, float height,
                                                            float resolution, boolean lowPrecision) {
-        // Skip all low precision draws until we're at risk of checkerboarding
-        if (lowPrecision && !mProgressiveUpdateWasInDanger) {
-            mProgressiveUpdateData.abort = true;
-            return mProgressiveUpdateData;
-        }
-
-        // Reset the checkerboard risk flag
-        if (!lowPrecision && mLastProgressiveUpdateWasLowPrecision) {
-            mProgressiveUpdateWasInDanger = false;
-        }
-        mLastProgressiveUpdateWasLowPrecision = lowPrecision;
-
         // Grab a local copy of the last display-port sent to Gecko and the
         // current viewport metrics to avoid races when accessing them.
         DisplayPortMetrics displayPort = mDisplayPort;
@@ -394,19 +378,6 @@ public class GeckoLayerClient
             return mProgressiveUpdateData;
         }
 
-        // Store the high precision displayport for comparison when doing low
-        // precision updates.
-        if (!lowPrecision) {
-            if (!FloatUtils.fuzzyEquals(resolution, mProgressiveUpdateDisplayPort.resolution) ||
-                !FloatUtils.fuzzyEquals(x, mProgressiveUpdateDisplayPort.getLeft()) ||
-                !FloatUtils.fuzzyEquals(y, mProgressiveUpdateDisplayPort.getTop()) ||
-                !FloatUtils.fuzzyEquals(x + width, mProgressiveUpdateDisplayPort.getRight()) ||
-                !FloatUtils.fuzzyEquals(y + height, mProgressiveUpdateDisplayPort.getBottom())) {
-                mProgressiveUpdateDisplayPort =
-                    new DisplayPortMetrics(x, y, x+width, y+height, resolution);
-            }
-        }
-
         // XXX All sorts of rounding happens inside Gecko that becomes hard to
         //     account exactly for. Given we align the display-port to tile
         //     boundaries (and so they rarely vary by sub-pixel amounts), just
@@ -417,20 +388,14 @@ public class GeckoLayerClient
         // display-port. If we abort updating when we shouldn't, we can end up
         // with blank regions on the screen and we open up the risk of entering
         // an endless updating cycle.
-        if (Math.abs(displayPort.getLeft() - mProgressiveUpdateDisplayPort.getLeft()) <= 2 &&
-            Math.abs(displayPort.getTop() - mProgressiveUpdateDisplayPort.getTop()) <= 2 &&
-            Math.abs(displayPort.getBottom() - mProgressiveUpdateDisplayPort.getBottom()) <= 2 &&
-            Math.abs(displayPort.getRight() - mProgressiveUpdateDisplayPort.getRight()) <= 2) {
-            return mProgressiveUpdateData;
+        if (!lowPrecision) {
+            mProgressiveUpdateDisplayPort.set(x, y, x + width, y + height);
         }
-
-        if (!lowPrecision && !mProgressiveUpdateWasInDanger) {
-            // If we're not doing low precision draws and we're about to
-            // checkerboard, give up and move onto low precision drawing.
-            if (DisplayPortCalculator.aboutToCheckerboard(viewportMetrics,
-                  mPanZoomController.getVelocityVector(), mProgressiveUpdateDisplayPort)) {
-                mProgressiveUpdateWasInDanger = true;
-            }
+        if (Math.abs(displayPort.getLeft() - mProgressiveUpdateDisplayPort.left) <= 2 &&
+            Math.abs(displayPort.getTop() - mProgressiveUpdateDisplayPort.top) <= 2 &&
+            Math.abs(displayPort.getBottom() - mProgressiveUpdateDisplayPort.bottom) <= 2 &&
+            Math.abs(displayPort.getRight() - mProgressiveUpdateDisplayPort.right) <= 2) {
+            return mProgressiveUpdateData;
         }
 
         // Abort updates when the display-port no longer contains the visible
@@ -447,11 +412,6 @@ public class GeckoLayerClient
             return mProgressiveUpdateData;
         }
 
-        // Abort drawing stale low-precision content if there's a more recent
-        // display-port in the pipeline.
-        if (lowPrecision && !aHasPendingNewThebesContent) {
-          mProgressiveUpdateData.abort = true;
-        }
         return mProgressiveUpdateData;
     }
 

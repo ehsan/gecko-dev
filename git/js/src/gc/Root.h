@@ -546,9 +546,6 @@ class Rooted : public RootedBase<T>
     Rooted(JSRuntime *rt
            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(RootMethods<T>::initial())
-#if defined(JSGC_ROOT_ANALYSIS)
-      , scanned(false)
-#endif
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         init(rt);
@@ -557,9 +554,6 @@ class Rooted : public RootedBase<T>
     Rooted(JSRuntime *rt, T initial
            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(initial)
-#if defined(JSGC_ROOT_ANALYSIS)
-      , scanned(false)
-#endif
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         init(rt);
@@ -568,9 +562,6 @@ class Rooted : public RootedBase<T>
     Rooted(JSContext *cx
            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(RootMethods<T>::initial())
-#if defined(JSGC_ROOT_ANALYSIS)
-      , scanned(false)
-#endif
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         init(cx);
@@ -579,9 +570,6 @@ class Rooted : public RootedBase<T>
     Rooted(JSContext *cx, T initial
            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(initial)
-#if defined(JSGC_ROOT_ANALYSIS)
-      , scanned(false)
-#endif
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         init(cx);
@@ -607,9 +595,6 @@ class Rooted : public RootedBase<T>
     Rooted(JSContext *cx, const Return<S> &initial
            MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : ptr(initial.ptr_)
-#if defined(JSGC_ROOT_ANALYSIS)
-      , scanned(false)
-#endif
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         init(cx);
@@ -682,12 +667,6 @@ class Rooted : public RootedBase<T>
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     Rooted(const Rooted &) MOZ_DELETE;
-
-#if defined(JSGC_ROOT_ANALYSIS)
-  public:
-    /* Has the rooting analysis ever scanned this Rooted's stack location? */
-    bool scanned;
-#endif
 };
 
 #if !(defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING))

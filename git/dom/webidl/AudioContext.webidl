@@ -14,7 +14,6 @@
 interface mozAudioContext {
 
     readonly attribute AudioDestinationNode destination;
-    readonly attribute float sampleRate;
     readonly attribute AudioListener listener;
 
     [Creator, Throws]

@@ -6982,13 +6982,15 @@ CreateHRGNFromArray(const nsTArray<nsIntRect>& aRects)
   return ::ExtCreateRegion(NULL, buf.Length(), data);
 }
 
-static void
-ArrayFromRegion(const nsIntRegion& aRegion, nsTArray<nsIntRect>& aRects)
+static const nsTArray<nsIntRect>
+ArrayFromRegion(const nsIntRegion& aRegion)
 {
+  nsTArray<nsIntRect> rects;
   const nsIntRect* r;
   for (nsIntRegionRectIterator iter(aRegion); (r = iter.Next());) {
-    aRects.AppendElement(*r);
+    rects.AppendElement(*r);
   }
+  return rects;
 }
 
 nsresult
@@ -7018,8 +7020,7 @@ nsWindow::SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
     nsIntRegion intersection;
     intersection.And(currentRegion, newRegion);
     // create int rect array from intersection
-    nsTArray<nsIntRect> rects;
-    ArrayFromRegion(intersection, rects);
+    nsTArray<nsIntRect> rects = ArrayFromRegion(intersection);
     // store
     if (!StoreWindowClipRegion(rects))
       return NS_OK;

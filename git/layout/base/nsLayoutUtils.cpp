@@ -1192,8 +1192,7 @@ nsLayoutUtils::GetPopupFrameForEventCoordinates(nsPresContext* aPresContext,
   if (!pm) {
     return nullptr;
   }
-  nsTArray<nsIFrame*> popups;
-  pm->GetVisiblePopups(popups);
+  nsTArray<nsIFrame*> popups = pm->GetVisiblePopups();
   uint32_t i;
   // Search from top to bottom
   for (i = 0; i < popups.Length(); i++) {

@@ -1410,7 +1410,6 @@ nsDocument::~nsDocument()
   }
   indx = mCatalogSheets.Count();
   while (--indx >= 0) {
-    static_cast<nsCSSStyleSheet*>(mCatalogSheets[indx])->SetOwningNode(nullptr);
     mCatalogSheets[indx]->SetOwningDocument(nullptr);
   }
   if (mAttrStyleSheet) {
@@ -3550,11 +3549,10 @@ nsDocument::GetCatalogStyleSheetAt(int32_t aIndex) const
 }
 
 void
-nsDocument::AddCatalogStyleSheet(nsCSSStyleSheet* aSheet)
+nsDocument::AddCatalogStyleSheet(nsIStyleSheet* aSheet)
 {
   mCatalogSheets.AppendObject(aSheet);
   aSheet->SetOwningDocument(this);
-  aSheet->SetOwningNode(this);
 
   if (aSheet->IsApplicable()) {
     // This is like |AddStyleSheetToStyleSets|, but for an agent sheet.

@@ -1852,7 +1852,7 @@ CanvasRenderingContext2D::EnsureWritablePath()
 }
 
 void
-CanvasRenderingContext2D::EnsureUserSpacePath()
+CanvasRenderingContext2D::EnsureUserSpacePath(bool aCommitTransform /* = true */)
 {
   FillRule fillRule = CurrentState().fillRule;
 
@@ -1866,7 +1866,8 @@ CanvasRenderingContext2D::EnsureUserSpacePath()
     mPathBuilder = nullptr;
   }
 
-  if (mPath &&
+  if (aCommitTransform &&
+      mPath &&
       mPathTransformWillUpdate) {
     mDSPathBuilder =
       mPath->TransformedCopyToBuilder(mPathToDS, fillRule);
@@ -2846,7 +2847,7 @@ CanvasRenderingContext2D::IsPointInPath(double x, double y)
     return false;
   }
 
-  EnsureUserSpacePath();
+  EnsureUserSpacePath(false);
   if (!mPath) {
     return false;
   }
@@ -2863,7 +2864,7 @@ CanvasRenderingContext2D::MozIsPointInStroke(double x, double y)
     return false;
   }
 
-  EnsureUserSpacePath();
+  EnsureUserSpacePath(false);
   if (!mPath) {
     return false;
   }

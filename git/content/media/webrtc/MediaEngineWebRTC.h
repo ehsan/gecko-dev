@@ -77,7 +77,6 @@ public:
     , mInitDone(false)
     , mInSnapshotMode(false)
     , mSnapshotPath(NULL) {
-    MOZ_ASSERT(aVideoEnginePtr);
     mState = kReleased;
     Init();
   }
@@ -163,15 +162,14 @@ class MediaEngineWebRTCAudioSource : public MediaEngineAudioSource,
                                      public webrtc::VoEMediaProcess
 {
 public:
-  MediaEngineWebRTCAudioSource(webrtc::VoiceEngine* aVoiceEnginePtr, int aIndex,
+  MediaEngineWebRTCAudioSource(webrtc::VoiceEngine* voiceEngine, int aIndex,
     const char* name, const char* uuid)
-    : mVoiceEngine(aVoiceEnginePtr)
+    : mVoiceEngine(voiceEngine)
     , mMonitor("WebRTCMic.Monitor")
     , mCapIndex(aIndex)
     , mChannel(-1)
     , mInitDone(false)
     , mNullTransport(nullptr) {
-    MOZ_ASSERT(aVoiceEnginePtr);
     mState = kReleased;
     mDeviceName.Assign(NS_ConvertUTF8toUTF16(name));
     mDeviceUUID.Assign(NS_ConvertUTF8toUTF16(uuid));

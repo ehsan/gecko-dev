@@ -71,9 +71,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsAppShell, nsBaseAppShell, nsIObserver)
 
 class ScreenshotRunnable : public nsRunnable {
 public:
-    ScreenshotRunnable(nsIAndroidBrowserApp* aBrowserApp, int aTabId,
-                       const nsTArray<nsIntPoint>& aPoints, int aToken,
-                       RefCountedJavaObject* aBuffer):
+    ScreenshotRunnable(nsIAndroidBrowserApp* aBrowserApp, int aTabId, nsTArray<nsIntPoint>& aPoints, int aToken, RefCountedJavaObject* aBuffer):
         mBrowserApp(aBrowserApp), mPoints(aPoints), mTabId(aTabId), mToken(aToken), mBuffer(aBuffer) {}
 
     virtual nsresult Run() {
@@ -508,7 +506,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
 
         int32_t token = curEvent->Flags();
         int32_t tabId = curEvent->MetaState();
-        const nsTArray<nsIntPoint>& points = curEvent->Points();
+        nsTArray<nsIntPoint> points = curEvent->Points();
         RefCountedJavaObject* buffer = curEvent->ByteBuffer();
         nsCOMPtr<ScreenshotRunnable> sr = 
             new ScreenshotRunnable(mBrowserApp, tabId, points, token, buffer);

@@ -683,9 +683,7 @@ function test18e() {
   ok(objLoadingContent.activated, "Test 18e, Plugin should be activated");
 
   Services.perms.removeAll();
-  setAndUpdateBlocklist(gHttpTestRoot + "blockNoPlugins.xml",
-  function() {
-    resetBlocklist();
+  resetBlocklist(function () {
     prepareTest(test19a, gTestRoot + "plugin_test.html");
   });
 }
@@ -1059,9 +1057,7 @@ function test24d() {
   ok(objLoadingContent.activated, "Test 24d, plugin should be activated");
 
   Services.perms.removeAll();
-  setAndUpdateBlocklist(gHttpTestRoot + "blockNoPlugins.xml",
-  function() {
-    resetBlocklist();
+  resetBlocklist(function () {
     prepareTest(test25a, gHttpTestRoot + "plugin_test.html");
   });
 }

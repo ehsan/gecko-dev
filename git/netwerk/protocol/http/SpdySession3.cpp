@@ -2203,7 +2203,7 @@ SpdySession3::Status()
   return NS_ERROR_UNEXPECTED;
 }
 
-uint32_t
+uint8_t
 SpdySession3::Caps()
 {
   NS_ABORT_IF_FALSE(false, "SpdySession3::Caps()");

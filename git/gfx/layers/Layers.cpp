@@ -446,8 +446,7 @@ Layer::SetAnimations(const AnimationArray& aAnimations)
   for (uint32_t i = 0; i < mAnimations.Length(); i++) {
     AnimData* data = mAnimationData.AppendElement();
     InfallibleTArray<css::ComputedTimingFunction*>& functions = data->mFunctions;
-    const InfallibleTArray<AnimationSegment>& segments =
-      mAnimations.ElementAt(i).segments();
+    nsTArray<AnimationSegment> segments = mAnimations.ElementAt(i).segments();
     for (uint32_t j = 0; j < segments.Length(); j++) {
       TimingFunction tf = segments.ElementAt(j).sampleFn();
       css::ComputedTimingFunction* ctf = new css::ComputedTimingFunction();
@@ -885,12 +884,13 @@ LayerManager::PostPresent()
   }
 }
 
-void
-LayerManager::StopFrameTimeRecording(nsTArray<float>& aTimes)
+nsTArray<float>
+LayerManager::StopFrameTimeRecording()
 {
   mLastFrameTime = TimeStamp();
-  aTimes.SwapElements(mFrameTimes);
+  nsTArray<float> result = mFrameTimes;
   mFrameTimes.Clear();
+  return result;
 }
 
 void

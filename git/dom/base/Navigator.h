@@ -15,9 +15,6 @@
 #include "nsINavigatorBattery.h"
 #include "nsIDOMNavigatorSms.h"
 #include "nsIDOMNavigatorNetwork.h"
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-#include "nsINavigatorAudioChannelManager.h"
-#endif
 #ifdef MOZ_B2G_RIL
 #include "nsINavigatorMobileConnection.h"
 #endif
@@ -82,12 +79,6 @@ namespace time {
 class TimeManager;
 } // namespace time
 
-namespace system {
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-class AudioChannelManager;
-#endif
-} // namespace system
-
 class Navigator : public nsIDOMNavigator
                 , public nsIDOMClientInformation
                 , public nsIDOMNavigatorDeviceStorage
@@ -113,9 +104,6 @@ class Navigator : public nsIDOMNavigator
                 , public nsIDOMNavigatorSystemMessages
 #ifdef MOZ_TIME_MANAGER
                 , public nsIDOMMozNavigatorTime
-#endif
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-                , public nsIMozNavigatorAudioChannelManager
 #endif
 {
 public:
@@ -150,9 +138,6 @@ public:
   NS_DECL_NSIDOMMOZNAVIGATORTIME
 #endif
 
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-  NS_DECL_NSIMOZNAVIGATORAUDIOCHANNELMANAGER
-#endif
   static void Init();
 
   void Invalidate();
@@ -200,9 +185,6 @@ private:
 #endif
 #ifdef MOZ_B2G_BT
   nsCOMPtr<nsIDOMBluetoothManager> mBluetooth;
-#endif
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-  nsRefPtr<system::AudioChannelManager> mAudioChannelManager;
 #endif
   nsRefPtr<nsDOMCameraManager> mCameraManager;
   nsCOMPtr<nsIDOMNavigatorSystemMessages> mMessagesManager;

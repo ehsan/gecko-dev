@@ -95,11 +95,6 @@ this.SettingsChangeNotifier = {
           }));
         break;
       case "Settings:RegisterForMessages":
-        if (!aMessage.target.assertPermission("settings-read")) {
-          Cu.reportError("Settings message " + msg.name +
-                         " from a content process with no 'settings-read' privileges.");
-          return null;
-        }
         debug("Register!");
         if (this.children.indexOf(mm) == -1) {
           this.children.push(mm);
