@@ -148,24 +148,17 @@ struct LayoutDevicePixel {
     return LayoutDeviceIntRect(aRect.x, aRect.y, aRect.width, aRect.height);
   }
 
-  static LayoutDeviceRect FromAppUnits(const nsRect& aRect, nscoord aAppUnitsPerDevPixel) {
-    return LayoutDeviceRect(NSAppUnitsToFloatPixels(aRect.x, float(aAppUnitsPerDevPixel)),
-                            NSAppUnitsToFloatPixels(aRect.y, float(aAppUnitsPerDevPixel)),
-                            NSAppUnitsToFloatPixels(aRect.width, float(aAppUnitsPerDevPixel)),
-                            NSAppUnitsToFloatPixels(aRect.height, float(aAppUnitsPerDevPixel)));
-  }
-
-  static LayoutDeviceIntPoint FromAppUnitsRounded(const nsPoint& aPoint, nscoord aAppUnitsPerDevPixel) {
+  static LayoutDeviceIntPoint FromAppUnits(const nsPoint& aPoint, nscoord aAppUnitsPerDevPixel) {
     return LayoutDeviceIntPoint(NSAppUnitsToIntPixels(aPoint.x, aAppUnitsPerDevPixel),
                                 NSAppUnitsToIntPixels(aPoint.y, aAppUnitsPerDevPixel));
   }
 
-  static LayoutDeviceIntPoint FromAppUnitsToNearest(const nsPoint& aPoint, nscoord aAppUnitsPerDevPixel) {
-    return FromUntyped(aPoint.ToNearestPixels(aAppUnitsPerDevPixel));
+  static LayoutDeviceIntPoint FromAppUnitsToNearest(const nsPoint& aPoint, nscoord appUnitsPerDevPixel) {
+    return FromUntyped(aPoint.ToNearestPixels(appUnitsPerDevPixel));
   }
 
-  static LayoutDeviceIntRect FromAppUnitsToNearest(const nsRect& aRect, nscoord aAppUnitsPerDevPixel) {
-    return FromUntyped(aRect.ToNearestPixels(aAppUnitsPerDevPixel));
+  static LayoutDeviceIntRect FromAppUnitsToNearest(const nsRect& aRect, nscoord appUnitsPerDevPixel) {
+    return FromUntyped(aRect.ToNearestPixels(appUnitsPerDevPixel));
   }
 };
 

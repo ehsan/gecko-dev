@@ -214,7 +214,6 @@ private:
     nsRefPtr<nsHttpConnectionInfo> mConnInfo;
 
     PRIntervalTime                  mLastReadTime;
-    PRIntervalTime                  mLastWriteTime;
     PRIntervalTime                  mMaxHangTime;    // max download time before dropping keep-alive status
     PRIntervalTime                  mIdleTimeout;    // value of keep-alive: timeout=
     PRIntervalTime                  mConsiderReusedAfterInterval;

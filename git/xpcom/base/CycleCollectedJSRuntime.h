@@ -83,7 +83,8 @@ class CycleCollectedJSRuntime
   friend class IncrementalFinalizeRunnable;
 protected:
   CycleCollectedJSRuntime(uint32_t aMaxbytes,
-                          JSUseHelperThreads aUseHelperThreads);
+                          JSUseHelperThreads aUseHelperThreads,
+                          bool aExpectUnrootedGlobals);
   virtual ~CycleCollectedJSRuntime();
 
   size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
@@ -142,7 +143,12 @@ private:
   static void
   TraverseObjectShim(void* aData, void* aThing);
 
+  void MaybeTraverseGlobals(nsCycleCollectionNoteRootCallback& aCb) const;
+
   void TraverseNativeRoots(nsCycleCollectionNoteRootCallback& aCb);
+
+  void MaybeTraceGlobals(JSTracer* aTracer) const;
+
 
   static void TraceBlackJS(JSTracer* aTracer, void* aData);
   static void TraceGrayJS(JSTracer* aTracer, void* aData);
@@ -171,6 +177,9 @@ public:
   void SetObjectToUnlink(void* aObject) { mObjectToUnlink = aObject; }
   void AssertNoObjectsToTrace(void* aPossibleJSHolder);
 #endif
+
+  // This returns the singleton nsCycleCollectionParticipant for JSContexts.
+  static nsCycleCollectionParticipant* JSContextParticipant();
 
   nsCycleCollectionParticipant* GCThingParticipant();
   nsCycleCollectionParticipant* ZoneParticipant();
@@ -213,6 +222,8 @@ private:
   DeferredFinalizerTable mDeferredFinalizerTable;
 
   nsRefPtr<IncrementalFinalizeRunnable> mFinalizeRunnable;
+
+  bool mExpectUnrootedGlobals;
 
 #ifdef DEBUG
   void* mObjectToUnlink;

@@ -321,8 +321,8 @@ class InlineListIterator
 
   public:
     InlineListIterator<T> & operator ++() {
-        iter = static_cast<Node *>(iter->next);
-        return *this;
+        iter = iter->next;
+        return *iter;
     }
     InlineListIterator<T> operator ++(int) {
         InlineListIterator<T> old(*this);
@@ -366,7 +366,7 @@ class InlineListReverseIterator
   public:
     InlineListReverseIterator<T> & operator ++() {
         iter = iter->prev;
-        return *this;
+        return *iter;
     }
     InlineListReverseIterator<T> operator ++(int) {
         InlineListReverseIterator<T> old(*this);

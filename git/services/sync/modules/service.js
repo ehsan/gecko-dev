@@ -506,10 +506,9 @@ Sync11Service.prototype = {
   },
 
   /**
-   * Perform the info fetch as part of a login or key fetch, or
-   * inside engine sync.
+   * Perform the info fetch as part of a login or key fetch.
    */
-  _fetchInfo: function (url) {
+  _fetchInfo: function _fetchInfo(url) {
     let infoURL = url || this.infoURL;
 
     this._log.trace("In _fetchInfo: " + infoURL);
@@ -520,11 +519,9 @@ Sync11Service.prototype = {
       this.errorHandler.checkServerError(ex);
       throw ex;
     }
-
-    // Always check for errors; this is also where we look for X-Weave-Alert.
-    this.errorHandler.checkServerError(info);
     if (!info.success) {
-      throw "Aborting sync: failed to get collections.";
+      this.errorHandler.checkServerError(info);
+      throw "aborting sync, failed to get collections";
     }
     return info;
   },

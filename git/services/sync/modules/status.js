@@ -57,15 +57,6 @@ this.Status = {
     this.service = code == SYNC_SUCCEEDED ? STATUS_OK : SYNC_FAILED;
   },
 
-  get eol() {
-    let modePref = PREFS_BRANCH + "errorhandler.alert.mode";
-    try {
-      return Services.prefs.getCharPref(modePref) == "hard-eol";
-    } catch (ex) {
-      return false;
-    }
-  },
-
   get engines() {
     return this._engines;
   },
