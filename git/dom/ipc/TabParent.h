@@ -168,7 +168,9 @@ public:
     virtual bool RecvUpdateZoomConstraints(const uint32_t& aPresShellId,
                                            const ViewID& aViewId,
                                            const bool& aIsRoot,
-                                           const ZoomConstraints& aConstraints);
+                                           const bool& aAllowZoom,
+                                           const CSSToScreenScale& aMinZoom,
+                                           const CSSToScreenScale& aMaxZoom);
     virtual bool RecvContentReceivedTouch(const ScrollableLayerGuid& aGuid,
                                           const bool& aPreventDefault);
     virtual PContentDialogParent* AllocPContentDialogParent(const uint32_t& aType,

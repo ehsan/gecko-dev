@@ -35,7 +35,6 @@ loader.lazyGetter(this, "toolboxStrings", () => {
       return bundle.formatStringFromName(name, args, args.length);
     } catch (ex) {
       Services.console.logStringMessage("Error reading '" + name + "'");
-      return null;
     }
   };
 });
@@ -586,7 +585,6 @@ Toolbox.prototype = {
           deck.insertBefore(vbox, deck.childNodes[i]);
           return true;
         }
-        return false;
       });
     }
 
@@ -869,7 +867,7 @@ Toolbox.prototype = {
    */
   switchHost: function(hostType) {
     if (hostType == this._host.type || !this._target.isLocalTab) {
-      return null;
+      return;
     }
 
     let newHost = this._createHost(hostType);
@@ -1018,13 +1016,12 @@ Toolbox.prototype = {
       // This is done after other destruction tasks since it may tear down
       // fronts and the debugger transport which earlier destroy methods may
       // require to complete.
-      if (!this._target) {
-        return null;
+      if (this._target) {
+        let target = this._target;
+        this._target = null;
+        target.off("close", this.destroy);
+        return target.destroy();
       }
-      let target = this._target;
-      this._target = null;
-      target.off("close", this.destroy);
-      return target.destroy();
     }).then(() => {
       this.emit("destroyed");
       // Free _host after the call to destroyed in order to let a chance

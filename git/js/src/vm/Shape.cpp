@@ -974,10 +974,10 @@ JSObject::changeProperty(typename ExecutionModeTraits<mode>::ExclusiveContextTyp
               !(attrs & JSPROP_SHARED));
 
     if (mode == ParallelExecution) {
-        if (!types::IsTypePropertyIdMarkedNonData(obj, shape->propid()))
+        if (!types::IsTypePropertyIdMarkedConfigured(obj, shape->propid()))
             return nullptr;
     } else {
-        types::MarkTypePropertyNonData(cx->asExclusiveContext(), obj, shape->propid());
+        types::MarkTypePropertyConfigured(cx->asExclusiveContext(), obj, shape->propid());
     }
 
     if (getter == JS_PropertyStub)
@@ -1658,7 +1658,7 @@ NewObjectCache::invalidateEntriesForShape(JSContext *cx, HandleShape shape, Hand
         PodZero(&entries[entry]);
     if (!proto->is<GlobalObject>() && lookupProto(clasp, proto, kind, &entry))
         PodZero(&entries[entry]);
-    if (lookupType(type, kind, &entry))
+    if (lookupType(clasp, type, kind, &entry))
         PodZero(&entries[entry]);
 }
 

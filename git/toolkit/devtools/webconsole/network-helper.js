@@ -52,8 +52,6 @@
  *  Mihai Sucan (Mozilla Corp.)
  */
 
-"use strict";
-
 const {components, Cc, Ci, Cu} = require("chrome");
 loader.lazyImporter(this, "NetUtil", "resource://gre/modules/NetUtil.jsm");
 
@@ -426,12 +424,11 @@ let NetworkHelper = {
     // standard "application/xml" and "application/json", we also look for
     // variants like "application/x-bigcorp-xml" by checking for either string
     // after any word boundary.
-    if (/^application\/(\w+[\.-]?)+\+(xml|json)/.test(aMimeType)) {
+    if (/^application\/[a-z-]+\b(xml|json)/.test(aMimeType)) {
       return true;
     }
 
-    let category = this.mimeCategoryMap[aMimeType] || null;
-    switch (category) {
+    switch (this.mimeCategoryMap[aMimeType]) {
       case "txt":
       case "js":
       case "json":

@@ -102,7 +102,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    NS_InitXPCOM2(nullptr, nullptr, nullptr);
+    NS_InitXPCOM2(NULL, NULL, NULL);
 
     ADLog log;
     if (!log.Read(argv[1])) {
@@ -401,7 +401,7 @@ int main(int argc, char **argv)
     delete [] sorted_nodes;
     delete [] nodes;
 
-    NS_ShutdownXPCOM(nullptr);
+    NS_ShutdownXPCOM(NULL);
 
     return 0;
 }

@@ -72,7 +72,7 @@ public:
                                const nsRect&        aDirtyRect,
                                const nsPoint&       aPt);
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE {
     return MakeFrameName(NS_LITERAL_STRING("ColumnSet"), aResult);
   }

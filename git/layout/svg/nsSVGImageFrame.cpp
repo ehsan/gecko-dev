@@ -63,7 +63,7 @@ public:
   virtual void ReflowSVG();
 
   // nsSVGPathGeometryFrame methods:
-  virtual uint16_t GetHitTestFlags() MOZ_OVERRIDE;
+  virtual uint16_t GetHitTestFlags();
 
   // nsIFrame interface:
   NS_IMETHOD  AttributeChanged(int32_t         aNameSpaceID,
@@ -81,7 +81,7 @@ public:
    */
   virtual nsIAtom* GetType() const;
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGImage"), aResult);

@@ -22,6 +22,7 @@ UNIFIED_SOURCES += [
     'nsSVGFilterInstance.cpp',
     'nsSVGForeignObjectFrame.cpp',
     'nsSVGGenericContainerFrame.cpp',
+    'nsSVGGeometryFrame.cpp',
     'nsSVGGFrame.cpp',
     'nsSVGGradientFrame.cpp',
     'nsSVGImageFrame.cpp',

@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-"use strict";
-
 var EIDETICKER_BASE_URL = "http://eideticker.wrla.ch/";
 
 var gDebugLog = false;
@@ -184,7 +182,6 @@ function ProfileTreeManager() {
 
   // If this is set when the tree changes the snapshot is immediately restored.
   this._savedSnapshot = null;
-  this._allowNonContiguous = false;
 }
 ProfileTreeManager.prototype = {
   getContainer: function ProfileTreeManager_getContainer() {
@@ -211,8 +208,8 @@ ProfileTreeManager.prototype = {
   restoreSerializedSelectionSnapshot: function ProfileTreeManager_restoreSerializedSelectionSnapshot(selection) {
     this._savedSnapshot = JSON.parse(selection);
   },
-  _restoreSelectionSnapshot: function ProfileTreeManager__restoreSelectionSnapshot(snapshot, allowNonContiguous) {
-    return this.treeView.restoreSelectionSnapshot(snapshot, allowNonContiguous);
+  _restoreSelectionSnapshot: function ProfileTreeManager__restoreSelectionSnapshot(snapshot, allowNonContigous) {
+    return this.treeView.restoreSelectionSnapshot(snapshot, allowNonContigous);
   },
   setSelection: function ProfileTreeManager_setSelection(frames) {
     return this.treeView.setSelection(frames);
@@ -268,16 +265,16 @@ ProfileTreeManager.prototype = {
       focusOnCallstack(focusedCallstack, node.name);
     }
   },
-  setAllowNonContiguous: function ProfileTreeManager_setAllowNonContiguous() {
-    this._allowNonContiguous = true;
+  setAllowNonContigous: function ProfileTreeManager_setAllowNonContigous() {
+    this._allowNonContigous = true;
   },
   display: function ProfileTreeManager_display(tree, symbols, functions, resources, useFunctions, filterByName) {
     this.treeView.display(this.convertToJSTreeData(tree, symbols, functions, useFunctions), resources, filterByName);
     if (this._savedSnapshot) {
       var old = this._savedSnapshot.clone();
-      this._restoreSelectionSnapshot(this._savedSnapshot, this._allowNonContiguous);
+      this._restoreSelectionSnapshot(this._savedSnapshot, this._allowNonContigous);
       this._savedSnapshot = old;
-      this._allowNonContiguous = false;
+      this._allowNonContigous = false;
     }
   },
   convertToJSTreeData: function ProfileTreeManager__convertToJSTreeData(rootNode, symbols, functions, useFunctions) {
@@ -1451,6 +1448,7 @@ function loadRawProfile(reporter, rawProfile, profileId) {
     appendVideoCapture : gAppendVideoCapture,  
     profileId: profileId,
   });
+  gVideoCapture = null;
   parseRequest.addEventListener("progress", function (progress, action) {
     if (action)
       reporter.setAction(action);
@@ -1537,7 +1535,7 @@ function toggleJavascriptOnly() {
     // When going from JS only to non js there's going to be new C++
     // frames in the selection so we need to restore the selection
     // while allowing non contigous symbols to be in the stack (the c++ ones)
-    gTreeManager.setAllowNonContiguous();
+    gTreeManager.setAllowNonContigous();
   }
   gJavascriptOnly = !gJavascriptOnly;
   gTreeManager.saveSelectionSnapshot(gJavascriptOnly);
@@ -1881,8 +1879,9 @@ function viewOptionsChanged() {
   });
 }
 
-function loadQueryData(queryDataOriginal) {
+function loadQueryData(queryData) {
   var isFiltersChanged = false;
+  var queryDataOriginal = queryData;
   var queryData = {};
   for (var i in queryDataOriginal) {
     queryData[i] = unQueryEscape(queryDataOriginal[i]);

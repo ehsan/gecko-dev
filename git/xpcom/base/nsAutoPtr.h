@@ -15,7 +15,6 @@
 #endif
 
 #include "nsCycleCollectionNoteChild.h"
-#include "mozilla/MemoryReporting.h"
 
 /*****************************************************************************/
 
@@ -600,18 +599,6 @@ class nsAutoArrayPtr
           assign(0);
           return reinterpret_cast<T**>(&mRawPtr);
 #endif
-        }
-
-      size_t
-      SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
-        {
-          return aMallocSizeOf(mRawPtr);
-        }
-
-      size_t
-      SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
-        {
-          return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
         }
   };
 

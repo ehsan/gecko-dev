@@ -102,15 +102,6 @@ nsDisplaySVGPathGeometry::Paint(nsDisplayListBuilder* aBuilder,
 //----------------------------------------------------------------------
 // nsIFrame methods
 
-void
-nsSVGPathGeometryFrame::Init(nsIContent* aContent,
-                             nsIFrame* aParent,
-                             nsIFrame* aPrevInFlow)
-{
-  AddStateBits(aParent->GetStateBits() & NS_STATE_SVG_CLIPPATH_CHILD);
-  nsSVGPathGeometryFrameBase::Init(aContent, aParent, aPrevInFlow);
-}
-
 NS_IMETHODIMP
 nsSVGPathGeometryFrame::AttributeChanged(int32_t         aNameSpaceID,
                                          nsIAtom*        aAttribute,
@@ -240,7 +231,7 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
   uint16_t fillRule, hitTestFlags;
   if (GetStateBits() & NS_STATE_SVG_CLIPPATH_CHILD) {
     hitTestFlags = SVG_HIT_TEST_FILL;
-    fillRule = StyleSVG()->mClipRule;
+    fillRule = GetClipRule();
   } else {
     hitTestFlags = GetHitTestFlags();
     // XXX once bug 614732 is fixed, aPoint won't need any conversion in order
@@ -505,7 +496,7 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const Matrix &aToBBoxUserspace,
 }
 
 //----------------------------------------------------------------------
-// nsSVGPathGeometryFrame methods:
+// nsSVGGeometryFrame methods:
 
 gfxMatrix
 nsSVGPathGeometryFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
@@ -526,6 +517,9 @@ nsSVGPathGeometryFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
       this == aTransformRoot ? gfxMatrix() :
                                parent->GetCanvasTM(aFor, aTransformRoot));
 }
+
+//----------------------------------------------------------------------
+// nsSVGPathGeometryFrame methods:
 
 nsSVGPathGeometryFrame::MarkerProperties
 nsSVGPathGeometryFrame::GetMarkerProperties(nsSVGPathGeometryFrame *aFrame)
@@ -626,7 +620,7 @@ nsSVGPathGeometryFrame::Render(nsRenderingContext *aContext,
 
     gfxContext::FillRule oldFillRull = gfx->CurrentFillRule();
 
-    if (StyleSVG()->mClipRule == NS_STYLE_FILL_RULE_EVENODD)
+    if (GetClipRule() == NS_STYLE_FILL_RULE_EVENODD)
       gfx->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
     else
       gfx->SetFillRule(gfxContext::FILL_RULE_WINDING);
@@ -719,10 +713,4 @@ nsSVGPathGeometryFrame::PaintMarkers(nsRenderingContext* aContext)
       }
     }
   }
-}
-
-uint16_t
-nsSVGPathGeometryFrame::GetHitTestFlags()
-{
-  return nsSVGUtils::GetGeometryHitTestFlags(this);
 }

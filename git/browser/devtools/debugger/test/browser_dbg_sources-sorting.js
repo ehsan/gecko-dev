@@ -33,7 +33,6 @@ function test() {
 
 function addSourceAndCheckOrder(aMethod, aCallback) {
   gSources.empty();
-  gSources.suppressSelectionEvents = true;
 
   let urls = [
     { href: "ici://some.address.com/random/", leaf: "subrandom/" },
@@ -55,13 +54,7 @@ function addSourceAndCheckOrder(aMethod, aCallback) {
       for (let { href, leaf } of urls) {
         let url = href + leaf;
         let label = gUtils.getSourceLabel(url);
-        let dummy = document.createElement("label");
-        gSources.push([dummy, url], {
-          staged: true,
-          attachment: {
-            label: label
-          }
-        });
+        gSources.push([label, url], { staged: true });
       }
       gSources.commit({ sorted: true });
       break;
@@ -70,13 +63,7 @@ function addSourceAndCheckOrder(aMethod, aCallback) {
       for (let { href, leaf } of urls) {
         let url = href + leaf;
         let label = gUtils.getSourceLabel(url);
-        let dummy = document.createElement("label");
-        gSources.push([dummy, url], {
-          staged: false,
-          attachment: {
-            label: label
-          }
-        });
+        gSources.push([label, url], { staged: false });
       }
       break;
 
@@ -86,13 +73,7 @@ function addSourceAndCheckOrder(aMethod, aCallback) {
         let { href, leaf } = urls[i];
         let url = href + leaf;
         let label = gUtils.getSourceLabel(url);
-        let dummy = document.createElement("label");
-        gSources.push([dummy, url], {
-          staged: true,
-          attachment: {
-            label: label
-          }
-        });
+        gSources.push([label, url], { staged: true });
       }
       gSources.commit({ sorted: true });
 
@@ -100,13 +81,7 @@ function addSourceAndCheckOrder(aMethod, aCallback) {
         let { href, leaf } = urls[i];
         let url = href + leaf;
         let label = gUtils.getSourceLabel(url);
-        let dummy = document.createElement("label");
-        gSources.push([dummy, url], {
-          staged: false,
-          attachment: {
-            label: label
-          }
-        });
+        gSources.push([label, url], { staged: false });
       }
       break;
   }
@@ -116,15 +91,16 @@ function addSourceAndCheckOrder(aMethod, aCallback) {
 }
 
 function checkSourcesOrder(aMethod) {
-  let attachments = gSources.attachments;
+  let labels = gSources.labels;
+  let sorted = labels.reduce(function(aPrev, aCurr, aIndex, aArray) {
+    return aArray[aIndex - 1] < aArray[aIndex];
+  });
 
-  for (let i = 0; i < attachments.length - 1; i++) {
-    let first = attachments[i].label;
-    let second = attachments[i + 1].label;
-    ok(first < second,
-      "Using method " + aMethod + ", " +
-      "the sources weren't in the correct order: " + first + " vs. " + second);
-  }
+  ok(sorted,
+    "Using method " + aMethod + ", " +
+    "the sources weren't in the correct order: " + labels.toSource());
+
+  return sorted;
 }
 
 registerCleanupFunction(function() {

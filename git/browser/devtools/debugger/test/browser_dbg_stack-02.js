@@ -32,19 +32,19 @@ function performTest() {
   is(gClassicFrames.itemCount, 2,
     "Should also have only two in the mirrored view.");
 
-  is(gFrames.getItemAtIndex(0).attachment.title,
+  is(gFrames.getItemAtIndex(0).value,
     "evalCall", "Oldest frame name should be correct.");
-  is(gFrames.getItemAtIndex(0).attachment.url,
+  is(gFrames.getItemAtIndex(0).description,
     TAB_URL, "Oldest frame url should be correct.");
-  is(gClassicFrames.getItemAtIndex(0).attachment.depth,
-    0, "Oldest frame name is mirrored correctly.");
+  is(gClassicFrames.getItemAtIndex(0).value,
+    TAB_URL, "Oldest frame name is mirrored correctly.");
 
-  is(gFrames.getItemAtIndex(1).attachment.title,
+  is(gFrames.getItemAtIndex(1).value,
     "(eval)", "Newest frame name should be correct.");
-  is(gFrames.getItemAtIndex(1).attachment.url,
+  is(gFrames.getItemAtIndex(1).description,
     TAB_URL, "Newest frame url should be correct.");
-  is(gClassicFrames.getItemAtIndex(1).attachment.depth,
-    1, "Newest frame name is mirrored correctly.");
+  is(gClassicFrames.getItemAtIndex(1).value,
+    TAB_URL, "Newest frame name is mirrored correctly.");
 
   is(gFrames.selectedIndex, 1,
     "Newest frame should be selected by default.");

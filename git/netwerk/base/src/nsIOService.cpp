@@ -764,11 +764,6 @@ nsIOService::AllowPort(int32_t inPort, const char *scheme, bool *_retval)
         *_retval = true;
         return NS_OK;
     }
-
-    if (port == 0) {
-        *_retval = false;
-        return NS_OK;
-    }
         
     // first check to see if the port is in our blacklist:
     int32_t badPortListCnt = mRestrictedPortList.Length();

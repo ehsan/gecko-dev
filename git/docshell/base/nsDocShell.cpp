@@ -5796,7 +5796,11 @@ nsDocShell::SetTitle(const char16_t * aTitle)
     return NS_OK;
 }
 
-nsresult
+//*****************************************************************************
+// nsDocShell::nsIScrollable
+//*****************************************************************************   
+
+NS_IMETHODIMP
 nsDocShell::GetCurScrollPos(int32_t scrollOrientation, int32_t * curPos)
 {
     NS_ENSURE_ARG_POINTER(curPos);
@@ -5820,7 +5824,32 @@ nsDocShell::GetCurScrollPos(int32_t scrollOrientation, int32_t * curPos)
     }
 }
 
-nsresult
+NS_IMETHODIMP
+nsDocShell::SetCurScrollPos(int32_t scrollOrientation, int32_t curPos)
+{
+    nsIScrollableFrame* sf = GetRootScrollFrame();
+    NS_ENSURE_TRUE(sf, NS_ERROR_FAILURE);
+
+    nsPoint pt = sf->GetScrollPosition();
+
+    switch (scrollOrientation) {
+    case ScrollOrientation_X:
+        pt.x = curPos;
+        break;
+
+    case ScrollOrientation_Y:
+        pt.y = curPos;
+        break;
+
+    default:
+        NS_ENSURE_TRUE(false, NS_ERROR_INVALID_ARG);
+    }
+
+    sf->ScrollTo(pt, nsIScrollableFrame::INSTANT);
+    return NS_OK;
+}
+
+NS_IMETHODIMP
 nsDocShell::SetCurScrollPosEx(int32_t curHorizontalPos, int32_t curVerticalPos)
 {
     nsIScrollableFrame* sf = GetRootScrollFrame();
@@ -5831,10 +5860,69 @@ nsDocShell::SetCurScrollPosEx(int32_t curHorizontalPos, int32_t curVerticalPos)
     return NS_OK;
 }
 
-//*****************************************************************************
-// nsDocShell::nsIScrollable
-//*****************************************************************************   
+// XXX This is wrong
+NS_IMETHODIMP
+nsDocShell::GetScrollRange(int32_t scrollOrientation,
+                           int32_t * minPos, int32_t * maxPos)
+{
+    NS_ENSURE_ARG_POINTER(minPos && maxPos);
 
+    nsIScrollableFrame* sf = GetRootScrollFrame();
+    NS_ENSURE_TRUE(sf, NS_ERROR_FAILURE);
+
+    nsSize portSize = sf->GetScrollPortRect().Size();
+    nsRect range = sf->GetScrollRange();
+
+    switch (scrollOrientation) {
+    case ScrollOrientation_X:
+        *minPos = range.x;
+        *maxPos = range.XMost() + portSize.width;
+        return NS_OK;
+
+    case ScrollOrientation_Y:
+        *minPos = range.y;
+        *maxPos = range.YMost() + portSize.height;
+        return NS_OK;
+
+    default:
+        NS_ENSURE_TRUE(false, NS_ERROR_INVALID_ARG);
+    }
+}
+
+NS_IMETHODIMP
+nsDocShell::SetScrollRange(int32_t scrollOrientation,
+                           int32_t minPos, int32_t maxPos)
+{
+    //XXX First Check
+    /*
+       Retrieves or Sets the valid ranges for the thumb.  When maxPos is set to 
+       something less than the current thumb position, curPos is set = to maxPos.
+
+       @return NS_OK - Setting or Getting completed successfully.
+       NS_ERROR_INVALID_ARG - returned when curPos is not within the
+       minPos and maxPos.
+     */
+    return NS_ERROR_FAILURE;
+}
+
+NS_IMETHODIMP
+nsDocShell::SetScrollRangeEx(int32_t minHorizontalPos,
+                             int32_t maxHorizontalPos, int32_t minVerticalPos,
+                             int32_t maxVerticalPos)
+{
+    //XXX First Check
+    /*
+       Retrieves or Sets the valid ranges for the thumb.  When maxPos is set to 
+       something less than the current thumb position, curPos is set = to maxPos.
+
+       @return NS_OK - Setting or Getting completed successfully.
+       NS_ERROR_INVALID_ARG - returned when curPos is not within the
+       minPos and maxPos.
+     */
+    return NS_ERROR_FAILURE;
+}
+
+// This returns setting for all documents in this docshell
 NS_IMETHODIMP
 nsDocShell::GetDefaultScrollbarPreferences(int32_t scrollOrientation,
                                            int32_t * scrollbarPref)
@@ -5855,6 +5943,15 @@ nsDocShell::GetDefaultScrollbarPreferences(int32_t scrollOrientation,
     return NS_ERROR_FAILURE;
 }
 
+// Set scrolling preference for all documents in this shell
+//
+// There are three possible values stored in the shell:
+//  1) nsIScrollable::Scrollbar_Never = no scrollbar
+//  2) nsIScrollable::Scrollbar_Auto = scrollbar appears if the document
+//     being displayed would normally have scrollbar
+//  3) nsIScrollable::Scrollbar_Always = scrollbar always appears
+//
+// One important client is nsHTMLFrameInnerFrame::CreateWebShell()
 NS_IMETHODIMP
 nsDocShell::SetDefaultScrollbarPreferences(int32_t scrollOrientation,
                                            int32_t scrollbarPref)

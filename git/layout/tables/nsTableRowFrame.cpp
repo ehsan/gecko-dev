@@ -1432,7 +1432,7 @@ NS_NewTableRowFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 
 NS_IMPL_FRAMEARENA_HELPERS(nsTableRowFrame)
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 NS_IMETHODIMP
 nsTableRowFrame::GetFrameName(nsAString& aResult) const
 {

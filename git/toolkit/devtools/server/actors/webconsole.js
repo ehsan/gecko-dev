@@ -247,7 +247,7 @@ WebConsoleActor.prototype =
    * @type boolean
    */
   get saveRequestAndResponseBodies()
-    this._prefs["NetworkMonitor.saveRequestAndResponseBodies"] || null,
+    this._prefs["NetworkMonitor.saveRequestAndResponseBodies"],
 
   actorPrefix: "console",
 

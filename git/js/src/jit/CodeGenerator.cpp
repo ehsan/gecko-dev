@@ -1781,7 +1781,7 @@ CodeGenerator::visitCallDOMNative(LCallDOMNative *call)
     JS_ASSERT(target);
     JS_ASSERT(target->isNative());
     JS_ASSERT(target->jitInfo());
-    JS_ASSERT(call->mir()->isCallDOMNative());
+    JS_ASSERT(call->mir()->isDOMFunction());
 
     int callargslot = call->argslot();
     int unusedStack = StackOffsetOfPassedArg(callargslot);
@@ -6510,17 +6510,16 @@ CodeGenerator::visitGetPropertyParIC(OutOfLineUpdateCache *ool, DataPtr<GetPrope
 
 bool
 CodeGenerator::addGetElementCache(LInstruction *ins, Register obj, ConstantOrRegister index,
-                                  TypedOrValueRegister output, bool monitoredResult,
-                                  bool allowDoubleResult)
+                                  TypedOrValueRegister output, bool monitoredResult)
 {
     switch (gen->info().executionMode()) {
       case SequentialExecution: {
         RegisterSet liveRegs = ins->safepoint()->liveRegs();
-        GetElementIC cache(liveRegs, obj, index, output, monitoredResult, allowDoubleResult);
+        GetElementIC cache(liveRegs, obj, index, output, monitoredResult);
         return addCache(ins, allocateCache(cache));
       }
       case ParallelExecution: {
-        GetElementParIC cache(obj, index, output, monitoredResult, allowDoubleResult);
+        GetElementParIC cache(obj, index, output, monitoredResult);
         return addCache(ins, allocateCache(cache));
       }
       default:
@@ -6534,9 +6533,8 @@ CodeGenerator::visitGetElementCacheV(LGetElementCacheV *ins)
     Register obj = ToRegister(ins->object());
     ConstantOrRegister index = TypedOrValueRegister(ToValue(ins, LGetElementCacheV::Index));
     TypedOrValueRegister output = TypedOrValueRegister(GetValueOutput(ins));
-    const MGetElementCache *mir = ins->mir();
 
-    return addGetElementCache(ins, obj, index, output, mir->monitoredResult(), mir->allowDoubleResult());
+    return addGetElementCache(ins, obj, index, output, ins->mir()->monitoredResult());
 }
 
 bool
@@ -6545,9 +6543,8 @@ CodeGenerator::visitGetElementCacheT(LGetElementCacheT *ins)
     Register obj = ToRegister(ins->object());
     ConstantOrRegister index = TypedOrValueRegister(MIRType_Int32, ToAnyRegister(ins->index()));
     TypedOrValueRegister output(ins->mir()->type(), ToAnyRegister(ins->output()));
-    const MGetElementCache *mir = ins->mir();
 
-    return addGetElementCache(ins, obj, index, output, mir->monitoredResult(), mir->allowDoubleResult());
+    return addGetElementCache(ins, obj, index, output, ins->mir()->monitoredResult());
 }
 
 typedef bool (*GetElementICFn)(JSContext *, size_t, HandleObject, HandleValue, MutableHandleValue);

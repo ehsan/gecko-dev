@@ -82,7 +82,7 @@ public:
 
   virtual bool NeedsView() { return true; }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 

@@ -316,7 +316,7 @@ nsLeafBoxFrame::Reflow(nsPresContext*   aPresContext,
   return NS_OK;
 }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 NS_IMETHODIMP
 nsLeafBoxFrame::GetFrameName(nsAString& aResult) const
 {

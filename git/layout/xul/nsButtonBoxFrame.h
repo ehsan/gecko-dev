@@ -32,7 +32,7 @@ public:
                             mozilla::WidgetGUIEvent* aEvent)
   { DoMouseClick(aEvent, false); }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE {
     return MakeFrameName(NS_LITERAL_STRING("ButtonBoxFrame"), aResult);
   }

@@ -64,7 +64,7 @@ public:
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
                                         uint32_t aFilter) MOZ_OVERRIDE;
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE {
     return MakeFrameName(NS_LITERAL_STRING("NumberControl"), aResult);
   }

@@ -110,7 +110,7 @@ nsPageContentFrame::GetType() const
   return nsGkAtoms::pageContentFrame; 
 }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 NS_IMETHODIMP
 nsPageContentFrame::GetFrameName(nsAString& aResult) const
 {

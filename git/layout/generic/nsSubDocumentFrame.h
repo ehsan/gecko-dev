@@ -23,7 +23,7 @@ public:
 
   nsSubDocumentFrame(nsStyleContext* aContext);
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
   void List(FILE* out, int32_t aIndent, uint32_t aFlags = 0) const MOZ_OVERRIDE;
   NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif

@@ -60,7 +60,7 @@ nsBulletFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsFrame::DestroyFrom(aDestructRoot);
 }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 NS_IMETHODIMP
 nsBulletFrame::GetFrameName(nsAString& aResult) const
 {

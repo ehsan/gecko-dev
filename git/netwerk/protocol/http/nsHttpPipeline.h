@@ -27,10 +27,6 @@ public:
     nsHttpPipeline();
     virtual ~nsHttpPipeline();
 
-  bool ResponseTimeoutEnabled() const MOZ_OVERRIDE MOZ_FINAL {
-    return true;
-  }
-
 private:
     nsresult FillSendBuf();
 

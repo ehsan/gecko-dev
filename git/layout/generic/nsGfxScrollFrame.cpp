@@ -866,7 +866,7 @@ nsHTMLScrollFrame::Reflow(nsPresContext*           aPresContext,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 NS_IMETHODIMP
 nsHTMLScrollFrame::GetFrameName(nsAString& aResult) const
 {
@@ -1190,7 +1190,7 @@ nsXULScrollFrame::GetMaxSize(nsBoxLayoutState& aState)
   return maxSize;
 }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 NS_IMETHODIMP
 nsXULScrollFrame::GetFrameName(nsAString& aResult) const
 {
@@ -2427,10 +2427,7 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     shouldBuildLayer =
       wantSubAPZC &&
       (wantLayerV || wantLayerH) &&
-      // If we are the root scroll frame for the display root then we don't need a scroll
-      // info layer to make a RecordFrameMetrics call for us as
-      // nsDisplayList::PaintForFrame already calls RecordFrameMetrics for us.
-      (!mIsRoot || aBuilder->RootReferenceFrame()->PresContext() != mOuter->PresContext());
+      (!mIsRoot || !mOuter->PresContext()->IsRootContentDocument());
   }
 
   if (shouldBuildLayer) {

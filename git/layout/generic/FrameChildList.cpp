@@ -27,7 +27,7 @@ FrameChildListIterator::FrameChildListIterator(const nsIFrame* aFrame)
 #endif
 }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 const char*
 ChildListName(FrameChildListID aListID)
 {

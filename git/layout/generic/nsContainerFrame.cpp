@@ -1819,7 +1819,7 @@ nsOverflowContinuationTracker::EndFinish(nsIFrame* aChild)
 /////////////////////////////////////////////////////////////////////////////
 // Debugging
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 void
 nsContainerFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
 {

@@ -535,12 +535,6 @@ public:
     }
   }
 
-  void AddCue(TextTrackCue& aCue) {
-    if (mTextTrackManager) {
-      mTextTrackManager->AddCue(aCue);
-    }
-  }
-
   /**
    * A public wrapper for FinishDecoderSetup()
    */

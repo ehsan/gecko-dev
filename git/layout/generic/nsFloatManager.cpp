@@ -416,7 +416,7 @@ nsFloatManager::GetLowestFloatTop() const
   return mFloats[mFloats.Length() - 1].mRect.y - mY;
 }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 void
 DebugListFloatManager(const nsFloatManager *aFloatManager)
 {

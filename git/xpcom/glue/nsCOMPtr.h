@@ -146,25 +146,22 @@ struct already_AddRefed
       |nsCOMPtr_helper|.
     */
   {
-    /*
-     * Prohibit all one-argument overloads but already_AddRefed(T*) and
-     * already_AddRefed(decltype(nullptr)), and funnel the nullptr case through
-     * the T* constructor.
-     */
-    template<typename N>
-    already_AddRefed(N,
-                     typename mozilla::EnableIf<mozilla::IsNullPointer<N>::value,
-                                                int>::Type dummy = 0)
+#ifdef MOZ_HAVE_CXX11_NULLPTR
+    /* We use decltype(nullptr) instead of std::nullptr_t because the standard
+     * library might be old, and to save including <cstddef>.  All compilers
+     * that support nullptr seem to support decltype. */
+    already_AddRefed(decltype(nullptr) aNullPtr)
       : mRawPtr(nullptr)
     {
-      // nothing else to do here
     }
 
+    explicit
+#endif
     already_AddRefed( T* aRawPtr )
-      : mRawPtr(aRawPtr)
-    {
-      // nothing else to do here
-    }
+        : mRawPtr(aRawPtr)
+      {
+        // nothing else to do here
+      }
 
     T* get() const { return mRawPtr; }
 

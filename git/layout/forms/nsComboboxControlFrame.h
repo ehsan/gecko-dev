@@ -99,7 +99,7 @@ public:
     return do_QueryFrame(mDropdownFrame);
   }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;

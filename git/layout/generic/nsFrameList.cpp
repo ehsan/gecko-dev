@@ -331,7 +331,7 @@ nsFrameList::UnhookFrameFromSiblings(nsIFrame* aFrame)
   MOZ_ASSERT(!aFrame->GetPrevSibling() && !aFrame->GetNextSibling());
 }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 void
 nsFrameList::List(FILE* out) const
 {

@@ -1471,7 +1471,7 @@ nsListControlFrame::GetType() const
   return nsGkAtoms::listControlFrame; 
 }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 NS_IMETHODIMP
 nsListControlFrame::GetFrameName(nsAString& aResult) const
 {

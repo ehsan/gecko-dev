@@ -16,7 +16,6 @@ class gfxContext;
 class nsIFrame;
 class nsSVGElement;
 class nsSVGLength2;
-class nsSVGPathGeometryFrame;
 class nsSVGViewBox;
 
 namespace mozilla {
@@ -73,7 +72,7 @@ public:
    */
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGPattern"), aResult);
@@ -132,7 +131,7 @@ private:
   // this is a *temporary* reference to the frame of the element currently
   // referencing our pattern.  This must be temporary because different
   // referencing frames will all reference this one frame
-  nsSVGPathGeometryFrame           *mSource;
+  nsSVGGeometryFrame               *mSource;
   nsAutoPtr<gfxMatrix>              mCTM;
 
 protected:

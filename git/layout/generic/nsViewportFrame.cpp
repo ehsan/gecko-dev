@@ -298,7 +298,7 @@ ViewportFrame::GetType() const
   return nsGkAtoms::viewportFrame;
 }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 NS_IMETHODIMP
 ViewportFrame::GetFrameName(nsAString& aResult) const
 {

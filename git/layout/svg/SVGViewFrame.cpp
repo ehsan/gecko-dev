@@ -45,7 +45,7 @@ public:
     return SVGViewFrameBase::IsFrameOfType(aFlags & ~(nsIFrame::eSVG));
   }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGView"), aResult);

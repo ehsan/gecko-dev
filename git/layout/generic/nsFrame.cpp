@@ -193,6 +193,26 @@ nsFrame::GetLogModuleInfo()
   return gLogModule;
 }
 
+void
+nsIFrame::DumpFrameTree()
+{
+  RootFrameList(PresContext(), stdout, 0);
+}
+
+void
+nsIFrame::RootFrameList(nsPresContext* aPresContext, FILE* out, int32_t aIndent)
+{
+  if (!aPresContext || !out)
+    return;
+
+  nsIPresShell *shell = aPresContext->GetPresShell();
+  if (shell) {
+    nsIFrame* frame = shell->FrameManager()->GetRootFrame();
+    if(frame) {
+      frame->List(out, aIndent);
+    }
+  }
+}
 #endif
 
 static void
@@ -5233,7 +5253,7 @@ nsIFrame::GetContainingBlock() const
   return GetNearestBlockContainer(GetParent());
 }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 
 int32_t nsFrame::ContentIndexInContainer(const nsIFrame* aFrame)
 {
@@ -5348,6 +5368,23 @@ nsFrame::GetFrameName(nsAString& aResult) const
   return MakeFrameName(NS_LITERAL_STRING("Frame"), aResult);
 }
 
+NS_IMETHODIMP_(nsFrameState)
+nsFrame::GetDebugStateBits() const
+{
+  // We'll ignore these flags for the purposes of comparing frame state:
+  //
+  //   NS_FRAME_EXTERNAL_REFERENCE
+  //     because this is set by the event state manager or the
+  //     caret code when a frame is focused. Depending on whether
+  //     or not the regression tests are run as the focused window
+  //     will make this value vary randomly.
+#define IRRELEVANT_FRAME_STATE_FLAGS NS_FRAME_EXTERNAL_REFERENCE
+
+#define FRAME_STATE_MASK (~(IRRELEVANT_FRAME_STATE_FLAGS))
+
+  return GetStateBits() & FRAME_STATE_MASK;
+}
+
 nsresult
 nsFrame::MakeFrameName(const nsAString& aType, nsAString& aResult) const
 {
@@ -5366,46 +5403,6 @@ nsFrame::MakeFrameName(const nsAString& aType, nsAString& aResult) const
   PR_snprintf(buf, sizeof(buf), "(%d)", ContentIndexInContainer(this));
   AppendASCIItoUTF16(buf, aResult);
   return NS_OK;
-}
-
-void
-nsIFrame::DumpFrameTree()
-{
-  RootFrameList(PresContext(), stdout, 0);
-}
-
-void
-nsIFrame::RootFrameList(nsPresContext* aPresContext, FILE* out, int32_t aIndent)
-{
-  if (!aPresContext || !out)
-    return;
-
-  nsIPresShell *shell = aPresContext->GetPresShell();
-  if (shell) {
-    nsIFrame* frame = shell->FrameManager()->GetRootFrame();
-    if(frame) {
-      frame->List(out, aIndent);
-    }
-  }
-}
-#endif
-
-#ifdef DEBUG
-NS_IMETHODIMP_(nsFrameState)
-nsFrame::GetDebugStateBits() const
-{
-  // We'll ignore these flags for the purposes of comparing frame state:
-  //
-  //   NS_FRAME_EXTERNAL_REFERENCE
-  //     because this is set by the event state manager or the
-  //     caret code when a frame is focused. Depending on whether
-  //     or not the regression tests are run as the focused window
-  //     will make this value vary randomly.
-#define IRRELEVANT_FRAME_STATE_FLAGS NS_FRAME_EXTERNAL_REFERENCE
-
-#define FRAME_STATE_MASK (~(IRRELEVANT_FRAME_STATE_FLAGS))
-
-  return GetStateBits() & FRAME_STATE_MASK;
 }
 
 void
@@ -7743,13 +7740,11 @@ nsFrame::DoLayout(nsBoxLayoutState& aState)
                                   nsSize(size.width, NS_UNCONSTRAINEDSIZE),
                                   nsHTMLReflowState::DUMMY_PARENT_REFLOW_STATE);
 
-    AddStateBits(NS_FRAME_IN_REFLOW);
     // Set up a |reflowStatus| to pass into ReflowAbsoluteFrames
     // (just a dummy value; hopefully that's OK)
     nsReflowStatus reflowStatus = NS_FRAME_COMPLETE;
     ReflowAbsoluteFrames(aState.PresContext(), desiredSize,
                          reflowState, reflowStatus);
-    RemoveStateBits(NS_FRAME_IN_REFLOW);
   }
 
   nsSize oldSize(ourRect.Size());

@@ -303,7 +303,6 @@ TabTarget.prototype = {
               this._form = tab;
               return true;
             }
-            return false;
           });
           if (!this._form) {
             this._form = aResponse.tabs[aResponse.selected];

@@ -24,7 +24,6 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/HoldDropJSObjects.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "nsContentUtils.h"
 #include "nsWrapperCache.h"
@@ -96,11 +95,6 @@ public:
     // Throw any exception to the caller code.
     eRethrowExceptions
   };
-
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
-  {
-    return aMallocSizeOf(this);
-  }
 
 protected:
   explicit CallbackObject(CallbackObject* aCallbackObject)

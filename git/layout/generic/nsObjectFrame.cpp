@@ -290,7 +290,7 @@ nsObjectFrame::GetType() const
   return nsGkAtoms::objectFrame; 
 }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 NS_IMETHODIMP
 nsObjectFrame::GetFrameName(nsAString& aResult) const
 {

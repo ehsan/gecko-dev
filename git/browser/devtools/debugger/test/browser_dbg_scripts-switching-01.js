@@ -50,13 +50,15 @@ function testSourcesDisplay() {
   ok(gSources.containsValue(EXAMPLE_URL + gLabel2),
     "Second source url is incorrect.");
 
-  ok(gSources.getItemForAttachment(e => e.label == gLabel1),
+  ok(gSources.containsLabel(gLabel1),
     "First source label is incorrect.");
-  ok(gSources.getItemForAttachment(e => e.label == gLabel2),
+  ok(gSources.containsLabel(gLabel2),
     "Second source label is incorrect.");
 
   ok(gSources.selectedItem,
     "There should be a selected item in the sources pane.");
+  is(gSources.selectedLabel, gLabel2,
+    "The selected label is the sources pane is incorrect.");
   is(gSources.selectedValue, EXAMPLE_URL + gLabel2,
     "The selected value is the sources pane is incorrect.");
 
@@ -90,6 +92,8 @@ function testSwitchPaused1() {
 
   ok(gSources.selectedItem,
     "There should be a selected item in the sources pane.");
+  is(gSources.selectedLabel, gLabel1,
+    "The selected label is the sources pane is incorrect.");
   is(gSources.selectedValue, EXAMPLE_URL + gLabel1,
     "The selected value is the sources pane is incorrect.");
 
@@ -119,6 +123,8 @@ function testSwitchPaused2() {
 
   ok(gSources.selectedItem,
     "There should be a selected item in the sources pane.");
+  is(gSources.selectedLabel, gLabel2,
+    "The selected label is the sources pane is incorrect.");
   is(gSources.selectedValue, EXAMPLE_URL + gLabel2,
     "The selected value is the sources pane is incorrect.");
 
@@ -155,6 +161,8 @@ function testSwitchRunning() {
 
   ok(gSources.selectedItem,
     "There should be a selected item in the sources pane.");
+  is(gSources.selectedLabel, gLabel1,
+    "The selected label is the sources pane is incorrect.");
   is(gSources.selectedValue, EXAMPLE_URL + gLabel1,
     "The selected value is the sources pane is incorrect.");
 

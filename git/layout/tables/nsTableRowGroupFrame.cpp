@@ -1584,7 +1584,7 @@ NS_NewTableRowGroupFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 
 NS_IMPL_FRAMEARENA_HELPERS(nsTableRowGroupFrame)
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 NS_IMETHODIMP
 nsTableRowGroupFrame::GetFrameName(nsAString& aResult) const
 {

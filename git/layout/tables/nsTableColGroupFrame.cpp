@@ -480,7 +480,7 @@ nsTableColGroupFrame::InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDis
   GetParent()->InvalidateFrameWithRect(aRect + GetPosition(), aDisplayItemKey);
 }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 NS_IMETHODIMP
 nsTableColGroupFrame::GetFrameName(nsAString& aResult) const
 {

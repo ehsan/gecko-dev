@@ -3475,7 +3475,7 @@ nsTableFrame::IsAutoLayout()
           width.GetIntValue() == NS_STYLE_WIDTH_MAX_CONTENT);
 }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 NS_IMETHODIMP
 nsTableFrame::GetFrameName(nsAString& aResult) const
 {

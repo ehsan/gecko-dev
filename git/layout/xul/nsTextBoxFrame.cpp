@@ -1089,7 +1089,7 @@ nsTextBoxFrame::GetBoxAscent(nsBoxLayoutState& aBoxLayoutState)
     return ascent;
 }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 NS_IMETHODIMP
 nsTextBoxFrame::GetFrameName(nsAString& aResult) const
 {

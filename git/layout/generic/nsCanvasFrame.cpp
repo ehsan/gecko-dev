@@ -610,7 +610,7 @@ nsCanvasFrame::GetContentForEvent(WidgetEvent* aEvent,
   return rv;
 }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 NS_IMETHODIMP
 nsCanvasFrame::GetFrameName(nsAString& aResult) const
 {

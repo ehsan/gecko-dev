@@ -9,12 +9,6 @@
 #include <stdio.h> /* for FILE* */
 #include "nsDebug.h"
 
-#ifdef DEBUG
-// DEBUG_FRAME_DUMP enables nsIFrame::List and related methods.
-// You can also define this in a non-DEBUG build if you need frame dumps.
-#define DEBUG_FRAME_DUMP 1
-#endif
-
 class nsIFrame;
 class nsIPresShell;
 class nsPresContext;
@@ -283,7 +277,7 @@ public:
   nsIFrame* GetNextVisualFor(nsIFrame* aFrame) const;
 #endif // IBMBIDI
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
   void List(FILE* out) const;
 #endif
 

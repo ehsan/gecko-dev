@@ -199,7 +199,7 @@ LayoutView.prototype = {
       // If the view is dimmed, no need to do anything more.
       if (this.dimmed) {
         this.inspector.emit("layoutview-updated");
-        return null;
+        return;
       }
 
       for (let i in this.map) {
@@ -247,9 +247,7 @@ LayoutView.prototype = {
       }
 
       this.inspector.emit("layoutview-updated");
-      return null;
     });
-
     this._lastRequest = lastRequest;
     return this._lastRequest;
   }

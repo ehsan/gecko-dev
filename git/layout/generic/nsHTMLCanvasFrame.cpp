@@ -334,7 +334,7 @@ nsHTMLCanvasFrame::AccessibleType()
 }
 #endif
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
 NS_IMETHODIMP
 nsHTMLCanvasFrame::GetFrameName(nsAString& aResult) const
 {

@@ -37,7 +37,7 @@ public:
             aFlags & ~(nsIFrame::eSVG | nsIFrame::eSVGContainer));
   }
 
-#ifdef DEBUG_FRAME_DUMP
+#ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGFEContainer"), aResult);

@@ -34,10 +34,8 @@ function doSearch(ctx, rev, query) {
   let { cm } = ctx;
   let state = getSearchState(cm);
 
-  if (state.query) {
-    searchNext(ctx, rev);
-    return;
-  }
+  if (state.query)
+    return searchNext(ctx, rev);
 
   cm.operation(function () {
     if (state.query) return;

@@ -1134,8 +1134,8 @@ JSObject::sealOrFreeze(JSContext *cx, HandleObject obj, ImmutabilityType it)
             StackShape::AutoRooter rooter(cx, &child);
             child.attrs |= getSealedOrFrozenAttributes(child.attrs, it);
 
-            if (!JSID_IS_EMPTY(child.propid) && it == FREEZE)
-                MarkTypePropertyNonWritable(cx, obj, child.propid);
+            if (!JSID_IS_EMPTY(child.propid))
+                MarkTypePropertyConfigured(cx, obj, child.propid);
 
             last = cx->compartment()->propertyTree.getChild(cx, last, obj->numFixedSlots(), child);
             if (!last)
@@ -1260,11 +1260,9 @@ NewObjectGCKind(const js::Class *clasp)
 }
 
 static inline JSObject *
-NewObject(ExclusiveContext *cx, types::TypeObject *type_, JSObject *parent, gc::AllocKind kind,
-          NewObjectKind newKind)
+NewObject(ExclusiveContext *cx, const Class *clasp, types::TypeObject *type_, JSObject *parent,
+          gc::AllocKind kind, NewObjectKind newKind)
 {
-    const Class *clasp = type_->clasp();
-
     JS_ASSERT(clasp != &ArrayObject::class_);
     JS_ASSERT_IF(clasp == &JSFunction::class_,
                  kind == JSFunction::FinalizeKind || kind == JSFunction::ExtendedFinalizeKind);
@@ -1367,7 +1365,7 @@ js::NewObjectWithGivenProto(ExclusiveContext *cxArg, const js::Class *clasp,
     if (!parent && proto.isObject())
         parent = proto.toObject()->getParent();
 
-    RootedObject obj(cxArg, NewObject(cxArg, type, parent, allocKind, newKind));
+    RootedObject obj(cxArg, NewObject(cxArg, clasp, type, parent, allocKind, newKind));
     if (!obj)
         return nullptr;
 
@@ -1430,7 +1428,7 @@ js::NewObjectWithClassProtoCommon(ExclusiveContext *cxArg,
     if (!type)
         return nullptr;
 
-    JSObject *obj = NewObject(cxArg, type, parent, allocKind, newKind);
+    JSObject *obj = NewObject(cxArg, clasp, type, parent, allocKind, newKind);
     if (!obj)
         return nullptr;
 
@@ -1464,19 +1462,19 @@ js::NewObjectWithType(JSContext *cx, HandleTypeObject type, JSObject *parent, gc
         newKind == GenericObject &&
         !cx->compartment()->hasObjectMetadataCallback())
     {
-        if (cache.lookupType(type, allocKind, &entry)) {
+        if (cache.lookupType(type->clasp(), type, allocKind, &entry)) {
             JSObject *obj = cache.newObjectFromHit(cx, entry, GetInitialHeap(newKind, type->clasp()));
             if (obj)
                 return obj;
         }
     }
 
-    JSObject *obj = NewObject(cx, type, parent, allocKind, newKind);
+    JSObject *obj = NewObject(cx, type->clasp(), type, parent, allocKind, newKind);
     if (!obj)
         return nullptr;
 
     if (entry != -1 && !obj->hasDynamicSlots())
-        cache.fillType(entry, type, allocKind, obj);
+        cache.fillType(entry, type->clasp(), type, allocKind, obj);
 
     return obj;
 }
@@ -3427,20 +3425,14 @@ UpdateShapeTypeAndValue(typename ExecutionModeTraits<mode>::ExclusiveContextType
             obj->nativeSetSlotWithType(cx->asExclusiveContext(), shape, value);
         }
     }
-    if (!shape->hasSlot() || !shape->hasDefaultGetter() || !shape->hasDefaultSetter()) {
+    if (!shape->hasSlot() || !shape->writable() ||
+        !shape->hasDefaultGetter() || !shape->hasDefaultSetter())
+    {
         if (mode == ParallelExecution) {
-            if (!IsTypePropertyIdMarkedNonData(obj, id))
+            if (!IsTypePropertyIdMarkedConfigured(obj, id))
                 return false;
         } else {
-            MarkTypePropertyNonData(cx->asExclusiveContext(), obj, id);
-        }
-    }
-    if (!shape->writable()) {
-        if (mode == ParallelExecution) {
-            if (!IsTypePropertyIdMarkedNonWritable(obj, id))
-                return false;
-        } else {
-            MarkTypePropertyNonWritable(cx->asExclusiveContext(), obj, id);
+            MarkTypePropertyConfigured(cx->asExclusiveContext(), obj, id);
         }
     }
     return true;
@@ -4892,7 +4884,7 @@ baseops::SetAttributes(JSContext *cx, HandleObject obj, HandleId id, unsigned *a
         if (!JSObject::changePropertyAttributes(cx, nobj, shape, *attrsp))
             return false;
         if (*attrsp & JSPROP_READONLY)
-            MarkTypePropertyNonWritable(cx, obj, id);
+            MarkTypePropertyConfigured(cx, obj, id);
         return true;
     } else {
         return JSObject::setGenericAttributes(cx, nobj, id, attrsp);
@@ -4986,7 +4978,7 @@ js::WatchGuts(JSContext *cx, JS::HandleObject origObj, JS::HandleId id, JS::Hand
         if (!JSObject::sparsifyDenseElements(cx, obj))
             return false;
 
-        types::MarkTypePropertyNonData(cx, obj, id);
+        types::MarkTypePropertyConfigured(cx, obj, id);
     }
 
     WatchpointMap *wpmap = cx->compartment()->watchpointMap;

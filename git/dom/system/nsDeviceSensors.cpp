@@ -373,19 +373,9 @@ nsDeviceSensors::FireDOMMotionEvent(nsIDOMDocument *domdoc,
     break;
   }
 
-  if (fireEvent) {
-    if (mLastAcceleration.empty()) {
-      mLastAcceleration.construct();
-    }
-    if (mLastAccelerationIncluduingGravity.empty()) {
-      mLastAccelerationIncluduingGravity.construct();
-    }
-    if (mLastRotationRate.empty()) {
-      mLastRotationRate.construct();
-    }
-  } else if (mLastAcceleration.empty() ||
-             mLastAccelerationIncluduingGravity.empty() ||
-             mLastRotationRate.empty()) {
+  if (!fireEvent && (mLastAcceleration.empty() ||
+                     mLastAccelerationIncluduingGravity.empty() ||
+                     mLastRotationRate.empty())) {
     return;
   }
 
