@@ -376,6 +376,8 @@ namespace nanojit
 		return l;
     }
 	
+#define isS24(x) (((int32_t(x)<<8)>>8) == (x))
+
 	LInsp LirBufWriter::insFar(LOpcode op, LInsp target)
 	{
         NanoAssert(op == LIR_skip || op == LIR_tramp);
@@ -1544,12 +1546,7 @@ namespace nanojit
 		}
 		else {
 			if (ref->isCall()) {
-				if (ref->isop(LIR_callh)) {
-					// we've presumably seen the other half already
-					ref = ref->oprnd1();
-				} else {
-					copyName(ref, _functions[ref->fid()]._name, funccounts.add(ref->fid()));
-				}
+				copyName(ref, _functions[ref->fid()]._name, funccounts.add(ref->fid()));
 			} else {
                 NanoAssert(ref->opcode() < sizeof(lirNames) / sizeof(lirNames[0]));
 				copyName(ref, lirNames[ref->opcode()], lircounts.add(ref->opcode()));
@@ -1655,6 +1652,7 @@ namespace nanojit
 			case LIR_fle:
 			case LIR_fgt:
 			case LIR_fge:
+			case LIR_qjoin:
             case LIR_qiadd:
             case LIR_qiand:
             case LIR_qilsh:
@@ -1663,12 +1661,6 @@ namespace nanojit
 					formatRef(i->oprnd1()), 
 					formatRef(i->oprnd2()));
 				break;
-
-			case LIR_qjoin:
-				sprintf(s, "%s (%s), %s", lirNames[op],
-					formatIns(i->oprnd1()), 
- 					formatRef(i->oprnd2()));
- 				break;
 
 			case LIR_qcmov:
 			case LIR_cmov:
