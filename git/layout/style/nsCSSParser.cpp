@@ -120,7 +120,6 @@ namespace css = mozilla::css;
 #define VARIANT_ZERO_ANGLE    0x02000000  // unitless zero for angles
 #define VARIANT_CALC          0x04000000  // eCSSUnit_Calc
 #define VARIANT_CALC_NO_MIN_MAX 0x08000000 // no min() and max() for calc()
-#define VARIANT_ELEMENT       0x10000000  // eCSSUnit_Element
 
 // Common combinations of variants
 #define VARIANT_AL   (VARIANT_AUTO | VARIANT_LENGTH)
@@ -159,8 +158,6 @@ namespace css = mozilla::css;
 #define VARIANT_ANGLE_OR_ZERO (VARIANT_ANGLE | VARIANT_ZERO_ANGLE)
 #define VARIANT_TRANSFORM_LPCALC (VARIANT_LP | VARIANT_CALC | \
                                   VARIANT_CALC_NO_MIN_MAX)
-#define VARIANT_IMAGE (VARIANT_URL | VARIANT_NONE | VARIANT_GRADIENT | \
-                       VARIANT_IMAGE_RECT | VARIANT_ELEMENT)
 
 //----------------------------------------------------------------------
 
@@ -515,9 +512,7 @@ protected:
   PRBool ParseTransition();
   PRBool ParseTransitionTimingFunction();
   PRBool ParseTransitionTimingFunctionValues(nsCSSValue& aValue);
-  PRBool ParseTransitionTimingFunctionValueComponent(float& aComponent,
-                                                     char aStop,
-                                                     PRBool aCheckRange);
+  PRBool ParseTransitionTimingFunctionValueComponent(float& aComponent, char aStop);
   PRBool AppendValueToList(nsCSSValueList**& aListTail,
                            const nsCSSValue& aValue);
 
@@ -565,7 +560,6 @@ protected:
   PRBool TranslateDimension(nsCSSValue& aValue, PRInt32 aVariantMask,
                             float aNumber, const nsString& aUnit);
   PRBool ParseImageRect(nsCSSValue& aImage);
-  PRBool ParseElement(nsCSSValue& aValue);
   PRBool ParseColorStop(nsCSSValueGradient* aGradient);
   PRBool ParseGradient(nsCSSValue& aValue, PRBool aIsRadial,
                        PRBool aIsRepeating);
@@ -1313,7 +1307,6 @@ CSSParserImpl::GetURLInParens(nsString& aURL)
   NS_ASSERTION(!mHavePushBack, "mustn't have pushback at this point");
   do {
     if (! mScanner.NextURL(mToken)) {
-      // EOF
       return PR_FALSE;
     }
   } while (eCSSToken_WhiteSpace == mToken.mType);
@@ -3223,13 +3216,11 @@ CSSParserImpl::ParseNegatedSimpleSelector(PRInt32&       aDataMask,
   }
   if (eSelectorParsingStatus_Error == parsingStatus) {
     REPORT_UNEXPECTED_TOKEN(PENegationBadInner);
-    SkipUntil(')');
     return parsingStatus;
   }
   // close the parenthesis
   if (!ExpectSymbol(')', PR_TRUE)) {
     REPORT_UNEXPECTED_TOKEN(PENegationNoClose);
-    SkipUntil(')');
     return eSelectorParsingStatus_Error;
   }
 
@@ -3622,8 +3613,7 @@ CSSParserImpl::ParseColor(nsCSSValue& aValue)
           aValue.SetColorValue(NS_RGB(r,g,b));
           return PR_TRUE;
         }
-        SkipUntil(')');
-        return PR_FALSE;
+        return PR_FALSE;  // already pushed back
       }
       else if (mToken.mIdent.LowerCaseEqualsLiteral("-moz-rgba") ||
                mToken.mIdent.LowerCaseEqualsLiteral("rgba")) {
@@ -3637,8 +3627,7 @@ CSSParserImpl::ParseColor(nsCSSValue& aValue)
           aValue.SetColorValue(NS_RGBA(r, g, b, a));
           return PR_TRUE;
         }
-        SkipUntil(')');
-        return PR_FALSE;
+        return PR_FALSE;  // already pushed back
       }
       else if (mToken.mIdent.LowerCaseEqualsLiteral("hsl")) {
         // hsl ( hue , saturation , lightness )
@@ -3647,7 +3636,6 @@ CSSParserImpl::ParseColor(nsCSSValue& aValue)
           aValue.SetColorValue(rgba);
           return PR_TRUE;
         }
-        SkipUntil(')');
         return PR_FALSE;
       }
       else if (mToken.mIdent.LowerCaseEqualsLiteral("-moz-hsla") ||
@@ -3662,7 +3650,6 @@ CSSParserImpl::ParseColor(nsCSSValue& aValue)
                                        NS_GET_B(rgba), a));
           return PR_TRUE;
         }
-        SkipUntil(')');
         return PR_FALSE;
       }
       break;
@@ -4443,11 +4430,6 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
       tk->mIdent.LowerCaseEqualsLiteral("-moz-image-rect")) {
     return ParseImageRect(aValue);
   }
-  if ((aVariantMask & VARIANT_ELEMENT) != 0 &&
-      eCSSToken_Function == tk->mType &&
-      tk->mIdent.LowerCaseEqualsLiteral("-moz-element")) {
-    return ParseElement(aValue);
-  }
   if ((aVariantMask & VARIANT_COLOR) != 0) {
     if ((mNavQuirkMode && !IsParsingCompoundProperty()) || // NONSTANDARD: Nav interprets 'xxyyzz' values even without '#' prefix
         (eCSSToken_ID == tk->mType) ||
@@ -4490,20 +4472,12 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
   if (((aVariantMask & VARIANT_ATTR) != 0) &&
       (eCSSToken_Function == tk->mType) &&
       tk->mIdent.LowerCaseEqualsLiteral("attr")) {
-    if (!ParseAttr(aValue)) {
-      SkipUntil(')');
-      return PR_FALSE;
-    }
-    return PR_TRUE;
+    return ParseAttr(aValue);
   }
   if (((aVariantMask & VARIANT_CUBIC_BEZIER) != 0) &&
       (eCSSToken_Function == tk->mType)) {
      if (tk->mIdent.LowerCaseEqualsLiteral("cubic-bezier")) {
-      if (!ParseTransitionTimingFunctionValues(aValue)) {
-        SkipUntil(')');
-        return PR_FALSE;
-      }
-      return PR_TRUE;
+      return ParseTransitionTimingFunctionValues(aValue);
     }
   }
   if ((aVariantMask & VARIANT_CALC) &&
@@ -4750,32 +4724,6 @@ CSSParserImpl::ParseImageRect(nsCSSValue& aImage)
       break;
 
     aImage = newFunction;
-    return PR_TRUE;
-  }
-
-  SkipUntil(')');
-  return PR_FALSE;
-}
-
-// <element>: -moz-element(# <element_id> )
-PRBool
-CSSParserImpl::ParseElement(nsCSSValue& aValue)
-{
-  // A non-iterative for loop to break out when an error occurs.
-  for (;;) {
-    if (!GetToken(PR_TRUE))
-      break;
-
-    if (mToken.mType == eCSSToken_ID) {
-      aValue.SetStringValue(mToken.mIdent, eCSSUnit_Element);
-    } else {
-      UngetToken();
-      break;
-    }
-
-    if (!ExpectSymbol(')', PR_TRUE))
-      break;
-
     return PR_TRUE;
   }
 
@@ -5629,7 +5577,9 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HC, nsnull);
   case eCSSProperty_background_image:
     // Used only internally.
-    return ParseVariant(aValue, VARIANT_IMAGE | VARIANT_INHERIT, nsnull);
+    return ParseVariant(aValue,
+                        VARIANT_HUO | VARIANT_GRADIENT | VARIANT_IMAGE_RECT,
+                        nsnull);
   case eCSSProperty__moz_background_inline_policy:
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kBackgroundInlinePolicyKTable);
@@ -5779,7 +5729,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_height:
     return ParseNonNegativeVariant(aValue, VARIANT_AHLP, nsnull);
   case eCSSProperty_width:
-    return ParseNonNegativeVariant(aValue, VARIANT_AHKLP | VARIANT_CALC,
+    return ParseNonNegativeVariant(aValue, VARIANT_AHKLP,
                                    nsCSSProps::kWidthKTable);
   case eCSSProperty_force_broken_image_icon:
     return ParseNonNegativeVariant(aValue, VARIANT_HI, nsnull);
@@ -6414,8 +6364,7 @@ CSSParserImpl::ParseBackgroundItem(CSSParserImpl::BackgroundItem& aItem,
                 mToken.mIdent.LowerCaseEqualsLiteral("-moz-radial-gradient") ||
                 mToken.mIdent.LowerCaseEqualsLiteral("-moz-repeating-linear-gradient") ||
                 mToken.mIdent.LowerCaseEqualsLiteral("-moz-repeating-radial-gradient") ||
-                mToken.mIdent.LowerCaseEqualsLiteral("-moz-image-rect") ||
-                mToken.mIdent.LowerCaseEqualsLiteral("-moz-element"))) {
+                mToken.mIdent.LowerCaseEqualsLiteral("-moz-image-rect"))) {
       if (haveImage)
         return PR_FALSE;
       haveImage = PR_TRUE;
@@ -8910,10 +8859,10 @@ CSSParserImpl::ParseTransitionTimingFunctionValues(nsCSSValue& aValue)
   }
 
   float x1, x2, y1, y2;
-  if (!ParseTransitionTimingFunctionValueComponent(x1, ',', PR_TRUE) ||
-      !ParseTransitionTimingFunctionValueComponent(y1, ',', PR_FALSE) ||
-      !ParseTransitionTimingFunctionValueComponent(x2, ',', PR_TRUE) ||
-      !ParseTransitionTimingFunctionValueComponent(y2, ')', PR_FALSE)) {
+  if (!ParseTransitionTimingFunctionValueComponent(x1, ',') ||
+      !ParseTransitionTimingFunctionValueComponent(y1, ',') ||
+      !ParseTransitionTimingFunctionValueComponent(x2, ',') ||
+      !ParseTransitionTimingFunctionValueComponent(y2, ')')) {
     return PR_FALSE;
   }
 
@@ -8929,19 +8878,14 @@ CSSParserImpl::ParseTransitionTimingFunctionValues(nsCSSValue& aValue)
 
 PRBool
 CSSParserImpl::ParseTransitionTimingFunctionValueComponent(float& aComponent,
-                                                           char aStop,
-                                                           PRBool aCheckRange)
+                                                           char aStop)
 {
   if (!GetToken(PR_TRUE)) {
     return PR_FALSE;
   }
   nsCSSToken* tk = &mToken;
   if (tk->mType == eCSSToken_Number) {
-    float num = tk->mNumber;
-    if (aCheckRange && (num < 0.0 || num > 1.0)) {
-      return PR_FALSE;
-    }
-    aComponent = num;
+    aComponent = tk->mNumber;
     if (ExpectSymbol(aStop, PR_TRUE)) {
       return PR_TRUE;
     }

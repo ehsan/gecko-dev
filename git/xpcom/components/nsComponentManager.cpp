@@ -526,14 +526,7 @@ GetExtension(nsILocalFile* file)
 void
 nsComponentManagerImpl::RegisterOmnijar(const char* aPath, bool aChromeOnly)
 {
-    if (!mozilla::OmnijarPath())
-        return;
-
     nsCOMPtr<nsIInputStream> is = mManifestLoader->LoadEntry(aPath);
-    if (!is) {
-        LogMessage("Could not find omnijar manifest entry '%s'.", aPath);
-        return;
-    }
 
     PRUint32 flen;
     is->Available(&flen);
@@ -656,6 +649,10 @@ nsComponentManagerImpl::ManifestManifest(ManifestProcessingContext& cx, int line
 {
     char* file = argv[0];
 
+#ifdef TRANSLATE_SLASHES
+    TranslateSlashes(file);
+#endif
+
 #ifdef MOZ_OMNIJAR
     if (cx.mPath) {
         nsCAutoString manifest(cx.mPath);
@@ -666,9 +663,6 @@ nsComponentManagerImpl::ManifestManifest(ManifestProcessingContext& cx, int line
     else
 #endif
     {
-#ifdef TRANSLATE_SLASHES
-        TranslateSlashes(file);
-#endif
         nsCOMPtr<nsIFile> cfile;
         cx.mFile->GetParent(getter_AddRefs(cfile));
         nsCOMPtr<nsILocalFile> clfile = do_QueryInterface(cfile);
@@ -723,6 +717,10 @@ nsComponentManagerImpl::ManifestXPT(ManifestProcessingContext& cx, int lineno, c
 {
     char* file = argv[0];
 
+#ifdef TRANSLATE_SLASHES
+    TranslateSlashes(file);
+#endif
+
 #ifdef MOZ_OMNIJAR
     if (cx.mPath) {
         nsCAutoString manifest(cx.mPath);
@@ -741,9 +739,6 @@ nsComponentManagerImpl::ManifestXPT(ManifestProcessingContext& cx, int lineno, c
     else
 #endif
     {
-#ifdef TRANSLATE_SLASHES
-        TranslateSlashes(file);
-#endif
         nsCOMPtr<nsIFile> cfile;
         cx.mFile->GetParent(getter_AddRefs(cfile));
         nsCOMPtr<nsILocalFile> clfile = do_QueryInterface(cfile);
@@ -764,6 +759,10 @@ nsComponentManagerImpl::ManifestComponent(ManifestProcessingContext& cx, int lin
 {
     char* id = argv[0];
     char* file = argv[1];
+
+#ifdef TRANSLATE_SLASHES
+    TranslateSlashes(file);
+#endif
 
     nsID cid;
     if (!cid.Parse(id)) {
@@ -807,9 +806,6 @@ nsComponentManagerImpl::ManifestComponent(ManifestProcessingContext& cx, int lin
     else
 #endif
     {
-#ifdef TRANSLATE_SLASHES
-        TranslateSlashes(file);
-#endif
         nsCOMPtr<nsIFile> cfile;
         cx.mFile->GetParent(getter_AddRefs(cfile));
         nsCOMPtr<nsILocalFile> clfile = do_QueryInterface(cfile);

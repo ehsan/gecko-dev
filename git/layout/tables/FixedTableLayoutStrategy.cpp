@@ -105,8 +105,7 @@ FixedTableLayoutStrategy::GetMinWidth(nsIRenderingContext* aRenderingContext)
             // do nothing
         } else {
             NS_ASSERTION(styleWidth->GetUnit() == eStyleUnit_Auto ||
-                         styleWidth->GetUnit() == eStyleUnit_Enumerated ||
-                         styleWidth->IsCalcUnit(),
+                         styleWidth->GetUnit() == eStyleUnit_Enumerated,
                          "bad width");
 
             // The 'table-layout: fixed' algorithm considers only cells
@@ -138,8 +137,8 @@ FixedTableLayoutStrategy::GetMinWidth(nsIRenderingContext* aRenderingContext)
                         result -= spacing * (colSpan - 1);
                     }
                 }
-                // else, for 'auto', '-moz-available', '-moz-fit-content',
-                // and 'calc()', do nothing
+                // else, for 'auto', '-moz-available', and '-moz-fit-content'
+                // do nothing
             }
         }
     }
@@ -252,8 +251,7 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
             pctTotal += pct;
         } else {
             NS_ASSERTION(styleWidth->GetUnit() == eStyleUnit_Auto ||
-                         styleWidth->GetUnit() == eStyleUnit_Enumerated ||
-                         styleWidth->IsCalcUnit(),
+                         styleWidth->GetUnit() == eStyleUnit_Enumerated,
                          "bad width");
 
             // The 'table-layout: fixed' algorithm considers only cells
@@ -288,8 +286,7 @@ FixedTableLayoutStrategy::ComputeColumnWidths(const nsHTMLReflowState& aReflowSt
                     colFrame->AddPrefPercent(pct);
                     pctTotal += pct;
                 } else {
-                    // 'auto', '-moz-available', '-moz-fit-content', and
-                    // 'calc()'
+                    // 'auto', '-moz-available', and '-moz-fit-content'
                     colWidth = unassignedMarker;
                 }
                 if (colWidth != unassignedMarker) {

@@ -662,7 +662,7 @@ nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
 
 #ifdef MOZ_IPC
   if (mRemoteFrame) {
-    contentType = eContentTypeContent;
+    contentType = eContentTypeUI;
   }
   else
 #endif
@@ -1889,11 +1889,7 @@ nsFrameLoader::EnsureMessageManager()
     return rv;
   }
 
-  if (!mIsTopLevelContent
-#ifdef MOZ_IPC
-      && !mRemoteFrame
-#endif
-      ) {
+  if (!mIsTopLevelContent && !mRemoteFrame) {
     return NS_OK;
   }
 

@@ -80,11 +80,8 @@ function wait_for_manager_load(aManagerWindow, aCallback) {
   }, false);
 }
 
-function open_manager(aView, aCallback, aLoadCallback) {
+function open_manager(aView, aCallback) {
   function setup_manager(aManagerWindow) {
-    if (aLoadCallback)
-      aLoadCallback(aManagerWindow);
-
     if (aView)
       aManagerWindow.loadView(aView);
 
@@ -122,15 +119,8 @@ function close_manager(aManagerWindow, aCallback) {
   aManagerWindow.close();
 }
 
-function restart_manager(aManagerWindow, aView, aCallback, aLoadCallback) {
-  if (!aManagerWindow) {
-    open_manager(aView, aCallback, aLoadCallback);
-    return;
-  }
-
-  close_manager(aManagerWindow, function() {
-    open_manager(aView, aCallback, aLoadCallback);
-  });
+function restart_manager(aManagerWindow, aView, aCallback) {
+  close_manager(aManagerWindow, function() { open_manager(aView, aCallback); });
 }
 
 function is_element_visible(aWindow, aElement, aExpected, aMsg) {

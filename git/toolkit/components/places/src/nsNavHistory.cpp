@@ -1231,10 +1231,10 @@ nsNavHistory::InitStatements()
 
   // mDBRegisterOpenPage
   rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-      "INSERT OR REPLACE INTO moz_openpages_temp (url, open_count) "
-      "VALUES (:page_url, "
+      "INSERT OR REPLACE INTO moz_openpages_temp (place_id, open_count) "
+      "VALUES (:page_id, "
         "IFNULL("
-          "(SELECT open_count + 1 FROM moz_openpages_temp WHERE url = :page_url), "
+          "(SELECT open_count + 1 FROM moz_openpages_temp WHERE place_id = :page_id), "
           "1"
         ")"
       ")"),
@@ -1245,7 +1245,7 @@ nsNavHistory::InitStatements()
   rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
       "UPDATE moz_openpages_temp "
       "SET open_count = open_count - 1 "
-      "WHERE url = :page_url"),
+      "WHERE place_id = :page_id"),
     getter_AddRefs(mDBUnregisterOpenPage));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -5081,10 +5081,24 @@ nsNavHistory::RegisterOpenPage(nsIURI* aURI)
   if (InPrivateBrowsingMode())
     return NS_OK;
 
-  mozStorageStatementScoper scoper(mDBRegisterOpenPage);
-  nsresult rv = URIBinder::Bind(mDBRegisterOpenPage,
-                                NS_LITERAL_CSTRING("page_url"), aURI);
+  PRBool canAdd = PR_FALSE;
+  nsresult rv = CanAddURI(aURI, &canAdd);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  PRInt64 placeId;
+  // Note: If the URI has never been added to history (but can be added),
+  // this could add an orphan page, until the visit is added.
+  rv = GetUrlIdFor(aURI, &placeId, canAdd);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (placeId == 0)
+    return NS_OK;
+
+  mozStorageStatementScoper scoper(mDBRegisterOpenPage);
+
+  rv = mDBRegisterOpenPage->BindInt64ByName(NS_LITERAL_CSTRING("page_id"),
+                                            placeId);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   rv = mDBRegisterOpenPage->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -5104,10 +5118,18 @@ nsNavHistory::UnregisterOpenPage(nsIURI* aURI)
   if (InPrivateBrowsingMode())
     return NS_OK;
 
-  mozStorageStatementScoper scoper(mDBUnregisterOpenPage);
-  nsresult rv = URIBinder::Bind(mDBUnregisterOpenPage,
-                                NS_LITERAL_CSTRING("page_url"), aURI);
+  PRInt64 placeId;
+  nsresult rv = GetUrlIdFor(aURI, &placeId, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
+  if (placeId == 0)
+    return NS_OK;
+
+  mozStorageStatementScoper scoper(mDBUnregisterOpenPage);
+
+  rv = mDBUnregisterOpenPage->BindInt64ByName(NS_LITERAL_CSTRING("page_id"),
+                                              placeId);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   rv = mDBUnregisterOpenPage->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
 

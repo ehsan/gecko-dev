@@ -60,7 +60,7 @@ pref("browser.bookmarks.max_backups",       5);
 
 pref("browser.cache.disk.enable",           true);
 #ifndef WINCE
-pref("browser.cache.disk.capacity",         256000);
+pref("browser.cache.disk.capacity",         51200);
 #else
 pref("browser.cache.disk.capacity",         20000);
 #endif
@@ -1259,17 +1259,13 @@ pref("editor.positioning.offset",            0);
 pref("dom.max_chrome_script_run_time", 20);
 pref("dom.max_script_run_time", 10);
 
-#ifndef DEBUG
 // How long a plugin is allowed to process a synchronous IPC message
 // before we consider it "hung".
+#ifndef DEBUG
 pref("dom.ipc.plugins.timeoutSecs", 45);
-// How long a plugin launch is allowed to take before
-// we consider it failed.
-pref("dom.ipc.plugins.processLaunchTimeoutSecs", 45);
 #else
 // No timeout in DEBUG builds
 pref("dom.ipc.plugins.timeoutSecs", 0);
-pref("dom.ipc.plugins.processLaunchTimeoutSecs", 0);
 #endif
 
 #ifndef ANDROID
