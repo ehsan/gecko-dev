@@ -50,6 +50,7 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch2.h"
 #include "BasicLayers.h"
+#include "LayerManagerOGL.h"
 
 #ifdef DEBUG
 #include "nsIObserver.h"
@@ -94,13 +95,16 @@ nsAutoRollup::~nsAutoRollup()
 
 nsBaseWidget::nsBaseWidget()
 : mClientData(nsnull)
+, mViewWrapperPtr(nsnull)
 , mEventCallback(nsnull)
+, mViewCallback(nsnull)
 , mContext(nsnull)
 , mToolkit(nsnull)
 , mCursor(eCursor_standard)
 , mWindowType(eWindowType_child)
 , mBorderStyle(eBorderStyle_none)
 , mOnDestroyCalled(PR_FALSE)
+, mUseAcceleratedRendering(PR_FALSE)
 , mBounds(0,0,0,0)
 , mOriginalBounds(nsnull)
 , mClipRectCount(0)
@@ -233,6 +237,46 @@ NS_IMETHODIMP nsBaseWidget::SetClientData(void* aClientData)
 {
   mClientData = aClientData;
   return NS_OK;
+}
+
+// Attach a view to our widget which we'll send events to. 
+NS_IMETHODIMP
+nsBaseWidget::AttachViewToTopLevel(EVENT_CALLBACK aViewEventFunction,
+                                   nsIDeviceContext *aContext)
+{
+  NS_ASSERTION((mWindowType == eWindowType_toplevel), "Can't attach to child?");
+
+  mViewCallback = aViewEventFunction;
+
+  if (aContext) {
+    if (mContext) {
+      NS_IF_RELEASE(mContext);
+    }
+    mContext = aContext;
+    NS_ADDREF(mContext);
+  }
+
+  return NS_OK;
+}
+
+ViewWrapper* nsBaseWidget::GetAttachedViewPtr()
+ {
+   return mViewWrapperPtr;
+ }
+ 
+NS_IMETHODIMP nsBaseWidget::SetAttachedViewPtr(ViewWrapper* aViewWrapper)
+ {
+   mViewWrapperPtr = aViewWrapper;
+   return NS_OK;
+ }
+
+NS_METHOD nsBaseWidget::ResizeClient(PRInt32 aX,
+                                     PRInt32 aY,
+                                     PRInt32 aWidth,
+                                     PRInt32 aHeight,
+                                     PRBool aRepaint)
+{
+  return Resize(aX, aY, aWidth, aHeight, aRepaint);
 }
 
 //-------------------------------------------------------------------------
@@ -639,6 +683,8 @@ nsBaseWidget::AutoLayerManagerSetup::AutoLayerManagerSetup(
   BasicLayerManager* manager =
     static_cast<BasicLayerManager*>(mWidget->GetLayerManager());
   if (manager) {
+    NS_ASSERTION(manager->GetBackendType() == LayerManager::LAYERS_BASIC,
+      "AutoLayerManagerSetup instantiated for non-basic layer backend!");
     manager->SetDefaultTarget(aTarget);
   }
 }
@@ -648,6 +694,8 @@ nsBaseWidget::AutoLayerManagerSetup::~AutoLayerManagerSetup()
   BasicLayerManager* manager =
     static_cast<BasicLayerManager*>(mWidget->GetLayerManager());
   if (manager) {
+    NS_ASSERTION(manager->GetBackendType() == LayerManager::LAYERS_BASIC,
+      "AutoLayerManagerSetup instantiated for non-basic layer backend!");
     manager->SetDefaultTarget(nsnull);
   }
 }
@@ -655,7 +703,31 @@ nsBaseWidget::AutoLayerManagerSetup::~AutoLayerManagerSetup()
 LayerManager* nsBaseWidget::GetLayerManager()
 {
   if (!mLayerManager) {
-    mLayerManager = new BasicLayerManager(nsnull);
+    nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+
+    PRBool allowAcceleration = PR_TRUE;
+    if (prefs) {
+      prefs->GetBoolPref("mozilla.widget.accelerated-layers",
+                         &allowAcceleration);
+    }
+
+    if (mUseAcceleratedRendering && allowAcceleration) {
+      nsRefPtr<LayerManagerOGL> layerManager =
+        new mozilla::layers::LayerManagerOGL(this);
+      /**
+       * XXX - On several OSes initialization is expected to fail for now.
+       * If we'd get a none-basic layer manager they'd crash. This is ok though
+       * since on those platforms it will fail. Anyone implementing new
+       * platforms on LayerManagerOGL should ensure their widget is able to
+       * deal with it though!
+       */
+      if (layerManager->Initialize()) {
+        mLayerManager = layerManager;
+      }
+    }
+    if (!mLayerManager) {
+      mLayerManager = new BasicLayerManager(nsnull);
+    }
   }
   return mLayerManager;
 }
@@ -711,6 +783,12 @@ NS_METHOD nsBaseWidget::SetWindowClass(const nsAString& xulWinType)
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
+//-------------------------------------------------------------------------
+//
+// Bounds
+//
+//-------------------------------------------------------------------------
+
 /**
 * If the implementation of nsWindow supports borders this method MUST be overridden
 *
@@ -740,18 +818,30 @@ NS_METHOD nsBaseWidget::GetScreenBounds(nsIntRect &aRect)
   return GetBounds(aRect);
 }
 
-/**
-* 
-*
-**/
+NS_METHOD nsBaseWidget::GetClientOffset(nsIntPoint &aPt)
+{
+  aPt.x = aPt.y = 0;
+  return NS_OK;
+}
+
 NS_METHOD nsBaseWidget::SetBounds(const nsIntRect &aRect)
 {
   mBounds = aRect;
 
   return NS_OK;
 }
- 
 
+NS_IMETHODIMP
+nsBaseWidget::GetNonClientMargins(nsIntMargin &margins)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+ 
+NS_IMETHODIMP
+nsBaseWidget::SetNonClientMargins(nsIntMargin &margins)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
 
 NS_METHOD nsBaseWidget::EnableDragDrop(PRBool aEnable)
 {
@@ -810,6 +900,23 @@ PRBool
 nsBaseWidget::ShowsResizeIndicator(nsIntRect* aResizerRect)
 {
   return PR_FALSE;
+}
+
+NS_IMETHODIMP
+nsBaseWidget::SetAcceleratedRendering(PRBool aEnabled)
+{
+  if (mUseAcceleratedRendering == aEnabled) {
+    return NS_OK;
+  }
+  mUseAcceleratedRendering = aEnabled;
+  mLayerManager = NULL;
+  return NS_OK;
+}
+
+PRBool
+nsBaseWidget::GetAcceleratedRendering()
+{
+  return mUseAcceleratedRendering;
 }
 
 NS_IMETHODIMP
@@ -1064,7 +1171,6 @@ case _value: eventName.AssignWithConversion(_name) ; break
   switch(aGuiEvent->message)
   {
     _ASSIGN_eventName(NS_BLUR_CONTENT,"NS_BLUR_CONTENT");
-    _ASSIGN_eventName(NS_CONTROL_CHANGE,"NS_CONTROL_CHANGE");
     _ASSIGN_eventName(NS_CREATE,"NS_CREATE");
     _ASSIGN_eventName(NS_DESTROY,"NS_DESTROY");
     _ASSIGN_eventName(NS_DRAGDROP_GESTURE,"NS_DND_GESTURE");
@@ -1083,7 +1189,6 @@ case _value: eventName.AssignWithConversion(_name) ; break
     _ASSIGN_eventName(NS_KEY_DOWN,"NS_KEY_DOWN");
     _ASSIGN_eventName(NS_KEY_PRESS,"NS_KEY_PRESS");
     _ASSIGN_eventName(NS_KEY_UP,"NS_KEY_UP");
-    _ASSIGN_eventName(NS_MENU_SELECTED,"NS_MENU_SELECTED");
     _ASSIGN_eventName(NS_MOUSE_ENTER,"NS_MOUSE_ENTER");
     _ASSIGN_eventName(NS_MOUSE_EXIT,"NS_MOUSE_EXIT");
     _ASSIGN_eventName(NS_MOUSE_BUTTON_DOWN,"NS_MOUSE_BUTTON_DOWN");
@@ -1096,6 +1201,7 @@ case _value: eventName.AssignWithConversion(_name) ; break
     _ASSIGN_eventName(NS_POPSTATE,"NS_POPSTATE");
     _ASSIGN_eventName(NS_PAGE_UNLOAD,"NS_PAGE_UNLOAD");
     _ASSIGN_eventName(NS_HASHCHANGE,"NS_HASHCHANGE");
+    _ASSIGN_eventName(NS_READYSTATECHANGE,"NS_READYSTATECHANGE");
     _ASSIGN_eventName(NS_PAINT,"NS_PAINT");
     _ASSIGN_eventName(NS_XUL_BROADCAST, "NS_XUL_BROADCAST");
     _ASSIGN_eventName(NS_XUL_COMMAND_UPDATE, "NS_XUL_COMMAND_UPDATE");

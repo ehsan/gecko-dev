@@ -59,8 +59,7 @@ window.onload = function() {
   event.initUIEvent("input", true, true, window, 0);
   sessionData.dispatchEvent(event);
   
-  var s = new Components.utils.Sandbox("about:blank");
-  gStateObject = Components.utils.evalInSandbox("(" + sessionData.value + ")", s);
+  gStateObject = JSON.parse(sessionData.value);
   
   initTreeView();
   
@@ -121,13 +120,13 @@ function restoreSession() {
       ix--;
     }
   }
-  var stateString = gStateObject.toSource();
+  var stateString = JSON.stringify(gStateObject);
   
   var ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
   var top = getBrowserWindow();
   
   // if there's only this page open, reuse the window for restoring the session
-  if (top.gBrowser.tabContainer.childNodes.length == 1) {
+  if (top.gBrowser.tabs.length == 1) {
     ss.setWindowState(top, stateString, true);
     return;
   }
@@ -140,7 +139,7 @@ function restoreSession() {
     
     var tabbrowser = top.gBrowser;
     var tabIndex = tabbrowser.getBrowserIndexForDocument(document);
-    tabbrowser.removeTab(tabbrowser.tabContainer.childNodes[tabIndex]);
+    tabbrowser.removeTab(tabbrowser.tabs[tabIndex]);
   }, true);
 }
 
@@ -160,9 +159,15 @@ function onListClick(aEvent) {
   var row = {}, col = {};
   treeView.treeBox.getCellAt(aEvent.clientX, aEvent.clientY, row, col, {});
   if (col.value) {
-    // restore this specific tab in the same window for middle-clicking
-    // or Ctrl+clicking on a tab's title
-    if ((aEvent.button == 1 || aEvent.ctrlKey) && col.value.id == "title" &&
+    // Restore this specific tab in the same window for middle/double/accel clicking
+    // on a tab's title.
+#ifdef XP_MACOSX
+    let accelKey = aEvent.metaKey;
+#else
+    let accelKey = aEvent.ctrlKey;
+#endif
+    if ((aEvent.button == 1 || aEvent.button == 0 && aEvent.detail == 2 || accelKey) &&
+        col.value.id == "title" &&
         !treeView.isContainer(row.value))
       restoreSingleTab(row.value, aEvent.shiftKey);
     else if (col.value.id == "restore")
@@ -232,7 +237,7 @@ function restoreSingleTab(aIx, aShifted) {
   var ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
   var tabState = gStateObject.windows[item.parent.ix]
                              .tabs[aIx - gTreeData.indexOf(item.parent) - 1];
-  ss.setTabState(newTab, tabState.toSource());
+  ss.setTabState(newTab, JSON.stringify(tabState));
   
   // respect the preference as to whether to select the tab (the Shift key inverses)
   var prefBranch = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);

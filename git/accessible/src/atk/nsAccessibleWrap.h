@@ -85,12 +85,12 @@ class MaiHyperlink;
 class nsAccessibleWrap: public nsAccessible
 {
 public:
-    nsAccessibleWrap(nsIDOMNode*, nsIWeakReference *aShell);
+    nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell);
     virtual ~nsAccessibleWrap();
     void ShutdownAtkObject();
 
     // nsAccessNode
-    virtual nsresult Shutdown();
+    virtual void Shutdown();
 
 #ifdef MAI_LOGGING
     virtual void DumpnsAccessibleWrapInfo(int aDepth) {}
@@ -120,14 +120,10 @@ public:
 protected:
     virtual nsresult FirePlatformEvent(nsAccEvent *aEvent);
 
-    nsresult FireAtkStateChangeEvent(nsIAccessibleEvent *aEvent,
-                                     AtkObject *aObject);
-    nsresult FireAtkTextChangedEvent(nsIAccessibleEvent *aEvent,
-                                     AtkObject *aObject);
-    nsresult FireAtkPropChangedEvent(nsIAccessibleEvent *aEvent,
-                                     AtkObject *aObject);
-    nsresult FireAtkShowHideEvent(nsIAccessibleEvent *aEvent,
-                                  AtkObject *aObject, PRBool aIsAdded);
+    nsresult FireAtkStateChangeEvent(nsAccEvent *aEvent, AtkObject *aObject);
+    nsresult FireAtkTextChangedEvent(nsAccEvent *aEvent, AtkObject *aObject);
+    nsresult FireAtkShowHideEvent(nsAccEvent *aEvent, AtkObject *aObject,
+                                  PRBool aIsAdded);
 
     AtkObject *mAtkObject;
 

@@ -49,6 +49,7 @@
 #include "nsStringBuffer.h"
 #include "nsColor.h"
 #include "nsCaseTreatment.h"
+#include "nsMargin.h"
 
 typedef PRUptrdiff PtrBits;
 class nsAString;
@@ -98,6 +99,7 @@ public:
 #ifdef MOZ_SVG
   explicit nsAttrValue(nsISVGValue* aValue);
 #endif
+  explicit nsAttrValue(const nsIntMargin& aValue);
   ~nsAttrValue();
 
   static nsresult Init();
@@ -120,6 +122,7 @@ public:
     ,eSVGValue =    0x12
 #endif
     ,eFloatValue  = 0x13
+    ,eIntMarginValue = 0x14
   };
 
   ValueType Type() const;
@@ -133,6 +136,7 @@ public:
 #ifdef MOZ_SVG
   void SetTo(nsISVGValue* aValue);
 #endif
+  void SetTo(const nsIntMargin& aValue);
 
   void SwapValueWith(nsAttrValue& aOther);
 
@@ -153,6 +157,15 @@ public:
   inline nsISVGValue* GetSVGValue() const;
 #endif
   inline float GetFloatValue() const;
+  PRBool GetIntMarginValue(nsIntMargin& aMargin) const;
+
+  /**
+   * Returns the string corresponding to the stored enum value.
+   *
+   * @param aResult   the string representing the enum tag
+   * @param aRealTag  wheter we want to have the real tag or the saved one
+   */
+  void GetEnumString(nsAString& aResult, PRBool aRealTag) const;
 
   // Methods to get access to atoms we may have
   // Returns the number of atoms we have; 0 if we have none.  It's OK
@@ -199,12 +212,12 @@ public:
    *
    * @param aValue the string to find the value for
    * @param aTable the enumeration to map with
-   * @param aResult the enum mapping [OUT]
+   * @param aCaseSensitive specify if the parsing has to be case sensitive
    * @return whether the enum value was found or not
    */
   PRBool ParseEnumValue(const nsAString& aValue,
                         const EnumTable* aTable,
-                        PRBool aCaseSensitive = PR_FALSE);
+                        PRBool aCaseSensitive);
 
   /**
    * Parse a string into an integer. Can optionally parse percent (n%).
@@ -244,15 +257,30 @@ public:
    * Parse a string value into a non-negative integer.
    * This method follows the rules for parsing non-negative integer from:
    * http://dev.w3.org/html5/spec/infrastructure.html#rules-for-parsing-non-negative-integers
-   * If the parsed value is negative, the value will be set to -1.
    *
-   * @param aString the string to parse
-   * @return whether the value could be parsed
+   * @param  aString the string to parse
+   * @return whether the value is valid
    */
   PRBool ParseNonNegativeIntValue(const nsAString& aString);
 
   /**
-   * Parse a string into a color.
+   * Parse a string value into a positive integer.
+   * This method follows the rules for parsing non-negative integer from:
+   * http://dev.w3.org/html5/spec/infrastructure.html#rules-for-parsing-non-negative-integers
+   * In addition of these rules, the value has to be greater than zero.
+   *
+   * This is generally used for parsing content attributes which reflecting IDL
+   * attributes are limited to only non-negative numbers greater than zero, see:
+   * http://dev.w3.org/html5/spec/common-dom-interfaces.html#limited-to-only-non-negative-numbers-greater-than-zero
+   *
+   * @param aString       the string to parse
+   * @return              whether the value was valid
+   */
+  PRBool ParsePositiveIntValue(const nsAString& aString);
+
+  /**
+   * Parse a string into a color.  This implements what HTML5 calls the
+   * "rules for parsing a legacy color value".
    *
    * @param aString the string to parse
    * @param aDocument the document (to find out whether we're in quirks mode)
@@ -273,6 +301,15 @@ public:
    * doesn't actually allocate it.
    */
   PRBool ParseLazyURIValue(const nsAString& aString);
+
+  /**
+   * Parse a margin string of format 'top, right, bottom, left' into
+   * an nsIntMargin.
+   *
+   * @param aString the string to parse
+   * @return whether the value could be parsed
+   */
+  PRBool ParseIntMarginValue(const nsAString& aString);
 
 private:
   // These have to be the same as in ValueType
@@ -302,10 +339,22 @@ private:
       nsISVGValue* mSVGValue;
 #endif
       float mFloatValue;
+      nsIntMargin* mIntMargin;
     };
   };
 
   inline ValueBaseType BaseType() const;
+
+  /**
+   * Get the index of an EnumTable in the sEnumTableArray.
+   * If the EnumTable is not in the sEnumTableArray, it is added.
+   * If there is no more space in sEnumTableArray, it returns PR_FALSE.
+   *
+   * @param aTable   the EnumTable to get the index of.
+   * @param aResult  the index of the EnumTable.
+   * @return         whether the index has been found or inserted.
+   */
+  PRBool GetEnumTableIndex(const EnumTable* aTable, PRInt16& aResult);
 
   inline void SetPtrValueAndType(void* aValue, ValueBaseType aType);
   void SetIntValueAndType(PRInt32 aValue, ValueType aType,
@@ -406,6 +455,17 @@ nsAttrValue::GetFloatValue() const
 {
   NS_PRECONDITION(Type() == eFloatValue, "wrong type");
   return GetMiscContainer()->mFloatValue;
+}
+
+inline PRBool
+nsAttrValue::GetIntMarginValue(nsIntMargin& aMargin) const
+{
+  NS_PRECONDITION(Type() == eIntMarginValue, "wrong type");
+  nsIntMargin* m = GetMiscContainer()->mIntMargin;
+  if (!m)
+    return PR_FALSE;
+  aMargin = *m;
+  return PR_TRUE;
 }
 
 inline nsAttrValue::ValueBaseType

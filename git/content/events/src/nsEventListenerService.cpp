@@ -36,7 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 #include "nsEventListenerService.h"
 #include "nsCOMArray.h"
-#include "nsIEventListenerManager.h"
+#include "nsEventListenerManager.h"
 #include "nsPIDOMEventTarget.h"
 #include "nsIVariant.h"
 #include "nsIServiceManager.h"
@@ -51,16 +51,19 @@
 #include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
 #include "nsIJSEventListener.h"
+#include "nsIDOMEventGroup.h"
 #ifdef MOZ_JSDEBUGGER
 #include "jsdIDebuggerService.h"
 #endif
 
 NS_IMPL_CYCLE_COLLECTION_1(nsEventListenerInfo, mListener)
 
+DOMCI_DATA(EventListenerInfo, nsEventListenerInfo)
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsEventListenerInfo)
   NS_INTERFACE_MAP_ENTRY(nsIEventListenerInfo)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(EventListenerInfo)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(EventListenerInfo)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsEventListenerInfo)
@@ -242,6 +245,16 @@ nsEventListenerService::GetEventTargetChainFor(nsIDOMEventTarget* aEventTarget,
   }
   *aCount = count;
 
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsEventListenerService::GetSystemEventGroup(nsIDOMEventGroup** aSystemGroup)
+{
+  NS_ENSURE_ARG_POINTER(aSystemGroup);
+  *aSystemGroup = nsEventListenerManager::GetSystemEventGroup();
+  NS_ENSURE_TRUE(*aSystemGroup, NS_ERROR_OUT_OF_MEMORY);
+  NS_ADDREF(*aSystemGroup);
   return NS_OK;
 }
 

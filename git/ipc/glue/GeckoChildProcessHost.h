@@ -47,9 +47,6 @@
 
 #include "nsXULAppAPI.h"        // for GeckoProcessType
 
-#include "nsDirectoryServiceDefs.h"
-#include "nsIFile.h"
-
 namespace mozilla {
 namespace ipc {
 
@@ -98,6 +95,11 @@ protected:
   bool mLaunched;
   bool mChannelInitialized;
   FilePath mProcessPath;
+
+#ifdef XP_WIN
+  void InitWindowsGroupID();
+  nsString mGroupId;
+#endif
 
 #if defined(OS_POSIX)
   base::file_handle_mapping_vector mFileMap;

@@ -59,9 +59,7 @@ tier_platform_dirs += modules/zlib
 endif
 
 ifndef WINCE
-ifneq (,$(MOZ_XPINSTALL))
 tier_platform_dirs += modules/libreg
-endif
 endif
 
 tier_platform_dirs += \
@@ -106,20 +104,13 @@ endif
 #
 
 ifdef MOZ_IPC
-tier_platform_dirs += ipc
+tier_platform_dirs += ipc js/ipc js/jetpack
 endif
 
 tier_platform_dirs += \
 		js/src/xpconnect \
-		js/ctypes \
 		intl/chardet \
 		$(NULL)
-
-ifdef BUILD_CTYPES
-tier_platform_staticdirs += \
-		js/ctypes/libffi \
-		$(NULL)
-endif
 
 ifdef MOZ_ENABLE_GTK2
 ifdef MOZ_X11
@@ -151,14 +142,23 @@ ifdef MOZ_JSDEBUGGER
 tier_platform_dirs += js/jsd
 endif
 
+ifdef MOZ_VORBIS
+tier_platform_dirs += \
+		media/libvorbis \
+		$(NULL)
+endif
+
+ifdef MOZ_WEBM
+tier_platform_dirs += \
+		media/libnestegg \
+		media/libvpx \
+		$(NULL)
+endif
+
 ifdef MOZ_OGG
 tier_platform_dirs += \
-		media/libfishsound \
 		media/libogg \
-		media/liboggplay \
-		media/liboggz \
 		media/libtheora \
-		media/libvorbis \
 		$(NULL)
 endif
 
@@ -207,10 +207,7 @@ ifdef MOZ_JPROF
 tier_platform_dirs        += tools/jprof
 endif
 
-tier_platform_dirs	+= \
-	xpfe \
-	toolkit/components \
-	$(NULL)
+tier_platform_dirs	+= xpfe/components
 
 ifdef MOZ_ENABLE_XREMOTE
 tier_platform_dirs += widget/src/xremoteclient
@@ -221,10 +218,6 @@ tier_platform_dirs	+= extensions/spellcheck
 endif
 
 tier_platform_dirs	+= toolkit
-
-ifdef MOZ_XPINSTALL
-tier_platform_dirs     +=  xpinstall
-endif
 
 ifdef MOZ_PSM
 tier_platform_dirs	+= security/manager
@@ -278,7 +271,14 @@ ifdef MOZ_MAPINFO
 tier_platform_dirs	+= tools/codesighs
 endif
 
+ifdef MOZ_SERVICES_SYNC
+tier_platform_dirs += services/crypto
+tier_platform_dirs += services/sync
+endif
+
 ifdef ENABLE_TESTS
-tier_platform_dirs	+= testing/mochitest
+tier_platform_dirs += testing/mochitest
+tier_platform_dirs += testing/xpcshell 
+tier_platform_dirs += testing/mozmill
 endif
 

@@ -116,6 +116,7 @@ public:
   NS_IMETHOD              GetBounds(nsIntRect &aRect);
   NS_IMETHOD              GetClientBounds(nsIntRect &aRect);
   NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
+  NS_IMETHOD              GetClientOffset(nsIntPoint &aPt);
   NS_IMETHOD              EnableDragDrop(PRBool aEnable);
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
   virtual PRBool          HasPendingInputEvent();
@@ -135,12 +136,20 @@ public:
   NS_IMETHOD              SetIMEEnabled(PRUint32 aState) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              GetIMEEnabled(PRUint32* aState) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              CancelIMEComposition() { return NS_OK; }
+  NS_IMETHOD              SetAcceleratedRendering(PRBool aEnabled);
+  virtual PRBool          GetAcceleratedRendering();
   NS_IMETHOD              GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnIMEFocusChange(PRBool aFocus) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnIMETextChange(PRUint32 aStart, PRUint32 aOldEnd, PRUint32 aNewEnd) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnIMESelectionChange(void) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnDefaultButtonLoaded(const nsIntRect &aButtonRect) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta, PRBool aIsHorizontal, PRInt32 &aOverriddenDelta);
+  NS_IMETHOD              AttachViewToTopLevel(EVENT_CALLBACK aViewEventFunction, nsIDeviceContext *aContext);
+  virtual ViewWrapper*    GetAttachedViewPtr();
+  NS_IMETHOD              SetAttachedViewPtr(ViewWrapper* aViewWrapper);
+  NS_IMETHOD              ResizeClient(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
+  NS_IMETHOD              GetNonClientMargins(nsIntMargin &margins);
+  NS_IMETHOD              SetNonClientMargins(nsIntMargin &margins);
 
   /**
    * Use this when GetLayerManager() returns a BasicLayerManager
@@ -193,7 +202,9 @@ protected:
 
 protected: 
   void*             mClientData;
+  ViewWrapper*      mViewWrapperPtr;
   EVENT_CALLBACK    mEventCallback;
+  EVENT_CALLBACK    mViewCallback;
   nsIDeviceContext* mContext;
   nsIToolkit*       mToolkit;
   nsRefPtr<LayerManager> mLayerManager;
@@ -203,6 +214,7 @@ protected:
   nsWindowType      mWindowType;
   nsBorderStyle     mBorderStyle;
   PRPackedBool      mOnDestroyCalled;
+  PRPackedBool      mUseAcceleratedRendering;
   nsIntRect         mBounds;
   nsIntRect*        mOriginalBounds;
   // When this pointer is null, the widget is not clipped

@@ -46,8 +46,6 @@
 #include "nsString.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMClassInfo.h"
-#include "nsIPresShell.h"
-#include "nsPresContext.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsGUIEvent.h"
@@ -276,6 +274,8 @@ NS_IMPL_CYCLE_COLLECTION_2(nsTreeSelection, mTree, mCurrentColumn)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTreeSelection)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsTreeSelection)
+
+DOMCI_DATA(TreeSelection, nsTreeSelection)
 
 // QueryInterface implementation for nsBoxObject
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTreeSelection)
@@ -703,7 +703,12 @@ NS_IMETHODIMP nsTreeSelection::SetCurrentColumn(nsITreeColumn* aCurrentColumn)
 
 #define ADD_NEW_RANGE(macro_range, macro_selection, macro_start, macro_end) \
   { \
-    nsTreeRange* macro_new_range = new nsTreeRange(macro_selection, (macro_start), (macro_end)); \
+    PRInt32 start = macro_start; \
+    PRInt32 end = macro_end; \
+    if (start > end) { \
+      end = start; \
+    } \
+    nsTreeRange* macro_new_range = new nsTreeRange(macro_selection, start, end); \
     if (macro_range) \
       macro_range->Insert(macro_new_range); \
     else \

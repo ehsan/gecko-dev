@@ -52,7 +52,7 @@ else
 ifeq (,$(filter-out SunOS, $(OS_ARCH)))
    MOZ_PKG_FORMAT  = BZ2
 else
-   ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
+   ifeq (,$(filter-out gtk2 qt, $(MOZ_WIDGET_TOOLKIT)))
       MOZ_PKG_FORMAT  = BZ2
    else
       MOZ_PKG_FORMAT  = TGZ
@@ -198,7 +198,7 @@ UNMAKE_PACKAGE	= \
 SDK_SUFFIX = .tar.bz2
 SDK = $(MOZ_PKG_APPNAME)-$(MOZ_PKG_VERSION).$(AB_CD).mac-$(TARGET_CPU).sdk$(SDK_SUFFIX)
 ifeq ($(MOZ_APP_NAME),xulrunner)
-SDK = $(SDK_PATH)$(MOZ_APP_NAME).$(AB_CD).mac-$(TARGET_CPU).sdk$(SDK_SUFFIX)
+SDK = $(SDK_PATH)$(MOZ_APP_NAME)-$(MOZ_PKG_VERSION).$(AB_CD).mac-$(TARGET_CPU).sdk$(SDK_SUFFIX)
 endif
 MAKE_SDK = $(CREATE_FINAL_TAR) - $(MOZ_APP_NAME)-sdk | bzip2 -vf > $(SDK)
 endif
@@ -295,7 +295,9 @@ ifdef MOZ_PKG_REMOVALS
 MOZ_PKG_REMOVALS_GEN = removed-files
 
 $(MOZ_PKG_REMOVALS_GEN): $(MOZ_PKG_REMOVALS) $(GLOBAL_DEPS)
-	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py -Fsubstitution $(DEFINES) $(ACDEFINES) $(MOZ_PKG_REMOVALS) > $(MOZ_PKG_REMOVALS_GEN)
+	cat $(MOZ_PKG_REMOVALS) | \
+	sed -e 's/^[ \t]*//' | \
+	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py -Fsubstitution $(DEFINES) $(ACDEFINES) > $(MOZ_PKG_REMOVALS_GEN)
 
 GARBAGE += $(MOZ_PKG_REMOVALS_GEN)
 endif

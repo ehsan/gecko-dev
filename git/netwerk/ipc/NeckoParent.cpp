@@ -41,6 +41,7 @@
 #include "nsHttp.h"
 #include "mozilla/net/NeckoParent.h"
 #include "mozilla/net/HttpChannelParent.h"
+#include "mozilla/net/CookieServiceParent.h"
 
 namespace mozilla {
 namespace net {
@@ -55,9 +56,9 @@ NeckoParent::~NeckoParent()
 }
 
 PHttpChannelParent* 
-NeckoParent::AllocPHttpChannel()
+NeckoParent::AllocPHttpChannel(PIFrameEmbeddingParent* iframeEmbedding)
 {
-  HttpChannelParent *p = new HttpChannelParent();
+  HttpChannelParent *p = new HttpChannelParent(iframeEmbedding);
   p->AddRef();
   return p;
 }
@@ -70,6 +71,18 @@ NeckoParent::DeallocPHttpChannel(PHttpChannelParent* channel)
   return true;
 }
 
+PCookieServiceParent* 
+NeckoParent::AllocPCookieService()
+{
+  return new CookieServiceParent();
+}
+
+bool 
+NeckoParent::DeallocPCookieService(PCookieServiceParent* cs)
+{
+  delete cs;
+  return true;
+}
 
 }} // mozilla::net
 

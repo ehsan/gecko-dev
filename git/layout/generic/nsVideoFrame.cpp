@@ -60,7 +60,6 @@
 
 #ifdef ACCESSIBILITY
 #include "nsIServiceManager.h"
-#include "nsIAccessible.h"
 #include "nsIAccessibilityService.h"
 #endif
 
@@ -222,6 +221,14 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
     container = tmpContainer.forget();
   }
 
+  // Retrieve the size of the decoded video frame, before being scaled
+  // by pixel aspect ratio.
+  gfxIntSize frameSize = container->GetCurrentSize();
+  if (frameSize.width == 0 || frameSize.height == 0) {
+    // No image, or zero-sized image. No point creating a layer.
+    return nsnull;
+  }
+
   // Compute the rectangle in which to paint the video. We need to use
   // the largest rectangle that fills our content-box and has the
   // correct aspect ratio.
@@ -241,7 +248,7 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
   // Set a transform on the layer to draw the video in the right place
   gfxMatrix transform;
   transform.Translate(r.pos);
-  transform.Scale(r.Width()/videoSize.width, r.Height()/videoSize.height);
+  transform.Scale(r.Width()/frameSize.width, r.Height()/frameSize.height);
   layer->SetTransform(gfx3DMatrix::From2D(transform));
   nsRefPtr<Layer> result = layer.forget();
   return result.forget();
@@ -411,15 +418,14 @@ nsVideoFrame::GetType() const
 }
 
 #ifdef ACCESSIBILITY
-NS_IMETHODIMP
-nsVideoFrame::GetAccessible(nsIAccessible** aAccessible)
+already_AddRefed<nsAccessible>
+nsVideoFrame::CreateAccessible()
 {
   nsCOMPtr<nsIAccessibilityService> accService =
     do_GetService("@mozilla.org/accessibilityService;1");
-  NS_ENSURE_STATE(accService);
-
-  return accService->CreateHTMLMediaAccessible(static_cast<nsIFrame*>(this),
-                                               aAccessible);
+  return accService ?
+    accService->CreateHTMLMediaAccessible(mContent, PresContext()->PresShell()) :
+    nsnull;
 }
 #endif
 
@@ -507,7 +513,7 @@ nsSize
 nsVideoFrame::GetVideoIntrinsicSize(nsIRenderingContext *aRenderingContext)
 {
   // Defaulting size to 300x150 if no size given.
-  nsIntSize size(300,150);
+  nsIntSize size(300, 150);
 
   if (ShouldDisplayPoster()) {
     // Use the poster image frame's size.
@@ -520,7 +526,7 @@ nsVideoFrame::GetVideoIntrinsicSize(nsIRenderingContext *aRenderingContext)
     }
   }
 
-  if (!HasVideoData()) {
+  if (!HasVideoElement()) {
     if (!aRenderingContext || !mFrames.FirstChild()) {
       // We just want our intrinsic ratio, but audio elements need no
       // intrinsic ratio, so just return "no ratio". Also, if there's

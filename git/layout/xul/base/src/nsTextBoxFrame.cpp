@@ -71,6 +71,7 @@
 #include "nsDisplayList.h"
 #include "nsCSSRendering.h"
 #include "nsIReflowCallback.h"
+#include "nsBoxFrame.h"
 
 #ifdef IBMBIDI
 #include "nsBidiUtils.h"
@@ -83,7 +84,9 @@
 #define CROP_START  "start"
 #define CROP_END    "end"
 
-#define NS_STATE_NEED_LAYOUT 0x01000000
+// It's not clear to me whether nsLeafBoxFrame also uses some of the
+// nsBoxFrame bits, so use NS_STATE_BOX_CHILD_RESERVED to be safe.
+#define NS_STATE_NEED_LAYOUT NS_STATE_BOX_CHILD_RESERVED
 
 class nsAccessKeyInfo
 {
@@ -579,7 +582,7 @@ void nsTextBoxFrame::PaintOneShadow(gfxContext*      aCtx,
   nsContextBoxBlur contextBoxBlur;
   gfxContext* shadowContext = contextBoxBlur.Init(shadowRect, blurRadius,
                                                   PresContext()->AppUnitsPerDevPixel(),
-                                                  aCtx, aDirtyRect);
+                                                  aCtx, aDirtyRect, nsnull);
 
   if (!shadowContext)
     return;
@@ -876,7 +879,7 @@ nsTextBoxFrame::UpdateAccessTitle()
     }
 
     if (InsertSeparatorBeforeAccessKey() &&
-        !NS_IS_SPACE(mTitle[offset - 1])) {
+        offset > 0 && !NS_IS_SPACE(mTitle[offset - 1])) {
         mTitle.Insert(' ', offset);
         offset++;
     }
@@ -1046,7 +1049,8 @@ nsTextBoxFrame::GetPrefSize(nsBoxLayoutState& aBoxLayoutState)
     DISPLAY_PREF_SIZE(this, size);
 
     AddBorderAndPadding(size);
-    nsIBox::AddCSSPrefSize(aBoxLayoutState, this, size);
+    PRBool widthSet, heightSet;
+    nsIBox::AddCSSPrefSize(this, size, widthSet, heightSet);
 
     return size;
 }
@@ -1067,7 +1071,8 @@ nsTextBoxFrame::GetMinSize(nsBoxLayoutState& aBoxLayoutState)
         size.width = 0;
 
     AddBorderAndPadding(size);
-    nsIBox::AddCSSMinSize(aBoxLayoutState, this, size);
+    PRBool widthSet, heightSet;
+    nsIBox::AddCSSMinSize(aBoxLayoutState, this, size, widthSet, heightSet);
 
     return size;
 }

@@ -56,11 +56,6 @@ endif
 ifndef INCLUDED_AUTOCONF_MK
 include $(DEPTH)/config/autoconf.mk
 endif
-ifndef INCLUDED_INSURE_MK
-ifdef MOZ_INSURIFYING
-include $(topsrcdir)/config/insure.mk
-endif
-endif
 
 COMMA = ,
 
@@ -175,7 +170,7 @@ else
   endif
 endif
 
-MOZALLOC_LIB = $(call EXPAND_MOZLIBNAME,mozalloc)
+MOZALLOC_LIB = -L$(DIST)/bin $(call EXPAND_MOZLIBNAME,mozalloc)
 
 OS_CFLAGS += $(_DEBUG_CFLAGS)
 OS_CXXFLAGS += $(_DEBUG_CFLAGS)
@@ -497,6 +492,36 @@ endif # MOZ_OPTIMIZE == 1
 endif # MOZ_OPTIMIZE
 endif # CROSS_COMPILE
 
+# Check for FAIL_ON_WARNINGS & FAIL_ON_WARNINGS_DEBUG (Shorthand for Makefiles
+# to request that we use the 'warnings as errors' compile flags)
+
+# NOTE: First, we clear FAIL_ON_WARNINGS[_DEBUG] if we're doing a Windows PGO
+# build, since WARNINGS_AS_ERRORS has been suspected of causing isuses in that
+# situation. (See bug 437002.)
+ifeq (WINNT_1,$(OS_ARCH)_$(MOZ_PROFILE_GENERATE)$(MOZ_PROFILE_USE))
+FAIL_ON_WARNINGS_DEBUG=
+FAIL_ON_WARNINGS=
+endif # WINNT && (MOS_PROFILE_GENERATE ^ MOZ_PROFILE_USE)
+
+# Also clear FAIL_ON_WARNINGS[_DEBUG] for Android builds, since
+# they have some platform-specific warnings we haven't fixed yet.
+ifeq ($(OS_TARGET),Android)
+FAIL_ON_WARNINGS_DEBUG=
+FAIL_ON_WARNINGS=
+endif # Android
+
+# Now, check for debug version of flag; it turns on normal flag in debug builds.
+ifdef FAIL_ON_WARNINGS_DEBUG
+ifdef MOZ_DEBUG
+FAIL_ON_WARNINGS = 1
+endif # MOZ_DEBUG
+endif # FAIL_ON_WARNINGS_DEBUG
+
+# Check for normal version of flag, and add WARNINGS_AS_ERRORS if it's set to 1.
+ifdef FAIL_ON_WARNINGS
+CXXFLAGS += $(WARNINGS_AS_ERRORS)
+CFLAGS   += $(WARNINGS_AS_ERRORS)
+endif # FAIL_ON_WARNINGS
 
 ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
 #// Currently, unless USE_STATIC_LIBS is defined, the multithreaded
@@ -531,7 +556,7 @@ OS_COMPILE_CMMFLAGS += -fobjc-exceptions
 endif
 
 COMPILE_CFLAGS	= $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(CFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CFLAGS)
-COMPILE_CXXFLAGS = $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(CXXFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CXXFLAGS)
+COMPILE_CXXFLAGS = $(STL_FLAGS) $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(CXXFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CXXFLAGS)
 COMPILE_CMFLAGS = $(OS_COMPILE_CMFLAGS)
 COMPILE_CMMFLAGS = $(OS_COMPILE_CMMFLAGS)
 
@@ -768,14 +793,14 @@ endif
 ifdef WINCE
 RUN_TEST_PROGRAM = $(PYTHON) $(topsrcdir)/build/mobile/devicemanager-run-test.py
 else
-ifeq (,$(filter WINCE WINNT OS2,$(OS_ARCH)))
-RUN_TEST_PROGRAM = $(DIST)/bin/run-mozilla.sh
-endif
-
-ifeq ($(OS_ARCH),OS2)
+ifeq (OS2,$(OS_ARCH))
 RUN_TEST_PROGRAM = $(topsrcdir)/build/os2/test_os2.cmd "$(DIST)"
-endif
-endif
+else
+ifneq (WINNT,$(OS_ARCH))
+RUN_TEST_PROGRAM = $(DIST)/bin/run-mozilla.sh
+endif # ! WINNT
+endif # ! OS2
+endif # ! WINCE
 
 #
 # Java macros

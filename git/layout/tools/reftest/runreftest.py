@@ -75,6 +75,11 @@ class RefTest(object):
     prefsFile.write('user_pref("reftest.timeout", %d);\n' % (options.timeout * 1000))
     prefsFile.write('user_pref("ui.caretBlinkTime", -1);\n')
 
+    if options.totalChunks != None:
+      prefsFile.write('user_pref("reftest.totalChunks", %d);\n' % options.totalChunks)
+    if options.thisChunk != None:
+      prefsFile.write('user_pref("reftest.thisChunk", %d);\n' % options.thisChunk)
+
     for v in options.extraPrefs:
       thispref = v.split("=")
       if len(thispref) < 2:
@@ -88,12 +93,10 @@ class RefTest(object):
     prefsFile.close()
 
     # install the reftest extension bits into the profile
-    profileExtensionsPath = os.path.join(profileDir, "extensions")
-    os.mkdir(profileExtensionsPath)
-    reftestExtensionPath = os.path.join(SCRIPT_DIRECTORY, "reftest")
-    extFile = open(os.path.join(profileExtensionsPath, "reftest@mozilla.org"), "w")
-    extFile.write(reftestExtensionPath)
-    extFile.close()
+    self.automation.installExtension(os.path.join(SCRIPT_DIRECTORY, "reftest"),
+                                                  profileDir,
+                                                  "reftest@mozilla.org")
+
 
   def registerExtension(self, browserEnv, options, profileDir, extraArgs = ['-silent']):
     # run once with -silent to let the extension manager do its thing
@@ -144,7 +147,6 @@ class RefTest(object):
       # then again to actually run reftest
       self.automation.log.info("REFTEST INFO | runreftest.py | Running tests: start.\n")
       reftestlist = self.getManifestPath(manifest)
-
       status = self.automation.runApp(None, browserEnv, options.app, profileDir,
                                  ["-reftest", reftestlist],
                                  utilityPath = options.utilityPath,
@@ -174,14 +176,15 @@ class RefTest(object):
 class ReftestOptions(OptionParser):
 
   def __init__(self, automation):
+    self._automation = automation
     OptionParser.__init__(self)
     defaults = {}
 
     # we want to pass down everything from automation.__all__
     addCommonOptions(self, 
-                     defaults=dict(zip(automation.__all__, 
-                            [getattr(automation, x) for x in automation.__all__])))
-    automation.addCommonOptions(self)
+                     defaults=dict(zip(self._automation.__all__, 
+                            [getattr(self._automation, x) for x in self._automation.__all__])))
+    self._automation.addCommonOptions(self)
     self.add_option("--appname",
                     action = "store", type = "string", dest = "app",
                     default = os.path.join(SCRIPT_DIRECTORY, automation.DEFAULT_APP),
@@ -203,10 +206,20 @@ class ReftestOptions(OptionParser):
                            "than the given number")
     self.add_option("--utility-path",
                     action = "store", type = "string", dest = "utilityPath",
-                    default = automation.DIST_BIN,
+                    default = self._automation.DIST_BIN,
                     help = "absolute path to directory containing utility "
                            "programs (xpcshell, ssltunnel, certutil)")
-    defaults["utilityPath"] = automation.DIST_BIN
+    defaults["utilityPath"] = self._automation.DIST_BIN
+
+    self.add_option("--total-chunks",
+                    type = "int", dest = "totalChunks",
+                    help = "how many chunks to split the tests up into")
+    defaults["totalChunks"] = None
+
+    self.add_option("--this-chunk",
+                    type = "int", dest = "thisChunk",
+                    help = "which chunk to run between 1 and --total-chunks")
+    defaults["thisChunk"] = None
 
     self.set_defaults(**defaults)
 
@@ -233,9 +246,18 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
     # allow relative paths
     options.xrePath = reftest.getFullPath(options.xrePath)
 
-  if options.symbolsPath:
+  if options.symbolsPath and not isURL(options.symbolsPath):
     options.symbolsPath = reftest.getFullPath(options.symbolsPath)
   options.utilityPath = reftest.getFullPath(options.utilityPath)
+
+  if options.totalChunks is not None and options.thisChunk is None:
+    print "thisChunk must be specified when totalChunks is specified"
+    sys.exit(1)
+
+  if options.totalChunks:
+    if not 1 <= options.thisChunk <= options.totalChunks:
+      print "thisChunk must be between 1 and totalChunks"
+      sys.exit(1)
 
   sys.exit(reftest.runTests(args[0], options))
   

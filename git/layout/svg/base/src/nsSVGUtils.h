@@ -62,7 +62,6 @@ class nsIDOMSVGElement;
 class nsIDOMSVGLength;
 class nsIURI;
 class nsSVGOuterSVGFrame;
-class nsIPresShell;
 class nsSVGPreserveAspectRatio;
 class nsIAtom;
 class nsSVGLength2;
@@ -81,19 +80,25 @@ class nsISVGChildFrame;
 class nsSVGGeometryFrame;
 class nsSVGDisplayContainerFrame;
 
+namespace mozilla {
+namespace dom {
+class Element;
+} // namespace dom
+} // namespace mozilla
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
 // SVG Frame state bits
-#define NS_STATE_IS_OUTER_SVG         0x00100000
+#define NS_STATE_IS_OUTER_SVG         NS_FRAME_STATE_BIT(20)
 
-#define NS_STATE_SVG_DIRTY            0x00200000
+#define NS_STATE_SVG_DIRTY            NS_FRAME_STATE_BIT(21)
 
 /* are we the child of a non-display container? */
-#define NS_STATE_SVG_NONDISPLAY_CHILD 0x00400000
+#define NS_STATE_SVG_NONDISPLAY_CHILD NS_FRAME_STATE_BIT(22)
 
-#define NS_STATE_SVG_PROPAGATE_TRANSFORM 0x00800000
+#define NS_STATE_SVG_PROPAGATE_TRANSFORM NS_FRAME_STATE_BIT(23)
 
 /**
  * Byte offsets of channels in a native packed gfxColor or cairo image surface.
@@ -115,6 +120,16 @@ class nsSVGDisplayContainerFrame;
 // 4 bytes per pixel; in line with gfxASurface::CheckSurfaceSize
 // In fact Macs can't even manage that
 #define NS_SVG_OFFSCREEN_MAX_DIMENSION 4096
+
+#define SVG_WSP_DELIM       "\x20\x9\xD\xA"
+#define SVG_COMMA_WSP_DELIM "," SVG_WSP_DELIM
+
+inline PRBool
+IsSVGWhitespace(char aChar)
+{
+  return aChar == '\x20' || aChar == '\x9' ||
+         aChar == '\xD'  || aChar == '\xA';
+}
 
 /*
  * Checks the svg enable preference and if a renderer could
@@ -195,18 +210,18 @@ public:
   /*
    * Get the parent element of an nsIContent
    */
-  static nsIContent *GetParentElement(nsIContent *aContent);
+  static mozilla::dom::Element *GetParentElement(nsIContent *aContent);
 
   /*
    * Get a font-size (em) of an nsIContent
    */
-  static float GetFontSize(nsIContent *aContent);
+  static float GetFontSize(mozilla::dom::Element *aElement);
   static float GetFontSize(nsIFrame *aFrame);
   static float GetFontSize(nsStyleContext *aStyleContext);
   /*
    * Get an x-height of of an nsIContent
    */
-  static float GetFontXHeight(nsIContent *aContent);
+  static float GetFontXHeight(mozilla::dom::Element *aElement);
   static float GetFontXHeight(nsIFrame *aFrame);
   static float GetFontXHeight(nsStyleContext *aStyleContext);
 
@@ -544,9 +559,11 @@ public:
   static PRBool NumberFromString(const nsAString& aString, float* aValue,
                                  PRBool aAllowPercentages = PR_FALSE);
 
+  static void Shutdown();
+
 private:
   /* Computational (nil) surfaces */
-  static gfxASurface *mThebesComputationalSurface;
+  static gfxASurface *gThebesComputationalSurface;
 };
 
 #endif

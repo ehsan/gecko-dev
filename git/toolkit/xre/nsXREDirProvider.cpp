@@ -47,6 +47,7 @@
 #include "nsIJSContextStack.h"
 #include "nsIDirectoryEnumerator.h"
 #include "nsILocalFile.h"
+#include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsIProfileChangeStatus.h"
 #include "nsISimpleEnumerator.h"
@@ -64,6 +65,8 @@
 #include "nsArrayEnumerator.h"
 #include "nsEnumeratorUtils.h"
 #include "nsReadableUtils.h"
+#include "mozilla/Services.h"
+#include "mozilla/Omnijar.h"
 
 #include <stdlib.h>
 
@@ -333,9 +336,6 @@ nsXREDirProvider::GetFile(const char* aProperty, PRBool* aPersistent,
     // occur prior to the profile-after-change notification.
     if (!strcmp(aProperty, NS_XPCOM_COMPONENT_REGISTRY_FILE)) {
       rv = file->AppendNative(NS_LITERAL_CSTRING("compreg.dat"));
-    }
-    else if (!strcmp(aProperty, NS_XPCOM_XPTI_REGISTRY_FILE)) {
-      rv = file->AppendNative(NS_LITERAL_CSTRING("xpti.dat"));
     }
     else if (!strcmp(aProperty, NS_APP_USER_CHROME_DIR)) {
       rv = file->AppendNative(NS_LITERAL_CSTRING("chrome"));
@@ -702,10 +702,16 @@ nsXREDirProvider::GetFilesInternal(const char* aProperty,
   else if (!strcmp(aProperty, NS_CHROME_MANIFESTS_FILE_LIST)) {
     nsCOMArray<nsIFile> manifests;
 
-    nsCOMPtr<nsIFile> manifest;
-    mGREDir->Clone(getter_AddRefs(manifest));
-    manifest->AppendNative(NS_LITERAL_CSTRING("chrome"));
-    manifests.AppendObject(manifest);
+#ifdef MOZ_OMNIJAR
+    if (!mozilla::OmnijarPath()) {
+#endif
+        nsCOMPtr<nsIFile> manifest;
+        mGREDir->Clone(getter_AddRefs(manifest));
+        manifest->AppendNative(NS_LITERAL_CSTRING("chrome"));
+        manifests.AppendObject(manifest);
+#ifdef MOZ_OMNIJAR
+    }
+#endif
 
     PRBool eq;
     if (NS_SUCCEEDED(mXULAppDir->Equals(mGREDir, &eq)) && !eq) {
@@ -800,14 +806,21 @@ NS_IMETHODIMP
 nsXREDirProvider::DoStartup()
 {
   if (!mProfileNotified) {
-    nsCOMPtr<nsIObserverService> obsSvc
-      (do_GetService("@mozilla.org/observer-service;1"));
+    nsCOMPtr<nsIObserverService> obsSvc =
+      mozilla::services::GetObserverService();
     if (!obsSvc) return NS_ERROR_FAILURE;
 
     mProfileNotified = PR_TRUE;
 
     static const PRUnichar kStartup[] = {'s','t','a','r','t','u','p','\0'};
     obsSvc->NotifyObservers(nsnull, "profile-do-change", kStartup);
+    // Init the Extension Manager
+    nsCOMPtr<nsIObserver> em = do_GetService("@mozilla.org/addons/integration;1");
+    if (em) {
+      em->Observe(nsnull, "addons-startup", nsnull);
+    } else {
+      NS_WARNING("Failed to create Addons Manager.");
+    }
     obsSvc->NotifyObservers(nsnull, "profile-after-change", kStartup);
 
     // Any component that has registered for the profile-after-change category
@@ -850,15 +863,15 @@ void
 nsXREDirProvider::DoShutdown()
 {
   if (mProfileNotified) {
-    nsCOMPtr<nsIObserverService> obssvc
-      (do_GetService("@mozilla.org/observer-service;1"));
-    NS_ASSERTION(obssvc, "No observer service?");
-    if (obssvc) {
+    nsCOMPtr<nsIObserverService> obsSvc =
+      mozilla::services::GetObserverService();
+    NS_ASSERTION(obsSvc, "No observer service?");
+    if (obsSvc) {
       nsCOMPtr<nsIProfileChangeStatus> cs = new ProfileChangeStatusImpl();
       static const PRUnichar kShutdownPersist[] =
         {'s','h','u','t','d','o','w','n','-','p','e','r','s','i','s','t','\0'};
-      obssvc->NotifyObservers(cs, "profile-change-net-teardown", kShutdownPersist);
-      obssvc->NotifyObservers(cs, "profile-change-teardown", kShutdownPersist);
+      obsSvc->NotifyObservers(cs, "profile-change-net-teardown", kShutdownPersist);
+      obsSvc->NotifyObservers(cs, "profile-change-teardown", kShutdownPersist);
 
       // Phase 2c: Now that things are torn down, force JS GC so that things which depend on
       // resources which are about to go away in "profile-before-change" are destroyed first.
@@ -873,7 +886,7 @@ nsXREDirProvider::DoShutdown()
       }
 
       // Phase 3: Notify observers of a profile change
-      obssvc->NotifyObservers(cs, "profile-before-change", kShutdownPersist);
+      obsSvc->NotifyObservers(cs, "profile-before-change", kShutdownPersist);
     }
     mProfileNotified = PR_FALSE;
   }
@@ -1167,6 +1180,13 @@ nsXREDirProvider::GetUserDataDirectoryHome(nsILocalFile** aFile, PRBool aLocal)
 
   rv = NS_NewNativeLocalFile(nsDependentCString(appDir), PR_TRUE,
                              getter_AddRefs(localDir));
+#elif defined(ANDROID)
+  // used for setting the patch to our profile
+  // XXX: investigate putting the profile somewhere else
+  const char* homeDir = "/data/data/org.mozilla." MOZ_APP_NAME;
+
+  rv = NS_NewNativeLocalFile(nsDependentCString(homeDir), PR_TRUE,
+                             getter_AddRefs(localDir));
 #elif defined(XP_UNIX)
   const char* homeDir = getenv("HOME");
   if (!homeDir || !*homeDir)
@@ -1240,9 +1260,6 @@ nsXREDirProvider::GetSystemExtensionsDirectory(nsILocalFile** aFile)
                              getter_AddRefs(localDir));
   NS_ENSURE_SUCCESS(rv, rv);
 #endif
-
-  rv = EnsureDirectoryExists(localDir);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   NS_ADDREF(*aFile = localDir);
   return NS_OK;
@@ -1408,6 +1425,12 @@ nsXREDirProvider::AppendProfilePath(nsIFile* aFile)
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
+#elif defined(ANDROID)
+  // The directory used for storing profiles
+  // The parent of this directory is set in GetUserDataDirectoryHome
+  // XXX: handle gAppData->profile properly
+  rv = aFile->AppendNative(nsDependentCString("mozilla"));
+  NS_ENSURE_SUCCESS(rv, rv);
 #elif defined(XP_UNIX)
   // Make it hidden (i.e. using the ".")
   nsCAutoString folder(".");

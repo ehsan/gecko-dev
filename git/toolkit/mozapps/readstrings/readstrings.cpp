@@ -149,9 +149,14 @@ find_key(const char *keyList, char* key)
  * @param keyList    List of zero-delimited keys ending with two zero characters
  * @param numStrings Number of strings to read into results buffer - must be equal to the number of keys
  * @param results    Two-dimensional array of strings to be filled in the same order as the keys provided
+ * @param section    Optional name of the section to read; defaults to "Strings"
  */
 int
-ReadStrings(const NS_tchar *path, const char *keyList, int numStrings, char results[][MAX_TEXT_LEN])
+ReadStrings(const NS_tchar *path,
+            const char *keyList,
+            unsigned int numStrings,
+            char results[][MAX_TEXT_LEN],
+            const char *section)
 {
   AutoFILE fp = NS_tfopen(path, OPEN_MODE);
 
@@ -183,7 +188,7 @@ ReadStrings(const NS_tchar *path, const char *keyList, int numStrings, char resu
   char *buffer = fileContents;
   PRBool inStringsSection = PR_FALSE;
 
-  unsigned read = 0;
+  unsigned int read = 0;
 
   while (char *token = NS_strtok(kNL, &buffer)) {
     if (token[0] == '#' || token[0] == ';') // it's a comment
@@ -205,8 +210,12 @@ ReadStrings(const NS_tchar *path, const char *keyList, int numStrings, char resu
         // a well-formed [section] to continue working with
         inStringsSection = PR_FALSE;
       }
-      else
-        inStringsSection = strcmp(currSection, "Strings") == 0;
+      else {
+        if (section)
+          inStringsSection = strcmp(currSection, section) == 0;
+        else
+          inStringsSection = strcmp(currSection, "Strings") == 0;
+      }
 
       continue;
     }
@@ -224,7 +233,7 @@ ReadStrings(const NS_tchar *path, const char *keyList, int numStrings, char resu
       continue;
 
     int keyIndex = find_key(keyList, key);
-    if (keyIndex >= 0 && keyIndex < numStrings)
+    if (keyIndex >= 0 && (unsigned int)keyIndex < numStrings)
     {
       strncpy(results[keyIndex], token, MAX_TEXT_LEN - 1);
       results[keyIndex][MAX_TEXT_LEN - 1] = 0;
@@ -240,7 +249,7 @@ ReadStrings(const NS_tchar *path, const char *keyList, int numStrings, char resu
 int
 ReadStrings(const NS_tchar *path, StringTable *results)
 {
-  const int kNumStrings = 2;
+  const unsigned int kNumStrings = 2;
   const char *kUpdaterKeys = "Title\0Info\0";
   char updater_strings[kNumStrings][MAX_TEXT_LEN];
 

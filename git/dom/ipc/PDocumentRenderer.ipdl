@@ -35,7 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-include protocol "PIFrameEmbedding.ipdl";
+include protocol PIFrameEmbedding;
 
 namespace mozilla {
 namespace ipc {
@@ -45,6 +45,7 @@ protocol PDocumentRenderer
   manager PIFrameEmbedding;
 
 parent:
+    // Returns the width and height, in pixels, of the returned ARGB32 data.
     __delete__(PRUint32 w, PRUint32 h, nsCString data);
 };
 

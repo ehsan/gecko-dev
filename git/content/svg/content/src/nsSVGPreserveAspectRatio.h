@@ -131,6 +131,7 @@ private:
   nsresult ToDOMAnimVal(nsIDOMSVGPreserveAspectRatio **aResult,
                         nsSVGElement* aSVGElement);
 
+public:
   struct DOMBaseVal : public nsIDOMSVGPreserveAspectRatio
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -224,7 +225,7 @@ private:
     virtual nsresult ValueFromString(const nsAString& aStr,
                                      const nsISMILAnimationElement* aSrcElement,
                                      nsSMILValue& aValue,
-                                     PRBool& aCanCache) const;
+                                     PRBool& aPreventCachingOfSandwich) const;
     virtual nsSMILValue GetBaseValue() const;
     virtual void ClearAnimValue();
     virtual nsresult SetAnimValue(const nsSMILValue& aValue);

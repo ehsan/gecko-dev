@@ -117,6 +117,8 @@
 #include "prlog.h"
 #include "prthread.h"
 
+#include "mozilla/FunctionTimer.h"
+
 const size_t gStackSize = 8192;
 
 #ifdef PR_LOGGING
@@ -277,8 +279,7 @@ nsUserActivityObserver::Observe(nsISupports* aSubject, const char* aTopic,
     sUserIsActive = PR_TRUE;
     higherProbability = (mUserActivityCounter > NS_CC_SOFT_LIMIT_ACTIVE);
   } else if (!strcmp(aTopic, "xpcom-shutdown")) {
-    nsCOMPtr<nsIObserverService> obs =
-      do_GetService("@mozilla.org/observer-service;1");
+    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs) {
       obs->RemoveObserver(this, "user-interaction-active");
       obs->RemoveObserver(this, "user-interaction-inactive");
@@ -396,7 +397,7 @@ NS_HandleScriptError(nsIScriptGlobalObject *aScriptGlobal,
   nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(aScriptGlobal));
   nsIDocShell *docShell = win ? win->GetDocShell() : nsnull;
   if (docShell) {
-    nsCOMPtr<nsPresContext> presContext;
+    nsRefPtr<nsPresContext> presContext;
     docShell->GetPresContext(getter_AddRefs(presContext));
 
     static PRInt32 errorDepth; // Recursion prevention
@@ -439,7 +440,7 @@ public:
           !sHandlingScriptError) {
         sHandlingScriptError = PR_TRUE; // Recursion prevention
 
-        nsCOMPtr<nsPresContext> presContext;
+        nsRefPtr<nsPresContext> presContext;
         docShell->GetPresContext(getter_AddRefs(presContext));
 
         if (presContext) {
@@ -474,6 +475,13 @@ public:
             NS_WARNING("Not same origin error!");
             errorevent.errorMsg = xoriginMsg.get();
             errorevent.lineNr = 0;
+            // FIXME: once the principal of the script is not tied to
+            // the filename, we can stop using the post-redirect
+            // filename if we want and remove this line.  Note that
+            // apparently we can't handle null filenames in the error
+            // event dispatching code.
+            static PRUnichar nullFilename[] = { PRUnichar(0) };
+            errorevent.fileName = nullFilename;
           }
 
           nsEventDispatcher::Dispatch(win, presContext, &errorevent, nsnull,
@@ -887,6 +895,12 @@ PrintWinCodebase(nsGlobalWindow *win)
   uri->GetSpec(spec);
   printf("%s\n", spec.get());
 }
+
+void
+DumpString(const nsAString &str)
+{
+  printf("%s\n", NS_ConvertUTF16toUTF8(str).get());
+}
 #endif
 
 static void
@@ -1044,6 +1058,16 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
   if (duration < (isTrackingChromeCodeTime ?
                   sMaxChromeScriptRunTime : sMaxScriptRunTime)) {
     return JS_TRUE;
+  }
+
+  if (!nsContentUtils::IsSafeToRunScript()) {
+    // If it isn't safe to run script, then it isn't safe to bring up the
+    // prompt (since that will cause the event loop to spin). In this case
+    // (which is rare), we just stop the script... But report a warning so
+    // that developers have some idea of what went wrong.
+
+    JS_ReportWarning(cx, "A long running script was terminated");
+    return JS_FALSE;
   }
 
   // If we get here we're most likely executing an infinite loop in JS,
@@ -1493,6 +1517,9 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
                                      void* aRetValue,
                                      PRBool* aIsUndefined)
 {
+  NS_TIME_FUNCTION_MIN_FMT(1.0, "%s (line %d) (url: %s, line: %d)", MOZ_FUNCTION_NAME,
+                           __LINE__, aURL, aLineNo);
+
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
 
   if (!mScriptsEnabled) {
@@ -1671,6 +1698,9 @@ nsJSContext::EvaluateString(const nsAString& aScript,
                             nsAString *aRetValue,
                             PRBool* aIsUndefined)
 {
+  NS_TIME_FUNCTION_MIN_FMT(1.0, "%s (line %d) (url: %s, line: %d)", MOZ_FUNCTION_NAME,
+                           __LINE__, aURL, aLineNo);
+
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
 
   if (!mScriptsEnabled) {
@@ -1996,6 +2026,9 @@ nsJSContext::CompileEventHandler(nsIAtom *aName,
                                  PRUint32 aVersion,
                                  nsScriptObjectHolder &aHandler)
 {
+  NS_TIME_FUNCTION_MIN_FMT(1.0, "%s (line %d) (url: %s, line: %d)", MOZ_FUNCTION_NAME,
+                           __LINE__, aURL, aLineNo);
+
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
 
   NS_PRECONDITION(AtomIsEventHandlerName(aName), "Bad event name");
@@ -2059,6 +2092,9 @@ nsJSContext::CompileFunction(void* aTarget,
                              PRBool aShared,
                              void** aFunctionObject)
 {
+  NS_TIME_FUNCTION_FMT(1.0, "%s (line %d) (function: %s, url: %s, line: %d)", MOZ_FUNCTION_NAME,
+                       __LINE__, aName.BeginReading(), aURL, aLineNo);
+
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
 
   // Don't compile if aVersion is unknown.  Since the caller is responsible for
@@ -2116,15 +2152,14 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
     return NS_OK;
   }
 
-  jsval targetVal = JSVAL_VOID;
-  JSAutoTempValueRooter tvr(mContext, 1, &targetVal);
+  NS_TIME_FUNCTION_FMT(1.0, "%s (line %d) (function: %s)", MOZ_FUNCTION_NAME,
+                       __LINE__, JS_GetFunctionName(static_cast<JSFunction *>(JS_GetPrivate(mContext, static_cast<JSObject *>(aHandler)))));
 
   JSObject* target = nsnull;
   nsresult rv = JSObjectFromInterface(aTarget, aScope, &target);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  targetVal = OBJECT_TO_JSVAL(target);
-
+  js::AutoObjectRooter targetVal(mContext, target);
   jsval rval = JSVAL_VOID;
 
   // This one's a lot easier than EvaluateString because we don't have to
@@ -2148,7 +2183,7 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
     jsval *argv = nsnull;
 
     js::LazilyConstructed<nsAutoPoolRelease> poolRelease;
-    js::LazilyConstructed<JSAutoTempValueRooter> tvr;
+    js::LazilyConstructed<js::AutoArrayRooter> tvr;
 
     // Use |target| as the scope for wrapping the arguments, since aScope is
     // the safe scope in many cases, which isn't very useful.  Wrapping aTarget
@@ -2350,6 +2385,8 @@ nsJSContext::Deserialize(nsIObjectInputStream* aStream,
 {
     JSObject *result = nsnull;
     nsresult rv;
+
+    NS_TIME_FUNCTION_MIN(1.0);
 
     NS_TIMELINE_MARK_FUNCTION("js script deserialize");
 
@@ -2595,8 +2632,10 @@ nsJSContext::InitContext(nsIScriptGlobalObject *aGlobalObject)
 
     // Now check whether we need to grab a pointer to the
     // XPCNativeWrapper class
-    if (!nsDOMClassInfo::GetXPCNativeWrapperClass()) {
-      nsDOMClassInfo::SetXPCNativeWrapperClass(xpc->GetNativeWrapperClass());
+    if (!nsDOMClassInfo::GetXPCNativeWrapperGetPropertyOp()) {
+      JSPropertyOp getProperty;
+      xpc->GetNativeWrapperGetPropertyOp(&getProperty);
+      nsDOMClassInfo::SetXPCNativeWrapperGetPropertyOp(getProperty);
     }
   } else {
     // There's already a global object. We are preparing this outer window
@@ -2660,7 +2699,7 @@ nsJSContext::SetProperty(void *aTarget, const char *aPropName, nsISupports *aArg
   JSAutoRequest ar(mContext);
 
   js::LazilyConstructed<nsAutoPoolRelease> poolRelease;
-  js::LazilyConstructed<JSAutoTempValueRooter> tvr;
+  js::LazilyConstructed<js::AutoArrayRooter> tvr;
 
   nsresult rv;
   rv = ConvertSupportsTojsvals(aArgs, GetNativeGlobal(), &argc,
@@ -2695,7 +2734,7 @@ nsJSContext::ConvertSupportsTojsvals(nsISupports *aArgs,
                                      PRUint32 *aArgc,
                                      jsval **aArgv,
                                      js::LazilyConstructed<nsAutoPoolRelease> &aPoolRelease,
-                                     js::LazilyConstructed<JSAutoTempValueRooter> &aRooter)
+                                     js::LazilyConstructed<js::AutoArrayRooter> &aRooter)
 {
   nsresult rv = NS_OK;
 
@@ -3013,7 +3052,8 @@ GetOptionsProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
   if (JSVAL_IS_INT(id)) {
     uint32 optbit = (uint32) JSVAL_TO_INT(id);
-    if ((optbit & (optbit - 1)) == 0 && optbit <= JSOPTION_WERROR)
+    if (((optbit & (optbit - 1)) == 0 && optbit <= JSOPTION_WERROR) ||
+          optbit == JSOPTION_RELIMIT)
       *vp = (JS_GetOptions(cx) & optbit) ? JSVAL_TRUE : JSVAL_FALSE;
   }
   return JS_TRUE;
@@ -3530,17 +3570,12 @@ nsJSContext::ScriptExecuted()
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsJSContext::PreserveWrapper(nsIXPConnectWrappedNative *aWrapper)
-{
-  nsDOMClassInfo::PreserveNodeWrapper(aWrapper);
-  return NS_OK;
-}
-
 //static
 void
 nsJSContext::CC()
 {
+  NS_TIME_FUNCTION_MIN(1.0);
+
   ++sCCollectCount;
 #ifdef DEBUG_smaug
   printf("Will run cycle collector (%i), %lldms since previous.\n",
@@ -4021,9 +4056,9 @@ nsJSRuntime::Init()
   SetMemoryGCFrequencyPrefChangedCallback("javascript.options.mem.gc_frequency",
                                           nsnull);
 
-  nsCOMPtr<nsIObserverService> obs =
-    do_GetService("@mozilla.org/observer-service;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+  if (!obs)
+    return NS_ERROR_FAILURE;
   nsIObserver* activityObserver = new nsUserActivityObserver();
   NS_ENSURE_TRUE(activityObserver, NS_ERROR_OUT_OF_MEMORY);
   obs->AddObserver(activityObserver, "user-interaction-inactive", PR_FALSE);
@@ -4036,7 +4071,7 @@ nsJSRuntime::Init()
 
   sIsInitialized = PR_TRUE;
 
-  return rv;
+  return NS_OK;
 }
 
 //static

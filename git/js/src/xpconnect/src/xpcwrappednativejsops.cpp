@@ -190,7 +190,7 @@ XPC_WN_Shared_ToSource(JSContext *cx, JSObject *obj,
 // returning the underlying JSObject) so that JS callers will see what looks
 // Like any other xpcom object - and be limited to use its interfaces.
 //
-// See the comment preceeding nsIXPCWrappedJSObjectGetter in nsIXPConnect.idl.
+// See the comment preceding nsIXPCWrappedJSObjectGetter in nsIXPConnect.idl.
 
 static JSObject*
 GetDoubleWrappedJSObject(XPCCallContext& ccx, XPCWrappedNative* wrapper)
@@ -853,7 +853,7 @@ XPC_WN_Equality(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
             return Throw(rv, cx);
 
         if(!*bp && !JSVAL_IS_PRIMITIVE(v) &&
-           STOBJ_GET_CLASS(JSVAL_TO_OBJECT(v)) == &XPCSafeJSObjectWrapper::SJOWClass.base)
+           JSVAL_TO_OBJECT(v)->getClass() == &XPCSafeJSObjectWrapper::SJOWClass.base)
         {
             v = OBJECT_TO_JSVAL(XPCSafeJSObjectWrapper::GetUnsafeObject(cx, JSVAL_TO_OBJECT(v)));
 
@@ -878,7 +878,7 @@ static JSObject *
 XPC_WN_OuterObject(JSContext *cx, JSObject *obj)
 {
     XPCWrappedNative *wrapper =
-        XPCWrappedNative::GetWrappedNativeOfJSObject(cx, obj);
+        static_cast<XPCWrappedNative *>(obj->getPrivate());
     if(!wrapper)
     {
         Throw(NS_ERROR_XPC_BAD_OP_ON_WN_PROTO, cx);
@@ -917,7 +917,7 @@ static JSObject *
 XPC_WN_InnerObject(JSContext *cx, JSObject *obj)
 {
     XPCWrappedNative *wrapper =
-        XPCWrappedNative::GetWrappedNativeOfJSObject(cx, obj);
+        static_cast<XPCWrappedNative *>(obj->getPrivate());
     if(!wrapper)
     {
         Throw(NS_ERROR_XPC_BAD_OP_ON_WN_PROTO, cx);
@@ -1327,7 +1327,7 @@ static JSBool
 XPC_WN_JSOp_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
                       jsval *statep, jsid *idp)
 {
-    JSClass *clazz = STOBJ_GET_CLASS(obj);
+    JSClass *clazz = obj->getClass();
     if(!IS_WRAPPER_CLASS(clazz) || clazz == &XPC_WN_NoHelper_JSClass.base)
     {
         // obj must be a prototype object or a wrapper w/o a
@@ -1488,14 +1488,12 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj)
     if(!obj)
         return nsnull;
 
-    JSObject *scope = JS_GetScopeChain(cx);
+    JSObject *scope = JS_GetGlobalForScopeChain(cx);
     if(!scope)
     {
         XPCThrower::Throw(NS_ERROR_FAILURE, cx);
         return nsnull;
     }
-
-    scope = JS_GetGlobalForObject(cx, scope);
 
     XPCPerThreadData *threadData = XPCPerThreadData::GetData(cx);
     if(!threadData)
@@ -1507,6 +1505,27 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj)
     AutoPopJSContext popper(threadData->GetJSContextStack());
     popper.PushIfNotTop(cx);
 
+    JSObject* outerscope = scope;
+    OBJ_TO_OUTER_OBJECT(cx, outerscope);
+    if(!outerscope)
+        return nsnull;
+
+    if(obj == outerscope)
+    {
+        // Fast-path for the common case: a window being wrapped in its own
+        // scope. Check to see if the object actually needs a XOW, and then
+        // give it one in its own scope.
+
+        if(!XPCCrossOriginWrapper::ClassNeedsXOW(obj->getClass()->name))
+            return obj;
+
+        js::AutoValueRooter tvr(cx, OBJECT_TO_JSVAL(obj));
+        if(!XPCCrossOriginWrapper::WrapObject(cx, scope, tvr.addr()))
+            return nsnull;
+
+        return JSVAL_TO_OBJECT(tvr.value());
+    }
+
     nsIScriptSecurityManager* secMan = XPCWrapper::GetSecurityManager();
     if(!secMan)
     {
@@ -1517,8 +1536,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj)
     JSStackFrame *fp;
     nsIPrincipal *principal = secMan->GetCxSubjectPrincipalAndFrame(cx, &fp);
 
-    jsval retval = OBJECT_TO_JSVAL(obj);
-    JSAutoTempValueRooter atvr(cx, 1, &retval);
+    js::AutoValueRooter retval(cx, obj);
 
     if(principal && fp)
     {
@@ -1535,7 +1553,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj)
         }
 
         nsresult rv = xpc->GetWrapperForObject(cx, obj, scope, principal, flags,
-                                               &retval);
+                                               retval.addr());
         if(NS_FAILED(rv))
         {
             XPCThrower::Throw(rv, cx);
@@ -1543,7 +1561,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj)
         }
     }
 
-    return JSVAL_TO_OBJECT(retval);
+    return JSVAL_TO_OBJECT(retval.value());
 }
 
 JSObjectOps *
@@ -1608,7 +1626,8 @@ XPCNativeScriptableInfo::Construct(XPCCallContext& ccx,
     XPCNativeScriptableSharedMap* map = rt->GetNativeScriptableSharedMap();
     {   // scoped lock
         XPCAutoLock lock(rt->GetMapLock());
-        success = map->GetNewOrUsed(sci->GetFlags(), name, isGlobal, newObj);
+        success = map->GetNewOrUsed(sci->GetFlags(), name, isGlobal,
+                                    sci->GetInterfacesBitmap(), newObj);
     }
 
     if(!success)

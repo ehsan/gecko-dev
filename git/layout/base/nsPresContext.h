@@ -57,7 +57,7 @@
 #include "nsITimer.h"
 #include "nsCRT.h"
 #include "nsIPrintSettings.h"
-#include "nsPropertyTable.h"
+#include "FramePropertyTable.h"
 #include "nsGkAtoms.h"
 #include "nsIDocument.h"
 #include "nsRefPtrHashtable.h"
@@ -174,6 +174,8 @@ class nsRootPresContext;
 
 class nsPresContext : public nsIObserver {
 public:
+  typedef mozilla::FramePropertyTable FramePropertyTable;
+
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIOBSERVER
   NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
@@ -683,8 +685,8 @@ public:
    *
    *  @lina 07/12/2000
    */
-  virtual NS_HIDDEN_(PRBool) BidiEnabledExternal() const;
-  NS_HIDDEN_(PRBool) BidiEnabledInternal() const;
+  virtual PRBool BidiEnabledExternal() const { return BidiEnabledInternal(); }
+  PRBool BidiEnabledInternal() const { return Document()->GetBidiEnabled(); }
 #ifdef _IMPL_NS_LAYOUT
   PRBool BidiEnabled() const { return BidiEnabledInternal(); }
 #else
@@ -744,6 +746,10 @@ public:
    * include nsIDocument.
    */  
   NS_HIDDEN_(PRUint32) GetBidi() const;
+
+  PRUint32 GetBidiMemoryUsed();
+#else
+  PRUint32 GetBidiMemoryUsed() { return 0; }
 #endif // IBMBIDI
 
   /**
@@ -783,7 +789,7 @@ public:
   nsIPrintSettings* GetPrintSettings() { return mPrintSettings; }
 
   /* Accessor for table of frame properties */
-  nsPropertyTable* PropertyTable() { return &mPropertyTable; }
+  FramePropertyTable* PropertyTable() { return &mPropertyTable; }
 
   /* Helper function that ensures that this prescontext is shown in its
      docshell if it's the most recent prescontext for the docshell.  Returns
@@ -808,7 +814,20 @@ public:
                               mType == eContext_PrintPreview); }
 
   // Is this presentation in a chrome docshell?
-  PRBool IsChrome() const;
+  PRBool IsChrome() const
+  {
+    return mIsChromeIsCached ? mIsChrome : IsChromeSlow();
+  }
+
+  virtual void InvalidateIsChromeCacheExternal();
+  void InvalidateIsChromeCacheInternal() { mIsChromeIsCached = PR_FALSE; }
+#ifdef _IMPL_NS_LAYOUT
+  void InvalidateIsChromeCache()
+  { InvalidateIsChromeCacheInternal(); }
+#else
+  void InvalidateIsChromeCache()
+  { InvalidateIsChromeCacheExternal(); }
+#endif
 
   // Public API for native theme code to get style internals.
   virtual PRBool HasAuthorSpecifiedRules(nsIFrame *aFrame, PRUint32 ruleTypeMask) const;
@@ -941,6 +960,15 @@ public:
     return nsnull;
   }
 
+  PRUint32 EstimateMemoryUsed() {
+    PRUint32 result = 0;
+
+    result += sizeof(nsPresContext);
+    result += GetBidiMemoryUsed();
+
+    return result;
+  }
+
 protected:
   friend class nsRunnableMethod<nsPresContext>;
   NS_HIDDEN_(void) ThemeChangedInternal();
@@ -977,6 +1005,8 @@ protected:
 
   // Can't be inline because we can't include nsStyleSet.h.
   PRBool HasCachedStyleData();
+
+  PRBool IsChromeSlow() const;
 
   // IMPORTANT: The ownership implicit in the following member variables
   // has been explicitly checked.  If you add any members to this class,
@@ -1026,7 +1056,7 @@ protected:
   nsCOMPtr<nsIPrintSettings> mPrintSettings;
   nsCOMPtr<nsITimer>    mPrefChangedTimer;
 
-  nsPropertyTable       mPropertyTable;
+  FramePropertyTable    mPropertyTable;
 
   nsInvalidateRequestList mInvalidateRequests;
 
@@ -1104,7 +1134,7 @@ protected:
   // Do we currently have an event posted to call FlushUserFontSet?
   unsigned              mPostedFlushUserFontSet : 1;
 
-  // resize reflow is supressed when the only change has been to zoom
+  // resize reflow is suppressed when the only change has been to zoom
   // the document rather than to change the document's dimensions
   unsigned              mSupressResizeReflow : 1;
 
@@ -1112,6 +1142,12 @@ protected:
 
   unsigned              mProcessingRestyles : 1;
   unsigned              mProcessingAnimationStyleChange : 1;
+
+  // Cache whether we are chrome or not because it is expensive.  
+  // mIsChromeIsCached tells us if mIsChrome is valid or we need to get the
+  // value the slow way.
+  mutable unsigned      mIsChromeIsCached : 1;
+  mutable unsigned      mIsChrome : 1;
 
 #ifdef DEBUG
   PRBool                mInitialized;

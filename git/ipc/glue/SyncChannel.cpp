@@ -57,18 +57,28 @@ namespace ipc {
 const int32 SyncChannel::kNoTimeout = PR_INT32_MIN;
 
 SyncChannel::SyncChannel(SyncListener* aListener)
-  : AsyncChannel(aListener),
-    mPendingReply(0),
-    mProcessingSyncMessage(false),
-    mNextSeqno(0),
-    mTimeoutMs(kNoTimeout)
+  : AsyncChannel(aListener)
+  , mPendingReply(0)
+  , mProcessingSyncMessage(false)
+  , mNextSeqno(0)
+  , mTimeoutMs(kNoTimeout)
+#ifdef OS_WIN
+  , mTopFrame(NULL)
+#endif
 {
-  MOZ_COUNT_CTOR(SyncChannel);
+    MOZ_COUNT_CTOR(SyncChannel);
+#ifdef OS_WIN
+    mEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+    NS_ASSERTION(mEvent, "CreateEvent failed! Nothing is going to work!");
+#endif
 }
 
 SyncChannel::~SyncChannel()
 {
     MOZ_COUNT_DTOR(SyncChannel);
+#ifdef OS_WIN
+    CloseHandle(mEvent);
+#endif
 }
 
 // static
@@ -93,6 +103,10 @@ SyncChannel::Send(Message* msg, Message* reply)
                       "violation of sync handler invariant");
     NS_ABORT_IF_FALSE(msg->is_sync(), "can only Send() sync messages here");
 
+#ifdef OS_WIN
+    SyncStackFrame frame(this, false);
+#endif
+
     msg->set_seqno(NextSeqno());
 
     MutexAutoLock lock(mMutex);
@@ -104,9 +118,7 @@ SyncChannel::Send(Message* msg, Message* reply)
 
     mPendingReply = msg->type() + 1;
     int32 msgSeqno = msg->seqno();
-    mIOLoop->PostTask(
-        FROM_HERE,
-        NewRunnableMethod(this, &SyncChannel::OnSend, msg));
+    SendThroughTransport(msg);
 
     while (1) {
         bool maybeTimedOut = !SyncChannel::WaitForNotify();
@@ -171,9 +183,7 @@ SyncChannel::OnDispatchMessage(const Message& msg)
     {
         MutexAutoLock lock(mMutex);
         if (ChannelConnected == mChannelState)
-            mIOLoop->PostTask(
-                FROM_HERE,
-                NewRunnableMethod(this, &SyncChannel::OnSend, reply));
+            SendThroughTransport(reply);
     }
 }
 
@@ -213,19 +223,15 @@ SyncChannel::OnChannelError()
 {
     AssertIOThread();
 
-    {
-        MutexAutoLock lock(mMutex);
+    MutexAutoLock lock(mMutex);
 
-        // NB: this can race with the `Goodbye' event being processed by
-        // the worker thread
-        if (ChannelClosing != mChannelState)
-            mChannelState = ChannelError;
+    if (ChannelClosing != mChannelState)
+        mChannelState = ChannelError;
 
-        if (AwaitingSyncReply())
-            NotifyWorkerThread();
-    }
+    if (AwaitingSyncReply())
+        NotifyWorkerThread();
 
-    AsyncChannel::OnChannelError();
+    PostErrorNotifyTask();
 }
 
 //

@@ -42,12 +42,15 @@
 const AUS_Cc = Components.classes;
 const AUS_Ci = Components.interfaces;
 const AUS_Cr = Components.results;
+const AUS_Cu = Components.utils;
 
+const PREF_APP_UPDATE_CERT_ATTR_BRANCH  = "app.update.cert.attributes.";
 const PREF_APP_UPDATE_CHANNEL           = "app.update.channel";
 const PREF_APP_UPDATE_ENABLED           = "app.update.enabled";
 const PREF_APP_UPDATE_IDLETIME          = "app.update.idletime";
 const PREF_APP_UPDATE_LOG               = "app.update.log";
 const PREF_APP_UPDATE_SHOW_INSTALLED_UI = "app.update.showInstalledUI";
+const PREF_APP_UPDATE_URL               = "app.update.url";
 const PREF_APP_UPDATE_URL_DETAILS       = "app.update.url.details";
 const PREF_APP_UPDATE_URL_OVERRIDE      = "app.update.url.override";
 
@@ -56,6 +59,8 @@ const PREF_APP_UPDATE_NEVER_BRANCH      = "app.update.never.";
 const PREF_APP_PARTNER_BRANCH           = "app.partner.";
 const PREF_DISTRIBUTION_ID              = "distribution.id";
 const PREF_DISTRIBUTION_VERSION         = "distribution.version";
+
+const PREF_EXTENSIONS_UPDATE_URL         = "extensions.update.url";
 
 const NS_APP_PROFILE_DIR_STARTUP   = "ProfDS";
 const NS_APP_USER_PROFILE_50_DIR   = "ProfD";
@@ -85,16 +90,21 @@ const MODE_CREATE   = 0x08;
 const MODE_APPEND   = 0x10;
 const MODE_TRUNCATE = 0x20;
 
+const PR_RDWR        = 0x04;
+const PR_CREATE_FILE = 0x08;
+const PR_APPEND      = 0x10;
+const PR_TRUNCATE    = 0x20;
+const PR_SYNC        = 0x40;
+const PR_EXCL        = 0x80;
+
 const PERMS_FILE      = 0644;
 const PERMS_DIRECTORY = 0755;
 
-const URI_UPDATES_PROPERTIES = "chrome://mozapps/locale/update/updates.properties";
-const gUpdateBundle = AUS_Cc["@mozilla.org/intl/stringbundle;1"].
-                      getService(AUS_Ci.nsIStringBundleService).
-                      createBundle(URI_UPDATES_PROPERTIES);
+AUS_Cu.import("resource://gre/modules/Services.jsm");
 
-var gDirSvc = AUS_Cc["@mozilla.org/file/directory_service;1"].
-              getService(AUS_Ci.nsIProperties);
+const URI_UPDATES_PROPERTIES = "chrome://mozapps/locale/update/updates.properties";
+const gUpdateBundle = Services.strings.createBundle(URI_UPDATES_PROPERTIES);
+
 
 __defineGetter__("gAUS", function() {
   delete this.gAUS;
@@ -122,13 +132,16 @@ __defineGetter__("gUP", function() {
                     createInstance(AUS_Ci.nsIUpdatePrompt);
 });
 
-__defineGetter__("gPref", function() {
-  delete this.gPref;
-  return this.gPref = AUS_Cc["@mozilla.org/preferences-service;1"].
-                      getService(AUS_Ci.nsIPrefBranch2).
-                      QueryInterface(AUS_Ci.nsIPrefService);
+__defineGetter__("gDefaultPrefBranch", function() {
+  delete this.gDefaultPrefBranch;
+  return this.gDefaultPrefBranch = Services.prefs.getDefaultBranch(null);
 });
 
+__defineGetter__("gZipW", function() {
+  delete this.gZipW;
+  return this.gZipW = AUS_Cc["@mozilla.org/zipwriter;1"].
+                      createInstance(AUS_Ci.nsIZipWriter);
+});
 
 /* Initializes the update service stub */
 function initUpdateServiceStub() {
@@ -142,18 +155,14 @@ function reloadUpdateManagerData() {
   observe(null, "um-reload-update-data", "");
 }
 
-function getDefaultPrefBranch() {
-  return gPref.QueryInterface(AUS_Ci.nsIPrefService).getDefaultBranch(null);
-}
-
 /**
  * Sets the app.update.channel preference.
  * @param   aChannel
  *          The update channel. If not specified 'test_channel' will be used.
  */
 function setUpdateChannel(aChannel) {
-  getDefaultPrefBranch().setCharPref(PREF_APP_UPDATE_CHANNEL,
-                                     aChannel ? aChannel : "test_channel");
+  gDefaultPrefBranch.setCharPref(PREF_APP_UPDATE_CHANNEL,
+                                 aChannel ? aChannel : "test_channel");
 }
 
 /**
@@ -163,8 +172,8 @@ function setUpdateChannel(aChannel) {
  *          used.
  */
 function setUpdateURLOverride(aURL) {
-  gPref.setCharPref(PREF_APP_UPDATE_URL_OVERRIDE,
-                    aURL ? aURL : URL_HOST + "update.xml");
+  Services.prefs.setCharPref(PREF_APP_UPDATE_URL_OVERRIDE,
+                             aURL ? aURL : URL_HOST + "update.xml");
 }
 
 /**
@@ -190,12 +199,13 @@ function getRemoteUpdateString(aPatches, aType, aName, aDisplayVersion,
                                aAppVersion, aPlatformVersion, aBuildID,
                                aDetailsURL, aBillboardURL, aLicenseURL,
                                aShowPrompt, aShowNeverForVersion, aShowSurvey,
-                               aExtra1, aVersion, aExtensionVersion) {
+                               aVersion, aExtensionVersion, aCustom1,
+                               aCustom2) {
   return  getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
                           aPlatformVersion, aBuildID, aDetailsURL,
                           aBillboardURL, aLicenseURL, aShowPrompt,
-                          aShowNeverForVersion, aShowSurvey, aExtra1, aVersion,
-                          aExtensionVersion) + ">\n" +
+                          aShowNeverForVersion, aShowSurvey, aVersion,
+                          aExtensionVersion, aCustom1, aCustom2) + ">\n" +
               aPatches + 
          "  </update>\n";
 }
@@ -255,8 +265,8 @@ function getLocalUpdateString(aPatches, aType, aName, aDisplayVersion,
                               aServiceURL, aInstallDate, aStatusText,
                               aIsCompleteUpdate, aChannel, aForegroundDownload,
                               aShowPrompt, aShowNeverForVersion, aShowSurvey,
-                              aExtra1, aVersion, aExtensionVersion,
-                              aPreviousAppVersion) {
+                              aVersion, aExtensionVersion, aPreviousAppVersion,
+                              aCustom1, aCustom2) {
   var serviceURL = aServiceURL ? aServiceURL : "http://test_service/";
   var installDate = aInstallDate ? aInstallDate : "1238441400314";
   var statusText = aStatusText ? aStatusText : "Install Pending";
@@ -268,7 +278,8 @@ function getLocalUpdateString(aPatches, aType, aName, aDisplayVersion,
   return getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
                          aPlatformVersion, aBuildID, aDetailsURL, aBillboardURL,
                          aLicenseURL, aShowPrompt, aShowNeverForVersion,
-                         aShowSurvey, aExtra1, aVersion, aExtensionVersion) +
+                         aShowSurvey, aVersion, aExtensionVersion, aCustom1,
+                         aCustom2) +
                    " " +
                    previousAppVersion +
                    "serviceURL=\"" + serviceURL + "\" " +
@@ -343,22 +354,27 @@ function getLocalPatchString(aType, aURL, aHashFunction, aHashValue, aSize,
  * @param   aShowSurvey
  *          Whether to show the 'No Thanks' button in the update prompt.
  *          If null will not be added and the backend will default to false.
- * @param   aExtra1
- *          A custom string provided by the update xml for use by the
- *          application.
- *          If null will not be added.
  * @param   aVersion
  *          The update's application version from 1.9.2.
  *          If null will not be present.
  * @param   aExtensionVersion
  *          The update's application version from 1.9.2.
  *          If null will not be present.
+ * @param   aCustom1
+ *          A custom attribute name AND attribute value to add to the xml.
+ *          Example: custom1_attribute="custom1 value"
+ *          If null will not be present.
+ * @param   aCustom2
+ *          A custom attribute name AND attribute value to add to the xml.
+ *          Example: custom2_attribute="custom2 value"
+ *          If null will not be present.
  * @returns The string representing an update element for an update xml file.
  */
 function getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
                          aPlatformVersion, aBuildID, aDetailsURL, aBillboardURL,
                          aLicenseURL, aShowPrompt, aShowNeverForVersion,
-                         aShowSurvey, aExtra1, aVersion, aExtensionVersion) {
+                         aShowSurvey, aVersion, aExtensionVersion, aCustom1,
+                         aCustom2) {
   var type = aType ? aType : "major";
   var name = aName ? aName : "App Update Test";
   var displayVersion = "";
@@ -390,7 +406,8 @@ function getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
   var showPrompt = aShowPrompt ? "showPrompt=\"" + aShowPrompt + "\" " : "";
   var showNeverForVersion = aShowNeverForVersion ? "showNeverForVersion=\"" + aShowNeverForVersion + "\" " : "";
   var showSurvey = aShowSurvey ? "showSurvey=\"" + aShowSurvey + "\" " : "";
-  var extra1 = aExtra1 ? "extra1=\"" + aExtra1 + "\" " : "";
+  var custom1 = aCustom1 ? aCustom1 + " " : "";
+  var custom2 = aCustom2 ? aCustom2 + " " : "";
   return "  <update type=\"" + type + "\" " +
                    "name=\"" + name + "\" " +
                    displayVersion +
@@ -398,14 +415,15 @@ function getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
                    appVersion +
                    extensionVersion +
                    platformVersion +
-                   "buildID=\"" + buildID + "\" " +
                    detailsURL +
                    billboardURL +
                    licenseURL +
                    showPrompt +
                    showNeverForVersion +
                    showSurvey +
-                   extra1;
+                   custom1 +
+                   custom2 +
+                   "buildID=\"" + buildID + "\"";
 }
 
 /**
@@ -682,7 +700,7 @@ function removeDirRecursive(aDir) {
  * files.
  */
 function getCurrentProcessDir() {
-  return gDirSvc.get(NS_XPCOM_CURRENT_PROCESS_DIR, AUS_Ci.nsIFile);
+  return Services.dirsvc.get(NS_XPCOM_CURRENT_PROCESS_DIR, AUS_Ci.nsIFile);
 }
 
 /**
@@ -692,5 +710,5 @@ function getCurrentProcessDir() {
  * directory.
  */
 function getGREDir() {
-  return gDirSvc.get(NS_GRE_DIR, AUS_Ci.nsIFile);
+  return Services.dirsvc.get(NS_GRE_DIR, AUS_Ci.nsIFile);
 }

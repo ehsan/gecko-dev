@@ -75,6 +75,7 @@
 #include "nsFind.h"
 #include "nsDOMError.h"
 #include "nsFocusManager.h"
+#include "mozilla/Services.h"
 
 #if DEBUG
 #include "nsIWebNavigation.h"
@@ -130,7 +131,7 @@ NS_IMETHODIMP nsWebBrowserFind::FindNext(PRBool *outDidFind)
     // this is used by nsTypeAheadFind, which controls find again when it was
     // the last executed find in the current window.
     nsCOMPtr<nsIObserverService> observerSvc =
-      do_GetService("@mozilla.org/observer-service;1");
+      mozilla::services::GetObserverService();
     if (observerSvc) {
         nsCOMPtr<nsISupportsInterfacePointer> windowSupportsData = 
           do_CreateInstance(NS_SUPPORTS_INTERFACE_POINTER_CONTRACTID, &rv);
@@ -394,7 +395,7 @@ void nsWebBrowserFind::SetSelectionAndScroll(nsIDOMWindow* aWindow,
   if (!domDoc) return;
 
   nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
-  nsIPresShell* presShell = doc->GetPrimaryShell();
+  nsIPresShell* presShell = doc->GetShell();
   if (!presShell) return;
 
   nsCOMPtr<nsIDOMNode> node;
@@ -833,7 +834,7 @@ nsWebBrowserFind::GetFrameSelection(nsIDOMWindow* aWindow,
     if (!domDoc) return;
 
     nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
-    nsIPresShell* presShell = doc->GetPrimaryShell();
+    nsIPresShell* presShell = doc->GetShell();
     if (!presShell) return;
 
     // text input controls have their independent selection controllers

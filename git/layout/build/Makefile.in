@@ -59,9 +59,9 @@ GRE_MODULE	= 1
 LIBXUL_LIBRARY	= 1
 
 ifndef MOZ_ENABLE_LIBXUL
-EXTRA_DSO_LIBS	= gkgfx
+EXTRA_DSO_LIBS	= gkgfx gfxutils
 endif
-EXTRA_DSO_LIBS	+= thebes layers
+EXTRA_DSO_LIBS	+= thebes ycbcr
 
 
 CPPSRCS		= \
@@ -104,11 +104,51 @@ SHARED_LIBRARY_LIBS = \
 	$(DEPTH)/dom/src/storage/$(LIB_PREFIX)jsdomstorage_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/src/offline/$(LIB_PREFIX)jsdomoffline_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/src/geolocation/$(LIB_PREFIX)jsdomgeolocation_s.$(LIB_SUFFIX) \
+	$(DEPTH)/dom/system/$(LIB_PREFIX)domsystem_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/src/threads/$(LIB_PREFIX)domthreads_s.$(LIB_SUFFIX) \
+	$(DEPTH)/dom/indexedDB/$(LIB_PREFIX)dom_indexeddb_s.$(LIB_SUFFIX) \
 	$(DEPTH)/editor/libeditor/text/$(LIB_PREFIX)texteditor_s.$(LIB_SUFFIX) \
 	$(DEPTH)/editor/libeditor/base/$(LIB_PREFIX)editorbase_s.$(LIB_SUFFIX) \
 	$(DEPTH)/parser/html/$(LIB_PREFIX)html5p_s.$(LIB_SUFFIX) \
+	$(DEPTH)/caps/src/$(LIB_PREFIX)caps_s.$(LIB_SUFFIX) \
 	$(NULL)
+
+ifneq (,$(filter qt gtk2,$(MOZ_WIDGET_TOOLKIT)))
+SHARED_LIBRARY_LIBS += \
+	$(DEPTH)/dom/system/unix/$(LIB_PREFIX)domsystemunix_s.$(LIB_SUFFIX) \
+	$(NULL)
+LOCAL_INCLUDES	+= \
+	-I$(topsrcdir)/dom/system/unix \
+	$(NULL)
+else ifneq (,$(filter windows,$(MOZ_WIDGET_TOOLKIT)))
+SHARED_LIBRARY_LIBS += \
+	$(DEPTH)/dom/system/windows/$(LIB_PREFIX)domsystemwindows_s.$(LIB_SUFFIX) \
+	$(NULL)
+LOCAL_INCLUDES	+= \
+	-I$(topsrcdir)/dom/system/windows \
+	$(NULL)
+else ifneq (,$(filter cocoa,$(MOZ_WIDGET_TOOLKIT)))
+SHARED_LIBRARY_LIBS += \
+	$(DEPTH)/dom/system/cocoa/$(LIB_PREFIX)domsystemcocoa_s.$(LIB_SUFFIX) \
+ 	$(NULL)
+LOCAL_INCLUDES	+= \
+	-I$(topsrcdir)/dom/system/cocoa \
+	$(NULL)
+else ifneq (,$(filter android,$(MOZ_WIDGET_TOOLKIT)))
+SHARED_LIBRARY_LIBS += \
+	$(DEPTH)/dom/system/android/$(LIB_PREFIX)domsystemandroid_s.$(LIB_SUFFIX) \
+ 	$(NULL)
+LOCAL_INCLUDES	+= \
+	-I$(topsrcdir)/dom/system/android \
+	$(NULL)
+endif
+
+ifdef MOZ_VORBIS
+SHARED_LIBRARY_LIBS 	+= \
+	$(DEPTH)/media/libvorbis/lib/$(LIB_PREFIX)vorbis.$(LIB_SUFFIX) \
+	$(DEPTH)/media/libogg/src/$(LIB_PREFIX)ogg.$(LIB_SUFFIX) \
+	$(NULL)
+endif
 
 ifdef MOZ_MEDIA
 SHARED_LIBRARY_LIBS 	+= \
@@ -118,13 +158,16 @@ endif
 
 ifdef MOZ_OGG
 SHARED_LIBRARY_LIBS 	+= \
-	$(DEPTH)/media/libfishsound/src/libfishsound/$(LIB_PREFIX)fishsound.$(LIB_SUFFIX) \
-	$(DEPTH)/media/libogg/src/$(LIB_PREFIX)ogg.$(LIB_SUFFIX) \
-	$(DEPTH)/media/liboggplay/src/liboggplay/$(LIB_PREFIX)oggplay.$(LIB_SUFFIX) \
-	$(DEPTH)/media/liboggz/src/liboggz/$(LIB_PREFIX)oggz.$(LIB_SUFFIX) \
 	$(DEPTH)/media/libtheora/lib/$(LIB_PREFIX)theora.$(LIB_SUFFIX) \
-	$(DEPTH)/media/libvorbis/lib/$(LIB_PREFIX)vorbis.$(LIB_SUFFIX) \
 	$(DEPTH)/content/media/ogg/$(LIB_PREFIX)gkconogg_s.$(LIB_SUFFIX) \
+	$(NULL)
+endif
+
+ifdef MOZ_WEBM
+SHARED_LIBRARY_LIBS 	+= \
+	$(DEPTH)/content/media/webm/$(LIB_PREFIX)gkconwebm_s.$(LIB_SUFFIX) \
+	$(DEPTH)/media/libnestegg/src/$(LIB_PREFIX)nestegg.$(LIB_SUFFIX) \
+	$(DEPTH)/media/libvpx/$(LIB_PREFIX)vpx.$(LIB_SUFFIX) \
 	$(NULL)
 endif
 
@@ -203,6 +246,9 @@ ifdef ENABLE_EDITOR_API_LOG
 DEFINES += -DENABLE_EDITOR_API_LOG
 endif
 
+SHARED_LIBRARY_LIBS += \
+	$(DEPTH)/js/src/xpconnect/src/$(LIB_PREFIX)xpconnect_s.$(LIB_SUFFIX)
+
 EXTRA_DSO_LDOPTS = \
 		$(LIBS_DIR) \
 		$(EXTRA_DSO_LIBS) \
@@ -232,8 +278,13 @@ ifeq ($(OS_ARCH),Linux)
 EXTRA_DSO_LDOPTS += $(MOZ_ALSA_LIBS)
 endif
 ifeq ($(OS_ARCH),Darwin)
-OS_LIBS += -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon
+OS_LIBS += -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework Carbon -framework IOKit
 endif
+endif
+
+ifdef MOZ_IPC
+include $(topsrcdir)/config/config.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 endif
 
 include $(topsrcdir)/config/rules.mk
@@ -272,6 +323,9 @@ LOCAL_INCLUDES	+= -I$(srcdir)/../base \
 		   -I$(topsrcdir)/editor/libeditor/html \
 		   -I$(topsrcdir)/editor/txtsvc/src \
 		   -I$(topsrcdir)/editor/composer/src \
+		   -I$(topsrcdir)/js/src/xpconnect/src \
+		   -I$(topsrcdir)/js/src/xpconnect/loader \
+		   -I$(topsrcdir)/caps/include \
 		   $(NULL)
 
 ifdef MOZ_MATHML

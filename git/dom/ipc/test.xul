@@ -98,6 +98,7 @@
       // 2. Test that adding message listener works, and that receiving a sync message works.
       messageManager.addMessageListener("linkclick",
         function(m) {
+          // This checks that json sending works in sync messages. 
           document.getElementById("messageLog").value = m.name + ": " + m.json.href;
           return { message: "linkclick-received" };
         });
@@ -124,7 +125,7 @@
       // 5. Final test to check that everything went ok.
       messageManager.addMessageListener("chrome-message-reply",
         function(m) {
-          // Check that 'this' and .target values are handled correctly.
+          // Check that 'this' and .target values are handled correctly
           if (m.target == document.getElementById("page") &amp;&amp;
               this == messageManager) {
             // Check that the message properties are enumerable.
@@ -192,6 +193,36 @@
         });
       messageManager.loadFrameScript("data:,addEventListener('MozAfterPaint', function(e) { sendAsyncMessage('MozAfterPaint'); },true);", false);
     }
+
+   var Ci = Components.interfaces;
+   var Cu = Components.utils;
+   Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+
+    function DialogProvider() { }
+
+    DialogProvider.prototype = {
+      QueryInterface: XPCOMUtils.generateQI([Ci.nsIBrowserDOMWindow, Ci.nsIDialogCreator, Ci.nsISupports]),
+      openURI: function (aURI, aOpener, aWhere, aContext) {
+        return null;
+      },
+      isTabContentWindow: function (aWindow) {
+        return false;
+      },
+      openDialog: function(aType, aName, aFeatures, aArguments, aFrameElement) {
+        alert(aType + ", " + aName + ", " + aFeatures + ", " + aArguments + ", " + aFrameElement);
+      }
+    }
+
+    function defaultDialogs(useDefault) {
+       window.QueryInterface(Ci.nsIDOMChromeWindow).browserDOMWindow = useDefault ? null : new DialogProvider();
+    }
+
+    defaultDialogs(false);
+
+    window.addEventListener("MozDelayedModalDialog",
+                            function(e) { alert(e.type + ", " + e.target); },
+                            true);
+
   </script>
 
   <toolbar id="controls">
@@ -217,6 +248,10 @@
   <toolbar>
     <label value="Eval script in chrome context"/>
     <textbox flex="1"/><button label="run" oncommand="eval(this.previousSibling.value);"/>
+  </toolbar>
+  <toolbar>
+    <checkbox label="allow dialogs from remote content"
+               oncommand="document.getElementById('page').QueryInterface(Components.interfaces.nsIFrameLoaderOwner).frameLoader.delayRemoteDialogs = this.checked;"/>
   </toolbar>
 
   <browser type="content" src="http://www.google.com/" flex="1" id="page" remote="true"

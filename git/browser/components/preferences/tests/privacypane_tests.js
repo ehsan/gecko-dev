@@ -36,28 +36,26 @@
  * ***** END LICENSE BLOCK ***** */
 
 function runTestOnPrivacyPrefPane(testFunc) {
-  let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
-           getService(Ci.nsIWindowWatcher);
   let observer = {
     observe: function(aSubject, aTopic, aData) {
       if (aTopic == "domwindowopened") {
-        ww.unregisterNotification(this);
+        Services.ww.unregisterNotification(this);
 
         let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
         win.addEventListener("load", function() {
           win.removeEventListener("load", arguments.callee, false);
           testFunc(dialog.document.defaultView);
 
-          ww.registerNotification(observer);
+          Services.ww.registerNotification(observer);
           dialog.close();
         }, false);
       } else if (aTopic == "domwindowclosed") {
-        ww.unregisterNotification(this);
+        Services.ww.unregisterNotification(this);
         testRunner.runNext();
       }
     }
   };
-  ww.registerNotification(observer);
+  Services.ww.registerNotification(observer);
 
   let dialog = openDialog("chrome://browser/content/preferences/preferences.xul", "Preferences",
                           "chrome,titlebar,toolbar,centerscreen,dialog=no", "panePrivacy");
@@ -65,20 +63,6 @@ function runTestOnPrivacyPrefPane(testFunc) {
 
 function controlChanged(element) {
   element.doCommand();
-}
-
-function test_locbar_placeholder(win) {
-  let texts = ["none", "bookmarkhistory", "history", "bookmark"];
-
-  let locbarlist = win.document.getElementById("locationBarSuggestion");
-  ok(locbarlist, "location bar suggestion menulist should exist");
-
-  for (let level = -1; level <= 2; ++level) {
-    locbarlist.value = level;
-    controlChanged(locbarlist);
-    is(gURLBar.placeholder, gURLBar.getAttribute(texts[level + 1] + "placeholder"),
-       "location bar placeholder for for level " + level + " is correctly set");
-  }
 }
 
 function test_pane_visibility(win) {
@@ -528,10 +512,8 @@ function reset_preferences(win) {
 
 let testRunner;
 function run_test_subset(subset) {
-  let psvc = Cc["@mozilla.org/preferences-service;1"].
-             getService(Ci.nsIPrefBranch);
-  let instantApplyOrig = psvc.getBoolPref("browser.preferences.instantApply");
-  psvc.setBoolPref("browser.preferences.instantApply", true);
+  let instantApplyOrig = Services.prefs.getBoolPref("browser.preferences.instantApply");
+  Services.prefs.setBoolPref("browser.preferences.instantApply", true);
 
   waitForExplicitFinish();
 
@@ -541,7 +523,7 @@ function run_test_subset(subset) {
     runNext: function() {
       if (this.counter == this.tests.length) {
         // cleanup
-        psvc.setBoolPref("browser.preferences.instantApply", instantApplyOrig);
+        Services.prefs.setBoolPref("browser.preferences.instantApply", instantApplyOrig);
         finish();
       } else {
         let self = this;

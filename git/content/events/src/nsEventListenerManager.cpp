@@ -66,6 +66,7 @@
 #include "nsLayoutUtils.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
+#include "mozilla/dom/Element.h"
 #include "nsIFrame.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
@@ -95,6 +96,8 @@
 #include "nsEventListenerService.h"
 #include "nsDOMEvent.h"
 #include "nsIContentSecurityPolicy.h"
+
+using namespace mozilla::dom;
 
 #define EVENT_TYPE_EQUALS( ls, type, userType ) \
   (ls->mEventType && ls->mEventType == type && \
@@ -293,7 +296,6 @@ nsEventListenerManager::~nsEventListenerManager()
 
   --mInstanceCount;
   if(mInstanceCount == 0) {
-    NS_IF_RELEASE(gSystemEventGroup);
     NS_IF_RELEASE(gDOM2EventGroup);
   }
 }
@@ -308,8 +310,18 @@ nsEventListenerManager::RemoveAllListeners()
 void
 nsEventListenerManager::Shutdown()
 {
+  NS_IF_RELEASE(gSystemEventGroup);
   sAddListenerID = JSVAL_VOID;
   nsDOMEvent::Shutdown();
+}
+
+nsIDOMEventGroup*
+nsEventListenerManager::GetSystemEventGroup()
+{
+  if (!gSystemEventGroup) {
+    CallCreateInstance(kDOMEventGroupCID, &gSystemEventGroup);
+  }
+  return gSystemEventGroup;
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsEventListenerManager)
@@ -778,7 +790,7 @@ nsEventListenerManager::AddScriptEventListener(nsISupports *aObject,
           nameSpace = content->GetNameSpaceID();
         }
         else if (doc) {
-          nsCOMPtr<nsIContent> root = doc->GetRootContent();
+          Element* root = doc->GetRootElement();
           if (root)
             nameSpace = root->GetNameSpaceID();
         }
@@ -1095,34 +1107,14 @@ static const EventDispatchData* sLatestEventDispData = nsnull;
 */
 
 nsresult
-nsEventListenerManager::HandleEvent(nsPresContext* aPresContext,
-                                    nsEvent* aEvent, nsIDOMEvent** aDOMEvent,
-                                    nsPIDOMEventTarget* aCurrentTarget,
-                                    PRUint32 aFlags,
-                                    nsEventStatus* aEventStatus,
-                                    nsCxPusher* aPusher)
+nsEventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
+                                            nsEvent* aEvent,
+                                            nsIDOMEvent** aDOMEvent,
+                                            nsPIDOMEventTarget* aCurrentTarget,
+                                            PRUint32 aFlags,
+                                            nsEventStatus* aEventStatus,
+                                            nsCxPusher* aPusher)
 {
-  if (mListeners.IsEmpty() || aEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH) {
-    return NS_OK;
-  }
-
-  if (!mMayHaveCapturingListeners &&
-      !(aEvent->flags & NS_EVENT_FLAG_BUBBLE)) {
-    return NS_OK;
-  }
-  
-  if (!mMayHaveSystemGroupListeners &&
-      aFlags & NS_EVENT_FLAG_SYSTEM_EVENT) {
-    return NS_OK;
-  }
-
-  // Check if we already know that there is no event listener for the event.
-  if (mNoListenerForEvent == aEvent->message &&
-      (mNoListenerForEvent != NS_USER_DEFINED_EVENT ||
-       mNoListenerForEventAtom == aEvent->userType)) {
-    return NS_OK;
-  }
-
   //Set the value of the internal PreventDefault flag properly based on aEventStatus
   if (*aEventStatus == nsEventStatus_eConsumeNoDefault) {
     aEvent->flags |= NS_EVENT_FLAG_NO_DEFAULT;
@@ -1237,17 +1229,8 @@ nsEventListenerManager::SetListenerTarget(nsISupports* aTarget)
 NS_IMETHODIMP
 nsEventListenerManager::GetSystemEventGroupLM(nsIDOMEventGroup **aGroup)
 {
-  if (!gSystemEventGroup) {
-    nsresult result;
-    nsCOMPtr<nsIDOMEventGroup> group(do_CreateInstance(kDOMEventGroupCID,&result));
-    if (NS_FAILED(result))
-      return result;
-
-    gSystemEventGroup = group;
-    NS_ADDREF(gSystemEventGroup);
-  }
-
-  *aGroup = gSystemEventGroup;
+  *aGroup = GetSystemEventGroup();
+  NS_ENSURE_TRUE(*aGroup, NS_ERROR_OUT_OF_MEMORY);
   NS_ADDREF(*aGroup);
   return NS_OK;
 }
@@ -1313,8 +1296,8 @@ nsEventListenerManager::DispatchEvent(nsIDOMEvent* aEvent, PRBool *_retval)
   }
 
   // Obtain a presentation shell
-  nsIPresShell *shell = document->GetPrimaryShell();
-  nsCOMPtr<nsPresContext> context;
+  nsIPresShell *shell = document->GetShell();
+  nsRefPtr<nsPresContext> context;
   if (shell) {
     context = shell->GetPresContext();
   }

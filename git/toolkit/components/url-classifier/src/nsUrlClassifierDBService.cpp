@@ -3029,7 +3029,7 @@ nsUrlClassifierDBServiceWorker::BeginStream(const nsACString &table,
 /**
  * Updating the database:
  *
- * The Update() method takes a series of chunks seperated with control data,
+ * The Update() method takes a series of chunks separated with control data,
  * as described in
  * http://code.google.com/p/google-safe-browsing/wiki/Protocolv2Spec
  *
@@ -3948,7 +3948,7 @@ nsUrlClassifierDBService::Init()
 
   // Add an observer for shutdown
   nsCOMPtr<nsIObserverService> observerService =
-      do_GetService("@mozilla.org/observer-service;1");
+      mozilla::services::GetObserverService();
   if (!observerService)
     return NS_ERROR_FAILURE;
 

@@ -48,6 +48,7 @@
 #include "nsICharsetConverterManager.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsIContent.h"
+#include "mozilla/dom/Element.h"
 #include "nsGkAtoms.h"
 #include "nsNetUtil.h"
 #include "nsIScriptGlobalObject.h"
@@ -68,15 +69,19 @@
 #include "nsContentErrors.h"
 #include "nsIParser.h"
 #include "nsThreadUtils.h"
-#include "nsIChannelClassifier.h"
 #include "nsDocShellCID.h"
 #include "nsIContentSecurityPolicy.h"
 #include "prlog.h"
+#include "nsIChannelPolicy.h"
+#include "nsChannelPolicy.h"
+
+#include "mozilla/FunctionTimer.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gCspPRLog;
 #endif
 
+using namespace mozilla::dom;
 
 //////////////////////////////////////////////////////////////
 // Per-request data structure
@@ -285,10 +290,23 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType)
 
   nsCOMPtr<nsIInterfaceRequestor> prompter(do_QueryInterface(docshell));
 
+  // check for a Content Security Policy to pass down to the channel
+  // that will be created to load the script
+  nsCOMPtr<nsIChannelPolicy> channelPolicy;
+  nsCOMPtr<nsIContentSecurityPolicy> csp;
+  rv = mDocument->NodePrincipal()->GetCsp(getter_AddRefs(csp));
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (csp) {
+    channelPolicy = do_CreateInstance("@mozilla.org/nschannelpolicy;1");
+    channelPolicy->SetContentSecurityPolicy(csp);
+    channelPolicy->SetLoadType(nsIContentPolicy::TYPE_SCRIPT);
+  }
+
   nsCOMPtr<nsIChannel> channel;
   rv = NS_NewChannel(getter_AddRefs(channel),
-                     aRequest->mURI, nsnull, loadGroup,
-                     prompter, nsIRequest::LOAD_NORMAL);
+                     aRequest->mURI, nsnull, loadGroup, prompter,
+                     nsIRequest::LOAD_NORMAL | nsIChannel::LOAD_CLASSIFY_URI,
+                     channelPolicy);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(channel));
@@ -305,17 +323,6 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType)
 
   rv = channel->AsyncOpen(loader, aRequest);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  // Check the load against the URI classifier
-  nsCOMPtr<nsIChannelClassifier> classifier =
-    do_CreateInstance(NS_CHANNELCLASSIFIER_CONTRACTID);
-  if (classifier) {
-    rv = classifier->Start(channel, PR_TRUE);
-    if (NS_FAILED(rv)) {
-      channel->Cancel(rv);
-      return rv;
-    }
-  }
 
   return NS_OK;
 }
@@ -369,11 +376,11 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  // Default script language is whatever the root content specifies
+  // Default script language is whatever the root element specifies
   // (which may come from a header or http-meta tag), or if there
-  // is no root content, from the script global object.
-  nsCOMPtr<nsIContent> rootContent = mDocument->GetRootContent();
-  PRUint32 typeID = rootContent ? rootContent->GetScriptTypeID() :
+  // is no root element, from the script global object.
+  Element* rootElement = mDocument->GetRootElement();
+  PRUint32 typeID = rootElement ? rootElement->GetScriptTypeID() :
                                   context->GetScriptTypeID();
   PRUint32 version = 0;
   nsAutoString language, type, src;
@@ -549,7 +556,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
       }
 
       if (readyToRun) {
-        nsContentUtils::AddScriptRunner(new nsRunnableMethod<nsScriptLoader>(this,
+        nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(this,
           &nsScriptLoader::ProcessPendingRequests));
       }
 
@@ -621,7 +628,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
   // If there weren't any pending requests before, and this one is
   // ready to execute, do that as soon as it's safe.
   if (!request->mLoading && !hadPendingRequests && ReadyToExecuteScripts()) {
-    nsContentUtils::AddScriptRunner(new nsRunnableMethod<nsScriptLoader>(this,
+    nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(this,
       &nsScriptLoader::ProcessPendingRequests));
   }
 
@@ -638,6 +645,8 @@ nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest)
   NS_ENSURE_ARG(aRequest);
   nsAFlatString* script;
   nsAutoString textData;
+
+  NS_TIME_FUNCTION;
 
   // If there's no script text, we try to get it from the element
   if (aRequest->mIsInline) {
@@ -779,7 +788,7 @@ void
 nsScriptLoader::ProcessPendingRequestsAsync()
 {
   if (GetFirstPendingRequest() || !mPendingChildLoaders.IsEmpty()) {
-    nsCOMPtr<nsIRunnable> ev = new nsRunnableMethod<nsScriptLoader>(this,
+    nsCOMPtr<nsIRunnable> ev = NS_NewRunnableMethod(this,
       &nsScriptLoader::ProcessPendingRequests);
 
     NS_DispatchToCurrentThread(ev);

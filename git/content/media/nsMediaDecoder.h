@@ -228,6 +228,12 @@ public:
   // thread; ImageContainers can be used from any thread.
   ImageContainer* GetImageContainer() { return mImageContainer; }
 
+  // Set the video width, height, pixel aspect ratio, and current image.
+  // Ownership of the image is transferred to the decoder.
+  void SetVideoData(const gfxIntSize& aSize,
+                    float aPixelAspectRatio,
+                    Image* aImage);
+
 protected:
 
   // Start timer to update download progress information.
@@ -235,12 +241,6 @@ protected:
 
   // Stop progress information timer.
   nsresult StopProgress();
-
-  // Set the video width, height, pixel aspect ratio, and current image.
-  // Ownership of the image is transferred to the decoder.
-  void SetVideoData(const gfxIntSize& aSize,
-                    float aAspectRatio,
-                    Image* aImage);
 
 protected:
   // Timer used for updating progress events
@@ -278,12 +278,8 @@ protected:
   // in the midst of being changed.
   PRLock* mVideoUpdateLock;
 
-  // Framerate of video being displayed in the element
-  // expressed in numbers of frames per second.
-  float mFramerate;
-
   // Pixel aspect ratio (ratio of the pixel width to pixel height)
-  float mAspectRatio;
+  float mPixelAspectRatio;
 
   // Has our size changed since the last repaint?
   PRPackedBool mSizeChanged;

@@ -64,7 +64,6 @@
 #include "nsIPrefService.h"
 #include "nsIServiceManager.h"
 
-#include "nsPresContext.h"
 #include "nsILookAndFeel.h"
 #include "nsWidgetsCID.h"
 
@@ -188,9 +187,8 @@ nsHTMLEditor::CreateResizer(nsIDOMElement ** aReturn, PRInt16 aLocation, nsIDOMN
                                         PR_FALSE,
                                         aReturn);
 
-  if (NS_FAILED(res)) return res;
-  if (!*aReturn)
-    return NS_ERROR_FAILURE;
+  NS_ENSURE_SUCCESS(res, res);
+  NS_ENSURE_TRUE(*aReturn, NS_ERROR_FAILURE);
 
   // add the mouse listener so we can detect a click on a resizer
   nsCOMPtr<nsIDOMEventTarget> evtTarget(do_QueryInterface(*aReturn));
@@ -248,8 +246,7 @@ nsHTMLEditor::CreateShadow(nsIDOMElement ** aReturn, nsIDOMNode * aParentNode,
                                         PR_TRUE,
                                         aReturn);
 
-  if (!*aReturn)
-    return NS_ERROR_FAILURE;
+  NS_ENSURE_TRUE(*aReturn, NS_ERROR_FAILURE);
 
   return res;
 }
@@ -264,8 +261,7 @@ nsHTMLEditor::CreateResizingInfo(nsIDOMElement ** aReturn, nsIDOMNode * aParentN
                                         PR_TRUE,
                                         aReturn);
 
-  if (!*aReturn)
-    return NS_ERROR_FAILURE;
+  NS_ENSURE_TRUE(*aReturn, NS_ERROR_FAILURE);
 
   return res;
 }
@@ -273,8 +269,7 @@ nsHTMLEditor::CreateResizingInfo(nsIDOMElement ** aReturn, nsIDOMNode * aParentN
 nsresult
 nsHTMLEditor::SetAllResizersPosition()
 {
-  if (!mTopLeftHandle)
-    return NS_ERROR_FAILURE;
+  NS_ENSURE_TRUE(mTopLeftHandle, NS_ERROR_FAILURE);
 
   PRInt32 x = mResizedObjectX;
   PRInt32 y = mResizedObjectY;
@@ -313,8 +308,7 @@ NS_IMETHODIMP
 nsHTMLEditor::RefreshResizers()
 {
   // nothing to do if resizers are not displayed...
-  if (!mResizedObject)
-    return NS_OK;
+  NS_ENSURE_TRUE(mResizedObject, NS_OK);
 
   nsresult res = GetPositionAndDimensions(mResizedObject,
                                           mResizedObjectX,
@@ -326,9 +320,9 @@ nsHTMLEditor::RefreshResizers()
                                           mResizedObjectMarginLeft,
                                           mResizedObjectMarginTop);
 
-  if (NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
   res = SetAllResizersPosition();
-  if (NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
   return SetShadowPosition(mResizingShadow, mResizedObject,
                            mResizedObjectX, mResizedObjectY);
 }
@@ -361,30 +355,30 @@ nsHTMLEditor::ShowResizersInner(nsIDOMElement *aResizedElement)
   // The resizers and the shadow will be anonymous siblings of the element.
   res = CreateResizer(getter_AddRefs(mTopLeftHandle),
                       nsIHTMLObjectResizer::eTopLeft,     parentNode);
-  if (NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
   res = CreateResizer(getter_AddRefs(mTopHandle),
                       nsIHTMLObjectResizer::eTop,         parentNode);
-  if (NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
   res = CreateResizer(getter_AddRefs(mTopRightHandle),
                       nsIHTMLObjectResizer::eTopRight,    parentNode);
-  if (NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
 
   res = CreateResizer(getter_AddRefs(mLeftHandle),
                       nsIHTMLObjectResizer::eLeft,        parentNode);
-  if (NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
   res = CreateResizer(getter_AddRefs(mRightHandle),
                       nsIHTMLObjectResizer::eRight,       parentNode);
-  if (NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
 
   res = CreateResizer(getter_AddRefs(mBottomLeftHandle),
                       nsIHTMLObjectResizer::eBottomLeft,  parentNode);
-  if (NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
   res = CreateResizer(getter_AddRefs(mBottomHandle),
                       nsIHTMLObjectResizer::eBottom,      parentNode);
-  if (NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
   res = CreateResizer(getter_AddRefs(mBottomRightHandle),
                       nsIHTMLObjectResizer::eBottomRight, parentNode);
-  if (NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
 
   res = GetPositionAndDimensions(aResizedElement,
                                  mResizedObjectX,
@@ -395,31 +389,31 @@ nsHTMLEditor::ShowResizersInner(nsIDOMElement *aResizedElement)
                                  mResizedObjectBorderTop,
                                  mResizedObjectMarginLeft,
                                  mResizedObjectMarginTop);
-  if (NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
 
   // and let's set their absolute positions in the document
   res = SetAllResizersPosition();
-  if (NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
 
   // now, let's create the resizing shadow
   res = CreateShadow(getter_AddRefs(mResizingShadow), parentNode,
                      aResizedElement);
-  if (NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
   // and set its position
   res = SetShadowPosition(mResizingShadow, mResizedObject,
                           mResizedObjectX, mResizedObjectY);
-  if (NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
 
   // and then the resizing info tooltip
   res = CreateResizingInfo(getter_AddRefs(mResizingInfo), parentNode);
-  if (NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
 
   // and listen to the "resize" event on the window first, get the
   // window from the document...
   nsCOMPtr<nsIDOMDocument> domDoc;
   GetDocument(getter_AddRefs(domDoc));
   nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
-  if (!doc) return NS_ERROR_NULL_POINTER;
+  NS_ENSURE_TRUE(doc, NS_ERROR_NULL_POINTER);
 
   nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(doc->GetWindow());
   if (!target) { return NS_ERROR_NULL_POINTER; }
@@ -435,12 +429,13 @@ nsHTMLEditor::ShowResizersInner(nsIDOMElement *aResizedElement)
 NS_IMETHODIMP 
 nsHTMLEditor::HideResizers(void)
 {
-  if (!mResizedObject)
-    return NS_OK;
+  NS_ENSURE_TRUE(mResizedObject, NS_OK);
 
   // get the presshell's document observer interface.
   nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
-  if (!ps) return NS_ERROR_NOT_INITIALIZED;
+  // We allow the pres shell to be null; when it is, we presume there
+  // are no document observers to notify, but we still want to
+  // UnbindFromTree.
 
   nsresult res;
   nsCOMPtr<nsIDOMNode> parentNode;
@@ -643,7 +638,7 @@ nsHTMLEditor::MouseDown(PRInt32 aClientX, PRInt32 aClientY,
     if (anonElement) {
       nsAutoString anonclass;
       nsresult res = aTarget->GetAttribute(NS_LITERAL_STRING("_moz_anonclass"), anonclass);
-      if (NS_FAILED(res)) return res;
+      NS_ENSURE_SUCCESS(res, res);
       if (anonclass.EqualsLiteral("mozResizer")) {
         // and that element is a resizer, let's start resizing!
         aEvent->PreventDefault();
@@ -748,11 +743,11 @@ nsHTMLEditor::SetResizingInfoPosition(PRInt32 aX, PRInt32 aY, PRInt32 aW, PRInt3
 
   nsCOMPtr<nsIDOMNode> textInfo;
   nsresult res = mResizingInfo->GetFirstChild(getter_AddRefs(textInfo));
-  if (NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
   nsCOMPtr<nsIDOMNode> junk;
   if (textInfo) {
     res = mResizingInfo->RemoveChild(textInfo, getter_AddRefs(junk));
-    if (NS_FAILED(res)) return res;
+    NS_ENSURE_SUCCESS(res, res);
     textInfo = nsnull;
     junk = nsnull;
   }
@@ -776,10 +771,10 @@ nsHTMLEditor::SetResizingInfoPosition(PRInt32 aX, PRInt32 aY, PRInt32 aW, PRInt3
 
   nsCOMPtr<nsIDOMText> nodeAsText;
   res = domdoc->CreateTextNode(info, getter_AddRefs(nodeAsText));
-  if (NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
   textInfo = do_QueryInterface(nodeAsText);
   res =  mResizingInfo->AppendChild(textInfo, getter_AddRefs(junk));
-  if (NS_FAILED(res)) return res;
+  NS_ENSURE_SUCCESS(res, res);
 
   PRBool hasClass = PR_FALSE;
   if (NS_SUCCEEDED(mResizingInfo->HasAttribute(NS_LITERAL_STRING("class"), &hasClass )) && hasClass)
@@ -800,9 +795,9 @@ nsHTMLEditor::SetShadowPosition(nsIDOMElement * aShadow,
     nsAutoString imageSource;
     nsresult res = aOriginalObject->GetAttribute(NS_LITERAL_STRING("src"),
                                                 imageSource);
-    if (NS_FAILED(res)) return res;
+    NS_ENSURE_SUCCESS(res, res);
     res = aShadow->SetAttribute(NS_LITERAL_STRING("src"), imageSource);
-    if (NS_FAILED(res)) return res;
+    NS_ENSURE_SUCCESS(res, res);
   }
   return NS_OK;
 }

@@ -54,6 +54,8 @@
 #ifndef nsIPresShell_h___
 #define nsIPresShell_h___
 
+#include "nsTHashtable.h"
+#include "nsHashKeys.h"
 #include "nsISupports.h"
 #include "nsQueryFrame.h"
 #include "nsCoord.h"
@@ -65,30 +67,24 @@
 #include "mozFlushType.h"
 #include "nsWeakReference.h"
 #include <stdio.h> // for FILE definition
+#include "nsRefreshDriver.h"
 
-class nsIAtom;
 class nsIContent;
-class nsIContentIterator;
 class nsIDocument;
-class nsIDocumentObserver;
 class nsIFrame;
 class nsPresContext;
 class nsStyleSet;
 class nsIViewManager;
-class nsIDeviceContext;
 class nsIRenderingContext;
 class nsIPageSequenceFrame;
-class nsString;
 class nsAString;
 class nsCaret;
-class nsStyleContext;
 class nsFrameSelection;
 class nsFrameManager;
 class nsILayoutHistoryState;
 class nsIReflowCallback;
 class nsIDOMNode;
-class nsIRegion;
-class nsIStyleFrameConstruction;
+class nsIntRegion;
 class nsIStyleSheet;
 class nsCSSFrameConstructor;
 class nsISelection;
@@ -97,13 +93,18 @@ class nsWeakFrame;
 class nsIScrollableFrame;
 class gfxASurface;
 class gfxContext;
-class nsPIDOMEventTarget;
 class nsIDOMEvent;
 class nsDisplayList;
 class nsDisplayListBuilder;
 
 typedef short SelectionType;
-typedef PRUint32 nsFrameState;
+typedef PRUint64 nsFrameState;
+
+namespace mozilla {
+namespace dom {
+class Element;
+} // namespace dom
+} // namespace mozilla
 
 // Flags to pass to SetCapturingContent
 //
@@ -127,8 +128,8 @@ typedef struct CapturingContentInfo {
 } CapturingContentInfo;
 
 #define NS_IPRESSHELL_IID     \
-  { 0xe5e070ce, 0xbc17, 0x4b5f, \
-    { 0xb2, 0x21, 0xbf, 0xc3, 0xe1, 0x68, 0xbe, 0x9b } }
+  { 0x7ae0e29f, 0x4d2e, 0x4acd, \
+    { 0xb5, 0x74, 0xb6, 0x40, 0x8a, 0xca, 0xb8, 0x4d } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -182,11 +183,11 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIPresShell_base, NS_IPRESSHELL_IID)
 class nsIPresShell : public nsIPresShell_base
 {
 public:
-  NS_IMETHOD Init(nsIDocument* aDocument,
-                  nsPresContext* aPresContext,
-                  nsIViewManager* aViewManager,
-                  nsStyleSet* aStyleSet,
-                  nsCompatibility aCompatMode) = 0;
+  virtual NS_HIDDEN_(nsresult) Init(nsIDocument* aDocument,
+                                   nsPresContext* aPresContext,
+                                   nsIViewManager* aViewManager,
+                                   nsStyleSet* aStyleSet,
+                                   nsCompatibility aCompatMode) = 0;
 
   /**
    * All callers are responsible for calling |Destroy| after calling
@@ -195,8 +196,8 @@ public:
    * content model and printing calls |EndObservingDocument| multiple
    * times to make form controls behave nicely when printed.
    */
-  NS_IMETHOD Destroy() = 0;
-  
+  virtual NS_HIDDEN_(void) Destroy() = 0;
+
   PRBool IsDestroying() { return mIsDestroying; }
 
   // All frames owned by the shell are allocated from an arena.  They
@@ -232,20 +233,17 @@ public:
   virtual void PushStackMemory() = 0;
   virtual void PopStackMemory() = 0;
   virtual void* AllocateStackMemory(size_t aSize) = 0;
-  
+
   nsIDocument* GetDocument() const { return mDocument; }
 
-  nsPresContext* GetPresContext() { return mPresContext; }
+  nsPresContext* GetPresContext() const { return mPresContext; }
 
-  nsIViewManager* GetViewManager() { return mViewManager; }
+  nsIViewManager* GetViewManager() const { return mViewManager; }
 
 #ifdef _IMPL_NS_LAYOUT
-  nsStyleSet*  StyleSet() { return mStyleSet; }
+  nsStyleSet* StyleSet() const { return mStyleSet; }
 
-  nsCSSFrameConstructor* FrameConstructor()
-  {
-    return mFrameConstructor;
-  }
+  nsCSSFrameConstructor* FrameConstructor() const { return mFrameConstructor; }
 
   nsFrameManager* FrameManager() const {
     return reinterpret_cast<nsFrameManager*>
@@ -260,7 +258,7 @@ public:
   // XXX these could easily be inlined, but there is a circular #include
   // problem with nsStyleSet.
   NS_HIDDEN_(void) SetAuthorStyleDisabled(PRBool aDisabled);
-  NS_HIDDEN_(PRBool) GetAuthorStyleDisabled();
+  NS_HIDDEN_(PRBool) GetAuthorStyleDisabled() const;
 
   /*
    * Called when stylesheets are added/removed/enabled/disabled to rebuild
@@ -288,7 +286,7 @@ public:
    *
    * - initially created for bugs 31816, 20760, 22963
    */
-  NS_IMETHOD SetPreferenceStyleRules(PRBool aForceReflow) = 0;
+  virtual NS_HIDDEN_(nsresult) SetPreferenceStyleRules(PRBool aForceReflow) = 0;
 
   /**
    * FrameSelection will return the Frame based selection API.
@@ -301,14 +299,14 @@ public:
    * ConstFrameSelection returns an object which methods are safe to use for
    * example in nsIFrame code.
    */
-  const nsFrameSelection* ConstFrameSelection() { return mSelection; }
+  const nsFrameSelection* ConstFrameSelection() const { return mSelection; }
 
   // Make shell be a document observer.  If called after Destroy() has
   // been called on the shell, this will be ignored.
-  NS_IMETHOD BeginObservingDocument() = 0;
+  virtual NS_HIDDEN_(void) BeginObservingDocument() = 0;
 
   // Make shell stop being a document observer
-  NS_IMETHOD EndObservingDocument() = 0;
+  virtual NS_HIDDEN_(void) EndObservingDocument() = 0;
 
   /**
    * Return whether InitialReflow() was previously called.
@@ -326,25 +324,30 @@ public:
    * is guaranteed to survive through arbitrary script execution.
    * Calling InitialReflow can execute arbitrary script.
    */
-  NS_IMETHOD InitialReflow(nscoord aWidth, nscoord aHeight) = 0;
+  virtual NS_HIDDEN_(nsresult) InitialReflow(nscoord aWidth, nscoord aHeight) = 0;
 
   /**
    * Reflow the frame model into a new width and height.  The
    * coordinates for aWidth and aHeight must be in standard nscoord's.
    */
-  NS_IMETHOD ResizeReflow(nscoord aWidth, nscoord aHeight) = 0;
+  virtual NS_HIDDEN_(nsresult) ResizeReflow(nscoord aWidth, nscoord aHeight) = 0;
 
   /**
    * Reflow the frame model with a reflow reason of eReflowReason_StyleChange
    */
-  NS_IMETHOD StyleChangeReflow() = 0;
+  virtual NS_HIDDEN_(void) StyleChangeReflow() = 0;
 
   /**
    * This calls through to the frame manager to get the root frame.
-   * Callers inside of gklayout should use FrameManager()->GetRootFrame()
-   * instead, as it's more efficient.
    */
-  virtual NS_HIDDEN_(nsIFrame*) GetRootFrame() const;
+  virtual NS_HIDDEN_(nsIFrame*) GetRootFrameExternal() const;
+  nsIFrame* GetRootFrame() const {
+#ifdef _IMPL_NS_LAYOUT
+    return mFrameManager.GetRootFrame();
+#else
+    return GetRootFrameExternal();
+#endif
+  }
 
   /*
    * Get root scroll frame from FrameManager()->GetRootFrame().
@@ -376,7 +379,7 @@ public:
    * Returns the page sequence frame associated with the frame hierarchy.
    * Returns NULL if not a paginated view.
    */
-  NS_IMETHOD GetPageSequenceFrame(nsIPageSequenceFrame** aResult) const = 0;
+  virtual NS_HIDDEN_(nsIPageSequenceFrame*) GetPageSequenceFrame() const = 0;
 
   /**
    * Gets the real primary frame associated with the content object.
@@ -391,8 +394,7 @@ public:
    * Gets the placeholder frame associated with the specified frame. This is
    * a helper frame that forwards the request to the frame manager.
    */
-  NS_IMETHOD GetPlaceholderFrameFor(nsIFrame*  aFrame,
-                                    nsIFrame** aPlaceholderFrame) const = 0;
+  virtual NS_HIDDEN_(nsIFrame*) GetPlaceholderFrameFor(nsIFrame* aFrame) const = 0;
 
   /**
    * Tell the pres shell that a frame needs to be marked dirty and needs
@@ -407,9 +409,9 @@ public:
     eTreeChange, // mark intrinsic widths dirty on aFrame and its ancestors
     eStyleChange // Do eTreeChange, plus all of aFrame's descendants
   };
-  NS_IMETHOD FrameNeedsReflow(nsIFrame *aFrame,
-                              IntrinsicDirty aIntrinsicDirty,
-                              nsFrameState aBitToAdd) = 0;
+  virtual NS_HIDDEN_(void) FrameNeedsReflow(nsIFrame *aFrame,
+                                            IntrinsicDirty aIntrinsicDirty,
+                                            nsFrameState aBitToAdd) = 0;
 
   /**
    * Tell the presshell that the given frame's reflow was interrupted.  This
@@ -422,24 +424,24 @@ public:
    * method doesn't mark any intrinsic widths dirty and doesn't add any bits
    * other than NS_FRAME_HAS_DIRTY_CHILDREN.
    */
-  NS_IMETHOD_(void) FrameNeedsToContinueReflow(nsIFrame *aFrame) = 0;
+  virtual NS_HIDDEN_(void) FrameNeedsToContinueReflow(nsIFrame *aFrame) = 0;
 
-  NS_IMETHOD CancelAllPendingReflows() = 0;
+  virtual NS_HIDDEN_(void) CancelAllPendingReflows() = 0;
 
   /**
    * Recreates the frames for a node
    */
-  NS_IMETHOD RecreateFramesFor(nsIContent* aContent) = 0;
+  virtual NS_HIDDEN_(nsresult) RecreateFramesFor(nsIContent* aContent) = 0;
 
-  void PostRecreateFramesFor(nsIContent* aContent);
-  void RestyleForAnimation(nsIContent* aContent);
-  
+  void PostRecreateFramesFor(mozilla::dom::Element* aElement);
+  void RestyleForAnimation(mozilla::dom::Element* aElement);
+
   /**
    * Determine if it is safe to flush all pending notifications
    * @param aIsSafeToFlush PR_TRUE if it is safe, PR_FALSE otherwise.
    * 
    */
-  NS_IMETHOD IsSafeToFlush(PRBool& aIsSafeToFlush) = 0;
+  virtual NS_HIDDEN_(PRBool) IsSafeToFlush() const = 0;
 
   /**
    * Flush pending notifications of the type specified.  This method
@@ -450,23 +452,23 @@ public:
    *
    * @param aType the type of notifications to flush
    */
-  NS_IMETHOD FlushPendingNotifications(mozFlushType aType) = 0;
+  virtual NS_HIDDEN_(void) FlushPendingNotifications(mozFlushType aType) = 0;
 
   /**
    * Callbacks will be called even if reflow itself fails for
    * some reason.
    */
-  NS_IMETHOD PostReflowCallback(nsIReflowCallback* aCallback) = 0;
-  NS_IMETHOD CancelReflowCallback(nsIReflowCallback* aCallback) = 0;
+  virtual NS_HIDDEN_(nsresult) PostReflowCallback(nsIReflowCallback* aCallback) = 0;
+  virtual NS_HIDDEN_(void) CancelReflowCallback(nsIReflowCallback* aCallback) = 0;
 
-  NS_IMETHOD ClearFrameRefs(nsIFrame* aFrame) = 0;
+  virtual NS_HIDDEN_(void) ClearFrameRefs(nsIFrame* aFrame) = 0;
 
   /**
    * Given a frame, create a rendering context suitable for use with
    * the frame.
    */
-  NS_IMETHOD CreateRenderingContext(nsIFrame *aFrame,
-                                    nsIRenderingContext** aContext) = 0;
+  virtual NS_HIDDEN_(nsresult) CreateRenderingContext(nsIFrame *aFrame,
+                                                      nsIRenderingContext** aContext) = 0;
 
   /**
    * Informs the pres shell that the document is now at the anchor with
@@ -476,7 +478,7 @@ public:
    * the pres shell that there is no current target, and |aScroll| must
    * be false.
    */
-  NS_IMETHOD GoToAnchor(const nsAString& aAnchorName, PRBool aScroll) = 0;
+  virtual NS_HIDDEN_(nsresult) GoToAnchor(const nsAString& aAnchorName, PRBool aScroll) = 0;
 
   /**
    * Tells the presshell to scroll again to the last anchor scrolled to by
@@ -486,7 +488,7 @@ public:
    * scrolled to by GoToAnchor (we don't want to keep it alive if it's
    * removed from the DOM), so don't call this more than once.
    */
-  NS_IMETHOD ScrollToAnchor() = 0;
+  virtual NS_HIDDEN_(nsresult) ScrollToAnchor() = 0;
 
   /**
    * Scrolls the view of the document so that the primary frame of the content
@@ -517,9 +519,9 @@ public:
    *                  the frame the minimum amount necessary in order for the entire
    *                  frame to be visible horizontally (if possible)
    */
-  NS_IMETHOD ScrollContentIntoView(nsIContent* aContent,
-                                   PRIntn      aVPercent,
-                                   PRIntn      aHPercent) = 0;
+  virtual NS_HIDDEN_(nsresult) ScrollContentIntoView(nsIContent* aContent,
+                                                     PRIntn      aVPercent,
+                                                     PRIntn      aHPercent) = 0;
 
   enum {
     SCROLL_FIRST_ANCESTOR_ONLY = 0x01,
@@ -562,54 +564,38 @@ public:
    *         in the specified direction 
    */
   virtual nsRectVisibility GetRectVisibility(nsIFrame *aFrame,
-                                             const nsRect &aRect, 
-                                             nscoord aMinTwips) = 0;
+                                             const nsRect &aRect,
+                                             nscoord aMinTwips) const = 0;
 
   /**
    * Suppress notification of the frame manager that frames are
    * being destroyed.
    */
-  NS_IMETHOD SetIgnoreFrameDestruction(PRBool aIgnore) = 0;
+  virtual NS_HIDDEN_(void) SetIgnoreFrameDestruction(PRBool aIgnore) = 0;
 
   /**
    * Notification sent by a frame informing the pres shell that it is about to
    * be destroyed.
    * This allows any outstanding references to the frame to be cleaned up
    */
-  NS_IMETHOD NotifyDestroyingFrame(nsIFrame* aFrame) = 0;
-
-  /**
-   * Notify the Clipboard that we have something to copy.
-   */
-  NS_IMETHOD DoCopy() = 0;
-
-  /**
-   * Get the selection of the focussed element (either the page selection,
-   * or the selection for a text field).
-   */
-  NS_IMETHOD GetSelectionForCopy(nsISelection** outSelection) = 0;
+  virtual NS_HIDDEN_(void) NotifyDestroyingFrame(nsIFrame* aFrame) = 0;
 
   /**
    * Get link location.
    */
-  NS_IMETHOD GetLinkLocation(nsIDOMNode* aNode, nsAString& aLocation) = 0;
-
-  /**
-   * Get the doc or the selection as text or html.
-   */
-  NS_IMETHOD DoGetContents(const nsACString& aMimeType, PRUint32 aFlags, PRBool aSelectionOnly, nsAString& outValue) = 0;
+  virtual NS_HIDDEN_(nsresult) GetLinkLocation(nsIDOMNode* aNode, nsAString& aLocation) const = 0;
 
   /**
    * Get the caret, if it exists. AddRefs it.
    */
-  NS_IMETHOD GetCaret(nsCaret **aOutCaret) = 0;
+  virtual NS_HIDDEN_(already_AddRefed<nsCaret>) GetCaret() const = 0;
 
   /**
    * Invalidate the caret's current position if it's outside of its frame's
    * boundaries. This function is useful if you're batching selection
    * notifications and might remove the caret's frame out from under it.
    */
-  NS_IMETHOD_(void) MaybeInvalidateCaretPosition() = 0;
+  virtual NS_HIDDEN_(void) MaybeInvalidateCaretPosition() = 0;
 
   /**
    * Set the current caret to a new caret. To undo this, call RestoreCaret.
@@ -627,91 +613,92 @@ public:
    * by the frames.  Visual effects may not effect layout, only display.
    * Takes effect on next repaint, does not force a repaint itself.
    *
-   * @param aEnabled  if PR_TRUE, visual selection effects are enabled
-   *                  if PR_FALSE visual selection effects are disabled
-   * @return  always NS_OK
+   * @param aInEnable  if PR_TRUE, visual selection effects are enabled
+   *                   if PR_FALSE visual selection effects are disabled
    */
   NS_IMETHOD SetSelectionFlags(PRInt16 aInEnable) = 0;
 
   /** 
     * Gets the current state of non text selection effects
-    * @param aEnabled  [OUT] set to the current state of non text selection,
-    *                  as set by SetDisplayNonTextSelection
-    * @return   if aOutEnabled==null, returns NS_ERROR_INVALID_ARG
-    *           else NS_OK
+    * @return   current state of non text selection,
+    *           as set by SetDisplayNonTextSelection
     */
-  NS_IMETHOD GetSelectionFlags(PRInt16 *aOutEnabled) = 0;
-  
+  PRInt16 GetSelectionFlags() const { return mSelectionFlags; }
+
   virtual nsISelection* GetCurrentSelection(SelectionType aType) = 0;
 
   /**
     * Interface to dispatch events via the presshell
     * @note The caller must have a strong reference to the PresShell.
     */
-  NS_IMETHOD HandleEventWithTarget(nsEvent* aEvent,
-                                   nsIFrame* aFrame,
-                                   nsIContent* aContent,
-                                   nsEventStatus* aStatus) = 0;
+  virtual NS_HIDDEN_(nsresult) HandleEventWithTarget(nsEvent* aEvent,
+                                                     nsIFrame* aFrame,
+                                                     nsIContent* aContent,
+                                                     nsEventStatus* aStatus) = 0;
 
   /**
    * Dispatch event to content only (NOT full processing)
    * @note The caller must have a strong reference to the PresShell.
    */
-  NS_IMETHOD HandleDOMEventWithTarget(nsIContent* aTargetContent,
-                                      nsEvent* aEvent,
-                                      nsEventStatus* aStatus) = 0;
+  virtual NS_HIDDEN_(nsresult) HandleDOMEventWithTarget(nsIContent* aTargetContent,
+                                                        nsEvent* aEvent,
+                                                        nsEventStatus* aStatus) = 0;
 
   /**
    * Dispatch event to content only (NOT full processing)
    * @note The caller must have a strong reference to the PresShell.
    */
-  NS_IMETHOD HandleDOMEventWithTarget(nsIContent* aTargetContent,
-                                      nsIDOMEvent* aEvent,
-                                      nsEventStatus* aStatus) = 0;
+  virtual NS_HIDDEN_(nsresult) HandleDOMEventWithTarget(nsIContent* aTargetContent,
+                                                        nsIDOMEvent* aEvent,
+                                                        nsEventStatus* aStatus) = 0;
 
   /**
     * Gets the current target event frame from the PresShell
     */
-  NS_IMETHOD GetEventTargetFrame(nsIFrame** aFrame) = 0;
+  virtual NS_HIDDEN_(nsIFrame*) GetEventTargetFrame() = 0;
 
   /**
     * Gets the current target event frame from the PresShell
     */
-  NS_IMETHOD GetEventTargetContent(nsEvent* aEvent, nsIContent** aContent) = 0;
+  virtual NS_HIDDEN_(already_AddRefed<nsIContent>) GetEventTargetContent(nsEvent* aEvent) = 0;
 
   /**
    * Get and set the history state for the current document 
    */
 
-  NS_IMETHOD CaptureHistoryState(nsILayoutHistoryState** aLayoutHistoryState, PRBool aLeavingPage = PR_FALSE) = 0;
+  virtual NS_HIDDEN_(nsresult) CaptureHistoryState(nsILayoutHistoryState** aLayoutHistoryState, PRBool aLeavingPage = PR_FALSE) = 0;
 
   /**
    * Determine if reflow is currently locked
-   * @param aIsReflowLocked returns PR_TRUE if reflow is locked, PR_FALSE otherwise
+   * returns PR_TRUE if reflow is locked, PR_FALSE otherwise
    */
-  NS_IMETHOD IsReflowLocked(PRBool* aIsLocked) = 0;  
+  PRBool IsReflowLocked() const { return mIsReflowing; }
 
   /**
    * Called to find out if painting is suppressed for this presshell.  If it is suppressd,
    * we don't allow the painting of any layer but the background, and we don't
    * recur into our children.
    */
-  NS_IMETHOD IsPaintingSuppressed(PRBool* aResult)=0;
+  PRBool IsPaintingSuppressed() const { return mPaintingSuppressed; }
 
   /**
    * Unsuppress painting.
    */
-  NS_IMETHOD UnsuppressPainting() = 0;
+  virtual NS_HIDDEN_(void) UnsuppressPainting() = 0;
 
   /**
    * Called to disable nsITheme support in a specific presshell.
    */
-  NS_IMETHOD DisableThemeSupport() = 0;
+  void DisableThemeSupport()
+  {
+    // Doesn't have to be dynamic.  Just set the bool.
+    mIsThemeSupportDisabled = PR_TRUE;
+  }
 
   /**
    * Indicates whether theme support is enabled.
    */
-  virtual PRBool IsThemeSupportEnabled() = 0;
+  PRBool IsThemeSupportEnabled() const { return !mIsThemeSupportDisabled; }
 
   /**
    * Get the set of agent style sheets for this presentation
@@ -759,22 +746,17 @@ public:
    */
   static void SetVerifyReflowEnable(PRBool aEnabled);
 
-  /**
-   * Get the flags associated with the VerifyReflow debug tool
-   */
-  static PRInt32 GetVerifyReflowFlags();
-
   virtual nsIFrame* GetAbsoluteContainingBlock(nsIFrame* aFrame);
 
 #ifdef MOZ_REFLOW_PERF
-  NS_IMETHOD DumpReflows() = 0;
-  NS_IMETHOD CountReflows(const char * aName, nsIFrame * aFrame) = 0;
-  NS_IMETHOD PaintCount(const char * aName, 
-                        nsIRenderingContext* aRenderingContext, 
-                        nsPresContext * aPresContext, 
-                        nsIFrame * aFrame,
-                        PRUint32 aColor) = 0;
-  NS_IMETHOD SetPaintFrameCount(PRBool aOn) = 0;
+  virtual NS_HIDDEN_(void) DumpReflows() = 0;
+  virtual NS_HIDDEN_(void) CountReflows(const char * aName, nsIFrame * aFrame) = 0;
+  virtual NS_HIDDEN_(void) PaintCount(const char * aName,
+                                      nsIRenderingContext* aRenderingContext,
+                                      nsPresContext * aPresContext,
+                                      nsIFrame * aFrame,
+                                      PRUint32 aColor) = 0;
+  virtual NS_HIDDEN_(void) SetPaintFrameCount(PRBool aOn) = 0;
   virtual PRBool IsPaintingFrameCounts() = 0;
 #endif
 
@@ -852,18 +834,18 @@ public:
     RENDER_CARET = 0x04,
     RENDER_USE_WIDGET_LAYERS = 0x08
   };
-  NS_IMETHOD RenderDocument(const nsRect& aRect, PRUint32 aFlags,
-                            nscolor aBackgroundColor,
-                            gfxContext* aRenderedContext) = 0;
+  virtual NS_HIDDEN_(nsresult) RenderDocument(const nsRect& aRect, PRUint32 aFlags,
+                                              nscolor aBackgroundColor,
+                                              gfxContext* aRenderedContext) = 0;
 
   /**
    * Renders a node aNode to a surface and returns it. The aRegion may be used
-   * to clip the rendering. This region is measured in device pixels from the
+   * to clip the rendering. This region is measured in CSS pixels from the
    * edge of the presshell area. The aPoint, aScreenRect and aSurface
    * arguments function in a similar manner as RenderSelection.
    */
   virtual already_AddRefed<gfxASurface> RenderNode(nsIDOMNode* aNode,
-                                                   nsIRegion* aRegion,
+                                                   nsIntRegion* aRegion,
                                                    nsIntPoint& aPoint,
                                                    nsIntRect* aScreenRect) = 0;
 
@@ -921,7 +903,7 @@ public:
    * @param aDisable If true, disable all non synthetic test mouse
    * events on all presShells.  Otherwise, enable them.
    */
-  NS_IMETHOD DisableNonTestMouseEvents(PRBool aDisable) = 0;
+  virtual NS_HIDDEN_(void) DisableNonTestMouseEvents(PRBool aDisable) = 0;
 
   /**
    * Record the background color of the most recently drawn canvas. This color
@@ -1011,6 +993,50 @@ public:
     return gCaptureInfo.mPreventDrag && gCaptureInfo.mContent;
   }
 
+  /**
+   * Keep track of how many times this presshell has been rendered to
+   * a window.
+   */
+  PRUint64 GetPaintCount() { return mPaintCount; }
+  void IncrementPaintCount() { ++mPaintCount; }
+
+  /**
+   * Refresh observer management.
+   */
+protected:
+  virtual PRBool AddRefreshObserverExternal(nsARefreshObserver* aObserver,
+                                            mozFlushType aFlushType);
+  PRBool AddRefreshObserverInternal(nsARefreshObserver* aObserver,
+                                    mozFlushType aFlushType);
+  virtual PRBool RemoveRefreshObserverExternal(nsARefreshObserver* aObserver,
+                                               mozFlushType aFlushType);
+  PRBool RemoveRefreshObserverInternal(nsARefreshObserver* aObserver,
+                                       mozFlushType aFlushType);
+public:
+  PRBool AddRefreshObserver(nsARefreshObserver* aObserver,
+                            mozFlushType aFlushType) {
+#ifdef _IMPL_NS_LAYOUT
+    return AddRefreshObserverInternal(aObserver, aFlushType);
+#else
+    return AddRefreshObserverExternal(aObserver, aFlushType);
+#endif
+  }
+
+  PRBool RemoveRefreshObserver(nsARefreshObserver* aObserver,
+                               mozFlushType aFlushType) {
+#ifdef _IMPL_NS_LAYOUT
+    return RemoveRefreshObserverInternal(aObserver, aFlushType);
+#else
+    return RemoveRefreshObserverExternal(aObserver, aFlushType);
+#endif
+  }
+
+  /**
+   * Initialize and shut down static variables.
+   */
+  static void InitializeStatics();
+  static void ReleaseStatics();
+
 protected:
   // IMPORTANT: The ownership implicit in the following member variables
   // has been explicitly checked.  If you add any members to this class,
@@ -1031,9 +1057,18 @@ protected:
   nsIFrame*                 mDrawEventTargetFrame;
 #endif
 
+  // Count of the number of times this presshell has been painted to
+  // a window
+  PRUint64                  mPaintCount;
+
+  PRInt16                   mSelectionFlags;
+
   PRPackedBool              mStylesHaveChanged;
   PRPackedBool              mDidInitialReflow;
   PRPackedBool              mIsDestroying;
+  PRPackedBool              mIsReflowing;
+  PRPackedBool              mPaintingSuppressed;  // For all documents we initially lock down painting.
+  PRPackedBool              mIsThemeSupportDisabled;  // Whether or not form controls should use nsITheme in this shell.
 
 #ifdef ACCESSIBILITY
   /**
@@ -1054,6 +1089,10 @@ protected:
 
   // Most recent canvas background color.
   nscolor                   mCanvasBackgroundColor;
+
+  // Live pres shells, for memory and other tracking
+  typedef nsPtrHashKey<nsIPresShell> PresShellPtrKey;
+  static nsTHashtable<PresShellPtrKey> *sLiveShells;
 };
 
 /**

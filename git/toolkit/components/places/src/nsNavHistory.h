@@ -64,7 +64,7 @@
 
 #include "nsINavBookmarksService.h"
 #include "nsIPrivateBrowsingService.h"
-
+#include "nsIFaviconService.h"
 #include "nsNavHistoryResult.h"
 #include "nsNavHistoryQuery.h"
 
@@ -87,6 +87,35 @@
 // See bug 319004 for details.
 #define URI_LENGTH_MAX 65536
 #define TITLE_LENGTH_MAX 4096
+
+#ifdef MOZ_XUL
+// Fired after autocomplete feedback has been updated.
+#define TOPIC_AUTOCOMPLETE_FEEDBACK_UPDATED "places-autocomplete-feedback-updated"
+#endif
+// Fired when Places is shutting down.
+#define TOPIC_PLACES_SHUTDOWN "places-shutdown"
+// Internal notification, called after places-shutdown.
+// If you need to listen for Places shutdown, you should really use
+// places-shutdown, because places-teardown is guaranteed to break your code.
+#define TOPIC_PLACES_TEARDOWN "places-teardown"
+// Fired when Places found a locked database while initing.
+#define TOPIC_DATABASE_LOCKED "places-database-locked"
+// Fired after Places inited.
+#define TOPIC_PLACES_INIT_COMPLETE "places-init-complete"
+// Fired before starting a VACUUM operation.
+#define TOPIC_DATABASE_VACUUM_STARTING "places-vacuum-starting"
+
+namespace mozilla {
+namespace places {
+
+  enum HistoryStatementId {
+    DB_GET_PAGE_INFO_BY_URL = 0
+  , DB_GET_TAGS = 1
+  , DB_IS_PAGE_VISITED = 2
+  };
+
+} // namespace places
+} // namespace mozilla
 
 
 class mozIAnnotationService;
@@ -158,8 +187,10 @@ public:
    * Adds a lazy message for adding a favicon. Used by the favicon service so
    * that favicons are handled lazily just like page adds.
    */
-  nsresult AddLazyLoadFaviconMessage(nsIURI* aPage, nsIURI* aFavicon,
-                                     PRBool aForceReload);
+  nsresult AddLazyLoadFaviconMessage(nsIURI* aPageURI,
+                                     nsIURI* aFaviconURI,
+                                     PRBool aForceReload,
+                                     nsIFaviconDataCallback* aCallback);
 #endif
 
   /**
@@ -230,13 +261,7 @@ public:
   static const PRInt32 kGetInfoIndex_ItemTags;
   static const PRInt32 kGetInfoIndex_ItemParentId;
 
-  // select a history row by id
-  mozIStorageStatement *DBGetIdPageInfo() { return mDBGetIdPageInfo; }
-
-  mozIStorageStatement *DBGetTags() { return mDBGetTags; }
   PRInt64 GetTagsFolder();
-
-  mozIStorageStatement *DBGetIsVisited() { return mDBIsPageVisited; }
 
   // Constants for the columns returned by the above statement
   // (in addition to the ones above).
@@ -301,12 +326,10 @@ public:
   nsresult BeginUpdateBatch();
   nsresult EndUpdateBatch();
 
-  // the level of nesting of batches, 0 when no batches are open
+  // The level of batches' nesting, 0 when no batches are open.
   PRInt32 mBatchLevel;
-
-  // true if the outermost batch has an associated transaction that should
-  // be committed when our batch level reaches 0 again.
-  PRBool mBatchHasTransaction;
+  // Current active transaction for a batch.
+  mozStorageTransaction* mBatchDBTransaction;
 
   // better alternative to QueryStringToQueries (in nsNavHistoryQuery.cpp)
   nsresult QueryStringToQueryArray(const nsACString& aQueryString,
@@ -370,7 +393,24 @@ public:
    * @returns true if it is OK to notify, false otherwise.
    */
   bool canNotify() { return mCanNotify; }
- private:
+
+  mozIStorageStatement* GetStatementById(
+    enum mozilla::places::HistoryStatementId aStatementId
+  )
+  {
+    using namespace mozilla::places;
+    switch(aStatementId) {
+      case DB_GET_PAGE_INFO_BY_URL:
+        return mDBGetURLPageInfo;
+      case DB_GET_TAGS:
+        return mDBGetTags;
+      case DB_IS_PAGE_VISITED:
+        return mDBIsPageVisited;
+    }
+    return nsnull;
+  }
+
+private:
   ~nsNavHistory();
 
   // used by GetHistoryService
@@ -402,6 +442,8 @@ protected:
   nsCOMPtr<mozIStorageStatement> mDBGetTags; // used by GetTags
   nsCOMPtr<mozIStorageStatement> mDBGetItemsWithAnno; // used by AutoComplete::StartSearch and FilterResultSet
   nsCOMPtr<mozIStorageStatement> mDBSetPlaceTitle; // used by SetPageTitleInternal
+  nsCOMPtr<mozIStorageStatement> mDBRegisterOpenPage; // used by RegisterOpenPage
+  nsCOMPtr<mozIStorageStatement> mDBUnregisterOpenPage; // used by UnregisterOpenPage
 
   // these are used by VisitIdToResultNode for making new result nodes from IDs
   // Consumers need to use the getters since these statements are lazily created
@@ -564,6 +606,7 @@ protected:
     // valid when type == LAZY_FAVICON
     nsCOMPtr<nsIURI> favicon;
     PRBool alwaysLoadFavicon;
+    nsCOMPtr<nsIFaviconDataCallback> callback;
   };
   nsTArray<LazyMessage> mLazyMessages;
   nsCOMPtr<nsITimer> mLazyTimer;
@@ -700,12 +743,6 @@ protected:
   nsCategoryCache<nsINavHistoryObserver> mCacheObservers;
 };
 
-/**
- * Shared between the places components, this function binds the given URI as
- * UTF8 to the given parameter for the statement.
- */
-nsresult BindStatementURI(mozIStorageStatement* statement, PRInt32 index,
-                          nsIURI* aURI);
 
 #define PLACES_URI_PREFIX "place:"
 

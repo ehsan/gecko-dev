@@ -121,6 +121,7 @@ nsMenuPopupFrame::nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContex
   mShouldAutoPosition(PR_TRUE),
   mConsumeRollupEvent(nsIPopupBoxObject::ROLLUP_DEFAULT),
   mInContentShell(PR_TRUE),
+  mIsMenuLocked(PR_FALSE),
   mHFlip(PR_FALSE),
   mVFlip(PR_FALSE)
 {
@@ -368,43 +369,86 @@ nsMenuPopupFrame::IsLeaf() const
 }
 
 void
-nsMenuPopupFrame::SetPreferredBounds(nsBoxLayoutState& aState,
-                                     const nsRect& aRect)
+nsMenuPopupFrame::LayoutPopup(nsBoxLayoutState& aState, nsIFrame* aParentMenu, PRBool aSizedToPopup)
 {
-  nsBox::SetBounds(aState, aRect, PR_FALSE);
-  mPrefSize = aRect.Size();
+  // if the popup is not open, only do layout if the menu is sized to the popup
+  PRBool isOpen = IsOpen();
+  if (!mGeneratedChildren || (!isOpen && !aSizedToPopup))
+    return;
+
+  // get the preferred, minimum and maximum size. If the menu is sized to the
+  // popup, then the popup's width is the menu's width.
+  nsSize prefSize = GetPrefSize(aState);
+  nsSize minSize = GetMinSize(aState); 
+  nsSize maxSize = GetMaxSize(aState);
+
+  if (aSizedToPopup) {
+    prefSize.width = aParentMenu->GetRect().width;
+  }
+  prefSize = BoundsCheck(minSize, prefSize, maxSize);
+
+  // if the size changed then set the bounds to be the preferred size
+  PRBool sizeChanged = (mPrefSize != prefSize);
+  if (sizeChanged) {
+    SetBounds(aState, nsRect(0, 0, prefSize.width, prefSize.height), PR_FALSE);
+    mPrefSize = prefSize;
+  }
+
+  if (isOpen) {
+    SetPopupPosition(aParentMenu, PR_FALSE);
+  }
+
+  nsRect bounds(GetRect());
+  Layout(aState);
+
+  // if the width or height changed, readjust the popup position. This is a
+  // special case for tooltips where the preferred height doesn't include the
+  // real height for its inline element, but does once it is laid out.
+  // This is bug 228673 which doesn't have a simple fix.
+  if (!aParentMenu) {
+    nsSize newsize = GetSize();
+    if (newsize.width > bounds.width || newsize.height > bounds.height) {
+      // the size after layout was larger than the preferred size,
+      // so set the preferred size accordingly
+      mPrefSize = newsize;
+      if (isOpen) {
+        SetPopupPosition(nsnull, PR_FALSE);
+      }
+    }
+  }
+
+  if (isOpen) {
+    AdjustView();
+  }
 }
 
 void
 nsMenuPopupFrame::AdjustView()
 {
-  if ((mPopupState == ePopupOpen || mPopupState == ePopupOpenAndVisible) &&
-      mGeneratedChildren) {
-    // if the popup has just opened, make sure the scrolled window is at 0,0
-    if (mIsOpenChanged) {
-      nsIBox* child = GetChildBox();
-      nsIScrollableFrame *scrollframe = do_QueryFrame(child);
-      if (scrollframe)
-        scrollframe->ScrollTo(nsPoint(0,0), nsIScrollableFrame::INSTANT);
-    }
+  // if the popup has just opened, make sure the scrolled window is at 0,0
+  if (mIsOpenChanged) {
+    nsIBox* child = GetChildBox();
+    nsIScrollableFrame *scrollframe = do_QueryFrame(child);
+    if (scrollframe)
+      scrollframe->ScrollTo(nsPoint(0,0), nsIScrollableFrame::INSTANT);
+  }
 
-    nsIView* view = GetView();
-    nsIViewManager* viewManager = view->GetViewManager();
-    nsRect rect = GetRect();
-    rect.x = rect.y = 0;
-    viewManager->ResizeView(view, rect);
-    viewManager->SetViewVisibility(view, nsViewVisibility_kShow);
-    mPopupState = ePopupOpenAndVisible;
+  nsIView* view = GetView();
+  nsIViewManager* viewManager = view->GetViewManager();
+  nsRect rect = GetRect();
+  rect.x = rect.y = 0;
+  viewManager->ResizeView(view, rect);
+  viewManager->SetViewVisibility(view, nsViewVisibility_kShow);
+  mPopupState = ePopupOpenAndVisible;
 
-    nsPresContext* pc = PresContext();
-    nsContainerFrame::SyncFrameViewProperties(pc, this, nsnull, view, 0);
+  nsPresContext* pc = PresContext();
+  nsContainerFrame::SyncFrameViewProperties(pc, this, nsnull, view, 0);
 
-    // fire popupshown event when the state has changed
-    if (mIsOpenChanged) {
-      mIsOpenChanged = PR_FALSE;
-      nsCOMPtr<nsIRunnable> event = new nsXULPopupShownEvent(GetContent(), pc);
-      NS_DispatchToCurrentThread(event);
-    }
+  // fire popupshown event when the state has changed
+  if (mIsOpenChanged) {
+    mIsOpenChanged = PR_FALSE;
+    nsCOMPtr<nsIRunnable> event = new nsXULPopupShownEvent(GetContent(), pc);
+    NS_DispatchToCurrentThread(event);
   }
 }
 
@@ -690,6 +734,8 @@ nsMenuPopupFrame::HidePopup(PRBool aDeselectMenu, nsPopupState aNewState)
 
   mIncrementalString.Truncate();
 
+  LockMenuUntilClosed(PR_FALSE);
+
   mIsOpenChanged = PR_FALSE;
   mCurrentMenu = nsnull; // make sure no current menu is set
   mHFlip = mVFlip = PR_FALSE;
@@ -706,8 +752,7 @@ nsMenuPopupFrame::HidePopup(PRBool aDeselectMenu, nsPopupState aNewState)
   // This code may not the best solution, but we can leave it here until we find the better approach.
   nsIEventStateManager *esm = PresContext()->EventStateManager();
 
-  PRInt32 state;
-  esm->GetContentState(mContent, state);
+  PRInt32 state = esm->GetContentState(mContent);
 
   if (state & NS_EVENT_STATE_HOVER)
     esm->SetContentState(nsnull, NS_EVENT_STATE_HOVER);
@@ -925,7 +970,7 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame, PRBool aIsMove)
     if (mAnchorContent) {
       nsCOMPtr<nsIDocument> document = mAnchorContent->GetDocument();
       if (document) {
-        nsIPresShell *shell = document->GetPrimaryShell();
+        nsIPresShell *shell = document->GetShell();
         if (!shell)
           return NS_ERROR_FAILURE;
 
@@ -1504,6 +1549,21 @@ nsMenuPopupFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent, PRBool& doActi
   return nsnull;
 }
 
+void
+nsMenuPopupFrame::LockMenuUntilClosed(PRBool aLock)
+{
+  mIsMenuLocked = aLock;
+
+  // Lock / unlock the parent, too.
+  nsIFrame* parent = GetParent();
+  if (parent && parent->GetType() == nsGkAtoms::menuFrame) {
+    nsMenuParent* parentParent = static_cast<nsMenuFrame*>(parent)->GetMenuParent();
+    if (parentParent) {
+      parentParent->LockMenuUntilClosed(aLock);
+    }
+  }
+}
+
 NS_IMETHODIMP
 nsMenuPopupFrame::GetWidget(nsIWidget **aWidget)
 {
@@ -1569,6 +1629,13 @@ nsMenuPopupFrame::MoveToAttributePosition()
 void
 nsMenuPopupFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
+  nsIFrame* parent = GetParent();
+  if (parent && parent->GetType() == nsGkAtoms::menuFrame) {
+    // clear the open attribute on the parent menu
+    nsContentUtils::AddScriptRunner(
+      new nsUnsetAttrRunnable(parent->GetContent(), nsGkAtoms::open));
+  }
+
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm)
     pm->PopupDestroyed(this);

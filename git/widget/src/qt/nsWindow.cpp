@@ -56,6 +56,7 @@
 #include <QtGui/QGraphicsSceneWheelEvent>
 #include <QtGui/QGraphicsSceneResizeEvent>
 #include <QtGui/QStyleOptionGraphicsItem>
+#include <QPaintEngine>
 
 #include <QtCore/QDebug>
 #include <QtCore/QEvent>
@@ -73,12 +74,14 @@
 
 #include "nsToolkit.h"
 #include "nsIDeviceContext.h"
+#include "nsIdleService.h"
 #include "nsIRenderingContext.h"
 #include "nsIRegion.h"
 #include "nsIRollupListener.h"
 #include "nsIMenuRollup.h"
 #include "nsWidgetsCID.h"
 #include "nsQtKeyUtils.h"
+#include "mozilla/Services.h"
 
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
@@ -94,25 +97,23 @@
 #include "gfxXlibSurface.h"
 #include "gfxQPainterSurface.h"
 #include "gfxContext.h"
-#include "gfxSharedImageSurface.h"
+#include "gfxImageSurface.h"
 
 #include "nsIDOMSimpleGestureEvent.h" //Gesture support
+
+#include <QtOpenGL/QGLWidget>
+#define GLdouble_defined 1
+#include "Layers.h"
+#include "LayerManagerOGL.h"
 
 // imported in nsWidgetFactory.cpp
 PRBool gDisableNativeTheme = PR_FALSE;
 
-// Buffered Pixmap stuff
-static QPixmap *gBufferPixmap = nsnull;
-static int gBufferPixmapUsageCount = 0;
+// Cached offscreen surface
+static nsRefPtr<gfxASurface> gBufferSurface;
 
-// Buffered shared image + pixmap
-static gfxSharedImageSurface *gBufferImage = nsnull;
-static gfxSharedImageSurface *gBufferImageTemp = nsnull;
-static QSize gBufferMaxSize(0, 0);
-PRBool gNeedColorConversion = PR_FALSE;
-extern "C" {
-#include "pixman.h"
-}
+static int gBufferPixmapUsageCount = 0;
+static gfxIntSize gBufferMaxSize(0, 0);
 
 /* For PrepareNativeWidget */
 static NS_DEFINE_IID(kDeviceContextCID, NS_DEVICE_CONTEXT_CID);
@@ -184,8 +185,13 @@ nsWindow::nsWindow()
     mActivatePending     = PR_FALSE;
     mWindowType          = eWindowType_child;
     mSizeState           = nsSizeMode_Normal;
+    mLastSizeMode        = nsSizeMode_Normal;
     mPluginType          = PluginType_NONE;
     mQCursor             = Qt::ArrowCursor;
+    mNeedsResize         = PR_FALSE;
+    mNeedsMove           = PR_FALSE;
+    mListenForResizes    = PR_FALSE;
+    mNeedsShow           = PR_FALSE;
     
     if (!gGlobalsInitialized) {
         gGlobalsInitialized = PR_TRUE;
@@ -211,86 +217,53 @@ _depth_to_gfximage_format(PRInt32 aDepth)
         return gfxASurface::ImageFormatARGB32;
     case 24:
         return gfxASurface::ImageFormatRGB24;
+    case 16:
+        return gfxASurface::ImageFormatRGB16_565;
     default:
         return gfxASurface::ImageFormatUnknown;
     }
 }
 
-static void
-FreeOffScreenBuffers(void)
+static inline QImage::Format
+_gfximage_to_qformat(gfxASurface::gfxImageFormat aFormat)
 {
-    delete gBufferImage;
-    delete gBufferImageTemp;
-    delete gBufferPixmap;
-    gBufferImage = nsnull;
-    gBufferImageTemp = nsnull;
-    gBufferPixmap = nsnull;
+    switch (aFormat) {
+    case gfxASurface::ImageFormatARGB32:
+        return QImage::Format_ARGB32_Premultiplied;
+    case gfxASurface::ImageFormatRGB24:
+        return QImage::Format_ARGB32;
+    case gfxASurface::ImageFormatRGB16_565:
+        return QImage::Format_RGB16;
+    default:
+        return QImage::Format_Invalid;
+    }
 }
 
 static bool
-UpdateOffScreenBuffers(QSize aSize, int aDepth)
+UpdateOffScreenBuffers(int aDepth, QSize aSize)
 {
     gfxIntSize size(aSize.width(), aSize.height());
-    if (gBufferPixmap) {
-        if (gBufferMaxSize.width() < size.width ||
-            gBufferMaxSize.height() < size.height) {
-            FreeOffScreenBuffers();
+    if (gBufferSurface) {
+        if (gBufferMaxSize.width < size.width ||
+            gBufferMaxSize.height < size.height) {
+            gBufferSurface = nsnull;
         } else
             return true;
     }
 
-    gBufferMaxSize.setWidth(PR_MAX(gBufferMaxSize.width(), size.width));
-    gBufferMaxSize.setHeight(PR_MAX(gBufferMaxSize.height(), size.height));
-    gBufferPixmap = new QPixmap(gBufferMaxSize.width(), gBufferMaxSize.height());
-    if (!gBufferPixmap)
-        return false;
-
-    if (gfxQtPlatform::GetPlatform()->GetRenderMode() == gfxQtPlatform::RENDER_XLIB) {
-        if (!gBufferPixmap->handle()) {
-            NS_ERROR("XDrawable must be available for QPixmap in RENDER_XLIB mode");
-            delete gBufferPixmap;
-            gBufferPixmap = nsnull;
-            return false;
-        }
-        return true;
-    }
+    gBufferMaxSize.width = PR_MAX(gBufferMaxSize.width, size.width);
+    gBufferMaxSize.height = PR_MAX(gBufferMaxSize.height, size.height);
 
     // Check if system depth has related gfxImage format
     gfxASurface::gfxImageFormat format =
-        _depth_to_gfximage_format(gBufferPixmap->x11Info().depth());
+        _depth_to_gfximage_format(aDepth);
 
-    gNeedColorConversion = (format == gfxASurface::ImageFormatUnknown);
+    // Use fallback RGB24 format, Qt will do conversion for us
+    if (format == gfxASurface::ImageFormatUnknown)
+        format = gfxASurface::ImageFormatRGB24;
 
-    gBufferImage = new gfxSharedImageSurface();
-    if (!gBufferImage) {
-        FreeOffScreenBuffers();
-        return false;
-    }
-
-    if (!gBufferImage->Init(gfxIntSize(gBufferPixmap->size().width(),
-                            gBufferPixmap->size().height()),
-                            _depth_to_gfximage_format(gBufferPixmap->x11Info().depth()))) {
-        FreeOffScreenBuffers();
-        return false;
-    }
-
-    // gfxImageSurface does not support system color depth format
-    // we have to paint it with temp surface and color conversion
-    if (!gNeedColorConversion)
-        return true;
-
-    gBufferImageTemp = new gfxSharedImageSurface();
-    if (!gBufferImageTemp) {
-        FreeOffScreenBuffers();
-        return false;
-    }
-
-    if (!gBufferImageTemp->Init(gfxIntSize(gBufferPixmap->size().width(),
-                                gBufferPixmap->size().height()),
-                                gfxASurface::ImageFormatRGB24)) {
-        FreeOffScreenBuffers();
-        return false;
-    }
+    gBufferSurface = gfxPlatform::GetPlatform()->
+        CreateOffscreenSurface(gBufferMaxSize, format);
     return true;
 }
 
@@ -341,7 +314,7 @@ nsWindow::Destroy(void)
     if (gBufferPixmapUsageCount &&
         --gBufferPixmapUsageCount == 0) {
 
-        FreeOffScreenBuffers();
+        gBufferSurface = nsnull;
     }
 
     nsCOMPtr<nsIWidget> rollupWidget = do_QueryReferent(gRollupWindow);
@@ -443,7 +416,7 @@ nsWindow::SetModal(PRBool aModal)
 NS_IMETHODIMP
 nsWindow::IsVisible(PRBool & aState)
 {
-    aState = mWidget ? mWidget->isVisible() : PR_FALSE;
+    aState = mIsShown;
     return NS_OK;
 }
 
@@ -569,16 +542,23 @@ nsWindow::SetSizeMode(PRInt32 aMode)
 // set to visible if one of their ancestors is invisible)
 static void find_first_visible_parent(QGraphicsItem* aItem, QGraphicsItem*& aVisibleItem)
 {
-    if (!aItem)
-        return;
+    NS_ENSURE_TRUE(aItem, );
 
-    if (!aVisibleItem && aItem->isVisible())
-        aVisibleItem = aItem;
-    else if (aVisibleItem && !aItem->isVisible())
-        aVisibleItem = nsnull;
-
-    // check further up the chain
-    find_first_visible_parent(aItem->parentItem(), aVisibleItem);
+    aVisibleItem = nsnull;
+    QGraphicsItem* parItem = nsnull;
+    while (!aVisibleItem) {
+        if (aItem->isVisible())
+            aVisibleItem = aItem;
+        else {
+            parItem = aItem->parentItem();
+            if (parItem)
+                aItem = parItem;
+            else {
+                aItem->setVisible(true);
+                aVisibleItem = aItem;
+            }
+        }
+    }
 }
 
 NS_IMETHODIMP
@@ -591,7 +571,10 @@ nsWindow::SetFocus(PRBool aRaise)
     if (!mWidget)
         return NS_ERROR_FAILURE;
 
-    // Because QGraphicsItem cannot get the focus if they are 
+    if (mWidget->hasFocus())
+        return NS_OK;
+
+    // Because QGraphicsItem cannot get the focus if they are
     // invisible, we look up the chain, for the lowest visible
     // parent and focus that one
     QGraphicsItem* realFocusItem = nsnull;
@@ -663,6 +646,8 @@ nsWindow::Invalidate(const nsIntRect &aRect,
 
     if (!mWidget)
         return NS_OK;
+
+    mDirtyScrollArea = mDirtyScrollArea.united(QRect(aRect.x, aRect.y, aRect.width, aRect.height));
 
     mWidget->update(aRect.x, aRect.y, aRect.width, aRect.height);
 
@@ -767,14 +752,12 @@ nsWindow::GetNativeData(PRUint32 aDataType)
         return SetupPluginPort();
         break;
 
-#ifdef Q_WS_X11
     case NS_NATIVE_DISPLAY:
         {
             QWidget *widget = GetViewWidget();
             return widget ? widget->x11Info().display() : nsnull;
         }
         break;
-#endif
 
     case NS_NATIVE_GRAPHIC: {
         NS_ASSERTION(nsnull != mToolkit, "NULL toolkit, unable to get a GC");
@@ -782,9 +765,12 @@ nsWindow::GetNativeData(PRUint32 aDataType)
         break;
     }
 
-    case NS_NATIVE_SHELLWIDGET:
-        return (void *) GetViewWidget();
-
+    case NS_NATIVE_SHELLWIDGET: {
+        QWidget* widget = nsnull;
+        if (mWidget && mWidget->scene())
+            widget = mWidget->scene()->views()[0]->viewport();
+        return (void *) widget;
+    }
     default:
         NS_WARNING("nsWindow::GetNativeData called with bad value");
         return nsnull;
@@ -979,20 +965,6 @@ nsWindow::GetAttention(PRInt32 aCycleCount)
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-#ifdef MOZ_X11
-static already_AddRefed<gfxASurface>
-GetSurfaceForQWidget(QPixmap* aDrawable)
-{
-    gfxASurface* result =
-        new gfxXlibSurface(aDrawable->x11Info().display(),
-                           aDrawable->handle(),
-                           (Visual*)aDrawable->x11Info().visual(),
-                           gfxIntSize(aDrawable->size().width(), aDrawable->size().height()));
-    NS_IF_ADDREF(result);
-    return result;
-}
-#endif
-
 nsEventStatus
 nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption)
 {
@@ -1017,18 +989,30 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption)
     if (!mDirtyScrollArea.isEmpty())
         mDirtyScrollArea = QRegion();
 
+    nsEventStatus status;
+    nsIntRect rect(r.x(), r.y(), r.width(), r.height());
+
+    if (GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL) {
+        nsPaintEvent event(PR_TRUE, NS_PAINT, this);
+        event.refPoint.x = r.x();
+        event.refPoint.y = r.y();
+        event.region = nsIntRegion(rect);
+        static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager())->
+            SetClippingRegion(event.region);
+        return DispatchEvent(&event);
+    }
+
     gfxQtPlatform::RenderMode renderMode = gfxQtPlatform::GetPlatform()->GetRenderMode();
-    // Prepare offscreen buffers if RenderMode Xlib or Image
-    if (renderMode != gfxQtPlatform::RENDER_QPAINTER)
-        if (!UpdateOffScreenBuffers(QSize(r.width(), r.height()), QX11Info().depth()))
-            return nsEventStatus_eIgnore;
+    int depth = aPainter->device()->depth();
 
     nsRefPtr<gfxASurface> targetSurface = nsnull;
-    if (renderMode == gfxQtPlatform::RENDER_XLIB) {
-        targetSurface = GetSurfaceForQWidget(gBufferPixmap);
-    } else if (renderMode == gfxQtPlatform::RENDER_SHARED_IMAGE) {
-        targetSurface = gNeedColorConversion ? gBufferImageTemp->getASurface()
-                                             : gBufferImage->getASurface();
+    if (renderMode == gfxQtPlatform::RENDER_BUFFERED) {
+        // Prepare offscreen buffers iamge or xlib, depends from paintEngineType
+        if (!UpdateOffScreenBuffers(depth, QSize(r.width(), r.height())))
+            return nsEventStatus_eIgnore;
+
+        targetSurface = gBufferSurface;
+
     } else if (renderMode == gfxQtPlatform::RENDER_QPAINTER) {
         targetSurface = new gfxQPainterSurface(aPainter);
     }
@@ -1039,17 +1023,13 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption)
     nsRefPtr<gfxContext> ctx = new gfxContext(targetSurface);
 
     // We will paint to 0, 0 position in offscrenn buffer
-    if (renderMode != gfxQtPlatform::RENDER_QPAINTER)
+    if (renderMode == gfxQtPlatform::RENDER_BUFFERED)
         ctx->Translate(gfxPoint(-r.x(), -r.y()));
 
     nsPaintEvent event(PR_TRUE, NS_PAINT, this);
-
-    nsIntRect rect(r.x(), r.y(), r.width(), r.height());
     event.refPoint.x = r.x();
     event.refPoint.y = r.y();
     event.region = nsIntRegion(rect);
-
-    nsEventStatus status;
     {
       AutoLayerManagerSetup setupLayerManager(this, ctx);
       status = DispatchEvent(&event);
@@ -1065,56 +1045,26 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption)
 
     LOGDRAW(("[%p] draw done\n", this));
 
-    // If handle not available for QPixmap it means that we are using
-    //   "-graphicssystem raster" rendering backend
-    // in raster mode we can just wrap gBufferImage as QImage and paint directly
-    if (renderMode == gfxQtPlatform::RENDER_SHARED_IMAGE && gBufferPixmap->handle()) {
-        if (gNeedColorConversion) {
-            pixman_image_t *src_image = NULL;
-            pixman_image_t *dst_image = NULL;
-            src_image = pixman_image_create_bits(PIXMAN_x8r8g8b8,
-                                                 gBufferImageTemp->GetSize().width,
-                                                 gBufferImageTemp->GetSize().height,
-                                                 (uint32_t*)gBufferImageTemp->Data(),
-                                                 gBufferImageTemp->Stride());
-            dst_image = pixman_image_create_bits(PIXMAN_r5g6b5,
-                                                 gBufferImage->GetSize().width,
-                                                 gBufferImage->GetSize().height,
-                                                 (uint32_t*)gBufferImage->Data(),
-                                                 gBufferImage->Stride());
-            pixman_image_composite(PIXMAN_OP_SRC,
-                                   src_image,
-                                   NULL,
-                                   dst_image,
-                                   0, 0,
-                                   0, 0,
-                                   0, 0,
-                                   rect.width, rect.height);
-            pixman_image_unref(src_image);
-            pixman_image_unref(dst_image);
-        }
-
-        Display *disp = gBufferPixmap->x11Info().display();
-        XGCValues gcv;
-        gcv.graphics_exposures = False;
-        GC gc = XCreateGC(disp, gBufferPixmap->handle(), GCGraphicsExposures, &gcv);
-        XShmPutImage(disp, gBufferPixmap->handle(), gc, gBufferImage->image(),
-                     0, 0, 0, 0, rect.width, rect.height,
-                     False);
-        XSync(disp, False);
-        XFreeGC(disp, gc);
-    }
-
-    if (renderMode != gfxQtPlatform::RENDER_QPAINTER) {
-        if (gBufferPixmap->handle())
-            aPainter->drawPixmap(QPoint(rect.x, rect.y), *gBufferPixmap,
+    // Handle buffered painting mode
+    if (renderMode == gfxQtPlatform::RENDER_BUFFERED) {
+        if (gBufferSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
+            // Paint offscreen pixmap to QPainter
+            static QPixmap gBufferPixmap;
+            Drawable draw = static_cast<gfxXlibSurface*>(gBufferSurface.get())->XDrawable();
+            if (gBufferPixmap.handle() != draw)
+                gBufferPixmap = QPixmap::fromX11Pixmap(draw, QPixmap::ExplicitlyShared);
+            XSync(static_cast<gfxXlibSurface*>(gBufferSurface.get())->XDisplay(), False);
+            aPainter->drawPixmap(QPoint(rect.x, rect.y), gBufferPixmap,
                                  QRect(0, 0, rect.width, rect.height));
-        else {
-            QImage img(gBufferImage->Data(),
-                       gBufferImage->Width(),
-                       gBufferImage->Height(),
-                       gBufferImage->Stride(),
-                       QImage::Format_RGB32);
+
+        } else if (gBufferSurface->GetType() == gfxASurface::SurfaceTypeImage) {
+            // in raster mode we can just wrap gBufferImage as QImage and paint directly
+            gfxImageSurface *imgs = static_cast<gfxImageSurface*>(gBufferSurface.get());
+            QImage img(imgs->Data(),
+                       imgs->Width(),
+                       imgs->Height(),
+                       imgs->Stride(),
+                       _gfximage_to_qformat(imgs->Format()));
             aPainter->drawImage(QPoint(rect.x, rect.y), img,
                                 QRect(0, 0, rect.width, rect.height));
         }
@@ -1253,6 +1203,9 @@ nsWindow::InitButtonEvent(nsMouseEvent &aMoveEvent,
 nsEventStatus
 nsWindow::OnButtonPressEvent(QGraphicsSceneMouseEvent *aEvent)
 {
+    // The user has done something.
+    UserActivity();
+
     QPointF pos = aEvent->pos();
 
     // we check against the widgets geometry, so use parent coordinates
@@ -1300,6 +1253,9 @@ nsWindow::OnButtonPressEvent(QGraphicsSceneMouseEvent *aEvent)
 nsEventStatus
 nsWindow::OnButtonReleaseEvent(QGraphicsSceneMouseEvent *aEvent)
 {
+    // The user has done something.
+    UserActivity();
+
     PRUint16 domButton;
 
     switch (aEvent->button()) {
@@ -1326,7 +1282,7 @@ nsWindow::OnButtonReleaseEvent(QGraphicsSceneMouseEvent *aEvent)
 }
 
 nsEventStatus
-nsWindow::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *aEvent)
+nsWindow::OnMouseDoubleClickEvent(QGraphicsSceneMouseEvent *aEvent)
 {
     PRUint32 eventType;
 
@@ -1397,6 +1353,9 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
 {
     LOGFOCUS(("OnKeyPressEvent [%p]\n", (void *)this));
 
+    // The user has done something.
+    UserActivity();
+
     PRBool setNoDefault = PR_FALSE;
 
     // before we dispatch a key, check if it's the context menu key.
@@ -1424,8 +1383,7 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
         nsKeyEvent downEvent(PR_TRUE, NS_KEY_DOWN, this);
         InitKeyEvent(downEvent, aEvent);
 
-        downEvent.charCode = domCharCode;
-        downEvent.keyCode = domCharCode ? 0 : domKeyCode;
+        downEvent.keyCode = domKeyCode;
 
         nsEventStatus status = DispatchEvent(&downEvent);
 
@@ -1452,23 +1410,21 @@ nsWindow::OnKeyReleaseEvent(QKeyEvent *aEvent)
 {
     LOGFOCUS(("OnKeyReleaseEvent [%p]\n", (void *)this));
 
+    // The user has done something.
+    UserActivity();
+
     if (isContextMenuKeyEvent(aEvent)) {
         // er, what do we do here? DoDefault or NoDefault?
         return nsEventStatus_eConsumeDoDefault;
     }
 
-    PRUint32 domCharCode = 0;
     PRUint32 domKeyCode = QtKeyCodeToDOMKeyCode(aEvent->key());
-
-    if (aEvent->text().length() && aEvent->text()[0].isPrint())
-        domCharCode = (PRInt32) aEvent->text()[0].unicode();
 
     // send the key event as a key up event
     nsKeyEvent event(PR_TRUE, NS_KEY_UP, this);
     InitKeyEvent(event, aEvent);
 
-    event.charCode = domCharCode;
-    event.keyCode = domCharCode ? 0 : domKeyCode;
+    event.keyCode = domKeyCode;
 
     // unset the key down flag
     ClearKeyDownFlag(event.keyCode);
@@ -1575,18 +1531,21 @@ nsEventStatus nsWindow::OnGestureEvent(QGestureEvent *event, PRBool &handled)
         if (pinch->state() == Qt::GestureStarted) {
             mozGesture.message = NS_SIMPLE_GESTURE_MAGNIFY_START;
             mozGesture.delta = 0.0;
-            mLastPinchDistance = mTouchPointDistance;
             event->accept();
         }
         else if (pinch->state() == Qt::GestureUpdated) {
             mozGesture.message = NS_SIMPLE_GESTURE_MAGNIFY_UPDATE;
-            //-1 because zoom in is positive
-            mozGesture.delta = -1.0 * (mLastPinchDistance - mTouchPointDistance);
-            mLastPinchDistance = mTouchPointDistance;
+            mozGesture.delta = mTouchPointDistance - mLastPinchDistance;
+        }
+        else if (pinch->state() == Qt::GestureFinished) {
+            mozGesture.message = NS_SIMPLE_GESTURE_MAGNIFY;
+            mozGesture.delta = 0.0;
         }
         else {
             handled = PR_FALSE;
         }
+
+        mLastPinchDistance = mTouchPointDistance;
     }
 
     if (handled) {
@@ -1688,8 +1647,8 @@ nsWindow::OnDragEnter(QGraphicsSceneDragDropEvent *aDragEvent)
 static void
 GetBrandName(nsXPIDLString& brandName)
 {
-    nsCOMPtr<nsIStringBundleService> bundleService = 
-        do_GetService(NS_STRINGBUNDLE_CONTRACTID);
+    nsCOMPtr<nsIStringBundleService> bundleService =
+        mozilla::services::GetStringBundleService();
 
     nsCOMPtr<nsIStringBundle> bundle;
     if (bundleService)
@@ -1760,6 +1719,10 @@ nsWindow::Create(nsIWidget        *aParent,
     // resize so that everything is set to the right dimensions
     Resize(mBounds.x, mBounds.y, mBounds.width, mBounds.height, PR_FALSE);
 
+    // check if we should listen for resizes
+    mListenForResizes = (aNativeParent ||
+                         (aInitData && aInitData->mListenForResizes));
+
     return NS_OK;
 }
 
@@ -1772,7 +1735,6 @@ nsWindow::SetWindowClass(const nsAString &xulWinType)
     nsXPIDLString brandName;
     GetBrandName(brandName);
 
-#ifdef Q_WS_X11
     XClassHint *class_hint = XAllocClassHint();
     if (!class_hint)
       return NS_ERROR_OUT_OF_MEMORY;
@@ -1814,7 +1776,6 @@ nsWindow::SetWindowClass(const nsAString &xulWinType)
     nsMemory::Free(class_hint->res_class);
     nsMemory::Free(class_hint->res_name);
     XFree(class_hint);
-#endif
 
     return NS_OK;
 }
@@ -1825,6 +1786,11 @@ nsWindow::NativeResize(PRInt32 aWidth, PRInt32 aHeight, PRBool  aRepaint)
     LOG(("nsWindow::NativeResize [%p] %d %d\n", (void *)this,
          aWidth, aHeight));
 
+    mNeedsResize = PR_FALSE;
+
+    if (mIsTopLevel) {
+      GetViewWidget()->resize( aWidth, aHeight);
+    }
     mWidget->resize( aWidth, aHeight);
 
     if (aRepaint)
@@ -1839,6 +1805,12 @@ nsWindow::NativeResize(PRInt32 aX, PRInt32 aY,
     LOG(("nsWindow::NativeResize [%p] %d %d %d %d\n", (void *)this,
          aX, aY, aWidth, aHeight));
 
+    mNeedsResize = PR_FALSE;
+    mNeedsMove = PR_FALSE;
+
+    if (mIsTopLevel) {
+      GetViewWidget()->setGeometry(aX, aY, aWidth, aHeight);
+    }
     mWidget->setGeometry(aX, aY, aWidth, aHeight);
 
     if (aRepaint)
@@ -1857,6 +1829,9 @@ nsWindow::NativeShow(PRBool aAction)
             widget && !widget->isVisible())
             MakeFullScreen(mSizeMode == nsSizeMode_Fullscreen);
         mWidget->show();
+
+        // unset our flag now that our window has been shown
+        mNeedsShow = PR_FALSE;
     }
     else
         mWidget->hide();
@@ -1878,17 +1853,25 @@ nsWindow::GetHasTransparentBackground(PRBool& aTransparent)
 void
 nsWindow::GetToplevelWidget(MozQWidget **aWidget)
 {
-    *aWidget = mWidget;
+    MozQGraphicsView *view = static_cast<MozQGraphicsView*>(GetViewWidget());
+    if (view)
+        *aWidget = view->GetTopLevelWidget();
+}
+
+nsWindow *
+nsWindow::GetTopLevelNsWindow()
+{
+    MozQWidget *widget = nsnull;
+    GetToplevelWidget(&widget);
+    if (widget)
+        return widget->getReceiver();
+    return nsnull;
 }
 
 void *
 nsWindow::SetupPluginPort(void)
 {
-    if (!mWidget)
-        return nsnull;
-
-    qDebug("FIXME:>>>>>>Func:%s::%d\n", __PRETTY_FUNCTION__, __LINE__);
-
+    NS_WARNING("Not implemented");
     return nsnull;
 }
 
@@ -1931,12 +1914,6 @@ nsWindow::MakeFullScreen(PRBool aFullScreen)
             mLastSizeMode = mSizeMode;
 
         mSizeMode = nsSizeMode_Fullscreen;
-#ifdef Q_WS_X11
-        // Some versions of Qt (4.6.x) crash in XSetInputFocus due to
-        // unsynchronized window activation.  Sync here to avoid such
-        // cases.
-        XSync(QX11Info().display(), False);
-#endif
         widget->showFullScreen();
     }
     else {
@@ -1957,10 +1934,10 @@ nsWindow::MakeFullScreen(PRBool aFullScreen)
             break;
         }
     }
-    
+
     NS_ASSERTION(mLastSizeMode != nsSizeMode_Fullscreen,
                  "mLastSizeMode should never be fullscreen");
-    return NS_OK;
+    return nsBaseWidget::MakeFullScreen(aFullScreen);
 }
 
 NS_IMETHODIMP
@@ -1992,11 +1969,9 @@ nsWindow::HideWindowChrome(PRBool aShouldHide)
     // and flush the queue here so that we don't end up with a BadWindow
     // error later when this happens (when the persistence timer fires
     // and GetWindowPos is called)
-#ifdef Q_WS_X11
     QWidget *widget = GetViewWidget();
     NS_ENSURE_TRUE(widget, NS_ERROR_FAILURE);
     XSync(widget->x11Info().display(), False);
-#endif
 
     return NS_OK;
 }
@@ -2155,6 +2130,55 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
     return widget;
 }
 
+PRBool
+nsWindow::IsAcceleratedQView(QGraphicsView *view)
+{
+    if (view && view->viewport()) {
+        QPaintEngine::Type type = view->viewport()->paintEngine()->type();
+        return (type == QPaintEngine::OpenGL || type == QPaintEngine::OpenGL2);
+    }
+    return PR_FALSE;
+}
+
+NS_IMETHODIMP
+nsWindow::SetAcceleratedRendering(PRBool aEnabled)
+{
+    if (mUseAcceleratedRendering == aEnabled)
+        return NS_OK;
+
+    mUseAcceleratedRendering = aEnabled;
+    mLayerManager = NULL;
+
+    QGraphicsView* view = static_cast<QGraphicsView*>(GetViewWidget());
+    if (view) {
+        if (aEnabled && !IsAcceleratedQView(view))
+            view->setViewport(new QGLWidget());
+        if (!aEnabled && IsAcceleratedQView(view))
+            view->setViewport(new QWidget());
+        view->viewport()->setAttribute(Qt::WA_PaintOnScreen, aEnabled);
+        view->viewport()->setAttribute(Qt::WA_NoSystemBackground, aEnabled);
+    }
+
+    return NS_OK;
+}
+
+
+mozilla::layers::LayerManager*
+nsWindow::GetLayerManager()
+{
+    nsWindow *topWindow = GetTopLevelNsWindow();
+    if (!topWindow)
+        return nsBaseWidget::GetLayerManager();
+
+    if (mUseAcceleratedRendering != topWindow->GetAcceleratedRendering()
+        && IsAcceleratedQView(static_cast<QGraphicsView*>(GetViewWidget()))) {
+        mLayerManager = NULL;
+        mUseAcceleratedRendering = topWindow->GetAcceleratedRendering();
+    }
+
+    return nsBaseWidget::GetLayerManager();
+}
+
 // return the gfxASurface for rendering to this widget
 gfxASurface*
 nsWindow::GetThebesSurface()
@@ -2168,10 +2192,6 @@ nsWindow::GetThebesSurface()
     gfxQtPlatform::RenderMode renderMode = gfxQtPlatform::GetPlatform()->GetRenderMode();
     if (renderMode == gfxQtPlatform::RENDER_QPAINTER) {
         mThebesSurface = new gfxQPainterSurface(gfxIntSize(1, 1), gfxASurface::CONTENT_COLOR);
-    } else if (renderMode == gfxQtPlatform::RENDER_XLIB) {
-        mThebesSurface = new gfxXlibSurface(QX11Info().display(),
-                                            (Visual*)QX11Info().visual(),
-                                            gfxIntSize(1, 1), QX11Info().depth());
     }
     if (!mThebesSurface) {
         gfxASurface::gfxImageFormat imageFormat = gfxASurface::ImageFormatRGB24;
@@ -2287,12 +2307,25 @@ nsWindow::Show(PRBool aState)
 
     mIsShown = aState;
 
-    if (!mWidget)
+    if ((aState && !AreBoundsSane()) || !mWidget) {
+        LOG(("\tbounds are insane or window hasn't been created yet\n"));
+        mNeedsShow = PR_TRUE;
         return NS_OK;
+    }
 
-    mWidget->setVisible(aState);
-    if (mWindowType == eWindowType_popup && aState)
-        Resize(mBounds.x, mBounds.y, mBounds.width, mBounds.height, PR_FALSE);
+    if (aState) {
+        if (mNeedsMove) {
+            NativeResize(mBounds.x, mBounds.y, mBounds.width, mBounds.height,
+                         PR_FALSE);
+        } else if (mNeedsResize) {
+            NativeResize(mBounds.width, mBounds.height, PR_FALSE);
+        }
+    }
+    else
+        // If someone is hiding this widget, clear any needing show flag.
+        mNeedsShow = PR_FALSE;
+
+    NativeShow(aState);
 
     return NS_OK;
 }
@@ -2306,16 +2339,47 @@ nsWindow::Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint)
     if (!mWidget)
         return NS_OK;
 
-    mWidget->resize(aWidth, aHeight);
+    if (mIsShown) {
+        if (AreBoundsSane()) {
+            if (mIsTopLevel || mNeedsShow)
+                NativeResize(mBounds.x, mBounds.y,
+                             mBounds.width, mBounds.height, aRepaint);
+            else
+                NativeResize(mBounds.width, mBounds.height, aRepaint);
 
-    if (mIsTopLevel) {
-        QWidget *widget = GetViewWidget();
-        if (widget)
-            widget->resize(aWidth, aHeight);
+            // Does it need to be shown because it was previously insane?
+            if (mNeedsShow)
+                NativeShow(PR_TRUE);
+        }
+        else {
+            // If someone has set this so that the needs show flag is false
+            // and it needs to be hidden, update the flag and hide the
+            // window.  This flag will be cleared the next time someone
+            // hides the window or shows it.  It also prevents us from
+            // calling NativeShow(PR_FALSE) excessively on the window which
+            // causes unneeded X traffic.
+            if (!mNeedsShow) {
+                mNeedsShow = PR_TRUE;
+                NativeShow(PR_FALSE);
+            }
+        }
+    }
+    else if (AreBoundsSane() && mListenForResizes) {
+        // For widgets that we listen for resizes for (widgets created
+        // with native parents) we apparently _always_ have to resize.  I
+        // dunno why, but apparently we're lame like that.
+        NativeResize(aWidth, aHeight, aRepaint);
+    }
+    else {
+        mNeedsResize = PR_TRUE;
     }
 
-    if (aRepaint)
-        mWidget->update();
+    // synthesize a resize event if this isn't a toplevel
+    if (mIsTopLevel || mListenForResizes) {
+        nsIntRect rect(mBounds.x, mBounds.y, aWidth, aHeight);
+        nsEventStatus status;
+        DispatchResizeEvent(rect, status);
+    }
 
     return NS_OK;
 }
@@ -2334,12 +2398,47 @@ nsWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight,
     if (!mWidget)
         return NS_OK;
 
-    mWidget->setGeometry(aX, aY, aWidth, aHeight);
+    // Has this widget been set to visible?
+    if (mIsShown) {
+        // Are the bounds sane?
+        if (AreBoundsSane()) {
+            // Yep?  Resize the window
+            NativeResize(aX, aY, aWidth, aHeight, aRepaint);
+            // Does it need to be shown because it was previously insane?
+            if (mNeedsShow)
+                NativeShow(PR_TRUE);
+        }
+        else {
+            // If someone has set this so that the needs show flag is false
+            // and it needs to be hidden, update the flag and hide the
+            // window.  This flag will be cleared the next time someone
+            // hides the window or shows it.  It also prevents us from
+            // calling NativeShow(PR_FALSE) excessively on the window which
+            // causes unneeded X traffic.
+            if (!mNeedsShow) {
+                mNeedsShow = PR_TRUE;
+                NativeShow(PR_FALSE);
+            }
+        }
+    }
+    // If the widget hasn't been shown, mark the widget as needing to be
+    // resized before it is shown
+    else if (AreBoundsSane() && mListenForResizes) {
+        // For widgets that we listen for resizes for (widgets created
+        // with native parents) we apparently _always_ have to resize.  I
+        // dunno why, but apparently we're lame like that.
+        NativeResize(aX, aY, aWidth, aHeight, aRepaint);
+    }
+    else {
+        mNeedsResize = PR_TRUE;
+        mNeedsMove = PR_TRUE;
+    }
 
-    if (mIsTopLevel) {
-        QWidget *widget = GetViewWidget();
-        if (widget)
-            widget->resize(aWidth, aHeight);
+    if (mIsTopLevel || mListenForResizes) {
+        // synthesize a resize event
+        nsIntRect rect(aX, aY, aWidth, aHeight);
+        nsEventStatus status;
+        DispatchResizeEvent(rect, status);
     }
 
     if (aRepaint)
@@ -2420,5 +2519,17 @@ nsWindow::GetIMEEnabled(PRUint32* aState)
 
     *aState = mWidget->isVKBOpen() ? IME_STATUS_ENABLED : IME_STATUS_DISABLED;
     return NS_OK;
+}
+
+void
+nsWindow::UserActivity()
+{
+  if (!mIdleService) {
+    mIdleService = do_GetService("@mozilla.org/widget/idleservice;1");
+  }
+
+  if (mIdleService) {
+    mIdleService->ResetIdleTimeOut();
+  }
 }
 

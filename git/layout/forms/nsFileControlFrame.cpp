@@ -90,6 +90,8 @@
 #include "nsIVariant.h"
 #include "nsIContentPrefService.h"
 #include "nsIContentURIGrouper.h"
+#include "mozilla/Services.h"
+#include "nsDirectoryServiceDefs.h"
 
 #define SYNC_TEXT 0x1
 #define SYNC_BUTTON 0x2
@@ -140,19 +142,11 @@ NS_IMPL_FRAMEARENA_HELPERS(nsFileControlFrame)
 
 nsFileControlFrame::nsFileControlFrame(nsStyleContext* aContext):
   nsBlockFrame(aContext),
-  mTextFrame(nsnull), 
-  mCachedState(nsnull)
+  mTextFrame(nsnull)
 {
   AddStateBits(NS_BLOCK_FLOAT_MGR);
 }
 
-nsFileControlFrame::~nsFileControlFrame()
-{
-  if (mCachedState) {
-    delete mCachedState;
-    mCachedState = nsnull;
-  }
-}
 
 NS_IMETHODIMP
 nsFileControlFrame::Init(nsIContent* aContent,
@@ -371,8 +365,18 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
   if (NS_FAILED(result))
     return result;
 
-  // Set filter "All Files"
-  filePicker->AppendFilters(nsIFilePicker::filterAll);
+  // We want to get the file filter from the accept attribute and we add the
+  // |filterAll| filter to be sure the user has a valid fallback.
+  PRUint32 filter = mFrame->GetFileFilterFromAccept();
+  filePicker->AppendFilters(filter | nsIFilePicker::filterAll);
+
+  // If the accept attribute asks for a filter, it has to be the default one.
+  if (filter) {
+    // We have two filters: |filterAll| and another one. |filterAll| is
+    // always the first one (index=0) so we can assume the one we want to be
+    // the default is at index 1.
+    filePicker->SetFilterIndex(1);
+  }
 
   // Set default directry and filename
   nsAutoString defaultName;
@@ -404,9 +408,15 @@ nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
   } else {
     // Attempt to retrieve the last used directory from the content pref service
     nsCOMPtr<nsILocalFile> localFile;
-    if (NS_SUCCEEDED(gUploadLastDir->FetchLastUsedDirectory(
-                     doc->GetDocumentURI(), getter_AddRefs(localFile))))
-      filePicker->SetDisplayDirectory(localFile);
+    gUploadLastDir->FetchLastUsedDirectory(doc->GetDocumentURI(),
+                                           getter_AddRefs(localFile));
+    if (!localFile) {
+      // Default to "desktop" directory for each platform
+      nsCOMPtr<nsIFile> homeDir;
+      NS_GetSpecialDirectory(NS_OS_DESKTOP_DIR, getter_AddRefs(homeDir));
+      localFile = do_QueryInterface(homeDir);
+    }
+    filePicker->SetDisplayDirectory(localFile);
   }
 
   // Tell our textframe to remember the currently focused value
@@ -493,7 +503,7 @@ void nsFileControlFrame::InitUploadLastDir() {
   NS_IF_ADDREF(gUploadLastDir);
 
   nsCOMPtr<nsIObserverService> observerService =
-    do_GetService("@mozilla.org/observer-service;1");
+    mozilla::services::GetObserverService();
   if (observerService && gUploadLastDir) {
     observerService->AddObserver(gUploadLastDir, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_TRUE);
     observerService->AddObserver(gUploadLastDir, "browser:purge-session-history", PR_TRUE);
@@ -657,11 +667,6 @@ NS_IMETHODIMP nsFileControlFrame::Reflow(nsPresContext*          aPresContext,
   if (mState & NS_FRAME_FIRST_REFLOW) {
     mTextFrame = GetTextControlFrame(aPresContext, this);
     NS_ENSURE_TRUE(mTextFrame, NS_ERROR_UNEXPECTED);
-    if (mCachedState) {
-      mTextFrame->SetFormProperty(nsGkAtoms::value, *mCachedState);
-      delete mCachedState;
-      mCachedState = nsnull;
-    }
   }
 
   // nsBlockFrame takes care of all our reflow
@@ -767,13 +772,11 @@ nsFileControlFrame::SetFormProperty(nsIAtom* aName,
                                     const nsAString& aValue)
 {
   if (nsGkAtoms::value == aName) {
-    if (mTextFrame) {
-      mTextFrame->SetValue(aValue);
-    } else {
-      if (mCachedState) delete mCachedState;
-      mCachedState = new nsString(aValue);
-      NS_ENSURE_TRUE(mCachedState, NS_ERROR_OUT_OF_MEMORY);
-    }
+    nsCOMPtr<nsIDOMHTMLInputElement> textControl =
+      do_QueryInterface(mTextContent);
+    NS_ASSERTION(textControl,
+                 "The text control should exist and be an input element");
+    textControl->SetValue(aValue);
   }
   return NS_OK;
 }      
@@ -839,19 +842,31 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 #ifdef ACCESSIBILITY
-NS_IMETHODIMP nsFileControlFrame::GetAccessible(nsIAccessible** aAccessible)
+already_AddRefed<nsAccessible>
+nsFileControlFrame::CreateAccessible()
 {
   // Accessible object exists just to hold onto its children, for later shutdown
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
+  if (!accService)
+    return nsnull;
 
-  if (accService) {
-    return accService->CreateHTMLGenericAccessible(static_cast<nsIFrame*>(this), aAccessible);
-  }
-
-  return NS_ERROR_FAILURE;
+  return accService->CreateHyperTextAccessible(mContent,
+                                               PresContext()->PresShell());
 }
 #endif
 
+PRInt32
+nsFileControlFrame::GetFileFilterFromAccept() const
+{
+  nsAutoString accept;
+  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::accept, accept);
+
+  if (accept.EqualsLiteral("image/*")) {
+    return nsIFilePicker::filterImages;
+  }
+
+  return 0;
+}
 ////////////////////////////////////////////////////////////
 // Mouse listener implementation
 

@@ -634,17 +634,6 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
             if (NS_FAILED(rv))
                 return rv;
 
-            if (! aNotify) {
-                // XUL document will watch us, and take care of making
-                // sure that we get added to or removed from the
-                // element map if aNotify is true. If not, we gotta do
-                // it ourselves. Yay.
-                nsCOMPtr<nsIXULDocument> xuldoc =
-                    do_QueryInterface(mRoot->GetDocument());
-                if (xuldoc)
-                    xuldoc->AddElementForID(realKid);
-            }
-
             // Set up the element's 'container' and 'empty' attributes.
             SetContainerAttrs(realKid, aChild, PR_TRUE, PR_FALSE);
         }
@@ -1100,7 +1089,9 @@ nsXULContentBuilder::CreateContainerContents(nsIContent* aElement,
     if (aNotifyAtEnd && container) {
         MOZ_AUTO_DOC_UPDATE(container->GetCurrentDoc(), UPDATE_CONTENT_MODEL,
                             PR_TRUE);
-        nsNodeUtils::ContentAppended(container, newIndexInContainer);
+        nsNodeUtils::ContentAppended(container,
+                                     container->GetChildAt(newIndexInContainer),
+                                     newIndexInContainer);
     }
 
     NS_IF_RELEASE(container);
@@ -1346,7 +1337,7 @@ nsXULContentBuilder::RemoveGeneratedContent(nsIContent* aElement)
             //     it should be moved outside the inner loop. Bug 297290.
             if (element->NodeInfo()->Equals(nsGkAtoms::_template,
                                             kNameSpaceID_XUL) ||
-                !element->IsNodeOfType(nsINode::eELEMENT))
+                !element->IsElement())
                 continue;
 
             // If the element is in the template map, then we
@@ -1389,7 +1380,9 @@ nsXULContentBuilder::GetElementsForResult(nsIXULTemplateResult* aResult,
     nsAutoString id;
     aResult->GetId(id);
 
-    return xuldoc->GetElementsForID(id, aElements);
+    xuldoc->GetElementsForID(id, aElements);
+
+    return NS_OK;
 }
 
 nsresult
@@ -1848,7 +1841,8 @@ nsXULContentBuilder::CompareResultToNode(nsIXULTemplateResult* aResult,
     if (mSortState.direction == nsSortState_natural) {
         // sort in natural order
         nsresult rv = mQueryProcessor->CompareResults(aResult, match->mResult,
-                                                      nsnull, aSortOrder);
+                                                      nsnull, mSortState.sortHints,
+                                                      aSortOrder);
         NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
@@ -1857,7 +1851,8 @@ nsXULContentBuilder::CompareResultToNode(nsIXULTemplateResult* aResult,
         PRInt32 length = mSortState.sortKeys.Count();
         for (PRInt32 t = 0; t < length; t++) {
             nsresult rv = mQueryProcessor->CompareResults(aResult, match->mResult,
-                                                          mSortState.sortKeys[t], aSortOrder);
+                                                          mSortState.sortKeys[t],
+                                                          mSortState.sortHints, aSortOrder);
             NS_ENSURE_SUCCESS(rv, rv);
 
             if (*aSortOrder)
@@ -1881,9 +1876,12 @@ nsXULContentBuilder::InsertSortedNode(nsIContent* aContainer,
     nsresult rv;
 
     if (!mSortState.initialized) {
-        nsAutoString sort, sortDirection;
+        nsAutoString sort, sortDirection, sortHints;
         mRoot->GetAttr(kNameSpaceID_None, nsGkAtoms::sort, sort);
         mRoot->GetAttr(kNameSpaceID_None, nsGkAtoms::sortDirection, sortDirection);
+        mRoot->GetAttr(kNameSpaceID_None, nsGkAtoms::sorthints, sortHints);
+        sortDirection.AppendLiteral(" ");
+        sortDirection += sortHints;
         rv = XULSortServiceImpl::InitializeSortState(mRoot, aContainer,
                                                      sort, sortDirection, &mSortState);
         NS_ENSURE_SUCCESS(rv, rv);

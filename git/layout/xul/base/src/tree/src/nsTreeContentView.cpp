@@ -167,6 +167,8 @@ NS_IMPL_CYCLE_COLLECTION_4(nsTreeContentView,
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTreeContentView)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsTreeContentView)
 
+DOMCI_DATA(TreeContentView, nsTreeContentView)
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTreeContentView)
   NS_INTERFACE_MAP_ENTRY(nsITreeView)
   NS_INTERFACE_MAP_ENTRY(nsITreeContentView)
@@ -633,6 +635,11 @@ nsTreeContentView::CycleHeader(nsITreeColumn* aCol)
           default: sortdirection.AssignLiteral("ascending"); break;
         }
 
+        nsAutoString hints;
+        column->GetAttr(kNameSpaceID_None, nsGkAtoms::sorthints, hints);
+        sortdirection.AppendLiteral(" ");
+        sortdirection += hints;
+
         nsCOMPtr<nsIDOMNode> rootnode = do_QueryInterface(mRoot);
         xs->Sort(rootnode, sort, sortdirection);
       }
@@ -964,13 +971,12 @@ nsTreeContentView::AttributeChanged(nsIDocument *aDocument,
 void
 nsTreeContentView::ContentAppended(nsIDocument *aDocument,
                                    nsIContent* aContainer,
-                                   PRInt32     aNewIndexInContainer)
+                                   nsIContent* aFirstNewContent,
+                                   PRInt32     /* unused */)
 {
-  PRUint32 childCount = aContainer->GetChildCount();
-  while ((PRUint32)aNewIndexInContainer < childCount) {
-    nsIContent *child = aContainer->GetChildAt(aNewIndexInContainer);
-    ContentInserted(aDocument, aContainer, child, aNewIndexInContainer);
-    aNewIndexInContainer++;
+  for (nsIContent* cur = aFirstNewContent; cur; cur = cur->GetNextSibling()) {
+    // Our contentinserted doesn't use the index
+    ContentInserted(aDocument, aContainer, cur, 0);
   }
 }
 
@@ -978,7 +984,7 @@ void
 nsTreeContentView::ContentInserted(nsIDocument *aDocument,
                                    nsIContent* aContainer,
                                    nsIContent* aChild,
-                                   PRInt32 aIndexInContainer)
+                                   PRInt32 /* unused */)
 {
   NS_ASSERTION(aChild, "null ptr");
 

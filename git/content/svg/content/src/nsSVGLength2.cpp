@@ -67,19 +67,21 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGLength2::DOMAnimatedLength)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGLength2::DOMBaseVal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGLength)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGLength)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGLength)
 NS_INTERFACE_MAP_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGLength2::DOMAnimVal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGLength)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGLength)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGLength)
 NS_INTERFACE_MAP_END
+
+DOMCI_DATA(SVGAnimatedLength, nsSVGLength2::DOMAnimatedLength)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGLength2::DOMAnimatedLength)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedLength)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAnimatedLength)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedLength)
 NS_INTERFACE_MAP_END
 
 static nsIAtom** const unitMap[] =
@@ -520,7 +522,7 @@ nsresult
 nsSVGLength2::SMILLength::ValueFromString(const nsAString& aStr,
                                  const nsISMILAnimationElement* /*aSrcElement*/,
                                  nsSMILValue& aValue,
-                                 PRBool& aCanCache) const
+                                 PRBool& aPreventCachingOfSandwich) const
 {
   float value;
   PRUint16 unitType;
@@ -533,9 +535,10 @@ nsSVGLength2::SMILLength::ValueFromString(const nsAString& aStr,
   nsSMILValue val(&nsSMILFloatType::sSingleton);
   val.mU.mDouble = value / mVal->GetUnitScaleFactor(mSVGElement, unitType);
   aValue = val;
-  aCanCache = (unitType != nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE &&
-               unitType != nsIDOMSVGLength::SVG_LENGTHTYPE_EMS &&
-               unitType != nsIDOMSVGLength::SVG_LENGTHTYPE_EXS);
+  aPreventCachingOfSandwich =
+              (unitType == nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE ||
+               unitType == nsIDOMSVGLength::SVG_LENGTHTYPE_EMS ||
+               unitType == nsIDOMSVGLength::SVG_LENGTHTYPE_EXS);
 
   return NS_OK;
 }

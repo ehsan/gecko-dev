@@ -43,7 +43,7 @@
   It is designed to be used as inline input to nsHTMLTags.cpp and
   nsHTMLContentSink *only* through the magic of C preprocessing.
 
-  All entires must be enclosed in the macro HTML_TAG which will have cruel
+  All entries must be enclosed in the macro HTML_TAG which will have cruel
   and unusual things done to it
 
   It is recommended (but not strictly necessary) to keep all entries
@@ -60,7 +60,9 @@
 
   Entries *must* use only lowercase characters.
 
-  ** Break these invarient and bad things will happen. **    
+  Don't forget to update /editor/libeditor/html/nsHTMLEditUtils.cpp as well.
+
+  ** Break these invariants and bad things will happen. **
 
  ******/
 HTML_TAG(a, Anchor)
@@ -69,12 +71,14 @@ HTML_TAG(acronym, Span)
 HTML_TAG(address, Span)
 HTML_TAG(applet, SharedObject)
 HTML_TAG(area, Area)
+HTML_TAG(article, ) // HTMLElement instance
+HTML_TAG(aside, ) // HTMLElement instance
 #if defined(MOZ_MEDIA)
 HTML_TAG(audio, Audio)
 #endif
 HTML_TAG(b, Span)
 HTML_TAG(base, Shared)
-HTML_TAG(basefont, Shared)
+HTML_TAG(basefont, Span)
 HTML_TAG(bdo, Span)
 HTML_TAG(bgsound, Span)
 HTML_TAG(big, Span)
@@ -100,7 +104,10 @@ HTML_TAG(dt, Span)
 HTML_TAG(em, Span)
 HTML_TAG(embed, SharedObject)
 HTML_TAG(fieldset, FieldSet)
+HTML_TAG(figcaption, ) // HTMLElement instance
+HTML_TAG(figure, ) // HTMLElement instance
 HTML_TAG(font, Font)
+HTML_TAG(footer, ) // HTMLElement instance
 HTML_TAG(form, Form)
 HTML_TAG(frame, Frame)
 HTML_TAG(frameset, FrameSet)
@@ -110,9 +117,11 @@ HTML_TAG(h3, Heading)
 HTML_TAG(h4, Heading)
 HTML_TAG(h5, Heading)
 HTML_TAG(h6, Heading)
-HTML_TAG(head, Head)
+HTML_TAG(head, Shared)
+HTML_TAG(header, ) // HTMLElement instance
+HTML_TAG(hgroup, ) // HTMLElement instance
 HTML_TAG(hr, HR)
-HTML_TAG(html, Html)
+HTML_TAG(html, Shared)
 HTML_TAG(i, Span)
 HTML_TAG(iframe, IFrame)
 HTML_TAG(image, Span)
@@ -128,10 +137,12 @@ HTML_TAG(li, LI)
 HTML_TAG(link, Link)
 HTML_TAG(listing, Span)
 HTML_TAG(map, Map)
+HTML_TAG(mark, ) // HTMLElement instance
 HTML_TAG(marquee, Div)
 HTML_TAG(menu, Shared)
 HTML_TAG(meta, Meta)
 HTML_TAG(multicol, Span)
+HTML_TAG(nav, ) // HTMLElement instance
 HTML_TAG(nobr, Span)
 HTML_TAG(noembed, Div)
 HTML_TAG(noframes, Div)
@@ -140,14 +151,16 @@ HTML_TAG(object, Object)
 HTML_TAG(ol, SharedList)
 HTML_TAG(optgroup, OptGroup)
 HTML_TAG(option, Option)
+HTML_TAG(output, Output)
 HTML_TAG(p, Paragraph)
 HTML_TAG(param, Shared)
-HTML_TAG(plaintext, Span)
+HTML_TAG(plaintext, ) // HTMLElement instance
 HTML_TAG(pre, Pre)
 HTML_TAG(q, Shared)
 HTML_TAG(s, Span)
 HTML_TAG(samp, Span)
 HTML_TAG(script, Script)
+HTML_TAG(section, ) // HTMLElement instance
 HTML_TAG(select, Select)
 HTML_TAG(small, Span)
 #if defined(MOZ_MEDIA)
@@ -177,7 +190,7 @@ HTML_TAG(var, Span)
 HTML_TAG(video, Video)
 #endif
 HTML_TAG(wbr, Shared)
-HTML_TAG(xmp, Span)
+HTML_TAG(xmp, ) // HTMLElement instance
 
 
 /* These are not for tags. But they will be included in the nsHTMLTag

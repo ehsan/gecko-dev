@@ -53,6 +53,7 @@ nsIContentIterator.h \
 nsContentErrors.h \
 nsContentPolicyUtils.h \
 nsContentUtils.h \
+nsIContentUtils.h \
 nsIDocument.h \
 nsIDocumentObserver.h \
 nsIMutationObserver.h \
@@ -77,6 +78,13 @@ nsDOMFile.h \
 nsLineBreaker.h \
 nsReferencedElement.h \
 nsXMLNameSpaceMap.h \
+nsDOMEventTargetWrapperCache.h \
+$(NULL)
+
+EXPORTS_NAMESPACES = mozilla/dom
+
+EXPORTS_mozilla/dom = \
+Element.h \
 $(NULL)
 
 ifndef DISABLE_XFORMS_HOOKS
@@ -107,7 +115,7 @@ XPIDLSRCS	= \
 		nsISelectionPrivate.idl  \
 		nsIScriptLoaderObserver.idl  \
 		nsISyncLoadDOMService.idl  \
-		nsIDragDropHandler.idl \
+		nsIDroppedLinkHandler.idl \
 		nsIScriptEventHandler.idl \
 		nsIScriptEventManager.idl \
 		nsIImageLoadingContent.idl \
@@ -116,6 +124,7 @@ XPIDLSRCS	= \
 		nsIXMLHttpRequest.idl \
 		nsIContentSecurityPolicy.idl \
 		nsIFrameMessageManager.idl \
+		nsIWebSocket.idl \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk

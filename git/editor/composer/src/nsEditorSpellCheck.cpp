@@ -58,9 +58,20 @@
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsITextServicesFilter.h"
+#include "mozilla/Services.h"
 
-NS_IMPL_ISUPPORTS1(nsEditorSpellCheck,
-                   nsIEditorSpellCheck)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsEditorSpellCheck)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsEditorSpellCheck)
+
+NS_INTERFACE_MAP_BEGIN(nsEditorSpellCheck)
+  NS_INTERFACE_MAP_ENTRY(nsIEditorSpellCheck)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIEditorSpellCheck)
+  NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsEditorSpellCheck)
+NS_INTERFACE_MAP_END
+
+NS_IMPL_CYCLE_COLLECTION_2(nsEditorSpellCheck,
+                           mSpellChecker,
+                           mTxtSrvFilter)
 
 nsEditorSpellCheck::nsEditorSpellCheck()
   : mSuggestedWordIndex(0)
@@ -109,8 +120,7 @@ nsEditorSpellCheck::InitSpellChecker(nsIEditor* aEditor, PRBool aEnableSelection
      do_CreateInstance("@mozilla.org/textservices/textservicesdocument;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!tsDoc)
-    return NS_ERROR_NULL_POINTER;
+  NS_ENSURE_TRUE(tsDoc, NS_ERROR_NULL_POINTER);
 
   tsDoc->SetFilter(mTxtSrvFilter);
 
@@ -169,8 +179,7 @@ nsEditorSpellCheck::InitSpellChecker(nsIEditor* aEditor, PRBool aEnableSelection
   mSpellChecker = do_CreateInstance(NS_SPELLCHECKER_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!mSpellChecker)
-    return NS_ERROR_NULL_POINTER;
+  NS_ENSURE_TRUE(mSpellChecker, NS_ERROR_NULL_POINTER);
 
   rv = mSpellChecker->SetDocument(tsDoc, PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -197,9 +206,9 @@ nsEditorSpellCheck::InitSpellChecker(nsIEditor* aEditor, PRBool aEnableSelection
     // locale and use that as the default dictionary name!
 
     nsCOMPtr<nsIXULChromeRegistry> packageRegistry =
-      do_GetService(NS_CHROMEREGISTRY_CONTRACTID, &rv);
+      mozilla::services::GetXULChromeRegistryService();
 
-    if (NS_SUCCEEDED(rv) && packageRegistry) {
+    if (packageRegistry) {
       nsCAutoString utf8DictName;
       rv = packageRegistry->GetSelectedLocale(NS_LITERAL_CSTRING("global"),
                                               utf8DictName);
@@ -247,8 +256,7 @@ nsEditorSpellCheck::InitSpellChecker(nsIEditor* aEditor, PRBool aEnableSelection
 NS_IMETHODIMP    
 nsEditorSpellCheck::GetNextMisspelledWord(PRUnichar **aNextMisspelledWord)
 {
-  if (!mSpellChecker)
-    return NS_ERROR_NOT_INITIALIZED;
+  NS_ENSURE_TRUE(mSpellChecker, NS_ERROR_NOT_INITIALIZED);
 
   nsAutoString nextMisspelledWord;
   
@@ -281,8 +289,7 @@ NS_IMETHODIMP
 nsEditorSpellCheck::CheckCurrentWord(const PRUnichar *aSuggestedWord,
                                      PRBool *aIsMisspelled)
 {
-  if (!mSpellChecker)
-    return NS_ERROR_NOT_INITIALIZED;
+  NS_ENSURE_TRUE(mSpellChecker, NS_ERROR_NOT_INITIALIZED);
 
   DeleteSuggestedWordList();
   return mSpellChecker->CheckWord(nsDependentString(aSuggestedWord),
@@ -293,8 +300,7 @@ NS_IMETHODIMP
 nsEditorSpellCheck::CheckCurrentWordNoSuggest(const PRUnichar *aSuggestedWord,
                                               PRBool *aIsMisspelled)
 {
-  if (!mSpellChecker)
-    return NS_ERROR_NOT_INITIALIZED;
+  NS_ENSURE_TRUE(mSpellChecker, NS_ERROR_NOT_INITIALIZED);
 
   return mSpellChecker->CheckWord(nsDependentString(aSuggestedWord),
                                   aIsMisspelled, nsnull);
@@ -305,8 +311,7 @@ nsEditorSpellCheck::ReplaceWord(const PRUnichar *aMisspelledWord,
                                 const PRUnichar *aReplaceWord,
                                 PRBool           allOccurrences)
 {
-  if (!mSpellChecker)
-    return NS_ERROR_NOT_INITIALIZED;
+  NS_ENSURE_TRUE(mSpellChecker, NS_ERROR_NOT_INITIALIZED);
 
   return mSpellChecker->Replace(nsDependentString(aMisspelledWord),
                                 nsDependentString(aReplaceWord), allOccurrences);
@@ -315,8 +320,7 @@ nsEditorSpellCheck::ReplaceWord(const PRUnichar *aMisspelledWord,
 NS_IMETHODIMP    
 nsEditorSpellCheck::IgnoreWordAllOccurrences(const PRUnichar *aWord)
 {
-  if (!mSpellChecker)
-    return NS_ERROR_NOT_INITIALIZED;
+  NS_ENSURE_TRUE(mSpellChecker, NS_ERROR_NOT_INITIALIZED);
 
   return mSpellChecker->IgnoreAll(nsDependentString(aWord));
 }
@@ -324,8 +328,7 @@ nsEditorSpellCheck::IgnoreWordAllOccurrences(const PRUnichar *aWord)
 NS_IMETHODIMP    
 nsEditorSpellCheck::GetPersonalDictionary()
 {
-  if (!mSpellChecker)
-    return NS_ERROR_NOT_INITIALIZED;
+  NS_ENSURE_TRUE(mSpellChecker, NS_ERROR_NOT_INITIALIZED);
 
    // We can spell check with any editor type
   mDictionaryList.Clear();
@@ -351,8 +354,7 @@ nsEditorSpellCheck::GetPersonalDictionaryWord(PRUnichar **aDictionaryWord)
 NS_IMETHODIMP    
 nsEditorSpellCheck::AddWordToDictionary(const PRUnichar *aWord)
 {
-  if (!mSpellChecker)
-    return NS_ERROR_NOT_INITIALIZED;
+  NS_ENSURE_TRUE(mSpellChecker, NS_ERROR_NOT_INITIALIZED);
 
   return mSpellChecker->AddWordToPersonalDictionary(nsDependentString(aWord));
 }
@@ -360,8 +362,7 @@ nsEditorSpellCheck::AddWordToDictionary(const PRUnichar *aWord)
 NS_IMETHODIMP    
 nsEditorSpellCheck::RemoveWordFromDictionary(const PRUnichar *aWord)
 {
-  if (!mSpellChecker)
-    return NS_ERROR_NOT_INITIALIZED;
+  NS_ENSURE_TRUE(mSpellChecker, NS_ERROR_NOT_INITIALIZED);
 
   return mSpellChecker->RemoveWordFromPersonalDictionary(nsDependentString(aWord));
 }
@@ -369,11 +370,9 @@ nsEditorSpellCheck::RemoveWordFromDictionary(const PRUnichar *aWord)
 NS_IMETHODIMP    
 nsEditorSpellCheck::GetDictionaryList(PRUnichar ***aDictionaryList, PRUint32 *aCount)
 {
-  if (!mSpellChecker)
-    return NS_ERROR_NOT_INITIALIZED;
+  NS_ENSURE_TRUE(mSpellChecker, NS_ERROR_NOT_INITIALIZED);
 
-  if (!aDictionaryList || !aCount)
-    return NS_ERROR_NULL_POINTER;
+  NS_ENSURE_TRUE(aDictionaryList && aCount, NS_ERROR_NULL_POINTER);
 
   *aDictionaryList = 0;
   *aCount          = 0;
@@ -382,8 +381,7 @@ nsEditorSpellCheck::GetDictionaryList(PRUnichar ***aDictionaryList, PRUint32 *aC
 
   nsresult rv = mSpellChecker->GetDictionaryList(&dictList);
 
-  if (NS_FAILED(rv))
-    return rv;
+  NS_ENSURE_SUCCESS(rv, rv);
 
   PRUnichar **tmpPtr = 0;
 
@@ -394,8 +392,7 @@ nsEditorSpellCheck::GetDictionaryList(PRUnichar ***aDictionaryList, PRUint32 *aC
 
     tmpPtr = (PRUnichar **)nsMemory::Alloc(sizeof(PRUnichar *));
 
-    if (!tmpPtr)
-      return NS_ERROR_OUT_OF_MEMORY;
+    NS_ENSURE_TRUE(tmpPtr, NS_ERROR_OUT_OF_MEMORY);
 
     *tmpPtr          = 0;
     *aDictionaryList = tmpPtr;
@@ -406,8 +403,7 @@ nsEditorSpellCheck::GetDictionaryList(PRUnichar ***aDictionaryList, PRUint32 *aC
 
   tmpPtr = (PRUnichar **)nsMemory::Alloc(sizeof(PRUnichar *) * dictList.Length());
 
-  if (!tmpPtr)
-    return NS_ERROR_OUT_OF_MEMORY;
+  NS_ENSURE_TRUE(tmpPtr, NS_ERROR_OUT_OF_MEMORY);
 
   *aDictionaryList = tmpPtr;
   *aCount          = dictList.Length();
@@ -425,11 +421,9 @@ nsEditorSpellCheck::GetDictionaryList(PRUnichar ***aDictionaryList, PRUint32 *aC
 NS_IMETHODIMP    
 nsEditorSpellCheck::GetCurrentDictionary(PRUnichar **aDictionary)
 {
-  if (!mSpellChecker)
-    return NS_ERROR_NOT_INITIALIZED;
+  NS_ENSURE_TRUE(mSpellChecker, NS_ERROR_NOT_INITIALIZED);
 
-  if (!aDictionary)
-    return NS_ERROR_NULL_POINTER;
+  NS_ENSURE_TRUE(aDictionary, NS_ERROR_NULL_POINTER);
 
   *aDictionary = 0;
 
@@ -445,11 +439,9 @@ nsEditorSpellCheck::GetCurrentDictionary(PRUnichar **aDictionary)
 NS_IMETHODIMP    
 nsEditorSpellCheck::SetCurrentDictionary(const PRUnichar *aDictionary)
 {
-  if (!mSpellChecker)
-    return NS_ERROR_NOT_INITIALIZED;
+  NS_ENSURE_TRUE(mSpellChecker, NS_ERROR_NOT_INITIALIZED);
 
-  if (!aDictionary)
-    return NS_ERROR_NULL_POINTER;
+  NS_ENSURE_TRUE(aDictionary, NS_ERROR_NULL_POINTER);
 
   return mSpellChecker->SetCurrentDictionary(nsDependentString(aDictionary));
 }
@@ -457,8 +449,7 @@ nsEditorSpellCheck::SetCurrentDictionary(const PRUnichar *aDictionary)
 NS_IMETHODIMP    
 nsEditorSpellCheck::UninitSpellChecker()
 {
-  if (!mSpellChecker)
-    return NS_ERROR_NOT_INITIALIZED;
+  NS_ENSURE_TRUE(mSpellChecker, NS_ERROR_NOT_INITIALIZED);
 
   // we preserve the last selected language, but ignore errors so we continue
   // to uninitialize

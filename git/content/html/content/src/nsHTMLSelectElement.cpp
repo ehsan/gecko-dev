@@ -42,12 +42,12 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
-#include "nsPresContext.h"
 #include "nsLayoutUtils.h"
 #include "nsMappedAttributes.h"
 #include "nsIForm.h"
-#include "nsIFormSubmission.h"
+#include "nsFormSubmission.h"
 #include "nsIFormProcessor.h"
+#include "nsContentCreatorFunctions.h"
 
 #include "nsIDOMHTMLOptGroupElement.h"
 #include "nsIOptionElement.h"
@@ -60,7 +60,6 @@
 
 // Notify/query select frame for selectedIndex
 #include "nsIDocument.h"
-#include "nsIPresShell.h"
 #include "nsIFormControlFrame.h"
 #include "nsIComboboxControlFrame.h"
 #include "nsIListControlFrame.h"
@@ -136,12 +135,13 @@ nsSafeOptionListMutation::~nsSafeOptionListMutation()
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Select)
 
 nsHTMLSelectElement::nsHTMLSelectElement(nsINodeInfo *aNodeInfo,
-                                         PRBool aFromParser)
+                                         PRUint32 aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo),
     mOptions(new nsHTMLOptionCollection(this)),
     mIsDoneAddingChildren(!aFromParser),
     mDisabledChanged(PR_FALSE),
     mMutating(PR_FALSE),
+    mInhibitStateRestoration(!!(aFromParser & NS_FROM_PARSER_FRAGMENT)),
     mNonOptionChildren(0),
     mOptGroupCount(0),
     mSelectedIndex(-1)
@@ -172,6 +172,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsHTMLSelectElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLSelectElement, nsGenericElement)
 
+
+DOMCI_DATA(HTMLSelectElement, nsHTMLSelectElement)
 
 // QueryInterface implementation for nsHTMLSelectElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLSelectElement)
@@ -1202,10 +1204,12 @@ nsHTMLSelectElement::SetValue(const nsAString& aValue)
 }
 
 
+NS_IMPL_BOOL_ATTR(nsHTMLSelectElement, Autofocus, autofocus)
 NS_IMPL_BOOL_ATTR(nsHTMLSelectElement, Disabled, disabled)
 NS_IMPL_BOOL_ATTR(nsHTMLSelectElement, Multiple, multiple)
 NS_IMPL_STRING_ATTR(nsHTMLSelectElement, Name, name)
-NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLSelectElement, Size, size, 0)
+NS_IMPL_POSITIVE_INT_ATTR_DEFAULT_VALUE(nsHTMLSelectElement, Size, size,
+                                        GetDefaultSize())
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLSelectElement, TabIndex, tabindex, 0)
 
 NS_IMETHODIMP
@@ -1221,15 +1225,18 @@ nsHTMLSelectElement::Focus()
 }
 
 PRBool
-nsHTMLSelectElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
+nsHTMLSelectElement::IsHTMLFocusable(PRBool aWithMouse,
+                                     PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
-  if (nsGenericHTMLElement::IsHTMLFocusable(aIsFocusable, aTabIndex)) {
+  if (nsGenericHTMLElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex)) {
     return PR_TRUE;
   }
   if (aTabIndex && (sTabFocusModel & eTabFocus_formElementsMask) == 0) {
     *aTabIndex = -1;
   }
+
   *aIsFocusable = !HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
+
   return PR_FALSE;
 }
 
@@ -1351,7 +1358,9 @@ nsHTMLSelectElement::DoneAddingChildren(PRBool aHaveNotified)
   }
 
   // Restore state
-  RestoreFormControlState(this, this);
+  if (!mInhibitStateRestoration) {
+    RestoreFormControlState(this, this);
+  }
 
   // Now that we're done, select something (if it's a single select something
   // must be selected)
@@ -1367,7 +1376,7 @@ nsHTMLSelectElement::ParseAttribute(PRInt32 aNamespaceID,
                                     nsAttrValue& aResult)
 {
   if (aAttribute == nsGkAtoms::size && kNameSpaceID_None == aNamespaceID) {
-    return aResult.ParseIntWithBounds(aValue, 0);
+    return aResult.ParsePositiveIntValue(aValue);
   }
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
                                               aResult);
@@ -1808,6 +1817,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 // nsISupports
 
+DOMCI_DATA(HTMLOptionsCollection, nsHTMLOptionCollection)
+
 // QueryInterface implementation for nsHTMLOptionCollection
 NS_INTERFACE_TABLE_HEAD(nsHTMLOptionCollection)
   NS_INTERFACE_TABLE4(nsHTMLOptionCollection,
@@ -1816,7 +1827,7 @@ NS_INTERFACE_TABLE_HEAD(nsHTMLOptionCollection)
                       nsIDOMHTMLOptionsCollection,
                       nsIDOMHTMLCollection)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsHTMLOptionCollection)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(HTMLOptionsCollection)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(HTMLOptionsCollection)
 NS_INTERFACE_MAP_END
 
 

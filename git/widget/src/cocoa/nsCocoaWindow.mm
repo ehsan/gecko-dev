@@ -215,12 +215,12 @@ nsCocoaWindow::~nsCocoaWindow()
 static bool WindowSizeAllowed(PRInt32 aWidth, PRInt32 aHeight)
 {
   if (aWidth > SIZE_LIMIT) {
-    NS_ERROR(nsPrintfCString(256, "Requested Cocoa window width of %d is too much, max allowed is %d\n",
+    NS_ERROR(nsPrintfCString(256, "Requested Cocoa window width of %d is too much, max allowed is %d",
                              aWidth, SIZE_LIMIT).get());
     return false;
   }
   if (aHeight > SIZE_LIMIT) {
-    NS_ERROR(nsPrintfCString(256, "Requested Cocoa window height of %d is too much, max allowed is %d\n",
+    NS_ERROR(nsPrintfCString(256, "Requested Cocoa window height of %d is too much, max allowed is %d",
                              aHeight, SIZE_LIMIT).get());
     return false;
   }
@@ -250,6 +250,10 @@ nsresult nsCocoaWindow::Create(nsIWidget *aParent,
                                nsWidgetInitData *aInitData)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  // Because the hidden window is created outside of an event loop,
+  // we have to provide an autorelease pool (see bug 559075).
+  nsAutoreleasePool localPool;
 
   if (!WindowSizeAllowed(aRect.width, aRect.height))
     return NS_ERROR_FAILURE;
@@ -522,6 +526,12 @@ NS_IMETHODIMP nsCocoaWindow::IsVisible(PRBool & aState)
 
 NS_IMETHODIMP nsCocoaWindow::SetModal(PRBool aState)
 {
+  // This is used during startup (outside the event loop) when creating
+  // the add-ons compatibility checking dialog and the profile manager UI;
+  // therefore, it needs to provide an autorelease pool to avoid cocoa
+  // objects leaking.
+  nsAutoreleasePool localPool;
+
   mModal = aState;
   nsCocoaWindow *aParent = static_cast<nsCocoaWindow*>(mParent);
   if (aState) {
@@ -2154,6 +2164,8 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
 - (void)_toolbarPillButtonClicked:(id)sender
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  RollUpPopups();
 
   nsCocoaWindow *geckoWindow = [[self delegate] geckoWidget];
   if (!geckoWindow)

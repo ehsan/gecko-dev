@@ -191,7 +191,7 @@ void imgRequestProxy::RemoveFromLoadGroup(PRBool releaseLoadGroup)
   */
   nsCOMPtr<imgIRequest> kungFuDeathGrip(this);
 
-  mLoadGroup->RemoveRequest(this, NS_OK, nsnull);
+  mLoadGroup->RemoveRequest(this, nsnull, NS_OK);
   mIsInLoadGroup = PR_FALSE;
 
   if (releaseLoadGroup) {
@@ -274,7 +274,7 @@ NS_IMETHODIMP imgRequestProxy::CancelAndForgetObserver(nsresult aStatus)
 
   if (mIsInLoadGroup) {
     nsCOMPtr<nsIRunnable> ev =
-      NS_NEW_RUNNABLE_METHOD(imgRequestProxy, this, DoRemoveFromLoadGroup);
+      NS_NewRunnableMethod(this, &imgRequestProxy::DoRemoveFromLoadGroup);
     NS_DispatchToCurrentThread(ev);
   }
 

@@ -42,7 +42,6 @@
 #include "nsIDocumentViewer.h"
 #include "nsIDocument.h"
 
-class nsICSSStyleSheet;
 class nsIChannel;
 class nsIComponentManager;
 class nsIContentViewer;
@@ -52,6 +51,9 @@ class nsIInputStream;
 class nsILoadGroup;
 class nsIStreamListener;
 struct nsModuleComponentInfo;
+
+#define CONTENT_DLF_CONTRACTID "@mozilla.org/content/document-loader-factory;1"
+#define PLUGIN_DLF_CONTRACTID "@mozilla.org/content/plugin/document-loader-factory;1"
 
 class nsContentDLF : public nsIDocumentLoaderFactory
 {

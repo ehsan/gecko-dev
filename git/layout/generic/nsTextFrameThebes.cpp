@@ -104,11 +104,9 @@
 
 #include "nsIServiceManager.h"
 #ifdef ACCESSIBILITY
-#include "nsIAccessible.h"
 #include "nsIAccessibilityService.h"
 #endif
 #include "nsAutoPtr.h"
-#include "nsStyleSet.h"
 
 #include "nsBidiFrames.h"
 #include "nsBidiPresUtils.h"
@@ -119,6 +117,7 @@
 #include "gfxContext.h"
 #include "gfxTextRunWordCache.h"
 #include "gfxImageSurface.h"
+#include "mozilla/dom/Element.h"
 
 #ifdef NS_DEBUG
 #undef NOISY_BLINK
@@ -130,28 +129,38 @@
 #undef NOISY_TRIM
 #endif
 
+using namespace mozilla;
+using namespace mozilla::dom;
+
+static void DestroyTabWidth(void* aPropertyValue)
+{
+  delete static_cast<nsTArray<gfxFloat>*>(aPropertyValue);
+}
+
+NS_DECLARE_FRAME_PROPERTY(TabWidthProperty, DestroyTabWidth)
+
 // The following flags are set during reflow
 
 // This bit is set on the first frame in a continuation indicating
 // that it was chopped short because of :first-letter style.
-#define TEXT_FIRST_LETTER    0x00100000
+#define TEXT_FIRST_LETTER    NS_FRAME_STATE_BIT(20)
 // This bit is set on frames that are logically adjacent to the start of the
 // line (i.e. no prior frame on line with actual displayed in-flow content).
-#define TEXT_START_OF_LINE   0x00200000
+#define TEXT_START_OF_LINE   NS_FRAME_STATE_BIT(21)
 // This bit is set on frames that are logically adjacent to the end of the
 // line (i.e. no following on line with actual displayed in-flow content).
-#define TEXT_END_OF_LINE     0x00400000
+#define TEXT_END_OF_LINE     NS_FRAME_STATE_BIT(22)
 // This bit is set on frames that end with a hyphenated break.
-#define TEXT_HYPHEN_BREAK    0x00800000
+#define TEXT_HYPHEN_BREAK    NS_FRAME_STATE_BIT(23)
 // This bit is set on frames that trimmed trailing whitespace characters when
 // calculating their width during reflow.
-#define TEXT_TRIMMED_TRAILING_WHITESPACE 0x01000000
+#define TEXT_TRIMMED_TRAILING_WHITESPACE NS_FRAME_STATE_BIT(24)
 // This bit is set on frames that have justification enabled. We record
 // this in a state bit because we don't always have the containing block
 // easily available to check text-align on.
-#define TEXT_JUSTIFICATION_ENABLED       0x02000000
+#define TEXT_JUSTIFICATION_ENABLED       NS_FRAME_STATE_BIT(25)
 // Set this bit if the textframe has overflow area for IME/spellcheck underline.
-#define TEXT_SELECTION_UNDERLINE_OVERFLOWED 0x04000000
+#define TEXT_SELECTION_UNDERLINE_OVERFLOWED NS_FRAME_STATE_BIT(26)
 
 #define TEXT_REFLOW_FLAGS    \
   (TEXT_FIRST_LETTER|TEXT_START_OF_LINE|TEXT_END_OF_LINE|TEXT_HYPHEN_BREAK| \
@@ -160,19 +169,20 @@
 
 // Cache bits for IsEmpty().
 // Set this bit if the textframe is known to be only collapsible whitespace.
-#define TEXT_IS_ONLY_WHITESPACE    0x08000000
+#define TEXT_IS_ONLY_WHITESPACE    NS_FRAME_STATE_BIT(27)
 // Set this bit if the textframe is known to be not only collapsible whitespace.
-#define TEXT_ISNOT_ONLY_WHITESPACE 0x10000000
+#define TEXT_ISNOT_ONLY_WHITESPACE NS_FRAME_STATE_BIT(28)
 
-#define TEXT_WHITESPACE_FLAGS      0x18000000
+#define TEXT_WHITESPACE_FLAGS      (TEXT_IS_ONLY_WHITESPACE | \
+                                    TEXT_ISNOT_ONLY_WHITESPACE)
 // This bit is set while the frame is registered as a blinking frame.
-#define TEXT_BLINK_ON              0x20000000
+#define TEXT_BLINK_ON              NS_FRAME_STATE_BIT(29)
 
 // Set when this text frame is mentioned in the userdata for a textrun
-#define TEXT_IN_TEXTRUN_USER_DATA  0x40000000
+#define TEXT_IN_TEXTRUN_USER_DATA  NS_FRAME_STATE_BIT(30)
 
 // nsTextFrame.h has
-// #define TEXT_HAS_NONCOLLAPSED_CHARACTERS 0x80000000
+// #define TEXT_HAS_NONCOLLAPSED_CHARACTERS NS_FRAME_STATE_BIT(31)
 
 /*
  * Some general notes
@@ -527,6 +537,7 @@ static PRBool IsCSSWordSpacingSpace(const nsTextFragment* aFrag,
   case ' ':
   case CH_NBSP:
     return !IsSpaceCombiningSequenceTail(aFrag, aPos + 1);
+  case '\r':
   case '\t': return !aStyleText->WhiteSpaceIsSignificant();
   case '\n': return !aStyleText->NewlineIsSignificant();
   default: return PR_FALSE;
@@ -542,14 +553,14 @@ static PRBool IsTrimmableSpace(const PRUnichar* aChars, PRUint32 aLength)
   PRUnichar ch = *aChars;
   if (ch == ' ')
     return !nsTextFrameUtils::IsSpaceCombiningSequenceTail(aChars + 1, aLength - 1);
-  return ch == '\t' || ch == '\f' || ch == '\n';
+  return ch == '\t' || ch == '\f' || ch == '\n' || ch == '\r';
 }
 
 // Check whether the character aCh is trimmable according to CSS
 // 'white-space:normal/nowrap'
 static PRBool IsTrimmableSpace(char aCh)
 {
-  return aCh == ' ' || aCh == '\t' || aCh == '\f' || aCh == '\n';
+  return aCh == ' ' || aCh == '\t' || aCh == '\f' || aCh == '\n' || aCh == '\r';
 }
 
 static PRBool IsTrimmableSpace(const nsTextFragment* aFrag, PRUint32 aPos,
@@ -562,6 +573,7 @@ static PRBool IsTrimmableSpace(const nsTextFragment* aFrag, PRUint32 aPos,
                    !IsSpaceCombiningSequenceTail(aFrag, aPos + 1);
   case '\n': return !aStyleText->NewlineIsSignificant();
   case '\t':
+  case '\r':
   case '\f': return !aStyleText->WhiteSpaceIsSignificant();
   default: return PR_FALSE;
   }
@@ -573,7 +585,7 @@ static PRBool IsSelectionSpace(const nsTextFragment* aFrag, PRUint32 aPos)
   PRUnichar ch = aFrag->CharAt(aPos);
   if (ch == ' ' || ch == CH_NBSP)
     return !IsSpaceCombiningSequenceTail(aFrag, aPos + 1);
-  return ch == '\t' || ch == '\n' || ch == '\f';
+  return ch == '\t' || ch == '\n' || ch == '\f' || ch == '\r';
 }
 
 // Count the amount of trimmable whitespace (as per CSS
@@ -616,7 +628,7 @@ IsAllWhitespace(const nsTextFragment* aFrag, PRBool aAllowNewline)
   const char* str = aFrag->Get1b();
   for (PRInt32 i = 0; i < len; ++i) {
     char ch = str[i];
-    if (ch == ' ' || ch == '\t' || (ch == '\n' && aAllowNewline))
+    if (ch == ' ' || ch == '\t' || ch == '\r' || (ch == '\n' && aAllowNewline))
       continue;
     return PR_FALSE;
   }
@@ -1083,7 +1095,7 @@ BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
     }
 
     BuildTextRunsScanner::FindBoundaryState state = { stopAtFrame, nsnull, nsnull,
-      seenTextRunBoundaryOnLaterLine, PR_FALSE, PR_FALSE };
+      PRPackedBool(seenTextRunBoundaryOnLaterLine), PR_FALSE, PR_FALSE };
     nsIFrame* child = line->mFirstChild;
     PRBool foundBoundary = PR_FALSE;
     PRInt32 i;
@@ -2097,7 +2109,7 @@ static PRBool IsJustifiableCharacter(const nsTextFragment* aFrag, PRInt32 aPos,
                                      PRBool aLangIsCJ)
 {
   PRUnichar ch = aFrag->CharAt(aPos);
-  if (ch == '\n' || ch == '\t')
+  if (ch == '\n' || ch == '\t' || ch == '\r')
     return PR_TRUE;
   if (ch == ' ' || ch == CH_NBSP) {
     // Don't justify spaces that are combined with diacriticals
@@ -2482,12 +2494,6 @@ PropertyProvider::GetSpacingInternal(PRUint32 aStart, PRUint32 aLength,
   }
 }
 
-static void TabWidthDestructor(void* aObject, nsIAtom* aProp, void* aValue,
-                               void* aData)
-{
-  delete static_cast<nsTArray<gfxFloat>*>(aValue);
-}
-
 static gfxFloat
 ComputeTabWidthAppUnits(nsIFrame* aFrame, gfxTextRun* aTextRun)
 {
@@ -2524,7 +2530,7 @@ PropertyProvider::GetTabWidths(PRUint32 aStart, PRUint32 aLength)
   if (!mTabWidths) {
     if (!mReflowing) {
       mTabWidths = static_cast<nsTArray<gfxFloat>*>
-                              (mFrame->GetProperty(nsGkAtoms::tabWidthProperty));
+        (mFrame->Properties().Get(TabWidthProperty()));
       if (!mTabWidths) {
         NS_WARNING("We need precomputed tab widths, but they're not here...");
         return nsnull;
@@ -2539,10 +2545,7 @@ PropertyProvider::GetTabWidths(PRUint32 aStart, PRUint32 aLength)
       nsAutoPtr<nsTArray<gfxFloat> > tabs(new nsTArray<gfxFloat>());
       if (!tabs)
         return nsnull;
-      nsresult rv = mFrame->SetProperty(nsGkAtoms::tabWidthProperty, tabs,
-                                        TabWidthDestructor, nsnull);
-      if (NS_FAILED(rv))
-        return nsnull;
+      mFrame->Properties().Set(TabWidthProperty(), tabs);
       mTabWidths = tabs.forget();
     }
   }
@@ -3006,7 +3009,7 @@ nsTextPaintStyle::EnsureSufficientContrast(nscolor *aForeColor, nscolor *aBackCo
 nscolor
 nsTextPaintStyle::GetTextColor()
 {
-  nscolor color = mFrame->GetStyleColor()->mColor;
+  nscolor color = mFrame->GetVisitedDependentColor(eCSSProperty_color);
   if (ShouldDarkenColors(mPresContext)) {
     color = DarkenColor(color);
   }
@@ -3088,18 +3091,16 @@ nsTextPaintStyle::InitCommonColors()
   if (mInitCommonColors)
     return;
 
-  nsStyleContext* sc = mFrame->GetStyleContext();
-
-  nsStyleContext* bgContext =
-    nsCSSRendering::FindNonTransparentBackground(sc);
-  NS_ASSERTION(bgContext, "Cannot find NonTransparentBackground.");
-  const nsStyleBackground* bg = bgContext->GetStyleBackground();
+  nsIFrame* bgFrame =
+    nsCSSRendering::FindNonTransparentBackgroundFrame(mFrame);
+  NS_ASSERTION(bgFrame, "Cannot find NonTransparentBackgroundFrame.");
+  nscolor bgColor =
+    bgFrame->GetVisitedDependentColor(eCSSProperty_background_color);
 
   nscolor defaultBgColor = mPresContext->DefaultBackgroundColor();
-  mFrameBackgroundColor = NS_ComposeColors(defaultBgColor,
-                                           bg->mBackgroundColor);
+  mFrameBackgroundColor = NS_ComposeColors(defaultBgColor, bgColor);
 
-  if (bgContext->GetStyleDisplay()->mAppearance) {
+  if (bgFrame->IsThemed()) {
     // Assume a native widget has sufficient contrast always
     mSufficientContrast = 0;
     mInitCommonColors = PR_TRUE;
@@ -3128,13 +3129,18 @@ nsTextPaintStyle::InitCommonColors()
   mInitCommonColors = PR_TRUE;
 }
 
-static nsIContent*
-FindElementAncestor(nsINode* aNode)
+static Element*
+FindElementAncestorForMozSelection(nsIContent* aContent)
 {
-  while (aNode && !aNode->IsNodeOfType(nsINode::eELEMENT)) {
-    aNode = aNode->GetParent();
+  NS_ENSURE_TRUE(aContent, nsnull);
+  while (aContent && aContent->IsInNativeAnonymousSubtree()) {
+    aContent = aContent->GetBindingParent();
   }
-  return static_cast<nsIContent*>(aNode);
+  NS_ASSERTION(aContent, "aContent isn't in non-anonymous tree?");
+  while (aContent && !aContent->IsElement()) {
+    aContent = aContent->GetParent();
+  }
+  return aContent ? aContent->AsElement() : nsnull;
 }
 
 PRBool
@@ -3156,20 +3162,21 @@ nsTextPaintStyle::InitSelectionColors()
   mInitSelectionColors = PR_TRUE;
 
   nsIFrame* nonGeneratedAncestor = nsLayoutUtils::GetNonGeneratedAncestor(mFrame);
-  nsIContent* selectionContent = FindElementAncestor(nonGeneratedAncestor->GetContent());
+  Element* selectionElement =
+    FindElementAncestorForMozSelection(nonGeneratedAncestor->GetContent());
 
-  if (selectionContent &&
+  if (selectionElement &&
       selectionStatus == nsISelectionController::SELECTION_ON) {
     nsRefPtr<nsStyleContext> sc = nsnull;
     sc = mPresContext->StyleSet()->
-      ProbePseudoElementStyle(selectionContent,
+      ProbePseudoElementStyle(selectionElement,
                               nsCSSPseudoElements::ePseudo_mozSelection,
                               mFrame->GetStyleContext());
     // Use -moz-selection pseudo class.
     if (sc) {
-      const nsStyleBackground* bg = sc->GetStyleBackground();
-      mSelectionBGColor = bg->mBackgroundColor;
-      mSelectionTextColor = sc->GetStyleColor()->mColor;
+      mSelectionBGColor =
+        sc->GetVisitedDependentColor(eCSSProperty_background_color);
+      mSelectionTextColor = sc->GetVisitedDependentColor(eCSSProperty_color);
       return PR_TRUE;
     }
   }
@@ -3199,8 +3206,8 @@ nsTextPaintStyle::InitSelectionColors()
 
   // On MacOS X, we don't exchange text color and BG color.
   if (mSelectionTextColor == NS_DONT_CHANGE_COLOR) {
-    mSelectionTextColor = EnsureDifferentColors(mFrame->GetStyleColor()->mColor,
-                                                mSelectionBGColor);
+    nscoord frameColor = mFrame->GetVisitedDependentColor(eCSSProperty_color);
+    mSelectionTextColor = EnsureDifferentColors(frameColor, mSelectionBGColor);
   } else {
     EnsureSufficientContrast(&mSelectionTextColor, &mSelectionBGColor);
   }
@@ -3380,22 +3387,24 @@ nsTextPaintStyle::GetResolvedForeColor(nscolor aColor,
 //-----------------------------------------------------------------------------
 
 #ifdef ACCESSIBILITY
-NS_IMETHODIMP nsTextFrame::GetAccessible(nsIAccessible** aAccessible)
+already_AddRefed<nsAccessible>
+nsTextFrame::CreateAccessible()
 {
   if (IsEmpty()) {
     nsAutoString renderedWhitespace;
     GetRenderedText(&renderedWhitespace, nsnull, nsnull, 0, 1);
     if (renderedWhitespace.IsEmpty()) {
-      return NS_ERROR_FAILURE;
+      return nsnull;
     }
   }
 
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLTextAccessible(static_cast<nsIFrame*>(this), aAccessible);
+    return accService->CreateHTMLTextAccessible(mContent,
+                                                PresContext()->PresShell());
   }
-  return NS_ERROR_FAILURE;
+  return nsnull;
 }
 #endif
 
@@ -3521,16 +3530,14 @@ nsContinuingTextFrame::Init(nsIContent* aContent,
   }
 #ifdef IBMBIDI
   if (aPrevInFlow->GetStateBits() & NS_FRAME_IS_BIDI) {
-    nsPropertyTable *propTable = PresContext()->PropertyTable();
-    propTable->SetProperty(this, nsGkAtoms::embeddingLevel,
-          propTable->GetProperty(aPrevInFlow, nsGkAtoms::embeddingLevel),
-                           nsnull, nsnull);
-    propTable->SetProperty(this, nsGkAtoms::baseLevel,
-              propTable->GetProperty(aPrevInFlow, nsGkAtoms::baseLevel),
-                           nsnull, nsnull);
-    propTable->SetProperty(this, nsGkAtoms::charType,
-               propTable->GetProperty(aPrevInFlow, nsGkAtoms::charType),
-                           nsnull, nsnull);
+    FramePropertyTable *propTable = PresContext()->PropertyTable();
+    // Get all the properties from the prev-in-flow first to take
+    // advantage of the propTable's cache and simplify the assertion below
+    void* embeddingLevel = propTable->Get(aPrevInFlow, EmbeddingLevelProperty());
+    void* baseLevel = propTable->Get(aPrevInFlow, BaseLevelProperty());
+    propTable->Set(this, EmbeddingLevelProperty(), embeddingLevel);
+    propTable->Set(this, BaseLevelProperty(), baseLevel);
+
     if (nextContinuation) {
       SetNextContinuation(nextContinuation);
       nextContinuation->SetPrevContinuation(this);
@@ -3538,13 +3545,9 @@ nsContinuingTextFrame::Init(nsIContent* aContent,
       while (nextContinuation &&
              nextContinuation->GetContentOffset() < mContentOffset) {
         NS_ASSERTION(
-          propTable->GetProperty(this, nsGkAtoms::embeddingLevel) ==
-          propTable->GetProperty(nextContinuation, nsGkAtoms::embeddingLevel) &&
-          propTable->GetProperty(this, nsGkAtoms::baseLevel) ==
-          propTable->GetProperty(nextContinuation, nsGkAtoms::baseLevel) &&
-          propTable->GetProperty(this, nsGkAtoms::charType) ==
-          propTable->GetProperty(nextContinuation, nsGkAtoms::charType),
-            "stealing text from different type of BIDI continuation");
+          embeddingLevel == propTable->Get(nextContinuation, EmbeddingLevelProperty()) &&
+          baseLevel == propTable->Get(nextContinuation, BaseLevelProperty()),
+          "stealing text from different type of BIDI continuation");
         nextContinuation->mContentOffset = mContentOffset;
         nextContinuation = static_cast<nsTextFrame*>(nextContinuation->GetNextContinuation());
       }
@@ -3877,9 +3880,11 @@ public:
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder) {
     return mFrame->GetOverflowRect() + aBuilder->ToReferenceFrame(mFrame);
   }
-  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
-                            HitTestState* aState) {
-    return nsRect(aBuilder->ToReferenceFrame(mFrame), mFrame->GetSize()).Contains(aPt) ? mFrame : nsnull;
+  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
+                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
+    if (nsRect(aBuilder->ToReferenceFrame(mFrame), mFrame->GetSize()).Intersects(aRect)) {
+      aOutFrames->AppendElement(mFrame);
+    }
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
@@ -4007,13 +4012,13 @@ nsTextFrame::GetTextDecorations(nsPresContext* aPresContext)
       // This handles the <a href="blah.html"><font color="green">La 
       // la la</font></a> case. The link underline should be green.
       useOverride = PR_TRUE;
-      overrideColor = context->GetStyleColor()->mColor;
+      overrideColor = context->GetVisitedDependentColor(eCSSProperty_color);
     }
 
     PRUint8 useDecorations = decorMask & styleText->mTextDecoration;
     if (useDecorations) {// a decoration defined here
-      nscolor color = context->GetStyleColor()->mColor;
-  
+      nscolor color = context->GetVisitedDependentColor(eCSSProperty_color);
+
       if (NS_STYLE_TEXT_DECORATION_UNDERLINE & useDecorations) {
         decorations.mUnderColor = useOverride ? overrideColor : color;
         decorMask &= ~NS_STYLE_TEXT_DECORATION_UNDERLINE;
@@ -4479,12 +4484,12 @@ nsTextFrame::PaintOneShadow(PRUint32 aOffset, PRUint32 aLength,
   gfxRect shadowGfxRect = shadowMetrics.mBoundingBox +
      gfxPoint(aFramePt.x, aTextBaselinePt.y) + shadowOffset;
   nsRect shadowRect(shadowGfxRect.X(), shadowGfxRect.Y(),
-                    shadowGfxRect.Width(), shadowGfxRect.Height());;
+                    shadowGfxRect.Width(), shadowGfxRect.Height());
 
   nsContextBoxBlur contextBoxBlur;
   gfxContext* shadowContext = contextBoxBlur.Init(shadowRect, blurRadius,
                                                   PresContext()->AppUnitsPerDevPixel(),
-                                                  aCtx, aDirtyRect);
+                                                  aCtx, aDirtyRect, nsnull);
   if (!shadowContext)
     return;
 
@@ -4718,6 +4723,48 @@ nsTextFrame::PaintTextWithSelection(gfxContext* aCtx,
 
   DestroySelectionDetails(details);
   return PR_TRUE;
+}
+
+nscolor
+nsTextFrame::GetCaretColorAt(PRInt32 aOffset)
+{
+  NS_PRECONDITION(aOffset >= 0, "aOffset must be positive");
+
+  gfxSkipCharsIterator iter = EnsureTextRun();
+  PropertyProvider provider(this, iter);
+  PRInt32 contentOffset = provider.GetStart().GetOriginalOffset();
+  PRInt32 contentLength = provider.GetOriginalLength();
+  NS_PRECONDITION(aOffset >= contentOffset &&
+                  aOffset <= contentOffset + contentLength,
+                  "aOffset must be in the frame's range");
+  PRInt32 offsetInFrame = aOffset - contentOffset;
+  if (offsetInFrame < 0 || offsetInFrame >= contentLength) {
+    return nsFrame::GetCaretColorAt(aOffset);
+  }
+
+  nsTextPaintStyle textPaintStyle(this);
+  SelectionDetails* details = GetSelectionDetails();
+  SelectionDetails* sdptr = details;
+  nscolor result = nsFrame::GetCaretColorAt(aOffset);
+  SelectionType type = 0;
+  while (sdptr) {
+    PRInt32 start = NS_MAX(0, sdptr->mStart - contentOffset);
+    PRInt32 end = NS_MIN(contentLength, sdptr->mEnd - contentOffset);
+    if (start <= offsetInFrame && offsetInFrame < end &&
+        (type == 0 || sdptr->mType < type)) {
+      nscolor foreground, background;
+      if (GetSelectionTextColors(sdptr->mType, textPaintStyle,
+                                 sdptr->mTextRangeStyle,
+                                 &foreground, &background)) {
+        result = foreground;
+        type = sdptr->mType;
+      }
+    }
+    sdptr = sdptr->mNext;
+  }
+
+  DestroySelectionDetails(details);
+  return result;
 }
 
 static PRUint32
@@ -5088,15 +5135,17 @@ nsTextFrame::SetSelectedRange(PRUint32 aStart,
     // We may need to reflow to recompute the overflow area for
     // spellchecking or IME underline if their underline is thicker than
     // the normal decoration line.
-    PRBool didHaveOverflowingSelection =
-      (f->GetStateBits() & TEXT_SELECTION_UNDERLINE_OVERFLOWED) != 0;
-    nsRect r(nsPoint(0, 0), GetSize());
-    PRBool willHaveOverflowingSelection =
-      aSelected && f->CombineSelectionUnderlineRect(presContext, r);
-    if (didHaveOverflowingSelection || willHaveOverflowingSelection) {
-      presContext->PresShell()->FrameNeedsReflow(f,
-                                                 nsIPresShell::eStyleChange,
-                                                 NS_FRAME_IS_DIRTY);
+    if (aType & SelectionTypesWithDecorations) {
+      PRBool didHaveOverflowingSelection =
+        (f->GetStateBits() & TEXT_SELECTION_UNDERLINE_OVERFLOWED) != 0;
+      nsRect r(nsPoint(0, 0), GetSize());
+      PRBool willHaveOverflowingSelection =
+        aSelected && f->CombineSelectionUnderlineRect(presContext, r);
+      if (didHaveOverflowingSelection || willHaveOverflowingSelection) {
+        presContext->PresShell()->FrameNeedsReflow(f,
+                                                   nsIPresShell::eStyleChange,
+                                                   NS_FRAME_IS_DIRTY);
+      }
     }
     // Selection might change anything. Invalidate the overflow area.
     f->InvalidateOverflowRect();
@@ -6890,9 +6939,9 @@ nsTextFrame::List(FILE* out, PRInt32 aIndent) const
   fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
   if (0 != mState) {
     if (mState & NS_FRAME_SELECTED_CONTENT) {
-      fprintf(out, " [state=%08x] SELECTED", mState);
+      fprintf(out, " [state=%016llx] SELECTED", mState);
     } else {
-      fprintf(out, " [state=%08x]", mState);
+      fprintf(out, " [state=%016llx]", mState);
     }
   }
   fprintf(out, " [content=%p]", static_cast<void*>(mContent));

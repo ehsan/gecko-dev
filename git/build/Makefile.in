@@ -71,6 +71,10 @@ endif
 
 DIRS += pgo
 
+ifeq (Android,$(OS_TARGET))
+  DIRS += mobile/sutagent/android
+endif
+
 include $(topsrcdir)/config/rules.mk
 
 # we install to _leaktest/
@@ -107,6 +111,9 @@ libs:: bloaturls.txt
 libs:: bloatcycle.html
 	$(INSTALL) $< $(DIST)/bin/res
 
+libs:: $(topsrcdir)/tools/rb/fix_stack_using_bpsyms.py
+	$(INSTALL) $< $(DIST)/bin
+
 ifeq ($(OS_ARCH),Darwin)
 libs:: $(topsrcdir)/tools/rb/fix-macosx-stack.pl
 	$(INSTALL) $< $(DIST)/bin
@@ -136,6 +143,7 @@ check::
         fi
 # try building an x86-64 binary. if that succeeds, try unifying it
 # with an i386 binary
+	rm -f unify-test-x86_64 unify-test-universal-64
 	-$(HOST_CC) -arch x86_64 $(srcdir)/unify-test.c -o unify-test-x86_64
 	@if test -f ./unify-test-x86_64; then \
           if ! $(srcdir)/macosx/universal/unify ./unify-test-x86_64 ./unify-test-i386 \
@@ -197,4 +205,6 @@ ifeq ($(OS_ARCH),Linux)
 libs:: $(topsrcdir)/tools/rb/fix-linux-stack.pl
 	$(INSTALL) $< $(DIST)/bin
 endif
+
+GARBAGE += automationutils.pyc
 endif # ENABLE_TESTS

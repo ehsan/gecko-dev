@@ -45,12 +45,13 @@
 #include "nsCOMPtr.h"
 #include "nsIDOMEventTarget.h"
 #include "nsPIDOMWindow.h"
-#include "nsPresContext.h"
 #include "nsPoint.h"
 #include "nsGUIEvent.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsAutoPtr.h"
 
 class nsIContent;
+class nsPresContext;
  
 class nsDOMEvent : public nsIDOMEvent,
                    public nsIDOMNSEvent,
@@ -66,6 +67,7 @@ public:
     eDOMEvents_dblclick,
     eDOMEvents_mouseover,
     eDOMEvents_mouseout,
+    eDOMEvents_MozMouseHittest,
     eDOMEvents_mousemove,
     eDOMEvents_contextmenu,
     eDOMEvents_keydown,
@@ -78,6 +80,7 @@ public:
     eDOMEvents_beforeunload,
     eDOMEvents_unload,
     eDOMEvents_hashchange,
+    eDOMEvents_readystatechange,
     eDOMEvents_abort,
     eDOMEvents_error,
     eDOMEvents_submit,
@@ -208,13 +211,13 @@ protected:
 
   // Internal helper functions
   nsresult SetEventType(const nsAString& aEventTypeArg);
-  already_AddRefed<nsIDOMEventTarget> GetTargetFromFrame();
+  already_AddRefed<nsIContent> GetTargetFromFrame();
   nsresult ReportWrongPropertyAccessWarning(const char* aPropertyName);
 
   nsEvent*                    mEvent;
-  nsCOMPtr<nsPresContext>     mPresContext;
+  nsRefPtr<nsPresContext>     mPresContext;
   nsCOMPtr<nsIDOMEventTarget> mTmpRealOriginalTarget;
-  nsCOMPtr<nsIDOMEventTarget> mExplicitOriginalTarget;
+  nsIDOMEventTarget*          mExplicitOriginalTarget;
   nsString                    mCachedType;
   PRPackedBool                mEventIsInternal;
   PRPackedBool                mPrivateDataDuplicated;

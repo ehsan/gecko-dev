@@ -39,8 +39,6 @@
 #include "nsIDOMHTMLSourceElement.h"
 #include "nsHTMLVideoElement.h"
 #include "nsGenericHTMLElement.h"
-#include "nsPresContext.h"
-#include "nsIPresShell.h"
 #include "nsGkAtoms.h"
 #include "nsSize.h"
 #include "nsIFrame.h"
@@ -73,6 +71,8 @@ NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Video)
 NS_IMPL_ADDREF_INHERITED(nsHTMLVideoElement, nsHTMLMediaElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLVideoElement, nsHTMLMediaElement)
 
+DOMCI_DATA(HTMLVideoElement, nsHTMLVideoElement)
+
 NS_INTERFACE_TABLE_HEAD(nsHTMLVideoElement)
   NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLVideoElement, nsIDOMHTMLMediaElement, nsIDOMHTMLVideoElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLVideoElement,
@@ -100,7 +100,7 @@ NS_IMETHODIMP nsHTMLVideoElement::GetVideoHeight(PRUint32 *aVideoHeight)
   return NS_OK;
 }
 
-nsHTMLVideoElement::nsHTMLVideoElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
+nsHTMLVideoElement::nsHTMLVideoElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
   : nsHTMLMediaElement(aNodeInfo, aFromParser)
 {
 }

@@ -39,7 +39,6 @@
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsStyleConsts.h"
-#include "nsPresContext.h"
 #include "nsIDOMText.h"
 #include "nsIDocument.h"
 #include "nsIDOMHTMLDocument.h"
@@ -108,6 +107,8 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLTitleElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLTitleElement, nsGenericElement) 
 
 
+DOMCI_DATA(HTMLTitleElement, nsHTMLTitleElement)
+
 // QueryInterface implementation for nsHTMLTitleElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLTitleElement)
   NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLTitleElement,
@@ -145,6 +146,7 @@ nsHTMLTitleElement::CharacterDataChanged(nsIDocument *aDocument,
 void
 nsHTMLTitleElement::ContentAppended(nsIDocument *aDocument,
                                     nsIContent *aContainer,
+                                    nsIContent *aFirstNewContent,
                                     PRInt32 aNewIndexInContainer)
 {
   SendTitleChangeEvent(PR_FALSE);

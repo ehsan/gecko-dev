@@ -113,7 +113,7 @@ static uint8 xpc_reflectable_flags[XPC_FLAG_COUNT] = {
     XPC_MK_FLAG(  0  ,  1  ,   0 ,  0 ), /* T_UTF8STRING        */
     XPC_MK_FLAG(  0  ,  1  ,   0 ,  0 ), /* T_CSTRING           */
     XPC_MK_FLAG(  0  ,  1  ,   0 ,  0 ), /* T_ASTRING           */
-    XPC_MK_FLAG(  0  ,  0  ,   0 ,  0 ), /* 26 - reserved       */
+    XPC_MK_FLAG(  1  ,  0  ,   1 ,  0 ), /* T_JSVAL             */
     XPC_MK_FLAG(  0  ,  0  ,   0 ,  0 ), /* 27 - reserved       */
     XPC_MK_FLAG(  0  ,  0  ,   0 ,  0 ), /* 28 - reserved       */
     XPC_MK_FLAG(  0  ,  0  ,   0 ,  0 ), /* 29 - reserved       */
@@ -153,7 +153,7 @@ XPCConvert::IsMethodReflectable(const XPTMethodDescriptor& info)
 JSBool
 XPCConvert::GetISupportsFromJSObject(JSObject* obj, nsISupports** iface)
 {
-    JSClass* jsclass = STOBJ_GET_CLASS(obj);
+    JSClass* jsclass = obj->getClass();
     NS_ASSERTION(jsclass, "obj has no class");
     if(jsclass &&
        (jsclass->flags & JSCLASS_HAS_PRIVATE) &&
@@ -292,6 +292,11 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
             *d = STRING_TO_JSVAL(str);
             break;
         }
+
+    case nsXPTType::T_JSVAL :
+        *d = *((jsval*)s);
+        break;
+
     default:
         if(!type.IsPointer())
         {
@@ -473,13 +478,14 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
 
 #ifdef DEBUG
                     JSObject* jsobj = JSVAL_TO_OBJECT(*d);
-                    if(jsobj && !STOBJ_GET_PARENT(jsobj))
-                        NS_ASSERTION(STOBJ_GET_CLASS(jsobj)->flags & JSCLASS_IS_GLOBAL,
+                    if(jsobj && !jsobj->getParent())
+                        NS_ASSERTION(jsobj->getClass()->flags & JSCLASS_IS_GLOBAL,
                                      "Why did we recreate this wrapper?");
 #endif
                 }
                 break;
             }
+
         default:
             NS_ERROR("bad type");
             return JS_FALSE;
@@ -617,6 +623,9 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
             *((uint16*)d)  = (uint16) chars[0];
             break;
         }
+    case nsXPTType::T_JSVAL :
+        *((jsval*)d) = s;
+        break;
     default:
         if(!type.IsPointer())
         {
@@ -1185,7 +1194,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
             }
         }
 
-        NS_ASSERTION(!flat || IS_WRAPPER_CLASS(STOBJ_GET_CLASS(flat)),
+        NS_ASSERTION(!flat || IS_WRAPPER_CLASS(flat->getClass()),
                      "What kind of wrapper is this?");
 
         nsresult rv;
@@ -1397,7 +1406,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
                 }
             }
 
-            const char *name = STOBJ_GET_CLASS(flat)->name;
+            const char *name = flat->getClass()->name;
             if(allowNativeWrapper &&
                !(flags & JSFILENAME_SYSTEM) &&
                !JS_IsSystemObject(ccx, flat) &&
@@ -1582,23 +1591,23 @@ XPCConvert::ConstructException(nsresult rv, const char* message,
 
 /********************************/
 
-class AutoExceptionRestorer : public JSAutoTempValueRooter
+class AutoExceptionRestorer
 {
 public:
     AutoExceptionRestorer(JSContext *cx, jsval v)
-        : JSAutoTempValueRooter(cx, v),
-          mVal(v)
+        : mContext(cx), tvr(cx, v)
     {
         JS_ClearPendingException(mContext);
     }
 
     ~AutoExceptionRestorer()
     {
-        JS_SetPendingException(mContext, mVal);
+        JS_SetPendingException(mContext, tvr.value());
     }
 
 private:
-    jsval mVal;
+    JSContext * const mContext;
+    js::AutoValueRooter tvr;
 };
 
 // static

@@ -40,17 +40,15 @@
 
 #include "nsDOMAttributeMap.h"
 #include "nsIDOMNode.h"
-#include "nsIMutationObserver.h"
+#include "nsINode.h"
 
+struct CharacterDataChangeInfo;
 struct JSContext;
 struct JSObject;
-class nsINode;
-class nsNodeInfoManager;
 class nsIVariant;
 class nsIDOMUserDataHandler;
 template<class E> class nsCOMArray;
 class nsCycleCollectionTraversalCallback;
-struct CharacterDataChangeInfo;
 
 class nsNodeUtils
 {
@@ -102,10 +100,12 @@ public:
   /**
    * Send ContentAppended notifications to nsIMutationObservers
    * @param aContainer           Node into which new child/children were added
+   * @param aFirstNewContent     First new child
    * @param aNewIndexInContainer Index of first new child
    * @see nsIMutationObserver::ContentAppended
    */
   static void ContentAppended(nsIContent* aContainer,
+                              nsIContent* aFirstNewContent,
                               PRInt32 aNewIndexInContainer);
 
   /**
@@ -193,42 +193,14 @@ public:
                         JSObject *aNewScope,
                         nsCOMArray<nsINode> &aNodesWithProperties)
   {
-    return CloneAndAdopt(aNode, PR_FALSE, PR_TRUE, aNewNodeInfoManager, aCx,
-                         aOldScope, aNewScope, aNodesWithProperties, nsnull);
+    nsresult rv = CloneAndAdopt(aNode, PR_FALSE, PR_TRUE, aNewNodeInfoManager,
+                                aCx, aOldScope, aNewScope, aNodesWithProperties,
+                                nsnull);
+
+    nsMutationGuard::DidMutate();
+
+    return rv;
   }
-
-  /**
-   * Associate an object aData to aKey on node aNode. If aData is null any
-   * previously registered object and UserDataHandler associated to aKey on
-   * aNode will be removed.
-   * Should only be used to implement the DOM Level 3 UserData API.
-   *
-   * @param aNode canonical nsINode pointer of the node to add aData to
-   * @param aKey the key to associate the object to
-   * @param aData the object to associate to aKey on aNode (may be null)
-   * @param aHandler the UserDataHandler to call when the node is
-   *                 cloned/deleted/imported/renamed (may be null)
-   * @param aResult [out] the previously registered object for aKey on aNode, if
-   *                      any
-   * @return whether adding the object and UserDataHandler succeeded
-   */
-  static nsresult SetUserData(nsINode *aNode, const nsAString &aKey,
-                              nsIVariant *aData,
-                              nsIDOMUserDataHandler *aHandler,
-                              nsIVariant **aResult);
-
-  /**
-   * Get the UserData object registered for a Key on node aNode, if any.
-   * Should only be used to implement the DOM Level 3 UserData API.
-   *
-   * @param aNode canonical nsINode pointer of the node to get UserData for
-   * @param aKey the key to get UserData for
-   * @param aResult [out] the previously registered object for aKey on aNode, if
-   *                      any
-   * @return whether getting the object and UserDataHandler succeeded
-   */
-  static nsresult GetUserData(nsINode *aNode, const nsAString &aKey,
-                              nsIVariant **aResult);
 
   /**
    * Call registered userdata handlers for operation aOperation for the nodes in

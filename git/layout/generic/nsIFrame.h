@@ -56,6 +56,7 @@
 #include "gfxMatrix.h"
 #include "nsFrameList.h"
 #include "nsAlgorithm.h"
+#include "FramePropertyTable.h"
 
 /**
  * New rules of reflow:
@@ -89,7 +90,7 @@ class nsBoxLayoutState;
 class nsIBoxLayout;
 class nsILineIterator;
 #ifdef ACCESSIBILITY
-class nsIAccessible;
+class nsAccessible;
 #endif
 class nsDisplayListBuilder;
 class nsDisplayListSet;
@@ -141,23 +142,24 @@ typedef PRUint32 nsSplittableType;
  * Frame state bits. Any bits not listed here are reserved for future
  * extensions, but must be stored by the frames.
  */
-typedef PRUint32 nsFrameState;
+typedef PRUint64 nsFrameState;
 
-enum {
-  NS_FRAME_IN_REFLOW =                          0x00000001,
+#define NS_FRAME_STATE_BIT(n_) (nsFrameState(1) << (n_))
 
-  // This is only set during painting
-  NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO =    0x00000001,
+#define NS_FRAME_IN_REFLOW                          NS_FRAME_STATE_BIT(0)
 
-  // This bit is set when a frame is created. After it has been reflowed
-  // once (during the DidReflow with a finished state) the bit is
-  // cleared.
-  NS_FRAME_FIRST_REFLOW =                       0x00000002,
+// This is only set during painting
+#define NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO    NS_FRAME_STATE_BIT(0)
 
-  // For a continuation frame, if this bit is set, then this a "fluid" 
-  // continuation, i.e., across a line boundary. Otherwise it's a "hard"
-  // continuation, e.g. a bidi continuation.
-  NS_FRAME_IS_FLUID_CONTINUATION =              0x00000004,
+// This bit is set when a frame is created. After it has been reflowed
+// once (during the DidReflow with a finished state) the bit is
+// cleared.
+#define NS_FRAME_FIRST_REFLOW                       NS_FRAME_STATE_BIT(1)
+
+// For a continuation frame, if this bit is set, then this a "fluid" 
+// continuation, i.e., across a line boundary. Otherwise it's a "hard"
+// continuation, e.g. a bidi continuation.
+#define NS_FRAME_IS_FLUID_CONTINUATION              NS_FRAME_STATE_BIT(2)
 
 /*
  * This bit is obsolete, replaced by HasOverflowRect().
@@ -165,110 +167,107 @@ enum {
  * that this bit is now free to allocate for other purposes.
  * // This bit is set when the frame's overflow rect is
  * // different from its border rect (i.e. GetOverflowRect() != GetRect())
- * NS_FRAME_OUTSIDE_CHILDREN =                   0x00000008,
+ * NS_FRAME_OUTSIDE_CHILDREN                        NS_FRAME_STATE_BIT(3)
  */
 
-  // If this bit is set, then a reference to the frame is being held
-  // elsewhere.  The frame may want to send a notification when it is
-  // destroyed to allow these references to be cleared.
-  NS_FRAME_EXTERNAL_REFERENCE =                 0x00000010,
+// If this bit is set, then a reference to the frame is being held
+// elsewhere.  The frame may want to send a notification when it is
+// destroyed to allow these references to be cleared.
+#define NS_FRAME_EXTERNAL_REFERENCE                 NS_FRAME_STATE_BIT(4)
 
-  // If this bit is set, this frame or one of its descendants has a
-  // percentage height that depends on an ancestor of this frame.
-  // (Or it did at one point in the past, since we don't necessarily clear
-  // the bit when it's no longer needed; it's an optimization.)
-  NS_FRAME_CONTAINS_RELATIVE_HEIGHT =           0x00000020,
+// If this bit is set, this frame or one of its descendants has a
+// percentage height that depends on an ancestor of this frame.
+// (Or it did at one point in the past, since we don't necessarily clear
+// the bit when it's no longer needed; it's an optimization.)
+#define  NS_FRAME_CONTAINS_RELATIVE_HEIGHT          NS_FRAME_STATE_BIT(5)
 
-  // If this bit is set, then the frame corresponds to generated content
-  // Such frames store an nsCOMArray<nsIContent> of their generated content
-  // in the nsGkAtoms::generatedContent frame property, except for continuation
-  // frames.
-  NS_FRAME_GENERATED_CONTENT =                  0x00000040,
+// If this bit is set, then the frame corresponds to generated content
+#define NS_FRAME_GENERATED_CONTENT                  NS_FRAME_STATE_BIT(6)
 
-  // If this bit is set the frame is a continuation that is holding overflow,
-  // i.e. it is a next-in-flow created to hold overflow after the box's
-  // height has ended. This means the frame should be a) at the top of the
-  // page and b) invisible: no borders, zero height, ignored in margin
-  // collapsing, etc. See nsContainerFrame.h
-  NS_FRAME_IS_OVERFLOW_CONTAINER =              0x00000080,
+// If this bit is set the frame is a continuation that is holding overflow,
+// i.e. it is a next-in-flow created to hold overflow after the box's
+// height has ended. This means the frame should be a) at the top of the
+// page and b) invisible: no borders, zero height, ignored in margin
+// collapsing, etc. See nsContainerFrame.h
+#define NS_FRAME_IS_OVERFLOW_CONTAINER              NS_FRAME_STATE_BIT(7)
 
-  // If this bit is set, then the frame has been moved out of the flow,
-  // e.g., it is absolutely positioned or floated
-  NS_FRAME_OUT_OF_FLOW =                        0x00000100,
+// If this bit is set, then the frame has been moved out of the flow,
+// e.g., it is absolutely positioned or floated
+#define NS_FRAME_OUT_OF_FLOW                        NS_FRAME_STATE_BIT(8)
 
-  // If this bit is set, then the frame reflects content that may be selected
-  NS_FRAME_SELECTED_CONTENT =                   0x00000200,
+// If this bit is set, then the frame reflects content that may be selected
+#define NS_FRAME_SELECTED_CONTENT                   NS_FRAME_STATE_BIT(9)
 
-  // If this bit is set, then the frame is dirty and needs to be reflowed.
-  // This bit is set when the frame is first created.
-  // This bit is cleared by DidReflow after the required call to Reflow has
-  // finished.
-  // Do not set this bit yourself if you plan to pass the frame to
-  // nsIPresShell::FrameNeedsReflow.  Pass the right arguments instead.
-  NS_FRAME_IS_DIRTY =                           0x00000400,
+// If this bit is set, then the frame is dirty and needs to be reflowed.
+// This bit is set when the frame is first created.
+// This bit is cleared by DidReflow after the required call to Reflow has
+// finished.
+// Do not set this bit yourself if you plan to pass the frame to
+// nsIPresShell::FrameNeedsReflow.  Pass the right arguments instead.
+#define NS_FRAME_IS_DIRTY                           NS_FRAME_STATE_BIT(10)
 
-  // If this bit is set then the frame is too deep in the frame tree, and
-  // we'll stop updating it and its children, to prevent stack overflow
-  // and the like.
-  NS_FRAME_TOO_DEEP_IN_FRAME_TREE =             0x00000800,
+// If this bit is set then the frame is too deep in the frame tree, and
+// we'll stop updating it and its children, to prevent stack overflow
+// and the like.
+#define NS_FRAME_TOO_DEEP_IN_FRAME_TREE             NS_FRAME_STATE_BIT(11)
 
-  // If this bit is set, either:
-  //  1. the frame has children that have either NS_FRAME_IS_DIRTY or
-  //     NS_FRAME_HAS_DIRTY_CHILDREN, or
-  //  2. the frame has had descendants removed.
-  // It means that Reflow needs to be called, but that Reflow will not
-  // do as much work as it would if NS_FRAME_IS_DIRTY were set.
-  // This bit is cleared by DidReflow after the required call to Reflow has
-  // finished.
-  // Do not set this bit yourself if you plan to pass the frame to
-  // nsIPresShell::FrameNeedsReflow.  Pass the right arguments instead.
-  NS_FRAME_HAS_DIRTY_CHILDREN =                 0x00001000,
+// If this bit is set, either:
+//  1. the frame has children that have either NS_FRAME_IS_DIRTY or
+//     NS_FRAME_HAS_DIRTY_CHILDREN, or
+//  2. the frame has had descendants removed.
+// It means that Reflow needs to be called, but that Reflow will not
+// do as much work as it would if NS_FRAME_IS_DIRTY were set.
+// This bit is cleared by DidReflow after the required call to Reflow has
+// finished.
+// Do not set this bit yourself if you plan to pass the frame to
+// nsIPresShell::FrameNeedsReflow.  Pass the right arguments instead.
+#define NS_FRAME_HAS_DIRTY_CHILDREN                 NS_FRAME_STATE_BIT(12)
 
-  // If this bit is set, the frame has an associated view
-  NS_FRAME_HAS_VIEW =                           0x00002000,
+// If this bit is set, the frame has an associated view
+#define NS_FRAME_HAS_VIEW                           NS_FRAME_STATE_BIT(13)
 
-  // If this bit is set, the frame was created from anonymous content.
-  NS_FRAME_INDEPENDENT_SELECTION =              0x00004000,
+// If this bit is set, the frame was created from anonymous content.
+#define NS_FRAME_INDEPENDENT_SELECTION              NS_FRAME_STATE_BIT(14)
 
-  // If this bit is set, the frame is "special" (lame term, I know),
-  // which means that it is part of the mangled frame hierarchy that
-  // results when an inline has been split because of a nested block.
-  // See the comments in nsCSSFrameConstructor::ConstructInline for
-  // more details.
-  NS_FRAME_IS_SPECIAL =                         0x00008000,
+// If this bit is set, the frame is "special" (lame term, I know),
+// which means that it is part of the mangled frame hierarchy that
+// results when an inline has been split because of a nested block.
+// See the comments in nsCSSFrameConstructor::ConstructInline for
+// more details.
+#define NS_FRAME_IS_SPECIAL                         NS_FRAME_STATE_BIT(15)
 
-  // If this bit is set, the frame may have a transform that it applies
-  // to its coordinate system (e.g. CSS transform, SVG foreignObject).
-  // This is used primarily in GetTransformMatrix to optimize for the
-  // common case.
-  // ALSO, if this bit is set, the frame's first-continuation may
-  // have an associated nsSVGRenderingObserverList.
-  NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS = 0x00010000,
+// If this bit is set, the frame may have a transform that it applies
+// to its coordinate system (e.g. CSS transform, SVG foreignObject).
+// This is used primarily in GetTransformMatrix to optimize for the
+// common case.
+// ALSO, if this bit is set, the frame's first-continuation may
+// have an associated nsSVGRenderingObserverList.
+#define  NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS \
+                                                    NS_FRAME_STATE_BIT(16)
 
 #ifdef IBMBIDI
-  // If this bit is set, the frame itself is a bidi continuation,
-  // or is incomplete (its next sibling is a bidi continuation)
-  NS_FRAME_IS_BIDI =                            0x00020000,
+// If this bit is set, the frame itself is a bidi continuation,
+// or is incomplete (its next sibling is a bidi continuation)
+#define NS_FRAME_IS_BIDI                            NS_FRAME_STATE_BIT(17)
 #endif
 
-  // If this bit is set the frame has descendant with a view
-  NS_FRAME_HAS_CHILD_WITH_VIEW =                0x00040000,
+// If this bit is set the frame has descendant with a view
+#define NS_FRAME_HAS_CHILD_WITH_VIEW                NS_FRAME_STATE_BIT(18)
 
-  // If this bit is set, then reflow may be dispatched from the current
-  // frame instead of the root frame.
-  NS_FRAME_REFLOW_ROOT =                        0x00080000,
+// If this bit is set, then reflow may be dispatched from the current
+// frame instead of the root frame.
+#define NS_FRAME_REFLOW_ROOT                        NS_FRAME_STATE_BIT(19)
 
-  // The lower 20 bits of the frame state word are reserved by this API.
-  NS_FRAME_RESERVED =                           0x000FFFFF,
+// Bits 20-31 of the frame state are reserved for implementations.
+#define NS_FRAME_IMPL_RESERVED                      nsFrameState(0xFFF00000)
 
-  // The upper 12 bits of the frame state word are reserved for frame
-  // implementations.
-  NS_FRAME_IMPL_RESERVED =                      0xFFF00000,
+// The lower 20 bits and upper 32 bits of the frame state are reserved
+// by this API.
+#define NS_FRAME_RESERVED                           ~NS_FRAME_IMPL_RESERVED
 
-  // Box layout bits
-  NS_STATE_IS_HORIZONTAL =                      0x00400000,
-  NS_STATE_IS_DIRECTION_NORMAL =                0x80000000
-};
+// Box layout bits
+#define NS_STATE_IS_HORIZONTAL                      NS_FRAME_STATE_BIT(22)
+#define NS_STATE_IS_DIRECTION_NORMAL                NS_FRAME_STATE_BIT(31)
 
 // Helper macros
 #define NS_SUBTREE_DIRTY(_frame)  \
@@ -489,6 +488,9 @@ typedef PRBool nsDidReflowStatus;
 class nsIFrame : public nsQueryFrame
 {
 public:
+  typedef mozilla::FramePropertyDescriptor FramePropertyDescriptor;
+  typedef mozilla::FrameProperties FrameProperties;
+
   NS_DECL_QUERYFRAME_TARGET(nsIFrame)
 
   nsPresContext* PresContext() const {
@@ -721,6 +723,12 @@ public:
   #include "nsStyleStructList.h"
   #undef STYLE_STRUCT
 
+#ifdef _IMPL_NS_LAYOUT
+  /** Also forward GetVisitedDependentColor to the style context */
+  nscolor GetVisitedDependentColor(nsCSSProperty aProperty)
+    { return mStyleContext->GetVisitedDependentColor(aProperty); }
+#endif
+
   /**
    * These methods are to access any additional style contexts that
    * the frame may be holding. These are contexts that are children
@@ -802,6 +810,50 @@ public:
       : GetPosition();
   }
 
+  static void DestroyMargin(void* aPropertyValue)
+  {
+    delete static_cast<nsMargin*>(aPropertyValue);
+  }
+
+  static void DestroyRect(void* aPropertyValue)
+  {
+    delete static_cast<nsRect*>(aPropertyValue);
+  }
+
+  static void DestroyPoint(void* aPropertyValue)
+  {
+    delete static_cast<nsPoint*>(aPropertyValue);
+  }
+
+#ifdef _MSC_VER
+// XXX Workaround MSVC issue by making the static FramePropertyDescriptor
+// non-const.  See bug 555727.
+#define NS_DECLARE_FRAME_PROPERTY(prop, dtor)                   \
+  static const FramePropertyDescriptor* prop() {                \
+    static FramePropertyDescriptor descriptor = { dtor };       \
+    return &descriptor;                                         \
+  }
+#else
+#define NS_DECLARE_FRAME_PROPERTY(prop, dtor)                   \
+  static const FramePropertyDescriptor* prop() {                \
+    static const FramePropertyDescriptor descriptor = { dtor }; \
+    return &descriptor;                                         \
+  }
+#endif
+
+  NS_DECLARE_FRAME_PROPERTY(IBSplitSpecialSibling, nsnull)
+  NS_DECLARE_FRAME_PROPERTY(IBSplitSpecialPrevSibling, nsnull)
+
+  NS_DECLARE_FRAME_PROPERTY(ComputedOffsetProperty, DestroyPoint)
+
+  NS_DECLARE_FRAME_PROPERTY(OutlineInnerRectProperty, DestroyRect)
+  NS_DECLARE_FRAME_PROPERTY(PreEffectsBBoxProperty, DestroyRect)
+  NS_DECLARE_FRAME_PROPERTY(PreTransformBBoxProperty, DestroyRect)
+
+  NS_DECLARE_FRAME_PROPERTY(UsedMarginProperty, DestroyMargin)
+  NS_DECLARE_FRAME_PROPERTY(UsedPaddingProperty, DestroyMargin)
+  NS_DECLARE_FRAME_PROPERTY(UsedBorderProperty, DestroyMargin)
+
   /**
    * Return the distance between the border edge of the frame and the
    * margin edge of the frame.  Like GetRect(), returns the dimensions
@@ -847,13 +899,7 @@ public:
   /**
    * Like the frame's rect (see |GetRect|), which is the border rect,
    * other rectangles of the frame, in app units, relative to the parent.
-   *
-   * Note that GetMarginRect is not meaningful for blocks (anything with
-   * 'display:block', whether block frame or not) because of both the
-   * collapsing and 'auto' issues with GetUsedMargin (on which it
-   * depends).
    */
-  nsRect GetMarginRect() const;
   nsRect GetPaddingRect() const;
   nsRect GetContentRect() const;
 
@@ -940,21 +986,29 @@ public:
    */
   nsresult DisplayCaret(nsDisplayListBuilder*       aBuilder,
                         const nsRect&               aDirtyRect,
-                        const nsDisplayListSet&     aLists);
+                        nsDisplayList*              aList);
 
-  PRBool IsThemed(nsTransparencyMode* aTransparencyMode = nsnull) {
-    return IsThemed(GetStyleDisplay(), aTransparencyMode);
+  /**
+   * Get the preferred caret color at the offset.
+   *
+   * @param aOffset is offset of the content.
+   */
+  virtual nscolor GetCaretColorAt(PRInt32 aOffset);
+
+ 
+  PRBool IsThemed(nsITheme::Transparency* aTransparencyState = nsnull) {
+    return IsThemed(GetStyleDisplay(), aTransparencyState);
   }
   PRBool IsThemed(const nsStyleDisplay* aDisp,
-                  nsTransparencyMode* aTransparencyMode = nsnull) {
+                  nsITheme::Transparency* aTransparencyState = nsnull) {
     if (!aDisp->mAppearance)
       return PR_FALSE;
     nsPresContext* pc = PresContext();
     nsITheme *theme = pc->GetTheme();
     if(!theme || !theme->ThemeSupportsWidget(pc, this, aDisp->mAppearance))
       return PR_FALSE;
-    if (aTransparencyMode) {
-      *aTransparencyMode = theme->GetWidgetTransparency(aDisp->mAppearance);
+    if (aTransparencyState) {
+      *aTransparencyState = theme->GetWidgetTransparency(this, aDisp->mAppearance);
     }
     return PR_TRUE;
   }
@@ -984,15 +1038,6 @@ public:
                         const nsRect&           aClipRect,
                         PRBool                  aClipBorderBackground = PR_FALSE,
                         PRBool                  aClipAll = PR_FALSE);
-
-  /**
-   * Clips the display items of aFromSet, putting the results in aToSet.
-   * All items are clipped.
-   */
-  nsresult Clip(nsDisplayListBuilder* aBuilder,
-                const nsDisplayListSet& aFromSet,
-                const nsDisplayListSet& aToSet,
-                const nsRect& aClipRect);
 
   enum {
     DISPLAY_CHILD_FORCE_PSEUDO_STACKING_CONTEXT = 0x01,
@@ -1903,10 +1948,7 @@ public:
   /**
    * Removes any stored overflow rect from the frame.
    */
-  void ClearOverflowRect() {
-    DeleteProperty(nsGkAtoms::overflowAreaProperty);
-    mOverflow.mType = NS_FRAME_OVERFLOW_NONE;
-  }
+  void ClearOverflowRect();
 
   /**
    * Determine whether borders should not be painted on certain sides of the
@@ -2019,7 +2061,7 @@ public:
    * Use a mediatior of some kind.
    */
 #ifdef ACCESSIBILITY
-  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible) = 0;
+  virtual already_AddRefed<nsAccessible> CreateAccessible() = 0;
 #endif
 
   /**
@@ -2125,24 +2167,18 @@ public:
     return mContent == aParentContent;
   }
 
+  FrameProperties Properties() const {
+    return FrameProperties(PresContext()->PropertyTable(), this);
+  }
 
-  NS_HIDDEN_(void*) GetProperty(nsIAtom* aPropertyName,
-                                nsresult* aStatus = nsnull) const;
-  virtual NS_HIDDEN_(void*) GetPropertyExternal(nsIAtom*  aPropertyName,
-                                                nsresult* aStatus) const;
-  NS_HIDDEN_(nsresult) SetProperty(nsIAtom*           aPropertyName,
-                                   void*              aValue,
-                                   NSPropertyDtorFunc aDestructor = nsnull,
-                                   void*              aDtorData = nsnull);
-  NS_HIDDEN_(nsresult) DeleteProperty(nsIAtom* aPropertyName) const;
-  NS_HIDDEN_(void*) UnsetProperty(nsIAtom* aPropertyName,
-                                  nsresult* aStatus = nsnull) const;
+  NS_DECLARE_FRAME_PROPERTY(BaseLevelProperty, nsnull)
+  NS_DECLARE_FRAME_PROPERTY(EmbeddingLevelProperty, nsnull)
 
 #define NS_GET_BASE_LEVEL(frame) \
-NS_PTR_TO_INT32(frame->GetProperty(nsGkAtoms::baseLevel))
+NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::BaseLevelProperty()))
 
 #define NS_GET_EMBEDDING_LEVEL(frame) \
-NS_PTR_TO_INT32(frame->GetProperty(nsGkAtoms::embeddingLevel))
+NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
 
   /**
    * Return PR_TRUE if and only if this frame obeys visibility:hidden.
@@ -2292,12 +2328,11 @@ NS_PTR_TO_INT32(frame->GetProperty(nsGkAtoms::embeddingLevel))
    */
   virtual PRBool HasTerminalNewline() const;
 
-  static PRBool AddCSSPrefSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize);
-  static PRBool AddCSSMinSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize);
-  static PRBool AddCSSMaxSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize);
+  static PRBool AddCSSPrefSize(nsIBox* aBox, nsSize& aSize, PRBool& aWidth, PRBool& aHeightSet);
+  static PRBool AddCSSMinSize(nsBoxLayoutState& aState, nsIBox* aBox,
+                              nsSize& aSize, PRBool& aWidth, PRBool& aHeightSet);
+  static PRBool AddCSSMaxSize(nsIBox* aBox, nsSize& aSize, PRBool& aWidth, PRBool& aHeightSet);
   static PRBool AddCSSFlex(nsBoxLayoutState& aState, nsIBox* aBox, nscoord& aFlex);
-  static PRBool AddCSSCollapsed(nsBoxLayoutState& aState, nsIBox* aBox, PRBool& aCollapsed);
-  static PRBool AddCSSOrdinal(nsBoxLayoutState& aState, nsIBox* aBox, PRUint32& aOrdinal);
 
   // END OF BOX LAYOUT METHODS
   // The above methods have been migrated from nsIBox and are in the process of

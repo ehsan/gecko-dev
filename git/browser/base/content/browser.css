@@ -13,12 +13,72 @@ tabbrowser {
   -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-tabs");
 }
 
+#tabbrowser-tabs:not([overflow="true"]) + #new-tab-button,
+#tabbrowser-tabs[overflow="true"] > .tabbrowser-arrowscrollbox > .tabs-newtab-button,
+#TabsToolbar[currentset]:not([currentset*="tabbrowser-tabs,new-tab-button"]) > #tabbrowser-tabs > .tabbrowser-arrowscrollbox > .tabs-newtab-button,
+#navigator-toolbox[customizing="true"] > #TabsToolbar > #tabbrowser-tabs > .tabbrowser-arrowscrollbox > .tabs-newtab-button {
+  visibility: collapse;
+}
+
 .tabbrowser-tab {
   -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-tab");
+  -moz-box-flex: 100;
+}
+
+.tabbrowser-tab:not([fadein]) {
+  max-width: 1px !important;
+  min-width: 1px !important;
+}
+
+.tabbrowser-tab[fadein]:not([pinned]) {
+  -moz-transition: min-width .2s ease-out, max-width .25s ease-out;
+}
+
+.tabbrowser-tab:not([fadein]) > .tab-text,
+.tabbrowser-tab:not([fadein]) > .tab-icon-image,
+.tabbrowser-tab:not([fadein]) > .tab-close-button {
+  opacity: 0 !important;
+}
+
+.tabbrowser-tab[fadein] > .tab-text,
+.tabbrowser-tab[fadein] > .tab-icon-image,
+.tabbrowser-tab[fadein] > .tab-close-button {
+  -moz-transition: opacity .25s;
+}
+
+.tabbrowser-tab[pinned] {
+  position: fixed;
+  -moz-box-flex: 0;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+.tabbrowser-tab[pinned] > .tab-text {
+  display: none;
+}
+
+#alltabs-popup {
+  -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-alltabs-popup");
 }
 
 toolbar[printpreview="true"] {
   -moz-binding: url("chrome://global/content/printPreviewBindings.xml#printpreviewtoolbar");
+}
+
+#toolbar-menubar {
+  -moz-box-ordinal-group: 5;
+}
+
+#navigator-toolbox > toolbar:not(#toolbar-menubar):not(#TabsToolbar) {
+  -moz-box-ordinal-group: 50;
+}
+
+#TabsToolbar {
+  -moz-box-ordinal-group: 100;
+}
+
+#navigator-toolbox[tabsontop="true"] > #TabsToolbar {
+  -moz-box-ordinal-group: 10;
 }
 
 toolbarpaletteitem[place="palette"] > toolbaritem > hbox[type="places"] {
@@ -46,9 +106,34 @@ toolbar[mode="icons"] > #reload-button[displaystop] {
   background-position: bottom left;
 }
 
+.split-menuitem-menu > .menu-text,
+.split-menuitem-menu > .menu-accel-container {
+  display: none;
+}
+
 /* ::::: location bar ::::: */
 #urlbar {
   -moz-binding: url(chrome://browser/content/urlbarBindings.xml#urlbar);
+}
+
+/* Some child nodes want to be ordered based on the locale's direction, while
+   everything else should be ltr. */
+#urlbar:-moz-locale-dir(rtl) > .autocomplete-textbox-container > .textbox-input-box {
+  direction: rtl;
+}
+
+#urlbar html|*.autocomplete-textbox {
+  direction: ltr;
+}
+
+/* For results that are actions, their description text is shown instead of
+   the URL - this needs to follow the locale's direction, unlike URLs. */
+richlistitem[type="action"]:-moz-locale-dir(rtl) > .ac-url-box {
+  direction: rtl;
+}
+
+#urlbar:not([actiontype]) > #urlbar-display {
+  display: none;
 }
 
 #wrapper-urlbar-container > #urlbar-container > #urlbar {
@@ -114,11 +199,11 @@ toolbarbutton.bookmark-item {
   max-width: 13em;
 }
 
-%ifdef MOZ_WIDGET_GTK2
-/* Bookmarks override the "images-in-menus" metric in xul.css */
-.bookmark-item > .menu-iconic-left,
-.searchbar-engine-menuitem > .menu-iconic-left {
-  visibility: inherit;
+%ifdef MENUBAR_CAN_AUTOHIDE
+#toolbar-menubar:not([autohide="true"]) ~ #nav-bar > #bookmarks-menu-button-container,
+#toolbar-menubar:not([autohide="true"]) ~ toolbar > #personal-bookmarks > #bookmarks-menu-button,
+#toolbar-menubar:not([autohide="true"]) > #personal-bookmarks > #bookmarks-menu-button {
+  display: none;
 }
 %endif
 
@@ -127,11 +212,15 @@ toolbarbutton.bookmark-item {
   width: auto;
 }
 
+menupopup[emptyplacesresult="true"] > .hide-if-empty-places-result {
+  display: none;
+}
+
 menuitem.spell-suggestion {
   font-weight: bold;
 }
 
-#sidebar-box toolbarbutton.tabs-closebutton {
+#sidebar-header > .tabs-closebutton {
   -moz-user-focus: normal;
 }
 
@@ -165,8 +254,11 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 /*  Full Screen UI */
 #fullscr-toggler {
   display: none;
-  min-height: 5px;
-  height: 5px;
+  min-height: 1px;
+  height: 1px;
+  background: black;
+  border-style: none;
+  -moz-appearance: none;
 }
 
 #navigator-toolbox[inFullscreen="true"] > #fullscr-toggler,
@@ -220,4 +312,21 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 #allTabs-tab-close-button {
   -moz-binding: url("chrome://global/content/bindings/toolbarbutton.xml#toolbarbutton-image");
   margin: 0;
+}
+
+/* Inspector / Highlighter */
+
+#highlighter-panel {
+  -moz-appearance: none;
+  -moz-window-shadow: none;
+}
+
+/* notification anchors should only be visible when their associated
+   notifications are */
+.notification-anchor-icon {
+  display: none;
+}
+
+#notification-popup-box[anchorid="geo-notification-icon"] > #geo-notification-icon {
+  display: -moz-box;
 }

@@ -41,33 +41,29 @@
 
 #include "nsAccessNodeWrap.h"
 
-#include "nsARIAMap.h"
-#include "nsEventShell.h"
-#include "nsRelUtils.h"
-#include "nsTextEquivUtils.h"
-
 #include "nsIAccessible.h"
 #include "nsIAccessibleHyperLink.h"
 #include "nsIAccessibleSelectable.h"
 #include "nsIAccessibleValue.h"
 #include "nsIAccessibleRole.h"
 #include "nsIAccessibleStates.h"
-#include "nsIAccessibleEvent.h"
 
-#include "nsIDOMNodeList.h"
-#include "nsINameSpaceManager.h"
-#include "nsWeakReference.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsTArray.h"
-#include "nsIDOMDOMStringList.h"
+#include "nsRefPtrHashtable.h"
+
+class nsAccessible;
+class nsAccEvent;
+struct nsRoleMapEntry;
 
 struct nsRect;
 class nsIContent;
 class nsIFrame;
-class nsIPresShell;
-class nsIDOMNode;
 class nsIAtom;
 class nsIView;
+
+typedef nsRefPtrHashtable<nsVoidPtrHashKey, nsAccessible>
+  nsAccessibleHashtable;
 
 // see nsAccessible::GetAttrValue
 #define NS_OK_NO_ARIA_VALUE \
@@ -81,29 +77,8 @@ NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_GENERAL, 0x23)
 #define NS_OK_NAME_FROM_TOOLTIP \
 NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_GENERAL, 0x25)
 
-// Saves a data member -- if child count equals this value we haven't
-// cached children or child count yet
-enum { eChildCountUninitialized = -1 };
 
-class nsAccessibleDOMStringList : public nsIDOMDOMStringList
-{
-public:
-  nsAccessibleDOMStringList();
-  virtual ~nsAccessibleDOMStringList();
-
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIDOMDOMSTRINGLIST
-
-  PRBool Add(const nsAString& aName) {
-    return mNames.AppendElement(aName) != nsnull;
-  }
-
-private:
-  nsTArray<nsString> mNames;
-};
-
-
-#define NS_ACCESSIBLE_IMPL_CID                          \
+#define NS_ACCESSIBLE_IMPL_IID                          \
 {  /* 133c8bf4-4913-4355-bd50-426bd1d6e1ad */           \
   0x133c8bf4,                                           \
   0x4913,                                               \
@@ -118,7 +93,7 @@ class nsAccessible : public nsAccessNodeWrap,
                      public nsIAccessibleValue
 {
 public:
-  nsAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
+  nsAccessible(nsIContent *aContent, nsIWeakReference *aShell);
   virtual ~nsAccessible();
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -128,12 +103,13 @@ public:
   NS_DECL_NSIACCESSIBLEHYPERLINK
   NS_DECL_NSIACCESSIBLESELECTABLE
   NS_DECL_NSIACCESSIBLEVALUE
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ACCESSIBLE_IMPL_CID)
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ACCESSIBLE_IMPL_IID)
 
   //////////////////////////////////////////////////////////////////////////////
   // nsAccessNode
 
-  virtual nsresult Shutdown();
+  virtual PRBool Init();
+  virtual void Shutdown();
 
   //////////////////////////////////////////////////////////////////////////////
   // Public methods
@@ -232,11 +208,26 @@ public:
   void SetParent(nsAccessible *aParent);
 
   /**
+   * Cache children if necessary. Return true if the accessible is defunct.
+   */
+  PRBool EnsureChildren();
+
+  /**
    * Set the child count to -1 (unknown) and null out cached child pointers.
    * Should be called when accessible tree is changed because document has
    * transformed.
    */
   virtual void InvalidateChildren();
+
+  /**
+   * Append/remove a child. Alternative approach of children handling than
+   * CacheChildren/InvalidateChildren.
+   *
+   * @param  aAccessible  [in] child to append/remove
+   * @return true          if child was successfully appended/removed
+   */
+  virtual PRBool AppendChild(nsAccessible *aAccessible) { return PR_FALSE; }
+  virtual PRBool RemoveChild(nsAccessible *aAccessible) { return PR_FALSE; }
 
   //////////////////////////////////////////////////////////////////////////////
   // Accessible tree traverse methods
@@ -267,6 +258,11 @@ public:
   PRInt32 GetIndexInParent();
 
   /**
+   * Return true if accessible has children;
+   */
+  PRBool HasChildren() { return !!GetChildAt(0); }
+
+  /**
    * Return parent accessible only if cached.
    */
   nsAccessible* GetCachedParent();
@@ -275,6 +271,13 @@ public:
    * Return first child accessible only if cached.
    */
   nsAccessible* GetCachedFirstChild();
+
+#ifdef DEBUG
+  /**
+   * Return true if the access node is cached.
+   */
+  PRBool IsInCache();
+#endif
 
   //////////////////////////////////////////////////////////////////////////////
   // Miscellaneous methods
@@ -318,11 +321,6 @@ protected:
   virtual void CacheChildren();
 
   /**
-   * Cache children if necessary. Return true if the accessible is defunct.
-   */
-  PRBool EnsureChildren();
-
-  /**
    * Return sibling accessible at the given offset.
    */
   virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
@@ -352,12 +350,6 @@ protected:
   static nsresult GetFullKeyName(const nsAString& aModifierName, const nsAString& aKeyName, nsAString& aStringOut);
   static nsresult GetTranslatedString(const nsAString& aKey, nsAString& aStringOut);
 
-  // nsCOMPtr<>& is useful here, because getter_AddRefs() nulls the comptr's value, and NextChild
-  // depends on the passed-in comptr being null or already set to a child (finding the next sibling).
-  nsIAccessible *NextChild(nsCOMPtr<nsIAccessible>& aAccessible);
-    
-  already_AddRefed<nsIAccessible> GetNextWithState(nsIAccessible *aStart, PRUint32 matchState);
-
   /**
    * Return an accessible for the given DOM node, or if that node isn't
    * accessible, return the accessible for the next DOM node which has one
@@ -365,9 +357,8 @@ protected:
    *
    * @param  aStartNode  [in] the DOM node to start from
    * @return              the resulting accessible
-   */   
-  already_AddRefed<nsIAccessible>
-    GetFirstAvailableAccessible(nsIDOMNode *aStartNode);
+   */
+  nsAccessible *GetFirstAvailableAccessible(nsINode *aStartNode) const;
 
   // Hyperlink helpers
   virtual nsresult GetLinkOffset(PRInt32* aStartOffset, PRInt32* aEndOffset);
@@ -446,7 +437,7 @@ protected:
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsAccessible,
-                              NS_ACCESSIBLE_IMPL_CID)
+                              NS_ACCESSIBLE_IMPL_IID)
 
 #endif  
 

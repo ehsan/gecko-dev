@@ -37,14 +37,22 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-include protocol "PContentProcess.ipdl";
-include protocol "PDocumentRenderer.ipdl";
+include protocol PContentProcess;
+include protocol PDocumentRenderer;
+include protocol PDocumentRendererShmem;
+include protocol PDocumentRendererNativeID;
+include protocol PGeolocationRequest;
+include protocol PContentDialog;
 
 include "mozilla/TabTypes.h";
 include "TabMessageUtils.h";
+include "gfxMatrix.h";
+include "mozilla/net/NeckoMessageUtils.h";
 
+using IPC::URI;
 using MagicWindowHandle;
 using RemoteDOMEvent;
+using gfxMatrix;
 
 namespace mozilla {
 namespace dom {
@@ -53,6 +61,10 @@ rpc protocol PIFrameEmbedding
 {
     manager PContentProcess;
     manages PDocumentRenderer;
+    manages PDocumentRendererShmem;
+    manages PDocumentRendererNativeID;
+    manages PGeolocationRequest;
+    manages PContentDialog;
 
 child:
     __delete__();
@@ -66,10 +78,36 @@ parent:
 
     sendEvent(RemoteDOMEvent aEvent);
 
+    notifyStateChange(PRUint32 stateFlags, nsresult status);
+
+    notifyProgressChange(PRInt64 curSelfProgress,
+                         PRInt64 maxSelfProgress,
+                         PRInt64 curTotalProgress,
+                         PRInt64 maxTotalProgress);
+
+    notifyLocationChange(nsCString uri);
+
+    notifyStatusChange(nsresult status,
+                       nsString message);
+
+    notifySecurityChange(PRUint32 aState);
+
+    sync refreshAttempted(nsCString uri, PRInt32 millis,
+                          bool sameURI) returns (bool retval);
+
+
     rpc createWindow() returns (PIFrameEmbedding window);
 
-    sync sendSyncMessageToParent(nsString aMessage, nsString aJSON) returns (nsString[] retval);
+    sync sendSyncMessageToParent(nsString aMessage, nsString aJSON)
+      returns (nsString[] retval);
+
     sendAsyncMessageToParent(nsString aMessage, nsString aJSON);
+
+    PGeolocationRequest(URI uri);
+
+    PContentDialog(PRUint32 aType, nsCString aName, nsCString aFeatures,
+                   PRInt32[] aIntParams, nsString[] aStringParams);
+
 child:
     createWidget(MagicWindowHandle parentWidget);
 
@@ -115,6 +153,14 @@ child:
     sendAsyncMessageToChild(nsString aMessage, nsString aJSON);
 
     PDocumentRenderer(PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h, nsString bgcolor, PRUint32 flags, bool flush);
+
+    // @param matrix the transformation matrix the context we're going to draw into should have.
+    PDocumentRendererShmem(PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h, nsString bgcolor, PRUint32 flags, bool flush,
+                           gfxMatrix matrix, Shmem buf);
+
+    // @param matrix the transformation matrix the context we're going to draw into should have.
+    PDocumentRendererNativeID(PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h, nsString bgcolor, PRUint32 flags, bool flush,
+                              gfxMatrix matrix, PRUint32 nativeID);
 };
 
 }

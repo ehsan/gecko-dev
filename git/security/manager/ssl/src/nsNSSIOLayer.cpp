@@ -87,7 +87,7 @@
 #include "nsIClassInfoImpl.h"
 #include "nsIProgrammingLanguage.h"
 #include "nsIArray.h"
-#include "nsCommaSeparatedTokenizer.h"
+#include "nsCharSeparatedTokenizer.h"
 
 #include "ssl.h"
 #include "secerr.h"
@@ -1739,10 +1739,6 @@ PRStatus nsNSSSocketInfo::CloseSocketAndDestroy()
 
   PRFileDesc* popped = PR_PopIOLayer(mFd, PR_TOP_IO_LAYER);
 
-  if (GetHandshakeInProgress()) {
-    nsSSLIOLayerHelpers::rememberPossibleTLSProblemSite(mFd->lower, this);
-  }
-
   PRStatus status = mFd->methods->close(mFd);
   if (status != PR_SUCCESS) return status;
 
@@ -1994,6 +1990,7 @@ nsCStringHashSet *nsSSLIOLayerHelpers::mTLSTolerantSites = nsnull;
 nsPSMRememberCertErrorsTable *nsSSLIOLayerHelpers::mHostsWithCertErrors = nsnull;
 nsCStringHashSet *nsSSLIOLayerHelpers::mRenegoUnrestrictedSites = nsnull;
 PRBool nsSSLIOLayerHelpers::mTreatUnsafeNegotiationAsBroken = PR_FALSE;
+PRInt32 nsSSLIOLayerHelpers::mWarnLevelMissingRFC5746 = 1;
 PRFileDesc *nsSSLIOLayerHelpers::mSharedPollableEvent = nsnull;
 nsNSSSocketInfo *nsSSLIOLayerHelpers::mSocketOwningPollableEvent = nsnull;
 PRBool nsSSLIOLayerHelpers::mPollableEventCurrentlySet = PR_FALSE;
@@ -2262,7 +2259,7 @@ void nsSSLIOLayerHelpers::setRenegoUnrestrictedSites(const nsCString &str)
   
   mRenegoUnrestrictedSites->Init(1);
   
-  nsCCommaSeparatedTokenizer toker(str);
+  nsCCharSeparatedTokenizer toker(str, ',');
 
   while (toker.hasMoreTokens()) {
     const nsCSubstring &host = toker.nextToken();
@@ -2288,6 +2285,18 @@ PRBool nsSSLIOLayerHelpers::treatUnsafeNegotiationAsBroken()
 {
   nsAutoLock lock(mutex);
   return mTreatUnsafeNegotiationAsBroken;
+}
+
+void nsSSLIOLayerHelpers::setWarnLevelMissingRFC5746(PRInt32 level)
+{
+  nsAutoLock lock(mutex);
+  mWarnLevelMissingRFC5746 = level;
+}
+
+PRInt32 nsSSLIOLayerHelpers::getWarnLevelMissingRFC5746()
+{
+  nsAutoLock lock(mutex);
+  return mWarnLevelMissingRFC5746;
 }
 
 nsresult

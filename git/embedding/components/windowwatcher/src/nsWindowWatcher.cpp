@@ -40,14 +40,14 @@
 //#define USEWEAKREFS // (haven't quite figured that out yet)
 
 #include "nsWindowWatcher.h"
+#include "nsAutoWindowStateHelper.h"
 
 #include "nsAutoLock.h"
 #include "nsCRT.h"
 #include "nsNetUtil.h"
-#include "nsPrompt.h"
-#include "nsPromptService.h"
 #include "nsWWJSUtils.h"
 #include "plstr.h"
+#include "nsIContentUtils.h"
 
 #include "nsIBaseWindow.h"
 #include "nsIDocShell.h"
@@ -61,6 +61,7 @@
 #include "nsIDOMChromeWindow.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIDOMModalContentWindow.h"
+#include "nsIPrompt.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScreen.h"
 #include "nsIScreenManager.h"
@@ -328,10 +329,9 @@ nsresult JSContextAutoPopper::Push(JSContext *cx)
 
 NS_IMPL_ADDREF(nsWindowWatcher)
 NS_IMPL_RELEASE(nsWindowWatcher)
-NS_IMPL_QUERY_INTERFACE4(nsWindowWatcher,
+NS_IMPL_QUERY_INTERFACE3(nsWindowWatcher,
                          nsIWindowWatcher,
                          nsIPromptFactory,
-                         nsIAuthPromptAdapterFactory,
                          nsPIWindowWatcher)
 
 nsWindowWatcher::nsWindowWatcher() :
@@ -516,6 +516,12 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
 
   NS_ENSURE_ARG_POINTER(_retval);
   *_retval = 0;
+
+  nsCOMPtr<nsIContentUtils> utils =
+    do_GetService("@mozilla.org/content/contentutils;1");
+  if (!utils->IsSafeToRunScript()) {
+    return NS_ERROR_FAILURE;
+  }
 
   GetWindowTreeOwner(aParent, getter_AddRefs(parentTreeOwner));
 
@@ -832,10 +838,9 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
     // Notify observers that the window is open and ready.
     // The window has not yet started to load a document.
     nsCOMPtr<nsIObserverService> obsSvc =
-      do_GetService("@mozilla.org/observer-service;1");
-    if (obsSvc) {
+      mozilla::services::GetObserverService();
+    if (obsSvc)
       obsSvc->NotifyObservers(*_retval, "toplevel-window-ready", nsnull);
-    }
   }
 
   // Now we have to set the right opener principal on the new window.  Note
@@ -1009,17 +1014,18 @@ NS_IMETHODIMP
 nsWindowWatcher::RegisterNotification(nsIObserver *aObserver)
 {
   // just a convenience method; it delegates to nsIObserverService
-  nsresult rv;
 
   if (!aObserver)
     return NS_ERROR_INVALID_ARG;
   
-  nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1", &rv));
-  if (os) {
-    rv = os->AddObserver(aObserver, "domwindowopened", PR_FALSE);
-    if (NS_SUCCEEDED(rv))
-      rv = os->AddObserver(aObserver, "domwindowclosed", PR_FALSE);
-  }
+  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+  if (!os)
+    return NS_ERROR_FAILURE;
+
+  nsresult rv = os->AddObserver(aObserver, "domwindowopened", PR_FALSE);
+  if (NS_SUCCEEDED(rv))
+    rv = os->AddObserver(aObserver, "domwindowclosed", PR_FALSE);
+
   return rv;
 }
 
@@ -1027,17 +1033,18 @@ NS_IMETHODIMP
 nsWindowWatcher::UnregisterNotification(nsIObserver *aObserver)
 {
   // just a convenience method; it delegates to nsIObserverService
-  nsresult rv;
 
   if (!aObserver)
     return NS_ERROR_INVALID_ARG;
   
-  nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1", &rv));
-  if (os) {
-    os->RemoveObserver(aObserver, "domwindowopened");
-    os->RemoveObserver(aObserver, "domwindowclosed");
-  }
-  return rv;
+  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+  if (!os)
+    return NS_ERROR_FAILURE;
+
+  os->RemoveObserver(aObserver, "domwindowopened");
+  os->RemoveObserver(aObserver, "domwindowclosed");
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1057,54 +1064,46 @@ nsWindowWatcher::GetWindowEnumerator(nsISimpleEnumerator** _retval)
 NS_IMETHODIMP
 nsWindowWatcher::GetNewPrompter(nsIDOMWindow *aParent, nsIPrompt **_retval)
 {
-  return NS_NewPrompter(_retval, aParent);
+  // This is for backwards compat only. Callers should just use the prompt service directly.
+  nsresult rv;
+  nsCOMPtr<nsIPromptFactory> factory = do_GetService("@mozilla.org/prompter;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  return factory->GetPrompt(aParent, NS_GET_IID(nsIPrompt), reinterpret_cast<void**>(_retval));
 }
 
 NS_IMETHODIMP
 nsWindowWatcher::GetNewAuthPrompter(nsIDOMWindow *aParent, nsIAuthPrompt **_retval)
 {
-  return NS_NewAuthPrompter(_retval, aParent);
+  // This is for backwards compat only. Callers should just use the prompt service directly.
+  nsresult rv;
+  nsCOMPtr<nsIPromptFactory> factory = do_GetService("@mozilla.org/prompter;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  return factory->GetPrompt(aParent, NS_GET_IID(nsIAuthPrompt), reinterpret_cast<void**>(_retval));
 }
 
 NS_IMETHODIMP
 nsWindowWatcher::GetPrompt(nsIDOMWindow *aParent, const nsIID& aIID,
                            void **_retval)
 {
-  if (aIID.Equals(NS_GET_IID(nsIPrompt)))
-    return NS_NewPrompter(reinterpret_cast<nsIPrompt**>(_retval), aParent);
-  if (aIID.Equals(NS_GET_IID(nsIAuthPrompt)))
-    return NS_NewAuthPrompter(reinterpret_cast<nsIAuthPrompt**>(_retval),
-                              aParent);
-  if (aIID.Equals(NS_GET_IID(nsIAuthPrompt2))) {
-    nsresult rv = NS_NewAuthPrompter2(reinterpret_cast<nsIAuthPrompt2**>
-                                                      (_retval),
-                                      aParent);
-    if (rv == NS_NOINTERFACE) {
-      // Return an wrapped nsIAuthPrompt (if we can)
-      nsCOMPtr<nsIAuthPrompt> prompt;
-      rv = NS_NewAuthPrompter(getter_AddRefs(prompt), aParent);
-      if (NS_SUCCEEDED(rv)) {
-        NS_WrapAuthPrompt(prompt,
-                          reinterpret_cast<nsIAuthPrompt2**>(_retval));
-        if (!*_retval)
-          rv = NS_ERROR_NOT_AVAILABLE;
-      }
-    }
+  // This is for backwards compat only. Callers should just use the prompt service directly.
+  nsresult rv;
+  nsCOMPtr<nsIPromptFactory> factory = do_GetService("@mozilla.org/prompter;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = factory->GetPrompt(aParent, aIID, _retval);
 
-    return rv;
+  // Allow for an embedding implementation to not support nsIAuthPrompt2.
+  if (rv == NS_NOINTERFACE && aIID.Equals(NS_GET_IID(nsIAuthPrompt2))) {
+    nsCOMPtr<nsIAuthPrompt> oldPrompt;
+    rv = factory->GetPrompt(aParent,
+                            NS_GET_IID(nsIAuthPrompt),
+                            getter_AddRefs(oldPrompt));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    NS_WrapAuthPrompt(oldPrompt, reinterpret_cast<nsIAuthPrompt2**>(_retval));
+    if (!*_retval)
+      rv = NS_ERROR_NOT_AVAILABLE;
   }
-
-  return NS_NOINTERFACE;
-}
-
-NS_IMETHODIMP
-nsWindowWatcher::CreateAdapter(nsIAuthPrompt* aPrompt, nsIAuthPrompt2** _retval)
-{
-  *_retval = new AuthPromptWrapper(aPrompt);
-  if (!*_retval)
-    return NS_ERROR_OUT_OF_MEMORY;
-  NS_ADDREF(*_retval);
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -1136,8 +1135,6 @@ nsWindowWatcher::SetActiveWindow(nsIDOMWindow *aActiveWindow)
 NS_IMETHODIMP
 nsWindowWatcher::AddWindow(nsIDOMWindow *aWindow, nsIWebBrowserChrome *aChrome)
 {
-  nsresult rv;
-
   if (!aWindow)
     return NS_ERROR_INVALID_ARG;
 
@@ -1181,13 +1178,12 @@ nsWindowWatcher::AddWindow(nsIDOMWindow *aWindow, nsIWebBrowserChrome *aChrome)
 
   // a window being added to us signifies a newly opened window.
   // send notifications.
-  nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1", &rv));
-  if (os) {
-    nsCOMPtr<nsISupports> domwin(do_QueryInterface(aWindow));
-    rv = os->NotifyObservers(domwin, "domwindowopened", 0);
-  }
+  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+  if (!os)
+    return NS_ERROR_FAILURE;
 
-  return rv;
+  nsCOMPtr<nsISupports> domwin(do_QueryInterface(aWindow));
+  return os->NotifyObservers(domwin, "domwindowopened", 0);
 }
 
 NS_IMETHODIMP
@@ -1250,7 +1246,6 @@ nsresult nsWindowWatcher::RemoveWindow(nsWatcherWindowEntry *inInfo)
 {
   PRUint32  ctr,
             count = mEnumeratorList.Length();
-  nsresult rv;
 
   {
     // notify the enumerators
@@ -1266,16 +1261,16 @@ nsresult nsWindowWatcher::RemoveWindow(nsWatcherWindowEntry *inInfo)
 
   // a window being removed from us signifies a newly closed window.
   // send notifications.
-  nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1", &rv));
+  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
   if (os) {
 #ifdef USEWEAKREFS
     nsCOMPtr<nsISupports> domwin(do_QueryReferent(inInfo->mWindow));
     if (domwin)
-      rv = os->NotifyObservers(domwin, "domwindowclosed", 0);
+      os->NotifyObservers(domwin, "domwindowclosed", 0);
     // else bummer. since the window is gone, there's nothing to notify with.
 #else
     nsCOMPtr<nsISupports> domwin(do_QueryInterface(inInfo->mWindow));
-    rv = os->NotifyObservers(domwin, "domwindowclosed", 0);
+    os->NotifyObservers(domwin, "domwindowclosed", 0);
 #endif
   }
 
@@ -1383,7 +1378,7 @@ nsWindowWatcher::URIfromURL(const char *aURL,
       nsCOMPtr<nsIDocument> doc;
       doc = do_QueryInterface(domDoc);
       if (doc) {
-        baseURI = doc->GetBaseURI();
+        baseURI = doc->GetDocBaseURI();
       }
     }
   }
@@ -1494,8 +1489,6 @@ PRUint32 nsWindowWatcher::CalculateChromeFlags(const char *aFeatures,
                                nsIWebBrowserChrome::CHROME_TOOLBAR);
   NS_CALCULATE_CHROME_FLAG_FOR("location",
                                nsIWebBrowserChrome::CHROME_LOCATIONBAR);
-  NS_CALCULATE_CHROME_FLAG_FOR("directories",
-                               nsIWebBrowserChrome::CHROME_PERSONAL_TOOLBAR);
   NS_CALCULATE_CHROME_FLAG_FOR("personalbar",
                                nsIWebBrowserChrome::CHROME_PERSONAL_TOOLBAR);
   NS_CALCULATE_CHROME_FLAG_FOR("status",

@@ -40,9 +40,11 @@
 #include "nsContentUtils.h"
 
 
+DOMCI_DATA(ProgressEvent, nsDOMProgressEvent)
+
 NS_INTERFACE_MAP_BEGIN(nsDOMProgressEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMProgressEvent)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(ProgressEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ProgressEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 NS_IMPL_ADDREF_INHERITED(nsDOMProgressEvent, nsDOMEvent)

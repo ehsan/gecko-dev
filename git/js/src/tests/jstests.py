@@ -1,6 +1,6 @@
 # Test harness for JSTests, controlled by manifest files.
 
-import datetime, os, sys
+import datetime, os, sys, subprocess
 from subprocess import *
 
 from tests import TestResult, NullTestOutput
@@ -85,7 +85,7 @@ class ResultsSink:
             self.n += 1
         else:
             if OPTIONS.show_cmd:
-                print >> self.output_file, output.cmd
+                print >> self.output_file, subprocess.list2cmdline(output.cmd)
 
             if OPTIONS.show_output:
                 print >> self.output_file, '    rc = %d, run time = %f' % (output.rc, output.dt)
@@ -125,10 +125,10 @@ class ResultsSink:
     #      key   is (result, expect, random)
     #      value is (tinderbox label, dev test category)
     LABELS = {
-        (TestResult.CRASH, False, False): ('TEST-KNOWN-FAIL',                    ''),
-        (TestResult.CRASH, False, True):  ('TEST-KNOWN-FAIL (EXPECTED RANDOM)',  ''),
+        (TestResult.CRASH, False, False): ('TEST-UNEXPECTED-FAIL',               'REGRESSIONS'),
+        (TestResult.CRASH, False, True):  ('TEST-UNEXPECTED-FAIL',               'REGRESSIONS'),
         (TestResult.CRASH, True,  False): ('TEST-UNEXPECTED-FAIL',               'REGRESSIONS'),
-        (TestResult.CRASH, True,  True):  ('TEST-KNOWN-FAIL (EXPECTED RANDOM)',  ''),
+        (TestResult.CRASH, True,  True):  ('TEST-UNEXPECTED-FAIL',               'REGRESSIONS'),
 
         (TestResult.FAIL,  False, False): ('TEST-KNOWN-FAIL',                    ''),
         (TestResult.FAIL,  False, True):  ('TEST-KNOWN-FAIL (EXPECTED RANDOM)',  ''),
@@ -148,6 +148,13 @@ class ResultsSink:
             print label
             for path in paths:
                 print '    %s'%path
+
+        if OPTIONS.failure_file:
+              failure_file = open(OPTIONS.failure_file, 'w')
+              if not self.all_passed():
+                  for path in self.groups['REGRESSIONS']:
+                      print >> failure_file, path
+              failure_file.close()
 
         suffix = '' if self.finished else ' (partial run -- interrupted by user)'
         if self.all_passed():
@@ -198,10 +205,10 @@ if __name__ == '__main__':
                   help='number of worker threads to run tests on (default 2)')
     op.add_option('-m', '--manifest', dest='manifest',
                   help='select manifest file')
-    op.add_option('-t', '--timeout', dest='timeout', type=float, default=60.0,
+    op.add_option('-t', '--timeout', dest='timeout', type=float, default=150.0,
                   help='set test timeout in seconds')
     op.add_option('-d', '--exclude-random', dest='random', action='store_false',
-                  help='exclude tests marked random')
+                  help='exclude tests marked random', default=True)
     op.add_option('--run-skipped', dest='run_skipped', action='store_true',
                   help='run skipped tests')
     op.add_option('--run-only-skipped', dest='run_only_skipped', action='store_true',
@@ -218,6 +225,8 @@ if __name__ == '__main__':
                   help='extra args to pass to valgrind')
     op.add_option('-c', '--check-manifest', dest='check_manifest', action='store_true',
                   help='check for test files not listed in the manifest')
+    op.add_option('--failure-file', dest='failure_file',
+                  help='write tests that have not passed to the given file')
     (OPTIONS, args) = op.parse_args()
     if len(args) < 1:
         if not OPTIONS.check_manifest:
@@ -310,7 +319,7 @@ if __name__ == '__main__':
 
         cmd = test_list[0].get_command(TestTask.js_cmd_prefix)
         if OPTIONS.show_cmd:
-            print ' '.join(cmd)
+            print subprocess.list2cmdline(cmd)
         call(cmd)
         sys.exit()
 

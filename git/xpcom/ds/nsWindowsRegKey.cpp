@@ -139,7 +139,7 @@ nsWindowsRegKey::OpenChild(const nsAString &path, PRUint32 mode,
   if (!child)
     return NS_ERROR_OUT_OF_MEMORY;
   
-  nsresult rv = child->Open((PRUint32) mKey, path, mode);
+  nsresult rv = child->Open((uintptr_t) mKey, path, mode);
   if (NS_FAILED(rv))
     return rv;
 
@@ -157,7 +157,7 @@ nsWindowsRegKey::CreateChild(const nsAString &path, PRUint32 mode,
   if (!child)
     return NS_ERROR_OUT_OF_MEMORY;
   
-  nsresult rv = child->Create((PRUint32) mKey, path, mode);
+  nsresult rv = child->Create((uintptr_t) mKey, path, mode);
   if (NS_FAILED(rv))
     return rv;
 
@@ -204,7 +204,7 @@ nsWindowsRegKey::HasChild(const nsAString &name, PRBool *result)
 {
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
 
-  // Check for the existance of a child key by opening the key with minimal
+  // Check for the existence of a child key by opening the key with minimal
   // rights.  Perhaps there is a more efficient way to do this?
 
   HKEY key;

@@ -81,9 +81,11 @@ XPCOMUtils.defineLazyServiceGetter(Services, "prompt",
                                    "@mozilla.org/embedcomp/prompt-service;1",
                                    "nsIPromptService");
 
+#ifdef MOZ_TOOLKIT_SEARCH
 XPCOMUtils.defineLazyServiceGetter(Services, "search",
                                    "@mozilla.org/browser/search-service;1",
                                    "nsIBrowserSearchService");
+#endif
 
 XPCOMUtils.defineLazyServiceGetter(Services, "storage",
                                    "@mozilla.org/storage/service;1",
@@ -108,3 +110,15 @@ XPCOMUtils.defineLazyServiceGetter(Services, "ww",
 XPCOMUtils.defineLazyServiceGetter(Services, "tm",
                                    "@mozilla.org/thread-manager;1",
                                    "nsIThreadManager");
+
+XPCOMUtils.defineLazyServiceGetter(Services, "droppedLinkHandler",
+                                   "@mozilla.org/content/dropped-link-handler;1",
+                                   "nsIDroppedLinkHandler");
+
+XPCOMUtils.defineLazyServiceGetter(Services, "console",
+                                   "@mozilla.org/consoleservice;1",
+                                   "nsIConsoleService");
+
+XPCOMUtils.defineLazyServiceGetter(Services, "strings",
+                                   "@mozilla.org/intl/stringbundle;1",
+                                   "nsIStringBundleService");
