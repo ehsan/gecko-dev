@@ -222,7 +222,7 @@ class MarionetteTestResult(unittest._TextTestResult, TestResultCollection):
             lastline = None
             fail_present = None
             for line in err:
-                if not line.startswith('\t') and line != '':
+                if not line.startswith('\t'):
                     lastline = line
                 if 'TEST-UNEXPECTED-FAIL' in line:
                     fail_present = True
@@ -231,7 +231,7 @@ class MarionetteTestResult(unittest._TextTestResult, TestResultCollection):
                     self.stream.writeln("%s" % line)
                 else:
                     self.stream.writeln("TEST-UNEXPECTED-FAIL | %s | %s" %
-                                        (self.getInfo(error), error.reason))
+                                        (self.getInfo(error), line))
 
     def stopTest(self, *args, **kwargs):
         unittest._TextTestResult.stopTest(self, *args, **kwargs)
@@ -623,7 +623,7 @@ class BaseMarionetteTestRunner(object):
         # for XML output
         self.testvars['xml_output'] = self.xml_output
         self.results = []
-
+ 
     @property
     def capabilities(self):
         if self._capabilities:
