@@ -488,15 +488,16 @@ nsGenericHTMLElement::GetOffsetRect(nsRect& aRect, nsIContent** aOffsetParent)
     parent = frame;
   }
   else {
-    const bool isPositioned = frame->IsPositioned();
-    const bool isAbsolutelyPositioned = frame->IsAbsolutelyPositioned();
+    const bool isPositioned = frame->GetStyleDisplay()->IsPositioned();
+    const bool isAbsolutelyPositioned =
+      frame->GetStyleDisplay()->IsAbsolutelyPositioned();
     origin += frame->GetPositionIgnoringScrolling();
 
     for ( ; parent ; parent = parent->GetParent()) {
       content = parent->GetContent();
 
       // Stop at the first ancestor that is positioned.
-      if (parent->IsPositioned()) {
+      if (parent->GetStyleDisplay()->IsPositioned()) {
         *aOffsetParent = content;
         NS_IF_ADDREF(*aOffsetParent);
         break;

@@ -10,7 +10,6 @@
 
 #include "nsMargin.h"
 #include "nsStyleCoord.h"
-#include "nsStyleStructInlines.h"
 #include "nsIFrame.h"
 #include "mozilla/AutoRestore.h"
 
@@ -292,14 +291,6 @@ public:
   const nsStyleMargin*     mStyleMargin;
   const nsStylePadding*    mStylePadding;
   const nsStyleText*       mStyleText;
-
-  bool IsFloating() const {
-    return mStyleDisplay->IsFloating(frame);
-  }
-
-  PRUint8 GetDisplay() const {
-    return mStyleDisplay->GetDisplay(frame);
-  }
 
   // a frame (e.g. nsTableCellFrame) which may need to generate a special 
   // reflow for percent height calculations 

@@ -2106,8 +2106,10 @@ OpenDatabaseHelper::EnsureSuccessResult()
   dbInfo->nextIndexId = mLastIndexId + 1;
 
   nsRefPtr<IDBDatabase> database =
-    IDBDatabase::Create(mOpenDBRequest, dbInfo.forget(), mASCIIOrigin,
-                        mFileManager, mContentParent);
+    IDBDatabase::Create(mOpenDBRequest,
+                        dbInfo.forget(),
+                        mASCIIOrigin,
+                        mFileManager);
   if (!database) {
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }

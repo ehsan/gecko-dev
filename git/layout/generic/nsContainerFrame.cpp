@@ -774,7 +774,7 @@ nsContainerFrame::SyncFrameViewProperties(nsPresContext*  aPresContext,
 
   // See if the frame is being relatively positioned or absolutely
   // positioned
-  bool isPositioned = aFrame->IsPositioned();
+  bool isPositioned = aStyleContext->GetStyleDisplay()->IsPositioned();
 
   PRInt32 zIndex = 0;
   bool    autoZIndex = false;

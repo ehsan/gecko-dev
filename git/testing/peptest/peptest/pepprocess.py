@@ -62,22 +62,24 @@ class PepProcess(ProcessHandler):
                 else:
                     threshold = 0.0
 
-                msg = '%s | fail threshold: %s' % (results.currentTest, threshold)
+                msg = results.currentTest \
+                      + ' | fail threshold: ' + str(threshold)
                 if metric > threshold:
-                    msg += ' < metric: %s' % metric
+                    msg += ' < metric: ' + str(metric)
                     self.logger.testFail(msg)
                 else:
-                    msg += ' >= metric: %s' % metric
+                    msg += ' >= metric: ' + str(metric)
                     self.logger.testPass(msg)
 
-                self.logger.testEnd('%s | finished in: %s ms' %
-                        (results.currentTest, tokens[3].rstrip()))
+                self.logger.testEnd(
+                        results.currentTest +
+                        ' | finished in: ' + tokens[3].rstrip() + ' ms')
                 results.currentTest = None
             elif level == 'ACTION-START':
                 results.currentAction = tokens[3].rstrip()
-                self.logger.debug('%s | %s' % (level, results.currentAction))
+                self.logger.debug(level + ' | ' + results.currentAction)
             elif level == 'ACTION-END':
-                self.logger.debug('%s | %s' % (level, results.currentAction))
+                self.logger.debug(level + ' | ' + results.currentAction)
                 results.currentAction = None
             elif level in ['DEBUG', 'INFO', 'WARNING', 'ERROR']:
                 line = line[len('PEP ' + level)+1:]
@@ -91,6 +93,7 @@ class PepProcess(ProcessHandler):
             # The output is generated from EventTracer
             # Format is 'MOZ_EVENT_TRACE sample <TIMESTAMP> <VALUE>
             # <VALUE> is the unresponsive time in ms
-            self.logger.warning('%s | %s | unresponsive time: %s ms' %
-                (results.currentTest, results.currentAction, tokens[3].rstrip()))
+            self.logger.warning(
+                    results.currentTest + ' | ' + results.currentAction +
+                    ' | unresponsive time: ' + tokens[3].rstrip() + ' ms')
             results.fails[results.currentTest].append(int(tokens[3].rstrip()))

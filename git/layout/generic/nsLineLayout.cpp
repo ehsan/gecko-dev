@@ -977,7 +977,8 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
     // return now.
     bool optionalBreakAfterFits;
     NS_ASSERTION(isText ||
-                 !reflowStateHolder.ref().IsFloating(),
+                 reflowStateHolder.ref().mStyleDisplay->mFloats ==
+                   NS_STYLE_FLOAT_NONE,
                  "How'd we get a floated inline frame? "
                  "The frame ctor should've dealt with this.");
     // Direction is inherited, so using the psd direction is fine.
@@ -1050,7 +1051,7 @@ void
 nsLineLayout::ApplyStartMargin(PerFrameData* pfd,
                                nsHTMLReflowState& aReflowState)
 {
-  NS_ASSERTION(!aReflowState.IsFloating(),
+  NS_ASSERTION(aReflowState.mStyleDisplay->mFloats == NS_STYLE_FLOAT_NONE,
                "How'd we get a floated inline frame? "
                "The frame ctor should've dealt with this.");
 
@@ -1451,7 +1452,11 @@ nsLineLayout::VerticalAlignLine()
   if (rootPFD.mFrame->GetStyleContext()->HasTextDecorationLines()) {
     for (const PerFrameData* pfd = psd->mFirstFrame; pfd; pfd = pfd->mNext) {
       const nsIFrame *const f = pfd->mFrame;
-      if (f->VerticalAlignEnum() != NS_STYLE_VERTICAL_ALIGN_BASELINE) {
+      const nsStyleCoord& vAlign =
+          f->GetStyleContext()->GetStyleTextReset()->mVerticalAlign;
+
+      if (vAlign.GetUnit() != eStyleUnit_Enumerated ||
+          vAlign.GetIntValue() != NS_STYLE_VERTICAL_ALIGN_BASELINE) {
         const nscoord offset = baselineY - pfd->mBounds.y;
         f->Properties().Set(nsIFrame::LineBaselineOffset(),
                             NS_INT32_TO_PTR(offset));
@@ -1771,24 +1776,18 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
     // Get vertical-align property
     const nsStyleCoord& verticalAlign =
       frame->GetStyleTextReset()->mVerticalAlign;
-    PRUint8 verticalAlignEnum = frame->VerticalAlignEnum();
 #ifdef NOISY_VERTICAL_ALIGN
     printf("  [frame]");
     nsFrame::ListTag(stdout, frame);
-    printf(": verticalAlignUnit=%d (enum == %d",
+    printf(": verticalAlignUnit=%d (enum == %d)\n",
            verticalAlign.GetUnit(),
            ((eStyleUnit_Enumerated == verticalAlign.GetUnit())
             ? verticalAlign.GetIntValue()
             : -1));
-    if (verticalAlignEnum != nsIFrame::eInvalidVerticalAlign) {
-      printf(", after SVG dominant-baseline conversion == %d",
-             verticalAlignEnum);
-    }
-    printf(")\n");
 #endif
 
-    if (verticalAlignEnum != nsIFrame::eInvalidVerticalAlign) {
-      switch (verticalAlignEnum) {
+    if (verticalAlign.GetUnit() == eStyleUnit_Enumerated) {
+      switch (verticalAlign.GetIntValue()) {
         default:
         case NS_STYLE_VERTICAL_ALIGN_BASELINE:
         {
@@ -2473,8 +2472,7 @@ nsLineLayout::HorizontalAlignFrames(nsRect& aLineBounds,
 #endif
   nscoord dx = 0;
 
-  if (remainingWidth > 0 &&
-      !(mBlockReflowState->frame->IsSVGText())) {
+  if (remainingWidth > 0) {
     PRUint8 textAlign = mStyleText->mTextAlign;
 
     /* 

@@ -638,7 +638,6 @@ private:
 
 // no virtuals. no refcounting.
 class XPCJSContextStack;
-class XPCIncrementalReleaseRunnable;
 class XPCJSRuntime
 {
 public:
@@ -867,8 +866,6 @@ private:
 
     static void WatchdogMain(void *arg);
 
-    void ReleaseIncrementally(nsTArray<nsISupports *> &array);
-
     static bool gNewDOMBindingsEnabled;
     static bool gExperimentalBindingsEnabled;
 
@@ -909,14 +906,12 @@ private:
     nsTArray<JSGCCallback> extraGCCallbacks;
     bool mWatchdogHibernating;
     PRTime mLastActiveTime; // -1 if active NOW
-    XPCIncrementalReleaseRunnable *mReleaseRunnable;
 
     nsCOMPtr<nsIException>   mPendingException;
     nsCOMPtr<nsIExceptionManager> mExceptionManager;
     bool mExceptionManagerNotAvailable;
 
     friend class AutoLockWatchdog;
-    friend class XPCIncrementalReleaseRunnable;
 };
 
 /***************************************************************************/

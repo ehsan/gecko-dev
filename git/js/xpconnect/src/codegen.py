@@ -332,12 +332,10 @@ resultConvTemplates = {
         "    return xpc_qsUint64ToJsval(cx, result, ${jsvalPtr});\n",
 
     'float':
-        "    ${jsvalRef} = JS_NumberValue(result);\n"
-        "    return JS_TRUE;\n",
+        "    return JS_NewNumberValue(cx, result, ${jsvalPtr});\n",
 
     'double':
-        "    ${jsvalRef} = JS_NumberValue(result);\n"
-        "    return JS_TRUE;\n",
+        "    return JS_NewNumberValue(cx, result, ${jsvalPtr});\n",
 
     'boolean':
         "    ${jsvalRef} = (result ? JSVAL_TRUE : JSVAL_FALSE);\n"

@@ -92,11 +92,11 @@ LINK32=link.exe
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 # Begin Source File
 
-SOURCE=\toolkit\mozapps\update\common\pathhash.cpp
+SOURCE=\toolkit\components\maintenanceservice\pathhash.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=\toolkit\mozapps\update\common\pathhash.h
+SOURCE=\toolkit\components\maintenanceservice\pathhash.h
 # End Source File
 # Begin Source File
 

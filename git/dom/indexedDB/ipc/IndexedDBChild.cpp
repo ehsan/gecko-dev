@@ -6,10 +6,9 @@
 
 #include "IndexedDBChild.h"
 
-#include "nsIAtom.h"
-
 #include "mozilla/Assertions.h"
-#include "mozilla/dom/ContentChild.h"
+
+#include "nsIAtom.h"
 
 #include "AsyncConnectionHelper.h"
 #include "DatabaseInfo.h"
@@ -21,8 +20,6 @@
 #include "IndexedDatabaseManager.h"
 
 USING_INDEXEDDB_NAMESPACE
-
-using namespace mozilla::dom;
 
 namespace {
 
@@ -292,8 +289,7 @@ IndexedDBDatabaseChild::EnsureDatabase(
 
   if (!mDatabase) {
     nsRefPtr<IDBDatabase> database =
-      IDBDatabase::Create(aRequest, dbInfo.forget(), aDBInfo.origin, NULL,
-                          NULL);
+      IDBDatabase::Create(aRequest, dbInfo.forget(), aDBInfo.origin, NULL);
     if (!database) {
       NS_WARNING("Failed to create database!");
       return false;
@@ -650,17 +646,12 @@ IndexedDBObjectStoreChild::RecvPIndexedDBCursorConstructor(
 
   size_t direction = static_cast<size_t>(aParams.direction());
 
-  nsTArray<StructuredCloneFile> blobs;
-  IDBObjectStore::ConvertActorsToBlobs(aParams.blobsChild(), blobs);
-
   nsRefPtr<IDBCursor> cursor;
   nsresult rv =
     mObjectStore->OpenCursorFromChildProcess(request, direction, aParams.key(),
-                                             aParams.cloneInfo(), blobs,
+                                             aParams.cloneInfo(),
                                              getter_AddRefs(cursor));
   NS_ENSURE_SUCCESS(rv, false);
-
-  MOZ_ASSERT(blobs.IsEmpty(), "Should have swapped blob elements!");
 
   actor->SetCursor(cursor);
   return true;
@@ -763,22 +754,16 @@ IndexedDBIndexChild::RecvPIndexedDBCursorConstructor(
 
   switch (aParams.optionalCloneInfo().type()) {
     case CursorUnionType::TSerializedStructuredCloneReadInfo: {
-      nsTArray<StructuredCloneFile> blobs;
-      IDBObjectStore::ConvertActorsToBlobs(aParams.blobsChild(), blobs);
-
       const SerializedStructuredCloneReadInfo& cloneInfo =
         aParams.optionalCloneInfo().get_SerializedStructuredCloneReadInfo();
 
       rv = mIndex->OpenCursorFromChildProcess(request, direction, aParams.key(),
                                               aParams.objectKey(), cloneInfo,
-                                              blobs,
                                               getter_AddRefs(cursor));
       NS_ENSURE_SUCCESS(rv, false);
     } break;
 
     case CursorUnionType::Tvoid_t:
-      MOZ_ASSERT(aParams.blobsChild().IsEmpty());
-
       rv = mIndex->OpenCursorFromChildProcess(request, direction, aParams.key(),
                                               aParams.objectKey(),
                                               getter_AddRefs(cursor));

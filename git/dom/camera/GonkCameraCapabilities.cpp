@@ -50,10 +50,12 @@ ParseZoomRatioItemAndAdd(JSContext* aCx, JSObject* aArray, PRUint32 aIndex, cons
   }
 
   double d = strtod(aStart, aEnd);
+  jsval v;
+
   d /= 100;
-
-  jsval v = JS_NumberValue(d);
-
+  if (!JS_NewNumberValue(aCx, d, &v)) {
+    return NS_ERROR_FAILURE;
+  }
   if (!JS_SetElement(aCx, aArray, aIndex, &v)) {
     return NS_ERROR_FAILURE;
   }

@@ -604,7 +604,7 @@ DocAccessible::GetAccessible(nsINode* aNode) const
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessNode
 
-void
+bool
 DocAccessible::Init()
 {
 #ifdef DEBUG
@@ -614,6 +614,8 @@ DocAccessible::Init()
 
   // Initialize notification controller.
   mNotificationController = new NotificationController(this, mPresShell);
+  if (!mNotificationController)
+    return false;
 
   // Mark the document accessible as loaded if its DOM document was loaded at
   // this point (this can happen because a11y is started late or DOM document
@@ -622,6 +624,7 @@ DocAccessible::Init()
     mLoadState |= eDOMLoaded;
 
   AddEventListeners();
+  return true;
 }
 
 void
@@ -1394,7 +1397,12 @@ DocAccessible::BindToDocument(Accessible* aAccessible,
   mAccessibleCache.Put(aAccessible->UniqueID(), aAccessible);
 
   // Initialize the accessible.
-  aAccessible->Init();
+  if (!aAccessible->Init()) {
+    NS_ERROR("Failed to initialize an accessible!");
+
+    UnbindFromDocument(aAccessible);
+    return false;
+  }
 
   aAccessible->SetRoleMapEntry(aRoleMapEntry);
   if (aAccessible->IsElement())

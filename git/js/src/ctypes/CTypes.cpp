@@ -1742,8 +1742,7 @@ SizeTojsval(JSContext* cx, size_t size, jsval* result)
     return false;
   }
 
-  *result = JS_NumberValue(double(size));
-  return true;
+  return JS_NewNumberValue(cx, double(size), result);
 }
 
 // Forcefully convert val to IntegerType when explicitly requested.
@@ -1906,9 +1905,9 @@ ConvertToJS(JSContext* cx,
   case TYPE_##name: {                                                          \
     type value = *static_cast<type*>(data);                                    \
     if (sizeof(type) < 4)                                                      \
-      *result = INT_TO_JSVAL(int32_t(value));                                  \
-    else                                                                       \
-      *result = JS_NumberValue(double(value));                                 \
+      *result = INT_TO_JSVAL(int32_t(value));                                    \
+    else if (!JS_NewNumberValue(cx, double(value), result))                    \
+      return false;                                                            \
     break;                                                                     \
   }
 #define DEFINE_WRAPPED_INT_TYPE(name, type, ffiType)                           \
@@ -1936,7 +1935,8 @@ ConvertToJS(JSContext* cx,
 #define DEFINE_FLOAT_TYPE(name, type, ffiType)                                 \
   case TYPE_##name: {                                                          \
     type value = *static_cast<type*>(data);                                    \
-    *result = JS_NumberValue(double(value));                                   \
+    if (!JS_NewNumberValue(cx, double(value), result))                         \
+      return false;                                                            \
     break;                                                                     \
   }
 #define DEFINE_CHAR_TYPE(name, type, ffiType)                                  \
@@ -7228,7 +7228,9 @@ Int64::Lo(JSContext* cx, unsigned argc, jsval* vp)
   int64_t u = Int64Base::GetInt(obj);
   double d = uint32_t(INT64_LO(u));
 
-  jsval result = JS_NumberValue(d);
+  jsval result;
+  if (!JS_NewNumberValue(cx, d, &result))
+    return JS_FALSE;
 
   JS_SET_RVAL(cx, vp, result);
   return JS_TRUE;
@@ -7248,7 +7250,9 @@ Int64::Hi(JSContext* cx, unsigned argc, jsval* vp)
   int64_t u = Int64Base::GetInt(obj);
   double d = int32_t(INT64_HI(u));
 
-  jsval result = JS_NumberValue(d);
+  jsval result;
+  if (!JS_NewNumberValue(cx, d, &result))
+    return JS_FALSE;
 
   JS_SET_RVAL(cx, vp, result);
   return JS_TRUE;
@@ -7396,7 +7400,9 @@ UInt64::Lo(JSContext* cx, unsigned argc, jsval* vp)
   uint64_t u = Int64Base::GetInt(obj);
   double d = uint32_t(INT64_LO(u));
 
-  jsval result = JS_NumberValue(d);
+  jsval result;
+  if (!JS_NewNumberValue(cx, d, &result))
+    return JS_FALSE;
 
   JS_SET_RVAL(cx, vp, result);
   return JS_TRUE;
@@ -7416,7 +7422,9 @@ UInt64::Hi(JSContext* cx, unsigned argc, jsval* vp)
   uint64_t u = Int64Base::GetInt(obj);
   double d = uint32_t(INT64_HI(u));
 
-  jsval result = JS_NumberValue(d);
+  jsval result;
+  if (!JS_NewNumberValue(cx, d, &result))
+    return JS_FALSE;
 
   JS_SET_RVAL(cx, vp, result);
   return JS_TRUE;

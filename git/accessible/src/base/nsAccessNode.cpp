@@ -96,7 +96,12 @@ nsAccessNode::GetApplicationAccessible()
     // Addref on create. Will Release in ShutdownXPAccessibility()
     NS_ADDREF(gApplicationAccessible);
 
-    gApplicationAccessible->Init();
+    nsresult rv = gApplicationAccessible->Init();
+    if (NS_FAILED(rv)) {
+      gApplicationAccessible->Shutdown();
+      NS_RELEASE(gApplicationAccessible);
+      return nullptr;
+    }
   }
 
   return gApplicationAccessible;

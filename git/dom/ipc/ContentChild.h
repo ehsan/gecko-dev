@@ -9,13 +9,11 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/PContentChild.h"
-#include "mozilla/dom/ipc/Blob.h"
 
 #include "nsTArray.h"
 #include "nsIConsoleListener.h"
 
 struct ChromePackage;
-class nsIDOMBlob;
 class nsIObserver;
 struct ResourceMapping;
 struct OverrideMapping;
@@ -32,12 +30,10 @@ class AlertObserver;
 class PrefObserver;
 class ConsoleListener;
 class PStorageChild;
-class ClonedMessageData;
 
 class ContentChild : public PContentChild
 {
     typedef layers::PCompositorChild PCompositorChild;
-    typedef mozilla::dom::ClonedMessageData ClonedMessageData;
 
 public:
     ContentChild();
@@ -63,7 +59,7 @@ public:
         return mAppInfo;
     }
 
-    PCompositorChild* AllocPCompositor(mozilla::ipc::Transport* aTransport,
+    PCompositorChild* AllocPCompositor(ipc::Transport* aTransport,
                                        base::ProcessId aOtherProcess) MOZ_OVERRIDE;
 
     virtual PBrowserChild* AllocPBrowser(const PRUint32& aChromeFlags,
@@ -73,9 +69,6 @@ public:
 
     virtual PDeviceStorageRequestChild* AllocPDeviceStorageRequest(const DeviceStorageParams&);
     virtual bool DeallocPDeviceStorageRequest(PDeviceStorageRequestChild*);
-
-    virtual PBlobChild* AllocPBlob(const BlobConstructorParams& aParams);
-    virtual bool DeallocPBlob(PBlobChild*);
 
     virtual PCrashReporterChild*
     AllocPCrashReporter(const mozilla::dom::NativeThreadId& id,
@@ -141,8 +134,7 @@ public:
 
     virtual bool RecvNotifyAlertsObserver(const nsCString& aType, const nsString& aData);
 
-    virtual bool RecvAsyncMessage(const nsString& aMsg,
-                                  const ClonedMessageData& aData);
+    virtual bool RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON);
 
     virtual bool RecvGeolocationUpdate(const GeoPosition& somewhere);
 
@@ -162,8 +154,6 @@ public:
 
     virtual bool RecvLastPrivateDocShellDestroyed();
 
-    virtual bool RecvFilePathUpdate(const nsString& path, const nsCString& reason);
-
 #ifdef ANDROID
     gfxIntSize GetScreenSize() { return mScreenSize; }
 #endif
@@ -173,8 +163,6 @@ public:
     nsString &GetIndexedDBPath();
 
     PRUint64 GetID() { return mID; }
-
-    BlobChild* GetOrCreateActorForBlob(nsIDOMBlob* aBlob);
 
 private:
     virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;

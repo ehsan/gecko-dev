@@ -1401,10 +1401,11 @@ nsXPCComponents_Results::NewResolve(nsIXPConnectWrappedNative *wrapper,
         nsresult rv;
         while (nsXPCException::IterateNSResults(&rv, &rv_name, nullptr, &iter)) {
             if (!strcmp(name.ptr(), rv_name)) {
-                jsval val = JS_NumberValue((double)rv);
+                jsval val;
 
                 *objp = obj;
-                if (!JS_DefinePropertyById(cx, obj, id, val,
+                if (!JS_NewNumberValue(cx, (double)rv, &val) ||
+                    !JS_DefinePropertyById(cx, obj, id, val,
                                            nullptr, nullptr,
                                            JSPROP_ENUMERATE |
                                            JSPROP_READONLY |
@@ -4690,7 +4691,8 @@ nsXPCComponents::GetProperty(nsIXPConnectWrappedNative *wrapper,
 
     nsresult rv = NS_OK;
     if (doResult) {
-        *vp = JS_NumberValue((double) res);
+        if (!JS_NewNumberValue(cx, (double) res, vp))
+            return NS_ERROR_OUT_OF_MEMORY;
         rv = NS_SUCCESS_I_DID_SOMETHING;
     }
 

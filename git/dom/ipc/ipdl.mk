@@ -3,10 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 IPDLSRCS = \
-  DOMTypes.ipdlh \
   PAudio.ipdl \
-  PBlob.ipdl \
-  PBlobStream.ipdl \
   PBrowser.ipdl \
   PContent.ipdl \
   PContentDialog.ipdl \

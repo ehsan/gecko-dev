@@ -695,9 +695,6 @@ private:
      using the FrameConstructionData's mPseudoAtom for its anonymous
      box type. */
 #define FCDATA_CREATE_BLOCK_WRAPPER_FOR_ALL_KIDS 0x40000
-  /* If FCDATA_IS_SVG_TEXT is set, then this text frame is a descendant of
-     an SVG text frame. */
-#define FCDATA_IS_SVG_TEXT 0x80000
 
   /* Structure representing information about how a frame should be
      constructed.  */
@@ -1376,7 +1373,7 @@ private:
      changes, make this static */
   const FrameConstructionData*
     FindDisplayData(const nsStyleDisplay* aDisplay, Element* aElement,
-                    nsIFrame* aParentFrame, nsStyleContext* aStyleContext);
+                    nsStyleContext* aStyleContext);
 
   /**
    * Construct a scrollable block frame

@@ -119,8 +119,8 @@ IDBVersionChangeEvent::GetNewVersion(JSContext* aCx,
   if (!mNewVersion) {
     *aNewVersion = JSVAL_NULL;
   }
-  else {
-    *aNewVersion = JS_NumberValue(double(mNewVersion));
+  else if (!JS_NewNumberValue(aCx, double(mNewVersion), aNewVersion)) {
+    return NS_ERROR_FAILURE;
   }
 
   return NS_OK;

@@ -25,7 +25,6 @@
 namespace mozilla {
 namespace dom {
 class ContentParent;
-struct StructuredCloneData;
 }
 }
 
@@ -42,16 +41,15 @@ struct nsMessageListenerInfo
 typedef bool (*nsLoadScriptCallback)(void* aCallbackData, const nsAString& aURL);
 typedef bool (*nsSyncMessageCallback)(void* aCallbackData,
                                       const nsAString& aMessage,
-                                      const mozilla::dom::StructuredCloneData& aData,
+                                      const nsAString& aJSON,
                                       InfallibleTArray<nsString>* aJSONRetVal);
 typedef bool (*nsAsyncMessageCallback)(void* aCallbackData,
                                        const nsAString& aMessage,
-                                             const mozilla::dom::StructuredCloneData& aData);
+                                       const nsAString& aJSON);
 
 class nsFrameMessageManager MOZ_FINAL : public nsIContentFrameMessageManager,
                                         public nsIChromeFrameMessageManager
 {
-  typedef mozilla::dom::StructuredCloneData StructuredCloneData;
 public:
   nsFrameMessageManager(bool aChrome,
                         nsSyncMessageCallback aSyncCallback,
@@ -65,8 +63,7 @@ public:
   : mChrome(aChrome), mGlobal(aGlobal), mIsProcessManager(aProcessManager),
     mHandlingMessage(false), mDisconnected(false), mParentManager(aParentManager),
     mSyncCallback(aSyncCallback), mAsyncCallback(aAsyncCallback),
-    mLoadScriptCallback(aLoadScriptCallback),
-    mCallbackData(aCallbackData),
+    mLoadScriptCallback(aLoadScriptCallback), mCallbackData(aCallbackData),
     mContext(aContext)
   {
     NS_ASSERTION(mContext || (aChrome && !aParentManager) || aProcessManager,
@@ -115,11 +112,10 @@ public:
   NewProcessMessageManager(mozilla::dom::ContentParent* aProcess);
 
   nsresult ReceiveMessage(nsISupports* aTarget, const nsAString& aMessage,
-                          bool aSync, const StructuredCloneData* aCloneData,
+                          bool aSync, const nsAString& aJSON,
                           JSObject* aObjectsArray,
                           InfallibleTArray<nsString>* aJSONRetVal,
                           JSContext* aContext = nullptr);
-
   void AddChildManager(nsFrameMessageManager* aManager,
                        bool aLoadScripts = true);
   void RemoveChildManager(nsFrameMessageManager* aManager)
@@ -130,8 +126,11 @@ public:
   void Disconnect(bool aRemoveFromParent = true);
   void SetCallbackData(void* aData, bool aLoadScripts = true);
   void* GetCallbackData() { return mCallbackData; }
+  void GetParamsForMessage(const jsval& aObject,
+                           JSContext* aCx,
+                           nsAString& aJSON);
   nsresult SendAsyncMessageInternal(const nsAString& aMessage,
-                                          const StructuredCloneData& aData);
+                                    const nsAString& aJSON);
   JSContext* GetJSContext() { return mContext; }
   void SetJSContext(JSContext* aCx) { mContext = aCx; }
   void RemoveFromParent();

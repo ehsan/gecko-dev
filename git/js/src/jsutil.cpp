@@ -67,11 +67,7 @@ Compressor::compressMore()
     else if (zs.avail_in == 0)
         zs.avail_in = CHUNKSIZE;
     int ret = deflate(&zs, done ? Z_FINISH : Z_NO_FLUSH);
-    if (ret == Z_MEM_ERROR) {
-        zs.avail_out = 0;
-        return false;
-    }
-    if (ret == Z_BUF_ERROR || (done && ret == Z_OK)) {
+    if (ret == Z_BUF_ERROR) {
         JS_ASSERT(zs.avail_out == 0);
         return false;
     }
@@ -177,7 +173,7 @@ ValToBin(unsigned logscale, uint32_t val)
         : (logscale == 2)
         ? (unsigned) JS_CEILING_LOG2W(val)
         : val;
-    return Min(bin, 10U);
+    return JS_MIN(bin, 10);
 }
 
 void

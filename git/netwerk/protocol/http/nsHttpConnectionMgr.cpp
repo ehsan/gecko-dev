@@ -297,8 +297,7 @@ nsHttpConnectionMgr::CancelTransaction(nsHttpTransaction *trans, nsresult reason
     LOG(("nsHttpConnectionMgr::CancelTransaction [trans=%x reason=%x]\n", trans, reason));
 
     NS_ADDREF(trans);
-    nsresult rv = PostEvent(&nsHttpConnectionMgr::OnMsgCancelTransaction,
-                            static_cast<PRInt32>(reason), trans);
+    nsresult rv = PostEvent(&nsHttpConnectionMgr::OnMsgCancelTransaction, reason, trans);
     if (NS_FAILED(rv))
         NS_RELEASE(trans);
     return rv;
@@ -1880,7 +1879,6 @@ nsHttpConnectionMgr::OnMsgCancelTransaction(PRInt32 reason, void *param)
     NS_ABORT_IF_FALSE(PR_GetCurrentThread() == gSocketThread, "wrong thread");
     LOG(("nsHttpConnectionMgr::OnMsgCancelTransaction [trans=%p]\n", param));
 
-    nsresult closeCode = static_cast<nsresult>(reason);
     nsHttpTransaction *trans = (nsHttpTransaction *) param;
     //
     // if the transaction owns a connection and the transaction is not done,
@@ -1889,7 +1887,7 @@ nsHttpConnectionMgr::OnMsgCancelTransaction(PRInt32 reason, void *param)
     //
     nsAHttpConnection *conn = trans->Connection();
     if (conn && !trans->IsDone())
-        conn->CloseTransaction(trans, closeCode);
+        conn->CloseTransaction(trans, reason);
     else {
         nsConnectionEntry *ent = LookupConnectionEntry(trans->ConnectionInfo(),
                                                        nullptr, trans);
@@ -1902,7 +1900,7 @@ nsHttpConnectionMgr::OnMsgCancelTransaction(PRInt32 reason, void *param)
                 NS_RELEASE(temp); // b/c NS_RELEASE nulls its argument!
             }
         }
-        trans->Close(closeCode);
+        trans->Close(reason);
     }
     NS_RELEASE(trans);
 }
@@ -2696,7 +2694,7 @@ nsHttpConnectionMgr::nsHalfOpenSocket::OnTransportStatus(nsITransport *trans,
     // just completed. We can't do coalescing if using a proxy because the
     // ip addresses are not available to the client.
 
-    if (status == NS_NET_STATUS_CONNECTED_TO &&
+    if (status == nsISocketTransport::STATUS_CONNECTED_TO &&
         gHttpHandler->IsSpdyEnabled() &&
         gHttpHandler->CoalesceSpdy() &&
         mEnt && mEnt->mConnInfo && mEnt->mConnInfo->UsingSSL() &&
@@ -2727,7 +2725,7 @@ nsHttpConnectionMgr::nsHalfOpenSocket::OnTransportStatus(nsITransport *trans,
     }
 
     switch (status) {
-    case NS_NET_STATUS_CONNECTING_TO:
+    case nsISocketTransport::STATUS_CONNECTING_TO:
         // Passed DNS resolution, now trying to connect, start the backup timer
         // only prevent creating another backup transport.
         // We also check for mEnt presence to not instantiate the timer after
@@ -2740,7 +2738,7 @@ nsHttpConnectionMgr::nsHalfOpenSocket::OnTransportStatus(nsITransport *trans,
             SetupBackupTimer();
         break;
 
-    case NS_NET_STATUS_CONNECTED_TO:
+    case nsISocketTransport::STATUS_CONNECTED_TO:
         // TCP connection's up, now transfer or SSL negotiantion starts,
         // no need for backup socket
         CancelBackupTimer();

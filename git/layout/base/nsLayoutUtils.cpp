@@ -421,7 +421,7 @@ nsLayoutUtils::GetChildListNameFor(nsIFrame* aChildFrame)
       return nsIFrame::kPopupList;
 #endif // MOZ_XUL
     } else {
-      NS_ASSERTION(aChildFrame->IsFloating(),
+      NS_ASSERTION(aChildFrame->GetStyleDisplay()->IsFloating(),
                    "not a floated frame");
       id = nsIFrame::kFloatList;
     }
@@ -457,7 +457,7 @@ nsLayoutUtils::GetChildListNameFor(nsIFrame* aChildFrame)
       found = parent->GetChildList(nsIFrame::kOverflowList)
                 .ContainsFrame(aChildFrame);
     }
-    else if (aChildFrame->IsFloating()) {
+    else if (aChildFrame->GetStyleDisplay()->IsFloating()) {
       found = parent->GetChildList(nsIFrame::kOverflowOutOfFlowList)
                 .ContainsFrame(aChildFrame);
     }
@@ -535,7 +535,7 @@ nsLayoutUtils::GetFloatFromPlaceholder(nsIFrame* aFrame) {
   if (aFrame->GetStateBits() & PLACEHOLDER_FOR_FLOAT) {
     nsIFrame *outOfFlowFrame =
       nsPlaceholderFrame::GetRealFrameForPlaceholder(aFrame);
-    NS_ASSERTION(outOfFlowFrame->IsFloating(),
+    NS_ASSERTION(outOfFlowFrame->GetStyleDisplay()->IsFloating(),
                  "How did that happen?");
     return outOfFlowFrame;
   }
@@ -1888,7 +1888,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
 
 PRInt32
 nsLayoutUtils::GetZIndex(nsIFrame* aFrame) {
-  if (!aFrame->IsPositioned())
+  if (!aFrame->GetStyleDisplay()->IsPositioned())
     return 0;
 
   const nsStylePosition* position =
@@ -3445,7 +3445,7 @@ nsLayoutUtils::GetClosestLayer(nsIFrame* aFrame)
 {
   nsIFrame* layer;
   for (layer = aFrame; layer; layer = layer->GetParent()) {
-    if (layer->IsPositioned() ||
+    if (layer->GetStyleDisplay()->IsPositioned() ||
         (layer->GetParent() &&
           layer->GetParent()->GetType() == nsGkAtoms::scrollFrame))
       break;
@@ -4054,13 +4054,21 @@ nsLayoutUtils::GetDisplayRootFrame(nsIFrame* aFrame)
   }
 }
 
+static bool
+IsNonzeroCoord(const nsStyleCoord& aCoord)
+{
+  if (eStyleUnit_Coord == aCoord.GetUnit())
+    return aCoord.GetCoordValue() != 0;
+  return false;
+}
+
 /* static */ PRUint32
 nsLayoutUtils::GetTextRunFlagsForStyle(nsStyleContext* aStyleContext,
-                                       const nsStyleFont* aStyleFont,
-                                       nscoord aLetterSpacing)
+                                       const nsStyleText* aStyleText,
+                                       const nsStyleFont* aStyleFont)
 {
   PRUint32 result = 0;
-  if (aLetterSpacing != 0) {
+  if (IsNonzeroCoord(aStyleText->mLetterSpacing)) {
     result |= gfxTextRunFactory::TEXT_DISABLE_OPTIONAL_LIGATURES;
   }
   switch (aStyleContext->GetStyleSVG()->mTextRendering) {

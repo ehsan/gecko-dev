@@ -945,7 +945,7 @@ GLContextEGL::CreateSharedHandle(TextureImage::TextureShareType aType,
         if (!mShareWithEGLImage)
             return 0;
 
-        GLuint texture = (uintptr_t)aBuffer;
+        GLuint texture = (GLuint)aBuffer;
         EGLTextureWrapper* tex = new EGLTextureWrapper();
         if (!tex->CreateEGLImage(this, texture)) {
             NS_ERROR("EGLImage creation for EGLTextureWrapper failed");

@@ -645,8 +645,6 @@ nsIdleService::IdleTimerCallback(void)
         notifyList.AppendObject(curListener.observer);
         // This listener is now idle.
         curListener.isIdle = true;
-        // Remember we have someone idle.
-        mAnyObserverIdle = true;
       } else {
         // Listeners that are not timed out yet are candidates for timing out.
         mDeltaToNextIdleSwitchInS = PR_MIN(mDeltaToNextIdleSwitchInS,
@@ -667,6 +665,9 @@ nsIdleService::IdleTimerCallback(void)
   if (!numberOfPendingNotifications) {
     return;
   }
+
+  // Remember we have someone idle.
+  mAnyObserverIdle = true;
 
   // We need a text string to send with any state change events.
   nsAutoString timeStr;

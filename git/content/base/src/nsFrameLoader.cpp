@@ -22,7 +22,6 @@
 #include "nsIContentViewer.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
-#include "nsIDOMFile.h"
 #include "nsPIDOMWindow.h"
 #include "nsIWebNavigation.h"
 #include "nsIWebProgress.h"
@@ -84,7 +83,6 @@
 #include "nsIAppsService.h"
 
 #include "jsapi.h"
-#include "mozilla/dom/StructuredCloneUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -2158,15 +2156,8 @@ class nsAsyncMessageToChild : public nsRunnable
 {
 public:
   nsAsyncMessageToChild(nsFrameLoader* aFrameLoader,
-                              const nsAString& aMessage,
-                              const StructuredCloneData& aData)
-    : mFrameLoader(aFrameLoader), mMessage(aMessage)
-  {
-    if (aData.mDataLength && !mData.copy(aData.mData, aData.mDataLength)) {
-      NS_RUNTIMEABORT("OOM");
-    }
-    mClosure = aData.mClosure;
-  }
+                        const nsAString& aMessage, const nsAString& aJSON)
+    : mFrameLoader(aFrameLoader), mMessage(aMessage), mJSON(aJSON) {}
 
   NS_IMETHOD Run()
   {
@@ -2174,62 +2165,29 @@ public:
       static_cast<nsInProcessTabChildGlobal*>(mFrameLoader->mChildMessageManager.get());
     if (tabChild && tabChild->GetInnerManager()) {
       nsFrameScriptCx cx(static_cast<nsIDOMEventTarget*>(tabChild), tabChild);
-
-      StructuredCloneData data;
-      data.mData = mData.data();
-      data.mDataLength = mData.nbytes();
-      data.mClosure = mClosure;
-
       nsRefPtr<nsFrameMessageManager> mm = tabChild->GetInnerManager();
       mm->ReceiveMessage(static_cast<nsIDOMEventTarget*>(tabChild), mMessage,
-                         false, &data, nullptr, nullptr, nullptr);
+                         false, mJSON, nullptr, nullptr);
     }
     return NS_OK;
   }
   nsRefPtr<nsFrameLoader> mFrameLoader;
   nsString mMessage;
-  JSAutoStructuredCloneBuffer mData;
-  StructuredCloneClosure mClosure;
+  nsString mJSON;
 };
 
 bool SendAsyncMessageToChild(void* aCallbackData,
                              const nsAString& aMessage,
-                                   const StructuredCloneData& aData)
+                             const nsAString& aJSON)
 {
-  PBrowserParent* tabParent =
+  mozilla::dom::PBrowserParent* tabParent =
     static_cast<nsFrameLoader*>(aCallbackData)->GetRemoteBrowser();
   if (tabParent) {
-    ClonedMessageData data;
-
-    SerializedStructuredCloneBuffer& buffer = data.data();
-    buffer.data = aData.mData;
-    buffer.dataLength = aData.mDataLength;
-
-    const nsTArray<nsCOMPtr<nsIDOMBlob> >& blobs = aData.mClosure.mBlobs;
-    if (!blobs.IsEmpty()) {
-      InfallibleTArray<PBlobParent*>& blobParents = data.blobsParent();
-
-      PRUint32 length = blobs.Length();
-      blobParents.SetCapacity(length);
-
-      ContentParent* cp = static_cast<ContentParent*>(tabParent->Manager());
-
-      for (PRUint32 i = 0; i < length; ++i) {
-        BlobParent* blobParent = cp->GetOrCreateActorForBlob(blobs[i]);
-        if (!blobParent) {
-          return false;
-        }
-
-        blobParents.AppendElement(blobParent);
-      }
-    }
-
-    return tabParent->SendAsyncMessage(nsString(aMessage), data);
+    return tabParent->SendAsyncMessage(nsString(aMessage), nsString(aJSON));
   }
-
   nsRefPtr<nsIRunnable> ev =
     new nsAsyncMessageToChild(static_cast<nsFrameLoader*>(aCallbackData),
-                                    aMessage, aData);
+                              aMessage, aJSON);
   NS_DispatchToCurrentThread(ev);
   return true;
 }

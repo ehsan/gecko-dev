@@ -572,7 +572,7 @@ toplevel_event_watcher(GSignalInvocationHint* ihint,
   return TRUE;
 }
 
-void
+bool
 ApplicationAccessibleWrap::Init()
 {
     if (ShouldA11yBeEnabled()) {
@@ -615,7 +615,7 @@ ApplicationAccessibleWrap::Init()
         }
     }
 
-    ApplicationAccessible::Init();
+    return ApplicationAccessible::Init();
 }
 
 void

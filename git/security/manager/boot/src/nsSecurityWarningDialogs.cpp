@@ -17,9 +17,6 @@
 #include "nsThreadUtils.h"
 #include "nsAutoPtr.h"
 
-#include "mozilla/Telemetry.h"
-#include "nsISecurityUITelemetry.h"
-
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsSecurityWarningDialogs, nsISecurityWarningDialogs)
 
 #define STRING_BUNDLE_URL    "chrome://pipnss/locale/security.properties"
@@ -63,8 +60,7 @@ nsSecurityWarningDialogs::ConfirmEnteringSecure(nsIInterfaceRequestor *ctx, bool
   rv = AlertDialog(ctx, ENTER_SITE_PREF, 
                    NS_LITERAL_STRING("EnterSecureMessage").get(),
                    NS_LITERAL_STRING("EnterSecureShowAgain").get(),
-                   false,
-                   nsISecurityUITelemetry::WARNING_ENTERING_SECURE_SITE);
+                   false);
 
   *_retval = true;
   return rv;
@@ -78,8 +74,7 @@ nsSecurityWarningDialogs::ConfirmEnteringWeak(nsIInterfaceRequestor *ctx, bool *
   rv = AlertDialog(ctx, WEAK_SITE_PREF,
                    NS_LITERAL_STRING("WeakSecureMessage").get(),
                    NS_LITERAL_STRING("WeakSecureShowAgain").get(),
-                   false,
-                   nsISecurityUITelemetry::WARNING_ENTERING_WEAK_SITE);
+                   false);
 
   *_retval = true;
   return rv;
@@ -93,8 +88,7 @@ nsSecurityWarningDialogs::ConfirmLeavingSecure(nsIInterfaceRequestor *ctx, bool 
   rv = AlertDialog(ctx, LEAVE_SITE_PREF, 
                    NS_LITERAL_STRING("LeaveSecureMessage").get(),
                    NS_LITERAL_STRING("LeaveSecureShowAgain").get(),
-                   false,
-                   nsISecurityUITelemetry::WARNING_LEAVING_SECURE_SITE);
+                   false);
 
   *_retval = true;
   return rv;
@@ -109,8 +103,7 @@ nsSecurityWarningDialogs::ConfirmMixedMode(nsIInterfaceRequestor *ctx, bool *_re
   rv = AlertDialog(ctx, MIXEDCONTENT_PREF, 
                    NS_LITERAL_STRING("MixedContentMessage").get(),
                    NS_LITERAL_STRING("MixedContentShowAgain").get(),
-                   true,
-                   nsISecurityUITelemetry::WARNING_MIXED_CONTENT);
+                   true);
 
   *_retval = true;
   return rv;
@@ -124,13 +117,11 @@ public:
                const PRUnichar* aDialogMessageName,
                const PRUnichar* aShowAgainName,
                nsIPrefBranch*   aPrefBranch,
-               nsIStringBundle* aStringBundle,
-               PRUint32         aBucket)
+               nsIStringBundle* aStringBundle)
   : mPrompt(aPrompt), mPrefName(aPrefName),
     mDialogMessageName(aDialogMessageName),
     mShowAgainName(aShowAgainName), mPrefBranch(aPrefBranch),
-    mStringBundle(aStringBundle),
-    mBucket(aBucket) {}
+    mStringBundle(aStringBundle) {}
   NS_IMETHOD Run();
 
 protected:
@@ -140,7 +131,6 @@ protected:
   nsString                  mShowAgainName;
   nsCOMPtr<nsIPrefBranch>   mPrefBranch;
   nsCOMPtr<nsIStringBundle> mStringBundle;
-  PRUint32                  mBucket;
 };
 
 NS_IMETHODIMP
@@ -156,7 +146,6 @@ nsAsyncAlert::Run()
   // Stop if alert is not requested
   if (!prefValue) return NS_OK;
 
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI, mBucket);
   // Check for a show-once pref for this dialog.
   // If the show-once pref is set to true:
   //   - The default value of the "show every time" checkbox is unchecked
@@ -200,8 +189,7 @@ nsSecurityWarningDialogs::AlertDialog(nsIInterfaceRequestor* aCtx,
                                       const char* aPrefName,
                                       const PRUnichar* aDialogMessageName,
                                       const PRUnichar* aShowAgainName,
-                                      bool aAsync,
-                                      const PRUint32 aBucket)
+                                      bool aAsync)
 {
   // Get Prompt to use
   nsCOMPtr<nsIPrompt> prompt = do_GetInterface(aCtx);
@@ -212,9 +200,7 @@ nsSecurityWarningDialogs::AlertDialog(nsIInterfaceRequestor* aCtx,
                                                   aDialogMessageName,
                                                   aShowAgainName,
                                                   mPrefBranch,
-                                                  mStringBundle,
-                                                  aBucket);
-
+                                                  mStringBundle);
   NS_ENSURE_TRUE(alert, NS_ERROR_OUT_OF_MEMORY);
   return aAsync ? NS_DispatchToCurrentThread(alert) : alert->Run();
 }
@@ -226,11 +212,9 @@ nsSecurityWarningDialogs::ConfirmPostToInsecure(nsIInterfaceRequestor *ctx, bool
 {
   nsresult rv;
 
-  // The Telemetry clickthrough constant is 1 more than the constant for the dialog.
   rv = ConfirmDialog(ctx, INSECURE_SUBMIT_PREF,
                      NS_LITERAL_STRING("PostToInsecureFromInsecureMessage").get(),
                      NS_LITERAL_STRING("PostToInsecureFromInsecureShowAgain").get(),
-                     nsISecurityUITelemetry::WARNING_CONFIRM_POST_TO_INSECURE_FROM_INSECURE,
                      _result);
 
   return rv;
@@ -241,11 +225,9 @@ nsSecurityWarningDialogs::ConfirmPostToInsecureFromSecure(nsIInterfaceRequestor 
 {
   nsresult rv;
 
-  // The Telemetry clickthrough constant is 1 more than the constant for the dialog.
   rv = ConfirmDialog(ctx, nullptr, // No preference for this one - it's too important
                      NS_LITERAL_STRING("PostToInsecureFromSecureMessage").get(),
-                     nullptr,
-                     nsISecurityUITelemetry::WARNING_CONFIRM_POST_TO_INSECURE_FROM_SECURE,
+                     nullptr, 
                      _result);
 
   return rv;
@@ -255,7 +237,6 @@ nsresult
 nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *prefName,
                             const PRUnichar *messageName, 
                             const PRUnichar *showAgainName, 
-                            const PRUint32 aBucket,
                             bool* _result)
 {
   nsresult rv;
@@ -275,8 +256,6 @@ nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *
     return NS_OK;
   }
   
-  MOZ_ASSERT(NS_IsMainThread());
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI, aBucket);
   // See AlertDialog() for a description of how showOnce works.
   nsCAutoString showOncePref(prefName);
   showOncePref += ".show_once";
@@ -333,11 +312,6 @@ nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *
   if (NS_FAILED(rv)) return rv;
 
   *_result = (buttonPressed != 1);
-  if (*_result) {
-  // For confirmation dialogs, the clickthrough constant is 1 more
-  // than the constant for the dialog.
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI, aBucket + 1);
-  }
 
   if (!prefValue && prefName != nullptr) {
     mPrefBranch->SetBoolPref(prefName, false);

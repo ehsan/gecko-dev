@@ -20,7 +20,6 @@
 #include "nsFirstLetterFrame.h"
 #include "nsUnicodeProperties.h"
 #include "nsTextFrame.h"
-#include "nsStyleStructInlines.h"
 
 #undef NOISY_BIDI
 #undef REALLY_NOISY_BIDI
@@ -518,7 +517,7 @@ CreateContinuation(nsIFrame*  aFrame,
   // doesn't go in the first letter frame. The continuation goes with the rest
   // of the text that the first letter frame was made out of.
   if (parent->GetType() == nsGkAtoms::letterFrame &&
-      parent->IsFloating()) {
+      parent->GetStyleDisplay()->IsFloating()) {
     nsFirstLetterFrame* letterFrame = do_QueryFrame(parent);
     rv = letterFrame->CreateContinuationForFloatingParent(presContext, aFrame,
                                                           aNewFrame, aIsFluid);
@@ -1093,7 +1092,7 @@ nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
         // http://dev.w3.org/html5/spec/Overview.html#phrasing-content-1
         aBpd->AppendUnichar(content->IsHTML(nsGkAtoms::wbr) ?
                             kZWSP : kObjectSubstitute);
-        if (!frame->IsInlineOutside()) {
+        if (!frame->GetStyleContext()->GetStyleDisplay()->IsInlineOutside()) {
           // if it is not inline, end the paragraph
           ResolveParagraphWithinBlock(aBlockFrame, aBpd);
         }

@@ -14,6 +14,7 @@ import subprocess
 import sys
 import ConfigParser
 
+from threading import Thread
 from utils import get_metadata_from_egg
 from utils import findInPath
 from mozprofile import *
@@ -150,14 +151,10 @@ class Runner(object):
     def is_running(self):
         return self.process_handler is not None
 
-    def start(self, debug_args=None, interactive=False, timeout=None, outputTimeout=None):
+    def start(self, debug_args=None, interactive=False):
         """
         Run self.command in the proper environment.
         - debug_args: arguments for the debugger
-        - interactive: uses subprocess.Popen directly
-        - read_output: sends program output to stdout [default=False]
-        - timeout: see process_handler.waitForFinish
-        - outputTimeout: see process_handler.waitForFinish
         """
 
         # ensure you are stopped
@@ -174,6 +171,7 @@ class Runner(object):
         if debug_args:
             cmd = list(debug_args) + cmd
 
+        #
         if interactive:
             self.process_handler = subprocess.Popen(cmd, env=self.env)
             # TODO: other arguments
@@ -182,26 +180,18 @@ class Runner(object):
             self.process_handler = self.process_class(cmd, env=self.env, **self.kp_kwargs)
             self.process_handler.run()
 
-            # start processing output from the process
-            self.process_handler.processOutput(timeout, outputTimeout)
+            # Spin a thread to handle reading the output
+            self.outThread = OutputThread(self.process_handler)
+            self.outThread.start()
 
-    def wait(self, timeout=None):
-        """
-        Wait for the app to exit.
-
-        If timeout is not None, will return after timeout seconds.
-        Use is_running() to determine whether or not a timeout occured.
-        Timeout is ignored if interactive was set to True.
-        """
+    def wait(self, timeout=None, outputTimeout=None):
+        """Wait for the app to exit."""
         if self.process_handler is None:
             return
         if isinstance(self.process_handler, subprocess.Popen):
             self.process_handler.wait()
         else:
-            self.process_handler.waitForFinish(timeout)
-            if not getattr(self.process_handler.proc, 'returncode', False):
-                # waitForFinish timed out
-                return
+            self.process_handler.waitForFinish(timeout=timeout, outputTimeout=outputTimeout)
         self.process_handler = None
 
     def stop(self):
@@ -256,6 +246,13 @@ class ThunderbirdRunner(Runner):
 
 runners = {'firefox': FirefoxRunner,
            'thunderbird': ThunderbirdRunner}
+
+class OutputThread(Thread):
+    def __init__(self, prochandler):
+        Thread.__init__(self)
+        self.ph = prochandler
+    def run(self):
+        self.ph.waitForFinish()
 
 class CLI(MozProfileCLI):
     """Command line interface."""

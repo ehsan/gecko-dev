@@ -57,17 +57,17 @@ nsTArrayToJSArray(JSContext* aCx, JSObject* aGlobal,
   if (aSourceArray.IsEmpty()) {
     arrayObj = JS_NewArrayObject(aCx, 0, nullptr);
   } else {
-    uint32_t valLength = aSourceArray.Length();
-    mozilla::ScopedDeleteArray<jsval> valArray(new jsval[valLength]);
-    JS::AutoArrayRooter tvr(aCx, valLength, valArray);
-    for (PRUint32 index = 0; index < valLength; index++) {
+    nsTArray<jsval> valArray;
+    valArray.SetLength(aSourceArray.Length());
+
+    for (PRUint32 index = 0; index < valArray.Length(); index++) {
       nsISupports* obj = aSourceArray[index]->ToISupports();
       nsresult rv =
         nsContentUtils::WrapNative(aCx, aGlobal, obj, &valArray[index]);
       NS_ENSURE_SUCCESS(rv, rv);
     }
 
-    arrayObj = JS_NewArrayObject(aCx, valLength, valArray);
+    arrayObj = JS_NewArrayObject(aCx, valArray.Length(), valArray.Elements());
   }
 
   if (!arrayObj) {

@@ -150,7 +150,7 @@ public:
   NS_DECL_OR_FORWARD_NSIACCESSIBLETABLECELL_WITH_XPCACCESSIBLETABLECELL
 
   // nsAccessNode
-  virtual void Init();
+  virtual bool Init();
   virtual bool IsPrimaryForNode() const;
 
   // Accessible

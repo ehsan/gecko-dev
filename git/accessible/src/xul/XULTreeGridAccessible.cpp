@@ -779,12 +779,11 @@ XULTreeGridCellAccessible::IsSelected(bool* aIsSelected)
 ////////////////////////////////////////////////////////////////////////////////
 // XULTreeGridCellAccessible: nsAccessNode implementation
 
-void
+bool
 XULTreeGridCellAccessible::Init()
 {
-  LeafAccessible::Init();
-
-  NS_ASSERTION(mTreeView, "mTreeView is null");
+  if (!LeafAccessible::Init() || !mTreeView)
+    return false;
 
   PRInt16 type;
   mColumn->GetType(&type);
@@ -792,6 +791,8 @@ XULTreeGridCellAccessible::Init()
     mTreeView->GetCellValue(mRow, mColumn, mCachedTextEquiv);
   else
     mTreeView->GetCellText(mRow, mColumn, mCachedTextEquiv);
+
+  return true;
 }
 
 bool

@@ -7,6 +7,7 @@
 #include "base/basictypes.h"
 
 #include "IDBFactory.h"
+
 #include "nsIFile.h"
 #include "nsIJSContextStack.h"
 #include "nsIPrincipal.h"
@@ -15,7 +16,6 @@
 #include "nsIXPCScriptable.h"
 
 #include "jsdbgapi.h"
-#include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/PBrowserChild.h"
 #include "mozilla/dom/TabChild.h"
@@ -46,7 +46,6 @@
 USING_INDEXEDDB_NAMESPACE
 
 using mozilla::dom::ContentChild;
-using mozilla::dom::ContentParent;
 using mozilla::dom::TabChild;
 
 namespace {
@@ -64,7 +63,7 @@ struct ObjectStoreInfoMap
 
 IDBFactory::IDBFactory()
 : mOwningObject(nullptr), mActorChild(nullptr), mActorParent(nullptr),
-  mContentParent(nullptr), mRootedOwningObject(false)
+  mRootedOwningObject(false)
 {
 }
 
@@ -85,7 +84,6 @@ IDBFactory::~IDBFactory()
 nsresult
 IDBFactory::Create(nsPIDOMWindow* aWindow,
                    const nsACString& aASCIIOrigin,
-                   ContentParent* aContentParent,
                    IDBFactory** aFactory)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -120,7 +118,6 @@ IDBFactory::Create(nsPIDOMWindow* aWindow,
   nsRefPtr<IDBFactory> factory = new IDBFactory();
   factory->mASCIIOrigin = origin;
   factory->mWindow = aWindow;
-  factory->mContentParent = aContentParent;
 
   if (!IndexedDatabaseManager::IsMainProcess()) {
     TabChild* tabChild = GetTabChildFrom(aWindow);
@@ -148,7 +145,6 @@ IDBFactory::Create(nsPIDOMWindow* aWindow,
 nsresult
 IDBFactory::Create(JSContext* aCx,
                    JSObject* aOwningObject,
-                   ContentParent* aContentParent,
                    IDBFactory** aFactory)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -166,7 +162,6 @@ IDBFactory::Create(JSContext* aCx,
   nsRefPtr<IDBFactory> factory = new IDBFactory();
   factory->mASCIIOrigin = origin;
   factory->mOwningObject = aOwningObject;
-  factory->mContentParent = aContentParent;
 
   if (!IndexedDatabaseManager::IsMainProcess()) {
     ContentChild* contentChild = ContentChild::GetSingleton();
@@ -185,13 +180,11 @@ IDBFactory::Create(JSContext* aCx,
 
 // static
 nsresult
-IDBFactory::Create(ContentParent* aContentParent,
-                   IDBFactory** aFactory)
+IDBFactory::Create(IDBFactory** aFactory)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
   NS_ASSERTION(nsContentUtils::IsCallerChrome(), "Only for chrome!");
-  NS_ASSERTION(aContentParent, "Null ContentParent!");
 
 #ifdef DEBUG
   {
@@ -250,7 +243,7 @@ IDBFactory::Create(ContentParent* aContentParent,
   }
 
   nsRefPtr<IDBFactory> factory;
-  rv = Create(cx, global, aContentParent, getter_AddRefs(factory));
+  rv = Create(cx, global, getter_AddRefs(factory));
   NS_ENSURE_SUCCESS(rv, rv);
 
   NS_HOLD_JS_OBJECTS(factory, IDBFactory);
@@ -536,10 +529,10 @@ IDBFactory::OpenCommon(const nsAString& aName,
 
   nsresult rv;
 
-  if (IndexedDatabaseManager::IsMainProcess()) {
+  if (IndexedDatabaseManager::IsMainProcess()) {                       
     nsRefPtr<OpenDatabaseHelper> openHelper =
       new OpenDatabaseHelper(request, aName, mASCIIOrigin, aVersion, aDeleting,
-                             mContentParent, privilege);
+                             privilege);
 
     rv = openHelper->Init();
     NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);

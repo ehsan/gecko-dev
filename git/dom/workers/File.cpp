@@ -128,7 +128,9 @@ private:
       return false;
     }
 
-    aVp.set(JS_NumberValue(double(size)));
+    if (!JS_NewNumberValue(aCx, double(size), aVp.address())) {
+      return false;
+    }
 
     return true;
   }

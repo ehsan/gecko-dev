@@ -4853,7 +4853,7 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
       canStoreInRuleTree = false;
     }
 
-    if (display->IsAbsolutelyPositionedStyle()) {
+    if (display->IsAbsolutelyPositioned()) {
       // 1) if position is 'absolute' or 'fixed' then display must be
       // block-level and float must be 'none'
       EnsureBlockDisplay(display->mDisplay);

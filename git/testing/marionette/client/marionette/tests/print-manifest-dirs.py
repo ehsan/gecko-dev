@@ -13,21 +13,20 @@ def print_test_dirs(topsrcdir, manifest_file):
     into manifests, as we currently have no need for that.
     """
 
-    dirs = set()
     # output the directory of this (parent) manifest
     topsrcdir = os.path.abspath(topsrcdir)
     scriptdir = os.path.abspath(os.path.dirname(__file__))
-    dirs.add(scriptdir[len(topsrcdir) + 1:])
+    print scriptdir[len(topsrcdir) + 1:]
 
     # output the directories of all the other manifests
+    dirs = set()
     manifest = TestManifest()
     manifest.read(manifest_file)
     for i in manifest.get():
-        d = os.path.dirname(i['manifest'])[len(topsrcdir) + 1:]
-        dirs.add(d)
+        dirs.add(os.path.dirname(i['manifest'])[len(topsrcdir) + 1:])
     for path in dirs:
-        path = path.replace('\\', '/')
         print path
+
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:

@@ -6,11 +6,7 @@
 
 #include "base/basictypes.h"
 
-#include "TabChild.h"
-
 #include "BasicLayers.h"
-#include "Blob.h"
-#include "ContentChild.h"
 #include "IndexedDBChild.h"
 #include "mozilla/IntentionalCrash.h"
 #include "mozilla/docshell/OfflineCacheUpdateChild.h"
@@ -62,10 +58,9 @@
 #include "nsThreadUtils.h"
 #include "nsWeakReference.h"
 #include "PCOMContentPermissionRequestChild.h"
-#include "StructuredCloneUtils.h"
+#include "TabChild.h"
 #include "xpcpublic.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::ipc;
 using namespace mozilla::layers;
@@ -651,9 +646,6 @@ TabChild::RecvUpdateFrame(const nsIntRect& aDisplayPort,
                           const gfxSize& aResolution,
                           const nsIntRect& aScreenSize)
 {
-    if (!mCx || !mTabChildGlobal) {
-        return true;
-    }
     nsCString data;
     data += nsPrintfCString("{ \"x\" : %d", aScrollOffset.x);
     data += nsPrintfCString(", \"y\" : %d", aScrollOffset.y);
@@ -673,28 +665,10 @@ TabChild::RecvUpdateFrame(const nsIntRect& aDisplayPort,
         data += nsPrintfCString(" }");
     data += nsPrintfCString(" }");
 
-    JSAutoRequest ar(mCx);
-    jsval json = JSVAL_NULL;
-    StructuredCloneData cloneData;
-    JSAutoStructuredCloneBuffer buffer;
-    if (JS_ParseJSON(mCx,
-                      static_cast<const jschar*>(NS_ConvertUTF8toUTF16(data).get()),
-                      data.Length(),
-                      &json)) {
-        WriteStructuredClone(mCx, json, buffer, cloneData.mClosure);
-        cloneData.mData = buffer.data();
-        cloneData.mDataLength = buffer.nbytes();
-    }
-
-    nsFrameScriptCx cx(static_cast<nsIWebBrowserChrome*>(this), this);
     // Let the BrowserElementScrolling helper (if it exists) for this
     // content manipulate the frame state.
-    nsRefPtr<nsFrameMessageManager> mm =
-      static_cast<nsFrameMessageManager*>(mTabChildGlobal->mMessageManager.get());
-    mm->ReceiveMessage(static_cast<nsIDOMEventTarget*>(mTabChildGlobal),
-                       NS_LITERAL_STRING("Viewport:Change"), false,
-                       &cloneData, nullptr, nullptr);
-    return true;
+    return RecvAsyncMessage(NS_LITERAL_STRING("Viewport:Change"),
+                            NS_ConvertUTF8toUTF16(data));
 }
 
 bool
@@ -984,36 +958,14 @@ TabChild::RecvLoadRemoteScript(const nsString& aURL)
 
 bool
 TabChild::RecvAsyncMessage(const nsString& aMessage,
-                           const ClonedMessageData& aData)
+                           const nsString& aJSON)
 {
   if (mTabChildGlobal) {
     nsFrameScriptCx cx(static_cast<nsIWebBrowserChrome*>(this), this);
-
-    const SerializedStructuredCloneBuffer& buffer = aData.data();
-    const InfallibleTArray<PBlobChild*>& blobChildList = aData.blobsChild();
-
-    StructuredCloneData cloneData;
-    cloneData.mData = buffer.data;
-    cloneData.mDataLength = buffer.dataLength;
-
-    if (!blobChildList.IsEmpty()) {
-      PRUint32 length = blobChildList.Length();
-      cloneData.mClosure.mBlobs.SetCapacity(length);
-      for (PRUint32 i = 0; i < length; ++i) {
-        BlobChild* blobChild = static_cast<BlobChild*>(blobChildList[i]);
-        MOZ_ASSERT(blobChild);
-
-        nsCOMPtr<nsIDOMBlob> blob = blobChild->GetBlob();
-        MOZ_ASSERT(blob);
-
-        cloneData.mClosure.mBlobs.AppendElement(blob);
-      }
-    }
-
     nsRefPtr<nsFrameMessageManager> mm =
       static_cast<nsFrameMessageManager*>(mTabChildGlobal->mMessageManager.get());
     mm->ReceiveMessage(static_cast<nsIDOMEventTarget*>(mTabChildGlobal),
-                       aMessage, false, &cloneData, nullptr, nullptr);
+                       aMessage, false, aJSON, nullptr, nullptr);
   }
   return true;
 }
@@ -1232,61 +1184,22 @@ TabChild::DeallocPIndexedDB(PIndexedDBChild* aActor)
 static bool
 SendSyncMessageToParent(void* aCallbackData,
                         const nsAString& aMessage,
-                        const StructuredCloneData& aData,
+                        const nsAString& aJSON,
                         InfallibleTArray<nsString>* aJSONRetVal)
 {
-  TabChild* tabChild = static_cast<TabChild*>(aCallbackData);
-  ContentChild* cc = static_cast<ContentChild*>(tabChild->Manager());
-  ClonedMessageData data;
-  SerializedStructuredCloneBuffer& buffer = data.data();
-  buffer.data = aData.mData;
-  buffer.dataLength = aData.mDataLength;
-
-  const nsTArray<nsCOMPtr<nsIDOMBlob> >& blobs = aData.mClosure.mBlobs;
-  if (!blobs.IsEmpty()) {
-    InfallibleTArray<PBlobChild*>& blobChildList = data.blobsChild();
-    PRUint32 length = blobs.Length();
-    blobChildList.SetCapacity(length);
-    for (PRUint32 i = 0; i < length; ++i) {
-      BlobChild* blobChild = cc->GetOrCreateActorForBlob(blobs[i]);
-      if (!blobChild) {
-        return false;
-      }
-      blobChildList.AppendElement(blobChild);
-    }
-  }
-  return tabChild->SendSyncMessage(nsString(aMessage), data, aJSONRetVal);
+  return static_cast<TabChild*>(aCallbackData)->
+    SendSyncMessage(nsString(aMessage), nsString(aJSON),
+                    aJSONRetVal);
 }
 
 static bool
 SendAsyncMessageToParent(void* aCallbackData,
                          const nsAString& aMessage,
-                         const StructuredCloneData& aData)
+                         const nsAString& aJSON)
 {
-  TabChild* tabChild = static_cast<TabChild*>(aCallbackData);
-  ContentChild* cc = static_cast<ContentChild*>(tabChild->Manager());
-  ClonedMessageData data;
-  SerializedStructuredCloneBuffer& buffer = data.data();
-  buffer.data = aData.mData;
-  buffer.dataLength = aData.mDataLength;
-
-  const nsTArray<nsCOMPtr<nsIDOMBlob> >& blobs = aData.mClosure.mBlobs;
-  if (!blobs.IsEmpty()) {
-    InfallibleTArray<PBlobChild*>& blobChildList = data.blobsChild();
-    PRUint32 length = blobs.Length();
-    blobChildList.SetCapacity(length);
-    for (PRUint32 i = 0; i < length; ++i) {
-      BlobChild* blobChild = cc->GetOrCreateActorForBlob(blobs[i]);
-      if (!blobChild) {
-        return false;
-      }
-      blobChildList.AppendElement(blobChild);
-    }
-  }
-
-  return tabChild->SendAsyncMessage(nsString(aMessage), data);
+  return static_cast<TabChild*>(aCallbackData)->
+    SendAsyncMessage(nsString(aMessage), nsString(aJSON));
 }
-
 
 TabChildGlobal::TabChildGlobal(TabChild* aTabChild)
 : mTabChild(aTabChild)

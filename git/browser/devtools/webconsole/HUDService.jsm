@@ -611,6 +611,7 @@ WebConsole.prototype = {
 
     let position = Services.prefs.getCharPref("devtools.webconsole.position");
     this.positionConsole(position);
+    this._currentUIPosition = position;
   },
 
   /**
@@ -621,10 +622,8 @@ WebConsole.prototype = {
   {
     this.iframe.removeEventListener("load", this._onIframeLoad, true);
 
-    let position = Services.prefs.getCharPref("devtools.webconsole.position");
-
     this.iframeWindow = this.iframe.contentWindow.wrappedJSObject;
-    this.ui = new this.iframeWindow.WebConsoleFrame(this, position);
+    this.ui = new this.iframeWindow.WebConsoleFrame(this, this._currentUIPosition);
     this._setupMessageManager();
   },
 
@@ -696,6 +695,8 @@ WebConsole.prototype = {
       this.iframe.flex = 1;
 
       panel.setAttribute("height", height);
+
+      this._afterPositionConsole("window", lastIndex);
     }).bind(this);
 
     panel.addEventListener("popupshown", onPopupShown,false);
@@ -735,9 +736,6 @@ WebConsole.prototype = {
     if (this.splitter.parentNode) {
       this.splitter.parentNode.removeChild(this.splitter);
     }
-
-    this._beforePositionConsole("window", lastIndex);
-
     panel.appendChild(this.iframe);
 
     let space = this.chromeDocument.createElement("spacer");
@@ -824,8 +822,6 @@ WebConsole.prototype = {
       this.splitter.parentNode.removeChild(this.splitter);
     }
 
-    this._beforePositionConsole(aPosition, lastIndex);
-
     if (aPosition == "below") {
       nBox.appendChild(this.splitter);
       nBox.appendChild(this.iframe);
@@ -845,10 +841,12 @@ WebConsole.prototype = {
       this.iframe.removeAttribute("height");
       this.iframe.style.height = height + "px";
     }
+
+    this._afterPositionConsole(aPosition, lastIndex);
   },
 
   /**
-   * Common code that needs to execute before the Web Console is repositioned.
+   * Common code that needs to execute after the Web Console is repositioned.
    * @private
    * @param string aPosition
    *        The new position: "above", "below" or "window".
@@ -856,8 +854,8 @@ WebConsole.prototype = {
    *        The last visible message in the console output before repositioning
    *        occurred.
    */
-  _beforePositionConsole:
-  function WC__beforePositionConsole(aPosition, aLastIndex)
+  _afterPositionConsole:
+  function WC__afterPositionConsole(aPosition, aLastIndex)
   {
     if (!this.ui) {
       return;

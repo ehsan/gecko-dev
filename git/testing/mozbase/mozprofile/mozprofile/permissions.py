@@ -128,7 +128,9 @@ class ServerLocations(object):
             if self.hasPrimary:
                 raise MultiplePrimaryLocationsError()
             self.hasPrimary = True
-
+        for loc in self._locations:
+            if loc.isEqual(location):
+                raise DuplicateLocationError(location.url())
         self._locations.append(location)
         if self.add_callback and not suppress_callback:
             self.add_callback([location])
@@ -148,7 +150,7 @@ class ServerLocations(object):
 
         This format:
         http://mxr.mozilla.org/mozilla-central/source/build/pgo/server-locations.txt
-        The only exception is that the port, if not defined, defaults to 80 or 443.
+        The only exception is that the port, if not defined, defaults to 80.
 
         FIXME: Shouldn't this default to the protocol-appropriate port?  Is
         there any reason to have defaults at all?
@@ -183,11 +185,7 @@ class ServerLocations(object):
                 host, port = netloc.rsplit(':', 1)
             except ValueError:
                 host = netloc
-                default_ports = {'http': '80',
-                                 'https': '443',
-                                 'ws': '443',
-                                 'wss': '443'}
-                port = default_ports.get(scheme, '80')
+                port = '80'
 
             try:
                 location = Location(scheme, host, port, options)
@@ -270,8 +268,8 @@ class Permissions(object):
         for (i, l) in itertools.izip(itertools.count(1), privileged):
             prefs.append(("capability.principal.codebase.p%s.granted" % i, "UniversalXPConnect"))
 
-            prefs.append(("capability.principal.codebase.p%s.id" % i, "%s://%s:%s" %
-                        (l.scheme, l.host, l.port)))
+            # TODO: do we need the port?
+            prefs.append(("capability.principal.codebase.p%s.id" % i, l.scheme + "://" + l.host))
             prefs.append(("capability.principal.codebase.p%s.subjectName" % i, ""))
 
         if proxy:
@@ -291,19 +289,18 @@ class Permissions(object):
 
         # We need to proxy every server but the primary one.
         origins = ["'%s'" % l.url()
-                   for l in self._locations]
-
+                   for l in self._locations
+                   if "primary" not in l.options]
         origins = ", ".join(origins)
 
+        # TODO: this is not a reliable way to determine the Proxy host
         for l in self._locations:
             if "primary" in l.options:
                 webServer = l.host
-                port = l.port
+                httpPort  = l.port
+                sslPort   = 443
 
         # TODO: this should live in a template!
-        # TODO: So changing the 5th line of the regex below from (\\\\\\\\d+)
-        # to (\\\\d+) makes this code work. Not sure why there would be this
-        # difference between automation.py.in and this file.
         pacURL = """data:text/plain,
 function FindProxyForURL(url, host)
 {
@@ -312,7 +309,7 @@ function FindProxyForURL(url, host)
                          '://' +
                          '(?:[^/@]*@)?' +
                          '(.*?)' +
-                         '(?::(\\\\d+))?/');
+                         '(?::(\\\\\\\\d+))?/');
   var matches = regex.exec(url);
   if (!matches)
     return 'DIRECT';
@@ -333,12 +330,15 @@ function FindProxyForURL(url, host)
   var origin = matches[1] + '://' + matches[2] + ':' + matches[3];
   if (origins.indexOf(origin) < 0)
     return 'DIRECT';
-  if (isHttp || isHttps || isWebSocket || isWebSocketSSL)
-    return 'PROXY %(remote)s:%(port)s';
+  if (isHttp)
+    return 'PROXY %(remote)s:%(httpport)s';
+  if (isHttps || isWebSocket || isWebSocketSSL)
+    return 'PROXY %(remote)s:%(sslport)s';
   return 'DIRECT';
 }""" % { "origins": origins,
          "remote":  webServer,
-         "port": port }
+         "httpport":httpPort,
+         "sslport": sslPort }
         pacURL = "".join(pacURL.splitlines())
 
         prefs.append(("network.proxy.type", 2))

@@ -6,9 +6,6 @@
 
 #include "base/basictypes.h"
 
-#include "TabParent.h"
-
-#include "Blob.h"
 #include "IDBFactory.h"
 #include "IndexedDBParent.h"
 #include "mozilla/BrowserElementParent.h"
@@ -45,8 +42,8 @@
 #include "nsSerializationHelper.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
-#include "StructuredCloneUtils.h"
 #include "TabChild.h"
+#include "TabParent.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::ipc;
@@ -120,14 +117,6 @@ TabParent::ActorDestroy(ActorDestroyReason why)
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
   if (frameLoader) {
     frameLoader->DestroyChild();
-
-    if (why == AbnormalShutdown) {
-      nsCOMPtr<nsIObserverService> os = services::GetObserverService();
-      if (os) {
-        os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, frameLoader),
-                            "oop-frameloader-crashed", nullptr);
-      }
-    }
   }
 }
 
@@ -355,51 +344,17 @@ bool TabParent::SendRealTouchEvent(nsTouchEvent& event)
 
 bool
 TabParent::RecvSyncMessage(const nsString& aMessage,
-                           const ClonedMessageData& aData,
+                           const nsString& aJSON,
                            InfallibleTArray<nsString>* aJSONRetVal)
 {
-  const SerializedStructuredCloneBuffer& buffer = aData.data();
-  const InfallibleTArray<PBlobParent*>& blobParents = aData.blobsParent();
-  StructuredCloneData cloneData;
-  cloneData.mData = buffer.data;
-  cloneData.mDataLength = buffer.dataLength;
-  if (!blobParents.IsEmpty()) {
-    PRUint32 length = blobParents.Length();
-    cloneData.mClosure.mBlobs.SetCapacity(length);
-    for (PRUint32 i = 0; i < length; ++i) {
-      BlobParent* blobParent = static_cast<BlobParent*>(blobParents[i]);
-      MOZ_ASSERT(blobParent);
-      nsCOMPtr<nsIDOMBlob> blob = blobParent->GetBlob();
-      MOZ_ASSERT(blob);
-      cloneData.mClosure.mBlobs.AppendElement(blob);
-    }
-  }
-  return ReceiveMessage(aMessage, true, &cloneData, aJSONRetVal);
+  return ReceiveMessage(aMessage, true, aJSON, aJSONRetVal);
 }
 
 bool
 TabParent::RecvAsyncMessage(const nsString& aMessage,
-                                  const ClonedMessageData& aData)
+                            const nsString& aJSON)
 {
-    const SerializedStructuredCloneBuffer& buffer = aData.data();
-  const InfallibleTArray<PBlobParent*>& blobParents = aData.blobsParent();
-
-    StructuredCloneData cloneData;
-    cloneData.mData = buffer.data;
-    cloneData.mDataLength = buffer.dataLength;
-
-  if (!blobParents.IsEmpty()) {
-    PRUint32 length = blobParents.Length();
-      cloneData.mClosure.mBlobs.SetCapacity(length);
-    for (PRUint32 i = 0; i < length; ++i) {
-      BlobParent* blobParent = static_cast<BlobParent*>(blobParents[i]);
-      MOZ_ASSERT(blobParent);
-      nsCOMPtr<nsIDOMBlob> blob = blobParent->GetBlob();
-        MOZ_ASSERT(blob);
-        cloneData.mClosure.mBlobs.AppendElement(blob);
-      }
-    }
-  return ReceiveMessage(aMessage, false, &cloneData, nullptr);
+  return ReceiveMessage(aMessage, false, aJSON, nullptr);
 }
 
 bool
@@ -742,7 +697,7 @@ TabParent::RecvGetWidgetNativeData(WindowsHandle* aValue)
 bool
 TabParent::ReceiveMessage(const nsString& aMessage,
                           bool aSync,
-                          const StructuredCloneData* aCloneData,
+                          const nsString& aJSON,
                           InfallibleTArray<nsString>* aJSONRetVal)
 {
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
@@ -762,7 +717,7 @@ TabParent::ReceiveMessage(const nsString& aMessage,
     manager->ReceiveMessage(mFrameElement,
                             aMessage,
                             aSync,
-                            aCloneData,
+                            aJSON,
                             objectsArray,
                             aJSONRetVal);
   }
@@ -803,13 +758,9 @@ TabParent::RecvPIndexedDBConstructor(PIndexedDBParent* aActor,
   nsCOMPtr<nsPIDOMWindow> window = doc->GetInnerWindow();
   NS_ENSURE_TRUE(window, false);
 
-  ContentParent* contentParent = static_cast<ContentParent*>(Manager());
-  NS_ASSERTION(contentParent, "Null manager?!");
-
   nsRefPtr<IDBFactory> factory;
   nsresult rv =
-    IDBFactory::Create(window, aASCIIOrigin, contentParent,
-                       getter_AddRefs(factory));
+    IDBFactory::Create(window, aASCIIOrigin, getter_AddRefs(factory));
   NS_ENSURE_SUCCESS(rv, false);
 
   if (!factory) {

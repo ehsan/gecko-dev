@@ -29,6 +29,10 @@ protected:
   static bool IsDefaultBrowserVista(bool* aIsDefaultBrowser);
 
 private:
+#if defined(MOZ_MAINTENANCE_SERVICE)
+  static void LaunchPrefetchClearCommand(nsITimer *aTimer, void*);
+  nsCOMPtr<nsITimer> mTimer;
+#endif
   bool      mCheckedThisSession;
 };
 

@@ -17,7 +17,6 @@
 #include "nsIDOMNavigatorNetwork.h"
 #include "nsAutoPtr.h"
 #include "nsWeakReference.h"
-#include "DeviceStorage.h"
 
 class nsPluginArray;
 class nsMimeTypeArray;
@@ -163,7 +162,6 @@ private:
 #endif
   nsRefPtr<nsDOMCameraManager> mCameraManager;
   nsCOMPtr<nsIDOMNavigatorSystemMessages> mMessagesManager;
-  nsTArray<nsRefPtr<nsDOMDeviceStorage> > mDeviceStorageStores;
   nsWeakPtr mWindow;
 };
 

@@ -193,7 +193,6 @@ let SyncScheduler = {
         }
         break;
       case "weave:service:setup-complete":
-         Services.prefs.savePrefFile(null);
          Svc.Idle.addIdleObserver(this, Svc.Prefs.get("scheduler.idleTime"));
          break;
       case "weave:service:start-over":

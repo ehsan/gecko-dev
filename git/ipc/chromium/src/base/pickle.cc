@@ -17,8 +17,6 @@ const int Pickle::kPayloadUnit = 64;
 // We mark a read only pickle with a special capacity_.
 static const uint32 kCapacityReadOnly = (uint32) -1;
 
-static const char kBytePaddingMarker = char(0xbf);
-
 // Payload is uint32 aligned.
 
 Pickle::Pickle()
@@ -361,34 +359,16 @@ bool Pickle::ReadString16(void** iter, string16* result) const {
   return true;
 }
 
-bool Pickle::ReadBytes(void** iter, const char** data, int length,
-                       uint32 alignment) const {
+bool Pickle::ReadBytes(void** iter, const char** data, int length) const {
   DCHECK(iter);
   DCHECK(data);
-  DCHECK(alignment == 4 || alignment == 8);
-  DCHECK(intptr_t(header_) % alignment == 0);
-
   if (!*iter)
     *iter = const_cast<char*>(payload());
-
-  uint32 paddingLen = intptr_t(*iter) % alignment;
-  if (paddingLen) {
-#ifdef DEBUG
-    {
-      const char* padding = static_cast<const char*>(*iter);
-      for (uint32 i = 0; i < paddingLen; i++) {
-        DCHECK(*(padding + i) == kBytePaddingMarker);
-      }
-    }
-#endif
-    length += paddingLen;
-  }
 
   if (!IteratorHasRoomFor(*iter, length))
     return false;
 
-  *data = static_cast<const char*>(*iter) + paddingLen;
-  DCHECK(intptr_t(*data) % alignment == 0);
+  *data = reinterpret_cast<const char*>(*iter);
 
   UpdateIter(iter, length);
   return true;
@@ -407,35 +387,21 @@ bool Pickle::ReadData(void** iter, const char** data, int* length) const {
   return ReadBytes(iter, data, *length);
 }
 
-char* Pickle::BeginWrite(uint32 length, uint32 alignment) {
-  DCHECK(alignment % 4 == 0) << "Must be at least 32-bit aligned!";
-
-  // write at an alignment-aligned offset from the beginning of the header
+char* Pickle::BeginWrite(uint32 length) {
+  // write at a uint32-aligned offset from the beginning of the header
   uint32 offset = AlignInt(header_->payload_size, sizeof(uint32));
-  uint32 padding = (header_size_ + offset) %  alignment;
-  uint32 new_size = offset + padding + AlignInt(length, sizeof(uint32));
+  uint32 new_size = offset + AlignInt(length, sizeof(uint32));
   uint32 needed_size = header_size_ + new_size;
 
   if (needed_size > capacity_ && !Resize(std::max(capacity_ * 2, needed_size)))
     return NULL;
 
-  DCHECK(intptr_t(header_) % alignment == 0);
-
 #ifdef ARCH_CPU_64_BITS
   DCHECK_LE(length, std::numeric_limits<uint32>::max());
 #endif
 
-  char* buffer = payload() + offset;
-
-  if (padding) {
-    memset(buffer, kBytePaddingMarker, padding);
-    buffer += padding;
-  }
-
-  DCHECK(intptr_t(buffer) % alignment == 0);
-
-  header_->payload_size = new_size;
-  return buffer;
+  header_->payload_size = static_cast<uint32>(new_size);
+  return payload() + offset;
 }
 
 void Pickle::EndWrite(char* dest, int length) {
@@ -445,12 +411,10 @@ void Pickle::EndWrite(char* dest, int length) {
     memset(dest + length, 0, sizeof(uint32) - (length % sizeof(uint32)));
 }
 
-bool Pickle::WriteBytes(const void* data, int data_len, uint32 alignment) {
+bool Pickle::WriteBytes(const void* data, int data_len) {
   DCHECK(capacity_ != kCapacityReadOnly) << "oops: pickle is readonly";
-  DCHECK(alignment == 4 || alignment == 8);
-  DCHECK(intptr_t(header_) % alignment == 0);
 
-  char* dest = BeginWrite(data_len, alignment);
+  char* dest = BeginWrite(data_len);
   if (!dest)
     return false;
 
@@ -494,7 +458,7 @@ char* Pickle::BeginWriteData(int length) {
   if (!WriteInt(length))
     return false;
 
-  char *data_ptr = BeginWrite(length, sizeof(uint32));
+  char *data_ptr = BeginWrite(length);
   if (!data_ptr)
     return NULL;
 

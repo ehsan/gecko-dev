@@ -186,7 +186,6 @@ members = [
     'nsIDOMUIEvent.isChar',
 
     'nsIDOMTouch.*',
-    'nsIDOMTouchList.*',
     'nsIDOMTouchEvent.*',
 
     # dom/interfaces/geolocation - None.

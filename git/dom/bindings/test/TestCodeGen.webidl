@@ -357,7 +357,6 @@ dictionary Dict : ParentDict {
   long b = 8;
   long z = 9;
   DOMString str;
-  DOMString empty = "";
   TestEnum otherEnum = "b";
   DOMString otherStr = "def";
   DOMString? yetAnotherStr = null;

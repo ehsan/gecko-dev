@@ -17,7 +17,6 @@
 #include "nsRect.h"
 #include "nsRenderingContext.h"
 #include "nsTextFrame.h"
-#include "nsStyleStructInlines.h"
 #include "mozilla/Util.h"
 
 namespace mozilla {
@@ -54,7 +53,7 @@ static bool
 IsAtomicElement(nsIFrame* aFrame, const nsIAtom* aFrameType)
 {
   NS_PRECONDITION(!nsLayoutUtils::GetAsBlock(aFrame) ||
-                  !aFrame->IsBlockOutside(),
+                  !aFrame->GetStyleDisplay()->IsBlockOutside(),
                   "unexpected block frame");
   NS_PRECONDITION(aFrameType != nsGkAtoms::placeholderFrame,
                   "unexpected placeholder frame");

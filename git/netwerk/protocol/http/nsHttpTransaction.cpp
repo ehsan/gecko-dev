@@ -404,13 +404,13 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
         this, status, progress));
 
     if (TimingEnabled()) {
-        if (status == NS_NET_STATUS_RESOLVING_HOST) {
+        if (status == nsISocketTransport::STATUS_RESOLVING) {
             mTimings.domainLookupStart = mozilla::TimeStamp::Now();
-        } else if (status == NS_NET_STATUS_RESOLVED_HOST) {
+        } else if (status == nsISocketTransport::STATUS_RESOLVED) {
             mTimings.domainLookupEnd = mozilla::TimeStamp::Now();
-        } else if (status == NS_NET_STATUS_CONNECTING_TO) {
+        } else if (status == nsISocketTransport::STATUS_CONNECTING_TO) {
             mTimings.connectStart = mozilla::TimeStamp::Now();
-        } else if (status == NS_NET_STATUS_CONNECTED_TO) {
+        } else if (status == nsISocketTransport::STATUS_CONNECTED_TO) {
             mTimings.connectEnd = mozilla::TimeStamp::Now();
         }
     }
@@ -425,7 +425,7 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
     if (mActivityDistributor) {
         // upon STATUS_WAITING_FOR; report request body sent
         if ((mHasRequestBody) &&
-            (status == NS_NET_STATUS_WAITING_FOR))
+            (status == nsISocketTransport::STATUS_WAITING_FOR))
             mActivityDistributor->ObserveActivity(
                 mChannel,
                 NS_HTTP_ACTIVITY_TYPE_HTTP_TRANSACTION,
@@ -444,12 +444,12 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
     }
 
     // nsHttpChannel synthesizes progress events in OnDataAvailable
-    if (status == NS_NET_STATUS_RECEIVING_FROM)
+    if (status == nsISocketTransport::STATUS_RECEIVING_FROM)
         return;
 
     PRUint64 progressMax;
 
-    if (status == NS_NET_STATUS_SENDING_TO) {
+    if (status == nsISocketTransport::STATUS_SENDING_TO) {
         // suppress progress when only writing request headers
         if (!mHasRequestBody)
             return;
