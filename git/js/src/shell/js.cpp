@@ -4917,7 +4917,7 @@ static const JSPropertySpec dom_props[] = {
      { (JSPropertyOp)dom_genericGetter, &dom_x_getterinfo },
      { (JSStrictPropertyOp)dom_genericSetter, &dom_x_setterinfo }
     },
-    JS_PS_END
+    {nullptr,0,0,JSOP_NULLWRAPPER, JSOP_NULLWRAPPER}
 };
 
 static const JSFunctionSpec dom_methods[] = {

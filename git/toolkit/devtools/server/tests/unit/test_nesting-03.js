@@ -5,7 +5,7 @@
 // Test that we can detect nested event loops in tabs with the same URL.
 
 const { defer } = devtools.require("sdk/core/promise");
-var gClient1, gClient2, gThreadClient1, gThreadClient2;
+var gClient1, gClient2;
 
 function run_test() {
   initTestDebuggerServer();
@@ -15,7 +15,6 @@ function run_test() {
   gClient1 = new DebuggerClient(DebuggerServer.connectPipe());
   gClient1.connect(function () {
     attachTestThread(gClient1, "test-nesting1", function (aResponse, aTabClient, aThreadClient) {
-      gThreadClient1 = aThreadClient;
       start_second_connection();
     });
   });
@@ -26,7 +25,6 @@ function start_second_connection() {
   gClient2 = new DebuggerClient(DebuggerServer.connectPipe());
   gClient2.connect(function () {
     attachTestThread(gClient2, "test-nesting1", function (aResponse, aTabClient, aThreadClient) {
-      gThreadClient2 = aThreadClient;
       test_nesting();
     });
   });
@@ -35,15 +33,15 @@ function start_second_connection() {
 function test_nesting() {
   const { resolve, reject, promise } = defer();
 
-  gThreadClient1.resume(aResponse => {
+  gClient1.activeThread.resume(aResponse => {
     do_check_eq(aResponse.error, "wrongOrder");
-    gThreadClient2.resume(aResponse => {
+    gClient2.activeThread.resume(aResponse => {
       do_check_true(!aResponse.error);
-      do_check_eq(aResponse.from, gThreadClient2.actor);
+      do_check_eq(aResponse.from, gClient2.activeThread.actor);
 
-      gThreadClient1.resume(aResponse => {
+      gClient1.activeThread.resume(aResponse => {
         do_check_true(!aResponse.error);
-        do_check_eq(aResponse.from, gThreadClient1.actor);
+        do_check_eq(aResponse.from, gClient1.activeThread.actor);
 
         gClient1.close(() => finishClient(gClient2));
       });

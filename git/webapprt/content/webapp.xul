@@ -155,14 +155,13 @@
     </menu>
   </menubar>
 
-  <browser type="content-primary" id="content" flex="1" context="contentAreaContextMenu" tooltip="contentAreaTooltip" />
+  <browser type="content-primary" id="content" flex="1" context="contentAreaContextMenu" />
 
   <popupset>
     <menupopup id="contentAreaContextMenu" pagemenu="start"
                onpopupshowing="return showContextMenu(event, this)"
                onpopuphiding="hideContextMenu(event, this)">
     </menupopup>
-    <tooltip id="contentAreaTooltip" page="true" />
   </popupset>
 
 </window>

@@ -283,13 +283,7 @@ let gSyncUI = {
                                 .getService(Components.interfaces.nsISupports)
                                 .wrappedJSObject;
     if (xps.fxAccountsEnabled) {
-      fxAccounts.getSignedInUser().then(userData => {
-        if (userData) {
-          this.openPrefs();
-        } else {
-          switchToTabHavingURI("about:accounts", true);
-        }
-      });
+      switchToTabHavingURI("about:accounts", true);
     } else {
       let win = Services.wm.getMostRecentWindow("Weave:AccountSetup");
       if (win)

@@ -47,7 +47,7 @@ function test() {
 
         let reloading = once(gDebugger.gTarget, "will-navigate");
         let reloaded = waitForSourcesAfterReload();
-        gDebugger.DebuggerController._target.activeTab.reload();
+        gDebugger.gClient.activeTab.reload();
 
         yield reloading;
 
@@ -89,7 +89,7 @@ function test() {
 
         let reloading = once(gDebugger.gTarget, "will-navigate");
         let reloaded = waitForSourcesAfterReload();
-        gDebugger.DebuggerController._target.activeTab.reload();
+        gDebugger.gClient.activeTab.reload();
 
         yield reloading;
 

@@ -1462,8 +1462,7 @@ class JS_PUBLIC_API(ContextOptions) {
         baseline_(false),
         typeInference_(false),
         ion_(false),
-        asmJS_(false),
-        cloneSingletons_(false)
+        asmJS_(false)
     {
     }
 
@@ -1587,16 +1586,6 @@ class JS_PUBLIC_API(ContextOptions) {
         return *this;
     }
 
-    bool cloneSingletons() const { return cloneSingletons_; }
-    ContextOptions &setCloneSingletons(bool flag) {
-        cloneSingletons_ = flag;
-        return *this;
-    }
-    ContextOptions &toggleCloneSingletons() {
-        cloneSingletons_ = !cloneSingletons_;
-        return *this;
-    }
-
   private:
     bool extraWarnings_ : 1;
     bool werror_ : 1;
@@ -1610,7 +1599,6 @@ class JS_PUBLIC_API(ContextOptions) {
     bool typeInference_ : 1;
     bool ion_ : 1;
     bool asmJS_ : 1;
-    bool cloneSingletons_ : 1;
 };
 
 JS_PUBLIC_API(ContextOptions &)
@@ -2623,7 +2611,6 @@ class JS_PUBLIC_API(CompartmentOptions)
       : version_(JSVERSION_UNKNOWN)
       , invisibleToDebugger_(false)
       , mergeable_(false)
-      , singletonsAsTemplates_(true)
     {
         zone_.spec = JS::FreshZone;
     }
@@ -2667,9 +2654,6 @@ class JS_PUBLIC_API(CompartmentOptions)
     bool asmJS(JSContext *cx) const;
     Override &asmJSOverride() { return asmJSOverride_; }
 
-    bool cloneSingletons(JSContext *cx) const;
-    Override &cloneSingletonsOverride() { return cloneSingletonsOverride_; }
-
     void *zonePointer() const {
         JS_ASSERT(uintptr_t(zone_.pointer) > uintptr_t(JS::SystemZone));
         return zone_.pointer;
@@ -2677,13 +2661,6 @@ class JS_PUBLIC_API(CompartmentOptions)
     ZoneSpecifier zoneSpecifier() const { return zone_.spec; }
     CompartmentOptions &setZone(ZoneSpecifier spec);
     CompartmentOptions &setSameZoneAs(JSObject *obj);
-
-    void setSingletonsAsValues() {
-        singletonsAsTemplates_ = false;
-    }
-    bool getSingletonsAsTemplates() const {
-        return singletonsAsTemplates_;
-    };
 
   private:
     JSVersion version_;
@@ -2693,16 +2670,10 @@ class JS_PUBLIC_API(CompartmentOptions)
     Override typeInferenceOverride_;
     Override ionOverride_;
     Override asmJSOverride_;
-    Override cloneSingletonsOverride_;
     union {
         ZoneSpecifier spec;
         void *pointer; // js::Zone* is not exposed in the API.
     } zone_;
-
-    // To XDR singletons, we need to ensure that all singletons are all used as
-    // templates, by making JSOP_OBJECT return a clone of the JSScript
-    // singleton, instead of returning the value which is baked in the JSScript.
-    bool singletonsAsTemplates_;
 };
 
 JS_PUBLIC_API(CompartmentOptions &)

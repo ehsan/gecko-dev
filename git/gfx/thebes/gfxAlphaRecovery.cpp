@@ -17,10 +17,10 @@ gfxAlphaRecovery::RecoverAlpha(gfxImageSurface* blackSurf,
     gfxIntSize size = blackSurf->GetSize();
 
     if (size != whiteSurf->GetSize() ||
-        (blackSurf->Format() != gfxImageFormat::ARGB32 &&
-         blackSurf->Format() != gfxImageFormat::RGB24) ||
-        (whiteSurf->Format() != gfxImageFormat::ARGB32 &&
-         whiteSurf->Format() != gfxImageFormat::RGB24))
+        (blackSurf->Format() != gfxImageFormatARGB32 &&
+         blackSurf->Format() != gfxImageFormatRGB24) ||
+        (whiteSurf->Format() != gfxImageFormatARGB32 &&
+         whiteSurf->Format() != gfxImageFormatRGB24))
         return false;
 
 #ifdef MOZILLA_MAY_SUPPORT_SSE2

@@ -24,7 +24,9 @@ extern "C"
 }
 
 
-static const char logTag[] = "CallControlManager";
+static const char* logTag = "CallControlManager";
+
+static std::string logDestination = "CallControl.log";
 
 using namespace std;
 using namespace CSFUnified;

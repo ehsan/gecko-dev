@@ -113,9 +113,9 @@ let SessionStorageInternal = {
       // of missing documentURI will be solved in a followup bug to bug 600307.
       let storage = storageManager.createStorage(principal, "", aDocShell.usePrivateBrowsing);
 
-      for (let key of Object.keys(data)) {
+      for (let [key, value] in Iterator(data)) {
         try {
-          storage.setItem(key, data[key]);
+          storage.setItem(key, value);
         } catch (e) {
           // throws e.g. for URIs that can't have sessionStorage
           console.error(e);

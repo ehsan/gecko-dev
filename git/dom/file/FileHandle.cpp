@@ -36,8 +36,7 @@ public:
   { }
 
   nsresult
-  GetSuccessResult(JSContext* aCx,
-                   JS::MutableHandle<JS::Value> aVal) MOZ_OVERRIDE;
+  GetSuccessResult(JSContext* aCx, JS::Value* aVal);
 
   void
   ReleaseObjects()
@@ -179,17 +178,19 @@ FileHandle::GetFileInfo()
 }
 
 nsresult
-GetFileHelper::GetSuccessResult(JSContext* aCx,
-                                JS::MutableHandle<JS::Value> aVal)
+GetFileHelper::GetSuccessResult(JSContext* aCx, JS::Value* aVal)
 {
   nsCOMPtr<nsIDOMFile> domFile =
     mFileHandle->CreateFileObject(mLockedFile, mParams->Size());
 
   JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
+  JS::Rooted<JS::Value> rval(aCx);
   nsresult rv =
     nsContentUtils::WrapNative(aCx, global, domFile,
-                               &NS_GET_IID(nsIDOMFile), aVal);
+                               &NS_GET_IID(nsIDOMFile), &rval);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
+  *aVal = rval;
+
   return NS_OK;
 }
 

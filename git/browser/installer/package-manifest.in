@@ -510,6 +510,8 @@
 #endif
 @BINPATH@/components/servicesComponents.manifest
 @BINPATH@/components/cryptoComponents.manifest
+@BINPATH@/components/TelemetryPing.js
+@BINPATH@/components/TelemetryPing.manifest
 @BINPATH@/components/TelemetryStartup.js
 @BINPATH@/components/TelemetryStartup.manifest
 @BINPATH@/components/messageWakeupService.js

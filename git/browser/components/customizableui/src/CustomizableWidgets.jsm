@@ -102,7 +102,6 @@ const CustomizableWidgets = [{
               item.setAttribute("label", title || uri);
               item.setAttribute("tabindex", "0");
               item.setAttribute("targetURI", uri);
-              item.setAttribute("class", "subviewbutton");
               item.addEventListener("command", function (aEvent) {
                 onHistoryVisit(uri, aEvent, item);
               });
@@ -153,24 +152,12 @@ const CustomizableWidgets = [{
 
       let tabsFragment = RecentlyClosedTabsAndWindowsMenuUtils.getTabsFragment(doc.defaultView, "toolbarbutton");
       let separator = doc.getElementById("PanelUI-recentlyClosedTabs-separator");
-      let elementCount = tabsFragment.childElementCount;
-      separator.hidden = !elementCount;
-      while (--elementCount >= 0) {
-        if (tabsFragment.children[elementCount].localName != "toolbarbutton")
-          continue;
-        tabsFragment.children[elementCount].setAttribute("class", "subviewbutton");
-      }
+      separator.hidden = !tabsFragment.childElementCount;
       recentlyClosedTabs.appendChild(tabsFragment);
 
       let windowsFragment = RecentlyClosedTabsAndWindowsMenuUtils.getWindowsFragment(doc.defaultView, "toolbarbutton");
       separator = doc.getElementById("PanelUI-recentlyClosedWindows-separator");
-      elementCount = windowsFragment.childElementCount;
-      separator.hidden = !elementCount;
-      while (--elementCount >= 0) {
-        if (windowsFragment.children[elementCount].localName != "toolbarbutton")
-          continue;
-        windowsFragment.children[elementCount].setAttribute("class", "subviewbutton");
-      }
+      separator.hidden = !windowsFragment.childElementCount;
       recentlyClosedWindows.appendChild(windowsFragment);
     },
     onViewHiding: function(aEvent) {
@@ -257,7 +244,6 @@ const CustomizableWidgets = [{
         } else if (node.localName == "menuitem") {
           item = doc.createElementNS(kNSXUL, "toolbarbutton");
           item.setAttribute("tabindex", "0");
-          item.setAttribute("class", "subviewbutton");
         } else {
           continue;
         }
@@ -729,7 +715,6 @@ const CustomizableWidgets = [{
           elem.setAttribute("current", "true");
         if (disabled)
           elem.setAttribute("disabled", "true");
-        elem.setAttribute("class", "subviewbutton");
         containerElem.appendChild(elem);
       }
     },

@@ -25,7 +25,7 @@ static bool gShmAvailable = true;
 bool nsShmImage::UseShm()
 {
     return gfxPlatform::GetPlatform()->
-        ScreenReferenceSurface()->GetType() == gfxSurfaceType::Image
+        ScreenReferenceSurface()->GetType() == gfxSurfaceTypeImage
         && gShmAvailable;
 }
 
@@ -81,12 +81,12 @@ nsShmImage::Create(const gfxIntSize& aSize,
         if ((shm->mImage->red_mask == 0xff0000) &&
             (shm->mImage->green_mask == 0xff00) &&
             (shm->mImage->blue_mask == 0xff)) {
-            shm->mFormat = gfxImageFormat::RGB24;
+            shm->mFormat = gfxImageFormatRGB24;
             break;
         }
         goto unsupported;
     case 16:
-        shm->mFormat = gfxImageFormat::RGB16_565; break;
+        shm->mFormat = gfxImageFormatRGB16_565; break;
     unsupported:
     default:
         NS_WARNING("Unsupported XShm Image format!");

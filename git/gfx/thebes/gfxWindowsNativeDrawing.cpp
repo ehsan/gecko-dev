@@ -59,10 +59,10 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
         // redirect rendering to our own HDC; in some cases,
         // we may be able to use the HDC from the surface directly.
         if (surf &&
-            ((surf->GetType() == gfxSurfaceType::Win32 ||
-              surf->GetType() == gfxSurfaceType::Win32Printing) &&
-              (surf->GetContentType() == gfxContentType::COLOR ||
-               (surf->GetContentType() == gfxContentType::COLOR_ALPHA &&
+            ((surf->GetType() == gfxSurfaceTypeWin32 ||
+              surf->GetType() == gfxSurfaceTypeWin32Printing) &&
+              (surf->GetContentType() == GFX_CONTENT_COLOR ||
+               (surf->GetContentType() == GFX_CONTENT_COLOR_ALPHA &&
                (mNativeDrawFlags & CAN_DRAW_TO_COLOR_ALPHA)))))
         {
             // grab the DC. This can fail if there is a complex clipping path,
@@ -192,12 +192,12 @@ gfxWindowsNativeDrawing::IsDoublePass()
     nsRefPtr<gfxASurface> surf = mContext->CurrentSurface(&mDeviceOffset.x, &mDeviceOffset.y);
     if (!surf || surf->CairoStatus())
         return false;
-    if (surf->GetType() != gfxSurfaceType::Win32 &&
-        surf->GetType() != gfxSurfaceType::Win32Printing) {
+    if (surf->GetType() != gfxSurfaceTypeWin32 &&
+        surf->GetType() != gfxSurfaceTypeWin32Printing) {
 	return true;
     }
-    if ((surf->GetContentType() != gfxContentType::COLOR ||
-         (surf->GetContentType() == gfxContentType::COLOR_ALPHA &&
+    if ((surf->GetContentType() != GFX_CONTENT_COLOR ||
+         (surf->GetContentType() == GFX_CONTENT_COLOR_ALPHA &&
           !(mNativeDrawFlags & CAN_DRAW_TO_COLOR_ALPHA))))
         return true;
     return false;
@@ -269,7 +269,7 @@ gfxWindowsNativeDrawing::PaintToContext()
         nsRefPtr<gfxImageSurface> alphaSurface =
             new gfxImageSurface(black->Data(), black->GetSize(),
                                 black->Stride(),
-                                gfxImageFormat::ARGB32);
+                                gfxImageFormatARGB32);
 
         mContext->Save();
         mContext->Translate(mNativeRect.TopLeft());

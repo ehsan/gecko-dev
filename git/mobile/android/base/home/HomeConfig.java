@@ -102,6 +102,9 @@ public final class HomeConfig {
         private static final String JSON_KEY_DEFAULT = "default";
         private static final String JSON_KEY_DISABLED = "disabled";
 
+        private static final int IS_DEFAULT = 1;
+        private static final int IS_DISABLED = 1;
+
         public enum Flags {
             DEFAULT_PANEL,
             DISABLED_PANEL
@@ -135,11 +138,13 @@ public final class HomeConfig {
 
             mFlags = EnumSet.noneOf(Flags.class);
 
-            if (json.optBoolean(JSON_KEY_DEFAULT, false)) {
+            final boolean isDefault = (json.optInt(JSON_KEY_DEFAULT, -1) == IS_DEFAULT);
+            if (isDefault) {
                 mFlags.add(Flags.DEFAULT_PANEL);
             }
 
-            if (json.optBoolean(JSON_KEY_DISABLED, false)) {
+            final boolean isDisabled = (json.optInt(JSON_KEY_DISABLED, -1) == IS_DISABLED);
+            if (isDisabled) {
                 mFlags.add(Flags.DISABLED_PANEL);
             }
 
@@ -168,11 +173,8 @@ public final class HomeConfig {
             mLayoutType = panelConfig.mLayoutType;
 
             mViews = new ArrayList<ViewConfig>();
-            List<ViewConfig> viewConfigs = panelConfig.mViews;
-            if (viewConfigs != null) {
-                for (ViewConfig viewConfig : viewConfigs) {
-                    mViews.add(new ViewConfig(viewConfig));
-                }
+            for (ViewConfig viewConfig : panelConfig.mViews) {
+                mViews.add(new ViewConfig(viewConfig));
             }
             mFlags = panelConfig.mFlags.clone();
 
@@ -298,11 +300,11 @@ public final class HomeConfig {
             }
 
             if (mFlags.contains(Flags.DEFAULT_PANEL)) {
-                json.put(JSON_KEY_DEFAULT, true);
+                json.put(JSON_KEY_DEFAULT, IS_DEFAULT);
             }
 
             if (mFlags.contains(Flags.DISABLED_PANEL)) {
-                json.put(JSON_KEY_DISABLED, true);
+                json.put(JSON_KEY_DISABLED, IS_DISABLED);
             }
 
             return json;

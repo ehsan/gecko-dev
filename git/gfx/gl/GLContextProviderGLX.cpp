@@ -257,7 +257,7 @@ GLXLibrary::SupportsTextureFromPixmap(gfxASurface* aSurface)
         return false;
     }
 
-    if (aSurface->GetType() != gfxSurfaceType::Xlib || !mUseTextureFromPixmap) {
+    if (aSurface->GetType() != gfxSurfaceTypeXlib || !mUseTextureFromPixmap) {
         return false;
     }
 

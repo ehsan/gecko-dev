@@ -6793,7 +6793,7 @@ var SearchEngines = {
     SelectionHandler.addAction({
       id: "search_add_action",
       label: Strings.browser.GetStringFromName("contextmenu.addSearchEngine"),
-      icon: "drawable://ab_add_search_engine",
+      icon: "drawable://ic_url_bar_search",
       selector: filter,
       action: function(aElement) {
         SearchEngines.addEngine(aElement);

@@ -11,7 +11,7 @@
  ********************************************************************
 
  function: floor backend 0 implementation
- last mod: $Id: floor0.c 19031 2013-12-03 19:20:50Z tterribe $
+ last mod: $Id: floor0.c 18184 2012-02-03 20:55:12Z xiphmont $
 
  ********************************************************************/
 
@@ -147,9 +147,6 @@ static vorbis_look_floor *floor0_look(vorbis_dsp_state *vd,
                                       vorbis_info_floor *i){
   vorbis_info_floor0 *info=(vorbis_info_floor0 *)i;
   vorbis_look_floor0 *look=_ogg_calloc(1,sizeof(*look));
-
-  (void)vd;
-
   look->m=info->order;
   look->ln=info->barkmap;
   look->vi=info;
