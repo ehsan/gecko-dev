@@ -816,6 +816,9 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
 
     *jitp = jit;
 
+    /* We tolerate a race in the stats. */
+    cx->runtime->mjitDataSize += dataSize;
+
     return Compile_Okay;
 }
 

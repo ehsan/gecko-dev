@@ -40,8 +40,7 @@
 
 #define LOCALGL_H_
 
-#if !defined(__gltypes_h_) && !defined(__gl_h_)
-#define __gltypes_h_
+#if !defined(__gl_h_)
 #define __gl_h_
 
 #include <stddef.h>
@@ -80,7 +79,7 @@ typedef ptrdiff_t GLintptr;
 # endif
 #endif
 
-#endif /* #if !defined(__gltypes_h_) && !defined(__gl_h_) */
+#endif /* __gl_h_ */
 
 #define LOCAL_GL_VERSION_1_1 1
 #define LOCAL_GL_ACCUM 0x0100

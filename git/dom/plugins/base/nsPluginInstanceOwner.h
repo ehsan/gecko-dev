@@ -179,7 +179,6 @@ public:
   enum { ePluginPaintEnable, ePluginPaintDisable };
   
   NPDrawingModel GetDrawingModel();
-  PRBool IsRemoteDrawingCoreAnimation();
   NPEventModel GetEventModel();
   static void CARefresh(nsITimer *aTimer, void *aClosure);
   static void AddToCARefreshTimer(nsPluginInstanceOwner *aPluginInstance);

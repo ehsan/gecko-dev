@@ -64,7 +64,6 @@ nsDOMNavigationTiming::Clear()
   mFetchStart = 0;
   mRedirectStart = 0;
   mRedirectEnd = 0;
-  mRedirectCount = 0;
   mBeforeUnloadStart = 0;
   mUnloadStart = 0;
   mUnloadEnd = 0;
@@ -157,7 +156,6 @@ PRBool
 nsDOMNavigationTiming::ReportRedirects()
 {
   if (mRedirectCheck == NOT_CHECKED) {
-    mRedirectCount = mRedirects.Count();
     if (mRedirects.Count() == 0) {
       mRedirectCheck = NO_REDIRECTS;
     } else {
@@ -168,7 +166,6 @@ nsDOMNavigationTiming::ReportRedirects()
         nsresult rv = ssm->CheckSameOriginURI(curr, mLoadedURI, PR_FALSE);
         if (!NS_SUCCEEDED(rv)) {
           mRedirectCheck = CHECK_FAILED;
-          mRedirectCount = 0;
           break;
         }
       }
@@ -246,7 +243,7 @@ nsDOMNavigationTiming::GetRedirectCount(PRUint16* aRedirectCount)
 {
   *aRedirectCount = 0;
   if (ReportRedirects()) {
-    *aRedirectCount = mRedirectCount;
+    *aRedirectCount = mRedirects.Count();
   }
   return NS_OK;
 }

@@ -1691,50 +1691,48 @@ nsNavHistory::MigrateV11Up(mozIStorageConnection *aDBConn)
   return NS_OK;
 }
 
+
+// nsNavHistory::GetUrlIdFor
+//
+//    Called by the bookmarks and annotation services, this function returns the
+//    ID of the row for the given URL, optionally creating one if it doesn't
+//    exist. A newly created entry will have no visits.
+//
+//    If aAutoCreate is false and the item doesn't exist, the entry ID will be
+//    zero.
+//
+//    This DOES NOT check for bad URLs other than that they're nonempty.
+
 nsresult
-nsNavHistory::GetIdForPage(nsIURI* aURI,
-                           PRInt64* _pageId,
-                           nsCString& _GUID)
+nsNavHistory::GetUrlIdFor(nsIURI* aURI, PRInt64* aEntryID,
+                          PRBool aAutoCreate)
 {
-  *_pageId = 0;
-
-  DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(stmt, mDBGetURLPageInfo);
-  nsresult rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("page_url"), aURI);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRBool hasEntry = PR_FALSE;
-  rv = stmt->ExecuteStep(&hasEntry);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (hasEntry) {
-    rv = stmt->GetInt64(kGetInfoIndex_PageID, _pageId);
+  *aEntryID = 0;
+  {
+    DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(stmt, mDBGetURLPageInfo);
+    nsresult rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("page_url"), aURI);
     NS_ENSURE_SUCCESS(rv, rv);
-    rv = stmt->GetUTF8String(5, _GUID);
+
+    PRBool hasEntry = PR_FALSE;
+    rv = stmt->ExecuteStep(&hasEntry);
     NS_ENSURE_SUCCESS(rv, rv);
+
+    if (hasEntry)
+      return stmt->GetInt64(kGetInfoIndex_PageID, aEntryID);
   }
 
-  return NS_OK;
-}
-  
-nsresult
-nsNavHistory::GetOrCreateIdForPage(nsIURI* aURI,
-                                   PRInt64* _pageId,
-                                   nsCString& _GUID)
-{
-  nsresult rv = GetIdForPage(aURI, _pageId, _GUID);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (*_pageId == 0) {
-    // Create a new hidden, untyped and unvisited entry.
+  if (aAutoCreate) {
+    // create a new hidden, untyped, unvisited entry
     nsAutoString voidString;
     voidString.SetIsVoid(PR_TRUE);
-    rv = InternalAddNewPage(aURI, voidString, PR_TRUE, PR_FALSE, 0, PR_TRUE,
-                            _pageId, _GUID);
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsCAutoString guid;
+    return InternalAddNewPage(aURI, voidString, PR_TRUE, PR_FALSE, 0, PR_TRUE, aEntryID, guid);
   }
 
+  // Doesn't exist: don't do anything, entry ID was already set to 0 above
   return NS_OK;
 }
+
 
 // nsNavHistory::InternalAddNewPage
 //
@@ -2045,13 +2043,10 @@ nsNavHistory::NotifyOnVisit(nsIURI* aURI,
 }
 
 void
-nsNavHistory::NotifyTitleChange(nsIURI* aURI,
-                                const nsString& aTitle,
-                                const nsACString& aGUID)
+nsNavHistory::NotifyTitleChange(nsIURI* aURI, const nsString& aTitle)
 {
-  MOZ_ASSERT(!aGUID.IsEmpty());
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                   nsINavHistoryObserver, OnTitleChanged(aURI, aTitle, aGUID));
+                   nsINavHistoryObserver, OnTitleChanged(aURI, aTitle));
 }
 
 PRInt32
@@ -4221,15 +4216,13 @@ nsNavHistory::CleanupPlacesOnVisitsDelete(const nsCString& aPlaceIdsQueryString)
       GUIDs.AppendElement(guid);
       // Notify we are about to remove this uri.
       NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                       nsINavHistoryObserver,
-                       OnBeforeDeleteURI(uri, guid, nsINavHistoryObserver::REASON_DELETED));
+                       nsINavHistoryObserver, OnBeforeDeleteURI(uri, guid));
     }
     else {
       // Notify that we will delete all visits for this page, but not the page
       // itself, since it's bookmarked or a place: query.
       NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                       nsINavHistoryObserver,
-                       OnDeleteVisits(uri, 0, guid, nsINavHistoryObserver::REASON_DELETED));
+                       nsINavHistoryObserver, OnDeleteVisits(uri, 0, guid));
     }
   }
 
@@ -4252,8 +4245,7 @@ nsNavHistory::CleanupPlacesOnVisitsDelete(const nsCString& aPlaceIdsQueryString)
   // Finally notify about the removed URIs.
   for (PRInt32 i = 0; i < URIs.Count(); ++i) {
     NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                     nsINavHistoryObserver,
-                     OnDeleteURI(URIs[i], GUIDs[i], nsINavHistoryObserver::REASON_DELETED));
+                     nsINavHistoryObserver, OnDeleteURI(URIs[i], GUIDs[i]));
   }
 
   return NS_OK;
@@ -4279,8 +4271,7 @@ nsNavHistory::RemovePages(nsIURI **aURIs, PRUint32 aLength, PRBool aDoBatchNotif
   nsCString deletePlaceIdsQueryString;
   for (PRUint32 i = 0; i < aLength; i++) {
     PRInt64 placeId;
-    nsCAutoString guid;
-    rv = GetIdForPage(aURIs[i], &placeId, guid);
+    rv = GetUrlIdFor(aURIs[i], &placeId, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
     if (placeId != 0) {
       if (!deletePlaceIdsQueryString.IsEmpty())
@@ -5377,8 +5368,7 @@ nsNavHistory::AsyncExecuteLegacyQueries(nsINavHistoryQuery** aQueries,
 
 NS_IMETHODIMP
 nsNavHistory::NotifyOnPageExpired(nsIURI *aURI, PRTime aVisitTime,
-                                  PRBool aWholeEntry, const nsACString& aGUID,
-                                  PRUint16 aReason)
+                                  PRBool aWholeEntry, const nsACString& aGUID)
 {
   // Invalidate the cached value for whether there's history or not.
   mHasHistoryEntries = -1;
@@ -5387,13 +5377,12 @@ nsNavHistory::NotifyOnPageExpired(nsIURI *aURI, PRTime aVisitTime,
   if (aWholeEntry) {
     // Notify our observers that the page has been removed.
     NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                     nsINavHistoryObserver, OnDeleteURI(aURI, aGUID, aReason));
+                     nsINavHistoryObserver, OnDeleteURI(aURI, aGUID));
   }
   else {
     // Notify our observers that some visits for the page have been removed.
     NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                     nsINavHistoryObserver,
-                     OnDeleteVisits(aURI, aVisitTime, aGUID, aReason));
+                     nsINavHistoryObserver, OnDeleteVisits(aURI, aVisitTime, aGUID));
   }
 
   return NS_OK;
@@ -6676,15 +6665,11 @@ nsNavHistory::URIToResultNode(nsIURI* aURI,
 }
 
 void
-nsNavHistory::SendPageChangedNotification(nsIURI* aURI,
-                                          PRUint32 aChangedAttribute,
-                                          const nsAString& aNewValue,
-                                          const nsACString& aGUID)
+nsNavHistory::SendPageChangedNotification(nsIURI* aURI, PRUint32 aWhat,
+                                          const nsAString& aValue)
 {
-  MOZ_ASSERT(!aGUID.IsEmpty());
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                   nsINavHistoryObserver,
-                   OnPageChanged(aURI, aChangedAttribute, aNewValue, aGUID));
+                   nsINavHistoryObserver, OnPageChanged(aURI, aWhat, aValue));
 }
 
 // nsNavHistory::TitleForDomain
@@ -6796,9 +6781,9 @@ nsNavHistory::SetPageTitleInternal(nsIURI* aURI, const nsAString& aTitle)
 {
   nsresult rv;
 
-  // Make sure the page exists by fetching its GUID and the old title.
+  // first, make sure the page exists, and fetch the old title (we need the one
+  // that isn't changing to send notifications)
   nsAutoString title;
-  nsCAutoString guid;
   {
     DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(stmt, mDBGetURLPageInfo);
     rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("page_url"), aURI);
@@ -6816,8 +6801,6 @@ nsNavHistory::SetPageTitleInternal(nsIURI* aURI, const nsAString& aTitle)
     }
 
     rv = stmt->GetString(kGetInfoIndex_Title, title);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = stmt->GetUTF8String(5, guid);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -6842,9 +6825,8 @@ nsNavHistory::SetPageTitleInternal(nsIURI* aURI, const nsAString& aTitle)
   rv = stmt->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  MOZ_ASSERT(!guid.IsEmpty());
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                   nsINavHistoryObserver, OnTitleChanged(aURI, aTitle, guid));
+                   nsINavHistoryObserver, OnTitleChanged(aURI, aTitle));
 
   return NS_OK;
 }

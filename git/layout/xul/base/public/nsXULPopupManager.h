@@ -46,7 +46,7 @@
 #include "nsIContent.h"
 #include "nsIRollupListener.h"
 #include "nsIMenuRollup.h"
-#include "nsIDOMEventListener.h"
+#include "nsIDOMKeyListener.h"
 #include "nsPoint.h"
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
@@ -54,11 +54,6 @@
 #include "nsIReflowCallback.h"
 #include "nsThreadUtils.h"
 #include "nsStyleConsts.h"
-
-// X.h defines KeyPress
-#ifdef KeyPress
-#undef KeyPress
-#endif
 
 /**
  * There are two types that are used:
@@ -301,7 +296,7 @@ private:
   CloseMenuMode mCloseMenuMode;
 };
 
-class nsXULPopupManager : public nsIDOMEventListener,
+class nsXULPopupManager : public nsIDOMKeyListener,
                           public nsIMenuRollup,
                           public nsIRollupListener,
                           public nsITimerCallback,
@@ -316,7 +311,6 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
   NS_DECL_NSITIMERCALLBACK
-  NS_DECL_NSIDOMEVENTLISTENER
 
   // nsIRollupListener
   NS_IMETHOD Rollup(PRUint32 aCount, nsIContent **aContent);
@@ -628,9 +622,11 @@ public:
     return HandleKeyboardNavigationInPopup(nsnull, aFrame, aDir);
   }
 
-  nsresult KeyUp(nsIDOMKeyEvent* aKeyEvent);
-  nsresult KeyDown(nsIDOMKeyEvent* aKeyEvent);
-  nsresult KeyPress(nsIDOMKeyEvent* aKeyEvent);
+  NS_IMETHODIMP HandleEvent(nsIDOMEvent* aEvent) { return NS_OK; }
+
+  NS_IMETHOD KeyUp(nsIDOMEvent* aKeyEvent);
+  NS_IMETHOD KeyDown(nsIDOMEvent* aKeyEvent);
+  NS_IMETHOD KeyPress(nsIDOMEvent* aKeyEvent);
 
 protected:
   nsXULPopupManager();

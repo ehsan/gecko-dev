@@ -875,17 +875,6 @@ mjit::JITScript::~JITScript()
 #endif
 }
 
-size_t
-JSScript::jitDataSize()
-{
-    size_t n = 0;
-    if (jitNormal)
-        n += jitNormal->scriptDataSize(); 
-    if (jitCtor)
-        n += jitCtor->scriptDataSize(); 
-    return n;
-}
-
 /* Please keep in sync with Compiler::finishThisUp! */
 size_t
 mjit::JITScript::scriptDataSize()
@@ -916,6 +905,8 @@ mjit::ReleaseScriptCode(JSContext *cx, JSScript *script)
     JITScript *jscr;
 
     if ((jscr = script->jitNormal)) {
+        cx->runtime->mjitDataSize -= jscr->scriptDataSize();
+
         jscr->~JITScript();
         cx->free_(jscr);
         script->jitNormal = NULL;
@@ -923,6 +914,8 @@ mjit::ReleaseScriptCode(JSContext *cx, JSScript *script)
     }
 
     if ((jscr = script->jitCtor)) {
+        cx->runtime->mjitDataSize -= jscr->scriptDataSize();
+
         jscr->~JITScript();
         cx->free_(jscr);
         script->jitCtor = NULL;

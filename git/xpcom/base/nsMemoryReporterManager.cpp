@@ -132,18 +132,6 @@ static PRInt64 GetResident()
 #include <windows.h>
 #include <psapi.h>
 
-static PRInt64 GetVsize()
-{
-  MEMORYSTATUSEX s;
-  s.dwLength = sizeof(s);
-
-  bool success = GlobalMemoryStatusEx(&s);
-  if (!success)
-    return -1;
-
-  return s.ullTotalPhys - s.ullAvailPhys;
-}
-
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 static PRInt64 GetPrivate()
 {
@@ -187,7 +175,7 @@ static PRInt64 GetResident()
 
 #endif
 
-#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(XP_WIN)
+#if defined(XP_LINUX) || defined(XP_MACOSX)
 NS_MEMORY_REPORTER_IMPLEMENT(Vsize,
     "vsize",
     KIND_OTHER,
@@ -201,9 +189,7 @@ NS_MEMORY_REPORTER_IMPLEMENT(Vsize,
     "This is the vsize figure as reported by 'top' or 'ps'; on Mac the amount "
     "of memory shared with other processes is very high and so this figure is "
     "of limited use.")
-#endif
 
-#if defined(XP_LINUX) || defined(XP_MACOSX)
 NS_MEMORY_REPORTER_IMPLEMENT(SoftPageFaults,
     "soft-page-faults",
     KIND_OTHER,
@@ -414,16 +400,11 @@ nsMemoryReporterManager::Init()
     REGISTER(HeapUnused);
     REGISTER(Resident);
 
-#if defined(XP_LINUX) || defined(XP_MACOSX) || defined(XP_WIN)
-    REGISTER(Vsize);
-#endif
-
 #if defined(XP_LINUX) || defined(XP_MACOSX)
+    REGISTER(Vsize);
     REGISTER(SoftPageFaults);
     REGISTER(HardPageFaults);
-#endif
-
-#if defined(XP_WIN) && MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+#elif defined(XP_WIN) && MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
     REGISTER(Private);
 #endif
 
@@ -457,15 +438,6 @@ nsMemoryReporterManager::EnumerateReporters(nsISimpleEnumerator **result)
 }
 
 NS_IMETHODIMP
-nsMemoryReporterManager::EnumerateMultiReporters(nsISimpleEnumerator **result)
-{
-    nsresult rv;
-    mozilla::MutexAutoLock autoLock(mMutex);
-    rv = NS_NewArrayEnumerator(result, mMultiReporters);
-    return rv;
-}
-
-NS_IMETHODIMP
 nsMemoryReporterManager::RegisterReporter(nsIMemoryReporter *reporter)
 {
     mozilla::MutexAutoLock autoLock(mMutex);
@@ -477,31 +449,10 @@ nsMemoryReporterManager::RegisterReporter(nsIMemoryReporter *reporter)
 }
 
 NS_IMETHODIMP
-nsMemoryReporterManager::RegisterMultiReporter(nsIMemoryMultiReporter *reporter)
-{
-    mozilla::MutexAutoLock autoLock(mMutex);
-    if (mMultiReporters.IndexOf(reporter) != -1)
-        return NS_ERROR_FAILURE;
-
-    mMultiReporters.AppendObject(reporter);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
 nsMemoryReporterManager::UnregisterReporter(nsIMemoryReporter *reporter)
 {
     mozilla::MutexAutoLock autoLock(mMutex);
     if (!mReporters.RemoveObject(reporter))
-        return NS_ERROR_FAILURE;
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsMemoryReporterManager::UnregisterMultiReporter(nsIMemoryMultiReporter *reporter)
-{
-    mozilla::MutexAutoLock autoLock(mMutex);
-    if (!mMultiReporters.RemoveObject(reporter))
         return NS_ERROR_FAILURE;
 
     return NS_OK;
@@ -519,8 +470,8 @@ nsMemoryReporter::nsMemoryReporter(nsCString& process,
 , mPath(path)
 , mKind(kind)
 , mUnits(units)
-, mAmount(amount)
 , mDesc(desc)
+, mAmount(amount)
 {
 }
 
@@ -564,6 +515,7 @@ NS_IMETHODIMP nsMemoryReporter::GetDescription(char **aDescription)
     return NS_OK;
 }
 
+
 NS_COM nsresult
 NS_RegisterMemoryReporter (nsIMemoryReporter *reporter)
 {
@@ -574,29 +526,11 @@ NS_RegisterMemoryReporter (nsIMemoryReporter *reporter)
 }
 
 NS_COM nsresult
-NS_RegisterMemoryMultiReporter (nsIMemoryMultiReporter *reporter)
-{
-    nsCOMPtr<nsIMemoryReporterManager> mgr = do_GetService("@mozilla.org/memory-reporter-manager;1");
-    if (mgr == nsnull)
-        return NS_ERROR_FAILURE;
-    return mgr->RegisterMultiReporter(reporter);
-}
-
-NS_COM nsresult
 NS_UnregisterMemoryReporter (nsIMemoryReporter *reporter)
 {
     nsCOMPtr<nsIMemoryReporterManager> mgr = do_GetService("@mozilla.org/memory-reporter-manager;1");
     if (mgr == nsnull)
         return NS_ERROR_FAILURE;
     return mgr->UnregisterReporter(reporter);
-}
-
-NS_COM nsresult
-NS_UnregisterMemoryMultiReporter (nsIMemoryMultiReporter *reporter)
-{
-    nsCOMPtr<nsIMemoryReporterManager> mgr = do_GetService("@mozilla.org/memory-reporter-manager;1");
-    if (mgr == nsnull)
-        return NS_ERROR_FAILURE;
-    return mgr->UnregisterMultiReporter(reporter);
 }
 

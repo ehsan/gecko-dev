@@ -54,7 +54,7 @@ const TELEMETRY_INTERVAL = 60;
 const TELEMETRY_DELAY = 60000;
 // about:memory values to turn into histograms
 const MEM_HISTOGRAMS = {
-  "js-gc-heap": "MEMORY_JS_GC_HEAP",
+  "explicit/js/gc-heap": "MEMORY_JS_GC_HEAP",
   "resident": "MEMORY_RESIDENT",
   "explicit/layout/all": "MEMORY_LAYOUT_ALL",
   "hard-page-faults": "HARD_PAGE_FAULTS"
@@ -77,9 +77,6 @@ function getHistograms() {
 
   for (let key in hls) {
     let hgram = hls[key];
-    if (!hgram.static)
-      continue;
-
     let r = hgram.ranges;
     let c = hgram.counts;
     let retgram = {
@@ -188,7 +185,6 @@ function TelemetryPing() {}
 
 TelemetryPing.prototype = {
   _histograms: {},
-  _initialized: false,
   _prevValues: {},
 
   /**
@@ -208,8 +204,9 @@ TelemetryPing.prototype = {
     let memReporters = {};
     while (e.hasMoreElements()) {
       let mr = e.getNext().QueryInterface(Ci.nsIMemoryReporter);
+      //  memReporters[mr.path] = mr.amount;
       let id = MEM_HISTOGRAMS[mr.path];
-      if (!id || mr.amount == -1) {
+      if (!id) {
         continue;
       }
 
@@ -223,15 +220,15 @@ TelemetryPing.prototype = {
 
         // Read mr.amount just once so our arithmetic is consistent.
         let curVal = mr.amount;
-        if (!(mr.path in this._prevValues)) {
+        let prevVal = this._prevValues[mr.path];
+        if (!prevVal) {
           // If this is the first time we're reading this reporter, store its
           // current value but don't report it in the telemetry ping, so we
           // ignore the effect startup had on the reporter.
           this._prevValues[mr.path] = curVal;
           continue;
         }
-
-        val = curVal - this._prevValues[mr.path];
+        val = curVal - prevVal;
         this._prevValues[mr.path] = curVal;
       }
       else {
@@ -239,10 +236,10 @@ TelemetryPing.prototype = {
         continue;
       }
 
-      let h = this._histograms[mr.path];
+      let h = this._histograms[mr.name];
       if (!h) {
         h = Telemetry.getHistogramById(id);
-        this._histograms[mr.path] = h;
+        this._histograms[mr.name] = h;
       }
       h.add(val);
     }

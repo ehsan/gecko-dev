@@ -95,7 +95,6 @@ private:
                  NO_REDIRECTS,
                  CHECK_FAILED} RedirectCheckState;
   RedirectCheckState mRedirectCheck;
-  PRInt16 mRedirectCount;
 
   nsDOMPerformanceNavigationType mNavigationType;
   DOMTimeMilliSec mNavigationStart;

@@ -1384,26 +1384,13 @@ nsMenuFrame::SizeToPopup(nsBoxLayoutState& aState, nsSize& aSize)
       if (!mPopupFrame)
         return PR_FALSE;
       tmpSize = mPopupFrame->GetPrefSize(aState);
-
-      // Produce a size such that:
-      //  (1) the menu and its popup can be the same width
-      //  (2) there's enough room in the menu for the content and its
-      //      border-padding
-      //  (3) there's enough room in the popup for the content and its
-      //      scrollbar
-      nsMargin borderPadding;
-      GetBorderAndPadding(borderPadding);
+      aSize.width = tmpSize.width;
 
       // if there is a scroll frame, add the desired width of the scrollbar as well
       nsIScrollableFrame* scrollFrame = do_QueryFrame(mPopupFrame->GetFirstChild(nsnull));
-      nscoord scrollbarWidth = 0;
       if (scrollFrame) {
-        scrollbarWidth =
-          scrollFrame->GetDesiredScrollbarSizes(&aState).LeftRight();
+        aSize.width += scrollFrame->GetDesiredScrollbarSizes(&aState).LeftRight();
       }
-
-      aSize.width =
-        tmpSize.width + NS_MAX(borderPadding.LeftRight(), scrollbarWidth);
 
       return PR_TRUE;
     }

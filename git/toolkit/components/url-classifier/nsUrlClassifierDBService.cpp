@@ -77,7 +77,6 @@
 #include "prprf.h"
 #include "prnetdb.h"
 #include "zlib.h"
-#include "mozilla/Preferences.h"
 
 // Needed to interpert mozIStorageConnection::GetLastError
 #include <sqlite3.h>
@@ -1452,25 +1451,23 @@ nsUrlClassifierDBServiceWorker::GetLookupFragments(const nsACString& spec,
    * a) The exact hostname of the url
    * b) The 4 hostnames formed by starting with the last 5 components and
    *    successivly removing the leading component.  The top-level component
-   *    can be skipped. This is not done if the hostname is a numerical IP.
+   *    can be skipped.
    */
   nsTArray<nsCString> hosts;
   hosts.AppendElement(host);
 
-  if (!IsCanonicalizedIP(host)) {
-    host.BeginReading(begin);
-    host.EndReading(end);
-    int numHostComponents = 0;
-    while (RFindInReadable(NS_LITERAL_CSTRING("."), begin, end) &&
-           numHostComponents < MAX_HOST_COMPONENTS) {
-      // don't bother checking toplevel domains
-      if (++numHostComponents >= 2) {
-        host.EndReading(iter);
-        hosts.AppendElement(Substring(end, iter));
-      }
-      end = begin;
-      host.BeginReading(begin);
+  host.BeginReading(begin);
+  host.EndReading(end);
+  int numComponents = 0;
+  while (RFindInReadable(NS_LITERAL_CSTRING("."), begin, end) &&
+         numComponents < MAX_HOST_COMPONENTS) {
+    // don't bother checking toplevel domains
+    if (++numComponents >= 2) {
+      host.EndReading(iter);
+      hosts.AppendElement(Substring(end, iter));
     }
+    end = begin;
+    host.BeginReading(begin);
   }
 
   /**
@@ -1486,33 +1483,29 @@ nsUrlClassifierDBServiceWorker::GetLookupFragments(const nsACString& spec,
    *    appended that was not present in the original url.
    */
   nsTArray<nsCString> paths;
-  nsCAutoString pathToAdd;
+  paths.AppendElement(path);
 
+  path.BeginReading(iter);
+  path.EndReading(end);
+  if (FindCharInReadable('?', iter, end)) {
+    path.BeginReading(begin);
+    path = Substring(begin, iter);
+    paths.AppendElement(path);
+  }
+
+  // Check an empty path (for whole-domain blacklist entries)
+  paths.AppendElement(EmptyCString());
+
+  numComponents = 1;
   path.BeginReading(begin);
   path.EndReading(end);
   iter = begin;
-  if (FindCharInReadable('?', iter, end)) {
-    pathToAdd = Substring(begin, iter);
-    paths.AppendElement(pathToAdd);
-    end = iter;
-  }
-
-  int numPathComponents = 1;
-  iter = begin;
   while (FindCharInReadable('/', iter, end) &&
-         numPathComponents < MAX_PATH_COMPONENTS) {
+         numComponents < MAX_PATH_COMPONENTS) {
     iter++;
-    pathToAdd.Assign(Substring(begin, iter));
-    paths.AppendElement(pathToAdd);
-    numPathComponents++;
+    paths.AppendElement(Substring(begin, iter));
+    numComponents++;
   }
-
-  // If we haven't already done so, add the full path
-  if (!pathToAdd.Equals(path)) {
-    paths.AppendElement(path);
-  }
-  // Check an empty path (for whole-domain blacklist entries)
-  paths.AppendElement(EmptyCString());
 
   for (PRUint32 hostIndex = 0; hostIndex < hosts.Length(); hostIndex++) {
     for (PRUint32 pathIndex = 0; pathIndex < paths.Length(); pathIndex++) {
@@ -1799,6 +1792,7 @@ nsUrlClassifierDBServiceWorker::GetTables(nsIUrlClassifierCallback* c)
 
   nsresult rv = OpenDb();
   if (NS_FAILED(rv)) {
+    NS_ERROR("Unable to open database");
     return NS_ERROR_FAILURE;
   }
 
@@ -2913,6 +2907,7 @@ nsUrlClassifierDBServiceWorker::BeginUpdate(nsIUrlClassifierUpdateObserver *obse
 
   nsresult rv = OpenDb();
   if (NS_FAILED(rv)) {
+    NS_ERROR("Unable to open database");
     return NS_ERROR_FAILURE;
   }
 
@@ -3060,6 +3055,7 @@ nsUrlClassifierDBServiceWorker::UpdateStream(const nsACString& chunk)
   LOG(("Update from Stream."));
   nsresult rv = OpenDb();
   if (NS_FAILED(rv)) {
+    NS_ERROR("Unable to open database");
     return NS_ERROR_FAILURE;
   }
 
@@ -3364,15 +3360,6 @@ nsUrlClassifierDBServiceWorker::OpenDb()
   // Connection already open, don't do anything.
   if (mConnection)
     return NS_OK;
-
-  // If we're turned off, refuse to open the DB
-  PRBool openDB =
-    Preferences::GetBool(CHECK_MALWARE_PREF, CHECK_MALWARE_DEFAULT) ||
-    Preferences::GetBool(CHECK_PHISHING_PREF, CHECK_PHISHING_DEFAULT);
-  if (!openDB) {
-    NS_WARNING("Not opening url-classifier DB");
-    return NS_ERROR_NOT_AVAILABLE;
-  }
 
   LOG(("Opening db\n"));
 
