@@ -81,7 +81,7 @@
 
 /* Places toolbar */
 toolbarbutton.bookmark-item,
-#personal-bookmarks[cui-areatype="toolbar"]:not([overflowedItem=true]) > #bookmarks-toolbar-placeholder {
+#personal-bookmarks[cui-areatype="toolbar"] > #bookmarks-toolbar-placeholder {
   margin: 0;
   padding: 2px 3px;
 }
@@ -1641,8 +1641,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 }
 
 /* Tabstrip close button */
-.tabs-closebutton,
-.customization-tipPanel-closeBox > .close-icon {
+.tabs-closebutton {
   list-style-image: url("moz-icon://stock/gtk-close?size=menu");
 }
 
@@ -2018,11 +2017,7 @@ chatbox {
 
 %include ../shared/customizableui/customizeMode.inc.css
 
-#main-window[customizing] > #tab-view-deck {
-  background: linear-gradient(to bottom, #bcbcbc, #b5b5b5);
-}
-
-#main-window[customize-entered] > #tab-view-deck {
+#main-window[customize-entered] #tab-view-deck {
   background-image: url("chrome://browser/skin/customizableui/customizeMode-gridTexture.png"),
                     url("chrome://browser/skin/customizableui/background-noise-toolbar.png"),
                     linear-gradient(to bottom, #bcbcbc, #b5b5b5);

@@ -1227,25 +1227,16 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
   MOZ_ASSERT(aController && !mController);
 
   if (sInShutdown) {
-    aController->NotifyCompletion(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    aController->OnConnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     return;
   }
 
-  if (!sBluetoothHfpInterface) {
-    BT_LOGR("sBluetoothHfpInterface is null");
-    aController->NotifyCompletion(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
-    return;
-  }
+  NS_ENSURE_TRUE_VOID(sBluetoothHfpInterface);
 
   bt_bdaddr_t deviceBdAddress;
   StringToBdAddressType(aDeviceAddress, &deviceBdAddress);
-
-  bt_status_t result = sBluetoothHfpInterface->connect(&deviceBdAddress);
-  if (BT_STATUS_SUCCESS != result) {
-    BT_LOGR("Failed to connect: %x", result);
-    aController->NotifyCompletion(NS_LITERAL_STRING(ERR_CONNECTION_FAILED));
-    return;
-  }
+  NS_ENSURE_TRUE_VOID(BT_STATUS_SUCCESS ==
+    sBluetoothHfpInterface->connect(&deviceBdAddress));
 
   mDeviceAddress = aDeviceAddress;
   mController = aController;
@@ -1257,21 +1248,12 @@ BluetoothHfpManager::Disconnect(BluetoothProfileController* aController)
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!mController);
 
-  if (!sBluetoothHfpInterface) {
-    BT_LOGR("sBluetoothHfpInterface is null");
-    aController->NotifyCompletion(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
-    return;
-  }
+  NS_ENSURE_TRUE_VOID(sBluetoothHfpInterface);
 
   bt_bdaddr_t deviceBdAddress;
   StringToBdAddressType(mDeviceAddress, &deviceBdAddress);
-
-  bt_status_t result = sBluetoothHfpInterface->disconnect(&deviceBdAddress);
-  if (BT_STATUS_SUCCESS != result) {
-    BT_LOGR("Failed to disconnect: %x", result);
-    aController->NotifyCompletion(NS_LITERAL_STRING(ERR_DISCONNECTION_FAILED));
-    return;
-  }
+  NS_ENSURE_TRUE_VOID(BT_STATUS_SUCCESS ==
+    sBluetoothHfpInterface->disconnect(&deviceBdAddress));
 
   mController = aController;
 }
@@ -1287,7 +1269,7 @@ BluetoothHfpManager::OnConnect(const nsAString& aErrorStr)
    */
   NS_ENSURE_TRUE_VOID(mController);
 
-  mController->NotifyCompletion(aErrorStr);
+  mController->OnConnect(aErrorStr);
   mController = nullptr;
 }
 
@@ -1302,7 +1284,7 @@ BluetoothHfpManager::OnDisconnect(const nsAString& aErrorStr)
    */
   NS_ENSURE_TRUE_VOID(mController);
 
-  mController->NotifyCompletion(aErrorStr);
+  mController->OnDisconnect(aErrorStr);
   mController = nullptr;
 }
 

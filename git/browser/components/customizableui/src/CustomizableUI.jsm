@@ -112,7 +112,6 @@ let gRestoring = false;
 let gDirty = false;
 let gInBatchStack = 0;
 let gResetting = false;
-let gUndoResetting = false;
 
 /**
  * gBuildAreas maps area IDs to actual area nodes within browser windows.
@@ -523,8 +522,6 @@ let CustomizableUIInternal = {
         this.insertWidgetBefore(node, currentNode, container, aArea);
         if (gResetting) {
           this.notifyListeners("onWidgetReset", node, container);
-        } else if (gUndoResetting) {
-          this.notifyListeners("onWidgetUndoMove", node, container);
         }
       }
 
@@ -2175,8 +2172,6 @@ let CustomizableUIInternal = {
         gUIStateBeforeReset.drawInTitlebar == null) {
       return;
     }
-    gUndoResetting = true;
-
     let uiCustomizationState = gUIStateBeforeReset.uiCustomizationState;
     let drawInTitlebar = gUIStateBeforeReset.drawInTitlebar;
 
@@ -2196,8 +2191,6 @@ let CustomizableUIInternal = {
       }
       this._rebuildRegisteredAreas();
     }
-
-    gUndoResetting = false;
   },
 
   _clearPreviousUIState: function() {
@@ -2471,11 +2464,6 @@ this.CustomizableUI = {
    *     different location. aNode is the widget's node, aContainer is the
    *     area it was moved into (NB: it might already have been there and been
    *     moved to a different position!)
-   *   - onWidgetUndoMove(aNode, aContainer)
-   *     Fired after undoing a reset to default placements moves a widget's
-   *     node to a different location. aNode is the widget's node, aContainer
-   *     is the area it was moved into (NB: it might already have been there
-   *     and been moved to a different position!)
    *   - onAreaReset(aArea, aContainer)
    *     Fired after a reset to default placements is complete on an area's
    *     DOM node. Note that this is fired for each DOM node. aArea is the area

@@ -23,10 +23,9 @@ function test()
     ok(msg, "output message found");
 
     let anchor = msg.querySelector("a");
-    let body = msg.querySelector(".body");
     ok(anchor, "object anchor");
-    ok(body, "message body");
-    ok(body.textContent.contains('testProp: "testValue"'), "message text check");
+    isnot(anchor.textContent.indexOf('testProp: "testValue"'), -1,
+          "message text check");
 
     msg.scrollIntoView();
     executeSoon(() => {
@@ -59,12 +58,10 @@ function test()
     msg = yield execute("window");
     ok(msg, "output message found");
 
-    body = msg.querySelector(".body");
-    ok(body, "message body");
-    anchor = msg.querySelector("a");
+    let anchor = msg.querySelector("a");
     ok(anchor, "object anchor");
-    ok(body.textContent.contains("Window \u2192 http://example.com/browser/"),
-       "message text check");
+    isnot(anchor.textContent.indexOf("Window \u2192 http://example.com/browser/"), -1,
+          "message text check");
 
     msg.scrollIntoView();
     executeSoon(() => {
