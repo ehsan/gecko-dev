@@ -108,7 +108,6 @@
 #include "nsThreadUtils.h"
 #include "nsNodeInfoManager.h"
 #include "nsIXBLService.h"
-#include "nsIXPointer.h"
 #include "nsIFileChannel.h"
 #include "nsIMultiPartChannel.h"
 #include "nsIRefreshURI.h"
@@ -889,6 +888,7 @@ TransferZoomLevels(nsIDocument* aFromDoc,
     return;
 
   toCtxt->SetFullZoom(fromCtxt->GetFullZoom());
+  toCtxt->SetMinFontSize(fromCtxt->MinFontSize());
   toCtxt->SetTextZoom(fromCtxt->TextZoom());
 }
 
@@ -4124,7 +4124,7 @@ nsDocument::LookupImageElement(const nsAString& aId)
   if (aId.IsEmpty())
     return nsnull;
 
-  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(aId);
+  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aId);
   return entry ? entry->GetImageIdElement() : nsnull;
 }
 
@@ -4578,17 +4578,6 @@ nsDocument::CreateEntityReference(const nsAString& aName,
   return NS_OK;
 }
 
-already_AddRefed<nsContentList>
-nsDocument::GetElementsByTagName(const nsAString& aTagname)
-{
-  nsAutoString lowercaseName;
-  nsContentUtils::ASCIIToLower(aTagname, lowercaseName);
-  nsCOMPtr<nsIAtom> xmlAtom = do_GetAtom(aTagname);
-  nsCOMPtr<nsIAtom> htmlAtom = do_GetAtom(lowercaseName);
-
-  return NS_GetContentList(this, kNameSpaceID_Unknown, htmlAtom, xmlAtom);
-}
-
 NS_IMETHODIMP
 nsDocument::GetElementsByTagName(const nsAString& aTagname,
                                  nsIDOMNodeList** aReturn)
@@ -4614,9 +4603,9 @@ nsDocument::GetElementsByTagNameNS(const nsAString& aNamespaceURI,
     NS_ENSURE_SUCCESS(rv, nsnull);
   }
 
-  nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(aLocalName);
+  NS_ASSERTION(nameSpaceId != kNameSpaceID_Unknown, "Unexpected namespace ID!");
 
-  return NS_GetContentList(this, nameSpaceId, nameAtom);
+  return NS_GetContentList(this, nameSpaceId, aLocalName);
 }
 
 NS_IMETHODIMP
@@ -4653,23 +4642,6 @@ NS_IMETHODIMP
 nsDocument::Load(const nsAString& aUrl, PRBool *aReturn)
 {
   NS_ERROR("nsDocument::Load() should be overriden by subclass!");
-
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsDocument::EvaluateFIXptr(const nsAString& aExpression, nsIDOMRange **aRange)
-{
-  NS_ERROR("nsDocument::EvaluateFIXptr() should be overriden by subclass!");
-
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsDocument::EvaluateXPointer(const nsAString& aExpression,
-                             nsIXPointerResult **aResult)
-{
-  NS_ERROR("nsDocument::EvaluateXPointer() should be overriden by subclass!");
 
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -5183,7 +5155,7 @@ nsDocument::GetTitleContent(PRUint32 aNamespace)
     return nsnull;
 
   nsRefPtr<nsContentList> list =
-    NS_GetContentList(this, aNamespace, nsGkAtoms::title);
+    NS_GetContentList(this, aNamespace, NS_LITERAL_STRING("title"));
 
   return list->Item(0, PR_FALSE);
 }
@@ -6431,7 +6403,8 @@ nsDocument::CreateEventGroup(nsIDOMEventGroup **aInstancePtrResult)
 void
 nsDocument::FlushPendingNotifications(mozFlushType aType)
 {
-  if (mParser || mWeakSink) {
+  if ((!IsHTML() || aType > Flush_ContentAndNotify) &&
+      (mParser || mWeakSink)) {
     nsCOMPtr<nsIContentSink> sink;
     if (mParser) {
       sink = mParser->GetContentSink();
@@ -7472,7 +7445,7 @@ nsDocument::OnPageShow(PRBool aPersisted,
     // Send out notifications that our <link> elements are attached.
     nsRefPtr<nsContentList> links = NS_GetContentList(root,
                                                       kNameSpaceID_Unknown,
-                                                      nsGkAtoms::link);
+                                                      NS_LITERAL_STRING("link"));
 
     PRUint32 linkCount = links->Length(PR_TRUE);
     for (PRUint32 i = 0; i < linkCount; ++i) {
@@ -7524,7 +7497,7 @@ nsDocument::OnPageHide(PRBool aPersisted,
   if (aPersisted && root) {
     nsRefPtr<nsContentList> links = NS_GetContentList(root,
                                                       kNameSpaceID_Unknown,
-                                                      nsGkAtoms::link);
+                                                      NS_LITERAL_STRING("link"));
 
     PRUint32 linkCount = links->Length(PR_TRUE);
     for (PRUint32 i = 0; i < linkCount; ++i) {
