@@ -101,9 +101,8 @@ public:
                                       const nsCString& aPrefRoot, 
                                       nsIObserver* aObserver);
 
-    virtual bool RecvNotifyRemotePrefObserver(const nsCString& aDomain);
-    
-    virtual bool RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON);
+    virtual bool RecvNotifyRemotePrefObserver(
+            const nsCString& aDomain);
 
 private:
     NS_OVERRIDE

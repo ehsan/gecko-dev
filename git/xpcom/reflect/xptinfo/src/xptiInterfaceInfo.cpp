@@ -40,7 +40,6 @@
 /* Implementation of xptiInterfaceEntry and xptiInterfaceInfo. */
 
 #include "xptiprivate.h"
-#include "nsAtomicRefcnt.h"
 
 /***************************************************************************/
 // Debug Instrumentation...
@@ -664,7 +663,7 @@ xptiInterfaceInfo::~xptiInterfaceInfo()
 nsrefcnt
 xptiInterfaceInfo::AddRef(void)
 {
-    nsrefcnt cnt = NS_AtomicIncrementRefcnt(mRefCnt);
+    nsrefcnt cnt = (nsrefcnt) PR_AtomicIncrement((PRInt32*)&mRefCnt);
     NS_LOG_ADDREF(this, cnt, "xptiInterfaceInfo", sizeof(*this));
     return cnt;
 }
@@ -673,7 +672,7 @@ nsrefcnt
 xptiInterfaceInfo::Release(void)
 {
     xptiInterfaceEntry* entry = mEntry;
-    nsrefcnt cnt = NS_AtomicDecrementRefcnt(mRefCnt);
+    nsrefcnt cnt = (nsrefcnt) PR_AtomicDecrement((PRInt32*)&mRefCnt);
     NS_LOG_RELEASE(this, cnt, "xptiInterfaceInfo");
     if(!cnt)
     {

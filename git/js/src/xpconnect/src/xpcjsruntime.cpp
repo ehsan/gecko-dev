@@ -106,6 +106,16 @@ struct CX_AND_XPCRT_Data
 };
 
 static JSDHashOperator
+NativeInterfaceGC(JSDHashTable *table, JSDHashEntryHdr *hdr,
+                  uint32 number, void *arg)
+{
+    CX_AND_XPCRT_Data* data = (CX_AND_XPCRT_Data*) arg;
+    ((IID2NativeInterfaceMap::Entry*)hdr)->value->
+            DealWithDyingGCThings(data->cx, data->rt);
+    return JS_DHASH_NEXT;
+}
+
+static JSDHashOperator
 NativeInterfaceSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
                        uint32 number, void *arg)
 {
@@ -420,7 +430,8 @@ void XPCJSRuntime::AddXPConnectRoots(JSContext* cx,
         // callback does not want all traces (a debug feature).
         // Otherwise, we do want to know about all JSContexts to get
         // better graphs and explanations.
-        if(!cb.WantAllTraces() && nsXPConnect::GetXPConnect()->GetOutstandingRequests(acx))
+        if(!cb.WantAllTraces() &&
+           nsXPConnect::GetXPConnect()->GetRequestDepth(acx) != 0)
             continue;
         cb.NoteRoot(nsIProgrammingLanguage::CPLUSPLUS, acx,
                     nsXPConnect::JSContextParticipant());
@@ -449,7 +460,7 @@ XPCJSRuntime::ClearWeakRoots()
     while((acx = JS_ContextIterator(GetJSRuntime(), &iter)))
     {
         if(XPCPerThreadData::IsMainThread(acx) &&
-           !nsXPConnect::GetXPConnect()->GetOutstandingRequests(acx))
+           nsXPConnect::GetXPConnect()->GetRequestDepth(acx) == 0)
         {
             JS_ClearNewbornRoots(acx);
         }
@@ -524,6 +535,15 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
                     self->mWrappedJSMap->
                         Enumerate(WrappedJSDyingJSObjectFinder, &data);
                 }
+
+                // Do cleanup in NativeInterfaces. This part just finds 
+                // member cloned function objects that are about to be 
+                // collected. It does not deal with collection of interfaces or
+                // sets at this point.
+                CX_AND_XPCRT_Data data = {cx, self};
+
+                self->mIID2NativeInterfaceMap->
+                    Enumerate(NativeInterfaceGC, &data);
 
                 // Find dying scopes...
                 XPCWrappedNativeScope::FinishedMarkPhaseOfGC(cx, self);

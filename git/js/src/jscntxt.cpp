@@ -341,6 +341,37 @@ FrameGuard::~FrameGuard()
     cx->stack().popFrame(cx);
 }
 
+JS_REQUIRES_STACK void
+StackSpace::getSynthesizedSlowNativeFrame(JSContext *cx, StackSegment *&seg, JSStackFrame *&fp)
+{
+    Value *start = firstUnused();
+    JS_ASSERT(size_t(end - start) >= VALUES_PER_STACK_SEGMENT + VALUES_PER_STACK_FRAME);
+    seg = new(start) StackSegment;
+    fp = reinterpret_cast<JSStackFrame *>(seg + 1);
+}
+
+JS_REQUIRES_STACK void
+StackSpace::pushSynthesizedSlowNativeFrame(JSContext *cx, StackSegment *seg, JSFrameRegs &regs)
+{
+    JS_ASSERT(!regs.fp->hasScript() && FUN_SLOW_NATIVE(regs.fp->getFunction()));
+    regs.fp->down = cx->maybefp();
+    seg->setPreviousInMemory(currentSegment);
+    currentSegment = seg;
+    cx->pushSegmentAndFrame(seg, regs);
+    seg->setInitialVarObj(NULL);
+}
+
+JS_REQUIRES_STACK void
+StackSpace::popSynthesizedSlowNativeFrame(JSContext *cx)
+{
+    JS_ASSERT(isCurrentAndActive(cx));
+    JS_ASSERT(cx->hasActiveSegment());
+    JS_ASSERT(currentSegment->getInitialFrame() == cx->fp());
+    JS_ASSERT(!cx->fp()->hasScript() && FUN_SLOW_NATIVE(cx->fp()->getFunction()));
+    cx->popSegmentAndFrame();
+    currentSegment = currentSegment->getPreviousInMemory();
+}
+
 JS_REQUIRES_STACK bool
 StackSpace::pushDummyFrame(JSContext *cx, FrameGuard &fg, JSFrameRegs &regs, JSObject *scopeChain)
 {
@@ -462,6 +493,7 @@ JSThreadData::finish()
     JS_ASSERT(gcFreeLists.isEmpty());
     for (size_t i = 0; i != JS_ARRAY_LENGTH(scriptsToGC); ++i)
         JS_ASSERT(!scriptsToGC[i]);
+    JS_ASSERT(!conservativeGC.isEnabled());
 #endif
 
     if (dtoaState)
@@ -540,13 +572,6 @@ DestroyThread(JSThread *thread)
     /* The thread must have zero contexts. */
     JS_ASSERT(JS_CLIST_IS_EMPTY(&thread->contextList));
     JS_ASSERT(!thread->titleToShare);
-
-    /*
-     * The conservative GC scanner should be disabled when the thread leaves
-     * the last request.
-     */
-    JS_ASSERT(!thread->data.conservativeGC.hasStackToScan());
-
     thread->data.finish();
     js_free(thread);
 }
@@ -1006,13 +1031,7 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
     if (!cx->thread)
         JS_SetContextThread(cx);
 
-    /*
-     * For API compatibility we support destroying contexts with non-zero
-     * cx->outstandingRequests but we assume that all JS_BeginRequest calls
-     * on this cx contributes to cx->thread->requestDepth and there is no
-     * JS_SuspendRequest calls that set aside the counter.
-     */
-    JS_ASSERT(cx->outstandingRequests <= cx->thread->requestDepth);
+    JS_ASSERT_IF(rt->gcRunning, cx->outstandingRequests == 0);
 #endif
 
     if (mode != JSDCM_NEW_FAILED) {
@@ -1037,7 +1056,7 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
      * Typically we are called outside a request, so ensure that the GC is not
      * running before removing the context from rt->contextList, see bug 477021.
      */
-    if (cx->thread->requestDepth == 0)
+    if (cx->requestDepth == 0)
         js_WaitForGC(rt);
 #endif
     JS_REMOVE_LINK(&cx->link);
@@ -1046,7 +1065,7 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
         rt->state = JSRTS_LANDING;
     if (last || mode == JSDCM_FORCE_GC || mode == JSDCM_MAYBE_GC
 #ifdef JS_THREADSAFE
-        || cx->outstandingRequests != 0
+        || cx->requestDepth != 0
 #endif
         ) {
         JS_ASSERT(!rt->gcRunning);
@@ -1056,16 +1075,16 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
         if (last) {
 #ifdef JS_THREADSAFE
             /*
-             * If this thread is not in a request already, begin one now so
-             * that we wait for any racing GC started on a not-last context to
-             * finish, before we plow ahead and unpin atoms. Note that even
-             * though we begin a request here if necessary, we end all
-             * thread's requests before forcing a final GC. This lets any
-             * not-last context destruction racing in another thread try to
-             * force or maybe run the GC, but by that point, rt->state will
-             * not be JSRTS_UP, and that GC attempt will return early.
+             * If cx is not in a request already, begin one now so that we wait
+             * for any racing GC started on a not-last context to finish, before
+             * we plow ahead and unpin atoms.  Note that even though we begin a
+             * request here if necessary, we end all requests on cx below before
+             * forcing a final GC.  This lets any not-last context destruction
+             * racing in another thread try to force or maybe run the GC, but by
+             * that point, rt->state will not be JSRTS_UP, and that GC attempt
+             * will return early.
              */
-            if (cx->thread->requestDepth == 0)
+            if (cx->requestDepth == 0)
                 JS_BeginRequest(cx);
 #endif
 
@@ -1091,7 +1110,7 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
          * request to end.  We'll let it run below, just before we do the truly
          * final GC and then free atom state.
          */
-        while (cx->outstandingRequests != 0)
+        while (cx->requestDepth != 0)
             JS_EndRequest(cx);
 #endif
 
@@ -1114,11 +1133,7 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
         }
     }
 #ifdef JS_THREADSAFE
-#ifdef DEBUG
-    JSThread *t = cx->thread;
-#endif
     js_ClearContextThread(cx);
-    JS_ASSERT_IF(JS_CLIST_IS_EMPTY(&t->contextList), !t->requestDepth);
 #endif
 #ifdef JS_METER_DST_OFFSET_CACHING
     cx->dstOffsetCache.dumpStats();
@@ -1194,7 +1209,7 @@ js_NextActiveContext(JSRuntime *rt, JSContext *cx)
     JSContext *iter = cx;
 #ifdef JS_THREADSAFE
     while ((cx = js_ContextIterator(rt, JS_FALSE, &iter)) != NULL) {
-        if (cx->outstandingRequests && cx->thread->requestDepth)
+        if (cx->requestDepth)
             break;
     }
     return cx;
@@ -1916,10 +1931,12 @@ js_GetScriptedCaller(JSContext *cx, JSStackFrame *fp)
 {
     if (!fp)
         fp = js_GetTopStackFrame(cx);
-    while (fp && fp->isDummyFrame())
+    while (fp) {
+        if (fp->hasScript())
+            return fp;
         fp = fp->down;
-    JS_ASSERT_IF(fp, fp->hasScript());
-    return fp;
+    }
+    return NULL;
 }
 
 jsbytecode*
@@ -2142,7 +2159,7 @@ JSContext::checkMallocGCPressure(void *p)
      * Trigger the GC on memory pressure but only if we are inside a request
      * and not inside a GC.
      */
-    if (runtime->isGCMallocLimitReached() && thread->requestDepth != 0)
+    if (runtime->isGCMallocLimitReached() && requestDepth != 0)
 #endif
     {
         if (!runtime->gcRunning) {
@@ -2161,6 +2178,20 @@ JSContext::checkMallocGCPressure(void *p)
         }
     }
 }
+
+bool
+JSContext::isConstructing()
+{
+#ifdef JS_TRACER
+    if (JS_ON_TRACE(this)) {
+        JS_ASSERT(bailExit);
+        return *bailExit->pc == JSOP_NEW;
+    }
+#endif
+    JSStackFrame *fp = js_GetTopStackFrame(this);
+    return fp && (fp->flags & JSFRAME_CONSTRUCTING);
+}
+
 
 /*
  * Release pool's arenas if the stackPool has existed for longer than the

@@ -421,9 +421,6 @@ class FrameState
     void allocForBinary(FrameEntry *lhs, FrameEntry *rhs, JSOp op, BinaryAlloc &alloc,
                         bool resultNeeded = true);
 
-    /* Ensures that an FE has both type and data remat'd in registers. */
-    void ensureFullRegs(FrameEntry *fe);
-
     /*
      * Similar to allocForBinary, except works when the LHS and RHS have the
      * same backing FE. Only a reduced subset of BinaryAlloc is used:
@@ -674,7 +671,7 @@ class FrameState
     RegisterID evictSomeReg(uint32 mask);
     void evictReg(RegisterID reg);
     inline FrameEntry *rawPush();
-    inline void addToTracker(FrameEntry *fe);
+    inline FrameEntry *addToTracker(uint32 index);
     inline void syncType(const FrameEntry *fe, Address to, Assembler &masm) const;
     inline void syncData(const FrameEntry *fe, Address to, Assembler &masm) const;
     inline FrameEntry *getLocal(uint32 slot);
@@ -697,7 +694,7 @@ class FrameState
     FrameEntry *uncopy(FrameEntry *original);
 
     FrameEntry *entryFor(uint32 index) const {
-        JS_ASSERT(entries[index].isTracked());
+        JS_ASSERT(base[index]);
         return &entries[index];
     }
 
@@ -710,7 +707,7 @@ class FrameState
     }
 
     uint32 indexOf(int32 depth) {
-        return uint32((sp + depth) - entries);
+        return uint32((sp + depth) - base);
     }
 
     uint32 indexOfFe(FrameEntry *fe) {
@@ -729,17 +726,20 @@ class FrameState
     /* Cache of FrameEntry objects. */
     FrameEntry *entries;
 
+    /* Base pointer of the FrameEntry vector. */
+    FrameEntry **base;
+
     /* Base pointer for arguments. */
-    FrameEntry *args;
+    FrameEntry **args;
 
     /* Base pointer for local variables. */
-    FrameEntry *locals;
+    FrameEntry **locals;
 
     /* Base pointer for the stack. */
-    FrameEntry *spBase;
+    FrameEntry **spBase;
 
     /* Dynamic stack pointer. */
-    FrameEntry *sp;
+    FrameEntry **sp;
 
     /* Vector of tracked slot indexes. */
     Tracker tracker;

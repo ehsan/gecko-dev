@@ -951,6 +951,14 @@ JSD_GetNameForStackFrame(JSDContext* jsdc,
                          JSDStackFrameInfo* jsdframe);
 
 /*
+* True if stack frame represents a native frame.
+*/
+extern JSD_PUBLIC_API(JSBool)
+JSD_IsStackFrameNative(JSDContext* jsdc,
+                       JSDThreadState* jsdthreadstate,
+                       JSDStackFrameInfo* jsdframe);
+
+/*
 * True if stack frame represents a frame created as a result of a debugger
 * evaluation.
 */
