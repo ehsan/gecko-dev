@@ -53,7 +53,7 @@ AutoSetCurrentTransaction::AutoSetCurrentTransaction(
 
 AutoSetCurrentTransaction::~AutoSetCurrentTransaction()
 {
-  AsyncConnectionHelper::SetCurrentTransaction(nullptr);
+  AsyncConnectionHelper::SetCurrentTransaction(NULL);
 }
 
 /*******************************************************************************
@@ -567,7 +567,7 @@ void
 IndexedDBDatabaseParent::ActorDestroy(ActorDestroyReason aWhy)
 {
   if (mDatabase) {
-    mDatabase->SetActor(static_cast<IndexedDBDatabaseParent*>(nullptr));
+    mDatabase->SetActor(static_cast<IndexedDBDatabaseParent*>(NULL));
     mDatabase->Invalidate();
   }
 }
@@ -746,7 +746,7 @@ IndexedDBTransactionParent::ActorDestroy(ActorDestroyReason aWhy)
       mArtificialRequestCount = false;
 #endif
     }
-    mTransaction->SetActor(static_cast<IndexedDBTransactionParent*>(nullptr));
+    mTransaction->SetActor(static_cast<IndexedDBTransactionParent*>(NULL));
   }
 }
 
@@ -998,7 +998,7 @@ void
 IndexedDBCursorParent::ActorDestroy(ActorDestroyReason aWhy)
 {
   MOZ_ASSERT(mCursor);
-  mCursor->SetActor(static_cast<IndexedDBCursorParent*>(nullptr));
+  mCursor->SetActor(static_cast<IndexedDBCursorParent*>(NULL));
 }
 
 bool
@@ -1075,7 +1075,7 @@ void
 IndexedDBObjectStoreParent::ActorDestroy(ActorDestroyReason aWhy)
 {
   if (mObjectStore) {
-    mObjectStore->SetActor(static_cast<IndexedDBObjectStoreParent*>(nullptr));
+    mObjectStore->SetActor(static_cast<IndexedDBObjectStoreParent*>(NULL));
   }
 }
 
@@ -1359,7 +1359,7 @@ void
 IndexedDBIndexParent::ActorDestroy(ActorDestroyReason aWhy)
 {
   if (mIndex) {
-    mIndex->SetActor(static_cast<IndexedDBIndexParent*>(nullptr));
+    mIndex->SetActor(static_cast<IndexedDBIndexParent*>(NULL));
   }
 }
 
@@ -1460,7 +1460,7 @@ void
 IndexedDBRequestParentBase::ActorDestroy(ActorDestroyReason aWhy)
 {
   if (mRequest) {
-    mRequest->SetActor(nullptr);
+    mRequest->SetActor(NULL);
   }
 }
 

@@ -78,7 +78,7 @@ public:
   virtual void MaskSurface(const Pattern &aSource,
                            SourceSurface *aMask,
                            Point aOffset,
-                           const DrawOptions &aOptions = DrawOptions());
+                           const DrawOptions &aOptions = DrawOptions()) { MOZ_ASSERT(0); };
   virtual void PushClip(const Path *aPath);
   virtual void PushClipRect(const Rect& aRect);
   virtual void PopClip();
@@ -124,8 +124,6 @@ private:
   void SnapshotDestroyed();
 
   void MarkChanged();
-
-  SkRect SkRectCoveringWholeSurface() const;
 
 #ifdef USE_SKIA_GPU
   /*

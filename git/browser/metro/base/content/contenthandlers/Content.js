@@ -225,6 +225,7 @@ let Content = {
     let json = aMessage.json;
     let x = json.x;
     let y = json.y;
+    let modifiers = json.modifiers;
 
     switch (aMessage.name) {
       case "Browser:Blur":
@@ -262,7 +263,7 @@ let Content = {
         break;
 
       case "Gesture:SingleTap":
-        this._onSingleTap(json.x, json.y, json.modifiers);
+        this._onSingleTap(json.x, json.y);
         break;
 
       case "Gesture:DoubleTap":
@@ -372,11 +373,10 @@ let Content = {
     }
   },
 
-  _onSingleTap: function (aX, aY, aModifiers) {
+  _onSingleTap: function (aX, aY) {
     let utils = Util.getWindowUtils(content);
     for (let type of ["mousemove", "mousedown", "mouseup"]) {
-      utils.sendMouseEventToWindow(type, aX, aY, 0, 1, aModifiers, true, 1.0,
-          Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH);
+      utils.sendMouseEventToWindow(type, aX, aY, 0, 1, 0, true, 1.0, Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH);
     }
   },
 
@@ -432,7 +432,7 @@ let Content = {
                     aRect.height,
                     presShellId.value,
                     viewId].join(",");
-    Services.obs.notifyObservers(null, "apzc-zoom-to-rect", zoomData);
+    Services.obs.notifyObservers(null, "Metro:ZoomToRect", zoomData);
   },
 
   _shouldZoomToElement: function(aElement) {

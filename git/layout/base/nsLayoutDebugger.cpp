@@ -190,7 +190,7 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
     if (i->GetType() == nsDisplayItem::TYPE_SVG_EFFECTS) {
       (static_cast<nsDisplaySVGEffects*>(i))->PrintEffects(aOutput);
     }
-    fprintf_stderr(aOutput, "\n");
+    fputc('\n', aOutput);
     if (list) {
       PrintDisplayListTo(aBuilder, *list, aOutput, aDumpHtml);
     }

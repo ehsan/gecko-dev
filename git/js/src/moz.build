@@ -170,6 +170,7 @@ UNIFIED_SOURCES += [
     'vm/Monitor.cpp',
     'vm/ObjectImpl.cpp',
     'vm/OldDebugAPI.cpp',
+    'vm/PosixNSPR.cpp',
     'vm/Probes.cpp',
     'vm/PropertyKey.cpp',
     'vm/ProxyObject.cpp',
@@ -204,11 +205,6 @@ SOURCES += [
     'jsmath.cpp',
     'jsutil.cpp',
 ]
-
-if CONFIG['JS_POSIX_NSPR']:
-    UNIFIED_SOURCES += [
-        'vm/PosixNSPR.cpp',
-    ]
 
 if CONFIG['MOZ_INSTRUMENTS']:
     SOURCES += [

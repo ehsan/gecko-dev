@@ -156,7 +156,7 @@ public:
   /**
    * Returns true, except on OOM, in which case returns false.
    */
-  bool GetDistancesFromOriginToEndsOfVisibleSegments(FallibleTArray<double> *aArray) const;
+  bool GetDistancesFromOriginToEndsOfVisibleSegments(nsTArray<double> *aArray) const;
 
   /**
    * This returns a path without the extra little line segments that

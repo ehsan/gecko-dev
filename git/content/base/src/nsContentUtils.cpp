@@ -83,6 +83,7 @@
 #include "nsICategoryManager.h"
 #include "nsIChannelEventSink.h"
 #include "nsIChannelPolicy.h"
+#include "nsICharsetConverterManager.h"
 #include "nsICharsetDetectionObserver.h"
 #include "nsICharsetDetector.h"
 #include "nsIChromeRegistry.h"

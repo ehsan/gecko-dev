@@ -387,11 +387,7 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
     if (cx->runtime()->isSelfHostingGlobal(self)) {
         intrinsicsHolder = self;
     } else {
-        RootedObject proto(cx, self->getOrCreateObjectPrototype(cx));
-        if (!proto)
-            return nullptr;
-        intrinsicsHolder = NewObjectWithGivenProto(cx, &JSObject::class_, proto, self,
-                                                   TenuredObject);
+        intrinsicsHolder = NewObjectWithClassProto(cx, &JSObject::class_, nullptr, self, TenuredObject);
         if (!intrinsicsHolder)
             return nullptr;
     }
@@ -488,9 +484,6 @@ GlobalObject::initStandardClasses(JSContext *cx, Handle<GlobalObject*> global)
 #if EXPOSE_INTL_API
            js_InitIntlClass(cx, global) &&
 #endif
-#if ENABLE_PARALLEL_JS
-           js_InitParallelArrayClass(cx, global) &&
-#endif
            true;
 }
 
@@ -517,7 +510,7 @@ GlobalObject::warnOnceAboutWatch(JSContext *cx, HandleObject obj)
     HeapSlot &v = global->getSlotRef(WARNED_WATCH_DEPRECATED);
     if (v.isUndefined()) {
         // Warn only once per global object.
-        if (!JS_ReportErrorFlagsAndNumber(cx, JSREPORT_WARNING, js_GetErrorMessage, nullptr,
+        if (!JS_ReportErrorFlagsAndNumber(cx, JSREPORT_WARNING, js_GetErrorMessage, NULL,
                                           JSMSG_OBJECT_WATCH_DEPRECATED))
         {
             return false;

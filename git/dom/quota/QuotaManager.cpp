@@ -7,6 +7,7 @@
 #include "QuotaManager.h"
 
 #include "mozIApplicationClearPrivateDataParams.h"
+#include "nsIAtom.h"
 #include "nsIBinaryInputStream.h"
 #include "nsIBinaryOutputStream.h"
 #include "nsIFile.h"
@@ -109,7 +110,7 @@ struct SynchronizedOp
 {
   SynchronizedOp(const OriginOrPatternString& aOriginOrPattern,
                  Nullable<PersistenceType> aPersistenceType,
-                 const nsACString& aId);
+                 nsISupports* aId);
 
   ~SynchronizedOp();
 
@@ -125,7 +126,7 @@ struct SynchronizedOp
 
   const OriginOrPatternString mOriginOrPattern;
   Nullable<PersistenceType> mPersistenceType;
-  nsCString mId;
+  nsCOMPtr<nsISupports> mId;
   nsRefPtr<AcquireListener> mListener;
   nsTArray<nsCOMPtr<nsIRunnable> > mDelayedRunnables;
   ArrayCluster<nsIOfflineStorage*> mStorages;
@@ -1550,7 +1551,8 @@ QuotaManager::HasOpenTransactions(nsPIDOMWindow* aWindow)
 nsresult
 QuotaManager::WaitForOpenAllowed(const OriginOrPatternString& aOriginOrPattern,
                                  Nullable<PersistenceType> aPersistenceType,
-                                 const nsACString& aId, nsIRunnable* aRunnable)
+                                 nsIAtom* aId,
+                                 nsIRunnable* aRunnable)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!aOriginOrPattern.IsEmpty() || aOriginOrPattern.IsNull(),
@@ -1586,11 +1588,11 @@ QuotaManager::WaitForOpenAllowed(const OriginOrPatternString& aOriginOrPattern,
 
 void
 QuotaManager::AddSynchronizedOp(const OriginOrPatternString& aOriginOrPattern,
-                                Nullable<PersistenceType> aPersistenceType)
+                                Nullable<PersistenceType> aPersistenceType,
+                                nsIAtom* aId)
 {
   nsAutoPtr<SynchronizedOp> op(new SynchronizedOp(aOriginOrPattern,
-                                                  aPersistenceType,
-                                                  EmptyCString()));
+                                                  aPersistenceType, nullptr));
 
 #ifdef DEBUG
   for (uint32_t index = mSynchronizedOps.Length(); index > 0; index--) {
@@ -1606,7 +1608,7 @@ void
 QuotaManager::AllowNextSynchronizedOp(
                                   const OriginOrPatternString& aOriginOrPattern,
                                   Nullable<PersistenceType> aPersistenceType,
-                                  const nsACString& aId)
+                                  nsIAtom* aId)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!aOriginOrPattern.IsEmpty() || aOriginOrPattern.IsNull(),
@@ -1629,8 +1631,7 @@ QuotaManager::AllowNextSynchronizedOp(
 
       // If one or the other is for an origin clear, we should have matched
       // solely on origin.
-      NS_ASSERTION(!op->mId.IsEmpty() && !aId.IsEmpty(),
-                   "Why didn't we match earlier?");
+      NS_ASSERTION(op->mId && aId, "Why didn't we match earlier?");
     }
   }
 
@@ -2003,11 +2004,10 @@ QuotaManager::GetStorageQuotaMB()
 }
 
 // static
-void
+already_AddRefed<nsIAtom>
 QuotaManager::GetStorageId(PersistenceType aPersistenceType,
                            const nsACString& aOrigin,
-                           const nsAString& aName,
-                           nsACString& aDatabaseId)
+                           const nsAString& aName)
 {
   nsAutoCString str;
   str.AppendInt(aPersistenceType);
@@ -2016,7 +2016,10 @@ QuotaManager::GetStorageId(PersistenceType aPersistenceType,
   str.Append('*');
   str.Append(NS_ConvertUTF16toUTF8(aName));
 
-  aDatabaseId = str;
+  nsCOMPtr<nsIAtom> atom = do_GetAtom(str);
+  NS_ENSURE_TRUE(atom, nullptr);
+
+  return atom.forget();
 }
 
 // static
@@ -2215,8 +2218,7 @@ QuotaManager::GetUsageForURI(nsIURI* aURI,
                            aCallback);
 
   // Put the computation runnable in the queue.
-  rv = WaitForOpenAllowed(oops, Nullable<PersistenceType>(), EmptyCString(),
-                          runnable);
+  rv = WaitForOpenAllowed(oops, Nullable<PersistenceType>(), nullptr, runnable);
   NS_ENSURE_SUCCESS(rv, rv);
 
   runnable->AdvanceState();
@@ -2241,8 +2243,7 @@ QuotaManager::Clear()
 
   // Put the clear runnable in the queue.
   nsresult rv =
-    WaitForOpenAllowed(oops, Nullable<PersistenceType>(), EmptyCString(),
-                       runnable);
+    WaitForOpenAllowed(oops, Nullable<PersistenceType>(), nullptr, runnable);
   NS_ENSURE_SUCCESS(rv, rv);
 
   runnable->AdvanceState();
@@ -2300,8 +2301,7 @@ QuotaManager::ClearStoragesForURI(nsIURI* aURI,
   // Queue up the origin clear runnable.
   nsRefPtr<OriginClearRunnable> runnable = new OriginClearRunnable(oops);
 
-  rv = WaitForOpenAllowed(oops, Nullable<PersistenceType>(), EmptyCString(),
-                          runnable);
+  rv = WaitForOpenAllowed(oops, Nullable<PersistenceType>(), nullptr, runnable);
   NS_ENSURE_SUCCESS(rv, rv);
 
   runnable->AdvanceState();
@@ -2338,8 +2338,7 @@ QuotaManager::Reset()
 
   // Put the reset runnable in the queue.
   nsresult rv =
-    WaitForOpenAllowed(oops, Nullable<PersistenceType>(), EmptyCString(),
-                       runnable);
+    WaitForOpenAllowed(oops, Nullable<PersistenceType>(), nullptr, runnable);
   NS_ENSURE_SUCCESS(rv, rv);
 
   runnable->AdvanceState();
@@ -2643,8 +2642,7 @@ QuotaManager::AcquireExclusiveAccess(const nsACString& aPattern,
                             aStorage->Id());
   }
   else {
-    op = FindSynchronizedOp(aPattern, Nullable<PersistenceType>(),
-                            EmptyCString());
+    op = FindSynchronizedOp(aPattern, Nullable<PersistenceType>(), nullptr);
   }
 
   NS_ASSERTION(op, "We didn't find a SynchronizedOp?");
@@ -2799,14 +2797,14 @@ QuotaManager::RunSynchronizedOp(nsIOfflineStorage* aStorage,
 SynchronizedOp*
 QuotaManager::FindSynchronizedOp(const nsACString& aPattern,
                                  Nullable<PersistenceType> aPersistenceType,
-                                 const nsACString& aId)
+                                 nsISupports* aId)
 {
   for (uint32_t index = 0; index < mSynchronizedOps.Length(); index++) {
     const nsAutoPtr<SynchronizedOp>& currentOp = mSynchronizedOps[index];
     if (PatternMatchesOrigin(aPattern, currentOp->mOriginOrPattern) &&
         (currentOp->mPersistenceType.IsNull() ||
          currentOp->mPersistenceType == aPersistenceType) &&
-        (currentOp->mId.IsEmpty() || currentOp->mId == aId)) {
+        (!currentOp->mId || currentOp->mId == aId)) {
       return currentOp;
     }
   }
@@ -2839,8 +2837,7 @@ QuotaManager::ClearStoragesForApp(uint32_t aAppId, bool aBrowserOnly)
   nsRefPtr<OriginClearRunnable> runnable = new OriginClearRunnable(oops);
 
   nsresult rv =
-    WaitForOpenAllowed(oops, Nullable<PersistenceType>(), EmptyCString(),
-                       runnable);
+    WaitForOpenAllowed(oops, Nullable<PersistenceType>(), nullptr, runnable);
   NS_ENSURE_SUCCESS(rv, rv);
 
   runnable->AdvanceState();
@@ -3128,7 +3125,8 @@ QuotaManager::CollectOriginsForEviction(uint64_t aMinSizeToBeFreed,
         OriginOrPatternString::FromOrigin(inactiveOrigins[index]->mOrigin);
 
       AddSynchronizedOp(oops,
-                        Nullable<PersistenceType>(PERSISTENCE_TYPE_TEMPORARY));
+                        Nullable<PersistenceType>(PERSISTENCE_TYPE_TEMPORARY),
+                        nullptr);
     }
 
     inactiveOrigins.SwapElements(aOriginInfos);
@@ -3231,7 +3229,7 @@ QuotaManager::GetOriginPatternString(uint32_t aAppId,
 
 SynchronizedOp::SynchronizedOp(const OriginOrPatternString& aOriginOrPattern,
                                Nullable<PersistenceType> aPersistenceType,
-                               const nsACString& aId)
+                               nsISupports* aId)
 : mOriginOrPattern(aOriginOrPattern), mPersistenceType(aPersistenceType),
   mId(aId)
 {
@@ -3290,8 +3288,8 @@ SynchronizedOp::MustWaitFor(const SynchronizedOp& aExistingOp)
   }
 
   // Waiting is required if either one corresponds to an origin clearing
-  // (an empty Id).
-  if (aExistingOp.mId.IsEmpty() || mId.IsEmpty()) {
+  // (a null Id).
+  if (!aExistingOp.mId || !mId) {
     return true;
   }
 
@@ -3304,7 +3302,7 @@ void
 SynchronizedOp::DelayRunnable(nsIRunnable* aRunnable)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(mDelayedRunnables.IsEmpty() || mId.IsEmpty(),
+  NS_ASSERTION(mDelayedRunnables.IsEmpty() || !mId,
                "Only ClearOrigin operations can delay multiple runnables!");
 
   mDelayedRunnables.AppendElement(aRunnable);
@@ -3525,7 +3523,7 @@ OriginClearRunnable::Run()
       // Tell the QuotaManager that we're done.
       quotaManager->AllowNextSynchronizedOp(mOriginOrPattern,
                                             Nullable<PersistenceType>(),
-                                            EmptyCString());
+                                            nullptr);
 
       return NS_OK;
     }
@@ -3635,7 +3633,7 @@ AsyncUsageRunnable::RunInternal()
       if (mCallbackState == Complete) {
         quotaManager->AllowNextSynchronizedOp(mOrigin,
                                               Nullable<PersistenceType>(),
-                                              EmptyCString());
+                                              nullptr);
       }
 
       return NS_OK;
@@ -3885,7 +3883,7 @@ ResetOrClearRunnable::Run()
       // Tell the QuotaManager that we're done.
       quotaManager->AllowNextSynchronizedOp(OriginOrPatternString::FromNull(),
                                             Nullable<PersistenceType>(),
-                                            EmptyCString());
+                                            nullptr);
 
       return NS_OK;
     }
@@ -3952,7 +3950,7 @@ FinalizeOriginEvictionRunnable::Run()
         quotaManager->AllowNextSynchronizedOp(
                           OriginOrPatternString::FromOrigin(mOrigins[index]),
                           Nullable<PersistenceType>(PERSISTENCE_TYPE_TEMPORARY),
-                          EmptyCString());
+                          nullptr);
       }
 
       return NS_OK;

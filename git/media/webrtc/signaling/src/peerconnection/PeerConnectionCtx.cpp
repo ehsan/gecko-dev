@@ -238,7 +238,7 @@ void PeerConnectionCtx::Destroy() {
   if (gInstance) {
     gInstance->Cleanup();
     delete gInstance;
-    gInstance = nullptr;
+    gInstance = NULL;
   }
 }
 

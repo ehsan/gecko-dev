@@ -6,7 +6,6 @@
 
 Components.utils.import("resource://gre/modules/osfile.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/ctypes.jsm");
 
 function run_test() {
   run_next_test();
@@ -26,8 +25,7 @@ function compare_paths(ospath, key) {
   }
 }
 
-// Test simple paths
-add_task(function() {
+add_test(function() {
   do_check_true(!!OS.Constants.Path.tmpDir);
   do_check_eq(OS.Constants.Path.tmpDir, Services.dirsvc.get("TmpD", Components.interfaces.nsIFile).path);
 
@@ -42,10 +40,6 @@ add_task(function() {
 
   compare_paths(OS.Constants.Path.macUserLibDir, "ULibDir");
   compare_paths(OS.Constants.Path.macLocalApplicationsDir, "LocApp");
-});
 
-// Open libxul
-add_task(function() {
-  ctypes.open(OS.Constants.Path.libxul);
-  do_print("Linked to libxul");
+  run_next_test();
 });

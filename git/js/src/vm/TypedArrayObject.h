@@ -198,7 +198,7 @@ class ArrayBufferObject : public JSObject
     /*
      * Neuter all views of an ArrayBuffer.
      */
-    static bool neuterViews(JSContext *cx, Handle<ArrayBufferObject*> buffer);
+    bool neuterViews(JSContext *cx);
 
     inline uint8_t * dataPointer() const {
         return (uint8_t *) elements;

@@ -1717,9 +1717,9 @@ NS_IMPL_ISUPPORTS1(OpenDatabaseHelper, nsIRunnable)
 nsresult
 OpenDatabaseHelper::Init()
 {
-  QuotaManager::GetStorageId(mPersistenceType, mASCIIOrigin, mName,
-                             mDatabaseId);
-  MOZ_ASSERT(!mDatabaseId.IsEmpty());
+  mDatabaseId =
+    QuotaManager::GetStorageId(mPersistenceType, mASCIIOrigin, mName);
+  NS_ENSURE_TRUE(mDatabaseId, NS_ERROR_FAILURE);
 
   return NS_OK;
 }
@@ -2509,6 +2509,7 @@ OpenDatabaseHelper::ReleaseMainThreadObjects()
 
   mOpenDBRequest = nullptr;
   mDatabase = nullptr;
+  mDatabaseId = nullptr;
 
   HelperBase::ReleaseMainThreadObjects();
 }
