@@ -147,15 +147,6 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     kNoReqStates
   },
   {
-    "directory",
-    nsIAccessibleRole::ROLE_LIST,
-    kUseMapRole,
-    eNoValue,
-    eNoAction,
-    eNoLiveAttr,
-    kNoReqStates
-  },
-  {
     "document",
     nsIAccessibleRole::ROLE_DOCUMENT,
     kUseMapRole,
@@ -274,8 +265,8 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
   },
   {
     "marquee",
-    nsIAccessibleRole::ROLE_ANIMATION,
-    kUseMapRole,
+    nsIAccessibleRole::ROLE_NOTHING,
+    kUseNativeRole,
     eNoValue,
     eNoAction,
     eOffLiveAttr,

@@ -732,10 +732,8 @@ var allTabs = {
           siblingPreview.parentNode.insertBefore(preview, siblingPreview);
         else
           this.container.lastChild.appendChild(preview);
-        if (this.isOpen && !preview.hidden) {
+        if (this.isOpen && !preview.hidden)
           this._reflow();
-          preview.focus();
-        }
         break;
       case "TabClose":
         this._removePreview(preview);
@@ -816,7 +814,7 @@ var allTabs = {
 
     while (this.container.hasChildNodes())
       this.container.removeChild(this.container.firstChild);
-    for (let i = rows || 1; i > 0; i--)
+    for (let i = 0; i < rows; i++)
       this.container.appendChild(document.createElement("hbox"));
 
     var row = this.container.firstChild;

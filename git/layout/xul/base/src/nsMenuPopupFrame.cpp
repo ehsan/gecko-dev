@@ -66,6 +66,7 @@
 #include "nsILookAndFeel.h"
 #include "nsIComponentManager.h"
 #include "nsBoxLayoutState.h"
+#include "nsIScrollableView.h"
 #include "nsIScrollableFrame.h"
 #include "nsGUIEvent.h"
 #include "nsIRootBox.h"
@@ -385,7 +386,7 @@ nsMenuPopupFrame::AdjustView()
       nsIBox* child = GetChildBox();
       nsIScrollableFrame *scrollframe = do_QueryFrame(child);
       if (scrollframe)
-        scrollframe->ScrollTo(nsPoint(0,0), nsIScrollableFrame::INSTANT);
+        scrollframe->ScrollTo(nsPoint(0,0));
     }
 
     nsIView* view = GetView();
@@ -1049,8 +1050,8 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame)
 
   // ensure that anchorRect is on screen
   if (!anchorRect.IntersectRect(anchorRect, screenRect)) {
-    anchorRect.width = anchorRect.height = 0;
     // if the anchor isn't within the screen, move it to the edge of the screen.
+    // IntersectRect will have set both the width and height of anchorRect to 0.
     if (anchorRect.x < screenRect.x)
       anchorRect.x = screenRect.x;
     if (anchorRect.XMost() > screenRect.XMost())
@@ -1210,31 +1211,43 @@ PRBool nsMenuPopupFrame::ConsumeOutsideClicks()
   return PR_TRUE;
 }
 
-// XXXroc this is megalame. Fossicking around for a frame of the right
-// type is a recipe for disaster in the long term.
-nsIScrollableFrame* nsMenuPopupFrame::GetScrollFrame(nsIFrame* aStart)
+static nsIScrollableView* GetScrollableViewForFrame(nsIFrame* aFrame)
 {
-  if (!aStart)
+  nsIScrollableFrame* sf = do_QueryFrame(aFrame);
+  if (!sf)
+    return nsnull;
+  return sf->GetScrollableView();
+}
+
+// XXXroc this is megalame. Fossicking around for a view of the right
+// type is a recipe for disaster in the long term.
+nsIScrollableView* nsMenuPopupFrame::GetScrollableView(nsIFrame* aStart)
+{
+  if ( ! aStart )
     return nsnull;  
 
+  nsIFrame* currFrame;
+  nsIScrollableView* scrollableView=nsnull;
+
   // try start frame and siblings
-  nsIFrame* currFrame = aStart;
+  currFrame=aStart;
   do {
-    nsIScrollableFrame* sf = do_QueryFrame(currFrame);
-    if (sf)
-      return sf;
+    scrollableView = GetScrollableViewForFrame(currFrame);
+    if ( scrollableView )
+      return scrollableView;
     currFrame = currFrame->GetNextSibling();
-  } while (currFrame);
+  } while ( currFrame );
 
   // try children
-  currFrame = aStart;
+  nsIFrame* childFrame;
+  currFrame=aStart;
   do {
-    nsIFrame* childFrame = currFrame->GetFirstChild(nsnull);
-    nsIScrollableFrame* sf = GetScrollFrame(childFrame);
-    if (sf)
-      return sf;
+    childFrame = currFrame->GetFirstChild(nsnull);
+    scrollableView=GetScrollableView(childFrame);
+    if ( scrollableView )
+      return scrollableView;
     currFrame = currFrame->GetNextSibling();
-  } while (currFrame);
+  } while ( currFrame );
 
   return nsnull;
 }
@@ -1242,12 +1255,24 @@ nsIScrollableFrame* nsMenuPopupFrame::GetScrollFrame(nsIFrame* aStart)
 void nsMenuPopupFrame::EnsureMenuItemIsVisible(nsMenuFrame* aMenuItem)
 {
   if (aMenuItem) {
-    aMenuItem->PresContext()->PresShell()->
-      ScrollFrameRectIntoView(aMenuItem,
-                              nsRect(nsPoint(0,0), aMenuItem->GetRect().Size()),
-                              NS_PRESSHELL_SCROLL_ANYWHERE,
-                              NS_PRESSHELL_SCROLL_ANYWHERE,
-                              nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
+    nsIFrame* childFrame = GetFirstChild(nsnull);
+    nsIScrollableView *scrollableView;
+    scrollableView = GetScrollableView(childFrame);
+    if (scrollableView) {
+      nscoord scrollX, scrollY;
+
+      nsRect viewRect = scrollableView->View()->GetBounds();
+      nsRect itemRect = aMenuItem->GetRect();
+      scrollableView->GetScrollPosition(scrollX, scrollY);
+  
+      // scroll down
+      if ( itemRect.y + itemRect.height > scrollY + viewRect.height )
+        scrollableView->ScrollTo(scrollX, itemRect.y + itemRect.height - viewRect.height, 0);
+      
+      // scroll up
+      else if ( itemRect.y < scrollY )
+        scrollableView->ScrollTo(scrollX, itemRect.y, 0);
+    }
   }
 }
 

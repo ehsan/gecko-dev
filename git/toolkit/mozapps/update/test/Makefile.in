@@ -75,7 +75,7 @@ DEFINES += \
   $(NULL)
 
 LIBS += \
-  ../../readstrings/$(LIB_PREFIX)readstrings.$(LIB_SUFFIX) \
+  $(DEPTH)/toolkit/mozapps/update/src/updater/readstrings.$(OBJ_SUFFIX) \
   $(NULL)
 
 ifeq ($(OS_ARCH),WINNT)

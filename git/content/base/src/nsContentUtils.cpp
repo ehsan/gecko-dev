@@ -223,7 +223,6 @@ PRUint32 nsContentUtils::sScriptBlockerCount = 0;
 PRUint32 nsContentUtils::sRemovableScriptBlockerCount = 0;
 nsCOMArray<nsIRunnable>* nsContentUtils::sBlockedScriptRunners = nsnull;
 PRUint32 nsContentUtils::sRunnersCountAtFirstBlocker = 0;
-PRUint32 nsContentUtils::sScriptBlockerCountWhereRunnersPrevented = 0;
 nsIInterfaceRequestor* nsContentUtils::sSameOriginChecker = nsnull;
 
 nsIJSRuntimeService *nsAutoGCRoot::sJSRuntimeService;
@@ -4496,23 +4495,10 @@ nsContentUtils::AddScriptBlocker()
 
 /* static */
 void
-nsContentUtils::AddScriptBlockerAndPreventAddingRunners()
-{
-  AddScriptBlocker();
-  if (sScriptBlockerCountWhereRunnersPrevented == 0) {
-    sScriptBlockerCountWhereRunnersPrevented = sScriptBlockerCount;
-  }
-}
-
-/* static */
-void
 nsContentUtils::RemoveScriptBlocker()
 {
   NS_ASSERTION(sScriptBlockerCount != 0, "Negative script blockers");
   --sScriptBlockerCount;
-  if (sScriptBlockerCount < sScriptBlockerCountWhereRunnersPrevented) {
-    sScriptBlockerCountWhereRunnersPrevented = 0;
-  }
   if (sScriptBlockerCount) {
     return;
   }
@@ -4536,6 +4522,7 @@ nsContentUtils::RemoveScriptBlocker()
   }
 }
 
+
 /* static */
 PRBool
 nsContentUtils::AddScriptRunner(nsIRunnable* aRunnable)
@@ -4545,10 +4532,6 @@ nsContentUtils::AddScriptRunner(nsIRunnable* aRunnable)
   }
 
   if (sScriptBlockerCount) {
-    if (sScriptBlockerCountWhereRunnersPrevented > 0) {
-      NS_ERROR("Adding a script runner when that is prevented!");
-      return PR_FALSE;
-    }
     return sBlockedScriptRunners->AppendObject(aRunnable);
   }
   

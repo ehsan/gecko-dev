@@ -1782,14 +1782,6 @@ InterpolateColor(const gfxRGBA& aC1, const gfxRGBA& aC2, double aFrac)
                  aC2.a*aFrac + aC1.a*other);
 }
 
-static nscoord
-FindTileStart(nscoord aDirtyCoord, nscoord aTilePos, nscoord aTileDim)
-{
-  NS_ASSERTION(aTileDim > 0, "Non-positive tile dimension");
-  double multiples = NS_floor(double(aDirtyCoord - aTilePos)/aTileDim);
-  return NSToCoordRound(multiples*aTileDim + aTilePos);
-}
-
 void
 nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
                               nsIRenderingContext& aRenderingContext,
@@ -2029,15 +2021,16 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
   // up by drawing tiles into temporary surfaces and copying those to the
   // destination, but after pixel-snapping tiles may not all be the same size.
   nsRect dirty;
-  if (!dirty.IntersectRect(aDirtyRect, aFillArea))
-    return;
-
+  dirty.IntersectRect(aDirtyRect, aFillArea);
   gfxRect areaToFill = RectToGfxRect(aFillArea, appUnitsPerPixel);
   gfxMatrix ctm = ctx->CurrentMatrix();
 
+  // Compute which tile is the top-left tile to be drawn.
+  PRInt32 firstTileX = (dirty.x - aOneCellArea.x)/aOneCellArea.width;
+  PRInt32 firstTileY = (dirty.y - aOneCellArea.y)/aOneCellArea.height;
   // xStart/yStart are the top-left corner of the top-left tile.
-  nscoord xStart = FindTileStart(dirty.x, aOneCellArea.x, aOneCellArea.width);
-  nscoord yStart = FindTileStart(dirty.y, aOneCellArea.y, aOneCellArea.height);
+  nscoord xStart = firstTileX*aOneCellArea.width + aOneCellArea.x;
+  nscoord yStart = firstTileY*aOneCellArea.height + aOneCellArea.y;
   nscoord xEnd = dirty.XMost();
   nscoord yEnd = dirty.YMost();
   // x and y are the top-left corner of the tile to draw

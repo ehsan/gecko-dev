@@ -2,9 +2,6 @@
 
 #include "IPDLUnitTests.h"      // fail etc.
 
-// A ping/pong trial takes O(100us) or more, so if we don't have 10us
-// resolution or better, the results will not be terribly useful
-static const double kTimingResolutionCutoff = 0.00001; // 10us
 
 namespace mozilla {
 namespace _ipdltest {
@@ -31,12 +28,6 @@ TestLatencyParent::~TestLatencyParent()
 void
 TestLatencyParent::Main()
 {
-    if (TimeDuration::Resolution().ToSeconds() > kTimingResolutionCutoff) {
-        puts("  (skipping TestLatency, timing resolution is too poor)");
-        Close();
-        return;
-    }
-
     if (mozilla::ipc::LoggingEnabled())
         NS_RUNTIMEABORT("you really don't want to log all IPC messages during this test, trust me");
 
@@ -78,7 +69,7 @@ TestLatencyParent::RecvPong()
 
     if (0 == ((mPPTrialsToGo % 1000)))
         printf("  PP trial %d: %g\n",
-               mPPTrialsToGo, thisTrial.ToSecondsSigDigits());
+               mPPTrialsToGo, thisTrial.ToSeconds());
 
     if (--mPPTrialsToGo > 0)
         PingPongTrial();
@@ -99,7 +90,7 @@ TestLatencyParent::RecvPong5()
 
     if (0 == ((mPP5TrialsToGo % 1000)))
         printf("  PP5 trial %d: %g\n",
-               mPP5TrialsToGo, thisTrial.ToSecondsSigDigits());
+               mPP5TrialsToGo, thisTrial.ToSeconds());
 
     if (0 < --mPP5TrialsToGo)
         Ping5Pong5Trial();

@@ -53,26 +53,15 @@ class nsPresState
 public:
   nsPresState()
     : mContentData(nsnull)
-    , mScrollState(0, 0)
     , mDisabledSet(PR_FALSE)
     , mDisabled(PR_FALSE)
   {}
 
-  void SetScrollState(const nsPoint& aState)
-  {
-    mScrollState = aState;
-  }
+  NS_HIDDEN_(nsresult) SetScrollState(const nsRect& aState);
 
-  nsPoint GetScrollState()
-  {
-    return mScrollState;
-  }
+  nsRect               GetScrollState();
 
-  void ClearNonScrollState()
-  {
-    mContentData = nsnull;
-    mDisabledSet = PR_FALSE;
-  }
+  NS_HIDDEN_(void)     ClearNonScrollState();
 
   PRBool GetDisabled()
   {
@@ -103,9 +92,9 @@ public:
 // MEMBER VARIABLES
 protected:
   nsCOMPtr<nsISupports> mContentData;
-  nsPoint mScrollState;
   PRPackedBool mDisabledSet;
   PRPackedBool mDisabled;
+  nsAutoPtr<nsRect> mScrollState;
 };
 
 #endif /* nsPresState_h_ */

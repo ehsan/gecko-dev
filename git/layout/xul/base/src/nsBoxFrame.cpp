@@ -84,6 +84,7 @@
 #include "nsIScrollableFrame.h"
 #include "nsWidgetsCID.h"
 #include "nsCSSAnonBoxes.h"
+#include "nsIScrollableView.h"
 #include "nsHTMLContainerFrame.h"
 #include "nsIEventStateManager.h"
 #include "nsIDOMDocument.h"
@@ -1833,7 +1834,7 @@ nsBoxFrame::CreateViewForFrame(nsPresContext*  aPresContext,
         zIndex = PR_INT32_MAX;
       }
       else {
-        parentView = aFrame->GetParent()->GetClosestView();
+        parentView = aFrame->GetParent()->GetParentViewForChildFrame(aFrame);
       }
 
       NS_ASSERTION(parentView, "no parent view");
@@ -1841,9 +1842,16 @@ nsBoxFrame::CreateViewForFrame(nsPresContext*  aPresContext,
       // Create a view
       nsIView *view = viewManager->CreateView(aFrame->GetRect(), parentView, visibility);
       if (view) {
-        viewManager->SetViewZIndex(view, autoZIndex, zIndex);
-        // XXX put view last in document order until we can do better
-        viewManager->InsertChild(parentView, view, nsnull, PR_TRUE);
+        // Insert the view into the view hierarchy. If the parent view is a
+        // scrolling view we need to do this differently
+        nsIScrollableView*  scrollingView = parentView->ToScrollableView();
+        if (scrollingView) {
+          scrollingView->SetScrolledView(view);
+        } else {
+          viewManager->SetViewZIndex(view, autoZIndex, zIndex);
+          // XXX put view last in document order until we can do better
+          viewManager->InsertChild(parentView, view, nsnull, PR_TRUE);
+        }
       }
 
       // Remember our view

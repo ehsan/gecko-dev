@@ -42,7 +42,6 @@
 #include "nsAppStartup.h"
 
 #include "nsIAppShellService.h"
-#include "nsPIDOMWindow.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsILocalFile.h"
@@ -232,30 +231,12 @@ nsAppStartup::Quit(PRUint32 aMode)
 #endif
   }
 
+  mShuttingDown = PR_TRUE;
+  if (!mRestart) 
+      mRestart = (aMode & eRestart) != 0;
+
   nsCOMPtr<nsIObserverService> obsService;
   if (ferocity == eAttemptQuit || ferocity == eForceQuit) {
-
-    nsCOMPtr<nsISimpleEnumerator> windowEnumerator;
-    nsCOMPtr<nsIWindowMediator> mediator (do_GetService(NS_WINDOWMEDIATOR_CONTRACTID));
-    if (mediator) {
-      mediator->GetEnumerator(nsnull, getter_AddRefs(windowEnumerator));
-      if (windowEnumerator) {
-        PRBool more;
-        while (windowEnumerator->HasMoreElements(&more), more) {
-          nsCOMPtr<nsISupports> window;
-          windowEnumerator->GetNext(getter_AddRefs(window));
-          nsCOMPtr<nsPIDOMWindow> domWindow(do_QueryInterface(window));
-          if (domWindow) {
-            if (!domWindow->CanClose())
-              return NS_OK;
-          }
-        }
-      }
-    }
-
-    mShuttingDown = PR_TRUE;
-    if (!mRestart)
-      mRestart = (aMode & eRestart) != 0;
 
     obsService = do_GetService("@mozilla.org/observer-service;1");
 
@@ -275,8 +256,12 @@ nsAppStartup::Quit(PRUint32 aMode)
        opens a new window. Ugh. I know. */
     CloseAllWindows();
 
+    nsCOMPtr<nsIWindowMediator> mediator
+      (do_GetService(NS_WINDOWMEDIATOR_CONTRACTID));
     if (mediator) {
       if (ferocity == eAttemptQuit) {
+        nsCOMPtr<nsISimpleEnumerator> windowEnumerator;
+
         ferocity = eForceQuit; // assume success
 
         /* Were we able to immediately close all windows? if not, eAttemptQuit
@@ -366,10 +351,10 @@ nsAppStartup::CloseAllWindows()
     if (NS_FAILED(windowEnumerator->GetNext(getter_AddRefs(isupports))))
       break;
 
-    nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(isupports);
-    NS_ASSERTION(window, "not an nsPIDOMWindow");
+    nsCOMPtr<nsIDOMWindowInternal> window = do_QueryInterface(isupports);
+    NS_ASSERTION(window, "not an nsIDOMWindowInternal");
     if (window)
-      window->ForceClose();
+      window->Close();
   }
 }
 

@@ -1180,17 +1180,7 @@ UnwrapNW(JSContext *cx, uintN argc, jsval *vp)
     return JS_TRUE;
   }
 
-  XPCWrappedNative *wn;
-  if (!XPCNativeWrapper::GetWrappedNative(cx, JSVAL_TO_OBJECT(v), &wn)) {
-    return JS_FALSE;
-  }
-
-  if (!wn) {
-    JS_SET_RVAL(cx, vp, JSVAL_NULL);
-    return JS_TRUE;
-  }
-
-  return GetwrappedJSObject(cx, wn->GetFlatJSObject(), vp);
+  return GetwrappedJSObject(cx, JSVAL_TO_OBJECT(v), vp);
 }
 
 static JSFunctionSpec static_functions[] = {

@@ -47,9 +47,7 @@ MODULE = update
 EXTRA_PP_COMPONENTS = nsUpdateTimerManager.js
 
 ifdef MOZ_UPDATER
-DIRS = ../../readstrings \
-  updater \
-  $(NULL)
+DIRS = updater
 
 EXTRA_PP_COMPONENTS += nsUpdateServiceStub.js
 

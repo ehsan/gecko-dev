@@ -90,12 +90,6 @@ public:
                           nsGUIEvent* aEvent,
                           nsEventStatus* aEventStatus);
 
-#ifdef XP_MACOSX
-  NS_IMETHOD HandlePress(nsPresContext* aPresContext,
-                         nsGUIEvent*    aEvent,
-                         nsEventStatus* aEventStatus);
-#endif
-
   virtual nsIAtom* GetType() const;
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
@@ -231,23 +225,12 @@ protected:
                                      nsIDOMClientRect* position,
                                      nsIDOMClientRect* clip);
 
-  void NotifyPluginReflowObservers();
+  void NotifyPluginEventObservers(const PRUnichar *eventType);
 
   friend class nsPluginInstanceOwner;
   friend class nsDisplayPlugin;
 
 private:
-  
-  class PluginEventNotifier : public nsRunnable {
-  public:
-    PluginEventNotifier(const nsString &aEventType) : 
-      mEventType(aEventType) {}
-    
-    NS_IMETHOD Run();
-  private:
-    nsString mEventType;
-  };
-  
   nsRefPtr<nsPluginInstanceOwner> mInstanceOwner;
   nsIView*                        mInnerView;
   nsCOMPtr<nsIWidget>             mWidget;

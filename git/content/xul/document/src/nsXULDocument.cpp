@@ -64,6 +64,7 @@
 #include "nsDOMError.h"
 #include "nsIBoxObject.h"
 #include "nsIChromeRegistry.h"
+#include "nsIScrollableView.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsIContentViewer.h"
@@ -2016,7 +2017,6 @@ nsXULDocument::Init()
 nsresult
 nsXULDocument::StartLayout(void)
 {
-    mMayStartLayout = PR_TRUE;
     nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
     if (shell) {
 
@@ -2055,6 +2055,8 @@ nsXULDocument::StartLayout(void)
                 }
             }
         }
+
+        mMayStartLayout = PR_TRUE;
 
         // Don't try to call GetVisibleArea earlier than this --- the EnableRefresh call
         // above can flush reflows, which can cause a parent document to be flushed,

@@ -285,7 +285,7 @@ public:
   void SetAutoPosition(PRBool aShouldAutoPosition);
   void SetConsumeRollupEvent(PRUint32 aConsumeMode);
 
-  nsIScrollableFrame* GetScrollFrame(nsIFrame* aStart);
+  nsIScrollableView* GetScrollableView(nsIFrame* aStart);
 
   // same as SetBounds except the preferred size mPrefSize is also set.
   void SetPreferredBounds(nsBoxLayoutState& aState, const nsRect& aRect);

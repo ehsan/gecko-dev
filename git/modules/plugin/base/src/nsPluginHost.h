@@ -81,6 +81,7 @@ public:
   virtual ~nsPluginHost();
 
   static nsPluginHost* GetInst();
+  static const char *GetPluginName(nsIPluginInstance *aPluginInstance);
 
   NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
 
@@ -163,16 +164,6 @@ public:
   void PluginCrashed(nsNPAPIPlugin* plugin);
 #endif
 
-  nsNPAPIPluginInstance *FindInstance(const char *mimetype);
-  nsNPAPIPluginInstance *FindStoppedInstance(const char * url);
-  nsNPAPIPluginInstance *FindOldestStoppedInstance();
-  PRUint32 StoppedInstanceCount();
-
-  void StopRunningInstances(nsISupportsArray* aReloadDocs, nsPluginTag* aPluginTag);
-
-  nsTArray< nsRefPtr<nsNPAPIPluginInstance> > *InstanceArray();
-
-  nsPluginTag* TagForPlugin(nsNPAPIPlugin* aPlugin);
 private:
   nsresult
   TrySetUpPluginInstance(const char *aMimeType, nsIURI *aURL, nsIPluginInstanceOwner *aOwner);
@@ -201,6 +192,11 @@ private:
 
   nsresult
   SetUpDefaultPluginInstance(const char *aMimeType, nsIURI *aURL, nsIPluginInstanceOwner *aOwner);
+
+  nsresult
+  AddInstanceToActiveList(nsCOMPtr<nsIPlugin> aPlugin,
+                          nsIPluginInstance* aInstance,
+                          nsIURI* aURL, PRBool aDefaultPlugin);
 
   nsresult
   FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsChanged);
@@ -243,9 +239,7 @@ private:
 
   // calls PostPluginUnloadEvent for each library in mUnusedLibraries
   void UnloadUnusedLibraries();
-
-  void OnPluginInstanceDestroyed(nsPluginTag* aPluginTag);
-
+  
   nsRefPtr<nsPluginTag> mPlugins;
   nsRefPtr<nsPluginTag> mCachedPlugins;
   PRPackedBool mPluginsLoaded;
@@ -261,11 +255,7 @@ private:
   // set by pref plugin.default_plugin_disabled
   PRPackedBool mDefaultPluginDisabled;
 
-  // set by pref plugin.disable
-  PRPackedBool mPluginsDisabled;
-
-  nsTArray< nsRefPtr<nsNPAPIPluginInstance> > mInstances;
-
+  nsPluginInstanceTagList mPluginInstanceTagList;
   nsTArray<PRLibrary*> mUnusedLibraries;
 
   nsCOMPtr<nsIFile> mPluginRegFile;

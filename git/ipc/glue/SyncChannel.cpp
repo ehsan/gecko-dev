@@ -58,8 +58,7 @@ namespace ipc {
 SyncChannel::SyncChannel(SyncListener* aListener)
   : AsyncChannel(aListener),
     mPendingReply(0),
-    mProcessingSyncMessage(false),
-    mNextSeqno(0)
+    mProcessingSyncMessage(false)
 {
   MOZ_COUNT_CTOR(SyncChannel);
 }
@@ -82,8 +81,6 @@ SyncChannel::Send(Message* msg, Message* reply)
                       "violation of sync handler invariant");
     NS_ABORT_IF_FALSE(msg->is_sync(), "can only Send() sync messages here");
 
-    msg->set_seqno(NextSeqno());
-
     MutexAutoLock lock(mMutex);
 
     if (!Connected()) {
@@ -92,21 +89,12 @@ SyncChannel::Send(Message* msg, Message* reply)
     }
 
     mPendingReply = msg->type() + 1;
-    int32 msgSeqno = msg->seqno();
     mIOLoop->PostTask(
         FROM_HERE,
         NewRunnableMethod(this, &SyncChannel::OnSend, msg));
 
-    // NB: this is a do-while loop instead of a single wait because if
-    // there's a pending RPC out- or in-call below us, and the sync
-    // message handler on the other side sends us an async message,
-    // the IO thread will Notify() this thread of the async message.
-    // See https://bugzilla.mozilla.org/show_bug.cgi?id=538239.
-    do {
-        // wait for the next sync message to arrive
-        WaitForNotify();
-    } while(Connected() &&
-            mPendingReply != mRecvd.type() && !mRecvd.is_reply_error());
+    // wait for the next sync message to arrive
+    WaitForNotify();
 
     if (!Connected()) {
         ReportConnectionError("SyncChannel");
@@ -121,14 +109,11 @@ SyncChannel::Send(Message* msg, Message* reply)
 
     // FIXME/cjones: real error handling
     NS_ABORT_IF_FALSE(mRecvd.is_sync() && mRecvd.is_reply() &&
-                      (mRecvd.is_reply_error() ||
-                       (mPendingReply == mRecvd.type() &&
-                        msgSeqno == mRecvd.seqno())),
+                      (mPendingReply == mRecvd.type() || mRecvd.is_reply_error()),
                       "unexpected sync message");
 
     mPendingReply = 0;
     *reply = mRecvd;
-    mRecvd = Message();
 
     return true;
 }
@@ -155,8 +140,6 @@ SyncChannel::OnDispatchMessage(const Message& msg)
         reply->set_reply();
         reply->set_reply_error();
     }
-
-    reply->set_seqno(msg.seqno());
 
     mIOLoop->PostTask(
         FROM_HERE,

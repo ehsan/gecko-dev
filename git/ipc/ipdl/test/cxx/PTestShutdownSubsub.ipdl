@@ -7,7 +7,7 @@ sync protocol PTestShutdownSubsub {
     manager PTestShutdownSub;
 
 parent:
-    sync __delete__();
+    __delete__();
 
 state LIVE:
     recv __delete__;

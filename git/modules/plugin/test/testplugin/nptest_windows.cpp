@@ -413,17 +413,6 @@ handleEventInternal(InstanceData* instanceData, NPEvent* pe, LRESULT* result)
     case WM_MOUSEWHEEL:
       return true;
 
-    case WM_WINDOWPOSCHANGED: {
-      WINDOWPOS* pPos = (WINDOWPOS*)pe->lParam;
-      instanceData->winX = instanceData->winY = 0;
-      if (pPos) {
-        instanceData->winX = pPos->x;
-        instanceData->winY = pPos->y;
-        return true;
-      }
-      return false;
-    }
-
     case WM_MOUSEMOVE:
     case WM_LBUTTONDOWN:
     case WM_LBUTTONUP:
@@ -431,8 +420,8 @@ handleEventInternal(InstanceData* instanceData, NPEvent* pe, LRESULT* result)
     case WM_MBUTTONUP:
     case WM_RBUTTONDOWN:
     case WM_RBUTTONUP: {
-      int x = instanceData->hasWidget ? 0 : instanceData->winX;
-      int y = instanceData->hasWidget ? 0 : instanceData->winY;
+      int x = instanceData->hasWidget ? 0 : instanceData->window.x;
+      int y = instanceData->hasWidget ? 0 : instanceData->window.y;
       instanceData->lastMouseX = GET_X_LPARAM(pe->lParam) - x;
       instanceData->lastMouseY = GET_Y_LPARAM(pe->lParam) - y;
       return true;

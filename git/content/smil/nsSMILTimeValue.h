@@ -41,7 +41,6 @@
 #include "prtypes.h"
 #include "prlong.h"
 #include "nsSMILTypes.h"
-#include "nsDebug.h"
 
 /*----------------------------------------------------------------------
  * nsSMILTimeValue class
@@ -103,75 +102,23 @@ class nsSMILTimeValue
 {
 public:
   // Creates an unresolved time value
-  nsSMILTimeValue()
-  : mMilliseconds(kUnresolvedMillis),
-    mState(STATE_UNRESOLVED)
-  { }
+  nsSMILTimeValue();
 
-  // Creates a resolved time value
-  explicit nsSMILTimeValue(nsSMILTime aMillis)
-  : mMilliseconds(aMillis),
-    mState(STATE_RESOLVED)
-  { }
+  PRBool            IsIndefinite() const { return mState == STATE_INDEFINITE; }
+  void              SetIndefinite();
 
-  // Named constructor to create an indefinite time value
-  static nsSMILTimeValue Indefinite()
-  {
-    nsSMILTimeValue value;
-    value.SetIndefinite();
-    return value;
-  }
+  PRBool            IsResolved() const { return mState == STATE_RESOLVED; }
+  void              SetUnresolved();
 
-  PRBool IsIndefinite() const { return mState == STATE_INDEFINITE; }
-  void SetIndefinite()
-  {
-    mState = STATE_INDEFINITE;
-    mMilliseconds = kUnresolvedMillis;
-  }
+  nsSMILTime        GetMillis() const;
+  void              SetMillis(nsSMILTime aMillis);
 
-  PRBool IsResolved() const { return mState == STATE_RESOLVED; }
-  void SetUnresolved()
-  {
-    mState = STATE_UNRESOLVED;
-    mMilliseconds = kUnresolvedMillis;
-  }
-
-  nsSMILTime GetMillis() const
-  {
-    NS_ABORT_IF_FALSE(mState == STATE_RESOLVED,
-       "GetMillis() called for unresolved time");
-
-    return mState == STATE_RESOLVED ? mMilliseconds : kUnresolvedMillis;
-  }
-
-  void SetMillis(nsSMILTime aMillis)
-  {
-    mState = STATE_RESOLVED;
-    mMilliseconds = aMillis;
-  }
-
-  PRInt8 CompareTo(const nsSMILTimeValue& aOther) const;
-
-  PRBool operator==(const nsSMILTimeValue& aOther) const
-  { return CompareTo(aOther) == 0; }
-
-  PRBool operator!=(const nsSMILTimeValue& aOther) const
-  { return CompareTo(aOther) != 0; }
-
-  PRBool operator<(const nsSMILTimeValue& aOther) const
-  { return CompareTo(aOther) < 0; }
-
-  PRBool operator>(const nsSMILTimeValue& aOther) const
-  { return CompareTo(aOther) > 0; }
-
-  PRBool operator<=(const nsSMILTimeValue& aOther) const
-  { return CompareTo(aOther) <= 0; }
-
-  PRBool operator>=(const nsSMILTimeValue& aOther) const
-  { return CompareTo(aOther) >= 0; }
+  PRInt8            CompareTo(const nsSMILTimeValue& aOther) const;
 
 private:
-  static nsSMILTime kUnresolvedMillis;
+  PRInt8            Cmp(PRInt64 aA, PRInt64 aB) const;
+
+  static nsSMILTime kUnresolvedSeconds;
 
   nsSMILTime        mMilliseconds;
   enum {

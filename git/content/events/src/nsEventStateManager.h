@@ -53,8 +53,8 @@
 #include "nsIFrame.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIMarkupDocumentViewer.h"
-#include "nsIScrollableFrame.h"
 
+class nsIScrollableView;
 class nsIPresShell;
 class nsIDocShell;
 class nsIDocShellTreeNode;
@@ -256,6 +256,10 @@ protected:
   PRBool IsShellVisible(nsIDocShell* aShell);
 
   // These functions are for mousewheel and pixel scrolling
+  nsresult GetParentScrollingView(nsInputEvent* aEvent,
+                                  nsPresContext* aPresContext,
+                                  nsIFrame* &targetOuterFrame,
+                                  nsPresContext* &presCtxOuter);
   void SendLineScrollEvent(nsIFrame* aTargetFrame,
                            nsMouseScrollEvent* aEvent,
                            nsPresContext* aPresContext,
@@ -265,9 +269,15 @@ protected:
                             nsMouseScrollEvent* aEvent,
                             nsPresContext* aPresContext,
                             nsEventStatus* aStatus);
-  nsresult DoScrollText(nsIFrame* aTargetFrame,
+  typedef enum {
+    eScrollByPixel,
+    eScrollByLine,
+    eScrollByPage
+  } ScrollQuantity;
+  nsresult DoScrollText(nsPresContext* aPresContext,
+                        nsIFrame* aTargetFrame,
                         nsMouseScrollEvent* aMouseEvent,
-                        nsIScrollableFrame::ScrollUnit aScrollQuantity,
+                        ScrollQuantity aScrollQuantity,
                         PRBool aAllowScrollSpeedOverride);
   void DoScrollHistory(PRInt32 direction);
   void DoScrollZoom(nsIFrame *aTargetFrame, PRInt32 adjustment);
@@ -360,11 +370,8 @@ protected:
   PRPackedBool mGestureDownMeta;
 
   nsCOMPtr<nsIContent> mLastLeftMouseDownContent;
-  nsCOMPtr<nsIContent> mLastLeftMouseDownContentParent;
   nsCOMPtr<nsIContent> mLastMiddleMouseDownContent;
-  nsCOMPtr<nsIContent> mLastMiddleMouseDownContentParent;
   nsCOMPtr<nsIContent> mLastRightMouseDownContent;
-  nsCOMPtr<nsIContent> mLastRightMouseDownContentParent;
 
   nsCOMPtr<nsIContent> mActiveContent;
   nsCOMPtr<nsIContent> mHoverContent;

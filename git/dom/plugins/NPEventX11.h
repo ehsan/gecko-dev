@@ -42,11 +42,6 @@
 
 #if defined(MOZ_WIDGET_GTK2)
 #  include <gdk/gdkx.h>
-#elif defined(MOZ_WIDGET_QT)
-// X11/X.h has #define CursorShape 0, but Qt's qnamespace.h defines
-//   enum CursorShape { ... }.  Good times!
-#  undef CursorShape
-#  include <QX11Info>
 #else
 #  error Implement me for your toolkit
 #endif
@@ -119,24 +114,18 @@ private:
     {
         // TODO: get Display* from Window in |ev|
 
-        // FIXME: do this using Xlib
-#if defined(MOZ_WIDGET_GTK2)
+        // FIXME: do this using Xlib, don't use Gdk
+        
         return GDK_DISPLAY();
-#elif defined(MOZ_WIDGET_QT)
-        return QX11Info::display();
-#endif
     }
 
     static Display* GetXDisplay(const XErrorEvent& ev)
     {
         // TODO: get Display* from Window in |ev|
 
-        // FIXME: do this using Xlib
-#if defined(MOZ_WIDGET_GTK2)
+        // FIXME: do this using Xlib, don't use Gdk
+        
         return GDK_DISPLAY();
-#elif defined(MOZ_WIDGET_QT)
-        return QX11Info::display();
-#endif
     }
 
     static void SetXDisplay(XEvent& ev)

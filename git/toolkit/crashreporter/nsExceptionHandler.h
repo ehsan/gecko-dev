@@ -42,8 +42,6 @@
 #include "nsXPCOM.h"
 #include "nsStringGlue.h"
 
-#include "nsIFile.h"
-
 #if defined(XP_WIN32)
 #ifdef WIN32_LEAN_AND_MEAN
 #undef WIN32_LEAN_AND_MEAN
@@ -70,40 +68,6 @@ nsresult SetupExtraData(nsILocalFile* aAppDataDirectory,
 #ifdef XP_MACOSX
   nsresult AppendObjCExceptionInfoToAppNotes(void *inException);
 #endif
-
-#ifdef MOZ_IPC
-// Out-of-process crash reporter API.
-
-// Return true iff a dump was found for |childPid|, and return the
-// path in |dump|.
-bool GetMinidumpForChild(PRUint32 childPid, nsIFile** dump NS_OUTPARAM);
-
-#  if defined(XP_WIN32)
-// Parent-side API for children
-const char* GetChildNotificationPipe();
-
-// Child-side API
-bool SetRemoteExceptionHandler(const nsACString& crashPipe);
-
-#  elif defined(XP_LINUX)
-// Parent-side API for children
-
-// Set the outparams for crash reporter server's fd (|childCrashFd|)
-// and the magic fd number it should be remapped to
-// (|childCrashRemapFd|) before exec() in the child process.
-// |SetRemoteExceptionHandler()| in the child process expects to find
-// the server at |childCrashRemapFd|.  Return true iff successful.
-//
-// If crash reporting is disabled, both outparams will be set to -1
-// and |true| will be returned.
-bool CreateNotificationPipeForChild(int* childCrashFd, int* childCrashRemapFd);
-
-// Child-side API
-bool SetRemoteExceptionHandler();
-#endif  // XP_WIN32
-
-bool UnsetRemoteExceptionHandler();
-#endif // MOZ_IPC
 }
 
 #endif /* nsExceptionHandler_h__ */

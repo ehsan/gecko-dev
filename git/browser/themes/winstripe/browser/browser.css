@@ -67,7 +67,7 @@
   border-top: none;
 }
 
-#print-preview-toolbar:not(:-moz-lwtheme) {
+#print-preview-toolbar {
   -moz-appearance: toolbox;
 }
 

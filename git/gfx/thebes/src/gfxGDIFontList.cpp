@@ -218,23 +218,6 @@ GDIFontEntry::ReadCMAP()
     return rv;
 }
 
-gfxFont *
-GDIFontEntry::CreateFontInstance(const gfxFontStyle* aFontStyle, PRBool /*aNeedsBold*/)
-{
-    gfxFont *newFont;
-    newFont = new gfxWindowsFont(this, aFontStyle);
-    if (!newFont) {
-        return nsnull;
-    }
-    if (!newFont->Valid()) {
-        delete newFont;
-        return nsnull;
-    }
-    nsRefPtr<gfxFont> font = newFont;
-    gfxFontCache::GetCache()->AddNew(font);
-    return newFont;
-}
-
 nsresult
 GDIFontEntry::GetFontTable(PRUint32 aTableTag, nsTArray<PRUint8>& aBuffer)
 {
@@ -433,12 +416,12 @@ GDIFontFamily::FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
         if (fe->mWeight == logFont.lfWeight &&
             fe->mItalic == (logFont.lfItalic == 0xFF)) {
             // update the charset bit here since this could be different
-            fe->mCharset.set(metrics.tmCharSet);
+            fe->mCharset[metrics.tmCharSet] = 1;
             return 1; 
         }
     }
 
-    fe = GDIFontEntry::CreateFontEntry(nsDependentString(lpelfe->elfFullName), feType, (logFont.lfItalic == 0xFF),
+    fe = GDIFontEntry::CreateFontEntry(ff->mName, feType, (logFont.lfItalic == 0xFF),
                                        (PRUint16) (logFont.lfWeight), nsnull);
     if (!fe)
         return 1;
@@ -447,7 +430,7 @@ GDIFontFamily::FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
     fe->SetFamily(ff);
 
     // mark the charset bit
-    fe->mCharset.set(metrics.tmCharSet);
+    fe->mCharset[metrics.tmCharSet] = 1;
 
     fe->mWindowsFamily = logFont.lfPitchAndFamily & 0xF0;
     fe->mWindowsPitch = logFont.lfPitchAndFamily & 0x0F;
@@ -462,7 +445,7 @@ GDIFontFamily::FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
         for (PRUint32 i = 0; i < 4; ++i) {
             DWORD range = nmetrics->ntmFontSig.fsUsb[i];
             for (PRUint32 k = 0; k < 32; ++k) {
-                fe->mUnicodeRanges.set(x++, (range & (1 << k)) != 0);
+                fe->mUnicodeRanges[x++] = (range & (1 << k)) != 0;
             }
         }
     }
@@ -592,11 +575,18 @@ gfxGDIFontList::InitFontList()
     if (fc)
         fc->AgeAllGenerations();
 
-    // reset font lists
-    gfxPlatformFontList::InitFontList();
-    
+    mFontFamilies.Clear();
+    mOtherFamilyNames.Clear();
+    mOtherFamilyNamesInitialized = PR_FALSE;
+    mPrefFonts.Clear();
     mFontSubstitutes.Clear();
     mNonExistingFonts.Clear();
+    CancelLoader();
+
+    // initialize ranges of characters for which system-wide font search should be skipped
+    mCodepointsWithNoFonts.reset();
+    mCodepointsWithNoFonts.SetRange(0,0x1f);     // C0 controls
+    mCodepointsWithNoFonts.SetRange(0x7f,0x9f);  // C1 controls
 
     // iterate over available families
     LOGFONTW logfont;
@@ -609,6 +599,8 @@ gfxGDIFontList::InitFontList()
                                      0, 0);
 
     GetFontSubstitutes();
+
+    InitBadUnderlineList();
 
     StartLoader(kDelayBeforeLoadingFonts, kIntervalBetweenLoadingFonts);
 }
@@ -631,11 +623,8 @@ gfxGDIFontList::EnumFontFamExProc(ENUMLOGFONTEXW *lpelfe,
     gfxGDIFontList *fontList = PlatformFontList();
 
     if (!fontList->mFontFamilies.GetWeak(name)) {
-        nsDependentString faceName(lf.lfFaceName);
-        nsRefPtr<gfxFontFamily> family = new GDIFontFamily(faceName);
+        nsRefPtr<gfxFontFamily> family = new GDIFontFamily(nsDependentString(lf.lfFaceName));
         fontList->mFontFamilies.Put(name, family);
-        if (fontList->mBadUnderlineFamilyNames.GetEntry(name))
-            family->SetBadUnderlineFamily();
     }
 
     return 1;
@@ -645,36 +634,63 @@ gfxFontEntry*
 gfxGDIFontList::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
                                 const nsAString& aFullname)
 {
-    PRBool found;
-    gfxFontEntry *lookup;
+    LOGFONTW logFont;
+    memset(&logFont, 0, sizeof(LOGFONTW));
+    logFont.lfCharSet = DEFAULT_CHARSET;
+    PRUint32 namelen = PR_MIN(aFullname.Length(), LF_FACESIZE - 1);
+    ::memcpy(logFont.lfFaceName,
+             nsPromiseFlatString(aFullname).get(),
+             namelen * sizeof(PRUnichar));
+    logFont.lfFaceName[namelen] = 0;
 
-    // initialize name lookup tables if needed
-    if (!mFaceNamesInitialized) {
-        InitFaceNameLists();
-    }
+    AutoDC dc;
+    ::SetGraphicsMode(dc.GetDC(), GM_ADVANCED);
 
-    // lookup in name lookup tables, return null if not found
-    if (!(lookup = mPostscriptNames.GetWeak(aFullname, &found)) &&
-        !(lookup = mFullnames.GetWeak(aFullname, &found))) 
-    {
+    AutoSelectFont font(dc.GetDC(), &logFont);
+    if (!font.IsValid())
         return nsnull;
+
+    // fetch fullname from name table (Windows takes swapped tag order)
+    const PRUint32 kNameTag = NS_SWAP32(TRUETYPE_TAG('n','a','m','e'));
+    nsAutoString fullName;
+
+    {
+        DWORD len = ::GetFontData(dc.GetDC(), kNameTag, 0, nsnull, 0);
+        if (len == GDI_ERROR || len == 0) // not a truetype font --
+            return nsnull;                // so just ignore
+    
+        nsAutoTArray<PRUint8,1024> nameData;
+        if (!nameData.AppendElements(len))
+            return nsnull;
+        PRUint8 *nameTable = nameData.Elements();
+    
+        DWORD newLen = ::GetFontData(dc.GetDC(), kNameTag, 0, nameTable, len);
+        if (newLen != len)
+            return nsnull;
+    
+        nsresult rv;
+        rv = gfxFontUtils::ReadCanonicalName(nameData, 
+                                             gfxFontUtils::NAME_ID_FULL,
+                                             fullName);
+        if (NS_FAILED(rv))
+            return nsnull;
     }
 
-    // create a new font entry with the proxy entry style characteristics
+    // reject if different from canonical fullname
+    if (!aFullname.Equals(fullName))
+        return nsnull;
+
+    // create a new font entry
     PRUint16 w = (aProxyEntry->mWeight == 0 ? 400 : aProxyEntry->mWeight);
     PRBool isCFF = PR_FALSE; // jtdfix -- need to determine this
     
-    // use the face name from the lookup font entry, which will be the localized
-    // face name which GDI mapping tables use (e.g. with the system locale set to
-    // Dutch, a fullname of 'Arial Bold' will find a font entry with the face name
-    // 'Arial Vet' which can be used as a key in GDI font lookups).
-    gfxFontEntry *fe = GDIFontEntry::CreateFontEntry(lookup->Name(), 
+    gfxFontEntry *fe = GDIFontEntry::CreateFontEntry(aFullname, 
         gfxWindowsFontType(isCFF ? GFX_FONT_TYPE_PS_OPENTYPE : GFX_FONT_TYPE_TRUETYPE) /*type*/, 
         PRUint32(aProxyEntry->mItalic ? FONT_STYLE_ITALIC : FONT_STYLE_NORMAL), 
         w, nsnull);
         
     if (!fe)
-        return nsnull;
+        return fe;
 
     fe->mIsUserFont = PR_TRUE;
     return fe;

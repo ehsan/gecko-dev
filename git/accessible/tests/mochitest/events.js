@@ -1,15 +1,15 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Constants
 
-const EVENT_DOCUMENT_LOAD_COMPLETE = nsIAccessibleEvent.EVENT_DOCUMENT_LOAD_COMPLETE;
 const EVENT_HIDE = nsIAccessibleEvent.EVENT_HIDE;
+const EVENT_SHOW = nsIAccessibleEvent.EVENT_SHOW;
+const EVENT_DOCUMENT_LOAD_COMPLETE =
+  nsIAccessibleEvent.EVENT_DOCUMENT_LOAD_COMPLETE;
 const EVENT_FOCUS = nsIAccessibleEvent.EVENT_FOCUS;
 const EVENT_NAME_CHANGE = nsIAccessibleEvent.EVENT_NAME_CHANGE;
-const EVENT_REORDER = nsIAccessibleEvent.EVENT_REORDER;
 const EVENT_SCROLLING_START = nsIAccessibleEvent.EVENT_SCROLLING_START;
-const EVENT_SHOW = nsIAccessibleEvent.EVENT_SHOW;
 const EVENT_STATE_CHANGE = nsIAccessibleEvent.EVENT_STATE_CHANGE;
-const EVENT_TEXT_CARET_MOVED = nsIAccessibleEvent.EVENT_TEXT_CARET_MOVED;
+const EVENT_REORDER = nsIAccessibleEvent.EVENT_REORDER;
 
 ////////////////////////////////////////////////////////////////////////////////
 // General
@@ -587,7 +587,7 @@ function sequence()
 /**
  * Invokers defined below take a checker object implementing 'check' method
  * which will be called when proper event is handled. Invokers listen default
- * event type registered in event queue object until it is passed explicetly.
+ * event type registered in event queue object.
  *
  * Note, you don't need to initialize 'target' and 'type' members of checker
  * object. The 'target' member will be initialized by invoker object and you are
@@ -597,9 +597,9 @@ function sequence()
 /**
  * Click invoker.
  */
-function synthClick(aNodeOrID, aChecker, aEventType)
+function synthClick(aNodeOrID, aChecker)
 {
-  this.__proto__ = new synthAction(aNodeOrID, aChecker, aEventType);
+  this.__proto__ = new synthAction(aNodeOrID, aChecker);
 
   this.invoke = function synthClick_invoke()
   {
@@ -609,7 +609,7 @@ function synthClick(aNodeOrID, aChecker, aEventType)
     synthesizeMouse(this.DOMNode, 1, 1, {});
   }
 
-  this.getID = function synthClick_getID()
+  this.getID = function synthFocus_getID()
   {
     return prettyName(aNodeOrID) + " click"; 
   }
@@ -618,16 +618,16 @@ function synthClick(aNodeOrID, aChecker, aEventType)
 /**
  * General key press invoker.
  */
-function synthKey(aNodeOrID, aKey, aArgs, aChecker, aEventType)
+function synthKey(aNodeOrID, aKey, aArgs, aChecker)
 {
-  this.__proto__ = new synthAction(aNodeOrID, aChecker, aEventType);
+  this.__proto__ = new synthAction(aNodeOrID, aChecker);
 
   this.invoke = function synthKey_invoke()
   {
     synthesizeKey(this.mKey, this.mArgs);
   }
 
-  this.getID = function synthKey_getID()
+  this.getID = function synthFocus_getID()
   {
     return prettyName(aNodeOrID) + " '" + this.mKey + "' key"; 
   }
@@ -639,12 +639,12 @@ function synthKey(aNodeOrID, aKey, aArgs, aChecker, aEventType)
 /**
  * Tab key invoker.
  */
-function synthTab(aNodeOrID, aChecker, aEventType)
+function synthTab(aNodeOrID, aChecker)
 {
   this.__proto__ = new synthKey(aNodeOrID, "VK_TAB", { shiftKey: false },
-                                aChecker, aEventType);
+                                aChecker);
 
-  this.getID = function synthTab_getID() 
+  this.getID = function synthTabTest_getID() 
   { 
     return prettyName(aNodeOrID) + " tab";
   }
@@ -653,10 +653,10 @@ function synthTab(aNodeOrID, aChecker, aEventType)
 /**
  * Shift tab key invoker.
  */
-function synthShiftTab(aNodeOrID, aChecker, aEventType)
+function synthShiftTab(aNodeOrID, aChecker)
 {
   this.__proto__ = new synthKey(aNodeOrID, "VK_TAB", { shiftKey: true },
-                                aChecker, aEventType);
+                                aChecker);
 
   this.getID = function synthTabTest_getID() 
   { 
@@ -667,10 +667,9 @@ function synthShiftTab(aNodeOrID, aChecker, aEventType)
 /**
  * Down arrow key invoker.
  */
-function synthDownKey(aNodeOrID, aChecker, aEventType)
+function synthDownKey(aNodeOrID, aChecker)
 {
-  this.__proto__ = new synthKey(aNodeOrID, "VK_DOWN", null, aChecker,
-                                aEventType);
+  this.__proto__ = new synthKey(aNodeOrID, "VK_DOWN", null, aChecker);
 
   this.getID = function synthDownKey_getID()
   {
@@ -681,10 +680,9 @@ function synthDownKey(aNodeOrID, aChecker, aEventType)
 /**
  * Right arrow key invoker.
  */
-function synthRightKey(aNodeOrID, aChecker, aEventType)
+function synthRightKey(aNodeOrID, aChecker)
 {
-  this.__proto__ = new synthKey(aNodeOrID, "VK_RIGHT", null, aChecker,
-                                aEventType);
+  this.__proto__ = new synthKey(aNodeOrID, "VK_RIGHT", null, aChecker);
 
   this.getID = function synthRightKey_getID()
   {
@@ -693,25 +691,11 @@ function synthRightKey(aNodeOrID, aChecker, aEventType)
 }
 
 /**
- * Home key invoker.
- */
-function synthHomeKey(aNodeOrID, aChecker, aEventType)
-{
-  this.__proto__ = new synthKey(aNodeOrID, "VK_HOME", null, aChecker,
-                                aEventType);
-  
-  this.getID = function synthHomeKey_getID()
-  {
-    return prettyName(aNodeOrID) + " key home";
-  }
-}
-
-/**
  * Focus invoker.
  */
-function synthFocus(aNodeOrID, aChecker, aEventType)
+function synthFocus(aNodeOrID, aChecker)
 {
-  this.__proto__ = new synthAction(aNodeOrID, aChecker, aEventType);
+  this.__proto__ = new synthAction(aNodeOrID, aChecker);
 
   this.invoke = function synthFocus_invoke()
   {
@@ -727,9 +711,9 @@ function synthFocus(aNodeOrID, aChecker, aEventType)
 /**
  * Select all invoker.
  */
-function synthSelectAll(aNodeOrID, aChecker, aEventType)
+function synthSelectAll(aNodeOrID, aChecker)
 {
-  this.__proto__ = new synthAction(aNodeOrID, aChecker, aEventType);
+  this.__proto__ = new synthAction(aNodeOrID, aChecker);
 
   this.invoke = function synthSelectAll_invoke()
   {
@@ -867,10 +851,6 @@ function dumpInfoToDOM(aInfo, aDumpNode)
     return;
 
   var dumpElm = document.getElementById(dumpID);
-  if (!dumpElm) {
-    ok(false, "No dump element '" + dumpID + "' within the document!");
-    return;
-  }
 
   var containerTagName = document instanceof nsIDOMHTMLDocument ?
     "div" : "description";
@@ -925,13 +905,10 @@ function sequenceItem(aProcessor, aEventType, aTarget, aItemID)
 /**
  * Invoker base class for prepare an action.
  */
-function synthAction(aNodeOrID, aChecker, aEventType)
+function synthAction(aNodeOrID, aChecker)
 {
   this.DOMNode = getNode(aNodeOrID);
   aChecker.target = this.DOMNode;
-
-  if (aEventType)
-    this.eventSeq = [ new invokerChecker(aEventType, this.DOMNode) ];
 
   this.check = function synthAction_check(aEvent)
   {

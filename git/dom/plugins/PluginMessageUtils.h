@@ -46,9 +46,7 @@
 #include "npfunctions.h"
 #include "nsAutoPtr.h"
 #include "nsStringGlue.h"
-#include "nsTArray.h"
 #include "nsThreadUtils.h"
-#include "prlog.h"
 
 namespace mozilla {
 
@@ -64,26 +62,6 @@ typedef intptr_t NPRemoteIdentifier;
 } /* namespace ipc */
 
 namespace plugins {
-
-enum ScriptableObjectType
-{
-  LocalObject,
-  Proxy
-};
-
-extern PRLogModuleInfo* gPluginLog;
-
-#if defined(_MSC_VER)
-#define FULLFUNCTION __FUNCSIG__
-#elif (__GNUC__ >= 4)
-#define FULLFUNCTION __PRETTY_FUNCTION__
-#else
-#define FULLFUNCTION __FUNCTION__
-#endif
-
-#define PLUGIN_LOG_DEBUG(args) PR_LOG(gPluginLog, PR_LOG_DEBUG, args)
-#define PLUGIN_LOG_DEBUG_FUNCTION PR_LOG(gPluginLog, PR_LOG_DEBUG, ("%s", FULLFUNCTION))
-#define PLUGIN_LOG_DEBUG_METHOD PR_LOG(gPluginLog, PR_LOG_DEBUG, ("%s [%p]", FULLFUNCTION, (void*) this))
 
 /**
  * This is NPByteRange without the linked list.
@@ -115,14 +93,6 @@ struct NPRemoteWindow
   base::SharedMemoryHandle surfaceHandle;
 #endif
 };
-
-#ifdef XP_WIN
-typedef HWND NativeWindowHandle;
-#elif defined(MOZ_X11)
-typedef XID NativeWindowHandle;
-#else
-#error Need NativeWindowHandle for this platform
-#endif
 
 // XXX maybe not the best place for these. better one?
 
@@ -616,31 +586,6 @@ struct ParamTraits<NPNVariable>
   }
 };
 
-template<>
-struct ParamTraits<NPNURLVariable>
-{
-  typedef NPNURLVariable paramType;
-
-  static void Write(Message* aMsg, const paramType& aParam)
-  {
-    WriteParam(aMsg, int(aParam));
-  }
-
-  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
-  {
-    int intval;
-    if (ReadParam(aMsg, aIter, &intval)) {
-      switch (intval) {
-      case NPNURLVCookie:
-      case NPNURLVProxy:
-        *aResult = paramType(intval);
-        return true;
-      }
-    }
-    return false;
-  }
-};
-
 } /* namespace IPC */
 
 
@@ -661,5 +606,6 @@ struct ParamTraits<NPNURLVariable>
 #else
 #  error Unsupported platform
 #endif
+
 
 #endif /* DOM_PLUGINS_PLUGINMESSAGEUTILS_H */

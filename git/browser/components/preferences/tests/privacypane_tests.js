@@ -107,7 +107,9 @@ function test_dependent_elements(win) {
   let pbautostart = win.document.getElementById("privateBrowsingAutoStart");
   ok(pbautostart, "the private browsing auto-start checkbox should exist");
   let controls = [
-    win.document.getElementById("rememberHistory"),
+    win.document.getElementById("rememberHistoryDays"),
+    win.document.getElementById("historyDays"),
+    win.document.getElementById("rememberAfter"),
     win.document.getElementById("rememberDownloads"),
     win.document.getElementById("rememberForms"),
     win.document.getElementById("keepUntil"),
@@ -130,7 +132,7 @@ function test_dependent_elements(win) {
   ok(keepuntil, "the keep cookies until menulist should exist");
   let alwaysclear = win.document.getElementById("alwaysClear");
   ok(alwaysclear, "the clear data on close checkbox should exist");
-  let rememberhistory = win.document.getElementById("rememberHistory");
+  let rememberhistory = win.document.getElementById("rememberHistoryDays");
   ok(rememberhistory, "the remember history checkbox should exist");
   let rememberdownloads = win.document.getElementById("rememberDownloads");
   ok(rememberdownloads, "the remember downloads checkbox should exist");
@@ -317,7 +319,7 @@ function test_dependent_prefs(win) {
   let historymode = win.document.getElementById("historyMode");
   ok(historymode, "history mode menulist should exist");
   let controls = [
-    win.document.getElementById("rememberHistory"),
+    win.document.getElementById("rememberHistoryDays"),
     win.document.getElementById("rememberDownloads"),
     win.document.getElementById("rememberForms"),
     win.document.getElementById("acceptCookies"),

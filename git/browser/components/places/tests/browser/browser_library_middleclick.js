@@ -42,7 +42,7 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
-const ENABLE_HISTORY_PREF = "places.history.enabled";
+const DISABLE_HISTORY_PREF = "browser.history_expire_days";
 
 var gLibrary = null;
 var gTests = [];
@@ -262,7 +262,7 @@ function test() {
   gBrowser.addTabsProgressListener(gTabsListener);
 
   // Temporary disable history, so we won't record pages navigation.
-  gPrefService.setBoolPref(ENABLE_HISTORY_PREF, false);
+  gPrefService.setIntPref(DISABLE_HISTORY_PREF, 0);
 
   // Window watcher for Library window.
   var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
@@ -318,9 +318,8 @@ function runNextTest() {
     gBrowser.removeTabsProgressListener(gTabsListener);
 
     // Restore history.
-    try {
-      gPrefService.clearUserPref(ENABLE_HISTORY_PREF);
-    } catch(ex) {}
+    if (gPrefService.prefHasUserValue(DISABLE_HISTORY_PREF))
+      gPrefService.clearUserPref(DISABLE_HISTORY_PREF);
 
     finish();
   }

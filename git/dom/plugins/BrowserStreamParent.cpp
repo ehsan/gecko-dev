@@ -11,18 +11,20 @@ BrowserStreamParent::BrowserStreamParent(PluginInstanceParent* npp,
   : mNPP(npp)
   , mStream(stream)
 {
+  printf("BrowserStreamParent::BrowserStreamParent<%p>\n", (void*) this);
   mStream->pdata = static_cast<AStream*>(this);
 }
 
 BrowserStreamParent::~BrowserStreamParent()
 {
+  printf("BrowserStreamParent::~BrowserStreamParent<%p>\n", (void*) this);
 }
 
 bool
 BrowserStreamParent::AnswerNPN_RequestRead(const IPCByteRanges& ranges,
                                            NPError* result)
 {
-  PLUGIN_LOG_DEBUG_FUNCTION;
+  _MOZ_LOG(__FUNCTION__);
 
   if (!mStream)
     return false;
@@ -54,7 +56,7 @@ BrowserStreamParent::Answer__delete__(const NPError& reason,
 int32_t
 BrowserStreamParent::WriteReady()
 {
-  PLUGIN_LOG_DEBUG_FUNCTION;
+  _MOZ_LOG(__FUNCTION__);
 
   int32_t result;
   if (!CallNPP_WriteReady(mStream->end, &result))
@@ -68,7 +70,7 @@ BrowserStreamParent::Write(int32_t offset,
                            int32_t len,
                            void* buffer)
 {
-  PLUGIN_LOG_DEBUG_FUNCTION;
+  _MOZ_LOG(__FUNCTION__);
 
   int32_t result;
   if (!CallNPP_Write(offset,
@@ -82,7 +84,7 @@ BrowserStreamParent::Write(int32_t offset,
 void
 BrowserStreamParent::StreamAsFile(const char* fname)
 {
-  PLUGIN_LOG_DEBUG_FUNCTION;
+  _MOZ_LOG(__FUNCTION__);
 
   CallNPP_StreamAsFile(nsCString(fname));
 }
@@ -90,7 +92,7 @@ BrowserStreamParent::StreamAsFile(const char* fname)
 NPError
 BrowserStreamParent::NPN_DestroyStream(NPReason reason)
 {
-  PLUGIN_LOG_DEBUG_FUNCTION;
+  _MOZ_LOG(__FUNCTION__);
 
   return mNPP->mNPNIface->destroystream(mNPP->mNPP, mStream, reason);
 }

@@ -70,7 +70,7 @@ using namespace js;
  * access.  It can be created explicitly and passed to a TypedArray, or
  * can be created implicitly by constructing a TypedArray with a size.
  */
-ArrayBuffer *
+inline ArrayBuffer *
 ArrayBuffer::fromJSObject(JSObject *obj)
 {
     JS_ASSERT(obj->getClass() == &ArrayBuffer::jsclass);
@@ -187,7 +187,7 @@ ArrayBuffer::~ArrayBuffer()
  * the subclasses.
  */
 
-TypedArray *
+inline TypedArray *
 TypedArray::fromJSObject(JSObject *obj)
 {
     return reinterpret_cast<TypedArray*>(obj->getPrivate());
@@ -802,7 +802,7 @@ class TypedArrayTemplate
         NativeType *dest = static_cast<NativeType*>(data);
 
         if (ar->isDenseArray()) {
-            JS_ASSERT(ar->fslots[JSSLOT_ARRAY_LENGTH] == (jsval)len);
+            JS_ASSERT(ar->fslots[JSSLOT_ARRAY_LENGTH] == jsval(len));
 
             jsval *src = ar->dslots;
 
@@ -1004,7 +1004,7 @@ TypedArrayTemplate<float>::copyIndexToValue(JSContext *cx, uint32 index, jsval *
 
 JSClass ArrayBuffer::jsclass = {
     "ArrayBuffer",
-    JSCLASS_HAS_PRIVATE | JSCLASS_HAS_CACHED_PROTO(JSProto_ArrayBuffer),
+    JSCLASS_HAS_PRIVATE,
     JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, ArrayBuffer::class_finalize,
     JSCLASS_NO_OPTIONAL_MEMBERS
@@ -1064,14 +1064,14 @@ template<> JSObjectOps _typedArray::fastObjectOps = {                          \
     NULL                                                                       \
 };                                                                             \
 template<> JSFunctionSpec _typedArray::jsfuncs[] = {                           \
-    JS_FN("slice", _typedArray::fun_slice, 2, 0),                              \
+    JS_FN("slice", _typedArray::fun_slice, 2, JSFUN_GENERIC_NATIVE),           \
     JS_FS_END                                                                  \
 }
 
 #define IMPL_TYPED_ARRAY_SLOW_CLASS(_typedArray)                               \
 {                                                                              \
     #_typedArray,                                                              \
-    JSCLASS_HAS_PRIVATE | JSCLASS_HAS_CACHED_PROTO(JSProto_##_typedArray),     \
+    JSCLASS_HAS_PRIVATE,                                                       \
     JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_PropertyStub,        \
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, JS_FinalizeStub,         \
     JSCLASS_NO_OPTIONAL_MEMBERS                                                \
@@ -1129,16 +1129,9 @@ JSClass TypedArray::slowClasses[TYPE_MAX] = {
     IMPL_TYPED_ARRAY_SLOW_CLASS(Float32Array)
 };
 
-JS_FRIEND_API(JSObject *)
+JSObject *
 js_InitTypedArrayClasses(JSContext *cx, JSObject *obj)
 {
-    /* Idempotency required: we initialize several things, possibly lazily. */
-    JSObject *stop;
-    if (!js_GetClassObject(cx, obj, JSProto_ArrayBuffer, &stop))
-        return NULL;
-    if (stop)
-        return stop;
-
     JSObject *proto;
 
     INIT_TYPED_ARRAY_CLASS(Int8Array,TYPE_INT8);
@@ -1155,7 +1148,8 @@ js_InitTypedArrayClasses(JSContext *cx, JSObject *obj)
     if (!proto)
         return NULL;
 
-    proto->setPrivate(NULL);
+    proto->setPrivate(0);
+
     return proto;
 }
 

@@ -121,12 +121,12 @@ CEnumFormatEtc::Next(ULONG aMaxToFetch, FORMATETC *aResult, ULONG *aNumFetched)
   if (mCurrentIdx >= mFormatList.Length())
       return S_FALSE;
 
-  PRUint32 left = mFormatList.Length() - mCurrentIdx;
+  PRInt32 left = mFormatList.Length() - mCurrentIdx;
 
-  if (!aMaxToFetch)
+  if (!left || !aMaxToFetch)
       return S_FALSE;
 
-  PRUint32 count = NS_MIN(static_cast<PRUint32>(aMaxToFetch), left);
+  PRInt32 count = NS_MIN(static_cast<PRInt32>(aMaxToFetch), left);
 
   PRUint32 idx = 0;
   while (count > 0) {
@@ -136,7 +136,7 @@ CEnumFormatEtc::Next(ULONG aMaxToFetch, FORMATETC *aResult, ULONG *aNumFetched)
   }
 
   if (aNumFetched)
-      *aNumFetched = idx;
+      *aNumFetched = idx-1;
 
   return S_OK;
 }

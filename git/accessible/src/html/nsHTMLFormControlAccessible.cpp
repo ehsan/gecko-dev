@@ -98,14 +98,12 @@ NS_IMETHODIMP nsHTMLCheckboxAccessible::GetActionName(PRUint8 aIndex, nsAString&
   return NS_ERROR_INVALID_ARG;
 }
 
-NS_IMETHODIMP
-nsHTMLCheckboxAccessible::DoAction(PRUint8 aIndex)
+NS_IMETHODIMP nsHTMLCheckboxAccessible::DoAction(PRUint8 index)
 {
-  if (aIndex != 0)
-    return NS_ERROR_INVALID_ARG;
-
-  DoCommand();
-  return NS_OK;
+  if (index == 0) {   // 0 is the magic value for default action
+    return DoCommand();
+  }
+  return NS_ERROR_INVALID_ARG;
 }
 
 nsresult
@@ -258,14 +256,12 @@ NS_IMETHODIMP nsHTMLButtonAccessible::GetActionName(PRUint8 aIndex, nsAString& a
   return NS_ERROR_INVALID_ARG;
 }
 
-NS_IMETHODIMP
-nsHTMLButtonAccessible::DoAction(PRUint8 aIndex)
+NS_IMETHODIMP nsHTMLButtonAccessible::DoAction(PRUint8 index)
 {
-  if (aIndex != eAction_Click)
-    return NS_ERROR_INVALID_ARG;
-
-  DoCommand();
-  return NS_OK;
+  if (index == eAction_Click) {
+    return DoCommand();
+  }
+  return NS_ERROR_INVALID_ARG;
 }
 
 nsresult
@@ -353,14 +349,12 @@ NS_IMETHODIMP nsHTML4ButtonAccessible::GetActionName(PRUint8 aIndex, nsAString& 
   return NS_ERROR_INVALID_ARG;
 }
 
-NS_IMETHODIMP
-nsHTML4ButtonAccessible::DoAction(PRUint8 aIndex)
+NS_IMETHODIMP nsHTML4ButtonAccessible::DoAction(PRUint8 index)
 {
-  if (aIndex != 0)
-    return NS_ERROR_INVALID_ARG;
-
-  DoCommand();
-  return NS_OK;
+  if (index == 0) {
+    return DoCommand();
+  }
+  return NS_ERROR_INVALID_ARG;
 }
 
 nsresult
@@ -679,20 +673,19 @@ nsHTMLLegendAccessible::GetRelationByType(PRUint32 aRelationType,
 
   if (aRelationType == nsIAccessibleRelation::RELATION_LABEL_FOR) {
     // Look for groupbox parent
-    nsAccessible* groupbox = GetParent();
-
-    if (nsAccUtils::Role(groupbox) == nsIAccessibleRole::ROLE_GROUPING) {
+    nsCOMPtr<nsIAccessible> groupboxAccessible = GetParent();
+    if (nsAccUtils::Role(groupboxAccessible) == nsIAccessibleRole::ROLE_GROUPING) {
       // XXX: if group box exposes more than one relation of the given type
       // then we fail.
       nsCOMPtr<nsIAccessible> testLabelAccessible =
-        nsRelUtils::GetRelatedAccessible(groupbox,
+        nsRelUtils::GetRelatedAccessible(groupboxAccessible,
                                          nsIAccessibleRelation::RELATION_LABELLED_BY);
 
       if (testLabelAccessible == this) {
         // We're the first child of the parent groupbox, see
         // nsHTMLGroupboxAccessible::GetRelationByType().
         return nsRelUtils::
-          AddTarget(aRelationType, aRelation, groupbox);
+          AddTarget(aRelationType, aRelation, groupboxAccessible);
       }
     }
   }

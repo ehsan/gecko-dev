@@ -170,7 +170,7 @@ GetValueFromString(const nsAString &aValueAsString,
   const char *str = value.get();
 
   if (NS_IsAsciiWhitespace(*str))
-    return NS_ERROR_DOM_SYNTAX_ERR;
+    return NS_ERROR_FAILURE;
   
   char *rest;
   *aValue = float(PR_strtod(str, &rest));
@@ -181,7 +181,7 @@ GetValueFromString(const nsAString &aValueAsString,
     }
   }
   
-  return NS_ERROR_DOM_SYNTAX_ERR;
+  return NS_ERROR_FAILURE;
 }
 
 float
@@ -340,30 +340,26 @@ nsSVGLength2::SetBaseValueInSpecifiedUnits(float aValue,
 #endif
 }
 
-nsresult
+void
 nsSVGLength2::ConvertToSpecifiedUnits(PRUint16 unitType,
                                       nsSVGElement *aSVGElement)
 {
   if (!IsValidUnitType(unitType))
-    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+    return;
 
   float valueInUserUnits = 
     mBaseVal / GetUnitScaleFactor(aSVGElement, mSpecifiedUnitType);
   mSpecifiedUnitType = PRUint8(unitType);
   SetBaseValue(valueInUserUnits, aSVGElement);
-
-  return NS_OK;
 }
 
-nsresult
+void
 nsSVGLength2::NewValueSpecifiedUnits(PRUint16 unitType,
                                      float valueInSpecifiedUnits,
                                      nsSVGElement *aSVGElement)
 {
-  NS_ENSURE_FINITE(valueInSpecifiedUnits, NS_ERROR_ILLEGAL_VALUE);
-
   if (!IsValidUnitType(unitType))
-    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+    return;
 
   mBaseVal = mAnimVal = valueInSpecifiedUnits;
   mSpecifiedUnitType = PRUint8(unitType);
@@ -374,7 +370,6 @@ nsSVGLength2::NewValueSpecifiedUnits(PRUint16 unitType,
     aSVGElement->AnimationNeedsResample();
   }
 #endif
-  return NS_OK;
 }
 
 nsresult

@@ -35,7 +35,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/* ===== preferences.css =====================================================
+  == Styles used by the XUL prefwindow element.
+  ======================================================================= */
+
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
+/* ::::: dialog ::::: */
 
 prefwindow {
   padding: 0;

@@ -461,20 +461,20 @@ nsHTMLTableAccessible::CacheChildren()
   nsAccessible::CacheChildren();
 
   // Move caption accessible so that it's the first child.
-  PRInt32 length = mChildren.Length();
+  PRInt32 length = mChildren.Count();
   for (PRInt32 idx = 0; idx < length; idx++) {
     // Check for the first caption, because nsAccessibilityService ensures we
     // don't create accessibles for the other captions, since only the first is
     // actually visible.
 
-    nsAccessible* child = mChildren.ElementAt(idx);
+    nsIAccessible* child = mChildren.ObjectAt(idx);
     if (nsAccUtils::Role(child) == nsIAccessibleRole::ROLE_CAPTION) {
       if (idx == 0)
         break;
 
-      nsRefPtr<nsAccessible> tmp = mChildren[0];
-      mChildren[0] = child;
-      mChildren[idx] = tmp;
+      nsCOMPtr<nsIAccessible> tmp = mChildren.ObjectAt(0);
+      mChildren.ReplaceObjectAt(child, 0);
+      mChildren.ReplaceObjectAt(tmp, idx);
       break;
     }
   }

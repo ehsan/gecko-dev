@@ -53,9 +53,6 @@ include css-mediaqueries/reftest.list
 # css namespaces
 include css-namespace/reftest.list
 
-# css parsing
-include css-parsing/reftest.list
-
 # css transitions
 include css-transitions/reftest.list
 
@@ -70,9 +67,6 @@ include ../../content/test/reftest/reftest.list
 
 # counters/
 include counters/reftest.list
-
-# editor/
-include editor/reftest.list
 
 # generated-content/
 include generated-content/reftest.list

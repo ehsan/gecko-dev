@@ -53,9 +53,6 @@
 #include "plstr.h"
 #include "prenv.h"
 #include "nsDebug.h"
-#ifdef MOZ_IPC
-#  include "nsXULAppAPI.h"
-#endif
 
 #if defined(LINUX)
 #include <sys/time.h>
@@ -67,7 +64,6 @@
 
 #if defined(SOLARIS)
 #include <sys/resource.h>
-#include <ucontext.h>
 #endif
 
 #ifdef XP_BEOS
@@ -85,12 +81,6 @@
 
 static char _progname[1024] = "huh?";
 static unsigned int _gdb_sleep_duration = 300;
-
-#ifdef MOZ_IPC
-// NB: keep me up to date with the same variable in
-// ipc/chromium/chrome/common/ipc_channel_posix.cc
-static const int kClientChannelFd = 3;
-#endif
 
 #if defined(LINUX) && defined(DEBUG) && \
       (defined(__i386) || defined(__x86_64) || defined(PPC))
@@ -167,17 +157,6 @@ ah_crap_handler(int signum)
 
   _exit(signum);
 }
-
-#ifdef MOZ_IPC
-void
-child_ah_crap_handler(int signum)
-{
-  if (!getenv("MOZ_DONT_UNBLOCK_PARENT_ON_CHILD_CRASH"))
-    close(kClientChannelFd);
-  ah_crap_handler(signum);
-}
-#endif
-
 #endif // CRAWL_STACK_ON_SIGSEGV
 
 #ifdef XP_BEOS
@@ -232,12 +211,6 @@ my_glib_log_func(const gchar *log_domain, GLogLevelFlags log_level,
 
 static void fpehandler(int signum, siginfo_t *si, void *context)
 {
-  /* Integer divide by zero or integer overflow. */
-  /* Note: FPE_INTOVF is ignored on Intel, PowerPC and SPARC systems. */
-  if (si->si_code == FPE_INTDIV || si->si_code == FPE_INTOVF) {
-    NS_DebugBreak(NS_DEBUG_ABORT, "Divide by zero", nsnull, __FILE__, __LINE__);
-  }
-
 #ifdef XP_MACOSX
   ucontext_t *uc = (ucontext_t *)context;
 
@@ -280,32 +253,6 @@ static void fpehandler(int signum, siginfo_t *si, void *context)
   *mxcsr &= ~SSE_STATUS_FLAGS; /* clear all pending SSE exceptions */
 #endif
 #endif
-#ifdef SOLARIS
-  ucontext_t *uc = (ucontext_t *)context;
-
-#if defined(__i386)
-  uint32_t *cw = &uc->uc_mcontext.fpregs.fp_reg_set.fpchip_state.state[0];
-  *cw |= FPU_EXCEPTION_MASK;
-
-  uint32_t *sw = &uc->uc_mcontext.fpregs.fp_reg_set.fpchip_state.state[1];
-  *sw &= ~FPU_STATUS_FLAGS;
-
-  /* address of the instruction that caused the exception */
-  uint32_t *ip = &uc->uc_mcontext.fpregs.fp_reg_set.fpchip_state.state[3];
-  uc->uc_mcontext.gregs[REG_PC] = *ip;
-#endif
-#if defined(__amd64__)
-  uint16_t *cw = &uc->uc_mcontext.fpregs.fp_reg_set.fpchip_state.cw;
-  *cw |= FPU_EXCEPTION_MASK;
-
-  uint16_t *sw = &uc->uc_mcontext.fpregs.fp_reg_set.fpchip_state.sw;
-  *sw &= ~FPU_STATUS_FLAGS;
-
-  uint32_t *mxcsr = &uc->uc_mcontext.fpregs.fp_reg_set.fpchip_state.mxcsr;
-  *mxcsr |= SSE_EXCEPTION_MASK; /* disable all SSE exceptions */
-  *mxcsr &= ~SSE_STATUS_FLAGS; /* clear all pending SSE exceptions */
-#endif
-#endif
 }
 
 void InstallSignalHandlers(const char *ProgramName)
@@ -333,15 +280,9 @@ void InstallSignalHandlers(const char *ProgramName)
 
 #elif defined(CRAWL_STACK_ON_SIGSEGV)
   if (!getenv("XRE_NO_WINDOWS_CRASH_DIALOG")) {
-    void (*crap_handler)(int) =
-#ifdef MOZ_IPC
-      GeckoProcessType_Default != XRE_GetProcessType() ?
-          child_ah_crap_handler :
-#endif
-          ah_crap_handler;
-    signal(SIGSEGV, crap_handler);
-    signal(SIGILL, crap_handler);
-    signal(SIGABRT, crap_handler);
+    signal(SIGSEGV, ah_crap_handler);
+    signal(SIGILL, ah_crap_handler);
+    signal(SIGABRT, ah_crap_handler);
   }
 #endif // CRAWL_STACK_ON_SIGSEGV
 
@@ -425,13 +366,8 @@ void InstallSignalHandlers(const char *ProgramName)
 
 #if defined(_M_IX86) || defined(_M_X64)
 
-#ifdef _M_X64
-#define X87CW(ctx) (ctx)->FltSave.ControlWord
-#define X87SW(ctx) (ctx)->FltSave.StatusWord
-#else
 #define X87CW(ctx) (ctx)->FloatSave.ControlWord
 #define X87SW(ctx) (ctx)->FloatSave.StatusWord
-#endif
 
 /*
  * SSE traps raise these exception codes, which are defined in internal NT headers
@@ -439,8 +375,6 @@ void InstallSignalHandlers(const char *ProgramName)
  */
 #define STATUS_FLOAT_MULTIPLE_FAULTS 0xC00002B4
 #define STATUS_FLOAT_MULTIPLE_TRAPS  0xC00002B5
-
-static LPTOP_LEVEL_EXCEPTION_FILTER gFPEPreviousFilter;
 
 LONG __stdcall FpeHandler(PEXCEPTION_POINTERS pe)
 {
@@ -469,16 +403,16 @@ LONG __stdcall FpeHandler(PEXCEPTION_POINTERS pe)
 #endif
       return EXCEPTION_CONTINUE_EXECUTION;
   }
-  LONG action = EXCEPTION_CONTINUE_SEARCH;
-  if (gFPEPreviousFilter)
-    action = gFPEPreviousFilter(pe);
-
-  return action;
+  return EXCEPTION_CONTINUE_SEARCH;
 }
 
 void InstallSignalHandlers(const char *ProgramName)
 {
-  gFPEPreviousFilter = SetUnhandledExceptionFilter(FpeHandler);
+#if 0
+  // FIXME/bug 538642: disabled because it doesn't play well with
+  // breakpad, and vice versa
+  SetUnhandledExceptionFilter(FpeHandler);
+#endif
 }
 
 #else
@@ -488,9 +422,6 @@ void InstallSignalHandlers(const char *ProgramName)
 }
 
 #endif
-
-#elif defined(XP_OS2)
-/* OS/2's FPE handler is implemented in NSPR */
 
 #else
 #error No signal handling implementation for this platform.

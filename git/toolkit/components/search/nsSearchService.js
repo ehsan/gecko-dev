@@ -146,7 +146,7 @@ const BROWSER_SEARCH_PREF = "browser.search.";
 const USER_DEFINED = "{searchTerms}";
 
 // Custom search parameters
-#ifdef MOZ_OFFICIAL_BRANDING
+#ifdef OFFICIAL_BUILD
 const MOZ_OFFICIAL = "official";
 #else
 const MOZ_OFFICIAL = "unofficial";

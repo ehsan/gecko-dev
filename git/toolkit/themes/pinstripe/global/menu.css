@@ -37,7 +37,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/* ===== menu.css =======================================================
+  == Styles used by XUL menu-related elements.
+  ======================================================================= */
+
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
+/* ::::: menu/menuitem ::::: */
 
 menu,
 menuitem {

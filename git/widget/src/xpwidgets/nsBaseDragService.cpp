@@ -53,6 +53,7 @@
 #include "nsIContent.h"
 #include "nsIPresShell.h"
 #include "nsIViewManager.h"
+#include "nsIScrollableView.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMDragEvent.h"
 #include "nsISelection.h"

@@ -82,8 +82,6 @@ protected:
 
     virtual nsresult GetFontTable(PRUint32 aTableTag, nsTArray<PRUint8>& aBuffer);
 
-    virtual gfxFont* CreateFontInstance(const gfxFontStyle *aFontStyle, PRBool aNeedsBold);
-
     ATSFontRef mATSFontRef;
     PRPackedBool mATSFontRefInitialized;
 #ifndef __LP64__

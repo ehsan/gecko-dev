@@ -56,11 +56,13 @@
 #include "nsITimer.h"
 #include "nsIDOMText.h"
 #include "nsIContent.h"
+#include "nsIScrollableViewProvider.h"
 
 nsIFrame* NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 nsIFrame* NS_NewMenuItemFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
 class nsMenuBarFrame;
+class nsIScrollableView;
 
 #define NS_STATE_ACCELTEXT_IS_DERIVED  NS_STATE_BOX_CHILD_RESERVED
 
@@ -102,7 +104,8 @@ private:
 };
 
 class nsMenuFrame : public nsBoxFrame, 
-                    public nsIMenuFrame
+                    public nsIMenuFrame,
+                    public nsIScrollableViewProvider
 {
 public:
   nsMenuFrame(nsIPresShell* aShell, nsStyleContext* aContext);
@@ -158,8 +161,6 @@ public:
 
   NS_IMETHOD SelectMenu(PRBool aActivateFlag);
 
-  virtual nsIScrollableFrame* GetScrollTargetFrame();
-
   /**
    * NOTE: OpenMenu will open the menu asynchronously.
    */
@@ -184,6 +185,10 @@ public:
   const nsAString& GetRadioGroupName() { return mGroupName; }
   nsMenuType GetMenuType() { return mType; }
   nsMenuPopupFrame* GetPopup() { return mPopupFrame; }
+
+  // nsIScrollableViewProvider methods
+
+  virtual nsIScrollableView* GetScrollableView();
 
   // nsMenuFrame methods 
 

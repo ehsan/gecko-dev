@@ -321,35 +321,6 @@ MacOSFontEntry::GetFontTable(PRUint32 aTableTag, nsTArray<PRUint8>& aBuffer)
     return NS_OK;
 }
 
-gfxFont*
-MacOSFontEntry::CreateFontInstance(const gfxFontStyle *aFontStyle, PRBool aNeedsBold)
-{
-    gfxFont *newFont;
-#ifdef __LP64__
-    newFont = new gfxCoreTextFont(this, aFontStyle, aNeedsBold);
-#else
-#ifdef MOZ_CORETEXT
-    if (gfxPlatformMac::GetPlatform()->UsingCoreText()) {
-        newFont = new gfxCoreTextFont(this, aFontStyle, aNeedsBold);
-    } else {
-#endif
-        newFont = new gfxAtsuiFont(this, aFontStyle, aNeedsBold);
-#ifdef MOZ_CORETEXT
-    }
-#endif
-#endif
-    if (!newFont) {
-        return nsnull;
-    }
-    if (!newFont->Valid()) {
-        delete newFont;
-        return nsnull;
-    }
-    nsRefPtr<gfxFont> font = newFont;
-    gfxFontCache::GetCache()->AddNew(font);
-    return newFont;
-}
-
 
 /* gfxMacFontFamily */
 #pragma mark-
@@ -548,7 +519,7 @@ public:
 
     virtual void LocalizedName(nsAString& aLocalizedName);
 
-    virtual void ReadOtherFamilyNames(gfxPlatformFontList *aPlatformFontList);
+    virtual void ReadOtherFamilyNames(AddOtherFamilyNameFunctor& aOtherFamilyFunctor);
 };
 
 void
@@ -575,23 +546,13 @@ gfxSingleFaceMacFontFamily::LocalizedName(nsAString& aLocalizedName)
 }
 
 void
-gfxSingleFaceMacFontFamily::ReadOtherFamilyNames(gfxPlatformFontList *aPlatformFontList)
+gfxSingleFaceMacFontFamily::ReadOtherFamilyNames(AddOtherFamilyNameFunctor& aOtherFamilyFunctor)
 {
     if (mOtherFamilyNamesInitialized)
         return;
 
-    gfxFontEntry *fe = mAvailableFonts[0];
-    if (!fe)
-        return;
-
-    const PRUint32 kNAME = TRUETYPE_TAG('n','a','m','e');
-    nsAutoTArray<PRUint8,8192> buffer;
-
-    if (fe->GetFontTable(kNAME, buffer) != NS_OK)
-        return;
-
-    mHasOtherFamilyNames = ReadOtherFamilyNamesForFace(aPlatformFontList,
-                                                       buffer,
+    mHasOtherFamilyNames = ReadOtherFamilyNamesForFace(aOtherFamilyFunctor,
+                                                       mAvailableFonts[0].get(),
                                                        PR_TRUE);
     mOtherFamilyNamesInitialized = PR_TRUE;
 }
@@ -601,7 +562,7 @@ gfxSingleFaceMacFontFamily::ReadOtherFamilyNames(gfxPlatformFontList *aPlatformF
 #pragma mark-
 
 gfxMacPlatformFontList::gfxMacPlatformFontList() :
-    gfxPlatformFontList(PR_FALSE), mATSGeneration(PRUint32(kATSGenerationInitial))
+    mATSGeneration(PRUint32(kATSGenerationInitial))
 {
     ::ATSFontNotificationSubscribe(ATSNotification,
                                    kATSFontNotifyOptionDefault,
@@ -628,9 +589,17 @@ gfxMacPlatformFontList::InitFontList()
     mATSGeneration = currentGeneration;
     PR_LOG(gFontInfoLog, PR_LOG_DEBUG, ("(fontinit) updating to generation: %d", mATSGeneration));
 
-    // reset font lists
-    gfxPlatformFontList::InitFontList();
-    
+    mFontFamilies.Clear();
+    mOtherFamilyNames.Clear();
+    mOtherFamilyNamesInitialized = PR_FALSE;
+    mPrefFonts.Clear();
+    CancelLoader();
+
+    // initialize ranges of characters for which system-wide font search should be skipped
+    mCodepointsWithNoFonts.reset();
+    mCodepointsWithNoFonts.SetRange(0,0x1f);     // C0 controls
+    mCodepointsWithNoFonts.SetRange(0x7f,0x9f);  // C1 controls
+
     // iterate over available families
     NSEnumerator *families = [[sFontManager availableFontFamilies]
                               objectEnumerator];  // returns "canonical", non-localized family name
@@ -650,10 +619,6 @@ gfxMacPlatformFontList::InitFontList()
         // add the family entry to the hash table
         ToLowerCase(availableFamilyName);
         mFontFamilies.Put(availableFamilyName, familyEntry);
-
-        // check the bad underline blacklist
-        if (mBadUnderlineFamilyNames.GetEntry(availableFamilyName))
-            familyEntry->SetBadUnderlineFamily();
     }
 
     InitSingleFaceList();
@@ -675,6 +640,8 @@ gfxMacPlatformFontList::InitFontList()
         SetFixedPitch(NS_LITERAL_STRING("Courier"));
         SetFixedPitch(NS_LITERAL_STRING("Monaco"));
     }
+
+    InitBadUnderlineList();
 
     // start the delayed cmap loader
     StartLoader(kDelayBeforeLoadingCmaps, kIntervalBetweenLoadingCmaps);

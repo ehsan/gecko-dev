@@ -3000,13 +3000,14 @@ nsNavHistoryQueryResultNode::OnPageChanged(nsIURI *aURI, PRUint32 aWhat,
 }
 
 
-// nsNavHistoryQueryResultNode::OnDeleteVisits
+// nsNavHistoryQueryResultNode::OnPageExpired
 //
 //    Do nothing. Perhaps we want to handle this case. If so, add the call to
 //    the result to enumerate the history observers.
 
 NS_IMETHODIMP
-nsNavHistoryQueryResultNode::OnDeleteVisits(nsIURI* aURI, PRTime aVisitTime)
+nsNavHistoryQueryResultNode::OnPageExpired(nsIURI* aURI, PRTime aVisitTime,
+                                           PRBool aWholeEntry)
 {
   return NS_OK;
 }
@@ -4634,12 +4635,14 @@ nsNavHistoryResult::OnPageChanged(nsIURI *aURI,
 }
 
 
-// nsNavHistoryResult::OnDeleteVisits (nsINavHistoryObserver)
+// nsNavHistoryResult;:OnPageExpired (nsINavHistoryObserver)
 //
-//    Don't do anything when visits expire.
+//    Don't do anything when pages expire. Perhaps we want to find the item
+//    to delete it.
 
 NS_IMETHODIMP
-nsNavHistoryResult::OnDeleteVisits(nsIURI* aURI, PRTime aVisitTime)
+nsNavHistoryResult::OnPageExpired(nsIURI* aURI, PRTime aVisitTime,
+                                  PRBool aWholeEntry)
 {
   return NS_OK;
 }

@@ -34,29 +34,14 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH     = ../../..
-topsrcdir = @top_srcdir@
-srcdir    = @srcdir@
-VPATH     = @srcdir@
+DEPTH		= ../../..
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MODULE = extensions
-
-XPIDLSRCS = \
-  nsIAddonRepository.idl \
-  nsIExtensionManager.idl \
-  $(NULL)
-
-EXTRA_PP_COMPONENTS = \
-  nsAddonRepository.js \
-  nsBlocklistService.js \
-  nsExtensionManager.js \
-  $(NULL)
-
-EXTRA_JS_MODULES = \
-  LightweightThemeManager.jsm \
-  $(NULL)
+DIRS = public src
 
 ifdef ENABLE_TESTS
 DIRS += test

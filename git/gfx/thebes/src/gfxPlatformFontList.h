@@ -95,15 +95,7 @@ public:
     PRBool GetPrefFontFamilyEntries(eFontPrefLang aLangGroup, nsTArray<nsRefPtr<gfxFontFamily> > *array);
     void SetPrefFontFamilyEntries(eFontPrefLang aLangGroup, nsTArray<nsRefPtr<gfxFontFamily> >& array);
 
-    // name lookup table methods
-
     void AddOtherFamilyName(gfxFontFamily *aFamilyEntry, nsAString& aOtherFamilyName);
-
-    void AddFullname(gfxFontEntry *aFontEntry, nsAString& aFullname);
-
-    void AddPostscriptName(gfxFontEntry *aFontEntry, nsAString& aPostscriptName);
-
-    PRBool NeedFullnamePostscriptNames() { return mNeedFullnamePostscriptNames; }
 
     // pure virtual functions, to be provided by concrete subclasses
 
@@ -126,7 +118,7 @@ public:
     virtual PRBool GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName);
 
 protected:
-    gfxPlatformFontList(PRBool aNeedFullnamePostscriptNames = PR_TRUE);
+    gfxPlatformFontList();
 
     static gfxPlatformFontList *sPlatformFontList;
 
@@ -134,31 +126,27 @@ protected:
                                                nsRefPtr<gfxFontFamily>& aFamilyEntry,
                                                void* userArg);
 
-    // initialize font lists
-    virtual void InitFontList();
+    // initialize font lists [pure virtual]
+    virtual void InitFontList() = 0;
+
+    // read secondary family names
+    void ReadOtherFamilyNamesForFamily(const nsAString& aFamilyName);
 
     // separate initialization for reading in name tables, since this is expensive
     void InitOtherFamilyNames();
 
-    static PLDHashOperator InitOtherFamilyNamesProc(nsStringHashKey::KeyType aKey,
-                                                    nsRefPtr<gfxFontFamily>& aFamilyEntry,
-                                                    void* userArg);
-
-    // read in all fullname/Postscript names for all font faces
-    void InitFaceNameLists();
-
-    static PLDHashOperator InitFaceNameListsProc(nsStringHashKey::KeyType aKey,
-                                                 nsRefPtr<gfxFontFamily>& aFamilyEntry,
-                                                 void* userArg);
-
     // commonly used fonts for which the name table should be loaded at startup
     virtual void PreloadNamesList();
 
-    // load the bad underline blacklist from pref.
-    void LoadBadUnderlineList();
+    // initialize the bad underline blacklist from pref.
+    virtual void InitBadUnderlineList();
 
     // explicitly set fixed-pitch flag for all faces
     void SetFixedPitch(const nsAString& aFamilyName);
+
+    static PLDHashOperator InitOtherFamilyNamesProc(nsStringHashKey::KeyType aKey,
+                                                    nsRefPtr<gfxFontFamily>& aFamilyEntry,
+                                                    void* userArg);
 
     void GenerateFontListKey(const nsAString& aKeyName, nsAString& aResult);
 
@@ -172,27 +160,12 @@ protected:
     virtual PRBool RunLoader();
     virtual void FinishLoader();
 
-      // canonical family name ==> family entry (unique, one name per family entry)
-    nsRefPtrHashtable<nsStringHashKey, gfxFontFamily> mFontFamilies;
-  
-    // flag set after InitOtherFamilyNames is called upon first name lookup miss
-    PRPackedBool mOtherFamilyNamesInitialized;
+    // canonical family name ==> family entry (unique, one name per family entry)
+    nsRefPtrHashtable<nsStringHashKey, gfxFontFamily> mFontFamilies;    
 
-    // other family name ==> family entry (not unique, can have multiple names per
-      // family entry, only names *other* than the canonical names are stored here)
-    nsRefPtrHashtable<nsStringHashKey, gfxFontFamily> mOtherFamilyNames;
-
-    // flag set after fullname and Postcript name lists are populated
-    PRPackedBool mFaceNamesInitialized;
-
-    // whether these are needed for a given platform
-    PRPackedBool mNeedFullnamePostscriptNames;
-
-    // fullname ==> font entry (unique, one name per font entry)
-    nsRefPtrHashtable<nsStringHashKey, gfxFontEntry> mFullnames;
-
-    // Postscript name ==> font entry (unique, one name per font entry)
-    nsRefPtrHashtable<nsStringHashKey, gfxFontEntry> mPostscriptNames;
+    // other family name ==> family entry (not unique, can have multiple names per 
+    // family entry, only names *other* than the canonical names are stored here)
+    nsRefPtrHashtable<nsStringHashKey, gfxFontFamily> mOtherFamilyNames;    
 
     // cached pref font lists
     // maps list of family names ==> array of family entries, one per lang group
@@ -205,7 +178,8 @@ protected:
     // on pages with lots of problems
     nsString mReplacementCharFallbackFamily;
 
-    nsTHashtable<nsStringHashKey> mBadUnderlineFamilyNames;
+    // flag set after InitOtherFamilyNames is called upon first name lookup miss
+    PRPackedBool mOtherFamilyNamesInitialized;
 
     // data used as part of the font cmap loading process
     nsTArray<nsRefPtr<gfxFontFamily> > mFontFamiliesToLoad;
@@ -213,5 +187,22 @@ protected:
     PRUint32 mIncrement;
     PRUint32 mNumFamilies;
 };
+
+
+// helper class for adding other family names back into font cache
+class AddOtherFamilyNameFunctor 
+{
+public:
+    AddOtherFamilyNameFunctor(gfxPlatformFontList *aFontList) :
+        mFontList(aFontList)
+    {}
+
+    void operator() (gfxFontFamily *aFamilyEntry, nsAString& aOtherName) {
+        mFontList->AddOtherFamilyName(aFamilyEntry, aOtherName);
+    }
+
+    gfxPlatformFontList *mFontList;
+};
+
 
 #endif /* GFXPLATFORMFONTLIST_H_ */

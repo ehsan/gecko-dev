@@ -119,10 +119,10 @@
 #include "nsICommandManager.h"
 #include "nsCRT.h"
 
+class nsIScrollableView;
 class nsDocShell;
 class nsIController;
 class OnLinkClickEvent;
-class nsIScrollableFrame;
 
 /* load commands were moved to nsIDocShell.h */
 /* load types were moved to nsDocShellLoadTypes.h */
@@ -364,6 +364,12 @@ protected:
                             PRUint32 aLoadType, nscoord *cx, nscoord *cy,
                             PRBool * aDoHashchange);
 
+    // Dispatches the hashchange event to the current thread, if the document's
+    // readystate is "complete".
+    nsresult DispatchAsyncHashchange();
+
+    nsresult FireHashchange();
+
     // Returns PR_TRUE if would have called FireOnLocationChange,
     // but did not because aFireOnLocationChange was false on entry.
     // In this case it is the caller's responsibility to ensure
@@ -474,7 +480,7 @@ protected:
         nsIStringBundle ** aStringBundle);
     NS_IMETHOD GetChildOffset(nsIDOMNode * aChild, nsIDOMNode * aParent,
         PRInt32 * aOffset);
-    nsIScrollableFrame* GetRootScrollFrame();
+    NS_IMETHOD GetRootScrollableView(nsIScrollableView ** aOutScrollView);
     NS_IMETHOD EnsureScriptEnvironment();
     NS_IMETHOD EnsureEditorData();
     nsresult   EnsureTransferableHookData();
@@ -605,7 +611,6 @@ protected:
     void ReattachEditorToWindow(nsISHEntry *aSHEntry);
 
     nsresult GetSessionStorageForURI(nsIURI* aURI,
-                                     const nsSubstring& aDocumentURI,
                                      PRBool create,
                                      nsIDOMStorage** aStorage);
 
@@ -615,8 +620,7 @@ protected:
     nsresult IsCommandEnabled(const char * inCommand, PRBool* outEnabled);
     nsresult DoCommand(const char * inCommand);
     nsresult EnsureCommandHandler();
-
-    nsIChannel* GetCurrentDocChannel();
+    
 protected:
     // Override the parent setter from nsDocLoader
     virtual nsresult SetDocLoaderParent(nsDocLoader * aLoader);

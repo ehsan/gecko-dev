@@ -46,7 +46,7 @@
 /**
  * An individual tab, xul:tab element
  */
-class nsXULTabAccessible : public nsAccessibleWrap
+class nsXULTabAccessible : public nsLeafAccessible
 {
 public:
   enum { eAction_Switch = 0 };

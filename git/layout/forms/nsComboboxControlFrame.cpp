@@ -58,6 +58,7 @@
 #include "nsIDeviceContext.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
+#include "nsIScrollableView.h"
 #include "nsEventDispatcher.h"
 #include "nsIEventStateManager.h"
 #include "nsIEventListenerManager.h"
@@ -296,6 +297,7 @@ NS_QUERYFRAME_HEAD(nsComboboxControlFrame)
   NS_QUERYFRAME_ENTRY(nsIAnonymousContentCreator)
   NS_QUERYFRAME_ENTRY(nsISelectControlFrame)
   NS_QUERYFRAME_ENTRY(nsIStatefulFrame)
+  NS_QUERYFRAME_ENTRY(nsIScrollableViewProvider)
 NS_QUERYFRAME_TAIL_INHERITING(nsBlockFrame)
 
 #ifdef ACCESSIBILITY
@@ -1410,6 +1412,21 @@ void nsComboboxControlFrame::PaintFocus(nsIRenderingContext& aRenderingContext,
                              clipRect.x, clipRect.y);
 
   aRenderingContext.PopState();
+}
+
+//----------------------------------------------------------------------
+  //nsIScrollableViewProvider
+//----------------------------------------------------------------------
+nsIScrollableView* nsComboboxControlFrame::GetScrollableView()
+{
+  if (!mDropdownFrame)
+    return nsnull;
+
+  nsIScrollableFrame* scrollable = do_QueryFrame(mDropdownFrame);
+  if (!scrollable)
+    return nsnull;
+
+  return scrollable->GetScrollableView();
 }
 
 //---------------------------------------------------------

@@ -272,11 +272,6 @@ public:
   PRBool IsInDropDownMode() const;
 
   /**
-   * Dropdowns need views
-   */
-  virtual PRBool NeedsView() { return IsInDropDownMode(); }
-
-  /**
    * Frees statics owned by this class.
    */
   static void Shutdown();

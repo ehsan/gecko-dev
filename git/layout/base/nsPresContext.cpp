@@ -253,6 +253,9 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
 
 nsPresContext::~nsPresContext()
 {
+  for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i)
+    mImageLoaders[i].Enumerate(destroy_loads, nsnull);
+
   NS_PRECONDITION(!mShell, "Presshell forgot to clear our mShell pointer");
   SetShell(nsnull);
 
@@ -370,6 +373,11 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
 
   // NS_RELEASE(tmp->mLookAndFeel); // a service
   // NS_RELEASE(tmp->mLangGroup); // an atom
+
+  for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i) {
+    tmp->mImageLoaders[i].Enumerate(destroy_loads, nsnull);
+    tmp->mImageLoaders[i].Clear();
+  }
 
   // NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTheme); // a service
   // NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLangService); // a service
@@ -984,15 +992,6 @@ nsPresContext::SetShell(nsIPresShell* aShell)
         UpdateCharSet(doc->GetDocumentCharacterSet());
       }
     }
-  } else {
-    // Destroy image loaders now that the presshell is going away.
-    // This is important since imageloaders can have pointers to frames and
-    // we don't want those pointers to outlive the destruction of the frame
-    // arena.
-    for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i) {
-      mImageLoaders[i].Enumerate(destroy_loads, nsnull);
-      mImageLoaders[i].Clear();
-    }
   }
 }
 
@@ -1050,7 +1049,7 @@ nsPresContext::Observe(nsISupports* aSubject,
 
 // We may want to replace this with something faster, maybe caching the root prescontext
 nsRootPresContext*
-nsPresContext::GetRootPresContext()
+nsPresContext::RootPresContext()
 {
   nsPresContext* pc = this;
   for (;;) {
@@ -1064,7 +1063,7 @@ nsPresContext::GetRootPresContext()
         }
       }
     }
-    return pc->IsRoot() ? static_cast<nsRootPresContext*>(pc) : nsnull;
+    return static_cast<nsRootPresContext*>(pc);
   }
 }
 
@@ -1279,9 +1278,6 @@ nsPresContext::SetImageLoaders(nsIFrame* aTargetFrame,
                                ImageLoadType aType,
                                nsImageLoader* aImageLoaders)
 {
-  NS_ASSERTION(mShell || !aImageLoaders,
-               "Shouldn't add new image loader after the shell is gone");
-
   nsRefPtr<nsImageLoader> oldLoaders;
   mImageLoaders[aType].Get(aTargetFrame, getter_AddRefs(oldLoaders));
 
@@ -2103,44 +2099,6 @@ nsPresContext::NotifyInvalidation(const nsRect& aRect, PRUint32 aFlags)
 
   request->mRect = aRect;
   request->mFlags = aFlags;
-}
-
-void
-nsPresContext::NotifyInvalidateRegion(const nsRegion& aRegion,
-                                      nsPoint aOffset, PRUint32 aFlags)
-{
-  const nsRect* r;
-  for (nsRegionRectIterator iter(aRegion); (r = iter.Next());) {
-    NotifyInvalidation(*r + aOffset, aFlags);
-  }
-}
-
-void
-nsPresContext::NotifyInvalidateForScrolling(const nsRegion& aBlitRegion,
-                                            const nsRegion& aInvalidateRegion)
-{
-  nsPresContext* pc = this;
-  PRUint32 crossDocFlags = 0;
-  nsIFrame* rootFrame = FrameManager()->GetRootFrame();
-  nsPoint offset(0,0);
-  while (pc) {
-    if (pc->MayHavePaintEventListener()) {
-      pc->NotifyInvalidateRegion(aBlitRegion, offset,
-                                 nsIFrame::INVALIDATE_REASON_SCROLL_BLIT | crossDocFlags);
-      pc->NotifyInvalidateRegion(aInvalidateRegion, offset,
-                                 nsIFrame::INVALIDATE_REASON_SCROLL_REPAINT | crossDocFlags);
-    }
-    crossDocFlags = nsIFrame::INVALIDATE_CROSS_DOC;
-
-    nsIFrame* rootParentFrame = nsLayoutUtils::GetCrossDocParentFrame(rootFrame);
-    if (!rootParentFrame)
-      break;
-
-    pc = rootParentFrame->PresContext();
-    nsIFrame* nextRootFrame = pc->PresShell()->FrameManager()->GetRootFrame();
-    offset += rootFrame->GetOffsetTo(nextRootFrame);
-    rootFrame = nextRootFrame;
-  }
 }
 
 PRBool

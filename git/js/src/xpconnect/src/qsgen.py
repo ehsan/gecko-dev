@@ -199,31 +199,8 @@ def removeStubMember(memberId, member):
     member.iface.stubMembers.remove(member)
 
 def addStubMember(memberId, member, traceable):
+    # Check that the member is ok.
     mayTrace = False
-    if member.kind == 'method':
-        if len(member.params) <= 3:
-            mayTrace = True
-
-        for param in member.params:
-            for attrname, value in vars(param).items():
-                if value is True:
-                    # Let the tracer call the regular fastnative method if there
-                    # are optional arguments.
-                    if attrname == 'optional':
-                        mayTrace = False
-                        continue
-
-                    raise UserError("Method %s, parameter %s: "
-                                    "unrecognized property %r"
-                                    % (memberId, param.name, attrname))
-
-    member.traceable = traceable and mayTrace
-
-    # Add this member to the list.
-    member.iface.stubMembers.append(member)
-
-def checkStubMember(member):
-    memberId = member.iface.name + "." + member.name
     if member.kind not in ('method', 'attribute'):
         raise UserError("Member %s is %r, not a method or attribute."
                         % (memberId, member.kind))
@@ -245,10 +222,31 @@ def checkStubMember(member):
 
     # Check for unknown properties.
     for attrname, value in vars(member).items():
-        if value is True and attrname not in ('readonly','optional_argc','traceable'):
+        if value is True and attrname not in ('readonly','optional_argc',):
             raise UserError("%s %s: unrecognized property %r"
                             % (member.kind.capitalize(), memberId,
                                attrname))
+    if member.kind == 'method':
+        if len(member.params) <= 3:
+            mayTrace = True
+
+        for param in member.params:
+            for attrname, value in vars(param).items():
+                if value is True:
+                    # Let the tracer call the regular fastnative method if there
+                    # are optional arguments.
+                    if attrname == 'optional':
+                        mayTrace = False
+                        continue
+
+                    raise UserError("Method %s, parameter %s: "
+                                    "unrecognized property %r"
+                                    % (memberId, param.name, attrname))
+
+    member.traceable = traceable and mayTrace
+
+    # Add this member to the list.
+    member.iface.stubMembers.append(member)
 
 def parseMemberId(memberId):
     """ Split the geven member id into its parts. """
@@ -302,8 +300,6 @@ def readConfigFile(filename, includePath, cachedir, traceable):
             interfacesByName[interfaceName] = iface
         return iface
 
-    stubbedInterfaces = []
-
     for memberId in conf.members:
         add = True
         interfaceName, memberName = parseMemberId(memberId)
@@ -326,14 +322,8 @@ def readConfigFile(filename, includePath, cachedir, traceable):
             # Stub all scriptable members of this interface.
             for member in iface.members:
                 if member.kind in ('method', 'attribute') and not member.noscript:
-                    cmc = conf.customMethodCalls.get(interfaceName + "_" + header.methodNativeName(member), None)
-                    mayTrace = cmc is None or cmc.get('traceable', True)
-
                     addStubMember(iface.name + '.' + member.name, member,
-                                  traceable and mayTrace)
-
-                    if member.iface not in stubbedInterfaces:
-                        stubbedInterfaces.append(member.iface)
+                                  traceable)
         else:
             # Look up a member by name.
             if memberName not in iface.namemap:
@@ -342,24 +332,20 @@ def readConfigFile(filename, includePath, cachedir, traceable):
                                 "(See IDL file %r.)"
                                 % (interfaceName, memberName, idlFile))
             member = iface.namemap.get(memberName, None)
+            if member in iface.stubMembers:
+                raise UserError("Member %s is specified more than once."
+                                % memberId)
             if add:
-                if member in iface.stubMembers:
-                    raise UserError("Member %s is specified more than once."
-                                    % memberId)
-
-                cmc = conf.customMethodCalls.get(interfaceName + "_" + header.methodNativeName(member), None)
-                mayTrace = cmc is None or cmc.get('traceable', True)
-
+                mayTrace = True
+                if member.noscript:
+                    cmc = conf.customMethodCalls.get(interfaceName + "_" + header.methodNativeName(member), None)
+                    if cmc is not None and cmc.get('skipgen', False):
+                        # We're doing magic custom stuff for this, so pretend it's not noscript
+                        member.noscript = False
+                        mayTrace = False
                 addStubMember(memberId, member, traceable and mayTrace)
-                if member.iface not in stubbedInterfaces:
-                    stubbedInterfaces.append(member.iface)
             else:
                 removeStubMember(memberId, member)
-
-    # Now go through and check all the interfaces' members
-    for iface in stubbedInterfaces:
-        for member in iface.stubMembers:
-            checkStubMember(member)
 
     for iface in conf.customReturnInterfaces:
         # just ensure that it exists so that we can grab it later

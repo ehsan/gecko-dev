@@ -48,26 +48,7 @@ class StreamNotifyParent : public PStreamNotifyParent
 {
   friend class PluginInstanceParent;
 
-  StreamNotifyParent()
-    : mDestructionFlag(NULL)
-  { }
-  ~StreamNotifyParent() {
-    if (mDestructionFlag)
-      *mDestructionFlag = true;
-  }
-
-public:
-  // If we are destroyed within the call to NPN_GetURLNotify, notify the caller
-  // so that we aren't destroyed again. see bug 536437.
-  void SetDestructionFlag(bool* flag) {
-    mDestructionFlag = flag;
-  }
-  void ClearDestructionFlag() {
-    mDestructionFlag = NULL;
-  }
-
-private:
-  bool* mDestructionFlag;
+  StreamNotifyParent() { }
 };
 
 } // namespace plugins

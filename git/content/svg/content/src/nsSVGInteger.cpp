@@ -59,12 +59,12 @@ nsSVGInteger::SetBaseValueString(const nsAString &aValueAsString,
   const char *str = value.get();
 
   if (NS_IsAsciiWhitespace(*str))
-    return NS_ERROR_DOM_SYNTAX_ERR;
+    return NS_ERROR_FAILURE;
   
   char *rest;
   PRInt32 val = strtol(str, &rest, 10);
   if (rest == str || *rest != '\0') {
-    return NS_ERROR_DOM_SYNTAX_ERR;
+    return NS_ERROR_FAILURE;
   }
 
   mBaseVal = mAnimVal = val;

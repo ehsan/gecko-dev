@@ -109,7 +109,7 @@ function test() {
     },
     onPageChanged: function(aURI, aWhat, aValue) {
     },
-    onDeleteVisits: function() {
+    onPageExpired: function(aURI, aVisitTime, aWholeEntry) {
     },
     QueryInterface: function(iid) {
       if (iid.equals(Ci.nsINavHistoryObserver) ||

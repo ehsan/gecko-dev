@@ -51,7 +51,6 @@ function test() {
   let canRetry;
   let callback;
   let loadedCount;
-  let setFocusToChrome;
 
   function runNextTest() {
     if (++testingIndex >= testingList.length) {
@@ -64,39 +63,25 @@ function test() {
       return;
     }
     callback = doTest1;
-    loadTestPage(false);
+    loadTestPage();
   }
 
-  function loadTestPage(aSetFocusToChrome) {
+  function loadTestPage() {
     loadedCount = 0;
     canRetry = 10;
-    setFocusToChrome = aSetFocusToChrome;
     // Set the focus to the contents.
     tabs[0].linkedBrowser.focus();
-    // Load on the tabs
-    tabs[0].linkedBrowser.addEventListener("load", onLoadForegroundTab, true);
-    tabs[0].linkedBrowser.loadURI(testingList[testingIndex].uri);
-    tabs[1].linkedBrowser.addEventListener("load", onLoadBackgroundTab, true);
-    tabs[1].linkedBrowser.loadURI(testingList[testingIndex].uri);
-  }
-
-  function onLoadForegroundTab() {
-    tabs[0].linkedBrowser.removeEventListener("load", onLoadForegroundTab, true);
-    if (setFocusToChrome) {
-      // Set focus to a chrome element before the loaded content tries to move
-      // focus.
-      BrowserSearch.searchBar.focus();
+    for (let i = 0; i < tabs.length; i++) {
+      tabs[i].linkedBrowser.addEventListener("load", onLoad, true);
+      tabs[i].linkedBrowser.loadURI(testingList[testingIndex].uri);
     }
-    onLoadComplete();
   }
 
-  function onLoadBackgroundTab() {
-    tabs[1].linkedBrowser.removeEventListener("load", onLoadBackgroundTab, true);
-    onLoadComplete();
-  }
-
-  function onLoadComplete() {
+  function onLoad() {
     if (++loadedCount == tabs.length) {
+      for (let i = 0; i < tabs.length; i++) {
+        tabs[i].linkedBrowser.removeEventListener("load", onLoad, true);
+      }
       setTimeout(callback, 20);
     }
   }
@@ -142,7 +127,10 @@ function test() {
           " (Test1: content can steal focus)");
 
     callback = doTest2;
-    loadTestPage(true);
+    loadTestPage();
+
+    // Set focus to chrome element before onload events of the loading contents.
+    BrowserSearch.searchBar.focus();
   }
 
 
@@ -150,6 +138,32 @@ function test() {
     if (canRetry-- > 0 && !isPrepared()) {
       setTimeout(callback, 10); // retry
       return;
+    }
+
+    // XXX puts some useful information for bug 534420
+    let activeWindow = fm.activeWindow;
+    let focusedWindow = fm.focusedWindow;
+    ok(activeWindow, "We're not active");
+    ok(focusedWindow, "There is no focused window");
+    is(activeWindow, window.top, "our window isn't active");
+    let searchbar = BrowserSearch.searchBar;
+    let focusedElement = fm.focusedElement;
+    if (searchbar) {
+      let principal = searchbar.nodePrincipal;
+      ok(principal, "principal is null");
+      info("search bar: tagName=" + searchbar.tagName + " id=" + searchbar.id);
+      ok(secMan.isSystemPrincipal(principal), "search bar isn't chrome");
+    } else {
+      info("search bar is NULL!!");
+    }
+    if (focusedElement) {
+      let principal = focusedElement.nodePrincipal;
+      ok(principal, "principal is null");
+      info("focusedElement: tagName=" + focusedElement.tagName +
+           " id=" + focusedElement.id);
+      ok(secMan.isSystemPrincipal(principal), "focusedElement isn't chrome");
+    } else {
+      info("focusedElement is NULL!!");
     }
 
     // The contents shouldn't be able to steal the focus from chrome.

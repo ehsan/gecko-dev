@@ -348,6 +348,7 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_SVGRect_id,
   eDOMClassInfo_SVGTransform_id,
   eDOMClassInfo_SVGTransformList_id,
+  eDOMClassInfo_SVGUnitTypes_id,
   eDOMClassInfo_SVGZoomEvent_id,
 #endif // MOZ_SVG
 
@@ -383,7 +384,8 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_StorageList_id,
   eDOMClassInfo_StorageItem_id,
   eDOMClassInfo_StorageEvent_id,
-  eDOMClassInfo_StorageEventObsolete_id,
+
+  eDOMClassInfo_WindowRoot_id,
 
   // DOMParser, XMLSerializer
   eDOMClassInfo_DOMParser_id,
@@ -408,6 +410,7 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_XULCommandEvent_id,
   eDOMClassInfo_CommandEvent_id,
   eDOMClassInfo_OfflineResourceList_id,
+  eDOMClassInfo_LoadStatus_id,
 
   eDOMClassInfo_FileList_id,
   eDOMClassInfo_File_id,
@@ -468,6 +471,16 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_WebGLShader_id,
   eDOMClassInfo_WebGLFramebuffer_id,
   eDOMClassInfo_WebGLRenderbuffer_id,
+
+  // WebGL Buffers
+  eDOMClassInfo_WebGLArrayBuffer_id,
+  eDOMClassInfo_WebGLFloatArray_id,
+  eDOMClassInfo_WebGLByteArray_id,
+  eDOMClassInfo_WebGLUnsignedByteArray_id,
+  eDOMClassInfo_WebGLShortArray_id,
+  eDOMClassInfo_WebGLUnsignedShortArray_id,
+  eDOMClassInfo_WebGLIntArray_id,
+  eDOMClassInfo_WebGLUnsignedIntArray_id,
 
   eDOMClassInfo_PaintRequest_id,
   eDOMClassInfo_PaintRequestList_id,

@@ -583,7 +583,6 @@ function StartCurrentURI(aState)
         // there's already a canvas for this URL
         setTimeout(DocumentLoaded, 0);
     } else {
-        dump("REFTEST INFO | Loading " + gCurrentURL + "\n");
         gBrowser.loadURI(gCurrentURL);
     }
 }
@@ -1099,7 +1098,6 @@ function FinishTestItem()
 {
     // Replace document with BLANK_URL_FOR_CLEARING in case there are
     // assertions when unloading.
-    dump("REFTEST INFO | Loading a blank page\n");
     gClearingForAssertionCheck = true;
     gBrowser.loadURI(BLANK_URL_FOR_CLEARING);
 }

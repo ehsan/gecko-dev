@@ -83,8 +83,6 @@ static FT_Library gPlatformFTLibrary = NULL;
 
 gfxQtPlatform::gfxQtPlatform()
 {
-    mPrefFonts.Init(50);
-
     if (!sFontconfigUtils)
         sFontconfigUtils = gfxFontconfigUtils::GetFontconfigUtils();
 
@@ -155,6 +153,7 @@ gfxQtPlatform::UpdateFontList()
     FcPattern *pat = NULL;
     FcObjectSet *os = NULL;
     FcFontSet *fs = NULL;
+    PRInt32 result = -1;
 
     pat = FcPatternCreate();
     os = FcObjectSetBuild(FC_FAMILY, FC_FILE, FC_INDEX, FC_WEIGHT, FC_SLANT, FC_WIDTH, NULL);
@@ -418,13 +417,13 @@ gfxQtPlatform::FindFontForChar(PRUint32 aCh, gfxFont *aFont)
 }
 
 PRBool
-gfxQtPlatform::GetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<gfxFontEntry> > *array)
+gfxQtPlatform::GetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<FontEntry> > *aFontEntryList)
 {
-    return mPrefFonts.Get(aKey, array);
+    return gPrefFonts->Get(aKey, aFontEntryList);
 }
 
 void
-gfxQtPlatform::SetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<gfxFontEntry> >& array)
+gfxQtPlatform::SetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<FontEntry> >& aFontEntryList)
 {
-    mPrefFonts.Put(aKey, array);
+    gPrefFonts->Put(aKey, aFontEntryList);
 }

@@ -36,6 +36,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/* ===== global.css =====================================================
+  == Styles that apply everywhere.
+  ======================================================================= */
+
 /* all localizable skin settings shall live here */
 @import url("chrome://global/locale/intl.css");
 

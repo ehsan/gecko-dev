@@ -374,9 +374,6 @@ public:
   virtual void EnterModalState() = 0;
   virtual void LeaveModalState() = 0;
 
-  virtual PRBool CanClose() = 0;
-  virtual nsresult ForceClose() = 0;
-
   void SetModalContentWindow(PRBool aIsModalContentWindow)
   {
     mIsModalContentWindow = aIsModalContentWindow;
@@ -457,9 +454,10 @@ public:
   virtual void PageHidden() = 0;
 
   /**
-   * Instructs this window to synchronously dispatch a hashchange event.
+   * Instructs this window to asynchronously dispatch a hashchange event.  This
+   * method must be called on an inner window.
    */
-  virtual nsresult DispatchSyncHashchange() = 0;
+  virtual nsresult DispatchAsyncHashchange() = 0;
 
 
   /**

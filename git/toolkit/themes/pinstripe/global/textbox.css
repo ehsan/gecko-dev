@@ -36,10 +36,16 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/* ===== textbox.css ==================================================
+  == Styles used by the XUL textbox element.
+  ======================================================================= */
+
 @import url("chrome://global/content/autocomplete.css");
   
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 @namespace html url("http://www.w3.org/1999/xhtml");
+
+/* ::::: textbox ::::: */
 
 textbox {
   -moz-appearance: textfield;
@@ -76,6 +82,8 @@ html|*.textbox-textarea {
   cursor: default;
 }
 
+/* ..... focused state ..... */
+
 textbox[focused="true"] {
   -moz-border-top-colors: -moz-mac-focusring -moz-mac-focusring #000000;
   -moz-border-right-colors: -moz-mac-focusring -moz-mac-focusring #000000;
@@ -83,10 +91,14 @@ textbox[focused="true"] {
   -moz-border-left-colors: -moz-mac-focusring -moz-mac-focusring #000000;
 }
 
+/* ..... readonly state ..... */
+
 textbox[readonly="true"] {
   background-color: -moz-Dialog;
   color: -moz-DialogText;
 }
+
+/* ..... disabled state ..... */
 
 textbox[disabled="true"] {
   cursor: default;
@@ -98,6 +110,8 @@ textbox[disabled="true"] {
   color: GrayText;
 } 
 
+/* ::::: plain textbox ::::: */
+
 textbox.plain {
   -moz-appearance: none !important;
   background-color: transparent;
@@ -106,7 +120,8 @@ textbox.plain {
   border: none !important;
 }
 
-/* ::::: search box ::::: */
+
+/* ::::: rounded search box ::::: */
 
 textbox[type="search"] {
   -moz-appearance: searchfield;

@@ -44,19 +44,17 @@
 #include "nsIDOMXULSelectCntrlEl.h"
 #include "nsIDOMXULSelectCntrlItemEl.h"
 
-////////////////////////////////////////////////////////////////////////////////
-// nsXULTabAccessible
-////////////////////////////////////////////////////////////////////////////////
+/**
+  * XUL Tab
+  */
 
-nsXULTabAccessible::
-  nsXULTabAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell) :
-  nsAccessibleWrap(aNode, aShell)
-{
+/** Constructor */
+nsXULTabAccessible::nsXULTabAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell):
+nsLeafAccessible(aNode, aShell)
+{ 
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsXULTabAccessible: nsIAccessible
-
+/** Only one action available */
 NS_IMETHODIMP nsXULTabAccessible::GetNumActions(PRUint8 *_retval)
 {
   *_retval = 1;
@@ -88,9 +86,7 @@ NS_IMETHODIMP nsXULTabAccessible::DoAction(PRUint8 index)
   return NS_ERROR_INVALID_ARG;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsXULTabAccessible: nsAccessible
-
+/** We are a tab */
 nsresult
 nsXULTabAccessible::GetRoleInternal(PRUint32 *aRole)
 {
@@ -98,13 +94,14 @@ nsXULTabAccessible::GetRoleInternal(PRUint32 *aRole)
   return NS_OK;
 }
 
+/**
+  * Possible states: focused, focusable, unavailable(disabled), offscreen
+  */
 nsresult
 nsXULTabAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  // Possible states: focused, focusable, unavailable(disabled), offscreen.
-
   // get focus and disable status from base class
-  nsresult rv = nsAccessibleWrap::GetStateInternal(aState, aExtraState);
+  nsresult rv = nsLeafAccessible::GetStateInternal(aState, aExtraState);
   NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   // In the past, tabs have been focusable in classic theme
@@ -132,12 +129,11 @@ nsXULTabAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
   return NS_OK;
 }
 
-// nsIAccessible
 NS_IMETHODIMP
 nsXULTabAccessible::GetRelationByType(PRUint32 aRelationType,
                                       nsIAccessibleRelation **aRelation)
 {
-  nsresult rv = nsAccessibleWrap::GetRelationByType(aRelationType,
+  nsresult rv = nsLeafAccessible::GetRelationByType(aRelationType,
                                                     aRelation);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -163,35 +159,43 @@ nsXULTabAccessible::GetRelationByType(PRUint32 aRelationType,
   // assume tab and tabpanels are related 1 to 1. We follow algorithm from
   // the setter 'selectedIndex' of tabbox.xml#tabs binding.
 
-  nsAccessible* tabsAcc = GetParent();
+  nsCOMPtr<nsIAccessible> tabsAcc = GetParent();
   NS_ENSURE_TRUE(nsAccUtils::Role(tabsAcc) == nsIAccessibleRole::ROLE_PAGETABLIST,
                  NS_ERROR_FAILURE);
 
   PRInt32 tabIndex = -1;
 
-  PRInt32 childCount = tabsAcc->GetChildCount();
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible* childAcc = tabsAcc->GetChildAt(childIdx);
+  nsCOMPtr<nsIAccessible> childAcc;
+  tabsAcc->GetFirstChild(getter_AddRefs(childAcc));
+  while (childAcc) {
     if (nsAccUtils::Role(childAcc) == nsIAccessibleRole::ROLE_PAGETAB)
       tabIndex++;
 
     if (childAcc == this)
       break;
+
+    nsCOMPtr<nsIAccessible> acc;
+    childAcc->GetNextSibling(getter_AddRefs(acc));
+    childAcc.swap(acc);
   }
 
-  nsAccessible* tabBoxAcc = tabsAcc->GetParent();
+  nsCOMPtr<nsIAccessible> tabBoxAcc;
+  tabsAcc->GetParent(getter_AddRefs(tabBoxAcc));
   NS_ENSURE_TRUE(nsAccUtils::Role(tabBoxAcc) == nsIAccessibleRole::ROLE_PANE,
                  NS_ERROR_FAILURE);
 
-  childCount = tabBoxAcc->GetChildCount();
-  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible* childAcc = tabBoxAcc->GetChildAt(childIdx);
+  tabBoxAcc->GetFirstChild(getter_AddRefs(childAcc));
+  while (childAcc) {
     if (nsAccUtils::Role(childAcc) == nsIAccessibleRole::ROLE_PROPERTYPAGE) {
       if (tabIndex == 0)
         return nsRelUtils::AddTarget(aRelationType, aRelation, childAcc);
 
       tabIndex--;
     }
+
+    nsCOMPtr<nsIAccessible> acc;
+    childAcc->GetNextSibling(getter_AddRefs(acc));
+    childAcc.swap(acc);
   }
 
   return NS_OK;

@@ -132,9 +132,9 @@ private:
   void SetBaseValue(float aValue, nsSVGElement *aSVGElement);
   void SetBaseValueInSpecifiedUnits(float aValue, nsSVGElement *aSVGElement);
   void SetAnimValue(float aValue, nsSVGElement *aSVGElement);
-  nsresult NewValueSpecifiedUnits(PRUint16 aUnitType, float aValue,
-                                  nsSVGElement *aSVGElement);
-  nsresult ConvertToSpecifiedUnits(PRUint16 aUnitType, nsSVGElement *aSVGElement);
+  void NewValueSpecifiedUnits(PRUint16 aUnitType, float aValue,
+                              nsSVGElement *aSVGElement);
+  void ConvertToSpecifiedUnits(PRUint16 aUnitType, nsSVGElement *aSVGElement);
   nsresult ToDOMBaseVal(nsIDOMSVGLength **aResult, nsSVGElement* aSVGElement);
   nsresult ToDOMAnimVal(nsIDOMSVGLength **aResult, nsSVGElement* aSVGElement);
 
@@ -179,11 +179,13 @@ private:
     NS_IMETHOD NewValueSpecifiedUnits(PRUint16 unitType,
                                       float valueInSpecifiedUnits)
       {
-        return mVal->NewValueSpecifiedUnits(unitType, valueInSpecifiedUnits,
-                                            mSVGElement); }
+        NS_ENSURE_FINITE(valueInSpecifiedUnits, NS_ERROR_ILLEGAL_VALUE);
+        mVal->NewValueSpecifiedUnits(unitType, valueInSpecifiedUnits,
+                                     mSVGElement);
+        return NS_OK; }
 
     NS_IMETHOD ConvertToSpecifiedUnits(PRUint16 unitType)
-      { return mVal->ConvertToSpecifiedUnits(unitType, mSVGElement); }
+      { mVal->ConvertToSpecifiedUnits(unitType, mSVGElement); return NS_OK; }
   };
 
   struct DOMAnimVal : public nsIDOMSVGLength

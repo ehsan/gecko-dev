@@ -227,7 +227,6 @@ nsNPAPIPlugin::nsNPAPIPlugin(NPPluginFuncs* callbacks,
 
   fCallbacks.size = sizeof(fCallbacks);
   fLibrary = nsnull;
-  mIsDefaultPlugin = PR_FALSE;
 
 #if defined(XP_WIN) || defined(XP_OS2)
   // On Windows (and Mac) we need to keep a direct reference to the
@@ -310,64 +309,30 @@ nsNPAPIPlugin::PluginCrashed()
 }
 #endif
 
-void
-nsNPAPIPlugin::SetIsDefaultPlugin()
-{
-  mIsDefaultPlugin = PR_TRUE;
-}
-
-PRBool
-nsNPAPIPlugin::IsDefaultPlugin()
-{
-  return mIsDefaultPlugin;
-}
-
 namespace {
 
 #ifdef MOZ_IPC
 
 inline PRBool
-OOPPluginsEnabled(const char* aFilePath)
+OOPPluginsEnabled()
 {
   if (PR_GetEnv("MOZ_DISABLE_OOP_PLUGINS")) {
     return PR_FALSE;
   }
-
-#ifdef XP_WIN
-  OSVERSIONINFO osVerInfo = {0};
-  osVerInfo.dwOSVersionInfoSize = sizeof(osVerInfo);
-  GetVersionEx(&osVerInfo);
-  // Always disabled on 2K or less. (bug 536303)
-  if (osVerInfo.dwMajorVersion < 5 ||
-      (osVerInfo.dwMajorVersion == 5 && osVerInfo.dwMinorVersion == 0))
-    return PR_FALSE;
-#endif
 
   nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
   if (!prefs) {
     return PR_FALSE;
   }
 
-  // Get per-library whitelist/blacklist pref string
-  // "dom.ipc.plugins.enabled.filename.dll" and fall back to the default value
-  // of "dom.ipc.plugins.enabled"
-
-  nsCAutoString pluginLibPref(aFilePath);
-  PRInt32 slashPos = pluginLibPref.RFindCharInSet("/\\");
-  if (kNotFound == slashPos)
-    return PR_FALSE;
-  pluginLibPref.Cut(0, slashPos + 1);
-  ToLowerCase(pluginLibPref);
-  pluginLibPref.Insert("dom.ipc.plugins.enabled.", 0);
-
   PRBool oopPluginsEnabled = PR_FALSE;
-  if (NS_SUCCEEDED(prefs->GetBoolPref(pluginLibPref.get(),
-                                      &oopPluginsEnabled)))
-    return oopPluginsEnabled;
-
-  oopPluginsEnabled = PR_FALSE;
   prefs->GetBoolPref("dom.ipc.plugins.enabled", &oopPluginsEnabled);
-  return oopPluginsEnabled;
+
+  if (!oopPluginsEnabled) {
+    return PR_FALSE;
+  }
+
+  return PR_TRUE;
 }
 
 #endif // MOZ_IPC
@@ -377,7 +342,7 @@ GetNewPluginLibrary(const char* aFilePath,
                     PRLibrary* aLibrary)
 {
 #ifdef MOZ_IPC
-  if (aFilePath && OOPPluginsEnabled(aFilePath)) {
+  if (aFilePath && OOPPluginsEnabled()) {
     return PluginModuleParent::LoadModule(aFilePath);
   }
 #endif
@@ -628,7 +593,8 @@ nsNPAPIPlugin::CreatePluginInstance(nsIPluginInstance **aResult)
 
   *aResult = NULL;
 
-  nsRefPtr<nsNPAPIPluginInstance> inst = new nsNPAPIPluginInstance(this, &fCallbacks, fLibrary);
+  nsRefPtr<nsNPAPIPluginInstance> inst =
+    new nsNPAPIPluginInstance(&fCallbacks, fLibrary);
   if (!inst)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -663,7 +629,7 @@ nsNPAPIPlugin::Shutdown(void)
 nsresult
 nsNPAPIPlugin::GetMIMEDescription(const char* *resultingDesc)
 {
-  nsresult gmdResult = fLibrary->NP_GetMIMEDescription(resultingDesc);
+  nsresult gmdResult = fLibrary->NP_GetMIMEDescription((char**)resultingDesc);
   if (gmdResult != NS_OK) {
     return gmdResult;
   }
@@ -1065,10 +1031,7 @@ _geturl(NPP npp, const char* relativeURL, const char* target)
       (strncmp(relativeURL, "ftp:", 4) != 0)) {
     nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *) npp->ndata;
 
-    
-    const char *name;
-    nsRefPtr<nsPluginHost> host = dont_AddRef(nsPluginHost::GetInst());
-    host->GetPluginName(inst, &name);
+    const char *name = nsPluginHost::GetPluginName(inst);
 
     if (name && strstr(name, "Adobe") && strstr(name, "Acrobat")) {
       return NPERR_NO_ERROR;

@@ -55,6 +55,7 @@
 #include "nsCSSFrameConstructor.h"
 #include "nsIScrollableFrame.h"
 #include "nsIScrollbarFrame.h"
+#include "nsIScrollableView.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsStyleContext.h"
@@ -686,10 +687,11 @@ nsListBoxBodyFrame::SetRowHeight(nscoord aRowHeight)
 nscoord
 nsListBoxBodyFrame::GetAvailableHeight()
 {
-  nsIScrollableFrame* scrollFrame =
-    nsLayoutUtils::GetScrollableFrameFor(this);
+  nsIScrollableFrame* scrollFrame
+    = nsLayoutUtils::GetScrollableFrameFor(this);
   if (scrollFrame) {
-    return scrollFrame->GetScrollPortRect().height;
+    nsIScrollableView* scrollView = scrollFrame->GetScrollableView();
+    return scrollView->View()->GetBounds().height;
   }
   return 0;
 }
@@ -995,8 +997,7 @@ nsListBoxBodyFrame::VerticalScroll(PRInt32 aPosition)
 
   nsPoint scrollPosition = scrollFrame->GetScrollPosition();
  
-  scrollFrame->ScrollTo(nsPoint(scrollPosition.x, aPosition),
-                        nsIScrollableFrame::INSTANT);
+  scrollFrame->ScrollTo(nsPoint(scrollPosition.x, aPosition));
 
   mYPosition = aPosition;
 }

@@ -70,7 +70,7 @@ function test() {
     onDeleteURI: function(aURI) {},
     onClearHistory: function() {},
     onPageChanged: function(aURI, aWhat, aValue) {},
-    onDeleteVisits: function() {},
+    onPageExpired: function(aURI, aVisitTime, aWholeEntry) {},
     QueryInterface: XPCOMUtils.generateQI([Ci.nsINavHistoryObserver])
   };
   hs.addObserver(historyObserver, false);

@@ -57,10 +57,6 @@ BrowserStreamChild::BrowserStreamChild(PluginInstanceChild* instance,
   , mURL(url)
   , mHeaders(headers)
 {
-  PLUGIN_LOG_DEBUG(("%s (%s, %i, %i, %p, %s, %s)", FULLFUNCTION,
-                    url.get(), length, lastmodified, (void*) notifyData,
-                    headers.get(), mimeType.get()));
-
   AssertPluginThread();
 
   memset(&mStream, 0, sizeof(mStream));
@@ -72,37 +68,18 @@ BrowserStreamChild::BrowserStreamChild(PluginInstanceChild* instance,
     mStream.notifyData =
       static_cast<const StreamNotifyChild*>(notifyData)->mClosure;
   mStream.headers = NullableStringGet(mHeaders);
-}
 
-NPError
-BrowserStreamChild::StreamConstructed(
-            const nsCString& url,
-            const uint32_t& length,
-            const uint32_t& lastmodified,
-            PStreamNotifyChild* notifyData,
-            const nsCString& headers,
-            const nsCString& mimeType,
-            const bool& seekable,
-            uint16_t* stype)
-{
-  NPError rv = NPERR_NO_ERROR;
-
-  *stype = NP_NORMAL;
-  rv = mInstance->mPluginIface->newstream(
+  *rv = mInstance->mPluginIface->newstream(
     &mInstance->mData, const_cast<char*>(NullableStringGet(mimeType)),
     &mStream, seekable, stype);
-  if (rv != NPERR_NO_ERROR)
+  if (*rv != NPERR_NO_ERROR)
     mClosed = true;
-
-  return rv;
 }
 
 bool
 BrowserStreamChild::AnswerNPP_WriteReady(const int32_t& newlength,
                                          int32_t *size)
 {
-  PLUGIN_LOG_DEBUG_FUNCTION;
-
   AssertPluginThread();
 
   if (mClosed) {
@@ -121,9 +98,7 @@ BrowserStreamChild::AnswerNPP_Write(const int32_t& offset,
                                     const Buffer& data,
                                     int32_t* consumed)
 {
-  PLUGIN_LOG_DEBUG(("%s (offset=%i, data.length=%i)", FULLFUNCTION,
-                    offset, data.Length()));
-
+  _MOZ_LOG(__FUNCTION__);
   AssertPluginThread();
 
   if (mClosed) {
@@ -140,9 +115,9 @@ BrowserStreamChild::AnswerNPP_Write(const int32_t& offset,
 bool
 BrowserStreamChild::AnswerNPP_StreamAsFile(const nsCString& fname)
 {
-  PLUGIN_LOG_DEBUG(("%s (fname=%s)", FULLFUNCTION, fname.get()));
-
+  _MOZ_LOG(__FUNCTION__);
   AssertPluginThread();
+  printf("mClosed: %i\n", mClosed);
 
   if (mClosed)
     return true;
@@ -165,8 +140,6 @@ BrowserStreamChild::Answer__delete__(const NPError& reason,
 NPError
 BrowserStreamChild::NPN_RequestRead(NPByteRange* aRangeList)
 {
-  PLUGIN_LOG_DEBUG_FUNCTION;
-
   AssertPluginThread();
 
   IPCByteRanges ranges;
@@ -183,8 +156,6 @@ BrowserStreamChild::NPN_RequestRead(NPByteRange* aRangeList)
 void
 BrowserStreamChild::NPP_DestroyStream(NPError reason)
 {
-  PLUGIN_LOG_DEBUG(("%s (reason=%i)", FULLFUNCTION, reason));
-
   AssertPluginThread();
 
   if (mClosed)

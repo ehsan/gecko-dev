@@ -60,7 +60,7 @@ DummyObserver.prototype = {
   onDeleteURI: function(aURI) {},
   onClearHistory: function() {},
   onPageChanged: function(aURI, aWhat, aValue) {},
-  onDeleteVisits: function(aURI, aVisitTime) {},
+  onPageExpired: function(aURI, aVisitTime, aWholeEntry) {},
 
   // bookmark observer
   //onBeginUpdateBatch: function() {},

@@ -35,7 +35,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* used by the about:plugins dialog */
+/* ===== plugins.css =====================================================
+   == Styles used by the about:plugins dialog.
+   ======================================================================= */
 
 body {
   background-color: -moz-Field;

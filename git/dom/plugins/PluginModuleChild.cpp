@@ -39,7 +39,7 @@
 
 #include "mozilla/plugins/PluginModuleChild.h"
 
-#ifdef MOZ_WIDGET_GTK2
+#ifdef OS_LINUX
 #include <gtk/gtk.h>
 #endif
 
@@ -105,7 +105,7 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
                         MessageLoop* aIOLoop,
                         IPC::Channel* aChannel)
 {
-    PLUGIN_LOG_DEBUG_METHOD;
+    _MOZ_LOG(__FUNCTION__);
 
     NS_ASSERTION(aChannel, "need a channel");
 
@@ -177,83 +177,12 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
     return true;
 }
 
-#if defined(MOZ_WIDGET_GTK2)
-typedef void (*GObjectDisposeFn)(GObject*);
-typedef void (*GtkPlugEmbeddedFn)(GtkPlug*);
-
-static GObjectDisposeFn real_gtk_plug_dispose;
-static GtkPlugEmbeddedFn real_gtk_plug_embedded;
-
-static void
-undo_bogus_unref(gpointer data, GObject* object, gboolean is_last_ref) {
-    if (!is_last_ref) // recursion in g_object_ref
-        return;
-
-    g_object_ref(object);
-}
-
-static void
-wrap_gtk_plug_dispose(GObject* object) {
-    // Work around Flash Player bug described in bug 538914.
-    //
-    // This function is called during gtk_widget_destroy and/or before
-    // the object's last reference is removed.  A reference to the
-    // object is held during the call so the ref count should not drop
-    // to zero.  However, Flash Player tries to destroy the GtkPlug
-    // using g_object_unref instead of gtk_widget_destroy.  The
-    // reference that Flash is removing actually belongs to the
-    // GtkPlug.  During real_gtk_plug_dispose, the GtkPlug removes its
-    // reference.
-    //
-    // A toggle ref is added to prevent premature deletion of the object
-    // caused by Flash Player's extra unref, and to detect when there are
-    // unexpectedly no other references.
-    g_object_add_toggle_ref(object, undo_bogus_unref, NULL);
-    (*real_gtk_plug_dispose)(object);
-    g_object_remove_toggle_ref(object, undo_bogus_unref, NULL);
-}
-
-static void
-wrap_gtk_plug_embedded(GtkPlug* plug) {
-    GdkWindow* socket_window = plug->socket_window;
-    if (socket_window &&
-        g_object_get_data(G_OBJECT(socket_window),
-                          "moz-existed-before-set-window")) {
-        // Add missing reference for
-        // https://bugzilla.gnome.org/show_bug.cgi?id=607061
-        g_object_ref(socket_window);
-    }
-
-    if (*real_gtk_plug_embedded) {
-        (*real_gtk_plug_embedded)(plug);
-    }
-}
-#endif
-
 bool
 PluginModuleChild::InitGraphics()
 {
     // FIXME/cjones: is this the place for this?
-#if defined(MOZ_WIDGET_GTK2)
+#if defined(OS_LINUX)
     gtk_init(0, 0);
-
-    // GtkPlug is a static class so will leak anyway but this ref makes sure.
-    gpointer gtk_plug_class = g_type_class_ref(GTK_TYPE_PLUG);
-
-    // The dispose method is a good place to hook into the destruction process
-    // because the reference count should be 1 the last time dispose is
-    // called.  (Toggle references wouldn't detect if the reference count
-    // might be higher.)
-    GObjectDisposeFn* dispose = &G_OBJECT_CLASS(gtk_plug_class)->dispose;
-    NS_ABORT_IF_FALSE(*dispose != wrap_gtk_plug_dispose,
-                      "InitGraphics called twice");
-    real_gtk_plug_dispose = *dispose;
-    *dispose = wrap_gtk_plug_dispose;
-
-    GtkPlugEmbeddedFn* embedded = &GTK_PLUG_CLASS(gtk_plug_class)->embedded;
-    real_gtk_plug_embedded = *embedded;
-    *embedded = wrap_gtk_plug_embedded;
-#elif defined(MOZ_WIDGET_QT)
 #else
     // may not be necessary on all platforms
 #endif
@@ -300,31 +229,26 @@ PluginModuleChild::GetUserAgent()
 }
 
 bool
-PluginModuleChild::RegisterActorForNPObject(NPObject* aObject,
-                                            PluginScriptableObjectChild* aActor)
+PluginModuleChild::RegisterNPObject(NPObject* aObject,
+                                    PluginScriptableObjectChild* aActor)
 {
     AssertPluginThread();
     NS_ASSERTION(mObjectMap.IsInitialized(), "Not initialized!");
     NS_ASSERTION(aObject && aActor, "Null pointer!");
-
-    NPObjectData* d = mObjectMap.GetEntry(aObject);
-    if (!d) {
-        NS_ERROR("NPObject not in object table");
-        return false;
-    }
-
-    d->actor = aActor;
-    return true;
+    NS_ASSERTION(!mObjectMap.Get(aObject, nsnull),
+                 "Reregistering the same object!");
+    return !!mObjectMap.Put(aObject, aActor);
 }
 
 void
-PluginModuleChild::UnregisterActorForNPObject(NPObject* aObject)
+PluginModuleChild::UnregisterNPObject(NPObject* aObject)
 {
     AssertPluginThread();
     NS_ASSERTION(mObjectMap.IsInitialized(), "Not initialized!");
     NS_ASSERTION(aObject, "Null pointer!");
-
-    mObjectMap.GetEntry(aObject)->actor = NULL;
+    NS_ASSERTION(mObjectMap.Get(aObject, nsnull),
+                 "Unregistering an object that was never added!");
+    mObjectMap.Remove(aObject);
 }
 
 PluginScriptableObjectChild*
@@ -333,21 +257,47 @@ PluginModuleChild::GetActorForNPObject(NPObject* aObject)
     AssertPluginThread();
     NS_ASSERTION(mObjectMap.IsInitialized(), "Not initialized!");
     NS_ASSERTION(aObject, "Null pointer!");
-
-    NPObjectData* d = mObjectMap.GetEntry(aObject);
-    if (!d) {
-        NS_ERROR("Plugin using object not created with NPN_CreateObject?");
-        return NULL;
-    }
-
-    return d->actor;
+    PluginScriptableObjectChild* actor;
+    return mObjectMap.Get(aObject, &actor) ? actor : nsnull;
 }
 
 #ifdef DEBUG
-bool
-PluginModuleChild::NPObjectIsRegistered(NPObject* aObject)
+namespace {
+
+struct SearchInfo {
+  PluginScriptableObjectChild* target;
+  bool found;
+};
+
+PLDHashOperator
+ActorSearch(const void* aKey,
+            PluginScriptableObjectChild* aData,
+            void* aUserData)
 {
-    return !!mObjectMap.GetEntry(aObject);
+  SearchInfo* info = reinterpret_cast<SearchInfo*>(aUserData);
+  NS_ASSERTION(info->target && ! info->found, "Bad info ptr!");
+
+  if (aData == info->target) {
+    info->found = true;
+    return PL_DHASH_STOP;
+  }
+
+  return PL_DHASH_NEXT;
+}
+
+} // anonymous namespace
+
+bool
+PluginModuleChild::NPObjectIsRegisteredForActor(
+                                            PluginScriptableObjectChild* aActor)
+{
+    AssertPluginThread();
+    NS_ASSERTION(mObjectMap.IsInitialized(), "Not initialized!");
+    NS_ASSERTION(aActor, "Null actor!");
+
+    SearchInfo info = { aActor, false };
+    mObjectMap.EnumerateRead(ActorSearch, &info);
+    return info.found;
 }
 #endif
 
@@ -357,6 +307,9 @@ PluginModuleChild::NPObjectIsRegistered(NPObject* aObject)
 namespace mozilla {
 namespace plugins {
 namespace child {
+
+// FIXME
+typedef void (*PluginThreadCallback)(void*);
 
 static NPError NP_CALLBACK
 _requestread(NPStream *pstream, NPByteRange *rangeList);
@@ -444,6 +397,15 @@ _utf8fromidentifier(NPIdentifier identifier);
 
 static int32_t NP_CALLBACK
 _intfromidentifier(NPIdentifier identifier);
+
+static NPObject* NP_CALLBACK
+_createobject(NPP aNPP, NPClass* aClass);
+
+static NPObject* NP_CALLBACK
+_retainobject(NPObject* npobj);
+
+static void NP_CALLBACK
+_releaseobject(NPObject* npobj);
 
 static bool NP_CALLBACK
 _invoke(NPP aNPP, NPObject* npobj, NPIdentifier method, const NPVariant *args,
@@ -561,9 +523,9 @@ const NPNetscapeFuncs PluginModuleChild::sBrowserFuncs = {
     mozilla::plugins::child::_identifierisstring,
     mozilla::plugins::child::_utf8fromidentifier,
     mozilla::plugins::child::_intfromidentifier,
-    PluginModuleChild::NPN_CreateObject,
-    PluginModuleChild::NPN_RetainObject,
-    PluginModuleChild::NPN_ReleaseObject,
+    mozilla::plugins::child::_createobject,
+    mozilla::plugins::child::_retainobject,
+    mozilla::plugins::child::_releaseobject,
     mozilla::plugins::child::_invoke,
     mozilla::plugins::child::_invokedefault,
     mozilla::plugins::child::_evaluate,
@@ -603,7 +565,7 @@ NPError NP_CALLBACK
 _requestread(NPStream* aStream,
              NPByteRange* aRangeList)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     BrowserStreamChild* bs =
@@ -618,7 +580,7 @@ _geturlnotify(NPP aNPP,
               const char* aTarget,
               void* aNotifyData)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     nsCString url = NullableString(aRelativeURL);
@@ -642,7 +604,7 @@ _getvalue(NPP aNPP,
           NPNVariable aVariable,
           void* aValue)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     switch (aVariable) {
@@ -679,7 +641,7 @@ _setvalue(NPP aNPP,
           NPPVariable aVariable,
           void* aValue)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
     return InstCast(aNPP)->NPN_SetValue(aVariable, aValue);
 }
@@ -689,7 +651,7 @@ _geturl(NPP aNPP,
         const char* aRelativeURL,
         const char* aTarget)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     NPError err;
@@ -707,7 +669,7 @@ _posturlnotify(NPP aNPP,
                NPBool aIsFile,
                void* aNotifyData)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     if (!aBuffer)
@@ -738,7 +700,7 @@ _posturl(NPP aNPP,
          const char* aBuffer,
          NPBool aIsFile)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     NPError err;
@@ -756,7 +718,7 @@ _newstream(NPP aNPP,
            const char* aWindow,
            NPStream** aStream)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
     return InstCast(aNPP)->NPN_NewStream(aMIMEType, aWindow, aStream);
 }
@@ -767,7 +729,7 @@ _write(NPP aNPP,
        int32_t aLength,
        void* aBuffer)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     PluginStreamChild* ps =
@@ -782,7 +744,7 @@ _destroystream(NPP aNPP,
                NPStream* aStream,
                NPError aReason)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     PluginInstanceChild* p = InstCast(aNPP);
@@ -804,14 +766,14 @@ void NP_CALLBACK
 _status(NPP aNPP,
         const char* aMessage)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 }
 
 void NP_CALLBACK
 _memfree(void* aPtr)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
     NS_Free(aPtr);
 }
@@ -819,7 +781,7 @@ _memfree(void* aPtr)
 uint32_t NP_CALLBACK
 _memflush(uint32_t aSize)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
     return 0;
 }
@@ -827,7 +789,7 @@ _memflush(uint32_t aSize)
 void NP_CALLBACK
 _reloadplugins(NPBool aReloadPages)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 }
 
@@ -835,7 +797,7 @@ void NP_CALLBACK
 _invalidaterect(NPP aNPP,
                 NPRect* aInvalidRect)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
     InstCast(aNPP)->InvalidateRect(aInvalidRect);
 }
@@ -844,7 +806,7 @@ void NP_CALLBACK
 _invalidateregion(NPP aNPP,
                   NPRegion aInvalidRegion)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
     // Not implemented in Mozilla.
 }
@@ -852,14 +814,14 @@ _invalidateregion(NPP aNPP,
 void NP_CALLBACK
 _forceredraw(NPP aNPP)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 }
 
 const char* NP_CALLBACK
 _useragent(NPP aNPP)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     return PluginModuleChild::current()->GetUserAgent();
@@ -868,7 +830,7 @@ _useragent(NPP aNPP)
 void* NP_CALLBACK
 _memalloc(uint32_t aSize)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
     return NS_Alloc(aSize);
 }
@@ -877,7 +839,7 @@ _memalloc(uint32_t aSize)
 void* NP_CALLBACK /* OJI type: JRIEnv* */
 _getjavaenv(void)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
     return 0;
 }
@@ -885,7 +847,7 @@ _getjavaenv(void)
 void* NP_CALLBACK /* OJI type: jref */
 _getjavapeer(NPP aNPP)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
     return 0;
 }
@@ -893,7 +855,7 @@ _getjavapeer(NPP aNPP)
 NPIdentifier NP_CALLBACK
 _getstringidentifier(const NPUTF8* aName)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     NPRemoteIdentifier ident;
@@ -911,7 +873,7 @@ _getstringidentifiers(const NPUTF8** aNames,
                       int32_t aNameCount,
                       NPIdentifier* aIdentifiers)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     if (!(aNames && aNameCount > 0 && aIdentifiers)) {
@@ -949,7 +911,7 @@ _getstringidentifiers(const NPUTF8** aNames,
 bool NP_CALLBACK
 _identifierisstring(NPIdentifier aIdentifier)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     bool isString;
@@ -966,7 +928,7 @@ _identifierisstring(NPIdentifier aIdentifier)
 NPIdentifier NP_CALLBACK
 _getintidentifier(int32_t aIntId)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     NPRemoteIdentifier ident;
@@ -982,7 +944,7 @@ _getintidentifier(int32_t aIntId)
 NPUTF8* NP_CALLBACK
 _utf8fromidentifier(NPIdentifier aIdentifier)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     NPError err;
@@ -1000,7 +962,7 @@ _utf8fromidentifier(NPIdentifier aIdentifier)
 int32_t NP_CALLBACK
 _intfromidentifier(NPIdentifier aIdentifier)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     NPError err;
@@ -1016,6 +978,66 @@ _intfromidentifier(NPIdentifier aIdentifier)
     return (NPERR_NO_ERROR == err) ? val : -1;
 }
 
+NPObject* NP_CALLBACK
+_createobject(NPP aNPP,
+              NPClass* aClass)
+{
+    _MOZ_LOG(__FUNCTION__);
+    AssertPluginThread();
+
+    NPObject* newObject;
+    if (aClass && aClass->allocate) {
+        newObject = aClass->allocate(aNPP, aClass);
+    }
+    else {
+        newObject = reinterpret_cast<NPObject*>(_memalloc(sizeof(NPObject)));
+    }
+
+    if (newObject) {
+        newObject->_class = aClass;
+        newObject->referenceCount = 1;
+        NS_LOG_ADDREF(newObject, 1, "ChildNPObject", sizeof(NPObject));
+    }
+    return newObject;
+}
+
+NPObject* NP_CALLBACK
+_retainobject(NPObject* aNPObj)
+{
+    AssertPluginThread();
+
+#ifdef DEBUG
+    printf("[PluginModuleChild] %s: object %p, refcnt %d\n", __FUNCTION__,
+           aNPObj, aNPObj->referenceCount + 1);
+#endif
+    int32_t refCnt = PR_AtomicIncrement((PRInt32*)&aNPObj->referenceCount);
+    NS_LOG_ADDREF(aNPObj, refCnt, "ChildNPObject", sizeof(NPObject));
+
+    return aNPObj;
+}
+
+void NP_CALLBACK
+_releaseobject(NPObject* aNPObj)
+{
+    AssertPluginThread();
+
+#ifdef DEBUG
+    printf("[PluginModuleChild] %s: object %p, refcnt %d\n", __FUNCTION__,
+           aNPObj, aNPObj->referenceCount - 1);
+#endif
+    int32_t refCnt = PR_AtomicDecrement((PRInt32*)&aNPObj->referenceCount);
+    NS_LOG_RELEASE(aNPObj, refCnt, "ChildNPObject");
+
+    if (refCnt == 0) {
+        if (aNPObj->_class && aNPObj->_class->deallocate) {
+            aNPObj->_class->deallocate(aNPObj);
+        } else {
+            _memfree(aNPObj);
+        }
+    }
+    return;
+}
+
 bool NP_CALLBACK
 _invoke(NPP aNPP,
         NPObject* aNPObj,
@@ -1024,7 +1046,7 @@ _invoke(NPP aNPP,
         uint32_t aArgCount,
         NPVariant* aResult)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     if (!aNPP || !aNPObj || !aNPObj->_class || !aNPObj->_class->invoke)
@@ -1040,7 +1062,7 @@ _invokedefault(NPP aNPP,
                uint32_t aArgCount,
                NPVariant* aResult)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     if (!aNPP || !aNPObj || !aNPObj->_class || !aNPObj->_class->invokeDefault)
@@ -1055,7 +1077,7 @@ _evaluate(NPP aNPP,
           NPString* aScript,
           NPVariant* aResult)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     if (!(aNPP && aObject && aScript && aResult)) {
@@ -1079,7 +1101,7 @@ _getproperty(NPP aNPP,
              NPIdentifier aPropertyName,
              NPVariant* aResult)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     if (!aNPP || !aNPObj || !aNPObj->_class || !aNPObj->_class->getProperty)
@@ -1094,7 +1116,7 @@ _setproperty(NPP aNPP,
              NPIdentifier aPropertyName,
              const NPVariant* aValue)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     if (!aNPP || !aNPObj || !aNPObj->_class || !aNPObj->_class->setProperty)
@@ -1108,7 +1130,7 @@ _removeproperty(NPP aNPP,
                 NPObject* aNPObj,
                 NPIdentifier aPropertyName)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     if (!aNPP || !aNPObj || !aNPObj->_class || !aNPObj->_class->removeProperty)
@@ -1122,7 +1144,7 @@ _hasproperty(NPP aNPP,
              NPObject* aNPObj,
              NPIdentifier aPropertyName)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     if (!aNPP || !aNPObj || !aNPObj->_class || !aNPObj->_class->hasProperty)
@@ -1136,7 +1158,7 @@ _hasmethod(NPP aNPP,
            NPObject* aNPObj,
            NPIdentifier aMethodName)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     if (!aNPP || !aNPObj || !aNPObj->_class || !aNPObj->_class->hasMethod)
@@ -1151,7 +1173,7 @@ _enumerate(NPP aNPP,
            NPIdentifier** aIdentifiers,
            uint32_t* aCount)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     if (!aNPP || !aNPObj || !aNPObj->_class)
@@ -1174,7 +1196,7 @@ _construct(NPP aNPP,
            uint32_t aArgCount,
            NPVariant* aResult)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     if (!aNPP || !aNPObj || !aNPObj->_class ||
@@ -1189,7 +1211,7 @@ _construct(NPP aNPP,
 void NP_CALLBACK
 _releasevariantvalue(NPVariant* aVariant)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     if (NPVARIANT_IS_STRING(*aVariant)) {
@@ -1199,7 +1221,7 @@ _releasevariantvalue(NPVariant* aVariant)
     else if (NPVARIANT_IS_OBJECT(*aVariant)) {
         NPObject* object = NPVARIANT_TO_OBJECT(*aVariant);
         if (object) {
-            PluginModuleChild::NPN_ReleaseObject(object);
+            _releaseobject(object);
         }
     }
     VOID_TO_NPVARIANT(*aVariant);
@@ -1209,7 +1231,7 @@ void NP_CALLBACK
 _setexception(NPObject* aNPObj,
               const NPUTF8* aMessage)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
     NS_NOTYETIMPLEMENTED("Implement me!");
 }
@@ -1218,7 +1240,7 @@ bool NP_CALLBACK
 _pushpopupsenabledstate(NPP aNPP,
                         NPBool aEnabled)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
     bool retval;
     if (InstCast(aNPP)->CallNPN_PushPopupsEnabledState(aEnabled ? true : false,
@@ -1231,7 +1253,7 @@ _pushpopupsenabledstate(NPP aNPP,
 bool NP_CALLBACK
 _poppopupsenabledstate(NPP aNPP)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
     bool retval;
     if (InstCast(aNPP)->CallNPN_PopPopupsEnabledState(&retval)) {
@@ -1240,16 +1262,34 @@ _poppopupsenabledstate(NPP aNPP)
     return false;
 }
 
+class AsyncCallRunnable : public nsRunnable
+{
+public:
+    AsyncCallRunnable(PluginThreadCallback aFunc, void* aUserData)
+        : mFunc(aFunc)
+        , mData(aUserData)
+    { }
+
+    NS_IMETHOD Run() {
+        mFunc(mData);
+        return NS_OK;
+    }
+
+private:
+    PluginThreadCallback mFunc;
+    void* mData;
+};
+
 void NP_CALLBACK
 _pluginthreadasynccall(NPP aNPP,
                        PluginThreadCallback aFunc,
                        void* aUserData)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     if (!aFunc)
         return;
 
-    nsCOMPtr<nsIRunnable> e(new ChildAsyncCall(InstCast(aNPP), aFunc, aUserData));
+    nsCOMPtr<nsIRunnable> e(new AsyncCallRunnable(aFunc, aUserData));
     NS_DispatchToMainThread(e);
 }
 
@@ -1257,56 +1297,20 @@ NPError NP_CALLBACK
 _getvalueforurl(NPP npp, NPNURLVariable variable, const char *url,
                 char **value, uint32_t *len)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
-
-    if (!url)
-        return NPERR_INVALID_URL;
-
-    if (!npp || !value || !len)
-        return NPERR_INVALID_PARAM;
-
-    switch (variable) {
-    case NPNURLVCookie:
-    case NPNURLVProxy:
-        nsCString v;
-        NPError result;
-        InstCast(npp)->
-            CallNPN_GetValueForURL(variable, nsCString(url), &v, &result);
-        if (NPERR_NO_ERROR == result) {
-            *value = ToNewCString(v);
-            *len = v.Length();
-        }
-        return result;
-    }
-
-    return NPERR_INVALID_PARAM;
+    NS_NOTYETIMPLEMENTED("Implement me!");
+    return NPERR_GENERIC_ERROR;
 }
 
 NPError NP_CALLBACK
 _setvalueforurl(NPP npp, NPNURLVariable variable, const char *url,
                 const char *value, uint32_t len)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
-
-    if (!value)
-        return NPERR_INVALID_PARAM;
-
-    if (!url)
-        return NPERR_INVALID_URL;
-
-    switch (variable) {
-    case NPNURLVCookie:
-    case NPNURLVProxy:
-        NPError result;
-        InstCast(npp)->CallNPN_SetValueForURL(variable, nsCString(url),
-                                              nsDependentCString(value, len),
-                                              &result);
-        return result;
-    }
-
-    return NPERR_INVALID_PARAM;
+    NS_NOTYETIMPLEMENTED("Implement me!");
+    return NPERR_GENERIC_ERROR;
 }
 
 NPError NP_CALLBACK
@@ -1316,54 +1320,34 @@ _getauthenticationinfo(NPP npp, const char *protocol,
                        char **username, uint32_t *ulen,
                        char **password, uint32_t *plen)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
-
-    if (!protocol || !host || !scheme || !realm || !username || !ulen ||
-        !password || !plen)
-        return NPERR_INVALID_PARAM;
-
-    nsCString u;
-    nsCString p;
-    NPError result;
-    InstCast(npp)->
-        CallNPN_GetAuthenticationInfo(nsDependentCString(protocol),
-                                      nsDependentCString(host),
-                                      port,
-                                      nsDependentCString(scheme),
-                                      nsDependentCString(realm),
-                                      &u, &p, &result);
-    if (NPERR_NO_ERROR == result) {
-        *username = ToNewCString(u);
-        *ulen = u.Length();
-        *password = ToNewCString(p);
-        *plen = p.Length();
-    }
-    return result;
+    NS_NOTYETIMPLEMENTED("Implement me!");
+    return NPERR_GENERIC_ERROR;
 }
 
 uint32_t NP_CALLBACK
-_scheduletimer(NPP npp, uint32_t interval, NPBool repeat,
+_scheduletimer(NPP instance, uint32_t interval, NPBool repeat,
                void (*timerFunc)(NPP npp, uint32_t timerID))
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
-
-    return InstCast(npp)->ScheduleTimer(interval, repeat, timerFunc);
+    NS_NOTYETIMPLEMENTED("Implement me!");
+    return 0;
 }
 
 void NP_CALLBACK
-_unscheduletimer(NPP npp, uint32_t timerID)
+_unscheduletimer(NPP instance, uint32_t timerID)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
-    InstCast(npp)->UnscheduleTimer(timerID);
+    NS_NOTYETIMPLEMENTED("Implement me!");
 }
 
 NPError NP_CALLBACK
 _popupcontextmenu(NPP instance, NPMenu* menu)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
     NS_NOTYETIMPLEMENTED("Implement me!");
     return NPERR_GENERIC_ERROR;
@@ -1374,7 +1358,7 @@ _convertpoint(NPP instance,
               double sourceX, double sourceY, NPCoordinateSpace sourceSpace,
               double *destX, double *destY, NPCoordinateSpace destSpace)
 {
-    PLUGIN_LOG_DEBUG_FUNCTION;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
     NS_NOTYETIMPLEMENTED("Implement me!");
     return 0;
@@ -1389,7 +1373,7 @@ _convertpoint(NPP instance,
 bool
 PluginModuleChild::AnswerNP_Initialize(NPError* _retval)
 {
-    PLUGIN_LOG_DEBUG_METHOD;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
 #if defined(OS_LINUX)
@@ -1423,7 +1407,7 @@ PluginModuleChild::AllocPPluginInstance(const nsCString& aMimeType,
                                         const nsTArray<nsCString>& aValues,
                                         NPError* rv)
 {
-    PLUGIN_LOG_DEBUG_METHOD;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     nsAutoPtr<PluginInstanceChild> childInstance(
@@ -1443,7 +1427,7 @@ PluginModuleChild::AnswerPPluginInstanceConstructor(PPluginInstanceChild* aActor
                                                     const nsTArray<nsCString>& aValues,
                                                     NPError* rv)
 {
-    PLUGIN_LOG_DEBUG_METHOD;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     PluginInstanceChild* childInstance =
@@ -1460,10 +1444,13 @@ PluginModuleChild::AnswerPPluginInstanceConstructor(PPluginInstanceChild* aActor
     argn[argc] = 0;
     argv[argc] = 0;
 
+    printf ("(plugin args: ");
     for (int i = 0; i < argc; ++i) {
         argn[i] = const_cast<char*>(NullableStringGet(aNames[i]));
         argv[i] = const_cast<char*>(NullableStringGet(aValues[i]));
+        printf("%s=%s, ", argn[i], argv[i]);
     }
+    printf(")\n");
 
     NPP npp = childInstance->GetNPP();
 
@@ -1479,13 +1466,14 @@ PluginModuleChild::AnswerPPluginInstanceConstructor(PPluginInstanceChild* aActor
         return false;
     }
 
+    printf ("[PluginModuleChild] %s: returning %hd\n", __FUNCTION__, *rv);
     return true;
 }
 
 bool
 PluginModuleChild::DeallocPPluginInstance(PPluginInstanceChild* aActor)
 {
-    PLUGIN_LOG_DEBUG_METHOD;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
     delete aActor;
@@ -1497,121 +1485,12 @@ bool
 PluginModuleChild::PluginInstanceDestroyed(PluginInstanceChild* aActor,
                                            NPError* rv)
 {
-    PLUGIN_LOG_DEBUG_METHOD;
+    _MOZ_LOG(__FUNCTION__);
     AssertPluginThread();
 
-    NPP npp = aActor->GetNPP();
-
-    *rv = mFunctions.destroy(npp, 0);
-    npp->ndata = 0;
-
-    DeallocNPObjectsForInstance(aActor);
+    *rv = mFunctions.destroy(aActor->GetNPP(), 0);
+    aActor->Destroy();
+    aActor->GetNPP()->ndata = 0;
 
     return true;
-}
-
-NPObject* NP_CALLBACK
-PluginModuleChild::NPN_CreateObject(NPP aNPP, NPClass* aClass)
-{
-    PLUGIN_LOG_DEBUG_FUNCTION;
-    AssertPluginThread();
-
-    PluginInstanceChild* i = InstCast(aNPP);
-
-    NPObject* newObject;
-    if (aClass && aClass->allocate) {
-        newObject = aClass->allocate(aNPP, aClass);
-    }
-    else {
-        newObject = reinterpret_cast<NPObject*>(child::_memalloc(sizeof(NPObject)));
-    }
-
-    if (newObject) {
-        newObject->_class = aClass;
-        newObject->referenceCount = 1;
-        NS_LOG_ADDREF(newObject, 1, "NPObject", sizeof(NPObject));
-    }
-
-    NPObjectData* d = static_cast<PluginModuleChild*>(i->Manager())
-        ->mObjectMap.PutEntry(newObject);
-    NS_ASSERTION(!d->instance, "New NPObject already mapped?");
-    d->instance = i;
-
-    return newObject;
-}
-
-NPObject* NP_CALLBACK
-PluginModuleChild::NPN_RetainObject(NPObject* aNPObj)
-{
-    AssertPluginThread();
-
-    int32_t refCnt = PR_AtomicIncrement((PRInt32*)&aNPObj->referenceCount);
-    NS_LOG_ADDREF(aNPObj, refCnt, "NPObject", sizeof(NPObject));
-
-    return aNPObj;
-}
-
-void NP_CALLBACK
-PluginModuleChild::NPN_ReleaseObject(NPObject* aNPObj)
-{
-    AssertPluginThread();
-
-    int32_t refCnt = PR_AtomicDecrement((PRInt32*)&aNPObj->referenceCount);
-    NS_LOG_RELEASE(aNPObj, refCnt, "NPObject");
-
-    if (refCnt == 0) {
-        DeallocNPObject(aNPObj);
-#ifdef DEBUG
-        NPObjectData* d = current()->mObjectMap.GetEntry(aNPObj);
-        NS_ASSERTION(d, "NPObject not mapped?");
-        NS_ASSERTION(!d->actor, "NPObject has actor at destruction?");
-#endif
-        current()->mObjectMap.RemoveEntry(aNPObj);
-    }
-    return;
-}
-
-void
-PluginModuleChild::DeallocNPObject(NPObject* aNPObj)
-{
-    if (aNPObj->_class && aNPObj->_class->deallocate) {
-        aNPObj->_class->deallocate(aNPObj);
-    } else {
-        child::_memfree(aNPObj);
-    }
-}
-
-PLDHashOperator
-PluginModuleChild::DeallocForInstance(NPObjectData* d, void* userArg)
-{
-    if (d->instance == static_cast<PluginInstanceChild*>(userArg)) {
-        NPObject* o = d->GetKey();
-        if (o->_class && o->_class->invalidate)
-            o->_class->invalidate(o);
-
-#ifdef NS_BUILD_REFCNT_LOGGING
-        {
-            int32_t refCnt = o->referenceCount;
-            while (refCnt) {
-                --refCnt;
-                NS_LOG_RELEASE(o, refCnt, "NPObject");
-            }
-        }
-#endif
-
-        DeallocNPObject(o);
-
-        if (d->actor)
-            d->actor->NPObjectDestroyed();
-
-        return PL_DHASH_REMOVE;
-    }
-
-    return PL_DHASH_NEXT;
-}
-
-void
-PluginModuleChild::DeallocNPObjectsForInstance(PluginInstanceChild* instance)
-{
-    mObjectMap.EnumerateEntries(DeallocForInstance, instance);
 }

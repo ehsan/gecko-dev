@@ -143,19 +143,24 @@ function whereToOpenLink( e, ignoreButton, ignoreAlt )
   // Don't do anything special with right-mouse clicks.  They're probably clicks on context menu items.
 
 #ifdef XP_MACOSX
-  if (meta || (middle && middleUsesTabs))
+  if (meta || (middle && middleUsesTabs)) {
 #else
-  if (ctrl || (middle && middleUsesTabs))
+  if (ctrl || (middle && middleUsesTabs)) {
 #endif
-    return shift ? "tabshifted" : "tab";
-
-  if (alt)
+    if (shift)
+      return "tabshifted";
+    else
+      return "tab";
+  }
+  else if (alt) {
     return "save";
-
-  if (shift || (middle && !middleUsesTabs))
+  }
+  else if (shift || (middle && !middleUsesTabs)) {
     return "window";
-
-  return "current";
+  }
+  else {
+    return "current";
+  }
 }
 
 /* openUILinkIn opens a URL in a place specified by the parameter |where|.
@@ -167,33 +172,17 @@ function whereToOpenLink( e, ignoreButton, ignoreAlt )
  *  "window"      new window
  *  "save"        save to disk (with no filename hint!)
  *
- * aAllowThirdPartyFixup controls whether third party services such as Google's
+ * allowThirdPartyFixup controls whether third party services such as Google's
  * I Feel Lucky are allowed to interpret this URL. This parameter may be
  * undefined, which is treated as false.
- *
- * Instead of aAllowThirdPartyFixup, you may also pass an object with any of
- * these properties:
- *   allowThirdPartyFixup (boolean)
- *   postData             (nsIInputStream)
- *   referrerURI          (nsIURI)
- *   relatedToCurrent     (boolean)
  */
-function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI) {
+function openUILinkIn( url, where, allowThirdPartyFixup, postData, referrerUrl )
+{
   if (!where || !url)
     return;
 
-  var aRelatedToCurrent;
-  if (arguments.length == 3 &&
-      typeof arguments[2] == "object") {
-    let params = arguments[2];
-    aAllowThirdPartyFixup = params.allowThirdPartyFixup;
-    aPostData             = params.postData;
-    aReferrerURI          = params.referrerURI;
-    aRelatedToCurrent     = params.relatedToCurrent;
-  }
-
   if (where == "save") {
-    saveURL(url, null, null, true, null, aReferrerURI);
+    saveURL(url, null, null, true, null, referrerUrl);
     return;
   }
   const Cc = Components.classes;
@@ -211,12 +200,12 @@ function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI
 
     var allowThirdPartyFixupSupports = Cc["@mozilla.org/supports-PRBool;1"].
                                        createInstance(Ci.nsISupportsPRBool);
-    allowThirdPartyFixupSupports.data = aAllowThirdPartyFixup;
+    allowThirdPartyFixupSupports.data = allowThirdPartyFixup;
 
     sa.AppendElement(wuri);
     sa.AppendElement(null);
-    sa.AppendElement(aReferrerURI);
-    sa.AppendElement(aPostData);
+    sa.AppendElement(referrerUrl);
+    sa.AppendElement(postData);
     sa.AppendElement(allowThirdPartyFixupSupports);
 
     var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
@@ -235,19 +224,18 @@ function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI
 
   switch (where) {
   case "current":
-    w.loadURI(url, aReferrerURI, aPostData, aAllowThirdPartyFixup);
+    w.loadURI(url, referrerUrl, postData, allowThirdPartyFixup);
     break;
   case "tabshifted":
     loadInBackground = !loadInBackground;
     // fall through
   case "tab":
-    let browser = w.gBrowser;
+    let browser = w.getBrowser();
     browser.loadOneTab(url, {
-                       referrerURI: aReferrerURI,
-                       postData: aPostData,
+                       referrerURI: referrerUrl,
+                       postData: postData,
                        inBackground: loadInBackground,
-                       allowThirdPartyFixup: aAllowThirdPartyFixup,
-                       relatedToCurrent: aRelatedToCurrent});
+                       allowThirdPartyFixup: allowThirdPartyFixup});
     break;
   }
 

@@ -38,7 +38,6 @@ DEPTH		= ../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
-relativesrcdir = toolkit/xre/test
 
 include $(DEPTH)/config/autoconf.mk
 
@@ -48,11 +47,4 @@ ifeq ($(OS_ARCH),WINNT)
 DIRS += win
 endif
 
-MOCHITEST_FILES = \
-  test_fpuhandler.html \
-  $(NULL)
-
 include $(topsrcdir)/config/rules.mk
-
-libs:: $(MOCHITEST_FILES)
-	$(INSTALL) $^ $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

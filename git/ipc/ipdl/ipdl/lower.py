@@ -2448,23 +2448,14 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             + _includeGuardEnd(hf))
 
         # make the .cpp file
-        cf.addthings([
-            disclaimer,
-            Whitespace.NL,
-            CppDirective(
-                'include',
-                '"'+ _protocolHeaderName(self.protocol, self.side) +'.h"')
-        ])
-             
-        if self.protocol.decl.type.isToplevel():
-            cf.addthings([
-                CppDirective('ifdef', 'MOZ_CRASHREPORTER'),
-                CppDirective('  include', '"nsXULAppAPI.h"'),
-                CppDirective('endif')
-            ])
-
         cf.addthings((
-            [ Whitespace.NL ]
+            [ disclaimer,
+              Whitespace.NL,
+              CppDirective(
+                  'include',
+                  '"'+ _protocolHeaderName(self.protocol, self.side) +'.h"'),
+              Whitespace.NL
+            ]
             + self.protocolCxxIncludes
             + [ Whitespace.NL ]
             + self.standardTypedefs()
@@ -2791,20 +2782,16 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
 
         # OnChannelClose()
         onclose = MethodDefn(MethodDecl('OnChannelClose'))
-        onclose.addstmts([
-            StmtExpr(ExprCall(destroysubtreevar,
-                              args=[ _DestroyReason.NormalShutdown ])),
-            StmtExpr(ExprCall(deallocsubtreevar))
-        ])
+        onclose.addstmt(StmtExpr(ExprCall(
+            destroysubtreevar,
+            args=[ _DestroyReason.NormalShutdown ])))
         self.cls.addstmts([ onclose, Whitespace.NL ])
 
         # OnChannelClose()
         onerror = MethodDefn(MethodDecl('OnChannelError'))
-        onerror.addstmts([
-            StmtExpr(ExprCall(destroysubtreevar,
-                              args=[ _DestroyReason.AbnormalShutdown ])),
-            StmtExpr(ExprCall(deallocsubtreevar))
-        ])
+        onerror.addstmt(StmtExpr(ExprCall(
+            destroysubtreevar,
+            args=[ _DestroyReason.AbnormalShutdown ])))
         self.cls.addstmts([ onerror, Whitespace.NL ])
 
         # FIXME: only manager protocols and non-manager protocols with
@@ -2815,39 +2802,6 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
 
         if p.usesShmem():
             self.cls.addstmts(self.makeShmemIface())
-
-        if p.decl.type.isToplevel() and self.side is 'parent':
-            ## bool GetMinidump(nsIFile** dump)
-            self.cls.addstmt(Label.PROTECTED)
-
-            otherpidvar = ExprVar('OtherSidePID')
-            otherpid = MethodDefn(MethodDecl(
-                otherpidvar.name, params=[ ],
-                ret=Type('base::ProcessId'),
-                const=1))
-            otherpid.addstmts([
-                StmtReturn(ExprCall(
-                    ExprVar('base::GetProcId'),
-                    args=[ p.otherProcessVar() ])),
-            ])
-
-            dumpvar = ExprVar('aDump')
-            getdump = MethodDefn(MethodDecl(
-                'GetMinidump',
-                params=[ Decl(Type('nsIFile', ptrptr=1), dumpvar.name) ],
-                ret=Type.BOOL,
-                const=1))
-            getdump.addstmts([
-                CppDirective('ifdef', 'MOZ_CRASHREPORTER'),
-                StmtReturn(ExprCall(
-                    ExprVar('XRE_GetMinidumpForChild'),
-                    args=[ ExprCall(otherpidvar), dumpvar ])),
-                CppDirective('else'),
-                StmtReturn(ExprLiteral.FALSE),
-                CppDirective('endif')
-            ])
-            self.cls.addstmts([ otherpid, Whitespace.NL,
-                                getdump, Whitespace.NL ])
 
         ## private methods
         self.cls.addstmt(Label.PRIVATE)
@@ -2930,6 +2884,12 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         # finally, destroy "us"
         destroysubtree.addstmt(StmtExpr(
             ExprCall(_destroyMethod(), args=[ whyvar ])))
+
+        # XXX kick off DeallocSubtree() here rather than in a new
+        # event because that may be tricky on shutdown.  revisit if
+        # need be
+        if p.decl.type.isToplevel():
+            destroysubtree.addstmt(StmtExpr(ExprCall(deallocsubtreevar)))
         
         self.cls.addstmts([ destroysubtree, Whitespace.NL ])
 
@@ -3474,11 +3434,10 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
 
     def dtorEpilogue(self, md, actorexpr):
         return (self.unregisterActor(actorexpr)
-                + [ StmtExpr(self.callActorDestroy(actorexpr)),
-                    StmtExpr(self.callRemoveActor(actorexpr)),
-                    StmtExpr(self.callDeallocSubtree(md, actorexpr)),
-                    StmtExpr(self.callDeallocActor(md, actorexpr))
-                  ])
+                + [ StmtExpr(self.callActorDestroy(actorexpr)) ]
+                + [ StmtExpr(self.callRemoveActor(actorexpr)) ]
+                + [ StmtExpr(self.callDeallocActor(md, actorexpr))
+                ])
 
     def genAsyncSendMethod(self, md):
         method = MethodDefn(self.makeSendMethodDecl(md))
@@ -3527,7 +3486,6 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         failif = StmtIf(ExprNot(readok))
         failif.addifstmt(StmtReturn(_Result.PayloadError))
 
-        idvar, saveIdStmts = self.saveActorId(md)
         case.addstmts(
             stmts
             + [ failif, Whitespace.NL ]
@@ -3540,9 +3498,8 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             + self.ctorPrologue(md, errfn=_Result.ValuError,
                                 idexpr=_actorHId(actorhandle))
             + [ Whitespace.NL ]
-            + saveIdStmts
             + self.invokeRecvHandler(md)
-            + self.makeReply(md, errfnRecv, idvar)
+            + self.makeReply(md, errfnRecv)
             + [ Whitespace.NL,
                 StmtReturn(_Result.Processed) ])
 
@@ -3557,7 +3514,6 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         failif = StmtIf(ExprNot(readok))
         failif.addifstmt(StmtReturn(_Result.PayloadError))
 
-        idvar, saveIdStmts = self.saveActorId(md)
         case.addstmts(
             stmts
             + [ failif, Whitespace.NL ]
@@ -3565,10 +3521,8 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
                 for r in md.returns ]
             + self.invokeRecvHandler(md, implicit=0)
             + [ Whitespace.NL ]
-            + saveIdStmts
             + self.dtorEpilogue(md, md.actorDecl().var())
-            + [ Whitespace.NL ]
-            + self.makeReply(md, errfnRecv, routingId=idvar)
+            + self.makeReply(md, errfnRecv)
             + [ Whitespace.NL,
                 StmtReturn(_Result.Processed) ])
         
@@ -3583,16 +3537,14 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         failif = StmtIf(ExprNot(readok))
         failif.addifstmt(StmtReturn(_Result.PayloadError))
 
-        idvar, saveIdStmts = self.saveActorId(md)
         case.addstmts(
             stmts
             + [ failif, Whitespace.NL ]
             + [ StmtDecl(Decl(r.bareType(self.side), r.var().name))
                 for r in md.returns ]
-            + saveIdStmts
             + self.invokeRecvHandler(md)
             + [ Whitespace.NL ]
-            + self.makeReply(md, errfnRecv, routingId=idvar)
+            + self.makeReply(md, errfnRecv)
             + [ StmtReturn(_Result.Processed) ])
 
         return lbl, case
@@ -3621,19 +3573,18 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             msgCtorArgs.append(arg)
             stmts.extend(sstmts)
 
-        routingId = self.protocol.routingId(fromActor)
         stmts.extend([
             StmtExpr(ExprAssn(
                 msgvar,
                 ExprNew(Type(md.pqMsgClass()), args=msgCtorArgs))) ]
-            + self.setMessageFlags(md, msgvar, reply=0, routingId=routingId))
+            + self.setMessageFlags(md, msgvar, reply=0, actor=fromActor))
 
         return msgvar, stmts
 
 
-    def makeReply(self, md, errfn, routingId):
+    def makeReply(self, md, errfn):
         # TODO special cases for async ctor/dtor replies
-        if not md.decl.type.hasReply():
+        if md.decl.type.isAsync():
             return [ ]
 
         replyvar = self.replyvar
@@ -3648,19 +3599,16 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             StmtExpr(ExprAssn(
                 replyvar,
                 ExprNew(Type(md.pqReplyClass()), args=replyCtorArgs))) ]
-            + self.setMessageFlags(md, replyvar, reply=1, routingId=routingId)
+            + self.setMessageFlags(md, replyvar, reply=1)
             +[ self.logMessage(md, md.replyCast(replyvar), 'Sending reply ') ])
         
         return stmts
 
 
-    def setMessageFlags(self, md, var, reply, routingId=None):
-        if routingId is None:
-            routingId = self.protocol.routingId()
-        
+    def setMessageFlags(self, md, var, reply, actor=None):
         stmts = [ StmtExpr(ExprCall(
             ExprSelect(var, '->', 'set_routing_id'),
-            args=[ routingId ])) ]
+            args=[ self.protocol.routingId(actor) ])) ]
 
         if md.decl.type.isSync():
             stmts.append(StmtExpr(ExprCall(
@@ -3798,9 +3746,6 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             actorarray = self.protocol.managerArrayExpr(actorexpr, self.side)
         return _callCxxArrayRemoveSorted(actorarray, actorexpr)
 
-    def callDeallocSubtree(self, md, actorexpr):
-        return ExprCall(ExprSelect(actorexpr, '->', 'DeallocSubtree'))
-
     def callDeallocActor(self, md, actorexpr):
         actor = md.decl.type.constructedType()
         return ExprCall(
@@ -3840,17 +3785,6 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
                 ExprSelect(msgptr, '->', 'Log'),
                 args=[ ExprLiteral.String('['+ actorname +'] '+ pfx),
                        ExprVar('stderr') ])) ])
-
-    def saveActorId(self, md):
-        idvar = ExprVar('__id')
-        if md.decl.type.hasReply():
-            # only save the ID if we're actually going to use it, to
-            # avoid unused-variable warnings
-            saveIdStmts = [ StmtDecl(Decl(_actorIdType(), idvar.name),
-                                     self.protocol.routingId()) ]
-        else:
-            saveIdStmts = [ ]
-        return idvar, saveIdStmts
 
 
 class _GenerateProtocolParentCode(_GenerateProtocolActorCode):

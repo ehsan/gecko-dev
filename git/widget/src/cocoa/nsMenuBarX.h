@@ -42,14 +42,15 @@
 #import <Cocoa/Cocoa.h>
 
 #include "nsMenuBaseX.h"
-#include "nsMenuGroupOwnerX.h"
-#include "nsChangeObserver.h"
+#include "nsIMutationObserver.h"
+#include "nsHashtable.h"
 #include "nsINativeMenuService.h"
 #include "nsAutoPtr.h"
 #include "nsString.h"
 
 class nsMenuX;
 class nsMenuItemX;
+class nsChangeObserver;
 class nsIWidget;
 class nsIContent;
 class nsIDocument;
@@ -106,7 +107,8 @@ public:
 
 // Once instantiated, this object lives until its DOM node or its parent window is destroyed.
 // Do not hold references to this, they can become invalid any time the DOM node can be destroyed.
-class nsMenuBarX : public nsMenuGroupOwnerX, public nsChangeObserver
+class nsMenuBarX : public nsMenuObjectX,
+                   public nsIMutationObserver
 {
 public:
   nsMenuBarX();
@@ -121,8 +123,8 @@ public:
   nsCOMPtr<nsIContent> mPrefItemContent;
   nsCOMPtr<nsIContent> mQuitItemContent;
 
-  // nsChangeObserver
-  NS_DECL_CHANGEOBSERVER
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIMUTATIONOBSERVER
 
   // nsMenuObjectX
   void*             NativeData()     {return (void*)mNativeMenu;}
@@ -131,11 +133,14 @@ public:
   // nsMenuBarX
   nsresult          Create(nsIWidget* aParent, nsIContent* aContent);
   void              SetParent(nsIWidget* aParent);
+  void              RegisterForContentChanges(nsIContent* aContent, nsChangeObserver* aMenuObject);
+  void              UnregisterForContentChanges(nsIContent* aContent);
+  PRUint32          RegisterForCommand(nsMenuItemX* aItem);
+  void              UnregisterCommand(PRUint32 aCommandID);
   PRUint32          GetMenuCount();
   bool              MenuContainsAppMenu();
   nsMenuX*          GetMenuAt(PRUint32 aIndex);
-  nsMenuX*          GetXULHelpMenu();
-  void              SetSystemHelpMenu();
+  nsMenuItemX*      GetMenuItemForCommandID(PRUint32 inCommandID);
   nsresult          Paint();
   void              ForceUpdateNativeMenuAt(const nsAString& indexString);
   void              ForceNativeMenuReload(); // used for testing
@@ -145,6 +150,7 @@ protected:
   void              ConstructNativeMenus();
   nsresult          InsertMenuAtIndex(nsMenuX* aMenu, PRUint32 aIndex);
   void              RemoveMenuAtIndex(PRUint32 aIndex);
+  nsChangeObserver* LookupContentChangeObserver(nsIContent* aContent);
   void              HideItem(nsIDOMDocument* inDoc, const nsAString & inID, nsIContent** outHiddenNode);
   void              AquifyMenuBar();
   NSMenuItem*       CreateNativeAppMenuItem(nsMenuX* inMenu, const nsAString& nodeID, SEL action,
@@ -153,7 +159,10 @@ protected:
 
   nsTArray< nsAutoPtr<nsMenuX> > mMenuArray;
   nsIWidget*         mParentWindow;        // [weak]
+  PRUint32           mCurrentCommandID;    // unique command id (per menu-bar) to give to next item that asks
+  nsIDocument*       mDocument;            // pointer to document
   GeckoNSMenu*       mNativeMenu;            // root menu, representing entire menu bar
+  nsHashtable        mObserverTable;       // stores observers for content change notification
 };
 
 #endif // nsMenuBarX_h_

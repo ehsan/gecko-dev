@@ -39,7 +39,6 @@
 #include "nsSVGNumber.h"
 #include "nsTextFormatter.h"
 #include "prdtoa.h"
-#include "nsDOMError.h"
 #include "nsSVGValue.h"
 #include "nsISVGValueUtils.h"
 #include "nsContentUtils.h"
@@ -140,10 +139,11 @@ nsSVGNumber::SetValueString(const nsAString& aValue)
 
       // check to see if there is trailing stuff...
       if (*rest != '\0') {
-        rv = NS_ERROR_DOM_SYNTAX_ERR;
+        rv = NS_ERROR_FAILURE;
+        NS_ERROR("trailing data in number value");
       }
     } else {
-      rv = NS_ERROR_DOM_SYNTAX_ERR;
+      rv = NS_ERROR_FAILURE;
       // no number
     }
   }

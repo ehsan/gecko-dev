@@ -67,6 +67,7 @@
 #include "nsStyleSet.h"
 #include "nsIViewManager.h"
 #include "nsIEventStateManager.h"
+#include "nsIScrollableView.h"
 #include "nsStyleConsts.h"
 #include "nsTableOuterFrame.h"
 #include "nsIDOMXULElement.h"
@@ -2165,11 +2166,7 @@ static PRBool
 NeedFrameFor(nsIFrame*   aParentFrame,
              nsIContent* aChildContent) 
 {
-  // XXX the GetContent() != aChildContent check is needed due to bug 135040.
-  // Remove it once that's fixed.
-  NS_PRECONDITION(!aChildContent->GetPrimaryFrame() ||
-                  aChildContent->GetPrimaryFrame()->GetContent() != aChildContent,
-                  "Why did we get called?");
+  NS_PRECONDITION(!aChildContent->GetPrimaryFrame(), "Why did we get called?");
 
   // don't create a whitespace frame if aParentFrame doesn't want it.
   // always create frames for children in generated content. counter(),
@@ -2769,7 +2766,16 @@ nsCSSFrameConstructor::SetUpDocElementContainingBlock(nsIContent* aDocElement)
                                                   rootPseudo,
                                                   PR_TRUE,
                                                   newFrame);
+
+      nsIScrollableFrame* scrollable = do_QueryFrame(newFrame);
+      NS_ENSURE_TRUE(scrollable, NS_ERROR_FAILURE);
+
+      nsIScrollableView* scrollableView = scrollable->GetScrollableView();
+      NS_ENSURE_TRUE(scrollableView, NS_ERROR_FAILURE);
+
+      mPresShell->GetViewManager()->SetRootScrollableView(scrollableView);
       parentFrame = newFrame;
+
       mGfxScrollFrame = newFrame;
   }
   
@@ -4262,6 +4268,16 @@ nsCSSFrameConstructor::FinishBuildingScrollFrame(nsIFrame* aScrollFrame,
 {
   nsFrameList scrolled(aScrolledFrame, aScrolledFrame);
   aScrollFrame->AppendFrames(nsnull, scrolled);
+
+  // force the scrolled frame to have a view. The view will be parented to
+  // the correct anonymous inner view because the scrollframes override
+  // nsIFrame::GetParentViewForChildFrame.
+  nsHTMLContainerFrame::CreateViewForFrame(aScrolledFrame, PR_TRUE);
+
+  // XXXbz what's the point of the code after this in this method?
+  nsIView* view = aScrolledFrame->GetView();
+  if (!view)
+    return;
 }
 
 
@@ -4387,17 +4403,17 @@ nsCSSFrameConstructor::FindDisplayData(const nsStyleDisplay* aDisplay,
                   NS_NewTableCaptionFrame) },
     { NS_STYLE_DISPLAY_TABLE_ROW_GROUP,
       FCDATA_DECL(FCDATA_IS_TABLE_PART | FCDATA_DISALLOW_OUT_OF_FLOW |
-                  FCDATA_SKIP_ABSPOS_PUSH |
+                  FCDATA_MAY_NEED_SCROLLFRAME | FCDATA_SKIP_ABSPOS_PUSH |
                   FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeTable),
                   NS_NewTableRowGroupFrame) },
     { NS_STYLE_DISPLAY_TABLE_HEADER_GROUP,
       FCDATA_DECL(FCDATA_IS_TABLE_PART | FCDATA_DISALLOW_OUT_OF_FLOW |
-                  FCDATA_SKIP_ABSPOS_PUSH |
+                  FCDATA_MAY_NEED_SCROLLFRAME | FCDATA_SKIP_ABSPOS_PUSH |
                   FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeTable),
                   NS_NewTableRowGroupFrame) },
     { NS_STYLE_DISPLAY_TABLE_FOOTER_GROUP,
       FCDATA_DECL(FCDATA_IS_TABLE_PART | FCDATA_DISALLOW_OUT_OF_FLOW |
-                  FCDATA_SKIP_ABSPOS_PUSH |
+                  FCDATA_MAY_NEED_SCROLLFRAME | FCDATA_SKIP_ABSPOS_PUSH |
                   FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeTable),
                   NS_NewTableRowGroupFrame) },
     { NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP,
@@ -7502,10 +7518,7 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
     // can require plugin clipping to change. If we requested a reflow,
     // we don't need to do this since the reflow will do it for us.
     nsIFrame* rootFrame = mPresShell->FrameManager()->GetRootFrame();
-    nsRootPresContext* rootPC = presContext->GetRootPresContext();
-    if (rootPC) {
-      rootPC->UpdatePluginGeometry(rootFrame);
-    }
+    presContext->RootPresContext()->UpdatePluginGeometry(rootFrame);
   }
 
   // cleanup references and verify the style tree.  Note that the latter needs
@@ -7895,36 +7908,40 @@ nsCSSFrameConstructor::CreateContinuingTableFrame(nsIPresShell* aPresShell,
     for ( ; childFrame; childFrame = childFrame->GetNextSibling()) {
       // See if it's a header/footer, possibly wrapped in a scroll frame.
       nsTableRowGroupFrame* rowGroupFrame =
-        static_cast<nsTableRowGroupFrame*>(childFrame);
-      // If the row group was continued, then don't replicate it.
-      nsIFrame* rgNextInFlow = rowGroupFrame->GetNextInFlow();
-      if (rgNextInFlow) {
-        rowGroupFrame->SetRepeatable(PR_FALSE);
-      }
-      else if (rowGroupFrame->IsRepeatable()) {
-        // Replicate the header/footer frame.
-        nsTableRowGroupFrame*   headerFooterFrame;
-        nsFrameItems            childItems;
-        nsFrameConstructorState state(mPresShell, mFixedContainingBlock,
-                                      GetAbsoluteContainingBlock(newFrame),
-                                      nsnull);
+        nsTableFrame::GetRowGroupFrame(childFrame);
+      if (rowGroupFrame) {
+        // If the row group was continued, then don't replicate it.
+        nsIFrame* rgNextInFlow = rowGroupFrame->GetNextInFlow();
+        if (rgNextInFlow) {
+          rowGroupFrame->SetRepeatable(PR_FALSE);
+        }
+        else if (rowGroupFrame->IsRepeatable()) {        
+          // Replicate the header/footer frame.
+          nsTableRowGroupFrame*   headerFooterFrame;
+          nsFrameItems            childItems;
+          nsFrameConstructorState state(mPresShell, mFixedContainingBlock,
+                                        GetAbsoluteContainingBlock(newFrame),
+                                        nsnull);
 
-        headerFooterFrame = static_cast<nsTableRowGroupFrame*>
-                                       (NS_NewTableRowGroupFrame(aPresShell, rowGroupFrame->GetStyleContext()));
-        nsIContent* headerFooter = rowGroupFrame->GetContent();
-        headerFooterFrame->Init(headerFooter, newFrame, nsnull);
-        ProcessChildren(state, headerFooter, rowGroupFrame->GetStyleContext(),
-                        headerFooterFrame, PR_TRUE, childItems, PR_FALSE,
-                        nsnull);
-        NS_ASSERTION(state.mFloatedItems.IsEmpty(), "unexpected floated element");
-        headerFooterFrame->SetInitialChildList(nsnull, childItems);
-        headerFooterFrame->SetRepeatable(PR_TRUE);
+          headerFooterFrame = static_cast<nsTableRowGroupFrame*>
+                                         (NS_NewTableRowGroupFrame(aPresShell, rowGroupFrame->GetStyleContext()));
+          nsIContent* headerFooter = rowGroupFrame->GetContent();
+          headerFooterFrame->Init(headerFooter, newFrame, nsnull);
+          // No ancestor bindings to worry about ordering with, so null pending
+          // binding is ok.
+          ProcessChildren(state, headerFooter, rowGroupFrame->GetStyleContext(),
+                          headerFooterFrame, PR_TRUE, childItems, PR_FALSE,
+                          nsnull);
+          NS_ASSERTION(state.mFloatedItems.IsEmpty(), "unexpected floated element");
+          headerFooterFrame->SetInitialChildList(nsnull, childItems);
+          headerFooterFrame->SetRepeatable(PR_TRUE);
 
-        // Table specific initialization
-        headerFooterFrame->InitRepeatedFrame(aPresContext, rowGroupFrame);
+          // Table specific initialization
+          headerFooterFrame->InitRepeatedFrame(aPresContext, rowGroupFrame);
 
-        // XXX Deal with absolute and fixed frames...
-        childFrames.AddChild(headerFooterFrame);
+          // XXX Deal with absolute and fixed frames...
+          childFrames.AddChild(headerFooterFrame);
+        }
       }
     }
     

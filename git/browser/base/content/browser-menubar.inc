@@ -605,8 +605,8 @@
                         key="key_privatebrowsing"
                         command="Tools:PrivateBrowsing"/>
               <menuitem id="sanitizeItem"
-                        accesskey="&clearRecentHistory.accesskey;"
-                        label="&clearRecentHistory.label;"
+                        accesskey="&clearRecentHistoryCmd.accesskey;"
+                        label="&clearRecentHistoryCmd.label;"
                         key="key_sanitize"
                         command="Tools:Sanitize"/>
 #ifndef XP_UNIX

@@ -69,18 +69,11 @@ public:
                        nsSMILValue& aResult) const;
 
   union {
-    PRBool mBool;
-    PRUint64 mUint;
     PRInt64 mInt;
     double mDouble;
     void* mPtr;
   } mU;
   const nsISMILType* mType;
-
-protected:
-  nsresult InitAndCheckPostcondition(const nsISMILType* aNewType);
-  void     DestroyAndCheckPostcondition();
-  nsresult DestroyAndReinit(const nsISMILType* aNewType);
 };
 
 #endif  // NS_SMILVALUE_H_

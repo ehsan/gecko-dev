@@ -71,6 +71,7 @@
 #include "nsIDOMKeyEvent.h"
 #include "nsEventDispatcher.h"
 #include "nsIPrivateDOMEvent.h"
+#include "nsIScrollableView.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
@@ -180,6 +181,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsMenuFrame)
 
 NS_QUERYFRAME_HEAD(nsMenuFrame)
   NS_QUERYFRAME_ENTRY(nsIMenuFrame)
+  NS_QUERYFRAME_ENTRY(nsIScrollableViewProvider)
 NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
 
 //
@@ -1332,13 +1334,14 @@ nsMenuFrame::SetActiveChild(nsIDOMElement* aChild)
   return NS_OK;
 }
 
-nsIScrollableFrame* nsMenuFrame::GetScrollTargetFrame()
+nsIScrollableView* nsMenuFrame::GetScrollableView()
 {
   if (!mPopupFrame)
     return nsnull;
+
   nsIFrame* childFrame = mPopupFrame->GetFirstChild(nsnull);
   if (childFrame)
-    return mPopupFrame->GetScrollFrame(childFrame);
+    return mPopupFrame->GetScrollableView(childFrame);
   return nsnull;
 }
 

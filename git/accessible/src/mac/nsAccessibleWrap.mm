@@ -160,11 +160,13 @@ nsAccessibleWrap::Shutdown ()
 }
 
 nsresult
-nsAccessibleWrap::HandleAccEvent(nsAccEvent *aEvent)
+nsAccessibleWrap::FireAccessibleEvent(nsIAccessibleEvent *aEvent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  nsresult rv = nsAccessible::HandleAccEvent(aEvent);
+  NS_ENSURE_ARG_POINTER(aEvent);
+
+  nsresult rv = nsAccessible::FireAccessibleEvent(aEvent);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return FirePlatformEvent(aEvent);
@@ -173,11 +175,13 @@ nsAccessibleWrap::HandleAccEvent(nsAccEvent *aEvent)
 }
 
 nsresult
-nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
+nsAccessibleWrap::FirePlatformEvent(nsIAccessibleEvent *aEvent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  PRUint32 eventType = aEvent->GetEventType();
+  PRUint32 eventType;
+  nsresult rv = aEvent->GetEventType(&eventType);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // ignore everything but focus-changed and value-changed events for now.
   if (eventType != nsIAccessibleEvent::EVENT_FOCUS &&
@@ -185,7 +189,7 @@ nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
     return NS_OK;
 
   nsCOMPtr<nsIAccessible> accessible;
-  nsresult rv = aEvent->GetAccessible(getter_AddRefs(accessible));
+  rv = aEvent->GetAccessible(getter_AddRefs(accessible));
   NS_ENSURE_STATE(accessible);
 
   mozAccessible *nativeAcc = nil;
@@ -296,7 +300,8 @@ nsAccessibleWrap::GetUnignoredChildren(nsTArray<nsRefPtr<nsAccessibleWrap> > &aC
 already_AddRefed<nsIAccessible>
 nsAccessibleWrap::GetUnignoredParent()
 {
-  nsAccessibleWrap *parentWrap = static_cast<nsAccessibleWrap*>(GetParent());
+  nsCOMPtr<nsIAccessible> parent(GetParent());
+  nsAccessibleWrap *parentWrap = static_cast<nsAccessibleWrap*>(parent.get());
   if (!parentWrap)
     return nsnull;
     
@@ -305,7 +310,7 @@ nsAccessibleWrap::GetUnignoredParent()
     return parentWrap->GetUnignoredParent();
   
   nsIAccessible *outValue = nsnull;
-  NS_IF_ADDREF(outValue = parentWrap);
+  NS_IF_ADDREF(outValue = parent.get());
   
   return outValue;
 }

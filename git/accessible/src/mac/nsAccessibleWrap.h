@@ -77,7 +77,7 @@ class nsAccessibleWrap : public nsAccessible
     virtual nsresult Shutdown ();
     virtual void InvalidateChildren();
 
-    virtual nsresult HandleAccEvent(nsAccEvent *aEvent);
+    virtual nsresult FireAccessibleEvent(nsIAccessibleEvent *aEvent);
 
     // ignored means that the accessible might still have children, but is not displayed
     // to the user. it also has no native accessible object represented for it.
@@ -97,7 +97,7 @@ class nsAccessibleWrap : public nsAccessible
     
   protected:
 
-    virtual nsresult FirePlatformEvent(nsAccEvent *aEvent);
+    virtual nsresult FirePlatformEvent(nsIAccessibleEvent *aEvent);
 
     PRBool AncestorIsFlat() {
       // we don't create a native object if we're child of a "flat" accessible; for example, on OS X buttons 
@@ -105,13 +105,15 @@ class nsAccessibleWrap : public nsAccessible
       //
       // to maintain a scripting environment where the XPCOM accessible hierarchy look the same 
       // on all platforms, we still let the C++ objects be created though.
-
-      nsAccessible* parent(GetParent());
-      while (parent) {
-        if (nsAccUtils::MustPrune(parent))
+      
+      nsCOMPtr<nsIAccessible> curParent = GetParent();
+      while (curParent) {
+        if (nsAccUtils::MustPrune(curParent))
           return PR_TRUE;
 
-        parent = parent->GetParent();
+        nsCOMPtr<nsIAccessible> newParent;
+        curParent->GetParent(getter_AddRefs(newParent));
+        curParent.swap(newParent);
       }
       // no parent was flat
       return PR_FALSE;

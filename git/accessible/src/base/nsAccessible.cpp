@@ -71,7 +71,7 @@
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIFrame.h"
-#include "nsIView.h"
+#include "nsIViewManager.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIScrollableFrame.h"
 #include "nsFocusManager.h"
@@ -84,6 +84,7 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsIURI.h"
+#include "nsITimer.h"
 #include "nsArrayUtils.h"
 #include "nsIMutableArray.h"
 #include "nsIObserverService.h"
@@ -147,19 +148,13 @@ nsAccessibleDOMStringList::Contains(const nsAString& aString, PRBool *aResult)
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsAccessible)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsAccessible, nsAccessNode)
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mParent");
-  cb.NoteXPCOMChild(static_cast<nsIAccessible*>(tmp->mParent.get()));
-
-  PRUint32 i, length = tmp->mChildren.Length();
-  for (i = 0; i < length; ++i) {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mChildren[i]");
-    cb.NoteXPCOMChild(static_cast<nsIAccessible*>(tmp->mChildren[i].get()));
-  }
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mParent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mChildren)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsAccessible, nsAccessNode)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mParent)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mChildren)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mChildren)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_ADDREF_INHERITED(nsAccessible, nsAccessNode)
@@ -214,9 +209,8 @@ nsresult nsAccessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
   }                       
 
   if (aIID.Equals(NS_GET_IID(nsIAccessibleHyperLink))) {
-    nsCOMPtr<nsIAccessibleHyperText> hyperTextParent =
-      nsAccUtils::QueryObject<nsIAccessibleHyperText>(GetParent());
-
+    nsCOMPtr<nsIAccessible> parent(GetParent());
+    nsCOMPtr<nsIAccessibleHyperText> hyperTextParent(do_QueryInterface(parent));
     if (hyperTextParent) {
       *aInstancePtr = static_cast<nsIAccessibleHyperLink*>(this);
       NS_ADDREF_THIS();
@@ -448,8 +442,8 @@ nsAccessible::GetKeyboardShortcut(nsAString& aAccessKey)
     // Copy access key from label node unless it is labeled
     // via an ancestor <label>, in which case that would be redundant
     nsCOMPtr<nsIContent> labelContent(nsCoreUtils::GetLabelContent(content));
-    nsCOMPtr<nsINode> thisNode = do_QueryInterface(mDOMNode);
-    if (labelContent && !nsCoreUtils::IsAncestorOf(labelContent, thisNode))
+    nsCOMPtr<nsIDOMNode> labelNode = do_QueryInterface(labelContent);
+    if (labelNode && !nsCoreUtils::IsAncestorOf(labelNode, mDOMNode))
       key = nsCoreUtils::GetAccessKeyFor(labelContent);
   }
 
@@ -489,7 +483,8 @@ nsAccessible::Shutdown()
   // sure none of its children point to this parent
   InvalidateChildren();
   if (mParent) {
-    mParent->InvalidateChildren();
+    nsRefPtr<nsAccessible> parent(nsAccUtils::QueryAccessible(mParent));
+    parent->InvalidateChildren();
     mParent = nsnull;
   }
 
@@ -574,7 +569,7 @@ nsAccessible::GetChildAt(PRInt32 aChildIndex, nsIAccessible **aChild)
   if (aChildIndex < 0)
     aChildIndex = childCount - 1;
 
-  nsAccessible* child = GetChildAt(aChildIndex);
+  nsIAccessible* child = GetChildAt(aChildIndex);
   if (!child)
     return NS_ERROR_INVALID_ARG;
 
@@ -689,6 +684,10 @@ PRBool nsAccessible::IsVisible(PRBool *aIsOffscreen)
   if (!shell) 
     return PR_FALSE;
 
+  nsIViewManager* viewManager = shell->GetViewManager();
+  if (!viewManager)
+    return PR_FALSE;
+
   nsIFrame *frame = GetFrame();
   if (!frame) {
     return PR_FALSE;
@@ -700,24 +699,45 @@ PRBool nsAccessible::IsVisible(PRBool *aIsOffscreen)
       return PR_FALSE;
   }
 
+  nsPresContext *presContext = shell->GetPresContext();
+  if (!presContext)
+    return PR_FALSE;
+
+  // Get the bounds of the current frame, relative to the current view.
   // We don't use the more accurate GetBoundsRect, because that is more expensive
   // and the STATE_OFFSCREEN flag that this is used for only needs to be a rough
   // indicator
-  nsSize frameSize = frame->GetSize();
-  nsRectVisibility rectVisibility =
-    shell->GetRectVisibility(frame, nsRect(nsPoint(0,0), frameSize),
-                             nsPresContext::CSSPixelsToAppUnits(kMinPixels));
 
-  if (frame->GetRect().IsEmpty()) {
-    PRBool isEmpty = PR_TRUE;
+  nsRect relFrameRect = frame->GetRect();
+  nsIView *containingView = frame->GetViewExternal();
+  if (containingView) {
+    // When frame itself has a view, it has the same bounds as the view
+    relFrameRect.x = relFrameRect.y = 0;
+  }
+  else {
+    nsPoint frameOffset;
+    frame->GetOffsetFromView(frameOffset, &containingView);
+    if (!containingView)
+      return PR_FALSE;  // no view -- not visible
+    relFrameRect.x = frameOffset.x;
+    relFrameRect.y = frameOffset.y;
+  }
 
+  nsRectVisibility rectVisibility;
+  viewManager->GetRectVisibility(containingView, relFrameRect,
+                                 nsPresContext::CSSPixelsToAppUnits(kMinPixels),
+                                 &rectVisibility);
+
+  if (rectVisibility == nsRectVisibility_kZeroAreaRect) {
     nsIAtom *frameType = frame->GetType();
     if (frameType == nsAccessibilityAtoms::textFrame) {
       // Zero area rects can occur in the first frame of a multi-frame text flow,
       // in which case the rendered text is not empty and the frame should not be marked invisible
       nsAutoString renderedText;
       frame->GetRenderedText (&renderedText, nsnull, nsnull, 0, 1);
-      isEmpty = renderedText.IsEmpty();
+      if (!renderedText.IsEmpty()) {
+        rectVisibility = nsRectVisibility_kVisible;
+      }
     }
     else if (frameType == nsAccessibilityAtoms::inlineFrame) {
       // Yuck. Unfortunately inline frames can contain larger frames inside of them,
@@ -725,17 +745,26 @@ PRBool nsAccessible::IsVisible(PRBool *aIsOffscreen)
       // GetBounds() will do that for us.
       PRInt32 x, y, width, height;
       GetBounds(&x, &y, &width, &height);
-      isEmpty = width == 0 || height == 0;
-    }
-
-    if (isEmpty && !(frame->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
-      // Consider zero area objects hidden unless they are absolutely positioned
-      // or floating and may have descendants that have a non-zero size
-      return PR_FALSE;
+      if (width > 0 && height > 0) {
+        rectVisibility = nsRectVisibility_kVisible;    
+      }
     }
   }
 
-  // The frame intersects the viewport, but we need to check the parent view chain :(
+  if (rectVisibility == nsRectVisibility_kZeroAreaRect && frame && 
+      0 == (frame->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
+    // Consider zero area objects hidden unless they are absoultely positioned
+    // or floating and may have descendants that have a non-zero size
+    return PR_FALSE;
+  }
+  
+  // Currently one of:
+  // nsRectVisibility_kVisible, 
+  // nsRectVisibility_kAboveViewport, 
+  // nsRectVisibility_kBelowViewport, 
+  // nsRectVisibility_kLeftOfViewport, 
+  // nsRectVisibility_kRightOfViewport
+  // This view says it is visible, but we need to check the parent view chain :(
   nsCOMPtr<nsIDOMDocument> domDoc;
   mDOMNode->GetOwnerDocument(getter_AddRefs(domDoc));
   nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
@@ -743,10 +772,7 @@ PRBool nsAccessible::IsVisible(PRBool *aIsOffscreen)
     return PR_FALSE;
   }
 
-  nsIFrame* frameWithView =
-    frame->HasView() ? frame : frame->GetAncestorWithViewExternal();
-  nsIView* view = frameWithView->GetViewExternal();
-  PRBool isVisible = CheckVisibilityInParentChain(doc, view);
+  PRBool isVisible = CheckVisibilityInParentChain(doc, containingView);
   if (isVisible && rectVisibility == nsRectVisibility_kVisible) {
     *aIsOffscreen = PR_FALSE;
   }
@@ -1355,7 +1381,7 @@ nsAccessible::GetXULName(nsAString& aLabel)
 }
 
 nsresult
-nsAccessible::HandleAccEvent(nsAccEvent *aEvent)
+nsAccessible::FireAccessibleEvent(nsIAccessibleEvent *aEvent)
 {
   NS_ENSURE_ARG_POINTER(aEvent);
   nsCOMPtr<nsIDOMNode> eventNode;
@@ -1539,7 +1565,7 @@ nsAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
                                    oldValueUnused);
   }
 
-  nsEventShell::GetEventAttributes(mDOMNode, aAttributes);
+  nsAccEvent::GetLastEventAttributes(mDOMNode, aAttributes);
  
   // Expose class because it may have useful microformat information
   // Let the class from an iframe's document be exposed, don't override from <iframe class>
@@ -1643,12 +1669,29 @@ nsAccessible::GroupPosition(PRInt32 *aGroupLevel,
   if (!content)
     return NS_OK;
 
-  nsCoreUtils::GetUIntAttr(content, nsAccessibilityAtoms::aria_level,
-                           aGroupLevel);
-  nsCoreUtils::GetUIntAttr(content, nsAccessibilityAtoms::aria_posinset,
-                           aPositionInGroup);
-  nsCoreUtils::GetUIntAttr(content, nsAccessibilityAtoms::aria_setsize,
-                           aSimilarItemsInGroup);
+  nsAutoString value;
+  PRInt32 error = NS_OK;
+
+  content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_level, value);
+  if (!value.IsEmpty()) {
+    PRInt32 level = value.ToInteger(&error);
+    if (NS_SUCCEEDED(error))
+      *aGroupLevel = level;
+  }
+
+  content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_posinset, value);
+  if (!value.IsEmpty()) {
+    PRInt32 posInSet = value.ToInteger(&error);
+    if (NS_SUCCEEDED(error))
+      *aPositionInGroup = posInSet;
+  }
+
+  content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_setsize, value);
+  if (!value.IsEmpty()) {
+    PRInt32 sizeSet = value.ToInteger(&error);
+    if (NS_SUCCEEDED(error))
+      *aSimilarItemsInGroup = sizeSet;
+  }
 
   // If ARIA is missed and the accessible is visible then calculate group
   // position from hierarchy.
@@ -1708,13 +1751,11 @@ nsAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 
       if (nsAccUtils::Role(tabPanel) == nsIAccessibleRole::ROLE_PROPERTYPAGE) {
         nsCOMPtr<nsIAccessNode> tabPanelAccessNode(do_QueryInterface(tabPanel));
-        nsCOMPtr<nsIDOMNode> tabPanelDOMNode;
-        tabPanelAccessNode->GetDOMNode(getter_AddRefs(tabPanelDOMNode));
-        NS_ENSURE_STATE(tabPanelDOMNode);
+        nsCOMPtr<nsIDOMNode> tabPanelNode;
+        tabPanelAccessNode->GetDOMNode(getter_AddRefs(tabPanelNode));
+        NS_ENSURE_STATE(tabPanelNode);
 
-        nsCOMPtr<nsINode> tabPanelNode(do_QueryInterface(tabPanelDOMNode));
-        nsCOMPtr<nsINode> lastFocusedNode(do_QueryInterface(gLastFocusedNode));
-        if (nsCoreUtils::IsAncestorOf(tabPanelNode, lastFocusedNode))
+        if (nsCoreUtils::IsAncestorOf(tabPanelNode, gLastFocusedNode))
           *aState |= nsIAccessibleStates::STATE_SELECTED;
       }
     }
@@ -2121,8 +2162,8 @@ nsAccessible::DoAction(PRUint8 aIndex)
     return NS_ERROR_FAILURE;
 
   if (GetActionRule(nsAccUtils::State(this)) != eNoAction) {
-    DoCommand();
-    return NS_OK;
+    nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+    return DoCommand(content);
   }
 
   return NS_ERROR_INVALID_ARG;
@@ -2302,7 +2343,9 @@ nsAccessible::GetRelationByType(PRUint32 aRelationType,
         if (view) {
           nsIScrollableFrame *scrollFrame = do_QueryFrame(frame);
           if (scrollFrame || view->GetWidget() || !frame->GetParent()) {
-            return nsRelUtils::AddTarget(aRelationType, aRelation, GetParent());
+            nsCOMPtr<nsIAccessible> accTarget;
+            GetParent(getter_AddRefs(accTarget));
+            return nsRelUtils::AddTarget(aRelationType, aRelation, accTarget);
           }
         }
       }
@@ -2493,15 +2536,44 @@ NS_IMETHODIMP nsAccessible::GetNativeInterface(void **aOutAccessible)
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-void
+nsresult
 nsAccessible::DoCommand(nsIContent *aContent, PRUint32 aActionIndex)
 {
+  if (gDoCommandTimer) {
+    // Already have timer going for another command
+    NS_WARNING("Doubling up on do command timers doesn't work. This wasn't expected.");
+    return NS_ERROR_FAILURE;
+  }
+
+  nsCOMPtr<nsITimer> timer = do_CreateInstance("@mozilla.org/timer;1");
+  NS_ENSURE_TRUE(timer, NS_ERROR_OUT_OF_MEMORY);
+
   nsCOMPtr<nsIContent> content = aContent;
   if (!content)
     content = do_QueryInterface(mDOMNode);
 
-  NS_DISPATCH_RUNNABLEMETHOD_ARG2(DispatchClickEvent, this,
-                                  content, aActionIndex)
+  // Command closure object memory will be free in DoCommandCallback().
+  nsCommandClosure *closure =
+    new nsCommandClosure(this, content, aActionIndex);
+  NS_ENSURE_TRUE(closure, NS_ERROR_OUT_OF_MEMORY);
+
+  NS_ADDREF(gDoCommandTimer = timer);
+  return gDoCommandTimer->InitWithFuncCallback(DoCommandCallback,
+                                               static_cast<void*>(closure),
+                                               0, nsITimer::TYPE_ONE_SHOT);
+}
+
+void
+nsAccessible::DoCommandCallback(nsITimer *aTimer, void *aClosure)
+{
+  NS_ASSERTION(gDoCommandTimer,
+               "How did we get here if there was no gDoCommandTimer?");
+  NS_RELEASE(gDoCommandTimer);
+
+  nsCommandClosure *closure = static_cast<nsCommandClosure*>(aClosure);
+  closure->accessible->DispatchClickEvent(closure->content,
+                                          closure->actionIndex);
+  delete closure;
 }
 
 void
@@ -2620,7 +2692,9 @@ NS_IMETHODIMP nsAccessible::AddChildToSelection(PRInt32 aIndex)
 
   NS_ENSURE_TRUE(aIndex >= 0, NS_ERROR_FAILURE);
 
-  nsAccessible* child = GetChildAt(aIndex);
+  nsCOMPtr<nsIAccessible> child;
+  GetChildAt(aIndex, getter_AddRefs(child));
+
   PRUint32 state = nsAccUtils::State(child);
   if (!(state & nsIAccessibleStates::STATE_SELECTABLE)) {
     return NS_OK;
@@ -2637,7 +2711,9 @@ NS_IMETHODIMP nsAccessible::RemoveChildFromSelection(PRInt32 aIndex)
 
   NS_ENSURE_TRUE(aIndex >= 0, NS_ERROR_FAILURE);
 
-  nsAccessible* child = GetChildAt(aIndex);
+  nsCOMPtr<nsIAccessible> child;
+  GetChildAt(aIndex, getter_AddRefs(child));
+
   PRUint32 state = nsAccUtils::State(child);
   if (!(state & nsIAccessibleStates::STATE_SELECTED)) {
     return NS_OK;
@@ -2655,7 +2731,9 @@ NS_IMETHODIMP nsAccessible::IsChildSelected(PRInt32 aIndex, PRBool *aIsSelected)
   *aIsSelected = PR_FALSE;
   NS_ENSURE_TRUE(aIndex >= 0, NS_ERROR_FAILURE);
 
-  nsAccessible* child = GetChildAt(aIndex);
+  nsCOMPtr<nsIAccessible> child;
+  GetChildAt(aIndex, getter_AddRefs(child));
+
   PRUint32 state = nsAccUtils::State(child);
   if (state & nsIAccessibleStates::STATE_SELECTED) {
     *aIsSelected = PR_TRUE;
@@ -2782,7 +2860,7 @@ nsAccessible::GetSelected(PRBool *aSelected)
 nsresult nsAccessible::GetLinkOffset(PRInt32* aStartOffset, PRInt32* aEndOffset)
 {
   *aStartOffset = *aEndOffset = 0;
-  nsAccessible* parent = GetParent();
+  nsCOMPtr<nsIAccessible> parent(GetParent());
   if (!parent) {
     return NS_ERROR_FAILURE;
   }
@@ -2862,7 +2940,7 @@ nsAccessible::GetNameInternal(nsAString& aName)
 }
 
 void
-nsAccessible::SetParent(nsAccessible *aParent)
+nsAccessible::SetParent(nsIAccessible *aParent)
 {
   NS_PRECONDITION(aParent, "This method isn't used to set null parent!");
 
@@ -2872,8 +2950,9 @@ nsAccessible::SetParent(nsAccessible *aParent)
     // The old parent's children now need to be invalidated, since 
     // it no longer owns the child, the new parent does
     NS_ASSERTION(PR_FALSE, "Adopting child!");
-    if (mParent)
-      mParent->InvalidateChildren();
+    nsRefPtr<nsAccessible> oldParent = nsAccUtils::QueryAccessible(mParent);
+    if (oldParent)
+      oldParent->InvalidateChildren();
   }
 
   mParent = aParent;
@@ -2882,9 +2961,10 @@ nsAccessible::SetParent(nsAccessible *aParent)
 void
 nsAccessible::InvalidateChildren()
 {
-  PRInt32 childCount = mChildren.Length();
+  PRInt32 childCount = mChildren.Count();
   for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible* child = mChildren.ElementAt(childIdx);
+    nsRefPtr<nsAccessible> child =
+      nsAccUtils::QueryObject<nsAccessible>(mChildren.ObjectAt(childIdx));
     child->mParent = nsnull;
   }
 
@@ -2892,7 +2972,7 @@ nsAccessible::InvalidateChildren()
   mAreChildrenInitialized = PR_FALSE;
 }
 
-nsAccessible*
+nsIAccessible*
 nsAccessible::GetParent()
 {
   if (IsDefunct())
@@ -2911,9 +2991,8 @@ nsAccessible::GetParent()
   docAccessible->GetAccessibleInParentChain(mDOMNode, PR_TRUE,
                                             getter_AddRefs(parent));
 
-  nsRefPtr<nsAccessible> parentAcc = nsAccUtils::QueryAccessible(parent);
-
 #ifdef DEBUG
+  nsRefPtr<nsAccessible> parentAcc = nsAccUtils::QueryAccessible(parent);
   NS_ASSERTION(!parentAcc->IsDefunct(), "Defunct parent!");
 
   parentAcc->EnsureChildren();
@@ -2921,21 +3000,22 @@ nsAccessible::GetParent()
     NS_WARNING("Bad accessible tree!");
 #endif
 
-  return parentAcc;
+  return parent;
 }
 
-nsAccessible*
+nsIAccessible*
 nsAccessible::GetChildAt(PRUint32 aIndex)
 {
   if (EnsureChildren())
     return nsnull;
 
-  nsAccessible *child = mChildren.SafeElementAt(aIndex, nsnull);
+  nsIAccessible *child = mChildren.SafeObjectAt(aIndex);
   if (!child)
     return nsnull;
 
 #ifdef DEBUG
-  nsAccessible* realParent = child->mParent;
+  nsRefPtr<nsAccessible> childAcc = nsAccUtils::QueryAccessible(child);
+  nsCOMPtr<nsIAccessible> realParent = childAcc->mParent;
   NS_ASSERTION(!realParent || realParent == this,
                "Two accessibles have the same first child accessible!");
 #endif
@@ -2946,7 +3026,7 @@ nsAccessible::GetChildAt(PRUint32 aIndex)
 PRInt32
 nsAccessible::GetChildCount()
 {
-  return EnsureChildren() ? -1 : mChildren.Length();
+  return EnsureChildren() ? -1 : mChildren.Count();
 }
 
 PRInt32
@@ -2958,26 +3038,33 @@ nsAccessible::GetIndexOf(nsIAccessible *aChild)
 PRInt32
 nsAccessible::GetIndexInParent()
 {
-  nsAccessible *parent = GetParent();
-  return parent ? parent->GetIndexOf(this) : -1;
+  nsIAccessible *parent = GetParent();
+  if (!parent)
+    return -1;
+
+  nsRefPtr<nsAccessible> parentAcc =
+    nsAccUtils::QueryObject<nsAccessible>(parent);
+  return parentAcc->GetIndexOf(this);
 }
 
-nsAccessible*
+already_AddRefed<nsIAccessible>
 nsAccessible::GetCachedParent()
 {
   if (IsDefunct())
     return nsnull;
 
-  return mParent;
+  nsCOMPtr<nsIAccessible> cachedParent = mParent;
+  return cachedParent.forget();
 }
 
-nsAccessible*
+already_AddRefed<nsIAccessible>
 nsAccessible::GetCachedFirstChild()
 {
   if (IsDefunct())
     return nsnull;
 
-  return mChildren.SafeElementAt(0, nsnull);
+  nsCOMPtr<nsIAccessible> cachedFirstChild = GetChildAt(0);
+  return cachedFirstChild.forget();
 }
 
 
@@ -2998,11 +3085,10 @@ nsAccessible::CacheChildren()
 
   walker.GetFirstChild();
   while (walker.mState.accessible) {
+    mChildren.AppendObject(walker.mState.accessible);
+
     nsRefPtr<nsAccessible> acc =
       nsAccUtils::QueryObject<nsAccessible>(walker.mState.accessible);
-
-    mChildren.AppendElement(acc);
-
     acc->SetParent(this);
 
     walker.GetNextSibling();
@@ -3010,14 +3096,14 @@ nsAccessible::CacheChildren()
 }
 
 void
-nsAccessible::TestChildCache(nsAccessible *aCachedChild)
+nsAccessible::TestChildCache(nsIAccessible *aCachedChild)
 {
 #ifdef DEBUG_A11Y
   // All cached accessible nodes should be in the parent
   // It will assert if not all the children were created
   // when they were first cached, and no invalidation
   // ever corrected parent accessible's child cache.
-  PRUint32 childCount = mChildren.Length();
+  PRUint32 childCount = mChildren.Count();
   if (childCount == 0) {
     NS_ASSERTION(mAreChildrenInitialized,
                  "Children are stored but not initailzied!");
@@ -3025,7 +3111,7 @@ nsAccessible::TestChildCache(nsAccessible *aCachedChild)
   }
 
   for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible *child = GetChildAt(childIdx);
+    nsIAccessible *child = GetChildAt(childIdx);
     if (child == aCachedChild)
       break;
   }
@@ -3062,7 +3148,7 @@ nsAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
     return nsnull;
   }
 
-  nsAccessible *parent = GetParent();
+  nsIAccessible *parent = GetParent();
   if (!parent) {
     if (aError)
       *aError = NS_ERROR_UNEXPECTED;
@@ -3070,7 +3156,10 @@ nsAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
     return nsnull;
   }
 
-  PRInt32 indexInParent = parent->GetIndexOf(this);
+  nsRefPtr<nsAccessible> parentAcc =
+    nsAccUtils::QueryObject<nsAccessible>(parent);
+
+  PRInt32 indexInParent = parentAcc->GetIndexOf(this);
   if (indexInParent == -1) {
     if (aError)
       *aError = NS_ERROR_UNEXPECTED;
@@ -3079,14 +3168,14 @@ nsAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
   }
 
   if (aError) {
-    PRInt32 childCount = parent->GetChildCount();
+    PRInt32 childCount = parentAcc->GetChildCount();
     if (indexInParent + aOffset >= childCount) {
       *aError = NS_OK; // fail peacefully
       return nsnull;
     }
   }
 
-  nsAccessible *child = parent->GetChildAt(indexInParent + aOffset);
+  nsIAccessible *child = parentAcc->GetChildAt(indexInParent + aOffset);
   if (aError && !child)
     *aError = NS_ERROR_UNEXPECTED;
 
@@ -3254,74 +3343,50 @@ nsAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet, PRInt32 *aSetSize)
       role == nsIAccessibleRole::ROLE_RADIO_MENU_ITEM)
     baseRole = nsIAccessibleRole::ROLE_MENUITEM;
 
-  nsAccessible* parent = GetParent();
+  nsCOMPtr<nsIAccessible> parent = GetParent();
   NS_ENSURE_TRUE(parent,);
 
-  PRInt32 indexInParent = parent->GetIndexOf(this);
-  PRInt32 level = nsAccUtils::GetARIAOrDefaultLevel(this);
+  // Compute 'posinset' and 'setsize' attributes.
+  PRInt32 positionInGroup = 0;
+  PRInt32 setSize = 0;
 
-  // Compute 'posinset'.
-  PRInt32 positionInGroup = 1;
-  for (PRInt32 idx = indexInParent - 1; idx >= 0; idx--) {
-    nsAccessible* sibling = parent->GetChildAt(idx);
+  nsCOMPtr<nsIAccessible> sibling, nextSibling;
+  parent->GetFirstChild(getter_AddRefs(sibling));
+  NS_ENSURE_TRUE(sibling,);
 
-    PRUint32 siblingRole = siblingRole = nsAccUtils::Role(sibling);
+  PRBool foundCurrent = PR_FALSE;
+  PRUint32 siblingRole, siblingBaseRole;
+  while (sibling) {
+    siblingRole = nsAccUtils::Role(sibling);
 
-    // If the sibling is separator then the group is ended.
-    if (siblingRole == nsIAccessibleRole::ROLE_SEPARATOR)
-      break;
-
-    PRUint32 siblingBaseRole = siblingRole;
+    siblingBaseRole = siblingRole;
     if (siblingRole == nsIAccessibleRole::ROLE_CHECK_MENU_ITEM ||
         siblingRole == nsIAccessibleRole::ROLE_RADIO_MENU_ITEM)
       siblingBaseRole = nsIAccessibleRole::ROLE_MENUITEM;
 
-    // If sibling is visible and has the same base role
+    // If sibling is visible and has the same base role.
     if (siblingBaseRole == baseRole &&
         !(nsAccUtils::State(sibling) & nsIAccessibleStates::STATE_INVISIBLE)) {
-
-      // and check if it's hierarchical flatten structure, i.e. if the sibling
-      // level is lesser than this one then group is ended, if the sibling level
-      // is greater than this one then the group is splited by some child
-      // elements (group will be continued).
-      PRInt32 siblingLevel = nsAccUtils::GetARIAOrDefaultLevel(sibling);
-      if (siblingLevel < level)
-        break;
-      else if (level == siblingLevel)
+      ++ setSize;
+      if (!foundCurrent) {
         ++ positionInGroup;
+        if (sibling == this)
+          foundCurrent = PR_TRUE;
+      }
     }
-  }
 
-  // Compute 'setsize'.
-  PRInt32 setSize = positionInGroup;
-
-  PRInt32 siblingCount = parent->GetChildCount();
-  for (PRInt32 idx = indexInParent + 1; idx < siblingCount; idx++) {
-    nsAccessible* sibling = parent->GetChildAt(idx);
-    NS_ENSURE_TRUE(sibling,);
-
-    PRUint32 siblingRole = nsAccUtils::Role(sibling);
-
-    // If the sibling is separator then the group is ended.
-    if (siblingRole == nsIAccessibleRole::ROLE_SEPARATOR)
-      break;
-
-    PRUint32 siblingBaseRole = siblingRole;
-    if (siblingRole == nsIAccessibleRole::ROLE_CHECK_MENU_ITEM ||
-        siblingRole == nsIAccessibleRole::ROLE_RADIO_MENU_ITEM)
-      siblingBaseRole = nsIAccessibleRole::ROLE_MENUITEM;
-
-    // If sibling is visible and has the same base role
-    if (siblingBaseRole == baseRole &&
-        !(nsAccUtils::State(sibling) & nsIAccessibleStates::STATE_INVISIBLE)) {
-
-      // and check if it's hierarchical flatten structure.
-      PRInt32 siblingLevel = nsAccUtils::GetARIAOrDefaultLevel(sibling);
-      if (siblingLevel < level)
+    // If the sibling is separator
+    if (siblingRole == nsIAccessibleRole::ROLE_SEPARATOR) {
+      if (foundCurrent) // the our group is ended
         break;
-      else if (level == siblingLevel)
-        ++ setSize;
+
+      // not our group, continue the searching
+      positionInGroup = 0;
+      setSize = 0;
     }
+
+    sibling->GetNextSibling(getter_AddRefs(nextSibling));
+    sibling = nextSibling;
   }
 
   *aPosInSet = positionInGroup;
@@ -3331,17 +3396,15 @@ nsAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet, PRInt32 *aSetSize)
 PRInt32
 nsAccessible::GetLevelInternal()
 {
-  PRInt32 level = nsAccUtils::GetDefaultLevel(this);
-
   PRUint32 role = nsAccUtils::Role(this);
-  nsAccessible* parent = GetParent();
+  nsCOMPtr<nsIAccessible> parent = GetParent();
 
   if (role == nsIAccessibleRole::ROLE_OUTLINEITEM) {
     // Always expose 'level' attribute for 'outlineitem' accessible. The number
     // of nested 'grouping' accessibles containing 'outlineitem' accessible is
     // its level.
-    level = 1;
-
+    PRInt32 level = 1;
+    nsCOMPtr<nsIAccessible> nextParent;
     while (parent) {
       PRUint32 parentRole = nsAccUtils::Role(parent);
 
@@ -3350,17 +3413,22 @@ nsAccessible::GetLevelInternal()
       if (parentRole == nsIAccessibleRole::ROLE_GROUPING)
         ++ level;
 
-      parent = parent->GetParent();
+      parent->GetParent(getter_AddRefs(nextParent));
+      parent.swap(nextParent);
     }
 
-  } else if (role == nsIAccessibleRole::ROLE_LISTITEM) {
+    return level;
+  }
+
+  if (role == nsIAccessibleRole::ROLE_LISTITEM) {
     // Expose 'level' attribute on nested lists. We assume nested list is a last
     // child of listitem of parent list. We don't handle the case when nested
     // lists have more complex structure, for example when there are accessibles
     // between parent listitem and nested list.
 
     // Calculate 'level' attribute based on number of parent listitems.
-    level = 0;
+    PRInt32 level = 0;
+    nsCOMPtr<nsIAccessible> nextParent;
 
     while (parent) {
       PRUint32 parentRole = nsAccUtils::Role(parent);
@@ -3370,28 +3438,40 @@ nsAccessible::GetLevelInternal()
       else if (parentRole != nsIAccessibleRole::ROLE_LIST)
         break;
 
-      parent = parent->GetParent();
+      parent->GetParent(getter_AddRefs(nextParent));
+      parent.swap(nextParent);
     }
 
     if (level == 0) {
       // If this listitem is on top of nested lists then expose 'level'
       // attribute.
-      nsAccessible* parent(GetParent());
-      PRInt32 siblingCount = parent->GetChildCount();
-      for (PRInt32 siblingIdx = 0; siblingIdx < siblingCount; siblingIdx++) {
-        nsAccessible* sibling = parent->GetChildAt(siblingIdx);
+      nsCOMPtr<nsIAccessible> parent(GetParent()), sibling, nextSibling;
+      parent->GetFirstChild(getter_AddRefs(sibling));
 
+      while (sibling) {
         nsCOMPtr<nsIAccessible> siblingChild;
         sibling->GetLastChild(getter_AddRefs(siblingChild));
         if (nsAccUtils::Role(siblingChild) == nsIAccessibleRole::ROLE_LIST) {
           level = 1;
           break;
         }
+
+        sibling->GetNextSibling(getter_AddRefs(nextSibling));
+        sibling.swap(nextSibling);
       }
     } else {
       ++ level; // level is 1-index based
     }
+
+    return level;
   }
 
-  return level;
+  if (role == nsIAccessibleRole::ROLE_ROW &&
+      nsAccUtils::Role(parent) == nsIAccessibleRole::ROLE_TREE_TABLE) {
+    // It is a row inside flatten treegrid. Group level is always 1 until it is
+    // overriden by aria-level attribute.
+    return 1;
+  }
+
+  return 0;
 }

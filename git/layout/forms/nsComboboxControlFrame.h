@@ -63,14 +63,15 @@
 #include "nsIRollupListener.h"
 #include "nsPresState.h"
 #include "nsCSSFrameConstructor.h"
+#include "nsIScrollableViewProvider.h"
 #include "nsIStatefulFrame.h"
-#include "nsIScrollableFrame.h"
 #include "nsIDOMMouseListener.h"
 #include "nsThreadUtils.h"
 
 class nsIView;
 class nsStyleContext;
 class nsIListControlFrame;
+class nsIScrollableView;
 class nsComboboxDisplayFrame;
 
 /**
@@ -85,6 +86,7 @@ class nsComboboxControlFrame : public nsBlockFrame,
                                public nsIAnonymousContentCreator,
                                public nsISelectControlFrame,
                                public nsIRollupListener,
+                               public nsIScrollableViewProvider,
                                public nsIStatefulFrame
 {
 public:
@@ -133,10 +135,6 @@ public:
   {
     return nsBlockFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
-  }
-
-  virtual nsIScrollableFrame* GetScrollTargetFrame() {
-    return do_QueryFrame(mDropdownFrame);
   }
 
 #ifdef NS_DEBUG
@@ -211,6 +209,9 @@ public:
    */
   NS_IMETHOD ShouldRollupOnMouseActivate(PRBool *aShouldRollup)
     { *aShouldRollup = PR_FALSE; return NS_OK;}
+
+  // nsIScrollableViewProvider
+  virtual nsIScrollableView* GetScrollableView();
 
   //nsIStatefulFrame
   NS_IMETHOD SaveState(SpecialStateID aStateID, nsPresState** aState);

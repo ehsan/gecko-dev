@@ -51,6 +51,7 @@
 #include "nsCycleCollectionParticipant.h"
 
 class nsIContent;
+class nsIScrollableView;
  
 class nsDOMEvent : public nsIDOMEvent,
                    public nsIDOMNSEvent,

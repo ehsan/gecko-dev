@@ -112,8 +112,6 @@
 #include "nsIHTMLDocument.h"
 #include "nsIParserService.h"
 
-#include "nsITransferable.h"
-
 #define NS_ERROR_EDITOR_NO_SELECTION NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_EDITOR,1)
 #define NS_ERROR_EDITOR_NO_TEXTNODE  NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_EDITOR,2)
 
@@ -1261,19 +1259,7 @@ nsEditor::Paste(PRInt32 aSelectionType)
 }
 
 NS_IMETHODIMP
-nsEditor::PasteTransferable(nsITransferable *aTransferable)
-{
-  return NS_ERROR_NOT_IMPLEMENTED; 
-}
-
-NS_IMETHODIMP
 nsEditor::CanPaste(PRInt32 aSelectionType, PRBool *aCanPaste)
-{
-  return NS_ERROR_NOT_IMPLEMENTED; 
-}
-
-NS_IMETHODIMP
-nsEditor::CanPasteTransferable(nsITransferable *aTransferable, PRBool *aCanPaste)
 {
   return NS_ERROR_NOT_IMPLEMENTED; 
 }
@@ -2613,17 +2599,15 @@ NS_IMETHODIMP nsEditor::InsertTextImpl(const nsAString& aStringToInsert,
 }
 
 
-nsresult nsEditor::InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert, 
-                                              nsIDOMCharacterData *aTextNode, 
-                                              PRInt32 aOffset,
-                                              PRBool aSuppressIME)
+NS_IMETHODIMP nsEditor::InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert, 
+                                                     nsIDOMCharacterData *aTextNode, 
+                                                     PRInt32 aOffset, PRBool suppressIME)
 {
   nsRefPtr<EditTxn> txn;
   nsresult result = NS_OK;
-  PRBool isIMETransaction = PR_FALSE;
-  // aSuppressIME is used when editor must insert text, yet this text is not
+  // suppressIME s used when editor must insert text, yet this text is not
   // part of current ime operation.  example: adjusting whitespace around an ime insertion.
-  if (mIMETextRangeList && mInIMEMode && !aSuppressIME)
+  if (mIMETextRangeList && mInIMEMode && !suppressIME)
   {
     if (!mIMETextNode)
     {
@@ -2671,7 +2655,6 @@ nsresult nsEditor::InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert,
     nsRefPtr<IMETextTxn> imeTxn;
     result = CreateTxnForIMEText(aStringToInsert, getter_AddRefs(imeTxn));
     txn = imeTxn;
-    isIMETransaction = PR_TRUE;
   }
   else
   {
@@ -2708,7 +2691,7 @@ nsresult nsEditor::InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert,
   // savvy to having multiple ime txns inside them.
   
   // delete empty ime text node if there is one
-  if (isIMETransaction)
+  if (mInIMEMode && mIMETextNode)
   {
     PRUint32 len;
     mIMETextNode->GetLength(&len);

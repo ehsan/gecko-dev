@@ -170,7 +170,13 @@ nsJAR::Open(nsIFile* zipFile)
   mLock = PR_NewLock();
   NS_ENSURE_TRUE(mLock, NS_ERROR_OUT_OF_MEMORY);
 
-  return mZip.OpenArchive(zipFile);
+  PRFileDesc *fd = OpenFile();
+  NS_ENSURE_TRUE(fd, NS_ERROR_FAILURE);
+
+  nsresult rv = mZip.OpenArchive(fd);
+  if (NS_FAILED(rv)) Close();
+
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -253,9 +259,14 @@ nsJAR::Extract(const char *zipEntry, nsIFile* outFile)
   }
   if (NS_FAILED(rv)) return rv;
 
+  PRTime prtime = GetModTime(item->Date(), item->Time());
   // nsIFile needs milliseconds, while prtime is in microseconds.
+  PRTime conversion = LL_ZERO;
+  PRTime newTime = LL_ZERO;
+  LL_I2L(conversion, PR_USEC_PER_MSEC);
+  LL_DIV(newTime, prtime, conversion);
   // non-fatal if this fails, ignore errors
-  outFile->SetLastModifiedTime(item->LastModTime() / PR_USEC_PER_MSEC);
+  outFile->SetLastModifiedTime(newTime);
 
   return NS_OK;
 }
@@ -400,6 +411,20 @@ nsJAR::GetJarPath(nsACString& aResult)
   NS_ENSURE_ARG_POINTER(mZipFile);
 
   return mZipFile->GetNativePath(aResult);
+}
+
+PRFileDesc*
+nsJAR::OpenFile()
+{
+  nsresult rv;
+  nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(mZipFile, &rv);
+  if (NS_FAILED(rv)) return nsnull;
+
+  PRFileDesc* fd;
+  rv = localFile->OpenNSPRFileDesc(PR_RDONLY, 0000, &fd);
+  if (NS_FAILED(rv)) return nsnull;
+
+  return fd;
 }
 
 //----------------------------------------------
@@ -908,7 +933,8 @@ nsJARItem::nsJARItem(nsZipItem* aZipItem)
     : mSize(aZipItem->Size()),
       mRealsize(aZipItem->RealSize()),
       mCrc32(aZipItem->CRC32()),
-      mLastModTime(aZipItem->LastModTime()),
+      mDate(aZipItem->Date()),
+      mTime(aZipItem->Time()),
       mCompression(aZipItem->Compression()),
       mIsDirectory(aZipItem->IsDirectory()),
       mIsSynthetic(aZipItem->isSynthetic)
@@ -995,7 +1021,7 @@ nsJARItem::GetLastModifiedTime(PRTime* aLastModTime)
 {
     NS_ENSURE_ARG_POINTER(aLastModTime);
 
-    *aLastModTime = mLastModTime;
+    *aLastModTime = GetModTime(mDate, mTime);
     return NS_OK;
 }
 
@@ -1239,6 +1265,29 @@ nsZipReaderCache::Observe(nsISupports *aSubject,
     mZips.Reset();
   }
   return NS_OK;
+}
+
+PRTime GetModTime(PRUint16 aDate, PRUint16 aTime)
+{
+  PRExplodedTime time;
+
+  time.tm_usec = 0;
+  
+  time.tm_hour = (aTime >> 11) & 0x1F;
+  time.tm_min = (aTime >> 5) & 0x3F;
+  time.tm_sec = (aTime & 0x1F) * 2;
+
+  time.tm_year = (aDate >> 9) + 1980;
+  time.tm_month = ((aDate >> 5) & 0x0F)-1;
+  time.tm_mday = aDate & 0x1F;
+  
+  time.tm_params.tp_gmt_offset = 0;
+  time.tm_params.tp_dst_offset = 0;
+  
+  PR_NormalizeTime(&time, PR_GMTParameters);
+  time.tm_params = PR_LocalTimeParameters(&time);
+  
+  return PR_ImplodeTime(&time);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

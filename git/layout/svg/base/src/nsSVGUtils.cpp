@@ -88,7 +88,6 @@
 #include "nsSVGGeometryFrame.h"
 #include "nsComputedDOMStyle.h"
 #include "nsSVGPathGeometryFrame.h"
-#include "prdtoa.h"
 
 gfxASurface *nsSVGUtils::mThebesComputationalSurface = nsnull;
 
@@ -912,19 +911,19 @@ nsSVGUtils::GetCanvasTM(nsIFrame *aFrame)
 void 
 nsSVGUtils::NotifyChildrenOfSVGChange(nsIFrame *aFrame, PRUint32 aFlags)
 {
-  nsIFrame *kid = aFrame->GetFirstChild(nsnull);
+  nsIFrame *aKid = aFrame->GetFirstChild(nsnull);
 
-  while (kid) {
-    nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
+  while (aKid) {
+    nsISVGChildFrame* SVGFrame = do_QueryFrame(aKid);
     if (SVGFrame) {
       SVGFrame->NotifySVGChanged(aFlags); 
     } else {
-      NS_ASSERTION(kid->IsFrameOfType(nsIFrame::eSVG), "SVG frame expected");
+      NS_ASSERTION(aKid->IsFrameOfType(nsIFrame::eSVG), "SVG frame expected");
       // recurse into the children of container frames e.g. <clipPath>, <mask>
       // in case they have child frames with transformation matrices
-      nsSVGUtils::NotifyChildrenOfSVGChange(kid, aFlags);
+      nsSVGUtils::NotifyChildrenOfSVGChange(aKid, aFlags);
     }
-    kid = kid->GetNextSibling();
+    aKid = aKid->GetNextSibling();
   }
 }
 
@@ -1436,8 +1435,7 @@ nsSVGUtils::AdjustMatrixForUnits(const gfxMatrix &aMatrix,
                                  nsIFrame *aFrame)
 {
   if (aFrame &&
-      aUnits->GetAnimValue(static_cast<nsSVGElement*>(aFrame->GetContent())) ==
-      nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
+      aUnits->GetAnimValue() == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
     gfxRect bbox = GetBBox(aFrame);
     return gfxMatrix().Scale(bbox.Width(), bbox.Height()) *
            gfxMatrix().Translate(gfxPoint(bbox.X(), bbox.Y())) *
@@ -1522,30 +1520,6 @@ nsSVGUtils::IsInnerSVG(nsIContent* aContent)
   return ancestor && ancestor->GetNameSpaceID() == kNameSpaceID_SVG &&
                      ancestor->Tag() != nsGkAtoms::foreignObject;
 }
-
-/* static */ PRBool
-nsSVGUtils::NumberFromString(const nsAString& aString, float* aValue,
-                             PRBool aAllowPercentages)
-{
-  NS_ConvertUTF16toUTF8 s(aString);
-  const char *str = s.get();
-
-  char *rest;
-  float value = float(PR_strtod(str, &rest));
-  if (str != rest && NS_FloatIsFinite(value)) {
-    if (aAllowPercentages && *rest == '%') {
-      value /= 100;
-      ++rest;
-    }
-    // XXX should allow trailing whitespace
-    if (*rest == '\0') {
-      *aValue = value;
-      return PR_TRUE;
-    }
-  }
-  return PR_FALSE;
-}
-
 
 // ----------------------------------------------------------------------
 

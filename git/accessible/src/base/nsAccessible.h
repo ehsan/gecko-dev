@@ -42,7 +42,6 @@
 #include "nsAccessNodeWrap.h"
 
 #include "nsARIAMap.h"
-#include "nsEventShell.h"
 #include "nsRelUtils.h"
 #include "nsTextEquivUtils.h"
 
@@ -104,11 +103,11 @@ private:
 
 
 #define NS_ACCESSIBLE_IMPL_CID                          \
-{  /* 133c8bf4-4913-4355-bd50-426bd1d6e1ad */           \
-  0x133c8bf4,                                           \
-  0x4913,                                               \
-  0x4355,                                               \
-  { 0xbd, 0x50, 0x42, 0x6b, 0xd1, 0xd6, 0xe1, 0xad }    \
+{  /* 81a84b69-de5a-412f-85ff-deb005c5a68d */           \
+  0x81a84b69,                                           \
+  0xde5a,                                               \
+  0x412f,                                               \
+  { 0x85, 0xff, 0xde, 0xb0, 0x05, 0xc5, 0xa6, 0x8d }    \
 }
 
 class nsAccessible : public nsAccessNodeWrap, 
@@ -229,7 +228,7 @@ public:
   /**
    * Set accessible parent.
    */
-  void SetParent(nsAccessible *aParent);
+  void SetParent(nsIAccessible *aParent);
 
   /**
    * Set the child count to -1 (unknown) and null out cached child pointers.
@@ -244,12 +243,12 @@ public:
   /**
    * Return parent accessible.
    */
-  virtual nsAccessible* GetParent();
+  virtual nsIAccessible* GetParent();
 
   /**
    * Return child accessible at the given index.
    */
-  virtual nsAccessible* GetChildAt(PRUint32 aIndex);
+  virtual nsIAccessible* GetChildAt(PRUint32 aIndex);
 
   /**
    * Return child accessible count.
@@ -269,21 +268,20 @@ public:
   /**
    * Return parent accessible only if cached.
    */
-  nsAccessible* GetCachedParent();
+  already_AddRefed<nsIAccessible> GetCachedParent();
 
   /**
    * Return first child accessible only if cached.
    */
-  nsAccessible* GetCachedFirstChild();
+  already_AddRefed<nsIAccessible> GetCachedFirstChild();
 
   //////////////////////////////////////////////////////////////////////////////
   // Miscellaneous methods
 
   /**
-   * Handle accessible event, i.e. process it, notifies observers and fires
-   * platform specific event.
+   * Fire accessible event.
    */
-  virtual nsresult HandleAccEvent(nsAccEvent *aAccEvent);
+  virtual nsresult FireAccessibleEvent(nsIAccessibleEvent *aAccEvent);
 
   /**
    * Return true if there are accessible children in anonymous content
@@ -314,7 +312,7 @@ protected:
   /**
    * Assert if child not in parent's cache.
    */
-  void TestChildCache(nsAccessible *aCachedChild);
+  void TestChildCache(nsIAccessible *aCachedChild);
 
   /**
    * Cache children if necessary. Return true if the accessible is defunct.
@@ -375,6 +373,20 @@ protected:
   // Action helpers
 
   /**
+   * Used to describe click action target. See DoCommand() method.
+   */
+  struct nsCommandClosure
+  {
+    nsCommandClosure(nsAccessible *aAccessible, nsIContent *aContent,
+                     PRUint32 aActionIndex) :
+      accessible(aAccessible), content(aContent), actionIndex(aActionIndex) {}
+
+    nsRefPtr<nsAccessible> accessible;
+    nsCOMPtr<nsIContent> content;
+    PRUint32 actionIndex;
+  };
+
+  /**
    * Prepares click action that will be invoked in timeout.
    *
    * @note  DoCommand() prepares an action in timeout because when action
@@ -386,15 +398,20 @@ protected:
    * @param  aContent      [in, optional] element to click
    * @param  aActionIndex  [in, optional] index of accessible action
    */
-  void DoCommand(nsIContent *aContent = nsnull, PRUint32 aActionIndex = 0);
+  nsresult DoCommand(nsIContent *aContent = nsnull, PRUint32 aActionIndex = 0);
+
+  /**
+   * Dispatch click event to target by calling DispatchClickEvent() method.
+   *
+   * @param  aTimer    [in] timer object
+   * @param  aClosure  [in] nsCommandClosure object describing a target.
+   */
+  static void DoCommandCallback(nsITimer *aTimer, void *aClosure);
 
   /**
    * Dispatch click event.
    */
   virtual void DispatchClickEvent(nsIContent *aContent, PRUint32 aActionIndex);
-
-  NS_DECL_RUNNABLEMETHOD_ARG2(nsAccessible, DispatchClickEvent,
-                              nsCOMPtr<nsIContent>, PRUint32)
 
   //////////////////////////////////////////////////////////////////////////////
   // Helpers
@@ -428,17 +445,17 @@ protected:
 
   /**
    * Fires platform accessible event. It's notification method only. It does
-   * change nothing on Gecko side. Don't use it until you're sure what you do
-   * (see example in XUL tree accessible), use nsEventShell::FireEvent()
-   * instead. MUST be overridden in wrap classes.
+   * change nothing on Gecko side. Mostly you should use
+   * nsIAccessible::FireAccessibleEvent excepting special cases like we have
+   * in xul:tree accessible to lie to AT. Must be overridden in wrap classes.
    *
    * @param aEvent  the accessible event to fire.
    */
-  virtual nsresult FirePlatformEvent(nsAccEvent *aEvent) = 0;
+  virtual nsresult FirePlatformEvent(nsIAccessibleEvent *aEvent) = 0;
 
   // Data Members
-  nsRefPtr<nsAccessible> mParent;
-  nsTArray<nsRefPtr<nsAccessible> > mChildren;
+  nsCOMPtr<nsIAccessible> mParent;
+  nsCOMArray<nsIAccessible> mChildren;
   PRBool mAreChildrenInitialized;
 
   nsRoleMapEntry *mRoleMapEntry; // Non-null indicates author-supplied role; possibly state & value as well

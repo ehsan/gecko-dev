@@ -680,10 +680,7 @@ nsHttpConnectionMgr::ProcessNewTransaction(nsHttpTransaction *trans)
     nsCStringKey key(ci->HashKey());
     nsConnectionEntry *ent = (nsConnectionEntry *) mCT.Get(&key);
     if (!ent) {
-        nsHttpConnectionInfo *clone = ci->Clone();
-        if (!clone)
-            return NS_ERROR_OUT_OF_MEMORY;
-        ent = new nsConnectionEntry(clone);
+        ent = new nsConnectionEntry(ci);
         if (!ent)
             return NS_ERROR_OUT_OF_MEMORY;
         mCT.Put(&key, ent);

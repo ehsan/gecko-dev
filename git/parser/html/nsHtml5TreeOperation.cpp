@@ -308,8 +308,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsIDocument* document = node->GetCurrentDoc();
 
       PRInt32 len = attributes->getLength();
-      for (PRInt32 i = len; i > 0;) {
-        --i;
+      for (PRInt32 i = 0; i < len; ++i) {
         // prefix doesn't need regetting. it is always null or a static atom
         // local name is never null
         nsCOMPtr<nsIAtom> localName = Reget(attributes->getLocalName(i));
@@ -374,6 +373,9 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
           ssle->InitStyleLinkElement(PR_FALSE);
           ssle->SetEnableUpdates(PR_FALSE);
         }
+      } else if (NS_UNLIKELY(name == nsHtml5Atoms::script && ns == kNameSpaceID_SVG)) {
+        nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(newContent);
+        sele->WillCallDoneAddingChildren();
       }
 
       if (!attributes) {
@@ -381,8 +383,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       }
 
       PRInt32 len = attributes->getLength();
-      for (PRInt32 i = len; i > 0;) {
-        --i;
+      for (PRInt32 i = 0; i < len; ++i) {
         // prefix doesn't need regetting. it is always null or a static atom
         // local name is never null
         nsCOMPtr<nsIAtom> localName = Reget(attributes->getLocalName(i));

@@ -81,7 +81,7 @@ class nsINodeInfo;
 class nsIControllers;
 class nsIDOMNSFeatureFactory;
 class nsIEventListenerManager;
-class nsIScrollableFrame;
+class nsIScrollableView;
 class nsContentList;
 class nsDOMTokenList;
 struct nsRect;
@@ -1112,13 +1112,16 @@ private:
   nsRect GetClientAreaRect();
 
 private:
+
   /**
    * Get the element's styled frame (the primary frame or, for tables, the inner
-   * table frame) and associated scrollable frame (if any).
+   * table frame) and closest scrollable view.
    * @note This method flushes pending notifications (Flush_Layout).
-   * @param aFrame (optional) the styled frame [OUT]
+   * @param aScrollableView the scrollable view [OUT]
+   * @param aFrame (optional) the frame [OUT]
    */
-  nsIScrollableFrame* GetScrollFrame(nsIFrame** aStyledFrame = nsnull);
+  void GetScrollInfo(nsIScrollableView **aScrollableView,
+                     nsIFrame **aFrame = nsnull);
 };
 
 #define NS_ELEMENT_INTERFACE_TABLE_TO_MAP_SEGUE                               \

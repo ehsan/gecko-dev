@@ -85,11 +85,13 @@ nsresult nsXULSelectableAccessible::ChangeSelection(PRInt32 aIndex, PRUint8 aMet
   if (!mSelectControl) {
     return NS_ERROR_FAILURE;
   }
-  nsAccessible* child = GetChildAt(aIndex);
-  NS_ENSURE_TRUE(child, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIAccessible> childAcc;
+  GetChildAt(aIndex, getter_AddRefs(childAcc));
+  nsCOMPtr<nsIAccessNode> accNode = do_QueryInterface(childAcc);
+  NS_ENSURE_TRUE(accNode, NS_ERROR_FAILURE);
 
   nsCOMPtr<nsIDOMNode> childNode;
-  child->GetDOMNode(getter_AddRefs(childNode));
+  accNode->GetDOMNode(getter_AddRefs(childNode));
   nsCOMPtr<nsIDOMXULSelectControlItemElement> item(do_QueryInterface(childNode));
   NS_ENSURE_TRUE(item, NS_ERROR_FAILURE);
 
@@ -336,17 +338,18 @@ nsXULMenuitemAccessible::GetStateInternal(PRUint32 *aState,
 
     // Is collapsed?
     PRBool isCollapsed = PR_FALSE;
-    nsAccessible* parentAcc = GetParent();
-    if (nsAccUtils::State(parentAcc) & nsIAccessibleStates::STATE_INVISIBLE)
+    nsCOMPtr<nsIAccessible> parentAccessible(GetParent());
+    if (nsAccUtils::State(parentAccessible) & nsIAccessibleStates::STATE_INVISIBLE)
       isCollapsed = PR_TRUE;
-
+    
     if (isSelected) {
       *aState |= nsIAccessibleStates::STATE_SELECTED;
-
+      
       // Selected and collapsed?
       if (isCollapsed) {
         // Set selected option offscreen/invisible according to combobox state
-        nsAccessible* grandParentAcc = parentAcc->GetParent();
+        nsCOMPtr<nsIAccessible> grandParentAcc;
+        parentAccessible->GetParent(getter_AddRefs(grandParentAcc));
         NS_ENSURE_TRUE(grandParentAcc, NS_ERROR_FAILURE);
         NS_ASSERTION(nsAccUtils::Role(grandParentAcc) == nsIAccessibleRole::ROLE_COMBOBOX,
                      "grandparent of combobox listitem is not combobox");
@@ -420,9 +423,9 @@ nsXULMenuitemAccessible::GetKeyboardShortcut(nsAString& aAccessKey)
     if (accesskey.IsEmpty())
       return NS_OK;
 
-    nsAccessible* parentAcc = GetParent();
-    if (parentAcc) {
-      if (nsAccUtils::RoleInternal(parentAcc) ==
+    nsCOMPtr<nsIAccessible> parentAccessible(GetParent());
+    if (parentAccessible) {
+      if (nsAccUtils::RoleInternal(parentAccessible) ==
           nsIAccessibleRole::ROLE_MENUBAR) {
         // If top level menu item, add Alt+ or whatever modifier text to string
         // No need to cache pref service, this happens rarely

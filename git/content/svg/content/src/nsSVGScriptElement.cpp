@@ -58,9 +58,8 @@ class nsSVGScriptElement : public nsSVGScriptElementBase,
 {
 protected:
   friend nsresult NS_NewSVGScriptElement(nsIContent **aResult,
-                                         nsINodeInfo *aNodeInfo,
-                                         PRBool aFromParser);
-  nsSVGScriptElement(nsINodeInfo *aNodeInfo, PRBool aFromParser);
+                                         nsINodeInfo *aNodeInfo);
+  nsSVGScriptElement(nsINodeInfo *aNodeInfo);
   
 public:
   // interfaces:
@@ -89,7 +88,6 @@ public:
 
   // nsIContent specializations:
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
-  virtual PRBool IsDoneAddingChildren();
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
@@ -109,7 +107,7 @@ nsSVGElement::StringInfo nsSVGScriptElement::sStringInfo[1] =
   { &nsGkAtoms::href, kNameSpaceID_XLink }
 };
 
-NS_IMPL_NS_NEW_SVG_ELEMENT_CHECK_PARSER(Script)
+NS_IMPL_NS_NEW_SVG_ELEMENT(Script)
 
 //----------------------------------------------------------------------
 // nsISupports methods
@@ -128,11 +126,9 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGScriptElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGScriptElement::nsSVGScriptElement(nsINodeInfo *aNodeInfo,
-                                       PRBool aFromParser)
+nsSVGScriptElement::nsSVGScriptElement(nsINodeInfo *aNodeInfo)
   : nsSVGScriptElementBase(aNodeInfo)
 {
-  mDoneAddingChildren = !aFromParser;
   AddMutationObserver(this);
 }
 
@@ -144,7 +140,7 @@ nsSVGScriptElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 {
   *aResult = nsnull;
 
-  nsSVGScriptElement* it = new nsSVGScriptElement(aNodeInfo, PR_FALSE);
+  nsSVGScriptElement* it = new nsSVGScriptElement(aNodeInfo);
   if (!it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -280,12 +276,6 @@ nsSVGScriptElement::DoneAddingChildren(PRBool aHaveNotified)
     mUri = nsnull;
   }
   return rv;
-}
-
-PRBool
-nsSVGScriptElement::IsDoneAddingChildren()
-{
-  return mDoneAddingChildren;
 }
 
 nsresult

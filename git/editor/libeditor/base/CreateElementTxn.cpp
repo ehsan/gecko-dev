@@ -103,7 +103,7 @@ NS_IMETHODIMP CreateElementTxn::DoTransaction(void)
   {
     char* nodename = ToNewCString(mTag);
     printf("Do Create Element parent = %p <%s>, offset = %d\n", 
-           static_cast<void*>(mParent.get()), nodename, mOffsetInParent);
+           mParent.get(), nodename, mOffsetInParent);
     nsMemory::Free(nodename);
   }
 #endif
@@ -126,10 +126,7 @@ NS_IMETHODIMP CreateElementTxn::DoTransaction(void)
   if (!mNewNode) return NS_ERROR_NULL_POINTER;
 
 #ifdef NS_DEBUG
-  if (gNoisy)
-  {
-    printf("  newNode = %p\n", static_cast<void*>(mNewNode.get()));
-  }
+  if (gNoisy) { printf("  newNode = %p\n", mNewNode.get()); }
 #endif
 
   // insert the new node
@@ -183,12 +180,8 @@ NS_IMETHODIMP CreateElementTxn::DoTransaction(void)
 NS_IMETHODIMP CreateElementTxn::UndoTransaction(void)
 {
 #ifdef NS_DEBUG
-  if (gNoisy)
-  {
-    printf("Undo Create Element, mParent = %p, node = %p\n",
-           static_cast<void*>(mParent.get()),
-           static_cast<void*>(mNewNode.get()));
-  }
+  if (gNoisy) { printf("Undo Create Element, mParent = %p, node = %p\n",
+                        mParent.get(), mNewNode.get()); }
 #endif
 
   NS_ASSERTION(mEditor && mParent, "bad state");

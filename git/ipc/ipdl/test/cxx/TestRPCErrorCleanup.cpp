@@ -16,8 +16,6 @@ namespace _ipdltest {
 //-----------------------------------------------------------------------------
 // parent
 
-namespace {
-
 // NB: this test does its own shutdown, rather than going through
 // QuitParent(), because it's testing degenerate edge cases
 
@@ -58,8 +56,6 @@ void Done()
 
   passed(__FILE__);
 }
-
-} // namespace <anon>
 
 TestRPCErrorCleanupParent::TestRPCErrorCleanupParent()
 {

@@ -65,6 +65,7 @@
 #include "nsIDOMElement.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMHTMLBodyElement.h"
+#include "nsIScrollableFrame.h"
 #include "nsFrameManager.h"
 #include "nsCSSRendering.h"
 #include "nsLayoutErrors.h"
@@ -521,24 +522,30 @@ void nsTableFrame::ResetRowIndices(const nsFrameList::Slice& aRowGroupsToExclude
 {
   // Iterate over the row groups and adjust the row indices of all rows
   // omit the rowgroups that will be inserted later
+  // XXXbz this code seems to assume that the row groups handed out by
+  // aRowGroupsToExclude are already in OrderRowGroups() order.
+  // There's no reason that would be true!
   RowGroupArray rowGroups;
   OrderRowGroups(rowGroups);
 
   PRInt32 rowIndex = 0;
-  nsTHashtable<nsPtrHashKey<nsTableRowGroupFrame> > excludeRowGroups;
-  if (!excludeRowGroups.Init()) {
-    NS_ERROR("Failed to initialize excludeRowGroups hash.");
-    return;
-  }
+  nsTableRowGroupFrame* newRgFrame = nsnull;
   nsFrameList::Enumerator excludeRowGroupsEnumerator(aRowGroupsToExclude);
-  while (!excludeRowGroupsEnumerator.AtEnd()) {
-    excludeRowGroups.PutEntry(static_cast<nsTableRowGroupFrame*>(excludeRowGroupsEnumerator.get()));
+  if (!excludeRowGroupsEnumerator.AtEnd()) {
+    newRgFrame = GetRowGroupFrame(excludeRowGroupsEnumerator.get());
     excludeRowGroupsEnumerator.Next();
   }
 
   for (PRUint32 rgX = 0; rgX < rowGroups.Length(); rgX++) {
     nsTableRowGroupFrame* rgFrame = rowGroups[rgX];
-    if (!excludeRowGroups.GetEntry(rgFrame)) {
+    if (rgFrame == newRgFrame) {
+      // omit the new rowgroup and move our iterator along
+      if (!excludeRowGroupsEnumerator.AtEnd()) {
+        newRgFrame = GetRowGroupFrame(excludeRowGroupsEnumerator.get());
+        excludeRowGroupsEnumerator.Next();
+      }
+    }
+    else {
       const nsFrameList& rowFrames = rgFrame->GetChildList(nsnull);
       for (nsFrameList::Enumerator rows(rowFrames); !rows.AtEnd(); rows.Next()) {
         if (NS_STYLE_DISPLAY_TABLE_ROW==rows.get()->GetStyleDisplay()->mDisplay) {
@@ -874,7 +881,7 @@ void nsTableFrame::RemoveCell(nsTableCellFrame* aCellFrame,
 }
 
 PRInt32
-nsTableFrame::GetStartRowIndex(nsTableRowGroupFrame* aRowGroupFrame)
+nsTableFrame::GetStartRowIndex(nsTableRowGroupFrame& aRowGroupFrame)
 {
   RowGroupArray orderedRowGroups;
   OrderRowGroups(orderedRowGroups);
@@ -882,7 +889,7 @@ nsTableFrame::GetStartRowIndex(nsTableRowGroupFrame* aRowGroupFrame)
   PRInt32 rowIndex = 0;
   for (PRUint32 rgIndex = 0; rgIndex < orderedRowGroups.Length(); rgIndex++) {
     nsTableRowGroupFrame* rgFrame = orderedRowGroups[rgIndex];
-    if (rgFrame == aRowGroupFrame) {
+    if (rgFrame == &aRowGroupFrame) {
       break;
     }
     PRInt32 numRows = rgFrame->GetRowCount();
@@ -892,7 +899,7 @@ nsTableFrame::GetStartRowIndex(nsTableRowGroupFrame* aRowGroupFrame)
 }
 
 // this cannot extend beyond a single row group
-void nsTableFrame::AppendRows(nsTableRowGroupFrame*       aRowGroupFrame,
+void nsTableFrame::AppendRows(nsTableRowGroupFrame&       aRowGroupFrame,
                               PRInt32                     aRowIndex,
                               nsTArray<nsTableRowFrame*>& aRowFrames)
 {
@@ -903,9 +910,20 @@ void nsTableFrame::AppendRows(nsTableRowGroupFrame*       aRowGroupFrame,
   }
 }
 
+PRInt32
+nsTableFrame::InsertRow(nsTableRowGroupFrame& aRowGroupFrame,
+                        nsIFrame&             aRowFrame,
+                        PRInt32               aRowIndex,
+                        PRBool                aConsiderSpans)
+{
+  nsAutoTArray<nsTableRowFrame*, 1> rows;
+  rows.AppendElement((nsTableRowFrame*)&aRowFrame);
+  return InsertRows(aRowGroupFrame, rows, aRowIndex, aConsiderSpans);
+}
+
 // this cannot extend beyond a single row group
 PRInt32
-nsTableFrame::InsertRows(nsTableRowGroupFrame*       aRowGroupFrame,
+nsTableFrame::InsertRows(nsTableRowGroupFrame&       aRowGroupFrame,
                          nsTArray<nsTableRowFrame*>& aRowFrames,
                          PRInt32                     aRowIndex,
                          PRBool                      aConsiderSpans)
@@ -986,18 +1004,53 @@ void nsTableFrame::RemoveRows(nsTableRowFrame& aFirstRowFrame,
 #endif
 }
 
+nsTableRowGroupFrame*
+nsTableFrame::GetRowGroupFrame(nsIFrame* aFrame,
+                               nsIAtom*  aFrameTypeIn)
+{
+  nsIFrame* rgFrame = nsnull;
+  nsIAtom* frameType = aFrameTypeIn;
+  if (!aFrameTypeIn) {
+    frameType = aFrame->GetType();
+  }
+  if (nsGkAtoms::tableRowGroupFrame == frameType) {
+    rgFrame = aFrame;
+  }
+  else if (nsGkAtoms::scrollFrame == frameType) {
+    nsIScrollableFrame* scrollable = do_QueryFrame(aFrame);
+    if (scrollable) {
+      nsIFrame* scrolledFrame = scrollable->GetScrolledFrame();
+      if (scrolledFrame) {
+        if (nsGkAtoms::tableRowGroupFrame == scrolledFrame->GetType()) {
+          rgFrame = scrolledFrame;
+        }
+      }
+    }
+  }
+  return (nsTableRowGroupFrame*)rgFrame;
+}
+
 // collect the rows ancestors of aFrame
 PRInt32
 nsTableFrame::CollectRows(nsIFrame*                   aFrame,
                           nsTArray<nsTableRowFrame*>& aCollection)
 {
-  NS_PRECONDITION(aFrame, "null frame");
+  if (!aFrame) return 0;
   PRInt32 numRows = 0;
-  nsIFrame* childFrame = aFrame->GetFirstChild(nsnull);
-  while (childFrame) {
-    aCollection.AppendElement(static_cast<nsTableRowFrame*>(childFrame));
-    numRows++;
-    childFrame = childFrame->GetNextSibling();
+  nsTableRowGroupFrame* rgFrame = GetRowGroupFrame(aFrame);
+  if (rgFrame) {
+    nsIFrame* childFrame = rgFrame->GetFirstChild(nsnull);
+    while (childFrame) {
+      nsTableRowFrame *rowFrame = do_QueryFrame(childFrame);
+      if (rowFrame) {
+        aCollection.AppendElement(rowFrame);
+        numRows++;
+      }
+      else {
+        numRows += CollectRows(childFrame, aCollection);
+      }
+      childFrame = childFrame->GetNextSibling();
+    }
   }
   return numRows;
 }
@@ -1023,11 +1076,13 @@ nsTableFrame::InsertRowGroups(const nsFrameList::Slice& aRowGroups)
     for (rgIndex = 0; rgIndex < orderedRowGroups.Length(); rgIndex++) {
       for (nsFrameList::Enumerator rowgroups(aRowGroups); !rowgroups.AtEnd();
            rowgroups.Next()) {
-        if (orderedRowGroups[rgIndex] == rowgroups.get()) {
+        nsTableRowGroupFrame* rgFrame = GetRowGroupFrame(rowgroups.get());
+
+        if (orderedRowGroups[rgIndex] == rgFrame) {
           nsTableRowGroupFrame* priorRG =
             (0 == rgIndex) ? nsnull : orderedRowGroups[rgIndex - 1]; 
           // create and add the cell map for the row group
-          cellMap->InsertGroupCellMap(orderedRowGroups[rgIndex], priorRG);
+          cellMap->InsertGroupCellMap(*rgFrame, priorRG);
         
           break;
         }
@@ -1040,7 +1095,9 @@ nsTableFrame::InsertRowGroups(const nsFrameList::Slice& aRowGroups)
     for (rgIndex = 0; rgIndex < orderedRowGroups.Length(); rgIndex++) {
       for (nsFrameList::Enumerator rowgroups(aRowGroups); !rowgroups.AtEnd();
            rowgroups.Next()) {
-        if (orderedRowGroups[rgIndex] == rowgroups.get()) {
+        nsTableRowGroupFrame* rgFrame = GetRowGroupFrame(rowgroups.get());
+
+        if (orderedRowGroups[rgIndex] == rgFrame) {
           nsTableRowGroupFrame* priorRG =
             (0 == rgIndex) ? nsnull : orderedRowGroups[rgIndex - 1]; 
           // collect the new row frames in an array and add them to the table
@@ -1051,7 +1108,7 @@ nsTableFrame::InsertRowGroups(const nsFrameList::Slice& aRowGroups)
               PRInt32 priorNumRows = priorRG->GetRowCount();
               rowIndex = priorRG->GetStartRowIndex() + priorNumRows;
             }
-            InsertRows(orderedRowGroups[rgIndex], rows, rowIndex, PR_TRUE);
+            InsertRows(*rgFrame, rows, rowIndex, PR_TRUE);
             rows.Clear();
           }
           break;
@@ -1325,13 +1382,10 @@ nsTableFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 
   nsDisplayTableItem* item = nsnull;
-  // This background is created if any of the table parts are visible,
-  // or if we're doing event handling (since DisplayGenericTablePart
-  // needs the item for the |sortEventBackgrounds|-dependent code).
+  // This background is created if any of the table parts are visible.
   // Specific visibility decisions are delegated to the table background
   // painter, which handles borders and backgrounds for the table.
-  if (aBuilder->IsForEventDelivery() ||
-      AnyTablePartHasBorderOrBackground(this)) {
+  if (AnyTablePartHasBorderOrBackground(this)) {
     item = new (aBuilder) nsDisplayTableBorderBackground(this);
     nsresult rv = aLists.BorderBackground()->AppendNewToTop(item);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1643,6 +1697,7 @@ nsTableFrame::RequestSpecialHeightReflow(const nsHTMLReflowState& aReflowState)
     NS_ASSERTION(IS_TABLE_CELL(frameType) ||
                  nsGkAtoms::tableRowFrame == frameType ||
                  nsGkAtoms::tableRowGroupFrame == frameType ||
+                 nsGkAtoms::scrollFrame == frameType ||
                  nsGkAtoms::tableFrame == frameType,
                  "unexpected frame type");
                  
@@ -1938,7 +1993,7 @@ nsTableFrame::GetFirstBodyRowGroupFrame()
 // Table specific version that takes into account repeated header and footer
 // frames when continuing table frames
 void
-nsTableFrame::PushChildren(const RowGroupArray& aRowGroups,
+nsTableFrame::PushChildren(const FrameArray& aFrames,
                            PRInt32 aPushFrom)
 {
   NS_PRECONDITION(aPushFrom > 0, "pushing first child");
@@ -1946,11 +2001,17 @@ nsTableFrame::PushChildren(const RowGroupArray& aRowGroups,
   // extract the frames from the array into a sibling list
   nsFrameList frames;
   PRUint32 childX;
-  for (childX = aPushFrom; childX < aRowGroups.Length(); ++childX) {
-    nsTableRowGroupFrame* rgFrame = aRowGroups[childX];
+  for (childX = aPushFrom; childX < aFrames.Length(); ++childX) {
+    nsIFrame* f = aFrames[childX];
+    // Don't push repeatable frames, do push non-rowgroup frames.
+    // XXXbz Need to push the non-rowgroup frames, even though we don't reflow
+    // them, so that we don't lose them.  Of course there shouldn't be any
+    // non-rowgroup frames here...
+    nsTableRowGroupFrame* rgFrame = GetRowGroupFrame(f);
+    NS_ASSERTION(rgFrame, "Unexpected non-row-group frame");
     if (!rgFrame || !rgFrame->IsRepeatable()) {
-      mFrames.RemoveFrame(rgFrame);
-      frames.AppendFrame(nsnull, rgFrame);
+      mFrames.RemoveFrame(f);
+      frames.AppendFrame(nsnull, f);
     }
   }
 
@@ -2290,30 +2351,34 @@ nsTableFrame::RemoveFrame(nsIAtom*        aListName,
 
   } else {
     NS_ASSERTION(!aListName, "unexpected child list");
-    nsTableRowGroupFrame* rgFrame =
-      static_cast<nsTableRowGroupFrame*>(aOldFrame);
-    // remove the row group from the cell map
-    nsTableCellMap* cellMap = GetCellMap();
-    if (cellMap) {
-      cellMap->RemoveGroupCellMap(rgFrame);
+    nsTableRowGroupFrame* rgFrame = GetRowGroupFrame(aOldFrame);
+    if (rgFrame) {
+      // remove the row group from the cell map
+      nsTableCellMap* cellMap = GetCellMap();
+      if (cellMap) {
+        cellMap->RemoveGroupCellMap(rgFrame);
+      }
+
+       // remove the row group frame from the sibling chain
+      mFrames.DestroyFrame(aOldFrame);
+     
+      // XXXldb [reflow branch merging 20060830] do we still need this?
+      if (cellMap) {
+        cellMap->Synchronize(this);
+        // Create an empty slice
+        ResetRowIndices(nsFrameList::Slice(mFrames, nsnull, nsnull));
+        nsRect damageArea;
+        cellMap->RebuildConsideringCells(nsnull, nsnull, 0, 0, PR_FALSE, damageArea);
+      }
+
+      MatchCellMapToColCache(cellMap);
+    } else {
+      // Just remove the frame
+      mFrames.DestroyFrame(aOldFrame);
     }
-
-    // remove the row group frame from the sibling chain
-    mFrames.DestroyFrame(aOldFrame);
-
-    // the removal of a row group changes the cellmap, the columns might change
-    if (cellMap) {
-      cellMap->Synchronize(this);
-      // Create an empty slice
-      ResetRowIndices(nsFrameList::Slice(mFrames, nsnull, nsnull));
-      nsRect damageArea;
-      cellMap->RebuildConsideringCells(nsnull, nsnull, 0, 0, PR_FALSE, damageArea);
-    }
-
-    MatchCellMapToColCache(cellMap);
   }
   // for now, just bail and recalc all of the collapsing borders
-  // as the cellmap changes we need to recalc
+  // XXXldb [reflow branch merging 20060830] do we still need this?
   if (IsBorderCollapse()) {
     nsRect damageArea(0, 0, NS_MAX(1, GetColCount()), NS_MAX(1, GetRowCount()));
     SetBCDamageArea(damageArea);
@@ -2437,9 +2502,10 @@ nsTableFrame::InitChildReflowState(nsHTMLReflowState& aReflowState)
   nsMargin* pCollapseBorder = nsnull;
   nsPresContext* presContext = PresContext();
   if (IsBorderCollapse()) {
-    nsTableRowGroupFrame* rgFrame =
-       static_cast<nsTableRowGroupFrame*>(aReflowState.frame);
-    pCollapseBorder = rgFrame->GetBCBorderWidth(collapseBorder);
+    nsTableRowGroupFrame* rgFrame = GetRowGroupFrame(aReflowState.frame);
+    if (rgFrame) {
+      pCollapseBorder = rgFrame->GetBCBorderWidth(collapseBorder);
+    }
   }
   aReflowState.Init(presContext, -1, -1, pCollapseBorder, &padding);
 
@@ -2479,9 +2545,7 @@ void nsTableFrame::PlaceChild(nsTableReflowState&  aReflowState,
 }
 
 void
-nsTableFrame::OrderRowGroups(RowGroupArray& aChildren,
-                             nsTableRowGroupFrame** aHead,
-                             nsTableRowGroupFrame** aFoot) const
+nsTableFrame::OrderRowGroups(RowGroupArray& aChildren) const
 {
   aChildren.Clear();
   nsTableRowGroupFrame* head = nsnull;
@@ -2490,33 +2554,33 @@ nsTableFrame::OrderRowGroups(RowGroupArray& aChildren,
   nsIFrame* kidFrame = mFrames.FirstChild();
   while (kidFrame) {
     const nsStyleDisplay* kidDisplay = kidFrame->GetStyleDisplay();
-    nsTableRowGroupFrame* rowGroup =
-      static_cast<nsTableRowGroupFrame*>(kidFrame);
-
-    switch (kidDisplay->mDisplay) {
-    case NS_STYLE_DISPLAY_TABLE_HEADER_GROUP:
-      if (head) { // treat additional thead like tbody
+    nsTableRowGroupFrame* rowGroup = GetRowGroupFrame(kidFrame);
+    if (NS_LIKELY(rowGroup)) {
+      switch(kidDisplay->mDisplay) {
+      case NS_STYLE_DISPLAY_TABLE_HEADER_GROUP:
+        if (head) { // treat additional thead like tbody
+          aChildren.AppendElement(rowGroup);
+        }
+        else {
+          head = rowGroup;
+        }
+        break;
+      case NS_STYLE_DISPLAY_TABLE_FOOTER_GROUP:
+        if (foot) { // treat additional tfoot like tbody
+          aChildren.AppendElement(rowGroup);
+        }
+        else {
+          foot = rowGroup;
+        }
+        break;
+      case NS_STYLE_DISPLAY_TABLE_ROW_GROUP:
         aChildren.AppendElement(rowGroup);
+        break;
+      default:
+        NS_NOTREACHED("How did this produce an nsTableRowGroupFrame?");
+        // Just ignore it
+        break;
       }
-      else {
-        head = rowGroup;
-      }
-      break;
-    case NS_STYLE_DISPLAY_TABLE_FOOTER_GROUP:
-      if (foot) { // treat additional tfoot like tbody
-        aChildren.AppendElement(rowGroup);
-      }
-      else {
-        foot = rowGroup;
-      }
-      break;
-    case NS_STYLE_DISPLAY_TABLE_ROW_GROUP:
-      aChildren.AppendElement(rowGroup);
-      break;
-    default:
-      NS_NOTREACHED("How did this produce an nsTableRowGroupFrame?");
-      // Just ignore it
-      break;
     }
     // Get the next sibling but skip it if it's also the next-in-flow, since
     // a next-in-flow will not be part of the current table.
@@ -2532,14 +2596,88 @@ nsTableFrame::OrderRowGroups(RowGroupArray& aChildren,
   if (head) {
     aChildren.InsertElementAt(0, head);
   }
-  if (aHead)
-    *aHead = head;
+
   // put the tfoot after the last tbody
   if (foot) {
     aChildren.AppendElement(foot);
   }
-  if (aFoot)
-    *aFoot = foot;
+}
+
+PRUint32
+nsTableFrame::OrderRowGroups(FrameArray& aChildren,
+                             nsTableRowGroupFrame** aHead,
+                             nsTableRowGroupFrame** aFoot) const
+{
+  aChildren.Clear();
+  // initialize out parameters
+  *aHead = nsnull;
+  *aFoot = nsnull;
+
+  FrameArray nonRowGroups;
+
+  nsIFrame* head = nsnull;
+  nsIFrame* foot = nsnull;
+  
+  nsIFrame* kidFrame = mFrames.FirstChild();
+  while (kidFrame) {
+    const nsStyleDisplay* kidDisplay = kidFrame->GetStyleDisplay();
+    nsTableRowGroupFrame* rowGroup = GetRowGroupFrame(kidFrame);
+    if (NS_LIKELY(rowGroup)) {
+      switch(kidDisplay->mDisplay) {
+      case NS_STYLE_DISPLAY_TABLE_HEADER_GROUP:
+        if (head) { // treat additional thead like tbody
+          aChildren.AppendElement(kidFrame);
+        }
+        else {
+          head = kidFrame;
+          *aHead = rowGroup;
+        }
+        break;
+      case NS_STYLE_DISPLAY_TABLE_FOOTER_GROUP:
+        if (foot) { // treat additional tfoot like tbody
+          aChildren.AppendElement(kidFrame);
+        }
+        else {
+          foot = kidFrame;
+          *aFoot = rowGroup;
+        }
+        break;
+      case NS_STYLE_DISPLAY_TABLE_ROW_GROUP:
+        aChildren.AppendElement(kidFrame);
+        break;
+      default:
+        break;
+      }
+    } else {
+      NS_NOTREACHED("Non-row-group primary frame list child of an "
+                    "nsTableFrame?  How come?");
+      nonRowGroups.AppendElement(kidFrame);
+    }
+
+    // Get the next sibling but skip it if it's also the next-in-flow, since
+    // a next-in-flow will not be part of the current table.
+    while (kidFrame) {
+      nsIFrame* nif = kidFrame->GetNextInFlow();
+      kidFrame = kidFrame->GetNextSibling();
+      if (kidFrame != nif) 
+        break;
+    }
+  }
+  
+  // put the thead first
+  if (head) {
+    aChildren.InsertElementAt(0, head);
+  }
+
+  // put the tfoot after the last tbody
+  if (foot) {
+    aChildren.AppendElement(foot);
+  }
+
+  PRUint32 rowGroupCount = aChildren.Length();
+  aChildren.AppendElements(nonRowGroups);
+
+  return rowGroupCount;
 }
 
 nsTableRowGroupFrame*
@@ -2549,7 +2687,10 @@ nsTableFrame::GetTHead() const
   while (kidFrame) {
     if (kidFrame->GetStyleDisplay()->mDisplay ==
           NS_STYLE_DISPLAY_TABLE_HEADER_GROUP) {
-      return static_cast<nsTableRowGroupFrame*>(kidFrame);
+      nsTableRowGroupFrame* rg = GetRowGroupFrame(kidFrame);
+      if (rg) {
+        return rg;
+      }
     }
 
     // Get the next sibling but skip it if it's also the next-in-flow, since
@@ -2572,7 +2713,10 @@ nsTableFrame::GetTFoot() const
   while (kidFrame) {
     if (kidFrame->GetStyleDisplay()->mDisplay ==
           NS_STYLE_DISPLAY_TABLE_FOOTER_GROUP) {
-      return static_cast<nsTableRowGroupFrame*>(kidFrame);
+      nsTableRowGroupFrame* rg = GetRowGroupFrame(kidFrame);
+      if (rg) {
+        return rg;
+      }
     }
 
     // Get the next sibling but skip it if it's also the next-in-flow, since
@@ -2601,6 +2745,13 @@ nsTableFrame::SetupHeaderFooterChild(const nsTableReflowState& aReflowState,
 {
   nsPresContext* presContext = PresContext();
   nscoord pageHeight = presContext->GetPageSize().height;
+
+  if (aFrame->GetParent() != this || pageHeight == NS_UNCONSTRAINEDSIZE) {
+    // Must be a scrollable head/footer (we don't allow those to repeat), or
+    // page has unconstrained height for some reason.
+    *aDesiredHeight = 0;
+    return NS_OK;
+  }
 
   // Reflow the child with unconstrainted height
   nsHTMLReflowState kidReflowState(presContext, aReflowState.reflowState,
@@ -2647,9 +2798,9 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
                          mBits.mResizedColumns ||
                          IsGeometryDirty();
 
-  RowGroupArray rowGroups;
+  FrameArray rowGroups;
   nsTableRowGroupFrame *thead, *tfoot;
-  OrderRowGroups(rowGroups, &thead, &tfoot);
+  PRUint32 numRowGroups = OrderRowGroups(rowGroups, &thead, &tfoot);
   PRBool pageBreak = PR_FALSE;
   nscoord footerHeight = 0;
 
@@ -2675,7 +2826,7 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
     }
   }
 
-  for (PRUint32 childX = 0; childX < rowGroups.Length(); childX++) {
+  for (PRUint32 childX = 0; childX < numRowGroups; childX++) {
     nsIFrame* kidFrame = rowGroups[childX];
     // Get the frame state bits
     // See if we should only reflow the dirty child frames
@@ -2694,8 +2845,7 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
       // if the child is a tbody in paginated mode reduce the height by a repeated footer
       PRBool allowRepeatedFooter = PR_FALSE;
       if (isPaginated && (NS_UNCONSTRAINEDSIZE != kidAvailSize.height)) {
-        nsTableRowGroupFrame* kidRG =
-          static_cast<nsTableRowGroupFrame*>(kidFrame);
+        nsTableRowGroupFrame* kidRG = GetRowGroupFrame(kidFrame);
         if (kidRG != thead && kidRG != tfoot && tfoot && tfoot->IsRepeatable()) {
           // the child is a tbody and there is a repeatable footer
           NS_ASSERTION(tfoot == rowGroups[rowGroups.Length() - 1], "Missing footer!");
@@ -2744,11 +2894,11 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
 
       if (reorder) {
         // reorder row groups the reflow may have changed the nextinflows
-        OrderRowGroups(rowGroups, &thead, &tfoot);
+        numRowGroups = OrderRowGroups(rowGroups, &thead, &tfoot);
         childX = rowGroups.IndexOf(kidFrame);
         if (childX == RowGroupArray::NoIndex) {
           // XXXbz can this happen?
-          childX = rowGroups.Length();
+          childX = numRowGroups;
         }
       }
       // see if the rowgroup did not fit on this page might be pushed on
@@ -2788,7 +2938,7 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
       if (NS_FRAME_IS_COMPLETE(aStatus) && isPaginated && 
           (NS_UNCONSTRAINEDSIZE != kidReflowState.availableHeight)) {
         nsIFrame* nextKid =
-          (childX + 1 < rowGroups.Length()) ? rowGroups[childX + 1] : nsnull;
+          (childX + 1 < numRowGroups) ? rowGroups[childX + 1] : nsnull;
         pageBreak = PageBreakAfter(*kidFrame, nextKid);
       }
 
@@ -2822,8 +2972,7 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
         }
 
         // Put the nextinflow so that it will get pushed
-        rowGroups.InsertElementAt(childX + 1,
-                           static_cast <nsTableRowGroupFrame*>(kidNextInFlow));
+        rowGroups.InsertElementAt(childX + 1, kidNextInFlow);
 
         // We've used up all of our available space so push the remaining
         // children to the next-in-flow
@@ -2917,10 +3066,15 @@ nsTableFrame::CalcDesiredHeight(const nsHTMLReflowState& aReflowState, nsHTMLRef
   nscoord  cellSpacingY = GetCellSpacingY();
   nsMargin borderPadding = GetChildAreaOffset(&aReflowState);
 
-  // get the natural height based on the last child's (row group) rect
-  RowGroupArray rowGroups;
-  OrderRowGroups(rowGroups);
-  if (rowGroups.IsEmpty()) {
+  // get the natural height based on the last child's (row group or scroll frame) rect
+  FrameArray rowGroups;
+  PRUint32 numRowGroups;
+  {
+    // Scope for the dummies so we don't use them by accident
+    nsTableRowGroupFrame *dummy1, *dummy2;
+    numRowGroups = OrderRowGroups(rowGroups, &dummy1, &dummy2);
+  }
+  if (numRowGroups == 0) {
     // tables can be used as rectangular items without content
     nscoord tableSpecifiedHeight = CalcBorderBoxHeight(aReflowState);
     if ((NS_UNCONSTRAINEDSIZE != tableSpecifiedHeight) &&
@@ -2938,7 +3092,7 @@ nsTableFrame::CalcDesiredHeight(const nsHTMLReflowState& aReflowState, nsHTMLRef
   nscoord desiredHeight = borderPadding.top + borderPadding.bottom;
   if (rowCount > 0 && colCount > 0) {
     desiredHeight += cellSpacingY;
-    for (PRUint32 rgX = 0; rgX < rowGroups.Length(); rgX++) {
+    for (PRUint32 rgX = 0; rgX < numRowGroups; rgX++) {
       desiredHeight += rowGroups[rgX]->GetSize().height + cellSpacingY;
     }
   }
@@ -3234,6 +3388,7 @@ nsTableFrame::DistributeHeightToRows(const nsHTMLReflowState& aReflowState,
                                       PR_FALSE);
       }
       // Make sure child views are properly positioned
+      // XXX what happens if childFrame is a scroll frame and this gets skipped? see also below
     }
     else if (amountUsed > 0 && yOriginRG != rgRect.y) {
       rgFrame->InvalidateOverflowRect();
@@ -3323,6 +3478,8 @@ nsTableFrame::GetBaseline() const
   OrderRowGroups(orderedRowGroups);
   nsTableRowFrame* firstRow = nsnull;
   for (PRUint32 rgIndex = 0; rgIndex < orderedRowGroups.Length(); rgIndex++) {
+    // XXXbz Do we really want to just let through the scrollable
+    // rowgroups and use their ascent?
     nsTableRowGroupFrame* rgFrame = orderedRowGroups[rgIndex];
     if (rgFrame->GetRowCount()) {
       firstRow = rgFrame->GetFirstRow(); 
@@ -3468,31 +3625,30 @@ nsTableFrame::GetFrameAtOrBefore(nsIFrame*       aParentFrame,
 void 
 nsTableFrame::DumpRowGroup(nsIFrame* aKidFrame)
 {
-  if (!aKidFrame)
-    return;
-
-  nsIFrame* cFrame = aKidFrame->GetFirstChild(nsnull);
-  while (cFrame) {
-    nsTableRowFrame *rowFrame = do_QueryFrame(cFrame);
-    if (rowFrame) {
-      printf("row(%d)=%p ", rowFrame->GetRowIndex(),
-             static_cast<void*>(rowFrame));
-      nsIFrame* childFrame = cFrame->GetFirstChild(nsnull);
-      while (childFrame) {
-        nsTableCellFrame *cellFrame = do_QueryFrame(childFrame);
-        if (cellFrame) {
-          PRInt32 colIndex;
-          cellFrame->GetColIndex(colIndex);
-          printf("cell(%d)=%p ", colIndex, childFrame);
+  nsTableRowGroupFrame* rgFrame = GetRowGroupFrame(aKidFrame);
+  if (rgFrame) {
+    nsIFrame* cFrame = rgFrame->GetFirstChild(nsnull);
+    while (cFrame) {
+      nsTableRowFrame *rowFrame = do_QueryFrame(cFrame);
+      if (rowFrame) {
+        printf("row(%d)=%p ", rowFrame->GetRowIndex(), rowFrame);
+        nsIFrame* childFrame = cFrame->GetFirstChild(nsnull);
+        while (childFrame) {
+          nsTableCellFrame *cellFrame = do_QueryFrame(childFrame);
+          if (cellFrame) {
+            PRInt32 colIndex;
+            cellFrame->GetColIndex(colIndex);
+            printf("cell(%d)=%p ", colIndex, childFrame);
+          }
+          childFrame = childFrame->GetNextSibling();
         }
-        childFrame = childFrame->GetNextSibling();
+        printf("\n");
       }
-      printf("\n");
+      else {
+        DumpRowGroup(rowFrame);
+      }
+      cFrame = cFrame->GetNextSibling();
     }
-    else {
-      DumpRowGroup(rowFrame);
-    }
-    cFrame = cFrame->GetNextSibling();
   }
 }
 
@@ -3527,7 +3683,7 @@ nsTableFrame::Dump(PRBool          aDumpRows,
       if (0 == (colX % 8)) {
         printf("\n");
       }
-      printf ("%d=%p ", colX, static_cast<void*>(colFrame));
+      printf ("%d=%p ", colX, colFrame);
       nsTableColType colType = colFrame->GetColType();
       switch (colType) {
       case eColContent:
@@ -4171,7 +4327,7 @@ BCMapCellInfo::SetInfo(nsTableRowFrame*   aNewRow,
   // possible
   PRUint32 rgStart  = aIter->mRowGroupStart;
   PRUint32 rgEnd    = aIter->mRowGroupEnd;
-  mRowGroup = static_cast<nsTableRowGroupFrame*>(mTopRow->GetParent());
+  mRowGroup = mTableFrame->GetRowGroupFrame(mTopRow->GetParent());
   if (mRowGroup != aIter->GetCurrentRowGroup()) {
     rgStart = mRowGroup->GetStartRowIndex();
     rgEnd   = rgStart + mRowGroup->GetRowCount() - 1;
@@ -6170,9 +6326,7 @@ BCPaintBorderIterator::BCPaintBorderIterator(nsTableFrame* aTable)
 
   // Get the ordered row groups
   mTable->OrderRowGroups(mRowGroups);
-  // initialize to a non existing index
-  mRepeatedHeaderRowIndex = -99;
-  
+
   mTableIsLTR = mTable->GetStyleVisibility()->mDirection ==
                    NS_STYLE_DIRECTION_LTR;
   mColInc = (mTableIsLTR) ? 1 : -1;

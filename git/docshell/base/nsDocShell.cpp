@@ -51,7 +51,6 @@
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
-#include "nsIDOM3Document.h"
 #include "nsIDOMNSDocument.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMStorageObsolete.h"
@@ -105,6 +104,7 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
+#include "nsIScrollableView.h"
 #include "nsIScriptChannel.h"
 #include "nsIURIClassifier.h"
 #include "nsIOfflineCacheUpdate.h"
@@ -1793,7 +1793,8 @@ nsDocShell::GetChannelIsUnsafe(PRBool *aUnsafe)
 {
     *aUnsafe = PR_FALSE;
 
-    nsIChannel* channel = GetCurrentDocChannel();
+    nsCOMPtr<nsIChannel> channel;
+    GetCurrentDocumentChannel(getter_AddRefs(channel));
     if (!channel) {
         return NS_OK;
     }
@@ -2145,7 +2146,6 @@ GetPrincipalDomain(nsIPrincipal* aPrincipal, nsACString& aDomain)
 
 NS_IMETHODIMP
 nsDocShell::GetSessionStorageForPrincipal(nsIPrincipal* aPrincipal,
-                                          const nsAString& aDocumentURI,
                                           PRBool aCreate,
                                           nsIDOMStorage** aStorage)
 {
@@ -2167,9 +2167,7 @@ nsDocShell::GetSessionStorageForPrincipal(nsIPrincipal* aPrincipal,
 
     nsDocShell* topDocShell = static_cast<nsDocShell*>(topItem.get());
     if (topDocShell != this)
-        return topDocShell->GetSessionStorageForPrincipal(aPrincipal,
-                                                          aDocumentURI,
-                                                          aCreate,
+        return topDocShell->GetSessionStorageForPrincipal(aPrincipal, aCreate,
                                                           aStorage);
 
     nsCAutoString currentDomain;
@@ -2189,7 +2187,7 @@ nsDocShell::GetSessionStorageForPrincipal(nsIPrincipal* aPrincipal,
         nsCOMPtr<nsPIDOMStorage> pistorage = do_QueryInterface(newstorage);
         if (!pistorage)
             return NS_ERROR_FAILURE;
-        rv = pistorage->InitAsSessionStorage(aPrincipal, aDocumentURI);
+        rv = pistorage->InitAsSessionStorage(aPrincipal);
         if (NS_FAILED(rv))
             return rv;
 
@@ -2197,57 +2195,19 @@ nsDocShell::GetSessionStorageForPrincipal(nsIPrincipal* aPrincipal,
             return NS_ERROR_OUT_OF_MEMORY;
 
         newstorage.swap(*aStorage);
-#if defined(PR_LOGGING) && defined(DEBUG)
-        PR_LOG(gDocShellLog, PR_LOG_DEBUG,
-               ("nsDocShell[%p]: created a new sessionStorage %p",
-                this, *aStorage));
-#endif
-    }
-    else if (*aStorage) {
-      nsCOMPtr<nsPIDOMStorage> piStorage = do_QueryInterface(*aStorage);
-      if (piStorage) {
-          PRBool canAccess = piStorage->CanAccess(aPrincipal);
-          NS_ASSERTION(canAccess,
-                       "GetSessionStorageForPrincipal got a storage "
-                       "that could not be accessed!");
-          if (!canAccess) {
-              NS_RELEASE(*aStorage);
-              return NS_ERROR_DOM_SECURITY_ERR;
-          }
-      }
-
-#if defined(PR_LOGGING) && defined(DEBUG)
-      PR_LOG(gDocShellLog, PR_LOG_DEBUG,
-             ("nsDocShell[%p]: returns existing sessionStorage %p",
-              this, *aStorage));
-#endif
+        return NS_OK;
     }
 
-    if (aCreate) {
-        // We are asked to create a new storage object. This indicates
-        // that a new windows wants it. At this moment we "fork" the existing
-        // storage object (what it means is described in the paragraph bellow).
-        // We must create a single object per a single window to distinguish
-        // a window originating oparations on the storage object to succesfully
-        // prevent dispatch of a storage event to this same window that ivoked
-        // a change in its storage. We also do this to correctly fill
-        // documentURI property in the storage event.
-        //
-        // The difference between clone and fork is that clone creates
-        // a completelly new and independent storage, but fork only creates
-        // a new object wrapping the storage implementation and data and
-        // the forked storage then behaves completelly the same way as
-        // the storage it has been forked of, all such forked storage objects
-        // shares their state and data and change on one such object affects
-        // all others the same way.
-        nsCOMPtr<nsPIDOMStorage> piStorage = do_QueryInterface(*aStorage);
-        nsCOMPtr<nsIDOMStorage> fork = piStorage->Fork(aDocumentURI);
-#if defined(PR_LOGGING) && defined(DEBUG)
-        PR_LOG(gDocShellLog, PR_LOG_DEBUG,
-               ("nsDocShell[%p]: forked sessionStorage %p to %p",
-                this, *aStorage, fork.get()));
-#endif
-        fork.swap(*aStorage);
+    nsCOMPtr<nsPIDOMStorage> piStorage = do_QueryInterface(*aStorage);
+    if (piStorage) {
+        PRBool canAccess = piStorage->CanAccess(aPrincipal);
+        NS_ASSERTION(canAccess,
+                     "GetSessionStorageForPrincipal got a storage "
+                     "that could not be accessed!");
+        if (!canAccess) {
+            NS_RELEASE(*aStorage);
+            return NS_ERROR_DOM_SECURITY_ERR;
+        }
     }
 
     return NS_OK;
@@ -2255,15 +2215,13 @@ nsDocShell::GetSessionStorageForPrincipal(nsIPrincipal* aPrincipal,
 
 NS_IMETHODIMP
 nsDocShell::GetSessionStorageForURI(nsIURI* aURI,
-                                    const nsAString& aDocumentURI,
                                     nsIDOMStorage** aStorage)
 {
-    return GetSessionStorageForURI(aURI, aDocumentURI, PR_TRUE, aStorage);
+    return GetSessionStorageForURI(aURI, PR_TRUE, aStorage);
 }
 
 nsresult
 nsDocShell::GetSessionStorageForURI(nsIURI* aURI,
-                                    const nsSubstring& aDocumentURI,
                                     PRBool aCreate,
                                     nsIDOMStorage** aStorage)
 {
@@ -2284,7 +2242,7 @@ nsDocShell::GetSessionStorageForURI(nsIURI* aURI,
     if (NS_FAILED(rv))
         return rv;
 
-    return GetSessionStorageForPrincipal(principal, aDocumentURI, aCreate, aStorage);
+    return GetSessionStorageForPrincipal(principal, aCreate, aStorage);
 }
 
 nsresult
@@ -2316,11 +2274,6 @@ nsDocShell::AddSessionStorage(nsIPrincipal* aPrincipal,
             if (mStorages.GetWeak(currentDomain))
                 return NS_ERROR_NOT_AVAILABLE;
 
-#if defined(PR_LOGGING) && defined(DEBUG)
-            PR_LOG(gDocShellLog, PR_LOG_DEBUG,
-                   ("nsDocShell[%p]: was added a sessionStorage %p",
-                    this, aStorage));
-#endif
             if (!mStorages.Put(currentDomain, aStorage))
                 return NS_ERROR_OUT_OF_MEMORY;
         }
@@ -2335,20 +2288,22 @@ nsDocShell::AddSessionStorage(nsIPrincipal* aPrincipal,
 NS_IMETHODIMP
 nsDocShell::GetCurrentDocumentChannel(nsIChannel** aResult)
 {
-    NS_IF_ADDREF(*aResult = GetCurrentDocChannel()); 
-    return NS_OK;
-}
+    *aResult = nsnull;
+    if (!mContentViewer)
+        return NS_OK;
 
-nsIChannel*
-nsDocShell::GetCurrentDocChannel()
-{
-    if (mContentViewer) {
-        nsIDocument* doc = mContentViewer->GetDocument();
-        if (doc) {
-            return doc->GetChannel();
-        }
+    nsCOMPtr<nsIDOMDocument> domDoc;
+    nsresult rv = mContentViewer->GetDOMDocument(getter_AddRefs(domDoc));
+    if (NS_FAILED(rv))
+        return rv;
+
+    nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
+    if (doc) {
+      *aResult = doc->GetChannel();
+      NS_IF_ADDREF(*aResult);
     }
-    return nsnull;
+  
+    return NS_OK;
 }
 
 //*****************************************************************************
@@ -3034,10 +2989,12 @@ nsDocShell::AddChild(nsIDocShellTreeItem * aChild)
         return NS_OK;
 
     // get the parent's current charset
-    if (!mContentViewer)
+    nsCOMPtr<nsIDocumentViewer> docv(do_QueryInterface(mContentViewer));
+    if (!docv)
         return NS_OK;
-    nsIDocument* doc = mContentViewer->GetDocument();
-    if (!doc)
+    nsCOMPtr<nsIDocument> doc;
+    res = docv->GetDocument(getter_AddRefs(doc));
+    if (NS_FAILED(res) || (!doc))
         return NS_OK;
     const nsACString &parentCS = doc->GetDocumentCharacterSet();
 
@@ -4682,58 +4639,81 @@ nsDocShell::GetCurScrollPos(PRInt32 scrollOrientation, PRInt32 * curPos)
 {
     NS_ENSURE_ARG_POINTER(curPos);
 
-    nsIScrollableFrame* sf = GetRootScrollFrame();
-    NS_ENSURE_TRUE(sf, NS_ERROR_FAILURE);
+    nsIScrollableView* scrollView;
+    NS_ENSURE_SUCCESS(GetRootScrollableView(&scrollView),
+                      NS_ERROR_FAILURE);
+    if (!scrollView) {
+        return NS_ERROR_FAILURE;
+    }
 
-    nsPoint pt = sf->GetScrollPosition();
+    nscoord x, y;
+    NS_ENSURE_SUCCESS(scrollView->GetScrollPosition(x, y), NS_ERROR_FAILURE);
 
     switch (scrollOrientation) {
     case ScrollOrientation_X:
-        *curPos = pt.x;
+        *curPos = x;
         return NS_OK;
 
     case ScrollOrientation_Y:
-        *curPos = pt.y;
+        *curPos = y;
         return NS_OK;
 
     default:
         NS_ENSURE_TRUE(PR_FALSE, NS_ERROR_INVALID_ARG);
     }
+    return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
 nsDocShell::SetCurScrollPos(PRInt32 scrollOrientation, PRInt32 curPos)
 {
-    nsIScrollableFrame* sf = GetRootScrollFrame();
-    NS_ENSURE_TRUE(sf, NS_ERROR_FAILURE);
+    nsIScrollableView* scrollView;
+    NS_ENSURE_SUCCESS(GetRootScrollableView(&scrollView),
+                      NS_ERROR_FAILURE);
+    if (!scrollView) {
+        return NS_ERROR_FAILURE;
+    }
 
-    nsPoint pt = sf->GetScrollPosition();
+    PRInt32 other;
+    PRInt32 x;
+    PRInt32 y;
+
+    GetCurScrollPos(scrollOrientation, &other);
 
     switch (scrollOrientation) {
     case ScrollOrientation_X:
-        pt.x = curPos;
+        x = curPos;
+        y = other;
         break;
 
     case ScrollOrientation_Y:
-        pt.y = curPos;
+        x = other;
+        y = curPos;
         break;
 
     default:
         NS_ENSURE_TRUE(PR_FALSE, NS_ERROR_INVALID_ARG);
+        x = 0;
+        y = 0;                  // fix compiler warning, not actually executed
     }
 
-    sf->ScrollTo(pt, nsIScrollableFrame::INSTANT);
+    NS_ENSURE_SUCCESS(scrollView->ScrollTo(x, y, 0),
+                      NS_ERROR_FAILURE);
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDocShell::SetCurScrollPosEx(PRInt32 curHorizontalPos, PRInt32 curVerticalPos)
 {
-    nsIScrollableFrame* sf = GetRootScrollFrame();
-    NS_ENSURE_TRUE(sf, NS_ERROR_FAILURE);
+    nsIScrollableView* scrollView;
+    NS_ENSURE_SUCCESS(GetRootScrollableView(&scrollView),
+                      NS_ERROR_FAILURE);
+    if (!scrollView) {
+        return NS_ERROR_FAILURE;
+    }
 
-    sf->ScrollTo(nsPoint(curHorizontalPos, curVerticalPos),
-                 nsIScrollableFrame::INSTANT);
+    NS_ENSURE_SUCCESS(scrollView->ScrollTo(curHorizontalPos, curVerticalPos, 0),
+                      NS_ERROR_FAILURE);
     return NS_OK;
 }
 
@@ -4744,26 +4724,33 @@ nsDocShell::GetScrollRange(PRInt32 scrollOrientation,
 {
     NS_ENSURE_ARG_POINTER(minPos && maxPos);
 
-    nsIScrollableFrame* sf = GetRootScrollFrame();
-    NS_ENSURE_TRUE(sf, NS_ERROR_FAILURE);
+    nsIScrollableView* scrollView;
+    NS_ENSURE_SUCCESS(GetRootScrollableView(&scrollView),
+                      NS_ERROR_FAILURE);
+    if (!scrollView) {
+        return NS_ERROR_FAILURE;
+    }
 
-    nsSize portSize = sf->GetScrollPortRect().Size();
-    nsRect range = sf->GetScrollRange();
+    PRInt32 cx;
+    PRInt32 cy;
+
+    NS_ENSURE_SUCCESS(scrollView->GetContainerSize(&cx, &cy), NS_ERROR_FAILURE);
+    *minPos = 0;
 
     switch (scrollOrientation) {
     case ScrollOrientation_X:
-        *minPos = range.x;
-        *maxPos = range.XMost() + portSize.width;
+        *maxPos = cx;
         return NS_OK;
 
     case ScrollOrientation_Y:
-        *minPos = range.y;
-        *maxPos = range.YMost() + portSize.height;
+        *maxPos = cy;
         return NS_OK;
 
     default:
         NS_ENSURE_TRUE(PR_FALSE, NS_ERROR_INVALID_ARG);
     }
+
+    return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
@@ -4852,14 +4839,27 @@ NS_IMETHODIMP
 nsDocShell::GetScrollbarVisibility(PRBool * verticalVisible,
                                    PRBool * horizontalVisible)
 {
-    nsIScrollableFrame* sf = GetRootScrollFrame();
-    NS_ENSURE_TRUE(sf, NS_ERROR_FAILURE);
+    nsIScrollableView* scrollView;
+    NS_ENSURE_SUCCESS(GetRootScrollableView(&scrollView),
+                      NS_ERROR_FAILURE);
+    if (!scrollView)
+        return NS_ERROR_FAILURE;
 
-    PRUint32 scrollbarVisibility = sf->GetScrollbarVisibility();
+    // We should now call nsLayoutUtils::GetScrollableFrameFor,
+    // but we can't because of stupid linkage!
+    nsIFrame* scrollFrame =
+        static_cast<nsIFrame*>(scrollView->View()->GetParent()->GetClientData());
+    if (!scrollFrame)
+        return NS_ERROR_FAILURE;
+    nsIScrollableFrame* scrollable = do_QueryFrame(scrollFrame);
+    if (!scrollable)
+        return NS_ERROR_FAILURE;
+
+    nsMargin scrollbars = scrollable->GetActualScrollbarSizes();
     if (verticalVisible)
-        *verticalVisible = (scrollbarVisibility & nsIScrollableFrame::VERTICAL) != 0;
+        *verticalVisible = scrollbars.left != 0 || scrollbars.right != 0;
     if (horizontalVisible)
-        *horizontalVisible = (scrollbarVisibility & nsIScrollableFrame::HORIZONTAL) != 0;
+        *horizontalVisible = scrollbars.top != 0 || scrollbars.bottom != 0;
 
     return NS_OK;
 }
@@ -4871,22 +4871,32 @@ nsDocShell::GetScrollbarVisibility(PRBool * verticalVisible,
 NS_IMETHODIMP
 nsDocShell::ScrollByLines(PRInt32 numLines)
 {
-    nsIScrollableFrame* sf = GetRootScrollFrame();
-    NS_ENSURE_TRUE(sf, NS_ERROR_FAILURE);
+    nsIScrollableView* scrollView;
 
-    sf->ScrollBy(nsIntPoint(0, numLines), nsIScrollableFrame::LINES,
-                 nsIScrollableFrame::SMOOTH);
+    NS_ENSURE_SUCCESS(GetRootScrollableView(&scrollView),
+                      NS_ERROR_FAILURE);
+    if (!scrollView) {
+        return NS_ERROR_FAILURE;
+    }
+
+    NS_ENSURE_SUCCESS(scrollView->ScrollByLines(0, numLines), NS_ERROR_FAILURE);
+
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDocShell::ScrollByPages(PRInt32 numPages)
 {
-    nsIScrollableFrame* sf = GetRootScrollFrame();
-    NS_ENSURE_TRUE(sf, NS_ERROR_FAILURE);
+    nsIScrollableView* scrollView;
 
-    sf->ScrollBy(nsIntPoint(0, numPages), nsIScrollableFrame::PAGES,
-                 nsIScrollableFrame::SMOOTH);
+    NS_ENSURE_SUCCESS(GetRootScrollableView(&scrollView),
+                      NS_ERROR_FAILURE);
+    if (!scrollView) {
+        return NS_ERROR_FAILURE;
+    }
+
+    NS_ENSURE_SUCCESS(scrollView->ScrollByPages(0, numPages), NS_ERROR_FAILURE);
+
     return NS_OK;
 }
 
@@ -7954,7 +7964,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                     do_QueryInterface(mScriptGlobal);
 
                 if (window)
-                    window->DispatchSyncHashchange();
+                    window->DispatchAsyncHashchange();
             }
 
             return NS_OK;
@@ -8094,7 +8104,11 @@ nsDocShell::GetInheritedPrincipal(PRBool aConsiderCurrentDocument)
     nsCOMPtr<nsIDocument> document;
 
     if (aConsiderCurrentDocument && mContentViewer) {
-        document = mContentViewer->GetDocument();
+        nsCOMPtr<nsIDocumentViewer>
+            docViewer(do_QueryInterface(mContentViewer));
+        if (!docViewer)
+            return nsnull;
+        docViewer->GetDocument(getter_AddRefs(document));
     }
 
     if (!document) {
@@ -8116,9 +8130,11 @@ nsDocShell::GetInheritedPrincipal(PRBool aConsiderCurrentDocument)
         EnsureContentViewer();  // If this fails, we'll just get a null
                                 // docViewer and bail.
 
-        if (!mContentViewer)
+        nsCOMPtr<nsIDocumentViewer>
+            docViewer(do_QueryInterface(mContentViewer));
+        if (!docViewer)
             return nsnull;
-        document = mContentViewer->GetDocument();
+        docViewer->GetDocument(getter_AddRefs(document));
     }
 
     //-- Get the document's principal
@@ -8738,8 +8754,12 @@ nsDocShell::ScrollIfAnchor(nsIURI * aURI, PRBool * aWasAnchor,
                 
             // Get a document charset
             NS_ENSURE_TRUE(mContentViewer, NS_ERROR_FAILURE);
-            nsIDocument* doc = mContentViewer->GetDocument();
-            NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
+            nsCOMPtr<nsIDocumentViewer>
+                docv(do_QueryInterface(mContentViewer));
+            NS_ENSURE_TRUE(docv, NS_ERROR_FAILURE);
+            nsCOMPtr<nsIDocument> doc;
+            rv = docv->GetDocument(getter_AddRefs(doc));
+            NS_ENSURE_SUCCESS(rv, rv);
             const nsACString &aCharset = doc->GetDocumentCharacterSet();
 
             nsCOMPtr<nsITextToSubURI> textToSubURI =
@@ -9840,14 +9860,22 @@ nsDocShell::GetChildOffset(nsIDOMNode * aChild, nsIDOMNode * aParent,
     return NS_ERROR_FAILURE;
 }
 
-nsIScrollableFrame *
-nsDocShell::GetRootScrollFrame()
+NS_IMETHODIMP
+nsDocShell::GetRootScrollableView(nsIScrollableView ** aOutScrollView)
 {
-    nsCOMPtr<nsIPresShell> shell;
-    NS_ENSURE_SUCCESS(GetPresShell(getter_AddRefs(shell)), nsnull);
-    NS_ENSURE_TRUE(shell, nsnull);
+    NS_ENSURE_ARG_POINTER(aOutScrollView);
 
-    return shell->GetRootScrollFrameAsScrollableExternal();
+    nsCOMPtr<nsIPresShell> shell;
+    NS_ENSURE_SUCCESS(GetPresShell(getter_AddRefs(shell)), NS_ERROR_FAILURE);
+    NS_ENSURE_TRUE(shell, NS_ERROR_NULL_POINTER);
+
+    NS_ENSURE_SUCCESS(shell->GetViewManager()->GetRootScrollableView(aOutScrollView),
+                      NS_ERROR_FAILURE);
+
+    if (*aOutScrollView == nsnull) {
+        return NS_ERROR_FAILURE;
+    }
+    return NS_OK;
 }
 
 #ifdef DEBUG
@@ -10122,6 +10150,7 @@ nsDocShell::SetBaseUrlForWyciwyg(nsIContentViewer * aContentViewer)
         return NS_ERROR_FAILURE;
 
     nsCOMPtr<nsIURI> baseURI;
+    nsCOMPtr<nsIDocument> document;
     nsresult rv = NS_ERROR_NOT_AVAILABLE;
 
     if (sURIFixup)
@@ -10130,9 +10159,11 @@ nsDocShell::SetBaseUrlForWyciwyg(nsIContentViewer * aContentViewer)
 
     // Get the current document and set the base uri
     if (baseURI) {
-        nsIDocument* document = aContentViewer->GetDocument();
-        if (document) {
-            rv = document->SetBaseURI(baseURI);
+        nsCOMPtr<nsIDocumentViewer> docViewer(do_QueryInterface(aContentViewer));
+        if (docViewer) {
+            rv = docViewer->GetDocument(getter_AddRefs(document));
+            if (document)
+                rv = document->SetBaseURI(baseURI);
         }
     }
     return rv;

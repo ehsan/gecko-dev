@@ -67,48 +67,6 @@
 using std::string;
 using std::vector;
 
-#define IS_DELIM(m, c)          ((m)[(c) >> 3] & (1 << ((c) & 7)))
-#define SET_DELIM(m, c)         ((m)[(c) >> 3] |= (1 << ((c) & 7)))
-#define DELIM_TABLE_SIZE        32
-
-// Copied from nsCRT
-char* strtok2(char* string, const char* delims, char* *newStr)
-{
-  PR_ASSERT(string);
-  
-  char delimTable[DELIM_TABLE_SIZE];
-  PRUint32 i;
-  char* result;
-  char* str = string;
-  
-  for (i = 0; i < DELIM_TABLE_SIZE; i++)
-    delimTable[i] = '\0';
-  
-  for (i = 0; delims[i]; i++) {
-    SET_DELIM(delimTable, static_cast<PRUint8>(delims[i]));
-  }
-  
-  // skip to beginning
-  while (*str && IS_DELIM(delimTable, static_cast<PRUint8>(*str))) {
-    str++;
-  }
-  result = str;
-  
-  // fix up the end of the token
-  while (*str) {
-    if (IS_DELIM(delimTable, static_cast<PRUint8>(*str))) {
-      *str++ = '\0';
-      break;
-    }
-    str++;
-  }
-  *newStr = str;
-  
-  return str == result ? NULL : result;
-}
-
-
-
 enum client_auth_option {
   caNone = 0,
   caRequire = 1,
@@ -242,36 +200,21 @@ bool ReadConnectRequest(server_info_t* server_info,
     relayBuffer& buffer, PRInt32* result, string& certificate,
     client_auth_option* clientauth, string& host)
 {
-  if (buffer.present() < 4) {
-    printf(" !! only %d bytes present in the buffer", (int)buffer.present());
+  if (buffer.present() < 4)
     return false;
-  }
-  if (strncmp(buffer.buffertail-4, "\r\n\r\n", 4)) {
-    printf(" !! request is not tailed with CRLFCRLF but with %x %x %x %x", 
-           *(buffer.buffertail-4),
-           *(buffer.buffertail-3),
-           *(buffer.buffertail-2),
-           *(buffer.buffertail-1));
+  if (strncmp(buffer.buffertail-4, "\r\n\r\n", 4))
     return false;
-  }
-  
-  printf(" parsing initial connect request, dump:\n%.*s\n", (int)buffer.present(), buffer.bufferhead);
 
   *result = 400;
 
   char* token;
-  char* _caret;
-  token = strtok2(buffer.bufferhead, " ", &_caret);
-  if (!token) {
-    printf(" no space found");
+  token = strtok(buffer.bufferhead, " ");
+  if (!token) 
     return true;
-  }
-  if (strcmp(token, "CONNECT")) {
-    printf(" not CONNECT request but %s", token);
+  if (strcmp(token, "CONNECT")) 
     return true;
-  }
 
-  token = strtok2(_caret, " ", &_caret);
+  token = strtok(NULL, " ");
   void* c = PL_HashTableLookup(server_info->host_cert_table, token);
   if (c)
     certificate = static_cast<char*>(c);
@@ -285,11 +228,9 @@ bool ReadConnectRequest(server_info_t* server_info,
   else
     *clientauth = caNone;
 
-  token = strtok2(_caret, "/", &_caret);
-  if (strcmp(token, "HTTP")) {  
-    printf(" not tailed with HTTP but with %s", token);
+  token = strtok(NULL, "/");
+  if (strcmp(token, "HTTP"))
     return true;
-  }
 
   *result = 200;
   return true;
@@ -352,7 +293,6 @@ bool AdjustRequestURI(relayBuffer& buffer, string *host)
   // Cannot use strnchr so add a null char at the end. There is always some space left
   // because we preserve a margin.
   buffer.buffertail[1] = '\0';
-  printf(" incoming request to adjust:\n%s\n", buffer.bufferhead);
 
   char *token, *path;
   path = strchr(buffer.bufferhead, ' ') + 1;
@@ -539,13 +479,10 @@ void HandleConnection(void* data)
             {
               // Clean the request as it would be read
               buffers[s].bufferhead = buffers[s].buffertail = buffers[s].buffer;
-              in_flags |= PR_POLL_WRITE;
-              connect_accepted = true;
 
               // Store response to the oposite buffer
               if (response != 200)
               {
-                printf(" could not read the connect request, closing connection with %d", response);
                 client_done = true;
                 sprintf(buffers[s2].buffer, "HTTP/1.1 %d ERROR\r\nConnection: close\r\n\r\n", response);
                 buffers[s2].buffertail = buffers[s2].buffer + strlen(buffers[s2].buffer);
@@ -564,6 +501,8 @@ void HandleConnection(void* data)
 
               printf(" accepted CONNECT request, connected to the server, sending OK to the client\n");
               // Send the response to the client socket
+              in_flags |= PR_POLL_WRITE;
+              connect_accepted = true;
               break;
             } // end of CONNECT handling
 
@@ -609,9 +548,6 @@ void HandleConnection(void* data)
           else
           {
             printf(", writen %d bytes", bytesWrite);
-            buffers[s2].buffertail[1] = '\0';
-            printf(" dump:\n%.*s\n", bytesWrite, buffers[s2].bufferhead);
-            
             buffers[s2].bufferhead += bytesWrite;
             if (buffers[s2].present())
             {
@@ -747,13 +683,12 @@ int processConfigLine(char* configLine)
   if (*configLine == 0 || *configLine == '#')
     return 0;
 
-  char* _caret;
-  char* keyword = strtok2(configLine, ":", &_caret);
+  char* keyword = strtok(configLine, ":");
 
   // Configure usage of http/ssl tunneling proxy behavior
   if (!strcmp(keyword, "httpproxy"))
   {
-    char* value = strtok2(_caret, ":", &_caret);
+    char* value = strtok(NULL, ":");
     if (!strcmp(value, "1"))
       do_http_proxy = true;
 
@@ -763,12 +698,12 @@ int processConfigLine(char* configLine)
   // Configure the forward address of the target server
   if (!strcmp(keyword, "forward"))
   {
-    char* ipstring = strtok2(_caret, ":", &_caret);
+    char* ipstring = strtok(NULL, ":");
     if (PR_StringToNetAddr(ipstring, &remote_addr) != PR_SUCCESS) {
       fprintf(stderr, "Invalid remote IP address: %s\n", ipstring);
       return 1;
     }
-    char* serverportstring = strtok2(_caret, ":", &_caret);
+    char* serverportstring = strtok(NULL, ":");
     int port = atoi(serverportstring);
     if (port <= 0) {
       fprintf(stderr, "Invalid remote port: %s\n", serverportstring);
@@ -782,16 +717,16 @@ int processConfigLine(char* configLine)
   // Configure all listen sockets and port+certificate bindings
   if (!strcmp(keyword, "listen"))
   {
-    char* hostname = strtok2(_caret, ":", &_caret);
+    char* hostname = strtok(NULL, ":");
     char* hostportstring = NULL;
     if (strcmp(hostname, "*"))
     {
       any_host_spec_config = true;
-      hostportstring = strtok2(_caret, ":", &_caret);
+      hostportstring = strtok(NULL, ":");
     }
 
-    char* serverportstring = strtok2(_caret, ":", &_caret);
-    char* certnick = strtok2(_caret, ":", &_caret);
+    char* serverportstring = strtok(NULL, ":");
+    char* certnick = strtok(NULL, ":");
 
     int port = atoi(serverportstring);
     if (port <= 0) {
@@ -840,9 +775,9 @@ int processConfigLine(char* configLine)
   
   if (!strcmp(keyword, "clientauth"))
   {
-    char* hostname = strtok2(_caret, ":", &_caret);
-    char* hostportstring = strtok2(_caret, ":", &_caret);
-    char* serverportstring = strtok2(_caret, ":", &_caret);
+    char* hostname = strtok(NULL, ":");
+    char* hostportstring = strtok(NULL, ":");
+    char* serverportstring = strtok(NULL, ":");
 
     int port = atoi(serverportstring);
     if (port <= 0) {
@@ -852,7 +787,7 @@ int processConfigLine(char* configLine)
 
     if (server_info_t* existingServer = findServerInfo(port))
     {
-      char* authoptionstring = strtok2(_caret, ":", &_caret);
+      char* authoptionstring = strtok(NULL, ":");
       client_auth_option* authoption = new client_auth_option;
       if (!authoption) {
         fprintf(stderr, "Out of memory");
@@ -901,7 +836,7 @@ int processConfigLine(char* configLine)
   // Configure the NSS certificate database directory
   if (!strcmp(keyword, "certdbdir"))
   {
-    nssconfigdir = strtok2(_caret, "\n", &_caret);
+    nssconfigdir = strtok(NULL, "\n");
     return 0;
   }
 

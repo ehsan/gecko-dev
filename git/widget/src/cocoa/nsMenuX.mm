@@ -81,48 +81,8 @@ static PRBool gMenuMethodsSwizzled = PR_FALSE;
 
 PRInt32 nsMenuX::sIndexingMenuLevel = 0;
 
-
-//
-// Objective-C class used for representedObject
-//
-
-@implementation MenuItemInfo
-
-- (id) initWithMenuGroupOwner:(nsMenuGroupOwnerX *)aMenuGroupOwner
-{
-  if ((self = [super init]) != nil) {
-    mMenuGroupOwner = nsnull;
-    [self setMenuGroupOwner:aMenuGroupOwner];
-  }
-  return self;
-}
-
-- (void) dealloc
-{
-  [self setMenuGroupOwner:nsnull];
-  [super dealloc];
-}
-
-- (nsMenuGroupOwnerX *) menuGroupOwner
-{
-  return mMenuGroupOwner;
-}
-
-- (void) setMenuGroupOwner:(nsMenuGroupOwnerX *)aMenuGroupOwner
-{
-  // weak reference as the nsMenuGroupOwnerX owns all of its sub-objects
-  mMenuGroupOwner = aMenuGroupOwner;
-}
-
-@end
-
-
-//
-// nsMenuX
-//
-
 nsMenuX::nsMenuX()
-: mVisibleItemsCount(0), mParent(nsnull), mMenuGroupOwner(nsnull),
+: mVisibleItemsCount(0), mParent(nsnull), mMenuBar(nsnull),
   mNativeMenu(nil), mNativeMenuItem(nil), mIsEnabled(PR_TRUE),
   mDestroyHandlerCalled(PR_FALSE), mNeedsRebuild(PR_TRUE),
   mConstructed(PR_FALSE), mVisible(PR_TRUE), mXBLAttached(PR_FALSE)
@@ -180,14 +140,14 @@ nsMenuX::~nsMenuX()
 
   // alert the change notifier we don't care no more
   if (mContent)
-    mMenuGroupOwner->UnregisterForContentChanges(mContent);
+    mMenuBar->UnregisterForContentChanges(mContent);
 
   MOZ_COUNT_DTOR(nsMenuX);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-nsresult nsMenuX::Create(nsMenuObjectX* aParent, nsMenuGroupOwnerX* aMenuGroupOwner, nsIContent* aNode)
+nsresult nsMenuX::Create(nsMenuObjectX* aParent, nsMenuBarX* aMenuBar, nsIContent* aNode)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -196,9 +156,9 @@ nsresult nsMenuX::Create(nsMenuObjectX* aParent, nsMenuGroupOwnerX* aMenuGroupOw
   mNativeMenu = CreateMenuWithGeckoString(mLabel);
 
   // register this menu to be notified when changes are made to our content object
-  mMenuGroupOwner = aMenuGroupOwner; // weak ref
-  NS_ASSERTION(mMenuGroupOwner, "No menu owner given, must have one");
-  mMenuGroupOwner->RegisterForContentChanges(mContent, this);
+  mMenuBar = aMenuBar; // weak ref
+  NS_ASSERTION(mMenuBar, "No menu bar given, must have one");
+  mMenuBar->RegisterForContentChanges(mContent, this);
 
   mParent = aParent;
   // our parent could be either a menu bar (if we're toplevel) or a menu (if we're a submenu)
@@ -253,10 +213,7 @@ nsresult nsMenuX::AddMenuItem(nsMenuItemX* aMenuItem)
   [newNativeMenuItem setAction:@selector(menuItemHit:)];
 
   // set its command. we get the unique command id from the menubar
-  [newNativeMenuItem setTag:mMenuGroupOwner->RegisterForCommand(aMenuItem)];
-  MenuItemInfo * info = [[MenuItemInfo alloc] initWithMenuGroupOwner:mMenuGroupOwner];
-  [newNativeMenuItem setRepresentedObject:info];
-  [info release];
+  [newNativeMenuItem setTag:mMenuBar->RegisterForCommand(aMenuItem)];
 
   return NS_OK;
 
@@ -349,7 +306,7 @@ nsresult nsMenuX::RemoveAll()
     // clear command id's
     int itemCount = [mNativeMenu numberOfItems];
     for (int i = 0; i < itemCount; i++)
-      mMenuGroupOwner->UnregisterCommand((PRUint32)[[mNativeMenu itemAtIndex:i] tag]);
+      mMenuBar->UnregisterCommand((PRUint32)[[mNativeMenu itemAtIndex:i] tag]);
     // get rid of Cocoa menu items
     for (int i = [mNativeMenu numberOfItems] - 1; i >= 0; i--)
       [mNativeMenu removeItemAtIndex:i];
@@ -515,6 +472,13 @@ GeckoNSMenu* nsMenuX::CreateMenuWithGeckoString(nsString& menuTitle)
   // overrides our decisions and things get incorrectly enabled/disabled.
   [myMenu setAutoenablesItems:NO];
 
+  // On SnowLeopard and later we must tell the OS which is our Help menu.
+  // Otherwise it will only add Spotlight for Help (the Search item) to our
+  // Help menu if its label/title is "Help" -- i.e. if the menu is in English.
+  // This resolves bug 489196.
+  if (nsToolkit::OnSnowLeopardOrLater() && nsMenuX::IsXULHelpMenu(mContent))
+    [NSApp setHelpMenu:myMenu];
+
   // we used to install Carbon event handlers here, but since NSMenu* doesn't
   // create its underlying MenuRef until just before display, we delay until
   // that happens. Now we install the event handlers when Cocoa notifies
@@ -554,7 +518,7 @@ void nsMenuX::LoadMenuItem(nsIContent* inMenuItemContent)
   if (!menuItem)
     return;
 
-  nsresult rv = menuItem->Create(this, menuitemName, itemType, mMenuGroupOwner, inMenuItemContent);
+  nsresult rv = menuItem->Create(this, menuitemName, itemType, mMenuBar, inMenuItemContent);
   if (NS_FAILED(rv)) {
     delete menuItem;
     return;
@@ -573,7 +537,7 @@ void nsMenuX::LoadSubMenu(nsIContent* inMenuContent)
   if (!menu)
     return;
 
-  nsresult rv = menu->Create(this, mMenuGroupOwner, inMenuContent);
+  nsresult rv = menu->Create(this, mMenuBar, inMenuContent);
   if (NS_FAILED(rv))
     return;
 
@@ -825,7 +789,7 @@ void nsMenuX::ObserveContentRemoved(nsIDocument *aDocument, nsIContent *aChild,
     return;
 
   SetRebuild(PR_TRUE);
-  mMenuGroupOwner->UnregisterForContentChanges(aChild);
+  mMenuBar->UnregisterForContentChanges(aChild);
 }
 
 void nsMenuX::ObserveContentInserted(nsIDocument *aDocument, nsIContent *aChild,

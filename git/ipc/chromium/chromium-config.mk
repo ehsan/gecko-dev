@@ -106,8 +106,9 @@ DEFINES += \
 # NB: to stop gcc warnings about exporting template instantiation
 OS_CXXFLAGS := $(filter-out -pedantic,$(OS_CXXFLAGS))
 
-OS_CXXFLAGS += $(TK_CFLAGS)
-OS_CFLAGS += $(TK_CFLAGS)
+# TODO support !GTK
+OS_CXXFLAGS += $(MOZ_GTK2_CFLAGS)
+OS_CFLAGS += $(MOZ_GTK2_CFLAGS)
 
 endif # }
 endif # }

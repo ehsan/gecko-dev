@@ -165,10 +165,9 @@ public:
                                nsCOMPtr<nsIDOMNode> *aInOutNode, 
                                PRInt32 *aInOutOffset,
                                nsIDOMDocument *aDoc);
-  nsresult InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert, 
-                                      nsIDOMCharacterData *aTextNode, 
-                                      PRInt32 aOffset,
-                                      PRBool aSuppressIME = PR_FALSE);
+  NS_IMETHOD InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert, 
+                                           nsIDOMCharacterData *aTextNode, 
+                                           PRInt32 aOffset, PRBool suppressIME=PR_FALSE);
   NS_IMETHOD DeleteSelectionImpl(EDirection aAction);
   NS_IMETHOD DeleteSelectionAndCreateNode(const nsAString& aTag,
                                            nsIDOMNode ** aNewNode);
