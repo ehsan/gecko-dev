@@ -76,11 +76,6 @@ typedef struct _nsCocoaWindowList {
 
   // Shadow
   BOOL mScheduledShadowInvalidation;
-
-  // DPI cache. Getting the physical screen size (CGDisplayScreenSize)
-  // is ridiculously slow, so we cache it in the toplevel window for all
-  // descendants to use.
-  float mDPI;
 }
 
 - (void)importState:(NSDictionary*)aState;
@@ -92,7 +87,6 @@ typedef struct _nsCocoaWindowList {
 
 - (void)deferredInvalidateShadow;
 - (void)invalidateShadow;
-- (float)getDPI;
 
 @end
 
@@ -122,7 +116,6 @@ typedef struct _nsCocoaWindowList {
       backing:(NSBackingStoreType)bufferingType defer:(BOOL)deferCreation;
 - (BOOL)isContextMenu;
 - (void)setIsContextMenu:(BOOL)flag;
-- (BOOL)canBecomeMainWindow;
 
 @end
 
@@ -179,15 +172,15 @@ struct UnifiedGradientInfo {
 {
   TitlebarAndBackgroundColor *mColor;
   float mUnifiedToolbarHeight;
-  BOOL mInUnifiedToolbarReset;
+  BOOL mWaitingForUnifiedToolbarHeight;
   NSColor *mBackgroundColor;
 }
 // Pass nil here to get the default appearance.
 - (void)setTitlebarColor:(NSColor*)aColor forActiveWindow:(BOOL)aActive;
-- (void)notifyToolbarAt:(float)aY height:(float)aHeight;
+- (void)setUnifiedToolbarHeight:(float)aToolbarHeight;
 - (float)unifiedToolbarHeight;
-- (float)beginMaybeResetUnifiedToolbar;
-- (void)endMaybeResetUnifiedToolbar:(float)aOldHeight;
+- (void)beginMaybeResetUnifiedToolbar;
+- (void)endMaybeResetUnifiedToolbar;
 - (float)titlebarHeight;
 - (NSRect)titlebarRect;
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect sync:(BOOL)aSync;
@@ -228,9 +221,7 @@ public:
     NS_IMETHOD              IsVisible(PRBool & aState);
     NS_IMETHOD              SetFocus(PRBool aState=PR_FALSE);
     virtual nsIntPoint WidgetToScreenOffset();
-    virtual nsIntPoint GetClientOffset();
-    virtual nsIntSize ClientToWindowSize(const nsIntSize& aClientSize);
-
+    
     virtual void* GetNativeData(PRUint32 aDataType) ;
 
     NS_IMETHOD              ConstrainPosition(PRBool aAllowSlop,
@@ -244,7 +235,6 @@ public:
     NS_IMETHOD              Resize(PRInt32 aWidth,PRInt32 aHeight, PRBool aRepaint);
     NS_IMETHOD              Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
     NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
-    void                    ReportMoveEvent();
     void                    ReportSizeEvent(NSRect *overrideRect = nsnull);
     NS_IMETHOD              SetCursor(nsCursor aCursor);
     NS_IMETHOD              SetCursor(imgIContainer* aCursor, PRUint32 aHotspotX, PRUint32 aHotspotY);
@@ -254,6 +244,9 @@ public:
     NS_IMETHOD Invalidate(const nsIntRect &aRect, PRBool aIsSynchronous);
     NS_IMETHOD Update();
     virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
+    virtual void Scroll(const nsIntPoint& aDelta,
+                        const nsTArray<nsIntRect>& aDestRects,
+                        const nsTArray<Configuration>& aConfigurations);
     virtual LayerManager* GetLayerManager();
     NS_IMETHOD DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus) ;
     NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, nsIMenuRollup * aMenuRollup,
@@ -296,8 +289,6 @@ public:
 
     static void UnifiedShading(void* aInfo, const CGFloat* aIn, CGFloat* aOut);
 
-    void SetPopupWindowLevel();
-
 protected:
 
   nsresult             CreateNativeWindow(const NSRect &aRect,
@@ -312,14 +303,6 @@ protected:
   void                 AdjustWindowShadow();
   void                 SetUpWindowFilter();
   void                 CleanUpWindowFilter();
-
-  virtual already_AddRefed<nsIWidget>
-  AllocateChildPopupWidget()
-  {
-    static NS_DEFINE_IID(kCPopUpCID, NS_POPUP_CID);
-    nsCOMPtr<nsIWidget> widget = do_CreateInstance(kCPopUpCID);
-    return widget.forget();
-  }
 
   nsIWidget*           mParent;         // if we're a popup, this is our parent [WEAK]
   BaseWindow*          mWindow;         // our cocoa window [STRONG]

@@ -60,7 +60,6 @@
 #include "nsToolkit.h"
 #include "nsCocoaWindow.h"
 #include "nsNativeThemeColors.h"
-#include "nsIScrollableFrame.h"
 
 #include "gfxContext.h"
 #include "gfxQuartzSurface.h"
@@ -164,7 +163,7 @@ static NSWindow* NativeWindowForFrame(nsIFrame* aFrame,
   if (!aFrame)
     return nil;  
 
-  nsIWidget* widget = aFrame->GetNearestWidget();
+  nsIWidget* widget = aFrame->GetWindow();
   if (!widget)
     return nil;
 
@@ -1017,14 +1016,6 @@ nsNativeThemeCocoa::DrawFrame(CGContextRef cgContext, HIThemeFrameKind inKind,
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-static void
-RenderProgress(CGContextRef cgContext, const HIRect& aRenderRect, void* aData)
-{
-  HIThemeTrackDrawInfo* tdi = (HIThemeTrackDrawInfo*)aData;
-  tdi->bounds = aRenderRect;
-  HIThemeDrawTrack(tdi, NULL, cgContext, kHIThemeOrientationNormal);
-}
-
 void
 nsNativeThemeCocoa::DrawProgress(CGContextRef cgContext, const HIRect& inBoxRect,
                                  PRBool inIsIndeterminate, PRBool inIsHorizontal,
@@ -1049,8 +1040,7 @@ nsNativeThemeCocoa::DrawProgress(CGContextRef cgContext, const HIRect& inBoxRect
   tdi.trackInfo.progress.phase = PR_IntervalToMilliseconds(PR_IntervalNow()) /
                                  milliSecondsPerStep % 16;
 
-  RenderTransformedHIThemeControl(cgContext, inBoxRect, RenderProgress, &tdi,
-                                  IsFrameRTL(aFrame));
+  HIThemeDrawTrack(&tdi, NULL, cgContext, HITHEME_ORIENTATION);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -1338,18 +1328,24 @@ nsNativeThemeCocoa::GetParentScrollbarFrame(nsIFrame *aFrame)
   return scrollbarFrame;
 }
 
-static PRBool
+static BOOL DrawingAtWindowTop(CGContextRef cgContext, float viewHeight, float yPos)
+{
+  // Ignore all non-trivial transforms.
+  CGAffineTransform ctm = CGContextGetCTM(cgContext);
+  if (ctm.a != 1.0f || ctm.b != 0.0f || ctm.c != 0.0f || ctm.d != -1.0f)
+    return NO;
+
+  // ctm.ty contains the vertical offset from the window's bottom edge.
+  return ctm.ty - yPos >= viewHeight;
+}
+
+static BOOL
 ToolbarCanBeUnified(CGContextRef cgContext, const HIRect& inBoxRect, NSWindow* aWindow)
 {
-  if (![aWindow isKindOfClass:[ToolbarWindow class]] ||
-      [(ToolbarWindow*)aWindow drawsContentsIntoWindowFrame])
-    return PR_FALSE;
-
-  float unifiedToolbarHeight = [(ToolbarWindow*)aWindow unifiedToolbarHeight];
-  return inBoxRect.origin.x == 0 &&
-         inBoxRect.size.width == [aWindow frame].size.width &&
-         inBoxRect.origin.y <= 0.0 &&
-         inBoxRect.origin.y + inBoxRect.size.height <= unifiedToolbarHeight;
+  return [aWindow isKindOfClass:[ToolbarWindow class]] &&
+    ![(ToolbarWindow*)aWindow drawsContentsIntoWindowFrame] &&
+    DrawingAtWindowTop(cgContext, [[aWindow contentView] bounds].size.height,
+                       inBoxRect.origin.y);
 }
 
 void
@@ -1358,8 +1354,16 @@ nsNativeThemeCocoa::DrawUnifiedToolbar(CGContextRef cgContext, const HIRect& inB
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  float titlebarHeight = [(ToolbarWindow*)aWindow titlebarHeight];
+  float titlebarHeight = 0;
 
+  if (ToolbarCanBeUnified(cgContext, inBoxRect, aWindow)) {
+    // Consider the titlebar height when calculating the gradient.
+    titlebarHeight = [(ToolbarWindow*)aWindow titlebarHeight];
+    // Notify the window about the toolbar's height so that it can draw the
+    // correct gradient in the titlebar.
+    [(ToolbarWindow*)aWindow setUnifiedToolbarHeight:inBoxRect.size.height];
+  }
+  
   BOOL isMain = [aWindow isMainWindow] || ![NSView focusView];
 
   // Draw the gradient
@@ -1477,25 +1481,6 @@ nsNativeThemeCocoa::DrawResizer(CGContextRef cgContext, const HIRect& aRect,
                                   IsFrameRTL(aFrame));
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
-static PRBool
-IsWindowSpanningToolbar(nsIWidget* aWindow,
-                        PRUint8 aWidgetType,
-                        const nsIntRect& aRect,
-                        ToolbarWindow** aCocoaWindow)
-{
-  nsIWidget* topLevelWidget = aWindow->GetTopLevelWidget();
-  if (!topLevelWidget)
-    return PR_FALSE;
-  NSWindow* win = (NSWindow*)topLevelWidget->GetNativeData(NS_NATIVE_WINDOW);
-  if (!win || ![win isKindOfClass:[ToolbarWindow class]])
-    return PR_FALSE;
-
-  *aCocoaWindow = (ToolbarWindow*)win;
-  return (aWidgetType == NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR ||
-          aWidgetType == NS_THEME_TOOLBAR) &&
-         aRect.x == 0 && aRect.width == [win frame].size.width;
 }
 
 NS_IMETHODIMP
@@ -1682,6 +1667,9 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame
       break;
 
     case NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR:
+      DrawUnifiedToolbar(cgContext, macRect, NativeWindowForFrame(aFrame));
+      break;
+
     case NS_THEME_TOOLBAR: {
       NSWindow* win = NativeWindowForFrame(aFrame);
       if (ToolbarCanBeUnified(cgContext, macRect, win)) {
@@ -1898,22 +1886,12 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame
     }
       break;
 
-    case NS_THEME_LISTBOX: {
-      // We have to draw this by hand because kHIThemeFrameListBox drawing
-      // is buggy on 10.5, see bug 579259.
+    case NS_THEME_LISTBOX:
+      // HIThemeSetFill is not available on 10.3
       CGContextSetRGBFillColor(cgContext, 1.0, 1.0, 1.0, 1.0);
       CGContextFillRect(cgContext, macRect);
-
-      // #8E8E8E for the top border, #BEBEBE for the rest.
-      int x = macRect.origin.x, y = macRect.origin.y;
-      int w = macRect.size.width, h = macRect.size.height;
-      CGContextSetRGBFillColor(cgContext, 0.557, 0.557, 0.557, 1.0);
-      CGContextFillRect(cgContext, CGRectMake(x, y, w, 1));
-      CGContextSetRGBFillColor(cgContext, 0.745, 0.745, 0.745, 1.0);
-      CGContextFillRect(cgContext, CGRectMake(x, y + 1, 1, h - 1));
-      CGContextFillRect(cgContext, CGRectMake(x + w - 1, y + 1, 1, h - 1));
-      CGContextFillRect(cgContext, CGRectMake(x + 1, y + h - 1, w - 2, 1));
-    }
+      DrawFrame(cgContext, kHIThemeFrameListBox, macRect,
+                (IsDisabled(aFrame) || IsReadOnly(aFrame)), eventState);
       break;
     
     case NS_THEME_TAB:
@@ -1936,18 +1914,6 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-void
-nsNativeThemeCocoa::RegisterWidgetGeometry(nsIWidget* aWindow,
-                                           PRUint8 aWidgetType,
-                                           const nsIntRect& aRect)
-{
-  ToolbarWindow* cocoaWindow;
-  if (IsWindowSpanningToolbar(aWindow, aWidgetType, aRect, &cocoaWindow) &&
-      ![cocoaWindow drawsContentsIntoWindowFrame]) {
-    [cocoaWindow notifyToolbarAt:aRect.y height:aRect.height];
-  }
-}
-                                         
 nsIntMargin
 nsNativeThemeCocoa::RTLAwareMargin(const nsIntMargin& aMargin, nsIFrame* aFrame)
 {
@@ -2310,7 +2276,6 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsIRenderingContext* aContext,
       HIRect bounds;
       HIThemeGetGrowBoxBounds(&pnt, &drawInfo, &bounds);
       aResult->SizeTo(bounds.size.width, bounds.size.height);
-      *aIsOverridable = PR_FALSE;
     }
   }
 
@@ -2409,6 +2374,7 @@ nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFrame* a
     case NS_THEME_MENUITEM:
     case NS_THEME_MENUSEPARATOR:
     case NS_THEME_TOOLTIP:
+    case NS_THEME_RESIZER:
     
     case NS_THEME_CHECKBOX:
     case NS_THEME_CHECKBOX_CONTAINER:
@@ -2466,22 +2432,6 @@ nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFrame* a
     case NS_THEME_DROPDOWN_TEXTFIELD:
       return !IsWidgetStyled(aPresContext, aFrame, aWidgetType);
       break;
-
-    case NS_THEME_RESIZER:
-    {
-      nsIFrame* parentFrame = aFrame->GetParent();
-      if (!parentFrame || parentFrame->GetType() != nsWidgetAtoms::scrollFrame)
-        return PR_TRUE;
-
-      // Note that IsWidgetStyled is not called for resizers on Mac. This is
-      // because for scrollable containers, the native resizer looks better
-      // when scrollbars are present even when the style is overriden, and the
-      // custom transparent resizer looks better when scrollbars are not
-      // present.
-      nsIScrollableFrame* scrollFrame = do_QueryFrame(parentFrame);
-      return (scrollFrame && scrollFrame->GetScrollbarVisibility());
-      break;
-    }
   }
 
   return PR_FALSE;
@@ -2521,22 +2471,12 @@ nsNativeThemeCocoa::ThemeNeedsComboboxDropmarker()
   return PR_FALSE;
 }
 
-nsITheme::Transparency
-nsNativeThemeCocoa::GetWidgetTransparency(nsIFrame* aFrame, PRUint8 aWidgetType)
+nsTransparencyMode
+nsNativeThemeCocoa::GetWidgetTransparency(PRUint8 aWidgetType)
 {
-  switch (aWidgetType) {
-  case NS_THEME_MENUPOPUP:
-  case NS_THEME_TOOLTIP:
-    return eTransparent;
+  if (aWidgetType == NS_THEME_MENUPOPUP ||
+      aWidgetType == NS_THEME_TOOLTIP)
+    return eTransparencyTransparent;
 
-  case NS_THEME_SCROLLBAR_SMALL:
-  case NS_THEME_SCROLLBAR:
-  case NS_THEME_STATUSBAR:
-    // Knowing that scrollbars and statusbars are opaque improves
-    // performance, because we create layers for them.
-    return eOpaque;
-
-  default:
-    return eUnknownTransparency;
-  }
+  return eTransparencyOpaque;
 }

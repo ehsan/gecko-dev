@@ -52,7 +52,6 @@
 #include "ImageLayers.h"
 
 class nsPresContext;
-class nsDisplayItem;
 
 nsIFrame* NS_NewVideoFrame (nsIPresShell* aPresShell, nsStyleContext* aContext);
 
@@ -75,6 +74,9 @@ public:
                               nsIAtom* aAttribute,
                               PRInt32 aModType);
 
+  void PaintVideo(nsIRenderingContext& aRenderingContext,
+                   const nsRect& aDirtyRect, nsPoint aPt);
+                              
   /* get the size of the video's display */
   nsSize GetVideoIntrinsicSize(nsIRenderingContext *aRenderingContext);
   virtual nsSize GetIntrinsicRatio();
@@ -93,7 +95,7 @@ public:
                     nsReflowStatus&          aStatus);
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   virtual nsIAtom* GetType() const;
@@ -117,8 +119,7 @@ public:
 #endif
 
   already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                     LayerManager* aManager,
-                                     nsDisplayItem* aItem);
+                                     LayerManager* aManager);
 
 protected:
 

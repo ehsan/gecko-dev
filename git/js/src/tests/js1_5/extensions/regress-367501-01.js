@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-367501-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 367501;
 var summary = 'getter/setter issues';
@@ -55,7 +56,7 @@ function test()
   try
   { 
     expect = 'undefined';
-    var a = { set x(v) {} };
+    var a = { set x() {} };
     actual = a.x + '';
   }
   catch(ex)

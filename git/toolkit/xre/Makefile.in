@@ -47,6 +47,10 @@ MODULE = xulapp
 LIBRARY_NAME = xulapp_s
 LIBXUL_LIBRARY = 1
 
+
+
+
+
 FORCE_STATIC_LIB = 1
 
 XPIDLSRCS = \
@@ -74,7 +78,7 @@ CPPSRCS += nsSplashScreenDummy.cpp
 endif
 endif
 
-DEFINES += -DIMPL_XREAPI -DMOZ_APP_NAME='"$(MOZ_APP_NAME)"'
+DEFINES += -DIMPL_XREAPI
 
 ifndef BUILD_STATIC_LIBS
 CPPSRCS += nsEmbedFunctions.cpp
@@ -106,10 +110,6 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
 CPPSRCS += nsNativeAppSupportQt.cpp
 CPPSRCS += nsQAppInstance.cpp
 EXPORTS += nsQAppInstance.h
-ifdef MOZ_ENABLE_MEEGOTOUCH
-MOCSRCS += moc_MozMeegoAppService.cpp
-CPPSRCS += moc_MozMeegoAppService.cpp
-endif
 else
 CPPSRCS += nsNativeAppSupportDefault.cpp
 endif
@@ -121,18 +121,16 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 CMMSRCS += MacLaunchHelper.mm
-CMMSRCS += MacApplicationDelegate.mm
-CMMSRCS += MacAutoreleasePool.mm
 CPPSRCS += nsCommandLineServiceMac.cpp
 OS_CXXFLAGS += -fexceptions
+endif
+ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+CMMSRCS += MacApplicationDelegate.mm
+CMMSRCS += MacAutoreleasePool.mm
 endif
 
 ifdef MOZ_X11
 CPPSRCS += nsX11ErrorHandler.cpp
-endif
-
-ifeq ($(OS_TARGET),Android)
-CPPSRCS += nsAndroidStartup.cpp
 endif
 
 SHARED_LIBRARY_LIBS += ../profile/src/$(LIB_PREFIX)profile_s.$(LIB_SUFFIX)
@@ -154,7 +152,6 @@ endif
 ifeq ($(OS_ARCH),Darwin)
 SHARED_LIBRARY_LIBS += \
 	$(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/$(LIB_PREFIX)minidump_file_writer_s.$(LIB_SUFFIX) \
-	$(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/mac/crash_generation/$(LIB_PREFIX)crash_generation_s.$(LIB_SUFFIX) \
 	$(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/mac/handler/$(LIB_PREFIX)exception_handler_s.$(LIB_SUFFIX) \
 	$(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/$(LIB_PREFIX)breakpad_common_s.$(LIB_SUFFIX) \
 	$(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/mac/$(LIB_PREFIX)breakpad_mac_common_s.$(LIB_SUFFIX)
@@ -254,8 +251,7 @@ INIARGS += --sourcerepo=$(SOURCE_REPO)
 endif
 endif
 
-# Solaris /usr/bin/diff doesn't have -n option
-GRE_MILESTONE := $(shell tail -n 1 $(topsrcdir)/config/milestone.txt 2>/dev/null || tail -1 $(topsrcdir)/config/milestone.txt)
+GRE_MILESTONE := $(shell tail -n 1 $(topsrcdir)/config/milestone.txt)
 GRE_BUILDID := $(shell cat $(DEPTH)/config/buildid)
  
 DEFINES += -DGRE_MILESTONE=$(GRE_MILESTONE) -DGRE_BUILDID=$(GRE_BUILDID)

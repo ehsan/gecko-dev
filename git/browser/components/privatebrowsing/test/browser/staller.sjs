@@ -55,6 +55,5 @@ function handleRequest(request, response) {
   }
 
   response.setHeader("Content-Type", "text/plain", false);
-  response.setHeader("Accept-Ranges", "none", false);
   stall();
 }

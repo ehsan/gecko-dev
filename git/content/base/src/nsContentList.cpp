@@ -170,11 +170,15 @@ nsFormContentList::nsFormContentList(nsIDOMHTMLFormElement *aForm,
   // move elements that belong to mForm into this content list
 
   PRUint32 i, length = 0;
+  nsCOMPtr<nsIDOMNode> item;
 
   aContentList.GetLength(&length);
 
   for (i = 0; i < length; i++) {
-    nsIContent *c = aContentList.GetNodeAt(i);
+    aContentList.Item(i, getter_AddRefs(item));
+
+    nsCOMPtr<nsIContent> c(do_QueryInterface(item));
+
     if (c && nsContentUtils::BelongsInForm(aForm, c)) {
       AppendElement(c);
     }
@@ -309,7 +313,7 @@ already_AddRefed<nsContentList>
 NS_GetFuncStringContentList(nsINode* aRootNode,
                             nsContentListMatchFunc aFunc,
                             nsContentListDestroyFunc aDestroyFunc,
-                            nsFuncStringContentListDataAllocator aDataAllocator,
+                            void* aData,
                             const nsAString& aString)
 {
   NS_ASSERTION(aRootNode, "content list has to have a root");
@@ -357,14 +361,7 @@ NS_GetFuncStringContentList(nsINode* aRootNode,
   if (!list) {
     // We need to create a ContentList and add it to our new entry, if
     // we have an entry
-    list = new nsCacheableFuncStringContentList(aRootNode, aFunc, aDestroyFunc,
-                                                aDataAllocator, aString);
-    if (list && !list->AllocatedData()) {
-      // Failed to allocate the data
-      delete list;
-      list = nsnull;
-    }
-
+    list = new nsCacheableFuncStringContentList(aRootNode, aFunc, aDestroyFunc, aData, aString);
     if (entry) {
       if (list)
         entry->mContentList = list;
@@ -373,6 +370,11 @@ NS_GetFuncStringContentList(nsINode* aRootNode,
     }
 
     NS_ENSURE_TRUE(list, nsnull);
+  } else {
+    // List was already in the hashtable; clean up our new aData
+    if (aDestroyFunc) {
+      (*aDestroyFunc)(aData);
+    }
   }
 
   NS_ADDREF(list);
@@ -586,7 +588,7 @@ nsContentList::GetNodeAt(PRUint32 aIndex)
   return Item(aIndex, PR_TRUE);
 }
 
-nsIContent*
+nsISupports*
 nsContentList::GetNodeAt(PRUint32 aIndex, nsresult* aResult)
 {
   *aResult = NS_OK;
@@ -594,50 +596,46 @@ nsContentList::GetNodeAt(PRUint32 aIndex, nsresult* aResult)
 }
 
 nsISupports*
-nsContentList::GetNamedItem(const nsAString& aName, nsWrapperCache **aCache,
-                            nsresult* aResult)
+nsContentList::GetNamedItem(const nsAString& aName, nsresult* aResult)
 {
   *aResult = NS_OK;
-
-  nsIContent *item;
-  *aCache = item = NamedItem(aName, PR_TRUE);
-  return item;
+  return NamedItem(aName, PR_TRUE);
 }
 
 void
-nsContentList::AttributeChanged(nsIDocument *aDocument, Element* aElement,
+nsContentList::AttributeChanged(nsIDocument *aDocument, nsIContent* aContent,
                                 PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                                 PRInt32 aModType)
 {
-  NS_PRECONDITION(aElement, "Must have a content node to work with");
+  NS_PRECONDITION(aContent, "Must have a content node to work with");
+  NS_PRECONDITION(aContent->IsElement(), "Should be an element");
   
   if (!mFunc || !mFuncMayDependOnAttr || mState == LIST_DIRTY ||
-      !MayContainRelevantNodes(aElement->GetNodeParent()) ||
-      !nsContentUtils::IsInSameAnonymousTree(mRootNode, aElement)) {
+      !MayContainRelevantNodes(aContent->GetNodeParent()) ||
+      !nsContentUtils::IsInSameAnonymousTree(mRootNode, aContent)) {
     // Either we're already dirty or this notification doesn't affect
-    // whether we might match aElement.
+    // whether we might match aContent.
     return;
   }
   
-  if (Match(aElement)) {
-    if (mElements.IndexOf(aElement) == -1) {
-      // We match aElement now, and it's not in our list already.  Just dirty
+  if (Match(aContent->AsElement())) {
+    if (mElements.IndexOf(aContent) == -1) {
+      // We match aContent now, and it's not in our list already.  Just dirty
       // ourselves; this is simpler than trying to figure out where to insert
-      // aElement.
+      // aContent.
       SetDirty();
     }
   } else {
-    // We no longer match aElement.  Remove it from our list.  If it's
+    // We no longer match aContent.  Remove it from our list.  If it's
     // already not there, this is a no-op (though a potentially
     // expensive one).  Either way, no change of mState is required
     // here.
-    mElements.RemoveObject(aElement);
+    mElements.RemoveObject(aContent);
   }
 }
 
 void
-nsContentList::ContentAppended(nsIDocument* aDocument, nsIContent* aContainer,
-                               nsIContent* aFirstNewContent,
+nsContentList::ContentAppended(nsIDocument *aDocument, nsIContent* aContainer,
                                PRInt32 aNewIndexInContainer)
 {
   NS_PRECONDITION(aContainer, "Can't get at the new content if no container!");
@@ -675,7 +673,8 @@ nsContentList::ContentAppended(nsIDocument* aDocument, nsIContent* aContainer,
        * We want to append instead of invalidating if the first thing
        * that got appended comes after ourLastContent.
        */
-      if (nsContentUtils::PositionIsBefore(ourLastContent, aFirstNewContent)) {
+      if (nsContentUtils::PositionIsBefore(ourLastContent,
+                                           aContainer->GetChildAt(aNewIndexInContainer))) {
         appendToList = PR_TRUE;
       }
     }
@@ -684,8 +683,10 @@ nsContentList::ContentAppended(nsIDocument* aDocument, nsIContent* aContainer,
     if (!appendToList) {
       // The new stuff is somewhere in the middle of our list; check
       // whether we need to invalidate
-      for (nsIContent* cur = aFirstNewContent; cur; cur = cur->GetNextSibling()) {
-        if (MatchSelf(cur)) {
+      for (nsINode::ChildIterator iter(aContainer, aNewIndexInContainer);
+           !iter.IsDone();
+           iter.Next()) {
+        if (MatchSelf(iter)) {
           // Uh-oh.  We're gonna have to add elements into the middle
           // of our list. That's not worth the effort.
           SetDirty();
@@ -710,19 +711,13 @@ nsContentList::ContentAppended(nsIDocument* aDocument, nsIContent* aContainer,
      * We're up to date.  That means someone's actively using us; we
      * may as well grab this content....
      */
-    if (mDeep) {
-      for (nsIContent* cur = aFirstNewContent;
-           cur;
-           cur = cur->GetNextNode(aContainer)) {
-        if (cur->IsElement() && Match(cur->AsElement())) {
-          mElements.AppendObject(cur);
-        }
-      }
-    } else {
-      for (nsIContent* cur = aFirstNewContent; cur; cur = cur->GetNextSibling()) {
-        if (cur->IsElement() && Match(cur->AsElement())) {
-          mElements.AppendObject(cur);
-        }
+    for (nsINode::ChildIterator iter(aContainer, aNewIndexInContainer);
+         !iter.IsDone();
+         iter.Next()) {
+      PRUint32 limit = PRUint32(-1);
+      nsIContent* newContent = iter;
+      if (newContent->IsElement()) {
+        PopulateWith(newContent->AsElement(), limit);
       }
     }
 
@@ -753,8 +748,7 @@ void
 nsContentList::ContentRemoved(nsIDocument *aDocument,
                               nsIContent* aContainer,
                               nsIContent* aChild,
-                              PRInt32 aIndexInContainer,
-                              nsIContent* aPreviousSibling)
+                              PRInt32 aIndexInContainer)
 {
   // Note that aContainer can be null here if we are removing from
   // the document itself; any attempted optimizations to this method
@@ -811,15 +805,98 @@ nsContentList::MatchSelf(nsIContent *aContent)
   if (!mDeep)
     return PR_FALSE;
 
-  for (nsIContent* cur = aContent->GetFirstChild();
-       cur;
-       cur = cur->GetNextNode(aContent)) {
-    if (cur->IsElement() && Match(cur->AsElement())) {
+  for (nsINode::ChildIterator iter(aContent); !iter.IsDone(); iter.Next()) {
+    if (MatchSelf(iter)) {
       return PR_TRUE;
     }
   }
   
   return PR_FALSE;
+}
+
+void
+nsContentList::PopulateWith(Element *aElement, PRUint32& aElementsToAppend)
+{
+  NS_PRECONDITION(mDeep || aElement->GetNodeParent() == mRootNode,
+                  "PopulateWith called on nodes we can't possibly match");
+  NS_PRECONDITION(aElement != mRootNode,
+                  "We should never be trying to match mRootNode");
+
+  if (Match(aElement)) {
+    mElements.AppendObject(aElement);
+    --aElementsToAppend;
+    if (aElementsToAppend == 0)
+      return;
+  }
+
+  // Don't recurse down if we're not doing a deep match.
+  if (!mDeep)
+    return;
+
+  for (nsINode::ChildIterator iter(aElement); !iter.IsDone(); iter.Next()) {
+    nsIContent* curContent = iter;
+    if (curContent->IsElement()) {
+      PopulateWith(curContent->AsElement(), aElementsToAppend);
+      if (aElementsToAppend == 0)
+        break;
+    }
+  }
+}
+
+void 
+nsContentList::PopulateWithStartingAfter(nsINode *aStartRoot,
+                                         nsINode *aStartChild,
+                                         PRUint32 & aElementsToAppend)
+{
+  NS_PRECONDITION(mDeep || aStartRoot == mRootNode ||
+                  (aStartRoot->GetNodeParent() == mRootNode &&
+                   aStartChild == nsnull),
+                  "Bogus aStartRoot or aStartChild");
+
+  if (mDeep || aStartRoot == mRootNode) {
+#ifdef DEBUG
+    PRUint32 invariant = aElementsToAppend + mElements.Count();
+#endif
+    PRInt32 i = 0;
+    if (aStartChild) {
+      i = aStartRoot->IndexOf(aStartChild);
+      NS_ASSERTION(i >= 0, "The start child must be a child of the start root!");
+      ++i;  // move to one past
+    }
+
+    // Now start an iterator with the child we want to be starting with
+    for (nsINode::ChildIterator iter(aStartRoot, i);
+         !iter.IsDone();
+         iter.Next()) {
+      nsIContent* content = iter;
+      if (content->IsElement()) {
+        PopulateWith(content->AsElement(), aElementsToAppend);
+
+        NS_ASSERTION(aElementsToAppend + mElements.Count() == invariant,
+                     "Something is awry in PopulateWith!");
+        if (aElementsToAppend == 0)
+          break;
+      }
+    }
+  }
+
+  if (aElementsToAppend == 0) {
+    return;
+  }
+
+  // We want to make sure we don't move up past our root node. So if
+  // we're there, don't move to the parent.
+  if (aStartRoot == mRootNode)
+    return;
+  
+  // We could call GetParent() here to avoid walking children of the
+  // document node. However they should be very few in number and we
+  // might want to walk them in the future so it's unnecessary to have
+  // this be the only thing that prevents it
+  nsINode* parent = aStartRoot->GetNodeParent();
+  
+  if (parent)
+    PopulateWithStartingAfter(parent, aStartRoot, aElementsToAppend);
 }
 
 void 
@@ -843,33 +920,13 @@ nsContentList::PopulateSelf(PRUint32 aNeededLength)
   PRUint32 invariant = elementsToAppend + mElements.Count();
 #endif
 
-  if (mDeep) {
-    // If we already have nodes start searching at the last one, otherwise
-    // start searching at the root.
-    nsINode* cur = count ? mElements[count - 1] : mRootNode;
-    do {
-      cur = cur->GetNextNode(mRootNode);
-      if (!cur) {
-        break;
-      }
-      if (cur->IsElement() && Match(cur->AsElement())) {
-        mElements.AppendObject(cur->AsElement());
-        --elementsToAppend;
-      }
-    } while (elementsToAppend);
-  } else {
-    nsIContent* cur =
-      count ? mElements[count-1]->GetNextSibling() : mRootNode->GetFirstChild();
-    for ( ; cur && elementsToAppend; cur = cur->GetNextSibling()) {
-      if (cur->IsElement() && Match(cur->AsElement())) {
-        mElements.AppendObject(cur);
-        --elementsToAppend;
-      }
-    }
-  }
+  // If we already have nodes start searching at the last one, otherwise
+  // start searching at the root.
+  nsINode* startRoot = count == 0 ? mRootNode : mElements[count - 1];
 
+  PopulateWithStartingAfter(startRoot, nsnull, elementsToAppend);
   NS_ASSERTION(elementsToAppend + mElements.Count() == invariant,
-               "Something is awry!");
+               "Something is awry in PopulateWith!");
 
   if (elementsToAppend != 0)
     mState = LIST_UP_TO_DATE;

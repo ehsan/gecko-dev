@@ -456,9 +456,7 @@ public:
 
   nsresult Init();
 
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMStorageEvent, nsDOMEvent)
-
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMSTORAGEEVENT
   NS_FORWARD_NSIDOMEVENT(nsDOMEvent::)
 
@@ -491,10 +489,10 @@ protected:
   nsString mDomain;
 };
 
-nsresult
+NS_IMETHODIMP
 NS_NewDOMStorage(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
-nsresult
+NS_IMETHODIMP
 NS_NewDOMStorage2(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
 nsresult

@@ -39,11 +39,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "jsapi.h"
-#include "jsprvtd.h"
-#include "jsvector.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string>
 
 class jsvalRoot
 {
@@ -51,13 +50,13 @@ public:
     explicit jsvalRoot(JSContext *context, jsval value = JSVAL_NULL)
         : cx(context), v(value)
     {
-        if (!JS_AddValueRoot(cx, &v)) {
+        if (!JS_AddRoot(cx, &v)) {
             fprintf(stderr, "Out of memory in jsvalRoot constructor, aborting\n");
             abort();
         }
     }
 
-    ~jsvalRoot() { JS_RemoveValueRoot(cx, &v); }
+    ~jsvalRoot() { JS_RemoveRoot(cx, &v); }
 
     operator jsval() const { return value(); }
 
@@ -74,34 +73,6 @@ private:
     jsval v;
 };
 
-/* Note: Aborts on OOM. */
-class JSAPITestString {
-    js::Vector<char, 0, js::SystemAllocPolicy> chars;
-public:
-    JSAPITestString() {}
-    JSAPITestString(const char *s) { *this += s; }
-    JSAPITestString(const JSAPITestString &s) { *this += s; }
-
-    const char *begin() const { return chars.begin(); }
-    const char *end() const { return chars.end(); }
-    size_t length() const { return chars.length(); }
-
-    JSAPITestString & operator +=(const char *s) {
-        if (!chars.append(s, strlen(s)))
-            abort();
-        return *this;
-    }
-
-    JSAPITestString & operator +=(const JSAPITestString &s) {
-        if (!chars.append(s.begin(), s.length()))
-            abort();
-        return *this;
-    }
-};
-
-inline JSAPITestString operator+(JSAPITestString a, const char *b) { return a += b; }
-inline JSAPITestString operator+(JSAPITestString a, const JSAPITestString &b) { return a += b; }
-
 class JSAPITest
 {
 public:
@@ -112,10 +83,9 @@ public:
     JSContext *cx;
     JSObject *global;
     bool knownFail;
-    JSAPITestString msgs;
-    JSCrossCompartmentCall *call;
+    std::string msgs;
 
-    JSAPITest() : rt(NULL), cx(NULL), global(NULL), knownFail(false), call(NULL) {
+    JSAPITest() : rt(NULL), cx(NULL), global(NULL), knownFail(false) {
         next = list;
         list = this;
     }
@@ -131,24 +101,17 @@ public:
             return false;
         JS_BeginRequest(cx);
         global = createGlobal();
-        if (!global)
-            return false;
-        call = JS_EnterCrossCompartmentCall(cx, global);
-        return call != NULL;
+        return global != NULL;
     }
 
     virtual void uninit() {
-        if (call) {
-            JS_LeaveCrossCompartmentCall(call);
-            call = NULL;
-        }
         if (cx) {
             JS_EndRequest(cx);
             JS_DestroyContext(cx);
             cx = NULL;
         }
         if (rt) {
-            destroyRuntime();
+            JS_DestroyRuntime(rt);
             rt = NULL;
         }
     }
@@ -171,12 +134,12 @@ public:
                fail(bytes, filename, lineno);
     }
 
-    JSAPITestString toSource(jsval v) {
+    std::string toSource(jsval v) {
         JSString *str = JS_ValueToSource(cx, v);
         if (str)
-            return JSAPITestString(JS_GetStringBytes(str));
+            return std::string(JS_GetStringBytes(str));
         JS_ClearPendingException(cx);
-        return JSAPITestString("<<error converting value to string>>");
+        return std::string("<<error converting value to string>>");
     }
 
 #define CHECK_SAME(actual, expected) \
@@ -189,7 +152,7 @@ public:
                    const char *actualExpr, const char *expectedExpr,
                    const char *filename, int lineno) {
         return JS_SameValue(cx, actual, expected) ||
-               fail(JSAPITestString("CHECK_SAME failed: expected JS_SameValue(cx, ") +
+               fail(std::string("CHECK_SAME failed: expected JS_SameValue(cx, ") +
                     actualExpr + ", " + expectedExpr + "), got !JS_SameValue(cx, " +
                     toSource(actual) + ", " + toSource(expected) + ")", filename, lineno);
     }
@@ -200,7 +163,7 @@ public:
             return fail("CHECK failed: " #expr, __FILE__, __LINE__); \
     } while (false)
 
-    bool fail(JSAPITestString msg = JSAPITestString(), const char *filename = "-", int lineno = 0) {
+    bool fail(std::string msg = std::string(), const char *filename = "-", int lineno = 0) {
         if (JS_IsExceptionPending(cx)) {
             jsvalRoot v(cx);
             JS_GetPendingException(cx, v.addr());
@@ -209,47 +172,16 @@ public:
             if (s)
                 msg += JS_GetStringBytes(s);
         }
-        fprintf(stderr, "%s:%d:%.*s\n", filename, lineno, (int) msg.length(), msg.begin());
+        fprintf(stderr, "%s:%d:%s\n", filename, lineno, msg.c_str());
         msgs += msg;
         return false;
     }
 
-    JSAPITestString messages() const { return msgs; }
+    std::string messages() const { return msgs; }
 
 protected:
-    static JSBool
-    print(JSContext *cx, uintN argc, jsval *vp)
-    {
-        jsval *argv = JS_ARGV(cx, vp);
-        for (uintN i = 0; i < argc; i++) {
-            JSString *str = JS_ValueToString(cx, argv[i]);
-            if (!str)
-                return JS_FALSE;
-            char *bytes = JS_EncodeString(cx, str);
-            if (!bytes)
-                return JS_FALSE;
-            printf("%s%s", i ? " " : "", bytes);
-            JS_free(cx, bytes);
-        }
-
-        putchar('\n');
-        fflush(stdout);
-        JS_SET_RVAL(cx, vp, JSVAL_VOID);
-        return JS_TRUE;
-    }
-
-    bool definePrint() {
-        return JS_DefineFunction(cx, global, "print", (JSNative) print, 0, 0);
-    }
-
     virtual JSRuntime * createRuntime() {
         return JS_NewRuntime(8L * 1024 * 1024);
-    }
-
-    virtual void destroyRuntime() {
-        JS_ASSERT(!cx);
-        JS_ASSERT(rt);
-        JS_DestroyRuntime(rt);
     }
 
     static void reportError(JSContext *cx, const char *message, JSErrorReport *report) {
@@ -281,11 +213,10 @@ protected:
 
     virtual JSObject * createGlobal() {
         /* Create the global object. */
-        JSObject *global = JS_NewCompartmentAndGlobalObject(cx, getGlobalClass(), NULL);
+        JSObject *global = JS_NewObject(cx, getGlobalClass(), NULL, NULL);
         if (!global)
             return NULL;
 
-        JSAutoEnterCompartment enter(cx, global);
         /* Populate the global object with the standard globals,
            like Object and Array. */
         if (!JS_InitStandardClasses(cx, global))

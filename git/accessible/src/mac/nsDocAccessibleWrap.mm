@@ -40,9 +40,8 @@
 #import "mozAccessibleWrapper.h"
 
 nsDocAccessibleWrap::
-  nsDocAccessibleWrap(nsIDocument *aDocument, nsIContent *aRootContent,
-                      nsIWeakReference *aShell) :
-  nsDocAccessible(aDocument, aRootContent, aShell)
+  nsDocAccessibleWrap(nsIDOMNode *aDOMNode, nsIWeakReference *aShell) :
+  nsDocAccessible(aDOMNode, aShell)
 {
 }
 
@@ -50,20 +49,18 @@ nsDocAccessibleWrap::~nsDocAccessibleWrap()
 {
 }
 
-PRBool
+nsresult
 nsDocAccessibleWrap::Init () 
 {
-  if (!nsDocAccessible::Init())
-    return PR_FALSE;
+  nsresult rv = nsDocAccessible::Init();
+  NS_ENSURE_SUCCESS(rv, rv);
 
   NS_ASSERTION(!mNativeWrapper, "nsDocAccessibleWrap::Init() called more than once!");
 
   if (!mNativeWrapper) {
     // Create our native object using the class type specified in GetNativeType().
     mNativeWrapper = new AccessibleWrapper (this, GetNativeType());
-    if (!mNativeWrapper)
-      return PR_FALSE;
   }
 
-  return PR_TRUE;
+  return NS_OK;
 }

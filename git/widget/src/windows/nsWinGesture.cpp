@@ -42,7 +42,6 @@
 
 #include "nscore.h"
 #include "nsWinGesture.h"
-#include "nsUXThemeData.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsIServiceManager.h"
@@ -54,6 +53,7 @@
 #endif
 
 const PRUnichar nsWinGesture::kGestureLibraryName[] =  L"user32.dll";
+const PRUnichar nsWinGesture::kThemeLibraryName[] =  L"uxtheme.dll";
 HMODULE nsWinGesture::sLibraryHandle = nsnull;
 nsWinGesture::GetGestureInfoPtr nsWinGesture::getGestureInfo = nsnull;
 nsWinGesture::CloseGestureInfoHandlePtr nsWinGesture::closeGestureInfoHandle = nsnull;
@@ -63,19 +63,13 @@ nsWinGesture::GetGestureConfigPtr nsWinGesture::getGestureConfig = nsnull;
 nsWinGesture::BeginPanningFeedbackPtr nsWinGesture::beginPanningFeedback = nsnull;
 nsWinGesture::EndPanningFeedbackPtr nsWinGesture::endPanningFeedback = nsnull;
 nsWinGesture::UpdatePanningFeedbackPtr nsWinGesture::updatePanningFeedback = nsnull;
-
-nsWinGesture::RegisterTouchWindowPtr nsWinGesture::registerTouchWindow = nsnull;
-nsWinGesture::UnregisterTouchWindowPtr nsWinGesture::unregisterTouchWindow = nsnull;
-nsWinGesture::GetTouchInputInfoPtr nsWinGesture::getTouchInputInfo = nsnull;
-nsWinGesture::CloseTouchInputHandlePtr nsWinGesture::closeTouchInputHandle = nsnull;
-
 static PRBool gEnableSingleFingerPanEvents = PR_FALSE;
 
 nsWinGesture::nsWinGesture() :
-  mPanActive(PR_FALSE),
   mFeedbackActive(PR_FALSE),
   mXAxisFeedback(PR_FALSE),
   mYAxisFeedback(PR_FALSE),
+  mPanActive(PR_FALSE),
   mPanInertiaActive(PR_FALSE)
 {
   (void)InitLibrary();
@@ -96,7 +90,7 @@ PRBool nsWinGesture::InitLibrary()
   }
 
   sLibraryHandle = ::LoadLibraryW(kGestureLibraryName);
-  HMODULE hTheme = nsUXThemeData::GetThemeDLL();
+  HMODULE hTheme = ::LoadLibraryW(kThemeLibraryName);
 
   // gesture interfaces
   if (sLibraryHandle) {
@@ -105,10 +99,6 @@ PRBool nsWinGesture::InitLibrary()
     getGestureExtraArgs = (GetGestureExtraArgsPtr)GetProcAddress(sLibraryHandle, "GetGestureExtraArgs");
     setGestureConfig = (SetGestureConfigPtr)GetProcAddress(sLibraryHandle, "SetGestureConfig");
     getGestureConfig = (GetGestureConfigPtr)GetProcAddress(sLibraryHandle, "GetGestureConfig");
-    registerTouchWindow = (RegisterTouchWindowPtr)GetProcAddress(sLibraryHandle, "RegisterTouchWindow");
-    unregisterTouchWindow = (UnregisterTouchWindowPtr)GetProcAddress(sLibraryHandle, "UnregisterTouchWindow");
-    getTouchInputInfo = (GetTouchInputInfoPtr)GetProcAddress(sLibraryHandle, "GetTouchInputInfo");
-    closeTouchInputHandle = (CloseTouchInputHandlePtr)GetProcAddress(sLibraryHandle, "CloseTouchInputHandle");
   }
 
   if (!getGestureInfo || !closeGestureInfoHandle || !getGestureExtraArgs ||
@@ -119,13 +109,6 @@ PRBool nsWinGesture::InitLibrary()
     setGestureConfig       = nsnull;
     getGestureConfig       = nsnull;
     return PR_FALSE;
-  }
-  
-  if (!registerTouchWindow || !unregisterTouchWindow || !getTouchInputInfo || !closeTouchInputHandle) {
-    registerTouchWindow   = nsnull;
-    unregisterTouchWindow = nsnull;
-    getTouchInputInfo     = nsnull;
-    closeTouchInputHandle = nsnull;
   }
 
   // panning feedback interfaces
@@ -218,38 +201,6 @@ PRBool nsWinGesture::SetWinGestureSupport(HWND hWnd, nsGestureNotifyEvent::ePanD
 PRBool nsWinGesture::IsAvailable()
 {
   return getGestureInfo != nsnull;
-}
-
-PRBool nsWinGesture::RegisterTouchWindow(HWND hWnd)
-{
-  if (!registerTouchWindow)
-    return PR_FALSE;
-
-  return registerTouchWindow(hWnd, TWF_WANTPALM);
-}
-
-PRBool nsWinGesture::UnregisterTouchWindow(HWND hWnd)
-{
-  if (!unregisterTouchWindow)
-    return PR_FALSE;
-
-  return unregisterTouchWindow(hWnd);
-}
-
-PRBool nsWinGesture::GetTouchInputInfo(HTOUCHINPUT hTouchInput, PRUint32 cInputs, PTOUCHINPUT pInputs)
-{
-  if (!getTouchInputInfo)
-    return PR_FALSE;
-
-  return getTouchInputInfo(hTouchInput, cInputs, pInputs, sizeof(TOUCHINPUT));
-}
-
-PRBool nsWinGesture::CloseTouchInputHandle(HTOUCHINPUT hTouchInput)
-{
-  if (!closeTouchInputHandle)
-    return PR_FALSE;
-
-  return closeTouchInputHandle(hTouchInput);
 }
 
 PRBool nsWinGesture::GetGestureInfo(HGESTUREINFO hGestureInfo, PGESTUREINFO pGestureInfo)

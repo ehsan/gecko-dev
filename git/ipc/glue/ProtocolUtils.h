@@ -72,24 +72,6 @@ struct ActorHandle
     int mId;
 };
 
-// Used internally to represent a "trigger" that might cause a state
-// transition.  Triggers are normalized across parent+child to Send
-// and Recv (instead of child-in, child-out, parent-in, parent-out) so
-// that they can share the same state machine implementation.  To
-// further normalize, |Send| is used for 'call', |Recv| for 'answer'.
-struct Trigger
-{
-    enum Action { Send, Recv };
-
-    Trigger(Action action, int32 msg) :
-        mAction(action),
-        mMsg(msg)
-    {}
-
-    Action mAction;
-    int32 mMsg;
-};
-
 template<class ListenerT>
 class /*NS_INTERFACE_CLASS*/ IProtocolManager
 {
@@ -111,9 +93,7 @@ public:
 
     virtual Shmem::SharedMemory* CreateSharedMemory(
         size_t, SharedMemory::SharedMemoryType, int32*) = 0;
-    virtual bool AdoptSharedMemory(Shmem::SharedMemory*, int32*) = 0;
     virtual Shmem::SharedMemory* LookupSharedMemory(int32) = 0;
-    virtual bool IsTrackingSharedMemory(Shmem::SharedMemory*) = 0;
     virtual bool DestroySharedMemory(Shmem&) = 0;
 
     // XXX odd duck, acknowledged

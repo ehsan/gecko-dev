@@ -40,7 +40,7 @@
 #include "nsUCConstructors.h"
 #include "nsTIS620ToUnicode.h"
 
-nsresult
+NS_METHOD
 nsTIS620ToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                              void **aResult)
 {

@@ -71,8 +71,8 @@ enum nsLinkState {
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID       \
-{ 0xdd254504, 0xe273, 0x4923, \
-  { 0x9e, 0xc1, 0xd8, 0x42, 0x1a, 0x66, 0x35, 0xf1 } }
+{ 0x51dcc330, 0x78f0, 0x47c9, \
+  { 0x95, 0x6f, 0xf9, 0x8a, 0x04, 0xb9, 0x74, 0x51 } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -84,11 +84,11 @@ public:
   // If you're using the external API, the only thing you can know about
   // nsIContent is that it exists with an IID
 
-  nsIContent(already_AddRefed<nsINodeInfo> aNodeInfo)
+  nsIContent(nsINodeInfo *aNodeInfo)
     : nsINode(aNodeInfo),
       mPrimaryFrame(nsnull)
   {
-    NS_ASSERTION(mNodeInfo,
+    NS_ASSERTION(aNodeInfo,
                  "No nsINodeInfo passed to nsIContent, PREPARE TO CRASH!!!");
   }
 #endif // MOZILLA_INTERNAL_API
@@ -232,14 +232,6 @@ public:
                  "to binding parent");
     NS_ASSERTION(!GetParent() ||
                  ((GetBindingParent() == GetParent()) ==
-                  HasFlag(NODE_IS_ANONYMOUS)) ||
-                 // Unfortunately default content for XBL insertion points is
-                 // anonymous content that is bound with the parent of the
-                 // insertion point as the parent but the bound element for the
-                 // binding as the binding parent.  So we have to complicate
-                 // the assert a bit here.
-                 (GetBindingParent() &&
-                  (GetBindingParent() == GetParent()->GetBindingParent()) ==
                   HasFlag(NODE_IS_ANONYMOUS)),
                  "For nodes with parent, flag and GetBindingParent() check "
                  "should match");
@@ -623,7 +615,20 @@ public:
                               IME_STATUS_PASSWORD | IME_STATUS_PLUGIN,
     IME_STATUS_MASK_OPENED  = IME_STATUS_OPEN | IME_STATUS_CLOSE
   };
-  virtual PRUint32 GetDesiredIMEState();
+  virtual PRUint32 GetDesiredIMEState()
+  {
+    if (!IsEditableInternal())
+      return IME_STATUS_DISABLE;
+    nsIContent *editableAncestor = nsnull;
+    for (nsIContent* parent = GetParent();
+         parent && parent->HasFlag(NODE_IS_EDITABLE);
+         parent = parent->GetParent())
+      editableAncestor = parent;
+    // This is in another editable content, use the result of it.
+    if (editableAncestor)
+      return editableAncestor->GetDesiredIMEState();
+    return IME_STATUS_ENABLE;
+  }
 
   /**
    * Gets content node with the binding (or native code, possibly on the
@@ -644,6 +649,16 @@ public:
    * @return the flattened tree parent
    */
   nsIContent *GetFlattenedTreeParent() const;
+
+  /**
+   * Get the base URI for any relative URIs within this piece of
+   * content. Generally, this is the document's base URI, but certain
+   * content carries a local base for backward compatibility, and XML
+   * supports setting a per-node base URI.
+   *
+   * @return the base URI
+   */
+  virtual already_AddRefed<nsIURI> GetBaseURI() const = 0;
 
   /**
    * API to check if this is a link that's traversed in response to user input
@@ -699,8 +714,8 @@ public:
    *
    * If you also need to determine whether the parser is the one creating your
    * element (through createElement() or cloneNode() generally) then add a
-   * PRUint32 aFromParser to the NS_NewXXX() constructor for your element and
-   * have the parser pass the appropriate flags. See nsHTMLInputElement.cpp and
+   * boolean aFromParser to the NS_NewXXX() constructor for your element and
+   * have the parser pass true.  See nsHTMLInputElement.cpp and
    * nsHTMLContentSink::MakeContentObject().
    *
    * DO NOT USE THIS METHOD to get around the fact that it's hard to deal with
@@ -786,12 +801,7 @@ public:
    * value of the null-namespace attribute whose name is given by
    * GetIDAttributeName().  This may be null if there is no ID.
    */
-  nsIAtom* GetID() const {
-    if (HasFlag(NODE_HAS_ID)) {
-      return DoGetID();
-    }
-    return nsnull;
-  }
+  virtual nsIAtom* GetID() const = 0;
 
   /**
    * Get the class list of this content node (this corresponds to the
@@ -918,35 +928,6 @@ public:
   virtual nsresult SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
                                             PRBool aNotify) = 0;
 #endif // MOZ_SMIL
-
-  nsresult LookupNamespaceURI(const nsAString& aNamespacePrefix,
-                              nsAString& aNamespaceURI) const;
-
-  nsIAtom* LookupPrefix(const nsAString& aNamespaceURI);
-
-  PRBool IsEqual(nsIContent *aOther);
-
-  virtual PRBool IsEqualNode(nsINode* aOther);
-
-  /**
-   * If this content has independent selection, e.g., if this is input field
-   * or textarea, this return TRUE.  Otherwise, false.
-   */
-  PRBool HasIndependentSelection();
-
-  /**
-   * If the content is a part of HTML editor, this returns editing
-   * host content.  When the content is in designMode, this returns its body
-   * element.  Also, when the content isn't editable, this returns null.
-   */
-  nsIContent* GetEditingHost();
-
-protected:
-  /**
-   * Hook for implementing GetID.  This is guaranteed to only be
-   * called if the NODE_HAS_ID flag is set.
-   */
-  virtual nsIAtom* DoGetID() const = 0;
 
 private:
   /**

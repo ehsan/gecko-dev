@@ -38,7 +38,7 @@
 //------------------------------------------------------------------------
 
 #include "nsIFile.h"
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsDirectoryServiceDefs.h"
@@ -765,8 +765,8 @@ static void AssignNLSString(const PRUnichar *aKey, nsAString& result)
 
   do {
     nsCOMPtr<nsIStringBundleService> bundleSvc =
-      mozilla::services::GetStringBundleService();
-    if (!bundleSvc)
+      do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
+    if (NS_FAILED(rv))
       break;
 
     nsCOMPtr<nsIStringBundle> bundle;
@@ -1217,7 +1217,7 @@ static nsresult nsRwsServiceInit(nsRwsService **aClass)
     }
 
   // create an instance of nsRwsService
-  sRwsInstance = new nsRwsService();
+  NS_NEWXPCOM(sRwsInstance, nsRwsService);
   if (sRwsInstance == 0)
     return NS_ERROR_OUT_OF_MEMORY;
 

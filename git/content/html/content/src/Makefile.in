@@ -52,20 +52,12 @@ EXPORTS		= \
 		nsClientRect.h \
 		$(NULL)
 
-ifdef MOZ_IPC
-EXPORTS        += \
-                nsHTMLDNSPrefetch.h \
-                $(NULL)
-endif
-
 CPPSRCS		= \
 		nsClientRect.cpp \
 		nsHTMLDNSPrefetch.cpp \
 		nsGenericHTMLElement.cpp \
 		nsFormSubmission.cpp \
 		nsImageMapUtils.cpp \
-		nsTextEditorState.cpp \
-		nsHTMLElement.cpp \
 		nsHTMLAnchorElement.cpp \
 		nsHTMLAreaElement.cpp \
 		nsHTMLBRElement.cpp \
@@ -111,17 +103,14 @@ CPPSRCS		= \
 		nsHTMLTableSectionElement.cpp \
 		nsHTMLTextAreaElement.cpp \
 		nsHTMLTitleElement.cpp \
-		nsDOMValidityState.cpp \
-		nsIConstraintValidation.cpp \
 		$(NULL)
 
 ifdef MOZ_MEDIA
 CPPSRCS		+= \
 		nsHTMLAudioElement.cpp \
 		nsHTMLMediaElement.cpp \
-		nsMediaError.cpp \
+		nsHTMLMediaError.cpp \
 		nsHTMLSourceElement.cpp \
-		nsTimeRanges.cpp \
 		nsHTMLVideoElement.cpp \
 		$(NULL)
 endif
@@ -130,13 +119,11 @@ endif
 FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/rules.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 INCLUDES	+= \
 		-I$(srcdir)/../../../base/src \
 		-I$(srcdir)/../../../events/src \
 		-I$(srcdir)/../../../xbl/src \
-		-I$(srcdir)/../../../../layout/forms \
 		-I$(srcdir)/../../../../layout/style \
 		-I$(srcdir)/../../../../layout/tables \
 		-I$(srcdir)/../../../../layout/xul/base/src \

@@ -63,8 +63,6 @@ CPPSRCS         += affentry.cpp \
                    replist.cpp \
                    suggestmgr.cpp \
                    $(NULL)
-
-DEFINES = -DHUNSPELL_STATIC
 endif
 
 EXTRA_DSO_LDOPTS = \

@@ -176,8 +176,8 @@ js_IsIdentifier(JSString *str)
 
 /* Initialize members that aren't initialized in |init|. */
 TokenStream::TokenStream(JSContext *cx)
-  : cx(cx), tokens(), cursor(), lookahead(), flags(),
-    linepos(), lineposNext(), file(), listenerTSData(), tokenbuf(cx)
+  : cx(cx), tokens(), cursor(), lookahead(), ungetpos(), ungetbuf(), flags(),
+    linelen(), linepos(), file(), listenerTSData(), saveEOL(), tokenbuf(cx)
 {}
 
 #ifdef _MSC_VER
@@ -192,8 +192,8 @@ TokenStream::init(const jschar *base, size_t length, FILE *fp, const char *fn, u
     JS_ASSERT_IF(fp, !base);
     JS_ASSERT_IF(!base, length == 0);
     size_t nb = fp
-         ? (UNGET_LIMIT + 2 * LINE_LIMIT) * sizeof(jschar)    /* see below */
-         : (UNGET_LIMIT + 1 * LINE_LIMIT) * sizeof(jschar);
+         ? 2 * LINE_LIMIT * sizeof(jschar)
+         : LINE_LIMIT * sizeof(jschar);
     JS_ARENA_ALLOCATE_CAST(buf, jschar *, &cx->tempPool, nb);
     if (!buf) {
         js_ReportOutOfScriptQuota(cx);
@@ -204,38 +204,18 @@ TokenStream::init(const jschar *base, size_t length, FILE *fp, const char *fn, u
     /* Initialize members. */
     filename = fn;
     lineno = ln;
-    /* 
-     * Split 'buf' into 3 (ungetbuf, linebuf, userbuf) or 2 (ungetbuf, linebuf).
-     * ungetbuf is empty and fills backwards.  linebuf is empty and fills forwards.
-     */
-    ungetbuf.base = buf;
-    ungetbuf.limit = ungetbuf.ptr = buf + UNGET_LIMIT;
-    linebuf.base = linebuf.limit = linebuf.ptr = buf + UNGET_LIMIT;
+    linebuf.base = linebuf.limit = linebuf.ptr = buf;
     if (fp) {
         file = fp;
-        userbuf.base = buf + UNGET_LIMIT + LINE_LIMIT;
+        userbuf.base = buf + LINE_LIMIT;
         userbuf.ptr = userbuf.limit = userbuf.base + LINE_LIMIT;
     } else {
         userbuf.base = (jschar *)base;
         userbuf.limit = (jschar *)base + length;
         userbuf.ptr = (jschar *)base;
     }
-    currbuf = &linebuf;
     listener = cx->debugHooks->sourceHandler;
     listenerData = cx->debugHooks->sourceHandlerData;
-    /* See getCharFillLinebuf() for an explanation of maybeEOL[]. */
-    memset(maybeEOL, 0, sizeof(maybeEOL));
-    maybeEOL['\n'] = true;
-    maybeEOL['\r'] = true;
-    maybeEOL[LINE_SEPARATOR & 0xff] = true;
-    maybeEOL[PARA_SEPARATOR & 0xff] = true;
-    /* See getTokenInternal() for an explanation of maybeStrSpecial[]. */
-    memset(maybeStrSpecial, 0, sizeof(maybeStrSpecial));
-    maybeStrSpecial['"'] = true;
-    maybeStrSpecial['\''] = true;
-    maybeStrSpecial['\n'] = true;
-    maybeStrSpecial['\\'] = true;
-    maybeStrSpecial[EOF & 0xff] = true;
     return true;
 }
 
@@ -283,166 +263,154 @@ js_fgets(char *buf, int size, FILE *file)
     return i;
 }
 
-/*
- * Nb: This does *not* append a terminating '\0'.  Returns the number of chars
- * read from the file.
- */
-int
-TokenStream::fillUserbuf()
-{
-    /*
-     * We avoid splitting a \r\n pair, because this makes things much easier
-     * for getChar().  To do this, we only try to fill userbuf up with
-     * LINE_LIMIT-1 chars.  Once we've reached that number, if the last one is
-     * \r then we check if the following one is \n;  if so we get it too,
-     * knowing that we have space for it.
-     */
-    jschar *buf = userbuf.base;
-    int n = LINE_LIMIT - 1;     /* reserve space for \n following a \r */
-    JS_ASSERT(n > 0);
-    int i;
-    i = 0;
-    while (true) {
-        int c = fast_getc(file);
-        if (c == EOF)
-            break;
-        buf[i] = (jschar) (unsigned char) c;
-        i++;
-
-        if (i == n) {
-            if (buf[i - 1] == '\r') {
-                /* Look for a following \n.  We know we have space in buf for it. */
-                c = fast_getc(file);
-                if (c == EOF)
-                    break;
-                if (c == '\n') {
-                    buf[i] = (jschar) (unsigned char) c;
-                    i++;
-                    break;
-                }
-                ungetc(c, file);    /* \r wasn't followed by \n, unget */
-            }
-            break;
-        }
-    }
-    return i;
-}
-
 int32
-TokenStream::getCharFillLinebuf()
-{
-    ptrdiff_t ulen = userbuf.limit - userbuf.ptr;
-    if (ulen <= 0) {
-        if (!file) {
-            flags |= TSF_EOF;
-            return EOF;
-        }
-
-        /* Fill userbuf so that \r and \r\n convert to \n. */
-        ulen = fillUserbuf();
-        JS_ASSERT(ulen >= 0);
-        if (ulen == 0) {
-            flags |= TSF_EOF;
-            return EOF;
-        }
-        userbuf.limit = userbuf.base + ulen;
-        userbuf.ptr = userbuf.base;
-    }
-    if (listener)
-        listener(filename, lineno, userbuf.ptr, ulen, &listenerTSData, listenerData);
-
-    /*
-     * Copy from userbuf to linebuf.  Stop when any of these happen:
-     * (a) we reach the end of userbuf;
-     * (b) we reach the end of linebuf;
-     * (c) we hit an EOL.
-     *
-     * "EOL" means any of: \r, \n, \r\n, or the Unicode line and paragraph
-     * separators.
-     */
-    jschar *from = userbuf.ptr;
-    jschar *to = linebuf.base;
-
-    int llenAdjust = 0;
-    int limit = JS_MIN(size_t(ulen), LINE_LIMIT);
-    int i = 0;
-    while (i < limit) {
-        /* Copy the jschar from userbuf to linebuf. */
-        jschar d = to[i] = from[i];
-        i++;
-
-        /*
-         * Normalize the copied jschar if it was a newline.  We need to detect
-         * any of these four characters:  '\n' (0x000a), '\r' (0x000d),
-         * LINE_SEPARATOR (0x2028), PARA_SEPARATOR (0x2029).  Testing for each
-         * one in turn is slow, so we use a single probabilistic check, and if
-         * that succeeds, test for them individually.
-         *
-         * We use the bottom 8 bits to index into a lookup table, succeeding
-         * when d&0xff is 0xa, 0xd, 0x28 or 0x29.  Among ASCII chars (which
-         * are by the far the most common) this gives false positives for '('
-         * (0x0028) and ')' (0x0029).  We could avoid those by incorporating
-         * the 13th bit of d into the lookup, but that requires extra shifting
-         * and masking and isn't worthwhile.  See TokenStream::init() for the
-         * initialization of the relevant entries in the table.
-         */
-        if (maybeEOL[d & 0xff]) {
-            if (d == '\n') {
-                break;
-            }
-
-            if (d == '\r') {
-                to[i - 1] = '\n';       /* overwrite with '\n' */
-                if (i < ulen && from[i] == '\n') {
-                    i++;                /* skip over '\n' */
-                    llenAdjust = -1;
-                }
-                break;
-            }
-
-            if (d == LINE_SEPARATOR || d == PARA_SEPARATOR) {
-                to[i - 1] = '\n';       /* overwrite with '\n' */
-                break;
-            }
-        }
-    }
-    
-    /* At this point 'i' is the index one past the last char copied. */
-    ulen = i;
-    userbuf.ptr += ulen;
-
-    /* Reset linebuf based on normalized length. */
-    linebuf.ptr = linebuf.base;
-    linebuf.limit = linebuf.base + ulen + llenAdjust;
-
-    /* Update position of linebuf within physical userbuf line. */
-    linepos = lineposNext;
-    if (linebuf.limit[-1] == '\n')
-        lineposNext = 0;
-    else
-        lineposNext += ulen;
-
-    return *linebuf.ptr++;
-}
-
-/*
- * This gets the next char, normalizing all EOL sequences to '\n' as it goes.
- */
-int32
-TokenStream::getCharSlowCase()
+TokenStream::getChar()
 {
     int32 c;
-    if (currbuf->ptr == currbuf->limit - 1) {
-        /* Last char of currbuf.  Switch to linebuf if we're in ungetbuf. */
-        c = *currbuf->ptr++;
-        if (currbuf == &ungetbuf)
-            currbuf = &linebuf;
+    ptrdiff_t i, j, len, olen;
+    JSBool crflag;
+    char cbuf[LINE_LIMIT];
+    jschar *ubuf, *nl;
 
+    if (ungetpos != 0) {
+        c = ungetbuf[--ungetpos];
     } else {
-        /* One past the last char of currbuf;  can only happen for linebuf. */
-        JS_ASSERT(currbuf->ptr == currbuf->limit);
-        JS_ASSERT(currbuf == &linebuf);
-        c = getCharFillLinebuf();
+        if (linebuf.ptr == linebuf.limit) {
+            len = userbuf.limit - userbuf.ptr;
+            if (len <= 0) {
+                if (!file) {
+                    flags |= TSF_EOF;
+                    return EOF;
+                }
+
+                /* Fill userbuf so that \r and \r\n convert to \n. */
+                crflag = (flags & TSF_CRFLAG) != 0;
+                len = js_fgets(cbuf, LINE_LIMIT - crflag, file);
+                if (len <= 0) {
+                    flags |= TSF_EOF;
+                    return EOF;
+                }
+                olen = len;
+                ubuf = userbuf.base;
+                i = 0;
+                if (crflag) {
+                    flags &= ~TSF_CRFLAG;
+                    if (cbuf[0] != '\n') {
+                        ubuf[i++] = '\n';
+                        len++;
+                        linepos--;
+                    }
+                }
+                for (j = 0; i < len; i++, j++)
+                    ubuf[i] = (jschar) (unsigned char) cbuf[j];
+                userbuf.limit = ubuf + len;
+                userbuf.ptr = ubuf;
+            }
+            if (listener)
+                listener(filename, lineno, userbuf.ptr, len, &listenerTSData, listenerData);
+
+            nl = saveEOL;
+            if (!nl) {
+                /*
+                 * Any one of \n, \r, or \r\n ends a line (the longest
+                 * match wins).  Also allow the Unicode line and paragraph
+                 * separators.
+                 */
+                for (nl = userbuf.ptr; nl < userbuf.limit; nl++) {
+                    /*
+                     * Try to prevent value-testing on most characters by
+                     * filtering out characters that aren't 000x or 202x.
+                     */
+                    if ((*nl & 0xDFD0) == 0) {
+                        if (*nl == '\n')
+                            break;
+                        if (*nl == '\r') {
+                            if (nl + 1 < userbuf.limit && nl[1] == '\n')
+                                nl++;
+                            break;
+                        }
+                        if (*nl == LINE_SEPARATOR || *nl == PARA_SEPARATOR)
+                            break;
+                    }
+                }
+            }
+
+            /*
+             * If there was a line terminator, copy thru it into linebuf.
+             * Else copy LINE_LIMIT-1 bytes into linebuf.
+             */
+            if (nl < userbuf.limit)
+                len = (nl - userbuf.ptr) + 1;
+            if (len >= (ptrdiff_t) LINE_LIMIT) {
+                len = LINE_LIMIT - 1;
+                saveEOL = nl;
+            } else {
+                saveEOL = NULL;
+            }
+            js_strncpy(linebuf.base, userbuf.ptr, len);
+            userbuf.ptr += len;
+            olen = len;
+
+            /*
+             * Make sure linebuf contains \n for EOL (don't do this in
+             * userbuf because the user's string might be readonly).
+             */
+            if (nl < userbuf.limit) {
+                if (*nl == '\r') {
+                    if (linebuf.base[len-1] == '\r') {
+                        /*
+                         * Does the line segment end in \r?  We must check
+                         * for a \n at the front of the next segment before
+                         * storing a \n into linebuf.  This case matters
+                         * only when we're reading from a file.
+                         */
+                        if (nl + 1 == userbuf.limit && file) {
+                            len--;
+                            flags |= TSF_CRFLAG; /* clear NLFLAG? */
+                            if (len == 0) {
+                                /*
+                                 * This can happen when a segment ends in
+                                 * \r\r.  Start over.  ptr == limit in this
+                                 * case, so we'll fall into buffer-filling
+                                 * code.
+                                 */
+                                return getChar();
+                            }
+                        } else {
+                            linebuf.base[len-1] = '\n';
+                        }
+                    }
+                } else if (*nl == '\n') {
+                    if (nl > userbuf.base &&
+                        nl[-1] == '\r' &&
+                        linebuf.base[len-2] == '\r') {
+                        len--;
+                        JS_ASSERT(linebuf.base[len] == '\n');
+                        linebuf.base[len-1] = '\n';
+                    }
+                } else if (*nl == LINE_SEPARATOR || *nl == PARA_SEPARATOR) {
+                    linebuf.base[len-1] = '\n';
+                }
+            }
+
+            /* Reset linebuf based on adjusted segment length. */
+            linebuf.limit = linebuf.base + len;
+            linebuf.ptr = linebuf.base;
+
+            /* Update position of linebuf within physical userbuf line. */
+            if (!(flags & TSF_NLFLAG))
+                linepos += linelen;
+            else
+                linepos = 0;
+            if (linebuf.limit[-1] == '\n')
+                flags |= TSF_NLFLAG;
+            else
+                flags &= ~TSF_NLFLAG;
+
+            /* Update linelen from original segment length. */
+            linelen = olen;
+        }
+        c = *linebuf.ptr++;
     }
     if (c == '\n')
         lineno++;
@@ -454,14 +422,10 @@ TokenStream::ungetChar(int32 c)
 {
     if (c == EOF)
         return;
-    JS_ASSERT(ungetbuf.ptr >= ungetbuf.base);
-    if (c == '\n') {
-        /* We can only unget one '\n', and it must be the first ungotten char. */
-        JS_ASSERT(ungetbuf.ptr == ungetbuf.limit);
+    JS_ASSERT(ungetpos < JS_ARRAY_LENGTH(ungetbuf));
+    if (c == '\n')
         lineno--;
-    }
-    *(--ungetbuf.ptr) = (jschar)c;
-    currbuf = &ungetbuf;
+    ungetbuf[ungetpos++] = (jschar)c;
 }
 
 /*
@@ -505,7 +469,7 @@ TokenStream::reportCompileErrorNumberVA(JSParseNode *pn, uintN flags, uintN erro
     uintN index, i;
     JSErrorReporter onError;
 
-    JS_ASSERT(linebuf.limit <= linebuf.base + LINE_LIMIT);
+    JS_ASSERT(linebuf.limit < linebuf.base + LINE_LIMIT);
 
     if (JSREPORT_IS_STRICT(flags) && !JS_HAS_STRICT_OPTION(cx))
         return JS_TRUE;
@@ -855,7 +819,7 @@ TokenStream::newToken(ptrdiff_t adjust)
     cursor = (cursor + 1) & ntokensMask;
     Token *tp = &tokens[cursor];
     tp->ptr = linebuf.ptr + adjust;
-    tp->pos.begin.index = linepos + (tp->ptr - linebuf.base) - (ungetbuf.limit - ungetbuf.ptr);
+    tp->pos.begin.index = linepos + (tp->ptr - linebuf.base) - ungetpos;
     tp->pos.begin.lineno = tp->pos.end.lineno = lineno;
     return tp;
 }
@@ -1119,19 +1083,22 @@ TokenStream::getTokenInternal()
     }
 
     if (JS7_ISDEC(c) || (c == '.' && JS7_ISDEC(peekChar()))) {
-        int radix = 10;
+        jsint radix;
+        const jschar *endptr;
+        jsdouble dval;
+
+        radix = 10;
         tokenbuf.clear();
 
         if (c == '0') {
+            if (!tokenbuf.append(c))
+                goto error;
             c = getChar();
             if (JS_TOLOWER(c) == 'x') {
-                radix = 16;
-                c = getChar();
-                if (!JS7_ISHEX(c)) {
-                    ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR,
-                                             JSMSG_MISSING_HEXDIGITS);
+                if (!tokenbuf.append(c))
                     goto error;
-                }
+                c = getChar();
+                radix = 16;
             } else if (JS7_ISDEC(c)) {
                 radix = 8;
             }
@@ -1206,14 +1173,17 @@ TokenStream::getTokenInternal()
         if (!tokenbuf.append(0))
             goto error;
 
-        jsdouble dval;
-        const jschar *dummy;
         if (radix == 10) {
-            if (!js_strtod(cx, tokenbuf.begin(), tokenbuf.end(), &dummy, &dval))
+            if (!js_strtod(cx, tokenbuf.begin(), tokenbuf.end(), &endptr, &dval)) {
+                ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR, JSMSG_OUT_OF_MEMORY);
                 goto error;
+            }
         } else {
-            if (!GetPrefixInteger(cx, tokenbuf.begin(), tokenbuf.end(), radix, &dummy, &dval))
+            if (!js_strtointeger(cx, tokenbuf.begin(), tokenbuf.end(),
+                                 &endptr, radix, &dval)) {
+                ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR, JSMSG_OUT_OF_MEMORY);
                 goto error;
+            }
         }
         tp->t_dval = dval;
         tt = TOK_NUMBER;
@@ -1223,81 +1193,72 @@ TokenStream::getTokenInternal()
     if (c == '"' || c == '\'') {
         qc = c;
         tokenbuf.clear();
-        while (true) {
-            c = getChar();
-            /*
-             * We need to detect any of these four chars:  " or ', \n, \\,
-             * EOF.  We use maybeStrSpecial[] in a manner similar to
-             * maybeEOL[], see above.
-             */
-            if (maybeStrSpecial[c & 0xff]) {
-                if (c == qc) {
-                    break;
-                } else if (c == '\\') {
-                    switch (c = getChar()) {
-                      case 'b': c = '\b'; break;
-                      case 'f': c = '\f'; break;
-                      case 'n': c = '\n'; break;
-                      case 'r': c = '\r'; break;
-                      case 't': c = '\t'; break;
-                      case 'v': c = '\v'; break;
+        while ((c = getChar()) != qc) {
+            if (c == '\n' || c == EOF) {
+                ungetChar(c);
+                ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR,
+                                         JSMSG_UNTERMINATED_STRING);
+                goto error;
+            }
+            if (c == '\\') {
+                switch (c = getChar()) {
+                  case 'b': c = '\b'; break;
+                  case 'f': c = '\f'; break;
+                  case 'n': c = '\n'; break;
+                  case 'r': c = '\r'; break;
+                  case 't': c = '\t'; break;
+                  case 'v': c = '\v'; break;
 
-                      default:
-                        if ('0' <= c && c < '8') {
-                            int32 val = JS7_UNDEC(c);
+                  default:
+                    if ('0' <= c && c < '8') {
+                        int32 val = JS7_UNDEC(c);
 
-                            c = peekChar();
-                            /* Strict mode code allows only \0, then a non-digit. */
-                            if (val != 0 || JS7_ISDEC(c)) {
-                                if (!ReportStrictModeError(cx, this, NULL, NULL,
-                                                           JSMSG_DEPRECATED_OCTAL)) {
-                                    goto error;
-                                }
+                        c = peekChar();
+                        /* Strict mode code allows only \0, then a non-digit. */
+                        if (val != 0 || JS7_ISDEC(c)) {
+                            if (!ReportStrictModeError(cx, this, NULL, NULL,
+                                                       JSMSG_DEPRECATED_OCTAL)) {
+                                goto error;
                             }
-                            if ('0' <= c && c < '8') {
-                                val = 8 * val + JS7_UNDEC(c);
-                                getChar();
-                                c = peekChar();
-                                if ('0' <= c && c < '8') {
-                                    int32 save = val;
-                                    val = 8 * val + JS7_UNDEC(c);
-                                    if (val <= 0377)
-                                        getChar();
-                                    else
-                                        val = save;
-                                }
-                            }
-
-                            c = (jschar)val;
-                        } else if (c == 'u') {
-                            jschar cp[4];
-                            if (peekChars(4, cp) &&
-                                JS7_ISHEX(cp[0]) && JS7_ISHEX(cp[1]) &&
-                                JS7_ISHEX(cp[2]) && JS7_ISHEX(cp[3])) {
-                                c = (((((JS7_UNHEX(cp[0]) << 4)
-                                        + JS7_UNHEX(cp[1])) << 4)
-                                      + JS7_UNHEX(cp[2])) << 4)
-                                    + JS7_UNHEX(cp[3]);
-                                skipChars(4);
-                            }
-                        } else if (c == 'x') {
-                            jschar cp[2];
-                            if (peekChars(2, cp) &&
-                                JS7_ISHEX(cp[0]) && JS7_ISHEX(cp[1])) {
-                                c = (JS7_UNHEX(cp[0]) << 4) + JS7_UNHEX(cp[1]);
-                                skipChars(2);
-                            }
-                        } else if (c == '\n') {
-                            /* ECMA follows C by removing escaped newlines. */
-                            continue;
                         }
-                        break;
+                        if ('0' <= c && c < '8') {
+                            val = 8 * val + JS7_UNDEC(c);
+                            getChar();
+                            c = peekChar();
+                            if ('0' <= c && c < '8') {
+                                int32 save = val;
+                                val = 8 * val + JS7_UNDEC(c);
+                                if (val <= 0377)
+                                    getChar();
+                                else
+                                    val = save;
+                            }
+                        }
+
+                        c = (jschar)val;
+                    } else if (c == 'u') {
+                        jschar cp[4];
+                        if (peekChars(4, cp) &&
+                            JS7_ISHEX(cp[0]) && JS7_ISHEX(cp[1]) &&
+                            JS7_ISHEX(cp[2]) && JS7_ISHEX(cp[3])) {
+                            c = (((((JS7_UNHEX(cp[0]) << 4)
+                                    + JS7_UNHEX(cp[1])) << 4)
+                                  + JS7_UNHEX(cp[2])) << 4)
+                                + JS7_UNHEX(cp[3]);
+                            skipChars(4);
+                        }
+                    } else if (c == 'x') {
+                        jschar cp[2];
+                        if (peekChars(2, cp) &&
+                            JS7_ISHEX(cp[0]) && JS7_ISHEX(cp[1])) {
+                            c = (JS7_UNHEX(cp[0]) << 4) + JS7_UNHEX(cp[1]);
+                            skipChars(2);
+                        }
+                    } else if (c == '\n') {
+                        /* ECMA follows C by removing escaped newlines. */
+                        continue;
                     }
-                } else if (c == '\n' || c == EOF) {
-                    ungetChar(c);
-                    ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR,
-                                             JSMSG_UNTERMINATED_STRING);
-                    goto error;
+                    break;
                 }
             }
             if (!tokenbuf.append(c))
@@ -1848,7 +1809,7 @@ TokenStream::getTokenInternal()
 
   eol_out:
     JS_ASSERT(tt < TOK_LIMIT);
-    tp->pos.end.index = linepos + (linebuf.ptr - linebuf.base) - (ungetbuf.limit - ungetbuf.ptr);
+    tp->pos.end.index = linepos + (linebuf.ptr - linebuf.base) - ungetpos;
     tp->type = tt;
     return tt;
 

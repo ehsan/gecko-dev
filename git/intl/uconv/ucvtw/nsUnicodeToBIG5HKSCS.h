@@ -46,7 +46,7 @@
  * @created         02/Jul/2000
  * @author  Gavin Ho, Hong Kong Professional Services, Compaq Computer (Hong Kong) Ltd.
  */
-nsresult
+NS_METHOD
 nsUnicodeToBIG5HKSCSConstructor(nsISupports *aOuter, REFNSIID aIID,
                                 void **aResult);
 

@@ -81,12 +81,6 @@ public:
   {
   }
 
-  explicit nsDependentJSString(jsid id)
-    : nsDependentString((PRUnichar *)::JS_GetStringChars(JSID_TO_STRING(id)),
-                        ::JS_GetStringLength(JSID_TO_STRING(id)))
-  {
-  }
-
   explicit nsDependentJSString(JSString *str)
     : nsDependentString((PRUnichar *)::JS_GetStringChars(str), ::JS_GetStringLength(str))
   {

@@ -57,14 +57,13 @@
 #include "nsBoxFrame.h"
 #include "nsImageFrame.h"
 #include "nsIImageLoadingContent.h"
-#include "nsDisplayList.h"
 
 #ifdef ACCESSIBILITY
 #include "nsIServiceManager.h"
+#include "nsIAccessible.h"
 #include "nsIAccessibilityService.h"
 #endif
 
-using namespace mozilla;
 using namespace mozilla::layers;
 
 nsIFrame*
@@ -101,7 +100,7 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
                                             nsnull,
                                             kNameSpaceID_XHTML);
     NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
-    mPosterImage = NS_NewHTMLImageElement(nodeInfo.forget());
+    mPosterImage = NS_NewHTMLImageElement(nodeInfo);
     NS_ENSURE_TRUE(mPosterImage, NS_ERROR_OUT_OF_MEMORY);
 
     // Set the nsImageLoadingContent::ImageState() to 0. This means that the
@@ -127,7 +126,11 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
                                           kNameSpaceID_XUL);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  NS_TrustedNewXULElement(getter_AddRefs(mVideoControls), nodeInfo.forget());
+  nsresult rv = NS_NewElement(getter_AddRefs(mVideoControls),
+                              kNameSpaceID_XUL,
+                              nodeInfo,
+                              PR_FALSE);
+  NS_ENSURE_SUCCESS(rv, rv);
   if (!aElements.AppendElement(mVideoControls))
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -173,24 +176,15 @@ CorrectForAspectRatio(const gfxRect& aRect, const nsIntSize& aRatio)
 
 already_AddRefed<Layer>
 nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
-                         LayerManager* aManager,
-                         nsDisplayItem* aItem)
+                         LayerManager* aManager)
 {
-  nsRect area = GetContentRect() - GetPosition() + aItem->ToReferenceFrame();
+  nsRect area = GetContentRect() + aBuilder->ToReferenceFrame(GetParent());
   nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
   nsIntSize videoSize = element->GetVideoSize(nsIntSize(0, 0));
   if (videoSize.width <= 0 || videoSize.height <= 0 || area.IsEmpty())
     return nsnull;
 
   nsRefPtr<ImageContainer> container = element->GetImageContainer();
-  // If we have a container with a different layer manager, try to hand
-  // off the container to the new one.
-  if (container && container->Manager() != aManager) {
-    // we don't care about the return type here -- if the set didn't take, it'll
-    // be handled when we next check the manager
-    container->SetLayerManager(aManager);
-  }
-
   // If we have a container with the right layer manager already, we don't
   // need to do anything here. Otherwise we need to set up a temporary
   // ImageContainer, capture the video data and store it in the temp
@@ -207,10 +201,6 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
       // Get video from the existing container. It was created for a
       // different layer manager, so we do fallback through cairo.
       imageSurface = container->GetCurrentAsSurface(&cairoData.mSize);
-      if (!imageSurface) {
-        // we couldn't do fallback, so we've got nothing to do here
-        return nsnull;
-      }
       cairoData.mSurface = imageSurface;
     } else {
       // We're probably printing.
@@ -250,13 +240,9 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
                       presContext->AppUnitsToGfxUnits(area.height));
   r = CorrectForAspectRatio(r, videoSize);
 
-  nsRefPtr<ImageLayer> layer = static_cast<ImageLayer*>
-    (aBuilder->LayerBuilder()->GetLeafLayerFor(aBuilder, aManager, aItem));
-  if (!layer) {
-    layer = aManager->CreateImageLayer();
-    if (!layer)
-      return nsnull;
-  }
+  nsRefPtr<ImageLayer> layer = aManager->CreateImageLayer();
+  if (!layer)
+    return nsnull;
 
   layer->SetContainer(container);
   layer->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(this));
@@ -352,8 +338,8 @@ nsVideoFrame::Reflow(nsPresContext*           aPresContext,
 
 class nsDisplayVideo : public nsDisplayItem {
 public:
-  nsDisplayVideo(nsDisplayListBuilder* aBuilder, nsVideoFrame* aFrame)
-    : nsDisplayItem(aBuilder, aFrame)
+  nsDisplayVideo(nsVideoFrame* aFrame)
+    : nsDisplayItem(aFrame)
   {
     MOZ_COUNT_CTOR(nsDisplayVideo);
   }
@@ -363,7 +349,7 @@ public:
   }
 #endif
   
-  NS_DISPLAY_DECL_NAME("Video", TYPE_VIDEO)
+  NS_DISPLAY_DECL_NAME("Video")
 
   // It would be great if we could override IsOpaque to return false here,
   // but it's probably not safe to do so in general. Video frames are
@@ -376,31 +362,13 @@ public:
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder)
   {
     nsIFrame* f = GetUnderlyingFrame();
-    return f->GetContentRect() - f->GetPosition() + ToReferenceFrame();
+    return f->GetContentRect() + aBuilder->ToReferenceFrame(f->GetParent());
   }
 
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
                                              LayerManager* aManager)
   {
-    return static_cast<nsVideoFrame*>(mFrame)->BuildLayer(aBuilder, aManager, this);
-  }
-
-  virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
-                                   LayerManager* aManager)
-  {
-    if (aManager->GetBackendType() != LayerManager::LAYERS_BASIC) {
-      // For non-basic layer managers we can assume that compositing
-      // layers is very cheap, and since ImageLayers don't require
-      // additional memory of the video frames we have to have anyway,
-      // we can't save much by making layers inactive. Also, for many
-      // accelerated layer managers calling
-      // imageContainer->GetCurrentAsSurface can be very expensive. So
-      // just always be active for these managers.
-      return LAYER_ACTIVE;
-    }
-    nsHTMLMediaElement* elem =
-      static_cast<nsHTMLMediaElement*>(mFrame->GetContent());
-    return elem->IsPotentiallyPlaying() ? LAYER_ACTIVE : LAYER_INACTIVE;
+    return static_cast<nsVideoFrame*>(mFrame)->BuildLayer(aBuilder, aManager);
   }
 };
 
@@ -419,7 +387,7 @@ nsVideoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   if (HasVideoElement() && !ShouldDisplayPoster()) {
     rv = aLists.Content()->AppendNewToTop(
-      new (aBuilder) nsDisplayVideo(aBuilder, this));
+      new (aBuilder) nsDisplayVideo(this));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -451,14 +419,15 @@ nsVideoFrame::GetType() const
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsVideoFrame::CreateAccessible()
+NS_IMETHODIMP
+nsVideoFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   nsCOMPtr<nsIAccessibilityService> accService =
     do_GetService("@mozilla.org/accessibilityService;1");
-  return accService ?
-    accService->CreateHTMLMediaAccessible(mContent, PresContext()->PresShell()) :
-    nsnull;
+  NS_ENSURE_STATE(accService);
+
+  return accService->CreateHTMLMediaAccessible(static_cast<nsIFrame*>(this),
+                                               aAccessible);
 }
 #endif
 
@@ -546,7 +515,7 @@ nsSize
 nsVideoFrame::GetVideoIntrinsicSize(nsIRenderingContext *aRenderingContext)
 {
   // Defaulting size to 300x150 if no size given.
-  nsIntSize size(300, 150);
+  nsIntSize size(300,150);
 
   if (ShouldDisplayPoster()) {
     // Use the poster image frame's size.
@@ -559,7 +528,7 @@ nsVideoFrame::GetVideoIntrinsicSize(nsIRenderingContext *aRenderingContext)
     }
   }
 
-  if (!HasVideoElement()) {
+  if (!HasVideoData()) {
     if (!aRenderingContext || !mFrames.FirstChild()) {
       // We just want our intrinsic ratio, but audio elements need no
       // intrinsic ratio, so just return "no ratio". Also, if there's

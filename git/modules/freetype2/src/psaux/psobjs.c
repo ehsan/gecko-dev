@@ -4,8 +4,7 @@
 /*                                                                         */
 /*    Auxiliary functions for PostScript fonts (body).                     */
 /*                                                                         */
-/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,   */
-/*            2010 by                                                      */
+/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009 by */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -1589,13 +1588,6 @@
     FT_Error     error;
 
 
-    /* this might happen in invalid fonts */
-    if ( !outline )
-    {
-      FT_ERROR(( "t1_builder_add_contour: no outline to add points to\n" ));
-      return PSaux_Err_Invalid_File_Format;
-    }
-
     if ( !builder->load_points )
     {
       outline->n_contours++;
@@ -1629,7 +1621,7 @@
 
     if ( builder->parse_state == T1_Parse_Have_Path )
       error = PSaux_Err_Ok;
-    else
+    else if ( builder->parse_state == T1_Parse_Have_Moveto )
     {
       builder->parse_state = T1_Parse_Have_Path;
       error = t1_builder_add_contour( builder );

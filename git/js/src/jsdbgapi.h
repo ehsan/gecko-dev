@@ -1,5 +1,5 @@
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=99:
+ * vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -87,12 +87,12 @@ JS_ClearInterrupt(JSRuntime *rt, JSInterruptHook *handlerp, void **closurep);
 /************************************************************************/
 
 extern JS_PUBLIC_API(JSBool)
-JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsid id,
-                 JSWatchPointHandler handler, JSObject *closure);
+JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsval id,
+                 JSWatchPointHandler handler, void *closure);
 
 extern JS_PUBLIC_API(JSBool)
-JS_ClearWatchPoint(JSContext *cx, JSObject *obj, jsid id,
-                   JSWatchPointHandler *handlerp, JSObject **closurep);
+JS_ClearWatchPoint(JSContext *cx, JSObject *obj, jsval id,
+                   JSWatchPointHandler *handlerp, void **closurep);
 
 extern JS_PUBLIC_API(JSBool)
 JS_ClearWatchPointsForObject(JSContext *cx, JSObject *obj);
@@ -111,22 +111,25 @@ js_TraceWatchPoints(JSTracer *trc, JSObject *obj);
 extern void
 js_SweepWatchPoints(JSContext *cx);
 
-#ifdef __cplusplus
+extern JSScopeProperty *
+js_FindWatchPoint(JSRuntime *rt, JSScope *scope, jsid id);
 
-extern const js::Shape *
-js_FindWatchPoint(JSRuntime *rt, JSObject *obj, jsid id);
+/*
+ * NB: callers outside of jsdbgapi.c must pass non-null scope.
+ */
+extern JSPropertyOp
+js_GetWatchedSetter(JSRuntime *rt, JSScope *scope,
+                    const JSScopeProperty *sprop);
 
 extern JSBool
-js_watch_set(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
+js_watch_set(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
 extern JSBool
-js_watch_set_wrapper(JSContext *cx, JSObject *obj, uintN argc, js::Value *argv,
-                     js::Value *rval);
+js_watch_set_wrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                     jsval *rval);
 
-extern js::PropertyOp
-js_WrapWatchedSetter(JSContext *cx, jsid id, uintN attrs, js::PropertyOp setter);
-
-#endif
+extern JSPropertyOp
+js_WrapWatchedSetter(JSContext *cx, jsid id, uintN attrs, JSPropertyOp setter);
 
 #endif /* JS_HAS_OBJ_WATCHPOINT */
 
@@ -137,29 +140,6 @@ JS_PCToLineNumber(JSContext *cx, JSScript *script, jsbytecode *pc);
 
 extern JS_PUBLIC_API(jsbytecode *)
 JS_LineNumberToPC(JSContext *cx, JSScript *script, uintN lineno);
-
-extern JS_PUBLIC_API(uintN)
-JS_GetFunctionArgumentCount(JSContext *cx, JSFunction *fun);
-
-extern JS_PUBLIC_API(JSBool)
-JS_FunctionHasLocalNames(JSContext *cx, JSFunction *fun);
-
-/*
- * N.B. The mark is in the context temp pool and thus the caller must take care
- * to call JS_ReleaseFunctionLocalNameArray in a LIFO manner (wrt to any other
- * call that may use the temp pool.
- */
-extern JS_PUBLIC_API(jsuword *)
-JS_GetFunctionLocalNameArray(JSContext *cx, JSFunction *fun, void **markp);
-
-extern JS_PUBLIC_API(JSAtom *)
-JS_LocalNameToAtom(jsuword w);
-
-extern JS_PUBLIC_API(JSString *)
-JS_AtomKey(JSAtom *atom);
-
-extern JS_PUBLIC_API(void)
-JS_ReleaseFunctionLocalNameArray(JSContext *cx, void *mark);
 
 extern JS_PUBLIC_API(JSScript *)
 JS_GetFunctionScript(JSContext *cx, JSFunction *fun);
@@ -265,41 +245,10 @@ extern JS_PUBLIC_API(void)
 JS_SetFrameReturnValue(JSContext *cx, JSStackFrame *fp, jsval rval);
 
 /**
- * Return fp's callee function object (fp->callee) if it has one. Note that
- * this API cannot fail. A null return means "no callee": fp is a global or
- * eval-from-global frame, not a call frame.
- *
- * This API began life as an infallible getter, but now it can return either:
- *
- * 1. An optimized closure that was compiled assuming the function could not
- *    escape and be called from sites the compiler could not see.
- *
- * 2. A "joined function object", an optimization whereby SpiderMonkey avoids
- *    creating fresh function objects for every evaluation of a function
- *    expression that is used only once by a consumer that either promises to
- *    clone later when asked for the value or that cannot leak the value.
- *
- * Because Mozilla's Gecko embedding of SpiderMonkey (and no doubt other
- * embeddings) calls this API in potentially performance-sensitive ways (e.g.
- * in nsContentUtils::GetDocumentFromCaller), we are leaving this API alone. It
- * may now return an unwrapped non-escaping optimized closure, or a joined
- * function object. Such optimized objects may work well if called from the
- * correct context, never mutated or compared for identity, etc.
- *
- * However, if you really need to get the same callee object that JS code would
- * see, which means undoing the optimizations, where an undo attempt can fail,
- * then use JS_GetValidFrameCalleeObject.
+ * Return fp's callee function object (fp->callee) if it has one.
  */
 extern JS_PUBLIC_API(JSObject *)
 JS_GetFrameCalleeObject(JSContext *cx, JSStackFrame *fp);
-
-/**
- * Return fp's callee function object after running the deferred closure
- * cloning "method read barrier". This API can fail! If the frame has no
- * callee, this API returns true with JSVAL_IS_VOID(*vp).
- */
-extern JS_PUBLIC_API(JSBool)
-JS_GetValidFrameCalleeObject(JSContext *cx, JSStackFrame *fp, jsval *vp);
 
 /************************************************************************/
 
@@ -349,7 +298,7 @@ JS_EvaluateInStackFrame(JSContext *cx, JSStackFrame *fp,
 /************************************************************************/
 
 typedef struct JSPropertyDesc {
-    jsval           id;         /* primary id, atomized string, or int */
+    jsval           id;         /* primary id, a string or int */
     jsval           value;      /* property value */
     uint8           flags;      /* flags, see below */
     uint8           spare;      /* unused */
@@ -373,13 +322,11 @@ typedef struct JSPropertyDescArray {
     JSPropertyDesc  *array;     /* alloc'd by Get, freed by Put */
 } JSPropertyDescArray;
 
-typedef struct JSScopeProperty JSScopeProperty;
-
 extern JS_PUBLIC_API(JSScopeProperty *)
 JS_PropertyIterator(JSObject *obj, JSScopeProperty **iteratorp);
 
 extern JS_PUBLIC_API(JSBool)
-JS_GetPropertyDesc(JSContext *cx, JSObject *obj, JSScopeProperty *shape,
+JS_GetPropertyDesc(JSContext *cx, JSObject *obj, JSScopeProperty *sprop,
                    JSPropertyDesc *pd);
 
 extern JS_PUBLIC_API(JSBool)
@@ -387,20 +334,6 @@ JS_GetPropertyDescArray(JSContext *cx, JSObject *obj, JSPropertyDescArray *pda);
 
 extern JS_PUBLIC_API(void)
 JS_PutPropertyDescArray(JSContext *cx, JSPropertyDescArray *pda);
-
-/************************************************************************/
-
-extern JS_FRIEND_API(JSBool)
-js_GetPropertyByIdWithFakeFrame(JSContext *cx, JSObject *obj, JSObject *scopeobj, jsid id,
-                                jsval *vp);
-
-extern JS_FRIEND_API(JSBool)
-js_SetPropertyByIdWithFakeFrame(JSContext *cx, JSObject *obj, JSObject *scopeobj, jsid id,
-                                jsval *vp);
-
-extern JS_FRIEND_API(JSBool)
-js_CallFunctionValueWithFakeFrame(JSContext *cx, JSObject *obj, JSObject *scopeobj, jsval funval,
-                                  uintN argc, jsval *argv, jsval *rval);
 
 /************************************************************************/
 
@@ -415,6 +348,9 @@ JS_SetExecuteHook(JSRuntime *rt, JSInterpreterHook hook, void *closure);
 
 extern JS_PUBLIC_API(JSBool)
 JS_SetCallHook(JSRuntime *rt, JSInterpreterHook hook, void *closure);
+
+extern JS_PUBLIC_API(JSBool)
+JS_SetObjectHook(JSRuntime *rt, JSObjectHook hook, void *closure);
 
 extern JS_PUBLIC_API(JSBool)
 JS_SetThrowHook(JSRuntime *rt, JSThrowHook hook, void *closure);
@@ -479,12 +415,13 @@ extern JS_PUBLIC_API(JSBool)
 JS_IsSystemObject(JSContext *cx, JSObject *obj);
 
 /*
- * Mark an object as being a system object. This should be called immediately
- * after allocating the object. A system object is an object for which
- * JS_IsSystemObject returns true.
+ * Call JS_NewObject(cx, clasp, proto, parent) and, if system is true, mark the
+ * result as a system object, that is an object for which JS_IsSystemObject
+ * returns true.
  */
-extern JS_PUBLIC_API(JSBool)
-JS_MakeSystemObject(JSContext *cx, JSObject *obj);
+extern JS_PUBLIC_API(JSObject *)
+JS_NewSystemObject(JSContext *cx, JSClass *clasp, JSObject *proto,
+                   JSObject *parent, JSBool system);
 
 /************************************************************************/
 

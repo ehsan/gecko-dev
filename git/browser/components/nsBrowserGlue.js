@@ -52,11 +52,6 @@ const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
-  Cu.import("resource://gre/modules/NetUtil.jsm");
-  return NetUtil;
-});
-
 const PREF_EM_NEW_ADDONS_LIST = "extensions.newAddons";
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
@@ -128,31 +123,6 @@ BrowserGlue.prototype = {
     Services.prefs.savePrefFile(null);
   },
 
-#ifdef MOZ_SERVICES_SYNC
-  _setSyncAutoconnectDelay: function BG__setSyncAutoconnectDelay() {
-    // Assume that a non-zero value for services.sync.autoconnectDelay should override
-    if (Services.prefs.prefHasUserValue("services.sync.autoconnectDelay")) {
-      let prefDelay = Services.prefs.getIntPref("services.sync.autoconnectDelay");
-
-      if (prefDelay > 0)
-        return;
-    }
-
-    // delays are in seconds
-    const MAX_DELAY = 300;
-    let delay = 3;
-    let enum = Services.wm.getEnumerator("navigator:browser");
-    while (enum.hasMoreElements()) {
-      delay += enum.getNext().gBrowser.tabs.length;
-    }
-    delay = delay <= MAX_DELAY ? delay : MAX_DELAY;
-
-    let syncTemp = {};
-    Cu.import("resource://services-sync/service.js", syncTemp);
-    syncTemp.Weave.Service.delayedAutoConnect(delay);
-  },
-#endif
-
   // nsIObserver implementation 
   observe: function BG_observe(subject, topic, data) {
     switch (topic) {
@@ -191,11 +161,6 @@ BrowserGlue.prototype = {
         this._setPrefToSaveSession();
         break;
 #endif
-#ifdef MOZ_SERVICES_SYNC
-      case "weave:service:ready":
-        this._setSyncAutoconnectDelay();
-        break;
-#endif
       case "session-save":
         this._setPrefToSaveSession(true);
         subject.QueryInterface(Ci.nsISupportsPRBool);
@@ -225,7 +190,8 @@ BrowserGlue.prototype = {
           Services.obs.removeObserver(this, "places-shutdown");
           this._isPlacesShutdownObserver = false;
         }
-        // places-shutdown is fired when the profile is about to disappear.
+        // places-shutdown is fired on profile-before-change, but before
+        // Places executes the last flush and closes connection.
         this._onProfileShutdown();
         break;
       case "idle":
@@ -268,9 +234,6 @@ BrowserGlue.prototype = {
     os.addObserver(this, "browser-lastwindow-close-requested", false);
     os.addObserver(this, "browser-lastwindow-close-granted", false);
 #endif
-#ifdef MOZ_SERVICES_SYNC
-    os.addObserver(this, "weave:service:ready", false);
-#endif
     os.addObserver(this, "session-save", false);
     os.addObserver(this, "places-init-complete", false);
     this._isPlacesInitObserver = true;
@@ -294,9 +257,6 @@ BrowserGlue.prototype = {
 #ifdef OBSERVE_LASTWINDOW_CLOSE_TOPICS
     os.removeObserver(this, "browser-lastwindow-close-requested");
     os.removeObserver(this, "browser-lastwindow-close-granted");
-#endif
-#ifdef MOZ_SERVICES_SYNC
-    os.removeObserver(this, "weave:service:ready", false);
 #endif
     os.removeObserver(this, "session-save");
     if (this._isIdleObserver)
@@ -349,7 +309,6 @@ BrowserGlue.prototype = {
 
   // profile shutdown handler (contains profile cleanup routines)
   _onProfileShutdown: function BG__onProfileShutdown() {
-#ifdef MOZ_UPDATER
 #ifdef WINCE
     // If there's a pending update, clear cache to free up disk space.
     try {
@@ -361,7 +320,6 @@ BrowserGlue.prototype = {
         cacheService.evictEntries(Ci.nsICache.STORE_ANYWHERE);
       }
     } catch (e) { }
-#endif
 #endif
     this._shutdownPlaces();
     this._sanitizer.onShutdown();
@@ -437,7 +395,7 @@ BrowserGlue.prototype = {
       var browser = browserEnum.getNext();
       var tabbrowser = browser.document.getElementById("content");
       if (tabbrowser)
-        pagecount += tabbrowser.browsers.length - tabbrowser._numPinnedTabs;
+        pagecount += tabbrowser.browsers.length;
     }
 
     this._saveSession = false;
@@ -468,7 +426,7 @@ BrowserGlue.prototype = {
                             getService(Ci.nsIPrivateBrowsingService).
                             privateBrowsingEnabled;
     if (!showPrompt || inPrivateBrowsing)
-      return;
+      return false;
 
     var quitBundle = Services.strings.createBundle("chrome://browser/locale/quitDialog.properties");
     var brandBundle = Services.strings.createBundle("chrome://branding/locale/brand.properties");
@@ -857,18 +815,16 @@ BrowserGlue.prototype = {
       var dirService = Cc["@mozilla.org/file/directory_service;1"].
                        getService(Ci.nsIProperties);
 
-      var bookmarksURI = null;
+      var bookmarksFile = null;
       if (restoreDefaultBookmarks) {
         // User wants to restore bookmarks.html file from default profile folder
-        bookmarksURI = NetUtil.newURI("resource:///defaults/profile/bookmarks.html");
+        bookmarksFile = dirService.get("profDef", Ci.nsILocalFile);
+        bookmarksFile.append("bookmarks.html");
       }
-      else {
-        var bookmarksFile = dirService.get("BMarks", Ci.nsILocalFile);
-        if (bookmarksFile.exists())
-          bookmarksURI = NetUtil.newURI(bookmarksFile);
-      }
+      else
+        bookmarksFile = dirService.get("BMarks", Ci.nsILocalFile);
 
-      if (bookmarksURI) {
+      if (bookmarksFile.exists()) {
         // Add an import observer.  It will ensure that smart bookmarks are
         // created once the operation is complete.
         Services.obs.addObserver(this, "bookmarks-restore-success", false);
@@ -878,7 +834,7 @@ BrowserGlue.prototype = {
         try {
           var importer = Cc["@mozilla.org/browser/places/import-export-service;1"].
                          getService(Ci.nsIPlacesImportExportService);
-          importer.importHTMLFromURI(bookmarksURI, true /* overwrite existing */);
+          importer.importHTMLFromFile(bookmarksFile, true /* overwrite existing */);
         } catch (err) {
           // Report the error, but ignore it.
           Cu.reportError("Bookmarks.html file could be corrupt. " + err);
@@ -995,20 +951,19 @@ BrowserGlue.prototype = {
   },
 
   _migrateUI: function BG__migrateUI() {
-    const UI_VERSION = 2;
-    let currentUIVersion = 0;
+    var migration = 0;
     try {
-      currentUIVersion = Services.prefs.getIntPref("browser.migration.version");
+      migration = Services.prefs.getIntPref("browser.migration.version");
     } catch(ex) {}
-    if (currentUIVersion >= UI_VERSION)
-      return;
 
-    this._rdf = Cc["@mozilla.org/rdf/rdf-service;1"].getService(Ci.nsIRDFService);
-    this._dataSource = this._rdf.GetDataSource("rdf:local-store");
-    this._dirty = false;
-
-    if (currentUIVersion < 1) {
+    if (migration == 0) {
       // this code should always migrate pre-FF3 profiles to the current UI state
+
+      // grab the localstore.rdf and make changes needed for new UI
+      this._rdf = Cc["@mozilla.org/rdf/rdf-service;1"].getService(Ci.nsIRDFService);
+      this._dataSource = this._rdf.GetDataSource("rdf:local-store");
+      this._dirty = false;
+
       let currentsetResource = this._rdf.GetResource("currentset");
       let toolbars = ["nav-bar", "toolbar-menubar", "PersonalToolbar"];
       for (let i = 0; i < toolbars.length; i++) {
@@ -1032,35 +987,18 @@ BrowserGlue.prototype = {
           break;
         }
       }
+
+      // force the RDF to be saved
+      if (this._dirty)
+        this._dataSource.QueryInterface(Ci.nsIRDFRemoteDataSource).Flush();
+
+      // free up the RDF service
+      this._rdf = null;
+      this._dataSource = null;
+
+      // update the migration version
+      Services.prefs.setIntPref("browser.migration.version", 1);
     }
-
-    if (currentUIVersion < 2) {
-      // This code adds the customizable bookmarks button.
-      let currentsetResource = this._rdf.GetResource("currentset");
-      let toolbarResource = this._rdf.GetResource("chrome://browser/content/browser.xul#nav-bar");
-      let currentset = this._getPersist(toolbarResource, currentsetResource);
-      // Need to migrate only if toolbar is customized and the element is not found.
-      if (currentset &&
-          currentset.indexOf("bookmarks-menu-button-container") == -1) {
-        if (currentset.indexOf("fullscreenflex") != -1) {
-          currentset = currentset.replace(/(^|,)fullscreenflex($|,)/,
-                                          "$1bookmarks-menu-button-container,fullscreenflex$2")
-        }
-        else {
-          currentset += ",bookmarks-menu-button-container";
-        }
-        this._setPersist(toolbarResource, currentsetResource, currentset);
-      }
-    }
-
-    if (this._dirty)
-      this._dataSource.QueryInterface(Ci.nsIRDFRemoteDataSource).Flush();
-
-    delete this._rdf;
-    delete this._dataSource;
-
-    // Update the migration version.
-    Services.prefs.setIntPref("browser.migration.version", UI_VERSION);
   },
 
   _getPersist: function BG__getPersist(aSource, aProperty) {
@@ -1294,7 +1232,9 @@ BrowserGlue.prototype = {
 
 
   // for XPCOM
+  classDescription: "Firefox Browser Glue Service",
   classID:          Components.ID("{eab9012e-5f74-4cbc-b2b5-a590235513cc}"),
+  contractID:       "@mozilla.org/browser/browserglue;1",
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
                                          Ci.nsISupportsWeakReference,
@@ -1302,23 +1242,25 @@ BrowserGlue.prototype = {
 
   // redefine the default factory for XPCOMUtils
   _xpcom_factory: BrowserGlueServiceFactory,
+
+  // get this contractID registered for certain categories via XPCOMUtils
+  _xpcom_categories: [
+    // make BrowserGlue a startup observer
+    { category: "app-startup", service: true }
+  ]
 }
 
 function GeolocationPrompt() {}
 
 GeolocationPrompt.prototype = {
+  classDescription: "Geolocation Prompting Component",
   classID:          Components.ID("{C6E8C44D-9F39-4AF7-BCC0-76E38A8310F5}"),
+  contractID:       "@mozilla.org/geolocation/prompt;1",
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIGeolocationPrompt]),
-
+ 
   prompt: function GP_prompt(request) {
-    var requestingURI = request.requestingURI;
-
-    // Ignore requests from non-nsIStandardURLs
-    if (!(requestingURI instanceof Ci.nsIStandardURL))
-      return;
-
-    var result = Services.perms.testExactPermission(requestingURI, "geo");
+    var result = Services.perms.testExactPermission(request.requestingURI, "geo");
 
     if (result == Ci.nsIPermissionManager.ALLOW_ACTION) {
       request.allow();
@@ -1328,6 +1270,13 @@ GeolocationPrompt.prototype = {
     if (result == Ci.nsIPermissionManager.DENY_ACTION) {
       request.cancel();
       return;
+    }
+
+    function setPagePermission(uri, allow) {
+      if (allow == true)
+        Services.perms.add(uri, "geo", Ci.nsIPermissionManager.ALLOW_ACTION);
+      else
+        Services.perms.add(uri, "geo", Ci.nsIPermissionManager.DENY_ACTION);
     }
 
     function getChromeWindow(aWindow) {
@@ -1342,65 +1291,98 @@ GeolocationPrompt.prototype = {
       return chromeWin;
     }
 
-    var browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
-
-    var mainAction = {
-      label: browserBundle.GetStringFromName("geolocation.shareLocation"),
-      accessKey: browserBundle.GetStringFromName("geolocation.shareLocation.accesskey"),
-      callback: function(notification) {
-        request.allow();
-      },
-    };
-
-    // XXX Bug 573536
-    // browserBundle.GetStringFromName("geolocation.learnMore")
-    //var formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].getService(Ci.nsIURLFormatter);
-    //link.href = formatter.formatURLPref("browser.geolocation.warning.infoURL");
-
-    var message;
-    var secondaryActions = [];
-
-    // Different message/options if it is a local file
-    if (requestingURI.schemeIs("file")) {
-      message = browserBundle.formatStringFromName("geolocation.fileWantsToKnow",
-                                                   [request.requestingURI.path], 1);
-    } else {
-      message = browserBundle.formatStringFromName("geolocation.siteWantsToKnow",
-                                                   [requestingURI.host], 1);
-
-      // Don't offer to "always/never share" in PB mode
-      var inPrivateBrowsing = Cc["@mozilla.org/privatebrowsing;1"].
-                              getService(Ci.nsIPrivateBrowsingService).
-                              privateBrowsingEnabled;
-
-      if (!inPrivateBrowsing) {
-        secondaryActions.push({
-          label: browserBundle.GetStringFromName("geolocation.alwaysShare"),
-          accessKey: browserBundle.GetStringFromName("geolocation.alwaysShare.accesskey"),
-          callback: function () {
-            Services.perms.add(requestingURI, "geo", Ci.nsIPermissionManager.ALLOW_ACTION);
-            request.allow();
-          }
-        });
-        secondaryActions.push({
-          label: browserBundle.GetStringFromName("geolocation.neverShare"),
-          accessKey: browserBundle.GetStringFromName("geolocation.neverShare.accesskey"),
-          callback: function () {
-            Services.perms.add(requestingURI, "geo", Ci.nsIPermissionManager.DENY_ACTION);
-            request.cancel();
-          }
-        });
-      }
-    }
-
     var requestingWindow = request.requestingWindow.top;
-    var chromeWin = getChromeWindow(requestingWindow).wrappedJSObject;
-    var browser = chromeWin.gBrowser.getBrowserForDocument(requestingWindow.document);
+    var chromeWindowObject = getChromeWindow(requestingWindow).wrappedJSObject;
+    var tabbrowser = chromeWindowObject.gBrowser;
+    var browser = tabbrowser.getBrowserForDocument(requestingWindow.document);
+    var notificationBox = tabbrowser.getNotificationBox(browser);
 
-    chromeWin.PopupNotifications.show(browser, "geolocation", message, "geo-notification-icon",
-                                      mainAction, secondaryActions);
-  }
+    var notification = notificationBox.getNotificationWithValue("geolocation");
+    if (!notification) {
+      var browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
+
+      var buttons = [{
+              label: browserBundle.GetStringFromName("geolocation.shareLocation"),
+              accessKey: browserBundle.GetStringFromName("geolocation.shareLocation.accesskey"),
+              callback: function(notification) {
+                  var elements = notification.getElementsByClassName("rememberChoice");
+                  if (elements.length && elements[0].checked)
+                      setPagePermission(request.requestingURI, true);
+                  request.allow(); 
+              },
+          },
+          {
+              label: browserBundle.GetStringFromName("geolocation.dontShareLocation"),
+              accessKey: browserBundle.GetStringFromName("geolocation.dontShareLocation.accesskey"),
+              callback: function(notification) {
+                  var elements = notification.getElementsByClassName("rememberChoice");
+                  if (elements.length && elements[0].checked)
+                      setPagePermission(request.requestingURI, false);
+                  request.cancel();
+              },
+          }];
+      
+      var message;
+
+      // Different message/info if it is a local file
+      if (request.requestingURI.schemeIs("file")) {
+        message = browserBundle.formatStringFromName("geolocation.fileWantsToKnow",
+                                                     [request.requestingURI.path], 1);
+      } else {
+        message = browserBundle.formatStringFromName("geolocation.siteWantsToKnow",
+                                                     [request.requestingURI.host], 1);
+      }
+
+      var newBar = notificationBox.appendNotification(message,
+                                                      "geolocation",
+                                                      "chrome://browser/skin/Geo.png",
+                                                      notificationBox.PRIORITY_INFO_HIGH,
+                                                      buttons);
+
+      // For whatever reason, if we do this immediately
+      // (eg, without the setTimeout), the "link"
+      // element does not show up in the notification
+      // bar.
+      function geolocation_hacks_to_notification () {
+
+        // Never show a remember checkbox inside the private browsing mode
+        var inPrivateBrowsing = Cc["@mozilla.org/privatebrowsing;1"].
+                                getService(Ci.nsIPrivateBrowsingService).
+                                privateBrowsingEnabled;
+
+        // don't show "Remember for this site" checkbox for file:
+        var host;
+        try {
+            host = request.requestingURI.host;
+        } catch (ex) {}
+
+        if (!inPrivateBrowsing && host) {
+          var checkbox = newBar.ownerDocument.createElementNS(XULNS, "checkbox");
+          checkbox.className = "rememberChoice";
+          checkbox.setAttribute("label", browserBundle.GetStringFromName("geolocation.remember"));
+          checkbox.setAttribute("accesskey", browserBundle.GetStringFromName("geolocation.remember.accesskey"));
+          newBar.appendChild(checkbox);
+        }
+
+        var link = newBar.ownerDocument.createElementNS(XULNS, "label");
+        link.className = "text-link";
+        link.setAttribute("value", browserBundle.GetStringFromName("geolocation.learnMore"));
+
+        var formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].getService(Ci.nsIURLFormatter);
+        link.href = formatter.formatURLPref("browser.geolocation.warning.infoURL");
+
+        var description = newBar.ownerDocument.getAnonymousElementByAttribute(newBar, "anonid", "messageText");
+        description.appendChild(link);
+      };
+
+      chromeWindowObject.setTimeout(geolocation_hacks_to_notification, 0);
+
+    }
+  },
 };
 
-var components = [BrowserGlue, GeolocationPrompt];
-var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+
+//module initialization
+function NSGetModule(aCompMgr, aFileSpec) {
+  return XPCOMUtils.generateModule([BrowserGlue, GeolocationPrompt]);
+}

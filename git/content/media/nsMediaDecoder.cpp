@@ -37,7 +37,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsMediaDecoder.h"
-#include "nsMediaStream.h"
 
 #include "prlog.h"
 #include "prmem.h"
@@ -53,10 +52,6 @@
 #include "gfxImageSurface.h"
 #include "nsPresContext.h"
 #include "nsDOMError.h"
-#include "nsDisplayList.h"
-#ifdef MOZ_SVG
-#include "nsSVGEffects.h"
-#endif
 
 #if defined(XP_MACOSX)
 #include "gfxQuartzImageSurface.h"
@@ -75,9 +70,7 @@ nsMediaDecoder::nsMediaDecoder() :
   mProgressTime(),
   mDataTime(),
   mVideoUpdateLock(nsnull),
-  mPixelAspectRatio(1.0),
-  mFrameBufferLength(0),
-  mPinnedForSeek(PR_FALSE),
+  mAspectRatio(1.0),
   mSizeChanged(PR_FALSE),
   mShuttingDown(PR_FALSE)
 {
@@ -112,17 +105,6 @@ nsHTMLMediaElement* nsMediaDecoder::GetMediaElement()
   return mElement;
 }
 
-nsresult nsMediaDecoder::RequestFrameBufferLength(PRUint32 aLength)
-{
-  if (aLength < FRAMEBUFFER_LENGTH_MIN || aLength > FRAMEBUFFER_LENGTH_MAX) {
-    return NS_ERROR_DOM_INDEX_SIZE_ERR;
-  }
-
-  mFrameBufferLength = aLength;
-  return NS_OK;
-}
-
-
 static PRInt32 ConditionDimension(float aValue, PRInt32 aDefault)
 {
   // This will exclude NaNs and infinities
@@ -144,14 +126,14 @@ void nsMediaDecoder::Invalidate()
       nsIntSize scaledSize(mRGBWidth, mRGBHeight);
       // Apply the aspect ratio to produce the intrinsic size we report
       // to the element.
-      if (mPixelAspectRatio > 1.0) {
+      if (mAspectRatio > 1.0) {
         // Increase the intrinsic width
         scaledSize.width =
-          ConditionDimension(mPixelAspectRatio*scaledSize.width, scaledSize.width);
+          ConditionDimension(mAspectRatio*scaledSize.width, scaledSize.width);
       } else {
         // Increase the intrinsic height
         scaledSize.height =
-          ConditionDimension(scaledSize.height/mPixelAspectRatio, scaledSize.height);
+          ConditionDimension(scaledSize.height/mAspectRatio, scaledSize.height);
       }
       mElement->UpdateMediaSize(scaledSize);
 
@@ -167,14 +149,9 @@ void nsMediaDecoder::Invalidate()
   }
 
   if (frame) {
-    nsRect contentRect = frame->GetContentRect() - frame->GetPosition();
-    // Only the layer needs to be updated here
-    frame->InvalidateLayer(contentRect, nsDisplayItem::TYPE_VIDEO);
+    nsRect r(nsPoint(0,0), frame->GetSize());
+    frame->Invalidate(r);
   }
-
-#ifdef MOZ_SVG
-  nsSVGEffects::InvalidateDirectRenderingObservers(mElement);
-#endif
 }
 
 static void ProgressCallback(nsITimer* aTimer, void* aClosure)
@@ -236,58 +213,19 @@ nsresult nsMediaDecoder::StopProgress()
 }
 
 void nsMediaDecoder::SetVideoData(const gfxIntSize& aSize,
-                                  float aPixelAspectRatio,
+                                  float aAspectRatio,
                                   Image* aImage)
 {
   nsAutoLock lock(mVideoUpdateLock);
 
   if (mRGBWidth != aSize.width || mRGBHeight != aSize.height ||
-      mPixelAspectRatio != aPixelAspectRatio) {
+      mAspectRatio != aAspectRatio) {
     mRGBWidth = aSize.width;
     mRGBHeight = aSize.height;
-    mPixelAspectRatio = aPixelAspectRatio;
+    mAspectRatio = aAspectRatio;
     mSizeChanged = PR_TRUE;
   }
   if (mImageContainer && aImage) {
     mImageContainer->SetCurrentImage(aImage);
   }
-}
-
-void nsMediaDecoder::PinForSeek()
-{
-  nsMediaStream* stream = GetCurrentStream();
-  if (!stream || mPinnedForSeek) {
-    return;
-  }
-  mPinnedForSeek = PR_TRUE;
-  stream->Pin();
-}
-
-void nsMediaDecoder::UnpinForSeek()
-{
-  nsMediaStream* stream = GetCurrentStream();
-  if (!stream || !mPinnedForSeek) {
-    return;
-  }
-  mPinnedForSeek = PR_FALSE;
-  stream->Unpin();
-}
-
-// Number of bytes to add to the download size when we're computing
-// when the download will finish --- a safety margin in case bandwidth
-// or other conditions are worse than expected
-static const PRInt32 gDownloadSizeSafetyMargin = 1000000;
-
-PRBool nsMediaDecoder::CanPlayThrough()
-{
-  Statistics stats = GetStatistics();
-  if (!stats.mDownloadRateReliable || !stats.mPlaybackRateReliable) {
-    return PR_FALSE;
-  }
-  PRInt64 bytesToDownload = stats.mTotalBytes - stats.mDownloadPosition;
-  PRInt64 bytesToPlayback = stats.mTotalBytes - stats.mPlaybackPosition;
-  double timeToDownload =
-    (bytesToDownload + gDownloadSizeSafetyMargin)/stats.mDownloadRate;
-  double timeToPlay = bytesToPlayback/stats.mPlaybackRate;
-  return timeToDownload <= timeToPlay;
 }

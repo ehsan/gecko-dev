@@ -97,7 +97,8 @@ nsTransactionManager::DoTransaction(nsITransaction *aTransaction)
 {
   nsresult result;
 
-  NS_ENSURE_TRUE(aTransaction, NS_ERROR_NULL_POINTER);
+  if (!aTransaction)
+    return NS_ERROR_NULL_POINTER;
 
   LOCK_TX_MANAGER(this);
 
@@ -444,7 +445,8 @@ nsTransactionManager::GetNumberOfRedoItems(PRInt32 *aNumItems)
 NS_IMETHODIMP
 nsTransactionManager::GetMaxTransactionCount(PRInt32 *aMaxCount)
 {
-  NS_ENSURE_TRUE(aMaxCount, NS_ERROR_NULL_POINTER);
+  if (!aMaxCount)
+    return NS_ERROR_NULL_POINTER;
 
   LOCK_TX_MANAGER(this);
   *aMaxCount = mMaxTransactionCount;
@@ -556,7 +558,8 @@ nsTransactionManager::PeekUndoStack(nsITransaction **aTransaction)
   nsRefPtr<nsTransactionItem> tx;
   nsresult result;
 
-  NS_ENSURE_TRUE(aTransaction, NS_ERROR_NULL_POINTER);
+  if (!aTransaction)
+    return NS_ERROR_NULL_POINTER;
 
   *aTransaction = 0;
 
@@ -582,7 +585,8 @@ nsTransactionManager::PeekRedoStack(nsITransaction **aTransaction)
   nsRefPtr<nsTransactionItem> tx;
   nsresult result;
 
-  NS_ENSURE_TRUE(aTransaction, NS_ERROR_NULL_POINTER);
+  if (!aTransaction)
+    return NS_ERROR_NULL_POINTER;
 
   *aTransaction = 0;
 
@@ -605,7 +609,8 @@ nsTransactionManager::PeekRedoStack(nsITransaction **aTransaction)
 NS_IMETHODIMP
 nsTransactionManager::GetUndoList(nsITransactionList **aTransactionList)
 {
-  NS_ENSURE_TRUE(aTransactionList, NS_ERROR_NULL_POINTER);
+  if (!aTransactionList)
+    return NS_ERROR_NULL_POINTER;
 
   *aTransactionList = (nsITransactionList *)new nsTransactionList(this, &mUndoStack);
 
@@ -617,7 +622,8 @@ nsTransactionManager::GetUndoList(nsITransactionList **aTransactionList)
 NS_IMETHODIMP
 nsTransactionManager::GetRedoList(nsITransactionList **aTransactionList)
 {
-  NS_ENSURE_TRUE(aTransactionList, NS_ERROR_NULL_POINTER);
+  if (!aTransactionList)
+    return NS_ERROR_NULL_POINTER;
 
   *aTransactionList = (nsITransactionList *)new nsTransactionList(this, &mRedoStack);
 
@@ -629,7 +635,8 @@ nsTransactionManager::GetRedoList(nsITransactionList **aTransactionList)
 NS_IMETHODIMP
 nsTransactionManager::AddListener(nsITransactionListener *aListener)
 {
-  NS_ENSURE_TRUE(aListener, NS_ERROR_NULL_POINTER);
+  if (!aListener)
+    return NS_ERROR_NULL_POINTER;
 
   LOCK_TX_MANAGER(this);
 
@@ -643,7 +650,8 @@ nsTransactionManager::AddListener(nsITransactionListener *aListener)
 NS_IMETHODIMP
 nsTransactionManager::RemoveListener(nsITransactionListener *aListener)
 {
-  NS_ENSURE_TRUE(aListener, NS_ERROR_NULL_POINTER);
+  if (!aListener)
+    return NS_ERROR_NULL_POINTER;
 
   LOCK_TX_MANAGER(this);
 
@@ -686,7 +694,8 @@ nsTransactionManager::WillDoNotify(nsITransaction *aTransaction, PRBool *aInterr
   {
     nsITransactionListener *listener = mListeners[i];
 
-    NS_ENSURE_TRUE(listener, NS_ERROR_FAILURE);
+    if (!listener)
+      return NS_ERROR_FAILURE;
 
     result = listener->WillDo(this, aTransaction, aInterrupt);
     
@@ -705,7 +714,8 @@ nsTransactionManager::DidDoNotify(nsITransaction *aTransaction, nsresult aDoResu
   {
     nsITransactionListener *listener = mListeners[i];
 
-    NS_ENSURE_TRUE(listener, NS_ERROR_FAILURE);
+    if (!listener)
+      return NS_ERROR_FAILURE;
 
     result = listener->DidDo(this, aTransaction, aDoResult);
     
@@ -724,7 +734,8 @@ nsTransactionManager::WillUndoNotify(nsITransaction *aTransaction, PRBool *aInte
   {
     nsITransactionListener *listener = mListeners[i];
 
-    NS_ENSURE_TRUE(listener, NS_ERROR_FAILURE);
+    if (!listener)
+      return NS_ERROR_FAILURE;
 
     result = listener->WillUndo(this, aTransaction, aInterrupt);
     
@@ -743,7 +754,8 @@ nsTransactionManager::DidUndoNotify(nsITransaction *aTransaction, nsresult aUndo
   {
     nsITransactionListener *listener = mListeners[i];
 
-    NS_ENSURE_TRUE(listener, NS_ERROR_FAILURE);
+    if (!listener)
+      return NS_ERROR_FAILURE;
 
     result = listener->DidUndo(this, aTransaction, aUndoResult);
     
@@ -762,7 +774,8 @@ nsTransactionManager::WillRedoNotify(nsITransaction *aTransaction, PRBool *aInte
   {
     nsITransactionListener *listener = mListeners[i];
 
-    NS_ENSURE_TRUE(listener, NS_ERROR_FAILURE);
+    if (!listener)
+      return NS_ERROR_FAILURE;
 
     result = listener->WillRedo(this, aTransaction, aInterrupt);
     
@@ -781,7 +794,8 @@ nsTransactionManager::DidRedoNotify(nsITransaction *aTransaction, nsresult aRedo
   {
     nsITransactionListener *listener = mListeners[i];
 
-    NS_ENSURE_TRUE(listener, NS_ERROR_FAILURE);
+    if (!listener)
+      return NS_ERROR_FAILURE;
 
     result = listener->DidRedo(this, aTransaction, aRedoResult);
     
@@ -800,7 +814,8 @@ nsTransactionManager::WillBeginBatchNotify(PRBool *aInterrupt)
   {
     nsITransactionListener *listener = mListeners[i];
 
-    NS_ENSURE_TRUE(listener, NS_ERROR_FAILURE);
+    if (!listener)
+      return NS_ERROR_FAILURE;
 
     result = listener->WillBeginBatch(this, aInterrupt);
     
@@ -819,7 +834,8 @@ nsTransactionManager::DidBeginBatchNotify(nsresult aResult)
   {
     nsITransactionListener *listener = mListeners[i];
 
-    NS_ENSURE_TRUE(listener, NS_ERROR_FAILURE);
+    if (!listener)
+      return NS_ERROR_FAILURE;
 
     result = listener->DidBeginBatch(this, aResult);
     
@@ -838,7 +854,8 @@ nsTransactionManager::WillEndBatchNotify(PRBool *aInterrupt)
   {
     nsITransactionListener *listener = mListeners[i];
 
-    NS_ENSURE_TRUE(listener, NS_ERROR_FAILURE);
+    if (!listener)
+      return NS_ERROR_FAILURE;
 
     result = listener->WillEndBatch(this, aInterrupt);
     
@@ -857,7 +874,8 @@ nsTransactionManager::DidEndBatchNotify(nsresult aResult)
   {
     nsITransactionListener *listener = mListeners[i];
 
-    NS_ENSURE_TRUE(listener, NS_ERROR_FAILURE);
+    if (!listener)
+      return NS_ERROR_FAILURE;
 
     result = listener->DidEndBatch(this, aResult);
     
@@ -876,7 +894,8 @@ nsTransactionManager::WillMergeNotify(nsITransaction *aTop, nsITransaction *aTra
   {
     nsITransactionListener *listener = mListeners[i];
 
-    NS_ENSURE_TRUE(listener, NS_ERROR_FAILURE);
+    if (!listener)
+      return NS_ERROR_FAILURE;
 
     result = listener->WillMerge(this, aTop, aTransaction, aInterrupt);
     
@@ -898,7 +917,8 @@ nsTransactionManager::DidMergeNotify(nsITransaction *aTop,
   {
     nsITransactionListener *listener = mListeners[i];
 
-    NS_ENSURE_TRUE(listener, NS_ERROR_FAILURE);
+    if (!listener)
+      return NS_ERROR_FAILURE;
 
     result = listener->DidMerge(this, aTop, aTransaction, aDidMerge, aMergeResult);
     
@@ -1031,7 +1051,8 @@ nsTransactionManager::EndTransaction()
 
       result = WillMergeNotify(topTransaction, tint, &doInterrupt);
 
-      NS_ENSURE_SUCCESS(result, result);
+      if (NS_FAILED(result))
+        return result;
 
       if (!doInterrupt) {
         result = topTransaction->Merge(tint, &didMerge);

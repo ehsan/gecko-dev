@@ -71,8 +71,6 @@
 #include "pldhash.h"
 #include "rdf.h"
 
-using namespace mozilla::dom;
-
 //----------------------------------------------------------------------
 //
 // Return values for EnsureElementHasGenericChild()
@@ -119,7 +117,7 @@ public:
     NS_DECL_NSIMUTATIONOBSERVER_NODEWILLBEDESTROYED
 
 protected:
-    friend nsresult
+    friend NS_IMETHODIMP
     NS_NewXULContentBuilder(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
     nsXULContentBuilder();
@@ -372,7 +370,7 @@ protected:
     nsSortState mSortState;
 };
 
-nsresult
+NS_IMETHODIMP
 NS_NewXULContentBuilder(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 {
     NS_PRECONDITION(aOuter == nsnull, "no aggregation");
@@ -635,6 +633,17 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
             rv = realKid->SetAttr(kNameSpaceID_None, nsGkAtoms::id, id, PR_FALSE);
             if (NS_FAILED(rv))
                 return rv;
+
+            if (! aNotify) {
+                // XUL document will watch us, and take care of making
+                // sure that we get added to or removed from the
+                // element map if aNotify is true. If not, we gotta do
+                // it ourselves. Yay.
+                nsCOMPtr<nsIXULDocument> xuldoc =
+                    do_QueryInterface(mRoot->GetDocument());
+                if (xuldoc)
+                    xuldoc->AddElementForID(realKid);
+            }
 
             // Set up the element's 'container' and 'empty' attributes.
             SetContainerAttrs(realKid, aChild, PR_TRUE, PR_FALSE);
@@ -1091,9 +1100,7 @@ nsXULContentBuilder::CreateContainerContents(nsIContent* aElement,
     if (aNotifyAtEnd && container) {
         MOZ_AUTO_DOC_UPDATE(container->GetCurrentDoc(), UPDATE_CONTENT_MODEL,
                             PR_TRUE);
-        nsNodeUtils::ContentAppended(container,
-                                     container->GetChildAt(newIndexInContainer),
-                                     newIndexInContainer);
+        nsNodeUtils::ContentAppended(container, newIndexInContainer);
     }
 
     NS_IF_RELEASE(container);
@@ -1382,9 +1389,7 @@ nsXULContentBuilder::GetElementsForResult(nsIXULTemplateResult* aResult,
     nsAutoString id;
     aResult->GetId(id);
 
-    xuldoc->GetElementsForID(id, aElements);
-
-    return NS_OK;
+    return xuldoc->GetElementsForID(id, aElements);
 }
 
 nsresult
@@ -1403,7 +1408,7 @@ nsXULContentBuilder::CreateElement(PRInt32 aNameSpaceID,
     nsCOMPtr<nsINodeInfo> nodeInfo;
     nodeInfo = doc->NodeInfoManager()->GetNodeInfo(aTag, nsnull, aNameSpaceID);
 
-    rv = NS_NewElement(getter_AddRefs(result), aNameSpaceID, nodeInfo.forget(),
+    rv = NS_NewElement(getter_AddRefs(result), aNameSpaceID, nodeInfo,
                        PR_FALSE);
     if (NS_FAILED(rv))
         return rv;
@@ -1559,24 +1564,22 @@ nsXULContentBuilder::GetResultForContent(nsIDOMElement* aElement,
 
 void
 nsXULContentBuilder::AttributeChanged(nsIDocument* aDocument,
-                                      Element*     aElement,
+                                      nsIContent*  aContent,
                                       PRInt32      aNameSpaceID,
                                       nsIAtom*     aAttribute,
                                       PRInt32      aModType)
 {
-    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
-
     // Handle "open" and "close" cases. We do this handling before
     // we've notified the observer, so that content is already created
     // for the frame system to walk.
-    if (aElement->GetNameSpaceID() == kNameSpaceID_XUL &&
-        aAttribute == nsGkAtoms::open) {
+    if ((aContent->GetNameSpaceID() == kNameSpaceID_XUL) &&
+        (aAttribute == nsGkAtoms::open)) {
         // We're on a XUL tag, and an ``open'' attribute changed.
-        if (aElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::open,
+        if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::open,
                                   nsGkAtoms::_true, eCaseMatters))
-            OpenContainer(aElement);
+            OpenContainer(aContent);
         else
-            CloseContainer(aElement);
+            CloseContainer(aContent);
     }
 
     if ((aNameSpaceID == kNameSpaceID_XUL) &&
@@ -1587,14 +1590,13 @@ nsXULContentBuilder::AttributeChanged(nsIDocument* aDocument,
         mSortState.initialized = PR_FALSE;
 
     // Pass along to the generic template builder.
-    nsXULTemplateBuilder::AttributeChanged(aDocument, aElement, aNameSpaceID,
+    nsXULTemplateBuilder::AttributeChanged(aDocument, aContent, aNameSpaceID,
                                            aAttribute, aModType);
 }
 
 void
 nsXULContentBuilder::NodeWillBeDestroyed(const nsINode* aNode)
 {
-    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
     // Break circular references
     mContentSupportMap.Clear();
 
@@ -1846,8 +1848,7 @@ nsXULContentBuilder::CompareResultToNode(nsIXULTemplateResult* aResult,
     if (mSortState.direction == nsSortState_natural) {
         // sort in natural order
         nsresult rv = mQueryProcessor->CompareResults(aResult, match->mResult,
-                                                      nsnull, mSortState.sortHints,
-                                                      aSortOrder);
+                                                      nsnull, aSortOrder);
         NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
@@ -1856,8 +1857,7 @@ nsXULContentBuilder::CompareResultToNode(nsIXULTemplateResult* aResult,
         PRInt32 length = mSortState.sortKeys.Count();
         for (PRInt32 t = 0; t < length; t++) {
             nsresult rv = mQueryProcessor->CompareResults(aResult, match->mResult,
-                                                          mSortState.sortKeys[t],
-                                                          mSortState.sortHints, aSortOrder);
+                                                          mSortState.sortKeys[t], aSortOrder);
             NS_ENSURE_SUCCESS(rv, rv);
 
             if (*aSortOrder)
@@ -1881,12 +1881,9 @@ nsXULContentBuilder::InsertSortedNode(nsIContent* aContainer,
     nsresult rv;
 
     if (!mSortState.initialized) {
-        nsAutoString sort, sortDirection, sortHints;
+        nsAutoString sort, sortDirection;
         mRoot->GetAttr(kNameSpaceID_None, nsGkAtoms::sort, sort);
         mRoot->GetAttr(kNameSpaceID_None, nsGkAtoms::sortDirection, sortDirection);
-        mRoot->GetAttr(kNameSpaceID_None, nsGkAtoms::sorthints, sortHints);
-        sortDirection.AppendLiteral(" ");
-        sortDirection += sortHints;
         rv = XULSortServiceImpl::InitializeSortState(mRoot, aContainer,
                                                      sort, sortDirection, &mSortState);
         NS_ENSURE_SUCCESS(rv, rv);

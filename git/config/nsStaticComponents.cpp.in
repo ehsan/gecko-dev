@@ -1,4 +1,3 @@
-#line 2 "nsStaticComponents.cpp.in"
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -41,16 +40,21 @@
 
 #define XPCOM_TRANSLATE_NSGM_ENTRY_POINT 1
 
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
 #include "nsXPCOM.h"
 #include "nsMemory.h"
 #include "nsStaticComponents.h"
 
 /**
+ * Construct a unique NSGetModule entry point for a generic module.
+ */
+#define NSGETMODULE(_name) _name##_NSGetModule
+
+/**
  * Declare an NSGetModule() routine for a generic module.
  */
 #define MODULE(_name) \
-    NSMODULE_DECL(_name);
+NSGETMODULE_ENTRY_POINT(_name) (nsIComponentManager*, nsIFile*, nsIModule**);
 
 %MODULE_LIST%
 #line 57 "nsStaticComponents.cpp.in"
@@ -58,16 +62,15 @@
 #undef MODULE
 
 
-#define MODULE(_name) \
-    NSMODULE_NAME(_name),
+#define MODULE(_name) { #_name, NSGETMODULE(_name) },
 
 /**
  * The nsStaticModuleInfo
  */
-static const mozilla::Module *const kStaticModules[] = {
+static nsStaticModuleInfo const gStaticModuleInfo[] = {
 	%MODULE_LIST%
-#line 70 "nsStaticComponents.cpp.in"
-        NULL
+#line 69 "nsStaticComponents.cpp.in"
 };
 
-mozilla::Module const *const *const kPStaticModules = kStaticModules;
+nsStaticModuleInfo const *const kPStaticModules = gStaticModuleInfo;
+PRUint32 const kStaticModuleCount = NS_ARRAY_LENGTH(gStaticModuleInfo);

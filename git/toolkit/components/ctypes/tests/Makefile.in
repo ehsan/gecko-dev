@@ -40,7 +40,6 @@ DEPTH = ../../../..
 topsrcdir = @top_srcdir@
 srcdir = @srcdir@
 VPATH = @srcdir@
-relativesrcdir = toolkit/components/ctypes/tests
 
 include $(DEPTH)/config/autoconf.mk
 
@@ -58,7 +57,7 @@ LOCAL_INCLUDES = \
 
 EXTRA_DSO_LDOPTS += \
     $(XPCOM_STANDALONE_GLUE_LDOPTS) \
-    $(MOZALLOC_LIB) \
+    -L$(LIBXUL_DIST)/lib $(MOZALLOC_LIB) \
     $(NSPR_LIBS) \
     $(NULL)
 
@@ -72,17 +71,17 @@ _CHROME_TEST_FILES = \
 
 include $(topsrcdir)/config/rules.mk
 
-xpctestdir = $(testxpcobjdir)/$(relativesrcdir)/unit
+xpctestdir = $(testxpcobjdir)/$(MODULE)/unit
 
 chrometestdir = \
-  $(DEPTH)/_tests/testing/mochitest/chrome/toolkit/components/$(relativesrcdir)
+  $(DEPTH)/_tests/testing/mochitest/chrome/toolkit/components/$(MODULE)
 
 # preprocess and install our unit test into the appropriate directory,
 # and install the test library as well. the xpcshell test rules will
 # install the .js.in from the tests srcdir, so remove it when we're done.
 libs:: unit/test_jsctypes.js.in
 	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) \
-	  $^ > $(xpctestdir)/test_jsctypes.js
+	  -DCTYPES_TEST_LIB=\"$(SHARED_LIBRARY)\" $^ > $(xpctestdir)/test_jsctypes.js
 	$(TEST_INSTALLER) $(SHARED_LIBRARY) $(xpctestdir)
 	$(TEST_INSTALLER) $(xpctestdir)/test_jsctypes.js $(chrometestdir)
 	$(TEST_INSTALLER) $(xpctestdir)/$(SHARED_LIBRARY) $(chrometestdir)

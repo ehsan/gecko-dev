@@ -3,8 +3,7 @@ def test(mod, path, entity = None):
   # ignore anyhting but Firefox
   if mod not in ("netwerk", "dom", "toolkit", "security/manager",
                  "browser", "extensions/reporter", "extensions/spellcheck",
-                 "other-licenses/branding/firefox",
-                 "services/sync"):
+                 "other-licenses/branding/firefox"):
     return False
   if mod != "browser" and mod != "extensions/spellcheck":
     # we only have exceptions for browser and extensions/spellcheck

@@ -88,8 +88,6 @@ static RedirEntry kRedirMap[] = {
       nsIAboutModule::HIDE_FROM_ABOUTABOUT },
     { "memory", "chrome://global/content/aboutMemory.xhtml",
       nsIAboutModule::ALLOW_SCRIPT },
-    { "addons", "chrome://mozapps/content/extensions/extensions.xul",
-      nsIAboutModule::ALLOW_SCRIPT },
     { "support", "chrome://global/content/aboutSupport.xhtml",
       nsIAboutModule::ALLOW_SCRIPT }
 };
@@ -174,7 +172,7 @@ nsAboutRedirector::GetURIFlags(nsIURI *aURI, PRUint32 *result)
     return NS_ERROR_ILLEGAL_VALUE;
 }
 
-nsresult
+NS_METHOD
 nsAboutRedirector::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
     nsAboutRedirector* about = new nsAboutRedirector();

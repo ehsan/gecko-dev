@@ -180,8 +180,10 @@ namespace nanojit
 
     // Assembler::savedRegs[] is not needed for sparc because the
     // registers are already saved automatically by "save" instruction.
-    static const int NumSavedRegs = 0;
-
+    // But NumSavedRegs is used as the length of savedRegs in LIR.h and Assembler.h.
+    // NumSavedRegs to be zero will cause a zero length array.
+    // So dummy L1 is added and NumSavedRegs is set to 1.
+    static const int NumSavedRegs = 1;
     static const RegisterMask SavedRegs = 1<<L1 | 1<<L3 | 1<<L5 | 1<<L7 |
     1<<I0 | 1<<I1 | 1<<I2 | 1<<I3 |
     1<<I4 | 1<<I5;
@@ -206,8 +208,8 @@ namespace nanojit
     void underrunProtect(int bytes); \
     void asm_align_code(); \
     void asm_cmp(LIns *cond); \
-    void asm_cmpd(LIns *cond); \
-    NIns* asm_branchd(bool, LIns*, NIns*);
+    void asm_fcmp(LIns *cond); \
+    NIns* asm_fbranch(bool, LIns*, NIns*);
 
 #define IMM32(i)    \
     --_nIns;        \
@@ -737,10 +739,10 @@ namespace nanojit
     asm_output("movvs %d, %s", simm11, gpn(rd)); \
     } while (0)
 
-#define SMULCC(rs1, rs2, rd) \
+#define MULX(rs1, rs2, rd) \
     do { \
-    Format_3_1(2, rd, 0x1b, rs1, 0, rs2); \
-    asm_output("smulcc %s, %s, %s", gpn(rs1), gpn(rs2), gpn(rd)); \
+    Format_3_1(2, rd, 0x9, rs1, 0, rs2); \
+    asm_output("mul %s, %s, %s", gpn(rs1), gpn(rs2), gpn(rd)); \
     } while (0)
 
 #define NOP() \
@@ -771,12 +773,6 @@ namespace nanojit
     do { \
     Format_3_1(2, rd, 0x11, rs1, 0, rs2); \
     asm_output("andcc %s, %s, %s", gpn(rs1), gpn(rs2), gpn(rd)); \
-    } while (0)
-
-#define RDY(rd) \
-    do { \
-    Format_3_1(2, rd, 0x28, 0, 0, 0); \
-    asm_output("rdy %s", gpn(rd)); \
     } while (0)
 
 #define RESTORE(rs1, rs2, rd) \
@@ -813,12 +809,6 @@ namespace nanojit
     do { \
     Format_3_5(2, rd, 0x27, rs1, 0, rs2); \
     asm_output("sra %s, %s, %s", gpn(rs1), gpn(rs2), gpn(rd)); \
-    } while (0)
-
-#define SRAI(rs1, shcnt32, rd) \
-    do { \
-    Format_3_6(2, rd, 0x27, rs1, shcnt32); \
-    asm_output("sra %s, %d, %s", gpn(rs1), shcnt32, gpn(rd)); \
     } while (0)
 
 #define SRL(rs1, rs2, rd) \

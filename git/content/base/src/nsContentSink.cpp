@@ -46,7 +46,7 @@
 #include "nsScriptLoader.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
-#include "mozilla/css/Loader.h"
+#include "nsCSSLoader.h"
 #include "nsStyleConsts.h"
 #include "nsStyleLinkElement.h"
 #include "nsINodeInfo.h"
@@ -235,7 +235,7 @@ void
 nsContentSink::InitializeStatics()
 {
   nsContentUtils::AddBoolPrefVarCache("content.notify.ontimer",
-                                      &sNotifyOnTimer, PR_TRUE);
+                                      &sNotifyOnTimer);
   // -1 means never.
   nsContentUtils::AddIntPrefVarCache("content.notify.backoffcount",
                                      &sBackoffCount, -1);
@@ -291,8 +291,8 @@ nsContentSink::Init(nsIDocument* aDoc,
   if (mDocShell) {
     PRUint32 loadType = 0;
     mDocShell->GetLoadType(&loadType);
-    mDocument->SetChangeScrollPosWhenScrollingToRef(
-      (loadType & nsIDocShell::LOAD_CMD_HISTORY) == 0);
+    mChangeScrollPosWhenScrollingToRef =
+      ((loadType & nsIDocShell::LOAD_CMD_HISTORY) == 0);
   }
 
   // use this to avoid a circular reference sink->document->scriptloader->sink
@@ -323,7 +323,7 @@ nsContentSink::Init(nsIDocument* aDoc,
 }
 
 NS_IMETHODIMP
-nsContentSink::StyleSheetLoaded(nsCSSStyleSheet* aSheet,
+nsContentSink::StyleSheetLoaded(nsICSSStyleSheet* aSheet,
                                 PRBool aWasAlternate,
                                 nsresult aStatus)
 {
@@ -533,7 +533,7 @@ nsContentSink::ProcessHeaderData(nsIAtom* aHeader, const nsAString& aValue,
     // XXXbz don't we want to support this as an HTTP header too?
     nsAutoString value(aValue);
     if (value.LowerCaseEqualsLiteral("no")) {
-      nsIPresShell* shell = mDocument->GetShell();
+      nsIPresShell* shell = mDocument->GetPrimaryShell();
       if (shell) {
         shell->DisableThemeSupport();
       }
@@ -801,7 +801,7 @@ nsContentSink::ProcessStyleLink(nsIContent* aElement,
 
   nsCOMPtr<nsIURI> url;
   nsresult rv = NS_NewURI(getter_AddRefs(url), aHref, nsnull,
-                          mDocument->GetDocBaseURI());
+                          mDocument->GetBaseURI());
   
   if (NS_FAILED(rv)) {
     // The URI is bad, move along, don't propagate the error (for now)
@@ -910,7 +910,7 @@ nsContentSink::PrefetchHref(const nsAString &aHref,
     nsCOMPtr<nsIURI> uri;
     NS_NewURI(getter_AddRefs(uri), aHref,
               charset.IsEmpty() ? nsnull : PromiseFlatCString(charset).get(),
-              mDocument->GetDocBaseURI());
+              mDocument->GetBaseURI());
     if (uri) {
       nsCOMPtr<nsIDOMNode> domNode = do_QueryInterface(aSource);
       prefetchService->PrefetchURI(uri, mDocumentURI, domNode, aExplicit);
@@ -1235,7 +1235,54 @@ nsContentSink::ProcessOfflineManifest(const nsAString& aManifestSpec)
 void
 nsContentSink::ScrollToRef()
 {
-  mDocument->ScrollToRef();
+  if (mRef.IsEmpty()) {
+    return;
+  }
+
+  if (mScrolledToRefAlready) {
+    return;
+  }
+
+  char* tmpstr = ToNewCString(mRef);
+  if (!tmpstr) {
+    return;
+  }
+
+  nsUnescape(tmpstr);
+  nsCAutoString unescapedRef;
+  unescapedRef.Assign(tmpstr);
+  nsMemory::Free(tmpstr);
+
+  nsresult rv = NS_ERROR_FAILURE;
+  // We assume that the bytes are in UTF-8, as it says in the spec:
+  // http://www.w3.org/TR/html4/appendix/notes.html#h-B.2.1
+  NS_ConvertUTF8toUTF16 ref(unescapedRef);
+
+  nsCOMPtr<nsIPresShell> shell = mDocument->GetPrimaryShell();
+  if (shell) {
+    // Check an empty string which might be caused by the UTF-8 conversion
+    if (!ref.IsEmpty()) {
+      // Note that GoToAnchor will handle flushing layout as needed.
+      rv = shell->GoToAnchor(ref, mChangeScrollPosWhenScrollingToRef);
+    } else {
+      rv = NS_ERROR_FAILURE;
+    }
+
+    // If UTF-8 URI failed then try to assume the string as a
+    // document's charset.
+
+    if (NS_FAILED(rv)) {
+      const nsACString &docCharset = mDocument->GetDocumentCharacterSet();
+
+      rv = nsContentUtils::ConvertStringFromCharset(docCharset, unescapedRef, ref);
+
+      if (NS_SUCCEEDED(rv) && !ref.IsEmpty())
+        rv = shell->GoToAnchor(ref, mChangeScrollPosWhenScrollingToRef);
+    }
+    if (NS_SUCCEEDED(rv)) {
+      mScrolledToRefAlready = PR_TRUE;
+    }
+  }
 }
 
 void
@@ -1267,7 +1314,7 @@ nsContentSink::StartLayout(PRBool aIgnorePendingSheets)
   mLastNotificationTime = PR_Now();
 
   mDocument->SetMayStartLayout(PR_TRUE);
-  nsCOMPtr<nsIPresShell> shell = mDocument->GetShell();
+  nsCOMPtr<nsIPresShell> shell = mDocument->GetPrimaryShell();
   // Make sure we don't call InitialReflow() for a shell that has
   // already called it. This can happen when the layout frame for
   // an iframe is constructed *between* the Embed() call for the
@@ -1285,7 +1332,27 @@ nsContentSink::StartLayout(PRBool aIgnorePendingSheets)
   // If the document we are loading has a reference or it is a
   // frameset document, disable the scroll bars on the views.
 
-  mDocument->SetScrollToRef(mDocumentURI);
+  if (mDocumentURI) {
+    nsCAutoString ref;
+
+    // Since all URI's that pass through here aren't URL's we can't
+    // rely on the nsIURI implementation for providing a way for
+    // finding the 'ref' part of the URI, we'll haveto revert to
+    // string routines for finding the data past '#'
+
+    mDocumentURI->GetSpec(ref);
+
+    nsReadingIterator<char> start, end;
+
+    ref.BeginReading(start);
+    ref.EndReading(end);
+
+    if (FindCharInReadable('#', start, end)) {
+      ++start; // Skip over the '#'
+
+      mRef = Substring(start, end);
+    }
+  }
 }
 
 void
@@ -1302,9 +1369,7 @@ nsContentSink::NotifyAppend(nsIContent* aContainer, PRUint32 aStartIndex)
   {
     // Scope so we call EndUpdate before we decrease mInNotification
     MOZ_AUTO_DOC_UPDATE(mDocument, UPDATE_CONTENT_MODEL, !mBeganUpdate);
-    nsNodeUtils::ContentAppended(aContainer,
-                                 aContainer->GetChildAt(aStartIndex),
-                                 aStartIndex);
+    nsNodeUtils::ContentAppended(aContainer, aStartIndex);
     mLastNotificationTime = PR_Now();
   }
 
@@ -1463,7 +1528,7 @@ nsContentSink::DidProcessATokenImpl()
   }
 
   // Get the current user event time
-  nsIPresShell *shell = mDocument->GetShell();
+  nsIPresShell *shell = mDocument->GetPrimaryShell();
   if (!shell) {
     // If there's no pres shell in the document, return early since
     // we're not laying anything out here.
@@ -1600,10 +1665,12 @@ nsContentSink::DropParserAndPerfHint(void)
   // Do this hack to make sure that the parser
   // doesn't get destroyed, accidently, before
   // the circularity, between sink & parser, is
-  // actually broken.
+  // actually borken.
+  nsCOMPtr<nsIParser> kungFuDeathGrip(mParser);
+
   // Drop our reference to the parser to get rid of a circular
   // reference.
-  nsCOMPtr<nsIParser> kungFuDeathGrip(mParser.forget());
+  mParser = nsnull;
 
   if (mDynamicLowerValue) {
     // Reset the performance hint which was set to FALSE
@@ -1629,7 +1696,7 @@ nsContentSink::WillParseImpl(void)
     return NS_OK;
   }
 
-  nsIPresShell *shell = mDocument->GetShell();
+  nsIPresShell *shell = mDocument->GetPrimaryShell();
   if (!shell) {
     return NS_OK;
   }
@@ -1670,7 +1737,7 @@ nsContentSink::WillBuildModelImpl()
     mBeginLoadTime = PR_IntervalToMicroseconds(PR_IntervalNow());
   }
 
-  mDocument->ResetScrolledToRefAlready();
+  mScrolledToRefAlready = PR_FALSE;
 
   if (mProcessLinkHeaderEvent.get()) {
     mProcessLinkHeaderEvent.Revoke();
@@ -1696,20 +1763,6 @@ nsContentSink::ContinueInterruptedParsingAsync()
     &nsContentSink::ContinueInterruptedParsingIfEnabled);
 
   NS_DispatchToCurrentThread(ev);
-}
-
-/* static */
-void
-nsContentSink::NotifyDocElementCreated(nsIDocument* aDoc)
-{
-  nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
-  if (observerService) {
-    nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(aDoc);
-    observerService->
-      NotifyObservers(domDoc, "document-element-inserted",
-                      EmptyString().get());
-  }
 }
 
 // URIs: action, href, src, longdesc, usemap, cite
@@ -1826,6 +1879,7 @@ nsIAtom** const kDefaultAllowedAttributes [] = {
   &nsGkAtoms::alt,
   &nsGkAtoms::autocomplete,
 #ifdef MOZ_MEDIA
+  &nsGkAtoms::autobuffer,
   &nsGkAtoms::autoplay,
 #endif
   &nsGkAtoms::axis,
@@ -1885,7 +1939,6 @@ nsIAtom** const kDefaultAllowedAttributes [] = {
   &nsGkAtoms::pointSize,
 #ifdef MOZ_MEDIA
   &nsGkAtoms::poster,
-  &nsGkAtoms::preload,
 #endif
   &nsGkAtoms::prompt,
   &nsGkAtoms::readonly,

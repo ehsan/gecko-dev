@@ -127,7 +127,7 @@ textarea {
   letter-spacing: normal;
   vertical-align: text-bottom;
   cursor: text;
-  resize: both;
+  -moz-resize: both;
   -moz-binding: url("chrome://global/content/platformHTMLBindings.xml#textAreas");
   -moz-appearance: textfield-multiline;
   text-indent: 0;
@@ -152,7 +152,7 @@ input > .anonymous-div {
      but it's needed to make 'text-decoration' "work" on text inputs. */
   text-decoration: inherit;
   ime-mode: inherit;
-  resize: inherit;
+  -moz-resize: inherit;
 }
 
 textarea > .anonymous-div.wrap,
@@ -164,16 +164,12 @@ input > .anonymous-div.inherit-overflow {
   overflow: inherit;
 }
 
-input:-moz-placeholder,
-textarea:-moz-placeholder {
-  color: GrayText;
-}
-
 input > .placeholder,
 textarea > .placeholder {
+  color: GrayText;
   overflow: hidden;
   pointer-events: none;
-  resize: none;
+  -moz-resize: none;
 }
 
 textarea > .placeholder {
@@ -618,16 +614,6 @@ optgroup:before {
 input[type="file"] > input[type="text"] {
   direction: ltr !important;
   text-align: inherit;
-}
-
-/**
- * Set default style for invalid elements.
- * <output> is the only element which may not follow this rule (but color: red).
- * However it is barred from constraint validation per the specifications so, at
- * least for now, it will not be affected by :invalid.
- */
-:invalid {
-  -moz-box-shadow: 0 0 2px 1px red;
 }
 
 @media print {

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-280769-2.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 280769;
 var summary = 'Do not overflow 64K boundary in treeDepth';

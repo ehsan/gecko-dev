@@ -161,7 +161,7 @@ NS_IMETHODIMP nsScriptableDateFormat::FormatDateTime(
   return rv;
 }
 
-nsresult
+NS_IMETHODIMP
 NS_NewScriptableDateFormat(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 {
   if (aOuter)

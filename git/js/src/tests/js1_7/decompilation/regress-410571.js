@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-410571.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 410571;
 var summary = 'incorrect decompilation of last element of object literals';

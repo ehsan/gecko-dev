@@ -37,8 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozStorageError_h
-#define mozStorageError_h
+#ifndef __mozStorageError_h__
+#define __mozStorageError_h__
 
 #include "mozIStorageError.h"
 #include "nsString.h"
@@ -62,4 +62,4 @@ private:
 } // namespace stoarge
 } // namespace mozilla
 
-#endif // mozStorageError_h
+#endif // __mozStorageError_h__

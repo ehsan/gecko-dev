@@ -76,7 +76,6 @@
 #include "jsvector.h"
 
 #include "jsscriptinlines.h"
-#include "jscntxtinlines.h"
 
 #include "jsautooplen.h"
 
@@ -215,6 +214,8 @@ js_GetVariableStackUses(JSOp op, jsbytecode *pc)
     switch (op) {
       case JSOP_POPN:
         return GET_UINT16(pc);
+      case JSOP_CONCATN:
+        return GET_UINT16(pc);
       case JSOP_LEAVEBLOCK:
         return GET_UINT16(pc);
       case JSOP_LEAVEBLOCKEXPR:
@@ -242,44 +243,25 @@ js_GetEnterBlockStackDefs(JSContext *cx, JSScript *script, jsbytecode *pc)
 
 #ifdef DEBUG
 
-/* If pc != NULL, includes a prefix indicating whether the PC is at the current line. */
-JS_FRIEND_API(JSBool)
-js_DisassembleAtPC(JSContext *cx, JSScript *script, JSBool lines, FILE *fp, jsbytecode *pc)
-{
-    jsbytecode *next, *end;
-    uintN len;
-
-    next = script->code;
-    end = next + script->length;
-    while (next < end) {
-        if (next == script->main)
-            fputs("main:\n", fp);
-        if (pc != NULL) {
-            if (pc == next)
-                fputs("--> ", fp);
-            else
-                fputs("    ", fp);
-        }
-        len = js_Disassemble1(cx, script, next,
-                              next - script->code,
-                              lines, fp);
-        if (!len)
-            return JS_FALSE;
-        next += len;
-    }
-    return JS_TRUE;
-}
-
 JS_FRIEND_API(JSBool)
 js_Disassemble(JSContext *cx, JSScript *script, JSBool lines, FILE *fp)
 {
-    return js_DisassembleAtPC(cx, script, lines, fp, NULL);
-}
+    jsbytecode *pc, *end;
+    uintN len;
 
-JS_FRIEND_API(JSBool)
-js_DumpPC(JSContext *cx)
-{
-    return js_DisassembleAtPC(cx, cx->fp()->getScript(), true, stdout, cx->regs->pc);
+    pc = script->code;
+    end = pc + script->length;
+    while (pc < end) {
+        if (pc == script->main)
+            fputs("main:\n", fp);
+        len = js_Disassemble1(cx, script, pc,
+                              pc - script->code,
+                              lines, fp);
+        if (!len)
+            return JS_FALSE;
+        pc += len;
+    }
+    return JS_TRUE;
 }
 
 JSBool
@@ -293,22 +275,19 @@ ToDisassemblySource(JSContext *cx, jsval v)
 {
     if (!JSVAL_IS_PRIMITIVE(v)) {
         JSObject *obj = JSVAL_TO_OBJECT(v);
-        Class *clasp = obj->getClass();
+        JSClass *clasp = obj->getClass();
 
         if (clasp == &js_BlockClass) {
             char *source = JS_sprintf_append(NULL, "depth %d {", OBJ_BLOCK_DEPTH(cx, obj));
-
-            Shape::Range r = obj->lastProperty()->all();
-            while (!r.empty()) {
-                const Shape &shape = r.front();
-                const char *bytes = js_AtomToPrintableString(cx, JSID_TO_ATOM(shape.id));
+            for (JSScopeProperty *sprop = obj->scope()->lastProperty();
+                 sprop;
+                 sprop = sprop->parent) {
+                const char *bytes = js_AtomToPrintableString(cx, JSID_TO_ATOM(sprop->id));
                 if (!bytes)
                     return NULL;
-
-                r.popFront();
                 source = JS_sprintf_append(source, "%s: %d%s",
-                                           bytes, shape.shortid,
-                                           !r.empty() ? ", " : "");
+                                           bytes, sprop->shortid,
+                                           sprop->parent ? ", " : "");
             }
 
             source = JS_sprintf_append(source, "}");
@@ -333,11 +312,11 @@ ToDisassemblySource(JSContext *cx, jsval v)
             AutoValueRooter tvr(cx);
             if (!js_regexp_toString(cx, obj, tvr.addr()))
                 return NULL;
-            return js_GetStringBytes(cx, JSVAL_TO_STRING(Jsvalify(tvr.value())));
+            return js_GetStringBytes(cx, JSVAL_TO_STRING(tvr.value()));
         }
     }
 
-    return js_ValueToPrintableSource(cx, Valueify(v));
+    return js_ValueToPrintableSource(cx, v);
 }
 
 JS_FRIEND_API(uintN)
@@ -390,12 +369,8 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
       case JOF_REGEXP:
         index = js_GetIndexFromBytecode(cx, script, pc, 0);
         if (type == JOF_ATOM) {
-            if (op == JSOP_DOUBLE) {
-                v = Jsvalify(script->getConst(index));
-            } else {
-                JS_GET_SCRIPT_ATOM(script, pc, index, atom);
-                v = ATOM_TO_JSVAL(atom);
-            }
+            JS_GET_SCRIPT_ATOM(script, pc, index, atom);
+            v = ATOM_KEY(atom);
         } else {
             if (type == JOF_OBJECT)
                 obj = script->getObject(index);
@@ -458,12 +433,12 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
         pc2 += UINT16_LEN;
         fprintf(fp, " offset %d npairs %u", (intN) off, (uintN) npairs);
         while (npairs) {
-            uint16 constIndex = GET_INDEX(pc2);
+            JS_GET_SCRIPT_ATOM(script, pc, GET_INDEX(pc2), atom);
             pc2 += INDEX_LEN;
             off = GetJumpOffset(pc, pc2);
             pc2 += jmplen;
 
-            bytes = ToDisassemblySource(cx, Jsvalify(script->getConst(constIndex)));
+            bytes = ToDisassemblySource(cx, ATOM_KEY(atom));
             if (!bytes)
                 return 0;
             fprintf(fp, "\n\t%s: %d", bytes, (intN) off);
@@ -487,7 +462,7 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
         index = js_GetIndexFromBytecode(cx, script, pc, SLOTNO_LEN);
         if (type == JOF_SLOTATOM) {
             JS_GET_SCRIPT_ATOM(script, pc, index, atom);
-            v = ATOM_TO_JSVAL(atom);
+            v = ATOM_KEY(atom);
         } else {
             obj = script->getObject(index);
             v = OBJECT_TO_JSVAL(obj);
@@ -787,7 +762,7 @@ js_NewPrinter(JSContext *cx, const char *name, JSFunction *fun,
     jp->fun = fun;
     jp->localNames = NULL;
     if (fun && FUN_INTERPRETED(fun) && fun->hasLocalNames()) {
-        jp->localNames = fun->getLocalNameArray(cx, &jp->pool);
+        jp->localNames = js_GetLocalNameArray(cx, fun, &jp->pool);
         if (!jp->localNames) {
             js_DestroyPrinter(jp);
             return NULL;
@@ -1118,7 +1093,7 @@ SprintDoubleValue(Sprinter *sp, jsval v, JSOp *opp)
     char *s, buf[DTOSTR_STANDARD_BUFFER_SIZE];
 
     JS_ASSERT(JSVAL_IS_DOUBLE(v));
-    d = JSVAL_TO_DOUBLE(v);
+    d = *JSVAL_TO_DOUBLE(v);
     if (JSDOUBLE_IS_NEGZERO(d)) {
         todo = SprintCString(sp, "-0");
         *opp = JSOP_NEG;
@@ -1228,7 +1203,7 @@ DecompileSwitch(SprintStack *ss, TableEntry *table, uintN tableLength,
                     todo = SprintDoubleValue(&ss->sprinter, key, &junk);
                     str = NULL;
                 } else {
-                    str = js_ValueToString(cx, Valueify(key));
+                    str = js_ValueToString(cx, key);
                     if (!str)
                         return JS_FALSE;
                 }
@@ -1306,9 +1281,19 @@ GetArgOrVarAtom(JSPrinter *jp, uintN slot)
 const char *
 GetLocal(SprintStack *ss, jsint i)
 {
+    ptrdiff_t off;
+    JSContext *cx;
+    JSScript *script;
+    jsatomid j, n;
+    JSAtom *atom;
+    JSObject *obj;
+    jsint depth, count;
+    JSScopeProperty *sprop;
+    const char *rval;
+
 #define LOCAL_ASSERT(expr)      LOCAL_ASSERT_RV(expr, "")
 
-    ptrdiff_t off = ss->offsets[i];
+    off = ss->offsets[i];
     if (off >= 0)
         return OFF2STR(&ss->sprinter, off);
 
@@ -1322,41 +1307,35 @@ GetLocal(SprintStack *ss, jsint i)
      * none of the script's object literals are blocks), or the stack slot i is
      * not in a block. In either case, return GetStr(ss, i).
      */
-    JSScript *script = ss->printer->script;
+    cx = ss->sprinter.context;
+    script = ss->printer->script;
     if (script->objectsOffset == 0)
         return GetStr(ss, i);
-
-    for (jsatomid j = 0, n = script->objects()->length; j != n; j++) {
-        JSObject *obj = script->getObject(j);
-        if (obj->isBlock()) {
-            jsint depth = OBJ_BLOCK_DEPTH(cx, obj);
-            jsint count = OBJ_BLOCK_COUNT(cx, obj);
-
-            if (jsuint(i - depth) < jsuint(count)) {
-                jsint slot = i - depth;
-
-                for (Shape::Range r(obj->lastProperty()); !r.empty(); r.popFront()) {
-                    const Shape &shape = r.front();
-
-                    if (shape.shortid == slot) {
-                        LOCAL_ASSERT(JSID_IS_ATOM(shape.id));
-
-                        JSAtom *atom = JSID_TO_ATOM(shape.id);
-                        const char *rval = QuoteString(&ss->sprinter, ATOM_TO_STRING(atom), 0);
-                        if (!rval)
-                            return NULL;
-
-                        RETRACT(&ss->sprinter, rval);
-                        return rval;
-                    }
-                }
-
+    for (j = 0, n = script->objects()->length; ; j++) {
+        if (j == n)
+            return GetStr(ss, i);
+        obj = script->getObject(j);
+        if (obj->getClass() == &js_BlockClass) {
+            depth = OBJ_BLOCK_DEPTH(cx, obj);
+            count = OBJ_BLOCK_COUNT(cx, obj);
+            if ((jsuint)(i - depth) < (jsuint)count)
                 break;
-            }
         }
     }
 
-    return GetStr(ss, i);
+    i -= depth;
+    for (sprop = obj->scope()->lastProperty(); sprop; sprop = sprop->parent) {
+        if (sprop->shortid == i)
+            break;
+    }
+
+    LOCAL_ASSERT(sprop && JSID_IS_ATOM(sprop->id));
+    atom = JSID_TO_ATOM(sprop->id);
+    rval = QuoteString(&ss->sprinter, ATOM_TO_STRING(atom), 0);
+    if (!rval)
+        return NULL;
+    RETRACT(&ss->sprinter, rval);
+    return rval;
 
 #undef LOCAL_ASSERT
 }
@@ -1577,7 +1556,8 @@ DecompileDestructuring(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc)
           case JSOP_INT32:  d = i = GET_INT32(pc);  goto do_getelem;
 
           case JSOP_DOUBLE:
-            GET_DOUBLE_FROM_BYTECODE(jp->script, pc, 0, d);
+            GET_DOUBLE_FROM_BYTECODE(jp->script, pc, 0, atom);
+            d = *ATOM_TO_DOUBLE(atom);
             LOCAL_ASSERT(JSDOUBLE_IS_FINITE(d) && !JSDOUBLE_IS_NEGZERO(d));
             i = (jsint)d;
 
@@ -2013,7 +1993,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
              */
             fp = js_GetScriptedCaller(cx, NULL);
             format = cs->format;
-            if (((fp && pc == fp->pc(cx)) ||
+            if (((fp && fp->regs && pc == fp->regs->pc) ||
                  (pc == startpc && nuses != 0)) &&
                 format & (JOF_SET|JOF_DEL|JOF_INCDEC|JOF_FOR|JOF_VARPROP)) {
                 mode = JOF_MODE(format);
@@ -2649,6 +2629,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
               case JSOP_ENTERBLOCK:
               {
                 JSAtom **atomv, *smallv[5];
+                JSScopeProperty *sprop;
 
                 LOAD_OBJECT(0);
                 argc = OBJ_BLOCK_COUNT(cx, obj);
@@ -2663,13 +2644,12 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 MUST_FLOW_THROUGH("enterblock_out");
 #define LOCAL_ASSERT_OUT(expr) LOCAL_ASSERT_CUSTOM(expr, ok = JS_FALSE; \
                                                    goto enterblock_out)
-                for (Shape::Range r = obj->lastProperty()->all(); !r.empty(); r.popFront()) {
-                    const Shape &shape = r.front();
-
-                    if (!shape.hasShortID())
+                for (sprop = obj->scope()->lastProperty(); sprop;
+                     sprop = sprop->parent) {
+                    if (!sprop->hasShortID())
                         continue;
-                    LOCAL_ASSERT_OUT(shape.shortid < argc);
-                    atomv[shape.shortid] = JSID_TO_ATOM(shape.id);
+                    LOCAL_ASSERT_OUT(sprop->shortid < argc);
+                    atomv[sprop->shortid] = JSID_TO_ATOM(sprop->id);
                 }
                 ok = JS_TRUE;
                 for (i = 0; i < argc; i++) {
@@ -2842,8 +2822,8 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
               case JSOP_CALLUPVAR:
               case JSOP_GETUPVAR_DBG:
               case JSOP_CALLUPVAR_DBG:
-              case JSOP_GETFCSLOT:
-              case JSOP_CALLFCSLOT:
+              case JSOP_GETDSLOT:
+              case JSOP_CALLDSLOT:
               {
                 if (!jp->fun) {
                     JS_ASSERT(jp->script->savedCallerFun);
@@ -2851,7 +2831,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 }
 
                 if (!jp->localNames)
-                    jp->localNames = jp->fun->getLocalNameArray(cx, &jp->pool);
+                    jp->localNames = js_GetLocalNameArray(cx, jp->fun, &jp->pool);
 
                 uintN index = GET_UINT16(pc);
                 if (index < jp->fun->u.i.nupvars) {
@@ -2864,7 +2844,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                      * jp->script is the eval-compiled script.
                      *
                      * However, it's possible that a js_Invoke already
-                     * pushed a frame trying to call Construct on an
+                     * pushed a frame trying to call js_Construct on an
                      * object that's not a constructor, causing us to be
                      * called with an intervening frame on the stack.
                      */
@@ -2872,15 +2852,15 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                     if (fp) {
                         while (!(fp->flags & JSFRAME_EVAL))
                             fp = fp->down;
-                        JS_ASSERT(fp->getScript() == jp->script);
-                        JS_ASSERT(fp->down->getFunction() == jp->fun);
+                        JS_ASSERT(fp->script == jp->script);
+                        JS_ASSERT(fp->down->fun == jp->fun);
                         JS_ASSERT(FUN_INTERPRETED(jp->fun));
                         JS_ASSERT(jp->script != jp->fun->u.i.script);
                         JS_ASSERT(jp->script->upvarsOffset != 0);
                     }
 #endif
                     uva = jp->script->upvars();
-                    index = uva->vector[index].slot();
+                    index = UPVAR_FRAME_SLOT(uva->vector[index]);
                 }
                 atom = GetArgOrVarAtom(jp, index);
                 goto do_name;
@@ -3557,6 +3537,51 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 }
                 break;
 
+              case JSOP_CONCATN:
+              {
+                argc = GET_UINT16(pc);
+                JS_ASSERT(argc > 0);
+
+                js::Vector<char *> argv(cx);
+                if (!argv.resize(argc))
+                    return NULL;
+
+                MUST_FLOW_THROUGH("out");
+                ok = JS_FALSE;
+
+                for (i = argc - 1; i >= 0; i--) {
+                    argv[i] = JS_strdup(cx, POP_STR_PREC(cs->prec + 1));
+                    if (!argv[i])
+                        goto out;
+                }
+
+                todo = Sprint(&ss->sprinter, "%s", argv[0]);
+                if (todo < 0)
+                    goto out;
+                for (i = 1; i < argc; i++) {
+                    if (Sprint(&ss->sprinter, " + %s", argv[i]) < 0)
+                        goto out;
+                }
+
+                /*
+                 * The only way that our next op could be a JSOP_ADD is
+                 * if we are about to concatenate at least one non-string
+                 * literal. Deal with that here in order to avoid extra
+                 * parentheses (because JSOP_ADD is left-associative).
+                 */
+                if (pc[len] == JSOP_ADD)
+                    saveop = JSOP_NOP;
+
+                ok = JS_TRUE;
+
+              out:
+                for (i = 0; i < argc; i++)
+                    JS_free(cx, argv[i]);
+                if (!ok)
+                    return NULL;
+                break;
+              }
+
               case JSOP_NEW:
               case JSOP_CALL:
               case JSOP_EVAL:
@@ -3830,6 +3855,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
               do_getarg_prop:
                 atom = GetArgOrVarAtom(ss->printer, i);
                 LOCAL_ASSERT(atom);
+                LOCAL_ASSERT(ATOM_IS_STRING(atom));
                 lval = QuoteString(&ss->sprinter, ATOM_TO_STRING(atom), 0);
                 if (!lval || !PushOff(ss, STR2OFF(&ss->sprinter, lval), op))
                     return NULL;
@@ -3989,13 +4015,11 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 break;
 
               case JSOP_DOUBLE:
-              {
-                double d;
-                GET_DOUBLE_FROM_BYTECODE(jp->script, pc, 0, d);
-                val = DOUBLE_TO_JSVAL(d);
+                GET_DOUBLE_FROM_BYTECODE(jp->script, pc, 0, atom);
+                val = ATOM_KEY(atom);
+                LOCAL_ASSERT(JSVAL_IS_DOUBLE(val));
                 todo = SprintDoubleValue(&ss->sprinter, val, &saveop);
                 break;
-              }
 
               case JSOP_STRING:
                 LOAD_ATOM(0);
@@ -4030,7 +4054,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                     if (!fun->hasLocalNames()) {
                         innerLocalNames = NULL;
                     } else {
-                        innerLocalNames = fun->getLocalNameArray(cx, &cx->tempPool);
+                        innerLocalNames = js_GetLocalNameArray(cx, fun, &cx->tempPool);
                         if (!innerLocalNames)
                             return NULL;
                     }
@@ -4169,7 +4193,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
               case JSOP_REGEXP:
                 GET_REGEXP_FROM_BYTECODE(jp->script, pc, 0, obj);
               do_regexp:
-                if (!js_regexp_toString(cx, obj, Valueify(&val)))
+                if (!js_regexp_toString(cx, obj, &val))
                     return NULL;
                 str = JSVAL_TO_STRING(val);
                 goto sprint_string;
@@ -4225,8 +4249,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                     if (tmp) {
                         VOUCH_DOES_NOT_REQUIRE_STACK();
                         ok = js_MergeSort(table, (size_t)j, sizeof(TableEntry),
-                                          CompareOffsets, NULL, tmp,
-                                          JS_SORTING_GENERIC);
+                                          CompareOffsets, NULL, tmp);
                         cx->free(tmp);
                     } else {
                         ok = JS_FALSE;
@@ -4274,11 +4297,11 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                     } else {
                         table[k].label = NULL;
                     }
-                    uint16 constIndex = GET_INDEX(pc2);
+                    JS_GET_SCRIPT_ATOM(jp->script, pc, GET_INDEX(pc2), atom);
                     pc2 += INDEX_LEN;
                     off2 = GetJumpOffset(pc, pc2);
                     pc2 += jmplen;
-                    table[k].key = Jsvalify(jp->script->getConst(constIndex));
+                    table[k].key = ATOM_KEY(atom);
                     table[k].offset = off2;
                 }
 
@@ -4706,6 +4729,11 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 todo = Sprint(&ss->sprinter, "%s..%s", lval, rval);
                 break;
 
+              case JSOP_XMLOBJECT:
+                LOAD_OBJECT(0);
+                todo = Sprint(&ss->sprinter, "<xml address='%p'>", obj);
+                break;
+
               case JSOP_XMLCDATA:
                 LOAD_ATOM(0);
                 todo = SprintPut(&ss->sprinter, "<![CDATA[", 9);
@@ -4930,6 +4958,10 @@ js_DecompileFunction(JSPrinter *jp)
         if (!jp->grouped && (fun->flags & JSFUN_LAMBDA))
             js_puts(jp, "(");
     }
+    if (JSFUN_GETTER_TEST(fun->flags))
+        js_printf(jp, "%s ", js_getter_str);
+    else if (JSFUN_SETTER_TEST(fun->flags))
+        js_printf(jp, "%s ", js_setter_str);
 
     js_printf(jp, "%s ", js_function_str);
     if (fun->atom && !QuoteString(&jp->sprinter, ATOM_TO_STRING(fun->atom), 0))
@@ -5064,33 +5096,32 @@ js_DecompileFunction(JSPrinter *jp)
 }
 
 char *
-js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v_in,
+js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v,
                            JSString *fallback)
 {
     JSStackFrame *fp;
     jsbytecode *pc;
     JSScript *script;
-
-    Value v = Valueify(v_in);
+    JSFrameRegs *regs;
+    intN pcdepth;
+    jsval *sp, *stackBase;
+    char *name;
 
     JS_ASSERT(spindex < 0 ||
               spindex == JSDVG_IGNORE_STACK ||
               spindex == JSDVG_SEARCH_STACK);
 
-    LeaveTrace(cx);
-    
-    /* Get scripted caller */
-    FrameRegsIter i(cx);
-    while (!i.done() && !i.fp()->hasScript())
-        ++i;
-
-    if (i.done() || !i.pc() || i.fp()->getSlotCount() == 0)
+    fp = js_GetScriptedCaller(cx, NULL);
+    if (!fp || !fp->regs || !fp->regs->sp)
         goto do_fallback;
 
-    fp = i.fp();
-    script = fp->getScript();
-    pc = fp->hasIMacroPC() ? fp->getIMacroPC() : i.pc();
-    JS_ASSERT(pc >= script->main && pc < script->code + script->length);
+    script = fp->script;
+    regs = fp->regs;
+    pc = fp->imacpc ? fp->imacpc : regs->pc;
+    if (pc < script->main || script->code + script->length <= pc) {
+        JS_NOT_REACHED("bug");
+        goto do_fallback;
+    }
 
     if (spindex != JSDVG_IGNORE_STACK) {
         jsbytecode **pcstack;
@@ -5103,7 +5134,7 @@ js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v_in,
                   cx->malloc(StackDepth(script) * sizeof *pcstack);
         if (!pcstack)
             return NULL;
-        intN pcdepth = ReconstructPCStack(cx, script, pc, pcstack);
+        pcdepth = ReconstructPCStack(cx, script, pc, pcstack);
         if (pcdepth < 0)
             goto release_pcstack;
 
@@ -5119,8 +5150,8 @@ js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v_in,
              * calculated value matching v under assumption that it is
              * it that caused exception, see bug 328664.
              */
-            Value *stackBase = fp->base();
-            Value *sp = i.sp();
+            stackBase = StackBase(fp);
+            sp = regs->sp;
             do {
                 if (sp == stackBase) {
                     pcdepth = -1;
@@ -5129,19 +5160,15 @@ js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v_in,
             } while (*--sp != v);
 
             /*
-             * The value may have come from beyond stackBase + pcdepth, meaning
-             * that it came from a temporary slot pushed by the interpreter or
-             * arguments pushed for an InvokeFromEngine call. Only update pc if
-             * beneath stackBase + pcdepth. If above, we don't know whether the
-             * value is associated with the current pc or from a fast native
-             * whose arguments have been pushed, so just print the value.
+             * The value may have come from beyond stackBase + pcdepth,
+             * meaning that it came from a temporary slot that the
+             * interpreter uses for GC roots or when JSOP_APPLY extended
+             * the stack to fit the argument array elements. Only update pc
+             * if beneath stackBase + pcdepth; otherwise blame existing
+             * (current) PC.
              */
-            if (sp >= stackBase + pcdepth) {
-                pcdepth = -1;
-                goto release_pcstack;
-            }
-
-            pc = pcstack[sp - stackBase];
+            if (sp < stackBase + pcdepth)
+                pc = pcstack[sp - stackBase];
         }
 
       release_pcstack:
@@ -5151,39 +5178,29 @@ js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v_in,
     }
 
     {
-        jsbytecode* savepc = i.pc();
-        jsbytecode* savedIMacroPC = fp->maybeIMacroPC();
-        if (savedIMacroPC) {
-            JS_ASSERT(cx->hasfp());
-            if (fp == cx->fp())
-                cx->regs->pc = savedIMacroPC;
-            else
-                fp->savedPC = savedIMacroPC;
-            fp->clearIMacroPC();
+        jsbytecode* savepc = regs->pc;
+        jsbytecode* imacpc = fp->imacpc;
+        if (imacpc) {
+            regs->pc = imacpc;
+            fp->imacpc = NULL;
         }
 
         /*
          * FIXME: bug 489843. Stack reconstruction may have returned a pc
          * value *inside* an imacro; this would confuse the decompiler.
          */
-        char *name;
-        if (savedIMacroPC && size_t(pc - script->code) >= script->length)
+        if (imacpc && size_t(pc - script->code) >= script->length)
             name = FAILED_EXPRESSION_DECOMPILER;
         else
-            name = DecompileExpression(cx, script, fp->maybeFunction(), pc);
+            name = DecompileExpression(cx, script, fp->fun, pc);
 
-        if (savedIMacroPC) {
-            JS_ASSERT(cx->hasfp());
-            if (fp == cx->fp())
-                cx->regs->pc = savedIMacroPC;
-            else
-                fp->savedPC = savepc;
-            fp->setIMacroPC(savedIMacroPC);
+        if (imacpc) {
+            regs->pc = savepc;
+            fp->imacpc = imacpc;
         }
-
-        if (name != FAILED_EXPRESSION_DECOMPILER)
-            return name;
     }
+    if (name != FAILED_EXPRESSION_DECOMPILER)
+        return name;
 
   do_fallback:
     if (!fallback) {
@@ -5402,15 +5419,11 @@ SimulateImacroCFG(JSContext *cx, JSScript *script,
                   uintN pcdepth, jsbytecode *pc, jsbytecode *target,
                   jsbytecode **pcstack)
 {
-    size_t nbytes = 0;
-    jsbytecode** tmp_pcstack = NULL;
-    if (pcstack) {
-        nbytes = StackDepth(script) * sizeof *pcstack;
-        tmp_pcstack = (jsbytecode **) cx->malloc(nbytes);
-        if (!tmp_pcstack)
-            return -1;
-        memcpy(tmp_pcstack, pcstack, nbytes);
-    }
+    size_t nbytes = StackDepth(script) * sizeof *pcstack;
+    jsbytecode** tmp_pcstack = (jsbytecode **) cx->malloc(nbytes);
+    if (!tmp_pcstack)
+        return -1;
+    memcpy(tmp_pcstack, pcstack, nbytes);
 
     ptrdiff_t oplen;
     for (; pc < target; pc += oplen) {
@@ -5446,20 +5459,21 @@ SimulateImacroCFG(JSContext *cx, JSScript *script,
     LOCAL_ASSERT(pc == target);
 
   success:
-    if (tmp_pcstack) {
-        memcpy(pcstack, tmp_pcstack, nbytes);
-        cx->free(tmp_pcstack);
-    }
+    memcpy(pcstack, tmp_pcstack, nbytes);
+    cx->free(tmp_pcstack);
     return pcdepth;
 
   failure:
-    if (tmp_pcstack)
-        cx->free(tmp_pcstack);
+    cx->free(tmp_pcstack);
     return -1;
 }
 
 #undef LOCAL_ASSERT
 #define LOCAL_ASSERT(expr)      LOCAL_ASSERT_RV(expr, -1);
+
+static intN
+ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
+                   jsbytecode **pcstack);
 
 static intN
 ReconstructImacroPCStack(JSContext *cx, JSScript *script,
@@ -5471,8 +5485,8 @@ ReconstructImacroPCStack(JSContext *cx, JSScript *script,
      * the state-of-the-world at the *start* of the imacro.
      */
     JSStackFrame *fp = js_GetScriptedCaller(cx, NULL);
-    JS_ASSERT(fp->hasIMacroPC());
-    intN pcdepth = ReconstructPCStack(cx, script, fp->getIMacroPC(), pcstack);
+    JS_ASSERT(fp->imacpc);
+    intN pcdepth = ReconstructPCStack(cx, script, fp->imacpc, pcstack);
     if (pcdepth < 0)
         return pcdepth;
     return SimulateImacroCFG(cx, script, pcdepth, imacstart, target, pcstack);

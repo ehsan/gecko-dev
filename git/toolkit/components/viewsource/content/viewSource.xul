@@ -142,7 +142,7 @@
 
   </keyset>
 
-  <menupopup id="viewSourceContextMenu">
+  <popup id="viewSourceContextMenu">
     <menuitem id="context-back"
               label="&backCmd.label;"
               accesskey="&backCmd.accesskey;"
@@ -159,7 +159,7 @@
     <menuitem id="cMenu_copy"/>
     <menuseparator/>
     <menuitem id="cMenu_selectAll"/>
-  </menupopup>
+  </popup>
 
   <!-- Menu --> 
   <toolbox id="viewSource-toolbox">

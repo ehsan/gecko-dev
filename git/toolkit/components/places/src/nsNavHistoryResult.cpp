@@ -3162,10 +3162,7 @@ nsNavHistoryQueryResultNode::OnItemChanged(PRInt64 aItemId,
     }
   }
   else {
-    // Some node could observe both bookmarks and history.  But a node observing
-    // only history should never get a bookmark notification.
-    NS_WARN_IF_FALSE(mResult && (mResult->mIsAllBookmarksObserver || mResult->mIsBookmarkFolderObserver),
-                     "history observers should not get OnItemChanged, but should get the corresponding history notifications instead");
+    NS_WARNING("history observers should not get OnItemChanged, but should get the corresponding history notifications instead");
   }
 
   return nsNavHistoryResultNode::OnItemChanged(aItemId, aProperty,

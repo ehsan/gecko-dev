@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-351693.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 351693;
 var summary = 'decompilation of ternary with parenthesized constant condition';

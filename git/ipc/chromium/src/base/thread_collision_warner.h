@@ -5,7 +5,7 @@
 #ifndef BASE_THREAD_COLLISION_WARNER_H_
 #define BASE_THREAD_COLLISION_WARNER_H_
 
-#include <memory.h>
+#include <memory>
 
 #include "base/atomicops.h"
 

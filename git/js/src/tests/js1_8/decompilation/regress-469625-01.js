@@ -5,6 +5,7 @@
  * Contributor: Jason Orendorff
  */
 
+var gTestfile = 'regress-469625-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 469625;
 var summary = 'decompile [a, b, [c0, c1]] = [x, x, x];';

@@ -394,7 +394,6 @@ EventMsgInfo gAllEvents[] = {
   {"WM_TABLET_QUERYSYSTEMGESTURESTATUS",  0x02CC},
   {"WM_GESTURE",                          0x0119},
   {"WM_GESTURENOTIFY",                    0x011A},
-  {"WM_GETTITLEBARINFOEX",                0x033F},
   {NULL, 0x0}
 };
 
@@ -496,7 +495,7 @@ nsresult HeapDump(UINT msg, WPARAM wParam, LPARAM lParam)
 void DDError(const char *msg, HRESULT hr)
 {
   /*XXX make nicer */
-  fprintf(stderr, "direct draw error %s: 0x%08lx\n", msg, hr);
+  fprintf(stderr, "direct draw error %s: 0x%08x\n", msg, hr);
 }
 #endif
 

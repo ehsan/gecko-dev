@@ -45,7 +45,7 @@
 #include <fcntl.h>
 #else
 #include <unistd.h>
-#include <fcntl.h>
+#include <sys/fcntl.h>
 #endif
 
 #include "secutil.h"

@@ -59,6 +59,8 @@
 #include "nsHTMLContainerFrame.h"
 #include "nsDisplayList.h"
 
+static NS_DEFINE_IID(kWidgetCID, NS_CHILD_CID);
+
 //
 // NS_NewLeafBoxFrame
 //
@@ -167,7 +169,7 @@ nsLeafBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return NS_OK;
 
   return aLists.Content()->AppendNewToTop(new (aBuilder)
-      nsDisplayEventReceiver(aBuilder, this));
+      nsDisplayEventReceiver(this));
 }
 
 /* virtual */ nscoord

@@ -41,7 +41,7 @@
 
 #include "nsISupports.h"
 
-nsresult
+NS_METHOD
 nsUnicodeToISO885911Constructor(nsISupports *aOuter, REFNSIID aIID,
                                 void **aResult);
 

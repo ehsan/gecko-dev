@@ -167,6 +167,10 @@ public final class Portability {
         return literal.equals(string);
     }
 
+    public static char[] isIndexPrompt() {
+        return "This is a searchable index. Enter search keywords: ".toCharArray();
+    }
+
     public static void delete(Object o) {
         
     }

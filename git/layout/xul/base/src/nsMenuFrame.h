@@ -176,7 +176,7 @@ public:
   // otherwise null will be returned.
   nsMenuFrame* Enter();
 
-  virtual void SetParent(nsIFrame* aParent);
+  NS_IMETHOD SetParent(const nsIFrame* aParent);
 
   virtual nsMenuParent *GetMenuParent() { return mMenuParent; }
   const nsAString& GetRadioGroupName() { return mGroupName; }
@@ -222,7 +222,6 @@ public:
 protected:
   friend class nsMenuTimerMediator;
   friend class nsASyncMenuInitialization;
-  friend class nsMenuAttributeChangedEvent;
 
   // initialize mPopupFrame to the first popup frame within
   // aChildList. Removes the popup, if any, from aChildList.

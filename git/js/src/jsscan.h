@@ -255,14 +255,16 @@ enum TokenStreamFlags
     TSF_EOF = 0x02,             /* hit end of file */
     TSF_NEWLINES = 0x04,        /* tokenize newlines */
     TSF_OPERAND = 0x08,         /* looking for operand, not operator */
-    TSF_UNEXPECTED_EOF = 0x10,  /* unexpected end of input, i.e. TOK_EOF not at top-level. */
-    TSF_KEYWORD_IS_NAME = 0x20, /* Ignore keywords and return TOK_NAME instead to the parser. */
-    TSF_STRICT_MODE_CODE = 0x40,/* Tokenize as appropriate for strict mode code. */
+    TSF_NLFLAG = 0x20,          /* last linebuf ended with \n */
+    TSF_CRFLAG = 0x40,          /* linebuf would have ended with \r */
     TSF_DIRTYLINE = 0x80,       /* non-whitespace since start of line */
     TSF_OWNFILENAME = 0x100,    /* ts->filename is malloc'd */
     TSF_XMLTAGMODE = 0x200,     /* scanning within an XML tag in E4X */
     TSF_XMLTEXTMODE = 0x400,    /* scanning XMLText terminal from E4X */
     TSF_XMLONLYMODE = 0x800,    /* don't scan {expr} within text/tag */
+
+    /* Flag indicating unexpected end of input, i.e. TOK_EOF not at top-level. */
+    TSF_UNEXPECTED_EOF = 0x1000,
 
     /*
      * To handle the hard case of contiguous HTML comments, we want to clear the
@@ -283,7 +285,13 @@ enum TokenStreamFlags
      * It does not cope with malformed comment hiding hacks where --> is hidden
      * by C-style comments, or on a dirty line.  Such cases are already broken.
      */
-    TSF_IN_HTML_COMMENT = 0x2000
+    TSF_IN_HTML_COMMENT = 0x2000,
+
+    /* Ignore keywords and return TOK_NAME instead to the parser. */
+    TSF_KEYWORD_IS_NAME = 0x4000,
+
+    /* Tokenize as appropriate for strict mode code.  */
+    TSF_STRICT_MODE_CODE = 0x8000
 };
 
 #define t_op            u.s.op
@@ -292,10 +300,8 @@ enum TokenStreamFlags
 #define t_atom2         u.p.atom2
 #define t_dval          u.dval
 
-static const size_t LINE_LIMIT = 1024; /* logical line buffer size limit
-                                          -- physical line length is unlimited */
-static const size_t UNGET_LIMIT = 6;   /* maximum number of chars to unget at once
-                                          -- for \uXXXX lookahead */
+const size_t LINE_LIMIT = 256;  /* logical line buffer size limit
+                                   -- physical line length is unlimited */
 
 class TokenStream
 {
@@ -390,8 +396,7 @@ class TokenStream
             lookahead--;
             cursor = (cursor + 1) & ntokensMask;
             TokenKind tt = currentToken().type;
-            JS_ASSERT(!(flags & TSF_NEWLINES));
-            if (tt != TOK_EOL)
+            if (tt != TOK_EOL || (flags & TSF_NEWLINES))
                 return tt;
         }
 
@@ -414,7 +419,6 @@ class TokenStream
     TokenKind peekToken(uintN withFlags = 0) {
         Flagger flagger(this, withFlags);
         if (lookahead != 0) {
-            JS_ASSERT(lookahead == 1);
             return tokens[(cursor + lookahead) & ntokensMask].type;
         }
         TokenKind tt = getToken();
@@ -449,23 +453,7 @@ class TokenStream
     } TokenBuf;
 
     TokenKind getTokenInternal();     /* doesn't check for pushback or error flag. */
-    int fillUserbuf();
-    int32 getCharFillLinebuf();
-
-    /* This gets the next char, normalizing all EOL sequences to '\n' as it goes. */
-    JS_ALWAYS_INLINE int32 getChar() {
-        int32 c;
-        if (currbuf->ptr < currbuf->limit - 1) {
-            /* Not yet the last char of currbuf, so it can't be a newline.  Just get it. */
-            c = *currbuf->ptr++;
-            JS_ASSERT(c != '\n');
-        } else {
-            c = getCharSlowCase();
-        }
-        return c;
-    }
-
-    int32 getCharSlowCase();
+    int32 getChar();
     void ungetChar(int32 c);
     Token *newToken(ptrdiff_t adjust);
     int32 getUnicodeEscape();
@@ -496,21 +484,21 @@ class TokenStream
     uintN               cursor;         /* index of last parsed token */
     uintN               lookahead;      /* count of lookahead tokens */
     uintN               lineno;         /* current line number */
+    uintN               ungetpos;       /* next free char slot in ungetbuf */
+    jschar              ungetbuf[6];    /* at most 6, for \uXXXX lookahead */
     uintN               flags;          /* flags -- see above */
+    uint32              linelen;        /* physical linebuf segment length */
     uint32              linepos;        /* linebuf offset in physical line */
-    uint32              lineposNext;    /* the next value of linepos */
     TokenBuf            linebuf;        /* line buffer for diagnostics */
     TokenBuf            userbuf;        /* user input buffer if !file */
-    TokenBuf            ungetbuf;       /* buffer for ungetChar */
-    TokenBuf            *currbuf;       /* the buffer getChar is currently using */
     const char          *filename;      /* input filename or null */
     FILE                *file;          /* stdio stream if reading from file */
     JSSourceHandler     listener;       /* callback for source; eg debugger */
     void                *listenerData;  /* listener 'this' data */
     void                *listenerTSData;/* listener data for this TokenStream */
+    jschar              *saveEOL;       /* save next end of line in userbuf, to
+                                           optimize for very long lines */
     JSCharBuffer        tokenbuf;       /* current token string buffer */
-    bool                maybeEOL[256];  /* probabilistic EOL lookup table */
-    bool                maybeStrSpecial[256];/* speeds up string scanning */
 };
 
 } /* namespace js */

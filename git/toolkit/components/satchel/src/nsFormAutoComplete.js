@@ -47,6 +47,8 @@ function FormAutoComplete() {
 }
 
 FormAutoComplete.prototype = {
+    classDescription : "FormAutoComplete",
+    contractID       : "@mozilla.org/satchel/form-autocomplete;1",
     classID          : Components.ID("{c11c21b2-71c9-4f87-a0f8-5e13f50495fd}"),
     QueryInterface   : XPCOMUtils.generateQI([Ci.nsIFormAutoComplete, Ci.nsISupportsWeakReference]),
 
@@ -59,8 +61,8 @@ FormAutoComplete.prototype = {
     },
 
     _prefBranch         : null,
-    _debug              : true, // mirrors browser.formfill.debug
-    _enabled            : true, // mirrors browser.formfill.enable preference
+    _debug              : false, // mirrors browser.formfill.debug
+    _enabled            : true,  // mirrors browser.formfill.enable preference
     _agedWeight         : 2,
     _bucketSize         : 1,
     _maxTimeGroupings   : 25,
@@ -131,7 +133,6 @@ FormAutoComplete.prototype = {
                 }
             } else if (topic == "xpcom-shutdown") {
                 self._dbStmts = null;
-                self.__formHistory = null;
             }
         }
     },
@@ -447,4 +448,6 @@ FormAutoCompleteResult.prototype = {
 };
 
 let component = [FormAutoComplete];
-var NSGetFactory = XPCOMUtils.generateNSGetFactory(component);
+function NSGetModule (compMgr, fileSpec) {
+    return XPCOMUtils.generateModule(component);
+}

@@ -39,6 +39,7 @@
 
 #include "nsFormFillController.h"
 
+#include "nsStorageFormHistory.h"
 #include "nsIFormAutoComplete.h"
 #include "nsIAutoCompleteSimpleResult.h"
 #include "nsString.h"
@@ -56,7 +57,7 @@
 #include "nsIDOMCompositionListener.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
-#include "nsIFormControl.h"
+#include "nsIDOMNSHTMLInputElement.h"
 #include "nsIDocument.h"
 #include "nsIContent.h"
 #include "nsIPresShell.h"
@@ -66,7 +67,7 @@
 #include "nsIDOMHTMLFormElement.h"
 #include "nsILoginManager.h"
 #include "nsIDOMMouseEvent.h"
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
 #include "nsToolkitCompsCID.h"
 #include "nsEmbedCID.h"
 #include "nsIDOMNSEditableElement.h"
@@ -410,24 +411,27 @@ nsFormFillController::SetTextValue(const nsAString & aTextValue)
 NS_IMETHODIMP
 nsFormFillController::GetSelectionStart(PRInt32 *aSelectionStart)
 {
-  if (mFocusedInput)
-    mFocusedInput->GetSelectionStart(aSelectionStart);
+  nsCOMPtr<nsIDOMNSHTMLInputElement> input = do_QueryInterface(mFocusedInput);
+  if (input)
+    input->GetSelectionStart(aSelectionStart);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsFormFillController::GetSelectionEnd(PRInt32 *aSelectionEnd)
 {
-  if (mFocusedInput)
-    mFocusedInput->GetSelectionEnd(aSelectionEnd);
+  nsCOMPtr<nsIDOMNSHTMLInputElement> input = do_QueryInterface(mFocusedInput);
+  if (input)
+    input->GetSelectionEnd(aSelectionEnd);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsFormFillController::SelectTextRange(PRInt32 aStartIndex, PRInt32 aEndIndex)
 {
- if (mFocusedInput)
-    mFocusedInput->SetSelectionRange(aStartIndex, aEndIndex);
+  nsCOMPtr<nsIDOMNSHTMLInputElement> input = do_QueryInterface(mFocusedInput);
+  if (input)
+    input->SetSelectionRange(aStartIndex, aEndIndex);
   return NS_OK;
 }
 
@@ -600,6 +604,9 @@ nsFormFillController::Focus(nsIDOMEvent* aEvent)
   nsCOMPtr<nsIDOMHTMLInputElement> input = do_QueryInterface(target);
   if (!input)
     return NS_OK;
+    
+    nsAutoString type;
+    input->GetType(type);
 
     PRBool isReadOnly = PR_FALSE;
     input->GetReadOnly(&isReadOnly);
@@ -612,10 +619,9 @@ nsFormFillController::Focus(nsIDOMEvent* aEvent)
     if (mPwmgrInputs.Get(input, &dummy))
         isPwmgrInput = PR_TRUE;
 
-    nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(input);
-    if (formControl && formControl->IsSingleLineTextControl(PR_TRUE) &&
-        !isReadOnly &&
+    if (type.LowerCaseEqualsLiteral("text") && !isReadOnly &&
         (!autocomplete.LowerCaseEqualsLiteral("off") || isPwmgrInput)) {
+
       nsCOMPtr<nsIDOMHTMLFormElement> form;
       input->GetForm(getter_AddRefs(form));
       if (form)
@@ -1205,26 +1211,26 @@ nsFormFillController::IsEventTrusted(nsIDOMEvent *aEvent)
   return isTrusted;
 }
 
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsFormHistory, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFormFillController)
 
-NS_DEFINE_NAMED_CID(NS_FORMFILLCONTROLLER_CID);
+static const nsModuleComponentInfo components[] =
+{
+  { "HTML Form History",
+    NS_FORMHISTORY_CID, 
+    NS_FORMHISTORY_CONTRACTID,
+    nsFormHistoryConstructor },
 
-static const mozilla::Module::CIDEntry kSatchelCIDs[] = {
-  { &kNS_FORMFILLCONTROLLER_CID, false, NULL, nsFormFillControllerConstructor },
-  { NULL }
+  { "HTML Form Fill Controller",
+    NS_FORMFILLCONTROLLER_CID, 
+    "@mozilla.org/satchel/form-fill-controller;1",
+    nsFormFillControllerConstructor },
+
+  { "HTML Form History AutoComplete",
+    NS_FORMFILLCONTROLLER_CID, 
+    NS_FORMHISTORYAUTOCOMPLETE_CONTRACTID,
+    nsFormFillControllerConstructor },
 };
 
-static const mozilla::Module::ContractIDEntry kSatchelContracts[] = {
-  { "@mozilla.org/satchel/form-fill-controller;1", &kNS_FORMFILLCONTROLLER_CID },
-  { NS_FORMHISTORYAUTOCOMPLETE_CONTRACTID, &kNS_FORMFILLCONTROLLER_CID },
-  { NULL }
-};
-
-static const mozilla::Module kSatchelModule = {
-  mozilla::Module::kVersion,
-  kSatchelCIDs,
-  kSatchelContracts
-};
-
-NSMODULE_DEFN(satchel) = &kSatchelModule;
+NS_IMPL_NSGETMODULE(satchel, components)
 

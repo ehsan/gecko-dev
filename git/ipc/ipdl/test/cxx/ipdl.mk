@@ -1,14 +1,12 @@
 IPDLSRCS =					\
+  PTestArrays.ipdl				\
+  PTestArraysSub.ipdl				\
   PTestBlockChild.ipdl				\
   PTestCrashCleanup.ipdl			\
-  PTestDataStructures.ipdl			\
-  PTestDataStructuresSub.ipdl			\
   PTestDesc.ipdl				\
   PTestDescSub.ipdl				\
   PTestDescSubsub.ipdl				\
-  PTestHandle.ipdl				\
   PTestHangs.ipdl				\
-  PTestJSON.ipdl				\
   PTestLatency.ipdl				\
   PTestManyChildAllocs.ipdl			\
   PTestManyChildAllocsSub.ipdl			\
@@ -30,6 +28,5 @@ IPDLSRCS =					\
   PTestShutdownSubsub.ipdl			\
   PTestStackHooks.ipdl				\
   PTestSyncWakeup.ipdl				\
-  PTestSyncHang.ipdl                            \
   PTestSysVShmem.ipdl				\
   $(NULL)

@@ -33,8 +33,6 @@
 #   Dão Gottwald <dao@mozilla.com>
 #   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #   Robert Strong <robert.bugzilla@gmail.com>
-#   Rob Campbell <rcampbell@mozilla.com>
-#   Patrick Walton <pcwalton@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -87,6 +85,7 @@
         windowtype="navigator:browser"
         screenX="4" screenY="4"
         browsingmode="normal"
+        toggletoolbar="true"
         persist="screenX screenY width height sizemode"> 
 
 # All JS files which are not content (only) dependent that browser.xul
@@ -102,7 +101,11 @@
 
 <script type="application/javascript" src="chrome://browser/content/places/editBookmarkOverlay.js"/>
 
-# All sets except for popupsets (commands, keys, stringbundles and broadcasters) *must* go into the
+<!-- This is still used for dragDropSecurityCheck and transferUtils.  Since we
+     rely on the new Drag and Drop API these dependencies should be removed. -->
+<script type="application/javascript" src="chrome://global/content/nsDragAndDrop.js"/>
+
+# All sets except for popupsets (commands, keys, stringbundles and broadcasters) *must* go into the 
 # browser-sets.inc file for sharing with hiddenWindow.xul.
 #include browser-sets.inc
 
@@ -110,31 +113,22 @@
     <menupopup id="tabContextMenu"
                onpopupshowing="if (event.target == this) TabContextMenu.updateContextMenu(this);"
                onpopuphidden="if (event.target == this) TabContextMenu.contextTab = null;">
+      <menuitem id="context_newTab" label="&newTab.label;" accesskey="&newTab.accesskey;"
+                command="cmd_newNavigatorTab"/>
+      <menuseparator/>
       <menuitem id="context_reloadTab" label="&reloadTab.label;" accesskey="&reloadTab.accesskey;"
                 oncommand="gBrowser.reloadTab(TabContextMenu.contextTab);"/>
       <menuitem id="context_reloadAllTabs" label="&reloadAllTabs.label;" accesskey="&reloadAllTabs.accesskey;"
                 tbattr="tabbrowser-multiple"
                 oncommand="gBrowser.reloadAllTabs();"/>
+      <menuitem id="context_closeOtherTabs" label="&closeOtherTabs.label;" accesskey="&closeOtherTabs.accesskey;"
+                tbattr="tabbrowser-multiple"
+                oncommand="gBrowser.removeAllTabsBut(TabContextMenu.contextTab);"/>
       <menuseparator/>
       <menuitem id="context_openTabInWindow" label="&openTabInNewWindow.label;"
                 accesskey="&openTabInNewWindow.accesskey;"
                 tbattr="tabbrowser-multiple"
                 oncommand="gBrowser.replaceTabWithWindow(TabContextMenu.contextTab);"/>
-      <menuitem id="context_pinTab" label="&pinTab.label;"
-                accesskey="&pinTab.accesskey;"
-                oncommand="gBrowser.pinTab(TabContextMenu.contextTab);"/>
-      <menuitem id="context_unpinTab" label="&unpinTab.label;" hidden="true"
-                accesskey="&unpinTab.accesskey;"
-                oncommand="gBrowser.unpinTab(TabContextMenu.contextTab);"/>
-      <menu id="context_tabViewMenu" label="&moveToGroup.label;"
-            accesskey="&moveToGroup.accesskey;">
-        <menupopup id="context_tabViewMenuPopup"
-                   onpopupshowing="if (event.target == this) TabView.updateContextMenu(TabContextMenu.contextTab, this);">
-          <menuseparator id="context_tabViewNamedGroups" hidden="true"/>
-          <menuitem label="&moveToNewGroup.label;"
-                    oncommand="TabView.moveTabTo(TabContextMenu.contextTab, null);"/>
-        </menupopup>
-      </menu>
       <menuseparator/>
       <menuitem id="context_bookmarkTab"
                 label="&bookmarkThisTab.label;"
@@ -144,15 +138,14 @@
                 label="&bookmarkAllTabs.label;"
                 accesskey="&bookmarkAllTabs.accesskey;"
                 command="Browser:BookmarkAllTabs"/>
-      <menuseparator/>
-      <menuitem id="context_closeOtherTabs" label="&closeOtherTabs.label;" accesskey="&closeOtherTabs.accesskey;"
-                oncommand="gBrowser.removeAllTabsBut(TabContextMenu.contextTab);"/>
       <menuitem id="context_undoCloseTab"
                 label="&undoCloseTab.label;"
                 accesskey="&undoCloseTab.accesskey;"
-                observes="History:UndoCloseTab"/>
+                command="History:UndoCloseTab"/>
+      <menuseparator/>
       <menuitem id="context_closeTab" label="&closeTab.label;" accesskey="&closeTab.accesskey;"
-                oncommand="gBrowser.removeTab(TabContextMenu.contextTab, { animate: true });"/>
+                tbattr="tabbrowser-multiple"
+                oncommand="gBrowser.removeTab(TabContextMenu.contextTab);"/>
     </menupopup>
 
     <menupopup id="backForwardMenu"
@@ -225,88 +218,8 @@
       </hbox>
     </panel>
 
-    <panel id="highlighter-panel"
-           hidden="true"
-           ignorekeys="true"
-           noautofocus="true"
-           noautohide="true"
-           onclick="InspectorUI.stopInspecting();"
-           onmousemove="InspectorUI.highlighter.handleMouseMove(event);"
-           onMozMousePixelScroll="InspectorUI.highlighter.handlePixelScroll(event);"/>
-
-    <panel id="inspector-panel"
-           orient="vertical"
-           hidden="true"
-           ignorekeys="true"
-           noautofocus="true"
-           noautohide="true"
-           titlebar="normal"
-           label="&inspectPanelTitle.label;">
-      <toolbar id="inspector-toolbar"
-               nowindowdrag="true">
-        <toolbarbutton id="inspector-inspect-toolbutton"
-                       label="&inspectButton.label;"
-                       accesskey="&inspectButton.accesskey;"
-                       class="toolbarbutton-text"
-                       command="Inspector:Inspect"/>
-        <toolbarbutton id="inspector-previous-toolbutton"
-                       label="&inspectPreviousButton.label;"
-                       accesskey="&inspectPreviousButton.accesskey;"
-                       class="toolbarbutton-text"
-                       command="Inspector:Previous"/>
-        <toolbarbutton id="inspector-next-toolbutton"
-                       label="&inspectNextButton.label;"
-                       accesskey="&inspectNextButton.accesskey;"
-                       class="toolbarbutton-text"
-                       command="Inspector:Next"/>
-        <toolbarbutton id="inspector-style-toolbutton"
-                       label="&inspectStyleButton.label;"
-                       accesskey="&inspectStyleButton.accesskey;"
-                       class="toolbarbutton-text"
-                       oncommand="InspectorUI.toggleStylePanel();"/>
-        <toolbarbutton id="inspector-dom-toolbutton"
-                       label="&inspectObjectButton.label;"
-                       accesskey="&inspectObjectButton.accesskey;"
-                       class="toolbarbutton-text"
-                       oncommand="InspectorUI.toggleDOMPanel();"/>
-      </toolbar>
-      <tree id="inspector-tree" class="plain"
-            seltype="single"
-            treelines="true"
-            onselect="InspectorUI.onTreeSelected()"
-            flex="1">
-        <treecols>
-          <treecol id="colNodeName" label="nodeName" primary="true"
-                   persist="width,hidden,ordinal" flex="1"/>
-          <splitter class="tree-splitter"/>
-          <treecol id="colNodeValue" label="nodeValue"
-                   persist="width,hidden,ordinal" flex="1"/>
-        </treecols>
-        <treechildren id="inspector-tree-body"/>
-      </tree>
-      <hbox align="end">
-        <spacer flex="1" />
-        <resizer dir="bottomend" />
-      </hbox>
-    </panel>
-
-    <panel id="inspector-style-panel"
-           hidden="true"
-           orient="vertical"
-           ignorekeys="true"
-           noautofocus="true"
-           noautohide="true"
-           titlebar="normal"
-           label="&inspectStylePanelTitle.label;">
-        <listbox id="inspector-style-listbox" flex="1"/>
-        <hbox align="end">
-          <spacer flex="1" />
-          <resizer dir="bottomend"/>
-        </hbox>
-    </panel>
-
-    <menupopup id="toolbar-context-menu"
-               onpopupshowing="onViewToolbarsPopupShowing(event);">
+    <popup id="toolbar-context-menu"
+           onpopupshowing="onViewToolbarsPopupShowing(event);">
       <menuseparator/>
       <menuitem command="cmd_ToggleTabsOnTop"
                 type="checkbox"
@@ -316,15 +229,15 @@
       <menuitem command="cmd_CustomizeToolbars"
                 label="&viewCustomizeToolbar.label;"
                 accesskey="&viewCustomizeToolbar.accesskey;"/>
-    </menupopup>
+    </popup>
 
-    <menupopup id="blockedPopupOptions" 
-               onpopupshowing="gPopupBlockerObserver.fillPopupList(event);">
+    <popup id="blockedPopupOptions" 
+           onpopupshowing="gPopupBlockerObserver.fillPopupList(event);">
       <menuitem observes="blockedPopupAllowSite"/>
       <menuitem observes="blockedPopupEditSettings"/>
       <menuitem observes="blockedPopupDontShowMessage"/>
       <menuseparator observes="blockedPopupsSeparator"/>
-    </menupopup>
+    </popup>
 
     <menupopup id="autohide-context"
            onpopupshowing="FullScreen.getAutohide(this.firstChild);">
@@ -337,20 +250,13 @@
                 oncommand="BrowserFullScreen();"/>
     </menupopup>
 
-    <menupopup id="contentAreaContextMenu"
-               onpopupshowing="if (event.target != this)
-                                 return true;
-                               gContextMenu = new nsContextMenu(this, gBrowser);
-                               if (gContextMenu.shouldDisplay)
-                                 updateEditUIVisibility();
-                               return gContextMenu.shouldDisplay;"
-               onpopuphiding="if (event.target == this) { gContextMenu = null; updateEditUIVisibility(); }">
+    <popup id="contentAreaContextMenu"
+           onpopupshowing="if (event.target != this) return true; updateEditUIVisibility(); gContextMenu = new nsContextMenu(this, window.getBrowser()); return gContextMenu.shouldDisplay;"
+           onpopuphiding="if (event.target == this) { gContextMenu = null; updateEditUIVisibility(); }">
 #include browser-context.inc
-    </menupopup>
+    </popup>
 
-    <menupopup id="placesContext"/>
-
-    <panel id="notification-popup" position="after_start" noautofocus="true" hidden="true"/>
+    <popup id="placesContext"/>
 
     <!-- Popup for site identity information -->
     <panel id="identity-popup" position="after_start" hidden="true" noautofocus="true"
@@ -439,7 +345,8 @@
     <tooltip id="bhTooltip"/>
 
     <panel id="customizeToolbarSheetPopup"
-           noautohide="true">
+           noautohide="true"
+           onpopupshown="this.moveTo(this.boxObject.screenX + (window.innerWidth - this.boxObject.width) / 2, this.boxObject.screenY);">
       <iframe id="customizeToolbarSheetIFrame"
               style="&dialog.style;"
               hidden="true"/>
@@ -448,328 +355,10 @@
     <tooltip id="tabbrowser-tab-tooltip" onpopupshowing="gBrowser.createTooltip(event);"/>
   </popupset>
 
-#ifdef MENUBAR_CAN_AUTOHIDE
-  <vbox id="titlebar">
-  <hbox id="titlebar-content">
-  <hbox id="appmenu-button-container" align="start">
-  <button id="appmenu-button"
-          type="menu"
-          label="&brandShortName;"
-          style="-moz-user-focus: ignore;">
-    <menupopup id="appmenu-popup"
-               onpopupshowing="updateEditUIVisibility();">
-      <hbox>
-        <vbox id="appmenuPrimaryPane">
-          <hbox flex="1"
-                class="split-menuitem">
-            <menuitem id="appmenu_newTab"
-                      class="split-menuitem-item"
-                      flex="1"
-                      label="&tabCmd.label;"
-                      command="cmd_newNavigatorTab"/>
-              <menu class="split-menuitem-menu">
-                <menupopup>
-                  <menuitem id="appmenu_newTab_popup"
-                            label="&tabCmd.label;"
-                            command="cmd_newNavigatorTab"/>
-                  <menuitem id="appmenu_newNavigator"
-                            label="&newNavigatorCmd.label;"
-                            command="cmd_newNavigator"/>
-                  <menuseparator/>
-                  <menuitem id="appmenu_openFile"
-                            label="&openFileCmd.label;"
-                            command="Browser:OpenFile"/>
-                </menupopup>
-               </menu>
-          </hbox>
-          <menuitem id="appmenu_privateBrowsing"
-                    class="menuitem-iconic"
-                    label="&privateBrowsingCmd.start.label;"
-                    startlabel="&privateBrowsingCmd.start.label;"
-                    stoplabel="&privateBrowsingCmd.stop.label;"
-                    command="Tools:PrivateBrowsing"/>
-          <menuseparator/>
-          <hbox class="split-menuitem">
-            <menuitem id="appmenu-edit-menuitem"
-                      label="&editMenu.label;"
-                      disabled="true"/>
-            <toolbarbutton id="appmenu-cut"
-                           class="appmenu-edit-button"
-                           command="cmd_cut"
-                           onclick="if (!this.disabled) hidePopup();"
-                           tooltiptext="&cutButton.tooltip;"/>
-            <toolbarbutton id="appmenu-copy"
-                           class="appmenu-edit-button"
-                           command="cmd_copy"
-                           onclick="if (!this.disabled) hidePopup();"
-                           tooltiptext="&copyButton.tooltip;"/>
-            <toolbarbutton id="appmenu-paste"
-                           class="appmenu-edit-button"
-                           command="cmd_paste"
-                           onclick="if (!this.disabled) hidePopup();"
-                           tooltiptext="&pasteButton.tooltip;"/>
-          </hbox>
-          <menuitem id="appmenu_find"
-                    label="&appMenuFind.label;"
-                    command="cmd_find"/>
-          <menuseparator/>
-          <menuitem id="appmenu_savePage"
-                    label="&savePageCmd.label;"
-                    command="Browser:SavePage"/>
-          <menuitem id="appmenu_sendLink"
-                    label="&sendPageCmd.label;"
-                    command="Browser:SendLink"/>
-          <hbox flex="1"
-                class="split-menuitem">
-            <menuitem id="appmenu_print"
-                      class="menuitem-iconic split-menuitem-item"
-                      flex="1"
-                      label="&printCmd.label;"
-                      command="cmd_print"/>
-            <menu class="split-menuitem-menu">
-              <menupopup>
-                <menuitem id="appmenu_print_popup"
-                          class="menuitem-iconic"
-                          label="&printCmd.label;"
-                          command="cmd_print"/>
-                <menuitem id="appmenu_printPreview"
-                          label="&printPreviewCmd.label;"
-                          command="cmd_printPreview"/>
-                <menuitem id="appmenu_printSetup"
-                          label="&printSetupCmd.label;"
-                          command="cmd_pageSetup"/>
-              </menupopup>
-            </menu>
-          </hbox>
-          <menuseparator/>
-          <menu id="appmenu_developer"
-                label="&developerMenu.label;">
-            <menupopup id="appmenu_developer_popup">
-              <menuitem id="appmenu_webConsole"
-                        label="&webConsoleCmd.label;"
-                        type="checkbox"
-                        oncommand="HUDConsoleUI.toggleHUD();"/>
-              <menuitem id="appmenu_pageInspect"
-                        label="&inspectMenu.label;"
-                        type="checkbox"
-                        command="Tools:Inspect"/>
-              <menuseparator/>
-              <menuitem id="appmenu_pageSource"
-                        label="&viewPageSourceCmd.label;"
-                        command="View:PageSource"/>
-              <menuseparator/>
-              <menuitem label="&goOfflineCmd.label;"
-                        type="checkbox"
-                        oncommand="BrowserOffline.toggleOfflineStatus();"/>
-            </menupopup>
-          </menu>
-          <menuseparator/>
-          <menuitem id="appmenu_fullScreen"
-                    label="&fullScreenCmd.label;"
-                    type="checkbox"
-                    observes="View:FullScreen"/>
-          <menuitem id="appmenu-quit"
-                    class="menuitem-iconic"
-#ifdef XP_WIN
-                    label="&quitApplicationCmdWin.label;"
-#else
-                    label="&quitApplicationCmd.label;"
-#endif
-                    command="cmd_quitApplication"/>
-        </vbox>
-        <vbox id="appmenuSecondaryPane">
-          <hbox class="split-menuitem">
-            <menuitem id="appmenu_bookmarks"
-                      class="menuitem-iconic split-menuitem-item"
-                      flex="1"
-                      label="&bookmarksMenu.label;"
-                      command="Browser:ShowAllBookmarks"/>
-            <menu id="appmenu_bookmarksMenu"
-                  class="split-menuitem-menu">
-              <menupopup id="appmenu_bookmarksMenupopup"
-                         placespopup="true"
-                         context="placesContext"
-                         openInTabs="children"
-                         oncommand="BookmarksEventHandler.onCommand(event);"
-                         onclick="BookmarksEventHandler.onClick(event);"
-                         onpopupshowing="BookmarksMenuButton.onPopupShowing(event);
-                                         if (!this.parentNode._placesView)
-                                           new PlacesMenu(event, 'place:folder=BOOKMARKS_MENU');
-                                         this.appendChild(document.getElementById('appmenu_unsortedBookmarks_seperator'));
-                                         this.appendChild(document.getElementById('appmenu_unsortedBookmarks'));"
-                         tooltip="bhTooltip"
-                         popupsinherittooltip="true">
-                <menuseparator id="appmenu_unsortedBookmarks_seperator"/>
-                <menuitem id="appmenu_unsortedBookmarks"
-                          label="&appMenuUnsorted.label;"
-                          oncommand="PlacesCommandHook.showPlacesOrganizer('UnfiledBookmarks');"
-                          class="menuitem-iconic"/>
-                <menuitem id="appmenu_organizeBookmarks"
-                          label="&organizeBookmarks.label;"
-                          key="manBookmarkKb"
-                          command="Browser:ShowAllBookmarks"
-                          context=""/>
-                <menuseparator/>
-                <menuitem id="appmenu_bookmarkThisPage"
-                          class="menuitem-iconic"
-                          label="&bookmarkThisPageCmd.label;"
-                          command="Browser:AddBookmarkAs"
-                          key="addBookmarkAsKb"/>
-                <menuitem id="appmenu_subscribeToPage"
-                          class="menuitem-iconic"
-                          label="&subscribeToPageMenuitem.label;"
-                          oncommand="return FeedHandler.subscribeToFeed(null, event);"
-                          onclick="checkForMiddleClick(this, event);"
-                          observes="singleFeedMenuitemState"/>
-                <menu id="appmenu_subscribeToPageMenu"
-                      class="menu-iconic"
-                      label="&subscribeToPageMenupopup.label;"
-                      observes="multipleFeedsMenuState">
-                  <menupopup id="appmenu_subscribeToPageMenupopup"
-                             onpopupshowing="return FeedHandler.buildFeedList(event.target);"
-                             oncommand="return FeedHandler.subscribeToFeed(null, event);"
-                             onclick="checkForMiddleClick(this, event);"/>
-                </menu>
-                <menuseparator/>
-              </menupopup>
-            </menu>
-          </hbox>
-          <hbox class="split-menuitem">
-            <menuitem id="appmenu_history"
-                      class="menuitem-iconic split-menuitem-item"
-                      flex="1"
-                      label="&historyMenu.label;"
-                      command="Browser:ShowAllHistory"/>
-            <menu id="appmenu_historyMenu"
-                  class="split-menuitem-menu">
-              <menupopup id="appmenu_historyMenupopup"
-                         placespopup="true"
-                         oncommand="this.parentNode._placesView._onCommand(event);"
-                         onclick="checkForMiddleClick(this, event);"
-                         onpopupshowing="if (!this.parentNode._placesView)
-                                           new HistoryMenu(event);"
-                         tooltip="bhTooltip"
-                         popupsinherittooltip="true">
-                <menuitem id="appmenu_showAllHistory"
-                          label="&showAllHistoryCmd2.label;"
-                          key="showAllHistoryKb"
-                          command="Browser:ShowAllHistory"/>
-                <menuseparator/>
-                <menuitem id="appmenu_sanitizeHistory"
-                          label="&clearRecentHistory.label;"
-                          key="key_sanitize"
-                          command="Tools:Sanitize"/>
-                <menuseparator class="hide-if-empty-places-result"/>
-                <menu id="appmenu_recentlyClosedTabsMenu"
-                      class="recentlyClosedTabsMenu"
-                      label="&historyUndoMenu.label;"
-                      disabled="true">
-                  <menupopup id="appmenu_recentlyClosedTabsMenupopup"
-                             onpopupshowing="document.getElementById('appmenu_historyMenu')._placesView.populateUndoSubmenu();"/>
-                </menu>
-                <menu id="appmenu_recentlyClosedWindowsMenu"
-                      class="recentlyClosedWindowsMenu"
-                      label="&historyUndoWindowMenu.label;"
-                      disabled="true">
-                  <menupopup id="appmenu_recentlyClosedWindowsMenupopup"
-                             onpopupshowing="document.getElementById('appmenu_historyMenu')._placesView.populateUndoWindowSubmenu();"/>
-                </menu>
-                <menuseparator/>
-              </menupopup>
-            </menu>
-          </hbox>
-            <menuitem id="appmenu_downloads"
-                      label="&downloads.label;"
-                      command="Tools:Downloads"/>
-            <spacer id="appmenuSecondaryPane-spacer"/>
-            <menuitem id="appmenu_addons"
-                      class="menuitem-iconic"
-                      label="&addons.label;"
-                      command="Tools:Addons"/>
-            <hbox class="split-menuitem">
-              <menuitem id="appmenu_customize"
-                        label="&preferencesCmd.label;"
-                        class="split-menuitem-item"
-                        flex="1"
-                        oncommand="openPreferences();"/>
-              <menu class="split-menuitem-menu"
-                    label="&preferencesCmd.label;">
-                <menupopup id="appmenu_customizeMenu"
-                           onpopupshowing="onViewToolbarsPopupShowing(event, document.getElementById('appmenu_toggleStatusbar'));">
-                  <menuitem id="appmenu_preferences"
-#ifdef XP_UNIX
-                            label="&preferencesCmdUnix.label;"
-#else
-                            label="&preferencesCmd.label;"
-#endif
-                            oncommand="openPreferences();"/>
-                  <menuseparator/>
-                  <menuitem id="appmenu_toggleStatusbar"
-                            type="checkbox"
-                            command="cmd_toggleTaskbar"
-                            observes="toggle_taskbar"/>
-                  <menuseparator/>
-                  <menuitem id="appmenu_toggleTabsOnTop"
-                            label="&viewTabsOnTop.label;"
-                            type="checkbox"
-                            command="cmd_ToggleTabsOnTop"/>
-                  <menuitem id="appmenu_toolbarLayout"
-                            label="&appMenuToolbarLayout.label;"
-                            command="cmd_CustomizeToolbars"/>
-                </menupopup>
-              </menu>
-            </hbox>
-            <hbox class="split-menuitem">
-              <menuitem id="appmenu_help"
-                        class="split-menuitem-item"
-                        flex="1"
-                        label="&helpMenu.label;"
-                        oncommand="openHelpLink('firefox-help')"/>
-              <menu class="split-menuitem-menu">
-                <menupopup id="appmenu_helpMenupopup">
-                  <menuitem id="appmenu_openHelp"
-                            label="&helpMenu.label;"
-                            oncommand="openHelpLink('firefox-help')"
-                            onclick="checkForMiddleClick(this, event);"/>
-                  <menuitem id="appmenu_gettingStarted"
-                            label="&appMenuGettingStarted.label;"
-                            oncommand="gBrowser.loadOneTab('http://www.mozilla.com/firefox/central/', {inBackground: false});"
-                            onclick="checkForMiddleClick(this, event);"/>
-                  <menuseparator/>
-                  <menuitem id="appmenu_about"
-                            label="&aboutProduct.label;"
-                            oncommand="openAboutDialog();"/>
-                </menupopup>
-              </menu>
-            </hbox>
-        </vbox>
-      </hbox>
-    </menupopup>
-  </button>
-  </hbox>
-  <spacer id="titlebar-spacer" flex="1"/>
-  <hbox id="titlebar-buttonbox">
-    <toolbarbutton id="titlebar-min" oncommand="window.minimize();"/>
-    <toolbarbutton id="titlebar-max" oncommand="onTitlebarMaxClick();"/>
-    <toolbarbutton id="titlebar-close" oncommand="window.close();"/>
-  </hbox>
-  </hbox>
-  </vbox>
-#endif
-
-<deck flex="1" id="tab-view-deck">
-<vbox flex="1">
-
   <toolbox id="navigator-toolbox"
            defaultmode="icons" mode="icons"
 #ifdef WINCE
            defaulticonsize="small" iconsize="small"
-#endif
-#ifdef XP_WIN
-           tabsontop="true"
-#endif
-#ifdef XP_MACOSX
-           tabsontop="true"
 #endif
            persist="tabsontop">
     <!-- Menu -->
@@ -777,7 +366,7 @@
              defaultset="menubar-items"
              mode="icons" iconsize="small" defaulticonsize="small"
              lockiconsize="true"
-#ifdef MENUBAR_CAN_AUTOHIDE
+#ifdef XP_WIN
              toolbarname="&menubarCmd.label;"
              accesskey="&menubarCmd.accesskey;"
 #endif
@@ -794,16 +383,15 @@
              fullscreentoolbar="true" mode="icons" customizable="true"
 #ifdef WINCE
              iconsize="small" defaulticonsize="small"
-             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,bookmarks-menu-button-container,navigator-throbber,fullscreenflex,window-controls"
+             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,navigator-throbber,fullscreenflex,window-controls"
 #else
              iconsize="large"
-             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,bookmarks-menu-button-container,fullscreenflex,window-controls"
+             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,fullscreenflex,window-controls"
 #endif
              context="toolbar-context-menu">
 
       <toolbaritem id="unified-back-forward-button" class="chromeclass-toolbar-additional"
-                   context="backForwardMenu" removable="true"
-                   title="&backForwardItem.title;">
+                   context="backForwardMenu" removable="true">
         <toolbarbutton id="back-button" class="toolbarbutton-1"
                        label="&backCmd.label;"
                        command="Browser:BackOrBackDuplicate"
@@ -854,7 +442,10 @@
       <toolbaritem id="urlbar-container" align="center" flex="400" persist="width"
                    title="&locationItem.title;" class="chromeclass-location" removable="true">
         <textbox id="urlbar" flex="1"
-                 placeholder="&urlbar.placeholder;"
+                 bookmarkhistoryplaceholder="&urlbar.bookmarkhistory.emptyText;"
+                 bookmarkplaceholder="&urlbar.bookmark.emptyText;"
+                 historyplaceholder="&urlbar.history.emptyText;"
+                 noneplaceholder="&urlbar.none.emptyText;"
                  type="autocomplete"
                  autocompletesearch="history"
                  autocompletesearchparam="enable-actions"
@@ -874,10 +465,6 @@
                  onsearchcomplete="LocationBarHelpers._searchComplete();"
                  onfocus="document.getElementById('identity-box').style.MozUserFocus= 'normal'"
                  onblur="setTimeout(function() document.getElementById('identity-box').style.MozUserFocus = '', 0);">
-          <box id="notification-popup-box" hidden="true" align="center">
-            <image id="geo-notification-icon" class="notification-anchor-icon" role="button"/>
-            <image id="addons-notification-icon" class="notification-anchor-icon" role="button"/>
-          </box>
           <!-- Use onclick instead of normal popup= syntax since the popup
                code fires onmousedown, and hence eats our favicon drag events.
                We only add the identity-box button to the tab order when the location bar
@@ -932,74 +519,6 @@
         <searchbar id="searchbar" flex="1"/>
       </toolbaritem>
 
-      <toolbaritem id="bookmarks-menu-button-container"
-                   class="chromeclass-toolbar-additional"
-                   removable="true"
-                   title="&bookmarksMenuButton.label;">
-        <toolbarbutton id="bookmarks-menu-button"
-                       type="menu"
-                       class="toolbarbutton-1"
-                       label="&bookmarksMenuButton.label;"
-                       tooltiptext="&bookmarksMenuButton.tooltip;"
-                       ondragenter="PlacesMenuDNDHandler.onDragEnter(event);"
-                       ondragover="PlacesMenuDNDHandler.onDragOver(event);"
-                       ondragleave="PlacesMenuDNDHandler.onDragLeave(event);"
-                       ondrop="PlacesMenuDNDHandler.onDrop(event);">
-          <menupopup id="BMB_bookmarksPopup"
-                     placespopup="true"
-                     context="placesContext"
-                     openInTabs="children"
-                     oncommand="BookmarksEventHandler.onCommand(event);"
-                     onclick="BookmarksEventHandler.onClick(event);"
-                     onpopupshowing="BookmarksMenuButton.onPopupShowing(event);
-                                     if (!this.parentNode._placesView)
-                                       new PlacesMenu(event, 'place:folder=BOOKMARKS_MENU');"
-                     tooltip="bhTooltip" popupsinherittooltip="true">
-            <menuitem id="BMB_bookmarkAllTabs"
-                      label="&addCurPagesCmd.label;"
-                      command="Browser:BookmarkAllTabs"
-                      key="bookmarkAllTabsKb"/>
-            <menuitem id="BMB_bookmarksShowAll"
-                      label="&organizeBookmarks.label;"
-                      command="Browser:ShowAllBookmarks"
-                      key="manBookmarkKb"/>
-            <menuseparator/>
-            <menuitem id="BMB_viewBookmarksToolbar"
-                      type="checkbox"
-                      oncommand="onViewToolbarCommand(event)"
-                      label="&viewBookmarksToolbar.label;"/>
-            <menuitem id="BMB_viewBookmarksSidebar"
-                      label="&viewBookmarksSidebar.label;"
-                      type="checkbox"
-                      oncommand="toggleSidebar('viewBookmarksSidebar');"
-                      key="viewBookmarksSidebarKb">
-              <observes element="viewBookmarksSidebar" attribute="checked"/>
-            </menuitem>
-            <menuseparator/>
-            <menu id="BMB_bookmarksToolbarFolderMenu"
-                  class="menu-iconic bookmark-item"
-                  label="&personalbarCmd.label;"
-                  container="true">
-              <menupopup id="BMB_bookmarksToolbarFolderPopup"
-                         placespopup="true"
-                         context="placesContext"
-                         onpopupshowing="if (!this.parentNode._placesView)
-                                           new PlacesMenu(event, 'place:folder=TOOLBAR');"/>
-            </menu>
-            <menu id="BMB_unsortedBookmarksFolderMenu"
-                  class="menu-iconic bookmark-item"
-                  container="true">
-              <menupopup id="BMB_unsortedBookmarksFolderPopup"
-                         placespopup="true"
-                         context="placesContext"
-                         onpopupshowing="if (!this.parentNode._placesView)
-                                           new PlacesMenu(event, 'place:folder=UNFILED_BOOKMARKS');"/>
-            </menu>
-            <menuseparator/>
-          </menupopup>
-        </toolbarbutton>
-      </toolbaritem>
-
       <hbox id="fullscreenflex" flex="1" hidden="true" fullscreencontrol="true"/>
       <hbox id="window-controls" hidden="true" fullscreencontrol="true">
         <toolbarbutton id="minimize-button"
@@ -1025,44 +544,20 @@
              context="toolbar-context-menu"
              defaultset="personal-bookmarks"
              toolbarname="&personalbarCmd.label;" accesskey="&personalbarCmd.accesskey;"
+#ifdef WINCE
              collapsed="true"
+#endif
              customizable="true">
       <toolbaritem flex="1" id="personal-bookmarks" title="&bookmarksItem.title;"
                    removable="true">
-        <hbox flex="1"
-              id="PlacesToolbar"
-              context="placesContext"
-              onclick="BookmarksEventHandler.onClick(event);"
-              oncommand="BookmarksEventHandler.onCommand(event);"
-              tooltip="bhTooltip"
-              popupsinherittooltip="true">
-          <toolbarbutton class="bookmark-item bookmarks-toolbar-customize"
-                         mousethrough="never"
-                         label="&bookmarksToolbarItem.label;"/>
-          <hbox flex="1">
-            <hbox align="center">
-              <image id="PlacesToolbarDropIndicator"
-                     mousethrough="always"
-                     collapsed="true"/>
-            </hbox>
-            <scrollbox orient="horizontal"
-                       id="PlacesToolbarItems"
-                       flex="1"/>
-            <toolbarbutton type="menu"
-                           id="PlacesChevron"
-                           class="chevron"
-                           mousethrough="never"
-                           collapsed="true"
-                           tooltiptext="&bookmarksToolbarChevron.tooltip;"
-                           onpopupshowing="document.getElementById('PlacesToolbar')
-                                                   ._placesView._onChevronPopupShowing(event);">
-              <menupopup id="PlacesChevronPopup"
-                         placespopup="true"
-                         tooltip="bhTooltip" popupsinherittooltip="true"
-                         context="placesContext"/>
-            </toolbarbutton>
-          </hbox>
-        </hbox>
+         <hbox id="bookmarksBarContent" flex="1"
+               type="places"
+               place="place:folder=TOOLBAR"
+               context="placesContext"
+               onclick="BookmarksEventHandler.onClick(event);"
+               oncommand="BookmarksEventHandler.onCommand(event);"
+               onpopupshowing="BookmarksEventHandler.onPopupShowing(event);"
+               tooltip="bhTooltip" popupsinherittooltip="true"/>
       </toolbaritem>
     </toolbar>
 
@@ -1071,25 +566,24 @@
              customizable="true"
              mode="icons" lockmode="true"
              iconsize="small" defaulticonsize="small" lockiconsize="true"
-             aria-label="&tabsToolbar.label;"
              context="toolbar-context-menu"
-             defaultset="tabbrowser-tabs,new-tab-button,alltabs-button,tabview-button,tabs-closebutton"
+             defaultset="tabbrowser-tabs,new-tab-button,alltabs-button,tabs-closebutton"
              collapsed="true">
 
       <tabs id="tabbrowser-tabs"
             class="tabbrowser-tabs"
+            context="tabContextMenu"
             tabbrowser="content"
             flex="1"
             setfocus="false"
             tooltip="tabbrowser-tab-tooltip">
-        <tab class="tabbrowser-tab" selected="true" fadein="true"/>
+        <tab class="tabbrowser-tab" selected="true"/>
       </tabs>
 
       <toolbarbutton id="new-tab-button"
                      class="toolbarbutton-1 chromeclass-toolbar-additional"
                      label="&tabCmd.label;"
                      command="cmd_newNavigatorTab"
-                     onclick="checkForMiddleClick(this, event);"
                      tooltiptext="&newTabButton.tooltip;"
                      ondrop="newTabButtonObserver.onDrop(event)"
                      ondragover="newTabButtonObserver.onDragOver(event)"
@@ -1107,12 +601,6 @@
                    position="after_end"/>
       </toolbarbutton>
 
-      <toolbarbutton id="tabview-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
-                     label="&tabViewButton2.label;"
-                     command="Browser:ToggleTabView"
-                     tooltiptext="&tabViewButton2.tooltip;"
-                     removable="true"/>
-
       <toolbarbutton id="tabs-closebutton"
                      class="close-button tabs-closebutton"
                      command="cmd_close"
@@ -1122,9 +610,6 @@
     </toolbar>
 
     <toolbarpalette id="BrowserToolbarPalette">
-
-# Update primaryToolbarButtons in browser/themes/browserShared.inc when adding
-# or removing default items with the toolbarbutton-1 class.
 
       <toolbarbutton id="print-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
                      label="&printButton.label;" command="cmd_print"
@@ -1179,13 +664,11 @@
                      label="&pasteCmd.label;"
                      command="cmd_paste"
                      tooltiptext="&pasteButton.tooltip;"/>
-
       <toolbarbutton id="fullscreen-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
                      observes="View:FullScreen"
                      type="checkbox"
                      label="&fullScreenCmd.label;"
                      tooltiptext="&fullScreenButton.tooltip;"/>
-
     </toolbarpalette>
   </toolbox>
 
@@ -1211,7 +694,9 @@
     </vbox>
   </hbox>
 
-  <vbox id="browser-bottombox" layer="true">
+  <vbox id="browser-bottombox">
+    <findbar browserid="content" id="FindToolbar"/>
+  
     <statusbar class="chromeclass-status" id="status-bar"
 #ifdef WINCE
                hidden="true"
@@ -1227,24 +712,6 @@
       <statusbarpanel id="security-button" class="statusbarpanel-iconic"
                       hidden="true"
                       onclick="if (event.button == 0 &amp;&amp; event.detail == 1) displaySecurityInfo();"/>
-#ifdef MOZ_SERVICES_SYNC
-      <statusbarpanel id="sync-status-button"
-                      class="statusbarpanel-iconic"
-                      image="chrome://browser/skin/sync-16.png"
-                      label="&syncLogInItem.label;"
-                      oncommand="gSyncUI.handleStatusbarButton();"
-                      onmousedown="event.preventDefault();">
-      </statusbarpanel>
-      <separator class="thin"/>
-      <statusbarpanel id="sync-notifications-button"
-                      class="statusbarpanel-iconic-text"
-                      hidden="true"
-                      popup="sync-notifications-panel">
-      </statusbarpanel>
-      <panel id="sync-notifications-panel" position="before_end">
-          <notificationbox id="sync-notifications-box"/>
-      </panel>
-#endif
       <statusbarpanel id="page-report-button" type="menu"
                       class="statusbarpanel-menu-iconic"
                       hidden="true"
@@ -1270,11 +737,4 @@
     </svg:mask>
   </svg:svg>
 #endif
-
-</vbox>
-# <iframe id="tab-view"> is dynamically appended as the 2nd child of #tab-view-deck.
-#     Introducing the iframe dynamically, as needed, was found to be better than
-#     starting with an empty iframe here in browser.xul from a Ts standpoint.
-</deck>
-
 </window>

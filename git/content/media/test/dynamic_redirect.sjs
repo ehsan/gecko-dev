@@ -2,18 +2,17 @@
 // All subsequent requests return a redirect to a different-origin resource.
 function handleRequest(request, response)
 {
-  var key = (request.queryString.match(/^key=(.*)&/))[1];
-  var resource = (request.queryString.match(/res=(.*)$/))[1];
+  var key = request.queryString.match(/^key=(.*)$/);
 
-  if (getState(key) == "redirect") {
+  if (getState(key[1]) == "redirect") {
     var origin = request.host == "mochi.test" ? "example.org" : "mochi.test:8888";
     response.setStatusLine(request.httpVersion, 303, "See Other");
-    response.setHeader("Location", "http://" + origin + "/tests/content/media/test/" + resource);
+    response.setHeader("Location", "http://" + origin + "/tests/content/media/test/seek.ogv");
     response.setHeader("Content-Type", "text/html");
     return;
   }
 
-  setState(key, "redirect");
+  setState(key[1], "redirect");
 
   var file = Components.classes["@mozilla.org/file/directory_service;1"].
                         getService(Components.interfaces.nsIProperties).
@@ -22,7 +21,7 @@ function handleRequest(request, response)
                         createInstance(Components.interfaces.nsIFileInputStream);
   var bis  = Components.classes["@mozilla.org/binaryinputstream;1"].
                         createInstance(Components.interfaces.nsIBinaryInputStream);
-  var paths = "tests/content/media/test/" + resource;
+  var paths = "tests/content/media/test/seek.ogv";
   var split = paths.split("/");
   for(var i = 0; i < split.length; ++i) {
     file.append(split[i]);

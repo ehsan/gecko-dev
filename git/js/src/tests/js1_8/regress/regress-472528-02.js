@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-472528-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 472528;
 var summary = 'Do not assert: !fp->blockChain';

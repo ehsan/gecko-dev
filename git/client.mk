@@ -84,11 +84,9 @@ endif
 
 ifndef TOPSRCDIR
 ifeq (,$(wildcard client.mk))
-TOPSRCDIR := $(patsubst %/,%,$(dir $(MAKEFILE_LIST)))
-MOZ_OBJDIR = .
-else
-TOPSRCDIR := $(CWD)
+$(error Must run from the client.mk directory, or specify TOPSRCDIR)
 endif
+TOPSRCDIR = $(CWD)
 endif
 
 # try to find autoconf 2.13 - discard errors from 'which'
@@ -142,12 +140,11 @@ run_for_side_effects := \
 
 include $(TOPSRCDIR)/.mozconfig.mk
 
-ifndef MOZ_OBJDIR
-  MOZ_OBJDIR = obj-$(CONFIG_GUESS)
-endif
-
 ifdef MOZ_BUILD_PROJECTS
 
+ifndef MOZ_OBJDIR
+  $(error When MOZ_BUILD_PROJECTS is set, you must set MOZ_OBJDIR)
+endif
 ifdef MOZ_CURRENT_PROJECT
   OBJDIR = $(MOZ_OBJDIR)/$(MOZ_CURRENT_PROJECT)
   MOZ_MAKE = $(MAKE) $(MOZ_MAKE_FLAGS) -C $(OBJDIR)
@@ -159,8 +156,13 @@ endif
 
 else # MOZ_BUILD_PROJECTS
 
-OBJDIR = $(MOZ_OBJDIR)
-MOZ_MAKE = $(MAKE) $(MOZ_MAKE_FLAGS) -C $(OBJDIR)
+ifdef MOZ_OBJDIR
+  OBJDIR = $(MOZ_OBJDIR)
+  MOZ_MAKE = $(MAKE) $(MOZ_MAKE_FLAGS) -C $(OBJDIR)
+else
+  OBJDIR := $(TOPSRCDIR)
+  MOZ_MAKE := $(MAKE) $(MOZ_MAKE_FLAGS)
+endif
 
 endif # MOZ_BUILD_PROJECTS
 

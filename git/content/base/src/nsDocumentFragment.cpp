@@ -59,7 +59,7 @@ class nsDocumentFragment : public nsGenericElement,
                            public nsIDOMDocumentFragment
 {
 public:
-  nsDocumentFragment(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsDocumentFragment(nsINodeInfo *aNodeInfo);
   virtual ~nsDocumentFragment();
 
   // nsISupports
@@ -154,11 +154,6 @@ public:
 
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
-
-  virtual nsIAtom* DoGetID() const;
-  virtual nsIAtom *GetIDAttributeName() const;
-
 protected:
   nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 };
@@ -174,7 +169,7 @@ NS_NewDocumentFragment(nsIDOMDocumentFragment** aInstancePtrResult,
                                            nsnull, kNameSpaceID_None);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  nsDocumentFragment *it = new nsDocumentFragment(nodeInfo.forget());
+  nsDocumentFragment *it = new nsDocumentFragment(nodeInfo);
   if (!it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -184,7 +179,7 @@ NS_NewDocumentFragment(nsIDOMDocumentFragment** aInstancePtrResult,
   return NS_OK;
 }
 
-nsDocumentFragment::nsDocumentFragment(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsDocumentFragment::nsDocumentFragment(nsINodeInfo *aNodeInfo)
   : nsGenericElement(aNodeInfo)
 {
   UnsetFlags(NODE_IS_ELEMENT);
@@ -200,19 +195,7 @@ nsDocumentFragment::IsNodeOfType(PRUint32 aFlags) const
   return !(aFlags & ~(eCONTENT | eDOCUMENT_FRAGMENT));
 }
 
-nsIAtom*
-nsDocumentFragment::DoGetID() const
-{
-  return nsnull;  
-}
-
-nsIAtom*
-nsDocumentFragment::GetIDAttributeName() const
-{
-  return nsnull;
-}
-
-DOMCI_NODE_DATA(DocumentFragment, nsDocumentFragment)
+DOMCI_DATA(DocumentFragment, nsDocumentFragment)
 
 // QueryInterface implementation for nsDocumentFragment
 NS_INTERFACE_TABLE_HEAD(nsDocumentFragment)

@@ -41,5 +41,6 @@
 
 int      QtKeyCodeToDOMKeyCode     (int aKeysym);
 int      DOMKeyCodeToQtKeyCode     (int aKeysym);
+PRUint32 nsConvertCharCodeToUnicode (QKeyEvent* aEvent);
 
 #endif /* __nsQtKeyUtils_h__ */

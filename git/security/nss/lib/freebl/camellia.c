@@ -36,7 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 /*
- * $Id: camellia.c,v 1.3 2010/04/30 00:10:53 wtc%google.com Exp $
+ * $Id: camellia.c,v 1.2 2008/11/18 19:48:22 rrelyea%redhat.com Exp $
  */
 
 #ifdef FREEBL_NO_DEPEND
@@ -72,15 +72,13 @@
  */
 
 
-#if defined(_MSC_VER) && defined(NSS_X86_OR_X64)
-
-/* require a little-endian CPU that allows unaligned access */
+#if defined(_MSC_VER)
 
 # define SWAP(x) (_lrotl(x, 8) & 0x00ff00ff | _lrotr(x, 8) & 0xff00ff00)
 # define GETU32(p) SWAP(*((PRUint32 *)(p)))
 # define PUTU32(ct, st) {*((PRUint32 *)(ct)) = SWAP((st));}
 
-#else /* not MSVC or not x86/x64 */
+#else /* not MS-VC */
 
 # define GETU32(pt)					\
     (((PRUint32)(pt)[0] << 24)				\

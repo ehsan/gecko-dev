@@ -54,11 +54,9 @@ _TEST_FILES = \
 	  smilAnimateMotionValueLists.js \
 	  smilTestUtils.js \
 	  smilXHR_helper.svg \
-	  test_smilAccessKey.xhtml \
 	  test_smilAnimateMotion.xhtml \
 	  test_smilAnimateMotionInvalidValues.xhtml \
 	  test_smilAnimateMotionOverrideRules.xhtml \
-	  test_smilBackwardsSeeking.xhtml \
 	  test_smilChangeAfterFrozen.xhtml \
 	  test_smilContainerBinding.xhtml \
 	  test_smilCrossContainer.xhtml \
@@ -78,13 +76,11 @@ _TEST_FILES = \
 	  test_smilGetSimpleDuration.xhtml \
 	  test_smilKeySplines.xhtml \
 	  test_smilKeyTimesPacedMode.xhtml \
-	  test_smilRepeatTiming.xhtml \
 	  test_smilSetCurrentTime.xhtml \
 	  test_smilSync.xhtml \
 	  test_smilSyncbaseTarget.xhtml \
 	  test_smilSyncTransform.xhtml \
 	  test_smilTextZoom.xhtml \
-	  test_smilTimeEvents.xhtml \
 	  test_smilTiming.xhtml \
 	  test_smilTimingZeroIntervals.xhtml \
 	  test_smilUpdatedInterval.xhtml \

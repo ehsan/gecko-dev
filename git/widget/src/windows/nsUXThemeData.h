@@ -48,8 +48,6 @@
 #include <dwmapi.h>
 #endif
 
-#include "nsWindowDefs.h"
-
 // These window messages are not defined in dwmapi.h
 #ifndef WM_DWMCOMPOSITIONCHANGED
 #define WM_DWMCOMPOSITIONCHANGED        0x031E
@@ -87,13 +85,9 @@ enum nsUXThemeClass {
   eUXHeader,
   eUXListview,
   eUXMenu,
-  eUXWindowFrame,
   eUXNumClasses
 };
 
-#define CMDBUTTONIDX_MINIMIZE 0
-#define CMDBUTTONIDX_RESTORE  1
-#define CMDBUTTONIDX_CLOSE    2
 
 class nsUXThemeData {
   static HMODULE sThemeDLL;
@@ -113,21 +107,10 @@ public:
   static PRPackedBool sIsXPOrLater;
   static PRPackedBool sIsVistaOrLater;
   static PRPackedBool sHaveCompositor;
-  static PRBool sTitlebarInfoPopulated;
-  static SIZE sCommandButtons[3];
-
   static void Initialize();
   static void Teardown();
   static void Invalidate();
   static HANDLE GetTheme(nsUXThemeClass cls);
-  static HMODULE GetThemeDLL();
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  static HMODULE GetDwmDLL();
-#endif
-
-  // nsWindow calls this to update desktop settings info
-  static void InitTitlebarInfo();
-  static void UpdateTitlebarInfo(HWND aWnd);
 
   static inline BOOL IsAppThemed() {
     return isAppThemed && isAppThemed();
@@ -170,7 +153,6 @@ public:
                                                   LPWSTR pszColorBuff, int cchMaxColorChars,
                                                   LPWSTR pszSizeBuff, int cchMaxSizeChars);
   typedef COLORREF (WINAPI*GetThemeSysColorPtr)(HANDLE hTheme, int iColorID);
-  typedef BOOL (WINAPI*IsThemeBackgroundPartiallyTransparentPtr)(HANDLE hTheme, int iPartId, int iStateId);
 
   static OpenThemeDataPtr openTheme;
   static CloseThemeDataPtr closeTheme;
@@ -185,7 +167,6 @@ public:
   static IsAppThemedPtr isAppThemed;
   static GetCurrentThemeNamePtr getCurrentThemeName;
   static GetThemeSysColorPtr getThemeSysColor;
-  static IsThemeBackgroundPartiallyTransparentPtr isThemeBackgroundPartiallyTransparent;
 
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
   // dwmapi.dll function typedefs and declarations
@@ -193,28 +174,22 @@ public:
   typedef HRESULT (WINAPI*DwmIsCompositionEnabledProc)(BOOL *pfEnabled);
   typedef HRESULT (WINAPI*DwmSetIconicThumbnailProc)(HWND hWnd, HBITMAP hBitmap, DWORD dwSITFlags);
   typedef HRESULT (WINAPI*DwmSetIconicLivePreviewBitmapProc)(HWND hWnd, HBITMAP hBitmap, POINT *pptClient, DWORD dwSITFlags);
-  typedef HRESULT (WINAPI*DwmGetWindowAttributeProc)(HWND hWnd, DWORD dwAttribute, LPCVOID pvAttribute, DWORD cbAttribute);
   typedef HRESULT (WINAPI*DwmSetWindowAttributeProc)(HWND hWnd, DWORD dwAttribute, LPCVOID pvAttribute, DWORD cbAttribute);
   typedef HRESULT (WINAPI*DwmInvalidateIconicBitmapsProc)(HWND hWnd);
-  typedef HRESULT (WINAPI*DwmDefWindowProcProc)(HWND hWnd, UINT msg, LPARAM lParam, WPARAM wParam, LRESULT *aRetValue);
 
   static DwmExtendFrameIntoClientAreaProc dwmExtendFrameIntoClientAreaPtr;
   static DwmIsCompositionEnabledProc dwmIsCompositionEnabledPtr;
   static DwmSetIconicThumbnailProc dwmSetIconicThumbnailPtr;
   static DwmSetIconicLivePreviewBitmapProc dwmSetIconicLivePreviewBitmapPtr;
-  static DwmGetWindowAttributeProc dwmGetWindowAttributePtr;
   static DwmSetWindowAttributeProc dwmSetWindowAttributePtr;
   static DwmInvalidateIconicBitmapsProc dwmInvalidateIconicBitmapsPtr;
-  static DwmDefWindowProcProc dwmDwmDefWindowProcPtr;
-#endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 
   static PRBool CheckForCompositor() {
     BOOL compositionIsEnabled = FALSE;
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
     if(dwmIsCompositionEnabledPtr)
       dwmIsCompositionEnabledPtr(&compositionIsEnabled);
-#endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
     return sHaveCompositor = (compositionIsEnabled != 0);
   }
+#endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 };
 #endif // __UXThemeData_h__

@@ -390,12 +390,10 @@ protected:
                              const nsFrameList& aOverflowFrames);
 
   /**
-   * Destroy the overflow list and any frames that are on it.
-   * Calls DestructFrom() insead of Destruct() on the frames if
-   * aDestructRoot is non-null.
+   * Destroy the overflow list and any frames that are on  it.
    */
   void DestroyOverflowList(nsPresContext* aPresContext,
-                           nsIFrame*      aDestructRoot);
+                           nsIFrame*      aDestructRoot = nsnull);
 
   /**
    * Moves any frames on both the prev-in-flow's overflow list and the
@@ -595,9 +593,9 @@ private:
      to increment this walker to the next overflow container. */
   nsIFrame* mSentry;
   /* Parent of all frames in mOverflowContList. If our mOverflowContList
-     is an excessOverflowContainersProperty, or null, then this is our frame
-     (the frame that was passed in to our constructor). Otherwise this is
-     that frame's next-in-flow, and our mOverflowContList is mParent's
+     is an excessOverflowContainersProperty, then this our frame (the frame
+     that was passed in to our constructor). Otherwise this is that frame's
+     next-in-flow, and our mOverflowContList is mParent's
      overflowContainersProperty */
   nsContainerFrame* mParent;
   /* Tells SetUpListWalker whether or not to walk us past any continuations

@@ -75,15 +75,11 @@ treechildren::-moz-tree-row {
   height: 1.3em;
 }
 
-treechildren:not(.autocomplete-treebody)::-moz-tree-row(multicol, odd) {
-  background-color: -moz-oddtreerow;
-}
-
-treechildren:not(.autocomplete-treebody)::-moz-tree-row(selected) {
+treechildren::-moz-tree-row(selected) {
   background-color: -moz-cellhighlight;
 }
 
-treechildren:not(.autocomplete-treebody)::-moz-tree-row(selected, focus) {
+treechildren::-moz-tree-row(selected, focus) {
   background-color: Highlight;
 }
 

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-455748.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 455748;
 var summary = 'Do not assert with JIT: Should not move data from GPR to XMM';

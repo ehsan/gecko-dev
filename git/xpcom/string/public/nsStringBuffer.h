@@ -165,10 +165,8 @@ class nsStringBuffer
        *       however, string length is always measured in storage units
        *       (2-byte units for wide strings).
        */
-      NS_COM void ToString(PRUint32 len, nsAString &str,
-                           PRBool aMoveOwnership = PR_FALSE);
-      NS_COM void ToString(PRUint32 len, nsACString &str,
-                           PRBool aMoveOwnership = PR_FALSE);
+      NS_COM void ToString(PRUint32 len, nsAString &str);
+      NS_COM void ToString(PRUint32 len, nsACString &str);
   };
 
 #endif /* !defined(nsStringBuffer_h__ */

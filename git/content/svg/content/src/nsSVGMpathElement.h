@@ -56,8 +56,8 @@ class nsSVGMpathElement : public nsSVGMpathElementBase,
 {
 protected:
   friend nsresult NS_NewSVGMpathElement(nsIContent **aResult,
-                                        already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGMpathElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                        nsINodeInfo *aNodeInfo);
+  nsSVGMpathElement(nsINodeInfo* aNodeInfo);
   ~nsSVGMpathElement();
 
 
@@ -97,7 +97,6 @@ public:
   // this returns nsnull.
   nsSVGPathElement* GetReferencedPath();
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   class PathReference : public nsReferencedElement {
   public:
@@ -107,8 +106,8 @@ protected:
     // We need to be notified when target changes, in order to request a sample
     // (which will clear animation effects that used the old target-path
     // and recompute the animation effects using the new target-path).
-    virtual void ElementChanged(Element* aFrom, Element* aTo) {
-      nsReferencedElement::ElementChanged(aFrom, aTo);
+    virtual void ContentChanged(nsIContent* aFrom, nsIContent* aTo) {
+      nsReferencedElement::ContentChanged(aFrom, aTo);
       if (aFrom) {
         aFrom->RemoveMutationObserver(mMpathElement);
       }

@@ -47,7 +47,6 @@
 #include "nsDebug.h"
 #include "gfxContext.h"
 #include "nsSVGUtils.h"
-#include "gfxPlatform.h"
 
 class nsSVGElement;
 class nsIContent;
@@ -64,7 +63,7 @@ public:
   public:
     PathGenerator(nsSVGElement* aSVGElement)
       : mSVGElement(aSVGElement),
-        mGfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface()),
+        mGfxContext(nsSVGUtils::GetThebesComputationalSurface()),
         mHaveReceivedCommands(PR_FALSE)
     {}
 
@@ -89,6 +88,9 @@ public:
     // Helper methods
     PRBool ParseCoordinatePair(const nsAString& aStr,
                                float& aXVal, float& aYVal);
+
+    PRBool AppendCommand(const nsACString& aCommandStr,
+                         const nsAString&  aCoordPairStr);
 
     // Member data
     nsSVGElement* mSVGElement; // context for converting out of relative units

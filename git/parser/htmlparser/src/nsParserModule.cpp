@@ -40,7 +40,8 @@
 #include "nsString.h"
 #include "nspr.h"
 #include "nsCOMPtr.h"
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
+#include "nsIModule.h"
 #include "nsParserCIID.h"
 #include "nsParser.h"
 #include "CNavDTD.h"
@@ -80,46 +81,43 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(CViewSourceHTML)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSAXAttributes)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSAXXMLReader)
 
-#if defined(NS_DEBUG)
-NS_DEFINE_NAMED_CID(NS_LOGGING_SINK_CID);
-NS_DEFINE_NAMED_CID(NS_EXPAT_DRIVER_CID);
-#endif
-NS_DEFINE_NAMED_CID(NS_PARSER_CID);
-NS_DEFINE_NAMED_CID(NS_CNAVDTD_CID);
-#ifdef MOZ_VIEW_SOURCE
-NS_DEFINE_NAMED_CID(NS_VIEWSOURCE_DTD_CID);
-#endif
-NS_DEFINE_NAMED_CID(NS_PARSERSERVICE_CID);
-NS_DEFINE_NAMED_CID(NS_SAXATTRIBUTES_CID);
-NS_DEFINE_NAMED_CID(NS_SAXXMLREADER_CID);
+static const nsModuleComponentInfo gComponents[] = {
 
-static const mozilla::Module::CIDEntry kParserCIDs[] = {
 #if defined(NS_DEBUG)
-  { &kNS_LOGGING_SINK_CID, false, NULL, nsLoggingSinkConstructor },
-  { &kNS_EXPAT_DRIVER_CID, false, NULL, nsExpatDriverConstructor },
+  { "Logging sink", NS_LOGGING_SINK_CID, NULL, nsLoggingSinkConstructor },
+  { "Expat Driver", NS_EXPAT_DRIVER_CID, NULL, nsExpatDriverConstructor },
 #endif
-  { &kNS_PARSER_CID, false, NULL, nsParserConstructor },
-  { &kNS_CNAVDTD_CID, false, NULL, CNavDTDConstructor },
-#ifdef MOZ_VIEW_SOURCE
-  { &kNS_VIEWSOURCE_DTD_CID, false, NULL, CViewSourceHTMLConstructor },
-#endif
-  { &kNS_PARSERSERVICE_CID, false, NULL, nsParserServiceConstructor },
-  { &kNS_SAXATTRIBUTES_CID, false, NULL, nsSAXAttributesConstructor },
-  { &kNS_SAXXMLREADER_CID, false, NULL, nsSAXXMLReaderConstructor },
-  { NULL }
-};
 
-static const mozilla::Module::ContractIDEntry kParserContracts[] = {
-  { NS_PARSERSERVICE_CONTRACTID, &kNS_PARSERSERVICE_CID },
-  { NS_SAXATTRIBUTES_CONTRACTID, &kNS_SAXATTRIBUTES_CID },
-  { NS_SAXXMLREADER_CONTRACTID, &kNS_SAXXMLREADER_CID },
-  { NULL }
+  { "Parser", NS_PARSER_CID, NULL, nsParserConstructor },
+  { "Navigator HTML DTD", NS_CNAVDTD_CID, NULL, CNavDTDConstructor },
+#ifdef MOZ_VIEW_SOURCE
+  { "ViewSource DTD", NS_VIEWSOURCE_DTD_CID, NULL, CViewSourceHTMLConstructor },
+#endif
+  { "ParserService",
+    NS_PARSERSERVICE_CID,
+    NS_PARSERSERVICE_CONTRACTID,
+    nsParserServiceConstructor
+  },
+
+  {
+    NS_SAXATTRIBUTES_CLASSNAME,
+    NS_SAXATTRIBUTES_CID,
+    NS_SAXATTRIBUTES_CONTRACTID,
+    nsSAXAttributesConstructor
+  },
+  
+  {
+    NS_SAXXMLREADER_CLASSNAME,
+    NS_SAXXMLREADER_CID,
+    NS_SAXXMLREADER_CONTRACTID,
+    nsSAXXMLReaderConstructor
+  }
 };
 
 static PRBool gInitialized = PR_FALSE;
 
 static nsresult
-Initialize()
+Initialize(nsIModule* aSelf)
 {
   if (!gInitialized) {
     nsresult rv = nsHTMLTags::AddRefTable();
@@ -145,7 +143,7 @@ Initialize()
 }
 
 static void
-Shutdown()
+Shutdown(nsIModule* aSelf)
 {
   if (gInitialized) {
     nsHTMLTags::ReleaseTable();
@@ -157,14 +155,4 @@ Shutdown()
   }
 }
 
-static mozilla::Module kParserModule = {
-  mozilla::Module::kVersion,
-  kParserCIDs,
-  kParserContracts,
-  NULL,
-  NULL,
-  Initialize,
-  Shutdown
-};
-
-NSMODULE_DEFN(nsParserModule) = &kParserModule;
+NS_IMPL_NSGETMODULE_WITH_CTOR_DTOR(nsParserModule, gComponents, Initialize, Shutdown)

@@ -25,7 +25,6 @@
 #   Daniel Brooks <db48x@yahoo.com>
 #   Florian QUEZE <f.qu@queze.net>
 #   Erik Fabert <jerfa@yahoo.com>
-#   Tanner M. Young <mozilla@alyoung.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -169,22 +168,13 @@ const COPYCOL_IMAGE = COL_IMAGE_ADDRESS;
 var gMetaView = new pageInfoTreeView(COPYCOL_META_CONTENT);
 var gImageView = new pageInfoTreeView(COPYCOL_IMAGE);
 
-
-var atomSvc = Components.classes["@mozilla.org/atom-service;1"]
-                        .getService(Components.interfaces.nsIAtomService);
-gImageView._ltrAtom = atomSvc.getAtom("ltr");
-gImageView._brokenAtom = atomSvc.getAtom("broken");
-
 gImageView.getCellProperties = function(row, col, props) {
-  var data = gImageView.data[row];
-  var item = gImageView.data[row][COL_IMAGE_NODE];
-  if (!checkProtocol(data) ||
-      item instanceof HTMLEmbedElement ||
-      (item instanceof HTMLObjectElement && !/^image\//.test(item.type)))
-    props.AppendElement(this._brokenAtom);
+  var aserv = Components.classes[ATOM_CONTRACTID]
+                        .getService(Components.interfaces.nsIAtomService);
 
-  if (col.element.id == "image-address")
-    props.AppendElement(this._ltrAtom);
+  if (gImageView.data[row][COL_IMAGE_SIZE] == gStrings.unknown &&
+      !/^https:/.test(gImageView.data[row][COL_IMAGE_ADDRESS]))
+    props.AppendElement(aserv.getAtom("broken"));
 };
 
 var gImageHash = { };
@@ -544,7 +534,7 @@ function processFrames()
     onProcessFrame.forEach(function(func) { func(doc); });
     var iterator = doc.createTreeWalker(doc, NodeFilter.SHOW_ELEMENT, grabAll, true);
     gFrameList.shift();
-    setTimeout(doGrab, 10, iterator);
+    setTimeout(doGrab, 16, iterator);
     onFinished.push(selectImage);
   }
   else
@@ -553,13 +543,13 @@ function processFrames()
 
 function doGrab(iterator)
 {
-  for (var i = 0; i < 500; ++i)
+  for (var i = 0; i < 50; ++i)
     if (!iterator.nextNode()) {
       processFrames();
       return;
     }
 
-  setTimeout(doGrab, 10, iterator);
+  setTimeout(doGrab, 16, iterator);
 }
 
 function addImage(url, type, alt, elem, isBg)
@@ -932,7 +922,10 @@ function makePreview(row)
   var imageContainer = document.getElementById("theimagecontainer");
   var oldImage = document.getElementById("thepreviewimage");
 
-  var isProtocolAllowed = checkProtocol(gImageView.data[row]);
+  const regex = /^(https?|ftp|file|gopher|about|chrome|resource):/;
+  var isProtocolAllowed = regex.test(url);
+  if (/^data:/.test(url) && /^image\//.test(mimeType))
+    isProtocolAllowed = true;
 
   var newImage = new Image;
   newImage.id = "thepreviewimage";
@@ -982,8 +975,12 @@ function makePreview(row)
     newImage.id = "thepreviewimage";
     newImage.mozLoadFrom(item);
     newImage.controls = true;
-    width = physWidth = item.videoWidth;
-    height = physHeight = item.videoHeight;
+    physWidth = item.videoWidth;
+    physHeight = item.videoHeight;
+    width = item.width != -1 ? item.width : physWidth;
+    height = item.height != -1 ? item.height : physHeight;
+    newImage.width = width;
+    newImage.height = height;
 
     document.getElementById("theimagecontainer").collapsed = false;
     document.getElementById("brokenimagecontainer").collapsed = true;
@@ -1216,8 +1213,7 @@ function doSelectAll()
     elem.view.selection.selectAll();
 }
 
-function selectImage()
-{
+function selectImage() {
   if (!gImageElement)
     return;
 
@@ -1231,13 +1227,4 @@ function selectImage()
       return;
     }
   }
-}
-
-function checkProtocol(img)
-{
-  var url = img[COL_IMAGE_ADDRESS];
-  if (/^data:/.test(url) && /^image\//.test(img[COL_IMAGE_NODE].type))
-    return true;
-  const regex = /^(https?|ftp|file|about|chrome|resource):/;
-  return regex.test(url);
 }

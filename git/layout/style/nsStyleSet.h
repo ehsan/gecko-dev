@@ -66,9 +66,9 @@ struct RuleProcessorData;
 class nsEmptyStyleRule : public nsIStyleRule
 {
   NS_DECL_ISUPPORTS
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+  NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+  NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 };
 
@@ -174,13 +174,9 @@ class nsStyleSet
   // Get a new style context that lives in a different parent
   // The new context will be the same as the old if the new parent is the
   // same as the old parent.
-  // aElement should be non-null if this is a style context for an
-  // element or pseudo-element; in the latter case it should be the
-  // real element the pseudo-element is for.
   already_AddRefed<nsStyleContext>
   ReparentStyleContext(nsStyleContext* aStyleContext,
-                       nsStyleContext* aNewParentContext,
-                       mozilla::dom::Element* aElement);
+                       nsStyleContext* aNewParentContext);
 
   // Test if style is dependent on a document state.
   PRBool HasDocumentStateDependentStyle(nsPresContext* aPresContext,
@@ -189,12 +185,12 @@ class nsStyleSet
 
   // Test if style is dependent on content state
   nsRestyleHint HasStateDependentStyle(nsPresContext* aPresContext,
-                                       mozilla::dom::Element* aElement,
-                                       PRInt32 aStateMask);
+                                       nsIContent*     aContent,
+                                       PRInt32         aStateMask);
 
   // Test if style is dependent on the presence of an attribute.
   nsRestyleHint HasAttributeDependentStyle(nsPresContext* aPresContext,
-                                           mozilla::dom::Element* aElement,
+                                           nsIContent*    aContent,
                                            nsIAtom*       aAttribute,
                                            PRInt32        aModType,
                                            PRBool         aAttrHasChanged);
@@ -393,7 +389,6 @@ class nsStyleSet
 
 };
 
-#ifdef _IMPL_NS_LAYOUT
 inline
 void nsRuleNode::AddRef()
 {
@@ -409,6 +404,4 @@ void nsRuleNode::Release()
     mPresContext->StyleSet()->RuleNodeUnused();
   }
 }
-#endif
-
 #endif

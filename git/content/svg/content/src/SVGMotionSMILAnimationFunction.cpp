@@ -253,9 +253,9 @@ SVGMotionSMILAnimationFunction::
   // Use the path that's the target of our chosen <mpath> child.
   nsSVGPathElement* pathElem = aMpathElem->GetReferencedPath();
   if (pathElem) {
-    const nsAttrValue* value = pathElem->GetParsedAttr(nsGkAtoms::d);
-    if (value) {
-      const nsAString& pathSpec = value->GetStringValue();
+    if (pathElem->HasAttr(kNameSpaceID_None, nsGkAtoms::d)) {
+      const nsAString& pathSpec =
+        pathElem->GetParsedAttr(nsGkAtoms::d)->GetStringValue();
       nsresult rv = SetPathVerticesFromPathString(pathSpec);
       if (NS_SUCCEEDED(rv)) {
         mPath = pathElem->GetFlattenedPath(
@@ -346,7 +346,7 @@ SVGMotionSMILAnimationFunction::
   // Do we have a mpath child? if so, it trumps everything. Otherwise, we look
   // through our list of path-defining attributes, in order of priority.
   nsSVGMpathElement* firstMpathChild =
-    GetFirstMpathChild(&mAnimationElement->AsElement());
+    GetFirstMpathChild(&mAnimationElement->Content());
 
   if (firstMpathChild) {
     RebuildPathAndVerticesFromMpathElem(firstMpathChild);

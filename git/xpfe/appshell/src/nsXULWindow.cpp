@@ -92,11 +92,8 @@
 #include "nsReadableUtils.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
-#include "nsIContentUtils.h"
 
 #include "nsWebShellWindow.h" // get rid of this one, too...
-
-#include "prenv.h"
 
 #define SIZEMODE_NORMAL     NS_LITERAL_STRING("normal")
 #define SIZEMODE_MAXIMIZED  NS_LITERAL_STRING("maximized")
@@ -148,13 +145,11 @@ nsXULWindow::nsXULWindow(PRUint32 aChromeFlags)
     mLockedUntilChromeLoad(PR_FALSE),
     mIgnoreXULSize(PR_FALSE),
     mIgnoreXULPosition(PR_FALSE),
-    mChromeFlagsFrozen(PR_FALSE),
     mContextFlags(0),
     mBlurSuppressionLevel(0),
     mPersistentAttributesDirty(0),
     mPersistentAttributesMask(0),
     mChromeFlags(aChromeFlags),
-    mIgnoreXULSizeMode(PR_FALSE),
     // best guess till we have a widget
     mAppPerDev(nsPresContext::AppUnitsPerCSSPixel())
 {
@@ -334,18 +329,9 @@ NS_IMETHODIMP nsXULWindow::GetChromeFlags(PRUint32 *aChromeFlags)
 
 NS_IMETHODIMP nsXULWindow::SetChromeFlags(PRUint32 aChromeFlags)
 {
-  NS_ASSERTION(!mChromeFlagsFrozen,
-               "SetChromeFlags() after AssumeChromeFlagsAreFrozen()!");
-
   mChromeFlags = aChromeFlags;
   if (mChromeLoaded)
     NS_ENSURE_SUCCESS(ApplyChromeFlags(), NS_ERROR_FAILURE);
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsXULWindow::AssumeChromeFlagsAreFrozen()
-{
-  mChromeFlagsFrozen = PR_TRUE;
   return NS_OK;
 }
 
@@ -552,7 +538,6 @@ NS_IMETHODIMP nsXULWindow::Destroy()
   }
   if (mWindow) {
     mWindow->SetClientData(0); // nsWebShellWindow hackery
-    mWindow->Destroy();
     mWindow = nsnull;
   }
 
@@ -1005,6 +990,16 @@ void nsXULWindow::OnChromeLoaded()
     mChromeLoaded = PR_TRUE;
     ApplyChromeFlags();
     SyncAttributesToWidget();
+    if (!mIgnoreXULSize)
+      LoadSizeFromXUL();
+    if (mIntrinsicallySized) {
+      // (if LoadSizeFromXUL set the size, mIntrinsicallySized will be false)
+      nsCOMPtr<nsIContentViewer> cv;
+      mDocShell->GetContentViewer(getter_AddRefs(cv));
+      nsCOMPtr<nsIMarkupDocumentViewer> markupViewer(do_QueryInterface(cv));
+      if (markupViewer)
+        markupViewer->SizeToContent();
+    }
 
     PRBool positionSet = !mIgnoreXULPosition;
     nsCOMPtr<nsIXULWindow> parentWindow(do_QueryReferent(mParentWindow));
@@ -1017,19 +1012,6 @@ void nsXULWindow::OnChromeLoaded()
 #endif
     if (positionSet)
       positionSet = LoadPositionFromXUL();
-
-    if (!mIgnoreXULSize)
-      LoadSizeFromXUL();
-
-    if (mIntrinsicallySized) {
-      // (if LoadSizeFromXUL set the size, mIntrinsicallySized will be false)
-      nsCOMPtr<nsIContentViewer> cv;
-      mDocShell->GetContentViewer(getter_AddRefs(cv));
-      nsCOMPtr<nsIMarkupDocumentViewer> markupViewer(do_QueryInterface(cv));
-      if (markupViewer)
-        markupViewer->SizeToContent();
-    }
-
     LoadMiscPersistentAttributesFromXUL();
 
     if (mCenterAfterLoad && !positionSet)
@@ -1182,7 +1164,7 @@ PRBool nsXULWindow::LoadSizeFromXUL()
 
     mIntrinsicallySized = PR_FALSE;
     if (specWidth != currWidth || specHeight != currHeight)
-      SetSize(specWidth, specHeight, PR_TRUE);
+      SetSize(specWidth, specHeight, PR_FALSE);
   }
 
   return gotSize;
@@ -1220,8 +1202,7 @@ PRBool nsXULWindow::LoadMiscPersistentAttributesFromXUL()
     if (stateString.Equals(SIZEMODE_MINIMIZED))
       sizeMode = nsSizeMode_Minimized;
     */
-    if (!mIgnoreXULSizeMode &&
-        (stateString.Equals(SIZEMODE_MAXIMIZED) || stateString.Equals(SIZEMODE_FULLSCREEN))) {
+    if (stateString.Equals(SIZEMODE_MAXIMIZED) || stateString.Equals(SIZEMODE_FULLSCREEN)) {
       /* Honor request to maximize only if the window is sizable.
          An unsizable, unmaximizable, yet maximized window confuses
          Windows OS and is something of a travesty, anyway. */
@@ -1393,24 +1374,9 @@ void nsXULWindow::SyncAttributesToWidget()
     mWindow->HideWindowChrome(PR_TRUE);
   }
 
-  // "chromemargin" attribute
-  nsIntMargin margins;
-  nsCOMPtr<nsIContentUtils> cutils =
-    do_GetService("@mozilla.org/content/contentutils;1");
-  rv = windowElement->GetAttribute(NS_LITERAL_STRING("chromemargin"), attr);
-  if (NS_SUCCEEDED(rv) && cutils && cutils->ParseIntMarginValue(attr, margins)) {
-    mWindow->SetNonClientMargins(margins);
-  }
-
   // "accelerated" attribute
   PRBool isAccelerated;
-  static const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
-  if (acceleratedEnv && *acceleratedEnv) {
-    isAccelerated = *acceleratedEnv != '0';
-    rv = NS_OK;
-  } else
-    rv = windowElement->HasAttribute(NS_LITERAL_STRING("accelerated"), &isAccelerated);
-
+  rv = windowElement->HasAttribute(NS_LITERAL_STRING("accelerated"), &isAccelerated);
   if (NS_SUCCEEDED(rv)) {
     mWindow->SetAcceleratedRendering(isAccelerated);
   }

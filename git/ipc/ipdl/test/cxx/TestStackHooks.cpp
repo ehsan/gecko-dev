@@ -96,16 +96,17 @@ TestStackHooksChild::AnswerStackFrame()
     if (1 != mIncallDepth)
         fail("missed EnteredCall or ExitedCall hook");
 
-    if (PTestStackHooks::TEST4_3 == state()) {
+    // FIXME use IPDL state instead
+    if (4 == mEntered) {        // test 4
         if (!SendAsync())
             fail("sending Async()");
     }
-    else if (PTestStackHooks::TEST5_3 == state()) {
+    else if (5 == mEntered) {   // test 5
         if (!SendSync())
             fail("sending Sync()");
     }
     else {
-        fail("unexpected state");
+        fail("unexpected |mEntered| count");
     }
 
     if (!mOnStack)

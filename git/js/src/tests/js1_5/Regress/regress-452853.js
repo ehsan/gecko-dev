@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-452853.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 452853;
 var summary = 'Do not crash in simple loop with array';

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -49,25 +49,30 @@ class ContainerLayerOGL : public ContainerLayer,
 {
 public:
   ContainerLayerOGL(LayerManagerOGL *aManager);
-  ~ContainerLayerOGL();
 
-  nsIntRect GetVisibleRect() { return mVisibleRegion.GetBounds(); }
+  const nsIntRect &GetVisibleRect();
+
+  /** ContainerLayer implementation */
+  void SetVisibleRegion(const nsIntRegion& aRegion);
 
   void InsertAfter(Layer* aChild, Layer* aAfter);
 
   void RemoveChild(Layer* aChild);
 
   /** LayerOGL implementation */
-  Layer* GetLayer();
+  LayerType GetType();
 
-  void Destroy();
+  Layer* GetLayer();
 
   LayerOGL* GetFirstChildOGL();
 
   PRBool IsEmpty();
 
-  virtual void RenderLayer(int aPreviousFrameBuffer,
-                           const nsIntPoint& aOffset);
+  void RenderLayer(int aPreviousFrameBuffer);
+private:
+  nsIntRect mVisibleRect;
+
+  GLuint mTexture;
 };
 
 } /* layers */

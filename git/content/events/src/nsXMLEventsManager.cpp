@@ -47,9 +47,6 @@
 #include "nsIDOMEventListener.h"
 #include "nsINameSpaceManager.h"
 #include "nsINodeInfo.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 
 PRBool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
                                                   nsXMLEventsManager * aManager,
@@ -70,7 +67,7 @@ PRBool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
     return PR_FALSE;
   nsAutoString handlerURIStr;
   PRBool hasHandlerURI = PR_FALSE;
-  nsIContent *handler = nsnull;
+  nsCOMPtr<nsIContent> handler;
   nsAutoString observerID;
   nsAutoString targetIdref;
   
@@ -80,7 +77,7 @@ PRBool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
     nsCOMPtr<nsIURI> handlerURI;
     PRBool equals = PR_FALSE;
     nsIURI *docURI = aDocument->GetDocumentURI();
-    nsIURI *baseURI = aDocument->GetDocBaseURI();
+    nsIURI *baseURI = aDocument->GetBaseURI();
     rv = NS_NewURI( getter_AddRefs(handlerURI), handlerURIStr, nsnull, baseURI);
     if (NS_SUCCEEDED(rv)) {
       nsCOMPtr<nsIURL> handlerURL(do_QueryInterface(handlerURI));
@@ -90,8 +87,13 @@ PRBool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
         //We support only XML Events Basic.
         docURI->Equals(handlerURL, &equals);
         if (equals) {
-          handler =
-            aDocument->GetElementById(NS_ConvertUTF8toUTF16(handlerRef));
+          nsCOMPtr<nsIDOMDocument> doc(do_QueryInterface(aDocument));
+          if (doc) {
+            nsCOMPtr<nsIDOMElement> domhandler;
+            doc->GetElementById(NS_ConvertUTF8toUTF16(handlerRef),
+                                getter_AddRefs(domhandler));
+            handler = do_QueryInterface(domhandler);
+          }
         }
       }
     }
@@ -118,7 +120,7 @@ PRBool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
     aContent->AttrValueIs(nameSpaceID, nsGkAtoms::defaultAction,
                           nsGkAtoms::cancel, eCaseMatters);
 
-  nsIContent *observer;
+  nsCOMPtr<nsIContent> observer;
   if (!hasObserver) {
     if (!hasHandlerURI) //Parent should be the observer
       observer = aContent->GetParent();
@@ -126,9 +128,16 @@ PRBool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
       observer = aContent;
   }
   else if (!observerID.IsEmpty()) {
-    observer = aDocument->GetElementById(observerID);
+    nsCOMPtr<nsIDOMDocument> doc(do_QueryInterface(aDocument));
+    if (doc) {
+      nsCOMPtr<nsIDOMElement> el;
+      doc->GetElementById(observerID, getter_AddRefs(el));
+      observer = do_QueryInterface(el);
+    }
   }
-  nsCOMPtr<nsIDOMEventTarget> eventObserver(do_QueryInterface(observer));
+  nsCOMPtr<nsIDOMEventTarget> eventObserver;
+  if (observer)
+    eventObserver = do_QueryInterface(observer);
   if (eventObserver) {
     nsXMLEventsListener * eli = new nsXMLEventsListener(aManager,
                                                         aContent,
@@ -308,8 +317,6 @@ PRBool nsXMLEventsManager::RemoveListener(nsIContent * aContent)
 
 void nsXMLEventsManager::AddListeners(nsIDocument* aDocument)
 {
-  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
-
   nsIContent *cur;
   for (int i = 0; i < mIncomplete.Count(); ++i) {
     cur = mIncomplete[i];
@@ -320,29 +327,47 @@ void nsXMLEventsManager::AddListeners(nsIDocument* aDocument)
 }
 
 void 
+nsXMLEventsManager::BeginUpdate(nsIDocument* aDocument, nsUpdateType aUpdateType) {}
+void 
+nsXMLEventsManager::EndUpdate(nsIDocument* aDocument, nsUpdateType aUpdateType) {}
+void 
 nsXMLEventsManager::NodeWillBeDestroyed(const nsINode* aNode)
 {
-  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
   mIncomplete.Clear();
   mListeners.Enumerate(EnumAndUnregisterListener, this);
   mListeners.Clear();
 }
 
 void 
+nsXMLEventsManager::BeginLoad(nsIDocument* aDocument) {}
+
+void 
 nsXMLEventsManager::EndLoad(nsIDocument* aDocument)
 {
   AddListeners(aDocument);
 }
-
+NS_IMPL_NSIDOCUMENTOBSERVER_STATE_STUB(nsXMLEventsManager)
+void
+nsXMLEventsManager::CharacterDataWillChange(nsIDocument* aDocument,
+                                            nsIContent* aContent,
+                                            CharacterDataChangeInfo* aInfo) {}
+void 
+nsXMLEventsManager::CharacterDataChanged(nsIDocument* aDocument,
+                                         nsIContent* aContent,
+                                         CharacterDataChangeInfo* aInfo) {}
+void
+nsXMLEventsManager::AttributeWillChange(nsIDocument* aDocument,
+                                        nsIContent* aContent,
+                                        PRInt32 aNameSpaceID,
+                                        nsIAtom* aAttribute,
+                                        PRInt32 aModType) {}
 void
 nsXMLEventsManager::AttributeChanged(nsIDocument* aDocument,
-                                     Element* aElement,
+                                     nsIContent* aContent,
                                      PRInt32 aNameSpaceID,
                                      nsIAtom* aAttribute,
                                      PRInt32 aModType)
 {
-  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
-
   if (aNameSpaceID == kNameSpaceID_XMLEvents &&
       (aAttribute == nsGkAtoms::event ||
        aAttribute == nsGkAtoms::handler ||
@@ -350,23 +375,23 @@ nsXMLEventsManager::AttributeChanged(nsIDocument* aDocument,
        aAttribute == nsGkAtoms::observer ||
        aAttribute == nsGkAtoms::phase ||
        aAttribute == nsGkAtoms::propagate)) {
-    RemoveListener(aElement);
-    AddXMLEventsContent(aElement);
-    nsXMLEventsListener::InitXMLEventsListener(aDocument, this, aElement);
+    RemoveListener(aContent);
+    AddXMLEventsContent(aContent);
+    nsXMLEventsListener::InitXMLEventsListener(aDocument, this, aContent);
   }
   else {
-    if (aElement->NodeInfo()->Equals(nsGkAtoms::listener,
+    if (aContent->NodeInfo()->Equals(nsGkAtoms::listener,
                                      kNameSpaceID_XMLEvents)) {
-      RemoveListener(aElement);
-      AddXMLEventsContent(aElement);
-      nsXMLEventsListener::InitXMLEventsListener(aDocument, this, aElement);
+      RemoveListener(aContent);
+      AddXMLEventsContent(aContent);
+      nsXMLEventsListener::InitXMLEventsListener(aDocument, this, aContent);
     }
-    else if (aElement->GetIDAttributeName() == aAttribute) {
+    else if (aContent->GetIDAttributeName() == aAttribute) {
       if (aModType == nsIDOMMutationEvent::REMOVAL)
-        mListeners.Enumerate(EnumAndSetIncomplete, aElement);
+        mListeners.Enumerate(EnumAndSetIncomplete, aContent);
       else if (aModType == nsIDOMMutationEvent::MODIFICATION) {
         //Remove possible listener
-        mListeners.Enumerate(EnumAndSetIncomplete, aElement);
+        mListeners.Enumerate(EnumAndSetIncomplete, aContent);
         //Add new listeners
         AddListeners(aDocument);
       }
@@ -382,7 +407,6 @@ nsXMLEventsManager::AttributeChanged(nsIDocument* aDocument,
 void
 nsXMLEventsManager::ContentAppended(nsIDocument* aDocument,
                                     nsIContent* aContainer,
-                                    nsIContent* aFirstNewContent,
                                     PRInt32 aNewIndexInContainer)
 {
   AddListeners(aDocument);
@@ -398,19 +422,16 @@ nsXMLEventsManager::ContentInserted(nsIDocument* aDocument,
 }
 
 void
-nsXMLEventsManager::ContentRemoved(nsIDocument* aDocument,
+nsXMLEventsManager::ContentRemoved(nsIDocument* aDocument, 
                                    nsIContent* aContainer,
                                    nsIContent* aChild,
-                                   PRInt32 aIndexInContainer,
-                                   nsIContent* aPreviousSibling)
+                                   PRInt32 aIndexInContainer)
 {
   if (!aChild || !aChild->IsElement())
     return;
   //Note, we can't use IDs here, the observer may not always have an ID.
   //And to remember: the same observer can be referenced by many 
   //XMLEventsListeners
-
-  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
 
   //If the content was an XML Events observer or handler
   mListeners.Enumerate(EnumAndSetIncomplete, aChild);
@@ -423,6 +444,14 @@ nsXMLEventsManager::ContentRemoved(nsIDocument* aDocument,
 
   PRUint32 count = aChild->GetChildCount();
   for (PRUint32 i = 0; i < count; ++i) {
-    ContentRemoved(aDocument, aChild, aChild->GetChildAt(i), i, aChild->GetPreviousSibling());
+    ContentRemoved(aDocument, aChild, aChild->GetChildAt(i), i);
   }
 }
+
+void
+nsXMLEventsManager::ParentChainChanged(nsIContent *aContent)
+{
+}
+
+NS_IMPL_NSIDOCUMENTOBSERVER_STYLE_STUB(nsXMLEventsManager)
+

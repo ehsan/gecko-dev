@@ -527,13 +527,15 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
           if (hresult == S_OK && nsWindow::GetWindowsVersion() <= WIN7_VERSION) {
             LPCWSTR defThemes[] = {
               L"luna.msstyles",
+              L"royale.msstyles",
+              L"zune.msstyles",
               L"aero.msstyles"
             };
 
             LPWSTR curTheme = wcsrchr(themeFileName, L'\\');
             curTheme = curTheme ? curTheme + 1 : themeFileName;
 
-            for (unsigned i = 0; i < NS_ARRAY_LENGTH(defThemes); ++i) {
+            for (int i = 0; i < NS_ARRAY_LENGTH(defThemes); ++i) {
               if (!lstrcmpiW(curTheme, defThemes[i])) {
                 aMetric = 1;
               }
@@ -729,8 +731,6 @@ NS_IMETHODIMP nsLookAndFeel::GetNavSize(const nsMetricNavWidgetID aWidgetID,
     case eMetricSize_TextArea:
       aSize.width  = kTextAreaWidths[aFontID][aFontSize-1];
       aSize.height = kTextAreaHeights[aFontID][aFontSize-1];
-      break;
-    default:
       break;
   } //switch
 

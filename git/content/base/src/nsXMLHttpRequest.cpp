@@ -94,13 +94,11 @@
 #include "nsIStorageStream.h"
 #include "nsIPromptFactory.h"
 #include "nsIWindowWatcher.h"
-#include "nsCharSeparatedTokenizer.h"
+#include "nsCommaSeparatedTokenizer.h"
 #include "nsIConsoleService.h"
 #include "nsIChannelPolicy.h"
 #include "nsChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
-#include "nsAsyncRedirectVerifyHelper.h"
-#include "jstypedarray.h"
 
 #define LOAD_STR "load"
 #define ERROR_STR "error"
@@ -384,7 +382,7 @@ nsACProxyListener::AddResultToCache(nsIRequest *aRequest)
   http->GetResponseHeader(NS_LITERAL_CSTRING("Access-Control-Allow-Methods"),
                           headerVal);
 
-  nsCCharSeparatedTokenizer methods(headerVal, ',');
+  nsCCommaSeparatedTokenizer methods(headerVal);
   while(methods.hasMoreTokens()) {
     const nsDependentCSubstring& method = methods.nextToken();
     if (method.IsEmpty()) {
@@ -414,7 +412,7 @@ nsACProxyListener::AddResultToCache(nsIRequest *aRequest)
   http->GetResponseHeader(NS_LITERAL_CSTRING("Access-Control-Allow-Headers"),
                           headerVal);
 
-  nsCCharSeparatedTokenizer headers(headerVal, ',');
+  nsCCommaSeparatedTokenizer headers(headerVal);
   while(headers.hasMoreTokens()) {
     const nsDependentCSubstring& header = headers.nextToken();
     if (header.IsEmpty()) {
@@ -488,17 +486,13 @@ nsACProxyListener::OnDataAvailable(nsIRequest *aRequest,
 }
 
 NS_IMETHODIMP
-nsACProxyListener::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
-                                          nsIChannel *aNewChannel,
-                                          PRUint32 aFlags,
-                                          nsIAsyncVerifyRedirectCallback *callback)
+nsACProxyListener::OnChannelRedirect(nsIChannel *aOldChannel,
+                                     nsIChannel *aNewChannel,
+                                     PRUint32 aFlags)
 {
   // Only internal redirects allowed for now.
-  if (!NS_IsInternalSameURIRedirect(aOldChannel, aNewChannel, aFlags))
-    return NS_ERROR_DOM_BAD_URI;
-
-  callback->OnRedirectVerifyCallback(NS_OK);
-  return NS_OK;
+  return NS_IsInternalSameURIRedirect(aOldChannel, aNewChannel, aFlags) ?
+         NS_OK : NS_ERROR_DOM_BAD_URI;
 }
 
 NS_IMETHODIMP
@@ -509,10 +503,21 @@ nsACProxyListener::GetInterface(const nsIID & aIID, void **aResult)
 
 /////////////////////////////////////////////
 
+nsXHREventTarget::~nsXHREventTarget()
+{
+  nsISupports *supports = static_cast<nsIXMLHttpRequestEventTarget*>(this);
+  nsContentUtils::ReleaseWrapper(supports, this);
+}
+
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXHREventTarget)
 
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsXHREventTarget)
+  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
+
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXHREventTarget,
-                                                  nsDOMEventTargetWrapperCache)
+                                                  nsDOMEventTargetHelper)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnLoadListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnErrorListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnAbortListener)
@@ -520,8 +525,12 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXHREventTarget,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnProgressListener)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
+NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsXHREventTarget)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
+NS_IMPL_CYCLE_COLLECTION_ROOT_END
+
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXHREventTarget,
-                                                nsDOMEventTargetWrapperCache)
+                                                nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnLoadListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnErrorListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnAbortListener)
@@ -530,11 +539,12 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXHREventTarget,
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsXHREventTarget)
+  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY(nsIXMLHttpRequestEventTarget)
-NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetWrapperCache)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
-NS_IMPL_ADDREF_INHERITED(nsXHREventTarget, nsDOMEventTargetWrapperCache)
-NS_IMPL_RELEASE_INHERITED(nsXHREventTarget, nsDOMEventTargetWrapperCache)
+NS_IMPL_ADDREF_INHERITED(nsXHREventTarget, nsDOMEventTargetHelper)
+NS_IMPL_RELEASE_INHERITED(nsXHREventTarget, nsDOMEventTargetHelper)
 
 NS_IMETHODIMP
 nsXHREventTarget::GetOnload(nsIDOMEventListener** aOnLoad)
@@ -1147,16 +1157,17 @@ nsXMLHttpRequest::ConvertBodyToText(nsAString& aOutBuffer)
     }
   }
 
-  // XXXbz is the charset ever "ASCII" as opposed to "us-ascii"?
   if (dataCharset.EqualsLiteral("ASCII")) {
     CopyASCIItoUTF16(mResponseBody, mResponseBodyUnicode);
     aOutBuffer = mResponseBodyUnicode;
     return NS_OK;
   }
 
-  // can't fast-path UTF-8 using CopyUTF8toUTF16, since above we assumed UTF-8
-  // by default and CopyUTF8toUTF16 will stop if it encounters bytes that aren't
-  // valid UTF-8.  So we have to do the whole unicode decoder thing.
+  if (dataCharset.EqualsLiteral("UTF-8")) {
+    CopyUTF8toUTF16(mResponseBody, mResponseBodyUnicode);
+    aOutBuffer = mResponseBodyUnicode;
+    return NS_OK;
+  }
 
   nsCOMPtr<nsICharsetConverterManager> ccm =
     do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
@@ -1233,35 +1244,6 @@ NS_IMETHODIMP nsXMLHttpRequest::GetResponseText(nsAString& aResponseText)
   }
 
   return rv;
-}
-
-/* readonly attribute jsval (ArrayBuffer) mozResponseArrayBuffer; */
-NS_IMETHODIMP nsXMLHttpRequest::GetMozResponseArrayBuffer(jsval *aResult)
-{
-  JSContext *cx = nsContentUtils::GetCurrentJSContext();
-  if (!cx)
-    return NS_ERROR_FAILURE;
-
-  if (!(mState & (XML_HTTP_REQUEST_COMPLETED |
-                  XML_HTTP_REQUEST_INTERACTIVE))) {
-    *aResult = JSVAL_NULL;
-    return NS_OK;
-  }
-
-  PRInt32 dataLen = mResponseBody.Length();
-  JSObject *obj = js_CreateArrayBuffer(cx, dataLen);
-  if (!obj)
-    return NS_ERROR_FAILURE;
-
-  *aResult = OBJECT_TO_JSVAL(obj);
-
-  if (dataLen > 0) {
-    js::ArrayBuffer *abuf = js::ArrayBuffer::fromJSObject(obj);
-    NS_ASSERTION(abuf, "What happened?");
-    memcpy(abuf->data, mResponseBody.BeginReading(), dataLen);
-  }
-
-  return NS_OK;
 }
 
 /* readonly attribute unsigned long status; */
@@ -1395,7 +1377,8 @@ nsXMLHttpRequest::GetAllResponseHeaders(char **_retval)
   nsCOMPtr<nsIHttpChannel> httpChannel = GetCurrentHttpChannel();
 
   if (httpChannel) {
-    nsHeaderVisitor *visitor = new nsHeaderVisitor();
+    nsHeaderVisitor *visitor = nsnull;
+    NS_NEWXPCOM(visitor, nsHeaderVisitor);
     if (!visitor)
       return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(visitor);
@@ -1584,20 +1567,36 @@ nsXMLHttpRequest::GetCurrentHttpChannel()
   return httpChannel;
 }
 
+inline PRBool
+IsSystemPrincipal(nsIPrincipal* aPrincipal)
+{
+  PRBool isSystem = PR_FALSE;
+  nsContentUtils::GetSecurityManager()->
+    IsSystemPrincipal(aPrincipal, &isSystem);
+  return isSystem;
+}
+
+static PRBool
+CheckMayLoad(nsIPrincipal* aPrincipal, nsIChannel* aChannel)
+{
+  NS_ASSERTION(!IsSystemPrincipal(aPrincipal), "Shouldn't get here!");
+
+  nsCOMPtr<nsIURI> channelURI;
+  nsresult rv = NS_GetFinalChannelURI(aChannel, getter_AddRefs(channelURI));
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+
+  return NS_SUCCEEDED(aPrincipal->CheckMayLoad(channelURI, PR_FALSE));
+}
+
 nsresult
 nsXMLHttpRequest::CheckChannelForCrossSiteRequest(nsIChannel* aChannel)
 {
   nsresult rv;
 
-  // First check if cross-site requests are enabled
-  if ((mState & XML_HTTP_REQUEST_XSITEENABLED)) {
-    return NS_OK;
-  }
-
-  // or if this is a same-origin request.
-  NS_ASSERTION(!nsContentUtils::IsSystemPrincipal(mPrincipal),
-               "Shouldn't get here!");
-  if (nsContentUtils::CheckMayLoad(mPrincipal, aChannel)) {
+  // First check if this is a same-origin request, or if cross-site requests
+  // are enabled.
+  if ((mState & XML_HTTP_REQUEST_XSITEENABLED) ||
+      CheckMayLoad(mPrincipal, aChannel)) {
     return NS_OK;
   }
 
@@ -1775,7 +1774,7 @@ nsXMLHttpRequest::OpenRequest(const nsACString& method,
   if (NS_FAILED(rv)) return rv;
 
   // Check if we're doing a cross-origin request.
-  if (nsContentUtils::IsSystemPrincipal(mPrincipal)) {
+  if (IsSystemPrincipal(mPrincipal)) {
     // Chrome callers are always allowed to read from different origins.
     mState |= XML_HTTP_REQUEST_XSITEENABLED;
   }
@@ -1932,7 +1931,7 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
   NS_ENSURE_TRUE(channel, NS_ERROR_UNEXPECTED);
 
   nsCOMPtr<nsIPrincipal> documentPrincipal = mPrincipal;
-  if (nsContentUtils::IsSystemPrincipal(documentPrincipal)) {
+  if (IsSystemPrincipal(documentPrincipal)) {
     // Don't give this document the system principal.  We need to keep track of
     // mPrincipal being system because we use it for various security checks
     // that should be passing, but the document data shouldn't get a system
@@ -2016,10 +2015,6 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
     NS_ENSURE_SUCCESS(rv, rv);
     nsCOMPtr<nsIDocument> responseDoc = do_QueryInterface(mResponseXML);
     responseDoc->SetPrincipal(documentPrincipal);
-
-    if (nsContentUtils::IsSystemPrincipal(mPrincipal)) {
-      responseDoc->ForceEnableXULXBL();
-    }
 
     if (mState & XML_HTTP_REQUEST_USE_XSITE_AC) {
       nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(mResponseXML);
@@ -2405,7 +2400,7 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
   if (httpChannel) {
     httpChannel->GetRequestMethod(method); // If GET, method name will be uppercase
 
-    if (!nsContentUtils::IsSystemPrincipal(mPrincipal)) {
+    if (!IsSystemPrincipal(mPrincipal)) {
       nsCOMPtr<nsIURI> codebase;
       mPrincipal->GetURI(getter_AddRefs(codebase));
 
@@ -3027,60 +3022,13 @@ nsXMLHttpRequest::ChangeState(PRUint32 aState, PRBool aBroadcast)
   return rv;
 }
 
-/*
- * Simple helper class that just forwards the redirect callback back
- * to the nsXMLHttpRequest.
- */
-class AsyncVerifyRedirectCallbackForwarder : public nsIAsyncVerifyRedirectCallback
-{
-public:
-  AsyncVerifyRedirectCallbackForwarder(nsXMLHttpRequest *xhr)
-    : mXHR(xhr)
-  {
-  }
-
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS(AsyncVerifyRedirectCallbackForwarder)
-
-  // nsIAsyncVerifyRedirectCallback implementation
-  NS_IMETHOD OnRedirectVerifyCallback(nsresult result)
-  {
-    mXHR->OnRedirectVerifyCallback(result);
-
-    return NS_OK;
-  }
-
-private:
-  nsRefPtr<nsXMLHttpRequest> mXHR;
-};
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(AsyncVerifyRedirectCallbackForwarder)
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(AsyncVerifyRedirectCallbackForwarder)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mXHR, nsIDOMEventListener)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(AsyncVerifyRedirectCallbackForwarder)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mXHR)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(AsyncVerifyRedirectCallbackForwarder)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY(nsIAsyncVerifyRedirectCallback)
-NS_INTERFACE_MAP_END
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(AsyncVerifyRedirectCallbackForwarder)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(AsyncVerifyRedirectCallbackForwarder)
-
-
 /////////////////////////////////////////////////////
 // nsIChannelEventSink methods:
 //
 NS_IMETHODIMP
-nsXMLHttpRequest::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
-                                         nsIChannel *aNewChannel,
-                                         PRUint32    aFlags,
-                                         nsIAsyncVerifyRedirectCallback *callback)
+nsXMLHttpRequest::OnChannelRedirect(nsIChannel *aOldChannel,
+                                    nsIChannel *aNewChannel,
+                                    PRUint32    aFlags)
 {
   NS_PRECONDITION(aNewChannel, "Redirect without a channel?");
 
@@ -3088,11 +3036,7 @@ nsXMLHttpRequest::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
 
   if (!NS_IsInternalSameURIRedirect(aOldChannel, aNewChannel, aFlags)) {
     rv = CheckChannelForCrossSiteRequest(aNewChannel);
-    if (NS_FAILED(rv)) {
-      NS_WARNING("nsXMLHttpRequest::OnChannelRedirect: "
-                 "CheckChannelForCrossSiteRequest returned failure");
-      return rv;
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
 
     // Disable redirects for preflighted cross-site requests entirely for now
     // Note, do this after the call to CheckChannelForCrossSiteRequest
@@ -3102,42 +3046,18 @@ nsXMLHttpRequest::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
     }
   }
 
-  // Prepare to receive callback
-  mRedirectCallback = callback;
-  mNewRedirectChannel = aNewChannel;
-
   if (mChannelEventSink) {
-    nsRefPtr<AsyncVerifyRedirectCallbackForwarder> fwd =
-      new AsyncVerifyRedirectCallbackForwarder(this);
-
-    rv = mChannelEventSink->AsyncOnChannelRedirect(aOldChannel,
-                                                   aNewChannel,
-                                                   aFlags, fwd);
+    rv =
+      mChannelEventSink->OnChannelRedirect(aOldChannel, aNewChannel, aFlags);
     if (NS_FAILED(rv)) {
-        mRedirectCallback = nsnull;
-        mNewRedirectChannel = nsnull;
+      mErrorLoad = PR_TRUE;
+      return rv;
     }
-    return rv;
   }
-  OnRedirectVerifyCallback(NS_OK);
+
+  mChannel = aNewChannel;
+
   return NS_OK;
-}
-
-void
-nsXMLHttpRequest::OnRedirectVerifyCallback(nsresult result)
-{
-  NS_ASSERTION(mRedirectCallback, "mRedirectCallback not set in callback");
-  NS_ASSERTION(mNewRedirectChannel, "mNewRedirectChannel not set in callback");
-
-  if (NS_SUCCEEDED(result))
-    mChannel = mNewRedirectChannel;
-  else
-    mErrorLoad = PR_TRUE;
-
-  mNewRedirectChannel = nsnull;
-
-  mRedirectCallback->OnRedirectVerifyCallback(result);
-  mRedirectCallback = nsnull;
 }
 
 /////////////////////////////////////////////////////

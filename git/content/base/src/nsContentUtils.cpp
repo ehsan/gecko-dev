@@ -61,7 +61,7 @@
 #include "nsIContentUtils.h"
 #include "nsIXPConnect.h"
 #include "nsIContent.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 #include "nsIDocument.h"
 #include "nsINodeInfo.h"
 #include "nsReadableUtils.h"
@@ -146,6 +146,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIMEStateManager.h"
 #include "nsContentErrors.h"
 #include "nsUnicharUtilCIID.h"
+#include "nsICaseConversion.h"
 #include "nsCompressedCharMap.h"
 #include "nsINativeKeyBindings.h"
 #include "nsIDOMNSUIEvent.h"
@@ -153,7 +154,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIPrivateDOMEvent.h"
 #include "nsXULPopupManager.h"
 #include "nsIPermissionManager.h"
-#include "nsIContentPrefService.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIRunnable.h"
 #include "nsDOMJSUtils.h"
@@ -163,7 +163,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIUGenCategory.h"
 #include "nsIDragService.h"
 #include "nsIChannelEventSink.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIOfflineCacheUpdate.h"
 #include "nsCPrefetchService.h"
@@ -176,13 +175,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsHtml5Module.h"
 #include "nsPresContext.h"
 #include "nsLayoutStatics.h"
-#include "nsLayoutUtils.h"
-#include "nsFrameManager.h"
-#include "BasicLayers.h"
-#include "nsFocusManager.h"
-#include "nsTextEditorState.h"
-#include "nsIPluginHost.h"
-#include "nsICategoryManager.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -201,18 +193,8 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "jsdate.h"
 #include "jsregexp.h"
 #include "jstypedarray.h"
-#include "xpcprivate.h"
-#include "nsScriptSecurityManager.h"
-#include "nsIChannelPolicy.h"
-#include "nsChannelPolicy.h"
-#include "nsIContentSecurityPolicy.h"
-#include "nsContentDLF.h"
-#ifdef MOZ_MEDIA
-#include "nsHTMLMediaElement.h"
-#endif
 
 using namespace mozilla::dom;
-using namespace mozilla::layers;
 
 const char kLoadAsData[] = "loadAsData";
 
@@ -235,15 +217,14 @@ imgILoader *nsContentUtils::sImgLoader;
 imgICache *nsContentUtils::sImgCache;
 mozilla::IHistory *nsContentUtils::sHistory;
 nsIConsoleService *nsContentUtils::sConsoleService;
-nsDataHashtable<nsISupportsHashKey, EventNameMapping>* nsContentUtils::sAtomEventTable = nsnull;
-nsDataHashtable<nsStringHashKey, EventNameMapping>* nsContentUtils::sStringEventTable = nsnull;
-nsCOMArray<nsIAtom>* nsContentUtils::sUserDefinedEvents = nsnull;
+nsDataHashtable<nsISupportsHashKey, EventNameMapping>* nsContentUtils::sEventTable = nsnull;
 nsIStringBundleService *nsContentUtils::sStringBundleService;
 nsIStringBundle *nsContentUtils::sStringBundles[PropertiesFile_COUNT];
 nsIContentPolicy *nsContentUtils::sContentPolicyService;
 PRBool nsContentUtils::sTriedToGetContentPolicy = PR_FALSE;
 nsILineBreaker *nsContentUtils::sLineBreaker;
 nsIWordBreaker *nsContentUtils::sWordBreaker;
+nsICaseConversion *nsContentUtils::sCaseConv;
 nsIUGenCategory *nsContentUtils::sGenCat;
 nsTArray<nsISupports**> *nsContentUtils::sPtrsToPtrsToRelease;
 nsIScriptRuntime *nsContentUtils::sScriptRuntimes[NS_STID_ARRAY_UBOUND];
@@ -266,14 +247,7 @@ PRBool nsContentUtils::sIsHandlingKeyBoardEvent = PR_FALSE;
 
 PRBool nsContentUtils::sInitialized = PR_FALSE;
 
-nsRefPtrHashtable<nsPrefObserverHashKey, nsPrefOldCallback>
-  *nsContentUtils::sPrefCallbackTable = nsnull;
-
-#ifdef MOZ_IPC
-#ifdef ANDROID
-nsFrameLoader *nsContentUtils::sActiveFrameLoader = nsnull;
-#endif
-#endif
+nsCOMArray<nsPrefOldCallback> *nsContentUtils::sPrefCallbackList = nsnull;
 
 static PLDHashTable sEventListenerManagersHash;
 
@@ -324,96 +298,39 @@ class nsSameOriginChecker : public nsIChannelEventSink,
   NS_DECL_NSIINTERFACEREQUESTOR
 };
 
-class nsPrefObserverHashKey : public PLDHashEntryHdr {
-public:
-  typedef nsPrefObserverHashKey* KeyType;
-  typedef const nsPrefObserverHashKey* KeyTypePointer;
-
-  static const nsPrefObserverHashKey* KeyToPointer(nsPrefObserverHashKey *aKey)
-  {
-    return aKey;
-  }
-
-  static PLDHashNumber HashKey(const nsPrefObserverHashKey *aKey)
-  {
-    PRUint32 strHash = nsCRT::HashCode(aKey->mPref.BeginReading(),
-                                       aKey->mPref.Length());
-    return PR_ROTATE_LEFT32(strHash, 4) ^
-           NS_PTR_TO_UINT32(aKey->mCallback);
-  }
-
-  nsPrefObserverHashKey(const char *aPref, PrefChangedFunc aCallback) :
-    mPref(aPref), mCallback(aCallback) { }
-
-  nsPrefObserverHashKey(const nsPrefObserverHashKey *aOther) :
-    mPref(aOther->mPref), mCallback(aOther->mCallback)
-  { }
-
-  PRBool KeyEquals(const nsPrefObserverHashKey *aOther) const
-  {
-    return mCallback == aOther->mCallback &&
-           mPref.Equals(aOther->mPref);
-  }
-
-  nsPrefObserverHashKey *GetKey() const
-  {
-    return const_cast<nsPrefObserverHashKey*>(this);
-  }
-
-  enum { ALLOW_MEMMOVE = PR_TRUE };
-
-public:
-  nsCString mPref;
-  PrefChangedFunc mCallback;
-};
-
 // For nsContentUtils::RegisterPrefCallback/UnregisterPrefCallback
-class nsPrefOldCallback : public nsIObserver,
-                          public nsPrefObserverHashKey
+class nsPrefOldCallback : public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
 
 public:
-  nsPrefOldCallback(const char *aPref, PrefChangedFunc aCallback)
-    : nsPrefObserverHashKey(aPref, aCallback) { }
-
-  ~nsPrefOldCallback() {
-    nsIPrefBranch2 *prefBranch = nsContentUtils::GetPrefBranch();
-    if(prefBranch)
-      prefBranch->RemoveObserver(mPref.get(), this);
+  nsPrefOldCallback(const char *aPref, PrefChangedFunc aCallback, void *aClosure) : mPref(aPref), mCallback(aCallback), mClosure(aClosure) {
   }
 
-  void AppendClosure(void *aClosure) {
-    mClosures.AppendElement(aClosure);
-  }
-
-  void RemoveClosure(void *aClosure) {
-    mClosures.RemoveElement(aClosure);
-  }
-
-  PRBool HasNoClosures() {
-    return mClosures.Length() == 0;
+  PRBool IsEqual(const char *aPref, PrefChangedFunc aCallback, void *aClosure) {
+    return aCallback == mCallback &&
+           aClosure == mClosure &&
+           mPref.Equals(aPref);
   }
 
 public:
-  nsTArray<void *>  mClosures;
+  nsCString       mPref;
+  PrefChangedFunc mCallback;
+  void            *mClosure;
 };
 
 NS_IMPL_ISUPPORTS1(nsPrefOldCallback, nsIObserver)
 
 NS_IMETHODIMP
-nsPrefOldCallback::Observe(nsISupports     *aSubject,
-                           const char      *aTopic,
-                           const PRUnichar *aData)
+nsPrefOldCallback::Observe(nsISupports   *aSubject,
+                         const char      *aTopic,
+                         const PRUnichar *aData)
 {
   NS_ASSERTION(!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID),
                "invalid topic");
-  NS_LossyConvertUTF16toASCII data(aData);
-  for (PRUint32 i = 0; i < mClosures.Length(); i++) {
-    mCallback(data.get(), mClosures.ElementAt(i));
-  }
+  mCallback(NS_LossyConvertUTF16toASCII(aData).get(), mClosure);
 
   return NS_OK;
 }
@@ -440,22 +357,21 @@ nsContentUtils::Init()
 
   sPrefCacheData = new nsTArray<nsAutoPtr<PrefCacheData> >();
 
+  nsresult rv = CallGetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID,
+                               &sSecurityManager);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   // It's ok to not have a pref service.
   CallGetService(NS_PREFSERVICE_CONTRACTID, &sPrefBranch);
 
-  nsresult rv = NS_GetNameSpaceManager(&sNameSpaceManager);
+  rv = NS_GetNameSpaceManager(&sNameSpaceManager);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsXPConnect* xpconnect = nsXPConnect::GetXPConnect();
-  NS_ENSURE_TRUE(xpconnect, NS_ERROR_FAILURE);
+  rv = CallGetService(nsIXPConnect::GetCID(), &sXPConnect);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  sXPConnect = xpconnect;
-  sThreadJSContextStack = xpconnect;
-
-  sSecurityManager = nsScriptSecurityManager::GetScriptSecurityManager();
-  if(!sSecurityManager)
-    return NS_ERROR_FAILURE;
-  NS_ADDREF(sSecurityManager);
+  rv = CallGetService(kJSStackContractID, &sThreadJSContextStack);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   rv = CallGetService(NS_IOSERVICE_CONTRACTID, &sIOService);
   if (NS_FAILED(rv)) {
@@ -469,9 +385,23 @@ nsContentUtils::Init()
   
   rv = CallGetService(NS_WBRK_CONTRACTID, &sWordBreaker);
   NS_ENSURE_SUCCESS(rv, rv);
+  
+  rv = CallGetService(NS_UNICHARUTIL_CONTRACTID, &sCaseConv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   rv = CallGetService(NS_UNICHARCATEGORY_CONTRACTID, &sGenCat);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  // Ignore failure and just don't load images
+  rv = CallGetService("@mozilla.org/image/loader;1", &sImgLoader);
+  if (NS_FAILED(rv)) {
+    // no image loading for us.  Oh, well.
+    sImgLoader = nsnull;
+    sImgCache = nsnull;
+  } else {
+    if (NS_FAILED(CallGetService("@mozilla.org/image/cache;1", &sImgCache )))
+      sImgCache = nsnull;
+  }
 
   rv = CallGetService(NS_IHISTORY_CONTRACTID, &sHistory);
   if (NS_FAILED(rv)) {
@@ -516,212 +446,153 @@ nsContentUtils::Init()
   return NS_OK;
 }
 
-bool nsContentUtils::sImgLoaderInitialized;
-
-void
-nsContentUtils::InitImgLoader()
-{
-  sImgLoaderInitialized = true;
-
-  // Ignore failure and just don't load images
-  nsresult rv = CallGetService("@mozilla.org/image/loader;1", &sImgLoader);
-  if (NS_FAILED(rv)) {
-    // no image loading for us.  Oh, well.
-    sImgLoader = nsnull;
-    sImgCache = nsnull;
-  } else {
-    if (NS_FAILED(CallGetService("@mozilla.org/image/cache;1", &sImgCache )))
-      sImgCache = nsnull;
-  }
-}
-
 PRBool
 nsContentUtils::InitializeEventTable() {
-  NS_ASSERTION(!sAtomEventTable, "EventTable already initialized!");
-  NS_ASSERTION(!sStringEventTable, "EventTable already initialized!");
+  NS_ASSERTION(!sEventTable, "EventTable already initialized!");
 
-  static const EventNameMapping eventArray[] = {
-    { nsGkAtoms::onmousedown,                   NS_MOUSE_BUTTON_DOWN, EventNameType_All, NS_MOUSE_EVENT },
-    { nsGkAtoms::onmouseup,                     NS_MOUSE_BUTTON_UP, EventNameType_All, NS_MOUSE_EVENT },
-    { nsGkAtoms::onclick,                       NS_MOUSE_CLICK, EventNameType_All, NS_MOUSE_EVENT },
-    { nsGkAtoms::ondblclick,                    NS_MOUSE_DOUBLECLICK, EventNameType_HTMLXUL, NS_MOUSE_EVENT },
-    { nsGkAtoms::onmouseover,                   NS_MOUSE_ENTER_SYNTH, EventNameType_All, NS_MOUSE_EVENT },
-    { nsGkAtoms::onmouseout,                    NS_MOUSE_EXIT_SYNTH, EventNameType_All, NS_MOUSE_EVENT },
-    { nsGkAtoms::onMozMouseHittest,             NS_MOUSE_MOZHITTEST, EventNameType_None, NS_MOUSE_EVENT },
-    { nsGkAtoms::onmousemove,                   NS_MOUSE_MOVE, EventNameType_All, NS_MOUSE_EVENT },
-    { nsGkAtoms::oncontextmenu,                 NS_CONTEXTMENU, EventNameType_HTMLXUL, NS_MOUSE_EVENT },
-
-    { nsGkAtoms::onkeydown,                     NS_KEY_DOWN, EventNameType_HTMLXUL, NS_KEY_EVENT },
-    { nsGkAtoms::onkeyup,                       NS_KEY_UP, EventNameType_HTMLXUL, NS_KEY_EVENT },
-    { nsGkAtoms::onkeypress,                    NS_KEY_PRESS, EventNameType_HTMLXUL, NS_KEY_EVENT },
-                                                
-    { nsGkAtoms::onfocus,                       NS_FOCUS_CONTENT, EventNameType_HTMLXUL, NS_FOCUS_EVENT },
-    { nsGkAtoms::onblur,                        NS_BLUR_CONTENT, EventNameType_HTMLXUL, NS_FOCUS_EVENT },
-
-    { nsGkAtoms::onoffline,                     NS_OFFLINE, EventNameType_HTMLXUL, NS_EVENT },
-    { nsGkAtoms::ononline,                      NS_ONLINE, EventNameType_HTMLXUL, NS_EVENT },
-    { nsGkAtoms::onsubmit,                      NS_FORM_SUBMIT, EventNameType_HTMLXUL, NS_EVENT },
-    { nsGkAtoms::onreset,                       NS_FORM_RESET, EventNameType_HTMLXUL, NS_EVENT },
-    { nsGkAtoms::onchange,                      NS_FORM_CHANGE, EventNameType_HTMLXUL, NS_EVENT },
-    { nsGkAtoms::onselect,                      NS_FORM_SELECTED, EventNameType_HTMLXUL, NS_EVENT },
-    { nsGkAtoms::oninvalid,                     NS_FORM_INVALID, EventNameType_HTMLXUL, NS_EVENT },
-    { nsGkAtoms::onload,                        NS_LOAD, EventNameType_All, NS_EVENT },
-    { nsGkAtoms::onpopstate,                    NS_POPSTATE, EventNameType_HTMLXUL, NS_EVENT_NULL },
-    { nsGkAtoms::onunload,                      NS_PAGE_UNLOAD,
-                                                (EventNameType_HTMLXUL | EventNameType_SVGSVG), NS_EVENT },
-    { nsGkAtoms::onhashchange,                  NS_HASHCHANGE, EventNameType_HTMLXUL, NS_EVENT },
-    { nsGkAtoms::onreadystatechange,            NS_READYSTATECHANGE, EventNameType_HTMLXUL },
-    { nsGkAtoms::onbeforeunload,                NS_BEFORE_PAGE_UNLOAD, EventNameType_HTMLXUL, NS_EVENT },
-    { nsGkAtoms::onabort,                       NS_IMAGE_ABORT,
-                                                (EventNameType_HTMLXUL | EventNameType_SVGSVG), NS_EVENT },
-    { nsGkAtoms::onerror,                       NS_LOAD_ERROR,
-                                                (EventNameType_HTMLXUL | EventNameType_SVGSVG), NS_EVENT },
-
-    { nsGkAtoms::onDOMAttrModified,             NS_MUTATION_ATTRMODIFIED, EventNameType_HTMLXUL, NS_MUTATION_EVENT },
-    { nsGkAtoms::onDOMCharacterDataModified,    NS_MUTATION_CHARACTERDATAMODIFIED, EventNameType_HTMLXUL, NS_MUTATION_EVENT },
-    { nsGkAtoms::onDOMNodeInserted,             NS_MUTATION_NODEINSERTED, EventNameType_HTMLXUL, NS_MUTATION_EVENT },
-    { nsGkAtoms::onDOMNodeRemoved,              NS_MUTATION_NODEREMOVED, EventNameType_HTMLXUL, NS_MUTATION_EVENT },
-    { nsGkAtoms::onDOMNodeInsertedIntoDocument, NS_MUTATION_NODEINSERTEDINTODOCUMENT, EventNameType_HTMLXUL, NS_MUTATION_EVENT },
-    { nsGkAtoms::onDOMNodeRemovedFromDocument,  NS_MUTATION_NODEREMOVEDFROMDOCUMENT, EventNameType_HTMLXUL, NS_MUTATION_EVENT },
-    { nsGkAtoms::onDOMSubtreeModified,          NS_MUTATION_SUBTREEMODIFIED, EventNameType_HTMLXUL, NS_MUTATION_EVENT },
-
-    { nsGkAtoms::onDOMActivate,                 NS_UI_ACTIVATE, EventNameType_HTMLXUL, NS_UI_EVENT },
-    { nsGkAtoms::onDOMFocusIn,                  NS_UI_FOCUSIN, EventNameType_HTMLXUL, NS_UI_EVENT },
-    { nsGkAtoms::onDOMFocusOut,                 NS_UI_FOCUSOUT, EventNameType_HTMLXUL, NS_UI_EVENT },
-    { nsGkAtoms::oninput,                       NS_FORM_INPUT, EventNameType_HTMLXUL, NS_UI_EVENT },
-                                                
-    { nsGkAtoms::onDOMMouseScroll,              NS_MOUSE_SCROLL, EventNameType_HTMLXUL, NS_MOUSE_SCROLL_EVENT },
-    { nsGkAtoms::onMozMousePixelScroll,         NS_MOUSE_PIXEL_SCROLL, EventNameType_HTMLXUL, NS_MOUSE_SCROLL_EVENT },
-                                                
-    { nsGkAtoms::onpageshow,                    NS_PAGE_SHOW, EventNameType_HTML, NS_EVENT },
-    { nsGkAtoms::onpagehide,                    NS_PAGE_HIDE, EventNameType_HTML, NS_EVENT },
-    { nsGkAtoms::onresize,                      NS_RESIZE_EVENT,
-                                                (EventNameType_HTMLXUL | EventNameType_SVGSVG), NS_EVENT },
-    { nsGkAtoms::onscroll,                      NS_SCROLL_EVENT,
-                                                (EventNameType_HTMLXUL | EventNameType_SVGSVG), NS_EVENT_NULL },
-    { nsGkAtoms::oncopy,                        NS_COPY, EventNameType_HTMLXUL, NS_EVENT },
-    { nsGkAtoms::oncut,                         NS_CUT, EventNameType_HTMLXUL, NS_EVENT },
-    { nsGkAtoms::onpaste,                       NS_PASTE, EventNameType_HTMLXUL, NS_EVENT },
-    // XUL specific events
-    { nsGkAtoms::ontext,                        NS_TEXT_TEXT, EventNameType_XUL, NS_EVENT_NULL },
-
-    { nsGkAtoms::oncompositionstart,            NS_COMPOSITION_START, EventNameType_XUL, NS_COMPOSITION_EVENT },
-    { nsGkAtoms::oncompositionend,              NS_COMPOSITION_END, EventNameType_XUL, NS_COMPOSITION_EVENT },
-
-    { nsGkAtoms::oncommand,                     NS_XUL_COMMAND, EventNameType_XUL, NS_INPUT_EVENT },
-
-    { nsGkAtoms::onclose,                       NS_XUL_CLOSE, EventNameType_XUL, NS_EVENT_NULL},
-    { nsGkAtoms::onpopupshowing,                NS_XUL_POPUP_SHOWING, EventNameType_XUL, NS_EVENT_NULL},
-    { nsGkAtoms::onpopupshown,                  NS_XUL_POPUP_SHOWN, EventNameType_XUL, NS_EVENT_NULL},
-    { nsGkAtoms::onpopuphiding,                 NS_XUL_POPUP_HIDING, EventNameType_XUL, NS_EVENT_NULL},
-    { nsGkAtoms::onpopuphidden,                 NS_XUL_POPUP_HIDDEN, EventNameType_XUL, NS_EVENT_NULL},
-    { nsGkAtoms::onbroadcast,                   NS_XUL_BROADCAST, EventNameType_XUL, NS_EVENT_NULL},
-    { nsGkAtoms::oncommandupdate,               NS_XUL_COMMAND_UPDATE, EventNameType_XUL, NS_EVENT_NULL},
-
-    { nsGkAtoms::ondragenter,                   NS_DRAGDROP_ENTER, EventNameType_HTMLXUL, NS_DRAG_EVENT },
-    { nsGkAtoms::ondragover,                    NS_DRAGDROP_OVER_SYNTH, EventNameType_HTMLXUL, NS_DRAG_EVENT },
-    { nsGkAtoms::ondragexit,                    NS_DRAGDROP_EXIT_SYNTH, EventNameType_XUL, NS_DRAG_EVENT },
-    { nsGkAtoms::ondragdrop,                    NS_DRAGDROP_DRAGDROP, EventNameType_XUL, NS_DRAG_EVENT },
-    { nsGkAtoms::ondraggesture,                 NS_DRAGDROP_GESTURE, EventNameType_XUL, NS_DRAG_EVENT },
-    { nsGkAtoms::ondrag,                        NS_DRAGDROP_DRAG, EventNameType_HTMLXUL, NS_DRAG_EVENT },
-    { nsGkAtoms::ondragend,                     NS_DRAGDROP_END, EventNameType_HTMLXUL, NS_DRAG_EVENT },
-    { nsGkAtoms::ondragstart,                   NS_DRAGDROP_START, EventNameType_HTMLXUL, NS_DRAG_EVENT },
-    { nsGkAtoms::ondragleave,                   NS_DRAGDROP_LEAVE_SYNTH, EventNameType_HTMLXUL, NS_DRAG_EVENT },
-    { nsGkAtoms::ondrop,                        NS_DRAGDROP_DROP, EventNameType_HTMLXUL, NS_DRAG_EVENT },
-
-    { nsGkAtoms::onoverflow,                    NS_SCROLLPORT_OVERFLOW, EventNameType_XUL, NS_EVENT_NULL},
-    { nsGkAtoms::onunderflow,                   NS_SCROLLPORT_UNDERFLOW, EventNameType_XUL, NS_EVENT_NULL},
-#ifdef MOZ_SVG
-    { nsGkAtoms::onSVGLoad,                     NS_SVG_LOAD, EventNameType_None, NS_SVG_EVENT },
-    { nsGkAtoms::onSVGUnload,                   NS_SVG_UNLOAD, EventNameType_None, NS_SVG_EVENT },
-    { nsGkAtoms::onSVGAbort,                    NS_SVG_ABORT, EventNameType_None, NS_SVG_EVENT },
-    { nsGkAtoms::onSVGError,                    NS_SVG_ERROR, EventNameType_None, NS_SVG_EVENT },
-    { nsGkAtoms::onSVGResize,                   NS_SVG_RESIZE, EventNameType_None, NS_SVG_EVENT },
-    { nsGkAtoms::onSVGScroll,                   NS_SVG_SCROLL, EventNameType_None, NS_SVG_EVENT },
-
-    { nsGkAtoms::onSVGZoom,                     NS_SVG_ZOOM, EventNameType_None, NS_SVGZOOM_EVENT },
-
-    // This is a bit hackish, but SVG's event names are weird.
-    { nsGkAtoms::onzoom,                        NS_SVG_ZOOM, EventNameType_SVGSVG, NS_EVENT_NULL },
-#endif // MOZ_SVG
-#ifdef MOZ_SMIL
-    { nsGkAtoms::onbegin,                       NS_SMIL_BEGIN, EventNameType_SMIL, NS_EVENT_NULL },
-    { nsGkAtoms::onbeginEvent,                  NS_SMIL_BEGIN, EventNameType_None, NS_SMIL_TIME_EVENT },
-    { nsGkAtoms::onend,                         NS_SMIL_END, EventNameType_SMIL, NS_EVENT_NULL },
-    { nsGkAtoms::onendEvent,                    NS_SMIL_END, EventNameType_None, NS_SMIL_TIME_EVENT },
-    { nsGkAtoms::onrepeat,                      NS_SMIL_REPEAT, EventNameType_SMIL, NS_EVENT_NULL },
-    { nsGkAtoms::onrepeatEvent,                 NS_SMIL_REPEAT, EventNameType_None, NS_SMIL_TIME_EVENT },
-#endif // MOZ_SMIL
-#ifdef MOZ_MEDIA
-    { nsGkAtoms::onloadstart,                   NS_LOADSTART, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::onprogress,                    NS_PROGRESS, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::onsuspend,                     NS_SUSPEND, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::onemptied,                     NS_EMPTIED, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::onstalled,                     NS_STALLED, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::onplay,                        NS_PLAY, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::onpause,                       NS_PAUSE, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::onloadedmetadata,              NS_LOADEDMETADATA, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::onloadeddata,                  NS_LOADEDDATA, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::onwaiting,                     NS_WAITING, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::onplaying,                     NS_PLAYING, EventNameType_HTML,  NS_EVENT_NULL },
-    { nsGkAtoms::oncanplay,                     NS_CANPLAY, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::oncanplaythrough,              NS_CANPLAYTHROUGH, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::onseeking,                     NS_SEEKING, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::onseeked,                      NS_SEEKED, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::ontimeupdate,                  NS_TIMEUPDATE, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::onended,                       NS_ENDED, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::onratechange,                  NS_RATECHANGE, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::ondurationchange,              NS_DURATIONCHANGE, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::onvolumechange,                NS_VOLUMECHANGE, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::onMozAudioAvailable,           NS_MOZAUDIOAVAILABLE, EventNameType_None, NS_EVENT_NULL },
-#endif // MOZ_MEDIA
-    { nsGkAtoms::onMozAfterPaint,               NS_AFTERPAINT, EventNameType_None, NS_EVENT },
-    { nsGkAtoms::onMozBeforePaint,              NS_BEFOREPAINT, EventNameType_None, NS_EVENT_NULL },
-
-    { nsGkAtoms::onMozScrolledAreaChanged,      NS_SCROLLEDAREACHANGED, EventNameType_None, NS_SCROLLAREA_EVENT },
-
-    // Simple gesture events
-    { nsGkAtoms::onMozSwipeGesture,             NS_SIMPLE_GESTURE_SWIPE, EventNameType_None, NS_SIMPLE_GESTURE_EVENT },
-    { nsGkAtoms::onMozMagnifyGestureStart,      NS_SIMPLE_GESTURE_MAGNIFY_START, EventNameType_None, NS_SIMPLE_GESTURE_EVENT },
-    { nsGkAtoms::onMozMagnifyGestureUpdate,     NS_SIMPLE_GESTURE_MAGNIFY_UPDATE, EventNameType_None, NS_SIMPLE_GESTURE_EVENT },
-    { nsGkAtoms::onMozMagnifyGesture,           NS_SIMPLE_GESTURE_MAGNIFY, EventNameType_None, NS_SIMPLE_GESTURE_EVENT },
-    { nsGkAtoms::onMozRotateGestureStart,       NS_SIMPLE_GESTURE_ROTATE_START, EventNameType_None, NS_SIMPLE_GESTURE_EVENT },
-    { nsGkAtoms::onMozRotateGestureUpdate,      NS_SIMPLE_GESTURE_ROTATE_UPDATE, EventNameType_None, NS_SIMPLE_GESTURE_EVENT },
-    { nsGkAtoms::onMozRotateGesture,            NS_SIMPLE_GESTURE_ROTATE, EventNameType_None, NS_SIMPLE_GESTURE_EVENT },
-    { nsGkAtoms::onMozTapGesture,               NS_SIMPLE_GESTURE_TAP, EventNameType_None, NS_SIMPLE_GESTURE_EVENT },
-    { nsGkAtoms::onMozPressTapGesture,          NS_SIMPLE_GESTURE_PRESSTAP, EventNameType_None, NS_SIMPLE_GESTURE_EVENT },
-
-    { nsGkAtoms::onMozTouchDown,                NS_MOZTOUCH_DOWN, EventNameType_None, NS_MOZTOUCH_EVENT },
-    { nsGkAtoms::onMozTouchMove,                NS_MOZTOUCH_MOVE, EventNameType_None, NS_MOZTOUCH_EVENT },
-    { nsGkAtoms::onMozTouchUp,                  NS_MOZTOUCH_UP, EventNameType_None, NS_MOZTOUCH_EVENT },
-
-    { nsGkAtoms::ontransitionend,               NS_TRANSITION_END, EventNameType_None, NS_TRANSITION_EVENT }
+  struct EventItem
+  {
+    nsIAtom** mAtom;
+    EventNameMapping mValue;
   };
 
-  sAtomEventTable = new nsDataHashtable<nsISupportsHashKey, EventNameMapping>;
-  sStringEventTable = new nsDataHashtable<nsStringHashKey, EventNameMapping>;
-  sUserDefinedEvents = new nsCOMArray<nsIAtom>(64);
+  static const EventItem eventArray[] = {
+    { &nsGkAtoms::onmousedown,                   { NS_MOUSE_BUTTON_DOWN, EventNameType_All }},
+    { &nsGkAtoms::onmouseup,                     { NS_MOUSE_BUTTON_UP, EventNameType_All }},
+    { &nsGkAtoms::onclick,                       { NS_MOUSE_CLICK, EventNameType_All }},
+    { &nsGkAtoms::ondblclick,                    { NS_MOUSE_DOUBLECLICK, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onmouseover,                   { NS_MOUSE_ENTER_SYNTH, EventNameType_All }},
+    { &nsGkAtoms::onmouseout,                    { NS_MOUSE_EXIT_SYNTH, EventNameType_All }},
+    { &nsGkAtoms::onmousemove,                   { NS_MOUSE_MOVE, EventNameType_All }},
+    { &nsGkAtoms::oncontextmenu,                 { NS_CONTEXTMENU, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onkeydown,                     { NS_KEY_DOWN, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onkeyup,                       { NS_KEY_UP, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onkeypress,                    { NS_KEY_PRESS, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onfocus,                       { NS_FOCUS_CONTENT, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onblur,                        { NS_BLUR_CONTENT, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onoffline,                     { NS_OFFLINE, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::ononline,                      { NS_ONLINE, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onsubmit,                      { NS_FORM_SUBMIT, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onreset,                       { NS_FORM_RESET, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onchange,                      { NS_FORM_CHANGE, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onselect,                      { NS_FORM_SELECTED, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onload,                        { NS_LOAD, EventNameType_All }},
+    { &nsGkAtoms::onpopstate,                    { NS_POPSTATE, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onunload,                      { NS_PAGE_UNLOAD,
+                                                 (EventNameType_HTMLXUL | EventNameType_SVGSVG) }},
+    { &nsGkAtoms::onhashchange,                  { NS_HASHCHANGE, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onbeforeunload,                { NS_BEFORE_PAGE_UNLOAD, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onabort,                       { NS_IMAGE_ABORT,
+                                                 (EventNameType_HTMLXUL | EventNameType_SVGSVG) }},
+    { &nsGkAtoms::onerror,                       { NS_LOAD_ERROR,
+                                                 (EventNameType_HTMLXUL | EventNameType_SVGSVG) }},
+    { &nsGkAtoms::onDOMAttrModified,             { NS_MUTATION_ATTRMODIFIED, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onDOMCharacterDataModified,    { NS_MUTATION_CHARACTERDATAMODIFIED, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onDOMNodeInserted,             { NS_MUTATION_NODEINSERTED, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onDOMNodeRemoved,              { NS_MUTATION_NODEREMOVED, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onDOMNodeInsertedIntoDocument, { NS_MUTATION_NODEINSERTEDINTODOCUMENT, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onDOMNodeRemovedFromDocument,  { NS_MUTATION_NODEREMOVEDFROMDOCUMENT, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onDOMSubtreeModified,          { NS_MUTATION_SUBTREEMODIFIED, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onDOMActivate,                 { NS_UI_ACTIVATE, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onDOMFocusIn,                  { NS_UI_FOCUSIN, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onDOMFocusOut,                 { NS_UI_FOCUSOUT, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onDOMMouseScroll,              { NS_MOUSE_SCROLL, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onMozMousePixelScroll,         { NS_MOUSE_PIXEL_SCROLL, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::oninput,                       { NS_FORM_INPUT, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onpageshow,                    { NS_PAGE_SHOW, EventNameType_HTML }},
+    { &nsGkAtoms::onpagehide,                    { NS_PAGE_HIDE, EventNameType_HTML }},
+    { &nsGkAtoms::onresize,                      { NS_RESIZE_EVENT,
+                                                 (EventNameType_HTMLXUL | EventNameType_SVGSVG) }},
+    { &nsGkAtoms::onscroll,                      { NS_SCROLL_EVENT,
+                                                 (EventNameType_HTMLXUL | EventNameType_SVGSVG) }},
+    { &nsGkAtoms::oncopy,                        { NS_COPY, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::oncut,                         { NS_CUT, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onpaste,                       { NS_PASTE, EventNameType_HTMLXUL }},
+    // XUL specific events
+    { &nsGkAtoms::ontext,                        { NS_TEXT_TEXT, EventNameType_XUL }},
+    { &nsGkAtoms::oncompositionstart,            { NS_COMPOSITION_START, EventNameType_XUL }},
+    { &nsGkAtoms::oncompositionend,              { NS_COMPOSITION_END, EventNameType_XUL }},
+    { &nsGkAtoms::onclose,                       { NS_XUL_CLOSE, EventNameType_XUL }},
+    { &nsGkAtoms::onpopupshowing,                { NS_XUL_POPUP_SHOWING, EventNameType_XUL }},
+    { &nsGkAtoms::onpopupshown,                  { NS_XUL_POPUP_SHOWN, EventNameType_XUL }},
+    { &nsGkAtoms::onpopuphiding,                 { NS_XUL_POPUP_HIDING, EventNameType_XUL }},
+    { &nsGkAtoms::onpopuphidden,                 { NS_XUL_POPUP_HIDDEN, EventNameType_XUL }},
+    { &nsGkAtoms::oncommand,                     { NS_XUL_COMMAND, EventNameType_XUL }},
+    { &nsGkAtoms::onbroadcast,                   { NS_XUL_BROADCAST, EventNameType_XUL }},
+    { &nsGkAtoms::oncommandupdate,               { NS_XUL_COMMAND_UPDATE, EventNameType_XUL }},
+    { &nsGkAtoms::ondragenter,                   { NS_DRAGDROP_ENTER, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::ondragover,                    { NS_DRAGDROP_OVER_SYNTH, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::ondragexit,                    { NS_DRAGDROP_EXIT_SYNTH, EventNameType_XUL }},
+    { &nsGkAtoms::ondragdrop,                    { NS_DRAGDROP_DRAGDROP, EventNameType_XUL }},
+    { &nsGkAtoms::ondraggesture,                 { NS_DRAGDROP_GESTURE, EventNameType_XUL }},
+    { &nsGkAtoms::ondrag,                        { NS_DRAGDROP_DRAG, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::ondragend,                     { NS_DRAGDROP_END, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::ondragstart,                   { NS_DRAGDROP_START, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::ondragleave,                   { NS_DRAGDROP_LEAVE_SYNTH, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::ondrop,                        { NS_DRAGDROP_DROP, EventNameType_HTMLXUL }},
+    { &nsGkAtoms::onoverflow,                    { NS_SCROLLPORT_OVERFLOW, EventNameType_XUL }},
+    { &nsGkAtoms::onunderflow,                   { NS_SCROLLPORT_UNDERFLOW, EventNameType_XUL }},
+#ifdef MOZ_SVG
+    { &nsGkAtoms::onSVGLoad,                     { NS_SVG_LOAD, EventNameType_None }},
+    { &nsGkAtoms::onSVGUnload,                   { NS_SVG_UNLOAD, EventNameType_None }},
+    { &nsGkAtoms::onSVGAbort,                    { NS_SVG_ABORT, EventNameType_None }},
+    { &nsGkAtoms::onSVGError,                    { NS_SVG_ERROR, EventNameType_None }},
+    { &nsGkAtoms::onSVGResize,                   { NS_SVG_RESIZE, EventNameType_None }},
+    { &nsGkAtoms::onSVGScroll,                   { NS_SVG_SCROLL, EventNameType_None }},
+    { &nsGkAtoms::onSVGZoom,                     { NS_SVG_ZOOM, EventNameType_None }},
+    { &nsGkAtoms::onzoom,                        { NS_SVG_ZOOM, EventNameType_SVGSVG }},
+#endif // MOZ_SVG
+#ifdef MOZ_MEDIA 
+    { &nsGkAtoms::onloadstart,                   { NS_LOADSTART, EventNameType_HTML }},
+    { &nsGkAtoms::onprogress,                    { NS_PROGRESS, EventNameType_HTML }},
+    { &nsGkAtoms::onsuspend,                     { NS_SUSPEND, EventNameType_HTML }},
+    { &nsGkAtoms::onemptied,                     { NS_EMPTIED, EventNameType_HTML }},
+    { &nsGkAtoms::onstalled,                     { NS_STALLED, EventNameType_HTML }},
+    { &nsGkAtoms::onplay,                        { NS_PLAY, EventNameType_HTML }},
+    { &nsGkAtoms::onpause,                       { NS_PAUSE, EventNameType_HTML }},
+    { &nsGkAtoms::onloadedmetadata,              { NS_LOADEDMETADATA, EventNameType_HTML }},
+    { &nsGkAtoms::onloadeddata,                  { NS_LOADEDDATA, EventNameType_HTML }},
+    { &nsGkAtoms::onwaiting,                     { NS_WAITING, EventNameType_HTML }},
+    { &nsGkAtoms::onplaying,                     { NS_PLAYING, EventNameType_HTML }},
+    { &nsGkAtoms::oncanplay,                     { NS_CANPLAY, EventNameType_HTML }},
+    { &nsGkAtoms::oncanplaythrough,              { NS_CANPLAYTHROUGH, EventNameType_HTML }},
+    { &nsGkAtoms::onseeking,                     { NS_SEEKING, EventNameType_HTML }},
+    { &nsGkAtoms::onseeked,                      { NS_SEEKED, EventNameType_HTML }},
+    { &nsGkAtoms::ontimeupdate,                  { NS_TIMEUPDATE, EventNameType_HTML }},
+    { &nsGkAtoms::onended,                       { NS_ENDED, EventNameType_HTML }},
+    { &nsGkAtoms::onratechange,                  { NS_RATECHANGE, EventNameType_HTML }},
+    { &nsGkAtoms::ondurationchange,              { NS_DURATIONCHANGE, EventNameType_HTML }},
+    { &nsGkAtoms::onvolumechange,                { NS_VOLUMECHANGE, EventNameType_HTML }},
+#endif //MOZ_MEDIA
+    { &nsGkAtoms::onMozAfterPaint,               { NS_AFTERPAINT, EventNameType_None }},
+    { &nsGkAtoms::onMozScrolledAreaChanged,      { NS_SCROLLEDAREACHANGED, EventNameType_None }},
 
-  if (!sAtomEventTable || !sStringEventTable || !sUserDefinedEvents ||
-      !sAtomEventTable->Init(int(NS_ARRAY_LENGTH(eventArray) / 0.75) + 1) ||
-      !sStringEventTable->Init(int(NS_ARRAY_LENGTH(eventArray) / 0.75) + 1)) {
-    delete sAtomEventTable;
-    sAtomEventTable = nsnull;
-    delete sStringEventTable;
-    sStringEventTable = nsnull;
-    delete sUserDefinedEvents;
-    sUserDefinedEvents = nsnull;
+    // Simple gesture events
+    { &nsGkAtoms::onMozSwipeGesture,             { NS_SIMPLE_GESTURE_SWIPE, EventNameType_None } },
+    { &nsGkAtoms::onMozMagnifyGestureStart,      { NS_SIMPLE_GESTURE_MAGNIFY_START, EventNameType_None } },
+    { &nsGkAtoms::onMozMagnifyGestureUpdate,     { NS_SIMPLE_GESTURE_MAGNIFY_UPDATE, EventNameType_None } },
+    { &nsGkAtoms::onMozMagnifyGesture,           { NS_SIMPLE_GESTURE_MAGNIFY, EventNameType_None } },
+    { &nsGkAtoms::onMozRotateGestureStart,       { NS_SIMPLE_GESTURE_ROTATE_START, EventNameType_None } },
+    { &nsGkAtoms::onMozRotateGestureUpdate,      { NS_SIMPLE_GESTURE_ROTATE_UPDATE, EventNameType_None } },
+    { &nsGkAtoms::onMozRotateGesture,            { NS_SIMPLE_GESTURE_ROTATE, EventNameType_None } },
+    { &nsGkAtoms::onMozTapGesture,               { NS_SIMPLE_GESTURE_TAP, EventNameType_None } },
+    { &nsGkAtoms::onMozPressTapGesture,          { NS_SIMPLE_GESTURE_PRESSTAP, EventNameType_None } },
+
+    { &nsGkAtoms::ontransitionend,               { NS_TRANSITION_END, EventNameType_None }},
+  };
+
+  sEventTable = new nsDataHashtable<nsISupportsHashKey, EventNameMapping>;
+  if (!sEventTable ||
+      !sEventTable->Init(int(NS_ARRAY_LENGTH(eventArray) / 0.75) + 1)) {
+    delete sEventTable;
+    sEventTable = nsnull;
     return PR_FALSE;
   }
 
   for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(eventArray); ++i) {
-    if (!sAtomEventTable->Put(eventArray[i].mAtom, eventArray[i]) ||
-        !sStringEventTable->Put(Substring(nsDependentAtomString(eventArray[i].mAtom), 2),
-                                eventArray[i])) {
-      delete sAtomEventTable;
-      sAtomEventTable = nsnull;
-      delete sStringEventTable;
-      sStringEventTable = nsnull;
+    if (!sEventTable->Put(*(eventArray[i].mAtom), eventArray[i].mValue)) {
+      delete sEventTable;
+      sEventTable = nsnull;
       return PR_FALSE;
     }
   }
@@ -1014,53 +885,6 @@ nsContentUtils::IsHTMLWhitespace(PRUnichar aChar)
          aChar == PRUnichar(0x0020);
 }
 
-/* static */
-PRBool
-nsContentUtils::ParseIntMarginValue(const nsAString& aString, nsIntMargin& result)
-{
-  nsAutoString marginStr(aString);
-  marginStr.CompressWhitespace(PR_TRUE, PR_TRUE);
-  if (marginStr.IsEmpty()) {
-    return PR_FALSE;
-  }
-
-  PRInt32 start = 0, end = 0;
-  for (int count = 0; count < 4; count++) {
-    if ((PRUint32)end >= marginStr.Length())
-      return PR_FALSE;
-
-    // top, right, bottom, left
-    if (count < 3)
-      end = Substring(marginStr, start).FindChar(',');
-    else
-      end = Substring(marginStr, start).Length();
-
-    if (end <= 0)
-      return PR_FALSE;
-
-    PRInt32 ec, val = 
-      nsString(Substring(marginStr, start, end)).ToInteger(&ec);
-    if (NS_FAILED(ec))
-      return PR_FALSE;
-
-    switch(count) {
-      case 0:
-        result.top = val;
-      break;
-      case 1:
-        result.right = val;
-      break;
-      case 2:
-        result.bottom = val;
-      break;
-      case 3:
-        result.left = val;
-      break;
-    }
-    start += end + 1;
-  }
-  return PR_TRUE;
-}
 
 /* static */
 void
@@ -1081,8 +905,7 @@ nsContentUtils::GetOfflineAppManifest(nsIDocument *aDocument, nsIURI **aURI)
   }
 
   nsContentUtils::NewURIWithDocumentCharset(aURI, manifestSpec,
-                                            aDocument,
-                                            aDocument->GetDocBaseURI());
+                                            aDocument, aDocument->GetBaseURI());
 }
 
 /* static */
@@ -1135,9 +958,16 @@ nsContentUtils::Shutdown()
     NS_IF_RELEASE(sStringBundles[i]);
 
   // Clean up c-style's observer 
-  if (sPrefCallbackTable) {
-    delete sPrefCallbackTable;
-    sPrefCallbackTable = nsnull;
+  if (sPrefCallbackList) {
+    while (sPrefCallbackList->Count() > 0) {
+      nsRefPtr<nsPrefOldCallback> callback = (*sPrefCallbackList)[0];
+      NS_ABORT_IF_FALSE(callback, "Invalid c-style callback is appended");
+      if (sPrefBranch)
+        sPrefBranch->RemoveObserver(callback->mPref.get(), callback);
+      sPrefCallbackList->RemoveObject(callback);
+    }
+    delete sPrefCallbackList;
+    sPrefCallbackList = nsnull;
   }
 
   delete sPrefCacheData;
@@ -1146,14 +976,16 @@ nsContentUtils::Shutdown()
   NS_IF_RELEASE(sStringBundleService);
   NS_IF_RELEASE(sConsoleService);
   NS_IF_RELEASE(sDOMScriptObjectFactory);
-  sXPConnect = nsnull;
-  sThreadJSContextStack = nsnull;
+  if (sJSGCThingRootCount == 0 && sXPConnect)
+    NS_RELEASE(sXPConnect);
   NS_IF_RELEASE(sSecurityManager);
+  NS_IF_RELEASE(sThreadJSContextStack);
   NS_IF_RELEASE(sNameSpaceManager);
   NS_IF_RELEASE(sParserService);
   NS_IF_RELEASE(sIOService);
   NS_IF_RELEASE(sLineBreaker);
   NS_IF_RELEASE(sWordBreaker);
+  NS_IF_RELEASE(sCaseConv);
   NS_IF_RELEASE(sGenCat);
 #ifdef MOZ_XTF
   NS_IF_RELEASE(sXTFService);
@@ -1166,12 +998,8 @@ nsContentUtils::Shutdown()
   NS_IF_RELEASE(sBidiKeyboard);
 #endif
 
-  delete sAtomEventTable;
-  sAtomEventTable = nsnull;
-  delete sStringEventTable;
-  sStringEventTable = nsnull;
-  delete sUserDefinedEvents;
-  sUserDefinedEvents = nsnull;
+  delete sEventTable;
+  sEventTable = nsnull;
 
   if (sPtrsToPtrsToRelease) {
     for (i = 0; i < sPtrsToPtrsToRelease->Length(); ++i) {
@@ -1210,8 +1038,6 @@ nsContentUtils::Shutdown()
   NS_IF_RELEASE(sSameOriginChecker);
   
   nsAutoGCRoot::Shutdown();
-
-  nsTextEditorState::ShutDown();
 }
 
 // static
@@ -1592,24 +1418,9 @@ nsContentUtils::IsCallerTrustedForWrite()
 }
 
 // static
-nsINode*
-nsContentUtils::GetCrossDocParentNode(nsINode* aChild)
-{
-  NS_PRECONDITION(aChild, "The child is null!");
-
-  nsINode* parent = aChild->GetNodeParent();
-  if (parent || !aChild->IsNodeOfType(nsINode::eDOCUMENT))
-    return parent;
-
-  nsIDocument* doc = static_cast<nsIDocument*>(aChild);
-  nsIDocument* parentDoc = doc->GetParentDocument();
-  return parentDoc ? parentDoc->FindContentForSubDocument(doc) : nsnull;
-}
-
-// static
 PRBool
-nsContentUtils::ContentIsDescendantOf(const nsINode* aPossibleDescendant,
-                                      const nsINode* aPossibleAncestor)
+nsContentUtils::ContentIsDescendantOf(nsINode* aPossibleDescendant,
+                                      nsINode* aPossibleAncestor)
 {
   NS_PRECONDITION(aPossibleDescendant, "The possible descendant is null!");
   NS_PRECONDITION(aPossibleAncestor, "The possible ancestor is null!");
@@ -1634,7 +1445,16 @@ nsContentUtils::ContentIsCrossDocDescendantOf(nsINode* aPossibleDescendant,
   do {
     if (aPossibleDescendant == aPossibleAncestor)
       return PR_TRUE;
-    aPossibleDescendant = GetCrossDocParentNode(aPossibleDescendant);
+    nsINode* parent = aPossibleDescendant->GetNodeParent();
+    if (!parent && aPossibleDescendant->IsNodeOfType(nsINode::eDOCUMENT)) {
+      nsIDocument* doc = static_cast<nsIDocument*>(aPossibleDescendant);
+      nsIDocument* parentDoc = doc->GetParentDocument();
+      aPossibleDescendant = parentDoc ?
+                            parentDoc->FindContentForSubDocument(doc) : nsnull;
+    }
+    else {
+      aPossibleDescendant = parent;
+    }
   } while (aPossibleDescendant);
 
   return PR_FALSE;
@@ -1749,6 +1569,118 @@ nsContentUtils::GetCommonAncestor(nsINode* aNode1,
   }
 
   return parent;
+}
+
+PRUint16
+nsContentUtils::ComparePosition(nsINode* aNode1,
+                                nsINode* aNode2)
+{
+  NS_PRECONDITION(aNode1 && aNode2, "don't pass null");
+
+  if (aNode1 == aNode2) {
+    return 0;
+  }
+
+  nsAutoTPtrArray<nsINode, 32> parents1, parents2;
+
+  // Check if either node is an attribute
+  nsIAttribute* attr1 = nsnull;
+  if (aNode1->IsNodeOfType(nsINode::eATTRIBUTE)) {
+    attr1 = static_cast<nsIAttribute*>(aNode1);
+    nsIContent* elem = attr1->GetContent();
+    // If there is an owner element add the attribute
+    // to the chain and walk up to the element
+    if (elem) {
+      aNode1 = elem;
+      parents1.AppendElement(static_cast<nsINode*>(attr1));
+    }
+  }
+  if (aNode2->IsNodeOfType(nsINode::eATTRIBUTE)) {
+    nsIAttribute* attr2 = static_cast<nsIAttribute*>(aNode2);
+    nsIContent* elem = attr2->GetContent();
+    if (elem == aNode1 && attr1) {
+      // Both nodes are attributes on the same element.
+      // Compare position between the attributes.
+
+      PRUint32 i;
+      const nsAttrName* attrName;
+      for (i = 0; (attrName = elem->GetAttrNameAt(i)); ++i) {
+        if (attrName->Equals(attr1->NodeInfo())) {
+          NS_ASSERTION(!attrName->Equals(attr2->NodeInfo()),
+                       "Different attrs at same position");
+          return nsIDOM3Node::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC |
+            nsIDOM3Node::DOCUMENT_POSITION_PRECEDING;
+        }
+        if (attrName->Equals(attr2->NodeInfo())) {
+          return nsIDOM3Node::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC |
+            nsIDOM3Node::DOCUMENT_POSITION_FOLLOWING;
+        }
+      }
+      NS_NOTREACHED("neither attribute in the element");
+      return nsIDOM3Node::DOCUMENT_POSITION_DISCONNECTED;
+    }
+
+    if (elem) {
+      aNode2 = elem;
+      parents2.AppendElement(static_cast<nsINode*>(attr2));
+    }
+  }
+
+  // We now know that both nodes are either nsIContents or nsIDocuments.
+  // If either node started out as an attribute, that attribute will have
+  // the same relative position as its ownerElement, except if the
+  // ownerElement ends up being the container for the other node
+
+  // Build the chain of parents
+  do {
+    parents1.AppendElement(aNode1);
+    aNode1 = aNode1->GetNodeParent();
+  } while (aNode1);
+  do {
+    parents2.AppendElement(aNode2);
+    aNode2 = aNode2->GetNodeParent();
+  } while (aNode2);
+
+  // Check if the nodes are disconnected.
+  PRUint32 pos1 = parents1.Length();
+  PRUint32 pos2 = parents2.Length();
+  nsINode* top1 = parents1.ElementAt(--pos1);
+  nsINode* top2 = parents2.ElementAt(--pos2);
+  if (top1 != top2) {
+    return top1 < top2 ?
+      (nsIDOM3Node::DOCUMENT_POSITION_PRECEDING |
+       nsIDOM3Node::DOCUMENT_POSITION_DISCONNECTED |
+       nsIDOM3Node::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC) :
+      (nsIDOM3Node::DOCUMENT_POSITION_FOLLOWING |
+       nsIDOM3Node::DOCUMENT_POSITION_DISCONNECTED |
+       nsIDOM3Node::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC);
+  }
+
+  // Find where the parent chain differs and check indices in the parent.
+  nsINode* parent = top1;
+  PRUint32 len;
+  for (len = NS_MIN(pos1, pos2); len > 0; --len) {
+    nsINode* child1 = parents1.ElementAt(--pos1);
+    nsINode* child2 = parents2.ElementAt(--pos2);
+    if (child1 != child2) {
+      // child1 or child2 can be an attribute here. This will work fine since
+      // IndexOf will return -1 for the attribute making the attribute be
+      // considered before any child.
+      return parent->IndexOf(child1) < parent->IndexOf(child2) ?
+        static_cast<PRUint16>(nsIDOM3Node::DOCUMENT_POSITION_PRECEDING) :
+        static_cast<PRUint16>(nsIDOM3Node::DOCUMENT_POSITION_FOLLOWING);
+    }
+    parent = child1;
+  }
+
+  // We hit the end of one of the parent chains without finding a difference
+  // between the chains. That must mean that one node is an ancestor of the
+  // other. The one with the shortest chain must be the ancestor.
+  return pos1 < pos2 ?
+    (nsIDOM3Node::DOCUMENT_POSITION_PRECEDING |
+     nsIDOM3Node::DOCUMENT_POSITION_CONTAINS) :
+    (nsIDOM3Node::DOCUMENT_POSITION_FOLLOWING |
+     nsIDOM3Node::DOCUMENT_POSITION_CONTAINED_BY);    
 }
 
 /* static */
@@ -1917,7 +1849,6 @@ nsContentUtils::TrimCharsInSet(const char* aSet,
  */
 
 // static
-template<PRBool IsWhitespace(PRUnichar)>
 const nsDependentSubstring
 nsContentUtils::TrimWhitespace(const nsAString& aStr, PRBool aTrimTrailing)
 {
@@ -1927,7 +1858,7 @@ nsContentUtils::TrimWhitespace(const nsAString& aStr, PRBool aTrimTrailing)
   aStr.EndReading(end);
 
   // Skip whitespace characters in the beginning
-  while (start != end && IsWhitespace(*start)) {
+  while (start != end && nsCRT::IsAsciiSpace(*start)) {
     ++start;
   }
 
@@ -1936,7 +1867,7 @@ nsContentUtils::TrimWhitespace(const nsAString& aStr, PRBool aTrimTrailing)
     while (end != start) {
       --end;
 
-      if (!IsWhitespace(*end)) {
+      if (!nsCRT::IsAsciiSpace(*end)) {
         // Step back to the last non-whitespace character.
         ++end;
 
@@ -1950,16 +1881,6 @@ nsContentUtils::TrimWhitespace(const nsAString& aStr, PRBool aTrimTrailing)
 
   return Substring(start, end);
 }
-
-// Declaring the templates we are going to use avoid linking issues without
-// inlining the method. Considering there is not so much spaces checking
-// methods we can consider this to be better than inlining.
-template
-const nsDependentSubstring
-nsContentUtils::TrimWhitespace<nsCRT::IsAsciiSpace>(const nsAString&, PRBool);
-template
-const nsDependentSubstring
-nsContentUtils::TrimWhitespace<nsContentUtils::IsHTMLWhitespace>(const nsAString&, PRBool);
 
 static inline void KeyAppendSep(nsACString& aKey)
 {
@@ -2002,10 +1923,11 @@ static inline void KeyAppendAtom(nsIAtom* aAtom, nsACString& aKey)
   KeyAppendString(nsAtomCString(aAtom), aKey);
 }
 
-static inline PRBool IsAutocompleteOff(nsIContent* aElement)
+static inline PRBool IsAutocompleteOff(nsIDOMElement* aElement)
 {
-  return aElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::autocomplete,
-                               NS_LITERAL_STRING("off"), eIgnoreCase);
+  nsAutoString autocomplete;
+  aElement->GetAttribute(NS_LITERAL_STRING("autocomplete"), autocomplete);
+  return autocomplete.LowerCaseEqualsLiteral("off");
 }
 
 /*static*/ nsresult
@@ -2034,7 +1956,8 @@ nsContentUtils::GenerateStateKey(nsIContent* aContent,
     return NS_OK;
   }
 
-  if (IsAutocompleteOff(aContent)) {
+  nsCOMPtr<nsIDOMElement> element(do_QueryInterface(aContent));
+  if (element && IsAutocompleteOff(element)) {
     return NS_OK;
   }
 
@@ -2080,8 +2003,10 @@ nsContentUtils::GenerateStateKey(nsIContent* aContent,
 
       // If in a form, add form name / index of form / index in form
       PRInt32 index = -1;
-      Element *formElement = control->GetFormElement();
+      nsCOMPtr<nsIDOMHTMLFormElement> formElement;
+      control->GetForm(getter_AddRefs(formElement));
       if (formElement) {
+
         if (IsAutocompleteOff(formElement)) {
           aKey.Truncate();
           return NS_OK;
@@ -2090,7 +2015,8 @@ nsContentUtils::GenerateStateKey(nsIContent* aContent,
         KeyAppendString(NS_LITERAL_CSTRING("f"), aKey);
 
         // Append the index of the form in the document
-        index = htmlForms->IndexOf(formElement, PR_FALSE);
+        nsCOMPtr<nsIContent> formContent(do_QueryInterface(formElement));
+        index = htmlForms->IndexOf(formContent, PR_FALSE);
         if (index <= -1) {
           //
           // XXX HACK this uses some state that was dumped into the document
@@ -2116,7 +2042,7 @@ nsContentUtils::GenerateStateKey(nsIContent* aContent,
 
         // Append the form name
         nsAutoString formName;
-        formElement->GetAttr(kNameSpaceID_None, nsGkAtoms::name, formName);
+        formElement->GetName(formName);
         KeyAppendString(formName, aKey);
 
       } else {
@@ -2273,8 +2199,8 @@ nsContentUtils::SplitQName(nsIContent* aNamespaceResolver,
     const PRUnichar* end;
     aQName.EndReading(end);
     nsAutoString nameSpace;
-    rv = aNamespaceResolver->LookupNamespaceURI(Substring(aQName.get(), colon),
-                                                nameSpace);
+    rv = LookupNamespaceURI(aNamespaceResolver, Substring(aQName.get(), colon),
+                            nameSpace);
     NS_ENSURE_SUCCESS(rv, rv);
 
     *aNamespace = NameSpaceManager()->GetNameSpaceID(nameSpace);
@@ -2289,6 +2215,42 @@ nsContentUtils::SplitQName(nsIContent* aNamespaceResolver,
   }
   NS_ENSURE_TRUE(aLocalName, NS_ERROR_OUT_OF_MEMORY);
   return NS_OK;
+}
+
+// static
+nsresult
+nsContentUtils::LookupNamespaceURI(nsIContent* aNamespaceResolver,
+                                   const nsAString& aNamespacePrefix,
+                                   nsAString& aNamespaceURI)
+{
+  if (aNamespacePrefix.EqualsLiteral("xml")) {
+    // Special-case for xml prefix
+    aNamespaceURI.AssignLiteral("http://www.w3.org/XML/1998/namespace");
+    return NS_OK;
+  }
+
+  if (aNamespacePrefix.EqualsLiteral("xmlns")) {
+    // Special-case for xmlns prefix
+    aNamespaceURI.AssignLiteral("http://www.w3.org/2000/xmlns/");
+    return NS_OK;
+  }
+
+  nsCOMPtr<nsIAtom> name;
+  if (!aNamespacePrefix.IsEmpty()) {
+    name = do_GetAtom(aNamespacePrefix);
+    NS_ENSURE_TRUE(name, NS_ERROR_OUT_OF_MEMORY);
+  }
+  else {
+    name = nsGkAtoms::xmlns;
+  }
+  // Trace up the content parent chain looking for the namespace
+  // declaration that declares aNamespacePrefix.
+  for (nsIContent* content = aNamespaceResolver; content;
+       content = content->GetParent()) {
+    if (content->GetAttr(kNameSpaceID_XMLNS, name, aNamespaceURI))
+      return NS_OK;
+  }
+  return NS_ERROR_FAILURE;
 }
 
 // static
@@ -2372,7 +2334,8 @@ nsContentUtils::SplitExpatName(const PRUnichar *aExpatName, nsIAtom **aPrefix,
     nameStart = (uriEnd + 1);
     if (nameEnd)  {
       const PRUnichar *prefixStart = nameEnd + 1;
-      *aPrefix = NS_NewAtom(Substring(prefixStart, pos));
+      *aPrefix = NS_NewAtom(NS_ConvertUTF16toUTF8(prefixStart,
+                                                  pos - prefixStart));
     }
     else {
       nameEnd = pos;
@@ -2385,7 +2348,8 @@ nsContentUtils::SplitExpatName(const PRUnichar *aExpatName, nsIAtom **aPrefix,
     nameEnd = pos;
     *aPrefix = nsnull;
   }
-  *aLocalName = NS_NewAtom(Substring(nameStart, nameEnd));
+  *aLocalName = NS_NewAtom(NS_ConvertUTF16toUTF8(nameStart,
+                                                 nameEnd - nameStart));
 }
 
 // static
@@ -2394,7 +2358,7 @@ nsContentUtils::GetContextForContent(nsIContent* aContent)
 {
   nsIDocument* doc = aContent->GetCurrentDoc();
   if (doc) {
-    nsIPresShell *presShell = doc->GetShell();
+    nsIPresShell *presShell = doc->GetPrimaryShell();
     if (presShell) {
       return presShell->GetPresContext();
     }
@@ -2474,9 +2438,6 @@ nsContentUtils::CanLoadImage(nsIURI* aURI, nsISupports* aContext,
 PRBool
 nsContentUtils::IsImageInCache(nsIURI* aURI)
 {
-    if (!sImgLoaderInitialized)
-        InitImgLoader();
-
     if (!sImgCache) return PR_FALSE;
 
     // If something unexpected happened we return false, otherwise if props
@@ -2498,8 +2459,7 @@ nsContentUtils::LoadImage(nsIURI* aURI, nsIDocument* aLoadingDocument,
   NS_PRECONDITION(aLoadingPrincipal, "Must have a principal");
   NS_PRECONDITION(aRequest, "Null out param");
 
-  imgILoader* imgLoader = GetImgLoader();
-  if (!imgLoader) {
+  if (!sImgLoader) {
     // nothing we can do here
     return NS_OK;
   }
@@ -2509,36 +2469,24 @@ nsContentUtils::LoadImage(nsIURI* aURI, nsIDocument* aLoadingDocument,
 
   nsIURI *documentURI = aLoadingDocument->GetDocumentURI();
 
-  // check for a Content Security Policy to pass down to the channel that
-  // will get created to load the image
-  nsCOMPtr<nsIChannelPolicy> channelPolicy;
-  nsCOMPtr<nsIContentSecurityPolicy> csp;
-  if (aLoadingPrincipal) {
-    nsresult rv = aLoadingPrincipal->GetCsp(getter_AddRefs(csp));
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (csp) {
-      channelPolicy = do_CreateInstance("@mozilla.org/nschannelpolicy;1");
-      channelPolicy->SetContentSecurityPolicy(csp);
-      channelPolicy->SetLoadType(nsIContentPolicy::TYPE_IMAGE);
-    }
-  }
-    
   // Make the URI immutable so people won't change it under us
   NS_TryToSetImmutable(aURI);
 
+  // We don't use aLoadingPrincipal for anything here yet... but we
+  // will.  See bug 377092.
+
   // XXXbz using "documentURI" for the initialDocumentURI is not quite
   // right, but the best we can do here...
-  return imgLoader->LoadImage(aURI,                 /* uri to load */
-                              documentURI,          /* initialDocumentURI */
-                              aReferrer,            /* referrer */
-                              loadGroup,            /* loadgroup */
-                              aObserver,            /* imgIDecoderObserver */
-                              aLoadingDocument,     /* uniquification key */
-                              aLoadFlags,           /* load flags */
-                              nsnull,               /* cache key */
-                              nsnull,               /* existing request*/
-                              channelPolicy,        /* CSP info */
-                              aRequest);
+  return sImgLoader->LoadImage(aURI,                 /* uri to load */
+                               documentURI,          /* initialDocumentURI */
+                               aReferrer,            /* referrer */
+                               loadGroup,            /* loadgroup */
+                               aObserver,            /* imgIDecoderObserver */
+                               aLoadingDocument,     /* uniquification key */
+                               aLoadFlags,           /* load flags */
+                               nsnull,               /* cache key */
+                               nsnull,               /* existing request*/
+                               aRequest);
 }
 
 // static
@@ -2707,8 +2655,8 @@ nsContentUtils::GetStringPref(const char *aPref)
   return result;
 }
 
-// RegisterPrefCallback/UnregisterPrefCallback are for backward compatiblity
-// with c-style observers.
+// RegisterPrefCallback/UnregisterPrefCallback are backward compatiblity for
+// c-style observer.
 
 // static
 void
@@ -2717,24 +2665,20 @@ nsContentUtils::RegisterPrefCallback(const char *aPref,
                                      void * aClosure)
 {
   if (sPrefBranch) {
-    if (!sPrefCallbackTable) {
-      sPrefCallbackTable = 
-        new nsRefPtrHashtable<nsPrefObserverHashKey, nsPrefOldCallback>();
-      sPrefCallbackTable->Init();
+    if (!sPrefCallbackList) {
+      sPrefCallbackList = new nsCOMArray<nsPrefOldCallback> ();
+      if (!sPrefCallbackList)
+        return;
     }
 
-    nsPrefObserverHashKey hashKey(aPref, aCallback);
-    nsRefPtr<nsPrefOldCallback> callback;
-    sPrefCallbackTable->Get(&hashKey, getter_AddRefs(callback));
+    nsPrefOldCallback *callback = new nsPrefOldCallback(aPref, aCallback, aClosure);
     if (callback) {
-      callback->AppendClosure(aClosure);
-      return;
-    }
-
-    callback = new nsPrefOldCallback(aPref, aCallback);
-    callback->AppendClosure(aClosure);
-    if (NS_SUCCEEDED(sPrefBranch->AddObserver(aPref, callback, PR_FALSE))) {
-      sPrefCallbackTable->Put(callback, callback);
+      if (NS_SUCCEEDED(sPrefBranch->AddObserver(aPref, callback, PR_FALSE))) {
+        sPrefCallbackList->AppendObject(callback);
+        return;
+      }
+      // error to get/add nsIPrefBranch2.  Destroy callback information
+      delete callback;
     }
   }
 }
@@ -2746,19 +2690,16 @@ nsContentUtils::UnregisterPrefCallback(const char *aPref,
                                        void * aClosure)
 {
   if (sPrefBranch) {
-    if (!sPrefCallbackTable) {
+    if (!sPrefCallbackList)
       return;
-    }
 
-    nsPrefObserverHashKey hashKey(aPref, aCallback);
-    nsRefPtr<nsPrefOldCallback> callback;
-    sPrefCallbackTable->Get(&hashKey, getter_AddRefs(callback));
-
-    if (callback) {
-      callback->RemoveClosure(aClosure);
-      if (callback->HasNoClosures()) {
-        // Delete the callback since its list of closures is empty.
-        sPrefCallbackTable->Remove(callback);
+    int i;
+    for (i = 0; i < sPrefCallbackList->Count(); i++) {
+      nsRefPtr<nsPrefOldCallback> callback = (*sPrefCallbackList)[i];
+      if (callback && callback->IsEqual(aPref, aCallback, aClosure)) {
+        sPrefBranch->RemoveObserver(aPref, callback);
+        sPrefCallbackList->RemoveObject(callback);
+        return;
       }
     }
   }
@@ -2808,20 +2749,6 @@ nsContentUtils::AddIntPrefVarCache(const char *aPref,
   data->defaultValueInt = aDefault;
   sPrefCacheData->AppendElement(data);
   RegisterPrefCallback(aPref, IntVarChanged, data);
-}
-
-PRBool
-nsContentUtils::IsSitePermAllow(nsIURI* aURI, const char* aType)
-{
-  nsCOMPtr<nsIPermissionManager> permMgr =
-    do_GetService("@mozilla.org/permissionmanager;1");
-  NS_ENSURE_TRUE(permMgr, PR_FALSE);
-
-  PRUint32 perm;
-  nsresult rv = permMgr->TestPermission(aURI, aType, &perm);
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
-  
-  return perm == nsIPermissionManager::ALLOW_ACTION;
 }
 
 static const char *gEventNames[] = {"event"};
@@ -2914,12 +2841,6 @@ nsCxPusher::Push(nsPIDOMEventTarget *aCurrentTarget)
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
   if (!scx) {
-    // The target may have a special JS context for event handlers.
-    JSContext* cx = aCurrentTarget->GetJSContextForEventHandlers();
-    if (cx) {
-      DoPush(cx);
-    }
-
     // Nothing to do here, I guess.  Have to return true so that event firing
     // will still work correctly even if there is no associated JSContext
     return PR_TRUE;
@@ -2969,7 +2890,7 @@ nsCxPusher::RePush(nsPIDOMEventTarget *aCurrentTarget)
 }
 
 PRBool
-nsCxPusher::Push(JSContext *cx, PRBool aRequiresScriptContext)
+nsCxPusher::Push(JSContext *cx)
 {
   if (mPushedSomething) {
     NS_ERROR("Whaaa! No double pushing with nsCxPusher::Push()!");
@@ -2985,7 +2906,7 @@ nsCxPusher::Push(JSContext *cx, PRBool aRequiresScriptContext)
   // XXXbz do we really need to?  If we don't get one of these in Pop(), is
   // that really a problem?  Or do we need to do this to effectively root |cx|?
   mScx = GetScriptContextFromJSContext(cx);
-  if (!mScx && aRequiresScriptContext) {
+  if (!mScx) {
     // Should probably return PR_FALSE. See bug 416916.
     return PR_TRUE;
   }
@@ -3204,7 +3125,7 @@ nsContentUtils::GetWrapperSafeScriptFilename(nsIDocument *aDocument,
 
   if (IsChromeDoc(aDocument)) {
     nsCOMPtr<nsIChromeRegistry> chromeReg =
-      mozilla::services::GetChromeRegistryService();
+      do_GetService(NS_CHROMEREGISTRY_CONTRACTID);
 
     if (!chromeReg) {
       // If we're running w/o a chrome registry we won't modify any
@@ -3278,7 +3199,7 @@ nsContentUtils::GetContentPolicy()
 
 // static
 nsresult
-nsAutoGCRoot::AddJSGCRoot(void* aPtr, RootType aRootType, const char* aName)
+nsAutoGCRoot::AddJSGCRoot(void* aPtr, const char* aName)
 {
   if (!sJSScriptRuntime) {
     nsresult rv = CallGetService("@mozilla.org/js/xpc/RuntimeService;1",
@@ -3294,10 +3215,7 @@ nsAutoGCRoot::AddJSGCRoot(void* aPtr, RootType aRootType, const char* aName)
   }
 
   PRBool ok;
-  if (aRootType == RootType_JSVal)
-    ok = ::js_AddRootRT(sJSScriptRuntime, (jsval *)aPtr, aName);
-  else
-    ok = ::js_AddGCThingRootRT(sJSScriptRuntime, (void **)aPtr, aName);
+  ok = ::JS_AddNamedRootRT(sJSScriptRuntime, aPtr, aName);
   if (!ok) {
     NS_WARNING("JS_AddNamedRootRT failed");
     return NS_ERROR_OUT_OF_MEMORY;
@@ -3308,17 +3226,14 @@ nsAutoGCRoot::AddJSGCRoot(void* aPtr, RootType aRootType, const char* aName)
 
 /* static */
 nsresult
-nsAutoGCRoot::RemoveJSGCRoot(void* aPtr, RootType aRootType)
+nsAutoGCRoot::RemoveJSGCRoot(void* aPtr)
 {
   if (!sJSScriptRuntime) {
     NS_NOTREACHED("Trying to remove a JS GC root when none were added");
     return NS_ERROR_UNEXPECTED;
   }
 
-  if (aRootType == RootType_JSVal)
-    ::js_RemoveRoot(sJSScriptRuntime, (jsval *)aPtr);
-  else
-    ::js_RemoveRoot(sJSScriptRuntime, (JSObject **)aPtr);
+  ::JS_RemoveRootRT(sJSScriptRuntime, aPtr);
 
   return NS_OK;
 }
@@ -3332,7 +3247,7 @@ nsContentUtils::IsEventAttributeName(nsIAtom* aName, PRInt32 aType)
     return PR_FALSE;
 
   EventNameMapping mapping;
-  return (sAtomEventTable->Get(aName, &mapping) && mapping.mType & aType);
+  return (sEventTable->Get(aName, &mapping) && mapping.mType & aType);
 }
 
 // static
@@ -3340,42 +3255,10 @@ PRUint32
 nsContentUtils::GetEventId(nsIAtom* aName)
 {
   EventNameMapping mapping;
-  if (sAtomEventTable->Get(aName, &mapping))
+  if (sEventTable->Get(aName, &mapping))
     return mapping.mId;
 
   return NS_USER_DEFINED_EVENT;
-}
-
-nsIAtom*
-nsContentUtils::GetEventIdAndAtom(const nsAString& aName,
-                                  PRUint32 aEventStruct,
-                                  PRUint32* aEventID)
-{
-  EventNameMapping mapping;
-  if (sStringEventTable->Get(aName, &mapping)) {
-    *aEventID =
-      mapping.mStructType == aEventStruct ? mapping.mId : NS_USER_DEFINED_EVENT;
-    return mapping.mAtom;
-  }
-
-  // If we have cached lots of user defined event names, clear some of them.
-  if (sUserDefinedEvents->Count() > 127) {
-    while (sUserDefinedEvents->Count() > 64) {
-      nsIAtom* first = sUserDefinedEvents->ObjectAt(0);
-      sStringEventTable->Remove(Substring(nsDependentAtomString(first), 2));
-      sUserDefinedEvents->RemoveObjectAt(0);
-    }
-  }
-
-  *aEventID = NS_USER_DEFINED_EVENT;
-  nsCOMPtr<nsIAtom> atom = do_GetAtom(NS_LITERAL_STRING("on") + aName);
-  sUserDefinedEvents->AppendObject(atom);
-  mapping.mAtom = atom;
-  mapping.mId = NS_USER_DEFINED_EVENT;
-  mapping.mType = EventNameType_None;
-  mapping.mStructType = NS_EVENT_NULL;
-  sStringEventTable->Put(aName, mapping);
-  return mapping.mAtom;
 }
 
 static
@@ -3447,22 +3330,14 @@ nsContentUtils::DispatchChromeEvent(nsIDocument *aDoc,
   NS_ASSERTION(aDoc, "GetEventAndTarget lied?");
   if (!aDoc->GetWindow())
     return NS_ERROR_INVALID_ARG;
-
-  nsPIDOMEventTarget* piTarget = aDoc->GetWindow()->GetChromeEventHandler();
-  if (!piTarget)
+  if (!aDoc->GetWindow()->GetChromeEventHandler())
     return NS_ERROR_INVALID_ARG;
 
-  nsCOMPtr<nsIFrameLoaderOwner> flo = do_QueryInterface(piTarget);
-  if (flo) {
-    nsRefPtr<nsFrameLoader> fl = flo->GetFrameLoader();
-    if (fl) {
-      nsPIDOMEventTarget* t = fl->GetTabChildGlobalAsEventTarget();
-      piTarget = t ? t : piTarget;
-    }
-  }
-
   nsEventStatus status = nsEventStatus_eIgnore;
-  rv = piTarget->DispatchDOMEvent(nsnull, event, nsnull, &status);
+  rv = aDoc->GetWindow()->GetChromeEventHandler()->DispatchDOMEvent(nsnull,
+                                                                    event,
+                                                                    nsnull,
+                                                                    &status);
   if (aDefaultAction) {
     *aDefaultAction = (status != nsEventStatus_eConsumeNoDefault);
   }
@@ -3470,22 +3345,27 @@ nsContentUtils::DispatchChromeEvent(nsIDocument *aDoc,
 }
 
 /* static */
-Element*
+nsIContent*
 nsContentUtils::MatchElementId(nsIContent *aContent, nsIAtom* aId)
 {
-  for (nsIContent* cur = aContent;
-       cur;
-       cur = cur->GetNextNode(aContent)) {
-    if (aId == cur->GetID()) {
-      return cur->AsElement();
-    }
+  if (aId == aContent->GetID()) {
+    return aContent;
+  }
+  
+  nsIContent *result = nsnull;
+  PRUint32 i, count = aContent->GetChildCount();
+
+  for (i = 0; i < count && result == nsnull; i++) {
+    result = MatchElementId(aContent->GetChildAt(i), aId);
   }
 
-  return nsnull;
+  return result;
 }
 
+// Id attribute matching function used by nsXMLDocument and
+// nsHTMLDocument and others.
 /* static */
-Element *
+nsIContent *
 nsContentUtils::MatchElementId(nsIContent *aContent, const nsAString& aId)
 {
   NS_PRECONDITION(!aId.IsEmpty(), "Will match random elements");
@@ -3649,12 +3529,6 @@ nsContentUtils::HasMutationListeners(nsINode* aNode,
   if (!doc) {
     return PR_FALSE;
   }
-
-  NS_ASSERTION((aNode->IsNodeOfType(nsINode::eCONTENT) &&
-                static_cast<nsIContent*>(aNode)->
-                  IsInNativeAnonymousSubtree()) ||
-               sScriptBlockerCount == sRemovableScriptBlockerCount,
-               "Want to fire mutation events, but it's not safe");
 
   // global object will be null for documents that don't have windows.
   nsPIDOMWindow* window = doc->GetInnerWindow();
@@ -3895,16 +3769,15 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
       }
     }
     
-    nsCOMPtr<nsIContent> fragment = do_QueryInterface(frag);
     if (contextAsContent) {
       parser->ParseFragment(aFragment, 
-                            fragment, 
+                            frag, 
                             contextAsContent->Tag(), 
                             contextAsContent->GetNameSpaceID(), 
                             (document->GetCompatibilityMode() == eCompatibility_NavQuirks));    
     } else {
       parser->ParseFragment(aFragment, 
-                            fragment,
+                            frag, 
                             nsGkAtoms::body, 
                             kNameSpaceID_XHTML, 
                             (document->GetCompatibilityMode() == eCompatibility_NavQuirks));
@@ -4299,14 +4172,10 @@ nsresult
 nsContentUtils::HoldJSObjects(void* aScriptObjectHolder,
                               nsScriptObjectTracer* aTracer)
 {
-  NS_ENSURE_TRUE(sXPConnect, NS_ERROR_UNEXPECTED);
-
   nsresult rv = sXPConnect->AddJSHolder(aScriptObjectHolder, aTracer);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (sJSGCThingRootCount++ == 0) {
-    nsLayoutStatics::AddRef();
-  }
+  ++sJSGCThingRootCount;
   NS_LOG_ADDREF(sXPConnect, sJSGCThingRootCount, "HoldJSObjects",
                 sizeof(void*));
 
@@ -4319,8 +4188,8 @@ nsContentUtils::DropJSObjects(void* aScriptObjectHolder)
 {
   NS_LOG_RELEASE(sXPConnect, sJSGCThingRootCount - 1, "HoldJSObjects");
   nsresult rv = sXPConnect->RemoveJSHolder(aScriptObjectHolder);
-  if (--sJSGCThingRootCount == 0) {
-    nsLayoutStatics::Release();
+  if (--sJSGCThingRootCount == 0 && !sInitialized) {
+    NS_RELEASE(sXPConnect);
   }
   return rv;
 }
@@ -4837,7 +4706,7 @@ nsContentUtils::ProcessViewportInfo(nsIDocument *aDocument,
   while ((tip != end) && IS_SEPARATOR(*tip))
     ++tip;
 
-  /* Read through and find tokens separated by separators. */
+  /* Read through and find tokens seperated by separators. */
   while (tip != end) {
     
     /* Synchronize tip and tail. */
@@ -5058,21 +4927,6 @@ nsContentUtils::GetCurrentJSContext()
 
 /* static */
 void
-nsContentUtils::ASCIIToLower(nsAString& aStr)
-{
-  PRUnichar* iter = aStr.BeginWriting();
-  PRUnichar* end = aStr.EndWriting();
-  while (iter != end) {
-    PRUnichar c = *iter;
-    if (c >= 'A' && c <= 'Z') {
-      *iter = c + ('a' - 'A');
-    }
-    ++iter;
-  }
-}
-
-/* static */
-void
 nsContentUtils::ASCIIToLower(const nsAString& aSource, nsAString& aDest)
 {
   PRUint32 len = aSource.Length();
@@ -5103,26 +4957,6 @@ nsContentUtils::ASCIIToUpper(nsAString& aStr)
       *iter = c + ('A' - 'a');
     }
     ++iter;
-  }
-}
-
-/* static */
-void
-nsContentUtils::ASCIIToUpper(const nsAString& aSource, nsAString& aDest)
-{
-  PRUint32 len = aSource.Length();
-  aDest.SetLength(len);
-  if (aDest.Length() == len) {
-    PRUnichar* dest = aDest.BeginWriting();
-    const PRUnichar* iter = aSource.BeginReading();
-    const PRUnichar* end = aSource.EndReading();
-    while (iter != end) {
-      PRUnichar c = *iter;
-      *dest = (c >= 'a' && c <= 'z') ?
-         c + ('A' - 'a') : c;
-      ++iter;
-      ++dest;
-    }
   }
 }
 
@@ -5170,6 +5004,35 @@ nsAutoGCRoot::Shutdown()
   NS_IF_RELEASE(sJSRuntimeService);
 }
 
+nsIAtom*
+nsContentUtils::IsNamedItem(Element* aElement)
+{
+  // Only the content types reflected in Level 0 with a NAME
+  // attribute are registered. Images, layers and forms always get
+  // reflected up to the document. Applets and embeds only go
+  // to the closest container (which could be a form).
+  nsGenericHTMLElement* elm = nsGenericHTMLElement::FromContent(aElement);
+  if (!elm) {
+    return nsnull;
+  }
+
+  nsIAtom* tag = elm->Tag();
+  if (tag != nsGkAtoms::img    &&
+      tag != nsGkAtoms::form   &&
+      tag != nsGkAtoms::applet &&
+      tag != nsGkAtoms::embed  &&
+      tag != nsGkAtoms::object) {
+    return nsnull;
+  }
+
+  const nsAttrValue* val = elm->GetParsedAttr(nsGkAtoms::name);
+  if (val && val->Type() == nsAttrValue::eAtom) {
+    return val->GetAtomValue();
+  }
+
+  return nsnull;
+}
+
 /* static */
 nsIInterfaceRequestor*
 nsContentUtils::GetSameOriginChecker()
@@ -5187,14 +5050,14 @@ NS_IMPL_ISUPPORTS2(nsSameOriginChecker,
                    nsIInterfaceRequestor)
 
 NS_IMETHODIMP
-nsSameOriginChecker::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
-                                            nsIChannel *aNewChannel,
-                                            PRUint32 aFlags,
-                                            nsIAsyncVerifyRedirectCallback *cb)
+nsSameOriginChecker::OnChannelRedirect(nsIChannel *aOldChannel,
+                                       nsIChannel *aNewChannel,
+                                       PRUint32    aFlags)
 {
   NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
-  if (!nsContentUtils::GetSecurityManager())
+  if (!nsContentUtils::GetSecurityManager()) {
     return NS_ERROR_NOT_AVAILABLE;
+  }
 
   nsCOMPtr<nsIPrincipal> oldPrincipal;
   nsContentUtils::GetSecurityManager()->
@@ -5211,12 +5074,7 @@ nsSameOriginChecker::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
   if (NS_SUCCEEDED(rv) && newOriginalURI != newURI) {
     rv = oldPrincipal->CheckMayLoad(newOriginalURI, PR_FALSE);
   }
-
-  if (NS_FAILED(rv))
-      return rv;
-
-  cb->OnRedirectVerifyCallback(NS_OK);
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -5365,17 +5223,6 @@ nsContentUtils::GetDocumentFromScriptContext(nsIScriptContext *aScriptContext)
   return doc;
 }
 
-/* static */
-PRBool
-nsContentUtils::CheckMayLoad(nsIPrincipal* aPrincipal, nsIChannel* aChannel)
-{
-  nsCOMPtr<nsIURI> channelURI;
-  nsresult rv = NS_GetFinalChannelURI(aChannel, getter_AddRefs(channelURI));
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
-
-  return NS_SUCCEEDED(aPrincipal->CheckMayLoad(channelURI, PR_FALSE));
-}
-
 nsContentTypeParser::nsContentTypeParser(const nsAString& aString)
   : mString(aString), mService(nsnull)
 {
@@ -5423,7 +5270,7 @@ nsContentUtils::CanAccessNativeAnon()
     // Some code is running, we can't make the assumption, as above, but we
     // can't use a native frame, so clear fp.
     fp = nsnull;
-  } else if (!fp->hasScript()) {
+  } else if (!fp->script) {
     fp = nsnull;
   }
 
@@ -5438,8 +5285,8 @@ nsContentUtils::CanAccessNativeAnon()
   // if they've been cloned into less privileged contexts.
   static const char prefix[] = "chrome://global/";
   const char *filename;
-  if (fp && fp->hasScript() &&
-      (filename = fp->getScript()->filename) &&
+  if (fp && fp->script &&
+      (filename = fp->script->filename) &&
       !strncmp(filename, prefix, NS_ARRAY_LENGTH(prefix) - 1)) {
     return PR_TRUE;
   }
@@ -5495,7 +5342,7 @@ nsContentUtils::DispatchXULCommand(nsIContent* aTarget,
 // static
 nsresult
 nsContentUtils::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
-                           nsWrapperCache *cache, const nsIID* aIID, jsval *vp,
+                           const nsIID* aIID, jsval *vp,
                            nsIXPConnectJSObjectHolder **aHolder,
                            PRBool aAllowWrapping)
 {
@@ -5532,7 +5379,7 @@ nsContentUtils::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
       rv = sThreadJSContextStack->Push(cx);
     }
     if (NS_SUCCEEDED(rv)) {
-      rv = sXPConnect->WrapNativeToJSVal(cx, scope, native, cache, aIID,
+      rv = sXPConnect->WrapNativeToJSVal(cx, scope, native, aIID,
                                          aAllowWrapping, vp, aHolder);
       if (push) {
         sThreadJSContextStack->Pop(nsnull);
@@ -5764,6 +5611,15 @@ CloneSimpleValues(JSContext* cx,
     return SetPropertyOnValueOrObject(cx, val, rval, robj, rid);
   }
 
+  // Clone doubles.
+  if (JSVAL_IS_DOUBLE(val)) {
+    jsval newVal;
+    if (!JS_NewDoubleValue(cx, *JSVAL_TO_DOUBLE(val), &newVal)) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    return SetPropertyOnValueOrObject(cx, newVal, rval, robj, rid);
+  }
+
   // We'll use immutable strings to prevent copying if we can.
   if (JSVAL_IS_STRING(val)) {
     if (!JS_MakeStringImmutable(cx, JSVAL_TO_STRING(val))) {
@@ -5772,7 +5628,7 @@ CloneSimpleValues(JSContext* cx,
     return SetPropertyOnValueOrObject(cx, val, rval, robj, rid);
   }
 
-  NS_ASSERTION(!JSVAL_IS_PRIMITIVE(val), "Not an object!");
+  NS_ASSERTION(JSVAL_IS_OBJECT(val), "Not an object!");
   JSObject* obj = JSVAL_TO_OBJECT(val);
 
   // Dense arrays of primitives can be cloned quickly.
@@ -5825,10 +5681,6 @@ CloneSimpleValues(JSContext* cx,
   // ArrayBuffer objects.
   if (js_IsArrayBuffer(obj)) {
     js::ArrayBuffer* src = js::ArrayBuffer::fromJSObject(obj);
-    if (!src) {
-      return NS_ERROR_FAILURE;
-    }
-
     JSObject* newBuffer = js_CreateArrayBuffer(cx, src->byteLength);
     if (!newBuffer) {
       return NS_ERROR_FAILURE;
@@ -5849,8 +5701,11 @@ CloneSimpleValues(JSContext* cx,
   }
 
   // Security wrapped objects are not allowed either.
-  if (obj->getClass()->ext.wrappedObject)
+  JSClass* clasp = JS_GET_CLASS(cx, obj);
+  if ((clasp->flags & JSCLASS_IS_EXTENDED) &&
+      ((JSExtendedClass*)clasp)->wrappedObject) {
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+  }
 
   // See if this JSObject is backed by some C++ object. If it is then we assume
   // that it is inappropriate to clone.
@@ -5978,9 +5833,7 @@ nsContentUtils::ReparentClonedObjectToScope(JSContext* cx,
   while (!objectData.IsEmpty()) {
     ReparentObjectData& data = objectData[objectData.Length() - 1];
 
-    if (!data.ids) {
-      NS_ASSERTION(!data.index, "Shouldn't have index here");
-
+    if (!data.ids && !data.index) {
       // Typed arrays are special and don't need to be enumerated.
       if (js_IsTypedArray(data.obj)) {
         if (!js_ReparentTypedArrayToScope(cx, data.obj, scope)) {
@@ -6040,91 +5893,6 @@ nsContentUtils::ReparentClonedObjectToScope(JSContext* cx,
       objectData.AppendElement(ReparentObjectData(cx, JSVAL_TO_OBJECT(prop)));
     }
   }
-
-  return NS_OK;
-}
-
-struct ClassMatchingInfo {
-  nsAttrValue::AtomArray mClasses;
-  nsCaseTreatment mCaseTreatment;
-};
-
-static PRBool
-MatchClassNames(nsIContent* aContent, PRInt32 aNamespaceID, nsIAtom* aAtom,
-                void* aData)
-{
-  // We can't match if there are no class names
-  const nsAttrValue* classAttr = aContent->GetClasses();
-  if (!classAttr) {
-    return PR_FALSE;
-  }
-  
-  // need to match *all* of the classes
-  ClassMatchingInfo* info = static_cast<ClassMatchingInfo*>(aData);
-  PRUint32 length = info->mClasses.Length();
-  if (!length) {
-    // If we actually had no classes, don't match.
-    return PR_FALSE;
-  }
-  PRUint32 i;
-  for (i = 0; i < length; ++i) {
-    if (!classAttr->Contains(info->mClasses[i],
-                             info->mCaseTreatment)) {
-      return PR_FALSE;
-    }
-  }
-  
-  return PR_TRUE;
-}
-
-static void
-DestroyClassNameArray(void* aData)
-{
-  ClassMatchingInfo* info = static_cast<ClassMatchingInfo*>(aData);
-  delete info;
-}
-
-static void*
-AllocClassMatchingInfo(nsINode* aRootNode,
-                       const nsString* aClasses)
-{
-  nsAttrValue attrValue;
-  attrValue.ParseAtomArray(*aClasses);
-  // nsAttrValue::Equals is sensitive to order, so we'll send an array
-  ClassMatchingInfo* info = new ClassMatchingInfo;
-  NS_ENSURE_TRUE(info, nsnull);
-
-  if (attrValue.Type() == nsAttrValue::eAtomArray) {
-    info->mClasses.SwapElements(*(attrValue.GetAtomArrayValue()));
-  } else if (attrValue.Type() == nsAttrValue::eAtom) {
-    info->mClasses.AppendElement(attrValue.GetAtomValue());
-  }
-
-  info->mCaseTreatment =
-    aRootNode->GetOwnerDoc() &&
-    aRootNode->GetOwnerDoc()->GetCompatibilityMode() == eCompatibility_NavQuirks ?
-    eIgnoreCase : eCaseMatters;
-  return info;
-}
-
-// static
-
-nsresult
-nsContentUtils::GetElementsByClassName(nsINode* aRootNode,
-                                       const nsAString& aClasses,
-                                       nsIDOMNodeList** aReturn)
-{
-  NS_PRECONDITION(aRootNode, "Must have root node");
-  
-  nsContentList* elements =
-    NS_GetFuncStringContentList(aRootNode, MatchClassNames,
-                                DestroyClassNameArray,
-                                AllocClassMatchingInfo,
-                                aClasses).get();
-  NS_ENSURE_TRUE(elements, NS_ERROR_OUT_OF_MEMORY);
-
-  // Transfer ownership
-  *aReturn = elements;
 
   return NS_OK;
 }
@@ -6236,26 +6004,6 @@ mozAutoRemovableBlockerRemover::~mozAutoRemovableBlockerRemover()
   }
 }
 
-// static
-PRBool
-nsContentUtils::IsFocusedContent(nsIContent* aContent)
-{
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
-
-  return fm && fm->GetFocusedContent() == aContent;
-}
-
-#ifdef MOZ_IPC
-#ifdef ANDROID
-// static
-already_AddRefed<nsFrameLoader>
-nsContentUtils::GetActiveFrameLoader()
-{
-  return nsCOMPtr<nsFrameLoader>(sActiveFrameLoader).forget();
-}
-#endif
-#endif
-
 void nsContentUtils::RemoveNewlines(nsString &aString)
 {
   // strip CR/LF and null
@@ -6263,8 +6011,7 @@ void nsContentUtils::RemoveNewlines(nsString &aString)
   aString.StripChars(badChars);
 }
 
-void
-nsContentUtils::PlatformToDOMLineBreaks(nsString &aString)
+void nsContentUtils::PlatformToDOMLineBreaks(nsString &aString)
 {
   if (aString.FindChar(PRUnichar('\r')) != -1) {
     // Windows linebreaks: Map CRLF to LF:
@@ -6277,127 +6024,10 @@ nsContentUtils::PlatformToDOMLineBreaks(nsString &aString)
   }
 }
 
-already_AddRefed<LayerManager>
-nsContentUtils::LayerManagerForDocument(nsIDocument *aDoc)
-{
-  nsIDocument* doc = aDoc;
-  nsIDocument* displayDoc = doc->GetDisplayDocument();
-  if (displayDoc) {
-    doc = displayDoc;
-  }
-
-  nsIPresShell* shell = doc->GetShell();
-  nsCOMPtr<nsISupports> container = doc->GetContainer();
-  nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem = do_QueryInterface(container);
-  while (!shell && docShellTreeItem) {
-    // We may be in a display:none subdocument, or we may not have a presshell
-    // created yet.
-    // Walk the docshell tree to find the nearest container that has a presshell,
-    // and find the root widget from that.
-    nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(docShellTreeItem);
-    nsCOMPtr<nsIPresShell> presShell;
-    docShell->GetPresShell(getter_AddRefs(presShell));
-    if (presShell) {
-      shell = presShell;
-    } else {
-      nsCOMPtr<nsIDocShellTreeItem> parent;
-      docShellTreeItem->GetParent(getter_AddRefs(parent));
-      docShellTreeItem = parent;
-    }
-  }
-
-  if (shell) {
-    nsIFrame* rootFrame = shell->FrameManager()->GetRootFrame();
-    if (rootFrame) {
-      nsIWidget* widget =
-        nsLayoutUtils::GetDisplayRootFrame(rootFrame)->GetNearestWidget();
-      if (widget) {
-        nsRefPtr<LayerManager> manager = widget->GetLayerManager();
-        return manager.forget();
-      }
-    }
-  }
-
-  nsRefPtr<LayerManager> manager = new BasicLayerManager();
-  return manager.forget();
-}
-
-
 NS_IMPL_ISUPPORTS1(nsIContentUtils, nsIContentUtils)
 
 PRBool
 nsIContentUtils::IsSafeToRunScript()
 {
   return nsContentUtils::IsSafeToRunScript();
-}
-
-PRBool
-nsIContentUtils::ParseIntMarginValue(const nsAString& aString, nsIntMargin& result)
-{
-  return nsContentUtils::ParseIntMarginValue(aString, result);
-}
-
-already_AddRefed<nsIDocumentLoaderFactory>
-nsIContentUtils::FindInternalContentViewer(const char* aType,
-                                           ContentViewerType* aLoaderType)
-{
-  if (aLoaderType) {
-    *aLoaderType = TYPE_UNSUPPORTED;
-  }
-
-  // one helper factory, please
-  nsCOMPtr<nsICategoryManager> catMan(do_GetService(NS_CATEGORYMANAGER_CONTRACTID));
-  if (!catMan)
-    return NULL;
-
-  nsCOMPtr<nsIDocumentLoaderFactory> docFactory;
-
-  nsXPIDLCString contractID;
-  nsresult rv = catMan->GetCategoryEntry("Gecko-Content-Viewers", aType, getter_Copies(contractID));
-  if (NS_SUCCEEDED(rv)) {
-    docFactory = do_GetService(contractID);
-    if (docFactory && aLoaderType) {
-      if (contractID.EqualsLiteral(CONTENT_DLF_CONTRACTID))
-        *aLoaderType = TYPE_CONTENT;
-      else if (contractID.EqualsLiteral(PLUGIN_DLF_CONTRACTID))
-        *aLoaderType = TYPE_PLUGIN;
-      else
-      *aLoaderType = TYPE_UNKNOWN;
-    }   
-    return docFactory.forget();
-  }
-
-#ifdef MOZ_MEDIA
-#ifdef MOZ_OGG
-  if (nsHTMLMediaElement::IsOggEnabled()) {
-    for (unsigned int i = 0; i < NS_ARRAY_LENGTH(nsHTMLMediaElement::gOggTypes); ++i) {
-      const char* type = nsHTMLMediaElement::gOggTypes[i];
-      if (!strcmp(aType, type)) {
-        docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
-        if (docFactory && aLoaderType) {
-          *aLoaderType = TYPE_CONTENT;
-        }
-        return docFactory.forget();
-      }
-    }
-  }
-#endif
-
-#ifdef MOZ_WEBM
-  if (nsHTMLMediaElement::IsWebMEnabled()) {
-    for (unsigned int i = 0; i < NS_ARRAY_LENGTH(nsHTMLMediaElement::gWebMTypes); ++i) {
-      const char* type = nsHTMLMediaElement::gWebMTypes[i];
-      if (!strcmp(aType, type)) {
-        docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
-        if (docFactory && aLoaderType) {
-          *aLoaderType = TYPE_CONTENT;
-        }
-        return docFactory.forget();
-      }
-    }
-  }
-#endif
-#endif // MOZ_MEDIA
-
-  return NULL;
 }

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-472787.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 472787;
 var summary = 'Do not hang with gczeal, watch and concat';

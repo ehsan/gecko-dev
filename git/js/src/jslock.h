@@ -40,8 +40,8 @@
 #define jslock_h__
 
 #include "jstypes.h"
-#include "jsapi.h"
-#include "jsprvtd.h"
+#include "jsprvtd.h"    /* for JSScope, etc. */
+#include "jspubtd.h"    /* for JSRuntime, etc. */
 
 #ifdef JS_THREADSAFE
 # include "pratom.h"
@@ -97,13 +97,17 @@ struct JSTitle {
         jsrefcount  count;              /* lock entry count for reentrancy */
         JSTitle     *link;              /* next link in rt->titleSharingTodo */
     } u;
+#ifdef JS_DEBUG_TITLE_LOCKS
+    const char      *file[4];           /* file where lock was (re-)taken */
+    unsigned int    line[4];            /* line where lock was (re-)taken */
+#endif
 };
 
 /*
- * Title structure is always allocated as a field of JSObject.
+ * Title structure is always allocated as a field of JSScope.
  */
-#define TITLE_TO_OBJECT(title)                                                 \
-    ((JSObject *)((uint8 *) (title) - offsetof(JSObject, title)))
+#define TITLE_TO_SCOPE(title)                                                 \
+    ((JSScope *)((uint8 *) (title) - offsetof(JSScope, title)))
 
 /*
  * Atomic increment and decrement for a reference counter, given jsrefcount *p.
@@ -114,7 +118,7 @@ struct JSTitle {
 #define JS_ATOMIC_ADD(p,v)          PR_AtomicAdd((PRInt32 *)(p), (PRInt32)(v))
 #define JS_ATOMIC_SET(p,v)          PR_AtomicSet((PRInt32 *)(p), (PRInt32)(v))
 
-#define js_CurrentThreadId()        PR_GetCurrentThread()
+#define js_CurrentThreadId()        (jsword)PR_GetCurrentThread()
 #define JS_NEW_LOCK()               PR_NewLock()
 #define JS_DESTROY_LOCK(l)          PR_DestroyLock(l)
 #define JS_ACQUIRE_LOCK(l)          PR_Lock(l)
@@ -127,6 +131,16 @@ struct JSTitle {
 #define JS_NOTIFY_CONDVAR(cv)       PR_NotifyCondVar(cv)
 #define JS_NOTIFY_ALL_CONDVAR(cv)   PR_NotifyAllCondVar(cv)
 
+#ifdef JS_DEBUG_TITLE_LOCKS
+
+#define JS_SET_OBJ_INFO(obj_, file_, line_)                                   \
+    JS_SET_SCOPE_INFO((obj_)->scope(), file_, line_)
+
+#define JS_SET_SCOPE_INFO(scope_, file_, line_)                               \
+    js_SetScopeInfo(scope_, file_, line_)
+
+#endif
+
 #define JS_LOCK(cx, tl)             js_Lock(cx, tl)
 #define JS_UNLOCK(cx, tl)           js_Unlock(cx, tl)
 
@@ -136,14 +150,16 @@ struct JSTitle {
 /*
  * NB: The JS_LOCK_OBJ and JS_UNLOCK_OBJ macros work *only* on native objects
  * (objects for which obj->isNative() returns true).  All uses of these macros in
- * the engine are predicated on obj->isNative or equivalent checks.
+ * the engine are predicated on obj->isNative or equivalent checks.  These uses
+ * are for optimizations above the JSObjectOps layer, under which object locks
+ * normally hide.
  */
-#define CX_OWNS_OBJECT_TITLE(cx,obj) ((obj)->title.ownercx == (cx))
+#define CX_OWNS_SCOPE_TITLE(cx,scope)   ((scope)->title.ownercx == (cx))
 
 #define JS_LOCK_OBJ(cx,obj)                                                   \
     JS_BEGIN_MACRO                                                            \
         JSObject *obj_ = (obj);                                               \
-        if (!CX_OWNS_OBJECT_TITLE(cx, obj_)) {                                \
+        if (!CX_OWNS_SCOPE_TITLE(cx, obj_->scope())) {                        \
             js_LockObj(cx, obj_);                                             \
             JS_SET_OBJ_INFO(obj_, __FILE__, __LINE__);                        \
         }                                                                     \
@@ -152,7 +168,7 @@ struct JSTitle {
 #define JS_UNLOCK_OBJ(cx,obj)                                                 \
     JS_BEGIN_MACRO                                                            \
         JSObject *obj_ = (obj);                                               \
-        if (!CX_OWNS_OBJECT_TITLE(cx, obj_))                                  \
+        if (!CX_OWNS_SCOPE_TITLE(cx, obj_->scope()))                          \
             js_UnlockObj(cx, obj_);                                           \
     JS_END_MACRO
 
@@ -163,6 +179,16 @@ struct JSTitle {
 
 #define JS_UNLOCK_TITLE(cx,title) ((title)->ownercx == (cx) ? (void)0         \
                                    : js_UnlockTitle(cx, title))
+
+#define JS_LOCK_SCOPE(cx,scope)   JS_LOCK_TITLE(cx,&(scope)->title)
+#define JS_UNLOCK_SCOPE(cx,scope) JS_UNLOCK_TITLE(cx,&(scope)->title)
+
+#define JS_DROP_ALL_EMPTY_SCOPE_LOCKS(cx,scope)                               \
+    JS_BEGIN_MACRO                                                            \
+        JS_ASSERT((scope)->isSharedEmpty());                                  \
+        if (!CX_OWNS_SCOPE_TITLE(cx, scope))                                  \
+            js_DropAllEmptyScopeLocks(cx, scope);                             \
+    JS_END_MACRO
 
 extern void js_Lock(JSContext *cx, JSThinLock *tl);
 extern void js_Unlock(JSContext *cx, JSThinLock *tl);
@@ -176,6 +202,7 @@ extern void js_LockTitle(JSContext *cx, JSTitle *title);
 extern void js_UnlockTitle(JSContext *cx, JSTitle *title);
 extern int js_SetupLocks(int,int);
 extern void js_CleanupLocks();
+extern void js_DropAllEmptyScopeLocks(JSContext *cx, JSScope *scope);
 extern JS_FRIEND_API(jsval)
 js_GetSlotThreadSafe(JSContext *, JSObject *, uint32);
 extern void js_SetSlotThreadSafe(JSContext *, JSObject *, uint32, jsval);
@@ -188,6 +215,9 @@ extern void js_FinishLock(JSThinLock *);
 extern void
 js_ShareWaitingTitles(JSContext *cx);
 
+extern void
+js_NudgeOtherContexts(JSContext *cx);
+
 #ifdef DEBUG
 
 #define JS_IS_RUNTIME_LOCKED(rt)        js_IsRuntimeLocked(rt)
@@ -197,6 +227,9 @@ js_ShareWaitingTitles(JSContext *cx);
 extern JSBool js_IsRuntimeLocked(JSRuntime *rt);
 extern JSBool js_IsObjLocked(JSContext *cx, JSObject *obj);
 extern JSBool js_IsTitleLocked(JSContext *cx, JSTitle *title);
+#ifdef JS_DEBUG_TITLE_LOCKS
+extern void js_SetScopeInfo(JSScope *scope, const char *file, int line);
+#endif
 
 #else
 
@@ -229,10 +262,14 @@ extern JSBool js_IsTitleLocked(JSContext *cx, JSTitle *title);
 
 #define JS_LOCK_RUNTIME(rt)         ((void)0)
 #define JS_UNLOCK_RUNTIME(rt)       ((void)0)
+#define CX_OWNS_SCOPE_TITLE(cx,obj) true
 #define JS_LOCK_OBJ(cx,obj)         ((void)0)
 #define JS_UNLOCK_OBJ(cx,obj)       ((void)0)
 
-#define CX_OWNS_OBJECT_TITLE(cx,obj)    1
+#define JS_LOCK_SCOPE(cx,scope)     ((void)0)
+#define JS_UNLOCK_SCOPE(cx,scope)   ((void)0)
+#define JS_DROP_ALL_EMPTY_SCOPE_LOCKS(cx,scope) ((void)0)
+
 #define JS_IS_RUNTIME_LOCKED(rt)        1
 #define JS_IS_OBJ_LOCKED(cx,obj)        1
 #define JS_IS_TITLE_LOCKED(cx,title)    1
@@ -253,6 +290,8 @@ extern JSBool js_IsTitleLocked(JSContext *cx, JSTitle *title);
 #define JS_AWAIT_REQUEST_DONE(rt)   JS_WAIT_CONDVAR((rt)->requestDone,        \
                                                     JS_NO_TIMEOUT)
 #define JS_NOTIFY_REQUEST_DONE(rt)  JS_NOTIFY_CONDVAR((rt)->requestDone)
+
+#define CX_OWNS_OBJECT_TITLE(cx,obj) CX_OWNS_SCOPE_TITLE(cx, (obj)->scope())
 
 #ifndef JS_SET_OBJ_INFO
 #define JS_SET_OBJ_INFO(obj,f,l)        ((void)0)

@@ -82,16 +82,15 @@ EXTERN_C GUID CDECL CLSID_Accessible =
 
 static const PRInt32 kIEnumVariantDisconnected = -1;
 
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessibleWrap
-////////////////////////////////////////////////////////////////////////////////
+/*
+ * Class nsAccessibleWrap
+ */
 
 //-----------------------------------------------------
 // construction
 //-----------------------------------------------------
-nsAccessibleWrap::
-  nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessible(aContent, aShell), mEnumVARIANTPosition(0), mTypeInfo(NULL)
+nsAccessibleWrap::nsAccessibleWrap(nsIDOMNode* aNode, nsIWeakReference *aShell):
+  nsAccessible(aNode, aShell), mEnumVARIANTPosition(0), mTypeInfo(NULL)
 {
 }
 
@@ -219,16 +218,10 @@ __try {
         nsIView *rootView;
         viewManager->GetRootView(rootView);
         if (rootView == view) {
-          // If the client accessible (OBJID_CLIENT) has a window but its window
-          // was created by an outer window then we want the native accessible
-          // for that outer window. If the accessible was created for outer
-          // window (if the outer window has inner windows then they share the
-          // same client accessible with it) then return native accessible for
-          // the outer window.
-          HWND parenthwnd = ::GetParent(hwnd);
-          if (parenthwnd)
-            hwnd = parenthwnd;
-
+          // If the current object has a widget but was created by an
+          // outer object with its own outer window, then
+          // we want the native accessible for that outer window
+          hwnd = ::GetParent(hwnd);
           NS_ASSERTION(hwnd, "No window handle for window");
         }
       }
@@ -237,7 +230,7 @@ __try {
         // not an extra parent window for just the scrollbars
         nsIScrollableFrame *scrollFrame = do_QueryFrame(frame);
         if (scrollFrame) {
-          hwnd = (HWND)scrollFrame->GetScrolledFrame()->GetNearestWidget()->GetNativeData(NS_NATIVE_WINDOW);
+          hwnd = (HWND)scrollFrame->GetScrolledFrame()->GetWindow()->GetNativeData(NS_NATIVE_WINDOW);
           NS_ASSERTION(hwnd, "No window handle for window");
         }
       }
@@ -309,7 +302,8 @@ STDMETHODIMP nsAccessibleWrap::get_accName(
 {
 __try {
   *pszName = NULL;
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
   if (!xpAccessible)
     return E_FAIL;
   nsAutoString name;
@@ -330,6 +324,9 @@ __try {
   if (!*pszName)
     return E_OUTOFMEMORY;
 
+#ifdef DEBUG_A11Y
+  NS_ASSERTION(mIsInitialized, "Access node was not initialized");
+#endif
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
@@ -342,7 +339,8 @@ STDMETHODIMP nsAccessibleWrap::get_accValue(
 {
 __try {
   *pszValue = NULL;
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
   if (xpAccessible) {
     nsAutoString value;
     if (NS_FAILED(xpAccessible->GetValue(value)))
@@ -369,12 +367,77 @@ nsAccessibleWrap::get_accDescription(VARIANT varChild,
 __try {
   *pszDescription = NULL;
 
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
   if (!xpAccessible)
     return E_FAIL;
 
+  // For items that are a choice in a list of choices, use MSAA description
+  // field to shoehorn positional info, it's becoming a defacto standard use for
+  // the field.
+
   nsAutoString description;
-  xpAccessible->GetDescription(description);
+
+  // Try to get group position to make a positional description string.
+  PRInt32 groupLevel = 0;
+  PRInt32 itemsInGroup = 0;
+  PRInt32 positionInGroup = 0;
+  GroupPosition(&groupLevel, &itemsInGroup, &positionInGroup);
+
+  if (positionInGroup > 0) {
+    if (groupLevel > 0) {
+      // XXX: How do we calculate the number of children? Now we append
+      // " with [numChildren]c" for tree item. In the future we may need to
+      // use the ARIA owns property to calculate that if it's present.
+      PRInt32 numChildren = 0;
+
+      PRUint32 currentRole = nsAccUtils::Role(xpAccessible);
+      if (currentRole == nsIAccessibleRole::ROLE_OUTLINEITEM) {
+        nsCOMPtr<nsIAccessible> child;
+        xpAccessible->GetFirstChild(getter_AddRefs(child));
+        while (child) {
+          currentRole = nsAccUtils::Role(child);
+          if (currentRole == nsIAccessibleRole::ROLE_GROUPING) {
+            nsCOMPtr<nsIAccessible> groupChild;
+            child->GetFirstChild(getter_AddRefs(groupChild));
+            while (groupChild) {
+              currentRole = nsAccUtils::Role(groupChild);
+              numChildren +=
+                (currentRole == nsIAccessibleRole::ROLE_OUTLINEITEM);
+              nsCOMPtr<nsIAccessible> nextGroupChild;
+              groupChild->GetNextSibling(getter_AddRefs(nextGroupChild));
+              groupChild.swap(nextGroupChild);
+            }
+            break;
+          }
+          nsCOMPtr<nsIAccessible> nextChild;
+          child->GetNextSibling(getter_AddRefs(nextChild));
+          child.swap(nextChild);
+        }
+      }
+
+      if (numChildren) {
+        nsTextFormatter::ssprintf(description,
+                                  NS_LITERAL_STRING("L%d, %d of %d with %d").get(),
+                                  groupLevel, positionInGroup, itemsInGroup,
+                                  numChildren);
+      } else {
+        nsTextFormatter::ssprintf(description,
+                                  NS_LITERAL_STRING("L%d, %d of %d").get(),
+                                  groupLevel, positionInGroup, itemsInGroup);
+      }
+    } else { // Position has no level
+      nsTextFormatter::ssprintf(description,
+                                NS_LITERAL_STRING("%d of %d").get(),
+                                positionInGroup, itemsInGroup);
+    }
+  } else if (groupLevel > 0) {
+    nsTextFormatter::ssprintf(description, NS_LITERAL_STRING("L%d").get(),
+                              groupLevel);
+  }
+
+  if (description.IsEmpty())
+    xpAccessible->GetDescription(description);
 
   *pszDescription = ::SysAllocStringLen(description.get(),
                                         description.Length());
@@ -391,7 +454,9 @@ STDMETHODIMP nsAccessibleWrap::get_accRole(
 __try {
   VariantInit(pvarRole);
 
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
+
   if (!xpAccessible)
     return E_FAIL;
 
@@ -426,7 +491,13 @@ __try {
   // -- Try BSTR role
   // Could not map to known enumerated MSAA role like ROLE_BUTTON
   // Use BSTR role to expose role attribute or tag name + namespace
-  nsIContent *content = xpAccessible->GetContent();
+  nsCOMPtr<nsIDOMNode> domNode;
+  nsCOMPtr<nsIAccessNode> accessNode(do_QueryInterface(xpAccessible));
+  if (!accessNode)
+    return E_FAIL;
+
+  accessNode->GetDOMNode(getter_AddRefs(domNode));
+  nsIContent *content = nsCoreUtils::GetRoleContent(domNode);
   if (!content)
     return E_FAIL;
 
@@ -468,7 +539,8 @@ __try {
   pvarState->vt = VT_I4;
   pvarState->lVal = 0;
 
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
   if (!xpAccessible)
     return E_FAIL;
 
@@ -516,7 +588,8 @@ STDMETHODIMP nsAccessibleWrap::get_accKeyboardShortcut(
 {
 __try {
   *pszKeyboardShortcut = NULL;
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
   if (xpAccessible) {
     nsAutoString shortcut;
     nsresult rv = xpAccessible->GetKeyboardShortcut(shortcut);
@@ -541,8 +614,9 @@ STDMETHODIMP nsAccessibleWrap::get_accFocus(
   // VT_DISPATCH: pdispVal member is the address of the IDispatch interface
   //              for the child object with the keyboard focus.
 __try {
-  if (IsDefunct())
-    return E_FAIL;
+  if (!mDOMNode) {
+    return E_FAIL; // This node is shut down
+  }
 
   VariantInit(pvarChild);
 
@@ -746,7 +820,8 @@ STDMETHODIMP nsAccessibleWrap::get_accDefaultAction(
 {
 __try {
   *pszDefaultAction = NULL;
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
   if (xpAccessible) {
     nsAutoString defaultAction;
     if (NS_FAILED(xpAccessible->GetActionName(0, defaultAction)))
@@ -767,7 +842,8 @@ STDMETHODIMP nsAccessibleWrap::accSelect(
 {
 __try {
   // currently only handle focus and selection
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
   NS_ENSURE_TRUE(xpAccessible, E_FAIL);
 
   if (flagsSelect & (SELFLAG_TAKEFOCUS|SELFLAG_TAKESELECTION|SELFLAG_REMOVESELECTION))
@@ -802,7 +878,8 @@ STDMETHODIMP nsAccessibleWrap::accLocation(
       /* [optional][in] */ VARIANT varChild)
 {
 __try {
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
 
   if (xpAccessible) {
     PRInt32 x, y, width, height;
@@ -826,13 +903,12 @@ STDMETHODIMP nsAccessibleWrap::accNavigate(
       /* [retval][out] */ VARIANT __RPC_FAR *pvarEndUpAt)
 {
 __try {
-  nsAccessible *xpAccessibleStart = GetXPAccessibleFor(varStart);
+  nsCOMPtr<nsIAccessible> xpAccessibleStart, xpAccessibleResult;
+  GetXPAccessibleFor(varStart, getter_AddRefs(xpAccessibleStart));
   if (!xpAccessibleStart)
     return E_FAIL;
 
   VariantInit(pvarEndUpAt);
-
-  nsCOMPtr<nsIAccessible> xpAccessibleResult;
   PRUint32 xpRelation = 0;
 
   switch(navDir) {
@@ -982,7 +1058,9 @@ STDMETHODIMP nsAccessibleWrap::accDoDefaultAction(
       /* [optional][in] */ VARIANT varChild)
 {
 __try {
-  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  nsCOMPtr<nsIAccessible> xpAccessible;
+  GetXPAccessibleFor(varChild, getter_AddRefs(xpAccessible));
+
   if (!xpAccessible || FAILED(xpAccessible->DoAction(0))) {
     return E_FAIL;
   }
@@ -1414,7 +1492,7 @@ nsAccessibleWrap::get_windowHandle(HWND *aWindowHandle)
 __try {
   *aWindowHandle = 0;
 
-  if (IsDefunct())
+  if (!mDOMNode)
     return E_FAIL;
 
   void *handle = nsnull;
@@ -1582,7 +1660,7 @@ NS_IMETHODIMP nsAccessibleWrap::GetNativeInterface(void **aOutAccessible)
 // nsAccessible
 
 nsresult
-nsAccessibleWrap::HandleAccEvent(AccEvent* aEvent)
+nsAccessibleWrap::HandleAccEvent(nsAccEvent *aEvent)
 {
   nsresult rv = nsAccessible::HandleAccEvent(aEvent);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1591,7 +1669,7 @@ nsAccessibleWrap::HandleAccEvent(AccEvent* aEvent)
 }
 
 nsresult
-nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
+nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
 {
   PRUint32 eventType = aEvent->GetEventType();
 
@@ -1610,7 +1688,8 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
   // Means we're not active.
   NS_ENSURE_TRUE(mWeakShell, NS_ERROR_FAILURE);
 
-  nsAccessible *accessible = aEvent->GetAccessible();
+  nsCOMPtr<nsIAccessible> accessible;
+  aEvent->GetAccessible(getter_AddRefs(accessible));
   if (!accessible)
     return NS_OK;
 
@@ -1624,11 +1703,11 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
     return NS_OK; // Can't fire an event without a child ID
 
   // See if we're in a scrollable area with its own window
-  nsAccessible *newAccessible = nsnull;
+  nsCOMPtr<nsIAccessible> newAccessible;
   if (eventType == nsIAccessibleEvent::EVENT_HIDE) {
     // Don't use frame from current accessible when we're hiding that
     // accessible.
-    newAccessible = accessible->GetCachedParent();
+    accessible->GetParent(getter_AddRefs(newAccessible));
   } else {
     newAccessible = accessible;
   }
@@ -1659,7 +1738,7 @@ PRInt32 nsAccessibleWrap::GetChildIDFor(nsIAccessible* aAccessible)
 {
   // A child ID of the window is required, when we use NotifyWinEvent,
   // so that the 3rd party application can call back and get the IAccessible
-  // the event occurred on.
+  // the event occured on.
 
   void *uniqueID = nsnull;
   nsCOMPtr<nsIAccessNode> accessNode(do_QueryInterface(aAccessible));
@@ -1674,15 +1753,16 @@ PRInt32 nsAccessibleWrap::GetChildIDFor(nsIAccessible* aAccessible)
 }
 
 HWND
-nsAccessibleWrap::GetHWNDFor(nsAccessible *aAccessible)
+nsAccessibleWrap::GetHWNDFor(nsIAccessible *aAccessible)
 {
-  HWND hWnd = 0;
-  if (!aAccessible)
-    return hWnd;
+  nsRefPtr<nsAccessNode> accessNode = do_QueryObject(aAccessible);
+  if (!accessNode)
+    return 0;
 
-  nsIFrame *frame = aAccessible->GetFrame();
+  HWND hWnd = 0;
+  nsIFrame *frame = accessNode->GetFrame();
   if (frame) {
-    nsIWidget *window = frame->GetNearestWidget();
+    nsIWidget *window = frame->GetWindow();
     PRBool isVisible;
     window->IsVisible(isVisible);
     if (isVisible) {
@@ -1700,13 +1780,13 @@ nsAccessibleWrap::GetHWNDFor(nsAccessible *aAccessible)
       // JAWS doesn't echo the current option as it changes in a closed
       // combo box, we need to use an ensure that we never fire an event with
       // an HWND for a hidden window.
-      hWnd = (HWND)frame->GetNearestWidget()->GetNativeData(NS_NATIVE_WINDOW);
+      hWnd = (HWND)frame->GetWindow()->GetNativeData(NS_NATIVE_WINDOW);
     }
   }
 
   if (!hWnd) {
     void* handle = nsnull;
-    nsDocAccessible *accessibleDoc = aAccessible->GetDocAccessible();
+    nsDocAccessible *accessibleDoc = accessNode->GetDocAccessible();
     if (!accessibleDoc)
       return 0;
 
@@ -1812,20 +1892,38 @@ nsAccessibleWrap::UnattachIEnumVariant()
     mEnumVARIANTPosition = kIEnumVariantDisconnected;
 }
 
-nsAccessible*
-nsAccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild)
+void nsAccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild, nsIAccessible **aXPAccessible)
 {
-  if (IsDefunct())
-    return nsnull;
+  *aXPAccessible = nsnull;
+  if (!mWeakShell)
+    return; // Fail, we don't want to do anything after we've shut down
 
   // if its us real easy - this seems to always be the case
-  if (aVarChild.lVal == CHILDID_SELF)
-    return this;
-
-  if (nsAccUtils::MustPrune(this))
-    return nsnull;
-
-  return GetChildAt(aVarChild.lVal);
+  if (aVarChild.lVal == CHILDID_SELF) {
+    *aXPAccessible = static_cast<nsIAccessible*>(this);
+  }
+  else if (nsAccUtils::MustPrune(this)) {
+    return;
+  }
+  else {
+    // XXX It is rare to use a VARIANT with a child num
+    // so optimizing this is not a priority
+    // We can come back it do it later, if there are perf problems
+    // with a specific assistive technology
+    nsCOMPtr<nsIAccessible> xpAccessible, nextAccessible;
+    GetFirstChild(getter_AddRefs(xpAccessible));
+    for (PRInt32 index = 0; xpAccessible; index ++) {
+      if (!xpAccessible)
+        break; // Failed
+      if (aVarChild.lVal == index) {
+        *aXPAccessible = xpAccessible;
+        break;
+      }
+      nextAccessible = xpAccessible;
+      nextAccessible->GetNextSibling(getter_AddRefs(xpAccessible));
+    }
+  }
+  NS_IF_ADDREF(*aXPAccessible);
 }
 
 void nsAccessibleWrap::UpdateSystemCaret()

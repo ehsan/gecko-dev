@@ -183,8 +183,7 @@ nsChromeProtocolHandler::NewChannel(nsIURI* aURI,
     if (!nsChromeRegistry::gChromeRegistry) {
         // We don't actually want this ref, we just want the service to
         // initialize if it hasn't already.
-        nsCOMPtr<nsIChromeRegistry> reg =
-            mozilla::services::GetChromeRegistryService();
+        nsCOMPtr<nsIChromeRegistry> reg(do_GetService(NS_CHROMEREGISTRY_CONTRACTID));
         NS_ENSURE_TRUE(nsChromeRegistry::gChromeRegistry, NS_ERROR_FAILURE);
     }
 

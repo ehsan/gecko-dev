@@ -44,6 +44,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-168347.js';
 var UBound = 0;
 var BUGNUMBER = 168347;
 var summary = "Testing F.toString()";

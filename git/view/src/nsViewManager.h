@@ -48,7 +48,9 @@
 #include "nsIRegion.h"
 #include "nsView.h"
 #include "nsIViewObserver.h"
-#include "nsIDeviceContext.h"
+
+//Uncomment the following line to enable generation of viewmanager performance data.
+//#define NS_VM_PERF_METRICS 1
 
 
 /**
@@ -111,13 +113,12 @@ public:
 
   NS_IMETHOD  GetWindowDimensions(nscoord *width, nscoord *height);
   NS_IMETHOD  SetWindowDimensions(nscoord width, nscoord height);
-  NS_IMETHOD  FlushDelayedResize(PRBool aDoReflow);
+  NS_IMETHOD  FlushDelayedResize();
 
   NS_IMETHOD  Composite(void);
 
   NS_IMETHOD  UpdateView(nsIView *aView, PRUint32 aUpdateFlags);
-  NS_IMETHOD  UpdateViewNoSuppression(nsIView *aView, const nsRect &aRect,
-                                      PRUint32 aUpdateFlags);
+  NS_IMETHOD  UpdateView(nsIView *aView, const nsRect &aRect, PRUint32 aUpdateFlags);
   NS_IMETHOD  UpdateAllViews(PRUint32 aUpdateFlags);
 
   NS_IMETHOD  DispatchEvent(nsGUIEvent *aEvent,
@@ -130,6 +131,8 @@ public:
                           PRInt32 zindex);
 
   NS_IMETHOD  RemoveChild(nsIView *parent);
+
+  NS_IMETHOD  MoveViewBy(nsIView *aView, nscoord aX, nscoord aY);
 
   NS_IMETHOD  MoveViewTo(nsIView *aView, nscoord aX, nscoord aY);
 
@@ -173,8 +176,7 @@ private:
   /**
    * Call WillPaint() on all view observers under this vm root.
    */
-  void CallWillPaintOnObservers(PRBool aWillSendDidPaint);
-  void CallDidPaintOnObservers();
+  void CallWillPaintOnObservers();
   void ReparentChildWidgets(nsIView* aView, nsIWidget *aNewWidget);
   void ReparentWidgets(nsIView* aView, nsIView *aParent);
   void UpdateWidgetArea(nsView *aWidgetView, nsIWidget* aWidget,
@@ -185,14 +187,10 @@ private:
 
   void TriggerRefresh(PRUint32 aUpdateFlags);
 
-  // aView is the view for aWidget and aRegion is relative to aWidget.
   void Refresh(nsView *aView, nsIWidget *aWidget,
                const nsIntRegion& aRegion, PRUint32 aUpdateFlags);
-  // aRootView is the view for aWidget, aRegion is relative to aRootView, and
-  // aIntRegion is relative to aWidget.
   void RenderViews(nsView *aRootView, nsIWidget *aWidget,
-                   const nsRegion& aRegion, const nsIntRegion& aIntRegion,
-                   PRBool aPaintDefaultBackground, PRBool aWillSendDidPaint);
+                   const nsRegion& aRegion);
 
   void InvalidateRectDifference(nsView *aView, const nsRect& aRect, const nsRect& aCutOut, PRUint32 aUpdateFlags);
   void InvalidateHorizontalBandDifference(nsView *aView, const nsRect& aRect, const nsRect& aCutOut,
@@ -209,13 +207,25 @@ private:
   void UpdateWidgetsForView(nsView* aView);
 
   /**
-   * Intersects aRect with aView's bounds and then transforms it from aView's
-   * coordinate system to the coordinate system of the widget attached to
-   * aView.
+   * Transforms a rectangle from aView's coordinate system to the coordinate
+   * system of the widget attached to aWidgetView, which should be an ancestor
+   * of aView.
    */
-  nsIntRect ViewToWidget(nsView *aView, const nsRect &aRect) const;
+  nsIntRect ViewToWidget(nsView *aView, nsView* aWidgetView, const nsRect &aRect) const;
 
-  void DoSetWindowDimensions(nscoord aWidth, nscoord aHeight);
+  void DoSetWindowDimensions(nscoord aWidth, nscoord aHeight)
+  {
+    nsRect oldDim;
+    nsRect newDim(0, 0, aWidth, aHeight);
+    mRootView->GetDimensions(oldDim);
+    // We care about resizes even when one dimension is already zero.
+    if (!oldDim.IsExactEqual(newDim)) {
+      // Don't resize the widget. It is already being set elsewhere.
+      mRootView->SetDimensions(newDim, PR_TRUE, PR_FALSE);
+      if (mObserver)
+        mObserver->ResizeReflow(mRootView, aWidth, aHeight);
+    }
+  }
 
   // Safety helpers
   void IncrementUpdateCount() {
@@ -250,14 +260,17 @@ private:
     RootViewManager()->mPainting = aPainting;
   }
 
-  nsresult UpdateView(nsIView *aView, const nsRect &aRect, PRUint32 aUpdateFlags);
-
 public: // NOT in nsIViewManager, so private to the view module
   nsView* GetRootView() const { return mRootView; }
   nsViewManager* RootViewManager() const { return mRootViewManager; }
   PRBool IsRootVM() const { return this == RootViewManager(); }
 
-  nsEventStatus HandleEvent(nsView* aView, nsGUIEvent* aEvent);
+  nsEventStatus HandleEvent(nsView* aView, nsPoint aPoint, nsGUIEvent* aEvent);
+
+  virtual nsresult WillBitBlit(nsIView* aView, const nsRect& aRect,
+                               nsPoint aScrollAmount);
+  virtual void UpdateViewAfterScroll(nsIView *aView,
+                                     const nsRegion& aUpdateRegion);
 
   nsresult CreateRegion(nsIRegion* *result);
 
@@ -268,17 +281,10 @@ public: // NOT in nsIViewManager, so private to the view module
   // Call this when you need to let the viewmanager know that it now has
   // pending updates.
   void PostPendingUpdate() { RootViewManager()->mHasPendingUpdates = PR_TRUE; }
-
-  PRInt32 AppUnitsPerDevPixel() const
-  {
-    return mContext->AppUnitsPerDevPixel();
-  }
-
 private:
   nsCOMPtr<nsIDeviceContext> mContext;
   nsIViewObserver   *mObserver;
-  // relative to mRootView and set only on the root view manager
-  nsPoint           mMouseLocation;
+  nsIntPoint        mMouseLocation; // device units, relative to mRootView
 
   // The size for a resize that we delayed until the root view becomes
   // visible again.
@@ -302,6 +308,7 @@ private:
   PRInt32           mUpdateCnt;
   PRInt32           mUpdateBatchCnt;
   PRUint32          mUpdateBatchFlags;
+  PRInt32           mScrollCnt;
   // Use IsPainting() and SetPainting() to access mPainting.
   PRPackedBool      mPainting;
   PRPackedBool      mRecursiveRefreshPending;
@@ -310,6 +317,9 @@ private:
 
   //from here to public should be static and locked... MMP
   static PRInt32           mVMCount;        //number of viewmanagers
+
+  //Rendering context used to cleanup the blending buffers
+  static nsIRenderingContext* gCleanupContext;
 
   //list of view managers
   static nsVoidArray       *gViewManagers;

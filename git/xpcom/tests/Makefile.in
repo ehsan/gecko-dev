@@ -39,7 +39,6 @@ DEPTH		= ../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
-relativesrcdir = xpcom/tests
 
 include $(DEPTH)/config/autoconf.mk
 
@@ -49,13 +48,7 @@ ifndef MOZ_ENABLE_LIBXUL
 MOZILLA_INTERNAL_API = 1
 endif
 
-DIRS		= external
-
-# Disabled because manifests make this test difficult to run correctly.
-# ifdef MOZ_ENABLE_LIBXUL
-# DIRS += xptinfo
-# endif
-
+DIRS		= dynamic services external
 ifeq ($(OS_ARCH),WINNT)
 DIRS		+= windows
 endif
@@ -87,12 +80,12 @@ endif
 SIMPLE_PROGRAMS	:= $(CPPSRCS:.cpp=$(BIN_SUFFIX))
 
 CPP_UNIT_TESTS = \
-                 ShowAlignments.cpp \
                  ShowSSEConfig.cpp \
                  TestAutoPtr.cpp \
                  TestCOMArray.cpp \
                  TestCOMPtr.cpp \
                  TestCOMPtrEq.cpp \
+                 TestFactory.cpp \
                  TestFile.cpp \
                  TestHashtables.cpp \
                  TestID.cpp \
@@ -100,8 +93,8 @@ CPP_UNIT_TESTS = \
                  TestObserverService.cpp \
                  TestPipe.cpp \
                  TestRefPtr.cpp \
+                 TestServMgr.cpp \
                  TestTextFormatter.cpp \
-                 TestCheckedInt.cpp \
                  $(NULL)
 
 ifndef MOZ_ENABLE_LIBXUL
@@ -122,11 +115,10 @@ CPP_UNIT_TESTS += \
                   TestThreads.cpp \
                   TestTimeStamp.cpp \
                   TestXPIDLString.cpp \
+                  TestStaticAtoms.cpp \
                   TestUTF.cpp \
                   TestAtoms.cpp \
                   $(NULL)
-# FIXME: bug 577500 TestStaticAtoms fails when run in dist/bin
-# TestStaticAtoms.cpp
 endif
 
 ifdef MOZ_DEBUG
@@ -147,6 +139,10 @@ CPP_UNIT_TESTS += \
 endif
 
 include $(topsrcdir)/config/config.mk
+
+ifndef MOZILLA_INTERNAL_API
+LIBS +=	$(DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX)
+endif
 
 LIBS += $(XPCOM_LIBS)
 
@@ -173,7 +169,7 @@ LOCAL_INCLUDES	= \
 
 libs::
 	$(INSTALL) $(srcdir)/test.properties $(DIST)/bin/res
-	$(INSTALL) $(SIMPLE_PROGRAMS) $(DEPTH)/_tests/xpcshell/$(relativesrcdir)/unit
+	$(INSTALL) $(SIMPLE_PROGRAMS) $(DEPTH)/_tests/xpcshell/$(MODULE)/unit
 
 # Copy TestHarness.h into its own module, for ease of setting up includes
 # correctly.

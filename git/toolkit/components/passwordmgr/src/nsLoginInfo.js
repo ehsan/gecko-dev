@@ -44,6 +44,8 @@ function nsLoginInfo() {}
 
 nsLoginInfo.prototype = {
 
+    classDescription  : "LoginInfo",
+    contractID : "@mozilla.org/login-manager/loginInfo;1",
     classID : Components.ID("{0f2f347c-1e4f-40cc-8efd-792dea70a85e}"),
     QueryInterface: XPCOMUtils.generateQI([Ci.nsILoginInfo, Ci.nsILoginMetaInfo]), 
 
@@ -139,4 +141,7 @@ nsLoginInfo.prototype = {
 
 }; // end of nsLoginInfo implementation
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([nsLoginInfo]);
+var component = [nsLoginInfo];
+function NSGetModule(compMgr, fileSpec) {
+    return XPCOMUtils.generateModule(component);
+}

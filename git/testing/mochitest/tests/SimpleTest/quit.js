@@ -42,12 +42,6 @@
   These files did not have a license
 */
 
-//Simple test to see if we are running in e10s IPC
-var ipcMode = false;
-if (typeof(TestRunner) != "undefined") {
-  ipcMode = TestRunner.ipcMode;
-}
-
 function quitHook()
 {
   var xhr = new XMLHttpRequest();
@@ -89,11 +83,6 @@ function canQuitApplication()
 
 function goQuitApplication()
 {
-  if (ipcMode) {
-    contentAsyncEvent("QuitApplication");
-    return;
-  }
-
   const privs = 'UniversalXPConnect';
 
   try
@@ -120,6 +109,7 @@ function goQuitApplication()
     appService = Components.classes[kAppStartup].
       getService(Components.interfaces.nsIAppStartup);
     forceQuit  = Components.interfaces.nsIAppStartup.eForceQuit;
+
   }
   else if (kAppShell in Components.classes)
   {

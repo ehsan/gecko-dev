@@ -264,11 +264,26 @@ general_composite_rect  (pixman_implementation_t *imp,
 	free (scanline_buffer);
 }
 
-static const pixman_fast_path_t general_fast_path[] =
+static void
+general_composite (pixman_implementation_t * imp,
+                   pixman_op_t               op,
+                   pixman_image_t *          src,
+                   pixman_image_t *          mask,
+                   pixman_image_t *          dest,
+                   int32_t                   src_x,
+                   int32_t                   src_y,
+                   int32_t                   mask_x,
+                   int32_t                   mask_y,
+                   int32_t                   dest_x,
+                   int32_t                   dest_y,
+                   int32_t                   width,
+                   int32_t                   height)
 {
-    { PIXMAN_OP_any, PIXMAN_any, 0, PIXMAN_any,	0, PIXMAN_any, 0, general_composite_rect },
-    { PIXMAN_OP_NONE }
-};
+    _pixman_walk_composite_region (imp, op, src, mask, dest, src_x, src_y,
+                                   mask_x, mask_y, dest_x, dest_y,
+				   width, height,
+                                   general_composite_rect);
+}
 
 static pixman_bool_t
 general_blt (pixman_implementation_t *imp,
@@ -307,11 +322,12 @@ general_fill (pixman_implementation_t *imp,
 pixman_implementation_t *
 _pixman_implementation_create_general (void)
 {
-    pixman_implementation_t *imp = _pixman_implementation_create (NULL, general_fast_path);
+    pixman_implementation_t *imp = _pixman_implementation_create (NULL);
 
     _pixman_setup_combiner_functions_32 (imp);
     _pixman_setup_combiner_functions_64 (imp);
 
+    imp->composite = general_composite;
     imp->blt = general_blt;
     imp->fill = general_fill;
 

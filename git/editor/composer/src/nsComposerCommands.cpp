@@ -119,7 +119,7 @@ nsBaseStateUpdatingCommand::DoCommand(const char *aCommandName,
                                       nsISupports *refCon)
 {
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(refCon);
-  NS_ENSURE_TRUE(editor, NS_ERROR_NOT_INITIALIZED);
+  if (!editor) return NS_ERROR_NOT_INITIALIZED;
 
   return ToggleState(editor, mTagName);
 }
@@ -156,10 +156,12 @@ nsPasteNoFormattingCommand::IsCommandEnabled(const char * aCommandName,
   //  pasting in a plaintext editor automatically only supplies 
   //  "unformatted" text
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(refCon);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_NOT_IMPLEMENTED);
+  if (!htmlEditor)
+    return NS_ERROR_NOT_IMPLEMENTED;
 
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(htmlEditor);
-  NS_ENSURE_TRUE(editor, NS_ERROR_INVALID_ARG);
+  if (!editor)
+    return NS_ERROR_INVALID_ARG;
 
   return editor->CanPaste(nsIClipboard::kGlobalClipboard, outCmdEnabled);
 }
@@ -170,7 +172,8 @@ nsPasteNoFormattingCommand::DoCommand(const char *aCommandName,
                                       nsISupports *refCon)
 {
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(refCon);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_NOT_IMPLEMENTED);
+  if (!htmlEditor)
+    return NS_ERROR_NOT_IMPLEMENTED;
 
   return htmlEditor->PasteNoFormatting(nsIClipboard::kGlobalClipboard);
 }
@@ -213,7 +216,7 @@ nsStyleUpdatingCommand::GetCurrentState(nsIEditor *aEditor,
 {
   NS_ASSERTION(aEditor, "Need editor here");
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_NOT_INITIALIZED);
+  if (!htmlEditor) return NS_ERROR_NOT_INITIALIZED;
   
   nsresult rv = NS_OK;
 
@@ -242,7 +245,8 @@ nsresult
 nsStyleUpdatingCommand::ToggleState(nsIEditor *aEditor, const char* aTagName)
 {
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_NO_INTERFACE);
+  if (!htmlEditor)
+    return NS_ERROR_NO_INTERFACE;
 
   //create some params now...
   nsresult rv;
@@ -262,9 +266,11 @@ nsStyleUpdatingCommand::ToggleState(nsIEditor *aEditor, const char* aTagName)
   {
     // check current selection; set doTagRemoval if formatting should be removed
     rv = GetCurrentState(aEditor, aTagName, params);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) 
+      return rv;
     rv = params->GetBooleanValue(STATE_ALL, &doTagRemoval);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) 
+      return rv;
   }
 
   if (doTagRemoval)
@@ -311,7 +317,7 @@ nsListCommand::GetCurrentState(nsIEditor *aEditor, const char* aTagName,
   PRBool bMixed;
   PRUnichar *tagStr;
   nsresult rv = GetListState(aEditor,&bMixed, &tagStr);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   // Need to use mTagName????
   PRBool inList = (0 == nsCRT::strcmp(tagStr,
@@ -327,7 +333,8 @@ nsresult
 nsListCommand::ToggleState(nsIEditor *aEditor, const char* aTagName)
 {
   nsCOMPtr<nsIHTMLEditor> editor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(editor, NS_NOINTERFACE);
+  if (!editor)
+    return NS_NOINTERFACE;
   PRBool inList;
   // Need to use mTagName????
   nsresult rv;
@@ -338,7 +345,8 @@ nsListCommand::ToggleState(nsIEditor *aEditor, const char* aTagName)
 
   rv = GetCurrentState(aEditor, mTagName, params);
   rv = params->GetBooleanValue(STATE_ALL,&inList);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) 
+    return rv;
 
   nsAutoString listType; listType.AssignWithConversion(mTagName);
   if (inList)
@@ -367,11 +375,12 @@ nsListItemCommand::GetCurrentState(nsIEditor *aEditor, const char* aTagName,
   NS_ASSERTION(aEditor, "Need editor here");
   // 39584
   nsCOMPtr<nsIHTMLEditor>  htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_NOINTERFACE);
+  if (!htmlEditor)
+    return NS_NOINTERFACE;
 
   PRBool bMixed, bLI, bDT, bDD;
   nsresult rv = htmlEditor->GetListItemState(&bMixed, &bLI, &bDT, &bDD);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   PRBool inList = PR_FALSE;
   if (!bMixed)
@@ -392,7 +401,7 @@ nsListItemCommand::ToggleState(nsIEditor *aEditor, const char* aTagName)
 {
   NS_ASSERTION(aEditor, "Need editor here");
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_NOT_INITIALIZED);
+  if (!htmlEditor) return NS_ERROR_NOT_INITIALIZED;
 
   PRBool inList;
   // Need to use mTagName????
@@ -403,8 +412,9 @@ nsListItemCommand::ToggleState(nsIEditor *aEditor, const char* aTagName)
     return rv;
   rv = GetCurrentState(aEditor, mTagName, params);
   rv = params->GetBooleanValue(STATE_ALL,&inList);
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) 
+    return rv;
+  if (NS_FAILED(rv)) return rv;
   
   if (inList)
   {
@@ -412,7 +422,7 @@ nsListItemCommand::ToggleState(nsIEditor *aEditor, const char* aTagName)
     PRBool bMixed;
     PRUnichar *tagStr;
     rv = GetListState(aEditor,&bMixed, &tagStr);
-    NS_ENSURE_SUCCESS(rv, rv); 
+    if (NS_FAILED(rv)) return rv; 
     if (tagStr)
     {
       if (!bMixed)
@@ -451,7 +461,7 @@ nsRemoveListCommand::IsCommandEnabled(const char * aCommandName,
     PRBool bMixed;
     PRUnichar *tagStr;
     nsresult rv = GetListState(editor, &bMixed, &tagStr);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) return rv;
 
     *outCmdEnabled = bMixed ? PR_TRUE : (tagStr && *tagStr);
     
@@ -689,7 +699,7 @@ nsParagraphStateCommand::GetCurrentState(nsIEditor *aEditor,
   NS_ASSERTION(aEditor, "Need an editor here");
   
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
+  if (!htmlEditor) return NS_ERROR_FAILURE;
 
   PRBool outMixed;
   nsAutoString outStateString;
@@ -710,7 +720,7 @@ nsParagraphStateCommand::SetState(nsIEditor *aEditor, nsString& newState)
 {
   NS_ASSERTION(aEditor, "Need an editor here");
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
+  if (!htmlEditor) return NS_ERROR_FAILURE;
 
   return htmlEditor->SetParagraphFormat(newState);
 }
@@ -730,7 +740,7 @@ nsFontFaceStateCommand::GetCurrentState(nsIEditor *aEditor,
 {
   NS_ASSERTION(aEditor, "Need an editor here");
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
+  if (!htmlEditor) return NS_ERROR_FAILURE;
 
   nsAutoString outStateString;
   PRBool outMixed;
@@ -749,7 +759,7 @@ nsFontFaceStateCommand::SetState(nsIEditor *aEditor, nsString& newState)
 {
   NS_ASSERTION(aEditor, "Need an editor here");
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
+  if (!htmlEditor) return NS_ERROR_FAILURE;
   
   nsresult rv;
   nsCOMPtr<nsIAtom> ttAtom = do_GetAtom("tt");
@@ -796,7 +806,7 @@ nsFontSizeStateCommand::GetCurrentState(nsIEditor *aEditor,
 {
   NS_ASSERTION(aEditor, "Need an editor here");
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_INVALID_ARG);
+  if (!htmlEditor) return NS_ERROR_INVALID_ARG;
 
   nsAutoString outStateString;
   nsCOMPtr<nsIAtom> fontAtom = do_GetAtom("font");
@@ -806,7 +816,7 @@ nsFontSizeStateCommand::GetCurrentState(nsIEditor *aEditor,
                                          EmptyString(),
                                          &firstHas, &anyHas, &allHas,
                                          outStateString);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   nsCAutoString tOutStateString;
   tOutStateString.AssignWithConversion(outStateString);
@@ -832,7 +842,7 @@ nsFontSizeStateCommand::SetState(nsIEditor *aEditor, nsString& newState)
 {
   NS_ASSERTION(aEditor, "Need an editor here");
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_INVALID_ARG);
+  if (!htmlEditor) return NS_ERROR_INVALID_ARG;
 
   nsresult rv;
   nsCOMPtr<nsIAtom> fontAtom = do_GetAtom("font");
@@ -841,15 +851,15 @@ nsFontSizeStateCommand::SetState(nsIEditor *aEditor, nsString& newState)
       newState.EqualsLiteral("medium")) {
     // remove any existing font size, big or small
     rv = htmlEditor->RemoveInlineProperty(fontAtom, NS_LITERAL_STRING("size"));  
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIAtom> bigAtom = do_GetAtom("big");
     rv = htmlEditor->RemoveInlineProperty(bigAtom, EmptyString());  
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIAtom> smallAtom = do_GetAtom("small");
     rv = htmlEditor->RemoveInlineProperty(smallAtom, EmptyString());  
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) return rv;
   } else {
     // set the size
     rv = htmlEditor->SetInlineProperty(fontAtom, NS_LITERAL_STRING("size"),
@@ -874,7 +884,7 @@ nsFontColorStateCommand::GetCurrentState(nsIEditor *aEditor,
   NS_ASSERTION(aEditor, "Need an editor here");
   
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
+  if (!htmlEditor) return NS_ERROR_FAILURE;
 
   PRBool outMixed;
   nsAutoString outStateString;
@@ -894,7 +904,7 @@ nsFontColorStateCommand::SetState(nsIEditor *aEditor, nsString& newState)
 {
   NS_ASSERTION(aEditor, "Need an editor here");
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
+  if (!htmlEditor) return NS_ERROR_FAILURE;
   
   nsresult rv;
   nsCOMPtr<nsIAtom> fontAtom = do_GetAtom("font");
@@ -924,7 +934,7 @@ nsHighlightColorStateCommand::GetCurrentState(nsIEditor *aEditor,
 {
   NS_ASSERTION(aEditor, "Need an editor here");
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
+  if (!htmlEditor) return NS_ERROR_FAILURE;
 
   PRBool outMixed;
   nsAutoString outStateString;
@@ -944,7 +954,7 @@ nsHighlightColorStateCommand::SetState(nsIEditor *aEditor, nsString& newState)
 {
   NS_ASSERTION(aEditor, "Need an editor here");
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
+  if (!htmlEditor) return NS_ERROR_FAILURE;
 
   nsresult rv;
   nsCOMPtr<nsIAtom> fontAtom = do_GetAtom("font");
@@ -987,7 +997,7 @@ nsBackgroundColorStateCommand::GetCurrentState(nsIEditor *aEditor,
   NS_ASSERTION(aEditor, "Need an editor here");
   
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
+  if (!htmlEditor) return NS_ERROR_FAILURE;
 
   PRBool outMixed;
   nsAutoString outStateString;
@@ -1008,7 +1018,7 @@ nsBackgroundColorStateCommand::SetState(nsIEditor *aEditor, nsString& newState)
   NS_ASSERTION(aEditor, "Need an editor here");
   
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
+  if (!htmlEditor) return NS_ERROR_FAILURE;
 
   return htmlEditor->SetBackgroundColor(newState);
 }
@@ -1028,13 +1038,14 @@ nsAlignCommand::GetCurrentState(nsIEditor *aEditor, nsICommandParams *aParams)
   NS_ASSERTION(aEditor, "Need an editor here");
   
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
+  if (!htmlEditor) return NS_ERROR_FAILURE;
  
   nsIHTMLEditor::EAlignment firstAlign;
   PRBool outMixed;
   nsresult rv = htmlEditor->GetAlignment(&outMixed, &firstAlign);
   
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) 
+    return rv;
   
   nsAutoString outStateString;
   switch (firstAlign)
@@ -1069,7 +1080,7 @@ nsAlignCommand::SetState(nsIEditor *aEditor, nsString& newState)
   NS_ASSERTION(aEditor, "Need an editor here");
   
   nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
+  if (!htmlEditor) return NS_ERROR_FAILURE;
 
   return htmlEditor->Align(newState);
 }
@@ -1093,7 +1104,7 @@ nsAbsolutePositioningCommand::IsCommandEnabled(const char * aCommandName,
   NS_ASSERTION(aCommandRefCon, "Need an editor here");
   
   nsCOMPtr<nsIHTMLAbsPosEditor> htmlEditor = do_QueryInterface(aCommandRefCon);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
+  if (!htmlEditor) return NS_ERROR_FAILURE;
 
   htmlEditor->GetAbsolutePositioningEnabled(_retval);
   return NS_OK;
@@ -1105,7 +1116,7 @@ nsAbsolutePositioningCommand::GetCurrentState(nsIEditor *aEditor, const char* aT
   NS_ASSERTION(aEditor, "Need an editor here");
   
   nsCOMPtr<nsIHTMLAbsPosEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
+  if (!htmlEditor) return NS_ERROR_FAILURE;
 
   PRBool isEnabled;
   htmlEditor->GetAbsolutePositioningEnabled(&isEnabled);
@@ -1117,7 +1128,8 @@ nsAbsolutePositioningCommand::GetCurrentState(nsIEditor *aEditor, const char* aT
 
   nsCOMPtr<nsIDOMElement>  elt;
   nsresult rv = htmlEditor->GetAbsolutelyPositionedSelectionContainer(getter_AddRefs(elt));
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) 
+    return rv;
 
   nsAutoString outStateString;
   if (elt)
@@ -1134,11 +1146,11 @@ nsAbsolutePositioningCommand::ToggleState(nsIEditor *aEditor, const char* aTagNa
   NS_ASSERTION(aEditor, "Need an editor here");
   
   nsCOMPtr<nsIHTMLAbsPosEditor> htmlEditor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
+  if (!htmlEditor) return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMElement>  elt;
   nsresult rv = htmlEditor->GetAbsolutelyPositionedSelectionContainer(getter_AddRefs(elt));
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   if (elt) {
     // we have to remove positioning on an element
@@ -1161,7 +1173,7 @@ nsDecreaseZIndexCommand::IsCommandEnabled(const char * aCommandName,
                                           PRBool *outCmdEnabled)
 {
   nsCOMPtr<nsIHTMLAbsPosEditor> htmlEditor = do_QueryInterface(refCon);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
+  if (!htmlEditor) return NS_ERROR_FAILURE;
 
   htmlEditor->GetAbsolutePositioningEnabled(outCmdEnabled);
   if (!(*outCmdEnabled))
@@ -1173,7 +1185,7 @@ nsDecreaseZIndexCommand::IsCommandEnabled(const char * aCommandName,
   if (positionedElement) {
     PRInt32 z;
     nsresult res = htmlEditor->GetElementZIndex(positionedElement, &z);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     *outCmdEnabled = (z > 0);
   }
 
@@ -1185,7 +1197,8 @@ nsDecreaseZIndexCommand::DoCommand(const char *aCommandName,
                                    nsISupports *refCon)
 {
   nsCOMPtr<nsIHTMLAbsPosEditor> htmlEditor = do_QueryInterface(refCon);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_NOT_IMPLEMENTED);
+  if (!htmlEditor)
+    return NS_ERROR_NOT_IMPLEMENTED;
 
   return htmlEditor->RelativeChangeZIndex(-1);
 }
@@ -1222,7 +1235,7 @@ nsIncreaseZIndexCommand::IsCommandEnabled(const char * aCommandName,
                                           PRBool *outCmdEnabled)
 {
   nsCOMPtr<nsIHTMLAbsPosEditor> htmlEditor = do_QueryInterface(refCon);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_FAILURE);
+  if (!htmlEditor) return NS_ERROR_FAILURE;
 
   htmlEditor->GetAbsolutePositioningEnabled(outCmdEnabled);
   if (!(*outCmdEnabled))
@@ -1239,7 +1252,8 @@ nsIncreaseZIndexCommand::DoCommand(const char *aCommandName,
                                    nsISupports *refCon)
 {
   nsCOMPtr<nsIHTMLAbsPosEditor> htmlEditor = do_QueryInterface(refCon);
-  NS_ENSURE_TRUE(htmlEditor, NS_ERROR_NOT_IMPLEMENTED);
+  if (!htmlEditor)
+    return NS_ERROR_NOT_IMPLEMENTED;
 
   return htmlEditor->RelativeChangeZIndex(1);
 }
@@ -1446,7 +1460,8 @@ nsInsertHTMLCommand::DoCommandParams(const char *aCommandName,
   NS_ENSURE_ARG_POINTER(refCon);
 
   nsCOMPtr<nsIHTMLEditor> editor = do_QueryInterface(refCon);
-  NS_ENSURE_TRUE(editor, NS_ERROR_NOT_IMPLEMENTED);
+  if (!editor)
+    return NS_ERROR_NOT_IMPLEMENTED;
 
   // Get HTML source string to insert from command params
   nsAutoString html;
@@ -1507,13 +1522,15 @@ nsInsertTagCommand::DoCommand(const char *aCmdName, nsISupports *refCon)
   if (0 == nsCRT::strcmp(mTagName, "hr"))
   {
     nsCOMPtr<nsIHTMLEditor> editor = do_QueryInterface(refCon);
-    NS_ENSURE_TRUE(editor, NS_ERROR_NOT_IMPLEMENTED);
+    if (!editor)
+      return NS_ERROR_NOT_IMPLEMENTED;
 
     nsCOMPtr<nsIDOMElement> domElem;
     nsresult rv;
     rv = editor->CreateElementWithDefaults(NS_ConvertASCIItoUTF16(mTagName),
                                            getter_AddRefs(domElem));
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv))
+      return rv;
 
     return editor->InsertElementAtSelection(domElem, PR_TRUE);
   }
@@ -1535,7 +1552,8 @@ nsInsertTagCommand::DoCommandParams(const char *aCommandName,
   NS_ENSURE_ARG_POINTER(aParams);
 
   nsCOMPtr<nsIHTMLEditor> editor = do_QueryInterface(refCon);
-  NS_ENSURE_TRUE(editor, NS_ERROR_NOT_IMPLEMENTED);
+  if (!editor)
+    return NS_ERROR_NOT_IMPLEMENTED;
 
   // do we have an href to use for creating link?
   nsXPIDLCString s;
@@ -1559,10 +1577,12 @@ nsInsertTagCommand::DoCommandParams(const char *aCommandName,
   nsCOMPtr<nsIDOMElement> domElem;
   rv = editor->CreateElementWithDefaults(NS_ConvertASCIItoUTF16(mTagName),
                                          getter_AddRefs(domElem));
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv))
+    return rv;
 
   rv = domElem->SetAttribute(attributeType, attrib);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv))
+    return rv;
 
   // do actual insertion
   if (0 == nsCRT::strcmp(mTagName, "a"))
@@ -1595,7 +1615,8 @@ nsInsertTagCommand::GetCommandStateParams(const char *aCommandName,
 nsresult
 GetListState(nsIEditor *aEditor, PRBool *aMixed, PRUnichar **_retval)
 {
-  NS_ENSURE_TRUE(aMixed && _retval && aEditor, NS_ERROR_NULL_POINTER);
+  if (!aMixed || !_retval || !aEditor) 
+    return NS_ERROR_NULL_POINTER;
   *_retval = nsnull;
   *aMixed = PR_FALSE;
 
@@ -1627,11 +1648,13 @@ nsresult
 RemoveOneProperty(nsIHTMLEditor *aEditor,const nsString& aProp, 
                   const nsString &aAttr)
 {
-  NS_ENSURE_TRUE(aEditor, NS_ERROR_NOT_INITIALIZED);
+  if (!aEditor) 
+    return NS_ERROR_NOT_INITIALIZED;
 
   /// XXX Hack alert! Look in nsIEditProperty.h for this
   nsCOMPtr<nsIAtom> styleAtom = do_GetAtom(aProp);
-  NS_ENSURE_TRUE( styleAtom, NS_ERROR_OUT_OF_MEMORY);
+  if (! styleAtom) 
+    return NS_ERROR_OUT_OF_MEMORY;
 
   return aEditor->RemoveInlineProperty(styleAtom, aAttr);
 }
@@ -1643,9 +1666,11 @@ nsresult
 RemoveTextProperty(nsIEditor *aEditor, const PRUnichar *prop, 
                    const PRUnichar *attr)
 {
-  NS_ENSURE_TRUE(aEditor, NS_ERROR_NOT_INITIALIZED);
+  if (!aEditor) 
+    return NS_ERROR_NOT_INITIALIZED;
   nsCOMPtr<nsIHTMLEditor> editor = do_QueryInterface(aEditor);
-  NS_ENSURE_TRUE(editor, NS_ERROR_INVALID_ARG);
+  if (!editor) 
+    return NS_ERROR_INVALID_ARG;
   // OK, I'm really hacking now. This is just so that 
   //     we can accept 'all' as input.  
   nsAutoString  allStr(prop);
@@ -1677,11 +1702,13 @@ SetTextProperty(nsIEditor *aEditor, const PRUnichar *prop,
   //static initialization 
   static const PRUnichar sEmptyStr = PRUnichar('\0');
   
-  NS_ENSURE_TRUE(aEditor, NS_ERROR_NOT_INITIALIZED);
+  if (!aEditor) 
+    return NS_ERROR_NOT_INITIALIZED;
 
   /// XXX Hack alert! Look in nsIEditProperty.h for this
   nsCOMPtr<nsIAtom> styleAtom = do_GetAtom(prop);
-  NS_ENSURE_TRUE( styleAtom, NS_ERROR_OUT_OF_MEMORY);
+  if (! styleAtom) 
+    return NS_ERROR_OUT_OF_MEMORY;
 
   nsresult  err = NS_NOINTERFACE;
 

@@ -77,12 +77,7 @@ CPPSRCS += dlldeps.cpp
 endif
 endif
 
-ifdef MOZ_OMNIJAR
-CPPSRCS += Omnijar.cpp
-endif
-
 SHARED_LIBRARY_LIBS = \
-		$(DEPTH)/chrome/src/$(LIB_PREFIX)chrome_s.$(LIB_SUFFIX) \
 		../ds/$(LIB_PREFIX)xpcomds_s.$(LIB_SUFFIX) \
 		../io/$(LIB_PREFIX)xpcomio_s.$(LIB_SUFFIX) \
 		../components/$(LIB_PREFIX)xpcomcomponents_s.$(LIB_SUFFIX) \
@@ -114,8 +109,6 @@ LOCAL_INCLUDES	= \
 		-I$(srcdir)/../threads/_xpidlgen \
 		-I$(srcdir)/../proxy/src \
 		-I$(srcdir)/../reflect/xptinfo/src \
-		-I$(topsrcdir)/chrome/src \
-		-I$(srcdir)/../../docshell/base \
 		$(NULL)
 
 EXPORTS_NAMESPACES = mozilla
@@ -135,7 +128,6 @@ EXPORTS_mozilla = \
   XPCOM.h \
   Services.h \
   ServiceList.h \
-  Omnijar.h \
   $(NULL)
 
 # Force use of PIC
@@ -161,7 +153,7 @@ DEFINES		+= \
 		-DEXPORT_XPTC_API
 
 EXTRA_DSO_LDOPTS +=				\
-	$(MOZALLOC_LIB)				\
+	-L$(LIBXUL_DIST)/lib $(MOZALLOC_LIB)    \
 	$(NSPR_LIBS)				\
 	$(NULL)
 
@@ -195,9 +187,6 @@ ifeq ($(OS_ARCH),WINNT)
 OS_LIBS += $(call EXPAND_LIBNAME,shell32 ole32 uuid version)
 ifneq (,$(MOZ_DEBUG)$(NS_TRACE_MALLOC))
 OS_LIBS += $(call EXPAND_LIBNAME,imagehlp)
-endif
-ifndef MOZ_ENABLE_LIBXUL
-OS_LIBS += $(call EXPAND_LIBNAME,psapi)
 endif
 endif # WINNT
 

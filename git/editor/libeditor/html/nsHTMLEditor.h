@@ -70,7 +70,6 @@
 
 #include "nsPoint.h"
 #include "nsTArray.h"
-#include "nsAutoPtr.h"
 
 class nsIDOMKeyEvent;
 class nsITransferable;
@@ -95,8 +94,7 @@ class nsHTMLEditor : public nsPlaintextEditor,
                      public nsITableEditor,
                      public nsIHTMLInlineTableEditor,
                      public nsIEditorStyleSheets,
-                     public nsICSSLoaderObserver,
-                     public nsStubMutationObserver
+                     public nsICSSLoaderObserver
 {
   typedef enum {eNoOp, eReplaceParent=1, eInsertParent=2} BlockTransformationType;
 
@@ -145,22 +143,9 @@ public:
   virtual  ~nsHTMLEditor();
 
   /* ------------ nsPlaintextEditor overrides -------------- */
+  NS_IMETHODIMP HandleKeyPress(nsIDOMKeyEvent* aKeyEvent);
   NS_IMETHOD GetIsDocumentEditable(PRBool *aIsDocumentEditable);
   NS_IMETHODIMP BeginningOfDocument();
-  virtual nsresult HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent);
-  virtual PRBool HasFocus();
-  virtual PRBool IsActiveInDOMWindow();
-  virtual already_AddRefed<nsPIDOMEventTarget> GetPIDOMEventTarget();
-  virtual already_AddRefed<nsIContent> FindSelectionRoot(nsINode *aNode);
-  virtual PRBool IsAcceptableInputEvent(nsIDOMEvent* aEvent);
-
-  /* ------------ nsStubMutationObserver overrides --------- */
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
-  NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
-
-  /* ------------ nsIEditorIMESupport overrides ------------ */
-  NS_IMETHOD GetPreferredIMEState(PRUint32 *aState);
 
   /* ------------ nsIHTMLEditor methods -------------- */
 
@@ -323,8 +308,7 @@ public:
 
   /** prepare the editor for use */
   NS_IMETHOD Init(nsIDOMDocument *aDoc, nsIPresShell *aPresShell,  nsIContent *aRoot, nsISelectionController *aSelCon, PRUint32 aFlags);
-  NS_IMETHOD PreDestroy(PRBool aDestroyingFrames);
-
+  
   /** Internal, static version */
   static nsresult NodeIsBlockStatic(nsIDOMNode *aNode, PRBool *aIsBlock);
 
@@ -380,10 +364,8 @@ public:
 
   NS_IMETHOD SelectAll();
 
-  NS_IMETHOD GetRootElement(nsIDOMElement **aRootElement);
-
   /* ------------ nsICSSLoaderObserver -------------- */
-  NS_IMETHOD StyleSheetLoaded(nsCSSStyleSheet*aSheet, PRBool aWasAlternate,
+  NS_IMETHOD StyleSheetLoaded(nsICSSStyleSheet*aSheet, PRBool aWasAlternate,
                               nsresult aStatus);
 
   /* ------------ Utility Routines, not part of public API -------------- */
@@ -431,12 +413,12 @@ public:
 
   // Dealing with the internal style sheet lists:
   NS_IMETHOD GetStyleSheetForURL(const nsAString &aURL,
-                                 nsCSSStyleSheet **_retval);
-  NS_IMETHOD GetURLForStyleSheet(nsCSSStyleSheet *aStyleSheet, nsAString &aURL);
+                               nsICSSStyleSheet **_retval);
+  NS_IMETHOD GetURLForStyleSheet(nsICSSStyleSheet *aStyleSheet, nsAString &aURL);
 
   // Add a url + known style sheet to the internal lists:
   nsresult AddNewStyleSheetToList(const nsAString &aURL,
-                                  nsCSSStyleSheet *aStyleSheet);
+                                  nsICSSStyleSheet *aStyleSheet);
 
   nsresult RemoveStyleSheetFromList(const nsAString &aURL);
                        
@@ -450,18 +432,13 @@ protected:
   virtual nsresult InstallEventListeners();
   virtual void RemoveEventListeners();
 
-  PRBool ShouldReplaceRootElement();
-  void ResetRootElementAndEventTarget();
-  nsresult GetBodyElement(nsIDOMHTMLElement** aBody);
-  // Get the focused node of this editor.
-  // @return    If the editor has focus, this returns the focused node.
-  //            Otherwise, returns null.
-  already_AddRefed<nsINode> GetFocusedNode();
-
   // Return TRUE if aElement is a table-related elemet and caret was set
   PRBool SetCaretInTableCell(nsIDOMElement* aElement);
   PRBool IsElementInBody(nsIDOMElement* aElement);
 
+  // inline style caching
+  void ClearInlineStylesCache();
+  
   // key event helpers
   NS_IMETHOD TabInTable(PRBool inIsShift, PRBool *outHandled);
   NS_IMETHOD CreateBR(nsIDOMNode *aNode, PRInt32 aOffset, 
@@ -527,7 +504,7 @@ protected:
 
   nsresult CopyCellBackgroundColor(nsIDOMElement *destCell, nsIDOMElement *sourceCell);
 
-  // Reduce rowspan/colspan when cells span into nonexistent rows/columns
+  // Reduce rowspan/colspan when cells span into non-existent rows/columns
   NS_IMETHOD FixBadRowSpan(nsIDOMElement *aTable, PRInt32 aRowIndex, PRInt32& aNewRowCount);
   NS_IMETHOD FixBadColSpan(nsIDOMElement *aTable, PRInt32 aColIndex, PRInt32& aNewColCount);
 
@@ -748,15 +725,14 @@ protected:
   nsresult HasStyleOrIdOrClass(nsIDOMElement * aElement, PRBool *aHasStyleOrIdOrClass);
   nsresult RemoveElementIfNoStyleOrIdOrClass(nsIDOMElement * aElement, nsIAtom * aTag);
 
-  // Whether the outer window of the DOM event target has focus or not.
-  PRBool   OurWindowHasFocus();
-
 // Data members
 protected:
 
   nsCOMArray<nsIContentFilter> mContentFilters;
 
   TypeInState*         mTypeInState;
+
+  nsCOMPtr<nsIDOMNode> mCachedNode;
 
   PRPackedBool mCRInParagraphCreatesParagraph;
 
@@ -771,7 +747,7 @@ protected:
 
   // Maintain a list of associated style sheets and their urls.
   nsTArray<nsString> mStyleSheetURLs;
-  nsTArray<nsRefPtr<nsCSSStyleSheet> > mStyleSheets;
+  nsCOMArray<nsICSSStyleSheet> mStyleSheets;
   
   // an array for holding default style settings
   nsTArray<PropItem*> mDefaultStyles;
@@ -925,7 +901,7 @@ protected:
   nsresult CreateGrabber(nsIDOMNode * aParentNode, nsIDOMElement ** aReturn);
   nsresult StartMoving(nsIDOMElement * aHandle);
   nsresult SetFinalPosition(PRInt32 aX, PRInt32 aY);
-  void     AddPositioningOffset(PRInt32 & aX, PRInt32 & aY);
+  void     AddPositioningOffet(PRInt32 & aX, PRInt32 & aY);
   void     SnapToGrid(PRInt32 & newX, PRInt32 & newY);
   nsresult GrabberClicked();
   nsresult EndMoving();

@@ -47,17 +47,17 @@
 
 class nsICSSRule;
 class nsICSSStyleRule;
-class nsCSSStyleSheet;
+class nsICSSStyleSheet;
 class nsIPrincipal;
 class nsIURI;
 class nsIUnicharInputStream;
+class nsCSSDeclaration;
 struct nsCSSSelectorList;
 class nsMediaList;
 
 namespace mozilla {
 namespace css {
-class Declaration;
-class Loader;
+  class Loader;
 }
 }
 
@@ -66,7 +66,7 @@ class Loader;
 class NS_STACK_CLASS nsCSSParser {
 public:
   nsCSSParser(mozilla::css::Loader* aLoader = nsnull,
-              nsCSSStyleSheet* aSheet = nsnull);
+              nsICSSStyleSheet* aSheet = nsnull);
   ~nsCSSParser();
 
   static void Shutdown();
@@ -83,9 +83,9 @@ public:
   { return !!mImpl; }
 
   // Set a style sheet for the parser to fill in. The style sheet must
-  // implement the nsCSSStyleSheet interface.  Null can be passed in to clear
+  // implement the nsICSSStyleSheet interface.  Null can be passed in to clear
   // out an existing stylesheet reference.
-  nsresult SetStyleSheet(nsCSSStyleSheet* aSheet);
+  nsresult SetStyleSheet(nsICSSStyleSheet* aSheet);
 
   // Set whether or not to emulate Nav quirks
   nsresult SetQuirkMode(PRBool aQuirkMode);
@@ -130,17 +130,14 @@ public:
                                nsIPrincipal*     aNodePrincipal,
                                nsICSSStyleRule** aResult);
 
-  // Parse the body of a declaration block.  Very similar to
-  // ParseStyleAttribute, but used under different circumstances.
-  // The contents of aDeclaration will be erased and replaced with the
-  // results of parsing; aChanged will be set true if the aDeclaration
-  // argument was modified.
-  nsresult ParseDeclarations(const nsAString&  aBuffer,
-                             nsIURI*           aSheetURL,
-                             nsIURI*           aBaseURL,
-                             nsIPrincipal*     aSheetPrincipal,
-                             mozilla::css::Declaration* aDeclaration,
-                             PRBool*           aChanged);
+  nsresult ParseAndAppendDeclaration(const nsAString&  aBuffer,
+                                     nsIURI*           aSheetURL,
+                                     nsIURI*           aBaseURL,
+                                     nsIPrincipal*     aSheetPrincipal,
+                                     nsCSSDeclaration* aDeclaration,
+                                     PRBool            aParseOnlyOneDecl,
+                                     PRBool*           aChanged,
+                                     PRBool            aClearOldDecl);
 
   nsresult ParseRule(const nsAString&        aRule,
                      nsIURI*                 aSheetURL,
@@ -153,7 +150,7 @@ public:
                          nsIURI*             aSheetURL,
                          nsIURI*             aBaseURL,
                          nsIPrincipal*       aSheetPrincipal,
-                         mozilla::css::Declaration* aDeclaration,
+                         nsCSSDeclaration*   aDeclaration,
                          PRBool*             aChanged,
                          PRBool              aIsImportant);
 

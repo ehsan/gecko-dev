@@ -46,7 +46,7 @@
  * @created         17/Feb/1999
  * @author  Catalin Rotaru [CATA]
  */
-nsresult
+NS_METHOD
 nsUnicodeToISO88597Constructor(nsISupports *aOuter, REFNSIID aIID,
                                void **aResult);
 

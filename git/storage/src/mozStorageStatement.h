@@ -37,8 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozStorageStatement_h
-#define mozStorageStatement_h
+#ifndef _mozStorageStatement_h_
+#define _mozStorageStatement_h_
 
 #include "nsAutoPtr.h"
 #include "nsString.h"
@@ -144,4 +144,4 @@ private:
 } // storage
 } // mozilla
 
-#endif // mozStorageStatement_h
+#endif // _mozStorageStatement_h_

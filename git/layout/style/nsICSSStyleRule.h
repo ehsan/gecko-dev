@@ -49,19 +49,16 @@
 #include "nsICSSRule.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
+#include "nsCSSProps.h"
 #include "nsCSSValue.h"
+#include "nsIAtom.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCSSPseudoClasses.h"
 
 class nsIAtom;
-class nsCSSStyleSheet;
+class nsCSSDeclaration;
+class nsICSSStyleSheet;
 struct nsCSSSelectorList;
-
-namespace mozilla {
-namespace css {
-class Declaration;
-}
-}
 
 struct nsAtomList {
 public:
@@ -196,7 +193,7 @@ public:
   // Calculate the specificity of this selector (not including its mNext!).
   PRInt32 CalcWeight() const;
 
-  void ToString(nsAString& aString, nsCSSStyleSheet* aSheet,
+  void ToString(nsAString& aString, nsICSSStyleSheet* aSheet,
                 PRBool aAppend = PR_FALSE) const;
 
 private:
@@ -204,9 +201,9 @@ private:
   nsCSSSelector* Clone(PRBool aDeepNext, PRBool aDeepNegations) const;
 
   void AppendToStringWithoutCombinators(nsAString& aString,
-                                        nsCSSStyleSheet* aSheet) const;
+                                        nsICSSStyleSheet* aSheet) const;
   void AppendToStringWithoutCombinatorsOrNegations(nsAString& aString,
-                                                   nsCSSStyleSheet* aSheet,
+                                                   nsICSSStyleSheet* aSheet,
                                                    PRBool aIsNegated)
                                                         const;
   // Returns true if this selector can have a namespace specified (which
@@ -274,7 +271,7 @@ struct nsCSSSelectorList {
   /**
    * Should be used only on the first in the list
    */
-  void ToString(nsAString& aResult, nsCSSStyleSheet* aSheet);
+  void ToString(nsAString& aResult, nsICSSStyleSheet* aSheet);
 
   /**
    * Do a deep clone.  Should be used only on the first in the list.
@@ -292,10 +289,10 @@ private:
   nsCSSSelectorList& operator=(const nsCSSSelectorList& aCopy); 
 };
 
-// 97eb9881-55fb-462c-be1a-b6309d42f8d0
+// e665007e-5d4a-433a-9056-4310701c08b9
 #define NS_ICSS_STYLE_RULE_IID \
-{ 0x97eb9881, 0x55fb, 0x462c, \
-  { 0xbe, 0x1a, 0xb6, 0x30, 0x9d, 0x42, 0xf8, 0xd0 } }
+{ 0xe665007e, 0x5d4a, 0x433a, \
+  { 0x90, 0x56, 0x43, 0x10, 0x70, 0x1c, 0x08, 0xb9 } }
 
 class nsICSSStyleRule : public nsICSSRule {
 public:
@@ -307,20 +304,19 @@ public:
   virtual PRUint32 GetLineNumber(void) const = 0;
   virtual void SetLineNumber(PRUint32 aLineNumber) = 0;
 
-  virtual mozilla::css::Declaration* GetDeclaration(void) const = 0;
+  virtual nsCSSDeclaration* GetDeclaration(void) const = 0;
 
   /**
-   * Return a new |nsIStyleRule| instance that replaces the current
-   * one, with |aDecl| replacing the previous declaration. Due to the
-   * |nsIStyleRule| contract of immutability, this must be called if
-   * the declaration is modified.
+   * Return a new |nsIStyleRule| instance that replaces the current one,
+   * due to a change in the |nsCSSDeclaration|.  Due to the
+   * |nsIStyleRule| contract of immutability, this must be called if the
+   * declaration is modified.
    *
    * |DeclarationChanged| handles replacing the object in the container
    * sheet or group rule if |aHandleContainer| is true.
    */
   virtual already_AddRefed<nsICSSStyleRule>
-  DeclarationChanged(mozilla::css::Declaration* aDecl,
-                     PRBool aHandleContainer) = 0;
+    DeclarationChanged(PRBool aHandleContainer) = 0;
 
   /**
    * The rule processor must call this method before calling
@@ -331,7 +327,7 @@ public:
   // hooks for DOM rule
   virtual nsresult GetCssText(nsAString& aCssText) = 0;
   virtual nsresult SetCssText(const nsAString& aCssText) = 0;
-  virtual nsresult GetParentStyleSheet(nsCSSStyleSheet** aSheet) = 0;
+  virtual nsresult GetParentStyleSheet(nsICSSStyleSheet** aSheet) = 0;
   virtual nsresult GetParentRule(nsICSSGroupRule** aParentRule) = 0;
   virtual nsresult GetSelectorText(nsAString& aSelectorText) = 0;
   virtual nsresult SetSelectorText(const nsAString& aSelectorText) = 0;
@@ -339,8 +335,9 @@ public:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsICSSStyleRule, NS_ICSS_STYLE_RULE_IID)
 
-already_AddRefed<nsICSSStyleRule>
-NS_NewCSSStyleRule(nsCSSSelectorList* aSelector,
-                   mozilla::css::Declaration* aDeclaration);
+nsresult
+NS_NewCSSStyleRule(nsICSSStyleRule** aInstancePtrResult,
+                   nsCSSSelectorList* aSelector,
+                   nsCSSDeclaration* aDeclaration);
 
 #endif /* nsICSSStyleRule_h___ */

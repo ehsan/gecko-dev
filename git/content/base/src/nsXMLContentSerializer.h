@@ -70,34 +70,34 @@ class nsXMLContentSerializer : public nsIContentSerializer {
                   const char* aCharSet, PRBool aIsCopying,
                   PRBool aRewriteEncodingDeclaration);
 
-  NS_IMETHOD AppendText(nsIContent* aText, PRInt32 aStartOffset,
+  NS_IMETHOD AppendText(nsIDOMText* aText, PRInt32 aStartOffset,
                         PRInt32 aEndOffset, nsAString& aStr);
 
-  NS_IMETHOD AppendCDATASection(nsIContent* aCDATASection,
+  NS_IMETHOD AppendCDATASection(nsIDOMCDATASection* aCDATASection,
                                 PRInt32 aStartOffset, PRInt32 aEndOffset,
                                 nsAString& aStr);
 
-  NS_IMETHOD AppendProcessingInstruction(nsIContent* aPI,
+  NS_IMETHOD AppendProcessingInstruction(nsIDOMProcessingInstruction* aPI,
                                          PRInt32 aStartOffset,
                                          PRInt32 aEndOffset,
                                          nsAString& aStr);
 
-  NS_IMETHOD AppendComment(nsIContent* aComment, PRInt32 aStartOffset,
+  NS_IMETHOD AppendComment(nsIDOMComment* aComment, PRInt32 aStartOffset,
                            PRInt32 aEndOffset, nsAString& aStr);
   
-  NS_IMETHOD AppendDoctype(nsIContent *aDoctype,
+  NS_IMETHOD AppendDoctype(nsIDOMDocumentType *aDoctype,
                            nsAString& aStr);
 
-  NS_IMETHOD AppendElementStart(nsIContent *aElement,
-                                nsIContent *aOriginalElement,
+  NS_IMETHOD AppendElementStart(nsIDOMElement *aElement,
+                                nsIDOMElement *aOriginalElement,
                                 nsAString& aStr);
   
-  NS_IMETHOD AppendElementEnd(nsIContent *aElement,
+  NS_IMETHOD AppendElementEnd(nsIDOMElement *aElement,
                               nsAString& aStr);
 
   NS_IMETHOD Flush(nsAString& aStr) { return NS_OK; }
 
-  NS_IMETHOD AppendDocumentStart(nsIDocument *aDocument,
+  NS_IMETHOD AppendDocumentStart(nsIDOMDocument *aDocument,
                                  nsAString& aStr);
 
  protected:
@@ -105,43 +105,43 @@ class nsXMLContentSerializer : public nsIContentSerializer {
   /**
    * Appends a PRUnichar string and increments the column position
    */
-  void AppendToString(const PRUnichar* aStr,
-                      PRInt32 aLength,
-                      nsAString& aOutputStr);
+  virtual void AppendToString(const PRUnichar* aStr,
+                              PRInt32 aLength,
+                              nsAString& aOutputStr);
 
   /**
    * Appends a PRUnichar character and increments the column position
    */
-  void AppendToString(const PRUnichar aChar,
-                      nsAString& aOutputStr);
+  virtual void AppendToString(const PRUnichar aChar,
+                              nsAString& aOutputStr);
 
   /**
    * Appends a nsAString string and increments the column position
    */
-  void AppendToString(const nsAString& aStr,
-                      nsAString& aOutputStr);
+  virtual void AppendToString(const nsAString& aStr,
+                              nsAString& aOutputStr);
 
   /**
    * Appends a string by replacing all line-endings
    * by mLineBreak, except in the case of raw output.
    * It increments the column position.
    */
-  void AppendToStringConvertLF(const nsAString& aStr,
-                               nsAString& aOutputStr);
+  virtual void AppendToStringConvertLF(const nsAString& aStr,
+                                       nsAString& aOutputStr);
 
   /**
    * Appends a string by wrapping it when necessary.
    * It updates the column position.
    */
-  void AppendToStringWrapped(const nsASingleFragmentString& aStr,
-                             nsAString& aOutputStr);
+  virtual void AppendToStringWrapped(const nsASingleFragmentString& aStr,
+                                     nsAString& aOutputStr);
 
   /**
    * Appends a string by formating and wrapping it when necessary
    * It updates the column position.
    */
-  void AppendToStringFormatedWrapped(const nsASingleFragmentString& aStr,
-                                     nsAString& aOutputStr);
+  virtual void AppendToStringFormatedWrapped(const nsASingleFragmentString& aStr,
+                                             nsAString& aOutputStr);
 
   // used by AppendToStringWrapped
   void AppendWrapped_WhitespaceSequence(
@@ -171,7 +171,7 @@ class nsXMLContentSerializer : public nsIContentSerializer {
    * add mLineBreak to the string
    * It updates the column position and other flags.
    */
-  void AppendNewLineToString(nsAString& aOutputStr);
+  virtual void AppendNewLineToString(nsAString& aOutputStr);
 
 
   /**
@@ -185,7 +185,7 @@ class nsXMLContentSerializer : public nsIContentSerializer {
    * retrieve the text content of the node and append it to the given string
    * It doesn't increment the column position
    */
-  nsresult AppendTextData(nsIContent* aNode,
+  nsresult AppendTextData(nsIDOMNode* aNode,
                           PRInt32 aStartOffset,
                           PRInt32 aEndOffset,
                           nsAString& aStr,
@@ -193,8 +193,8 @@ class nsXMLContentSerializer : public nsIContentSerializer {
 
   virtual nsresult PushNameSpaceDecl(const nsAString& aPrefix,
                                      const nsAString& aURI,
-                                     nsIContent* aOwner);
-  void PopNameSpaceDeclsFor(nsIContent* aOwner);
+                                     nsIDOMElement* aOwner);
+  void PopNameSpaceDeclsFor(nsIDOMElement* aOwner);
 
   /**
    * The problem that ConfirmPrefix fixes is that anyone can insert nodes
@@ -216,7 +216,7 @@ class nsXMLContentSerializer : public nsIContentSerializer {
    */
   PRBool ConfirmPrefix(nsAString& aPrefix,
                        const nsAString& aURI,
-                       nsIContent* aElement,
+                       nsIDOMElement* aElement,
                        PRBool aIsAttribute);
   /**
    * GenerateNewPrefix generates a new prefix and writes it to aPrefix
@@ -224,11 +224,11 @@ class nsXMLContentSerializer : public nsIContentSerializer {
   void GenerateNewPrefix(nsAString& aPrefix);
 
   PRUint32 ScanNamespaceDeclarations(nsIContent* aContent,
-                                     nsIContent *aOriginalElement,
+                                     nsIDOMElement *aOriginalElement,
                                      const nsAString& aTagNamespaceURI);
 
   virtual void SerializeAttributes(nsIContent* aContent,
-                                   nsIContent *aOriginalElement,
+                                   nsIDOMElement *aOriginalElement,
                                    nsAString& aTagPrefix,
                                    const nsAString& aTagNamespaceURI,
                                    nsIAtom* aTagName,
@@ -242,10 +242,10 @@ class nsXMLContentSerializer : public nsIContentSerializer {
                      nsAString& aStr,
                      PRBool aDoEscapeEntities);
 
-  PRBool IsJavaScript(nsIContent * aContent,
-                      nsIAtom* aAttrNameAtom,
-                      PRInt32 aAttrNamespaceID,
-                      const nsAString& aValueString);
+  virtual PRBool IsJavaScript(nsIContent * aContent,
+                              nsIAtom* aAttrNameAtom,
+                              PRInt32 aAttrNamespaceID,
+                              const nsAString& aValueString);
 
   /**
    * This method can be redefined to check if the element can be serialized.
@@ -263,7 +263,7 @@ class nsXMLContentSerializer : public nsIContentSerializer {
    * this method is responsible to finish the start tag,
    * in particulary to append the "greater than" sign
    */
-  virtual void AppendEndOfElementStart(nsIContent *aOriginalElement,
+  virtual void AppendEndOfElementStart(nsIDOMElement *aOriginalElement,
                                        nsIAtom * aName,
                                        PRInt32 aNamespaceID,
                                        nsAString& aStr);
@@ -274,7 +274,7 @@ class nsXMLContentSerializer : public nsIContentSerializer {
    * (called at the end of AppendElementStart)
    */
   virtual void AfterElementStart(nsIContent * aContent,
-                                 nsIContent *aOriginalElement,
+                                 nsIDOMElement *aOriginalElement,
                                  nsAString& aStr) { };
 
   /**
@@ -322,13 +322,13 @@ class nsXMLContentSerializer : public nsIContentSerializer {
    * position is at 0. It updates the column position.
    */
   void AppendIndentation(nsAString& aStr);
-  void IncrIndentation(nsIAtom* aName);
-  void DecrIndentation(nsIAtom* aName);
+  virtual void IncrIndentation(nsIAtom* aName);
+  virtual void DecrIndentation(nsIAtom* aName);
 
   // Functions to check for newlines that needs to be added between nodes in
   // the root of a document. See mAddNewlineForRootNode
   void MaybeAddNewlineForRootNode(nsAString& aStr);
-  void MaybeFlagNewlineForRootNode(nsINode* aNode);
+  void MaybeFlagNewlineForRootNode(nsIDOMNode* aNode);
 
   // Functions to check if we enter in or leave from a preformated content
   virtual void MaybeEnterInPreContent(nsIContent* aNode);
@@ -339,7 +339,7 @@ class nsXMLContentSerializer : public nsIContentSerializer {
   struct NameSpaceDecl {
     nsString mPrefix;
     nsString mURI;
-    nsIContent* mOwner;
+    nsIDOMElement* mOwner;
   };
 
   nsTArray<NameSpaceDecl> mNameSpaceStack;
@@ -397,9 +397,6 @@ class nsXMLContentSerializer : public nsIContentSerializer {
   // begining, then this newline character should be ignored, because a
   // such character has already been added into the output string
   PRPackedBool  mMayIgnoreLineBreakSequence;
-
-  PRPackedBool  mBodyOnly;
-  PRInt32       mInBody;
 
   // number of nested elements which have preformated content
   PRInt32       mPreLevel;

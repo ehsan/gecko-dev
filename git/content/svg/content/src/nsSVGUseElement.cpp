@@ -42,9 +42,6 @@
 #include "nsIDOMSVGSymbolElement.h"
 #include "nsIDocument.h"
 #include "nsIPresShell.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 
 ////////////////////////////////////////////////////////////////////////
 // implementation
@@ -85,7 +82,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsSVGUseElement,nsSVGUseElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGUseElement,nsSVGUseElementBase)
 
-DOMCI_NODE_DATA(SVGUseElement, nsSVGUseElement)
+DOMCI_DATA(SVGUseElement, nsSVGUseElement)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsSVGUseElement)
   NS_NODE_INTERFACE_TABLE6(nsSVGUseElement, nsIDOMNode, nsIDOMElement,
@@ -107,7 +104,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGUseElementBase)
 #pragma warning(push)
 #pragma warning(disable:4355)
 #endif
-nsSVGUseElement::nsSVGUseElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGUseElement::nsSVGUseElement(nsINodeInfo *aNodeInfo)
   : nsSVGUseElementBase(aNodeInfo), mSource(this)
 #ifdef _MSC_VER
 #pragma warning(pop)
@@ -127,8 +124,8 @@ nsresult
 nsSVGUseElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 {
   *aResult = nsnull;
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsSVGUseElement *it = new nsSVGUseElement(ni.forget());
+
+  nsSVGUseElement *it = new nsSVGUseElement(aNodeInfo);
   if (!it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -197,13 +194,13 @@ nsSVGUseElement::CharacterDataChanged(nsIDocument *aDocument,
 }
 
 void
-nsSVGUseElement::AttributeChanged(nsIDocument* aDocument,
-                                  Element* aElement,
+nsSVGUseElement::AttributeChanged(nsIDocument *aDocument,
+                                  nsIContent *aContent,
                                   PRInt32 aNameSpaceID,
-                                  nsIAtom* aAttribute,
+                                  nsIAtom *aAttribute,
                                   PRInt32 aModType)
 {
-  if (nsContentUtils::IsInSameAnonymousTree(this, aElement)) {
+  if (nsContentUtils::IsInSameAnonymousTree(this, aContent)) {
     TriggerReclone();
   }
 }
@@ -211,7 +208,6 @@ nsSVGUseElement::AttributeChanged(nsIDocument* aDocument,
 void
 nsSVGUseElement::ContentAppended(nsIDocument *aDocument,
                                  nsIContent *aContainer,
-                                 nsIContent *aFirstNewContent,
                                  PRInt32 aNewIndexInContainer)
 {
   if (nsContentUtils::IsInSameAnonymousTree(this, aContainer)) {
@@ -234,8 +230,7 @@ void
 nsSVGUseElement::ContentRemoved(nsIDocument *aDocument,
                                 nsIContent *aContainer,
                                 nsIContent *aChild,
-                                PRInt32 aIndexInContainer,
-                                nsIContent *aPreviousSibling)
+                                PRInt32 aIndexInContainer)
 {
   if (nsContentUtils::IsInSameAnonymousTree(this, aChild)) {
     TriggerReclone();
@@ -245,7 +240,6 @@ nsSVGUseElement::ContentRemoved(nsIDocument *aDocument,
 void
 nsSVGUseElement::NodeWillBeDestroyed(const nsINode *aNode)
 {
-  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
   UnlinkSource();
 }
 
@@ -344,7 +338,7 @@ nsSVGUseElement::CreateAnonymousContent()
       return nsnull;
 
     nsCOMPtr<nsIContent> svgNode;
-    NS_NewSVGSVGElement(getter_AddRefs(svgNode), nodeInfo.forget(), PR_FALSE);
+    NS_NewSVGSVGElement(getter_AddRefs(svgNode), nodeInfo, PR_FALSE);
 
     if (!svgNode)
       return nsnull;
@@ -456,11 +450,9 @@ void
 nsSVGUseElement::TriggerReclone()
 {
   nsIDocument *doc = GetCurrentDoc();
-  if (!doc)
-    return;
-  nsIPresShell *presShell = doc->GetShell();
-  if (!presShell)
-    return;
+  if (!doc) return;
+  nsIPresShell *presShell = doc->GetPrimaryShell();
+  if (!presShell) return;
   presShell->PostRecreateFramesFor(this);
 }
 

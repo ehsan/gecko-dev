@@ -188,11 +188,9 @@ NS_EXTERN_C
 
   NS_EXPORT void * test_fnptr();
 
-  typedef PRInt32 (* test_func_ptr)(PRInt8);
-  NS_EXPORT PRInt32 test_closure_cdecl(PRInt8, test_func_ptr);
+  NS_EXPORT PRInt32 test_closure_cdecl(PRInt8, PRInt32 (*)(PRInt8));
 #if defined(_WIN32) && !defined(_WIN64)
-  typedef PRInt32 (NS_STDCALL * test_func_ptr_stdcall)(PRInt8);
-  NS_EXPORT PRInt32 test_closure_stdcall(PRInt8, test_func_ptr_stdcall);
+  NS_EXPORT PRInt32 test_closure_stdcall(PRInt8, PRInt32 (NS_STDCALL *)(PRInt8));
 #endif /* defined(_WIN32) && !defined(_WIN64) */
 
   NS_EXPORT PRInt32 test_callme(PRInt8);

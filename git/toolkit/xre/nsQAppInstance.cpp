@@ -38,30 +38,23 @@
 
 #include "nsQAppInstance.h"
 #include <QApplication>
-#include "prenv.h"
 
 // declared in nsAppRunner.cpp
 extern int    gArgc;
 extern char **gArgv;
 
-QApplication *nsQAppInstance::sQAppInstance = NULL;
+nsQAppInstance *nsQAppInstance::sQAppInstance = NULL;
 int nsQAppInstance::sQAppRefCount = 0;
+
+nsQAppInstance::nsQAppInstance(int gArgc, char** gArgv)
+  : QApplication(gArgc, gArgv)
+{
+}
 
 void nsQAppInstance::AddRef(void) {
   if (qApp) return;
-  if (!sQAppInstance) {
-    const char *graphicsSystem = PR_GetEnv("MOZ_QT_GRAPHICSSYSTEM");
-    if (graphicsSystem)
-      QApplication::setGraphicsSystem(QString(graphicsSystem));
-#if (MOZ_PLATFORM_MAEMO == 6)
-    QApplication::setStyle(QLatin1String("windows"));
-    if (!gArgc) {
-      gArgv[gArgc] = strdup("nsQAppInstance");
-      gArgc++;
-    }
-#endif
-    sQAppInstance = new QApplication(gArgc, gArgv);
-  }
+  if (!sQAppInstance)
+    sQAppInstance = new nsQAppInstance(gArgc, gArgv);
   sQAppRefCount++;
 }
 

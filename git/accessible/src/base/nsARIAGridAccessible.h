@@ -50,7 +50,7 @@ class nsARIAGridAccessible : public nsAccessibleWrap,
                              public nsIAccessibleTable
 {
 public:
-  nsARIAGridAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsARIAGridAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -77,12 +77,31 @@ protected:
   /**
    * Return row accessible at the given row index.
    */
-  nsAccessible *GetRowAt(PRInt32 aRow);
+  already_AddRefed<nsIAccessible> GetRowAt(PRInt32 aRow);
 
   /**
    * Return cell accessible at the given column index in the row.
    */
-  nsAccessible *GetCellInRowAt(nsAccessible *aRow, PRInt32 aColumn);
+  already_AddRefed<nsIAccessible> GetCellInRowAt(nsIAccessible *aRow,
+                                                 PRInt32 aColumn);
+
+  /**
+   * Return next row accessible relative given row accessible or first row
+   * accessible if it is null.
+   *
+   * @param  aRow  [in, optional] row accessible
+   */
+  already_AddRefed<nsIAccessible> GetNextRow(nsIAccessible *aRow = nsnull);
+
+  /**
+   * Return next cell accessible relative given cell accessible or first cell
+   * in the given row accessible if given cell accessible is null.
+   *
+   * @param  aRow   [in] row accessible
+   * @param  aCell  [in, optional] cell accessible
+   */
+  already_AddRefed<nsIAccessible> GetNextCellInRow(nsIAccessible *aRow,
+                                                   nsIAccessible *aCell = nsnull);
 
   /**
    * Set aria-selected attribute value on DOM node of the given accessible.
@@ -92,7 +111,7 @@ protected:
    * @param  aNotify      [in, optional] specifies if DOM should be notified
    *                       about attribute change (used internally).
    */
-  nsresult SetARIASelected(nsAccessible *aAccessible, PRBool aIsSelected,
+  nsresult SetARIASelected(nsIAccessible *aAccessible, PRBool aIsSelected,
                            PRBool aNotify = PR_TRUE);
 
   /**
@@ -110,7 +129,7 @@ class nsARIAGridCellAccessible : public nsHyperTextAccessibleWrap,
                                  public nsIAccessibleTableCell
 {
 public:
-  nsARIAGridCellAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsARIAGridCellAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED

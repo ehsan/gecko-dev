@@ -54,7 +54,6 @@
 #include "nsXULTemplateBuilder.h"
 #include "nsXULTemplateResultStorage.h"
 #include "nsXULContentUtils.h"
-#include "nsXULSortService.h"
 
 #include "mozIStorageService.h"
 
@@ -469,7 +468,6 @@ NS_IMETHODIMP
 nsXULTemplateQueryProcessorStorage::CompareResults(nsIXULTemplateResult* aLeft,
                                                    nsIXULTemplateResult* aRight,
                                                    nsIAtom* aVar,
-                                                   PRUint32 aSortHints,
                                                    PRInt32* aResult)
 {
     *aResult = 0;
@@ -526,12 +524,14 @@ nsXULTemplateQueryProcessorStorage::CompareResults(nsIXULTemplateResult* aLeft,
     // Values are not integers or floats, so we just compare them as simple strings
     nsAutoString leftVal;
     if (aLeft)
-        aLeft->GetBindingFor(aVar, leftVal);
+      aLeft->GetBindingFor(aVar, leftVal);
 
     nsAutoString rightVal;
     if (aRight)
-        aRight->GetBindingFor(aVar, rightVal);
+      aRight->GetBindingFor(aVar, rightVal);
 
-    *aResult = XULSortServiceImpl::CompareValues(leftVal, rightVal, aSortHints);
+    *aResult = Compare(nsDependentString(leftVal),
+                       nsDependentString(rightVal),
+                       nsCaseInsensitiveStringComparator());
     return NS_OK;
 }

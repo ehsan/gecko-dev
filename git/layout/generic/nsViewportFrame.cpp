@@ -46,9 +46,6 @@
 #include "nsGkAtoms.h"
 #include "nsIScrollableFrame.h"
 #include "nsDisplayList.h"
-#include "FrameLayerBuilder.h"
-
-using namespace mozilla;
 
 nsIFrame*
 NS_NewViewportFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -260,12 +257,7 @@ ViewportFrame::Reflow(nsPresContext*           aPresContext,
   // Because |Reflow| sets mComputedHeight on the child to
   // availableHeight.
   AddStateBits(NS_FRAME_CONTAINS_RELATIVE_HEIGHT);
-
-  // Set our size up front, since some parts of reflow depend on it
-  // being already set.  Note that the computed height may be
-  // unconstrained; that's ok.  Consumers should watch out for that.
-  SetSize(nsSize(aReflowState.ComputedWidth(), aReflowState.ComputedHeight()));
- 
+  
   // Reflow the main content first so that the placeholders of the
   // fixed-position frames will be in the right places on an initial
   // reflow.
@@ -361,24 +353,11 @@ ViewportFrame::InvalidateInternal(const nsRect& aDamageRect,
                                   PRUint32 aFlags)
 {
   nsRect r = aDamageRect + nsPoint(aX, aY);
-  nsPresContext* presContext = PresContext();
-  presContext->NotifyInvalidation(r, aFlags);
-
-  if ((mState & NS_FRAME_HAS_CONTAINER_LAYER) &&
-      !(aFlags & INVALIDATE_NO_THEBES_LAYERS)) {
-    FrameLayerBuilder::InvalidateThebesLayerContents(this, r);
-    // Don't need to invalidate any more Thebes layers
-    aFlags |= INVALIDATE_NO_THEBES_LAYERS;
-  }
+  PresContext()->NotifyInvalidation(r, aFlags);
 
   nsIFrame* parent = nsLayoutUtils::GetCrossDocParentFrame(this);
   if (parent) {
-    if (!presContext->PresShell()->IsActive())
-      return;
-    nsPoint pt = -parent->GetOffsetToCrossDoc(this);
-    PRInt32 ourAPD = presContext->AppUnitsPerDevPixel();
-    PRInt32 parentAPD = parent->PresContext()->AppUnitsPerDevPixel();
-    r = r.ConvertAppUnitsRoundOut(ourAPD, parentAPD);
+    nsPoint pt = GetOffsetTo(parent);
     parent->InvalidateInternal(r, pt.x, pt.y, this,
                                aFlags | INVALIDATE_CROSS_DOC);
     return;

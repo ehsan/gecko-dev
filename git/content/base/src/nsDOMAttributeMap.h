@@ -45,7 +45,7 @@
 
 #include "nsIDOMNamedNodeMap.h"
 #include "nsString.h"
-#include "nsRefPtrHashtable.h"
+#include "nsInterfaceHashtable.h"
 #include "nsCycleCollectionParticipant.h"
 #include "prbit.h"
 #include "nsIDOMNode.h"
@@ -55,12 +55,6 @@ class nsIContent;
 class nsDOMAttribute;
 class nsINodeInfo;
 class nsIDocument;
-
-namespace mozilla {
-namespace dom {
-class Element;
-} // namespace dom
-} // namespace mozilla
 
 /**
  * Structure used as a key for caching nsDOMAttributes in nsDOMAttributeMap's mAttributeCache.
@@ -125,9 +119,7 @@ private:
 class nsDOMAttributeMap : public nsIDOMNamedNodeMap
 {
 public:
-  typedef mozilla::dom::Element Element;
-
-  nsDOMAttributeMap(Element *aContent);
+  nsDOMAttributeMap(nsIContent* aContent);
   virtual ~nsDOMAttributeMap();
 
   /**
@@ -142,7 +134,7 @@ public:
 
   void DropReference();
 
-  Element* GetContent()
+  nsIContent* GetContent()
   {
     return mContent;
   }
@@ -168,7 +160,7 @@ public:
    */
   PRUint32 Count() const;
 
-  typedef nsRefPtrHashtable<nsAttrHashKey, nsDOMAttribute> AttrCache;
+  typedef nsInterfaceHashtable<nsAttrHashKey, nsIDOMNode> AttrCache;
 
   /**
    * Enumerates over the attribute nodess in the map and calls aFunc for each
@@ -178,8 +170,8 @@ public:
    */
   PRUint32 Enumerate(AttrCache::EnumReadFunction aFunc, void *aUserArg) const;
 
-  nsDOMAttribute* GetItemAt(PRUint32 aIndex, nsresult *rv);
-  nsDOMAttribute* GetNamedItem(const nsAString& aAttrName, nsresult *rv);
+  nsIDOMNode* GetItemAt(PRUint32 aIndex, nsresult *rv);
+  nsIDOMNode* GetNamedItem(const nsAString& aAttrName, nsresult *rv);
 
   static nsDOMAttributeMap* FromSupports(nsISupports* aSupports)
   {
@@ -201,7 +193,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS(nsDOMAttributeMap)
 
 private:
-  Element *mContent; // Weak reference
+  nsIContent* mContent; // Weak reference
 
   /**
    * Cache of nsDOMAttributes.
@@ -225,7 +217,24 @@ private:
                                   nsIDOMNode** aReturn,
                                   PRBool aRemove = PR_FALSE);
 
-  nsDOMAttribute* GetAttribute(nsINodeInfo* aNodeInfo);
+  /**
+   * Returns an attribute, either by retrieving it from the cache or by
+   * creating a new one.
+   */
+  nsresult GetAttribute(nsINodeInfo*     aNodeInfo,
+                        nsIDOMNode**     aReturn)
+  {
+    *aReturn = GetAttribute(aNodeInfo);
+    if (!*aReturn) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    NS_ADDREF(*aReturn);
+
+    return NS_OK;
+  }
+
+  nsIDOMNode* GetAttribute(nsINodeInfo*     aNodeInfo);
 
   /**
    * Remove an attribute, returns the removed node.

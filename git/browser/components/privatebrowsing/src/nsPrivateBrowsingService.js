@@ -130,7 +130,13 @@ PrivateBrowsingService.prototype = {
   _windowsToClose: [],
 
   // XPCOM registration
+  classDescription: "PrivateBrowsing Service",
+  contractID: "@mozilla.org/privatebrowsing;1",
   classID: Components.ID("{c31f4883-839b-45f6-82ad-a6a9bc5ad599}"),
+  _xpcom_categories: [
+    { category: "command-line-handler", entry: "m-privatebrowsing" },
+    { category: "app-startup", service: true }
+  ],
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIPrivateBrowsingService, 
                                          Ci.nsIObserver,
@@ -462,8 +468,8 @@ PrivateBrowsingService.prototype = {
   },
 
   get helpInfo() {
-    return "  -private           Enable private browsing mode.\n" +
-           "  -private-toggle    Toggle private browsing mode.\n";
+    return "  -private            Enable private browsing mode.\n" +
+           "  -private-toggle     Toggle private browsing mode.\n";
   },
 
   // nsIPrivateBrowsingService
@@ -567,17 +573,6 @@ PrivateBrowsingService.prototype = {
         cs.evictEntries(Ci.nsICache.STORE_ANYWHERE);
       } catch (ex) {
         Cu.reportError("Exception thrown while clearing the cache: " +
-          ex.toString());
-      }
-    }
-
-    // Image Cache
-    let (imageCache = Cc["@mozilla.org/image/cache;1"].
-                      getService(Ci.imgICache)) {
-      try {
-        imageCache.clearCache(false); // true=chrome, false=content
-      } catch (ex) {
-        Cu.reportError("Exception thrown while clearing the image cache: " +
           ex.toString());
       }
     }
@@ -705,4 +700,5 @@ PrivateBrowsingService.prototype = {
   }
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([PrivateBrowsingService]);
+function NSGetModule(compMgr, fileSpec)
+  XPCOMUtils.generateModule([PrivateBrowsingService]);

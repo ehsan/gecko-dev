@@ -187,7 +187,7 @@ public:
   virtual nsStyleContext* GetAdditionalStyleContext(PRInt32 aIndex) const;
   virtual void SetAdditionalStyleContext(PRInt32 aIndex,
                                          nsStyleContext* aStyleContext);
-  virtual void SetParent(nsIFrame* aParent);
+  NS_IMETHOD  SetParent(const nsIFrame* aParent);
   virtual nscoord GetBaseline() const;
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
   virtual nsFrameList GetChildList(nsIAtom* aListName) const;
@@ -260,7 +260,7 @@ public:
   virtual void ChildIsDirty(nsIFrame* aChild);
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD  GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   NS_IMETHOD GetParentStyleContextFrame(nsPresContext* aPresContext,
@@ -487,8 +487,6 @@ public:
   static void DisplayReflowStartup();
   static void DisplayReflowShutdown();
 #endif
-
-  static void ShutdownLayerActivityTimer();
 
   /**
    * Adds display item for standard CSS background if necessary.

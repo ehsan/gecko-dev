@@ -80,23 +80,23 @@ AsyncStatementParams::SetProperty(
   nsIXPConnectWrappedNative *aWrapper,
   JSContext *aCtx,
   JSObject *aScopeObj,
-  jsid aId,
+  jsval aId,
   jsval *_vp,
   PRBool *_retval
 )
 {
   NS_ENSURE_TRUE(mStatement, NS_ERROR_NOT_INITIALIZED);
 
-  if (JSID_IS_INT(aId)) {
-    int idx = JSID_TO_INT(aId);
+  if (JSVAL_IS_INT(aId)) {
+    int idx = JSVAL_TO_INT(aId);
 
     nsCOMPtr<nsIVariant> variant(convertJSValToVariant(aCtx, *_vp));
     NS_ENSURE_TRUE(variant, NS_ERROR_UNEXPECTED);
     nsresult rv = mStatement->BindByIndex(idx, variant);
     NS_ENSURE_SUCCESS(rv, rv);
   }
-  else if (JSID_IS_STRING(aId)) {
-    JSString *str = JSID_TO_STRING(aId);
+  else if (JSVAL_IS_STRING(aId)) {
+    JSString *str = JSVAL_TO_STRING(aId);
     NS_ConvertUTF16toUTF8 name(reinterpret_cast<const PRUnichar *>
                                    (::JS_GetStringChars(str)),
                                ::JS_GetStringLength(str));
@@ -119,41 +119,45 @@ AsyncStatementParams::NewResolve(
   nsIXPConnectWrappedNative *aWrapper,
   JSContext *aCtx,
   JSObject *aScopeObj,
-  jsid aId,
+  jsval aId,
   PRUint32 aFlags,
   JSObject **_objp,
   PRBool *_retval
 )
 {
   NS_ENSURE_TRUE(mStatement, NS_ERROR_NOT_INITIALIZED);
-  // We do not throw at any point after this because we want to allow the
-  // prototype chain to be checked for the property.
+  // We do not throw at any point after this unless our index is out of range
+  // because we want to allow the prototype chain to be checked for the
+  // property.
 
-  bool resolved = false;
-  PRBool ok = PR_TRUE;
-  if (JSID_IS_INT(aId)) {
-    PRUint32 idx = JSID_TO_INT(aId);
+  PRUint32 idx;
+
+  if (JSVAL_IS_INT(aId)) {
+    idx = JSVAL_TO_INT(aId);
     // All indexes are good because we don't know how many parameters there
     // really are.
-    ok = ::JS_DefineElement(aCtx, aScopeObj, idx, JSVAL_VOID, nsnull,
-                            nsnull, 0);
-    resolved = true;
   }
-  else if (JSID_IS_STRING(aId)) {
-    JSString *str = JSID_TO_STRING(aId);
+  else if (JSVAL_IS_STRING(aId)) {
+    JSString *str = JSVAL_TO_STRING(aId);
     jschar *nameChars = ::JS_GetStringChars(str);
     size_t nameLength = ::JS_GetStringLength(str);
 
     // We are unable to tell if there's a parameter with this name and so
     // we must assume that there is.  This screws the rest of the prototype
     // chain, but people really shouldn't be depending on this anyways.
-    ok = ::JS_DefineUCProperty(aCtx, aScopeObj, nameChars, nameLength,
-                               JSVAL_VOID, nsnull, nsnull, 0);
-    resolved = true;
+    *_retval = ::JS_DefineUCProperty(aCtx, aScopeObj, nameChars, nameLength,
+                                     JSVAL_VOID, nsnull, nsnull, 0);
+    NS_ENSURE_TRUE(*_retval, NS_OK);
+  }
+  else {
+    // We do not handle other types.
+    return NS_OK;
   }
 
-  *_retval = ok;
-  *_objp = resolved && ok ? aScopeObj : nsnull;
+  *_retval = ::JS_DefineElement(aCtx, aScopeObj, idx, JSVAL_VOID, nsnull,
+                                nsnull, 0);
+  if (*_retval)
+    *_objp = aScopeObj;
   return NS_OK;
 }
 

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-301692.js';
 
 var summary = "Function.prototype.toString should not quote XML literals";
 var BUGNUMBER = 301692;

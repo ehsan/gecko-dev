@@ -69,9 +69,9 @@ public:
   NS_DECL_ISUPPORTS
 
   // nsIStyleRule interface
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+  NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+  NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
   nsHTMLBodyElement*  mPart;  // not ref-counted, cleared by content 
@@ -83,7 +83,7 @@ class nsHTMLBodyElement : public nsGenericHTMLElement,
                           public nsIDOMHTMLBodyElement
 {
 public:
-  nsHTMLBodyElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLBodyElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLBodyElement();
 
   // nsISupports
@@ -112,7 +112,6 @@ public:
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   virtual already_AddRefed<nsIEditor> GetAssociatedEditor();
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  virtual nsXPCClassInfo* GetClassInfo();
 private:
   nsresult GetColorHelper(nsIAtom* aAtom, nsAString& aColor);
 
@@ -133,11 +132,11 @@ BodyRule::~BodyRule()
 
 NS_IMPL_ISUPPORTS1(BodyRule, nsIStyleRule)
 
-/* virtual */ void
+NS_IMETHODIMP
 BodyRule::MapRuleInfoInto(nsRuleData* aData)
 {
   if (!aData || !(aData->mSIDs & NS_STYLE_INHERIT_BIT(Margin)) || !aData->mMarginData || !mPart)
-    return; // We only care about margins.
+    return NS_OK; // We only care about margins.
 
   PRInt32 bodyMarginWidth  = -1;
   PRInt32 bodyMarginHeight = -1;
@@ -262,12 +261,14 @@ BodyRule::MapRuleInfoInto(nsRuleData* aData)
       }
     }
   }
+  return NS_OK;
 }
 
 #ifdef DEBUG
-/* virtual */ void
+NS_IMETHODIMP
 BodyRule::List(FILE* out, PRInt32 aIndent) const
 {
+  return NS_OK;
 }
 #endif
 
@@ -277,7 +278,7 @@ BodyRule::List(FILE* out, PRInt32 aIndent) const
 NS_IMPL_NS_NEW_HTML_ELEMENT(Body)
 
 
-nsHTMLBodyElement::nsHTMLBodyElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLBodyElement::nsHTMLBodyElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
     mContentStyleRule(nsnull)
 {
@@ -295,7 +296,7 @@ nsHTMLBodyElement::~nsHTMLBodyElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLBodyElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLBodyElement, nsGenericElement) 
 
-DOMCI_NODE_DATA(HTMLBodyElement, nsHTMLBodyElement)
+DOMCI_DATA(HTMLBodyElement, nsHTMLBodyElement)
 
 // QueryInterface implementation for nsHTMLBodyElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLBodyElement)
@@ -327,7 +328,7 @@ nsHTMLBodyElement::ParseAttribute(PRInt32 aNamespaceID,
         aAttribute == nsGkAtoms::link ||
         aAttribute == nsGkAtoms::alink ||
         aAttribute == nsGkAtoms::vlink) {
-      return aResult.ParseColor(aValue);
+      return aResult.ParseColor(aValue, GetOwnerDoc());
     }
     if (aAttribute == nsGkAtoms::marginwidth ||
         aAttribute == nsGkAtoms::marginheight ||

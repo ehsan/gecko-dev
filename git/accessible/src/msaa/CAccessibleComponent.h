@@ -45,7 +45,8 @@
 
 #include "AccessibleComponent.h"
 
-class CAccessibleComponent: public IAccessibleComponent
+class CAccessibleComponent: public nsISupports,
+                            public IAccessibleComponent
 {
 public:
 
@@ -62,9 +63,6 @@ public:
 
   virtual /* [propget] */ HRESULT STDMETHODCALLTYPE get_background(
       /* [retval][out] */ IA2Color *background);
-
-  // nsISupports
-  NS_IMETHOD QueryInterface(const nsIID& uuid, void** result) = 0;
 
 protected:
 

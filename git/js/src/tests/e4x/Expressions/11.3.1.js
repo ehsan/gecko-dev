@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '11.3.1.js';
 
 START("11.3.1 - Delete Operator");
 

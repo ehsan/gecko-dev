@@ -67,10 +67,8 @@ public:
    * StyleContextChanged 
    *
    * To be called from nsFrameManager::ReResolveStyleContext when the
-   * style of an element has changed, to initiate transitions from
-   * that style change.  For style contexts with :before and :after
-   * pseudos, aElement is expected to be the generated before/after
-   * element.
+   * style of an element has changed, to initiate transitions from that
+   * style change.
    *
    * It may return a "cover rule" (see CoverTransitionStartStyleRule) to
    * cover up some of the changes for the duration of the restyling of
@@ -80,7 +78,7 @@ public:
    * returned cover rule as the most specific rule.
    */
   already_AddRefed<nsIStyleRule>
-    StyleContextChanged(mozilla::dom::Element *aElement,
+    StyleContextChanged(nsIContent *aElement,
                         nsStyleContext *aOldStyleContext,
                         nsStyleContext *aNewStyleContext);
 
@@ -88,17 +86,18 @@ public:
   NS_DECL_ISUPPORTS
 
   // nsIStyleRuleProcessor
-  virtual void RulesMatching(ElementRuleProcessorData* aData);
-  virtual void RulesMatching(PseudoElementRuleProcessorData* aData);
-  virtual void RulesMatching(AnonBoxRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(ElementRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(PseudoElementRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(AnonBoxRuleProcessorData* aData);
 #ifdef MOZ_XUL
-  virtual void RulesMatching(XULTreeRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(XULTreeRuleProcessorData* aData);
 #endif
   virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
   virtual PRBool HasDocumentStateDependentStyle(StateRuleProcessorData* aData);
   virtual nsRestyleHint
     HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
-  virtual PRBool MediumFeaturesChanged(nsPresContext* aPresContext);
+  NS_IMETHOD MediumFeaturesChanged(nsPresContext* aPresContext,
+                                   PRBool* aRulesChanged);
 
   // nsARefreshObserver
   virtual void WillRefresh(mozilla::TimeStamp aTime);
@@ -108,19 +107,19 @@ private:
 
   void ConsiderStartingTransition(nsCSSProperty aProperty,
                                   const nsTransition& aTransition,
-                                  mozilla::dom::Element *aElement,
+                                  nsIContent *aElement,
                                   ElementTransitions *&aElementTransitions,
                                   nsStyleContext *aOldStyleContext,
                                   nsStyleContext *aNewStyleContext,
                                   PRBool *aStartedAny,
                                   nsCSSPropertySet *aWhichStarted);
-  ElementTransitions* GetElementTransitions(mozilla::dom::Element *aElement,
+  ElementTransitions* GetElementTransitions(nsIContent *aElement,
                                             nsCSSPseudoElements::Type aPseudoType,
                                             PRBool aCreateIfNeeded);
   void AddElementTransitions(ElementTransitions* aElementTransitions);
   void TransitionsRemoved();
-  void WalkTransitionRule(RuleProcessorData* aData,
-                          nsCSSPseudoElements::Type aPseudoType);
+  nsresult WalkTransitionRule(RuleProcessorData* aData,
+			      nsCSSPseudoElements::Type aPseudoType);
 
   PRCList mElementTransitions;
   nsPresContext *mPresContext; // weak (non-null from ctor to Disconnect)

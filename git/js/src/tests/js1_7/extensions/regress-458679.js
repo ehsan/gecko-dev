@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-458679.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 458679;
 var summary = 'Do not assert: nbytes != 0';

@@ -63,10 +63,6 @@
 #define STATIC_ASSERT(condition)                                \
     extern void np_static_assert(int arg[(condition) ? 1 : -1])
 
-static char sPluginName[] = PLUGIN_NAME; 
-static char sPluginDescription[] = PLUGIN_DESCRIPTION;
-static char sPluginVersion[] = PLUGIN_VERSION;
-
 //
 // Intentional crash
 //
@@ -93,18 +89,14 @@ NoteIntentionalCrash()
   }
 }
 
-static void Crash()
-{
-  int *pi = NULL;
-  *pi = 55; // Crash dereferencing null pointer
-  ++gCrashCount;
-}
-
 static void
 IntentionalCrash()
 {
   NoteIntentionalCrash();
-  Crash();
+
+  int *pi = NULL;
+  *pi = 55; // Crash dereferencing null pointer
+  ++gCrashCount;
 }
 
 //
@@ -146,7 +138,6 @@ static bool getLastMouseX(NPObject* npobj, const NPVariant* args, uint32_t argCo
 static bool getLastMouseY(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getPaintCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getWidthAtLastPaint(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool setInvalidateDuringPaint(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getError(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool doInternalConsistencyCheck(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool setColor(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
@@ -175,7 +166,6 @@ static bool getTopLevelWindowActivationEventCount(NPObject* npobj, const NPVaria
 static bool getFocusState(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getFocusEventCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getEventModel(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getReflector(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 
 static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "npnEvaluateTest",
@@ -197,7 +187,6 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "getLastMouseY",
   "getPaintCount",
   "getWidthAtLastPaint",
-  "setInvalidateDuringPaint",
   "getError",
   "doInternalConsistencyCheck",
   "setColor",
@@ -225,8 +214,7 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "getTopLevelWindowActivationEventCount",
   "getFocusState",
   "getFocusEventCount",
-  "getEventModel",
-  "getReflector"
+  "getEventModel"
 };
 static NPIdentifier sPluginMethodIdentifiers[ARRAY_LENGTH(sPluginMethodIdentifierNames)];
 static const ScriptableFunction sPluginMethodFunctions[] = {
@@ -249,7 +237,6 @@ static const ScriptableFunction sPluginMethodFunctions[] = {
   getLastMouseY,
   getPaintCount,
   getWidthAtLastPaint,
-  setInvalidateDuringPaint,
   getError,
   doInternalConsistencyCheck,
   setColor,
@@ -277,8 +264,7 @@ static const ScriptableFunction sPluginMethodFunctions[] = {
   getTopLevelWindowActivationEventCount,
   getFocusState,
   getFocusEventCount,
-  getEventModel,
-  getReflector
+  getEventModel
 };
 
 STATIC_ASSERT(ARRAY_LENGTH(sPluginMethodIdentifierNames) ==
@@ -542,11 +528,9 @@ bool scriptableConstruct(NPObject* npobj, const NPVariant* args, uint32_t argCou
 NP_EXPORT(char*)
 NP_GetPluginVersion()
 {
-  return sPluginVersion;
+  return PLUGIN_VERSION;
 }
 #endif
-
-static char sMimeDescription[] = "application/x-test:tst:Test mimetype";
 
 #if defined(XP_UNIX)
 NP_EXPORT(char*) NP_GetMIMEDescription()
@@ -554,7 +538,7 @@ NP_EXPORT(char*) NP_GetMIMEDescription()
 char* NP_GetMIMEDescription()
 #endif
 {
-  return sMimeDescription;
+  return "application/x-test:tst:Test mimetype";
 }
 
 #ifdef XP_UNIX
@@ -562,10 +546,10 @@ NP_EXPORT(NPError)
 NP_GetValue(void* future, NPPVariable aVariable, void* aValue) {
   switch (aVariable) {
     case NPPVpluginNameString:
-      *((char**)aValue) = sPluginName;
+      *((char**)aValue) = PLUGIN_NAME;
       break;
     case NPPVpluginDescriptionString:
-      *((char**)aValue) = sPluginDescription;
+      *((char**)aValue) = PLUGIN_DESCRIPTION;
       break;
     default:
       return NPERR_INVALID_PARAM;
@@ -606,7 +590,7 @@ NP_EXPORT(NPError) NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs)
 
   initializeIdentifiers();
 
-  for (unsigned int i = 0; i < ARRAY_LENGTH(sPluginPropertyValues); i++) {
+  for (int i = 0; i < ARRAY_LENGTH(sPluginPropertyValues); i++) {
     VOID_TO_NPVARIANT(sPluginPropertyValues[i]);
   }
 
@@ -652,7 +636,7 @@ NPError OSCALL NP_Shutdown()
 {
   clearIdentifiers();
 
-  for (unsigned int i = 0; i < ARRAY_LENGTH(sPluginPropertyValues); i++) {
+  for (int i = 0; i < ARRAY_LENGTH(sPluginPropertyValues); i++) {
     NPN_ReleaseVariantValue(&sPluginPropertyValues[i]);
   }
 
@@ -696,7 +680,6 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
   instanceData->testrange = NULL;
   instanceData->hasWidget = false;
   instanceData->npnNewStream = false;
-  instanceData->invalidateDuringPaint = false;
   instanceData->writeCount = 0;
   instanceData->writeReadyCount = 0;
   memset(&instanceData->window, 0, sizeof(instanceData->window));
@@ -939,17 +922,6 @@ NPError
 NPP_SetWindow(NPP instance, NPWindow* window)
 {
   InstanceData* instanceData = (InstanceData*)(instance->pdata);
-
-  if (instanceData->scriptableObject->drawMode == DM_DEFAULT &&
-      (instanceData->window.width != window->width ||
-       instanceData->window.height != window->height)) {
-    NPRect r;
-    r.left = r.top = 0;
-    r.right = window->width;
-    r.bottom = window->height;
-    NPN_InvalidateRect(instance, &r);
-  }
-
   void* oldWindow = instanceData->window.window;
   pluginDoSetWindow(instanceData, window);
   if (instanceData->hasWidget && oldWindow != instanceData->window.window) {
@@ -1319,12 +1291,6 @@ NPN_GetStringIdentifiers(const NPUTF8 **names, int32_t nameCount, NPIdentifier *
   return sBrowserFuncs->getstringidentifiers(names, nameCount, identifiers);
 }
 
-bool
-NPN_IdentifierIsString(NPIdentifier identifier)
-{
-  return sBrowserFuncs->identifierisstring(identifier);
-}
-
 NPUTF8*
 NPN_UTF8FromIdentifier(NPIdentifier identifier)
 {
@@ -1401,12 +1367,6 @@ void*
 NPN_MemAlloc(uint32_t size)
 {
   return sBrowserFuncs->memalloc(size);
-}
-
-char*
-NPN_StrDup(const char* str)
-{
-  return strcpy((char*)sBrowserFuncs->memalloc(strlen(str) + 1), str);
 }
 
 void
@@ -1662,21 +1622,13 @@ scriptableInvokeDefault(NPObject* npobj, const NPVariant* args, uint32_t argCoun
         value << ";other";
     }
   }
-  STRINGZ_TO_NPVARIANT(NPN_StrDup(value.str().c_str()), *result);
+  STRINGZ_TO_NPVARIANT(strdup(value.str().c_str()), *result);
   return true;
 }
 
 bool
 scriptableHasProperty(NPObject* npobj, NPIdentifier name)
 {
-  if (NPN_IdentifierIsString(name)) {
-    if (NPN_GetStringIdentifier(NPN_UTF8FromIdentifier(name)) != name)
-      Crash();
-  }
-  else {
-    if (NPN_GetIntIdentifier(NPN_IntFromIdentifier(name)) != name)
-      Crash();
-  }
   for (int i = 0; i < int(ARRAY_LENGTH(sPluginPropertyIdentifiers)); i++) {
     if (name == sPluginPropertyIdentifiers[i])
       return true;
@@ -1724,15 +1676,7 @@ scriptableRemoveProperty(NPObject* npobj, NPIdentifier name)
 bool
 scriptableEnumerate(NPObject* npobj, NPIdentifier** identifier, uint32_t* count)
 {
-  const int bufsize = sizeof(NPIdentifier) * ARRAY_LENGTH(sPluginMethodIdentifierNames);
-  NPIdentifier* ids = (NPIdentifier*) NPN_MemAlloc(bufsize);
-  if (!ids)
-    return false;
-
-  memcpy(ids, sPluginMethodIdentifiers, bufsize);
-  *identifier = ids;
-  *count = ARRAY_LENGTH(sPluginMethodIdentifierNames);
-  return true;
+  return false;
 }
 
 bool
@@ -2155,22 +2099,6 @@ getWidthAtLastPaint(NPObject* npobj, const NPVariant* args, uint32_t argCount, N
 }
 
 static bool
-setInvalidateDuringPaint(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (argCount != 1)
-    return false;
-
-  if (!NPVARIANT_IS_BOOLEAN(args[0]))
-    return false;
-  bool doInvalidate = NPVARIANT_TO_BOOLEAN(args[0]);
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  id->invalidateDuringPaint = doInvalidate;
-  return true;
-}
-
-static bool
 getError(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
 {
   if (argCount != 0)
@@ -2179,9 +2107,9 @@ getError(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* r
   NPP npp = static_cast<TestNPObject*>(npobj)->npp;
   InstanceData* id = static_cast<InstanceData*>(npp->pdata);
   if (id->err.str().length() == 0)
-    STRINGZ_TO_NPVARIANT(NPN_StrDup(SUCCESS_STRING), *result);
+    STRINGZ_TO_NPVARIANT(strdup(SUCCESS_STRING), *result);
   else
-    STRINGZ_TO_NPVARIANT(NPN_StrDup(id->err.str().c_str()), *result);
+    STRINGZ_TO_NPVARIANT(strdup(id->err.str().c_str()), *result);
   return true;
 }
 
@@ -2381,15 +2309,6 @@ void notifyDidPaint(InstanceData* instanceData)
 {
   ++instanceData->paintCount;
   instanceData->widthAtLastPaint = instanceData->window.width;
-
-  if (instanceData->invalidateDuringPaint) {
-    NPRect r;
-    r.left = 0;
-    r.top = 0;
-    r.right = instanceData->window.width;
-    r.bottom = instanceData->window.height;
-    NPN_InvalidateRect(instanceData->npp, &r);
-  }
 }
 
 static const NPClass kTestSharedNPClass = {
@@ -3000,61 +2919,5 @@ getEventModel(NPObject* npobj, const NPVariant* args, uint32_t argCount,
 
   INT32_TO_NPVARIANT(id->eventModel, *result);
 
-  return true;
-}
-
-static bool
-ReflectorHasMethod(NPObject* npobj, NPIdentifier name)
-{
-  return false;
-}
-
-static bool
-ReflectorHasProperty(NPObject* npobj, NPIdentifier name)
-{
-  return true;
-}
-
-static bool
-ReflectorGetProperty(NPObject* npobj, NPIdentifier name, NPVariant* result)
-{
-  if (NPN_IdentifierIsString(name)) {
-    char* s = NPN_UTF8FromIdentifier(name);
-    STRINGZ_TO_NPVARIANT(s, *result);
-    return true;
-  }
-
-  INT32_TO_NPVARIANT(NPN_IntFromIdentifier(name), *result);
-  return true;
-}
-
-static const NPClass kReflectorNPClass = {
-  NP_CLASS_STRUCT_VERSION,
-  NULL,
-  NULL,
-  NULL,
-  ReflectorHasMethod,
-  NULL,
-  NULL,
-  ReflectorHasProperty,
-  ReflectorGetProperty,
-  NULL,
-  NULL,
-  NULL,
-  NULL
-};
-
-bool
-getReflector(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (0 != argCount)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-
-  NPObject* reflector =
-    NPN_CreateObject(npp,
-		     const_cast<NPClass*>(&kReflectorNPClass)); // retains
-  OBJECT_TO_NPVARIANT(reflector, *result);
   return true;
 }

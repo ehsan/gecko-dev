@@ -48,7 +48,7 @@ class nsCommentNode : public nsGenericDOMDataNode,
                       public nsIDOMComment
 {
 public:
-  nsCommentNode(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsCommentNode(nsINodeInfo *aNodeInfo);
   virtual ~nsCommentNode();
 
   // nsISupports
@@ -66,7 +66,6 @@ public:
   // nsIContent
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 #ifdef DEBUG
   virtual void List(FILE* out, PRInt32 aIndent) const;
   virtual void DumpContent(FILE* out = stdout, PRInt32 aIndent = 0,
@@ -88,7 +87,7 @@ NS_NewCommentNode(nsIContent** aInstancePtrResult,
   nsCOMPtr<nsINodeInfo> ni = aNodeInfoManager->GetCommentNodeInfo();
   NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
-  nsCommentNode *instance = new nsCommentNode(ni.forget());
+  nsCommentNode *instance = new nsCommentNode(ni);
   if (!instance) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -98,7 +97,7 @@ NS_NewCommentNode(nsIContent** aInstancePtrResult,
   return NS_OK;
 }
 
-nsCommentNode::nsCommentNode(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsCommentNode::nsCommentNode(nsINodeInfo *aNodeInfo)
   : nsGenericDOMDataNode(aNodeInfo)
 {
 }
@@ -107,7 +106,7 @@ nsCommentNode::~nsCommentNode()
 {
 }
 
-DOMCI_NODE_DATA(Comment, nsCommentNode)
+DOMCI_DATA(Comment, nsCommentNode)
 
 // QueryInterface implementation for nsCommentNode
 NS_INTERFACE_TABLE_HEAD(nsCommentNode)
@@ -156,8 +155,7 @@ nsCommentNode::GetNodeType(PRUint16* aNodeType)
 nsGenericDOMDataNode*
 nsCommentNode::CloneDataNode(nsINodeInfo *aNodeInfo, PRBool aCloneText) const
 {
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsCommentNode *it = new nsCommentNode(ni.forget());
+  nsCommentNode *it = new nsCommentNode(aNodeInfo);
   if (it && aCloneText) {
     it->mText = mText;
   }

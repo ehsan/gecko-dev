@@ -54,7 +54,6 @@
 extern const PRUnichar* kOOPPPluginFocusEventId;
 UINT gOOPPPluginFocusEvent =
     RegisterWindowMessage(kOOPPPluginFocusEventId);
-extern const PRUnichar* kFlashFullscreenClass;
 UINT gOOPPSpinNativeLoopEvent =
     RegisterWindowMessage(L"SyncChannel Spin Inner Loop Message");
 UINT gOOPPStopNativeLoopEvent =
@@ -115,9 +114,6 @@ PluginInstanceParent::~PluginInstanceParent()
         "Subclass was not reset correctly before the dtor was reached!");
 #endif
 #if defined(OS_MACOSX)
-    if (mShWidth != 0 && mShHeight != 0) {
-        DeallocShmem(mShSurface);
-    }
     if (mShColorSpace)
         ::CGColorSpaceRelease(mShColorSpace);
     if (mIOSurface)
@@ -213,6 +209,16 @@ PluginInstanceParent::DeallocPPluginStream(PPluginStreamParent* stream)
     return true;
 }
 
+#ifdef MOZ_X11
+static Display* GetXDisplay() {
+#  ifdef MOZ_WIDGET_GTK2
+        return GDK_DISPLAY();
+#  elif defined(MOZ_WIDGET_QT)
+        return QX11Info::display();
+#  endif
+}
+#endif
+
 bool
 PluginInstanceParent::AnswerNPN_GetValue_NPNVjavascriptEnabledBool(
                                                        bool* value,
@@ -244,9 +250,6 @@ PluginInstanceParent::AnswerNPN_GetValue_NPNVnetscapeWindow(NativeWindowHandle* 
     XID id;
 #elif defined(XP_MACOSX)
     intptr_t id;
-#elif defined(ANDROID)
-#warning Need Android impl
-    int id;
 #else
 #warning Implement me
 #endif
@@ -336,16 +339,14 @@ PluginInstanceParent::AnswerNPN_SetValue_NPPVpluginDrawingModel(
     const int& drawingModel, NPError* result)
 {
 #ifdef XP_MACOSX
-    if (drawingModel == NPDrawingModelCoreAnimation ||
-        drawingModel == NPDrawingModelInvalidatingCoreAnimation) {
+    if (drawingModel == NPDrawingModelCoreAnimation) {
         // We need to request CoreGraphics otherwise
         // the nsObjectFrame will try to draw a CALayer
         // that can not be shared across process.
-        mDrawingModel = drawingModel;
+        mDrawingModel = NPDrawingModelCoreAnimation;
         *result = mNPNIface->setvalue(mNPP, NPPVpluginDrawingModel,
                                   (void*)NPDrawingModelCoreGraphics);
-        if (drawingModel == NPDrawingModelCoreAnimation &&
-            mQuirks & COREANIMATION_REFRESH_TIMER) {
+        if (mQuirks & COREANIMATION_REFRESH_TIMER) {
             mParent->AddToRefreshTimer(this);
         }
     } else {
@@ -500,19 +501,16 @@ PluginInstanceParent::NPP_SetWindow(const NPWindow* aWindow)
 
 #if defined(XP_MACOSX)
     if (mShWidth != window.width || mShHeight != window.height) {
-        if (mDrawingModel == NPDrawingModelCoreAnimation || 
-            mDrawingModel == NPDrawingModelInvalidatingCoreAnimation) {
+        if (mDrawingModel == NPDrawingModelCoreAnimation) {
             if (mIOSurface) {
                 delete mIOSurface;
             }
             mIOSurface = nsIOSurface::CreateIOSurface(window.width, window.height);
         } else if (mShWidth * mShHeight != window.width * window.height) {
-            if (mShWidth != 0 && mShHeight != 0) {
-                DeallocShmem(mShSurface);
-                mShWidth = 0;
-                mShHeight = 0;
-            }
-
+            // Uncomment me when DeallocShmem lands.
+            //if (mShWidth != 0 && mShHeight != 0) {
+            //    DeallocShmem(&mShSurface);
+            //}
             if (window.width != 0 && window.height != 0) {
                 if (!AllocShmem(window.width * window.height*4, 
                                 SharedMemory::TYPE_BASIC, &mShSurface)) {
@@ -638,12 +636,7 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
 
 #if defined(OS_WIN)
     if (mWindowType == NPWindowTypeDrawable) {
-        if (DoublePassRenderingEvent() == npevent->event) {
-            CallPaint(npremoteevent, &handled);
-            return handled;
-        }
-
-        switch (npevent->event) {
+        switch(npevent->event) {
             case WM_PAINT:
             {
                 RECT rect;
@@ -667,7 +660,7 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
               if (hwnd && hwnd != mPluginHWND &&
                   GetClassNameW(hwnd, szClass,
                                 sizeof(szClass)/sizeof(PRUnichar)) &&
-                  !wcscmp(szClass, kFlashFullscreenClass)) {
+                  !wcscmp(szClass, L"ShockwaveFlashFullScreen")) {
                   return 0;
               }
             }
@@ -698,14 +691,14 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
         // process does not need to wait; the child is the process that needs
         // to wait.  A possibly-slightly-better alternative would be to send
         // an X event to the child that the child would wait for.
-        XSync(DefaultXDisplay(), False);
+        XSync(GetXDisplay(), False);
 
         return CallPaint(npremoteevent, &handled) ? handled : 0;
 
     case ButtonPress:
         // Release any active pointer grab so that the plugin X client can
         // grab the pointer if it wishes.
-        Display *dpy = DefaultXDisplay();
+        Display *dpy = GetXDisplay();
 #  ifdef MOZ_WIDGET_GTK2
         // GDK attempts to (asynchronously) track whether there is an active
         // grab so ungrab through GDK.
@@ -721,8 +714,7 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
 
 #ifdef XP_MACOSX
     if (npevent->type == NPCocoaEventDrawRect) {
-        if (mDrawingModel == NPDrawingModelCoreAnimation ||
-            mDrawingModel == NPDrawingModelInvalidatingCoreAnimation) {
+        if (mDrawingModel == NPDrawingModelCoreAnimation) {
             if (!mIOSurface) {
                 NS_ERROR("No IOSurface allocated.");
                 return false;
@@ -1078,13 +1070,13 @@ PluginInstanceParent::AnswerNPN_GetAuthenticationInfo(const nsCString& protocol,
 
 bool
 PluginInstanceParent::AnswerNPN_ConvertPoint(const double& sourceX,
-                                             const bool&   ignoreDestX,
                                              const double& sourceY,
-                                             const bool&   ignoreDestY,
                                              const NPCoordinateSpace& sourceSpace,
                                              const NPCoordinateSpace& destSpace,
                                              double *destX,
+                                             bool *ignoreDestX,
                                              double *destY,
+                                             bool *ignoreDestY,
                                              bool *result)
 {
     *result = mNPNIface->convertpoint(mNPP, sourceX, sourceY, sourceSpace,
@@ -1155,7 +1147,7 @@ PluginInstanceParent::SubclassPluginWindow(HWND aWnd)
         mPluginHWND = aWnd;
         mPluginWndProc = 
             (WNDPROC)::SetWindowLongPtrA(mPluginHWND, GWLP_WNDPROC,
-                         reinterpret_cast<LONG_PTR>(PluginWindowHookProc));
+                         reinterpret_cast<LONG>(PluginWindowHookProc));
         bool bRes = ::SetPropW(mPluginHWND, kPluginInstanceParentProperty, this);
         NS_ASSERTION(mPluginWndProc,
           "PluginInstanceParent::SubclassPluginWindow failed to set subclass!");
@@ -1169,7 +1161,7 @@ PluginInstanceParent::UnsubclassPluginWindow()
 {
     if (mPluginHWND && mPluginWndProc) {
         ::SetWindowLongPtrA(mPluginHWND, GWLP_WNDPROC,
-                            reinterpret_cast<LONG_PTR>(mPluginWndProc));
+                            reinterpret_cast<LONG>(mPluginWndProc));
 
         ::RemovePropW(mPluginHWND, kPluginInstanceParentProperty);
 
@@ -1304,7 +1296,7 @@ PluginInstanceParent::SharedSurfaceAfterPaint(NPEvent* npevent)
 #endif // defined(OS_WIN)
 
 bool
-PluginInstanceParent::AnswerPluginFocusChange(const bool& gotFocus)
+PluginInstanceParent::AnswerPluginGotFocus()
 {
     PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
 
@@ -1313,10 +1305,10 @@ PluginInstanceParent::AnswerPluginFocusChange(const bool& gotFocus)
     // focus. We forward the event down to widget so the dom/focus manager can
     // be updated.
 #if defined(OS_WIN)
-    ::SendMessage(mPluginHWND, gOOPPPluginFocusEvent, gotFocus ? 1 : 0, 0);
+    ::SendMessage(mPluginHWND, gOOPPPluginFocusEvent, 0, 0);
     return true;
 #else
-    NS_NOTREACHED("PluginInstanceParent::AnswerPluginFocusChange not implemented!");
+    NS_NOTREACHED("PluginInstanceParent::AnswerPluginGotFocus not implemented!");
     return false;
 #endif
 }

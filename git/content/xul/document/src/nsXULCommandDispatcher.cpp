@@ -50,6 +50,7 @@
 #include "nsIDOMXULDocument.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMNSHTMLInputElement.h"
 #include "nsIDOMNSHTMLTextAreaElement.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIDOMXULElement.h"
@@ -435,8 +436,9 @@ nsXULCommandDispatcher::UpdateCommands(const nsAString& aEventName)
     }
 #endif
 
-    nsCOMPtr<nsIPresShell> shell = document->GetShell();
+    nsCOMPtr<nsIPresShell> shell = document->GetPrimaryShell();
     if (shell) {
+
       // Retrieve the context in which our DOM event will fire.
       nsRefPtr<nsPresContext> context = shell->GetPresContext();
 

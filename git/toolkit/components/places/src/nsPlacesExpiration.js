@@ -55,10 +55,8 @@
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
-const Cu = Components.utils;
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 ////////////////////////////////////////////////////////////////////////////////
 //// nsIFactory
@@ -80,8 +78,9 @@ const nsPlacesExpirationFactory = {
 ////////////////////////////////////////////////////////////////////////////////
 //// Constants
 
-// Last expiration step should run before the final sync.
-const TOPIC_SHUTDOWN = "places-will-close-connection";
+const MAX_INT64 = 9223372036854775807;
+
+const TOPIC_SHUTDOWN = "places-shutdown";
 const TOPIC_PREF_CHANGED = "nsPref:changed";
 const TOPIC_DEBUG_START_EXPIRATION = "places-debug-start-expiration";
 const TOPIC_EXPIRATION_FINISHED = "places-expiration-finished";
@@ -148,7 +147,7 @@ const EXPIRE_AGGRESSIVITY_MULTIPLIER = 3;
 // going over the database maximum cache size.  If we are over the maximum
 // number of entries, we will expire.
 const URIENTRY_AVG_SIZE_MIN = 2000;
-const URIENTRY_AVG_SIZE_MAX = 3000;
+const URIENTRY_AVG_SIZE_MAX = 4000;
 
 // Seconds of idle time before starting a larger expiration step.
 // Notice during idle we stop the expiration timer since we don't want to hurt
@@ -200,7 +199,6 @@ const ACTION = {
   CLEAN_SHUTDOWN: 1 << 3,
   IDLE: 1 << 4,
   DEBUG: 1 << 5,
-  TIMED_OVERLIMIT: 1 << 6,
 };
 
 // The queries we use to expire.
@@ -209,211 +207,211 @@ const EXPIRATION_QUERIES = {
   // Finds visits to be expired.  Will return nothing if we are not over the
   // unique URIs limit.
   QUERY_FIND_VISITS_TO_EXPIRE: {
-    sql: "INSERT INTO expiration_notify "
-       +   "(v_id, url, visit_date, expected_results) "
-       + "SELECT v.id, IFNULL(h_t.url, h.url) AS url, "
-       +         "v.visit_date AS visit_date, "
-       +         ":limit_visits AS expected_results "
-       + "FROM moz_historyvisits_temp v "
-       + "LEFT JOIN moz_places_temp AS h_t ON h_t.id = v.place_id "
-       + "LEFT JOIN moz_places AS h ON h.id = v.place_id "
-       + "WHERE ((SELECT COUNT(*) FROM moz_places_temp) + "
-       +        "(SELECT COUNT(*) FROM moz_places)) > :max_uris "
-       + "UNION ALL "
-       + "SELECT v.id, IFNULL(h_t.url, h.url) AS url, "
-       +        "v.visit_date AS visit_date, "
-       +        ":limit_visits AS expected_results "
-       + "FROM moz_historyvisits v "
-       + "LEFT JOIN moz_places_temp AS h_t ON h_t.id = v.place_id "
-       + "LEFT JOIN moz_places AS h ON h.id = v.place_id "
-       + "WHERE ((SELECT COUNT(*) FROM moz_places_temp) + "
-       +        "(SELECT COUNT(*) FROM moz_places)) > :max_uris "
-       + "ORDER BY v.visit_date ASC "
-       + "LIMIT :limit_visits",
-    actions: ACTION.TIMED_OVERLIMIT | ACTION.SHUTDOWN | ACTION.IDLE |
-             ACTION.DEBUG
+    sql: "SELECT IFNULL(h_t.url, h.url) AS url, v.visit_date AS visit_date, " +
+                "0 AS whole_entry, :limit_visits AS expected_results " +
+         "FROM moz_historyvisits_temp v " +
+         "LEFT JOIN moz_places_temp AS h_t ON h_t.id = v.place_id " +
+         "LEFT JOIN moz_places AS h ON h.id = v.place_id " +
+         "WHERE ((SELECT count(*) FROM moz_places_temp) + " +
+                "(SELECT count(*) FROM moz_places)) > :max_uris " +
+         "UNION ALL " +
+         "SELECT IFNULL(h_t.url, h.url) AS url, v.visit_date AS visit_date, " +
+                "0 AS whole_entry, :limit_uris AS expected_results " +
+         "FROM moz_historyvisits v " +
+         "LEFT JOIN moz_places_temp AS h_t ON h_t.id = v.place_id " +
+         "LEFT JOIN moz_places AS h ON h.id = v.place_id " +
+         "WHERE ((SELECT count(*) FROM moz_places_temp) + " +
+                "(SELECT count(*) FROM moz_places)) > :max_uris " +
+         "ORDER BY v.visit_date ASC " +
+         "LIMIT :limit_visits",
+    actions: ACTION.TIMED | ACTION.SHUTDOWN | ACTION.IDLE | ACTION.DEBUG
   },
 
   // Removes the previously found visits.
   QUERY_EXPIRE_VISITS: {
-    sql: "DELETE FROM moz_historyvisits_view WHERE id IN ( "
-       +   "SELECT v_id FROM expiration_notify WHERE v_id NOTNULL "
-       + ")",
-    actions: ACTION.TIMED_OVERLIMIT | ACTION.SHUTDOWN | ACTION.IDLE |
-             ACTION.DEBUG
+    sql: "DELETE FROM moz_historyvisits_view WHERE id IN ( " +
+           "SELECT id FROM ( " +
+             "SELECT v.id, v.visit_date " +
+             "FROM moz_historyvisits_temp v " +
+             "UNION ALL " +
+             "SELECT v.id, v.visit_date " +
+             "FROM moz_historyvisits v " +
+             "ORDER BY v.visit_date ASC " +
+             "LIMIT :limit_visits " +
+            " ) " +
+          ") " +
+        " AND ((SELECT count(*) FROM moz_places_temp) + " +
+              "(SELECT count(*) FROM moz_places))  > :max_uris",
+    actions: ACTION.TIMED | ACTION.SHUTDOWN | ACTION.IDLE | ACTION.DEBUG
   },
 
   // Finds orphan URIs in the database.
   // Notice we won't notify single removed URIs on removeAllPages, so we don't
   // run this query in such a case, but just delete URIs.
   QUERY_FIND_URIS_TO_EXPIRE: {
-    sql: "INSERT INTO expiration_notify "
-       +   "(p_id, url, visit_date, expected_results) "
-       + "SELECT h.id, h.url, h.last_visit_date AS visit_date, "
-       +        ":limit_uris AS expected_results "
-       + "FROM moz_places_temp h "
-       + "LEFT JOIN moz_historyvisits v ON h.id = v.place_id "
-       + "LEFT JOIN moz_historyvisits_temp v_t ON h.id = v_t.place_id "
-       + "LEFT JOIN moz_bookmarks b ON h.id = b.fk "
-       + "WHERE v.id IS NULL "
-       +   "AND v_t.id IS NULL "
-       +   "AND b.id IS NULL "
-       +   "AND h.ROWID <> IFNULL(:null_skips_last, (SELECT MAX(ROWID) FROM moz_places_temp)) "
-       + "UNION ALL "
-       + "SELECT h.id, h.url, h.last_visit_date AS visit_date, "
-       +       ":limit_uris AS expected_results "
-       + "FROM moz_places h "
-       + "LEFT JOIN moz_historyvisits v ON h.id = v.place_id "
-       + "LEFT JOIN moz_historyvisits_temp v_t ON h.id = v_t.place_id "
-       + "LEFT JOIN moz_bookmarks b ON h.id = b.fk "
-       + "WHERE v.id IS NULL "
-       +   "AND v_t.id IS NULL "
-       +   "AND b.id IS NULL "
-       + "LIMIT :limit_uris",
-    actions: ACTION.TIMED | ACTION.TIMED_OVERLIMIT | ACTION.SHUTDOWN |
-             ACTION.IDLE | ACTION.DEBUG
-  },
-
-  // Expire found URIs from the database.
-  QUERY_EXPIRE_URIS: {
-    sql: "DELETE FROM moz_places_view WHERE id IN ( "
-       +   "SELECT p_id FROM expiration_notify WHERE p_id NOTNULL "
-       + ")",
-    actions: ACTION.TIMED | ACTION.TIMED_OVERLIMIT | ACTION.SHUTDOWN |
-             ACTION.IDLE | ACTION.DEBUG
+    sql: "SELECT h.url, h.last_visit_date AS visit_date, 1 AS whole_entry, " +
+                ":limit_uris AS expected_results " +
+         "FROM moz_places_temp h " +
+         "LEFT JOIN moz_historyvisits v ON h.id = v.place_id " +
+         "LEFT JOIN moz_historyvisits_temp v_t ON h.id = v_t.place_id " +
+         "LEFT JOIN moz_bookmarks b ON h.id = b.fk " +
+         "WHERE v.id IS NULL " +
+           "AND v_t.id IS NULL " +
+           "AND b.id IS NULL " +
+           "AND h.id <= :last_place_id " +
+           "AND SUBSTR(h.url, 1, 6) <> 'place:' " +
+         "UNION ALL " +
+         "SELECT h.url, h.last_visit_date AS visit_date, 1 AS whole_entry, " +
+               ":limit_uris AS expected_results " +
+         "FROM moz_places h " +
+         "LEFT JOIN moz_historyvisits v ON h.id = v.place_id " +
+         "LEFT JOIN moz_historyvisits_temp v_t ON h.id = v_t.place_id " +
+         "LEFT JOIN moz_bookmarks b ON h.id = b.fk " +
+         "WHERE v.id IS NULL " +
+           "AND v_t.id IS NULL " +
+           "AND b.id IS NULL " +
+           "AND h.id <= :last_place_id " +
+           "AND SUBSTR(h.url, 1, 6) <> 'place:' " +
+         "LIMIT :limit_uris",
+    actions: ACTION.TIMED | ACTION.SHUTDOWN | ACTION.IDLE | ACTION.DEBUG
   },
 
   // Expire orphan URIs from the database.
-  QUERY_SILENT_EXPIRE_ORPHAN_URIS: {
-    sql: "DELETE FROM moz_places_view WHERE id IN ( "
-       +   "SELECT h.id "
-       +   "FROM moz_places_temp h "
-       +   "LEFT JOIN moz_historyvisits v ON h.id = v.place_id "
-       +   "LEFT JOIN moz_historyvisits_temp v_t ON h.id = v_t.place_id "
-       +   "LEFT JOIN moz_bookmarks b ON h.id = b.fk "
-       +   "WHERE v.id IS NULL "
-       +     "AND v_t.id IS NULL "
-       +     "AND b.id IS NULL "
-       +     "AND SUBSTR(h.url, 1, 6) <> 'place:' "
-       +   "UNION ALL "
-       +   "SELECT h.id "
-       +   "FROM moz_places h "
-       +   "LEFT JOIN moz_historyvisits v ON h.id = v.place_id "
-       +   "LEFT JOIN moz_historyvisits_temp v_t ON h.id = v_t.place_id "
-       +   "LEFT JOIN moz_bookmarks b ON h.id = b.fk "
-       +   "WHERE v.id IS NULL "
-       +     "AND v_t.id IS NULL "
-       +     "AND b.id IS NULL "
-       +     "AND SUBSTR(h.url, 1, 6) <> 'place:' "
-       +   "LIMIT :limit_uris "
-       + ")",
-    actions: ACTION.CLEAR_HISTORY
+  QUERY_EXPIRE_URIS: {
+    sql: "DELETE FROM moz_places_view WHERE id IN ( " +
+           "SELECT h.id " +
+           "FROM moz_places_temp h " +
+           "LEFT JOIN moz_historyvisits v ON h.id = v.place_id " +
+           "LEFT JOIN moz_historyvisits_temp v_t ON h.id = v_t.place_id " +
+           "LEFT JOIN moz_bookmarks b ON h.id = b.fk " +
+           "WHERE v.id IS NULL " +
+             "AND v_t.id IS NULL " +
+             "AND b.id IS NULL " +
+             "AND h.id <= :last_place_id " +
+             "AND SUBSTR(h.url, 1, 6) <> 'place:' " +
+           "UNION ALL " +
+           "SELECT h.id " +
+           "FROM moz_places h " +
+           "LEFT JOIN moz_historyvisits v ON h.id = v.place_id " +
+           "LEFT JOIN moz_historyvisits_temp v_t ON h.id = v_t.place_id " +
+           "LEFT JOIN moz_bookmarks b ON h.id = b.fk " +
+           "WHERE v.id IS NULL " +
+             "AND v_t.id IS NULL " +
+             "AND b.id IS NULL " +
+             "AND h.id <= :last_place_id " +
+             "AND SUBSTR(h.url, 1, 6) <> 'place:' " +
+           "LIMIT :limit_uris " +
+         ")",
+    actions: ACTION.TIMED | ACTION.CLEAR_HISTORY | ACTION.SHUTDOWN |
+             ACTION.IDLE | ACTION.DEBUG
   },
 
   // Expire orphan icons from the database.
   QUERY_EXPIRE_FAVICONS: {
-    sql: "DELETE FROM moz_favicons WHERE id IN ( "
-       +   "SELECT f.id FROM moz_favicons f "
-       +   "LEFT JOIN moz_places h ON f.id = h.favicon_id "
-       +   "LEFT JOIN moz_places_temp h_t ON f.id = h_t.favicon_id "
-       +   "WHERE h.favicon_id IS NULL "
-       +     "AND h_t.favicon_id IS NULL "
-       +   "LIMIT :limit_favicons "
-       + ")",
-    actions: ACTION.TIMED | ACTION.TIMED_OVERLIMIT | ACTION.CLEAR_HISTORY |
-             ACTION.SHUTDOWN | ACTION.IDLE | ACTION.DEBUG
+    sql: "DELETE FROM moz_favicons WHERE id IN ( " +
+           "SELECT f.id FROM moz_favicons f " +
+           "LEFT JOIN moz_places h ON f.id = h.favicon_id " +
+           "LEFT JOIN moz_places_temp h_t ON f.id = h_t.favicon_id " +
+           "WHERE h.favicon_id IS NULL " +
+             "AND h_t.favicon_id IS NULL " +
+           "LIMIT :limit_favicons " +
+         ")",
+    actions: ACTION.TIMED | ACTION.CLEAR_HISTORY | ACTION.SHUTDOWN |
+             ACTION.IDLE | ACTION.DEBUG
   },
 
   // Expire orphan page annotations from the database.
   QUERY_EXPIRE_ANNOS: {
-    sql: "DELETE FROM moz_annos WHERE id in ( "
-       +   "SELECT a.id FROM moz_annos a "
-       +   "LEFT JOIN moz_places h ON a.place_id = h.id "
-       +   "LEFT JOIN moz_places_temp h_t ON a.place_id = h_t.id "
-       +   "LEFT JOIN moz_historyvisits v ON a.place_id = v.place_id "
-       +   "LEFT JOIN moz_historyvisits_temp v_t ON a.place_id = v_t.place_id "
-       +   "WHERE (h.id IS NULL AND h_t.id IS NULL) "
-       +      "OR (v.id IS NULL AND v_t.id IS NULL AND "
-       +          "a.expiration <> :expire_never) "
-       +   "LIMIT :limit_annos "
-       + ")",
-    actions: ACTION.TIMED | ACTION.TIMED_OVERLIMIT | ACTION.CLEAR_HISTORY |
-             ACTION.SHUTDOWN | ACTION.IDLE | ACTION.DEBUG
+    sql: "DELETE FROM moz_annos WHERE id in ( " +
+           "SELECT a.id FROM moz_annos a " +
+           "LEFT JOIN moz_places h ON a.place_id = h.id " +
+           "LEFT JOIN moz_places_temp h_t ON a.place_id = h_t.id " +
+           "LEFT JOIN moz_historyvisits v ON a.place_id = v.place_id " +
+           "LEFT JOIN moz_historyvisits_temp v_t ON a.place_id = v_t.place_id " +
+           "WHERE (h.id IS NULL AND h_t.id IS NULL) " +
+              "OR (v.id IS NULL AND v_t.id IS NULL AND a.expiration <> :expire_never) " +
+           "LIMIT :limit_annos " +
+         ")",
+    actions: ACTION.TIMED | ACTION.CLEAR_HISTORY | ACTION.SHUTDOWN |
+             ACTION.IDLE | ACTION.DEBUG
   },
 
   // Expire page annotations based on expiration policy.
   QUERY_EXPIRE_ANNOS_WITH_POLICY: {
-    sql: "DELETE FROM moz_annos "
-       + "WHERE (expiration = :expire_days "
-       +   "AND :expire_days_time > MAX(lastModified, dateAdded)) "
-       +    "OR (expiration = :expire_weeks "
-       +   "AND :expire_weeks_time > MAX(lastModified, dateAdded)) "
-       +    "OR (expiration = :expire_months "
-       +   "AND :expire_months_time > MAX(lastModified, dateAdded))",
-    actions: ACTION.TIMED | ACTION.TIMED_OVERLIMIT | ACTION.CLEAR_HISTORY |
-             ACTION.SHUTDOWN | ACTION.IDLE | ACTION.DEBUG
+    sql: "DELETE FROM moz_annos " +
+         "WHERE (expiration = :expire_days " +
+           "AND :expire_days_time > MAX(lastModified, dateAdded)) " +
+            "OR (expiration = :expire_weeks " +
+           "AND :expire_weeks_time > MAX(lastModified, dateAdded)) " +
+            "OR (expiration = :expire_months " +
+           "AND :expire_months_time > MAX(lastModified, dateAdded))",
+    actions: ACTION.TIMED | ACTION.CLEAR_HISTORY | ACTION.SHUTDOWN |
+             ACTION.IDLE | ACTION.DEBUG
   },
 
   // Expire items annotations based on expiration policy.
   QUERY_EXPIRE_ITEMS_ANNOS_WITH_POLICY: {
-    sql: "DELETE FROM moz_items_annos "
-       + "WHERE (expiration = :expire_days "
-       +   "AND :expire_days_time > MAX(lastModified, dateAdded)) "
-       +    "OR (expiration = :expire_weeks "
-       +   "AND :expire_weeks_time > MAX(lastModified, dateAdded)) "
-       +    "OR (expiration = :expire_months "
-       +   "AND :expire_months_time > MAX(lastModified, dateAdded))",
-    actions: ACTION.TIMED | ACTION.TIMED_OVERLIMIT | ACTION.CLEAR_HISTORY |
-             ACTION.SHUTDOWN | ACTION.IDLE | ACTION.DEBUG
+    sql: "DELETE FROM moz_items_annos " +
+         "WHERE (expiration = :expire_days " +
+           "AND :expire_days_time > MAX(lastModified, dateAdded)) " +
+            "OR (expiration = :expire_weeks " +
+           "AND :expire_weeks_time > MAX(lastModified, dateAdded)) " +
+            "OR (expiration = :expire_months " +
+           "AND :expire_months_time > MAX(lastModified, dateAdded))",
+    actions: ACTION.TIMED | ACTION.CLEAR_HISTORY | ACTION.SHUTDOWN |
+             ACTION.IDLE | ACTION.DEBUG
   },
 
   // Expire page annotations based on expiration policy.
   QUERY_EXPIRE_ANNOS_WITH_HISTORY: {
-    sql: "DELETE FROM moz_annos "
-       + "WHERE expiration = :expire_with_history "
-       +   "AND NOT EXISTS (SELECT id FROM moz_historyvisits_temp "
-       +                   "WHERE place_id = moz_annos.place_id LIMIT 1) "
-       +   "AND NOT EXISTS (SELECT id FROM moz_historyvisits "
-       +                   "WHERE place_id = moz_annos.place_id LIMIT 1)",
-    actions: ACTION.TIMED | ACTION.TIMED_OVERLIMIT | ACTION.CLEAR_HISTORY |
-             ACTION.SHUTDOWN | ACTION.IDLE | ACTION.DEBUG
+    sql: "DELETE FROM moz_annos " +
+         "WHERE expiration = :expire_with_history " +
+           "AND NOT EXISTS (SELECT id FROM moz_historyvisits_temp " +
+                           "WHERE place_id = moz_annos.place_id LIMIT 1) " +
+           "AND NOT EXISTS (SELECT id FROM moz_historyvisits " +
+                           "WHERE place_id = moz_annos.place_id LIMIT 1)",
+    actions: ACTION.TIMED | ACTION.CLEAR_HISTORY | ACTION.SHUTDOWN |
+             ACTION.IDLE | ACTION.DEBUG
   },
 
   // Expire item annos without a corresponding item id.
   QUERY_EXPIRE_ITEMS_ANNOS: {
-    sql: "DELETE FROM moz_items_annos WHERE id IN ( "
-       +   "SELECT a.id FROM moz_items_annos a "
-       +   "LEFT JOIN moz_bookmarks b ON a.item_id = b.id "
-       +   "WHERE b.id IS NULL "
-       +   "LIMIT :limit_annos "
-       + ")",
-    actions: ACTION.CLEAR_HISTORY | ACTION.SHUTDOWN | ACTION.IDLE | ACTION.DEBUG
+    sql: "DELETE FROM moz_items_annos WHERE id IN ( " +
+           "SELECT a.id FROM moz_items_annos a " +
+           "LEFT JOIN moz_bookmarks b ON a.item_id = b.id " +
+           "WHERE b.id IS NULL " +
+           "LIMIT :limit_annos " +
+         ")",
+    actions: ACTION.TIMED | ACTION.CLEAR_HISTORY | ACTION.SHUTDOWN |
+             ACTION.IDLE | ACTION.DEBUG
   },
 
   // Expire all annotation names without a corresponding annotation.
   QUERY_EXPIRE_ANNO_ATTRIBUTES: {
-    sql: "DELETE FROM moz_anno_attributes WHERE id IN ( "
-       +   "SELECT n.id FROM moz_anno_attributes n "
-       +   "LEFT JOIN moz_annos a ON n.id = a.anno_attribute_id "
-       +   "LEFT JOIN moz_items_annos t ON n.id = t.anno_attribute_id "
-       +   "WHERE a.anno_attribute_id IS NULL "
-       +     "AND t.anno_attribute_id IS NULL "
-       +   "LIMIT :limit_annos"
-       + ")",
-    actions: ACTION.CLEAR_HISTORY | ACTION.SHUTDOWN | ACTION.IDLE | ACTION.DEBUG
+    sql: "DELETE FROM moz_anno_attributes WHERE id IN ( " +
+           "SELECT n.id FROM moz_anno_attributes n " +
+           "LEFT JOIN moz_annos a ON n.id = a.anno_attribute_id " +
+           "LEFT JOIN moz_items_annos t ON n.id = t.anno_attribute_id " +
+           "WHERE a.anno_attribute_id IS NULL " +
+             "AND t.anno_attribute_id IS NULL " +
+           "LIMIT :limit_annos" +
+         ")",
+    actions: ACTION.TIMED | ACTION.CLEAR_HISTORY | ACTION.SHUTDOWN |
+             ACTION.IDLE | ACTION.DEBUG
   },
 
   // Expire orphan inputhistory.
   QUERY_EXPIRE_INPUTHISTORY: {
-    sql: "DELETE FROM moz_inputhistory WHERE place_id IN ( "
-       +   "SELECT i.place_id FROM moz_inputhistory i "
-       +   "LEFT JOIN moz_places h ON h.id = i.place_id "
-       +   "LEFT JOIN moz_places_temp h_t ON h_t.id = i.place_id "
-       +   "WHERE h.id IS NULL "
-       +     "AND h_t.id IS NULL "
-       +   "LIMIT :limit_inputhistory "
-       + ")",
-    actions: ACTION.CLEAR_HISTORY | ACTION.SHUTDOWN | ACTION.IDLE | ACTION.DEBUG
+    sql: "DELETE FROM moz_inputhistory WHERE place_id IN ( " +
+           "SELECT i.place_id FROM moz_inputhistory i " +
+           "LEFT JOIN moz_places h ON h.id = i.place_id " +
+           "LEFT JOIN moz_places_temp h_t ON h_t.id = i.place_id " +
+           "WHERE h.id IS NULL " +
+             "AND h_t.id IS NULL " +
+           "LIMIT :limit_inputhistory " +
+         ")",
+    actions: ACTION.TIMED | ACTION.CLEAR_HISTORY | ACTION.SHUTDOWN |
+             ACTION.IDLE | ACTION.DEBUG
   },
 
   // Expire all session annotations.  Should only be called at shutdown.
@@ -430,25 +428,6 @@ const EXPIRATION_QUERIES = {
              ACTION.DEBUG
   },
 
-  // Select entries for notifications.
-  // If p_id is set whole_entry = 1, then we have expired the full page.
-  // Either p_id or v_id are always set.
-  QUERY_SELECT_NOTIFICATIONS: {
-    sql: "SELECT url, MAX(visit_date) AS visit_date, "
-       +        "MAX(IFNULL(MIN(p_id, 1), MIN(v_id, 0))) AS whole_entry, "
-       +        "expected_results "
-       + "FROM expiration_notify "
-       + "GROUP BY url",
-    actions: ACTION.TIMED | ACTION.TIMED_OVERLIMIT | ACTION.SHUTDOWN |
-             ACTION.IDLE | ACTION.DEBUG
-  },
-
-  // Empty the notifications table.
-  QUERY_DELETE_NOTIFICATIONS: {
-    sql: "DELETE FROM expiration_notify",
-    actions: ACTION.TIMED | ACTION.TIMED_OVERLIMIT | ACTION.SHUTDOWN |
-             ACTION.IDLE | ACTION.DEBUG
-  }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -456,25 +435,17 @@ const EXPIRATION_QUERIES = {
 
 function nsPlacesExpiration()
 {
-  this._db = Cc["@mozilla.org/browser/nav-history-service;1"].
-             getService(Ci.nsPIPlacesDatabase).
-             DBConnection;
-
-  // Create a temp table for notifications.
-  this._db.executeSimpleSQL(
-    "CREATE TEMP TABLE expiration_notify ( "
-  + "  id INTEGER PRIMARY KEY "
-  + ", v_id INTEGER "
-  + ", p_id INTEGER "
-  + ", url TEXT NOT NULL "
-  + ", visit_date INTEGER "
-  + ", expected_results INTEGER NOT NULL "
-  + ")"
-  );
-
   //////////////////////////////////////////////////////////////////////////////
   //// Smart Getters
 
+  XPCOMUtils.defineLazyGetter(this, "_db", function() {
+    return Cc["@mozilla.org/browser/nav-history-service;1"].
+           getService(Ci.nsPIPlacesDatabase).
+           DBConnection;
+  });
+  XPCOMUtils.defineLazyServiceGetter(this, "_ios",
+                                     "@mozilla.org/network/io-service;1",
+                                     "nsIIOService");
   XPCOMUtils.defineLazyServiceGetter(this, "_hsn",
                                      "@mozilla.org/browser/nav-history-service;1",
                                      "nsPIPlacesHistoryListenersNotifier");
@@ -495,8 +466,10 @@ function nsPlacesExpiration()
   this._prefBranch.addObserver("", this, false);
 
   // Register topic observers.
-  Services.obs.addObserver(this, TOPIC_SHUTDOWN, false);
-  Services.obs.addObserver(this, TOPIC_DEBUG_START_EXPIRATION, false);
+  this._os = Cc["@mozilla.org/observer-service;1"].
+             getService(Ci.nsIObserverService);
+  this._os.addObserver(this, TOPIC_SHUTDOWN, false);
+  this._os.addObserver(this, TOPIC_DEBUG_START_EXPIRATION, false);
 
   // Create our expiration timer.
   this._newTimer();
@@ -511,27 +484,28 @@ nsPlacesExpiration.prototype = {
   {
     if (aTopic == TOPIC_SHUTDOWN) {
       this._shuttingDown = true;
-      Services.obs.removeObserver(this, TOPIC_SHUTDOWN);
-      Services.obs.removeObserver(this, TOPIC_DEBUG_START_EXPIRATION);
+      this._os.removeObserver(this, TOPIC_SHUTDOWN);
+      this._os.removeObserver(this, TOPIC_DEBUG_START_EXPIRATION);
 
       this._prefBranch.removeObserver("", this);
 
-      this.expireOnIdle = false;
+      if (this._isIdleObserver)
+        this._idle.removeIdleObserver(this, IDLE_TIMEOUT_SECONDS);
 
       if (this._timer) {
         this._timer.cancel();
         this._timer = null;
       }
 
-      // If we ran a clearHistory recently, or database id not dirty, we don't want to spend
-      // time expiring on shutdown.  In such a case just expire session annotations.
+      // If we ran a clearHistory recently, we don't want to spend time
+      // expiring on shutdown, we can just expire session annotations.
       let hasRecentClearHistory =
         Date.now() - this._lastClearHistoryTime <
           SHUTDOWN_WITH_RECENT_CLEARHISTORY_TIMEOUT_SECONDS * 1000;
-      let action = hasRecentClearHistory ||
-                   this.status != STATUS.DIRTY ? ACTION.CLEAN_SHUTDOWN
-                                               : ACTION.SHUTDOWN;
+      let action = hasRecentClearHistory ? ACTION.CLEAN_SHUTDOWN
+                                         : ACTION.SHUTDOWN;
       this._expireWithActionAndLimit(action, LIMIT.LARGE);
+
       this._finalizeInternalStatements();
     }
     else if (aTopic == TOPIC_PREF_CHANGED) {
@@ -543,18 +517,16 @@ nsPlacesExpiration.prototype = {
       }
     }
     else if (aTopic == TOPIC_DEBUG_START_EXPIRATION) {
-      this._debugLimit = aData || -1; // Don't limit if unspecified.
+      this._debugLimit = aData;
       this._expireWithActionAndLimit(ACTION.DEBUG, LIMIT.DEBUG);
     }
     else if (aTopic == TOPIC_IDLE_BEGIN) {
-      // Stop the expiration timer.  We don't want to keep up expiring on idle
-      // to preserve batteries on mobile devices and avoid killing stand-by.
+      // Stop the expiration timer.
       if (this._timer) {
         this._timer.cancel();
         this._timer = null;
       }
-      if (this.expireOnIdle)
-        this._expireWithActionAndLimit(ACTION.IDLE, LIMIT.LARGE);
+      this._expireWithActionAndLimit(ACTION.IDLE, LIMIT.LARGE);
     }
     else if (aTopic == TOPIC_IDLE_END) {
       // Restart the expiration timer.
@@ -590,8 +562,7 @@ nsPlacesExpiration.prototype = {
   _lastClearHistoryTime: 0,
   onClearHistory: function PEX_onClearHistory() {
     this._lastClearHistoryTime = Date.now();
-    // Expire orphans.  History status is clean after a clear history.
-    this.status = STATUS.CLEAN;
+    // Expire orphans.
     this._expireWithActionAndLimit(ACTION.CLEAR_HISTORY, LIMIT.UNLIMITED);
   },
 
@@ -607,30 +578,15 @@ nsPlacesExpiration.prototype = {
 
   notify: function PEX_timerCallback()
   {
-    // Check if we are over history capacity, if so visits must be expired.
-    if (!this._cachedStatements["LIMIT_COUNT"]) {
-      this._cachedStatements["LIMIT_COUNT"] = this._db.createAsyncStatement(
-        "SELECT (SELECT COUNT(*) FROM moz_places_temp) + "
-      +        "(SELECT COUNT(*) FROM moz_places)"
-      );
+    // We don't start observing idle in the constructor because unit tests
+    // will run with a large idle, and notify it immediately, instead we start
+    // observing idle at the first timer notification.
+    if (!this._isIdleObserver) {
+      this._idle.addIdleObserver(this, IDLE_TIMEOUT_SECONDS);
+      this._isIdleObserver = true;
     }
-    let self = this;
-    this._cachedStatements["LIMIT_COUNT"].executeAsync({
-      handleResult: function(aResults) {
-        let row = aResults.getNextRow();
-        self._overLimit = row.getResultByIndex(0) > self._urisLimit;
-      },
-      handleCompletion: function (aReason) {
-        if (aReason != Ci.mozIStorageStatementCallback.REASON_FINISHED)
-          return;
-        let action = self._overLimit ? ACTION.TIMED_OVERLIMIT : ACTION.TIMED;
-        self._expireWithActionAndLimit(action, LIMIT.SMALL);
-      },
-      handleError: function(aError) {
-        Cu.reportError("Async statement execution returned with '" +
-                       aError.result + "', '" + aError.message + "'");
-      }
-    });
+
+    this._expireWithActionAndLimit(ACTION.TIMED, LIMIT.SMALL);
   },
 
   //////////////////////////////////////////////////////////////////////////////
@@ -638,45 +594,74 @@ nsPlacesExpiration.prototype = {
 
   handleResult: function PEX_handleResult(aResultSet)
   {
-    // We don't want to notify after shutdown.
-    if (this._shuttingDown)
-      return;
+    if (!("_expiredResults" in this))
+      this._expiredResults = {};
 
     let row;
     while (row = aResultSet.getNextRow()) {
-      if (!("_expectedResultsCount" in this))
-        this._expectedResultsCount = row.getResultByName("expected_results");
-      if (this._expectedResultsCount > 0)
-        this._expectedResultsCount--;
 
-      let uri = Services.io.newURI(row.getResultByName("url"), null, null);
-      let visitDate = row.getResultByName("visit_date");
+      this._expectedResultsCount = row.getResultByName("expected_results");
+
+      let url = row.getResultByName("url");
       let wholeEntry = row.getResultByName("whole_entry");
-      // Dispatch expiration notifications to history.
-      this._hsn.notifyOnPageExpired(uri, visitDate, wholeEntry);
+      let visitDate = row.getResultByName("visit_date");
+
+      if (url in this._expiredResults) {
+        this._expiredResults[url].wholeEntry |= wholeEntry;
+        this._expiredResults[url].visitDate =
+          Math.max(this._expiredResults[url].visitDate, visitDate);
+      }
+      else {
+        this._expiredResults[url] = {
+          visitDate: visitDate,
+          wholeEntry: wholeEntry,
+        };
+      }
     }
   },
 
   handleError: function PEX_handleError(aError)
   {
-    Cu.reportError("Async statement execution returned with '" +
-                   aError.result + "', '" + aError.message + "'");
+    Components.utils.reportError("Async statement execution returned with '" +
+                                 aError.result + "', '" + aError.message + "'");
   },
 
   handleCompletion: function PEX_handleCompletion(aReason)
   {
     if (aReason == Ci.mozIStorageStatementCallback.REASON_FINISHED) {
-      if ("_expectedResultsCount" in this) {
-        // Adapt the aggressivity of steps based on the status of history.
-        // A dirty history will return all the entries we are expecting bringing
-        // our countdown to zero, while a clean one will not.
-        this.status = this._expectedResultsCount == 0 ? STATUS.DIRTY
-                                                      : STATUS.CLEAN;
-        delete this._expectedResultsCount;
+      // Adapt the aggressivity of partial steps based on the status of history.
+      // A dirty history will return all the entries we are expecting, while a
+      // clean one will return less results or no results at all.
+      this._status = STATUS.UNKNOWN;
+      if ("_expectedResultsCount" in this && "_expiredResults" in this) {
+        let isClean = this._expiredResults.length < this._expectedResultsCount;
+        let status = isClean ? STATUS.CLEAN : STATUS.DIRTY;
+        // If status changes we should restart the timer.
+        if (this._status != status) {
+          this._newTimer();
+          this._status = status;
+        }
+      }
+      delete this._expectedResultsCount;
+
+      // Dispatch to history that we've finished expiring if we have results.
+      // We will notify just once per url
+      if ("_expiredResults" in this) {
+        if (!this._shuttingDown) {
+          // We don't want to notify after shutdown.
+          for (let expiredUrl in this._expiredResults) {
+            let entry = this._expiredResults[expiredUrl];
+            this._hsn.notifyOnPageExpired(
+              this._ios.newURI(expiredUrl, null, null),
+              entry.visitDate,
+              entry.wholeEntry);
+          }
+        }
+        delete this._expiredResults;
       }
 
       // Dispatch a notification that expiration has finished.
-      Services.obs.notifyObservers(null, TOPIC_EXPIRATION_FINISHED, null);
+      this._os.notifyObservers(null, TOPIC_EXPIRATION_FINISHED, null);
     }
   },
 
@@ -685,45 +670,9 @@ nsPlacesExpiration.prototype = {
 
   _urisLimit: PREF_MAX_URIS_NOTSET,
   _interval: PREF_INTERVAL_SECONDS_NOTSET,
-  _shuttingDown: false,
-
   _status: STATUS.UNKNOWN,
-  set status(aNewStatus) {
-    if (aNewStatus != this._status) {
-      // If status changes we should restart the timer.
-      this._status = aNewStatus;
-      this._newTimer();
-      // If needed add/remove the cleanup step on idle.  We want to expire on
-      // idle only if history is dirty, to preserve mobile devices batteries.
-      this.expireOnIdle = aNewStatus == STATUS.DIRTY;
-    }
-    return aNewStatus;
-  },
-  get status() this._status,
-
   _isIdleObserver: false,
-  _expireOnIdle: false,
-  set expireOnIdle(aExpireOnIdle) {
-    // Observe idle regardless, since we want to stop timed expiration.
-    if (!this._isIdleObserver && !this._shuttingDown) {
-      this._idle.addIdleObserver(this, IDLE_TIMEOUT_SECONDS);
-      this._isIdleObserver = true;
-    }
-    else if (this._isIdleObserver && this._shuttingDown) {
-      this._idle.removeIdleObserver(this, IDLE_TIMEOUT_SECONDS);
-      this._isIdleObserver = false;
-    }
-
-    // If running a debug expiration we need full control of what happens
-    // but idle cleanup could activate in the middle, since tinderboxes are
-    // permanently idle.  That would cause unexpected oranges, so disable it.
-    if (this._debugLimit !== undefined)
-      this._expireOnIdle = false;
-    else
-      this._expireOnIdle = aExpireOnIdle;
-    return this._expireOnIdle;
-  },
-  get expireOnIdle() this._expireOnIdle,
+  _shuttingDown: false,
 
   _loadPrefs: function PEX__loadPrefs() {
     // Get the user's limit, if it was set.
@@ -792,7 +741,7 @@ nsPlacesExpiration.prototype = {
     let boundStatements = [];
     for (let queryType in EXPIRATION_QUERIES) {
       if (EXPIRATION_QUERIES[queryType].actions & aAction)
-        boundStatements.push(this._getBoundStatement(queryType, aLimit, aAction));
+        boundStatements.push(this._getBoundStatement(queryType, aLimit));
     }
 
     // Execute statements asynchronously in a transaction.
@@ -818,17 +767,15 @@ nsPlacesExpiration.prototype = {
    * @param aLimit
    *        Whether to use small, large or no limits when expiring.  See the
    *        LIMIT const for values.
-   * @param aAction
-   *        Current action causing the expiration.  See the ACTION const.
    */
   _cachedStatements: {},
-  _getBoundStatement: function PEX__getBoundStatement(aQueryType, aLimit, aAction)
+  _getBoundStatement: function PEX__getBoundStatement(aQueryType, aLimit)
   {
     // Statements creation can be expensive, so we want to cache them.
     let stmt = this._cachedStatements[aQueryType];
     if (stmt === undefined) {
       stmt = this._cachedStatements[aQueryType] =
-        this._db.createAsyncStatement(EXPIRATION_QUERIES[aQueryType].sql);
+        this._db.createStatement(EXPIRATION_QUERIES[aQueryType].sql);
     }
 
     let baseLimit;
@@ -846,31 +793,40 @@ nsPlacesExpiration.prototype = {
         baseLimit = this._debugLimit;
         break;
     }
-    if (this.status == STATUS.DIRTY && aLimit != LIMIT.DEBUG)
+    if (this._status == STATUS.DIRTY && aLimit != LIMIT.DEBUG)
       baseLimit *= EXPIRE_AGGRESSIVITY_MULTIPLIER;
 
     // Bind the appropriate parameters.
     let params = stmt.params;
     switch (aQueryType) {
       case "QUERY_FIND_VISITS_TO_EXPIRE":
+      case "QUERY_EXPIRE_VISITS":
         params.max_uris = this._urisLimit;
         params.limit_visits = baseLimit;
         break;
       case "QUERY_FIND_URIS_TO_EXPIRE":
-        // We could run in the middle of adding a new visit or bookmark to
-        // a new page.  In such a case since we are async, we could end up
-        // expiring the page before it actually gets the visit or bookmark,
-        // thinking it's an orphan.  So we never expire the last added page
-        // when expiration does not run on user action.
-        if (aAction != ACTION.TIMED && aAction != ACTION.TIMED_OVERLIMIT &&
-            aAction != ACTION.IDLE) {
-          // NULL is automatically bound otherwise.
-          params.null_skips_last = -1;
+      case "QUERY_EXPIRE_URIS":
+        // We could run in the middle of an addVisit for a new page.  In such a
+        // case since we are async and addVisit is sync, we could end up
+        // expiring the page before it actually has any visit.
+        // This is a temporary workaround till addVisit will be async, we don't
+        // want to expire new pages added after this runs.
+        let max_place_id = MAX_INT64;
+        let maxPlaceIdStmt = this._db.createStatement(
+          "SELECT MAX(IFNULL((SELECT MAX(id) FROM moz_places_temp), 0), " +
+                     "IFNULL((SELECT MAX(id) FROM moz_places), 0) " +
+                    ") AS max_place_id");
+        try {
+          maxPlaceIdStmt.executeStep();
+          max_place_id = maxPlaceIdStmt.getInt64(0);
         }
+        catch(e) {}
+        finally {
+          maxPlaceIdStmt.finalize();
+        }
+
         params.limit_uris = baseLimit;
-        break;
-      case "QUERY_SILENT_EXPIRE_ORPHAN_URIS":
-        params.limit_uris = baseLimit;
+        params.last_place_id = max_place_id;
         break;
       case "QUERY_EXPIRE_FAVICONS":
         params.limit_favicons = baseLimit;
@@ -917,9 +873,7 @@ nsPlacesExpiration.prototype = {
   {
     if (this._timer)
       this._timer.cancel();
-    if (this._shuttingDown)
-      return;
-    let interval = this.status != STATUS.DIRTY ?
+    let interval = (this._status == STATUS.CLEAN) ?
       this._interval * EXPIRE_AGGRESSIVITY_MULTIPLIER : this._interval;
 
     let timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
@@ -931,7 +885,15 @@ nsPlacesExpiration.prototype = {
   //////////////////////////////////////////////////////////////////////////////
   //// nsISupports
 
+  classDescription: "Used to expire obsolete data from Places",
   classID: Components.ID("705a423f-2f69-42f3-b9fe-1517e0dee56f"),
+  contractID: "@mozilla.org/places/expiration;1",
+
+  // Registering in these categories makes us get initialized when either of
+  // those listeners would be notified.
+  _xpcom_categories: [
+    { category: "history-observers" },
+  ],
 
   _xpcom_factory: nsPlacesExpirationFactory,
 
@@ -947,4 +909,7 @@ nsPlacesExpiration.prototype = {
 //// Module Registration
 
 let components = [nsPlacesExpiration];
-var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+function NSGetModule(compMgr, fileSpec)
+{
+  return XPCOMUtils.generateModule(components);
+}

@@ -64,10 +64,12 @@ function run_test() {
 
   // Enable automatic app update so that after the failed partial is found the
   // complete update will start to download automatically.
-  Services.prefs.setBoolPref(PREF_APP_UPDATE_ENABLED, true);
-  Services.prefs.setBoolPref("browser.privatebrowsing.autostart", true);
+  gPref.setBoolPref(PREF_APP_UPDATE_ENABLED, true);
+  gPref.setBoolPref("browser.privatebrowsing.autostart", true);
 
-  do_execute_soon(run_test_pt1);
+  createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1.0", "2.0");
+  setDefaultPrefs();
+  do_timeout(0, run_test_pt1);
 }
 
 function end_test() {
@@ -104,8 +106,8 @@ function run_test_pt1() {
   dump("Testing: private browsing is auto-started\n");
   do_check_true(privBrowsing.autoStarted);
 
-  // Give private browsing time to reset necko.
-  do_execute_soon(run_test_pt2);
+  // Use a timeout to give private browsing time to reset necko.
+  do_timeout(0, run_test_pt2);
 }
 function run_test_pt2() {
   dump("Testing: update count should equal 1\n");

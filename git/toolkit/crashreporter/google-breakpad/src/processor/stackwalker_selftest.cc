@@ -62,7 +62,7 @@
     (defined(__i386__) || defined(__ppc__) || defined(__sparc__))
 
 
-#include <stdio.h>
+#include <cstdio>
 
 #include "google_breakpad/common/breakpad_types.h"
 #include "google_breakpad/common/minidump_format.h"

@@ -78,7 +78,10 @@ function run_test() {
     },
 
     doChecks: function ap1_check(text, realm) {
-      do_check_eq(this.scheme + "://" + host + " (" + info.realm + ")", realm);
+      if (this.scheme == "http")
+        do_check_eq(host + ":80 (" + info.realm + ")", realm);
+      else
+        do_check_eq(this.scheme + "://" + host, realm);
 
       do_check_neq(text.indexOf(host), -1);
       if (info.flags & nsIAuthInformation.ONLY_PASSWORD) {

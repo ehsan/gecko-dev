@@ -51,7 +51,7 @@
 class nsHTMLImageMapAccessible : public nsHTMLImageAccessibleWrap
 {
 public:
-  nsHTMLImageMapAccessible(nsIContent *aContent, nsIWeakReference *aShell,
+  nsHTMLImageMapAccessible(nsIDOMNode *aNode, nsIWeakReference *aShell,
                            nsIDOMHTMLMapElement *aMapElm);
 
   // nsISupports and cycle collector
@@ -81,10 +81,9 @@ private:
  */
 class nsHTMLAreaAccessible : public nsHTMLLinkAccessible
 {
-public:
-  using nsAccessible::GetChildAtPoint;
 
-  nsHTMLAreaAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+public:
+  nsHTMLAreaAccessible(nsIDOMNode *aNode, nsIWeakReference *aShell);
 
   // nsIAccessible
   NS_IMETHOD GetDescription(nsAString& aDescription);

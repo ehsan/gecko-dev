@@ -37,8 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozStorageStatementData_h
-#define mozStorageStatementData_h
+#ifndef _mozStorageStatementData_h_
+#define _mozStorageStatementData_h_
 
 #include "sqlite3.h"
 
@@ -129,7 +129,7 @@ public:
    * @return true if the statement has parameters to bind against, false
    *         otherwise.
    */
-  inline bool hasParametersToBeBound() const { return !!mParamsArray; }
+  inline bool hasParametersToBeBound() const { return mParamsArray != nsnull; }
   /**
    * Indicates if this statement needs a transaction for execution.
    *
@@ -154,4 +154,4 @@ private:
 } // namespace storage
 } // namespace mozilla
 
-#endif // mozStorageStatementData_h
+#endif // _mozStorageStatementData_h_

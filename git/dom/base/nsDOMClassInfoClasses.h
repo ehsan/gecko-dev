@@ -37,7 +37,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 DOMCI_CLASS(Window)
-DOMCI_CLASS(InnerWindow)
 DOMCI_CLASS(Location)
 DOMCI_CLASS(Navigator)
 DOMCI_CLASS(Plugin)
@@ -85,7 +84,6 @@ DOMCI_CLASS(HTMLOptionsCollection)
 DOMCI_CLASS(HTMLCollection)
 
 // HTML element classes
-DOMCI_CLASS(HTMLElement)
 DOMCI_CLASS(HTMLAnchorElement)
 DOMCI_CLASS(HTMLAppletElement)
 DOMCI_CLASS(HTMLAreaElement)
@@ -130,6 +128,7 @@ DOMCI_CLASS(HTMLPreElement)
 DOMCI_CLASS(HTMLQuoteElement)
 DOMCI_CLASS(HTMLScriptElement)
 DOMCI_CLASS(HTMLSelectElement)
+DOMCI_CLASS(HTMLSpacerElement)
 DOMCI_CLASS(HTMLSpanElement)
 DOMCI_CLASS(HTMLStyleElement)
 DOMCI_CLASS(HTMLTableCaptionElement)
@@ -142,7 +141,7 @@ DOMCI_CLASS(HTMLTextAreaElement)
 DOMCI_CLASS(HTMLTitleElement)
 DOMCI_CLASS(HTMLUListElement)
 DOMCI_CLASS(HTMLUnknownElement)
-DOMCI_CLASS(ValidityState)
+DOMCI_CLASS(HTMLWBRElement)
 
 // CSS classes
 DOMCI_CLASS(CSSStyleRule)
@@ -188,7 +187,6 @@ DOMCI_CLASS(CSSRect)
 
 // DOM Chrome Window class, almost identical to Window
 DOMCI_CLASS(ChromeWindow)
-DOMCI_CLASS(InnerChromeWindow)
 
 // RGBColor object used by getComputedStyle
 DOMCI_CLASS(CSSRGBColor)
@@ -240,7 +238,6 @@ DOMCI_CLASS(SVGAnimateTransformElement)
 DOMCI_CLASS(SVGAnimateMotionElement)
 DOMCI_CLASS(SVGMpathElement)
 DOMCI_CLASS(SVGSetElement)
-DOMCI_CLASS(TimeEvent)
 #endif // MOZ_SMIL
 DOMCI_CLASS(SVGCircleElement)
 DOMCI_CLASS(SVGClipPathElement)
@@ -408,7 +405,6 @@ DOMCI_CLASS(FileReader)
 
 // DOM modal content window class, almost identical to Window
 DOMCI_CLASS(ModalContentWindow)
-DOMCI_CLASS(InnerModalContentWindow)
 
 // Data Events
 DOMCI_CLASS(DataContainerEvent)
@@ -427,14 +423,11 @@ DOMCI_CLASS(GeoPositionError)
 DOMCI_CLASS(CSSFontFaceRule)
 DOMCI_CLASS(CSSFontFaceStyleDecl)
 
-#if defined(MOZ_MEDIA)
 // WhatWG Video Element
 DOMCI_CLASS(HTMLVideoElement)
 DOMCI_CLASS(HTMLSourceElement)
-DOMCI_CLASS(MediaError)
+DOMCI_CLASS(HTMLMediaError)
 DOMCI_CLASS(HTMLAudioElement)
-DOMCI_CLASS(TimeRanges)
-#endif
 
 DOMCI_CLASS(ProgressEvent)
 
@@ -447,11 +440,7 @@ DOMCI_CLASS(DataTransfer)
 
 DOMCI_CLASS(NotifyPaintEvent)
 
-DOMCI_CLASS(NotifyAudioAvailableEvent)
-
 DOMCI_CLASS(SimpleGestureEvent)
-
-DOMCI_CLASS(MozTouchEvent)
 
 #ifdef MOZ_MATHML
 DOMCI_CLASS(MathMLElement)
@@ -468,8 +457,6 @@ DOMCI_CLASS(WebGLProgram)
 DOMCI_CLASS(WebGLShader)
 DOMCI_CLASS(WebGLFramebuffer)
 DOMCI_CLASS(WebGLRenderbuffer)
-DOMCI_CLASS(WebGLUniformLocation)
-DOMCI_CLASS(WebGLActiveInfo)
 
 // WebGL Buffers
 DOMCI_CLASS(PaintRequest)
@@ -481,22 +468,5 @@ DOMCI_CLASS(PopStateEvent)
 DOMCI_CLASS(EventListenerInfo)
 
 DOMCI_CLASS(TransitionEvent)
-DOMCI_CLASS(ContentFrameMessageManager)
 
 DOMCI_CLASS(FormData)
-
-// WebSocket
-DOMCI_CLASS(WebSocket)
-DOMCI_CLASS(CloseEvent)
-
-DOMCI_CLASS(IDBFactory)
-DOMCI_CLASS(IDBRequest)
-DOMCI_CLASS(IDBDatabase)
-DOMCI_CLASS(IDBErrorEvent)
-DOMCI_CLASS(IDBSuccessEvent)
-DOMCI_CLASS(IDBTransactionEvent)
-DOMCI_CLASS(IDBObjectStore)
-DOMCI_CLASS(IDBTransaction)
-DOMCI_CLASS(IDBCursor)
-DOMCI_CLASS(IDBKeyRange)
-DOMCI_CLASS(IDBIndex)

@@ -51,7 +51,6 @@
 #include "nsIPrefBranch2.h"
 #include "BasicLayers.h"
 #include "LayerManagerOGL.h"
-#include "nsIXULRuntime.h"
 
 #ifdef DEBUG
 #include "nsIObserver.h"
@@ -96,9 +95,7 @@ nsAutoRollup::~nsAutoRollup()
 
 nsBaseWidget::nsBaseWidget()
 : mClientData(nsnull)
-, mViewWrapperPtr(nsnull)
 , mEventCallback(nsnull)
-, mViewCallback(nsnull)
 , mContext(nsnull)
 , mToolkit(nsnull)
 , mCursor(eCursor_standard)
@@ -111,7 +108,6 @@ nsBaseWidget::nsBaseWidget()
 , mClipRectCount(0)
 , mZIndex(0)
 , mSizeMode(nsSizeMode_Normal)
-, mPopupLevel(ePopupLevelTop)
 {
 #ifdef NOISY_WIDGET_LEAKS
   gNumWidgets++;
@@ -131,11 +127,6 @@ nsBaseWidget::nsBaseWidget()
 //-------------------------------------------------------------------------
 nsBaseWidget::~nsBaseWidget()
 {
-  if (mLayerManager &&
-      mLayerManager->GetBackendType() == LayerManager::LAYERS_BASIC) {
-    static_cast<BasicLayerManager*>(mLayerManager.get())->ClearRetainerWidget();
-  }
-
 #ifdef NOISY_WIDGET_LEAKS
   gNumWidgets--;
   printf("WIDGETS- = %d\n", gNumWidgets);
@@ -216,7 +207,6 @@ void nsBaseWidget::BaseCreate(nsIWidget *aParent,
   if (nsnull != aInitData) {
     mWindowType = aInitData->mWindowType;
     mBorderStyle = aInitData->mBorderStyle;
-    mPopupLevel = aInitData->mPopupLevel;
   }
 
   if (aParent) {
@@ -245,86 +235,6 @@ NS_IMETHODIMP nsBaseWidget::SetClientData(void* aClientData)
 {
   mClientData = aClientData;
   return NS_OK;
-}
-
-already_AddRefed<nsIWidget>
-nsBaseWidget::CreateChild(const nsIntRect  &aRect,
-                          EVENT_CALLBACK   aHandleEventFunction,
-                          nsIDeviceContext *aContext,
-                          nsIAppShell      *aAppShell,
-                          nsIToolkit       *aToolkit,
-                          nsWidgetInitData *aInitData,
-                          PRBool           aForceUseIWidgetParent)
-{
-  nsIWidget* parent = this;
-  nsNativeWidget nativeParent = nsnull;
-
-  if (!aForceUseIWidgetParent) {
-    // Use only either parent or nativeParent, not both, to match
-    // existing code.  Eventually Create() should be divested of its
-    // nativeWidget parameter.
-    nativeParent = parent ? parent->GetNativeData(NS_NATIVE_WIDGET) : nsnull;
-    parent = nativeParent ? nsnull : parent;
-    NS_ABORT_IF_FALSE(!parent || !nativeParent, "messed up logic");
-  }
-
-  nsCOMPtr<nsIWidget> widget;
-  if (aInitData && aInitData->mWindowType == eWindowType_popup) {
-    widget = AllocateChildPopupWidget();
-  } else {
-    static NS_DEFINE_IID(kCChildCID, NS_CHILD_CID);
-    widget = do_CreateInstance(kCChildCID);
-  }
-
-  if (widget &&
-      NS_SUCCEEDED(widget->Create(parent, nativeParent, aRect,
-                                  aHandleEventFunction,
-                                  aContext, aAppShell, aToolkit,
-                                  aInitData))) {
-    return widget.forget();
-  }
-
-  return nsnull;
-}
-
-// Attach a view to our widget which we'll send events to. 
-NS_IMETHODIMP
-nsBaseWidget::AttachViewToTopLevel(EVENT_CALLBACK aViewEventFunction,
-                                   nsIDeviceContext *aContext)
-{
-  NS_ASSERTION((mWindowType == eWindowType_toplevel), "Can't attach to child?");
-
-  mViewCallback = aViewEventFunction;
-
-  if (aContext) {
-    if (mContext) {
-      NS_IF_RELEASE(mContext);
-    }
-    mContext = aContext;
-    NS_ADDREF(mContext);
-  }
-
-  return NS_OK;
-}
-
-ViewWrapper* nsBaseWidget::GetAttachedViewPtr()
- {
-   return mViewWrapperPtr;
- }
- 
-NS_IMETHODIMP nsBaseWidget::SetAttachedViewPtr(ViewWrapper* aViewWrapper)
- {
-   mViewWrapperPtr = aViewWrapper;
-   return NS_OK;
- }
-
-NS_METHOD nsBaseWidget::ResizeClient(PRInt32 aX,
-                                     PRInt32 aY,
-                                     PRInt32 aWidth,
-                                     PRInt32 aHeight,
-                                     PRBool aRepaint)
-{
-  return Resize(aX, aY, aWidth, aHeight, aRepaint);
 }
 
 //-------------------------------------------------------------------------
@@ -390,16 +300,6 @@ nsIWidget* nsBaseWidget::GetTopLevelWidget()
 nsIWidget* nsBaseWidget::GetSheetWindowParent(void)
 {
   return nsnull;
-}
-
-float nsBaseWidget::GetDPI()
-{
-  return 96.0f;
-}
-
-double nsBaseWidget::GetDefaultScale()
-{
-  return 1.0;
 }
 
 //-------------------------------------------------------------------------
@@ -534,8 +434,9 @@ NS_IMETHODIMP nsBaseWidget::PlaceBehind(nsTopLevelWidgetZPlacement aPlacement,
 // merely stores the state.
 //
 //-------------------------------------------------------------------------
-NS_IMETHODIMP nsBaseWidget::SetSizeMode(PRInt32 aMode)
-{
+NS_IMETHODIMP nsBaseWidget::SetSizeMode(PRInt32 aMode) {
+
+
   if (aMode == nsSizeMode_Normal ||
       aMode == nsSizeMode_Minimized ||
       aMode == nsSizeMode_Maximized ||
@@ -552,8 +453,8 @@ NS_IMETHODIMP nsBaseWidget::SetSizeMode(PRInt32 aMode)
 // Get the size mode (minimized, maximized, that sort of thing...)
 //
 //-------------------------------------------------------------------------
-NS_IMETHODIMP nsBaseWidget::GetSizeMode(PRInt32* aMode)
-{
+NS_IMETHODIMP nsBaseWidget::GetSizeMode(PRInt32* aMode) {
+
   *aMode = mSizeMode;
   return NS_OK;
 }
@@ -734,8 +635,7 @@ NS_IMETHODIMP nsBaseWidget::MakeFullScreen(PRBool aFullScreen)
 }
 
 nsBaseWidget::AutoLayerManagerSetup::AutoLayerManagerSetup(
-    nsBaseWidget* aWidget, gfxContext* aTarget,
-    BasicLayerManager::BufferMode aDoubleBuffering)
+    nsBaseWidget* aWidget, gfxContext* aTarget)
   : mWidget(aWidget)
 {
   BasicLayerManager* manager =
@@ -743,7 +643,7 @@ nsBaseWidget::AutoLayerManagerSetup::AutoLayerManagerSetup(
   if (manager) {
     NS_ASSERTION(manager->GetBackendType() == LayerManager::LAYERS_BASIC,
       "AutoLayerManagerSetup instantiated for non-basic layer backend!");
-    manager->SetDefaultTarget(aTarget, aDoubleBuffering);
+    manager->SetDefaultTarget(aTarget);
   }
 }
 
@@ -754,35 +654,13 @@ nsBaseWidget::AutoLayerManagerSetup::~AutoLayerManagerSetup()
   if (manager) {
     NS_ASSERTION(manager->GetBackendType() == LayerManager::LAYERS_BASIC,
       "AutoLayerManagerSetup instantiated for non-basic layer backend!");
-    manager->SetDefaultTarget(nsnull, BasicLayerManager::BUFFER_NONE);
+    manager->SetDefaultTarget(nsnull);
   }
 }
 
 LayerManager* nsBaseWidget::GetLayerManager()
 {
   if (!mLayerManager) {
-    nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-
-    PRBool disableAcceleration = PR_FALSE;
-    PRBool accelerateByDefault = PR_TRUE;
-
-    if (prefs) {
-      prefs->GetBoolPref("layers.accelerate-all",
-                         &accelerateByDefault);
-      prefs->GetBoolPref("layers.accelerate-none",
-                         &disableAcceleration);
-    }
-
-    nsCOMPtr<nsIXULRuntime> xr = do_GetService("@mozilla.org/xre/runtime;1");
-    PRBool safeMode = PR_FALSE;
-    if (xr)
-      xr->GetInSafeMode(&safeMode);
-
-    if (disableAcceleration || safeMode)
-      mUseAcceleratedRendering = PR_FALSE;
-    else if (accelerateByDefault)
-      mUseAcceleratedRendering = PR_TRUE;
-
     if (mUseAcceleratedRendering) {
       nsRefPtr<LayerManagerOGL> layerManager =
         new mozilla::layers::LayerManagerOGL(this);
@@ -798,7 +676,7 @@ LayerManager* nsBaseWidget::GetLayerManager()
       }
     }
     if (!mLayerManager) {
-      mLayerManager = new BasicLayerManager(this);
+      mLayerManager = new BasicLayerManager(nsnull);
     }
   }
   return mLayerManager;
@@ -855,12 +733,6 @@ NS_METHOD nsBaseWidget::SetWindowClass(const nsAString& xulWinType)
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-//-------------------------------------------------------------------------
-//
-// Bounds
-//
-//-------------------------------------------------------------------------
-
 /**
 * If the implementation of nsWindow supports borders this method MUST be overridden
 *
@@ -890,29 +762,18 @@ NS_METHOD nsBaseWidget::GetScreenBounds(nsIntRect &aRect)
   return GetBounds(aRect);
 }
 
-nsIntPoint nsBaseWidget::GetClientOffset()
-{
-  return nsIntPoint(0, 0);
-}
-
+/**
+* 
+*
+**/
 NS_METHOD nsBaseWidget::SetBounds(const nsIntRect &aRect)
 {
   mBounds = aRect;
 
   return NS_OK;
 }
-
-NS_IMETHODIMP
-nsBaseWidget::GetNonClientMargins(nsIntMargin &margins)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
  
-NS_IMETHODIMP
-nsBaseWidget::SetNonClientMargins(nsIntMargin &margins)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
+
 
 NS_METHOD nsBaseWidget::EnableDragDrop(PRBool aEnable)
 {
@@ -988,16 +849,6 @@ PRBool
 nsBaseWidget::GetAcceleratedRendering()
 {
   return mUseAcceleratedRendering;
-}
-
-NS_METHOD nsBaseWidget::RegisterTouchWindow()
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_METHOD nsBaseWidget::UnregisterTouchWindow()
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -1116,13 +967,118 @@ nsBaseWidget::BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 a
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
-
-NS_IMETHODIMP
-nsBaseWidget::BeginMoveDrag(nsMouseEvent* aEvent)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
  
+//////////////////////////////////////////////////////////////
+//
+// Code to sort rectangles for scrolling.
+//
+// The algorithm used here is similar to that described at
+// http://weblogs.mozillazine.org/roc/archives/2009/08/homework_answer.html
+//
+//////////////////////////////////////////////////////////////
+
+void
+ScrollRectIterBase::BaseInit(const nsIntPoint& aDelta, ScrollRect* aHead)
+{
+  mHead = aHead;
+  // Reflect the coordinate system of the rectangles so that we can assume
+  // that rectangles are moving in the direction of decreasing x and y.
+  Flip(aDelta);
+
+  // Do an initial sort of the rectangles by y and then reverse-x.
+  // nsRegion does not guarantee yx-banded rectangles but still tends to
+  // prefer breaking up rectangles vertically and joining horizontally, so
+  // tends to have fewer rectangles across x than down y, making this
+  // algorithm more efficient for rectangles from nsRegion when y is the
+  // primary sort parameter.
+  ScrollRect* unmovedHead; // chain of unmoved rectangles
+  {
+    nsTArray<ScrollRect*> array;
+    for (ScrollRect* r = mHead; r; r = r->mNext) {
+      array.AppendElement(r);
+    }
+    array.Sort(InitialSortComparator());
+
+    ScrollRect *next = nsnull;
+    for (PRUint32 i = array.Length(); i--; ) {
+      array[i]->mNext = next;
+      next = array[i];
+    }
+    unmovedHead = next;
+    // mHead becomes the start of the moved chain.
+    mHead = nsnull;
+  }
+
+  // Try to move each rect from an unmoved chain to the moved chain.
+  mTailLink = &mHead;
+  while (unmovedHead) {
+    // Move() will check for other rectangles that might need to be moved first
+    // and move them also.
+    Move(&unmovedHead);
+  }
+
+  // Reflect back to the original coordinate system.
+  Flip(aDelta);
+}
+
+void ScrollRectIterBase::Move(ScrollRect** aUnmovedLink)
+{
+  ScrollRect* rect = *aUnmovedLink;
+  // Remove rect from the unmoved chain.
+  *aUnmovedLink = rect->mNext;
+  rect->mNext = nsnull;
+
+  // Check subsequent rectangles that overlap vertically to see whether they
+  // might need to be moved first.
+  //
+  // The overlapping subsequent rectangles that are not moved this time get
+  // checked for each of their preceding unmoved overlapping rectangles,
+  // which adds an O(n^2) cost to this algorithm (where n is the number of
+  // rectangles across x).  The reverse-x ordering from InitialSortComparator
+  // avoids this for the case when rectangles are aligned in y.
+  for (ScrollRect** nextLink = aUnmovedLink; *nextLink; ) {
+    ScrollRect* otherRect = *nextLink;
+    NS_ASSERTION(otherRect->y >= rect->y, "Scroll rectangles out of order");
+    if (otherRect->y >= rect->YMost()) // doesn't overlap vertically
+      break;
+
+    // This only moves the other rectangle first if it is entirely to the
+    // left.  No promises are made regarding intersecting rectangles.  Moving
+    // another intersecting rectangle with merely x < rect->x (but XMost() >
+    // rect->x) can cause more conflicts between rectangles that do not
+    // intersect each other.
+    if (otherRect->XMost() <= rect->x) {
+      Move(nextLink);
+      // *nextLink now points to a subsequent rectangle.
+    } else {
+      // Step over otherRect for now.
+      nextLink = &otherRect->mNext;
+    }
+  }
+
+  // Add rect to the moved chain.
+  *mTailLink = rect;
+  mTailLink = &rect->mNext;
+}
+
+BlitRectIter::BlitRectIter(const nsIntPoint& aDelta,
+                           const nsTArray<nsIntRect>& aRects)
+    : mRects(aRects.Length())
+{
+    for (PRUint32 i = 0; i < aRects.Length(); ++i) {
+        mRects.AppendElement(aRects[i]);
+    }
+
+    // Link rectangles into a chain.
+    ScrollRect *next = nsnull;
+    for (PRUint32 i = mRects.Length(); i--; ) {
+        mRects[i].mNext = next;
+        next = &mRects[i];
+    }
+
+    BaseInit(aDelta, next);
+}
+
 #ifdef DEBUG
 //////////////////////////////////////////////////////////////
 //
@@ -1147,6 +1103,7 @@ case _value: eventName.AssignWithConversion(_name) ; break
   switch(aGuiEvent->message)
   {
     _ASSIGN_eventName(NS_BLUR_CONTENT,"NS_BLUR_CONTENT");
+    _ASSIGN_eventName(NS_CONTROL_CHANGE,"NS_CONTROL_CHANGE");
     _ASSIGN_eventName(NS_CREATE,"NS_CREATE");
     _ASSIGN_eventName(NS_DESTROY,"NS_DESTROY");
     _ASSIGN_eventName(NS_DRAGDROP_GESTURE,"NS_DND_GESTURE");
@@ -1165,6 +1122,7 @@ case _value: eventName.AssignWithConversion(_name) ; break
     _ASSIGN_eventName(NS_KEY_DOWN,"NS_KEY_DOWN");
     _ASSIGN_eventName(NS_KEY_PRESS,"NS_KEY_PRESS");
     _ASSIGN_eventName(NS_KEY_UP,"NS_KEY_UP");
+    _ASSIGN_eventName(NS_MENU_SELECTED,"NS_MENU_SELECTED");
     _ASSIGN_eventName(NS_MOUSE_ENTER,"NS_MOUSE_ENTER");
     _ASSIGN_eventName(NS_MOUSE_EXIT,"NS_MOUSE_EXIT");
     _ASSIGN_eventName(NS_MOUSE_BUTTON_DOWN,"NS_MOUSE_BUTTON_DOWN");
@@ -1177,7 +1135,6 @@ case _value: eventName.AssignWithConversion(_name) ; break
     _ASSIGN_eventName(NS_POPSTATE,"NS_POPSTATE");
     _ASSIGN_eventName(NS_PAGE_UNLOAD,"NS_PAGE_UNLOAD");
     _ASSIGN_eventName(NS_HASHCHANGE,"NS_HASHCHANGE");
-    _ASSIGN_eventName(NS_READYSTATECHANGE,"NS_READYSTATECHANGE");
     _ASSIGN_eventName(NS_PAINT,"NS_PAINT");
     _ASSIGN_eventName(NS_XUL_BROADCAST, "NS_XUL_BROADCAST");
     _ASSIGN_eventName(NS_XUL_COMMAND_UPDATE, "NS_XUL_COMMAND_UPDATE");
@@ -1401,15 +1358,12 @@ nsBaseWidget::debug_DumpPaintEvent(FILE *                aFileOut,
   if (!debug_GetCachedBoolPref("nglayout.debug.paint_dumping"))
     return;
   
-  nsIntRect rect = aPaintEvent->region.GetBounds();
   fprintf(aFileOut,
-          "%4d PAINT      widget=%p name=%-12s id=%-8p bounds-rect=%3d,%-3d %3d,%-3d", 
+          "%4d PAINT      widget=%p name=%-12s id=%-8p rect=", 
           _GetPrintCount(),
           (void *) aWidget,
           aWidgetName.get(),
-          (void *) aWindowID,
-          rect.x, rect.y, rect.width, rect.height
-    );
+          (void *) aWindowID);
   
   fprintf(aFileOut,"\n");
 }

@@ -44,7 +44,6 @@ var httpServer = new nsHttpServer();
 const POLICY_FROM_URI = "allow 'self'; img-src *";
 const POLICY_PORT = 9000;
 const POLICY_URI = "http://localhost:" + POLICY_PORT + "/policy";
-const POLICY_URI_RELATIVE = "/policy";
 
 // helper to assert that an object or array must have a given key
 function do_check_has_key(foo, key, stack) {
@@ -351,7 +350,8 @@ test(
 
       var cspr;
       var SD = CSPRep.SRC_DIRECTIVES;
-      var DEFAULTS = [SD.STYLE_SRC, SD.MEDIA_SRC, SD.IMG_SRC, SD.FRAME_SRC];
+      var DEFAULTS = [SD.STYLE_SRC, SD.MEDIA_SRC, SD.IMG_SRC,
+                      SD.FRAME_ANCESTORS, SD.FRAME_SRC];
 
       // check one-directive policies
       cspr = CSPRep.fromString("allow bar.com; script-src https://foo.com", 
@@ -377,7 +377,7 @@ test(
     function test_CSPRep_fromString_twodir() {
       var cspr;
       var SD = CSPRep.SRC_DIRECTIVES;
-      var DEFAULTS = [SD.STYLE_SRC, SD.MEDIA_SRC, SD.FRAME_SRC];
+      var DEFAULTS = [SD.STYLE_SRC, SD.MEDIA_SRC, SD.FRAME_ANCESTORS, SD.FRAME_SRC];
 
       // check two-directive policies
       var polstr = "allow allow.com; "
@@ -448,51 +448,6 @@ test(function test_CSPRep_fromPolicyURI() {
                               cspr_static._directives[SD[i]]);
         }
     });
-
-test(function test_CSPRep_fromRelativePolicyURI() {
-        var cspr;
-        var SD = CSPRep.SRC_DIRECTIVES;
-        var self = "http://localhost:" + POLICY_PORT;
-
-        cspr = CSPRep.fromString("policy-uri " + POLICY_URI_RELATIVE, self);
-        cspr_static = CSPRep.fromString(POLICY_FROM_URI, self);
-
-        //"policy-uri failed to load"
-        do_check_neq(null,cspr);
-
-        // other directives inherit self
-        for(var i in SD) {
-          //SD[i] + " parsed wrong from policy uri"
-          do_check_equivalent(cspr._directives[SD[i]],
-                              cspr_static._directives[SD[i]]);
-        }
-    });
-
-//////////////// TEST FRAME ANCESTOR DEFAULTS /////////////////
-// (see bug 555068)
-test(function test_FrameAncestor_defaults() {
-      var cspr;
-      var SD = CSPRep.SRC_DIRECTIVES;
-      var self = "http://self.com:34";
-
-      cspr = CSPRep.fromString("allow 'none'", self);
-
-      //"frame-ancestors should default to * not 'allow' value"
-      do_check_true(cspr.permits("https://foo.com:400", SD.FRAME_ANCESTORS));
-      do_check_true(cspr.permits("http://self.com:34", SD.FRAME_ANCESTORS));
-      do_check_true(cspr.permits("https://self.com:34", SD.FRAME_ANCESTORS));
-      do_check_true(cspr.permits("http://self.com", SD.FRAME_ANCESTORS));
-      do_check_true(cspr.permits("http://subd.self.com:34", SD.FRAME_ANCESTORS));
-
-      cspr = CSPRep.fromString("allow 'none'; frame-ancestors 'self'", self);
-
-      //"frame-ancestors should only allow self"
-      do_check_true(cspr.permits("http://self.com:34", SD.FRAME_ANCESTORS));
-      do_check_false(cspr.permits("https://foo.com:400", SD.FRAME_ANCESTORS));
-      do_check_false(cspr.permits("https://self.com:34", SD.FRAME_ANCESTORS));
-      do_check_false(cspr.permits("http://self.com", SD.FRAME_ANCESTORS));
-      do_check_false(cspr.permits("http://subd.self.com:34", SD.FRAME_ANCESTORS));
-     });
 /*
 
 test(function test_CSPRep_fromPolicyURI_failswhenmixed() {

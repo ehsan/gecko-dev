@@ -82,7 +82,6 @@
 #include "nsISound.h"
 #include "nsEventStateManager.h"
 #include "nsIDOMXULMenuListElement.h"
-#include "mozilla/Services.h"
 
 #define NS_MENU_POPUP_LIST_INDEX 0
 
@@ -153,37 +152,6 @@ private:
   PRBool mIsActivate;
 };
 
-class nsMenuAttributeChangedEvent : public nsRunnable
-{
-public:
-  nsMenuAttributeChangedEvent(nsIFrame* aFrame, nsIAtom* aAttr)
-  : mFrame(aFrame), mAttr(aAttr)
-  {
-  }
-
-  NS_IMETHOD Run()
-  {
-    nsMenuFrame* frame = static_cast<nsMenuFrame*>(mFrame.GetFrame());
-    NS_ENSURE_STATE(frame);
-    if (mAttr == nsGkAtoms::checked) {
-      frame->UpdateMenuSpecialState(frame->PresContext());
-    } else if (mAttr == nsGkAtoms::acceltext) {
-      // someone reset the accelText attribute,
-      // so clear the bit that says *we* set it
-      frame->AddStateBits(NS_STATE_ACCELTEXT_IS_DERIVED);
-      frame->BuildAcceleratorText();
-    } else if (mAttr == nsGkAtoms::key) {
-      frame->BuildAcceleratorText();
-    } else if (mAttr == nsGkAtoms::type || mAttr == nsGkAtoms::name) {
-      frame->UpdateMenuType(frame->PresContext());
-    }
-    return NS_OK;
-  }
-protected:
-  nsWeakFrame       mFrame;
-  nsCOMPtr<nsIAtom> mAttr;
-};
-
 //
 // NS_NewMenuFrame and NS_NewMenuItemFrame
 //
@@ -232,11 +200,12 @@ nsMenuFrame::nsMenuFrame(nsIPresShell* aShell, nsStyleContext* aContext):
 
 } // cntr
 
-void
-nsMenuFrame::SetParent(nsIFrame* aParent)
+NS_IMETHODIMP
+nsMenuFrame::SetParent(const nsIFrame* aParent)
 {
   nsBoxFrame::SetParent(aParent);
-  InitMenuParent(aParent);
+  InitMenuParent(const_cast<nsIFrame *>(aParent));
+  return NS_OK;
 }
 
 void
@@ -302,13 +271,13 @@ nsMenuFrame::Init(nsIContent*      aContent,
 
   //load the display strings for the keyboard accelerators, but only once
   if (gRefCnt++ == 0) {
-    nsCOMPtr<nsIStringBundleService> bundleService =
-      mozilla::services::GetStringBundleService();
+    
+    nsCOMPtr<nsIStringBundleService> bundleService(do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv));
     nsCOMPtr<nsIStringBundle> bundle;
-    if (bundleService) {
+    if (NS_SUCCEEDED(rv) && bundleService) {
       rv = bundleService->CreateBundle( "chrome://global-platform/locale/platformKeys.properties",
                                         getter_AddRefs(bundle));
-    }
+    }    
     
     NS_ASSERTION(NS_SUCCEEDED(rv) && bundle, "chrome://global/locale/platformKeys.properties could not be loaded");
     nsXPIDLString shiftModifier;
@@ -699,16 +668,20 @@ nsMenuFrame::AttributeChanged(PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
                               PRInt32 aModType)
 {
+  nsAutoString value;
 
-  if (aAttribute == nsGkAtoms::checked ||
-      aAttribute == nsGkAtoms::acceltext ||
-      aAttribute == nsGkAtoms::key ||
-      aAttribute == nsGkAtoms::type ||
-      aAttribute == nsGkAtoms::name) {
-    nsCOMPtr<nsIRunnable> event =
-      new nsMenuAttributeChangedEvent(this, aAttribute);
-    nsContentUtils::AddScriptRunner(event);
-  }
+  if (aAttribute == nsGkAtoms::checked) {
+    if (mType != eMenuType_Normal)
+        UpdateMenuSpecialState(PresContext());
+  } else if (aAttribute == nsGkAtoms::acceltext) {
+    // someone reset the accelText attribute, so clear the bit that says *we* set it
+    AddStateBits(NS_STATE_ACCELTEXT_IS_DERIVED);
+    BuildAcceleratorText();
+  } else if (aAttribute == nsGkAtoms::key) {
+    BuildAcceleratorText();
+  } else if (aAttribute == nsGkAtoms::type || aAttribute == nsGkAtoms::name)
+    UpdateMenuType(PresContext());
+
   return NS_OK;
 }
 
@@ -773,9 +746,55 @@ nsMenuFrame::DoLayout(nsBoxLayoutState& aState)
   // lay us out
   nsresult rv = nsBoxFrame::DoLayout(aState);
 
+  // layout the popup. First we need to get it.
   if (mPopupFrame) {
     PRBool sizeToPopup = IsSizedToPopup(mContent, PR_FALSE);
-    mPopupFrame->LayoutPopup(aState, this, sizeToPopup);
+    // then get its preferred size
+    nsSize prefSize = mPopupFrame->GetPrefSize(aState);
+    nsSize minSize = mPopupFrame->GetMinSize(aState); 
+    nsSize maxSize = mPopupFrame->GetMaxSize(aState);
+
+    prefSize = BoundsCheck(minSize, prefSize, maxSize);
+
+    if (sizeToPopup)
+        prefSize.width = mRect.width;
+
+    // if the pref size changed then set bounds to be the pref size
+    PRBool sizeChanged = (mPopupFrame->PreferredSize() != prefSize);
+    if (sizeChanged) {
+      mPopupFrame->SetPreferredBounds(aState, nsRect(0,0,prefSize.width, prefSize.height));
+    }
+
+    // if the menu has just been opened, or its size changed, position
+    // the popup. The flag that the popup checks in the HasOpenChanged
+    // method will get cleared in AdjustView which is called below.
+    if (IsOpen() && (sizeChanged || mPopupFrame->HasOpenChanged()))
+      mPopupFrame->SetPopupPosition(this, PR_FALSE);
+
+    // is the new size too small? Make sure we handle scrollbars correctly
+    nsIBox* child = mPopupFrame->GetChildBox();
+
+    nsRect bounds(mPopupFrame->GetRect());
+
+    nsIScrollableFrame *scrollframe = do_QueryFrame(child);
+    if (scrollframe &&
+        scrollframe->GetScrollbarStyles().mVertical == NS_STYLE_OVERFLOW_AUTO) {
+      if (bounds.height < prefSize.height) {
+        // layout the child
+        mPopupFrame->Layout(aState);
+
+        nsMargin scrollbars = scrollframe->GetActualScrollbarSizes();
+        if (bounds.width < prefSize.width + scrollbars.left + scrollbars.right)
+        {
+          bounds.width += scrollbars.left + scrollbars.right;
+          mPopupFrame->SetBounds(aState, bounds);
+        }
+      }
+    }
+
+    // layout the child
+    mPopupFrame->Layout(aState);
+    mPopupFrame->AdjustView();
   }
 
   return rv;
@@ -1041,12 +1060,13 @@ nsMenuFrame::BuildAcceleratorText()
     return;
 
   // Turn the document into a DOM document so we can use getElementById
-  nsIDocument *document = mContent->GetDocument();
-  if (!document)
+  nsCOMPtr<nsIDOMDocument> domDocument(do_QueryInterface(mContent->GetDocument()));
+  if (!domDocument)
     return;
 
-  nsIContent *keyElement = document->GetElementById(keyValue);
-  if (!keyElement) {
+  nsCOMPtr<nsIDOMElement> keyDOMElement;
+  domDocument->GetElementById(keyValue, getter_AddRefs(keyDOMElement));
+  if (!keyDOMElement) {
 #ifdef DEBUG
     nsAutoString label;
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::label, label);
@@ -1059,6 +1079,10 @@ nsMenuFrame::BuildAcceleratorText()
 #endif
     return;
   }
+
+  nsCOMPtr<nsIContent> keyElement(do_QueryInterface(keyDOMElement));
+  if (!keyElement)
+    return;
 
   // get the string to display as accelerator text
   // check the key element's attributes in this order:
@@ -1077,9 +1101,8 @@ nsMenuFrame::BuildAcceleratorText()
       ToUpperCase(keyCode);
 
       nsresult rv;
-      nsCOMPtr<nsIStringBundleService> bundleService =
-        mozilla::services::GetStringBundleService();
-      if (bundleService) {
+      nsCOMPtr<nsIStringBundleService> bundleService(do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv));
+      if (NS_SUCCEEDED(rv) && bundleService) {
         nsCOMPtr<nsIStringBundle> bundle;
         rv = bundleService->CreateBundle("chrome://global/locale/keys.properties",
                                          getter_AddRefs(bundle));

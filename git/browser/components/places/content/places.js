@@ -331,7 +331,7 @@ var PlacesOrganizer = {
   onTreeFocus: function PO_onTreeFocus(aEvent) {
     var currentView = aEvent.currentTarget;
     var selectedNodes = currentView.selectedNode ? [currentView.selectedNode] :
-                        this._content.selectedNodes;
+                        this._content.getSelectionNodes();
     this._fillDetailsPane(selectedNodes);
   },
 
@@ -351,7 +351,7 @@ var PlacesOrganizer = {
    * main places pane.
    */
   getCurrentOptions: function PO_getCurrentOptions() {
-    return PlacesUtils.asQuery(this._content.result.root).queryOptions;
+    return PlacesUtils.asQuery(this._content.getResult().root).queryOptions;
   },
 
   /**
@@ -359,7 +359,7 @@ var PlacesOrganizer = {
    * main places pane.
    */
   getCurrentQueries: function PO_getCurrentQueries() {
-    return PlacesUtils.asQuery(this._content.result.root).getQueries();
+    return PlacesUtils.asQuery(this._content.getResult().root).getQueries();
   },
 
   /**
@@ -391,7 +391,8 @@ var PlacesOrganizer = {
       if (fp.file) {
         var importer = Cc["@mozilla.org/browser/places/import-export-service;1"].
                        getService(Ci.nsIPlacesImportExportService);
-        importer.importHTMLFromFile(fp.file, false);
+        var file = fp.file.QueryInterface(Ci.nsILocalFile);
+        importer.importHTMLFromFile(file, false);
       }
     }
   },
@@ -608,7 +609,7 @@ var PlacesOrganizer = {
 
   onContentTreeSelect: function PO_onContentTreeSelect() {
     if (this._content.treeBoxObject.focused)
-      this._fillDetailsPane(this._content.selectedNodes);
+      this._fillDetailsPane(this._content.getSelectionNodes());
   },
 
   _fillDetailsPane: function PO__fillDetailsPane(aNodeList) {
@@ -1285,7 +1286,7 @@ var ViewMenu = {
    * If both aColumnID and aDirection are null, the view will be unsorted.
    */
   setSortColumn: function VM_setSortColumn(aColumn, aDirection) {
-    var result = document.getElementById("placeContent").result;
+    var result = document.getElementById("placeContent").getResult();
     if (!aColumn && !aDirection) {
       result.sortingMode = Ci.nsINavHistoryQueryOptions.SORT_BY_NONE;
       return;

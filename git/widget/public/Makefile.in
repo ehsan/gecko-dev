@@ -46,12 +46,6 @@ MODULE		= widget
 XPIDL_MODULE	= widget
 GRE_MODULE	= 1
 
-EXPORTS_NAMESPACES = IPC
-
-EXPORTS_IPC = \
-		nsGUIEventIPC.h \
-		$(NULL)
-
 EXPORTS		= \
 		nsIWidget.h \
 		nsGUIEvent.h \
@@ -90,6 +84,7 @@ EXPORTS		+= \
 endif
 
 XPIDLSRCS	= \
+		nsIAccelerometer.idl \
 		nsIAppShell.idl \
 		nsIFilePicker.idl \
 		nsIToolkit.idl \
@@ -112,7 +107,6 @@ XPIDLSRCS	= \
 		nsIPrintSettingsService.idl \
 		nsIPrintOptions.idl \
 		nsIIdleService.idl \
-		nsIGfxInfo.idl \
 		$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)

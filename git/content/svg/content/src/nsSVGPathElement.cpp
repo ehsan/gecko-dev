@@ -48,7 +48,6 @@
 #include "nsSVGUtils.h"
 #include "nsSVGPoint.h"
 #include "gfxContext.h"
-#include "gfxPlatform.h"
 
 nsSVGElement::NumberInfo nsSVGPathElement::sNumberInfo = 
                                                   { &nsGkAtoms::pathLength, 0 };
@@ -61,7 +60,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Path)
 NS_IMPL_ADDREF_INHERITED(nsSVGPathElement,nsSVGPathElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGPathElement,nsSVGPathElementBase)
 
-DOMCI_NODE_DATA(SVGPathElement, nsSVGPathElement)
+DOMCI_DATA(SVGPathElement, nsSVGPathElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGPathElement)
   NS_NODE_INTERFACE_TABLE5(nsSVGPathElement, nsIDOMNode, nsIDOMElement,
@@ -73,7 +72,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGPathElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGPathElement::nsSVGPathElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGPathElement::nsSVGPathElement(nsINodeInfo* aNodeInfo)
   : nsSVGPathElementBase(aNodeInfo)
 {
 }
@@ -1042,7 +1041,7 @@ nsSVGPathList::Playback(gfxContext *aCtx)
 already_AddRefed<gfxFlattenedPath>
 nsSVGPathList::GetFlattenedPath(const gfxMatrix& aMatrix)
 {
-  gfxContext ctx(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
+  gfxContext ctx(nsSVGUtils::GetThebesComputationalSurface());
 
   ctx.SetMatrix(aMatrix);
   Playback(&ctx);

@@ -66,8 +66,8 @@ class nsHTMLSharedObjectElement : public nsGenericHTMLElement,
 #endif
 {
 public:
-  nsHTMLSharedObjectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                            PRUint32 aFromParser = 0);
+  nsHTMLSharedObjectElement(nsINodeInfo *aNodeInfo,
+                            PRBool aFromParser = PR_FALSE);
   virtual ~nsHTMLSharedObjectElement();
 
   // nsISupports
@@ -110,7 +110,7 @@ public:
 
   NS_IMETHOD GetTabIndex(PRInt32 *aTabIndex);
   NS_IMETHOD SetTabIndex(PRInt32 aTabIndex);
-  virtual PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex);
+  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
   virtual PRUint32 GetDesiredIMEState();
 
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
@@ -137,11 +137,6 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLSharedObjectElement,
                                                      nsGenericHTMLElement)
 
-  virtual nsXPCClassInfo* GetClassInfo()
-  {
-    return static_cast<nsXPCClassInfo*>(GetClassInfoInternal());
-  }
-  nsIClassInfo* GetClassInfoInternal();
 private:
   /**
    * Calls LoadObject with the correct arguments to start the plugin load.
@@ -177,10 +172,10 @@ private:
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(SharedObject)
 
 
-nsHTMLSharedObjectElement::nsHTMLSharedObjectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                                     PRUint32 aFromParser)
+nsHTMLSharedObjectElement::nsHTMLSharedObjectElement(nsINodeInfo *aNodeInfo,
+                                                     PRBool aFromParser)
   : nsGenericHTMLElement(aNodeInfo),
-    mIsDoneAddingChildren(mNodeInfo->Equals(nsGkAtoms::embed) || !aFromParser)
+    mIsDoneAddingChildren(aNodeInfo->Equals(nsGkAtoms::embed) || !aFromParser)
 {
   RegisterFreezableElement();
 }
@@ -225,18 +220,6 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLSharedObjectElement, nsGenericElement)
 DOMCI_DATA(HTMLAppletElement, nsHTMLSharedObjectElement)
 DOMCI_DATA(HTMLEmbedElement, nsHTMLSharedObjectElement)
 
-nsIClassInfo*
-nsHTMLSharedObjectElement::GetClassInfoInternal()
-{
-  if (mNodeInfo->Equals(nsGkAtoms::applet)) {
-    return NS_GetDOMClassInfoInstance(eDOMClassInfo_HTMLAppletElement_id);
-  }
-  if (mNodeInfo->Equals(nsGkAtoms::embed)) {
-    return NS_GetDOMClassInfoInstance(eDOMClassInfo_HTMLEmbedElement_id);
-  }
-  return nsnull;
-}
-
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLSharedObjectElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_AMBIGUOUS_BEGIN(nsHTMLSharedObjectElement,
                                                   nsIDOMHTMLAppletElement)
@@ -258,7 +241,8 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLSharedObjectElement)
 #ifdef MOZ_SVG
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMGetSVGDocument, embed)
 #endif
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_GETTER(GetClassInfoInternal)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLAppletElement, applet)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLEmbedElement, embed)
 NS_HTML_CONTENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLSharedObjectElement)
@@ -320,8 +304,7 @@ nsHTMLSharedObjectElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom *aName,
 }
 
 PRBool
-nsHTMLSharedObjectElement::IsHTMLFocusable(PRBool aWithMouse,
-                                           PRBool *aIsFocusable,
+nsHTMLSharedObjectElement::IsHTMLFocusable(PRBool *aIsFocusable,
                                            PRInt32 *aTabIndex)
 {
   if (mNodeInfo->Equals(nsGkAtoms::embed) || Type() == eType_Plugin) {
@@ -337,7 +320,7 @@ nsHTMLSharedObjectElement::IsHTMLFocusable(PRBool aWithMouse,
     return PR_TRUE;
   }
 
-  return nsGenericHTMLElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex);
+  return nsGenericHTMLElement::IsHTMLFocusable(aIsFocusable, aTabIndex);
 }
 
 PRUint32

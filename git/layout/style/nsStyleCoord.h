@@ -45,7 +45,6 @@
 #include "nsCRT.h"
 #include "nsStyleConsts.h"
 class nsString;
-class nsStyleContext;
 
 enum nsStyleUnit {
   eStyleUnit_Null         = 0,      // (no value) value is not specified
@@ -59,31 +58,12 @@ enum nsStyleUnit {
   eStyleUnit_Radian       = 14,     // (float) angle in radians
   eStyleUnit_Coord        = 20,     // (nscoord) value is twips
   eStyleUnit_Integer      = 30,     // (int) value is simple integer
-  eStyleUnit_Enumerated   = 32,     // (int) value has enumerated meaning
-  // The following are all of the eCSSUnit_Calc_* types.  They are weak
-  // pointers to a calc tree allocated by nsStyleContext::Alloc.
-  // NOTE:  They are in the same order as the eCSSUnit_Calc_* values so
-  // that converting between the two sets is just addition/subtraction.
-  eStyleUnit_Calc         = 39,     // (Array*) calc() toplevel, to
-                                    // distinguish 50% from calc(50%), etc.
-  eStyleUnit_Calc_Plus    = 40,     // (Array*) + node within calc()
-  eStyleUnit_Calc_Minus   = 41,     // (Array*) - within calc
-  eStyleUnit_Calc_Times_L = 42,     // (Array*) num * val within calc
-  eStyleUnit_Calc_Times_R = 43,     // (Array*) val * num within calc
-  eStyleUnit_Calc_Divided = 44,     // (Array*) / within calc
-  eStyleUnit_Calc_Minimum = 45,     // (Array*) min() within calc
-  eStyleUnit_Calc_Maximum = 46      // (Array*) max() within calc
+  eStyleUnit_Enumerated   = 32      // (int) value has enumerated meaning
 };
 
 typedef union {
   PRInt32     mInt;   // nscoord is a PRInt32 for now
   float       mFloat;
-  // An mPointer is a weak pointer to a value that is guaranteed to
-  // outlive the nsStyleCoord.  In the case of nsStyleCoord::Array*, it
-  // is a pointer owned by the style context, allocated through
-  // nsStyleContext::Alloc (and, therefore, is never stored in the rule
-  // tree).
-  void*       mPointer;
 } nsStyleUnion;
 
 /**
@@ -96,9 +76,6 @@ typedef union {
  */
 class nsStyleCoord {
 public:
-  struct Array;
-  friend struct Array;
-
   nsStyleCoord(nsStyleUnit aUnit = eStyleUnit_Null);
   enum CoordConstructorType { CoordConstructor };
   inline nsStyleCoord(nscoord aValue, CoordConstructorType);
@@ -111,119 +88,38 @@ public:
   PRBool         operator==(const nsStyleCoord& aOther) const;
   PRBool         operator!=(const nsStyleCoord& aOther) const;
 
-  nsStyleUnit GetUnit() const {
+  nsStyleUnit GetUnit(void) const {
     NS_ASSERTION(mUnit != eStyleUnit_Null, "reading uninitialized value");
     return mUnit;
   }
 
-  PRBool IsAngleValue() const {
+  PRBool IsAngleValue(void) const {
     return eStyleUnit_Degree <= mUnit && mUnit <= eStyleUnit_Radian;
   }
 
-  PRBool IsCalcUnit() const {
-    return eStyleUnit_Calc <= mUnit && mUnit <= eStyleUnit_Calc_Maximum;
-  }
-
-  PRBool IsCoordPercentCalcUnit() const {
-    return mUnit == eStyleUnit_Coord ||
-           mUnit == eStyleUnit_Percent ||
-           IsCalcUnit();
-  }
-
-  // Does this calc() expression have any percentages inside it?  Can be
-  // called only when IsCalcUnit() is true.
-  PRBool CalcHasPercent() const;
-
-  PRBool IsArrayValue() const {
-    return IsCalcUnit();
-  }
-
-  PRBool HasPercent() const {
-    return mUnit == eStyleUnit_Percent ||
-           (IsCalcUnit() && CalcHasPercent());
-  }
-
-  PRBool ConvertsToLength() const {
-    return mUnit == eStyleUnit_Coord ||
-           (IsCalcUnit() && !CalcHasPercent());
-  }
-
-  nscoord     GetCoordValue() const;
-  PRInt32     GetIntValue() const;
-  float       GetPercentValue() const;
-  float       GetFactorValue() const;
-  float       GetAngleValue() const;
-  double      GetAngleValueInRadians() const;
-  Array*      GetArrayValue() const;
+  nscoord     GetCoordValue(void) const;
+  PRInt32     GetIntValue(void) const;
+  float       GetPercentValue(void) const;
+  float       GetFactorValue(void) const;
+  float       GetAngleValue(void) const;
+  double      GetAngleValueInRadians(void) const;
   void        GetUnionValue(nsStyleUnion& aValue) const;
 
-  void  Reset();  // sets to null
+  void  Reset(void);  // sets to null
   void  SetCoordValue(nscoord aValue);
   void  SetIntValue(PRInt32 aValue, nsStyleUnit aUnit);
   void  SetPercentValue(float aValue);
   void  SetFactorValue(float aValue);
   void  SetAngleValue(float aValue, nsStyleUnit aUnit);
-  void  SetNormalValue();
-  void  SetAutoValue();
-  void  SetNoneValue();
-  void  SetArrayValue(Array* aValue, nsStyleUnit aUnit);
+  void  SetNormalValue(void);
+  void  SetAutoValue(void);
+  void  SetNoneValue(void);
 
-public: // FIXME: private!
+public:
   nsStyleUnit   mUnit;
   nsStyleUnion  mValue;
 };
 
-// A fixed-size array, that, like everything else in nsStyleCoord,
-// doesn't require that its destructors be called.
-struct nsStyleCoord::Array {
-  static Array* Create(nsStyleContext *aAllocationContext,
-                       PRBool& aCanStoreInRuleTree,
-                       size_t aCount);
-
-  size_t Count() const { return mCount; }
-
-  nsStyleCoord& operator[](size_t aIndex) {
-    NS_ABORT_IF_FALSE(aIndex < mCount, "out of range");
-    return mArray[aIndex];
-  }
-
-  const nsStyleCoord& operator[](size_t aIndex) const {
-    NS_ABORT_IF_FALSE(aIndex < mCount, "out of range");
-    return mArray[aIndex];
-  }
-
-  // Easier to use with an Array*:
-  nsStyleCoord& Item(size_t aIndex) { return (*this)[aIndex]; }
-  const nsStyleCoord& Item(size_t aIndex) const { return (*this)[aIndex]; }
-
-  bool operator==(const Array& aOther) const;
-
-  bool operator!=(const Array& aOther) const {
-    return !(*this == aOther);
-  }
-
-private:
-  inline void* operator new(size_t aSelfSize,
-                            nsStyleContext *aAllocationContext,
-                            size_t aItemCount) CPP_THROW_NEW;
-
-  Array(size_t aCount)
-    : mCount(aCount)
-  {
-    // Initialize all entries not in the class.
-    for (size_t i = 1; i < aCount; ++i) {
-      new (mArray + i) nsStyleCoord();
-    }
-  }
-
-  size_t mCount;
-  nsStyleCoord mArray[1]; // for alignment, have the first element in the class
-
-  // not to be implemented
-  Array(const Array& aOther);
-  Array& operator=(const Array& aOther);
-  ~Array();
-};
 
 /**
  * Class that represents a set of top/right/bottom/left nsStyleCoords.
@@ -232,17 +128,17 @@ private:
  */
 class nsStyleSides {
 public:
-  nsStyleSides();
+  nsStyleSides(void);
 
 //  nsStyleSides&  operator=(const nsStyleSides& aCopy);  // use compiler's version
   PRBool         operator==(const nsStyleSides& aOther) const;
   PRBool         operator!=(const nsStyleSides& aOther) const;
 
   inline nsStyleUnit GetUnit(mozilla::css::Side aSide) const;
-  inline nsStyleUnit GetLeftUnit() const;
-  inline nsStyleUnit GetTopUnit() const;
-  inline nsStyleUnit GetRightUnit() const;
-  inline nsStyleUnit GetBottomUnit() const;
+  inline nsStyleUnit GetLeftUnit(void) const;
+  inline nsStyleUnit GetTopUnit(void) const;
+  inline nsStyleUnit GetRightUnit(void) const;
+  inline nsStyleUnit GetBottomUnit(void) const;
 
   inline nsStyleCoord Get(mozilla::css::Side aSide) const;
   inline nsStyleCoord GetLeft() const;
@@ -250,7 +146,7 @@ public:
   inline nsStyleCoord GetRight() const;
   inline nsStyleCoord GetBottom() const;
 
-  void  Reset();
+  void  Reset(void);
 
   inline void Set(mozilla::css::Side aSide, const nsStyleCoord& aCoord);
   inline void SetLeft(const nsStyleCoord& aCoord);
@@ -270,7 +166,7 @@ protected:
  */
 class nsStyleCorners {
 public:
-  nsStyleCorners();
+  nsStyleCorners(void);
 
   // use compiler's version
   //nsStyleCorners&  operator=(const nsStyleCorners& aCopy);
@@ -282,7 +178,7 @@ public:
 
   inline nsStyleCoord Get(PRUint8 aHalfCorner) const;
 
-  void  Reset();
+  void  Reset(void);
 
   inline void Set(PRUint8 aHalfCorner, const nsStyleCoord& aCoord);
 
@@ -301,17 +197,11 @@ inline nsStyleCoord::nsStyleCoord(nscoord aValue, CoordConstructorType)
   mValue.mInt = aValue;
 }
 
-// FIXME: In C++0x we can rely on the default copy constructor since
-// default copy construction is defined properly for unions.  But when
-// can we actually use that?  (It seems to work in gcc 4.4.)
 inline nsStyleCoord::nsStyleCoord(const nsStyleCoord& aCopy)
   : mUnit(aCopy.mUnit)
 {
   if ((eStyleUnit_Percent <= mUnit) && (mUnit < eStyleUnit_Coord)) {
     mValue.mFloat = aCopy.mValue.mFloat;
-  }
-  else if (IsArrayValue()) {
-    mValue.mPointer = aCopy.mValue.mPointer;
   }
   else {
     mValue.mInt = aCopy.mValue.mInt;
@@ -321,7 +211,11 @@ inline nsStyleCoord::nsStyleCoord(const nsStyleCoord& aCopy)
 inline nsStyleCoord::nsStyleCoord(const nsStyleUnion& aValue, nsStyleUnit aUnit)
   : mUnit(aUnit)
 {
+#if PR_BYTES_PER_INT == PR_BYTES_PER_FLOAT
+  mValue.mInt = aValue.mInt;
+#else
   memcpy(&mValue, &aValue, sizeof(nsStyleUnion));
+#endif
 }
 
 inline PRBool nsStyleCoord::operator!=(const nsStyleCoord& aOther) const
@@ -329,7 +223,7 @@ inline PRBool nsStyleCoord::operator!=(const nsStyleCoord& aOther) const
   return !((*this) == aOther);
 }
 
-inline PRInt32 nsStyleCoord::GetCoordValue() const
+inline PRInt32 nsStyleCoord::GetCoordValue(void) const
 {
   NS_ASSERTION((mUnit == eStyleUnit_Coord), "not a coord value");
   if (mUnit == eStyleUnit_Coord) {
@@ -338,7 +232,7 @@ inline PRInt32 nsStyleCoord::GetCoordValue() const
   return 0;
 }
 
-inline PRInt32 nsStyleCoord::GetIntValue() const
+inline PRInt32 nsStyleCoord::GetIntValue(void) const
 {
   NS_ASSERTION((mUnit == eStyleUnit_Enumerated) ||
                (mUnit == eStyleUnit_Integer), "not an int value");
@@ -349,7 +243,7 @@ inline PRInt32 nsStyleCoord::GetIntValue() const
   return 0;
 }
 
-inline float nsStyleCoord::GetPercentValue() const
+inline float nsStyleCoord::GetPercentValue(void) const
 {
   NS_ASSERTION(mUnit == eStyleUnit_Percent, "not a percent value");
   if (mUnit == eStyleUnit_Percent) {
@@ -358,7 +252,7 @@ inline float nsStyleCoord::GetPercentValue() const
   return 0.0f;
 }
 
-inline float nsStyleCoord::GetFactorValue() const
+inline float nsStyleCoord::GetFactorValue(void) const
 {
   NS_ASSERTION(mUnit == eStyleUnit_Factor, "not a factor value");
   if (mUnit == eStyleUnit_Factor) {
@@ -367,7 +261,7 @@ inline float nsStyleCoord::GetFactorValue() const
   return 0.0f;
 }
 
-inline float nsStyleCoord::GetAngleValue() const
+inline float nsStyleCoord::GetAngleValue(void) const
 {
   NS_ASSERTION(mUnit >= eStyleUnit_Degree &&
                mUnit <= eStyleUnit_Radian, "not an angle value");
@@ -376,16 +270,6 @@ inline float nsStyleCoord::GetAngleValue() const
   }
   return 0.0f;
 }
-
-inline nsStyleCoord::Array* nsStyleCoord::GetArrayValue() const
-{
-  NS_ASSERTION(IsArrayValue(), "not a pointer value");
-  if (IsArrayValue()) {
-    return static_cast<Array*>(mValue.mPointer);
-  }
-  return nsnull;
-}
-
 
 inline void nsStyleCoord::GetUnionValue(nsStyleUnion& aValue) const
 {
@@ -405,22 +289,22 @@ inline nsStyleUnit nsStyleSides::GetUnit(mozilla::css::Side aSide) const
   return (nsStyleUnit)mUnits[aSide];
 }
 
-inline nsStyleUnit nsStyleSides::GetLeftUnit() const
+inline nsStyleUnit nsStyleSides::GetLeftUnit(void) const
 {
   return GetUnit(NS_SIDE_LEFT);
 }
 
-inline nsStyleUnit nsStyleSides::GetTopUnit() const
+inline nsStyleUnit nsStyleSides::GetTopUnit(void) const
 {
   return GetUnit(NS_SIDE_TOP);
 }
 
-inline nsStyleUnit nsStyleSides::GetRightUnit() const
+inline nsStyleUnit nsStyleSides::GetRightUnit(void) const
 {
   return GetUnit(NS_SIDE_RIGHT);
 }
 
-inline nsStyleUnit nsStyleSides::GetBottomUnit() const
+inline nsStyleUnit nsStyleSides::GetBottomUnit(void) const
 {
   return GetUnit(NS_SIDE_BOTTOM);
 }

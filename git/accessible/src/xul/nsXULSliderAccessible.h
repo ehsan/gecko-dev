@@ -43,13 +43,10 @@
 
 #include "nsIDOMElement.h"
 
-/**
- * Used for XUL slider and scale elements.
- */
 class nsXULSliderAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULSliderAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULSliderAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -82,13 +79,10 @@ private:
 };
 
 
-/**
- * Used for slider's thumb element.
- */
 class nsXULThumbAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULThumbAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULThumbAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);

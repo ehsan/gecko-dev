@@ -45,6 +45,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-225343.js';
 var i = 0;
 var BUGNUMBER = 225343;
 var summary = 'Testing regexp character classes and the case-insensitive flag';

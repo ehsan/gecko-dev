@@ -65,7 +65,7 @@
 #include "mozAutoDocUpdate.h"
 #include "nsFocusManager.h"
 
-nsXTFElementWrapper::nsXTFElementWrapper(already_AddRefed<nsINodeInfo> aNodeInfo,
+nsXTFElementWrapper::nsXTFElementWrapper(nsINodeInfo* aNodeInfo,
                                          nsIXTFElement* aXTFElement)
     : nsXTFElementWrapperBase(aNodeInfo),
       mXTFElement(aXTFElement),
@@ -124,14 +124,8 @@ nsXTFElementWrapper::QueryInterface(REFNSIID aIID, void** aInstancePtr)
   NS_PRECONDITION(aInstancePtr, "null out param");
 
   NS_IMPL_QUERY_CYCLE_COLLECTION(nsXTFElementWrapper)
-  if (aIID.Equals(NS_GET_IID(nsIClassInfo)) ||
-      aIID.Equals(NS_GET_IID(nsXPCClassInfo))) {
+  if (aIID.Equals(NS_GET_IID(nsIClassInfo))) {
     *aInstancePtr = static_cast<nsIClassInfo*>(this);
-    NS_ADDREF_THIS();
-    return NS_OK;
-  }
-  if (aIID.Equals(NS_GET_IID(nsIXPCScriptable))) {
-    *aInstancePtr = static_cast<nsIXPCScriptable*>(this);
     NS_ADDREF_THIS();
     return NS_OK;
   }
@@ -687,7 +681,8 @@ nsXTFElementWrapper::GetInterfaces(PRUint32* aCount, nsIID*** aArray)
   PRUint32 xtfCount = 0;
   nsIID** xtfArray = nsnull;
 
-  nsCOMPtr<nsIClassInfo> baseCi = GetBaseXPCClassInfo();
+  nsCOMPtr<nsIClassInfo> baseCi =
+    NS_GetDOMClassInfoInstance(eDOMClassInfo_Element_id);
   if (baseCi) {
     baseCi->GetInterfaces(&baseCount, &baseArray);
   }
@@ -745,7 +740,8 @@ nsXTFElementWrapper::GetHelperForLanguage(PRUint32 language,
                                           nsISupports** aHelper)
 {
   *aHelper = nsnull;
-  nsCOMPtr<nsIClassInfo> ci = GetBaseXPCClassInfo();
+  nsCOMPtr<nsIClassInfo> ci = 
+    NS_GetDOMClassInfoInstance(eDOMClassInfo_Element_id);
   return
     ci ? ci->GetHelperForLanguage(language, aHelper) : NS_ERROR_NOT_AVAILABLE;
 }
@@ -965,7 +961,7 @@ nsXTFElementWrapper::RegUnregAccessKey(PRBool aDoReg)
     return;
 
   // Get presentation shell 0
-  nsIPresShell *presShell = doc->GetShell();
+  nsIPresShell *presShell = doc->GetPrimaryShell();
   if (!presShell)
     return;
 
@@ -994,7 +990,7 @@ nsXTFElementWrapper::RegUnregAccessKey(PRBool aDoReg)
 
 nsresult
 NS_NewXTFElementWrapper(nsIXTFElement* aXTFElement,
-                        already_AddRefed<nsINodeInfo> aNodeInfo,
+                        nsINodeInfo* aNodeInfo,
                         nsIContent** aResult)
 {
   *aResult = nsnull;

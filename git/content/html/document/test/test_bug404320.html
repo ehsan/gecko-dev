@@ -43,15 +43,15 @@ function testFormatBlock(tag, withAngleBrackets, shouldSucceed)
 function formatBlockTests(tags, shouldSucceed)
 {
   var html = "<p>Content</p>";
-  for (var i = 0; i < tags.length; ++i) {
-    var tag = tags[i];
+  for (var i = 0; i < goodTags.length; ++i) {
+    var tag = goodTags[i];
     var resultTag = tag.toUpperCase();
 
     doc.body.innerHTML = html;
-    testFormatBlock(tag, false, shouldSucceed);
+    testFormatBlock(goodTags[i], false, true);
 
     doc.body.innerHTML = html;
-    testFormatBlock(tag, true, shouldSucceed);
+    testFormatBlock(goodTags[i], true, true);
   }
 }
 

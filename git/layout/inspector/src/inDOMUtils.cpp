@@ -258,8 +258,8 @@ inDOMUtils::GetContentState(nsIDOMElement *aElement, PRInt32* aState)
   if (esm) {
     nsCOMPtr<nsIContent> content;
     content = do_QueryInterface(aElement);
-    *aState = esm->GetContentState(content);
-    return NS_OK;
+  
+    return esm->GetContentState(content, *aState);
   }
 
   return NS_ERROR_FAILURE;
@@ -280,7 +280,7 @@ inDOMUtils::GetRuleNodeForContent(nsIContent* aContent,
   nsIDocument* doc = aContent->GetDocument();
   NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
 
-  nsIPresShell *presShell = doc->GetShell();
+  nsIPresShell *presShell = doc->GetPrimaryShell();
   NS_ENSURE_TRUE(presShell, NS_ERROR_UNEXPECTED);
 
   nsPresContext *presContext = presShell->GetPresContext();

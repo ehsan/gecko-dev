@@ -51,7 +51,7 @@
 
 /*
 * These can be controled by the makefile, but this allows a place to set
-* the values always used in the mozilla client, but perhaps done differently
+* the values always used in the mozilla client, but perhaps done differnetly
 * in other embeddings.
 */
 #ifdef MOZILLA_CLIENT
@@ -966,7 +966,7 @@ jsd_GetValueBoolean(JSDContext* jsdc, JSDValue* jsdval);
 extern int32
 jsd_GetValueInt(JSDContext* jsdc, JSDValue* jsdval);
 
-extern jsdouble
+extern jsdouble*
 jsd_GetValueDouble(JSDContext* jsdc, JSDValue* jsdval);
 
 extern JSString*
@@ -1043,6 +1043,9 @@ jsd_DestroyObjectManager(JSDContext* jsdc);
 
 extern void
 jsd_DestroyObjects(JSDContext* jsdc);
+
+extern void
+jsd_ObjectHook(JSContext *cx, JSObject *obj, JSBool isNew, void *closure);
 
 extern void
 jsd_Constructing(JSDContext* jsdc, JSContext *cx, JSObject *obj,

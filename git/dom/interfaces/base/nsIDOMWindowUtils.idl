@@ -53,7 +53,7 @@ interface nsIDOMEvent;
 interface nsITransferable;
 interface nsIQueryContentEventResult;
 
-[scriptable, uuid(59e6f1be-ba0e-4102-9fe5-d5af8777742a)]
+[scriptable, uuid(352ff0af-bb38-496a-a067-b54771168d6d)]
 interface nsIDOMWindowUtils : nsISupports {
 
   /**
@@ -100,7 +100,8 @@ interface nsIDOMWindowUtils : nsISupports {
    */
   unsigned long redraw([optional] in unsigned long aCount);
 
-  /** Synthesize a mouse event. The event types supported are:
+  /** Synthesize a mouse event for a window. The event types supported
+   *  are: 
    *    mousedown, mouseup, mousemove, mouseover, mouseout, contextmenu
    *
    * Events are sent in coordinates offset by aX and aY from the window.
@@ -118,10 +119,6 @@ interface nsIDOMWindowUtils : nsISupports {
    * Will throw a DOM security error if called without UniversalXPConnect
    * privileges.
    *
-   * The event is dispatched via the toplevel window, so it could go to any
-   * window under the toplevel window, in some cases it could never reach this
-   * window at all.
-   *
    * @param aType event type
    * @param aX x offset in CSS pixels
    * @param aY y offset in CSS pixels
@@ -138,17 +135,6 @@ interface nsIDOMWindowUtils : nsISupports {
                       in long aClickCount,
                       in long aModifiers,
                       [optional] in boolean aIgnoreRootScrollFrame);
-
-  /** The same as sendMouseEvent but ensures that the event is dispatched to
-   *  this DOM window or one of its children.
-   */
-  void sendMouseEventToWindow(in AString aType,
-                              in float aX,
-                              in float aY,
-                              in long aButton,
-                              in long aClickCount,
-                              in long aModifiers,
-                              [optional] in boolean aIgnoreRootScrollFrame);
 
   /** Synthesize a mouse scroll event for a window. The event types supported
    *  are: 
@@ -677,38 +663,4 @@ interface nsIDOMWindowUtils : nsISupports {
    * @return the parent.
    */
   void getParent(/* obj */);
-
-  /**
-   * Get the id of the outer window of this window.  This will never throw.
-   */
-  readonly attribute unsigned long long outerWindowID;
-
-  /**
-   * Get the id of the current inner window of this window.  If there
-   * is no current inner window, throws NS_ERROR_NOT_AVAILABLE.
-   */
-  readonly attribute unsigned long long currentInnerWindowID;
-
-  /**
-   * Put the window into a state where scripts are frozen and events
-   * suppressed, for use when the window has launched a modal prompt.
-   */
-  void enterModalState();
-
-  /**
-   * Resume normal window state, where scripts can run and events are
-   * delivered.
-   */
-  void leaveModalState();
-
-  /**
-   * Is the window is in a modal state? [See enterModalState()]
-   */
-  boolean isInModalState();
-
-  /**
-   * Suspend/resume timeouts on this window and its descendant windows.
-   */
-  void suspendTimeouts();
-  void resumeTimeouts();
 };

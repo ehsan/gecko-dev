@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'proto_1.js';
 
 /**
    File Name:          proto_1.js

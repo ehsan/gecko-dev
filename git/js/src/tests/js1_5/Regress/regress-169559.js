@@ -5,6 +5,7 @@
  * Contributor: Bob Clary
  */
 
+var gTestfile = 'regress-169559.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 169559;
 var summary = 'Global vars should not be more than 2.5 times slower than local';

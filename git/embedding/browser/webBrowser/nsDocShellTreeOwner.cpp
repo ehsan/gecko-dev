@@ -45,6 +45,7 @@
 #include "nsWebBrowser.h"
 
 // Helper Classes
+#include "nsIGenericFactory.h"
 #include "nsStyleCoord.h"
 #include "nsSize.h"
 #include "nsHTMLReflowState.h"
@@ -79,7 +80,6 @@
 #include "nsIDOMNSUIEvent.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMNamedNodeMap.h"
-#include "nsIFormControl.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsIDOMHTMLHtmlElement.h"
@@ -109,7 +109,6 @@
 #include "nsIEventListenerManager.h"
 #include "nsIDOMEventGroup.h"
 #include "nsIDOMDragEvent.h"
-#include "nsIConstraintValidation.h"
 
 //
 // GetEventReceiver
@@ -120,8 +119,6 @@
 static nsresult
 GetPIDOMEventTarget( nsWebBrowser* inBrowser, nsPIDOMEventTarget** aTarget)
 {
-  NS_ENSURE_ARG_POINTER(inBrowser);
-  
   nsCOMPtr<nsIDOMWindow> domWindow;
   inBrowser->GetContentDOMWindow(getter_AddRefs(domWindow));
   NS_ENSURE_TRUE(domWindow, NS_ERROR_FAILURE);
@@ -915,8 +912,6 @@ nsDocShellTreeOwner::RemoveChromeListeners()
 
   nsCOMPtr<nsPIDOMEventTarget> piTarget;
   GetPIDOMEventTarget(mWebBrowser, getter_AddRefs(piTarget));
-  if (!piTarget)
-    return NS_OK;
 
   nsCOMPtr<nsIDOMEventGroup> sysGroup;
   piTarget->GetSystemEventGroup(getter_AddRefs(sysGroup));
@@ -1104,15 +1099,6 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
   PRBool lookingForSVGTitle = PR_TRUE;
   PRBool found = PR_FALSE;
   nsCOMPtr<nsIDOMNode> current ( aNode );
-
-  // If the element implement the constraint validation API,
-  // show the validation message, if any, instead of the title.
-  nsCOMPtr<nsIConstraintValidation> cvElement = do_QueryInterface(current);
-  if (cvElement) {
-    cvElement->GetValidationMessage(outText);
-    found = !outText.IsEmpty();
-  }
-
   while ( !found && current ) {
     nsCOMPtr<nsIDOMElement> currElement ( do_QueryInterface(current) );
     if ( currElement ) {
@@ -1828,27 +1814,27 @@ ChromeContextMenuListener::ContextMenu(nsIDOMEvent* aMouseEvent)
       }
     }
 
-    nsCOMPtr<nsIFormControl> formControl(do_QueryInterface(node));
-    if (formControl) {
-      if (formControl->GetType() == NS_FORM_TEXTAREA) {
-        flags |= nsIContextMenuListener::CONTEXT_TEXT;
-        flags2 |= nsIContextMenuListener2::CONTEXT_TEXT;
-        targetDOMnode = node;
-      } else {
-        nsCOMPtr<nsIDOMHTMLInputElement> inputElement(do_QueryInterface(formControl));
-        if (inputElement) {
-          flags |= nsIContextMenuListener::CONTEXT_INPUT;
-          flags2 |= nsIContextMenuListener2::CONTEXT_INPUT;
+    nsCOMPtr<nsIDOMHTMLInputElement> inputElement(do_QueryInterface(node));
+    if (inputElement) {
+      flags |= nsIContextMenuListener::CONTEXT_INPUT;
+      flags2 |= nsIContextMenuListener2::CONTEXT_INPUT;
 
-          if (menuListener2) {
-            if (formControl->IsSingleLineTextControl(PR_FALSE)) {
-              flags2 |= nsIContextMenuListener2::CONTEXT_TEXT;
-            }
-          }
-
-          targetDOMnode = node;
-        }
+      if (menuListener2) {
+        nsAutoString inputElemType;
+        inputElement->GetType(inputElemType);
+        if (inputElemType.LowerCaseEqualsLiteral("text") ||
+            inputElemType.LowerCaseEqualsLiteral("password"))
+          flags2 |= nsIContextMenuListener2::CONTEXT_TEXT;
       }
+
+      targetDOMnode = node;
+    }
+
+    nsCOMPtr<nsIDOMHTMLTextAreaElement> textElement(do_QueryInterface(node));
+    if (textElement) {
+      flags |= nsIContextMenuListener::CONTEXT_TEXT;
+      flags2 |= nsIContextMenuListener2::CONTEXT_TEXT;
+      targetDOMnode = node;
     }
 
     // always consume events for plugins and Java who may throw their

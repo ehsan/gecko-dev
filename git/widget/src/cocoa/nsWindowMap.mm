@@ -243,6 +243,10 @@
     return;
   [delegate sendToplevelDeactivateEvents];
 
+  id firstResponder = [aWindow firstResponder];
+  if ([firstResponder isKindOfClass:[ChildView class]])
+    [firstResponder viewsWindowDidResignKey];
+
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 

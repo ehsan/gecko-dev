@@ -49,7 +49,7 @@
 #include "nsXBLService.h"
 #include "nsIServiceManager.h"
 #include "nsGkAtoms.h"
-#include "nsXBLDocumentInfo.h"
+#include "nsIXBLDocumentInfo.h"
 #include "nsIDOMElement.h"
 #include "nsINativeKeyBindings.h"
 #include "nsIController.h"
@@ -76,8 +76,8 @@ static nsINativeKeyBindings *sNativeEditorBindings = nsnull;
 class nsXBLSpecialDocInfo
 {
 public:
-  nsRefPtr<nsXBLDocumentInfo> mHTMLBindings;
-  nsRefPtr<nsXBLDocumentInfo> mUserHTMLBindings;
+  nsCOMPtr<nsIXBLDocumentInfo> mHTMLBindings;
+  nsCOMPtr<nsIXBLDocumentInfo> mUserHTMLBindings;
 
   static const char sHTMLBindingStr[];
   static const char sUserHTMLBindingStr[];
@@ -89,7 +89,7 @@ public:
   void GetAllHandlers(const char* aType,
                       nsXBLPrototypeHandler** handler,
                       nsXBLPrototypeHandler** userHandler);
-  void GetHandlers(nsXBLDocumentInfo* aInfo,
+  void GetHandlers(nsIXBLDocumentInfo* aInfo,
                    const nsACString& aRef,
                    nsXBLPrototypeHandler** aResult);
 
@@ -144,11 +144,12 @@ void nsXBLSpecialDocInfo::LoadDocInfo()
 //
 // 
 void
-nsXBLSpecialDocInfo::GetHandlers(nsXBLDocumentInfo* aInfo,
+nsXBLSpecialDocInfo::GetHandlers(nsIXBLDocumentInfo* aInfo,
                                  const nsACString& aRef,
                                  nsXBLPrototypeHandler** aResult)
 {
-  nsXBLPrototypeBinding* binding = aInfo->GetPrototypeBinding(aRef);
+  nsXBLPrototypeBinding* binding;
+  aInfo->GetPrototypeBinding(aRef, &binding);
   
   NS_ASSERTION(binding, "No binding found for the XBL window key handler.");
   if (!binding)
@@ -535,12 +536,13 @@ nsXBLWindowKeyHandler::WalkHandlersAndExecute(nsIDOMKeyEvent* aKeyEvent,
         // Locate the command element in question.  Note that we
         // know "elt" is in a doc if we're dealing with it here.
         NS_ASSERTION(elt->IsInDoc(), "elt must be in document");
-        nsIDocument *doc = elt->GetCurrentDoc();
-        if (doc)
-          commandElt = do_QueryInterface(doc->GetElementById(command));
+        nsCOMPtr<nsIDOMDocument> domDoc(
+           do_QueryInterface(elt->GetCurrentDoc()));
+        if (domDoc)
+          domDoc->GetElementById(command, getter_AddRefs(commandElt));
 
         if (!commandElt) {
-          NS_ERROR("A XUL <key> is observing a command that doesn't exist. Unable to execute key binding!");
+          NS_ERROR("A XUL <key> is observing a command that doesn't exist. Unable to execute key binding!\n");
           continue;
         }
       }

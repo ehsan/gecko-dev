@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-280769.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 280769;
 var summary = 'Do not crash on overflow of 32K boundary in regexp bytecode jump offset';

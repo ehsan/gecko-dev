@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-495773.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 495773;
 var summary = 'Read upvar from trace-entry frame from JSStackFrame instead of tracing native stack';

@@ -64,7 +64,7 @@ class nsHTMLSharedElement : public nsGenericHTMLElement,
                             public nsIDOMHTMLHtmlElement
 {
 public:
-  nsHTMLSharedElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLSharedElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLSharedElement();
 
   // nsISupports
@@ -131,18 +131,12 @@ public:
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  virtual nsXPCClassInfo* GetClassInfo()
-  {
-    return static_cast<nsXPCClassInfo*>(GetClassInfoInternal());
-  }
-  nsIClassInfo* GetClassInfoInternal();
 };
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Shared)
 
 
-nsHTMLSharedElement::nsHTMLSharedElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLSharedElement::nsHTMLSharedElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -157,46 +151,15 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLSharedElement, nsGenericElement)
 
 
 DOMCI_DATA(HTMLParamElement, nsHTMLSharedElement)
+DOMCI_DATA(HTMLWBRElement, nsHTMLSharedElement)
 DOMCI_DATA(HTMLIsIndexElement, nsHTMLSharedElement)
 DOMCI_DATA(HTMLBaseElement, nsHTMLSharedElement)
+DOMCI_DATA(HTMLSpacerElement, nsHTMLSharedElement)
 DOMCI_DATA(HTMLDirectoryElement, nsHTMLSharedElement)
 DOMCI_DATA(HTMLMenuElement, nsHTMLSharedElement)
 DOMCI_DATA(HTMLQuoteElement, nsHTMLSharedElement)
 DOMCI_DATA(HTMLHeadElement, nsHTMLSharedElement)
 DOMCI_DATA(HTMLHtmlElement, nsHTMLSharedElement)
-
-nsIClassInfo*
-nsHTMLSharedElement::GetClassInfoInternal()
-{
-  if (mNodeInfo->Equals(nsGkAtoms::param)) {
-    return NS_GetDOMClassInfoInstance(eDOMClassInfo_HTMLParamElement_id);
-  }
-  if (mNodeInfo->Equals(nsGkAtoms::isindex)) {
-    return NS_GetDOMClassInfoInstance(eDOMClassInfo_HTMLIsIndexElement_id);
-  }
-  if (mNodeInfo->Equals(nsGkAtoms::base)) {
-    return NS_GetDOMClassInfoInstance(eDOMClassInfo_HTMLBaseElement_id);
-  }
-  if (mNodeInfo->Equals(nsGkAtoms::dir)) {
-    return NS_GetDOMClassInfoInstance(eDOMClassInfo_HTMLDirectoryElement_id);
-  }
-  if (mNodeInfo->Equals(nsGkAtoms::menu)) {
-    return NS_GetDOMClassInfoInstance(eDOMClassInfo_HTMLMenuElement_id);
-  }
-  if (mNodeInfo->Equals(nsGkAtoms::q)) {
-    return NS_GetDOMClassInfoInstance(eDOMClassInfo_HTMLQuoteElement_id);
-  }
-  if (mNodeInfo->Equals(nsGkAtoms::blockquote)) {
-    return NS_GetDOMClassInfoInstance(eDOMClassInfo_HTMLQuoteElement_id);
-  }
-  if (mNodeInfo->Equals(nsGkAtoms::head)) {
-    return NS_GetDOMClassInfoInstance(eDOMClassInfo_HTMLHeadElement_id);
-  }
-  if (mNodeInfo->Equals(nsGkAtoms::html)) {
-    return NS_GetDOMClassInfoInstance(eDOMClassInfo_HTMLHtmlElement_id);
-  }
-  return nsnull;
-}
 
 // QueryInterface implementation for nsHTMLSharedElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLSharedElement)
@@ -216,7 +179,17 @@ NS_INTERFACE_TABLE_HEAD(nsHTMLSharedElement)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLHeadElement, head)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLHtmlElement, html)
 
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_GETTER(GetClassInfoInternal)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLParamElement, param)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLWBRElement, wbr)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLIsIndexElement, isindex)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLBaseElement, base)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLSpacerElement, spacer)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLDirectoryElement, dir)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLMenuElement, menu)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLQuoteElement, q)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLQuoteElement, blockquote)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLHeadElement, head)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(HTMLHtmlElement, html)
 NS_HTML_CONTENT_INTERFACE_MAP_END
 
 
@@ -233,7 +206,7 @@ NS_IMPL_STRING_ATTR(nsHTMLSharedElement, Prompt, prompt)
 NS_IMETHODIMP
 nsHTMLSharedElement::GetForm(nsIDOMHTMLFormElement** aForm)
 {
-  NS_IF_ADDREF(*aForm = FindAncestorForm());
+  NS_IF_ADDREF(*aForm = FindForm());
 
   return NS_OK;
 }
@@ -274,19 +247,124 @@ nsHTMLSharedElement::ParseAttribute(PRInt32 aNamespaceID,
                                     const nsAString& aValue,
                                     nsAttrValue& aResult)
 {
-  if (aNamespaceID == kNameSpaceID_None &&
-      (mNodeInfo->Equals(nsGkAtoms::dir) ||
-       mNodeInfo->Equals(nsGkAtoms::menu))) {
-    if (aAttribute == nsGkAtoms::type) {
-      return aResult.ParseEnumValue(aValue, kListTypeTable, PR_FALSE);
+  if (aNamespaceID == kNameSpaceID_None) {
+    if (mNodeInfo->Equals(nsGkAtoms::spacer)) {
+      if (aAttribute == nsGkAtoms::size) {
+        return aResult.ParseIntWithBounds(aValue, 0);
+      }
+      if (aAttribute == nsGkAtoms::align) {
+        return ParseAlignValue(aValue, aResult);
+      }
+      if (aAttribute == nsGkAtoms::width ||
+          aAttribute == nsGkAtoms::height) {
+        return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
+      }
     }
-    if (aAttribute == nsGkAtoms::start) {
-      return aResult.ParseIntWithBounds(aValue, 1);
+    else if (mNodeInfo->Equals(nsGkAtoms::dir) ||
+             mNodeInfo->Equals(nsGkAtoms::menu)) {
+      if (aAttribute == nsGkAtoms::type) {
+        return aResult.ParseEnumValue(aValue, kListTypeTable, PR_FALSE);
+      }
+      if (aAttribute == nsGkAtoms::start) {
+        return aResult.ParseIntWithBounds(aValue, 1);
+      }
     }
   }
 
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
                                               aResult);
+}
+
+// spacer element code
+
+static void
+SpacerMapAttributesIntoRule(const nsMappedAttributes* aAttributes,
+                            nsRuleData* aData)
+{
+  nsGenericHTMLElement::MapImageMarginAttributeInto(aAttributes, aData);
+  nsGenericHTMLElement::MapImageSizeAttributesInto(aAttributes, aData);
+
+  if (aData->mSIDs & (NS_STYLE_INHERIT_BIT(Position) |
+                      NS_STYLE_INHERIT_BIT(Display))) {
+    PRBool typeIsBlock = PR_FALSE;
+    const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::type);
+    if (value && value->Type() == nsAttrValue::eString) {
+      const nsString& tmp(value->GetStringValue());
+      if (tmp.LowerCaseEqualsLiteral("line") ||
+          tmp.LowerCaseEqualsLiteral("vert") ||
+          tmp.LowerCaseEqualsLiteral("vertical") ||
+          tmp.LowerCaseEqualsLiteral("block")) {
+        // This is not strictly 100% compatible: if the spacer is given
+        // a width of zero then it is basically ignored.
+        typeIsBlock = PR_TRUE;
+      }
+    }
+
+    if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Position)) {
+      if (typeIsBlock) {
+        // width: value
+        if (aData->mPositionData->mWidth.GetUnit() == eCSSUnit_Null) {
+          const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::width);
+          if (value && value->Type() == nsAttrValue::eInteger) {
+            aData->mPositionData->
+              mWidth.SetFloatValue((float)value->GetIntegerValue(),
+                                   eCSSUnit_Pixel);
+          } else if (value && value->Type() == nsAttrValue::ePercent) {
+            aData->mPositionData->
+              mWidth.SetPercentValue(value->GetPercentValue());
+          }
+        }
+
+        // height: value
+        if (aData->mPositionData->mHeight.GetUnit() == eCSSUnit_Null) {
+          const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::height);
+          if (value && value->Type() == nsAttrValue::eInteger) {
+            aData->mPositionData->
+              mHeight.SetFloatValue((float)value->GetIntegerValue(),
+                                    eCSSUnit_Pixel);
+          } else if (value && value->Type() == nsAttrValue::ePercent) {
+            aData->mPositionData->
+              mHeight.SetPercentValue(value->GetPercentValue());
+          }
+        }
+      } else {
+        // size: value
+        if (aData->mPositionData->mWidth.GetUnit() == eCSSUnit_Null) {
+          const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::size);
+          if (value && value->Type() == nsAttrValue::eInteger)
+            aData->mPositionData->
+              mWidth.SetFloatValue((float)value->GetIntegerValue(),
+                                   eCSSUnit_Pixel);
+        }
+      }
+    }
+
+    if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Display)) {
+      const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::align);
+      if (value && value->Type() == nsAttrValue::eEnum) {
+        PRInt32 align = value->GetEnumValue();
+        if (aData->mDisplayData->mFloat.GetUnit() == eCSSUnit_Null) {
+          if (align == NS_STYLE_TEXT_ALIGN_LEFT)
+            aData->mDisplayData->mFloat.SetIntValue(NS_STYLE_FLOAT_LEFT,
+                                                    eCSSUnit_Enumerated);
+          else if (align == NS_STYLE_TEXT_ALIGN_RIGHT)
+            aData->mDisplayData->mFloat.SetIntValue(NS_STYLE_FLOAT_RIGHT,
+                                                    eCSSUnit_Enumerated);
+        }
+      }
+
+      if (typeIsBlock) {
+        if (aData->mDisplayData->mDisplay.GetUnit() == eCSSUnit_Null) {
+          aData->mDisplayData->mDisplay.SetIntValue(NS_STYLE_DISPLAY_BLOCK,
+                                                    eCSSUnit_Enumerated);
+        }
+      }
+    }
+    // Any new structs that don't need typeIsBlock should go outside
+    // the code that calculates it.
+  }
+
+  nsGenericHTMLElement::MapCommonAttributesInto(aAttributes, aData);
 }
 
 static void
@@ -313,6 +391,25 @@ DirectoryMenuMapAttributesIntoRule(const nsMappedAttributes* aAttributes,
 NS_IMETHODIMP_(PRBool)
 nsHTMLSharedElement::IsAttributeMapped(const nsIAtom* aAttribute) const
 {
+  if (mNodeInfo->Equals(nsGkAtoms::spacer)) {
+    static const MappedAttributeEntry attributes[] = {
+      // XXXldb This is just wrong.
+      { &nsGkAtoms::usemap },
+      { &nsGkAtoms::ismap },
+      { &nsGkAtoms::align },
+      { nsnull }
+    };
+
+    static const MappedAttributeEntry* const map[] = {
+      attributes,
+      sCommonAttributeMap,
+      sImageMarginSizeAttributeMap,
+      sImageBorderAttributeMap,
+    };
+
+    return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
+  }
+
   if (mNodeInfo->Equals(nsGkAtoms::dir)) {
     static const MappedAttributeEntry attributes[] = {
       { &nsGkAtoms::type },
@@ -470,7 +567,11 @@ nsHTMLSharedElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 nsMapRuleToAttributesFunc
 nsHTMLSharedElement::GetAttributeMappingFunction() const
 {
-  if (mNodeInfo->Equals(nsGkAtoms::dir) || mNodeInfo->Equals(nsGkAtoms::menu)) {
+  if (mNodeInfo->Equals(nsGkAtoms::spacer)) {
+    return &SpacerMapAttributesIntoRule;
+  }
+  else if (mNodeInfo->Equals(nsGkAtoms::dir) ||
+           mNodeInfo->Equals(nsGkAtoms::menu)) {
     return &DirectoryMenuMapAttributesIntoRule;
   }
 

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-336921.js';
 
 var summary = '13.4.4.3 - XML.prototype.appendChild creates undesired <br/>';
 var BUGNUMBER = 336921;

@@ -43,18 +43,19 @@
 #include "nsSVGString.h"
 #include "nsSVGTextContentElement.h"
 
-typedef nsSVGTextContentElement nsSVGTextPathElementBase;
+typedef nsSVGStylableElement nsSVGTextPathElementBase;
 
-class nsSVGTextPathElement : public nsSVGTextPathElementBase, // = nsIDOMSVGTextContentElement
+class nsSVGTextPathElement : public nsSVGTextPathElementBase,
                              public nsIDOMSVGTextPathElement,
-                             public nsIDOMSVGURIReference
+                             public nsIDOMSVGURIReference,
+                             public nsSVGTextContentElement // = nsIDOMSVGTextContentElement
 {
 friend class nsSVGTextPathFrame;
 
 protected:
   friend nsresult NS_NewSVGTextPathElement(nsIContent **aResult,
-                                           already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGTextPathElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                        nsINodeInfo *aNodeInfo);
+  nsSVGTextPathElement(nsINodeInfo* aNodeInfo);
   
 public:
   // interfaces:
@@ -68,15 +69,18 @@ public:
   NS_FORWARD_NSIDOMNODE(nsSVGTextPathElementBase::)
   NS_FORWARD_NSIDOMELEMENT(nsSVGTextPathElementBase::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGTextPathElementBase::)
-  NS_FORWARD_NSIDOMSVGTEXTCONTENTELEMENT(nsSVGTextPathElementBase::)
+  NS_FORWARD_NSIDOMSVGTEXTCONTENTELEMENT(nsSVGTextContentElement::)
 
   // nsIContent interface
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
+
+  virtual nsSVGTextContainerFrame* GetTextContainerFrame() {
+    return do_QueryFrame(GetPrimaryFrame(Flush_Layout));
+  }
 
   virtual LengthAttributesInfo GetLengthInfo();
   virtual EnumAttributesInfo GetEnumInfo();

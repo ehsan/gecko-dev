@@ -48,6 +48,8 @@
  *
  * @see nsIPrefBranch
  * @see nsISupportsString
+ * 
+ * @status FROZEN
  */
 
 [scriptable, uuid(ae419e24-1dd1-11b2-b39a-d3e5e7073802)]
@@ -57,7 +59,7 @@ interface nsIPrefLocalizedString : nsISupports
    * Provides access to string data stored in this property.
    *
    * @return NS_OK The operation succeeded.
-   * @return Other An error occurred.
+   * @return Other An error occured.
    */
   attribute wstring data;
 

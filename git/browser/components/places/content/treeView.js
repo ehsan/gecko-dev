@@ -37,21 +37,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-function PlacesTreeView(aFlatList, aOnOpenFlatContainer) {
-  this._tree = null;
-  this._result = null;
-  this._selection = null;
-  this._rootNode = null;
-  this._rows = [];
-  this._flatList = aFlatList;
-  this._openContainerCallback = aOnOpenFlatContainer;
-}
-
 PlacesTreeView.prototype = {
   _makeAtom: function PTV__makeAtom(aString) {
-    return Cc["@mozilla.org/atom-service;1"].
-           getService(Ci.nsIAtomService).
-           getAtom(aString);
+    return  Cc["@mozilla.org/atom-service;1"].
+            getService(Ci.nsIAtomService).
+            getAtom(aString);
   },
 
   _atoms: [],
@@ -132,7 +122,8 @@ PlacesTreeView.prototype = {
     if (!(aContainer instanceof Ci.nsINavHistoryQueryResultNode))
       return aContainer._plainContainer = false;
 
-    switch (aContainer.queryOptions.resultType) {
+    let resultType = aContainer.queryOptions.resultType;
+    switch (resultType) {
       case Ci.nsINavHistoryQueryOptions.RESULTS_AS_DATE_QUERY:
       case Ci.nsINavHistoryQueryOptions.RESULTS_AS_SITE_QUERY:
       case Ci.nsINavHistoryQueryOptions.RESULTS_AS_DATE_SITE_QUERY:
@@ -160,15 +151,15 @@ PlacesTreeView.prototype = {
    *        If true, the row will be computed even if the node still isn't set
    *        in our rows array.
    * @param [optional] aParentRow
-   *        The row of aNode's parent. Ignored for the root node.
+   *        The row of aNode's parent.
+   *        DO NOT compute this yourself for the purpose of calling this
+   *        function.  However, do pass it if you have it handy.
+   *        Ignored for the root node.
    * @param [optional] aNodeIndex
    *        The index of aNode in its parent.  Only used if aParentRow is
    *        set too.
    *
    * @throws if aNode is invisible.
-   * @note If aParentRow and aNodeIndex are passed and parent is a plain
-   * container, this method will just return a calculated row value, without
-   * making assumptions on existence of the node at that position.
    * @return aNode's row if it's in the rows list or if aForceBuild is set, -1
    *         otherwise.
    */
@@ -177,14 +168,11 @@ PlacesTreeView.prototype = {
     if (aNode == this._rootNode)
       throw "The root node is never visible";
 
-    let ancestors = PlacesUtils.nodeAncestors(aNode);
-    for (let ancestor in ancestors) {
-      if (!ancestor.containerOpen)
-        throw "Invisible node passed to _getRowForNode";
-    }
+    let parent = aNode.parent;
+    if (!parent || !parent.containerOpen)
+      throw "Invisible node passed to _getRowForNode";
 
     // Non-plain containers are initially built with their contents.
-    let parent = aNode.parent;
     let parentIsPlain = this._isPlainContainer(parent);
     if (!parentIsPlain) {
       if (parent == this._rootNode)
@@ -396,7 +384,7 @@ PlacesTreeView.prototype = {
         nodesInfo.push({
           node: this._rows[i],
           oldRow: i,
-          wasVisible: i >= firstVisibleRow && i <= lastVisibleRow
+          wasVisbile: i >= firstVisibleRow && i <= lastVisibleRow
         });
       }
     }
@@ -611,7 +599,8 @@ PlacesTreeView.prototype = {
       return;
 
     // Bail out for hidden separators.
-    if (PlacesUtils.nodeIsSeparator(aNode) && this.isSorted())
+    if (PlacesUtils.nodeIsSeparator(aNode) &&
+        this._result.sortingMode != Ci.nsINavHistoryQueryOptions.SORT_BY_NONE)
       return;
 
     let parentRow;
@@ -640,7 +629,7 @@ PlacesTreeView.prototype = {
       // children themselves that would be in the way.
       let cc = aParentNode.childCount;
       let separatorsAreHidden = PlacesUtils.nodeIsSeparator(aNode) &&
-                                this.isSorted();
+        this._result.sortingMode != Ci.nsINavHistoryQueryOptions.SORT_BY_NONE;
       for (let i = aNewIndex + 1; i < cc; i++) {
         let node = aParentNode.getChild(i);
         if (!separatorsAreHidden || PlacesUtils.nodeIsSeparator(node)) {
@@ -687,12 +676,11 @@ PlacesTreeView.prototype = {
       throw Cr.NS_ERROR_NOT_IMPLEMENTED;
 
     // Bail out for hidden separators.
-    if (PlacesUtils.nodeIsSeparator(aNode) && this.isSorted())
+    if (PlacesUtils.nodeIsSeparator(aNode) &&
+        this._result.sortingMode != Ci.nsINavHistoryQueryOptions.SORT_BY_NONE)
       return;
 
-    let parentRow = aParentNode == this._rootNode ?
-                    undefined : this._getRowForNode(aParentNode, true);
-    let oldRow = this._getRowForNode(aNode, true, parentRow, aOldIndex);
+    let oldRow = this._getRowForNode(aNode, true);
     if (oldRow < 0)
       throw Cr.NS_ERROR_UNEXPECTED;
 
@@ -724,7 +712,7 @@ PlacesTreeView.prototype = {
       return;
 
     // Restore selection.
-    let rowToSelect = Math.min(oldRow, this._rows.length - 1);
+    let rowToSelect = Math.min(oldRow,  this._rows.length - 1);
     this.selection.rangedSelect(rowToSelect, rowToSelect, true);
   },
 
@@ -735,7 +723,8 @@ PlacesTreeView.prototype = {
       return;
 
     // Bail out for hidden separators.
-    if (PlacesUtils.nodeIsSeparator(aNode) && this.isSorted())
+    if (PlacesUtils.nodeIsSeparator(aNode) &&
+        this._result.sortingMode != Ci.nsINavHistoryQueryOptions.SORT_BY_NONE)
       return;
 
     let oldRow = this._getRowForNode(aNode, true);
@@ -791,10 +780,6 @@ PlacesTreeView.prototype = {
                                                           aColumnType) {
     NS_ASSERT(this._result, "Got a notification but have no result!");
     if (!this._tree || !this._result)
-      return;
-
-    // Nothing to do for the root node.
-    if (aNode == this._rootNode)
       return;
 
     let row = this._getRowForNode(aNode);
@@ -1210,7 +1195,7 @@ PlacesTreeView.prototype = {
       else {
         // Use the last-selected node's container.
         container = lastSelected.parent;
-
+        
         // During its Drag & Drop operation, the tree code closes-and-opens
         // containers very often (part of the XUL "spring-loaded folders"
         // implementation).  And in certain cases, we may reach a closed
@@ -1315,7 +1300,8 @@ PlacesTreeView.prototype = {
 
   getCellText: function PTV_getCellText(aRow, aColumn) {
     let node = this._getNodeForRow(aRow);
-    switch (this._getColumnType(aColumn)) {
+    let columnType = this._getColumnType(aColumn);
+    switch (columnType) {
       case this.COLUMN_TYPE_TITLE:
         // normally, this is just the title, but we don't want empty items in
         // the tree view so return a special string if the title is empty.
@@ -1433,7 +1419,8 @@ PlacesTreeView.prototype = {
     let newSort;
     let newSortingAnnotation = "";
     const NHQO = Ci.nsINavHistoryQueryOptions;
-    switch (this._getColumnType(aColumn)) {
+    let columnType = this._getColumnType(aColumn);
+    switch (columnType) {
       case this.COLUMN_TYPE_TITLE:
         if (oldSort == NHQO.SORT_BY_TITLE_ASCENDING)
           newSort = NHQO.SORT_BY_TITLE_DESCENDING;
@@ -1580,3 +1567,13 @@ PlacesTreeView.prototype = {
   performActionOnRow: function(aAction, aRow) { },
   performActionOnCell: function(aAction, aRow, aColumn) { }
 };
+
+function PlacesTreeView(aFlatList, aOnOpenFlatContainer) {
+  this._tree = null;
+  this._result = null;
+  this._selection = null;
+  this._rootNode = null;
+  this._rows = [];
+  this._flatList = aFlatList;
+  this._openContainerCallback = aOnOpenFlatContainer;
+}

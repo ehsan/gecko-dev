@@ -38,14 +38,13 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsISupports.idl"
-#include "nsIAsyncInputStream.idl"
-#include "nsIEventTarget.idl"
+#include "nsIInputStream.idl"
 
 /**
  * imgIEncoder interface
  */
-[scriptable, uuid(4bcba4ec-7a44-43f9-a70f-1e92cdc625b9)]
-interface imgIEncoder : nsIAsyncInputStream
+[scriptable, uuid(ba3a854b-fb8d-4881-8af9-5849df10e5e5)]
+interface imgIEncoder : nsIInputStream
 {
   // Possible values for outputOptions. Multiple values are semicolon-separated.
   //

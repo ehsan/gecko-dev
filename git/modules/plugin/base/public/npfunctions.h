@@ -65,8 +65,6 @@ typedef void         (* NP_LOADDS NPP_URLNotifyProcPtr)(NPP instance, const char
    by the plugin on the way out. The browser is responsible for releasing. */
 typedef NPError      (* NP_LOADDS NPP_GetValueProcPtr)(NPP instance, NPPVariable variable, void *ret_value);
 typedef NPError      (* NP_LOADDS NPP_SetValueProcPtr)(NPP instance, NPNVariable variable, void *value);
-typedef NPBool       (* NP_LOADDS NPP_GotFocusPtr)(NPP instance, NPFocusDirection direction);
-typedef void         (* NP_LOADDS NPP_LostFocusPtr)(NPP instance);
 
 typedef NPError      (*NPN_GetValueProcPtr)(NPP instance, NPNVariable variable, void *ret_value);
 typedef NPError      (*NPN_SetValueProcPtr)(NPP instance, NPPVariable variable, void *value);
@@ -122,8 +120,6 @@ typedef uint32_t     (*NPN_ScheduleTimerPtr)(NPP instance, uint32_t interval, NP
 typedef void         (*NPN_UnscheduleTimerPtr)(NPP instance, uint32_t timerID);
 typedef NPError      (*NPN_PopUpContextMenuPtr)(NPP instance, NPMenu* menu);
 typedef NPBool       (*NPN_ConvertPointPtr)(NPP instance, double sourceX, double sourceY, NPCoordinateSpace sourceSpace, double *destX, double *destY, NPCoordinateSpace destSpace);
-typedef NPBool       (*NPN_HandleEventPtr)(NPP instance, void *event, NPBool handled);
-typedef NPBool       (*NPN_UnfocusInstancePtr)(NPP instance, NPFocusDirection direction);
 
 typedef struct _NPPluginFuncs {
   uint16_t size;
@@ -142,8 +138,6 @@ typedef struct _NPPluginFuncs {
   void* javaClass;
   NPP_GetValueProcPtr getvalue;
   NPP_SetValueProcPtr setvalue;
-  NPP_GotFocusPtr gotfocus;
-  NPP_LostFocusPtr lostfocus;
 } NPPluginFuncs;
 
 typedef struct _NPNetscapeFuncs {
@@ -201,8 +195,6 @@ typedef struct _NPNetscapeFuncs {
   NPN_UnscheduleTimerPtr unscheduletimer;
   NPN_PopUpContextMenuPtr popupcontextmenu;
   NPN_ConvertPointPtr convertpoint;
-  NPN_HandleEventPtr handleevent;
-  NPN_UnfocusInstancePtr unfocusinstance;
 } NPNetscapeFuncs;
 
 #ifdef XP_MACOSX
@@ -230,7 +222,7 @@ typedef const char* (*NP_GetMIMEDescriptionProcPtr)();
 typedef OSErr (*BP_GetSupportedMIMETypesProcPtr)(BPSupportedMIMETypes*, UInt32);
 #endif
 
-#if defined(_WIN32)
+#if defined(_WINDOWS)
 #define OSCALL WINAPI
 #else
 #if defined(__OS2__)
@@ -252,7 +244,7 @@ typedef OSErr (*BP_GetSupportedMIMETypesProcPtr)(BPSupportedMIMETypes*, UInt32);
 #define NP_EXPORT(__type) NP_VISIBILITY_DEFAULT __type
 #endif
 
-#if defined(_WIN32) || defined (__OS2__)
+#if defined(_WINDOWS) || defined (__OS2__)
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -267,17 +259,12 @@ typedef struct _NPPluginData {   /* Alternate OS2 Plugin interface */
   unsigned long dwProductVersionMS;
   unsigned long dwProductVersionLS;
 } NPPluginData;
-typedef NPError (*NP_GetPluginDataFunc)(NPPluginData*);
-NPError OSCALL  NP_GetPluginData(NPPluginData * pPluginData);
+NPError OSCALL NP_GetPluginData(NPPluginData * pPluginData);
 #endif
-typedef NPError (*NP_GetEntryPointsFunc)(NPPluginFuncs*);
-NPError OSCALL  NP_GetEntryPoints(NPPluginFuncs* pFuncs);
-typedef NPError (*NP_InitializeFunc)(NPNetscapeFuncs*);
-NPError OSCALL  NP_Initialize(NPNetscapeFuncs* bFuncs);
-typedef NPError (*NP_ShutdownFunc)();
-NPError OSCALL  NP_Shutdown();
-typedef char*   (*NP_GetMIMEDescriptionFunc)();
-char*           NP_GetMIMEDescription();
+NPError OSCALL NP_GetEntryPoints(NPPluginFuncs* pFuncs);
+NPError OSCALL NP_Initialize(NPNetscapeFuncs* bFuncs);
+NPError OSCALL NP_Shutdown();
+char*          NP_GetMIMEDescription();
 #ifdef __cplusplus
 }
 #endif
@@ -291,22 +278,15 @@ char*           NP_GetMIMEDescription();
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef char*      (*NP_GetPluginVersionFunc)();
 NP_EXPORT(char*)   NP_GetPluginVersion();
-typedef char*      (*NP_GetMIMEDescriptionFunc)();
 NP_EXPORT(char*)   NP_GetMIMEDescription();
 #ifdef XP_MACOSX
-typedef NPError    (*NP_InitializeFunc)(NPNetscapeFuncs*);
 NP_EXPORT(NPError) NP_Initialize(NPNetscapeFuncs* bFuncs);
-typedef NPError    (*NP_GetEntryPointsFunc)(NPPluginFuncs*);
 NP_EXPORT(NPError) NP_GetEntryPoints(NPPluginFuncs* pFuncs);
 #else
-typedef NPError    (*NP_InitializeFunc)(NPNetscapeFuncs*, NPPluginFuncs*);
 NP_EXPORT(NPError) NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs);
 #endif
-typedef NPError    (*NP_ShutdownFunc)();
 NP_EXPORT(NPError) NP_Shutdown();
-typedef NPError    (*NP_GetValueFunc)(void *, NPPVariable, void *);
 NP_EXPORT(NPError) NP_GetValue(void *future, NPPVariable aVariable, void *aValue);
 #ifdef __cplusplus
 }

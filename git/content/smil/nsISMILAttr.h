@@ -69,17 +69,16 @@ public:
    *                    animateTransform where the 'type' attribute is needed to
    *                    parse the value.
    * @param[out] aValue Outparam for storing the parsed value.
-   * @param[out] aPreventCachingOfSandwich
-   *                    Outparam to indicate whether the attribute contains
-   *                    dependencies on its context that should prevent the
-   *                    result of the animation sandwich from being cached and
-   *                    reused in future samples.
+   * @param[out] aCanCache Outparam for indicating whether the parsed value
+   *                       can be reused in future samples -- i.e. whether the
+   *                       given string is always guaranteed to compute
+   *                       to the same nsSMILValue.
    * @return NS_OK on success or an error code if creation failed.
    */
   virtual nsresult ValueFromString(const nsAString& aStr,
                                    const nsISMILAnimationElement* aSrcElement,
                                    nsSMILValue& aValue,
-                                   PRBool& aPreventCachingOfSandwich) const = 0;
+                                   PRBool& aCanCache) const = 0;
 
   /**
    * Gets the underlying value of this attribute.

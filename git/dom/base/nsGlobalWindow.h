@@ -101,9 +101,6 @@
 #include "nsPIDOMEventTarget.h"
 #include "nsIArray.h"
 #include "nsIContent.h"
-#include "nsIIDBFactory.h"
-#include "nsFrameMessageManager.h"
-#include "mozilla/TimeStamp.h"
 
 #define DEFAULT_HOME_PAGE "www.mozilla.org"
 #define PREF_BROWSER_STARTUP_HOMEPAGE "browser.startup.homepage"
@@ -180,13 +177,9 @@ struct nsTimeout : PRCList
   // Non-zero interval in milliseconds if repetitive timeout
   PRUint32 mInterval;
 
-  // mWhen and mTimeRemaining can't be in a union, sadly, because they
-  // have constructors.
-  // Nominal time to run this timeout.  Use only when timeouts are not
-  // suspended.
-  mozilla::TimeStamp mWhen;
-  // Remaining time to wait.  Used only when timeouts are suspended.
-  mozilla::TimeDuration mTimeRemaining;
+  // Nominal time (in microseconds since the epoch) to run this
+  // timeout
+  PRTime mWhen;
 
   // Principal with which to execute
   nsCOMPtr<nsIPrincipal> mPrincipal;
@@ -255,10 +248,6 @@ public:
   // nsIScriptGlobalObject
   virtual nsIScriptContext *GetContext();
   virtual JSObject *GetGlobalJSObject();
-  JSObject *FastGetGlobalJSObject()
-  {
-    return mJSObject;
-  }
 
   virtual nsresult EnsureScriptEnvironment(PRUint32 aLangID);
 
@@ -348,7 +337,6 @@ public:
   virtual NS_HIDDEN_(void) SetDocShell(nsIDocShell* aDocShell);
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
                                               nsISupports *aState);
-  void DispatchDOMWindowCreated();
   virtual NS_HIDDEN_(void) SetOpenerWindow(nsIDOMWindowInternal *aOpener,
                                            PRBool aOriginalOpener);
   virtual NS_HIDDEN_(void) EnsureSizeUpToDate();
@@ -360,8 +348,6 @@ public:
   virtual NS_HIDDEN_(nsresult) ForceClose();
 
   virtual NS_HIDDEN_(void) SetHasOrientationEventListener();
-  virtual NS_HIDDEN_(void) MaybeUpdateTouchState();
-  virtual NS_HIDDEN_(void) UpdateTouchState();
 
   // nsIDOMViewCSS
   NS_DECL_NSIDOMVIEWCSS
@@ -383,11 +369,6 @@ public:
     // Make sure this matches the casts we do in QueryInterface().
     return (nsGlobalWindow *)(nsIScriptGlobalObject *)supports;
   }
-  static nsISupports *ToSupports(nsGlobalWindow *win)
-  {
-    // Make sure this matches the casts we do in QueryInterface().
-    return (nsISupports *)(nsIScriptGlobalObject *)win;
-  }
   static nsGlobalWindow *FromWrapper(nsIXPConnectWrappedNative *wrapper)
   {
     return FromSupports(wrapper->Native());
@@ -404,13 +385,12 @@ public:
 
   nsIScriptContext *GetScriptContextInternal(PRUint32 aLangID)
   {
-    NS_ASSERTION(aLangID == nsIProgrammingLanguage::JAVASCRIPT,
-                 "We don't support this language ID");
+    NS_ASSERTION(NS_STID_VALID(aLangID), "Invalid language");
     if (mOuterWindow) {
-      return GetOuterWindowInternal()->mContext;
+      return GetOuterWindowInternal()->mScriptContexts[NS_STID_INDEX(aLangID)];
     }
 
-    return mContext;
+    return mScriptContexts[NS_STID_INDEX(aLangID)];
   }
 
   nsGlobalWindow *GetOuterWindowInternal()
@@ -480,11 +460,6 @@ public:
             mHavePendingClose ||
             mCleanedUp);
   }
-
-  static void FirePopupBlockedEvent(nsIDOMDocument* aDoc,
-                                    nsIDOMWindow *aRequestingWindow, nsIURI *aPopupURI,
-                                    const nsAString &aPopupWindowName,
-                                    const nsAString &aPopupWindowFeatures);
 
 protected:
   // Object Management
@@ -574,8 +549,7 @@ protected:
   static void ClearWindowScope(nsISupports* aWindow);
 
   // Timeout Functions
-  // Language agnostic timeout function (all args passed).
-  // |interval| is in milliseconds.
+  // Language agnostic timeout function (all args passed)
   nsresult SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
                                 PRInt32 interval,
                                 PRBool aIsInterval, PRInt32 *aReturn);
@@ -704,11 +678,6 @@ protected:
   already_AddRefed<nsPIWindowRoot> GetTopWindowRoot();
 
   static void NotifyDOMWindowDestroyed(nsGlobalWindow* aWindow);
-  void NotifyWindowIDDestroyed(const char* aTopic);
-  
-  void ClearStatus();
-
-  virtual void UpdateParentTarget();
 
   // When adding new member variables, be careful not to create cycles
   // through JavaScript.  If there is any chance that a member variable
@@ -769,15 +738,12 @@ protected:
   // This will be reset when another element is focused
   PRPackedBool           mShowFocusRingForContent : 1;
 
-  // true if tab navigation has occurred for this window. Focus rings
+  // true if tab navigation has occured for this window. Focus rings
   // should be displayed.
-  PRPackedBool           mFocusByKeyOccurred : 1;
+  PRPackedBool           mFocusByKeyOccured : 1;
 
   // Indicates whether this window is getting acceleration change events
   PRPackedBool           mHasAcceleration  : 1;
-
-  // whether we've sent the destroy notification for our window id
-  PRPackedBool           mNotifiedIDDestroyed : 1;
 
   nsCOMPtr<nsIScriptContext>    mContext;
   nsWeakPtr                     mOpener;
@@ -796,9 +762,12 @@ protected:
   nsRefPtr<nsBarProp>           mStatusbar;
   nsRefPtr<nsBarProp>           mScrollbars;
   nsCOMPtr<nsIWeakReference>    mWindowUtils;
+  nsRefPtr<nsLocation>          mLocation;
   nsString                      mStatus;
   nsString                      mDefaultStatus;
   // index 0->language_id 1, so index MAX-1 == language_id MAX
+  nsCOMPtr<nsIScriptContext>    mScriptContexts[NS_STID_ARRAY_UBOUND];
+  void *                        mScriptGlobals[NS_STID_ARRAY_UBOUND];
   nsGlobalWindowObserver*       mObserver;
 
   nsCOMPtr<nsIDOMCrypto>        mCrypto;
@@ -806,7 +775,7 @@ protected:
   nsCOMPtr<nsIDOMStorage>      mLocalStorage;
   nsCOMPtr<nsIDOMStorage>      mSessionStorage;
 
-  nsCOMPtr<nsIXPConnectJSObjectHolder> mInnerWindowHolder;
+  nsCOMPtr<nsISupports>         mInnerWindowHolders[NS_STID_ARRAY_UBOUND];
   nsCOMPtr<nsIPrincipal> mOpenerScriptPrincipal; // strong; used to determine
                                                  // whether to clear scope
 
@@ -817,7 +786,6 @@ protected:
   nsTimeout*                    mTimeoutInsertionPoint;
   PRUint32                      mTimeoutPublicIdCounter;
   PRUint32                      mTimeoutFiringDepth;
-  nsRefPtr<nsLocation>          mLocation;
 
   // Holder of the dummy java plugin, used to expose window.java and
   // window.packages.
@@ -851,12 +819,6 @@ protected:
 
   nsCOMPtr<nsIDocument> mSuspendedDoc;
 
-  nsCOMPtr<nsIIDBFactory> mIndexedDB;
-
-  // A unique (as long as our 64-bit counter doesn't roll over) id for
-  // this window.
-  PRUint64 mWindowID;
-
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;
   friend class PostMessageEvent;
@@ -886,8 +848,8 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsGlobalChromeWindow,
                                                      nsGlobalWindow)
 
+protected:
   nsCOMPtr<nsIBrowserDOMWindow> mBrowserDOMWindow;
-  nsCOMPtr<nsIChromeFrameMessageManager> mMessageManager;
 };
 
 /*
@@ -923,6 +885,7 @@ protected:
 //*****************************************************************************
 
 class nsNavigator : public nsIDOMNavigator,
+                    public nsIDOMJSNavigator,
                     public nsIDOMClientInformation,
                     public nsIDOMNavigatorGeolocation
 {
@@ -932,6 +895,7 @@ public:
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMNAVIGATOR
+  NS_DECL_NSIDOMJSNAVIGATOR
   NS_DECL_NSIDOMCLIENTINFORMATION
   NS_DECL_NSIDOMNAVIGATORGEOLOCATION
   
@@ -949,6 +913,8 @@ protected:
   nsRefPtr<nsPluginArray> mPlugins;
   nsRefPtr<nsGeolocation> mGeolocation;
   nsIDocShell* mDocShell; // weak reference
+
+  static jsval       sPrefInternal_id;
 };
 
 class nsIURI;

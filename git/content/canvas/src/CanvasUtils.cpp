@@ -48,7 +48,7 @@
 #include "nsIDocument.h"
 #include "nsIDOMCanvasRenderingContext2D.h"
 #include "nsICanvasRenderingContextInternal.h"
-#include "nsHTMLCanvasElement.h"
+#include "nsICanvasElement.h"
 #include "nsIPrincipal.h"
 #include "nsINode.h"
 
@@ -61,7 +61,7 @@
 using namespace mozilla;
 
 void
-CanvasUtils::DoDrawImageSecurityCheck(nsHTMLCanvasElement *aCanvasElement,
+CanvasUtils::DoDrawImageSecurityCheck(nsICanvasElement *aCanvasElement,
                                       nsIPrincipal *aPrincipal,
                                       PRBool forceWriteOnly)
 {
@@ -83,7 +83,7 @@ CanvasUtils::DoDrawImageSecurityCheck(nsHTMLCanvasElement *aCanvasElement,
     if (aPrincipal == nsnull)
         return;
 
-    nsCOMPtr<nsINode> elem = do_QueryInterface(static_cast<nsIDOMHTMLCanvasElement*>(aCanvasElement));
+    nsCOMPtr<nsINode> elem = do_QueryInterface(aCanvasElement);
     if (elem) { // XXXbz How could this actually be null?
         PRBool subsumes;
         nsresult rv =

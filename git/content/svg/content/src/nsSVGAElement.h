@@ -35,9 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef NS_SVGAELEMENT_H_
-#define NS_SVGAELEMENT_H_
-
 #include "nsSVGGraphicElement.h"
 #include "nsIDOMSVGAElement.h"
 #include "nsIDOMSVGURIReference.h"
@@ -56,8 +53,8 @@ class nsSVGAElement : public nsSVGAElementBase,
 {
 protected:
   friend nsresult NS_NewSVGAElement(nsIContent **aResult,
-                                    already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGAElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                    nsINodeInfo *aNodeInfo);
+  nsSVGAElement(nsINodeInfo *aNodeInfo);
 
 public:
   // interfaces:
@@ -86,7 +83,6 @@ public:
                               PRBool aCompileEventHandlers);
   virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
                               PRBool aNullParent = PR_TRUE);
-  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull, PRBool aWithMouse = PR_FALSE);
   virtual PRBool IsLink(nsIURI** aURI) const;
   virtual void GetLinkTarget(nsAString& aTarget);
@@ -104,7 +100,6 @@ public:
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              PRBool aNotify);
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
 
   virtual StringAttributesInfo GetStringInfo();
@@ -113,5 +108,3 @@ protected:
   nsSVGString mStringAttributes[2];
   static StringInfo sStringInfo[2];
 };
-
-#endif // NS_SVGAELEMENT_H_

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-506567.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 506567;
 var summary = 'Do not crash with watched variables';

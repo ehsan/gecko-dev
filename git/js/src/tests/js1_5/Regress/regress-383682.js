@@ -5,6 +5,7 @@
  * Contributor: Blake Kaplan
  */
 
+var gTestfile = 'regress-383682.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 383682;
 var summary = 'eval is too dynamic';

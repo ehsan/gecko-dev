@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-442333-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 442333;
 var summary = 'Remove eval\'s optional second argument';

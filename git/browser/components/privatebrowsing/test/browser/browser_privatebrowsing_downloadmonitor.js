@@ -49,19 +49,8 @@ function test() {
   let panel = document.getElementById("download-monitor");
   waitForExplicitFinish();
 
-  let acceptDialog = 0;
-  let confirmCalls = 0;
-  function promptObserver(aSubject, aTopic, aData) {
-    let dialogWin = aSubject.QueryInterface(Ci.nsIDOMWindow);
-    confirmCalls++;
-    if (acceptDialog-- > 0)
-      dialogWin.document.documentElement.getButton("accept").click();
-  }
-
-  Services.obs.addObserver(promptObserver, "common-dialog-loaded", false);
-
   // Add a new download
-  let [file, persist] = addDownload(dm, {
+  addDownload(dm, {
     resultFileName: "pbtest-1",
     downloadName: "PB Test 1"
   });
@@ -74,19 +63,16 @@ function test() {
   ok(!panel.hidden, "The download panel should be successfully added initially");
 
   // Enter the private browsing mode
-  acceptDialog = 1;
   pb.privateBrowsingEnabled = true;
-  is(confirmCalls, 1, "One prompt was accepted");
-  ok(pb.privateBrowsingEnabled, "The private browsing transition was successful");
 
-  executeSoon(function () {
+  setTimeout(function () {
     ok(panel.hidden, "The download panel should be hidden when entering the private browsing mode");
 
     // Add a new download
-    let [file2, persist2] = addDownload(dm, {
+    let file = addDownload(dm, {
       resultFileName: "pbtest-2",
       downloadName: "PB Test 2"
-    });
+    }).targetFile;
 
     // Update the panel
     DownloadMonitorPanel.updateStatus();
@@ -95,12 +81,9 @@ function test() {
     ok(!panel.hidden, "The download panel should show up when a new download is added");
 
     // Exit the private browsing mode
-    acceptDialog = 1;
     pb.privateBrowsingEnabled = false;
-    is(confirmCalls, 2, "One prompt was accepted");
-    ok(!pb.privateBrowsingEnabled, "The private browsing transition was successful");
 
-    executeSoon(function () {
+    setTimeout(function () {
       ok(panel.hidden, "The download panel should be hidden when leaving the private browsing mode");
 
       // cleanup
@@ -115,10 +98,9 @@ function test() {
       if (file.exists())
         file.remove(false);
 
-      Services.obs.removeObserver(promptObserver, "common-dialog-loaded", false);
       finish();
-    });
-  });
+    }, 0);
+  }, 0);
 }
 
 /**
@@ -172,7 +154,7 @@ function addDownload(dm, aParams)
   persist.progressListener = dl.QueryInterface(Ci.nsIWebProgressListener);
   persist.saveURI(dl.source, null, null, null, null, dl.targetFile);
 
-  return [dl.targetFile, persist];
+  return dl;
 }
 
 function createURI(aObj) {

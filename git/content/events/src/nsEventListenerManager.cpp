@@ -66,7 +66,7 @@
 #include "nsLayoutUtils.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 #include "nsIFrame.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
@@ -296,6 +296,7 @@ nsEventListenerManager::~nsEventListenerManager()
 
   --mInstanceCount;
   if(mInstanceCount == 0) {
+    NS_IF_RELEASE(gSystemEventGroup);
     NS_IF_RELEASE(gDOM2EventGroup);
   }
 }
@@ -310,18 +311,8 @@ nsEventListenerManager::RemoveAllListeners()
 void
 nsEventListenerManager::Shutdown()
 {
-  NS_IF_RELEASE(gSystemEventGroup);
-  sAddListenerID = JSID_VOID;
+  sAddListenerID = JSVAL_VOID;
   nsDOMEvent::Shutdown();
-}
-
-nsIDOMEventGroup*
-nsEventListenerManager::GetSystemEventGroup()
-{
-  if (!gSystemEventGroup) {
-    CallCreateInstance(kDOMEventGroupCID, &gSystemEventGroup);
-  }
-  return gSystemEventGroup;
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsEventListenerManager)
@@ -474,12 +465,6 @@ nsEventListenerManager::AddEventListener(nsIDOMEventListener *aListener,
     if (window) {
       window->SetHasPaintEventListeners();
     }
-  } else if (aType == NS_MOZAUDIOAVAILABLE) {
-    mMayHaveAudioAvailableEventListener = PR_TRUE;
-    nsPIDOMWindow* window = GetInnerWindowForTarget();
-    if (window) {
-      window->SetHasAudioAvailableEventListeners();
-    }
   } else if (aType >= NS_MUTATION_START && aType <= NS_MUTATION_END) {
     // For mutation listeners, we need to update the global bit on the DOM window.
     // Otherwise we won't actually fire the mutation event.
@@ -497,10 +482,6 @@ nsEventListenerManager::AddEventListener(nsIDOMEventListener *aListener,
     nsPIDOMWindow* window = GetInnerWindowForTarget();
     if (window)
       window->SetHasOrientationEventListener();
-  } else if (aType >= NS_MOZTOUCH_DOWN && aType <= NS_MOZTOUCH_UP) {
-    nsPIDOMWindow* window = GetInnerWindowForTarget();
-    if (window)
-      window->SetHasTouchEventListeners();
   }
 
   return NS_OK;
@@ -851,8 +832,8 @@ nsEventListenerManager::RemoveScriptEventListener(nsIAtom* aName)
   return NS_OK;
 }
 
-jsid
-nsEventListenerManager::sAddListenerID = JSID_VOID;
+jsval
+nsEventListenerManager::sAddListenerID = JSVAL_VOID;
 
 NS_IMETHODIMP
 nsEventListenerManager::RegisterScriptEventListener(nsIScriptContext *aContext,
@@ -876,10 +857,10 @@ nsEventListenerManager::RegisterScriptEventListener(nsIScriptContext *aContext,
     return rv;
 
   if (cx) {
-    if (sAddListenerID == JSID_VOID) {
+    if (sAddListenerID == JSVAL_VOID) {
       JSAutoRequest ar(cx);
       sAddListenerID =
-        INTERNED_STRING_TO_JSID(::JS_InternString(cx, "addEventListener"));
+        STRING_TO_JSVAL(::JS_InternString(cx, "addEventListener"));
     }
 
     if (aContext->GetScriptTypeID() == nsIProgrammingLanguage::JAVASCRIPT) {
@@ -993,14 +974,6 @@ nsEventListenerManager::CompileEventHandlerInternal(nsIScriptContext *aContext,
       else if (aName == nsGkAtoms::onSVGZoom)
         attrName = nsGkAtoms::onzoom;
 #endif // MOZ_SVG
-#ifdef MOZ_SMIL
-      else if (aName == nsGkAtoms::onbeginEvent)
-        attrName = nsGkAtoms::onbegin;
-      else if (aName == nsGkAtoms::onrepeatEvent)
-        attrName = nsGkAtoms::onrepeat;
-      else if (aName == nsGkAtoms::onendEvent)
-        attrName = nsGkAtoms::onend;
-#endif // MOZ_SMIL
 
       content->GetAttr(kNameSpaceID_None, attrName, handlerBody);
 
@@ -1247,8 +1220,17 @@ nsEventListenerManager::SetListenerTarget(nsISupports* aTarget)
 NS_IMETHODIMP
 nsEventListenerManager::GetSystemEventGroupLM(nsIDOMEventGroup **aGroup)
 {
-  *aGroup = GetSystemEventGroup();
-  NS_ENSURE_TRUE(*aGroup, NS_ERROR_OUT_OF_MEMORY);
+  if (!gSystemEventGroup) {
+    nsresult result;
+    nsCOMPtr<nsIDOMEventGroup> group(do_CreateInstance(kDOMEventGroupCID,&result));
+    if (NS_FAILED(result))
+      return result;
+
+    gSystemEventGroup = group;
+    NS_ADDREF(gSystemEventGroup);
+  }
+
+  *aGroup = gSystemEventGroup;
   NS_ADDREF(*aGroup);
   return NS_OK;
 }
@@ -1314,7 +1296,7 @@ nsEventListenerManager::DispatchEvent(nsIDOMEvent* aEvent, PRBool *_retval)
   }
 
   // Obtain a presentation shell
-  nsIPresShell *shell = document->GetShell();
+  nsIPresShell *shell = document->GetPrimaryShell();
   nsRefPtr<nsPresContext> context;
   if (shell) {
     context = shell->GetPresContext();

@@ -50,7 +50,6 @@
 pref("keyword.URL", "http://www.google.com/search?ie=UTF-8&oe=utf-8&q=");
 pref("keyword.enabled", false);
 pref("general.useragent.locale", "chrome://global/locale/intl.properties");
-pref("general.useragent.compatMode.firefox", false);
 
 pref("general.config.obscure_value", 13); // for MCD .cfg files
 
@@ -61,7 +60,7 @@ pref("browser.bookmarks.max_backups",       5);
 
 pref("browser.cache.disk.enable",           true);
 #ifndef WINCE
-pref("browser.cache.disk.capacity",         256000);
+pref("browser.cache.disk.capacity",         51200);
 #else
 pref("browser.cache.disk.capacity",         20000);
 #endif
@@ -97,7 +96,6 @@ pref("browser.sessionhistory.max_total_viewers", -1);
 
 pref("ui.use_native_colors", true);
 pref("ui.use_native_popup_windows", false);
-pref("ui.click_hold_context_menus", false);
 pref("browser.display.use_document_fonts",  1);  // 0 = never, 1 = quick, 2 = always
 pref("browser.display.use_document_colors", true);
 pref("browser.display.use_system_colors",   false);
@@ -118,9 +116,6 @@ pref("browser.underline_anchors",           true);
 pref("browser.blink_allowed",               true);
 pref("browser.enable_automatic_image_resizing", false);
 pref("browser.enable_click_image_resizing", true);
-
-// See http://dev.w3.org/html5/spec/forms.html#attr-fe-autofocus
-pref("browser.autofocus", true);
 
 // See http://whatwg.org/specs/web-apps/current-work/#ping
 pref("browser.send_pings", false);
@@ -155,39 +150,25 @@ pref("browser.triple_click_selects_paragraph", true);
 pref("media.enforce_same_site_origin", false);
 
 // Media cache size in kilobytes
-pref("media.cache_size", 512000);
+pref("media.cache_size", 51200);
 
-#ifdef MOZ_RAW
-pref("media.raw.enabled", true);
-#endif
 #ifdef MOZ_OGG
 pref("media.ogg.enabled", true);
 #endif
 #ifdef MOZ_WAVE
 pref("media.wave.enabled", true);
 #endif
-#ifdef MOZ_WEBM
-pref("media.webm.enabled", true);
-#endif
 
 // Whether to autostart a media element with an |autoplay| attribute
 pref("media.autoplay.enabled", true);
 
 // 0 = Off, 1 = Full, 2 = Tagged Images Only. 
-// See eCMSMode in gfx/thebes/gfxPlatform.h
+// See eCMSMode in gfx/thebes/public/gfxPlatform.h
 pref("gfx.color_management.mode", 2);
 pref("gfx.color_management.display_profile", "");
 pref("gfx.color_management.rendering_intent", 0);
 
-pref("gfx.3d_video.enabled", false);
-
 pref("gfx.downloadable_fonts.enabled", true);
-
-#ifdef XP_MACOSX
-pref("gfx.font_rendering.harfbuzz.level", 1);
-#else
-pref("gfx.font_rendering.harfbuzz.level", 0);
-#endif
 
 #ifdef XP_WIN
 #ifndef WINCE
@@ -225,7 +206,6 @@ pref("accessibility.tabfocus_applies_to_xul", true);
 pref("accessibility.usetexttospeech", "");
 pref("accessibility.usebrailledisplay", "");
 pref("accessibility.accesskeycausesactivation", true);
-pref("accessibility.mouse_focuses_formcontrol", false);
 
 // Type Ahead Find
 pref("accessibility.typeaheadfind", true);
@@ -540,6 +520,7 @@ pref("dom.disable_window_open_feature.titlebar",    false);
 pref("dom.disable_window_open_feature.close",       false);
 pref("dom.disable_window_open_feature.toolbar",     false);
 pref("dom.disable_window_open_feature.location",    false);
+pref("dom.disable_window_open_feature.directories", false);
 pref("dom.disable_window_open_feature.personalbar", false);
 pref("dom.disable_window_open_feature.menubar",     false);
 pref("dom.disable_window_open_feature.scrollbars",  false);
@@ -575,7 +556,7 @@ pref("javascript.options.strict",           false);
 #ifdef DEBUG
 pref("javascript.options.strict.debug",     true);
 #endif
-pref("javascript.options.relimit",          true);
+pref("javascript.options.relimit",          false);
 pref("javascript.options.jit.content",      true);
 pref("javascript.options.jit.chrome",       true);
 // This preference limits the memory usage of javascript.
@@ -701,8 +682,7 @@ pref("network.http.redirection-limit", 20);
 
 // Enable http compression: comment this out in case of problems with 1.1
 // NOTE: support for "compress" has been disabled per bug 196406.
-// NOTE: separate values with comma+space (", "): see bug 576033
-pref("network.http.accept-encoding", "gzip, deflate");
+pref("network.http.accept-encoding" ,"gzip,deflate");
 
 pref("network.http.pipelining"      , false);
 pref("network.http.pipelining.ssl"  , false); // disable pipelining over SSL
@@ -714,28 +694,7 @@ pref("network.http.pipelining.maxrequests" , 4);
 // Prompt for 307 redirects
 pref("network.http.prompt-temp-redirect", true);
 
-// On networks deploying QoS, it is recommended that these be lockpref()'d,
-// since inappropriate marking can easily overwhelm bandwidth reservations
-// for certain services (i.e. EF for VoIP, AF4x for interactive video,
-// AF3x for broadcast/streaming video, etc)
-
-// default value for HTTP
-// in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
-// Section 4.8 "High-Throughput Data Service Class"
-pref("network.http.qos", 0);
-
-// default values for FTP
-// in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
-// Section 4.8 "High-Throughput Data Service Class", and 80 (0x50, or AF22)
-// per Section 4.7 "Low-Latency Data Service Class".
-pref("network.ftp.data.qos", 0);
-pref("network.ftp.control.qos", 0);
-
 // </http>
-
-// <ws>: WebSocket
-pref("network.websocket.enabled", true);
-// </ws>
 
 // If false, remote JAR files that are served with a content type other than
 // application/java-archive or application/x-jar will not be opened
@@ -779,7 +738,6 @@ pref("network.IDN.whitelist.jp", true);
 pref("network.IDN.whitelist.kr", true);
 pref("network.IDN.whitelist.li", true);
 pref("network.IDN.whitelist.lt", true);
-pref("network.IDN.whitelist.lu", true);
 pref("network.IDN.whitelist.no", true);
 pref("network.IDN.whitelist.nu", true);
 pref("network.IDN.whitelist.nz", true);
@@ -792,17 +750,7 @@ pref("network.IDN.whitelist.tm", true);
 pref("network.IDN.whitelist.tw", true);
 pref("network.IDN.whitelist.vn", true);
 
-// IDN ccTLDs
-// ae, UAE, .<Emarat>
-pref("network.IDN.whitelist.xn--mgbaam7a8h", true); 
-// sa, Saudi Arabia, .<al-Saudiah>
-pref("network.IDN.whitelist.xn--mgberp4a5d4ar", true); 
-// ru, Russian Federation, .<RF>
-pref("network.IDN.whitelist.xn--p1ai", true);
-// jo, Jordan, .<Al-Ordon>
-pref("network.IDN.whitelist.xn--mgbayh7gpa", true);
-
-// gTLDs
+// non-ccTLDs
 pref("network.IDN.whitelist.biz", true);
 pref("network.IDN.whitelist.cat", true);
 pref("network.IDN.whitelist.info", true);
@@ -924,6 +872,8 @@ pref("permissions.default.image",           1); // 1-Accept, 2-Deny, 3-dontAccep
 pref("network.proxy.type",                  5);
 pref("network.proxy.ftp",                   "");
 pref("network.proxy.ftp_port",              0);
+pref("network.proxy.gopher",                "");
+pref("network.proxy.gopher_port",           0);
 pref("network.proxy.http",                  "");
 pref("network.proxy.http_port",             0);
 pref("network.proxy.ssl",                   "");
@@ -936,7 +886,6 @@ pref("network.proxy.no_proxies_on",         "localhost, 127.0.0.1");
 pref("network.proxy.failover_timeout",      1800); // 30 minutes
 pref("network.online",                      true); //online/offline
 pref("network.cookie.cookieBehavior",       0); // 0-Accept, 1-dontAcceptForeign, 2-dontUse
-pref("network.cookie.thirdparty.sessionOnly", false);
 pref("network.cookie.lifetimePolicy",       0); // accept normally, 1-askBeforeAccepting, 2-acceptForSession,3-acceptForNDays
 pref("network.cookie.alwaysAcceptSessionCookies", false);
 pref("network.cookie.prefsMigrated",        false);
@@ -984,7 +933,7 @@ pref("intl.uidirection.ar", "rtl");
 pref("intl.uidirection.he", "rtl");
 pref("intl.uidirection.fa", "rtl");
 
-pref("font.mathfont-family", "STIXNonUnicode, STIXSizeOneSym, STIXSize1, STIXGeneral, Standard Symbols L, DejaVu Sans, Cambria Math");
+pref("font.mathfont-family", "STIXNonUnicode, STIXSize1, STIXGeneral, Standard Symbols L, DejaVu Sans, Cambria Math");
 
 // Some CJK fonts have bad underline offset, their CJK character glyphs are overlapped (or adjoined)  to its underline.
 // These fonts are ignored the underline offset, instead of it, the underline is lowered to bottom of its em descent.
@@ -1000,7 +949,6 @@ pref("security.xpconnect.plugin.unrestricted", true);
 pref("security.dialog_enable_delay", 2000);
 
 pref("security.csp.enable", true);
-pref("security.csp.debug", false);
 
 // Modifier key prefs: default to Windows settings,
 // menu access key = alt, accelerator key = control.
@@ -1198,19 +1146,17 @@ pref("layout.css.report_errors", true);
 // Should the :visited selector ever match (otherwise :link matches instead)?
 pref("layout.css.visited_links_enabled", true);
 
-// Override DPI. A value of -1 means use the maximum of 96 and the system DPI.
+// Override DPI. A value of -1 means use the maxium of 96 and the system DPI.
 // A value of 0 means use the system DPI. A positive value is used as the DPI.
 // This sets the physical size of a device pixel and thus controls the
 // interpretation of physical units such as "pt".
 pref("layout.css.dpi", -1);
 
 // Set the number of device pixels per CSS pixel. A value <= 0 means choose
-// automatically based on user settings for the platform (e.g., "UI scale factor"
-// on Mac). A positive value is used as-is. This effectively controls the size
-// of a CSS "px". This is only used for windows on the screen, not for printing.
-// XXX the default value here should be 0, but before we can set it to 0,
-// we have to get this feature working on all platforms.
-pref("layout.css.devPixelsPerPx", "1.0");
+// automatically based on the DPI. A positive value is used as-is. This effectively
+// controls the size of a CSS "px". This is only used for pixel-based
+// (screen) output devices.
+pref("layout.css.devPixelsPerPx", "-1");
 
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction
@@ -1218,23 +1164,6 @@ pref("layout.css.devPixelsPerPx", "1.0");
 // 2 = right
 // 3 = left
 pref("layout.scrollbar.side", 0);
-
-// pref to control browser frame rate, in Hz. A value <= 0 means choose
-// automatically based on knowledge of the platform (or 60Hz if no platform-
-// specific information is available).
-pref("layout.frame_rate", -1);
-
-// pref to control precision of the frame rate timer. When true,
-// we use a "precise" timer, which means each notification fires
-// Nms after the start of the last notification. That means if the
-// processing of the notification is slow, the timer can fire immediately
-// after we've just finished processing the last notification, which might
-// lead to starvation problems.
-// When false, we use a "slack" timer which fires Nms after the *end*
-// of the last notification. This can give less tight frame rates
-// but provides more time for other operations when the browser is
-// heavily loaded.
-pref("layout.frame_rate.precise", false);
 
 // pref to permit users to make verified SOAP calls by default
 pref("capability.policy.default.SOAPCall.invokeVerifySourceHeader", "allAccess");
@@ -1282,26 +1211,22 @@ pref("editor.positioning.offset",            0);
 pref("dom.max_chrome_script_run_time", 20);
 pref("dom.max_script_run_time", 10);
 
-#ifndef DEBUG
 // How long a plugin is allowed to process a synchronous IPC message
 // before we consider it "hung".
-pref("dom.ipc.plugins.timeoutSecs", 45);
-// How long a plugin launch is allowed to take before
-// we consider it failed.
-pref("dom.ipc.plugins.processLaunchTimeoutSecs", 45);
+//
+// NB: chosen to match dom.max_script_run_time by default
+#ifndef DEBUG
+pref("dom.ipc.plugins.timeoutSecs", 10);
 #else
 // No timeout in DEBUG builds
 pref("dom.ipc.plugins.timeoutSecs", 0);
-pref("dom.ipc.plugins.processLaunchTimeoutSecs", 0);
 #endif
 
-#ifndef ANDROID
 #ifndef XP_MACOSX
 #ifdef XP_UNIX
 // Linux plugins using Xt instead of Xembed don't work out-of-process yet.
 pref("dom.ipc.plugins.enabled.libvlcplugin.so", false);
 pref("dom.ipc.plugins.enabled.nppdf.so", false);
-#endif
 #endif
 #endif
 
@@ -1670,15 +1595,7 @@ pref("font.size.variable.zh-HK", 16);
 pref("font.size.fixed.zh-HK", 16);
 
 // We have special support for Monotype Symbol on Windows.
-pref("font.mathfont-family", "STIXNonUnicode, STIXSizeOneSym, STIXSize1, STIXGeneral, Symbol, DejaVu Sans, Cambria Math");
-
-// cleartype settings - false implies default system settings 
-
-// use cleartype rendering for downloadable fonts (win xp only)
-pref("gfx.font_rendering.cleartype.use_for_downloadable_fonts", true);
-
-// use cleartype rendering for all fonts always (win xp only)
-pref("gfx.font_rendering.cleartype.always_use_for_content", false);
+pref("font.mathfont-family", "STIXNonUnicode, STIXSize1, STIXGeneral, Symbol, DejaVu Sans, Cambria Math");
 
 pref("ui.key.menuAccessKeyFocuses", true);
 
@@ -1769,6 +1686,7 @@ pref("ui.trackpoint_hack.enabled", -1);
 // Mac specific preference defaults
 pref("browser.drag_out_of_frame_style", 1);
 pref("ui.key.saveLink.shift", false); // true = shift, false = meta
+pref("ui.click_hold_context_menus", false);
 
 // default fonts (in UTF8 and using canonical names)
 // to determine canonical font names, use a debug build and 
@@ -2155,7 +2073,7 @@ pref("font.size.variable.zh-HK", 15);
 pref("font.size.fixed.zh-HK", 16);
 
 // Apple's Symbol is Unicode so use it
-pref("font.mathfont-family", "STIXNonUnicode, STIXSizeOneSym, STIXSize1, STIXGeneral, Symbol, DejaVu Sans, Cambria Math");
+pref("font.mathfont-family", "STIXNonUnicode, STIXSize1, STIXGeneral, Symbol, DejaVu Sans, Cambria Math");
 
 // individual font faces to be treated as independent families
 // names are Postscript names of each face
@@ -2199,7 +2117,7 @@ pref("ui.key.menuAccessKeyFocuses", true);
 
 pref("font.alias-list", "sans,sans-serif,serif,monospace,Tms Rmn,Helv,Courier,Times New Roman");
 
-pref("font.mathfont-family", "STIXNonUnicode, STIXSizeOneSym, STIXSize1, STIXGeneral, DejaVu Sans");
+pref("font.mathfont-family", "STIXNonUnicode, STIXSize1, STIXGeneral, DejaVu Sans");
 
 // Languages only need lists if we have a default that might not be available.
 // Tms Rmn and Helv cannot be used by Thebes but the OS/2 version of FontConfig
@@ -2492,281 +2410,6 @@ pref("mousewheel.system_scroll_override_on_root_content.enabled", false);
 # BeOS
 #endif
 
-#ifdef ANDROID
-// Handled differently under Mac/Windows
-pref("network.hosts.smtp_server", "localhost");
-pref("network.hosts.pop_server", "pop");
-pref("network.protocol-handler.warn-external.file", false);
-pref("browser.drag_out_of_frame_style", 1);
-
-// Middle-mouse handling
-pref("middlemouse.paste", true);
-pref("middlemouse.contentLoadURL", true);
-pref("middlemouse.openNewWindow", true);
-pref("middlemouse.scrollbarPosition", true);
-
-// Clipboard behavior
-pref("clipboard.autocopy", true);
-
-pref("browser.urlbar.clickSelectsAll", false);
-
-// Tab focus model bit field:
-// 1 focuses text controls, 2 focuses other form elements, 4 adds links.
-// Leave this at the default, 7, to match mozilla1.0-era user expectations.
-// pref("accessibility.tabfocus", 1);
-
-// autocomplete keyboard grab workaround
-pref("autocomplete.grab_during_popup", true);
-pref("autocomplete.ungrab_during_mode_switch", true);
-
-// Default to using the system filepicker if possible, but allow
-// toggling to use the XUL filepicker
-pref("ui.allow_platform_file_picker", true);
-
-// should NetworkManager be authoritative for online/offline status?
-pref("toolkit.networkmanager.disable", true);
-
-pref("helpers.global_mime_types_file", "/etc/mime.types");
-pref("helpers.global_mailcap_file", "/etc/mailcap");
-pref("helpers.private_mime_types_file", "~/.mime.types");
-pref("helpers.private_mailcap_file", "~/.mailcap");
-pref("java.global_java_version_file", "/etc/.java/versions");
-pref("java.private_java_version_file", "~/.java/versions");
-pref("java.default_java_location_solaris", "/usr/j2se");
-pref("java.default_java_location_others", "/usr/java");
-pref("java.java_plugin_library_name", "javaplugin_oji");
-pref("applications.telnet", "xterm -e telnet %h %p");
-pref("applications.tn3270", "xterm -e tn3270 %h");
-pref("applications.rlogin", "xterm -e rlogin %h");
-pref("applications.rlogin_with_user", "xterm -e rlogin %h -l %u");
-pref("print.print_command", "lpr ${MOZ_PRINTER_NAME:+-P\"$MOZ_PRINTER_NAME\"}");
-pref("print.printer_list", ""); // list of printers, separated by spaces
-pref("print.print_reversed", false);
-pref("print.print_color", true);
-pref("print.print_landscape", false);
-pref("print.print_paper_size", 0);
-
-// print_extra_margin enables platforms to specify an extra gap or margin
-// around the content of the page for Print Preview only
-pref("print.print_extra_margin", 0); // twips
-
-pref("font.allow_double_byte_special_chars", true);
-// font names
-
-pref("font.alias-list", "sans,sans-serif,serif,monospace");
-
-// ar
-
-pref("font.name.serif.el", "Droid Serif");
-pref("font.name.sans-serif.el", "Droid Sans");
-pref("font.name.monospace.el", "Droid Sans Mono");
-
-pref("font.name.serif.he", "Droid Serif");
-pref("font.name.sans-serif.he", "Droid Sans");
-pref("font.name.monospace.he", "Droid Sans Mono");
-
-pref("font.name.serif.ja", "Droid Serif");
-pref("font.name.sans-serif.ja", "Droid Sans");
-pref("font.name.monospace.ja", "Droid Sans Mono");
-
-pref("font.name.serif.ko", "Droid Serif");
-pref("font.name.sans-serif.ko", "Droid Sans");
-pref("font.name.monospace.ko", "Droid Sans Mono");
-
-pref("font.name.serif.th", "Droid Serif");
-pref("font.name.sans-serif.th", "Droid Sans");
-pref("font.name.monospace.th", "Droid Sans Mono");
-
-pref("font.name.serif.tr", "Droid Serif");
-pref("font.name.sans-serif.tr", "Droid Sans");
-pref("font.name.monospace.tr", "Droid Sans Mono");
-
-pref("font.name.serif.x-baltic", "Droid Serif");
-pref("font.name.sans-serif.x-baltic", "Droid Sans");
-pref("font.name.monospace.x-baltic", "Droid Sans Mono");
-
-pref("font.name.serif.x-central-euro", "Droid Serif");
-pref("font.name.sans-serif.x-central-euro", "Droid Sans");
-pref("font.name.monospace.x-central-euro", "Droid Sans Mono");
-
-pref("font.name.serif.x-cyrillic", "Droid Serif");
-pref("font.name.sans-serif.x-cyrillic", "Droid Sans");
-pref("font.name.monospace.x-cyrillic", "Droid Sans Mono");
-
-pref("font.name.serif.x-unicode", "Droid Serif");
-pref("font.name.sans-serif.x-unicode", "Droid Sans");
-pref("font.name.monospace.x-unicode", "Droid Sans Mono");
-
-pref("font.name.serif.x-user-def", "Droid Serif");
-pref("font.name.sans-serif.x-user-def", "Droid Sans");
-pref("font.name.monospace.x-user-def", "Droid Sans Mono");
-
-pref("font.name.serif.x-western", "Droid Serif");
-pref("font.name.sans-serif.x-western", "Droid Sans");
-pref("font.name.monospace.x-western", "Droid Sans Mono");
-
-pref("font.name.serif.zh-CN", "Droid Serif");
-pref("font.name.sans-serif.zh-CN", "Droid Sans");
-pref("font.name.monospace.zh-CN", "Droid Sans Mono");
-
-// ming_uni.ttf (HKSCS-2001) 
-// http://www.info.gov.hk/digital21/eng/hkscs/download/uime.exe
-pref("font.name.serif.zh-HK", "Droid Serif");
-pref("font.name.sans-serif.zh-HK", "Droid Sans");
-pref("font.name.monospace.zh-HK", "Droid Sans Mono");
-
-// zh-TW
-
-pref("font.default.ar", "sans-serif");
-pref("font.size.variable.ar", 16);
-pref("font.size.fixed.ar", 12);
-
-pref("font.default.el", "sans-serif");
-pref("font.size.variable.el", 16);
-pref("font.size.fixed.el", 12);
-
-pref("font.default.he", "sans-serif");
-pref("font.size.variable.he", 16);
-pref("font.size.fixed.he", 12);
-
-pref("font.default.ja", "sans-serif");
-pref("font.size.variable.ja", 16);
-pref("font.size.fixed.ja", 16);
-
-pref("font.default.ko", "sans-serif");
-pref("font.size.variable.ko", 16);
-pref("font.size.fixed.ko", 16);
-
-pref("font.default.th", "serif");
-pref("font.size.variable.th", 16);
-pref("font.size.fixed.th", 13);
-pref("font.minimum-size.th", 13);
-
-pref("font.default.tr", "sans-serif");
-pref("font.size.variable.tr", 16);
-pref("font.size.fixed.tr", 12);
-
-pref("font.default.x-baltic", "sans-serif");
-pref("font.size.variable.x-baltic", 16);
-pref("font.size.fixed.x-baltic", 12);
-
-pref("font.default.x-central-euro", "sans-serif");
-pref("font.size.variable.x-central-euro", 16);
-pref("font.size.fixed.x-central-euro", 12);
-
-pref("font.default.x-cyrillic", "sans-serif");
-pref("font.size.variable.x-cyrillic", 16);
-pref("font.size.fixed.x-cyrillic", 12);
-
-pref("font.default.x-unicode", "sans-serif");
-pref("font.size.variable.x-unicode", 16);
-pref("font.size.fixed.x-unicode", 12);
-
-pref("font.default.x-user-def", "sans-serif");
-pref("font.size.variable.x-user-def", 16);
-pref("font.size.fixed.x-user-def", 12);
-
-pref("font.default.x-western", "sans-serif");
-pref("font.size.variable.x-western", 16);
-pref("font.size.fixed.x-western", 12);
-
-pref("font.default.zh-CN", "sans-serif");
-pref("font.size.variable.zh-CN", 16);
-pref("font.size.fixed.zh-CN", 16);
-
-pref("font.default.zh-TW", "sans-serif");
-pref("font.size.variable.zh-TW", 16);
-pref("font.size.fixed.zh-TW", 16);
-
-pref("font.default.zh-HK", "sans-serif");
-pref("font.size.variable.zh-HK", 16);
-pref("font.size.fixed.zh-HK", 16);
-
-pref("font.default.x-devanagari", "serif");
-pref("font.size.variable.x-devanagari", 16);
-pref("font.size.fixed.x-devanagari", 13);
-
-pref("font.default.x-tamil", "serif");
-pref("font.size.variable.x-tamil", 16);
-pref("font.size.fixed.x-tamil", 13);
-
-pref("font.default.x-armn", "serif");
-pref("font.size.variable.x-armn", 16);
-pref("font.size.fixed.x-armn", 13);
-
-pref("font.default.x-beng", "serif");
-pref("font.size.variable.x-beng", 16);
-pref("font.size.fixed.x-beng", 13);
-
-pref("font.default.x-cans", "serif");
-pref("font.size.variable.x-cans", 16);
-pref("font.size.fixed.x-cans", 13);
-
-pref("font.default.x-ethi", "serif");
-pref("font.size.variable.x-ethi", 16);
-pref("font.size.fixed.x-ethi", 13);
-
-pref("font.default.x-geor", "serif");
-pref("font.size.variable.x-geor", 16);
-pref("font.size.fixed.x-geor", 13);
-
-pref("font.default.x-gujr", "serif");
-pref("font.size.variable.x-gujr", 16);
-pref("font.size.fixed.x-gujr", 13);
-
-pref("font.default.x-guru", "serif");
-pref("font.size.variable.x-guru", 16);
-pref("font.size.fixed.x-guru", 13);
-
-pref("font.default.x-khmr", "serif");
-pref("font.size.variable.x-khmr", 16);
-pref("font.size.fixed.x-khmr", 13);
-
-pref("font.default.x-mlym", "serif");
-pref("font.size.variable.x-mlym", 16);
-pref("font.size.fixed.x-mlym", 13);
-
-pref("font.default.x-orya", "serif");
-pref("font.size.variable.x-orya", 16);
-pref("font.size.fixed.x-orya", 13);
-
-pref("font.default.x-telu", "serif");
-pref("font.size.variable.x-telu", 16);
-pref("font.size.fixed.x-telu", 13);
-
-pref("font.default.x-knda", "serif");
-pref("font.size.variable.x-knda", 16);
-pref("font.size.fixed.x-knda", 13);
-
-pref("font.default.x-sinh", "serif");
-pref("font.size.variable.x-sinh", 16);
-pref("font.size.fixed.x-sinh", 13);
-
-pref("font.default.x-tibt", "serif");
-pref("font.size.variable.x-tibt", 16);
-pref("font.size.fixed.x-tibt", 13);
-
-/* PostScript print module prefs */
-// pref("print.postscript.enabled",      true);
-pref("print.postscript.paper_size",    "letter");
-pref("print.postscript.orientation",   "portrait");
-pref("print.postscript.print_command", "lpr ${MOZ_PRINTER_NAME:+-P\"$MOZ_PRINTER_NAME\"}");
-
-// Setting default_level_parent to true makes the default level for popup
-// windows "top" instead of "parent".  On GTK2 platform, this is implemented
-// with override-redirect windows which is the normal way to implement
-// temporary popup windows.  Setting this to false would make the default
-// level "parent" which is implemented with managed windows.
-// A problem with using managed windows is that metacity sometimes deactivates
-// the parent window when the managed popup is shown.
-pref("ui.panel.default_level_parent", true);
-
-pref("mousewheel.system_scroll_override_on_root_content.enabled", false);
-
-# ANDROID
-#endif
-
-#ifndef ANDROID
 #ifndef XP_MACOSX
 #ifdef XP_UNIX
 // Handled differently under Mac/Windows
@@ -3044,6 +2687,73 @@ pref("mousewheel.system_scroll_override_on_root_content.enabled", false);
 # XP_UNIX
 #endif
 #endif
+
+#if MOZ_WIDGET_TOOLKIT==photon
+
+// font names
+pref("font.name.serif.x-western", "serif");
+pref("font.name.sans-serif.x-western", "sans-serif");
+pref("font.name.monospace.x-western", "monospace");
+pref("font.name.cursive.x-western", "cursive");
+pref("font.name.fantasy.x-western", "fantasy");
+
+pref("font.name.serif.el", "serif");
+pref("font.name.sans-serif.el", "sans-serif");
+pref("font.name.monospace.el", "monospace");
+
+pref("font.name.serif.he", "serif");
+pref("font.name.sans-serif.he", "sans-serif");
+pref("font.name.monospace.he", "monospace");
+
+pref("font.name.serif.ja", "serif");
+pref("font.name.sans-serif.ja", "sans-serif");
+pref("font.name.monospace.ja", "monospace");
+
+pref("font.name.serif.ko", "serif");
+pref("font.name.sans-serif.ko", "sans-serif");
+pref("font.name.monospace.ko", "monospace");
+
+pref("font.name.serif.tr", "serif");
+pref("font.name.sans-serif.tr", "sans-serif");
+pref("font.name.monospace.tr", "monospace");
+
+pref("font.name.serif.x-baltic", "serif");
+pref("font.name.sans-serif.x-baltic", "sans-serif");
+pref("font.name.monospace.x-baltic", "monospace");
+
+pref("font.name.serif.x-central-euro", "serif");
+pref("font.name.sans-serif.x-central-euro", "sans-serif");
+pref("font.name.monospace.x-central-euro", "monospace");
+
+pref("font.name.serif.x-cyrillic", "serif");
+pref("font.name.sans-serif.x-cyrillic", "sans-serif");
+pref("font.name.monospace.x-cyrillic", "monospace");
+
+pref("font.name.serif.x-unicode", "serif");
+pref("font.name.sans-serif.x-unicode", "sans-serif");
+pref("font.name.monospace.x-unicode", "monospace");
+
+pref("font.name.serif.x-user-def", "serif");
+pref("font.name.sans-serif.x-user-def", "sans-serif");
+pref("font.name.monospace.x-user-def", "monospace");
+
+pref("font.name.serif.zh-CN", "serif");
+pref("font.name.sans-serif.zh-CN", "sans-serif");
+pref("font.name.monospace.zh-CN", "monospace");
+
+pref("font.size.variable.x-western", 14);
+pref("font.size.fixed.x-western", 12);
+
+pref("applications.telnet", "pterm telnet %h %p");
+pref("applications.tn3270", "pterm tn3270 %h");
+pref("applications.rlogin", "pterm rlogin %h");
+pref("applications.rlogin_with_user", "pterm rlogin %h -l %u");
+
+// print_extra_margin enables platforms to specify an extra gap or margin
+// around the content of the page for Print Preview only
+pref("print.print_extra_margin", 90); // twips (90 twips is an eigth of an inch)
+
+# photon
 #endif
 
 #if OS_ARCH==OpenVMS
@@ -3062,7 +2772,7 @@ pref("applications.rlogin_with_user", "create /term /detach \"rlogin %h -l %u\""
 
 /* PostScript module specific (see unix.js for additional configuration details) */
 pref("print.postscript.print_command", "print /delete");
-/* Print module independent */
+/* Print module independant */
 pref("print.print_command", "print /delete");
 pref("print.print_color", false);
 
@@ -3137,37 +2847,9 @@ pref("image.cache.timeweight", 500);
 // The default Accept header sent for images loaded over HTTP(S)
 pref("image.http.accept", "image/png,image/*;q=0.8,*/*;q=0.5");
 
-//
-// Image memory management prefs
-//
-
-// Discards inactive image frames and re-decodes them on demand from
-// compressed data.
-pref("image.mem.discardable", true);
-
-// Prevents images from automatically being decoded on load, instead allowing
-// them to be decoded on demand when they are drawn.
-pref("image.mem.decodeondraw", false);
-
-// Minimum timeout for image discarding (in milliseconds). The actual time in
-// which an image must inactive for it to be discarded will vary between this
-// value and twice this value.
-pref("image.mem.min_discard_timeout_ms", 10000);
-
-// Chunk size for calls to the image decoders
-pref("image.mem.decode_bytes_at_a_time", 200000);
-
-// The longest time we can spend in an iteration of an async decode
-pref("image.mem.max_ms_before_yield", 400);
-
-// The maximum source data size for which we auto sync decode
-pref("image.mem.max_bytes_for_sync_decode", 150000);
-
 // WebGL prefs
 pref("webgl.enabled_for_all_sites", false);
-pref("webgl.shader_validator", true);
-pref("webgl.force_osmesa", false);
-pref("webgl.mochitest_native_gl", false);
+pref("webgl.software_render", false);
 pref("webgl.osmesalib", "");
 
 #ifdef XP_WIN
@@ -3185,21 +2867,6 @@ pref("gfx.color_management.mode", 0);
 // Initialize default render-mode.
 pref("mozilla.widget.render-mode", -1);
 
-// Default value of acceleration for all widgets.
-pref("layers.accelerate-all", false);
-
-// Whether to allow acceleration on layers at all.
-pref("layers.accelerate-none", false);
-
-#ifdef XP_WIN
-#ifndef WINCE
-// Whether to disable the automatic detection and use of direct2d.
-pref("gfx.direct2d.disabled", false);
-
-pref("layers.prefer-opengl", false);
-#endif
-#endif
-
 // Enable/Disable the geolocation API for content
 pref("geo.enabled", true);
 
@@ -3207,13 +2874,13 @@ pref("geo.enabled", true);
 pref("accelerometer.enabled", true);
 
 // Enable/Disable HTML5 parser
-pref("html5.enable", true);
+pref("html5.enable", false);
 // Toggle which thread the HTML5 parser uses for stream parsing
 pref("html5.offmainthread", true);
 // Time in milliseconds between the time a network buffer is seen and the 
 // timer firing when the timer hasn't fired previously in this parse in the 
 // off-the-main-thread HTML5 parser.
-pref("html5.flushtimer.initialdelay", 120);
+pref("html5.flushtimer.initialdelay", 200);
 // Time in milliseconds between the time a network buffer is seen and the 
 // timer firing when the timer has already fired previously in this parse.
 pref("html5.flushtimer.subsequentdelay", 120);
@@ -3224,8 +2891,5 @@ pref("browser.history.allowReplaceState", true);
 pref("browser.history.allowPopState", true);
 pref("browser.history.maxStateObjectSize", 655360);
 
-// XPInstall prefs
-pref("xpinstall.whitelist.required", true);
-
 pref("network.buffer.cache.count", 24);
-pref("network.buffer.cache.size",  32768);
+pref("network.buffer.cache.size",  4096);

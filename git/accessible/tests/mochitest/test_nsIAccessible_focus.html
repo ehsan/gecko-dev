@@ -77,9 +77,7 @@
           function(aFocusMgr)
           {
             aFocusMgr.checkWasFocusHandled();
-            // Try to work around bug 573085 by using a timeout that's a lot
-            // bigger than our refresh driver period.
-          }, 100, this);
+          }, 0, this);
       },
 
       // Private

@@ -52,7 +52,6 @@ _TEST_FILES = 	test_bug360220.xul \
 		test_bug460942.xul \
 		test_bug509732.xul \
 		test_bug557987.xul\
-		test_bug562554.xul \
 		test_button.xul \
 		test_closemenu_attribute.xul \
 		test_colorpicker_popup.xul \
@@ -75,7 +74,6 @@ _TEST_FILES = 	test_bug360220.xul \
 		popup_trigger.js \
 		window_popup_button.xul \
 		window_popup_attribute.xul \
-		popup_childframe_node.xul \
 		test_tooltip.xul \
 		test_progressmeter.xul \
 		test_props.xul \
@@ -116,7 +114,6 @@ _TEST_FILES = 	test_bug360220.xul \
 		test_scrollbar.xul \
 		test_sorttemplate.xul \
 		test_contextmenu_list.xul \
-		test_contextmenu_nested.xul \
 		test_videocontrols.html \
 		test_richlist_direction.xul \
 		test_videocontrols_video_direction.html \

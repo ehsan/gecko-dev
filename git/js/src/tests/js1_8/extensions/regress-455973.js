@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-455973.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 455973;
 var summary = 'Do not assert: !cx->throwing';

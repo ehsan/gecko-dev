@@ -37,8 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsIDOMHTMLElement.idl"
-#include "nsIDOMMediaError.idl"
-#include "nsIDOMTimeRanges.idl"
+#include "nsIDOMHTMLMediaError.idl"
 
 /**
  * The nsIDOMHTMLMediaElement interface is an interface to be implemented by the HTML
@@ -57,11 +56,11 @@
 #endif
 %}
 
-[scriptable, uuid(4355cfdb-0d70-4e5b-bb48-3ae8111ee72b)]
+[scriptable, uuid(505b523e-4a27-4151-b0eb-750b7258760e)]
 interface nsIDOMHTMLMediaElement : nsIDOMHTMLElement
 {
   // error state
-  readonly attribute nsIDOMMediaError error;
+  readonly attribute nsIDOMHTMLMediaError error;
 
   // network state
            attribute DOMString src;
@@ -72,8 +71,6 @@ interface nsIDOMHTMLMediaElement : nsIDOMHTMLElement
   const unsigned short NETWORK_LOADED = 3;
   const unsigned short NETWORK_NO_SOURCE = 4;
   readonly attribute unsigned short networkState;
-           attribute DOMString preload;  
-  readonly attribute nsIDOMTimeRanges buffered;
   void load();
   DOMString canPlayType(in DOMString type);
 
@@ -93,6 +90,7 @@ interface nsIDOMHTMLMediaElement : nsIDOMHTMLElement
   readonly attribute boolean ended;
   readonly attribute boolean mozAutoplayEnabled;
            attribute boolean autoplay;
+           attribute boolean autobuffer;
   void play();
   void pause();
 
@@ -100,16 +98,6 @@ interface nsIDOMHTMLMediaElement : nsIDOMHTMLElement
            attribute boolean controls;
            attribute float volume;
            attribute boolean muted;
-
-  // Mozilla extension: extra stream metadata information, used as part
-  // of MozAudioAvailable events and the mozWriteAudio() method.  The
-  // mozFrameBufferLength method allows for the size of the framebuffer
-  // used within MozAudioAvailable events to be changed.  The new size must
-  // be between 512 and 16384.  The default size, for a  media element with
-  // audio is (mozChannels * 1024).
-  readonly attribute unsigned long mozChannels;
-  readonly attribute unsigned long mozSampleRate;
-           attribute unsigned long mozFrameBufferLength;
 
   // Mozilla extension: load data from another media element. This is like
   // load() but we don't run the resource selection algorithm; instead

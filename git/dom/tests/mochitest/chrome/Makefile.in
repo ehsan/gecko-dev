@@ -62,9 +62,6 @@ _TEST_FILES = \
 		test_geolocation.xul \
 		test_activation.xul \
 		window_activation.xul \
-		test_DOMWindowCreated.xul \
-		DOMWindowCreated_chrome.xul \
-		DOMWindowCreated_content.html \
 		$(NULL)
 
 libs:: $(_TEST_FILES)

@@ -792,7 +792,7 @@ if (count) {
 NS_IMETHODIMP 
 nsCertTree::DeleteEntryObject(PRUint32 index)
 {
-  if (!mTreeArray) {
+  if (!mTreeArray || index < 0) {
     return NS_ERROR_FAILURE;
   }
 

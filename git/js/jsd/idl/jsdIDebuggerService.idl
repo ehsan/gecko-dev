@@ -53,6 +53,7 @@
 [ptr] native JSDValue(JSDValue);
 [ptr] native JSRuntime(JSRuntime);
 [ptr] native JSContext(JSContext);
+native JSVal(jsval);
 
 /* interfaces we declare in this file */
 interface jsdIDebuggerService;
@@ -186,11 +187,11 @@ interface jsdIDebuggerService : nsISupports
      */
     const unsigned long MASK_TOP_FRAME_ONLY     = 0x20;
     /**
-     * This flag has been retired, do not re-use. It previously provided a hook
-     * for object allocation.
+     * When this flag is set, object creation will not be tracked.  This will
+     * reduce the performance price you pay by enabling the debugger.
      */
-    const unsigned long DISABLE_OBJECT_TRACE_RETIRED = 0x40;
-
+    const unsigned long DISABLE_OBJECT_TRACE = 0x40;
+    
     /**
      * Debugger service flags.
      */
@@ -209,6 +210,12 @@ interface jsdIDebuggerService : nsISupports
      */
     readonly attribute AUTF8String implementationString;
     
+    /**
+     * |true| if the debugger should register an app-start observer in order
+     * to begin collecting debug information when mozilla is launched.
+     */
+    attribute boolean initAtStartup;
+
     /**
      * |true| if the debugger service has been turned on.  This does not
      * necessarily mean another app is actively using the service, as the 
@@ -357,7 +364,7 @@ interface jsdIDebuggerService : nsISupports
     /**
      * The same as above but to be called from C++.
      */
-    [noscript] jsdIValue wrapJSValue (in jsval value);
+    [noscript] jsdIValue wrapJSValue (in JSVal value);
     
     /* XXX these two routines are candidates for refactoring.  The only problem
      * is that it is not clear where and how they should land.

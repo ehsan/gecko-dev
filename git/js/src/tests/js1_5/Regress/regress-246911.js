@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-246911.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 246911;
 var summary = 'switch() statement with variable as label';

@@ -291,9 +291,6 @@ GetUnixHomeDir(nsILocalFile** aFile)
                                      PR_TRUE,
                                      aFile);
     }
-#elif defined(ANDROID)
-    // XXX no home dir on android; maybe we should return the sdcard if present?
-    return NS_ERROR_FAILURE;
 #else
     return NS_NewNativeLocalFile(nsDependentCString(PR_GetEnv("HOME")),
                                  PR_TRUE, aFile);

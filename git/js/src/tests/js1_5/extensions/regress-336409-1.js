@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-336409-1.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 336409;
 var summary = 'Integer overflow in js_obj_toSource';

@@ -46,7 +46,6 @@
 #include "mozilla/Monitor.h"
 
 #include "nsXULAppAPI.h"        // for GeckoProcessType
-#include "nsString.h"
 
 namespace mozilla {
 namespace ipc {
@@ -64,7 +63,7 @@ public:
 
   ~GeckoChildProcessHost();
 
-  bool SyncLaunch(std::vector<std::string> aExtraOpts=std::vector<std::string>(), int32 timeoutMs=0);
+  bool SyncLaunch(std::vector<std::string> aExtraOpts=std::vector<std::string>());
   bool AsyncLaunch(std::vector<std::string> aExtraOpts=std::vector<std::string>());
   bool PerformAsyncLaunch(std::vector<std::string> aExtraOpts=std::vector<std::string>());
 
@@ -90,24 +89,12 @@ public:
     return mChildProcessHandle;
   }
 
-#ifdef XP_MACOSX
-  task_t GetChildTask() {
-    return mChildTask;
-  }
-#endif
-
-
 protected:
   GeckoProcessType mProcessType;
   Monitor mMonitor;
   bool mLaunched;
   bool mChannelInitialized;
   FilePath mProcessPath;
-
-#ifdef XP_WIN
-  void InitWindowsGroupID();
-  nsString mGroupId;
-#endif
 
 #if defined(OS_POSIX)
   base::file_handle_mapping_vector mFileMap;
@@ -116,9 +103,6 @@ protected:
   base::WaitableEventWatcher::Delegate* mDelegate;
 
   ProcessHandle mChildProcessHandle;
-#if defined(OS_MACOSX)
-  task_t mChildTask;
-#endif
 
 private:
   DISALLOW_EVIL_CONSTRUCTORS(GeckoChildProcessHost);

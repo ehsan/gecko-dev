@@ -46,7 +46,7 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsContentPolicyUtils.h"
 #include "nsIPropertyBag2.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 using namespace mozilla::dom;
 
@@ -129,7 +129,7 @@ nsPluginStreamListener::SetupPlugin()
   nsCOMPtr<nsIContent> embed = mPluginDoc->GetPluginContent();
 
   // Now we have a frame for our <embed>, start the load
-  nsCOMPtr<nsIPresShell> shell = mDocument->GetShell();
+  nsCOMPtr<nsIPresShell> shell = mDocument->GetPrimaryShell();
   if (!shell) {
     // Can't instantiate w/o a shell
     mPluginDoc->AllowNormalInstantiation();
@@ -269,7 +269,7 @@ nsPluginDocument::StartDocumentLoad(const char*         aCommand,
 nsresult
 nsPluginDocument::CreateSyntheticPluginDocument()
 {
-  NS_ASSERTION(!GetShell() || !GetShell()->DidInitialReflow(),
+  NS_ASSERTION(!GetPrimaryShell() || !GetPrimaryShell()->DidInitialReflow(),
                "Creating synthetic plugin document content too late");
 
   // make our generic document
@@ -294,8 +294,7 @@ nsPluginDocument::CreateSyntheticPluginDocument()
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::embed, nsnull,
                                            kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
-  rv = NS_NewHTMLElement(getter_AddRefs(mPluginContent), nodeInfo.forget(),
-                         PR_FALSE);
+  rv = NS_NewHTMLElement(getter_AddRefs(mPluginContent), nodeInfo, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // make it a named element

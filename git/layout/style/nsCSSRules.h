@@ -55,13 +55,12 @@
 
 class CSSGroupRuleRuleListImpl;
 class nsMediaList;
-template<class T> struct already_AddRefed;
 
 #define DECL_STYLE_RULE_INHERIT_NO_DOMRULE  \
-virtual already_AddRefed<nsIStyleSheet> GetStyleSheet() const; \
-virtual void SetStyleSheet(nsCSSStyleSheet* aSheet); \
-virtual void SetParentRule(nsICSSGroupRule* aRule); \
-virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+NS_IMETHOD GetStyleSheet(nsIStyleSheet*& aSheet) const; \
+NS_IMETHOD SetStyleSheet(nsICSSStyleSheet* aSheet); \
+NS_IMETHOD SetParentRule(nsICSSGroupRule* aRule); \
+NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
 
 #define DECL_STYLE_RULE_INHERIT  \
 DECL_STYLE_RULE_INHERIT_NO_DOMRULE \
@@ -81,7 +80,7 @@ protected:
 
   // to help implement nsIStyleRule
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+  NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
 public:
@@ -125,13 +124,13 @@ public:
 
   // nsIStyleRule methods
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+  NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
   // nsICSSRule methods
-  virtual void SetStyleSheet(nsCSSStyleSheet* aSheet); //override nsCSSGroupRule
-  virtual PRInt32 GetType() const;
-  virtual already_AddRefed<nsICSSRule> Clone() const;
+  NS_IMETHOD SetStyleSheet(nsICSSStyleSheet* aSheet); //override nsCSSGroupRule
+  NS_IMETHOD GetType(PRInt32& aType) const;
+  NS_IMETHOD Clone(nsICSSRule*& aClone) const;
   nsIDOMCSSRule* GetDOMRuleWeak(nsresult *aResult)
   {
     *aResult = NS_OK;
@@ -167,12 +166,12 @@ public:
 
   // nsIStyleRule methods
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+  NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
   // nsICSSRule methods
-  virtual PRInt32 GetType() const;
-  virtual already_AddRefed<nsICSSRule> Clone() const;
+  NS_IMETHOD GetType(PRInt32& aType) const;
+  NS_IMETHOD Clone(nsICSSRule*& aClone) const;
   nsIDOMCSSRule* GetDOMRuleWeak(nsresult *aResult)
   {
     *aResult = NS_OK;
@@ -235,8 +234,6 @@ protected:
   nsCSSValue mStretch;
   nsCSSValue mSrc;
   nsCSSValue mUnicodeRange;
-  nsCSSValue mFontFeatureSettings;
-  nsCSSValue mFontLanguageOverride;
 
   static nsCSSValue nsCSSFontFaceStyleDecl::* const Fields[];  
   inline nsCSSFontFaceRule* ContainingRule();
@@ -258,14 +255,14 @@ public:
 
   // nsIStyleRule methods
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+  NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
   // nsICSSRule methods
   DECL_STYLE_RULE_INHERIT
 
-  virtual PRInt32 GetType() const;
-  virtual already_AddRefed<nsICSSRule> Clone() const;
+  NS_IMETHOD GetType(PRInt32& aType) const;
+  NS_IMETHOD Clone(nsICSSRule*& aClone) const;
 
   // nsIDOMCSSRule interface
   NS_DECL_NSIDOMCSSRULE

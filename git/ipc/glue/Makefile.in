@@ -57,8 +57,7 @@ EXPORTS_mozilla/ipc = \
   AsyncChannel.h \
   BrowserProcessSubThread.h \
   GeckoChildProcessHost.h \
-  IOThreadChild.h \
-  ProcessChild.h \
+  MozillaChildThread.h \
   ProtocolUtils.h \
   RPCChannel.h \
   SharedMemory.h \
@@ -75,8 +74,8 @@ CPPSRCS += \
   AsyncChannel.cpp \
   BrowserProcessSubThread.cpp \
   GeckoChildProcessHost.cpp \
+  MozillaChildThread.cpp \
   MessagePump.cpp \
-  ProcessChild.cpp \
   RPCChannel.cpp \
   ScopedXREEmbed.cpp \
   Shmem.cpp \
@@ -94,8 +93,7 @@ CPPSRCS += SharedMemory_posix.cpp
 endif
 
 include $(topsrcdir)/ipc/app/defs.mk
-DEFINES += -DMOZ_CHILD_PROCESS_NAME=\"$(MOZ_CHILD_PROCESS_NAME)\"
-DEFINES += -DMOZ_CHILD_PROCESS_BUNDLE=\"$(MOZ_CHILD_PROCESS_BUNDLE)\"
+DEFINES += -DMOZ_CHILD_PROCESS_NAME="\"$(MOZ_CHILD_PROCESS_NAME)\""
 
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk

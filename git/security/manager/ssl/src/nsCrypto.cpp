@@ -2159,7 +2159,7 @@ nsCryptoRunnable::nsCryptoRunnable(nsCryptoRunArgs *args)
   NS_ASSERTION(args,"Passed nsnull to nsCryptoRunnable constructor.");
   m_args = args;
   NS_IF_ADDREF(m_args);
-  JS_AddNamedObjectRoot(args->m_cx, &args->m_scope,"nsCryptoRunnable::mScope");
+  JS_AddNamedRoot(args->m_cx, &args->m_scope,"nsCryptoRunnable::mScope");
 }
 
 nsCryptoRunnable::~nsCryptoRunnable()
@@ -2168,7 +2168,7 @@ nsCryptoRunnable::~nsCryptoRunnable()
 
   {
     JSAutoRequest ar(m_args->m_cx);
-    JS_RemoveObjectRoot(m_args->m_cx, &m_args->m_scope);
+    JS_RemoveRoot(m_args->m_cx, &m_args->m_scope);
   }
 
   NS_IF_RELEASE(m_args);
@@ -2214,8 +2214,14 @@ static PRBool
 nsCertAlreadyExists(SECItem *derCert)
 {
   CERTCertDBHandle *handle = CERT_GetDefaultCertDB();
+  PRArenaPool *arena;
   CERTCertificate *cert;
   PRBool retVal = PR_FALSE;
+
+  arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
+  NS_ASSERTION(arena, "Couldn't allocate an arena!");
+  if (!arena)
+    return PR_FALSE; //What else could we return?
 
   cert = CERT_FindCertByDERCert(handle, derCert);
   if (cert) {

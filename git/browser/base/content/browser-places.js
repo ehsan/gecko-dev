@@ -44,6 +44,15 @@ var StarUI = {
   uri: null,
   _batching: false,
 
+  // nsISupports
+  QueryInterface: function SU_QueryInterface(aIID) {
+    if (aIID.equals(Ci.nsIDOMEventListener) ||
+        aIID.equals(Ci.nsISupports))
+      return this;
+
+    throw Cr.NS_NOINTERFACE;
+  },
+
   _element: function(aID) {
     return document.getElementById(aID);
   },
@@ -60,33 +69,30 @@ var StarUI = {
     return this.panel = element;
   },
 
-  // Array of command elements to disable when the panel is opened.
-  get _blockedCommands() {
-    delete this._blockedCommands;
-    return this._blockedCommands =
-      ["cmd_close", "cmd_closeWindow"].map(function (id) this._element(id), this);
-  },
-
+  // list of command elements (by id) to disable when the panel is opened
+  _blockedCommands: ["cmd_close", "cmd_closeWindow"],
   _blockCommands: function SU__blockCommands() {
-    this._blockedCommands.forEach(function (elt) {
+    for each(var key in this._blockedCommands) {
+      var elt = this._element(key);
       // make sure not to permanently disable this item (see bug 409155)
       if (elt.hasAttribute("wasDisabled"))
-        return;
-      if (elt.getAttribute("disabled") == "true") {
+        continue;
+      if (elt.getAttribute("disabled") == "true")
         elt.setAttribute("wasDisabled", "true");
-      } else {
+      else {
         elt.setAttribute("wasDisabled", "false");
         elt.setAttribute("disabled", "true");
       }
-    });
+    }
   },
 
   _restoreCommandsState: function SU__restoreCommandsState() {
-    this._blockedCommands.forEach(function (elt) {
+    for each(var key in this._blockedCommands) {
+      var elt = this._element(key);
       if (elt.getAttribute("wasDisabled") != "true")
         elt.removeAttribute("disabled");
       elt.removeAttribute("wasDisabled");
-    });
+    }
   },
 
   // nsIDOMEventListener
@@ -480,9 +486,9 @@ var PlacesCommandHook = {
     var tabList = [];
     var seenURIs = {};
 
-    let tabs = gBrowser.visibleTabs;
-    for (let i = 0; i < tabs.length; ++i) {
-      let uri = tabs[i].linkedBrowser.currentURI;
+    var browsers = gBrowser.browsers;
+    for (var i = 0; i < browsers.length; ++i) {
+      let uri = browsers[i].currentURI;
 
       // skip redundant entries
       if (uri.spec in seenURIs)
@@ -562,27 +568,23 @@ var PlacesCommandHook = {
   }
 };
 
-// View for the history menu.
-function HistoryMenu(aPopupShowingEvent) {
-  XPCOMUtils.defineLazyServiceGetter(this, "_ss",
-                                     "@mozilla.org/browser/sessionstore;1",
-                                     "nsISessionStore");
-  PlacesMenu.call(this, aPopupShowingEvent,
-                  "place:redirectsMode=2&sort=4&maxResults=10");
-}
+// Helper object for the history menu.
+var HistoryMenu = {
+  get _ss() {
+    delete this._ss;
+    return this._ss = Cc["@mozilla.org/browser/sessionstore;1"].
+                      getService(Ci.nsISessionStore);
+  },
 
-HistoryMenu.prototype = {
-  __proto__: PlacesMenu.prototype,
-
-  toggleRecentlyClosedTabs: function HM_toggleRecentlyClosedTabs() {
+  toggleRecentlyClosedTabs: function PHM_toggleRecentlyClosedTabs() {
     // enable/disable the Recently Closed Tabs sub menu
-    var undoMenu = this._rootElt.getElementsByClassName("recentlyClosedTabsMenu")[0];
+    var undoPopup = document.getElementById("historyUndoPopup");
 
     // no restorable tabs, so disable menu
     if (this._ss.getClosedTabCount(window) == 0)
-      undoMenu.setAttribute("disabled", true);
+      undoPopup.parentNode.setAttribute("disabled", true);
     else
-      undoMenu.removeAttribute("disabled");
+      undoPopup.parentNode.removeAttribute("disabled");
   },
 
   /**
@@ -603,8 +605,7 @@ HistoryMenu.prototype = {
    * Populate when the history menu is opened
    */
   populateUndoSubmenu: function PHM_populateUndoSubmenu() {
-    var undoMenu = this._rootElt.getElementsByClassName("recentlyClosedTabsMenu")[0];
-    var undoPopup = undoMenu.firstChild;
+    var undoPopup = document.getElementById("historyUndoPopup");
 
     // remove existing menu items
     while (undoPopup.hasChildNodes())
@@ -612,12 +613,12 @@ HistoryMenu.prototype = {
 
     // no restorable tabs, so make sure menu is disabled, and return
     if (this._ss.getClosedTabCount(window) == 0) {
-      undoMenu.setAttribute("disabled", true);
+      undoPopup.parentNode.setAttribute("disabled", true);
       return;
     }
 
     // enable menu
-    undoMenu.removeAttribute("disabled");
+    undoPopup.parentNode.removeAttribute("disabled");
 
     // populate menu
     var undoItems = eval("(" + this._ss.getClosedTabData(window) + ")");
@@ -654,6 +655,7 @@ HistoryMenu.prototype = {
     m = undoPopup.appendChild(document.createElement("menuitem"));
     m.id = "menu_restoreAllTabs";
     m.setAttribute("label", strings.getString("menuRestoreAllTabs.label"));
+    m.setAttribute("accesskey", strings.getString("menuRestoreAllTabs.accesskey"));
     m.addEventListener("command", function() {
       for (var i = 0; i < undoItems.length; i++)
         undoCloseTab();
@@ -662,21 +664,20 @@ HistoryMenu.prototype = {
 
   toggleRecentlyClosedWindows: function PHM_toggleRecentlyClosedWindows() {
     // enable/disable the Recently Closed Windows sub menu
-    var undoMenu = this._rootElt.getElementsByClassName("recentlyClosedWindowsMenu")[0];
+    let undoPopup = document.getElementById("historyUndoWindowPopup");
 
     // no restorable windows, so disable menu
     if (this._ss.getClosedWindowCount() == 0)
-      undoMenu.setAttribute("disabled", true);
+      undoPopup.parentNode.setAttribute("disabled", true);
     else
-      undoMenu.removeAttribute("disabled");
+      undoPopup.parentNode.removeAttribute("disabled");
   },
 
   /**
    * Populate when the history menu is opened
    */
   populateUndoWindowSubmenu: function PHM_populateUndoWindowSubmenu() {
-    let undoMenu = this._rootElt.getElementsByClassName("recentlyClosedWindowsMenu")[0];
-    let undoPopup = undoMenu.firstChild;
+    let undoPopup = document.getElementById("historyUndoWindowPopup");
     let menuLabelString = gNavigatorBundle.getString("menuUndoCloseWindowLabel");
     let menuLabelStringSingleTab =
       gNavigatorBundle.getString("menuUndoCloseWindowSingleTabLabel");
@@ -687,12 +688,12 @@ HistoryMenu.prototype = {
 
     // no restorable windows, so make sure menu is disabled, and return
     if (this._ss.getClosedWindowCount() == 0) {
-      undoMenu.setAttribute("disabled", true);
+      undoPopup.parentNode.setAttribute("disabled", true);
       return;
     }
 
     // enable menu
-    undoMenu.removeAttribute("disabled");
+    undoPopup.parentNode.removeAttribute("disabled");
 
     // populate menu
     let undoItems = JSON.parse(this._ss.getClosedWindowData());
@@ -732,57 +733,52 @@ HistoryMenu.prototype = {
     let m = undoPopup.appendChild(document.createElement("menuitem"));
     m.id = "menu_restoreAllWindows";
     m.setAttribute("label", gNavigatorBundle.getString("menuRestoreAllWindows.label"));
+    m.setAttribute("accesskey", gNavigatorBundle.getString("menuRestoreAllWindows.accesskey"));
     m.setAttribute("oncommand",
       "for (var i = 0; i < " + undoItems.length + "; i++) undoCloseWindow();");
   },
 
-  toggleTabsFromOtherComputers: function PHM_toggleTabsFromOtherComputers() {
-    // This is a no-op if MOZ_SERVICES_SYNC isn't defined
-#ifdef MOZ_SERVICES_SYNC
-    // enable/disable the Tabs From Other Computers menu
-    let menuitem = document.getElementById("sync-tabs-menuitem");
-
-    // If Sync isn't configured yet, then don't show the menuitem.
-    if (Weave.Status.service == Weave.CLIENT_NOT_CONFIGURED ||
-        Weave.Svc.Prefs.get("firstSync", "") == "notReady") {
-      menuitem.setAttribute("hidden", true);
-      return;
-    }
-
-    // The tabs engine might never be inited (if services.sync.registerEngines
-    // is modified), so make sure we avoid undefined errors.
-    let enabled = Weave.Service.isLoggedIn && Weave.Engines.get("tabs") &&
-                  Weave.Engines.get("tabs").enabled;
-    menuitem.setAttribute("disabled", !enabled);
-    menuitem.setAttribute("hidden", false);
-#endif
-  },
-
-  _onPopupShowing: function HM__onPopupShowing(aEvent) {
-    PlacesMenu.prototype._onPopupShowing.apply(this, arguments);
-
+  /**
+   * popupshowing handler for the history menu.
+   * @param aEvent
+   *        The popupshowing event.
+   */
+  onPopupShowing: function PHM_onPopupShowing(aEvent) {
     // Don't handle events for submenus.
     if (aEvent.target != aEvent.currentTarget)
       return;
 
+    var menuPopup = aEvent.target;
+    var resultNode = menuPopup.getResultNode();
+    resultNode.containerOpen = true;
+    document.getElementById("endHistorySeparator").hidden =
+      resultNode.childCount == 0;
+
     this.toggleRecentlyClosedTabs();
     this.toggleRecentlyClosedWindows();
-    this.toggleTabsFromOtherComputers();
   },
 
-  _onCommand: function HM__onCommand(aEvent) {
-    let placesNode = aEvent.target._placesNode;
-    if (placesNode) {
-      PlacesUIUtils.markPageAsTyped(placesNode.uri);
-      openUILink(placesNode.uri, aEvent, false, true);
-    }
+  /**
+   * popuphidden handler for the history menu.
+   * @param aEvent
+   *        The popuphidden event.
+   */
+  onPopupHidden: function PHM_onPopupHidden(aEvent) {
+    // Don't handle events for submenus.
+    if (aEvent.target != aEvent.currentTarget)
+      return;
+
+    var menuPopup = aEvent.target;
+    var resultNode = menuPopup.getResultNode();
+    if (resultNode.containerOpen)
+      resultNode.containerOpen = false;
   }
 };
 
 /**
  * Functions for handling events in the Bookmarks Toolbar and menu.
  */
-var BookmarksEventHandler = {
+var BookmarksEventHandler = {  
   /**
    * Handler for click event for an item in the bookmarks toolbar or menu.
    * Menus and submenus from the folder buttons bubble up to this handler.
@@ -792,7 +788,7 @@ var BookmarksEventHandler = {
    * @param aEvent
    *        DOMEvent for the click
    */
-  onClick: function BEH_onClick(aEvent) {
+  onClick: function BT_onClick(aEvent) {
     // Only handle middle-click or left-click with modifiers.
 #ifdef XP_MACOSX
     var modifKey = aEvent.metaKey || aEvent.shiftKey;
@@ -814,12 +810,12 @@ var BookmarksEventHandler = {
       }
     }
 
-    if (target._placesNode && PlacesUtils.nodeIsContainer(target._placesNode)) {
+    if (target.node && PlacesUtils.nodeIsContainer(target.node)) {
       // Don't open the root folder in tabs when the empty area on the toolbar
       // is middle-clicked or when a non-bookmark item except for Open in Tabs)
       // in a bookmarks menupopup is middle-clicked.
       if (target.localName == "menu" || target.localName == "toolbarbutton")
-        PlacesUIUtils.openContainerNodeInTabs(target._placesNode, aEvent);
+        PlacesUIUtils.openContainerNodeInTabs(target.node, aEvent);
     }
     else if (aEvent.button == 1) {
       // left-clicks with modifier are already served by onCommand
@@ -834,13 +830,109 @@ var BookmarksEventHandler = {
    * @param aEvent 
    *        DOMEvent for the command
    */
-  onCommand: function BEH_onCommand(aEvent) {
+  onCommand: function BM_onCommand(aEvent) {
     var target = aEvent.originalTarget;
-    if (target._placesNode)
-      PlacesUIUtils.openNodeWithEvent(target._placesNode, aEvent);
+    if (target.node)
+      PlacesUIUtils.openNodeWithEvent(target.node, aEvent);
   },
 
-  fillInBHTooltip: function BEH_fillInBHTooltip(aDocument, aEvent) {
+  /**
+   * Handler for popupshowing event for an item in bookmarks toolbar or menu.
+   * If the item isn't the main bookmarks menu, add an "Open All in Tabs"
+   * menuitem to the bottom of the popup.
+   * @param event 
+   *        DOMEvent for popupshowing
+   */
+  onPopupShowing: function BM_onPopupShowing(event) {
+    var target = event.originalTarget;
+    if (!target.hasAttribute("placespopup"))
+      return;
+
+    // Check if the popup contains at least 2 menuitems with places nodes
+    var numNodes = 0;
+    var hasMultipleURIs = false;
+    var currentChild = target.firstChild;
+    while (currentChild) {
+      if (currentChild.localName == "menuitem" && currentChild.node) {
+        if (++numNodes == 2) {
+          hasMultipleURIs = true;
+          break;
+        }
+      }
+      currentChild = currentChild.nextSibling;
+    }
+
+    var itemId = target._resultNode.itemId;
+    var siteURIString = "";
+    if (itemId != -1 && PlacesUtils.itemIsLivemark(itemId)) {
+      var siteURI = PlacesUtils.livemarks.getSiteURI(itemId);
+      if (siteURI)
+        siteURIString = siteURI.spec;
+    }
+
+    if (!siteURIString && target._endOptOpenSiteURI) {
+        target.removeChild(target._endOptOpenSiteURI);
+        target._endOptOpenSiteURI = null;
+    }
+
+    if (!hasMultipleURIs && target._endOptOpenAllInTabs) {
+      target.removeChild(target._endOptOpenAllInTabs);
+      target._endOptOpenAllInTabs = null;
+    }
+
+    if (!(hasMultipleURIs || siteURIString)) {
+      // we don't have to show any option
+      if (target._endOptSeparator) {
+        target.removeChild(target._endOptSeparator);
+        target._endOptSeparator = null;
+        target._endMarker = -1;
+      }
+      return;
+    }
+
+    if (!target._endOptSeparator) {
+      // create a separator before options
+      target._endOptSeparator = document.createElement("menuseparator");
+      target._endOptSeparator.className = "bookmarks-actions-menuseparator";
+      target._endMarker = target.childNodes.length;
+      target.appendChild(target._endOptSeparator);
+    }
+
+    if (siteURIString && !target._endOptOpenSiteURI) {
+      // Add "Open (Feed Name)" menuitem if it's a livemark with a siteURI
+      target._endOptOpenSiteURI = document.createElement("menuitem");
+      target._endOptOpenSiteURI.className = "openlivemarksite-menuitem";
+      target._endOptOpenSiteURI.setAttribute("targetURI", siteURIString);
+      target._endOptOpenSiteURI.setAttribute("oncommand",
+          "openUILink(this.getAttribute('targetURI'), event);");
+      // If a user middle-clicks this item we serve the oncommand event
+      // We are using checkForMiddleClick because of Bug 246720
+      // Note: stopPropagation is needed to avoid serving middle-click
+      // with BT_onClick that would open all items in tabs
+      target._endOptOpenSiteURI.setAttribute("onclick",
+          "checkForMiddleClick(this, event); event.stopPropagation();");
+      target._endOptOpenSiteURI.setAttribute("label",
+          PlacesUIUtils.getFormattedString("menuOpenLivemarkOrigin.label",
+          [target.parentNode.getAttribute("label")]));
+      target.appendChild(target._endOptOpenSiteURI);
+    }
+
+    if (hasMultipleURIs && !target._endOptOpenAllInTabs) {
+        // Add the "Open All in Tabs" menuitem if there are
+        // at least two menuitems with places result nodes.
+        target._endOptOpenAllInTabs = document.createElement("menuitem");
+        target._endOptOpenAllInTabs.className = "openintabs-menuitem";
+        target._endOptOpenAllInTabs.setAttribute("oncommand",
+            "PlacesUIUtils.openContainerNodeInTabs(this.parentNode._resultNode, event);");
+        target._endOptOpenAllInTabs.setAttribute("onclick",
+            "checkForMiddleClick(this, event); event.stopPropagation();");
+        target._endOptOpenAllInTabs.setAttribute("label",
+            gNavigatorBundle.getString("menuOpenAllInTabs.label"));
+        target.appendChild(target._endOptOpenAllInTabs);
+    }
+  },
+
+  fillInBHTooltip: function(aDocument, aEvent) {
     var node;
     var cropped = false;
     var targetURI;
@@ -859,8 +951,8 @@ var BookmarksEventHandler = {
       // Check whether the tooltipNode is a Places node.
       // In such a case use it, otherwise check for targetURI attribute.
       var tooltipNode = aDocument.tooltipNode;
-      if (tooltipNode._placesNode)
-        node = tooltipNode._placesNode;
+      if (tooltipNode.node)
+        node = tooltipNode.node;
       else {
         // This is a static non-Places node.
         targetURI = tooltipNode.getAttribute("targetURI");
@@ -897,84 +989,11 @@ var BookmarksEventHandler = {
   }
 };
 
-
-// Handles special drag and drop functionality for Places menus that are not
-// part of a Places view (e.g. the bookmarks menu in the menubar).
-var PlacesMenuDNDHandler = {
-  _springLoadDelay: 350, // milliseconds
-  _loadTimer: null,
-
-  /**
-   * Called when the user enters the <menu> element during a drag.
-   * @param   event
-   *          The DragEnter event that spawned the opening. 
-   */
-  onDragEnter: function PMDH_onDragEnter(event) {
-    // Opening menus in a Places popup is handled by the view itself.
-    if (!this._isStaticContainer(event.target))
-      return;
-
-    this._loadTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-    this._loadTimer.initWithCallback(function() {
-      PlacesMenuDNDHandler._loadTimer = null;
-      event.target.lastChild.setAttribute("autoopened", "true");
-      event.target.lastChild.showPopup(event.target.lastChild);
-    }, this._springLoadDelay, Ci.nsITimer.TYPE_ONE_SHOT);
-    event.preventDefault();
-    event.stopPropagation();
-  },
-
-  /**
-   * Handles dragleave on the <menu> element.
-   * @returns true if the element is a container element (menu or 
-   *          menu-toolbarbutton), false otherwise.
-   */
-  onDragLeave: function PMDH_onDragLeave(event) {
-    // Closing menus in a Places popup is handled by the view itself.
-    if (!this._isStaticContainer(event.target))
-      return;
-
-    if (this._loadTimer) {
-      this._loadTimer.cancel();
-      this._loadTimer = null;
-    }
-    let closeTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-    closeTimer.initWithCallback(function() {
-      let node = PlacesControllerDragHelper.currentDropTarget;
-      let inHierarchy = false;
-      while (node && !inHierarchy) {
-        inHierarchy = node == event.target;
-        node = node.parentNode;
-      }
-      if (!inHierarchy && event.target.lastChild &&
-          event.target.lastChild.hasAttribute("autoopened")) {
-        event.target.lastChild.removeAttribute("autoopened");
-        event.target.lastChild.hidePopup();
-      }
-    }, this._springLoadDelay, Ci.nsITimer.TYPE_ONE_SHOT);
-  },
-
-  /**
-   * Determines if a XUL element represents a static container.
-   * @returns true if the element is a container element (menu or 
-   *`         menu-toolbarbutton), false otherwise.
-   */
-  _isStaticContainer: function PMDH__isContainer(node) {
-    let isMenu = node.localName == "menu" ||
-                 (node.localName == "toolbarbutton" &&
-                  node.getAttribute("type") == "menu");
-    let isStatic = !("_placesNode" in node) && node.lastChild &&
-                   node.lastChild.hasAttribute("placespopup") &&
-                   !node.parentNode.hasAttribute("placespopup");
-    return isMenu && isStatic;
-  },
-
-  /**
-   * Called when the user drags over the <menu> element.
-   * @param   event
-   *          The DragOver event. 
-   */
-  onDragOver: function PMDH_onDragOver(event) {
+/**
+ * Drag and Drop handler for the Bookmarks menu in the top level menu bar.
+ */
+let BookmarksMenuDropHandler = {
+  onDragOver: function BMDH_onDragOver(event) {
     let ip = new InsertionPoint(PlacesUtils.bookmarksMenuFolderId,
                                 PlacesUtils.bookmarks.DEFAULT_INDEX,
                                 Ci.nsITreeView.DROP_ON);
@@ -984,12 +1003,7 @@ var PlacesMenuDNDHandler = {
     event.stopPropagation();
   },
 
-  /**
-   * Called when the user drops on the <menu> element.
-   * @param   event
-   *          The Drop event. 
-   */
-  onDrop: function PMDH_onDrop(event) {
+  onDrop: function BMDH_onDrop(event) {
     // Put the item at the end of bookmark menu.
     let ip = new InsertionPoint(PlacesUtils.bookmarksMenuFolderId,
                                 PlacesUtils.bookmarks.DEFAULT_INDEX,
@@ -999,6 +1013,107 @@ var PlacesMenuDNDHandler = {
   }
 };
 
+/**
+ * Handles special drag and drop functionality for menus on the Bookmarks 
+ * Toolbar and Bookmarks Menu.
+ */
+var PlacesMenuDNDController = {
+  _springLoadDelay: 350, // milliseconds
+
+  /**
+   * All Drag Timers set for the Places UI
+   */
+  _timers: { },
+  
+  /**
+   * Called when the user drags over the Bookmarks top level <menu> element.
+   * @param   event
+   *          The DragEnter event that spawned the opening. 
+   */
+  onBookmarksMenuDragEnter: function PMDC_onDragEnter(event) {
+    if ("loadTime" in this._timers) 
+      return;
+    
+    this._setDragTimer("loadTime", this._openBookmarksMenu, 
+                       this._springLoadDelay, [event]);
+  },
+  
+  /**
+   * Creates a timer that will fire during a drag and drop operation.
+   * @param   id
+   *          The identifier of the timer being set
+   * @param   callback
+   *          The function to call when the timer "fires"
+   * @param   delay
+   *          The time to wait before calling the callback function
+   * @param   args
+   *          An array of arguments to pass to the callback function
+   */
+  _setDragTimer: function PMDC__setDragTimer(id, callback, delay, args) {
+    if (!this._dragSupported)
+      return;
+
+    // Cancel this timer if it's already running.
+    if (id in this._timers)
+      this._timers[id].cancel();
+      
+    /**
+     * An object implementing nsITimerCallback that calls a user-supplied
+     * method with the specified args in the context of the supplied object.
+     */
+    function Callback(object, method, args) {
+      this._method = method;
+      this._args = args;
+      this._object = object;
+    }
+    Callback.prototype = {
+      notify: function C_notify(timer) {
+        this._method.apply(this._object, this._args);
+      }
+    };
+    
+    var timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+    timer.initWithCallback(new Callback(this, callback, args), delay, 
+                           timer.TYPE_ONE_SHOT);
+    this._timers[id] = timer;
+  },
+  
+  /**
+   * Determines if a XUL element represents a container in the Bookmarks system
+   * @returns true if the element is a container element (menu or 
+   *`         menu-toolbarbutton), false otherwise.
+   */
+  _isContainer: function PMDC__isContainer(node) {
+    return node.localName == "menu" ||
+           (node.localName == "toolbarbutton" &&
+            node.getAttribute("type") == "menu");
+  },
+  
+  /**
+   * Opens the Bookmarks Menu when it is dragged over. (This is special-cased, 
+   * since the toplevel Bookmarks <menu> is not a member of an existing places
+   * container, as folders on the personal toolbar or submenus are. 
+   * @param   event
+   *          The DragEnter event that spawned the opening. 
+   */
+  _openBookmarksMenu: function PMDC__openBookmarksMenu(event) {
+    if ("loadTime" in this._timers)
+      delete this._timers.loadTime;
+    if (event.target.id == "bookmarksMenu") {
+      // If this is the bookmarks menu, tell its menupopup child to show.
+      event.target.lastChild.setAttribute("autoopened", "true");
+      event.target.lastChild.showPopup(event.target.lastChild);
+    }  
+  },
+
+  // Whether or not drag and drop to menus is supported on this platform
+  // Dragging in menus is disabled on OS X due to various repainting issues.
+#ifdef XP_MACOSX
+  _dragSupported: false
+#else
+  _dragSupported: true
+#endif
+};
 
 var PlacesStarButton = {
   init: function PSB_init() {
@@ -1013,7 +1128,13 @@ var PlacesStarButton = {
     PlacesUtils.bookmarks.removeObserver(this);
   },
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsINavBookmarkObserver]),
+  QueryInterface: function PSB_QueryInterface(aIID) {
+    if (aIID.equals(Ci.nsINavBookmarkObserver) ||
+        aIID.equals(Ci.nsISupports))
+      return this;
+
+    throw Cr.NS_NOINTERFACE;
+  },
 
   _starred: false,
   _batching: false,
@@ -1074,188 +1195,6 @@ var PlacesStarButton = {
       this.updateState();
   },
 
-  onItemVisited: function() {},
-  onItemMoved: function() {}
-};
-
-
-// This object handles the initialization and uninitialization of the bookmarks
-// toolbar.  updateState is called when the browser window is opened and
-// after closing the toolbar customization dialog.
-let PlacesToolbarHelper = {
-  _place: "place:folder=TOOLBAR",
-
-  get _viewElt() {
-    return document.getElementById("PlacesToolbar");
-  },
-
-  init: function PTH_init() {
-    let viewElt = this._viewElt;
-    if (!viewElt || viewElt._placesView)
-      return;
-
-    // If the bookmarks toolbar item is hidden because the parent toolbar is
-    // collapsed or hidden (i.e. in a popup), spare the initialization.
-    let toolbar = viewElt.parentNode.parentNode;
-    if (toolbar.collapsed ||
-        getComputedStyle(toolbar, "").display == "none")
-      return;
-
-    new PlacesToolbar(this._place);
-  },
-
-  customizeStart: function PTH_customizeStart() {
-    let viewElt = this._viewElt;
-    if (viewElt && viewElt._placesView)
-      viewElt._placesView.uninit();
-  },
-
-  customizeDone: function PTH_customizeDone() {
-    this.init();
-  }
-};
-
-
-// Handles the bookmarks menu button shown when the main menubar is hidden.
-let BookmarksMenuButton = {
-  get button() {
-    return document.getElementById("bookmarks-menu-button");
-  },
-
-  get buttonContainer() {
-    return document.getElementById("bookmarks-menu-button-container");
-  },
-
-  get personalToolbar() {
-    delete this.personalToolbar;
-    return this.personalToolbar = document.getElementById("PersonalToolbar");
-  },
-
-  get bookmarksToolbarItem() {
-    return document.getElementById("personal-bookmarks");
-  },
-
-  init: function BMB_init() {
-    this.updatePosition();
-
-    // Any other stuff that does not regard the button itself should be
-    // handled in the onPopupShowing handler, so it does not hit Ts.
-  },
-
-  _popupInitialized: false,
-  _popupNeedsUpdating: true,
-  onPopupShowing: function BMB_onPopupShowing(event) {
-    if (!this._popupNeedsUpdating)
-      return;
-    this._popupNeedsUpdating = false;
-
-    let viewToolbar = document.getElementById("BMB_viewBookmarksToolbar");
-    if (!this._popupInitialized) {
-      // First popupshowing event, initialize immutable attributes.
-      this._popupInitialized = true;
-      // Update View bookmarks toolbar checkbox menuitem.
-      viewToolbar.setAttribute("toolbarindex",
-                               Array.indexOf(gNavToolbox.childNodes,
-                                             this.personalToolbar));
-
-      // Need to set the label on Unsorted Bookmarks menu.
-      let unsortedBookmarksElt =
-        document.getElementById("BMB_unsortedBookmarksFolderMenu");
-      unsortedBookmarksElt.label =
-        PlacesUtils.getString("UnsortedBookmarksFolderTitle");
-    }
-
-    // Update View Bookmarks Toolbar checkbox menuitem.
-    viewToolbar.setAttribute("checked", !this.personalToolbar.collapsed);
-
-    // Hide Bookmarks Toolbar menu if the button is next to the bookmarks
-    // toolbar item, show them otherwise.
-    let button = this.button;
-    document.getElementById("BMB_bookmarksToolbarFolderMenu").collapsed =
-      button && button.parentNode == this.bookmarksToolbarItem;
-  },
-
-  updatePosition: function BMB_updatePosition() {
-    this._popupNeedsUpdating = true;
-
-    let button = this.button;
-    if (!button)
-      return;
-
-    // If the toolbar containing bookmarks is visible, we want to move the
-    // button to bookmarksToolbarItem.
-    let bookmarksToolbarItem = this.bookmarksToolbarItem;
-    let bookmarksOnVisibleToolbar = bookmarksToolbarItem &&
-                                    !bookmarksToolbarItem.parentNode.collapsed &&
-                                    bookmarksToolbarItem.parentNode.getAttribute("autohide") != "true";
-
-    // If the container has been moved by the user to the toolbar containing
-    // bookmarks, we want to preserve the desired position.
-    let container = this.buttonContainer;
-    let containerNearBookmarks = container && bookmarksToolbarItem &&
-                                 container.parentNode == bookmarksToolbarItem.parentNode;
-
-    if (bookmarksOnVisibleToolbar && !containerNearBookmarks) {
-      if (button.parentNode != bookmarksToolbarItem) {
-        this._uninitView();
-        bookmarksToolbarItem.appendChild(button);
-      }
-    }
-    else {
-      if (container && button.parentNode != container) {
-        this._uninitView();
-        container.appendChild(button);
-      }
-    }
-    this._updateStyle();
-  },
-
-  _updateStyle: function BMB__updateStyle() {
-    let button = this.button;
-    if (!button)
-      return;
-
-    let container = this.buttonContainer;
-    let containerOnPersonalToolbar = container &&
-                                     (container.parentNode == this.personalToolbar ||
-                                      container.parentNode.parentNode == this.personalToolbar);
-
-    if (button.parentNode == this.bookmarksToolbarItem ||
-        containerOnPersonalToolbar) {
-      button.classList.add("bookmark-item");
-      button.classList.remove("toolbarbutton-1");
-    }
-    else {
-      button.classList.remove("bookmark-item");
-      button.classList.add("toolbarbutton-1");
-    }
-  },
-
-  _uninitView: function BMB__uninitView() {
-    // When an element with a placesView attached is removed and re-inserted,
-    // XBL reapplies the binding causing any kind of issues and possible leaks,
-    // so kill current view and let popupshowing generate a new one.
-    let button = this.button;
-    if (button && button._placesView)
-      button._placesView.uninit();
-  },
-
-  customizeStart: function BMB_customizeStart() {
-    this._uninitView();
-    let button = this.button;
-    let container = this.buttonContainer;
-    if (button && container && button.parentNode != container) {
-      // Move button back to the container, so user can move or remove it.
-      container.appendChild(button);
-      this._updateStyle();
-    }
-  },
-
-  customizeChange: function BMB_customizeChange() {
-    this._updateStyle();
-  },
-
-  customizeDone: function BMB_customizeDone() {
-    this.updatePosition();
-  }
+  onItemVisited: function() { },
+  onItemMoved: function() { }
 };

@@ -62,7 +62,7 @@ FramePropertyTable::Set(nsIFrame* aFrame, const FramePropertyDescriptor* aProper
     }
     if (entry->mProp.mProperty == aProperty) {
       // Just overwrite the current value
-      entry->mProp.DestroyValueFor(aFrame);
+      entry->mProp.DestroyValue();
       entry->mProp.mValue = aValue;
       return;
     }
@@ -80,7 +80,7 @@ FramePropertyTable::Set(nsIFrame* aFrame, const FramePropertyDescriptor* aProper
     array->IndexOf(aProperty, 0, PropertyComparator());
   if (index != nsTArray<PropertyValue>::NoIndex) {
     PropertyValue* pv = &array->ElementAt(index);
-    pv->DestroyValueFor(aFrame);
+    pv->DestroyValue();
     pv->mValue = aValue;
     return;
   }
@@ -201,9 +201,8 @@ FramePropertyTable::Delete(nsIFrame* aFrame, const FramePropertyDescriptor* aPro
 
   PRBool found;
   void* v = Remove(aFrame, aProperty, &found);
-  if (found) {
-    PropertyValue pv(aProperty, v);
-    pv.DestroyValueFor(aFrame);
+  if (found && aProperty->mDestructor) {
+    aProperty->mDestructor(v);
   }
 }
 
@@ -211,13 +210,13 @@ FramePropertyTable::Delete(nsIFrame* aFrame, const FramePropertyDescriptor* aPro
 FramePropertyTable::DeleteAllForEntry(Entry* aEntry)
 {
   if (!aEntry->mProp.IsArray()) {
-    aEntry->mProp.DestroyValueFor(aEntry->GetKey());
+    aEntry->mProp.DestroyValue();
     return;
   }
 
   nsTArray<PropertyValue>* array = aEntry->mProp.ToArray();
   for (PRUint32 i = 0; i < array->Length(); ++i) {
-    array->ElementAt(i).DestroyValueFor(aEntry->GetKey());
+    array->ElementAt(i).DestroyValue();
   }
   array->nsTArray<PropertyValue>::~nsTArray<PropertyValue>();
 }

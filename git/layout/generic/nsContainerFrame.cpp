@@ -73,7 +73,7 @@
 #include "nsThemeConstants.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsThemeConstants.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 #ifdef NS_DEBUG
 #undef NOISY
@@ -724,7 +724,7 @@ nsContainerFrame::ReflowChild(nsIFrame*                aKidFrame,
     if ((aFlags & NS_FRAME_INVALIDATE_ON_MOVE) &&
         !(aKidFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW) &&
         aKidFrame->GetPosition() != nsPoint(aX, aY)) {
-      aKidFrame->InvalidateFrameSubtree();
+      aKidFrame->InvalidateOverflowRect();
     }
     aKidFrame->SetPosition(nsPoint(aX, aY));
   }
@@ -899,8 +899,6 @@ nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPres
     return NS_OK; // nothing to reflow
 
   nsOverflowContinuationTracker tracker(aPresContext, this, PR_FALSE, PR_FALSE);
-  PRBool shouldReflowAllKids = aReflowState.ShouldReflowAllKids();
-
   for (nsIFrame* frame = overflowContainers->FirstChild(); frame;
        frame = frame->GetNextSibling()) {
     if (frame->GetPrevInFlow()->GetParent() != GetPrevInFlow()) {
@@ -908,9 +906,7 @@ nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPres
       // it will get reflowed once it's been placed
       continue;
     }
-    // If the available vertical height has changed, we need to reflow
-    // even if the frame isn't dirty.
-    if (shouldReflowAllKids || NS_SUBTREE_DIRTY(frame)) {
+    if (NS_SUBTREE_DIRTY(frame)) {
       // Get prev-in-flow
       nsIFrame* prevInFlow = frame->GetPrevInFlow();
       NS_ASSERTION(prevInFlow,
@@ -1038,7 +1034,7 @@ nsContainerFrame::StealFrame(nsPresContext* aPresContext,
       if (frameList) {
         removed = frameList->RemoveFrameIfPresent(aChild);
         if (frameList->IsEmpty()) {
-          DestroyOverflowList(aPresContext, nsnull);
+          DestroyOverflowList(aPresContext);
         }
       }
     }
@@ -1091,12 +1087,8 @@ nsContainerFrame::DestroyOverflowList(nsPresContext* aPresContext,
 {
   nsFrameList* list =
     RemovePropTableFrames(aPresContext, OverflowProperty());
-  if (list) {
-    if (aDestructRoot)
-      list->DestroyFrom(aDestructRoot);
-    else
-      list->Destroy();
-  }
+  if (list)
+    list->DestroyFrom(aDestructRoot);
 }
 
 /**
@@ -1130,7 +1122,7 @@ nsContainerFrame::DeleteNextInFlowChild(nsPresContext* aPresContext,
     }
   }
 
-  aNextInFlow->InvalidateFrameSubtree();
+  aNextInFlow->InvalidateOverflowRect();
 
   // Take the next-in-flow out of the parent's child list
 #ifdef DEBUG
@@ -1487,25 +1479,26 @@ nsOverflowContinuationTracker::Finish(nsIFrame* aChild)
                 "supposed to call Finish *before* deleting next-in-flow!");
 
   for (nsIFrame* f = aChild; f; f = f->GetNextInFlow()) {
-    // Make sure we drop all references if the only frame
-    // in the overflow containers list is about to be destroyed
-    if (mOverflowContList &&
-        mOverflowContList->FirstChild() == f->GetNextInFlow() &&
-        !f->GetNextInFlow()->GetNextSibling()) {
-      mOverflowContList = nsnull;
-      mPrevOverflowCont = nsnull;
-      mSentry = nsnull;
-      mParent = static_cast<nsContainerFrame*>(f->GetParent());
-      break;
-    }
     if (f == mSentry) {
-      // Step past aChild
-      nsIFrame* prevOverflowCont = mPrevOverflowCont;
-      StepForward();
-      if (mPrevOverflowCont == f->GetNextInFlow()) {
-        // Pull mPrevOverflowChild back to aChild's prevSibling:
-        // aChild will be removed from our list by our caller
-        mPrevOverflowCont = prevOverflowCont;
+      // Make sure we drop all references if this was the only frame
+      // in the overflow containers list
+      if (mOverflowContList->FirstChild() == f->GetNextInFlow()
+          && !f->GetNextInFlow()->GetNextSibling()) {
+        mOverflowContList = nsnull;
+        mPrevOverflowCont = nsnull;
+        mSentry = nsnull;
+        mParent = static_cast<nsContainerFrame*>(f->GetParent());
+        break;
+      }
+      else {
+        // Step past aChild
+        nsIFrame* prevOverflowCont = mPrevOverflowCont;
+        StepForward();
+        if (mPrevOverflowCont == f->GetNextInFlow()) {
+          // Pull mPrevOverflowChild back to aChild's prevSibling:
+          // aChild will be removed from our list by our caller
+          mPrevOverflowCont = prevOverflowCont;
+        }
       }
     }
   }
@@ -1545,7 +1538,7 @@ nsContainerFrame::List(FILE* out, PRInt32 aIndent) const
   }
   fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
   if (0 != mState) {
-    fprintf(out, " [state=%016llx]", mState);
+    fprintf(out, " [state=%08x]", mState);
   }
   fprintf(out, " [content=%p]", static_cast<void*>(mContent));
   nsContainerFrame* f = const_cast<nsContainerFrame*>(this);

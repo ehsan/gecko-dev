@@ -61,8 +61,6 @@
 
 #include "prlog.h"
 
-#include "mozilla/FunctionTimer.h"
-
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gStorageLog;
 #endif
@@ -175,7 +173,8 @@ Statement::initialize(Connection *aDBConnection,
   sqlite3 *db = aDBConnection->GetNativeConnection();
   NS_ASSERTION(db, "We should never be called with a null sqlite3 database!");
 
-  int srv = prepareStmt(db, PromiseFlatCString(aSQLStatement), &mDBStatement);
+  int srv = ::sqlite3_prepare_v2(db, PromiseFlatCString(aSQLStatement).get(),
+                                 -1, &mDBStatement, NULL);
   if (srv != SQLITE_OK) {
 #ifdef PR_LOGGING
       PR_LOG(gStorageLog, PR_LOG_ERROR,
@@ -318,9 +317,9 @@ Statement::getAsyncStatement(sqlite3_stmt **_stmt)
 
   // If we do not yet have a cached async statement, clone our statement now.
   if (!mAsyncStatement) {
-    nsDependentCString sql(::sqlite3_sql(mDBStatement));
-    int rc = prepareStmt(mDBConnection->GetNativeConnection(), sql,
-                     &mAsyncStatement);
+    int rc = ::sqlite3_prepare_v2(mDBConnection->GetNativeConnection(),
+                                  ::sqlite3_sql(mDBStatement), -1,
+                                  &mAsyncStatement, NULL);
     if (rc != SQLITE_OK) {
       *_stmt = nsnull;
       return rc;
@@ -580,9 +579,9 @@ Statement::Execute()
 
   PRBool ret;
   nsresult rv = ExecuteStep(&ret);
-  nsresult rv2 = Reset();
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  return NS_FAILED(rv) ? rv : rv2;
+  return Reset();
 }
 
 NS_IMETHODIMP
@@ -590,9 +589,6 @@ Statement::ExecuteStep(PRBool *_moreResults)
 {
   if (!mDBStatement)
     return NS_ERROR_NOT_INITIALIZED;
-
-  NS_TIME_FUNCTION_MIN_FMT(5, "mozIStorageStatement::ExecuteStep(%s) (0x%p)",
-                           mDBConnection->getFilename().get(), mDBStatement);
 
   // Bind any parameters first before executing.
   if (mParamsArray) {
@@ -614,7 +610,7 @@ Statement::ExecuteStep(PRBool *_moreResults)
     // We have bound, so now we can clear our array.
     mParamsArray = nsnull;
   }
-  int srv = stepStmt(mDBStatement);
+  int srv = ::sqlite3_step(mDBStatement);
 
 #ifdef PR_LOGGING
   if (srv != SQLITE_ROW && srv != SQLITE_DONE) {
@@ -783,7 +779,7 @@ Statement::GetUTF8String(PRUint32 aIndex,
   nsresult rv = GetTypeOfIndex(aIndex, &type);
   NS_ENSURE_SUCCESS(rv, rv);
   if (type == mozIStorageStatement::VALUE_TYPE_NULL) {
-    // NULL columns should have IsVoid set to distinguish them from the empty
+    // NULL columns should have IsVod set to distinguis them from an empty
     // string.
     _value.Truncate(0);
     _value.SetIsVoid(PR_TRUE);
@@ -806,7 +802,7 @@ Statement::GetString(PRUint32 aIndex,
   nsresult rv = GetTypeOfIndex(aIndex, &type);
   NS_ENSURE_SUCCESS(rv, rv);
   if (type == mozIStorageStatement::VALUE_TYPE_NULL) {
-    // NULL columns should have IsVoid set to distinguish them from the empty
+    // NULL columns should have IsVod set to distinguis them from an empty
     // string.
     _value.Truncate(0);
     _value.SetIsVoid(PR_TRUE);

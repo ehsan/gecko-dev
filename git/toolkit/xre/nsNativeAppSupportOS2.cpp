@@ -766,7 +766,7 @@ PRBool nsNativeAppSupportOS2::mUseDDE = PR_FALSE;
  *        If not, then this is the first instance of Mozilla.  In
  *        that case, we create and set up the message window.
  *
- *        The checking for existence of the message window must
+ *        The checking for existance of the message window must
  *        be protected by use of a mutex semaphore.
  */
 NS_IMETHODIMP
@@ -1748,7 +1748,7 @@ nsNativeAppSupportOS2::OpenBrowserWindow()
           }
         }
 
-        NS_ERROR("failed to hand off external URL to extant window");
+        NS_ERROR("failed to hand off external URL to extant window\n");
     } while ( PR_FALSE );
 
     // open a new window if caller requested it or if anything above failed

@@ -160,18 +160,20 @@ nsIsIndexFrame::GetInputFrame(nsIFormControlFrame** oFrame)
 void
 nsIsIndexFrame::GetInputValue(nsString& oString)
 {
-  nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(mInputContent);
-  if (txtCtrl) {
-    txtCtrl->GetTextEditorValue(oString, PR_FALSE);
+  nsIFormControlFrame* frame = nsnull;
+  GetInputFrame(&frame);
+  if (frame) {
+    ((nsNewFrame*)frame)->GetValue(oString, PR_FALSE);
   }
 }
 
 void
 nsIsIndexFrame::SetInputValue(const nsString& aString)
 {
-  nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(mInputContent);
-  if (txtCtrl) {
-    txtCtrl->SetTextEditorValue(aString, PR_FALSE);
+  nsIFormControlFrame* frame = nsnull;
+  GetInputFrame(&frame);
+  if (frame) {
+    ((nsNewFrame*)frame)->SetValue(aString);
   }
 }
 
@@ -196,7 +198,7 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   nsCOMPtr<nsINodeInfo> hrInfo;
   hrInfo = nimgr->GetNodeInfo(nsGkAtoms::hr, nsnull, kNameSpaceID_XHTML);
 
-  NS_NewHTMLElement(getter_AddRefs(mPreHr), hrInfo.forget(), PR_FALSE);
+  NS_NewHTMLElement(getter_AddRefs(mPreHr), hrInfo, PR_FALSE);
   if (!mPreHr || !aElements.AppendElement(mPreHr))
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -214,8 +216,7 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   nsCOMPtr<nsINodeInfo> inputInfo;
   inputInfo = nimgr->GetNodeInfo(nsGkAtoms::input, nsnull, kNameSpaceID_XHTML);
 
-  NS_NewHTMLElement(getter_AddRefs(mInputContent), inputInfo.forget(),
-                    PR_FALSE);
+  NS_NewHTMLElement(getter_AddRefs(mInputContent), inputInfo, PR_FALSE);
   if (!mInputContent)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -230,8 +231,7 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   mInputContent->AddEventListenerByIID(mListener, NS_GET_IID(nsIDOMKeyListener));
 
   // Create an hr
-  hrInfo = nimgr->GetNodeInfo(nsGkAtoms::hr, nsnull, kNameSpaceID_XHTML);
-  NS_NewHTMLElement(getter_AddRefs(mPostHr), hrInfo.forget(), PR_FALSE);
+  NS_NewHTMLElement(getter_AddRefs(mPostHr), hrInfo, PR_FALSE);
   if (!mPostHr || !aElements.AppendElement(mPostHr))
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -357,9 +357,9 @@ nsIsIndexFrame::OnSubmit(nsPresContext* aPresContext)
   if (!document) return NS_OK; // No doc means don't submit, see Bug 28988
 
   // Resolve url to an absolute url
-  nsIURI *baseURI = document->GetDocBaseURI();
+  nsIURI *baseURI = document->GetBaseURI();
   if (!baseURI) {
-    NS_ERROR("No Base URL found in Form Submit!");
+    NS_ERROR("No Base URL found in Form Submit!\n");
     return NS_OK; // No base URL -> exit early, see Bug 30721
   }
 
@@ -392,7 +392,7 @@ nsIsIndexFrame::OnSubmit(nsPresContext* aPresContext)
       href.Truncate(queryStart);
     }
   } else {
-    NS_ERROR("Rel path couldn't be formed in form submit!");
+    NS_ERROR("Rel path couldn't be formed in form submit!\n");
     return NS_ERROR_OUT_OF_MEMORY;
   }
 

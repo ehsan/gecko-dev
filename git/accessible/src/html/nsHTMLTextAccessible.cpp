@@ -52,10 +52,9 @@
 // nsHTMLTextAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
-nsHTMLTextAccessible::
-  nsHTMLTextAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsTextAccessibleWrap(aContent, aShell)
-{
+nsHTMLTextAccessible::nsHTMLTextAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell):
+nsTextAccessibleWrap(aDomNode, aShell)
+{ 
 }
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLTextAccessible, nsTextAccessible)
@@ -103,6 +102,10 @@ nsHTMLTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 nsresult
 nsHTMLTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
 {
+  if (!mDOMNode) {
+    return NS_ERROR_FAILURE;  // Node already shut down
+  }
+
   PRUint32 role;
   GetRoleInternal(&role);
   if (role == nsIAccessibleRole::ROLE_STATICTEXT) {
@@ -114,15 +117,13 @@ nsHTMLTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes
   return NS_OK;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLHRAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
-nsHTMLHRAccessible::
-  nsHTMLHRAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsLeafAccessible(aContent, aShell)
-{
+nsHTMLHRAccessible::nsHTMLHRAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell):
+nsLeafAccessible(aDomNode, aShell)
+{ 
 }
 
 nsresult
@@ -132,15 +133,9 @@ nsHTMLHRAccessible::GetRoleInternal(PRUint32 *aRole)
   return NS_OK;
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
-// nsHTMLBRAccessible
-////////////////////////////////////////////////////////////////////////////////
-
-nsHTMLBRAccessible::
-  nsHTMLBRAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsLeafAccessible(aContent, aShell)
-{
+nsHTMLBRAccessible::nsHTMLBRAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell):
+nsLeafAccessible(aDomNode, aShell)
+{ 
 }
 
 nsresult
@@ -180,13 +175,13 @@ nsHTMLBRAccessible::GetNameInternal(nsAString& aName)
 // nsHTMLLabelAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
+NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLLabelAccessible, nsHyperTextAccessible)
+
 nsHTMLLabelAccessible::
-  nsHTMLLabelAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsHyperTextAccessibleWrap(aContent, aShell)
+  nsHTMLLabelAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell) :
+  nsHyperTextAccessibleWrap(aDomNode, aShell)
 {
 }
-
-NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLLabelAccessible, nsHyperTextAccessible)
 
 nsresult
 nsHTMLLabelAccessible::GetNameInternal(nsAString& aName)
@@ -206,12 +201,12 @@ nsHTMLLabelAccessible::GetRoleInternal(PRUint32 *aRole)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLLIAccessible::
-  nsHTMLLIAccessible(nsIContent *aContent, nsIWeakReference *aShell,
-                     const nsAString& aBulletText) :
-  nsHyperTextAccessibleWrap(aContent, aShell)
+  nsHTMLLIAccessible(nsIDOMNode *aDOMNode, nsIWeakReference* aShell, 
+                     const nsAString& aBulletText):
+  nsHyperTextAccessibleWrap(aDOMNode, aShell)
 {
   if (!aBulletText.IsEmpty()) {
-    mBulletAccessible = new nsHTMLListBulletAccessible(mContent, mWeakShell, 
+    mBulletAccessible = new nsHTMLListBulletAccessible(mDOMNode, mWeakShell, 
                                                        aBulletText);
     if (mBulletAccessible)
       mBulletAccessible->Init();
@@ -220,7 +215,7 @@ nsHTMLLIAccessible::
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLLIAccessible, nsHyperTextAccessible)
 
-void
+nsresult
 nsHTMLLIAccessible::Shutdown()
 {
   if (mBulletAccessible) {
@@ -228,8 +223,9 @@ nsHTMLLIAccessible::Shutdown()
     mBulletAccessible->Shutdown();
   }
 
-  nsHyperTextAccessibleWrap::Shutdown();
+  nsresult rv = nsHyperTextAccessibleWrap::Shutdown();
   mBulletAccessible = nsnull;
+  return rv;
 }
 
 nsresult
@@ -272,8 +268,10 @@ NS_IMETHODIMP nsHTMLLIAccessible::GetBounds(PRInt32 *x, PRInt32 *y, PRInt32 *wid
 void
 nsHTMLLIAccessible::CacheChildren()
 {
-  if (mBulletAccessible)
-    AppendChild(mBulletAccessible);
+  if (mBulletAccessible) {
+    mChildren.AppendElement(mBulletAccessible);
+    mBulletAccessible->SetParent(this);
+  }
 
   // Cache children from subtree.
   nsAccessibleWrap::CacheChildren();
@@ -284,9 +282,9 @@ nsHTMLLIAccessible::CacheChildren()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLListBulletAccessible::
-  nsHTMLListBulletAccessible(nsIContent *aContent, nsIWeakReference *aShell,
+  nsHTMLListBulletAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell,
                              const nsAString& aBulletText) :
-    nsLeafAccessible(aContent, aShell), mBulletText(aBulletText)
+    nsLeafAccessible(aDomNode, aShell), mBulletText(aBulletText)
 {
   mBulletText += ' '; // Otherwise bullets are jammed up against list text
 }
@@ -294,17 +292,16 @@ nsHTMLListBulletAccessible::
 NS_IMETHODIMP
 nsHTMLListBulletAccessible::GetUniqueID(void **aUniqueID)
 {
-  // Since mContent is same as for list item, use |this| pointer as the unique
-  // id.
+  // Since mDOMNode is same as for list item, use |this| pointer as the unique Id
   *aUniqueID = static_cast<void*>(this);
   return NS_OK;
 }
 
-void
+nsresult
 nsHTMLListBulletAccessible::Shutdown()
 {
   mBulletText.Truncate();
-  nsLeafAccessible::Shutdown();
+  return nsLeafAccessible::Shutdown();
 }
 
 NS_IMETHODIMP
@@ -345,15 +342,15 @@ nsHTMLListBulletAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset
   return NS_OK;
 }
 
+nsAccessible*
+nsHTMLListBulletAccessible::GetParent()
+{
+  return mParent;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLListAccessible
 ////////////////////////////////////////////////////////////////////////////////
-
-nsHTMLListAccessible::
-  nsHTMLListAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsHyperTextAccessibleWrap(aContent, aShell)
-{
-}
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLListAccessible, nsHyperTextAccessible)
 

@@ -102,8 +102,8 @@ nsHTMLEditorEventListener::MouseUp(nsIDOMEvent* aMouseEvent)
 
   nsCOMPtr<nsIDOMEventTarget> target;
   nsresult res = aMouseEvent->GetTarget(getter_AddRefs(target));
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(target, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(res)) return res;
+  if (!target) return NS_ERROR_NULL_POINTER;
   nsCOMPtr<nsIDOMElement> element = do_QueryInterface(target);
 
   PRInt32 clientX, clientY;
@@ -132,14 +132,14 @@ nsHTMLEditorEventListener::MouseDown(nsIDOMEvent* aMouseEvent)
   // But eDOMEvents_contextmenu and NS_CONTEXTMENU is not exposed in any event interface :-(
   PRUint16 buttonNumber;
   nsresult res = mouseEvent->GetButton(&buttonNumber);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
 
   PRBool isContextClick;
 
 #if defined(XP_MAC) || defined(XP_MACOSX)
   // Ctrl+Click for context menu
   res = mouseEvent->GetCtrlKey(&isContextClick);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
 #else
   // Right mouse button for Windows, UNIX
   isContextClick = buttonNumber == 2;
@@ -147,34 +147,34 @@ nsHTMLEditorEventListener::MouseDown(nsIDOMEvent* aMouseEvent)
   
   PRInt32 clickCount;
   res = mouseEvent->GetDetail(&clickCount);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
 
   nsCOMPtr<nsIDOMEventTarget> target;
   nsCOMPtr<nsIDOMNSEvent> internalEvent = do_QueryInterface(aMouseEvent);
   res = internalEvent->GetExplicitOriginalTarget(getter_AddRefs(target));
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(target, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(res)) return res;
+  if (!target) return NS_ERROR_NULL_POINTER;
   nsCOMPtr<nsIDOMElement> element = do_QueryInterface(target);
 
   if (isContextClick || (buttonNumber == 0 && clickCount == 2))
   {
     nsCOMPtr<nsISelection> selection;
     mEditor->GetSelection(getter_AddRefs(selection));
-    NS_ENSURE_TRUE(selection, NS_OK);
+    if (!selection) return NS_OK;
 
     // Get location of mouse within target node
     nsCOMPtr<nsIDOMNSUIEvent> uiEvent = do_QueryInterface(aMouseEvent);
-    NS_ENSURE_TRUE(uiEvent, NS_ERROR_FAILURE);
+    if (!uiEvent) return NS_ERROR_FAILURE;
 
     nsCOMPtr<nsIDOMNode> parent;
     PRInt32 offset = 0;
 
     res = uiEvent->GetRangeParent(getter_AddRefs(parent));
-    NS_ENSURE_SUCCESS(res, res);
-    NS_ENSURE_TRUE(parent, NS_ERROR_FAILURE);
+    if (NS_FAILED(res)) return res;
+    if (!parent) return NS_ERROR_FAILURE;
 
     res = uiEvent->GetRangeOffset(&offset);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
 
     // Detect if mouse point is within current selection for context click
     PRBool nodeIsInSelection = PR_FALSE;
@@ -186,7 +186,7 @@ nsHTMLEditorEventListener::MouseDown(nsIDOMEvent* aMouseEvent)
       {
         PRInt32 rangeCount;
         res = selection->GetRangeCount(&rangeCount);
-        NS_ENSURE_SUCCESS(res, res);
+        if (NS_FAILED(res)) return res;
 
         for (PRInt32 i = 0; i < rangeCount; i++)
         {
@@ -223,7 +223,7 @@ nsHTMLEditorEventListener::MouseDown(nsIDOMEvent* aMouseEvent)
           // Get enclosing link if in text so we can select the link
           nsCOMPtr<nsIDOMElement> linkElement;
           res = htmlEditor->GetElementOrParentByTagName(NS_LITERAL_STRING("href"), node, getter_AddRefs(linkElement));
-          NS_ENSURE_SUCCESS(res, res);
+          if (NS_FAILED(res)) return res;
           if (linkElement)
             element = linkElement;
         }
@@ -300,8 +300,8 @@ nsHTMLEditorEventListener::MouseClick(nsIDOMEvent* aMouseEvent)
 
   nsCOMPtr<nsIDOMEventTarget> target;
   nsresult res = aMouseEvent->GetTarget(getter_AddRefs(target));
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(target, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(res)) return res;
+  if (!target) return NS_ERROR_NULL_POINTER;
   nsCOMPtr<nsIDOMElement> element = do_QueryInterface(target);
 
   GetHTMLEditor()->DoInlineTableEditingAction(element);

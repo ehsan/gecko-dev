@@ -42,8 +42,7 @@
 #include "nsString.h"
 #include "nsLiteralString.h"
 #include "nsIDOMSVGSVGElement.h"
-#include "mozilla/dom/Element.h"
-#include "nsGenericElement.h"
+#include "Element.h"
 
 using namespace mozilla::dom;
 
@@ -61,7 +60,7 @@ nsSVGDocument::~nsSVGDocument()
 //----------------------------------------------------------------------
 // nsISupports methods:
 
-DOMCI_NODE_DATA(SVGDocument, nsSVGDocument)
+DOMCI_DATA(SVGDocument, nsSVGDocument)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGDocument)
   NS_INTERFACE_TABLE_INHERITED2(nsSVGDocument,

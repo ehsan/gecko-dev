@@ -5,6 +5,7 @@
  * Contributor: Jason Orendorff
  */
 
+var gTestfile = 'regress-481516.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 481516;
 var summary = 'TM: pobj_ == obj2';

@@ -56,7 +56,7 @@ class nsIAtom;
 class nsIDOMNodeList;
 class nsIDocument;
 class nsIURI;
-class nsXBLDocumentInfo;
+class nsIXBLDocumentInfo;
 class nsIStreamListener;
 class nsStyleSet;
 class nsXBLBinding;
@@ -84,22 +84,21 @@ public:
 
   /**
    * Notify the binding manager that an element
-   * has been removed from its document,
+   * has been moved from one document to another,
    * so that it can update any bindings or
    * nsIAnonymousContentCreator-created anonymous
    * content that may depend on the document.
    * @param aContent the element that's being moved
    * @param aOldDocument the old document in which the
-   *   content resided.
+   *   content resided. May be null if the the content
+   *   was not in any document.
+   * @param aNewDocument the document in which the
+   *   content will reside. May be null if the content
+   *   will not reside in any document, or if the
+   *   content is being destroyed.
    */
-  void RemovedFromDocument(nsIContent* aContent, nsIDocument* aOldDocument)
-  {
-    if (aContent->HasFlag(NODE_MAY_BE_IN_BINDING_MNGR)) {
-      RemovedFromDocumentInternal(aContent, aOldDocument);
-    }
-  }
-  void RemovedFromDocumentInternal(nsIContent* aContent,
-                                   nsIDocument* aOldDocument);
+  nsresult ChangeDocumentFor(nsIContent* aContent, nsIDocument* aOldDocument,
+                             nsIDocument* aNewDocument);
 
   nsIAtom* ResolveTag(nsIContent* aContent, PRInt32* aNameSpaceID);
 
@@ -134,11 +133,6 @@ public:
    * returning a non-null list for nodes which have a binding attached.
    */
   nsresult GetAnonymousNodesFor(nsIContent* aContent, nsIDOMNodeList** aResult);
-
-  /**
-   * Same as above, but without the XPCOM goop
-   */
-  nsINodeList* GetAnonymousNodesFor(nsIContent* aContent);
 
   /**
    * Set the anonymous child content for the specified element.
@@ -199,9 +193,9 @@ public:
 
   void ExecuteDetachedHandlers();
 
-  nsresult PutXBLDocumentInfo(nsXBLDocumentInfo* aDocumentInfo);
-  nsXBLDocumentInfo* GetXBLDocumentInfo(nsIURI* aURI);
-  void RemoveXBLDocumentInfo(nsXBLDocumentInfo* aDocumentInfo);
+  nsresult PutXBLDocumentInfo(nsIXBLDocumentInfo* aDocumentInfo);
+  nsIXBLDocumentInfo* GetXBLDocumentInfo(nsIURI* aURI);
+  void RemoveXBLDocumentInfo(nsIXBLDocumentInfo* aDocumentInfo);
 
   nsresult PutLoadingDocListener(nsIURI* aURL, nsIStreamListener* aListener);
   nsIStreamListener* GetLoadingDocListener(nsIURI* aURL);
@@ -225,8 +219,6 @@ public:
    */
   nsresult MediumFeaturesChanged(nsPresContext* aPresContext,
                                  PRBool* aRulesChanged);
-
-  void AppendAllSheets(nsTArray<nsCSSStyleSheet*>& aArray);
 
   NS_HIDDEN_(void) Traverse(nsIContent *aContent,
                             nsCycleCollectionTraversalCallback &cb);
@@ -316,10 +308,10 @@ protected:
   // both implement an XPIDL interface).
   PLDHashTable mWrapperTable;
 
-  // A mapping from a URL (a string) to nsXBLDocumentInfo*.  This table
+  // A mapping from a URL (a string) to nsIXBLDocumentInfo*.  This table
   // is the cache of all binding documents that have been loaded by a
   // given bound document.
-  nsRefPtrHashtable<nsURIHashKey,nsXBLDocumentInfo> mDocumentTable;
+  nsInterfaceHashtable<nsURIHashKey,nsIXBLDocumentInfo> mDocumentTable;
 
   // A mapping from a URL (a string) to a nsIStreamListener. This
   // table is the currently loading binding docs.  If they're in this

@@ -40,6 +40,9 @@ const NS_APP_PROFILE_DIR_STARTUP = "ProfDS";
 const NS_APP_HISTORY_50_FILE = "UHist";
 const NS_APP_BOOKMARKS_50_FILE = "BMarks";
 
+// Backwards compatible consts, use PlacesUtils properties if possible.
+const TOPIC_GLOBAL_SHUTDOWN = "profile-before-change";
+
 // Shortcuts to transactions type.
 const TRANSITION_LINK = Ci.nsINavHistoryService.TRANSITION_LINK;
 const TRANSITION_TYPED = Ci.nsINavHistoryService.TRANSITION_TYPED;
@@ -249,29 +252,6 @@ function dump_table(aName)
 
 
 /**
- * Checks if an address is found in the database.
- * @param aUrl
- *        Address to look for.
- * @return place id of the page or 0 if not found
- */
-function page_in_database(aUrl)
-{
-  let stmt = DBConn().createStatement(
-    "SELECT id FROM moz_places_view WHERE url = :url"
-  );
-  stmt.params.url = aUrl;
-  try {
-    if (!stmt.executeStep())
-      return 0;
-    return stmt.getInt64(0);
-  }
-  finally {
-    stmt.finalize();
-  }
-}
-
-
-/**
  * Removes all bookmarks and checks for correct cleanup
  */
 function remove_all_bookmarks() {
@@ -307,7 +287,8 @@ function check_no_bookmarks() {
 
 
 /**
- * Sets title synchronously for a page in moz_places.
+ * Sets title synchronously for a page in moz_places synchronously.
+ * History.SetPageTitle uses LAZY_ADD so we can't rely on it.
  *
  * @param aURI
  *        An nsIURI to set the title for.
@@ -315,10 +296,37 @@ function check_no_bookmarks() {
  *        The title to set the page to.
  * @throws if the page is not found in the database.
  *
- * @note This is just a test compatibility mock.
+ * @note this function only exists because we have no API to do this. It should
+ *       be added in bug 421897.
  */
 function setPageTitle(aURI, aTitle) {
-  PlacesUtils.history.setPageTitle(aURI, aTitle);
+  // Check that the page exists.
+  let stmt = DBConn().createStatement(
+    "SELECT id FROM moz_places_view WHERE url = :url"
+  );
+  stmt.params.url = aURI.spec;
+  try {
+    if (!stmt.executeStep()) {
+      do_throw("Unable to find page " + aURI.spec);
+      return;
+    }
+  }
+  finally {
+    stmt.finalize();
+  }
+
+  // Update the title
+  stmt = DBConn().createStatement(
+    "UPDATE moz_places_view SET title = :title WHERE url = :url"
+  );
+  stmt.params.title = aTitle;
+  stmt.params.url = aURI.spec;
+  try {
+    stmt.execute();
+  }
+  finally {
+    stmt.finalize();
+  }
 }
 
 
@@ -344,11 +352,11 @@ function waitForClearHistory(aCallback) {
 /**
  * Simulates a Places shutdown.
  */
-function shutdownPlaces(aKeepAliveConnection)
+function shutdownPlaces()
 {
-  let hs = PlacesUtils.history.QueryInterface(Ci.nsIObserver);
-  hs.observe(null, "profile-change-teardown", null);
-  hs.observe(null, "profile-before-change", null);
+  let hs = Cc["@mozilla.org/browser/nav-history-service;1"].
+           getService(Ci.nsIObserver);
+  hs.observe(null, TOPIC_GLOBAL_SHUTDOWN, null);
 }
 
 

@@ -123,7 +123,7 @@ nsStyleFont::nsStyleFont(const nsFont& aFont, nsPresContext *aPresContext)
   mSize = mFont.size = nsStyleFont::ZoomText(aPresContext, mFont.size);
 #ifdef MOZ_MATHML
   mScriptUnconstrainedSize = mSize;
-  mScriptMinSize = aPresContext->CSSTwipsToAppUnits(
+  mScriptMinSize = aPresContext->TwipsToAppUnits(
       NS_POINTS_TO_TWIPS(NS_MATHML_DEFAULT_SCRIPT_MIN_SIZE_PT));
   mScriptLevel = 0;
   mScriptSizeMultiplier = NS_MATHML_DEFAULT_SCRIPT_SIZE_MULTIPLIER;
@@ -152,7 +152,7 @@ nsStyleFont::nsStyleFont(nsPresContext* aPresContext)
   mSize = mFont.size = nsStyleFont::ZoomText(aPresContext, mFont.size);
 #ifdef MOZ_MATHML
   mScriptUnconstrainedSize = mSize;
-  mScriptMinSize = aPresContext->CSSTwipsToAppUnits(
+  mScriptMinSize = aPresContext->TwipsToAppUnits(
       NS_POINTS_TO_TWIPS(NS_MATHML_DEFAULT_SCRIPT_MIN_SIZE_PT));
   mScriptLevel = 0;
   mScriptSizeMultiplier = NS_MATHML_DEFAULT_SCRIPT_SIZE_MULTIPLIER;
@@ -210,9 +210,7 @@ nsChangeHint nsStyleFont::CalcFontDifference(const nsFont& aFont1, const nsFont&
       (aFont1.familyNameQuirks == aFont2.familyNameQuirks) &&
       (aFont1.weight == aFont2.weight) &&
       (aFont1.stretch == aFont2.stretch) &&
-      (aFont1.name == aFont2.name) &&
-      (aFont1.featureSettings == aFont2.featureSettings) &&
-      (aFont1.languageOverride == aFont2.languageOverride)) {
+      (aFont1.name == aFont2.name)) {
     if ((aFont1.decorations == aFont2.decorations)) {
       return NS_STYLE_HINT_NONE;
     }
@@ -646,9 +644,9 @@ nsStyleList::~nsStyleList()
 nsStyleList::nsStyleList(const nsStyleList& aSource)
   : mListStyleType(aSource.mListStyleType),
     mListStylePosition(aSource.mListStylePosition),
+    mListStyleImage(aSource.mListStyleImage),
     mImageRegion(aSource.mImageRegion)
 {
-  SetListStyleImage(aSource.GetListStyleImage());
   MOZ_COUNT_CTOR(nsStyleList);
 }
 
@@ -1146,16 +1144,6 @@ nsChangeHint nsStylePosition::MaxDifference()
 }
 #endif
 
-/* static */ PRBool
-nsStylePosition::WidthCoordDependsOnContainer(const nsStyleCoord &aCoord)
-{
-  return aCoord.GetUnit() == eStyleUnit_Auto ||
-         aCoord.HasPercent() ||
-         (aCoord.GetUnit() == eStyleUnit_Enumerated &&
-          (aCoord.GetIntValue() == NS_STYLE_WIDTH_FIT_CONTENT ||
-           aCoord.GetIntValue() == NS_STYLE_WIDTH_AVAILABLE));
-}
-
 // --------------------
 // nsStyleTable
 //
@@ -1338,9 +1326,6 @@ nsStyleGradient::nsStyleGradient(void)
 nsStyleImage::nsStyleImage()
   : mType(eStyleImageType_Null)
   , mCropRect(nsnull)
-#ifdef DEBUG
-  , mImageTracked(false)
-#endif
 {
   MOZ_COUNT_CTOR(nsStyleImage);
 }
@@ -1355,9 +1340,6 @@ nsStyleImage::~nsStyleImage()
 nsStyleImage::nsStyleImage(const nsStyleImage& aOther)
   : mType(eStyleImageType_Null)
   , mCropRect(nsnull)
-#ifdef DEBUG
-  , mImageTracked(false)
-#endif
 {
   // We need our own copy constructor because we don't want
   // to copy the reference count
@@ -1383,8 +1365,6 @@ nsStyleImage::DoCopy(const nsStyleImage& aOther)
     SetImageData(aOther.mImage);
   else if (aOther.mType == eStyleImageType_Gradient)
     SetGradientData(aOther.mGradient);
-  else if (aOther.mType == eStyleImageType_Element)
-    SetElementId(aOther.mElementId);
 
   SetCropRect(aOther.mCropRect);
 }
@@ -1392,15 +1372,10 @@ nsStyleImage::DoCopy(const nsStyleImage& aOther)
 void
 nsStyleImage::SetNull()
 {
-  NS_ABORT_IF_FALSE(!mImageTracked,
-                    "Calling SetNull() with image tracked!");
-
   if (mType == eStyleImageType_Gradient)
     mGradient->Release();
   else if (mType == eStyleImageType_Image)
     NS_RELEASE(mImage);
-  else if (mType == eStyleImageType_Element)
-    nsCRT::free(mElementId);
 
   mType = eStyleImageType_Null;
   mCropRect = nsnull;
@@ -1409,9 +1384,6 @@ nsStyleImage::SetNull()
 void
 nsStyleImage::SetImageData(imgIRequest* aImage)
 {
-  NS_ABORT_IF_FALSE(!mImageTracked,
-                    "Setting a new image without untracking the old one!");
-
   NS_IF_ADDREF(aImage);
 
   if (mType != eStyleImageType_Null)
@@ -1421,44 +1393,6 @@ nsStyleImage::SetImageData(imgIRequest* aImage)
     mImage = aImage;
     mType = eStyleImageType_Image;
   }
-}
-
-void
-nsStyleImage::TrackImage(nsPresContext* aContext)
-{
-  // Sanity
-  NS_ABORT_IF_FALSE(!mImageTracked, "Already tracking image!");
-  NS_ABORT_IF_FALSE(mType == eStyleImageType_Image,
-                    "Can't track image when there isn't one!");
-
-  // Register the image with the document
-  nsIDocument* doc = aContext->Document();
-  if (doc)
-    doc->AddImage(mImage);
-
-  // Mark state
-#ifdef DEBUG
-  mImageTracked = true;
-#endif
-}
-
-void
-nsStyleImage::UntrackImage(nsPresContext* aContext)
-{
-  // Sanity
-  NS_ABORT_IF_FALSE(mImageTracked, "Image not tracked!");
-  NS_ABORT_IF_FALSE(mType == eStyleImageType_Image,
-                    "Can't untrack image when there isn't one!");
-
-  // Unregister the image with the document
-  nsIDocument* doc = aContext->Document();
-  if (doc)
-    doc->RemoveImage(mImage);
-
-  // Mark state
-#ifdef DEBUG
-  mImageTracked = false;
-#endif
 }
 
 void
@@ -1473,18 +1407,6 @@ nsStyleImage::SetGradientData(nsStyleGradient* aGradient)
   if (aGradient) {
     mGradient = aGradient;
     mType = eStyleImageType_Gradient;
-  }
-}
-
-void
-nsStyleImage::SetElementId(const PRUnichar* aElementId)
-{
-  if (mType != eStyleImageType_Null)
-    SetNull();
-
-  if (aElementId) {
-    mElementId = nsCRT::strdup(aElementId);
-    mType = eStyleImageType_Element;
   }
 }
 
@@ -1553,7 +1475,7 @@ nsStyleImage::ComputeActualCropRect(nsIntRect& aActualCropRect,
 }
 
 nsresult
-nsStyleImage::RequestDecode() const
+nsStyleImage::RequestDecode()
 {
   if ((mType == eStyleImageType_Image) && mImage)
     return mImage->RequestDecode();
@@ -1570,9 +1492,6 @@ nsStyleImage::IsOpaque() const
     // We could check if every stop color of the gradient is non-transparent.
     return PR_FALSE;
   }
-
-  if (mType == eStyleImageType_Element)
-    return PR_FALSE;
 
   NS_ABORT_IF_FALSE(mType == eStyleImageType_Image, "unexpected image type");
 
@@ -1605,7 +1524,6 @@ nsStyleImage::IsComplete() const
     case eStyleImageType_Null:
       return PR_FALSE;
     case eStyleImageType_Gradient:
-    case eStyleImageType_Element:
       return PR_TRUE;
     case eStyleImageType_Image:
     {
@@ -1641,9 +1559,6 @@ nsStyleImage::operator==(const nsStyleImage& aOther) const
 
   if (mType == eStyleImageType_Gradient)
     return *mGradient == *aOther.mGradient;
-
-  if (mType == eStyleImageType_Element)
-    return nsCRT::strcmp(mElementId, aOther.mElementId) == 0;
 
   return PR_TRUE;
 }
@@ -1701,45 +1616,18 @@ nsStyleBackground::~nsStyleBackground()
   MOZ_COUNT_DTOR(nsStyleBackground);
 }
 
-void
-nsStyleBackground::Destroy(nsPresContext* aContext)
-{
-  // Untrack all the images stored in our layers
-  for (PRUint32 i = 0; i < mImageCount; ++i)
-    mLayers[i].UntrackImages(aContext);
-
-  this->~nsStyleBackground();
-  aContext->FreeToShell(sizeof(nsStyleBackground), this);
-}
-
 nsChangeHint nsStyleBackground::CalcDifference(const nsStyleBackground& aOther) const
 {
-  const nsStyleBackground* moreLayers =
-    mImageCount > aOther.mImageCount ? this : &aOther;
-  const nsStyleBackground* lessLayers =
-    mImageCount > aOther.mImageCount ? &aOther : this;
-
-  bool hasVisualDifference = false;
-
-  NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, moreLayers) {
-    if (i < lessLayers->mImageCount) {
-      if (moreLayers->mLayers[i] != lessLayers->mLayers[i]) {
-        if ((moreLayers->mLayers[i].mImage.GetType() == eStyleImageType_Element) ||
-            (lessLayers->mLayers[i].mImage.GetType() == eStyleImageType_Element))
-          return NS_CombineHint(nsChangeHint_UpdateEffects, NS_STYLE_HINT_VISUAL);
-        hasVisualDifference = true;
-      }
-    } else {
-      if (moreLayers->mLayers[i].mImage.GetType() == eStyleImageType_Element)
-        return NS_CombineHint(nsChangeHint_UpdateEffects, NS_STYLE_HINT_VISUAL);
-      hasVisualDifference = true;
-    }
-  }
-
-  if (hasVisualDifference ||
-      mBackgroundColor != aOther.mBackgroundColor ||
-      mBackgroundInlinePolicy != aOther.mBackgroundInlinePolicy)
+  if (mBackgroundColor != aOther.mBackgroundColor ||
+      mBackgroundInlinePolicy != aOther.mBackgroundInlinePolicy ||
+      mImageCount != aOther.mImageCount)
     return NS_STYLE_HINT_VISUAL;
+
+  // We checked the image count above.
+  NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, this) {
+    if (mLayers[i] != aOther.mLayers[i])
+      return NS_STYLE_HINT_VISUAL;
+  }
 
   return NS_STYLE_HINT_NONE;
 }
@@ -1748,7 +1636,7 @@ nsChangeHint nsStyleBackground::CalcDifference(const nsStyleBackground& aOther) 
 /* static */
 nsChangeHint nsStyleBackground::MaxDifference()
 {
-  return NS_CombineHint(nsChangeHint_UpdateEffects, NS_STYLE_HINT_VISUAL);
+  return NS_STYLE_HINT_VISUAL;
 }
 #endif
 
@@ -1920,7 +1808,7 @@ nsStyleDisplay::nsStyleDisplay()
   mClipFlags = NS_STYLE_CLIP_AUTO;
   mClip.SetRect(0,0,0,0);
   mOpacity = 1.0f;
-  mSpecifiedTransform = nsnull;
+  mTransformPresent = PR_FALSE; // No transform
   mTransformOrigin[0].SetPercentValue(0.5f); // Transform is centered on origin
   mTransformOrigin[1].SetPercentValue(0.5f); 
   mTransitions.AppendElement();
@@ -1958,8 +1846,8 @@ nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
   mOpacity = aSource.mOpacity;
 
   /* Copy over the transformation information. */
-  mSpecifiedTransform = aSource.mSpecifiedTransform;
-  if (mSpecifiedTransform)
+  mTransformPresent = aSource.mTransformPresent;
+  if (mTransformPresent)
     mTransform = aSource.mTransform;
   
   /* Copy over transform origin. */
@@ -2000,17 +1888,16 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
       || mAppearance != aOther.mAppearance)
     NS_UpdateHint(hint, NS_CombineHint(nsChangeHint_ReflowFrame, nsChangeHint_RepaintFrame));
 
-  if (mOpacity != aOther.mOpacity) {
-    NS_UpdateHint(hint, nsChangeHint_UpdateOpacityLayer);
-  }
+  if (mOpacity != aOther.mOpacity)
+    NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
 
   /* If we've added or removed the transform property, we need to reconstruct the frame to add
    * or remove the view object, and also to handle abs-pos and fixed-pos containers.
    */
-  if (HasTransform() != aOther.HasTransform()) {
+  if (mTransformPresent != aOther.mTransformPresent) {
     NS_UpdateHint(hint, nsChangeHint_ReconstructFrame);
   }
-  else if (HasTransform()) {
+  else if (mTransformPresent) {
     /* Otherwise, if we've kept the property lying around and we already had a
      * transform, we need to see whether or not we've changed the transform.
      * If so, we need to do a reflow and a repaint. The reflow is to recompute
@@ -2019,7 +1906,7 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
      */
     if (mTransform != aOther.mTransform)
       NS_UpdateHint(hint, NS_CombineHint(nsChangeHint_ReflowFrame,
-                                         nsChangeHint_UpdateTransformLayer));
+                                         nsChangeHint_RepaintFrame));
     
     for (PRUint8 index = 0; index < 2; ++index)
       if (mTransformOrigin[index] != aOther.mTransformOrigin[index]) {
@@ -2047,8 +1934,7 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
 nsChangeHint nsStyleDisplay::MaxDifference()
 {
   // All the parts of FRAMECHANGE are present above in CalcDifference.
-  return nsChangeHint(NS_STYLE_HINT_FRAMECHANGE | nsChangeHint_UpdateOpacityLayer |
-                      nsChangeHint_UpdateTransformLayer);
+  return NS_STYLE_HINT_FRAMECHANGE;
 }
 #endif
 
@@ -2119,8 +2005,6 @@ nsChangeHint nsStyleVisibility::MaxDifference()
 
 nsStyleContentData::~nsStyleContentData()
 {
-  NS_ABORT_IF_FALSE(!mImageTracked,
-                    "nsStyleContentData being destroyed while still tracking image!");
   if (mType == eStyleContentType_Image) {
     NS_IF_RELEASE(mContent.mImage);
   } else if (mType == eStyleContentType_Counter ||
@@ -2176,49 +2060,6 @@ PRBool nsStyleContentData::operator==(const nsStyleContentData& aOther) const
   return nsCRT::strcmp(mContent.mString, aOther.mContent.mString) == 0;
 }
 
-void
-nsStyleContentData::TrackImage(nsPresContext* aContext)
-{
-  // Sanity
-  NS_ABORT_IF_FALSE(!mImageTracked, "Already tracking image!");
-  NS_ABORT_IF_FALSE(mType == eStyleContentType_Image,
-                    "Tryingto do image tracking on non-image!");
-  NS_ABORT_IF_FALSE(mContent.mImage,
-                    "Can't track image when there isn't one!");
-
-  // Register the image with the document
-  nsIDocument* doc = aContext->Document();
-  if (doc)
-    doc->AddImage(mContent.mImage);
-
-  // Mark state
-#ifdef DEBUG
-  mImageTracked = true;
-#endif
-}
-
-void
-nsStyleContentData::UntrackImage(nsPresContext* aContext)
-{
-  // Sanity
-  NS_ABORT_IF_FALSE(mImageTracked, "Image not tracked!");
-  NS_ABORT_IF_FALSE(mType == eStyleContentType_Image,
-                    "Trying to do image tracking on non-image!");
-  NS_ABORT_IF_FALSE(mContent.mImage,
-                    "Can't untrack image when there isn't one!");
-
-  // Unregister the image with the document
-  nsIDocument* doc = aContext->Document();
-  if (doc)
-    doc->RemoveImage(mContent.mImage);
-
-  // Mark state
-#ifdef DEBUG
-  mImageTracked = false;
-#endif
-}
-
-
 //-----------------------
 // nsStyleContent
 //
@@ -2242,21 +2083,6 @@ nsStyleContent::~nsStyleContent(void)
   DELETE_ARRAY_IF(mContents);
   DELETE_ARRAY_IF(mIncrements);
   DELETE_ARRAY_IF(mResets);
-}
-
-void 
-nsStyleContent::Destroy(nsPresContext* aContext)
-{
-  // Unregister any images we might have with the document.
-  for (PRUint32 i = 0; i < mContentCount; ++i) {
-    if ((mContents[i].mType == eStyleContentType_Image) &&
-        mContents[i].mContent.mImage) {
-      mContents[i].UntrackImage(aContext);
-    }
-  }
-
-  this->~nsStyleContent();
-  aContext->FreeToShell(sizeof(nsStyleContent), this);
 }
 
 nsStyleContent::nsStyleContent(const nsStyleContent& aSource)
@@ -2298,18 +2124,6 @@ nsStyleContent::nsStyleContent(const nsStyleContent& aSource)
 
 nsChangeHint nsStyleContent::CalcDifference(const nsStyleContent& aOther) const
 {
-  // In ReResolveStyleContext we assume that if there's no existing
-  // ::before or ::after and we don't have to restyle children of the
-  // node then we can't end up with a ::before or ::after due to the
-  // restyle of the node itself.  That's not quite true, but the only
-  // exception to the above is when the 'content' property of the node
-  // changes and the pseudo-element inherits the changed value.  Since
-  // the code here triggers a frame change on the node in that case,
-  // the optimization in ReResolveStyleContext is ok.  But if we ever
-  // change this code to not reconstruct frames on changes to the
-  // 'content' property, then we will need to revisit the optimization
-  // in ReResolveStyleContext.
-
   if (mContentCount != aOther.mContentCount ||
       mIncrementCount != aOther.mIncrementCount || 
       mResetCount != aOther.mResetCount) {
@@ -2602,32 +2416,6 @@ nsCursorImage::nsCursorImage()
   , mHotspotX(0.0f)
   , mHotspotY(0.0f)
 {
-}
-
-nsCursorImage::nsCursorImage(const nsCursorImage& aOther)
-  : mHaveHotspot(aOther.mHaveHotspot)
-  , mHotspotX(aOther.mHotspotX)
-  , mHotspotY(aOther.mHotspotY)
-{
-  SetImage(aOther.GetImage());
-}
-
-nsCursorImage::~nsCursorImage()
-{
-  SetImage(nsnull);
-}
-
-nsCursorImage&
-nsCursorImage::operator=(const nsCursorImage& aOther)
-{
-  if (this != &aOther) {
-    mHaveHotspot = aOther.mHaveHotspot;
-    mHotspotX = aOther.mHotspotX;
-    mHotspotY = aOther.mHotspotY;
-    SetImage(aOther.GetImage());
-  }
-
-  return *this;
 }
 
 nsStyleUserInterface::nsStyleUserInterface(void) 

@@ -34,7 +34,6 @@ extern "C" { // needed to compile on Leopard
 }
 
 #include "breakpad_nlist_64.h"
-#include <assert.h>
 #include <dlfcn.h>
 #include <mach/mach_vm.h>
 #include <algorithm>
@@ -130,7 +129,7 @@ static void* ReadTaskString(task_port_t target_task,
       size_to_end > kMaxStringLength ? kMaxStringLength : size_to_end;
 
     kern_return_t kr;
-    return ReadTaskMemory(target_task, address, (size_t)size_to_read, &kr);
+    return ReadTaskMemory(target_task, address, size_to_read, &kr);
   }
 
   return NULL;
@@ -277,11 +276,13 @@ void DynamicImage::Print() {
 //==============================================================================
 // Loads information about dynamically loaded code in the given task.
 DynamicImages::DynamicImages(mach_port_t task)
-  : task_(task), image_list_() {
+  : task_(task) {
   ReadImageInfoForTask();
 }
 
-void* DynamicImages::GetDyldAllImageInfosPointer() {
+void* DynamicImages::GetDyldAllImageInfosPointer()
+{
+
   const char *imageSymbolName = "_dyld_all_image_infos";
   const char *dyldPath = "/usr/lib/dyld";
 #ifndef __LP64__
@@ -363,7 +364,7 @@ void DynamicImages::ReadImageInfoForTask() {
         // Now determine the total amount we really want to read based on the
         // size of the load commands.  We need the header plus all of the
         // load commands.
-        size_t header_size =
+        unsigned int header_size =
             sizeof(breakpad_mach_header) + header->sizeofcmds;
 
         free(header);

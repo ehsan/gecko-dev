@@ -86,7 +86,8 @@ nsresult NS_NewXHTMLContentSerializer(nsIContentSerializer** aSerializer)
 }
 
 nsXHTMLContentSerializer::nsXHTMLContentSerializer()
-  : mIsHTMLSerializer(PR_FALSE)
+  : mInBody(0),
+    mIsHTMLSerializer(PR_FALSE)
 {
 }
 
@@ -154,7 +155,7 @@ nsXHTMLContentSerializer::HasLongLines(const nsString& text, PRInt32& aLastNewli
 }
 
 NS_IMETHODIMP
-nsXHTMLContentSerializer::AppendText(nsIContent* aText,
+nsXHTMLContentSerializer::AppendText(nsIDOMText* aText,
                                      PRInt32 aStartOffset,
                                      PRInt32 aEndOffset,
                                      nsAString& aStr)
@@ -259,7 +260,7 @@ nsXHTMLContentSerializer::EscapeURI(nsIContent* aContent, const nsAString& aURI,
 
 void
 nsXHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
-                                              nsIContent *aOriginalElement,
+                                              nsIDOMElement *aOriginalElement,
                                               nsAString& aTagPrefix,
                                               const nsAString& aTagNamespaceURI,
                                               nsIAtom* aTagName,
@@ -305,8 +306,9 @@ nsXHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
     else if (aTagName == nsGkAtoms::li) {
       mIsFirstChildOfOL = IsFirstChildOfOL(aOriginalElement);
       if (mIsFirstChildOfOL) {
+        nsCOMPtr<nsIDOMElement> element (do_QueryInterface(aContent));
         // If OL is parent of this LI, serialize attributes in different manner.
-        SerializeLIValueAttribute(aContent, aStr);
+        SerializeLIValueAttribute(element, aStr);
       }
     }
   }
@@ -443,7 +445,7 @@ nsXHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
 
 
 void 
-nsXHTMLContentSerializer::AppendEndOfElementStart(nsIContent *aOriginalElement,
+nsXHTMLContentSerializer::AppendEndOfElementStart(nsIDOMElement *aOriginalElement,
                                                   nsIAtom * aName,
                                                   PRInt32 aNamespaceID,
                                                   nsAString& aStr)
@@ -458,7 +460,7 @@ nsXHTMLContentSerializer::AppendEndOfElementStart(nsIContent *aOriginalElement,
     return;
   }
 
-  nsIContent* content = aOriginalElement;
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aOriginalElement);
 
   // for non empty elements, even if they are not a container, we always
   // serialize their content, because the XHTML element could contain non XHTML
@@ -469,9 +471,8 @@ nsXHTMLContentSerializer::AppendEndOfElementStart(nsIContent *aOriginalElement,
   
     if (parserService) {
       PRBool isContainer;
-      parserService->
-        IsContainer(parserService->HTMLCaseSensitiveAtomTagToId(aName),
-                    isContainer);
+      parserService->IsContainer(parserService->HTMLAtomTagToId(aName),
+                                 isContainer);
       if (!isContainer) {
         // for backward compatibility with HTML 4 user agents
         // only non-container HTML elements can be closed immediatly,
@@ -486,7 +487,7 @@ nsXHTMLContentSerializer::AppendEndOfElementStart(nsIContent *aOriginalElement,
 
 void
 nsXHTMLContentSerializer::AfterElementStart(nsIContent * aContent,
-                                            nsIContent *aOriginalElement,
+                                            nsIDOMElement *aOriginalElement,
                                             nsAString& aStr)
 {
   nsIAtom *name = aContent->Tag();
@@ -549,7 +550,7 @@ nsXHTMLContentSerializer::AfterElementEnd(nsIContent * aContent,
 
 
 NS_IMETHODIMP
-nsXHTMLContentSerializer::AppendDocumentStart(nsIDocument *aDocument,
+nsXHTMLContentSerializer::AppendDocumentStart(nsIDOMDocument *aDocument,
                                               nsAString& aStr)
 {
   if (!mBodyOnly)
@@ -617,9 +618,8 @@ nsXHTMLContentSerializer::CheckElementEnd(nsIContent * aContent,
       if (parserService) {
         PRBool isContainer;
 
-        parserService->
-          IsContainer(parserService->HTMLCaseSensitiveAtomTagToId(name),
-                      isContainer);
+        parserService->IsContainer(parserService->HTMLAtomTagToId(name),
+                                   isContainer);
         if (!isContainer) {
           // non-container HTML elements are already closed,
           // see AppendEndOfElementStart
@@ -635,6 +635,37 @@ nsXHTMLContentSerializer::CheckElementEnd(nsIContent * aContent,
 
   PRBool dummyFormat;
   return nsXMLContentSerializer::CheckElementEnd(aContent, dummyFormat, aStr);
+}
+
+void
+nsXHTMLContentSerializer::AppendToString(const PRUnichar* aStr,
+                                         PRInt32 aLength,
+                                         nsAString& aOutputStr)
+{
+  if (mBodyOnly && !mInBody) {
+    return;
+  }
+  nsXMLContentSerializer::AppendToString(aStr, aLength, aOutputStr);
+}
+
+void 
+nsXHTMLContentSerializer::AppendToString(const PRUnichar aChar,
+                                         nsAString& aOutputStr)
+{
+  if (mBodyOnly && !mInBody) {
+    return;
+  }
+  nsXMLContentSerializer::AppendToString(aChar, aOutputStr);
+}
+
+void
+nsXHTMLContentSerializer::AppendToString(const nsAString& aStr,
+                                         nsAString& aOutputStr)
+{
+  if (mBodyOnly && !mInBody) {
+    return;
+  }
+  nsXMLContentSerializer::AppendToString(aStr, aOutputStr);
 }
 
 void
@@ -753,6 +784,37 @@ nsXHTMLContentSerializer::IsShorthandAttr(const nsIAtom* aAttrName,
   return PR_FALSE;
 }
 
+void
+nsXHTMLContentSerializer::AppendToStringConvertLF(const nsAString& aStr,
+                                                  nsAString& aOutputStr)
+{
+  if (mBodyOnly && !mInBody) {
+    return;
+  }
+  nsXMLContentSerializer::AppendToStringConvertLF(aStr, aOutputStr);
+}
+
+void
+nsXHTMLContentSerializer::AppendToStringFormatedWrapped(const nsASingleFragmentString& aStr,
+                                                        nsAString& aOutputStr)
+{
+  if (mBodyOnly && !mInBody) {
+    return;
+  }
+  nsXMLContentSerializer::AppendToStringFormatedWrapped(aStr, aOutputStr);
+}
+
+void
+nsXHTMLContentSerializer::AppendToStringWrapped(const nsASingleFragmentString& aStr,
+                                                nsAString& aOutputStr)
+{
+  if (mBodyOnly && !mInBody) {
+    return;
+  }
+  nsXMLContentSerializer::AppendToStringWrapped(aStr, aOutputStr);
+}
+
+
 PRBool
 nsXHTMLContentSerializer::LineBreakBeforeOpen(PRInt32 aNamespaceID, nsIAtom* aName)
 {
@@ -776,8 +838,7 @@ nsXHTMLContentSerializer::LineBreakBeforeOpen(PRInt32 aNamespaceID, nsIAtom* aNa
 
     if (parserService) {
       PRBool res;
-      parserService->
-        IsBlock(parserService->HTMLCaseSensitiveAtomTagToId(aName), res);
+      parserService->IsBlock(parserService->HTMLAtomTagToId(aName), res);
       return res;
     }
   }
@@ -870,8 +931,7 @@ nsXHTMLContentSerializer::LineBreakAfterClose(PRInt32 aNamespaceID, nsIAtom* aNa
 
     if (parserService) {
       PRBool res;
-      parserService->
-        IsBlock(parserService->HTMLCaseSensitiveAtomTagToId(aName), res);
+      parserService->IsBlock(parserService->HTMLAtomTagToId(aName), res);
       return res;
     }
   }
@@ -919,7 +979,7 @@ nsXHTMLContentSerializer::MaybeLeaveFromPreContent(nsIContent* aNode)
 }
 
 void 
-nsXHTMLContentSerializer::SerializeLIValueAttribute(nsIContent* aElement,
+nsXHTMLContentSerializer::SerializeLIValueAttribute(nsIDOMElement* aElement,
                                                     nsAString& aStr)
 {
   // We are copying and we are at the "first" LI node of OL in selected range.
@@ -990,7 +1050,7 @@ nsXHTMLContentSerializer::SerializeLIValueAttribute(nsIContent* aElement,
 }
 
 PRBool
-nsXHTMLContentSerializer::IsFirstChildOfOL(nsIContent* aElement)
+nsXHTMLContentSerializer::IsFirstChildOfOL(nsIDOMElement* aElement)
 {
   nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aElement);
   nsAutoString parentName;

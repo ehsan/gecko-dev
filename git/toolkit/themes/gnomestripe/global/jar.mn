@@ -20,15 +20,12 @@ toolkit.jar:
 +  skin/classic/global/printPageSetup.css
 +  skin/classic/global/printPreview.css
 +  skin/classic/global/radio.css
-+  skin/classic/global/scrollbox.css
 +  skin/classic/global/splitter.css
 +  skin/classic/global/tabbox.css
 +  skin/classic/global/textbox.css
 +  skin/classic/global/toolbar.css
 +  skin/classic/global/toolbarbutton.css
 +  skin/classic/global/tree.css
-+  skin/classic/global/webConsole.css
-+  skin/classic/global/webConsole_networkPanel.css
 +  skin/classic/global/alerts/alert.css                        (alerts/alert.css)
 +  skin/classic/global/console/console.css                     (console/console.css)
 +  skin/classic/global/console/console.png                     (console/console.png)
@@ -42,7 +39,6 @@ toolkit.jar:
 +  skin/classic/global/icons/folder-item.png                   (icons/folder-item.png)
 +  skin/classic/global/icons/loading_16.png                    (icons/loading_16.png)
 +  skin/classic/global/icons/notloading_16.png                 (icons/notloading_16.png)
-+  skin/classic/global/icons/resizer.png                       (icons/resizer.png)
 +  skin/classic/global/icons/sslWarning.png                    (icons/sslWarning.png)
 +  skin/classic/global/icons/wrap.png                          (icons/wrap.png)
 +  skin/classic/global/toolbar/spring.png                      (toolbar/spring.png)

@@ -39,7 +39,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsIAtom.h"
-#include "nsXBLDocumentInfo.h"
+#include "nsIXBLDocumentInfo.h"
 #include "nsIInputStream.h"
 #include "nsINameSpaceManager.h"
 #include "nsHashtable.h"
@@ -114,8 +114,8 @@
 static void
 XBLFinalize(JSContext *cx, JSObject *obj)
 {
-  nsXBLDocumentInfo* docInfo =
-    static_cast<nsXBLDocumentInfo*>(::JS_GetPrivate(cx, obj));
+  nsIXBLDocumentInfo* docInfo =
+    static_cast<nsIXBLDocumentInfo*>(::JS_GetPrivate(cx, obj));
   NS_RELEASE(docInfo);
   
   nsXBLJSClass* c = static_cast<nsXBLJSClass*>(::JS_GET_CLASS(cx, obj));
@@ -123,7 +123,7 @@ XBLFinalize(JSContext *cx, JSObject *obj)
 }
 
 static JSBool
-XBLResolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
+XBLResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
            JSObject **objp)
 {
   // Note: if we get here, that means that the implementation for some binding
@@ -136,7 +136,7 @@ XBLResolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
   JSObject* origObj = *objp;
   *objp = NULL;
 
-  if (!JSID_IS_STRING(id)) {
+  if (!JSVAL_IS_STRING(id)) {
     return JS_TRUE;
   }
 
@@ -172,7 +172,7 @@ XBLResolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
   if (!xpcWrapper) {
     // Looks like whatever |origObj| is it's not our nsIContent.  It might well
     // be the proto our binding installed, however, where the private is the
-    // nsXBLDocumentInfo, so just baul out quietly.  Do NOT throw an exception
+    // nsIXBLDocumentInfo, so just baul out quietly.  Do NOT throw an exception
     // here.
     // We could make this stricter by checking the class maybe, but whatever
     return JS_TRUE;
@@ -285,7 +285,7 @@ nsXBLBinding::~nsXBLBinding(void)
     nsXBLBinding::UninstallAnonymousContent(mContent->GetOwnerDoc(), mContent);
   }
   delete mInsertionPointTable;
-  nsXBLDocumentInfo* info = mPrototypeBinding->XBLDocumentInfo();
+  nsIXBLDocumentInfo* info = mPrototypeBinding->XBLDocumentInfo();
   NS_RELEASE(info);
 }
 
@@ -316,8 +316,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(nsXBLBinding)
   // XXX What about mNextBinding and mInsertionPointTable?
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsXBLBinding)
-  nsCOMPtr<nsISupports> iface = do_QueryObject(tmp->mPrototypeBinding->XBLDocumentInfo());
-  cb.NoteXPCOMChild(iface);
+  cb.NoteXPCOMChild(tmp->mPrototypeBinding->XBLDocumentInfo());
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mContent)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mNextBinding, nsXBLBinding)
   if (tmp->mInsertionPointTable)
@@ -973,9 +972,7 @@ nsXBLBinding::ExecuteAttachedHandler()
   if (mNextBinding)
     mNextBinding->ExecuteAttachedHandler();
 
-  // Executing mNextBindings constructor might have caused us to loose our
-  // bound element
-  if (mBoundElement && AllowScripts())
+  if (AllowScripts())
     mPrototypeBinding->BindingAttached(mBoundElement);
 }
 
@@ -1080,15 +1077,8 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
       if (mPrototypeBinding->HasImplementation()) { 
         nsIScriptGlobalObject *global = aOldDocument->GetScopeObject();
         if (global) {
-          JSObject *scope = global->GetGlobalJSObject();
-          // scope might be null if we've cycle-collected the global
-          // object, since the Unlink phase of cycle collection happens
-          // after JS GC finalization.  But in that case, we don't care
-          // about fixing the prototype chain, since everything's going
-          // away immediately.
-
           nsCOMPtr<nsIScriptContext> context = global->GetContext();
-          if (context && scope) {
+          if (context) {
             JSContext *cx = (JSContext *)context->GetNativeContext();
  
             nsCxPusher pusher;
@@ -1097,7 +1087,8 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
             nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
             jsval v;
             nsresult rv =
-              nsContentUtils::WrapNative(cx, scope, mBoundElement, &v,
+              nsContentUtils::WrapNative(cx, global->GetGlobalJSObject(),
+                                         mBoundElement, &v,
                                          getter_AddRefs(wrapper));
             if (NS_FAILED(rv))
               return;
@@ -1129,8 +1120,9 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
                 continue;
               }
 
-              nsRefPtr<nsXBLDocumentInfo> docInfo =
-                static_cast<nsXBLDocumentInfo*>(::JS_GetPrivate(cx, proto));
+              nsCOMPtr<nsIXBLDocumentInfo> docInfo =
+                do_QueryInterface(static_cast<nsISupports*>
+                                             (::JS_GetPrivate(cx, proto)));
               if (!docInfo) {
                 // Not the proto we seek
                 continue;
@@ -1342,7 +1334,7 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
 
     // Keep this proto binding alive while we're alive.  Do this first so that
     // we can guarantee that in XBLFinalize this will be non-null.
-    nsXBLDocumentInfo* docInfo = aProtoBinding->XBLDocumentInfo();
+    nsIXBLDocumentInfo* docInfo = aProtoBinding->XBLDocumentInfo();
     ::JS_SetPrivate(cx, proto, docInfo);
     NS_ADDREF(docInfo);
 
@@ -1373,8 +1365,11 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
 PRBool
 nsXBLBinding::AllowScripts()
 {
-  if (!mPrototypeBinding->GetAllowScripts())
-    return PR_FALSE;
+  PRBool result;
+  mPrototypeBinding->GetAllowScripts(&result);
+  if (!result) {
+    return result;
+  }
 
   // Nasty hack.  Use the JSContext of the bound node, since the
   // security manager API expects to get the docshell type from
@@ -1401,8 +1396,8 @@ nsXBLBinding::AllowScripts()
   
   JSContext* cx = (JSContext*) context->GetNativeContext();
 
-  nsCOMPtr<nsIDocument> ourDocument =
-    mPrototypeBinding->XBLDocumentInfo()->GetDocument();
+  nsCOMPtr<nsIDocument> ourDocument;
+  mPrototypeBinding->XBLDocumentInfo()->GetDocument(getter_AddRefs(ourDocument));
   PRBool canExecute;
   nsresult rv =
     mgr->CanExecuteScripts(cx, ourDocument->NodePrincipal(), &canExecute);

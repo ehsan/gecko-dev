@@ -70,7 +70,7 @@ void JSD_ASSERT_VALID_CONTEXT(JSDContext* jsdc)
 #endif
 
 static JSClass global_class = {
-    "JSDGlobal", JSCLASS_GLOBAL_FLAGS,
+    "JSDGlobal", 0,
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub,
     JSCLASS_NO_OPTIONAL_MEMBERS
@@ -137,7 +137,7 @@ _newJSDContext(JSRuntime*         jsrt,
 
     JS_BeginRequest(jsdc->dumbContext);
 
-    jsdc->glob = JS_NewGlobalObject(jsdc->dumbContext, &global_class);
+    jsdc->glob = JS_NewObject(jsdc->dumbContext, &global_class, NULL, NULL);
     if( ! jsdc->glob )
         goto label_newJSDContext_failure;
 
@@ -213,6 +213,9 @@ jsd_DebuggerOnForUser(JSRuntime*         jsrt,
     JS_SetNewScriptHookProc(jsdc->jsrt, jsd_NewScriptHookProc, jsdc);
     JS_SetDestroyScriptHookProc(jsdc->jsrt, jsd_DestroyScriptHookProc, jsdc);
     jsd_DebuggerUnpause(jsdc);
+    if (!(jsdc->flags & JSD_DISABLE_OBJECT_TRACE)) {
+        JS_SetObjectHook(jsdc->jsrt, jsd_ObjectHook, jsdc);
+    }
 #ifdef LIVEWIRE
     LWDBG_SetNewScriptHookProc(jsd_NewScriptHookProc, jsdc);
 #endif
@@ -236,6 +239,9 @@ jsd_DebuggerOff(JSDContext* jsdc)
     /* clear hooks here */
     JS_SetNewScriptHookProc(jsdc->jsrt, NULL, NULL);
     JS_SetDestroyScriptHookProc(jsdc->jsrt, NULL, NULL);
+    /* Have to unset these too, since jsd_DebuggerPause only unsets
+       them conditionally */
+    JS_SetObjectHook(jsdc->jsrt, NULL, NULL);
 #ifdef LIVEWIRE
     LWDBG_SetNewScriptHookProc(NULL,NULL);
 #endif
@@ -256,7 +262,9 @@ void
 jsd_DebuggerPause(JSDContext* jsdc, JSBool forceAllHooksOff)
 {
     JS_SetDebuggerHandler(jsdc->jsrt, NULL, NULL);
-    if (forceAllHooksOff || !(jsdc->flags & JSD_COLLECT_PROFILE_DATA)) {
+    if (forceAllHooksOff ||
+        (!(jsdc->flags & JSD_COLLECT_PROFILE_DATA) &&
+         (jsdc->flags & JSD_DISABLE_OBJECT_TRACE))) {
         JS_SetExecuteHook(jsdc->jsrt, NULL, NULL);
         JS_SetCallHook(jsdc->jsrt, NULL, NULL);
     }

@@ -35,14 +35,53 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-  // So SSE.h will include emmintrin.h in an appropriate way:
-#define MOZILLA_SSE_INCLUDE_HEADER_FOR_SSE2
-
 #include "nsUCSupport.h"
 #include "nsUTF8ToUnicode.h"
-#include "mozilla/SSE.h"
+
+#if defined(__GNUC__) && defined(__SSE2__)
+// on x86_64 environment or using -msse2 such as MacOS X
+#define GCC_SSE2
+#endif
+#if (defined(_M_IX86) || defined(_M_AMD64)) && defined(_MSC_VER) && _MSC_VER >= 1400
+#define WIN_SSE2
+#endif
+
+#if defined(GCC_SSE2) || defined(WIN_SSE2)
+#include "emmintrin.h"
+#endif
+
+#if defined(GCC_SSE2) || defined(_M_AMD64)
+// x86_64 supports SSE2 instruction.
+#define __sse2_available 1
+#elif defined(WIN_SSE2)
+extern "C" int __sse2_available;
+#endif
 
 #define UNICODE_BYTE_ORDER_MARK    0xFEFF
+
+NS_IMETHODIMP NS_NewUTF8ToUnicode(nsISupports* aOuter,
+                                  const nsIID& aIID,
+                                  void** aResult)
+{
+  if (!aResult) {
+    return NS_ERROR_NULL_POINTER;
+  }
+  if (aOuter) {
+    *aResult = nsnull;
+    return NS_ERROR_NO_AGGREGATION;
+  }
+  nsUTF8ToUnicode * inst = new nsUTF8ToUnicode();
+  if (!inst) {
+    *aResult = nsnull;
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+  nsresult res = inst->QueryInterface(aIID, aResult);
+  if (NS_FAILED(res)) {
+    *aResult = nsnull;
+    delete inst;
+  }
+  return res;
+}
 
 //----------------------------------------------------------------------
 // Class nsUTF8ToUnicode [implementation]
@@ -65,7 +104,7 @@ nsUTF8ToUnicode::nsUTF8ToUnicode()
  * However, there is an edge case where the output can be longer than the
  *  input: if the previous buffer ended with an incomplete multi-byte
  *  sequence and this buffer does not begin with a valid continuation
- *  byte, we will return NS_ERROR_ILLEGAL_INPUT and the caller may insert a
+ *  byte, we will return NS_ERROR_UNEXPECTED and the caller may insert a
  *  replacement character in the output buffer which corresponds to no
  *  character in the input buffer. So in the worst case the destination
  *  will need to be one code unit longer than the source.
@@ -107,14 +146,14 @@ NS_IMETHODIMP nsUTF8ToUnicode::Reset()
 // number of bytes left in src and the number of unichars available in
 // dst.)
 
-#ifdef MOZILLA_COMPILE_WITH_SSE2
+#if defined(GCC_SSE2) || defined(WIN_SSE2)
 
 static inline void
 Convert_ascii_run (const char *&src,
                    PRUnichar *&dst,
                    PRInt32 len)
 {
-  if (len > 15 && mozilla::use_sse2()) {
+  if (len > 15 && __sse2_available) {
     __m128i in, out1, out2;
     __m128d *outp1, *outp2;
     __m128i zeroes;
@@ -341,7 +380,7 @@ NS_IMETHODIMP nsUTF8ToUnicode::Convert(const char * aSrc,
          * Return an error condition. Caller is responsible for flushing and
          * refilling the buffer and resetting state.
          */
-        res = NS_ERROR_ILLEGAL_INPUT;
+        res = NS_ERROR_UNEXPECTED;
         break;
       }
     } else {
@@ -370,7 +409,7 @@ NS_IMETHODIMP nsUTF8ToUnicode::Convert(const char * aSrc,
               ((mUcs4 & 0xFFFFF800) == 0xD800) ||
               // Codepoints outside the Unicode range are illegal
               (mUcs4 > 0x10FFFF)) {
-            res = NS_ERROR_ILLEGAL_INPUT;
+            res = NS_ERROR_UNEXPECTED;
             break;
           }
           if (mUcs4 > 0xFFFF) {
@@ -396,7 +435,7 @@ NS_IMETHODIMP nsUTF8ToUnicode::Convert(const char * aSrc,
          * for flushing and refilling the buffer and resetting state.
          */
         in--;
-        res = NS_ERROR_ILLEGAL_INPUT;
+        res = NS_ERROR_UNEXPECTED;
         break;
       }
     }

@@ -41,6 +41,7 @@
 
 
 #include "nsICollation.h"
+#include "nsICaseConversion.h"
 #include "nsICharsetConverterManager.h"
 #include "nsCOMPtr.h"
 
@@ -74,6 +75,7 @@ public:
   nsresult UnicodeToChar(const nsAString& aSrc, char** dst);
 
 protected:
+  nsCOMPtr <nsICaseConversion>            mCaseConversion;
   nsCOMPtr <nsIUnicodeEncoder>            mEncoder;
 };
 

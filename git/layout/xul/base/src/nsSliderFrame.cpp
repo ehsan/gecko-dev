@@ -302,8 +302,10 @@ nsSliderFrame::AttributeChanged(PRInt32 aNameSpaceID,
           }
         }
 
+        nsAutoString currentStr;
+        currentStr.AppendInt(current);
         nsContentUtils::AddScriptRunner(
-          new nsSetAttrRunnable(scrollbar, nsGkAtoms::curpos, current));
+          new nsSetAttrRunnable(scrollbar, nsGkAtoms::curpos, currentStr));
       }
   }
 
@@ -328,7 +330,7 @@ nsSliderFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     // This is EVIL, we shouldn't be messing with event delivery just to get
     // thumb mouse drag events to arrive at the slider!
     return aLists.Outlines()->AppendNewToTop(new (aBuilder)
-        nsDisplayEventReceiver(aBuilder, this));
+        nsDisplayEventReceiver(this));
   }
   
   return nsBoxFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);

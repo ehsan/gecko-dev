@@ -288,43 +288,6 @@ nsAppShellService::CalculateWindowZLevel(nsIXULWindow *aParent,
 }
 
 /*
- * Checks to see if any existing window is currently in fullscreen mode.
- */
-static PRBool
-CheckForFullscreenWindow()
-{
-  nsCOMPtr<nsIWindowMediator> wm(do_GetService(NS_WINDOWMEDIATOR_CONTRACTID));
-  if (!wm)
-    return PR_FALSE;
-
-  nsCOMPtr<nsISimpleEnumerator> windowList;
-  wm->GetXULWindowEnumerator(nsnull, getter_AddRefs(windowList));
-  if (!windowList)
-    return PR_FALSE;
-
-  for (;;) {
-    PRBool more = PR_FALSE;
-    windowList->HasMoreElements(&more);
-    if (!more)
-      return PR_FALSE;
-
-    nsCOMPtr<nsISupports> supportsWindow;
-    windowList->GetNext(getter_AddRefs(supportsWindow));
-    nsCOMPtr<nsIBaseWindow> baseWin(do_QueryInterface(supportsWindow));
-    if (baseWin) {
-      PRInt32 sizeMode;
-      nsCOMPtr<nsIWidget> widget;
-      baseWin->GetMainWidget(getter_AddRefs(widget));
-      if (widget && NS_SUCCEEDED(widget->GetSizeMode(&sizeMode)) && 
-          sizeMode == nsSizeMode_Fullscreen) {
-        return PR_TRUE;
-      }
-    }
-  }
-  return PR_FALSE;
-}
-
-/*
  * Just do the window-making part of CreateTopLevelWindow
  */
 nsresult
@@ -346,14 +309,6 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
 
   nsRefPtr<nsWebShellWindow> window = new nsWebShellWindow(aChromeMask);
   NS_ENSURE_TRUE(window, NS_ERROR_OUT_OF_MEMORY);
-
-#ifdef XP_WIN
-  // If the parent is currently fullscreen, tell the child to ignore persisted
-  // full screen states. This way new browser windows open on top of fullscreen
-  // windows normally.
-  if (window && CheckForFullscreenWindow())
-    window->IgnoreXULSizeMode(PR_TRUE);
-#endif
 
   nsWidgetInitData widgetInitData;
 
@@ -378,12 +333,6 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
                        nsIWebBrowserChrome::CHROME_OPENAS_CHROME;
   if (parent && ((aChromeMask & sheetMask) == sheetMask))
     widgetInitData.mWindowType = eWindowType_sheet;
-#endif
-
-#if defined(XP_WIN)
-  if (widgetInitData.mWindowType == eWindowType_toplevel ||
-      widgetInitData.mWindowType == eWindowType_dialog)
-    widgetInitData.clipChildren = PR_TRUE;
 #endif
 
   widgetInitData.mContentType = eContentTypeUI;                
@@ -427,7 +376,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
   PRBool center = aChromeMask & nsIWebBrowserChrome::CHROME_CENTER_SCREEN;
 
   nsCOMPtr<nsIXULChromeRegistry> reg =
-    mozilla::services::GetXULChromeRegistryService();
+    do_GetService(NS_CHROMEREGISTRY_CONTRACTID);
   if (reg) {
     nsCAutoString package;
     package.AssignLiteral("global");

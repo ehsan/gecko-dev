@@ -48,13 +48,11 @@
 #include "nsVoidArray.h"
 #include "nsTArray.h"
 #include "mozISpellI18NUtil.h"
-#include "nsCycleCollectionParticipant.h"
 
 class mozSpellChecker : public nsISpellChecker
 {
 public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS(mozSpellChecker)
+  NS_DECL_ISUPPORTS
 
   mozSpellChecker();
   virtual ~mozSpellChecker();
@@ -88,6 +86,7 @@ protected:
   nsCString *mCurrentEngineContractId;
   nsCOMPtr<mozISpellCheckingEngine>  mSpellCheckingEngine;
   PRBool mFromStart;
+  nsTArray<nsString> mIgnoreList;
 
   nsresult SetupDoc(PRInt32 *outBlockOffset);
 

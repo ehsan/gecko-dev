@@ -51,7 +51,7 @@ class nsXULComboboxAccessible : public nsAccessibleWrap
 public:
   enum { eAction_Click = 0 };
 
-  nsXULComboboxAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULComboboxAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
 
   // nsIAccessible
   NS_IMETHOD GetValue(nsAString& aValue);
@@ -61,7 +61,7 @@ public:
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
 
   // nsAccessNode
-  virtual PRBool Init();
+  virtual nsresult Init();
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);

@@ -108,6 +108,8 @@
 #include "nsIObserver.h"
 #include "nsDocShellLoadTypes.h"
 #include "nsPIDOMEventTarget.h"
+#include "nsIURIClassifier.h"
+#include "nsIChannelClassifier.h"
 #include "nsILoadContext.h"
 #include "nsIWidget.h"
 #include "nsIWebShellServices.h"
@@ -152,6 +154,32 @@ public:
     
 protected:
     virtual ~nsRefreshTimer();
+};
+
+class nsClassifierCallback : public nsIChannelClassifier
+                           , public nsIURIClassifierCallback
+                           , public nsIRunnable
+                           , public nsIChannelEventSink
+                           , public nsIInterfaceRequestor
+{
+public:
+    nsClassifierCallback() {}
+    ~nsClassifierCallback() {}
+
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSICHANNELCLASSIFIER
+    NS_DECL_NSIURICLASSIFIERCALLBACK
+    NS_DECL_NSIRUNNABLE
+    NS_DECL_NSICHANNELEVENTSINK
+    NS_DECL_NSIINTERFACEREQUESTOR
+
+private:
+    nsCOMPtr<nsIChannel> mChannel;
+    nsCOMPtr<nsIChannel> mSuspendedChannel;
+    nsCOMPtr<nsIInterfaceRequestor> mNotificationCallbacks;
+
+    void MarkEntryClassified(nsresult status);
+    PRBool HasBeenClassified(nsIChannel *aChannel);
 };
 
 #define NS_ERROR_DOCSHELL_REQUEST_REJECTED  NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_GENERAL,1001)
@@ -325,8 +353,14 @@ protected:
                                    nsIURILoader * aURILoader,
                                    PRBool aBypassClassifier);
 
+    // Check the channel load against the URI classifier service (if it
+    // exists).  The channel will be suspended until the classification is
+    // complete.
+    nsresult CheckClassifier(nsIChannel *aChannel);
+
     nsresult ScrollIfAnchor(nsIURI * aURI, PRBool * aWasAnchor,
-                            PRUint32 aLoadType, PRBool * aDoHashchange);
+                            PRUint32 aLoadType, nscoord *cx, nscoord *cy,
+                            PRBool * aDoHashchange);
 
     // Tries to stringify a given variant by converting it to JSON.  This only
     // works if the variant is backed by a JSVal.
@@ -432,77 +466,12 @@ protected:
                                        PRUint32 aRedirectFlags,
                                        PRUint32 aStateFlags);
 
-    /**
-     * Helper function that determines if channel is an HTTP POST.
-     *
-     * @param aChannel
-     *        The channel to test
-     *
-     * @return True iff channel is an HTTP post.
-     */
-    bool ChannelIsPost(nsIChannel* aChannel);
+    // Global History
 
-    /**
-     * Helper function that finds the last URI and its transition flags for a
-     * channel.
-     *
-     * This method first checks the channel's property bag to see if previous
-     * info has been saved.  If not, it gives back the referrer of the channel.
-     *
-     * @param aChannel
-     *        The channel we are transitioning to
-     * @param aURI
-     *        Output parameter with the previous URI, not addref'd
-     * @param aChannelRedirectFlags
-     *        If a redirect, output parameter with the previous redirect flags
-     *        from nsIChannelEventSink
-     */
-    void ExtractLastVisit(nsIChannel* aChannel,
-                          nsIURI** aURI,
-                          PRUint32* aChannelRedirectFlags);
-
-    /**
-     * Helper function that caches a URI and a transition for saving later.
-     *
-     * @param aChannel
-     *        Channel that will have these properties saved
-     * @param aURI
-     *        The URI to save for later
-     * @param aChannelRedirectFlags
-     *        The nsIChannelEventSink redirect flags to save for later
-     */
-    void SaveLastVisit(nsIChannel* aChannel,
-                       nsIURI* aURI,
-                       PRUint32 aChannelRedirectFlags);
-
-    /**
-     * Helper function for adding a URI visit using IHistory.  If IHistory is
-     * not available, the method tries nsIGlobalHistory2.
-     *
-     * The IHistory API maintains chains of visits, tracking both HTTP referrers
-     * and redirects for a user session. VisitURI requires the current URI and
-     * the previous URI in the chain.
-     *
-     * Visits can be saved either during a redirect or when the request has
-     * reached its final destination.  The previous URI in the visit may be
-     * from another redirect or it may be the referrer.
-     *
-     * @pre aURI is not null.
-     *
-     * @param aURI
-     *        The URI that was just visited
-     * @param aReferrerURI
-     *        The referrer URI of this request
-     * @param aPreviousURI
-     *        The previous URI of this visit (may be the same as aReferrerURI)
-     * @param aChannelRedirectFlags
-     *        For redirects, the redirect flags from nsIChannelEventSink
-     *        (0 otherwise)
-     */
-    void AddURIVisit(nsIURI* aURI,
-                     nsIURI* aReferrerURI,
-                     nsIURI* aPreviousURI,
-                     PRUint32 aChannelRedirectFlags);
+    nsresult AddToGlobalHistory(nsIURI * aURI, PRBool aRedirect,
+                                nsIChannel * aChannel);
+    nsresult AddToGlobalHistory(nsIURI * aURI, PRBool aRedirect,
+                                nsIURI * aReferrer);
 
     // Helper Routines
     nsresult   ConfirmRepost(PRBool * aRepost);
@@ -662,8 +631,6 @@ protected:
     // Override the parent setter from nsDocLoader
     virtual nsresult SetDocLoaderParent(nsDocLoader * aLoader);
 
-    void ClearFrameHistory(nsISHEntry* aEntry);
-
     // Event type dispatched by RestorePresentation
     class RestorePresentationEvent : public nsRunnable {
     public:
@@ -726,6 +693,9 @@ protected:
     // Secure browser UI object
     nsCOMPtr<nsISecureBrowserUI> mSecurityUI;
 
+    // Suspends/resumes channels based on the URI classifier.
+    nsRefPtr<nsClassifierCallback> mClassifier;
+
     // The URI we're currently loading.  This is only relevant during the
     // firing of a pagehide/unload.  The caller of FirePageHideNotification()
     // is responsible for setting it and unsetting it.  It may be null if the
@@ -750,7 +720,15 @@ protected:
     eCharsetReloadState        mCharsetReloadState;
 
     // Offset in the parent's child list.
-    // -1 if the docshell is added dynamically to the parent shell.
+    // XXXmats the line above is bogus, it's the offset in the parent's
+    // child list at the time this docshell was added to it,
+    // see nsDocShell::AddChild().  It isn't updated after that so if children
+    // with lower indices are removed this offset is no longer valid to be used
+    // as an index into the parent's child list (see bug 162283).  It MUST not
+    // be used for that purpose.  It's used as an index to get/add history
+    // entries into nsIDocShellHistory, although I very much doubt that it
+    // can be correct for that purpose as well...
+    // Try not to use it, we should get rid of it.
     PRUint32                   mChildOffset;
     PRUint32                   mBusyFlags;
     PRUint32                   mAppType;
@@ -758,9 +736,6 @@ protected:
 
     PRInt32                    mMarginWidth;
     PRInt32                    mMarginHeight;
-
-    // This can either be a content docshell or a chrome docshell.  After
-    // Create() is called, the type is not expected to change.
     PRInt32                    mItemType;
 
     // Index into the SHTransaction list, indicating the previous and current
@@ -780,7 +755,6 @@ protected:
     PRPackedBool               mAllowAuth;
     PRPackedBool               mAllowKeywordFixup;
     PRPackedBool               mIsOffScreenBrowser;
-    PRPackedBool               mIsActive;
 
     // This boolean is set to true right before we fire pagehide and generally
     // unset when we embed a new content viewer.  While it's true no navigation
@@ -805,13 +779,9 @@ protected:
     // presentation of the page, and to SetupNewViewer() that the old viewer
     // should be passed a SHEntry to save itself into.
     PRPackedBool               mSavingOldViewer;
-
-    // @see nsIDocShellHistory::createdDynamically
-    PRPackedBool               mDynamicallyCreated;
 #ifdef DEBUG
     PRPackedBool               mInEnsureScriptEnv;
 #endif
-    PRUint64                   mHistoryID;
 
     static nsIURIFixup *sURIFixup;
 

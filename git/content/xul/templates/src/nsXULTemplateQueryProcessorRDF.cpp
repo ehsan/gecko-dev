@@ -55,6 +55,7 @@
 #include "nsGkAtoms.h"
 #include "nsIDocument.h"
 #include "nsIXULDocument.h"
+#include "nsUnicharUtils.h"
 #include "nsAttrName.h"
 #include "rdf.h"
 #include "nsArrayUtils.h"
@@ -70,7 +71,6 @@
 #include "nsXULTemplateResultRDF.h"
 #include "nsXULTemplateResultSetRDF.h"
 #include "nsXULTemplateQueryProcessorRDF.h"
-#include "nsXULSortService.h"
 
 //----------------------------------------------------------------------
 
@@ -654,7 +654,6 @@ NS_IMETHODIMP
 nsXULTemplateQueryProcessorRDF::CompareResults(nsIXULTemplateResult* aLeft,
                                                nsIXULTemplateResult* aRight,
                                                nsIAtom* aVar,
-                                               PRUint32 aSortHints,
                                                PRInt32* aResult)
 {
     NS_ENSURE_ARG_POINTER(aLeft);
@@ -705,7 +704,7 @@ nsXULTemplateQueryProcessorRDF::CompareResults(nsIXULTemplateResult* aLeft,
     else {
         // get the values for the sort key from the results
         aLeft->GetBindingObjectFor(aVar, getter_AddRefs(leftNode));
-        aRight->GetBindingObjectFor(aVar, getter_AddRefs(rightNode));
+    aRight->GetBindingObjectFor(aVar, getter_AddRefs(rightNode));
     }
 
     {
@@ -718,12 +717,18 @@ nsXULTemplateQueryProcessorRDF::CompareResults(nsIXULTemplateResult* aLeft,
                 l->GetValueConst(&lstr);
                 r->GetValueConst(&rstr);
 
-                *aResult = XULSortServiceImpl::CompareValues(
-                               nsDependentString(lstr),
-                               nsDependentString(rstr), aSortHints);
+                nsICollation* collation = nsXULContentUtils::GetCollation();
+                if (collation) {
+                    collation->CompareString(nsICollation::kCollationCaseInSensitive,
+                                             nsDependentString(lstr),
+                                             nsDependentString(rstr),
+                                             aResult);
+                }
+                else
+                    *aResult = ::Compare(nsDependentString(lstr),
+                                         nsDependentString(rstr),
+                                         nsCaseInsensitiveStringComparator());
             }
-
-            return NS_OK;
         }
     }
 
@@ -747,8 +752,6 @@ nsXULTemplateQueryProcessorRDF::CompareResults(nsIXULTemplateResult* aLeft,
                 else
                     *aResult = -1;
             }
-
-            return NS_OK;
         }
     }
 
@@ -764,8 +767,6 @@ nsXULTemplateQueryProcessorRDF::CompareResults(nsIXULTemplateResult* aLeft,
 
                 *aResult = lval - rval;
             }
-
-            return NS_OK;
         }
     }
 

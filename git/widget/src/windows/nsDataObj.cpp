@@ -348,7 +348,7 @@ HRESULT nsDataObj::CreateStream(IStream **outStream)
   return S_OK;
 }
 
-static GUID CLSID_nsDataObj =
+EXTERN_C GUID CDECL CLSID_nsDataObj =
 	{ 0x1bba7640, 0xdf52, 0x11cf, { 0x82, 0x7b, 0, 0xa0, 0x24, 0x3a, 0xe5, 0x05 } };
 
 /* 
@@ -830,8 +830,8 @@ nsDataObj :: GetDib ( const nsACString& inFlavor, FORMATETC &, STGMEDIUM & aSTG 
   }
   
   if ( image ) {
-    // use the |nsImageToClipboard| helper class to build up a bitmap. We now own
-    // the bits, and pass them back to the OS in |aSTG|.
+    // use a the helper class to build up a bitmap. We now own the bits,
+    // and pass them back to the OS in |aSTG|.
     nsImageToClipboard converter ( image );
     HANDLE bits = nsnull;
     nsresult rv = converter.GetPicture ( &bits );
@@ -999,14 +999,13 @@ CreateFilenameFromTextW(nsString & aText, const wchar_t * aExtension,
 static PRBool
 GetLocalizedString(const PRUnichar * aName, nsXPIDLString & aString)
 {
-  nsCOMPtr<nsIStringBundleService> stringService =
-    mozilla::services::GetStringBundleService();
-  if (!stringService)
+  nsresult rv;
+  nsCOMPtr<nsIStringBundleService> stringService = do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
+  if (NS_FAILED(rv)) 
     return PR_FALSE;
 
   nsCOMPtr<nsIStringBundle> stringBundle;
-  nsresult rv = stringService->CreateBundle(PAGEINFO_PROPERTIES,
-                                            getter_AddRefs(stringBundle));
+  rv = stringService->CreateBundle(PAGEINFO_PROPERTIES, getter_AddRefs(stringBundle));
   if (NS_FAILED(rv))
     return PR_FALSE;
 
@@ -1310,6 +1309,7 @@ HRESULT nsDataObj::GetFile(FORMATETC& aFE, STGMEDIUM& aSTG)
   ULONG count;
   FORMATETC fe;
   m_enumFE->Reset();
+  PRBool found = PR_FALSE;
   while (NOERROR == m_enumFE->Next(1, &fe, &count)
     && dfInx < mDataFlavors.Length()) {
       if (mDataFlavors[dfInx].EqualsLiteral(kNativeImageMime))
@@ -1529,6 +1529,8 @@ HRESULT nsDataObj::DropTempFile(FORMATETC& aFE, STGMEDIUM& aSTG)
 {
   nsresult rv;
   if (!mCachedTempFile) {
+    PRUint32 len = 0;
+
     // Tempfile will need a temporary location.      
     nsCOMPtr<nsIFile> dropFile;
     rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(dropFile));

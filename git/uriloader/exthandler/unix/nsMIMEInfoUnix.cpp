@@ -22,7 +22,6 @@
  *
  * Contributor(s):
  *   Shawn Wilsher <me@shawnwilsher.com> (Original Author)
- *   Wolfgang Rosenauer <wr@rosenauer.org>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -44,13 +43,6 @@
 #include <hildon-mime.h>
 #include <libosso.h>
 #endif
-#if (MOZ_PLATFORM_MAEMO == 6)
-#include <QDesktopServices>
-#include <QUrl>
-#include <QString>
-#include <contentaction/contentaction.h>
-#include "nsContentHandlerApp.h"
-#endif
 
 #include "nsMIMEInfoUnix.h"
 #include "nsGNOMERegistry.h"
@@ -65,10 +57,9 @@ nsresult
 nsMIMEInfoUnix::LoadUriInternal(nsIURI * aURI)
 {
   nsresult rv = nsGNOMERegistry::LoadURL(aURI);
-
 #if (MOZ_PLATFORM_MAEMO == 5) && defined (MOZ_ENABLE_GNOMEVFS)
   if (NS_FAILED(rv)){
-    HildonURIAction *action = hildon_uri_get_default_action(mSchemeOrType.get(), nsnull);
+    HildonURIAction *action = hildon_uri_get_default_action(mType.get(), nsnull);
     if (action) {
       nsCAutoString spec;
       aURI->GetAsciiSpec(spec);
@@ -78,17 +69,6 @@ nsMIMEInfoUnix::LoadUriInternal(nsIURI * aURI)
     }
   }
 #endif
-
-#if (MOZ_PLATFORM_MAEMO == 6)
-  if (NS_FAILED(rv)) {
-    nsCAutoString spec;
-    aURI->GetAsciiSpec(spec);
-    if (QDesktopServices::openUrl(QUrl(spec.get()))) {
-      rv = NS_OK;
-    }
-  }
-#endif
-
   return rv;
 }
 
@@ -96,7 +76,7 @@ NS_IMETHODIMP
 nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
 {
   *_retval = PR_FALSE;
-  nsRefPtr<nsMIMEInfoBase> mimeInfo = nsGNOMERegistry::GetFromType(mSchemeOrType);
+  nsRefPtr<nsMIMEInfoBase> mimeInfo = nsGNOMERegistry::GetFromType(mType);
   if (!mimeInfo) {
     nsCAutoString ext;
     nsresult rv = GetPrimaryExtension(ext);
@@ -111,19 +91,10 @@ nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
     return NS_OK;
 
 #if (MOZ_PLATFORM_MAEMO == 5) && defined (MOZ_ENABLE_GNOMEVFS)
-  HildonURIAction *action = hildon_uri_get_default_action(mSchemeOrType.get(), nsnull);
+  HildonURIAction *action = hildon_uri_get_default_action(mType.get(), nsnull);
   if (action) {
     *_retval = PR_TRUE;
     hildon_uri_action_unref(action);
-    return NS_OK;
-  }
-#endif
-
-#if (MOZ_PLATFORM_MAEMO == 6)
-  ContentAction::Action action = 
-    ContentAction::Action::defaultActionForFile(QUrl(), QString(mSchemeOrType.get()));
-  if (action.isValid()) {
-    *_retval = PR_TRUE;
     return NS_OK;
   }
 #endif
@@ -143,27 +114,16 @@ nsMIMEInfoUnix::LaunchDefaultWithFile(nsIFile *aFile)
     return NS_OK;
 #endif
 
-#if (MOZ_PLATFORM_MAEMO == 6)
-  QUrl uri = QUrl::fromLocalFile(QString::fromUtf8(nativePath.get()));
-  ContentAction::Action action =
-    ContentAction::Action::defaultActionForFile(uri, QString(mSchemeOrType.get()));
-  if (action.isValid()) {
-    action.trigger();
-    return NS_OK;
-  }
-  return NS_ERROR_FAILURE;
-#endif
-
   nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
   nsCOMPtr<nsIGnomeVFSService> gnomevfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
   if (giovfs) {
     nsCOMPtr<nsIGIOMimeApp> app;
-    if (NS_SUCCEEDED(giovfs->GetAppForMimeType(mSchemeOrType, getter_AddRefs(app))) && app)
+    if (NS_SUCCEEDED(giovfs->GetAppForMimeType(mType, getter_AddRefs(app))) && app)
       return app->Launch(nativePath);
   } else if (gnomevfs) {
     /* Fallback to GnomeVFS */
     nsCOMPtr<nsIGnomeVFSMimeApp> app;
-    if (NS_SUCCEEDED(gnomevfs->GetAppForMimeType(mSchemeOrType, getter_AddRefs(app))) && app)
+    if (NS_SUCCEEDED(gnomevfs->GetAppForMimeType(mType, getter_AddRefs(app))) && app)
       return app->Launch(nativePath);
   }
 
@@ -216,7 +176,7 @@ nsMIMEInfoUnix::LaunchDefaultWithDBus(const char *aFilePath)
 
   result = hildon_mime_open_file_with_mime_type(connection,
                                                 aFilePath,
-                                                mSchemeOrType.get());
+                                                mType.get());
   if (result != kHILDON_SUCCESS)
     if (hildon_mime_open_file(connection, aFilePath) != kHILDON_SUCCESS)
       return NS_ERROR_FAILURE;
@@ -245,7 +205,7 @@ nsMIMEInfoUnix::GetPossibleApplicationHandlers(nsIMutableArray ** aPossibleAppHa
     if (!mPossibleApplications)
       return NS_ERROR_OUT_OF_MEMORY;
 
-    GSList *actions = hildon_uri_get_actions(mSchemeOrType.get(), nsnull);
+    GSList *actions = hildon_uri_get_actions(mType.get(), nsnull);
     GSList *actionsPtr = actions;
     while (actionsPtr) {
       HildonURIAction *action = (HildonURIAction*)actionsPtr->data;
@@ -286,31 +246,3 @@ nsMIMEInfoUnix::GetPossibleApplicationHandlers(nsIMutableArray ** aPossibleAppHa
   return NS_OK;
 }
 #endif
-
-#if (MOZ_PLATFORM_MAEMO == 6)
-NS_IMETHODIMP
-nsMIMEInfoUnix::GetPossibleApplicationHandlers(nsIMutableArray ** aPossibleAppHandlers)
-{
-  if (!mPossibleApplications) {
-    mPossibleApplications = do_CreateInstance(NS_ARRAY_CONTRACTID);
-
-    if (!mPossibleApplications)
-      return NS_ERROR_OUT_OF_MEMORY;
-
-    QList<ContentAction::Action> actions =
-      ContentAction::Action::actionsForFile(QUrl(), QString(mSchemeOrType.get()));
-
-    for (int i = 0; i < actions.size(); ++i) {
-      nsContentHandlerApp* app =
-        new nsContentHandlerApp(nsString((PRUnichar*)actions[i].name().data()), 
-                                mSchemeOrType, actions[i]);
-      mPossibleApplications->AppendElement(app, PR_FALSE);
-    }
-  }
-
-  *aPossibleAppHandlers = mPossibleApplications;
-  NS_ADDREF(*aPossibleAppHandlers);
-  return NS_OK;
-}
-#endif
-

@@ -43,14 +43,11 @@
 #include "nsBaseWidgetAccessible.h"
 #include "nsHyperTextAccessibleWrap.h"
 
-/**
- * Used for XUL description and label elements.
- */
 class nsXULTextAccessible : public nsHyperTextAccessibleWrap
 {
 
 public:
-  nsXULTextAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULTextAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
 
   // nsIAccessible
   NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
@@ -62,14 +59,11 @@ public:
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
-/**
- * Used for XUL tooltip element.
- */
 class nsXULTooltipAccessible : public nsLeafAccessible
 {
 
 public:
-  nsXULTooltipAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULTooltipAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
@@ -80,7 +74,7 @@ class nsXULLinkAccessible : public nsHyperTextAccessibleWrap
 {
 
 public:
-  nsXULLinkAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULLinkAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
 
   NS_DECL_ISUPPORTS_INHERITED
 

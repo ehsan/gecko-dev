@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-345855.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 345855;
 var summary = 'Blank yield expressions are not syntax errors';

@@ -45,7 +45,7 @@ static const PRUint16 g_ufMappingTable[] = {
 #include "cp1256.uf"
 };
 
-nsresult
+NS_METHOD
 nsUnicodeToCP1256Constructor(nsISupports *aOuter, REFNSIID aIID,
                              void **aResult) 
 {

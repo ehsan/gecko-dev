@@ -57,18 +57,17 @@
 #include "nsIConsoleService.h"
 #include "nsIDOMDocumentFragment.h"
 #include "nsINameSpaceManager.h"
-#include "nsCSSStyleSheet.h"
+#include "nsICSSStyleSheet.h"
 #include "txStringUtils.h"
 #include "txURIUtils.h"
 #include "nsIHTMLDocument.h"
 #include "nsIStyleSheetLinkingElement.h"
 #include "nsIDocumentTransformer.h"
-#include "mozilla/css/Loader.h"
+#include "nsCSSLoader.h"
 #include "nsICharsetAlias.h"
 #include "nsIHTMLContentSink.h"
 #include "nsContentUtils.h"
 #include "txXMLUtils.h"
-#include "nsContentSink.h"
 #include "nsINode.h"
 #include "nsContentCreatorFunctions.h"
 #include "txError.h"
@@ -266,7 +265,7 @@ txMozillaXMLOutput::endDocument(nsresult aResult)
             nsCOMPtr<nsIRefreshURI> refURI =
                 do_QueryInterface(win->GetDocShell());
             if (refURI) {
-                refURI->SetupRefreshURIFromHeader(mDocument->GetDocBaseURI(),
+                refURI->SetupRefreshURIFromHeader(mDocument->GetBaseURI(),
                                                   mRefreshString);
             }
         }
@@ -536,7 +535,7 @@ txMozillaXMLOutput::startElementInternal(nsIAtom* aPrefix,
     ni = mNodeInfoManager->GetNodeInfo(aLocalName, aPrefix, aNsID);
     NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
-    NS_NewElement(getter_AddRefs(mOpenedElement), aNsID, ni.forget(), PR_FALSE);
+    NS_NewElement(getter_AddRefs(mOpenedElement), aNsID, ni, PR_FALSE);
 
     // Set up the element and adjust state
     if (!mNoFixup) {
@@ -578,13 +577,12 @@ txMozillaXMLOutput::closePrevious(PRBool aFlushText)
             NS_ENSURE_SUCCESS(rv, rv);
         }
 
-        rv = mCurrentNode->AppendChildTo(mOpenedElement, PR_TRUE);
-        NS_ENSURE_SUCCESS(rv, rv);
-
         if (currentIsDoc) {
             mRootContentCreated = PR_TRUE;
-            nsContentSink::NotifyDocElementCreated(mDocument);
         }
+
+        rv = mCurrentNode->AppendChildTo(mOpenedElement, PR_TRUE);
+        NS_ENSURE_SUCCESS(rv, rv);
 
         mCurrentNode = mOpenedElement;
         mOpenedElement = nsnull;
@@ -629,7 +627,7 @@ txMozillaXMLOutput::createTxWrapper()
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIContent> wrapper;
-    rv = mDocument->CreateElem(nsAtomString(nsGkAtoms::result), nsGkAtoms::transformiix,
+    rv = mDocument->CreateElem(nsGkAtoms::result, nsGkAtoms::transformiix,
                                namespaceID, PR_FALSE, getter_AddRefs(wrapper));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -946,7 +944,7 @@ txMozillaXMLOutput::createHTMLElement(nsIAtom* aName,
                                        kNameSpaceID_XHTML);
     NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
-    return NS_NewHTMLElement(aResult, ni.forget(), PR_FALSE);
+    return NS_NewHTMLElement(aResult, ni, PR_FALSE);
 }
 
 txTransformNotifier::txTransformNotifier()
@@ -987,7 +985,7 @@ txTransformNotifier::ScriptEvaluated(nsresult aResult,
 }
 
 NS_IMETHODIMP 
-txTransformNotifier::StyleSheetLoaded(nsCSSStyleSheet* aSheet,
+txTransformNotifier::StyleSheetLoaded(nsICSSStyleSheet* aSheet,
                                       PRBool aWasAlternate,
                                       nsresult aStatus)
 {

@@ -91,14 +91,14 @@ class Element;
 #endif
 
 // SVG Frame state bits
-#define NS_STATE_IS_OUTER_SVG         NS_FRAME_STATE_BIT(20)
+#define NS_STATE_IS_OUTER_SVG         0x00100000
 
-#define NS_STATE_SVG_DIRTY            NS_FRAME_STATE_BIT(21)
+#define NS_STATE_SVG_DIRTY            0x00200000
 
 /* are we the child of a non-display container? */
-#define NS_STATE_SVG_NONDISPLAY_CHILD NS_FRAME_STATE_BIT(22)
+#define NS_STATE_SVG_NONDISPLAY_CHILD 0x00400000
 
-#define NS_STATE_SVG_PROPAGATE_TRANSFORM NS_FRAME_STATE_BIT(23)
+#define NS_STATE_SVG_PROPAGATE_TRANSFORM 0x00800000
 
 /**
  * Byte offsets of channels in a native packed gfxColor or cairo image surface.
@@ -160,10 +160,6 @@ public:
    */
   nsSVGRenderState(nsIRenderingContext *aContext);
   /**
-   * Render SVG to a modern rendering context
-   */
-  nsSVGRenderState(gfxContext *aContext);
-  /**
    * Render SVG to a temporary surface
    */
   nsSVGRenderState(gfxASurface *aSurface);
@@ -214,24 +210,16 @@ public:
   /*
    * Get the parent element of an nsIContent
    */
-  static mozilla::dom::Element *GetParentElement(nsIContent *aContent);
+  static nsIContent *GetParentElement(nsIContent *aContent);
 
   /*
-   * Get the number of CSS px (user units) per em (i.e. the em-height in user
-   * units) for an nsIContent
-   *
-   * XXX document the conditions under which these may fail, and what they
-   * return in those cases.
+   * Get a font-size (em) of an nsIContent
    */
   static float GetFontSize(mozilla::dom::Element *aElement);
   static float GetFontSize(nsIFrame *aFrame);
   static float GetFontSize(nsStyleContext *aStyleContext);
   /*
-   * Get the number of CSS px (user units) per ex (i.e. the x-height in user
-   * units) for an nsIContent
-   *
-   * XXX document the conditions under which these may fail, and what they
-   * return in those cases.
+   * Get an x-height of of an nsIContent
    */
   static float GetFontXHeight(mozilla::dom::Element *aElement);
   static float GetFontXHeight(nsIFrame *aFrame);
@@ -375,7 +363,8 @@ public:
                       float aViewportWidth, float aViewportHeight,
                       float aViewboxX, float aViewboxY,
                       float aViewboxWidth, float aViewboxHeight,
-                      const nsSVGPreserveAspectRatio &aPreserveAspectRatio);
+                      const nsSVGPreserveAspectRatio &aPreserveAspectRatio,
+                      PRBool aIgnoreAlign = PR_FALSE);
 
   /* Paint SVG frame with SVG effects - aDirtyRect is the area being
    * redrawn, in device pixel coordinates relative to the outer svg */
@@ -432,6 +421,13 @@ public:
    */
   static gfxIntSize
   ConvertToSurfaceSize(const gfxSize& aSize, PRBool *aResultOverflows);
+
+  /*
+   * Get a pointer to a surface that can be used to create thebes
+   * contexts for various measurement purposes.
+   */
+  static gfxASurface *
+  GetThebesComputationalSurface();
 
   /*
    * Convert a nsIDOMSVGMatrix to a gfxMatrix.
@@ -565,7 +561,7 @@ public:
 
 private:
   /* Computational (nil) surfaces */
-  static gfxASurface *gThebesComputationalSurface;
+  static gfxASurface *mThebesComputationalSurface;
 };
 
 #endif

@@ -48,7 +48,6 @@
 #include "nsIURL.h"
 #include "nsNodeInfo.h"
 #include "nsNodeInfoManager.h"
-#include "nsIScriptSecurityManager.h"
 #include "nsString.h"
 #include "nsContentCID.h"
 #include "prprf.h"
@@ -62,8 +61,6 @@
 #include "imgILoader.h"
 #include "nsIParser.h"
 #include "nsMimeTypes.h"
-
-#include "mozilla/FunctionTimer.h"
 
 // plugins
 #include "nsIPluginHost.h"
@@ -157,30 +154,6 @@ nsContentDLF::~nsContentDLF()
 NS_IMPL_ISUPPORTS1(nsContentDLF,
                    nsIDocumentLoaderFactory)
 
-PRBool
-MayUseXULXBL(nsIChannel* aChannel)
-{
-  nsIScriptSecurityManager *securityManager =
-    nsContentUtils::GetSecurityManager();
-  if (!securityManager) {
-    return PR_FALSE;
-  }
-
-  nsCOMPtr<nsIPrincipal> principal;
-  securityManager->GetChannelPrincipal(aChannel, getter_AddRefs(principal));
-  NS_ENSURE_TRUE(principal, PR_FALSE);
-
-  if (nsContentUtils::IsSystemPrincipal(principal)) {
-    return PR_TRUE;
-  }
-
-  nsCOMPtr<nsIURI> uri;
-  principal->GetURI(getter_AddRefs(uri));
-  NS_ENSURE_TRUE(uri, PR_FALSE);
-
-  return nsContentUtils::IsSitePermAllow(uri, "allowXULXBL");
-}
-
 NS_IMETHODIMP
 nsContentDLF::CreateInstance(const char* aCommand,
                              nsIChannel* aChannel,
@@ -191,16 +164,6 @@ nsContentDLF::CreateInstance(const char* aCommand,
                              nsIStreamListener** aDocListener,
                              nsIContentViewer** aDocViewer)
 {
-#ifdef NS_FUNCTION_TIMER
-  nsCAutoString channelURL__("N/A");
-  nsCOMPtr<nsIURI> url__;
-  if (aChannel && NS_SUCCEEDED(aChannel->GetURI(getter_AddRefs(url__)))) {
-    url__->GetSpec(channelURL__);
-  }
-  NS_TIME_FUNCTION_FMT("%s (line %d) (url: %s)", MOZ_FUNCTION_NAME,
-                       __LINE__, channelURL__.get());
-#endif
-
   // Declare "type" here.  This is because although the variable itself only
   // needs limited scope, we need to use the raw string memory -- as returned
   // by "type.get()" farther down in the function.
@@ -303,9 +266,8 @@ nsContentDLF::CreateInstance(const char* aCommand,
   // Try XUL
   typeIndex = 0;
   while (gXULTypes[typeIndex]) {
-    if (0 == PL_strcmp(gXULTypes[typeIndex++], aContentType) &&
-        MayUseXULXBL(aChannel)) {
-      return CreateXULDocument(aCommand,
+    if (0 == PL_strcmp(gXULTypes[typeIndex++], aContentType)) {
+      return CreateXULDocument(aCommand, 
                                aChannel, aLoadGroup,
                                aContentType, aContainer,
                                aExtraInfo, aDocListener, aDocViewer);
@@ -348,8 +310,6 @@ nsContentDLF::CreateInstanceForDocument(nsISupports* aContainer,
                                         const char *aCommand,
                                         nsIContentViewer** aDocViewerResult)
 {
-  NS_TIME_FUNCTION;
-
   nsresult rv = NS_ERROR_FAILURE;  
 
   do {
@@ -372,8 +332,6 @@ nsContentDLF::CreateBlankDocument(nsILoadGroup *aLoadGroup,
                                   nsIPrincipal* aPrincipal,
                                   nsIDocument **aDocument)
 {
-  NS_TIME_FUNCTION;
-
   *aDocument = nsnull;
 
   nsresult rv = NS_ERROR_FAILURE;
@@ -401,18 +359,15 @@ nsContentDLF::CreateBlankDocument(nsILoadGroup *aLoadGroup,
 
     // generate an html html element
     htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::html, 0, kNameSpaceID_XHTML);
-    nsCOMPtr<nsIContent> htmlElement =
-      NS_NewHTMLHtmlElement(htmlNodeInfo.forget());
+    nsCOMPtr<nsIContent> htmlElement = NS_NewHTMLHtmlElement(htmlNodeInfo);
 
     // generate an html head element
     htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::head, 0, kNameSpaceID_XHTML);
-    nsCOMPtr<nsIContent> headElement =
-      NS_NewHTMLHeadElement(htmlNodeInfo.forget());
+    nsCOMPtr<nsIContent> headElement = NS_NewHTMLHeadElement(htmlNodeInfo);
 
-    // generate an html body elemment
+    // generate an html body element
     htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::body, 0, kNameSpaceID_XHTML);
-    nsCOMPtr<nsIContent> bodyElement =
-      NS_NewHTMLBodyElement(htmlNodeInfo.forget());
+    nsCOMPtr<nsIContent> bodyElement = NS_NewHTMLBodyElement(htmlNodeInfo);
 
     // blat in the structure
     if (htmlElement && headElement && bodyElement) {
@@ -451,8 +406,6 @@ nsContentDLF::CreateDocument(const char* aCommand,
                              nsIStreamListener** aDocListener,
                              nsIContentViewer** aDocViewer)
 {
-  NS_TIME_FUNCTION;
-
   nsresult rv = NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIURI> aURL;
@@ -509,8 +462,6 @@ nsContentDLF::CreateXULDocument(const char* aCommand,
                                 nsIStreamListener** aDocListener,
                                 nsIContentViewer** aDocViewer)
 {
-  NS_TIME_FUNCTION;
-
   nsresult rv;
   nsCOMPtr<nsIDocument> doc = do_CreateInstance(kXULDocumentCID, &rv);
   if (NS_FAILED(rv)) return rv;
@@ -542,6 +493,119 @@ nsContentDLF::CreateXULDocument(const char* aCommand,
     NS_IF_ADDREF(*aDocViewer);
   }
    
+  return rv;
+}
+
+static nsresult
+RegisterTypes(nsICategoryManager* aCatMgr,
+              const char* const* aTypes,
+              PRBool aPersist = PR_TRUE)
+{
+  nsresult rv = NS_OK;
+  while (*aTypes) {
+    const char* contentType = *aTypes++;
+#ifdef NOISY_REGISTRY
+    printf("Register %s => %s\n", contractid, aPath);
+#endif
+    // add the MIME types layout can handle to the handlers category.
+    // this allows users of layout's viewers (the docshell for example)
+    // to query the types of viewers layout can create.
+    rv = aCatMgr->AddCategoryEntry("Gecko-Content-Viewers", contentType,
+                                   "@mozilla.org/content/document-loader-factory;1",
+                                   aPersist, PR_TRUE, nsnull);
+    if (NS_FAILED(rv)) break;
+  }
+  return rv;
+}
+
+static nsresult UnregisterTypes(nsICategoryManager* aCatMgr,
+                                const char* const* aTypes)
+{
+  nsresult rv = NS_OK;
+  while (*aTypes) {
+    const char* contentType = *aTypes++;
+    rv = aCatMgr->DeleteCategoryEntry("Gecko-Content-Viewers", contentType, PR_TRUE);
+    if (NS_FAILED(rv)) break;
+  }
+  return rv;
+
+}
+
+#ifdef MOZ_SVG
+NS_IMETHODIMP
+nsContentDLF::RegisterSVG()
+{
+  nsresult rv;
+  nsCOMPtr<nsICategoryManager> catmgr(do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv));
+  if (NS_FAILED(rv)) return rv;
+
+  return RegisterTypes(catmgr, gSVGTypes, PR_FALSE);
+}
+
+NS_IMETHODIMP
+nsContentDLF::UnregisterSVG()
+{
+  nsresult rv;
+  nsCOMPtr<nsICategoryManager> catmgr(do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv));
+  if (NS_FAILED(rv)) return rv;
+
+  return UnregisterTypes(catmgr, gSVGTypes);
+}
+#endif
+
+NS_IMETHODIMP
+nsContentDLF::RegisterDocumentFactories(nsIComponentManager* aCompMgr,
+                                        nsIFile* aPath,
+                                        const char *aLocation,
+                                        const char *aType,
+                                        const nsModuleComponentInfo* aInfo)
+{
+  nsresult rv;
+
+  nsCOMPtr<nsICategoryManager> catmgr(do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv));
+  if (NS_FAILED(rv)) return rv;
+
+  do {
+    rv = RegisterTypes(catmgr, gHTMLTypes);
+    if (NS_FAILED(rv))
+      break;
+    rv = RegisterTypes(catmgr, gXMLTypes);
+    if (NS_FAILED(rv))
+      break;
+    rv = RegisterTypes(catmgr, gXULTypes);
+    if (NS_FAILED(rv))
+      break;
+  } while (PR_FALSE);
+  return rv;
+}
+
+NS_IMETHODIMP
+nsContentDLF::UnregisterDocumentFactories(nsIComponentManager* aCompMgr,
+                                          nsIFile* aPath,
+                                          const char* aRegistryLocation,
+                                          const nsModuleComponentInfo* aInfo)
+{
+  nsresult rv;
+  nsCOMPtr<nsICategoryManager> catmgr(do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv));
+  if (NS_FAILED(rv)) return rv;
+
+  do {
+    rv = UnregisterTypes(catmgr, gHTMLTypes);
+    if (NS_FAILED(rv))
+      break;
+    rv = UnregisterTypes(catmgr, gXMLTypes);
+    if (NS_FAILED(rv))
+      break;
+#ifdef MOZ_SVG
+    rv = UnregisterTypes(catmgr, gSVGTypes);
+    if (NS_FAILED(rv))
+      break;
+#endif
+    rv = UnregisterTypes(catmgr, gXULTypes);
+    if (NS_FAILED(rv))
+      break;
+  } while (PR_FALSE);
+
   return rv;
 }
 

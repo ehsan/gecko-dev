@@ -73,7 +73,8 @@ NS_IMETHODIMP nsPlaintextEditor::PrepareTransferable(nsITransferable **transfera
 {
   // Create generic Transferable for getting the data
   nsresult rv = CallCreateInstance("@mozilla.org/widget/transferable;1", transferable);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv))
+    return rv;
 
   // Get the nsITransferable interface for getting the data from the clipboard
   if (transferable) {
@@ -157,26 +158,26 @@ NS_IMETHODIMP nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
   nsresult rv;
   nsCOMPtr<nsIDragService> dragService = 
            do_GetService("@mozilla.org/widget/dragservice;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   nsCOMPtr<nsIDragSession> dragSession;
   dragService->GetCurrentSession(getter_AddRefs(dragSession));
-  NS_ENSURE_TRUE(dragSession, NS_OK);
+  if (!dragSession) return NS_OK;
 
   // Current doc is destination
   nsCOMPtr<nsIDOMDocument> destdomdoc; 
   rv = GetDocument(getter_AddRefs(destdomdoc)); 
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   // Get the nsITransferable interface for getting the data from the drop
   nsCOMPtr<nsITransferable> trans;
   rv = PrepareTransferable(getter_AddRefs(trans));
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(trans, NS_OK);  // NS_ERROR_FAILURE; SHOULD WE FAIL?
+  if (NS_FAILED(rv)) return rv;
+  if (!trans) return NS_OK;  // NS_ERROR_FAILURE; SHOULD WE FAIL?
 
   PRUint32 numItems = 0; 
   rv = dragSession->GetNumDropItems(&numItems);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
   if (numItems < 1) return NS_ERROR_FAILURE;  // nothing to drop?
 
   // Combine any deletion and drop insertion into one transaction
@@ -187,25 +188,25 @@ NS_IMETHODIMP nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
   // We have to figure out whether to delete and relocate caret only once
   // Parent and offset are under the mouse cursor
   nsCOMPtr<nsIDOMNSUIEvent> nsuiEvent (do_QueryInterface(aDropEvent));
-  NS_ENSURE_TRUE(nsuiEvent, NS_ERROR_FAILURE);
+  if (!nsuiEvent) return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMNode> newSelectionParent;
   rv = nsuiEvent->GetRangeParent(getter_AddRefs(newSelectionParent));
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(newSelectionParent, NS_ERROR_FAILURE);
+  if (NS_FAILED(rv)) return rv;
+  if (!newSelectionParent) return NS_ERROR_FAILURE;
 
   PRInt32 newSelectionOffset;
   rv = nsuiEvent->GetRangeOffset(&newSelectionOffset);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   nsCOMPtr<nsISelection> selection;
   rv = GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(selection, NS_ERROR_FAILURE);
+  if (NS_FAILED(rv)) return rv;
+  if (!selection) return NS_ERROR_FAILURE;
 
   PRBool isCollapsed;
   rv = selection->GetIsCollapsed(&isCollapsed);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   // Check if mouse is in the selection
   // if so, jump through some hoops to determine if mouse is over selection (bail)
@@ -217,7 +218,7 @@ NS_IMETHODIMP nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
 
     PRInt32 rangeCount;
     rv = selection->GetRangeCount(&rangeCount);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) return rv;
 
     for (PRInt32 j = 0; j < rangeCount; j++)
     {
@@ -236,7 +237,7 @@ NS_IMETHODIMP nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
     // Current doc is destination (set earlier)
     nsCOMPtr<nsIDOMDocument> srcdomdoc;
     rv = dragSession->GetSourceDocument(getter_AddRefs(srcdomdoc));
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) return rv;
 
     if (cursorIsInSelection)
     {
@@ -288,8 +289,8 @@ NS_IMETHODIMP nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
   for (i = 0; i < numItems; ++i)
   {
     rv = dragSession->GetData(trans, i);
-    NS_ENSURE_SUCCESS(rv, rv);
-    NS_ENSURE_TRUE(trans, NS_OK); // NS_ERROR_FAILURE; Should we fail?
+    if (NS_FAILED(rv)) return rv;
+    if (!trans) return NS_OK; // NS_ERROR_FAILURE; Should we fail?
 
     // Beware! This may flush notifications via synchronous
     // ScrollSelectionIntoView.
@@ -301,7 +302,8 @@ NS_IMETHODIMP nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
 
 NS_IMETHODIMP nsPlaintextEditor::CanDrag(nsIDOMEvent *aDragEvent, PRBool *aCanDrag)
 {
-  NS_ENSURE_TRUE(aCanDrag, NS_ERROR_NULL_POINTER);
+  if (!aCanDrag)
+    return NS_ERROR_NULL_POINTER;
   /* we really should be checking the XY coordinates of the mouseevent and ensure that
    * that particular point is actually within the selection (not just that there is a selection)
    */
@@ -318,11 +320,11 @@ NS_IMETHODIMP nsPlaintextEditor::CanDrag(nsIDOMEvent *aDragEvent, PRBool *aCanDr
    
   nsCOMPtr<nsISelection> selection;
   nsresult res = GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
     
   PRBool isCollapsed;
   res = selection->GetIsCollapsed(&isCollapsed);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   
   // if we are collapsed, we have no selection so nothing to drag
   if ( isCollapsed )
@@ -333,7 +335,7 @@ NS_IMETHODIMP nsPlaintextEditor::CanDrag(nsIDOMEvent *aDragEvent, PRBool *aCanDr
   nsCOMPtr<nsIDOMNSEvent> nsevent(do_QueryInterface(aDragEvent));
   if (nsevent) {
     res = nsevent->GetTmpRealOriginalTarget(getter_AddRefs(eventTarget));
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
   }
 
   if (eventTarget)
@@ -343,7 +345,7 @@ NS_IMETHODIMP nsPlaintextEditor::CanDrag(nsIDOMEvent *aDragEvent, PRBool *aCanDr
     {
       PRBool isTargetedCorrectly = PR_FALSE;
       res = selection->ContainsNode(eventTargetDomNode, PR_FALSE, &isTargetedCorrectly);
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
 
       *aCanDrag = isTargetedCorrectly;
     }
@@ -358,22 +360,23 @@ NS_IMETHODIMP nsPlaintextEditor::DoDrag(nsIDOMEvent *aDragEvent)
 
   nsCOMPtr<nsITransferable> trans;
   rv = PutDragDataInTransferable(getter_AddRefs(trans));
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(trans, NS_OK); // maybe there was nothing to copy?
+  if (NS_FAILED(rv)) return rv;
+  if (!trans) return NS_OK; // maybe there was nothing to copy?
 
  /* get the drag service */
   nsCOMPtr<nsIDragService> dragService = 
            do_GetService("@mozilla.org/widget/dragservice;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   /* create an array of transferables */
   nsCOMPtr<nsISupportsArray> transferableArray;
   NS_NewISupportsArray(getter_AddRefs(transferableArray));
-  NS_ENSURE_TRUE(transferableArray, NS_ERROR_OUT_OF_MEMORY);
+  if (!transferableArray)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   /* add the transferable to the array */
   rv = transferableArray->AppendElement(trans);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   // check our transferable hooks (if any)
   nsCOMPtr<nsIDOMDocument> domdoc;
@@ -382,13 +385,13 @@ NS_IMETHODIMP nsPlaintextEditor::DoDrag(nsIDOMEvent *aDragEvent)
   /* invoke drag */
   nsCOMPtr<nsIDOMEventTarget> eventTarget;
   rv = aDragEvent->GetTarget(getter_AddRefs(eventTarget));
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
   nsCOMPtr<nsIDOMNode> domnode = do_QueryInterface(eventTarget);
 
   nsCOMPtr<nsIScriptableRegion> selRegion;
   nsCOMPtr<nsISelection> selection;
   rv = GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   unsigned int flags;
   // in some cases we'll want to cut rather than copy... hmmmmm...
@@ -397,7 +400,7 @@ NS_IMETHODIMP nsPlaintextEditor::DoDrag(nsIDOMEvent *aDragEvent)
   nsCOMPtr<nsIDOMDragEvent> dragEvent(do_QueryInterface(aDragEvent));
   rv = dragService->InvokeDragSessionWithSelection(selection, transferableArray,
                                                    flags, dragEvent, nsnull);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   aDragEvent->StopPropagation();
   aDragEvent->PreventDefault();
@@ -469,7 +472,7 @@ NS_IMETHODIMP nsPlaintextEditor::CanPaste(PRInt32 aSelectionType, PRBool *aCanPa
 
   nsresult rv;
   nsCOMPtr<nsIClipboard> clipboard(do_GetService("@mozilla.org/widget/clipboard;1", &rv));
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
   
   // the flavors that we can deal with
   const char* textEditorFlavors[] = { kUnicodeMime };
@@ -478,7 +481,7 @@ NS_IMETHODIMP nsPlaintextEditor::CanPaste(PRInt32 aSelectionType, PRBool *aCanPa
   rv = clipboard->HasDataMatchingFlavors(textEditorFlavors,
                                          NS_ARRAY_LENGTH(textEditorFlavors),
                                          aSelectionType, &haveFlavors);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
   
   *aCanPaste = haveFlavors;
   return NS_OK;
@@ -520,7 +523,7 @@ nsPlaintextEditor::SetupDocEncoder(nsIDocumentEncoder **aDocEncoder)
 {
   nsCOMPtr<nsIDOMDocument> domDoc;
   nsresult rv = GetDocument(getter_AddRefs(domDoc));
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   // find out if we're a plaintext control or not
   // get correct mimeType and document encoder flags set
@@ -536,18 +539,19 @@ nsPlaintextEditor::SetupDocEncoder(nsIDocumentEncoder **aDocEncoder)
 
   // set up docEncoder
   nsCOMPtr<nsIDocumentEncoder> encoder = do_CreateInstance(NS_HTMLCOPY_ENCODER_CONTRACTID);
-  NS_ENSURE_TRUE(encoder, NS_ERROR_OUT_OF_MEMORY);
+  if (!encoder)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   rv = encoder->Init(domDoc, mimeType, docEncoderFlags);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
     
   /* get the selection to be dragged */
   nsCOMPtr<nsISelection> selection;
   rv = GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   rv = encoder->SetSelection(selection);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   *aDocEncoder = encoder;
   NS_ADDREF(*aDocEncoder);
@@ -560,12 +564,12 @@ nsPlaintextEditor::PutDragDataInTransferable(nsITransferable **aTransferable)
   *aTransferable = nsnull;
   nsCOMPtr<nsIDocumentEncoder> docEncoder;
   nsresult rv = SetupDocEncoder(getter_AddRefs(docEncoder));
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   // grab a string
   nsAutoString buffer;
   rv = docEncoder->EncodeToString(buffer);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   // if we have an empty string, we're done; otherwise continue
   if (buffer.IsEmpty())
@@ -576,7 +580,7 @@ nsPlaintextEditor::PutDragDataInTransferable(nsITransferable **aTransferable)
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = dataWrapper->SetData(buffer);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   /* create html flavor transferable */
   nsCOMPtr<nsITransferable> trans = do_CreateInstance("@mozilla.org/widget/transferable;1", &rv);
@@ -587,18 +591,18 @@ nsPlaintextEditor::PutDragDataInTransferable(nsITransferable **aTransferable)
   {
     // Add the unicode flavor to the transferable
     rv = trans->AddDataFlavor(kUnicodeMime);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) return rv;
   }
   else
   {
     rv = trans->AddDataFlavor(kHTMLMime);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIFormatConverter> htmlConverter = do_CreateInstance("@mozilla.org/widget/htmlformatconverter;1");
     NS_ENSURE_TRUE(htmlConverter, NS_ERROR_FAILURE);
 
     rv = trans->SetConverter(htmlConverter);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) return rv;
   }
 
   // QI the data object an |nsISupports| so that when the transferable holds
@@ -606,7 +610,7 @@ nsPlaintextEditor::PutDragDataInTransferable(nsITransferable **aTransferable)
   nsCOMPtr<nsISupports> nsisupportsDataWrapper = do_QueryInterface(dataWrapper);
   rv = trans->SetTransferData(IsPlaintextEditor() ? kUnicodeMime : kHTMLMime,
                    nsisupportsDataWrapper, buffer.Length() * sizeof(PRUnichar));
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (NS_FAILED(rv)) return rv;
 
   *aTransferable = trans;
   NS_ADDREF(*aTransferable);

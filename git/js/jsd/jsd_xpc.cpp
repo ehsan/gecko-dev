@@ -38,10 +38,12 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "jsdbgapi.h"
+#include "jscntxt.h"
+#include "jsfun.h"
 #include "jsd_xpc.h"
 
 #include "nsIXPConnect.h"
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
 #include "nsIServiceManager.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIObserver.h"
@@ -1012,8 +1014,7 @@ jsdScript::CreatePPLineMap()
     PRBool      scriptOwner = PR_FALSE;
     
     if (fun) {
-        uintN nargs = JS_GetFunctionArgumentCount(cx, fun);
-        if (nargs > 12)
+        if (fun->nargs > 12)
             return nsnull;
         JSString *jsstr = JS_DecompileFunctionBody (cx, fun, 4);
         if (!jsstr)
@@ -1022,7 +1023,7 @@ jsdScript::CreatePPLineMap()
         const char *argnames[] = {"arg1", "arg2", "arg3", "arg4", 
                                   "arg5", "arg6", "arg7", "arg8",
                                   "arg9", "arg10", "arg11", "arg12" };
-        fun = JS_CompileUCFunction (cx, obj, "ppfun", nargs, argnames,
+        fun = JS_CompileUCFunction (cx, obj, "ppfun", fun->nargs, argnames,
                                     JS_GetStringChars(jsstr),
                                     JS_GetStringLength(jsstr),
                                     "x-jsd:ppbuffer?type=function", 3);
@@ -1231,34 +1232,37 @@ jsdScript::GetParameterNames(PRUint32* count, PRUnichar*** paramNames)
 
     JSAutoRequest ar(cx);
 
-    uintN nargs;
-    if (!fun ||
-        !JS_FunctionHasLocalNames(cx, fun) ||
-        (nargs = JS_GetFunctionArgumentCount(cx, fun)) == 0) {
+    if (!fun || !fun->hasLocalNames() || fun->nargs == 0) {
         *count = 0;
         *paramNames = nsnull;
         return NS_OK;
     }
 
     PRUnichar **ret =
-        static_cast<PRUnichar**>(NS_Alloc(nargs * sizeof(PRUnichar*)));
+        static_cast<PRUnichar**>(NS_Alloc(fun->nargs * sizeof(PRUnichar*)));
     if (!ret)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    void *mark;
-    jsuword *names = JS_GetFunctionLocalNameArray(cx, fun, &mark);
+    void *mark = JS_ARENA_MARK(&cx->tempPool);
+    jsuword *names = js_GetLocalNameArray(cx, fun, &cx->tempPool);
     if (!names) {
         NS_Free(ret);
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
     nsresult rv = NS_OK;
-    for (uintN i = 0; i < nargs; ++i) {
-        JSAtom *atom = JS_LocalNameToAtom(names[i]);
+    for (uintN i = 0; i < fun->nargs; ++i) {
+        JSAtom *atom = JS_LOCAL_NAME_TO_ATOM(names[i]);
         if (!atom) {
             ret[i] = 0;
         } else {
-            JSString *str = JS_AtomKey(atom);
+            jsval atomVal = ATOM_KEY(atom);
+            if (!JSVAL_IS_STRING(atomVal)) {
+                NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(i, ret);
+                rv = NS_ERROR_UNEXPECTED;
+                break;
+            }
+            JSString *str = JSVAL_TO_STRING(atomVal);
             ret[i] = NS_strndup(reinterpret_cast<PRUnichar*>(JS_GetStringChars(str)),
                                 JS_GetStringLength(str));
             if (!ret[i]) {
@@ -1268,10 +1272,10 @@ jsdScript::GetParameterNames(PRUint32* count, PRUnichar*** paramNames)
             }
         }
     }
-    JS_ReleaseFunctionLocalNameArray(cx, mark);
+    JS_ARENA_RELEASE(&cx->tempPool, mark);
     if (NS_FAILED(rv))
         return rv;
-    *count = nargs;
+    *count = fun->nargs;
     *paramNames = ret;
     return NS_OK;
 }
@@ -1480,7 +1484,8 @@ jsdScript::SetBreakpoint(PRUint32 aPC)
 {
     ASSERT_VALID_EPHEMERAL;
     jsuword pc = mFirstPC + aPC;
-    JSD_SetExecutionHook (mCx, mScript, pc, jsds_ExecutionHookProc, NULL);
+    JSD_SetExecutionHook (mCx, mScript, pc, jsds_ExecutionHookProc,
+                          reinterpret_cast<void *>(PRIVATE_TO_JSVAL(NULL)));
     return NS_OK;
 }
 
@@ -1985,7 +1990,7 @@ jsdStackFrame::Eval (const nsAString &bytes, const nsACString &fileName,
         if (JS_IsExceptionPending(cx))
             JS_GetPendingException (cx, &jv);
         else
-            jv = JSVAL_NULL;
+            jv = 0;
     }
 
     JS_RestoreExceptionState (cx, estate);
@@ -2190,7 +2195,10 @@ NS_IMETHODIMP
 jsdValue::GetDoubleValue(double *_rval)
 {
     ASSERT_VALID_EPHEMERAL;
-    *_rval = JSD_GetValueDouble (mCx, mValue);
+    double *dp = JSD_GetValueDouble (mCx, mValue);
+    if (!dp)
+        return NS_ERROR_FAILURE;
+    *_rval = *dp;
     return NS_OK;
 }
 
@@ -2351,6 +2359,121 @@ NS_IMETHODIMP
 jsdService::GetJSDContext(JSDContext **_rval)
 {
     *_rval = mCx;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+jsdService::GetInitAtStartup (PRBool *_rval)
+{
+    nsresult rv;
+    nsCOMPtr<nsICategoryManager>
+        categoryManager(do_GetService(NS_CATMAN_CTRID, &rv));
+    
+    if (NS_FAILED(rv))
+    {
+        NS_WARNING("couldn't get category manager");
+        return rv;
+    }
+
+    if (mInitAtStartup == triUnknown) {
+        nsXPIDLCString notused;
+        nsresult autoreg_rv, appstart_rv;
+        
+        autoreg_rv = categoryManager->GetCategoryEntry(AUTOREG_CATEGORY, 
+                                                       JSD_AUTOREG_ENTRY,
+                                                       getter_Copies(notused));
+        appstart_rv = categoryManager->GetCategoryEntry(APPSTART_CATEGORY,
+                                                        JSD_STARTUP_ENTRY,
+                                                        getter_Copies(notused));
+        if (autoreg_rv != appstart_rv) {
+            /* we have an inconsistent state in the registry, attempt to fix.
+             * we need to make mInitAtStartup disagree with the state passed
+             * to SetInitAtStartup to make it actually do something.
+             */
+            mInitAtStartup = triYes;
+            rv = SetInitAtStartup (PR_FALSE);
+            if (NS_FAILED(rv))
+            {
+                NS_WARNING("SetInitAtStartup failed");
+                return rv;
+            }
+        } else if (autoreg_rv == NS_ERROR_NOT_AVAILABLE) {
+            mInitAtStartup = triNo;
+        } else if (NS_SUCCEEDED(autoreg_rv)) {
+            mInitAtStartup = triYes;
+        } else {
+            NS_WARN_IF_FALSE(NS_SUCCEEDED(autoreg_rv),
+                             "couldn't get autoreg category");
+            NS_WARN_IF_FALSE(NS_SUCCEEDED(appstart_rv),
+                             "couldn't get appstart category");
+            return rv;
+        }
+    }
+    
+    if (_rval)
+        *_rval = (mInitAtStartup == triYes);
+
+    return NS_OK;
+}
+
+/*
+ * The initAtStartup property controls whether or not we register the
+ * app start observer (jsdASObserver.)  We register for both 
+ * "xpcom-autoregistration" and "app-startup" notifications if |state| is true.
+ * the autoreg message is sent just before registration occurs (before
+ * "app-startup".)  We care about autoreg because it may load javascript
+ * components.  autoreg does *not* fire if components haven't changed since the
+ * last autoreg, so we watch "app-startup" as a fallback.
+ */
+NS_IMETHODIMP
+jsdService::SetInitAtStartup (PRBool state)
+{ 
+    nsresult rv;
+
+    if (mInitAtStartup == triUnknown) {
+        /* side effect sets mInitAtStartup */
+        rv = GetInitAtStartup(nsnull);
+        if (NS_FAILED(rv))
+            return rv;
+    }
+
+    if (state && mInitAtStartup == triYes ||
+        !state && mInitAtStartup == triNo) {
+        /* already in the requested state */
+        return NS_OK;
+    }
+    
+    nsCOMPtr<nsICategoryManager>
+        categoryManager(do_GetService(NS_CATMAN_CTRID, &rv));
+    if (NS_FAILED(rv))
+        return rv;
+
+    if (state) {
+        rv = categoryManager->AddCategoryEntry(AUTOREG_CATEGORY,
+                                               JSD_AUTOREG_ENTRY,
+                                               jsdARObserverCtrID,
+                                               PR_TRUE, PR_TRUE, nsnull);
+        if (NS_FAILED(rv))
+            return rv;
+        rv = categoryManager->AddCategoryEntry(APPSTART_CATEGORY,
+                                               JSD_STARTUP_ENTRY,
+                                               jsdASObserverCtrID,
+                                               PR_TRUE, PR_TRUE, nsnull);
+        if (NS_FAILED(rv))
+            return rv;
+        mInitAtStartup = triYes;
+    } else {
+        rv = categoryManager->DeleteCategoryEntry(AUTOREG_CATEGORY,
+                                                  JSD_AUTOREG_ENTRY, PR_TRUE);
+        if (NS_FAILED(rv))
+            return rv;
+        rv = categoryManager->DeleteCategoryEntry(APPSTART_CATEGORY,
+                                                  JSD_STARTUP_ENTRY, PR_TRUE);
+        if (NS_FAILED(rv))
+            return rv;
+        mInitAtStartup = triNo;
+    }
+
     return NS_OK;
 }
 
@@ -2899,7 +3022,7 @@ jsdService::WrapValue(jsdIValue **_rval)
 }
 
 NS_IMETHODIMP
-jsdService::WrapJSValue(const jsval &value, jsdIValue** _rval)
+jsdService::WrapJSValue(jsval value, jsdIValue** _rval)
 {
     JSDValue *jsdv = JSD_NewValue(mCx, value);
     if (!jsdv)
@@ -3282,32 +3405,17 @@ jsdASObserver::Observe (nsISupports *aSubject, const char *aTopic,
     if (NS_FAILED(rv))
         return rv;
     
-    return NS_OK;
+    return jsds->SetFlags(JSD_DISABLE_OBJECT_TRACE);
 }
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(jsdASObserver)
-NS_DEFINE_NAMED_CID(JSDSERVICE_CID);
-NS_DEFINE_NAMED_CID(JSDASO_CID);
 
-static const mozilla::Module::CIDEntry kJSDCIDs[] = {
-    { &kJSDSERVICE_CID, false, NULL, jsdServiceConstructor },
-    { &kJSDASO_CID, false, NULL, jsdASObserverConstructor },
-    { NULL }
+static const nsModuleComponentInfo components[] = {
+    {"JSDService", JSDSERVICE_CID,    jsdServiceCtrID, jsdServiceConstructor},
+    {"JSDASObserver",  JSDASO_CID, jsdARObserverCtrID, jsdASObserverConstructor}
 };
 
-static const mozilla::Module::ContractIDEntry kJSDContracts[] = {
-    { jsdServiceCtrID, &kJSDSERVICE_CID },
-    { jsdARObserverCtrID, &kJSDASO_CID },
-    { NULL }
-};
-
-static const mozilla::Module kJSDModule = {
-    mozilla::Module::kVersion,
-    kJSDCIDs,
-    kJSDContracts
-};
-
-NSMODULE_DEFN(JavaScript_Debugger) = &kJSDModule;
+NS_IMPL_NSGETMODULE(JavaScript_Debugger, components)
 
 /********************************************************************************
  ********************************************************************************

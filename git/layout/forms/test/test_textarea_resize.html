@@ -76,7 +76,7 @@ function doTheTest() {
     currentBoxSizing = 0;
     currentResize = resizeTypes.shift();
     if (currentResize) {
-      textarea.style.resize = currentResize;
+      textarea.style.MozResize = currentResize;
       SimpleTest.executeSoon(doTheTest);
     }
     else {

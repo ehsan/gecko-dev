@@ -306,22 +306,11 @@ nsDOMStorageDBWrapper::CreateDomainScopeDBKey(nsIURI* aUri, nsACString& aKey)
 {
   nsresult rv;
 
-  nsCAutoString domainScope;
-  rv = aUri->GetAsciiHost(domainScope);
+  nsCAutoString host;
+  rv = aUri->GetAsciiHost(host);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (domainScope.IsEmpty()) {
-    // About pages have an empty host but a valid path.  Since they are handled
-    // internally by our own redirector, we can trust them and use path as key.
-    PRBool isAboutUrl = PR_FALSE;
-    if ((NS_SUCCEEDED(aUri->SchemeIs("about", &isAboutUrl)) && isAboutUrl) ||
-        (NS_SUCCEEDED(aUri->SchemeIs("moz-safe-about", &isAboutUrl)) && isAboutUrl)) {
-      rv = aUri->GetPath(domainScope);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-  }
-
-  rv = CreateDomainScopeDBKey(domainScope, aKey);
+  rv = CreateDomainScopeDBKey(host, aKey);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;

@@ -132,9 +132,9 @@ class nsSVGSVGElement : public nsSVGSVGElementBase,
 
 protected:
   friend nsresult NS_NewSVGSVGElement(nsIContent **aResult,
-                                      already_AddRefed<nsINodeInfo> aNodeInfo,
-                                      PRUint32 aFromParser);
-  nsSVGSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo, PRUint32 aFromParser);
+                                      nsINodeInfo *aNodeInfo,
+                                      PRBool aFromParser);
+  nsSVGSVGElement(nsINodeInfo* aNodeInfo, PRBool aFromParser);
   
 public:
 
@@ -202,6 +202,7 @@ public:
   
   // nsSVGSVGElement methods:
   float GetLength(PRUint8 mCtxType);
+  float GetMMPerPx(PRUint8 mCtxType = 0);
 
   // public helpers:
   gfxMatrix GetViewBoxTransform();
@@ -217,7 +218,6 @@ public:
     mViewportHeight = aSize.height;
   }
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   // nsSVGElement overrides
   PRBool IsEventName(nsIAtom* aName);
@@ -285,6 +285,8 @@ protected:
   // flag this as an inner <svg> to save the overhead of GetCtx calls?
   // XXXjwatt our frame should probably reset these when it's destroyed.
   float mViewportWidth, mViewportHeight;
+
+  float mCoordCtxMmPerPx;
 
 #ifdef MOZ_SMIL
   // The time container for animations within this SVG document fragment. Set

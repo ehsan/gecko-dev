@@ -62,18 +62,19 @@ nsresult
 nsSMILMappedAttribute::ValueFromString(const nsAString& aStr,
                                        const nsISMILAnimationElement* aSrcElement,
                                        nsSMILValue& aValue,
-                                       PRBool& aPreventCachingOfSandwich) const
+                                       PRBool& aCanCache) const
 {
   NS_ENSURE_TRUE(IsPropertyAnimatable(mPropID), NS_ERROR_FAILURE);
 
-  nsSMILCSSValueType::ValueFromString(mPropID, mElement, aStr, aValue);
+  nsSMILCSSValueType::ValueFromString(mPropID, mElement, aStr,
+                                      PR_TRUE, aValue);
   if (aValue.IsNull()) {
     return NS_ERROR_FAILURE;
   }
 
   // XXXdholbert: For simplicity, just assume that all CSS values have to
   // reparsed every sample. See note in nsSMILCSSProperty::ValueFromString.
-  aPreventCachingOfSandwich = PR_TRUE;
+  aCanCache = PR_FALSE;
   return NS_OK;
 }
 
@@ -86,8 +87,8 @@ nsSMILMappedAttribute::GetBaseValue() const
                                      baseStringValue);
   nsSMILValue baseValue;
   if (success) {
-    nsSMILCSSValueType::ValueFromString(mPropID, mElement,
-                                        baseStringValue, baseValue);
+    nsSMILCSSValueType::ValueFromString(mPropID, mElement, baseStringValue,
+                                        PR_TRUE, baseValue);
   } else {
     // Attribute is unset -- use computed value.
     // FIRST: Temporarily clear animated value, to make sure it doesn't pollute
@@ -143,7 +144,12 @@ void
 nsSMILMappedAttribute::ClearAnimValue()
 {
   nsRefPtr<nsIAtom> attrName = GetAttrNameAtom();
-  mElement->DeleteProperty(SMIL_MAPPED_ATTR_ANIMVAL, attrName);
+  nsresult rv = mElement->DeleteProperty(SMIL_MAPPED_ATTR_ANIMVAL, attrName);
+  if (NS_FAILED(rv)) {
+    // XXXdholbert Can this ever happen? Leaving this warning for now, to
+    // see if we ever trigger this.
+    NS_WARNING("couldn't clear animated value (perhaps it wasn't set?)");
+  }
   FlushChangesToTargetAttr();
 }
 
@@ -157,9 +163,9 @@ nsSMILMappedAttribute::FlushChangesToTargetAttr() const
 
   // Request animation restyle
   if (doc) {
-    nsIPresShell* shell = doc->GetShell();
+    nsIPresShell* shell = doc->GetPrimaryShell();
     if (shell) {
-      shell->RestyleForAnimation(mElement, eRestyle_Self);
+      shell->RestyleForAnimation(mElement);
     }
   }
 }

@@ -89,11 +89,6 @@ typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINSHUTDOWN) (void);
 namespace mozilla {
 namespace plugins {
 
-#ifdef MOZ_WIDGET_QT
-class NestedLoopTimer;
-static const int kNestedLoopDetectorIntervalMs = 90;
-#endif
-
 class PluginScriptableObjectChild;
 class PluginInstanceChild;
 
@@ -193,29 +188,11 @@ public:
     static NPUTF8* NP_CALLBACK NPN_UTF8FromIdentifier(NPIdentifier aIdentifier);
     static int32_t NP_CALLBACK NPN_IntFromIdentifier(NPIdentifier aIdentifier);
 
-#ifdef OS_MACOSX
-    void ProcessNativeEvents();
-    
-    void PluginShowWindow(uint32_t window_id, bool modal, CGRect r) {
-        SendPluginShowWindow(window_id, modal, r.origin.x, r.origin.y, r.size.width, r.size.height);
-    }
-
-    void PluginHideWindow(uint32_t window_id) {
-        SendPluginHideWindow(window_id);
-    }
-#endif
-
 private:
     bool InitGraphics();
 #if defined(MOZ_WIDGET_GTK2)
     static gboolean DetectNestedEventLoop(gpointer data);
     static gboolean ProcessBrowserEvents(gpointer data);
-
-    NS_OVERRIDE
-    virtual void EnteredCxxStack();
-    NS_OVERRIDE
-    virtual void ExitedCxxStack();
-#elif defined(MOZ_WIDGET_QT)
 
     NS_OVERRIDE
     virtual void EnteredCxxStack();
@@ -277,8 +254,6 @@ private:
     // MessagePumpForUI.
     int mTopLoopDepth;
 #  endif
-#elif defined (MOZ_WIDGET_QT)
-    NestedLoopTimer *mNestedLoopTimerObject;
 #endif
 
     struct NPObjectData : public nsPtrHashKey<NPObject>
@@ -348,13 +323,9 @@ private:
     static LRESULT CALLBACK NestedInputEventHook(int code,
                                                  WPARAM wParam,
                                                  LPARAM lParam);
-    static LRESULT CALLBACK CallWindowProcHook(int code,
-                                               WPARAM wParam,
-                                               LPARAM lParam);
-    void SetEventHooks();
-    void ResetEventHooks();
+    void SetNestedInputEventHook();
+    void ResetNestedInputEventHook();
     HHOOK mNestedEventHook;
-    HHOOK mGlobalCallWndProcHook;
 #endif
 };
 

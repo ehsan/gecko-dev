@@ -54,11 +54,10 @@
 #ifndef nsIPresShell_h___
 #define nsIPresShell_h___
 
-#include "nsTHashtable.h"
-#include "nsHashKeys.h"
 #include "nsISupports.h"
 #include "nsQueryFrame.h"
 #include "nsCoord.h"
+#include "nsRect.h"
 #include "nsColor.h"
 #include "nsEvent.h"
 #include "nsCompatibility.h"
@@ -66,7 +65,6 @@
 #include "mozFlushType.h"
 #include "nsWeakReference.h"
 #include <stdio.h> // for FILE definition
-#include "nsChangeHint.h"
 
 class nsIContent;
 class nsIDocument;
@@ -74,7 +72,6 @@ class nsIFrame;
 class nsPresContext;
 class nsStyleSet;
 class nsIViewManager;
-class nsIView;
 class nsIRenderingContext;
 class nsIPageSequenceFrame;
 class nsAString;
@@ -84,7 +81,7 @@ class nsFrameManager;
 class nsILayoutHistoryState;
 class nsIReflowCallback;
 class nsIDOMNode;
-class nsIntRegion;
+class nsIRegion;
 class nsIStyleSheet;
 class nsCSSFrameConstructor;
 class nsISelection;
@@ -96,26 +93,9 @@ class gfxContext;
 class nsIDOMEvent;
 class nsDisplayList;
 class nsDisplayListBuilder;
-class nsPIDOMWindow;
-struct nsPoint;
-struct nsIntPoint;
-struct nsRect;
-struct nsIntRect;
-class nsRefreshDriver;
-class nsARefreshObserver;
 
 typedef short SelectionType;
-typedef PRUint64 nsFrameState;
-
-namespace mozilla {
-namespace dom {
-class Element;
-} // namespace dom
-
-namespace layers{
-class LayerManager;
-} // namespace layers
-} // namespace mozilla
+typedef PRUint32 nsFrameState;
 
 // Flags to pass to SetCapturingContent
 //
@@ -139,8 +119,8 @@ typedef struct CapturingContentInfo {
 } CapturingContentInfo;
 
 #define NS_IPRESSHELL_IID     \
-  { 0xe63a350c, 0x4e04, 0x4056, \
-    { 0x8d, 0xa0, 0x51, 0xcc, 0x55, 0x68, 0x68, 0x42 } }
+{ 0x84f1a428, 0x6bbe, 0x4958, \
+  { 0xa1, 0x08, 0x8a, 0xe0, 0x78, 0xb8, 0x63, 0xf4 } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -193,9 +173,6 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIPresShell_base, NS_IPRESSHELL_IID)
 
 class nsIPresShell : public nsIPresShell_base
 {
-protected:
-  typedef mozilla::layers::LayerManager LayerManager;
-
 public:
   virtual NS_HIDDEN_(nsresult) Init(nsIDocument* aDocument,
                                    nsPresContext* aPresContext,
@@ -447,9 +424,8 @@ public:
    */
   virtual NS_HIDDEN_(nsresult) RecreateFramesFor(nsIContent* aContent) = 0;
 
-  void PostRecreateFramesFor(mozilla::dom::Element* aElement);
-  void RestyleForAnimation(mozilla::dom::Element* aElement,
-                           nsRestyleHint aHint);
+  void PostRecreateFramesFor(nsIContent* aContent);
+  void RestyleForAnimation(nsIContent* aContent);
 
   /**
    * Determine if it is safe to flush all pending notifications
@@ -479,11 +455,11 @@ public:
   virtual NS_HIDDEN_(void) ClearFrameRefs(nsIFrame* aFrame) = 0;
 
   /**
-   * Get a reference rendering context. This is a context that should not
-   * be rendered to, but is suitable for measuring text and performing
-   * other non-rendering operations.
+   * Given a frame, create a rendering context suitable for use with
+   * the frame.
    */
-  virtual already_AddRefed<nsIRenderingContext> GetReferenceRenderingContext() = 0;
+  virtual NS_HIDDEN_(nsresult) CreateRenderingContext(nsIFrame *aFrame,
+                                                      nsIRenderingContext** aContext) = 0;
 
   /**
    * Informs the pres shell that the document is now at the anchor with
@@ -838,9 +814,6 @@ public:
    * instead of rendering using the appropriate scaling). It may also
    * slow everything down if the area rendered does not correspond to the
    * normal visible area of the window.
-   *   set RENDER_ASYNC_DECODE_IMAGES to avoid having images synchronously
-   * decoded during rendering.
-   * (by default images decode synchronously with RenderDocument)
    * @param aBackgroundColor a background color to render onto
    * @param aRenderedContext the gfxContext to render to. We render so that
    * one CSS pixel in the source document is rendered to one unit in the current
@@ -850,8 +823,7 @@ public:
     RENDER_IS_UNTRUSTED = 0x01,
     RENDER_IGNORE_VIEWPORT_SCROLLING = 0x02,
     RENDER_CARET = 0x04,
-    RENDER_USE_WIDGET_LAYERS = 0x08,
-    RENDER_ASYNC_DECODE_IMAGES = 0x10
+    RENDER_USE_WIDGET_LAYERS = 0x08
   };
   virtual NS_HIDDEN_(nsresult) RenderDocument(const nsRect& aRect, PRUint32 aFlags,
                                               nscolor aBackgroundColor,
@@ -859,12 +831,12 @@ public:
 
   /**
    * Renders a node aNode to a surface and returns it. The aRegion may be used
-   * to clip the rendering. This region is measured in CSS pixels from the
+   * to clip the rendering. This region is measured in device pixels from the
    * edge of the presshell area. The aPoint, aScreenRect and aSurface
    * arguments function in a similar manner as RenderSelection.
    */
   virtual already_AddRefed<gfxASurface> RenderNode(nsIDOMNode* aNode,
-                                                   nsIntRegion* aRegion,
+                                                   nsIRegion* aRegion,
                                                    nsIntPoint& aPoint,
                                                    nsIntRect* aScreenRect) = 0;
 
@@ -944,32 +916,16 @@ public:
    * Add a solid color item to the bottom of aList with frame aFrame and
    * bounds aBounds. Checks first if this needs to be done by checking if
    * aFrame is a canvas frame (if aForceDraw is true then this check is
-   * skipped). aBackstopColor is composed behind the background color of
+   * skipped). If aBounds is null (the default) then the bounds will be derived
+   * from the frame. aBackstopColor is composed behind the background color of
    * the canvas, it is transparent by default.
    */
   virtual nsresult AddCanvasBackgroundColorItem(nsDisplayListBuilder& aBuilder,
                                                 nsDisplayList& aList,
                                                 nsIFrame* aFrame,
-                                                const nsRect& aBounds,
+                                                nsRect* aBounds = nsnull,
                                                 nscolor aBackstopColor = NS_RGBA(0,0,0,0),
                                                 PRBool aForceDraw = PR_FALSE) = 0;
-
-  /**
-   * Add a solid color item to the bottom of aList with frame aFrame and
-   * bounds aBounds representing the dark grey background behind the page of a
-   * print preview presentation.
-   */
-  virtual nsresult AddPrintPreviewBackgroundItem(nsDisplayListBuilder& aBuilder,
-                                                 nsDisplayList& aList,
-                                                 nsIFrame* aFrame,
-                                                 const nsRect& aBounds) = 0;
-
-  /**
-   * Computes the backstop color for the view: transparent if in a transparent
-   * widget, otherwise the PresContext default background color. This color is
-   * only visible if the contents of the view as a whole are translucent.
-   */
-  virtual nscolor ComputeBackstopColor(nsIView* aDisplayRoot) = 0;
 
   void ObserveNativeAnonMutationsForPrint(PRBool aObserve)
   {
@@ -978,13 +934,6 @@ public:
   PRBool ObservesNativeAnonMutationsForPrint()
   {
     return mObservesMutationsForPrint;
-  }
-
-  virtual nsresult SetIsActive(PRBool aIsActive) = 0;
-
-  PRBool IsActive()
-  {
-    return mIsActive;
   }
 
   // mouse capturing
@@ -1035,64 +984,7 @@ public:
     return gCaptureInfo.mPreventDrag && gCaptureInfo.mContent;
   }
 
-  /**
-   * Keep track of how many times this presshell has been rendered to
-   * a window.
-   */
-  PRUint64 GetPaintCount() { return mPaintCount; }
-  void IncrementPaintCount() { ++mPaintCount; }
-
-  /**
-   * Get the root DOM window of this presShell.
-   */
-  virtual already_AddRefed<nsPIDOMWindow> GetRootWindow() = 0;
-
-  /**
-   * Get the layer manager for the widget of the root view, if it has
-   * one.
-   */
-  virtual LayerManager* GetLayerManager() = 0;
-
-  /**
-   * Refresh observer management.
-   */
 protected:
-  virtual PRBool AddRefreshObserverExternal(nsARefreshObserver* aObserver,
-                                            mozFlushType aFlushType);
-  PRBool AddRefreshObserverInternal(nsARefreshObserver* aObserver,
-                                    mozFlushType aFlushType);
-  virtual PRBool RemoveRefreshObserverExternal(nsARefreshObserver* aObserver,
-                                               mozFlushType aFlushType);
-  PRBool RemoveRefreshObserverInternal(nsARefreshObserver* aObserver,
-                                       mozFlushType aFlushType);
-public:
-  PRBool AddRefreshObserver(nsARefreshObserver* aObserver,
-                            mozFlushType aFlushType) {
-#ifdef _IMPL_NS_LAYOUT
-    return AddRefreshObserverInternal(aObserver, aFlushType);
-#else
-    return AddRefreshObserverExternal(aObserver, aFlushType);
-#endif
-  }
-
-  PRBool RemoveRefreshObserver(nsARefreshObserver* aObserver,
-                               mozFlushType aFlushType) {
-#ifdef _IMPL_NS_LAYOUT
-    return RemoveRefreshObserverInternal(aObserver, aFlushType);
-#else
-    return RemoveRefreshObserverExternal(aObserver, aFlushType);
-#endif
-  }
-
-  /**
-   * Initialize and shut down static variables.
-   */
-  static void InitializeStatics();
-  static void ReleaseStatics();
-
-protected:
-  friend class nsRefreshDriver;
-
   // IMPORTANT: The ownership implicit in the following member variables
   // has been explicitly checked.  If you add any members to this class,
   // please make the ownership explicit (pinkerton, scc).
@@ -1102,7 +994,7 @@ protected:
   nsIDocument*              mDocument;      // [STRONG]
   nsPresContext*            mPresContext;   // [STRONG]
   nsStyleSet*               mStyleSet;      // [OWNS]
-  nsCSSFrameConstructor*    mFrameConstructor; // [OWNS]
+  nsCSSFrameConstructor*    mFrameConstructor; // [STRONG]
   nsIViewManager*           mViewManager;   // [WEAK] docViewer owns it so I don't have to
   nsFrameSelection*         mSelection;
   nsFrameManagerBase        mFrameManager;  // [OWNS]
@@ -1112,10 +1004,6 @@ protected:
   nsIFrame*                 mDrawEventTargetFrame;
 #endif
 
-  // Count of the number of times this presshell has been painted to
-  // a window
-  PRUint64                  mPaintCount;
-
   PRInt16                   mSelectionFlags;
 
   PRPackedBool              mStylesHaveChanged;
@@ -1124,8 +1012,6 @@ protected:
   PRPackedBool              mIsReflowing;
   PRPackedBool              mPaintingSuppressed;  // For all documents we initially lock down painting.
   PRPackedBool              mIsThemeSupportDisabled;  // Whether or not form controls should use nsITheme in this shell.
-  PRPackedBool              mIsActive;
-  PRPackedBool              mFrozen;
 
 #ifdef ACCESSIBILITY
   /**
@@ -1141,24 +1027,11 @@ protected:
 
   PRPackedBool              mObservesMutationsForPrint;
 
-  PRPackedBool              mReflowScheduled; // If true, we have a reflow
-                                              // scheduled. Guaranteed to be
-                                              // false if mReflowContinueTimer
-                                              // is non-null.
-
-  PRPackedBool              mSuppressInterruptibleReflows;
-
   // A list of weak frames. This is a pointer to the last item in the list.
   nsWeakFrame*              mWeakFrames;
 
   // Most recent canvas background color.
   nscolor                   mCanvasBackgroundColor;
-
-  // Live pres shells, for memory and other tracking
-  typedef nsPtrHashKey<nsIPresShell> PresShellPtrKey;
-  static nsTHashtable<PresShellPtrKey> *sLiveShells;
-
-  static nsIContent* gKeyDownTarget;
 };
 
 /**

@@ -76,7 +76,7 @@
           button.style.visibility = "hidden";
         } else {
           var newLabel = button.getAttribute("label2");
-          button.textContent = newLabel;
+          button.setAttribute("label", newLabel);
           buttonClicked = true;
         }
       }
@@ -85,7 +85,7 @@
     <style type="text/css"><![CDATA[
       #errorPageContainer {
         background: url('chrome://browser/content/aboutRobots-icon.png') left 0 no-repeat -moz-Field;
-        background-origin: content-box;
+        -moz-background-origin: content;
       }
 
       #errorTrailerDescText {
@@ -107,15 +107,15 @@
 
     <!-- PAGE CONTAINER (for styling purposes only) -->
     <div id="errorPageContainer">
-
+    
       <!-- Error Title -->
       <div id="errorTitle">
         <h1 id="errorTitleText">&robots.errorTitleText;</h1>
       </div>
-
+      
       <!-- LONG CONTENT (the section most likely to require scrolling) -->
       <div id="errorLongContent">
-
+      
         <!-- Short Description -->
         <div id="errorShortDesc">
           <p id="errorShortDescText">&robots.errorShortDescText;</p>
@@ -139,9 +139,11 @@
       </div>
 
       <!-- Button -->
-      <button id="errorTryAgain"
-              label2="&robots.dontpress;"
-              onclick="robotButton();">&retry.label;</button>
+      <xul:button xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+                  id="errorTryAgain"
+                  label="&retry.label;"
+                  label2="&robots.dontpress;"
+                  oncommand="robotButton();" />
 
       <img src="chrome://browser/content/aboutRobots-widget-left.png"
            style="position: absolute; bottom: -12px; left: -10px;"/>

@@ -59,7 +59,9 @@ tier_platform_dirs += modules/zlib
 endif
 
 ifndef WINCE
+ifneq (,$(MOZ_XPINSTALL))
 tier_platform_dirs += modules/libreg
+endif
 endif
 
 tier_platform_dirs += \
@@ -104,7 +106,12 @@ endif
 #
 
 ifdef MOZ_IPC
-tier_platform_dirs += ipc js/ipc js/jetpack
+tier_platform_dirs += ipc
+else
+# Include fake mozilla-runtime so that unify has something to unify.
+ifeq ($(OS_ARCH)_$(TARGET_CPU),Darwin_powerpc)
+tier_platform_dirs += ipc/app/fake
+endif
 endif
 
 tier_platform_dirs += \
@@ -142,23 +149,11 @@ ifdef MOZ_JSDEBUGGER
 tier_platform_dirs += js/jsd
 endif
 
-ifdef MOZ_VORBIS
-tier_platform_dirs += \
-		media/libvorbis \
-		$(NULL)
-endif
-
-ifdef MOZ_WEBM
-tier_platform_dirs += \
-		media/libnestegg \
-		media/libvpx \
-		$(NULL)
-endif
-
 ifdef MOZ_OGG
 tier_platform_dirs += \
 		media/libogg \
 		media/libtheora \
+		media/libvorbis \
 		$(NULL)
 endif
 
@@ -200,7 +195,7 @@ endif
 # "toolkit" - xpfe & toolkit
 #
 
-tier_platform_dirs += profile
+tier_platform_dirs += chrome profile
 
 # This must preceed xpfe
 ifdef MOZ_JPROF
@@ -218,6 +213,10 @@ tier_platform_dirs	+= extensions/spellcheck
 endif
 
 tier_platform_dirs	+= toolkit
+
+ifdef MOZ_XPINSTALL
+tier_platform_dirs     +=  xpinstall
+endif
 
 ifdef MOZ_PSM
 tier_platform_dirs	+= security/manager
@@ -238,10 +237,6 @@ ifndef BUILD_STATIC_LIBS
 ifneq (,$(MOZ_ENABLE_GTK2))
 tier_platform_dirs += embedding/browser/gtk
 endif
-endif
-
-ifdef MOZ_ENABLE_LIBXUL
-tier_platform_dirs += startupcache
 endif
 
 ifndef BUILD_STATIC_LIBS
@@ -275,15 +270,7 @@ ifdef MOZ_MAPINFO
 tier_platform_dirs	+= tools/codesighs
 endif
 
-ifdef MOZ_SERVICES_SYNC
-tier_platform_dirs += services/crypto
-tier_platform_dirs += services/sync
-endif
-
 ifdef ENABLE_TESTS
-tier_platform_dirs += testing/mochitest
-tier_platform_dirs += testing/xpcshell 
-tier_platform_dirs += testing/mozmill
-tier_platform_dirs += testing/tools/screenshot
+tier_platform_dirs	+= testing/mochitest
 endif
 

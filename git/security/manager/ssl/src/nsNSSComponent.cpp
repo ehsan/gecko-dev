@@ -120,10 +120,6 @@
 #include "secerr.h"
 #include "sslerr.h"
 
-#ifdef MOZ_IPC
-#include "nsXULAppAPI.h"
-#endif
-
 #ifdef XP_WIN
 #include "nsILocalFileWin.h"
 #endif
@@ -287,13 +283,6 @@ nsTokenEventRunnable::Run()
 // creating any other components.
 PRBool EnsureNSSInitialized(EnsureNSSOperator op)
 {
-#ifdef MOZ_IPC
-  if (GeckoProcessType_Default != XRE_GetProcessType()) {
-    NS_ERROR("Trying to initialize PSM/NSS in a non-chrome process!");
-    return PR_FALSE;
-  }
-#endif
-
   static PRBool loading = PR_FALSE;
   static PRInt32 haveLoaded = 0;
 
@@ -1719,13 +1708,6 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
       SSL_OptionSetDefault(SSL_ENABLE_RENEGOTIATION, 
         enabled ? SSL_RENEGOTIATE_UNRESTRICTED : SSL_RENEGOTIATE_REQUIRES_XTN);
 
-      mPrefBranch->GetBoolPref("security.ssl.enable_compression", &enabled);
-      SSL_OptionSetDefault(SSL_ENABLE_DEFLATE, enabled);
-#ifdef SSL_ENABLE_FALSE_START // Requires NSS 3.12.8
-      mPrefBranch->GetBoolPref("security.ssl.enable_false_start", &enabled);
-      SSL_OptionSetDefault(SSL_ENABLE_FALSE_START, enabled);
-#endif
-
       // Disable any ciphers that NSS might have enabled by default
       for (PRUint16 i = 0; i < SSL_NumImplementedCiphers; ++i)
       {
@@ -1897,10 +1879,6 @@ nsNSSComponent::Init()
   PRBool enabled = PR_FALSE;
   mPrefBranch->GetBoolPref("security.ssl.treat_unsafe_negotiation_as_broken", &enabled);
   nsSSLIOLayerHelpers::setTreatUnsafeNegotiationAsBroken(enabled);
-
-  PRInt32 warnLevel = 1;
-  mPrefBranch->GetIntPref("security.ssl.warn_missing_rfc5746", &warnLevel);
-  nsSSLIOLayerHelpers::setWarnLevelMissingRFC5746(warnLevel);
   
   mClientAuthRememberService = new nsClientAuthRememberService;
   if (mClientAuthRememberService)
@@ -2249,19 +2227,6 @@ nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic,
     } else if (prefName.Equals("security.ssl.treat_unsafe_negotiation_as_broken")) {
       mPrefBranch->GetBoolPref("security.ssl.treat_unsafe_negotiation_as_broken", &enabled);
       nsSSLIOLayerHelpers::setTreatUnsafeNegotiationAsBroken(enabled);
-    } else if (prefName.Equals("security.ssl.warn_missing_rfc5746")) {
-      PRInt32 warnLevel = 1;
-      mPrefBranch->GetIntPref("security.ssl.warn_missing_rfc5746", &warnLevel);
-      nsSSLIOLayerHelpers::setWarnLevelMissingRFC5746(warnLevel);
-    } else if (prefName.Equals("security.ssl.enable_compression")) {
-      mPrefBranch->GetBoolPref("security.ssl.enable_compression", &enabled);
-      SSL_OptionSetDefault(SSL_ENABLE_DEFLATE, enabled);
-      clearSessionCache = PR_TRUE;
-#ifdef SSL_ENABLE_FALSE_START // Requires NSS 3.12.8
-    } else if (prefName.Equals("security.ssl.enable_false_start")) {
-      mPrefBranch->GetBoolPref("security.ssl.enable_false_start", &enabled);
-      SSL_OptionSetDefault(SSL_ENABLE_FALSE_START, enabled);
-#endif
     } else if (prefName.Equals("security.OCSP.enabled")
                || prefName.Equals("security.OCSP.require")) {
       setOCSPOptions(mPrefBranch);
@@ -2798,7 +2763,7 @@ nsCryptoHash::UpdateFromStream(nsIInputStream *data, PRUint32 len)
   
   while(NS_SUCCEEDED(rv) && len>0)
   {
-    readLimit = NS_MIN(PRUint32(NS_CRYPTO_HASH_BUFFER_SIZE), len);
+    readLimit = PR_MIN(NS_CRYPTO_HASH_BUFFER_SIZE, len);
     
     rv = data->Read(buffer, readLimit, &read);
     
@@ -2990,7 +2955,7 @@ NS_IMETHODIMP nsCryptoHMAC::UpdateFromStream(nsIInputStream *aStream, PRUint32 a
   
   while(NS_SUCCEEDED(rv) && aLen > 0)
   {
-    readLimit = NS_MIN(PRUint32(NS_CRYPTO_HASH_BUFFER_SIZE), aLen);
+    readLimit = PR_MIN(NS_CRYPTO_HASH_BUFFER_SIZE, aLen);
     
     rv = aStream->Read(buffer, readLimit, &read);
     if (read == 0)

@@ -54,17 +54,16 @@ namespace mozilla {
 namespace plugins {
 //-----------------------------------------------------------------------------
 
-class PluginProcessParent : public mozilla::ipc::GeckoChildProcessHost
+class PluginProcessParent : mozilla::ipc::GeckoChildProcessHost
 {
 public:
     PluginProcessParent(const std::string& aPluginFilePath);
     ~PluginProcessParent();
 
     /**
-     * Synchronously launch the plugin process. If the process fails to launch
-     * after timeoutMs, this method will return false.
+     * Synchronously launch the plugin process.
      */
-    bool Launch(PRInt32 timeoutMs);
+    bool Launch();
 
     void Delete();
 

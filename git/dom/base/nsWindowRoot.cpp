@@ -56,7 +56,7 @@
 #include "nsGUIEvent.h"
 #include "nsGlobalWindow.h"
 #include "nsFocusManager.h"
-#include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMNSHTMLInputElement.h"
 #include "nsIDOMNSHTMLTextAreaElement.h"
 #include "nsIControllers.h"
 
@@ -80,8 +80,7 @@ nsWindowRoot::~nsWindowRoot()
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_3(nsWindowRoot, mListenerManager, mPopupNode,
-                           mParent)
+NS_IMPL_CYCLE_COLLECTION_2(nsWindowRoot, mListenerManager, mPopupNode)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsWindowRoot)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMEventTarget)
@@ -238,7 +237,6 @@ nsWindowRoot::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   aVisitor.mForceContentDispatch = PR_TRUE; //FIXME! Bug 329119
   // To keep mWindow alive
   aVisitor.mItemData = static_cast<nsISupports *>(mWindow);
-  aVisitor.mParentTarget = mParent;
   return NS_OK;
 }
 
@@ -292,7 +290,7 @@ nsWindowRoot::GetControllers(nsIControllers** aResult)
     if (htmlTextArea)
       return htmlTextArea->GetControllers(aResult);
 
-    nsCOMPtr<nsIDOMHTMLInputElement> htmlInputElement =
+    nsCOMPtr<nsIDOMNSHTMLInputElement> htmlInputElement =
       do_QueryInterface(focusedContent);
     if (htmlInputElement)
       return htmlInputElement->GetControllers(aResult);
@@ -355,10 +353,10 @@ nsWindowRoot::GetControllerForCommand(const char * aCommand,
   return NS_OK;
 }
 
-nsIDOMNode*
-nsWindowRoot::GetPopupNode()
+void
+nsWindowRoot::GetPopupNode(nsIDOMNode** aNode)
 {
-  return mPopupNode;
+  NS_IF_ADDREF(*aNode = mPopupNode);
 }
 
 void

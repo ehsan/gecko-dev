@@ -45,38 +45,21 @@
  *
  * For more information on this interface please see
  * http://www.w3.org/TR/DOM-Level-2-HTML/
+ *
+ * @status FROZEN
  */
 
-interface nsIDOMValidityState;
-
-[scriptable, uuid(d76a7412-f70b-43fe-becb-d30dac13cc7b)]
+[scriptable, uuid(a6cf9095-15b3-11d2-932e-00805f8add32)]
 interface nsIDOMHTMLButtonElement : nsIDOMHTMLElement
 {
-           attribute boolean               autofocus;
-           attribute boolean               disabled;
   readonly attribute nsIDOMHTMLFormElement form;
-           attribute DOMString             formAction;
-           attribute DOMString             formEnctype;
-           attribute DOMString             formMethod;
-           attribute DOMString             formTarget;
-
-           attribute DOMString             name;
-           attribute DOMString             type;
-           attribute DOMString             value;
-
-           
            attribute DOMString             accessKey;
+           attribute boolean               disabled;
+           attribute DOMString             name;
            attribute long                  tabIndex;
-  void                      blur();
-  void                      focus();
-  void                      click();
-
-  // The following lines are parte of the constraint validation API, see:
-  // http://dev.w3.org/html5/spec/forms.html#the-constraint-validation-api
-  readonly attribute boolean             willValidate;
-  readonly attribute nsIDOMValidityState validity;
-  readonly attribute DOMString           validationMessage;
-  boolean checkValidity();
-  void setCustomValidity(in DOMString error);
+  // The scriptable version of type is writable and lives on
+  // nsIDOMNSHTMLButtonElement (have to do it this way because this
+  // interface is frozen and we don't want to break binary compat).
+  [noscript] readonly attribute DOMString  type;
+           attribute DOMString             value;
 };
-

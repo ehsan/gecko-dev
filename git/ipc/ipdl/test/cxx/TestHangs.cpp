@@ -19,7 +19,7 @@ namespace _ipdltest {
 //-----------------------------------------------------------------------------
 // parent
 
-TestHangsParent::TestHangsParent() : mDetectedHang(false)
+TestHangsParent::TestHangsParent() : mFramesToGo(2), mDetectedHang(false)
 {
     MOZ_COUNT_CTOR(TestHangsParent);
 }
@@ -90,7 +90,7 @@ TestHangsParent::ShouldContinueFromReplyTimeout()
 bool
 TestHangsParent::AnswerStackFrame()
 {
-    if (PTestHangs::HANG != state()) {
+    if (--mFramesToGo) {
         if (CallStackFrame())
             fail("should have timed out!");
     }

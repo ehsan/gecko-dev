@@ -37,58 +37,45 @@
 // Test to make sure that the visited page titles do not get updated inside the
 // private browsing mode.
 
-Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/PlacesUtils.jsm");
-
 function do_test()
 {
   let pb = Cc[PRIVATEBROWSING_CONTRACT_ID].
            getService(Ci.nsIPrivateBrowsingService);
+  let histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
+                getService(Ci.nsINavHistoryService);
+  let bhist = histsvc.QueryInterface(Ci.nsIBrowserHistory);
 
   const TEST_URI = uri("http://mozilla.com/privatebrowsing");
   const TITLE_1 = "Title 1";
   const TITLE_2 = "Title 2";
 
-  do_test_pending();
-  waitForClearHistory(function() {
-    PlacesUtils.bhistory.addPageWithDetails(TEST_URI, TITLE_1, Date.now() * 1000);
-    do_check_eq(PlacesUtils.history.getPageTitle(TEST_URI), TITLE_1);
+  bhist.removeAllPages();
 
-    pb.privateBrowsingEnabled = true;
+  bhist.addPageWithDetails(TEST_URI, TITLE_1, Date.now() * 1000);
+  do_check_eq(histsvc.getPageTitle(TEST_URI), TITLE_1);
 
-    PlacesUtils.bhistory.addPageWithDetails(TEST_URI, TITLE_2, Date.now() * 2000);
-    do_check_eq(PlacesUtils.history.getPageTitle(TEST_URI), TITLE_1);
+  pb.privateBrowsingEnabled = true;
 
-    pb.privateBrowsingEnabled = false;
+  bhist.addPageWithDetails(TEST_URI, TITLE_2, Date.now() * 2000);
+  do_check_eq(histsvc.getPageTitle(TEST_URI), TITLE_1);
 
-    do_check_eq(PlacesUtils.history.getPageTitle(TEST_URI), TITLE_1);
+  pb.privateBrowsingEnabled = false;
 
-    pb.privateBrowsingEnabled = true;
+  do_check_eq(histsvc.getPageTitle(TEST_URI), TITLE_1);
 
-    PlacesUtils.bhistory.setPageTitle(TEST_URI, TITLE_2);
-    do_check_eq(PlacesUtils.history.getPageTitle(TEST_URI), TITLE_1);
+  pb.privateBrowsingEnabled = true;
 
-    pb.privateBrowsingEnabled = false;
+  bhist.setPageTitle(TEST_URI, TITLE_2);
+  do_check_eq(histsvc.getPageTitle(TEST_URI), TITLE_1);
 
-    do_check_eq(PlacesUtils.history.getPageTitle(TEST_URI), TITLE_1);
+  pb.privateBrowsingEnabled = false;
 
-    waitForClearHistory(do_test_finished);
-  });
+  do_check_eq(histsvc.getPageTitle(TEST_URI), TITLE_1);
+
+  bhist.removeAllPages();
 }
 
 // Support running tests on both the service itself and its wrapper
 function run_test() {
   run_test_on_all_services();
-}
-
-function waitForClearHistory(aCallback) {
-  let observer = {
-    observe: function(aSubject, aTopic, aData) {
-      Services.obs.removeObserver(this, PlacesUtils.TOPIC_EXPIRATION_FINISHED);
-      aCallback();
-    }
-  };
-  Services.obs.addObserver(observer, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
-
-  PlacesUtils.bhistory.removeAllPages();
 }

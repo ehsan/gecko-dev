@@ -220,21 +220,16 @@ nsPluginFile::nsPluginFile(nsIFile *spec)
 
 nsPluginFile::~nsPluginFile() {}
 
-nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
+nsresult nsPluginFile::LoadPlugin(PRLibrary* &outLibrary)
 {
   if (!mPlugin)
     return NS_ERROR_NULL_POINTER;
 
-  // 64-bit NSPR does not (yet) support bundles.  So in 64-bit builds we need
-  // (for now) to load the bundle's executable.  However this can cause
-  // problems:  CFBundleCreate() doesn't run the bundle's executable's
-  // initialization code, while NSAddImage() and dlopen() do run it.  So using
-  // NSPR's dyld loading mechanisms here (NSAddImage() or dlopen()) can cause
-  // a bundle's initialization code to run earlier than expected, and lead to
-  // crashes.  See bug 577967.
-#ifdef __LP64__
   char executablePath[PATH_MAX];
   executablePath[0] = '\0';
+
+  // We store the path to the plugin bundle, we need the executable path here.
+  // 64-bit NSPR does not support bundles.
   nsCAutoString bundlePath;
   mPlugin->GetNativePath(bundlePath);
   CFStringRef pathRef = ::CFStringCreateWithCString(NULL, bundlePath.get(), kCFStringEncodingUTF8);
@@ -255,15 +250,10 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
     }
     ::CFRelease(pathRef); 
   }
-#else
-  nsCAutoString bundlePath;
-  mPlugin->GetNativePath(bundlePath);
-  const char *executablePath = bundlePath.get();
-#endif
 
-  *outLibrary = PR_LoadLibrary(executablePath);
-  pLibrary = *outLibrary;
-  if (!pLibrary) {
+  outLibrary = PR_LoadLibrary(executablePath);
+  pLibrary = outLibrary;
+  if (!outLibrary) {
     return NS_ERROR_FAILURE;
   }
 #ifdef DEBUG
@@ -350,17 +340,17 @@ private:
 /**
  * Obtains all of the information currently available for this plugin.
  */
-nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
+nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info)
 {
-  *outLibrary = nsnull;
-
   nsresult rv = NS_OK;
 
   // clear out the info, except for the first field.
   memset(&info, 0, sizeof(info));
 
+  // First open up resource we can use to get plugin info.
+
 #ifndef __LP64__
-  // Try to open a resource fork in case we have to use it.
+  // Try to open a resource fork.
   nsAutoCloseResourceObject resourceObject(mPlugin);
   bool resourceOpened = resourceObject.ResourceOpened();
 #endif
@@ -428,18 +418,13 @@ nsresult nsPluginFile::GetPluginInfo(nsPluginInfo& info, PRLibrary **outLibrary)
     ParsePlistPluginInfo(info, bundle);
     ::CFRelease(bundle);
     if (info.fVariantCount > 0)
-      return NS_OK;
+      return NS_OK;    
   }
 
   // It's possible that our plugin has 2 entry points that'll give us mime type
   // info. Quicktime does this to get around the need of having admin rights to
   // change mime info in the resource fork. We need to use this info instead of
   // the resource. See bug 113464.
-
-  // Sadly we have to load the library for this to work.
-  rv = LoadPlugin(outLibrary);
-  if (NS_FAILED(rv))
-    return rv;
 
   // Try to get data from NP_GetMIMEDescription
   if (pLibrary) {

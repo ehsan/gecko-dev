@@ -20,22 +20,10 @@ class Channel::ChannelImpl : public MessageLoopForIO::IOHandler {
  public:
   // Mirror methods of Channel, see ipc_channel.h for description.
   ChannelImpl(const std::wstring& channel_id, Mode mode, Listener* listener);
-  ~ChannelImpl() { 
-    if (pipe_ != INVALID_HANDLE_VALUE) {
-      Close();
-    }
-  }
+  ~ChannelImpl() { Close(); }
   bool Connect();
   void Close();
-#ifdef CHROMIUM_MOZILLA_BUILD
-  Listener* set_listener(Listener* listener) {
-    Listener* old = listener_;
-    listener_ = listener;
-    return old;
-  }
-#else
   void set_listener(Listener* listener) { listener_ = listener; }
-#endif
   bool Send(Message* message);
  private:
   const std::wstring PipeName(const std::wstring& channel_id) const;

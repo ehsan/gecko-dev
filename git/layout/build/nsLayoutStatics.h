@@ -39,7 +39,6 @@
 #define nsLayoutStatics_h__
 
 #include "nscore.h"
-#include "nsThreadUtils.h"
 
 // This isn't really a class, it's a namespace for static methods.
 // Documents and other objects can hold a reference to the layout static
@@ -52,38 +51,14 @@ public:
   // internally.
   static nsresult Initialize();
 
-  static void AddRef()
-  {
-    NS_ASSERTION(NS_IsMainThread(),
-                 "nsLayoutStatics reference counting must be on main thread");
-
-    NS_ASSERTION(sLayoutStaticRefcnt,
-                 "nsLayoutStatics already dropped to zero!");
-
-    ++sLayoutStaticRefcnt;
-    NS_LOG_ADDREF(&sLayoutStaticRefcnt, sLayoutStaticRefcnt,
-                  "nsLayoutStatics", 1);
-  }
-  static void Release()
-  {
-    NS_ASSERTION(NS_IsMainThread(),
-                 "nsLayoutStatics reference counting must be on main thread");
-
-    --sLayoutStaticRefcnt;
-    NS_LOG_RELEASE(&sLayoutStaticRefcnt, sLayoutStaticRefcnt,
-                   "nsLayoutStatics");
-
-    if (!sLayoutStaticRefcnt)
-      Shutdown();
-  }
+  static void AddRef();
+  static void Release();
 
 private:
   // not to be called!
   nsLayoutStatics();
 
   static void Shutdown();
-
-  static nsrefcnt sLayoutStaticRefcnt;
 };
 
 class nsLayoutStaticsRef

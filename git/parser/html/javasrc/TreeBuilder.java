@@ -59,11 +59,8 @@ import org.xml.sax.SAXParseException;
 
 public abstract class TreeBuilder<T> implements TokenHandler,
         TreeBuilderState<T> {
-    
-    /**
-     * Array version of U+FFFD.
-     */
-    private static final @NoLength char[] REPLACEMENT_CHARACTER = { '\uFFFD' };
+
+    public static final int STACK_MAX_DEPTH = 200;
     
     // Start dispatch groups
 
@@ -99,7 +96,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
 
     final static int LI = 15;
 
-    final static int LINK_OR_BASEFONT_OR_BGSOUND = 16;
+    final static int LINK = 16;
 
     final static int MATH = 17;
 
@@ -163,7 +160,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
 
     final static int EMBED_OR_IMG = 48;
 
-    final static int AREA_OR_SPACER_OR_WBR = 49;
+    final static int AREA_OR_BASEFONT_OR_BGSOUND_OR_SPACER_OR_WBR = 49;
 
     final static int DIV_OR_BLOCKQUOTE_OR_CENTER_OR_MENU = 50;
 
@@ -270,6 +267,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
     private static final int CHARSET_UNQUOTED = 11;
 
     // end pseudo enums
+
+    private final static char[] ISINDEX_PROMPT = Portability.isIndexPrompt();
 
     // [NOCPP[
 
@@ -844,11 +843,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
             needToDropLF = false;
         }
 
-        if (inForeign) {
-            accumulateCharacters(buf, start, length);
-            return;
-        }
         // optimize the most common case
+        // XXX should there be an IN FOREIGN check here?
         switch (mode) {
             case IN_BODY:
             case IN_CELL:
@@ -1211,16 +1207,6 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                 if (start < end) {
                     accumulateCharacters(buf, start, end - start);
                 }
-        }
-    }
-
-    /**
-     * @see nu.validator.htmlparser.common.TokenHandler#zeroOriginatingReplacementCharacter()
-     */
-    @Override public void zeroOriginatingReplacementCharacter()
-            throws SAXException {
-        if (inForeign || mode == TEXT) {
-            characters(REPLACEMENT_CHARACTER, 0, 1);
         }
     }
 
@@ -1786,7 +1772,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                         case MARQUEE_OR_APPLET:
                         case OBJECT:
                         case TABLE:
-                        case AREA_OR_SPACER_OR_WBR:
+                        case AREA_OR_BASEFONT_OR_BGSOUND_OR_SPACER_OR_WBR:
                         case BR:
                         case EMBED_OR_IMG:
                         case INPUT:
@@ -1809,13 +1795,11 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                         switch (group) {
                             case HTML:
                                 err("Stray \u201Chtml\u201D start tag.");
-                                if (!fragment) {
-                                    addAttributesToHtml(attributes);
-                                    attributes = null; // CPP
-                                }
+                                addAttributesToHtml(attributes);
+                                attributes = null; // CPP
                                 break starttagloop;
                             case BASE:
-                            case LINK_OR_BASEFONT_OR_BGSOUND:
+                            case LINK:
                             case META:
                             case STYLE:
                             case SCRIPT:
@@ -1825,9 +1809,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                 break inbodyloop;
                             case BODY:
                                 err("\u201Cbody\u201D start tag found but the \u201Cbody\u201D element is already open.");
-                                if (addAttributesToBody(attributes)) {
-                                    attributes = null; // CPP
-                                }
+                                addAttributesToBody(attributes);
+                                attributes = null; // CPP
                                 break starttagloop;
                             case P:
                             case DIV_OR_BLOCKQUOTE_OR_CENTER_OR_MENU:
@@ -2007,7 +1990,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                 break starttagloop;
                             case BR:
                             case EMBED_OR_IMG:
-                            case AREA_OR_SPACER_OR_WBR:
+                            case AREA_OR_BASEFONT_OR_BGSOUND_OR_SPACER_OR_WBR:
                                 reconstructTheActiveFormattingElements();
                                 // FALL THROUGH to PARAM_OR_SOURCE
                             case PARAM_OR_SOURCE:
@@ -2071,7 +2054,10 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                             prompt, 0, prompt.length);
                                     Portability.releaseArray(prompt);
                                 } else {
-                                    appendIsindexPrompt(stack[currentPtr].node);
+                                    // XXX localization
+                                    appendCharacters(stack[currentPtr].node,
+                                            TreeBuilder.ISINDEX_PROMPT, 0,
+                                            TreeBuilder.ISINDEX_PROMPT.length);
                                 }
                                 HtmlAttributes inputAttributes = new HtmlAttributes(
                                         0);
@@ -2102,6 +2088,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                 appendVoidElementToCurrentMayFoster(
                                         "http://www.w3.org/1999/xhtml",
                                         "input", inputAttributes, formPointer);
+                                // XXX localization
                                 pop(); // label
                                 appendVoidElementToCurrentMayFoster(
                                         "http://www.w3.org/1999/xhtml",
@@ -2317,10 +2304,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                         switch (group) {
                             case HTML:
                                 err("Stray \u201Chtml\u201D start tag.");
-                                if (!fragment) {
-                                    addAttributesToHtml(attributes);
-                                    attributes = null; // CPP
-                                }
+                                addAttributesToHtml(attributes);
+                                attributes = null; // CPP
                                 break starttagloop;
                             case BASE:
                             case COMMAND:
@@ -2331,7 +2316,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                 attributes = null; // CPP
                                 break starttagloop;
                             case META:
-                            case LINK_OR_BASEFONT_OR_BGSOUND:
+                            case LINK:
                                 // Fall through to IN_HEAD_NOSCRIPT
                                 break inheadloop;
                             case TITLE:
@@ -2403,12 +2388,10 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                             // XXX did Hixie really mean to omit "base"
                             // here?
                             err("Stray \u201Chtml\u201D start tag.");
-                            if (!fragment) {
-                                addAttributesToHtml(attributes);
-                                attributes = null; // CPP
-                            }
+                            addAttributesToHtml(attributes);
+                            attributes = null; // CPP
                             break starttagloop;
-                        case LINK_OR_BASEFONT_OR_BGSOUND:
+                        case LINK:
                             appendVoidElementToCurrentMayFoster(
                                     "http://www.w3.org/1999/xhtml",
                                     elementName, attributes);
@@ -2451,10 +2434,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                     switch (group) {
                         case HTML:
                             err("Stray \u201Chtml\u201D start tag.");
-                            if (!fragment) {
-                                addAttributesToHtml(attributes);
-                                attributes = null; // CPP
-                            }
+                            addAttributesToHtml(attributes);
+                            attributes = null; // CPP
                             break starttagloop;
                         case COL:
                             appendVoidElementToCurrentMayFoster(
@@ -2500,10 +2481,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                     switch (group) {
                         case HTML:
                             err("Stray \u201Chtml\u201D start tag.");
-                            if (!fragment) {
-                                addAttributesToHtml(attributes);
-                                attributes = null; // CPP
-                            }
+                            addAttributesToHtml(attributes);
+                            attributes = null; // CPP
                             break starttagloop;
                         case OPTION:
                             if (isCurrent("option")) {
@@ -2578,10 +2557,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                     switch (group) {
                         case HTML:
                             err("Stray \u201Chtml\u201D start tag.");
-                            if (!fragment) {
-                                addAttributesToHtml(attributes);
-                                attributes = null; // CPP
-                            }
+                            addAttributesToHtml(attributes);
+                            attributes = null; // CPP
                             break starttagloop;
                         default:
                             err("Stray \u201C" + name + "\u201D start tag.");
@@ -2610,10 +2587,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                     switch (group) {
                         case HTML:
                             err("Stray \u201Chtml\u201D start tag.");
-                            if (!fragment) {
-                                addAttributesToHtml(attributes);
-                                attributes = null; // CPP
-                            }
+                            addAttributesToHtml(attributes);
+                            attributes = null; // CPP
                             break starttagloop;
                         case NOFRAMES:
                             appendToCurrentNodeAndPushElement(
@@ -2702,10 +2677,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                     switch (group) {
                         case HTML:
                             err("Stray \u201Chtml\u201D start tag.");
-                            if (!fragment) {
-                                addAttributesToHtml(attributes);
-                                attributes = null; // CPP
-                            }
+                            addAttributesToHtml(attributes);
+                            attributes = null; // CPP
                             break starttagloop;
                         case HEAD:
                             /*
@@ -2748,10 +2721,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                     switch (group) {
                         case HTML:
                             err("Stray \u201Chtml\u201D start tag.");
-                            if (!fragment) {
-                                addAttributesToHtml(attributes);
-                                attributes = null; // CPP
-                            }
+                            addAttributesToHtml(attributes);
+                            attributes = null; // CPP
                             break starttagloop;
                         case BODY:
                             if (attributes.getLength() == 0) {
@@ -2784,7 +2755,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                             pop(); // head
                             attributes = null; // CPP
                             break starttagloop;
-                        case LINK_OR_BASEFONT_OR_BGSOUND:
+                        case LINK:
                             err("\u201Clink\u201D element outside \u201Chead\u201D.");
                             pushHeadPointerOntoStack();
                             appendVoidElementToCurrentMayFoster(
@@ -2856,10 +2827,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                     switch (group) {
                         case HTML:
                             err("Stray \u201Chtml\u201D start tag.");
-                            if (!fragment) {
-                                addAttributesToHtml(attributes);
-                                attributes = null; // CPP
-                            }
+                            addAttributesToHtml(attributes);
+                            attributes = null; // CPP
                             break starttagloop;
                         default:
                             err("Stray \u201C" + name + "\u201D start tag.");
@@ -3105,31 +3074,9 @@ public abstract class TreeBuilder<T> implements TokenHandler,
     public final void endTag(ElementName elementName) throws SAXException {
         needToDropLF = false;
         int eltPos;
-        int group = elementName.group;
-        @Local String name = elementName.name;
         endtagloop: for (;;) {
-            assert !inForeign || currentPtr >= 0 : "In foreign without a root element?";
-            if (inForeign
-                    && stack[currentPtr].ns != "http://www.w3.org/1999/xhtml") {
-                if (errorHandler != null && stack[currentPtr].name != name) {
-                    errNoCheck("End tag \u201C"
-                            + name
-                            + "\u201D did not match the name of the current open element (\u201C"
-                            + stack[currentPtr].popName + "\u201D).");
-                }
-                eltPos = currentPtr;
-                for (;;) {
-                    if (stack[eltPos].name == name) {
-                        while (currentPtr >= eltPos) {
-                            pop();
-                        }
-                        return;
-                    }
-                    if (stack[--eltPos].ns == "http://www.w3.org/1999/xhtml") {
-                        break;
-                    }
-                }
-            }
+            int group = elementName.group;
+            @Local String name = elementName.name;
             switch (mode) {
                 case IN_ROW:
                     switch (group) {
@@ -3394,8 +3341,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                 generateImpliedEndTags();
                                 if (errorHandler != null && !isCurrent(name)) {
                                     errNoCheck("End tag \u201C"
-                                            + name
-                                            + "\u201D seen but there were unclosed elements.");
+                                               + name
+                                               + "\u201D seen but there were unclosed elements.");
                                 }
                                 while (currentPtr >= eltPos) {
                                     pop();
@@ -3457,8 +3404,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                 err("No \u201Cli\u201D element in list scope but a \u201Cli\u201D end tag seen.");
                             } else {
                                 generateImpliedEndTagsExceptFor(name);
-                                if (errorHandler != null
-                                        && eltPos != currentPtr) {
+                                if (errorHandler != null && eltPos != currentPtr) {
                                     errNoCheck("End tag for \u201Cli\u201D seen, but there were unclosed elements.");
                                 }
                                 while (currentPtr >= eltPos) {
@@ -3475,11 +3421,10 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                         + name + "\u201D end tag seen.");
                             } else {
                                 generateImpliedEndTagsExceptFor(name);
-                                if (errorHandler != null
-                                        && eltPos != currentPtr) {
+                                if (errorHandler != null && eltPos != currentPtr) {
                                     errNoCheck("End tag for \u201C"
-                                            + name
-                                            + "\u201D seen, but there were unclosed elements.");
+                                               + name
+                                               + "\u201D seen, but there were unclosed elements.");
                                 }
                                 while (currentPtr >= eltPos) {
                                     pop();
@@ -3494,8 +3439,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                 generateImpliedEndTags();
                                 if (errorHandler != null && !isCurrent(name)) {
                                     errNoCheck("End tag \u201C"
-                                            + name
-                                            + "\u201D seen but there were unclosed elements.");
+                                               + name
+                                               + "\u201D seen but there were unclosed elements.");
                                 }
                                 while (currentPtr >= eltPos) {
                                     pop();
@@ -3517,8 +3462,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                 generateImpliedEndTags();
                                 if (errorHandler != null && !isCurrent(name)) {
                                     errNoCheck("End tag \u201C"
-                                            + name
-                                            + "\u201D seen but there were unclosed elements.");
+                                               + name
+                                               + "\u201D seen but there were unclosed elements.");
                                 }
                                 while (currentPtr >= eltPos) {
                                     pop();
@@ -3530,8 +3475,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                             err("End tag \u201Cbr\u201D.");
                             if (inForeign) {
                                 err("HTML start tag \u201C"
-                                        + name
-                                        + "\u201D in a foreign namespace context.");
+                                    + name
+                                    + "\u201D in a foreign namespace context.");
                                 while (stack[currentPtr].ns != "http://www.w3.org/1999/xhtml") {
                                     pop();
                                 }
@@ -3543,7 +3488,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                     elementName,
                                     HtmlAttributes.EMPTY_ATTRIBUTES);
                             break endtagloop;
-                        case AREA_OR_SPACER_OR_WBR:
+                        case AREA_OR_BASEFONT_OR_BGSOUND_OR_SPACER_OR_WBR:
                         case PARAM_OR_SOURCE:
                         case EMBED_OR_IMG:
                         case IMAGE:
@@ -3577,11 +3522,10 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                 StackNode<T> node = stack[eltPos];
                                 if (node.name == name) {
                                     generateImpliedEndTags();
-                                    if (errorHandler != null
-                                            && !isCurrent(name)) {
+                                    if (errorHandler != null && !isCurrent(name)) {
                                         errNoCheck("End tag \u201C"
-                                                + name
-                                                + "\u201D seen but there were unclosed elements.");
+                                                   + name
+                                                   + "\u201D seen but there were unclosed elements.");
                                     }
                                     while (currentPtr >= eltPos) {
                                         pop();
@@ -3767,9 +3711,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                         case HTML:
                         case BODY:
                             /*
-                             * Create an HTMLElement node with the tag name
-                             * html, in the HTML namespace. Append it to the
-                             * Document object.
+                             * Create an HTMLElement node with the tag name html, in the
+                             * HTML namespace. Append it to the Document object.
                              */
                             appendHtmlElementToDocumentAndPush();
                             /* Switch to the main mode */
@@ -3855,7 +3798,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                     mode = originalMode;
                     break endtagloop;
             }
-        } // endtagloop
+        }
         if (inForeign && !hasForeignInScope()) {
             /*
              * If, after doing so, the insertion mode is still "in foreign
@@ -4192,6 +4135,10 @@ public abstract class TreeBuilder<T> implements TokenHandler,
     }
 
     @SuppressWarnings("unchecked") private void push(StackNode<T> node) throws SAXException {
+        if (currentPtr == TreeBuilder.STACK_MAX_DEPTH) {
+            warn("Maximum depth for tree builder stack reached. Modifying document.");
+            pop();
+        }
         currentPtr++;
         if (currentPtr == stack.length) {
             StackNode<T>[] newStack = new StackNode[stack.length + 64];
@@ -4204,6 +4151,10 @@ public abstract class TreeBuilder<T> implements TokenHandler,
     }
 
     @SuppressWarnings("unchecked") private void silentPush(StackNode<T> node) throws SAXException {
+        if (currentPtr == TreeBuilder.STACK_MAX_DEPTH) {
+            warn("Maximum depth for tree builder stack reached. Modifying document.");
+            pop();
+        }
         currentPtr++;
         if (currentPtr == stack.length) {
             StackNode<T>[] newStack = new StackNode[stack.length + 64];
@@ -4519,13 +4470,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
         return 0;
     }
 
-    /**
-     * Attempt to add attribute to the body element.
-     * @param attributes the attributes
-     * @return <code>true</code> iff the attributes were added
-     * @throws SAXException
-     */
-    private boolean addAttributesToBody(HtmlAttributes attributes)
+    private void addAttributesToBody(HtmlAttributes attributes)
             throws SAXException {
         // [NOCPP[
         checkAttributes(attributes, "http://www.w3.org/1999/xhtml");
@@ -4534,10 +4479,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
             StackNode<T> body = stack[1];
             if (body.group == TreeBuilder.BODY) {
                 addAttributesToElement(body.node, attributes);
-                return true;
             }
         }
-        return false;
     }
 
     private void addAttributesToHtml(HtmlAttributes attributes)
@@ -4937,8 +4880,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
         checkAttributes(attributes, ns);
         // ]NOCPP]
         // Can't be called for custom elements
-        T elt = createElement(ns, elementName.name, attributes, fragment ? null
-                : form);
+        T elt = createElement(ns, elementName.name, attributes, form);
         StackNode<T> current = stack[currentPtr];
         if (current.fosterParenting) {
             fatal();
@@ -4959,7 +4901,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
         checkAttributes(attributes, ns);
         // ]NOCPP]
         // Can't be called for custom elements
-        T elt = createElement(ns, name, attributes, fragment ? null : form);
+        T elt = createElement(ns, name, attributes, form);
         StackNode<T> current = stack[currentPtr];
         if (current.fosterParenting) {
             fatal();
@@ -5028,7 +4970,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
         checkAttributes(attributes, ns);
         // ]NOCPP]
         // Can't be called for custom elements
-        T elt = createElement(ns, name, attributes, fragment ? null : form);
+        T elt = createElement(ns, name, attributes, form);
         StackNode<T> current = stack[currentPtr];
         appendElement(elt, current.node);
         elementPushed(ns, name, elt);
@@ -5105,8 +5047,6 @@ public abstract class TreeBuilder<T> implements TokenHandler,
     protected abstract void appendCharacters(T parent, @NoLength char[] buf,
             int start, int length) throws SAXException;
 
-    protected abstract void appendIsindexPrompt(T parent) throws SAXException;
-    
     protected abstract void appendComment(T parent, @NoLength char[] buf,
             int start, int length) throws SAXException;
 

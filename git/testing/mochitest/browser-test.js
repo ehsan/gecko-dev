@@ -45,7 +45,6 @@ function Tester(aTests, aDumper, aCallback) {
   var simpleTestScope = {};
   this._scriptLoader.loadSubScript("chrome://mochikit/content/MochiKit/packed.js", simpleTestScope);
   this._scriptLoader.loadSubScript("chrome://mochikit/content/tests/SimpleTest/SimpleTest.js", simpleTestScope);
-  this._scriptLoader.loadSubScript("chrome://mochikit/content/chrome-harness.js", simpleTestScope);
   this.SimpleTest = simpleTestScope.SimpleTest;
 }
 Tester.prototype = {
@@ -54,7 +53,6 @@ Tester.prototype = {
 
   checker: null,
   currentTestIndex: -1,
-  lastStartTime: null,
   get currentTest() {
     return this.tests[this.currentTestIndex];
   },
@@ -73,29 +71,16 @@ Tester.prototype = {
   },
 
   waitForWindowsState: function Tester_waitForWindowsState(aCallback) {
-    let timedOut = this.currentTest && this.currentTest.timedOut;
-    let baseMsg = timedOut ? "Found a {elt} after previous test timed out"
-                           : this.currentTest ? "Found an unexpected {elt} at the end of test run"
-                                              : "Found an unexpected {elt}";
-
-    if (this.currentTest && window.gBrowser && gBrowser.tabs.length > 1) {
-      while (gBrowser.tabs.length > 1) {
-        let lastTab = gBrowser.tabContainer.lastChild;
-        let msg = baseMsg.replace("{elt}", "tab") +
-                  ": " + lastTab.linkedBrowser.currentURI.spec;
-        this.currentTest.addResult(new testResult(false, msg, "", false));
-        gBrowser.removeTab(lastTab);
-      }
-    }
-
     this.dumper.dump("TEST-INFO | checking window state\n");
     let windowsEnum = this._wm.getEnumerator("navigator:browser");
     while (windowsEnum.hasMoreElements()) {
       let win = windowsEnum.getNext();
       if (win != window && !win.closed) {
-        let msg = baseMsg.replace("{elt}", "browser window");
-        if (this.currentTest)
+        let msg = "Found an unexpected browser window";
+        if (this.currentTest) {
+          msg += " at the end of test run";
           this.currentTest.addResult(new testResult(false, msg, "", false));
+        }
         else
           this.dumper.dump("TEST-UNEXPECTED-FAIL | (browser-test.js) | " + msg + "\n");
 
@@ -104,10 +89,20 @@ Tester.prototype = {
     }
 
     // Make sure the window is raised before each test.
-    let self = this;
-    this.SimpleTest.waitForFocus(function() {
-      aCallback.apply(self);
-    });
+    if (this._fm.activeWindow != window) {
+      this.dumper.dump("TEST-INFO | (browser-test.js) | Waiting for window activation...\n");
+      let self = this;
+      window.addEventListener("activate", function () {
+        window.removeEventListener("activate", arguments.callee, false);
+        setTimeout(function () {
+          aCallback.apply(self);
+        }, 0);
+      }, false);
+      window.focus();
+      return;
+    }
+
+    aCallback.apply(this);
   },
 
   finish: function Tester_finish(aSkipSummary) {
@@ -130,7 +125,6 @@ Tester.prototype = {
     }
 
     this.dumper.dump("\n*** End BrowserChrome Test Results ***\n");
-    this.dumper.dump("TEST-START | Shutdown\n");
 
     this.dumper.done();
 
@@ -141,16 +135,11 @@ Tester.prototype = {
   },
 
   observe: function Tester_observe(aConsoleMessage) {
-    try {
-      var msg = "Console message: " + aConsoleMessage.message;
-      if (this.currentTest)
-        this.currentTest.addResult(new testMessage(msg));
-      else
-        this.dumper.dump("TEST-INFO | (browser-test.js) | " + msg);
-    } catch (ex) {
-      // Swallow exception so we don't lead to another error being reported,
-      // throwing us into an infinite loop
-    }
+    var msg = "Console message: " + aConsoleMessage.message;
+    if (this.currentTest)
+      this.currentTest.addResult(new testMessage(msg));
+    else
+      this.dumper.dump("TEST-INFO | (browser-test.js) | " + msg);
   },
 
   nextTest: function Tester_nextTest() {
@@ -162,11 +151,6 @@ Tester.prototype = {
         let func = testScope.__cleanupFunctions.shift();
         func.apply(testScope);
       };
-
-      // Note the test run time
-      let time = Date.now() - this.lastStartTime;
-      let msg = "Test took " + (time / 1000) + "s to complete\n";
-      this.currentTest.addResult(new testMessage(msg));
     }
 
     // Check the window state for the current test before moving to the next one.
@@ -186,7 +170,7 @@ Tester.prototype = {
   },
 
   execTest: function Tester_execTest() {
-    this.dumper.dump("TEST-START | " + this.currentTest.path + "\n");
+    this.dumper.dump("Running " + this.currentTest.path + "...\n");
 
     // Load the tests into a testscope
     this.currentTest.scope = new testScope(this, this.currentTest);
@@ -213,7 +197,6 @@ Tester.prototype = {
                                        this.currentTest.scope);
 
       // Run the test
-      this.lastStartTime = Date.now();
       this.currentTest.scope.test();
     } catch (ex) {
       this.currentTest.addResult(new testResult(false, "Exception thrown", ex, false));
@@ -237,8 +220,7 @@ Tester.prototype = {
             setTimeout(arguments.callee, TIMEOUT_SECONDS * 1000);
           return;
         }
-        self.currentTest.addResult(new testResult(false, "Test timed out", "", false));
-        self.currentTest.timedOut = true;
+        self.currentTest.addResult(new testResult(false, "Timed out", "", false));
         self.currentTest.scope.__waitTimer = null;
         self.nextTest();
       }, TIMEOUT_SECONDS * 1000);
@@ -330,12 +312,8 @@ function testScope(aTester, aTest) {
     self.__done = false;
   };
 
-  this.waitForFocus = function test_waitForFocus(callback, targetWindow, expectBlankPage) {
-    self.SimpleTest.waitForFocus(callback, targetWindow, expectBlankPage);
-  };
-
-  this.waitForClipboard = function test_waitForClipboard(expected, setup, success, failure) {
-    self.SimpleTest.waitForClipboard(expected, setup, success, failure);
+  this.waitForFocus = function test_waitForFocus(callback, targetWindow) {
+    self.SimpleTest.waitForFocus(callback, targetWindow);
   };
 
   this.registerCleanupFunction = function test_registerCleanupFunction(aFunction) {

@@ -65,6 +65,7 @@ nsIRange.h \
 nsIRangeUtils.h \
 nsIScriptElement.h \
 nsIStyleSheetLinkingElement.h \
+nsIPrivateDOMImplementation.h \
 nsIContentSerializer.h \
 nsIHTMLToTextSink.h \
 nsIXPathEvaluatorInternal.h \
@@ -77,12 +78,6 @@ nsDOMFile.h \
 nsLineBreaker.h \
 nsReferencedElement.h \
 nsXMLNameSpaceMap.h \
-nsDOMEventTargetWrapperCache.h \
-$(NULL)
-
-EXPORTS_NAMESPACES = mozilla/dom
-
-EXPORTS_mozilla/dom = \
 Element.h \
 $(NULL)
 
@@ -95,6 +90,7 @@ SDK_XPIDLSRCS   = \
 		$(NULL)
 
 XPIDLSRCS	= \
+		nsIChromeRegistry.idl       \
 		nsIContentPolicy.idl        \
 		nsIDocumentEncoder.idl      \
 		nsIDOMFile.idl \
@@ -107,7 +103,6 @@ XPIDLSRCS	= \
 		nsIDOMParser.idl \
 		nsIDOMSerializer.idl \
 		nsISelection2.idl \
-		nsISelection3.idl \
 		nsISelectionController.idl  \
 		nsISelectionDisplay.idl  \
 		nsISelectionListener.idl  \
@@ -122,8 +117,6 @@ XPIDLSRCS	= \
 		nsIFrameLoader.idl \
 		nsIXMLHttpRequest.idl \
 		nsIContentSecurityPolicy.idl \
-		nsIFrameMessageManager.idl \
-		nsIWebSocket.idl \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk

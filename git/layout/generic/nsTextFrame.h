@@ -62,7 +62,7 @@ class PropertyProvider;
 
 // This state bit is set on frames that have some non-collapsed characters after
 // reflow
-#define TEXT_HAS_NONCOLLAPSED_CHARACTERS NS_FRAME_STATE_BIT(31)
+#define TEXT_HAS_NONCOLLAPSED_CHARACTERS 0x80000000
 
 class nsTextFrame : public nsFrame {
 public:
@@ -216,7 +216,7 @@ public:
   }
   
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
   
   virtual void MarkIntrinsicWidthsDirty();
@@ -367,11 +367,6 @@ public:
   TrimmedOffsets GetTrimmedOffsets(const nsTextFragment* aFrag,
                                    PRBool aTrimAfter);
 
-  // Similar to Reflow(), but for use from nsLineLayout
-  void ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
-                  nsIRenderingContext* aRenderingContext, PRBool aShouldBlink,
-                  nsHTMLReflowMetrics& aMetrics, nsReflowStatus& aStatus);
-
 protected:
   virtual ~nsTextFrame();
 
@@ -458,8 +453,6 @@ protected:
 
   ContentOffsets GetCharacterOffsetAtFramePointInternal(const nsPoint &aPoint,
                    PRBool aForInsertionPoint);
-
-  void ClearFrameOffsetCache();
 };
 
 #endif

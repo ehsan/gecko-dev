@@ -195,16 +195,17 @@ nsMappedAttributes::SetStyleSheet(nsHTMLStyleSheet* aSheet)
   mSheet = aSheet;  // not ref counted
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsMappedAttributes::MapRuleInfoInto(nsRuleData* aRuleData)
 {
   if (mRuleMapper) {
     (*mRuleMapper)(this, aRuleData);
   }
+  return NS_OK;
 }
 
 #ifdef DEBUG
-/* virtual */ void
+NS_IMETHODIMP
 nsMappedAttributes::List(FILE* out, PRInt32 aIndent) const
 {
   nsAutoString buffer;
@@ -227,6 +228,8 @@ nsMappedAttributes::List(FILE* out, PRInt32 aIndent) const
     fputs(NS_LossyConvertUTF16toASCII(buffer).get(), out);
     fputs("\n", out);
   }
+
+  return NS_OK;
 }
 #endif
 

@@ -49,9 +49,8 @@
 #include "nsIDocument.h"
 #include "nsICSSStyleRule.h"
 #include "nsCSSParser.h"
-#include "mozilla/css/Loader.h"
+#include "nsCSSLoader.h"
 #include "nsIDOMMutationEvent.h"
-#include "nsXULElement.h"
 
 #ifdef MOZ_SVG
 #include "nsIDOMSVGStylable.h"
@@ -70,20 +69,6 @@ nsIAtom*
 nsStyledElement::GetIDAttributeName() const
 {
   return nsGkAtoms::id;
-}
-
-nsIAtom*
-nsStyledElement::DoGetID() const
-{
-  NS_ASSERTION(HasFlag(NODE_HAS_ID), "Unexpected call");
-
-  // The nullcheck here is needed because nsGenericElement::UnsetAttr calls
-  // out to various code between removing the attribute and we get a chance to
-  // clear the NODE_HAS_ID flag.
-
-  const nsAttrValue* attr = mAttrsAndChildren.GetAttr(nsGkAtoms::id);
-
-  return attr ? attr->GetAtomValue() : nsnull;
 }
 
 const nsAttrValue*
@@ -108,43 +93,10 @@ nsStyledElement::ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
       aResult.ParseAtomArray(aValue);
       return PR_TRUE;
     }
-    if (aAttribute == nsGkAtoms::id) {
-      // Store id as an atom.  id="" means that the element has no id,
-      // not that it has an emptystring as the id.
-      RemoveFromIdTable();
-      if (aValue.IsEmpty()) {
-        UnsetFlags(NODE_HAS_ID);
-        return PR_FALSE;
-      }
-      aResult.ParseAtom(aValue);
-      SetFlags(NODE_HAS_ID);
-      AddToIdTable(aResult.GetAtomValue());
-      return PR_TRUE;
-    }
   }
 
   return nsStyledElementBase::ParseAttribute(aNamespaceID, aAttribute, aValue,
                                              aResult);
-}
-
-nsresult
-nsStyledElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                           PRBool aNotify)
-{
-  PRBool isId = PR_FALSE;
-  if (aAttribute == nsGkAtoms::id && aNameSpaceID == kNameSpaceID_None) {
-    // Have to do this before clearing flag. See RemoveFromIdTable
-    RemoveFromIdTable();
-    isId = PR_TRUE;
-  }
-  
-  nsresult rv = nsGenericElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
-
-  if (isId) {
-    UnsetFlags(NODE_HAS_ID);
-  }
-
-  return rv;
 }
 
 NS_IMETHODIMP
@@ -174,7 +126,7 @@ nsStyledElement::SetInlineStyleRule(nsICSSStyleRule* aStyleRule, PRBool aNotify)
     modification = !!mAttrsAndChildren.GetAttr(nsGkAtoms::style);
   }
 
-  nsAttrValue attrValue(aStyleRule, nsnull);
+  nsAttrValue attrValue(aStyleRule);
 
   // XXXbz do we ever end up with ADDITION here?  I doubt it.
   PRUint8 modType = modification ?
@@ -211,44 +163,21 @@ nsStyledElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                                 aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aDocument && HasFlag(NODE_HAS_ID) && !GetBindingParent()) {
-    aDocument->AddToIdTable(this, DoGetID());
-  }
+  // XXXbz if we already have a style attr parsed, this won't do
+  // anything... need to fix that.
+  ReparseStyleAttribute(PR_FALSE);
 
-  if (!IsXUL()) {
-    // XXXbz if we already have a style attr parsed, this won't do
-    // anything... need to fix that.
-    ReparseStyleAttribute(PR_FALSE);
-  }
-
-  return NS_OK;
+  return rv;
 }
-
-void
-nsStyledElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
-{
-  RemoveFromIdTable();
-
-  nsStyledElementBase::UnbindFromTree(aDeep, aNullParent);
-}
-
 
 // ---------------------------------------------------------------
 // Others and helpers
 
-nsIDOMCSSStyleDeclaration*
-nsStyledElement::GetStyle(nsresult* retval)
+nsresult
+nsStyledElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
 {
-  nsXULElement* xulElement = nsXULElement::FromContent(this);
-  if (xulElement) {
-    nsresult rv = xulElement->EnsureLocalStyle();
-    if (NS_FAILED(rv)) {
-      *retval = rv;
-      return nsnull;
-    }
-  }
-    
   nsGenericElement::nsDOMSlots *slots = GetDOMSlots();
+  NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
 
   if (!slots->mStyle) {
     // Just in case...
@@ -259,11 +188,13 @@ nsStyledElement::GetStyle(nsresult* retval)
                                                      , PR_FALSE
 #endif // MOZ_SMIL
                                                      );
+    NS_ENSURE_TRUE(slots->mStyle, NS_ERROR_OUT_OF_MEMORY);
     SetFlags(NODE_MAY_HAVE_STYLE);
   }
 
-  *retval = NS_OK;
-  return slots->mStyle;
+  // Why bother with QI?
+  NS_ADDREF(*aStyle = slots->mStyle);
+  return NS_OK;
 }
 
 nsresult
@@ -322,7 +253,7 @@ nsStyledElement::ParseStyleAttribute(const nsAString& aValue,
                                       NodePrincipal(),
                                       getter_AddRefs(rule));
         if (rule) {
-          aResult.SetTo(rule, &aValue);
+          aResult.SetTo(rule);
           return;
         }
       }

@@ -38,11 +38,21 @@
 
 #include "storage_test_harness.h"
 #include "prthread.h"
+#include "nsIThread.h"
+#include "nsThreadUtils.h"
 #include "nsIEventTarget.h"
 
 #include "sqlite3.h"
 
 #include "mozilla/Monitor.h"
+
+#include "mozIStorageStatementCallback.h"
+#include "mozIStorageCompletionCallback.h"
+#include "mozIStorageBindingParamsArray.h"
+#include "mozIStorageBindingParams.h"
+#include "mozIStorageAsyncStatement.h"
+#include "mozIStorageStatement.h"
+#include "mozIStoragePendingStatement.h"
 
 using mozilla::Monitor;
 using mozilla::MonitorAutoEnter;
@@ -102,8 +112,8 @@ void hook_sqlite_mutex()
 {
   // We need to initialize and teardown SQLite to get it to set up the
   // default mutex handlers for us so we can steal them and wrap them.
-  do_check_ok(sqlite3_initialize());
-  do_check_ok(sqlite3_shutdown());
+  sqlite3_initialize();
+  sqlite3_shutdown();
   do_check_ok(::sqlite3_config(SQLITE_CONFIG_GETMUTEX, &orig_mutex_methods));
   do_check_ok(::sqlite3_config(SQLITE_CONFIG_GETMUTEX, &wrapped_mutex_methods));
   wrapped_mutex_methods.xMutexEnter = wrapped_MutexEnter;
@@ -124,6 +134,75 @@ void watch_for_mutex_use_on_this_thread()
   mutex_used_on_watched_thread = false;
 }
 
+
+////////////////////////////////////////////////////////////////////////////////
+//// Event Loop Spinning
+
+class AsyncStatementSpinner : public mozIStorageStatementCallback,
+                              public mozIStorageCompletionCallback
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_MOZISTORAGESTATEMENTCALLBACK
+  NS_DECL_MOZISTORAGECOMPLETIONCALLBACK
+
+  AsyncStatementSpinner();
+
+  void SpinUntilCompleted();
+
+  PRUint16 completionReason;
+
+private:
+  ~AsyncStatementSpinner() {}
+  volatile bool mCompleted;
+};
+
+NS_IMPL_ISUPPORTS2(AsyncStatementSpinner,
+                   mozIStorageStatementCallback,
+                   mozIStorageCompletionCallback)
+
+AsyncStatementSpinner::AsyncStatementSpinner()
+: completionReason(0)
+, mCompleted(false)
+{
+}
+
+NS_IMETHODIMP
+AsyncStatementSpinner::HandleResult(mozIStorageResultSet *aResultSet)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+AsyncStatementSpinner::HandleError(mozIStorageError *aError)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+AsyncStatementSpinner::HandleCompletion(PRUint16 aReason)
+{
+  completionReason = aReason;
+  mCompleted = true;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+AsyncStatementSpinner::Complete()
+{
+  mCompleted = true;
+  return NS_OK;
+}
+
+void AsyncStatementSpinner::SpinUntilCompleted()
+{
+  nsCOMPtr<nsIThread> thread(::do_GetCurrentThread());
+  nsresult rv = NS_OK;
+  PRBool processed = PR_TRUE;
+  while (!mCompleted && NS_SUCCEEDED(rv)) {
+    rv = thread->ProcessNextEvent(true, &processed);
+  }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Thread Wedgers

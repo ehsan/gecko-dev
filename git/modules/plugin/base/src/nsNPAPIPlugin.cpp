@@ -76,7 +76,6 @@
 #include "nsIScriptContext.h"
 #include "nsDOMJSUtils.h"
 #include "nsIPrincipal.h"
-#include "nsWildCard.h"
 
 #include "nsIXPConnect.h"
 
@@ -115,10 +114,6 @@ using mozilla::PluginPRLibrary;
 #ifdef MOZ_IPC
 #include "mozilla/plugins/PluginModuleParent.h"
 using mozilla::plugins::PluginModuleParent;
-#endif
-
-#ifdef MOZ_X11
-#include "mozilla/X11Util.h"
 #endif
 
 using namespace mozilla::plugins::parent;
@@ -267,6 +262,8 @@ nsNPAPIPlugin::PluginCrashed(const nsAString& pluginDumpID,
 }
 #endif
 
+namespace {
+
 #ifdef MOZ_IPC
 
 #ifdef XP_MACOSX
@@ -309,8 +306,8 @@ static PRBool GMA9XXGraphics()
 }
 #endif
 
-PRBool
-nsNPAPIPlugin::RunPluginOOP(const char* aFilePath, const nsPluginTag *aPluginTag)
+inline PRBool
+RunPluginOOP(const char* aFilePath, const nsPluginTag *aPluginTag)
 {
   if (PR_GetEnv("MOZ_DISABLE_OOP_PLUGINS")) {
     return PR_FALSE;
@@ -364,58 +361,22 @@ nsNPAPIPlugin::RunPluginOOP(const char* aFilePath, const nsPluginTag *aPluginTag
   // Get per-library whitelist/blacklist pref string
   // "dom.ipc.plugins.enabled.filename.dll" and fall back to the default value
   // of "dom.ipc.plugins.enabled"
-  // The "filename.dll" part can contain shell wildcard pattern
 
-  nsCAutoString prefFile(aFilePath);
-  PRInt32 slashPos = prefFile.RFindCharInSet("/\\");
+  nsCAutoString pluginLibPref(aFilePath);
+  PRInt32 slashPos = pluginLibPref.RFindCharInSet("/\\");
   if (kNotFound == slashPos)
     return PR_FALSE;
-  prefFile.Cut(0, slashPos + 1);
-  ToLowerCase(prefFile);
-
-  nsCAutoString prefGroupKey("dom.ipc.plugins.enabled.");
-
-  PRUint32 prefCount;
-  char** prefNames;
-  nsresult rv = prefs->GetChildList(prefGroupKey.get(),
-                                    &prefCount, &prefNames);
+  pluginLibPref.Cut(0, slashPos + 1);
+  ToLowerCase(pluginLibPref);
+  pluginLibPref.Insert("dom.ipc.plugins.enabled.", 0);
 
   PRBool oopPluginsEnabled = PR_FALSE;
-  PRBool prefSet = PR_FALSE;
+  if (NS_SUCCEEDED(prefs->GetBoolPref(pluginLibPref.get(),
+                                      &oopPluginsEnabled)))
+    return oopPluginsEnabled;
 
-  if (NS_SUCCEEDED(rv) && prefCount > 0) {
-    PRUint32 prefixLength = prefGroupKey.Length();
-    for (PRUint32 currentPref = 0; currentPref < prefCount; currentPref++) {
-      // Get the mask
-      const char* maskStart = prefNames[currentPref] + prefixLength;
-      PRBool match = PR_FALSE;
-
-      int valid = NS_WildCardValid(maskStart);
-      if (valid == INVALID_SXP) {
-         continue;
-      }
-      else if(valid == NON_SXP) {
-        // mask is not a shell pattern, compare it as normal string
-        match = (strcmp(prefFile.get(), maskStart) == 0);
-      }
-      else {
-        match = (NS_WildCardMatch(prefFile.get(), maskStart, 0) == MATCH);
-      }
-
-      if (match && NS_SUCCEEDED(prefs->GetBoolPref(prefNames[currentPref],
-                                                   &oopPluginsEnabled))) {
-        prefSet = PR_TRUE;
-        break;
-      }
-    }
-    NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(prefCount, prefNames);
-  }
-
-  if (!prefSet) {
-    oopPluginsEnabled = PR_FALSE;
-    prefs->GetBoolPref("dom.ipc.plugins.enabled", &oopPluginsEnabled);
-  }
-
+  oopPluginsEnabled = PR_FALSE;
+  prefs->GetBoolPref("dom.ipc.plugins.enabled", &oopPluginsEnabled);
   return oopPluginsEnabled;
 }
 
@@ -429,7 +390,7 @@ GetNewPluginLibrary(const char* aFilePath,
   nsRefPtr<nsPluginHost> host = dont_AddRef(nsPluginHost::GetInst());
   nsPluginTag* tag = host->FindTagForLibrary(aLibrary);
   if (tag) {
-    if (aFilePath && nsNPAPIPlugin::RunPluginOOP(aFilePath, tag)) {
+    if (aFilePath && RunPluginOOP(aFilePath, tag)) {
       return PluginModuleParent::LoadModule(aFilePath);
     }
   }
@@ -437,16 +398,14 @@ GetNewPluginLibrary(const char* aFilePath,
   return new PluginPRLibrary(aFilePath, aLibrary);
 }
 
+} /* anonymous namespace */
+
 // Creates an nsNPAPIPlugin object. One nsNPAPIPlugin object exists per plugin (not instance).
 nsresult
 nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
                             nsIPlugin** aResult)
 {
   *aResult = nsnull;
-
-  if (!aFilePath || !aLibrary) {
-    return NS_ERROR_FAILURE;
-  }
 
   CheckClassInitialized();
 
@@ -468,6 +427,14 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
 
   plugin->mLibrary = pluginLib;
   pluginLib->SetPlugin(plugin);
+
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
+  // Do not initialize if the file path is NULL.
+  if (!aFilePath) {
+    *aResult = plugin.forget().get();
+    return NS_OK;
+  }
+#endif
 
   NPError pluginCallError;
   nsresult rv;
@@ -508,19 +475,7 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
   return NS_OK;
 }
 
-PluginLibrary*
-nsNPAPIPlugin::GetLibrary()
-{
-  return mLibrary;
-}
-
-NPPluginFuncs*
-nsNPAPIPlugin::PluginFuncs()
-{
-  return &mPluginFuncs;
-}
-
-NS_IMETHODIMP
+NS_METHOD
 nsNPAPIPlugin::CreatePluginInstance(nsIPluginInstance **aResult)
 {
   if (!aResult)
@@ -528,7 +483,8 @@ nsNPAPIPlugin::CreatePluginInstance(nsIPluginInstance **aResult)
 
   *aResult = NULL;
 
-  nsRefPtr<nsNPAPIPluginInstance> inst = new nsNPAPIPluginInstance(this);
+  nsRefPtr<nsNPAPIPluginInstance> inst =
+    new nsNPAPIPluginInstance(&mPluginFuncs, mLibrary);
   if (!inst)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -550,6 +506,29 @@ nsNPAPIPlugin::Shutdown()
     ::CloseResFile(mPluginRefNum);
 #endif
   return NS_OK;
+}
+
+nsresult
+nsNPAPIPlugin::GetMIMEDescription(const char* *resultingDesc)
+{
+  nsresult gmdResult = mLibrary->NP_GetMIMEDescription(resultingDesc);
+  if (gmdResult != NS_OK) {
+    return gmdResult;
+  }
+
+  return NS_OK;
+}
+
+nsresult
+nsNPAPIPlugin::GetValue(NPPVariable variable, void *value)
+{
+  PLUGIN_LOG(PLUGIN_LOG_NORMAL,
+  ("nsNPAPIPlugin::GetValue called: this=%p, variable=%d\n", this, variable));
+
+  NPError gvError;
+  mLibrary->NP_GetValue(nsnull, variable, value, &gvError);
+
+  return gvError;
 }
 
 // Create a new NPP GET or POST (given in the type argument) url
@@ -711,7 +690,7 @@ doGetIdentifier(JSContext *cx, const NPUTF8* name)
   if (!str)
     return NULL;
 
-  return StringToNPIdentifier(str);
+  return (NPIdentifier)STRING_TO_JSVAL(str);
 }
 
 #if defined(MOZ_MEMORY_WINDOWS) && !defined(MOZ_MEMORY_WINCE)
@@ -1374,23 +1353,25 @@ _getintidentifier(int32_t intid)
   if (!NS_IsMainThread()) {
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_getstringidentifier called from the wrong thread\n"));
   }
-  return IntToNPIdentifier(intid);
+  return (NPIdentifier)INT_TO_JSVAL(intid);
 }
 
 NPUTF8* NP_CALLBACK
-_utf8fromidentifier(NPIdentifier id)
+_utf8fromidentifier(NPIdentifier identifier)
 {
   if (!NS_IsMainThread()) {
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_utf8fromidentifier called from the wrong thread\n"));
   }
-  if (!id)
+  if (!identifier)
     return NULL;
 
-  if (!NPIdentifierIsString(id)) {
+  jsval v = (jsval)identifier;
+
+  if (!JSVAL_IS_STRING(v)) {
     return nsnull;
   }
 
-  JSString *str = NPIdentifierToString(id);
+  JSString *str = JSVAL_TO_STRING(v);
 
   return
     ToNewUTF8String(nsDependentString((PRUnichar *)::JS_GetStringChars(str),
@@ -1398,27 +1379,29 @@ _utf8fromidentifier(NPIdentifier id)
 }
 
 int32_t NP_CALLBACK
-_intfromidentifier(NPIdentifier id)
+_intfromidentifier(NPIdentifier identifier)
 {
   if (!NS_IsMainThread()) {
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_intfromidentifier called from the wrong thread\n"));
   }
+  jsval v = (jsval)identifier;
 
-  if (!NPIdentifierIsInt(id)) {
+  if (!JSVAL_IS_INT(v)) {
     return PR_INT32_MIN;
   }
 
-  return NPIdentifierToInt(id);
+  return JSVAL_TO_INT(v);
 }
 
 bool NP_CALLBACK
-_identifierisstring(NPIdentifier id)
+_identifierisstring(NPIdentifier identifier)
 {
   if (!NS_IsMainThread()) {
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_identifierisstring called from the wrong thread\n"));
   }
+  jsval v = (jsval)identifier;
 
-  return NPIdentifierIsString(id);
+  return JSVAL_IS_STRING(v);
 }
 
 NPObject* NP_CALLBACK
@@ -1566,8 +1549,6 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
   JSContext *cx = GetJSContextFromDoc(doc);
   NS_ENSURE_TRUE(cx, false);
 
-  JSAutoRequest req(cx);
-
   nsCOMPtr<nsIScriptContext> scx = GetScriptContextFromJSContext(cx);
   NS_ENSURE_TRUE(scx, false);
 
@@ -1577,8 +1558,6 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
   if (!obj) {
     return false;
   }
-
-  OBJ_TO_INNER_OBJECT(cx, obj);
 
   // Root obj and the rval (below).
   jsval vec[] = { OBJECT_TO_JSVAL(obj), JSVAL_NULL };
@@ -1826,7 +1805,7 @@ _releasevariantvalue(NPVariant* variant)
           }
         }
 #else
-        NS_Free((void *)s->UTF8Characters);
+        PR_Free((void *)s->UTF8Characters);
 #endif
       }
       break;
@@ -1906,7 +1885,11 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
         inst->GetValueFromPlugin(NPPVpluginNeedsXEmbed, &needXEmbed);
       }
       if (windowless || needXEmbed) {
-        (*(Display **)result) = mozilla::DefaultXDisplay();
+#ifdef MOZ_WIDGET_GTK2
+        (*(Display **)result) = GDK_DISPLAY();
+#else
+        (*(Display **)result) = QX11Info::display();
+#endif
         return NPERR_NO_ERROR;
       }
     }
@@ -1997,11 +1980,6 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   case NPNVSupportsXEmbedBool: {
 #ifdef MOZ_WIDGET_GTK2
     *(NPBool*)result = PR_TRUE;
-#elif defined(MOZ_WIDGET_QT)
-    // Desktop Flash fail to initialize if browser does not support NPNVSupportsXEmbedBool
-    // even when wmode!=windowed, lets return fake support
-    fprintf(stderr, "Fake support for XEmbed plugins in Qt port\n");
-    *(NPBool*)result = PR_TRUE;
 #else
     *(NPBool*)result = PR_FALSE;
 #endif
@@ -2079,12 +2057,6 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   }
 
    case NPNVsupportsCoreAnimationBool: {
-     *(NPBool*)result = PR_TRUE;
-
-     return NPERR_NO_ERROR;
-   }
-
-   case NPNVsupportsInvalidatingCoreAnimationBool: {
      *(NPBool*)result = PR_TRUE;
 
      return NPERR_NO_ERROR;
@@ -2431,13 +2403,20 @@ _getvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
         return NPERR_GENERIC_ERROR;
       }
 
-      if (NS_FAILED(cookieService->GetCookieString(uri, nsnull, value)) ||
-          !*value) {
+      nsXPIDLCString cookieStr;
+      nsresult cookieReturn = cookieService->GetCookieString(uri, nsnull,
+                                                             getter_Copies(cookieStr));
+      if (NS_FAILED(cookieReturn) || !cookieStr) {
         return NPERR_GENERIC_ERROR;
       }
 
-      *len = PL_strlen(*value);
-      return NPERR_NO_ERROR;
+      *value = PL_strndup(cookieStr, cookieStr.Length());
+
+      if (*value) {
+        *len = cookieStr.Length();
+
+        return NPERR_NO_ERROR;
+      }
     }
 
     break;

@@ -12,9 +12,7 @@
 
 #if defined(OS_WIN)
 #include <windows.h>
-#elif defined(ANDROID)
-#include <sys/stat.h>
-#elif defined(OS_POSIX) 
+#elif defined(OS_POSIX)
 #include <fts.h>
 #include <sys/stat.h>
 #endif
@@ -465,8 +463,6 @@ class FileEnumerator {
 #if defined(OS_WIN)
   WIN32_FIND_DATA find_data_;
   HANDLE find_handle_;
-#elif defined(ANDROID)
-  void *fts_;
 #elif defined(OS_POSIX)
   FTS* fts_;
   FTSENT* fts_ent_;

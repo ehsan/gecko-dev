@@ -63,7 +63,7 @@
 #include "nsInt64.h"
 #include "nsNodeUtils.h"
 #include "nsIContent.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 #include "nsGenericHTMLElement.h"
 
@@ -138,25 +138,21 @@ static PRLogModuleInfo* gSinkLogModuleInfo;
 
 //----------------------------------------------------------------------
 
-typedef nsGenericHTMLElement*
-  (*contentCreatorCallback)(already_AddRefed<nsINodeInfo>, PRUint32 aFromParser);
+typedef nsGenericHTMLElement* (*contentCreatorCallback)(nsINodeInfo*, PRBool aFromParser);
 
 nsGenericHTMLElement*
-NS_NewHTMLNOTUSEDElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                         PRUint32 aFromParser)
+NS_NewHTMLNOTUSEDElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
 {
   NS_NOTREACHED("The element ctor should never be called");
   return nsnull;
 }
 
 #define HTML_TAG(_tag, _classname) NS_NewHTML##_classname##Element,
-#define HTML_HTMLELEMENT_TAG(_tag) NS_NewHTMLElement,
 #define HTML_OTHER(_tag) NS_NewHTMLNOTUSEDElement,
 static const contentCreatorCallback sContentCreatorCallbacks[] = {
   NS_NewHTMLUnknownElement,
 #include "nsHTMLTagList.h"
 #undef HTML_TAG
-#undef HTML_HTMLELEMENT_TAG
 #undef HTML_OTHER
   NS_NewHTMLUnknownElement
 };
@@ -501,6 +497,7 @@ MaybeSetForm(nsGenericHTMLElement* aContent, nsHTMLTag aNodeType,
     case eHTMLTag_button:
     case eHTMLTag_fieldset:
     case eHTMLTag_label:
+    case eHTMLTag_legend:
     case eHTMLTag_object:
     case eHTMLTag_input:
     case eHTMLTag_select:
@@ -532,9 +529,10 @@ HTMLContentSink::CreateContentObject(const nsIParserNode& aNode,
   nsCOMPtr<nsINodeInfo> nodeInfo;
 
   if (aNodeType == eHTMLTag_userdefined) {
-    nsAutoString lower;
-    nsContentUtils::ASCIIToLower(aNode.GetText(), lower);
-    nsCOMPtr<nsIAtom> name = do_GetAtom(lower);
+    NS_ConvertUTF16toUTF8 tmp(aNode.GetText());
+    ToLowerCase(tmp);
+
+    nsCOMPtr<nsIAtom> name = do_GetAtom(tmp);
     nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_XHTML);
   }
   else if (mNodeInfoCache[aNodeType]) {
@@ -555,35 +553,33 @@ HTMLContentSink::CreateContentObject(const nsIParserNode& aNode,
   NS_ENSURE_TRUE(nodeInfo, nsnull);
 
   // Make the content object
-  return CreateHTMLElement(aNodeType, nodeInfo.forget(), PR_TRUE);
+  return CreateHTMLElement(aNodeType, nodeInfo, PR_TRUE);
 }
 
 nsresult
-NS_NewHTMLElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo,
-                  PRUint32 aFromParser)
+NS_NewHTMLElement(nsIContent** aResult, nsINodeInfo *aNodeInfo,
+                  PRBool aFromParser)
 {
   *aResult = nsnull;
-
-  nsCOMPtr<nsINodeInfo> nodeInfo = aNodeInfo;
 
   nsIParserService* parserService = nsContentUtils::GetParserService();
   if (!parserService)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  nsIAtom *name = nodeInfo->NameAtom();
+  nsIAtom *name = aNodeInfo->NameAtom();
 
-  NS_ASSERTION(nodeInfo->NamespaceEquals(kNameSpaceID_XHTML), 
+  NS_ASSERTION(aNodeInfo->NamespaceEquals(kNameSpaceID_XHTML), 
                "Trying to HTML elements that don't have the XHTML namespace");
   
   *aResult = CreateHTMLElement(parserService->
                                  HTMLCaseSensitiveAtomTagToId(name),
-                               nodeInfo.forget(), aFromParser).get();
+                               aNodeInfo, aFromParser).get();
   return *aResult ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
 already_AddRefed<nsGenericHTMLElement>
-CreateHTMLElement(PRUint32 aNodeType, already_AddRefed<nsINodeInfo> aNodeInfo,
-                  PRUint32 aFromParser)
+CreateHTMLElement(PRUint32 aNodeType, nsINodeInfo *aNodeInfo,
+                  PRBool aFromParser)
 {
   NS_ASSERTION(aNodeType <= NS_HTML_TAG_MAX ||
                aNodeType == eHTMLTag_userdefined,
@@ -1622,7 +1618,7 @@ HTMLContentSink::Init(nsIDocument* aDoc,
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   // Make root part
-  mRoot = NS_NewHTMLHtmlElement(nodeInfo.forget());
+  mRoot = NS_NewHTMLHtmlElement(nodeInfo);
   if (!mRoot) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -1637,7 +1633,7 @@ HTMLContentSink::Init(nsIDocument* aDoc,
                                            nsnull, kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  mHead = NS_NewHTMLHeadElement(nodeInfo.forget());
+  mHead = NS_NewHTMLHeadElement(nodeInfo);
   if (NS_FAILED(rv)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -1768,7 +1764,7 @@ HTMLContentSink::BeginContext(PRInt32 aPosition)
   }
 
   if (!mCurrentContext) {
-    NS_ERROR("Nonexistent context");
+    NS_ERROR("Non-existing context");
 
     return NS_ERROR_FAILURE;
   }
@@ -1808,7 +1804,7 @@ HTMLContentSink::BeginContext(PRInt32 aPosition)
 NS_IMETHODIMP
 HTMLContentSink::EndContext(PRInt32 aPosition)
 {
-  NS_PRECONDITION(mCurrentContext && aPosition > -1, "nonexistent context");
+  NS_PRECONDITION(mCurrentContext && aPosition > -1, "non-existing context");
 
   PRUint32 n = mContextStack.Length() - 1;
   SinkContext* sc = mContextStack.ElementAt(n);
@@ -2619,7 +2615,7 @@ HTMLContentSink::ProcessLINKTag(const nsIParserNode& aNode)
     nsCOMPtr<nsINodeInfo> nodeInfo;
     nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::link, nsnull, kNameSpaceID_XHTML);
 
-    result = NS_NewHTMLElement(getter_AddRefs(element), nodeInfo.forget(), PR_FALSE);
+    result = NS_NewHTMLElement(getter_AddRefs(element), nodeInfo, PR_FALSE);
     NS_ENSURE_SUCCESS(result, result);
 
     nsCOMPtr<nsIStyleSheetLinkingElement> ssle(do_QueryInterface(element));

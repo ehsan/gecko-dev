@@ -40,8 +40,6 @@ srcdir		= @srcdir@
 VPATH		= @srcdir@
 relativesrcdir  = browser/base/content/test
 
-DIRS += tabview
-
 include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
 
@@ -50,6 +48,8 @@ _TEST_FILES = \
 		feed_discovery.html \
 		test_bug395533.html \
 		bug395533-data.txt \
+		test_contextmenu.html \
+		subtst_contextmenu.html \
 		ctxmenu-image.png \
 		video.ogg \
 		test_offlineNotification.html \
@@ -72,16 +72,6 @@ _TEST_FILES = \
 		gZipOfflineChild.cacheManifest^headers^ \
 		$(NULL)
 
-ifeq (,$(filter gtk2,$(MOZ_WIDGET_TOOLKIT)))
-_TEST_FILES += \
-		test_contextmenu.html \
-		subtst_contextmenu.html \
-		$(NULL)
-
-else
-$(warning test_contextmenu.html disabled because of intermittent failures; bug 513558)
-endif
-
 # The following tests are disabled because they are unreliable:
 #   browser_bug423833.js is bug 428712
 #   browser_sanitize-download-history.js is bug 432425
@@ -91,7 +81,6 @@ endif
 # 480169)
 
 _BROWSER_FILES = \
-                 browser_typeAheadFind.js \
                  browser_NetworkPrioritizer.js \
                  browser_allTabsPanel.js \
                  browser_alltabslistener.js \
@@ -100,7 +89,6 @@ _BROWSER_FILES = \
                  title_test.svg \
                  browser_bug329212.js \
                  browser_bug356571.js \
-                 browser_bug380960.js \
                  browser_bug386835.js \
                  browser_bug405137.js \
                  browser_bug406216.js \
@@ -116,7 +104,6 @@ _BROWSER_FILES = \
                  browser_bug432599.js \
                  browser_bug435035.js \
                  browser_bug441778.js \
-                 browser_popupNotification.js \
                  browser_bug455852.js \
                  browser_bug462673.js \
                  browser_bug477014.js \
@@ -127,43 +114,20 @@ _BROWSER_FILES = \
                  browser_bug491431.js \
                  browser_bug495058.js \
                  browser_bug517902.js \
-                 browser_bug519216.js \
                  browser_bug520538.js \
                  browser_bug521216.js \
                  browser_bug537474.js \
                  browser_bug550565.js \
-                 browser_bug553455.js \
                  browser_bug555224.js \
-                 browser_bug555767.js \
-                 browser_bug556061.js \
-                 browser_bug561623.js \
-                 browser_bug562649.js \
-                 browser_bug563588.js \
-                 browser_bug577121.js \
-                 browser_bug580956.js \
-                 browser_bug581242.js \
-                 browser_bug581947.js \
-                 browser_bug585830.js \
                  browser_contextSearchTabPosition.js \
                  browser_ctrlTab.js \
                  browser_discovery.js \
                  browser_drag.js \
-                 browser_duplicateIDs.js \
                  browser_gestureSupport.js \
                  browser_getshortcutoruri.js \
-                 browser_hide_removing.js \
-                 browser_inspector_initialization.js \
-                 browser_inspector_treeSelection.js \
-                 browser_inspector_highlighter.js \
-                 browser_inspector_stylePanel.js \
-                 browser_inspector_domPanel.js \
-                 browser_inspector_iframeTest.js \
-                 browser_inspector_scrolling.js \
-                 browser_inspector_store.js \
-                 browser_inspector_tab_switch.js \
+                 browser_overflowScroll.js \
                  browser_pageInfo.js \
                  browser_page_style_menu.js \
-                 browser_pinnedTabs.js \
                  browser_plainTextLinks.js \
                  browser_pluginnotification.js \
                  browser_popupUI.js \
@@ -176,11 +140,6 @@ _BROWSER_FILES = \
                  browser_selectTabAtIndex.js \
                  browser_tabfocus.js \
                  browser_tabs_owner.js \
-                 browser_visibleTabs.js \
-                 browser_visibleTabs_contextMenu.js \
-                 browser_visibleTabs_bookmarkAllPages.js \
-                 browser_visibleTabs_bookmarkAllTabs.js \
-                 browser_visibleTabs_tabPreview.js \
                  discovery.html \
                  moz.png \
                  test_bug435035.html \
@@ -200,19 +159,9 @@ _BROWSER_FILES = \
     $(NULL)
 
 ifneq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-_BROWSER_FILES += \
-		browser_bug462289.js \
-		$(NULL)
+_BROWSER_FILES += browser_bug462289.js
 else
-_BROWSER_FILES += \
-		browser_customize.js \
-		$(NULL)
-endif
-
-ifneq (gtk2,$(MOZ_WIDGET_TOOLKIT))
-_BROWSER_FILES += \
-		browser_overflowScroll.js \
-		$(NULL)
+_BROWSER_FILES += browser_customize.js
 endif
 
 libs:: $(_TEST_FILES)

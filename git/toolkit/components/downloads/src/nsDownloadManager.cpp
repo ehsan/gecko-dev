@@ -27,6 +27,8 @@
  *   Edward Lee <edward.lee@engineering.uiuc.edu>
  *   Graeme McCutcheon <graememcc_firefox@graeme-online.co.uk>
  *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+ *   Michal Sciubidlo <michal.sciubidlo@gmail.com>
+ *   Andrey Ivanov <andrey.v.ivanov@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -64,6 +66,9 @@
 #include "nsDownloadManager.h"
 #include "nsNetUtil.h"
 
+#include "nsIHttpChannel.h"
+#include "nsIFileChannel.h"
+#include "nsIFTPChannel.h"
 #include "mozStorageCID.h"
 #include "nsDocShellCID.h"
 #include "nsEmbedCID.h"
@@ -841,12 +846,13 @@ nsDownloadManager::Init()
   if (!mObserverService)
     return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIStringBundleService> bundleService =
-    mozilla::services::GetStringBundleService();
-  if (!bundleService)
-    return NS_ERROR_FAILURE;
+  nsresult rv;
 
-  nsresult rv = InitDB();
+  nsCOMPtr<nsIStringBundleService> bundleService =
+    do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = InitDB();
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = bundleService->CreateBundle(DOWNLOAD_MANAGER_BUNDLE,
@@ -892,15 +898,14 @@ nsDownloadManager::Init()
   // These observers will be cleaned up automatically at app shutdown.  We do
   // not bother explicitly breaking the observers because we are a singleton
   // that lives for the duration of the app.
-  (void)mObserverService->AddObserver(this, "quit-application", PR_FALSE);
-  (void)mObserverService->AddObserver(this, "quit-application-requested", PR_FALSE);
-  (void)mObserverService->AddObserver(this, "offline-requested", PR_FALSE);
-  (void)mObserverService->AddObserver(this, "sleep_notification", PR_FALSE);
-  (void)mObserverService->AddObserver(this, "wake_notification", PR_FALSE);
-  (void)mObserverService->AddObserver(this, NS_IOSERVICE_GOING_OFFLINE_TOPIC, PR_FALSE);
-  (void)mObserverService->AddObserver(this, NS_IOSERVICE_OFFLINE_STATUS_TOPIC, PR_FALSE);
-  (void)mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_REQUEST_TOPIC, PR_FALSE);
-  (void)mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_FALSE);
+  mObserverService->AddObserver(this, "quit-application", PR_FALSE);
+  mObserverService->AddObserver(this, "quit-application-requested", PR_FALSE);
+  mObserverService->AddObserver(this, "offline-requested", PR_FALSE);
+  mObserverService->AddObserver(this, "sleep_notification", PR_FALSE);
+  mObserverService->AddObserver(this, "wake_notification", PR_FALSE);
+  mObserverService->AddObserver(this, NS_IOSERVICE_GOING_OFFLINE_TOPIC, PR_FALSE);
+  mObserverService->AddObserver(this, NS_IOSERVICE_OFFLINE_STATUS_TOPIC, PR_FALSE);
+  mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_FALSE);
 
   if (history)
     (void)history->AddObserver(this, PR_FALSE);
@@ -1176,20 +1181,6 @@ nsDownloadManager::GetDefaultDownloadsDirectory(nsILocalFile **aResult)
     rv = dirService->Get(NS_UNIX_XDG_DOCUMENTS_DIR,
                          NS_GET_IID(nsILocalFile),
                          getter_AddRefs(downloadDir));
-#elif defined(ANDROID)
-    // Android doesn't have a $HOME directory, and by default we only have
-    // write access to /data/data/org.mozilla.{$APP} and /sdcard
-    char* sdcard = getenv("EXTERNAL_STORAGE");
-    if (sdcard) {
-      rv = NS_NewNativeLocalFile(nsDependentCString(sdcard),
-                                 PR_TRUE, getter_AddRefs(downloadDir));
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = downloadDir->Append(NS_LITERAL_STRING("download"));
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-    else {
-      rv = NS_ERROR_FAILURE;
-    }
 #else
   rv = dirService->Get(NS_UNIX_DEFAULT_DOWNLOAD_DIR,
                        NS_GET_IID(nsILocalFile),
@@ -1996,9 +1987,9 @@ nsDownloadManager::Observe(nsISupports *aSubject,
         this, resumeOnWakeDelay, nsITimer::TYPE_ONE_SHOT);
     }
   }
-  else if (strcmp(aTopic, NS_PRIVATE_BROWSING_REQUEST_TOPIC) == 0) {
-    if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_ENTER).Equals(aData) &&
-        currDownloadCount) {
+  else if (strcmp(aTopic, NS_PRIVATE_BROWSING_REQUEST_TOPIC) == 0 &&
+           currDownloadCount) {
+    if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_ENTER).Equals(aData)) {
       nsCOMPtr<nsISupportsPRBool> cancelDownloads =
         do_QueryInterface(aSubject, &rv);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -2008,12 +1999,11 @@ nsDownloadManager::Observe(nsISupports *aSubject,
                              NS_LITERAL_STRING("enterPrivateBrowsingCancelDownloadsAlertMsg").get(),
                              NS_LITERAL_STRING("dontEnterPrivateBrowsingButton").get());
     }
-    else if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(aData) &&
-             mCurrentDownloads.Count()) {
+    else if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(aData)) {
       nsCOMPtr<nsISupportsPRBool> cancelDownloads =
         do_QueryInterface(aSubject, &rv);
       NS_ENSURE_SUCCESS(rv, rv);
-      ConfirmCancelDownloads(mCurrentDownloads.Count(), cancelDownloads,
+      ConfirmCancelDownloads(currDownloadCount, cancelDownloads,
                              NS_LITERAL_STRING("leavePrivateBrowsingCancelDownloadsAlertTitle").get(),
                              NS_LITERAL_STRING("leavePrivateBrowsingCancelDownloadsAlertMsgMultiple").get(),
                              NS_LITERAL_STRING("leavePrivateBrowsingCancelDownloadsAlertMsg").get(),
@@ -2228,61 +2218,63 @@ nsDownload::SetState(DownloadState aState)
         }
       }
 
-#if (defined(XP_WIN) && !defined(WINCE)) || defined(XP_MACOSX)
       nsCOMPtr<nsIFileURL> fileURL = do_QueryInterface(mTarget);
-      nsCOMPtr<nsIFile> file;
-      nsAutoString path;
+      if (fileURL) {
+        nsCOMPtr<nsIFile> file;
+        if (NS_SUCCEEDED(fileURL->GetFile(getter_AddRefs(file))) && file ) {
 
-      if (fileURL &&
-          NS_SUCCEEDED(fileURL->GetFile(getter_AddRefs(file))) &&
-          file &&
-          NS_SUCCEEDED(file->GetPath(path))) {
+#if (defined(XP_WIN) && !defined(WINCE)) || defined(XP_MACOSX)
+          nsAutoString path;
+          if (NS_SUCCEEDED(file->GetPath(path))) {
 
 #ifdef XP_WIN
-        // On windows, add the download to the system's "recent documents"
-        // list, with a pref to disable.
-        {
-          PRBool addToRecentDocs = PR_TRUE;
-          if (pref)
-            pref->GetBoolPref(PREF_BDM_ADDTORECENTDOCS, &addToRecentDocs);
+            // On windows, add the download to the system's "recent documents"
+            // list, with a pref to disable.
+            PRBool addToRecentDocs = PR_TRUE;
+            if (pref)
+              pref->GetBoolPref(PREF_BDM_ADDTORECENTDOCS, &addToRecentDocs);
 
-          if (addToRecentDocs &&
-              !nsDownloadManager::gDownloadManagerService->mInPrivateBrowsing) {
-            ::SHAddToRecentDocs(SHARD_PATHW, path.get());
-          }
-        }
+            if (addToRecentDocs &&
+                !nsDownloadManager::gDownloadManagerService->mInPrivateBrowsing) {
+               ::SHAddToRecentDocs(SHARD_PATHW, path.get());
+            }
 #endif
 #ifdef XP_MACOSX
-        // On OS X, make the downloads stack bounce.
-        CFStringRef observedObject = ::CFStringCreateWithCString(kCFAllocatorDefault,
+            // On OS X, make the downloads stack bounce.
+            CFStringRef observedObject = ::CFStringCreateWithCString(kCFAllocatorDefault,
                                                  NS_ConvertUTF16toUTF8(path).get(),
                                                  kCFStringEncodingUTF8);
-        CFNotificationCenterRef center = ::CFNotificationCenterGetDistributedCenter();
-        ::CFNotificationCenterPostNotification(center, CFSTR("com.apple.DownloadFileFinished"),
-                                               observedObject, NULL, TRUE);
-        ::CFRelease(observedObject);
+            CFNotificationCenterRef center = ::CFNotificationCenterGetDistributedCenter();
+            ::CFNotificationCenterPostNotification(center, CFSTR("com.apple.DownloadFileFinished"),
+                                                   observedObject, NULL, TRUE);
+            ::CFRelease(observedObject);
 #endif
-      }
+          }
 
 #ifdef XP_WIN
-      // Adjust file attributes so that by default, new files are indexed
-      // by desktop search services. Skip off those that land in the temp
-      // folder.
-      nsCOMPtr<nsIFile> tempDir, fileDir;
-      rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tempDir));
-      NS_ENSURE_SUCCESS(rv, rv);
-      (void)file->GetParent(getter_AddRefs(fileDir));
+          // Adjust file attributes so that by default, new files are indexed
+          // by desktop search services. Skip off those that land in the temp
+          // folder.
+          nsCOMPtr<nsIFile> tempDir, fileDir;
+          rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tempDir));
+          NS_ENSURE_SUCCESS(rv, rv);
+          (void)file->GetParent(getter_AddRefs(fileDir));
 
-      PRBool isTemp = PR_FALSE;
-      if (fileDir)
-        (void)fileDir->Equals(tempDir, &isTemp);
+          PRBool isTemp = PR_FALSE;
+          if (fileDir)
+            (void)fileDir->Equals(tempDir, &isTemp);
 
-      nsCOMPtr<nsILocalFileWin> localFileWin(do_QueryInterface(file));
-      if (!isTemp && localFileWin)
-        (void)localFileWin->SetFileAttributesWin(nsILocalFileWin::WFA_SEARCH_INDEXED);
+          nsCOMPtr<nsILocalFileWin> localFileWin(do_QueryInterface(file));
+          if (!isTemp && localFileWin)
+            (void)localFileWin->SetFileAttributesWin(nsILocalFileWin::WFA_SEARCH_INDEXED);
 #endif
-
 #endif
+          // After all operations with file, its last modification time needs to
+          // be updated from request
+          (void)file->SetLastModifiedTime(GetLastModifiedTime(mRequest));
+        }
+      }
+
       // Now remove the download if the user's retention policy is "Remove when Done"
       if (mDownloadManager->GetRetentionBehavior() == 0)
         mDownloadManager->RemoveDownload(mID);
@@ -2342,7 +2334,7 @@ nsDownload::OnProgressChange64(nsIWebProgress *aWebProgress,
                                PRInt64 aMaxTotalProgress)
 {
   if (!mRequest)
-    mRequest = aRequest; // used for pause/resume
+    mRequest = aRequest; // used for pause/resume/last modification time
 
   if (mDownloadState == nsIDownloadManager::DOWNLOAD_QUEUED) {
     // Obtain the referrer
@@ -3087,4 +3079,53 @@ nsDownload::FailDownload(nsresult aStatus, const PRUnichar *aMessage)
     do_GetService("@mozilla.org/embedcomp/prompt-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
   return prompter->Alert(dmWindow, title, message);
+}
+
+NS_IMETHODIMP_(PRInt64)
+nsDownload::GetLastModifiedTime(nsIRequest *aRequest)
+{
+  if (!aRequest) {
+    return PR_Now() / PR_USEC_PER_MSEC;
+  }
+
+  PRInt64 timeLastModified = 0;
+
+  // HTTP channels may have a Last-Modified header that we'll use to get the
+  // last modified time.
+  nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(aRequest);
+  if (httpChannel) {
+    nsCAutoString refreshHeader;
+    if (NS_SUCCEEDED(httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("Last-Modified"), refreshHeader))) {
+      PRStatus result = PR_ParseTimeString(PromiseFlatCString(refreshHeader).get(), PR_FALSE, &timeLastModified);
+      if (result == PR_SUCCESS)
+        return timeLastModified / PR_USEC_PER_MSEC;
+    }
+    return PR_Now() / PR_USEC_PER_MSEC;
+  }
+
+  // File channels have a lastModifiedTime attribute that we can get the last
+  // modified time from.
+  nsCOMPtr<nsIFileChannel> fileChannel = do_QueryInterface(aRequest);
+  if (fileChannel) {
+    nsCOMPtr<nsIFile> file;
+    fileChannel->GetFile(getter_AddRefs(file));
+    if (file && NS_SUCCEEDED(file->GetLastModifiedTime(&timeLastModified)))
+      return timeLastModified;
+    return PR_Now() / PR_USEC_PER_MSEC;
+  }
+
+  // FTP channels have a lastModifiedTime attribute that we can get the last
+  // modified time from.
+  nsCOMPtr<nsIFTPChannel> ftpChannel = do_QueryInterface(aRequest);
+  if (ftpChannel) {
+    if (NS_SUCCEEDED(ftpChannel->GetLastModifiedTime(&timeLastModified)) &&
+        timeLastModified != 0) {
+      return timeLastModified / PR_USEC_PER_MSEC;
+    }
+    return PR_Now() / PR_USEC_PER_MSEC;
+  }
+
+  // For this request, we do not know how to get the last modified time, so
+  // return the current time.
+  return PR_Now() / PR_USEC_PER_MSEC;
 }

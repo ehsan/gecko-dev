@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-446026-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 446026;
 var summary = 'brian loves eval(s, o)';

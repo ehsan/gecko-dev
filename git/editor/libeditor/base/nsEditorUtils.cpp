@@ -105,8 +105,8 @@ nsDOMIterator::Init(nsIDOMRange* aRange)
 {
   nsresult res;
   mIter = do_CreateInstance("@mozilla.org/content/post-content-iterator;1", &res);
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(mIter, NS_ERROR_FAILURE);
+  if (NS_FAILED(res)) return res;
+  if (!mIter) return NS_ERROR_FAILURE;
   return mIter->Init(aRange);
 }
 
@@ -115,8 +115,8 @@ nsDOMIterator::Init(nsIDOMNode* aNode)
 {
   nsresult res;
   mIter = do_CreateInstance("@mozilla.org/content/post-content-iterator;1", &res);
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(mIter, NS_ERROR_FAILURE);
+  if (NS_FAILED(res)) return res;
+  if (!mIter) return NS_ERROR_FAILURE;
   nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
   return mIter->Init(content);
 }
@@ -148,7 +148,8 @@ nsDOMIterator::AppendList(nsBoolDomIterFunctor& functor,
   while (!mIter->IsDone())
   {
     node = do_QueryInterface(mIter->GetCurrentNode());
-    NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
+    if (!node)
+      return NS_ERROR_NULL_POINTER;
 
     if (functor(node))
     {
@@ -172,8 +173,8 @@ nsDOMSubtreeIterator::Init(nsIDOMRange* aRange)
 {
   nsresult res;
   mIter = do_CreateInstance("@mozilla.org/content/subtree-content-iterator;1", &res);
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(mIter, NS_ERROR_FAILURE);
+  if (NS_FAILED(res)) return res;
+  if (!mIter) return NS_ERROR_FAILURE;
   return mIter->Init(aRange);
 }
 
@@ -182,8 +183,8 @@ nsDOMSubtreeIterator::Init(nsIDOMNode* aNode)
 {
   nsresult res;
   mIter = do_CreateInstance("@mozilla.org/content/subtree-content-iterator;1", &res);
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(mIter, NS_ERROR_FAILURE);
+  if (NS_FAILED(res)) return res;
+  if (!mIter) return NS_ERROR_FAILURE;
   nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
   return mIter->Init(content);
 }
@@ -195,7 +196,7 @@ nsDOMSubtreeIterator::Init(nsIDOMNode* aNode)
 PRBool 
 nsEditorUtils::IsDescendantOf(nsIDOMNode *aNode, nsIDOMNode *aParent, PRInt32 *aOffset) 
 {
-  NS_ENSURE_TRUE(aNode || aParent, PR_FALSE);
+  if (!aNode && !aParent) return PR_FALSE;
   if (aNode == aParent) return PR_FALSE;
   
   nsCOMPtr<nsIDOMNode> parent, node = do_QueryInterface(aNode);
@@ -204,7 +205,7 @@ nsEditorUtils::IsDescendantOf(nsIDOMNode *aNode, nsIDOMNode *aParent, PRInt32 *a
   do
   {
     res = node->GetParentNode(getter_AddRefs(parent));
-    NS_ENSURE_SUCCESS(res, PR_FALSE);
+    if (NS_FAILED(res)) return PR_FALSE;
     if (parent == aParent) 
     {
       if (aOffset)
@@ -242,12 +243,12 @@ nsEditorHookUtils::GetHookEnumeratorFromDocument(nsIDOMDocument *aDoc,
                                                  nsISimpleEnumerator **aResult)
 {
   nsCOMPtr<nsIDocument> doc = do_QueryInterface(aDoc);
-  NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
+  if (!doc) return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsISupports> container = doc->GetContainer();
   nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
   nsCOMPtr<nsIClipboardDragDropHookList> hookObj = do_GetInterface(docShell);
-  NS_ENSURE_TRUE(hookObj, NS_ERROR_FAILURE);
+  if (!hookObj) return NS_ERROR_FAILURE;
 
   return hookObj->GetHookEnumerator(aResult);
 }
@@ -258,7 +259,8 @@ nsEditorHookUtils::DoInsertionHook(nsIDOMDocument *aDoc, nsIDOMEvent *aDropEvent
 {
   nsCOMPtr<nsISimpleEnumerator> enumerator;
   GetHookEnumeratorFromDocument(aDoc, getter_AddRefs(enumerator));
-  NS_ENSURE_TRUE(enumerator, PR_TRUE);
+  if (!enumerator)
+    return PR_TRUE;
 
   PRBool hasMoreHooks = PR_FALSE;
   while (NS_SUCCEEDED(enumerator->HasMoreElements(&hasMoreHooks)) && hasMoreHooks)
@@ -273,7 +275,8 @@ nsEditorHookUtils::DoInsertionHook(nsIDOMDocument *aDoc, nsIDOMEvent *aDropEvent
       PRBool doInsert = PR_TRUE;
       nsresult hookResult = override->OnPasteOrDrop(aDropEvent, aTrans, &doInsert);
       NS_ASSERTION(NS_SUCCEEDED(hookResult), "hook failure in OnPasteOrDrop");
-      NS_ENSURE_TRUE(doInsert, PR_FALSE);
+      if (!doInsert)
+        return PR_FALSE;
     }
   }
 

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-371636.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 371636;
 var summary = 'Numeric sort performance';

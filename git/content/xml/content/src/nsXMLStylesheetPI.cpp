@@ -53,7 +53,7 @@ class nsXMLStylesheetPI : public nsXMLProcessingInstruction,
                           public nsStyleLinkElement
 {
 public:
-  nsXMLStylesheetPI(already_AddRefed<nsINodeInfo> aNodeInfo, const nsAString& aData);
+  nsXMLStylesheetPI(nsINodeInfo *aNodeInfo, const nsAString& aData);
   virtual ~nsXMLStylesheetPI();
 
   // nsISupports
@@ -75,7 +75,6 @@ public:
   // nsStyleLinkElement
   NS_IMETHOD GetCharset(nsAString& aCharset);
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   nsCOMPtr<nsIURI> mOverriddenBaseURI;
 
@@ -90,7 +89,7 @@ protected:
 
 // nsISupports implementation
 
-DOMCI_NODE_DATA(XMLStylesheetProcessingInstruction, nsXMLStylesheetPI)
+DOMCI_DATA(XMLStylesheetProcessingInstruction, nsXMLStylesheetPI)
 
 NS_INTERFACE_TABLE_HEAD(nsXMLStylesheetPI)
   NS_NODE_INTERFACE_TABLE4(nsXMLStylesheetPI, nsIDOMNode,
@@ -103,7 +102,7 @@ NS_IMPL_ADDREF_INHERITED(nsXMLStylesheetPI, nsXMLProcessingInstruction)
 NS_IMPL_RELEASE_INHERITED(nsXMLStylesheetPI, nsXMLProcessingInstruction)
 
 
-nsXMLStylesheetPI::nsXMLStylesheetPI(already_AddRefed<nsINodeInfo> aNodeInfo,
+nsXMLStylesheetPI::nsXMLStylesheetPI(nsINodeInfo *aNodeInfo,
                                      const nsAString& aData)
   : nsXMLProcessingInstruction(aNodeInfo, NS_LITERAL_STRING("xml-stylesheet"),
                                aData)
@@ -181,9 +180,7 @@ nsXMLStylesheetPI::GetStyleSheetURL(PRBool* aIsInline)
   nsCAutoString charset;
   nsIDocument *document = GetOwnerDoc();
   if (document) {
-    baseURL = mOverriddenBaseURI ?
-              mOverriddenBaseURI.get() :
-              document->GetDocBaseURI();
+    baseURL = mOverriddenBaseURI ? mOverriddenBaseURI.get() : document->GetBaseURI();
     charset = document->GetDocumentCharacterSet();
   } else {
     baseURL = mOverriddenBaseURI;
@@ -251,8 +248,8 @@ nsXMLStylesheetPI::CloneDataNode(nsINodeInfo *aNodeInfo, PRBool aCloneText) cons
 {
   nsAutoString data;
   nsGenericDOMDataNode::GetData(data);
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  return new nsXMLStylesheetPI(ni.forget(), data);
+
+  return new nsXMLStylesheetPI(aNodeInfo, data);
 }
 
 nsresult
@@ -269,7 +266,7 @@ NS_NewXMLStylesheetProcessingInstruction(nsIContent** aInstancePtrResult,
                                      nsnull, kNameSpaceID_None);
   NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
-  nsXMLStylesheetPI *instance = new nsXMLStylesheetPI(ni.forget(), aData);
+  nsXMLStylesheetPI *instance = new nsXMLStylesheetPI(ni, aData);
   if (!instance) {
     return NS_ERROR_OUT_OF_MEMORY;
   }

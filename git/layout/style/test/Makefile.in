@@ -71,11 +71,9 @@ HOST_SIMPLE_PROGRAMS	= $(addprefix host_, $(HOST_CPPSRCS:.cpp=$(HOST_BIN_SUFFIX)
 # TestCSSPropertyLookup.cpp needs the internal XPCOM APIs and so cannot
 # be built with libxul enabled.
 
-ifndef BUILD_STATIC_LIBS
 ifndef MOZ_ENABLE_LIBXUL
 CPP_UNIT_TESTS = TestCSSPropertyLookup.cpp
 LIBS += ../nsCSSKeywords.$(OBJ_SUFFIX) ../nsCSSProps.$(OBJ_SUFFIX) $(XPCOM_LIBS)
-endif
 endif
 
 include $(topsrcdir)/config/rules.mk
@@ -132,9 +130,6 @@ _TEST_FILES =	test_acid3_test46.html \
 		test_bug499655.xhtml \
 		test_bug517224.html \
 		test_bug524175.html \
-		test_bug534804.html \
-		test_bug573255.html \
-		test_bug580685.html \
 		test_cascade.html \
 		test_compute_data_with_start_struct.html \
 		test_computed_style_no_pseudo.html \
@@ -146,7 +141,6 @@ _TEST_FILES =	test_acid3_test46.html \
 		test_font_face_parser.html \
 		test_garbage_at_end_of_declarations.html \
 		test_hover.html \
-		hover_helper.html \
 		test_ident_escaping.html \
 		test_inherit_computation.html \
 		test_inherit_storage.html \
@@ -159,7 +153,6 @@ _TEST_FILES =	test_acid3_test46.html \
 		test_of_type_selectors.xhtml \
 		test_parse_rule.html \
 		test_parse_url.html \
-		test_pixel_lengths.html \
 		test_pointer-events.html \
 		test_property_database.html \
 		test_priority_preservation.html \
@@ -177,7 +170,6 @@ _TEST_FILES =	test_acid3_test46.html \
 		test_transitions_per_property.html \
 		test_transitions_dynamic_changes.html \
 		test_transitions_bug537151.html \
-		test_unclosed_parentheses.html \
 		test_units_angle.html \
 		test_units_frequency.html \
 		test_units_length.html \
@@ -226,13 +218,11 @@ _VISITED_REFTEST_FILES = \
 		$(topsrcdir)/layout/reftests/svg/pseudo-classes-02-ref.svg \
 		$(NULL)
 
-ifneq (mobile,$(MOZ_BUILD_APP))
 _BROWSER_FILES = \
 		browser_bug453896.js \
 		bug453896_iframe.html \
 		media_queries_iframe.html \
 		$(NULL)
-endif
 
 libs:: $(_TEST_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
@@ -240,7 +230,5 @@ libs:: $(_TEST_FILES)
 libs:: $(_VISITED_REFTEST_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)/css-visited/
 
-ifneq (mobile,$(MOZ_BUILD_APP))
 libs:: $(_BROWSER_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)
-endif

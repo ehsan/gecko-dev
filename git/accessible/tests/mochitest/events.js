@@ -1,23 +1,15 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Constants
 
-const EVENT_ALERT = nsIAccessibleEvent.EVENT_ALERT;
 const EVENT_DOCUMENT_LOAD_COMPLETE = nsIAccessibleEvent.EVENT_DOCUMENT_LOAD_COMPLETE;
-const EVENT_DOCUMENT_RELOAD = nsIAccessibleEvent.EVENT_DOCUMENT_RELOAD;
-const EVENT_DOCUMENT_LOAD_STOPPED = nsIAccessibleEvent.EVENT_DOCUMENT_LOAD_STOPPED;
 const EVENT_HIDE = nsIAccessibleEvent.EVENT_HIDE;
 const EVENT_FOCUS = nsIAccessibleEvent.EVENT_FOCUS;
 const EVENT_NAME_CHANGE = nsIAccessibleEvent.EVENT_NAME_CHANGE;
 const EVENT_REORDER = nsIAccessibleEvent.EVENT_REORDER;
 const EVENT_SCROLLING_START = nsIAccessibleEvent.EVENT_SCROLLING_START;
-const EVENT_SELECTION_ADD = nsIAccessibleEvent.EVENT_SELECTION_ADD;
-const EVENT_SELECTION_WITHIN = nsIAccessibleEvent.EVENT_SELECTION_WITHIN;
 const EVENT_SHOW = nsIAccessibleEvent.EVENT_SHOW;
 const EVENT_STATE_CHANGE = nsIAccessibleEvent.EVENT_STATE_CHANGE;
 const EVENT_TEXT_CARET_MOVED = nsIAccessibleEvent.EVENT_TEXT_CARET_MOVED;
-const EVENT_TEXT_INSERTED = nsIAccessibleEvent.EVENT_TEXT_INSERTED;
-const EVENT_TEXT_REMOVED = nsIAccessibleEvent.EVENT_TEXT_REMOVED;
-const EVENT_VALUE_CHANGE = nsIAccessibleEvent.EVENT_VALUE_CHANGE;
 
 ////////////////////////////////////////////////////////////////////////////////
 // General
@@ -26,11 +18,6 @@ const EVENT_VALUE_CHANGE = nsIAccessibleEvent.EVENT_VALUE_CHANGE;
  * Set up this variable to dump events into DOM.
  */
 var gA11yEventDumpID = "";
-
-/**
- * Set up this variable to dump event processing into console.
- */
-var gA11yEventDumpToConsole = false;
 
 /**
  * Executes the function when requested event is handled.
@@ -132,9 +119,6 @@ const DO_NOT_FINISH_TEST = 1;
  *
  *     // [optional] Invoker's check of handled event for correctness.
  *     check: function(aEvent){},
- *
- *     // [optional] Invoker's check before the next invoker is proceeded.
- *     finalCheck: function(aEvent){},
  *
  *     // [optional] Is called when event of registered type is handled.
  *     debugCheck: function(aEvent){},
@@ -269,9 +253,6 @@ function eventQueue(aEventType)
 
     this.setEventHandler(invoker);
 
-    if (gA11yEventDumpToConsole)
-      dump("\nEvent queue: \n  invoke: " + invoker.getID() + "\n");
-
     if (invoker.invoke() == INVOKER_ACTION_FAILED) {
       // Invoker failed to prepare action, fail and finish tests.
       this.processNextInvoker();
@@ -316,48 +297,37 @@ function eventQueue(aEventType)
       invoker.debugCheck(aEvent);
 
     // Search through unexpected events to ensure no one of them was handled.
-    var idx = 0;
-    for (; idx < this.mEventSeq.length; idx++) {
+    for (var idx = 0; idx < this.mEventSeq.length; idx++) {
       if (this.mEventSeq[idx].unexpected && this.compareEvents(idx, aEvent))
         invoker.wasCaught[idx] = true;
     }
 
-    // We've handled all expected events, next invoker processing is pending.
-    if (this.mEventSeqIdx == this.mEventSeq.length)
-      return;
+    // Wait for next expected event in an order specified by event sequence.
 
     // Compute next expected event index.
-    for (idx = this.mEventSeqIdx + 1;
-         idx < this.mEventSeq.length && this.mEventSeq[idx].unexpected;
-         idx++);
+    for (var idx = this.mEventSeqIdx + 1;
+         idx < this.mEventSeq.length && this.mEventSeq[idx].unexpected; idx++);
 
-    // No expected events were registered, proceed to next invoker to ensure
-    // unexpected events for current invoker won't be handled.
     if (idx == this.mEventSeq.length) {
-      this.mEventSeqIdx = idx;
+      // There is no expected events in the sequence.
       this.processNextInvokerInTimeout();
       return;
     }
 
-    // Check if handled event matches expected event.
     var matched = this.compareEvents(idx, aEvent);
     this.dumpEventToDOM(aEvent, idx, matched);
 
     if (matched) {
       this.checkEvent(idx, aEvent);
       invoker.wasCaught[idx] = true;
-      this.mEventSeqIdx = idx;
 
-      // Get next expected event index.
-      while (++idx < this.mEventSeq.length && this.mEventSeq[idx].unexpected);
-
-      // If the last expected event was processed, proceed next invoker in
-      // timeout to ensure unexpected events for current invoker won't be
-      // handled.
-      if (idx == this.mEventSeq.length) {
-        this.mEventSeqIdx = idx;
+      // The last event is expected and was handled, proceed next invoker.
+      if (idx == this.mEventSeq.length - 1) {
         this.processNextInvokerInTimeout();
+        return;
       }
+
+      this.mEventSeqIdx = idx;
     }
   }
 
@@ -537,38 +507,12 @@ function eventQueue(aEventType)
     var currType = this.getEventType(aExpectedEventIdx);
     var currTarget = this.getEventTarget(aExpectedEventIdx);
 
-    var containerTagName = document instanceof nsIDOMHTMLDocument ?
-      "div" : "description";
-    var inlineTagName = document instanceof nsIDOMHTMLDocument ?
-      "span" : "description";
-
-    var container = document.createElement(containerTagName);
-    container.setAttribute("style", "padding-left: 10px;");
-
-    var text1 = document.createTextNode("EQ: ");
-    container.appendChild(text1);
-
-    var styledNode = document.createElement(inlineTagName);
-    if (aMatch) {
-      styledNode.setAttribute("style", "color: blue;");
-      styledNode.textContent = "matched";
-
-      // Dump matched events into console.
-      dump("\n*****\nEQ matched: " + eventTypeToString(currType) + "\n*****\n");
-    } else {
-      styledNode.textContent = "expected";
-    }
-    container.appendChild(styledNode);
-
-    var info = " event, type: ";
+    var info = "EQ: " + (aMatch ? "matched" : "expected") + " event, type: ";
     info += (typeof currType == "string") ?
       currType : eventTypeToString(currType);
     info += ". Target: " + prettyName(currTarget);
 
-    var text1 = document.createTextNode(info);
-    container.appendChild(text1);
-
-    dumpInfoToDOM(container);
+    dumpInfoToDOM(info);
   }
 
   this.mDefEventType = aEventType;
@@ -842,30 +786,10 @@ function synthSelectAll(aNodeOrID, aChecker, aEventType)
 /**
  * Common invoker checker (see eventSeq of eventQueue).
  */
-function invokerChecker(aEventType, aTargetOrFunc, aTargetFuncArg)
+function invokerChecker(aEventType, aTarget)
 {
   this.type = aEventType;
-
-  this.__defineGetter__("target", invokerChecker_targetGetter);
-  this.__defineSetter__("target", invokerChecker_targetSetter);
-
-  // implementation details
-  function invokerChecker_targetGetter()
-  {
-    if (typeof this.mTarget == "function")
-      return this.mTarget.call(null, this.mTargetFuncArg);
-
-    return this.mTarget;
-  }
-
-  function invokerChecker_targetSetter(aValue)
-  {
-    this.mTarget = aValue;
-    return this.mTarget;
-  }
-
-  this.mTarget = aTargetOrFunc;
-  this.mTargetFuncArg = aTargetFuncArg;
+  this.target = aTarget;
 }
 
 
@@ -905,10 +829,7 @@ var gA11yEventObserver =
     }
     var listenersArray = gA11yEventListeners[event.eventType];
 
-    var eventFromDumpArea = false;
     if (gA11yEventDumpID) { // debug stuff
-      eventFromDumpArea = true;
-
       var target = event.DOMNode;
       var dumpElm = document.getElementById(gA11yEventDumpID);
 
@@ -919,25 +840,16 @@ var gA11yEventObserver =
       if (parent != dumpElm) {
         var type = eventTypeToString(event.eventType);
         var info = "Event type: " + type;
-
-        if (event instanceof nsIAccessibleTextChangeEvent) {
-          info += ", start: " + event.start + ", length: " + event.length +
-            ", " + (event.isInserted() ? "inserted" : "removed") +
-            " text: " + event.modifiedText;
-        }
-
         info += ". Target: " + prettyName(event.accessible);
 
         if (listenersArray)
           info += ". Listeners count: " + listenersArray.length;
 
-        eventFromDumpArea = false;
         dumpInfoToDOM(info);
       }
     }
 
-    // Do not notify listeners if event is result of event log changes.
-    if (!listenersArray || eventFromDumpArea)
+    if (!listenersArray)
       return;
 
     for (var index = 0; index < listenersArray.length; index++)
@@ -992,7 +904,7 @@ function removeA11yEventListener(aEventType, aEventHandler)
 /**
  * Dumps message to DOM.
  *
- * @param aInfo      [in] the message or DOM node to dump
+ * @param aInfo      [in] the message to dump
  * @param aDumpNode  [in, optional] host DOM node for dumped message, if ommited
  *                    then global variable gA11yEventDumpID is used
  */
@@ -1001,22 +913,18 @@ function dumpInfoToDOM(aInfo, aDumpNode)
   var dumpID = gA11yEventDumpID ? gA11yEventDumpID : aDumpNode;
   if (!dumpID)
     return;
-  
+
   var dumpElm = document.getElementById(dumpID);
   if (!dumpElm) {
     ok(false, "No dump element '" + dumpID + "' within the document!");
     return;
   }
-  
+
   var containerTagName = document instanceof nsIDOMHTMLDocument ?
     "div" : "description";
-
   var container = document.createElement(containerTagName);
-  if (aInfo instanceof nsIDOMNode)
-    container.appendChild(aInfo);
-  else
-    container.textContent = aInfo;
 
+  container.textContent = aInfo;
   dumpElm.appendChild(container);
 }
 

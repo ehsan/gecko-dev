@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-350206.js';
 
 var BUGNUMBER = 350206;
 var summary = 'Do not assert: serial <= n in jsxml.c';

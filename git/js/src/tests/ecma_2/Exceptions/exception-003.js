@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'exception-003.js';
 
 /**
  *  File Name:          exception-003

@@ -53,7 +53,7 @@ struct JSObject;
 [ptr] native JSContextPtr(JSContext);
 [ptr] native JSObjectPtr(JSObject);
 
-[uuid(84994340-E120-4051-824F-D4EE8AEF1A3E)]
+[uuid(3B091A81-D15A-4645-83B3-AC0C68A776DB)]
 interface nsIPluginInstance : nsISupports
 {
     /**
@@ -144,11 +144,10 @@ interface nsIPluginInstance : nsISupports
      * (Corresponds to NPP_HandleEvent.)
      *
      * @param aEvent   - the event to be handled
-     * @param aHandled - if non-NULL, set to the NPAPI NPP_HandleEvent
-     *                   return value
+     * @param aHandled - set to PR_TRUE if event was handled
      * @result - NS_OK if this operation was successful
      */
-    void handleEvent(in voidPtr aEvent, out PRInt16 aHandled);
+    void handleEvent(in voidPtr aEvent, out boolean aHandled);
 
     /** 
      * Corresponds to NPN_InvalidateRect

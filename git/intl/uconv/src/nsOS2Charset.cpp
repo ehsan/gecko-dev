@@ -39,7 +39,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 #include "nsIPlatformCharset.h"
-#include "nsUConvPropertySearch.h"
+#include "nsGREResProperties.h"
 #include "pratom.h"
 #define INCL_WIN
 #include <os2.h>
@@ -52,9 +52,8 @@
 #include "nsITimelineService.h"
 #include "nsPlatformCharset.h"
 
-static const char* kOS2Charsets[][3] = {
-#include "os2charset.properties.h"
-};
+static nsGREResProperties *gInfo = nsnull;
+static PRInt32 gCnt= 0;
 
 NS_IMPL_ISUPPORTS1(nsPlatformCharset, nsIPlatformCharset)
 
@@ -73,20 +72,59 @@ nsPlatformCharset::nsPlatformCharset()
           }
 nsPlatformCharset::~nsPlatformCharset()
 {
+  PR_AtomicDecrement(&gCnt);
+  if ((0 == gCnt) && (nsnull != gInfo)) {
+    delete gInfo;
+    gInfo = nsnull;
+  }
+}
+
+nsresult 
+nsPlatformCharset::InitInfo()
+{  
+  PR_AtomicIncrement(&gCnt); // count for gInfo
+
+  if (gInfo == nsnull) {
+    nsGREResProperties *info =
+        new nsGREResProperties(NS_LITERAL_CSTRING("os2charset.properties"));
+
+    NS_ASSERTION(info , "cannot open properties file");
+    NS_ENSURE_TRUE(info, NS_ERROR_FAILURE);
+    gInfo = info;
+  }
+  return NS_OK;
 }
 
 nsresult
 nsPlatformCharset::MapToCharset(nsAString& inANSICodePage, nsACString& outCharset)
 {
-  nsCAutoString key;
-  LossyCopyUTF16toASCII(inANSICodePage, key);
+  //delay loading os2charset.properties bundle if possible
+  if (inANSICodePage.EqualsLiteral("os2.850")) {
+    outCharset.AssignLiteral("IBM850");
+    return NS_OK;
+  } 
 
-  nsresult rv = nsUConvPropertySearch::SearchPropertyValue(kOS2Charsets,
-      NS_ARRAY_LENGTH(kOS2Charsets), key, outCharset);
+  if (inANSICodePage.EqualsLiteral("os2.932")) {
+    outCharset.AssignLiteral("Shift_JIS");
+    return NS_OK;
+  } 
+
+  // ensure the .property file is loaded
+  nsresult rv = InitInfo();
   if (NS_FAILED(rv)) {
     outCharset.AssignLiteral("IBM850");
+    return rv;
   }
-  return rv;
+
+  nsAutoString charset;
+  rv = gInfo->Get(inANSICodePage, charset);
+  if (NS_FAILED(rv)) {
+    outCharset.AssignLiteral("IBM850");
+    return rv;
+  }
+
+  LossyCopyUTF16toASCII(charset, outCharset);
+  return NS_OK;
 }
 
 NS_IMETHODIMP 

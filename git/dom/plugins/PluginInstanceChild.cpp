@@ -42,11 +42,10 @@
 #include "BrowserStreamChild.h"
 #include "PluginStreamChild.h"
 #include "StreamNotifyChild.h"
-#include "PluginProcessChild.h"
+#include "PluginThreadChild.h"
 
 #include "mozilla/ipc/SyncChannel.h"
 
-using mozilla::ipc::ProcessChild;
 using namespace mozilla::plugins;
 
 #ifdef MOZ_WIDGET_GTK2
@@ -59,9 +58,6 @@ using namespace mozilla::plugins;
 #elif defined(MOZ_WIDGET_QT)
 #include <QX11Info>
 #elif defined(OS_WIN)
-#ifndef WM_MOUSEHWHEEL
-#define WM_MOUSEHWHEEL     0x020E
-#endif
 
 #include "nsWindowsDllInterceptor.h"
 
@@ -86,6 +82,11 @@ using mozilla::gfx::SharedDIB;
 // helpers' section for details.
 const int kFlashWMUSERMessageThrottleDelayMs = 5;
 
+#define NS_OOPP_DOUBLEPASS_MSGID TEXT("MozDoublePassMsg")
+
+#ifndef WM_MOUSEHWHEEL
+#define WM_MOUSEHWHEEL                    0x020E
+#endif
 #elif defined(XP_MACOSX)
 #include <ApplicationServices/ApplicationServices.h>
 #endif // defined(XP_MACOSX)
@@ -103,14 +104,12 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface,
     , mCachedWinlessPluginHWND(0)
     , mWinlessPopupSurrogateHWND(0)
     , mWinlessThrottleOldWndProc(0)
-    , mWinlessHiddenMsgHWND(0)
 #endif // OS_WIN
     , mAsyncCallMutex("PluginInstanceChild::mAsyncCallMutex")
 #if defined(OS_MACOSX)  
     , mShColorSpace(nsnull)
     , mShContext(nsnull)
     , mDrawingModel(NPDrawingModelCoreGraphics)
-    , mCurrentEvent(nsnull)
 #endif
 {
     memset(&mWindow, 0, sizeof(mWindow));
@@ -119,10 +118,15 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface,
 #if defined(MOZ_X11) && defined(XP_UNIX) && !defined(XP_MACOSX)
     mWindow.ws_info = &mWsInfo;
     memset(&mWsInfo, 0, sizeof(mWsInfo));
-    mWsInfo.display = DefaultXDisplay();
+#ifdef MOZ_WIDGET_GTK2
+    mWsInfo.display = GDK_DISPLAY();
+#elif defined(MOZ_WIDGET_QT)
+    mWsInfo.display = QX11Info::display();
+#endif // MOZ_WIDGET_GTK2
 #endif // MOZ_X11 && XP_UNIX && !XP_MACOSX
 #if defined(OS_WIN)
     memset(&mAlphaExtract, 0, sizeof(mAlphaExtract));
+    mAlphaExtract.doublePassEvent = ::RegisterWindowMessage(NS_OOPP_DOUBLEPASS_MSGID);
 #endif // OS_WIN
     InitQuirksModes(aMimeType);
 #if defined(OS_WIN)
@@ -352,11 +356,6 @@ PluginInstanceChild::NPN_GetValue(NPNVariable aVar,
         return NPERR_NO_ERROR;
     }
 
-    case NPNVsupportsInvalidatingCoreAnimationBool: {
-        *((NPBool*)aValue) = true;
-        return NPERR_NO_ERROR;
-    }
-
     case NPNVsupportsCocoaBool: {
         *((NPBool*)aValue) = true;
         return NPERR_NO_ERROR;
@@ -531,7 +530,7 @@ PluginInstanceChild::AnswerNPP_HandleEvent(const NPRemoteEvent& event,
     PLUGIN_LOG_DEBUG_FUNCTION;
     AssertPluginThread();
 
-#if defined(MOZ_X11) && defined(DEBUG)
+#if defined(OS_LINUX) && defined(DEBUG)
     if (GraphicsExpose == event.event.type)
         PLUGIN_LOG_DEBUG(("  received drawable 0x%lx\n",
                           event.event.xgraphicsexpose.drawable));
@@ -540,29 +539,19 @@ PluginInstanceChild::AnswerNPP_HandleEvent(const NPRemoteEvent& event,
 #ifdef XP_MACOSX
     // Mac OS X does not define an NPEvent structure. It defines more specific types.
     NPCocoaEvent evcopy = event.event;
-
-    // Make sure we reset mCurrentEvent in case of an exception
-    AutoRestore<const NPCocoaEvent*> savePreviousEvent(mCurrentEvent);
-
-    // Track the current event for NPN_PopUpContextMenu.
-    mCurrentEvent = &event.event;
 #else
     // Make a copy since we may modify values.
     NPEvent evcopy = event.event;
 #endif
 
 #ifdef OS_WIN
-    // FIXME/bug 567645: temporarily drop the "dummy event" on the floor
-    if (WM_NULL == evcopy.event)
-        return true;
-
     // Painting for win32. SharedSurfacePaint handles everything.
     if (mWindow.type == NPWindowTypeDrawable) {
        if (evcopy.event == WM_PAINT) {
           *handled = SharedSurfacePaint(evcopy);
           return true;
        }
-       else if (DoublePassRenderingEvent() == evcopy.event) {
+       else if (evcopy.event == mAlphaExtract.doublePassEvent) {
             // We'll render to mSharedSurfaceDib first, then render to a cached bitmap
             // we store locally. The two passes are for alpha extraction, so the second
             // pass must be to a flat white surface in order for things to work.
@@ -619,8 +608,6 @@ PluginInstanceChild::AnswerNPP_HandleEvent_Shmem(const NPRemoteEvent& event,
     PLUGIN_LOG_DEBUG_FUNCTION;
     AssertPluginThread();
 
-    PaintTracker pt;
-
     NPCocoaEvent evcopy = event.event;
 
     if (evcopy.type == NPCocoaEventDrawRect) {
@@ -661,9 +648,7 @@ PluginInstanceChild::AnswerNPP_HandleEvent_Shmem(const NPRemoteEvent& event,
     if (!mPluginIface->event) {
         *handled = false;
     } else {
-        ::CGContextSaveGState(evcopy.data.draw.context);
         *handled = mPluginIface->event(&mData, reinterpret_cast<void*>(&evcopy));
-        ::CGContextRestoreGState(evcopy.data.draw.context);
     }
 
     *rtnmem = mem;
@@ -692,12 +677,10 @@ PluginInstanceChild::AnswerNPP_HandleEvent_IOSurface(const NPRemoteEvent& event,
     PLUGIN_LOG_DEBUG_FUNCTION;
     AssertPluginThread();
 
-    PaintTracker pt;
-
     NPCocoaEvent evcopy = event.event;
     nsIOSurface* surf = nsIOSurface::LookupSurface(surfaceid);
     if (!surf) {
-        NS_ERROR("Invalid IOSurface.");
+        NS_ERROR("Invalid IOSurface.\n");
         *handled = false;
         return false;
     }
@@ -815,36 +798,16 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
         return false;
 
 #ifdef MOZ_WIDGET_GTK2
-    if (gtk_check_version(2,18,7) != NULL) { // older
-        if (aWindow.type == NPWindowTypeWindow) {
-            GdkWindow* socket_window = gdk_window_lookup(aWindow.window);
-            if (socket_window) {
-                // A GdkWindow for the socket already exists.  Need to
-                // workaround https://bugzilla.gnome.org/show_bug.cgi?id=607061
-                // See wrap_gtk_plug_embedded in PluginModuleChild.cpp.
-                g_object_set_data(G_OBJECT(socket_window),
-                                  "moz-existed-before-set-window",
-                                  GUINT_TO_POINTER(1));
-            }
-        }
-
-        if (aWindow.visualID != None
-            && gtk_check_version(2, 12, 10) != NULL) { // older
-            // Workaround for a bug in Gtk+ (prior to 2.12.10) where deleting
-            // a foreign GdkColormap will also free the XColormap.
-            // http://git.gnome.org/browse/gtk+/log/gdk/x11/gdkcolor-x11.c?id=GTK_2_12_10
-            GdkVisual *gdkvisual = gdkx_visual_get(aWindow.visualID);
-            GdkColormap *gdkcolor =
-                gdk_x11_colormap_foreign_new(gdkvisual, aWindow.colormap);
-
-            if (g_object_get_data(G_OBJECT(gdkcolor), "moz-have-extra-ref")) {
-                // We already have a ref to keep the object alive.
-                g_object_unref(gdkcolor);
-            } else {
-                // leak and mark as already leaked
-                g_object_set_data(G_OBJECT(gdkcolor),
-                                  "moz-have-extra-ref", GUINT_TO_POINTER(1));
-            }
+    if (aWindow.type == NPWindowTypeWindow
+        && gtk_check_version(2,18,7) != NULL) { // older
+        GdkWindow* socket_window = gdk_window_lookup(aWindow.window);
+        if (socket_window) {
+            // A GdkWindow for the socket already exists.  Need to
+            // workaround https://bugzilla.gnome.org/show_bug.cgi?id=607061
+            // See wrap_gtk_plug_embedded in PluginModuleChild.cpp.
+            g_object_set_data(G_OBJECT(socket_window),
+                              "moz-existed-before-set-window",
+                              GUINT_TO_POINTER(1));
         }
     }
 #endif
@@ -876,7 +839,7 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
               if (wndProc != PluginWindowProc) {
                   mPluginWndProc = reinterpret_cast<WNDPROC>(
                       SetWindowLongPtr(mPluginWindowHWND, GWLP_WNDPROC,
-                                       reinterpret_cast<LONG_PTR>(PluginWindowProc)));
+                                       reinterpret_cast<LONG>(PluginWindowProc)));
               }
           }
       }
@@ -916,8 +879,6 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
     if (mPluginIface->setwindow)
         (void) mPluginIface->setwindow(&mData, &mWindow);
 
-#elif defined(ANDROID)
-#  warning Need Android impl
 #else
 #  error Implement me for your OS
 #endif
@@ -987,7 +948,7 @@ PluginInstanceChild::CreatePluginWindow()
 
     // Apparently some plugins require an ASCII WndProc.
     SetWindowLongPtrA(mPluginWindowHWND, GWLP_WNDPROC,
-                      reinterpret_cast<LONG_PTR>(DefWindowProcA));
+                      reinterpret_cast<LONG>(DefWindowProcA));
 
     return true;
 }
@@ -1002,7 +963,7 @@ PluginInstanceChild::DestroyPluginWindow()
         if (wndProc == PluginWindowProc) {
             NS_ASSERTION(mPluginWndProc, "Should have old proc here!");
             SetWindowLongPtr(mPluginWindowHWND, GWLP_WNDPROC,
-                             reinterpret_cast<LONG_PTR>(mPluginWndProc));
+                             reinterpret_cast<LONG>(mPluginWndProc));
             mPluginWndProc = 0;
         }
 
@@ -1017,7 +978,7 @@ PluginInstanceChild::ReparentPluginWindow(HWND hWndParent)
 {
     if (hWndParent != mPluginParentHWND && IsWindow(hWndParent)) {
         // Fix the child window's style to be a child window.
-        LONG_PTR style = GetWindowLongPtr(mPluginWindowHWND, GWL_STYLE);
+        LONG style = GetWindowLongPtr(mPluginWindowHWND, GWL_STYLE);
         style |= WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
         style &= ~WS_POPUP;
         SetWindowLongPtr(mPluginWindowHWND, GWL_STYLE, style);
@@ -1096,7 +1057,7 @@ PluginInstanceChild::PluginWindowProc(HWND hWnd,
 
     // The plugin received keyboard focus, let the parent know so the dom is up to date.
     if (message == WM_MOUSEACTIVATE)
-      self->CallPluginFocusChange(PR_TRUE);
+        self->CallPluginGotFocus();
 
     // Prevent lockups due to plugins making rpc calls when the parent
     // is making a synchronous SendMessage call to the child window. Add
@@ -1112,9 +1073,6 @@ PluginInstanceChild::PluginWindowProc(HWND hWnd,
             break;
         }
     }
-
-    if (message == WM_KILLFOCUS)
-      self->CallPluginFocusChange(PR_FALSE);
 
     if (message == WM_USER+1 &&
         (self->mQuirks & PluginInstanceChild::QUIRK_FLASH_THROTTLE_WMUSER_EVENTS)) {
@@ -1517,30 +1475,6 @@ PluginInstanceChild::SharedSurfacePaint(NPEvent& evcopy)
 // windowing events they use for timing. We throttle these by dropping the
 // delivery priority below any other event, including pending ipc io
 // notifications. We do this for both windowed and windowless controls.
-// Note flash's windowless msg window can last longer than our instance,
-// so we try to unhook when the window is destroyed and in NPP_Destroy.
-
-void
-PluginInstanceChild::UnhookWinlessFlashThrottle()
-{
-  // We may have already unhooked
-  if (!mWinlessThrottleOldWndProc)
-      return;
-
-  WNDPROC tmpProc = mWinlessThrottleOldWndProc;
-  mWinlessThrottleOldWndProc = nsnull;
-
-  NS_ASSERTION(mWinlessHiddenMsgHWND,
-               "Missing mWinlessHiddenMsgHWND w/subclass set??");
-
-  // reset the subclass
-  SetWindowLongPtr(mWinlessHiddenMsgHWND, GWLP_WNDPROC,
-                   reinterpret_cast<LONG_PTR>(tmpProc));
-
-  // Remove our instance prop
-  RemoveProp(mWinlessHiddenMsgHWND, kPluginInstanceChildProperty);
-  mWinlessHiddenMsgHWND = nsnull;
-}
 
 // static
 LRESULT CALLBACK
@@ -1566,10 +1500,13 @@ PluginInstanceChild::WinlessHiddenFlashWndProc(HWND hWnd,
      }
 
     // Unhook
-    if (message == WM_CLOSE || message == WM_NCDESTROY) {
+    if (message == WM_NCDESTROY) {
         WNDPROC tmpProc = self->mWinlessThrottleOldWndProc;
-        self->UnhookWinlessFlashThrottle();
+        self->mWinlessThrottleOldWndProc = nsnull;
+        SetWindowLongPtr(hWnd, GWLP_WNDPROC,
+                         reinterpret_cast<LONG>(tmpProc));
         LRESULT res = CallWindowProc(tmpProc, hWnd, message, wParam, lParam);
+        RemoveProp(hWnd, kPluginInstanceChildProperty);
         return res;
     }
 
@@ -1604,10 +1541,9 @@ PluginInstanceChild::EnumThreadWindowsCallback(HWND hWnd,
                 return FALSE;
             }
             // Subsclass and store self as a property
-            self->mWinlessHiddenMsgHWND = hWnd;
             self->mWinlessThrottleOldWndProc =
                 reinterpret_cast<WNDPROC>(SetWindowLongPtr(hWnd, GWLP_WNDPROC,
-                reinterpret_cast<LONG_PTR>(WinlessHiddenFlashWndProc)));
+                reinterpret_cast<LONG>(WinlessHiddenFlashWndProc)));
             SetProp(hWnd, kPluginInstanceChildProperty, self);
             NS_ASSERTION(self->mWinlessThrottleOldWndProc,
                          "SetWindowLongPtr failed?!");
@@ -1989,7 +1925,7 @@ PluginInstanceChild::AsyncCall(PluginThreadCallback aFunc, void* aUserData)
         MutexAutoLock lock(mAsyncCallMutex);
         mPendingAsyncCalls.AppendElement(task);
     }
-    ProcessChild::message_loop()->PostTask(FROM_HERE, task);
+    PluginThreadChild::current()->message_loop()->PostTask(FROM_HERE, task);
 }
 
 static PLDHashOperator
@@ -2071,7 +2007,6 @@ PluginInstanceChild::AnswerNPP_Destroy(NPError* aResult)
 #if defined(OS_WIN)
     SharedSurfaceRelease();
     DestroyWinlessPopupSurrogate();
-    UnhookWinlessFlashThrottle();
 #endif
 
     return true;

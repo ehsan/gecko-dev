@@ -100,3 +100,6 @@ protected:
   PRInt32        mCharsetListIndex;
 };
 
+
+nsresult NS_NewSaveAsCharset(nsISupports **inst);
+

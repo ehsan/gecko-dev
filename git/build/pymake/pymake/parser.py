@@ -284,7 +284,7 @@ def ifeq(d, offset):
     if token == '(':
         arg1, t, offset = parsemakesyntax(d, offset, (',',), itermakefilechars)
         if t is None:
-            raise SyntaxError("Expected two arguments in conditional", d.getloc(d.lend))
+            raise SyntaxError("Expected two arguments in conditional", d.getloc(offset))
 
         arg1.rstrip()
 
@@ -604,9 +604,6 @@ class ParseStackFrame(object):
         self.function = function
         self.loc = loc
 
-    def __str__(self):
-        return "<state=%i expansion=%s tokenlist=%s openbrace=%s closebrace=%s>" % (self.parsestate, self.expansion, self.tokenlist, self.openbrace, self.closebrace)
-
 _matchingbrace = {
     '(': ')',
     '{': '}',
@@ -692,7 +689,7 @@ def parsemakesyntax(d, offset, stopon, iterfunc):
             stacktop.expansion.appendstr(token)
             stacktop = ParseStackFrame(_PARSESTATE_PARENMATCH, stacktop,
                                        stacktop.expansion,
-                                       (token, stacktop.closebrace, '$'),
+                                       (token, stacktop.closebrace),
                                        openbrace=token, closebrace=stacktop.closebrace, loc=d.getloc(tokenoffset))
         elif parsestate == _PARSESTATE_PARENMATCH:
             assert token == stacktop.closebrace

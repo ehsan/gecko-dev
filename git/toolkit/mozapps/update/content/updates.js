@@ -39,8 +39,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 Components.utils.import("resource://gre/modules/DownloadUtils.jsm");
-Components.utils.import("resource://gre/modules/AddonManager.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
 
 // Firefox's macBrowserOverlay.xul includes scripts that define Cc, Ci, and Cr
 // so we have to use different names.
@@ -72,6 +70,8 @@ const STATE_FAILED            = "failed";
 const SRCEVT_FOREGROUND       = 1;
 const SRCEVT_BACKGROUND       = 2;
 
+var gConsole    = null;
+var gPref       = null;
 var gLogEnabled = false;
 var gUpdatesFoundPageId;
 
@@ -93,7 +93,7 @@ var gUpdatesFoundPageId;
 function LOG(module, string) {
   if (gLogEnabled) {
     dump("*** AUS:UI " + module + ":" + string + "\n");
-    Services.console.logStringMessage("AUS:UI " + module + ":" + string);
+    gConsole.logStringMessage("AUS:UI " + module + ":" + string);
   }
 }
 
@@ -121,7 +121,7 @@ function openUpdateURL(event) {
  */
 function getPref(func, preference, defaultValue) {
   try {
-    return Services.prefs[func](preference);
+    return gPref[func](preference);
   }
   catch (e) {
     LOG("General", "getPref - failed to get preference: " + preference);
@@ -256,7 +256,13 @@ var gUpdates = {
     // this version again unless they manually select "Check for Updates..."
     // which will clear all of the "never" prefs.
     var neverPrefName = PREF_APP_UPDATE_NEVER_BRANCH + this.update.appVersion;
-    Services.prefs.setBoolPref(neverPrefName, true);
+    gPref.setBoolPref(neverPrefName, true);
+    this.wiz.cancel();
+  },
+
+  later: function () {
+    // The user said "Later", so close the wizard
+    this.wiz.cancel();
   },
 
   /**
@@ -330,6 +336,10 @@ var gUpdates = {
   onLoad: function() {
     this.wiz = document.documentElement;
 
+    gPref = CoC["@mozilla.org/preferences-service;1"].
+            getService(CoI.nsIPrefBranch2);
+    gConsole = CoC["@mozilla.org/consoleservice;1"].
+               getService(CoI.nsIConsoleService);
     gLogEnabled = getPref("getBoolPref", PREF_APP_UPDATE_LOG, false)
 
     this.strings = document.getElementById("updateStrings");
@@ -350,10 +360,9 @@ var gUpdates = {
     this._cacheButtonStrings("extra2");
 
     // Advance to the Start page.
-    this.getStartPageID(function(startPageID) {
-      LOG("gUpdates", "onLoad - setting current page to startpage " + startPageID);
-      gUpdates.wiz.currentPage = document.getElementById(startPageID);
-    });
+    var startPage = this.startPage;
+    LOG("gUpdates", "onLoad - setting current page to startpage " + startPage.id);
+    this.wiz.currentPage = startPage;
   },
 
   /**
@@ -368,9 +377,7 @@ var gUpdates = {
   },
 
   /**
-   * Gets the ID of the <wizardpage> object that should be displayed first. This
-   * is an asynchronous method that passes the resulting object to a callback
-   * function.
+   * Return the <wizardpage> object that should be displayed first.
    *
    * This is determined by how we were called by the update prompt:
    *
@@ -388,10 +395,8 @@ var gUpdates = {
    * No new enabled incompatible add-ons: either updatesfoundbasic or
    *                                      updatesfoundbillboard as determined by
    *                                      updatesFoundPageId
-   * @param   aCallback
-   *          A callback to pass the <wizardpage> object to be displayed first to.
    */
-  getStartPageID: function(aCallback) {
+  get startPage() {
     if ("arguments" in window && window.arguments[0]) {
       var arg0 = window.arguments[0];
       if (arg0 instanceof CoI.nsIUpdate) {
@@ -429,40 +434,28 @@ var gUpdates = {
           switch (state) {
           case STATE_PENDING:
             this.sourceEvent = SRCEVT_BACKGROUND;
-            aCallback("finishedBackground");
-            return;
+            return document.getElementById("finishedBackground");
           case STATE_DOWNLOADING:
-            aCallback("downloading");
-            return;
+            return document.getElementById("downloading");
           case STATE_FAILED:
             window.getAttention();
-            aCallback("errorpatching");
-            return;
+            return document.getElementById("errorpatching");
           case STATE_DOWNLOAD_FAILED:
           case STATE_APPLYING:
-            aCallback("errors");
-            return;
+            return document.getElementById("errors");
           }
         }
         if (this.update.licenseURL)
           this.wiz.getPageById(this.updatesFoundPageId).setAttribute("next", "license");
-
-        var self = this;
-        this.getShouldCheckAddonCompatibility(function(shouldCheck) {
-          if (shouldCheck) {
-            var incompatCheckPage = document.getElementById("incompatibleCheck");
-            incompatCheckPage.setAttribute("next", self.updatesFoundPageId);
-            aCallback(incompatCheckPage.id);
-          }
-          else {
-            aCallback(self.updatesFoundPageId);
-          }
-        });
-        return;
+        if (this.shouldCheckAddonCompatibility) {
+          var incompatCheckPage = document.getElementById("incompatibleCheck");
+          incompatCheckPage.setAttribute("next", this.updatesFoundPageId);
+          return incompatCheckPage;
+        }
+        return document.getElementById(this.updatesFoundPageId);
       }
       else if (arg0 == "installed") {
-        aCallback("installed");
-        return;
+        return document.getElementById("installed");
       }
     }
     else {
@@ -470,8 +463,7 @@ var gUpdates = {
                getService(CoI.nsIUpdateManager);
       if (um.activeUpdate) {
         this.setUpdate(um.activeUpdate);
-        aCallback("downloading");
-        return;
+        return document.getElementById("downloading");
       }
     }
 
@@ -488,49 +480,45 @@ var gUpdates = {
                       displayVersion      : "Billboard Test 1.0",
                       showNeverForVersion : true,
                       type                : "major" };
-      aCallback(updatesFoundBillboardPage.id);
+      return updatesFoundBillboardPage;
     }
-    else {
-      aCallback("checking");
-    }
+
+    return document.getElementById("checking");
   },
 
-  getShouldCheckAddonCompatibility: function(aCallback) {
+  get shouldCheckAddonCompatibility() {
     // this early return should never happen
-    if (!this.update) {
-      aCallback(false);
-      return;
-    }
+    if (!this.update)
+      return false;
 
+    delete this.shouldCheckAddonCompatibility;
+    var ai = CoC["@mozilla.org/xre/app-info;1"].getService(CoI.nsIXULAppInfo);
+    var vc = CoC["@mozilla.org/xpcom/version-comparator;1"].
+             getService(CoI.nsIVersionComparator);
     if (!this.update.appVersion ||
-        Services.vc.compare(this.update.appVersion, Services.appinfo.version) == 0) {
-      aCallback(false);
-      return;
+        vc.compare(this.update.appVersion, ai.version) == 0)
+      return this.shouldCheckAddonCompatibility = false;
+
+    var em = CoC["@mozilla.org/extensions/manager;1"].
+             getService(CoI.nsIExtensionManager);
+    this.addons = em.getIncompatibleItemList(this.update.appVersion,
+                                             this.update.platformVersion,
+                                             CoI.nsIUpdateItem.TYPE_ANY, false);
+    if (this.addons.length > 0) {
+      // Don't include add-ons that are already incompatible with the current
+      // version of the application
+      var addons = em.getIncompatibleItemList(null, null,
+                                              CoI.nsIUpdateItem.TYPE_ANY, false);
+      for (var i = 0; i < addons.length; ++i) {
+        for (var j = 0; j < this.addons.length; ++j) {
+          if (addons[i].id == this.addons[j].id) {
+            this.addons.splice(j, 1);
+            break;
+          }
+        }
+      }
     }
-
-    var self = this;
-    AddonManager.getAllAddons(function(addons) {
-      self.addons = [];
-      addons.forEach(function(addon) {
-        // If an add-on isn't appDisabled and isn't userDisabled then it is
-        // either active now or the user expects it to be active after the
-        // restart. If that is the case and the add-on is not installed by the
-        // application and is not compatible with the new application version
-        // then the user should be warned that the add-on will become
-        // incompatible. If an addon's type equals plugin it is skipped since
-        // checking plugins compatibility information isn't supported and
-        // getting the scope property of a plugin breaks in some environments
-        // (see bug 566787).
-        if (addon.type != "plugin" &&
-            !addon.appDisabled && !addon.userDisabled &&
-            addon.scope != AddonManager.SCOPE_APPLICATION &&
-            !addon.isCompatibleWith(self.update.appVersion,
-                                    self.update.platformVersion))
-          self.addons.push(addon);
-      });
-
-      aCallback(self.addons.length != 0);
-    });
+    return this.shouldCheckAddonCompatibility = (this.addons.length != 0);
   },
 
   /**
@@ -573,13 +561,6 @@ var gCheckingPage = {
   onPageShow: function() {
     gUpdates.setButtons(null, null, null, false, true);
     gUpdates.wiz.getButton("cancel").focus();
-
-    // Clear all of the "never" prefs to handle the scenario where the user
-    // clicked "never" for an update, selected "Check for Updates...", and
-    // then canceled.  If we don't clear the "never" prefs future
-    // notifications will never happen.
-    Services.prefs.deleteBranch(PREF_APP_UPDATE_NEVER_BRANCH);
-
     this._checker = CoC["@mozilla.org/updates/update-checker;1"].
                     createInstance(CoI.nsIUpdateChecker);
     this._checker.checkForUpdates(this.updateListener, true);
@@ -630,16 +611,14 @@ var gCheckingPage = {
           gUpdates.wiz.getPageById(gUpdates.updatesFoundPageId).setAttribute("next", "license");
         }
 
-        gUpdates.getShouldCheckAddonCompatibility(function(shouldCheck) {
-          if (shouldCheck) {
-            var incompatCheckPage = document.getElementById("incompatibleCheck");
-            incompatCheckPage.setAttribute("next", gUpdates.updatesFoundPageId);
-            gUpdates.wiz.goTo("incompatibleCheck");
-          }
-          else {
-            gUpdates.wiz.goTo(gUpdates.updatesFoundPageId);
-          }
-        });
+        if (gUpdates.shouldCheckAddonCompatibility) {
+          var incompatCheckPage = document.getElementById("incompatibleCheck");
+          incompatCheckPage.setAttribute("next", gUpdates.updatesFoundPageId);
+          gUpdates.wiz.goTo("incompatibleCheck");
+        }
+        else {
+          gUpdates.wiz.goTo(gUpdates.updatesFoundPageId);
+        }
         return;
       }
 
@@ -681,13 +660,14 @@ var gPluginsPage = {
    * Initialize
    */
   onPageShow: function() {
-    var prefs = Services.prefs;
-    if (prefs.getPrefType(PREF_PLUGINS_UPDATEURL) == prefs.PREF_INVALID) {
+    if (gPref.getPrefType(PREF_PLUGINS_UPDATEURL) == gPref.PREF_INVALID) {
       gUpdates.wiz.goTo("noupdatesfound");
       return;
     }
     
-    this._url = Services.urlFormatter.formatURLPref(PREF_PLUGINS_UPDATEURL);
+    var formatter = CoC["@mozilla.org/toolkit/URLFormatterService;1"].
+                       getService(CoI.nsIURLFormatter);
+    this._url = formatter.formatURLPref(PREF_PLUGINS_UPDATEURL);
     var link = document.getElementById("pluginupdateslink");
     link.setAttribute("href", this._url);
 
@@ -776,56 +756,31 @@ var gIncompatibleCheckPage = {
     this._pBar = document.getElementById("incompatibleCheckProgress");
     this._totalCount = gUpdates.addons.length;
 
+    var em = CoC["@mozilla.org/extensions/manager;1"].
+             getService(CoI.nsIExtensionManager);
+    em.update(gUpdates.addons, gUpdates.addons.length,
+              CoI.nsIExtensionManager.UPDATE_NOTIFY_NEWVERSION, this,
+              CoI.nsIExtensionManager.UPDATE_WHEN_NEW_APP_DETECTED,
+              gUpdates.update.appVersion, gUpdates.update.platformVersion);
+  },
+
+  /**
+   * See nsIExtensionManager.idl
+   */
+  onUpdateStarted: function() {
     this._pBar.mode = "normal";
-    gUpdates.addons.forEach(function(addon) {
-      addon.findUpdates(this, AddonManager.UPDATE_WHEN_NEW_APP_DETECTED,
-                        gUpdates.update.appVersion,
-                        gUpdates.update.platformVersion);
-    }, this);
   },
 
-  // Addon UpdateListener
-  onCompatibilityUpdateAvailable: function(addon) {
-    // Remove the add-on from the list of add-ons that will become incompatible
-    // with the new version of the application.
-    for (var i = 0; i < gUpdates.addons.length; ++i) {
-      if (gUpdates.addons[i].id == addon.id) {
-        LOG("gIncompatibleCheckPage", "onCompatibilityUpdateAvailable - " +
-            "found update for add-on ID: " + addon.id);
-        gUpdates.addons.splice(i, 1);
-        break;
-      }
-    }
-  },
-
-  onUpdateAvailable: function(addon, install) {
-    // If the new version of this add-on is blocklisted for the new application
-    // then it isn't a valid update and the user should still be warned that
-    // the add-on will become incompatible.
-    let bs = CoC["@mozilla.org/extensions/blocklist;1"].
-             getService(CoI.nsIBlocklistService);
-    if (bs.isAddonBlocklisted(addon.id, install.version,
-                              gUpdates.update.appVersion,
-                              gUpdates.update.platformVersion))
-      return;
-
-    // Compatibility or new version updates mean the same thing here.
-    this.onCompatibilityUpdateAvailable(addon);
-  },
-
-  onUpdateFinished: function(addon) {
-    ++this._completedCount;
-    this._pBar.value = Math.ceil((this._completedCount / this._totalCount) * 100);
-
-    if (this._completedCount < this._totalCount)
-      return;
-
+  /**
+   * See nsIExtensionManager.idl
+   */
+  onUpdateEnded: function() {
     if (gUpdates.addons.length == 0) {
-      LOG("gIncompatibleCheckPage", "onUpdateFinished - updates were found " +
+      LOG("gIncompatibleCheckPage", "onUpdateEnded - updates were found " +
           "for all incompatible add-ons");
     }
     else {
-      LOG("gIncompatibleCheckPage", "onUpdateFinished - there are still " +
+      LOG("gIncompatibleCheckPage", "onUpdateEnded - there are still " +
           "incompatible add-ons");
       if (gUpdates.update.licenseURL) {
         document.getElementById("license").setAttribute("next", "incompatibleList");
@@ -837,6 +792,40 @@ var gIncompatibleCheckPage = {
       }
     }
     gUpdates.wiz.goTo(gUpdates.updatesFoundPageId);
+  },
+
+  /**
+   * See nsIExtensionManager.idl
+   */
+  onAddonUpdateStarted: function(addon) {
+  },
+
+  /**
+   * See nsIExtensionManager.idl
+   */
+  onAddonUpdateEnded: function(addon, status) {
+    ++this._completedCount;
+    this._pBar.value = Math.ceil((this._completedCount / this._totalCount) * 100);
+
+    if (status != CoI.nsIAddonUpdateCheckListener.STATUS_UPDATE &&
+        status != CoI.nsIAddonUpdateCheckListener.STATUS_VERSIONINFO)
+      return;
+
+    for (var i = 0; i < gUpdates.addons.length; ++i) {
+      if (gUpdates.addons[i].id == addon.id) {
+        LOG("gIncompatibleCheckPage", "onAddonUpdateEnded - found update " +
+            "for add-on ID: " + addon.id);
+        gUpdates.addons.splice(i, 1);
+        break;
+      }
+    }
+  },
+
+  QueryInterface: function(iid) {
+    if (!iid.equals(CoI.nsIAddonUpdateCheckListener) &&
+        !iid.equals(CoI.nsISupports))
+      throw CoR.NS_ERROR_NO_INTERFACE;
+    return this;
   }
 };
 
@@ -846,7 +835,9 @@ var gIncompatibleCheckPage = {
  */
 var gManualUpdatePage = {
   onPageShow: function() {
-    var manualURL = Services.urlFormatter.formatURLPref(PREF_APP_UPDATE_MANUAL_URL);
+    var formatter = CoC["@mozilla.org/toolkit/URLFormatterService;1"].
+                    getService(CoI.nsIURLFormatter);
+    var manualURL = formatter.formatURLPref(PREF_APP_UPDATE_MANUAL_URL);
     var manualUpdateLinkLabel = document.getElementById("manualUpdateLinkLabel");
     manualUpdateLinkLabel.value = manualURL;
     manualUpdateLinkLabel.setAttribute("url", manualURL);
@@ -898,15 +889,20 @@ var gUpdatesFoundBasicPage = {
     var updateTitle = gUpdates.getAUSString("updatesfound_" + update.type +
                                             ".title");
     document.getElementById("updatesFoundBasicHeader").setAttribute("label", updateTitle);
+
+    // Clear all of the "never" prefs to handle the scenario where the user
+    // clicked "never" for an update, selected "Check for Updates...", and
+    // then canceled.  If we don't clear the "never" prefs future
+    // notifications will never happen.
+    gPref.deleteBranch(PREF_APP_UPDATE_NEVER_BRANCH);
   },
 
   onExtra1: function() {
-    gUpdates.wiz.cancel();
+    gUpdates.later();
   },
 
   onExtra2: function() {
     gUpdates.never();
-    gUpdates.wiz.cancel();
   }
 };
 
@@ -945,9 +941,11 @@ var gUpdatesFoundBillboardPage = {
 
     var billboardTestURL = getPref("getCharPref", PREF_APP_UPDATE_BILLBOARD_TEST_URL, null);
     if (billboardTestURL) {
+      var ioServ = CoC["@mozilla.org/network/io-service;1"].
+               getService(CoI.nsIIOService);
       // Allow file urls when testing the billboard and fallback to the
       // normal method if the URL isn't a file.
-      var scheme = Services.io.newURI(billboardTestURL, null, null).scheme;
+      var scheme = ioServ.newURI(billboardTestURL, null, null).scheme;
       if (scheme == "file")
         remoteContent.testFileUrl = update.billboardURL;
       else
@@ -955,6 +953,12 @@ var gUpdatesFoundBillboardPage = {
     }
     else
       remoteContent.url = update.billboardURL;
+
+    // Clear all of the "never" prefs to handle the scenario where the user
+    // clicked "never" for an update, selected "Check for Updates...", and
+    // then canceled.  If we don't clear the "never" prefs future
+    // notifications will never happen.
+    gPref.deleteBranch(PREF_APP_UPDATE_NEVER_BRANCH);
 
     this._billboardLoaded = true;
   },
@@ -980,13 +984,12 @@ var gUpdatesFoundBillboardPage = {
 
   onExtra1: function() {
     this.onWizardCancel();
-    gUpdates.wiz.cancel();
+    gUpdates.later();
   },
 
   onExtra2: function() {
     this.onWizardCancel();
     gUpdates.never();
-    gUpdates.wiz.cancel();
   },
 
   /**
@@ -1368,7 +1371,7 @@ var gDownloadingPage = {
       return;
 
     this.removeDownloadListener();
-  },
+ },
 
   /**
    * When the user closes the Wizard UI by clicking the Hide button
@@ -1396,7 +1399,8 @@ var gDownloadingPage = {
       var title = gUpdates.getAUSString("resumePausedAfterCloseTitle");
       var message = gUpdates.getAUSString("resumePausedAfterCloseMsg",
                                           [gUpdates.brandName]);
-      var ps = Services.prompt;
+      var ps = CoC["@mozilla.org/embedcomp/prompt-service;1"].
+               getService(CoI.nsIPromptService);
       var flags = ps.STD_YES_NO_BUTTONS;
       // Focus the software update wizard before prompting. This will raise
       // the software update wizard if it is minimized making it more obvious
@@ -1527,21 +1531,27 @@ var gDownloadingPage = {
         // the update object.
         this.removeDownloadListener();
         gUpdates.wiz.goTo("errors");
-        break;
       }
-      // Verification failed for a partial patch, complete patch is now
-      // downloading so return early and do NOT remove the download listener!
+      else {
+        // Verification failed for a partial patch, complete patch is now
+        // downloading so return early and do NOT remove the download listener!
 
-      // Reset the progress meter to "undertermined" mode so that we don't
-      // show old progress for the new download of the "complete" patch.
-      this._downloadProgress.mode = "undetermined";
-      this._pauseButton.disabled = true;
-      document.getElementById("verificationFailed").hidden = false;
+        // Reset the progress meter to "undertermined" mode so that we don't
+        // show old progress for the new download of the "complete" patch.
+        this._downloadProgress.mode = "undetermined";
+        this._pauseButton.disabled = true;
+
+        var verificationFailed = document.getElementById("verificationFailed");
+        verificationFailed.hidden = false;
+
+        return;
+      }
       break;
     case CoR.NS_BINDING_ABORTED:
       LOG("gDownloadingPage", "onStopRequest - pausing download");
-      // Do not remove UI listener since the user may resume downloading again.
-      break;
+      // Return early, do not remove UI listener since the user may resume
+      // downloading again.
+      return;
     case CoR.NS_OK:
       LOG("gDownloadingPage", "onStopRequest - patch verification succeeded");
       this.removeDownloadListener();
@@ -1569,7 +1579,7 @@ var gDownloadingPage = {
 };
 
 /**
- * The "There was an error during the update" page.
+ * The "There was an error applying the update's patch" page.
  */
 var gErrorsPage = {
   /**
@@ -1579,12 +1589,17 @@ var gErrorsPage = {
     gUpdates.setButtons(null, null, "okButton", true);
     gUpdates.wiz.getButton("finish").focus();
 
+    var errorsTitle = gUpdates.getAUSString("errorsPageHeader");
+    document.getElementById("errorsHeader").setAttribute("label", errorsTitle);
+
     var statusText = gUpdates.update.statusText;
     LOG("gErrorsPage" , "onPageShow - update.statusText: " + statusText);
 
     var errorReason = document.getElementById("errorReason");
     errorReason.value = statusText;
-    var manualURL = Services.urlFormatter.formatURLPref(PREF_APP_UPDATE_MANUAL_URL);
+    var formatter = CoC["@mozilla.org/toolkit/URLFormatterService;1"].
+                    getService(CoI.nsIURLFormatter);
+    var manualURL = formatter.formatURLPref(PREF_APP_UPDATE_MANUAL_URL);
     var errorLinkLabel = document.getElementById("errorLinkLabel");
     errorLinkLabel.value = manualURL;
     errorLinkLabel.setAttribute("url", manualURL);
@@ -1710,10 +1725,12 @@ var gInstalledPage = {
    * Initialize
    */
   onPageShow: function() {
+    var ai = CoC["@mozilla.org/xre/app-info;1"].getService(CoI.nsIXULAppInfo);
+
     var branding = document.getElementById("brandStrings");
     try {
       // whatsNewURL should just be a pref (bug 546609).
-      var url = branding.getFormattedString("whatsNewURL", [Services.appinfo.version]);
+      var url = branding.getFormattedString("whatsNewURL", [ai.version]);
       var whatsnewLink = document.getElementById("whatsnewLink");
       whatsnewLink.setAttribute("url", url);
       whatsnewLink.hidden = false;

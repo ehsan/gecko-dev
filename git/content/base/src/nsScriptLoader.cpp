@@ -48,7 +48,7 @@
 #include "nsICharsetConverterManager.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsIContent.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 #include "nsGkAtoms.h"
 #include "nsNetUtil.h"
 #include "nsIScriptGlobalObject.h"
@@ -69,14 +69,12 @@
 #include "nsContentErrors.h"
 #include "nsIParser.h"
 #include "nsThreadUtils.h"
+#include "nsIChannelClassifier.h"
 #include "nsDocShellCID.h"
 #include "nsIContentSecurityPolicy.h"
 #include "prlog.h"
 #include "nsIChannelPolicy.h"
 #include "nsChannelPolicy.h"
-#include "nsCRT.h"
-
-#include "mozilla/FunctionTimer.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gCspPRLog;
@@ -190,15 +188,13 @@ IsScriptEventHandler(nsIScriptElement *aScriptElement)
     return PR_FALSE;
   }
 
-  const nsAString& for_str =
-    nsContentUtils::TrimWhitespace<nsCRT::IsAsciiSpace>(forAttr);
+  const nsAString& for_str = nsContentUtils::TrimWhitespace(forAttr);
   if (!for_str.LowerCaseEqualsLiteral("window")) {
     return PR_TRUE;
   }
 
   // We found for="window", now check for event="onload".
-  const nsAString& event_str =
-    nsContentUtils::TrimWhitespace<nsCRT::IsAsciiSpace>(eventAttr, PR_FALSE);
+  const nsAString& event_str = nsContentUtils::TrimWhitespace(eventAttr, PR_FALSE);
   if (!StringBeginsWith(event_str, NS_LITERAL_STRING("onload"),
                         nsCaseInsensitiveStringComparator())) {
     // It ain't "onload.*".
@@ -307,8 +303,8 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType)
 
   nsCOMPtr<nsIChannel> channel;
   rv = NS_NewChannel(getter_AddRefs(channel),
-                     aRequest->mURI, nsnull, loadGroup, prompter,
-                     nsIRequest::LOAD_NORMAL | nsIChannel::LOAD_CLASSIFY_URI,
+                     aRequest->mURI, nsnull, loadGroup,
+                     prompter, nsIRequest::LOAD_NORMAL,
                      channelPolicy);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -326,6 +322,17 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType)
 
   rv = channel->AsyncOpen(loader, aRequest);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  // Check the load against the URI classifier
+  nsCOMPtr<nsIChannelClassifier> classifier =
+    do_CreateInstance(NS_CHANNELCLASSIFIER_CONTRACTID);
+  if (classifier) {
+    rv = classifier->Start(channel, PR_TRUE);
+    if (NS_FAILED(rv)) {
+      channel->Cancel(rv);
+      return rv;
+    }
+  }
 
   return NS_OK;
 }
@@ -649,10 +656,6 @@ nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest)
   nsAFlatString* script;
   nsAutoString textData;
 
-  NS_TIME_FUNCTION;
-
-  nsCOMPtr<nsIDocument> doc;
-
   // If there's no script text, we try to get it from the element
   if (aRequest->mIsInline) {
     // XXX This is inefficient - GetText makes multiple
@@ -663,21 +666,11 @@ nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest)
   }
   else {
     script = &aRequest->mScriptText;
-
-    nsCOMPtr<nsIContent> eltAsContent = do_QueryInterface(aRequest->mElement);
-    NS_ASSERTION(eltAsContent, "Script should QI to nsIContent.");
-    doc = eltAsContent->GetOwnerDoc();
   }
 
   FireScriptAvailable(NS_OK, aRequest);
   aRequest->mElement->BeginEvaluating();
-  if (doc) {
-    doc->BeginEvaluatingExternalScript();
-  }
   nsresult rv = EvaluateScript(aRequest, *script);
-  if (doc) {
-    doc->EndEvaluatingExternalScript();
-  }
   aRequest->mElement->EndEvaluating();
   FireScriptEvaluated(rv, aRequest);
 
@@ -937,7 +930,7 @@ nsScriptLoader::ConvertToUTF16(nsIChannel* aChannel, const PRUint8* aData,
     DetectByteOrderMark(aData, aLength, characterSet);
   }
 
-  if (characterSet.IsEmpty() && aDocument) {
+  if (characterSet.IsEmpty()) {
     // charset from document default
     characterSet = aDocument->GetDocumentCharacterSet();
   }

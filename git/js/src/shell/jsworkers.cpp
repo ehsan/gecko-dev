@@ -53,8 +53,6 @@
 #include "jsvector.h"
 #include "jsworkers.h"
 
-extern size_t gMaxStackSize;
-
 /*
  * JavaScript shell workers.
  *
@@ -610,7 +608,7 @@ class Worker : public WorkerParent
         JS_SetVersion(context, JS_GetVersion(parentcx));
         JS_SetContextPrivate(context, this);
         JS_SetOperationCallback(context, jsOperationCallback);
-        JS_BeginRequest(context);
+        JS_TransferRequest(parentcx, context);
 
         JSObject *global = threadPool->getHooks()->newGlobalObject(context);
         JSObject *post, *proto, *ctor;
@@ -638,14 +636,14 @@ class Worker : public WorkerParent
         if (!ctor || !JS_SetReservedSlot(context, ctor, 0, PRIVATE_TO_JSVAL(this)))
             goto bad;
 
-        JS_EndRequest(context);
+        JS_TransferRequest(context, parentcx);
         JS_ClearContextThread(context);
         return true;
 
     bad:
-        JS_EndRequest(context);
         JS_DestroyContext(context);
         context = NULL;
+        JS_BeginRequest(parentcx);
         return false;
     }
 
@@ -672,16 +670,17 @@ class Worker : public WorkerParent
         return !w->checkTermination();
     }
 
-    static JSBool jsResolveGlobal(JSContext *cx, JSObject *obj, jsid id, uintN flags,
+    static JSBool jsResolveGlobal(JSContext *cx, JSObject *obj, jsval id, uintN flags,
                                   JSObject **objp)
     {
-        JSBool resolved;
+        if ((flags & JSRESOLVE_ASSIGNING) == 0) {
+            JSBool resolved;
 
-        if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
-            return false;
-        if (resolved)
-            *objp = obj;
-
+            if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
+                return false;
+            if (resolved)
+                *objp = obj;
+        }
         return true;
     }
 
@@ -870,7 +869,7 @@ class InitEvent : public Event
             return fail;
 
         AutoValueRooter rval(cx);
-        JSBool ok = JS_ExecuteScript(cx, child->getGlobal(), script, Jsvalify(rval.addr()));
+        JSBool ok = JS_ExecuteScript(cx, child->getGlobal(), script, rval.addr());
         JS_DestroyScript(cx, script);
         return Result(ok);
     }
@@ -907,7 +906,7 @@ class ErrorEvent : public Event
         JSString *data = NULL;
         jsval exc;
         if (JS_GetPendingException(cx, &exc)) {
-            AutoValueRooter tvr(cx, Valueify(exc));
+            AutoValueRooter tvr(cx, exc);
             JS_ClearPendingException(cx);
 
             // Determine what error message to put in the error event.
@@ -1079,7 +1078,7 @@ Worker::processOneEvent()
     }
 
     JS_SetContextThread(context);
-    JS_SetNativeStackQuota(context, gMaxStackSize);
+    JS_SetThreadStackLimit(context, 0);
 
     Event::Result result;
     {

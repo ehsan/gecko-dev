@@ -38,15 +38,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef MOZSTORAGECONNECTION_H
-#define MOZSTORAGECONNECTION_H
+#ifndef _MOZSTORAGECONNECTION_H_
+#define _MOZSTORAGECONNECTION_H_
 
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "mozilla/Mutex.h"
 
 #include "nsString.h"
-#include "nsDataHashtable.h"
+#include "nsInterfaceHashtable.h"
 #include "mozIStorageProgressHandler.h"
 #include "SQLiteMutex.h"
 #include "mozIStorageConnection.h"
@@ -70,28 +70,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_MOZISTORAGECONNECTION
 
-  /**
-   * Structure used to describe user functions on the database connection.
-   */
-  struct FunctionInfo {
-    enum FunctionType {
-      SIMPLE,
-      AGGREGATE
-    };
-
-    nsCOMPtr<nsISupports> function;
-    FunctionType type;
-    PRInt32 numArgs;
-  };
-
-  /**
-   * @param aService
-   *        Pointer to the storage service.  Held onto for the lifetime of the
-   *        connection.
-   * @param aFlags
-   *        The flags to pass to sqlite3_open_v2.
-   */
-  Connection(Service *aService, int aFlags);
+  Connection(Service *aService);
 
   /**
    * Creates the connection to the database.
@@ -141,11 +120,6 @@ public:
    * Closes the SQLite database, and warns about any non-finalized statements.
    */
   nsresult internalClose();
-
-  /**
-   * Obtains the filename of the connection.  Useful for logging.
-   */
-  nsCString getFilename();
 
 private:
   ~Connection();
@@ -218,18 +192,13 @@ private:
    * Stores the mapping of a given function by name to its instance.  Access is
    * protected by mDBMutex.
    */
-  nsDataHashtable<nsCStringHashKey, FunctionInfo> mFunctions;
+  nsInterfaceHashtable<nsCStringHashKey, nsISupports> mFunctions;
 
   /**
    * Stores the registered progress handler for the database connection.  Access
    * is protected by mDBMutex.
    */
   nsCOMPtr<mozIStorageProgressHandler> mProgressHandler;
-
-  /**
-   * Stores the flags we passed to sqlite3_open_v2.
-   */
-  const int mFlags;
 
   // This is here for two reasons: 1) It's used to make sure that the
   // connections do not outlive the service.  2) Our custom collating functions
@@ -240,4 +209,4 @@ private:
 } // namespace storage
 } // namespace mozilla
 
-#endif /* MOZSTORAGECONNECTION_H */
+#endif /* _MOZSTORAGECONNECTION_H_ */

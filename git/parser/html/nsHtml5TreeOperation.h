@@ -38,11 +38,11 @@
 #ifndef nsHtml5TreeOperation_h__
 #define nsHtml5TreeOperation_h__
 
+#include "nsIContent.h"
 #include "nsHtml5DocumentMode.h"
 #include "nsHtml5HtmlAttributes.h"
 #include "nsXPCOMStrings.h"
 
-class nsIContent;
 class nsHtml5TreeOpExecutor;
 class nsHtml5StateSnapshot;
 
@@ -58,11 +58,9 @@ enum eHtml5TreeOperation {
   eTreeOpAppendToDocument,
   eTreeOpAddAttributes,
   eTreeOpDocumentMode,
-  eTreeOpCreateElementNetwork,
-  eTreeOpCreateElementNotNetwork,
+  eTreeOpCreateElement,
   eTreeOpSetFormElement,
   eTreeOpAppendText,
-  eTreeOpAppendIsindexPrompt,
   eTreeOpFosterParentText,
   eTreeOpAppendComment,
   eTreeOpAppendCommentToDocument,
@@ -82,9 +80,6 @@ enum eHtml5TreeOperation {
   eTreeOpStreamEnded,
   eTreeOpSetStyleLineNumber,
   eTreeOpSetScriptLineNumberAndFreeze,
-#ifdef MOZ_SVG
-  eTreeOpSvgLoad,
-#endif
   eTreeOpStartLayout
 };
 
@@ -184,15 +179,12 @@ class nsHtml5TreeOperation {
     inline void Init(PRInt32 aNamespace, 
                      nsIAtom* aName, 
                      nsHtml5HtmlAttributes* aAttributes,
-                     nsIContent** aTarget,
-                     PRBool aFromNetwork) {
+                     nsIContent** aTarget) {
       NS_PRECONDITION(mOpCode == eTreeOpUninitialized,
         "Op code must be uninitialized when initializing.");
       NS_PRECONDITION(aName, "Initialized tree op with null name.");
       NS_PRECONDITION(aTarget, "Initialized tree op with null target node.");
-      mOpCode = aFromNetwork ?
-                eTreeOpCreateElementNetwork :
-                eTreeOpCreateElementNotNetwork;
+      mOpCode = eTreeOpCreateElement;
       mInt = aNamespace;
       mOne.node = aTarget;
       mTwo.atom = aName;
@@ -323,12 +315,12 @@ class nsHtml5TreeOperation {
 
   private:
 
-    nsresult AppendTextToTextNode(const PRUnichar* aBuffer,
+    nsresult AppendTextToTextNode(PRUnichar* aBuffer,
                                   PRInt32 aLength,
                                   nsIContent* aTextNode,
                                   nsHtml5TreeOpExecutor* aBuilder);
 
-    nsresult AppendText(const PRUnichar* aBuffer,
+    nsresult AppendText(PRUnichar* aBuffer,
                         PRInt32 aLength,
                         nsIContent* aParent,
                         nsHtml5TreeOpExecutor* aBuilder);

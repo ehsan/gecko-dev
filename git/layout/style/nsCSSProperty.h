@@ -51,8 +51,8 @@
 enum nsCSSProperty {
   eCSSProperty_UNKNOWN = -1,
 
-  #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_,     \
-                   kwtable_, stylestruct_, stylestructoffset_, animtype_) \
+  #define CSS_PROP(name_, id_, method_, flags_, datastruct_, member_, type_,   \
+                   kwtable_, stylestruct_, stylestructoffset_, animtype_)      \
     eCSSProperty_##id_,
   #include "nsCSSPropList.h"
   #undef CSS_PROP
@@ -79,6 +79,16 @@ enum nsCSSProperty {
   eCSSPropertyExtra_x_none_value
 };
 
+// The types of values that can be in the nsCSS*/nsRuleData* structs.
+// See nsCSSPropList.h for uses.
+enum nsCSSType {
+  eCSSType_Value,
+  eCSSType_Rect,
+  eCSSType_ValuePair,
+  eCSSType_ValueList,
+  eCSSType_ValuePairList
+};
+
 // The "descriptors" that can appear in a @font-face rule.
 // They have the syntax of properties but different value rules.
 // Keep in sync with kCSSRawFontDescs in nsCSSProps.cpp and
@@ -91,8 +101,6 @@ enum nsCSSFontDesc {
   eCSSFontDesc_Stretch,
   eCSSFontDesc_Src,
   eCSSFontDesc_UnicodeRange,
-  eCSSFontDesc_FontFeatureSettings,
-  eCSSFontDesc_FontLanguageOverride,
   eCSSFontDesc_COUNT
 };
 

@@ -56,7 +56,7 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsWrapperCache.h"
 #include "nsCRT.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 // Magic namespace id that means "match all namespaces".  This is
 // negative so it won't collide with actual namespace constants.
@@ -269,10 +269,8 @@ public:
   virtual PRInt32 IndexOf(nsIContent* aContent);
 
   // nsIHTMLCollection
-  virtual nsIContent* GetNodeAt(PRUint32 aIndex, nsresult* aResult);
-  virtual nsISupports* GetNamedItem(const nsAString& aName,
-                                    nsWrapperCache** aCache,
-                                    nsresult* aResult);
+  virtual nsISupports* GetNodeAt(PRUint32 aIndex, nsresult* aResult);
+  virtual nsISupports* GetNamedItem(const nsAString& aName, nsresult* aResult);
 
   // nsContentList public methods
   NS_HIDDEN_(nsINode*) GetParentObject() { return mRootNode; }
@@ -317,14 +315,44 @@ protected:
    */
   PRBool Match(mozilla::dom::Element *aElement);
   /**
-   * See if anything in the subtree rooted at aContent, including
-   * aContent itself, matches our criterion.
+   * Match recursively. See if anything in the subtree rooted at
+   * aContent matches our criterion.
    *
    * @param  aContent the root of the subtree to match against
    * @return whether we match something in the tree rooted at aContent
    */
   PRBool MatchSelf(nsIContent *aContent);
 
+  /**
+   * Add elements in the subtree rooted in aElement that match our
+   * criterion to our list until we've picked up aElementsToAppend
+   * elements.  This function enforces the invariant that
+   * |aElementsToAppend + mElements.Count()| is a constant.
+   *
+   * @param aElement the root of the subtree we want to traverse. This element
+   *                 is always included in the traversal and is thus the
+   *                 first element tested.
+   * @param aElementsToAppend how many elements to append to the list
+   *        before stopping
+   */
+  void NS_FASTCALL PopulateWith(mozilla::dom::Element *aElement,
+                                PRUint32 & aElementsToAppend);
+
+  /**
+   * Populate our list starting at the child of aStartRoot that comes
+   * after aStartChild (if such exists) and continuing in document
+   * order. Stop once we've picked up aElementsToAppend elements.
+   * This function enforces the invariant that |aElementsToAppend +
+   * mElements.Count()| is a constant.
+   *
+   * @param aStartRoot the node with whose children we want to start traversal
+   * @param aStartChild the child after which we want to start
+   * @param aElementsToAppend how many elements to append to the list
+   *        before stopping
+   */
+  void PopulateWithStartingAfter(nsINode *aStartRoot,
+                                 nsINode *aStartChild,
+                                 PRUint32 & aElementsToAppend);
   /**
    * Populate our list.  Stop once we have at least aNeededLength
    * elements.  At the end of PopulateSelf running, either the last
@@ -434,7 +462,7 @@ public:
   PRUint32 GetHash(void) const
   {
     return NS_PTR_TO_INT32(mRootNode) ^ (NS_PTR_TO_INT32(mFunc) << 12) ^
-      nsCRT::HashCode(mString.BeginReading(), mString.Length());
+      nsCRT::HashCode(PromiseFlatString(mString).get());
   }
 
 private:
@@ -445,27 +473,16 @@ private:
   const nsAString& mString;
 };
 
-/**
- * A function that allocates the matching data for this
- * FuncStringContentList.  Returning aString is perfectly fine; in
- * that case the destructor function should be a no-op.
- */
-typedef void* (*nsFuncStringContentListDataAllocator)(nsINode* aRootNode,
-                                                      const nsString* aString);
-
-// aDestroyFunc is allowed to be null
 class nsCacheableFuncStringContentList : public nsContentList {
 public:
   nsCacheableFuncStringContentList(nsINode* aRootNode,
                                    nsContentListMatchFunc aFunc,
                                    nsContentListDestroyFunc aDestroyFunc,
-                                   nsFuncStringContentListDataAllocator aDataAllocator,
+                                   void* aData,
                                    const nsAString& aString) :
-    nsContentList(aRootNode, aFunc, aDestroyFunc, nsnull),
+    nsContentList(aRootNode, aFunc, aDestroyFunc, aData),
     mString(aString)
-  {
-    mData = (*aDataAllocator)(aRootNode, &mString);
-  }
+  {}
 
   virtual ~nsCacheableFuncStringContentList();
 
@@ -473,8 +490,6 @@ public:
     return mRootNode == aKey->mRootNode && mFunc == aKey->mFunc &&
       mString == aKey->mString;
   }
-
-  PRBool AllocatedData() const { return !!mData; }
 protected:
   virtual void RemoveFromCaches() {
     RemoveFromFuncStringHashtable();
@@ -492,6 +507,6 @@ already_AddRefed<nsContentList>
 NS_GetFuncStringContentList(nsINode* aRootNode,
                             nsContentListMatchFunc aFunc,
                             nsContentListDestroyFunc aDestroyFunc,
-                            nsFuncStringContentListDataAllocator aDataAllocator,
+                            void* aData,
                             const nsAString& aString);
 #endif // nsContentList_h___

@@ -45,34 +45,25 @@
  */
 #include <string.h>
 
-/* Gross special case for Gecko, which defines malloc/calloc/free. */
-#ifdef mozilla_mozalloc_macro_wrappers_h
-#  define JS_UNDEFD_MOZALLOC_WRAPPERS
-/* The "anti-header" */
-#  include "mozilla/mozalloc_undef_macro_wrappers.h"
-#endif
-
-#include "jsprvtd.h"
 #include "jsarena.h" /* Added by JSIFY */
 #include "jsclist.h"
 #include "jslong.h"
 #include "jsatom.h"
 #include "jsdhash.h"
 #include "jsdtoa.h"
-#include "jsfun.h"
 #include "jsgc.h"
-#include "jsgcchunk.h"
 #include "jshashtable.h"
 #include "jsinterp.h"
 #include "jsobj.h"
 #include "jspropertycache.h"
 #include "jspropertytree.h"
+#include "jsprvtd.h"
+#include "jspubtd.h"
 #include "jsregexp.h"
 #include "jsutil.h"
 #include "jsarray.h"
 #include "jstask.h"
 #include "jsvector.h"
-#include "prmjtime.h"
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -122,10 +113,6 @@ template<typename T> class Seq;
 
 }  /* namespace nanojit */
 
-namespace JSC {
-    class ExecutableAllocator;
-}
-
 namespace js {
 
 /* Tracer constants. */
@@ -135,7 +122,6 @@ static const size_t MAX_NATIVE_STACK_SLOTS = 4096;
 static const size_t MAX_CALL_STACK_ENTRIES = 500;
 static const size_t MAX_GLOBAL_SLOTS = 4096;
 static const size_t GLOBAL_SLOTS_BUFFER_SIZE = MAX_GLOBAL_SLOTS + 1;
-static const size_t MAX_SLOW_NATIVE_EXTRA_SLOTS = 16;
 
 /* Forward declarations of tracer types. */
 class VMAllocator;
@@ -211,11 +197,7 @@ struct TracerState
 
     // Used when calling natives from trace to root the vp vector.
     uintN          nativeVpLen;
-    js::Value*     nativeVp;
-
-    // The regs pointed to by cx->regs while a deep-bailed slow native
-    // completes execution.
-    JSFrameRegs    bailedSlowNativeRegs;
+    jsval*         nativeVp;
 
     TracerState(JSContext *cx, TraceMonitor *tm, TreeFragment *ti,
                 uintN &inlineCallCountp, VMSideExit** innermostNestedGuardp);
@@ -246,583 +228,104 @@ struct GlobalState {
 };
 
 /*
- * A StackSegment (referred to as just a 'segment') contains a down-linked set
- * of stack frames and the slots associated with each frame. A segment and its
- * contained frames/slots also have a precise memory layout that is described
- * in the js::StackSpace comment. A key layout invariant for segments is that
- * down-linked frames are adjacent in memory, separated only by the values that
- * constitute the locals and expression stack of the down-frame and arguments
- * of the up-frame.
+ * A callstack contains a set of stack frames linked by fp->down. A callstack
+ * is a member of a JSContext and all of a JSContext's callstacks are kept in a
+ * list starting at cx->currentCallStack. A callstack may be active or
+ * suspended. There are zero or one active callstacks for a context and any
+ * number of suspended contexts. If there is an active context, it is the first
+ * in the currentCallStack list, |cx->fp != NULL| and the callstack's newest
+ * (top) stack frame is |cx->fp|. For all other (suspended) callstacks, the
+ * newest frame is pointed to by suspendedFrame.
  *
- * The set of stack frames in a non-empty segment start at the segment's
- * "current frame", which is the most recently pushed frame, and ends at the
- * segment's "initial frame". Note that, while all stack frames in a segment
- * are down-linked, not all down-linked frames are in the same segment. Hence,
- * for a segment |ss|, |ss->getInitialFrame()->down| may be non-null and in a
- * different segment. This occurs when the VM reenters itself (via Invoke or
- * Execute). In full generality, a single context may contain a forest of trees
- * of stack frames. With respect to this forest, a segment contains a linear
- * path along a single tree, not necessarily to the root.
- *
- * The frames of a non-empty segment must all be in the same context and thus
- * each non-empty segment is referred to as being "in" a context. Segments in a
- * context have an additional state of being either "active" or "suspended". A
- * suspended segment |ss| has a "suspended frame" which is snapshot of |cx->regs|
- * when the segment was suspended and serves as the current frame of |ss|.
- * There is at most one active segment in a given context. Segments in a
- * context execute LIFO and are maintained in a stack.  The top of this stack
- * is the context's "current segment". If a context |cx| has an active segment
- * |ss|, then:
- *   1. |ss| is |cx|'s current segment,
- *   2. |cx->regs != NULL|, and
- *   3. |ss|'s current frame is |cx->regs->fp|.
- * Moreover, |cx->regs != NULL| iff |cx| has an active segment.
- *
- * An empty segment is not associated with any context. Empty segments are
- * created when there is not an active segment for a context at the top of the
- * stack and claim space for the arguments of an Invoke before the Invoke's
- * stack frame is pushed. During the intervals when the arguments have been
- * pushed, but not the stack frame, the segment cannot be pushed onto the
- * context, since that would require some hack to deal with cx->fp not being
- * the current frame of cx->currentSegment.
- *
- * Finally, (to support JS_SaveFrameChain/JS_RestoreFrameChain) a suspended
- * segment may or may not be "saved". Normally, when the active segment is
- * popped, the previous segment (which is necessarily suspended) becomes
- * active. If the previous segment was saved, however, then it stays suspended
- * until it is made active by a call to JS_RestoreFrameChain. This is why a
- * context may have a current segment, but not an active segment.
+ * While all frames in a callstack are down-linked, not all down-linked frames
+ * are in the same callstack (e.g., calling js_Execute with |down != cx->fp|
+ * will create a new frame in a new active callstack).
  */
-class StackSegment
+class CallStack
 {
-    /* The context to which this segment belongs. */
+#ifdef DEBUG
+    /* The context to which this callstack belongs. */
     JSContext           *cx;
+#endif
 
-    /* Link for JSContext segment stack mentioned in big comment above. */
-    StackSegment        *previousInContext;
+    /* If this callstack is suspended, the top of the callstack. */
+    JSStackFrame        *suspendedFrame;
 
-    /* Link for StackSpace segment stack mentioned in StackSpace comment. */
-    StackSegment        *previousInMemory;
+    /* This callstack was suspended by JS_SaveFrameChain. */
+    bool                saved;
 
-    /* The first frame executed in this segment. null iff cx is null */
-    JSStackFrame        *initialFrame;
-
-    /* If this segment is suspended, |cx->regs| when it was suspended. */
-    JSFrameRegs         *suspendedRegs;
+    /* Links members of the JSContext::currentCallStack list. */
+    CallStack           *previous;
 
     /* The varobj on entry to initialFrame. */
     JSObject            *initialVarObj;
 
-    /* Whether this segment was suspended by JS_SaveFrameChain. */
-    bool                saved;
-
-    /* Align at 8 bytes on all platforms. */
-#if JS_BITS_PER_WORD == 32
-    void                *padding;
-#endif
-
-    /*
-     * To make isActive a single null-ness check, this non-null constant is
-     * assigned to suspendedRegs when !inContext.
-     */
-#define NON_NULL_SUSPENDED_REGS ((JSFrameRegs *)0x1)
+    /* The first frame executed in this callstack. */
+    JSStackFrame        *initialFrame;
 
   public:
-    StackSegment()
-      : cx(NULL), previousInContext(NULL), previousInMemory(NULL),
-        initialFrame(NULL), suspendedRegs(NON_NULL_SUSPENDED_REGS),
-        initialVarObj(NULL), saved(false)
-    {
-        JS_ASSERT(!inContext());
+    CallStack(JSContext *cx)
+      :
+#ifdef DEBUG
+        cx(cx),
+#endif
+        suspendedFrame(NULL), saved(false), previous(NULL),
+        initialVarObj(NULL), initialFrame(NULL)
+    {}
+
+#ifdef DEBUG
+    bool contains(JSStackFrame *fp);
+#endif
+
+    void suspend(JSStackFrame *fp) {
+        JS_ASSERT(fp && !isSuspended() && contains(fp));
+        suspendedFrame = fp;
     }
 
-    /* Safe casts guaranteed by the contiguous-stack layout. */
-
-    Value *previousSegmentEnd() const {
-        return (Value *)this;
+    void resume() {
+        JS_ASSERT(suspendedFrame);
+        suspendedFrame = NULL;
     }
 
-    Value *getInitialArgBegin() const {
-        return (Value *)(this + 1);
+    JSStackFrame *getSuspendedFrame() const {
+        JS_ASSERT(suspendedFrame);
+        return suspendedFrame;
     }
+
+    bool isSuspended() const { return !!suspendedFrame; }
+
+    void setPrevious(CallStack *cs) { previous = cs; }
+    CallStack *getPrevious() const  { return previous; }
+
+    void setInitialVarObj(JSObject *o) { initialVarObj = o; }
+    JSObject *getInitialVarObj() const { return initialVarObj; }
+
+    void setInitialFrame(JSStackFrame *f) { initialFrame = f; }
+    JSStackFrame *getInitialFrame() const { return initialFrame; }
 
     /*
-     * As described in the comment at the beginning of the class, a segment
-     * is in one of three states:
-     *
-     *  !inContext:  the segment has been created to root arguments for a
-     *               future call to Invoke.
-     *  isActive:    the segment describes a set of stack frames in a context,
-     *               where the top frame currently executing.
-     *  isSuspended: like isActive, but the top frame has been suspended.
+     * Saving and restoring is a special case of suspending and resuming
+     * whereby the active callstack becomes suspended without pushing a new
+     * active callstack. This means that if a callstack c1 is pushed on top of a
+     * saved callstack c2, when c1 is popped, c2 must not be made active. In
+     * the normal case, where c2 is not saved, when c1 is popped, c2 is made
+     * active. This distinction is indicated by the |saved| flag.
      */
 
-    bool inContext() const {
-        JS_ASSERT(!!cx == !!initialFrame);
-        JS_ASSERT_IF(!cx, suspendedRegs == NON_NULL_SUSPENDED_REGS && !saved);
-        return cx;
+    void save(JSStackFrame *fp) {
+        suspend(fp);
+        saved = true;
     }
 
-    bool isActive() const {
-        JS_ASSERT_IF(!suspendedRegs, cx && !saved);
-        JS_ASSERT_IF(!cx, suspendedRegs == NON_NULL_SUSPENDED_REGS);
-        return !suspendedRegs;
+    void restore() {
+        saved = false;
+        resume();
     }
-
-    bool isSuspended() const {
-        JS_ASSERT_IF(!cx || !suspendedRegs, !saved);
-        JS_ASSERT_IF(!cx, suspendedRegs == NON_NULL_SUSPENDED_REGS);
-        return cx && suspendedRegs;
-    }
-
-    /* Substate of suspended, queryable in any state. */
 
     bool isSaved() const {
         JS_ASSERT_IF(saved, isSuspended());
         return saved;
     }
-
-    /* Transitioning between inContext <--> isActive */
-
-    void joinContext(JSContext *cx, JSStackFrame *f) {
-        JS_ASSERT(!inContext());
-        this->cx = cx;
-        initialFrame = f;
-        suspendedRegs = NULL;
-        JS_ASSERT(isActive());
-    }
-
-    void leaveContext() {
-        JS_ASSERT(isActive());
-        this->cx = NULL;
-        initialFrame = NULL;
-        suspendedRegs = NON_NULL_SUSPENDED_REGS;
-        JS_ASSERT(!inContext());
-    }
-
-    JSContext *maybeContext() const {
-        return cx;
-    }
-
-#undef NON_NULL_SUSPENDED_REGS
-
-    /* Transitioning between isActive <--> isSuspended */
-
-    void suspend(JSFrameRegs *regs) {
-        JS_ASSERT(isActive());
-        JS_ASSERT(regs && regs->fp && contains(regs->fp));
-        suspendedRegs = regs;
-        JS_ASSERT(isSuspended());
-    }
-
-    void resume() {
-        JS_ASSERT(isSuspended());
-        suspendedRegs = NULL;
-        JS_ASSERT(isActive());
-    }
-
-    /* When isSuspended, transitioning isSaved <--> !isSaved */
-
-    void save(JSFrameRegs *regs) {
-        JS_ASSERT(!isSuspended());
-        suspend(regs);
-        saved = true;
-        JS_ASSERT(isSaved());
-    }
-
-    void restore() {
-        JS_ASSERT(isSaved());
-        saved = false;
-        resume();
-        JS_ASSERT(!isSuspended());
-    }
-
-    /* Data available when inContext */
-
-    JSStackFrame *getInitialFrame() const {
-        JS_ASSERT(inContext());
-        return initialFrame;
-    }
-
-    inline JSFrameRegs *getCurrentRegs() const;
-    inline JSStackFrame *getCurrentFrame() const;
-
-    /* Data available when isSuspended. */
-
-    JSFrameRegs *getSuspendedRegs() const {
-        JS_ASSERT(isSuspended());
-        return suspendedRegs;
-    }
-
-    JSStackFrame *getSuspendedFrame() const {
-        return suspendedRegs->fp;
-    }
-
-    /* JSContext / js::StackSpace bookkeeping. */
-
-    void setPreviousInContext(StackSegment *seg) {
-        previousInContext = seg;
-    }
-
-    StackSegment *getPreviousInContext() const  {
-        return previousInContext;
-    }
-
-    void setPreviousInMemory(StackSegment *seg) {
-        previousInMemory = seg;
-    }
-
-    StackSegment *getPreviousInMemory() const  {
-        return previousInMemory;
-    }
-
-    void setInitialVarObj(JSObject *obj) {
-        JS_ASSERT(inContext());
-        initialVarObj = obj;
-    }
-
-    JSObject *getInitialVarObj() const {
-        JS_ASSERT(inContext());
-        return initialVarObj;
-    }
-
-#ifdef DEBUG
-    JS_REQUIRES_STACK bool contains(const JSStackFrame *fp) const;
-#endif
-};
-
-static const size_t VALUES_PER_STACK_SEGMENT = sizeof(StackSegment) / sizeof(Value);
-JS_STATIC_ASSERT(sizeof(StackSegment) % sizeof(Value) == 0);
-
-/* See StackSpace::pushInvokeArgs. */
-class InvokeArgsGuard : public CallArgs
-{
-    friend class StackSpace;
-    JSContext        *cx;  /* null implies nothing pushed */
-    StackSegment     *seg;
-    Value            *prevInvokeArgEnd;
-#ifdef DEBUG
-    StackSegment     *prevInvokeSegment;
-    JSStackFrame     *prevInvokeFrame;
-#endif
-  public:
-    inline InvokeArgsGuard() : cx(NULL), seg(NULL) {}
-    inline InvokeArgsGuard(JSContext *cx, Value *vp, uintN argc);
-    inline ~InvokeArgsGuard();
-    bool pushed() const { return cx != NULL; }
-};
-
-/*
- * This type can be used to call Invoke when the arguments have already been
- * pushed onto the stack as part of normal execution.
- */
-struct InvokeArgsAlreadyOnTheStack : CallArgs
-{
-    InvokeArgsAlreadyOnTheStack(Value *vp, uintN argc) : CallArgs(vp + 2, argc) {}
-};
-
-/* See StackSpace::pushInvokeFrame. */
-class InvokeFrameGuard
-{
-    friend class StackSpace;
-    JSContext        *cx;  /* null implies nothing pushed */
-    JSFrameRegs      regs;
-    JSFrameRegs      *prevRegs;
-  public:
-    InvokeFrameGuard() : cx(NULL) {}
-    JS_REQUIRES_STACK ~InvokeFrameGuard();
-    bool pushed() const { return cx != NULL; }
-    JSFrameRegs &getRegs() { return regs; }
-};
-
-/* See StackSpace::pushExecuteFrame. */
-class FrameGuard
-{
-    friend class StackSpace;
-    JSContext        *cx;  /* null implies nothing pushed */
-    StackSegment     *seg;
-    Value            *vp;
-    JSStackFrame     *fp;
-    JSStackFrame     *down;
-  public:
-    FrameGuard() : cx(NULL), vp(NULL), fp(NULL) {}
-    JS_REQUIRES_STACK ~FrameGuard();
-    bool pushed() const { return cx != NULL; }
-    Value *getvp() const { return vp; }
-    JSStackFrame *getFrame() const { return fp; }
-};
-
-/*
- * Stack layout
- *
- * Each JSThreadData has one associated StackSpace object which allocates all
- * segments for the thread. StackSpace performs all such allocations in a
- * single, fixed-size buffer using a specific layout scheme that allows some
- * associations between segments, frames, and slots to be implicit, rather
- * than explicitly stored as pointers. To maintain useful invariants, stack
- * space is not given out arbitrarily, but rather allocated/deallocated for
- * specific purposes. The use cases currently supported are: calling a function
- * with arguments (e.g. Invoke), executing a script (e.g. Execute), inline
- * interpreter calls, and pushing "dummy" frames for bookkeeping purposes. See
- * associated member functions below.
- *
- * First, we consider the layout of individual segments. (See the
- * js::StackSegment comment for terminology.) A non-empty segment (i.e., a
- * segment in a context) has the following layout:
- *
- *           initial frame                 current frame ------.  if regs,
- *          .------------.                           |         |  regs->sp
- *          |            V                           V         V
- *   |segment| slots |frame| slots |frame| slots |frame| slots |
- *                       |  ^          |  ^          |
- *          ? <----------'  `----------'  `----------'
- *                down          down          down
- *
- * Moreover, the bytes in the following ranges form a contiguous array of
- * Values that are marked during GC:
- *   1. between a segment and its first frame
- *   2. between two adjacent frames in a segment
- *   3. between a segment's current frame and (if fp->regs) fp->regs->sp
- * Thus, the VM must ensure that all such Values are safe to be marked.
- *
- * An empty segment is followed by arguments that are rooted by the
- * StackSpace::invokeArgEnd pointer:
- *
- *              invokeArgEnd
- *                   |
- *                   V
- *   |segment| slots |
- *
- * Above the level of segments, a StackSpace is simply a contiguous sequence
- * of segments kept in a linked list:
- *
- *   base                       currentSegment  firstUnused            end
- *    |                               |             |                   |
- *    V                               V             V                   V
- *    |segment| --- |segment| --- |segment| ------- |                   |
- *         | ^           | ^           |
- *   0 <---' `-----------' `-----------'
- *   previous    previous       previous
- *
- * Both js::StackSpace and JSContext maintain a stack of segments, the top of
- * which is the "current segment" for that thread or context, respectively.
- * Since different contexts can arbitrarily interleave execution in a single
- * thread, these stacks are different enough that a segment needs both
- * "previousInMemory" and "previousInContext".
- *
- * For example, in a single thread, a function in segment S1 in a context CX1
- * may call out into C++ code that reenters the VM in a context CX2, which
- * creates a new segment S2 in CX2, and CX1 may or may not equal CX2.
- *
- * Note that there is some structure to this interleaving of segments:
- *   1. the inclusion from segments in a context to segments in a thread
- *      preserves order (in terms of previousInContext and previousInMemory,
- *      respectively).
- *   2. the mapping from stack frames to their containing segment preserves
- *      order (in terms of down and previousInContext, respectively).
- */
-class StackSpace
-{
-    Value *base;
-#ifdef XP_WIN
-    mutable Value *commitEnd;
-#endif
-    Value *end;
-    StackSegment *currentSegment;
-#ifdef DEBUG
-    /*
-     * Keep track of which segment/frame bumped invokeArgEnd so that
-     * firstUnused() can assert that, when invokeArgEnd is used as the top of
-     * the stack, it is being used appropriately.
-     */
-    StackSegment *invokeSegment;
-    JSStackFrame *invokeFrame;
-#endif
-    Value        *invokeArgEnd;
-
-    JS_REQUIRES_STACK bool pushSegmentForInvoke(JSContext *cx, uintN argc,
-                                                InvokeArgsGuard &ag);
-    JS_REQUIRES_STACK bool pushInvokeFrameSlow(JSContext *cx, const InvokeArgsGuard &ag,
-                                               InvokeFrameGuard &fg);
-    JS_REQUIRES_STACK void popInvokeFrameSlow(const CallArgs &args);
-    JS_REQUIRES_STACK void popSegmentForInvoke(const InvokeArgsGuard &ag);
-
-    /* Although guards are friends, XGuard should only call popX(). */
-    friend class InvokeArgsGuard;
-    JS_REQUIRES_STACK inline void popInvokeArgs(const InvokeArgsGuard &args);
-    friend class InvokeFrameGuard;
-    JS_REQUIRES_STACK void popInvokeFrame(const InvokeFrameGuard &ag);
-    friend class FrameGuard;
-    JS_REQUIRES_STACK void popFrame(JSContext *cx);
-
-    /* Return a pointer to the first unused slot. */
-    JS_REQUIRES_STACK
-    inline Value *firstUnused() const;
-
-    inline bool isCurrentAndActive(JSContext *cx) const;
-#ifdef DEBUG
-    StackSegment *getCurrentSegment() const { return currentSegment; }
-#endif
-
-    /*
-     * Allocate nvals on the top of the stack, report error on failure.
-     * N.B. the caller must ensure |from == firstUnused()|.
-     */
-    inline bool ensureSpace(JSContext *maybecx, Value *from, ptrdiff_t nvals) const;
-
-#ifdef XP_WIN
-    /* Commit more memory from the reserved stack space. */
-    JS_FRIEND_API(bool) bumpCommit(Value *from, ptrdiff_t nvals) const;
-#endif
-
-  public:
-    static const size_t CAPACITY_VALS   = 512 * 1024;
-    static const size_t CAPACITY_BYTES  = CAPACITY_VALS * sizeof(Value);
-    static const size_t COMMIT_VALS     = 16 * 1024;
-    static const size_t COMMIT_BYTES    = COMMIT_VALS * sizeof(Value);
-
-    /* Kept as a member of JSThreadData; cannot use constructor/destructor. */
-    bool init();
-    void finish();
-
-#ifdef DEBUG
-    template <class T>
-    bool contains(T *t) const {
-        char *v = (char *)t;
-        JS_ASSERT(size_t(-1) - uintptr_t(t) >= sizeof(T));
-        return v >= (char *)base && v + sizeof(T) <= (char *)end;
-    }
-#endif
-
-    /*
-     * When we LeaveTree, we need to rebuild the stack, which requires stack
-     * allocation. There is no good way to handle an OOM for these allocations,
-     * so this function checks that they cannot occur using the size of the
-     * TraceNativeStorage as a conservative upper bound.
-     */
-    inline bool ensureEnoughSpaceToEnterTrace();
-
-    /* +1 for slow native's stack frame. */
-    static const ptrdiff_t MAX_TRACE_SPACE_VALS =
-      MAX_NATIVE_STACK_SLOTS + MAX_CALL_STACK_ENTRIES * VALUES_PER_STACK_FRAME +
-      (VALUES_PER_STACK_SEGMENT + VALUES_PER_STACK_FRAME /* synthesized slow native */);
-
-    /* Mark all segments, frames, and slots on the stack. */
-    JS_REQUIRES_STACK void mark(JSTracer *trc);
-
-    /*
-     * For all four use cases below:
-     *  - The boolean-valued functions call js_ReportOutOfScriptQuota on OOM.
-     *  - The "get*Frame" functions do not change any global state, they just
-     *    check OOM and return pointers to an uninitialized frame with the
-     *    requested missing arguments/slots. Only once the "push*Frame"
-     *    function has been called is global state updated. Thus, between
-     *    "get*Frame" and "push*Frame", the frame and slots are unrooted.
-     *  - The "push*Frame" functions will set fp->down; the caller needn't.
-     *  - Functions taking "*Guard" arguments will use the guard's destructor
-     *    to pop the allocation. The caller must ensure the guard has the
-     *    appropriate lifetime.
-     *  - The get*Frame functions put the 'nmissing' slots contiguously after
-     *    the arguments.
-     */
-
-    /*
-     * pushInvokeArgs allocates |argc + 2| rooted values that will be passed as
-     * the arguments to Invoke. A single allocation can be used for multiple
-     * Invoke calls. The InvokeArgumentsGuard passed to Invoke must come from
-     * an immediately-enclosing (stack-wise) call to pushInvokeArgs.
-     */
-    JS_REQUIRES_STACK
-    bool pushInvokeArgs(JSContext *cx, uintN argc, InvokeArgsGuard &ag);
-
-    /* These functions are called inside Invoke, not Invoke clients. */
-    bool getInvokeFrame(JSContext *cx, const CallArgs &args,
-                        uintN nmissing, uintN nfixed,
-                        InvokeFrameGuard &fg) const;
-
-    JS_REQUIRES_STACK
-    void pushInvokeFrame(JSContext *cx, const CallArgs &args, InvokeFrameGuard &fg);
-
-    /*
-     * For the simpler case when arguments are allocated at the same time as
-     * the frame and it is not necessary to have rooted argument values before
-     * pushing the frame.
-     */
-    JS_REQUIRES_STACK
-    bool getExecuteFrame(JSContext *cx, JSStackFrame *down,
-                         uintN vplen, uintN nfixed,
-                         FrameGuard &fg) const;
-    JS_REQUIRES_STACK
-    void pushExecuteFrame(JSContext *cx, FrameGuard &fg,
-                          JSFrameRegs &regs, JSObject *initialVarObj);
-
-    /*
-     * Since RAII cannot be used for inline frames, callers must manually
-     * call pushInlineFrame/popInlineFrame.
-     */
-    JS_REQUIRES_STACK
-    inline JSStackFrame *getInlineFrame(JSContext *cx, Value *sp,
-                                        uintN nmissing, uintN nfixed) const;
-
-    JS_REQUIRES_STACK
-    inline void pushInlineFrame(JSContext *cx, JSStackFrame *fp, jsbytecode *pc,
-                                JSStackFrame *newfp);
-
-    JS_REQUIRES_STACK
-    inline void popInlineFrame(JSContext *cx, JSStackFrame *up, JSStackFrame *down);
-
-    /*
-     * For the special case of the slow native stack frame pushed and popped by
-     * tracing deep bail logic.
-     */
-    JS_REQUIRES_STACK
-    void getSynthesizedSlowNativeFrame(JSContext *cx, StackSegment *&seg, JSStackFrame *&fp);
-
-    JS_REQUIRES_STACK
-    void pushSynthesizedSlowNativeFrame(JSContext *cx, StackSegment *seg, JSFrameRegs &regs);
-
-    JS_REQUIRES_STACK
-    void popSynthesizedSlowNativeFrame(JSContext *cx);
-
-    /*
-     * For pushing a bookkeeping frame.
-     */
-    JS_REQUIRES_STACK
-    bool pushDummyFrame(JSContext *cx, FrameGuard &fg, JSFrameRegs &regs, JSObject *scopeChain);
-};
-
-JS_STATIC_ASSERT(StackSpace::CAPACITY_VALS % StackSpace::COMMIT_VALS == 0);
-
-/*
- * While |cx->fp|'s pc/sp are available in |cx->regs|, to compute the saved
- * value of pc/sp for any other frame, it is necessary to know about that
- * frame's up-frame. This iterator maintains this information when walking down
- * a chain of stack frames starting at |cx->fp|.
- *
- * Usage:
- *   for (FrameRegsIter i(cx); !i.done(); ++i)
- *     ... i.fp() ... i.sp() ... i.pc()
- */
-class FrameRegsIter
-{
-    StackSegment      *curseg;
-    JSStackFrame      *curfp;
-    Value             *cursp;
-    jsbytecode        *curpc;
-
-    void initSlow();
-    void incSlow(JSStackFrame *up, JSStackFrame *down);
-    static inline Value *contiguousDownFrameSP(JSStackFrame *up);
-
-  public:
-    JS_REQUIRES_STACK inline FrameRegsIter(JSContext *cx);
-
-    bool done() const { return curfp == NULL; }
-    inline FrameRegsIter &operator++();
-
-    JSStackFrame *fp() const { return curfp; }
-    Value *sp() const { return cursp; }
-    jsbytecode *pc() const { return curpc; }
 };
 
 /* Holds the number of recording attemps for an address. */
@@ -958,13 +461,18 @@ struct TraceMonitor {
 # define JS_ON_TRACE(cx)            JS_FALSE
 #endif
 
+#ifdef DEBUG_brendan
+# define JS_EVAL_CACHE_METERING     1
+# define JS_FUNCTION_METERING       1
+#endif
+
 /* Number of potentially reusable scriptsToGC to search for the eval cache. */
 #ifndef JS_EVAL_CACHE_SHIFT
 # define JS_EVAL_CACHE_SHIFT        6
 #endif
 #define JS_EVAL_CACHE_SIZE          JS_BIT(JS_EVAL_CACHE_SHIFT)
 
-#ifdef DEBUG
+#ifdef JS_EVAL_CACHE_METERING
 # define EVAL_CACHE_METER_LIST(_)   _(probe), _(hit), _(step), _(noscope)
 # define identity(x)                x
 
@@ -975,14 +483,10 @@ struct JSEvalCacheMeter {
 # undef identity
 #endif
 
-#ifdef DEBUG
+#ifdef JS_FUNCTION_METERING
 # define FUNCTION_KIND_METER_LIST(_)                                          \
                         _(allfun), _(heavy), _(nofreeupvar), _(onlyfreevar),  \
-                        _(display), _(flat), _(setupvar), _(badfunarg),       \
-                        _(joinedsetmethod), _(joinedinitmethod),              \
-                        _(joinedreplace), _(joinedsort), _(joinedmodulepat),  \
-                        _(mreadbarrier), _(mwritebarrier), _(mwslotbarrier),  \
-                        _(unjoined)
+                        _(display), _(flat), _(setupvar), _(badfunarg)
 # define identity(x)    x
 
 struct JSFunctionMeter {
@@ -990,33 +494,37 @@ struct JSFunctionMeter {
 };
 
 # undef identity
-
-# define JS_FUNCTION_METER(cx,x) JS_RUNTIME_METER((cx)->runtime, functionMeter.x)
-#else
-# define JS_FUNCTION_METER(cx,x) ((void)0)
 #endif
 
+struct JSLocalRootChunk;
+
+#define JSLRS_CHUNK_SHIFT       8
+#define JSLRS_CHUNK_SIZE        JS_BIT(JSLRS_CHUNK_SHIFT)
+#define JSLRS_CHUNK_MASK        JS_BITMASK(JSLRS_CHUNK_SHIFT)
+
+struct JSLocalRootChunk {
+    jsval               roots[JSLRS_CHUNK_SIZE];
+    JSLocalRootChunk    *down;
+};
+
+struct JSLocalRootStack {
+    uint32              scopeMark;
+    uint32              rootCount;
+    JSLocalRootChunk    *topChunk;
+    JSLocalRootChunk    firstChunk;
+
+    /* See comments in js_NewFinalizableGCThing. */
+    JSGCFreeLists       gcFreeLists;
+};
+
+const uint32 JSLRS_NULL_MARK = uint32(-1);
 
 #define NATIVE_ITER_CACHE_LOG2  8
 #define NATIVE_ITER_CACHE_MASK  JS_BITMASK(NATIVE_ITER_CACHE_LOG2)
 #define NATIVE_ITER_CACHE_SIZE  JS_BIT(NATIVE_ITER_CACHE_LOG2)
 
-struct JSPendingProxyOperation {
-    JSPendingProxyOperation *next;
-    JSObject *object;
-};
-
 struct JSThreadData {
-    /*
-     * If this flag is set, we were asked to call back the operation callback
-     * as soon as possible.
-     */
-    volatile int32      operationCallbackFlag;
-
     JSGCFreeLists       gcFreeLists;
-
-    /* Keeper of the contiguous stack used by all contexts in this thread. */
-    js::StackSpace      stackSpace;
 
     /*
      * Flag indicating that we are waiving any soft limits on the GC heap
@@ -1034,6 +542,9 @@ struct JSThreadData {
     /* Property cache for faster call/get/set invocation. */
     js::PropertyCache   propertyCache;
 
+    /* Optional stack of heap-allocated scoped local GC roots. */
+    JSLocalRootStack    *localRootStack;
+
 #ifdef JS_TRACER
     /* Trace-tree JIT recorder/interpreter state. */
     js::TraceMonitor    traceMonitor;
@@ -1042,7 +553,7 @@ struct JSThreadData {
     /* Lock-free hashed lists of scripts created by eval to garbage-collect. */
     JSScript            *scriptsToGC[JS_EVAL_CACHE_SIZE];
 
-#ifdef DEBUG
+#ifdef JS_EVAL_CACHE_METERING
     JSEvalCacheMeter    evalCacheMeter;
 #endif
 
@@ -1061,30 +572,13 @@ struct JSThreadData {
     } dtoaCache;
 
     /* Cached native iterators. */
-    JSObject            *cachedNativeIterators[NATIVE_ITER_CACHE_SIZE];
-
-    /* Base address of the native stack for the current thread. */
-    jsuword             *nativeStackBase;
-
-    /* List of currently pending operations on proxies. */
-    JSPendingProxyOperation *pendingProxyOperation;
-
-    js::ConservativeGCThreadData conservativeGC;
+    JSObject *cachedNativeIterators[NATIVE_ITER_CACHE_SIZE];
 
     bool init();
     void finish();
     void mark(JSTracer *trc);
     void purge(JSContext *cx);
-
-    void triggerOperationCallback() {
-        /*
-         * Use JS_ATOMIC_SET in the hope that it will make sure the write will
-         * become immediately visible to other processors polling the flag.
-         * Note that we only care about visibility here, not read/write
-         * ordering.
-         */
-        JS_ATOMIC_SET(&operationCallbackFlag, 1);
-    }
+    void purgeGCFreeLists();
 };
 
 #ifdef JS_THREADSAFE
@@ -1094,16 +588,11 @@ struct JSThreadData {
  * that can be accessed without a global lock.
  */
 struct JSThread {
-    typedef js::HashMap<void *,
-                        JSThread *,
-                        js::DefaultHasher<void *>,
-                        js::SystemAllocPolicy> Map;
-
     /* Linked list of all contexts in use on this thread. */
     JSCList             contextList;
 
     /* Opaque thread-id, from NSPR's PR_GetCurrentThread(). */
-    void                *id;
+    jsword              id;
 
     /* Indicates that the thread is waiting in ClaimTitle from jslock.cpp. */
     JSTitle             *titleToShare;
@@ -1123,11 +612,6 @@ struct JSThread {
      */
     bool                gcWaiting;
 
-    /*
-     * The context running the requests.
-     */
-    JSContext           *requestContext;
-
     /* Factored out of JSThread for !JS_THREADSAFE embedding in JSRuntime. */
     JSThreadData        data;
 };
@@ -1140,6 +624,11 @@ struct JSThread {
 const size_t JS_GC_THREAD_MALLOC_LIMIT = 1 << 19;
 
 #define JS_THREAD_DATA(cx)      (&(cx)->thread->data)
+
+struct JSThreadsHashEntry {
+    JSDHashEntryHdr     base;
+    JSThread            *thread;
+};
 
 extern JSThread *
 js_CurrentThread(JSRuntime *rt);
@@ -1176,119 +665,64 @@ typedef enum JSRuntimeState {
 
 typedef struct JSPropertyTreeEntry {
     JSDHashEntryHdr     hdr;
-    js::Shape           *child;
+    JSScopeProperty     *child;
 } JSPropertyTreeEntry;
 
+typedef struct JSSetSlotRequest JSSetSlotRequest;
+
+struct JSSetSlotRequest {
+    JSObject            *obj;           /* object containing slot to set */
+    JSObject            *pobj;          /* new proto or parent reference */
+    uint16              slot;           /* which to set, proto or parent */
+    JSPackedBool        cycle;          /* true if a cycle was detected */
+    JSSetSlotRequest    *next;          /* next request in GC worklist */
+};
+
+/* Caching Class.prototype lookups for the standard classes. */
+struct JSClassProtoCache {
+    void purge() { js::PodArrayZero(entries); }
+
+#ifdef JS_PROTO_CACHE_METERING
+    struct Stats {
+        int32       probe, hit;
+    };
+# define PROTO_CACHE_METER(cx, x)                                             \
+    ((void) (JS_ATOMIC_INCREMENT(&(cx)->runtime->classProtoCacheStats.x)))
+#else
+# define PROTO_CACHE_METER(cx, x)  ((void) 0)
+#endif
+
+  private:
+    struct GlobalAndProto {
+        JSObject    *global;
+        JSObject    *proto;
+    };
+
+    GlobalAndProto  entries[JSProto_LIMIT - JSProto_Object];
+
+#ifdef __GNUC__
+# pragma GCC visibility push(default)
+#endif
+    friend JSBool js_GetClassPrototype(JSContext *cx, JSObject *scope,
+                                       JSProtoKey protoKey, JSObject **protop,
+                                       JSClass *clasp);
+#ifdef __GNUC__
+# pragma GCC visibility pop
+#endif
+};
 
 namespace js {
 
-struct GCPtrHasher
-{
-    typedef void *Lookup;
-    
-    static HashNumber hash(void *key) {
-        return HashNumber(uintptr_t(key) >> JS_GCTHING_ZEROBITS);
-    }
-
-    static bool match(void *l, void *k) {
-        return l == k;
-    }
-};
-
-typedef HashMap<void *, uint32, GCPtrHasher, SystemAllocPolicy> GCLocks;
-
-struct RootInfo {
-    RootInfo() {}
-    RootInfo(const char *name, JSGCRootType type) : name(name), type(type) {}
-    const char *name;
-    JSGCRootType type;
-};
-
-typedef js::HashMap<void *,
-                    RootInfo,
-                    js::DefaultHasher<void *>,
-                    js::SystemAllocPolicy> RootedValueMap;
-
-/* If HashNumber grows, need to change WrapperHasher. */
-JS_STATIC_ASSERT(sizeof(HashNumber) == 4);
-    
-struct WrapperHasher
-{
-    typedef Value Lookup;
-
-    static HashNumber hash(Value key) {
-        uint64 bits = JSVAL_BITS(Jsvalify(key));
-        return (uint32)bits ^ (uint32)(bits >> 32);
-    }
-
-    static bool match(const Value &l, const Value &k) {
-        return l == k;
-    }
-};
-
-typedef HashMap<Value, Value, WrapperHasher, SystemAllocPolicy> WrapperMap;
-
-class AutoValueVector;
-class AutoIdVector;
+typedef Vector<JSGCChunkInfo *, 32, SystemAllocPolicy> GCChunks;
 
 } /* namespace js */
 
-struct JSCompartment {
-    JSRuntime *rt;
-    JSPrincipals *principals;
-    void *data;
-    bool marked;
-    js::WrapperMap crossCompartmentWrappers;
-
-    JSCompartment(JSRuntime *cx);
-    ~JSCompartment();
-
-    bool init();
-
-    bool wrap(JSContext *cx, js::Value *vp);
-    bool wrap(JSContext *cx, JSString **strp);
-    bool wrap(JSContext *cx, JSObject **objp);
-    bool wrapId(JSContext *cx, jsid *idp);
-    bool wrap(JSContext *cx, js::PropertyOp *op);
-    bool wrap(JSContext *cx, js::PropertyDescriptor *desc);
-    bool wrap(JSContext *cx, js::AutoIdVector &props);
-    bool wrapException(JSContext *cx);
-
-    void sweep(JSContext *cx);
-};
-
-typedef void
-(* JSActivityCallback)(void *arg, JSBool active);
-
 struct JSRuntime {
-    /* Default compartment. */
-    JSCompartment       *defaultCompartment;
-
-    /* List of compartments (protected by the GC lock). */
-    js::Vector<JSCompartment *, 0, js::SystemAllocPolicy> compartments;
-
     /* Runtime state, synchronized by the stateChange/gcLock condvar/lock. */
     JSRuntimeState      state;
 
     /* Context create/destroy callback. */
     JSContextCallback   cxCallback;
-
-    /* Compartment create/destroy callback. */
-    JSCompartmentCallback compartmentCallback;
-
-    /*
-     * Sets a callback that is run whenever the runtime goes idle - the
-     * last active request ceases - and begins activity - when it was
-     * idle and a request begins. Note: The callback is called under the
-     * GC lock.
-     */
-    void setActivityCallback(JSActivityCallback cb, void *arg) {
-        activityCallback = cb;
-        activityCallbackArg = arg;
-    }
-
-    JSActivityCallback    activityCallback;
-    void                 *activityCallbackArg;
 
     /*
      * Shape regenerated whenever a prototype implicated by an "add property"
@@ -1305,25 +739,24 @@ struct JSRuntime {
     uint32              protoHazardShape;
 
     /* Garbage collector state, used by jsgc.c. */
-    js::GCChunkSet      gcChunkSet;
-
-    /* GC chunks with at least one free arena. */
-    js::GCChunkInfoVector gcFreeArenaChunks;
+    js::GCChunks        gcChunks;
+    size_t              gcChunkCursor;
 #ifdef DEBUG
     JSGCArena           *gcEmptyArenaList;
 #endif
     JSGCArenaList       gcArenaList[FINALIZE_LIMIT];
-    js::RootedValueMap  gcRootsHash;
-    js::GCLocks         gcLocksHash;
+    JSGCDoubleArenaList gcDoubleArenaList;
+    JSDHashTable        gcRootsHash;
+    JSDHashTable        gcLocksHash;
     jsrefcount          gcKeepAtoms;
     size_t              gcBytes;
     size_t              gcLastBytes;
     size_t              gcMaxBytes;
     size_t              gcMaxMallocBytes;
-    size_t              gcNewArenaTriggerBytes;
     uint32              gcEmptyArenaPoolLifespan;
+    uint32              gcLevel;
     uint32              gcNumber;
-    js::GCMarker        *gcMarkingTracer;
+    JSTracer            *gcMarkingTracer;
     uint32              gcTriggerFactor;
     size_t              gcTriggerBytes;
     volatile JSBool     gcIsNeeded;
@@ -1339,6 +772,17 @@ struct JSRuntime {
     JSPackedBool        gcRunning;
     JSPackedBool        gcRegenShapes;
 
+    /*
+     * During gc, if rt->gcRegenShapes &&
+     *   (scope->flags & JSScope::SHAPE_REGEN) == rt->gcRegenShapesScopeFlag,
+     * then the scope's shape has already been regenerated during this GC.
+     * To avoid having to sweep JSScopes, the bit's meaning toggles with each
+     * shape-regenerating GC.
+     *
+     * FIXME Once scopes are GC'd (bug 505004), this will be obsolete.
+     */
+    uint8               gcRegenShapesScopeFlag;
+
 #ifdef JS_GC_ZEAL
     jsrefcount          gcZeal;
 #endif
@@ -1351,17 +795,15 @@ struct JSRuntime {
      */
     ptrdiff_t           gcMallocBytes;
 
+    /* See comments before DelayMarkingChildren is jsgc.cpp. */
+    JSGCArena           *gcUnmarkedArenaStackTop;
+#ifdef DEBUG
+    size_t              gcMarkLaterCount;
+#endif
+
 #ifdef JS_THREADSAFE
     JSBackgroundThread  gcHelperThread;
 #endif
-
-    js::GCChunkAllocator    *gcChunkAllocator;
-    
-    void setCustomGCChunkAllocator(js::GCChunkAllocator *allocator) {
-        JS_ASSERT(allocator);
-        JS_ASSERT(state == JSRTS_DOWN);
-        gcChunkAllocator = allocator;
-    }
 
     /*
      * The trace operation and its data argument to trace embedding-specific
@@ -1370,10 +812,17 @@ struct JSRuntime {
     JSTraceDataOp       gcExtraRootsTraceOp;
     void                *gcExtraRootsData;
 
+    /*
+     * Used to serialize cycle checks when setting __proto__ by requesting the
+     * GC handle the required cycle detection. If the GC hasn't been poked, it
+     * won't scan for garbage. This member is protected by rt->gcLock.
+     */
+    JSSetSlotRequest    *setSlotRequests;
+
     /* Well-known numbers held for use by this runtime's contexts. */
-    js::Value           NaNValue;
-    js::Value           negativeInfinityValue;
-    js::Value           positiveInfinityValue;
+    jsval               NaNValue;
+    jsval               negativeInfinityValue;
+    jsval               positiveInfinityValue;
 
     js::DeflatedStringCache *deflatedStringCache;
 
@@ -1389,7 +838,8 @@ struct JSRuntime {
     /* True if any debug hooks not supported by the JIT are enabled. */
     bool debuggerInhibitsJIT() const {
         return (globalDebugHooks.interruptHook ||
-                globalDebugHooks.callHook);
+                globalDebugHooks.callHook ||
+                globalDebugHooks.objectHook);
     }
 #endif
 
@@ -1411,7 +861,7 @@ struct JSRuntime {
     /* Lock and owning thread pointer for JS_LOCK_RUNTIME. */
     PRLock              *rtLock;
 #ifdef DEBUG
-    void *              rtLockOwner;
+    jsword              rtLockOwner;
 #endif
 
     /* Used to synchronize down/up state change; protected by gcLock. */
@@ -1447,7 +897,7 @@ struct JSRuntime {
      */
     PRLock              *debuggerLock;
 
-    JSThread::Map       threads;
+    JSDHashTable        threads;
 #endif /* JS_THREADSAFE */
     uint32              debuggerMutations;
 
@@ -1467,9 +917,9 @@ struct JSRuntime {
 #define JS_PROPERTY_TREE(cx) ((cx)->runtime->propertyTree)
 
     /*
-     * The propertyRemovals counter is incremented for every JSObject::clear,
-     * and for each JSObject::remove method call that frees a slot in the given
-     * object. See js_NativeGet and js_NativeSet in jsobj.cpp.
+     * The propertyRemovals counter is incremented for every JSScope::clear,
+     * and for each JSScope::remove method call that frees a slot in an object.
+     * See js_NativeGet and js_NativeSet in jsobj.cpp.
      */
     int32               propertyRemovals;
 
@@ -1519,16 +969,8 @@ struct JSRuntime {
     /* Literal table maintained by jsatom.c functions. */
     JSAtomState         atomState;
 
-    /*
-     * Runtime-shared empty scopes for well-known built-in objects that lack
-     * class prototypes (the usual locus of an emptyShape). Mnemonic: ABCDEW
-     */
-    js::EmptyShape      *emptyArgumentsShape;
-    js::EmptyShape      *emptyBlockShape;
-    js::EmptyShape      *emptyCallShape;
-    js::EmptyShape      *emptyDeclEnvShape;
-    js::EmptyShape      *emptyEnumeratorShape;
-    js::EmptyShape      *emptyWithShape;
+    JSEmptyScope          *emptyArgumentsScope;
+    JSEmptyScope          *emptyBlockScope;
 
     /*
      * Various metering fields are defined at the end of JSRuntime. In this
@@ -1560,34 +1002,16 @@ struct JSRuntime {
     jsrefcount          claimedTitles;
     jsrefcount          deadContexts;
     jsrefcount          deadlocksAvoided;
-    jsrefcount          liveShapes;
+    jsrefcount          liveScopes;
     jsrefcount          sharedTitles;
-    jsrefcount          totalShapes;
-    jsrefcount          liveObjectProps;
-    jsrefcount          liveObjectPropsPreSweep;
-    jsrefcount          totalObjectProps;
+    jsrefcount          totalScopes;
+    jsrefcount          liveScopeProps;
+    jsrefcount          liveScopePropsPreSweep;
+    jsrefcount          totalScopeProps;
     jsrefcount          livePropTreeNodes;
     jsrefcount          duplicatePropTreeNodes;
     jsrefcount          totalPropTreeNodes;
     jsrefcount          propTreeKidsChunks;
-    jsrefcount          liveDictModeNodes;
-
-    /*
-     * NB: emptyShapes is init'ed iff at least one of these envars is set:
-     *
-     *  JS_PROPTREE_STATFILE  statistics on the property tree forest
-     *  JS_PROPTREE_DUMPFILE  all paths in the property tree forest
-     */
-    const char          *propTreeStatFilename;
-    const char          *propTreeDumpFilename;
-
-    bool meterEmptyShapes() const { return propTreeStatFilename || propTreeDumpFilename; }
-
-    typedef js::HashSet<js::EmptyShape *,
-                        js::DefaultHasher<js::EmptyShape *>,
-                        js::SystemAllocPolicy> EmptyShapeSet;
-
-    EmptyShapeSet       emptyShapes;
 
     /* String instrumentation. */
     jsrefcount          liveStrings;
@@ -1625,30 +1049,16 @@ struct JSRuntime {
 
 #ifdef JS_GCMETER
     JSGCStats           gcStats;
-    JSGCArenaStats      gcArenaStats[FINALIZE_LIMIT];
 #endif
 
-#ifdef DEBUG
-    /*
-     * If functionMeterFilename, set from an envariable in JSRuntime's ctor, is
-     * null, the remaining members in this ifdef'ed group are not initialized.
-     */
-    const char          *functionMeterFilename;
+#ifdef JS_FUNCTION_METERING
     JSFunctionMeter     functionMeter;
     char                lastScriptFilename[1024];
-
-    typedef js::HashMap<JSFunction *,
-                        int32,
-                        js::DefaultHasher<JSFunction *>,
-                        js::SystemAllocPolicy> FunctionCountMap;
-
-    FunctionCountMap    methodReadBarrierCountMap;
-    FunctionCountMap    unjoinedFunctionCountMap;
 #endif
 
-    JSWrapObjectCallback wrapObjectCallback;
-
-    JSC::ExecutableAllocator *regExpAllocator;
+#ifdef JS_PROTO_CACHE_METERING
+    JSClassProtoCache::Stats classProtoCacheStats;
+#endif
 
     JSRuntime();
     ~JSRuntime();
@@ -1686,7 +1096,7 @@ struct JSRuntime {
 #define JS_TRACE_MONITOR(cx)    (JS_THREAD_DATA(cx)->traceMonitor)
 #define JS_SCRIPTS_TO_GC(cx)    (JS_THREAD_DATA(cx)->scriptsToGC)
 
-#ifdef DEBUG
+#ifdef JS_EVAL_CACHE_METERING
 # define EVAL_CACHE_METER(x)    (JS_THREAD_DATA(cx)->evalCacheMeter.x++)
 #else
 # define EVAL_CACHE_METER(x)    ((void) 0)
@@ -1717,6 +1127,13 @@ struct JSArgumentFormatMap {
 };
 #endif
 
+struct JSStackHeader {
+    uintN               nslots;
+    JSStackHeader       *down;
+};
+
+#define JS_STACK_SEGMENT(sh)    ((jsval *)(sh) + 2)
+
 /*
  * Key and entry types for the JSContext.resolvingTable hash table, typedef'd
  * here because all consumers need to see these declarations (and not just the
@@ -1741,122 +1158,59 @@ typedef struct JSResolvingEntry {
 extern const JSDebugHooks js_NullDebugHooks;  /* defined in jsdbgapi.cpp */
 
 namespace js {
-
 class AutoGCRooter;
+}
 
-class RegExpStatics
-{
-    js::Vector<int, 20>         matchPairs;
-    JSContext                   *cx;
-    JSString                    *input;
-    uintN                       flags;
+struct JSRegExpStatics {
+    JSContext   *cx;
+    JSString    *input;         /* input string to match (perl $_, GC root) */
+    JSBool      multiline;      /* whether input contains newlines (perl $*) */
+    JSSubString lastMatch;      /* last string matched (perl $&) */
+    JSSubString lastParen;      /* last paren matched (perl $+) */
+    JSSubString leftContext;    /* input to left of last match (perl $`) */
+    JSSubString rightContext;   /* input to right of last match (perl $') */
+    js::Vector<JSSubString> parens; /* last set of parens matched (perl $1, $2) */
 
-    bool createDependent(size_t start, size_t end, Value *out) const;
+    JSRegExpStatics(JSContext *cx) : cx(cx), parens(cx) {}
 
-    size_t pairCount() const {
-        JS_ASSERT(matchPairs.length() % 2 == 0);
-        return matchPairs.length() / 2;
-    }
-    /*
-     * Check whether the index at |checkValidIndex| is valid (>= 0).
-     * If so, construct a string for it and place it in |*out|.
-     * If not, place undefined in |*out|.
-     */
-    bool makeMatch(size_t checkValidIndex, size_t pairNum, Value *out) const;
-    static const uintN allFlags = JSREG_FOLD | JSREG_GLOB | JSREG_STICKY | JSREG_MULTILINE;
-    friend class RegExp;
-
-  public:
-    explicit RegExpStatics(JSContext *cx) : matchPairs(cx), cx(cx) { clear(); }
-    void clone(const RegExpStatics &other);
-
-    /* Mutators. */
-
-    void setMultiline(bool enabled) {
-        if (enabled)
-            flags = flags | JSREG_MULTILINE;
-        else
-            flags = flags & ~JSREG_MULTILINE;
-    }
-
-    void clear() {
-        input = 0;
-        flags = 0;
-        matchPairs.clear();
-    }
-
-    void checkInvariants() {
-        if (pairCount() > 0) {
-            JS_ASSERT(input);
-            JS_ASSERT(get(0, 0) <= get(0, 1));
-            JS_ASSERT(get(0, 1) <= int(input->length()));
-        }
-    }
-
-    void reset(JSString *newInput, bool newMultiline) {
-        clear();
-        input = newInput;
-        setMultiline(newMultiline);
-        checkInvariants();
-    }
-
-    void setInput(JSString *newInput) {
-        input = newInput;
-    }
-
-    /* Accessors. */
-
-    JSString *getInput() const { return input; }
-    uintN getFlags() const { return flags; }
-    bool multiline() const { return flags & JSREG_MULTILINE; }
-    bool matched() const { JS_ASSERT(pairCount() > 0); return get(0, 1) - get(0, 0) > 0; }
-    size_t getParenCount() const { JS_ASSERT(pairCount() > 0); return pairCount() - 1; }
-
-    void mark(JSTracer *trc) const {
-        if (input)
-            JS_CALL_STRING_TRACER(trc, input, "res->input");
-    }
-
-    size_t getParenLength(size_t parenNum) const {
-        if (pairCount() <= parenNum + 1)
-            return 0;
-        return get(parenNum + 1, 1) - get(parenNum + 1, 0);
-    }
-
-    int get(size_t pairNum, bool which) const {
-        JS_ASSERT(pairNum < pairCount());
-        return matchPairs[2 * pairNum + which];
-    }
-
-    /* Value creators. */
-
-    bool createInput(Value *out) const;
-    bool createLastMatch(Value *out) const { return makeMatch(0, 0, out); }
-    bool createLastParen(Value *out) const;
-    bool createLeftContext(Value *out) const;
-    bool createRightContext(Value *out) const;
-
-    bool createParen(size_t parenNum, Value *out) const {
-        return makeMatch((parenNum + 1) * 2, parenNum + 1, out);
-    }
-
-    /* Substring creators. */
-
-    void getParen(size_t num, JSSubString *out) const;
-    void getLastMatch(JSSubString *out) const;
-    void getLastParen(JSSubString *out) const;
-    void getLeftContext(JSSubString *out) const;
-    void getRightContext(JSSubString *out) const;
+    bool copy(const JSRegExpStatics& other);
+    void clearRoots();
+    void clear();
 };
-
-} /* namespace js */
 
 struct JSContext
 {
-    explicit JSContext(JSRuntime *rt);
+    explicit JSContext(JSRuntime *rt) :
+      runtime(rt), regExpStatics(this), busyArrays(this) {}
+
+    /*
+     * If this flag is set, we were asked to call back the operation callback
+     * as soon as possible.
+     */
+    volatile jsint      operationCallbackFlag;
 
     /* JSRuntime contextList linkage. */
     JSCList             link;
+
+#if JS_HAS_XML_SUPPORT
+    /*
+     * Bit-set formed from binary exponentials of the XML_* tiny-ids defined
+     * for boolean settings in jsxml.c, plus an XSF_CACHE_VALID bit.  Together
+     * these act as a cache of the boolean XML.ignore* and XML.prettyPrinting
+     * property values associated with this context's global object.
+     */
+    uint8               xmlSettingFlags;
+    uint8               padding;
+#else
+    uint16              padding;
+#endif
+
+    /*
+     * Classic Algol "display" static link optimization.
+     */
+#define JS_DISPLAY_SIZE 16U
+
+    JSStackFrame        *display[JS_DISPLAY_SIZE];
 
     /* Runtime version control identifier. */
     uint16              version;
@@ -1870,20 +1224,23 @@ struct JSContext
     /*
      * cx->resolvingTable is non-null and non-empty if we are initializing
      * standard classes lazily, or if we are otherwise recursing indirectly
-     * from js_LookupProperty through a Class.resolve hook.  It is used to
+     * from js_LookupProperty through a JSClass.resolve hook.  It is used to
      * limit runaway recursion (see jsapi.c and jsobj.c).
      */
     JSDHashTable        *resolvingTable;
 
     /*
      * True if generating an error, to prevent runaway recursion.
-     * NB: generatingError packs with throwing below.
+     * NB: generatingError packs with insideGCMarkCallback and throwing below.
      */
     JSPackedBool        generatingError;
 
+    /* Flag to indicate that we run inside gcCallback(cx, JSGC_MARK_END). */
+    JSPackedBool        insideGCMarkCallback;
+
     /* Exception state -- the exception member is a GC root by definition. */
     JSPackedBool        throwing;           /* is there a pending exception? */
-    js::Value           exception;          /* most-recently-thrown exception */
+    jsval               exception;          /* most-recently-thrown exception */
 
     /* Limit pointer for checking native stack consumption during recursion. */
     jsuword             stackLimit;
@@ -1892,53 +1249,26 @@ struct JSContext
     size_t              scriptStackQuota;
 
     /* Data shared by threads in an address space. */
-    JSRuntime *const    runtime;
+    JSRuntime * const   runtime;
 
-    /* GC heap compartment. */
-    JSCompartment       *compartment;
-
-    /* Currently executing frame and regs, set by stack operations. */
+    /* Stack arena pool and frame pointer register. */
     JS_REQUIRES_STACK
-    JSFrameRegs         *regs;
+    JSArenaPool         stackPool;
 
-    /* Current frame accessors. */
+    JS_REQUIRES_STACK
+    JSStackFrame        *fp;
 
-    JSStackFrame* fp() {
-        JS_ASSERT(regs && regs->fp);
-        return regs->fp;
-    }
-
-    JSStackFrame* maybefp() {
-        JS_ASSERT_IF(regs, regs->fp);
-        return regs ? regs->fp : NULL;
-    }
-
-    bool hasfp() {
-        JS_ASSERT_IF(regs, regs->fp);
-        return !!regs;
-    }
-
-  private:
-    friend class js::StackSpace;
-    friend bool js::Interpret(JSContext *);
-
-    /* 'regs' must only be changed by calling this function. */
-    void setCurrentRegs(JSFrameRegs *regs) {
-        this->regs = regs;
-    }
-
-  public:
     /* Temporary arena pool used while compiling and decompiling. */
     JSArenaPool         tempPool;
-
-    /* Temporary arena pool used while evaluate regular expressions. */
-    JSArenaPool         regExpPool;
 
     /* Top-level object and pointer to top stack frame's scope chain. */
     JSObject            *globalObject;
 
+    /* Storage to root recently allocated GC things and script result. */
+    JSWeakRoots         weakRoots;
+
     /* Regular expression class statics. */
-    js::RegExpStatics   regExpStatics;
+    JSRegExpStatics     regExpStatics;
 
     /* State for object and array toSource conversion. */
     JSSharpObjectMap    sharpObjectMap;
@@ -1968,83 +1298,70 @@ struct JSContext
     void                *data2;
 
   private:
-    /* Linked list of segments. See StackSegment. */
-    js::StackSegment *currentSegment;
+#ifdef __GNUC__
+# pragma GCC visibility push(default)
+#endif
+    friend void js_TraceContext(JSTracer *, JSContext *);
+#ifdef __GNUC__
+# pragma GCC visibility pop
+#endif
+
+    /* Linked list of callstacks. See CallStack. */
+    js::CallStack       *currentCallStack;
 
   public:
-    void assertSegmentsInSync() const {
-#ifdef DEBUG
-        if (regs) {
-            JS_ASSERT(currentSegment->isActive());
-            if (js::StackSegment *prev = currentSegment->getPreviousInContext())
-                JS_ASSERT(!prev->isActive());
-        } else {
-            JS_ASSERT_IF(currentSegment, !currentSegment->isActive());
+    /* Assuming there is an active callstack, return it. */
+    js::CallStack *activeCallStack() const {
+        JS_ASSERT(currentCallStack && !currentCallStack->isSaved());
+        return currentCallStack;
+    }
+
+    /* Add the given callstack to the list as the new active callstack. */
+    void pushCallStack(js::CallStack *newcs) {
+        if (fp)
+            currentCallStack->suspend(fp);
+        else
+            JS_ASSERT_IF(currentCallStack, currentCallStack->isSaved());
+        newcs->setPrevious(currentCallStack);
+        currentCallStack = newcs;
+        JS_ASSERT(!newcs->isSuspended() && !newcs->isSaved());
+    }
+
+    /* Remove the active callstack and make the next callstack active. */
+    void popCallStack() {
+        JS_ASSERT(!currentCallStack->isSuspended() && !currentCallStack->isSaved());
+        currentCallStack = currentCallStack->getPrevious();
+        if (currentCallStack && !currentCallStack->isSaved()) {
+            JS_ASSERT(fp);
+            currentCallStack->resume();
         }
-#endif
     }
 
-    /* Return whether this context has an active segment. */
-    bool hasActiveSegment() const {
-        assertSegmentsInSync();
-        return !!regs;
+    /* Mark the top callstack as suspended, without pushing a new one. */
+    void saveActiveCallStack() {
+        JS_ASSERT(fp && currentCallStack && !currentCallStack->isSuspended());
+        currentCallStack->save(fp);
+        fp = NULL;
     }
 
-    /* Assuming there is an active segment, return it. */
-    js::StackSegment *activeSegment() const {
-        JS_ASSERT(hasActiveSegment());
-        return currentSegment;
+    /* Undoes calls to suspendTopCallStack. */
+    void restoreCallStack() {
+        JS_ASSERT(!fp && currentCallStack && currentCallStack->isSuspended());
+        fp = currentCallStack->getSuspendedFrame();
+        currentCallStack->restore();
     }
-
-    /* Return the current segment, which may or may not be active. */
-    js::StackSegment *getCurrentSegment() const {
-        assertSegmentsInSync();
-        return currentSegment;
-    }
-
-    /* Add the given segment to the list as the new active segment. */
-    void pushSegmentAndFrame(js::StackSegment *newseg, JSFrameRegs &regs);
-
-    /* Remove the active segment and make the next segment active. */
-    void popSegmentAndFrame();
-
-    /* Mark the top segment as suspended, without pushing a new one. */
-    void saveActiveSegment();
-
-    /* Undoes calls to suspendActiveSegment. */
-    void restoreSegment();
 
     /*
-     * Perform a linear search of all frames in all segments in the given context
-     * for the given frame, returning the segment, if found, and null otherwise.
+     * Perform a linear search of all frames in all callstacks in the given context
+     * for the given frame, returning the callstack, if found, and null otherwise.
      */
-    js::StackSegment *containingSegment(const JSStackFrame *target);
+    js::CallStack *containingCallStack(JSStackFrame *target);
 
-    /*
-     * Search the call stack for the nearest frame with static level targetLevel.
-     */
-    JSStackFrame *findFrameAtLevel(uintN targetLevel) {
-        JSStackFrame *fp = this->regs->fp;
-        while (true) {
-            JS_ASSERT(fp && fp->hasScript());
-            if (fp->getScript()->staticLevel == targetLevel)
-                break;
-            fp = fp->down;
-        }
-        return fp;
-    }
- 
 #ifdef JS_THREADSAFE
     JSThread            *thread;
     jsrefcount          requestDepth;
     /* Same as requestDepth but ignoring JS_SuspendRequest/JS_ResumeRequest */
     jsrefcount          outstandingRequests;
-    JSContext           *prevRequestContext;
-    jsrefcount          prevRequestDepth;
-# ifdef DEBUG
-    unsigned            checkRequestDepth;
-# endif    
-
     JSTitle             *lockedSealedTitle; /* weak ref, for low-cost sealed
                                                title locking */
     JSCList             threadLinks;        /* JSThread contextList linkage */
@@ -2052,6 +1369,9 @@ struct JSContext
 #define CX_FROM_THREAD_LINKS(tl) \
     ((JSContext *)((char *)(tl) - offsetof(JSContext, threadLinks)))
 #endif
+
+    /* PDL of stack headers describing stack slots not rooted by argv, etc. */
+    JSStackHeader       *stackHeaders;
 
     /* Stack of thread-stack-allocated GC roots. */
     js::AutoGCRooter   *autoGCRooters;
@@ -2062,6 +1382,9 @@ struct JSContext
     /* Security callbacks that override any defined on the runtime. */
     JSSecurityCallbacks *securityCallbacks;
 
+    /* Pinned regexp pool used for regular expressions. */
+    JSArenaPool         regexpPool;
+
     /* Stored here to avoid passing it around as a parameter. */
     uintN               resolveFlags;
 
@@ -2069,7 +1392,7 @@ struct JSContext
     int64               rngSeed;
 
     /* Location to stash the iteration value between JSOP_MOREITER and JSOP_FOR*. */
-    js::Value           iterValue;
+    jsval               iterValue;
 
 #ifdef JS_TRACER
     /*
@@ -2103,48 +1426,7 @@ struct JSContext
 #endif
     }
 
-#ifdef MOZ_TRACE_JSCALLS
-    /* Function entry/exit debugging callback. */
-    JSFunctionCallback    functionCallback;
-
-    void doFunctionCallback(const JSFunction *fun,
-                            const JSScript *scr,
-                            JSBool entering) const
-    {
-        if (functionCallback)
-            functionCallback(fun, scr, this, entering);
-    }
-#endif
-
-    DSTOffsetCache dstOffsetCache;
-
-    /* List of currently active non-escaping enumerators (for-in). */
-    JSObject *enumerators;
-
-  private:
-    /*
-     * To go from a live generator frame (on the stack) to its generator object
-     * (see comment js_FloatingFrameIfGenerator), we maintain a stack of active
-     * generators, pushing and popping when entering and leaving generator
-     * frames, respectively.
-     */
-    js::Vector<JSGenerator *, 2, js::SystemAllocPolicy> genStack;
-
-  public:
-    /* Return the generator object for the given generator frame. */
-    JSGenerator *generatorFor(JSStackFrame *fp) const;
-
-    /* Early OOM-check. */
-    inline bool ensureGeneratorStackSpace();
-
-    bool enterGenerator(JSGenerator *gen) {
-        return genStack.append(gen);
-    }
-
-    void leaveGenerator(JSGenerator *gen) {
-        JS_ASSERT(genStack.back() == gen);
-        genStack.popBack();
-    }
+    JSClassProtoCache    classProtoCache;
 
 #ifdef JS_THREADSAFE
     /*
@@ -2277,19 +1559,6 @@ struct JSContext
 
     void purge();
 
-    js::StackSpace &stack() const {
-        return JS_THREAD_DATA(this)->stackSpace;
-    }
-
-#ifdef DEBUG
-    void assertValidStackDepth(uintN depth) {
-        JS_ASSERT(0 <= regs->sp - regs->fp->base());
-        JS_ASSERT(depth <= uintptr_t(regs->sp - regs->fp->base()));
-    }
-#else
-    void assertValidStackDepth(uintN /*depth*/) {}
-#endif
-
 private:
 
     /*
@@ -2298,78 +1567,35 @@ private:
      * threshold when p is not null. The function takes the pointer and not
      * a boolean flag to minimize the amount of code in its inlined callers.
      */
-    JS_FRIEND_API(void) checkMallocGCPressure(void *p);
+    void checkMallocGCPressure(void *p);
 };
 
-static inline void
-js_TraceRegExpStatics(JSTracer *trc, JSContext *acx)
+JS_ALWAYS_INLINE JSObject *
+JSStackFrame::varobj(js::CallStack *cs)
 {
-    acx->regExpStatics.mark(trc);
+    JS_ASSERT(cs->contains(this));
+    return fun ? callobj : cs->getInitialVarObj();
 }
 
 JS_ALWAYS_INLINE JSObject *
-JSStackFrame::varobj(js::StackSegment *seg) const
+JSStackFrame::varobj(JSContext *cx)
 {
-    JS_ASSERT(seg->contains(this));
-    return hasFunction() ? maybeCallObj() : seg->getInitialVarObj();
-}
-
-JS_ALWAYS_INLINE JSObject *
-JSStackFrame::varobj(JSContext *cx) const
-{
-    JS_ASSERT(cx->activeSegment()->contains(this));
-    return hasFunction() ? maybeCallObj() : cx->activeSegment()->getInitialVarObj();
-}
-
-JS_ALWAYS_INLINE jsbytecode *
-JSStackFrame::pc(JSContext *cx) const
-{
-    JS_ASSERT(cx->regs && cx->containingSegment(this) != NULL);
-    return (cx->regs->fp == this) ? cx->regs->pc : savedPC;
+    JS_ASSERT(cx->activeCallStack()->contains(this));
+    return fun ? callobj : cx->activeCallStack()->getInitialVarObj();
 }
 
 #ifdef JS_THREADSAFE
 # define JS_THREAD_ID(cx)       ((cx)->thread ? (cx)->thread->id : 0)
 #endif
 
-#if defined JS_THREADSAFE && defined DEBUG
-
-namespace js {
-
-class AutoCheckRequestDepth {
-    JSContext *cx;
-  public:
-    AutoCheckRequestDepth(JSContext *cx) : cx(cx) { cx->checkRequestDepth++; }
-
-    ~AutoCheckRequestDepth() {
-        JS_ASSERT(cx->checkRequestDepth != 0);
-        cx->checkRequestDepth--;
-    }
-};
-
-}
-
-# define CHECK_REQUEST(cx)                                                  \
-    JS_ASSERT((cx)->requestDepth || (cx)->thread == (cx)->runtime->gcThread);\
-    AutoCheckRequestDepth _autoCheckRequestDepth(cx);
-
-#else
-# define CHECK_REQUEST(cx)       ((void)0)
-#endif
-
-static inline uintN
-FramePCOffset(JSContext *cx, JSStackFrame* fp)
-{
-    jsbytecode *pc = fp->hasIMacroPC() ? fp->getIMacroPC() : fp->pc(cx);
-    return uintN(pc - fp->getScript()->code);
-}
+#ifdef __cplusplus
 
 static inline JSAtom **
 FrameAtomBase(JSContext *cx, JSStackFrame *fp)
 {
-    return fp->hasIMacroPC()
+    return fp->imacpc
            ? COMMON_ATOMS_START(&cx->runtime->atomState)
-           : fp->getScript()->atomMap.vector;
+           : fp->script->atomMap.vector;
 }
 
 namespace js {
@@ -2380,28 +1606,20 @@ class AutoGCRooter {
       : down(cx->autoGCRooters), tag(tag), context(cx)
     {
         JS_ASSERT(this != cx->autoGCRooters);
-#ifdef JS_THREADSAFE
-        JS_ASSERT(cx->requestDepth != 0);
-#endif
         cx->autoGCRooters = this;
     }
 
     ~AutoGCRooter() {
         JS_ASSERT(this == context->autoGCRooters);
-#ifdef JS_THREADSAFE
-        JS_ASSERT(context->requestDepth != 0);
-#endif
         context->autoGCRooters = down;
     }
 
-    /* Implemented in jsgc.cpp. */
     inline void trace(JSTracer *trc);
 
 #ifdef __GNUC__
 # pragma GCC visibility push(default)
 #endif
     friend void ::js_TraceContext(JSTracer *trc, JSContext *acx);
-    friend void ::js_TraceRuntime(JSTracer *trc);
 #ifdef __GNUC__
 # pragma GCC visibility pop
 #endif
@@ -2411,7 +1629,7 @@ class AutoGCRooter {
 
     /*
      * Discriminates actual subclass of this being used.  If non-negative, the
-     * subclass roots an array of values of the length stored in this field.
+     * subclass roots an array of jsvals of the length stored in this field.
      * If negative, meaning is indicated by the corresponding value in the enum
      * below.  Any other negative value indicates some deeper problem such as
      * memory corruption.
@@ -2422,20 +1640,18 @@ class AutoGCRooter {
 
     enum {
         JSVAL =        -1, /* js::AutoValueRooter */
-        SHAPE =        -2, /* js::AutoShapeRooter */
-        PARSER =       -3, /* js::Parser */
-        SCRIPT =       -4, /* js::AutoScriptRooter */
-        ENUMERATOR =   -5, /* js::AutoEnumStateRooter */
-        IDARRAY =      -6, /* js::AutoIdArray */
-        DESCRIPTORS =  -7, /* js::AutoPropDescArrayRooter */
-        NAMESPACES =   -8, /* js::AutoNamespaceArray */
-        XML =          -9, /* js::AutoXMLRooter */
-        OBJECT =      -10, /* js::AutoObjectRooter */
-        ID =          -11, /* js::AutoIdRooter */
-        VALVECTOR =   -12, /* js::AutoValueVector */
-        DESCRIPTOR =  -13, /* js::AutoPropertyDescriptorRooter */
-        STRING =      -14, /* js::AutoStringRooter */
-        IDVECTOR =    -15  /* js::AutoIdVector */
+        SPROP =        -2, /* js::AutoScopePropertyRooter */
+        WEAKROOTS =    -3, /* js::AutoSaveWeakRoots */
+        PARSER =       -4, /* js::Parser */
+        SCRIPT =       -5, /* js::AutoScriptRooter */
+        ENUMERATOR =   -6, /* js::AutoEnumStateRooter */
+        IDARRAY =      -7, /* js::AutoIdArray */
+        DESCRIPTORS =  -8, /* js::AutoDescriptorArray */
+        NAMESPACES =   -9, /* js::AutoNamespaceArray */
+        XML =         -10, /* js::AutoXMLRooter */
+        OBJECT =      -11, /* js::AutoObjectRooter */
+        ID =          -12, /* js::AutoIdRooter */
+        VECTOR =      -13  /* js::AutoValueVector */
     };
 
     private:
@@ -2444,72 +1660,82 @@ class AutoGCRooter {
     void operator=(AutoGCRooter &ida);
 };
 
+class AutoPreserveWeakRoots : private AutoGCRooter
+{
+  public:
+    explicit AutoPreserveWeakRoots(JSContext *cx
+                                   JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : AutoGCRooter(cx, WEAKROOTS), savedRoots(cx->weakRoots)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    ~AutoPreserveWeakRoots()
+    {
+        context->weakRoots = savedRoots;
+    }
+
+    friend void AutoGCRooter::trace(JSTracer *trc);
+
+  private:
+    JSWeakRoots savedRoots;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
 /* FIXME(bug 332648): Move this into a public header. */
 class AutoValueRooter : private AutoGCRooter
 {
   public:
-    explicit AutoValueRooter(JSContext *cx
+    explicit AutoValueRooter(JSContext *cx, jsval v = JSVAL_NULL
                              JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, JSVAL), val(js::NullValue())
-    {
-        JS_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    AutoValueRooter(JSContext *cx, const Value &v
-                    JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, JSVAL), val(v)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
-
-    AutoValueRooter(JSContext *cx, jsval v
+    AutoValueRooter(JSContext *cx, JSString *str
                     JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, JSVAL), val(js::Valueify(v))
+      : AutoGCRooter(cx, JSVAL), val(STRING_TO_JSVAL(str))
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+    AutoValueRooter(JSContext *cx, JSObject *obj
+                    JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : AutoGCRooter(cx, JSVAL), val(OBJECT_TO_JSVAL(obj))
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
-    /*
-     * If you are looking for Object* overloads, use AutoObjectRooter instead;
-     * rooting Object*s as a js::Value requires discerning whether or not it is
-     * a function object. Also, AutoObjectRooter is smaller.
-     */
-
-    void set(Value v) {
+    void setObject(JSObject *obj) {
         JS_ASSERT(tag == JSVAL);
-        val = v;
+        val = OBJECT_TO_JSVAL(obj);
     }
 
-    void set(jsval v) {
+    void setString(JSString *str) {
         JS_ASSERT(tag == JSVAL);
-        val = js::Valueify(v);
+        JS_ASSERT(str);
+        val = STRING_TO_JSVAL(str);
     }
 
-    const Value &value() const {
+    void setDouble(jsdouble *dp) {
+        JS_ASSERT(tag == JSVAL);
+        JS_ASSERT(dp);
+        val = DOUBLE_TO_JSVAL(dp);
+    }
+
+    jsval value() const {
         JS_ASSERT(tag == JSVAL);
         return val;
     }
 
-    Value *addr() {
+    jsval *addr() {
         JS_ASSERT(tag == JSVAL);
         return &val;
     }
 
-    const jsval &jsval_value() const {
-        JS_ASSERT(tag == JSVAL);
-        return Jsvalify(val);
-    }
-
-    jsval *jsval_addr() {
-        JS_ASSERT(tag == JSVAL);
-        return Jsvalify(&val);
-    }
-
     friend void AutoGCRooter::trace(JSTracer *trc);
-    friend void ::js_TraceRuntime(JSTracer *trc);
 
   private:
-    Value val;
+    jsval val;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
@@ -2535,54 +1761,17 @@ class AutoObjectRooter : private AutoGCRooter {
     }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
-    friend void ::js_TraceRuntime(JSTracer *trc);
 
   private:
     JSObject *obj;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class AutoStringRooter : private AutoGCRooter {
-  public:
-    AutoStringRooter(JSContext *cx, JSString *str = NULL
-                     JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, STRING), str(str)
-    {
-        JS_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    void setString(JSString *str) {
-        this->str = str;
-    }
-
-    JSString * string() const {
-        return str;
-    }
-
-    JSString ** addr() {
-        return &str;
-    }
-
-    friend void AutoGCRooter::trace(JSTracer *trc);
-
-  private:
-    JSString *str;
-    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
 class AutoArrayRooter : private AutoGCRooter {
   public:
-    AutoArrayRooter(JSContext *cx, size_t len, Value *vec
-                    JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, len), array(vec)
-    {
-        JS_GUARD_OBJECT_NOTIFIER_INIT;
-        JS_ASSERT(tag >= 0);
-    }
-
     AutoArrayRooter(JSContext *cx, size_t len, jsval *vec
                     JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, len), array(Valueify(vec))
+      : AutoGCRooter(cx, len), array(vec)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
         JS_ASSERT(tag >= 0);
@@ -2593,12 +1782,12 @@ class AutoArrayRooter : private AutoGCRooter {
         JS_ASSERT(tag >= 0);
     }
 
-    void changeArray(Value *newArray, size_t newLength) {
+    void changeArray(jsval *newArray, size_t newLength) {
         changeLength(newLength);
         array = newArray;
     }
 
-    Value *array;
+    jsval *array;
 
     friend void AutoGCRooter::trace(JSTracer *trc);
 
@@ -2606,20 +1795,19 @@ class AutoArrayRooter : private AutoGCRooter {
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class AutoShapeRooter : private AutoGCRooter {
+class AutoScopePropertyRooter : private AutoGCRooter {
   public:
-    AutoShapeRooter(JSContext *cx, const js::Shape *shape
-                    JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, SHAPE), shape(shape)
+    AutoScopePropertyRooter(JSContext *cx, JSScopeProperty *sprop
+                            JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : AutoGCRooter(cx, SPROP), sprop(sprop)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
-    friend void ::js_TraceRuntime(JSTracer *trc);
 
   private:
-    const js::Shape * const shape;
+    JSScopeProperty * const sprop;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
@@ -2648,24 +1836,23 @@ class AutoIdRooter : private AutoGCRooter
   public:
     explicit AutoIdRooter(JSContext *cx, jsid id = INT_TO_JSID(0)
                           JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, ID), id_(id)
+      : AutoGCRooter(cx, ID), idval(id)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     jsid id() {
-        return id_;
+        return idval;
     }
 
     jsid * addr() {
-        return &id_;
+        return &idval;
     }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
-    friend void ::js_TraceRuntime(JSTracer *trc);
 
   private:
-    jsid id_;
+    jsid idval;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
@@ -2694,17 +1881,11 @@ class AutoIdArray : private AutoGCRooter {
 
     friend void AutoGCRooter::trace(JSTracer *trc);
 
-    JSIdArray *steal() {
-        JSIdArray *copy = idArray;
-        idArray = NULL;
-        return copy;
-    }
-
   protected:
     inline void trace(JSTracer *trc);
 
   private:
-    JSIdArray * idArray;
+    JSIdArray * const idArray;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     /* No copy or assignment semantics. */
@@ -2718,14 +1899,14 @@ class AutoEnumStateRooter : private AutoGCRooter
   public:
     AutoEnumStateRooter(JSContext *cx, JSObject *obj
                         JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, ENUMERATOR), obj(obj), stateValue()
+      : AutoGCRooter(cx, ENUMERATOR), obj(obj), stateValue(JSVAL_NULL)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
         JS_ASSERT(obj);
     }
 
     ~AutoEnumStateRooter() {
-        if (!stateValue.isNull()) {
+        if (!JSVAL_IS_NULL(stateValue)) {
 #ifdef DEBUG
             JSBool ok =
 #endif
@@ -2736,8 +1917,8 @@ class AutoEnumStateRooter : private AutoGCRooter
 
     friend void AutoGCRooter::trace(JSTracer *trc);
 
-    const Value &state() const { return stateValue; }
-    Value *addr() { return &stateValue; }
+    jsval state() const { return stateValue; }
+    jsval * addr() { return &stateValue; }
 
   protected:
     void trace(JSTracer *trc) {
@@ -2747,7 +1928,7 @@ class AutoEnumStateRooter : private AutoGCRooter
     JSObject * const obj;
 
   private:
-    Value stateValue;
+    jsval stateValue;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
@@ -2761,7 +1942,6 @@ class AutoXMLRooter : private AutoGCRooter {
     }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
-    friend void ::js_TraceRuntime(JSTracer *trc);
 
   private:
     JSXML * const xml;
@@ -2791,61 +1971,6 @@ class AutoKeepAtoms {
     ~AutoKeepAtoms() { JS_UNKEEP_ATOMS(rt); }
 };
 
-class AutoArenaAllocator {
-    JSArenaPool *pool;
-    void        *mark;
-  public:
-    explicit AutoArenaAllocator(JSArenaPool *pool) : pool(pool) { mark = JS_ARENA_MARK(pool); }
-    ~AutoArenaAllocator() { JS_ARENA_RELEASE(pool, mark); }
-
-    template <typename T>
-    T *alloc(size_t elems) {
-        void *ptr;
-        JS_ARENA_ALLOCATE(ptr, pool, elems * sizeof(T));
-        return static_cast<T *>(ptr);
-    }
-};
-
-class AutoReleasePtr {
-    JSContext   *cx;
-    void        *ptr;
-    AutoReleasePtr operator=(const AutoReleasePtr &other);
-  public:
-    explicit AutoReleasePtr(JSContext *cx, void *ptr) : cx(cx), ptr(ptr) {}
-    ~AutoReleasePtr() { cx->free(ptr); }
-};
-
-class AutoLocalNameArray {
-  public:
-    explicit AutoLocalNameArray(JSContext *cx, JSFunction *fun
-                                JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : context(cx),
-        mark(JS_ARENA_MARK(&cx->tempPool)),
-        names(fun->getLocalNameArray(cx, &cx->tempPool)),
-        count(fun->countLocalNames())
-    {
-        JS_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    ~AutoLocalNameArray() {
-        JS_ARENA_RELEASE(&context->tempPool, mark);
-    }
-
-    operator bool() const { return !!names; }
-
-    uint32 length() const { return count; }
-
-    const jsuword &operator [](unsigned i) const { return names[i]; }
-
-  private:
-    JSContext   *context;
-    void        *mark;
-    jsuword     *names;
-    uint32      count;
-
-    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
 } /* namespace js */
 
 class JSAutoResolveFlags
@@ -2866,6 +1991,8 @@ class JSAutoResolveFlags
     uintN mSaved;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
+
+#endif /* __cpluscplus */
 
 /*
  * Slightly more readable macros for testing per-context option settings (also
@@ -2922,48 +2049,8 @@ js_FinishThreads(JSRuntime *rt);
 extern void
 js_PurgeThreads(JSContext *cx);
 
-namespace js {
-
-#ifdef JS_THREADSAFE
-
-/* Iterator over JSThreadData from all JSThread instances. */
-class ThreadDataIter : public JSThread::Map::Range
-{
-  public:
-    ThreadDataIter(JSRuntime *rt) : JSThread::Map::Range(rt->threads.all()) {}
-
-    JSThreadData *threadData() const {
-        return &front().value->data;
-    }
-};
-
-#else /* !JS_THREADSAFE */
-
-class ThreadDataIter
-{
-    JSRuntime *runtime;
-    bool done;
-  public:
-    ThreadDataIter(JSRuntime *rt) : runtime(rt), done(false) {}
-
-    bool empty() const {
-        return done;
-    }
-
-    void popFront() {
-        JS_ASSERT(!done);
-        done = true;
-    }
-
-    JSThreadData *threadData() const {
-        JS_ASSERT(!done);
-        return &runtime->threadData;
-    }
-};
-
-#endif  /* !JS_THREADSAFE */
-
-} /* namespace js */
+extern void
+js_TraceThreads(JSRuntime *rt, JSTracer *trc);
 
 /*
  * Ensures the JSOPTION_XML and JSOPTION_ANONFUNFIX bits of cx->options are
@@ -3026,8 +2113,31 @@ js_ContextIterator(JSRuntime *rt, JSBool unlocked, JSContext **iterp);
 extern JS_FRIEND_API(JSContext *)
 js_NextActiveContext(JSRuntime *, JSContext *);
 
+#ifdef JS_THREADSAFE
+
 /*
- * Class.resolve and watchpoint recursion damping machinery.
+ * Count the number of contexts entered requests on the current thread.
+ */
+extern uint32
+js_CountThreadRequests(JSContext *cx);
+
+/*
+ * This is a helper for code at can potentially run outside JS request to
+ * ensure that the GC is not running when the function returns.
+ *
+ * This function must be called with the GC lock held.
+ */
+extern void
+js_WaitForGC(JSRuntime *rt);
+
+#else /* !JS_THREADSAFE */
+
+# define js_WaitForGC(rt)    ((void) 0)
+
+#endif
+
+/*
+ * JSClass.resolve and watchpoint recursion damping machinery.
  */
 extern JSBool
 js_StartResolving(JSContext *cx, JSResolvingKey *key, uint32 flag,
@@ -3036,6 +2146,29 @@ js_StartResolving(JSContext *cx, JSResolvingKey *key, uint32 flag,
 extern void
 js_StopResolving(JSContext *cx, JSResolvingKey *key, uint32 flag,
                  JSResolvingEntry *entry, uint32 generation);
+
+/*
+ * Local root set management.
+ *
+ * NB: the jsval parameters below may be properly tagged jsvals, or GC-thing
+ * pointers cast to (jsval).  This relies on JSObject's tag being zero, but
+ * on the up side it lets us push int-jsval-encoded scopeMark values on the
+ * local root stack.
+ */
+extern JSBool
+js_EnterLocalRootScope(JSContext *cx);
+
+#define js_LeaveLocalRootScope(cx) \
+    js_LeaveLocalRootScopeWithResult(cx, JSVAL_NULL)
+
+extern void
+js_LeaveLocalRootScopeWithResult(JSContext *cx, jsval rval);
+
+extern void
+js_ForgetLocalRoot(JSContext *cx, jsval v);
+
+extern int
+js_PushLocalRoot(JSContext *cx, JSLocalRootStack *lrs, jsval v);
 
 /*
  * Report an exception, which is currently realized as a printf-style format
@@ -3074,13 +2207,13 @@ js_ReportOutOfMemory(JSContext *cx);
 /*
  * Report that cx->scriptStackQuota is exhausted.
  */
-void
+extern void
 js_ReportOutOfScriptQuota(JSContext *cx);
 
-extern JS_FRIEND_API(void)
+extern void
 js_ReportOverRecursed(JSContext *cx);
 
-extern JS_FRIEND_API(void)
+extern void
 js_ReportAllocationOverflow(JSContext *cx);
 
 #define JS_CHECK_RECURSION(cx, onerror)                                       \
@@ -3107,11 +2240,11 @@ js_ReportIsNotDefined(JSContext *cx, const char *name);
  * Report an attempt to access the property of a null or undefined value (v).
  */
 extern JSBool
-js_ReportIsNullOrUndefined(JSContext *cx, intN spindex, const js::Value &v,
+js_ReportIsNullOrUndefined(JSContext *cx, intN spindex, jsval v,
                            JSString *fallback);
 
 extern void
-js_ReportMissingArg(JSContext *cx, const js::Value &v, uintN arg);
+js_ReportMissingArg(JSContext *cx, jsval *vp, uintN arg);
 
 /*
  * Report error using js_DecompileValueGenerator(cx, spindex, v, fallback) as
@@ -3120,7 +2253,7 @@ js_ReportMissingArg(JSContext *cx, const js::Value &v, uintN arg);
  */
 extern JSBool
 js_ReportValueErrorFlags(JSContext *cx, uintN flags, const uintN errorNumber,
-                         intN spindex, const js::Value &v, JSString *fallback,
+                         intN spindex, jsval v, JSString *fallback,
                          const char *arg1, const char *arg2);
 
 #define js_ReportValueError(cx,errorNumber,spindex,v,fallback)                \
@@ -3147,20 +2280,13 @@ extern JSErrorFormatString js_ErrorFormatString[JSErr_Limit];
 # define JS_CHECK_STACK_SIZE(cx, lval)  ((jsuword)&(lval) > (cx)->stackLimit)
 #endif
 
-#ifdef JS_THREADSAFE
-# define JS_ASSERT_REQUEST_DEPTH(cx)  JS_ASSERT((cx)->requestDepth >= 1)
-#else
-# define JS_ASSERT_REQUEST_DEPTH(cx)  ((void) 0)
-#endif
-
 /*
  * If the operation callback flag was set, call the operation callback.
  * This macro can run the full GC. Return true if it is OK to continue and
  * false otherwise.
  */
-#define JS_CHECK_OPERATION_LIMIT(cx)                                          \
-    (JS_ASSERT_REQUEST_DEPTH(cx),                                             \
-     (!JS_THREAD_DATA(cx)->operationCallbackFlag || js_InvokeOperationCallback(cx)))
+#define JS_CHECK_OPERATION_LIMIT(cx) \
+    (!(cx)->operationCallbackFlag || js_InvokeOperationCallback(cx))
 
 /*
  * Invoke the operation callback and return false if the current execution
@@ -3212,7 +2338,7 @@ LeaveTrace(JSContext *cx)
 static JS_INLINE void
 LeaveTraceIfGlobalObject(JSContext *cx, JSObject *obj)
 {
-    if (!obj->parent)
+    if (!obj->fslots[JSSLOT_PARENT])
         LeaveTrace(cx);
 }
 
@@ -3227,14 +2353,11 @@ CanLeaveTrace(JSContext *cx)
 #endif
 }
 
-extern void
-SetPendingException(JSContext *cx, const Value &v);
-
-} /* namespace js */
+}       /* namespace js */
 
 /*
- * Get the current frame, first lazily instantiating stack frames if needed.
- * (Do not access cx->fp() directly except in JS_REQUIRES_STACK code.)
+ * Get the current cx->fp, first lazily instantiating stack frames if needed.
+ * (Do not access cx->fp directly except in JS_REQUIRES_STACK code.)
  *
  * Defined in jstracer.cpp if JS_TRACER is defined.
  */
@@ -3242,7 +2365,7 @@ static JS_FORCES_STACK JS_INLINE JSStackFrame *
 js_GetTopStackFrame(JSContext *cx)
 {
     js::LeaveTrace(cx);
-    return cx->maybefp();
+    return cx->fp;
 }
 
 static JS_INLINE JSBool
@@ -3299,139 +2422,51 @@ class AutoValueVector : private AutoGCRooter
   public:
     explicit AutoValueVector(JSContext *cx
                              JS_GUARD_OBJECT_NOTIFIER_PARAM)
-        : AutoGCRooter(cx, VALVECTOR), vector(cx)
+        : AutoGCRooter(cx, VECTOR), vector(cx)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     size_t length() const { return vector.length(); }
 
-    bool append(const Value &v) { return vector.append(v); }
+    bool append(jsval v) { return vector.append(v); }
+    bool append(JSString *str) { return append(STRING_TO_JSVAL(str)); }
+    bool append(JSObject *obj) { return append(OBJECT_TO_JSVAL(obj)); }
+    bool append(jsdouble *dp) { return append(DOUBLE_TO_JSVAL(dp)); }
 
     void popBack() { vector.popBack(); }
 
-    bool growBy(size_t inc) {
-        /* N.B. Value's default ctor leaves the Value undefined */
-        size_t oldLength = vector.length();
-        if (!vector.growByUninitialized(inc))
-            return false;
-        MakeValueRangeGCSafe(vector.begin() + oldLength, vector.end());
-        return true;
-    }
-
     bool resize(size_t newLength) {
-        size_t oldLength = vector.length();
-        if (newLength <= oldLength) {
-            vector.shrinkBy(oldLength - newLength);
-            return true;
-        }
-        /* N.B. Value's default ctor leaves the Value undefined */
-        if (!vector.growByUninitialized(newLength - oldLength))
-            return false;
-        MakeValueRangeGCSafe(vector.begin() + oldLength, vector.end());
-        return true;
+        return vector.resize(newLength);
     }
 
     bool reserve(size_t newLength) {
         return vector.reserve(newLength);
     }
 
-    Value &operator[](size_t i) { return vector[i]; }
-    const Value &operator[](size_t i) const { return vector[i]; }
+    jsval &operator[](size_t i) { return vector[i]; }
+    jsval operator[](size_t i) const { return vector[i]; }
 
-    const Value *begin() const { return vector.begin(); }
-    Value *begin() { return vector.begin(); }
+    const jsval *begin() const { return vector.begin(); }
+    jsval *begin() { return vector.begin(); }
 
-    const Value *end() const { return vector.end(); }
-    Value *end() { return vector.end(); }
+    const jsval *end() const { return vector.end(); }
+    jsval *end() { return vector.end(); }
 
-    const jsval *jsval_begin() const { return Jsvalify(begin()); }
-    jsval *jsval_begin() { return Jsvalify(begin()); }
-
-    const jsval *jsval_end() const { return Jsvalify(end()); }
-    jsval *jsval_end() { return Jsvalify(end()); }
-
-    const Value &back() const { return vector.back(); }
+    jsval back() const { return end()[-1]; }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
-    
+
   private:
-    Vector<Value, 8> vector;
+    Vector<jsval, 8> vector;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class AutoIdVector : private AutoGCRooter
-{
-  public:
-    explicit AutoIdVector(JSContext *cx
-                          JS_GUARD_OBJECT_NOTIFIER_PARAM)
-        : AutoGCRooter(cx, IDVECTOR), vector(cx)
-    {
-        JS_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    size_t length() const { return vector.length(); }
-
-    bool append(jsid id) { return vector.append(id); }
-
-    void popBack() { vector.popBack(); }
-
-    bool growBy(size_t inc) {
-        /* N.B. jsid's default ctor leaves the jsid undefined */
-        size_t oldLength = vector.length();
-        if (!vector.growByUninitialized(inc))
-            return false;
-        MakeIdRangeGCSafe(vector.begin() + oldLength, vector.end());
-        return true;
-    }
-
-    bool resize(size_t newLength) {
-        size_t oldLength = vector.length();
-        if (newLength <= oldLength) {
-            vector.shrinkBy(oldLength - newLength);
-            return true;
-        }
-        /* N.B. jsid's default ctor leaves the jsid undefined */
-        if (!vector.growByUninitialized(newLength - oldLength))
-            return false;
-        MakeIdRangeGCSafe(vector.begin() + oldLength, vector.end());
-        return true;
-    }
-
-    bool reserve(size_t newLength) {
-        return vector.reserve(newLength);
-    }
-
-    jsid &operator[](size_t i) { return vector[i]; }
-    const jsid &operator[](size_t i) const { return vector[i]; }
-
-    const jsid *begin() const { return vector.begin(); }
-    jsid *begin() { return vector.begin(); }
-
-    const jsid *end() const { return vector.end(); }
-    jsid *end() { return vector.end(); }
-
-    const jsid &back() const { return vector.back(); }
-
-    friend void AutoGCRooter::trace(JSTracer *trc);
-    
-  private:
-    Vector<jsid, 8> vector;
-    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
-JSIdArray *
-NewIdArray(JSContext *cx, jsint length);
-
-} /* namespace js */
+}
 
 #ifdef _MSC_VER
 #pragma warning(pop)
 #pragma warning(pop)
-#endif
-
-#ifdef JS_UNDEFD_MOZALLOC_WRAPPERS
-#  include "mozilla/mozalloc_macro_wrappers.h"
 #endif
 
 #endif /* jscntxt_h___ */

@@ -49,6 +49,7 @@
 #include "nsIDOMDocument.h"
 #include "nsCOMPtr.h"
 #include "nsEvent.h"
+#include "nsGUIEvent.h"
 
 #define DOM_WINDOW_DESTROYED_TOPIC "dom-window-destroyed"
 
@@ -77,8 +78,8 @@ class nsIArray;
 class nsPIWindowRoot;
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x4beac1da, 0x513e, 0x4a8b, \
-  { 0x96, 0x94, 0x1c, 0xf6, 0x4f, 0xba, 0xa8, 0x1c } }
+{ 0x7cbe5277, 0x5de8, 0x45e4, \
+  { 0x9c, 0x2d, 0x81, 0x37, 0xa9, 0x5b, 0x42, 0xc6 } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -108,14 +109,6 @@ public:
   }
 
   virtual void SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler) = 0;
-
-  nsPIDOMEventTarget* GetParentTarget()
-  {
-    if (!mParentTarget) {
-      UpdateParentTarget();
-    }
-    return mParentTarget;
-  }
 
   PRBool HasMutationListeners(PRUint32 aMutationEventType) const
   {
@@ -166,9 +159,6 @@ public:
 
     win->mMutationBits |= aType;
   }
-
-  virtual void MaybeUpdateTouchState() {}
-  virtual void UpdateTouchState() {}
 
   // GetExtantDocument provides a backdoor to the DOM GetDocument accessor
   nsIDOMDocument* GetExtantDocument() const
@@ -397,6 +387,11 @@ public:
   virtual PRBool CanClose() = 0;
   virtual nsresult ForceClose() = 0;
 
+  void SetModalContentWindow(PRBool aIsModalContentWindow)
+  {
+    mIsModalContentWindow = aIsModalContentWindow;
+  }
+
   PRBool IsModalContentWindow() const
   {
     return mIsModalContentWindow;
@@ -420,34 +415,6 @@ public:
     return mMayHavePaintEventListener;
   }
   
-  /**
-   * Call this to indicate that some node (this window, its document,
-   * or content in that document) has a touch event listener.
-   */
-  void SetHasTouchEventListeners()
-  {
-    mMayHaveTouchEventListener = PR_TRUE;
-    MaybeUpdateTouchState();
-  }
-
-  /**
-   * Call this to check whether some node (this window, its document,
-   * or content in that document) has a MozAudioAvailable event listener.
-   */
-  PRBool HasAudioAvailableEventListeners()
-  {
-    return mMayHaveAudioAvailableEventListener;
-  }
-
-  /**
-   * Call this to indicate that some node (this window, its document,
-   * or content in that document) has a MozAudioAvailable event listener.
-   */
-  void SetHasAudioAvailableEventListeners()
-  {
-    mMayHaveAudioAvailableEventListener = PR_TRUE;
-  }
-
   /**
    * Initialize window.java and window.Packages.
    */
@@ -557,19 +524,13 @@ protected:
 
   void SetChromeEventHandlerInternal(nsPIDOMEventTarget* aChromeEventHandler) {
     mChromeEventHandler = aChromeEventHandler;
-    // mParentTarget will be set when the next event is dispatched.
-    mParentTarget = nsnull;
   }
-
-  virtual void UpdateParentTarget() = 0;
 
   // These two variables are special in that they're set to the same
   // value on both the outer window and the current inner window. Make
   // sure you keep them in sync!
   nsCOMPtr<nsPIDOMEventTarget> mChromeEventHandler; // strong
   nsCOMPtr<nsIDOMDocument> mDocument; // strong
-
-  nsCOMPtr<nsPIDOMEventTarget> mParentTarget; // strong
 
   // These members are only used on outer windows.
   nsCOMPtr<nsIDOMElement> mFrameElement;
@@ -586,8 +547,6 @@ protected:
   PRPackedBool           mIsHandlingResizeEvent;
   PRPackedBool           mIsInnerWindow;
   PRPackedBool           mMayHavePaintEventListener;
-  PRPackedBool           mMayHaveTouchEventListener;
-  PRPackedBool           mMayHaveAudioAvailableEventListener;
 
   // This variable is used on both inner and outer windows (and they
   // should match).

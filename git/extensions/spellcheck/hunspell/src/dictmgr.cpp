@@ -16,7 +16,6 @@
  * are Copyright (C) 2002-2005 the Initial Developers. All Rights Reserved.
  * 
  * Contributor(s): László Németh (nemethl@gyorsposta.hu)
- *                 Caolan McNamara (caolanm@redhat.com)
  * 
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -32,22 +31,38 @@
  *
  ******* END LICENSE BLOCK *******/
 
-#include <stdlib.h>
+#ifndef MOZILLA_CLIENT
+#include <cstdlib>
+#include <cstring>
+#include <cstdio>
+#include <cctype>
+#else
+#include <stdlib.h> 
 #include <string.h>
+#include <stdio.h> 
 #include <ctype.h>
-#include <stdio.h>
+#endif
 
 #include "dictmgr.hxx"
 
-DictMgr::DictMgr(const char * dictpath, const char * etype) : numdict(0)
+#ifndef MOZILLA_CLIENT
+#ifndef W32
+using namespace std;
+#endif
+#endif
+
+DictMgr::DictMgr(const char * dictpath, const char * etype) 
 {
   // load list of etype entries
+  numdict = 0;
   pdentry = (dictentry *)malloc(MAXDICTIONARIES*sizeof(struct dictentry));
   if (pdentry) {
      if (parse_file(dictpath, etype)) {
         numdict = 0;
         // no dictionary.lst found is okay
      }
+  } else {
+     numdict = 0;
   }
 }
 
@@ -129,16 +144,6 @@ int  DictMgr::parse_file(const char * dictpath, const char * etype)
                  numdict++;
                  pdict++;
              } else {
-                 switch (i) {
-                    case 3:
-                       free(pdict->region);
-                       pdict->region=NULL;
-                    case 2: //deliberate fallthrough
-                       free(pdict->lang);
-                       pdict->lang=NULL;
-                    default:
-                        break;
-                 }
                  fprintf(stderr,"dictionary list corruption in line \"%s\"\n",line);
                  fflush(stderr);
              }
@@ -166,16 +171,17 @@ char * DictMgr::mystrsep(char ** stringp, const char delim)
 {
   char * rv = NULL;
   char * mp = *stringp;
-  size_t n = strlen(mp);
+  int n = strlen(mp);
   if (n > 0) {
      char * dp = (char *)memchr(mp,(int)((unsigned char)delim),n);
      if (dp) {
         *stringp = dp+1;
-        size_t nc = dp - mp; 
+        int nc = (int)((unsigned long)dp - (unsigned long)mp); 
         rv = (char *) malloc(nc+1);
         if (rv) {
            memcpy(rv,mp,nc);
            *(rv+nc) = '\0';
+           return rv;
         }
      } else {
        rv = (char *) malloc(n+1);
@@ -183,10 +189,11 @@ char * DictMgr::mystrsep(char ** stringp, const char delim)
           memcpy(rv, mp, n);
           *(rv+n) = '\0';
           *stringp = mp + n;
+          return rv;
        }
      }
   }
-  return rv;
+  return NULL;
 }
 
 
@@ -195,9 +202,9 @@ char * DictMgr::mystrdup(const char * s)
 {
   char * d = NULL;
   if (s) {
-     int sl = strlen(s)+1;
-     d = (char *) malloc(sl);
-     if (d) memcpy(d,s,sl);
+     int sl = strlen(s);
+     d = (char *) malloc(((sl+1) * sizeof(char)));
+     if (d) memcpy(d,s,((sl+1)*sizeof(char)));
   }
   return d;
 }
@@ -210,4 +217,3 @@ void DictMgr:: mychomp(char * s)
   if ((k > 0) && ((*(s+k-1)=='\r') || (*(s+k-1)=='\n'))) *(s+k-1) = '\0';
   if ((k > 1) && (*(s+k-2) == '\r')) *(s+k-2) = '\0';
 }
-

@@ -47,7 +47,7 @@
   http://www.mozilla.org/projects/netlib/dirindexformat.html
 
   One added change is for a description entry, for when the
-  target does not match the filename
+  target does not match the filename (ie gopher)
 
 */
 
@@ -107,6 +107,7 @@ static NS_DEFINE_CID(kRDFServiceCID,             NS_RDFSERVICE_CID);
 
 // Various protocols we have to special case
 static const char               kFTPProtocol[] = "ftp://";
+static const char               kGopherProtocol[] = "gopher://";
 
 //----------------------------------------------------------------------
 //
@@ -420,19 +421,26 @@ nsHTTPIndex::OnIndexAvailable(nsIRequest* aRequest, nsISupports *aContext,
   const char* baseStr;
   parentRes->GetValueConst(&baseStr);
   if (! baseStr) {
-    NS_ERROR("Could not reconstruct base uri");
+    NS_ERROR("Could not reconstruct base uri\n");
     return NS_ERROR_UNEXPECTED;
   }
 
   // we found the filename; construct a resource for its entry
   nsCAutoString entryuriC(baseStr);
 
+  // gopher resources don't point to an entry in the same directory
+  // like ftp uris. So the entryuriC is just a unique string, while
+  // the URL attribute is the destination of this element
+  // The naming scheme for the attributes is taken from the bookmarks
   nsXPIDLCString filename;
   nsresult rv = aIndex->GetLocation(getter_Copies(filename));
   if (NS_FAILED(rv)) return rv;
   entryuriC.Append(filename);
 
   // if its a directory, make sure it ends with a trailing slash.
+  // This doesn't matter for gopher, (where directories don't have
+  // to end in a trailing /), because the filename is used for the URL
+  // attribute.
   PRUint32 type;
   rv = aIndex->GetType(&type);
   if (NS_FAILED(rv))
@@ -456,7 +464,14 @@ nsHTTPIndex::OnIndexAvailable(nsIRequest* aRequest, nsISupports *aContext,
     nsCOMPtr<nsIRDFLiteral> lit;
     nsString str;
 
-    str.AssignWithConversion(entryuriC.get());
+    // For gopher, the target is the filename. We still have to do all
+    // the above string manipulation though, because we need the entryuric
+    // as the key for the RDF data source
+    if (!strncmp(entryuriC.get(), kGopherProtocol, sizeof(kGopherProtocol)-1))
+      str.AssignWithConversion(filename);
+    else {
+      str.AssignWithConversion(entryuriC.get());
+    }
 
     rv = mDirRDF->GetLiteral(str.get(), getter_AddRefs(lit));
 
@@ -774,6 +789,7 @@ void nsHTTPIndex::GetDestination(nsIRDFResource* r, nsXPIDLCString& dest) {
 //            get double the # of answers we really want... also, "rdf:file" is
 //            less expensive in terms of both memory usage as well as speed
 
+// We also handle gopher now
 
 
 // We use an rdf attribute to mark if this is a container or not.
@@ -793,12 +809,31 @@ nsHTTPIndex::isWellknownContainerURI(nsIRDFResource *r)
   } else {
     nsXPIDLCString uri;
     
+    // For gopher, we need to follow the URL attribute to get the
+    // real destination
     GetDestination(r,uri);
 
     if ((uri.get()) && (!strncmp(uri, kFTPProtocol, sizeof(kFTPProtocol) - 1))) {
       if (uri.Last() == '/') {
         isContainerFlag = PR_TRUE;
       }
+    }
+
+    // A gopher url is of the form:
+    // gopher://example.com/xFileNameToGet
+    // where x is a single character representing the type of file
+    // 1 is a directory, and 7 is a search.
+    // Searches will cause a dialog to be popped up (asking the user what
+    // to search for), and so even though searches return a directory as a
+    // result, don't treat it as a directory here.
+
+    // The isContainerFlag test above will correctly handle this when a
+    // search url is passed in as the baseuri
+    if ((uri.get()) &&
+        (!strncmp(uri,kGopherProtocol, sizeof(kGopherProtocol)-1))) {
+      char* pos = PL_strchr(uri+sizeof(kGopherProtocol)-1, '/');
+      if (!pos || pos[1] == '\0' || pos[1] == '1')
+        isContainerFlag = PR_TRUE;
     }
   }
   return isContainerFlag;

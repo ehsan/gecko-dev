@@ -62,7 +62,6 @@
 #include "nsIFileStreams.h"
 #include "nsIWindowWatcher.h"
 #include "nsIDOMWindow.h"
-#include "mozilla/Services.h"
 
 // For NS_CopyNativeToUnicode
 #include "nsNativeCharsetUtils.h"
@@ -290,10 +289,8 @@ GetFileNameForPrintSettings(nsIPrintSettings* aPS)
   nsCOMPtr<nsIFilePicker> filePicker = do_CreateInstance("@mozilla.org/filepicker;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIStringBundleService> bundleService =
-    mozilla::services::GetStringBundleService();
-  if (!bundleService)
-    return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIStringBundleService> bundleService = do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
   nsCOMPtr<nsIStringBundle> bundle;
   rv = bundleService->CreateBundle(NS_ERROR_GFX_PRINTER_BUNDLE_URL, getter_AddRefs(bundle));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -789,7 +786,7 @@ nsDeviceContextSpecWin::SetPrintSettingsFromDevMode(nsIPrintSettings* aPrintSett
 
   if (doingOrientation) {
     PRInt32 orientation  = aDevMode->dmOrientation == DMORIENT_PORTRAIT?
-      PRInt32(nsIPrintSettings::kPortraitOrientation):nsIPrintSettings::kLandscapeOrientation;
+      nsIPrintSettings::kPortraitOrientation:nsIPrintSettings::kLandscapeOrientation;
     aPrintSettings->SetOrientation(orientation);
   }
 
@@ -813,8 +810,7 @@ nsDeviceContextSpecWin::SetPrintSettingsFromDevMode(nsIPrintSettings* aPrintSett
     aPrintSettings->SetPaperData(aDevMode->dmPaperSize);
     for (PRInt32 i=0;i<kNumPaperSizes;i++) {
       if (kPaperSizes[i].mPaperSize == aDevMode->dmPaperSize) {
-        aPrintSettings->SetPaperSizeUnit(kPaperSizes[i].mIsInches
-          ?PRInt16(nsIPrintSettings::kPaperSizeInches):nsIPrintSettings::kPaperSizeMillimeters);
+        aPrintSettings->SetPaperSizeUnit(kPaperSizes[i].mIsInches?nsIPrintSettings::kPaperSizeInches:nsIPrintSettings::kPaperSizeMillimeters);
         break;
       }
     }
@@ -826,8 +822,7 @@ nsDeviceContextSpecWin::SetPrintSettingsFromDevMode(nsIPrintSettings* aPrintSett
         aPrintSettings->SetPaperSizeType(nsIPrintSettings::kPaperSizeDefined);
         aPrintSettings->SetPaperWidth(kPaperSizes[i].mWidth);
         aPrintSettings->SetPaperHeight(kPaperSizes[i].mHeight);
-        aPrintSettings->SetPaperSizeUnit(kPaperSizes[i].mIsInches
-          ?PRInt16(nsIPrintSettings::kPaperSizeInches):nsIPrintSettings::kPaperSizeMillimeters);
+        aPrintSettings->SetPaperSizeUnit(kPaperSizes[i].mIsInches?nsIPrintSettings::kPaperSizeInches:nsIPrintSettings::kPaperSizeMillimeters);
         found = PR_TRUE;
         break;
       }
@@ -1021,11 +1016,11 @@ GlobalPrinters::GetDefaultPrinterName(nsString& aDefaultPrinterName)
     while (*sPtr != comma && *sPtr != 0) 
       sPtr++;
     if (*sPtr == comma) {
-      *sPtr = 0;
+      *sPtr = NULL;
     }
     aDefaultPrinterName = szDefaultPrinterName;
   } else {
-    aDefaultPrinterName = EmptyString();
+    aDefaultPrinterName = NS_LITERAL_STRING("");
   }
 
   PR_PL(("DEFAULT PRINTER [%s]\n", aDefaultPrinterName.get()));

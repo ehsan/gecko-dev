@@ -37,7 +37,7 @@
 #include "nsCOMPtr.h"
 #include "nsIForm.h"
 #include "nsIFormControl.h"
-#include "nsFormSubmission.h"
+#include "nsIFormSubmission.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMNSHTMLFormElement.h"
@@ -48,7 +48,6 @@
 #include "nsPIDOMWindow.h"
 #include "nsUnicharUtils.h"
 #include "nsThreadUtils.h"
-#include "nsInterfaceHashtable.h"
 
 class nsFormControlList;
 
@@ -93,7 +92,7 @@ class nsHTMLFormElement : public nsGenericHTMLElement,
                           public nsIRadioGroupContainer
 {
 public:
-  nsHTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLFormElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLFormElement();
 
   nsresult Init();
@@ -189,7 +188,7 @@ public:
   nsresult RemoveElement(nsGenericHTMLFormElement* aElement, PRBool aNotify);
 
   /**
-   * Remove an element from the lookup table maintained by the form.
+   * Remove an element from the lookup table mainted by the form.
    * We can't fold this method into RemoveElement() because when
    * RemoveElement() is called it doesn't know if the element is
    * removed because the id attribute has changed, or bacause the
@@ -211,7 +210,7 @@ public:
   nsresult AddElement(nsGenericHTMLFormElement* aElement, PRBool aNotify);
 
   /**    
-   * Add an element to the lookup table maintained by the form.
+   * Add an element to the lookup table mainted by the form.
    *
    * We can't fold this method into AddElement() because when
    * AddElement() is called, the form control has no
@@ -241,10 +240,9 @@ public:
    * submission. In that case the form will defer the submission until the
    * script handler returns and the return value is known.
    */
-  void OnSubmitClickBegin(nsIContent* aOriginatingElement);
+  void OnSubmitClickBegin();
   void OnSubmitClickEnd();
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   class RemoveElementRunnable;
   friend class RemoveElementRunnable;
@@ -304,8 +302,10 @@ protected:
    * their data pumped into the FormSubmitter.
    *
    * @param aFormSubmission the form submission object
+   * @param aSubmitElement the element that was clicked on (nsnull if none)
    */
-  nsresult WalkFormElements(nsFormSubmission* aFormSubmission);
+  nsresult WalkFormElements(nsFormSubmission* aFormSubmission,
+                            nsIContent* aSubmitElement);
 
   /**
    * Notify any submit observers of the submit.
@@ -326,20 +326,8 @@ protected:
    * Get the full URL to submit to.  Do not submit if the returned URL is null.
    *
    * @param aActionURL the full, unadulterated URL you'll be submitting to [OUT]
-   * @param aOriginatingElement the originating element of the form submission [IN]
    */
-  nsresult GetActionURL(nsIURI** aActionURL, nsIContent* aOriginatingElement);
-
-  /**
-   * Check the form validity following this algorithm:
-   * http://www.whatwg.org/specs/web-apps/current-work/#statically-validate-the-constraints
-   *
-   * TODO: add a [out] parameter to have the list of unhandled invalid controls
-   *       but not needed until we have a UI to test it.
-   *
-   * @return Whether the form is currently valid.
-   */
-  PRBool CheckFormValidity() const;
+  nsresult GetActionURL(nsIURI** aActionURL);
 
 public:
   /**

@@ -135,7 +135,7 @@ def run_test(test, lib_dir):
         cmd = valgrind_prefix + cmd
 
     if OPTIONS.show_cmd:
-        print(subprocess.list2cmdline(cmd))
+        print(cmd)
     # close_fds is not supported on Windows and will cause a ValueError.
     close_fds = sys.platform != 'win32'
     p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=close_fds, env=env)
@@ -279,7 +279,6 @@ if __name__ == '__main__':
         op.error('missing JS_SHELL argument')
     # We need to make sure we are using backslashes on Windows.
     JS, test_args = os.path.normpath(args[0]), args[1:]
-    JS = os.path.realpath(JS) # Burst through the symlinks!
 
     if OPTIONS.retest:
         OPTIONS.read_tests = OPTIONS.retest

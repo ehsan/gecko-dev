@@ -150,10 +150,10 @@ function run_test() {
   var componentRegistrar = Components.manager.
                            QueryInterface(Ci.nsIComponentRegistrar);
 
-  var originalWindowsRegKeyCID;
+  var originalWindowsRegKeyFactory;
   var mockWindowsRegKeyFactory;
 
-  const kMockCID = Components.ID("{9b23dfe9-296b-4740-ba1c-d39c9a16e55e}");
+  const kWindowsRegKeyCID = "{a53bc624-d577-4839-b8ec-bb5040a52ff4}";
   const kWindowsRegKeyContractID = "@mozilla.org/windows-registry-key;1";
   const kWindowsRegKeyClassName = "nsWindowsRegKey";
 
@@ -171,11 +171,12 @@ function run_test() {
     };
 
     // Preserve the original factory
-    originalWindowsRegKeyCID = Cc[kWindowsRegKeyContractID].number;
+    originalWindowsRegKeyFactory = Components.manager.getClassObject(
+                                   Cc[kWindowsRegKeyContractID], Ci.nsIFactory);
 
     // Register the mock factory
     componentRegistrar.registerFactory(
-      kMockCID,
+      Components.ID(kWindowsRegKeyCID),
       "Mock Windows Registry Key Implementation",
       kWindowsRegKeyContractID,
       mockWindowsRegKeyFactory
@@ -185,16 +186,16 @@ function run_test() {
   function unregisterMockWindowsRegKeyFactory() {
     // Free references to the mock factory
     componentRegistrar.unregisterFactory(
-      kMockCID,
+      Components.ID(kWindowsRegKeyCID),
       mockWindowsRegKeyFactory
     );
 
     // Restore the original factory
     componentRegistrar.registerFactory(
-      Components.ID(originalWindowsRegKeyCID),
-      "",
+      Components.ID(kWindowsRegKeyCID),
+      kWindowsRegKeyClassName,
       kWindowsRegKeyContractID,
-      null
+      originalWindowsRegKeyFactory
     );
   }
 

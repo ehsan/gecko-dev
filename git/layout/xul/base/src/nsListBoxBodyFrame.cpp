@@ -261,8 +261,21 @@ nsListBoxBodyFrame::AttributeChanged(PRInt32 aNameSpaceID,
   nsresult rv = NS_OK;
 
   if (aAttribute == nsGkAtoms::rows) {
-    PresContext()->PresShell()->
-      FrameNeedsReflow(this, nsIPresShell::eStyleChange, NS_FRAME_IS_DIRTY);
+    nsAutoString rows;
+    mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::rows, rows);
+    
+    if (!rows.IsEmpty()) {
+      PRInt32 dummy;
+      PRInt32 count = rows.ToInteger(&dummy);
+      PRInt32 rowHeight = GetRowHeightAppUnits();
+      rowHeight = nsPresContext::AppUnitsToIntCSSPixels(rowHeight);
+      nsAutoString value;
+      value.AppendInt(rowHeight*count);
+      mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::minheight, value, PR_FALSE);
+
+      PresContext()->PresShell()->
+        FrameNeedsReflow(this, nsIPresShell::eStyleChange, NS_FRAME_IS_DIRTY);
+    }
   }
   else
     rv = nsBoxFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);
@@ -647,6 +660,20 @@ nsListBoxBodyFrame::SetRowHeight(nscoord aRowHeight)
 { 
   if (aRowHeight > mRowHeight) { 
     mRowHeight = aRowHeight;
+    
+    nsAutoString rows;
+    mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::rows, rows);
+    if (rows.IsEmpty())
+      mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::size, rows);
+    
+    if (!rows.IsEmpty()) {
+      PRInt32 dummy;
+      PRInt32 count = rows.ToInteger(&dummy);
+      PRInt32 rowHeight = nsPresContext::AppUnitsToIntCSSPixels(aRowHeight);
+      nsAutoString value;
+      value.AppendInt(rowHeight*count);
+      mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::minheight, value, PR_FALSE);
+    }
 
     // signal we need to dirty everything 
     // and we want to be notified after reflow
@@ -1356,7 +1383,7 @@ void
 nsListBoxBodyFrame::OnContentRemoved(nsPresContext* aPresContext,
                                      nsIContent* aContainer,
                                      nsIFrame* aChildFrame,
-                                     nsIContent* aOldNextSibling)
+                                     PRInt32 aIndex)
 {
   NS_ASSERTION(!aChildFrame || aChildFrame->GetParent() == this,
                "Removing frame that's not our child... Not good");
@@ -1368,12 +1395,12 @@ nsListBoxBodyFrame::OnContentRemoved(nsPresContext* aPresContext,
     if (!aChildFrame) {
       // The row we are removing is out of view, so we need to try to
       // determine the index of its next sibling.
+      nsIContent *oldNextSiblingContent = aContainer->GetChildAt(aIndex);
+  
       PRInt32 siblingIndex = -1;
-      if (aOldNextSibling) {
+      if (oldNextSiblingContent) {
         nsCOMPtr<nsIContent> nextSiblingContent;
-        GetListItemNextSibling(aOldNextSibling,
-                               getter_AddRefs(nextSiblingContent),
-                               siblingIndex);
+        GetListItemNextSibling(oldNextSiblingContent, getter_AddRefs(nextSiblingContent), siblingIndex);
       }
     
       // if the row being removed is off-screen and above the top frame, we need to
@@ -1394,9 +1421,8 @@ nsListBoxBodyFrame::OnContentRemoved(nsPresContext* aPresContext,
       // if the last content node has a frame, we are scrolled to the bottom
       ChildIterator iter, last;
       ChildIterator::Init(mContent, &iter, &last);
-      if (iter != last) {
-        iter = last;
-        --iter;
+      if (last.position() > 0) {
+        iter.seek(last.position() - 1);
         nsIContent *lastChild = *iter;
         nsIFrame* lastChildFrame = lastChild->GetPrimaryFrame();
       

@@ -165,20 +165,10 @@
 
       <field name="_scrollTarget">null</field>
 
-      <method name="_canScrollToElement">
-        <parameter name="element"/>
-        <body>
-          return true;
-        </body>
-      </method>
-
       <method name="ensureElementIsVisible">
         <parameter name="element"/>
         <parameter name="aSmoothScroll"/>
         <body><![CDATA[
-          if (!this._canScrollToElement(element))
-            return;
-
           var vertical = this.orient == "vertical";
           var rect = this.scrollClientRect;
           var containerStart = vertical ? rect.top : rect.left;
@@ -225,39 +215,48 @@
           this._stopSmoothScroll();
 
           // Positive amountToScroll makes us scroll right (elements fly left), negative scrolls left.
-          this._isScrolling = amountToScroll < 0 ? -1 : 1;
+          var round;
+          if (amountToScroll < 0) {
+            this._isScrolling = -1;
+            round = Math.floor;
+          } else {
+            this._isScrolling = 1;
+            round = Math.ceil;
+          }
 
-          this._scrollAnim.start(amountToScroll);
+          const FRAME_LENGTH = 60;
+
+          function processFrame(self, scrollAmounts, off) {
+            var distance = scrollAmounts.shift();
+
+            // Skip frames if we aren't getting the desired frame rate.
+            if (off > 0) {
+              for (var i = Math.round(off / FRAME_LENGTH); i > 0; i--)
+                distance += scrollAmounts.shift() || 0;
+            }
+
+            self.scrollByPixels(distance);
+            if (!scrollAmounts.length)
+              self._stopSmoothScroll();
+          }
+
+          // amountToScroll: total distance to scroll
+          // scrollAmount: distance to move during the particular effect frame (60ms)
+          var scrollAmount, scrollAmounts = [];
+          if (amountToScroll > 2 || amountToScroll < -2) {
+            scrollAmount = round(amountToScroll * 0.2);
+            scrollAmounts.push(scrollAmount, scrollAmount, scrollAmount);
+            amountToScroll -= 3 * scrollAmount;
+          }
+          while (this._isScrolling < 0 && amountToScroll < 0 ||
+                 this._isScrolling > 0 && amountToScroll > 0) {
+            amountToScroll -= (scrollAmount = round(amountToScroll * 0.5));
+            scrollAmounts.push(scrollAmount);
+          }
+          this._smoothScrollTimer = setInterval(processFrame, FRAME_LENGTH, this, scrollAmounts);
+          processFrame(this, scrollAmounts, 0);
         ]]></body>
       </method>
-
-      <field name="_scrollAnim"><![CDATA[({
-        scrollbox: this,
-        start: function scrollAnim_start(distance) {
-          this.distance = distance;
-          this.startPos = this.scrollbox.scrollPosition;
-          this.duration = Math.min(1000, Math.round(50 * Math.sqrt(Math.abs(distance))));
-          this.startTime = window.mozAnimationStartTime;
-
-          window.addEventListener("MozBeforePaint", this, false);
-          window.mozRequestAnimationFrame();
-        },
-        stop: function scrollAnim_stop() {
-          window.removeEventListener("MozBeforePaint", this, false);
-        },
-        handleEvent: function scrollAnim_handleEvent(event) {
-          const timePassed = event.timeStamp - this.startTime;
-          const pos = timePassed >= this.duration ? 1 :
-                      1 - Math.pow(1 - timePassed / this.duration, 4);
-
-          this.scrollbox.scrollPosition = this.startPos + (this.distance * pos);
-
-          if (pos == 1)
-            this.scrollbox._stopSmoothScroll();
-          else
-            window.mozRequestAnimationFrame();
-        }
-      })]]></field>
 
       <method name="scrollByIndex">
         <parameter name="index"/>
@@ -287,19 +286,15 @@
           if (this._isRTLScrollbox)
             index *= -1;
           while (index < 0 && nextElement) {
-            if (this._canScrollToElement(nextElement))
-              targetElement = nextElement;
+            targetElement = nextElement;
             nextElement = nextElement.previousSibling;
             index++;
           }
           while (index > 0 && nextElement) {
-            if (this._canScrollToElement(nextElement))
-              targetElement = nextElement;
+            targetElement = nextElement;
             nextElement = nextElement.nextSibling;
             index--;
           }
-          if (!targetElement)
-            return;
 
           this.ensureElementIsVisible(targetElement, aSmoothScroll);
         ]]></body>
@@ -307,9 +302,8 @@
 
       <method name="_getScrollableElements">
         <body><![CDATA[
-          var nodes = this.hasChildNodes() ?
-                        this.childNodes : document.getBindingParent(this).childNodes;
-          return Array.filter(nodes, this._canScrollToElement, this);
+          return this.hasChildNodes() ?
+                   this.childNodes : document.getBindingParent(this).childNodes;
         ]]></body>
       </method>
 
@@ -321,8 +315,10 @@
           if (!elements.length)
             return null;
 
-          if (this._isRTLScrollbox)
+          if (this._isRTLScrollbox) {
+            elements = Array.slice(elements);
             elements.reverse();
+          }
 
           var [start, end] = this._startEndProps;
           var low = 0;
@@ -384,12 +380,12 @@
            1: scrolling right
           -1: scrolling left -->
       <field name="_isScrolling">0</field>
-      <field name="_prevMouseScrolls">[null, null]</field>
+      <field name="_smoothScrollTimer">0</field>
 
       <method name="_stopSmoothScroll">
         <body><![CDATA[
           if (this._isScrolling) {
-            this._scrollAnim.stop();
+            clearInterval(this._smoothScrollTimer);
             this._isScrolling = 0;
             this._scrollTarget = null;
           }
@@ -426,30 +422,15 @@
 
     <handlers>
       <handler event="DOMMouseScroll"><![CDATA[
-        if (this.orient == "vertical") {
-          // prevent horizontal scrolling from scrolling a vertical scrollbox
-          if (event.axis == event.HORIZONTAL_AXIS)
-            return;
-          this.scrollByIndex(event.detail);
-        }
+        // prevent horizontal scrolling from scrolling a vertical scrollbox
+        if (event.axis == event.HORIZONTAL_AXIS &&
+            this.orient == "vertical")
+          return;
         // We allow vertical scrolling to scroll a horizontal scrollbox
         // because many users have a vertical scroll wheel but no
         // horizontal support.
-        // Because of this, we need to avoid scrolling chaos on trackpads
-        // and mouse wheels that support simultaneous scrolling in both axes.
-        // We do this by scrolling only when the last two scroll events were
-        // on the same axis as the current scroll event.
-        else {
-          let isVertical = event.axis == event.VERTICAL_AXIS;
 
-          if (this._prevMouseScrolls.every(function(prev) prev == isVertical))
-            this.scrollByIndex(event.detail);
-
-          if (this._prevMouseScrolls.length > 1)
-            this._prevMouseScrolls.shift();
-          this._prevMouseScrolls.push(isVertical);
-        }
-
+        this.scrollByIndex(event.detail);
         event.stopPropagation();
       ]]></handler>
 
@@ -539,9 +520,9 @@
                          xbl:inherits="orient"
                          anonid="scrollbutton-up"
                          onclick="_distanceScroll(event);"
-                         onmousedown="if (event.button == 0) _startScroll(-1);"
-                         onmouseup="if (event.button == 0) _stopScroll();"
+                         onmousedown="_startScroll(-1);"
                          onmouseover="_continueScroll(-1);"
+                         onmouseup="_stopScroll();"
                          onmouseout="_pauseScroll();"/>
       <xul:scrollbox xbl:inherits="orient,align,pack,dir" flex="1" anonid="scrollbox">
         <children/>
@@ -550,9 +531,9 @@
                          xbl:inherits="orient"
                          anonid="scrollbutton-down"
                          onclick="_distanceScroll(event);"
-                         onmousedown="if (event.button == 0) _startScroll(1);"
-                         onmouseup="if (event.button == 0) _stopScroll();"
+                         onmousedown="_startScroll(1);"
                          onmouseover="_continueScroll(1);"
+                         onmouseup="_stopScroll();"
                          onmouseout="_pauseScroll();"/>
     </content>
     <implementation implements="nsITimerCallback, nsIDOMEventListener">

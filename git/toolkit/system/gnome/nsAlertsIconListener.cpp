@@ -153,7 +153,7 @@ nsAlertsIconListener::OnStopDecode(imgIRequest* aRequest,
 
 NS_IMETHODIMP
 nsAlertsIconListener::FrameChanged(imgIContainer* aContainer,
-                                   const nsIntRect* aDirtyRect)
+                                   nsIntRect* aDirtyRect)
 {
   return NS_OK;
 }
@@ -266,7 +266,7 @@ nsAlertsIconListener::StartRequest(const nsAString & aImageUrl)
 
   return il->LoadImage(imageUri, nsnull, nsnull, nsnull, this,
                        nsnull, nsIRequest::LOAD_NORMAL, nsnull, nsnull,
-                       nsnull, getter_AddRefs(mIconRequest));
+                       getter_AddRefs(mIconRequest));
 }
 
 void

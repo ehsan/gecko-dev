@@ -37,7 +37,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSVGNumber.h"
-#include "nsSVGUtils.h"
 #include "nsTextFormatter.h"
 #include "prdtoa.h"
 #include "nsDOMError.h"
@@ -138,7 +137,7 @@ nsSVGNumber::SetValueString(const nsAString& aValue)
         rv = SetValue(val);
       }
       // skip trailing spaces
-      while (*rest && IsSVGWhitespace(*rest))
+      while (*rest && isspace(*rest))
         ++rest;
 
       // check to see if there is trailing stuff...

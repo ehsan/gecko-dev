@@ -40,7 +40,6 @@
 
 function test() {
   // initialization
-  waitForExplicitFinish();
   gPrefService.setBoolPref("browser.privatebrowsing.keep_current_session", true);
   let pb = Cc["@mozilla.org/privatebrowsing;1"].
            getService(Ci.nsIPrivateBrowsingService);
@@ -69,24 +68,6 @@ function test() {
   is(searchBar.textbox.editor.transactionManager.numberOfUndoItems, 1,
     "leaving the private browsing mode should only leave 1 item in the undo list of the searchbar control");
 
-  // enter private browsing mode
-  pb.privateBrowsingEnabled = true;
-
-  const TEST_URL =
-    "data:text/html,<head><link rel=search type='application/opensearchdescription+xml' href='http://foo.bar' title=dummy></head>";
-  gBrowser.selectedTab = gBrowser.addTab(TEST_URL);
-  gBrowser.selectedBrowser.addEventListener("load", function(e) {
-    e.currentTarget.removeEventListener("load", arguments.callee, true);
-
-    var browser = gBrowser.selectedBrowser;
-    is(typeof browser.engines, "undefined",
-       "An engine should not be discovered in private browsing mode");
-
-    gBrowser.removeTab(gBrowser.selectedTab);
-    pb.privateBrowsingEnabled = false;
-
-    // cleanup
-    gPrefService.clearUserPref("browser.privatebrowsing.keep_current_session");
-    finish();
-  }, true);
+  // cleanup
+  gPrefService.clearUserPref("browser.privatebrowsing.keep_current_session");
 }

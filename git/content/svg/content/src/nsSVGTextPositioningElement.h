@@ -40,42 +40,20 @@
 #include "nsSVGTextContentElement.h"
 #include "nsIDOMSVGAnimatedLengthList.h"
 #include "nsIDOMSVGAnimatedNumberList.h"
-#include "SVGAnimatedLengthList.h"
 
-class nsSVGElement;
-
-namespace mozilla {
-class SVGAnimatedLengthList;
-}
-
-typedef nsSVGTextContentElement nsSVGTextPositioningElementBase;
-
-/**
- * Note that nsSVGTextElement does not inherit this class - it reimplements it
- * instead (see its documenting comment). The upshot is that any changes to
- * this class also need to be made in nsSVGTextElement.
- */
-class nsSVGTextPositioningElement : public nsSVGTextPositioningElementBase
+class nsSVGTextPositioningElement : public nsSVGTextContentElement
 {
 public:
   NS_DECL_NSIDOMSVGTEXTPOSITIONINGELEMENT
 
 protected:
-
-  nsSVGTextPositioningElement(already_AddRefed<nsINodeInfo> aNodeInfo)
-    : nsSVGTextPositioningElementBase(aNodeInfo)
-  {}
-
-  nsresult Init();
-
-  virtual LengthListAttributesInfo GetLengthListInfo();
+  nsresult Initialise(nsSVGElement *aSVGElement);
 
   // nsIDOMSVGTextPositioning properties:
-
-  enum { X, Y, DX, DY };
-  mozilla::SVGAnimatedLengthList mLengthListAttributes[4];
-  static LengthListInfo sLengthListInfo[4];
-
+  nsCOMPtr<nsIDOMSVGAnimatedLengthList> mX;
+  nsCOMPtr<nsIDOMSVGAnimatedLengthList> mY;
+  nsCOMPtr<nsIDOMSVGAnimatedLengthList> mdX;
+  nsCOMPtr<nsIDOMSVGAnimatedLengthList> mdY;
   nsCOMPtr<nsIDOMSVGAnimatedNumberList> mRotate;
 };
 

@@ -46,7 +46,7 @@ MODULE = update
 
 XPIDLSRCS = nsIUpdateTimerManager.idl
 
-EXTRA_PP_COMPONENTS = nsUpdateTimerManager.js nsUpdateTimerManager.manifest
+EXTRA_PP_COMPONENTS = nsUpdateTimerManager.js
 
 ifdef MOZ_UPDATER
 DIRS = ../readstrings \
@@ -58,7 +58,6 @@ XPIDLSRCS += nsIUpdateService.idl
 EXTRA_PP_COMPONENTS += \
   nsUpdateService.js \
   nsUpdateServiceStub.js \
-  nsUpdateService.manifest \
   $(NULL)
 endif
 

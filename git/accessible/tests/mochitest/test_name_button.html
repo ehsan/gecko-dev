@@ -83,9 +83,10 @@
   <pre id="test">
   </pre>
 
-  <!-- aria-labelledby preferred to aria-label -->
+  <!-- button, aria-label, preferred to aria-labelledby -->
   <button id="btn_aria_label"
-          aria-label="button label">1</button>
+          aria-label="button label"
+          aria-labelledby="btn_aria_labelledby_text">1</button>
   <br/>
 
   <!-- button, aria-labelledby, preferred to html:label -->
@@ -108,9 +109,10 @@
   <!-- button, no content, name from @title -->
   <button id="btn_title" title="title"></button>
 
-  <!-- input, aria-label -->
+  <!-- input, aria-label, preferred to aria-labelledby -->
   <input type="button" id="input_aria_label"
           aria-label="button label"
+          aria-labelledby="aria_labelledby_text_for_input"
           value="1"/>
   <br/>
 
@@ -126,10 +128,10 @@
   <label for="input_labelled">label</label>
   <input type="button" id="input_labelled" value="1" title="title"/>
 
-  <!-- name from @value, preferred to @title -->
+  <!-- name from @value, prefered to @title -->
   <input type="button" id="input_value0" title="title" value="1"/>
 
-  <!-- name from @value, preferred to @alt -->
+  <!-- name from @value, prefered to @alt -->
   <input type="button" id="input_value" value="1" alt="alt"/>
 
   <!-- name from @alt, preferred to @src -->

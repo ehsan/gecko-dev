@@ -48,7 +48,6 @@
 #include "nsCRT.h"
 #include "nsCOMPtr.h"
 #include "prlong.h"
-#include "nsCharSeparatedTokenizer.h"
 
 //------------------------------------------------------------------------------
 // Helper functions and Constants
@@ -60,8 +59,7 @@ const PRUint32 MSEC_PER_MIN  = 1000 * 60;
 const PRUint32 MSEC_PER_HOUR = 1000 * 60 * 60;
 const PRInt32  DECIMAL_BASE  = 10;
 
-#define ACCESSKEY_PREFIX_LC NS_LITERAL_STRING("accesskey(") // SMIL2+
-#define ACCESSKEY_PREFIX_CC NS_LITERAL_STRING("accessKey(") // SVG/SMIL ANIM
+#define ACCESSKEY_PREFIX NS_LITERAL_STRING("accesskey(")
 #define REPEAT_PREFIX    NS_LITERAL_STRING("repeat(")
 #define WALLCLOCK_PREFIX NS_LITERAL_STRING("wallclock(")
 
@@ -263,17 +261,13 @@ ParseOptionalOffset(const nsAString& aSpec, nsSMILTimeValueSpecParams& aResult)
 nsresult
 ParseAccessKey(const nsAString& aSpec, nsSMILTimeValueSpecParams& aResult)
 {
-  NS_ABORT_IF_FALSE(StringBeginsWith(aSpec, ACCESSKEY_PREFIX_CC) ||
-      StringBeginsWith(aSpec, ACCESSKEY_PREFIX_LC),
+  NS_ABORT_IF_FALSE(StringBeginsWith(aSpec, ACCESSKEY_PREFIX),
       "Calling ParseAccessKey on non-accesskey-type spec");
 
   nsSMILTimeValueSpecParams result;
   result.mType = nsSMILTimeValueSpecParams::ACCESSKEY;
 
-  NS_ABORT_IF_FALSE(
-      ACCESSKEY_PREFIX_LC.Length() == ACCESSKEY_PREFIX_CC.Length(),
-      "Case variations for accesskey prefix differ in length");
-  const PRUnichar* start = aSpec.BeginReading() + ACCESSKEY_PREFIX_LC.Length();
+  const PRUnichar* start = aSpec.BeginReading() + ACCESSKEY_PREFIX.Length();
   const PRUnichar* end = aSpec.EndReading();
 
   // Expecting at least <accesskey> + ')'
@@ -367,9 +361,6 @@ ParseElementBaseTimeValueSpec(const nsAString& aSpec,
   // event-name
   // element-name.repeat(3)
   // event\.name
-  //
-  // Technically `repeat(3)' is permitted but the behaviour in this case is not
-  // defined (for SMIL Animation) so we don't support it here.
   //
 
   const PRUnichar* tokenStart = aSpec.BeginReading();
@@ -556,26 +547,26 @@ public:
   SMILValueParser(const nsISMILAnimationElement* aSrcElement,
                   const nsISMILAttr* aSMILAttr,
                   nsTArray<nsSMILValue>* aValuesArray,
-                  PRBool* aPreventCachingOfSandwich) :
+                  PRBool* aCanCache) :
     mSrcElement(aSrcElement),
     mSMILAttr(aSMILAttr),
     mValuesArray(aValuesArray),
-    mPreventCachingOfSandwich(aPreventCachingOfSandwich)
+    mCanCache(aCanCache)
   {}
 
   virtual nsresult Parse(const nsAString& aValueStr) {
     nsSMILValue newValue;
-    PRBool tmpPreventCachingOfSandwich;
-    nsresult rv = mSMILAttr->ValueFromString(aValueStr, mSrcElement, newValue,
-                                             tmpPreventCachingOfSandwich);
+    PRBool tmpCanCache;
+    nsresult rv = mSMILAttr->ValueFromString(aValueStr, mSrcElement,
+                                             newValue, tmpCanCache);
     if (NS_FAILED(rv))
       return rv;
 
     if (!mValuesArray->AppendElement(newValue)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
-    if (tmpPreventCachingOfSandwich) {
-      *mPreventCachingOfSandwich = PR_TRUE;
+    if (!tmpCanCache) {
+      *mCanCache = PR_FALSE;
     }
     return NS_OK;
   }
@@ -583,7 +574,7 @@ protected:
   const nsISMILAnimationElement* mSrcElement;
   const nsISMILAttr* mSMILAttr;
   nsTArray<nsSMILValue>* mValuesArray;
-  PRBool* mPreventCachingOfSandwich;
+  PRBool* mCanCache;
 };
 
 nsresult
@@ -591,12 +582,12 @@ nsSMILParserUtils::ParseValues(const nsAString& aSpec,
                                const nsISMILAnimationElement* aSrcElement,
                                const nsISMILAttr& aAttribute,
                                nsTArray<nsSMILValue>& aValuesArray,
-                               PRBool& aPreventCachingOfSandwich)
+                               PRBool& aCanCache)
 {
   // Assume all results can be cached, until we find one that can't.
-  aPreventCachingOfSandwich = PR_FALSE;
+  aCanCache = PR_TRUE;
   SMILValueParser valueParser(aSrcElement, &aAttribute,
-                              &aValuesArray, &aPreventCachingOfSandwich);
+                              &aValuesArray, &aCanCache);
   return ParseValuesGeneric(aSpec, valueParser);
 }
 
@@ -604,24 +595,45 @@ nsresult
 nsSMILParserUtils::ParseValuesGeneric(const nsAString& aSpec,
                                       GenericValueParser& aParser)
 {
-  nsCharSeparatedTokenizer tokenizer(aSpec, ';');
-  if (!tokenizer.hasMoreTokens()) { // Empty list
-    return NS_ERROR_FAILURE;
-  }
+  nsresult rv = NS_ERROR_FAILURE;
 
-  while (tokenizer.hasMoreTokens()) {
-    nsresult rv = aParser.Parse(tokenizer.nextToken());
-    if (NS_FAILED(rv)) {
-      return NS_ERROR_FAILURE;
+  const PRUnichar* start = aSpec.BeginReading();
+  const PRUnichar* end = aSpec.EndReading();
+  const PRUnichar* substrEnd = nsnull;
+  const PRUnichar* next = nsnull;
+
+  while (start != end) {
+    rv = NS_ERROR_FAILURE;
+
+    SkipBeginWsp(start, end);
+
+    if (start == end || *start == ';')
+      break;
+
+    substrEnd = start;
+
+    while (substrEnd != end && *substrEnd != ';') {
+      ++substrEnd;
     }
+
+    next = substrEnd;
+    if (*substrEnd == ';') {
+      ++next;
+      if (next == end)
+        break;
+    }
+
+    while (substrEnd != start && NS_IS_SPACE(*(substrEnd-1)))
+      --substrEnd;
+
+    rv = aParser.Parse(Substring(start, substrEnd));
+    if (NS_FAILED(rv))
+      break;
+
+    start = next;
   }
 
-  // Disallow ;-terminated values lists.
-  if (tokenizer.lastTokenEndedWithSeparator()) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return NS_OK;
+  return rv;
 }
 
 nsresult
@@ -706,8 +718,7 @@ nsSMILParserUtils::ParseTimeValueSpecParams(const nsAString& aSpec,
   }
 
   // accesskey type
-  else if (StringBeginsWith(spec, ACCESSKEY_PREFIX_LC) ||
-           StringBeginsWith(spec, ACCESSKEY_PREFIX_CC)) {
+  else if (StringBeginsWith(spec, ACCESSKEY_PREFIX)) {
     rv = ParseAccessKey(spec, aResult);
   }
 

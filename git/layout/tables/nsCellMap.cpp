@@ -1136,7 +1136,7 @@ nsTableCellMap::SetBCBorderCorner(Corner      aCorner,
             cellData = (BCCellData*)cellMap->AppendCell(*this, nsnull, 0, PR_FALSE, damageArea);
           }
         }
-        else { // must be at the bottom of the table
+        else { // must be a the bottom of the table
           bcData = GetBottomMostBorder(xPos);
         }
       }
@@ -1648,7 +1648,7 @@ PRBool nsCellMap::CellsSpanOut(nsTArray<nsTableRowFrame*>& aRows) const
       if (cellFrame) {
         PRBool zeroSpan;
         PRInt32 rowSpan = GetRowSpanForNewCell(cellFrame, rowX, zeroSpan);
-        if (zeroSpan || rowX + rowSpan > numNewRows) {
+        if (rowX + rowSpan > numNewRows) {
           return PR_TRUE;
         }
       }

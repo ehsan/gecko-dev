@@ -71,10 +71,6 @@ using mozilla::plugins::PluginInstanceParent;
 #include "prmem.h"
 
 #include "LayerManagerOGL.h"
-#include "BasicLayers.h"
-#ifdef MOZ_ENABLE_D3D9_LAYER
-#include "LayerManagerD3D9.h"
-#endif
 
 #ifndef WINCE
 #include "nsUXThemeData.h"
@@ -84,8 +80,6 @@ using mozilla::plugins::PluginInstanceParent;
 extern "C" {
 #include "pixman.h"
 }
-
-using namespace mozilla::layers;
 
 /**************************************************************
  **************************************************************
@@ -240,21 +234,24 @@ void nsWindowGfx::OnSettingsChangeGfx(WPARAM wParam)
 #endif
 }
 
+void nsWindow::SetUpForPaint(HDC aHDC)
+{
+  ::SetBkColor (aHDC, NSRGB_2_COLOREF(mBackground));
+  ::SetTextColor(aHDC, NSRGB_2_COLOREF(mForeground));
+  ::SetBkMode (aHDC, TRANSPARENT);
+}
+
 // GetRegionToPaint returns the invalidated region that needs to be painted
 // it's abstracted out because Windows XP/Vista/7 handles this for us, but
 // we need to keep track of it our selves for Windows CE and Windows Mobile
 
 nsIntRegion nsWindow::GetRegionToPaint(PRBool aForceFullRepaint,
                                        PAINTSTRUCT ps, HDC aDC)
-{
+{ 
   if (aForceFullRepaint) {
     RECT paintRect;
     ::GetClientRect(mWnd, &paintRect);
-    nsIntRegion region(nsWindowGfx::ToIntRect(paintRect));
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-    region.Sub(region, mCaptionButtonsRoundedRegion);
-#endif
-    return region;
+    return nsIntRegion(nsWindowGfx::ToIntRect(paintRect));
   }
 
 #if defined(WINCE_WINDOWS_MOBILE) || !defined(WINCE)
@@ -274,21 +271,11 @@ nsIntRegion nsWindow::GetRegionToPaint(PRBool aForceFullRepaint,
     ::DeleteObject(paintRgn);
 # ifdef WINCE
     if (!rgn.IsEmpty())
-      return rgn;
-# elif MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-    rgn.Sub(rgn, mCaptionButtonsRoundedRegion);
-    return rgn;
-# else
-    return rgn;
 # endif
+      return rgn;
   }
 #endif
-
-  nsIntRegion region(nsWindowGfx::ToIntRect(ps.rcPaint));
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  region.Sub(region, mCaptionButtonsRoundedRegion);
-#endif
-  return region;
+  return nsIntRegion(nsWindowGfx::ToIntRect(ps.rcPaint));
 }
 
 #define WORDSSIZE(x) ((x).width * (x).height)
@@ -314,16 +301,9 @@ EnsureSharedSurfaceSize(gfxIntSize size)
   return (sSharedSurfaceData != nsnull);
 }
 
-PRBool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
+PRBool nsWindow::OnPaint(HDC aDC)
 {
 #ifdef MOZ_IPC
-  // We never have reentrant paint events, except when we're running our RPC
-  // windows event spin loop. If we don't trap for this, we'll try to paint,
-  // but view manager will refuse to paint the surface, resulting is black
-  // flashes on the plugin rendering surface.
-  if (mozilla::ipc::RPCChannel::IsSpinLoopActive() && mPainting)
-    return PR_FALSE;
-
   if (mWindowType == eWindowType_plugin) {
 
     /**
@@ -362,7 +342,6 @@ PRBool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
 #endif
 
   nsPaintEvent willPaintEvent(PR_TRUE, NS_WILL_PAINT, this);
-  willPaintEvent.willSendDidPaint = PR_TRUE;
   DispatchWindowEvent(&willPaintEvent);
 
 #ifdef CAIRO_HAS_DDRAW_SURFACE
@@ -420,7 +399,6 @@ PRBool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
   PRBool forceRepaint = NULL != aDC;
 #endif
   event.region = GetRegionToPaint(forceRepaint, ps, hDC);
-  event.willSendDidPaint = PR_TRUE;
 
   if (!event.region.IsEmpty() && mEventCallback)
   {
@@ -442,9 +420,7 @@ PRBool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
 
 #if defined(MOZ_XUL)
           // don't support transparency for non-GDI rendering, for now
-          if ((IsRenderMode(gfxWindowsPlatform::RENDER_GDI) ||
-               IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D)) &&
-              eTransparencyTransparent == mTransparencyMode) {
+          if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) && eTransparencyTransparent == mTransparencyMode) {
             if (mTransparentSurface == nsnull)
               SetupTranslucentWindowMemoryBitmap(mTransparencyMode);
             targetSurface = mTransparentSurface;
@@ -455,9 +431,7 @@ PRBool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
           if (!targetSurface &&
               IsRenderMode(gfxWindowsPlatform::RENDER_GDI))
           {
-            PRUint32 flags = (mTransparencyMode == eTransparencyOpaque) ? 0 :
-                gfxWindowsSurface::FLAG_IS_TRANSPARENT;
-            targetSurfaceWin = new gfxWindowsSurface(hDC, flags);
+            targetSurfaceWin = new gfxWindowsSurface(hDC);
             targetSurface = targetSurfaceWin;
           }
 #ifdef CAIRO_HAS_D2D_SURFACE
@@ -465,13 +439,7 @@ PRBool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
               IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D))
           {
             if (!mD2DWindowSurface) {
-              gfxASurface::gfxContentType content = gfxASurface::CONTENT_COLOR;
-#if defined(MOZ_XUL)
-              if (mTransparencyMode != eTransparencyOpaque) {
-                content = gfxASurface::CONTENT_COLOR_ALPHA;
-              }
-#endif
-              mD2DWindowSurface = new gfxD2DSurface(mWnd, content);
+              mD2DWindowSurface = new gfxD2DSurface(mWnd);
             }
             targetSurface = mD2DWindowSurface;
           }
@@ -499,9 +467,9 @@ PRBool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
             targetSurfaceDDraw = new gfxDDrawSurface(gpDDSurf.get(), winrect);
             targetSurface = targetSurfaceDDraw;
           }
+#endif
 
 DDRAW_FAILED:
-#endif
           nsRefPtr<gfxImageSurface> targetSurfaceImage;
           if (!targetSurface &&
               (IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH32) ||
@@ -542,70 +510,37 @@ DDRAW_FAILED:
               thebesContext->Rectangle(gfxRect(r->x, r->y, r->width, r->height), PR_TRUE);
             }
             thebesContext->Clip();
-            thebesContext->SetOperator(gfxContext::OPERATOR_CLEAR);
-            thebesContext->Paint();
-            thebesContext->SetOperator(gfxContext::OPERATOR_OVER);
           }
 #ifdef WINCE
           thebesContext->SetFlag(gfxContext::FLAG_SIMPLIFY_OPERATORS);
 #endif
 
           // don't need to double buffer with anything but GDI
-          BasicLayerManager::BufferMode doubleBuffering =
-            BasicLayerManager::BUFFER_NONE;
           if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI)) {
 # if defined(MOZ_XUL) && !defined(WINCE)
-            switch (mTransparencyMode) {
-              case eTransparencyGlass:
-              case eTransparencyBorderlessGlass:
-              default:
-                // If we're not doing translucency, then double buffer
-                doubleBuffering = BasicLayerManager::BUFFER_BUFFERED;
-                break;
-              case eTransparencyTransparent:
-                // If we're rendering with translucency, we're going to be
-                // rendering the whole window; make sure we clear it first
-                thebesContext->SetOperator(gfxContext::OPERATOR_CLEAR);
-                thebesContext->Paint();
-                thebesContext->SetOperator(gfxContext::OPERATOR_OVER);
-                break;
-            }
-#else
-            doubleBuffering = BasicLayerManager::BUFFER_BUFFERED;
+            if (eTransparencyGlass == mTransparencyMode && nsUXThemeData::sHaveCompositor) {
+              thebesContext->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
+            } else if (eTransparencyTransparent == mTransparencyMode) {
+              // If we're rendering with translucency, we're going to be
+              // rendering the whole window; make sure we clear it first
+              thebesContext->SetOperator(gfxContext::OPERATOR_CLEAR);
+              thebesContext->Paint();
+              thebesContext->SetOperator(gfxContext::OPERATOR_OVER);
+            } else
 #endif
-          }
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-          if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) &&
-              mTransparencyMode != eTransparencyTransparent &&
-              !mCaptionButtons.IsEmpty()) {
-            // The area behind the caption buttons need to have a
-            // black background first to make the clipping work.
-            RECT rect;
-            rect.top = mCaptionButtons.y;
-            rect.left = mCaptionButtons.x;
-            rect.right = mCaptionButtons.x + mCaptionButtons.width;
-            rect.bottom = mCaptionButtons.y + mCaptionButtons.height;
-            FillRect(hDC, &rect, (HBRUSH)GetStockObject(BLACK_BRUSH));
-
-            const nsIntRect* r;
-            for (nsIntRegionRectIterator iter(event.region);
-                 (r = iter.Next()) != nsnull;) {
-              thebesContext->Rectangle(gfxRect(r->x, r->y, r->width, r->height), PR_TRUE);
+            {
+              // If we're not doing translucency, then double buffer
+              thebesContext->PushGroup(gfxASurface::CONTENT_COLOR);
             }
-            thebesContext->Clip();
           }
-#endif
 
           {
-            AutoLayerManagerSetup
-                setupLayerManager(this, thebesContext, doubleBuffering);
+            AutoLayerManagerSetup setupLayerManager(this, thebesContext);
             result = DispatchWindowEvent(&event, eventStatus);
           }
 
 #ifdef MOZ_XUL
-          if ((IsRenderMode(gfxWindowsPlatform::RENDER_GDI) ||
-               IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D))&&
+          if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) &&
               eTransparencyTransparent == mTransparencyMode) {
             // Data from offscreen drawing surface was copied to memory bitmap of transparent
             // bitmap. Now it can be read from memory bitmap to apply alpha channel and after
@@ -621,7 +556,13 @@ DDRAW_FAILED:
           }
 #endif
           if (result) {
-            if (IsRenderMode(gfxWindowsPlatform::RENDER_DDRAW) ||
+            if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI)) {
+              // Only update if DispatchWindowEvent returned TRUE; otherwise, nothing handled
+              // this, and we'll just end up painting with black.
+              thebesContext->PopGroupToSource();
+              thebesContext->SetOperator(gfxContext::OPERATOR_SOURCE);
+              thebesContext->Paint();
+            } else if (IsRenderMode(gfxWindowsPlatform::RENDER_DDRAW) ||
                        IsRenderMode(gfxWindowsPlatform::RENDER_DDRAW_GL))
             {
 #ifdef CAIRO_HAS_DDRAW_SURFACE
@@ -743,13 +684,6 @@ DDRAW_FAILED:
           SetClippingRegion(event.region);
         result = DispatchWindowEvent(&event, eventStatus);
         break;
-#ifdef MOZ_ENABLE_D3D9_LAYER
-      case LayerManager::LAYERS_D3D9:
-        static_cast<mozilla::layers::LayerManagerD3D9*>(GetLayerManager())->
-          SetClippingRegion(event.region);
-        result = DispatchWindowEvent(&event, eventStatus);
-        break;
-#endif
       default:
         NS_ERROR("Unknown layers backend used!");
         break;
@@ -781,13 +715,6 @@ DDRAW_FAILED:
 
   mPainting = PR_FALSE;
 
-  nsPaintEvent didPaintEvent(PR_TRUE, NS_DID_PAINT, this);
-  DispatchWindowEvent(&didPaintEvent);
-
-  if (aNestingLevel == 0 && ::GetUpdateRect(mWnd, NULL, PR_FALSE)) {
-    OnPaint(aDC, 1);
-  }
-
   return result;
 }
 
@@ -796,6 +723,14 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
                                   PRUint32 aHotspotX,
                                   PRUint32 aHotspotY,
                                   HICON *aIcon) {
+
+  nsresult rv;
+  PRUint32 nFrames;
+  rv = aContainer->GetNumFrames(&nFrames);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!nFrames)
+    return NS_ERROR_INVALID_ARG;
 
   // Get the image data
   nsRefPtr<gfxImageSurface> frame;

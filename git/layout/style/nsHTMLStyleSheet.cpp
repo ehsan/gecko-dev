@@ -70,14 +70,13 @@
 #include "nsRuleData.h"
 #include "nsContentErrors.h"
 #include "nsRuleProcessorData.h"
-#include "mozilla/dom/Element.h"
-#include "nsCSSFrameConstructor.h"
+#include "Element.h"
 
 using namespace mozilla::dom;
 
 NS_IMPL_ISUPPORTS1(nsHTMLStyleSheet::HTMLColorRule, nsIStyleRule)
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::HTMLColorRule::MapRuleInfoInto(nsRuleData* aRuleData)
 {
   if (aRuleData->mSIDs & NS_STYLE_INHERIT_BIT(Color)) {
@@ -85,32 +84,36 @@ nsHTMLStyleSheet::HTMLColorRule::MapRuleInfoInto(nsRuleData* aRuleData)
         aRuleData->mPresContext->UseDocumentColors())
       aRuleData->mColorData->mColor.SetColorValue(mColor);
   }
+  return NS_OK;
 }
 
 #ifdef DEBUG
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::HTMLColorRule::List(FILE* out, PRInt32 aIndent) const
 {
+  return NS_OK;
 }
 #endif
 
  
 NS_IMPL_ISUPPORTS1(nsHTMLStyleSheet::GenericTableRule, nsIStyleRule)
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::GenericTableRule::MapRuleInfoInto(nsRuleData* aRuleData)
 {
   // Nothing to do.
+  return NS_OK;
 }
 
 #ifdef DEBUG
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::GenericTableRule::List(FILE* out, PRInt32 aIndent) const
 {
+  return NS_OK;
 }
 #endif
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::TableTHRule::MapRuleInfoInto(nsRuleData* aRuleData)
 {
   if (aRuleData->mSIDs & NS_STYLE_INHERIT_BIT(Text)) {
@@ -120,6 +123,7 @@ nsHTMLStyleSheet::TableTHRule::MapRuleInfoInto(nsRuleData* aRuleData)
                     eCSSUnit_Enumerated);
     }
   }
+  return NS_OK;
 }
 
 // -----------------------------------------------------------
@@ -172,7 +176,12 @@ static PLDHashTableOps MappedAttrTable_Ops = {
 // -----------------------------------------------------------
 
 nsHTMLStyleSheet::nsHTMLStyleSheet(void)
-  : mDocument(nsnull)
+  : mURL(nsnull),
+    mDocument(nsnull),
+    mLinkRule(nsnull),
+    mVisitedRule(nsnull),
+    mActiveRule(nsnull),
+    mDocumentColorRule(nsnull)
 {
   mMappedAttrTable.ops = nsnull;
 }
@@ -183,11 +192,20 @@ nsHTMLStyleSheet::Init()
   mTableTHRule = new TableTHRule();
   if (!mTableTHRule)
     return NS_ERROR_OUT_OF_MEMORY;
+  NS_ADDREF(mTableTHRule);
   return NS_OK;
 }
 
 nsHTMLStyleSheet::~nsHTMLStyleSheet()
 {
+  NS_IF_RELEASE(mURL);
+
+  NS_IF_RELEASE(mLinkRule);
+  NS_IF_RELEASE(mVisitedRule);
+  NS_IF_RELEASE(mActiveRule);
+  NS_IF_RELEASE(mDocumentColorRule);
+  NS_IF_RELEASE(mTableTHRule);
+
   if (mMappedAttrTable.ops)
     PL_DHashTableFinish(&mMappedAttrTable);
 }
@@ -210,7 +228,7 @@ static nsresult GetBodyColor(nsPresContext* aPresContext, nscolor* aColor)
   return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
 {
   nsRuleWalker *ruleWalker = aData->mRuleWalker;
@@ -253,8 +271,10 @@ nsHTMLStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
                        &bodyColor);
         if (NS_SUCCEEDED(rv) &&
             (!mDocumentColorRule || bodyColor != mDocumentColorRule->mColor)) {
+          NS_IF_RELEASE(mDocumentColorRule);
           mDocumentColorRule = new HTMLColorRule();
           if (mDocumentColorRule) {
+            NS_ADDREF(mDocumentColorRule);
             mDocumentColorRule->mColor = bodyColor;
           }
         }
@@ -266,10 +286,12 @@ nsHTMLStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
 
     // just get the style rules from the content
   aData->mElement->WalkContentStyleRules(ruleWalker);
+
+  return NS_OK;
 }
 
 // Test if style is dependent on content state
-/* virtual */ nsRestyleHint
+nsRestyleHint
 nsHTMLStyleSheet::HasStateDependentStyle(StateRuleProcessorData* aData)
 {
   if (aData->mIsHTMLContent &&
@@ -284,13 +306,13 @@ nsHTMLStyleSheet::HasStateDependentStyle(StateRuleProcessorData* aData)
   return nsRestyleHint(0);
 }
 
-/* virtual */ PRBool
+PRBool
 nsHTMLStyleSheet::HasDocumentStateDependentStyle(StateRuleProcessorData* aData)
 {
   return PR_FALSE;
 }
 
-/* virtual */ nsRestyleHint
+nsRestyleHint
 nsHTMLStyleSheet::HasAttributeDependentStyle(AttributeRuleProcessorData* aData)
 {
   // Do nothing on before-change checks
@@ -316,112 +338,124 @@ nsHTMLStyleSheet::HasAttributeDependentStyle(AttributeRuleProcessorData* aData)
 
   // Handle the content style rules.
   if (element->IsAttributeMapped(aData->mAttribute)) {
-    // cellpadding on tables is special and requires reresolving all
-    // the cells in the table
-    if (aData->mAttribute == nsGkAtoms::cellpadding &&
-        element->IsHTML() &&
-        aData->mContentTag == nsGkAtoms::table) {
-      return eRestyle_Subtree;
-    }
     return eRestyle_Self;
   }
 
   return nsRestyleHint(0);
 }
 
-/* virtual */ PRBool
-nsHTMLStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext)
+NS_IMETHODIMP
+nsHTMLStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext,
+                                        PRBool* aRulesChanged)
 {
-  return PR_FALSE;
+  *aRulesChanged = PR_FALSE;
+  return NS_OK;
 }
 
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::RulesMatching(PseudoElementRuleProcessorData* aData)
 {
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::RulesMatching(AnonBoxRuleProcessorData* aData)
 {
+  return NS_OK;
 }
 
 #ifdef MOZ_XUL
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::RulesMatching(XULTreeRuleProcessorData* aData)
 {
+  return NS_OK;
 }
 #endif
 
   // nsIStyleSheet api
-/* virtual */ nsIURI*
-nsHTMLStyleSheet::GetSheetURI() const
+NS_IMETHODIMP
+nsHTMLStyleSheet::GetSheetURI(nsIURI** aSheetURI) const
 {
-  return mURL;
+  *aSheetURI = mURL;
+  NS_IF_ADDREF(*aSheetURI);
+  return NS_OK;
 }
 
-/* virtual */ nsIURI*
-nsHTMLStyleSheet::GetBaseURI() const
+NS_IMETHODIMP
+nsHTMLStyleSheet::GetBaseURI(nsIURI** aBaseURI) const
 {
-  return mURL;
+  *aBaseURI = mURL;
+  NS_IF_ADDREF(*aBaseURI);
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::GetTitle(nsString& aTitle) const
 {
   aTitle.Truncate();
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::GetType(nsString& aType) const
 {
   aType.AssignLiteral("text/html");
+  return NS_OK;
 }
 
-/* virtual */ PRBool
+NS_IMETHODIMP_(PRBool)
 nsHTMLStyleSheet::HasRules() const
 {
   return PR_TRUE; // We have rules at all reasonable times
 }
 
-/* virtual */ PRBool
-nsHTMLStyleSheet::IsApplicable() const
+NS_IMETHODIMP
+nsHTMLStyleSheet::GetApplicable(PRBool& aApplicable) const
 {
-  return PR_TRUE;
+  aApplicable = PR_TRUE;
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::SetEnabled(PRBool aEnabled)
 { // these can't be disabled
+  return NS_OK;
 }
 
-/* virtual */ PRBool
-nsHTMLStyleSheet::IsComplete() const
+NS_IMETHODIMP
+nsHTMLStyleSheet::GetComplete(PRBool& aComplete) const
 {
-  return PR_TRUE;
+  aComplete = PR_TRUE;
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::SetComplete()
 {
+  return NS_OK;
 }
 
-/* virtual */ nsIStyleSheet*
-nsHTMLStyleSheet::GetParentSheet() const
+NS_IMETHODIMP
+nsHTMLStyleSheet::GetParentSheet(nsIStyleSheet*& aParent) const
 {
-  return nsnull;
+  aParent = nsnull;
+  return NS_OK;
 }
 
-/* virtual */ nsIDocument*
-nsHTMLStyleSheet::GetOwningDocument() const
+NS_IMETHODIMP
+nsHTMLStyleSheet::GetOwningDocument(nsIDocument*& aDocument) const
 {
-  return mDocument;
+  aDocument = mDocument;
+  NS_IF_ADDREF(aDocument);
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::SetOwningDocument(nsIDocument* aDocument)
 {
   mDocument = aDocument; // not refcounted
+  return NS_OK;
 }
 
 nsresult
@@ -436,66 +470,83 @@ nsHTMLStyleSheet::Init(nsIURI* aURL, nsIDocument* aDocument)
 
   mDocument = aDocument; // not refcounted!
   mURL = aURL;
+  NS_ADDREF(mURL);
   return NS_OK;
 }
 
-void
+nsresult
 nsHTMLStyleSheet::Reset(nsIURI* aURL)
 {
+  NS_IF_RELEASE(mURL);
   mURL = aURL;
+  NS_ADDREF(mURL);
 
-  mLinkRule          = nsnull;
-  mVisitedRule       = nsnull;
-  mActiveRule        = nsnull;
-  mDocumentColorRule = nsnull;
+  NS_IF_RELEASE(mLinkRule);
+  NS_IF_RELEASE(mVisitedRule);
+  NS_IF_RELEASE(mActiveRule);
+  NS_IF_RELEASE(mDocumentColorRule);
 
   if (mMappedAttrTable.ops) {
     PL_DHashTableFinish(&mMappedAttrTable);
     mMappedAttrTable.ops = nsnull;
   }
-}
 
-nsresult
-nsHTMLStyleSheet::ImplLinkColorSetter(nsRefPtr<HTMLColorRule>& aRule, nscolor aColor)
-{
-  if (aRule && aRule->mColor == aColor) {
-    return NS_OK;
-  }
-
-  aRule = new HTMLColorRule();
-  if (!aRule)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  aRule->mColor = aColor;
-  // Now make sure we restyle any links that might need it.  This
-  // shouldn't happen often, so just rebuilding everything is ok.
-  if (mDocument && mDocument->GetShell()) {
-    Element* root = mDocument->GetRootElement();
-    if (root) {
-      mDocument->GetShell()->FrameConstructor()->
-        PostRestyleEvent(root, eRestyle_Subtree, NS_STYLE_HINT_NONE);
-    }
-  }
   return NS_OK;
 }
 
 nsresult
 nsHTMLStyleSheet::SetLinkColor(nscolor aColor)
 {
-  return ImplLinkColorSetter(mLinkRule, aColor);
+  if (mLinkRule) {
+    if (mLinkRule->mColor == aColor)
+      return NS_OK;
+    NS_RELEASE(mLinkRule);
+  }
+
+  mLinkRule = new HTMLColorRule();
+  if (!mLinkRule)
+    return NS_ERROR_OUT_OF_MEMORY;
+  NS_ADDREF(mLinkRule);
+
+  mLinkRule->mColor = aColor;
+  return NS_OK;
 }
 
 
 nsresult
 nsHTMLStyleSheet::SetActiveLinkColor(nscolor aColor)
 {
-  return ImplLinkColorSetter(mActiveRule, aColor);
+  if (mActiveRule) {
+    if (mActiveRule->mColor == aColor)
+      return NS_OK;
+    NS_RELEASE(mActiveRule);
+  }
+
+  mActiveRule = new HTMLColorRule();
+  if (!mActiveRule)
+    return NS_ERROR_OUT_OF_MEMORY;
+  NS_ADDREF(mActiveRule);
+
+  mActiveRule->mColor = aColor;
+  return NS_OK;
 }
 
 nsresult
 nsHTMLStyleSheet::SetVisitedLinkColor(nscolor aColor)
 {
-  return ImplLinkColorSetter(mVisitedRule, aColor);
+  if (mVisitedRule) {
+    if (mVisitedRule->mColor == aColor)
+      return NS_OK;
+    NS_RELEASE(mVisitedRule);
+  }
+
+  mVisitedRule = new HTMLColorRule();
+  if (!mVisitedRule)
+    return NS_ERROR_OUT_OF_MEMORY;
+  NS_ADDREF(mVisitedRule);
+
+  mVisitedRule->mColor = aColor;
+  return NS_OK;
 }
 
 already_AddRefed<nsMappedAttributes>
@@ -537,8 +588,7 @@ nsHTMLStyleSheet::DropMappedAttributes(nsMappedAttributes* aMapped)
 }
 
 #ifdef DEBUG
-/* virtual */ void
-nsHTMLStyleSheet::List(FILE* out, PRInt32 aIndent) const
+void nsHTMLStyleSheet::List(FILE* out, PRInt32 aIndent) const
 {
   // Indent
   for (PRInt32 index = aIndent; --index >= 0; ) fputs("  ", out);

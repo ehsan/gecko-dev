@@ -57,7 +57,7 @@ let (commonFile = do_get_file("../head_common.js", false)) {
 function shutdownExpiration()
 {
   let expire = Cc["@mozilla.org/places/expiration;1"].getService(Ci.nsIObserver);
-  expire.observe(null, "places-will-close-connection", null);
+  expire.observe(null, PlacesUtils.TOPIC_SHUTDOWN, null);
 }
 
 
@@ -74,6 +74,8 @@ function force_expiration_start() {
  * Forces an expiration run.
  */
 function force_expiration_step(aLimit) {
+  if (!aLimit)
+    aLimit = -1; // No limit.
   const TOPIC_DEBUG_START_EXPIRATION = "places-debug-start-expiration";
   let expire = Cc["@mozilla.org/places/expiration;1"].getService(Ci.nsIObserver);
   expire.observe(null, TOPIC_DEBUG_START_EXPIRATION, aLimit);

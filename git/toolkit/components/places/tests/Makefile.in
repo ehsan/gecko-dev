@@ -71,11 +71,8 @@ DIRS = \
 	chrome \
 	mochitest/bug_411966 \
 	mochitest/bug_461710 \
+	browser \
 	$(NULL)
-
-ifneq (mobile,$(MOZ_BUILD_APP))
-	DIRS += browser
-endif
 
 TOOL_DIRS = \
   cpp \
@@ -87,4 +84,4 @@ libs:: $(MOCHI_TESTS)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
 
 libs:: $(XPCSHELL_TESTS_COMMON)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/xpcshell/$(relativesrcdir)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/xpcshell/$(MODULE)

@@ -59,10 +59,10 @@ namespace XPCNativeWrapper {
 JSBool
 WrapFunction(JSContext* cx, JSObject* funobj, jsval *rval);
 
-// If v is an object, set *rval to a new XPCNativeWrapper around it. Otherwise
-// set *rval = v.
+// Given a value, if the original XPCNativeWrapper is a deep wrapper,
+// returns a new XPCNativeWrapper around the value.
 JSBool
-RewrapValue(JSContext *cx, JSObject *obj, jsval v, jsval *rval);
+RewrapIfDeepWrapper(JSContext *cx, JSObject *obj, jsval v, jsval *rval);
 
 } // namespace XPCNativeWrapper
 
@@ -88,9 +88,6 @@ JSBool
 WrapperMoved(JSContext *cx, XPCWrappedNative *innerObj,
              XPCWrappedNativeScope *newScope);
 
-void
-WindowNavigated(JSContext *cx, XPCWrappedNative *innerObj);
-
 // Returns 'true' if the current context is same-origin to the wrappedObject.
 // If we are "same origin" because UniversalXPConnect is enabled and
 // privilegeEnabled is non-null, then privilegeEnabled is set to true.
@@ -109,6 +106,13 @@ ClassNeedsXOW(const char *name)
       return strcmp(++name, "indow") == 0;
     case 'L':
       return strcmp(++name, "ocation") == 0;
+    case 'H':
+      if (strncmp(++name, "TML", 3))
+        break;
+      name += 3;
+      if (*name == 'I')
+        ++name;
+      return strcmp(name, "FrameElement") == 0;
     default:
       break;
   }
@@ -148,17 +152,17 @@ MakeSOW(JSContext *cx, JSObject *obj);
 
 // Used by UnwrapSOW below.
 JSBool
-AllowedToAct(JSContext *cx, jsid id);
+AllowedToAct(JSContext *cx, jsval idval);
 
 JSBool
-CheckFilename(JSContext *cx, jsid id, JSStackFrame *fp);
+CheckFilename(JSContext *cx, jsval idval, JSStackFrame *fp);
 
 }
 
-namespace ChromeObjectWrapper    { extern js::Class COWClass; }
-namespace XPCSafeJSObjectWrapper { extern js::Class SJOWClass; }
-namespace SystemOnlyWrapper      { extern js::Class SOWClass; }
-namespace XPCCrossOriginWrapper  { extern js::Class XOWClass; }
+namespace ChromeObjectWrapper    { extern JSExtendedClass COWClass; }
+namespace XPCSafeJSObjectWrapper { extern JSExtendedClass SJOWClass; }
+namespace SystemOnlyWrapper      { extern JSExtendedClass SOWClass; }
+namespace XPCCrossOriginWrapper  { extern JSExtendedClass XOWClass; }
 
 extern nsIScriptSecurityManager *gScriptSecurityManager;
 
@@ -219,32 +223,6 @@ enum FunctionObjectSlot {
 
 // Helpful for keeping lines short:
 extern const PRUint32 sSecMgrSetProp, sSecMgrGetProp;
-
-inline jsval
-GetFlags(JSContext *cx, JSObject *wrapper)
-{
-  jsval flags;
-  JS_GetReservedSlot(cx, wrapper, sFlagsSlot, &flags);
-  return flags;
-}
-
-inline void
-SetFlags(JSContext *cx, JSObject *wrapper, jsval flags)
-{
-  JS_SetReservedSlot(cx, wrapper, sFlagsSlot, flags);
-}
-
-inline jsval
-AddFlags(jsval origflags, PRInt32 newflags)
-{
-  return INT_TO_JSVAL(JSVAL_TO_INT(origflags) | newflags);
-}
-
-inline jsval
-RemoveFlags(jsval origflags, PRInt32 oldflags)
-{
-  return INT_TO_JSVAL(JSVAL_TO_INT(origflags) & ~oldflags);
-}
 
 /**
  * A useful function that throws an exception onto cx.
@@ -314,7 +292,9 @@ MaybePreserveWrapper(JSContext *cx, XPCWrappedNative *wn, uintN flags)
 inline JSBool
 IsSecurityWrapper(JSObject *wrapper)
 {
-  return !!wrapper->getClass()->ext.wrappedObject;
+  JSClass *clasp = wrapper->getClass();
+  return (clasp->flags & JSCLASS_IS_EXTENDED) &&
+    ((JSExtendedClass*)clasp)->wrappedObject;
 }
 
 /**
@@ -334,9 +314,9 @@ Unwrap(JSContext *cx, JSObject *wrapper);
  * Unwraps objects whose class is |xclasp|.
  */
 inline JSObject *
-UnwrapGeneric(JSContext *cx, const js::Class *xclasp, JSObject *wrapper)
+UnwrapGeneric(JSContext *cx, const JSExtendedClass *xclasp, JSObject *wrapper)
 {
-  if (wrapper->getClass() != xclasp) {
+  if (wrapper->getClass() != &xclasp->base) {
     return nsnull;
   }
 
@@ -361,7 +341,7 @@ UnwrapSOW(JSContext *cx, JSObject *wrapper)
     return nsnull;
   }
 
-  if (!SystemOnlyWrapper::AllowedToAct(cx, JSID_VOID)) {
+  if (!SystemOnlyWrapper::AllowedToAct(cx, JSVAL_VOID)) {
     JS_ClearPendingException(cx);
     wrapper = nsnull;
   }
@@ -418,7 +398,7 @@ RewrapIfDeepWrapper(JSContext *cx, JSObject *obj, jsval v, jsval *rval,
 {
   *rval = v;
   return isNativeWrapper
-         ? XPCNativeWrapper::RewrapValue(cx, obj, v, rval)
+         ? XPCNativeWrapper::RewrapIfDeepWrapper(cx, obj, v, rval)
          : XPCCrossOriginWrapper::RewrapIfNeeded(cx, obj, rval);
 }
 
@@ -436,13 +416,6 @@ WrapFunction(JSContext *cx, JSObject *wrapperObj, JSObject *funobj, jsval *v,
          ? XPCNativeWrapper::WrapFunction(cx, funobj, v)
          : XPCCrossOriginWrapper::WrapFunction(cx, wrapperObj, funobj, v);
 }
-
-/**
- * Given a JSObject that might represent a Window object, ensures that the
- * window object has an inner window.
- */
-void
-CheckWindow(XPCWrappedNative *wn);
 
 /**
  * Given a potentially-wrapped object, creates a wrapper for it.
@@ -483,13 +456,13 @@ CreateSimpleIterator(JSContext *cx, JSObject *scope, JSBool keysonly,
 JSBool
 AddProperty(JSContext *cx, JSObject *wrapperObj,
             JSBool wantGetterSetter, JSObject *innerObj,
-            jsid id, jsval *vp);
+            jsval id, jsval *vp);
 
 /**
  * Called for the common part of deleting a property from obj.
  */
 JSBool
-DelProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
+DelProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
 /**
  * Called to enumerate the properties of |innerObj| onto |wrapperObj|.
@@ -508,7 +481,7 @@ Enumerate(JSContext *cx, JSObject *wrapperObj, JSObject *innerObj);
  */
 JSBool
 NewResolve(JSContext *cx, JSObject *wrapperObj, JSBool preserveVal,
-           JSObject *innerObj, jsid id, uintN flags, JSObject **objp);
+           JSObject *innerObj, jsval id, uintN flags, JSObject **objp);
 
 /**
  * Resolve a native property named id from innerObj onto wrapperObj. The
@@ -518,7 +491,7 @@ NewResolve(JSContext *cx, JSObject *wrapperObj, JSBool preserveVal,
 JSBool
 ResolveNativeProperty(JSContext *cx, JSObject *wrapperObj,
                       JSObject *innerObj, XPCWrappedNative *wn,
-                      jsid id, uintN flags, JSObject **objp,
+                      jsval id, uintN flags, JSObject **objp,
                       JSBool isNativeWrapper);
 
 /**
@@ -529,7 +502,7 @@ ResolveNativeProperty(JSContext *cx, JSObject *wrapperObj,
 JSBool
 GetOrSetNativeProperty(JSContext *cx, JSObject *obj,
                        XPCWrappedNative *wrappedNative,
-                       jsid id, jsval *vp, JSBool aIsSet,
+                       jsval id, jsval *vp, JSBool aIsSet,
                        JSBool isNativeWrapper);
 
 /**

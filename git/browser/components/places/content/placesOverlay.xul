@@ -123,15 +123,21 @@
              oncommand="goDoPlacesCommand('placesCmd_delete');"/>
   </commandset>
 
-  <menupopup id="placesContext"
-             onpopupshowing="this._view = PlacesUIUtils.getViewForNode(document.popupNode);
-                             return this._view.buildContextMenu(this);"
-             onpopuphiding="this._view.destroyContextMenu();">
+  <popup id="placesContext"
+         onpopupshowing="this._view = PlacesUIUtils.getViewForNode(document.popupNode);
+                         return this._view.buildContextMenu(this);"
+         onpopuphiding="this._view.destroyContextMenu();">
     <menuitem id="placesContext_open"
               command="placesCmd_open"
               label="&cmd.open.label;"
               accesskey="&cmd.open.accesskey;"
               default="true"
+              selectiontype="single"
+              selection="link"/>
+    <menuitem id="placesContext_open:newwindow"
+              command="placesCmd_open:window"
+              label="&cmd.open_window.label;"
+              accesskey="&cmd.open_window.accesskey;"
               selectiontype="single"
               selection="link"/>
     <menuitem id="placesContext_open:newtab"
@@ -155,12 +161,6 @@
               label="&cmd.open_all_in_tabs.label;"
               accesskey="&cmd.open_all_in_tabs.accesskey;"
               selectiontype="multiple"
-              selection="link"/>
-    <menuitem id="placesContext_open:newwindow"
-              command="placesCmd_open:window"
-              label="&cmd.open_window.label;"
-              accesskey="&cmd.open_window.accesskey;"
-              selectiontype="single"
               selection="link"/>
     <menuseparator id="placesContext_openSeparator"/>
     <menuitem id="placesContext_new:bookmark"
@@ -258,6 +258,6 @@
               accesskey="&cmd.properties.accesskey;"
               selection="bookmark|folder|query"
               forcehideselection="livemarkChild"/>
-  </menupopup>
+  </popup>
 
 </overlay>

@@ -69,13 +69,6 @@ TaskbarTabPreview::~TaskbarTabPreview() {
     ::DestroyIcon(mIcon);
     mIcon = NULL;
   }
-
-  // We need to ensure that proxy window disappears or else Bad Things happen.
-  if (mProxyWindow)
-    Disable();
-
-  NS_ASSERTION(!mProxyWindow, "Taskbar proxy window was not destroyed!");
-
   if (mWnd)
     DetachFromNSWindow();
 }
@@ -228,8 +221,6 @@ TaskbarTabPreview::GlobalWndProc(HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM lPa
     preview->mProxyWindow = hWnd;
   } else {
     preview = reinterpret_cast<TaskbarTabPreview*>(::GetPropW(hWnd, TASKBARPREVIEW_HWNDID));
-    if (nMsg == WM_DESTROY)
-      ::RemovePropW(hWnd, TASKBARPREVIEW_HWNDID);
   }
 
   if (preview)
@@ -278,11 +269,7 @@ TaskbarTabPreview::Enable() {
 
 nsresult
 TaskbarTabPreview::Disable() {
-  // TaskbarPreview::Disable assumes that mWnd is valid but this method can be
-  // called when it is null iff the nsWindow has already been destroyed and we
-  // are still visible for some reason during object destruction.
-  if (mWnd)
-    TaskbarPreview::Disable();
+  TaskbarPreview::Disable();
 
   if (FAILED(mTaskbar->UnregisterTab(mProxyWindow)))
     return NS_ERROR_FAILURE;

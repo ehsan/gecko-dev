@@ -300,13 +300,14 @@ AdvanceLineIteratorToFrame(nsIFrame* aFrame,
  *
  *  Finally, walk these runs in logical order using nsBidi::GetLogicalRun() and
  *  correlate them with the frames indexed in mLogicalFrames, setting the
- *  baseLevel and embeddingLevel properties according to the results returned
- *  by the Bidi engine.
+ *  baseLevel, embeddingLevel, and charType properties according to the results
+ *  returned by the Bidi engine and CalculateCharType().
  *
  *  The rendering layer requires each text frame to contain text in only one
- *  direction, so we may need to call EnsureBidiContinuation() to split frames.
- *  We may also need to call RemoveBidiContinuation() to convert frames created
- *  by EnsureBidiContinuation() in previous reflows into fluid continuations.
+ *  direction and of only one character type, so we may need to call
+ *  EnsureBidiContinuation() to split frames. We may also need to call
+ *  RemoveBidiContinuation() to convert frames created by
+ *  EnsureBidiContinuation() in previous reflows into fluid continuations.
  */
 nsresult
 nsBidiPresUtils::Resolve(nsBlockFrame* aBlockFrame)
@@ -382,6 +383,8 @@ nsBidiPresUtils::Resolve(nsBlockFrame* aBlockFrame)
   PRInt32     frameIndex     = -1;  // index to the frames in mLogicalFrames
   PRInt32     frameCount     = mLogicalFrames.Length();
   PRInt32     contentOffset  = 0;   // offset of current frame in its content node
+  PRUint8     charType;
+  PRUint8     prevType       = eCharType_LeftToRight;
   PRBool      isTextFrame    = PR_FALSE;
   nsIFrame*   frame = nsnull;
   nsIContent* content = nsnull;
@@ -450,9 +453,7 @@ nsBidiPresUtils::Resolve(nsBlockFrame* aBlockFrame)
         }
         PRInt32 start, end;
         frame->GetOffsets(start, end);
-        NS_ASSERTION(!(contentTextLength < end - start),
-                     "Frame offsets don't fit in content");
-        fragmentLength = NS_MIN(contentTextLength, end - start);
+        fragmentLength = end - start;
         contentOffset = start;
         isTextFrame = PR_TRUE;
       }
@@ -493,6 +494,14 @@ nsBidiPresUtils::Resolve(nsBlockFrame* aBlockFrame)
       propTable->Set(frame, nsIFrame::BaseLevelProperty(),
                      NS_INT32_TO_PTR(paraLevel));
       if (isTextFrame) {
+        PRInt32 typeLimit = NS_MIN(logicalLimit, lineOffset + fragmentLength);
+        CalculateCharType(lineOffset, typeLimit, logicalLimit, runLength,
+                           runCount, charType, prevType);
+        // IBMBIDI - Egypt - Start
+        propTable->Set(frame, nsIFrame::CharTypeProperty(),
+                       NS_INT32_TO_PTR(charType));
+        // IBMBIDI - Egypt - End
+
         if ( (runLength > 0) && (runLength < fragmentLength) ) {
           /*
            * The text in this frame continues beyond the end of this directional run.
@@ -568,28 +577,14 @@ nsBidiPresUtils::Resolve(nsBlockFrame* aBlockFrame)
     fragmentLength -= temp;
 
     if (frame && fragmentLength <= 0) {
-      // If the frame is at the end of a run, split all ancestor inlines that
-      // need splitting.
-      // To determine whether we're at the end of the run, we check that we've
-      // finished processing the current run, and that the current frame
-      // doesn't have a fluid continuation (it could have a fluid continuation
-      // of zero length, so testing runLength alone is not sufficient).
-      if (runLength <= 0 && !frame->GetNextInFlow()) {
+      if (runLength <= 0) {
+        // If the frame is at the end of a run, split all ancestor inlines that need splitting.
         nsIFrame* child = frame;
         nsIFrame* parent = frame->GetParent();
         // As long as we're on the last sibling, the parent doesn't have to be split.
-        // However, if the parent has a fluid continuation, we do have to make
-        // it non-fluid. This can happen e.g. when we have a first-letter frame
-        // and the end of the first-letter coincides with the end of a
-        // directional run.
         while (parent &&
                IsBidiSplittable(parent) &&
                !child->GetNextSibling()) {
-          nsIFrame* next = parent->GetNextInFlow();
-          if (next) {
-            parent->SetNextContinuation(next);
-            next->SetPrevContinuation(parent);
-          }
           child = parent;
           parent = child->GetParent();
         }
@@ -1204,9 +1199,11 @@ nsBidiPresUtils::RemoveBidiContinuation(nsIFrame*       aFrame,
 {
   FrameProperties props = aFrame->Properties();
   nsBidiLevel embeddingLevel =
-    (nsBidiLevel)NS_PTR_TO_INT32(props.Get(nsIFrame::EmbeddingLevelProperty()));
+    (nsCharType)NS_PTR_TO_INT32(props.Get(nsIFrame::EmbeddingLevelProperty()));
   nsBidiLevel baseLevel =
-    (nsBidiLevel)NS_PTR_TO_INT32(props.Get(nsIFrame::BaseLevelProperty()));
+    (nsCharType)NS_PTR_TO_INT32(props.Get(nsIFrame::BaseLevelProperty()));
+  nsCharType charType =
+    (nsCharType)NS_PTR_TO_INT32(props.Get(nsIFrame::CharTypeProperty()));
 
   for (PRInt32 index = aFirstIndex + 1; index <= aLastIndex; index++) {
     nsIFrame* frame = mLogicalFrames[index];
@@ -1222,6 +1219,8 @@ nsBidiPresUtils::RemoveBidiContinuation(nsIFrame*       aFrame,
                      NS_INT32_TO_PTR(embeddingLevel));
       frameProps.Set(nsIFrame::BaseLevelProperty(),
                      NS_INT32_TO_PTR(baseLevel));
+      frameProps.Set(nsIFrame::CharTypeProperty(),
+                     NS_INT32_TO_PTR(charType));
       frame->AddStateBits(NS_FRAME_IS_BIDI);
       while (frame) {
         nsIFrame* prev = frame->GetPrevContinuation();
@@ -1680,19 +1679,4 @@ nsresult nsBidiPresUtils::ProcessTextForRenderingContext(const PRUnichar*       
   return ProcessText(aText, aLength, aBaseDirection, aPresContext, processor,
                      aMode, aPosResolve, aPosResolveCount, aWidth);
 }
-
-PRUint32 nsBidiPresUtils::EstimateMemoryUsed()
-{
-  PRUint32 size = 0;
-
-  size += sizeof(nsBidiPresUtils);
-  size += mBuffer.Length() * sizeof(PRUnichar);
-  size += moz_malloc_usable_size(mBidiEngine->mDirPropsMemory);
-  size += moz_malloc_usable_size(mBidiEngine->mLevelsMemory);
-  size += moz_malloc_usable_size(mBidiEngine->mRunsMemory);
-
-  return size;
-}
-
-
 #endif // IBMBIDI

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 #include "nsIDOMHTMLAreaElement.h"
+#include "nsIDOMNSHTMLAreaElement2.h"
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsILink.h"
@@ -52,11 +53,12 @@ using namespace mozilla::dom;
 
 class nsHTMLAreaElement : public nsGenericHTMLElement,
                           public nsIDOMHTMLAreaElement,
+                          public nsIDOMNSHTMLAreaElement2,
                           public nsILink,
                           public Link
 {
 public:
-  nsHTMLAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLAreaElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLAreaElement();
 
   // nsISupports
@@ -73,6 +75,12 @@ public:
 
   // nsIDOMHTMLAreaElement
   NS_DECL_NSIDOMHTMLAREAELEMENT
+
+  // nsIDOMNSHTMLAreaElement
+  NS_DECL_NSIDOMNSHTMLAREAELEMENT
+
+  // nsIDOMNSHTMLAreaElement2
+  NS_DECL_NSIDOMNSHTMLAREAELEMENT2
 
   // nsILink
   NS_IMETHOD LinkAdded() { return NS_OK; }
@@ -105,14 +113,14 @@ public:
 
   virtual PRInt32 IntrinsicState() const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
+protected:
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Area)
 
 
-nsHTMLAreaElement::nsHTMLAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLAreaElement::nsHTMLAreaElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -124,12 +132,15 @@ nsHTMLAreaElement::~nsHTMLAreaElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLAreaElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLAreaElement, nsGenericElement) 
 
-DOMCI_NODE_DATA(HTMLAreaElement, nsHTMLAreaElement)
+
+DOMCI_DATA(HTMLAreaElement, nsHTMLAreaElement)
 
 // QueryInterface implementation for nsHTMLAreaElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLAreaElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE3(nsHTMLAreaElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLAreaElement,
                                    nsIDOMHTMLAreaElement,
+                                   nsIDOMNSHTMLAreaElement,
+                                   nsIDOMNSHTMLAreaElement2,
                                    nsILink,
                                    Link)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLAreaElement,
@@ -203,7 +214,7 @@ nsHTMLAreaElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aDocument) {
-    RegAccessKey();
+    RegUnRegAccessKey(PR_TRUE);
   }
 
   return rv;
@@ -217,7 +228,7 @@ nsHTMLAreaElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   Link::ResetLinkState(false);
 
   if (IsInDoc()) {
-    UnregAccessKey();
+    RegUnRegAccessKey(PR_FALSE);
   }
 
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
@@ -229,7 +240,7 @@ nsHTMLAreaElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            PRBool aNotify)
 {
   if (aName == nsGkAtoms::accesskey && aNameSpaceID == kNameSpaceID_None) {
-    UnregAccessKey();
+    RegUnRegAccessKey(PR_FALSE);
   }
 
   nsresult rv =
@@ -246,8 +257,7 @@ nsHTMLAreaElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
   if (aName == nsGkAtoms::accesskey && aNameSpaceID == kNameSpaceID_None &&
       !aValue.IsEmpty()) {
-    SetFlags(NODE_HAS_ACCESSKEY);
-    RegAccessKey();
+    RegUnRegAccessKey(PR_TRUE);
   }
 
   return rv;
@@ -259,9 +269,7 @@ nsHTMLAreaElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
 {
   if (aAttribute == nsGkAtoms::accesskey &&
       aNameSpaceID == kNameSpaceID_None) {
-    // Have to unregister before clearing flag. See UnregAccessKey
-    UnregAccessKey();
-    UnsetFlags(NODE_HAS_ACCESSKEY);
+    RegUnRegAccessKey(PR_FALSE);
   }
 
   nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,

@@ -52,13 +52,15 @@
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIStyleSheetLinkingElement.h"
+#include "nsPresContext.h"
+#include "nsIPresShell.h"
 #include "nsIDOMComment.h"
 #include "nsIDOMCDATASection.h"
 #include "nsDOMDocumentType.h"
 #include "nsHTMLParts.h"
 #include "nsCRT.h"
-#include "nsCSSStyleSheet.h"
-#include "mozilla/css/Loader.h"
+#include "nsICSSStyleSheet.h"
+#include "nsCSSLoader.h"
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
 #include "nsIScriptContext.h"
@@ -94,11 +96,12 @@
 #include "nsNodeUtils.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIHTMLDocument.h"
+#include "nsEventDispatcher.h"
 #include "mozAutoDocUpdate.h"
 #include "nsMimeTypes.h"
 
 #ifdef MOZ_SVG
-#include "nsHtml5SVGLoadDispatcher.h"
+#include "nsGUIEvent.h"
 #endif
 
 // XXX Open Issues:
@@ -121,7 +124,8 @@ NS_NewXMLContentSink(nsIXMLContentSink** aResult,
   if (nsnull == aResult) {
     return NS_ERROR_NULL_POINTER;
   }
-  nsXMLContentSink* it = new nsXMLContentSink();
+  nsXMLContentSink* it;
+  NS_NEWXPCOM(it, nsXMLContentSink);
   if (nsnull == it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -446,7 +450,7 @@ nsXMLContentSink::OnTransformDone(nsresult aResult,
                                  mDocument->IndexOf(rootElement));
     mDocument->EndUpdate(UPDATE_CONTENT_MODEL);
   }
-
+  
   // Start the layout process
   StartLayout(PR_FALSE);
 
@@ -458,7 +462,7 @@ nsXMLContentSink::OnTransformDone(nsresult aResult,
 }
 
 NS_IMETHODIMP
-nsXMLContentSink::StyleSheetLoaded(nsCSSStyleSheet* aSheet,
+nsXMLContentSink::StyleSheetLoaded(nsICSSStyleSheet* aSheet,
                                    PRBool aWasAlternate,
                                    nsresult aStatus)
 {
@@ -499,7 +503,7 @@ nsresult
 nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                 nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                                 nsIContent** aResult, PRBool* aAppendContent,
-                                PRUint32 aFromParser)
+                                PRBool aFromParser)
 {
   NS_ASSERTION(aNodeInfo, "can't create element without nodeinfo");
 
@@ -507,10 +511,9 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
   *aAppendContent = PR_TRUE;
   nsresult rv = NS_OK;
 
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
   nsCOMPtr<nsIContent> content;
   rv = NS_NewElement(getter_AddRefs(content), aNodeInfo->NamespaceID(),
-                     ni.forget(), aFromParser);
+                     aNodeInfo, aFromParser);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aNodeInfo->Equals(nsGkAtoms::script, kNameSpaceID_XHTML)
@@ -748,7 +751,7 @@ nsXMLContentSink::ProcessStyleLink(nsIContent* aElement,
 
     nsCOMPtr<nsIURI> url;
     rv = NS_NewURI(getter_AddRefs(url), aHref, nsnull,
-                   mDocument->GetDocBaseURI());
+                   mDocument->GetBaseURI());
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Do security check
@@ -960,7 +963,7 @@ nsXMLContentSink::SetDocElement(PRInt32 aNameSpaceID,
 
   mDocElement = aContent;
   NS_ADDREF(mDocElement);
-  nsresult rv = mDocument->AppendChildTo(mDocElement, NotifyForDocElement());
+  nsresult rv = mDocument->AppendChildTo(mDocElement, PR_TRUE);
   if (NS_FAILED(rv)) {
     // If we return PR_FALSE here, the caller will bail out because it won't
     // find a parent content node to append to, which is fine.
@@ -1088,10 +1091,6 @@ nsXMLContentSink::HandleStartElement(const PRUnichar *aName,
     MaybeStartLayout(PR_FALSE);
   }
 
-  if (content == mDocElement) {
-    NotifyDocElementCreated(mDocument);
-  }
-
   return aInterruptable && NS_SUCCEEDED(result) ? DidProcessATokenImpl() :
                                                   result;
 }
@@ -1159,13 +1158,29 @@ nsXMLContentSink::HandleEndElement(const PRUnichar *aName,
   DidAddContent();
 
 #ifdef MOZ_SVG
-  if (content->GetNameSpaceID() == kNameSpaceID_SVG &&
-      content->Tag() == nsGkAtoms::svg) {
+  if (mDocument &&
+      content->GetNameSpaceID() == kNameSpaceID_SVG &&
+      (
+#ifdef MOZ_SMIL
+       content->Tag() == nsGkAtoms::svg ||
+#endif
+       content->HasAttr(kNameSpaceID_None, nsGkAtoms::onload))) {
     FlushTags();
-    nsCOMPtr<nsIRunnable> event = new nsHtml5SVGLoadDispatcher(content);
-    if (NS_FAILED(NS_DispatchToMainThread(event))) {
-      NS_WARNING("failed to dispatch svg load dispatcher");
+
+    nsEvent event(PR_TRUE, NS_SVG_LOAD);
+    event.eventStructType = NS_SVG_EVENT;
+    event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
+
+    // Do we care about forcing presshell creation if it hasn't happened yet?
+    // That is, should this code flush or something?  Does it really matter?
+    // For that matter, do we really want to try getting the prescontext?  Does
+    // this event ever want one?
+    nsRefPtr<nsPresContext> ctx;
+    nsCOMPtr<nsIPresShell> shell = mDocument->GetPrimaryShell();
+    if (shell) {
+      ctx = shell->GetPresContext();
     }
+    nsEventDispatcher::Dispatch(content, ctx, &event);
   }
 #endif
 
@@ -1242,9 +1257,9 @@ nsXMLContentSink::HandleDoctypeDecl(const nsAString & aSubset,
     // exit codes, error are not fatal here, just that the stylesheet won't apply
     nsCOMPtr<nsIURI> uri(do_QueryInterface(aCatalogData));
     if (uri) {
-      nsRefPtr<nsCSSStyleSheet> sheet;
+      nsCOMPtr<nsICSSStyleSheet> sheet;
       mCSSLoader->LoadSheetSync(uri, PR_TRUE, PR_TRUE, getter_AddRefs(sheet));
-
+      
 #ifdef NS_DEBUG
       nsCAutoString uriStr;
       uri->GetSpec(uriStr);

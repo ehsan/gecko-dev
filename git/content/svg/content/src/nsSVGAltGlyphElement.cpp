@@ -32,22 +32,25 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsSVGStylableElement.h"
 #include "nsGkAtoms.h"
 #include "nsIDOMSVGAltGlyphElement.h"
 #include "nsIDOMSVGURIReference.h"
 #include "nsSVGString.h"
 #include "nsSVGTextPositioningElement.h"
 
-typedef nsSVGTextPositioningElement nsSVGAltGlyphElementBase;
+typedef nsSVGStylableElement nsSVGAltGlyphElementBase;
 
-class nsSVGAltGlyphElement : public nsSVGAltGlyphElementBase, // = nsIDOMSVGTextPositioningElement
+class nsSVGAltGlyphElement : public nsSVGAltGlyphElementBase,
                              public nsIDOMSVGAltGlyphElement,
-                             public nsIDOMSVGURIReference
+                             public nsIDOMSVGURIReference, 
+                             public nsSVGTextPositioningElement // = nsIDOMSVGTextPositioningElement
 {
 protected:
   friend nsresult NS_NewSVGAltGlyphElement(nsIContent **aResult,
-                                           already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGAltGlyphElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                           nsINodeInfo *aNodeInfo);
+  nsSVGAltGlyphElement(nsINodeInfo* aNodeInfo);
+  nsresult Init();
   
 public:
   // interfaces:
@@ -61,16 +64,18 @@ public:
   NS_FORWARD_NSIDOMNODE(nsSVGAltGlyphElementBase::)
   NS_FORWARD_NSIDOMELEMENT(nsSVGAltGlyphElementBase::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGAltGlyphElementBase::)
-  NS_FORWARD_NSIDOMSVGTEXTCONTENTELEMENT(nsSVGAltGlyphElementBase::)
-  NS_FORWARD_NSIDOMSVGTEXTPOSITIONINGELEMENT(nsSVGAltGlyphElementBase::)
+  NS_FORWARD_NSIDOMSVGTEXTCONTENTELEMENT(nsSVGTextContentElement::)
+  NS_FORWARD_NSIDOMSVGTEXTPOSITIONINGELEMENT(nsSVGTextPositioningElement::)
 
   // nsIContent interface
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
+  virtual nsSVGTextContainerFrame* GetTextContainerFrame() {
+    return do_QueryFrame(GetPrimaryFrame(Flush_Layout));
+  }
 
   // nsSVGElement overrides
   virtual StringAttributesInfo GetStringInfo();
@@ -96,7 +101,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(AltGlyph)
 NS_IMPL_ADDREF_INHERITED(nsSVGAltGlyphElement,nsSVGAltGlyphElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGAltGlyphElement,nsSVGAltGlyphElementBase)
 
-DOMCI_NODE_DATA(SVGAltGlyphElement, nsSVGAltGlyphElement)
+DOMCI_DATA(SVGAltGlyphElement, nsSVGAltGlyphElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGAltGlyphElement)
   NS_NODE_INTERFACE_TABLE7(nsSVGAltGlyphElement, nsIDOMNode, nsIDOMElement,
@@ -109,11 +114,22 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGAltGlyphElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGAltGlyphElement::nsSVGAltGlyphElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGAltGlyphElement::nsSVGAltGlyphElement(nsINodeInfo *aNodeInfo)
   : nsSVGAltGlyphElementBase(aNodeInfo)
 {
 }
 
+nsresult
+nsSVGAltGlyphElement::Init()
+{
+  nsresult rv = nsSVGAltGlyphElementBase::Init();
+  NS_ENSURE_SUCCESS(rv,rv);
+
+  rv = Initialise(this);
+  NS_ENSURE_SUCCESS(rv,rv);
+
+  return rv;
+}
 
 //----------------------------------------------------------------------
 // nsIDOMNode methods

@@ -1,7 +1,5 @@
-/* -*- Mode: JS; tab-width: 4; indent-tabs-mode: nil; -*-
- * vim: set sw=4 ts=4 et tw=78:
- * ***** BEGIN LICENSE BLOCK *****
- *
+/* vim: set sw=4 ts=8 et tw=78: */
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -40,2303 +38,997 @@
 /*
  * Narcissus - JS implemented in JS.
  *
- * Parser.
+ * Lexical scanner and parser.
  */
 
-Narcissus.parser = (function() {
-
-    var lexer = Narcissus.lexer;
-    var definitions = Narcissus.definitions;
-
-    // Set constants in the local scope.
-    eval(definitions.consts);
-
-    /*
-     * Function.prototype.bind is not yet implemented in many browsers.
-     * The following definition will be removed when it is.
-     *
-     * Similar to Prototype's implementation.
-     */
-
-    function bindMethod(method, context) {
-        if (arguments.length < 3 && arguments[0] === undefined)
-            return method;
-        var slice = Array.prototype.slice;
-        var args = slice.call(arguments, 2);
-        // Optimization for when there's no currying.
-        if (args.length === 0) {
-            return function() {
-                return method.apply(context, arguments);
-            }
-        }
-
-        return function() {
-            var a = slice.call(args, 0);
-            for (var i = 0, j = arguments.length; i < j; i++) {
-                a.push(arguments[i]);
-            }
-            return method.apply(context, a);
-        }
-    }
-
-    function bindSubBuilders(builder, proto) {
-        for (var ns in proto) {
-            var unbound = proto[ns];
-            // We do not want to bind functions like setHoists.
-            if (typeof unbound !== "object")
-                continue;
-
-            /*
-             * We store the bound sub-builder as builder's own property
-             * so that we can have multiple builders at the same time.
-             */
-            var bound = builder[ns] = {};
-            for (var m in unbound) {
-                bound[m] = bindMethod(unbound[m], builder);
-            }
-        }
-    }
-
-    /*
-     * The vanilla AST builder.
-     */
-
-    function DefaultBuilder() {
-        bindSubBuilders(this, DefaultBuilder.prototype);
-    }
-
-    function mkBinopBuilder(type) {
-        return {
-            build: !type ? function(t) { return new Node(t); }
-                          : function(t) { return new Node(t, type); },
-            addOperand: function(n, n2) { n.push(n2); },
-            finish: function(n) { }
-        };
-    }
-
-    DefaultBuilder.prototype = {
-        IF: {
-            build: function(t) {
-                return new Node(t, IF);
-            },
-
-            setCondition: function(n, e) {
-                n.condition = e;
-            },
-
-            setThenPart: function(n, s) {
-                n.thenPart = s;
-            },
-
-            setElsePart: function(n, s) {
-                n.elsePart = s;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        SWITCH: {
-            build: function(t) {
-                var n = new Node(t, SWITCH);
-                n.cases = [];
-                n.defaultIndex = -1;
-                return n;
-            },
-
-            setDiscriminant: function(n, e) {
-                n.discriminant = e;
-            },
-
-            setDefaultIndex: function(n, i) {
-                n.defaultIndex = i;
-            },
-
-            addCase: function(n, n2) {
-                n.cases.push(n2);
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        CASE: {
-            build: function(t) {
-                return new Node(t, CASE);
-            },
-
-            setLabel: function(n, e) {
-                n.caseLabel = e;
-            },
-
-            initializeStatements: function(n, t) {
-                n.statements = new Node(t, BLOCK);
-            },
-
-            addStatement: function(n, s) {
-                n.statements.push(s);
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        DEFAULT: {
-            build: function(t, p) {
-                return new Node(t, DEFAULT);
-            },
-
-            initializeStatements: function(n, t) {
-                n.statements = new Node(t, BLOCK);
-            },
-
-            addStatement: function(n, s) {
-                n.statements.push(s);
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        FOR: {
-            build: function(t) {
-                var n = new Node(t, FOR);
-                n.isLoop = true;
-                n.isEach = false;
-                return n;
-            },
-
-            rebuildForEach: function(n) {
-                n.isEach = true;
-            },
-
-            // NB. This function is called after rebuildForEach, if that's called
-            // at all.
-            rebuildForIn: function(n) {
-                n.type = FOR_IN;
-            },
-
-            setCondition: function(n, e) {
-                n.condition = e;
-            },
-
-            setSetup: function(n, e) {
-                n.setup = e || null;
-            },
-
-            setUpdate: function(n, e) {
-                n.update = e;
-            },
-
-            setObject: function(n, e) {
-                n.object = e;
-            },
-
-            setIterator: function(n, e, e2) {
-                n.iterator = e;
-                n.varDecl = e2;
-            },
-
-            setBody: function(n, s) {
-                n.body = s;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        WHILE: {
-            build: function(t) {
-                var n = new Node(t, WHILE);
-                n.isLoop = true;
-                return n;
-            },
-
-            setCondition: function(n, e) {
-                n.condition = e;
-            },
-
-            setBody: function(n, s) {
-                n.body = s;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        DO: {
-            build: function(t) {
-                var n = new Node(t, DO);
-                n.isLoop = true;
-                return n;
-            },
-
-            setCondition: function(n, e) {
-                n.condition = e;
-            },
-
-            setBody: function(n, s) {
-                n.body = s;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        BREAK: {
-            build: function(t) {
-                return new Node(t, BREAK);
-            },
-
-            setLabel: function(n, v) {
-                n.label = v;
-            },
-
-            setTarget: function(n, n2) {
-                n.target = n2;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        CONTINUE: {
-            build: function(t) {
-                return new Node(t, CONTINUE);
-            },
-
-            setLabel: function(n, v) {
-                n.label = v;
-            },
-
-            setTarget: function(n, n2) {
-                n.target = n2;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        TRY: {
-            build: function(t) {
-                var n = new Node(t, TRY);
-                n.catchClauses = [];
-                return n;
-            },
-
-            setTryBlock: function(n, s) {
-                n.tryBlock = s;
-            },
-
-            addCatch: function(n, n2) {
-                n.catchClauses.push(n2);
-            },
-
-            finishCatches: function(n) {
-            },
-
-            setFinallyBlock: function(n, s) {
-                n.finallyBlock = s;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        CATCH: {
-            build: function(t) {
-                var n = new Node(t, CATCH);
-                n.guard = null;
-                return n;
-            },
-
-            setVarName: function(n, v) {
-                n.varName = v;
-            },
-
-            setGuard: function(n, e) {
-                n.guard = e;
-            },
-
-            setBlock: function(n, s) {
-                n.block = s;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        THROW: {
-            build: function(t) {
-                return new Node(t, THROW);
-            },
-
-            setException: function(n, e) {
-                n.exception = e;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        RETURN: {
-            build: function(t) {
-                return new Node(t, RETURN);
-            },
-
-            setValue: function(n, e) {
-                n.value = e;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        YIELD: {
-            build: function(t) {
-                return new Node(t, YIELD);
-            },
-
-            setValue: function(n, e) {
-                n.value = e;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        GENERATOR: {
-            build: function(t) {
-                return new Node(t, GENERATOR);
-            },
-
-            setExpression: function(n, e) {
-                n.expression = e;
-            },
-
-            setTail: function(n, n2) {
-                n.tail = n2;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        WITH: {
-            build: function(t) {
-                return new Node(t, WITH);
-            },
-
-            setObject: function(n, e) {
-                n.object = e;
-            },
-
-            setBody: function(n, s) {
-                n.body = s;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        DEBUGGER: {
-            build: function(t) {
-                return new Node(t, DEBUGGER);
-            }
-        },
-
-        SEMICOLON: {
-            build: function(t) {
-                return new Node(t, SEMICOLON);
-            },
-
-            setExpression: function(n, e) {
-                n.expression = e;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        LABEL: {
-            build: function(t) {
-                return new Node(t, LABEL);
-            },
-
-            setLabel: function(n, e) {
-                n.label = e;
-            },
-
-            setStatement: function(n, s) {
-                n.statement = s;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        FUNCTION: {
-            build: function(t) {
-                var n = new Node(t);
-                if (n.type !== FUNCTION)
-                    n.type = (n.value === "get") ? GETTER : SETTER;
-                n.params = [];
-                return n;
-            },
-
-            setName: function(n, v) {
-                n.name = v;
-            },
-
-            addParam: function(n, v) {
-                n.params.push(v);
-            },
-
-            setBody: function(n, s) {
-                n.body = s;
-            },
-
-            hoistVars: function(x) {
-            },
-
-            finish: function(n, x) {
-            }
-        },
-
-        VAR: {
-            build: function(t) {
-                return new Node(t, VAR);
-            },
-
-            addDecl: function(n, n2, x) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        CONST: {
-            build: function(t) {
-                return new Node(t, CONST);
-            },
-
-            addDecl: function(n, n2, x) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        LET: {
-            build: function(t) {
-                return new Node(t, LET);
-            },
-
-            addDecl: function(n, n2, x) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        DECL: {
-            build: function(t) {
-                return new Node(t, IDENTIFIER);
-            },
-
-            setName: function(n, v) {
-                n.name = v;
-            },
-
-            setInitializer: function(n, e) {
-                n.initializer = e;
-            },
-
-            setReadOnly: function(n, b) {
-                n.readOnly = b;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        LET_BLOCK: {
-            build: function(t) {
-                var n = Node(t, LET_BLOCK);
-                n.varDecls = [];
-                return n;
-            },
-
-            setVariables: function(n, n2) {
-                n.variables = n2;
-            },
-
-            setExpression: function(n, e) {
-                n.expression = e;
-            },
-
-            setBlock: function(n, s) {
-                n.block = s;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        BLOCK: {
-            build: function(t, id) {
-                var n = new Node(t, BLOCK);
-                n.varDecls = [];
-                n.id = id;
-                return n;
-            },
-
-            hoistLets: function(n) {
-            },
-
-            addStatement: function(n, n2) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        EXPRESSION: {
-            build: function(t, tt) {
-                return new Node(t, tt);
-            },
-
-            addOperand: function(n, n2) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        ASSIGN: {
-            build: function(t) {
-                return new Node(t, ASSIGN);
-            },
-
-            addOperand: function(n, n2) {
-                n.push(n2);
-            },
-
-            setAssignOp: function(n, o) {
-                n.assignOp = o;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        HOOK: {
-            build: function(t) {
-                return new Node(t, HOOK);
-            },
-
-            setCondition: function(n, e) {
-                n[0] = e;
-            },
-
-            setThenPart: function(n, n2) {
-                n[1] = n2;
-            },
-
-            setElsePart: function(n, n2) {
-                n[2] = n2;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        OR: mkBinopBuilder(OR),
-        AND: mkBinopBuilder(AND),
-        BITWISE_OR: mkBinopBuilder(BITWISE_OR),
-        BITWISE_XOR: mkBinopBuilder(BITWISE_XOR),
-        BITWISE_AND: mkBinopBuilder(BITWISE_AND),
-        EQUALITY: mkBinopBuilder(), // EQ | NE | STRICT_EQ | STRICT_NE
-        RELATIONAL: mkBinopBuilder(), // LT | LE | GE | GT
-        SHIFT: mkBinopBuilder(), // LSH | RSH | URSH
-        ADD: mkBinopBuilder(), // PLUS | MINUS
-        MULTIPLY: mkBinopBuilder(), // MUL | DIV | MOD
-
-        UNARY: {
-            // DELETE | VOID | TYPEOF | NOT | BITWISE_NOT
-            // UNARY_PLUS | UNARY_MINUS | INCREMENT | DECREMENT
-            build: function(t) {
-                if (t.token.type === PLUS)
-                    t.token.type = UNARY_PLUS;
-                else if (t.token.type === MINUS)
-                    t.token.type = UNARY_MINUS;
-                return new Node(t);
-            },
-
-            addOperand: function(n, n2) {
-                n.push(n2);
-            },
-
-            setPostfix: function(n) {
-                n.postfix = true;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        MEMBER: {
-            // NEW | DOT | INDEX
-            build: function(t, tt) {
-                return new Node(t, tt);
-            },
-
-            rebuildNewWithArgs: function(n) {
-                n.type = NEW_WITH_ARGS;
-            },
-
-            addOperand: function(n, n2) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        PRIMARY: {
-            build: function(t, tt) {
-                // NB t.token.type must be NULL, THIS, TRUIE, FALSE, IDENTIFIER,
-                // NUMBER, STRING, or REGEXP.
-                return new Node(t, tt);
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        ARRAY_INIT: {
-            build: function(t) {
-                return new Node(t, ARRAY_INIT);
-            },
-
-            addElement: function(n, n2) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        ARRAY_COMP: {
-            build: function(t) {
-                return new Node(t, ARRAY_COMP);
-            },
-
-            setExpression: function(n, e) {
-                n.expression = e
-            },
-
-            setTail: function(n, n2) {
-                n.tail = n2;
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        COMP_TAIL: {
-            build: function(t) {
-                return new Node(t, COMP_TAIL);
-            },
-
-            setGuard: function(n, e) {
-                n.guard = e;
-            },
-
-            addFor: function(n, n2) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        OBJECT_INIT: {
-            build: function(t) {
-                return new Node(t, OBJECT_INIT);
-            },
-
-            addProperty: function(n, n2) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        PROPERTY_INIT: {
-            build: function(t) {
-                return new Node(t, PROPERTY_INIT);
-            },
-
-            addOperand: function(n, n2) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        COMMA: {
-            build: function(t) {
-                return new Node(t, COMMA);
-            },
-
-            addOperand: function(n, n2) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        LIST: {
-            build: function(t) {
-                return new Node(t, LIST);
-            },
-
-            addOperand: function(n, n2) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
-        },
-
-        setHoists: function(id, vds) {
-        }
-    };
-
-    function StaticContext(inFunction, builder) {
-        this.inFunction = inFunction;
-        this.hasEmptyReturn = false;
-        this.hasReturnWithValue = false;
-        this.isGenerator = false;
-        this.blockId = 0;
-        this.builder = builder;
-        this.stmtStack = [];
-        this.funDecls = [];
-        this.varDecls = [];
-    }
-
-    StaticContext.prototype = {
-        bracketLevel: 0,
-        curlyLevel: 0,
-        parenLevel: 0,
-        hookLevel: 0,
-        ecma3OnlyMode: false,
-        inForLoopInit: false,
-    };
-
-    /*
-     * Script :: (tokenizer, compiler context) -> node
-     *
-     * Parses the toplevel and function bodies.
-     */
-    function Script(t, x) {
-        var n = Statements(t, x);
-        n.type = SCRIPT;
-        n.funDecls = x.funDecls;
-        n.varDecls = x.varDecls;
-        return n;
-    }
-
-    // Node extends Array, which we extend slightly with a top-of-stack method.
-    definitions.defineProperty(Array.prototype, "top",
-                   function() {
-                       return this.length && this[this.length-1];
-                   }, false, false, true);
-
-    /*
-     * Node :: (tokenizer, optional type) -> node
-     */
-    function Node(t, type) {
-        var token = t.token;
-        if (token) {
-            this.type = type || token.type;
-            this.value = token.value;
-            this.lineno = token.lineno;
-            // Start & end are file positions for error handling.
-            this.start = token.start;
-            this.end = token.end;
+// Build a regexp that recognizes operators and punctuators (except newline).
+var opRegExpSrc = "^";
+for (i in opTypeNames) {
+    if (i == '\n')
+        continue;
+    if (opRegExpSrc != "^")
+        opRegExpSrc += "|^";
+    opRegExpSrc += i.replace(/[?|^&(){}\[\]+\-*\/\.]/g, "\\$&");
+}
+var opRegExp = new RegExp(opRegExpSrc);
+
+// A regexp to match floating point literals (but not integer literals).
+var fpRegExp = /^\d+\.\d*(?:[eE][-+]?\d+)?|^\d+(?:\.\d*)?[eE][-+]?\d+|^\.\d+(?:[eE][-+]?\d+)?/;
+
+// A regexp to match regexp literals.
+var reRegExp = /^\/((?:\\.|\[(?:\\.|[^\]])*\]|[^\/])+)\/([gimy]*)/;
+
+function Tokenizer(s, f, l) {
+    this.cursor = 0;
+    this.source = String(s);
+    this.tokens = [];
+    this.tokenIndex = 0;
+    this.lookahead = 0;
+    this.scanNewlines = false;
+    this.scanOperand = true;
+    this.filename = f || "";
+    this.lineno = l || 1;
+}
+
+Tokenizer.prototype = {
+    get input() {
+        return this.source.substring(this.cursor);
+    },
+
+    get done() {
+        return this.peek() == END;
+    },
+
+    get token() {
+        return this.tokens[this.tokenIndex];
+    },
+
+    match: function (tt) {
+        return this.get() == tt || this.unget();
+    },
+
+    mustMatch: function (tt) {
+        if (!this.match(tt))
+            throw this.newSyntaxError("Missing " + tokens[tt].toLowerCase());
+        return this.token;
+    },
+
+    peek: function () {
+        var tt, next;
+        if (this.lookahead) {
+            next = this.tokens[(this.tokenIndex + this.lookahead) & 3];
+            if (this.scanNewlines && next.lineno != this.lineno)
+                tt = NEWLINE;
+            else
+                tt = next.type;
         } else {
-            this.type = type;
-            this.lineno = t.lineno;
+            tt = this.get();
+            this.unget();
         }
-        // Nodes use a tokenizer for debugging (getSource, filename getter).
-        this.tokenizer = t;
+        return tt;
+    },
 
-        for (var i = 2; i < arguments.length; i++)
-            this.push(arguments[i]);
-    }
+    peekOnSameLine: function () {
+        this.scanNewlines = true;
+        var tt = this.peek();
+        this.scanNewlines = false;
+        return tt;
+    },
 
-    var Np = Node.prototype = new Array;
-    Np.constructor = Node;
-    Np.toSource = Object.prototype.toSource;
-
-    // Always use push to add operands to an expression, to update start and end.
-    Np.push = function (kid) {
-        // kid can be null e.g. [1, , 2].
-        if (kid !== null) {
-            if (kid.start < this.start)
-                this.start = kid.start;
-            if (this.end < kid.end)
-                this.end = kid.end;
+    get: function () {
+        var token;
+        while (this.lookahead) {
+            --this.lookahead;
+            this.tokenIndex = (this.tokenIndex + 1) & 3;
+            token = this.tokens[this.tokenIndex];
+            if (token.type != NEWLINE || this.scanNewlines)
+                return token.type;
         }
-        return Array.prototype.push.call(this, kid);
-    }
 
-    Node.indentLevel = 0;
+        for (;;) {
+            var input = this.input;
+            var match = (this.scanNewlines ? /^[ \t]+/ : /^\s+/)(input);
+            if (match) {
+                var spaces = match[0];
+                this.cursor += spaces.length;
+                var newlines = spaces.match(/\n/g);
+                if (newlines)
+                    this.lineno += newlines.length;
+                input = this.input;
+            }
 
-    function tokenstr(tt) {
-        var t = definitions.tokens[tt];
-        return /^\W/.test(t) ? definitions.opTypeNames[t] : t.toUpperCase();
-    }
-
-    Np.toString = function () {
-        var a = [];
-        for (var i in this) {
-            if (this.hasOwnProperty(i) && i !== 'type' && i !== 'target')
-                a.push({id: i, value: this[i]});
+            if (!(match = /^\/(?:\*(?:.|\n)*?\*\/|\/.*)/(input)))
+                break;
+            var comment = match[0];
+            this.cursor += comment.length;
+            newlines = comment.match(/\n/g);
+            if (newlines)
+                this.lineno += newlines.length
         }
-        a.sort(function (a,b) { return (a.id < b.id) ? -1 : 1; });
-        const INDENTATION = "    ";
-        var n = ++Node.indentLevel;
-        var s = "{\n" + INDENTATION.repeat(n) + "type: " + tokenstr(this.type);
-        for (i = 0; i < a.length; i++)
-            s += ",\n" + INDENTATION.repeat(n) + a[i].id + ": " + a[i].value;
-        n = --Node.indentLevel;
-        s += "\n" + INDENTATION.repeat(n) + "}";
+
+        this.tokenIndex = (this.tokenIndex + 1) & 3;
+        token = this.tokens[this.tokenIndex];
+        if (!token)
+            this.tokens[this.tokenIndex] = token = {};
+
+        if (!input)
+            return token.type = END;
+
+        if ((match = fpRegExp(input))) {
+            token.type = NUMBER;
+            token.value = parseFloat(match[0]);
+        } else if ((match = /^0[xX][\da-fA-F]+|^0[0-7]*|^\d+/(input))) {
+            token.type = NUMBER;
+            token.value = parseInt(match[0]);
+        } else if ((match = /^[$_\w]+/(input))) {       // FIXME no ES3 unicode
+            var id = match[0];
+            token.type = keywords[id] || IDENTIFIER;
+            token.value = id;
+        } else if ((match = /^"(?:\\.|[^"])*"|^'(?:\\.|[^'])*'/(input))) { //"){
+            token.type = STRING;
+            token.value = eval(match[0]);
+        } else if (this.scanOperand && (match = reRegExp(input))) {
+            token.type = REGEXP;
+            token.value = new RegExp(match[1], match[2]);
+        } else if ((match = opRegExp(input))) {
+            var op = match[0];
+            if (assignOps[op] && input[op.length] == '=') {
+                token.type = ASSIGN;
+                token.assignOp = GLOBAL[opTypeNames[op]];
+                match[0] += '=';
+            } else {
+                token.type = GLOBAL[opTypeNames[op]];
+                if (this.scanOperand &&
+                    (token.type == PLUS || token.type == MINUS)) {
+                    token.type += UNARY_PLUS - PLUS;
+                }
+                token.assignOp = null;
+            }
+            token.value = op;
+        } else if (this.scanNewlines && (match = /^\n/(input))) {
+            token.type = NEWLINE;
+        } else {
+            throw this.newSyntaxError("Illegal token");
+        }
+
+        token.start = this.cursor;
+        this.cursor += match[0].length;
+        token.end = this.cursor;
+        token.lineno = this.lineno;
+        return token.type;
+    },
+
+    unget: function () {
+        if (++this.lookahead == 4) throw "PANIC: too much lookahead!";
+        this.tokenIndex = (this.tokenIndex - 1) & 3;
+    },
+
+    newSyntaxError: function (m) {
+        var e = new SyntaxError(m, this.filename, this.lineno);
+        e.source = this.source;
+        e.cursor = this.cursor;
+        return e;
+    }
+};
+
+function CompilerContext(inFunction) {
+    this.inFunction = inFunction;
+    this.stmtStack = [];
+    this.funDecls = [];
+    this.varDecls = [];
+}
+
+CompilerContext.prototype = {
+    bracketLevel: 0,
+    curlyLevel: 0,
+    parenLevel: 0,
+    hookLevel: 0,
+    ecma3OnlyMode: false,
+    inForLoopInit: false,
+};
+
+function Script(t, x) {
+    var n = Statements(t, x);
+    n.type = SCRIPT;
+    n.funDecls = x.funDecls;
+    n.varDecls = x.varDecls;
+    return n;
+}
+
+// Node extends Array, which we extend slightly with a top-of-stack method.
+Array.prototype.__defineProperty__(
+    'top',
+    function () {
+        return this.length && this[this.length-1];
+    },
+    false, false, true
+);
+
+function Node(t, type) {
+    var token = t.token;
+    if (token) {
+        this.type = type || token.type;
+        this.value = token.value;
+        this.lineno = token.lineno;
+        this.start = token.start;
+        this.end = token.end;
+    } else {
+        this.type = type;
+        this.lineno = t.lineno;
+    }
+    this.tokenizer = t;
+
+    for (var i = 2; i < arguments.length; i++)
+        this.push(arguments[i]);
+}
+
+var Np = Node.prototype = new Array;
+Np.constructor = Node;
+Np.toSource = Object.prototype.toSource;
+
+// Always use push to add operands to an expression, to update start and end.
+Np.push = function (kid) {
+    if (kid.start < this.start)
+        this.start = kid.start;
+    if (this.end < kid.end)
+        this.end = kid.end;
+    return Array.prototype.push.call(this, kid);
+}
+
+Node.indentLevel = 0;
+
+function tokenstr(tt) {
+    var t = tokens[tt];
+    return /^\W/.test(t) ? opTypeNames[t] : t.toUpperCase();
+}
+
+Np.toString = function () {
+    var a = [];
+    for (var i in this) {
+        if (this.hasOwnProperty(i) && i != 'type' && i != 'target')
+            a.push({id: i, value: this[i]});
+    }
+    a.sort(function (a,b) { return (a.id < b.id) ? -1 : 1; });
+    const INDENTATION = "    ";
+    var n = ++Node.indentLevel;
+    var s = "{\n" + INDENTATION.repeat(n) + "type: " + tokenstr(this.type);
+    for (i = 0; i < a.length; i++)
+        s += ",\n" + INDENTATION.repeat(n) + a[i].id + ": " + a[i].value;
+    n = --Node.indentLevel;
+    s += "\n" + INDENTATION.repeat(n) + "}";
+    return s;
+}
+
+Np.getSource = function () {
+    return this.tokenizer.source.slice(this.start, this.end);
+};
+
+Np.__defineGetter__('filename',
+                    function () { return this.tokenizer.filename; });
+
+String.prototype.__defineProperty__(
+    'repeat',
+    function (n) {
+        var s = "", t = this + s;
+        while (--n >= 0)
+            s += t;
         return s;
-    }
+    },
+    false, false, true
+);
 
-    Np.getSource = function () {
-        return this.tokenizer.source.slice(this.start, this.end);
-    };
+// Statement stack and nested statement handler.
+function nest(t, x, node, func, end) {
+    x.stmtStack.push(node);
+    var n = func(t, x);
+    x.stmtStack.pop();
+    end && t.mustMatch(end);
+    return n;
+}
 
-    definitions.defineGetter(Np, "filename",
-                 function() {
-                     return this.tokenizer.filename;
-                 });
+function Statements(t, x) {
+    var n = new Node(t, BLOCK);
+    x.stmtStack.push(n);
+    while (!t.done && t.peek() != RIGHT_CURLY)
+        n.push(Statement(t, x));
+    x.stmtStack.pop();
+    return n;
+}
 
-    definitions.defineProperty(String.prototype, "repeat",
-                   function(n) {
-                       var s = "", t = this + s;
-                       while (--n >= 0)
-                           s += t;
-                       return s;
-                   }, false, false, true);
+function Block(t, x) {
+    t.mustMatch(LEFT_CURLY);
+    var n = Statements(t, x);
+    t.mustMatch(RIGHT_CURLY);
+    return n;
+}
 
-    // Statement stack and nested statement handler.
-    function nest(t, x, node, func, end) {
-        x.stmtStack.push(node);
-        var n = func(t, x);
-        x.stmtStack.pop();
-        end && t.mustMatch(end);
-        return n;
-    }
+const DECLARED_FORM = 0, EXPRESSED_FORM = 1, STATEMENT_FORM = 2;
 
-    /*
-     * Statements :: (tokenizer, compiler context) -> node
-     *
-     * Parses a list of Statements.
-     */
-    function Statements(t, x) {
-        /*
-         * Blocks are uniquely numbered by a blockId within a function that is
-         * at the top level of the program. blockId starts from 0.
-         *
-         * This is done to aid hoisting for parse-time analyses done in custom
-         * builders.
-         *
-         * For more details in its interaction with hoisting, see comments in
-         * FunctionDefinition.
-         */
-        var builder = x.builder;
-        var b = builder.BLOCK;
-        var n = b.build(t, x.blockId++);
-        b.hoistLets(n);
-        x.stmtStack.push(n);
-        while (!t.done && t.peek(true) !== RIGHT_CURLY)
-            b.addStatement(n, Statement(t, x));
-        x.stmtStack.pop();
-        b.finish(n);
-        if (n.needsHoisting) {
-            builder.setHoists(n.id, n.varDecls);
-            /*
-             * If a block needs hoisting, we need to propagate this flag up to
-             * the CompilerContext.
-             */
-            x.needsHoisting = true;
-        }
-        return n;
-    }
+function Statement(t, x) {
+    var i, label, n, n2, ss, tt = t.get();
 
-    function Block(t, x) {
-        t.mustMatch(LEFT_CURLY);
-        var n = Statements(t, x);
+    // Cases for statements ending in a right curly return early, avoiding the
+    // common semicolon insertion magic after this switch.
+    switch (tt) {
+      case FUNCTION:
+        return FunctionDefinition(t, x, true,
+                                  (x.stmtStack.length > 1)
+                                  ? STATEMENT_FORM
+                                  : DECLARED_FORM);
+
+      case LEFT_CURLY:
+        n = Statements(t, x);
         t.mustMatch(RIGHT_CURLY);
         return n;
-    }
 
-    const DECLARED_FORM = 0, EXPRESSED_FORM = 1, STATEMENT_FORM = 2;
-
-    /*
-     * Statement :: (tokenizer, compiler context) -> node
-     *
-     * Parses a Statement.
-     */
-    function Statement(t, x) {
-        var i, label, n, n2, ss, tt = t.get(true);
-        var builder = x.builder, b, b2, b3;
-
-        // Cases for statements ending in a right curly return early, avoiding the
-        // common semicolon insertion magic after this switch.
-        switch (tt) {
-          case FUNCTION:
-            // DECLARED_FORM extends funDecls of x, STATEMENT_FORM doesn't.
-            return FunctionDefinition(t, x, true,
-                                      (x.stmtStack.length > 1)
-                                      ? STATEMENT_FORM
-                                      : DECLARED_FORM);
-
-          case LEFT_CURLY:
-            n = Statements(t, x);
-            t.mustMatch(RIGHT_CURLY);
-            return n;
-
-          case IF:
-            b = builder.IF;
-            n = b.build(t);
-            b.setCondition(n, ParenExpression(t, x));
-            x.stmtStack.push(n);
-            b.setThenPart(n, Statement(t, x));
-            if (t.match(ELSE))
-                b.setElsePart(n, Statement(t, x));
-            x.stmtStack.pop();
-            b.finish(n);
-            return n;
-
-          case SWITCH:
-            // This allows CASEs after a DEFAULT, which is in the standard.
-            b = builder.SWITCH;
-            b2 = builder.DEFAULT;
-            b3 = builder.CASE;
-            n = b.build(t);
-            b.setDiscriminant(n, ParenExpression(t, x));
-            x.stmtStack.push(n);
-            t.mustMatch(LEFT_CURLY);
-            while ((tt = t.get()) !== RIGHT_CURLY) {
-                switch (tt) {
-                  case DEFAULT:
-                    if (n.defaultIndex >= 0)
-                        throw t.newSyntaxError("More than one switch default");
-                    n2 = b2.build(t);
-                    b.setDefaultIndex(n, n.cases.length);
-                    t.mustMatch(COLON);
-                    b2.initializeStatements(n2, t);
-                    while ((tt=t.peek(true)) !== CASE && tt !== DEFAULT &&
-                           tt !== RIGHT_CURLY)
-                        b2.addStatement(n2, Statement(t, x));
-                    b2.finish(n2);
-                    break;
-
-                  case CASE:
-                    n2 = b3.build(t);
-                    b3.setLabel(n2, Expression(t, x, COLON));
-                    t.mustMatch(COLON);
-                    b3.initializeStatements(n2, t);
-                    while ((tt=t.peek(true)) !== CASE && tt !== DEFAULT &&
-                           tt !== RIGHT_CURLY)
-                        b3.addStatement(n2, Statement(t, x));
-                    b3.finish(n2);
-                    break;
-
-                  default:
-                    throw t.newSyntaxError("Invalid switch case");
-                }
-                b.addCase(n, n2);
-            }
-            x.stmtStack.pop();
-            b.finish(n);
-            return n;
-
-          case FOR:
-            b = builder.FOR;
-            n = b.build(t);
-            if (t.match(IDENTIFIER) && t.token.value === "each")
-                b.rebuildForEach(n);
-            t.mustMatch(LEFT_PAREN);
-            if ((tt = t.peek()) !== SEMICOLON) {
-                x.inForLoopInit = true;
-                if (tt === VAR || tt === CONST) {
-                    t.get();
-                    n2 = Variables(t, x);
-                } else if (tt === LET) {
-                    t.get();
-                    if (t.peek() === LEFT_PAREN) {
-                        n2 = LetBlock(t, x, false);
-                    } else {
-                        /*
-                         * Let in for head, we need to add an implicit block
-                         * around the rest of the for.
-                         */
-                        var forBlock = builder.BLOCK.build(t, x.blockId++);
-                        x.stmtStack.push(forBlock);
-                        n2 = Variables(t, x, forBlock);
-                    }
-                } else {
-                    n2 = Expression(t, x);
-                }
-                x.inForLoopInit = false;
-            }
-            if (n2 && t.match(IN)) {
-                b.rebuildForIn(n);
-                b.setObject(n, Expression(t, x), forBlock);
-                if (n2.type === VAR || n2.type === LET) {
-                    if (n2.length !== 1) {
-                        throw new SyntaxError("Invalid for..in left-hand side",
-                                              t.filename, n2.lineno);
-                    }
-                    b.setIterator(n, n2[0], n2, forBlock);
-                } else {
-                    b.setIterator(n, n2, null, forBlock);
-                }
-            } else {
-                b.setSetup(n, n2);
-                t.mustMatch(SEMICOLON);
-                if (n.isEach)
-                    throw t.newSyntaxError("Invalid for each..in loop");
-                b.setCondition(n, (t.peek() === SEMICOLON)
-                                  ? null
-                                  : Expression(t, x));
-                t.mustMatch(SEMICOLON);
-                b.setUpdate(n, (t.peek() === RIGHT_PAREN)
-                                   ? null
-                                   : Expression(t, x));
-            }
-            t.mustMatch(RIGHT_PAREN);
-            b.setBody(n, nest(t, x, n, Statement));
-            if (forBlock) {
-                builder.BLOCK.finish(forBlock);
-                x.stmtStack.pop();
-            }
-            b.finish(n);
-            return n;
-
-          case WHILE:
-            b = builder.WHILE;
-            n = b.build(t);
-            b.setCondition(n, ParenExpression(t, x));
-            b.setBody(n, nest(t, x, n, Statement));
-            b.finish(n);
-            return n;
-
-          case DO:
-            b = builder.DO;
-            n = b.build(t);
-            b.setBody(n, nest(t, x, n, Statement, WHILE));
-            b.setCondition(n, ParenExpression(t, x));
-            b.finish(n);
-            if (!x.ecmaStrictMode) {
-                // <script language="JavaScript"> (without version hints) may need
-                // automatic semicolon insertion without a newline after do-while.
-                // See http://bugzilla.mozilla.org/show_bug.cgi?id=238945.
-                t.match(SEMICOLON);
-                return n;
-            }
-            break;
-
-          case BREAK:
-          case CONTINUE:
-            if (tt === BREAK) {
-                b = builder.BREAK;
-            } else {
-                b = builder.CONTINUE;
-            }
-            n = b.build(t);
-
-            if (t.peekOnSameLine() === IDENTIFIER) {
-                t.get();
-                b.setLabel(n, t.token.value);
-            }
-
-            ss = x.stmtStack;
-            i = ss.length;
-            label = n.label;
-
-            if (label) {
-                do {
-                    if (--i < 0)
-                        throw t.newSyntaxError("Label not found");
-                } while (ss[i].label !== label);
-
-                /*
-                 * Both break and continue to label need to be handled specially
-                 * within a labeled loop, so that they target that loop. If not in
-                 * a loop, then break targets its labeled statement. Labels can be
-                 * nested so we skip all labels immediately enclosing the nearest
-                 * non-label statement.
-                 */
-                while (i < ss.length - 1 && ss[i+1].type === LABEL)
-                    i++;
-                if (i < ss.length - 1 && ss[i+1].isLoop)
-                    i++;
-                else if (tt === CONTINUE)
-                    throw t.newSyntaxError("Invalid continue");
-            } else {
-                do {
-                    if (--i < 0) {
-                        throw t.newSyntaxError("Invalid " + ((tt === BREAK)
-                                                             ? "break"
-                                                             : "continue"));
-                    }
-                } while (!ss[i].isLoop && !(tt === BREAK && ss[i].type === SWITCH));
-            }
-            b.setTarget(n, ss[i]);
-            b.finish(n);
-            break;
-
-          case TRY:
-            b = builder.TRY;
-            b2 = builder.CATCH;
-            n = b.build(t);
-            b.setTryBlock(n, Block(t, x));
-            while (t.match(CATCH)) {
-                n2 = b2.build(t);
-                t.mustMatch(LEFT_PAREN);
-                switch (t.get()) {
-                  case LEFT_BRACKET:
-                  case LEFT_CURLY:
-                    // Destructured catch identifiers.
-                    t.unget();
-                    b2.setVarName(n2, DestructuringExpression(t, x, true));
-                  case IDENTIFIER:
-                    b2.setVarName(n2, t.token.value);
-                    break;
-                  default:
-                    throw t.newSyntaxError("missing identifier in catch");
-                    break;
-                }
-                if (t.match(IF)) {
-                    if (x.ecma3OnlyMode)
-                        throw t.newSyntaxError("Illegal catch guard");
-                    if (n.catchClauses.length && !n.catchClauses.top().guard)
-                        throw t.newSyntaxError("Guarded catch after unguarded");
-                    b2.setGuard(n2, Expression(t, x));
-                } else {
-                    b2.setGuard(n2, null);
-                }
-                t.mustMatch(RIGHT_PAREN);
-                b2.setBlock(n2, Block(t, x));
-                b2.finish(n2);
-                b.addCatch(n, n2);
-            }
-            b.finishCatches(n);
-            if (t.match(FINALLY))
-                b.setFinallyBlock(n, Block(t, x));
-            if (!n.catchClauses.length && !n.finallyBlock)
-                throw t.newSyntaxError("Invalid try statement");
-            b.finish(n);
-            return n;
-
-          case CATCH:
-          case FINALLY:
-            throw t.newSyntaxError(definitions.tokens[tt] + " without preceding try");
-
-          case THROW:
-            b = builder.THROW;
-            n = b.build(t);
-            b.setException(n, Expression(t, x));
-            b.finish(n);
-            break;
-
-          case RETURN:
-            n = returnOrYield(t, x);
-            break;
-
-          case WITH:
-            b = builder.WITH;
-            n = b.build(t);
-            b.setObject(n, ParenExpression(t, x));
-            b.setBody(n, nest(t, x, n, Statement));
-            b.finish(n);
-            return n;
-
-          case VAR:
-          case CONST:
-            n = Variables(t, x);
-            break;
-
-          case LET:
-            if (t.peek() === LEFT_PAREN)
-                n = LetBlock(t, x, true);
-            else
-                n = Variables(t, x);
-            break;
-
-          case DEBUGGER:
-            n = builder.DEBUGGER.build(t);
-            break;
-
-          case NEWLINE:
-          case SEMICOLON:
-            b = builder.SEMICOLON;
-            n = b.build(t);
-            b.setExpression(n, null);
-            b.finish(t);
-            return n;
-
-          default:
-            if (tt === IDENTIFIER) {
-                tt = t.peek();
-                // Labeled statement.
-                if (tt === COLON) {
-                    label = t.token.value;
-                    ss = x.stmtStack;
-                    for (i = ss.length-1; i >= 0; --i) {
-                        if (ss[i].label === label)
-                            throw t.newSyntaxError("Duplicate label");
-                    }
-                    t.get();
-                    b = builder.LABEL;
-                    n = b.build(t);
-                    b.setLabel(n, label)
-                    b.setStatement(n, nest(t, x, n, Statement));
-                    b.finish(n);
-                    return n;
-                }
-            }
-
-            // Expression statement.
-            // We unget the current token to parse the expression as a whole.
-            b = builder.SEMICOLON;
-            n = b.build(t);
-            t.unget();
-            b.setExpression(n, Expression(t, x));
-            n.end = n.expression.end;
-            b.finish(n);
-            break;
-        }
-
-        MagicalSemicolon(t);
+      case IF:
+        n = new Node(t);
+        n.condition = ParenExpression(t, x);
+        x.stmtStack.push(n);
+        n.thenPart = Statement(t, x);
+        n.elsePart = t.match(ELSE) ? Statement(t, x) : null;
+        x.stmtStack.pop();
         return n;
-    }
 
-    function MagicalSemicolon(t) {
-        var tt;
-        if (t.lineno === t.token.lineno) {
-            tt = t.peekOnSameLine();
-            if (tt !== END && tt !== NEWLINE && tt !== SEMICOLON && tt !== RIGHT_CURLY)
-                throw t.newSyntaxError("missing ; before statement");
-        }
-        t.match(SEMICOLON);
-    }
-
-    function returnOrYield(t, x) {
-        var n, b, tt = t.token.type, tt2;
-
-        if (tt === RETURN) {
-            if (!x.inFunction)
-                throw t.newSyntaxError("Return not in function");
-            b = x.builder.RETURN;
-        } else /* (tt === YIELD) */ {
-            if (!x.inFunction)
-                throw t.newSyntaxError("Yield not in function");
-            x.isGenerator = true;
-            b = x.builder.YIELD;
-        }
-        n = b.build(t);
-
-        tt2 = t.peek(true);
-        if (tt2 !== END && tt2 !== NEWLINE && tt2 !== SEMICOLON && tt2 !== RIGHT_CURLY
-            && (tt !== YIELD ||
-                (tt2 !== tt && tt2 !== RIGHT_BRACKET && tt2 !== RIGHT_PAREN &&
-                 tt2 !== COLON && tt2 !== COMMA))) {
-            if (tt === RETURN) {
-                b.setValue(n, Expression(t, x));
-                x.hasReturnWithValue = true;
-            } else {
-                b.setValue(n, AssignExpression(t, x));
-            }
-        } else if (tt === RETURN) {
-            x.hasEmptyReturn = true;
-        }
-
-        // Disallow return v; in generator.
-        if (x.hasReturnWithValue && x.isGenerator)
-            throw t.newSyntaxError("Generator returns a value");
-
-        b.finish(n);
-        return n;
-    }
-
-    /*
-     * FunctionDefinition :: (tokenizer, compiler context, boolean,
-     *                        DECLARED_FORM or EXPRESSED_FORM or STATEMENT_FORM)
-     *                    -> node
-     */
-    function FunctionDefinition(t, x, requireName, functionForm) {
-        var tt, x2, rp;
-        var builder = x.builder;
-        var b = builder.FUNCTION;
-        var f = b.build(t);
-        if (t.match(IDENTIFIER))
-            b.setName(f, t.token.value);
-        else if (requireName)
-            throw t.newSyntaxError("missing function identifier");
-
+      case SWITCH:
+        n = new Node(t);
         t.mustMatch(LEFT_PAREN);
-        if (!t.match(RIGHT_PAREN)) {
-            do {
-                switch (t.get()) {
-                  case LEFT_BRACKET:
-                  case LEFT_CURLY:
-                    // Destructured formal parameters.
-                    t.unget();
-                    b.addParam(f, DestructuringExpression(t, x));
-                    break;
-                  case IDENTIFIER:
-                    b.addParam(f, t.token.value);
-                    break;
-                  default:
-                    throw t.newSyntaxError("missing formal parameter");
-                    break;
-                }
-            } while (t.match(COMMA));
-            t.mustMatch(RIGHT_PAREN);
-        }
-
-        // Do we have an expression closure or a normal body?
-        tt = t.get();
-        if (tt !== LEFT_CURLY)
-            t.unget();
-
-        x2 = new StaticContext(true, builder);
-        rp = t.save();
-        if (x.inFunction) {
-            /*
-             * Inner functions don't reset block numbering, only functions at
-             * the top level of the program do.
-             */
-            x2.blockId = x.blockId;
-        }
-
-        if (tt !== LEFT_CURLY) {
-            b.setBody(f, AssignExpression(t, x));
-            if (x.isGenerator)
-                throw t.newSyntaxError("Generator returns a value");
-        } else {
-            b.hoistVars(x2.blockId);
-            b.setBody(f, Script(t, x2));
-        }
-
-        /*
-         * Hoisting makes parse-time binding analysis tricky. A taxonomy of hoists:
-         *
-         * 1. vars hoist to the top of their function:
-         *
-         *    var x = 'global';
-         *    function f() {
-         *      x = 'f';
-         *      if (false)
-         *        var x;
-         *    }
-         *    f();
-         *    print(x); // "global"
-         *
-         * 2. lets hoist to the top of their block:
-         *
-         *    function f() { // id: 0
-         *      var x = 'f';
-         *      {
-         *        {
-         *          print(x); // "undefined"
-         *        }
-         *        let x;
-         *      }
-         *    }
-         *    f();
-         *
-         * 3. inner functions at function top-level hoist to the beginning
-         *    of the function.
-         *
-         * If the builder used is doing parse-time analyses, hoisting may
-         * invalidate earlier conclusions it makes about variable scope.
-         *
-         * The builder can opt to set the needsHoisting flag in a
-         * CompilerContext (in the case of var and function hoisting) or in a
-         * node of type BLOCK (in the case of let hoisting). This signals for
-         * the parser to reparse sections of code.
-         *
-         * To avoid exponential blowup, if a function at the program top-level
-         * has any hoists in its child blocks or inner functions, we reparse
-         * the entire toplevel function. Each toplevel function is parsed at
-         * most twice.
-         *
-         * The list of declarations can be tied to block ids to aid talking
-         * about declarations of blocks that have not yet been fully parsed.
-         *
-         * Blocks are already uniquely numbered; see the comment in
-         * Statements.
-         */
-        if (x2.needsHoisting) {
-            /*
-             * Order is important here! Builders expect funDecls to come after
-             * varDecls!
-             */
-            builder.setHoists(f.body.id, x2.varDecls.concat(x2.funDecls));
-
-            if (x.inFunction) {
-                /*
-                 * If an inner function needs hoisting, we need to propagate
-                 * this flag up to the parent function.
-                 */
-                x.needsHoisting = true;
-            } else {
-                // Only re-parse functions at the top level of the program.
-                x2 = new StaticContext(true, builder);
-                t.rewind(rp);
-                /*
-                 * Set a flag in case the builder wants to have different behavior
-                 * on the second pass.
-                 */
-                builder.secondPass = true;
-                b.hoistVars(f.body.id, true);
-                b.setBody(f, Script(t, x2));
-                builder.secondPass = false;
-            }
-        }
-
-        if (tt === LEFT_CURLY)
-            t.mustMatch(RIGHT_CURLY);
-
-        f.end = t.token.end;
-        f.functionForm = functionForm;
-        if (functionForm === DECLARED_FORM)
-            x.funDecls.push(f);
-        b.finish(f, x);
-        return f;
-    }
-
-    /*
-     * Variables :: (tokenizer, compiler context) -> node
-     *
-     * Parses a comma-separated list of var declarations (and maybe
-     * initializations).
-     */
-    function Variables(t, x, letBlock) {
-        var b, bDecl, bAssign, n, n2, n3, ss, i, s, tt, id, data;
-        var builder = x.builder;
-        var bDecl = builder.DECL;
-        var bAssign = builder.ASSIGN;
-
-        switch (t.token.type) {
-          case VAR:
-            b = builder.VAR;
-            s = x;
-            break;
-          case CONST:
-            b = builder.CONST;
-            s = x;
-            break;
-          case LET:
-          case LEFT_PAREN:
-            b = builder.LET;
-            if (!letBlock) {
-                ss = x.stmtStack;
-                i = ss.length;
-                while (ss[--i].type !== BLOCK) ; // a BLOCK *must* be found.
-                /*
-                 * Lets at the function toplevel are just vars, at least in
-                 * SpiderMonkey.
-                 */
-                if (i === 0) {
-                    b = builder.VAR;
-                    s = x;
-                } else {
-                    s = ss[i];
-                }
-            } else {
-                s = letBlock;
-            }
-            break;
-        }
-
-        n = b.build(t);
-        initializers = [];
-
-        do {
-            tt = t.get();
-            /*
-             * FIXME Should have a special DECLARATION node instead of overloading
-             * IDENTIFIER to mean both identifier declarations and destructured
-             * declarations.
-             */
-            n2 = bDecl.build(t);
-            if (tt === LEFT_BRACKET || tt === LEFT_CURLY) {
-                // Pass in s if we need to add each pattern matched into
-                // its varDecls, else pass in x.
-                data = null;
-                // Need to unget to parse the full destructured expression.
-                t.unget();
-                bDecl.setName(n2, DestructuringExpression(t, x, true, s));
-                if (x.inForLoopInit && t.peek() === IN) {
-                    b.addDecl(n, n2, s);
-                    continue;
-                }
-
-                t.mustMatch(ASSIGN);
-                if (t.token.assignOp)
-                    throw t.newSyntaxError("Invalid variable initialization");
-
-                // Parse the init as a normal assignment.
-                n3 = bAssign.build(t);
-                bAssign.addOperand(n3, n2.name);
-                bAssign.addOperand(n3, AssignExpression(t, x));
-                bAssign.finish(n3);
-
-                // But only add the rhs as the initializer.
-                bDecl.setInitializer(n2, n3[1]);
-                bDecl.finish(n2);
-                b.addDecl(n, n2, s);
-                continue;
-            }
-
-            if (tt !== IDENTIFIER)
-                throw t.newSyntaxError("missing variable name");
-
-            bDecl.setName(n2, t.token.value);
-            bDecl.setReadOnly(n2, n.type === CONST);
-            b.addDecl(n, n2, s);
-
-            if (t.match(ASSIGN)) {
-                if (t.token.assignOp)
-                    throw t.newSyntaxError("Invalid variable initialization");
-
-                // Parse the init as a normal assignment.
-                id = new Node(n2.tokenizer, IDENTIFIER);
-                n3 = bAssign.build(t);
-                id.name = id.value = n2.name;
-                bAssign.addOperand(n3, id);
-                bAssign.addOperand(n3, AssignExpression(t, x));
-                bAssign.finish(n3);
-                initializers.push(n3);
-
-                // But only add the rhs as the initializer.
-                bDecl.setInitializer(n2, n3[1]);
-            }
-
-            bDecl.finish(n2);
-            s.varDecls.push(n2);
-        } while (t.match(COMMA));
-        b.finish(n);
-        return n;
-    }
-
-    /*
-     * LetBlock :: (tokenizer, compiler context, boolean) -> node
-     *
-     * Does not handle let inside of for loop init.
-     */
-    function LetBlock(t, x, isStatement) {
-        var n, n2, binds;
-        var builder = x.builder;
-        var b = builder.LET_BLOCK, b2;
-
-        // t.token.type must be LET
-        n = b.build(t);
-        t.mustMatch(LEFT_PAREN);
-        b.setVariables(n, Variables(t, x, n));
+        n.discriminant = Expression(t, x);
         t.mustMatch(RIGHT_PAREN);
-
-        if (isStatement && t.peek() !== LEFT_CURLY) {
-            /*
-             * If this is really an expression in let statement guise, then we
-             * need to wrap the LET_BLOCK node in a SEMICOLON node so that we pop
-             * the return value of the expression.
-             */
-            b2 = builder.SEMICOLON;
-            n2 = b2.build(t);
-            b2.setExpression(n2, n);
-            b2.finish(n2);
-            isStatement = false;
-        }
-
-        if (isStatement) {
-            n2 = Block(t, x);
-            b.setBlock(n, n2);
-        } else {
-            n2 = AssignExpression(t, x);
-            b.setExpression(n, n2);
-        }
-
-        b.finish(n);
-
-        return n;
-    }
-
-    function checkDestructuring(t, x, n, simpleNamesOnly, data) {
-        if (n.type === ARRAY_COMP)
-            throw t.newSyntaxError("Invalid array comprehension left-hand side");
-        if (n.type !== ARRAY_INIT && n.type !== OBJECT_INIT)
-            return;
-
-        var nn, n2, lhs, rhs, b = x.builder.DECL;
-        for (var i = 0, j = n.length; i < j; i++) {
-            nn = n[i];
-            if (!nn)
-                continue;
-            if (nn.type === PROPERTY_INIT)
-                lhs = nn[0], rhs = nn[1];
-            else
-                lhs = null, rhs = null;
-            if (rhs && (rhs.type === ARRAY_INIT || rhs.type === OBJECT_INIT))
-                checkDestructuring(t, x, rhs, simpleNamesOnly, data);
-            if (lhs && simpleNamesOnly) {
-                // In declarations, lhs must be simple names
-                if (lhs.type !== IDENTIFIER) {
-                    throw t.newSyntaxError("missing name in pattern");
-                } else if (data) {
-                    n2 = b.build(t);
-                    b.setName(n2, lhs.value);
-                    // Don't need to set initializer because it's just for
-                    // hoisting anyways.
-                    b.finish(n2);
-                    // Each pattern needs to be added to varDecls.
-                    data.varDecls.push(n2);
-                }
-            }
-        }
-    }
-
-    function DestructuringExpression(t, x, simpleNamesOnly, data) {
-        var n = PrimaryExpression(t, x);
-        checkDestructuring(t, x, n, simpleNamesOnly, data);
-        return n;
-    }
-
-    function GeneratorExpression(t, x, e) {
-        var n, b = x.builder.GENERATOR;
-
-        n = b.build(t);
-        b.setExpression(n, e);
-        b.setTail(n, comprehensionTail(t, x));
-        b.finish(n);
-
-        return n;
-    }
-
-    function comprehensionTail(t, x) {
-        var body, n;
-        var builder = x.builder;
-        var b = builder.COMP_TAIL;
-        var bFor = builder.FOR;
-        var bDecl = builder.DECL;
-        var bVar = builder.VAR;
-
-        // t.token.type must be FOR
-        body = b.build(t);
-
-        do {
-            n = bFor.build(t);
-            // Comprehension tails are always for..in loops.
-            bFor.rebuildForIn(n);
-            if (t.match(IDENTIFIER)) {
-                // But sometimes they're for each..in.
-                if (t.token.value === "each")
-                    bFor.rebuildForEach(n);
-                else
-                    t.unget();
-            }
-            t.mustMatch(LEFT_PAREN);
-            switch(t.get()) {
-              case LEFT_BRACKET:
-              case LEFT_CURLY:
-                t.unget();
-                // Destructured left side of for in comprehension tails.
-                b2.setIterator(n, DestructuringExpression(t, x), null);
-                break;
-
-              case IDENTIFIER:
-                var n3 = bDecl.build(t);
-                bDecl.setName(n3, n3.value);
-                bDecl.finish(n3);
-                var n2 = bVar.build(t);
-                bVar.addDecl(n2, n3);
-                bVar.finish(n2);
-                bFor.setIterator(n, n3, n2);
-                /*
-                 * Don't add to varDecls since the semantics of comprehensions is
-                 * such that the variables are in their own function when
-                 * desugared.
-                 */
-                break;
-
-              default:
-                throw t.newSyntaxError("missing identifier");
-            }
-            t.mustMatch(IN);
-            bFor.setObject(n, Expression(t, x));
-            t.mustMatch(RIGHT_PAREN);
-            b.addFor(body, n);
-        } while (t.match(FOR));
-
-        // Optional guard.
-        if (t.match(IF))
-            b.setGuard(body, ParenExpression(t, x));
-
-        b.finish(body);
-        return body;
-    }
-
-    function ParenExpression(t, x) {
-        t.mustMatch(LEFT_PAREN);
-
-        /*
-         * Always accept the 'in' operator in a parenthesized expression,
-         * where it's unambiguous, even if we might be parsing the init of a
-         * for statement.
-         */
-        var oldLoopInit = x.inForLoopInit;
-        x.inForLoopInit = false;
-        var n = Expression(t, x);
-        x.inForLoopInit = oldLoopInit;
-
-        var err = "expression must be parenthesized";
-        if (t.match(FOR)) {
-            if (n.type === YIELD && !n.parenthesized)
-                throw t.newSyntaxError("Yield " + err);
-            if (n.type === COMMA && !n.parenthesized)
-                throw t.newSyntaxError("Generator " + err);
-            n = GeneratorExpression(t, x, n);
-        }
-
-        t.mustMatch(RIGHT_PAREN);
-
-        return n;
-    }
-
-    /*
-     * Expression :: (tokenizer, compiler context) -> node
-     *
-     * Top-down expression parser matched against SpiderMonkey.
-     */
-    function Expression(t, x) {
-        var n, n2, b = x.builder.COMMA;
-
-        n = AssignExpression(t, x);
-        if (t.match(COMMA)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            n = n2;
-            do {
-                n2 = n[n.length-1];
-                if (n2.type === YIELD && !n2.parenthesized)
-                    throw t.newSyntaxError("Yield expression must be parenthesized");
-                b.addOperand(n, AssignExpression(t, x));
-            } while (t.match(COMMA));
-            b.finish(n);
-        }
-
-        return n;
-    }
-
-    function AssignExpression(t, x) {
-        var n, lhs, b = x.builder.ASSIGN;
-
-        // Have to treat yield like an operand because it could be the leftmost
-        // operand of the expression.
-        if (t.match(YIELD, true))
-            return returnOrYield(t, x);
-
-        n = b.build(t);
-        lhs = ConditionalExpression(t, x);
-
-        if (!t.match(ASSIGN)) {
-            b.finish(n);
-            return lhs;
-        }
-
-        switch (lhs.type) {
-          case OBJECT_INIT:
-          case ARRAY_INIT:
-            checkDestructuring(t, x, lhs);
-            // FALL THROUGH
-          case IDENTIFIER: case DOT: case INDEX: case CALL:
-            break;
-          default:
-            throw t.newSyntaxError("Bad left-hand side of assignment");
-            break;
-        }
-
-        b.setAssignOp(n, t.token.assignOp);
-        b.addOperand(n, lhs);
-        b.addOperand(n, AssignExpression(t, x));
-        b.finish(n);
-
-        return n;
-    }
-
-    function ConditionalExpression(t, x) {
-        var n, n2, b = x.builder.HOOK;
-
-        n = OrExpression(t, x);
-        if (t.match(HOOK)) {
-            n2 = n;
-            n = b.build(t);
-            b.setCondition(n, n2);
-            /*
-             * Always accept the 'in' operator in the middle clause of a ternary,
-             * where it's unambiguous, even if we might be parsing the init of a
-             * for statement.
-             */
-            var oldLoopInit = x.inForLoopInit;
-            x.inForLoopInit = false;
-            b.setThenPart(n, AssignExpression(t, x));
-            x.inForLoopInit = oldLoopInit;
-            if (!t.match(COLON))
-                throw t.newSyntaxError("missing : after ?");
-            b.setElsePart(n, AssignExpression(t, x));
-            b.finish(n);
-        }
-
-        return n;
-    }
-
-    function OrExpression(t, x) {
-        var n, n2, b = x.builder.OR;
-
-        n = AndExpression(t, x);
-        while (t.match(OR)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, AndExpression(t, x));
-            b.finish(n2);
-            n = n2;
-        }
-
-        return n;
-    }
-
-    function AndExpression(t, x) {
-        var n, n2, b = x.builder.AND;
-
-        n = BitwiseOrExpression(t, x);
-        while (t.match(AND)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, BitwiseOrExpression(t, x));
-            b.finish(n2);
-            n = n2;
-        }
-
-        return n;
-    }
-
-    function BitwiseOrExpression(t, x) {
-        var n, n2, b = x.builder.BITWISE_OR;
-
-        n = BitwiseXorExpression(t, x);
-        while (t.match(BITWISE_OR)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, BitwiseXorExpression(t, x));
-            b.finish(n2);
-            n = n2;
-        }
-
-        return n;
-    }
-
-    function BitwiseXorExpression(t, x) {
-        var n, n2, b = x.builder.BITWISE_XOR;
-
-        n = BitwiseAndExpression(t, x);
-        while (t.match(BITWISE_XOR)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, BitwiseAndExpression(t, x));
-            b.finish(n2);
-            n = n2;
-        }
-
-        return n;
-    }
-
-    function BitwiseAndExpression(t, x) {
-        var n, n2, b = x.builder.BITWISE_AND;
-
-        n = EqualityExpression(t, x);
-        while (t.match(BITWISE_AND)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, EqualityExpression(t, x));
-            b.finish(n2);
-            n = n2;
-        }
-
-        return n;
-    }
-
-    function EqualityExpression(t, x) {
-        var n, n2, b = x.builder.EQUALITY;
-
-        n = RelationalExpression(t, x);
-        while (t.match(EQ) || t.match(NE) ||
-               t.match(STRICT_EQ) || t.match(STRICT_NE)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, RelationalExpression(t, x));
-            b.finish(n2);
-            n = n2;
-        }
-
-        return n;
-    }
-
-    function RelationalExpression(t, x) {
-        var n, n2, b = x.builder.RELATIONAL;
-        var oldLoopInit = x.inForLoopInit;
-
-        /*
-         * Uses of the in operator in shiftExprs are always unambiguous,
-         * so unset the flag that prohibits recognizing it.
-         */
-        x.inForLoopInit = false;
-        n = ShiftExpression(t, x);
-        while ((t.match(LT) || t.match(LE) || t.match(GE) || t.match(GT) ||
-               (oldLoopInit === false && t.match(IN)) ||
-               t.match(INSTANCEOF))) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, ShiftExpression(t, x));
-            b.finish(n2);
-            n = n2;
-        }
-        x.inForLoopInit = oldLoopInit;
-
-        return n;
-    }
-
-    function ShiftExpression(t, x) {
-        var n, n2, b = x.builder.SHIFT;
-
-        n = AddExpression(t, x);
-        while (t.match(LSH) || t.match(RSH) || t.match(URSH)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, AddExpression(t, x));
-            b.finish(n2);
-            n = n2;
-        }
-
-        return n;
-    }
-
-    function AddExpression(t, x) {
-        var n, n2, b = x.builder.ADD;
-
-        n = MultiplyExpression(t, x);
-        while (t.match(PLUS) || t.match(MINUS)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, MultiplyExpression(t, x));
-            b.finish(n2);
-            n = n2;
-        }
-
-        return n;
-    }
-
-    function MultiplyExpression(t, x) {
-        var n, n2, b = x.builder.MULTIPLY;
-
-        n = UnaryExpression(t, x);
-        while (t.match(MUL) || t.match(DIV) || t.match(MOD)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, UnaryExpression(t, x));
-            b.finish(n2);
-            n = n2;
-        }
-
-        return n;
-    }
-
-    function UnaryExpression(t, x) {
-        var n, n2, tt, b = x.builder.UNARY;
-
-        switch (tt = t.get(true)) {
-          case DELETE: case VOID: case TYPEOF:
-          case NOT: case BITWISE_NOT: case PLUS: case MINUS:
-            n = b.build(t);
-            b.addOperand(n, UnaryExpression(t, x));
-            break;
-
-          case INCREMENT:
-          case DECREMENT:
-            // Prefix increment/decrement.
-            n = b.build(t)
-            b.addOperand(n, MemberExpression(t, x, true));
-            break;
-
-          default:
-            t.unget();
-            n = MemberExpression(t, x, true);
-
-            // Don't look across a newline boundary for a postfix {in,de}crement.
-            if (t.tokens[(t.tokenIndex + t.lookahead - 1) & 3].lineno ===
-                t.lineno) {
-                if (t.match(INCREMENT) || t.match(DECREMENT)) {
-                    n2 = b.build(t);
-                    b.setPostfix(n2);
-                    b.finish(n);
-                    b.addOperand(n2, n);
-                    n = n2;
-                }
-            }
-            break;
-        }
-
-        b.finish(n);
-        return n;
-    }
-
-    function MemberExpression(t, x, allowCallSyntax) {
-        var n, n2, tt, b = x.builder.MEMBER;
-
-        if (t.match(NEW)) {
-            n = b.build(t);
-            b.addOperand(n, MemberExpression(t, x, false));
-            if (t.match(LEFT_PAREN)) {
-                b.rebuildNewWithArgs(n);
-                b.addOperand(n, ArgumentList(t, x));
-            }
-            b.finish(n);
-        } else {
-            n = PrimaryExpression(t, x);
-        }
-
-        while ((tt = t.get()) !== END) {
+        n.cases = [];
+        n.defaultIndex = -1;
+        x.stmtStack.push(n);
+        t.mustMatch(LEFT_CURLY);
+        while ((tt = t.get()) != RIGHT_CURLY) {
             switch (tt) {
-              case DOT:
-                n2 = b.build(t);
-                b.addOperand(n2, n);
-                t.mustMatch(IDENTIFIER);
-                b.addOperand(n2, b.build(t));
+              case DEFAULT:
+                if (n.defaultIndex >= 0)
+                    throw t.newSyntaxError("More than one switch default");
+                // FALL THROUGH
+              case CASE:
+                n2 = new Node(t);
+                if (tt == DEFAULT)
+                    n.defaultIndex = n.cases.length;
+                else
+                    n2.caseLabel = Expression(t, x, COLON);
                 break;
+              default:
+                throw t.newSyntaxError("Invalid switch case");
+            }
+            t.mustMatch(COLON);
+            n2.statements = new Node(t, BLOCK);
+            while ((tt=t.peek()) != CASE && tt != DEFAULT && tt != RIGHT_CURLY)
+                n2.statements.push(Statement(t, x));
+            n.cases.push(n2);
+        }
+        x.stmtStack.pop();
+        return n;
 
-              case LEFT_BRACKET:
-                n2 = b.build(t, INDEX);
-                b.addOperand(n2, n);
-                b.addOperand(n2, Expression(t, x));
-                t.mustMatch(RIGHT_BRACKET);
-                break;
-
-              case LEFT_PAREN:
-                if (allowCallSyntax) {
-                    n2 = b.build(t, CALL);
-                    b.addOperand(n2, n);
-                    b.addOperand(n2, ArgumentList(t, x));
-                    break;
+      case FOR:
+        n = new Node(t);
+        n.isLoop = true;
+        t.mustMatch(LEFT_PAREN);
+        if ((tt = t.peek()) != SEMICOLON) {
+            x.inForLoopInit = true;
+            if (tt == VAR || tt == CONST) {
+                t.get();
+                n2 = Variables(t, x);
+            } else {
+                n2 = Expression(t, x);
+            }
+            x.inForLoopInit = false;
+        }
+        if (n2 && t.match(IN)) {
+            n.type = FOR_IN;
+            if (n2.type == VAR) {
+                if (n2.length != 1) {
+                    throw new SyntaxError("Invalid for..in left-hand side",
+                                          t.filename, n2.lineno);
                 }
 
-                // FALL THROUGH
-              default:
-                t.unget();
+                // NB: n2[0].type == IDENTIFIER and n2[0].value == n2[0].name.
+                n.iterator = n2[0];
+                n.varDecl = n2;
+            } else {
+                n.iterator = n2;
+                n.varDecl = null;
+            }
+            n.object = Expression(t, x);
+        } else {
+            n.setup = n2 || null;
+            t.mustMatch(SEMICOLON);
+            n.condition = (t.peek() == SEMICOLON) ? null : Expression(t, x);
+            t.mustMatch(SEMICOLON);
+            n.update = (t.peek() == RIGHT_PAREN) ? null : Expression(t, x);
+        }
+        t.mustMatch(RIGHT_PAREN);
+        n.body = nest(t, x, n, Statement);
+        return n;
+
+      case WHILE:
+        n = new Node(t);
+        n.isLoop = true;
+        n.condition = ParenExpression(t, x);
+        n.body = nest(t, x, n, Statement);
+        return n;
+
+      case DO:
+        n = new Node(t);
+        n.isLoop = true;
+        n.body = nest(t, x, n, Statement, WHILE);
+        n.condition = ParenExpression(t, x);
+        if (!x.ecmaStrictMode) {
+            // <script language="JavaScript"> (without version hints) may need
+            // automatic semicolon insertion without a newline after do-while.
+            // See http://bugzilla.mozilla.org/show_bug.cgi?id=238945.
+            t.match(SEMICOLON);
+            return n;
+        }
+        break;
+
+      case BREAK:
+      case CONTINUE:
+        n = new Node(t);
+        if (t.peekOnSameLine() == IDENTIFIER) {
+            t.get();
+            n.label = t.token.value;
+        }
+        ss = x.stmtStack;
+        i = ss.length;
+        label = n.label;
+        if (label) {
+            do {
+                if (--i < 0)
+                    throw t.newSyntaxError("Label not found");
+            } while (ss[i].label != label);
+
+            /*
+             * Both break and continue to label need to be handled specially
+             * within a labeled loop, so that they target that loop. If not in
+             * a loop, then break targets its labeled statement. Labels can be
+             * nested so we skip all labels immediately enclosing the nearest
+             * non-label statement.
+             */
+            while (i < ss.length - 1 && ss[i+1].type == LABEL)
+                i++;
+            if (i < ss.length - 1 && ss[i+1].isLoop)
+                i++;
+            else if (tt == CONTINUE)
+                throw t.newSyntaxError("Invalid continue");
+        } else {
+            do {
+                if (--i < 0) {
+                    throw t.newSyntaxError("Invalid " + ((tt == BREAK)
+                                                         ? "break"
+                                                         : "continue"));
+                }
+            } while (!ss[i].isLoop && !(tt == BREAK && ss[i].type == SWITCH));
+        }
+        n.target = ss[i];
+        break;
+
+      case TRY:
+        n = new Node(t);
+        n.tryBlock = Block(t, x);
+        n.catchClauses = [];
+        while (t.match(CATCH)) {
+            n2 = new Node(t);
+            t.mustMatch(LEFT_PAREN);
+            n2.varName = t.mustMatch(IDENTIFIER).value;
+            if (t.match(IF)) {
+                if (x.ecma3OnlyMode)
+                    throw t.newSyntaxError("Illegal catch guard");
+                if (n.catchClauses.length && !n.catchClauses.top().guard)
+                    throw t.newSyntaxError("Guarded catch after unguarded");
+                n2.guard = Expression(t, x);
+            } else {
+                n2.guard = null;
+            }
+            t.mustMatch(RIGHT_PAREN);
+            n2.block = Block(t, x);
+            n.catchClauses.push(n2);
+        }
+        if (t.match(FINALLY))
+            n.finallyBlock = Block(t, x);
+        if (!n.catchClauses.length && !n.finallyBlock)
+            throw t.newSyntaxError("Invalid try statement");
+        return n;
+
+      case CATCH:
+      case FINALLY:
+        throw t.newSyntaxError(tokens[tt] + " without preceding try");
+
+      case THROW:
+        n = new Node(t);
+        n.exception = Expression(t, x);
+        break;
+
+      case RETURN:
+        if (!x.inFunction)
+            throw t.newSyntaxError("Invalid return");
+        n = new Node(t);
+        tt = t.peekOnSameLine();
+        if (tt != END && tt != NEWLINE && tt != SEMICOLON && tt != RIGHT_CURLY)
+            n.value = Expression(t, x);
+        break;
+
+      case WITH:
+        n = new Node(t);
+        n.object = ParenExpression(t, x);
+        n.body = nest(t, x, n, Statement);
+        return n;
+
+      case VAR:
+      case CONST:
+        n = Variables(t, x);
+        break;
+
+      case DEBUGGER:
+        n = new Node(t);
+        break;
+
+      case NEWLINE:
+      case SEMICOLON:
+        n = new Node(t, SEMICOLON);
+        n.expression = null;
+        return n;
+
+      default:
+        if (tt == IDENTIFIER) {
+            t.scanOperand = false;
+            tt = t.peek();
+            t.scanOperand = true;
+            if (tt == COLON) {
+                label = t.token.value;
+                ss = x.stmtStack;
+                for (i = ss.length-1; i >= 0; --i) {
+                    if (ss[i].label == label)
+                        throw t.newSyntaxError("Duplicate label");
+                }
+                t.get();
+                n = new Node(t, LABEL);
+                n.label = label;
+                n.statement = nest(t, x, n, Statement);
                 return n;
             }
-
-            b.finish(n2);
-            n = n2;
         }
 
-        return n;
+        n = new Node(t, SEMICOLON);
+        t.unget();
+        n.expression = Expression(t, x);
+        n.end = n.expression.end;
+        break;
     }
 
-    function ArgumentList(t, x) {
-        var n, n2, b = x.builder.LIST;
-        var err = "expression must be parenthesized";
+    if (t.lineno == t.token.lineno) {
+        tt = t.peekOnSameLine();
+        if (tt != END && tt != NEWLINE && tt != SEMICOLON && tt != RIGHT_CURLY)
+            throw t.newSyntaxError("Missing ; before statement");
+    }
+    t.match(SEMICOLON);
+    return n;
+}
 
-        n = b.build(t);
-        if (t.match(RIGHT_PAREN, true))
-            return n;
-        do {
-            n2 = AssignExpression(t, x);
-            if (n2.type === YIELD && !n2.parenthesized && t.peek() === COMMA)
-                throw t.newSyntaxError("Yield " + err);
-            if (t.match(FOR)) {
-                n2 = GeneratorExpression(t, x, n2);
-                if (n.length > 1 || t.peek(true) === COMMA)
-                    throw t.newSyntaxError("Generator " + err);
+function FunctionDefinition(t, x, requireName, functionForm) {
+    var f = new Node(t);
+    if (f.type != FUNCTION)
+        f.type = (f.value == "get") ? GETTER : SETTER;
+    if (t.match(IDENTIFIER))
+        f.name = t.token.value;
+    else if (requireName)
+        throw t.newSyntaxError("Missing function identifier");
+
+    t.mustMatch(LEFT_PAREN);
+    f.params = [];
+    var tt;
+    while ((tt = t.get()) != RIGHT_PAREN) {
+        if (tt != IDENTIFIER)
+            throw t.newSyntaxError("Missing formal parameter");
+        f.params.push(t.token.value);
+        if (t.peek() != RIGHT_PAREN)
+            t.mustMatch(COMMA);
+    }
+
+    t.mustMatch(LEFT_CURLY);
+    var x2 = new CompilerContext(true);
+    f.body = Script(t, x2);
+    t.mustMatch(RIGHT_CURLY);
+    f.end = t.token.end;
+
+    f.functionForm = functionForm;
+    if (functionForm == DECLARED_FORM)
+        x.funDecls.push(f);
+    return f;
+}
+
+function Variables(t, x) {
+    var n = new Node(t);
+    do {
+        t.mustMatch(IDENTIFIER);
+        var n2 = new Node(t);
+        n2.name = n2.value;
+        if (t.match(ASSIGN)) {
+            if (t.token.assignOp)
+                throw t.newSyntaxError("Invalid variable initialization");
+            n2.initializer = Expression(t, x, COMMA);
+        }
+        n2.readOnly = (n.type == CONST);
+        n.push(n2);
+        x.varDecls.push(n2);
+    } while (t.match(COMMA));
+    return n;
+}
+
+function ParenExpression(t, x) {
+    t.mustMatch(LEFT_PAREN);
+    var n = Expression(t, x);
+    t.mustMatch(RIGHT_PAREN);
+    return n;
+}
+
+var opPrecedence = {
+    SEMICOLON: 0,
+    COMMA: 1,
+    ASSIGN: 2, HOOK: 2, COLON: 2,
+    // The above all have to have the same precedence, see bug 330975.
+    OR: 4,
+    AND: 5,
+    BITWISE_OR: 6,
+    BITWISE_XOR: 7,
+    BITWISE_AND: 8,
+    EQ: 9, NE: 9, STRICT_EQ: 9, STRICT_NE: 9,
+    LT: 10, LE: 10, GE: 10, GT: 10, IN: 10, INSTANCEOF: 10,
+    LSH: 11, RSH: 11, URSH: 11,
+    PLUS: 12, MINUS: 12,
+    MUL: 13, DIV: 13, MOD: 13,
+    DELETE: 14, VOID: 14, TYPEOF: 14, // PRE_INCREMENT: 14, PRE_DECREMENT: 14,
+    NOT: 14, BITWISE_NOT: 14, UNARY_PLUS: 14, UNARY_MINUS: 14,
+    INCREMENT: 15, DECREMENT: 15,     // postfix
+    NEW: 16,
+    DOT: 17
+};
+
+// Map operator type code to precedence.
+for (i in opPrecedence)
+    opPrecedence[GLOBAL[i]] = opPrecedence[i];
+
+var opArity = {
+    COMMA: -2,
+    ASSIGN: 2,
+    HOOK: 3,
+    OR: 2,
+    AND: 2,
+    BITWISE_OR: 2,
+    BITWISE_XOR: 2,
+    BITWISE_AND: 2,
+    EQ: 2, NE: 2, STRICT_EQ: 2, STRICT_NE: 2,
+    LT: 2, LE: 2, GE: 2, GT: 2, IN: 2, INSTANCEOF: 2,
+    LSH: 2, RSH: 2, URSH: 2,
+    PLUS: 2, MINUS: 2,
+    MUL: 2, DIV: 2, MOD: 2,
+    DELETE: 1, VOID: 1, TYPEOF: 1,  // PRE_INCREMENT: 1, PRE_DECREMENT: 1,
+    NOT: 1, BITWISE_NOT: 1, UNARY_PLUS: 1, UNARY_MINUS: 1,
+    INCREMENT: 1, DECREMENT: 1,     // postfix
+    NEW: 1, NEW_WITH_ARGS: 2, DOT: 2, INDEX: 2, CALL: 2,
+    ARRAY_INIT: 1, OBJECT_INIT: 1, GROUP: 1
+};
+
+// Map operator type code to arity.
+for (i in opArity)
+    opArity[GLOBAL[i]] = opArity[i];
+
+function Expression(t, x, stop) {
+    var n, id, tt, operators = [], operands = [];
+    var bl = x.bracketLevel, cl = x.curlyLevel, pl = x.parenLevel,
+        hl = x.hookLevel;
+
+    function reduce() {
+        var n = operators.pop();
+        var op = n.type;
+        var arity = opArity[op];
+        if (arity == -2) {
+            // Flatten left-associative trees.
+            var left = operands.length >= 2 && operands[operands.length-2];
+            if (left.type == op) {
+                var right = operands.pop();
+                left.push(right);
+                return left;
             }
-            b.addOperand(n, n2);
-        } while (t.match(COMMA));
-        t.mustMatch(RIGHT_PAREN);
-        b.finish(n);
+            arity = 2;
+        }
 
+        // Always use push to add operands to n, to update start and end.
+        var a = operands.splice(operands.length - arity);
+        for (var i = 0; i < arity; i++)
+            n.push(a[i]);
+
+        // Include closing bracket or postfix operator in [start,end).
+        if (n.end < t.token.end)
+            n.end = t.token.end;
+
+        operands.push(n);
         return n;
     }
 
-    function PrimaryExpression(t, x) {
-        var n, n2, n3, tt = t.get(true);
-        var builder = x.builder;
-        var bArrayInit = builder.ARRAY_INIT;
-        var bArrayComp = builder.ARRAY_COMP;
-        var bPrimary = builder.PRIMARY;
-        var bObjInit = builder.OBJECT_INIT;
-        var bPropInit = builder.PROPERTY_INIT;
-
+loop:
+    while ((tt = t.get()) != END) {
+        if (tt == stop &&
+            x.bracketLevel == bl && x.curlyLevel == cl && x.parenLevel == pl &&
+            x.hookLevel == hl) {
+            // Stop only if tt matches the optional stop parameter, and that
+            // token is not quoted by some kind of bracket.
+            break;
+        }
         switch (tt) {
+          case SEMICOLON:
+            // NB: cannot be empty, Statement handled that.
+            break loop;
+
+          case ASSIGN:
+          case HOOK:
+          case COLON:
+            if (t.scanOperand)
+                break loop;
+            // Use >, not >=, for right-associative ASSIGN and HOOK/COLON.
+            while (opPrecedence[operators.top().type] > opPrecedence[tt] ||
+                   (tt == COLON && operators.top().type == ASSIGN)) {
+                reduce();
+            }
+            if (tt == COLON) {
+                n = operators.top();
+                if (n.type != HOOK)
+                    throw t.newSyntaxError("Invalid label");
+                --x.hookLevel;
+            } else {
+                operators.push(new Node(t));
+                if (tt == ASSIGN)
+                    operands.top().assignOp = t.token.assignOp;
+                else
+                    ++x.hookLevel;      // tt == HOOK
+            }
+            t.scanOperand = true;
+            break;
+
+          case IN:
+            // An in operator should not be parsed if we're parsing the head of
+            // a for (...) loop, unless it is in the then part of a conditional
+            // expression, or parenthesized somehow.
+            if (x.inForLoopInit && !x.hookLevel &&
+                !x.bracketLevel && !x.curlyLevel && !x.parenLevel) {
+                break loop;
+            }
+            // FALL THROUGH
+          case COMMA:
+            // Treat comma as left-associative so reduce can fold left-heavy
+            // COMMA trees into a single array.
+            // FALL THROUGH
+          case OR:
+          case AND:
+          case BITWISE_OR:
+          case BITWISE_XOR:
+          case BITWISE_AND:
+          case EQ: case NE: case STRICT_EQ: case STRICT_NE:
+          case LT: case LE: case GE: case GT:
+          case INSTANCEOF:
+          case LSH: case RSH: case URSH:
+          case PLUS: case MINUS:
+          case MUL: case DIV: case MOD:
+          case DOT:
+            if (t.scanOperand)
+                break loop;
+            while (opPrecedence[operators.top().type] >= opPrecedence[tt])
+                reduce();
+            if (tt == DOT) {
+                t.mustMatch(IDENTIFIER);
+                operands.push(new Node(t, DOT, operands.pop(), new Node(t)));
+            } else {
+                operators.push(new Node(t));
+                t.scanOperand = true;
+            }
+            break;
+
+          case DELETE: case VOID: case TYPEOF:
+          case NOT: case BITWISE_NOT: case UNARY_PLUS: case UNARY_MINUS:
+          case NEW:
+            if (!t.scanOperand)
+                break loop;
+            operators.push(new Node(t));
+            break;
+
+          case INCREMENT: case DECREMENT:
+            if (t.scanOperand) {
+                operators.push(new Node(t));  // prefix increment or decrement
+            } else {
+                // Don't cross a line boundary for postfix {in,de}crement.
+                if (t.tokens[(t.tokenIndex + t.lookahead - 1) & 3].lineno !=
+                    t.lineno) {
+                    break loop;
+                }
+
+                // Use >, not >=, so postfix has higher precedence than prefix.
+                while (opPrecedence[operators.top().type] > opPrecedence[tt])
+                    reduce();
+                n = new Node(t, tt, operands.pop());
+                n.postfix = true;
+                operands.push(n);
+            }
+            break;
+
           case FUNCTION:
-            n = FunctionDefinition(t, x, false, EXPRESSED_FORM);
+            if (!t.scanOperand)
+                break loop;
+            operands.push(FunctionDefinition(t, x, false, EXPRESSED_FORM));
+            t.scanOperand = false;
+            break;
+
+          case NULL: case THIS: case TRUE: case FALSE:
+          case IDENTIFIER: case NUMBER: case STRING: case REGEXP:
+            if (!t.scanOperand)
+                break loop;
+            operands.push(new Node(t));
+            t.scanOperand = false;
             break;
 
           case LEFT_BRACKET:
-            n = bArrayInit.build(t);
-            while ((tt = t.peek(true)) !== RIGHT_BRACKET) {
-                if (tt === COMMA) {
-                    t.get();
-                    bArrayInit.addElement(n, null);
-                    continue;
+            if (t.scanOperand) {
+                // Array initialiser.  Parse using recursive descent, as the
+                // sub-grammar here is not an operator grammar.
+                n = new Node(t, ARRAY_INIT);
+                while ((tt = t.peek()) != RIGHT_BRACKET) {
+                    if (tt == COMMA) {
+                        t.get();
+                        n.push(null);
+                        continue;
+                    }
+                    n.push(Expression(t, x, COMMA));
+                    if (!t.match(COMMA))
+                        break;
                 }
-                bArrayInit.addElement(n, AssignExpression(t, x));
-                if (tt !== COMMA && !t.match(COMMA))
-                    break;
+                t.mustMatch(RIGHT_BRACKET);
+                operands.push(n);
+                t.scanOperand = false;
+            } else {
+                // Property indexing operator.
+                operators.push(new Node(t, INDEX));
+                t.scanOperand = true;
+                ++x.bracketLevel;
             }
+            break;
 
-            // If we matched exactly one element and got a FOR, we have an
-            // array comprehension.
-            if (n.length === 1 && t.match(FOR)) {
-                n2 = bArrayComp.build(t);
-                bArrayComp.setExpression(n2, n[0]);
-                bArrayComp.setTail(n2, comprehensionTail(t, x));
-                n = n2;
-            }
-            t.mustMatch(RIGHT_BRACKET);
-            bPrimary.finish(n);
+          case RIGHT_BRACKET:
+            if (t.scanOperand || x.bracketLevel == bl)
+                break loop;
+            while (reduce().type != INDEX)
+                continue;
+            --x.bracketLevel;
             break;
 
           case LEFT_CURLY:
-            var id, fd;
-            n = bObjInit.build(t);
-
+            if (!t.scanOperand)
+                break loop;
+            // Object initialiser.  As for array initialisers (see above),
+            // parse using recursive descent.
+            ++x.curlyLevel;
+            n = new Node(t, OBJECT_INIT);
           object_init:
             if (!t.match(RIGHT_CURLY)) {
                 do {
                     tt = t.get();
-                    if ((t.token.value === "get" || t.token.value === "set") &&
-                        t.peek() === IDENTIFIER) {
+                    if ((t.token.value == "get" || t.token.value == "set") &&
+                        t.peek() == IDENTIFIER) {
                         if (x.ecma3OnlyMode)
                             throw t.newSyntaxError("Illegal property accessor");
-                        fd = FunctionDefinition(t, x, true, EXPRESSED_FORM);
-                        bObjInit.addProperty(n, fd);
+                        n.push(FunctionDefinition(t, x, true, EXPRESSED_FORM));
                     } else {
                         switch (tt) {
-                          case IDENTIFIER: case NUMBER: case STRING:
-                            id = bPrimary.build(t, IDENTIFIER);
-                            bPrimary.finish(id);
+                          case IDENTIFIER:
+                          case NUMBER:
+                          case STRING:
+                            id = new Node(t);
                             break;
                           case RIGHT_CURLY:
                             if (x.ecma3OnlyMode)
                                 throw t.newSyntaxError("Illegal trailing ,");
                             break object_init;
                           default:
-                            if (t.token.value in definitions.keywords) {
-                                id = bPrimary.build(t, IDENTIFIER);
-                                bPrimary.finish(id);
-                                break;
-                            }
                             throw t.newSyntaxError("Invalid property name");
                         }
-                        if (t.match(COLON)) {
-                            n2 = bPropInit.build(t);
-                            bPropInit.addOperand(n2, id);
-                            bPropInit.addOperand(n2, AssignExpression(t, x));
-                            bPropInit.finish(n2);
-                            bObjInit.addProperty(n, n2);
-                        } else {
-                            // Support, e.g., |var {x, y} = o| as destructuring shorthand
-                            // for |var {x: x, y: y} = o|, per proposed JS2/ES4 for JS1.8.
-                            if (t.peek() !== COMMA && t.peek() !== RIGHT_CURLY)
-                                throw t.newSyntaxError("missing : after property");
-                            bObjInit.addProperty(n, id);
-                        }
+                        t.mustMatch(COLON);
+                        n.push(new Node(t, PROPERTY_INIT, id,
+                                        Expression(t, x, COMMA)));
                     }
                 } while (t.match(COMMA));
                 t.mustMatch(RIGHT_CURLY);
             }
-            bObjInit.finish(n);
+            operands.push(n);
+            t.scanOperand = false;
+            --x.curlyLevel;
             break;
+
+          case RIGHT_CURLY:
+            if (!t.scanOperand && x.curlyLevel != cl)
+                throw "PANIC: right curly botch";
+            break loop;
 
           case LEFT_PAREN:
-            // ParenExpression does its own matching on parentheses, so we need to
-            // unget.
-            t.unget();
-            n = ParenExpression(t, x);
-            n.parenthesized = true;
+            if (t.scanOperand) {
+                operators.push(new Node(t, GROUP));
+            } else {
+                while (opPrecedence[operators.top().type] > opPrecedence[NEW])
+                    reduce();
+
+                // Handle () now, to regularize the n-ary case for n > 0.
+                // We must set scanOperand in case there are arguments and
+                // the first one is a regexp or unary+/-.
+                n = operators.top();
+                t.scanOperand = true;
+                if (t.match(RIGHT_PAREN)) {
+                    if (n.type == NEW) {
+                        --operators.length;
+                        n.push(operands.pop());
+                    } else {
+                        n = new Node(t, CALL, operands.pop(),
+                                     new Node(t, LIST));
+                    }
+                    operands.push(n);
+                    t.scanOperand = false;
+                    break;
+                }
+                if (n.type == NEW)
+                    n.type = NEW_WITH_ARGS;
+                else
+                    operators.push(new Node(t, CALL));
+            }
+            ++x.parenLevel;
             break;
 
-          case LET:
-            n = LetBlock(t, x, false);
+          case RIGHT_PAREN:
+            if (t.scanOperand || x.parenLevel == pl)
+                break loop;
+            while ((tt = reduce().type) != GROUP && tt != CALL &&
+                   tt != NEW_WITH_ARGS) {
+                continue;
+            }
+            if (tt != GROUP) {
+                n = operands.top();
+                if (n[1].type != COMMA)
+                    n[1] = new Node(t, LIST, n[1]);
+                else
+                    n[1].type = LIST;
+            }
+            --x.parenLevel;
             break;
 
-          case NULL: case THIS: case TRUE: case FALSE:
-          case IDENTIFIER: case NUMBER: case STRING: case REGEXP:
-            n = bPrimary.build(t);
-            bPrimary.finish(n);
-            break;
-
+          // Automatic semicolon insertion means we may scan across a newline
+          // and into the beginning of another statement.  If so, break out of
+          // the while loop and let the t.scanOperand logic handle errors.
           default:
-            throw t.newSyntaxError("missing operand");
-            break;
+            break loop;
         }
-
-        return n;
     }
 
-    /*
-     * parse :: (builder, file ptr, path, line number) -> node
-     */
-    function parse(b, s, f, l) {
-        var t = new lexer.Tokenizer(s, f, l);
-        var x = new StaticContext(false, b);
-        var n = Script(t, x);
-        if (!t.done)
-            throw t.newSyntaxError("Syntax error");
+    if (x.hookLevel != hl)
+        throw t.newSyntaxError("Missing : after ?");
+    if (x.parenLevel != pl)
+        throw t.newSyntaxError("Missing ) in parenthetical");
+    if (x.bracketLevel != bl)
+        throw t.newSyntaxError("Missing ] in index expression");
+    if (t.scanOperand)
+        throw t.newSyntaxError("Missing operand");
 
-        return n;
-    }
+    // Resume default mode, scanning for operands, not operators.
+    t.scanOperand = true;
+    t.unget();
+    while (operators.length)
+        reduce();
+    return operands.pop();
+}
 
-    return {
-        parse: parse,
-        Node: Node,
-        DefaultBuilder: DefaultBuilder,
-        get SSABuilder() {
-            throw new Error("SSA builder not yet supported");
-        },
-        bindSubBuilders: bindSubBuilders,
-        DECLARED_FORM: DECLARED_FORM,
-        EXPRESSED_FORM: EXPRESSED_FORM,
-        STATEMENT_FORM: STATEMENT_FORM,
-        Tokenizer: lexer.Tokenizer,
-        FunctionDefinition: FunctionDefinition
-    };
-
-}());
+function parse(s, f, l) {
+    var t = new Tokenizer(s, f, l);
+    var x = new CompilerContext(false);
+    var n = Script(t, x);
+    if (!t.done)
+        throw t.newSyntaxError("Syntax error");
+    return n;
+}

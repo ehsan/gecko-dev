@@ -29,11 +29,9 @@ let promptService = {
   }
 };
 
-/* FIXME
 Cm.QueryInterface(Ci.nsIComponentRegistrar)
   .registerFactory(Components.ID(kPromptServiceUUID), "Prompt Service",
                    kPromptServiceContractID, fakePromptServiceFactory);
-*/
 
 const kCompleteState = Ci.nsIWebProgressListener.STATE_STOP +
                        Ci.nsIWebProgressListener.STATE_IS_NETWORK;
@@ -57,12 +55,15 @@ var gProgressListener = {
       ok(gBrowser.tabs.length == kURIs.length, "Correctly opened all expected tabs");
       finishTest();
     }
-  }
+  },
+
+  onProgressChange: function () {},
+  onLocationChange: function () {},
+  onStatusChange: function () {},
+  onSecurityChange: function () {}
 }
 
 function test() {
-  todo(false, "temp. disabled");
-  return; /* FIXME */
   waitForExplicitFinish();
   // Wait for all tabs to finish loading
   gBrowser.addTabsProgressListener(gProgressListener);

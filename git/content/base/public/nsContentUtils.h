@@ -68,8 +68,6 @@
 #include "nsReadableUtils.h"
 #include "nsIPrefBranch2.h"
 #include "mozilla/AutoRestore.h"
-#include "nsINode.h"
-#include "nsHashtable.h"
 
 #include "jsapi.h"
 
@@ -77,6 +75,7 @@ struct nsNativeKeyEvent; // Don't include nsINativeKeyBindings.h here: it will f
 
 class nsIDOMScriptObjectFactory;
 class nsIXPConnect;
+class nsINode;
 class nsIContent;
 class nsIDOMNode;
 class nsIDOMKeyEvent;
@@ -111,8 +110,8 @@ class nsIScriptContext;
 class nsIRunnable;
 class nsIInterfaceRequestor;
 template<class E> class nsCOMArray;
-template<class K, class V> class nsRefPtrHashtable;
 struct JSRuntime;
+class nsICaseConversion;
 class nsIUGenCategory;
 class nsIWidget;
 class nsIDragSession;
@@ -121,7 +120,6 @@ class nsPIDOMEventTarget;
 class nsIPresShell;
 class nsIXPConnectJSObjectHolder;
 class nsPrefOldCallback;
-class nsPrefObserverHashKey;
 #ifdef MOZ_XTF
 class nsIXTFService;
 #endif
@@ -131,8 +129,6 @@ class nsIBidiKeyboard;
 class nsIMIMEHeaderParam;
 class nsIObserver;
 class nsPresContext;
-class nsIChannel;
-struct nsIntMargin;
 
 #ifndef have_PrefChangedFunc_typedef
 typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
@@ -142,14 +138,9 @@ typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
 namespace mozilla {
   class IHistory;
 
-namespace layers {
-  class LayerManager;
-} // namespace layers
-
 namespace dom {
 class Element;
 } // namespace dom
-
 } // namespace mozilla
 
 extern const char kLoadAsData[];
@@ -160,18 +151,14 @@ enum EventNameType {
   EventNameType_XUL = 0x0002,
   EventNameType_SVGGraphic = 0x0004, // svg graphic elements
   EventNameType_SVGSVG = 0x0008, // the svg element
-  EventNameType_SMIL = 0x0016, // smil elements
 
   EventNameType_HTMLXUL = 0x0003,
   EventNameType_All = 0xFFFF
 };
 
-struct EventNameMapping
-{
-  nsIAtom* mAtom;
-  PRUint32 mId;
-  PRInt32  mType;
-  PRUint32 mStructType;
+struct EventNameMapping {
+  PRUint32  mId;
+  PRInt32 mType;
 };
 
 struct nsShortcutCandidate {
@@ -185,8 +172,6 @@ struct nsShortcutCandidate {
 
 class nsContentUtils
 {
-  typedef mozilla::dom::Element Element;
-
 public:
   static nsresult Init();
 
@@ -226,11 +211,6 @@ public:
   static PRBool   IsCallerTrustedForCapability(const char* aCapability);
 
   /**
-   * Returns the parent node of aChild crossing document boundaries.
-   */
-  static nsINode* GetCrossDocParentNode(nsINode* aChild);
-
-  /**
    * Do not ever pass null pointers to this method.  If one of your
    * nsIContents is null, you have to decide for yourself what
    * "IsDescendantOf" really means.
@@ -243,8 +223,8 @@ public:
    *         aPossibleAncestor (or is aPossibleAncestor).  PR_FALSE
    *         otherwise.
    */
-  static PRBool ContentIsDescendantOf(const nsINode* aPossibleDescendant,
-                                      const nsINode* aPossibleAncestor);
+  static PRBool ContentIsDescendantOf(nsINode* aPossibleDescendant,
+                                      nsINode* aPossibleAncestor);
 
   /**
    * Similar to ContentIsDescendantOf except it crosses document boundaries.
@@ -290,13 +270,30 @@ public:
                                     nsINode* aNode2);
 
   /**
+   * Compares the document position of nodes.
+   *
+   * @param aNode1 The node whose position is being compared to the reference
+   *               node
+   * @param aNode2 The reference node
+   *
+   * @return  The document position flags of the nodes. aNode1 is compared to
+   *          aNode2, i.e. if aNode1 is before aNode2 then
+   *          DOCUMENT_POSITION_PRECEDING will be set.
+   *
+   * @see nsIDOMNode
+   * @see nsIDOM3Node
+   */
+  static PRUint16 ComparePosition(nsINode* aNode1,
+                                  nsINode* aNode2);
+
+  /**
    * Returns true if aNode1 is before aNode2 in the same connected
    * tree.
    */
   static PRBool PositionIsBefore(nsINode* aNode1,
                                  nsINode* aNode2)
   {
-    return (aNode2->CompareDocumentPosition(aNode1) &
+    return (ComparePosition(aNode1, aNode2) &
       (nsIDOM3Node::DOCUMENT_POSITION_PRECEDING |
        nsIDOM3Node::DOCUMENT_POSITION_DISCONNECTED)) ==
       nsIDOM3Node::DOCUMENT_POSITION_PRECEDING;
@@ -334,12 +331,14 @@ public:
    * an element with the given id.  aId must be nonempty, otherwise
    * this method may return nodes even if they have no id!
    */
-  static Element* MatchElementId(nsIContent *aContent, const nsAString& aId);
+  static nsIContent* MatchElementId(nsIContent *aContent,
+                                    const nsAString& aId);
 
   /**
    * Similar to above, but to be used if one already has an atom for the ID
    */
-  static Element* MatchElementId(nsIContent *aContent, nsIAtom* aId);
+  static nsIContent* MatchElementId(nsIContent *aContent,
+                                    nsIAtom* aId);
 
   /**
    * Given a URI containing an element reference (#whatever),
@@ -385,7 +384,6 @@ public:
   static const nsDependentSubstring TrimCharsInSet(const char* aSet,
                                                    const nsAString& aValue);
 
-  template<PRBool IsWhitespace(PRUnichar)>
   static const nsDependentSubstring TrimWhitespace(const nsAString& aStr,
                                                    PRBool aTrimTrailing = PR_TRUE);
 
@@ -410,16 +408,6 @@ public:
    * HTML 4.01 also lists U+200B (zero-width space).
    */
   static PRBool IsHTMLWhitespace(PRUnichar aChar);
-
-  /**
-   * Parse a margin string of format 'top, right, bottom, left' into
-   * an nsIntMargin.
-   *
-   * @param aString the string to parse
-   * @param aResult the resulting integer
-   * @return whether the value could be parsed
-   */
-  static PRBool ParseIntMarginValue(const nsAString& aString, nsIntMargin& aResult);
 
   static void Shutdown();
 
@@ -495,8 +483,6 @@ public:
 
   static imgILoader* GetImgLoader()
   {
-    if (!sImgLoaderInitialized)
-      InitImgLoader();
     return sImgLoader;
   }
 
@@ -610,11 +596,6 @@ public:
     return sPrefBranch;
   }
 
-  // Get a permission-manager setting for the given uri and type.
-  // If the pref doesn't exist or if it isn't ALLOW_ACTION, PR_FALSE is
-  // returned, otherwise PR_TRUE is returned.
-  static PRBool IsSitePermAllow(nsIURI* aURI, const char* aType);
-
   static nsILineBreaker* LineBreaker()
   {
     return sLineBreaker;
@@ -623,6 +604,11 @@ public:
   static nsIWordBreaker* WordBreaker()
   {
     return sWordBreaker;
+  }
+  
+  static nsICaseConversion* GetCaseConv()
+  {
+    return sCaseConv;
   }
 
   static nsIUGenCategory* GetGenCat()
@@ -979,19 +965,6 @@ public:
    * @param aName the event name to look up
    */
   static PRUint32 GetEventId(nsIAtom* aName);
-
-  /**
-   * Return the event id and atom for the event with the given name.
-   * The name is the event name *without* the 'on' prefix.
-   * Returns NS_USER_DEFINED_EVENT on the aEventID if the
-   * event doesn't match a known event name in the category.
-   *
-   * @param aName the event name to look up
-   * @param aEventStruct only return event id in aEventStruct category
-   */
-  static nsIAtom* GetEventIdAndAtom(const nsAString& aName,
-                                    PRUint32 aEventStruct,
-                                    PRUint32* aEventID);
 
   /**
    * Used only during traversal of the XPCOM graph by the cycle
@@ -1390,6 +1363,12 @@ public:
   static PRBool URIIsLocalFile(nsIURI *aURI);
 
   /**
+   * If aContent is an HTML element with a DOM level 0 'name', then
+   * return the name. Otherwise return null.
+   */
+  static nsIAtom* IsNamedItem(mozilla::dom::Element* aElement);
+
+  /**
    * Get the application manifest URI for this document.  The manifest URI
    * is specified in the manifest= attribute of the root element of the
    * document.
@@ -1503,14 +1482,12 @@ public:
   /**
    * Convert ASCII A-Z to a-z.
    */
-  static void ASCIIToLower(nsAString& aStr);
   static void ASCIIToLower(const nsAString& aSource, nsAString& aDest);
 
   /**
    * Convert ASCII a-z to A-Z.
    */
   static void ASCIIToUpper(nsAString& aStr);
-  static void ASCIIToUpper(const nsAString& aSource, nsAString& aDest);
 
   static nsIInterfaceRequestor* GetSameOriginChecker();
 
@@ -1565,8 +1542,6 @@ public:
   static already_AddRefed<nsIDocument>
   GetDocumentFromScriptContext(nsIScriptContext *aScriptContext);
 
-  static PRBool CheckMayLoad(nsIPrincipal* aPrincipal, nsIChannel* aChannel);
-
   /**
    * The method checks whether the caller can access native anonymous content.
    * If there is no JS in the stack or privileged JS is running, this
@@ -1579,33 +1554,17 @@ public:
                              // If non-null aHolder will keep the jsval alive
                              // while there's a ref to it
                              nsIXPConnectJSObjectHolder** aHolder = nsnull,
-                             PRBool aAllowWrapping = PR_FALSE)
-  {
-    return WrapNative(cx, scope, native, nsnull, aIID, vp, aHolder,
-                      aAllowWrapping);
-  }
+                             PRBool aAllowWrapping = PR_FALSE);
 
   // Same as the WrapNative above, but use this one if aIID is nsISupports' IID.
   static nsresult WrapNative(JSContext *cx, JSObject *scope,
-                             nsISupports *native, jsval *vp,
+                             nsISupports *native,  jsval *vp,
                              // If non-null aHolder will keep the jsval alive
                              // while there's a ref to it
                              nsIXPConnectJSObjectHolder** aHolder = nsnull,
                              PRBool aAllowWrapping = PR_FALSE)
   {
-    return WrapNative(cx, scope, native, nsnull, nsnull, vp, aHolder,
-                      aAllowWrapping);
-  }
-  static nsresult WrapNative(JSContext *cx, JSObject *scope,
-                             nsISupports *native, nsWrapperCache *cache,
-                             jsval *vp,
-                             // If non-null aHolder will keep the jsval alive
-                             // while there's a ref to it
-                             nsIXPConnectJSObjectHolder** aHolder = nsnull,
-                             PRBool aAllowWrapping = PR_FALSE)
-  {
-    return WrapNative(cx, scope, native, cache, nsnull, vp, aHolder,
-                      aAllowWrapping);
+    return WrapNative(cx, scope, native, nsnull, vp, aHolder, aAllowWrapping);
   }
 
   static void StripNullChars(const nsAString& aInStr, nsAString& aOutStr);
@@ -1652,53 +1611,6 @@ public:
   {
     sIsHandlingKeyBoardEvent = aHandling;
   }
-
-  /**
-   * Utility method for getElementsByClassName.  aRootNode is the node (either
-   * document or element), which getElementsByClassName was called on.
-   */
-  static nsresult GetElementsByClassName(nsINode* aRootNode,
-                                         const nsAString& aClasses,
-                                         nsIDOMNodeList** aReturn);
-
-  /**
-   * Returns a layer manager to use for the given document. Basically we
-   * look up the document hierarchy for the first document which has
-   * a presentation with an associated widget, and use that widget's
-   * layer manager.
-   *
-   * If one can't be found, a BasicLayerManager is created and returned.
-   *
-   * @param aDoc the document for which to return a layer manager.
-   */
-  static already_AddRefed<mozilla::layers::LayerManager>
-  LayerManagerForDocument(nsIDocument *aDoc);
-
-  /**
-   * Determine whether a content node is focused or not,
-   *
-   * @param aContent the content node to check
-   * @return true if the content node is focused, false otherwise.
-   */
-  static PRBool IsFocusedContent(nsIContent *aContent);
-
-#ifdef MOZ_IPC
-#ifdef ANDROID
-  static void SetActiveFrameLoader(nsFrameLoader *aFrameLoader)
-  {
-    sActiveFrameLoader = aFrameLoader;
-  }
-
-  static void ClearActiveFrameLoader(const nsFrameLoader *aFrameLoader)
-  {
-    if (sActiveFrameLoader == aFrameLoader)
-      sActiveFrameLoader = nsnull;
-  }
-
-  static already_AddRefed<nsFrameLoader> GetActiveFrameLoader();
-#endif
-#endif
-
 private:
 
   static PRBool InitializeEventTable();
@@ -1712,12 +1624,6 @@ private:
 
   static PRBool CanCallerAccess(nsIPrincipal* aSubjectPrincipal,
                                 nsIPrincipal* aPrincipal);
-
-  static nsresult WrapNative(JSContext *cx, JSObject *scope,
-                             nsISupports *native, nsWrapperCache *cache,
-                             const nsIID* aIID, jsval *vp,
-                             nsIXPConnectJSObjectHolder** aHolder,
-                             PRBool aAllowWrapping);
 
   static nsIDOMScriptObjectFactory *sDOMScriptObjectFactory;
 
@@ -1739,13 +1645,8 @@ private:
 
   static nsIPrefBranch2 *sPrefBranch;
   // For old compatibility of RegisterPrefCallback
-  static nsRefPtrHashtable<nsPrefObserverHashKey, nsPrefOldCallback>
-    *sPrefCallbackTable;
+  static nsCOMArray<nsPrefOldCallback> *sPrefCallbackList;
 
-  static bool sImgLoaderInitialized;
-  static void InitImgLoader();
-
-  // The following two members are initialized lazily
   static imgILoader* sImgLoader;
   static imgICache* sImgCache;
 
@@ -1753,9 +1654,7 @@ private:
 
   static nsIConsoleService* sConsoleService;
 
-  static nsDataHashtable<nsISupportsHashKey, EventNameMapping>* sAtomEventTable;
-  static nsDataHashtable<nsStringHashKey, EventNameMapping>* sStringEventTable;
-  static nsCOMArray<nsIAtom>* sUserDefinedEvents;
+  static nsDataHashtable<nsISupportsHashKey, EventNameMapping>* sEventTable;
 
   static nsIStringBundleService* sStringBundleService;
   static nsIStringBundle* sStringBundles[PropertiesFile_COUNT];
@@ -1765,6 +1664,7 @@ private:
 
   static nsILineBreaker* sLineBreaker;
   static nsIWordBreaker* sWordBreaker;
+  static nsICaseConversion* sCaseConv;
   static nsIUGenCategory* sGenCat;
 
   // Holds pointers to nsISupports* that should be released at shutdown
@@ -1788,12 +1688,6 @@ private:
   static nsIInterfaceRequestor* sSameOriginChecker;
 
   static PRBool sIsHandlingKeyBoardEvent;
-
-#ifdef MOZ_IPC
-#ifdef ANDROID
-  static nsFrameLoader *sActiveFrameLoader;
-#endif
-#endif
 };
 
 #define NS_HOLD_JS_OBJECTS(obj, clazz)                                         \
@@ -1817,7 +1711,7 @@ public:
   PRBool RePush(nsPIDOMEventTarget *aCurrentTarget);
   // If a null JSContext is passed to Push(), that will cause no
   // push to happen and false to be returned.
-  PRBool Push(JSContext *cx, PRBool aRequiresScriptContext = PR_TRUE);
+  PRBool Push(JSContext *cx);
   // Explicitly push a null JSContext on the the stack
   PRBool PushNull();
 
@@ -1842,39 +1736,46 @@ public:
   // aPtr should be the pointer to the jsval we want to protect
   nsAutoGCRoot(jsval* aPtr, nsresult* aResult
                MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM) :
-    mPtr(aPtr), mRootType(RootType_JSVal)
+    mPtr(aPtr)
   {
     MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-    mResult = *aResult = AddJSGCRoot(aPtr, RootType_JSVal, "nsAutoGCRoot");
+    mResult = *aResult = AddJSGCRoot(aPtr, "nsAutoGCRoot");
   }
 
   // aPtr should be the pointer to the JSObject* we want to protect
   nsAutoGCRoot(JSObject** aPtr, nsresult* aResult
                MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM) :
-    mPtr(aPtr), mRootType(RootType_Object)
+    mPtr(aPtr)
   {
     MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-    mResult = *aResult = AddJSGCRoot(aPtr, RootType_Object, "nsAutoGCRoot");
+    mResult = *aResult = AddJSGCRoot(aPtr, "nsAutoGCRoot");
+  }
+
+  // aPtr should be the pointer to the thing we want to protect
+  nsAutoGCRoot(void* aPtr, nsresult* aResult
+               MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM) :
+    mPtr(aPtr)
+  {
+    MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
+    mResult = *aResult = AddJSGCRoot(aPtr, "nsAutoGCRoot");
   }
 
   ~nsAutoGCRoot() {
     if (NS_SUCCEEDED(mResult)) {
-      RemoveJSGCRoot((jsval *)mPtr, mRootType);
+      RemoveJSGCRoot(mPtr);
     }
   }
 
   static void Shutdown();
 
 private:
-  enum RootType { RootType_JSVal, RootType_Object };
-  static nsresult AddJSGCRoot(void *aPtr, RootType aRootType, const char* aName);
-  static nsresult RemoveJSGCRoot(void *aPtr, RootType aRootType);
+  static nsresult AddJSGCRoot(void *aPtr, const char* aName);
+  static nsresult RemoveJSGCRoot(void *aPtr);
 
   static nsIJSRuntimeService* sJSRuntimeService;
   static JSRuntime* sJSScriptRuntime;
 
   void* mPtr;
-  RootType mRootType;
   nsresult mResult;
   MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };

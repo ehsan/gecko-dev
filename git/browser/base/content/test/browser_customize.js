@@ -23,35 +23,19 @@ function testCustomizeFrameLoaded()
   var frame = document.getElementById("customizeToolbarSheetIFrame");
   frame.removeEventListener("load", testCustomizeFrameLoadedPre, true);
 
-  if (navigator.platform.indexOf("Mac") == -1) {
-    var menu = document.getElementById("bookmarksMenuPopup");
-    ok("result" in menu, "menu has binding");
-  }
+  var menu = document.getElementById("bookmarksMenuPopup");
+  ok("getResult" in menu, "menu has binding");
 
   var framedoc = document.getElementById("customizeToolbarSheetIFrame").contentDocument;
+  var b = framedoc.getElementById("donebutton");
 
-  var panelX = panel.boxObject.screenX;
-  var iconModeList = framedoc.getElementById("modelist");
-  iconModeList.addEventListener("popupshown", function (e) {
-    iconModeList.removeEventListener("popupshown", arguments.callee, false);
-    SimpleTest.executeSoon(function () {
-      is(panel.boxObject.screenX, panelX, "toolbar customization panel shouldn't move when the iconmode menulist is opened");
-      iconModeList.open = false;
-    
-      var b = framedoc.getElementById("donebutton");
-      b.focus();
-      b.doCommand();
-    });
-  }, false);
-  iconModeList.open = true;
+  b.focus();
+  framedoc.getElementById("donebutton").doCommand();
 }
   
-function testCustomizePopupHidden(e)
+function testCustomizePopupHidden()
 {
   var panel = document.getElementById("customizeToolbarSheetPopup");
-  if (e.target != panel)
-    return;
-
   panel.removeEventListener("popuphidden", testCustomizePopupHidden, false);
   is(document.activeElement, document.documentElement, "focus after customize done");
 

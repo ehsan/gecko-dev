@@ -96,6 +96,7 @@ public:
   
 protected:
   PRMonitor *mMonitor;
+  PRInt32 mOnStateLocationChangeReentranceDetection;
   
   nsWeakPtr mWindow;
   nsCOMPtr<nsINetUtil> mIOService;
@@ -126,10 +127,6 @@ protected:
   PRInt32 mSubRequestsLowSecurity;
   PRInt32 mSubRequestsBrokenSecurity;
   PRInt32 mSubRequestsNoSecurity;
-#ifdef DEBUG
-  /* related to mMonitor */
-  PRInt32 mOnStateLocationChangeReentranceDetection;
-#endif
 
   static already_AddRefed<nsISupports> ExtractSecurityInfo(nsIRequest* aRequest);
   static nsresult MapInternalToExternalState(PRUint32* aState, lockIconState lock, PRBool ev);

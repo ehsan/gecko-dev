@@ -84,7 +84,7 @@
 #include "nsIDOMNodeFilter.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIPrincipal.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 #ifdef MOZ_XUL
 #include "nsIDOMXULTextboxElement.h"
@@ -157,7 +157,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
 nsFocusManager* nsFocusManager::sInstance = nsnull;
-PRBool nsFocusManager::sMouseFocusesFormControl = PR_FALSE;
 
 nsFocusManager::nsFocusManager()
 { }
@@ -169,7 +168,6 @@ nsFocusManager::~nsFocusManager()
   if (prefBranch) {
     prefBranch->RemoveObserver("accessibility.browsewithcaret", this);
     prefBranch->RemoveObserver("accessibility.tabfocus_applies_to_xul", this);
-    prefBranch->RemoveObserver("accessibility.mouse_focuses_formcontrol", this);
   }
 }
 
@@ -186,13 +184,9 @@ nsFocusManager::Init()
     nsContentUtils::GetBoolPref("accessibility.tabfocus_applies_to_xul",
                                 nsIContent::sTabFocusModelAppliesToXUL);
 
-  sMouseFocusesFormControl =
-    nsContentUtils::GetBoolPref("accessibility.mouse_focuses_formcontrol", PR_FALSE);
-
   nsIPrefBranch2* prefBranch = nsContentUtils::GetPrefBranch();
   prefBranch->AddObserver("accessibility.browsewithcaret", fm, PR_TRUE);
   prefBranch->AddObserver("accessibility.tabfocus_applies_to_xul", fm, PR_TRUE);
-  prefBranch->AddObserver("accessibility.mouse_focuses_formcontrol", fm, PR_TRUE);
 
   return NS_OK;
 }
@@ -218,10 +212,6 @@ nsFocusManager::Observe(nsISupports *aSubject,
       nsIContent::sTabFocusModelAppliesToXUL =
         nsContentUtils::GetBoolPref("accessibility.tabfocus_applies_to_xul",
                                     nsIContent::sTabFocusModelAppliesToXUL);
-    }
-    else if (data.EqualsLiteral("accessibility.mouse_focuses_formcontrol")) {
-      sMouseFocusesFormControl =
-        nsContentUtils::GetBoolPref("accessibility.mouse_focuses_formcontrol", PR_FALSE);
     }
   }
 
@@ -1345,7 +1335,7 @@ nsFocusManager::CheckIfFocusable(nsIContent* aContent, PRUint32 aFlags)
   if (doc)
     doc->FlushPendingNotifications(Flush_Frames);
 
-  nsIPresShell *shell = doc->GetShell();
+  nsIPresShell *shell = doc->GetPrimaryShell();
   if (!shell)
     return nsnull;
 
@@ -1532,7 +1522,7 @@ nsFocusManager::Blur(nsPIDOMWindow* aWindowToClear,
   }
   else if (mActiveWindow) {
     // Otherwise, the blur of the element without blurring the document
-    // occurred normally. Call UpdateCaret to redisplay the caret at the right
+    // occured normally. Call UpdateCaret to redisplay the caret at the right
     // location within the document. This is needed to ensure that the caret
     // used for caret browsing is made visible again when an input field is
     // blurred.
@@ -1602,16 +1592,11 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
          aIsNewDocument, aFocusChanged, aWindowRaised, aFlags);
 #endif
 
-  if (aIsNewDocument) {
-    // if this is a new document, update the parent chain of frames so that
-    // focus can be traversed from the top level down to the newly focused
-    // window.
+  // if this is a new document, update the parent chain of frames so that
+  // focus can be traversed from the top level down to the newly focused
+  // window.
+  if (aIsNewDocument)
     AdjustWindowFocus(aWindow, PR_FALSE);
-
-    // Update the window touch registration to reflect the state of
-    // the new document that got focus
-    aWindow->UpdateTouchState();
-  }
 
   // indicate that the window has taken focus.
   if (aWindow->TakeFocus(PR_TRUE, focusMethod))
@@ -2121,12 +2106,12 @@ nsFocusManager::GetSelectionLocation(nsIDocument* aDocument,
             nsRect caretRect;
             nsIFrame *frame = caret->GetGeometry(domSelection, &caretRect);
             if (frame) {
-              nsPoint caretWidgetOffset;
-              nsIWidget *widget = frame->GetNearestWidget(caretWidgetOffset);
-              caretRect.MoveBy(caretWidgetOffset);
+              nsPoint caretWindowOffset;
+              nsIWidget *window = frame->GetWindowOffset(caretWindowOffset);
+              caretRect.MoveBy(caretWindowOffset);
               nsPoint newCaretOffset;
-              nsIWidget *newCaretWidget = newCaretFrame->GetNearestWidget(newCaretOffset);
-              if (widget == newCaretWidget && caretRect.y == newCaretOffset.y &&
+              nsIWidget *newCaretWindow = newCaretFrame->GetWindowOffset(newCaretOffset);
+              if (window == newCaretWindow && caretRect.y == newCaretOffset.y &&
                   caretRect.x == newCaretOffset.x) {
                 // The caret is at the start of the new element.
                 startFrame = newCaretFrame;
@@ -2194,7 +2179,7 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindow* aWindow,
   nsIContent* rootContent = doc->GetRootElement();
   NS_ENSURE_TRUE(rootContent, NS_OK);
 
-  nsIPresShell *presShell = doc->GetShell();
+  nsIPresShell *presShell = doc->GetPrimaryShell();
   NS_ENSURE_TRUE(presShell, NS_OK);
 
   if (aType == MOVEFOCUS_FIRST) {
@@ -2414,7 +2399,7 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindow* aWindow,
       doc = do_QueryInterface(piParentWindow->GetExtantDocument());
       NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
 
-      presShell = doc->GetShell();
+      presShell = doc->GetPrimaryShell();
 
       rootContent = doc->GetRootElement();
       startContent = do_QueryInterface(piWindow->GetFrameElementInternal());
@@ -2628,7 +2613,7 @@ nsFocusManager::GetNextTabbableContent(nsIPresShell* aPresShell,
                 }
               }
               Element* rootElement = subdoc->GetRootElement();
-              nsIPresShell* subShell = subdoc->GetShell();
+              nsIPresShell* subShell = subdoc->GetPrimaryShell();
               if (rootElement && subShell) {
                 rv = GetNextTabbableContent(subShell, rootElement,
                                             aOriginalStartContent, rootElement,
@@ -2992,7 +2977,7 @@ nsFocusManager::GetNextTabbableDocument(PRBool aForward)
         // that we always go forward and not back here.
         nsCOMPtr<nsIContent> nextFocus;
         Element* rootElement = doc->GetRootElement();
-        nsIPresShell* presShell = doc->GetShell();
+        nsIPresShell* presShell = doc->GetPrimaryShell();
         if (presShell) {
           nsresult rv = GetNextTabbableContent(presShell, rootElement,
                                                nsnull, rootElement,

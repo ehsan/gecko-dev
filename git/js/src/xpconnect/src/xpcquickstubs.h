@@ -40,8 +40,6 @@
 #ifndef xpcquickstubs_h___
 #define xpcquickstubs_h___
 
-#include "nsINode.h"
-
 /* xpcquickstubs.h - Support functions used only by quick stubs. */
 
 class XPCCallContext;
@@ -78,89 +76,6 @@ struct xpc_qsHashEntry {
     size_t chain;
 };
 
-inline nsISupports*
-ToSupports(nsISupports *p)
-{
-    return p;
-}
-
-inline nsISupports*
-ToCanonicalSupports(nsISupports* p)
-{
-  return nsnull;
-}
-
-#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 2) || \
-    _MSC_FULL_VER >= 140050215
-
-/* Use a compiler intrinsic if one is available. */
-
-#define QS_CASTABLE_TO(_interface, _class) __is_base_of(_interface, _class)
-
-#else
-
-/* The generic version of this predicate relies on the overload resolution
- * rules.  If |_class| inherits from |_interface|, the |_interface*|
- * overload of DOMCI_CastableTo<_interface>::p() will be chosen, otherwise
- * the |void*| overload will be chosen.  There is no definition of these
- * functions; we determine which overload was selected by inspecting the
- * size of the return type.
- */
-
-template <typename Interface> struct QS_CastableTo {
-  struct false_type { int x[1]; };
-  struct true_type { int x[2]; };
-  static false_type p(void*);
-  static true_type p(Interface*);
-};
-
-#define QS_CASTABLE_TO(_interface, _class)                                 \
-  (sizeof(QS_CastableTo<_interface>::p(static_cast<_class*>(0))) ==        \
-   sizeof(QS_CastableTo<_interface>::true_type))
-
-#endif
-
-#define QS_IS_NODE(_class)                                                 \
-  QS_CASTABLE_TO(nsINode, _class) ||                                       \
-  QS_CASTABLE_TO(nsIDOMNode, _class)
-
-class qsObjectHelper : public xpcObjectHelper
-{
-public:
-  template <class T>
-  inline
-  qsObjectHelper(T *aObject, nsWrapperCache *aCache)
-  : xpcObjectHelper(ToSupports(aObject), ToCanonicalSupports(aObject),
-                    aCache, QS_IS_NODE(T))
-  {}
-  template <class T>
-  inline
-  qsObjectHelper(nsCOMPtr<T>& aObject, nsWrapperCache *aCache)
-  : xpcObjectHelper(ToSupports(aObject.get()),
-                    ToCanonicalSupports(aObject.get()), aCache, QS_IS_NODE(T))
-  {
-    if (mCanonical)
-    {
-        // Transfer the strong reference.
-        mCanonicalStrong = dont_AddRef(mCanonical);
-        aObject.forget();
-    }
-  }
-  template <class T>
-  inline
-  qsObjectHelper(nsRefPtr<T>& aObject, nsWrapperCache *aCache)
-  : xpcObjectHelper(ToSupports(aObject.get()),
-                    ToCanonicalSupports(aObject.get()), aCache, QS_IS_NODE(T))
-  {
-    if (mCanonical)
-    {
-        // Transfer the strong reference.
-        mCanonicalStrong = dont_AddRef(mCanonical);
-        aObject.forget();
-    }
-  }
-};
-
 JSBool
 xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, uintN extraFlags,
                        PRUint32 ifacec, const nsIID **interfaces,
@@ -185,7 +100,7 @@ xpc_qsThrow(JSContext *cx, nsresult rv);
  */
 JSBool
 xpc_qsThrowGetterSetterFailed(JSContext *cx, nsresult rv,
-                              JSObject *obj, jsid memberId);
+                              JSObject *obj, jsval memberId);
 
 /**
  * Fail after an XPCOM method returned rv.
@@ -225,29 +140,31 @@ xpc_qsThrowBadArgWithDetails(JSContext *cx, nsresult rv, uintN paramnum,
  */
 void
 xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv, JSObject *obj,
-                          jsid propId);
+                          jsval propId);
 
-
-JSBool
-xpc_qsGetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
 
 /* Functions for converting values between COM and JS. */
 
 inline JSBool
 xpc_qsInt32ToJsval(JSContext *cx, PRInt32 i, jsval *rv)
 {
-    *rv = INT_TO_JSVAL(i);
-    return JS_TRUE;
+    if(INT_FITS_IN_JSVAL(i))
+    {
+        *rv = INT_TO_JSVAL(i);
+        return JS_TRUE;
+    }
+    return JS_NewDoubleValue(cx, i, rv);
 }
 
 inline JSBool
 xpc_qsUint32ToJsval(JSContext *cx, PRUint32 u, jsval *rv)
 {
     if(u <= JSVAL_INT_MAX)
+    {
         *rv = INT_TO_JSVAL(u);
-    else
-        *rv = DOUBLE_TO_JSVAL(u);
-    return JS_TRUE;
+        return JS_TRUE;
+    }
+    return JS_NewDoubleValue(cx, u, rv);
 }
 
 #ifdef HAVE_LONG_LONG
@@ -427,16 +344,9 @@ JSBool
 xpc_qsJsvalToWcharStr(JSContext *cx, jsval v, jsval *pval, PRUnichar **pstr);
 
 
-/** Convert an nsString to jsval, returning JS_TRUE on success.
- *  Note, the ownership of the string buffer may be moved from str to rval.
- *  If that happens, str will point to an empty string after this call.
- */
+/** Convert an nsAString to jsval, returning JS_TRUE on success. */
 JSBool
-xpc_qsStringToJsval(JSContext *cx, nsString &str, jsval *rval);
-
-/** Convert an nsString to JSString, returning JS_TRUE on success. This will sometimes modify |str| to be empty. */
-JSBool
-xpc_qsStringToJsstring(JSContext *cx, nsString &str, JSString **rval);
+xpc_qsStringToJsval(JSContext *cx, const nsAString &str, jsval *rval);
 
 nsresult
 getWrapper(JSContext *cx,
@@ -633,13 +543,11 @@ xpc_qsGetWrapperCache(void *p)
     return nsnull;
 }
 
-/** Convert an XPCOM pointer to jsval. Return JS_TRUE on success. 
- * aIdentity is a performance optimization. Set it to PR_TRUE,
- * only if p is the identity pointer.
- */
+/** Convert an XPCOM pointer to jsval. Return JS_TRUE on success. */
 JSBool
 xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx,
-                         qsObjectHelper &aHelper,
+                         nsISupports *p,
+                         nsWrapperCache *cache,
                          const nsIID *iid,
                          XPCNativeInterface **iface,
                          jsval *rval);
@@ -660,18 +568,6 @@ inline PRBool
 xpc_qsSameResult(nsISupports *result1, nsISupports *result2)
 {
     return SameCOMIdentity(result1, result2);
-}
-
-inline PRBool
-xpc_qsSameResult(const nsString &result1, const nsString &result2)
-{
-    return result1.Equals(result2);
-}
-
-inline PRBool
-xpc_qsSameResult(PRInt32 result1, PRInt32 result2)
-{
-    return result1 == result2;
 }
 
 #define XPC_QS_ASSERT_CONTEXT_OK(cx) xpc_qsAssertContextOK(cx)

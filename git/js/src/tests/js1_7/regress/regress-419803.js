@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-419803.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 419803;
 var summary = 'Do not assert: sprop->parent == scope->lastProp';

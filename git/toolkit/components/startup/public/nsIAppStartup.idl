@@ -114,12 +114,9 @@ interface nsIAppStartup : nsISupports
     void quit(in PRUint32 aMode);
 };
 
-[scriptable, uuid(e233d663-d014-43b0-8649-7145ecf0a0b1)]
+[scriptable, uuid(3012668f-44b6-49b1-89fb-761a912a78c1)]
 interface nsIAppStartup2 : nsIAppStartup
 {
-    /**
-     * True if the application is in the process of shutting down.
-     */
     readonly attribute boolean shuttingDown;
 };
 

@@ -100,7 +100,7 @@ nsCanvasFrame::ScrollPositionWillChange(nscoord aX, nscoord aY)
 {
   if (mDoPaintFocus) {
     mDoPaintFocus = PR_FALSE;
-    PresContext()->FrameManager()->GetRootFrame()->InvalidateFrameSubtree();
+    PresContext()->FrameManager()->GetRootFrame()->InvalidateOverflowRect();
   }
 }
 
@@ -109,7 +109,7 @@ nsCanvasFrame::SetHasFocus(PRBool aHasFocus)
 {
   if (mDoPaintFocus != aHasFocus) {
     mDoPaintFocus = aHasFocus;
-    PresContext()->FrameManager()->GetRootFrame()->InvalidateFrameSubtree();
+    PresContext()->FrameManager()->GetRootFrame()->InvalidateOverflowRect();
 
     if (!mAddedScrollPositionListener) {
       nsIScrollableFrame* sf =
@@ -249,25 +249,38 @@ nsRect nsCanvasFrame::CanvasArea() const
   return result;
 }
 
-void
-nsDisplayCanvasBackground::Paint(nsDisplayListBuilder* aBuilder,
-                                 nsIRenderingContext* aCtx)
-{
-  nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
-  nsPoint offset = ToReferenceFrame();
-  nsRect bgClipRect = frame->CanvasArea() + offset;
-
-  if (NS_GET_A(mExtraBackgroundColor) > 0) {
-    aCtx->SetColor(mExtraBackgroundColor);
-    aCtx->FillRect(bgClipRect);
+/*
+ * Override nsDisplayBackground methods so that we pass aBGClipRect to
+ * PaintBackground, covering the whole overflow area.
+ */
+class nsDisplayCanvasBackground : public nsDisplayBackground {
+public:
+  nsDisplayCanvasBackground(nsIFrame *aFrame)
+    : nsDisplayBackground(aFrame)
+  {
   }
 
-  nsCSSRendering::PaintBackground(mFrame->PresContext(), *aCtx, mFrame,
-                                  mVisibleRect,
-                                  nsRect(offset, mFrame->GetSize()),
-                                  aBuilder->GetBackgroundPaintFlags(),
-                                  &bgClipRect);
-}
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder)
+  {
+    nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
+    return frame->CanvasArea() + aBuilder->ToReferenceFrame(mFrame);
+  }
+
+  virtual void Paint(nsDisplayListBuilder* aBuilder,
+                     nsIRenderingContext* aCtx)
+  {
+    nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
+    nsPoint offset = aBuilder->ToReferenceFrame(mFrame);
+    nsRect bgClipRect = frame->CanvasArea() + offset;
+    nsCSSRendering::PaintBackground(mFrame->PresContext(), *aCtx, mFrame,
+                                    mVisibleRect,
+                                    nsRect(offset, mFrame->GetSize()),
+                                    aBuilder->GetBackgroundPaintFlags(),
+                                    &bgClipRect);
+  }
+
+  NS_DISPLAY_DECL_NAME("CanvasBackground")
+};
 
 /**
  * A display item to paint the focus ring for the document.
@@ -276,30 +289,26 @@ nsDisplayCanvasBackground::Paint(nsDisplayListBuilder* aBuilder,
  */
 class nsDisplayCanvasFocus : public nsDisplayItem {
 public:
-  nsDisplayCanvasFocus(nsDisplayListBuilder* aBuilder, nsCanvasFrame *aFrame)
-    : nsDisplayItem(aBuilder, aFrame)
+  nsDisplayCanvasFocus(nsCanvasFrame *aFrame)
+    : nsDisplayItem(aFrame)
   {
-    MOZ_COUNT_CTOR(nsDisplayCanvasFocus);
-  }
-  virtual ~nsDisplayCanvasFocus() {
-    MOZ_COUNT_DTOR(nsDisplayCanvasFocus);
   }
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder)
   {
     // This is an overestimate, but that's not a problem.
     nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
-    return frame->CanvasArea() + ToReferenceFrame();
+    return frame->CanvasArea() + aBuilder->ToReferenceFrame(mFrame);
   }
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx)
   {
     nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
-    frame->PaintFocus(*aCtx, ToReferenceFrame());
+    frame->PaintFocus(*aCtx, aBuilder->ToReferenceFrame(mFrame));
   }
 
-  NS_DISPLAY_DECL_NAME("CanvasFocus", TYPE_CANVAS_FOCUS)
+  NS_DISPLAY_DECL_NAME("CanvasFocus")
 };
 
 NS_IMETHODIMP
@@ -325,14 +334,15 @@ nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // calling DisplayBorderBackgroundOutline.
   if (IsVisibleForPainting(aBuilder)) { 
     rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-           nsDisplayCanvasBackground(aBuilder, this));
+           nsDisplayCanvasBackground(this));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
   nsIFrame* kid;
   for (kid = GetFirstChild(nsnull); kid; kid = kid->GetNextSibling()) {
     // Put our child into its own pseudo-stack.
-    rv = BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
+    rv = BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists,
+                                  DISPLAY_CHILD_FORCE_PSEUDO_STACKING_CONTEXT);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -362,7 +372,7 @@ nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return NS_OK;
   
   return aLists.Outlines()->AppendNewToTop(new (aBuilder)
-      nsDisplayCanvasFocus(aBuilder, this));
+      nsDisplayCanvasFocus(this));
 }
 
 void
@@ -445,11 +455,6 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
       mFrames.InsertFrames(this, nsnull, *overflow);
     }
   }
-
-  // Set our size up front, since some parts of reflow depend on it
-  // being already set.  Note that the computed height may be
-  // unconstrained; that's ok.  Consumers should watch out for that.
-  SetSize(nsSize(aReflowState.ComputedWidth(), aReflowState.ComputedHeight())); 
 
   // Reflow our one and only normal child frame. It's either the root
   // element's frame or a placeholder for that frame, if the root element

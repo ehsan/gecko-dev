@@ -65,7 +65,8 @@
 #endif /* MOZ_X11 */
 
 #ifdef ACCESSIBILITY
-#include "nsAccessible.h"
+#include "nsIAccessNode.h"
+#include "nsIAccessible.h"
 #endif
 
 #include "nsGtkIMModule.h"
@@ -136,7 +137,6 @@ public:
                               nsWidgetInitData *aInitData);
     NS_IMETHOD         Destroy(void);
     virtual nsIWidget *GetParent();
-    virtual float      GetDPI();
     virtual nsresult   SetParent(nsIWidget* aNewParent);
     NS_IMETHOD         SetModal(PRBool aModal);
     NS_IMETHOD         IsVisible(PRBool & aState);
@@ -173,6 +173,9 @@ public:
     NS_IMETHOD         Invalidate(const nsIntRect &aRect,
                                   PRBool           aIsSynchronous);
     NS_IMETHOD         Update();
+    virtual void       Scroll(const nsIntPoint& aDelta,
+                              const nsTArray<nsIntRect>& aDestRects,
+                              const nsTArray<Configuration>& aReconfigureChildren);
     virtual void*      GetNativeData(PRUint32 aDataType);
     NS_IMETHOD         SetTitle(const nsAString& aTitle);
     NS_IMETHOD         SetIcon(const nsAString& aIconSpec);
@@ -191,8 +194,7 @@ public:
     NS_IMETHOD         MakeFullScreen(PRBool aFullScreen);
     NS_IMETHOD         HideWindowChrome(PRBool aShouldHide);
 
-    // utility method, -1 if no change should be made, otherwise returns a
-    // value that can be passed to gdk_window_set_decorations
+    // utility method
     gint               ConvertBorderStyles(nsBorderStyle aStyle);
 
     // event callbacks
@@ -301,8 +303,7 @@ public:
     static guint32     sLastButtonPressTime;
     static guint32     sLastButtonReleaseTime;
 
-    NS_IMETHOD         BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
-    NS_IMETHOD         BeginMoveDrag(nsMouseEvent* aEvent);
+    NS_IMETHOD         BeginResizeDrag   (nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
 
     MozContainer*      GetMozContainer() { return mContainer; }
     GdkWindow*         GetGdkWindow() { return mGdkWindow; }
@@ -328,7 +329,6 @@ public:
    nsresult            UpdateTranslucentWindowAlphaInternal(const nsIntRect& aRect,
                                                             PRUint8* aAlphas, PRInt32 aStride);
 
-    virtual LayerManager*   GetLayerManager();
     gfxASurface       *GetThebesSurface();
 
     static already_AddRefed<gfxASurface> GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
@@ -376,9 +376,6 @@ private:
     PRBool             DispatchCommandEvent(nsIAtom* aCommand);
     void               SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                                            PRBool aIntersectWithExisting);
-    PRBool             GetDragInfo(nsMouseEvent* aMouseEvent,
-                                   GdkWindow** aWindow, gint* aButton,
-                                   gint* aRootX, gint* aRootY);
 
     GtkWidget          *mShell;
     MozContainer       *mContainer;
@@ -386,7 +383,10 @@ private:
 
     GtkWindowGroup     *mWindowGroup;
 
-    PRUint32            mHasMappedToplevel : 1,
+    PRUint32            mContainerGotFocus : 1,
+                        mContainerLostFocus : 1,
+                        mContainerBlockFocus : 1,
+                        mHasMappedToplevel : 1,
                         mIsFullyObscured : 1,
                         mRetryPointerGrab : 1,
                         mRetryKeyboardGrab : 1;
@@ -408,37 +408,12 @@ private:
 #endif
 
 #ifdef ACCESSIBILITY
-    nsRefPtr<nsAccessible> mRootAccessible;
-
-    /**
-     * Request to create the accessible for this window if it is top level.
-     */
+    nsCOMPtr<nsIAccessible> mRootAccessible;
     void                CreateRootAccessible();
-
-    /**
-     * Generate the NS_GETACCESSIBLE event to get accessible for this window
-     * and return it.
-     */
-    nsAccessible       *DispatchAccessibleEvent();
-
-    /**
-     * Dispatch accessible event for the top level window accessible.
-     *
-     * @param  aEventType  [in] the accessible event type to dispatch
-     */
-    void                DispatchEventToRootAccessible(PRUint32 aEventType);
-
-    /**
-     * Dispatch accessible window activate event for the top level window
-     * accessible.
-     */
+    void                GetRootAccessible(nsIAccessible** aAccessible);
     void                DispatchActivateEventAccessible();
-
-    /**
-     * Dispatch accessible window deactivate event for the top level window
-     * accessible.
-     */
     void                DispatchDeactivateEventAccessible();
+    NS_IMETHOD_(PRBool) DispatchAccessibleEvent(nsIAccessible** aAccessible);
 #endif
 
     // The cursor cache

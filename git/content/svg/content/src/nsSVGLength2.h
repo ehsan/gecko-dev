@@ -107,7 +107,7 @@ private:
   PRUint8 mCtxType; // X, Y or Unspecified
   PRPackedBool mIsAnimated;
   
-  static float GetMMPerPixel() { return MM_PER_INCH_FLOAT / 96; }
+  static float GetMMPerPixel(nsIFrame *aNonSVGFrame);
   float GetAxisLength(nsIFrame *aNonSVGFrame) const;
   static float GetEmLength(nsIFrame *aFrame)
     { return nsSVGUtils::GetFontSize(aFrame); }
@@ -282,7 +282,7 @@ public:
     virtual nsresult ValueFromString(const nsAString& aStr,
                                      const nsISMILAnimationElement* aSrcElement,
                                      nsSMILValue &aValue,
-                                     PRBool& aPreventCachingOfSandwich) const;
+                                     PRBool& aCanCache) const;
     virtual nsSMILValue GetBaseValue() const;
     virtual void ClearAnimValue();
     virtual nsresult SetAnimValue(const nsSMILValue& aValue);

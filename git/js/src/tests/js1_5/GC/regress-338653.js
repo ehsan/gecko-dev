@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-338653.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 338653;
 var summary = 'Force GC when JSRuntime.gcMallocBytes hits ' +

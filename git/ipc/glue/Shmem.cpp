@@ -161,8 +161,6 @@ CreateSegment(size_t aNBytes, SharedMemorySysV::Handle aHandle)
   }
   if (!segment->Map(aNBytes))
     return 0;
-
-  segment->AddRef();
   return segment.forget();
 }
 #endif
@@ -183,8 +181,6 @@ CreateSegment(size_t aNBytes, SharedMemoryBasic::Handle aHandle)
   }
   if (!segment->Map(aNBytes))
     return 0;
-
-  segment->AddRef();
   return segment.forget();
 }
 
@@ -192,8 +188,7 @@ static void
 DestroySegment(SharedMemory* aSegment)
 {
   // the SharedMemory dtor closes and unmaps the actual OS shmem segment
-  if (aSegment)
-    aSegment->Release();
+  delete aSegment;
 }
 
 static size_t

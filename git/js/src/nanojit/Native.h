@@ -99,6 +99,15 @@
 
 namespace nanojit {
 
+    inline Register nextreg(Register r) {
+        return Register(r+1);
+    }
+
+    inline Register prevreg(Register r) {
+        return Register(r-1);
+    }
+
+
     class Fragment;
     struct SideExit;
     struct SwitchInfo;
@@ -138,14 +147,14 @@ namespace nanojit {
         #define gpn(r)                    regNames[(r)]
     #elif defined(NJ_VERBOSE)
         // Used for printing native instructions.  Like Assembler::outputf(),
-        // but only outputs if LC_Native is set.  Also prepends the output
+        // but only outputs if LC_Assembly is set.  Also prepends the output
         // with the address of the current native instruction.
         #define asm_output(...) do { \
-            if (_logc->lcbits & LC_Native) { \
+            if (_logc->lcbits & LC_Assembly) { \
                 outline[0]='\0'; \
-                VMPI_sprintf(outline, "%p   ", _nIns);  \
-                VMPI_sprintf(outline+VMPI_strlen(outline), ##__VA_ARGS__);   \
-                output();                               \
+               VMPI_sprintf(outline, "%010lx   ", (unsigned long)_nIns); \
+                sprintf(&outline[13], ##__VA_ARGS__); \
+                output(); \
             } \
         } while (0) /* no semi */
         #define gpn(r)                  regNames[(r)]

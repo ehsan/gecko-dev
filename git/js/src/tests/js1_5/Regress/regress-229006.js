@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-229006.js';
 //-----------------------------------------------------------------------------
 // Note this file contains a greater than 2^16 lines on _purpose_.
 // It will properly report failures when run in the js shell however

@@ -16,7 +16,7 @@
  * The Original Code is storage test code.
  *
  * The Initial Developer of the Original Code is
- * The Mozilla Foundation.
+ * Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -39,18 +39,8 @@
 
 #include "TestHarness.h"
 #include "nsMemory.h"
-#include "nsThreadUtils.h"
-#include "nsDirectoryServiceDefs.h"
 #include "mozIStorageService.h"
 #include "mozIStorageConnection.h"
-#include "mozIStorageStatementCallback.h"
-#include "mozIStorageCompletionCallback.h"
-#include "mozIStorageBindingParamsArray.h"
-#include "mozIStorageBindingParams.h"
-#include "mozIStorageAsyncStatement.h"
-#include "mozIStorageStatement.h"
-#include "mozIStoragePendingStatement.h"
-#include "nsThreadUtils.h"
 
 static int gTotalTests = 0;
 static int gPassedTests = 0;
@@ -58,132 +48,27 @@ static int gPassedTests = 0;
 #define do_check_true(aCondition) \
   PR_BEGIN_MACRO \
     gTotalTests++; \
-    if (aCondition) { \
+    if (aCondition) \
       gPassedTests++; \
-    } else { \
-      fail("Expected true, got false at %s:%d!", __FILE__, __LINE__); \
-    } \
+    else \
+      fail("Expected true, got false on line %d!", __LINE__); \
   PR_END_MACRO
 
 #define do_check_false(aCondition) \
   PR_BEGIN_MACRO \
     gTotalTests++; \
-    if (!aCondition) { \
+    if (!aCondition) \
       gPassedTests++; \
-    } else { \
-      fail("Expected false, got true at %s:%d!", __FILE__, __LINE__); \
-    } \
+    else \
+      fail("Expected false, got true on line %d!", __LINE__); \
   PR_END_MACRO
-
-#define do_check_success(aResult) \
-  do_check_true(NS_SUCCEEDED(aResult))
-
-#define do_check_eq(aFirst, aSecond) \
-  do_check_true(aFirst == aSecond)
-
-already_AddRefed<mozIStorageService>
-getService()
-{
-  nsCOMPtr<mozIStorageService> ss =
-    do_GetService("@mozilla.org/storage/service;1");
-  do_check_true(ss);
-  return ss.forget();
-}
 
 already_AddRefed<mozIStorageConnection>
 getMemoryDatabase()
 {
-  nsCOMPtr<mozIStorageService> ss = getService();
+  nsCOMPtr<mozIStorageService> ss =
+    do_GetService("@mozilla.org/storage/service;1");
   nsCOMPtr<mozIStorageConnection> conn;
-  nsresult rv = ss->OpenSpecialDatabase("memory", getter_AddRefs(conn));
-  do_check_success(rv);
+  (void)ss->OpenSpecialDatabase("memory", getter_AddRefs(conn));
   return conn.forget();
 }
-
-already_AddRefed<mozIStorageConnection>
-getDatabase()
-{
-  nsCOMPtr<nsIFile> dbFile;
-  (void)NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
-                               getter_AddRefs(dbFile));
-  NS_ASSERTION(dbFile, "The directory doesn't exists?!");
-
-  nsresult rv = dbFile->Append(NS_LITERAL_STRING("storage_test_db.sqlite"));
-  do_check_success(rv);
-
-  nsCOMPtr<mozIStorageService> ss = getService();
-  nsCOMPtr<mozIStorageConnection> conn;
-  rv = ss->OpenDatabase(dbFile, getter_AddRefs(conn));
-  do_check_success(rv);
-  return conn.forget();
-}
-
-
-class AsyncStatementSpinner : public mozIStorageStatementCallback
-                            , public mozIStorageCompletionCallback
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_MOZISTORAGESTATEMENTCALLBACK
-  NS_DECL_MOZISTORAGECOMPLETIONCALLBACK
-
-  AsyncStatementSpinner();
-
-  void SpinUntilCompleted();
-
-  PRUint16 completionReason;
-
-protected:
-  ~AsyncStatementSpinner() {}
-  volatile bool mCompleted;
-};
-
-NS_IMPL_ISUPPORTS2(AsyncStatementSpinner,
-                   mozIStorageStatementCallback,
-                   mozIStorageCompletionCallback)
-
-AsyncStatementSpinner::AsyncStatementSpinner()
-: completionReason(0)
-, mCompleted(false)
-{
-}
-
-NS_IMETHODIMP
-AsyncStatementSpinner::HandleResult(mozIStorageResultSet *aResultSet)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-AsyncStatementSpinner::HandleError(mozIStorageError *aError)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-AsyncStatementSpinner::HandleCompletion(PRUint16 aReason)
-{
-  completionReason = aReason;
-  mCompleted = true;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-AsyncStatementSpinner::Complete()
-{
-  mCompleted = true;
-  return NS_OK;
-}
-
-void AsyncStatementSpinner::SpinUntilCompleted()
-{
-  nsCOMPtr<nsIThread> thread(::do_GetCurrentThread());
-  nsresult rv = NS_OK;
-  PRBool processed = PR_TRUE;
-  while (!mCompleted && NS_SUCCEEDED(rv)) {
-    rv = thread->ProcessNextEvent(true, &processed);
-  }
-}
-
-#define NS_DECL_ASYNCSTATEMENTSPINNER \
-  NS_IMETHOD HandleResult(mozIStorageResultSet *aResultSet);

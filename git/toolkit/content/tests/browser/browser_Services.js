@@ -48,7 +48,6 @@ function checkService(service, interface) {
 function checkServices() {
   checkService("prefs", Ci.nsIPrefBranch2);
   checkService("prefs", Ci.nsIPrefService);
-  checkService("contentPrefs", Ci.nsIContentPrefService);
   checkService("wm", Ci.nsIWindowMediator);
   checkService("perms", Ci.nsIPermissionManager);
   checkService("io", Ci.nsIIOService);
@@ -58,8 +57,7 @@ function checkServices() {
   checkService("dirsvc", Ci.nsIDirectoryService);
   checkService("dirsvc", Ci.nsIProperties);
   checkService("prompt", Ci.nsIPromptService);
-  if ("nsIBrowserSearchService" in Ci)
-    checkService("search", Ci.nsIBrowserSearchService);
+  checkService("search", Ci.nsIBrowserSearchService);
   checkService("storage", Ci.mozIStorageService);
   checkService("vc", Ci.nsIVersionComparator);
   checkService("locale", Ci.nsILocaleService);
@@ -67,5 +65,4 @@ function checkServices() {
   checkService("ww", Ci.nsIWindowWatcher);
   checkService("tm", Ci.nsIThreadManager);
   checkService("strings", Ci.nsIStringBundleService);
-  checkService("urlFormatter", Ci.nsIURLFormatter);
 }

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-352281.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 352281;
 var summary = 'decompilation of |while| and function declaration';

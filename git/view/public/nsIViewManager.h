@@ -50,8 +50,8 @@ class nsIDeviceContext;
 class nsIViewObserver;
 
 #define NS_IVIEWMANAGER_IID   \
-  { 0x4017112c, 0x64d7, 0x47bc, \
-   { 0xab, 0x66, 0x4e, 0x5f, 0xff, 0x83, 0xec, 0x7c } }
+  { 0xbbdd429c, 0x6542, 0x477a, \
+    { 0xab, 0x48, 0x6c, 0xd6, 0xcb, 0xb8, 0xdf, 0x98 } }
 
 class nsIViewManager : public nsISupports
 {
@@ -116,7 +116,7 @@ public:
   /**
    * Do any resizes that are pending.
    */
-  NS_IMETHOD  FlushDelayedResize(PRBool aDoReflow) = 0;
+  NS_IMETHOD  FlushDelayedResize() = 0;
 
   /**
    * Called to force a redrawing of any dirty areas.
@@ -137,15 +137,14 @@ public:
   NS_IMETHOD  UpdateView(nsIView *aView, PRUint32 aUpdateFlags) = 0;
 
   /**
-   * Called to inform the view manager that some portion of a view is dirty and
-   * needs to be redrawn. The rect passed in should be in the view's coordinate
-   * space. Does not check for paint suppression.
+   * Called to inform the view manager that some portion of a view
+   * is dirty and needs to be redrawn. The rect passed in
+   * should be in the view's coordinate space.
    * @param aView view to paint. should be root view
    * @param rect rect to mark as damaged
    * @param aUpdateFlags see bottom of nsIViewManager.h for description
    */
-  NS_IMETHOD  UpdateViewNoSuppression(nsIView *aView, const nsRect &aRect,
-                                      PRUint32 aUpdateFlags) = 0;
+  NS_IMETHOD  UpdateView(nsIView *aView, const nsRect &aRect, PRUint32 aUpdateFlags) = 0;
 
   /**
    * Called to inform the view manager that it should redraw all views.
@@ -389,6 +388,42 @@ public:
    * (aFromScroll is false) or scrolled (aFromScroll is true).
    */
   NS_IMETHOD SynthesizeMouseMove(PRBool aFromScroll)=0;
+
+  /**
+   * Called to inform the view manager that a view is about to bit-blit.
+   * @param aView the view that will bit-blit
+   * @param aScrollAmount how much aView will scroll by
+   * @return always returns NS_OK
+   * @note
+   * This method used to return void, but MSVC 6.0 SP5 (without the
+   * Processor Pack) and SP6, and the MS eMbedded Visual C++ 4.0 SP4
+   * (for WINCE) hit an internal compiler error when compiling this
+   * method:
+   *
+   * @par
+@verbatim
+       fatal error C1001: INTERNAL COMPILER ERROR
+                   (compiler file 'E:\8966\vc98\p2\src\P2\main.c', line 494)
+@endverbatim
+   *
+   * @par
+   * Making the method return nsresult worked around the internal
+   * compiler error.  See Bugzilla bug 281158.  (The WINCE internal
+   * compiler error was addressed by the patch in bug 291229 comment
+   * 14 although the bug report did not mention the problem.)
+   */
+  virtual nsresult WillBitBlit(nsIView* aView, const nsRect& aRect,
+                               nsPoint aScrollAmount) = 0;
+  
+  /**
+   * Called to inform the view manager that a view has scrolled via a
+   * bitblit.
+   * The view manager will invalidate any widgets which may need
+   * to be rerendered.
+   * @param aView view to paint
+   * @param aUpdateRegion ensure that this part of the view is repainted
+   */
+  virtual void UpdateViewAfterScroll(nsIView *aView, const nsRegion& aUpdateRegion) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIViewManager, NS_IVIEWMANAGER_IID)

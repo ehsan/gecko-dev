@@ -42,7 +42,7 @@
 // formal protocols
 #include "mozView.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessible.h"
+#include "nsIAccessible.h"
 #include "mozAccessibleProtocol.h"
 #endif
 
@@ -143,17 +143,10 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   
   // when mouseDown: is called, we store its event here (strong)
   NSEvent* mLastMouseDownEvent;
-
-  // Whether the last mouse down event was blocked from Gecko.
-  BOOL mBlockedLastMouseDown;
-
-  // when acceptsFirstMouse: is called, we store the event here (strong)
-  NSEvent* mClickThroughMouseDownEvent;
-
+  
   // rects that were invalidated during a draw, so have pending drawing
   NSMutableArray* mPendingDirtyRects;
   BOOL mPendingFullDisplay;
-  BOOL mPendingDisplay;
 
   // Holds our drag service across multiple drag calls. The reference to the
   // service is obtained when the mouse enters the view and is released when
@@ -168,9 +161,8 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   // class) -- for some reason TSMProcessRawKeyEvent() doesn't work with them.
   TSMDocumentID mPluginTSMDoc;
 #endif
-  BOOL mPluginComplexTextInputRequested;
 
-  NSOpenGLContext *mGLContext;
+  NSOpenGLContext *mContext;
 
   // Simple gestures support
   //
@@ -219,13 +211,10 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 #ifndef NP_NO_CARBON
 - (void) processPluginKeyEvent:(EventRef)aKeyEvent;
 #endif
-- (void)pluginRequestsComplexTextInputForCurrentEvent;
 
 - (void)update;
 - (void)lockFocus;
 - (void) _surfaceNeedsUpdate:(NSNotification*)notification;
-
-- (BOOL)isPluginView;
 
 // Simple gestures support
 //
@@ -250,8 +239,7 @@ public:
 
   static void MouseMoved(NSEvent* aEvent);
   static void OnDestroyView(ChildView* aView);
-  static BOOL WindowAcceptsEvent(NSWindow* aWindow, NSEvent* aEvent,
-                                 ChildView* aView, BOOL isClickThrough = NO);
+  static BOOL WindowAcceptsEvent(NSWindow* aWindow, NSEvent* aEvent);
   static void ReEvaluateMouseEnterState(NSEvent* aEvent = nil);
   static ChildView* ViewForEvent(NSEvent* aEvent);
 
@@ -297,7 +285,6 @@ public:
 
   NS_IMETHOD              SetParent(nsIWidget* aNewParent);
   virtual nsIWidget*      GetParent(void);
-  virtual float           GetDPI();
 
   LayerManager*           GetLayerManager();
 
@@ -316,6 +303,9 @@ public:
 
   virtual void*           GetNativeData(PRUint32 aDataType);
   virtual nsresult        ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
+  virtual void            Scroll(const nsIntPoint& aDelta,
+                                 const nsTArray<nsIntRect>& aDestRects,
+                                 const nsTArray<Configuration>& aConfigurations);
   virtual nsIntPoint      WidgetToScreenOffset();
   virtual PRBool          ShowsResizeIndicator(nsIntRect* aResizerRect);
 
@@ -358,8 +348,6 @@ public:
   NS_IMETHOD        SetPluginEventModel(int inEventModel);
   NS_IMETHOD        GetPluginEventModel(int* outEventModel);
 
-  NS_IMETHOD        StartComplexTextInputForCurrentEvent();
-
   virtual nsTransparencyMode GetTransparencyMode();
   virtual void                SetTransparencyMode(nsTransparencyMode aMode);
 
@@ -378,7 +366,7 @@ public:
   virtual PRBool    DispatchWindowEvent(nsGUIEvent& event);
   
 #ifdef ACCESSIBILITY
-  already_AddRefed<nsAccessible> GetDocumentAccessible();
+  void              GetDocumentAccessible(nsIAccessible** aAccessible);
 #endif
 
   virtual gfxASurface* GetThebesSurface();
@@ -402,6 +390,77 @@ public:
   nsCocoaTextInputHandler* TextInputHandler() { return &mTextInputHandler; }
   NSView<mozView>* GetEditorView();
 
+  // Wrapper methods of nsIMEManager and nsTSMManager
+  void IME_OnDestroyView(NSView<mozView> *aDestroyingView)
+  {
+    mTextInputHandler.OnDestroyView(aDestroyingView);
+  }
+
+  void IME_OnStartComposition(NSView<mozView>* aComposingView)
+  {
+    mTextInputHandler.OnStartIMEComposition(aComposingView);
+  }
+
+  void IME_OnUpdateComposition(NSString* aCompositionString)
+  {
+    mTextInputHandler.OnUpdateIMEComposition(aCompositionString);
+  }
+
+  void IME_OnEndComposition()
+  {
+    mTextInputHandler.OnEndIMEComposition();
+  }
+
+  PRBool IME_IsComposing()
+  {
+    return mTextInputHandler.IsIMEComposing();
+  }
+
+  PRBool IME_IsASCIICapableOnly()
+  {
+    return mTextInputHandler.IsASCIICapableOnly();
+  }
+
+  PRBool IME_IsOpened()
+  {
+    return mTextInputHandler.IsIMEOpened();
+  }
+
+  PRBool IME_IsEnabled()
+  {
+    return mTextInputHandler.IsIMEEnabled();
+  }
+
+  PRBool IME_IgnoreCommit()
+  {
+    return mTextInputHandler.IgnoreIMECommit();
+  }
+
+  void IME_CommitComposition()
+  {
+    mTextInputHandler.CommitIMEComposition();
+  }
+
+  void IME_CancelComposition()
+  {
+    mTextInputHandler.CancelIMEComposition();
+  }
+
+  void IME_SetASCIICapableOnly(PRBool aASCIICapableOnly)
+  {
+    mTextInputHandler.SetASCIICapableOnly(aASCIICapableOnly);
+  }
+
+  void IME_SetOpenState(PRBool aOpen)
+  {
+    mTextInputHandler.SetIMEOpenState(aOpen);
+  }
+
+  void IME_Enable(PRBool aEnable)
+  {
+    mTextInputHandler.EnableIME(aEnable);
+  }
+
 protected:
 
   PRBool            ReportDestroyEvent();
@@ -413,14 +472,6 @@ protected:
   virtual NSView*   CreateCocoaView(NSRect inFrame);
   void              TearDownView();
   nsCocoaWindow*    GetXULWindowWidget();
-
-  virtual already_AddRefed<nsIWidget>
-  AllocateChildPopupWidget()
-  {
-    static NS_DEFINE_IID(kCPopUpCID, NS_POPUP_CID);
-    nsCOMPtr<nsIWidget> widget = do_CreateInstance(kCPopUpCID);
-    return widget.forget();
-  }
 
 protected:
 
@@ -442,12 +493,9 @@ protected:
   PRPackedBool          mDrawing;
   PRPackedBool          mPluginDrawing;
   PRPackedBool          mPluginIsCG; // true if this is a CoreGraphics plugin
-  PRPackedBool          mIsDispatchPaint; // Is a paint event being dispatched
 
   NP_CGContext          mPluginCGContext;
-#ifndef NP_NO_QUICKDRAW
   NP_Port               mPluginQDPort;
-#endif
   nsIPluginInstanceOwner* mPluginInstanceOwner; // [WEAK]
 
   static PRUint32 sLastInputEventCount;

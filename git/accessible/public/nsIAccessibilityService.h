@@ -41,23 +41,17 @@
 #ifndef _nsIAccessibilityService_h_
 #define _nsIAccessibilityService_h_
 
+#include "nsISupports.h"
 #include "nsIAccessibleRetrieval.h"
-#include "nsIAccessibleEvent.h"
 
-#include "nsAutoPtr.h"
-
-class nsAccessible;
-class nsINode;
-class nsIContent;
 class nsIDocument;
 class nsIFrame;
-class nsIPresShell;
 class nsObjectFrame;
+class nsIContent;
 
-// 10ff6dca-b219-4b64-9a4c-67a62b86edce
 #define NS_IACCESSIBILITYSERVICE_IID \
-{ 0x10ff6dca, 0xb219, 0x4b64, \
- { 0x9a, 0x4c, 0x67, 0xa6, 0x2b, 0x86, 0xed, 0xce } }
+{0x33fa2a8d, 0x72e5, 0x4b8b,         \
+  {0xbb, 0x17, 0x6b, 0x22, 0x79, 0x05, 0x5c, 0x6c} }
 
 class nsIAccessibilityService : public nsIAccessibleRetrieval
 {
@@ -65,69 +59,70 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IACCESSIBILITYSERVICE_IID)
 
   /**
-   * Return an accessible object for a DOM node in the given pres shell.
-   *
-   * @param  aNode      [in] the DOM node to get an accessible for
-   * @param  aPresShell [in] the presentation shell which contains layout info
-   *                         for the DOM node
-   */
-  virtual nsAccessible* GetAccessibleInShell(nsINode* aNode,
-                                             nsIPresShell* aPresShell) = 0;
-
-  /**
    * Creates accessible for the given DOM node or frame.
    */
-  virtual already_AddRefed<nsAccessible>
-    CreateHTMLBRAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHTML4ButtonAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHTMLButtonAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHTMLCaptionAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHTMLCheckboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHTMLComboboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHTMLGroupboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHTMLHRAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHTMLImageAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHTMLLabelAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHTMLLIAccessible(nsIContent* aContent, nsIPresShell* aPresShell,
-                           const nsAString& aBulletText) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHTMLListboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHTMLMediaAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHTMLObjectFrameAccessible(nsObjectFrame* aFrame, nsIContent* aContent,
-                                    nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHTMLRadioButtonAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHTMLTableAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHTMLTableCellAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHTMLTextAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHTMLTextFieldAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateHyperTextAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
-  virtual already_AddRefed<nsAccessible>
-    CreateOuterDocAccessible(nsIContent* aContent, nsIPresShell* aPresShell) = 0;
+  virtual nsresult CreateOuterDocAccessible(nsIDOMNode *aNode,
+                                            nsIAccessible **aAccessible) = 0;
+
+  virtual nsresult CreateHTML4ButtonAccessible(nsIFrame *aFrame,
+                                               nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHyperTextAccessible(nsIFrame *aFrame,
+                                             nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLBRAccessible(nsIFrame *aFrame,
+                                          nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLButtonAccessible(nsIFrame *aFrame,
+                                              nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLLIAccessible(nsIFrame *aFrame,
+                                          nsIFrame *aBulletFrame,
+                                          const nsAString& aBulletText,
+                                          nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLCheckboxAccessible(nsIFrame *aFrame,
+                                                nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLComboboxAccessible(nsIDOMNode *aNode,
+                                                nsIWeakReference *aPresShell,
+                                                nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLGenericAccessible(nsIFrame *aFrame,
+                                               nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLGroupboxAccessible(nsIFrame *aFrame,
+                                                nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLHRAccessible(nsIFrame *aFrame,
+                                          nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLImageAccessible(nsIFrame *aFrame,
+                                             nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLLabelAccessible(nsIFrame *aFrame,
+                                             nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLListboxAccessible(nsIDOMNode *aNode,
+                                               nsIWeakReference *aPresShell,
+                                               nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLMediaAccessible(nsIFrame *aFrame,
+                                             nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLObjectFrameAccessible(nsObjectFrame *aFrame,
+                                                   nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLRadioButtonAccessible(nsIFrame *aFrame,
+                                                   nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLSelectOptionAccessible(nsIDOMNode *aNode,
+                                                    nsIAccessible *aAccParent,
+                                                    nsIWeakReference *aPresShell,
+                                                    nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLTableAccessible(nsIFrame *aFrame,
+                                             nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLTableCellAccessible(nsIFrame *aFrame,
+                                                 nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLTextAccessible(nsIFrame *aFrame,
+                                            nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLTextFieldAccessible(nsIFrame *aFrame,
+                                                 nsIAccessible **aAccessible) = 0;
+  virtual nsresult CreateHTMLCaptionAccessible(nsIFrame *aFrame,
+                                               nsIAccessible **aAccessible) = 0;
 
   /**
    * Adds/remove ATK root accessible for gtk+ native window to/from children
    * of the application accessible.
    */
-  virtual nsAccessible* AddNativeRootAccessible(void* aAtkAccessible) = 0;
-  virtual void RemoveNativeRootAccessible(nsAccessible* aRootAccessible) = 0;
+  virtual nsresult AddNativeRootAccessible(void *aAtkAccessible,
+                                           nsIAccessible **aAccessible) = 0;
+  virtual nsresult
+    RemoveNativeRootAccessible(nsIAccessible *aRootAccessible) = 0;
 
   /**
    * Used to describe sort of changes leading to accessible tree invalidation.
@@ -144,7 +139,7 @@ public:
   /**
    * Invalidate the accessible tree when DOM tree or frame tree is changed.
    *
-   * @param aPresShell   [in] the presShell where changes occurred
+   * @param aPresShell   [in] the presShell where changes occured
    * @param aContent     [in] the affected DOM content
    * @param aChangeType  [in] the change type (see constants declared above)
    */
@@ -157,12 +152,6 @@ public:
    * target. Used by layout.
    */
   virtual void NotifyOfAnchorJumpTo(nsIContent *aTarget) = 0;
-
-  /**
-   * Notify the accessibility service that the given presshell is
-   * being destroyed.
-   */
-  virtual void PresShellDestroyed(nsIPresShell *aPresShell) = 0;
 
   /**
    * Fire accessible event of the given type for the given target.

@@ -37,7 +37,7 @@
 
 /**
  * Content Security Policy
- *
+ * 
  * Overview
  * This is a stub component that will be fleshed out to do all the fancy stuff
  * that ContentSecurityPolicy has to do.
@@ -113,8 +113,13 @@ function ContentSecurityPolicy() {
 }
 
 ContentSecurityPolicy.prototype = {
+  classDescription: "Content Security Policy Component",
+  contractID:       "@mozilla.org/contentsecuritypolicy;1",
   classID:          Components.ID("{AB36A2BF-CB32-4AA6-AB41-6B4E4444A221}"),
   QueryInterface:   XPCOMUtils.generateQI([Ci.nsIContentSecurityPolicy]),
+
+  // get this contractID registered for certain categories via XPCOMUtils
+  _xpcom_categories: [ ],
 
   get isInitialized() {
     return this._isInitialized;
@@ -241,34 +246,34 @@ ContentSecurityPolicy.prototype = {
     var uriString = this._policy.getReportURIs();
     var uris = uriString.split(/\s+/);
     if (uris.length > 0) {
-      // Generate report to send composed of
-      // {
-      //   csp-report: {
-      //     request: "GET /index.html HTTP/1.1",
-      //     request-headers: "Host: example.com
-      //                       User-Agent: ...
-      //                       ...",
-      //     blocked-uri: "...",
-      //     violated-directive: "..."
-      //   }
-      // }
+      // Generate report to send composed of:
+      // <csp-report>
+      //   <request>GET /index.html HTTP/1.1</request>
+      //   <request-headers>Host: example.com
+      //            User-Agent: ...
+      //            ...
+      //   </request-headers>
+      //   <blocked-uri>...</blocked-uri>
+      //   <violated-directive>...</violated-directive>
+      // </csp-report>
+      //   
       var strHeaders = "";
       for (let i in this._requestHeaders) {
         strHeaders += this._requestHeaders[i] + "\n";
       }
-      var report = {
-        'csp-report': {
-          'request': this._request,
-          'request-headers': strHeaders,
-          'blocked-uri': (blockedUri instanceof Ci.nsIURI ?
-                          blockedUri.asciiSpec : blockedUri),
-          'violated-directive': violatedDirective
-        }
-      }
-      CSPdebug("Constructed violation report:\n" + JSON.stringify(report));
 
-      CSPWarning("Directive \"" + violatedDirective + "\" violated"
-               + (blockedUri['asciiSpec'] ? " by " + blockedUri.asciiSpec : ""));
+      var report = "<csp-report>\n" +
+        " <request>" + this._request + "</request>\n" +
+        "   <request-headers><![CDATA[\n" +
+        strHeaders +
+        "   ]]></request-headers>\n" +
+        "   <blocked-uri>" + 
+        (blockedUri instanceof Ci.nsIURI ? blockedUri.asciiSpec : blockedUri) + 
+        "</blocked-uri>\n" +
+        "   <violated-directive>" + violatedDirective + "</violated-directive>\n" +
+        "</csp-report>\n";
+
+      CSPdebug("Constructed violation report:\n" + report);
 
       // For each URI in the report list, send out a report.
       for (let i in uris) {
@@ -285,17 +290,18 @@ ContentSecurityPolicy.prototype = {
 
         try {
           req.open("POST", uris[i], true);
-          req.setRequestHeader('Content-Type', 'application/json');
+          req.setRequestHeader('Content-Type', 'application/xml');
           req.upload.addEventListener("error", failure, false);
           req.upload.addEventListener("abort", failure, false);
-
+          //req.channel.loadFlags |= Ci.nsIRequest.LOAD_BYPASS_CACHE;
+ 
           // make request anonymous
           // This prevents sending cookies with the request,
           // in case the policy URI is injected, it can't be
           // abused for CSRF.
           req.channel.loadFlags |= Ci.nsIChannel.LOAD_ANONYMOUS;
 
-          req.send(JSON.stringify(report));
+          req.send(report);
           CSPdebug("Sent violation report to " + uris[i]);
         } catch(e) {
           // it's possible that the URI was invalid, just log a
@@ -384,6 +390,7 @@ ContentSecurityPolicy.prototype = {
     CSPdebug("shouldLoad location = " + aContentLocation.asciiSpec);
     CSPdebug("shouldLoad content type = " + aContentType);
     var cspContext = ContentSecurityPolicy._MAPPINGS[aContentType];
+    // CSPdebug("shouldLoad CSP directive =" + cspContext);
 
     // if the mapping is null, there's no policy, let it through.
     if (!cspContext) {
@@ -434,4 +441,7 @@ ContentSecurityPolicy.prototype = {
 
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([ContentSecurityPolicy]);
+
+
+function NSGetModule(aComMgr, aFileSpec)
+  XPCOMUtils.generateModule([ContentSecurityPolicy]);

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-346642-03.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 346642;
 var summary = 'decompilation of destructuring assignment';
