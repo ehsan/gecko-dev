@@ -46,9 +46,9 @@ public:
   }
 #endif
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists);
 
   // nsISVGChildFrame interface:
   NS_IMETHOD PaintSVG(nsRenderingContext* aContext, const nsIntRect *aDirtyRect);
@@ -92,15 +92,16 @@ nsSVGSwitchFrame::GetType() const
   return nsGkAtoms::svgSwitchFrame;
 }
 
-void
+NS_IMETHODIMP
 nsSVGSwitchFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                    const nsRect&           aDirtyRect,
                                    const nsDisplayListSet& aLists)
 {
   nsIFrame* kid = GetActiveChildFrame();
   if (kid) {
-    BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
+    return BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
   }
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -96,12 +96,12 @@ NS_QUERYFRAME_HEAD(nsProgressFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 
-void
+NS_IMETHODIMP
 nsProgressFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                   const nsRect&           aDirtyRect,
                                   const nsDisplayListSet& aLists)
 {
-  BuildDisplayListForInline(aBuilder, aDirtyRect, aLists);
+  return BuildDisplayListForInline(aBuilder, aDirtyRect, aLists);
 }
 
 NS_IMETHODIMP nsProgressFrame::Reflow(nsPresContext*           aPresContext,

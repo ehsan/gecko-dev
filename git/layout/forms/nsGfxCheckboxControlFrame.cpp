@@ -96,21 +96,23 @@ nsGfxCheckboxControlFrame::AccessibleType()
 #endif
 
 //------------------------------------------------------------
-void
+NS_IMETHODIMP
 nsGfxCheckboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                             const nsRect&           aDirtyRect,
                                             const nsDisplayListSet& aLists)
 {
-  nsFormControlFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
+  nsresult rv = nsFormControlFrame::BuildDisplayList(aBuilder, aDirtyRect,
+                                                     aLists);
+  NS_ENSURE_SUCCESS(rv, rv);
   
   // Get current checked state through content model.
   if ((!IsChecked() && !IsIndeterminate()) || !IsVisibleForPainting(aBuilder))
-    return;   // we're not checked or not visible, nothing to paint.
+    return NS_OK;   // we're not checked or not visible, nothing to paint.
     
   if (IsThemed())
-    return; // No need to paint the checkmark. The theme will do it.
+    return NS_OK; // No need to paint the checkmark. The theme will do it.
 
-  aLists.Content()->AppendNewToTop(new (aBuilder)
+  return aLists.Content()->AppendNewToTop(new (aBuilder)
     nsDisplayGeneric(aBuilder, this,
                      IsIndeterminate()
                      ? PaintIndeterminateMark : PaintCheckMark,

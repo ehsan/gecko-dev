@@ -60,9 +60,9 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
                                
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists);
 
   void PaintBorderBackground(nsRenderingContext& aRenderingContext,
     nsPoint aPt, const nsRect& aDirtyRect, uint32_t aBGFlags);
@@ -177,7 +177,7 @@ nsDisplayFieldSetBorderBackground::Paint(nsDisplayListBuilder* aBuilder,
                           mVisibleRect, aBuilder->GetBackgroundPaintFlags());
 }
 
-void
+NS_IMETHODIMP
 nsFieldSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                   const nsRect&           aDirtyRect,
                                   const nsDisplayListSet& aLists) {
@@ -187,16 +187,19 @@ nsFieldSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // we need to paint the outline
   if (IsVisibleForPainting(aBuilder)) {
     if (GetStyleBorder()->mBoxShadow) {
-      aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-        nsDisplayBoxShadowOuter(aBuilder, this));
+      nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
+          nsDisplayBoxShadowOuter(aBuilder, this));
+      NS_ENSURE_SUCCESS(rv, rv);
     }
 
     // don't bother checking to see if we really have a border or background.
     // we usually will have a border.
-    aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-      nsDisplayFieldSetBorderBackground(aBuilder, this));
+    nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
+        nsDisplayFieldSetBorderBackground(aBuilder, this));
+    NS_ENSURE_SUCCESS(rv, rv);
   
-    DisplayOutlineUnconditional(aBuilder, aLists);
+    rv = DisplayOutlineUnconditional(aBuilder, aLists);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     DO_GLOBAL_REFLOW_COUNT_DSP("nsFieldSetFrame");
   }
@@ -209,20 +212,23 @@ nsFieldSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     // mLegendFrame. However, we want mContentFrame's display items to be
     // after mLegendFrame's display items in z-order, so we need to save them
     // and append them later.
-    BuildDisplayListForChild(aBuilder, mContentFrame, aDirtyRect,
-                             contentDisplayItems);
+    nsresult rv = BuildDisplayListForChild(aBuilder, mContentFrame, aDirtyRect,
+                                           contentDisplayItems);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
   if (mLegendFrame) {
     // The legend's background goes on our BlockBorderBackgrounds list because
     // it's a block child.
     nsDisplayListSet set(aLists, aLists.BlockBorderBackgrounds());
-    BuildDisplayListForChild(aBuilder, mLegendFrame, aDirtyRect, set);
+    nsresult rv = BuildDisplayListForChild(aBuilder, mLegendFrame, aDirtyRect, set);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
   // Put mContentFrame's display items on the master list. Note that
   // this moves mContentFrame's border/background display items to our
   // BorderBackground() list, which isn't really correct, but it's OK because
   // mContentFrame is anonymous and can't have its own border and background.
   contentDisplayItems.MoveTo(aLists);
+  return NS_OK;
 }
 
 void

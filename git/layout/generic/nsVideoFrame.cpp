@@ -365,23 +365,25 @@ public:
   }
 };
 
-void
+NS_IMETHODIMP
 nsVideoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                const nsRect&           aDirtyRect,
                                const nsDisplayListSet& aLists)
 {
   if (!IsVisibleForPainting(aBuilder))
-    return;
+    return NS_OK;
 
   DO_GLOBAL_REFLOW_COUNT_DSP("nsVideoFrame");
 
-  DisplayBorderBackgroundOutline(aBuilder, aLists);
+  nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsDisplayList replacedContent;
 
   if (HasVideoElement() && !ShouldDisplayPoster()) {
-    replacedContent.AppendNewToTop(
+    rv = replacedContent.AppendNewToTop(
       new (aBuilder) nsDisplayVideo(aBuilder, this));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   // Add child frames to display list. We expect up to two children, an image
@@ -390,17 +392,21 @@ nsVideoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
        child;
        child = child->GetNextSibling()) {
     if (child->GetType() == nsGkAtoms::imageFrame && ShouldDisplayPoster()) {
-      child->BuildDisplayListForStackingContext(aBuilder,
-                                                aDirtyRect - child->GetOffsetTo(this),
-                                                &replacedContent);
+      rv = child->BuildDisplayListForStackingContext(aBuilder,
+                                                     aDirtyRect - child->GetOffsetTo(this),
+                                                     &replacedContent);
+      NS_ENSURE_SUCCESS(rv,rv);
     } else if (child->GetType() == nsGkAtoms::boxFrame) {
-      child->BuildDisplayListForStackingContext(aBuilder,
-                                                aDirtyRect - child->GetOffsetTo(this),
-                                                &replacedContent);
+      rv = child->BuildDisplayListForStackingContext(aBuilder,
+                                                     aDirtyRect - child->GetOffsetTo(this),
+                                                     &replacedContent);
+      NS_ENSURE_SUCCESS(rv,rv);
     }
   }
 
   WrapReplacedContentForBorderRadius(aBuilder, &replacedContent, aLists);
+
+  return NS_OK;
 }
 
 nsIAtom*

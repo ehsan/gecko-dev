@@ -106,7 +106,7 @@ void nsLeafBoxFrame::UpdateMouseThrough()
   }
 }
 
-void
+NS_IMETHODIMP
 nsLeafBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                  const nsRect&           aDirtyRect,
                                  const nsDisplayListSet& aLists)
@@ -116,13 +116,14 @@ nsLeafBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // BlockBorderBackground() list. But I don't see any need to preserve
   // that anomalous behaviour. The important thing I'm preserving is that
   // leaf boxes continue to receive events in the foreground layer.
-  DisplayBorderBackgroundOutline(aBuilder, aLists);
+  nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (!aBuilder->IsForEventDelivery() || !IsVisibleForPainting(aBuilder))
-    return;
+    return NS_OK;
 
-  aLists.Content()->AppendNewToTop(new (aBuilder)
-    nsDisplayEventReceiver(aBuilder, this));
+  return aLists.Content()->AppendNewToTop(new (aBuilder)
+      nsDisplayEventReceiver(aBuilder, this));
 }
 
 /* virtual */ nscoord

@@ -577,15 +577,16 @@ nsFileControlFrame::GetFormProperty(nsIAtom* aName, nsAString& aValue) const
   return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                      const nsRect&           aDirtyRect,
                                      const nsDisplayListSet& aLists)
 {
   // box-shadow
   if (GetStyleBorder()->mBoxShadow) {
-    aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-      nsDisplayBoxShadowOuter(aBuilder, this));
+    nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
+        nsDisplayBoxShadowOuter(aBuilder, this));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   // Our background is inherited to the text input, and we don't really want to
@@ -593,7 +594,9 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // styles in forms.css) -- doing it just makes us look ugly in some cases and
   // has no effect in others.
   nsDisplayListCollection tempList;
-  nsBlockFrame::BuildDisplayList(aBuilder, aDirtyRect, tempList);
+  nsresult rv = nsBlockFrame::BuildDisplayList(aBuilder, aDirtyRect, tempList);
+  if (NS_FAILED(rv))
+    return rv;
 
   tempList.BorderBackground()->DeleteAll();
 
@@ -601,18 +604,21 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsRect clipRect(aBuilder->ToReferenceFrame(this), GetSize());
   clipRect.width = GetVisualOverflowRect().XMost();
   nscoord radii[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-  OverflowClip(aBuilder, tempList, aLists, clipRect, radii);
+  rv = OverflowClip(aBuilder, tempList, aLists, clipRect, radii);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Disabled file controls don't pass mouse events to their children, so we
   // put an invisible item in the display list above the children
   // just to catch events
   nsEventStates eventStates = mContent->AsElement()->State();
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED) && IsVisibleForPainting(aBuilder)) {
-    aLists.Content()->AppendNewToTop(
-      new (aBuilder) nsDisplayEventReceiver(aBuilder, this));
+    rv = aLists.Content()->AppendNewToTop(
+        new (aBuilder) nsDisplayEventReceiver(aBuilder, this));
+    if (NS_FAILED(rv))
+      return rv;
   }
 
-  DisplaySelectionOverlay(aBuilder, aLists.Content());
+  return DisplaySelectionOverlay(aBuilder, aLists.Content());
 }
 
 #ifdef ACCESSIBILITY
