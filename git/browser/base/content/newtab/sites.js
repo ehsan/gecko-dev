@@ -195,6 +195,9 @@ Site.prototype = {
       case "dragstart":
         gDrag.start(this, aEvent);
         break;
+      case "drag":
+        gDrag.drag(this, aEvent);
+        break;
       case "dragend":
         gDrag.end(this, aEvent);
         break;

@@ -6,13 +6,14 @@
 
 #include "vm/ObjectImpl-inl.h"
 
-#include "gc/Marking.h"
 #include "js/Value.h"
 #include "vm/Debugger.h"
+#include "vm/ObjectImpl.h"
 
 #include "jsobjinlines.h"
 
 #include "gc/Barrier-inl.h"
+#include "gc/Marking.h"
 
 using namespace js;
 

@@ -7,7 +7,7 @@
 #define nsDirectoryService_h___
 
 #include "nsIDirectoryService.h"
-#include "nsInterfaceHashtable.h"
+#include "nsHashtable.h"
 #include "nsIFile.h"
 #include "nsIAtom.h"
 #include "nsTArray.h"
@@ -48,7 +48,8 @@ class nsDirectoryService MOZ_FINAL : public nsIDirectoryService,
 private:
     nsresult GetCurrentProcessDirectory(nsIFile** aFile);
     
-    nsInterfaceHashtable<nsCStringHashKey, nsIFile> mHashtable;
+    static bool ReleaseValues(nsHashKey* key, void* data, void* closure);
+    nsSupportsHashtable mHashtable;
     nsTArray<nsCOMPtr<nsIDirectoryServiceProvider> > mProviders;
 
 public:

@@ -406,20 +406,7 @@ public:
                               bool aCompileEventHandlers) MOZ_OVERRIDE;
   virtual void UnbindFromTree(bool aDeep = true,
                               bool aNullParent = true) MOZ_OVERRIDE;
-
-  /**
-   * Normalizes an attribute name and returns it as a nodeinfo if an attribute
-   * with that name exists. This method is intended for character case
-   * conversion if the content object is case insensitive (e.g. HTML). Returns
-   * the nodeinfo of the attribute with the specified name if one exists or
-   * null otherwise.
-   *
-   * @param aStr the unparsed attribute string
-   * @return the node info. May be nullptr.
-   */
-  already_AddRefed<nsINodeInfo>
-  GetExistingAttrNameFromQName(const nsAString& aStr) const;
-
+  virtual already_AddRefed<nsINodeInfo> GetExistingAttrNameFromQName(const nsAString& aStr) const MOZ_OVERRIDE;
   nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
   {

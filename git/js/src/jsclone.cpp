@@ -4,6 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/Endian.h"
 /*
  * This file implements the structured clone algorithm of
  * http://www.whatwg.org/specs/web-apps/current-work/multipage/common-dom-interfaces.html#safe-passing-of-structured-data
@@ -30,7 +31,6 @@
 #include "jsclone.h"
 #include "jswrapper.h"
 
-#include "mozilla/Endian.h"
 #include "mozilla/FloatingPoint.h"
 
 #include "jsdate.h"

@@ -25,6 +25,7 @@
 
 #include "gc/Barrier.h"
 #include "gc/Heap.h"
+
 #include "vm/ObjectImpl.h"
 #include "vm/Shape.h"
 #include "vm/String.h"

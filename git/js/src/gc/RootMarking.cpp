@@ -7,10 +7,6 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Util.h"
 
-#ifdef MOZ_VALGRIND
-# include <valgrind/memcheck.h>
-#endif
-
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsgc.h"
@@ -23,14 +19,18 @@
 #include "gc/GCInternals.h"
 #include "gc/Marking.h"
 #ifdef JS_ION
-# include "ion/IonFrameIterator.h"
 # include "ion/IonMacroAssembler.h"
+# include "ion/IonFrameIterator.h"
 #endif
 #include "js/HashTable.h"
 #include "vm/Debugger.h"
 
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
+
+#ifdef MOZ_VALGRIND
+# include <valgrind/memcheck.h>
+#endif
 
 using namespace js;
 using namespace js::gc;

@@ -223,7 +223,6 @@
 
 #include "mozilla/Telemetry.h"
 #include "nsLocation.h"
-#include "nsHTMLDocument.h"
 #include "nsWrapperCacheInlines.h"
 #include "nsDOMEventTargetHelper.h"
 #include "nsIAppsService.h"
@@ -2496,7 +2495,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
                  "outer and inner globals should have the same prototype");
 #endif
 
-    nsCOMPtr<Element> frame = GetFrameElementInternal();
+    nsCOMPtr<nsIContent> frame = do_QueryInterface(GetFrameElementInternal());
     if (frame) {
       nsPIDOMWindow* parentWindow = frame->OwnerDoc()->GetWindow();
       if (parentWindow && parentWindow->TimeoutSuspendCount()) {
@@ -2836,7 +2835,7 @@ nsGlobalWindow::UpdateParentTarget()
   // child global, and if it doesn't have one, just use the chrome event
   // handler itself.
 
-  nsCOMPtr<Element> frameElement = GetFrameElementInternal();
+  nsCOMPtr<nsIDOMElement> frameElement = GetFrameElementInternal();
   nsCOMPtr<EventTarget> eventTarget =
     TryGetTabChildGlobalAsEventTarget(frameElement);
 
@@ -3097,7 +3096,7 @@ nsGlobalWindow::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
     // @see nsDocument::PreHandleEvent.
     mIsDocumentLoaded = true;
 
-    nsCOMPtr<Element> element = GetFrameElementInternal();
+    nsCOMPtr<nsIContent> content(do_QueryInterface(GetFrameElementInternal()));
     nsIDocShell* docShell = GetDocShell();
 
     int32_t itemType = nsIDocShellTreeItem::typeChrome;
@@ -3106,7 +3105,7 @@ nsGlobalWindow::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
       docShell->GetItemType(&itemType);
     }
 
-    if (element && GetParentInternal() &&
+    if (content && GetParentInternal() &&
         itemType != nsIDocShellTreeItem::typeChrome) {
       // If we're not in chrome, or at a chrome boundary, fire the
       // onload event for the frame element.
@@ -3120,7 +3119,7 @@ nsGlobalWindow::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
       // be a pres context available). Since we're not firing a GUI
       // event we don't need a pres context anyway so we just pass
       // null as the pres context all the time here.
-      nsEventDispatcher::Dispatch(element, nullptr, &event, nullptr, &status);
+      nsEventDispatcher::Dispatch(content, nullptr, &event, nullptr, &status);
     }
   }
 
@@ -3276,37 +3275,6 @@ nsPIDOMWindow::MaybeCreateDoc()
     // has already called SetNewDocument().
     nsCOMPtr<nsIDocument> document = do_GetInterface(docShell);
   }
-}
-
-Element*
-nsPIDOMWindow::GetFrameElementInternal() const
-{
-  if (mOuterWindow) {
-    return mOuterWindow->GetFrameElementInternal();
-  }
-
-  NS_ASSERTION(!IsInnerWindow(),
-               "GetFrameElementInternal() called on orphan inner window");
-
-  return mFrameElement;
-}
-
-void
-nsPIDOMWindow::SetFrameElementInternal(Element* aFrameElement)
-{
-  if (IsOuterWindow()) {
-    mFrameElement = aFrameElement;
-
-    return;
-  }
-
-  if (!mOuterWindow) {
-    NS_ERROR("frameElement set on inner window with no outer!");
-
-    return;
-  }
-
-  mOuterWindow->SetFrameElementInternal(aFrameElement);
 }
 
 void
@@ -5692,9 +5660,12 @@ nsGlobalWindow::Focus()
   mDocShell->GetParent(getter_AddRefs(parentDsti));
 
   // set the parent's current focus to the frame containing this window.
-  nsCOMPtr<nsPIDOMWindow> parent = do_GetInterface(parentDsti);
+  nsCOMPtr<nsIDOMWindow> parent(do_GetInterface(parentDsti));
   if (parent) {
-    nsCOMPtr<nsIDocument> parentdoc = parent->GetDoc();
+    nsCOMPtr<nsIDOMDocument> parentdomdoc;
+    parent->GetDocument(getter_AddRefs(parentdomdoc));
+
+    nsCOMPtr<nsIDocument> parentdoc = do_QueryInterface(parentdomdoc);
     if (!parentdoc)
       return NS_OK;
 
@@ -6289,10 +6260,11 @@ nsGlobalWindow::FirePopupBlockedEvent(nsIDocument* aDoc,
   }
 }
 
-static void FirePopupWindowEvent(nsIDocument* aDoc)
+void FirePopupWindowEvent(nsIDOMDocument* aDoc)
 {
   // Fire a "PopupWindow" event
-  nsContentUtils::DispatchTrustedEvent(aDoc, aDoc,
+  nsCOMPtr<nsIDocument> doc(do_QueryInterface(aDoc));
+  nsContentUtils::DispatchTrustedEvent(doc, aDoc,
                                        NS_LITERAL_STRING("PopupWindow"),
                                        true, true);
 }
@@ -6384,12 +6356,12 @@ nsGlobalWindow::FireAbuseEvents(bool aBlocked, bool aWindow,
 
   nsCOMPtr<nsIDOMWindow> topWindow;
   GetTop(getter_AddRefs(topWindow));
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(topWindow);
-  if (!window) {
+  if (!topWindow)
     return;
-  }
 
-  nsCOMPtr<nsIDocument> topDoc = window->GetDoc();
+  nsCOMPtr<nsIDOMDocument> topDoc;
+  topWindow->GetDocument(getter_AddRefs(topDoc));
+
   nsCOMPtr<nsIURI> popupURI;
 
   // build the URI of the would-have-been popup window
@@ -6397,10 +6369,10 @@ nsGlobalWindow::FireAbuseEvents(bool aBlocked, bool aWindow,
 
   // first, fetch the opener's base URI
 
-  nsIURI *baseURL = nullptr;
+  nsIURI *baseURL = 0;
 
   JSContext *cx = nsContentUtils::GetCurrentJSContext();
-  nsCOMPtr<nsPIDOMWindow> contextWindow;
+  nsCOMPtr<nsIDOMWindow> contextWindow;
 
   if (cx) {
     nsIScriptContext *currentCX = nsJSUtils::GetDynamicScriptContext(cx);
@@ -6408,11 +6380,12 @@ nsGlobalWindow::FireAbuseEvents(bool aBlocked, bool aWindow,
       contextWindow = do_QueryInterface(currentCX->GetGlobalObject());
     }
   }
-  if (!contextWindow) {
-    contextWindow = this;
-  }
+  if (!contextWindow)
+    contextWindow = static_cast<nsIDOMWindow*>(this);
 
-  nsCOMPtr<nsIDocument> doc = contextWindow->GetDoc();
+  nsCOMPtr<nsIDOMDocument> domdoc;
+  contextWindow->GetDocument(getter_AddRefs(domdoc));
+  nsCOMPtr<nsIDocument> doc(do_QueryInterface(domdoc));
   if (doc)
     baseURL = doc->GetDocBaseURI();
 
@@ -6424,7 +6397,8 @@ nsGlobalWindow::FireAbuseEvents(bool aBlocked, bool aWindow,
 
   // fire an event chock full of informative URIs
   if (aBlocked) {
-    FirePopupBlockedEvent(topDoc, this, popupURI, aPopupWindowName,
+    nsCOMPtr<nsIDocument> topDocument = do_QueryInterface(topDoc);
+    FirePopupBlockedEvent(topDocument, this, popupURI, aPopupWindowName,
                           aPopupWindowFeatures);
   }
   if (aWindow)
@@ -7634,9 +7608,9 @@ nsGlobalWindow::GetRealFrameElement(nsIDOMElement** aFrameElement)
     return NS_OK;
   }
 
-  if (mFrameElement) {
-    CallQueryInterface(mFrameElement, aFrameElement);
-  }
+  *aFrameElement = mFrameElement;
+  NS_IF_ADDREF(*aFrameElement);
+
   return NS_OK;
 }
 
@@ -8204,7 +8178,8 @@ nsGlobalWindow::GetPrivateRoot()
     }
   }
 
-  return static_cast<nsGlobalWindow*>(top.get());
+  return static_cast<nsGlobalWindow *>
+                    (static_cast<nsIDOMWindow *>(top));
 }
 
 
@@ -8393,9 +8368,10 @@ nsGlobalWindow::SetChromeEventHandler(EventTarget* aChromeEventHandler)
 
 static bool IsLink(nsIContent* aContent)
 {
-  return aContent && (aContent->IsHTML(nsGkAtoms::a) ||
-                      aContent->AttrValueIs(kNameSpaceID_XLink, nsGkAtoms::type,
-                                            nsGkAtoms::simple, eCaseMatters));
+  nsCOMPtr<nsIDOMHTMLAnchorElement> anchor = do_QueryInterface(aContent);
+  return (anchor || (aContent &&
+                     aContent->AttrValueIs(kNameSpaceID_XLink, nsGkAtoms::type,
+                                           nsGkAtoms::simple, eCaseMatters)));
 }
 
 void
@@ -8796,7 +8772,7 @@ nsGlobalWindow::UpdateCanvasFocus(bool aFocusChanged, nsIContent* aNewContent)
           if (canvasFrame) {
               canvasFrame->SetHasFocus(false);
           }
-      }
+      }      
   }
 }
 
@@ -9162,16 +9138,18 @@ nsGlobalWindow::FireOfflineStatusEvent()
   }
   // The event is fired at the body element, or if there is no body element,
   // at the document.
-  nsCOMPtr<EventTarget> eventTarget = mDoc.get();
-  nsHTMLDocument* htmlDoc = mDoc->AsHTMLDocument();
+  nsCOMPtr<nsISupports> eventTarget = mDoc.get();
+  nsCOMPtr<nsIDOMHTMLDocument> htmlDoc = do_QueryInterface(mDoc);
   if (htmlDoc) {
-    Element* body = htmlDoc->GetBody();
+    nsCOMPtr<nsIDOMHTMLElement> body;
+    htmlDoc->GetBody(getter_AddRefs(body));
     if (body) {
       eventTarget = body;
     }
-  } else {
+  }
+  else {
     Element* documentElement = mDoc->GetDocumentElement();
-    if (documentElement) {
+    if(documentElement) {
       eventTarget = documentElement;
     }
   }
@@ -9950,7 +9928,7 @@ nsGlobalWindow::OpenInternal(const nsAString& aUrl, const nsAString& aName,
       FireAbuseEvents(true, false, aUrl, aName, aOptions);
       return aDoJSFixups ? NS_OK : NS_ERROR_FAILURE;
     }
-  }
+  }    
 
   nsCOMPtr<nsIDOMWindow> domReturn;
 
@@ -10011,7 +9989,7 @@ nsGlobalWindow::OpenInternal(const nsAString& aUrl, const nsAString& aName,
   NS_ENSURE_TRUE(domReturn, NS_OK);
   domReturn.swap(*aReturn);
 
-  if (aDoJSFixups) {
+  if (aDoJSFixups) {      
     nsCOMPtr<nsIDOMChromeWindow> chrome_win(do_QueryInterface(*aReturn));
     if (!chrome_win) {
       // A new non-chrome window was created from a call to
@@ -10879,7 +10857,7 @@ nsGlobalWindow::BuildURIfromBase(const char *aURL, nsIURI **aBuiltURI,
   nsAutoCString charset(NS_LITERAL_CSTRING("UTF-8")); // default to utf-8
   nsIURI* baseURI = nullptr;
   nsCOMPtr<nsIURI> uriToLoad;
-  nsCOMPtr<nsPIDOMWindow> sourceWindow;
+  nsCOMPtr<nsIDOMWindow> sourceWindow;
 
   if (cx) {
     nsIScriptContext *scriptcx = nsJSUtils::GetDynamicScriptContext(cx);
@@ -10888,12 +10866,14 @@ nsGlobalWindow::BuildURIfromBase(const char *aURL, nsIURI **aBuiltURI,
   }
 
   if (!sourceWindow) {
-    sourceWindow = this;
+    sourceWindow = do_QueryInterface(NS_ISUPPORTS_CAST(nsIDOMWindow *, this));
     *aFreeSecurityPass = true;
   }
 
   if (sourceWindow) {
-    nsCOMPtr<nsIDocument> doc = sourceWindow->GetDoc();
+    nsCOMPtr<nsIDOMDocument> domDoc;
+    sourceWindow->GetDocument(getter_AddRefs(domDoc));
+    nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
     if (doc) {
       baseURI = doc->GetDocBaseURI();
       charset = doc->GetDocumentCharacterSet();
@@ -11089,7 +11069,7 @@ nsGlobalWindow::SuspendTimeouts(uint32_t aIncrease,
 
         // This is a bit hackish. Only freeze/suspend windows which are truly our
         // subwindows.
-        nsCOMPtr<Element> frame = pWin->GetFrameElementInternal();
+        nsCOMPtr<nsIContent> frame = do_QueryInterface(pWin->GetFrameElementInternal());
         if (!mDoc || !frame || mDoc != frame->OwnerDoc() || !inner) {
           continue;
         }
@@ -11201,7 +11181,7 @@ nsGlobalWindow::ResumeTimeouts(bool aThawChildren)
 
         // This is a bit hackish. Only thaw/resume windows which are truly our
         // subwindows.
-        nsCOMPtr<Element> frame = pWin->GetFrameElementInternal();
+        nsCOMPtr<nsIContent> frame = do_QueryInterface(pWin->GetFrameElementInternal());
         if (!mDoc || !frame || mDoc != frame->OwnerDoc() || !inner) {
           continue;
         }

@@ -12,7 +12,6 @@
 #include "nsIDocShell.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
-#include "mozilla/dom/Element.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -81,19 +80,19 @@ inLayoutUtils::GetSubDocumentFor(nsIDOMNode* aNode)
       return domdoc;
     }
   }
-
+  
   return nullptr;
 }
 
 nsIDOMNode*
-inLayoutUtils::GetContainerFor(const nsIDocument& aDoc)
+inLayoutUtils::GetContainerFor(nsIDOMDocument* aDoc)
 {
-  nsPIDOMWindow* pwin = aDoc.GetWindow();
-  if (!pwin) {
-    return nullptr;
-  }
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(aDoc);
+  if (!doc) return nullptr;
 
-  nsCOMPtr<nsIDOMNode> node = do_QueryInterface(pwin->GetFrameElementInternal());
-  return node;
+  nsPIDOMWindow *pwin = doc->GetWindow();
+  if (!pwin) return nullptr;
+
+  return pwin->GetFrameElementInternal();
 }
 

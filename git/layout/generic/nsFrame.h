@@ -494,11 +494,14 @@ public:
    * background style appears to have no background --- this is useful
    * for frames that might receive a propagated background via
    * nsCSSRendering::FindBackground
-   * @return whether a themed background item was created.
+   * @param aAppendedThemedBackground if non-null,
+   * *aAppendedThemedBackground will indicate whether a themed background
+   * item was created.
    */
-  bool DisplayBackgroundUnconditional(nsDisplayListBuilder* aBuilder,
+  void DisplayBackgroundUnconditional(nsDisplayListBuilder*   aBuilder,
                                       const nsDisplayListSet& aLists,
-                                      bool aForceBackground);
+                                      bool aForceBackground,
+                                      bool* aAppendedThemedBackground = nullptr);
   /**
    * Adds display items for standard CSS borders, background and outline for
    * for this frame, as necessary. Checks IsVisibleForPainting and won't

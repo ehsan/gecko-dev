@@ -4670,15 +4670,20 @@ HTMLInputElement::SaveState()
       break;
   }
 
+  nsresult rv = NS_OK;
+  nsPresState* state = nullptr;
   if (inputState) {
-    nsPresState* state = GetPrimaryPresState();
+    rv = GetPrimaryPresState(this, &state);
     if (state) {
       state->SetStateProperty(inputState);
     }
   }
 
   if (mDisabledChanged) {
-    nsPresState* state = GetPrimaryPresState();
+    nsresult tmp = GetPrimaryPresState(this, &state);
+    if (NS_FAILED(tmp)) {
+      rv = tmp;
+    }
     if (state) {
       // We do not want to save the real disabled state but the disabled
       // attribute.
@@ -4686,7 +4691,7 @@ HTMLInputElement::SaveState()
     }
   }
 
-  return NS_OK;
+  return rv;
 }
 
 void

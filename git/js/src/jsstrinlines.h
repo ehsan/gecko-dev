@@ -15,7 +15,6 @@
 
 #include "jscntxtinlines.h"
 #include "jsgcinlines.h"
-
 #include "vm/String-inl.h"
 
 namespace js {

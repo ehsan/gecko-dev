@@ -16,6 +16,8 @@
 
 #include <string.h>
 
+#include "jstypes.h"
+#include "jsutil.h"
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
@@ -23,8 +25,6 @@
 #include "jsnum.h"
 #include "jsopcode.h"
 #include "jsscript.h"
-#include "jstypes.h"
-#include "jsutil.h"
 
 #include "frontend/Parser.h"
 #include "frontend/TokenStream.h"

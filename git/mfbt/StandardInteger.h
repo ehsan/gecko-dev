@@ -1,13 +1,12 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* Implements the C99 <stdint.h> interface for C and C++ code. */
 
-#ifndef mozilla_StandardInteger_h
-#define mozilla_StandardInteger_h
+#ifndef mozilla_StandardInteger_h_
+#define mozilla_StandardInteger_h_
 
 /*
  * The C99 standard header <stdint.h> exposes typedefs for common fixed-width
@@ -41,4 +40,4 @@
 #  include <stdint.h>
 #endif
 
-#endif /* mozilla_StandardInteger_h */
+#endif  /* mozilla_StandardInteger_h_ */

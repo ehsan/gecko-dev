@@ -29,6 +29,7 @@ struct JSContext;
 class JSObject;
 class mozIApplication;
 class nsFrameLoader;
+class nsIDOMElement;
 class nsIURI;
 class CpowHolder;
 
@@ -46,7 +47,6 @@ class RenderFrameParent;
 namespace dom {
 
 class ClonedMessageData;
-class Element;
 struct StructuredCloneData;
 
 class ContentDialogParent : public PContentDialogParent {};
@@ -63,8 +63,8 @@ class TabParent : public PBrowserParent
 public:
     TabParent(ContentParent* aManager, const TabContext& aContext);
     virtual ~TabParent();
-    Element* GetOwnerElement() const { return mFrameElement; }
-    void SetOwnerElement(Element* aElement);
+    nsIDOMElement* GetOwnerElement() { return mFrameElement; }
+    void SetOwnerElement(nsIDOMElement* aElement);
 
     /**
      * Get the mozapptype attribute from this TabParent's owner DOM element.
@@ -254,7 +254,7 @@ protected:
                               const nsCString& aASCIIOrigin,
                               bool* aAllowed);
 
-    Element* mFrameElement;
+    nsIDOMElement* mFrameElement;
     nsCOMPtr<nsIBrowserDOMWindow> mBrowserDOMWindow;
 
     struct DelayedDialogData

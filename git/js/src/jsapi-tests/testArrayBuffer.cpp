@@ -2,9 +2,8 @@
  * vim: set ts=8 sts=4 et sw=4 tw=99:
  */
 
-#include "jsfriendapi.h"
-
 #include "jsapi-tests/tests.h"
+#include "jsfriendapi.h"
 
 #define NUM_TEST_BUFFERS 2
 #define MAGIC_VALUE_1 3

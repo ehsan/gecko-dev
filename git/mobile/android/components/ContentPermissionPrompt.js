@@ -11,8 +11,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
 const kEntities = { "geolocation": "geolocation",
-                    "desktop-notification": "desktopNotification",
-                    "contacts": "contacts" };
+                    "desktop-notification": "desktopNotification" };
 
 function ContentPermissionPrompt() {}
 

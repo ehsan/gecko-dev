@@ -7,7 +7,6 @@
 /*
  * JS atom table.
  */
-
 #include "jsatominlines.h"
 
 #include "mozilla/RangedPtr.h"

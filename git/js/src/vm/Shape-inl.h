@@ -7,8 +7,6 @@
 #ifndef vm_Shape_inl_h
 #define vm_Shape_inl_h
 
-#include "vm/Shape.h"
-
 #include "mozilla/PodOperations.h"
 
 #include "jsarray.h"

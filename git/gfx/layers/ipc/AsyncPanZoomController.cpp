@@ -815,7 +815,6 @@ bool AsyncPanZoomController::DoFling(const TimeDuration& aDelta) {
 }
 
 void AsyncPanZoomController::CancelAnimation() {
-  MonitorAutoLock monitor(mMonitor);
   mState = NOTHING;
 }
 

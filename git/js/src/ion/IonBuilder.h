@@ -658,15 +658,13 @@ class CallInfo
     Vector<MDefinition *> args_;
 
     bool constructing_;
-    bool setter_;
 
   public:
     CallInfo(JSContext *cx, bool constructing)
       : fun_(NULL),
         thisArg_(NULL),
         args_(cx),
-        constructing_(constructing),
-        setter_(false)
+        constructing_(constructing)
     { }
 
     bool init(CallInfo &callInfo) {
@@ -751,13 +749,6 @@ class CallInfo
 
     bool constructing() {
         return constructing_;
-    }
-
-    bool isSetter() const {
-        return setter_;
-    }
-    void markAsSetter() {
-        setter_ = true;
     }
 
     void wrapArgs(MBasicBlock *current) {

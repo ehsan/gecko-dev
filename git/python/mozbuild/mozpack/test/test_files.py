@@ -2,7 +2,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from mozpack.errors import ErrorMessage
 from mozpack.files import (
     AbsoluteSymlinkFile,
     Dest,
@@ -14,7 +13,6 @@ from mozpack.files import (
     MinifiedProperties,
     FileFinder,
     JarFinder,
-    RequiredExistingFile,
 )
 from mozpack.mozjar import (
     JarReader,
@@ -323,21 +321,6 @@ class TestAbsoluteSymlinkFile(TestWithTmpDir):
 
         link = os.readlink(dest)
         self.assertEqual(link, source)
-
-
-class TestRequiredExistingFile(TestWithTmpDir):
-    def test_missing_dest(self):
-        with self.assertRaisesRegexp(ErrorMessage, 'Required existing file'):
-            f = RequiredExistingFile()
-            f.copy(self.tmppath('dest'))
-
-    def test_existing_dest(self):
-        p = self.tmppath('dest')
-        with open(p, 'a'):
-            pass
-
-        f = RequiredExistingFile()
-        f.copy(p)
 
 
 class TestGeneratedFile(TestWithTmpDir):

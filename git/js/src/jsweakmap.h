@@ -8,8 +8,8 @@
 #define jsweakmap_h
 
 #include "jsapi.h"
-#include "jscompartment.h"
 #include "jsfriendapi.h"
+#include "jscompartment.h"
 #include "jsobj.h"
 
 #include "gc/Marking.h"

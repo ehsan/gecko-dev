@@ -3072,7 +3072,7 @@ xpc::SandboxCallableProxyHandler::call(JSContext *cx, JS::Handle<JSObject*> prox
     }
 
     return JS::Call(cx, thisVal, js::GetProxyPrivate(proxy), args.length(), args.array(),
-                    args.rval());
+                    args.rval().address());
 }
 
 xpc::SandboxCallableProxyHandler xpc::sandboxCallableProxyHandler;

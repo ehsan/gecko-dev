@@ -15,4 +15,8 @@ LOCAL_INCLUDES := \
   -I$(srcdir)/../src \
   $(NULL)
 
+CPP_UNIT_TESTS := \
+  TestWebGLElementArrayCache.cpp \
+  $(NULL)
+
 include $(topsrcdir)/config/rules.mk

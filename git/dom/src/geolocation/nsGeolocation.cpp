@@ -68,6 +68,7 @@
 #include "CoreLocationLocationProvider.h"
 #endif
 
+#include "nsIDOMDocument.h"
 #include "nsIDocument.h"
 
 // Some limit to the number of get or watch geolocation requests
@@ -1048,7 +1049,9 @@ Geolocation::Init(nsIDOMWindow* aContentDom)
     }
 
     // Grab the principal of the document
-    nsCOMPtr<nsIDocument> doc = window->GetDoc();
+    nsCOMPtr<nsIDOMDocument> domdoc;
+    aContentDom->GetDocument(getter_AddRefs(domdoc));
+    nsCOMPtr<nsIDocument> doc = do_QueryInterface(domdoc);
     if (!doc) {
       return NS_ERROR_FAILURE;
     }

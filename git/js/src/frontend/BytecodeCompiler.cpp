@@ -7,7 +7,6 @@
 #include "frontend/BytecodeCompiler.h"
 
 #include "jsscript.h"
-
 #include "frontend/BytecodeEmitter.h"
 #include "frontend/FoldConstants.h"
 #include "frontend/NameFunctions.h"

@@ -151,9 +151,6 @@ ThebesLayerComposite::GetCompositableHost() {
 void
 ThebesLayerComposite::CleanupResources()
 {
-  if (mBuffer)  {
-    mBuffer->Detach();
-  }
   mBuffer = nullptr;
 }
 

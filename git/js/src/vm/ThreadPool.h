@@ -7,18 +7,16 @@
 #ifndef vm_ThreadPool_h
 #define vm_ThreadPool_h
 
-#include "mozilla/StandardInteger.h"
-
 #include <stddef.h>
-
-#include "jsalloc.h"
-#ifdef JS_THREADSAFE
-# include "prcvar.h"
-# include "prlock.h"
-# include "prtypes.h"
-#endif
-
+#include "mozilla/StandardInteger.h"
 #include "js/Vector.h"
+#include "jsalloc.h"
+
+#ifdef JS_THREADSAFE
+#  include "prtypes.h"
+#  include "prlock.h"
+#  include "prcvar.h"
+#endif
 
 struct JSContext;
 struct JSRuntime;
