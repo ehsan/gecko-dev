@@ -58,7 +58,11 @@
 
             <ProgressBar
                 android:id="@+id/progress"
-                style="@style/FxAccountProgress" />
+                style="@style/FxAccountProgress"
+                android:layout_alignBottom="@id/button"
+                android:layout_alignLeft="@id/button"
+                android:layout_alignRight="@id/button"
+                android:layout_alignTop="@id/button" />
 
             <Button
                 android:id="@+id/button"
