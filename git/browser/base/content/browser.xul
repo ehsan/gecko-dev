@@ -522,7 +522,7 @@
              toolbarname="&navbarCmd.label;" accesskey="&navbarCmd.accesskey;"
              fullscreentoolbar="true" mode="icons" customizable="true"
              iconsize="large"
-             defaultset="unified-back-forward-button,urlbar-container,reload-button,stop-button,search-container,downloads-button,home-button,bookmarks-menu-button-container,window-controls"
+             defaultset="unified-back-forward-button,urlbar-container,reload-button,stop-button,search-container,home-button,bookmarks-menu-button-container,window-controls"
              context="toolbar-context-menu">
 
       <toolbaritem id="unified-back-forward-button" class="chromeclass-toolbar-additional"
@@ -937,14 +937,14 @@
                      tooltiptext="&printButton.tooltip;"/>
 
       <!-- This is a placeholder for the Downloads Indicator.  It is visible
-           during the customization of the toolbar, in the palette, and before
-           the Downloads Indicator overlay is loaded. -->
+           only during the customization of the toolbar or in the palette, and
+           is replaced when customization is done. -->
       <toolbarbutton id="downloads-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
-                     oncommand="DownloadsIndicatorView.onCommand(event);"
-                     ondrop="DownloadsIndicatorView.onDrop(event);"
-                     ondragover="DownloadsIndicatorView.onDragOver(event);"
-                     ondragenter="DownloadsIndicatorView.onDragOver(event);"
-                     ondragleave="DownloadsIndicatorView.onDragLeave(event);"
+                     observes="Tools:Downloads"
+                     ondrop="DownloadsButtonDNDObserver.onDrop(event)"
+                     ondragover="DownloadsButtonDNDObserver.onDragOver(event)"
+                     ondragenter="DownloadsButtonDNDObserver.onDragOver(event)"
+                     ondragexit="DownloadsButtonDNDObserver.onDragExit(event)"
                      label="&downloads.label;"
                      tooltiptext="&downloads.tooltip;"/>
 
@@ -1114,24 +1114,6 @@
                      oncommand="InspectorUI.closeInspectorUI(false);"
                      tooltiptext="&inspectCloseButton.tooltiptext;"/>
 #endif
-      <toolbarbutton id="inspector-option-toolbarbutton"
-                     type="menu"
-                     tabindex="0"
-                     tooltiptext="&inspectOptionButton.tooltiptext;">
-        <menupopup id="inspector-option-popup"
-                   position="before_start">
-          <menuitem id="inspectorToggleVeil"
-                    type="checkbox"
-                    label="&inspectorToggleVeil.label;"
-                    accesskey="&inspectorToggleVeil.accesskey;"
-                    command="Inspector:ToggleVeil"/>
-          <menuitem id="inspectorToggleInfobar"
-                    type="checkbox"
-                    label="&inspectorToggleInfobar.label;"
-                    accesskey="&inspectorToggleInfobar.accesskey;"
-                    command="Inspector:ToggleInfobar"/>
-        </menupopup>
-      </toolbarbutton>
       <toolbarbutton id="inspector-inspect-toolbutton"
                      class="devtools-toolbarbutton"
                      command="Inspector:Inspect"/>

@@ -574,7 +574,9 @@ public:
                      const WakeLockControl &aLockAdjust,
                      const WakeLockControl &aHiddenAdjust) MOZ_OVERRIDE
   {
-    // We allow arbitrary content to use wake locks.
+    if (!AppProcessHasPermission(this, "power")) {
+      return false;
+    }
     hal::ModifyWakeLock(aTopic, aLockAdjust, aHiddenAdjust);
     return true;
   }
@@ -582,7 +584,9 @@ public:
   virtual bool
   RecvEnableWakeLockNotifications() MOZ_OVERRIDE
   {
-    // We allow arbitrary content to use wake locks.
+    if (!AppProcessHasPermission(this, "power")) {
+      return false;
+    }
     hal::RegisterWakeLockObserver(this);
     return true;
   }

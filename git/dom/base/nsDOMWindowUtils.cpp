@@ -476,8 +476,8 @@ nsDOMWindowUtils::SendMouseEvent(const nsAString& aType,
                                  unsigned short aInputSourceArg)
 {
   return SendMouseEventCommon(aType, aX, aY, aButton, aClickCount, aModifiers,
-                              aIgnoreRootScrollFrame, aPressure,
-                              aInputSourceArg, false);
+                              aIgnoreRootScrollFrame, false, aPressure,
+                              aInputSourceArg);
 }
 
 NS_IMETHODIMP
@@ -493,8 +493,8 @@ nsDOMWindowUtils::SendMouseEventToWindow(const nsAString& aType,
 {
   SAMPLE_LABEL("nsDOMWindowUtils", "SendMouseEventToWindow");
   return SendMouseEventCommon(aType, aX, aY, aButton, aClickCount, aModifiers,
-                              aIgnoreRootScrollFrame, aPressure,
-                              aInputSourceArg, true);
+                              aIgnoreRootScrollFrame, true, aPressure,
+                              aInputSourceArg);
 }
 
 static nsIntPoint

@@ -378,9 +378,7 @@ public:
 
     // helper method to indicate if we want to use Azure content drawing
     static bool UseAzureContentDrawing();
-
-    static bool OffMainThreadCompositingEnabled();
-
+    
     /**
      * Are we going to try color management?
      */

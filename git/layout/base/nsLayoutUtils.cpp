@@ -71,6 +71,7 @@
 #include "nsTextFrame.h"
 #include "nsFontFaceList.h"
 #include "nsFontInflationData.h"
+#include "CompositorParent.h"
 #include "nsSVGUtils.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGForeignObjectFrame.h"
@@ -171,8 +172,7 @@ nsLayoutUtils::AreOpacityAnimationsEnabled()
                                  "layers.offmainthreadcomposition.animate-opacity");
   }
 
-  return sAreOpacityAnimationsEnabled &&
-    gfxPlatform::OffMainThreadCompositingEnabled();
+  return sAreOpacityAnimationsEnabled && CompositorParent::CompositorLoop();
 }
 
 bool
@@ -187,8 +187,7 @@ nsLayoutUtils::AreTransformAnimationsEnabled()
                                  "layers.offmainthreadcomposition.animate-transform");
   }
 
-  return sAreTransformAnimationsEnabled &&
-    gfxPlatform::OffMainThreadCompositingEnabled();
+  return sAreTransformAnimationsEnabled && CompositorParent::CompositorLoop();
 }
 
 bool

@@ -21,7 +21,6 @@
 #include "nsXPCOMCIDInternal.h"
 #include "mozilla/LazyIdleThread.h"
 #include "mozilla/Util.h"
-#include "nsIDOMDOMRequest.h"
 
 using namespace mozilla;
 

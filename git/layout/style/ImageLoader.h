@@ -13,7 +13,6 @@
 #include "imgIRequest.h"
 #include "imgIOnloadBlocker.h"
 #include "nsStubImageDecoderObserver.h"
-#include "mozilla/Attributes.h"
 
 class nsIFrame;
 class nsIDocument;
@@ -24,8 +23,8 @@ class nsIPrincipal;
 namespace mozilla {
 namespace css {
 
-class ImageLoader MOZ_FINAL : public nsStubImageDecoderObserver,
-                              public imgIOnloadBlocker {
+class ImageLoader : public nsStubImageDecoderObserver,
+                    public imgIOnloadBlocker {
 public:
   typedef mozilla::css::ImageValue Image;
 

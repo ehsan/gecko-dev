@@ -218,15 +218,18 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
   PlanarYCbCrImage* videoImage = static_cast<PlanarYCbCrImage*>(v->mImage.get());
 
   PlanarYCbCrImage::Data data;
-  data.mYChannel = Y.mData + Y.mOffset;
+  data.mYChannel = Y.mData;
   data.mYSize = gfxIntSize(Y.mWidth, Y.mHeight);
   data.mYStride = Y.mStride;
+  data.mYOffset = Y.mOffset;
   data.mYSkip = Y.mSkip;
-  data.mCbChannel = Cb.mData + Cb.mOffset;
-  data.mCrChannel = Cr.mData + Cr.mOffset;
+  data.mCbChannel = Cb.mData;
+  data.mCrChannel = Cr.mData;
   data.mCbCrSize = gfxIntSize(Cb.mWidth, Cb.mHeight);
   data.mCbCrStride = Cb.mStride;
+  data.mCbOffset = Cb.mOffset;
   data.mCbSkip = Cb.mSkip;
+  data.mCrOffset = Cr.mOffset;
   data.mCrSkip = Cr.mSkip;
   data.mPicX = aPicture.x;
   data.mPicY = aPicture.y;

@@ -375,22 +375,24 @@ MediaManager::GetUserMedia(nsPIDOMWindow* aWindow, nsIMediaStreamOptions* aParam
    */
 #if !defined(MOZ_WEBRTC)
   if (picture) {
-    if (aWindow->GetPopupControlState() > openControlled) {
-      nsCOMPtr<nsIPopupWindowManager> pm =
-        do_GetService(NS_POPUPWINDOWMANAGER_CONTRACTID);
-      if (!pm)
-        return NS_OK;
+    if (aWindow->GetPopupControlState() <= openControlled) {
+      return NS_ERROR_FAILURE;
+    }
+    nsCOMPtr<nsIPopupWindowManager> pm =
+      do_GetService(NS_POPUPWINDOWMANAGER_CONTRACTID);
+    if (!pm) {
+      return NS_ERROR_FAILURE;
+    }
 
-      uint32_t permission;
-      nsCOMPtr<nsIDocument> doc = aWindow->GetExtantDoc();
-      pm->TestPermission(doc->NodePrincipal(), &permission);
-      if ((permission == nsIPopupWindowManager::DENY_POPUP)) {
-        nsCOMPtr<nsIDOMDocument> domDoc = aWindow->GetExtantDocument();
-        nsGlobalWindow::FirePopupBlockedEvent(
-          domDoc, aWindow, nullptr, EmptyString(), EmptyString()
-                                              );
-        return NS_OK;
-      }
+    uint32_t permission;
+    nsCOMPtr<nsIDocument> doc = aWindow->GetExtantDoc();
+    pm->TestPermission(doc->NodePrincipal(), &permission);
+    if (aWindow && (permission == nsIPopupWindowManager::DENY_POPUP)) {
+      nsCOMPtr<nsIDOMDocument> domDoc = aWindow->GetExtantDocument();
+      nsGlobalWindow::FirePopupBlockedEvent(
+        domDoc, aWindow, nullptr, EmptyString(), EmptyString()
+      );
+      return NS_ERROR_FAILURE;
     }
   }
 #endif
@@ -421,18 +423,13 @@ MediaManager::GetUserMedia(nsPIDOMWindow* aWindow, nsIMediaStreamOptions* aParam
     audio, video, picture, onSuccess, onError, listeners, windowID
   );
 
-  if (picture) {
-    // ShowFilePickerForMimeType() must run on the Main Thread! (on Android)
-    NS_DispatchToMainThread(gUMRunnable);
-  } else {
-    // Reuse the same thread to save memory.
-    if (!mMediaThread) {
-      rv = NS_NewThread(getter_AddRefs(mMediaThread));
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-
-    mMediaThread->Dispatch(gUMRunnable, NS_DISPATCH_NORMAL);
+  // Reuse the same thread to save memory.
+  if (!mMediaThread) {
+    rv = NS_NewThread(getter_AddRefs(mMediaThread));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
+
+  mMediaThread->Dispatch(gUMRunnable, NS_DISPATCH_NORMAL);
   return NS_OK;
 }
 
