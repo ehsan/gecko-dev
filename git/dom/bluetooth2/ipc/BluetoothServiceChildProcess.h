@@ -44,7 +44,7 @@ public:
                                    MOZ_OVERRIDE;
 
   virtual nsresult
-  GetAdaptersInternal(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+  GetDefaultAdapterPathInternal(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual nsresult
   GetPairedDevicePropertiesInternal(const nsTArray<nsString>& aDeviceAddresses,

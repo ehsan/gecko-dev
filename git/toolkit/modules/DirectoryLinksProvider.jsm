@@ -166,10 +166,7 @@ let DirectoryLinksProvider = {
 
     try {
       xmlHttp.open('POST', uri);
-      xmlHttp.send(JSON.stringify({
-        locale: this.locale,
-        directoryCount: this._directoryCount,
-      }));
+      xmlHttp.send(JSON.stringify({ locale: this.locale }));
     } catch (e) {
       deferred.reject("Error fetching " + uri);
       Cu.reportError(e);
@@ -250,8 +247,6 @@ let DirectoryLinksProvider = {
    * @return download promise
    */
   reportShownCount: function DirectoryLinksProvider_reportShownCount(directoryCount) {
-    // make a deep copy of directoryCount to avoid a leak
-    this._directoryCount = Cu.cloneInto(directoryCount, {});
     if (directoryCount.sponsored > 0
         || directoryCount.affiliate > 0
         || directoryCount.organic > 0) {
@@ -297,7 +292,6 @@ let DirectoryLinksProvider = {
    */
   reset: function DirectoryLinksProvider_reset() {
     delete this.__linksURL;
-    delete this._directoryCount;
     this._removePrefsObserver();
     this._removeObservers();
   },

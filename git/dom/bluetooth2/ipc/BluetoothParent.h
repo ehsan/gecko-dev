@@ -126,7 +126,7 @@ protected:
   RequestComplete();
 
   bool
-  DoRequest(const GetAdaptersRequest& aRequest);
+  DoRequest(const DefaultAdapterPathRequest& aRequest);
 
   bool
   DoRequest(const SetPropertyRequest& aRequest);

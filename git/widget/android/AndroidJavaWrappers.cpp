@@ -489,6 +489,10 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
             }
             break;
 
+        case DRAW:
+            ReadRectField(jenv);
+            break;
+
         case SENSOR_EVENT:
              mX = jenv->GetDoubleField(jobj, jXField);
              mY = jenv->GetDoubleField(jobj, jYField);

@@ -47,7 +47,7 @@ const kFailURL = kBaseUrl + kFailPath;
 const kHttpHandlerData = {};
 kHttpHandlerData[kExamplePath] = {"en-US": [{"url":"http://example.com","title":"RemoteSource"}]};
 
-const expectedBodyObject = {locale: DirectoryLinksProvider.locale};
+const bodyData = JSON.stringify({ locale: DirectoryLinksProvider.locale });
 const BinaryInputStream = CC("@mozilla.org/binaryinputstream;1",
                               "nsIBinaryInputStream",
                               "setInputStream");
@@ -60,8 +60,7 @@ function getHttpHandler(path) {
   }
   return function(aRequest, aResponse) {
     let bodyStream = new BinaryInputStream(aRequest.bodyInputStream);
-    let bodyObject = JSON.parse(NetUtil.readInputStreamToString(bodyStream, bodyStream.available()));
-    isIdentical(bodyObject, expectedBodyObject);
+    do_check_eq(NetUtil.readInputStreamToString(bodyStream, bodyStream.available()), bodyData);
 
     aResponse.setStatusLine(null, code);
     aResponse.setHeader("Content-Type", "application/json");
@@ -401,14 +400,6 @@ add_task(function test_DirectoryLinksProvider_fetchDirectoryOnShowCount() {
   directoryCount.sponsored = 1;
   yield DirectoryLinksProvider.reportShownCount(directoryCount);
   do_check_true(DirectoryLinksProvider._lastDownloadMS != 0);
-
-  // test that directoryCount object reaches the backend server
-  expectedBodyObject.directoryCount = directoryCount;
-  // set kSourceUrlPref to kExampleURL, causing request to test http server
-  // server handler validates that expectedBodyObject has correct directoryCount
-  yield promiseDirectoryDownloadOnPrefChange(kSourceUrlPref, kExampleURL);
-  // reset expectedBodyObject to its original state
-  delete expectedBodyObject.directoryCount;
 
   yield promiseCleanDirectoryLinksProvider();
 });

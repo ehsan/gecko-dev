@@ -375,8 +375,11 @@ BluetoothService::DistributeSignal(const BluetoothSignal& aSignal)
 
   BluetoothSignalObserverList* ol;
   if (!mBluetoothSignalObserverTable.Get(aSignal.path(), &ol)) {
-    BT_WARNING("No observer registered for path %s",
-               NS_ConvertUTF16toUTF8(aSignal.path()).get());
+#if DEBUG
+    nsAutoCString msg("No observer registered for path ");
+    msg.Append(NS_ConvertUTF16toUTF8(aSignal.path()));
+    BT_WARNING(msg.get());
+#endif
     return;
   }
   MOZ_ASSERT(ol->Length());
