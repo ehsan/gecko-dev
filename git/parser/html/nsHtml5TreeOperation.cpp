@@ -289,8 +289,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
 
       PRUint32 childCount = parent->GetChildCount();
       bool didAppend = false;
-      while (node->HasChildren()) {
-        nsCOMPtr<nsIContent> child = node->GetFirstChild();
+      while (node->GetChildCount()) {
+        nsCOMPtr<nsIContent> child = node->GetChildAt(0);
         rv = node->RemoveChildAt(0, true);
         NS_ENSURE_SUCCESS(rv, rv);
         rv = parent->AppendChildTo(child, false);
@@ -517,8 +517,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
                                      aBuilder->GetDocument());
 
         PRUint32 pos = foster->IndexOf(table);
-
-        nsIContent* previousSibling = table->GetPreviousSibling();
+        
+        nsIContent* previousSibling = foster->GetChildAt(pos - 1);
         if (previousSibling && previousSibling->IsNodeOfType(nsINode::eTEXT)) {
           return AppendTextToTextNode(buffer, 
                                       length, 

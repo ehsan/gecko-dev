@@ -33,7 +33,7 @@ this.$ = this.getElement;
 
 function sendMouseEvent(aEvent, aTarget, aWindow) {
   if (['click', 'mousedown', 'mouseup', 'mouseover', 'mouseout'].indexOf(aEvent.type) == -1) {
-    throw new Error("sendMouseEvent doesn't know about event type '" + aEvent.type + "'");
+    throw new Error("sendMouseEvent doesn't know about event type '"+aEvent.type+"'");
   }
 
   if (!aWindow) {
@@ -99,10 +99,9 @@ function sendString(aStr, aWindow) {
 }
 
 /**
- * Send the non-character key aKey to the focused node.
- * The name of the key should be the part that comes after "DOM_VK_" in the
- *   KeyEvent constant name for this key.
- * No modifiers are handled at this point.
+ * Send the non-character key aKey to the focused node.  The name of the key
+ * should be a lowercase version of the part that comes after "DOM_VK_" in the
+ * KeyEvent constant name for this key.  No modifiers are handled at this point.
  */
 function sendKey(aKey, aWindow) {
   var keyName = "VK_" + aKey.toUpperCase();
@@ -172,7 +171,7 @@ function synthesizeMouseAtPoint(left, top, aEvent, aWindow)
     var clickCount = aEvent.clickCount || 1;
     var modifiers = _parseModifiers(aEvent);
 
-    if (("type" in aEvent) && aEvent.type) {
+    if (aEvent.type) {
       utils.sendMouseEvent(aEvent.type, left, top, button, clickCount, modifiers);
     }
     else {
@@ -232,7 +231,7 @@ function synthesizeMouseScroll(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
     var left = rect.left;
     var top = rect.top;
 
-    var type = (("type" in aEvent) && aEvent.type) || "DOMMouseScroll";
+    var type = aEvent.type || "DOMMouseScroll";
     var axis = aEvent.axis || "vertical";
     var scrollFlags = (axis == "horizontal") ? kIsHorizontal : kIsVertical;
     if (aEvent.hasPixels) {
@@ -387,8 +386,12 @@ function synthesizeKey(aKey, aEvent, aWindow)
 
     var modifiers = _parseModifiers(aEvent);
 
-    if (!("type" in aEvent) || !aEvent.type) {
-      // Send keydown + (optional) keypress + keyup events.
+    if (aEvent.type == "keypress") {
+      utils.sendKeyEvent(aEvent.type, charCode ? 0 : keyCode,
+                         charCode, modifiers);
+    } else if (aEvent.type) {
+      utils.sendKeyEvent(aEvent.type, keyCode, 0, modifiers);
+    } else {
       var keyDownDefaultHappened =
           utils.sendKeyEvent("keydown", keyCode, 0, modifiers);
       if (isKeypressFiredKey(keyCode)) {
@@ -396,13 +399,6 @@ function synthesizeKey(aKey, aEvent, aWindow)
                            modifiers, !keyDownDefaultHappened);
       }
       utils.sendKeyEvent("keyup", keyCode, 0, modifiers);
-    } else if (aEvent.type == "keypress") {
-      // Send standalone keypress event.
-      utils.sendKeyEvent(aEvent.type, charCode ? 0 : keyCode,
-                         charCode, modifiers);
-    } else {
-      // Send other standalone event than keypress.
-      utils.sendKeyEvent(aEvent.type, keyCode, 0, modifiers);
     }
   }
 }
@@ -515,8 +511,7 @@ function _getDOMWindowUtils(aWindow)
   //  chrome: toolkit/content/tests/chrome/test_popup_anchor.xul
   if ("SpecialPowers" in window && window.SpecialPowers != undefined) {
     return SpecialPowers.getDOMWindowUtils(aWindow);
-  }
-  if ("SpecialPowers" in parent && parent.SpecialPowers != undefined) {
+  } else if ("SpecialPowers" in parent && parent.SpecialPowers != undefined) {
     return parent.SpecialPowers.getDOMWindowUtils(aWindow);
   }
 
@@ -647,8 +642,9 @@ function synthesizeQuerySelectedText(aWindow)
 {
   var utils = _getDOMWindowUtils(aWindow);
   if (!utils) {
-    return null;
+    return nsnull;
   }
-
   return utils.sendQueryContentEvent(utils.QUERY_SELECTED_TEXT, 0, 0, 0, 0);
 }
+
+

@@ -43,7 +43,6 @@
 #include "nsMargin.h"
 #include "nsStyleCoord.h"
 #include "nsIFrame.h"
-#include "mozilla/AutoRestore.h"
 
 class nsPresContext;
 class nsRenderingContext;
@@ -370,12 +369,6 @@ public:
     
   } mFlags;
 
-private:
-
-  mozilla::AutoRestore<nsIFrame*> mRestoreCurrentInflationContainer;
-  mozilla::AutoRestore<nscoord> mRestoreCurrentInflationContainerWidth;
-
-public:
   // Note: The copy constructor is written by the compiler automatically. You
   // can use that and then override specific values if you want, or you can
   // call Init as desired...

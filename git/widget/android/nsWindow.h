@@ -73,9 +73,8 @@ public:
 
     void OnAndroidEvent(mozilla::AndroidGeckoEvent *ae);
     void OnDraw(mozilla::AndroidGeckoEvent *ae);
-    bool OnMultitouchEvent(mozilla::AndroidGeckoEvent *ae);
-    void OnGestureEvent(mozilla::AndroidGeckoEvent *ae);
     void OnMotionEvent(mozilla::AndroidGeckoEvent *ae);
+    void OnMultitouchEvent(mozilla::AndroidGeckoEvent *ae);
     void OnKeyEvent(mozilla::AndroidGeckoEvent *ae);
     void OnIMEEvent(mozilla::AndroidGeckoEvent *ae);
 
@@ -222,13 +221,9 @@ protected:
 
 private:
     void InitKeyEvent(nsKeyEvent& event, mozilla::AndroidGeckoEvent& key);
-    bool DispatchMultitouchEvent(nsTouchEvent &event,
-                             mozilla::AndroidGeckoEvent *ae);
-    void DispatchMotionEvent(nsInputEvent &event,
-                             mozilla::AndroidGeckoEvent *ae,
-                             const nsIntPoint &refPoint);
+    void DispatchGestureEvent(mozilla::AndroidGeckoEvent *ae);
     void DispatchGestureEvent(PRUint32 msg, PRUint32 direction, double delta,
-                              const nsIntPoint &refPoint, PRUint64 time);
+                               const nsIntPoint &refPoint, PRUint64 time);
     void HandleSpecialKey(mozilla::AndroidGeckoEvent *ae);
     void RedrawAll();
 

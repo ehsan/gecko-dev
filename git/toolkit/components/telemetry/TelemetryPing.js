@@ -121,19 +121,6 @@ function getSimpleMeasurements() {
            .getService(Ci.nsIJSEngineTelemetryStats)
            .telemetryValue;
 
-  // Look for app-specific timestamps
-  var appTimestamps = {};
-  try {
-    let o = {};
-    Cu.import("resource:///modules/TelemetryTimestamps.jsm", o);
-    appTimestamps = o.TelemetryTimestamps.get();
-  } catch (ex) {}
-
-  for (let p in appTimestamps) {
-    if (!(p in ret) && appTimestamps[p])
-      ret[p] = appTimestamps[p];
-  }
-
   return ret;
 }
 
@@ -195,10 +182,10 @@ TelemetryPing.prototype = {
 
     for (let name in hls) {
       if (info[name]) {
-        processHistogram(name, hls[name]);
-        let startup_name = "STARTUP_" + name;
-        if (hls[startup_name])
-          processHistogram(startup_name, hls[startup_name]);
+	processHistogram(name, hls[name]);
+	let startup_name = "STARTUP_" + name;
+	if (hls[startup_name])
+	  processHistogram(startup_name, hls[startup_name]);
       }
     }
 
@@ -386,20 +373,20 @@ TelemetryPing.prototype = {
                 : (havePreviousSession
                    ? this._prevSession.uuid
                    : this._uuid));
-    let payloadObj = {
+    let payload = {
       ver: PAYLOAD_VERSION,
       // Send a different reason string for previous session data.
       info: this.getMetadata(havePreviousSession ? "saved-session" : reason),
     };
     if (havePreviousSession) {
-      payloadObj.histograms = this.getHistograms(this._prevSession.snapshots);
+      payload.histograms = this.getHistograms(this._prevSession.snapshots);
     }
     else {
-      payloadObj.simpleMeasurements = getSimpleMeasurements();
-      payloadObj.histograms = this.getHistograms(Telemetry.histogramSnapshots);
-      payloadObj.slowSQL = Telemetry.slowSQL;
+      payload.simpleMeasurements = getSimpleMeasurements();
+      payload.histograms = this.getHistograms(Telemetry.histogramSnapshots);
+      payload.slowSQL = Telemetry.slowSQL;
     }
-    return { previous: !!havePreviousSession, slug: slug, payload: JSON.stringify(payloadObj) };
+    return { previous: !!havePreviousSession, slug: slug, payload: payload };
   },
 
   doPing: function doPing(server, slug, payload, recordSuccess) {
@@ -437,7 +424,7 @@ TelemetryPing.prototype = {
     request.addEventListener("error", function(aEvent) finishRequest(request.channel), false);
     request.addEventListener("load", function(aEvent) finishRequest(request.channel), false);
 
-    request.send(payload);
+    request.send(JSON.stringify(payload));
   },
   
   attachObservers: function attachObservers() {
@@ -576,12 +563,6 @@ TelemetryPing.prototype = {
         idleService.addIdleObserver(this, IDLE_TIMEOUT_SECONDS);
         this._isIdleObserver = true;
       }).bind(this), Ci.nsIThread.DISPATCH_NORMAL);
-      break;
-    case "get-payload":
-      this.gatherMemory();
-      let data = this.getSessionPayloadAndSlug("gather-payload");
-
-      aSubject.QueryInterface(Ci.nsISupportsString).data = data.payload;
       break;
     case "test-ping":
       server = aData;

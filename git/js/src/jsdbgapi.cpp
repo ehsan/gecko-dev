@@ -979,7 +979,7 @@ JS_SetDebugErrorHook(JSRuntime *rt, JSDebugErrorHook hook, void *closure)
 JS_PUBLIC_API(size_t)
 JS_GetObjectTotalSize(JSContext *cx, JSObject *obj)
 {
-    return obj->computedSizeOfIncludingThis();
+    return obj->slotsAndStructSize();
 }
 
 static size_t

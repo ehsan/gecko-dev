@@ -110,8 +110,6 @@
 #include <map>
 #include <vector>
 
-#include "mozilla/mozalloc_oom.h"
-
 #if defined(XP_MACOSX)
 CFStringRef reporterClientAppID = CFSTR("org.mozilla.crashreporter");
 #endif
@@ -145,7 +143,6 @@ typedef std::wstring xpstring;
 #else
 #define XP_TTOA(time, buffer, base) _i64toa(time, buffer, base)
 #endif
-#define XP_STOA(size, buffer, base) _ui64toa(size, buffer, base)
 #else
 typedef char XP_CHAR;
 typedef std::string xpstring;
@@ -157,12 +154,10 @@ typedef std::string xpstring;
 #define XP_PATH_MAX PATH_MAX
 #ifdef XP_LINUX
 #define XP_STRLEN(x) my_strlen(x)
-#define XP_TTOA(time, buffer, base) my_inttostring(time, buffer, sizeof(buffer))
-#define XP_STOA(size, buffer, base) my_inttostring(size, buffer, sizeof(buffer))
+#define XP_TTOA(time, buffer, base) my_timetostring(time, buffer, sizeof(buffer))
 #else
 #define XP_STRLEN(x) strlen(x)
 #define XP_TTOA(time, buffer, base) sprintf(buffer, "%ld", time)
-#define XP_STOA(size, buffer, base) sprintf(buffer, "%zu", size)
 #define my_strlen strlen
 #define sys_close close
 #define sys_fork fork
@@ -209,10 +204,6 @@ static const int kTotalVirtualMemoryParameterLen =
 static const char kAvailableVirtualMemoryParameter[] = "AvailableVirtualMemory=";
 static const int kAvailableVirtualMemoryParameterLen =
   sizeof(kAvailableVirtualMemoryParameter)-1;
-
-static const char kOOMAllocationSizeParameter[] = "OOMAllocationSize=";
-static const int kOOMAllocationSizeParameterLen =
-  sizeof(kOOMAllocationSizeParameter)-1;
 
 // this holds additional data sent via the API
 static Mutex* crashReporterAPILock;
@@ -304,7 +295,7 @@ void FileIDToGUID(const char* file_id, u_int8_t guid[sizeof(MDGUID)])
 
 #ifdef XP_LINUX
 inline void
-my_inttostring(intmax_t t, char* buffer, size_t buffer_length)
+my_timetostring(time_t t, char* buffer, size_t buffer_length)
 {
   my_memset(buffer, 0, buffer_length);
   my_itos(buffer, t, my_int_len(t));
@@ -339,13 +330,6 @@ Concat(XP_CHAR* str, const XP_CHAR* toAppend, int* size)
   return str;
 }
 
-static size_t gOOMAllocationSize = 0;
-
-void AnnotateOOMAllocationSize(size_t size)
-{
-  gOOMAllocationSize = size;
-}
-
 bool MinidumpCallback(const XP_CHAR* dump_path,
                       const XP_CHAR* minidump_id,
                       void* context,
@@ -370,13 +354,6 @@ bool MinidumpCallback(const XP_CHAR* dump_path,
   p = Concat(p, XP_PATH_SEPARATOR, &size);
   p = Concat(p, minidump_id, &size);
   Concat(p, extraFileExtension, &size);
-
-  char oomAllocationSizeBuffer[32];
-  int oomAllocationSizeBufferLen = 0;
-  if (gOOMAllocationSize) {
-    XP_STOA(gOOMAllocationSize, oomAllocationSizeBuffer, 10);
-    oomAllocationSizeBufferLen = my_strlen(oomAllocationSizeBuffer);
-  }
 
   // calculate time since last crash (if possible), and store
   // the time of this crash.
@@ -482,13 +459,6 @@ bool MinidumpCallback(const XP_CHAR* dump_path,
                   &nBytes, NULL);
         WriteFile(hFile, "\n", 1, &nBytes, NULL);
       }
-      if (oomAllocationSizeBufferLen) {
-        WriteFile(hFile, kOOMAllocationSizeParameter,
-                  kOOMAllocationSizeParameterLen, &nBytes, NULL);
-        WriteFile(hFile, oomAllocationSizeBuffer, oomAllocationSizeBufferLen,
-                  &nBytes, NULL);
-        WriteFile(hFile, "\n", 1, &nBytes, NULL);
-      }
       CloseHandle(hFile);
     }
   }
@@ -534,12 +504,6 @@ bool MinidumpCallback(const XP_CHAR* dump_path,
                         timeSinceLastCrashStringLen);
         ignored = sys_write(fd, "\n", 1);
       }
-      if (oomAllocationSizeBufferLen) {
-        sys_write(fd, kOOMAllocationSizeParameter,
-                  kOOMAllocationSizeParameterLen);
-        sys_write(fd, oomAllocationSizeBuffer, oomAllocationSizeBufferLen);
-        sys_write(fd, "\n", 1);
-      }        
       sys_close(fd);
     }
   }
@@ -848,8 +812,6 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
                                       library_mappings[i].file_offset);
   }
 #endif
-
-  mozalloc_set_oom_abort_handler(AnnotateOOMAllocationSize);
 
   return NS_OK;
 }

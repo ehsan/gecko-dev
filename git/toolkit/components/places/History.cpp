@@ -1750,8 +1750,7 @@ History::GetDBConn()
 void
 History::Shutdown()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(!mShuttingDown && "Shutdown was called more than once!");
+  NS_ASSERTION(!mShuttingDown, "Shutdown was called more than once!");
 
   mShuttingDown = true;
 

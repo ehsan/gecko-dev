@@ -3447,6 +3447,7 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       case JSOP_STARTXML:
       case JSOP_STARTXMLEXPR:
       case JSOP_DEFXMLNS:
+      case JSOP_SHARPINIT:
       case JSOP_INDEXBASE:
       case JSOP_INDEXBASE1:
       case JSOP_INDEXBASE2:
@@ -4130,6 +4131,13 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
 
       case JSOP_ENDFILTER:
         poppedTypes(pc, 1)->addSubset(cx, &pushed[0]);
+        break;
+
+      case JSOP_DEFSHARP:
+        break;
+
+      case JSOP_USESHARP:
+        pushed[0].addType(cx, Type::UnknownType());
         break;
 
       case JSOP_CALLEE:
@@ -6331,7 +6339,7 @@ GetScriptMemoryStats(JSScript *script, TypeInferenceMemoryStats *stats, JSMalloc
     }
 }
 
-void
+JS_PUBLIC_API(void)
 JS::SizeOfCompartmentTypeInferenceData(JSContext *cx, JSCompartment *compartment,
                                        TypeInferenceMemoryStats *stats,
                                        JSMallocSizeOfFun mallocSizeOf)
@@ -6377,8 +6385,8 @@ JS::SizeOfCompartmentTypeInferenceData(JSContext *cx, JSCompartment *compartment
     }
 }
 
-void
-JS::SizeOfTypeObjectExcludingThis(void *object_, TypeInferenceMemoryStats *stats, JSMallocSizeOfFun mallocSizeOf)
+JS_PUBLIC_API(void)
+JS::SizeOfObjectTypeInferenceData(void *object_, TypeInferenceMemoryStats *stats, JSMallocSizeOfFun mallocSizeOf)
 {
     TypeObject *object = (TypeObject *) object_;
 

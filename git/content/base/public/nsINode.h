@@ -379,11 +379,6 @@ public:
   mozilla::dom::Element* AsElement();
 
   /**
-   * Return if this node has any children.
-   */
-  bool HasChildren() const { return !!mFirstChild; }
-
-  /**
    * Get the number of children
    * @return the number of children
    */

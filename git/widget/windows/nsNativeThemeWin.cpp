@@ -884,7 +884,7 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
         nsIContent* content = aFrame->GetContent();
         nsIContent* parent = content->GetParent();
         // XXXzeniko hiding the first toolbar will result in an unwanted margin
-        if (parent && parent->GetFirstChild() == content) {
+        if (parent && parent->GetChildAt(0) == content) {
           aState = 1;
         }
       }

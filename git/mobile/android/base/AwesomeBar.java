@@ -49,6 +49,7 @@ import android.content.res.Configuration;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.Editable;
@@ -64,6 +65,7 @@ import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.view.inputmethod.EditorInfo;
 import android.widget.AdapterView;
+import android.widget.AdapterView.AdapterContextMenuInfo;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ExpandableListView;
@@ -77,6 +79,7 @@ import java.util.Map;
 import org.mozilla.gecko.db.BrowserDB.URLColumns;
 import org.mozilla.gecko.db.BrowserDB;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class AwesomeBar extends Activity implements GeckoEventListener {
@@ -403,8 +406,8 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
             }
             ExpandableListView.ExpandableListContextMenuInfo info = (ExpandableListView.ExpandableListContextMenuInfo) menuInfo;
             ExpandableListView exList = (ExpandableListView)list;
-            int childPosition = ExpandableListView.getPackedPositionChild(info.packedPosition);
-            int groupPosition = ExpandableListView.getPackedPositionGroup(info.packedPosition);
+            int childPosition = exList.getPackedPositionChild(info.packedPosition);
+            int groupPosition = exList.getPackedPositionGroup(info.packedPosition);
             selectedItem = exList.getExpandableListAdapter().getChild(groupPosition, childPosition);
 
             Map map = (Map)selectedItem;

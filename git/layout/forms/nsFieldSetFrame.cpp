@@ -63,9 +63,6 @@
 #include "nsDisplayList.h"
 #include "nsRenderingContext.h"
 
-using namespace mozilla;
-using namespace mozilla::layout;
-
 class nsLegendFrame;
 
 class nsFieldSetFrame : public nsContainerFrame {
@@ -406,11 +403,6 @@ nsFieldSetFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                                   aMargin, aBorder, aPadding, aShrinkWrap);
 
   // Fieldsets never shrink below their min width.
-
-  // If we're a container for font size inflation, then shrink
-  // wrapping inside of us should not apply font size inflation.
-  AutoMaybeNullInflationContainer an(this);
-
   nscoord minWidth = GetMinWidth(aRenderingContext);
   if (minWidth > result.width)
     result.width = minWidth;

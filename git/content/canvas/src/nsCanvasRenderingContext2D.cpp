@@ -2540,7 +2540,7 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
 
     NS_ASSERTION(fontStyle, "Could not obtain font style");
 
-    nsIAtom* language = sc->GetStyleFont()->mLanguage;
+    nsIAtom* language = sc->GetStyleVisibility()->mLanguage;
     if (!language) {
         language = presShell->GetPresContext()->GetLanguageFromCharset();
     }
