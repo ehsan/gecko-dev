@@ -286,7 +286,7 @@ class nsCocoaUtils
   /**
    * Initializes aPluginEvent for aCocoaEvent.
    */
-  static void InitPluginEvent(mozilla::WidgetPluginEvent &aPluginEvent,
+  static void InitPluginEvent(nsPluginEvent &aPluginEvent,
                               NPCocoaEvent &aCocoaEvent);
   /**
    * Initializes nsInputEvent for aNativeEvent or aModifiers.

@@ -20,9 +20,11 @@
 #endif
 #include "jit/IonCompartment.h"
 #include "jit/IonInstrumentation.h"
+#include "jit/ParallelFunctions.h"
 #include "jit/VMFunctions.h"
 #include "vm/ProxyObject.h"
 #include "vm/Shape.h"
+#include "vm/TypedArrayObject.h"
 
 namespace js {
 namespace jit {

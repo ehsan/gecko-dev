@@ -41,7 +41,6 @@ uint64_t gNextSerialNumber = 1;
 
 USING_INDEXEDDB_NAMESPACE
 using mozilla::dom::OwningIDBObjectStoreOrIDBIndexOrIDBCursor;
-using namespace mozilla;
 
 IDBRequest::IDBRequest()
 : mResultVal(JSVAL_VOID),
@@ -300,7 +299,7 @@ IDBRequest::CaptureCaller()
 }
 
 void
-IDBRequest::FillScriptErrorEvent(InternalScriptErrorEvent* aEvent) const
+IDBRequest::FillScriptErrorEvent(nsScriptErrorEvent* aEvent) const
 {
   aEvent->lineNr = mLineNo;
   aEvent->fileName = mFilename.get();

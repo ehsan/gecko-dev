@@ -12,15 +12,15 @@
 namespace mozilla {
 
 template <typename T>
-class AsyncEventRunner : public nsRunnable
+class AsyncEventRunnner : public nsRunnable
 {
 public:
-  AsyncEventRunner(T* aTarget, const char* aName)
+  AsyncEventRunnner(T* aTarget, const char* aName)
     : mTarget(aTarget)
     , mName(aName)
   {}
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     mTarget->DispatchSimpleEvent(mName);
     return NS_OK;

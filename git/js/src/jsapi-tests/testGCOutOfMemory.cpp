@@ -6,6 +6,8 @@
  * Contributor: Igor Bukanov
  */
 
+#include "jscntxt.h"
+
 #include "jsapi-tests/tests.h"
 
 static unsigned errorCount = 0;

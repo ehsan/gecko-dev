@@ -14,14 +14,12 @@
 #include "jit/BaselineFrame.h"
 #include "jit/BaselineIC.h"
 #include "jit/BaselineJIT.h"
+#include "jit/BaselineRegisters.h"
 #include "jit/Lowering.h"
 #include "jit/MIR.h"
-#include "jit/ParallelFunctions.h"
 #include "vm/ForkJoin.h"
 
-#ifdef JSGC_GENERATIONAL
-# include "jsgcinlines.h"
-#endif
+#include "jsgcinlines.h"
 #include "jsinferinlines.h"
 
 using namespace js;

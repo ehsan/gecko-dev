@@ -7,7 +7,6 @@
 #ifndef gc_FindSCCs_h
 #define gc_FindSCCs_h
 
-#include "jsfriendapi.h"
 #include "jsutil.h"
 
 namespace js {

@@ -201,9 +201,9 @@ struct ParamTraits<nsMouseEvent>
 };
 
 template<>
-struct ParamTraits<mozilla::WidgetTouchEvent>
+struct ParamTraits<nsTouchEvent>
 {
-  typedef mozilla::WidgetTouchEvent paramType;
+  typedef nsTouchEvent paramType;
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
@@ -487,9 +487,9 @@ struct ParamTraits<nsIMEUpdatePreference>
 };
 
 template<>
-struct ParamTraits<mozilla::WidgetPluginEvent>
+struct ParamTraits<nsPluginEvent>
 {
-  typedef mozilla::WidgetPluginEvent paramType;
+  typedef nsPluginEvent paramType;
 
   static void Write(Message* aMsg, const paramType& aParam)
   {

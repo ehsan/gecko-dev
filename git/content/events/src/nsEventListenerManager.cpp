@@ -1036,7 +1036,7 @@ nsEventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
 
   aEvent->currentTarget = nullptr;
 
-  if (mIsMainThreadELM && !hasListener) {
+  if (!hasListener) {
     mNoListenerForEvent = aEvent->message;
     mNoListenerForEventAtom = aEvent->userType;
   }

@@ -39,10 +39,6 @@ class gfxContext;
 class nsIWidget;
 
 namespace mozilla {
-namespace gfx {
-class DrawTarget;
-}
-
 namespace layers {
 
 class APZCTreeManager;
@@ -225,7 +221,7 @@ protected:
   virtual bool DeallocPLayerTransactionParent(PLayerTransactionParent* aLayers);
   virtual void ScheduleTask(CancelableTask*, int);
   virtual void Composite();
-  virtual void ComposeToTarget(gfx::DrawTarget* aTarget);
+  virtual void ComposeToTarget(gfxContext* aTarget);
 
   void SetEGLSurfaceSize(int width, int height);
 

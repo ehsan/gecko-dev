@@ -52,7 +52,6 @@ namespace android {
 namespace mozilla {
     namespace gfx {
         class SharedSurface;
-        class SourceSurface;
         class DataSourceSurface;
         struct SurfaceCaps;
     }
@@ -2701,8 +2700,6 @@ public:
     // Similar to ReadPixelsIntoImageSurface, but pulls from the screen
     // instead of the currently bound framebuffer.
     void ReadScreenIntoImageSurface(gfxImageSurface* dest);
-
-    TemporaryRef<gfx::SourceSurface> ReadPixelsToSourceSurface(const gfx::IntSize &aSize);
 
     /**
      * Copy a rectangle from one TextureImage into another.  The

@@ -15,11 +15,11 @@ namespace mozilla {
 
 using namespace dom;
 
-MultiTouchInput::MultiTouchInput(const WidgetTouchEvent& aTouchEvent)
+MultiTouchInput::MultiTouchInput(const nsTouchEvent& aTouchEvent)
   : InputData(MULTITOUCH_INPUT, aTouchEvent.time)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(),
-                    "Can only copy from WidgetTouchEvent on main thread");
+                    "Can only copy from nsTouchEvent on main thread");
 
   switch (aTouchEvent.message) {
     case NS_TOUCH_START:

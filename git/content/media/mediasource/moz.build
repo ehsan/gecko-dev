@@ -11,7 +11,6 @@ MODULE = 'content'
 
 EXPORTS += [
     'AsyncEventRunner.h',
-    'MediaSourceDecoder.h',
 ]
 
 EXPORTS.mozilla.dom += [
@@ -22,10 +21,9 @@ EXPORTS.mozilla.dom += [
 
 CPP_SOURCES += [
     'MediaSource.cpp',
-    'MediaSourceDecoder.cpp',
+    'MediaSourceInputAdapter.cpp',
     'SourceBuffer.cpp',
     'SourceBufferList.cpp',
-    'SourceBufferResource.cpp',
 ]
 
 FAIL_ON_WARNINGS = True

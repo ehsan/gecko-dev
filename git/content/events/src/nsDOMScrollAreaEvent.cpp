@@ -10,11 +10,9 @@
 #include "nsDOMScrollAreaEvent.h"
 #include "nsClientRect.h"
 
-using namespace mozilla;
-
 nsDOMScrollAreaEvent::nsDOMScrollAreaEvent(mozilla::dom::EventTarget* aOwner,
                                            nsPresContext *aPresContext,
-                                           InternalScrollAreaEvent* aEvent)
+                                           nsScrollAreaEvent *aEvent)
   : nsDOMUIEvent(aOwner, aPresContext, aEvent)
   , mClientArea(nullptr)
 {
@@ -25,7 +23,7 @@ nsDOMScrollAreaEvent::~nsDOMScrollAreaEvent()
 {
   if (mEventIsInternal && mEvent) {
     if (mEvent->eventStructType == NS_SCROLLAREA_EVENT) {
-      delete static_cast<InternalScrollAreaEvent*>(mEvent);
+      delete static_cast<nsScrollAreaEvent *>(mEvent);
       mEvent = nullptr;
     }
   }
@@ -104,7 +102,7 @@ nsresult
 NS_NewDOMScrollAreaEvent(nsIDOMEvent **aInstancePtrResult,
                          mozilla::dom::EventTarget* aOwner,
                          nsPresContext *aPresContext,
-                         InternalScrollAreaEvent* aEvent)
+                         nsScrollAreaEvent *aEvent)
 {
   nsDOMScrollAreaEvent* ev =
     new nsDOMScrollAreaEvent(aOwner, aPresContext, aEvent);

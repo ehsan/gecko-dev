@@ -16,7 +16,7 @@
 #include "nsUnicodeToGBK.h"
 #include "gbku.h"
 #include "uconvutil.h"
-#include "nsCharTraits.h"
+#include "nsUnicharUtils.h"
 
 //-------------------------------------------------------------
 // Global table initialization function defined in gbku.h

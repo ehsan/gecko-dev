@@ -63,7 +63,7 @@ public:
     if (!PluginHasFocus()) {
       return false;
     }
-    mozilla::WidgetPluginEvent pluginEvent(true, NS_PLUGIN_INPUT_EVENT, this);
+    nsPluginEvent pluginEvent(true, NS_PLUGIN_INPUT_EVENT, this);
     nsIntPoint point(0, 0);
     InitEvent(pluginEvent, &point);
     NPEvent npEvent;

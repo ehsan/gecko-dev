@@ -17,7 +17,7 @@ class nsDOMClipboardEvent : public nsDOMEvent,
 public:
   nsDOMClipboardEvent(mozilla::dom::EventTarget* aOwner,
                       nsPresContext* aPresContext,
-                      mozilla::InternalClipboardEvent* aEvent);
+                      nsClipboardEvent* aEvent);
   virtual ~nsDOMClipboardEvent();
 
   NS_DECL_ISUPPORTS_INHERITED

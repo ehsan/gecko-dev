@@ -10,6 +10,7 @@
 // This file declares the structures that are used for attaching LIR to a
 // MIRGraph.
 
+#include "jit/IonAllocPolicy.h"
 #include "jit/LIR.h"
 
 namespace js {

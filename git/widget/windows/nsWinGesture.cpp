@@ -119,8 +119,7 @@ bool nsWinGesture::InitLibrary()
 
 #define GCOUNT 5
 
-bool nsWinGesture::SetWinGestureSupport(HWND hWnd,
-                     WidgetGestureNotifyEvent::ePanDirection aDirection)
+bool nsWinGesture::SetWinGestureSupport(HWND hWnd, nsGestureNotifyEvent::ePanDirection aDirection)
 {
   if (!getGestureInfo)
     return false;
@@ -145,15 +144,15 @@ bool nsWinGesture::SetWinGestureSupport(HWND hWnd,
 
   if (gEnableSingleFingerPanEvents) {
 
-    if (aDirection == WidgetGestureNotifyEvent::ePanVertical ||
-        aDirection == WidgetGestureNotifyEvent::ePanBoth)
+    if (aDirection == nsGestureNotifyEvent::ePanVertical ||
+        aDirection == nsGestureNotifyEvent::ePanBoth)
     {
       config[2].dwWant  |= GC_PAN_WITH_SINGLE_FINGER_VERTICALLY;
       config[2].dwBlock -= GC_PAN_WITH_SINGLE_FINGER_VERTICALLY;
     }
 
-    if (aDirection == WidgetGestureNotifyEvent::ePanHorizontal ||
-        aDirection == WidgetGestureNotifyEvent::ePanBoth)
+    if (aDirection == nsGestureNotifyEvent::ePanHorizontal ||
+        aDirection == nsGestureNotifyEvent::ePanBoth)
     {
       config[2].dwWant  |= GC_PAN_WITH_SINGLE_FINGER_HORIZONTALLY;
       config[2].dwBlock -= GC_PAN_WITH_SINGLE_FINGER_HORIZONTALLY;
@@ -298,8 +297,7 @@ bool nsWinGesture::IsPanEvent(LPARAM lParam)
 /* Gesture event processing */
 
 bool
-nsWinGesture::ProcessGestureMessage(HWND hWnd, WPARAM wParam, LPARAM lParam,
-                                    WidgetSimpleGestureEvent& evt)
+nsWinGesture::ProcessGestureMessage(HWND hWnd, WPARAM wParam, LPARAM lParam, nsSimpleGestureEvent& evt)
 {
   GESTUREINFO gi;
 

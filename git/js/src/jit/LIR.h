@@ -20,6 +20,8 @@
 #include "jit/MIRGraph.h"
 #include "jit/Registers.h"
 #include "jit/Safepoints.h"
+#include "jit/shared/Assembler-shared.h"
+#include "jit/VMFunctions.h"
 
 namespace js {
 namespace jit {

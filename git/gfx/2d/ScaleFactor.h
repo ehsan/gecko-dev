@@ -36,6 +36,10 @@ struct ScaleFactor {
     MOZ_ASSERT(fabs(aX - aY) < 1e-6);
   }
 
+  explicit ScaleFactor(gfxSize aScale) : scale(aScale.width) {
+    MOZ_ASSERT(fabs(aScale.width - aScale.height) < 1e-6);
+  }
+
   ScaleFactor<dst, src> Inverse() {
     return ScaleFactor<dst, src>(1 / scale);
   }

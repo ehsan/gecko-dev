@@ -11,7 +11,6 @@
 
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/CryptoBinding.h"
-#include "nsServiceManagerUtils.h"
 
 using mozilla::dom::ContentChild;
 

@@ -1228,7 +1228,7 @@ bool nsWindow::OnMultitouchEvent(AndroidGeckoEvent *ae)
     bool preventDefaultActions = false;
     bool isDownEvent = false;
 
-    WidgetTouchEvent event = ae->MakeTouchEvent(this);
+    nsTouchEvent event = ae->MakeTouchEvent(this);
     if (event.message != NS_EVENT_NULL) {
         nsEventStatus status;
         DispatchEvent(&event, status);
@@ -1303,7 +1303,7 @@ void
 nsWindow::DispatchGestureEvent(uint32_t msg, uint32_t direction, double delta,
                                const nsIntPoint &refPoint, uint64_t time)
 {
-    WidgetSimpleGestureEvent event(true, msg, this, direction, delta);
+    nsSimpleGestureEvent event(true, msg, this, direction, delta);
 
     event.modifiers = 0;
     event.time = time;
@@ -1708,7 +1708,7 @@ nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
         }
     }
     if (doCommand) {
-        WidgetCommandEvent event(true, nsGkAtoms::onAppCommand, command, this);
+        nsCommandEvent event(true, nsGkAtoms::onAppCommand, command, this);
         InitEvent(event);
         DispatchEvent(&event);
     }

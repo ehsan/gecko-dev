@@ -69,7 +69,7 @@ void MediaOmxReader::ReleaseMediaResources()
   }
 }
 
-nsresult MediaOmxReader::ReadMetadata(MediaInfo* aInfo,
+nsresult MediaOmxReader::ReadMetadata(VideoInfo* aInfo,
                                       MetadataTags** aTags)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
@@ -113,8 +113,8 @@ nsresult MediaOmxReader::ReadMetadata(MediaInfo* aInfo,
     }
 
     // Video track's frame sizes will not overflow. Activate the video track.
-    mHasVideo = mInfo.mVideo.mHasVideo = true;
-    mInfo.mVideo.mDisplay = displaySize;
+    mHasVideo = mInfo.mHasVideo = true;
+    mInfo.mDisplay = displaySize;
     mPicture = pictureRect;
     mInitialFrame = frameSize;
     VideoFrameContainer* container = mDecoder->GetVideoFrameContainer();
@@ -128,9 +128,9 @@ nsresult MediaOmxReader::ReadMetadata(MediaInfo* aInfo,
   if (mOmxDecoder->HasAudio()) {
     int32_t numChannels, sampleRate;
     mOmxDecoder->GetAudioParameters(&numChannels, &sampleRate);
-    mHasAudio = mInfo.mAudio.mHasAudio = true;
-    mInfo.mAudio.mChannels = numChannels;
-    mInfo.mAudio.mRate = sampleRate;
+    mHasAudio = mInfo.mHasAudio = true;
+    mInfo.mAudioChannels = numChannels;
+    mInfo.mAudioRate = sampleRate;
   }
 
  *aInfo = mInfo;
@@ -232,7 +232,7 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
       b.mPlanes[2].mOffset = frame.Cr.mOffset;
       b.mPlanes[2].mSkip = frame.Cr.mSkip;
 
-      v = VideoData::Create(mInfo.mVideo,
+      v = VideoData::Create(mInfo,
                             mDecoder->GetImageContainer(),
                             pos,
                             frame.mTimeUs,
@@ -242,7 +242,7 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
                             -1,
                             picture);
     } else {
-      v = VideoData::Create(mInfo.mVideo,
+      v = VideoData::Create(mInfo,
                             mDecoder->GetImageContainer(),
                             pos,
                             frame.mTimeUs,

@@ -10,13 +10,11 @@
 # include <unistd.h>
 #endif
 
-#ifdef JS_ION_PERF
-# include "jit/IonSpewer.h"
-# include "jit/LinearScan.h"
-# include "jit/LIR.h"
-# include "jit/MIR.h"
-# include "jit/MIRGraph.h"
-#endif
+#include "jit/IonSpewer.h"
+#include "jit/LinearScan.h"
+#include "jit/LIR.h"
+#include "jit/MIR.h"
+#include "jit/MIRGraph.h"
 
 // perf expects its data to be in a file /tmp/perf-PID.map, but for Android
 // and B2G the map files are written to /data/local/tmp/perf-PID.map

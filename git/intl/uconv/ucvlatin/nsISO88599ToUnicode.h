@@ -6,9 +6,7 @@
 #ifndef nsISO88599ToUnicode_h___
 #define nsISO88599ToUnicode_h___
 
-#include "nsID.h"
-
-class nsISupports;
+#include "nsCP1254ToUnicode.h"
 
 // Just make it an alias to windows-1254 decoder. (bug 712876)
 nsresult

@@ -7,10 +7,7 @@
 #ifndef jit_CodeGenerator_h
 #define jit_CodeGenerator_h
 
-#include "jit/IonCaches.h"
-#if defined(JS_ION_PERF)
-# include "jit/PerfSpewer.h"
-#endif
+#include "jit/PerfSpewer.h"
 
 #if defined(JS_CPU_X86)
 # include "jit/x86/CodeGenerator-x86.h"
@@ -120,7 +117,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitFilterArguments(LFilterArguments *lir);
     bool visitCallDirectEval(LCallDirectEval *lir);
     bool visitDoubleToInt32(LDoubleToInt32 *lir);
-    bool visitFloat32ToInt32(LFloat32ToInt32 *lir);
     bool visitNewSlots(LNewSlots *lir);
     bool visitNewParallelArrayVMCall(LNewParallelArray *lir);
     bool visitNewParallelArray(LNewParallelArray *lir);

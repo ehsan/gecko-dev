@@ -68,7 +68,6 @@
 #include "nsHostObjectProtocolHandler.h"
 #include "mozilla/dom/MediaSource.h"
 #include "MediaMetadataManager.h"
-#include "MediaSourceDecoder.h"
 
 #include "AudioChannelService.h"
 
@@ -602,7 +601,7 @@ void HTMLMediaElement::AbortExistingLoads()
     EndSrcMediaStreamPlayback();
   }
   if (mMediaSource) {
-    mMediaSource->Detach();
+    mMediaSource->DetachElement();
     mMediaSource = nullptr;
   }
   if (mAudioStream) {
@@ -1136,15 +1135,16 @@ nsresult HTMLMediaElement::LoadResource()
       return rv;
     }
     mMediaSource = source.forget();
-    nsRefPtr<MediaSourceDecoder> decoder = new MediaSourceDecoder(this);
-    if (!mMediaSource->Attach(decoder)) {
-      // TODO: Handle failure: run "If the media data cannot be fetched at
-      // all, due to network errors, causing the user agent to give up
-      // trying to fetch the resource" section of resource fetch algorithm.
+    if (!mMediaSource->AttachElement(this)) {
+      // XXX(kinetik): Handle failure: run "If the media data cannot be
+      // fetched at all, due to network errors, causing the user agent to
+      // give up trying to fetch the resource" section of resource fetch
+      // algorithm.
       return NS_ERROR_FAILURE;
     }
-    nsRefPtr<MediaResource> resource = new MediaSourceResource();
-    return FinishDecoderSetup(decoder, resource, nullptr, nullptr);
+    // XXX(kinetik): Bug 881512. Wire this up properly; return from here (as
+    // MediaStreams setup does) rather than relying on mediasource->channel
+    // conversion.
   }
 
   nsCOMPtr<nsILoadGroup> loadGroup = GetDocumentLoadGroup();
@@ -1406,7 +1406,6 @@ HTMLMediaElement::Seekable() const
   } else if (mDecoder && mReadyState > nsIDOMHTMLMediaElement::HAVE_NOTHING) {
     mDecoder->GetSeekable(ranges);
   }
-  ranges->Normalize();
   return ranges.forget();
 }
 
@@ -1990,7 +1989,7 @@ HTMLMediaElement::~HTMLMediaElement()
     EndSrcMediaStreamPlayback();
   }
   if (mMediaSource) {
-    mMediaSource->Detach();
+    mMediaSource->DetachElement();
     mMediaSource = nullptr;
   }
 
@@ -3562,7 +3561,6 @@ HTMLMediaElement::Buffered() const
     // time ranges we found up till the error.
     mDecoder->GetBuffered(ranges);
   }
-  ranges->Normalize();
   return ranges.forget();
 }
 

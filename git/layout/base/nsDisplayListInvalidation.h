@@ -103,7 +103,6 @@ public:
   virtual void MoveBy(const nsPoint& aOffset) MOZ_OVERRIDE;
 
   nsRect mPositioningArea;
-  bool mWindowIsActive;
 };
 
 class nsDisplayBoxShadowInnerGeometry : public nsDisplayItemGeometry

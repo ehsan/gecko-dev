@@ -552,7 +552,7 @@ EnsureTrackPropertyTypes(JSContext *cx, JSObject *obj, jsid id)
 
     if (obj->hasSingletonType()) {
         AutoEnterAnalysis enter(cx);
-        obj->type()->getProperty(cx, id);
+        obj->type()->getProperty(cx, id, true);
     }
 
     JS_ASSERT(obj->type()->unknownProperties() || TrackPropertyTypes(cx, obj, id));
@@ -1337,12 +1337,14 @@ TypeSet::addType(ExclusiveContext *cxArg, Type type)
 }
 
 inline void
-TypeSet::setConfiguredProperty(ExclusiveContext *cxArg)
+TypeSet::setOwnProperty(ExclusiveContext *cxArg, bool configured)
 {
-    if (flags & TYPE_FLAG_CONFIGURED_PROPERTY)
+    TypeFlags nflags = TYPE_FLAG_OWN_PROPERTY | (configured ? TYPE_FLAG_CONFIGURED_PROPERTY : 0);
+
+    if ((flags & nflags) == nflags)
         return;
 
-    flags |= TYPE_FLAG_CONFIGURED_PROPERTY;
+    flags |= nflags;
 
     /* Propagate the change to all constraints. */
     if (JSContext *cx = cxArg->maybeJSContext()) {
@@ -1415,16 +1417,6 @@ TypeSet::getTypeOrSingleObject(JSContext *cx, unsigned i, TypeObject **result) c
     return true;
 }
 
-inline const Class *
-TypeSet::getObjectClass(unsigned i) const
-{
-    if (JSObject *object = getSingleObject(i))
-        return object->getClass();
-    if (TypeObject *object = getTypeObject(i))
-        return object->clasp;
-    return NULL;
-}
-
 /////////////////////////////////////////////////////////////////////
 // TypeObject
 /////////////////////////////////////////////////////////////////////
@@ -1462,7 +1454,7 @@ TypeObject::setBasePropertyCount(uint32_t count)
 }
 
 inline HeapTypeSet *
-TypeObject::getProperty(ExclusiveContext *cx, jsid id)
+TypeObject::getProperty(ExclusiveContext *cx, jsid id, bool own)
 {
     JS_ASSERT(cx->compartment()->activeAnalysis);
 
@@ -1502,7 +1494,11 @@ TypeObject::getProperty(ExclusiveContext *cx, jsid id)
         }
     }
 
-    return &(*pprop)->types;
+    HeapTypeSet *types = &(*pprop)->types;
+    if (own)
+        types->setOwnProperty(cx, false);
+
+    return types;
 }
 
 inline HeapTypeSet *

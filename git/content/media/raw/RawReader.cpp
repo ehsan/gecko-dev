@@ -35,8 +35,8 @@ nsresult RawReader::ResetDecode()
   return MediaDecoderReader::ResetDecode();
 }
 
-nsresult RawReader::ReadMetadata(MediaInfo* aInfo,
-                                 MetadataTags** aTags)
+nsresult RawReader::ReadMetadata(VideoInfo* aInfo,
+                                   MetadataTags** aTags)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(),
                "Should be on decode thread.");
@@ -75,8 +75,9 @@ nsresult RawReader::ReadMetadata(MediaInfo* aInfo,
     return NS_ERROR_FAILURE;
   }
 
-  mInfo.mVideo.mHasVideo = true;
-  mInfo.mVideo.mDisplay = display;
+  mInfo.mHasVideo = true;
+  mInfo.mHasAudio = false;
+  mInfo.mDisplay = display;
 
   mFrameRate = static_cast<float>(mMetadata.framerateNumerator) /
                mMetadata.framerateDenominator;
@@ -207,7 +208,7 @@ bool RawReader::DecodeVideoFrame(bool &aKeyframeSkip,
   b.mPlanes[2].mWidth = mMetadata.frameWidth / 2;
   b.mPlanes[2].mOffset = b.mPlanes[2].mSkip = 0;
 
-  VideoData *v = VideoData::Create(mInfo.mVideo,
+  VideoData *v = VideoData::Create(mInfo,
                                    mDecoder->GetImageContainer(),
                                    -1,
                                    currentFrameTime,

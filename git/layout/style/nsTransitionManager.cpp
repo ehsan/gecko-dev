@@ -998,7 +998,7 @@ nsTransitionManager::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
 
 struct TransitionEventInfo {
   nsCOMPtr<nsIContent> mElement;
-  InternalTransitionEvent mEvent;
+  nsTransitionEvent mEvent;
 
   TransitionEventInfo(nsIContent *aElement, nsCSSProperty aProperty,
                       TimeDuration aDuration, const nsAString& aPseudoElement)
@@ -1009,7 +1009,7 @@ struct TransitionEventInfo {
   {
   }
 
-  // InternalTransitionEvent doesn't support copy-construction, so we need
+  // nsTransitionEvent doesn't support copy-construction, so we need
   // to ourselves in order to work with nsTArray
   TransitionEventInfo(const TransitionEventInfo &aOther)
     : mElement(aOther.mElement),
