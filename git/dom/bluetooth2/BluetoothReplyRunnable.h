@@ -14,12 +14,6 @@
 
 class nsIDOMDOMRequest;
 
-namespace mozilla {
-namespace dom {
-class Promise;
-}
-}
-
 BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothReply;
@@ -29,9 +23,7 @@ class BluetoothReplyRunnable : public nsRunnable
 public:
   NS_DECL_NSIRUNNABLE
 
-  BluetoothReplyRunnable(nsIDOMDOMRequest* aReq,
-                         Promise* aPromise = nullptr,
-                         const nsAString& aName = EmptyString());
+  BluetoothReplyRunnable(nsIDOMDOMRequest* aReq);
 
   void SetReply(BluetoothReply* aReply);
 
@@ -53,35 +45,25 @@ protected:
   nsAutoPtr<BluetoothReply> mReply;
 
 private:
-  nsresult FireReplySuccess(JS::Handle<JS::Value> aVal);
+  nsresult FireReply(JS::Handle<JS::Value> aVal);
   nsresult FireErrorString();
 
   /**
-   * Either mDOMRequest or mPromise is not nullptr to reply applications
-   * success or error string. One special case is internal IPC that require
-   * neither mDOMRequest nor mPromise to reply applications.
-   * E.g., GetAdaptersTask triggered by BluetoothManager
-   *
-   * TODO: remove mDOMRequest once all methods adopt Promise.
+   * mDOMRequest is nullptr for internal IPC that require no DOMRequest,
+   * e.g., GetAdaptersTask triggered by BluetoothManager
    */
   nsCOMPtr<nsIDOMDOMRequest> mDOMRequest;
-  nsRefPtr<Promise> mPromise;
-
   nsString mErrorString;
-  nsString mName; // for debugging
 };
 
 class BluetoothVoidReplyRunnable : public BluetoothReplyRunnable
 {
 public:
-  BluetoothVoidReplyRunnable(nsIDOMDOMRequest* aReq,
-                             Promise* aPromise = nullptr,
-                             const nsAString& aName = EmptyString());
+  BluetoothVoidReplyRunnable(nsIDOMDOMRequest* aReq);
  ~BluetoothVoidReplyRunnable();
 
 protected:
-  virtual bool
-  ParseSuccessfulReply(JS::MutableHandle<JS::Value> aValue) MOZ_OVERRIDE
+  virtual bool ParseSuccessfulReply(JS::MutableHandle<JS::Value> aValue) MOZ_OVERRIDE
   {
     aValue.setUndefined();
     return true;

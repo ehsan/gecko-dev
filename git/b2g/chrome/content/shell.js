@@ -585,7 +585,8 @@ var shell = {
       return;
     }
 
-    this.sendCustomEvent("mozChromeEvent", details);
+    this.sendEvent(getContentWindow(), "mozChromeEvent",
+                   Cu.cloneInto(details, getContentWindow()));
   },
 
   receiveMessage: function shell_receiveMessage(message) {
@@ -759,11 +760,16 @@ var WebappsHelper = {
 
           let manifest = new ManifestHelper(aManifest, json.origin);
           let payload = {
+            __exposedProps__: {
+              timestamp: "r",
+              url: "r",
+              manifestURL: "r"
+            },
             timestamp: json.timestamp,
             url: manifest.fullLaunchPath(json.startPoint),
             manifestURL: json.manifestURL
-          };
-          shell.sendCustomEvent("webapps-launch", payload);
+          }
+          shell.sendEvent(getContentWindow(), "webapps-launch", payload);
         });
         break;
       case "webapps-ask-install":
@@ -775,9 +781,11 @@ var WebappsHelper = {
         });
         break;
       case "webapps-close":
-        shell.sendCustomEvent("webapps-close", {
-          "manifestURL": json.manifestURL
-        });
+        shell.sendEvent(getContentWindow(), "webapps-close",
+          {
+            __exposedProps__: { "manifestURL": "r" },
+            "manifestURL": json.manifestURL
+          });
         break;
     }
   }
@@ -976,7 +984,11 @@ window.addEventListener('ContentStart', function ss_onContentStart() {
       context.drawWindow(window, 0, 0, width, height,
                          'rgb(255,255,255)', flags);
 
-      shell.sendChromeEvent({
+      // I can't use sendChromeEvent() here because it doesn't wrap
+      // the blob in the detail object correctly. So I use __exposedProps__
+      // instead to safely send the chrome detail object to content.
+      shell.sendEvent(getContentWindow(), 'mozChromeEvent', {
+        __exposedProps__: { type: 'r', file: 'r' },
         type: 'take-screenshot-success',
         file: canvas.mozGetAsFile('screenshot', 'image/png')
       });

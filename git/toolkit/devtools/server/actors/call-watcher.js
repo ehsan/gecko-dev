@@ -73,36 +73,14 @@ let FunctionCallActor = protocol.ActorClass({
     protocol.Actor.prototype.initialize.call(this, conn);
 
     this.details = {
+      window: window,
+      caller: caller,
       type: type,
       name: name,
       stack: stack,
+      args: args,
+      result: result
     };
-
-    // Store a weak reference to all objects so we don't
-    // prevent natural GC if `holdWeak` was passed into
-    // setup as truthy. Used in the Web Audio Editor.
-    if (this._holdWeak) {
-      let weakRefs = {
-        window: Cu.getWeakReference(window),
-        caller: Cu.getWeakReference(caller),
-        result: Cu.getWeakReference(result),
-        args: Cu.getWeakReference(args)
-      };
-
-      Object.defineProperties(this.details, {
-        window: { get: () => weakRefs.window.get() },
-        caller: { get: () => weakRefs.caller.get() },
-        result: { get: () => weakRefs.result.get() },
-        args: { get: () => weakRefs.args.get() }
-      });
-    }
-    // Otherwise, hold strong references to the objects.
-    else {
-      this.details.window = window;
-      this.details.caller = caller;
-      this.details.result = result;
-      this.details.args = args;
-    }
 
     this.meta = {
       global: -1,
@@ -268,7 +246,7 @@ let CallWatcherActor = exports.CallWatcherActor = protocol.ActorClass({
    * created, in order to instrument the specified objects and become
    * aware of everything the content does with them.
    */
-  setup: method(function({ tracedGlobals, tracedFunctions, startRecording, performReload, holdWeak }) {
+  setup: method(function({ tracedGlobals, tracedFunctions, startRecording, performReload }) {
     if (this._initialized) {
       return;
     }
@@ -277,7 +255,6 @@ let CallWatcherActor = exports.CallWatcherActor = protocol.ActorClass({
     this._functionCalls = [];
     this._tracedGlobals = tracedGlobals || [];
     this._tracedFunctions = tracedFunctions || [];
-    this._holdWeak = !!holdWeak;
     this._contentObserver = new ContentObserver(this.tabActor);
 
     on(this._contentObserver, "global-created", this._onGlobalCreated);
@@ -294,8 +271,7 @@ let CallWatcherActor = exports.CallWatcherActor = protocol.ActorClass({
       tracedGlobals: Option(0, "nullable:array:string"),
       tracedFunctions: Option(0, "nullable:array:string"),
       startRecording: Option(0, "boolean"),
-      performReload: Option(0, "boolean"),
-      holdWeak: Option(0, "boolean")
+      performReload: Option(0, "boolean")
     },
     oneway: true
   }),

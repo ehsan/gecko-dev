@@ -1671,19 +1671,27 @@
             },
 
             isVideoCasting : function () {
-              if (this.video.mozIsCasting)
+              let unwrappedVideo = XPCNativeWrapper.unwrap(this.video);
+              if (unwrappedVideo.mozIsCasting)
                 return true;
               return false;
             },
 
             updateCasting : function (eventDetail) {
+              let unwrappedVideo = XPCNativeWrapper.unwrap(this.video);
               let castingData = JSON.parse(eventDetail);
               if ("allow" in castingData) {
-                this.video.mozAllowCasting = !!castingData.allow;
+                if (castingData.allow)
+                  unwrappedVideo.mozAllowCasting = true;
+                else
+                  delete unwrappedVideo.mozAllowCasting;
               }
 
               if ("active" in castingData) {
-                this.video.mozIsCasting = !!castingData.active;
+                if (castingData.active)
+                  unwrappedVideo.mozIsCasting = true;
+                else
+                  delete unwrappedVideo.mozIsCasting;
               }
               this.setCastButtonState();
             },
@@ -1693,12 +1701,13 @@
             },
 
             setCastButtonState : function () {
-              if (this.isAudioOnly || !this.video.mozAllowCasting) {
+              let unwrappedVideo = XPCNativeWrapper.unwrap(this.video);
+              if (this.isAudioOnly || !unwrappedVideo.mozAllowCasting) {
                 this.castingButton.hidden = true;
                 return;
               }
 
-              if (this.video.mozIsCasting) {
+              if (unwrappedVideo.mozIsCasting) {
                 this.castingButton.setAttribute("active", "true");
               } else {
                 this.castingButton.removeAttribute("active");

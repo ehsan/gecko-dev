@@ -57,7 +57,8 @@ var NetworkManager = (function NetworkManagerClosure() {
   }
 
   function getArrayBuffer(xhr) {
-    var data = xhr.response;
+    var data = (xhr.mozResponseArrayBuffer || xhr.mozResponse ||
+                xhr.responseArrayBuffer || xhr.response);
     if (typeof data !== 'string') {
       return data;
     }
@@ -109,7 +110,7 @@ var NetworkManager = (function NetworkManagerClosure() {
         pendingRequest.expectedStatus = 200;
       }
 
-      xhr.responseType = 'arraybuffer';
+      xhr.mozResponseType = xhr.responseType = 'arraybuffer';
 
       if (args.onProgress) {
         xhr.onprogress = args.onProgress;

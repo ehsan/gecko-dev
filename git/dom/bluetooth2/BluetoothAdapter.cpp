@@ -157,6 +157,38 @@ public:
   }
 };
 
+class EnableDisableAdapterTask : public BluetoothReplyRunnable
+{
+public:
+  EnableDisableAdapterTask(Promise* aPromise)
+    : BluetoothReplyRunnable(nullptr)
+    , mPromise(aPromise)
+  { }
+
+  bool
+  ParseSuccessfulReply(JS::MutableHandle<JS::Value> aValue)
+  {
+    /*
+     * It is supposed to be Promise<void> according to BluetoothAdapter.webidl,
+     * but we have to pass "true" since it is mandatory to pass an
+     * argument while calling MaybeResolve.
+     */
+    mPromise->MaybeResolve(true);
+    aValue.setUndefined();
+    return true;
+  }
+
+  void
+  ReleaseMembers()
+  {
+    BluetoothReplyRunnable::ReleaseMembers();
+    mPromise = nullptr;
+  }
+
+private:
+  nsRefPtr<Promise> mPromise;
+};
+
 static int kCreatePairedDeviceTimeout = 50000; // unit: msec
 
 BluetoothAdapter::BluetoothAdapter(nsPIDOMWindow* aWindow,
@@ -289,8 +321,12 @@ BluetoothAdapter::SetPropertyByValue(const BluetoothNamedValue& aValue)
     mJsDeviceAddresses = deviceAddresses;
     Root();
   } else {
-    BT_WARNING("Not handling adapter property: %s",
-               NS_ConvertUTF16toUTF8(name).get());
+#ifdef DEBUG
+    nsCString warningMsg;
+    warningMsg.AssignLiteral("Not handling adapter property: ");
+    warningMsg.Append(NS_ConvertUTF16toUTF8(name));
+    BT_WARNING(warningMsg.get());
+#endif
   }
 }
 
@@ -364,8 +400,12 @@ BluetoothAdapter::Notify(const BluetoothSignal& aData)
 
     DispatchTrustedEvent(event);
   } else {
-    BT_WARNING("Not handling adapter signal: %s",
-               NS_ConvertUTF16toUTF8(aData.name()).get());
+#ifdef DEBUG
+    nsCString warningMsg;
+    warningMsg.AssignLiteral("Not handling adapter signal: ");
+    warningMsg.Append(NS_ConvertUTF16toUTF8(aData.name()));
+    BT_WARNING(warningMsg.get());
+#endif
   }
 }
 
@@ -679,37 +719,29 @@ BluetoothAdapter::EnableDisable(bool aEnable)
 
   nsRefPtr<Promise> promise = new Promise(global);
 
-  // Ensure BluetoothService is available before modifying adapter state
+  // Make sure BluetoothService is available before modifying adapter state
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     promise->MaybeReject(NS_ERROR_NOT_AVAILABLE);
     return promise.forget();
   }
 
-  nsString methodName;
   if (aEnable) {
-    // Enable local adapter
     if (mState != BluetoothAdapterState::Disabled) {
       promise->MaybeReject(NS_ERROR_DOM_INVALID_STATE_ERR);
       return promise.forget();
     }
-    methodName.AssignLiteral("Enable");
     mState = BluetoothAdapterState::Enabling;
   } else {
-    // Disable local adapter
     if (mState != BluetoothAdapterState::Enabled) {
       promise->MaybeReject(NS_ERROR_DOM_INVALID_STATE_ERR);
       return promise.forget();
     }
-    methodName.AssignLiteral("Disable");
     mState = BluetoothAdapterState::Disabling;
   }
-  // TODO: Fire attr changed event for this state change
 
-  nsRefPtr<BluetoothReplyRunnable> result =
-    new BluetoothVoidReplyRunnable(nullptr, /* DOMRequest */
-                                   promise,
-                                   methodName);
+  // TODO: Fire attr changed event for this state change
+  nsRefPtr<BluetoothReplyRunnable> result = new EnableDisableAdapterTask(promise);
 
   if(NS_FAILED(bs->EnableDisable(aEnable, result))) {
     promise->MaybeReject(NS_ERROR_DOM_OPERATION_ERR);

@@ -8,24 +8,13 @@
 #include "BluetoothReplyRunnable.h"
 #include "DOMRequest.h"
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
-#include "mozilla/dom/Promise.h"
 #include "nsServiceManagerUtils.h"
-
-using namespace mozilla::dom;
 
 USING_BLUETOOTH_NAMESPACE
 
-BluetoothReplyRunnable::BluetoothReplyRunnable(nsIDOMDOMRequest* aReq,
-                                               Promise* aPromise,
-                                               const nsAString& aName)
+BluetoothReplyRunnable::BluetoothReplyRunnable(nsIDOMDOMRequest* aReq)
   : mDOMRequest(aReq)
-  , mPromise(aPromise)
-  , mName(aName)
-{
-  if (aPromise) {
-    BT_API2_LOGR("<%s>", NS_ConvertUTF16toUTF8(mName).get());
-  }
-}
+{}
 
 void
 BluetoothReplyRunnable::SetReply(BluetoothReply* aReply)
@@ -37,61 +26,35 @@ void
 BluetoothReplyRunnable::ReleaseMembers()
 {
   mDOMRequest = nullptr;
-  mPromise = nullptr;
 }
 
 BluetoothReplyRunnable::~BluetoothReplyRunnable()
 {}
 
 nsresult
-BluetoothReplyRunnable::FireReplySuccess(JS::Handle<JS::Value> aVal)
+BluetoothReplyRunnable::FireReply(JS::Handle<JS::Value> aVal)
 {
-  MOZ_ASSERT(mReply->type() == BluetoothReply::TBluetoothReplySuccess);
+  NS_ENSURE_TRUE(mDOMRequest, NS_OK);
 
-  // DOMRequest
-  if (mDOMRequest) {
-    nsCOMPtr<nsIDOMRequestService> rs =
-      do_GetService(DOMREQUEST_SERVICE_CONTRACTID);
-    NS_ENSURE_TRUE(rs, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIDOMRequestService> rs =
+    do_GetService(DOMREQUEST_SERVICE_CONTRACTID);
+  NS_ENSURE_TRUE(rs, NS_ERROR_FAILURE);
 
-    return rs->FireSuccessAsync(mDOMRequest, aVal);
-  }
-
-  // Promise
-  if (mPromise) {
-    BT_API2_LOGR("<%s>", NS_ConvertUTF16toUTF8(mName).get());
-    mPromise->MaybeResolve(aVal);
-  }
-
-  return NS_OK;
+  return mReply->type() == BluetoothReply::TBluetoothReplySuccess ?
+    rs->FireSuccessAsync(mDOMRequest, aVal) :
+    rs->FireErrorAsync(mDOMRequest, mReply->get_BluetoothReplyError().error());
 }
 
 nsresult
 BluetoothReplyRunnable::FireErrorString()
 {
-  // DOMRequest
-  if (mDOMRequest) {
-    nsCOMPtr<nsIDOMRequestService> rs =
-      do_GetService(DOMREQUEST_SERVICE_CONTRACTID);
-    NS_ENSURE_TRUE(rs, NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(mDOMRequest, NS_OK);
 
-    return rs->FireErrorAsync(mDOMRequest, mErrorString);
-  }
+  nsCOMPtr<nsIDOMRequestService> rs =
+    do_GetService("@mozilla.org/dom/dom-request-service;1");
+  NS_ENSURE_TRUE(rs, NS_ERROR_FAILURE);
 
-  // Promise
-  if (mPromise) {
-    BT_API2_LOGR("<%s>", NS_ConvertUTF16toUTF8(mName).get());
-
-    /**
-     * Always reject with NS_ERROR_DOM_OPERATION_ERR.
-     *
-     * TODO: Return actual error result once bluetooth backend wraps
-     *       nsresult instead of error string.
-     */
-    mPromise->MaybeReject(NS_ERROR_DOM_OPERATION_ERR);
-  }
-
-  return NS_OK;
+  return rs->FireErrorAsync(mDOMRequest, mErrorString);
 }
 
 NS_IMETHODIMP
@@ -100,38 +63,35 @@ BluetoothReplyRunnable::Run()
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mReply);
 
+  nsresult rv;
+
   AutoSafeJSContext cx;
   JS::Rooted<JS::Value> v(cx, JSVAL_VOID);
 
-  nsresult rv;
   if (mReply->type() != BluetoothReply::TBluetoothReplySuccess) {
-    SetError(mReply->get_BluetoothReplyError().error());
-    rv = FireErrorString();
-  } else if (!ParseSuccessfulReply(&v)) {
-    rv = FireErrorString();
+    rv = FireReply(v);
   } else {
-    rv = FireReplySuccess(v);
+    if (!ParseSuccessfulReply(&v)) {
+      rv = FireErrorString();
+    } else {
+      rv = FireReply(v);
+    }
   }
 
   if (NS_FAILED(rv)) {
-    BT_WARNING("Could not fire DOMRequest/Promise!");
+    BT_WARNING("Could not fire DOMRequest!");
   }
 
   ReleaseMembers();
   MOZ_ASSERT(!mDOMRequest,
-             "mDOMRequest is still alive! Deriving class should call "
-             "BluetoothReplyRunnable::ReleaseMembers()!");
-  MOZ_ASSERT(!mPromise,
-             "mPromise is still alive! Deriving class should call "
+             "mDOMRequest still alive! Deriving class should call "
              "BluetoothReplyRunnable::ReleaseMembers()!");
 
   return rv;
 }
 
-BluetoothVoidReplyRunnable::BluetoothVoidReplyRunnable(nsIDOMDOMRequest* aReq,
-                                                       Promise* aPromise,
-                                                       const nsAString& aName)
-  : BluetoothReplyRunnable(aReq, aPromise, aName)
+BluetoothVoidReplyRunnable::BluetoothVoidReplyRunnable(nsIDOMDOMRequest* aReq)
+  : BluetoothReplyRunnable(aReq)
 {}
 
 BluetoothVoidReplyRunnable::~BluetoothVoidReplyRunnable()

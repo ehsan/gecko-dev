@@ -1239,9 +1239,7 @@ var gBrowserInit = {
         let mpEnabled = slot &&
                         slot.status != Ci.nsIPKCS11Slot.SLOT_UNINITIALIZED &&
                         slot.status != Ci.nsIPKCS11Slot.SLOT_READY;
-        if (mpEnabled) {
-          Services.telemetry.getHistogramById("MASTER_PASSWORD_ENABLED").add(mpEnabled);
-        }
+        Services.telemetry.getHistogramById("MASTER_PASSWORD_ENABLED").add(mpEnabled);
       }, 5000);
     });
     this.delayedStartupFinished = true;
@@ -2092,23 +2090,10 @@ function BrowserViewSourceOfDocument(aDocument)
   // view-source to access the cached copy of the content rather than
   // refetching it from the network...
   //
-  try {
+  try{
+    var PageLoader = webNav.QueryInterface(Components.interfaces.nsIWebPageDescriptor);
 
-#ifdef E10S_TESTING_ONLY
-    // Workaround for bug 988133, which causes a crash if we attempt to load
-    // the document from the cache when the document is a CPOW (which occurs
-    // if we're using remote tabs). This causes us to reload the document from
-    // the network in this case, so it's not a permanent solution, hence hiding
-    // it behind the E10S_TESTING_ONLY ifdef. This is just a band-aid fix until
-    // we can find something better - see bug 1025146.
-    if (!Cu.isCrossProcessWrapper(aDocument)) {
-#endif
-      var PageLoader = webNav.QueryInterface(Components.interfaces.nsIWebPageDescriptor);
-
-      pageCookie = PageLoader.currentDescriptor;
-#ifdef E10S_TESTING_ONLY
-    }
-#endif
+    pageCookie = PageLoader.currentDescriptor;
   } catch(err) {
     // If no page descriptor is available, just use the view-source URL...
   }
