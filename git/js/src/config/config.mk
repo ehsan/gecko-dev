@@ -83,6 +83,8 @@ check-variable = $(if $(filter-out 0 1,$(words $($(x))z)),$(error Spaces are not
 
 $(foreach x,$(CHECK_VARS),$(check-variable))
 
+core_abspath = $(if $(findstring :,$(1)),$(1),$(if $(filter /%,$(1)),$(1),$(CURDIR)/$(1)))
+
 # FINAL_TARGET specifies the location into which we copy end-user-shipped
 # build products (typelibs, components, chrome).
 #
@@ -157,7 +159,7 @@ MOZ_WIDGET_SUPPORT_LIBS    = $(DIST)/lib/$(LIB_PREFIX)widgetsupport_s.$(LIB_SUFF
 
 ifdef MOZ_MEMORY
 ifneq ($(OS_ARCH),WINNT)
-JEMALLOC_LIBS = $(MKSHLIB_FORCE_ALL) $(call EXPAND_LIBNAME,jemalloc) $(MKSHLIB_UNFORCE_ALL)
+JEMALLOC_LIBS = $(MKSHLIB_FORCE_ALL) $(call EXPAND_LIBNAME_PATH,jemalloc,$(DIST)/lib) $(MKSHLIB_UNFORCE_ALL)
 endif
 endif
 
@@ -772,7 +774,7 @@ ifeq ($(OS_ARCH),Darwin)
 ifndef NSDISTMODE
 NSDISTMODE=absolute_symlink
 endif
-PWD := $(shell pwd)
+PWD := $(CURDIR)
 endif
 
 ifdef NSINSTALL_BIN

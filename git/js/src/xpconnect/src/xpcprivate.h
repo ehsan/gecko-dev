@@ -927,13 +927,18 @@ class XPCReadableJSStringWrapper : public nsDependentString
 public:
     typedef nsDependentString::char_traits char_traits;
 
-    XPCReadableJSStringWrapper(PRUnichar *chars, size_t length) :
+    XPCReadableJSStringWrapper(const PRUnichar *chars, size_t length) :
         nsDependentString(chars, length)
     { }
 
     XPCReadableJSStringWrapper() :
         nsDependentString(char_traits::sEmptyBuffer, char_traits::sEmptyBuffer)
     { SetIsVoid(PR_TRUE); }
+
+    explicit XPCReadableJSStringWrapper(JSString *str) :
+        nsDependentString((const PRUnichar *)::JS_GetStringChars(str),
+                          ::JS_GetStringLength(str))
+    { }
 };
 
 // No virtuals
@@ -2248,11 +2253,16 @@ public:
     GetRuntime() const {XPCWrappedNativeScope* scope = GetScope();
                         return scope ? scope->GetRuntime() : nsnull;}
 
+    /**
+     * If Object has a nsWrapperCache it should be passed in. If a cache is
+     * passed in then cache->GetWrapper() must be null.
+     */
     static nsresult
     GetNewOrUsed(XPCCallContext& ccx,
                  nsISupports* Object,
                  XPCWrappedNativeScope* Scope,
                  XPCNativeInterface* Interface,
+                 nsWrapperCache* cache,
                  JSBool isGlobal,
                  XPCWrappedNative** wrapper);
 
@@ -2403,11 +2413,11 @@ protected:
     XPCWrappedNative(); // not implemented
 
     // This ctor is used if this object will have a proto.
-    XPCWrappedNative(nsISupports* aIdentity,
+    XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
                      XPCWrappedNativeProto* aProto);
 
     // This ctor is used if this object will NOT have a proto.
-    XPCWrappedNative(nsISupports* aIdentity,
+    XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
                      XPCWrappedNativeScope* aScope,
                      XPCNativeSet* aSet);
 
