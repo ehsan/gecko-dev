@@ -442,37 +442,34 @@ LookupAlternateValues(gfxFontFeatureValueSet *featureLookup,
     }
 }
 
-/* static */ void
+/* static */ bool
 gfxFontShaper::MergeFontFeatures(
     const gfxFontStyle *aStyle,
     const nsTArray<gfxFontFeature>& aFontFeatures,
     bool aDisableLigatures,
     const nsAString& aFamilyName,
     bool aAddSmallCaps,
-    PLDHashOperator (*aHandleFeature)(const uint32_t&, uint32_t&, void*),
-    void* aHandleFeatureData)
+    nsDataHashtable<nsUint32HashKey,uint32_t>& aMergedFeatures)
 {
     uint32_t numAlts = aStyle->alternateValues.Length();
     const nsTArray<gfxFontFeature>& styleRuleFeatures =
         aStyle->featureSettings;
 
-    // Bail immediately if nothing to do, which is the common case.
+    // bail immediately if nothing to do
     if (styleRuleFeatures.IsEmpty() &&
         aFontFeatures.IsEmpty() &&
         !aDisableLigatures &&
         aStyle->variantCaps == NS_FONT_VARIANT_CAPS_NORMAL &&
         aStyle->variantSubSuper == NS_FONT_VARIANT_POSITION_NORMAL &&
         numAlts == 0) {
-        return;
+        return false;
     }
-
-    nsDataHashtable<nsUint32HashKey,uint32_t> mergedFeatures;
 
     // Ligature features are enabled by default in the generic shaper,
     // so we explicitly turn them off if necessary (for letter-spacing)
     if (aDisableLigatures) {
-        mergedFeatures.Put(HB_TAG('l','i','g','a'), 0);
-        mergedFeatures.Put(HB_TAG('c','l','i','g'), 0);
+        aMergedFeatures.Put(HB_TAG('l','i','g','a'), 0);
+        aMergedFeatures.Put(HB_TAG('c','l','i','g'), 0);
     }
 
     // add feature values from font
@@ -481,7 +478,7 @@ gfxFontShaper::MergeFontFeatures(
     count = aFontFeatures.Length();
     for (i = 0; i < count; i++) {
         const gfxFontFeature& feature = aFontFeatures.ElementAt(i);
-        mergedFeatures.Put(feature.mTag, feature.mValue);
+        aMergedFeatures.Put(feature.mTag, feature.mValue);
     }
 
     // font-variant-caps - handled here due to the need for fallback handling
@@ -489,27 +486,27 @@ gfxFontShaper::MergeFontFeatures(
     uint32_t variantCaps = aStyle->variantCaps;
     switch (variantCaps) {
         case NS_FONT_VARIANT_CAPS_ALLSMALL:
-            mergedFeatures.Put(HB_TAG('c','2','s','c'), 1);
+            aMergedFeatures.Put(HB_TAG('c','2','s','c'), 1);
             // fall through to the small-caps case
         case NS_FONT_VARIANT_CAPS_SMALLCAPS:
-            mergedFeatures.Put(HB_TAG('s','m','c','p'), 1);
+            aMergedFeatures.Put(HB_TAG('s','m','c','p'), 1);
             break;
 
         case NS_FONT_VARIANT_CAPS_ALLPETITE:
-            mergedFeatures.Put(aAddSmallCaps ? HB_TAG('c','2','s','c') :
-                                               HB_TAG('c','2','p','c'), 1);
+            aMergedFeatures.Put(aAddSmallCaps ? HB_TAG('c','2','s','c') :
+                                                HB_TAG('c','2','p','c'), 1);
         // fall through to the petite-caps case
         case NS_FONT_VARIANT_CAPS_PETITECAPS:
-            mergedFeatures.Put(aAddSmallCaps ? HB_TAG('s','m','c','p') :
-                                               HB_TAG('p','c','a','p'), 1);
+            aMergedFeatures.Put(aAddSmallCaps ? HB_TAG('s','m','c','p') :
+                                                HB_TAG('p','c','a','p'), 1);
         break;
 
         case NS_FONT_VARIANT_CAPS_TITLING:
-            mergedFeatures.Put(HB_TAG('t','i','t','l'), 1);
+            aMergedFeatures.Put(HB_TAG('t','i','t','l'), 1);
             break;
 
         case NS_FONT_VARIANT_CAPS_UNICASE:
-            mergedFeatures.Put(HB_TAG('u','n','i','c'), 1);
+            aMergedFeatures.Put(HB_TAG('u','n','i','c'), 1);
             break;
 
         default:
@@ -519,10 +516,10 @@ gfxFontShaper::MergeFontFeatures(
     // font-variant-position - handled here due to the need for fallback
     switch (aStyle->variantSubSuper) {
         case NS_FONT_VARIANT_POSITION_SUPER:
-            mergedFeatures.Put(HB_TAG('s','u','p','s'), 1);
+            aMergedFeatures.Put(HB_TAG('s','u','p','s'), 1);
             break;
         case NS_FONT_VARIANT_POSITION_SUB:
-            mergedFeatures.Put(HB_TAG('s','u','b','s'), 1);
+            aMergedFeatures.Put(HB_TAG('s','u','b','s'), 1);
             break;
         default:
             break;
@@ -539,7 +536,7 @@ gfxFontShaper::MergeFontFeatures(
         count = featureList.Length();
         for (i = 0; i < count; i++) {
             const gfxFontFeature& feature = featureList.ElementAt(i);
-            mergedFeatures.Put(feature.mTag, feature.mValue);
+            aMergedFeatures.Put(feature.mTag, feature.mValue);
         }
     }
 
@@ -547,12 +544,10 @@ gfxFontShaper::MergeFontFeatures(
     count = styleRuleFeatures.Length();
     for (i = 0; i < count; i++) {
         const gfxFontFeature& feature = styleRuleFeatures.ElementAt(i);
-        mergedFeatures.Put(feature.mTag, feature.mValue);
+        aMergedFeatures.Put(feature.mTag, feature.mValue);
     }
 
-    if (mergedFeatures.Count() != 0) {
-        mergedFeatures.Enumerate(aHandleFeature, aHandleFeatureData);
-    }
+    return aMergedFeatures.Count() != 0;
 }
 
 void

@@ -14,7 +14,6 @@ import org.json.JSONObject;
 import org.mozilla.gecko.GeckoApp;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.GeckoProfile;
 import org.mozilla.gecko.GeckoThread;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
@@ -63,13 +62,14 @@ public class WebappImpl extends GeckoApp implements InstallCallback {
     @Override
     public boolean hasTabsSideBar() { return false; }
 
-    public WebappImpl() {
-        GeckoProfile.setBrowserDBFactory(new BrowserDB.Factory() {
+    @Override
+    public BrowserDB.Factory getBrowserDBFactory() {
+        return new BrowserDB.Factory() {
             @Override
             public BrowserDB get(String profileName, File profileDir) {
                 return new StubBrowserDB(profileName);
             }
-        });
+        };
     }
 
     @Override

@@ -559,10 +559,6 @@ BaselineCompiler::emitStackCheck(bool earlyCheck)
     if (!callVMNonOp(CheckOverRecursedWithExtraInfo, phase))
         return false;
 
-    icEntries_.back().setFakeKind(earlyCheck
-                                  ? ICEntry::Kind_EarlyStackCheck
-                                  : ICEntry::Kind_StackCheck);
-
     masm.bind(&skipCall);
     return true;
 }
@@ -584,7 +580,7 @@ BaselineCompiler::emitDebugPrologue()
             return false;
 
         // Fix up the fake ICEntry appended by callVM for on-stack recompilation.
-        icEntries_.back().setFakeKind(ICEntry::Kind_DebugPrologue);
+        icEntries_.back().setForDebugPrologue();
 
         // If the stub returns |true|, we have to return the value stored in the
         // frame's return value slot.
@@ -774,7 +770,12 @@ BaselineCompiler::emitDebugTrap()
 #endif
 
     // Add an IC entry for the return offset -> pc mapping.
-    return appendICEntry(ICEntry::Kind_DebugTrap, masm.currentOffset());
+    ICEntry icEntry(script->pcToOffset(pc), ICEntry::Kind_DebugTrap);
+    icEntry.setReturnOffset(CodeOffsetLabel(masm.currentOffset()));
+    if (!icEntries_.append(icEntry))
+        return false;
+
+    return true;
 }
 
 #ifdef JS_TRACE_LOGGING
@@ -3138,7 +3139,7 @@ BaselineCompiler::emitReturn()
             return false;
 
         // Fix up the fake ICEntry appended by callVM for on-stack recompilation.
-        icEntries_.back().setFakeKind(ICEntry::Kind_DebugEpilogue);
+        icEntries_.back().setForDebugEpilogue();
 
         masm.loadValue(frame.addressOfReturnValue(), JSReturnOperand);
     }
@@ -3631,7 +3632,9 @@ BaselineCompiler::emit_JSOP_RESUME()
     masm.callAndPushReturnAddress(&genStart);
 
     // Add an IC entry so the return offset -> pc mapping works.
-    if (!appendICEntry(ICEntry::Kind_Op, masm.currentOffset()))
+    ICEntry icEntry(script->pcToOffset(pc), ICEntry::Kind_Op);
+    icEntry.setReturnOffset(CodeOffsetLabel(masm.currentOffset()));
+    if (!icEntries_.append(icEntry))
         return false;
 
     masm.jump(&returnTarget);

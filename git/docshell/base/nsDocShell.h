@@ -693,7 +693,6 @@ protected:
      */
     void MaybeInitTiming();
 
-public:
     // Event type dispatched by RestorePresentation
     class RestorePresentationEvent : public nsRunnable {
     public:
@@ -703,7 +702,6 @@ public:
     private:
         nsRefPtr<nsDocShell> mDocShell;
     };
-protected:
 
     bool JustStartedNetworkLoad();
 

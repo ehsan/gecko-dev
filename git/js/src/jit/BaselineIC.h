@@ -212,7 +212,7 @@ class ICEntry
     uint32_t returnOffset_;
 
     // The PC of this IC's bytecode op within the JSScript.
-    uint32_t pcOffset_ : 28;
+    uint32_t pcOffset_ : 29;
 
   public:
     enum Kind {
@@ -229,13 +229,6 @@ class ICEntry
         // the prologue).
         Kind_NonOpCallVM,
 
-        // A fake IC entry for returning from a callVM to the interrupt
-        // handler via the over-recursion check on function entry.
-        Kind_StackCheck,
-
-        // As above, but for the early check. See emitStackCheck.
-        Kind_EarlyStackCheck,
-
         // A fake IC entry for returning from DebugTrapHandler.
         Kind_DebugTrap,
 
@@ -249,7 +242,7 @@ class ICEntry
 
   private:
     // What this IC is for.
-    Kind kind_ : 4;
+    Kind kind_ : 3;
 
     // Set the kind and asserts that it's sane.
     void setKind(Kind kind) {
@@ -262,10 +255,10 @@ class ICEntry
     ICEntry(uint32_t pcOffset, Kind kind)
       : firstStub_(nullptr), returnOffset_(), pcOffset_(pcOffset)
     {
-        // The offset must fit in at least 28 bits, since we shave off 4 for
+        // The offset must fit in at least 29 bits, since we shave off 3 for
         // the Kind enum.
         MOZ_ASSERT(pcOffset_ == pcOffset);
-        JS_STATIC_ASSERT(BaselineScript::MAX_JSSCRIPT_LENGTH <= (1u << 28) - 1);
+        JS_STATIC_ASSERT(BaselineScript::MAX_JSSCRIPT_LENGTH < 0x1fffffffu);
         MOZ_ASSERT(pcOffset <= BaselineScript::MAX_JSSCRIPT_LENGTH);
         setKind(kind);
     }
@@ -296,15 +289,23 @@ class ICEntry
 
     Kind kind() const {
         // MSVC compiles enums as signed.
-        return Kind(kind_ & 0xf);
+        return (Kind)(kind_ & 0x7);
     }
     bool isForOp() const {
         return kind() == Kind_Op;
     }
 
-    void setFakeKind(Kind kind) {
-        MOZ_ASSERT(kind != Kind_Op && kind != Kind_NonOp);
-        setKind(kind);
+    void setForDebugPrologue() {
+        MOZ_ASSERT(kind() == Kind_CallVM);
+        setKind(Kind_DebugPrologue);
+    }
+    void setForDebugEpilogue() {
+        MOZ_ASSERT(kind() == Kind_CallVM);
+        setKind(Kind_DebugEpilogue);
+    }
+    void setForNonOpCallVM() {
+        MOZ_ASSERT(kind() == Kind_CallVM);
+        setKind(Kind_NonOpCallVM);
     }
 
     bool hasStub() const {

@@ -96,14 +96,14 @@ function* testPropertyChange5(inspector, ruleView, testElement) {
 
 function* testPropertyChange6(inspector, ruleView, testElement) {
   info("Add an entirely new property again");
-  yield changeElementStyle(testElement, "background: red url(\"chrome://branding/content/about-logo.png\") repeat scroll 0% 0%", inspector);
+  yield changeElementStyle(testElement, "background: url(\"chrome://branding/content/about-logo.png\") repeat scroll 0% 0% red", inspector);
 
   let rule = ruleView._elementStyle.rules[0];
   is(rule.editor.element.querySelectorAll(".ruleview-property").length, 5, "Added a property");
   validateTextProp(rule.textProps[4], true, "background",
-                   "red url(\"chrome://branding/content/about-logo.png\") repeat scroll 0% 0%",
+                   "url(\"chrome://branding/content/about-logo.png\") repeat scroll 0% 0% red",
                    "shortcut property correctly set",
-                   "#F00 url(\"chrome://branding/content/about-logo.png\") repeat scroll 0% 0%");
+                   "url(\"chrome://branding/content/about-logo.png\") repeat scroll 0% 0% #F00");
 }
 
 function* changeElementStyle(testElement, style, inspector) {

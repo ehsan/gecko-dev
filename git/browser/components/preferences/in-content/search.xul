@@ -1,4 +1,4 @@
-    <preferences id="searchPreferences" hidden="true" data-category="paneSearch">
+    <preferences id="searchPreferences">
 
       <!-- Suggest -->
       <preference id="browser.search.suggest.enabled"

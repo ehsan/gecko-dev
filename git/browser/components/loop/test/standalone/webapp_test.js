@@ -20,16 +20,15 @@ describe("loop.webapp", function() {
       stubGetPermsAndCacheMedia,
       fakeAudioXHR,
       dispatcher,
+      feedbackStore,
       WEBSOCKET_REASONS = loop.shared.utils.WEBSOCKET_REASONS;
 
   beforeEach(function() {
     sandbox = sinon.sandbox.create();
     dispatcher = new loop.Dispatcher();
     notifications = new sharedModels.NotificationCollection();
-    loop.store.StoreMixin.register({
-      feedbackStore: new loop.store.FeedbackStore(dispatcher, {
-        feedbackClient: {}
-      })
+    feedbackStore = new loop.store.FeedbackStore(dispatcher, {
+      feedbackClient: {}
     });
 
     stubGetPermsAndCacheMedia = sandbox.stub(
@@ -128,7 +127,7 @@ describe("loop.webapp", function() {
         conversation: conversation,
         notifications: notifications,
         sdk: {},
-        dispatcher: dispatcher
+        feedbackStore: feedbackStore
       });
     });
 
@@ -653,12 +652,12 @@ describe("loop.webapp", function() {
           loop.webapp.WebappRootView, {
             client: client,
             helper: helper,
-            dispatcher: dispatcher,
             notifications: notifications,
             sdk: sdk,
             conversation: conversationModel,
             standaloneAppStore: standaloneAppStore,
-            activeRoomStore: activeRoomStore
+            activeRoomStore: activeRoomStore,
+            feedbackStore: feedbackStore
           }));
     }
 
@@ -1086,6 +1085,7 @@ describe("loop.webapp", function() {
           loop.webapp.EndedConversationView, {
             conversation: conversation,
             sdk: {},
+            feedbackStore: feedbackStore,
             onAfterFeedbackReceived: function(){}
           }));
     });

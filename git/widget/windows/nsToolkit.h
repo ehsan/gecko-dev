@@ -77,10 +77,12 @@ public:
 
     static void Startup(HMODULE hModule);
     static void Shutdown();
+    static void StartAllowingD3D9();
 
 protected:
     static nsToolkit* gToolkit;
 
+    nsCOMPtr<nsITimer> mD3D9Timer;
     MouseTrailer mMouseTrailer;
 };
 

@@ -132,15 +132,10 @@ function testRegister(assert, text) {
         var ios = Cc["@mozilla.org/network/io-service;1"].
                   getService(Ci.nsIIOService);
 
-        var channel = ios.newChannel2(
+        var channel = ios.newChannel(
           "data:text/plain;charset=utf-8," + text,
           null,
-          null,
-          null,      // aLoadingNode
-          Services.scriptSecurityManager.getSystemPrincipal(),
-          null,      // aTriggeringPrincipal
-          Ci.nsILoadInfo.SEC_NORMAL,
-          Ci.nsIContentPolicy.TYPE_OTHER
+          null
         );
 
         channel.originalURI = aURI;
@@ -167,12 +162,7 @@ function testRegister(assert, text) {
   );
 
   var aboutURI = ios.newURI("about:boop", null, null);
-  var channel = ios.newChannelFromURI2(aboutURI,
-                                       null,      // aLoadingNode
-                                       Services.scriptSecurityManager.getSystemPrincipal(),
-                                       null,      // aTriggeringPrincipal
-                                       Ci.nsILoadInfo.SEC_NORMAL,
-                                       Ci.nsIContentPolicy.TYPE_OTHER);
+  var channel = ios.newChannelFromURI(aboutURI);
   var iStream = channel.open();
   var siStream = Cc['@mozilla.org/scriptableinputstream;1']
                  .createInstance(Ci.nsIScriptableInputStream);

@@ -35,6 +35,7 @@
 #include "gfxD2DSurface.h"
 #include "gfxWindowsPlatform.h"
 #include <d3d10_1.h>
+#include "d3d10/ImageLayerD3D10.h"
 #include "D3D9SurfaceImage.h"
 #endif
 

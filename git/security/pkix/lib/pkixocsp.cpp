@@ -24,6 +24,7 @@
 
 #include <limits>
 
+#include "pkix/bind.h"
 #include "pkix/pkix.h"
 #include "pkixcheck.h"
 #include "pkixutil.h"
@@ -297,9 +298,8 @@ VerifyEncodedOCSPResponse(TrustDomain& trustDomain, const struct CertID& certID,
                   thisUpdate, validThrough);
 
   Reader input(encodedResponse);
-  Result rv = der::Nested(input, der::SEQUENCE, [&context](Reader& r) {
-    return OCSPResponse(r, context);
-  });
+  Result rv = der::Nested(input, der::SEQUENCE,
+                          bind(OCSPResponse, _1, ref(context)));
   if (rv != Success) {
     return MapBadDERToMalformedOCSPResponse(rv);
   }
@@ -358,9 +358,7 @@ OCSPResponse(Reader& input, Context& context)
   }
 
   return der::Nested(input, der::CONTEXT_SPECIFIC | der::CONSTRUCTED | 0,
-                     der::SEQUENCE, [&context](Reader& r) {
-    return ResponseBytes(r, context);
-  });
+                     der::SEQUENCE, bind(ResponseBytes, _1, ref(context)));
 }
 
 // ResponseBytes ::=       SEQUENCE {
@@ -379,9 +377,7 @@ ResponseBytes(Reader& input, Context& context)
   }
 
   return der::Nested(input, der::OCTET_STRING, der::SEQUENCE,
-                     [&context](Reader& r) {
-    return BasicResponse(r, context);
-  });
+                     bind(BasicResponse, _1, ref(context)));
 }
 
 // BasicOCSPResponse       ::= SEQUENCE {
@@ -497,9 +493,8 @@ ResponseData(Reader& input, Context& context,
   // responder will never return an empty response, and handling the case of an
   // empty response makes things unnecessarily complicated.
   rv = der::NestedOf(input, der::SEQUENCE, der::SEQUENCE,
-                     der::EmptyAllowed::No, [&context](Reader& r) {
-    return SingleResponse(r, context);
-  });
+                     der::EmptyAllowed::No,
+                     bind(SingleResponse, _1, ref(context)));
   if (rv != Success) {
     return rv;
   }
@@ -522,9 +517,8 @@ static inline Result
 SingleResponse(Reader& input, Context& context)
 {
   bool match = false;
-  Result rv = der::Nested(input, der::SEQUENCE, [&context, &match](Reader& r) {
-    return CertID(r, context, match);
-  });
+  Result rv = der::Nested(input, der::SEQUENCE,
+                          bind(CertID, _1, cref(context), ref(match)));
   if (rv != Success) {
     return rv;
   }
@@ -605,9 +599,8 @@ SingleResponse(Reader& input, Context& context)
     der::CONTEXT_SPECIFIC | der::CONSTRUCTED | 0;
   if (input.Peek(NEXT_UPDATE_TAG)) {
     Time nextUpdate(Time::uninitialized);
-    rv = der::Nested(input, NEXT_UPDATE_TAG, [&nextUpdate](Reader& r) {
-      return der::GeneralizedTime(r, nextUpdate);
-    });
+    rv = der::Nested(input, NEXT_UPDATE_TAG,
+                    bind(der::GeneralizedTime, _1, ref(nextUpdate)));
     if (rv != Success) {
       return rv;
     }

@@ -129,6 +129,7 @@
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsXPIDLString.h"
+#include "nsAutoJSValHolder.h"
 
 #include "MainThreadUtils.h"
 
@@ -304,12 +305,12 @@ public:
     nsresult GetInfoForName(const char * name, nsIInterfaceInfo** info);
 
     virtual nsIPrincipal* GetPrincipal(JSObject* obj,
-                                       bool allowShortCircuit) const MOZ_OVERRIDE;
+                                       bool allowShortCircuit) const;
 
     void RecordTraversal(void *p, nsISupports *s);
     virtual char* DebugPrintJSStack(bool showArgs,
                                     bool showLocals,
-                                    bool showThisProps) MOZ_OVERRIDE;
+                                    bool showThisProps);
 
 
     static bool ReportAllJSExceptions()
@@ -2323,7 +2324,7 @@ class nsXPCWrappedJSClass : public nsIXPCWrappedJSClass
 {
     // all the interface method declarations...
     NS_DECL_ISUPPORTS
-    NS_IMETHOD DebugDump(int16_t depth) MOZ_OVERRIDE;
+    NS_IMETHOD DebugDump(int16_t depth);
 public:
 
     static already_AddRefed<nsXPCWrappedJSClass>
@@ -2429,7 +2430,7 @@ public:
 
     NS_IMETHOD CallMethod(uint16_t methodIndex,
                           const XPTMethodDescriptor *info,
-                          nsXPTCMiniVariant* params) MOZ_OVERRIDE;
+                          nsXPTCMiniVariant* params);
 
     /*
     * This is rarely called directly. Instead one usually calls

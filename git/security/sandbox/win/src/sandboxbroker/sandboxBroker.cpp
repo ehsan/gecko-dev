@@ -123,25 +123,11 @@ SandboxBroker::SetSecurityLevelForPluginProcess()
     return false;
   }
 
-  auto result = mPolicy->SetJobLevel(sandbox::JOB_NONE,
-                                     0 /* ui_exceptions */);
+  auto result = mPolicy->SetJobLevel(sandbox::JOB_NONE, 0);
   bool ret = (sandbox::SBOX_ALL_OK == result);
-
-  result = mPolicy->SetTokenLevel(sandbox::USER_RESTRICTED_SAME_ACCESS,
-                                  sandbox::USER_NON_ADMIN);
+  result = mPolicy->SetTokenLevel(sandbox::USER_UNPROTECTED,
+                                  sandbox::USER_UNPROTECTED);
   ret = ret && (sandbox::SBOX_ALL_OK == result);
-
-  result = mPolicy->SetDelayedIntegrityLevel(sandbox::INTEGRITY_LEVEL_MEDIUM);
-  ret = ret && (sandbox::SBOX_ALL_OK == result);
-
-  // Add the policy for the client side of a pipe. It is just a file
-  // in the \pipe\ namespace. We restrict it to pipes that start with
-  // "chrome." so the sandboxed process cannot connect to system services.
-  result = mPolicy->AddRule(sandbox::TargetPolicy::SUBSYS_FILES,
-                            sandbox::TargetPolicy::FILES_ALLOW_ANY,
-                            L"\\??\\pipe\\chrome.*");
-  ret = ret && (sandbox::SBOX_ALL_OK == result);
-
   return ret;
 }
 

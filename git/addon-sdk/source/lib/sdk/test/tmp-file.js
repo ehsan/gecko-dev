@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-const { Cc, Ci, Cu } = require("chrome");
+const { Cc, Ci } = require("chrome");
 
 const system = require("sdk/system");
 const file = require("sdk/io/file");
@@ -11,8 +11,6 @@ const unload = require("sdk/system/unload");
 
 // Retrieve the path to the OS temporary directory:
 const tmpDir = require("sdk/system").pathFor("TmpD");
-
-const { Services } = Cu.import("resource://gre/modules/Services.jsm");
 
 // List of all tmp file created
 let files = [];
@@ -35,14 +33,7 @@ unload.when(function () {
 // `uri` and returns content string. Read in binary mode.
 function readBinaryURI(uri) {
   let ioservice = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-  let channel = ioservice.newChannel2(uri,
-                                      "UTF-8",
-                                      null,
-                                      null,      // aLoadingNode
-                                      Services.scriptSecurityManager.getSystemPrincipal(),
-                                      null,      // aTriggeringPrincipal
-                                      Ci.nsILoadInfo.SEC_NORMAL,
-                                      Ci.nsIContentPolicy.TYPE_OTHER);
+  let channel = ioservice.newChannel(uri, "UTF-8", null);
   let stream = Cc["@mozilla.org/binaryinputstream;1"].
                createInstance(Ci.nsIBinaryInputStream);
   stream.setInputStream(channel.open());

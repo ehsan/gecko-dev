@@ -42,7 +42,9 @@ loop.conversation = (function(mozL10n) {
       conversationStore: React.PropTypes.instanceOf(loop.store.ConversationStore)
                               .isRequired,
       dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
-      roomStore: React.PropTypes.instanceOf(loop.store.RoomStore)
+      roomStore: React.PropTypes.instanceOf(loop.store.RoomStore),
+      feedbackStore:
+        React.PropTypes.instanceOf(loop.store.FeedbackStore).isRequired
     },
 
     getInitialState: function() {
@@ -66,19 +68,22 @@ loop.conversation = (function(mozL10n) {
             client: this.props.client, 
             conversation: this.props.conversation, 
             sdk: this.props.sdk, 
-            conversationAppStore: this.props.conversationAppStore}
+            conversationAppStore: this.props.conversationAppStore, 
+            feedbackStore: this.props.feedbackStore}
           ));
         }
         case "outgoing": {
           return (React.createElement(OutgoingConversationView, {
             store: this.props.conversationStore, 
-            dispatcher: this.props.dispatcher}
+            dispatcher: this.props.dispatcher, 
+            feedbackStore: this.props.feedbackStore}
           ));
         }
         case "room": {
           return (React.createElement(DesktopRoomConversationView, {
             dispatcher: this.props.dispatcher, 
-            roomStore: this.props.roomStore}
+            roomStore: this.props.roomStore, 
+            feedbackStore: this.props.feedbackStore}
           ));
         }
         case "failed": {
@@ -150,8 +155,6 @@ loop.conversation = (function(mozL10n) {
       feedbackClient: feedbackClient
     });
 
-    loop.store.StoreMixin.register({feedbackStore: feedbackStore});
-
     // XXX Old class creation for the incoming conversation view, whilst
     // we transition across (bug 1072323).
     var conversation = new sharedModels.ConversationModel({}, {
@@ -183,6 +186,7 @@ loop.conversation = (function(mozL10n) {
     React.render(React.createElement(AppControllerView, {
       conversationAppStore: conversationAppStore, 
       roomStore: roomStore, 
+      feedbackStore: feedbackStore, 
       conversationStore: conversationStore, 
       client: client, 
       conversation: conversation, 

@@ -610,8 +610,7 @@ bool CacheEntry::InvokeCallbacks(bool aReadOnly)
       // returns RECHECK_AFTER_WRITE_FINISHED.  If we would stop the loop, other
       // readers or potential writers would be unnecessarily kept from being
       // invoked.
-      size_t pos = std::min(mCallbacks.Length(), static_cast<size_t>(i));
-      mCallbacks.InsertElementAt(pos, callback);
+      mCallbacks.InsertElementAt(i, callback);
       ++i;
     }
   }

@@ -1156,7 +1156,7 @@ class WatchdogManager : public nsIObserver
   public:
 
     NS_IMETHOD Observe(nsISupports* aSubject, const char* aTopic,
-                       const char16_t* aData) MOZ_OVERRIDE
+                       const char16_t* aData)
     {
         RefreshWatchdog();
         return NS_OK;
@@ -1792,7 +1792,7 @@ class JSMainRuntimeTemporaryPeakReporter MOZ_FINAL : public nsIMemoryReporter
     NS_DECL_ISUPPORTS
 
     NS_IMETHOD CollectReports(nsIHandleReportCallback* aHandleReport,
-                              nsISupports* aData, bool aAnonymize) MOZ_OVERRIDE
+                              nsISupports* aData, bool aAnonymize)
     {
         return MOZ_COLLECT_REPORT("js-main-runtime-temporary-peak",
             KIND_OTHER, UNITS_BYTES,
@@ -2630,7 +2630,7 @@ class JSMainRuntimeCompartmentsReporter MOZ_FINAL : public nsIMemoryReporter
     }
 
     NS_IMETHOD CollectReports(nsIMemoryReporterCallback *cb,
-                              nsISupports *closure, bool anonymize) MOZ_OVERRIDE
+                              nsISupports *closure, bool anonymize)
     {
         // First we collect the compartment paths.  Then we report them.  Doing
         // the two steps interleaved is a bad idea, because calling |cb|
@@ -2702,7 +2702,8 @@ class OrphanReporter : public JS::ObjectPrivateVisitor
 static bool
 StartsWithExplicit(nsACString& s)
 {
-    return StringBeginsWith(s, NS_LITERAL_CSTRING("explicit/"));
+    const char* e = "explicit/";
+    return Substring(s, 0, strlen(e)).Equals(e);
 }
 #endif
 

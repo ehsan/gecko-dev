@@ -906,7 +906,7 @@ public:
     }
   }
 
-  virtual bool Equals(const TimelineMarker* aOther) MOZ_OVERRIDE
+  virtual bool Equals(const TimelineMarker* aOther)
   {
     if (!TimelineMarker::Equals(aOther)) {
       return false;
@@ -915,7 +915,7 @@ public:
     return GetCause() == aOther->GetCause();
   }
 
-  virtual void AddDetails(mozilla::dom::ProfileTimelineMarker& aMarker) MOZ_OVERRIDE
+  virtual void AddDetails(mozilla::dom::ProfileTimelineMarker& aMarker)
   {
     if (GetMetaData() == TRACING_INTERVAL_START) {
       aMarker.mCauseName.Construct(GetCause());
@@ -1268,7 +1268,7 @@ Console::ProcessCallData(ConsoleCallData* aData)
     innerID.AppendInt(aData->mInnerIDNumber);
   }
 
-  if (NS_FAILED(mStorage->RecordEvent(innerID, outerID, eventValue))) {
+  if (NS_FAILED(mStorage->RecordPendingEvent(innerID, outerID, eventValue))) {
     NS_WARNING("Failed to record a console event.");
   }
 }

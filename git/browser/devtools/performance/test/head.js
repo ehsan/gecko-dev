@@ -8,12 +8,11 @@ let { Services } = Cu.import("resource://gre/modules/Services.jsm", {});
 
 let { Task } = Cu.import("resource://gre/modules/Task.jsm", {});
 let { Promise } = Cu.import("resource://gre/modules/Promise.jsm", {});
-let { devtools } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 let { gDevTools } = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
 let { DevToolsUtils } = Cu.import("resource://gre/modules/devtools/DevToolsUtils.jsm", {});
+let { devtools } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 let { DebuggerServer } = Cu.import("resource://gre/modules/devtools/dbg-server.jsm", {});
 let { getPerformanceActorsConnection, PerformanceFront } = devtools.require("devtools/performance/front");
-
 let nsIProfilerModule = Cc["@mozilla.org/tools/profiler;1"].getService(Ci.nsIProfiler);
 let TargetFactory = devtools.TargetFactory;
 let mm = null;
@@ -165,7 +164,6 @@ function initBackend(aUrl) {
 
     let connection = getPerformanceActorsConnection(target);
     yield connection.open();
-
     let front = new PerformanceFront(connection);
     return { target, front };
   });
@@ -236,8 +234,7 @@ function click (win, button) {
 function* startRecording(panel) {
   let win = panel.panelWin;
   let clicked = panel.panelWin.PerformanceView.once(win.EVENTS.UI_START_RECORDING);
-  let willStart = panel.panelWin.PerformanceController.once(win.EVENTS.RECORDING_WILL_START);
-  let hasStarted = panel.panelWin.PerformanceController.once(win.EVENTS.RECORDING_STARTED);
+  let started = panel.panelWin.PerformanceController.once(win.EVENTS.RECORDING_STARTED);
   let button = win.$("#record-button");
 
   ok(!button.hasAttribute("checked"),
@@ -255,8 +252,7 @@ function* startRecording(panel) {
   ok(button.hasAttribute("locked"),
     "The record button should be locked.");
 
-  yield willStart;
-  yield hasStarted;
+  yield started;
 
   ok(button.hasAttribute("checked"),
     "The record button should still be checked.");
@@ -267,8 +263,7 @@ function* startRecording(panel) {
 function* stopRecording(panel) {
   let win = panel.panelWin;
   let clicked = panel.panelWin.PerformanceView.once(win.EVENTS.UI_STOP_RECORDING);
-  let willStop = panel.panelWin.PerformanceController.once(win.EVENTS.RECORDING_WILL_STOP);
-  let hasStopped = panel.panelWin.PerformanceController.once(win.EVENTS.RECORDING_STOPPED);
+  let ended = panel.panelWin.PerformanceController.once(win.EVENTS.RECORDING_STOPPED);
   let button = win.$("#record-button");
 
   ok(button.hasAttribute("checked"),
@@ -285,8 +280,7 @@ function* stopRecording(panel) {
   ok(button.hasAttribute("locked"),
     "The record button should be locked.");
 
-  yield willStop;
-  yield hasStopped;
+  yield ended;
 
   ok(!button.hasAttribute("checked"),
     "The record button should not be checked.");
@@ -295,22 +289,15 @@ function* stopRecording(panel) {
 }
 
 function waitForWidgetsRendered(panel) {
-  let {
-    EVENTS,
-    OverviewView,
-    CallTreeView,
-    WaterfallView,
-    FlameGraphView
-  } = panel.panelWin;
+  let { EVENTS, OverviewView, CallTreeView, WaterfallView } = panel.panelWin;
 
   return Promise.all([
+    once(OverviewView, EVENTS.FRAMERATE_GRAPH_RENDERED),
     once(OverviewView, EVENTS.MARKERS_GRAPH_RENDERED),
     once(OverviewView, EVENTS.MEMORY_GRAPH_RENDERED),
-    once(OverviewView, EVENTS.FRAMERATE_GRAPH_RENDERED),
     once(OverviewView, EVENTS.OVERVIEW_RENDERED),
-    once(WaterfallView, EVENTS.WATERFALL_RENDERED),
     once(CallTreeView, EVENTS.CALL_TREE_RENDERED),
-    once(FlameGraphView, EVENTS.FLAMEGRAPH_RENDERED)
+    once(WaterfallView, EVENTS.WATERFALL_RENDERED)
   ]);
 }
 
@@ -351,7 +338,7 @@ function dragStop(graph, x, y = 1) {
 
 function dropSelection(graph) {
   graph.dropSelection();
-  graph.emit("selecting");
+  graph.emit("mouseup");
 }
 
 function getSourceActor(aSources, aURL) {
