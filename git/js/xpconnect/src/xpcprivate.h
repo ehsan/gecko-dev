@@ -77,7 +77,6 @@
 #include "mozilla/Alignment.h"
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/Atomics.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/CycleCollectedJSRuntime.h"
 #include "mozilla/GuardObjects.h"
@@ -2972,9 +2971,6 @@ public:
 private:
     virtual ~nsScriptError();
 
-    void
-    InitializeOnMainThread();
-
     nsString mMessage;
     nsString mSourceName;
     uint32_t mLineNumber;
@@ -2982,13 +2978,9 @@ private:
     uint32_t mColumnNumber;
     uint32_t mFlags;
     nsCString mCategory;
-    // mOuterWindowID is set on the main thread from InitializeOnMainThread().
     uint64_t mOuterWindowID;
     uint64_t mInnerWindowID;
     int64_t mTimeStamp;
-    // mInitializedOnMainThread and mIsFromPrivateWindow are set on the main
-    // thread from InitializeOnMainThread().
-    mozilla::Atomic<bool> mInitializedOnMainThread;
     bool mIsFromPrivateWindow;
 };
 

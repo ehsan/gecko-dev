@@ -60,7 +60,7 @@ public:
         /*const*/ nsIRDFResource* operator*() const {
             return *mCurrent; }
 
-        /*const*/ nsIRDFResource* operator->() const MOZ_NO_ADDREF_RELEASE_ON_RETURN {
+        /*const*/ nsIRDFResource* operator->() const {
             return *mCurrent; }
 
         bool operator==(const ConstIterator& aConstIterator) const {

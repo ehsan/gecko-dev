@@ -37,7 +37,7 @@ public:
   Response(const Response& aOther) MOZ_DELETE;
 
   JSObject*
-  WrapObject(JSContext* aCx) MOZ_OVERRIDE
+  WrapObject(JSContext* aCx)
   {
     return ResponseBinding::Wrap(aCx, this);
   }

@@ -361,10 +361,10 @@ public:
   }
 
   // nsRunnable
-  NS_IMETHOD Run() MOZ_OVERRIDE;
+  NS_IMETHOD Run();
 
   // nsITimerCallback
-  NS_IMETHOD Notify(nsITimer* timer) MOZ_OVERRIDE;
+  NS_IMETHOD Notify(nsITimer *timer);
 
 protected:
   virtual ~nsStopPluginRunnable() {}
@@ -1197,12 +1197,6 @@ nsObjectLoadingContent::GetFrameLoader()
 {
   nsRefPtr<nsFrameLoader> loader = mFrameLoader;
   return loader.forget();
-}
-
-NS_IMETHODIMP
-nsObjectLoadingContent::SetIsPrerendered()
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP

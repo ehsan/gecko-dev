@@ -73,8 +73,7 @@ interface MozNFCManager {
  NavigatorProperty="mozNfc",
  Func="Navigator::HasNFCSupport",
  CheckPermissions="nfc nfc-share",
- AvailableIn="PrivilegedApps",
- UnsafeInPrerendering]
+ AvailableIn="PrivilegedApps"]
 interface MozNFC : EventTarget {
   /**
    * Indicate if NFC is enabled.

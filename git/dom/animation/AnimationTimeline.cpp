@@ -60,8 +60,14 @@ AnimationTimeline::FastForward(const TimeStamp& aTimeStamp)
     return;
   }
 
-  MOZ_ASSERT(!refreshDriver || aTimeStamp >= refreshDriver->MostRecentRefresh(),
-             "aTimeStamp must be >= the refresh driver time");
+  // Bug 1113413: If the refresh driver has just been restored from test
+  // control it's possible that aTimeStamp could be before the most recent
+  // refresh.
+  if (refreshDriver &&
+      aTimeStamp < refreshDriver->MostRecentRefresh()) {
+    mFastForwardTime = refreshDriver->MostRecentRefresh();
+    return;
+  }
 
   // FIXME: For all animations attached to this timeline, we should mark
   // their target elements as needing restyling. Otherwise, tasks that run

@@ -94,7 +94,7 @@ class AutoResetStatement
     explicit AutoResetStatement(mozIStorageStatement *s)
       : mStatement(s) {}
     ~AutoResetStatement() { mStatement->Reset(); }
-    mozIStorageStatement *operator->() MOZ_NO_ADDREF_RELEASE_ON_RETURN { return mStatement; }
+    mozIStorageStatement *operator->() { return mStatement; }
   private:
     mozIStorageStatement *mStatement;
 };

@@ -201,7 +201,11 @@ EventSource::Init(nsISupports* aOwner,
 
   // The conditional here is historical and not necessarily sane.
   if (JSContext *cx = nsContentUtils::GetCurrentJSContext()) {
-    nsJSUtils::GetCallingLocation(cx, mScriptFile, &mScriptLine);
+    const char *filename;
+    if (nsJSUtils::GetCallingLocation(cx, &filename, &mScriptLine)) {
+      mScriptFile.AssignASCII(filename);
+    }
+
     mInnerWindowID = nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(cx);
   }
 
@@ -500,7 +504,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS(AsyncVerifyRedirectCallbackFwr)
 
   // nsIAsyncVerifyRedirectCallback implementation
-  NS_IMETHOD OnRedirectVerifyCallback(nsresult aResult) MOZ_OVERRIDE
+  NS_IMETHOD OnRedirectVerifyCallback(nsresult aResult)
   {
     nsresult rv = mEventSource->OnRedirectVerifyCallback(aResult);
     if (NS_FAILED(rv)) {

@@ -115,6 +115,10 @@ class Debugger;
 class Nursery;
 class StaticBlockObject;
 
+namespace gc {
+class ForkJoinNursery;
+}
+
 typedef JSPropertyOp         PropertyOp;
 typedef JSStrictPropertyOp   StrictPropertyOp;
 typedef JSPropertyDescriptor PropertyDescriptor;
@@ -566,6 +570,7 @@ class Shape : public gc::TenuredCell
     friend class ::JSFunction;
     friend class Bindings;
     friend class Nursery;
+    friend class gc::ForkJoinNursery;
     friend class NativeObject;
     friend class PropertyTree;
     friend class StaticBlockObject;

@@ -69,7 +69,7 @@ protected:
   }
 public:
 
-  virtual Element* GetElementAt(uint32_t aIndex) MOZ_OVERRIDE;
+  virtual Element* GetElementAt(uint32_t aIndex);
 
   void SetDocument(nsIDocument* aDocument);
   nsINode* GetParentObject() MOZ_OVERRIDE;

@@ -1069,7 +1069,15 @@ GCRuntime::allocateArena(Chunk *chunk, Zone *zone, AllocKind thingKind, const Au
         !isHeapCompacting() &&
         usage.gcBytes() >= tunables.gcMaxBytes())
     {
+#ifdef JSGC_FJGENERATIONAL
+        // This is an approximation to the best test, which would check that
+        // this thread is currently promoting into the tenured area.  I doubt
+        // the better test would make much difference.
+        if (!isFJMinorCollecting())
+            return nullptr;
+#else
         return nullptr;
+#endif
     }
 
     ArenaHeader *aheader = chunk->allocateArena(rt, zone, thingKind, lock);
@@ -3427,6 +3435,10 @@ GCRuntime::decommitArenas(AutoLockGC &lock)
 void
 GCRuntime::expireChunksAndArenas(bool shouldShrink, AutoLockGC &lock)
 {
+#ifdef JSGC_FJGENERATIONAL
+    rt->threadPool.pruneChunkCache();
+#endif
+
     ChunkPool toFree = expireEmptyChunkPool(shouldShrink, lock);
     if (toFree.count()) {
         AutoUnlockGC unlock(lock);

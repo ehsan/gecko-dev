@@ -592,10 +592,6 @@ pref("gfx.bundled_fonts.enabled", true);
 pref("gfx.bundled_fonts.force-enabled", false);
 #endif
 
-// Do we fire a notification about missing fonts, so the front-end can decide
-// whether to try and do something about it (e.g. download additional fonts)?
-pref("gfx.missing_fonts.notify", false);
-
 pref("gfx.filter.nearest.force-enabled", false);
 
 // prefs controlling the font (name/cmap) loader that runs shortly after startup
@@ -1599,8 +1595,10 @@ pref("network.predictor.preserve", 80); // percentage of predictor data to keep 
 //   [scheme "://"] [host [":" port]]
 // For example, "foo.com" would match "http://www.foo.com/bar", etc.
 
-// Force less-secure NTLMv1 when needed (NTLMv2 is the default).
-pref("network.auth.force-generic-ntlm-v1", false);
+// Allow insecure NTLMv1 when needed.
+pref("network.negotiate-auth.allow-insecure-ntlm-v1", false);
+// Allow insecure NTLMv1 for HTTPS protected sites by default.
+pref("network.negotiate-auth.allow-insecure-ntlm-v1-https", true);
 
 // This list controls which URIs can use the negotiate-auth protocol.  This
 // list should be limited to the servers you know you'll need to login to.
@@ -1643,6 +1641,14 @@ pref("network.auth.force-generic-ntlm", false);
 pref("network.automatic-ntlm-auth.allow-proxies", true);
 pref("network.automatic-ntlm-auth.allow-non-fqdn", false);
 pref("network.automatic-ntlm-auth.trusted-uris", "");
+
+// This preference controls whether or not the LM hash will be included in
+// response to a NTLM challenge.  By default, this is disabled since servers
+// should almost never need the LM hash, and the LM hash is what makes NTLM
+// authentication less secure.  See bug 250691 for further details.
+// NOTE: automatic-ntlm-auth which leverages the OS-provided NTLM
+//       implementation will not be affected by this preference.
+pref("network.ntlm.send-lm-response", false);
 
 pref("permissions.default.image",           1); // 1-Accept, 2-Deny, 3-dontAcceptForeign
 
@@ -2158,7 +2164,11 @@ pref("layout.css.grid.enabled", false);
 pref("layout.css.ruby.enabled", false);
 
 // Is support for CSS display:contents enabled?
+#ifdef RELEASE_BUILD
+pref("layout.css.display-contents.enabled", false);
+#else
 pref("layout.css.display-contents.enabled", true);
+#endif
 
 // Is support for CSS box-decoration-break enabled?
 pref("layout.css.box-decoration-break.enabled", true);

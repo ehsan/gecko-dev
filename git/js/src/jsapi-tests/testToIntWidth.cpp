@@ -7,12 +7,11 @@
 
 #include <math.h>
 
-#include "js/Conversions.h"
-
 #include "jsapi-tests/tests.h"
+#include "vm/NumericConversions.h"
 
-using JS::detail::ToIntWidth;
-using JS::detail::ToUintWidth;
+using js::detail::ToIntWidth;
+using js::detail::ToUintWidth;
 
 BEGIN_TEST(testToUint8TwiceUint8Range)
 {

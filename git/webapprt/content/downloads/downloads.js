@@ -727,7 +727,7 @@ let gDownloadList = {
     this.downloadView.parentNode.replaceChild(empty, this.downloadView);
     this.downloadView = empty;
 
-    for each (let downloadItem in this.downloadItems) {
+    for (let downloadItem of this.downloadItems) {
       if (downloadItem.inProgress ||
           downloadItem.matchesSearch(this.searchTerms, this.searchAttributes)) {
         this.downloadView.appendChild(downloadItem.element);
@@ -773,7 +773,7 @@ let gDownloadList = {
     let button = document.getElementById("clearListButton");
 
     // The button is enabled if we have items in the list that we can clean up.
-    for each (let downloadItem in this.downloadItems) {
+    for (let downloadItem of this.downloadItems) {
       if (!downloadItem.inProgress &&
           downloadItem.matchesSearch(this.searchTerms, this.searchAttributes)) {
         button.disabled = false;
@@ -983,7 +983,7 @@ let gDownloadList = {
     let totalSize = 0;
     let totalTransferred = 0;
 
-    for each (let downloadItem in this.downloadItems) {
+    for (let downloadItem of this.downloadItems) {
       if (!downloadItem.inProgress) {
         continue;
       }

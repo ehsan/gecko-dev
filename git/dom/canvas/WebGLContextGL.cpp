@@ -3375,11 +3375,9 @@ WebGLContext::CompileShader(WebGLShader* shader)
             size_t len = lenWithNull - 1;
 
             nsAutoCString info;
-            if (len) {
-                // Don't allocate or try to write to zero length string
-                info.SetLength(len); // Allocates len+1, for the null-term.
-                ShGetInfoLog(compiler, info.BeginWriting());
-            }
+            info.SetLength(len); // Allocates len+1, for the null-term.
+            ShGetInfoLog(compiler, info.BeginWriting());
+
             shader->SetTranslationFailure(info);
         }
         ShDestruct(compiler);

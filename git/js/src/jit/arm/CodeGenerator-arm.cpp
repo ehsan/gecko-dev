@@ -17,7 +17,6 @@
 #include "jit/JitFrames.h"
 #include "jit/MIR.h"
 #include "jit/MIRGraph.h"
-#include "js/Conversions.h"
 #include "vm/Shape.h"
 #include "vm/TraceLogging.h"
 
@@ -31,7 +30,6 @@ using namespace js::jit;
 using mozilla::FloorLog2;
 using mozilla::NegativeInfinity;
 using JS::GenericNaN;
-using JS::ToInt32;
 
 // shared
 CodeGeneratorARM::CodeGeneratorARM(MIRGenerator *gen, LIRGraph *graph, MacroAssembler *masm)
@@ -2129,11 +2127,10 @@ CodeGeneratorARM::visitAsmJSStoreGlobalVar(LAsmJSStoreGlobalVar *ins)
 
     MIRType type = mir->value()->type();
     MOZ_ASSERT(IsNumberType(type));
-
     unsigned addr = mir->globalDataOffset() - AsmJSGlobalRegBias;
-    if (type == MIRType_Int32) {
+    if (mir->value()->type() == MIRType_Int32) {
         masm.ma_dtr(IsStore, GlobalReg, Imm32(addr), ToRegister(ins->value()));
-    } else if (type == MIRType_Float32) {
+    } else if (mir->value()->type() == MIRType_Float32) {
         VFPRegister vd(ToFloatRegister(ins->value()));
         masm.ma_vstr(vd.singleOverlay(), Operand(GlobalReg, addr));
     } else {

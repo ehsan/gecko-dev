@@ -265,13 +265,7 @@ public:
                                         const std::string& aId);
 
   // DataConnection observers
-  void NotifyDataChannel(already_AddRefed<mozilla::DataChannel> aChannel)
-#ifdef MOZILLA_INTERNAL_API
-    // PeerConnectionImpl only inherits from mozilla::DataChannelConnection
-    // inside libxul.
-    MOZ_OVERRIDE
-#endif
-    ;
+  void NotifyDataChannel(already_AddRefed<mozilla::DataChannel> aChannel);
 
   // Get the media object
   const nsRefPtr<PeerConnectionMedia>& media() const {

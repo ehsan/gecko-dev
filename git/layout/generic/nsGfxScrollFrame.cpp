@@ -87,12 +87,12 @@ BuildScrollContainerLayers()
 nsHTMLScrollFrame*
 NS_NewHTMLScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, bool aIsRoot)
 {
-  return new (aPresShell) nsHTMLScrollFrame(aContext, aIsRoot);
+  return new (aPresShell) nsHTMLScrollFrame(aPresShell, aContext, aIsRoot);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsHTMLScrollFrame)
 
-nsHTMLScrollFrame::nsHTMLScrollFrame(nsStyleContext* aContext, bool aIsRoot)
+nsHTMLScrollFrame::nsHTMLScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext, bool aIsRoot)
   : nsContainerFrame(aContext),
     mHelper(ALLOW_THIS_IN_INITIALIZER_LIST(this), aIsRoot)
 {
@@ -503,11 +503,8 @@ nsHTMLScrollFrame::ReflowScrolledFrame(ScrollReflowState* aState,
   mHelper.mHasVerticalScrollbar = aAssumeVScroll;
 
   nsReflowStatus status;
-  // No need to pass a container-width to ReflowChild or
-  // FinishReflowChild, because it's only used there when positioning
-  // the frame (i.e. if NS_FRAME_NO_MOVE_FRAME isn't set)
   ReflowChild(mHelper.mScrolledFrame, presContext, *aMetrics,
-              kidReflowState, wm, LogicalPoint(wm), 0,
+              kidReflowState, 0, 0,
               NS_FRAME_NO_MOVE_FRAME, status);
 
   mHelper.mHasHorizontalScrollbar = didHaveHorizontalScrollbar;
@@ -519,7 +516,7 @@ nsHTMLScrollFrame::ReflowScrolledFrame(ScrollReflowState* aState,
   // which will usually be different from the scrollport height;
   // invalidating the difference will cause unnecessary repainting.
   FinishReflowChild(mHelper.mScrolledFrame, presContext,
-                    *aMetrics, &kidReflowState, wm, LogicalPoint(wm), 0,
+                    *aMetrics, &kidReflowState, 0, 0,
                     NS_FRAME_NO_MOVE_FRAME | NS_FRAME_NO_SIZE_VIEW);
 
   // XXX Some frames (e.g., nsPluginFrame, nsFrameFrame, nsTextFrame) don't bother
@@ -962,15 +959,15 @@ nsXULScrollFrame*
 NS_NewXULScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext,
                      bool aIsRoot, bool aClipAllDescendants)
 {
-  return new (aPresShell) nsXULScrollFrame(aContext, aIsRoot,
+  return new (aPresShell) nsXULScrollFrame(aPresShell, aContext, aIsRoot,
                                            aClipAllDescendants);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsXULScrollFrame)
 
-nsXULScrollFrame::nsXULScrollFrame(nsStyleContext* aContext,
+nsXULScrollFrame::nsXULScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext,
                                    bool aIsRoot, bool aClipAllDescendants)
-  : nsBoxFrame(aContext, aIsRoot),
+  : nsBoxFrame(aShell, aContext, aIsRoot),
     mHelper(ALLOW_THIS_IN_INITIALIZER_LIST(this), aIsRoot)
 {
   SetLayoutManager(nullptr);

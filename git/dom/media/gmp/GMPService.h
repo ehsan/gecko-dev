@@ -52,8 +52,6 @@ public:
 private:
   ~GeckoMediaPluginService();
 
-  nsresult GMPDispatch(nsIRunnable* event, uint32_t flags = NS_DISPATCH_NORMAL);
-
   void ClearStorage();
 
   GMPParent* SelectPluginForAPI(const nsACString& aNodeId,
@@ -75,8 +73,6 @@ private:
   void RemoveOnGMPThread(const nsAString& aSearchDir);
 
   nsresult SetAsyncShutdownTimeout();
-
-  void ForgetThisSiteOnGMPThread(const nsACString& aOrigin);
 
 protected:
   friend class GMPParent;
@@ -143,9 +139,6 @@ private:
   // persistently on disk.
   nsDataHashtable<nsCStringHashKey, bool> mPersistentStorageAllowed;
 };
-
-nsresult ReadSalt(nsIFile* aPath, nsACString& aOutData);
-bool MatchOrigin(nsIFile* aPath, const nsACString& aOrigin);
 
 } // namespace gmp
 } // namespace mozilla

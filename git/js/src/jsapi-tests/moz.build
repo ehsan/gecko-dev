@@ -30,7 +30,6 @@ UNIFIED_SOURCES += [
     'testExternalStrings.cpp',
     'testFindSCCs.cpp',
     'testForOfIterator.cpp',
-    'testForwardSetProperty.cpp',
     'testFreshGlobalEvalRedefinition.cpp',
     'testFunctionProperties.cpp',
     'testGCAllocator.cpp',
@@ -111,5 +110,5 @@ USE_LIBS += [
 
 OS_LIBS += CONFIG['MOZ_ZLIB_LIBS']
 
-if CONFIG['GNU_CXX']:
+if CONFIG['CLANG_CXX']:
     FAIL_ON_WARNINGS = True

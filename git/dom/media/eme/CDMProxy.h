@@ -280,7 +280,7 @@ private:
       mPtr = nullptr;
     }
 
-    Type* operator->() const MOZ_NO_ADDREF_RELEASE_ON_RETURN {
+    Type* operator->() const {
       MOZ_ASSERT(NS_IsMainThread());
       return mPtr;
     }

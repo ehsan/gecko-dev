@@ -360,15 +360,6 @@ private:
   inline bool isComplete(uint32_t code);
   inline bool isProceeding(uint32_t code);
   void Shutdown();
-  static void runNextQueuedCommandChain();
-  static void finalizeSuccess(CommandChain* aChain,
-                              mozilla::dom::NetworkResultOptions& aResult);
-
-  template<size_t N>
-  static void runChain(const NetworkParams& aParams,
-                       const CommandFunc (&aCmds)[N],
-                       ErrorCallback aError);
-
   /**
    * Callback function to send netd result to main thread.
    */

@@ -14,10 +14,11 @@
 #include "nsBoxLayout.h"
 #include "nsIContent.h"
 
-nsListItemFrame::nsListItemFrame(nsStyleContext* aContext,
+nsListItemFrame::nsListItemFrame(nsIPresShell* aPresShell,
+                                 nsStyleContext* aContext,
                                  bool aIsRoot,
                                  nsBoxLayout* aLayoutManager)
-  : nsGridRowLeafFrame(aContext, aIsRoot, aLayoutManager) 
+  : nsGridRowLeafFrame(aPresShell, aContext, aIsRoot, aLayoutManager) 
 {
 }
 
@@ -63,7 +64,7 @@ NS_NewListItemFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
     return nullptr;
   }
   
-  return new (aPresShell) nsListItemFrame(aContext, false, layout);
+  return new (aPresShell) nsListItemFrame(aPresShell, aContext, false, layout);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsListItemFrame)

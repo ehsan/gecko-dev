@@ -115,7 +115,7 @@ public:
   }
 
   NS_IMETHODIMP
-  UnregisterSucceeded(bool aState) MOZ_OVERRIDE
+  UnregisterSucceeded(bool aState)
   {
     AssertIsOnMainThread();
     mPromise->MaybeResolve(aState);
@@ -123,7 +123,7 @@ public:
   }
 
   NS_IMETHODIMP
-  UnregisterFailed() MOZ_OVERRIDE
+  UnregisterFailed()
   {
     AssertIsOnMainThread();
 

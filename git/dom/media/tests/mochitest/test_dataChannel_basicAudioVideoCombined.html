@@ -3,7 +3,6 @@
 <head>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
-  <script type="application/javascript" src="dataChannel.js"></script>
   <script type="application/javascript" src="head.js"></script>
   <script type="application/javascript" src="pc.js"></script>
   <script type="application/javascript" src="templates.js"></script>
@@ -18,9 +17,8 @@
   });
 
   var test;
-  runNetworkTest(function (options) {
-    test = new PeerConnectionTest(options);
-    addInitialDataChannel(test.chain);
+  runNetworkTest(function () {
+    test = new DataChannelTest();
     test.setMediaConstraints([{audio: true, video: true}],
                              [{audio: true, video: true}]);
     test.run();

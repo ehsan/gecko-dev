@@ -537,7 +537,7 @@ public:
   void SetOnencrypted(mozilla::dom::EventHandlerNonNull* listener);
 
   void DispatchEncrypted(const nsTArray<uint8_t>& aInitData,
-                         const nsAString& aInitDataType) MOZ_OVERRIDE;
+                         const nsAString& aInitDataType);
 
 
   bool IsEventAttributeName(nsIAtom* aName) MOZ_OVERRIDE;

@@ -41,8 +41,8 @@ public:
                            nsEventStatus* aEventStatus) MOZ_OVERRIDE;
 
 protected:
-  explicit nsAutoRepeatBoxFrame(nsStyleContext* aContext):
-    nsButtonBoxFrame(aContext) {}
+  nsAutoRepeatBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext):
+    nsButtonBoxFrame(aPresShell, aContext) {}
   
   void StartRepeat() {
     if (IsActivatedOnHover()) {
@@ -68,7 +68,7 @@ protected:
 nsIFrame*
 NS_NewAutoRepeatBoxFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-  return new (aPresShell) nsAutoRepeatBoxFrame(aContext);
+  return new (aPresShell) nsAutoRepeatBoxFrame (aPresShell, aContext);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsAutoRepeatBoxFrame)

@@ -14,7 +14,7 @@
 #include "jit/MIR.h"
 #include "jit/MIRGenerator.h"
 #include "jit/MIRGraph.h"
-#include "js/Conversions.h"
+#include "vm/NumericConversions.h"
 #include "vm/TypedArrayCommon.h"
 
 #include "jsopcodeinlines.h"
@@ -35,7 +35,6 @@ using mozilla::NegativeInfinity;
 using mozilla::PositiveInfinity;
 using mozilla::Swap;
 using JS::GenericNaN;
-using JS::ToInt32;
 
 // This algorithm is based on the paper "Eliminating Range Checks Using
 // Static Single Assignment Form" by Gough and Klaren.

@@ -51,7 +51,7 @@ public:
     mPtr = nullptr;
   }
 
-  T* operator->() const MOZ_NO_ADDREF_RELEASE_ON_RETURN
+  T* operator->() const
   {
     return mPtr.operator->();
   }

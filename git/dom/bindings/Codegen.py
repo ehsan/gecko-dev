@@ -10104,41 +10104,15 @@ class CGDOMJSProxyHandler_getOwnPropDescriptor(ClassMethod):
                 "return true;\n" % (readonly, enumerable))
             templateValues = {'jsvalRef': 'desc.value()', 'jsvalHandle': 'desc.value()',
                               'obj': 'proxy', 'successCode': fillDescriptor}
-
-            computeCondition = dedent("""
-                bool hasOnProto;
-                if (!HasPropertyOnPrototype(cx, proxy, id, &hasOnProto)) {
-                  return false;
-                }
-                callNamedGetter = !hasOnProto;
-                """)
+            condition = "!HasPropertyOnPrototype(cx, proxy, id)"
             if self.descriptor.interface.getExtendedAttribute('OverrideBuiltins'):
-                computeCondition = fill("""
-                    if (!isXray) {
-                      callNamedGetter = true;
-                    } else {
-                      $*{hasOnProto}
-                    }
-                    """,
-                    hasOnProto=computeCondition)
-
-            outerCondition = "!ignoreNamedProps"
+                condition = "(!isXray || %s)" % condition
+            condition = "!ignoreNamedProps && " + condition
             if self.descriptor.supportsIndexedProperties():
-                outerCondition = "!IsArrayIndex(index) && " + outerCondition
-
-            namedGet = fill("""
-                bool callNamedGetter = false;
-                if (${outerCondition}) {
-                  $*{computeCondition}
-                }
-                if (callNamedGetter) {
-                  $*{namedGetCode}
-                }
-                """,
-                outerCondition=outerCondition,
-                computeCondition=computeCondition,
-                namedGetCode=CGProxyNamedGetter(self.descriptor, templateValues).define())
-            namedGet += "\n"
+                condition = "!IsArrayIndex(index) && " + condition
+            namedGet = (CGIfWrapper(CGProxyNamedGetter(self.descriptor, templateValues),
+                                    condition).define() +
+                        "\n")
         else:
             namedGet = ""
 
@@ -10371,16 +10345,8 @@ class CGDOMJSProxyHandler_delete(ClassMethod):
                 """,
                 namedBody=namedBody)
             if not self.descriptor.interface.getExtendedAttribute('OverrideBuiltins'):
-                delete = fill("""
-                    bool hasOnProto;
-                    if (!HasPropertyOnPrototype(cx, proxy, id, &hasOnProto)) {
-                      return false;
-                    }
-                    if (!hasOnProto) {
-                      $*{delete}
-                    }
-                    """,
-                    delete=delete)
+                delete = CGIfWrapper(CGGeneric(delete),
+                                     "!HasPropertyOnPrototype(cx, proxy, id)").define()
 
         delete += dedent("""
 
@@ -10519,17 +10485,8 @@ class CGDOMJSProxyHandler_hasOwn(ClassMethod):
                 """,
                 presenceChecker=CGProxyNamedPresenceChecker(self.descriptor, foundVar="found").define())
             if not self.descriptor.interface.getExtendedAttribute('OverrideBuiltins'):
-                named = fill("""
-                    bool hasOnProto;
-                    if (!HasPropertyOnPrototype(cx, proxy, id, &hasOnProto)) {
-                      return false;
-                    }
-                    if (!hasOnProto) {
-                      $*{protoLacksProperty}
-                      return true;
-                    }
-                    """,
-                    protoLacksProperty=named)
+                named = CGIfWrapper(CGGeneric(named + "return true;\n"),
+                                    "!HasPropertyOnPrototype(cx, proxy, id)").define()
                 named += "*bp = false;\n"
             else:
                 named += "\n"
@@ -10636,7 +10593,7 @@ class CGDOMJSProxyHandler_get(ClassMethod):
 
         getOnPrototype = dedent("""
             bool foundOnPrototype;
-            if (!GetPropertyOnPrototype(cx, proxy, id, &foundOnPrototype, vp)) {
+            if (!GetPropertyOnPrototype(cx, proxy, id, &foundOnPrototype, vp.address())) {
               return false;
             }
 

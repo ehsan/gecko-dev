@@ -19,7 +19,6 @@
 #include "jit/Lowering.h"
 #include "jit/MIR.h"
 #include "jit/ParallelFunctions.h"
-#include "js/Conversions.h"
 #include "vm/ForkJoin.h"
 #include "vm/TraceLogging.h"
 
@@ -32,7 +31,6 @@ using namespace js;
 using namespace js::jit;
 
 using JS::GenericNaN;
-using JS::ToInt32;
 
 namespace {
 
@@ -839,8 +837,40 @@ void
 MacroAssembler::newGCThingPar(Register result, Register cx, Register tempReg1, Register tempReg2,
                               gc::AllocKind allocKind, Label *fail)
 {
+#ifdef JSGC_FJGENERATIONAL
+    if (IsNurseryAllocable(allocKind))
+        return newGCNurseryThingPar(result, cx, tempReg1, tempReg2, allocKind, fail);
+#endif
     return newGCTenuredThingPar(result, cx, tempReg1, tempReg2, allocKind, fail);
 }
+
+#ifdef JSGC_FJGENERATIONAL
+void
+MacroAssembler::newGCNurseryThingPar(Register result, Register cx,
+                                     Register tempReg1, Register tempReg2,
+                                     gc::AllocKind allocKind, Label *fail)
+{
+    MOZ_ASSERT(IsNurseryAllocable(allocKind));
+
+    uint32_t thingSize = uint32_t(gc::Arena::thingSize(allocKind));
+
+    // Correctness depends on thingSize being smaller than a chunk
+    // (not a problem) and the last chunk of the nursery not being
+    // located at the very top of the address space.  The regular
+    // Nursery makes the same assumption, see nurseryAllocate() above.
+
+    // The ForkJoinNursery is a member variable of the ForkJoinContext.
+    size_t offsetOfPosition =
+        ForkJoinContext::offsetOfFJNursery() + gc::ForkJoinNursery::offsetOfPosition();
+    size_t offsetOfEnd =
+        ForkJoinContext::offsetOfFJNursery() + gc::ForkJoinNursery::offsetOfCurrentEnd();
+    loadPtr(Address(cx, offsetOfPosition), result);
+    loadPtr(Address(cx, offsetOfEnd), tempReg2);
+    computeEffectiveAddress(Address(result, thingSize), tempReg1);
+    branchPtr(Assembler::Below, tempReg2, tempReg1, fail);
+    storePtr(tempReg1, Address(cx, offsetOfPosition));
+}
+#endif
 
 void
 MacroAssembler::newGCTenuredThingPar(Register result, Register cx,
@@ -850,6 +880,9 @@ MacroAssembler::newGCTenuredThingPar(Register result, Register cx,
     // Similar to ::newGCThing(), except that it allocates from a custom
     // Allocator in the ForkJoinContext*, rather than being hardcoded to the
     // compartment allocator.  This requires two temporary registers.
+    //
+    // When the ForkJoin generational collector is enabled this is only used
+    // for those object types that cannot be allocated in the ForkJoinNursery.
     //
     // Subtle: I wanted to reuse `result` for one of the temporaries, but the
     // register allocator was assigning it to the same register as `cx`.
@@ -2066,7 +2099,7 @@ MacroAssembler::convertValueToInt(JSContext *cx, const Value &v, Register output
             break;
           }
           case IntConversion_Truncate:
-            move32(Imm32(ToInt32(d)), output);
+            move32(Imm32(js::ToInt32(d)), output);
             break;
           case IntConversion_ClampToUint8:
             move32(Imm32(ClampDoubleToUint8(d)), output);

@@ -38,13 +38,13 @@ using namespace mozilla;
 nsIFrame*
 NS_NewResizerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-  return new (aPresShell) nsResizerFrame(aContext);
+  return new (aPresShell) nsResizerFrame(aPresShell, aContext);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsResizerFrame)
 
-nsResizerFrame::nsResizerFrame(nsStyleContext* aContext)
-:nsTitleBarFrame(aContext)
+nsResizerFrame::nsResizerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+:nsTitleBarFrame(aPresShell, aContext)
 {
 }
 

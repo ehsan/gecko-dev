@@ -21,6 +21,7 @@
 #include "gc/Heap.h"
 #include "gc/Marking.h"
 #include "js/Value.h"
+#include "vm/NumericConversions.h"
 #include "vm/Shape.h"
 #include "vm/String.h"
 
@@ -28,6 +29,10 @@ namespace js {
 
 class Nursery;
 class Shape;
+
+namespace gc {
+class ForkJoinNursery;
+}
 
 /*
  * To really poison a set of values, using 'magic' or 'undefined' isn't good
@@ -186,6 +191,7 @@ class ObjectElements
     friend class NativeObject;
     friend class ArrayObject;
     friend class Nursery;
+    friend class gc::ForkJoinNursery;
 
     template <ExecutionMode mode>
     friend bool
@@ -442,6 +448,7 @@ class NativeObject : public JSObject
 
   private:
     friend class Nursery;
+    friend class gc::ForkJoinNursery;
 
     /*
      * Get internal pointers to the range of values starting at start and

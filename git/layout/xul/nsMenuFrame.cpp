@@ -155,7 +155,7 @@ protected:
 nsIFrame*
 NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-  nsMenuFrame* it = new (aPresShell) nsMenuFrame(aContext);
+  nsMenuFrame* it = new (aPresShell) nsMenuFrame (aPresShell, aContext);
   it->SetIsMenu(true);
   return it;
 }
@@ -163,7 +163,7 @@ NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 nsIFrame*
 NS_NewMenuItemFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-  nsMenuFrame* it = new (aPresShell) nsMenuFrame(aContext);
+  nsMenuFrame* it = new (aPresShell) nsMenuFrame (aPresShell, aContext);
   it->SetIsMenu(false);
   return it;
 }
@@ -174,8 +174,8 @@ NS_QUERYFRAME_HEAD(nsMenuFrame)
   NS_QUERYFRAME_ENTRY(nsMenuFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
 
-nsMenuFrame::nsMenuFrame(nsStyleContext* aContext):
-  nsBoxFrame(aContext),
+nsMenuFrame::nsMenuFrame(nsIPresShell* aShell, nsStyleContext* aContext):
+  nsBoxFrame(aShell, aContext),
     mIsMenu(false),
     mChecked(false),
     mIgnoreAccelTextChange(false),

@@ -719,9 +719,6 @@ MessageChannel::Send(Message* aMsg, Message* aReply)
     AssertWorkerThread();
     mMonitor->AssertNotCurrentThreadOwns();
 
-    if (mCurrentTransaction == 0)
-        mListener->OnBeginSyncTransaction();
-
 #ifdef OS_WIN
     SyncStackFrame frame(this, false);
 #endif

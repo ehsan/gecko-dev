@@ -81,7 +81,7 @@ nsContainerFrame*
 NS_NewListControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   nsListControlFrame* it =
-    new (aPresShell) nsListControlFrame(aContext);
+    new (aPresShell) nsListControlFrame(aPresShell, aPresShell->GetDocument(), aContext);
 
   it->AddStateBits(NS_FRAME_INDEPENDENT_SELECTION);
 
@@ -91,8 +91,9 @@ NS_NewListControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsListControlFrame)
 
 //---------------------------------------------------------
-nsListControlFrame::nsListControlFrame(nsStyleContext* aContext)
-  : nsHTMLScrollFrame(aContext, false),
+nsListControlFrame::nsListControlFrame(
+  nsIPresShell* aShell, nsIDocument* aDocument, nsStyleContext* aContext)
+  : nsHTMLScrollFrame(aShell, aContext, false),
     mMightNeedSecondPass(false),
     mHasPendingInterruptAtStartOfReflow(false),
     mDropdownCanGrow(false),

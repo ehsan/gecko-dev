@@ -9119,8 +9119,6 @@ PresShell::DidDoReflow(bool aInterruptible, bool aWasInterrupted)
     mTouchCaret->UpdatePositionIfNeeded();
   }
 
-  mPresContext->NotifyMissingFonts();
-
   if (!aWasInterrupted) {
     ClearReflowOnZoomPending();
   }

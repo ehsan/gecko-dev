@@ -1100,23 +1100,14 @@ nsImageFrame::DisplayAltText(nsPresContext*      aPresContext,
 
   nscoord maxAscent = fm->MaxAscent();
   nscoord maxDescent = fm->MaxDescent();
-  nscoord lineHeight = fm->MaxHeight(); // line-relative, so an x-coordinate
-                                        // length if writing mode is vertical
-
-  WritingMode wm = GetWritingMode();
-  bool isVertical = wm.IsVertical();
-
-  fm->SetVertical(isVertical);
-  fm->SetTextOrientation(StyleVisibility()->mTextOrientation);
+  nscoord height = fm->MaxHeight();
 
   // XXX It would be nice if there was a way to have the font metrics tell
   // use where to break the text given a maximum width. At a minimum we need
   // to be able to get the break character...
   const char16_t* str = aAltText.get();
-  int32_t strLen = aAltText.Length();
-  nsPoint pt = wm.IsVerticalRL() ? aRect.TopRight() - nsPoint(lineHeight, 0)
-                                 : aRect.TopLeft();
-  nscoord iSize = isVertical ? aRect.height : aRect.width;
+  int32_t          strLen = aAltText.Length();
+  nscoord          y = aRect.y;
 
   if (!aPresContext->BidiEnabled() && HasRTLChars(aAltText)) {
     aPresContext->SetBidiEnabled();
@@ -1124,71 +1115,38 @@ nsImageFrame::DisplayAltText(nsPresContext*      aPresContext,
 
   // Always show the first line, even if we have to clip it below
   bool firstLine = true;
-  while (strLen > 0) {
-    if (!firstLine) {
-      // If we've run out of space, break out of the loop
-      if ((!isVertical && (pt.y + maxDescent) >= aRect.YMost()) ||
-          (wm.IsVerticalRL() && (pt.x + maxDescent < aRect.x)) ||
-          (wm.IsVerticalLR() && (pt.x + maxDescent >= aRect.XMost()))) {
-        break;
-      }
-    }
-
+  while ((strLen > 0) && (firstLine || (y + maxDescent) < aRect.YMost())) {
     // Determine how much of the text to display on this line
     uint32_t  maxFit;  // number of characters that fit
-    nscoord strWidth = MeasureString(str, strLen, iSize, maxFit,
+    nscoord strWidth = MeasureString(str, strLen, aRect.width, maxFit,
                                      aRenderingContext, *fm);
-
+    
     // Display the text
     nsresult rv = NS_ERROR_FAILURE;
 
     if (aPresContext->BidiEnabled()) {
-      nsBidiDirection dir;
-      nscoord x, y;
-
-      if (isVertical) {
-        x = pt.x + maxDescent; // XXX will need update for sideways-left
-        if (wm.IsBidiLTR()) {
-          y = aRect.y;
-          dir = NSBIDI_LTR;
-        } else {
-          y = aRect.YMost() - strWidth;
-          dir = NSBIDI_RTL;
-        }
-      } else {
-        y = pt.y + maxAscent;
-        if (wm.IsBidiLTR()) {
-          x = aRect.x;
-          dir = NSBIDI_LTR;
-        } else {
-          x = aRect.XMost() - strWidth;
-          dir = NSBIDI_RTL;
-        }
-      }
-
-      rv = nsBidiPresUtils::RenderText(str, maxFit, dir,
-                                       aPresContext, aRenderingContext,
-                                       aRenderingContext, *fm, x, y);
+      const nsStyleVisibility* vis = StyleVisibility();
+      if (vis->mDirection == NS_STYLE_DIRECTION_RTL)
+        rv = nsBidiPresUtils::RenderText(str, maxFit, NSBIDI_RTL,
+                                         aPresContext, aRenderingContext,
+                                         aRenderingContext, *fm,
+                                         aRect.XMost() - strWidth, y + maxAscent);
+      else
+        rv = nsBidiPresUtils::RenderText(str, maxFit, NSBIDI_LTR,
+                                         aPresContext, aRenderingContext,
+                                         aRenderingContext, *fm,
+                                         aRect.x, y + maxAscent);
     }
     if (NS_FAILED(rv)) {
       nsLayoutUtils::DrawUniDirString(str, maxFit,
-                                      isVertical
-                                        ? nsPoint(pt.x + maxDescent, pt.y)
-                                        : nsPoint(pt.x, pt.y + maxAscent),
-                                      *fm, aRenderingContext);
+                                      nsPoint(aRect.x, y + maxAscent), *fm,
+                                      aRenderingContext);
     }
 
     // Move to the next line
     str += maxFit;
     strLen -= maxFit;
-    if (wm.IsVerticalRL()) {
-      pt.x -= lineHeight;
-    } else if (wm.IsVerticalLR()) {
-      pt.x += lineHeight;
-    } else {
-      pt.y += lineHeight;
-    }
-
+    y += height;
     firstLine = false;
   }
 }
@@ -1289,6 +1247,7 @@ nsImageFrame::DisplayAltFeedback(nsRenderingContext& aRenderingContext,
 
   // Check if we should display image placeholders
   if (gIconLoad->mPrefShowPlaceholders) {
+    const nsStyleVisibility* vis = StyleVisibility();
     nscoord size = nsPresContext::CSSPixelsToAppUnits(ICON_SIZE);
 
     bool iconUsed = false;
@@ -1301,9 +1260,6 @@ nsImageFrame::DisplayAltFeedback(nsRenderingContext& aRenderingContext,
       mDisplayingIcon = true;
     }
 
-    WritingMode wm = GetWritingMode();
-    bool flushRight =
-      (!wm.IsVertical() && !wm.IsBidiLTR()) || wm.IsVerticalRL();
 
     // If the icon in question is loaded and decoded, draw it
     uint32_t imageStatus = 0;
@@ -1313,7 +1269,8 @@ nsImageFrame::DisplayAltFeedback(nsRenderingContext& aRenderingContext,
       nsCOMPtr<imgIContainer> imgCon;
       aRequest->GetImage(getter_AddRefs(imgCon));
       MOZ_ASSERT(imgCon, "Load complete, but no image container?");
-      nsRect dest(flushRight ? inner.XMost() - size : inner.x,
+      nsRect dest((vis->mDirection == NS_STYLE_DIRECTION_RTL) ?
+                  inner.XMost() - size : inner.x,
                   inner.y, size, size);
       nsLayoutUtils::DrawSingleImage(*gfx, PresContext(), imgCon,
         nsLayoutUtils::GetGraphicsFilterForFrame(this), dest, aDirtyRect,
@@ -1326,7 +1283,8 @@ nsImageFrame::DisplayAltFeedback(nsRenderingContext& aRenderingContext,
     if (!iconUsed) {
       ColorPattern color(ToDeviceColor(Color(1.f, 0.f, 0.f, 1.f)));
 
-      nscoord iconXPos = flushRight ? inner.XMost() - size : inner.x;
+      nscoord iconXPos = (vis->mDirection ==   NS_STYLE_DIRECTION_RTL) ?
+                         inner.XMost() - size : inner.x;
 
       // stroked rect:
       nsRect rect(iconXPos, inner.y, size, size);
@@ -1348,17 +1306,10 @@ nsImageFrame::DisplayAltFeedback(nsRenderingContext& aRenderingContext,
 
     // Reduce the inner rect by the width of the icon, and leave an
     // additional ICON_PADDING pixels for padding
-    int32_t paddedIconSize =
-      nsPresContext::CSSPixelsToAppUnits(ICON_SIZE + ICON_PADDING);
-    if (wm.IsVertical()) {
-      inner.y += paddedIconSize;
-      inner.height -= paddedIconSize;
-    } else {
-      if (!flushRight) {
-        inner.x += paddedIconSize;
-      }
-      inner.width -= paddedIconSize;
-    }
+    int32_t iconWidth = nsPresContext::CSSPixelsToAppUnits(ICON_SIZE + ICON_PADDING);
+    if (vis->mDirection != NS_STYLE_DIRECTION_RTL)
+      inner.x += iconWidth;
+    inner.width -= iconWidth;
   }
 
   // If there's still room, display the alt-text

@@ -9,9 +9,7 @@
 
 #include "jsapi.h"
 #include "jsobj.h"
-
 #include "builtin/TypedObject.h"
-#include "js/Conversions.h"
 #include "vm/GlobalObject.h"
 
 /*
@@ -221,7 +219,7 @@ struct Int32x4 {
         return global.int32x4TypeDescr().as<TypeDescr>();
     }
     static Elem toType(Elem a) {
-        return JS::ToInt32(a);
+        return ToInt32(a);
     }
     static bool toType(JSContext *cx, JS::HandleValue v, Elem *out) {
         return ToInt32(cx, v, out);

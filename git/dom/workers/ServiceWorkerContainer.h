@@ -34,8 +34,8 @@ public:
 
   explicit ServiceWorkerContainer(nsPIDOMWindow* aWindow);
 
-  virtual JSObject*
-  WrapObject(JSContext* aCx) MOZ_OVERRIDE;
+  JSObject*
+  WrapObject(JSContext* aCx);
 
   already_AddRefed<Promise>
   Register(const nsAString& aScriptURL,
