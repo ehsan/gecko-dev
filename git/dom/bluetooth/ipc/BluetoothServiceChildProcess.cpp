@@ -390,6 +390,12 @@ BluetoothServiceChildProcess::StopInternal()
 }
 
 bool
+BluetoothServiceChildProcess::IsEnabledInternal()
+{
+  MOZ_CRASH("This should never be called!");
+}
+
+bool
 BluetoothServiceChildProcess::IsConnected(uint16_t aServiceUuid)
 {
   MOZ_CRASH("This should never be called!");

@@ -23,7 +23,6 @@ inputmethod_setup(function() {
 function appFrameScript() {
   let input = content.document.getElementById('test-input');
   input.oninput = function() {
-    dump('oninput was called in file_test_app.html.');
     sendAsyncMessage('test:InputMethod:oninput', {});
   };
 
@@ -37,7 +36,7 @@ function appFrameScript() {
 }
 
 function runTest() {
-  let timeoutId = null;
+  var timeoutId = null;
 
   // Create an app frame to recieve keyboard inputs.
   let app = document.createElement('iframe');
@@ -48,8 +47,12 @@ function runTest() {
     let mm = SpecialPowers.getBrowserFrameMessageManager(app);
     mm.loadFrameScript('data:,(' + appFrameScript.toString() + ')();', false);
     mm.addMessageListener("test:InputMethod:oninput", function() {
+      if (!timeoutId) {
+        return;
+      }
       ok(true, 'Keyboard input was received.');
       clearTimeout(timeoutId);
+      timeoutId = null;
       inputmethod_cleanup();
     });
   });
@@ -85,6 +88,10 @@ function runTest() {
 
      req.onsuccess = function() {
        ok(true, 'setInputMethodActive succeeded.');
+       timeoutId = setTimeout(function() {
+        inputmethod_cleanup();
+        ok(false, 'Failed to generate keyboard input.');
+       }, 20000);
      };
 
      req.onerror = function() {
@@ -96,10 +103,6 @@ function runTest() {
      SpecialPowers.DOMWindowUtils.focus(app);
      setTimeout(function() {
        keyboard.src = imeUrl;
-       timeoutId = setTimeout(function() {
-         inputmethod_cleanup();
-         ok(false, 'Failed to generate keyboard input.');
-       }, 20000);
      }, 100);
   });
 }

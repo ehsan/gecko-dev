@@ -119,7 +119,6 @@ extern "C" {
 
 #include "nsIDOMWheelEvent.h"
 
-#include "NativeKeyBindings.h"
 #include "nsWindow.h"
 
 using namespace mozilla;
@@ -5972,16 +5971,6 @@ nsWindow::GetInputContext()
       context.mNativeIMEContext = mIMModule;
   }
   return context;
-}
-
-NS_IMETHODIMP_(bool)
-nsWindow::ExecuteNativeKeyBinding(NativeKeyBindingsType aType,
-                                  const WidgetKeyboardEvent& aEvent,
-                                  DoCommandCallback aCallback,
-                                  void* aCallbackData)
-{
-    NativeKeyBindings* keyBindings = NativeKeyBindings::GetInstance(aType);
-    return keyBindings->Execute(aEvent, aCallback, aCallbackData);
 }
 
 NS_IMETHODIMP

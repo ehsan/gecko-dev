@@ -397,7 +397,6 @@ XULTreeGridRowAccessible::RowInvalidated(int32_t aStartColIdx,
   if (!treeColumns)
     return;
 
-  bool nameChanged = false;
   for (int32_t colIdx = aStartColIdx; colIdx <= aEndColIdx; ++colIdx) {
     nsCOMPtr<nsITreeColumn> column;
     treeColumns->GetColumnAt(colIdx, getter_AddRefs(column));
@@ -406,14 +405,18 @@ XULTreeGridRowAccessible::RowInvalidated(int32_t aStartColIdx,
       if (cellAccessible) {
         nsRefPtr<XULTreeGridCellAccessible> cellAcc = do_QueryObject(cellAccessible);
 
-        nameChanged |= cellAcc->CellInvalidated();
+        cellAcc->CellInvalidated();
       }
     }
   }
 
-  if (nameChanged)
-    nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_NAME_CHANGE, this);
+  nsAutoString name;
+  Name(name);
 
+  if (name != mCachedName) {
+    nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_NAME_CHANGE, this);
+    mCachedName = name;
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -760,7 +763,7 @@ XULTreeGridCellAccessible::RelationByType(RelationType aType)
 ////////////////////////////////////////////////////////////////////////////////
 // XULTreeGridCellAccessible: public implementation
 
-bool
+void
 XULTreeGridCellAccessible::CellInvalidated()
 {
 
@@ -777,20 +780,16 @@ XULTreeGridCellAccessible::CellInvalidated()
       nsEventShell::FireEvent(accEvent);
 
       mCachedTextEquiv = textEquiv;
-      return true;
     }
 
-    return false;
+    return;
   }
 
   mTreeView->GetCellText(mRow, mColumn, textEquiv);
   if (mCachedTextEquiv != textEquiv) {
     nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_NAME_CHANGE, this);
     mCachedTextEquiv = textEquiv;
-    return true;
   }
-
-  return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -203,7 +203,7 @@ SimpleTiledLayerBuffer::GetSurfaceDescriptorTiles()
 
   return SurfaceDescriptorTiles(mValidRegion, mPaintedRegion,
                                 tiles, mRetainedWidth, mRetainedHeight,
-                                mResolution, mFrameResolution.scale);
+                                mResolution);
 }
 
 bool

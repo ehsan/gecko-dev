@@ -232,9 +232,7 @@ StatsZoneCallback(JSRuntime *rt, void *data, Zone *zone)
     rtStats->initExtraZoneStats(zone, &zStats);
     rtStats->currZoneStats = &zStats;
 
-    zone->addSizeOfIncludingThis(rtStats->mallocSizeOf_,
-                                 &zStats.typePool,
-                                 &zStats.baselineStubsOptimized);
+    zone->addSizeOfIncludingThis(rtStats->mallocSizeOf_, &zStats.typePool);
 }
 
 static void
@@ -259,7 +257,8 @@ StatsCompartmentCallback(JSRuntime *rt, void *data, JSCompartment *compartment)
                                         &cStats.shapesMallocHeapCompartmentTables,
                                         &cStats.crossCompartmentWrappersTable,
                                         &cStats.regexpCompartment,
-                                        &cStats.debuggeesSet);
+                                        &cStats.debuggeesSet,
+                                        &cStats.baselineStubsOptimized);
 }
 
 static void
