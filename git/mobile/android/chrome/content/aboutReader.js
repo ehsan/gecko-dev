@@ -295,7 +295,7 @@ AboutReader.prototype = {
     this._setToolbarVisibility(false);
     this._setBrowserToolbarVisiblity(false);
     this._scrolled  = true;
-    ZoomHelper.zoomToRect(newRect, -1);
+    ZoomHelper.zoomToRect(newRect, -1, false, false);
   },
 
   _updateToggleButton: function Reader_updateToggleButton() {

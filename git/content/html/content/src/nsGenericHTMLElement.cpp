@@ -291,11 +291,16 @@ static const nsAttrValue::EnumTable kDirTable[] = {
 void
 nsGenericHTMLElement::GetAccessKeyLabel(nsString& aLabel)
 {
-  nsAutoString suffix;
-  GetAccessKey(suffix);
-  if (!suffix.IsEmpty()) {
-    EventStateManager::GetAccessKeyLabelPrefix(this, aLabel);
-    aLabel.Append(suffix);
+  //XXXsmaug We shouldn't need PresContext for this.
+  nsPresContext *presContext = GetPresContext(eForComposedDoc);
+
+  if (presContext) {
+    nsAutoString suffix;
+    GetAccessKey(suffix);
+    if (!suffix.IsEmpty() && 
+        presContext->EventStateManager()->GetAccessKeyLabelPrefix(aLabel)) {
+      aLabel.Append(suffix);
+    }
   }
 }
 

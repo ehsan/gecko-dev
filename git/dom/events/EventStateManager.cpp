@@ -944,20 +944,15 @@ EventStateManager::ExecuteAccessKey(nsTArray<uint32_t>& aAccessCharCodes,
   return false;
 }
 
-// static
-void
-EventStateManager::GetAccessKeyLabelPrefix(Element* aElement, nsAString& aPrefix)
+bool
+EventStateManager::GetAccessKeyLabelPrefix(nsAString& aPrefix)
 {
   aPrefix.Truncate();
   nsAutoString separator, modifierText;
   nsContentUtils::GetModifierSeparatorText(separator);
 
-  nsCOMPtr<nsISupports> container = aElement->OwnerDoc()->GetDocShell();
+  nsCOMPtr<nsISupports> container = mPresContext->GetContainerWeak();
   int32_t modifierMask = GetAccessModifierMaskFor(container);
-
-  if (modifierMask == -1) {
-    return;
-  }
 
   if (modifierMask & NS_MODIFIER_CONTROL) {
     nsContentUtils::GetControlText(modifierText);
@@ -979,6 +974,7 @@ EventStateManager::GetAccessKeyLabelPrefix(Element* aElement, nsAString& aPrefix
     nsContentUtils::GetShiftText(modifierText);
     aPrefix.Append(modifierText + separator);
   }
+  return !aPrefix.IsEmpty();
 }
 
 void

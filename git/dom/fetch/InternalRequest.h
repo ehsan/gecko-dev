@@ -6,8 +6,7 @@
 #ifndef mozilla_dom_InternalRequest_h
 #define mozilla_dom_InternalRequest_h
 
-#include "mozilla/dom/HeadersBinding.h"
-#include "mozilla/dom/InternalHeaders.h"
+#include "mozilla/dom/Headers.h"
 #include "mozilla/dom/RequestBinding.h"
 #include "mozilla/dom/UnionTypes.h"
 
@@ -56,7 +55,7 @@ public:
 
   explicit InternalRequest()
     : mMethod("GET")
-    , mHeaders(new InternalHeaders(HeadersGuardEnum::None))
+    , mHeaders(new Headers(nullptr, HeadersGuardEnum::None))
     , mContextFrameType(FRAMETYPE_NONE)
     , mReferrerType(REFERRER_CLIENT)
     , mMode(RequestMode::No_cors)
@@ -160,12 +159,6 @@ public:
     return mSynchronous;
   }
 
-  RequestMode
-  Mode() const
-  {
-    return mMode;
-  }
-
   void
   SetMode(RequestMode aMode)
   {
@@ -184,8 +177,8 @@ public:
     return mContext;
   }
 
-  InternalHeaders*
-  Headers()
+  Headers*
+  Headers_()
   {
     return mHeaders;
   }
@@ -232,7 +225,7 @@ private:
 
   nsCString mMethod;
   nsCString mURL;
-  nsRefPtr<InternalHeaders> mHeaders;
+  nsRefPtr<Headers> mHeaders;
   nsCOMPtr<nsIInputStream> mBodyStream;
 
   // nsContentPolicyType does not cover the complete set defined in the spec,

@@ -52,6 +52,8 @@
 #include "nsIPromptFactory.h"
 #include "nsIWindowWatcher.h"
 #include "nsIConsoleService.h"
+#include "nsIChannelPolicy.h"
+#include "nsChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsAsyncRedirectVerifyHelper.h"
 #include "nsStringBuffer.h"
@@ -472,10 +474,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXMLHttpRequest,
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mXMLParserStreamListener)
 
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mResponseBlob)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDOMFile)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mNotificationCallbacks)
-
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChannelEventSink)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mProgressEventSink)
 
@@ -493,10 +491,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXMLHttpRequest,
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mCORSPreflightChannel)
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mXMLParserStreamListener)
-
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mResponseBlob)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mDOMFile)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mNotificationCallbacks)
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mChannelEventSink)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mProgressEventSink)
@@ -1730,6 +1724,17 @@ nsXMLHttpRequest::Open(const nsACString& inMethod, const nsACString& url,
   // will be automatically aborted if the user leaves the page.
   nsCOMPtr<nsILoadGroup> loadGroup = GetLoadGroup();
 
+  // get Content Security Policy from principal to pass into channel
+  nsCOMPtr<nsIChannelPolicy> channelPolicy;
+  nsCOMPtr<nsIContentSecurityPolicy> csp;
+  rv = mPrincipal->GetCsp(getter_AddRefs(csp));
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (csp) {
+    channelPolicy = do_CreateInstance("@mozilla.org/nschannelpolicy;1");
+    channelPolicy->SetContentSecurityPolicy(csp);
+    channelPolicy->SetLoadType(nsIContentPolicy::TYPE_XMLHTTPREQUEST);
+  }
+
   nsSecurityFlags secFlags = nsILoadInfo::SEC_NORMAL;
   if (IsSystemXHR()) {
     // Don't give this document the system principal.  We need to keep track of
@@ -1749,6 +1754,7 @@ nsXMLHttpRequest::Open(const nsACString& inMethod, const nsACString& url,
                        doc,
                        secFlags,
                        nsIContentPolicy::TYPE_XMLHTTPREQUEST,
+                       channelPolicy,
                        loadGroup,
                        nullptr,   // aCallbacks
                        nsIRequest::LOAD_BACKGROUND);
@@ -1759,6 +1765,7 @@ nsXMLHttpRequest::Open(const nsACString& inMethod, const nsACString& url,
                        mPrincipal,
                        secFlags,
                        nsIContentPolicy::TYPE_XMLHTTPREQUEST,
+                       channelPolicy,
                        loadGroup,
                        nullptr,   // aCallbacks
                        nsIRequest::LOAD_BACKGROUND);

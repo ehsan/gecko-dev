@@ -313,8 +313,8 @@ nsLineLayout::UpdateBand(const nsRect& aNewAvailSpace,
 #ifdef NOISY_REFLOW
   nsFrame::ListTag(stdout, mBlockReflowState->frame);
   printf(": UpdateBand: %d,%d,%d,%d deltaISize=%d deltaICoord=%d\n",
-         aNewAvailSpace.IStart(lineWM), aNewAvailSpace.BStart(lineWM),
-         aNewAvailSpace.ISize(lineWM), aNewAvailSpace.BSize(lineWM), deltaISize, deltaICoord);
+         aNewAvailSpace.x, aNewAvailSpace.y,
+         aNewAvailSpace.width, aNewAvailSpace.height, deltaISize, deltaICoord);
 #endif
 
   // Update the root span position
@@ -795,9 +795,8 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
     nsHTMLReflowState& reflowState = *reflowStateHolder;
     reflowState.mLineLayout = this;
     reflowState.mFlags.mIsTopOfPage = mIsTopOfPage;
-    if (reflowState.ComputedISize() == NS_UNCONSTRAINEDSIZE) {
-      reflowState.AvailableISize() = availableSpaceOnLine;
-    }
+    if (reflowState.ComputedWidth() == NS_UNCONSTRAINEDSIZE)
+      reflowState.AvailableWidth() = availableSpaceOnLine;
     WritingMode stateWM = reflowState.GetWritingMode();
     pfd->mMargin =
       reflowState.ComputedLogicalMargin().ConvertTo(frameWM, stateWM);

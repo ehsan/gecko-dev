@@ -452,15 +452,8 @@ void
 ElfLoader::Register(LibHandle *handle)
 {
   handles.push_back(handle);
-}
-
-void
-ElfLoader::Register(CustomElf *handle)
-{
-  Register(static_cast<LibHandle *>(handle));
-  if (dbg) {
-    dbg.Add(handle);
-  }
+  if (dbg && !handle->IsSystemElf())
+    dbg.Add(static_cast<CustomElf *>(handle));
 }
 
 void
@@ -473,19 +466,12 @@ ElfLoader::Forget(LibHandle *handle)
   if (it != handles.end()) {
     DEBUG_LOG("ElfLoader::Forget(%p [\"%s\"])", reinterpret_cast<void *>(handle),
                                                 handle->GetPath());
+    if (dbg && !handle->IsSystemElf())
+      dbg.Remove(static_cast<CustomElf *>(handle));
     handles.erase(it);
   } else {
     DEBUG_LOG("ElfLoader::Forget(%p [\"%s\"]): Handle not found",
               reinterpret_cast<void *>(handle), handle->GetPath());
-  }
-}
-
-void
-ElfLoader::Forget(CustomElf *handle)
-{
-  Forget(static_cast<LibHandle *>(handle));
-  if (dbg) {
-    dbg.Remove(handle);
   }
 }
 
@@ -497,23 +483,49 @@ ElfLoader::Init()
    * containing this code is dlopen()ed, it can't call dladdr from a
    * static initializer. */
   if (dladdr(_DYNAMIC, &info) != 0) {
-    self_elf = LoadedElf::Create(info.dli_fname, info.dli_fbase);
+    /* Ideally, we wouldn't be initializing self_elf this way, but until
+     * SystemElf actually inherits from BaseElf, we'll just do it this
+     * (gross) way. */
+    UniquePtr<BaseElf> elf = mozilla::MakeUnique<BaseElf>(info.dli_fname);
+    elf->base.Assign(info.dli_fbase, -1);
+    size_t symnum = 0;
+    for (const Elf::Dyn *dyn = _DYNAMIC; dyn->d_tag; dyn++) {
+      switch (dyn->d_tag) {
+        case DT_HASH:
+          {
+            DEBUG_LOG("%s 0x%08" PRIxAddr, "DT_HASH", dyn->d_un.d_val);
+            const Elf::Word *hash_table_header = \
+              elf->GetPtr<Elf::Word>(dyn->d_un.d_ptr);
+            symnum = hash_table_header[1];
+            elf->buckets.Init(&hash_table_header[2], hash_table_header[0]);
+            elf->chains.Init(&*elf->buckets.end());
+          }
+          break;
+        case DT_STRTAB:
+          DEBUG_LOG("%s 0x%08" PRIxAddr, "DT_STRTAB", dyn->d_un.d_val);
+          elf->strtab.Init(elf->GetPtr(dyn->d_un.d_ptr));
+          break;
+        case DT_SYMTAB:
+          DEBUG_LOG("%s 0x%08" PRIxAddr, "DT_SYMTAB", dyn->d_un.d_val);
+          elf->symtab.Init(elf->GetPtr(dyn->d_un.d_ptr));
+          break;
+      }
+    }
+    if (!elf->buckets || !symnum) {
+      ERROR("%s: Missing or broken DT_HASH", info.dli_fname);
+    } else if (!elf->strtab) {
+      ERROR("%s: Missing DT_STRTAB", info.dli_fname);
+    } else if (!elf->symtab) {
+      ERROR("%s: Missing DT_SYMTAB", info.dli_fname);
+    } else {
+      self_elf = Move(elf);
+    }
   }
-#if defined(ANDROID)
-  if (dladdr(FunctionPtr(syscall), &info) != 0) {
-    libc = LoadedElf::Create(info.dli_fname, info.dli_fbase);
-  }
-#endif
 }
 
 ElfLoader::~ElfLoader()
 {
   LibHandleList list;
-
-  /* Release self_elf and libc */
-  self_elf = nullptr;
-  libc = nullptr;
-
   /* Build up a list of all library handles with direct (external) references.
    * We actually skip system library handles because we want to keep at least
    * some of these open. Most notably, Mozilla codebase keeps a few libgnome
@@ -522,8 +534,8 @@ ElfLoader::~ElfLoader()
   for (LibHandleList::reverse_iterator it = handles.rbegin();
        it < handles.rend(); ++it) {
     if ((*it)->DirectRefCount()) {
-      if (SystemElf *se = (*it)->AsSystemElf()) {
-        se->Forget();
+      if ((*it)->IsSystemElf()) {
+        static_cast<SystemElf *>(*it)->Forget();
       } else {
         list.push_back(*it);
       }
@@ -538,7 +550,7 @@ ElfLoader::~ElfLoader()
     list = handles;
     for (LibHandleList::reverse_iterator it = list.rbegin();
          it < list.rend(); ++it) {
-      if ((*it)->AsSystemElf()) {
+      if ((*it)->IsSystemElf()) {
         DEBUG_LOG("ElfLoader::~ElfLoader(): Remaining handle for \"%s\" "
                   "[%d direct refs, %d refs total]", (*it)->GetPath(),
                   (*it)->DirectRefCount(), (*it)->refCount());
@@ -552,17 +564,19 @@ ElfLoader::~ElfLoader()
       }
     }
   }
+  /* Avoid self_elf->base destructor unmapping something that doesn't actually
+   * belong to it. */
+  if (self_elf)
+    self_elf->base.release();
 }
 
 void
 ElfLoader::stats(const char *when)
 {
-  if (MOZ_LIKELY(!Logging::isVerbose()))
-    return;
-
   for (LibHandleList::iterator it = Singleton.handles.begin();
        it < Singleton.handles.end(); ++it)
-    (*it)->stats(when);
+    if (!(*it)->IsSystemElf())
+      static_cast<CustomElf *>(*it)->stats(when);
 }
 
 #ifdef __ARM_EABI__
@@ -1187,12 +1201,11 @@ void SEGVHandler::handler(int signum, siginfo_t *info, void *context)
   if (info->si_code == SEGV_ACCERR) {
     mozilla::RefPtr<LibHandle> handle =
       ElfLoader::Singleton.GetHandleByPtr(info->si_addr);
-    BaseElf *elf;
-    if (handle && (elf = handle->AsBaseElf())) {
-      DEBUG_LOG("Within the address space of %s", handle->GetPath());
-      if (elf->mappable && elf->mappable->ensure(info->si_addr)) {
+    if (handle && !handle->IsSystemElf()) {
+      DEBUG_LOG("Within the address space of a CustomElf");
+      CustomElf *elf = static_cast<CustomElf *>(static_cast<LibHandle *>(handle));
+      if (elf->mappable->ensure(info->si_addr))
         return;
-      }
     }
   }
 

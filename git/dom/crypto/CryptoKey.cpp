@@ -395,12 +395,7 @@ CryptoKey::PublicKeyFromSpki(CryptoBuffer& aKeyData,
     }
   }
 
-  ScopedSECKEYPublicKey tmp(SECKEY_ExtractPublicKey(spki.get()));
-  if (!tmp.get() || !PublicKeyValid(tmp.get())) {
-    return nullptr;
-  }
-
-  return SECKEY_CopyPublicKey(tmp);
+  return SECKEY_ExtractPublicKey(spki.get());
 }
 
 nsresult
@@ -848,10 +843,6 @@ CryptoKey::PublicKeyFromJwk(const JsonWebKey& aJwk,
     }
     key->u.ec.publicValue = *point;
 
-    if (!PublicKeyValid(key)) {
-      return nullptr;
-    }
-
     return SECKEY_CopyPublicKey(key);
   }
 
@@ -888,26 +879,6 @@ CryptoKey::PublicKeyToJwk(SECKEYPublicKey* aPubKey,
     default:
       return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
   }
-}
-
-bool
-CryptoKey::PublicKeyValid(SECKEYPublicKey* aPubKey)
-{
-  ScopedPK11SlotInfo slot(PK11_GetInternalSlot());
-  if (!slot.get()) {
-    return false;
-  }
-
-  // This assumes that NSS checks the validity of a public key when
-  // it is imported into a PKCS#11 module, and returns CK_INVALID_HANDLE
-  // if it is invalid.
-  CK_OBJECT_HANDLE id = PK11_ImportPublicKey(slot, aPubKey, PR_FALSE);
-  if (id == CK_INVALID_HANDLE) {
-    return false;
-  }
-
-  SECStatus rv = PK11_DestroyObject(slot, id);
-  return (rv == SECSuccess);
 }
 
 bool

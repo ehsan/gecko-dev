@@ -54,22 +54,31 @@ TrackBuffer::~TrackBuffer()
 class ReleaseDecoderTask : public nsRunnable {
 public:
   explicit ReleaseDecoderTask(SourceBufferDecoder* aDecoder)
-    : mDecoder(aDecoder)
   {
+    mDecoders.AppendElement(aDecoder);
+  }
+
+  explicit ReleaseDecoderTask(nsTArray<nsRefPtr<SourceBufferDecoder>>& aDecoders)
+  {
+    mDecoders.SwapElements(aDecoders);
   }
 
   NS_IMETHOD Run() MOZ_OVERRIDE MOZ_FINAL {
-    mDecoder = nullptr;
+    mDecoders.Clear();
     return NS_OK;
   }
 
 private:
-  nsRefPtr<SourceBufferDecoder> mDecoder;
+  nsTArray<nsRefPtr<SourceBufferDecoder>> mDecoders;
 };
 
 void
 TrackBuffer::Shutdown()
 {
+  // End the SourceBufferResource associated with mCurrentDecoder, which will
+  // unblock any decoder initialization in ReadMetadata().
+  DiscardDecoder();
+
   // Finish any decoder initialization, which may add to mInitializedDecoders.
   // Shutdown waits for any pending events, which may require the monitor,
   // so we must not hold the monitor during this call.
@@ -82,6 +91,8 @@ TrackBuffer::Shutdown()
     mDecoders[i]->GetReader()->Shutdown();
   }
   mInitializedDecoders.Clear();
+  NS_DispatchToMainThread(new ReleaseDecoderTask(mDecoders));
+  MOZ_ASSERT(mDecoders.IsEmpty());
   mParentDecoder = nullptr;
 }
 
@@ -388,16 +399,13 @@ TrackBuffer::ContainsTime(int64_t aTime)
 void
 TrackBuffer::BreakCycles()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
   for (uint32_t i = 0; i < mDecoders.Length(); ++i) {
     mDecoders[i]->GetReader()->BreakCycles();
   }
-  mDecoders.Clear();
-
-  // These are cleared in Shutdown()
-  MOZ_ASSERT(mInitializedDecoders.IsEmpty());
-  MOZ_ASSERT(!mParentDecoder);
+  mInitializedDecoders.Clear();
+  NS_DispatchToMainThread(new ReleaseDecoderTask(mDecoders));
+  MOZ_ASSERT(mDecoders.IsEmpty());
+  mParentDecoder = nullptr;
 }
 
 void

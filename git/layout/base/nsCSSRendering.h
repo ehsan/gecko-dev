@@ -14,7 +14,6 @@
 #include "nsStyleStruct.h"
 #include "nsIFrame.h"
 
-class gfxDrawable;
 class nsStyleContext;
 class nsPresContext;
 class nsRenderingContext;

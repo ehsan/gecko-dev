@@ -9,7 +9,6 @@
 #include "nsISupportsImpl.h"
 #include "nsWrapperCache.h"
 
-#include "mozilla/dom/Fetch.h"
 #include "mozilla/dom/InternalRequest.h"
 // Required here due to certain WebIDL enums/classes being declared in both
 // files.
@@ -22,12 +21,10 @@ namespace mozilla {
 namespace dom {
 
 class Headers;
-class InternalHeaders;
 class Promise;
 
 class Request MOZ_FINAL : public nsISupports
                         , public nsWrapperCache
-                        , public FetchBody<Request>
 {
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(Request)
@@ -77,22 +74,13 @@ public:
     aReferrer.AsAString() = NS_ConvertUTF8toUTF16(mRequest->mReferrerURL);
   }
 
-  InternalHeaders*
-  GetInternalHeaders() const
-  {
-    return mRequest->Headers();
-  }
-
-  Headers* Headers_();
-
-  void
-  GetBody(nsIInputStream** aStream) { return mRequest->GetBody(aStream); }
+  Headers* Headers_() const { return mRequest->Headers_(); }
 
   static already_AddRefed<Request>
   Constructor(const GlobalObject& aGlobal, const RequestOrScalarValueString& aInput,
               const RequestInit& aInit, ErrorResult& rv);
 
-  nsIGlobalObject* GetParentObject() const
+  nsISupports* GetParentObject() const
   {
     return mOwner;
   }
@@ -100,15 +88,51 @@ public:
   already_AddRefed<Request>
   Clone() const;
 
+  already_AddRefed<Promise>
+  ArrayBuffer(ErrorResult& aRv);
+
+  already_AddRefed<Promise>
+  Blob(ErrorResult& aRv);
+
+  already_AddRefed<Promise>
+  Json(ErrorResult& aRv);
+
+  already_AddRefed<Promise>
+  Text(ErrorResult& aRv);
+
+  bool
+  BodyUsed() const
+  {
+    return mBodyUsed;
+  }
+
   already_AddRefed<InternalRequest>
   GetInternalRequest();
 private:
+  enum ConsumeType
+  {
+    CONSUME_ARRAYBUFFER,
+    CONSUME_BLOB,
+    // FormData not supported right now,
+    CONSUME_JSON,
+    CONSUME_TEXT,
+  };
+
   ~Request();
+
+  already_AddRefed<Promise>
+  ConsumeBody(ConsumeType aType, ErrorResult& aRv);
+
+  void
+  SetBodyUsed()
+  {
+    mBodyUsed = true;
+  }
 
   nsCOMPtr<nsIGlobalObject> mOwner;
   nsRefPtr<InternalRequest> mRequest;
-  // Lazily created.
-  nsRefPtr<Headers> mHeaders;
+  bool mBodyUsed;
+  nsCString mMimeType;
 };
 
 } // namespace dom
