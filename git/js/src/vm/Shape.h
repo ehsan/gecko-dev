@@ -973,13 +973,12 @@ class Shape : public gc::BarrieredCell<Shape>
     bool hasTable() const { return base()->hasTable(); }
     ShapeTable &table() const { return base()->table(); }
 
-    void addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf,
-                                size_t *propTableSize, size_t *kidsSize) const {
-        if (hasTable())
-            *propTableSize += table().sizeOfIncludingThis(mallocSizeOf);
-
-        if (!inDictionary() && kids.isHash())
-            *kidsSize += kids.toHash()->sizeOfIncludingThis(mallocSizeOf);
+    void sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf,
+                             size_t *propTableSize, size_t *kidsSize) const {
+        *propTableSize = hasTable() ? table().sizeOfIncludingThis(mallocSizeOf) : 0;
+        *kidsSize = !inDictionary() && kids.isHash()
+                  ? kids.toHash()->sizeOfIncludingThis(mallocSizeOf)
+                  : 0;
     }
 
     bool isNative() const {

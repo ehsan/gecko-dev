@@ -893,12 +893,11 @@ class JSScript : public js::gc::BarrieredCell<JSScript>
 
     /*
      * computedSizeOfData() is the in-use size of all the data sections.
-     * sizeOfData() is the size of the block allocated to hold all the data
-     * sections (which can be larger than the in-use size).
+     * sizeOfData() is the size of the block allocated to hold all the data sections
+     * (which can be larger than the in-use size).
      */
-    size_t computedSizeOfData() const;
-    size_t sizeOfData(mozilla::MallocSizeOf mallocSizeOf) const;
-    size_t sizeOfTypeScript(mozilla::MallocSizeOf mallocSizeOf) const;
+    size_t computedSizeOfData();
+    size_t sizeOfData(mozilla::MallocSizeOf mallocSizeOf);
 
     uint32_t numNotes();  /* Number of srcnote slots in the srcnotes section */
 

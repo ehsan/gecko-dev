@@ -43,7 +43,7 @@ enum ScriptableObjectType
   Proxy
 };
 
-mozilla::ipc::RacyInterruptPolicy
+mozilla::ipc::RacyRPCPolicy
 MediateRace(const mozilla::ipc::MessageChannel::Message& parent,
             const mozilla::ipc::MessageChannel::Message& child);
 

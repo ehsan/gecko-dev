@@ -584,13 +584,13 @@ XMLDocument::EndLoad()
     nsEvent event(true, NS_LOAD);
     nsEventDispatcher::Dispatch(static_cast<nsIDocument*>(this), nullptr,
                                 &event);
-  }
+  }    
 }
-
+ 
 /* virtual */ void
-XMLDocument::DocAddSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
+XMLDocument::DocSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
 {
-  nsDocument::DocAddSizeOfExcludingThis(aWindowSizes);
+  nsDocument::DocSizeOfExcludingThis(aWindowSizes);
 }
 
 // nsIDOMDocument interface

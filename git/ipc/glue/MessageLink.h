@@ -48,11 +48,11 @@ enum ChannelState {
     ChannelError
 };
 
-// What happens if Interrupt calls race?
-enum RacyInterruptPolicy {
-    RIPError,
-    RIPChildWins,
-    RIPParentWins
+// What happens if RPC calls race?
+enum RacyRPCPolicy {
+    RRPError,
+    RRPChildWins,
+    RRPParentWins
 };
 
 class MessageListener
@@ -87,13 +87,13 @@ class MessageListener
     virtual void OnExitedCall() {
         NS_RUNTIMEABORT("default impl shouldn't be invoked");
     }
-    virtual RacyInterruptPolicy MediateInterruptRace(const Message& parent,
-                                                     const Message& child)
+    virtual RacyRPCPolicy MediateRPCRace(const Message& parent,
+                                         const Message& child)
     {
-        return RIPChildWins;
+        return RRPChildWins;
     }
 
-    virtual void ProcessRemoteNativeEventsInInterruptCall() {
+    virtual void ProcessRemoteNativeEventsInRPCCall() {
     }
 
     // FIXME/bug 792652: this doesn't really belong here, but a

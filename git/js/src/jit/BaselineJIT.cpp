@@ -882,11 +882,14 @@ jit::IonCompartment::toggleBaselineStubBarriers(bool enabled)
 }
 
 void
-jit::AddSizeOfBaselineData(JSScript *script, mozilla::MallocSizeOf mallocSizeOf, size_t *data,
-                           size_t *fallbackStubs)
+jit::SizeOfBaselineData(JSScript *script, mozilla::MallocSizeOf mallocSizeOf, size_t *data,
+                        size_t *fallbackStubs)
 {
+    *data = 0;
+    *fallbackStubs = 0;
+
     if (script->hasBaselineScript())
-        script->baselineScript()->addSizeOfIncludingThis(mallocSizeOf, data, fallbackStubs);
+        script->baselineScript()->sizeOfIncludingThis(mallocSizeOf, data, fallbackStubs);
 }
 
 void

@@ -2,7 +2,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import json
 import os
 import posixpath
 import shutil
@@ -10,6 +9,11 @@ import sys
 import tempfile
 import threading
 import traceback
+
+try:
+    import json
+except ImportError:
+    import simplejson as json
 
 here = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, here)

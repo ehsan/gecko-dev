@@ -198,7 +198,7 @@ MDefinition::analyzeEdgeCasesBackward()
 }
 
 static bool
-MaybeEmulatesUndefined(MDefinition *op)
+MaybeEmulatesUndefined(JSContext *cx, MDefinition *op)
 {
     if (!op->mightBeType(MIRType_Object))
         return false;
@@ -211,7 +211,7 @@ MaybeEmulatesUndefined(MDefinition *op)
 }
 
 static bool
-MaybeCallable(MDefinition *op)
+MaybeCallable(JSContext *cx, MDefinition *op)
 {
     if (!op->mightBeType(MIRType_Object))
         return false;
@@ -224,11 +224,11 @@ MaybeCallable(MDefinition *op)
 }
 
 void
-MTest::infer()
+MTest::infer(JSContext *cx)
 {
     JS_ASSERT(operandMightEmulateUndefined());
 
-    if (!MaybeEmulatesUndefined(getOperand(0)))
+    if (!MaybeEmulatesUndefined(cx, getOperand(0)))
         markOperandCantEmulateUndefined();
 }
 
@@ -1555,7 +1555,7 @@ ObjectOrSimplePrimitive(MDefinition *op)
 }
 
 static bool
-CanDoValueBitwiseCmp(MDefinition *lhs, MDefinition *rhs, bool looseEq)
+CanDoValueBitwiseCmp(JSContext *cx, MDefinition *lhs, MDefinition *rhs, bool looseEq)
 {
     // Only primitive (not double/string) or objects are supported.
     // I.e. Undefined/Null/Boolean/Int32 and Object
@@ -1563,7 +1563,7 @@ CanDoValueBitwiseCmp(MDefinition *lhs, MDefinition *rhs, bool looseEq)
         return false;
 
     // Objects that emulate undefined are not supported.
-    if (MaybeEmulatesUndefined(lhs) || MaybeEmulatesUndefined(rhs))
+    if (MaybeEmulatesUndefined(cx, lhs) || MaybeEmulatesUndefined(cx, rhs))
         return false;
 
     // In the loose comparison more values could be the same,
@@ -1671,11 +1671,11 @@ MBinaryInstruction::tryUseUnsignedOperands()
 }
 
 void
-MCompare::infer(BaselineInspector *inspector, jsbytecode *pc)
+MCompare::infer(JSContext *cx, BaselineInspector *inspector, jsbytecode *pc)
 {
     JS_ASSERT(operandMightEmulateUndefined());
 
-    if (!MaybeEmulatesUndefined(getOperand(0)) && !MaybeEmulatesUndefined(getOperand(1)))
+    if (!MaybeEmulatesUndefined(cx, getOperand(0)) && !MaybeEmulatesUndefined(cx, getOperand(1)))
         markNoOperandEmulatesUndefined();
 
     MIRType lhs = getOperand(0)->type();
@@ -1780,7 +1780,7 @@ MCompare::infer(BaselineInspector *inspector, jsbytecode *pc)
     }
 
     // Determine if we can do the compare based on a quick value check.
-    if (!relationalEq && CanDoValueBitwiseCmp(getOperand(0), getOperand(1), looseEq)) {
+    if (!relationalEq && CanDoValueBitwiseCmp(cx, getOperand(0), getOperand(1), looseEq)) {
         compareType_ = Compare_Value;
         return;
     }
@@ -1874,11 +1874,11 @@ MTypeOf::foldsTo(bool useValueNumbers)
 }
 
 void
-MTypeOf::infer()
+MTypeOf::infer(JSContext *cx)
 {
     JS_ASSERT(inputMaybeCallableOrEmulatesUndefined());
 
-    if (!MaybeEmulatesUndefined(input()) && !MaybeCallable(input()))
+    if (!MaybeEmulatesUndefined(cx, input()) && !MaybeCallable(cx, input()))
         markInputNotCallableOrEmulatesUndefined();
 }
 
@@ -2321,11 +2321,11 @@ MCompare::foldsTo(bool useValueNumbers)
 }
 
 void
-MNot::infer()
+MNot::infer(JSContext *cx)
 {
     JS_ASSERT(operandMightEmulateUndefined());
 
-    if (!MaybeEmulatesUndefined(getOperand(0)))
+    if (!MaybeEmulatesUndefined(cx, getOperand(0)))
         markOperandCantEmulateUndefined();
 }
 

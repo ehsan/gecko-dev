@@ -4809,7 +4809,7 @@ nsEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
   // And also when you add new key handling, you need to change the subclass's
   // HandleKeyPressEvent()'s switch statement.
 
-  WidgetKeyboardEvent* nativeKeyEvent = GetNativeKeyEvent(aKeyEvent);
+  nsKeyEvent* nativeKeyEvent = GetNativeKeyEvent(aKeyEvent);
   NS_ENSURE_TRUE(nativeKeyEvent, NS_ERROR_UNEXPECTED);
   NS_ASSERTION(nativeKeyEvent->message == NS_KEY_PRESS,
                "HandleKeyPressEvent gets non-keypress event");
@@ -5162,14 +5162,14 @@ nsEditor::IsModifiableNode(nsINode *aNode)
   return true;
 }
 
-WidgetKeyboardEvent*
+nsKeyEvent*
 nsEditor::GetNativeKeyEvent(nsIDOMKeyEvent* aDOMKeyEvent)
 {
   NS_ENSURE_TRUE(aDOMKeyEvent, nullptr);
   nsEvent* nativeEvent = aDOMKeyEvent->GetInternalNSEvent();
   NS_ENSURE_TRUE(nativeEvent, nullptr);
   NS_ENSURE_TRUE(nativeEvent->eventStructType == NS_KEY_EVENT, nullptr);
-  return static_cast<WidgetKeyboardEvent*>(nativeEvent);
+  return static_cast<nsKeyEvent*>(nativeEvent);
 }
 
 already_AddRefed<nsIContent>

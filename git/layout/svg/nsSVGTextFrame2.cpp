@@ -40,7 +40,6 @@
 #include "SVGNumberList.h"
 #include "SVGPathElement.h"
 #include "SVGTextPathElement.h"
-#include "nsLayoutUtils.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>

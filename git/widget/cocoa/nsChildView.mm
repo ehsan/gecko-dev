@@ -140,8 +140,7 @@ uint32_t nsChildView::sLastInputEventCount = 0;
 - (void)forceRefreshOpenGL;
 
 // set up a gecko mouse event based on a cocoa mouse event
-- (void) convertCocoaMouseEvent:(NSEvent*)aMouseEvent
-                   toGeckoEvent:(WidgetInputEvent*)outGeckoEvent;
+- (void) convertCocoaMouseEvent:(NSEvent*)aMouseEvent toGeckoEvent:(nsInputEvent*)outGeckoEvent;
 
 - (NSMenu*)contextMenu;
 
@@ -1599,7 +1598,7 @@ NS_IMETHODIMP nsChildView::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStat
     "Any key events should not be fired during IME composing");
 
   if (event->mFlags.mIsSynthesizedForTests && event->HasKeyEventMessage()) {
-    WidgetKeyboardEvent* keyEvent = static_cast<WidgetKeyboardEvent*>(event);
+    nsKeyEvent* keyEvent = reinterpret_cast<nsKeyEvent*>(event);
     nsresult rv = mTextInputHandler->AttachNativeKeyEvent(*keyEvent);
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -1939,7 +1938,7 @@ NSView<mozView>* nsChildView::GetEditorView()
   // We need to get editor's view. E.g., when the focus is in the bookmark
   // dialog, the view is <panel> element of the dialog.  At this time, the key
   // events are processed the parent window's view that has native focus.
-  WidgetQueryContentEvent textContent(true, NS_QUERY_TEXT_CONTENT, this);
+  nsQueryContentEvent textContent(true, NS_QUERY_TEXT_CONTENT, this);
   textContent.InitForQueryTextContent(0, 0);
   DispatchWindowEvent(textContent);
   if (textContent.mSucceeded && textContent.mReply.mFocusedWidget) {
@@ -4122,9 +4121,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   // Only initiate tracking if the user has tried to scroll past the edge of
   // the current page (as indicated by 'overflow' being non-zero).  Gecko only
-  // sets WidgetMouseScrollEvent.scrollOverflow when it's processing
+  // sets nsMouseScrollEvent.scrollOverflow when it's processing
   // NS_MOUSE_PIXEL_SCROLL events (not NS_MOUSE_SCROLL events).
-  // WidgetMouseScrollEvent.scrollOverflow only indicates left or right overflow
+  // nsMouseScrollEvent.scrollOverflow only indicates left or right overflow
   // for horizontal NS_MOUSE_PIXEL_SCROLL events.
   if (!overflow) {
     return;
@@ -4834,8 +4833,7 @@ static int32_t RoundUp(double aDouble)
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
-- (void) convertCocoaMouseEvent:(NSEvent*)aMouseEvent
-                   toGeckoEvent:(WidgetInputEvent*)outGeckoEvent
+- (void) convertCocoaMouseEvent:(NSEvent*)aMouseEvent toGeckoEvent:(nsInputEvent*)outGeckoEvent
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
@@ -4852,8 +4850,8 @@ static int32_t RoundUp(double aDouble)
   outGeckoEvent->refPoint = LayoutDeviceIntPoint::FromUntyped(
     mGeckoChild->CocoaPointsToDevPixels(localPoint));
 
-  WidgetMouseEventBase* mouseEvent =
-    static_cast<WidgetMouseEventBase*>(outGeckoEvent);
+  nsMouseEvent_base* mouseEvent =
+    static_cast<nsMouseEvent_base*>(outGeckoEvent);
   mouseEvent->buttons = 0;
   NSUInteger mouseButtons = [NSEvent pressedMouseButtons];
 
@@ -5277,8 +5275,7 @@ static int32_t RoundUp(double aDouble)
     mGeckoChild->CocoaPointsToDevPixels(eventLoc) -
     mGeckoChild->WidgetToScreenOffset());
 
-  WidgetQueryContentEvent hitTest(true, NS_QUERY_DOM_WIDGET_HITTEST,
-                                  mGeckoChild);
+  nsQueryContentEvent hitTest(true, NS_QUERY_DOM_WIDGET_HITTEST, mGeckoChild);
   hitTest.InitForQueryDOMWidgetHittest(widgetLoc);
   // This might destroy our widget (and null out mGeckoChild).
   mGeckoChild->DispatchWindowEvent(hitTest);
@@ -5500,7 +5497,7 @@ static int32_t RoundUp(double aDouble)
   }
 
   // set up gecko event
-  WidgetDragEvent geckoEvent(true, aMessage, mGeckoChild);
+  nsDragEvent geckoEvent(true, aMessage, mGeckoChild);
   nsCocoaUtils::InitInputEvent(geckoEvent, [NSApp currentEvent]);
 
   // Use our own coordinates in the gecko event.
@@ -5760,8 +5757,7 @@ static int32_t RoundUp(double aDouble)
       
       // Determine if there is a selection (if sending to the service).
       if (sendType) {
-        WidgetQueryContentEvent event(true, NS_QUERY_CONTENT_STATE,
-                                      mGeckoChild);
+        nsQueryContentEvent event(true, NS_QUERY_CONTENT_STATE, mGeckoChild);
         // This might destroy our widget (and null out mGeckoChild).
         mGeckoChild->DispatchWindowEvent(event);
         if (!mGeckoChild || !event.mSucceeded || !event.mReply.mHasSelection)
@@ -5809,9 +5805,9 @@ static int32_t RoundUp(double aDouble)
     return NO;
 
   // Obtain the current selection.
-  WidgetQueryContentEvent event(true,
-                                NS_QUERY_SELECTION_AS_TRANSFERABLE,
-                                mGeckoChild);
+  nsQueryContentEvent event(true,
+                            NS_QUERY_SELECTION_AS_TRANSFERABLE,
+                            mGeckoChild);
   mGeckoChild->DispatchWindowEvent(event);
   if (!event.mSucceeded || !event.mReply.mTransferable)
     return NO;
@@ -6137,7 +6133,7 @@ ChildViewMouseTracker::ViewForEvent(NSEvent* aEvent)
 }
 
 void
-ChildViewMouseTracker::AttachPluginEvent(WidgetMouseEventBase& aMouseEvent,
+ChildViewMouseTracker::AttachPluginEvent(nsMouseEvent_base& aMouseEvent,
                                          ChildView* aView,
                                          NSEvent* aNativeMouseEvent,
                                          int aPluginEventType,
@@ -6162,12 +6158,10 @@ ChildViewMouseTracker::AttachPluginEvent(WidgetMouseEventBase& aMouseEvent,
   // ("fix 0.3") of the patch for bug 435041 ("Implement Cocoa NPAPI event
   // model for Mac OS X").  But there's no trace of it in the WebKit code that
   // was used as a model for much of that patch.
-#if (0)
   if (type == NPCocoaEventMouseEntered ||
       type == NPCocoaEventMouseExited) {
     point.x = point.y = 5;
   }
-#endif
   NSUInteger clickCount = 0;
   if (type != NPCocoaEventMouseEntered &&
       type != NPCocoaEventMouseExited &&

@@ -7,7 +7,6 @@
 MODULE = 'accessibility'
 
 EXPORTS += [
-    'ia2Accessible.h',
     'ia2AccessibleAction.h',
     'ia2AccessibleComponent.h',
     'ia2AccessibleEditableText.h',
@@ -18,7 +17,6 @@ EXPORTS += [
 ]
 
 CPP_SOURCES += [
-    'ia2Accessible.cpp',
     'ia2AccessibleAction.cpp',
     'ia2AccessibleComponent.cpp',
     'ia2AccessibleEditableText.cpp',

@@ -11,8 +11,6 @@
 #include "nsCxPusher.h"
 #include "nsError.h"
 #include <new>
-#include "nsIContent.h"
-#include "nsIDocument.h"
 #include "nsINode.h"
 #include "nsPIDOMWindow.h"
 #include "nsDOMTouchEvent.h"
@@ -703,29 +701,29 @@ nsEventDispatcher::CreateEvent(mozilla::dom::EventTarget* aOwner,
                static_cast<InternalScrollAreaEvent*>(aEvent));
     case NS_KEY_EVENT:
       return NS_NewDOMKeyboardEvent(aDOMEvent, aOwner, aPresContext,
-                                    static_cast<WidgetKeyboardEvent*>(aEvent));
+                                    static_cast<nsKeyEvent*>(aEvent));
     case NS_COMPOSITION_EVENT:
       return NS_NewDOMCompositionEvent(
         aDOMEvent, aOwner,
-        aPresContext, static_cast<WidgetCompositionEvent*>(aEvent));
+        aPresContext, static_cast<nsCompositionEvent*>(aEvent));
     case NS_MOUSE_EVENT:
       return NS_NewDOMMouseEvent(aDOMEvent, aOwner, aPresContext,
-                                 static_cast<WidgetInputEvent*>(aEvent));
+                                 static_cast<nsInputEvent*>(aEvent));
     case NS_FOCUS_EVENT:
       return NS_NewDOMFocusEvent(aDOMEvent, aOwner, aPresContext,
                                  static_cast<InternalFocusEvent*>(aEvent));
     case NS_MOUSE_SCROLL_EVENT:
       return NS_NewDOMMouseScrollEvent(aDOMEvent, aOwner, aPresContext,
-                                       static_cast<WidgetInputEvent*>(aEvent));
+                                 static_cast<nsInputEvent*>(aEvent));
     case NS_WHEEL_EVENT:
       return NS_NewDOMWheelEvent(aDOMEvent, aOwner, aPresContext,
                                  static_cast<WheelEvent*>(aEvent));
     case NS_DRAG_EVENT:
       return NS_NewDOMDragEvent(aDOMEvent, aOwner, aPresContext,
-                                static_cast<WidgetDragEvent*>(aEvent));
+                                 static_cast<nsDragEvent*>(aEvent));
     case NS_TEXT_EVENT:
       return NS_NewDOMTextEvent(aDOMEvent, aOwner, aPresContext,
-                                static_cast<WidgetTextEvent*>(aEvent));
+                                static_cast<nsTextEvent*>(aEvent));
     case NS_CLIPBOARD_EVENT:
       return NS_NewDOMClipboardEvent(aDOMEvent, aOwner, aPresContext,
                static_cast<InternalClipboardEvent*>(aEvent));

@@ -1241,7 +1241,7 @@ PluginModuleParent::NP_Shutdown(NPError* error)
 
     bool ok = CallNP_Shutdown(error);
 
-    // if NP_Shutdown() is nested within another interrupt call, this will
+    // if NP_Shutdown() is nested within another RPC call, this will
     // break things.  but lord help us if we're doing that anyway; the
     // plugin dso will have been unloaded on the other side by the
     // CallNP_Shutdown() message
@@ -1466,28 +1466,28 @@ PluginModuleParent::AnswerProcessSomeEvents()
 #endif
 
 bool
-PluginModuleParent::RecvProcessNativeEventsInInterruptCall()
+PluginModuleParent::RecvProcessNativeEventsInRPCCall()
 {
     PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
 #if defined(OS_WIN)
-    ProcessNativeEventsInInterruptCall();
+    ProcessNativeEventsInRPCCall();
     return true;
 #else
     NS_NOTREACHED(
-        "PluginModuleParent::RecvProcessNativeEventsInInterruptCall not implemented!");
+        "PluginModuleParent::RecvProcessNativeEventsInRPCCall not implemented!");
     return false;
 #endif
 }
 
 void
-PluginModuleParent::ProcessRemoteNativeEventsInInterruptCall()
+PluginModuleParent::ProcessRemoteNativeEventsInRPCCall()
 {
 #if defined(OS_WIN)
-    unused << SendProcessNativeEventsInInterruptCall();
+    unused << SendProcessNativeEventsInRPCCall();
     return;
 #endif
     NS_NOTREACHED(
-        "PluginModuleParent::ProcessRemoteNativeEventsInInterruptCall not implemented!");
+        "PluginModuleParent::ProcessRemoteNativeEventsInRPCCall not implemented!");
 }
 
 bool

@@ -37,7 +37,6 @@
 #include "nsIObserverService.h"
 #include "nsIObjectFrame.h"
 #include "nsBindingManager.h"
-#include "nsStyleCoord.h"
 
 #include "mozilla/ContentEvents.h"
 #include "mozilla/dom/Element.h"

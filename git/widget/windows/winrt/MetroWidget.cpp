@@ -633,10 +633,9 @@ bool
 MetroWidget::DispatchKeyboardEvent(nsGUIEvent* aEvent)
 {
   MOZ_ASSERT(aEvent);
-  WidgetKeyboardEvent* oldKeyEvent = static_cast<WidgetKeyboardEvent*>(aEvent);
-  WidgetKeyboardEvent* keyEvent =
-    new WidgetKeyboardEvent(oldKeyEvent->mFlags.mIsTrusted,
-                            oldKeyEvent->message, oldKeyEvent->widget);
+  nsKeyEvent* oldKeyEvent = static_cast<nsKeyEvent*>(aEvent);
+  nsKeyEvent* keyEvent =
+    new nsKeyEvent(oldKeyEvent->mFlags.mIsTrusted, oldKeyEvent->message, oldKeyEvent->widget);
   // XXX note this leaves pluginEvent null, which is fine for now.
   keyEvent->AssignKeyEventData(*oldKeyEvent, true);
   mKeyEventQueue.Push(keyEvent);
@@ -655,7 +654,7 @@ public:
     mId(aIdToCancel) {
   }
   virtual void* operator() (void* aObject) {
-    WidgetKeyboardEvent* event = static_cast<WidgetKeyboardEvent*>(aObject);
+    nsKeyEvent* event = static_cast<nsKeyEvent*>(aObject);
     if (event->mUniqueId == mId) {
       event->mFlags.mPropagationStopped = true;
     }
@@ -668,8 +667,7 @@ protected:
 void
 MetroWidget::DeliverNextKeyboardEvent()
 {
-  WidgetKeyboardEvent* event =
-    static_cast<WidgetKeyboardEvent*>(mKeyEventQueue.PopFront());
+  nsKeyEvent* event = static_cast<nsKeyEvent*>(mKeyEventQueue.PopFront());
   if (event->mFlags.mPropagationStopped) {
     // This can happen if a keypress was previously cancelled.
     delete event;
@@ -1013,20 +1011,19 @@ MetroWidget::HitTestAPZC(ScreenPoint& pt)
 }
 
 nsEventStatus
-MetroWidget::ApzReceiveInputEvent(WidgetInputEvent* aEvent)
+MetroWidget::ApzReceiveInputEvent(nsInputEvent* aEvent)
 {
   MOZ_ASSERT(aEvent);
 
   if (!MetroWidget::sAPZC) {
     return nsEventStatus_eIgnore;
   }
-  WidgetInputEvent& event = static_cast<WidgetInputEvent&>(*aEvent);
+  nsInputEvent& event = static_cast<nsInputEvent&>(*aEvent);
   return MetroWidget::sAPZC->ReceiveInputEvent(event);
 }
 
 nsEventStatus
-MetroWidget::ApzReceiveInputEvent(WidgetInputEvent* aInEvent,
-                                  WidgetInputEvent* aOutEvent)
+MetroWidget::ApzReceiveInputEvent(nsInputEvent* aInEvent, nsInputEvent* aOutEvent)
 {
   MOZ_ASSERT(aInEvent);
   MOZ_ASSERT(aOutEvent);
@@ -1034,7 +1031,7 @@ MetroWidget::ApzReceiveInputEvent(WidgetInputEvent* aInEvent,
   if (!MetroWidget::sAPZC) {
     return nsEventStatus_eIgnore;
   }
-  WidgetInputEvent& event = static_cast<WidgetInputEvent&>(*aInEvent);
+  nsInputEvent& event = static_cast<nsInputEvent&>(*aInEvent);
   return MetroWidget::sAPZC->ReceiveInputEvent(event, aOutEvent);
 }
 

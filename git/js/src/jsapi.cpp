@@ -6043,12 +6043,6 @@ JS_ThrowStopIteration(JSContext *cx)
     return js_ThrowStopIteration(cx);
 }
 
-JS_PUBLIC_API(bool)
-JS_IsStopIteration(jsval v)
-{
-    return v.isObject() && v.toObject().is<StopIterationObject>();
-}
-
 JS_PUBLIC_API(intptr_t)
 JS_GetCurrentThread()
 {

@@ -19,7 +19,6 @@
 #include "mozilla/MemoryReporting.h"
 
 #include "gc/Marking.h"
-#include "js/GCAPI.h"
 #include "vm/ObjectImpl.h"
 #include "vm/Shape.h"
 
@@ -343,7 +342,7 @@ class JSObject : public js::ObjectImpl
         return lastProperty()->hasTable();
     }
 
-    void addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::ObjectsExtraSizes *sizes);
+    void sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::ObjectsExtraSizes *sizes);
 
     bool hasIdempotentProtoChain() const;
 
@@ -639,21 +638,16 @@ class JSObject : public js::ObjectImpl
 
     void copyDenseElements(uint32_t dstStart, const js::Value *src, uint32_t count) {
         JS_ASSERT(dstStart + count <= getDenseCapacity());
-        JSRuntime *rt = runtimeFromMainThread();
-        if (JS::IsIncrementalBarrierNeeded(rt)) {
-            JS::Zone *zone = this->zone();
-            for (uint32_t i = 0; i < count; ++i)
-                elements[dstStart + i].set(zone, this, js::HeapSlot::Element, dstStart + i, src[i]);
-        } else {
-            memcpy(&elements[dstStart], src, count * sizeof(js::HeapSlot));
-            DenseRangeWriteBarrierPost(rt, this, dstStart, count);
-        }
+        JS::Zone *zone = this->zone();
+        for (uint32_t i = 0; i < count; ++i)
+            elements[dstStart + i].set(zone, this, js::HeapSlot::Element, dstStart + i, src[i]);
     }
 
     void initDenseElements(uint32_t dstStart, const js::Value *src, uint32_t count) {
         JS_ASSERT(dstStart + count <= getDenseCapacity());
-        memcpy(&elements[dstStart], src, count * sizeof(js::HeapSlot));
-        DenseRangeWriteBarrierPost(runtimeFromMainThread(), this, dstStart, count);
+        JSRuntime *rt = runtimeFromMainThread();
+        for (uint32_t i = 0; i < count; ++i)
+            elements[dstStart + i].init(rt, this, js::HeapSlot::Element, dstStart + i, src[i]);
     }
 
     void moveDenseElements(uint32_t dstStart, uint32_t srcStart, uint32_t count) {

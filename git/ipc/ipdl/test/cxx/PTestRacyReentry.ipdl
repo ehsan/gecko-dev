@@ -3,17 +3,17 @@ namespace mozilla {
 namespace _ipdltest {
 
 
-intr protocol PTestRacyReentry {
+rpc protocol PTestRacyReentry {
 
 parent:
-    intr E();
+    rpc E();
     __delete__();
 
 child:
     async Start();
 
     async N();
-    intr H();
+    rpc H();
 };
 
 

@@ -67,7 +67,7 @@ NPRemoteWindow::NPRemoteWindow() :
   clipRect.right = 0;
 }
 
-ipc::RacyInterruptPolicy
+ipc::RacyRPCPolicy
 MediateRace(const MessageChannel::Message& parent,
             const MessageChannel::Message& child)
 {
@@ -78,10 +78,10 @@ MediateRace(const MessageChannel::Message& parent,
   case PPluginInstance::Msg_NPP_HandleEvent_IOSurface__ID:
     // our code relies on the frame list not changing during paints and
     // reflows
-    return ipc::RIPParentWins;
+    return ipc::RRPParentWins;
 
   default:
-    return ipc::RIPChildWins;
+    return ipc::RRPChildWins;
   }
 }
 

@@ -9,7 +9,6 @@
 #include "mozilla/dom/TouchBinding.h"
 #include "nsContentUtils.h"
 #include "nsDOMTouchEvent.h"
-#include "nsIContent.h"
 
 namespace mozilla {
 namespace dom {

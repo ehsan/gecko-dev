@@ -36,17 +36,19 @@ using mozilla::layout::ScrollingBehavior;
 using mozilla::void_t;
 using mozilla::WindowsHandle;
 using nscolor;
-using mozilla::WidgetCompositionEvent;
+using nsCompositionEvent;
 using nsIMEUpdatePreference;
 using nsIntPoint;
 using nsIntRect;
 using nsIntSize;
-using mozilla::WidgetKeyboardEvent;
+using nsKeyEvent;
 using nsMouseEvent;
+using nsMouseScrollEvent;
 using mozilla::WheelEvent;
+using nsQueryContentEvent;
 using nsRect;
-using mozilla::WidgetSelectionEvent;
-using mozilla::WidgetTextEvent;
+using nsSelectionEvent;
+using nsTextEvent;
 using mozilla::WidgetTouchEvent;
 using RemoteDOMEvent;
 using mozilla::dom::ScreenOrientation;
@@ -56,7 +58,7 @@ using mozilla::CSSToScreenScale;
 namespace mozilla {
 namespace dom {
 
-intr protocol PBrowser
+rpc protocol PBrowser
 {
     manager PContent;
 
@@ -79,7 +81,7 @@ parent:
 
     Event(RemoteDOMEvent aEvent);
 
-    intr CreateWindow() returns (PBrowser window);
+    rpc CreateWindow() returns (PBrowser window);
 
     sync SyncMessage(nsString aMessage, ClonedMessageData aData, CpowEntry[] aCpows)
       returns (nsString[] retval);
@@ -363,7 +365,7 @@ child:
                bool aIgnoreRootScrollFrame);
 
     RealMouseEvent(nsMouseEvent event);
-    RealKeyEvent(WidgetKeyboardEvent event);
+    RealKeyEvent(nsKeyEvent event);
     MouseWheelEvent(WheelEvent event);
     RealTouchEvent(WidgetTouchEvent event);
     // We use a separate message for touchmove events only to apply
@@ -379,11 +381,11 @@ child:
              int32_t aModifiers,
              bool aPreventDefault);
 
-    CompositionEvent(WidgetCompositionEvent event);
+    CompositionEvent(nsCompositionEvent event);
 
-    TextEvent(WidgetTextEvent event);
+    TextEvent(nsTextEvent event);
 
-    SelectionEvent(WidgetSelectionEvent event);
+    SelectionEvent(nsSelectionEvent event);
 
     /**
      * Activate event forwarding from client to parent.

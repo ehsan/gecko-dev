@@ -18,7 +18,7 @@ struct Mapping {
   size_t file_offset;
 };
 
-intr protocol PCrashReporter {
+protocol PCrashReporter {
   manager PContent or PPluginModule;
 parent:
   AnnotateCrashReport(nsCString key, nsCString data);

@@ -378,8 +378,8 @@ APZCTreeManager::ProcessMouseEvent(const nsMouseEvent& aEvent,
 }
 
 nsEventStatus
-APZCTreeManager::ProcessEvent(const WidgetInputEvent& aEvent,
-                              WidgetInputEvent* aOutEvent)
+APZCTreeManager::ProcessEvent(const nsInputEvent& aEvent,
+                              nsInputEvent* aOutEvent)
 {
   // Transform the refPoint
   nsRefPtr<AsyncPanZoomController> apzc = GetTargetAPZC(ScreenPoint(aEvent.refPoint.x, aEvent.refPoint.y));
@@ -396,8 +396,8 @@ APZCTreeManager::ProcessEvent(const WidgetInputEvent& aEvent,
 }
 
 nsEventStatus
-APZCTreeManager::ReceiveInputEvent(const WidgetInputEvent& aEvent,
-                                   WidgetInputEvent* aOutEvent)
+APZCTreeManager::ReceiveInputEvent(const nsInputEvent& aEvent,
+                                   nsInputEvent* aOutEvent)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -431,7 +431,7 @@ APZCTreeManager::ReceiveInputEvent(const WidgetInputEvent& aEvent,
 }
 
 nsEventStatus
-APZCTreeManager::ReceiveInputEvent(WidgetInputEvent& aEvent)
+APZCTreeManager::ReceiveInputEvent(nsInputEvent& aEvent)
 {
   MOZ_ASSERT(NS_IsMainThread());
 

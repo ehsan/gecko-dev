@@ -660,12 +660,12 @@ bool TabParent::SendMouseWheelEvent(WheelEvent& event)
   return PBrowserParent::SendMouseWheelEvent(event);
 }
 
-bool TabParent::SendRealKeyEvent(WidgetKeyboardEvent& event)
+bool TabParent::SendRealKeyEvent(nsKeyEvent& event)
 {
   if (mIsDestroyed) {
     return false;
   }
-  WidgetKeyboardEvent e(event);
+  nsKeyEvent e(event);
   MaybeForwardEventToRenderFrame(event, &e);
   if (!MapEventCoordinatesForChildProcess(&e)) {
     return false;
@@ -932,7 +932,7 @@ TabParent::RecvRequestFocus(const bool& aCanRaise)
  *  the returned offset/length are different from the queried offset/length.
  */
 bool
-TabParent::HandleQueryContentEvent(WidgetQueryContentEvent& aEvent)
+TabParent::HandleQueryContentEvent(nsQueryContentEvent& aEvent)
 {
   aEvent.mSucceeded = false;
   aEvent.mWasAsync = false;
@@ -985,7 +985,7 @@ TabParent::HandleQueryContentEvent(WidgetQueryContentEvent& aEvent)
 }
 
 bool
-TabParent::SendCompositionEvent(WidgetCompositionEvent& event)
+TabParent::SendCompositionEvent(nsCompositionEvent& event)
 {
   if (mIsDestroyed) {
     return false;
@@ -1007,7 +1007,7 @@ TabParent::SendCompositionEvent(WidgetCompositionEvent& event)
  * here and pass the text as the EndIMEComposition return value
  */
 bool
-TabParent::SendTextEvent(WidgetTextEvent& event)
+TabParent::SendTextEvent(nsTextEvent& event)
 {
   if (mIsDestroyed) {
     return false;
@@ -1030,7 +1030,7 @@ TabParent::SendTextEvent(WidgetTextEvent& event)
 }
 
 bool
-TabParent::SendSelectionEvent(WidgetSelectionEvent& event)
+TabParent::SendSelectionEvent(nsSelectionEvent& event)
 {
   if (mIsDestroyed) {
     return false;
@@ -1532,8 +1532,8 @@ TabParent::UseAsyncPanZoom()
 }
 
 void
-TabParent::MaybeForwardEventToRenderFrame(const WidgetInputEvent& aEvent,
-                                          WidgetInputEvent* aOutEvent)
+TabParent::MaybeForwardEventToRenderFrame(const nsInputEvent& aEvent,
+                                          nsInputEvent* aOutEvent)
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
     rfp->NotifyInputEvent(aEvent, aOutEvent);

@@ -11517,7 +11517,7 @@ SizeOfEventTargetObjectsEntryExcludingThisFun(
 }
 
 void
-nsGlobalWindow::AddSizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
+nsGlobalWindow::SizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
 {
   aWindowSizes->mDOMOther += aWindowSizes->mMallocSizeOf(this);
 
@@ -11529,14 +11529,13 @@ nsGlobalWindow::AddSizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
         elm->SizeOfIncludingThis(aWindowSizes->mMallocSizeOf);
     }
     if (mDoc) {
-      mDoc->DocAddSizeOfIncludingThis(aWindowSizes);
+      mDoc->DocSizeOfIncludingThis(aWindowSizes);
     }
   }
 
-  if (mNavigator) {
-    aWindowSizes->mDOMOther +=
-      mNavigator->SizeOfIncludingThis(aWindowSizes->mMallocSizeOf);
-  }
+  aWindowSizes->mDOMOther +=
+    mNavigator ?
+      mNavigator->SizeOfIncludingThis(aWindowSizes->mMallocSizeOf) : 0;
 
   aWindowSizes->mDOMEventTargets +=
     mEventTargetObjects.SizeOfExcludingThis(

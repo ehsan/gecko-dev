@@ -526,7 +526,7 @@ VectorImage::GetIntrinsicSize(nsSize* aSize)
     return NS_ERROR_FAILURE;
 
   *aSize = nsSize(-1, -1);
-  IntrinsicSize rfSize = rootFrame->GetIntrinsicSize();
+  nsIFrame::IntrinsicSize rfSize = rootFrame->GetIntrinsicSize();
   if (rfSize.width.GetUnit() == eStyleUnit_Coord)
     aSize->width = rfSize.width.GetCoordValue();
   if (rfSize.height.GetUnit() == eStyleUnit_Coord)

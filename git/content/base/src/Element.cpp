@@ -1431,7 +1431,7 @@ Element::DispatchEvent(nsPresContext* aPresContext,
 /* static */
 nsresult
 Element::DispatchClickEvent(nsPresContext* aPresContext,
-                            WidgetInputEvent* aSourceEvent,
+                            nsInputEvent* aSourceEvent,
                             nsIContent* aTarget,
                             bool aFullDispatch,
                             const EventFlags* aExtraEventFlags,
@@ -2245,8 +2245,7 @@ Element::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
 
   case NS_MOUSE_CLICK:
     if (aVisitor.mEvent->IsLeftClickEvent()) {
-      WidgetInputEvent* inputEvent =
-        static_cast<WidgetInputEvent*>(aVisitor.mEvent);
+      nsInputEvent* inputEvent = static_cast<nsInputEvent*>(aVisitor.mEvent);
       if (inputEvent->IsControl() || inputEvent->IsMeta() ||
           inputEvent->IsAlt() ||inputEvent->IsShift()) {
         break;
@@ -2257,8 +2256,8 @@ Element::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
       if (shell) {
         // single-click
         nsEventStatus status = nsEventStatus_eIgnore;
-        InternalUIEvent actEvent(aVisitor.mEvent->mFlags.mIsTrusted,
-                                 NS_UI_ACTIVATE, 1);
+        nsUIEvent actEvent(aVisitor.mEvent->mFlags.mIsTrusted,
+                           NS_UI_ACTIVATE, 1);
 
         rv = shell->HandleDOMEventWithTarget(this, &actEvent, &status);
         if (NS_SUCCEEDED(rv)) {
@@ -2284,8 +2283,7 @@ Element::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
   case NS_KEY_PRESS:
     {
       if (aVisitor.mEvent->eventStructType == NS_KEY_EVENT) {
-        WidgetKeyboardEvent* keyEvent =
-          static_cast<WidgetKeyboardEvent*>(aVisitor.mEvent);
+        nsKeyEvent* keyEvent = static_cast<nsKeyEvent*>(aVisitor.mEvent);
         if (keyEvent->keyCode == NS_VK_RETURN) {
           nsEventStatus status = nsEventStatus_eIgnore;
           rv = DispatchClickEvent(aVisitor.mPresContext, keyEvent, this,

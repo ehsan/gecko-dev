@@ -414,6 +414,7 @@ function ThreadActor(aHooks, aGlobal)
 {
   this._state = "detached";
   this._frameActors = [];
+  this._environmentActors = [];
   this._hooks = aHooks;
   this.global = aGlobal;
   this._nestedEventLoops = new EventLoopStack({
@@ -1815,6 +1816,7 @@ ThreadActor.prototype = {
     }
 
     let actor = new EnvironmentActor(aEnvironment, this);
+    this._environmentActors.push(actor);
     aPool.addActor(actor);
     aEnvironment.actor = actor;
 
@@ -2903,29 +2905,6 @@ ObjectActor.prototype = {
     this.release();
     return {};
   },
-
-  /**
-   * Handle a protocol request to provide the lexical scope of a function.
-   *
-   * @param aRequest object
-   *        The protocol request object.
-   */
-  onScope: function OA_onScope(aRequest) {
-    if (this.obj.class !== "Function") {
-      return { error: "objectNotFunction",
-               message: "scope request is only valid for object grips with a" +
-                        " 'Function' class." };
-    }
-
-    let envActor = this.threadActor.createEnvironmentActor(this.obj.environment,
-                                                           this.registeredPool);
-    if (!envActor) {
-      return { error: "notDebuggee",
-               message: "cannot access the environment of this function." };
-    }
-
-    return { from: this.actorID, scope: envActor.form() };
-  }
 };
 
 ObjectActor.prototype.requestTypes = {
@@ -2937,7 +2916,6 @@ ObjectActor.prototype.requestTypes = {
   "ownPropertyNames": ObjectActor.prototype.onOwnPropertyNames,
   "decompile": ObjectActor.prototype.onDecompile,
   "release": ObjectActor.prototype.onRelease,
-  "scope": ObjectActor.prototype.onScope,
 };
 
 
@@ -2956,7 +2934,6 @@ update(PauseScopedObjectActor.prototype, ObjectActor.prototype);
 
 update(PauseScopedObjectActor.prototype, {
   constructor: PauseScopedObjectActor,
-  actorPrefix: "pausedobj",
 
   onOwnPropertyNames:
     PauseScopedActor.withPaused(ObjectActor.prototype.onOwnPropertyNames),
@@ -2973,6 +2950,29 @@ update(PauseScopedObjectActor.prototype, {
 
   onParameterNames:
     PauseScopedActor.withPaused(ObjectActor.prototype.onParameterNames),
+
+  /**
+   * Handle a protocol request to provide the lexical scope of a function.
+   *
+   * @param aRequest object
+   *        The protocol request object.
+   */
+  onScope: PauseScopedActor.withPaused(function OA_onScope(aRequest) {
+    if (this.obj.class !== "Function") {
+      return { error: "objectNotFunction",
+               message: "scope request is only valid for object grips with a" +
+                        " 'Function' class." };
+    }
+
+    let envActor = this.threadActor.createEnvironmentActor(this.obj.environment,
+                                                           this.registeredPool);
+    if (!envActor) {
+      return { error: "notDebuggee",
+               message: "cannot access the environment of this function." };
+    }
+
+    return { from: this.actorID, scope: envActor.form() };
+  }),
 
   /**
    * Handle a protocol request to promote a pause-lifetime grip to a
@@ -3004,6 +3004,7 @@ update(PauseScopedObjectActor.prototype, {
 });
 
 update(PauseScopedObjectActor.prototype.requestTypes, {
+  "scope": PauseScopedObjectActor.prototype.onScope,
   "threadGrip": PauseScopedObjectActor.prototype.onThreadGrip,
 });
 
@@ -3446,10 +3447,14 @@ EnvironmentActor.prototype = {
 
     try {
       this.obj.setVariable(aRequest.name, aRequest.value);
-    } catch (e if e instanceof Debugger.DebuggeeWouldRun) {
+    } catch (e) {
+      if (e instanceof Debugger.DebuggeeWouldRun) {
         return { error: "threadWouldRun",
                  cause: e.cause ? e.cause : "setter",
                  message: "Assigning a value would cause the debuggee to run" };
+      }
+      // This should never happen, so let it complain loudly if it does.
+      throw e;
     }
     return { from: this.actorID };
   },

@@ -148,7 +148,6 @@ let DebuggerView = {
 
     // Attach a controller that handles interfacing with the debugger protocol.
     VariablesViewController.attach(this.Variables, {
-      getEnvironmentClient: aObject => gThreadClient.environment(aObject),
       getObjectClient: aObject => gThreadClient.pauseGrip(aObject)
     });
 

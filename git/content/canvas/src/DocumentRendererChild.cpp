@@ -20,8 +20,6 @@
 #include "gfxContext.h"
 #include "nsLayoutUtils.h"
 #include "nsContentUtils.h"
-#include "nsCSSValue.h"
-#include "nsRuleNode.h"
 
 using namespace mozilla::ipc;
 

@@ -213,7 +213,7 @@ struct TextRangeStyle
            IsLineStyleDefined() && mLineStyle == LINESTYLE_NONE;
   }
 
-  bool Equals(const TextRangeStyle& aOther)
+  bool Equals(const nsTextRangeStyle& aOther)
   {
     if (mDefinedStyles != aOther.mDefinedStyles)
       return false;
@@ -328,7 +328,7 @@ public:
   // Note that the range array may not specify a caret position; in that
   // case there will be no range of type NS_TEXTRANGE_CARETPOSITION in the
   // array.
-  TextRangeArray rangeArray;
+  nsTextRangeArray rangeArray;
   // Indicates whether the event signifies printable text.
   // XXX This is not a standard, and most platforms don't set this properly.
   //     So, perhaps, we can get rid of this.
@@ -532,5 +532,16 @@ public:
 };
 
 } // namespace mozilla
+
+// TODO: Remove following typedefs
+typedef mozilla::AlternativeCharCode     nsAlternativeCharCode;
+typedef mozilla::WidgetKeyboardEvent     nsKeyEvent;
+typedef mozilla::TextRangeStyle          nsTextRangeStyle;
+typedef mozilla::TextRange               nsTextRange;
+typedef mozilla::TextRangeArray          nsTextRangeArray;
+typedef mozilla::WidgetTextEvent         nsTextEvent;
+typedef mozilla::WidgetCompositionEvent  nsCompositionEvent;
+typedef mozilla::WidgetQueryContentEvent nsQueryContentEvent;
+typedef mozilla::WidgetSelectionEvent    nsSelectionEvent;
 
 #endif // mozilla_TextEvents_h__
