@@ -532,7 +532,7 @@ nsDummyJavaPluginOwner::GetWindow(NPWindow *&aWindow)
 }
 
 NS_IMETHODIMP
-nsDummyJavaPluginOwner::CallSetWindow()
+nsDummyJavaPluginOwner::SetWindow()
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -7680,9 +7680,9 @@ void nsGlobalWindow::UpdateTouchState()
 
     nsCOMPtr<nsIObserverService> observerService =
       do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
-
     if (observerService) {
-      observerService->NotifyObservers(static_cast<nsIDOMWindow*>(this),
+      nsPIDOMWindow *inner = GetCurrentInnerWindowInternal();
+      observerService->NotifyObservers(mainWidget,
                                        DOM_TOUCH_LISTENER_ADDED,
                                        nsnull);
     }

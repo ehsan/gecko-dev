@@ -157,7 +157,6 @@
 #include "nsIMemoryReporter.h"
 #include "xpcpublic.h"
 #include "nsXPCOMPrivate.h"
-#include "sampler.h"
 #include <stdio.h>
 #include <string.h>
 #ifdef WIN32
@@ -3840,7 +3839,6 @@ void
 nsCycleCollector_forgetSkippable()
 {
     if (sCollector) {
-        SAMPLE_LABEL("CC", "nsCycleCollector_forgetSkippable");
         sCollector->ForgetSkippable();
     }
 }
@@ -3849,7 +3847,6 @@ PRUint32
 nsCycleCollector_collect(nsICycleCollectorListener *aListener)
 {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    SAMPLE_LABEL("CC", "nsCycleCollector_collect");
     nsCOMPtr<nsICycleCollectorListener> listener(aListener);
     if (!aListener && sCollector && sCollector->mParams.mLogGraphs) {
         listener = new nsCycleCollectorLogger();
@@ -3885,7 +3882,6 @@ nsCycleCollector_shutdown()
     NS_ASSERTION(!sCollectorThread, "Should have finished before!");
 
     if (sCollector) {
-        SAMPLE_LABEL("CC", "nsCycleCollector_shutdown");
         sCollector->Shutdown();
         delete sCollector;
         sCollector = nsnull;

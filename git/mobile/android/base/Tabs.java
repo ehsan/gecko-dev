@@ -111,7 +111,6 @@ public class Tabs implements GeckoEventListener {
         if (!tabs.containsKey(id))
             return null;
 
-        final Tab oldTab = getSelectedTab();
         final Tab tab = tabs.get(id);
         // This avoids a NPE below, but callers need to be careful to
         // handle this case
@@ -134,9 +133,6 @@ public class Tabs implements GeckoEventListener {
                     GeckoApp.mBrowserToolbar.setProgressVisibility(tab.isLoading());
                     GeckoApp.mDoorHangerPopup.updatePopup();
                     GeckoApp.mBrowserToolbar.setShadowVisibility(!(tab.getURL().startsWith("about:")));
-
-                    if (oldTab != null)
-                        GeckoApp.mAppContext.hidePluginViews(oldTab);
                 }
             }
         });
@@ -200,7 +196,6 @@ public class Tabs implements GeckoEventListener {
                 GeckoApp.mAppContext.onTabsChanged(closedTab);
                 GeckoApp.mBrowserToolbar.updateTabs(Tabs.getInstance().getCount());
                 GeckoApp.mDoorHangerPopup.updatePopup();
-                GeckoApp.mAppContext.hidePluginViews(closedTab);
             }
         });
 
@@ -277,8 +272,6 @@ public class Tabs implements GeckoEventListener {
                 Tab tab = addTab(message);
                 if (message.getBoolean("selected"))
                     selectTab(tab.getId());
-                if (message.getBoolean("delayLoad"))
-                    tab.setHasLoaded(false);
             } else if (event.equals("Tab:Close")) {
                 Tab tab = getTab(message.getInt("tabID"));
                 closeTab(tab);
@@ -286,10 +279,7 @@ public class Tabs implements GeckoEventListener {
                 selectTab(message.getInt("tabID"));
             } else if (event.equals("Tab:ScreenshotData")) {
                 Tab tab = getTab(message.getInt("tabID"));
-                String data = message.getString("data");
-                if (data.length() < 22)
-                    return;
-                byte[] compressed = Base64.decode(data.substring(22), Base64.DEFAULT);
+                byte[] compressed = Base64.decode(message.getString("data").substring(22), Base64.DEFAULT);
                 GeckoApp.mAppContext.processThumbnail(tab, null, compressed);
             }
         } catch (Exception e) { 

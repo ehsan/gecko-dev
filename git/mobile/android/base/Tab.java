@@ -44,7 +44,6 @@ import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.util.DisplayMetrics;
 import android.util.Log;
-import android.view.View;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -82,8 +81,6 @@ public final class Tab {
     private String mDocumentURI;
     private String mContentType;
     private boolean mHasTouchListeners;
-    private ArrayList<View> mPluginViews;
-    private boolean mHasLoaded;
 
     public static final class HistoryEntry {
         public String mUri;         // must never be null
@@ -116,8 +113,6 @@ public final class Tab {
         mFaviconLoadId = 0;
         mDocumentURI = "";
         mContentType = "";
-        mPluginViews = new ArrayList<View>();
-        mHasLoaded = false;
     }
 
     public int getId() {
@@ -438,14 +433,6 @@ public final class Tab {
         return mDoorHangers;
     }
 
-    public void setHasLoaded(boolean hasLoaded) {
-        mHasLoaded = hasLoaded;
-    }
-
-    public boolean hasLoaded() {
-        return mHasLoaded;
-    }
-
     void handleSessionHistoryMessage(String event, JSONObject message) throws JSONException {
         if (event.equals("New")) {
             final String uri = message.getString("uri");
@@ -555,17 +542,5 @@ public final class Tab {
         protected void onPostExecute(Void unused) {
             setBookmark(false);
         }
-    }
-
-    public void addPluginView(View view) {
-        mPluginViews.add(view);
-    }
-
-    public void removePluginView(View view) {
-        mPluginViews.remove(view);
-    }
-
-    public View[] getPluginViews() {
-        return mPluginViews.toArray(new View[mPluginViews.size()]);
     }
 }

@@ -5,9 +5,7 @@ const PREF_NEWTAB_ENABLED = "browser.newtabpage.enabled";
 
 Services.prefs.setBoolPref(PREF_NEWTAB_ENABLED, true);
 
-let tmp = {};
-Cu.import("resource:///modules/NewTabUtils.jsm", tmp);
-let NewTabUtils = tmp.NewTabUtils;
+Cu.import("resource:///modules/NewTabUtils.jsm");
 
 registerCleanupFunction(function () {
   reset();

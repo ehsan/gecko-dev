@@ -426,10 +426,6 @@ OS_LIBS += \
   -lhardware_legacy \
   -lhardware \
   -lutils \
-  -lcutils \
-  -lcamera \
-  -lcamera_client \
-  -lbinder \
   $(NULL)
 endif
 

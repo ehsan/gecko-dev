@@ -202,24 +202,6 @@ var gIDTest = /^(\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\
 }, this);
 
 /**
- * Sets permissions on a file
- *
- * @param  aFile
- *         The file or directory to operate on.
- * @param  aPermissions
- *         The permisions to set
- */
-function setFilePermissions(aFile, aPermissions) {
-  try {
-    aFile.permissions = aPermissions;
-  }
-  catch (e) {
-    WARN("Failed to set permissions " + aPermissions.toString(8) + " on " +
-         aFile.path, e);
-  }
-}
-
-/**
  * A safe way to install a file or the contents of a directory to a new
  * directory. The file or directory is moved or copied recursively and if
  * anything fails an attempt is made to rollback the entire operation. The
@@ -297,7 +279,7 @@ SafeInstallOperation.prototype = {
     // The directory should be empty by this point. If it isn't this will throw
     // and all of the operations will be rolled back
     try {
-      setFilePermissions(aDirectory, FileUtils.PERMS_DIRECTORY);
+      aDirectory.permissions = FileUtils.PERMS_DIRECTORY;
       aDirectory.remove(false);
     }
     catch (e) {
@@ -1103,13 +1085,7 @@ function extractFiles(aZipFile, aDir) {
         continue;
 
       zipReader.extract(entryName, target);
-      try {
-        target.permissions |= FileUtils.PERMS_FILE;
-      }
-      catch (e) {
-        WARN("Failed to set permissions " + aPermissions.toString(8) + " on " +
-             target.path, e);
-      }
+      target.permissions |= FileUtils.PERMS_FILE;
     }
   }
   finally {
@@ -1276,7 +1252,7 @@ function cleanStagingDir(aDir, aLeafNames) {
   }
 
   try {
-    setFilePermissions(aDir, FileUtils.PERMS_DIRECTORY);
+    aDir.permissions = FileUtils.PERMS_DIRECTORY;
     aDir.remove(false);
   }
   catch (e) {
@@ -1292,8 +1268,8 @@ function cleanStagingDir(aDir, aLeafNames) {
  *         The nsIFile to remove
  */
 function recursiveRemove(aFile) {
-  setFilePermissions(aFile, aFile.isDirectory() ? FileUtils.PERMS_DIRECTORY
-                                                : FileUtils.PERMS_FILE);
+  aFile.permissions = aFile.isDirectory() ? FileUtils.PERMS_DIRECTORY
+                                          : FileUtils.PERMS_FILE;
 
   try {
     aFile.remove(true);
@@ -8100,11 +8076,7 @@ DirectoryInstallLocation.prototype = {
 
     let newFile = this._directory.clone().QueryInterface(Ci.nsILocalFile);
     newFile.append(aSource.leafName);
-    try {
-      newFile.lastModifiedTime = Date.now();
-    } catch (e)  {
-      WARN("failed to set lastModifiedTime on " + newFile.path, e);
-    }
+    newFile.lastModifiedTime = Date.now();
     this._FileToIDMap[newFile.path] = aId;
     this._IDToFileMap[aId] = newFile;
 

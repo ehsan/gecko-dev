@@ -418,14 +418,7 @@ public:
                                   nsCSSStyleSheet *aStyleSheet);
 
   nsresult RemoveStyleSheetFromList(const nsAString &aURL);
-
-  bool IsCSSEnabled()
-  {
-    // TODO: removal of mCSSAware and use only the presence of mHTMLCSSUtils
-    return mCSSAware && mHTMLCSSUtils && mHTMLCSSUtils->IsCSSPrefChecked();
-  }
-
-
+                       
 protected:
 
   NS_IMETHOD  InitRules();
@@ -452,6 +445,11 @@ protected:
   NS_IMETHOD TabInTable(bool inIsShift, bool *outHandled);
   NS_IMETHOD CreateBR(nsIDOMNode *aNode, PRInt32 aOffset, 
                       nsCOMPtr<nsIDOMNode> *outBRNode, nsIEditor::EDirection aSelect = nsIEditor::eNone);
+  NS_IMETHOD CreateBRImpl(nsCOMPtr<nsIDOMNode> *aInOutParent, 
+                         PRInt32 *aInOutOffset, 
+                         nsCOMPtr<nsIDOMNode> *outBRNode, 
+                         nsIEditor::EDirection aSelect);
+  NS_IMETHOD InsertBR(nsCOMPtr<nsIDOMNode> *outBRNode);
 
 // Table Editing (implemented in nsTableEditor.cpp)
 
@@ -722,8 +720,8 @@ protected:
                              bool *aAll,
                              nsAString *outValue,
                              bool aCheckDefaults = true);
-  bool HasStyleOrIdOrClass(mozilla::dom::Element* aElement);
-  nsresult RemoveElementIfNoStyleOrIdOrClass(nsIDOMNode* aElement);
+  nsresult HasStyleOrIdOrClass(nsIDOMElement * aElement, bool *aHasStyleOrIdOrClass);
+  nsresult RemoveElementIfNoStyleOrIdOrClass(nsIDOMElement * aElement, nsIAtom * aTag);
 
   // Whether the outer window of the DOM event target has focus or not.
   bool     OurWindowHasFocus();

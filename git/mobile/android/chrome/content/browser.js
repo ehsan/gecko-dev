@@ -381,14 +381,10 @@ var BrowserApp = {
   },
 
   set selectedTab(aTab) {
-    if (this._selectedTab)
-      this._selectedTab.setActive(false);
-
     this._selectedTab = aTab;
     if (!aTab)
       return;
 
-    aTab.setActive(true);
     aTab.updateViewport(false);
     this.deck.selectedPanel = aTab.vbox;
   },
@@ -478,9 +474,7 @@ var BrowserApp = {
     let newTab = new Tab(aURI, aParams);
     this._tabs.push(newTab);
 
-    let selected = "selected" in aParams ? aParams.selected : true;
-    if (selected)
-      this.selectedTab = newTab;
+    newTab.active = "selected" in aParams ? aParams.selected : true;
 
     let evt = document.createEvent("UIEvents");
     evt.initUIEvent("TabOpen", true, false, window, null);
@@ -572,11 +566,12 @@ var BrowserApp = {
   // This method updates the state in BrowserApp after a tab has been selected
   // in the Java UI.
   _handleTabSelected: function _handleTabSelected(aTab) {
-    this.selectedTab = aTab;
+      this.selectedTab = aTab;
+      aTab.active = true;
 
-    let evt = document.createEvent("UIEvents");
-    evt.initUIEvent("TabSelect", true, false, window, null);
-    aTab.browser.dispatchEvent(evt);
+      let evt = document.createEvent("UIEvents");
+      evt.initUIEvent("TabSelect", true, false, window, null);
+      aTab.browser.dispatchEvent(evt);
 
     let message = {
       gecko: {
@@ -1424,7 +1419,7 @@ Tab.prototype = {
     BrowserApp.deck.appendChild(this.vbox);
 
     this.browser = document.createElement("browser");
-    this.browser.setAttribute("type", "content-targetable");
+    this.browser.setAttribute("type", "content");
     this.setBrowserSize(980, 480);
     this.browser.style.MozTransformOrigin = "0 0";
     this.vbox.appendChild(this.browser);
@@ -1445,8 +1440,7 @@ Tab.prototype = {
         parentId: ("parentId" in aParams) ? aParams.parentId : -1,
         external: ("external" in aParams) ? aParams.external : false,
         selected: ("selected" in aParams) ? aParams.selected : true,
-        title: aParams.title || "",
-        delayLoad: aParams.delayLoad || false
+        title: aParams.title || ""
       }
     };
     sendMessageToJava(message);
@@ -1519,19 +1513,23 @@ Tab.prototype = {
     this.documentIdForCurrentViewport = null;
   },
 
-  // This should be called to update the browser when the tab gets selected/unselected
-  setActive: function setActive(aActive) {
+  set active(aActive) {
     if (!this.browser)
       return;
 
     if (aActive) {
       this.browser.setAttribute("type", "content-primary");
       this.browser.focus();
-      this.browser.docShellIsActive = true;
+      BrowserApp.selectedTab = this;
     } else {
-      this.browser.setAttribute("type", "content-targetable");
-      this.browser.docShellIsActive = false;
+      this.browser.setAttribute("type", "content");
     }
+  },
+
+  get active() {
+    if (!this.browser)
+      return false;
+    return this.browser.getAttribute("type") == "content-primary";
   },
 
   set viewport(aViewport) {
