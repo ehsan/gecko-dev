@@ -641,6 +641,7 @@ MAKEFILES_xulapp="
   toolkit/mozapps/readstrings/Makefile
   toolkit/mozapps/update/Makefile
   toolkit/mozapps/update/updater/Makefile
+  toolkit/mozapps/xpinstall/Makefile
   toolkit/profile/Makefile
   toolkit/system/dbus/Makefile
   toolkit/system/gnome/Makefile
