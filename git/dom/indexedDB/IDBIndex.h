@@ -21,7 +21,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Ben Turner <bent.mozilla@gmail.com>
+ *   Shawn Wilsher <me@shawnwilsher.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,36 +37,48 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIIDBCursor.idl"
+#ifndef mozilla_dom_indexeddb_idbindex_h__
+#define mozilla_dom_indexeddb_idbindex_h__
 
-interface nsIIDBRequest;
-interface nsIVariant;
+#include "mozilla/dom/indexedDB/IDBRequest.h"
 
-/**
- * IDBCursorRequest interface.  See
- * http://dev.w3.org/2006/webapi/WebSimpleDB/#idl-def-IDBCursorRequest for more
- * information.
- */
-[scriptable, uuid(12ba5905-de6b-40f9-8c97-aec5f9dc706c)]
-interface nsIIDBCursorRequest : nsIIDBCursor
+#include "nsIIDBIndex.h"
+
+BEGIN_INDEXEDDB_NAMESPACE
+
+class IDBObjectStore;
+struct IndexInfo;
+
+class IDBIndex : public IDBRequest::Generator,
+                 public nsIIDBIndex
 {
-  readonly attribute nsIVariant key;
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIIDBINDEX
 
-  readonly attribute nsIVariant value;
+  static already_AddRefed<IDBIndex>
+  Create(IDBObjectStore* aObjectStore,
+         const IndexInfo* aIndexInfo);
 
-  // Returns true always for non-preloaded cursors. Calling continue means that
-  // the same onsuccess function will be called again with the new key/value
-  // (or null if no more matches).
-  //
-  // For preloaded cursors returns true if key/value have been set to new
-  // values. If false then no more matches are available and getting the key,
-  // value property will throw, as will calling update() and remove().
-  [optional_argc]
-  boolean continue([optional /* null */] in nsIVariant key);
+  IDBObjectStore* ObjectStore()
+  {
+    return mObjectStore;
+  }
 
-  // Success fires IDBTransactionEvent, result == key
-  nsIIDBRequest update(in nsIVariant value);
+protected:
+  IDBIndex();
+  ~IDBIndex();
 
-  // Success fires IDBTransactionEvent, result == null
-  nsIIDBRequest remove();
+private:
+  nsRefPtr<IDBObjectStore> mObjectStore;
+
+  PRInt64 mId;
+  nsString mName;
+  nsString mKeyPath;
+  bool mUnique;
+  bool mAutoIncrement;
 };
+
+END_INDEXEDDB_NAMESPACE
+
+#endif // mozilla_dom_indexeddb_idbindex_h__
