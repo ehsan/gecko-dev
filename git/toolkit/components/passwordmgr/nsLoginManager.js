@@ -611,10 +611,6 @@ UserAutoCompleteResult.prototype = {
         return "";
     },
 
-    getFinalCompleteValueAt : function (index) {
-        return this.getValueAt(index);
-    },
-
     removeValueAt : function (index, removeFromDB) {
         if (index < 0 || index >= this.logins.length)
             throw "Index out of range.";

@@ -172,11 +172,6 @@ NS_IMETHODIMP nsFileResult::GetImageAt(int32_t index, nsAString & aImage)
   aImage.Truncate();
   return NS_OK;
 }
-NS_IMETHODIMP nsFileResult::GetFinalCompleteValueAt(int32_t index,
-                                                    nsAString & aValue)
-{
-  return GetValueAt(index, aValue);
-}
 
 NS_IMETHODIMP nsFileResult::RemoveValueAt(int32_t rowIndex, bool removeFromDb)
 {

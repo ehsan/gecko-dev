@@ -19,9 +19,7 @@ import org.mozilla.gecko.fxa.login.State;
 import org.mozilla.gecko.fxa.sync.FxAccountSyncStatusHelper;
 import org.mozilla.gecko.sync.SyncConfiguration;
 
-import android.accounts.Account;
 import android.content.ContentResolver;
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
@@ -74,7 +72,7 @@ public class FxAccountStatusFragment extends PreferenceFragment implements OnPre
   // single account. (That is, it does not capture a single account instance.)
   protected Runnable requestSyncRunnable;
 
-  protected final InnerSyncStatusDelegate syncStatusDelegate = new InnerSyncStatusDelegate();
+  protected final SyncStatusDelegate syncStatusDelegate = new SyncStatusDelegate();
 
   protected Preference ensureFindPreference(String key) {
     Preference preference = findPreference(key);
@@ -242,7 +240,7 @@ public class FxAccountStatusFragment extends PreferenceFragment implements OnPre
     setCheckboxesEnabled(true);
   }
 
-  protected class InnerSyncStatusDelegate implements FirefoxAccounts.SyncStatusListener {
+  protected class SyncStatusDelegate implements FxAccountSyncStatusHelper.Delegate {
     protected final Runnable refreshRunnable = new Runnable() {
       @Override
       public void run() {
@@ -251,17 +249,12 @@ public class FxAccountStatusFragment extends PreferenceFragment implements OnPre
     };
 
     @Override
-    public Context getContext() {
-      return FxAccountStatusFragment.this.getActivity();
+    public AndroidFxAccount getAccount() {
+      return fxAccount;
     }
 
     @Override
-    public Account getAccount() {
-      return fxAccount.getAndroidAccount();
-    }
-
-    @Override
-    public void onSyncStarted() {
+    public void handleSyncStarted() {
       if (fxAccount == null) {
         return;
       }
@@ -270,7 +263,7 @@ public class FxAccountStatusFragment extends PreferenceFragment implements OnPre
     }
 
     @Override
-    public void onSyncFinished() {
+    public void handleSyncFinished() {
       if (fxAccount == null) {
         return;
       }
