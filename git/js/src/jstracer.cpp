@@ -850,32 +850,27 @@ TraceRecorder::trackNativeStackUse(unsigned slots)
 /* Unbox a jsval into a slot. Slots are wide enough to hold double values
    directly (instead of storing a pointer to them). */
 static bool
-ValueToNative(JSContext* cx, jsval v, uint8 type, double* slot)
+ValueToNative(jsval v, uint8 type, double* slot)
 {
-    unsigned tag = JSVAL_TAG(v);
-    switch (type) {
-      case JSVAL_INT:
+    if (type == JSVAL_INT) {
         jsint i;
         if (JSVAL_IS_INT(v))
             *(jsint*)slot = JSVAL_TO_INT(v);
-        else if ((tag == JSVAL_DOUBLE) && JSDOUBLE_IS_INT(*JSVAL_TO_DOUBLE(v), i))
+        else if (JSVAL_IS_DOUBLE(v) && JSDOUBLE_IS_INT(*JSVAL_TO_DOUBLE(v), i))
             *(jsint*)slot = i;
-        else if (v == JSVAL_VOID)
-            *(jsint*)slot = 0;
         else {
             debug_only_v(printf("int != tag%lu(value=%lu) ", JSVAL_TAG(v), v);)
             return false;
         }
         debug_only_v(printf("int<%d> ", *(jsint*)slot);)
         return true;
-      case JSVAL_DOUBLE:
+    }
+    if (type == JSVAL_DOUBLE) {
         jsdouble d;
         if (JSVAL_IS_INT(v))
             d = JSVAL_TO_INT(v);
-        else if (tag == JSVAL_DOUBLE)
+        else if (JSVAL_IS_DOUBLE(v))
             d = *JSVAL_TO_DOUBLE(v);
-        else if (v == JSVAL_VOID)
-            d = js_NaN;
         else {
             debug_only_v(printf("double != tag%lu ", JSVAL_TAG(v));)
             return false;
@@ -883,39 +878,29 @@ ValueToNative(JSContext* cx, jsval v, uint8 type, double* slot)
         *(jsdouble*)slot = d;
         debug_only_v(printf("double<%g> ", d);)
         return true;
+    }
+    if (JSVAL_TAG(v) != type) {
+        debug_only_v(printf("%d != tag%lu ", type, JSVAL_TAG(v));)
+        return false;
+    }
+    switch (JSVAL_TAG(v)) {
       case JSVAL_BOOLEAN:
-        if (tag != JSVAL_BOOLEAN) {
-             debug_only_v(printf("bool != tag%u ", tag);)
-             return false;
-        }
         *(JSBool*)slot = JSVAL_TO_BOOLEAN(v);
         debug_only_v(printf("boolean<%d> ", *(bool*)slot);)
-        return true;
+        break;
       case JSVAL_STRING:
-        if (v == JSVAL_VOID) {
-            *(JSString**)slot = ATOM_TO_STRING(cx->runtime->atomState.typeAtoms[JSTYPE_VOID]); 
-            return true;
-        } 
-        if (tag != JSVAL_STRING) {
-            debug_only_v(printf("string != tag%u ", tag);)
-            return false;
-        }
         *(JSString**)slot = JSVAL_TO_STRING(v);
         debug_only_v(printf("string<%p> ", *(JSString**)slot);)
-        return true;
+        break;
       default:
-        JS_ASSERT(type == JSVAL_OBJECT);
-        if (tag != JSVAL_OBJECT) {
-            debug_only_v(printf("object != tag%u ", tag);)
-            return false;
-        }
+        JS_ASSERT(JSVAL_IS_OBJECT(v));
         *(JSObject**)slot = JSVAL_TO_OBJECT(v);
         debug_only_v(printf("object<%p:%s> ", JSVAL_TO_OBJECT(v),
                             JSVAL_IS_NULL(v)
                             ? "null"
                             : STOBJ_GET_CLASS(JSVAL_TO_OBJECT(v))->name);)
-        return true;
     }
+    return true;
 }
 
 /* Box a value from the native stack back into the jsval format. Integers
@@ -973,7 +958,7 @@ BuildNativeGlobalFrame(JSContext* cx, unsigned ngslots, uint16* gslots, uint8* m
 {
     debug_only_v(printf("global: ");)
     FORALL_GLOBAL_SLOTS(cx, ngslots, gslots,
-        if (!ValueToNative(cx, *vp, *mp, np + gslots[n]))
+        if (!ValueToNative(*vp, *mp, np + gslots[n]))
             return false;
         ++mp;
     );
@@ -989,7 +974,7 @@ BuildNativeStackFrame(JSContext* cx, unsigned callDepth, uint8* mp, double* np)
     debug_only_v(printf("stack: ");)
     FORALL_SLOTS_IN_PENDING_FRAMES(cx, callDepth,
         debug_only_v(printf("%s%u=", vpname, vpnum);)
-        if (!ValueToNative(cx, *vp, *mp, np))
+        if (!ValueToNative(*vp, *mp, np))
             return false;
         ++mp; ++np;
     );
@@ -1741,9 +1726,11 @@ bool
 js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f)
 {
     /* Make sure the global type map didn't change on us. */
-    if (OBJ_SCOPE(JS_GetGlobalForObject(cx, cx->fp->scopeChain))->shape != tm->globalShape) {
+    uint32 globalShape = OBJ_SCOPE(JS_GetGlobalForObject(cx, cx->fp->scopeChain))->shape;
+    if (tm->globalShape != globalShape) {
+        debug_only(printf("Global shape mismatch (%u vs. %u) in RecordTree, flushing cache.\n",
+                          globalShape, tm->globalShape);)
         js_FlushJITCache(cx);
-        debug_only(printf("Global shape mismatch in RecordTree, flushing cache.\n");)
         return false;
     }
     TypeMap current;
@@ -1931,10 +1918,11 @@ js_ExecuteTree(JSContext* cx, Fragment** treep, uintN& inlineCallCount,
        the global type map must remain applicable at all times (we expect absolute type 
        stability for globals). */
     if (ngslots &&
-        ((OBJ_SCOPE(globalObj)->shape != tm->globalShape) || 
+        (OBJ_SCOPE(globalObj)->shape != tm->globalShape || 
          !BuildNativeGlobalFrame(cx, ngslots, gslots, tm->globalTypeMap->data(), global))) {
         AUDIT(globalShapeMismatchAtEntry);
-        debug_only_v(printf("global shape mismatch, flushing cache.\n"));
+        debug_only_v(printf("Global shape mismatch (%u vs. %u), flushing cache.\n",
+                            OBJ_SCOPE(globalObj)->shape, tm->globalShape);)
         const void* ip = f->ip;
         js_FlushJITCache(cx);
         *treep = tm->fragmento->newLoop(ip);
