@@ -569,7 +569,7 @@ class MacroAssemblerX86Shared : public Assembler
     void convertBoolToInt32(Register source, Register dest) {
         // Note that C++ bool is only 1 byte, so zero extend it to clear the
         // higher-order bits.
-        movzbl(source, dest);
+        movzxbl(source, dest);
     }
 
     void emitSet(Assembler::Condition cond, const Register &dest,
@@ -578,7 +578,7 @@ class MacroAssemblerX86Shared : public Assembler
             // If the register we're defining is a single byte register,
             // take advantage of the setCC instruction
             setCC(cond, dest);
-            movzbl(dest, dest);
+            movzxbl(dest, dest);
 
             if (ifNaN != Assembler::NaN_HandledByCond) {
                 Label noNaN;

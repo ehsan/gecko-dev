@@ -455,7 +455,7 @@ AndroidGeckoEvent::ReadStringFromJString(nsString &aString, JNIEnv *jenv,
 
     int len = jenv->GetStringLength(s);
     aString.SetLength(len);
-    jenv->GetStringRegion(s, 0, len, reinterpret_cast<jchar*>(aString.BeginWriting()));
+    jenv->GetStringRegion(s, 0, len, aString.BeginWriting());
 }
 
 void
@@ -1366,7 +1366,7 @@ nsJNIString::nsJNIString(jstring jstr, JNIEnv *jenv)
     if (len <= 0) {
         SetIsVoid(true);
     } else {
-        Assign(reinterpret_cast<const PRUnichar*>(jCharPtr), len);
+        Assign(jCharPtr, len);
     }
     jni->ReleaseStringChars(jstr, jCharPtr);
 }

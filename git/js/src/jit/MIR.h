@@ -2414,7 +2414,7 @@ class MCreateThisWithTemplate
     {
         return new MCreateThisWithTemplate(templateObject);
     }
-    JSObject *templateObject() const {
+    JSObject *getTemplateObject() const {
         return templateObject_;
     }
 

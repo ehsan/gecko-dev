@@ -670,7 +670,7 @@ DefinePropertyOnObject(JSContext *cx, HandleObject obj, HandleId id, const PropD
                     return Reject(cx, JSMSG_CANT_REDEFINE_PROP, throwError, id, rval);
                 }
 
-                if (!NativeGet(cx, obj, obj2, shape, &v))
+                if (!js_NativeGet(cx, obj, obj2, shape, &v))
                     return false;
             }
 
@@ -884,7 +884,7 @@ DefinePropertyOnArray(JSContext *cx, Handle<ArrayObject*> arr, HandleId id, cons
         RootedValue v(cx);
         if (desc.hasValue()) {
             uint32_t newLen;
-            if (!CanonicalizeArrayLengthValue<SequentialExecution>(cx, desc.value(), &newLen))
+            if (!CanonicalizeArrayLengthValue(cx, desc.value(), &newLen))
                 return false;
             v.setNumber(newLen);
         } else {
@@ -908,7 +908,7 @@ DefinePropertyOnArray(JSContext *cx, Handle<ArrayObject*> arr, HandleId id, cons
                 attrs = attrs | JSPROP_READONLY;
         }
 
-        return ArraySetLength<SequentialExecution>(cx, arr, id, attrs, v, throwError);
+        return ArraySetLength(cx, arr, id, attrs, v, throwError);
     }
 
     /* Step 3. */
@@ -2438,10 +2438,9 @@ js_InitClass(JSContext *cx, HandleObject obj, JSObject *protoProto_,
 }
 
 /* static */ inline bool
-JSObject::updateSlotsForSpan(ThreadSafeContext *cx,
+JSObject::updateSlotsForSpan(ExclusiveContext *cx,
                              HandleObject obj, size_t oldSpan, size_t newSpan)
 {
-    JS_ASSERT(cx->isThreadLocal(obj));
     JS_ASSERT(oldSpan != newSpan);
 
     size_t oldCount = dynamicSlotsCount(obj->numFixedSlots(), oldSpan);
@@ -2468,9 +2467,8 @@ JSObject::updateSlotsForSpan(ThreadSafeContext *cx,
 }
 
 /* static */ bool
-JSObject::setLastProperty(ThreadSafeContext *cx, HandleObject obj, HandleShape shape)
+JSObject::setLastProperty(ExclusiveContext *cx, HandleObject obj, HandleShape shape)
 {
-    JS_ASSERT(cx->isThreadLocal(obj));
     JS_ASSERT(!obj->inDictionaryMode());
     JS_ASSERT(!shape->inDictionary());
     JS_ASSERT(shape->compartment() == obj->compartment());
@@ -2492,9 +2490,8 @@ JSObject::setLastProperty(ThreadSafeContext *cx, HandleObject obj, HandleShape s
 }
 
 /* static */ bool
-JSObject::setSlotSpan(ThreadSafeContext *cx, HandleObject obj, uint32_t span)
+JSObject::setSlotSpan(ExclusiveContext *cx, HandleObject obj, uint32_t span)
 {
-    JS_ASSERT(cx->isThreadLocal(obj));
     JS_ASSERT(obj->inDictionaryMode());
 
     size_t oldSpan = obj->lastProperty()->base()->slotSpan();
@@ -2509,7 +2506,7 @@ JSObject::setSlotSpan(ThreadSafeContext *cx, HandleObject obj, uint32_t span)
 }
 
 static HeapSlot *
-AllocateSlots(ThreadSafeContext *cx, JSObject *obj, uint32_t nslots)
+AllocateSlots(ExclusiveContext *cx, JSObject *obj, uint32_t nslots)
 {
 #ifdef JSGC_GENERATIONAL
     if (cx->isJSContext())
@@ -2519,7 +2516,7 @@ AllocateSlots(ThreadSafeContext *cx, JSObject *obj, uint32_t nslots)
 }
 
 static HeapSlot *
-ReallocateSlots(ThreadSafeContext *cx, JSObject *obj, HeapSlot *oldSlots,
+ReallocateSlots(ExclusiveContext *cx, JSObject *obj, HeapSlot *oldSlots,
                 uint32_t oldCount, uint32_t newCount)
 {
 #ifdef JSGC_GENERATIONAL
@@ -2534,9 +2531,8 @@ ReallocateSlots(ThreadSafeContext *cx, JSObject *obj, HeapSlot *oldSlots,
 }
 
 /* static */ bool
-JSObject::growSlots(ThreadSafeContext *cx, HandleObject obj, uint32_t oldCount, uint32_t newCount)
+JSObject::growSlots(ExclusiveContext *cx, HandleObject obj, uint32_t oldCount, uint32_t newCount)
 {
-    JS_ASSERT(cx->isThreadLocal(obj));
     JS_ASSERT(newCount > oldCount);
     JS_ASSERT(newCount >= SLOT_CAPACITY_MIN);
 
@@ -2587,15 +2583,20 @@ JSObject::growSlots(ThreadSafeContext *cx, HandleObject obj, uint32_t oldCount, 
     if (!newslots)
         return false;  /* Leave slots at its old size. */
 
+    bool changed = obj->slots != newslots;
     obj->slots = newslots;
 
     Debug_SetSlotRangeToCrashOnTouch(obj->slots + oldCount, newCount - oldCount);
+
+    /* Changes in the slots of global objects can trigger recompilation. */
+    if (changed && obj->is<GlobalObject>())
+        types::MarkObjectStateChange(cx, obj);
 
     return true;
 }
 
 static void
-FreeSlots(ThreadSafeContext *cx, HeapSlot *slots)
+FreeSlots(ExclusiveContext *cx, HeapSlot *slots)
 {
     // Note: threads without a JSContext do not have access to nursery allocated things.
 #ifdef JSGC_GENERATIONAL
@@ -2606,9 +2607,8 @@ FreeSlots(ThreadSafeContext *cx, HeapSlot *slots)
 }
 
 /* static */ void
-JSObject::shrinkSlots(ThreadSafeContext *cx, HandleObject obj, uint32_t oldCount, uint32_t newCount)
+JSObject::shrinkSlots(ExclusiveContext *cx, HandleObject obj, uint32_t oldCount, uint32_t newCount)
 {
-    JS_ASSERT(cx->isThreadLocal(obj));
     JS_ASSERT(newCount < oldCount);
 
     if (newCount == 0) {
@@ -2623,7 +2623,12 @@ JSObject::shrinkSlots(ThreadSafeContext *cx, HandleObject obj, uint32_t oldCount
     if (!newslots)
         return;  /* Leave slots at its old size. */
 
+    bool changed = obj->slots != newslots;
     obj->slots = newslots;
+
+    /* Watch for changes in global object slots, as for growSlots. */
+    if (changed && obj->is<GlobalObject>())
+        types::MarkObjectStateChange(cx, obj);
 }
 
 /* static */ bool
@@ -2912,8 +2917,6 @@ JSObject::growElements(ThreadSafeContext *cx, uint32_t newcap)
 void
 JSObject::shrinkElements(ThreadSafeContext *cx, uint32_t newcap)
 {
-    JS_ASSERT(cx->isThreadLocal(this));
-
     uint32_t oldcap = getDenseCapacity();
     JS_ASSERT(newcap <= oldcap);
 
@@ -3146,10 +3149,8 @@ js_FindClassObject(ExclusiveContext *cx, JSProtoKey protoKey, MutableHandleValue
 }
 
 /* static */ bool
-JSObject::allocSlot(ThreadSafeContext *cx, HandleObject obj, uint32_t *slotp)
+JSObject::allocSlot(ExclusiveContext *cx, HandleObject obj, uint32_t *slotp)
 {
-    JS_ASSERT(cx->isThreadLocal(obj));
-
     uint32_t slot = obj->slotSpan();
     JS_ASSERT(slot >= JSSLOT_FREE(obj->getClass()));
 
@@ -3299,8 +3300,7 @@ js_AddNativeProperty(JSContext *cx, HandleObject obj, HandleId id,
         return nullptr;
 
     Shape *shape =
-        JSObject::putProperty<SequentialExecution>(cx, obj, id, getter, setter, slot,
-                                                   attrs, flags, shortid);
+        JSObject::putProperty(cx, obj, id, getter, setter, slot, attrs, flags, shortid);
     if (!shape)
         return shape;
 
@@ -3407,17 +3407,11 @@ JSObject::addDataProperty(ExclusiveContext *cx, HandlePropertyName name,
  * value to be stored before the call-out through the hook.  Optimize to do
  * both while saving cycles for classes that stub their addProperty hook.
  */
-template <ExecutionMode mode>
 static inline bool
-CallAddPropertyHook(typename ExecutionModeTraits<mode>::ExclusiveContextType cxArg,
-                    const Class *clasp, HandleObject obj, HandleShape shape,
+CallAddPropertyHook(ExclusiveContext *cx, const Class *clasp, HandleObject obj, HandleShape shape,
                     HandleValue nominal)
 {
     if (clasp->addProperty != JS_PropertyStub) {
-        if (mode == ParallelExecution)
-            return false;
-
-        ExclusiveContext *cx = cxArg->asExclusiveContext();
         if (!cx->shouldBeJSContext())
             return false;
 
@@ -3437,34 +3431,20 @@ CallAddPropertyHook(typename ExecutionModeTraits<mode>::ExclusiveContextType cxA
     return true;
 }
 
-template <ExecutionMode mode>
 static inline bool
-CallAddPropertyHookDense(typename ExecutionModeTraits<mode>::ExclusiveContextType cxArg,
-                         const Class *clasp, HandleObject obj, uint32_t index,
+CallAddPropertyHookDense(ExclusiveContext *cx, const Class *clasp, HandleObject obj, uint32_t index,
                          HandleValue nominal)
 {
     /* Inline addProperty for array objects. */
     if (obj->is<ArrayObject>()) {
-        Rooted<ArrayObject*> arr(cxArg, &obj->as<ArrayObject>());
+        Rooted<ArrayObject*> arr(cx, &obj->as<ArrayObject>());
         uint32_t length = arr->length();
-        if (index >= length) {
-            if (mode == ParallelExecution) {
-                /* We cannot deal with overflows in parallel. */
-                if (length > INT32_MAX)
-                    return false;
-                arr->setLengthInt32(index + 1);
-            } else {
-                ArrayObject::setLength(cxArg->asExclusiveContext(), arr, index + 1);
-            }
-        }
+        if (index >= length)
+            ArrayObject::setLength(cx, arr, index + 1);
         return true;
     }
 
     if (clasp->addProperty != JS_PropertyStub) {
-        if (mode == ParallelExecution)
-            return false;
-
-        ExclusiveContext *cx = cxArg->asExclusiveContext();
         if (!cx->shouldBeJSContext())
             return false;
 
@@ -3483,10 +3463,8 @@ CallAddPropertyHookDense(typename ExecutionModeTraits<mode>::ExclusiveContextTyp
     return true;
 }
 
-template <ExecutionMode mode>
 static inline bool
-DefinePropertyOrElement(typename ExecutionModeTraits<mode>::ExclusiveContextType cx,
-                        HandleObject obj, HandleId id,
+DefinePropertyOrElement(ExclusiveContext *cx, HandleObject obj, HandleId id,
                         PropertyOp getter, StrictPropertyOp setter,
                         unsigned attrs, unsigned flags, int shortid,
                         HandleValue value, bool callSetterAfterwards, bool setterIsStrict)
@@ -3496,46 +3474,30 @@ DefinePropertyOrElement(typename ExecutionModeTraits<mode>::ExclusiveContextType
         getter == JS_PropertyStub &&
         setter == JS_StrictPropertyStub &&
         attrs == JSPROP_ENUMERATE &&
-        (!obj->isIndexed() || !obj->nativeContainsPure(id)))
+        (!obj->isIndexed() || !obj->nativeContains(cx, id)))
     {
         uint32_t index = JSID_TO_INT(id);
         bool definesPast;
         if (!WouldDefinePastNonwritableLength(cx, obj, index, setterIsStrict, &definesPast))
             return false;
-        if (definesPast) {
-            /*
-             * Strict mode changes semantics and we must throw, so bail out of
-             * parallel execution if we are strict.
-             */
-            if (mode == ParallelExecution)
-                return !setterIsStrict;
+        if (definesPast)
             return true;
-        }
 
-        JSObject::EnsureDenseResult result;
-        if (mode == ParallelExecution) {
-            if (obj->writeToIndexWouldMarkNotPacked(index))
-                return false;
-            result = obj->ensureDenseElementsPreservePackedFlag(cx, index, 1);
-        } else {
-            result = obj->ensureDenseElements(cx->asExclusiveContext(), index, 1);
-        }
-
+        JSObject::EnsureDenseResult result = obj->ensureDenseElements(cx, index, 1);
         if (result == JSObject::ED_FAILED)
             return false;
         if (result == JSObject::ED_OK) {
             obj->setDenseElementMaybeConvertDouble(index, value);
-            return CallAddPropertyHookDense<mode>(cx, obj->getClass(), obj, index, value);
+            return CallAddPropertyHookDense(cx, obj->getClass(), obj, index, value);
         }
     }
 
     if (obj->is<ArrayObject>()) {
         Rooted<ArrayObject*> arr(cx, &obj->as<ArrayObject>());
         if (id == NameToId(cx->names().length)) {
-            if (mode == SequentialExecution && !cx->shouldBeJSContext())
+            if (!cx->shouldBeJSContext())
                 return false;
-            return ArraySetLength<mode>(ExecutionModeTraits<mode>::toContextType(cx), arr, id,
-                                        attrs, value, setterIsStrict);
+            return ArraySetLength(cx->asJSContext(), arr, id, attrs, value, setterIsStrict);
         }
 
         uint32_t index;
@@ -3543,20 +3505,15 @@ DefinePropertyOrElement(typename ExecutionModeTraits<mode>::ExclusiveContextType
             bool definesPast;
             if (!WouldDefinePastNonwritableLength(cx, arr, index, setterIsStrict, &definesPast))
                 return false;
-            if (definesPast) {
-                /* Bail out of parallel execution if we are strict to throw. */
-                if (mode == ParallelExecution)
-                    return !setterIsStrict;
+            if (definesPast)
                 return true;
-            }
         }
     }
 
     AutoRooterGetterSetter gsRoot(cx, attrs, &getter, &setter);
 
-    RootedShape shape(cx, JSObject::putProperty<mode>(cx, obj, id, getter, setter,
-                                                      SHAPE_INVALID_SLOT,
-                                                      attrs, flags, shortid));
+    RootedShape shape(cx, JSObject::putProperty(cx, obj, id, getter, setter, SHAPE_INVALID_SLOT,
+                                                attrs, flags, shortid));
     if (!shape)
         return false;
 
@@ -3568,30 +3525,25 @@ DefinePropertyOrElement(typename ExecutionModeTraits<mode>::ExclusiveContextType
      * and investigate converting the object to dense indexes.
      */
     if (JSID_IS_INT(id)) {
-        if (mode == ParallelExecution)
-            return false;
-
-        ExclusiveContext *ncx = cx->asExclusiveContext();
         uint32_t index = JSID_TO_INT(id);
-        JSObject::removeDenseElementForSparseIndex(ncx, obj, index);
-        JSObject::EnsureDenseResult result = JSObject::maybeDensifySparseElements(ncx, obj);
+        JSObject::removeDenseElementForSparseIndex(cx, obj, index);
+        JSObject::EnsureDenseResult result = JSObject::maybeDensifySparseElements(cx, obj);
         if (result == JSObject::ED_FAILED)
             return false;
         if (result == JSObject::ED_OK) {
             JS_ASSERT(setter == JS_StrictPropertyStub);
-            return CallAddPropertyHookDense<mode>(cx, obj->getClass(), obj, index, value);
+            return CallAddPropertyHookDense(cx, obj->getClass(), obj, index, value);
         }
     }
 
-    if (!CallAddPropertyHook<mode>(cx, obj->getClass(), obj, shape, value))
+    if (!CallAddPropertyHook(cx, obj->getClass(), obj, shape, value))
         return false;
 
     if (callSetterAfterwards && setter != JS_StrictPropertyStub) {
         if (!cx->shouldBeJSContext())
             return false;
         RootedValue nvalue(cx, value);
-        return NativeSet<mode>(ExecutionModeTraits<mode>::toContextType(cx),
-                               obj, obj, shape, setterIsStrict, &nvalue);
+        return js_NativeSet(cx->asJSContext(), obj, obj, shape, setterIsStrict, &nvalue);
     }
     return true;
 }
@@ -3632,14 +3584,14 @@ js::DefineNativeProperty(ExclusiveContext *cx, HandleObject obj, HandleId id, Ha
                 shape = obj->nativeLookup(cx, id);
             }
             if (shape->isAccessorDescriptor()) {
-                shape = JSObject::changeProperty<SequentialExecution>(cx, obj, shape, attrs,
-                                                                      JSPROP_GETTER | JSPROP_SETTER,
-                                                                      (attrs & JSPROP_GETTER)
-                                                                      ? getter
-                                                                      : shape->getter(),
-                                                                      (attrs & JSPROP_SETTER)
-                                                                      ? setter
-                                                                      : shape->setter());
+                shape = JSObject::changeProperty(cx, obj, shape, attrs,
+                                                 JSPROP_GETTER | JSPROP_SETTER,
+                                                 (attrs & JSPROP_GETTER)
+                                                 ? getter
+                                                 : shape->getter(),
+                                                 (attrs & JSPROP_SETTER)
+                                                 ? setter
+                                                 : shape->setter());
                 if (!shape)
                     return false;
             } else {
@@ -3678,15 +3630,14 @@ js::DefineNativeProperty(ExclusiveContext *cx, HandleObject obj, HandleId id, Ha
     }
 
     if (!shape) {
-        return DefinePropertyOrElement<SequentialExecution>(cx, obj, id, getter, setter,
-                                                            attrs, flags, shortid, value,
-                                                            false, false);
+        return DefinePropertyOrElement(cx, obj, id, getter, setter,
+                                       attrs, flags, shortid, value, false, false);
     }
 
     if (shape->hasSlot())
         obj->nativeSetSlot(shape->slot(), value);
 
-    return CallAddPropertyHook<SequentialExecution>(cx, clasp, obj, shape, value);
+    return CallAddPropertyHook(cx, clasp, obj, shape, value);
 }
 
 /*
@@ -4137,40 +4088,29 @@ NativeGetInline(JSContext *cx,
 }
 
 bool
-js::NativeGet(JSContext *cx, Handle<JSObject*> obj, Handle<JSObject*> pobj, Handle<Shape*> shape,
-              MutableHandle<Value> vp)
+js_NativeGet(JSContext *cx, Handle<JSObject*> obj, Handle<JSObject*> pobj, Handle<Shape*> shape,
+             MutableHandle<Value> vp)
 {
     return NativeGetInline<CanGC>(cx, obj, obj, pobj, shape, vp);
 }
 
-template <ExecutionMode mode>
+
 bool
-js::NativeSet(typename ExecutionModeTraits<mode>::ContextType cxArg,
-              Handle<JSObject*> obj, Handle<JSObject*> receiver,
-              HandleShape shape, bool strict, MutableHandleValue vp)
+js_NativeSet(JSContext *cx, Handle<JSObject*> obj, Handle<JSObject*> receiver,
+             HandleShape shape, bool strict, MutableHandleValue vp)
 {
-    JS_ASSERT(cxArg->isThreadLocal(obj));
     JS_ASSERT(obj->isNative());
 
     if (shape->hasSlot()) {
+        uint32_t slot = shape->slot();
+
         /* If shape has a stub setter, just store vp. */
         if (shape->hasDefaultSetter()) {
-            if (mode == ParallelExecution) {
-                if (!obj->nativeSetSlotIfHasType(shape, vp))
-                    return false;
-            } else {
-                obj->nativeSetSlotWithType(cxArg->asExclusiveContext(), obj, shape, vp);
-            }
-
+            AddTypePropertyId(cx, obj, shape->propid(), vp);
+            obj->nativeSetSlot(slot, vp);
             return true;
         }
-    }
-
-    if (mode == ParallelExecution)
-        return false;
-    JSContext *cx = cxArg->asJSContext();
-
-    if (!shape->hasSlot()) {
+    } else {
         /*
          * Allow API consumers to create shared properties with stub setters.
          * Such properties effectively function as data descriptors which are
@@ -4201,15 +4141,6 @@ js::NativeSet(typename ExecutionModeTraits<mode>::ContextType cxArg,
 
     return true;
 }
-
-template bool
-js::NativeSet<SequentialExecution>(JSContext *cx,
-                                   Handle<JSObject*> obj, Handle<JSObject*> receiver,
-                                   HandleShape shape, bool strict, MutableHandleValue vp);
-template bool
-js::NativeSet<ParallelExecution>(ForkJoinSlice *slice,
-                                 Handle<JSObject*> obj, Handle<JSObject*> receiver,
-                                 HandleShape shape, bool strict, MutableHandleValue vp);
 
 template <AllowGC allowGC>
 static JS_ALWAYS_INLINE bool
@@ -4313,7 +4244,7 @@ GetPropertyHelperInline(JSContext *cx,
         return true;
     }
 
-    /* This call site is hot -- use the always-inlined variant of NativeGet(). */
+    /* This call site is hot -- use the always-inlined variant of js_NativeGet(). */
     if (!NativeGetInline<allowGC>(cx, obj, receiver, obj2, shape, vp))
         return false;
 
@@ -4622,43 +4553,26 @@ JSObject::callMethod(JSContext *cx, HandleId id, unsigned argc, Value *argv, Mut
     return Invoke(cx, ObjectValue(*obj), fval, argc, argv, vp);
 }
 
-template <ExecutionMode mode>
 bool
-baseops::SetPropertyHelper(typename ExecutionModeTraits<mode>::ContextType cxArg,
-                           HandleObject obj, HandleObject receiver, HandleId id,
+baseops::SetPropertyHelper(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
                            unsigned defineHow, MutableHandleValue vp, bool strict)
 {
-    JS_ASSERT(cxArg->isThreadLocal(obj));
     JS_ASSERT((defineHow & ~DNP_UNQUALIFIED) == 0);
 
     if (JS_UNLIKELY(obj->watched())) {
-        if (mode == ParallelExecution)
-            return false;
-
         /* Fire watchpoints, if any. */
-        JSContext *cx = cxArg->asJSContext();
         WatchpointMap *wpmap = cx->compartment()->watchpointMap;
         if (wpmap && !wpmap->triggerWatchpoint(cx, obj, id, vp))
             return false;
     }
 
-    RootedObject pobj(cxArg);
-    RootedShape shape(cxArg);
-    if (mode == ParallelExecution) {
-        if (!LookupPropertyPure(obj, id, pobj.address(), shape.address()))
-            return false;
-    } else {
-        JSContext *cx = cxArg->asJSContext();
-        if (!LookupPropertyWithFlags(cx, obj, id, cx->resolveFlags, &pobj, &shape))
-            return false;
-    }
+    RootedObject pobj(cx);
+    RootedShape shape(cx);
+    if (!LookupPropertyWithFlags(cx, obj, id, cx->resolveFlags, &pobj, &shape))
+        return false;
     if (shape) {
         if (!pobj->isNative()) {
             if (pobj->is<ProxyObject>()) {
-                if (mode == ParallelExecution)
-                    return false;
-
-                JSContext *cx = cxArg->asJSContext();
                 Rooted<PropertyDescriptor> pd(cx);
                 if (!Proxy::getPropertyDescriptor(cx, pobj, id, &pd, JSRESOLVE_ASSIGNING))
                     return false;
@@ -4684,12 +4598,11 @@ baseops::SetPropertyHelper(typename ExecutionModeTraits<mode>::ContextType cxArg
         /* We should never add properties to lexical blocks. */
         JS_ASSERT(!obj->is<BlockObject>());
 
-        if (obj->is<GlobalObject>() && (defineHow & DNP_UNQUALIFIED)) {
-            if (mode == ParallelExecution)
-                return false;
-
-            if (!MaybeReportUndeclaredVarAssignment(cxArg->asJSContext(), JSID_TO_STRING(id)))
-                return false;
+        if (obj->is<GlobalObject>() &&
+            (defineHow & DNP_UNQUALIFIED) &&
+            !MaybeReportUndeclaredVarAssignment(cx, JSID_TO_STRING(id)))
+        {
+            return false;
         }
     }
 
@@ -4711,27 +4624,13 @@ baseops::SetPropertyHelper(typename ExecutionModeTraits<mode>::ContextType cxArg
     } else if (shape) {
         /* ES5 8.12.4 [[Put]] step 2. */
         if (shape->isAccessorDescriptor()) {
-            if (shape->hasDefaultSetter()) {
-                /* Bail out of parallel execution if we are strict to throw. */
-                if (mode == ParallelExecution)
-                    return !strict;
-
-                return js_ReportGetterOnlyAssignment(cxArg->asJSContext(), strict);
-            }
+            if (shape->hasDefaultSetter())
+                return js_ReportGetterOnlyAssignment(cx, strict);
         } else {
             JS_ASSERT(shape->isDataDescriptor());
 
             if (!shape->writable()) {
-                /*
-                 * Error in strict mode code, warn with extra warnings
-                 * options, otherwise do nothing.
-                 *
-                 * Bail out of parallel execution if we are strict to throw.
-                 */
-                if (mode == ParallelExecution)
-                    return !strict;
-
-                JSContext *cx = cxArg->asJSContext();
+                /* Error in strict mode code, warn with extra warnings options, otherwise do nothing. */
                 if (strict)
                     return JSObject::reportReadOnly(cx, id, JSREPORT_ERROR);
                 if (cx->hasExtraWarningsOption())
@@ -4749,10 +4648,7 @@ baseops::SetPropertyHelper(typename ExecutionModeTraits<mode>::ContextType cxArg
                 if (shape->hasDefaultSetter() && !shape->hasGetterValue())
                     return true;
 
-                if (mode == ParallelExecution)
-                    return false;
-
-                return shape->set(cxArg->asJSContext(), obj, receiver, strict, vp);
+                return shape->set(cx, obj, receiver, strict, vp);
             }
 
             /*
@@ -4794,45 +4690,26 @@ baseops::SetPropertyHelper(typename ExecutionModeTraits<mode>::ContextType cxArg
     if (IsImplicitDenseElement(shape)) {
         uint32_t index = JSID_TO_INT(id);
         bool definesPast;
-        if (!WouldDefinePastNonwritableLength(cxArg, obj, index, strict, &definesPast))
+        if (!WouldDefinePastNonwritableLength(cx, obj, index, strict, &definesPast))
             return false;
-        if (definesPast) {
-            /* Bail out of parallel execution if we are strict to throw. */
-            if (mode == ParallelExecution)
-                return !strict;
+        if (definesPast)
             return true;
-        }
 
-        if (mode == ParallelExecution)
-            obj->setDenseElementIfHasType(index, vp);
-        else
-            JSObject::setDenseElementWithType(cxArg->asJSContext(), obj, index, vp);
+        JSObject::setDenseElementWithType(cx, obj, index, vp);
         return true;
     }
 
-    if (obj->is<ArrayObject>() && id == NameToId(cxArg->names().length)) {
-        Rooted<ArrayObject*> arr(cxArg, &obj->as<ArrayObject>());
-        return ArraySetLength<mode>(cxArg, arr, id, attrs, vp, strict);
+    if (obj->is<ArrayObject>() && id == NameToId(cx->names().length)) {
+        Rooted<ArrayObject*> arr(cx, &obj->as<ArrayObject>());
+        return ArraySetLength(cx, arr, id, attrs, vp, strict);
     }
 
     if (!shape) {
         bool extensible;
-        if (mode == ParallelExecution) {
-            if (obj->is<ProxyObject>())
-                return false;
-            extensible = obj->nonProxyIsExtensible();
-        } else {
-            if (!JSObject::isExtensible(cxArg->asJSContext(), obj, &extensible))
-                return false;
-        }
-
+        if (!JSObject::isExtensible(cx, obj, &extensible))
+            return false;
         if (!extensible) {
-            /* Bail out of parallel execution if we are strict to throw. */
-            if (mode == ParallelExecution)
-                return !strict;
-
             /* Error in strict mode code, warn with extra warnings option, otherwise do nothing. */
-            JSContext *cx = cxArg->asJSContext();
             if (strict)
                 return obj->reportNotExtensible(cx);
             if (cx->hasExtraWarningsOption())
@@ -4840,40 +4717,19 @@ baseops::SetPropertyHelper(typename ExecutionModeTraits<mode>::ContextType cxArg
             return true;
         }
 
-        if (mode == ParallelExecution) {
-            if (obj->isDelegate())
-                return false;
+        /* Purge the property cache of now-shadowed id in obj's scope chain. */
+        if (!PurgeScopeChain(cx, obj, id))
+            return false;
 
-            if (getter != JS_PropertyStub || !HasTypePropertyId(obj, id, vp))
-                return false;
-        } else {
-            JSContext *cx = cxArg->asJSContext();
+        if (getter == JS_PropertyStub)
+            AddTypePropertyId(cx, obj, id, vp);
 
-            /* Purge the property cache of now-shadowed id in obj's scope chain. */
-            if (!PurgeScopeChain(cx, obj, id))
-                return false;
-
-            if (getter == JS_PropertyStub)
-                AddTypePropertyId(cx, obj, id, vp);
-        }
-
-        return DefinePropertyOrElement<mode>(cxArg, obj, id, getter, setter,
-                                             attrs, flags, shortid, vp, true, strict);
+        return DefinePropertyOrElement(cx, obj, id, getter, setter,
+                                       attrs, flags, shortid, vp, true, strict);
     }
 
-    return NativeSet<mode>(cxArg, obj, receiver, shape, strict, vp);
+    return js_NativeSet(cx, obj, receiver, shape, strict, vp);
 }
-
-template bool
-baseops::SetPropertyHelper<SequentialExecution>(JSContext *cx, HandleObject obj,
-                                                HandleObject receiver,
-                                                HandleId id, unsigned defineHow,
-                                                MutableHandleValue vp, bool strict);
-template bool
-baseops::SetPropertyHelper<ParallelExecution>(ForkJoinSlice *slice, HandleObject obj,
-                                              HandleObject receiver,
-                                              HandleId id, unsigned defineHow,
-                                              MutableHandleValue vp, bool strict);
 
 bool
 baseops::SetElementHelper(JSContext *cx, HandleObject obj, HandleObject receiver, uint32_t index,
@@ -4882,8 +4738,7 @@ baseops::SetElementHelper(JSContext *cx, HandleObject obj, HandleObject receiver
     RootedId id(cx);
     if (!IndexToId(cx, index, &id))
         return false;
-    return baseops::SetPropertyHelper<SequentialExecution>(cx, obj, receiver, id, defineHow, vp,
-                                                           strict);
+    return baseops::SetPropertyHelper(cx, obj, receiver, id, defineHow, vp, strict);
 }
 
 bool

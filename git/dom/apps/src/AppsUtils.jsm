@@ -55,7 +55,8 @@ mozIApplication.prototype = {
   },
 
   QueryInterface: function(aIID) {
-    if (aIID.equals(Ci.mozIApplication) ||
+    if (aIID.equals(Ci.mozIDOMApplication) ||
+        aIID.equals(Ci.mozIApplication) ||
         aIID.equals(Ci.nsISupports))
       return this;
     throw Cr.NS_ERROR_NO_INTERFACE;

@@ -408,7 +408,7 @@ nsClipboard::HasDataMatchingFlavors(const char** aFlavorList, uint32_t aLength,
     // Which kind of data in the clipboard
     QClipboard *cb = QApplication::clipboard();
     const QMimeData *mimeData = cb->mimeData();
-    const char *flavor=nullptr;
+    const char *flavor=NULL;
     QStringList formats = mimeData->formats();
     for (uint32_t i = 0; i < aLength; ++i)
     {

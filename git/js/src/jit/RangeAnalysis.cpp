@@ -441,10 +441,6 @@ Range::add(const Range *lhs, const Range *rhs)
     if (e <= Range::MaxFiniteExponent)
         ++e;
 
-    // Infinity + -Infinity is NaN.
-    if (lhs->canBeInfiniteOrNaN() && rhs->canBeInfiniteOrNaN())
-        e = Range::IncludesInfinityAndNaN;
-
     return new Range(l, h, lhs->canHaveFractionalPart() || rhs->canHaveFractionalPart(), e);
 }
 
@@ -464,10 +460,6 @@ Range::sub(const Range *lhs, const Range *rhs)
     uint16_t e = Max(lhs->max_exponent_, rhs->max_exponent_);
     if (e <= Range::MaxFiniteExponent)
         ++e;
-
-    // Infinity - Infinity is NaN.
-    if (lhs->canBeInfiniteOrNaN() && rhs->canBeInfiniteOrNaN())
-        e = Range::IncludesInfinityAndNaN;
 
     return new Range(l, h, lhs->canHaveFractionalPart() || rhs->canHaveFractionalPart(), e);
 }

@@ -7,7 +7,6 @@
 #include "nsFontFaceLoader.h"
 #include "nsIFrame.h"
 #include "gfxFont.h"
-#include "mozilla/gfx/2D.h"
 
 nsFontFaceList::nsFontFaceList()
 {

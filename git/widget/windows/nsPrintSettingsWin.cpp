@@ -105,7 +105,7 @@ NS_IMETHODIMP nsPrintSettingsWin::SetDevMode(DEVMODEW * aDevMode)
 {
   if (mDevMode) {
     ::HeapFree(::GetProcessHeap(), 0, mDevMode);
-    mDevMode = nullptr;
+    mDevMode = NULL;
   }
 
   if (aDevMode) {

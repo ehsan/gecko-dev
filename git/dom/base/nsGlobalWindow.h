@@ -503,15 +503,13 @@ public:
 
   already_AddRefed<nsIDOMWindow> GetChildWindow(const nsAString& aName);
 
-  // These return true if we've reached the state in this top level window
-  // where we ask the user if further dialogs should be blocked.
-  //
-  // DialogsAreBeingAbused must be called on the scriptable top inner window.
-  //
-  // ShouldPromptToBlockDialogs is implemented in terms of
-  // DialogsAreBeingAbused, and will get the scriptable top inner window
-  // automatically.
-  bool ShouldPromptToBlockDialogs();
+  // Returns true if dialogs need to be prevented from appearings for this
+  // window. beingAbused returns whether dialogs are being abused.
+  bool DialogsAreBlocked(bool *aBeingAbused);
+
+  // Returns true if we've reached the state in this top level window where we
+  // ask the user if further dialogs should be blocked. This method must only
+  // be called on the scriptable top inner window.
   bool DialogsAreBeingAbused();
 
   // Ask the user if further dialogs should be blocked, if dialogs are currently
@@ -519,11 +517,8 @@ public:
   // show, in that case we show a separate dialog to ask this question.
   bool ConfirmDialogIfNeeded();
 
-  // These functions are used for controlling and determining whether dialogs
-  // (alert, prompt, confirm) are currently allowed in this window.
-  void EnableDialogs();
-  void DisableDialogs();
-  bool AreDialogsEnabled();
+  // Prevent further dialogs in this (top level) window
+  void PreventFurtherDialogs(bool aPermanent);
 
   virtual void SetHasAudioAvailableEventListeners();
 
@@ -1255,9 +1250,15 @@ protected:
   // to allow disabling of further dialogs from this window.
   TimeStamp                     mLastDialogQuitTime;
 
-  // This flag keeps track of whether dialogs are
-  // currently enabled on this window.
-  bool                          mAreDialogsEnabled;
+  // This is set to true once the user has opted-in to preventing further
+  // dialogs for this window. Subsequent dialogs may still open if
+  // mDialogAbuseCount gets reset.
+  bool                          mStopAbuseDialogs;
+
+  // This flag gets set when dialogs should be permanently disabled for this
+  // window (e.g. when we are closing the tab and therefore are guaranteed to be
+  // destroying this window).
+  bool                          mDialogsPermanentlyDisabled;
 
   nsTHashtable<nsPtrHashKey<nsDOMEventTargetHelper> > mEventTargetObjects;
 

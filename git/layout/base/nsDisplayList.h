@@ -782,7 +782,7 @@ public:
   struct HitTestState {
     typedef nsTArray<ViewID> ShadowArray;
 
-    HitTestState(ShadowArray* aShadows = nullptr)
+    HitTestState(ShadowArray* aShadows = NULL)
       : mShadows(aShadows) {
     }
 

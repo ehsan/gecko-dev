@@ -676,11 +676,9 @@ class ArrayBufferObject;
  * |setterIsStrict| indicates whether invalid changes will cause a TypeError
  * to be thrown.
  */
-template <ExecutionMode mode>
 extern bool
-ArraySetLength(typename ExecutionModeTraits<mode>::ContextType cx,
-               Handle<ArrayObject*> obj, HandleId id,
-               unsigned attrs, HandleValue value, bool setterIsStrict);
+ArraySetLength(JSContext *cx, Handle<ArrayObject*> obj, HandleId id, unsigned attrs,
+               HandleValue value, bool setterIsStrict);
 
 /*
  * Elements header used for all native objects. The elements component of such
@@ -770,11 +768,9 @@ class ObjectElements
     friend class ArrayBufferObject;
     friend class Nursery;
 
-    template <ExecutionMode mode>
     friend bool
-    ArraySetLength(typename ExecutionModeTraits<mode>::ContextType cx,
-                   Handle<ArrayObject*> obj, HandleId id,
-                   unsigned attrs, HandleValue value, bool setterIsStrict);
+    ArraySetLength(JSContext *cx, Handle<ArrayObject*> obj, HandleId id, unsigned attrs,
+                   HandleValue value, bool setterIsStrict);
 
     /* See Flags enum above. */
     uint32_t flags;
@@ -923,7 +919,6 @@ IsObjectValueInCompartment(js::Value v, JSCompartment *comp);
 class ObjectImpl : public gc::BarrieredCell<ObjectImpl>
 {
     friend Zone *js::gc::BarrieredCell<ObjectImpl>::zone() const;
-    friend Zone *js::gc::BarrieredCell<ObjectImpl>::zoneFromAnyThread() const;
 
   protected:
     /*
@@ -1037,7 +1032,7 @@ class ObjectImpl : public gc::BarrieredCell<ObjectImpl>
 #endif
 
     Shape *
-    replaceWithNewEquivalentShape(ThreadSafeContext *cx,
+    replaceWithNewEquivalentShape(ExclusiveContext *cx,
                                   Shape *existingShape, Shape *newShape = nullptr);
 
     enum GenerateShape {
@@ -1049,7 +1044,7 @@ class ObjectImpl : public gc::BarrieredCell<ObjectImpl>
                  GenerateShape generateShape = GENERATE_NONE);
     bool clearFlag(ExclusiveContext *cx, /*BaseShape::Flag*/ uint32_t flag);
 
-    bool toDictionaryMode(ThreadSafeContext *cx);
+    bool toDictionaryMode(ExclusiveContext *cx);
 
   private:
     friend class Nursery;
@@ -1172,7 +1167,7 @@ class ObjectImpl : public gc::BarrieredCell<ObjectImpl>
         return shape_;
     }
 
-    bool generateOwnShape(ThreadSafeContext *cx, js::Shape *newShape = nullptr) {
+    bool generateOwnShape(ExclusiveContext *cx, js::Shape *newShape = nullptr) {
         return replaceWithNewEquivalentShape(cx, lastProperty(), newShape);
     }
 
@@ -1529,12 +1524,11 @@ BarrieredCell<ObjectImpl>::zone() const
     return zone;
 }
 
-template <>
-JS_ALWAYS_INLINE Zone *
-BarrieredCell<ObjectImpl>::zoneFromAnyThread() const
+template<>
+inline bool
+BarrieredCell<ObjectImpl>::isInsideZone(JS::Zone *zone_) const
 {
-    const ObjectImpl* obj = static_cast<const ObjectImpl*>(this);
-    return obj->shape_->zoneFromAnyThread();
+    MOZ_CRASH("shouldn't be needed for ObjectImpl, and the default implementation won't work");
 }
 
 // TypeScript::global uses 0x1 as a special value.

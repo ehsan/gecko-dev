@@ -7,7 +7,6 @@
 #include "gfxFT2Utils.h"
 #include "harfbuzz/hb.h"
 #include "mozilla/Likely.h"
-#include "gfxFontConstants.h"
 
 using namespace mozilla::gfx;
 

@@ -1449,9 +1449,11 @@ nsFrameLoader::GetOwnApp()
   nsCOMPtr<nsIAppsService> appsService = do_GetService(APPS_SERVICE_CONTRACTID);
   NS_ENSURE_TRUE(appsService, nullptr);
 
-  nsCOMPtr<mozIApplication> app;
-  appsService->GetAppByManifestURL(manifest, getter_AddRefs(app));
+  nsCOMPtr<mozIDOMApplication> domApp;
+  appsService->GetAppByManifestURL(manifest, getter_AddRefs(domApp));
 
+  nsCOMPtr<mozIApplication> app = do_QueryInterface(domApp);
+  MOZ_ASSERT_IF(domApp, app);
   return app.forget();
 }
 
@@ -1470,9 +1472,12 @@ nsFrameLoader::GetContainingApp()
   nsCOMPtr<nsIAppsService> appsService = do_GetService(APPS_SERVICE_CONTRACTID);
   NS_ENSURE_TRUE(appsService, nullptr);
 
-  nsCOMPtr<mozIApplication> app;
-  appsService->GetAppByLocalId(appId, getter_AddRefs(app));
+  nsCOMPtr<mozIDOMApplication> domApp;
+  appsService->GetAppByLocalId(appId, getter_AddRefs(domApp));
+  MOZ_ASSERT(domApp);
 
+  nsCOMPtr<mozIApplication> app = do_QueryInterface(domApp);
+  MOZ_ASSERT_IF(domApp, app);
   return app.forget();
 }
 

@@ -110,12 +110,10 @@ ca_context_get_default()
     if (g_object_class_find_property(G_OBJECT_GET_CLASS(settings),
                                      "gtk-sound-theme-name")) {
         gchar* sound_theme_name = nullptr;
-        g_object_get(settings, "gtk-sound-theme-name", &sound_theme_name,
-                     nullptr);
+        g_object_get(settings, "gtk-sound-theme-name", &sound_theme_name, NULL);
 
         if (sound_theme_name) {
-            ca_context_change_props(ctx, "canberra.xdg-theme.name",
-                                    sound_theme_name, nullptr);
+            ca_context_change_props(ctx, "canberra.xdg-theme.name", sound_theme_name, NULL);
             g_free(sound_theme_name);
         }
     }
@@ -132,8 +130,7 @@ ca_context_get_default()
                                               getter_Copies(wbrand));
             NS_ConvertUTF16toUTF8 brand(wbrand);
 
-            ca_context_change_props(ctx, "application.name", brand.get(),
-                                    nullptr);
+            ca_context_change_props(ctx, "application.name", brand.get(), NULL);
         }
     }
 
@@ -142,12 +139,10 @@ ca_context_get_default()
         nsAutoCString version;
         appInfo->GetVersion(version);
 
-        ca_context_change_props(ctx, "application.version", version.get(),
-                                nullptr);
+        ca_context_change_props(ctx, "application.version", version.get(), NULL);
     }
 
-    ca_context_change_props(ctx, "application.icon_name", MOZ_APP_NAME,
-                            nullptr);
+    ca_context_change_props(ctx, "application.icon_name", MOZ_APP_NAME, NULL);
 
     return ctx;
 }
@@ -336,12 +331,12 @@ NS_METHOD nsSound::Play(nsIURL *aURL)
         if (NS_FAILED(rv)) {
             return rv;
         }
-        gchar *path = g_filename_from_uri(spec.get(), nullptr, nullptr);
+        gchar *path = g_filename_from_uri(spec.get(), NULL, NULL);
         if (!path) {
             return NS_ERROR_FILE_UNRECOGNIZED_PATH;
         }
 
-        ca_context_play(ctx, 0, "media.filename", path, nullptr);
+        ca_context_play(ctx, 0, "media.filename", path, NULL);
         g_free(path);
     } else {
         nsCOMPtr<nsIStreamLoader> loader;
@@ -365,7 +360,7 @@ NS_IMETHODIMP nsSound::PlayEventSound(uint32_t aEventId)
     if (g_object_class_find_property(G_OBJECT_GET_CLASS(settings),
                                      "gtk-enable-event-sounds")) {
         gboolean enable_sounds = TRUE;
-        g_object_get(settings, "gtk-enable-event-sounds", &enable_sounds, nullptr);
+        g_object_get(settings, "gtk-enable-event-sounds", &enable_sounds, NULL);
 
         if (!enable_sounds) {
             return NS_OK;
@@ -379,19 +374,19 @@ NS_IMETHODIMP nsSound::PlayEventSound(uint32_t aEventId)
 
     switch (aEventId) {
         case EVENT_ALERT_DIALOG_OPEN:
-            ca_context_play(ctx, 0, "event.id", "dialog-warning", nullptr);
+            ca_context_play(ctx, 0, "event.id", "dialog-warning", NULL);
             break;
         case EVENT_CONFIRM_DIALOG_OPEN:
-            ca_context_play(ctx, 0, "event.id", "dialog-question", nullptr);
+            ca_context_play(ctx, 0, "event.id", "dialog-question", NULL);
             break;
         case EVENT_NEW_MAIL_RECEIVED:
-            ca_context_play(ctx, 0, "event.id", "message-new-email", nullptr);
+            ca_context_play(ctx, 0, "event.id", "message-new-email", NULL);
             break;
         case EVENT_MENU_EXECUTE:
-            ca_context_play(ctx, 0, "event.id", "menu-click", nullptr);
+            ca_context_play(ctx, 0, "event.id", "menu-click", NULL);
             break;
         case EVENT_MENU_POPUP:
-            ca_context_play(ctx, 0, "event.id", "menu-popup", nullptr);
+            ca_context_play(ctx, 0, "event.id", "menu-popup", NULL);
             break;
     }
     return NS_OK;

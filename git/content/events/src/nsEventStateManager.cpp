@@ -1593,7 +1593,7 @@ nsEventStateManager::CreateClickHoldTimer(nsPresContext* inPresContext,
                                           nsIFrame* inDownFrame,
                                           WidgetGUIEvent* inMouseDownEvent)
 {
-  if (!inMouseDownEvent->mFlags.mIsTrusted || IsRemoteTarget(mGestureDownContent))
+  if (!inMouseDownEvent->mFlags.mIsTrusted)
     return;
 
   // just to be anal (er, safe)

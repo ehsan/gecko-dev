@@ -463,7 +463,7 @@ KeymapWrapper::GetCurrentModifierState()
 {
     GdkModifierType modifiers;
     gdk_display_get_pointer(gdk_display_get_default(),
-                            nullptr, nullptr, nullptr, &modifiers);
+                            NULL, NULL, NULL, &modifiers);
     return static_cast<guint>(modifiers);
 }
 
@@ -935,7 +935,7 @@ KeymapWrapper::GetCharCodeFor(const GdkEventKey *aGdkKeyEvent,
     if (!gdk_keymap_translate_keyboard_state(mGdkKeymap,
              aGdkKeyEvent->hardware_keycode,
              GdkModifierType(aModifierState),
-             aGroup, &keyval, nullptr, nullptr, nullptr)) {
+             aGroup, &keyval, NULL, NULL, NULL)) {
         return 0;
     }
     GdkEventKey tmpEvent = *aGdkKeyEvent;
@@ -953,7 +953,7 @@ KeymapWrapper::GetKeyLevel(GdkEventKey *aGdkKeyEvent)
     if (!gdk_keymap_translate_keyboard_state(mGdkKeymap,
              aGdkKeyEvent->hardware_keycode,
              GdkModifierType(aGdkKeyEvent->state),
-             aGdkKeyEvent->group, nullptr, nullptr, &level, nullptr)) {
+             aGdkKeyEvent->group, NULL, NULL, &level, NULL)) {
         return -1;
     }
     return level;
@@ -1019,7 +1019,7 @@ KeymapWrapper::GetGDKKeyvalWithoutModifier(const GdkEventKey *aGdkKeyEvent)
     guint keyval;
     if (!gdk_keymap_translate_keyboard_state(keymapWrapper->mGdkKeymap,
              aGdkKeyEvent->hardware_keycode, GdkModifierType(state),
-             aGdkKeyEvent->group, &keyval, nullptr, nullptr, nullptr)) {
+             aGdkKeyEvent->group, &keyval, NULL, NULL, NULL)) {
         return 0;
     }
     return keyval;
