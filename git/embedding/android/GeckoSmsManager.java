@@ -301,13 +301,11 @@ public class GeckoSmsManager
    * defined in dom/mobilemessage/interfaces/nsISmsRequestManager.idl. They are owned
    * owned by the interface.
    */
-  public final static int kNoError                = 0;
-  public final static int kNoSignalError          = 1;
-  public final static int kNotFoundError          = 2;
-  public final static int kUnknownError           = 3;
-  public final static int kInternalError          = 4;
-  public final static int kNoSimCardError         = 5;
-  public final static int kRadioDisabledError     = 6;
+  public final static int kNoError       = 0;
+  public final static int kNoSignalError = 1;
+  public final static int kNotFoundError = 2;
+  public final static int kUnknownError  = 3;
+  public final static int kInternalError = 4;
 
   private final static int kMaxMessageSize    = 160;
 

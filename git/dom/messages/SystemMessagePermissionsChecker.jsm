@@ -97,10 +97,7 @@ this.SystemMessagePermissionsTable = {
   },
   "ussd-received": {
     "mobileconnection": []
-  },
-  "wappush-received": {
-    "sms": []
-  },
+  }
 };
 
 this.SystemMessagePermissionsChecker = {
