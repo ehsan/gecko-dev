@@ -1535,7 +1535,6 @@ TraceRecorder::snapshot(ExitType exitType)
        trees returning on a break goto, which the outer recorder then would confuse with
        a break in the outer tree. */
     jsbytecode* pc = fp->regs->pc;
-    JS_ASSERT(!(((*pc == JSOP_GOTO) || (*pc == JSOP_GOTOX)) && (exitType != LOOP_EXIT)));
     if (*pc == JSOP_GOTO) 
         pc += GET_JUMP_OFFSET(pc);
     else if (*pc == JSOP_GOTOX)
@@ -1875,12 +1874,11 @@ nanojit::Fragment::onDestroy()
 void
 js_DeleteRecorder(JSContext* cx)
 {
-    JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
-
     /* Aborting and completing a trace end up here. */
-    JS_ASSERT(tm->onTrace);
-    tm->onTrace = false;
+    JS_ASSERT(cx->executingTrace);
+    cx->executingTrace = false;
 
+    JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
     delete tm->recorder;
     tm->recorder = NULL;
 }
@@ -1890,16 +1888,14 @@ js_StartRecorder(JSContext* cx, GuardRecord* anchor, Fragment* f, TreeInfo* ti,
         unsigned ngslots, uint8* globalTypeMap, uint8* stackTypeMap, 
         GuardRecord* expectedInnerExit)
 {
-    JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
-
     /*
      * Emulate on-trace semantics and avoid rooting headaches while recording,
      * by suppressing last-ditch GC attempts while recording a trace. This does
      * means that trace recording must not nest or the following assertion will
      * botch.
      */
-    JS_ASSERT(!tm->onTrace);
-    tm->onTrace = true;
+    JS_ASSERT(!cx->executingTrace);
+    cx->executingTrace = true;
 
     /* start recording if no exception during construction */
     JS_TRACE_MONITOR(cx).recorder = new (&gc) TraceRecorder(cx, anchor, f, ti,
@@ -2299,11 +2295,11 @@ js_ExecuteTree(JSContext* cx, Fragment** treep, uintN& inlineCallCount,
     /*
      * We may be called from js_MonitorLoopEdge while not recording, or while
      * recording. Rather than over-generalize by using a counter instead of a
-     * flag, we simply sample and update tm->onTrace if necessary.
+     * flag, we simply sample and update cx->executingTrace if necessary.
      */
-    bool onTrace = tm->onTrace;
-    if (!onTrace)
-        tm->onTrace = true;
+    bool executingTrace = cx->executingTrace;
+    if (!executingTrace)
+        cx->executingTrace = true;
     GuardRecord* lr;
     
 #if defined(JS_NO_FASTCALL) && defined(NANOJIT_IA32)
@@ -2312,8 +2308,8 @@ js_ExecuteTree(JSContext* cx, Fragment** treep, uintN& inlineCallCount,
     lr = u.func(&state, NULL);
 #endif
 
-    if (!onTrace)
-        tm->onTrace = false;
+    if (!executingTrace)
+        cx->executingTrace = false;
 
     /* If we bail out on a nested exit, the compiled code returns the outermost nesting
        guard but what we are really interested in is the innermost guard that we hit
