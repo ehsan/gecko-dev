@@ -324,11 +324,11 @@ IsInlinableCall(jsbytecode *pc)
 {
     JSOp op = JSOp(*pc);
 
-    // CALL, FUNCALL, FUNAPPLY, EVAL (Standard callsites)
+    // CALL, FUNCALL, FUNAPPLY (Standard callsites)
     // NEW (IonMonkey-only callsite)
     // GETPROP, CALLPROP, and LENGTH. (Inlined Getters)
     // SETPROP, SETNAME, SETGNAME (Inlined Setters)
-    return op == JSOP_CALL || op == JSOP_FUNCALL || op == JSOP_FUNAPPLY || op == JSOP_EVAL ||
+    return op == JSOP_CALL || op == JSOP_FUNCALL || op == JSOP_FUNAPPLY ||
 #ifdef JS_ION
            op == JSOP_NEW ||
 #endif
@@ -728,13 +728,7 @@ UseNewTypeForClone(JSFunction *fun)
 {
     AutoAssertNoGC nogc;
 
-    if (!fun->isInterpreted())
-        return false;
-
-    if (fun->nonLazyScript()->shouldCloneAtCallsite)
-        return true;
-
-    if (fun->hasSingletonType())
+    if (fun->hasSingletonType() || !fun->isInterpreted())
         return false;
 
     /*

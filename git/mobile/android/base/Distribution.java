@@ -30,6 +30,7 @@ import java.util.zip.ZipFile;
 
 import org.json.JSONArray;
 import org.json.JSONException;
+import org.json.JSONObject;
 
 public final class Distribution {
     private static final String LOGTAG = "GeckoDistribution";
@@ -46,7 +47,6 @@ public final class Distribution {
     public static void init(final Context context, final String packagePath) {
         // Read/write preferences and files on the background thread.
         GeckoBackgroundThread.getHandler().post(new Runnable() {
-            @Override
             public void run() {
                 // Bail if we've already initialized the distribution.
                 SharedPreferences settings = context.getSharedPreferences(GeckoApp.PREFS_NAME, Activity.MODE_PRIVATE);
@@ -56,38 +56,21 @@ public final class Distribution {
                     return;
                 }
 
-                // This pref stores the path to the distribution directory. If it is null, Gecko
-                // looks for distribution files in /data/data/org.mozilla.xxx/distribution.
-                String pathKeyName = context.getPackageName() + ".distribution_path";
-                String distPath = null;
-
                 // Send a message to Gecko if we've set a distribution.
                 if (state == STATE_SET) {
-                    distPath = settings.getString(pathKeyName, null);
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Distribution:Set", distPath));
+                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Distribution:Set", null));
                     return;
                 }
 
                 boolean distributionSet = false;
                 try {
-                    // First, try copying distribution files out of the APK.
                     distributionSet = copyFiles(context, packagePath);
                 } catch (IOException e) {
                     Log.e(LOGTAG, "Error copying distribution files", e);
                 }
 
-                if (!distributionSet) {
-                    // If there aren't any distribution files in the APK, look in the /system directory.
-                    File distDir = new File("/system/" + context.getPackageName() + "/distribution");
-                    if (distDir.exists()) {
-                        distributionSet = true;
-                        distPath = distDir.getPath();
-                        settings.edit().putString(pathKeyName, distPath).commit();
-                    }
-                }
-
                 if (distributionSet) {
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Distribution:Set", distPath));
+                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Distribution:Set", null));
                     settings.edit().putInt(keyName, STATE_SET).commit();
                 } else {
                     settings.edit().putInt(keyName, STATE_NONE).commit();

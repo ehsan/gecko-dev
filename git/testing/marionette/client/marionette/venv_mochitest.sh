@@ -50,8 +50,5 @@ cd $CWD
 # pop off the python parameter
 shift
 
-TEST_PWD=${TEST_PWD:-$GECKO_OBJDIR/_tests/testing/mochitest}
-cd $TEST_PWD
-
-set -x
+cd $GECKO_OBJDIR/_tests/testing/mochitest
 python runtestsb2g.py $@

@@ -60,7 +60,7 @@ public class testHistoryTab extends PixelTest {
         loadAndPaint(url);
 
         mActions.sendSpecialKey(Actions.SpecialKey.MENU);
-        waitForText("Settings");
+        mSolo.waitForText("Settings");
 
         // On ICS+ phones, there is no button labeled "Bookmarks"
         // instead we have to just dig through every button on the screen
@@ -102,12 +102,12 @@ public class testHistoryTab extends PixelTest {
 
         // Around midnight we will switch from Today -> Yesterday, account for both
         if (!mSolo.waitForText("Today")) {
-            waitForText("Yesterday");
+            mSolo.waitForText("Yesterday");
         }
 
         mAsserter.isnot(listview,  null, "checking that history list exists");
 
-        final int count = listview.getAdapter().getCount();
+        final int count = listview.getChildCount();
         mAsserter.is(count, 3, "history list has 3 children");
 
         String loadUrl = "";
@@ -161,12 +161,11 @@ public class testHistoryTab extends PixelTest {
 
     private void testContextMenu(String url) {
         listview = getHistoryList();
-        waitForText(url);
+        mSolo.waitForText(url);
 
         // wait for the history list to be populated
         mFirstChild = null;
         boolean success = waitForTest(new BooleanTest() {
-            @Override
             public boolean test() {
                 mFirstChild = listview.getChildAt(1);
                 if (mFirstChild == null) {
@@ -215,7 +214,7 @@ public class testHistoryTab extends PixelTest {
     private void testClick(String url) {
         listview = getHistoryList();
 
-        waitForText(url);
+        mSolo.waitForText(url);
 
         View child = listview.getChildAt(0);
         mSolo.clickOnView(child);
@@ -224,7 +223,6 @@ public class testHistoryTab extends PixelTest {
         Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
         mFirstChild = null;
         boolean success = waitForTest(new BooleanTest() {
-            @Override
             public boolean test() {
                 mFirstChild = listview.getChildAt(1);
                 if (mFirstChild == null) {
@@ -242,7 +240,6 @@ public class testHistoryTab extends PixelTest {
         }
     }
 
-    @Override
     public void tearDown() throws Exception {
         ContentResolver resolver = getActivity().getContentResolver();
         Uri uri = Uri.parse("content://@ANDROID_PACKAGE_NAME@.db.browser/history");

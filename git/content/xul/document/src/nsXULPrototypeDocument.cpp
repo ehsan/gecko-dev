@@ -33,7 +33,6 @@
 #include "mozilla/dom/BindingUtils.h"
 
 using mozilla::dom::DestroyProtoAndIfaceCache;
-using mozilla::AutoPushJSContext;
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
@@ -758,7 +757,7 @@ nsXULPDGlobalObject::EnsureScriptEnvironment()
   // attach it as the global for this context.  Then, we
   // will re-fetch the global and set it up in our language globals array.
   {
-    AutoPushJSContext cx(ctxNew->GetNativeContext());
+    JSContext *cx = ctxNew->GetNativeContext();
     JSAutoRequest ar(cx);
 
     JSObject *newGlob = JS_NewGlobalObject(cx, &gSharedGlobalClass,

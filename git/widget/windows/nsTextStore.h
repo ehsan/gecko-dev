@@ -101,13 +101,13 @@ public:
 
   static void     CommitComposition(bool aDiscard)
   {
-    NS_ENSURE_TRUE_VOID(sTsfTextStore);
+    if (!sTsfTextStore) return;
     sTsfTextStore->CommitCompositionInternal(aDiscard);
   }
 
   static void     SetInputContext(const InputContext& aContext)
   {
-    NS_ENSURE_TRUE_VOID(sTsfTextStore);
+    if (!sTsfTextStore) return;
     sTsfTextStore->SetInputScope(aContext.mHTMLInputType);
     sTsfTextStore->SetInputContextInternal(aContext.mIMEState.mEnabled);
   }
@@ -119,13 +119,13 @@ public:
                                uint32_t aOldEnd,
                                uint32_t aNewEnd)
   {
-    NS_ENSURE_TRUE(sTsfTextStore, NS_ERROR_NOT_AVAILABLE);
+    if (!sTsfTextStore) return NS_OK;
     return sTsfTextStore->OnTextChangeInternal(aStart, aOldEnd, aNewEnd);
   }
 
   static void     OnTextChangeMsg(void)
   {
-    NS_ENSURE_TRUE_VOID(sTsfTextStore);
+    if (!sTsfTextStore) return;
     // Notify TSF text change
     // (see comments on WM_USER_TSF_TEXTCHANGE in nsTextStore.h)
     sTsfTextStore->OnTextChangeMsgInternal();
@@ -133,7 +133,7 @@ public:
 
   static nsresult OnSelectionChange(void)
   {
-    NS_ENSURE_TRUE(sTsfTextStore, NS_ERROR_NOT_AVAILABLE);
+    if (!sTsfTextStore) return NS_OK;
     return sTsfTextStore->OnSelectionChangeInternal();
   }
 
@@ -145,58 +145,23 @@ public:
     ts->OnCompositionTimer();
   }
 
-  static bool CanOptimizeKeyAndIMEMessages()
-  {
-    // TODO: We need to implement this for ATOK.
-    return true;
-  }
-
   // Returns the address of the pointer so that the TSF automatic test can
   // replace the system object with a custom implementation for testing.
-  static void* GetNativeData(uint32_t aDataType)
+  static void*    GetThreadMgr(void)
   {
-    switch (aDataType) {
-      case NS_NATIVE_TSF_THREAD_MGR:
-        Initialize(); // Apply any previous changes
-        return static_cast<void*>(&sTsfThreadMgr);
-      case NS_NATIVE_TSF_CATEGORY_MGR:
-        return static_cast<void*>(&sCategoryMgr);
-      case NS_NATIVE_TSF_DISPLAY_ATTR_MGR:
-        return static_cast<void*>(&sDisplayAttrMgr);
-      default:
-        return nullptr;
-    }
+    Initialize(); // Apply any previous changes
+    return (void*) & sTsfThreadMgr;
   }
 
-  static void*    GetTextStore()
+  static void*    GetCategoryMgr(void)
   {
-    return static_cast<void*>(sTsfTextStore);
+    return (void*) & sCategoryMgr;
   }
 
-  static bool     ThinksHavingFocus()
+  static void*    GetDisplayAttrMgr(void)
   {
-    return (sTsfTextStore && sTsfTextStore->mContext);
+    return (void*) & sDisplayAttrMgr;
   }
-
-  static bool     IsInTSFMode()
-  {
-    return sTsfThreadMgr != nullptr;
-  }
-
-  static bool     IsComposing()
-  {
-    return (sTsfTextStore && sTsfTextStore->mCompositionView != nullptr);
-  }
-
-  static bool     IsComposingOn(nsWindowBase* aWidget)
-  {
-    return (IsComposing() && sTsfTextStore->mWidget == aWidget);
-  }
-
-#ifdef DEBUG
-  // Returns true when keyboard layout has IME (TIP).
-  static bool     CurrentKeyboardLayoutHasIME();
-#endif // #ifdef DEBUG
 
 protected:
   nsTextStore();

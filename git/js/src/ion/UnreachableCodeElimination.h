@@ -22,10 +22,9 @@ class UnreachableCodeElimination
     MIRGraph &graph_;
     uint32_t marked_;
     bool redundantPhis_;
-    bool rerunAliasAnalysis_;
 
     bool prunePointlessBranchesAndMarkReachableBlocks();
-    void checkDependencyAndRemoveUsesFromUnmarkedBlocks(MDefinition *instr);
+    void removeUsesFromUnmarkedBlocks(MDefinition *instr);
     bool removeUnmarkedBlocksAndClearDominators();
     bool removeUnmarkedBlocksAndCleanup();
 
@@ -34,8 +33,7 @@ class UnreachableCodeElimination
       : mir_(mir),
         graph_(graph),
         marked_(0),
-        redundantPhis_(false),
-        rerunAliasAnalysis_(false)
+        redundantPhis_(false)
     {}
 
     // Walks the graph and discovers what is reachable. Removes everything else.

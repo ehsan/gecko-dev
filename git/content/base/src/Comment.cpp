@@ -15,6 +15,9 @@
 using namespace mozilla;
 using namespace dom;
 
+// DOMCI_NODE_DATA needs to be outside our namespaces
+DOMCI_NODE_DATA(Comment, Comment)
+
 nsresult
 NS_NewCommentNode(nsIContent** aInstancePtrResult,
                   nsNodeInfoManager *aNodeInfoManager)
@@ -43,8 +46,17 @@ Comment::~Comment()
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED3(Comment, nsGenericDOMDataNode, nsIDOMNode,
-                             nsIDOMCharacterData, nsIDOMComment)
+// QueryInterface implementation for Comment
+NS_INTERFACE_TABLE_HEAD(Comment)
+  NS_NODE_INTERFACE_TABLE3(Comment, nsIDOMNode, nsIDOMCharacterData,
+                           nsIDOMComment)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Comment)
+NS_INTERFACE_MAP_END_INHERITING(nsGenericDOMDataNode)
+
+
+NS_IMPL_ADDREF_INHERITED(Comment, nsGenericDOMDataNode)
+NS_IMPL_RELEASE_INHERITED(Comment, nsGenericDOMDataNode)
+
 
 bool
 Comment::IsNodeOfType(uint32_t aFlags) const

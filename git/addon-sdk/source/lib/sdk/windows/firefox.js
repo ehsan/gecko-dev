@@ -17,10 +17,7 @@ const { Cc, Ci, Cr } = require('chrome'),
       windowUtils = require('../deprecated/window-utils'),
       { WindowTrackerTrait } = windowUtils,
       { ns } = require('../core/namespace'),
-      { observer: windowObserver } = require('./observer'),
-      { getOwnerWindow } = require('../private-browsing/window/utils'),
-      viewNS = require('../core/namespace').ns(),
-      { isPrivateBrowsingSupported } = require('../self');
+      { observer: windowObserver } = require('./observer');
 
 /**
  * Window trait composes safe wrappers for browser window that are E10S
@@ -69,13 +66,9 @@ const BrowserWindowTrait = Trait.compose(
         this._tabOptions = [ Options(options.url) ];
       }
 
-      this._isPrivate = isPrivateBrowsingSupported && !!options.isPrivate;
+      this._private = !!options.private;
 
       this._load();
-
-      viewNS(this._public).window = this._window;
-      getOwnerWindow.implement(this._public, getChromeWindow);
-
       return this;
     },
     destroy: function () this._onUnload(),
@@ -210,13 +203,9 @@ const browserWindows = Trait.resolve({ toString: null }).compose(
       return window ? BrowserWindow({window: window}) : null;
     },
     open: function open(options) {
-      if (typeof options === "string") {
+      if (typeof options === "string")
         // `tabs` option is under review and may be removed.
-        options = {
-          tabs: [Options(options)],
-          isPrivate: isPrivateBrowsingSupported && options.isPrivate
-        };
-      }
+        options = { tabs: [Options(options)] };
       return BrowserWindow(options);
     },
 
@@ -249,9 +238,5 @@ const browserWindows = Trait.resolve({ toString: null }).compose(
     }
   }).resolve({ toString: null })
 )();
-
-function getChromeWindow(window) {
-  return viewNS(window).window;
-}
 
 exports.browserWindows = browserWindows;

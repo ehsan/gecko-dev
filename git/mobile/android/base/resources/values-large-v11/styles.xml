@@ -56,8 +56,4 @@
         <item name="android:orientation">horizontal</item>
     </style>
 
-    <style name="TabsList" parent="TabsListBase">
-         <item name="android:orientation">horizontal</item>
-    </style>
-
 </resources>

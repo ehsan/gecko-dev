@@ -6,6 +6,7 @@
 
 #include "vcm.h"
 #include "CSFLog.h"
+#include "CSFLogStream.h"
 #include "ccapi_call_info.h"
 #include "CC_SIPCCCallInfo.h"
 #include "ccapi_device_info.h"
@@ -211,7 +212,7 @@ public:
         break;
 
       default:
-        CSFLogDebug(logTag, ": **** UNHANDLED CALL STATE : %s", mStateStr.c_str());
+        CSFLogDebugS(logTag, ": **** UNHANDLED CALL STATE : " << mStateStr);
         break;
     }
 
@@ -239,9 +240,7 @@ PeerConnectionImpl::PeerConnectionImpl()
   , mWindow(NULL)
   , mIdentity(NULL)
   , mSTSThread(NULL)
-  , mMedia(new PeerConnectionMedia(this))
-  , mNumAudioStreams(0)
-  , mNumVideoStreams(0) {
+  , mMedia(new PeerConnectionMedia(this)) {
 #ifdef MOZILLA_INTERNAL_API
   MOZ_ASSERT(NS_IsMainThread());
 #endif
@@ -290,7 +289,8 @@ PeerConnectionImpl::MakeMediaStream(nsIDOMWindow* aWindow,
     DOMMediaStream::CreateSourceStream(aWindow, aHint);
   NS_ADDREF(*aRetval = stream);
 
-  CSFLogDebug(logTag, "Created media stream %p, inner: %p", stream.get(), stream->GetStream());
+  CSFLogDebugS(logTag, "Created media stream " << static_cast<void*>(stream)
+    << " inner: " << static_cast<void*>(stream->GetStream()));
 
   return NS_OK;
 }
@@ -326,7 +326,7 @@ PeerConnectionImpl::CreateRemoteSourceStreamInfo(nsRefPtr<RemoteSourceStreamInfo
 #ifdef MOZILLA_INTERNAL_API
 static void
 Warn(JSContext* aCx, const nsCString& aMsg) {
-  CSFLogError(logTag, "Warning: %s", aMsg.get());
+  CSFLogErrorS(logTag, "Warning: " << aMsg.get());
   nsIScriptContext* sc = GetScriptContextFromJSContext(aCx);
   if (sc) {
     nsCOMPtr<nsIDocument> doc;
@@ -538,16 +538,16 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* aObserver,
                                       &fingerprint_length);
 
   if (NS_FAILED(res)) {
-    CSFLogError(logTag, "%s: ComputeFingerprint failed: %u",
-      __FUNCTION__, static_cast<uint32_t>(res));
+    CSFLogErrorS(logTag, __FUNCTION__ << ": ComputeFingerprint failed: " <<
+        static_cast<uint32_t>(res));
     return res;
   }
 
   mFingerprint = "sha-1 " + mIdentity->FormatFingerprint(fingerprint,
                                                          fingerprint_length);
   if (NS_FAILED(res)) {
-    CSFLogError(logTag, "%s: do_GetService failed: %u",
-      __FUNCTION__, static_cast<uint32_t>(res));
+    CSFLogErrorS(logTag, __FUNCTION__ << ": do_GetService failed: " <<
+        static_cast<uint32_t>(res));
     return res;
   }
 
@@ -628,7 +628,7 @@ PeerConnectionImpl::ConnectDataConnection(uint16_t aLocalport,
   // XXX Fix! Get the correct flow for DataChannel. Also error handling.
   for (int i = 2; i >= 0; i--) {
     nsRefPtr<TransportFlow> flow = mMedia->GetTransportFlow(i,false).get();
-    CSFLogDebug(logTag, "Transportflow[%d] = %p", i, flow.get());
+    CSFLogDebugS(logTag, "Transportflow[" << i << "] = " << flow.get());
     if (flow) {
       if (!mDataConnection->ConnectDTLS(flow, aLocalport, aRemoteport)) {
         return NS_ERROR_FAILURE;
@@ -736,7 +736,7 @@ PeerConnectionImpl::NotifyDataChannel(already_AddRefed<mozilla::DataChannel> aCh
   PC_AUTO_ENTER_API_CALL_NO_CHECK();
   MOZ_ASSERT(aChannel.get());
 
-  CSFLogDebug(logTag, "%s: channel: %p", __FUNCTION__, aChannel.get());
+  CSFLogDebugS(logTag, __FUNCTION__ << ": channel: " << static_cast<void*>(aChannel.get()));
 
 #ifdef MOZILLA_INTERNAL_API
   nsCOMPtr<nsIDOMDataChannel> domchannel;
@@ -961,48 +961,21 @@ NS_IMETHODIMP
 PeerConnectionImpl::AddStream(nsIDOMMediaStream* aMediaStream) {
   PC_AUTO_ENTER_API_CALL(true);
 
-  if (!aMediaStream) {
-    CSFLogError(logTag, "%s: Attempt to add null stream",__FUNCTION__);
-    return NS_ERROR_FAILURE;
-  }
-
-  DOMMediaStream* stream = static_cast<DOMMediaStream*>(aMediaStream);
-  uint32_t hints = stream->GetHintContents();
-
-  // XXX Remove this check once addStream has an error callback
-  // available and/or we have plumbing to handle multiple
-  // local audio streams.
-  if ((hints & DOMMediaStream::HINT_CONTENTS_AUDIO) &&
-      mNumAudioStreams > 0) {
-    CSFLogError(logTag, "%s: Only one local audio stream is supported for now",
-                __FUNCTION__);
-    return NS_ERROR_FAILURE;
-  }
-
-  // XXX Remove this check once addStream has an error callback
-  // available and/or we have plumbing to handle multiple
-  // local video streams.
-  if ((hints & DOMMediaStream::HINT_CONTENTS_VIDEO) &&
-      mNumVideoStreams > 0) {
-    CSFLogError(logTag, "%s: Only one local video stream is supported for now",
-                __FUNCTION__);
-    return NS_ERROR_FAILURE;
-  }
-
   uint32_t stream_id;
   nsresult res = mMedia->AddStream(aMediaStream, &stream_id);
   if (NS_FAILED(res))
     return res;
 
+  DOMMediaStream* stream = static_cast<DOMMediaStream*>(aMediaStream);
+  uint32_t hints = stream->GetHintContents();
+
   // TODO(ekr@rtfm.com): these integers should be the track IDs
   if (hints & DOMMediaStream::HINT_CONTENTS_AUDIO) {
     mCall->addStream(stream_id, 0, AUDIO);
-    mNumAudioStreams++;
   }
 
   if (hints & DOMMediaStream::HINT_CONTENTS_VIDEO) {
     mCall->addStream(stream_id, 1, VIDEO);
-    mNumVideoStreams++;
   }
 
   return NS_OK;
@@ -1023,14 +996,10 @@ PeerConnectionImpl::RemoveStream(nsIDOMMediaStream* aMediaStream) {
 
   if (hints & DOMMediaStream::HINT_CONTENTS_AUDIO) {
     mCall->removeStream(stream_id, 0, AUDIO);
-    MOZ_ASSERT(mNumAudioStreams > 0);
-    mNumAudioStreams--;
   }
 
   if (hints & DOMMediaStream::HINT_CONTENTS_VIDEO) {
     mCall->removeStream(stream_id, 1, VIDEO);
-    MOZ_ASSERT(mNumVideoStreams > 0);
-    mNumVideoStreams--;
   }
 
   return NS_OK;
@@ -1045,7 +1014,7 @@ PeerConnectionImpl::SetRemoteFingerprint(const char* hash, const char* fingerpri
 
   if (fingerprint != NULL && (strcmp(hash, "sha-1") == 0)) {
     mRemoteFingerprint = std::string(fingerprint);
-    CSFLogDebug(logTag, "Setting remote fingerprint to %s", mRemoteFingerprint.c_str());
+    CSFLogDebugS(logTag, "Setting remote fingerprint to " << mRemoteFingerprint);
     return NS_OK;
   } else {
     CSFLogError(logTag, "%s: Invalid Remote Finger Print", __FUNCTION__);
@@ -1205,7 +1174,8 @@ void
 PeerConnectionImpl::virtualDestroyNSSReference()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  CSFLogDebug(logTag, "%s: NSS shutting down; freeing our DtlsIdentity.", __FUNCTION__);
+  CSFLogDebugS(logTag, __FUNCTION__ << ": "
+               << "NSS shutting down; freeing our DtlsIdentity.");
   mIdentity = nullptr;
 }
 #endif
@@ -1222,8 +1192,8 @@ PeerConnectionImpl::onCallEvent(ccapi_call_event_e aCallEvent,
   std::string statestr = aInfo->callStateToString(event);
 
   if (CCAPI_CALL_EV_CREATED != aCallEvent && CCAPI_CALL_EV_STATE != aCallEvent) {
-    CSFLogDebug(logTag, "%s: **** CALL HANDLE IS: %s, **** CALL STATE IS: %s",
-      __FUNCTION__, mHandle.c_str(), statestr.c_str());
+    CSFLogDebugS(logTag, ": **** CALL HANDLE IS: " << mHandle <<
+      ": **** CALL STATE IS: " << statestr);
     return;
   }
 
@@ -1383,7 +1353,7 @@ PeerConnectionImpl::IceStreamReady(NrIceMediaStream *aStream)
   PC_AUTO_ENTER_API_CALL_NO_CHECK();
   MOZ_ASSERT(aStream);
 
-  CSFLogDebug(logTag, "%s: %s", __FUNCTION__, aStream->name().c_str());
+  CSFLogDebugS(logTag, __FUNCTION__ << ": "  << aStream->name().c_str());
 }
 
 

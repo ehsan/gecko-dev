@@ -97,6 +97,12 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
+  virtual nsXPCClassInfo* GetClassInfo()
+  {
+    return static_cast<nsXPCClassInfo*>(GetClassInfoInternal());
+  }
+  nsIClassInfo* GetClassInfoInternal();
+
   virtual nsIDOMNode* AsDOMNode()
   {
     return static_cast<nsIDOMHTMLParamElement*>(this);

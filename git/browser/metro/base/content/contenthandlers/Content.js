@@ -167,38 +167,32 @@ const ElementTouchHelper = {
  */
 
 /*
- * elementFromPoint - find the closes element at a point. searches
- * sub-frames.
+ * elementFromPoint
  *
- * @param aX, aY browser coordinates
- * @return
- *  element - element at the position, or null if no active browser or
- *            element was found.
- *  frameX - x position within the subframe element was found. aX if no
- *           sub-frame was found.
- *  frameY - y position within the subframe element was found. aY if no
- *           sub-frame was found.
+ * @param x,y Browser coordinates
+ * @return Element at position, null if no active browser or no element found
  */
-function elementFromPoint(aX, aY) {
+function elementFromPoint(x, y) {
   // browser's elementFromPoint expect browser-relative client coordinates.
   // subtract browser's scroll values to adjust
   let cwu = Util.getWindowUtils(content);
-  let elem = ElementTouchHelper.getClosest(cwu, aX, aY);
+  let elem = ElementTouchHelper.getClosest(cwu, x, y);
 
   // step through layers of IFRAMEs and FRAMES to find innermost element
   while (elem && (elem instanceof HTMLIFrameElement ||
                   elem instanceof HTMLFrameElement)) {
     // adjust client coordinates' origin to be top left of iframe viewport
     let rect = elem.getBoundingClientRect();
-    aX -= rect.left;
-    aY -= rect.top;
+    x -= rect.left;
+    y -= rect.top;
     let windowUtils = elem.contentDocument
                           .defaultView
                           .QueryInterface(Ci.nsIInterfaceRequestor)
                           .getInterface(Ci.nsIDOMWindowUtils);
-    elem = ElementTouchHelper.getClosest(windowUtils, aX, aY);
+    elem = ElementTouchHelper.getClosest(windowUtils, x, y);
   }
-  return { element: elem, frameX: aX, frameY: aY };
+
+  return elem;
 }
 
 /*
@@ -406,7 +400,7 @@ let Content = {
    */
 
   _genericMouseDown: function _genericMouseDown(x, y) {
-    let { element } = elementFromPoint(x, y);
+    let element = elementFromPoint(x, y);
     if (!element)
       return;
 
@@ -423,7 +417,7 @@ let Content = {
   _genericMouseClick: function _genericMouseClick(aEvent) {
     ContextMenuHandler.reset();
 
-    let { element: element } = elementFromPoint(aEvent.clientX, aEvent.clientY);
+    let element = elementFromPoint(aEvent.clientX, aEvent.clientY);
     if (!element)
       return;
 

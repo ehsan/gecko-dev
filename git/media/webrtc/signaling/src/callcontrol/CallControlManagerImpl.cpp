@@ -4,10 +4,8 @@
 
 #include <errno.h>
 #include <string>
-#include <prcvar.h>
-#include <prlock.h>
 
-#include "CSFLog.h"
+#include "CSFLogStream.h"
 
 #include "CC_SIPCCDevice.h"
 #include "CC_SIPCCDeviceInfo.h"
@@ -21,12 +19,7 @@
 extern "C"
 {
 #include "config_api.h"
-
-extern PRCondVar *ccAppReadyToStartCond;
-extern PRLock *ccAppReadyToStartLock;
-extern char ccAppReadyToStart;
 }
-
 
 static const char* logTag = "CallControlManager";
 
@@ -105,14 +98,13 @@ void CallControlManagerImpl::removeECCObserver ( ECC_Observer * observer )
 
 void CallControlManagerImpl::setMultiClusterMode(bool allowMultipleClusters)
 {
-    CSFLogInfo(logTag, "setMultiClusterMode(%s)",
-      allowMultipleClusters ? "TRUE" : "FALSE");
+    CSFLogInfoS(logTag, "setMultiClusterMode(" << allowMultipleClusters << ")");
     multiClusterMode = allowMultipleClusters;
 }
 
 void CallControlManagerImpl::setSIPCCLoggingMask(const cc_int32_t mask)
 {
-    CSFLogInfo(logTag, "setSIPCCLoggingMask(%u)", mask);
+    CSFLogInfoS(logTag, "setSIPCCLoggingMask(" << mask << ")");
     sipccLoggingMask = mask;
 }
 
@@ -124,7 +116,7 @@ void CallControlManagerImpl::setAuthenticationString(const std::string &authStri
 
 void CallControlManagerImpl::setSecureCachePath(const std::string &secureCachePath)
 {
-    CSFLogInfo(logTag, "setSecureCachePath(%s)", secureCachePath.c_str());
+    CSFLogInfoS(logTag, "setSecureCachePath(" << secureCachePath << ")");
     this->secureCachePath = secureCachePath;
 }
 
@@ -152,7 +144,7 @@ bool CallControlManagerImpl::registerUser( const std::string& deviceName, const 
 {
 	setConnectionState(ConnectionStatusEnum::eRegistering);
 
-    CSFLogInfo(logTag, "registerUser(%s, %s )", user.c_str(), domain.c_str());
+    CSFLogInfoS(logTag, "registerUser(" << user << ", " << domain << " )");
     if(phone != NULL)
     {
     	setConnectionState(ConnectionStatusEnum::eReady);
@@ -183,7 +175,7 @@ bool CallControlManagerImpl::startP2PMode(const std::string& user)
 {
 	setConnectionState(ConnectionStatusEnum::eRegistering);
 
-    CSFLogInfo(logTag, "startP2PMode(%s)", user.c_str());
+    CSFLogInfoS(logTag, "startP2PMode(" << user << " )");
     if(phone != NULL)
     {
     	setConnectionState(ConnectionStatusEnum::eReady);
@@ -212,22 +204,11 @@ bool CallControlManagerImpl::startP2PMode(const std::string& user)
 
 bool CallControlManagerImpl::startSDPMode()
 {
-    bool retval = false;
     CSFLogInfo(logTag, "startSDPMode");
     if(phone != NULL)
     {
         CSFLogError(logTag, "%s failed - already started in SDP mode!",__FUNCTION__);
         return false;
-    }
-
-    ccAppReadyToStartLock = PR_NewLock();
-    if (!ccAppReadyToStartLock) {
-      return false;
-    }
-
-    ccAppReadyToStartCond = PR_NewCondVar(ccAppReadyToStartLock);
-    if (!ccAppReadyToStartCond) {
-      return false;
     }
 
     softPhone = CC_SIPCCServicePtr(new CC_SIPCCService());
@@ -237,16 +218,7 @@ bool CallControlManagerImpl::startSDPMode()
     phone->addCCObserver(this);
     phone->setSDPMode(true);
 
-    retval = phone->startService();
-
-    // Now that everything is set up, we let the CCApp thread
-    // know that it's okay to start processing messages.
-    PR_Lock(ccAppReadyToStartLock);
-    ccAppReadyToStart = 1;
-    PR_NotifyAllCondVar(ccAppReadyToStartCond);
-    PR_Unlock(ccAppReadyToStartLock);
-
-    return retval;
+    return phone->startService();
 }
 
 bool CallControlManagerImpl::disconnect()
@@ -337,7 +309,7 @@ bool CallControlManagerImpl::setProperty(ConfigPropertyKeysEnum::ConfigPropertyK
   unsigned long strtoul_result;
   char *strtoul_end;
 
-  CSFLogInfo(logTag, "setProperty( %s )", value.c_str());
+  CSFLogInfoS(logTag, "setProperty(" << value << " )");
 
   if (key == ConfigPropertyKeysEnum::eLocalVoipPort) {
     errno = 0;

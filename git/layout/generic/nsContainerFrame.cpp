@@ -1142,7 +1142,7 @@ nsContainerFrame::ReflowOverflowContainerChildren(nsPresContext*           aPres
       nsHTMLReflowMetrics desiredSize;
       nsHTMLReflowState frameState(aPresContext, aReflowState,
                                    frame, availSpace);
-      nsReflowStatus frameStatus;
+      nsReflowStatus frameStatus = NS_FRAME_COMPLETE;
 
       // Reflow
       rv = ReflowChild(frame, aPresContext, desiredSize, frameState,

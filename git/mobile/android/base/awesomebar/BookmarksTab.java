@@ -40,12 +40,10 @@ public class BookmarksTab extends AwesomeBarTab {
     private BookmarksQueryTask mQueryTask = null;
     private boolean mShowReadingList = false;
 
-    @Override
     public int getTitleStringId() {
         return R.string.awesomebar_bookmarks_title;
     }
 
-    @Override
     public String getTag() {
         return TAG;
     }
@@ -54,7 +52,6 @@ public class BookmarksTab extends AwesomeBarTab {
         super(context);
     }
 
-    @Override
     public View getView() {
         if (mView == null) {
             mView = (LayoutInflater.from(mContext).inflate(R.layout.awesomebar_list, null));
@@ -67,7 +64,6 @@ public class BookmarksTab extends AwesomeBarTab {
             list.setAdapter(null);
             list.setAdapter(getCursorAdapter());
             list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-                @Override
                 public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                     handleItemClick(parent, view, position, id);
                 }
@@ -88,7 +84,6 @@ public class BookmarksTab extends AwesomeBarTab {
         mShowReadingList = showReadingList;
     }
 
-    @Override
     public void destroy() {
         BookmarksListAdapter adapter = getCursorAdapter();
         if (adapter == null) {
@@ -100,7 +95,6 @@ public class BookmarksTab extends AwesomeBarTab {
             cursor.close();
     }
 
-    @Override
     public boolean onBackPressed() {
         // If the soft keyboard is visible in the bookmarks or history tab, the user
         // must have explictly brought it up, so we should try hiding it instead of
@@ -257,7 +251,6 @@ public class BookmarksTab extends AwesomeBarTab {
             return (folderPair.first == Bookmarks.FIXED_READING_LIST_ID);
         }
 
-        @Override
         public int getItemViewType(int position) {
             Cursor c = getCursor();
  
@@ -369,7 +362,6 @@ public class BookmarksTab extends AwesomeBarTab {
         protected void onPostExecute(final Cursor cursor) {
             // Hack: force this to the main thread, even though it should already be on it
             GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
-                @Override
                 public void run() {
                     // this will update the cursorAdapter to use the new one if it already exists
                     // We need to add the header before we set the adapter, hence make it null
@@ -403,7 +395,6 @@ public class BookmarksTab extends AwesomeBarTab {
         return mCursorAdapter.isInReadingList();
     }
 
-    @Override
     public ContextMenuSubject getSubject(ContextMenu menu, View view, ContextMenuInfo menuInfo) {
         ContextMenuSubject subject = null;
 

@@ -312,13 +312,6 @@ struct JSNativeHolder
   const NativePropertyHooks* mPropertyHooks;
 };
 
-struct NamedConstructor
-{
-  const char* mName;
-  const JSNativeHolder mHolder;
-  unsigned mNargs;
-};
-
 /*
  * Create a DOM interface object (if constructorClass is non-null) and/or a
  * DOM interface prototype object (if protoClass is non-null).
@@ -360,9 +353,9 @@ struct NamedConstructor
 void
 CreateInterfaceObjects(JSContext* cx, JSObject* global, JSObject* protoProto,
                        JSClass* protoClass, JSObject** protoCache,
-                       JSClass* constructorClass, const JSNativeHolder* constructor,
-                       unsigned ctorNargs, const NamedConstructor* namedConstructors,
-                       JSObject** constructorCache, const DOMClass* domClass,
+                       JSClass* constructorClass, JSNativeHolder* constructor,
+                       unsigned ctorNargs, JSObject** constructorCache,
+                       const DOMClass* domClass,
                        const NativeProperties* regularProperties,
                        const NativeProperties* chromeOnlyProperties,
                        const char* name);

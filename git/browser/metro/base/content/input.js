@@ -34,6 +34,8 @@ const kMaxVelocity = 6;
 // in metro. Fixing something in this mode does not insure the bug is
 // in metro.
 const kDebugMouseInputPref = "metro.debug.treatmouseastouch";
+// Colorizes the touch input overlay so you know when it is active.
+const kDebugMouseLayerPref = "metro.debug.colorizeInputOverlay";
 // Display rects around selection ranges. Useful in debugging
 // selection problems.
 const kDebugSelectionDisplayPref = "metro.debug.selection.displayRanges";
@@ -92,7 +94,6 @@ var TouchModule = {
 
     // capture phase events
     window.addEventListener("CancelTouchSequence", this, true);
-    window.addEventListener("dblclick", this, true);
 
     // bubble phase
     window.addEventListener("contextmenu", this, false);
@@ -140,18 +141,6 @@ var TouchModule = {
             break;
           case "touchend":
             this._onTouchEnd(aEvent);
-            break;
-          case "dblclick":
-            // XXX This will get picked up somewhere below us for "double tap to zoom"
-            // once we get omtc and the apzc. Currently though dblclick is delivered to
-            // content and triggers selection of text, so fire up the SelectionHelperUI
-            // once selection is present.
-            setTimeout(function () {
-              let contextInfo = { name: "",
-                                  json: { xPos: aEvent.clientX, yPos: aEvent.clientY },
-                                  target: Browser.selectedTab.browser };
-              SelectionHelperUI.attachEditSession(contextInfo);
-            }, 50);
             break;
         }
       }
@@ -230,7 +219,7 @@ var TouchModule = {
     this._targetScrollInterface = targetScrollInterface;
 
     if (!this._targetScrollbox) {
-      return;
+      return false;
     }
 
     // XXX shouldn't dragger always be valid here?

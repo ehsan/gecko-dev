@@ -52,7 +52,6 @@ CPPSRCS = \
   nsWidgetFactory.cpp \
   WinUtils.cpp \
   WinMouseScrollHandler.cpp \
-  WinIMEHandler.cpp \
   $(NULL)
 
 ifdef MOZ_CRASHREPORTER

@@ -23,7 +23,7 @@ browserElementTestHelpers.addPermission();
 browserElementTestHelpers.setOOPDisabledPref(true); // this is breaking the autofocus.
 
 var iframe = document.createElement('iframe');
-SpecialPowers.wrap(iframe).mozbrowser = true;
+iframe.mozbrowser = true;
 iframe.src = browserElementTestHelpers.focusPage;
 document.body.appendChild(iframe);
 

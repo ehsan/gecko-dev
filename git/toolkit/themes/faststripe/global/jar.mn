@@ -4,7 +4,7 @@
 
 toolkit.jar:
 % skin global classic/1.0 %skin/classic/global/
-# These are the CSS files that have been changed from windows
+# These are the CSS files that have been changed from winstripe
 +  skin/classic/global/button.css
 +  skin/classic/global/checkbox.css
 +  skin/classic/global/dropmarker.css

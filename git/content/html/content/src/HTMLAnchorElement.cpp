@@ -16,6 +16,7 @@
 #include "nsHTMLDNSPrefetch.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Anchor)
+DOMCI_NODE_DATA(HTMLAnchorElement, mozilla::dom::HTMLAnchorElement)
 
 namespace mozilla {
 namespace dom {
@@ -51,7 +52,7 @@ NS_INTERFACE_TABLE_HEAD(HTMLAnchorElement)
                                    Link)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLAnchorElement,
                                                nsGenericHTMLElement)
-NS_HTML_CONTENT_INTERFACE_MAP_END
+NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLAnchorElement)
 
 
 NS_IMPL_ELEMENT_CLONE(HTMLAnchorElement)

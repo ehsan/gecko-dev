@@ -7,7 +7,7 @@ package org.mozilla.gecko;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.sync.setup.activities.SetupSyncActivity;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.util.UiAsyncTask;
+import org.mozilla.gecko.util.GeckoAsyncTask;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
@@ -66,7 +66,6 @@ public class AboutHomePromoBox extends TextView implements View.OnClickListener 
             super(aText, aBoldText, aImage);
             // The listener will run on the background thread (see 2nd argument)
             mAccountListener = new OnAccountsUpdateListener() {
-                @Override
                 public void onAccountsUpdated(Account[] accounts) {
                     showRandomPromo();
                 }
@@ -126,7 +125,6 @@ public class AboutHomePromoBox extends TextView implements View.OnClickListener 
                 // if the user visits the marketplace through some other means, we'll have to wait
                 // until we are refreshed or restarted to get the correct value
                 v.postDelayed(new Runnable() {
-                    @Override
                     public void run() {
                         showRandomPromo();
                     }
@@ -151,7 +149,6 @@ public class AboutHomePromoBox extends TextView implements View.OnClickListener 
      */
     public void showRandomPromo() {
         getAvailableTypes(new GetTypesCallback() {
-            @Override
             public void onGotTypes(ArrayList<Type> types) {
                 if (types.size() == 0) {
                     hide();
@@ -194,7 +191,7 @@ public class AboutHomePromoBox extends TextView implements View.OnClickListener 
     }
 
     private void getAvailableTypes(final GetTypesCallback callback) {
-        (new UiAsyncTask<Void, Void, ArrayList<Type>>(GeckoAppShell.getHandler()) {
+        (new GeckoAsyncTask<Void, Void, ArrayList<Type>>(GeckoApp.mAppContext, GeckoAppShell.getHandler()) {
             @Override
             public ArrayList<Type> doInBackground(Void... params) {
                 // Run all of this on a background thread

@@ -47,8 +47,6 @@
 #include "nsIContentSecurityPolicy.h"
 #include "nsSandboxFlags.h"
 
-using mozilla::AutoPushJSContext;
-
 static NS_DEFINE_CID(kJSURICID, NS_JSURI_CID);
 
 class nsJSThunk : public nsIInputStream
@@ -241,7 +239,13 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
     if (!useSandbox) {
         //-- Don't outside a sandbox unless the script principal subsumes the
         //   principal of the context.
-        nsIPrincipal* objectPrincipal = nsContentUtils::GetObjectPrincipal(globalJSObject);
+        nsCOMPtr<nsIPrincipal> objectPrincipal;
+        rv = securityManager->
+            GetObjectPrincipal(scriptContext->GetNativeContext(),
+                               globalJSObject,
+                               getter_AddRefs(objectPrincipal));
+        if (NS_FAILED(rv))
+            return rv;
 
         bool subsumes;
         rv = principal->Subsumes(objectPrincipal, &subsumes);
@@ -254,7 +258,7 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
     JS::Value v = JS::UndefinedValue();
     // Finally, we have everything needed to evaluate the expression.
 
-    AutoPushJSContext cx(scriptContext->GetNativeContext());
+    JSContext *cx = scriptContext->GetNativeContext();
     JSAutoRequest ar(cx);
     if (useSandbox) {
         // We were asked to use a sandbox, or the channel owner isn't allowed

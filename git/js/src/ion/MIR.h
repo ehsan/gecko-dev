@@ -302,7 +302,7 @@ class MDefinition : public MNode
     MDefinition()
       : id_(0),
         valueNumber_(NULL),
-        range_(NULL),
+        range_(),
         resultType_(MIRType_None),
         flags_(0),
         dependency_(NULL),
@@ -338,10 +338,7 @@ class MDefinition : public MNode
     virtual MDefinition *foldsTo(bool useValueNumbers);
     virtual void analyzeEdgeCasesForward();
     virtual void analyzeEdgeCasesBackward();
-
-    virtual bool truncate();
-    virtual bool isOperandTruncated(size_t index) const;
-
+    virtual void analyzeTruncateBackward();
     bool earlyAbortCheck();
 
     // Compute an absolute or symbolic range for the value of this node.
@@ -501,6 +498,14 @@ class MDefinition : public MNode
         JS_ASSERT(getAliasSet().flags() & store->getAliasSet().flags());
         return true;
     }
+    // This indicates if this instruction is "integral at heart".  This will
+    // be the case if
+    // a) its result type is int32
+    // b) it is an instruction that is very likely to produce an integer or integer-truncatable
+    //    result (add, mul, sub), and both of its inputs are ints. (currently only implemented for add)
+    virtual bool isBigIntOutput() { return resultType_ == MIRType_Int32; }
+    virtual void recalculateBigInt() {}
+
 };
 
 // An MUseDefIterator walks over uses in a definition, skipping any use that is
@@ -710,8 +715,27 @@ class MConstant : public MNullaryInstruction
         return AliasSet::None();
     }
 
+    void analyzeTruncateBackward();
+
+    // Returns true if constant is integer between -2^33 & 2^33,
+    // Max cap could be 2^53, if not for the 20 additions hack.
+    bool isBigIntOutput() {
+        if (value_.isInt32())
+            return true;
+        if (value_.isDouble()) {
+            double value = value_.toDouble();
+            int64_t valint = value;
+            int64_t max = 1LL<<33;
+            if (double(valint) != value)
+                return false;
+            if (valint < 0)
+                valint = -valint;
+            return valint < max;
+        }
+        return false;
+    }
+
     void computeRange();
-    bool truncate();
 };
 
 class MParameter : public MNullaryInstruction
@@ -1421,74 +1445,6 @@ class MApplyArgs
     }
 };
 
-class MGetDynamicName
-  : public MAryInstruction<2>,
-    public MixPolicy<ObjectPolicy<0>, StringPolicy<1> >
-{
-  protected:
-    MGetDynamicName(MDefinition *scopeChain, MDefinition *name)
-    {
-        setOperand(0, scopeChain);
-        setOperand(1, name);
-        setResultType(MIRType_Value);
-    }
-
-  public:
-    INSTRUCTION_HEADER(GetDynamicName)
-
-    static MGetDynamicName *
-    New(MDefinition *scopeChain, MDefinition *name) {
-        return new MGetDynamicName(scopeChain, name);
-    }
-
-    MDefinition *getScopeChain() const {
-        return getOperand(0);
-    }
-    MDefinition *getName() const {
-        return getOperand(1);
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
-};
-
-class MCallDirectEval
-  : public MAryInstruction<3>,
-    public MixPolicy<ObjectPolicy<0>, MixPolicy<StringPolicy<1>, BoxPolicy<2> > >
-{
-  protected:
-    MCallDirectEval(MDefinition *scopeChain, MDefinition *string, MDefinition *thisValue)
-    {
-        setOperand(0, scopeChain);
-        setOperand(1, string);
-        setOperand(2, thisValue);
-        setResultType(MIRType_Value);
-    }
-
-  public:
-    INSTRUCTION_HEADER(CallDirectEval)
-
-    static MCallDirectEval *
-    New(MDefinition *scopeChain, MDefinition *string, MDefinition *thisValue) {
-        return new MCallDirectEval(scopeChain, string, thisValue);
-    }
-
-    MDefinition *getScopeChain() const {
-        return getOperand(0);
-    }
-    MDefinition *getString() const {
-        return getOperand(1);
-    }
-    MDefinition *getThisValue() const {
-        return getOperand(2);
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
-};
-
 class MBinaryInstruction : public MAryInstruction<2>
 {
   protected:
@@ -1730,7 +1686,6 @@ class MBox : public MUnaryInstruction
 
         return new MBox(ins);
     }
-
     bool congruentTo(MDefinition *const &ins) const {
         return congruentIfOperandsEqual(ins);
     }
@@ -1804,7 +1759,6 @@ class MUnbox : public MUnaryInstruction
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
-    void printOpcode(FILE *fp);
 };
 
 class MGuardObject : public MUnaryInstruction, public SingleObjectPolicy
@@ -1838,7 +1792,7 @@ class MGuardObject : public MUnaryInstruction, public SingleObjectPolicy
 
 class MGuardString
   : public MUnaryInstruction,
-    public StringPolicy<0>
+    public StringPolicy
 {
     MGuardString(MDefinition *ins)
       : MUnaryInstruction(ins)
@@ -2075,10 +2029,6 @@ class MToDouble
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
-
-    void computeRange();
-    bool truncate();
-    bool isOperandTruncated(size_t index) const;
 };
 
 // Converts a primitive (either typed or untyped) to an int32. If the input is
@@ -2126,7 +2076,6 @@ class MToInt32 : public MUnaryInstruction
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
-    void computeRange();
 };
 
 // Converts a value or typed input to a truncated int32, for use with bitwise
@@ -2159,9 +2108,6 @@ class MTruncateToInt32 : public MUnaryInstruction
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
-
-    void computeRange();
-    bool isOperandTruncated(size_t index) const;
 };
 
 // Converts any type to a string
@@ -2322,8 +2268,6 @@ class MBinaryBitwiseInstruction
             return AliasSet::Store(AliasSet::Any);
         return AliasSet::None();
     }
-
-    bool isOperandTruncated(size_t index) const;
 };
 
 class MBitAnd : public MBinaryBitwiseInstruction
@@ -2497,20 +2441,9 @@ class MBinaryArithInstruction
   : public MBinaryInstruction,
     public ArithPolicy
 {
-    // Implicit truncate flag is set by the truncate backward range analysis
-    // optimization phase, and by asm.js pre-processing. It is used in
-    // NeedNegativeZeroCheck to check if the result of a multiplication needs to
-    // produce -0 double value, and for avoiding overflow checks.
-
-    // This optimization happens when the multiplication cannot be truncated
-    // even if all uses are truncating its result, such as when the range
-    // analysis detect a precision loss in the multiplication.
-    bool implicitTruncate_;
-
   public:
     MBinaryArithInstruction(MDefinition *left, MDefinition *right)
-      : MBinaryInstruction(left, right),
-        implicitTruncate_(false)
+      : MBinaryInstruction(left, right)
     {
         setMovable();
     }
@@ -2540,13 +2473,6 @@ class MBinaryArithInstruction
         if (specialization_ >= MIRType_Object)
             return AliasSet::Store(AliasSet::Any);
         return AliasSet::None();
-    }
-
-    bool isTruncated() const {
-        return implicitTruncate_;
-    }
-    void setTruncated(bool truncate) {
-        implicitTruncate_ = truncate;
     }
 };
 
@@ -2803,9 +2729,13 @@ class MMathFunction
 
 class MAdd : public MBinaryArithInstruction
 {
+    int implicitTruncate_;
     // Is this instruction really an int at heart?
+    bool isBigInt_;
     MAdd(MDefinition *left, MDefinition *right)
-      : MBinaryArithInstruction(left, right)
+      : MBinaryArithInstruction(left, right),
+        implicitTruncate_(0),
+        isBigInt_(left->isBigIntOutput() && right->isBigIntOutput())
     {
         setResultType(MIRType_Value);
     }
@@ -2815,21 +2745,39 @@ class MAdd : public MBinaryArithInstruction
     static MAdd *New(MDefinition *left, MDefinition *right) {
         return new MAdd(left, right);
     }
+    void analyzeTruncateBackward();
 
+    int isTruncated() const {
+        return implicitTruncate_;
+    }
+    void setTruncated(int truncate) {
+        implicitTruncate_ = truncate;
+    }
+    bool updateForReplacement(MDefinition *ins);
     double getIdentity() {
         return 0;
     }
 
     bool fallible();
     void computeRange();
-    bool truncate();
-    bool isOperandTruncated(size_t index) const;
+    // This is an add, so the return value is from only
+    // integer sources if we know we return an int32
+    // or it has been explicitly marked as being a large int.
+    bool isBigIntOutput() {
+        return (type() == MIRType_Int32) || isBigInt_;
+    }
+    // An add will produce a big int if both of its sources are big ints.
+    void recalculateBigInt() {
+        isBigInt_ = (lhs()->isBigIntOutput() && rhs()->isBigIntOutput());
+    }
 };
 
 class MSub : public MBinaryArithInstruction
 {
+    int implicitTruncate_;
     MSub(MDefinition *left, MDefinition *right)
-      : MBinaryArithInstruction(left, right)
+      : MBinaryArithInstruction(left, right),
+        implicitTruncate_(0)
     {
         setResultType(MIRType_Value);
     }
@@ -2840,14 +2788,21 @@ class MSub : public MBinaryArithInstruction
         return new MSub(left, right);
     }
 
+    void analyzeTruncateBackward();
+    int isTruncated() const {
+        return implicitTruncate_;
+    }
+    void setTruncated(int truncate) {
+        implicitTruncate_ = truncate;
+    }
+    bool updateForReplacement(MDefinition *ins);
+
     double getIdentity() {
         return 0;
     }
 
     bool fallible();
     void computeRange();
-    bool truncate();
-    bool isOperandTruncated(size_t index) const;
 };
 
 class MMul : public MBinaryArithInstruction
@@ -2863,18 +2818,29 @@ class MMul : public MBinaryArithInstruction
     // and we need to guard this during execution.
     bool canBeNegativeZero_;
 
+    // Annotation the result of this Mul is only used in int32 domain
+    // and we could possible truncate the result.
+    bool possibleTruncate_;
+
+    // Annotation the Mul can truncate. This is only set after range analysis,
+    // because the result could be in the imprecise double range.
+    // In that case the truncated result isn't correct.
+    bool implicitTruncate_;
+
     Mode mode_;
 
     MMul(MDefinition *left, MDefinition *right, MIRType type, Mode mode)
       : MBinaryArithInstruction(left, right),
         canBeNegativeZero_(true),
+        possibleTruncate_(false),
+        implicitTruncate_(false),
         mode_(mode)
     {
         if (mode == Integer) {
             // This implements the required behavior for Math.imul, which
             // can never fail and always truncates its output to int32.
             canBeNegativeZero_ = false;
-            setTruncated(true);
+            possibleTruncate_ = implicitTruncate_ = true;
         }
         JS_ASSERT_IF(mode != Integer, mode == Normal);
 
@@ -2895,6 +2861,7 @@ class MMul : public MBinaryArithInstruction
     MDefinition *foldsTo(bool useValueNumbers);
     void analyzeEdgeCasesForward();
     void analyzeEdgeCasesBackward();
+    void analyzeTruncateBackward();
 
     double getIdentity() {
         return 1;
@@ -2916,8 +2883,21 @@ class MMul : public MBinaryArithInstruction
     }
 
     void computeRange();
-    bool truncate();
-    bool isOperandTruncated(size_t index) const;
+
+    bool isPossibleTruncated() const {
+        return possibleTruncate_;
+    }
+
+    void setPossibleTruncated(bool truncate) {
+        possibleTruncate_ = truncate;
+
+        // We can remove the negative zero check, because op if it is only used truncated.
+        // The "Possible" in the function name means that we are not sure,
+        // that "integer mul and disregarding overflow" == "double mul and ToInt32"
+        // Note: when removing truncated state, we have to add negative zero check again,
+        // because we are not sure if it was removed by this or other passes.
+        canBeNegativeZero_ = !truncate;
+    }
 
     Mode mode() { return mode_; }
 };
@@ -2927,12 +2907,14 @@ class MDiv : public MBinaryArithInstruction
     bool canBeNegativeZero_;
     bool canBeNegativeOverflow_;
     bool canBeDivideByZero_;
+    int implicitTruncate_;
 
     MDiv(MDefinition *left, MDefinition *right, MIRType type)
       : MBinaryArithInstruction(left, right),
         canBeNegativeZero_(true),
         canBeNegativeOverflow_(true),
-        canBeDivideByZero_(true)
+        canBeDivideByZero_(true),
+        implicitTruncate_(0)
     {
         if (type != MIRType_Value)
             specialization_ = type;
@@ -2951,10 +2933,18 @@ class MDiv : public MBinaryArithInstruction
     MDefinition *foldsTo(bool useValueNumbers);
     void analyzeEdgeCasesForward();
     void analyzeEdgeCasesBackward();
+    void analyzeTruncateBackward();
 
     double getIdentity() {
         JS_NOT_REACHED("not used");
         return 1;
+    }
+
+    int isTruncated() const {
+        return implicitTruncate_;
+    }
+    void setTruncated(int truncate) {
+        implicitTruncate_ = truncate;
     }
 
     bool canBeNegativeZero() {
@@ -2972,14 +2962,17 @@ class MDiv : public MBinaryArithInstruction
         return canBeDivideByZero_;
     }
 
+    bool updateForReplacement(MDefinition *ins);
     bool fallible();
-    bool truncate();
 };
 
 class MMod : public MBinaryArithInstruction
 {
+    int implicitTruncate_;
+
     MMod(MDefinition *left, MDefinition *right)
-      : MBinaryArithInstruction(left, right)
+      : MBinaryArithInstruction(left, right),
+        implicitTruncate_(0)
     {
         setResultType(MIRType_Value);
     }
@@ -2991,16 +2984,23 @@ class MMod : public MBinaryArithInstruction
     }
 
     MDefinition *foldsTo(bool useValueNumbers);
+    void analyzeTruncateBackward();
 
     double getIdentity() {
         JS_NOT_REACHED("not used");
         return 1;
     }
 
-    bool fallible();
+    int isTruncated() const {
+        return implicitTruncate_;
+    }
+    void setTruncated(int truncate) {
+        implicitTruncate_ = truncate;
+    }
 
+    bool updateForReplacement(MDefinition *ins);
     void computeRange();
-    bool truncate();
+    bool fallible();
 };
 
 class MConcat
@@ -3033,7 +3033,7 @@ class MConcat
 
 class MCharCodeAt
   : public MBinaryInstruction,
-    public MixPolicy<StringPolicy<0>, IntPolicy<1> >
+    public MixPolicy<StringPolicy, IntPolicy<1> >
 {
     MCharCodeAt(MDefinition *str, MDefinition *index)
         : MBinaryInstruction(str, index)
@@ -3458,7 +3458,7 @@ class MRegExp : public MNullaryInstruction
 
 class MRegExpTest
   : public MBinaryInstruction,
-    public MixPolicy<ObjectPolicy<1>, StringPolicy<0> >
+    public MixPolicy<ObjectPolicy<1>, StringPolicy >
 {
   private:
 
@@ -5716,7 +5716,7 @@ class MGetDOMProperty
 
 class MStringLength
   : public MUnaryInstruction,
-    public StringPolicy<0>
+    public StringPolicy
 {
     MStringLength(MDefinition *string)
       : MUnaryInstruction(string)
@@ -6151,7 +6151,6 @@ class MTypeBarrier : public MUnaryInstruction
     static MTypeBarrier *New(MDefinition *def, const types::StackTypeSet *types) {
         return new MTypeBarrier(def, types);
     }
-
     bool congruentTo(MDefinition * const &def) const {
         return false;
     }
@@ -6200,46 +6199,6 @@ class MMonitorTypes : public MUnaryInstruction
     }
     const types::StackTypeSet *typeSet() const {
         return typeSet_;
-    }
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
-    }
-};
-
-// Guards that the incoming value does not have the specified Type.
-class MExcludeType
-  : public MUnaryInstruction,
-    public BoxInputsPolicy
-{
-    types::Type type_;
-
-    MExcludeType(MDefinition *def, types::Type type)
-      : MUnaryInstruction(def),
-        type_(type)
-    {
-        setGuard();
-        setMovable();
-    }
-
-  public:
-    INSTRUCTION_HEADER(ExcludeType);
-
-    static MExcludeType *New(MDefinition *def, types::Type type) {
-        return new MExcludeType(def, type);
-    }
-
-    MDefinition *input() const {
-        return getOperand(0);
-    }
-    BailoutKind bailoutKind() const {
-        return Bailout_Normal;
-    }
-    types::Type type() const {
-        return type_;
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
     }
     AliasSet getAliasSet() const {
         return AliasSet::None();
@@ -6372,7 +6331,7 @@ class MParNewCallObject : public MBinaryInstruction
 
 class MNewStringObject :
   public MUnaryInstruction,
-  public StringPolicy<0>
+  public StringPolicy
 {
     CompilerRootObject templateObj_;
 

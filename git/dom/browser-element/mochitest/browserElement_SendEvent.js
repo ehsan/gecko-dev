@@ -11,7 +11,7 @@ function runTest() {
   browserElementTestHelpers.addPermission();
 
   var iframe = document.createElement("iframe");
-  SpecialPowers.wrap(iframe).mozbrowser = true;
+  iframe.mozbrowser = true;
   document.body.appendChild(iframe);
 
   iframe.addEventListener("mozbrowserloadend", function onloadend(e) {

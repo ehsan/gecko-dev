@@ -9,6 +9,8 @@
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Mod)
 
+DOMCI_NODE_DATA(HTMLModElement, mozilla::dom::HTMLModElement)
+
 namespace mozilla {
 namespace dom {
 
@@ -32,7 +34,7 @@ NS_INTERFACE_TABLE_HEAD(HTMLModElement)
                                    nsIDOMHTMLModElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLModElement,
                                                nsGenericHTMLElement)
-NS_HTML_CONTENT_INTERFACE_MAP_END
+NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLModElement)
 
 
 NS_IMPL_ELEMENT_CLONE(HTMLModElement)

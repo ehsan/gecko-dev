@@ -136,11 +136,11 @@ nsSVGInnerSVGFrame::NotifySVGChanged(uint32_t aFlags)
 
     if (!(aFlags & TRANSFORM_CHANGED) &&
         (xOrYIsPercentage ||
-         (widthOrHeightIsPercentage && svg->HasViewBoxRect()))) {
+         (widthOrHeightIsPercentage && svg->HasViewBox()))) {
       aFlags |= TRANSFORM_CHANGED;
     }
 
-    if (svg->HasViewBoxRect() || !widthOrHeightIsPercentage) {
+    if (svg->HasViewBox() || !widthOrHeightIsPercentage) {
       // Remove COORD_CONTEXT_CHANGED, since we establish the coordinate
       // context for our descendants and this notification won't change its
       // dimensions:

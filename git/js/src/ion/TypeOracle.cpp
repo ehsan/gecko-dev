@@ -554,7 +554,7 @@ StackTypeSet *
 TypeInferenceOracle::getCallTarget(UnrootedScript caller, uint32_t argc, jsbytecode *pc)
 {
     JS_ASSERT(caller == this->script());
-    JS_ASSERT(js_CodeSpec[*pc].format & JOF_INVOKE);
+    JS_ASSERT(js_CodeSpec[*pc].format & JOF_INVOKE && JSOp(*pc) != JSOP_EVAL);
 
     ScriptAnalysis *analysis = script()->analysis();
     return analysis->poppedTypes(pc, argc + 1);
@@ -587,14 +587,12 @@ TypeInferenceOracle::canInlineCall(HandleScript caller, jsbytecode *pc)
     // Ignore code->monitoredTypes, as we know the caller is foo
     if (op != JSOP_FUNAPPLY && code->monitoredTypes)
         return false;
-    return true;
-}
 
-types::TypeBarrier*
-TypeInferenceOracle::callArgsBarrier(HandleScript caller, jsbytecode *pc)
-{
-    JS_ASSERT(types::IsInlinableCall(pc));
-    return caller->analysis()->typeBarriers(cx, pc);
+    // Gets removed in Bug 796114
+    if (caller->analysis()->typeBarriers(cx, pc))
+        return false;
+
+    return true;
 }
 
 bool
@@ -603,11 +601,9 @@ TypeInferenceOracle::canEnterInlinedFunction(RawScript caller, jsbytecode *pc, R
     AssertCanGC();
     RootedScript targetScript(cx, target->nonLazyScript());
 
-    // Make sure empty script has type information, to allow inlining in more cases.
-    if (targetScript->length == 1) {
-        if (!targetScript->ensureRanInference(cx))
-            return false;
-    }
+    // Always permit the empty script.
+    if (targetScript->length == 1)
+        return true;
 
     if (!targetScript->hasAnalysis() ||
         !targetScript->analysis()->ranInference() ||

@@ -318,7 +318,6 @@ final class GeckoEditable
         final int seqnoWhenPosted = mGeckoUpdateSeqno;
 
         geckoPostToIc(new Runnable() {
-            @Override
             public void run() {
                 mActionQueue.syncWithGecko();
                 if (seqnoWhenPosted == mGeckoUpdateSeqno) {
@@ -621,7 +620,6 @@ final class GeckoEditable
             }
             Selection.setSelection(mText, selStart, selEnd);
             geckoPostToIc(new Runnable() {
-                @Override
                 public void run() {
                     mActionQueue.syncWithGecko();
                     final int start = Selection.getSelectionStart(mText);
@@ -675,7 +673,6 @@ final class GeckoEditable
             return;
         }
         geckoPostToIc(new Runnable() {
-            @Override
             public void run() {
                 if (type == NOTIFY_IME_FOCUSCHANGE) {
                     if (state == IME_FOCUS_STATE_BLUR) {
@@ -706,7 +703,6 @@ final class GeckoEditable
                           ", \"" + typeHint + "\", \"" + modeHint + "\", \"" + actionHint + "\")");
         }
         geckoPostToIc(new Runnable() {
-            @Override
             public void run() {
                 // Make sure there are no other things going on
                 mActionQueue.syncWithGecko();
@@ -745,7 +741,6 @@ final class GeckoEditable
         }
 
         geckoPostToIc(new Runnable() {
-            @Override
             public void run() {
                 mActionQueue.syncWithGecko();
                 /* check to see there has not been another action that potentially changed the
@@ -845,7 +840,6 @@ final class GeckoEditable
             geckoReplaceText(start, oldEnd, mChangedText);
         }
         geckoPostToIc(new Runnable() {
-            @Override
             public void run() {
                 mListener.onTextChange(text, start, oldEnd, newEnd);
             }

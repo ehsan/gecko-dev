@@ -71,15 +71,7 @@ MarkerDragger.prototype = {
   }
 }
 
-function Marker(aParent, aTag, aElementId, xPos, yPos) {
-  this._xPos = xPos;
-  this._yPos = yPos;
-  this._selectionHelperUI = aParent;
-  this._element = document.getElementById(aElementId);
-  // These get picked in input.js and receives drag input
-  this._element.customDragger = new MarkerDragger(this);
-  this.tag = aTag;
-}
+function Marker() {}
 
 Marker.prototype = {
   _element: null,
@@ -113,6 +105,13 @@ Marker.prototype = {
 
   get dragging() {
     return this._element.customDragger.dragging;
+  },
+
+  init: function init(aParent, aElementId, xPos, yPos) {
+    this._selectionHelperUI = aParent;
+    this._element = document.getElementById(aElementId);
+    // These get picked in input.js and receives drag input
+    this._element.customDragger = new MarkerDragger(this);
   },
 
   shutdown: function shutdown() {
@@ -197,18 +196,21 @@ var SelectionHelperUI = {
   _target: null,
   _movement: { active: false, x:0, y: 0 },
   _activeSelectionRect: null,
-  _selectionHandlerActive: false,
 
   get startMark() {
     if (this._startMark == null) {
-      this._startMark = new Marker(this, "start", "selectionhandle-start", 0, 0);
+      this._startMark = new Marker();
+      this._startMark.tag = "start";
+      this._startMark.init(this, "selectionhandle-start");
     }
     return this._startMark;
   },
 
   get endMark() {
     if (this._endMark == null) {
-      this._endMark = new Marker(this, "end", "selectionhandle-end", 0, 0);
+      this._endMark = new Marker();
+      this._endMark.tag = "end";
+      this._endMark.init(this, "selectionhandle-end");
     }
     return this._endMark;
   },
@@ -244,18 +246,18 @@ var SelectionHelperUI = {
 
     this._init();
 
+    Util.dumpLn("enableSelection target:", this._popupState._target);
+
     // Set the track bounds for each marker NIY
     this.startMark.setTrackBounds(this._popupState.xPos, this._popupState.yPos);
     this.endMark.setTrackBounds(this._popupState.xPos, this._popupState.yPos);
 
     // Send this over to SelectionHandler in content, they'll message us
-    // back with information on the current selection. SelectionStart
-    // takes client coordinates.
-    this._selectionHandlerActive = false;
-    this._sendAsyncMessage("Browser:SelectionStart", {
-      xPos: this._popupState.xPos,
-      yPos: this._popupState.yPos
-    });
+    // back with information on the current selection.
+    this._popupState._target.messageManager.sendAsyncMessage(
+      "Browser:SelectionStart",
+      { xPos: this._popupState.xPos,
+        yPos: this._popupState.yPos });
 
     this._setupDebugOptions();
   },
@@ -266,21 +268,19 @@ var SelectionHelperUI = {
    * Attaches to existing selection and begins editing.
    */
   attachEditSession: function attachEditSession(aMessage) {
-    if (aMessage.target == undefined)
-      return;
     this._popupState = aMessage.json;
     this._popupState._target = aMessage.target;
 
     this._init();
+
+    Util.dumpLn("enableSelection target:", this._popupState._target);
 
     // Set the track bounds for each marker NIY
     this.startMark.setTrackBounds(this._popupState.xPos, this._popupState.yPos);
     this.endMark.setTrackBounds(this._popupState.xPos, this._popupState.yPos);
 
     // Send this over to SelectionHandler in content, they'll message us
-    // back with information on the current selection. SelectionAttach
-    // takes client coordinates.
-    this._selectionHandlerActive = false;
+    // back with information on the current selection.
     this._popupState._target.messageManager.sendAsyncMessage(
       "Browser:SelectionAttach",
       { xPos: this._popupState.xPos,
@@ -301,14 +301,12 @@ var SelectionHelperUI = {
   },
 
   /*
-   * isActive (prop)
+   * isActive
    *
    * Determines if an edit session is currently active.
    */
-  get isActive() {
-    return (this._popupState != null &&
-            this._popupState._target != null &&
-            this._selectionHandlerActive);
+  isActive: function isActive() {
+    return (this._popupState && this._popupState._target);
   },
 
   /*
@@ -318,7 +316,8 @@ var SelectionHelperUI = {
    * selection regions if they exist.
    */
   closeEditSession: function closeEditSession() {
-    this._sendAsyncMessage("Browser:SelectionClose");
+    if (this._popupState._target)
+      this._popupState._target.messageManager.sendAsyncMessage("Browser:SelectionClose");
     this._shutdown();
   },
 
@@ -329,7 +328,8 @@ var SelectionHelperUI = {
    * associated with the edit session.
    */
   closeEditSessionAndClear: function closeEditSessionAndClear() {
-    this._sendAsyncMessage("Browser:SelectionClear");
+    if (this._popupState._target)
+      this._popupState._target.messageManager.sendAsyncMessage("Browser:SelectionClear");
     this.closeEditSession();
   },
 
@@ -347,15 +347,12 @@ var SelectionHelperUI = {
     // selection related events
     window.addEventListener("click", this, true);
     window.addEventListener("dblclick", this, true);
+    window.addEventListener("MozPressTapGesture", this, true);
 
     // Picking up scroll attempts
     window.addEventListener("touchstart", this, true);
     window.addEventListener("touchend", this, true);
     window.addEventListener("touchmove", this, true);
-
-    // context ui display events
-    window.addEventListener("MozContextUIShow", this, true);
-    window.addEventListener("MozContextUIDismiss", this, true);
 
     // cancellation related events
     window.addEventListener("keypress", this, true);
@@ -376,13 +373,11 @@ var SelectionHelperUI = {
 
     window.removeEventListener("click", this, true);
     window.removeEventListener("dblclick", this, true);
+    window.removeEventListener("MozPressTapGesture", this, true);
 
     window.removeEventListener("touchstart", this, true);
     window.removeEventListener("touchend", this, true);
     window.removeEventListener("touchmove", this, true);
-
-    window.removeEventListener("MozContextUIShow", this, true);
-    window.removeEventListener("MozContextUIDismiss", this, true);
 
     window.removeEventListener("keypress", this, true);
     Elements.browsers.removeEventListener("URLChanged", this, true);
@@ -401,7 +396,6 @@ var SelectionHelperUI = {
 
     this._popupState = null;
     this._activeSelectionRect = null;
-    this._selectionHandlerActive = false;
 
     this.overlay.displayDebugLayer = false;
     this.overlay.enabled = false;
@@ -435,48 +429,53 @@ var SelectionHelperUI = {
       // Turn on the debug layer
       this.overlay.displayDebugLayer = true;
       // Tell SelectionHandler what to do
-      this._sendAsyncMessage("Browser:SelectionDebug", debugOpts);
+      this._popupState
+          ._target
+          .messageManager
+          .sendAsyncMessage("Browser:SelectionDebug", debugOpts);
     }
-  },
-
-  /*
-   * _sendAsyncMessage - helper for sending a message to
-   * SelectionHandler.
-   */
-  _sendAsyncMessage: function _sendAsyncMessage(aMsg, aJson) {
-    if (!this._popupState || !this._popupState._target) {
-      if (this._debugEvents)
-        Util.dumpLn("SelectionHelperUI sendAsyncMessage could not send", aMsg);
-      return;
-    }
-    this._popupState._target.messageManager.sendAsyncMessage(aMsg, aJson);
-  },
-
-  _checkForActiveDrag: function _checkForActiveDrag() {
-    return (this.startMark.dragging || this.endMark.dragging);
-  },
-
-  _hitTestSelection: function _hitTestSelection(aEvent) {
-    // Ignore if the double tap isn't on our active selection rect.
-    if (this._activeSelectionRect &&
-        Util.pointWithinRect(aEvent.clientX, aEvent.clientY, this._activeSelectionRect)) {
-      return true;
-    }
-    return false;
   },
 
   /*
    * Event handlers for document events
    */
 
+  _checkForActiveDrag: function _checkForActiveDrag() {
+    return (this.startMark.dragging || this.endMark.dragging);
+  },
+
+  _hitTestSelection: function _hitTestSelection(aEvent) {
+    let clickPos =
+      this._popupState._target.transformClientToBrowser(aEvent.clientX,
+                                                        aEvent.clientY);
+    // Ignore if the double tap isn't on our active selection rect.
+    if (this._activeSelectionRect &&
+        Util.pointWithinRect(clickPos.x, clickPos.y, this._activeSelectionRect)) {
+      return true;
+    }
+    return false;
+  },
+
   _onTap: function _onTap(aEvent) {
     // Trap single clicks which if forwarded to content will clear selection.
     aEvent.stopPropagation();
     aEvent.preventDefault();
+
     if (this.startMark.hitTest(aEvent.clientX, aEvent.clientY) ||
         this.endMark.hitTest(aEvent.clientX, aEvent.clientY)) {
       // NIY
-      // this._sendAsyncMessage("Browser:ChangeMode", {});
+      this._popupState._target.messageManager.sendAsyncMessage("Browser:ChangeMode", {});
+    }
+  },
+
+  _onLongTap: function _onLongTap(aEvent) {
+    // Check to see if this tap is on one of our monocles. Tap is
+    // easy to trigger when dragging them around.
+    if (this.startMark.hitTest(aEvent.clientX, aEvent.clientY) ||
+        this.endMark.hitTest(aEvent.clientX, aEvent.clientY)) {
+      aEvent.stopPropagation();
+      aEvent.preventDefault();
+      return;
     }
   },
 
@@ -492,10 +491,15 @@ var SelectionHelperUI = {
     }
 
     // Select and close    
-    this._sendAsyncMessage("Browser:SelectionCopy", {
-      xPos: aEvent.clientX,
-      yPos: aEvent.clientY,
-    });
+    let clickPos =
+      this._popupState._target.transformClientToBrowser(aEvent.clientX,
+                                                        aEvent.clientY);
+    let json = {
+      xPos: clickPos.x,
+      yPos: clickPos.y,
+    };
+
+    this._popupState._target.messageManager.sendAsyncMessage("Browser:SelectionCopy", json);
 
     aEvent.stopPropagation();
     aEvent.preventDefault();
@@ -509,13 +513,16 @@ var SelectionHelperUI = {
   },
 
   _onSelectionRangeChange: function _onSelectionRangeChange(json) {
-    // start and end contain client coordinates.
     if (json.updateStart) {
-      this.startMark.position(json.start.xPos, json.start.yPos);
+      let pos =
+        this._popupState._target.transformBrowserToClient(json.start.xPos, json.start.yPos);
+      this.startMark.position(pos.x, pos.y);
       this.startMark.show();
     }
     if (json.updateEnd) {
-      this.endMark.position(json.end.xPos, json.end.yPos);
+      let pos =
+        this._popupState._target.transformBrowserToClient(json.end.xPos, json.end.yPos);
+      this.endMark.position(pos.x, pos.y);
       this.endMark.show();
     }
     this._activeSelectionRect = json.rect;
@@ -531,14 +538,9 @@ var SelectionHelperUI = {
   },
 
   _onResize: function _onResize() {
-    this._sendAsyncMessage("Browser:SelectionUpdate", {});
-  },
-
-  _onContextUIVisibilityEvent: function _onContextUIVisibilityEvent(aType) {
-    // Manage display of monocles when the context ui is displayed.
-    if (!this.isActive)
-      return;
-    this.overlay.hidden = (aType == "MozContextUIShow");
+    this._popupState._target
+                    .messageManager
+                    .sendAsyncMessage("Browser:SelectionUpdate", {});
   },
 
   _onDebugRectRequest: function _onDebugRectRequest(aMsg) {
@@ -559,7 +561,7 @@ var SelectionHelperUI = {
   },
 
   handleEvent: function handleEvent(aEvent) {
-    if (this._debugEvents) {
+    if (this._debugEvents && aEvent.type != "touchmove") {
       Util.dumpLn("SelectionHelperUI:", aEvent.type);
     }
     switch (aEvent.type) {
@@ -569,6 +571,10 @@ var SelectionHelperUI = {
 
       case "dblclick":
         this._onDblTap(aEvent);
+        break;
+
+      case "MozPressTapGesture":
+        this._onLongTap(aEvent);
         break;
 
       case "touchstart": {
@@ -613,12 +619,7 @@ var SelectionHelperUI = {
       case "URLChanged":
       case "MozPrecisePointer":
         this.closeEditSessionAndClear();
-      break;
-
-      case "MozContextUIShow":
-      case "MozContextUIDismiss":
-        this._onContextUIVisibilityEvent(aEvent.type);
-      break;
+        break;
     }
   },
 
@@ -627,15 +628,12 @@ var SelectionHelperUI = {
     let json = aMessage.json;
     switch (aMessage.name) {
       case "Content:SelectionFail":
-        this._selectionHandlerActive = false;
         this._onSelectionFail();
         break;
       case "Content:SelectionRange":
-        this._selectionHandlerActive = true;
         this._onSelectionRangeChange(json);
         break;
       case "Content:SelectionCopied":
-        this._selectionHandlerActive = true;
         this._onSelectionCopied(json);
         break;
       case "Content:SelectionDebugRect":
@@ -672,20 +670,20 @@ var SelectionHelperUI = {
   markerDragStart: function markerDragStart(aMarker) {
     let json = this._getMarkerBaseMessage();
     json.change = aMarker.tag;
-    this._sendAsyncMessage("Browser:SelectionMoveStart", json);
+    this._popupState._target.messageManager.sendAsyncMessage("Browser:SelectionMoveStart", json);
   },
 
   markerDragStop: function markerDragStop(aMarker) {
     //aMarker.show();
     let json = this._getMarkerBaseMessage();
     json.change = aMarker.tag;
-    this._sendAsyncMessage("Browser:SelectionMoveEnd", json);
+    this._popupState._target.messageManager.sendAsyncMessage("Browser:SelectionMoveEnd", json);
   },
 
   markerDragMove: function markerDragMove(aMarker) {
     let json = this._getMarkerBaseMessage();
     json.change = aMarker.tag;
-    this._sendAsyncMessage("Browser:SelectionMove", json);
+    this._popupState._target.messageManager.sendAsyncMessage("Browser:SelectionMove", json);
   },
 
   showToast: function showToast(aString) {

@@ -290,7 +290,7 @@ IonCompartment::getVMWrapper(const VMFunction &f)
 
     JS_ASSERT(rt->functionWrappers_);
     JS_ASSERT(rt->functionWrappers_->initialized());
-    IonRuntime::VMWrapperMap::Ptr p = rt->functionWrappers_->readonlyThreadsafeLookup(&f);
+    IonRuntime::VMWrapperMap::Ptr p = rt->functionWrappers_->lookup(&f);
     JS_ASSERT(p);
 
     return p->value;
@@ -938,14 +938,6 @@ OptimizeMIR(MIRGenerator *mir)
 
         if (mir->shouldCancel("RA De-Beta"))
             return false;
-
-        if (!r.truncate())
-            return false;
-        IonSpewPass("Truncate Doubles");
-        AssertExtendedGraphCoherency(graph);
-
-        if (mir->shouldCancel("Truncate Doubles"))
-            return false;
     }
 
     if (!EliminateDeadCode(mir, graph))
@@ -1480,7 +1472,8 @@ ion::CanEnterAtBranch(JSContext *cx, JSScript *script, AbstractFramePtr fp,
 }
 
 MethodStatus
-ion::CanEnter(JSContext *cx, JSScript *script, AbstractFramePtr fp, bool isConstructing)
+ion::CanEnter(JSContext *cx, JSScript *script, AbstractFramePtr fp,
+              bool isConstructing, bool newType)
 {
     JS_ASSERT(ion::IsEnabled(cx));
 
@@ -1502,8 +1495,8 @@ ion::CanEnter(JSContext *cx, JSScript *script, AbstractFramePtr fp, bool isConst
     if (isConstructing && fp.thisValue().isPrimitive()) {
         RootedScript scriptRoot(cx, script);
         RootedObject callee(cx, &fp.callee());
-        RootedObject obj(cx, CreateThisForFunction(cx, callee, fp.useNewType()));
-        if (!obj || !ion::IsEnabled(cx)) // Note: OOM under CreateThis can disable TI.
+        RootedObject obj(cx, CreateThisForFunction(cx, callee, newType));
+        if (!obj)
             return Method_Skipped;
         fp.thisValue().setObject(*obj);
         script = scriptRoot;
@@ -1706,8 +1699,6 @@ EnterIon(JSContext *cx, StackFrame *fp, void *jitcode)
 
     void *calleeToken;
     if (fp->isFunctionFrame()) {
-        fp->cleanupTornValues();
-
         // CountArgSlot include |this| and the |scopeChain|.
         maxArgc = CountArgSlots(fp->fun()) - 1; // -1 = discard |scopeChain|
         maxArgv = fp->formals() - 1;            // -1 = include |this|

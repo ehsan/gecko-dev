@@ -19,6 +19,8 @@
 #include "nsWrapperCacheInlines.h"
 #include "mozilla/dom/DocumentTypeBinding.h"
 
+DOMCI_NODE_DATA(DocumentType, mozilla::dom::DocumentType)
+
 nsresult
 NS_NewDOMDocumentType(nsIDOMDocumentType** aDocType,
                       nsNodeInfoManager *aNodeInfoManager,
@@ -89,8 +91,16 @@ DocumentType::~DocumentType()
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED2(DocumentType, nsGenericDOMDataNode, nsIDOMNode,
-                             nsIDOMDocumentType)
+// QueryInterface implementation for DocumentType
+NS_INTERFACE_TABLE_HEAD(DocumentType)
+  NS_NODE_INTERFACE_TABLE2(DocumentType, nsIDOMNode, nsIDOMDocumentType)
+  NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(DocumentType)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DocumentType)
+NS_INTERFACE_MAP_END_INHERITING(nsGenericDOMDataNode)
+
+
+NS_IMPL_ADDREF_INHERITED(DocumentType, nsGenericDOMDataNode)
+NS_IMPL_RELEASE_INHERITED(DocumentType, nsGenericDOMDataNode)
 
 bool
 DocumentType::IsNodeOfType(uint32_t aFlags) const

@@ -33,6 +33,11 @@ var ContextCommands = {
         this.clipboard.copyString(ContextMenuUI.popupState.string,
                                   this.docRef);
         this.showToast(Strings.browser.GetStringFromName("selectionHelper.textCopied"));
+      } else {
+        let x = ContextMenuUI.popupState.x;
+        let y = ContextMenuUI.popupState.y;
+        let json = {x: x, y: y, command: "copy" };
+        target.messageManager.sendAsyncMessage("Browser:ContextCommand", json);
       }
     } else {
       // chrome

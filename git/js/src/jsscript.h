@@ -382,10 +382,7 @@ class JSScript : public js::gc::Cell
     void         *mJITInfoPad;
 #endif
     js::HeapPtrFunction function_;
-
-    // For callsite clones, which cannot have enclosing scopes, the original
-    // function; otherwise the enclosing scope
-    js::HeapPtrObject   enclosingScopeOrOriginalFunction_;
+    js::HeapPtrObject   enclosingScope_;
 
     // 32-bit fields.
 
@@ -484,14 +481,6 @@ class JSScript : public js::gc::Cell
     bool            isActiveEval:1;   /* script came from eval(), and is still active */
     bool            isCachedEval:1;   /* script came from eval(), and is in eval cache */
     bool            uninlineable:1;   /* script is considered uninlineable by analysis */
-
-    /* script is attempted to be cloned anew at each callsite. This is
-       temporarily needed for ParallelArray selfhosted code until type
-       information can be made context sensitive. See discussion in
-       bug 826148. */
-    bool            shouldCloneAtCallsite:1;
-
-    bool            isCallsiteClone:1; /* is a callsite clone; has a link to the original function */
 #ifdef JS_METHODJIT
     bool            debugMode:1;      /* script was compiled in debug mode */
     bool            failedBoundsCheck:1; /* script has had hoisted bounds checks fail */
@@ -629,9 +618,6 @@ class JSScript : public js::gc::Cell
     JSFunction *function() const { return function_; }
     void setFunction(JSFunction *fun);
 
-    JSFunction *originalFunction() const;
-    void setOriginalFunctionObject(JSObject *fun);
-
     JSFlatString *sourceData(JSContext *cx);
 
     static bool loadSource(JSContext *cx, js::HandleScript scr, bool *worked);
@@ -678,9 +664,8 @@ class JSScript : public js::gc::Cell
 
     /* See StaticScopeIter comment. */
     JSObject *enclosingStaticScope() const {
-        if (isCallsiteClone)
-            return NULL;
-        return enclosingScopeOrOriginalFunction_;
+        JS_ASSERT(enclosingScriptsCompiledSuccessfully());
+        return enclosingScope_;
     }
 
     /*
@@ -861,7 +846,6 @@ class JSScript : public js::gc::Cell
 
     inline JSFunction *getFunction(size_t index);
     inline JSFunction *getCallerFunction();
-    inline JSFunction *functionOrCallerFunction();
 
     inline js::RegExpObject *getRegExp(size_t index);
 

@@ -8,6 +8,7 @@ package org.mozilla.gecko;
 import org.mozilla.gecko.updater.UpdateServiceHelper;
 
 import android.content.*;
+import android.net.*;
 
 public class GeckoUpdateReceiver
     extends BroadcastReceiver

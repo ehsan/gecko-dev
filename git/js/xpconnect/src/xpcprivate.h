@@ -1627,6 +1627,8 @@ public:
 
     nsIPrincipal*
     GetPrincipal() const {
+        if (!mGlobalJSObject)
+            return nullptr;
         JSCompartment *c = js::GetObjectCompartment(mGlobalJSObject);
         return nsJSPrincipals::get(JS_GetCompartmentPrincipals(c));
     }
@@ -1687,6 +1689,8 @@ public:
 
     static JSBool
     IsDyingScope(XPCWrappedNativeScope *scope);
+
+    void SetGlobal(JSContext *cx, JSObject* aGlobal);
 
     static void InitStatics() { gScopes = nullptr; gDyingScopes = nullptr; }
 
@@ -1760,7 +1764,6 @@ private:
 
     JSBool mExperimentalBindingsEnabled;
     bool mIsXBLScope;
-    bool mUseXBLScope;
 };
 
 /***************************************************************************/

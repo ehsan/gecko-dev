@@ -73,7 +73,6 @@ import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -88,10 +87,8 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.StringTokenizer;
-import java.util.TreeMap;
 import java.util.concurrent.SynchronousQueue;
 import java.net.ProxySelector;
 import java.net.Proxy;
@@ -127,6 +124,7 @@ public class GeckoAppShell
 
     static private final boolean LOGGING = false;
 
+    static File sHomeDir = null;
     static private int sDensityDpi = 0;
 
     private static final EventDispatcher sEventDispatcher = new EventDispatcher();
@@ -178,7 +176,6 @@ public class GeckoAppShell
 
     public static void registerGlobalExceptionHandler() {
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
-            @Override
             public void uncaughtException(Thread thread, Throwable e) {
                 Log.e(LOGTAG, ">>> REPORTING UNCAUGHT EXCEPTION FROM THREAD "
                               + thread.getId() + " (\"" + thread.getName() + "\")", e);
@@ -251,12 +248,10 @@ public class GeckoAppShell
             mScanner.connect();
         }
 
-        @Override
         public void onMediaScannerConnected() {
             mScanner.scanFile(mFile, mMimeType);
         }
 
-        @Override
         public void onScanCompleted(String path, Uri uri) {
             if(path.equals(mFile)) {
                 mScanner.disconnect();
@@ -301,7 +296,6 @@ public class GeckoAppShell
         combinedArgs += " -width " + metrics.widthPixels + " -height " + metrics.heightPixels;
 
         GeckoApp.mAppContext.runOnUiThread(new Runnable() {
-                @Override
                 public void run() {
                     geckoLoaded();
                 }
@@ -421,7 +415,6 @@ public class GeckoAppShell
 
     public static void enableLocation(final boolean enable) {
         getMainHandler().post(new Runnable() { 
-                @Override
                 public void run() {
                     LocationManager lm = (LocationManager)
                         GeckoApp.mAppContext.getSystemService(Context.LOCATION_SERVICE);
@@ -631,7 +624,6 @@ public class GeckoAppShell
                                       final Bitmap aIcon, final String aType)
     {
         getHandler().post(new Runnable() {
-            @Override
             public void run() {
                 // the intent to be launched by the shortcut
                 Intent shortcutIntent;
@@ -668,7 +660,6 @@ public class GeckoAppShell
 
     public static void removeShortcut(final String aTitle, final String aURI, final String aUniqueURI, final String aType) {
         getHandler().post(new Runnable() {
-            @Override
             public void run() {
                 // the intent to be launched by the shortcut
                 Intent shortcutIntent;
@@ -703,7 +694,6 @@ public class GeckoAppShell
         //   1. nuke the running app process.
         //   2. nuke the profile that was assigned to that webapp
         getHandler().post(new Runnable() {
-            @Override
             public void run() {
                 int index = WebAppAllocator.getInstance(GeckoApp.mAppContext).releaseIndexForApp(uniqueURI);
 
@@ -1140,7 +1130,6 @@ public class GeckoAppShell
     // gecko thread, which is most likely this thread
     static String getClipboardText() {
         getHandler().post(new Runnable() { 
-            @Override
             @SuppressWarnings("deprecation")
             public void run() {
                 Context context = GeckoApp.mAppContext;
@@ -1174,7 +1163,6 @@ public class GeckoAppShell
 
     static void setClipboardText(final String text) {
         getHandler().post(new Runnable() { 
-            @Override
             @SuppressWarnings("deprecation")
             public void run() {
                 Context context = GeckoApp.mAppContext;
@@ -1377,7 +1365,6 @@ public class GeckoAppShell
 
     public static void setKeepScreenOn(final boolean on) {
         GeckoApp.mAppContext.runOnUiThread(new Runnable() {
-            @Override
             public void run() {
                 // TODO
             }
@@ -1386,7 +1373,6 @@ public class GeckoAppShell
 
     public static void notifyDefaultPrevented(final boolean defaultPrevented) {
         getMainHandler().post(new Runnable() {
-            @Override
             public void run() {
                 LayerView view = GeckoApp.mAppContext.getLayerView();
                 PanZoomController controller = (view == null ? null : view.getPanZoomController());
@@ -1483,7 +1469,6 @@ public class GeckoAppShell
 
     public static void killAnyZombies() {
         GeckoProcessesVisitor visitor = new GeckoProcessesVisitor() {
-            @Override
             public boolean callback(int pid) {
                 if (pid != android.os.Process.myPid())
                     android.os.Process.killProcess(pid);
@@ -1498,7 +1483,6 @@ public class GeckoAppShell
 
         class GeckoPidCallback implements GeckoProcessesVisitor {
             public boolean otherPidExist = false;
-            @Override
             public boolean callback(int pid) {
                 if (pid != android.os.Process.myPid()) {
                     otherPidExist = true;
@@ -1516,11 +1500,12 @@ public class GeckoAppShell
         boolean callback(int pid);
     }
 
+    static int sPidColumn = -1;
+    static int sUserColumn = -1;
     private static void EnumerateGeckoProcesses(GeckoProcessesVisitor visiter) {
-        int pidColumn = -1;
-        int userColumn = -1;
 
         try {
+
             // run ps and parse its output
             java.lang.Process ps = Runtime.getRuntime().exec("ps");
             BufferedReader in = new BufferedReader(new InputStreamReader(ps.getInputStream()),
@@ -1529,28 +1514,30 @@ public class GeckoAppShell
             String headerOutput = in.readLine();
 
             // figure out the column offsets.  We only care about the pid and user fields
-            StringTokenizer st = new StringTokenizer(headerOutput);
-            
-            int tokenSoFar = 0;
-            while (st.hasMoreTokens()) {
-                String next = st.nextToken();
-                if (next.equalsIgnoreCase("PID"))
-                    pidColumn = tokenSoFar;
-                else if (next.equalsIgnoreCase("USER"))
-                    userColumn = tokenSoFar;
-                tokenSoFar++;
+            if (sPidColumn == -1 || sUserColumn == -1) {
+                StringTokenizer st = new StringTokenizer(headerOutput);
+                
+                int tokenSoFar = 0;
+                while(st.hasMoreTokens()) {
+                    String next = st.nextToken();
+                    if (next.equalsIgnoreCase("PID"))
+                        sPidColumn = tokenSoFar;
+                    else if (next.equalsIgnoreCase("USER"))
+                        sUserColumn = tokenSoFar;
+                    tokenSoFar++;
+                }
             }
 
             // alright, the rest are process entries.
             String psOutput = null;
             while ((psOutput = in.readLine()) != null) {
                 String[] split = psOutput.split("\\s+");
-                if (split.length <= pidColumn || split.length <= userColumn)
+                if (split.length <= sPidColumn || split.length <= sUserColumn)
                     continue;
-                int uid = android.os.Process.getUidForName(split[userColumn]);
+                int uid = android.os.Process.getUidForName(split[sUserColumn]);
                 if (uid == android.os.Process.myUid() &&
                     !split[split.length - 1].equalsIgnoreCase("ps")) {
-                    int pid = Integer.parseInt(split[pidColumn]);
+                    int pid = Integer.parseInt(split[sPidColumn]);
                     boolean keepGoing = visiter.callback(pid);
                     if (keepGoing == false)
                         break;
@@ -1570,70 +1557,6 @@ public class GeckoAppShell
                 Thread.sleep(100);
             } catch (InterruptedException ie) {}
         }
-    }
-    public static String getAppNameByPID(int pid) {
-        BufferedReader cmdlineReader = null;
-        String path = "/proc/" + pid + "/cmdline";
-        try {
-            File cmdlineFile = new File(path);
-            if (!cmdlineFile.exists())
-                return "";
-            cmdlineReader = new BufferedReader(new FileReader(cmdlineFile));
-            return cmdlineReader.readLine().trim();
-        } catch (Exception ex) {
-            return "";
-        } finally {
-            if (null != cmdlineReader) {
-                try {
-                    cmdlineReader.close();
-                } catch (Exception e) {}
-            }
-        }
-    }
-
-    public static void listOfOpenFiles() {
-        int pidColumn = -1;
-        int nameColumn = -1;
-
-        try {
-            String filter = GeckoProfile.get(GeckoApp.mAppContext).getDir().toString();
-            Log.i(LOGTAG, "[OPENFILE] Filter: " + filter);
-
-            // run lsof and parse its output
-            java.lang.Process lsof = Runtime.getRuntime().exec("lsof");
-            BufferedReader in = new BufferedReader(new InputStreamReader(lsof.getInputStream()), 2048);
-
-            String headerOutput = in.readLine();
-            StringTokenizer st = new StringTokenizer(headerOutput);
-            int token = 0;
-            while (st.hasMoreTokens()) {
-                String next = st.nextToken();
-                if (next.equalsIgnoreCase("PID"))
-                    pidColumn = token;
-                else if (next.equalsIgnoreCase("NAME"))
-                    nameColumn = token;
-                token++;
-            }
-
-            // alright, the rest are open file entries.
-            Map<Integer, String> pidNameMap = new TreeMap<Integer, String>();
-            String output = null;
-            while ((output = in.readLine()) != null) {
-                String[] split = output.split("\\s+");
-                if (split.length <= pidColumn || split.length <= nameColumn)
-                    continue;
-                Integer pid = new Integer(split[pidColumn]);
-                String name = pidNameMap.get(pid);
-                if (name == null) {
-                    name = getAppNameByPID(pid.intValue());
-                    pidNameMap.put(pid, name);
-                }
-                String file = split[nameColumn];
-                if (!TextUtils.isEmpty(name) && !TextUtils.isEmpty(file) && file.startsWith(filter))
-                    Log.i(LOGTAG, "[OPENFILE] " + name + "(" + split[pidColumn] + ") : " + file);
-            }
-            in.close();
-        } catch (Exception e) { }
     }
 
     public static void scanMedia(String aFile, String aMimeType) {
@@ -1811,7 +1734,6 @@ public class GeckoAppShell
             sCameraBuffer = new byte[(bufferSize * 12) / 8];
             sCamera.addCallbackBuffer(sCameraBuffer);
             sCamera.setPreviewCallbackWithBuffer(new android.hardware.Camera.PreviewCallback() {
-                @Override
                 public void onPreviewFrame(byte[] data, android.hardware.Camera camera) {
                     cameraCallbackBridge(data);
                     if (sCamera != null)
@@ -1903,7 +1825,6 @@ public class GeckoAppShell
 
     static void markUriVisited(final String uri) {    // invoked from native JNI code
         getHandler().post(new Runnable() { 
-            @Override
             public void run() {
                 GlobalHistory.getInstance().add(uri);
             }
@@ -1912,7 +1833,6 @@ public class GeckoAppShell
 
     static void setUriTitle(final String uri, final String title) {    // invoked from native JNI code
         getHandler().post(new Runnable() {
-            @Override
             public void run() {
                 GlobalHistory.getInstance().update(uri, title);
             }
@@ -1976,14 +1896,6 @@ public class GeckoAppShell
 
     public static boolean isTablet() {
         return GeckoApp.mAppContext.isTablet();
-    }
-
-    public static boolean isLargeTablet() {
-        return GeckoApp.mAppContext.isLargeTablet();
-    }
-
-    public static boolean isSmallTablet() {
-        return GeckoApp.mAppContext.isSmallTablet();
     }
 
     public static void viewSizeChanged() {
@@ -2155,7 +2067,6 @@ public class GeckoAppShell
             mId = id;
         }
 
-        @Override
         public void onActivityResult(int resultCode, Intent data) {
             GeckoAppShell.notifyFilePickerResult(handleActivityResult(resultCode, data), mId);
         }
@@ -2183,7 +2094,6 @@ public class GeckoAppShell
 
     public static void registerSurfaceTextureFrameListener(Object surfaceTexture, final int id) {
         ((SurfaceTexture)surfaceTexture).setOnFrameAvailableListener(new SurfaceTexture.OnFrameAvailableListener() {
-            @Override
             public void onFrameAvailable(SurfaceTexture surfaceTexture) {
                 GeckoAppShell.onSurfaceTextureFrameAvailable(surfaceTexture, id);
             }

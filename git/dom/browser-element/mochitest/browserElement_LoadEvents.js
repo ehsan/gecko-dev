@@ -21,7 +21,7 @@ function runTest() {
   var seenLocationChange = false;
 
   var iframe = document.createElement('iframe');
-  SpecialPowers.wrap(iframe).mozbrowser = true;
+  iframe.mozbrowser = true;
   iframe.id = 'iframe';
   iframe.src = browserElementTestHelpers.emptyPage1;
 

@@ -26,7 +26,6 @@
 #include "nsIDOMGeoPositionCallback.h"
 #include "nsIDOMGeoPositionErrorCallback.h"
 #include "nsIDOMNavigatorGeolocation.h"
-#include "nsIGeolocation.h"
 
 #include "nsPIDOMWindow.h"
 
@@ -65,7 +64,6 @@ class nsGeolocationRequest
 
   void SendLocation(nsIDOMGeoPosition* location);
   void MarkCleared();
-  bool WantsHighAccuracy() {return mOptions && mOptions->enableHighAccuracy;}
   bool IsActive() {return !mCleared;}
   bool Allowed() {return mAllowed;}
   void SetTimeoutTimer();
@@ -137,7 +135,6 @@ public:
 
   // request higher accuracy, if possible
   void     SetHigherAccuracy(bool aEnable);
-  bool     HighAccuracyRequested();
 
 private:
 
@@ -167,16 +164,14 @@ private:
 /**
  * Can return a geolocation info
  */
-class nsGeolocation MOZ_FINAL : public nsIDOMGeoGeolocation,
-                                public nsIGeolocation
+class nsGeolocation MOZ_FINAL : public nsIDOMGeoGeolocation
 {
 public:
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIDOMGEOGEOLOCATION
-  NS_DECL_NSIGEOLOCATION
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGeolocation, nsIDOMGeoGeolocation)
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsGeolocation)
 
   nsGeolocation();
 
@@ -203,12 +198,17 @@ public:
   // Check to see if the widnow still exists
   bool WindowOwnerStillExists();
 
-  // Check to see if any active request requires high accuracy
-  bool HighAccuracyRequested();
-
   // Notification from the service:
   void ServiceReady();
 
+  // Versions of the DOM APIs that don't require JS option values
+  nsresult WatchPosition(nsIDOMGeoPositionCallback *callback,
+                         nsIDOMGeoPositionErrorCallback *errorCallback,
+                         mozilla::idl::GeoPositionOptions *options,
+                         int32_t *_retval);
+  nsresult GetCurrentPosition(nsIDOMGeoPositionCallback *callback,
+                              nsIDOMGeoPositionErrorCallback *errorCallback,
+                              mozilla::idl::GeoPositionOptions *options);
 private:
 
   ~nsGeolocation();

@@ -1561,10 +1561,11 @@ nsXMLHttpRequest::DispatchProgressEvent(nsDOMEventTargetHelper* aTarget,
                            aType.EqualsLiteral(ERROR_STR) ||
                            aType.EqualsLiteral(TIMEOUT_STR) ||
                            aType.EqualsLiteral(ABORT_STR);
-
+  
   nsCOMPtr<nsIDOMEvent> event;
-  nsresult rv = NS_NewDOMProgressEvent(getter_AddRefs(event),
-                                       nullptr, nullptr);
+  nsresult rv = nsEventDispatcher::CreateEvent(nullptr, nullptr,
+                                               NS_LITERAL_STRING("ProgressEvent"),
+                                               getter_AddRefs(event));
   if (NS_FAILED(rv)) {
     return;
   }
@@ -3370,8 +3371,6 @@ nsXMLHttpRequest::SetMultipart(bool aMultipart, nsresult& aRv)
     aRv = NS_ERROR_IN_PROGRESS;
     return;
   }
-
-  LogMessage("MultipartXHRWarning", GetOwner());
 
   if (aMultipart) {
     mState |= XML_HTTP_REQUEST_MULTIPART;

@@ -90,7 +90,6 @@ public class GeckoThread extends Thread implements GeckoEventListener {
         return (args != null ? args : "") + profile;
     }
 
-    @Override
     public void run() {
         // Here we start the GfxInfo thread, which will query OpenGL
         // system information for Gecko. This must be done early enough that the data will be
@@ -114,7 +113,6 @@ public class GeckoThread extends Thread implements GeckoEventListener {
         GeckoAppShell.runGecko(path, args, mUri, type);
     }
 
-    @Override
     public void handleMessage(String event, JSONObject message) {
         if ("Gecko:Ready".equals(event)) {
             GeckoAppShell.getEventDispatcher().unregisterEventListener(event, this);

@@ -276,22 +276,6 @@ js::RunScript(JSContext *cx, StackFrame *fp)
 
     JS_CHECK_RECURSION(cx, return false);
 
-    // Check to see if useNewType flag should be set for this frame.
-    if (fp->isFunctionFrame() && fp->isConstructing() && !fp->isGeneratorFrame() &&
-        cx->typeInferenceEnabled())
-    {
-        StackIter iter(cx);
-        if (!iter.done()) {
-            ++iter;
-            if (iter.isScript()) {
-                RawScript script = iter.script();
-                jsbytecode *pc = iter.pc();
-                if (UseNewType(cx, script, pc))
-                    fp->setUseNewType();
-            }
-        }
-    }
-
 #ifdef DEBUG
     struct CheckStackBalance {
         JSContext *cx;
@@ -310,7 +294,7 @@ js::RunScript(JSContext *cx, StackFrame *fp)
 #ifdef JS_ION
     if (ion::IsEnabled(cx)) {
         ion::MethodStatus status = ion::CanEnter(cx, script, AbstractFramePtr(fp),
-                                                 fp->isConstructing());
+                                                 fp->isConstructing(), false);
         if (status == ion::Method_Error)
             return false;
         if (status == ion::Method_Compiled) {
@@ -1175,7 +1159,7 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
     if (interpMode == JSINTERP_NORMAL) {
         StackFrame *fp = regs.fp();
         if (!fp->isGeneratorFrame()) {
-            if (!fp->prologue(cx))
+            if (!fp->prologue(cx, UseNewTypeAtEntry(cx, fp)))
                 goto error;
         } else {
             Probes::enterScript(cx, script, script->function(), fp);
@@ -2334,18 +2318,16 @@ BEGIN_CASE(JSOP_FUNCALL)
     bool construct = (*regs.pc == JSOP_NEW);
 
     RootedFunction &fun = rootFunction0;
-    RootedScript &funScript = rootScript0;
     bool isFunction = IsFunctionObject(args.calleev(), fun.address());
 
     /*
      * Some builtins are marked as clone-at-callsite to increase precision of
      * TI and JITs.
      */
-    if (isFunction && fun->isInterpreted()) {
-        funScript = fun->getOrCreateScript(cx);
-        if (!funScript)
+    if (isFunction) {
+        if (fun->isInterpretedLazy() && !fun->getOrCreateScript(cx))
             goto error;
-        if (cx->typeInferenceEnabled() && funScript->shouldCloneAtCallsite) {
+        if (cx->typeInferenceEnabled() && fun->isCloneAtCallsite()) {
             fun = CloneFunctionAtCallsite(cx, fun, script, regs.pc);
             if (!fun)
                 goto error;
@@ -2374,12 +2356,10 @@ BEGIN_CASE(JSOP_FUNCALL)
 
     InitialFrameFlags initial = construct ? INITIAL_CONSTRUCT : INITIAL_NONE;
     bool newType = cx->typeInferenceEnabled() && UseNewType(cx, script, regs.pc);
+    RootedScript &funScript = rootScript0;
     funScript = fun->nonLazyScript();
     if (!cx->stack.pushInlineFrame(cx, regs, args, fun, funScript, initial))
         goto error;
- 
-    if (newType)
-        regs.fp()->setUseNewType();
 
     SET_SCRIPT(regs.fp()->script());
 #ifdef JS_METHODJIT
@@ -2389,7 +2369,7 @@ BEGIN_CASE(JSOP_FUNCALL)
 #ifdef JS_ION
     if (!newType && ion::IsEnabled(cx)) {
         ion::MethodStatus status = ion::CanEnter(cx, script, AbstractFramePtr(regs.fp()),
-                                                 regs.fp()->isConstructing());
+                                                 regs.fp()->isConstructing(), newType);
         if (status == ion::Method_Error)
             goto error;
         if (status == ion::Method_Compiled) {
@@ -2424,7 +2404,7 @@ BEGIN_CASE(JSOP_FUNCALL)
     }
 #endif
 
-    if (!regs.fp()->prologue(cx))
+    if (!regs.fp()->prologue(cx, newType))
         goto error;
     if (cx->compartment->debugMode()) {
         switch (ScriptDebugPrologue(cx, regs.fp())) {

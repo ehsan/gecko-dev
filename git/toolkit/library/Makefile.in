@@ -302,10 +302,6 @@ endif
 
 STATIC_LIBS += thebes gl ycbcr
 
-ifdef MOZ_ENABLE_GTEST
-COMPONENT_LIBS += gtest
-endif
-
 ifdef MOZ_ENABLE_PROFILER_SPS
 COMPONENT_LIBS += profiler
 endif
@@ -610,7 +606,7 @@ ifdef ACCESSIBILITY
 OS_LIBS += $(call EXPAND_LIBNAME,oleacc)
 endif
 ifdef MOZ_METRO
-OS_LIBS += $(call EXPAND_LIBNAME,uiautomationcore runtimeobject)
+OS_LIBS += $(call EXPAND_LIBNAME,uiautomationcore)
 endif
 ifdef _MSC_VER
 OS_LIBS += $(call EXPAND_LIBNAME,delayimp)

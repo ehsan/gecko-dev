@@ -61,7 +61,6 @@ public class PluginLayer extends TileLayer {
     private void hideView() {
         if (mViewVisible) {
             GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
-                @Override
                 public void run() {
                     mView.setVisibility(View.GONE);
                     mViewVisible = false;
@@ -72,7 +71,6 @@ public class PluginLayer extends TileLayer {
 
     public void showView() {
         GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
-            @Override
             public void run() {
                 if (mContainer.indexOfChild(mView) < 0) {
                     mContainer.addView(mView, mLayoutParams);
@@ -85,7 +83,6 @@ public class PluginLayer extends TileLayer {
         });
     }
 
-    @Override
     public void destroy() {
         mDestroyed = true;
 

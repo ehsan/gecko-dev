@@ -189,17 +189,10 @@ AndroidBridge::Init(JNIEnv *jEnv,
     if (!GetStaticIntField("android/os/Build$VERSION", "SDK_INT", &mAPIVersion, jEnv))
         ALOG_BRIDGE("Failed to find API version");
 
-    if (mAPIVersion <= 8 /* Froyo */) {
+    if (mAPIVersion <= 8 /* Froyo */)
         jSurfacePointerField = jEnv->GetFieldID(jSurfaceClass, "mSurface", "I");
-    } else {
+    else /* not Froyo */
         jSurfacePointerField = jEnv->GetFieldID(jSurfaceClass, "mNativeSurface", "I");
-
-        // Apparently mNativeSurface doesn't exist in Key Lime Pie, so just clear the
-        // exception if we have one and move on.
-        if (jEnv->ExceptionCheck()) {
-            jEnv->ExceptionClear();
-        }
-    }
 
     jNotifyWakeLockChanged = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "notifyWakeLockChanged", "(Ljava/lang/String;Ljava/lang/String;)V");
 
@@ -1270,7 +1263,7 @@ AndroidBridge::CreateShortcut(const nsAString& aTitle, const nsAString& aURI, co
 
 void*
 AndroidBridge::GetNativeSurface(JNIEnv* env, jobject surface) {
-    if (!env || !mHasNativeWindowFallback || !jSurfacePointerField)
+    if (!env || !mHasNativeWindowFallback)
         return nullptr;
 
     return (void*)env->GetIntField(surface, jSurfacePointerField);

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "CSFLog.h"
+#include "CSFLogStream.h"
 
 #include "CC_Common.h"
 
@@ -125,13 +125,13 @@ MediaProviderObserver * VcmSIPCCBinding::getMediaProviderObserver()
 
 void VcmSIPCCBinding::setAudioCodecs(int codecMask)
 {
-  CSFLogDebug(logTag, "SETTING AUDIO: %d", codecMask);
+  CSFLogDebugS(logTag, "SETTING AUDIO: " << codecMask);
   VcmSIPCCBinding::gAudioCodecMask = codecMask;
 }
 
 void VcmSIPCCBinding::setVideoCodecs(int codecMask)
 {
-  CSFLogDebug(logTag, "SETTING VIDEO: %d", codecMask);
+  CSFLogDebugS(logTag, "SETTING VIDEO: " << codecMask);
   VcmSIPCCBinding::gVideoCodecMask = codecMask;
 }
 

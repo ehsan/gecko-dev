@@ -267,7 +267,16 @@ nsDocLoader::Stop(void)
   PR_LOG(gDocLoaderLog, PR_LOG_DEBUG, 
          ("DocLoader:%p: Stop() called\n", this));
 
-  NS_OBSERVER_ARRAY_NOTIFY_XPCOM_OBSERVERS(mChildList, nsDocLoader, Stop, ());
+  uint32_t count = mChildList.Length();
+
+  nsCOMPtr<nsIDocumentLoader> loader;
+  for (uint32_t i=0; i < count; i++) {
+    loader = ChildAt(i);
+
+    if (loader) {
+      (void) loader->Stop();
+    }
+  }
 
   if (mLoadGroup)
     rv = mLoadGroup->Cancel(NS_BINDING_ABORTED);
@@ -1649,8 +1658,15 @@ NS_IMETHODIMP nsDocLoader::SetPriority(int32_t aPriority)
   if (p)
     p->SetPriority(aPriority);
 
-  NS_OBSERVER_ARRAY_NOTIFY_XPCOM_OBSERVERS(mChildList, nsDocLoader,
-                                           SetPriority, (aPriority));
+  uint32_t count = mChildList.Length();
+
+  nsDocLoader *loader;
+  for (uint32_t i=0; i < count; i++) {
+    loader = static_cast<nsDocLoader*>(ChildAt(i));
+    if (loader) {
+      loader->SetPriority(aPriority);
+    }
+  }
 
   return NS_OK;
 }
@@ -1664,8 +1680,15 @@ NS_IMETHODIMP nsDocLoader::AdjustPriority(int32_t aDelta)
   if (p)
     p->AdjustPriority(aDelta);
 
-  NS_OBSERVER_ARRAY_NOTIFY_XPCOM_OBSERVERS(mChildList, nsDocLoader,
-                                           AdjustPriority, (aDelta));
+  uint32_t count = mChildList.Length();
+
+  nsDocLoader *loader;
+  for (uint32_t i=0; i < count; i++) {
+    loader = static_cast<nsDocLoader*>(ChildAt(i));
+    if (loader) {
+      loader->AdjustPriority(aDelta);
+    }
+  }
 
   return NS_OK;
 }

@@ -65,14 +65,12 @@ class Configuration:
         # Figure out what our main-thread and worker dictionaries and callbacks
         # are.
         mainTypes = set()
-        for descriptor in ([self.getDescriptor("DummyInterface", workers=False)] +
-                           self.getDescriptors(workers=False, isExternal=False, skipGen=False)):
+        for descriptor in self.getDescriptors(workers=False, isExternal=False):
             mainTypes |= set(getFlatTypes(getTypesFromDescriptor(descriptor)))
         (mainCallbacks, mainDictionaries) = findCallbacksAndDictionaries(mainTypes)
 
         workerTypes = set();
-        for descriptor in ([self.getDescriptor("DummyInterfaceWorkers", workers=True)] +
-                           self.getDescriptors(workers=True, isExternal=False, skipGen=False)):
+        for descriptor in self.getDescriptors(workers=True, isExternal=False):
             workerTypes |= set(getFlatTypes(getTypesFromDescriptor(descriptor)))
         (workerCallbacks, workerDictionaries) = findCallbacksAndDictionaries(workerTypes)
 

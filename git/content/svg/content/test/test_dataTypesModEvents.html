@@ -236,8 +236,7 @@ function runTests()
   marker.viewBox.baseVal.height = 5;
   marker.removeAttribute("viewBox");
   marker.removeAttributeNS(null, "viewBox");
-  marker.setAttribute("viewBox", "none");
-  marker.setAttribute("viewBox", "none");
+  marker.viewBox.baseVal.height = 4;
 
   eventChecker.ignoreEvents();
   marker.setAttribute("viewBox", "1 2 3 4");

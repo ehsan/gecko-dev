@@ -25,6 +25,7 @@
 #include "nsAsyncDOMEvent.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Link)
+DOMCI_NODE_DATA(HTMLLinkElement, mozilla::dom::HTMLLinkElement)
 
 namespace mozilla {
 namespace dom {
@@ -63,7 +64,7 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLLinkElement)
                                    Link)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLLinkElement,
                                                nsGenericHTMLElement)
-NS_HTML_CONTENT_INTERFACE_MAP_END
+NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLLinkElement)
 
 
 NS_IMPL_ELEMENT_CLONE(HTMLLinkElement)

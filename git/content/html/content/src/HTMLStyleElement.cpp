@@ -19,6 +19,8 @@
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Style)
 
+DOMCI_NODE_DATA(HTMLStyleElement, mozilla::dom::HTMLStyleElement)
+
 namespace mozilla {
 namespace dom {
 
@@ -55,7 +57,8 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLStyleElement)
                                    nsIMutationObserver)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLStyleElement,
                                                nsGenericHTMLElement)
-NS_HTML_CONTENT_INTERFACE_MAP_END
+NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLStyleElement)
+
 
 NS_IMPL_ELEMENT_CLONE(HTMLStyleElement)
 

@@ -58,22 +58,11 @@ class ManifestEntry:
         self.datamap = None
 
     def get_path(self):
-        name = self.moduleName
-
-        if name.endswith(".js"):
-            name = name[:-3]
-        items = []
-        # Only add package name for addons, so that system module paths match
-        # the path from the commonjs root directory and also match the loader
-        # mappings.
-        if self.packageName != "addon-sdk":
-            items.append(self.packageName)
-        # And for the same reason, do not append `lib/`.
-        if self.sectionName == "tests":
-            items.append(self.sectionName)
-        items.append(name)
-
-        return "/".join(items)
+        path = "%s/%s/%s" % \
+               (self.packageName, self.sectionName, self.moduleName)
+        if not path.endswith(".js"):
+          path += ".js"
+        return path
 
     def get_entry_for_manifest(self):
         entry = { "packageName": self.packageName,
@@ -86,13 +75,13 @@ class ManifestEntry:
         for req in self.requirements:
             if isinstance(self.requirements[req], ManifestEntry):
                 them = self.requirements[req] # this is another ManifestEntry
-                entry["requirements"][req] = them.get_path()
+                them_path = them.get_path()
+                entry["requirements"][req] = {"path": them_path}
             else:
                 # something magic. The manifest entry indicates that they're
                 # allowed to require() it
                 entry["requirements"][req] = self.requirements[req]
-            assert isinstance(entry["requirements"][req], unicode) or \
-                   isinstance(entry["requirements"][req], str)
+            assert isinstance(entry["requirements"][req], dict)
         return entry
 
     def add_js(self, js_filename):
@@ -237,8 +226,7 @@ class ManifestBuilder:
                 # search for all tests. self.test_modules will be passed
                 # through the harness-options.json file in the
                 # .allTestModules property.
-                # Pass the absolute module path.
-                self.test_modules.append(tme.get_path())
+                self.test_modules.append(testname)
 
         # include files used by the loader
         for em in self.extra_modules:
@@ -260,7 +248,7 @@ class ManifestBuilder:
             used.add(package)
         return sorted(used)
 
-    def get_used_files(self, bundle_sdk_modules):
+    def get_used_files(self):
         # returns all .js files that we reference, plus data/ files. You will
         # need to add the loader, off-manifest files that it needs, and
         # generated metadata.
@@ -269,22 +257,16 @@ class ManifestBuilder:
                 yield absname
 
         for me in self.get_module_entries():
-            # Do not add manifest entries for system modules,
-            # so that we won't ship SDK files.
-            if me.packageName != "addon-sdk" or bundle_sdk_modules:
-                yield me.js_filename
+            yield me.js_filename
 
     def get_all_test_modules(self):
         return self.test_modules
 
-    def get_harness_options_manifest(self, bundle_sdk_modules):
+    def get_harness_options_manifest(self):
         manifest = {}
         for me in self.get_module_entries():
             path = me.get_path()
-            # Do not add manifest entries for system modules,
-            # so that we won't ship SDK files.
-            if me.packageName != "addon-sdk" or bundle_sdk_modules:
-                manifest[path] = me.get_entry_for_manifest()
+            manifest[path] = me.get_entry_for_manifest()
         return manifest
 
     def get_manifest_entry(self, package, section, module):
@@ -396,7 +378,7 @@ class ManifestBuilder:
             # If requirement is chrome or a pseudo-module (starts with @) make
             # path a requirement name.
             if reqname == "chrome" or reqname.startswith("@"):
-                me.add_requirement(reqname, reqname)
+                me.add_requirement(reqname, {"path": reqname})
             else:
                 # when two modules require() the same name, do they get a
                 # shared instance? This is a deep question. For now say yes.

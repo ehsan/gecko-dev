@@ -1705,7 +1705,7 @@ JSScript::Create(JSContext *cx, HandleObject enclosingScope, bool savedCallerFun
     PodZero(script.get());
     new (&script->bindings) Bindings;
 
-    script->enclosingScopeOrOriginalFunction_ = enclosingScope;
+    script->enclosingScope_ = enclosingScope;
     script->savedCallerFun = savedCallerFun;
 
     /* Establish invariant: principals implies originPrincipals. */
@@ -1874,8 +1874,8 @@ JSScript::fullyInitFromEmitter(JSContext *cx, Handle<JSScript*> script, Bytecode
         return false;
 
     jsbytecode *code = ssd->data;
-    PodCopy<jsbytecode>(code, bce->prolog.code.begin(), prologLength);
-    PodCopy<jsbytecode>(code + prologLength, bce->code().begin(), mainLength);
+    PodCopy<jsbytecode>(code, bce->prologBase(), prologLength);
+    PodCopy<jsbytecode>(code + prologLength, bce->base(), mainLength);
     if (!FinishTakingSrcNotes(cx, bce, (jssrcnote *)(code + script->length)))
         return false;
     InitAtomMap(cx, bce->atomIndices.getMap(), ssd->atoms(script->length, nsrcnotes));
@@ -1998,13 +1998,13 @@ JSScript::enclosingScriptsCompiledSuccessfully() const
      * compiles. Thus, we can detect failed compilation by looking for
      * JSFunctions in the enclosingScope chain without scripts.
      */
-    RawObject enclosing = enclosingStaticScope();
+    RawObject enclosing = enclosingScope_;
     while (enclosing) {
         if (enclosing->isFunction()) {
             RawFunction fun = enclosing->toFunction();
             if (!fun->hasScript())
                 return false;
-            enclosing = fun->nonLazyScript()->enclosingStaticScope();
+            enclosing = fun->nonLazyScript()->enclosingScope_;
         } else {
             enclosing = enclosing->asStaticBlock().enclosingStaticScope();
         }
@@ -2427,10 +2427,6 @@ js::CloneScript(JSContext *cx, HandleObject enclosingScope, HandleFunction fun, 
     dst->isGenerator = src->isGenerator;
     dst->isGeneratorExp = src->isGeneratorExp;
 
-    /* Copy over hints. */
-    dst->shouldCloneAtCallsite = src->shouldCloneAtCallsite;
-    dst->isCallsiteClone = src->isCallsiteClone;
-
     /*
      * initScriptCounts updates scriptCountsMap if necessary. The other script
      * maps in JSCompartment are populated lazily.
@@ -2750,8 +2746,8 @@ JSScript::markChildren(JSTracer *trc)
     if (function())
         MarkObject(trc, &function_, "function");
 
-    if (enclosingScopeOrOriginalFunction_)
-        MarkObject(trc, &enclosingScopeOrOriginalFunction_, "enclosing");
+    if (enclosingScope_)
+        MarkObject(trc, &enclosingScope_, "enclosing");
 
     if (IS_GC_MARKING_TRACER(trc)) {
         if (filename)

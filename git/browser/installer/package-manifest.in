@@ -349,6 +349,8 @@
 @BINPATH@/browser/components/DownloadsUI.js
 @BINPATH@/browser/components/BrowserPlaces.manifest
 @BINPATH@/components/BrowserPageThumbs.manifest
+@BINPATH@/browser/components/nsPrivateBrowsingServiceObsolete.manifest
+@BINPATH@/browser/components/nsPrivateBrowsingServiceObsolete.js
 @BINPATH@/components/SiteSpecificUserAgent.js
 @BINPATH@/components/SiteSpecificUserAgent.manifest
 @BINPATH@/components/toolkitsearch.manifest
@@ -745,7 +747,6 @@ bin/libfreebl_32int64_3.so
 
 #ifdef MOZ_METRO
 @BINPATH@/components/MetroUIUtils.js
-@BINPATH@/components/MetroUIUtils.manifest
 [metro]
 ; gre resources
 @BINPATH@/CommandExecuteHandler@BIN_SUFFIX@

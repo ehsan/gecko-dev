@@ -80,8 +80,7 @@ exports.getOwnerWindow = getOwnerWindow;
 // fennec
 function getWindowHoldingTab(rawTab) {
   for each (let window in windows()) {
-    // this function may be called when not using fennec,
-    // but BrowserApp is only defined on Fennec
+    // this function may be called when not using fennec
     if (!window.BrowserApp)
       continue;
 
@@ -101,14 +100,10 @@ function openTab(window, url, options) {
   if (window.BrowserApp) {
     return window.BrowserApp.addTab(url, {
       selected: options.inBackground ? false : true,
-      pinned: options.isPinned || false,
-      isPrivate: options.isPrivate || false
+      pinned: options.isPinned || false
     });
   }
-  let tab = window.gBrowser.addTab(url);
-  if (!options.inBackground)
-    activateTab(tab);
-  return tab;
+  return window.gBrowser.addTab(url);
 };
 exports.openTab = openTab;
 
@@ -155,12 +150,6 @@ function getBrowserForTab(tab) {
 }
 exports.getBrowserForTab = getBrowserForTab;
 
-
-function getContentWindowForTab(tab) {
-  return getBrowserForTab(tab).contentWindow;
-}
-exports.getContentWindowForTab = getContentWindowForTab;
-
 function getTabId(tab) {
   if (tab.browser) // fennec
     return tab.id
@@ -168,6 +157,7 @@ function getTabId(tab) {
   return String.split(tab.linkedPanel, 'panel').pop();
 }
 exports.getTabId = getTabId;
+
 
 function getTabTitle(tab) {
   return getBrowserForTab(tab).contentDocument.title || tab.label || "";

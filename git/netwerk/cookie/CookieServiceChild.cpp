@@ -22,7 +22,6 @@ namespace net {
 static const int32_t BEHAVIOR_ACCEPT = 0;
 static const int32_t BEHAVIOR_REJECTFOREIGN = 1;
 static const int32_t BEHAVIOR_REJECT = 2;
-static const int32_t BEHAVIOR_LIMITFOREIGN = 3;
 
 // Pref string constants
 static const char kPrefCookieBehavior[] = "network.cookie.cookieBehavior";
@@ -81,7 +80,7 @@ CookieServiceChild::PrefChanged(nsIPrefBranch *aPrefBranch)
   int32_t val;
   if (NS_SUCCEEDED(aPrefBranch->GetIntPref(kPrefCookieBehavior, &val)))
     mCookieBehavior =
-      val >= BEHAVIOR_ACCEPT && val <= BEHAVIOR_LIMITFOREIGN ? val : BEHAVIOR_ACCEPT;
+      val >= BEHAVIOR_ACCEPT && val <= BEHAVIOR_REJECT ? val : BEHAVIOR_ACCEPT;
 
   bool boolval;
   if (NS_SUCCEEDED(aPrefBranch->GetBoolPref(kPrefThirdPartySession, &boolval)))
@@ -96,7 +95,7 @@ CookieServiceChild::PrefChanged(nsIPrefBranch *aPrefBranch)
 bool
 CookieServiceChild::RequireThirdPartyCheck()
 {
-  return mCookieBehavior == BEHAVIOR_REJECTFOREIGN || mCookieBehavior == BEHAVIOR_LIMITFOREIGN || mThirdPartySession;
+  return mCookieBehavior == BEHAVIOR_REJECTFOREIGN || mThirdPartySession;
 }
 
 nsresult

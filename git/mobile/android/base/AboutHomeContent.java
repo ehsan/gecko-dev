@@ -13,7 +13,7 @@ import org.mozilla.gecko.db.BrowserDB.PinnedSite;
 import org.mozilla.gecko.db.BrowserDB.TopSitesCursorWrapper;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
 import org.mozilla.gecko.util.ActivityResultHandler;
-import org.mozilla.gecko.util.UiAsyncTask;
+import org.mozilla.gecko.util.GeckoAsyncTask;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -146,7 +146,6 @@ public class AboutHomeContent extends ScrollView
         // remote tabs component on *every* tab change
         // The observer will run on the background thread (see constructor argument)
         mTabsContentObserver = new ContentObserver(GeckoAppShell.getHandler()) {
-            @Override
             public void onChange(boolean selfChange) {
                 update(EnumSet.of(AboutHomeContent.UpdateFlags.REMOTE_TABS));
             }
@@ -171,7 +170,6 @@ public class AboutHomeContent extends ScrollView
 
         mTopSitesGrid = (TopSitesGridView)findViewById(R.id.top_sites_grid);
         mTopSitesGrid.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
             public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
                 TopSitesViewHolder holder = (TopSitesViewHolder) v.getTag();
                 String spec = holder.getUrl();
@@ -188,7 +186,6 @@ public class AboutHomeContent extends ScrollView
         });
 
         mTopSitesGrid.setOnCreateContextMenuListener(new View.OnCreateContextMenuListener() {
-            @Override
             public void onCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
                 AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo)menuInfo;
                 mTopSitesGrid.setSelectedPosition(info.position);
@@ -219,7 +216,6 @@ public class AboutHomeContent extends ScrollView
         mRemoteTabs = (AboutHomeSection) findViewById(R.id.remote_tabs);
 
         mAddons.setOnMoreTextClickListener(new View.OnClickListener() {
-            @Override
             public void onClick(View v) {
                 if (mUriLoadCallback != null)
                     mUriLoadCallback.callback("https://addons.mozilla.org/android");
@@ -227,7 +223,6 @@ public class AboutHomeContent extends ScrollView
         });
 
         mRemoteTabs.setOnMoreTextClickListener(new View.OnClickListener() {
-            @Override
             public void onClick(View v) {
                 mActivity.showRemoteTabs();
             }
@@ -285,7 +280,6 @@ public class AboutHomeContent extends ScrollView
         final GeckoApp.StartupMode startupMode = mActivity.getStartupMode();
 
         post(new Runnable() {
-            @Override
             public void run() {
                 // The listener might run before the UI is initially updated.
                 // In this case, we should simply wait for the initial setup
@@ -307,7 +301,6 @@ public class AboutHomeContent extends ScrollView
         final Cursor newCursor = BrowserDB.getTopSites(resolver, mNumberOfTopSites);
 
         post(new Runnable() {
-            @Override
             public void run() {
                 if (mTopSitesAdapter == null) {
                     mTopSitesAdapter = new TopSitesCursorAdapter(mActivity,
@@ -428,7 +421,7 @@ public class AboutHomeContent extends ScrollView
         if (urls.size() == 0)
             return;
 
-        (new UiAsyncTask<Void, Void, Cursor>(GeckoAppShell.getHandler()) {
+        (new GeckoAsyncTask<Void, Void, Cursor>(GeckoApp.mAppContext, GeckoAppShell.getHandler()) {
             @Override
             public Cursor doInBackground(Void... params) {
                 return BrowserDB.getThumbnailsForUrls(cr, urls);
@@ -443,7 +436,6 @@ public class AboutHomeContent extends ScrollView
 
     void update(final EnumSet<UpdateFlags> flags) {
         GeckoAppShell.getHandler().post(new Runnable() {
-            @Override
             public void run() {
                 if (flags.contains(UpdateFlags.TOP_SITES))
                     loadTopSites();
@@ -582,7 +574,6 @@ public class AboutHomeContent extends ScrollView
 
         final JSONArray array = addonsArray;
         post(new Runnable() {
-            @Override
             public void run() {
                 try {
                     if (array == null || array.length() == 0) {
@@ -611,7 +602,6 @@ public class AboutHomeContent extends ScrollView
 
                         final String homepageUrl = jsonobj.getString("homepageURL");
                         row.setOnClickListener(new View.OnClickListener() {
-                            @Override
                             public void onClick(View v) {
                                 if (mUriLoadCallback != null)
                                     mUriLoadCallback.callback(homepageUrl);
@@ -621,7 +611,6 @@ public class AboutHomeContent extends ScrollView
                         Favicons favicons = Favicons.getInstance();
                         favicons.loadFavicon(pageUrl, iconUrl, true,
                                     new Favicons.OnFaviconLoadedListener() {
-                            @Override
                             public void onFaviconLoaded(String url, Bitmap favicon) {
                                 if (favicon != null) {
                                     Drawable drawable = new BitmapDrawable(favicon);
@@ -664,7 +653,6 @@ public class AboutHomeContent extends ScrollView
                 lastTabUrlsList.add(url);
 
                 AboutHomeContent.this.post(new Runnable() {
-                    @Override
                     public void run() {
                         View container = mInflater.inflate(R.layout.abouthome_last_tabs_row, mLastTabs.getItemsContainer(), false);
                         ((TextView) container.findViewById(R.id.last_tab_title)).setText(tab.getSelectedTitle());
@@ -674,7 +662,6 @@ public class AboutHomeContent extends ScrollView
                         }
 
                         container.setOnClickListener(new View.OnClickListener() {
-                            @Override
                             public void onClick(View v) {
                                 int flags = Tabs.LOADURL_NEW_TAB;
                                 if (Tabs.getInstance().getSelectedTab().isPrivate())
@@ -692,12 +679,10 @@ public class AboutHomeContent extends ScrollView
         final int numLastTabs = lastTabUrlsList.size();
         if (numLastTabs >= 1) {
             post(new Runnable() {
-                @Override
                 public void run() {
                     if (numLastTabs > 1) {
                         mLastTabs.showMoreText();
                         mLastTabs.setOnMoreTextClickListener(new View.OnClickListener() {
-                            @Override
                             public void onClick(View v) {
                                 int flags = Tabs.LOADURL_NEW_TAB;
                                 if (Tabs.getInstance().getSelectedTab().isPrivate())
@@ -719,7 +704,6 @@ public class AboutHomeContent extends ScrollView
     private void loadRemoteTabs() {
         if (!SyncAccounts.syncAccountsExist(mActivity)) {
             post(new Runnable() {
-                @Override
                 public void run() {
                     mRemoteTabs.hide();
                 }
@@ -1009,7 +993,7 @@ public class AboutHomeContent extends ScrollView
         final String url = holder.getUrl();
         // Quickly update the view so that there isn't as much lag between the request and response
         clearThumbnail(holder);
-        (new UiAsyncTask<Void, Void, Void>(GeckoAppShell.getHandler()) {
+        (new GeckoAsyncTask<Void, Void, Void>(GeckoApp.mAppContext, GeckoAppShell.getHandler()) {
             @Override
             public Void doInBackground(Void... params) {
                 final ContentResolver resolver = mActivity.getContentResolver();
@@ -1030,7 +1014,7 @@ public class AboutHomeContent extends ScrollView
         holder.setPinned(true);
 
         // update the database on a background thread
-        (new UiAsyncTask<Void, Void, Void>(GeckoAppShell.getHandler()) {
+        (new GeckoAsyncTask<Void, Void, Void>(GeckoApp.mAppContext, GeckoAppShell.getHandler()) {
             @Override
             public Void doInBackground(Void... params) {
                 final ContentResolver resolver = mActivity.getContentResolver();
@@ -1058,7 +1042,6 @@ public class AboutHomeContent extends ScrollView
         }
 
         int requestCode = GeckoAppShell.sActivityHelper.makeRequestCode(new ActivityResultHandler() {
-            @Override
             public void onActivityResult(int resultCode, Intent data) {
                 if (resultCode == Activity.RESULT_CANCELED || data == null)
                     return;
@@ -1075,7 +1058,7 @@ public class AboutHomeContent extends ScrollView
                 holder.setPinned(true);
 
                 // update the database on a background thread
-                (new UiAsyncTask<Void, Void, Bitmap>(GeckoAppShell.getHandler()) {
+                (new GeckoAsyncTask<Void, Void, Bitmap>(GeckoApp.mAppContext, GeckoAppShell.getHandler()) {
                     @Override
                     public Bitmap doInBackground(Void... params) {
                         final ContentResolver resolver = mActivity.getContentResolver();

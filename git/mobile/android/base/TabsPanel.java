@@ -7,8 +7,6 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.widget.IconTabWidget;
 
-import org.mozilla.gecko.widget.TwoWayView;
-
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Color;
@@ -27,7 +25,8 @@ import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 
 public class TabsPanel extends LinearLayout
-                       implements LightweightTheme.OnChangeListener,
+                       implements GeckoPopupMenu.OnMenuItemClickListener,
+                                  LightweightTheme.OnChangeListener,
                                   IconTabWidget.OnTabChangedListener {
     private static final String LOGTAG = "GeckoTabsPanel";
 
@@ -42,7 +41,6 @@ public class TabsPanel extends LinearLayout
         public void setTabsPanel(TabsPanel panel);
         public void show();
         public void hide();
-        public boolean shouldExpand();
     }
 
     public static interface TabsLayoutChangeListener {
@@ -51,7 +49,6 @@ public class TabsPanel extends LinearLayout
 
     private Context mContext;
     private GeckoApp mActivity;
-    private TabsListContainer mTabsContainer;
     private PanelView mPanel;
     private PanelView mPanelNormal;
     private PanelView mPanelPrivate;
@@ -60,11 +57,15 @@ public class TabsPanel extends LinearLayout
     private TabsLayoutChangeListener mLayoutChangeListener;
 
     private IconTabWidget mTabWidget;
+    private static ImageButton mMenuButton;
     private static ImageButton mAddTab;
 
     private Panel mCurrentPanel;
     private boolean mIsSideBar;
     private boolean mVisible;
+
+    private GeckoPopupMenu mPopupMenu;
+    private Menu mMenu;
 
     public TabsPanel(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -78,15 +79,20 @@ public class TabsPanel extends LinearLayout
         mCurrentPanel = Panel.NORMAL_TABS;
         mVisible = false;
 
-        mIsSideBar = false;
+        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.TabsPanel);
+        mIsSideBar = a.getBoolean(R.styleable.TabsPanel_sidebar, false);
+        a.recycle();
+
+        mPopupMenu = new GeckoPopupMenu(context);
+        mPopupMenu.inflate(R.menu.tabs_menu);
+        mPopupMenu.setOnMenuItemClickListener(this);
+        mMenu = mPopupMenu.getMenu();
 
         LayoutInflater.from(context).inflate(R.layout.tabs_panel, this);
         initialize();
     }
 
     private void initialize() {
-        mTabsContainer = (TabsListContainer) findViewById(R.id.tabs_container);
-
         mPanelNormal = (TabsTray) findViewById(R.id.normal_tabs);
         mPanelNormal.setTabsPanel(this);
 
@@ -100,7 +106,6 @@ public class TabsPanel extends LinearLayout
 
         mAddTab = (ImageButton) findViewById(R.id.add_tab);
         mAddTab.setOnClickListener(new Button.OnClickListener() {
-            @Override
             public void onClick(View v) {
                 TabsPanel.this.addTab();
             }
@@ -111,6 +116,15 @@ public class TabsPanel extends LinearLayout
         mTabWidget.addTab(R.drawable.tabs_private);
         mTabWidget.addTab(R.drawable.tabs_synced);
         mTabWidget.setTabSelectionListener(this);
+
+        mMenuButton = (ImageButton) findViewById(R.id.menu);
+        mMenuButton.setOnClickListener(new Button.OnClickListener() {
+            public void onClick(View view) {
+                TabsPanel.this.openTabsMenu();
+            }
+        });
+
+        mPopupMenu.setAnchor(mMenuButton);
     }
 
     public void addTab() {
@@ -122,34 +136,53 @@ public class TabsPanel extends LinearLayout
         mActivity.autoHideTabs();
     }
 
+    public void openTabsMenu() {
+        if (mCurrentPanel == Panel.REMOTE_TABS)
+            mMenu.findItem(R.id.close_all_tabs).setEnabled(false);
+        else
+            mMenu.findItem(R.id.close_all_tabs).setEnabled(true); 
+
+        mPopupMenu.show();
+    }
+
     @Override
     public void onTabChanged(int index) {
         if (index == 0)
-            show(Panel.NORMAL_TABS, false);
+            show(Panel.NORMAL_TABS);
         else if (index == 1)
-            show(Panel.PRIVATE_TABS, false);
+            show(Panel.PRIVATE_TABS);
         else
-            show(Panel.REMOTE_TABS, false);
+            show(Panel.REMOTE_TABS);
     }
 
-    private static int getTabContainerHeight(TabsListContainer listContainer) {
-        Context context = listContainer.getContext();
+    @Override
+    public boolean onMenuItemClick(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.close_all_tabs:
+                for (Tab tab : Tabs.getInstance().getTabsInOrder()) {
+                    Tabs.getInstance().closeTab(tab);
+                }
+                autoHidePanel();
+                return true;
 
-        PanelView panelView = listContainer.getCurrentPanelView();
-        if (panelView != null && !panelView.shouldExpand()) {
-            final View v = (View) panelView;
-            final int sizeSpec = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED);
-            v.measure(sizeSpec, sizeSpec);
-            return v.getMeasuredHeight();
+            case R.id.new_tab:
+            case R.id.new_private_tab:
+                hide();
+            // fall through
+            default:
+                return mActivity.onOptionsItemSelected(item);
         }
+    }
+
+    private static int getTabContainerHeight(View view) {
+        Context context = view.getContext();
 
         int actionBarHeight = context.getResources().getDimensionPixelSize(R.dimen.browser_toolbar_height);
         int screenHeight = context.getResources().getDisplayMetrics().heightPixels;
 
         Rect windowRect = new Rect();
-        listContainer.getWindowVisibleDisplayFrame(windowRect);
+        view.getWindowVisibleDisplayFrame(windowRect);
         int windowHeight = windowRect.bottom - windowRect.top;
-
 
         // The web content area should have at least 1.5x the height of the action bar.
         // The tabs panel shouldn't take less than 50% of the screen height and can take
@@ -199,20 +232,6 @@ public class TabsPanel extends LinearLayout
         public TabsListContainer(Context context, AttributeSet attrs) {
             super(context, attrs);
             mContext = context;
-        }
-
-        public PanelView getCurrentPanelView() {
-            final int childCount = getChildCount();
-            for (int i = 0; i < childCount; i++) {
-                View child = getChildAt(i);
-                if (!(child instanceof PanelView))
-                    continue;
-
-                if (child.getVisibility() == View.VISIBLE)
-                    return (PanelView) child;
-            }
-
-            return null;
         }
 
         @Override
@@ -277,10 +296,6 @@ public class TabsPanel extends LinearLayout
     }
 
     public void show(Panel panel) {
-        show(panel, true);
-    }
-
-    public void show(Panel panel, boolean shouldResize) {
         if (!isShown())
             setVisibility(View.VISIBLE);
 
@@ -311,29 +326,30 @@ public class TabsPanel extends LinearLayout
                 mFooter.setVisibility(View.GONE);
 
             mAddTab.setVisibility(View.INVISIBLE);
+            mMenuButton.setVisibility(View.INVISIBLE);
         } else {
             if (mFooter != null)
                 mFooter.setVisibility(View.VISIBLE);
 
             mAddTab.setVisibility(View.VISIBLE);
             mAddTab.setImageLevel(index);
+            mMenuButton.setVisibility(View.VISIBLE);
         }
 
-        if (shouldResize) {
-            if (isSideBar()) {
-                if (showAnimation)
-                    dispatchLayoutChange(getWidth(), getHeight());
-            } else {
-                int actionBarHeight = mContext.getResources().getDimensionPixelSize(R.dimen.browser_toolbar_height);
-                int height = actionBarHeight + getTabContainerHeight(mTabsContainer);
-                dispatchLayoutChange(getWidth(), height);
-            }
+        if (isSideBar()) {
+            if (showAnimation)
+                dispatchLayoutChange(getWidth(), getHeight());
+        } else {
+            int actionBarHeight = mContext.getResources().getDimensionPixelSize(R.dimen.browser_toolbar_height);
+            int height = actionBarHeight + getTabContainerHeight(this);
+            dispatchLayoutChange(getWidth(), height);
         }
     }
 
     public void hide() {
         if (mVisible) {
             mVisible = false;
+            mPopupMenu.dismiss();
             dispatchLayoutChange(0, 0);
 
             if (mPanel != null) {
@@ -364,10 +380,6 @@ public class TabsPanel extends LinearLayout
 
     public boolean isSideBar() {
         return mIsSideBar;
-    }
-
-    public void setIsSideBar(boolean isSideBar) {
-        mIsSideBar = isSideBar;
     }
 
     public Panel getCurrentPanel() {

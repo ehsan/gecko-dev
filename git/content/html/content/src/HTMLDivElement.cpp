@@ -12,6 +12,7 @@
 #include "mozilla/dom/HTMLDivElementBinding.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Div)
+DOMCI_NODE_DATA(HTMLDivElement, mozilla::dom::HTMLDivElement)
 
 namespace mozilla {
 namespace dom {
@@ -28,7 +29,7 @@ NS_INTERFACE_TABLE_HEAD(HTMLDivElement)
   NS_HTML_CONTENT_INTERFACE_TABLE1(HTMLDivElement, nsIDOMHTMLDivElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLDivElement,
                                                nsGenericHTMLElement)
-NS_HTML_CONTENT_INTERFACE_MAP_END
+NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLDivElement)
 
 NS_IMPL_ELEMENT_CLONE(HTMLDivElement)
 

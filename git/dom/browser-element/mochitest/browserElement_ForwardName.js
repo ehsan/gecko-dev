@@ -13,7 +13,7 @@ function runTest() {
   browserElementTestHelpers.addPermission();
 
   var iframe = document.createElement('iframe');
-  SpecialPowers.wrap(iframe).mozbrowser = true;
+  iframe.mozbrowser = true;
   iframe.setAttribute('name', 'foo');
 
   iframe.addEventListener("mozbrowseropenwindow", function(e) {

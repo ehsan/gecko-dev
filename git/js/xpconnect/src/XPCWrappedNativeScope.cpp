@@ -89,6 +89,12 @@ XPCWrappedNativeScope::GetNewOrUsed(JSContext *cx, JSObject* aGlobal)
     XPCWrappedNativeScope* scope = GetObjectScope(aGlobal);
     if (!scope) {
         scope = new XPCWrappedNativeScope(cx, aGlobal);
+    } else {
+        // We need to call SetGlobal in order to clear mPrototypeNoHelper (so we
+        // get a new new one if requested in the new scope) in the case where
+        // the global object is being reused (JS_SetAllNonReservedSlotsToUndefined
+        // has been called). NOTE: We are only called by nsXPConnect::InitClasses.
+        scope->SetGlobal(cx, aGlobal);
     }
     return scope;
 }
@@ -100,7 +106,7 @@ XPCWrappedNativeScope::XPCWrappedNativeScope(JSContext *cx,
         mMainThreadWrappedNativeProtoMap(ClassInfo2WrappedNativeProtoMap::newMap(XPC_NATIVE_PROTO_MAP_SIZE)),
         mComponents(nullptr),
         mNext(nullptr),
-        mGlobalJSObject(aGlobal),
+        mGlobalJSObject(nullptr),
         mPrototypeNoHelper(nullptr),
         mExperimentalBindingsEnabled(XPCJSRuntime::Get()->ExperimentalBindingsEnabled()),
         mIsXBLScope(false)
@@ -122,25 +128,15 @@ XPCWrappedNativeScope::XPCWrappedNativeScope(JSContext *cx,
         mContext->AddScope(this);
     }
 
+    if (aGlobal)
+        SetGlobal(cx, aGlobal);
+
     DEBUG_TrackNewScope(this);
     MOZ_COUNT_CTOR(XPCWrappedNativeScope);
 
     // Attach ourselves to the compartment private.
     CompartmentPrivate *priv = EnsureCompartmentPrivate(aGlobal);
     priv->scope = this;
-
-    // Determine whether to use an XBL scope or not.
-    mUseXBLScope = XPCJSRuntime::Get()->XBLScopesEnabled();
-    if (mUseXBLScope) {
-      js::Class *clasp = js::GetObjectClass(mGlobalJSObject);
-      mUseXBLScope = !strcmp(clasp->name, "Window") ||
-                     !strcmp(clasp->name, "ChromeWindow") ||
-                     !strcmp(clasp->name, "ModalContentWindow");
-    }
-    if (mUseXBLScope) {
-      nsIPrincipal *principal = GetPrincipal();
-      mUseXBLScope = principal && !nsContentUtils::IsSystemPrincipal(principal);
-    }
 }
 
 // static
@@ -193,8 +189,21 @@ XPCWrappedNativeScope::EnsureXBLScope(JSContext *cx)
     if (mXBLScope)
         return mXBLScope;
 
-    // If this scope doesn't need an XBL scope, just return the global.
-    if (!mUseXBLScope)
+    // We should only be applying XBL bindings in DOM scopes.
+    MOZ_ASSERT(!strcmp(js::GetObjectClass(mGlobalJSObject)->name, "Window") ||
+               !strcmp(js::GetObjectClass(mGlobalJSObject)->name, "ChromeWindow") ||
+               !strcmp(js::GetObjectClass(mGlobalJSObject)->name, "ModalContentWindow"));
+
+    // Get the scope principal. If it's system, there's no reason to make
+    // a separate XBL scope.
+    nsIPrincipal *principal = GetPrincipal();
+    if (!principal)
+        return nullptr;
+    if (nsContentUtils::IsSystemPrincipal(principal))
+        return global;
+
+    // Check the pref. If XBL scopes are disabled, just return the global.
+    if (!XPCJSRuntime::Get()->XBLScopesEnabled())
         return global;
 
     // Set up the sandbox options. Note that we use the DOM global as the
@@ -212,7 +221,6 @@ XPCWrappedNativeScope::EnsureXBLScope(JSContext *cx)
     options.proto = global;
 
     // Use an nsExpandedPrincipal to create asymmetric security.
-    nsIPrincipal *principal = GetPrincipal();
     nsCOMPtr<nsIExpandedPrincipal> ep;
     MOZ_ASSERT(!(ep = do_QueryInterface(principal)));
     nsTArray< nsCOMPtr<nsIPrincipal> > principalAsArray(1);
@@ -278,6 +286,19 @@ js::Class XPC_WN_NoHelper_Proto_JSClass = {
     XPC_WN_NoCall_ObjectOps
 };
 
+
+void
+XPCWrappedNativeScope::SetGlobal(JSContext *cx, JSObject* aGlobal)
+{
+    // We allow for calling this more than once. This feature is used by
+    // nsXPConnect::InitClassesWithNewWrappedGlobal.
+    mGlobalJSObject = aGlobal;
+
+    // Clear the no helper wrapper prototype object so that a new one
+    // gets created if needed.
+    mPrototypeNoHelper = nullptr;
+}
+
 XPCWrappedNativeScope::~XPCWrappedNativeScope()
 {
     MOZ_COUNT_DTOR(XPCWrappedNativeScope);
@@ -320,7 +341,7 @@ XPCWrappedNativeScope::~XPCWrappedNativeScope()
 JSObject *
 XPCWrappedNativeScope::GetPrototypeNoHelper(XPCCallContext& ccx)
 {
-    // We could create this prototype in our constructor, but all scopes
+    // We could create this prototype in SetGlobal(), but all scopes
     // don't need one, so we save ourselves a bit of space if we
     // create these when they're needed.
     if (!mPrototypeNoHelper) {
@@ -708,10 +729,6 @@ WNProtoRemover(JSDHashTable *table, JSDHashEntryHdr *hdr,
 void
 XPCWrappedNativeScope::RemoveWrappedNativeProtos()
 {
-    // Clear the no helper wrapper prototype object so that a new one
-    // gets created if needed.
-    mPrototypeNoHelper = nullptr;
-
     XPCAutoLock al(XPCJSRuntime::Get()->GetMapLock());
 
     mWrappedNativeProtoMap->Enumerate(WNProtoRemover,

@@ -798,17 +798,15 @@ HashtableEnumerator::EnumeratorFunc(nsISupportsHashKey* aElem, void* aData)
     return PL_DHASH_NEXT;
 }
 
-NS_IMETHODIMP
-HashtableEnumerator::HasMoreElements(bool* aResult)
+NS_IMETHODIMP HashtableEnumerator::HasMoreElements(bool* aResult)
 {
-    *aResult = mIndex < mArray.Length();
+    *aResult = mIndex < mArray.Count();
     return NS_OK;
 }
 
-NS_IMETHODIMP
-HashtableEnumerator::GetNext(nsISupports** aNext)
+NS_IMETHODIMP HashtableEnumerator::GetNext(nsISupports** aNext)
 {
-    if (mIndex < mArray.Length()) {
+    if (mIndex < mArray.Count()) {
         nsCOMPtr<nsISupports> next = mArray.ObjectAt(mIndex);
         next.forget(aNext);
         mIndex++;

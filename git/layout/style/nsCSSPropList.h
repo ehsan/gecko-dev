@@ -2675,8 +2675,7 @@ CSS_PROP_TEXTRESET(
     text_overflow,
     TextOverflow,
     CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_VALUE_PARSER_FUNCTION |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+        CSS_PROPERTY_VALUE_PARSER_FUNCTION,
     "",
     0,
     kTextOverflowKTable,

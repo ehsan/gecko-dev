@@ -89,14 +89,6 @@ CodeGeneratorX86Shared::emitBranch(Assembler::Condition cond, MBasicBlock *mirTr
 }
 
 bool
-CodeGeneratorX86Shared::visitDouble(LDouble *ins)
-{
-    const LDefinition *out = ins->getDef(0);
-    masm.loadConstantDouble(ins->getDouble(), ToFloatRegister(out));
-    return true;
-}
-
-bool
 CodeGeneratorX86Shared::visitTestIAndBranch(LTestIAndBranch *test)
 {
     const LAllocation *opd = test->input();

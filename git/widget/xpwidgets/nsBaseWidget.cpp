@@ -30,7 +30,6 @@
 #include "nsIGfxInfo.h"
 #include "npapi.h"
 #include "base/thread.h"
-#include "prdtoa.h"
 #include "prenv.h"
 #include "mozilla/Attributes.h"
 #include "nsContentUtils.h"
@@ -384,14 +383,14 @@ double nsIWidget::GetDefaultScale()
   // The number of device pixels per CSS pixel. A value <= 0 means choose
   // automatically based on the DPI. A positive value is used as-is. This effectively
   // controls the size of a CSS "px".
-  double devPixelsPerCSSPixel = -1.0;
+  float devPixelsPerCSSPixel = -1.0;
 
   nsAdoptingCString prefString = Preferences::GetCString("layout.css.devPixelsPerPx");
   if (!prefString.IsEmpty()) {
-    devPixelsPerCSSPixel = PR_strtod(prefString, nullptr);
+    devPixelsPerCSSPixel = static_cast<float>(atof(prefString));
   }
 
-  if (devPixelsPerCSSPixel <= 0.0) {
+  if (devPixelsPerCSSPixel <= 0) {
     devPixelsPerCSSPixel = GetDefaultScaleInternal();
   }
 

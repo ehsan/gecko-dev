@@ -738,13 +738,6 @@ AbstractFramePtr::hasCallObj() const
     return false;
 }
 inline bool
-AbstractFramePtr::useNewType() const
-{
-    if (isStackFrame())
-        return asStackFrame()->useNewType();
-    return false;
-}
-inline bool
 AbstractFramePtr::isGeneratorFrame() const
 {
     if (isStackFrame())
@@ -926,6 +919,15 @@ AbstractFramePtr::setPrevUpToDate() const
         return;
     }
     JS_NOT_REACHED("Invalid frame");
+}
+inline AbstractFramePtr
+AbstractFramePtr::evalPrev() const
+{
+    JS_ASSERT(isEvalFrame());
+    if (isStackFrame())
+        return AbstractFramePtr(asStackFrame()->prev());
+    JS_NOT_REACHED("Invalid frame");
+    return NullFramePtr();
 }
 
 inline Value &

@@ -14,7 +14,6 @@
 #include "ion/IonCompartment.h"
 #include "assembler/jit/ExecutableAllocator.h"
 #include "ion/IonMacroAssembler.h"
-#include "jsgcinlines.h"
 
 namespace js {
 namespace ion {
@@ -31,7 +30,6 @@ class Linker
 
     IonCode *newCode(JSContext *cx, IonCompartment *comp) {
         AssertCanGC();
-        gc::AutoSuppressGC suppressGC(cx);
         if (masm.oom())
             return fail(cx);
 

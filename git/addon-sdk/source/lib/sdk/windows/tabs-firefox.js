@@ -13,10 +13,9 @@ const { Tab } = require("../tabs/tab");
 const { EventEmitter } = require("../deprecated/events");
 const { EVENTS } = require("../tabs/events");
 const { getOwnerWindow, getActiveTab, getTabs,
-        openTab } = require("../tabs/utils");
+        openTab, activateTab } = require("../tabs/utils");
 const { Options } = require("../tabs/common");
 const { observer: tabsObserver } = require("../tabs/observer");
-const { isWindowPrivate } = require("../private-browsing/utils");
 
 const TAB_BROWSER = "tabbrowser";
 
@@ -153,14 +152,11 @@ const TabList = List.resolve({ constructor: "_init" }).compose(
     _activeTab: null,
 
     open: function open(options) {
-      let window = this._window;
-      let chromeWindow = window._window;
       options = Options(options);
-
-      // save the tab options
-      window._tabOptions.push(options);
-      // open the tab
-      let tab = openTab(chromeWindow, options.url, options);
+      this._window._tabOptions.push(options);
+      let tab = openTab(this._window._window, options.url);
+      if (!options.inBackground)
+        activateTab(tab);
     }
   // This is ugly, but necessary. Will be removed by #596248
   }).resolve({ toString: null })

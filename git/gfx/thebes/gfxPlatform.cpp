@@ -40,7 +40,9 @@
 #include "gfxUserFontSet.h"
 #include "nsUnicodeProperties.h"
 #include "harfbuzz/hb.h"
+#ifdef MOZ_GRAPHITE
 #include "gfxGraphiteShaper.h"
+#endif
 
 #include "nsUnicodeRange.h"
 #include "nsServiceManagerUtils.h"
@@ -134,7 +136,9 @@ SRGBOverrideObserver::Observe(nsISupports *aSubject,
 
 #define GFX_PREF_OPENTYPE_SVG "gfx.font_rendering.opentype_svg.enabled"
 
+#ifdef MOZ_GRAPHITE
 #define GFX_PREF_GRAPHITE_SHAPING "gfx.font_rendering.graphite.enabled"
+#endif
 
 #define BIDI_NUMERAL_PREF "bidi.numeral"
 
@@ -237,7 +241,9 @@ gfxPlatform::gfxPlatform()
     mAllowDownloadableFonts = UNINITIALIZED_VALUE;
     mFallbackUsesCmaps = UNINITIALIZED_VALUE;
 
+#ifdef MOZ_GRAPHITE
     mGraphiteShapingEnabled = UNINITIALIZED_VALUE;
+#endif
     mBidiNumeralOption = UNINITIALIZED_VALUE;
 
     uint32_t canvasMask = (1 << BACKEND_CAIRO) | (1 << BACKEND_SKIA);
@@ -387,7 +393,9 @@ gfxPlatform::Shutdown()
     // started up. That's OK, they can handle it.
     gfxFontCache::Shutdown();
     gfxFontGroup::Shutdown();
+#ifdef MOZ_GRAPHITE
     gfxGraphiteShaper::Shutdown();
+#endif
 #if defined(XP_MACOSX) || defined(XP_WIN) // temporary, until this is implemented on others
     gfxPlatformFontList::Shutdown();
 #endif
@@ -820,6 +828,7 @@ gfxPlatform::UseCmapsDuringSystemFallback()
     return mFallbackUsesCmaps;
 }
 
+#ifdef MOZ_GRAPHITE
 bool
 gfxPlatform::UseGraphiteShaping()
 {
@@ -830,6 +839,7 @@ gfxPlatform::UseGraphiteShaping()
 
     return mGraphiteShapingEnabled;
 }
+#endif
 
 bool
 gfxPlatform::UseHarfBuzzForScript(int32_t aScriptCode)
@@ -1598,6 +1608,7 @@ gfxPlatform::FontsPrefsChanged(const char *aPref)
         mAllowDownloadableFonts = UNINITIALIZED_VALUE;
     } else if (!strcmp(GFX_PREF_FALLBACK_USE_CMAPS, aPref)) {
         mFallbackUsesCmaps = UNINITIALIZED_VALUE;
+#ifdef MOZ_GRAPHITE
     } else if (!strcmp(GFX_PREF_GRAPHITE_SHAPING, aPref)) {
         mGraphiteShapingEnabled = UNINITIALIZED_VALUE;
         gfxFontCache *fontCache = gfxFontCache::GetCache();
@@ -1605,6 +1616,7 @@ gfxPlatform::FontsPrefsChanged(const char *aPref)
             fontCache->AgeAllGenerations();
             fontCache->FlushShapedWordCaches();
         }
+#endif
     } else if (!strcmp(GFX_PREF_HARFBUZZ_SCRIPTS, aPref)) {
         mUseHarfBuzzScripts = UNINITIALIZED_VALUE;
         gfxFontCache *fontCache = gfxFontCache::GetCache();

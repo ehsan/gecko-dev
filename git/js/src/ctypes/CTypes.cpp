@@ -268,7 +268,6 @@ namespace CData {
                             JSBool strict, MutableHandleValue vp);
   static JSBool Address(JSContext* cx, unsigned argc, jsval* vp);
   static JSBool ReadString(JSContext* cx, unsigned argc, jsval* vp);
-  static JSBool ReadStringReplaceMalformed(JSContext* cx, unsigned argc, jsval* vp);
   static JSBool ToSource(JSContext* cx, unsigned argc, jsval* vp);
   static JSString *GetSourceString(JSContext *cx, JSHandleObject typeObj,
                                    void *data);
@@ -572,7 +571,6 @@ static JSPropertySpec sCDataProps[] = {
 static JSFunctionSpec sCDataFunctions[] = {
   JS_FN("address", CData::Address, 0, CDATAFN_FLAGS),
   JS_FN("readString", CData::ReadString, 0, CDATAFN_FLAGS),
-  JS_FN("readStringReplaceMalformed", CData::ReadStringReplaceMalformed, 0, CDATAFN_FLAGS),
   JS_FN("toSource", CData::ToSource, 0, CDATAFN_FLAGS),
   JS_FN("toString", CData::ToSource, 0, CDATAFN_FLAGS),
   JS_FS_END
@@ -805,7 +803,7 @@ TypeError(JSContext* cx, const char* expected, jsval actual)
   
   const char* src;
   if (str) {
-    src = bytes.encodeLatin1(cx, str);
+    src = bytes.encode(cx, str);
     if (!src)
       return false;
   } else {
@@ -6521,12 +6519,8 @@ CData::GetRuntime(JSContext* cx, unsigned argc, jsval* vp)
   return JS_TRUE;
 }
 
-typedef bool (*InflateUTF8Method)(JSContext *, const char *, size_t,
-                                  jschar *, size_t *);
-
-template <InflateUTF8Method InflateUTF8>
-static JSBool
-ReadStringCommon(JSContext* cx, unsigned argc, jsval* vp)
+JSBool
+CData::ReadString(JSContext* cx, unsigned argc, jsval* vp)
 {
   if (argc != 0) {
     JS_ReportError(cx, "readString takes zero arguments");
@@ -6534,7 +6528,7 @@ ReadStringCommon(JSContext* cx, unsigned argc, jsval* vp)
   }
 
   JSObject* obj = CDataFinalizer::GetCData(cx, JS_THIS_OBJECT(cx, vp));
-  if (!obj || !CData::IsCData(obj)) {
+  if (!obj || !IsCData(obj)) {
     JS_ReportError(cx, "not a CData");
     return JS_FALSE;
   }
@@ -6542,14 +6536,14 @@ ReadStringCommon(JSContext* cx, unsigned argc, jsval* vp)
   // Make sure we are a pointer to, or an array of, an 8-bit or 16-bit
   // character or integer type.
   JSObject* baseType;
-  JSObject* typeObj = CData::GetCType(obj);
+  JSObject* typeObj = GetCType(obj);
   TypeCode typeCode = CType::GetTypeCode(typeObj);
   void* data;
   size_t maxLength = -1;
   switch (typeCode) {
   case TYPE_pointer:
     baseType = PointerType::GetBaseType(typeObj);
-    data = *static_cast<void**>(CData::GetData(obj));
+    data = *static_cast<void**>(GetData(obj));
     if (data == NULL) {
       JS_ReportError(cx, "cannot read contents of null pointer");
       return JS_FALSE;
@@ -6557,7 +6551,7 @@ ReadStringCommon(JSContext* cx, unsigned argc, jsval* vp)
     break;
   case TYPE_array:
     baseType = ArrayType::GetBaseType(typeObj);
-    data = CData::GetData(obj);
+    data = GetData(obj);
     maxLength = ArrayType::GetLength(typeObj);
     break;
   default:
@@ -6579,7 +6573,7 @@ ReadStringCommon(JSContext* cx, unsigned argc, jsval* vp)
 
     // Determine the length.
     size_t dstlen;
-    if (!InflateUTF8(cx, bytes, length, NULL, &dstlen))
+    if (!InflateUTF8StringToBuffer(cx, bytes, length, NULL, &dstlen))
       return JS_FALSE;
 
     jschar* dst =
@@ -6587,7 +6581,7 @@ ReadStringCommon(JSContext* cx, unsigned argc, jsval* vp)
     if (!dst)
       return JS_FALSE;
 
-    ASSERT_OK(InflateUTF8(cx, bytes, length, dst, &dstlen));
+    ASSERT_OK(InflateUTF8StringToBuffer(cx, bytes, length, dst, &dstlen));
     dst[dstlen] = 0;
 
     result = JS_NewUCString(cx, dst, dstlen);
@@ -6614,18 +6608,6 @@ ReadStringCommon(JSContext* cx, unsigned argc, jsval* vp)
 
   JS_SET_RVAL(cx, vp, STRING_TO_JSVAL(result));
   return JS_TRUE;
-}
-
-JSBool
-CData::ReadString(JSContext* cx, unsigned argc, jsval* vp)
-{
-  return ReadStringCommon<InflateUTF8StringToBuffer>(cx, argc, vp);
-}
-
-JSBool
-CData::ReadStringReplaceMalformed(JSContext* cx, unsigned argc, jsval* vp)
-{
-  return ReadStringCommon<InflateUTF8StringToBufferReplaceInvalid>(cx, argc, vp);
 }
 
 JSString *

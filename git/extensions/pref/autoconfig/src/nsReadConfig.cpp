@@ -27,7 +27,6 @@
 #include "nsString.h"
 #include "nsCRT.h"
 #include "nspr.h"
-#include "nsXULAppAPI.h"
 
 extern PRLogModuleInfo *MCD;
 
@@ -243,12 +242,12 @@ nsresult nsReadConfig::openAndEvaluateJSFile(const char *aFileName, int32_t obsc
     nsCOMPtr<nsIInputStream> inStr;
     if (isBinDir) {
         nsCOMPtr<nsIFile> jsFile;
-        rv = NS_GetSpecialDirectory(XRE_EXECUTABLE_FILE,
+        rv = NS_GetSpecialDirectory(NS_XPCOM_CURRENT_PROCESS_DIR, 
                                     getter_AddRefs(jsFile));
         if (NS_FAILED(rv)) 
             return rv;
 
-        rv = jsFile->SetNativeLeafName(nsDependentCString(aFileName));
+        rv = jsFile->AppendNative(nsDependentCString(aFileName));
         if (NS_FAILED(rv)) 
             return rv;
 

@@ -8,7 +8,9 @@
 #include "gfxUniscribeShaper.h"
 #include "gfxHarfBuzzShaper.h"
 #include <algorithm>
+#ifdef MOZ_GRAPHITE
 #include "gfxGraphiteShaper.h"
+#endif
 #include "gfxWindowsPlatform.h"
 #include "gfxContext.h"
 
@@ -43,9 +45,11 @@ gfxGDIFont::gfxGDIFont(GDIFontEntry *aFontEntry,
       mSpaceGlyph(0),
       mNeedsBold(aNeedsBold)
 {
+#ifdef MOZ_GRAPHITE
     if (FontCanSupportGraphite()) {
         mGraphiteShaper = new gfxGraphiteShaper(this);
     }
+#endif
     if (FontCanSupportHarfBuzz()) {
         mHarfBuzzShaper = new gfxHarfBuzzShaper(this);
     }
@@ -129,11 +133,13 @@ gfxGDIFont::ShapeText(gfxContext      *aContext,
         return false;
     }
 
+#ifdef MOZ_GRAPHITE
     if (mGraphiteShaper && gfxPlatform::GetPlatform()->UseGraphiteShaping()) {
         ok = mGraphiteShaper->ShapeText(aContext, aText,
                                         aOffset, aLength,
                                         aScript, aShapedText);
     }
+#endif
 
     if (!ok && mHarfBuzzShaper) {
         if (gfxPlatform::GetPlatform()->UseHarfBuzzForScript(aScript)) {

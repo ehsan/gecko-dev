@@ -111,12 +111,12 @@ PostToRIL(JSContext *cx, unsigned argc, jsval *vp)
   size_t size;
   if (JSVAL_IS_STRING(v)) {
     JSString *str = JSVAL_TO_STRING(v);
-    if (!abs.encodeUtf8(cx, str)) {
+    if (!abs.encode(cx, str)) {
       return false;
     }
 
+    size = JS_GetStringLength(str);
     data = abs.ptr();
-    size = abs.length();
   } else if (!JSVAL_IS_PRIMITIVE(v)) {
     JSObject *obj = JSVAL_TO_OBJECT(v);
     if (!JS_IsTypedArrayObject(obj)) {
@@ -185,11 +185,11 @@ DoNetdCommand(JSContext *cx, unsigned argc, jsval *vp)
   size_t size;
   if (JSVAL_IS_STRING(v)) {
     JSString *str = JSVAL_TO_STRING(v);
-    if (!abs.encodeUtf8(cx, str)) {
+    if (!abs.encode(cx, str)) {
       return false;
     }
 
-    size = abs.length();
+    size = JS_GetStringLength(str);
     if (!size) {
       JS_ReportError(cx, "Command length is zero");
       return false;
@@ -342,7 +342,13 @@ SystemWorkerManager::Init()
   NS_ASSERTION(NS_IsMainThread(), "We can only initialize on the main thread");
   NS_ASSERTION(!mShutdown, "Already shutdown!");
 
-  mozilla::SafeAutoJSContext cx;
+  JSContext* cx = nsContentUtils::ThreadJSContextStack()->GetSafeJSContext();
+  NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
+
+  nsCxPusher pusher;
+  if (!pusher.Push(cx, false)) {
+    return NS_ERROR_FAILURE;
+  }
 
   nsresult rv = InitWifi(cx);
   if (NS_FAILED(rv)) {
@@ -443,8 +449,7 @@ SystemWorkerManager::SendRilRawData(unsigned long aClientId,
                                     UnixSocketRawData* aRaw)
 {
   if ((gInstance->mRilConsumers.Length() <= aClientId) ||
-      !gInstance->mRilConsumers[aClientId] ||
-      gInstance->mRilConsumers[aClientId]->GetConnectionStatus() != SOCKET_CONNECTED) {
+      !gInstance->mRilConsumers[aClientId]) {
     // Probably shuting down.
     delete aRaw;
     return true;

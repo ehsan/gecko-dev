@@ -1263,7 +1263,7 @@ nsXBLBinding::AllowScripts()
     return false;
   }
   
-  AutoPushJSContext cx(context->GetNativeContext());
+  JSContext* cx = context->GetNativeContext();
 
   nsCOMPtr<nsIDocument> ourDocument =
     mPrototypeBinding->XBLDocumentInfo()->GetDocument();

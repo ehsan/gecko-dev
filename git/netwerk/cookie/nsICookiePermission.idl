@@ -31,7 +31,6 @@ interface nsICookiePermission : nsISupports
    */
   const nsCookieAccess ACCESS_SESSION = 8;
   const nsCookieAccess ACCESS_ALLOW_FIRST_PARTY_ONLY = 9;
-  const nsCookieAccess ACCESS_LIMIT_THIRD_PARTY = 10;
 
   /**
    * setAccess

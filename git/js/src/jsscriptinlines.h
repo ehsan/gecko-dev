@@ -46,13 +46,11 @@ CurrentScriptFileLineOrigin(JSContext *cx, const char **file, unsigned *linenop,
 {
     if (opt == CALLED_FROM_JSOP_EVAL) {
         AutoAssertNoGC nogc;
-        JSScript *script = NULL;
-        jsbytecode *pc = NULL;
-        types::TypeScript::GetPcScript(cx, &script, &pc);
-        JS_ASSERT(JSOp(*pc) == JSOP_EVAL);
-        JS_ASSERT(*(pc + JSOP_EVAL_LENGTH) == JSOP_LINENO);
+        JS_ASSERT(JSOp(*cx->regs().pc) == JSOP_EVAL);
+        JS_ASSERT(*(cx->regs().pc + JSOP_EVAL_LENGTH) == JSOP_LINENO);
+        UnrootedScript script = cx->fp()->script();
         *file = script->filename;
-        *linenop = GET_UINT16(pc + JSOP_EVAL_LENGTH);
+        *linenop = GET_UINT16(cx->regs().pc + JSOP_EVAL_LENGTH);
         *origin = script->originPrincipals;
         return;
     }
@@ -116,16 +114,6 @@ JSScript::getCallerFunction()
 {
     JS_ASSERT(savedCallerFun);
     return getFunction(0);
-}
-
-inline JSFunction *
-JSScript::functionOrCallerFunction()
-{
-    if (function())
-        return function();
-    if (savedCallerFun)
-        return getCallerFunction();
-    return NULL;
 }
 
 inline js::RegExpObject *
@@ -204,20 +192,6 @@ inline JSPrincipals *
 JSScript::principals()
 {
     return compartment()->principals;
-}
-
-inline JSFunction *
-JSScript::originalFunction() const {
-    if (!isCallsiteClone)
-        return NULL;
-    return enclosingScopeOrOriginalFunction_->toFunction();
-}
-
-inline void
-JSScript::setOriginalFunctionObject(JSObject *fun) {
-    JS_ASSERT(isCallsiteClone);
-    JS_ASSERT(fun->isFunction());
-    enclosingScopeOrOriginalFunction_ = fun;
 }
 
 #endif /* jsscriptinlines_h___ */

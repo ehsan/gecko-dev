@@ -143,7 +143,6 @@ protected:
   void OnStopFrame       ();
   void OnStopDecode      ();
   void OnDiscard         ();
-  void OnUnlockedDraw    ();
   void OnImageIsAnimated ();
 
   /* non-virtual sort-of-nsIRequestObserver methods */

@@ -10,6 +10,7 @@ var PreferencesPanelView = {
       if (aEvent.detail && aEvent.popup === Elements.prefsFlyout) {
         Elements.prefsFlyout.removeEventListener("PopupChanged", onShow, false);
         MasterPasswordUI.updatePreference();
+        WeaveGlue.init();
       }
     }, false);
   }

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "CSFLog.h"
+#include "CSFLogStream.h"
 
 #include "CC_Common.h"
 
@@ -551,8 +551,7 @@ void CC_SIPCCCallInfo::generateCapabilities()
 	case WHISPER:
 	case WAITINGFORDIGITS:
 	default:
-		CSFLogError( logTag, "State %d not handled in generateCapabilities()",
-      getCallState());
+		CSFLogErrorS( logTag, "State " << getCallState() << " not handled in generateCapabilities()");
 		break;
 	}
 }

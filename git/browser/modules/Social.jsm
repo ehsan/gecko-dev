@@ -57,12 +57,13 @@ this.Social = {
     return this._provider;
   },
   set provider(val) {
-    this._setProvider(val);
+    // Changes triggered by the public setter should notify of an engine change.
+    this._setProvider(val, true);
   },
 
   // Sets the current provider and enables it. Also disables the
-  // previously set provider, and notifies observers of the change.
-  _setProvider: function (provider) {
+  // previously set provider, and optionally notifies observers of the change.
+  _setProvider: function (provider, notify) {
     if (this._provider == provider)
       return;
 
@@ -83,8 +84,10 @@ this.Social = {
       Services.prefs.setBoolPref("social.enabled", enabled);
     }
 
-    let origin = this._provider && this._provider.origin;
-    Services.obs.notifyObservers(null, "social:provider-set", origin);
+    if (notify) {
+      let origin = this._provider && this._provider.origin;
+      Services.obs.notifyObservers(null, "social:provider-set", origin);
+    }
   },
 
   get defaultProvider() {
@@ -94,37 +97,41 @@ this.Social = {
     return provider || this.providers[0];
   },
 
-  init: function Social_init() {
+  init: function Social_init(callback) {
     this._disabledForSafeMode = Services.appinfo.inSafeMode && this.enabled;
 
     if (this.providers) {
+      schedule(callback);
       return;
     }
 
     // Retrieve the current set of providers, and set the current provider.
     SocialService.getProviderList(function (providers) {
-      this._updateProviderCache(providers);
+      // We don't want to notify about a provider change when we're setting
+      // this.provider for the first time, so pass false here.
+      this._updateProviderCache(providers, false);
+      callback();
     }.bind(this));
 
     // Register an observer for changes to the provider list
     SocialService.registerProviderListener(function providerListener(topic, data) {
       // An engine change caused by adding/removing a provider should notify
       if (topic == "provider-added" || topic == "provider-removed") {
-        this._updateProviderCache(data);
+        this._updateProviderCache(data, true);
         Services.obs.notifyObservers(null, "social:providers-changed", null);
       }
     }.bind(this));
   },
 
   // Called to update our cache of providers and set the current provider
-  _updateProviderCache: function (providers) {
+  _updateProviderCache: function (providers, notifyProviderChange) {
     this.providers = providers;
 
     // If social is currently disabled there's nothing else to do.
     if (!SocialService.enabled)
       return;
     // Otherwise set the provider.
-    this._setProvider(this.defaultProvider);
+    this._setProvider(this.defaultProvider, notifyProviderChange);
   },
 
   set enabled(val) {
