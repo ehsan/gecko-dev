@@ -26,26 +26,13 @@ let gDropTargetShim = {
   init: function DropTargetShim_init() {
     let node = gGrid.node;
 
-    // Add drag event handlers.
-    node.addEventListener("dragstart", this, true);
-    node.addEventListener("dragend", this, true);
-  },
+    this._dragover = this._dragover.bind(this);
 
-  /**
-   * Handles all shim events.
-   */
-  handleEvent: function DropTargetShim_handleEvent(aEvent) {
-    switch (aEvent.type) {
-      case "dragstart":
-        this._start(aEvent);
-        break;
-      case "dragover":
-        this._dragover(aEvent);
-        break;
-      case "dragend":
-        this._end(aEvent);
-        break;
-    }
+    // Add drag event handlers.
+    node.addEventListener("dragstart", this._start.bind(this), true);
+    // XXX bug 505521 - Don't listen for drag, it's useless at the moment.
+    //node.addEventListener("drag", this._drag.bind(this), false);
+    node.addEventListener("dragend", this._end.bind(this), true);
   },
 
   /**
@@ -53,11 +40,11 @@ let gDropTargetShim = {
    * @param aEvent The 'dragstart' event.
    */
   _start: function DropTargetShim_start(aEvent) {
-    if (aEvent.target.classList.contains("newtab-link")) {
+    if (aEvent.target.classList.contains("site")) {
       gGrid.lock();
 
       // XXX bug 505521 - Listen for dragover on the document.
-      document.documentElement.addEventListener("dragover", this, false);
+      document.documentElement.addEventListener("dragover", this._dragover, false);
     }
   },
 
@@ -69,7 +56,12 @@ let gDropTargetShim = {
     // Let's see if we find a drop target.
     let target = this._findDropTarget(aEvent);
 
-    if (target != this._lastDropTarget) {
+    if (target == this._lastDropTarget) {
+      // XXX bug 505521 - Don't fire dragover for now (causes recursion).
+      /*if (target)
+        // The last drop target is valid and didn't change.
+        this._dispatchEvent(aEvent, "dragover", target);*/
+    } else {
       if (this._lastDropTarget)
         // We left the last drop target.
         this._dispatchEvent(aEvent, "dragexit", this._lastDropTarget);
@@ -92,7 +84,7 @@ let gDropTargetShim = {
    * @param aEvent The 'dragover' event.
    */
   _dragover: function DropTargetShim_dragover(aEvent) {
-    let sourceNode = aEvent.dataTransfer.mozSourceNode.parentNode;
+    let sourceNode = aEvent.dataTransfer.mozSourceNode;
     gDrag.drag(sourceNode._newtabSite, aEvent);
 
     this._drag(aEvent);
@@ -125,7 +117,7 @@ let gDropTargetShim = {
     gGrid.unlock();
 
     // XXX bug 505521 - Remove the document's dragover listener.
-    document.documentElement.removeEventListener("dragover", this, false);
+    document.documentElement.removeEventListener("dragover", this._dragover, false);
   },
 
   /**

@@ -110,9 +110,6 @@ public:
   CreateSlice(PRUint64 aStart, PRUint64 aLength,
               const nsAString& aContentType) = 0;
 
-  virtual const nsTArray<nsCOMPtr<nsIDOMBlob> >*
-  GetSubBlobs() const { return nsnull; }
-
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMBLOB
   NS_DECL_NSIDOMFILE

@@ -33,7 +33,7 @@ function test_throw_eval()
         // Check the return value...
         do_check_eq(aPacket.type, "paused");
         do_check_eq(aPacket.why.type, "clientEvaluated");
-        do_check_eq(aPacket.why.frameFinished.throw, "failure");
+        do_check_eq(aPacket.why.exception, "failure");
         gThreadClient.resume(function() {
           finishClient(gClient);
         });

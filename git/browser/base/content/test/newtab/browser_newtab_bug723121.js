@@ -10,18 +10,14 @@ function runTests() {
 
   let cell = cells[0].node;
   let site = cells[0].site.node;
-  let link = site.querySelector(".newtab-link");
 
-  sendDragEvent(link, "dragstart");
+  sendDragEvent(site, "dragstart");
   checkGridLocked(true, "grid is now locked");
 
-  sendDragEvent(link, "dragend");
+  sendDragEvent(site, "dragend");
   checkGridLocked(false, "grid isn't locked anymore");
 
   sendDragEvent(cell, "dragstart");
-  checkGridLocked(false, "grid isn't locked - dragstart was ignored");
-
-  sendDragEvent(site, "dragstart");
   checkGridLocked(false, "grid isn't locked - dragstart was ignored");
 }
 

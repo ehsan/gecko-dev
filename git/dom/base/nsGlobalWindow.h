@@ -134,7 +134,7 @@ class nsGlobalWindow;
 class nsDummyJavaPluginOwner;
 class PostMessageEvent;
 class nsRunnable;
-class nsDOMEventTargetHelper;
+
 class nsDOMOfflineResourceList;
 class nsDOMMozURLProperty;
 
@@ -591,9 +591,6 @@ public:
   void SizeOfIncludingThis(nsWindowSizes* aWindowSizes) const;
 
   void UnmarkGrayTimers();
-
-  void AddEventTargetObject(nsDOMEventTargetHelper* aObject);
-  void RemoveEventTargetObject(nsDOMEventTargetHelper* aObject);
 private:
   // Enable updates for the accelerometer.
   void EnableDeviceMotionUpdates();
@@ -1013,8 +1010,6 @@ protected:
   bool                          mDialogDisabled;
 
   nsRefPtr<nsDOMMozURLProperty> mURLProperty;
-
-  nsTHashtable<nsPtrHashKey<nsDOMEventTargetHelper> > mEventTargetObjects;
 
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;

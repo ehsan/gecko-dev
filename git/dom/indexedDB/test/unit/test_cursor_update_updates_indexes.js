@@ -7,6 +7,9 @@ var testGenerator = testSteps();
 
 function testSteps()
 {
+  const nsIIDBObjectStore = Components.interfaces.nsIIDBObjectStore;
+  const nsIIDBTransaction = Components.interfaces.nsIIDBTransaction;
+
   const name = this.window ? window.location.pathname : "Splendid Test";
   const description = "My Test Database";
   const START_DATA = "hi";

@@ -68,7 +68,7 @@ public:
 
   BatteryManager();
 
-  void Init(nsPIDOMWindow *aWindow);
+  void Init(nsPIDOMWindow *aWindow, nsIScriptContext* aScriptContext);
   void Shutdown();
 
   // For IObserver.

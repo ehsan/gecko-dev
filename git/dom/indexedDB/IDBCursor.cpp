@@ -157,7 +157,7 @@ already_AddRefed<IDBCursor>
 IDBCursor::Create(IDBRequest* aRequest,
                   IDBTransaction* aTransaction,
                   IDBObjectStore* aObjectStore,
-                  Direction aDirection,
+                  PRUint16 aDirection,
                   const Key& aRangeKey,
                   const nsACString& aContinueQuery,
                   const nsACString& aContinueToQuery,
@@ -185,7 +185,7 @@ already_AddRefed<IDBCursor>
 IDBCursor::Create(IDBRequest* aRequest,
                   IDBTransaction* aTransaction,
                   IDBIndex* aIndex,
-                  Direction aDirection,
+                  PRUint16 aDirection,
                   const Key& aRangeKey,
                   const nsACString& aContinueQuery,
                   const nsACString& aContinueToQuery,
@@ -215,7 +215,7 @@ already_AddRefed<IDBCursor>
 IDBCursor::Create(IDBRequest* aRequest,
                   IDBTransaction* aTransaction,
                   IDBIndex* aIndex,
-                  Direction aDirection,
+                  PRUint16 aDirection,
                   const Key& aRangeKey,
                   const nsACString& aContinueQuery,
                   const nsACString& aContinueToQuery,
@@ -243,34 +243,11 @@ IDBCursor::Create(IDBRequest* aRequest,
 }
 
 // static
-nsresult
-IDBCursor::ParseDirection(const nsAString& aDirection, Direction* aResult)
-{
-  if (aDirection.EqualsLiteral("next")) {
-    *aResult = NEXT;
-  }
-  else if (aDirection.EqualsLiteral("nextunique")) {
-    *aResult = NEXT_UNIQUE;
-  }
-  else if (aDirection.EqualsLiteral("prev")) {
-    *aResult = PREV;
-  }
-  else if (aDirection.EqualsLiteral("prevunique")) {
-    *aResult = PREV_UNIQUE;
-  }
-  else {
-    return NS_ERROR_DOM_INDEXEDDB_NON_TRANSIENT_ERR;
-  }
-  
-  return NS_OK;
-}
-
-// static
 already_AddRefed<IDBCursor>
 IDBCursor::CreateCommon(IDBRequest* aRequest,
                         IDBTransaction* aTransaction,
                         IDBObjectStore* aObjectStore,
-                        Direction aDirection,
+                        PRUint16 aDirection,
                         const Key& aRangeKey,
                         const nsACString& aContinueQuery,
                         const nsACString& aContinueToQuery)
@@ -285,6 +262,8 @@ IDBCursor::CreateCommon(IDBRequest* aRequest,
   nsRefPtr<IDBCursor> cursor = new IDBCursor();
 
   IDBDatabase* database = aTransaction->Database();
+  cursor->mScriptContext = database->GetScriptContext();
+  cursor->mOwner = database->GetOwner();
   cursor->mScriptOwner = database->GetScriptOwner();
 
   if (cursor->mScriptOwner) {
@@ -309,7 +288,7 @@ IDBCursor::CreateCommon(IDBRequest* aRequest,
 IDBCursor::IDBCursor()
 : mScriptOwner(nsnull),
   mType(OBJECTSTORE),
-  mDirection(IDBCursor::NEXT),
+  mDirection(nsIIDBCursor::NEXT),
   mCachedKey(JSVAL_VOID),
   mCachedPrimaryKey(JSVAL_VOID),
   mCachedValue(JSVAL_VOID),
@@ -352,11 +331,11 @@ IDBCursor::ContinueInternal(const Key& aKey,
 
 #ifdef DEBUG
   {
-    nsAutoString readyState;
-    if (NS_FAILED(mRequest->GetReadyState(readyState))) {
+    PRUint16 readyState;
+    if (NS_FAILED(mRequest->GetReadyState(&readyState))) {
       NS_ERROR("This should never fail!");
     }
-    NS_ASSERTION(readyState.EqualsLiteral("done"), "Should be DONE!");
+    NS_ASSERTION(readyState == nsIIDBRequest::DONE, "Should be DONE!");
   }
 #endif
 
@@ -397,6 +376,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(IDBCursor)
                                                        nsIDOMEventTarget)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mObjectStore)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mIndex)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOwner)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mScriptContext)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(IDBCursor)
@@ -440,6 +421,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBCursor)
     tmp->mHaveValue = false;
   }
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRequest)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOwner)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mScriptContext)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(IDBCursor)
@@ -459,24 +442,11 @@ DOMCI_DATA(IDBCursor, IDBCursor)
 DOMCI_DATA(IDBCursorWithValue, IDBCursor)
 
 NS_IMETHODIMP
-IDBCursor::GetDirection(nsAString& aDirection)
+IDBCursor::GetDirection(PRUint16* aDirection)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  switch(mDirection) {
-    case NEXT:
-      aDirection.AssignLiteral("next");
-      break;
-    case NEXT_UNIQUE:
-      aDirection.AssignLiteral("nextunique");
-      break;
-    case PREV:
-      aDirection.AssignLiteral("prev");
-      break;
-    case PREV_UNIQUE:
-      aDirection.AssignLiteral("prevunique");
-  }
-
+  *aDirection = mDirection;
   return NS_OK;
 }
 
@@ -598,15 +568,15 @@ IDBCursor::Continue(const jsval &aKey,
 
   if (!key.IsUnset()) {
     switch (mDirection) {
-      case IDBCursor::NEXT:
-      case IDBCursor::NEXT_UNIQUE:
+      case nsIIDBCursor::NEXT:
+      case nsIIDBCursor::NEXT_NO_DUPLICATE:
         if (key <= mKey) {
           return NS_ERROR_DOM_INDEXEDDB_DATA_ERR;
         }
         break;
 
-      case IDBCursor::PREV:
-      case IDBCursor::PREV_UNIQUE:
+      case nsIIDBCursor::PREV:
+      case nsIIDBCursor::PREV_NO_DUPLICATE:
         if (key >= mKey) {
           return NS_ERROR_DOM_INDEXEDDB_DATA_ERR;
         }
@@ -889,8 +859,8 @@ ContinueIndexHelper::BindArgumentsToStatement(mozIStorageStatement* aStatement)
 
   // Bind object key if duplicates are allowed and we're not continuing to a
   // specific key.
-  if ((mCursor->mDirection == IDBCursor::NEXT ||
-       mCursor->mDirection == IDBCursor::PREV) &&
+  if ((mCursor->mDirection == nsIIDBCursor::NEXT ||
+       mCursor->mDirection == nsIIDBCursor::PREV) &&
        mCursor->mContinueToKey.IsUnset()) {
     NS_ASSERTION(!mCursor->mObjectKey.IsUnset(), "Bad key!");
 

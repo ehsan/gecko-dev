@@ -908,8 +908,7 @@ SourceEditor.prototype = {
    *
    * @private
    * @param string aType
-   *        The annotation type to filter annotations for. Use one of the keys
-   *        in ORION_ANNOTATION_TYPES.
+   *        The annotation type to filter annotations for.
    * @param number aStart
    *        Offset from where to start finding the annotations.
    * @param number aEnd

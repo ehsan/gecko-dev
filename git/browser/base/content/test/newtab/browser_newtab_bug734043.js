@@ -2,16 +2,13 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 function runTests() {
-  // TODO Bug 735166 - Intermittent timeout in browser_newtab_bug734043.js
-  return;
-
   setLinks("0,1,2,3,4,5,6,7,8");
   setPinnedLinks("");
 
   yield addNewTabPageTab();
 
   let receivedError = false;
-  let block = cw.document.querySelector(".newtab-control-block");
+  let block = cw.document.querySelector(".strip-button-block");
 
   function onError() {
     receivedError = true;

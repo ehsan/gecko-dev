@@ -137,14 +137,15 @@ public:
 
   static
   already_AddRefed<IDBOpenDBRequest>
-  Create(nsPIDOMWindow* aOwner,
+  Create(nsIScriptContext* aScriptContext,
+         nsPIDOMWindow* aOwner,
          JSObject* aScriptOwner);
 
   static
   already_AddRefed<IDBOpenDBRequest>
   Create(IDBWrapperCache* aOwnerCache)
   {
-    return Create(aOwnerCache->GetOwner(),
+    return Create(aOwnerCache->GetScriptContext(), aOwnerCache->GetOwner(),
                   aOwnerCache->GetScriptOwner());
   }
 
