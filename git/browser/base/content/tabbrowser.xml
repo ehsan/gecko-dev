@@ -151,6 +151,9 @@
         false
 #endif
       </field>
+      <field name="mAddProgressListenerWasCalled">
+        false
+      </field>
       <field name="_browsers">
         null
       </field>
@@ -1537,10 +1540,8 @@
             }
 
             this._removingTabs.push(aTab);
-            if (newTab)
-              this.addTab("about:blank", {skipAnimation: true});
-            else
-              this.tabContainer.updateVisibility();
+
+            this.tabContainer.updateVisibility();
 
             // We're committed to closing the tab now.
             // Dispatch a notification.
@@ -1596,6 +1597,8 @@
 
             // update the UI early for responsiveness
             aTab.collapsed = true;
+            if (aNewTab)
+              this.addTab("about:blank", {skipAnimation: true});
             this.tabContainer._fillTrailingGap();
             this._blurTab(aTab);
 
@@ -1848,6 +1851,11 @@
                                            "called with a second argument, " +
                                            "which is not supported. See bug " +
                                            "608628.");
+            }
+
+            if (!this.mAddProgressListenerWasCalled) {
+              this.mAddProgressListenerWasCalled = true;
+              this.tabContainer.updateVisibility();
             }
 
             this.mProgressListeners.push(aListener);
@@ -2688,7 +2696,6 @@
           Services.prefs.addObserver("browser.tabs.", this._prefObserver, false);
           window.addEventListener("resize", this, false);
 
-          this.updateVisibility();
           if (window.TabsInTitlebar)
             TabsInTitlebar.allowedBy("tabs-visible", this.visible);
         ]]>
