@@ -42,7 +42,6 @@
 #include <android/log.h>
 
 #include "nsCOMPtr.h"
-#include "nsCOMArray.h"
 #include "nsIRunnable.h"
 #include "nsIObserver.h"
 
@@ -263,26 +262,6 @@ public:
 
     void UnlockBitmap(jobject bitmap);
 
-    void PostToJavaThread(nsIRunnable* aRunnable, PRBool aMainThread = PR_FALSE);
-
-    void ExecuteNextRunnable();
-
-    /* Copied from Android's native_window.h in newer (platform 9) NDK */
-    enum {
-        WINDOW_FORMAT_RGBA_8888          = 1,
-        WINDOW_FORMAT_RGBX_8888          = 2,
-        WINDOW_FORMAT_RGB_565            = 4,
-    };
-
-    bool HasNativeWindowAccess();
-
-    void *AcquireNativeWindow(jobject surface);
-    void ReleaseNativeWindow(void *window);
-    bool SetNativeWindowFormat(void *window, int format);
-
-    bool LockWindow(void *window, unsigned char **bits, int *width, int *height, int *format, int *stride);
-    bool UnlockWindow(void *window);
-
 protected:
     static AndroidBridge *sBridge;
 
@@ -304,13 +283,8 @@ protected:
 
     void EnsureJNIThread();
 
-    bool mOpenedGraphicsLibraries;
-    void OpenGraphicsLibraries();
-
+    bool mOpenedBitmapLibrary;
     bool mHasNativeBitmapAccess;
-    bool mHasNativeWindowAccess;
-
-    nsCOMArray<nsIRunnable> mRunnableQueue;
 
     // other things
     jmethodID jNotifyIME;
@@ -351,7 +325,6 @@ protected:
     jmethodID jGetIconForExtension;
     jmethodID jCreateShortcut;
     jmethodID jGetShowPasswordSetting;
-    jmethodID jPostToJavaThread;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;
@@ -365,13 +338,6 @@ protected:
     int (* AndroidBitmap_getInfo)(JNIEnv *env, jobject bitmap, void *info);
     int (* AndroidBitmap_lockPixels)(JNIEnv *env, jobject bitmap, void **buffer);
     int (* AndroidBitmap_unlockPixels)(JNIEnv *env, jobject bitmap);
-
-    void* (*ANativeWindow_fromSurface)(JNIEnv *env, jobject surface);
-    void (*ANativeWindow_release)(void *window);
-    int (*ANativeWindow_setBuffersGeometry)(void *window, int width, int height, int format);
-
-    int (* ANativeWindow_lock)(void *window, void *outBuffer, void *inOutDirtyBounds);
-    int (* ANativeWindow_unlockAndPost)(void *window);
 };
 
 }

@@ -69,21 +69,17 @@ class TPSTestThread(Thread):
                         autolog=self.autolog)
     TPS.run_tests()
 
-    # Get the binary used by this TPS instance, and use it in subsequent
-    # ones, so it doesn't have to be re-downloaded each time.
-    binary = TPS.firefoxRunner.binary
-
     # ... and then again in mobile mode
-    TPS_mobile = TPSTestRunner(self.extensionDir,
-                               emailresults=self.emailresults,
-                               testfile=self.testfile,
-                               logfile=self.logfile,
-                               binary=binary,
-                               config=self.config,
-                               rlock=self.rlock,
-                               mobile=True,
-                               autolog=self.autolog)
-    TPS_mobile.run_tests()
+    TPS = TPSTestRunner(self.extensionDir,
+                        emailresults=self.emailresults,
+                        testfile=self.testfile,
+                        logfile=self.logfile,
+                        binary=self.builddata['buildurl'],
+                        config=self.config,
+                        rlock=self.rlock,
+                        mobile=True,
+                        autolog=self.autolog)
+    TPS.run_tests()
 
     # ... and again via the staging server, if credentials are present
     stageaccount = self.config.get('stageaccount')
@@ -94,13 +90,13 @@ class TPSTestThread(Thread):
       if username and password and passphrase:
         stageconfig = self.config.copy()
         stageconfig['account'] = stageaccount.copy()
-        TPS_stage = TPSTestRunner(self.extensionDir,
-                                  emailresults=self.emailresults,
-                                  testfile=self.testfile,
-                                  logfile=self.logfile,
-                                  binary=binary,
-                                  config=stageconfig,
-                                  rlock=self.rlock,
-                                  mobile=False,
-                                  autolog=self.autolog)
-        TPS_stage.run_tests()
+        TPS = TPSTestRunner(self.extensionDir,
+                            emailresults=self.emailresults,
+                            testfile=self.testfile,
+                            logfile=self.logfile,
+                            binary=self.builddata['buildurl'],
+                            config=stageconfig,
+                            rlock=self.rlock,
+                            mobile=False,
+                            autolog=self.autolog)
+        TPS.run_tests()

@@ -1050,7 +1050,6 @@ nsIMM32Handler::HandleStartComposition(nsWindow* aWindow,
   }
 
   mCompositionStart = selection.mReply.mOffset;
-  mLastDispatchedCompositionString.Truncate();
 
   nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_START, aWindow);
   aWindow->InitEvent(event, &point);
@@ -1314,12 +1313,9 @@ nsIMM32Handler::HandleEndComposition(nsWindow* aWindow)
   }
 
   aWindow->InitEvent(event, &point);
-  // The last dispatched composition string must be the committed string.
-  event.data = mLastDispatchedCompositionString;
   aWindow->DispatchWindowEvent(&event);
   mIsComposing = PR_FALSE;
   mComposingWindow = nsnull;
-  mLastDispatchedCompositionString.Truncate();
 }
 
 static void
@@ -1674,26 +1670,8 @@ nsIMM32Handler::DispatchTextEvent(nsWindow* aWindow,
     return;
   }
 
-  nsRefPtr<nsWindow> kungFuDeathGrip(aWindow);
-
-  nsIntPoint point(0, 0);
-
-  if (mCompositionString != mLastDispatchedCompositionString) {
-    nsCompositionEvent compositionUpdate(PR_TRUE, NS_COMPOSITION_UPDATE,
-                                         aWindow);
-    aWindow->InitEvent(compositionUpdate, &point);
-    compositionUpdate.data = mCompositionString;
-    mLastDispatchedCompositionString = mCompositionString;
-
-    aWindow->DispatchWindowEvent(&compositionUpdate);
-
-    if (!mIsComposing || aWindow->Destroyed()) {
-      return;
-    }
-    SetIMERelatedWindowsPos(aWindow, aIMEContext);
-  }
-
   nsTextEvent event(PR_TRUE, NS_TEXT_TEXT, aWindow);
+  nsIntPoint point(0, 0);
 
   aWindow->InitEvent(event, &point);
 

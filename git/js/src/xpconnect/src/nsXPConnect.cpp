@@ -426,9 +426,9 @@ nsXPConnect::GarbageCollect()
 // JSTRACE_XML can recursively hold on to more JSTRACE_XML objects, adding it to
 // the cycle collector avoids stack overflow.
 inline bool
-AddToCCKind(JSGCTraceKind kind)
+AddToCCKind(uint32 kind)
 {
-    return kind == JSTRACE_OBJECT || kind == JSTRACE_XML || kind == JSTRACE_SCRIPT;
+    return kind == JSTRACE_OBJECT || kind == JSTRACE_XML;
 }
 
 #ifdef DEBUG_CC
@@ -445,7 +445,7 @@ struct NoteJSRootTracer : public JSTracer
 };
 
 static void
-NoteJSRoot(JSTracer *trc, void *thing, JSGCTraceKind kind)
+NoteJSRoot(JSTracer *trc, void *thing, uint32 kind)
 {
     if(AddToCCKind(kind))
     {
@@ -880,10 +880,6 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
     TraversalTracer trc(cb);
 
     JS_TRACER_INIT(&trc, cx, NoteJSChild);
-    // When WeakMaps are properly integrated with the cycle
-    // collector in Bug 668855, don't eagerly trace weak maps when
-    // building the cycle collector graph.
-    // trc.eagerlyTraceWeakMaps = JS_FALSE;
     JS_TraceChildren(&trc, p, traceKind);
 
     if(traceKind != JSTRACE_OBJECT || dontTraverse)
@@ -2957,7 +2953,7 @@ JS_EXPORT_API(void) DumpJSObject(JSObject* obj)
 
 JS_EXPORT_API(void) DumpJSValue(jsval val)
 {
-    printf("Dumping 0x%llu.\n", (long long) val.asRawBits());
+    printf("Dumping 0x%llu.\n", (long long) JSVAL_BITS(val));
     if(JSVAL_IS_NULL(val)) {
         printf("Value is null\n");
     }

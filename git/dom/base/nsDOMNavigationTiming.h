@@ -45,7 +45,7 @@
 #include "nscore.h"
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
-#include "mozilla/TimeStamp.h"
+#include "TimeStamp.h"
 #include "nsIURI.h"
 
 class nsDOMNavigationTimingClock;

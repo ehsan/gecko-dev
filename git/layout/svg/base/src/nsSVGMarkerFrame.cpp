@@ -132,16 +132,28 @@ nsSVGMarkerFrame::PaintMark(nsSVGRenderState *aContext,
   if (mInUse)
     return NS_OK;
 
-  AutoMarkerReferencer markerRef(this, aMarkedFrame);
-
   nsSVGMarkerElement *marker = static_cast<nsSVGMarkerElement*>(mContent);
 
-  const nsSVGViewBoxRect viewBox = marker->GetViewBoxRect();
+  nsCOMPtr<nsIDOMSVGAnimatedRect> arect;
+  nsresult rv = marker->GetViewBox(getter_AddRefs(arect));
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  if (viewBox.width <= 0.0f || viewBox.height <= 0.0f) {
+  nsCOMPtr<nsIDOMSVGRect> rect;
+  rv = arect->GetAnimVal(getter_AddRefs(rect));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  float x, y, width, height;
+  rect->GetX(&x);
+  rect->GetY(&y);
+  rect->GetWidth(&width);
+  rect->GetHeight(&height);
+
+  if (width <= 0.0f || height <= 0.0f) {
     // We must disable rendering if the viewBox width or height are zero.
     return NS_OK;
   }
+
+  AutoMarkerReferencer markerRef(this, aMarkedFrame);
 
   mStrokeWidth = aStrokeWidth;
   mX = aMark->x;
@@ -153,8 +165,7 @@ nsSVGMarkerFrame::PaintMark(nsSVGRenderState *aContext,
   if (GetStyleDisplay()->IsScrollableOverflow()) {
     gfx->Save();
     gfxRect clipRect =
-      nsSVGUtils::GetClipRectForFrame(this, viewBox.x, viewBox.y,
-                                      viewBox.width, viewBox.height);
+      nsSVGUtils::GetClipRectForFrame(this, x, y, width, height);
     nsSVGUtils::SetClipRect(gfx, GetCanvasTM(), clipRect);
   }
 

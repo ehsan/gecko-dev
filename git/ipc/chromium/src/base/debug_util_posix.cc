@@ -5,17 +5,13 @@
 #include "build/build_config.h"
 #include "base/debug_util.h"
 
-#define MOZ_HAVE_EXECINFO_H (!defined(ANDROID) && !defined(__OpenBSD__))
-
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
-#include <limits.h>
 #include <sys/stat.h>
-#include <sys/param.h>
 #include <sys/types.h>
 #include <unistd.h>
-#if MOZ_HAVE_EXECINFO_H
+#ifndef ANDROID
 #include <execinfo.h>
 #include <sys/sysctl.h>
 #endif
@@ -123,7 +119,7 @@ StackTrace::StackTrace() {
   const int kMaxCallers = 256;
 
   void* callers[kMaxCallers];
-#if MOZ_HAVE_EXECINFO_H
+#ifndef ANDROID
   int count = backtrace(callers, kMaxCallers);
 #else
   int count = 0;
@@ -142,7 +138,7 @@ StackTrace::StackTrace() {
 
 void StackTrace::PrintBacktrace() {
   fflush(stderr);
-#if MOZ_HAVE_EXECINFO_H
+#ifndef ANDROID
   backtrace_symbols_fd(&trace_[0], trace_.size(), STDERR_FILENO);
 #endif
 }

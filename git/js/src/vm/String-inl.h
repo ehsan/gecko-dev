@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=4 sw=4 et tw=79 ft=cpp:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -94,7 +94,7 @@ JSFlatString::toPropertyName(JSContext *cx)
 {
 #ifdef DEBUG
     uint32 dummy;
-    JS_ASSERT(!isIndex(&dummy));
+    JS_ASSERT(!isElement(&dummy));
 #endif
     if (isAtom())
         return asAtom().asPropertyName();
@@ -193,53 +193,54 @@ JSExternalString::new_(JSContext *cx, const jschar *chars, size_t length, intN t
     return str;
 }
 
+#ifdef JS_HAS_STATIC_STRINGS
 inline bool
-js::StaticStrings::fitsInSmallChar(jschar c)
+JSAtom::fitsInSmallChar(jschar c)
 {
     return c < SMALL_CHAR_LIMIT && toSmallChar[c] != INVALID_SMALL_CHAR;
 }
 
 inline bool
-js::StaticStrings::hasUnit(jschar c)
+JSAtom::hasUnitStatic(jschar c)
 {
     return c < UNIT_STATIC_LIMIT;
 }
 
-inline JSAtom *
-js::StaticStrings::getUnit(jschar c)
+inline JSStaticAtom &
+JSAtom::unitStatic(jschar c)
 {
-    JS_ASSERT(hasUnit(c));
-    return unitStaticTable[c];
+    JS_ASSERT(hasUnitStatic(c));
+    return (JSStaticAtom &)unitStaticTable[c];
 }
 
 inline bool
-js::StaticStrings::hasUint(uint32 u)
+JSAtom::hasUintStatic(uint32 u)
 {
     return u < INT_STATIC_LIMIT;
 }
 
-inline JSAtom *
-js::StaticStrings::getUint(uint32 u)
+inline JSStaticAtom &
+JSAtom::uintStatic(uint32 u)
 {
-    JS_ASSERT(hasUint(u));
-    return intStaticTable[u];
+    JS_ASSERT(hasUintStatic(u));
+    return *reinterpret_cast<JSStaticAtom *>(const_cast<JSString::Data *>(intStaticTable[u]));
 }
 
 inline bool
-js::StaticStrings::hasInt(int32 i)
+JSAtom::hasIntStatic(int32 i)
 {
     return uint32(i) < INT_STATIC_LIMIT;
 }
 
-inline JSAtom *
-js::StaticStrings::getInt(jsint i)
+inline JSStaticAtom &
+JSAtom::intStatic(jsint i)
 {
-    JS_ASSERT(hasInt(i));
-    return getUint(uint32(i));
+    JS_ASSERT(hasIntStatic(i));
+    return uintStatic(uint32(i));
 }
 
 inline JSLinearString *
-js::StaticStrings::getUnitStringForElement(JSContext *cx, JSString *str, size_t index)
+JSAtom::getUnitStringForElement(JSContext *cx, JSString *str, size_t index)
 {
     JS_ASSERT(index < str->length());
     const jschar *chars = str->getChars(cx);
@@ -247,38 +248,38 @@ js::StaticStrings::getUnitStringForElement(JSContext *cx, JSString *str, size_t 
         return NULL;
     jschar c = chars[index];
     if (c < UNIT_STATIC_LIMIT)
-        return getUnit(c);
+        return &unitStatic(c);
     return js_NewDependentString(cx, str, index, 1);
 }
 
-inline JSAtom *
-js::StaticStrings::getLength2(jschar c1, jschar c2)
+inline JSStaticAtom &
+JSAtom::length2Static(jschar c1, jschar c2)
 {
     JS_ASSERT(fitsInSmallChar(c1));
     JS_ASSERT(fitsInSmallChar(c2));
     size_t index = (((size_t)toSmallChar[c1]) << 6) + toSmallChar[c2];
-    return length2StaticTable[index];
+    return (JSStaticAtom &)length2StaticTable[index];
 }
 
-inline JSAtom *
-js::StaticStrings::getLength2(uint32 i)
+inline JSStaticAtom &
+JSAtom::length2Static(uint32 i)
 {
     JS_ASSERT(i < 100);
-    return getLength2('0' + i / 10, '0' + i % 10);
+    return length2Static('0' + i / 10, '0' + i % 10);
 }
 
 /* Get a static atomized string for chars if possible. */
-inline JSAtom *
-js::StaticStrings::lookup(const jschar *chars, size_t length)
+inline JSStaticAtom *
+JSAtom::lookupStatic(const jschar *chars, size_t length)
 {
     switch (length) {
       case 1:
         if (chars[0] < UNIT_STATIC_LIMIT)
-            return getUnit(chars[0]);
+            return &unitStatic(chars[0]);
         return NULL;
       case 2:
         if (fitsInSmallChar(chars[0]) && fitsInSmallChar(chars[1]))
-            return getLength2(chars[0], chars[1]);
+            return &length2Static(chars[0], chars[1]);
         return NULL;
       case 3:
         /*
@@ -296,7 +297,7 @@ js::StaticStrings::lookup(const jschar *chars, size_t length)
                       (chars[2] - '0');
 
             if (jsuint(i) < INT_STATIC_LIMIT)
-                return getInt(i);
+                return &intStatic(i);
         }
         return NULL;
     }
@@ -304,11 +305,87 @@ js::StaticStrings::lookup(const jschar *chars, size_t length)
     return NULL;
 }
 
+#else  /* defined(JS_HAS_STATIC_STRINGS) */
+
+inline bool
+JSAtom::fitsInSmallChar(jschar c)
+{
+    return false;
+}
+
+inline bool
+JSAtom::hasUnitStatic(jschar c)
+{
+    return false;
+}
+
+inline JSStaticAtom &
+JSAtom::unitStatic(jschar c)
+{
+    JS_NOT_REACHED("no static strings");
+    return *(JSStaticAtom *)NULL;
+}
+
+inline bool
+JSAtom::hasUintStatic(uint32 u)
+{
+    return false;
+}
+
+inline JSStaticAtom &
+JSAtom::uintStatic(uint32 u)
+{
+    JS_NOT_REACHED("no static strings");
+    return *(JSStaticAtom *)NULL;
+}
+
+inline bool
+JSAtom::hasIntStatic(int32 i)
+{
+    return false;
+}
+
+inline JSStaticAtom &
+JSAtom::intStatic(jsint i)
+{
+    JS_NOT_REACHED("no static strings");
+    return *(JSStaticAtom *)NULL;
+}
+
+inline JSLinearString *
+JSAtom::getUnitStringForElement(JSContext *cx, JSString *str, size_t index)
+{
+    JS_ASSERT(index < str->length());
+    return js_NewDependentString(cx, str, index, 1);
+}
+
+inline JSStaticAtom &
+JSAtom::length2Static(jschar c1, jschar c2)
+{
+    JS_NOT_REACHED("no static strings");
+    return *(JSStaticAtom *)NULL;
+}
+
+inline JSStaticAtom &
+JSAtom::length2Static(uint32 i)
+{
+    JS_NOT_REACHED("no static strings");
+    return *(JSStaticAtom *)NULL;
+}
+
+/* Get a static atomized string for chars if possible. */
+inline JSStaticAtom *
+JSAtom::lookupStatic(const jschar *chars, size_t length)
+{
+    return NULL;
+}
+#endif /* defined(JS_HAS_STATIC_STRINGS) */
+
 JS_ALWAYS_INLINE void
 JSString::finalize(JSContext *cx)
 {
-    /* Shorts are in a different arena. */
-    JS_ASSERT(!isShort());
+    /* Statics are not GC-things and shorts are in a different arena. */
+    JS_ASSERT(!isStaticAtom() && !isShort());
 
     if (isFlat())
         asFlat().finalize(cx->runtime);

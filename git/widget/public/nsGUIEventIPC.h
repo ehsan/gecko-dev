@@ -312,16 +312,14 @@ struct ParamTraits<nsCompositionEvent>
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
-    WriteParam(aMsg, static_cast<nsGUIEvent>(aParam));
+    WriteParam(aMsg, static_cast<nsInputEvent>(aParam));
     WriteParam(aMsg, aParam.seqno);
-    WriteParam(aMsg, aParam.data);
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    return ReadParam(aMsg, aIter, static_cast<nsGUIEvent*>(aResult)) &&
-           ReadParam(aMsg, aIter, &aResult->seqno) &&
-           ReadParam(aMsg, aIter, &aResult->data);
+    return ReadParam(aMsg, aIter, static_cast<nsInputEvent*>(aResult)) &&
+           ReadParam(aMsg, aIter, &aResult->seqno);
   }
 };
 

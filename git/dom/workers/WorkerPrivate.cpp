@@ -2176,7 +2176,8 @@ WorkerPrivateParent<Derived>::ParentJSContext() const
       return RuntimeService::AutoSafeJSContext::GetSafeContext();
     }
 
-    NS_ASSERTION(mParentJSContext == mScriptContext->GetNativeContext(),
+    NS_ASSERTION(mParentJSContext ==
+                 static_cast<JSContext*>(mScriptContext->GetNativeContext()),
                  "Native context has changed!");
   }
 
@@ -2288,7 +2289,8 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
         return nsnull;
       }
 
-      parentContext = scriptContext->GetNativeContext();
+      parentContext =
+        static_cast<JSContext*>(scriptContext->GetNativeContext());
 
       // If we're called from a window then we can dig out the principal and URI
       // from the document.

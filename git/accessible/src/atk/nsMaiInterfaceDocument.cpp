@@ -39,6 +39,7 @@
 
 #include "nsAccessibleWrap.h"
 #include "nsMaiInterfaceDocument.h"
+#include "nsAccessibilityAtoms.h"
 
 const char *const kDocTypeName = "W3C-doctype";
 const char *const kDocUrlName = "DocURL";

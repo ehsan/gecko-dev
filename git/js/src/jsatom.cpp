@@ -365,11 +365,10 @@ js_InitCommonAtoms(JSContext *cx)
     JSAtomState *state = &cx->runtime->atomState;
     JSAtom **atoms = state->commonAtomsStart();
     for (size_t i = 0; i < JS_ARRAY_LENGTH(js_common_atom_names); i++, atoms++) {
-        JSAtom *atom = js_Atomize(cx, js_common_atom_names[i], strlen(js_common_atom_names[i]),
-                                  InternAtom);
-        if (!atom)
+        *atoms = js_Atomize(cx, js_common_atom_names[i], strlen(js_common_atom_names[i]),
+                            InternAtom);
+        if (!*atoms)
             return false;
-        *atoms = atom->asPropertyName();
     }
 
     state->clearLazyAtoms();
@@ -424,7 +423,7 @@ js_SweepAtomState(JSContext *cx)
             JS_ASSERT(!IsAboutToBeFinalized(cx, entry.asPtr()));
             continue;
         }
-
+        
         if (IsAboutToBeFinalized(cx, entry.asPtr()))
             e.removeFront();
     }
@@ -433,8 +432,7 @@ js_SweepAtomState(JSContext *cx)
 bool
 AtomIsInterned(JSContext *cx, JSAtom *atom)
 {
-    /* We treat static strings as interned because they're never collected. */
-    if (StaticStrings::isStatic(atom))
+    if (atom->isStaticAtom())
         return true;
 
     AutoLockAtomsCompartment lock(cx);
@@ -463,7 +461,7 @@ AtomizeInline(JSContext *cx, const jschar **pchars, size_t length,
 {
     const jschar *chars = *pchars;
 
-    if (JSAtom *s = cx->runtime->staticStrings.lookup(chars, length))
+    if (JSAtom *s = JSAtom::lookupStatic(chars, length))
         return s;
 
     AutoLockAtomsCompartment lock(cx);
@@ -523,7 +521,7 @@ js_AtomizeString(JSContext *cx, JSString *str, InternBehavior ib)
     if (str->isAtom()) {
         JSAtom &atom = str->asAtom();
         /* N.B. static atoms are effectively always interned. */
-        if (ib != InternAtom || js::StaticStrings::isStatic(&atom))
+        if (ib != InternAtom || atom.isStaticAtom())
             return &atom;
 
         /* Here we have to check whether the atom is already interned. */
@@ -606,7 +604,7 @@ js_AtomizeChars(JSContext *cx, const jschar *chars, size_t length, InternBehavio
 JSAtom *
 js_GetExistingStringAtom(JSContext *cx, const jschar *chars, size_t length)
 {
-    if (JSAtom *atom = cx->runtime->staticStrings.lookup(chars, length))
+    if (JSAtom *atom = JSAtom::lookupStatic(chars, length))
         return atom;
     AutoLockAtomsCompartment lock(cx);
     AtomSet::Ptr p = cx->runtime->atomState.atoms.lookup(AtomHasher::Lookup(chars, length));

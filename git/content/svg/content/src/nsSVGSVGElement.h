@@ -194,6 +194,7 @@ public:
   // nsSVGElement specializations:
   virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix) const;
   virtual void DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr);
+  virtual void DidChangeEnum(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeViewBox(PRBool aDoSetAttr);
   virtual void DidChangePreserveAspectRatio(PRBool aDoSetAttr);
 

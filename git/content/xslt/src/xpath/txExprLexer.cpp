@@ -41,7 +41,7 @@
  */
 
 #include "txExprLexer.h"
-#include "nsGkAtoms.h"
+#include "txAtoms.h"
 #include "nsString.h"
 #include "txError.h"
 #include "txXMLUtils.h"
@@ -180,16 +180,16 @@ txExprLexer::parse(const nsASingleFragmentString& aPattern)
       }
       if (nextIsOperatorToken(prevToken)) {
         nsDependentSubstring op(Substring(start, mPosition));
-        if (nsGkAtoms::_and->Equals(op)) {
+        if (txXPathAtoms::_and->Equals(op)) {
           defType = Token::AND_OP;
         }
-        else if (nsGkAtoms::_or->Equals(op)) {
+        else if (txXPathAtoms::_or->Equals(op)) {
           defType = Token::OR_OP;
         }
-        else if (nsGkAtoms::mod->Equals(op)) {
+        else if (txXPathAtoms::mod->Equals(op)) {
           defType = Token::MODULUS_OP;
         }
-        else if (nsGkAtoms::div->Equals(op)) {
+        else if (txXPathAtoms::div->Equals(op)) {
           defType = Token::DIVIDE_OP;
         }
         else {

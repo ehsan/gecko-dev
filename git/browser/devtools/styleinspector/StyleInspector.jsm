@@ -68,7 +68,6 @@ var StyleInspector = {
     let ns = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
     let panel = win.document.createElementNS(ns, "panel");
 
-    panel.setAttribute("class", "styleInspector");
     panel.setAttribute("orient", "vertical");
     panel.setAttribute("ignorekeys", "true");
     panel.setAttribute("noautofocus", "true");
@@ -76,8 +75,11 @@ var StyleInspector = {
     panel.setAttribute("titlebar", "normal");
     panel.setAttribute("close", "true");
     panel.setAttribute("label", StyleInspector.l10n("panelTitle"));
-    panel.setAttribute("width", 350);
-    panel.setAttribute("height", win.screen.height / 2);
+
+    // size panel to 200px wide by half browser height - 60.
+    let contentWindow = win.gBrowser.selectedBrowser.contentWindow;
+    panel.setAttribute("width", 200);
+    panel.setAttribute("height", contentWindow.outerHeight / 2 - 60);
 
     let vbox = win.document.createElement("vbox");
     vbox.setAttribute("flex", "1");

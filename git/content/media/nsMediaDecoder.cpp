@@ -71,7 +71,7 @@ static const PRUint32 STALL_MS = 3000;
 static const PRInt64 CAN_PLAY_THROUGH_MARGIN = 10;
 
 nsMediaDecoder::nsMediaDecoder() :
-  mElement(nsnull),
+  mElement(0),
   mRGBWidth(-1),
   mRGBHeight(-1),
   mVideoUpdateLock("nsMediaDecoder.mVideoUpdateLock"),

@@ -88,7 +88,7 @@ function addPermission(permission, url)
                     .newURI(url, null, null);
   }
   else {
-    uri = SpecialPowers.getDocumentURIObject(window.document);
+    uri = window.document.documentURIObject;
   }
 
   Components.classes["@mozilla.org/permissionmanager;1"]
@@ -108,7 +108,7 @@ function removePermission(permission, url)
                     .newURI(url, null, null);
   }
   else {
-    uri = SpecialPowers.getDocumentURIObject(window.document);
+    uri = window.document.documentURIObject;
   }
 
   Components.classes["@mozilla.org/permissionmanager;1"]

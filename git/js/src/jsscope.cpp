@@ -522,7 +522,7 @@ NormalizeGetterAndSetter(JSContext *cx, JSObject *obj,
                          PropertyOp &getter,
                          StrictPropertyOp &setter)
 {
-    if (setter == JS_StrictPropertyStub) {
+    if (setter == StrictPropertyStub) {
         JS_ASSERT(!(attrs & JSPROP_SETTER));
         setter = NULL;
     }
@@ -532,7 +532,7 @@ NormalizeGetterAndSetter(JSContext *cx, JSObject *obj,
         JS_ASSERT(!setter);
         JS_ASSERT(!(attrs & (JSPROP_GETTER | JSPROP_SETTER)));
     } else {
-        if (getter == JS_PropertyStub) {
+        if (getter == PropertyStub) {
             JS_ASSERT(!(attrs & JSPROP_GETTER));
             getter = NULL;
         }
@@ -909,9 +909,9 @@ JSObject::changeProperty(JSContext *cx, const Shape *shape, uintN attrs, uintN m
     if (attrs & (JSPROP_GETTER | JSPROP_SETTER))
         types::AddTypePropertyId(cx, this, shape->propid, types::Type::UnknownType());
 
-    if (getter == JS_PropertyStub)
+    if (getter == PropertyStub)
         getter = NULL;
-    if (setter == JS_StrictPropertyStub)
+    if (setter == StrictPropertyStub)
         setter = NULL;
 
     if (!CheckCanChangeAttrs(cx, this, shape, &attrs))

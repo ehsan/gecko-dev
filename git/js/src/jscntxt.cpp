@@ -406,9 +406,7 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
 #ifdef JS_THREADSAFE
         JS_BeginRequest(cx);
 #endif
-        bool ok = rt->staticStrings.init(cx);
-        if (ok)
-            ok = js_InitCommonAtoms(cx);
+        JSBool ok = js_InitCommonAtoms(cx);
 
 #ifdef JS_THREADSAFE
         JS_EndRequest(cx);

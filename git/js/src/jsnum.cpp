@@ -86,6 +86,7 @@
 
 using namespace js;
 using namespace js::types;
+using namespace mozilla;
 
 #ifndef JS_HAVE_STDINT_H /* Native support is innocent until proven guilty. */
 
@@ -561,13 +562,13 @@ static JSFunctionSpec number_functions[] = {
 Class js::NumberClass = {
     js_Number_str,
     JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_HAS_CACHED_PROTO(JSProto_Number),
-    JS_PropertyStub,         /* addProperty */
-    JS_PropertyStub,         /* delProperty */
-    JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub,   /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub
+    PropertyStub,         /* addProperty */
+    PropertyStub,         /* delProperty */
+    PropertyStub,         /* getProperty */
+    StrictPropertyStub,   /* setProperty */
+    EnumerateStub,
+    ResolveStub,
+    ConvertStub
 };
 
 static JSBool
@@ -636,8 +637,8 @@ js_IntToString(JSContext *cx, int32 si)
 {
     uint32 ui;
     if (si >= 0) {
-        if (StaticStrings::hasInt(si))
-            return cx->runtime->staticStrings.getInt(si);
+        if (JSAtom::hasIntStatic(si))
+            return &JSAtom::intStatic(si);
         ui = si;
     } else {
         ui = uint32(-si);
@@ -841,7 +842,7 @@ num_toLocaleString(JSContext *cx, uintN argc, Value *vp)
     }
 
     if (cx->localeCallbacks && cx->localeCallbacks->localeToUnicode) {
-        JSBool ok = cx->localeCallbacks->localeToUnicode(cx, buf, vp);
+        JSBool ok = cx->localeCallbacks->localeToUnicode(cx, buf, Jsvalify(vp));
         cx->free_(buf);
         return ok;
     }
@@ -1119,14 +1120,14 @@ js_InitNumberClass(JSContext *cx, JSObject *obj)
 
     /* ECMA 15.1.1.1 */
     rt = cx->runtime;
-    if (!JS_DefineProperty(cx, obj, js_NaN_str, rt->NaNValue,
+    if (!JS_DefineProperty(cx, obj, js_NaN_str, Jsvalify(rt->NaNValue),
                            JS_PropertyStub, JS_StrictPropertyStub,
                            JSPROP_PERMANENT | JSPROP_READONLY)) {
         return NULL;
     }
 
     /* ECMA 15.1.1.2 */
-    if (!JS_DefineProperty(cx, obj, js_Infinity_str, rt->positiveInfinityValue,
+    if (!JS_DefineProperty(cx, obj, js_Infinity_str, Jsvalify(rt->positiveInfinityValue),
                            JS_PropertyStub, JS_StrictPropertyStub,
                            JSPROP_PERMANENT | JSPROP_READONLY)) {
         return NULL;
@@ -1203,15 +1204,17 @@ js_NumberToStringWithBase(JSContext *cx, jsdouble d, jsint base)
 
     int32_t i;
     if (JSDOUBLE_IS_INT32(d, &i)) {
-        if (base == 10 && StaticStrings::hasInt(i))
-            return cx->runtime->staticStrings.getInt(i);
+        if (base == 10 && JSAtom::hasIntStatic(i))
+            return &JSAtom::intStatic(i);
+#ifdef JS_HAS_STATIC_STRINGS
         if (jsuint(i) < jsuint(base)) {
             if (i < 10)
-                return cx->runtime->staticStrings.getInt(i);
+                return &JSAtom::intStatic(i);
             jschar c = 'a' + i - 10;
-            JS_ASSERT(StaticStrings::hasUnit(c));
-            return cx->runtime->staticStrings.getUnit(c);
+            JS_ASSERT(JSAtom::hasUnitStatic(c));
+            return &JSAtom::unitStatic(c);
         }
+#endif
 
         if (JSFlatString *str = c->dtoaCache.lookup(base, d))
             return str;
@@ -1257,8 +1260,8 @@ NumberToString(JSContext *cx, jsdouble d)
 JSFixedString *
 IndexToString(JSContext *cx, uint32 index)
 {
-    if (StaticStrings::hasUint(index))
-        return cx->runtime->staticStrings.getUint(index);
+    if (JSAtom::hasUintStatic(index))
+        return &JSAtom::uintStatic(index);
 
     JSCompartment *c = cx->compartment;
     if (JSFixedString *str = c->dtoaCache.lookup(10, index))

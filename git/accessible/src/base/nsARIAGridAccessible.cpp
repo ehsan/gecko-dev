@@ -795,11 +795,11 @@ nsARIAGridAccessible::SetARIASelected(nsAccessible *aAccessible,
 
   nsresult rv = NS_OK;
   if (aIsSelected)
-    rv = content->SetAttr(kNameSpaceID_None, nsGkAtoms::aria_selected,
+    rv = content->SetAttr(kNameSpaceID_None, nsAccessibilityAtoms::aria_selected,
                           NS_LITERAL_STRING("true"), aNotify);
   else
     rv = content->UnsetAttr(kNameSpaceID_None,
-                            nsGkAtoms::aria_selected, aNotify);
+                            nsAccessibilityAtoms::aria_selected, aNotify);
 
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1130,10 +1130,10 @@ nsARIAGridCellAccessible::ApplyARIAState(PRUint64* aState)
 
   nsIContent *rowContent = row->GetContent();
   if (nsAccUtils::HasDefinedARIAToken(rowContent,
-                                      nsGkAtoms::aria_selected) &&
+                                      nsAccessibilityAtoms::aria_selected) &&
       !rowContent->AttrValueIs(kNameSpaceID_None,
-                               nsGkAtoms::aria_selected,
-                               nsGkAtoms::_false, eCaseMatters))
+                               nsAccessibilityAtoms::aria_selected,
+                               nsAccessibilityAtoms::_false, eCaseMatters))
     *aState |= states::SELECTABLE | states::SELECTED;
 }
 
@@ -1190,7 +1190,7 @@ nsARIAGridCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAttrib
 
   nsAutoString stringIdx;
   stringIdx.AppendInt(idx);
-  nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::tableCellIndex,
+  nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::tableCellIndex,
                          stringIdx);
 
   return NS_OK;

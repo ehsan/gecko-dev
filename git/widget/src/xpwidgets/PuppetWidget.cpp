@@ -558,6 +558,7 @@ PuppetWidget::DispatchPaintEvent()
                          nsCAutoString("PuppetWidget"), nsnull);
 #endif
 
+    LayerManager* lm = GetLayerManager();
     if (LayerManager::LAYERS_D3D10 == mLayerManager->GetBackendType()) {
       DispatchEvent(&event, status);
     } else {

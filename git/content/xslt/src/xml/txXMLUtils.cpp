@@ -44,7 +44,7 @@
 #include "txXMLUtils.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
-#include "nsGkAtoms.h"
+#include "txAtoms.h"
 #include "txStringUtils.h"
 #include "txNamespaceMap.h"
 #include "txXPathTreeWalker.h"
@@ -235,11 +235,11 @@ MBool XMLUtils::getXMLSpacePreserve(const txXPathNode& aNode)
     nsAutoString value;
     txXPathTreeWalker walker(aNode);
     do {
-        if (walker.getAttr(nsGkAtoms::space, kNameSpaceID_XML, value)) {
-            if (TX_StringEqualsAtom(value, nsGkAtoms::preserve)) {
+        if (walker.getAttr(txXMLAtoms::space, kNameSpaceID_XML, value)) {
+            if (TX_StringEqualsAtom(value, txXMLAtoms::preserve)) {
                 return PR_TRUE;
             }
-            if (TX_StringEqualsAtom(value, nsGkAtoms::_default)) {
+            if (TX_StringEqualsAtom(value, txXMLAtoms::_default)) {
                 return PR_FALSE;
             }
         }

@@ -38,7 +38,7 @@
 
 #include "txPatternParser.h"
 #include "txExprLexer.h"
-#include "nsGkAtoms.h"
+#include "txAtoms.h"
 #include "txError.h"
 #include "txStringUtils.h"
 #include "txXSLTPatterns.h"
@@ -166,10 +166,10 @@ nsresult txPatternParser::createLocPathPattern(txExprLexer& aLexer,
             {
                 nsCOMPtr<nsIAtom> nameAtom =
                     do_GetAtom(aLexer.nextToken()->Value());
-                if (nameAtom == nsGkAtoms::id) {
+                if (nameAtom == txXPathAtoms::id) {
                     rv = createIdPattern(aLexer, stepPattern);
                 }
-                else if (nameAtom == nsGkAtoms::key) {
+                else if (nameAtom == txXSLTAtoms::key) {
                     rv = createKeyPattern(aLexer, aContext, stepPattern);
                 }
                 if (NS_FAILED(rv))
@@ -302,10 +302,10 @@ nsresult txPatternParser::createStepPattern(txExprLexer& aLexer,
     MBool isAttr = MB_FALSE;
     Token* tok = aLexer.peek();
     if (tok->mType == Token::AXIS_IDENTIFIER) {
-        if (TX_StringEqualsAtom(tok->Value(), nsGkAtoms::attribute)) {
+        if (TX_StringEqualsAtom(tok->Value(), txXPathAtoms::attribute)) {
             isAttr = MB_TRUE;
         }
-        else if (!TX_StringEqualsAtom(tok->Value(), nsGkAtoms::child)) {
+        else if (!TX_StringEqualsAtom(tok->Value(), txXPathAtoms::child)) {
             // all done already for CHILD_AXIS, for all others
             // XXX report unexpected axis error
             return NS_ERROR_XPATH_PARSE_FAILURE;

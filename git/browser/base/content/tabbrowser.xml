@@ -563,10 +563,7 @@
                 if (this.mBlank)
                   this.mBlank = false;
 
-                if (this.mTab.hasAttribute("busy")) {
-                  this.mTab.removeAttribute("busy");
-                  this.mTabBrowser._tabAttrModified(this.mTab);
-                }
+                this.mTab.removeAttribute("busy");
                 this.mTab.removeAttribute("progress");
                 if (!this.mTab.selected)
                   this.mTab.setAttribute("unread", "true");
@@ -4168,14 +4165,12 @@
         <body><![CDATA[
           aMenuitem.setAttribute("label", aTab.label);
           aMenuitem.setAttribute("crop", aTab.getAttribute("crop"));
+          aMenuitem.setAttribute("image", aTab.getAttribute("image"));
 
-          if (aTab.hasAttribute("busy")) {
+          if (aTab.hasAttribute("busy"))
             aMenuitem.setAttribute("busy", aTab.getAttribute("busy"));
-            aMenuitem.removeAttribute("image");
-          } else {
-            aMenuitem.setAttribute("image", aTab.getAttribute("image"));
+          else
             aMenuitem.removeAttribute("busy");
-          }
 
           if (aTab.selected)
             aMenuitem.setAttribute("selected", "true");

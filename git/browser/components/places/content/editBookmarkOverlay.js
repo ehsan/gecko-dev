@@ -77,7 +77,7 @@ var gEditItemOverlay = {
     if (aInfo && aInfo.hiddenRows)
       this._hiddenRows = aInfo.hiddenRows;
     else
-      this._hiddenRows.splice(0, this._hiddenRows.length);
+      this._hiddenRows.splice(0);
     // force-read-only
     this._readOnly = aInfo && aInfo.forceReadOnly;
   },

@@ -1350,7 +1350,7 @@ nsEventSource::DispatchAllMessageEvents()
   nsIScriptContext* scriptContext = sgo->GetContext();
   NS_ENSURE_TRUE(scriptContext,);
 
-  JSContext* cx = scriptContext->GetNativeContext();
+  JSContext* cx = (JSContext*)scriptContext->GetNativeContext();
   NS_ENSURE_TRUE(cx,);
 
   while (mMessagesToDispatch.GetSize() > 0) {

@@ -207,8 +207,7 @@ stubs::SetName(VMFrame &f, JSAtom *origAtom)
                 uint32 slot;
                 if (shape->previous() == obj->lastProperty() &&
                     entry->vshape() == cx->runtime->protoHazardShape &&
-                    shape->hasDefaultSetter() &&
-                    obj->getClass()->addProperty == JS_PropertyStub) {
+                    shape->hasDefaultSetter()) {
                     slot = shape->slot;
                     JS_ASSERT(slot == obj->slotSpan());
 
@@ -376,6 +375,7 @@ NameOp(VMFrame &f, JSObject *obj, bool callname)
             if (op2 == JSOP_TYPEOF) {
                 f.regs.sp++;
                 f.regs.sp[-1].setUndefined();
+                TypeScript::Monitor(cx, f.script(), f.pc(), f.regs.sp[-1]);
                 return obj;
             }
             ReportAtomNotDefined(cx, atom);
@@ -384,7 +384,7 @@ NameOp(VMFrame &f, JSObject *obj, bool callname)
 
         /* Take the slow path if prop was not found in a native object. */
         if (!obj->isNative() || !obj2->isNative()) {
-            if (!obj->getGeneric(cx, id, &rval))
+            if (!obj->getProperty(cx, id, &rval))
                 return NULL;
         } else {
             shape = (Shape *)prop;
@@ -401,6 +401,8 @@ NameOp(VMFrame &f, JSObject *obj, bool callname)
         if (rval.isUndefined() && (js_CodeSpec[*f.pc()].format & (JOF_INC|JOF_DEC)))
             AddTypePropertyId(cx, obj, id, Type::UndefinedType());
     }
+
+    TypeScript::Monitor(cx, f.script(), f.pc(), rval);
 
     *f.regs.sp++ = rval;
 
@@ -437,10 +439,11 @@ stubs::GetElem(VMFrame &f)
         JSString *str = lref.toString();
         int32_t i = rref.toInt32();
         if ((size_t)i < str->length()) {
-            str = f.cx->runtime->staticStrings.getUnitStringForElement(cx, str, (size_t)i);
+            str = JSAtom::getUnitStringForElement(cx, str, (size_t)i);
             if (!str)
                 THROW();
             f.regs.sp[-2].setString(str);
+            TypeScript::Monitor(cx, f.script(), f.pc(), f.regs.sp[-2]);
             return;
         }
     }
@@ -448,6 +451,7 @@ stubs::GetElem(VMFrame &f)
     if (lref.isMagic(JS_LAZY_ARGUMENTS)) {
         if (rref.isInt32() && size_t(rref.toInt32()) < regs.fp()->numActualArgs()) {
             regs.sp[-2] = regs.fp()->canonicalActualArg(rref.toInt32());
+            TypeScript::Monitor(cx, f.script(), f.pc(), regs.sp[-2]);
             return;
         }
         MarkArgumentsCreated(cx, f.script());
@@ -500,12 +504,16 @@ stubs::GetElem(VMFrame &f)
         }
     }
 
-    if (!obj->getGeneric(cx, id, &rval))
+    if (!obj->getProperty(cx, id, &rval))
         THROW();
     copyFrom = &rval;
 
+    if (!JSID_IS_INT(id))
+        TypeScript::MonitorUnknown(cx, f.script(), f.pc());
+
   end_getelem:
     f.regs.sp[-2] = *copyFrom;
+    TypeScript::Monitor(cx, f.script(), f.pc(), f.regs.sp[-2]);
 }
 
 static inline bool
@@ -551,6 +559,9 @@ stubs::CallElem(VMFrame &f)
     {
         regs.sp[-1] = thisv;
     }
+    if (!JSID_IS_INT(id))
+        TypeScript::MonitorUnknown(cx, f.script(), f.pc());
+    TypeScript::Monitor(cx, f.script(), f.pc(), regs.sp[-2]);
 }
 
 template<JSBool strict>
@@ -586,12 +597,18 @@ stubs::SetElem(VMFrame &f)
                         break;
                     if ((jsuint)i >= obj->getArrayLength())
                         obj->setArrayLength(cx, i + 1);
+                    /*
+                     * Note: this stub is used for ENUMELEM, so watch out
+                     * before overwriting the op.
+                     */
+                    if (JSOp(*f.pc()) == JSOP_SETELEM)
+                        *f.pc() = JSOP_SETHOLE;
                 }
                 obj->setDenseArrayElementWithType(cx, i, rval);
                 goto end_setelem;
             } else {
-                if (f.script()->hasAnalysis())
-                    f.script()->analysis()->getCode(f.pc()).arrayWriteHole = true;
+                if (JSOp(*f.pc()) == JSOP_SETELEM)
+                    *f.pc() = JSOP_SETHOLE;
             }
         }
     } while (0);
@@ -780,7 +797,6 @@ stubs::DefFun(VMFrame &f, JSFunction *fun)
         obj = CloneFunctionObject(cx, fun, obj2, true);
         if (!obj)
             THROW();
-        JS_ASSERT_IF(f.script()->compileAndGo, obj->getGlobal() == fun->getGlobal());
     }
 
     /*
@@ -810,7 +826,7 @@ stubs::DefFun(VMFrame &f, JSFunction *fun)
     do {
         /* Steps 5d, 5f. */
         if (!prop || pobj != parent) {
-            if (!parent->defineProperty(cx, id, rval, JS_PropertyStub, JS_StrictPropertyStub, attrs))
+            if (!parent->defineProperty(cx, id, rval, PropertyStub, StrictPropertyStub, attrs))
                 THROW();
             break;
         }
@@ -820,7 +836,7 @@ stubs::DefFun(VMFrame &f, JSFunction *fun)
         Shape *shape = reinterpret_cast<Shape *>(prop);
         if (parent->isGlobal()) {
             if (shape->configurable()) {
-                if (!parent->defineProperty(cx, id, rval, JS_PropertyStub, JS_StrictPropertyStub, attrs))
+                if (!parent->defineProperty(cx, id, rval, PropertyStub, StrictPropertyStub, attrs))
                     THROW();
                 break;
             }
@@ -957,7 +973,7 @@ StubEqualityOp(VMFrame &f)
         } else if (lval.isObject()) {
             JSObject *l = &lval.toObject(), *r = &rval.toObject();
             l->assertSpecialEqualitySynced();
-            if (JSEqualityOp eq = l->getClass()->ext.equality) {
+            if (EqualityOp eq = l->getClass()->ext.equality) {
                 if (!eq(cx, l, &rval, &cond))
                     return false;
                 cond = cond == EQ;
@@ -1194,8 +1210,10 @@ stubs::DebuggerStatement(VMFrame &f, jsbytecode *pc)
     if (handler || !f.cx->compartment->getDebuggees().empty()) {
         JSTrapStatus st = JSTRAP_CONTINUE;
         Value rval;
-        if (handler)
-            st = handler(f.cx, f.script(), pc, &rval, f.cx->debugHooks->debuggerHandlerData);
+        if (handler) {
+            st = handler(f.cx, f.script(), pc, Jsvalify(&rval),
+                         f.cx->debugHooks->debuggerHandlerData);
+        }
         if (st == JSTRAP_CONTINUE)
             st = Debugger::onDebuggerStatement(f.cx, &rval);
 
@@ -1253,7 +1271,8 @@ stubs::Trap(VMFrame &f, uint32 trapTypes)
          */
         JSInterruptHook hook = f.cx->debugHooks->interruptHook;
         if (hook)
-            result = hook(f.cx, f.script(), f.pc(), &rval, f.cx->debugHooks->interruptHookData);
+            result = hook(f.cx, f.script(), f.pc(), Jsvalify(&rval),
+                          f.cx->debugHooks->interruptHookData);
 
         if (result == JSTRAP_CONTINUE)
             result = Debugger::onSingleStep(f.cx, &rval);
@@ -1428,8 +1447,6 @@ stubs::DefLocalFun(VMFrame &f, JSFunction *fun)
         }
     }
 
-    JS_ASSERT_IF(f.script()->compileAndGo, obj->getGlobal() == fun->getGlobal());
-
     return obj;
 }
 
@@ -1544,7 +1561,6 @@ stubs::Lambda(VMFrame &f, JSFunction *fun)
     if (!obj)
         THROWV(NULL);
 
-    JS_ASSERT_IF(f.script()->compileAndGo, obj->getGlobal() == fun->getGlobal());
     return obj;
 }
 
@@ -1559,6 +1575,7 @@ InlineGetProp(VMFrame &f)
     if (vp->isMagic(JS_LAZY_ARGUMENTS)) {
         JS_ASSERT(js_GetOpcode(cx, f.script(), f.pc()) == JSOP_LENGTH);
         regs.sp[-1] = Int32Value(regs.fp()->numActualArgs());
+        TypeScript::Monitor(cx, f.script(), f.pc(), regs.sp[-1]);
         return true;
     }
 
@@ -1602,10 +1619,12 @@ InlineGetProp(VMFrame &f)
                     ? JSGET_CACHE_RESULT | JSGET_NO_METHOD_BARRIER
                     : JSGET_CACHE_RESULT | JSGET_METHOD_BARRIER,
                     &rval)
-                : !obj->getGeneric(cx, id, &rval)) {
+                : !obj->getProperty(cx, id, &rval)) {
             return false;
         }
     } while(0);
+
+    TypeScript::Monitor(cx, f.script(), f.pc(), rval);
 
     regs.sp[-1] = rval;
     return true;
@@ -1628,7 +1647,7 @@ stubs::GetPropNoCache(VMFrame &f, JSAtom *atom)
     if (!obj)
         THROW();
 
-    if (!obj->getGeneric(cx, ATOM_TO_JSID(atom), vp))
+    if (!obj->getProperty(cx, ATOM_TO_JSID(atom), vp))
         THROW();
 
     /* Don't check for undefined, this is only used for 'prototype'. See ic::GetProp. */
@@ -1725,6 +1744,7 @@ stubs::CallProp(VMFrame &f, JSAtom *origAtom)
             THROW();
     }
 #endif
+    TypeScript::Monitor(cx, f.script(), f.pc(), rval);
 }
 
 void JS_FASTCALL
@@ -1861,7 +1881,7 @@ JSString * JS_FASTCALL
 stubs::TypeOf(VMFrame &f)
 {
     const Value &ref = f.regs.sp[-1];
-    JSType type = JS_TypeOfValue(f.cx, ref);
+    JSType type = JS_TypeOfValue(f.cx, Jsvalify(ref));
     JSAtom *atom = f.cx->runtime->atomState.typeAtoms[type];
     return atom;
 }
@@ -2305,7 +2325,7 @@ stubs::DefVarOrConst(VMFrame &f, JSAtom *atom)
 
     /* Bind a variable only if it's not yet defined. */
     if (shouldDefine && 
-        !DefineNativeProperty(cx, obj, id, UndefinedValue(), JS_PropertyStub, JS_StrictPropertyStub,
+        !DefineNativeProperty(cx, obj, id, UndefinedValue(), PropertyStub, StrictPropertyStub,
                               attrs, 0, 0)) {
         THROW();
     }
@@ -2320,7 +2340,7 @@ stubs::SetConst(VMFrame &f, JSAtom *atom)
     const Value &ref = f.regs.sp[-1];
 
     if (!obj->defineProperty(cx, ATOM_TO_JSID(atom), ref,
-                             JS_PropertyStub, JS_StrictPropertyStub,
+                             PropertyStub, StrictPropertyStub,
                              JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY)) {
         THROW();
     }
@@ -2376,19 +2396,6 @@ stubs::TypeBarrierHelper(VMFrame &f, uint32 which)
     TypeScript::Monitor(f.cx, f.script(), f.pc(), result);
 }
 
-void JS_FASTCALL
-stubs::StubTypeHelper(VMFrame &f, int32 which)
-{
-    const Value &result = f.regs.sp[which];
-
-    if (f.script()->hasAnalysis() && f.script()->analysis()->ranInference()) {
-        AutoEnterTypeInference enter(f.cx);
-        f.script()->analysis()->breakTypeBarriers(f.cx, f.pc() - f.script()->code, false);
-    }
-
-    TypeScript::Monitor(f.cx, f.script(), f.pc(), result);
-}
-
 /*
  * Variant of TypeBarrierHelper for checking types after making a native call.
  * The stack is already correct, and no fixup should be performed.
@@ -2404,6 +2411,25 @@ stubs::NegZeroHelper(VMFrame &f)
 {
     f.regs.sp[-1].setDouble(-0.0);
     TypeScript::MonitorOverflow(f.cx, f.script(), f.pc());
+}
+
+void JS_FASTCALL
+stubs::CallPropSwap(VMFrame &f)
+{
+    /*
+     * CALLPROP operations on strings are implemented in terms of GETPROP.
+     * If we rejoin from such a GETPROP, we come here at the end of the
+     * CALLPROP to fix up the stack. Right now the stack looks like:
+     *
+     * STRING PROP
+     *
+     * We need it to be:
+     *
+     * PROP STRING
+     */
+    Value v = f.regs.sp[-1];
+    f.regs.sp[-1] = f.regs.sp[-2];
+    f.regs.sp[-2] = v;
 }
 
 void JS_FASTCALL

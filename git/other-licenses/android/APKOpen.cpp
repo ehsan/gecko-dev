@@ -241,7 +241,6 @@ SHELL_WRAPPER3(callObserver, jstring, jstring, jstring)
 SHELL_WRAPPER1(removeObserver, jstring)
 SHELL_WRAPPER2(onChangeNetworkLinkStatus, jstring, jstring)
 SHELL_WRAPPER1(reportJavaCrash, jstring)
-SHELL_WRAPPER0(executeNextRunnable)
 
 static void * xul_handle = NULL;
 static time_t apk_mtime = 0;
@@ -432,7 +431,7 @@ static void * mozload(const char * path, void *zip,
 
   if (extractLibs) {
     char fullpath[PATH_MAX];
-    snprintf(fullpath, PATH_MAX, "%s/%s", getenv("CACHE_PATH"), path);
+    snprintf(fullpath, PATH_MAX, "%s/%s", getenv("CACHE_PATH"), path + 4);
     __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "resolved %s to %s", path, fullpath);
     extractFile(fullpath, entry, data);
     handle = __wrap_dlopen(fullpath, RTLD_LAZY);
@@ -456,11 +455,11 @@ static void * mozload(const char * path, void *zip,
   uint32_t lib_size = letoh32(entry->uncompressed_size);
   int cache_fd = 0;
   if (letoh16(file->compression) == DEFLATE) {
-    cache_fd = lookupLibCacheFd(path);
+    cache_fd = lookupLibCacheFd(path + 4);
     fd = cache_fd;
     if (fd < 0) {
       char fullpath[PATH_MAX];
-      snprintf(fullpath, PATH_MAX, "%s/%s", getenv("CACHE_PATH"), path);
+      snprintf(fullpath, PATH_MAX, "%s/%s", getenv("CACHE_PATH"), path + 4);
       fd = open(fullpath, O_RDWR);
       struct stat status;
       if (stat(fullpath, &status) ||
@@ -470,19 +469,19 @@ static void * mozload(const char * path, void *zip,
         fd = -1;
       } else {
         cache_fd = fd;
-        addLibCacheFd(path, fd);
+        addLibCacheFd(path + 4, fd);
       }
     }
     if (fd < 0)
       fd = createAshmem(lib_size, path);
 #ifdef DEBUG
     else
-      __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "Loading %s from cache", path);
+      __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "Loading %s from cache", path + 4);
 #endif
     if (fd < 0) {
       __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "Couldn't open " ASHMEM_NAME_DEF ", Error %d, %s, using a file", errno, strerror(errno));
       char fullpath[PATH_MAX];
-      snprintf(fullpath, PATH_MAX, "%s/%s", getenv("CACHE_PATH"), path);
+      snprintf(fullpath, PATH_MAX, "%s/%s", getenv("CACHE_PATH"), path + 4);
       fd = open(fullpath, O_RDWR | O_CREAT);
       if (fd < 0) {
         __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "Couldn't create a file either, giving up");
@@ -500,7 +499,7 @@ static void * mozload(const char * path, void *zip,
         return NULL;
       }
       skipLibCache = true;
-      addLibCacheFd(path, fd);
+      addLibCacheFd(path + 4, fd);
     }
     buf = mmap(NULL, lib_size,
                PROT_READ | PROT_WRITE,
@@ -516,11 +515,11 @@ static void * mozload(const char * path, void *zip,
     if (cache_fd < 0) {
       extractLib(entry, data, buf);
       if (!skipLibCache)
-        addLibCacheFd(path, fd, lib_size, buf);
+        addLibCacheFd(path + 4, fd, lib_size, buf);
     }
 
     // preload libxul, to avoid slowly demand-paging it
-    if (!strcmp(path, "libxul.so"))
+    if (!strcmp(path, "lib/libxul.so"))
       madvise(buf, entry->uncompressed_size, MADV_WILLNEED);
     data = buf;
   }
@@ -629,7 +628,7 @@ loadLibs(const char *apkName)
   file_ids = (char *)extractBuf("lib.id", zip, cdir_start, cdir_entries);
 #endif
 
-#define MOZLOAD(name) mozload("lib" name ".so", zip, cdir_start, cdir_entries)
+#define MOZLOAD(name) mozload("lib/lib" name ".so", zip, cdir_start, cdir_entries)
   MOZLOAD("mozalloc");
   MOZLOAD("nspr4");
   MOZLOAD("plc4");
@@ -668,7 +667,6 @@ loadLibs(const char *apkName)
   GETFUNC(removeObserver);
   GETFUNC(onChangeNetworkLinkStatus);
   GETFUNC(reportJavaCrash);
-  GETFUNC(executeNextRunnable);
 #undef GETFUNC
   gettimeofday(&t1, 0);
   struct rusage usage2;

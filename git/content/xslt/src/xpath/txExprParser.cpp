@@ -46,7 +46,7 @@
 #include "txExprLexer.h"
 #include "txExpr.h"
 #include "txStack.h"
-#include "nsGkAtoms.h"
+#include "txAtoms.h"
 #include "txError.h"
 #include "txIXPathContext.h"
 #include "txStringUtils.h"
@@ -518,43 +518,43 @@ txExprParser::createLocationStep(txExprLexer& lexer, txIParseContext* aContext,
             //-- eat token
             lexer.nextToken();
             nsCOMPtr<nsIAtom> axis = do_GetAtom(tok->Value());
-            if (axis == nsGkAtoms::ancestor) {
+            if (axis == txXPathAtoms::ancestor) {
                 axisIdentifier = LocationStep::ANCESTOR_AXIS;
             }
-            else if (axis == nsGkAtoms::ancestorOrSelf) {
+            else if (axis == txXPathAtoms::ancestorOrSelf) {
                 axisIdentifier = LocationStep::ANCESTOR_OR_SELF_AXIS;
             }
-            else if (axis == nsGkAtoms::attribute) {
+            else if (axis == txXPathAtoms::attribute) {
                 axisIdentifier = LocationStep::ATTRIBUTE_AXIS;
             }
-            else if (axis == nsGkAtoms::child) {
+            else if (axis == txXPathAtoms::child) {
                 axisIdentifier = LocationStep::CHILD_AXIS;
             }
-            else if (axis == nsGkAtoms::descendant) {
+            else if (axis == txXPathAtoms::descendant) {
                 axisIdentifier = LocationStep::DESCENDANT_AXIS;
             }
-            else if (axis == nsGkAtoms::descendantOrSelf) {
+            else if (axis == txXPathAtoms::descendantOrSelf) {
                 axisIdentifier = LocationStep::DESCENDANT_OR_SELF_AXIS;
             }
-            else if (axis == nsGkAtoms::following) {
+            else if (axis == txXPathAtoms::following) {
                 axisIdentifier = LocationStep::FOLLOWING_AXIS;
             }
-            else if (axis == nsGkAtoms::followingSibling) {
+            else if (axis == txXPathAtoms::followingSibling) {
                 axisIdentifier = LocationStep::FOLLOWING_SIBLING_AXIS;
             }
-            else if (axis == nsGkAtoms::_namespace) {
+            else if (axis == txXPathAtoms::_namespace) {
                 axisIdentifier = LocationStep::NAMESPACE_AXIS;
             }
-            else if (axis == nsGkAtoms::parent) {
+            else if (axis == txXPathAtoms::parent) {
                 axisIdentifier = LocationStep::PARENT_AXIS;
             }
-            else if (axis == nsGkAtoms::preceding) {
+            else if (axis == txXPathAtoms::preceding) {
                 axisIdentifier = LocationStep::PRECEDING_AXIS;
             }
-            else if (axis == nsGkAtoms::precedingSibling) {
+            else if (axis == txXPathAtoms::precedingSibling) {
                 axisIdentifier = LocationStep::PRECEDING_SIBLING_AXIS;
             }
-            else if (axis == nsGkAtoms::self) {
+            else if (axis == txXPathAtoms::self) {
                 axisIdentifier = LocationStep::SELF_AXIS;
             }
             else {

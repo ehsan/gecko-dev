@@ -54,7 +54,7 @@
  * make dependency induced by this file should not prove painful.
  */
 
-#include "jsapi.h"
+#include "jspubtd.h"
 #include "jsstaticcheck.h"
 #include "jsutil.h"
 
@@ -85,6 +85,7 @@ typedef struct JSFunctionBox        JSFunctionBox;
 typedef struct JSObjectBox          JSObjectBox;
 typedef struct JSParseNode          JSParseNode;
 typedef struct JSProperty           JSProperty;
+typedef struct JSScript             JSScript;
 typedef struct JSSharpObjectMap     JSSharpObjectMap;
 typedef struct JSThread             JSThread;
 typedef struct JSTreeContext        JSTreeContext;
@@ -122,12 +123,10 @@ class JSStaticAtom;
 class JSRope;
 class JSAtom;
 struct JSDefinition;
-class JSWrapper;
 
 namespace js {
 
 struct ArgumentsData;
-struct Class;
 
 class RegExp;
 class RegExpStatics;
@@ -185,6 +184,7 @@ class InlineMap;
 
 class PropertyCache;
 struct PropertyCacheEntry;
+struct PropertyDescriptor;
 
 struct Shape;
 struct EmptyShape;
@@ -204,11 +204,6 @@ typedef HashMap<jsbytecode *, BreakpointSite *, DefaultHasher<jsbytecode *>, Run
     BreakpointSiteMap;
 class Debugger;
 class WatchpointMap;
-
-typedef JSNative             Native;
-typedef JSPropertyOp         PropertyOp;
-typedef JSStrictPropertyOp   StrictPropertyOp;
-typedef JSPropertyDescriptor PropertyDescriptor;
 
 } /* namespace js */
 

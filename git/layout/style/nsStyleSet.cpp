@@ -1362,19 +1362,17 @@ nsStyleSet::GCRuleTrees()
 }
 
 static inline nsRuleNode*
-SkipAnimationRules(nsRuleNode* aRuleNode, Element* aElement, PRBool isPseudo)
+SkipTransitionRules(nsRuleNode* aRuleNode, Element* aElement, PRBool isPseudo)
 {
   nsRuleNode* ruleNode = aRuleNode;
   while (!ruleNode->IsRoot() &&
-         (ruleNode->GetLevel() == nsStyleSet::eTransitionSheet ||
-          ruleNode->GetLevel() == nsStyleSet::eAnimationSheet)) {
+         ruleNode->GetLevel() == nsStyleSet::eTransitionSheet) {
     ruleNode = ruleNode->GetParent();
   }
   if (ruleNode != aRuleNode) {
     NS_ASSERTION(aElement, "How can we have transition rules but no element?");
     // Need to do an animation restyle, just like
-    // nsTransitionManager::WalkTransitionRule and
-    // nsAnimationManager::GetAnimationRule would.
+    // nsTransitionManager::WalkTransitionRule would.
     nsRestyleHint hint = isPseudo ? eRestyle_Subtree : eRestyle_Self;
     aRuleNode->GetPresContext()->PresShell()->RestyleForAnimation(aElement,
                                                                   hint);
@@ -1405,16 +1403,16 @@ nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
 
   // Skip transition rules as needed just like
   // nsTransitionManager::WalkTransitionRule would.
-  PRBool skipAnimationRules = PresContext()->IsProcessingRestyles() &&
+  PRBool skipTransitionRules = PresContext()->IsProcessingRestyles() &&
     !PresContext()->IsProcessingAnimationStyleChange();
-  if (skipAnimationRules) {
-    // Make sure that we're not using transition rules or animation rules for
-    // our new style context.  If we need them, an animation restyle will
-    // provide.
+  if (skipTransitionRules) {
+    // FIXME do something here for animations?
+    // Make sure that we're not using transition rules for our new style
+    // context.  If we need them, an animation restyle will provide.
     ruleNode =
-      SkipAnimationRules(ruleNode, aElement,
-                         pseudoType !=
-                           nsCSSPseudoElements::ePseudo_NotPseudoElement);
+      SkipTransitionRules(ruleNode, aElement,
+                          pseudoType !=
+                            nsCSSPseudoElements::ePseudo_NotPseudoElement);
   }
 
   nsRuleNode* visitedRuleNode = nsnull;
@@ -1426,12 +1424,12 @@ nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
   if (visitedContext) {
      visitedRuleNode = visitedContext->GetRuleNode();
      // Again, skip transition rules as needed
-     if (skipAnimationRules) {
+     if (skipTransitionRules) {
       // FIXME do something here for animations?
        visitedRuleNode =
-         SkipAnimationRules(visitedRuleNode, aElement,
-                            pseudoType !=
-                              nsCSSPseudoElements::ePseudo_NotPseudoElement);
+         SkipTransitionRules(visitedRuleNode, aElement,
+                             pseudoType !=
+                               nsCSSPseudoElements::ePseudo_NotPseudoElement);
      }
   }
 

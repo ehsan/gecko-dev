@@ -115,8 +115,6 @@ NSResultToNameAndMessage(nsresult aNSResult,
                          const char** aName,
                          const char** aMessage)
 {
-  *aName = nsnull;
-  *aMessage = nsnull;
   ResultStruct* result_struct = gDOMErrorMsgMap;
 
   while (result_struct->mName) {

@@ -78,6 +78,7 @@ struct Shape;
 namespace gc {
 
 struct Arena;
+struct MarkingDelay;
 
 /*
  * This must be an upper bound, but we do not need the least upper bound, so
@@ -356,8 +357,6 @@ struct FreeSpan {
 
 /* Every arena has a header. */
 struct ArenaHeader {
-    friend struct FreeLists;
-
     JSCompartment   *compartment;
     ArenaHeader     *next;
 
@@ -376,48 +375,21 @@ struct ArenaHeader {
      * during the conservative GC scanning without searching the arena in the
      * list.
      */
-    size_t       allocKind          : 8;
+    unsigned        allocKind;
 
-    /*
-     * When recursive marking uses too much stack the marking is delayed and
-     * the corresponding arenas are put into a stack using the following field
-     * as a linkage. To distinguish the bottom of the stack from the arenas
-     * not present in the stack we use an extra flag to tag arenas on the
-     * stack.
-     *
-     * To minimize the ArenaHeader size we record the next delayed marking
-     * linkage as arenaAddress() >> ArenaShift and pack it with the allocKind
-     * field and hasDelayedMarking flag. We use 8 bits for the allocKind, not
-     * ArenaShift - 1, so the compiler can use byte-level memory instructions
-     * to access it.
-     */
+    friend struct FreeLists;
+
   public:
-    size_t       hasDelayedMarking  : 1;
-    size_t       nextDelayedMarking : JS_BITS_PER_WORD - 8 - 1;
-
-    static void staticAsserts() {
-        /* We must be able to fit the allockind into uint8. */
-        JS_STATIC_ASSERT(FINALIZE_LIMIT <= 255);
-
-        /*
-         * nextDelayedMarkingpacking assumes that ArenaShift has enough bits
-         * to cover allocKind and hasDelayedMarking.
-         */
-        JS_STATIC_ASSERT(ArenaShift >= 8 + 1);
-    }
-
     inline uintptr_t address() const;
     inline Chunk *chunk() const;
 
     void setAsNotAllocated() {
-        allocKind = size_t(FINALIZE_LIMIT);
-        hasDelayedMarking = 0;
-        nextDelayedMarking = 0;
+        allocKind = FINALIZE_LIMIT;
     }
 
     bool allocated() const {
-        JS_ASSERT(allocKind <= size_t(FINALIZE_LIMIT));
-        return allocKind < size_t(FINALIZE_LIMIT);
+        JS_ASSERT(allocKind <= FINALIZE_LIMIT);
+        return allocKind < FINALIZE_LIMIT;
     }
 
     inline void init(JSCompartment *comp, AllocKind kind);
@@ -459,12 +431,11 @@ struct ArenaHeader {
         firstFreeSpanOffsets = span->encodeAsOffsets();
     }
 
+    inline MarkingDelay *getMarkingDelay() const;
+
 #ifdef DEBUG
     void checkSynchronizedWithFreeList() const;
 #endif
-
-    inline Arena *getNextDelayedMarking() const;
-    inline void setNextDelayedMarking(Arena *arena);
 };
 
 struct Arena {
@@ -535,8 +506,32 @@ struct Arena {
     bool finalize(JSContext *cx, AllocKind thingKind, size_t thingSize);
 };
 
+/*
+ * When recursive marking uses too much stack the marking is delayed and
+ * the corresponding arenas are put into a stack using a linked via the
+ * following per arena structure.
+ */
+struct MarkingDelay {
+    ArenaHeader *link;
+
+    void init() {
+        link = NULL;
+    }
+
+    /*
+     * To separate arenas without things to mark later from the arena at the
+     * marked delay stack bottom we use for the latter a special sentinel
+     * value. We set it to the header for the second arena in the chunk
+     * starting at the 0 address.
+     */
+    static ArenaHeader *stackBottom() {
+        return reinterpret_cast<ArenaHeader *>(ArenaSize);
+    }
+};
+
 /* The chunk header (located at the end of the chunk to preserve arena alignment). */
 struct ChunkInfo {
+    JSRuntime       *runtime;
     Chunk           *next;
     Chunk           **prevp;
     ArenaHeader     *emptyArenaListHead;
@@ -544,7 +539,7 @@ struct ChunkInfo {
     size_t          numFree;
 };
 
-const size_t BytesPerArena = ArenaSize + ArenaBitmapBytes;
+const size_t BytesPerArena = ArenaSize + ArenaBitmapBytes + sizeof(MarkingDelay);
 const size_t ArenasPerChunk = (GC_CHUNK_SIZE - sizeof(ChunkInfo)) / BytesPerArena;
 
 /* A chunk bitmap contains enough mark bits for all the cells in a chunk. */
@@ -618,6 +613,7 @@ JS_STATIC_ASSERT(ArenaBitmapBytes * ArenasPerChunk == sizeof(ChunkBitmap));
 struct Chunk {
     Arena           arenas[ArenasPerChunk];
     ChunkBitmap     bitmap;
+    MarkingDelay    markingDelay[ArenasPerChunk];
     ChunkInfo       info;
 
     static Chunk *fromAddress(uintptr_t addr) {
@@ -641,7 +637,7 @@ struct Chunk {
         return addr;
     }
 
-    void init();
+    void init(JSRuntime *rt);
 
     bool unused() const {
         return info.numFree == ArenasPerChunk;
@@ -654,7 +650,7 @@ struct Chunk {
     inline void addToAvailableList(JSCompartment *compartment);
     inline void removeFromAvailableList();
 
-    ArenaHeader *allocateArena(JSCompartment *comp, AllocKind kind);
+    ArenaHeader *allocateArena(JSContext *cx, AllocKind kind);
 
     void releaseArena(ArenaHeader *aheader);
 };
@@ -706,11 +702,9 @@ inline void
 ArenaHeader::init(JSCompartment *comp, AllocKind kind)
 {
     JS_ASSERT(!allocated());
-    JS_ASSERT(!hasDelayedMarking);
+    JS_ASSERT(!getMarkingDelay()->link);
     compartment = comp;
-
-    JS_STATIC_ASSERT(FINALIZE_LIMIT <= 255);
-    allocKind = size_t(kind);
+    allocKind = kind;
 
     /* See comments in FreeSpan::allocateFromNewArena. */
     firstFreeSpanOffsets = FreeSpan::FullArenaOffsets;
@@ -747,20 +741,6 @@ ArenaHeader::getThingSize() const
     return Arena::thingSize(getAllocKind());
 }
 
-inline Arena *
-ArenaHeader::getNextDelayedMarking() const
-{
-    return reinterpret_cast<Arena *>(nextDelayedMarking << ArenaShift);
-}
-
-inline void
-ArenaHeader::setNextDelayedMarking(Arena *arena)
-{
-    JS_ASSERT(!hasDelayedMarking);
-    hasDelayedMarking = 1;
-    nextDelayedMarking = arena->address() >> ArenaShift;
-}
-
 JS_ALWAYS_INLINE void
 ChunkBitmap::getMarkWordAndMask(const Cell *cell, uint32 color,
                                 uintptr_t **wordp, uintptr_t *maskp)
@@ -770,6 +750,12 @@ ChunkBitmap::getMarkWordAndMask(const Cell *cell, uint32 color,
     JS_ASSERT(bit < ArenaBitmapBits * ArenasPerChunk);
     *maskp = uintptr_t(1) << (bit % JS_BITS_PER_WORD);
     *wordp = &bitmap[bit / JS_BITS_PER_WORD];
+}
+
+inline MarkingDelay *
+ArenaHeader::getMarkingDelay() const
+{
+    return &chunk()->markingDelay[Chunk::arenaIndex(address())];
 }
 
 static void
@@ -856,6 +842,12 @@ MapAllocToTraceKind(AllocKind thingKind)
 
 inline JSGCTraceKind
 GetGCThingTraceKind(const void *thing);
+
+static inline JSRuntime *
+GetGCThingRuntime(void *thing)
+{
+    return reinterpret_cast<Cell *>(thing)->chunk()->info.runtime;
+}
 
 struct ArenaLists {
 
@@ -1102,7 +1094,7 @@ struct ArenaLists {
     inline void finalizeNow(JSContext *cx, AllocKind thingKind);
     inline void finalizeLater(JSContext *cx, AllocKind thingKind);
 
-    inline void *allocateFromArena(JSCompartment *comp, AllocKind thingKind);
+    inline void *allocateFromArena(JSContext *cx, AllocKind thingKind);
 };
 
 /*
@@ -1150,7 +1142,7 @@ struct WrapperHasher
     typedef Value Lookup;
 
     static HashNumber hash(Value key) {
-        uint64 bits = key.asRawBits();
+        uint64 bits = JSVAL_BITS(Jsvalify(key));
         return (uint32)bits ^ (uint32)(bits >> 32);
     }
 
@@ -1489,7 +1481,7 @@ struct GCMarker : public JSTracer {
 
   public:
     /* Pointer to the top of the stack of arenas we are delaying marking on. */
-    js::gc::Arena *unmarkedArenaStackTop;
+    js::gc::ArenaHeader *unmarkedArenaStackTop;
     /* Count of arenas that are currently in the stack. */
     DebugOnly<size_t> markLaterArenas;
 

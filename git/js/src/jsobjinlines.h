@@ -67,7 +67,6 @@
 
 #include "vm/GlobalObject.h"
 
-#include "jsatominlines.h"
 #include "jsfuninlines.h"
 #include "jsgcinlines.h"
 #include "jsprobes.h"
@@ -135,35 +134,25 @@ JSObject::setAttributes(JSContext *cx, jsid id, uintN *attrsp)
 }
 
 inline JSBool
-JSObject::getGeneric(JSContext *cx, JSObject *receiver, jsid id, js::Value *vp)
+JSObject::getProperty(JSContext *cx, JSObject *receiver, jsid id, js::Value *vp)
 {
-    js::GenericIdOp op = getOps()->getGeneric;
+    js::PropertyIdOp op = getOps()->getProperty;
     if (op) {
         if (!op(cx, this, receiver, id, vp))
             return false;
     } else {
         if (!js_GetProperty(cx, this, receiver, id, vp))
             return false;
+        JS_ASSERT_IF(!hasSingletonType() && nativeContains(cx, js_CheckForStringIndex(id)),
+                     js::types::TypeHasProperty(cx, type(), id, *vp));
     }
     return true;
 }
 
 inline JSBool
-JSObject::getProperty(JSContext *cx, JSObject *receiver, js::PropertyName *name, js::Value *vp)
+JSObject::getProperty(JSContext *cx, jsid id, js::Value *vp)
 {
-    return getGeneric(cx, receiver, ATOM_TO_JSID(name), vp);
-}
-
-inline JSBool
-JSObject::getGeneric(JSContext *cx, jsid id, js::Value *vp)
-{
-    return getGeneric(cx, this, id, vp);
-}
-
-inline JSBool
-JSObject::getProperty(JSContext *cx, js::PropertyName *name, js::Value *vp)
-{
-    return getGeneric(cx, ATOM_TO_JSID(name), vp);
+    return getProperty(cx, this, id, vp);
 }
 
 inline JSBool
@@ -277,7 +266,7 @@ JSObject::methodReadBarrier(JSContext *cx, const js::Shape &shape, js::Value *vp
     JS_ASSERT(fun == funobj);
     JS_ASSERT(fun->isNullClosure());
 
-    funobj = CloneFunctionObject(cx, fun);
+    funobj = CloneFunctionObject(cx, fun, funobj->getParent(), true);
     if (!funobj)
         return NULL;
     funobj->setMethodObj(*this);
@@ -647,7 +636,7 @@ JSObject::setFlatClosureUpvars(js::Value *upvars)
 {
     JS_ASSERT(isFunction());
     JS_ASSERT(getFunctionPrivate()->isFlatClosure());
-    setFixedSlot(JSSLOT_FLAT_CLOSURE_UPVARS, js::PrivateValue(upvars));
+    setFixedSlot(JSSLOT_FLAT_CLOSURE_UPVARS, PrivateValue(upvars));
 }
 
 inline bool
@@ -688,7 +677,7 @@ inline jsval
 JSObject::getNamePrefixVal() const
 {
     JS_ASSERT(isNamespace() || isQName());
-    return getSlot(JSSLOT_NAME_PREFIX);
+    return js::Jsvalify(getSlot(JSSLOT_NAME_PREFIX));
 }
 
 inline void
@@ -717,7 +706,7 @@ inline jsval
 JSObject::getNameURIVal() const
 {
     JS_ASSERT(isNamespace() || isQName());
-    return getSlot(JSSLOT_NAME_URI);
+    return js::Jsvalify(getSlot(JSSLOT_NAME_URI));
 }
 
 inline void
@@ -731,14 +720,14 @@ inline jsval
 JSObject::getNamespaceDeclared() const
 {
     JS_ASSERT(isNamespace());
-    return getSlot(JSSLOT_NAMESPACE_DECLARED);
+    return js::Jsvalify(getSlot(JSSLOT_NAMESPACE_DECLARED));
 }
 
 inline void
 JSObject::setNamespaceDeclared(jsval decl)
 {
     JS_ASSERT(isNamespace());
-    setSlot(JSSLOT_NAMESPACE_DECLARED, decl);
+    setSlot(JSSLOT_NAMESPACE_DECLARED, js::Valueify(decl));
 }
 
 inline JSAtom *
@@ -753,7 +742,7 @@ inline jsval
 JSObject::getQNameLocalNameVal() const
 {
     JS_ASSERT(isQName());
-    return getSlot(JSSLOT_QNAME_LOCAL_NAME);
+    return js::Jsvalify(getSlot(JSSLOT_QNAME_LOCAL_NAME));
 }
 
 inline void
@@ -876,7 +865,7 @@ JSObject::init(JSContext *cx, js::Class *aclasp, js::types::TypeObject *type,
         slots = fixedSlots();
         flags |= PACKED_ARRAY;
     } else {
-        js::ClearValueRange(fixedSlots(), capacity, denseArray);
+        ClearValueRange(fixedSlots(), capacity, denseArray);
     }
 
     newType = NULL;
@@ -1101,46 +1090,6 @@ inline void
 JSObject::setSharedNonNativeMap()
 {
     setMap(&js::Shape::sharedNonNative);
-}
-
-inline JSBool
-JSObject::lookupElement(JSContext *cx, uint32 index, JSObject **objp, JSProperty **propp)
-{
-    js::LookupElementOp op = getOps()->lookupElement;
-    return (op ? op : js_LookupElement)(cx, this, index, objp, propp);
-}
-
-inline JSBool
-JSObject::getElement(JSContext *cx, JSObject *receiver, uint32 index, js::Value *vp)
-{
-    jsid id;
-    if (!js::IndexToId(cx, index, &id))
-        return false;
-    return getGeneric(cx, receiver, id, vp);
-}
-
-inline JSBool
-JSObject::getElement(JSContext *cx, uint32 index, js::Value *vp)
-{
-    jsid id;
-    if (!js::IndexToId(cx, index, &id))
-        return false;
-    return getGeneric(cx, id, vp);
-}
-
-inline JSBool
-JSObject::deleteElement(JSContext *cx, uint32 index, js::Value *rval, JSBool strict)
-{
-    jsid id;
-    if (!js::IndexToId(cx, index, &id))
-        return false;
-    return deleteProperty(cx, id, rval, strict);
-}
-
-inline JSBool
-JSObject::getSpecial(JSContext *cx, js::SpecialId sid, js::Value *vp)
-{
-    return getGeneric(cx, SPECIALID_TO_JSID(sid), vp);
 }
 
 static inline bool

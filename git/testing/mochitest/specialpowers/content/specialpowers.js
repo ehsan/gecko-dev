@@ -254,6 +254,7 @@ SpecialPowers.prototype = {
     el.width = win.innerWidth;
     el.height = win.innerHeight;
     var ctx = el.getContext("2d");
+    var flags = 0;
 
     ctx.drawWindow(win, win.scrollX, win.scrollY,
                    win.innerWidth, win.innerHeight,
@@ -405,18 +406,6 @@ SpecialPowers.prototype = {
     Cc["@mozilla.org/categorymanager;1"].
       getService(Components.interfaces.nsICategoryManager).
       addCategoryEntry(category, entry, value, persists, replace);
-  },
-
-  getNodePrincipal: function(aNode) {
-      return aNode.nodePrincipal;
-  },
-
-  getNodeBaseURIObject: function(aNode) {
-      return aNode.baseURIObject;
-  },
-
-  getDocumentURIObject: function(aDocument) {
-      return aDocument.documentURIObject;
   },
 };
 

@@ -499,9 +499,9 @@ var AddonManagerInternal = {
       callProvider(provider, "shutdown");
     });
 
-    this.installListeners.splice(0, this.installListeners.length);
-    this.addonListeners.splice(0, this.addonListeners.length);
-    this.typeListeners.splice(0, this.typeListeners.length);
+    this.installListeners.splice(0);
+    this.addonListeners.splice(0);
+    this.typeListeners.splice(0);
     for (let type in this.startupChanges)
       delete this.startupChanges[type];
     gStarted = false;

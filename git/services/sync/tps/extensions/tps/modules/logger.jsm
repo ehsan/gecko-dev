@@ -117,21 +117,16 @@ var Logger =
             JSON.stringify(val2) + ", got " + JSON.stringify(val1));
   },
 
-  log: function (msg, withoutPrefix) {
+  log: function (msg) {
     dump(msg + "\n");
-    if (withoutPrefix) {
-      this.write(msg + "\n");
-    }
-    else {
-      var now = new Date()
-      this.write(now.getFullYear() + "-" + (now.getMonth() < 9 ? '0' : '') + 
-          (now.getMonth() + 1) + "-" + 
-          (now.getDay() < 9 ? '0' : '') + (now.getDay() + 1) + " " +
-          (now.getHours() < 10 ? '0' : '') + now.getHours() + ":" +
-          (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ":" +
-          (now.getSeconds() < 10 ? '0' : '') + now.getSeconds() + " " + 
-          msg + "\n");
-    }
+    var now = new Date()
+    this.write(now.getFullYear() + "-" + (now.getMonth() < 9 ? '0' : '') + 
+        (now.getMonth() + 1) + "-" + 
+        (now.getDay() < 9 ? '0' : '') + (now.getDay() + 1) + " " +
+        (now.getHours() < 10 ? '0' : '') + now.getHours() + ":" +
+        (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ":" +
+        (now.getSeconds() < 10 ? '0' : '') + now.getSeconds() + " " + 
+        msg + "\n");
   },
 
   clearPotentialError: function() {
@@ -155,11 +150,8 @@ var Logger =
     this.log("CROSSWEAVE ERROR: " + msg);
   },
 
-  logInfo: function (msg, withoutPrefix) {
-    if (withoutPrefix)
-      this.log(msg, true);
-    else
-      this.log("CROSSWEAVE INFO: " + msg);
+  logInfo: function (msg) {
+    this.log("CROSSWEAVE INFO: " + msg);
   },
 
   logPass: function (msg) {
