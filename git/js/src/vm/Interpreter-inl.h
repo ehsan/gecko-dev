@@ -23,6 +23,7 @@
 #include "jsfuninlines.h"
 #include "jsinferinlines.h"
 #include "jsopcodeinlines.h"
+#include "jstypedarrayinlines.h"
 #include "vm/GlobalObject-inl.h"
 #include "vm/Stack-inl.h"
 
@@ -214,8 +215,8 @@ GetLengthProperty(const Value &lval, MutableHandleValue vp)
             }
         }
 
-        if (obj->is<TypedArrayObject>()) {
-            vp.setInt32(obj->as<TypedArrayObject>().length());
+        if (obj->isTypedArray()) {
+            vp.setInt32(TypedArrayObject::length(obj));
             return true;
         }
     }
@@ -551,7 +552,7 @@ GetObjectElementOperation(JSContext *cx, JSOp op, JSObject *objArg, bool wasObje
 
         uint32_t index;
         if (IsDefinitelyIndex(rref, &index)) {
-            if (analyze && !objArg->isNative() && !objArg->is<TypedArrayObject>()) {
+            if (analyze && !objArg->isNative() && !objArg->isTypedArray()) {
                 JSScript *script = NULL;
                 jsbytecode *pc = NULL;
                 types::TypeScript::GetPcScript(cx, &script, &pc);
@@ -578,11 +579,8 @@ GetObjectElementOperation(JSContext *cx, JSOp op, JSObject *objArg, bool wasObje
             if (script->hasAnalysis()) {
                 script->analysis()->getCode(pc).getStringElement = true;
 
-                if (!objArg->is<ArrayObject>() && !objArg->isNative() &&
-                    !objArg->is<TypedArrayObject>())
-                {
+                if (!objArg->is<ArrayObject>() && !objArg->isNative() && !objArg->isTypedArray())
                     script->analysis()->getCode(pc).nonNativeGetElement = true;
-                }
             }
         }
 

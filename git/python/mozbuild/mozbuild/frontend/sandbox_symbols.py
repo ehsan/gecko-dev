@@ -341,12 +341,6 @@ VARIABLES = {
         directories to search for included .idl files.
         """),
 
-    'IPDL_SOURCES': (StrictOrderingOnAppendList, list, [],
-        """IPDL source files.
-
-        These are .ipdl files that will be parsed and converted to .cpp files.
-        """),
-
     'XPCSHELL_TESTS_MANIFESTS': (StrictOrderingOnAppendList, list, [],
         """XPCSHELL Test Manifest list
 

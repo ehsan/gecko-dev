@@ -241,6 +241,7 @@ description {
 
 .text-link {
   color: -moz-nativehyperlinktext;
+  border: 1px solid transparent;
   cursor: pointer;
 }
 
@@ -249,7 +250,7 @@ description {
 }
   
 .text-link:-moz-focusring {
-  box-shadow: @focusRingShadow@;
+  border: 1px dotted -moz-DialogText;
 }
 
 .toolbar-focustarget {

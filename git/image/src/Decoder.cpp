@@ -425,7 +425,7 @@ Decoder::MarkFrameDirty()
   MOZ_ASSERT(NS_IsMainThread());
 
   if (mCurrentFrame) {
-    mCurrentFrame->ApplyDirtToSurfaces();
+    mCurrentFrame->MarkImageDataDirty();
   }
 }
 

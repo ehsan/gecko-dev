@@ -37,7 +37,3 @@ CPP_SOURCES += [
     'nsSynthVoiceRegistry.cpp',
 ]
 
-IPDL_SOURCES += [
-    'ipc/PSpeechSynthesis.ipdl',
-    'ipc/PSpeechSynthesisRequest.ipdl',
-]

@@ -70,11 +70,6 @@ CONFIGS = {
             ('XPCSHELL_TESTS_MANIFESTS', 'XPCSHELL_TESTS'),
             ],
     },
-    'ipdl_sources': {
-        'defines': [],
-        'non_global_defines': [],
-        'substs': [],
-    },
 }
 
 

@@ -407,9 +407,6 @@ IonCompartment::sweep(FreeOp *fop)
 
     if (stringConcatStub_ && !IsIonCodeMarked(stringConcatStub_.unsafeGet()))
         stringConcatStub_ = NULL;
-
-    if (parallelStringConcatStub_ && !IsIonCodeMarked(parallelStringConcatStub_.unsafeGet()))
-        parallelStringConcatStub_ = NULL;
 }
 
 IonCode *

@@ -70,7 +70,6 @@ public:
     NS_IMETHOD SetParent(nsIWidget* aNewParent);
     virtual nsIWidget *GetParent(void);
     virtual float GetDPI();
-    virtual double GetDefaultScaleInternal();
     NS_IMETHOD Show(bool aState);
     NS_IMETHOD SetModal(bool aModal);
     virtual bool IsVisible() const;

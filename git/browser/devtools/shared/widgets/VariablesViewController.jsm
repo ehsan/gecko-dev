@@ -123,9 +123,7 @@ VariablesViewController.prototype = {
     let deferred = Promise.defer();
 
     this._getGripClient(aGrip).getPrototypeAndProperties(aResponse => {
-      let { ownProperties, prototype } = aResponse;
-      // safeGetterValues is new and isn't necessary defined on old actors
-      let safeGetterValues = aResponse.safeGetterValues || {};
+      let { ownProperties, prototype, safeGetterValues } = aResponse;
       let sortable = VariablesView.isSortable(aGrip.class);
 
       // Merge the safe getter values into one object such that we can use it
