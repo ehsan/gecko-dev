@@ -39,7 +39,8 @@ public:
    * change from MediaStreamGraph. Called on the MediaStreamGraph thread.
    */
   virtual void NotifyQueuedTrackChanges(MediaStreamGraph* aGraph, TrackID aID,
-                                        StreamTime aTrackOffset,
+                                        TrackRate aTrackRate,
+                                        TrackTicks aTrackOffset,
                                         uint32_t aTrackEvents,
                                         const MediaSegment& aQueuedMedia) = 0;
 
@@ -145,10 +146,11 @@ public:
     , mSamplingRate(0)
   {}
 
-  virtual void NotifyQueuedTrackChanges(MediaStreamGraph* aGraph, TrackID aID,
-                                        StreamTime aTrackOffset,
-                                        uint32_t aTrackEvents,
-                                        const MediaSegment& aQueuedMedia) MOZ_OVERRIDE;
+  void NotifyQueuedTrackChanges(MediaStreamGraph* aGraph, TrackID aID,
+                                TrackRate aTrackRate,
+                                TrackTicks aTrackOffset,
+                                uint32_t aTrackEvents,
+                                const MediaSegment& aQueuedMedia) MOZ_OVERRIDE;
 
   /**
    * Interleaves the track data and stores the result into aOutput. Might need
@@ -235,13 +237,14 @@ public:
   {}
 
   /**
-   * Notified by the same callback of MediaEncoder when it has received a track
+   * Notified by the same callbcak of MediaEncoder when it has received a track
    * change from MediaStreamGraph. Called on the MediaStreamGraph thread.
    */
-  virtual void NotifyQueuedTrackChanges(MediaStreamGraph* aGraph, TrackID aID,
-                                        StreamTime aTrackOffset,
-                                        uint32_t aTrackEvents,
-                                        const MediaSegment& aQueuedMedia) MOZ_OVERRIDE;
+  void NotifyQueuedTrackChanges(MediaStreamGraph* aGraph, TrackID aID,
+                                TrackRate aTrackRate,
+                                TrackTicks aTrackOffset,
+                                uint32_t aTrackEvents,
+                                const MediaSegment& aQueuedMedia) MOZ_OVERRIDE;
   /**
   * Measure size of mRawSegment
   */
@@ -297,10 +300,10 @@ protected:
   TrackRate mTrackRate;
 
   /**
-   * The total duration of frames in encoded video in StreamTime, kept track of
+   * The total duration of frames in encoded video in TrackTicks, kept track of
    * in subclasses.
    */
-  StreamTime mTotalFrameDuration;
+  TrackTicks mTotalFrameDuration;
 
   /**
    * The last unique frame we've sent to track encoder, kept track of in

@@ -2090,9 +2090,9 @@ CodeGenerator::visitOsrEntry(LOsrEntry *lir)
 
 #ifdef JS_TRACE_LOGGING
     if (gen->info().executionMode() == SequentialExecution) {
-        if (!emitTracelogStopEvent(TraceLogger_Baseline))
+        if (!emitTracelogStopEvent(TraceLogger::Baseline))
             return false;
-        if (!emitTracelogStartEvent(TraceLogger_IonMonkey))
+        if (!emitTracelogStartEvent(TraceLogger::IonMonkey))
             return false;
     }
 #endif
@@ -6058,8 +6058,6 @@ bool CodeGenerator::visitSubstr(LSubstr *lir)
     Register length = ToRegister(lir->length());
     Register output = ToRegister(lir->output());
     Register temp = ToRegister(lir->temp());
-    Register temp2 = ToRegister(lir->temp2());
-    Register temp3 = ToRegister(lir->temp3());
     Address stringFlags(string, JSString::offsetOfFlags());
 
     Label isLatin1, notInline, nonZero, isInlinedLatin1;
@@ -6104,10 +6102,9 @@ bool CodeGenerator::visitSubstr(LSubstr *lir)
                      Address(output, JSString::offsetOfFlags()));
         masm.computeEffectiveAddress(stringStorage, temp);
         BaseIndex chars(temp, begin, ScaleFromElemWidth(sizeof(char16_t)));
-        masm.computeEffectiveAddress(chars, temp2);
+        masm.computeEffectiveAddress(chars, begin);
         masm.computeEffectiveAddress(outputStorage, temp);
-        CopyStringChars(masm, temp, temp2, length, temp3, sizeof(char16_t), sizeof(char16_t));
-        masm.load32(Address(output, JSString::offsetOfLength()), length);
+        CopyStringChars(masm, temp, begin, length, string, sizeof(char16_t), sizeof(char16_t));
         masm.store16(Imm32(0), Address(temp, 0));
         masm.jump(done);
     }
@@ -6115,12 +6112,11 @@ bool CodeGenerator::visitSubstr(LSubstr *lir)
     {
         masm.store32(Imm32(JSString::INIT_FAT_INLINE_FLAGS | JSString::LATIN1_CHARS_BIT),
                      Address(output, JSString::offsetOfFlags()));
-        masm.computeEffectiveAddress(stringStorage, temp2);
+        masm.computeEffectiveAddress(stringStorage, temp);
         static_assert(sizeof(char) == 1, "begin index shouldn't need scaling");
-        masm.addPtr(begin, temp2);
+        masm.addPtr(temp, begin);
         masm.computeEffectiveAddress(outputStorage, temp);
-        CopyStringChars(masm, temp, temp2, length, temp3, sizeof(char), sizeof(char));
-        masm.load32(Address(output, JSString::offsetOfLength()), length);
+        CopyStringChars(masm, temp, begin, length, string, sizeof(char), sizeof(char));
         masm.store8(Imm32(0), Address(temp, 0));
         masm.jump(done);
     }
@@ -7652,7 +7648,7 @@ CodeGenerator::generate()
     if (!gen->compilingAsmJS() && gen->info().executionMode() == SequentialExecution) {
         if (!emitTracelogScriptStart())
             return false;
-        if (!emitTracelogStartEvent(TraceLogger_IonMonkey))
+        if (!emitTracelogStartEvent(TraceLogger::IonMonkey))
             return false;
     }
 #endif
@@ -7928,25 +7924,19 @@ CodeGenerator::link(JSContext *cx, types::CompilerConstraintList *constraints)
         ionScript->copyPatchableBackedges(cx, code, patchableBackedges_.begin(), masm);
 
 #ifdef JS_TRACE_LOGGING
-    TraceLoggerThread *logger = TraceLoggerForMainThread(cx->runtime());
+    TraceLogger *logger = TraceLoggerForMainThread(cx->runtime());
     for (uint32_t i = 0; i < patchableTraceLoggers_.length(); i++) {
         patchableTraceLoggers_[i].fixup(&masm);
         Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, patchableTraceLoggers_[i]),
                                            ImmPtr(logger),
                                            ImmPtr(nullptr));
     }
-
-    if (patchableTLScripts_.length() > 0) {
-        MOZ_ASSERT(TraceLogTextIdEnabled(TraceLogger_Scripts));
-        TraceLoggerEvent event(logger, TraceLogger_Scripts, script);
-        ionScript->setTraceLoggerEvent(event);
-        uint32_t textId = event.payload()->textId();
-        for (uint32_t i = 0; i < patchableTLScripts_.length(); i++) {
-            patchableTLScripts_[i].fixup(&masm);
-            Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, patchableTLScripts_[i]),
-                                               ImmPtr((void *) uintptr_t(textId)),
-                                               ImmPtr((void *)0));
-        }
+    uint32_t scriptId = TraceLogCreateTextId(logger, script);
+    for (uint32_t i = 0; i < patchableTLScripts_.length(); i++) {
+        patchableTLScripts_[i].fixup(&masm);
+        Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, patchableTLScripts_[i]),
+                                           ImmPtr((void *) uintptr_t(scriptId)),
+                                           ImmPtr((void *)0));
     }
 #endif
 
@@ -9115,34 +9105,13 @@ CodeGenerator::visitLoadUnboxedPointerT(LLoadUnboxedPointerT *lir)
     const LAllocation *index = lir->index();
     Register out = ToRegister(lir->output());
 
-    bool bailOnNull;
-    int32_t offsetAdjustment;
-    if (lir->mir()->isLoadUnboxedObjectOrNull()) {
-        MOZ_ASSERT(lir->mir()->toLoadUnboxedObjectOrNull()->bailOnNull());
-        bailOnNull = true;
-        offsetAdjustment = lir->mir()->toLoadUnboxedObjectOrNull()->offsetAdjustment();
-    } else if (lir->mir()->isLoadUnboxedString()) {
-        bailOnNull = false;
-        offsetAdjustment = lir->mir()->toLoadUnboxedString()->offsetAdjustment();
-    } else {
-        MOZ_CRASH();
-    }
-
     if (index->isConstant()) {
-        Address source(elements, ToInt32(index) * sizeof(uintptr_t) + offsetAdjustment);
-        masm.loadPtr(source, out);
+        int32_t offset = ToInt32(index) * sizeof(uintptr_t) + lir->mir()->offsetAdjustment();
+        masm.loadPtr(Address(elements, offset), out);
     } else {
-        BaseIndex source(elements, ToRegister(index), ScalePointer, offsetAdjustment);
-        masm.loadPtr(source, out);
+        masm.loadPtr(BaseIndex(elements, ToRegister(index), ScalePointer,
+                               lir->mir()->offsetAdjustment()), out);
     }
-
-    if (bailOnNull) {
-        Label bail;
-        masm.branchTestPtr(Assembler::Zero, out, out, &bail);
-        if (!bailoutFrom(&bail, lir->snapshot()))
-            return false;
-    }
-
     return true;
 }
 

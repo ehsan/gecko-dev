@@ -4275,29 +4275,9 @@ jit::AddObjectsForPropertyRead(MDefinition *obj, PropertyName *name,
 }
 
 static bool
-PropertyTypeIncludes(TempAllocator &alloc, types::HeapTypeSetKey property,
-                     MDefinition *value, MIRType implicitType)
-{
-    // If implicitType is not MIRType_None, it is an additional type which the
-    // property implicitly includes. In this case, make a new type set which
-    // explicitly contains the type.
-    types::TypeSet *types = property.maybeTypes();
-    if (implicitType != MIRType_None) {
-        types::Type newType = types::Type::PrimitiveType(ValueTypeFromMIRType(implicitType));
-        if (types)
-            types = types->clone(alloc.lifoAlloc());
-        else
-            types = alloc.lifoAlloc()->new_<types::TemporaryTypeSet>();
-        types->addType(newType, alloc.lifoAlloc());
-    }
-
-    return TypeSetIncludes(types, value->type(), value->resultTypeSet());
-}
-
-static bool
 TryAddTypeBarrierForWrite(TempAllocator &alloc, types::CompilerConstraintList *constraints,
                           MBasicBlock *current, types::TemporaryTypeSet *objTypes,
-                          PropertyName *name, MDefinition **pvalue, MIRType implicitType)
+                          PropertyName *name, MDefinition **pvalue)
 {
     // Return whether pvalue was modified to include a type barrier ensuring
     // that writing the value to objTypes/id will not require changing type
@@ -4321,7 +4301,7 @@ TryAddTypeBarrierForWrite(TempAllocator &alloc, types::CompilerConstraintList *c
         if (!property.maybeTypes() || property.couldBeConstant(constraints))
             return false;
 
-        if (PropertyTypeIncludes(alloc, property, *pvalue, implicitType))
+        if (TypeSetIncludes(property.maybeTypes(), (*pvalue)->type(), (*pvalue)->resultTypeSet()))
             return false;
 
         // This freeze is not required for correctness, but ensures that we
@@ -4404,20 +4384,18 @@ AddTypeGuard(TempAllocator &alloc, MBasicBlock *current, MDefinition *obj,
 
 // Whether value can be written to property without changing type information.
 bool
-jit::CanWriteProperty(TempAllocator &alloc, types::CompilerConstraintList *constraints,
-                      types::HeapTypeSetKey property, MDefinition *value,
-                      MIRType implicitType /* = MIRType_None */)
+jit::CanWriteProperty(types::CompilerConstraintList *constraints,
+                      types::HeapTypeSetKey property, MDefinition *value)
 {
     if (property.couldBeConstant(constraints))
         return false;
-    return PropertyTypeIncludes(alloc, property, value, implicitType);
+    return TypeSetIncludes(property.maybeTypes(), value->type(), value->resultTypeSet());
 }
 
 bool
 jit::PropertyWriteNeedsTypeBarrier(TempAllocator &alloc, types::CompilerConstraintList *constraints,
                                    MBasicBlock *current, MDefinition **pobj,
-                                   PropertyName *name, MDefinition **pvalue,
-                                   bool canModify, MIRType implicitType)
+                                   PropertyName *name, MDefinition **pvalue, bool canModify)
 {
     // If any value being written is not reflected in the type information for
     // objects which obj could represent, a type barrier is needed when writing
@@ -4447,15 +4425,14 @@ jit::PropertyWriteNeedsTypeBarrier(TempAllocator &alloc, types::CompilerConstrai
 
         jsid id = name ? NameToId(name) : JSID_VOID;
         types::HeapTypeSetKey property = object->property(id);
-        if (!CanWriteProperty(alloc, constraints, property, *pvalue, implicitType)) {
+        if (!CanWriteProperty(constraints, property, *pvalue)) {
             // Either pobj or pvalue needs to be modified to filter out the
             // types which the value could have but are not in the property,
             // or a VM call is required. A VM call is always required if pobj
             // and pvalue cannot be modified.
             if (!canModify)
                 return true;
-            success = TryAddTypeBarrierForWrite(alloc, constraints, current, types, name, pvalue,
-                                                implicitType);
+            success = TryAddTypeBarrierForWrite(alloc, constraints, current, types, name, pvalue);
             break;
         }
     }
@@ -4480,7 +4457,7 @@ jit::PropertyWriteNeedsTypeBarrier(TempAllocator &alloc, types::CompilerConstrai
 
         jsid id = name ? NameToId(name) : JSID_VOID;
         types::HeapTypeSetKey property = object->property(id);
-        if (CanWriteProperty(alloc, constraints, property, *pvalue, implicitType))
+        if (CanWriteProperty(constraints, property, *pvalue))
             continue;
 
         if ((property.maybeTypes() && !property.maybeTypes()->empty()) || excluded)

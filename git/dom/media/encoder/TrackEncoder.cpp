@@ -53,7 +53,8 @@ TrackEncoder::TrackEncoder()
 void
 AudioTrackEncoder::NotifyQueuedTrackChanges(MediaStreamGraph* aGraph,
                                             TrackID aID,
-                                            StreamTime aTrackOffset,
+                                            TrackRate aTrackRate,
+                                            TrackTicks aTrackOffset,
                                             uint32_t aTrackEvents,
                                             const MediaSegment& aQueuedMedia)
 {
@@ -76,7 +77,7 @@ AudioTrackEncoder::NotifyQueuedTrackChanges(MediaStreamGraph* aGraph,
       // The number of channels is determined by the first non-null chunk, and
       // thus the audio encoder is initialized at this time.
       if (!chunk.IsNull()) {
-        nsresult rv = Init(chunk.mChannelData.Length(), aGraph->GraphRate());
+        nsresult rv = Init(chunk.mChannelData.Length(), aTrackRate);
         if (NS_FAILED(rv)) {
           LOG("[AudioTrackEncoder]: Fail to initialize the encoder!");
           NotifyCancel();
@@ -181,7 +182,8 @@ AudioTrackEncoder::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) cons
 void
 VideoTrackEncoder::NotifyQueuedTrackChanges(MediaStreamGraph* aGraph,
                                             TrackID aID,
-                                            StreamTime aTrackOffset,
+                                            TrackRate aTrackRate,
+                                            TrackTicks aTrackOffset,
                                             uint32_t aTrackEvents,
                                             const MediaSegment& aQueuedMedia)
 {
@@ -205,7 +207,7 @@ VideoTrackEncoder::NotifyQueuedTrackChanges(MediaStreamGraph* aGraph,
         gfxIntSize intrinsicSize = chunk.mFrame.GetIntrinsicSize();
         nsresult rv = Init(imgsize.width, imgsize.height,
                            intrinsicSize.width, intrinsicSize.height,
-                           aGraph->GraphRate());
+                           aTrackRate);
         if (NS_FAILED(rv)) {
           LOG("[VideoTrackEncoder]: Fail to initialize the encoder!");
           NotifyCancel();

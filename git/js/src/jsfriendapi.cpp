@@ -789,7 +789,13 @@ FormatFrame(JSContext *cx, const ScriptFrameIter &iter, char *buf, int num,
         return buf;
 
     if (showArgs && iter.hasArgs()) {
-        BindingIter bi(script);
+        BindingVector bindings(cx);
+        if (fun && fun->isInterpreted()) {
+            if (!FillBindingVector(script, &bindings))
+                return buf;
+        }
+
+
         bool first = true;
         for (unsigned i = 0; i < iter.numActualArgs(); i++) {
             RootedValue arg(cx);
@@ -812,12 +818,10 @@ FormatFrame(JSContext *cx, const ScriptFrameIter &iter, char *buf, int num,
             JSAutoByteString nameBytes;
             const char *name = nullptr;
 
-            if (i < iter.numFormalArgs()) {
-                MOZ_ASSERT(i == bi.argIndex());
-                name = nameBytes.encodeLatin1(cx, bi->name());
+            if (i < bindings.length()) {
+                name = nameBytes.encodeLatin1(cx, bindings[i].name());
                 if (!buf)
                     return nullptr;
-                bi++;
             }
 
             if (value) {

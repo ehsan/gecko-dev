@@ -358,8 +358,7 @@ public:
 
   nsFrameList& GetColGroups();
 
-  virtual nsStyleContext*
-  GetParentStyleContext(nsIFrame** aProviderFrame) const MOZ_OVERRIDE;
+  virtual nsIFrame* GetParentStyleContextFrame() const MOZ_OVERRIDE;
 
   /**
    * Get the "type" of the frame

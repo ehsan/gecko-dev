@@ -87,7 +87,7 @@ public:
       // XXX we need to add a method to AudioEventTimeline to compute this buffer directly.
       float computedGain[WEBAUDIO_BLOCK_SIZE];
       for (size_t counter = 0; counter < WEBAUDIO_BLOCK_SIZE; ++counter) {
-        StreamTime tick = aStream->GetCurrentPosition();
+        TrackTicks tick = aStream->GetCurrentPosition();
         computedGain[counter] = mGain.GetValueAtTime(tick, counter) * aInput.mVolume;
       }
 

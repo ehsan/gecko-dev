@@ -48,7 +48,7 @@ class ContainerLayerComposite : public ContainerLayer,
                                              const RenderTargetIntRect& aClipRect);
   template<class ContainerT>
   friend RefPtr<CompositingRenderTarget>
-  CreateOrRecycleTarget(ContainerT* aContainer,
+  CreateTemporaryTarget(ContainerT* aContainer,
                         LayerManagerComposite* aManager,
                         const RenderTargetIntRect& aClipRect);
 

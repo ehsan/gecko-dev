@@ -33,7 +33,8 @@ class CaptureTask : public MediaStreamListener,
 public:
   // MediaStreamListener methods.
   virtual void NotifyQueuedTrackChanges(MediaStreamGraph* aGraph, TrackID aID,
-                                        StreamTime aTrackOffset,
+                                        TrackRate aTrackRate,
+                                        TrackTicks aTrackOffset,
                                         uint32_t aTrackEvents,
                                         const MediaSegment& aQueuedMedia) MOZ_OVERRIDE;
 

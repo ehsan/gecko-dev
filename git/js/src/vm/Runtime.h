@@ -54,7 +54,7 @@ class PerThreadData;
 struct ThreadSafeContext;
 class AutoKeepAtoms;
 #ifdef JS_TRACE_LOGGING
-class TraceLoggerThread;
+class TraceLogger;
 #endif
 
 /* Thread Local Storage slot for storing the runtime for a thread. */
@@ -537,7 +537,7 @@ class PerThreadData : public PerThreadDataFriendFields
     irregexp::RegExpStack regexpStack;
 
 #ifdef JS_TRACE_LOGGING
-    TraceLoggerThread   *traceLogger;
+    TraceLogger         *traceLogger;
 #endif
 
   private:
@@ -1489,72 +1489,42 @@ FreeOp::freeLater(void *p)
         CrashAtUnhandlableOOM("FreeOp::freeLater");
 }
 
-/*
- * RAII class that takes the GC lock while it is live.
- *
- * Note that the lock may be temporarily released by use of AutoUnlockGC when
- * passed a non-const reference to this class.
- */
-class MOZ_STACK_CLASS AutoLockGC
+class AutoLockGC
 {
   public:
     explicit AutoLockGC(JSRuntime *rt
                         MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : runtime_(rt), wasUnlocked_(false)
+      : runtime(rt)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        lock();
+        rt->lockGC();
     }
 
-    ~AutoLockGC() {
-        unlock();
+    ~AutoLockGC()
+    {
+        runtime->unlockGC();
     }
-
-    void lock() {
-        runtime_->lockGC();
-    }
-
-    void unlock() {
-        runtime_->unlockGC();
-        wasUnlocked_ = true;
-    }
-
-#ifdef DEBUG
-    bool wasUnlocked() {
-        return wasUnlocked_;
-    }
-#endif
 
   private:
-    JSRuntime *runtime_;
-    mozilla::DebugOnly<bool> wasUnlocked_;
+    JSRuntime *runtime;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-
-    AutoLockGC(const AutoLockGC&) MOZ_DELETE;
-    AutoLockGC& operator=(const AutoLockGC&) MOZ_DELETE;
 };
 
-class MOZ_STACK_CLASS AutoUnlockGC
+class AutoUnlockGC
 {
-  public:
-    explicit AutoUnlockGC(AutoLockGC& lock
-                          MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : lock(lock)
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        lock.unlock();
-    }
-
-    ~AutoUnlockGC() {
-        lock.lock();
-    }
-
   private:
-    AutoLockGC& lock;
+    JSRuntime *rt;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 
-    AutoUnlockGC(const AutoUnlockGC&) MOZ_DELETE;
-    AutoUnlockGC& operator=(const AutoUnlockGC&) MOZ_DELETE;
+  public:
+    explicit AutoUnlockGC(JSRuntime *rt
+                          MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+      : rt(rt)
+    {
+        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        rt->unlockGC();
+    }
+    ~AutoUnlockGC() { rt->lockGC(); }
 };
 
 class MOZ_STACK_CLASS AutoKeepAtoms

@@ -5,7 +5,6 @@
 import ConfigParser
 import os
 import sys
-from collections import OrderedDict
 
 here = os.path.split(__file__)[0]
 
@@ -14,12 +13,11 @@ class ConfigDict(dict):
         self.base_path = base_path
         dict.__init__(self, *args, **kwargs)
 
-    def get_path(self, key, default=None):
-        if key not in self:
-            return default
+    def get_path(self, key):
+        pwd = os.path.abspath(os.path.curdir)
         path = self[key]
         os.path.expanduser(path)
-        return os.path.abspath(os.path.join(self.base_path, path))
+        return os.path.join(self.base_path, path)
 
 def read(config_path):
     config_path = os.path.abspath(config_path)
@@ -30,7 +28,7 @@ def read(config_path):
 
     subns = {"pwd": os.path.abspath(os.path.curdir)}
 
-    rv = OrderedDict()
+    rv = {}
     for section in parser.sections():
         rv[section] = ConfigDict(config_root)
         for key in parser.options(section):

@@ -421,18 +421,21 @@ class IonBuilder
                                 types::TemporaryTypeSet *types);
     bool getPropTryInlineAccess(bool *emitted, MDefinition *obj, PropertyName *name,
                                 BarrierKind barrier, types::TemporaryTypeSet *types);
-    bool getPropTryTypedObject(bool *emitted, MDefinition *obj, PropertyName *name);
+    bool getPropTryTypedObject(bool *emitted, MDefinition *obj, PropertyName *name,
+                               types::TemporaryTypeSet *resultTypes);
     bool getPropTryScalarPropOfTypedObject(bool *emitted, MDefinition *typedObj,
                                            int32_t fieldOffset,
-                                           TypedObjectPrediction fieldTypeReprs);
+                                           TypedObjectPrediction fieldTypeReprs,
+                                           types::TemporaryTypeSet *resultTypes);
     bool getPropTryReferencePropOfTypedObject(bool *emitted, MDefinition *typedObj,
                                               int32_t fieldOffset,
                                               TypedObjectPrediction fieldPrediction,
-                                              PropertyName *name);
+                                              types::TemporaryTypeSet *resultTypes);
     bool getPropTryComplexPropOfTypedObject(bool *emitted, MDefinition *typedObj,
                                             int32_t fieldOffset,
                                             TypedObjectPrediction fieldTypeReprs,
-                                            size_t fieldIndex);
+                                            size_t fieldIndex,
+                                            types::TemporaryTypeSet *resultTypes);
     bool getPropTryInnerize(bool *emitted, MDefinition *obj, PropertyName *name,
                             types::TemporaryTypeSet *types);
     bool getPropTryCache(bool *emitted, MDefinition *obj, PropertyName *name,
@@ -457,8 +460,7 @@ class IonBuilder
                                               MDefinition *obj,
                                               int32_t fieldOffset,
                                               MDefinition *value,
-                                              TypedObjectPrediction fieldPrediction,
-                                              PropertyName *name);
+                                              TypedObjectPrediction fieldPrediction);
     bool setPropTryScalarPropOfTypedObject(bool *emitted,
                                            MDefinition *obj,
                                            int32_t fieldOffset,
@@ -492,8 +494,7 @@ class IonBuilder
     bool storeReferenceTypedObjectValue(MDefinition *typedObj,
                                         const LinearSum &byteOffset,
                                         ReferenceTypeDescr::Type type,
-                                        MDefinition *value,
-                                        PropertyName *name);
+                                        MDefinition *value);
     bool storeScalarTypedObjectValue(MDefinition *typedObj,
                                      const LinearSum &byteOffset,
                                      ScalarTypeDescr::Type type,
@@ -514,8 +515,7 @@ class IonBuilder
                                        ScalarTypeDescr::Type type);
     bool pushReferenceLoadFromTypedObject(MDefinition *typedObj,
                                           const LinearSum &byteOffset,
-                                          ReferenceTypeDescr::Type type,
-                                          PropertyName *name);
+                                          ReferenceTypeDescr::Type type);
     MDefinition *neuterCheck(MDefinition *obj);
 
     // jsop_setelem() helpers.

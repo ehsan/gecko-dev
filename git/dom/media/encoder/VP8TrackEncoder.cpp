@@ -363,7 +363,7 @@ nsresult VP8TrackEncoder::PrepareRawFrame(VideoChunk &aChunk)
  */
 VP8TrackEncoder::EncodeOperation
 VP8TrackEncoder::GetNextEncodeOperation(TimeDuration aTimeElapsed,
-                                        StreamTime aProcessedDuration)
+                                        TrackTicks aProcessedDuration)
 {
   int64_t durationInUsec =
     FramesToUsecs(aProcessedDuration + mEncodedFrameDuration,
@@ -381,20 +381,20 @@ VP8TrackEncoder::GetNextEncodeOperation(TimeDuration aTimeElapsed,
   }
 }
 
-StreamTime
-VP8TrackEncoder::CalculateRemainingTicks(StreamTime aDurationCopied,
-                                         StreamTime aEncodedDuration)
+TrackTicks
+VP8TrackEncoder::CalculateRemainingTicks(TrackTicks aDurationCopied,
+                                         TrackTicks aEncodedDuration)
 {
   return mRemainingTicks + aEncodedDuration - aDurationCopied;
 }
 
 // Try to extend the encodedDuration as long as possible if the target frame
 // has a long duration.
-StreamTime
-VP8TrackEncoder::CalculateEncodedDuration(StreamTime aDurationCopied)
+TrackTicks
+VP8TrackEncoder::CalculateEncodedDuration(TrackTicks aDurationCopied)
 {
-  StreamTime temp64 = aDurationCopied;
-  StreamTime encodedDuration = mEncodedFrameDuration;
+  TrackTicks temp64 = aDurationCopied;
+  TrackTicks encodedDuration = mEncodedFrameDuration;
   temp64 -= mRemainingTicks;
   while (temp64 > mEncodedFrameDuration) {
     temp64 -= mEncodedFrameDuration;
@@ -470,8 +470,8 @@ VP8TrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
   }
 
   VideoSegment::ChunkIterator iter(mSourceSegment);
-  StreamTime durationCopied = 0;
-  StreamTime totalProcessedDuration = 0;
+  TrackTicks durationCopied = 0;
+  TrackTicks totalProcessedDuration = 0;
   TimeStamp timebase = TimeStamp::Now();
   EncodeOperation nextEncodeOperation = ENCODE_NORMAL_FRAME;
 
@@ -486,7 +486,7 @@ VP8TrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
     if (durationCopied >= mRemainingTicks) {
       VP8LOG("nextEncodeOperation is %d\n",nextEncodeOperation);
       // Calculate encodedDuration for this target frame.
-      StreamTime encodedDuration = CalculateEncodedDuration(durationCopied);
+      TrackTicks encodedDuration = CalculateEncodedDuration(durationCopied);
 
       // Encode frame.
       if (nextEncodeOperation != SKIP_FRAME) {

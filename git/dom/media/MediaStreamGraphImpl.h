@@ -285,8 +285,10 @@ public:
                            GraphTime aTime, GraphTime aEndBlockingDecisions,
                            GraphTime* aEnd);
   /**
-   * Returns smallest value of t such that t is a multiple of
-   * WEBAUDIO_BLOCK_SIZE and t > aTime.
+   * Returns smallest value of t such that
+   * TimeToTicksRoundUp(aSampleRate, t) is a multiple of WEBAUDIO_BLOCK_SIZE
+   * and floor(TimeToTicksRoundUp(aSampleRate, t)/WEBAUDIO_BLOCK_SIZE) >
+   * floor(TimeToTicksRoundUp(aSampleRate, aTime)/WEBAUDIO_BLOCK_SIZE).
    */
   GraphTime RoundUpToNextAudioBlock(GraphTime aTime);
   /**
@@ -350,7 +352,7 @@ public:
    * Queue audio (mix of stream audio and silence for blocked intervals)
    * to the audio output stream. Returns the number of frames played.
    */
-  StreamTime PlayAudio(MediaStream* aStream, GraphTime aFrom, GraphTime aTo);
+  TrackTicks PlayAudio(MediaStream* aStream, GraphTime aFrom, GraphTime aTo);
   /**
    * Set the correct current video frame for stream aStream.
    */
@@ -396,23 +398,27 @@ public:
     mStreamOrderDirty = true;
   }
 
+  TrackRate AudioSampleRate() const { return mSampleRate; }
+  TrackRate GraphRate() const { return mSampleRate; }
   // Always stereo for now.
   uint32_t AudioChannelCount() { return 2; }
 
   double MediaTimeToSeconds(GraphTime aTime)
   {
-    NS_ASSERTION(0 <= aTime && aTime <= STREAM_TIME_MAX, "Bad time");
-    return static_cast<double>(aTime)/GraphRate();
+    return TrackTicksToSeconds(GraphRate(), aTime);
   }
   GraphTime SecondsToMediaTime(double aS)
   {
-    NS_ASSERTION(0 <= aS && aS <= TRACK_TICKS_MAX/TRACK_RATE_MAX,
-                 "Bad seconds");
-    return GraphRate() * aS;
+    return SecondsToTicksRoundDown(GraphRate(), aS);
   }
   GraphTime MillisecondsToMediaTime(int32_t aMS)
   {
     return RateConvertTicksRoundDown(GraphRate(), 1000, aMS);
+  }
+
+  TrackTicks TimeToTicksRoundDown(TrackRate aRate, StreamTime aTime)
+  {
+    return RateConvertTicksRoundDown(aRate, GraphRate(), aTime);
   }
 
   /**
@@ -588,6 +594,12 @@ public:
    */
   GraphTime mEndTime;
 
+  /**
+   * Sample rate at which this graph runs. For real time graphs, this is
+   * the rate of the audio mixer. For offline graphs, this is the rate specified
+   * at construction.
+   */
+  TrackRate mSampleRate;
   /**
    * True when we need to do a forced shutdown during application shutdown.
    */

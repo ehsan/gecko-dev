@@ -40,8 +40,6 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
     template<typename T>
     void storeViewTypeElement(Scalar::Type vt, const LAllocation *value,
                               const T &dstAddr);
-    void memoryBarrier(MemoryBarrierBits barrier);
-
   public:
     CodeGeneratorX86(MIRGenerator *gen, LIRGraph *graph, MacroAssembler *masm);
 
@@ -63,8 +61,6 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
     bool visitAsmJSCall(LAsmJSCall *ins);
     bool visitAsmJSLoadHeap(LAsmJSLoadHeap *ins);
     bool visitAsmJSStoreHeap(LAsmJSStoreHeap *ins);
-    bool visitAsmJSCompareExchangeHeap(LAsmJSCompareExchangeHeap *ins);
-    bool visitAsmJSAtomicBinopHeap(LAsmJSAtomicBinopHeap *ins);
     bool visitAsmJSLoadGlobalVar(LAsmJSLoadGlobalVar *ins);
     bool visitAsmJSStoreGlobalVar(LAsmJSStoreGlobalVar *ins);
     bool visitAsmJSLoadFuncPtr(LAsmJSLoadFuncPtr *ins);

@@ -2,10 +2,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 #include "nsTableOuterFrame.h"
-
-#include "nsFrameManager.h"
 #include "nsTableFrame.h"
 #include "nsTableCellFrame.h"
 #include "nsStyleContext.h"
@@ -105,32 +102,25 @@ nsTableCaptionFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
   return result;
 }
 
-nsStyleContext*
-nsTableCaptionFrame::GetParentStyleContext(nsIFrame** aProviderFrame) const
+nsIFrame*
+nsTableCaptionFrame::GetParentStyleContextFrame() const
 {
-  MOZ_ASSERT(GetContent()->GetParent(), "How could we not have a parent here?");
+  NS_PRECONDITION(mContent->GetParent(),
+                  "How could we not have a parent here?");
     
-  nsStyleContext* sc =
-    PresContext()->FrameManager()->GetDisplayContentsStyleFor(GetContent()->GetParent());
-  if (sc) {
-    *aProviderFrame = nullptr;
-    return sc;
-  }
-
   // The caption's style context parent is the inner frame, unless
   // it's anonymous.
   nsIFrame* outerFrame = GetParent();
   if (outerFrame && outerFrame->GetType() == nsGkAtoms::tableOuterFrame) {
     nsIFrame* innerFrame = outerFrame->GetFirstPrincipalChild();
     if (innerFrame) {
-      *aProviderFrame = nsFrame::CorrectStyleParentFrame(innerFrame,
-                                   StyleContext()->GetPseudo());
-      return *aProviderFrame ? (*aProviderFrame)->StyleContext() : nullptr;
+      return nsFrame::CorrectStyleParentFrame(innerFrame,
+                                              StyleContext()->GetPseudo());
     }
   }
 
   NS_NOTREACHED("Where is our inner table frame?");
-  return nsBlockFrame::GetParentStyleContext(aProviderFrame);
+  return nsBlockFrame::GetParentStyleContextFrame();
 }
 
 #ifdef ACCESSIBILITY
@@ -334,8 +324,8 @@ nsTableOuterFrame::BuildDisplayListForInnerTable(nsDisplayListBuilder*   aBuilde
   }
 }
 
-nsStyleContext*
-nsTableOuterFrame::GetParentStyleContext(nsIFrame** aProviderFrame) const
+nsIFrame*
+nsTableOuterFrame::GetParentStyleContextFrame() const
 {
   // The table outer frame and the (inner) table frame split the style
   // data by giving the table frame the style context associated with
@@ -347,7 +337,7 @@ nsTableOuterFrame::GetParentStyleContext(nsIFrame** aProviderFrame) const
   // children of the table inherit directly from the inner table, and
   // the outer table's style context is a leaf.
 
-  return (*aProviderFrame = InnerTableFrame())->StyleContext();
+  return InnerTableFrame();
 }
 
 // INCREMENTAL REFLOW HELPER FUNCTIONS 

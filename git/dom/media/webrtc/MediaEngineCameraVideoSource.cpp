@@ -52,7 +52,7 @@ MediaEngineCameraVideoSource::Intersect(ConstrainLongRange& aA, const ConstrainL
 bool MediaEngineCameraVideoSource::AppendToTrack(SourceMediaStream* aSource,
                                                  layers::Image* aImage,
                                                  TrackID aID,
-                                                 StreamTime delta)
+                                                 TrackTicks delta)
 {
   MOZ_ASSERT(aSource);
 

@@ -70,9 +70,8 @@ if CONFIG['MOZ_ENABLE_QT']:
     GENERATED_SOURCES += [
         'moc_NestedLoopTimer.cpp',
     ]
-    SOURCES += [
+    UNIFIED_SOURCES += [
         'NestedLoopTimer.cpp',
-        'PluginHelperQt.cpp',
     ]
 
 UNIFIED_SOURCES += [

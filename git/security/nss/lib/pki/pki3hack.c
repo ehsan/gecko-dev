@@ -247,28 +247,27 @@ STAN_GetCertIdentifierFromDER(NSSArena *arenaOpt, NSSDER *der)
 }
 
 NSS_IMPLEMENT PRStatus
-nssPKIX509_GetIssuerAndSerialFromDER(NSSDER *der,
+nssPKIX509_GetIssuerAndSerialFromDER(NSSDER *der, NSSArena *arena, 
                                      NSSDER *issuer, NSSDER *serial)
 {
-    SECItem derCert   = { 0 };
+    SECStatus secrv;
+    SECItem derCert;
     SECItem derIssuer = { 0 };
     SECItem derSerial = { 0 };
-    SECStatus secrv;
-    derCert.data = (unsigned char *)der->data;
-    derCert.len = der->size;
-    secrv = CERT_IssuerNameFromDERCert(&derCert, &derIssuer);
+    SECITEM_FROM_NSSITEM(&derCert, der);
+    secrv = CERT_SerialNumberFromDERCert(&derCert, &derSerial);
     if (secrv != SECSuccess) {
 	return PR_FAILURE;
     }
-    secrv = CERT_SerialNumberFromDERCert(&derCert, &derSerial);
+    (void)nssItem_Create(arena, serial, derSerial.len, derSerial.data);
+    secrv = CERT_IssuerNameFromDERCert(&derCert, &derIssuer);
     if (secrv != SECSuccess) {
 	PORT_Free(derSerial.data);
 	return PR_FAILURE;
     }
-    issuer->data = derIssuer.data;
-    issuer->size = derIssuer.len;
-    serial->data = derSerial.data;
-    serial->size = derSerial.len;
+    (void)nssItem_Create(arena, issuer, derIssuer.len, derIssuer.data);
+    PORT_Free(derSerial.data);
+    PORT_Free(derIssuer.data);
     return PR_SUCCESS;
 }
 

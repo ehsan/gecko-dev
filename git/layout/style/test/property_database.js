@@ -5459,10 +5459,6 @@ if (SpecialPowers.getBoolPref("layout.css.grid.enabled")) {
   };
 }
 
-if (SpecialPowers.getBoolPref("layout.css.display-contents.enabled")) {
-  gCSSProperties["display"].other_values.push("contents");
-}
-
 if (SpecialPowers.getBoolPref("layout.css.image-orientation.enabled")) {
   gCSSProperties["image-orientation"] = {
     domProp: "imageOrientation",

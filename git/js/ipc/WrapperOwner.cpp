@@ -11,7 +11,6 @@
 #include "mozilla/dom/BindingUtils.h"
 #include "jsfriendapi.h"
 #include "xpcprivate.h"
-#include "CPOWTimer.h"
 #include "WrapperFactory.h"
 
 #include "nsIRemoteTagService.h"
@@ -135,10 +134,7 @@ const CPOWProxyHandler CPOWProxyHandler::singleton;
         JS_ReportError(cx, "cannot use a CPOW whose process is gone");  \
         return false;                                                   \
     }                                                                   \
-    {                                                                   \
-        CPOWTimer timer;                                                \
-        return owner->call args;                                        \
-    }
+    return owner->call args;
 
 bool
 CPOWProxyHandler::getPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
