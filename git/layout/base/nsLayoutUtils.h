@@ -64,21 +64,13 @@ class nsLayoutUtils
   typedef gfxPattern::GraphicsFilter GraphicsFilter;
 
 public:
-  typedef mozilla::layers::FrameMetrics FrameMetrics;
-  typedef FrameMetrics::ViewID ViewID;
-
-  /**
-   * Finds previously assigned ViewID for the given content element, if any.
-   * Returns whether a ViewID was previously assigned.
-   */
-  static bool FindIDFor(nsIContent* aContent, ViewID* aOutViewId);
+  typedef mozilla::layers::FrameMetrics::ViewID ViewID;
 
   /**
    * Finds previously assigned or generates a unique ViewID for the given
-   * content element. If aRoot is true, the special ID
-   * FrameMetrics::ROOT_SCROLL_ID is used.
+   * content element.
    */
-  static ViewID FindOrCreateIDFor(nsIContent* aContent, bool aRoot = false);
+  static ViewID FindIDFor(nsIContent* aContent);
 
   /**
    * Find content for given ID.

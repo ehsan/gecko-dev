@@ -27,8 +27,8 @@ import android.content.DialogInterface;
 import android.content.OperationApplicationException;
 import android.database.Cursor;
 import android.net.Uri;
-import android.os.Build;
 import android.os.RemoteException;
+import android.os.Build;
 import android.provider.ContactsContract;
 import android.provider.ContactsContract.CommonDataKinds.BaseTypes;
 import android.provider.ContactsContract.CommonDataKinds.Email;
@@ -921,8 +921,8 @@ public class ContactService implements GeckoEventListener {
     }
 
     private boolean deleteContact(String rawContactId) {
-        ContentProviderOperation deleteOptions = ContentProviderOperation.newDelete(RawContacts.CONTENT_URI)
-                                                 .withSelection(RawContacts._ID + "=?",
+        ContentProviderOperation deleteOptions = ContentProviderOperation.newDelete(Data.CONTENT_URI)
+                                                 .withSelection(Data.RAW_CONTACT_ID + "=?",
                                                  new String[] {rawContactId})
                                                  .build();
 
@@ -1482,9 +1482,7 @@ public class ContactService implements GeckoEventListener {
     }
 
     private void getContactsCount(final String requestID) {
-        Cursor cursor = getAllRawContactIdsCursor();
-        Integer numContacts = Integer.valueOf(cursor.getCount());
-        cursor.close();
+        Integer numContacts = getAllRawContactIds().length;
 
         sendCallbackToJavascript("Android:Contacts:Count", requestID, new String[] {"count"},
                                  new Object[] {numContacts});
@@ -1732,38 +1730,33 @@ public class ContactService implements GeckoEventListener {
     }
 
     private long[] getAllRawContactIds() {
-        Cursor cursor = getAllRawContactIdsCursor();
-
-        // Put the ids into an array
-        long[] ids = new long[cursor.getCount()];
-        int index = 0;
-        cursor.moveToPosition(-1);
-        while(cursor.moveToNext()) {
-            ids[index] = cursor.getLong(cursor.getColumnIndex(RawContacts._ID));
-            index++;
-        }
-        cursor.close();
-
-        return ids;
-    }
-
-    private Cursor getAllRawContactIdsCursor() {
-        // When a contact is deleted, it actually just sets the deleted field to 1 until the
-        // sync adapter actually deletes the contact later so ignore any contacts with the deleted
-        // flag set
-        String selection = RawContacts.DELETED + "=0";
-        String[] selectionArgs = null;
-
         // Only get contacts from the selected account
+        String selection = null;
+        String[] selectionArgs = null;
         if (mAccountName != null) {
-            selection += " AND " + RawContacts.ACCOUNT_NAME + "=? AND " + RawContacts.ACCOUNT_TYPE + "=?";
+            selection = RawContacts.ACCOUNT_NAME + "=? AND " + RawContacts.ACCOUNT_TYPE + "=?";
             selectionArgs = new String[] {mAccountName, mAccountType};
         }
 
-        // Get the ID's of all contacts and use the number of contact ID's as
+        // Get the ID's of all the contacts and use the number of contact ID's as
         // the total number of contacts
-        return mContentResolver.query(RawContacts.CONTENT_URI, new String[] {RawContacts._ID},
-                                      selection, selectionArgs, null);
+        Cursor cursor = mContentResolver.query(Data.CONTENT_URI,
+                                               new String[] {Data.RAW_CONTACT_ID},
+                                               selection, selectionArgs, null);
+
+        List<Long> ids = new ArrayList<Long>();
+
+        // Filter out any duplicate IDs
+        cursor.moveToPosition(-1);
+        while(cursor.moveToNext()) {
+            Long id = Long.valueOf(cursor.getLong(cursor.getColumnIndex(Data.RAW_CONTACT_ID)));
+            if (!ids.contains(id)) {
+                ids.add(id);
+            }
+        }
+        cursor.close();
+
+        return convertLongListToArray(ids);
     }
 
     private static Long getRawContactIdFromContentProviderResults(ContentProviderResult[] results) throws NumberFormatException {

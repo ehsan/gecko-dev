@@ -692,13 +692,10 @@ struct JSRuntime : public JS::shadow::Runtime,
      * as possible.
      */
 #ifdef JS_THREADSAFE
-    mozilla::Atomic<int32_t, mozilla::Relaxed> interrupt;
+    mozilla::Atomic<int32_t> interrupt;
 #else
     int32_t interrupt;
 #endif
-
-    /* Set when handling a signal for a thread associated with this runtime. */
-    bool handlingSignal;
 
     /* Branch callback */
     JSOperationCallback operationCallback;
@@ -774,9 +771,6 @@ struct JSRuntime : public JS::shadow::Runtime,
     friend class js::AutoPauseWorkersForGC;
 
   public:
-    void setUsedByExclusiveThread(JS::Zone *zone);
-    void clearUsedByExclusiveThread(JS::Zone *zone);
-
 #endif // JS_THREADSAFE
 
     bool currentThreadHasExclusiveAccess() {
@@ -1301,18 +1295,9 @@ struct JSRuntime : public JS::shadow::Runtime,
 
     js::GCHelperThread  gcHelperThread;
 
-#if defined(XP_MACOSX) && defined(JS_ION)
+#ifdef XP_MACOSX
     js::AsmJSMachExceptionHandler asmJSMachExceptionHandler;
 #endif
-
-    // Whether asm.js signal handlers have been installed and can be used for
-    // performing interrupt checks in loops.
-  private:
-    bool signalHandlersInstalled_;
-  public:
-    bool signalHandlersInstalled() const {
-        return signalHandlersInstalled_;
-    }
 
 #ifdef JS_THREADSAFE
 # ifdef JS_ION
@@ -1414,8 +1399,6 @@ struct JSRuntime : public JS::shadow::Runtime,
 
     // The atoms compartment is the only one in its zone.
     inline bool isAtomsZone(JS::Zone *zone);
-
-    bool activeGCInAtomsZone();
 
     union {
         /*
@@ -1551,15 +1534,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     JS_FRIEND_API(void *) onOutOfMemory(void *p, size_t nbytes);
     JS_FRIEND_API(void *) onOutOfMemory(void *p, size_t nbytes, JSContext *cx);
 
-    // Ways in which the operation callback on the runtime can be triggered,
-    // varying based on which thread is triggering the callback.
-    enum OperationCallbackTrigger {
-        TriggerCallbackMainThread,
-        TriggerCallbackAnyThread,
-        TriggerCallbackAnyThreadDontStopIon
-    };
-
-    void triggerOperationCallback(OperationCallbackTrigger trigger);
+    void triggerOperationCallback();
 
     void setJitHardening(bool enabled);
     bool getJitHardening() const {

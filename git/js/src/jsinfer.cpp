@@ -3407,13 +3407,8 @@ TypeObject::getFromPrototypes(JSContext *cx, jsid id, TypeSet *types, bool force
     }
 
     types::TypeObject *protoType = proto->getType(cx);
-    if (!protoType)
-        return;
-    if (protoType->unknownProperties()) {
-        // Type information only describes normal native properties, not those
-        // found or inherited from non-native classes.
-        if (protoType->clasp->isNative())
-            types->addType(cx, Type::UnknownType());
+    if (!protoType || protoType->unknownProperties()) {
+        types->addType(cx, Type::UnknownType());
         return;
     }
 
@@ -5895,10 +5890,7 @@ JSObject::splicePrototype(JSContext *cx, Class *clasp, Handle<TaggedProto> proto
     AutoEnterAnalysis enter(cx);
 
     if (protoType && protoType->unknownProperties() && !type->unknownProperties()) {
-        // As in getFromPrototypes, property types do not need to be propagated
-        // from non-native prototypes.
-        if (protoType->clasp->isNative())
-            type->markUnknown(cx);
+        type->markUnknown(cx);
         return true;
     }
 

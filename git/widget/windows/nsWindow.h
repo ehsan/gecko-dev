@@ -275,7 +275,7 @@ public:
 
   bool                    const DestroyCalled() { return mDestroyCalled; }
 
-  virtual void GetPreferredCompositorBackends(nsTArray<mozilla::layers::LayersBackend>& aHints);
+  virtual mozilla::layers::LayersBackend GetPreferredCompositorBackend();
 
 protected:
 

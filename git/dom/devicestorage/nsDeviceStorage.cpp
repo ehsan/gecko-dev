@@ -1726,11 +1726,13 @@ nsDOMDeviceStorageCursor::Continue(ErrorResult& aRv)
     return;
   }
 
-  if (mResult != JSVAL_VOID) {
-    // We call onsuccess multiple times. Clear the last
-    // result.
+  if (mRooted) {
+    // We call onsuccess multiple times. clear the last
+    // rooted result.
     mResult = JSVAL_VOID;
+    NS_DROP_JS_OBJECTS(this, nsDOMDeviceStorageCursor);
     mDone = false;
+    mRooted = false;
   }
 
   nsCOMPtr<ContinueCursorEvent> event = new ContinueCursorEvent(this);

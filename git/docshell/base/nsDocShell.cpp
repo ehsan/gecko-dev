@@ -4536,6 +4536,10 @@ nsDocShell::LoadErrorPage(nsIURI *aURI, const PRUnichar *aURL,
     }
     else if (aURL)
     {
+        // We need a URI object to store a session history entry, so make up a URI
+        nsresult rv = NS_NewURI(getter_AddRefs(mFailedURI), "about:blank");
+        NS_ENSURE_SUCCESS(rv, rv);
+
         CopyUTF16toUTF8(aURL, url);
     }
     else
@@ -7997,10 +8001,6 @@ nsDocShell::CreateContentViewer(const char *aContentType,
 
         if (!failedURI) {
             failedURI = mFailedURI;
-        }
-        if (!failedURI) {
-            // We need a URI object to store a session history entry, so make up a URI
-            NS_NewURI(getter_AddRefs(failedURI), "about:blank");
         }
 
         // When we don't have failedURI, something wrong will happen. See

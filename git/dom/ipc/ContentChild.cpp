@@ -30,9 +30,6 @@
 #include "mozilla/layers/PCompositorChild.h"
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/Preferences.h"
-#ifdef MOZ_CONTENT_SANDBOX
-#include "mozilla/Sandbox.h"
-#endif
 #include "mozilla/unused.h"
 
 #include "nsIMemoryReporter.h"
@@ -345,11 +342,8 @@ ContentChild::SetProcessName(const nsAString& aName)
         printf_stderr("\n\nCHILDCHILDCHILDCHILD\n  [%s] debug me @%d\n\n", name, getpid());
         sleep(30);
 #elif defined(OS_WIN)
-        // Windows has a decent JIT debugging story, so NS_DebugBreak does the
-        // right thing.
-        NS_DebugBreak(NS_DEBUG_BREAK,
-                      "Invoking NS_DebugBreak() to debug child process",
-                      nullptr, __FILE__, __LINE__);
+        printf_stderr("\n\nCHILDCHILDCHILDCHILD\n  [%s] debug me @%d\n\n", name, _getpid());
+        Sleep(30000);
 #endif
     }
 
@@ -552,13 +546,6 @@ ContentChild::RecvSetProcessPrivileges(const ChildPrivileges& aPrivs)
                           aPrivs;
   // If this fails, we die.
   SetCurrentProcessPrivileges(privs);
-#ifdef MOZ_CONTENT_SANDBOX
-  // SetCurrentProcessSandbox should be moved close to process initialization
-  // time if/when possible. SetCurrentProcessPrivileges should probably be
-  // moved as well. Right now this is set ONLY if we receive the
-  // RecvSetProcessPrivileges message. See bug 880808.
-  SetCurrentProcessSandbox();
-#endif
   return true;
 }
 

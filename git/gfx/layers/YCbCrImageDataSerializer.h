@@ -7,8 +7,7 @@
 #define MOZILLA_LAYERS_BLOBYCBCRSURFACE_H
 
 #include "mozilla/DebugOnly.h"
-#include "mozilla/RefPtr.h"
-#include "ImageTypes.h"
+
 #include "base/basictypes.h"
 #include "Shmem.h"
 #include "gfxPoint.h"

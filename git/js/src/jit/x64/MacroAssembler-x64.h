@@ -531,16 +531,11 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         JmpSrc src = jmpSrc(label);
         return CodeOffsetJump(size(), addPatchableJump(src, Relocation::HARDCODED));
     }
-
-    CodeOffsetJump jumpWithPatch(RepatchLabel *label, Condition cond) {
-        JmpSrc src = jSrc(cond, label);
-        return CodeOffsetJump(size(), addPatchableJump(src, Relocation::HARDCODED));
-    }
-
     template <typename S, typename T>
     CodeOffsetJump branchPtrWithPatch(Condition cond, S lhs, T ptr, RepatchLabel *label) {
         cmpPtr(lhs, ptr);
-        return jumpWithPatch(label, cond);
+        JmpSrc src = jSrc(cond, label);
+        return CodeOffsetJump(size(), addPatchableJump(src, Relocation::HARDCODED));
     }
     void branchPtr(Condition cond, Register lhs, Register rhs, Label *label) {
         cmpPtr(lhs, rhs);
@@ -1117,12 +1112,12 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
 
     // See CodeGeneratorX64 calls to noteAsmJSGlobalAccess.
-    void patchAsmJSGlobalAccess(unsigned offset, uint8_t *code, uint8_t *globalData,
+    void patchAsmJSGlobalAccess(unsigned offset, uint8_t *code, unsigned codeBytes,
                                 unsigned globalDataOffset)
     {
         uint8_t *nextInsn = code + offset;
-        JS_ASSERT(nextInsn <= globalData);
-        uint8_t *target = globalData + globalDataOffset;
+        JS_ASSERT(nextInsn <= code + codeBytes);
+        uint8_t *target = code + codeBytes + globalDataOffset;
         ((int32_t *)nextInsn)[-1] = target - nextInsn;
     }
     void memIntToValue(Address Source, Address Dest) {

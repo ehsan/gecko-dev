@@ -3235,13 +3235,6 @@ SyntaxParse(JSContext *cx, unsigned argc, jsval *vp)
 
 #ifdef JS_THREADSAFE
 
-static void
-OffThreadCompileScriptCallback(JSScript *script, void *callbackData)
-{
-    // This callback is invoked off the main thread and there isn't a good way
-    // to pass the script on to the main thread. Just let the script leak.
-}
-
 static bool
 OffThreadCompileScript(JSContext *cx, unsigned argc, jsval *vp)
 {
@@ -3278,11 +3271,8 @@ OffThreadCompileScript(JSContext *cx, unsigned argc, jsval *vp)
     if (!JS_AddStringRoot(cx, permanentRoot))
         return false;
 
-    if (!StartOffThreadParseScript(cx, options, chars, length, cx->global(),
-                                   OffThreadCompileScriptCallback, NULL))
-    {
+    if (!StartOffThreadParseScript(cx, options, chars, length))
         return false;
-    }
 
     args.rval().setUndefined();
     return true;
@@ -5092,9 +5082,6 @@ ProcessArgs(JSContext *cx, JSObject *obj_, OptionParser *op)
              return OptionFailure("ion-range-analysis", str);
      }
 
-    if (op->getBoolOption("ion-check-range-analysis"))
-        ion::js_IonOptions.checkRangeAnalysis = true;
-
     if (const char *str = op->getStringOption("ion-inlining")) {
         if (strcmp(str, "on") == 0)
             ion::js_IonOptions.inlining = true;
@@ -5380,8 +5367,6 @@ main(int argc, char **argv, char **envp)
                                "Find edge cases where Ion can avoid bailouts (default: on, off to disable)")
         || !op.addStringOption('\0', "ion-range-analysis", "on/off",
                                "Range analysis (default: off, on to enable)")
-        || !op.addBoolOption('\0', "ion-check-range-analysis",
-                               "Range analysis checking")
         || !op.addStringOption('\0', "ion-inlining", "on/off",
                                "Inline methods where possible (default: on, off to disable)")
         || !op.addStringOption('\0', "ion-osr", "on/off",

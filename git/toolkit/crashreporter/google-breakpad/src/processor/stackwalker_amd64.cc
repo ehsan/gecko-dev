@@ -196,8 +196,7 @@ StackFrameAMD64* StackwalkerAMD64::GetCallerByStackScan(
   return frame;
 }
 
-StackFrame* StackwalkerAMD64::GetCallerFrame(const CallStack* stack,
-                                             bool stack_scan_allowed) {
+StackFrame* StackwalkerAMD64::GetCallerFrame(const CallStack* stack) {
   if (!memory_ || !stack) {
     BPLOG(ERROR) << "Can't get caller frame without memory or stack";
     return NULL;
@@ -215,7 +214,7 @@ StackFrame* StackwalkerAMD64::GetCallerFrame(const CallStack* stack,
 
   // If CFI failed, or there wasn't CFI available, fall back
   // to stack scanning.
-  if (stack_scan_allowed && !new_frame.get()) {
+  if (!new_frame.get()) {
     new_frame.reset(GetCallerByStackScan(frames));
   }
 

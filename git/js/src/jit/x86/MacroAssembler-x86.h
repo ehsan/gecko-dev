@@ -538,11 +538,6 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         return CodeOffsetJump(size());
     }
 
-    CodeOffsetJump jumpWithPatch(RepatchLabel *label, Assembler::Condition cond) {
-        j(cond, label);
-        return CodeOffsetJump(size());
-    }
-
     template <typename S, typename T>
     CodeOffsetJump branchPtrWithPatch(Condition cond, S lhs, T ptr, RepatchLabel *label) {
         branchPtr(cond, lhs, ptr, label);
@@ -981,12 +976,12 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     }
 
     // See CodeGeneratorX86 calls to noteAsmJSGlobalAccess.
-    void patchAsmJSGlobalAccess(unsigned offset, uint8_t *code, uint8_t *globalData,
+    void patchAsmJSGlobalAccess(unsigned offset, uint8_t *code, unsigned codeBytes,
                                 unsigned globalDataOffset)
     {
         uint8_t *nextInsn = code + offset;
-        JS_ASSERT(nextInsn <= globalData);
-        uint8_t *target = globalData + globalDataOffset;
+        JS_ASSERT(nextInsn <= code + codeBytes);
+        uint8_t *target = code + codeBytes + globalDataOffset;
         ((int32_t *)nextInsn)[-1] = uintptr_t(target);
     }
 };

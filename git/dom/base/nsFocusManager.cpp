@@ -7,13 +7,19 @@
 
 #include "nsFocusManager.h"
 
+#include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIServiceManager.h"
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
 #include "nsIDocument.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMXULElement.h"
+#include "nsIDOMHTMLFrameElement.h"
+#include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMHTMLMapElement.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMRange.h"
 #include "nsIHTMLDocument.h"
@@ -21,7 +27,9 @@
 #include "nsIDocShellTreeOwner.h"
 #include "nsLayoutUtils.h"
 #include "nsIPresShell.h"
+#include "nsIContentViewer.h"
 #include "nsFrameTraversal.h"
+#include "nsObjectFrame.h"
 #include "nsEventDispatcher.h"
 #include "nsEventStateManager.h"
 #include "nsIMEStateManager.h"
@@ -32,10 +40,13 @@
 #include "nsFrameSelection.h"
 #include "mozilla/Selection.h"
 #include "nsXULPopupManager.h"
+#include "nsIDOMNodeFilter.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIPrincipal.h"
+#include "mozAutoDocUpdate.h"
+#include "nsFrameLoader.h"
 #include "nsIObserverService.h"
-#include "nsIObjectFrame.h"
+#include "nsIScriptError.h"
 
 #include "mozilla/dom/Element.h"
 #include "mozilla/LookAndFeel.h"
@@ -49,10 +60,6 @@
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
-#endif
-
-#ifndef XP_MACOSX
-#include "nsIScriptError.h"
 #endif
 
 using namespace mozilla;

@@ -29,8 +29,7 @@ class BasicCanvasLayer : public CopyableCanvasLayer,
 {
 public:
   BasicCanvasLayer(BasicLayerManager* aLayerManager) :
-    CopyableCanvasLayer(aLayerManager,
-                        static_cast<BasicImplData*>(MOZ_THIS_IN_INITIALIZER_LIST()))
+    CopyableCanvasLayer(aLayerManager, static_cast<BasicImplData*>(this))
   { }
   
   virtual void SetVisibleRegion(const nsIntRegion& aRegion)

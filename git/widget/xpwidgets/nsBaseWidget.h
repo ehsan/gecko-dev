@@ -361,7 +361,7 @@ protected:
 
   virtual CompositorChild* GetRemoteRenderer() MOZ_OVERRIDE;
 
-  virtual void GetPreferredCompositorBackends(nsTArray<mozilla::layers::LayersBackend>& aHints);
+  virtual mozilla::layers::LayersBackend GetPreferredCompositorBackend();
 
   /**
    * Notify the widget that this window is being used with OMTC.

@@ -912,8 +912,8 @@ JS_DumpCompartmentPCCounts(JSContext *cx)
             if (obj->compartment() != cx->compartment())
                 continue;
 
-            if (obj->is<AsmJSModuleObject>()) {
-                AsmJSModule &module = obj->as<AsmJSModuleObject>().module();
+            if (IsAsmJSModuleObject(obj)) {
+                AsmJSModule &module = AsmJSModuleObjectToModule(obj);
 
                 Sprinter sprinter(cx);
                 if (!sprinter.init())

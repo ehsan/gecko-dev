@@ -7,7 +7,6 @@
 #define nsGUIEventIPC_h__
 
 #include "ipc/IPCMessageUtils.h"
-#include "mozilla/GfxMessageUtils.h"
 #include "mozilla/dom/Touch.h"
 #include "nsGUIEvent.h"
 

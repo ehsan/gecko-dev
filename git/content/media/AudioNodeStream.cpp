@@ -286,7 +286,7 @@ AudioNodeStream::ObtainInputBlock(AudioChunk& aTmpChunk, uint32_t aPortIndex)
     }
     AudioChunk* chunk = &a->mLastChunks[mInputs[i]->OutputNumber()];
     MOZ_ASSERT(chunk);
-    if (chunk->IsNull() || chunk->mChannelData.IsEmpty()) {
+    if (chunk->IsNull()) {
       continue;
     }
 

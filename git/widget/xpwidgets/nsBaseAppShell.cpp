@@ -9,6 +9,7 @@
 #include "nsThreadUtils.h"
 #include "nsIObserverService.h"
 #include "nsServiceManagerUtils.h"
+#include "pratom.h"
 #include "mozilla/Services.h"
 
 // When processing the next thread event, the appshell may process native
@@ -61,7 +62,8 @@ nsBaseAppShell::Init()
 void
 nsBaseAppShell::NativeEventCallback()
 {
-  if (!mNativeEventPending.exchange(0))
+  int32_t hasPending = PR_ATOMIC_SET(&mNativeEventPending, 0);
+  if (hasPending == 0)
     return;
 
   // If DoProcessNextNativeEvent is on the stack, then we assume that we can
@@ -225,7 +227,8 @@ nsBaseAppShell::OnDispatchedEvent(nsIThreadInternal *thr)
   if (mBlockNativeEvent)
     return NS_OK;
 
-  if (mNativeEventPending.exchange(1))
+  int32_t lastVal = PR_ATOMIC_SET(&mNativeEventPending, 1);
+  if (lastVal == 1)
     return NS_OK;
 
   // Returns on the main thread in NativeEventCallback above

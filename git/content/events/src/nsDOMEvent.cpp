@@ -58,7 +58,6 @@ nsDOMEvent::ConstructorInit(mozilla::dom::EventTarget* aOwner,
 {
   SetIsDOMBinding();
   SetOwner(aOwner);
-  mIsMainThreadEvent = mOwner || NS_IsMainThread();
 
   mPrivateDataDuplicated = false;
 
@@ -223,18 +222,19 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 // nsIDOMEventInterface
 NS_METHOD nsDOMEvent::GetType(nsAString& aType)
 {
-  if (!mIsMainThreadEvent || !mEvent->typeString.IsEmpty()) {
-    aType = mEvent->typeString;
+  if (!mCachedType.IsEmpty()) {
+    aType = mCachedType;
     return NS_OK;
   }
   const char* name = GetEventName(mEvent->message);
 
   if (name) {
     CopyASCIItoUTF16(name, aType);
+    mCachedType = aType;
     return NS_OK;
   } else if (mEvent->message == NS_USER_DEFINED_EVENT && mEvent->userType) {
     aType = Substring(nsDependentAtomString(mEvent->userType), 2); // Remove "on"
-    mEvent->typeString = aType;
+    mCachedType = aType;
     return NS_OK;
   }
 
@@ -460,15 +460,9 @@ nsDOMEvent::PreventDefault()
 void
 nsDOMEvent::SetEventType(const nsAString& aEventTypeArg)
 {
-  if (mIsMainThreadEvent) {
-    mEvent->userType =
-      nsContentUtils::GetEventIdAndAtom(aEventTypeArg, mEvent->eventStructType,
-                                        &(mEvent->message));
-  } else {
-    mEvent->userType = nullptr;
-    mEvent->message = NS_USER_DEFINED_EVENT;
-    mEvent->typeString = aEventTypeArg;
-  }
+  mEvent->userType =
+    nsContentUtils::GetEventIdAndAtom(aEventTypeArg, mEvent->eventStructType,
+                                      &(mEvent->message));
 }
 
 NS_IMETHODIMP
@@ -495,6 +489,7 @@ nsDOMEvent::InitEvent(const nsAString& aEventTypeArg, bool aCanBubbleArg, bool a
   // re-dispatching it.
   mEvent->target = nullptr;
   mEvent->originalTarget = nullptr;
+  mCachedType = aEventTypeArg;
   return NS_OK;
 }
 

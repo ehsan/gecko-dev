@@ -80,7 +80,7 @@ namespace cyclecollector {
 void AddJSHolder(void* aHolder, nsScriptObjectTracer* aTracer);
 void RemoveJSHolder(void* aHolder);
 #ifdef DEBUG
-bool IsJSHolder(void* aHolder);
+bool TestJSHolder(void* aHolder);
 #endif
 
 void DeferredFinalize(DeferredFinalizeAppendFunction aAppendFunc,

@@ -389,7 +389,9 @@ public:
     void DepthMask(WebGLboolean b);
     void DepthRange(WebGLclampf zNear, WebGLclampf zFar);
     void DetachShader(WebGLProgram *program, WebGLShader *shader);
+    void Disable(WebGLenum cap);
     void DrawBuffers(const dom::Sequence<GLenum>& buffers);
+    void Enable(WebGLenum cap);
     void Flush() {
         if (!IsContextStable())
             return;
@@ -421,6 +423,7 @@ public:
                                  WebGLenum pname) {
         return GetBufferParameter(target, pname);
     }
+    JS::Value GetParameter(JSContext* cx, WebGLenum pname, ErrorResult& rv);
     WebGLenum GetError();
     JS::Value GetFramebufferAttachmentParameter(JSContext* cx,
                                                 WebGLenum target,
@@ -460,6 +463,7 @@ public:
       GetUniformLocation(WebGLProgram *prog, const nsAString& name);
     void Hint(WebGLenum target, WebGLenum mode);
     bool IsBuffer(WebGLBuffer *buffer);
+    bool IsEnabled(WebGLenum cap);
     bool IsFramebuffer(WebGLFramebuffer *fb);
     bool IsProgram(WebGLProgram *prog);
     bool IsRenderbuffer(WebGLRenderbuffer *rb);
@@ -755,17 +759,6 @@ private:
     WebGLRefPtr<WebGLQuery>& GetActiveQueryByTarget(WebGLenum target);
 
 // -----------------------------------------------------------------------------
-// State and State Requests (WebGLContextState.cpp)
-public:
-    void Disable(WebGLenum cap);
-    void Enable(WebGLenum cap);
-    JS::Value GetParameter(JSContext* cx, WebGLenum pname, ErrorResult& rv);
-    bool IsEnabled(WebGLenum cap);
-
-private:
-    bool ValidateCapabilityEnum(WebGLenum cap, const char* info);
-
-// -----------------------------------------------------------------------------
 // Vertices Feature (WebGLContextVertices.cpp)
 public:
     void DrawArrays(GLenum mode, WebGLint first, WebGLsizei count);
@@ -971,6 +964,7 @@ protected:
     // -------------------------------------------------------------------------
     // Validation functions (implemented in WebGLContextValidate.cpp)
     bool InitAndValidateGL();
+    bool ValidateCapabilityEnum(WebGLenum cap, const char *info);
     bool ValidateBlendEquationEnum(WebGLenum cap, const char *info);
     bool ValidateBlendFuncDstEnum(WebGLenum mode, const char *info);
     bool ValidateBlendFuncSrcEnum(WebGLenum mode, const char *info);

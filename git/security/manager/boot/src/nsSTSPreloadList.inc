@@ -4,11 +4,11 @@
 
 /*****************************************************************************/
 /* This is an automatically generated file. If you're not                    */
-/* nsSiteSecurityService.cpp, you shouldn't be #including it.     */
+/* nsStrictTransportSecurityService.cpp, you shouldn't be #including it.     */
 /*****************************************************************************/
 
 #include <stdint.h>
-const PRTime gPreloadListExpirationTime = INT64_C(1387620321046000);
+const PRTime gPreloadListExpirationTime = INT64_C(1386411284101000);
 
 class nsSTSPreload
 {
@@ -75,11 +75,9 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "makeyourlaws.org", true },
   { "manager.linode.com", false },
   { "mattmccutchen.net", true },
-  { "mediacru.sh", true },
   { "mega.co.nz", false },
   { "members.mayfirst.org", false },
   { "members.nearlyfreespeech.net", false },
-  { "mudcrab.us", true },
   { "my.onlime.ch", false },
   { "mylookout.com", false },
   { "neg9.org", false },

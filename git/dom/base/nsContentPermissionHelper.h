@@ -5,6 +5,8 @@
 #ifndef nsContentPermissionHelper_h
 #define nsContentPermissionHelper_h
 
+#include "base/basictypes.h"
+
 #include "nsIContentPermissionPrompt.h"
 #include "nsString.h"
 

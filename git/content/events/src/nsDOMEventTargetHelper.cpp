@@ -292,7 +292,7 @@ nsDOMEventTargetHelper::SetEventHandler(nsIAtom* aType,
     handler = new EventHandlerNonNull(callable);
   }
   ErrorResult rv;
-  SetEventHandler(aType, EmptyString(), handler, rv);
+  SetEventHandler(aType, handler, rv);
   return rv.ErrorCode();
 }
 
@@ -301,7 +301,7 @@ nsDOMEventTargetHelper::GetEventHandler(nsIAtom* aType,
                                         JSContext* aCx,
                                         JS::Value* aValue)
 {
-  EventHandlerNonNull* handler = GetEventHandler(aType, EmptyString());
+  EventHandlerNonNull* handler = GetEventHandler(aType);
   if (handler) {
     *aValue = JS::ObjectValue(*handler->Callable());
   } else {

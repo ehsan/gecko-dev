@@ -48,16 +48,18 @@ public:
                                    ErrorResult& aRv);
   bool DispatchEvent(nsDOMEvent& aEvent, ErrorResult& aRv);
 
-  // Note, this takes the type in onfoo form!
   EventHandlerNonNull* GetEventHandler(const nsAString& aType)
   {
     nsCOMPtr<nsIAtom> type = do_GetAtom(aType);
-    return GetEventHandler(type, EmptyString());
+    return GetEventHandler(type);
   }
 
-  // Note, this takes the type in onfoo form!
   void SetEventHandler(const nsAString& aType, EventHandlerNonNull* aHandler,
-                       ErrorResult& rv);
+                       ErrorResult& rv)
+  {
+    nsCOMPtr<nsIAtom> type = do_GetAtom(aType);
+    return SetEventHandler(type, aHandler, rv);
+  }
 
   // Note, for an event 'foo' aType will be 'onfoo'.
   virtual void EventListenerAdded(nsIAtom* aType) {}
@@ -69,10 +71,9 @@ public:
   virtual nsIDOMWindow* GetOwnerGlobal() = 0;
 
 protected:
-  EventHandlerNonNull* GetEventHandler(nsIAtom* aType,
-                                       const nsAString& aTypeString);
-  void SetEventHandler(nsIAtom* aType, const nsAString& aTypeString,
-                       EventHandlerNonNull* aHandler, ErrorResult& rv);
+  EventHandlerNonNull* GetEventHandler(nsIAtom* aType);
+  void SetEventHandler(nsIAtom* aType, EventHandlerNonNull* aHandler,
+                       ErrorResult& rv);
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(EventTarget, NS_EVENTTARGET_IID)

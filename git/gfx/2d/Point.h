@@ -10,8 +10,6 @@
 #include "BasePoint.h"
 #include "BaseSize.h"
 
-#include <cmath>
-
 namespace mozilla {
 namespace gfx {
 
@@ -65,8 +63,8 @@ typedef PointTyped<UnknownUnits> Point;
 
 template<class units>
 IntPointTyped<units> RoundedToInt(const PointTyped<units>& aPoint) {
-  return IntPointTyped<units>(int32_t(floorf(aPoint.x + 0.5f)),
-                              int32_t(floorf(aPoint.y + 0.5f)));
+  return IntPointTyped<units>(NS_lround(aPoint.x),
+                              NS_lround(aPoint.y));
 }
 
 template<class units>

@@ -469,26 +469,6 @@ CodeGenerator::testValueTruthy(const ValueOperand &value,
     masm.jump(ifTruthy);
 }
 
-Label *
-CodeGenerator::getJumpLabelForBranch(MBasicBlock *block)
-{
-    if (!labelForBackedgeWithImplicitCheck(block))
-        return block->lir()->label();
-
-    // We need to use a patchable jump for this backedge, but want to treat
-    // this as a normal label target to simplify codegen. Efficiency isn't so
-    // important here as these tests are extremely unlikely to be used in loop
-    // backedges, so emit inline code for the patchable jump. Heap allocating
-    // the label allows it to be used by out of line blocks.
-    Label *res = GetIonContext()->temp->lifoAlloc()->new_<Label>();
-    Label after;
-    masm.jump(&after);
-    masm.bind(res);
-    jumpToBlock(block);
-    masm.bind(&after);
-    return res;
-}
-
 bool
 CodeGenerator::visitTestOAndBranch(LTestOAndBranch *lir)
 {
@@ -499,10 +479,7 @@ CodeGenerator::visitTestOAndBranch(LTestOAndBranch *lir)
     if (!addOutOfLineCode(ool))
         return false;
 
-    Label *truthy = getJumpLabelForBranch(lir->ifTruthy());
-    Label *falsy = getJumpLabelForBranch(lir->ifFalsy());
-
-    testObjectTruthy(ToRegister(lir->input()), truthy, falsy,
+    testObjectTruthy(ToRegister(lir->input()), lir->ifTruthy(), lir->ifFalsy(),
                      ToRegister(lir->temp()), ool);
     return true;
 
@@ -518,13 +495,10 @@ CodeGenerator::visitTestVAndBranch(LTestVAndBranch *lir)
             return false;
     }
 
-    Label *truthy = getJumpLabelForBranch(lir->ifTruthy());
-    Label *falsy = getJumpLabelForBranch(lir->ifFalsy());
-
     testValueTruthy(ToValue(lir, LTestVAndBranch::Input),
                     lir->temp1(), lir->temp2(),
                     ToFloatRegister(lir->tempFloat()),
-                    truthy, falsy, ool);
+                    lir->ifTruthy(), lir->ifFalsy(), ool);
     return true;
 }
 
@@ -818,88 +792,19 @@ CodeGenerator::visitOsiPoint(LOsiPoint *lir)
     LSafepoint *safepoint = lir->associatedSafepoint();
     JS_ASSERT(!safepoint->osiCallPointOffset());
     safepoint->setOsiCallPointOffset(osiCallPointOffset);
-
-#ifdef DEBUG
-    // There should be no movegroups or other instructions between
-    // an instruction and its OsiPoint. This is necessary because
-    // we use the OsiPoint's snapshot from within VM calls.
-    for (LInstructionReverseIterator iter(current->rbegin(lir)); iter != current->rend(); iter++) {
-        if (*iter == lir || iter->isNop())
-            continue;
-        JS_ASSERT(!iter->isMoveGroup());
-        JS_ASSERT(iter->safepoint() == safepoint);
-        break;
-    }
-#endif
-
-#ifdef CHECK_OSIPOINT_REGISTERS
-    if (shouldVerifyOsiPointRegs(safepoint))
-        verifyOsiPointRegs(safepoint);
-#endif
-
     return true;
 }
 
 bool
 CodeGenerator::visitGoto(LGoto *lir)
 {
-    jumpToBlock(lir->target());
-    return true;
-}
+    LBlock *target = lir->target()->lir();
 
-// Out-of-line path to execute any move groups between the start of a loop
-// header and its interrupt check, then invoke the interrupt handler.
-class OutOfLineInterruptCheckImplicit : public OutOfLineCodeBase<CodeGenerator>
-{
-  public:
-    LBlock *block;
-    LInterruptCheckImplicit *lir;
+    // No jump necessary if we can fall through to the next block.
+    if (isNextBlock(target))
+        return true;
 
-    OutOfLineInterruptCheckImplicit(LBlock *block, LInterruptCheckImplicit *lir)
-      : block(block), lir(lir)
-    { }
-
-    bool accept(CodeGenerator *codegen) {
-        return codegen->visitOutOfLineInterruptCheckImplicit(this);
-    }
-};
-
-bool
-CodeGenerator::visitOutOfLineInterruptCheckImplicit(OutOfLineInterruptCheckImplicit *ool)
-{
-    LInstructionIterator iter = ool->block->begin();
-    for (; iter != ool->block->end(); iter++) {
-        if (iter->isLabel()) {
-            // Nothing to do.
-        } else if (iter->isMoveGroup()) {
-            // Replay this move group that preceds the interrupt check at the
-            // start of the loop header. Any incoming jumps here will be from
-            // the backedge and will skip over the move group emitted inline.
-            visitMoveGroup(iter->toMoveGroup());
-        } else {
-            break;
-        }
-    }
-    JS_ASSERT(*iter == ool->lir);
-
-    saveLive(ool->lir);
-    if (!callVM(InterruptCheckInfo, ool->lir))
-        return false;
-    restoreLive(ool->lir);
-    masm.jump(ool->rejoin());
-
-    return true;
-}
-
-bool
-CodeGenerator::visitInterruptCheckImplicit(LInterruptCheckImplicit *lir)
-{
-    OutOfLineInterruptCheckImplicit *ool = new OutOfLineInterruptCheckImplicit(current, lir);
-    if (!addOutOfLineCode(ool))
-        return false;
-
-    lir->setOolEntry(ool->entry());
-    masm.bind(ool->rejoin());
+    masm.jump(target->label());
     return true;
 }
 
@@ -966,6 +871,18 @@ CodeGenerator::visitCallee(LCallee *lir)
 
     masm.loadPtr(ptr, callee);
     masm.clearCalleeTag(callee, gen->info().executionMode());
+    return true;
+}
+
+bool
+CodeGenerator::visitForceUseV(LForceUseV *lir)
+{
+    return true;
+}
+
+bool
+CodeGenerator::visitForceUseT(LForceUseT *lir)
+{
     return true;
 }
 
@@ -2724,20 +2641,6 @@ CodeGenerator::generateBody()
                     return false;
             }
 
-#ifdef CHECK_OSIPOINT_REGISTERS
-            if (iter->safepoint() && shouldVerifyOsiPointRegs(iter->safepoint())) {
-                // Set checkRegs to 0. If we perform a VM call, the instruction
-                // will set it to 1.
-                GeneralRegisterSet allRegs(GeneralRegisterSet::All());
-                Register scratch = allRegs.takeAny();
-                masm.push(scratch);
-                masm.loadJitActivation(scratch);
-                Address checkRegs(scratch, JitActivation::offsetOfCheckRegs());
-                masm.store32(Imm32(0), checkRegs);
-                masm.pop(scratch);
-            }
-#endif
-
             if (!callTraceLIR(i, *iter))
                 return false;
 
@@ -4053,9 +3956,8 @@ CodeGenerator::visitIsNullOrLikeUndefinedAndBranch(LIsNullOrLikeUndefinedAndBran
         }
 
         Register tag = masm.splitTagForTest(value);
-
-        Label *ifTrueLabel = getJumpLabelForBranch(ifTrue);
-        Label *ifFalseLabel = getJumpLabelForBranch(ifFalse);
+        Label *ifTrueLabel = ifTrue->lir()->label();
+        Label *ifFalseLabel = ifFalse->lir()->label();
 
         masm.branchTestNull(Assembler::Equal, tag, ifTrueLabel);
         masm.branchTestUndefined(Assembler::Equal, tag, ifTrueLabel);
@@ -4151,8 +4053,8 @@ CodeGenerator::visitEmulatesUndefinedAndBranch(LEmulatesUndefinedAndBranch *lir)
             op = JSOP_EQ;
         }
 
-        equal = getJumpLabelForBranch(ifTrue);
-        unequal = getJumpLabelForBranch(ifFalse);
+        equal = ifTrue->lir()->label();
+        unequal = ifFalse->lir()->label();
     }
 
     Register objreg = ToRegister(lir->input());
@@ -5547,19 +5449,26 @@ CodeGenerator::link()
 {
     JSContext *cx = GetIonContext()->cx;
 
-    // Check to make sure we didn't have a mid-build invalidation. If so, we
-    // will trickle to ion::Compile() and return Method_Skipped.
-    if (cx->compartment()->types.compiledInfo.compilerOutput(cx)->isInvalidated())
-        return true;
+    Linker linker(masm);
+    IonCode *code = linker.newCode(cx, JSC::ION_CODE);
+    if (!code)
+        return false;
 
+    // We encode safepoints after the OSI-point offsets have been determined.
+    encodeSafepoints();
+
+    JSScript *script = gen->info().script();
     ExecutionMode executionMode = gen->info().executionMode();
+    JS_ASSERT(!HasIonScript(script, executionMode));
 
     uint32_t scriptFrameSize = frameClass_ == FrameSizeClass::None()
                            ? frameDepth_
                            : FrameSizeClass::FromDepth(frameDepth_).frameSize();
 
-    // We encode safepoints after the OSI-point offsets have been determined.
-    encodeSafepoints();
+    // Check to make sure we didn't have a mid-build invalidation. If so, we
+    // will trickle to ion::Compile() and return Method_Skipped.
+    if (cx->compartment()->types.compiledInfo.compilerOutput(cx)->isInvalidated())
+        return true;
 
     // List of possible scripts that this graph may call. Currently this is
     // only tracked when compiling for parallel execution.
@@ -5573,32 +5482,7 @@ CodeGenerator::link()
                      safepointIndices_.length(), osiIndices_.length(),
                      cacheList_.length(), runtimeData_.length(),
                      safepoints_.size(), graph.mir().numScripts(),
-                     callTargets.length(), patchableBackedges_.length());
-    if (!ionScript)
-        return false;
-
-    // Lock the runtime against operation callbacks during the link.
-    // We don't want an operation callback to protect the code for the script
-    // before it has been filled in, as we could segv before the runtime's
-    // patchable backedges have been fully updated.
-    JSRuntime::AutoLockForOperationCallback lock(cx->runtime());
-
-    // Make sure we don't segv while filling in the code, to avoid deadlocking
-    // inside the signal handler.
-    cx->runtime()->ionRuntime()->ensureIonCodeAccessible(cx->runtime());
-
-    // Implicit interrupts are used only for sequential code. In parallel mode
-    // use the normal executable allocator so that we cannot segv during
-    // execution off the main thread.
-    Linker linker(masm);
-    IonCode *code = (executionMode == SequentialExecution)
-                    ? linker.newCodeForIonScript(cx)
-                    : linker.newCode(cx, JSC::ION_CODE);
-    if (!code)
-        return false;
-
-    JSScript *script = gen->info().script();
-    JS_ASSERT(!HasIonScript(script, executionMode));
+                     callTargets.length());
 
     ionScript->setMethod(code);
     ionScript->setSkipArgCheckEntryOffset(getSkipArgCheckEntryOffset());
@@ -5615,6 +5499,8 @@ CodeGenerator::link()
     if (callTargets.length() != 0)
         ionScript->setHasUncompiledCallTarget();
 
+    if (!ionScript)
+        return false;
     invalidateEpilogueData_.fixup(&masm);
     Assembler::patchDataWithValueCheck(CodeLocationLabel(code, invalidateEpilogueData_),
                                        ImmWord(uintptr_t(ionScript)),
@@ -5659,8 +5545,6 @@ CodeGenerator::link()
     ionScript->copyScriptEntries(graph.mir().scripts());
     if (callTargets.length() > 0)
         ionScript->copyCallTargetEntries(callTargets.begin());
-    if (patchableBackedges_.length() > 0)
-        ionScript->copyPatchableBackedges(cx, code, patchableBackedges_.begin());
 
     switch (executionMode) {
       case SequentialExecution:
@@ -7301,86 +7185,6 @@ CodeGenerator::visitAsmJSCheckOverRecursed(LAsmJSCheckOverRecursed *lir)
                    AbsoluteAddress(limitAddr),
                    StackPointer,
                    lir->mir()->onError());
-    return true;
-}
-
-bool
-CodeGenerator::visitRangeAssert(LRangeAssert *ins)
-{
-     Register input = ToRegister(ins->input());
-     Range *r = ins->range();
-
-    // Check the lower bound.
-    if (r->lower() != INT32_MIN) {
-        Label success;
-        masm.branch32(Assembler::GreaterThanOrEqual, input, Imm32(r->lower()), &success);
-        masm.breakpoint();
-        masm.bind(&success);
-    }
-
-    // Check the upper bound.
-    if (r->upper() != INT32_MAX) {
-        Label success;
-        masm.branch32(Assembler::LessThanOrEqual, input, Imm32(r->upper()), &success);
-        masm.breakpoint();
-        masm.bind(&success);
-    }
-
-    // For r->isDecimal() and r->exponent(), there's nothing to check, because
-    // if we ended up in the integer range checking code, the value is already
-    // in an integer register in the integer range.
-
-    return true;
-}
-
-bool
-CodeGenerator::visitDoubleRangeAssert(LDoubleRangeAssert *ins)
-{
-     FloatRegister input = ToFloatRegister(ins->input());
-     FloatRegister temp = ToFloatRegister(ins->temp());
-     Range *r = ins->range();
-
-    // Check the lower bound.
-    if (!r->isLowerInfinite()) {
-        Label success;
-        masm.loadConstantDouble(r->lower(), temp);
-        if (r->isUpperInfinite())
-            masm.branchDouble(Assembler::DoubleUnordered, input, input, &success);
-        masm.branchDouble(Assembler::DoubleGreaterThanOrEqual, input, temp, &success);
-        masm.breakpoint();
-        masm.bind(&success);
-    }
-    // Check the upper bound.
-    if (!r->isUpperInfinite()) {
-        Label success;
-        masm.loadConstantDouble(r->upper(), temp);
-        if (r->isLowerInfinite())
-            masm.branchDouble(Assembler::DoubleUnordered, input, input, &success);
-        masm.branchDouble(Assembler::DoubleLessThanOrEqual, input, temp, &success);
-        masm.breakpoint();
-        masm.bind(&success);
-    }
-
-    // This code does not yet check r->isDecimal(). This would require new
-    // assembler interfaces to make rounding instructions available.
-
-    if (!r->isInfinite()) {
-        // Check the bounds implied by the maximum exponent.
-        Label exponentLoOk;
-        masm.loadConstantDouble(pow(2.0, r->exponent() + 1), temp);
-        masm.branchDouble(Assembler::DoubleUnordered, input, input, &exponentLoOk);
-        masm.branchDouble(Assembler::DoubleLessThanOrEqual, input, temp, &exponentLoOk);
-        masm.breakpoint();
-        masm.bind(&exponentLoOk);
-
-        Label exponentHiOk;
-        masm.loadConstantDouble(-pow(2.0, r->exponent() + 1), temp);
-        masm.branchDouble(Assembler::DoubleUnordered, input, input, &exponentHiOk);
-        masm.branchDouble(Assembler::DoubleGreaterThanOrEqual, input, temp, &exponentHiOk);
-        masm.breakpoint();
-        masm.bind(&exponentHiOk);
-    }
-
     return true;
 }
 

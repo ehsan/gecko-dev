@@ -119,13 +119,6 @@ JSCompartment::init(JSContext *cx)
 ion::IonRuntime *
 JSRuntime::createIonRuntime(JSContext *cx)
 {
-    // The runtime will only be created on its owning thread, but reads of a
-    // runtime's ionRuntime() can occur when another thread is triggering an
-    // operation callback.
-    AutoLockForOperationCallback lock(this);
-
-    JS_ASSERT(!ionRuntime_);
-
     ionRuntime_ = cx->new_<ion::IonRuntime>();
 
     if (!ionRuntime_)
@@ -615,36 +608,6 @@ void
 JSCompartment::purge()
 {
     dtoaCache.purge();
-}
-
-void
-JSCompartment::clearTables()
-{
-    global_ = NULL;
-
-    regExps.clearTables();
-
-    // No scripts should have run in this compartment. This is used when
-    // merging a compartment that has been used off thread into another
-    // compartment and zone.
-    JS_ASSERT(crossCompartmentWrappers.empty());
-    JS_ASSERT_IF(callsiteClones.initialized(), callsiteClones.empty());
-#ifdef JS_ION
-    JS_ASSERT(!ionCompartment_);
-#endif
-    JS_ASSERT(!debugScopes);
-    JS_ASSERT(!gcWeakMapList);
-    JS_ASSERT(!analysisLifoAlloc.used());
-    JS_ASSERT(enumerators->next() == enumerators);
-
-    if (baseShapes.initialized())
-        baseShapes.clear();
-    if (initialShapes.initialized())
-        initialShapes.clear();
-    if (newTypeObjects.initialized())
-        newTypeObjects.clear();
-    if (lazyTypeObjects.initialized())
-        lazyTypeObjects.clear();
 }
 
 bool

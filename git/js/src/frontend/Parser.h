@@ -353,7 +353,6 @@ class Parser : private AutoGCRooter, public StrictModeGetter
                       unsigned errorNumber, va_list args);
   public:
     bool report(ParseReportKind kind, bool strict, Node pn, unsigned errorNumber, ...);
-    bool reportNoOffset(ParseReportKind kind, bool strict, unsigned errorNumber, ...);
     bool reportWithOffset(ParseReportKind kind, bool strict, uint32_t offset, unsigned errorNumber,
                           ...);
 
@@ -572,10 +571,7 @@ class Parser : private AutoGCRooter, public StrictModeGetter
     Node pushLexicalScope(Handle<StaticBlockObject*> blockObj, StmtInfoPC *stmt);
     Node pushLetScope(Handle<StaticBlockObject*> blockObj, StmtInfoPC *stmt);
     bool noteNameUse(HandlePropertyName name, Node pn);
-    Node objectLiteral();
-    Node arrayInitializer();
     Node newRegExp();
-
     Node newBindingNode(PropertyName *name, bool functionScope, VarContext varContext = HoistVars);
     bool checkDestructuring(BindData<ParseHandler> *data, Node left, bool toplevel = true);
     bool bindDestructuringVar(BindData<ParseHandler> *data, Node pn);
