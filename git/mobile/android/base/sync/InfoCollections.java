@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import org.mozilla.gecko.background.common.log.Logger;
 
@@ -27,17 +28,18 @@ public class InfoCollections {
    */
   final Map<String, Long> timestamps;
 
-  public InfoCollections() {
-    this(new ExtendedJSONObject());
-  }
-
+  @SuppressWarnings("unchecked")
   public InfoCollections(final ExtendedJSONObject record) {
     Logger.debug(LOG_TAG, "info/collections is " + record.toJSONString());
     HashMap<String, Long> map = new HashMap<String, Long>();
 
-    for (Entry<String, Object> entry : record.entrySet()) {
-      final String key = entry.getKey();
-      final Object value = entry.getValue();
+    Set<Entry<String, Object>> entrySet = record.object.entrySet();
+
+    String key;
+    Object value;
+    for (Entry<String, Object> entry : entrySet) {
+      key = entry.getKey();
+      value = entry.getValue();
 
       // These objects are most likely going to be Doubles. Regardless, we
       // want to get them in a more sane time format.

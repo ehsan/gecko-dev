@@ -1098,7 +1098,7 @@ let DebuggerEnvironmentSupport = {
 };
 
 
-exports.JSPropertyProvider = DevToolsUtils.makeInfallible(JSPropertyProvider);
+exports.JSPropertyProvider = JSPropertyProvider;
 })(WebConsoleUtils);
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -394,9 +394,6 @@ PlacesViewBase.prototype = {
       // Add "Open (Feed Name)" menuitem.
       aPopup._siteURIMenuitem = document.createElement("menuitem");
       aPopup._siteURIMenuitem.className = "openlivemarksite-menuitem";
-      if (typeof this.options.extraClasses.entry == "string") {
-        aPopup._siteURIMenuitem.classList.add(this.options.extraClasses.entry);
-      }
       aPopup._siteURIMenuitem.setAttribute("targetURI", siteUrl);
       aPopup._siteURIMenuitem.setAttribute("oncommand",
         "openUILink(this.getAttribute('targetURI'), event);");
@@ -432,9 +429,6 @@ PlacesViewBase.prototype = {
       // Create the status menuitem and cache it in the popup object.
       statusMenuitem = document.createElement("menuitem");
       statusMenuitem.className = "livemarkstatus-menuitem";
-      if (typeof this.options.extraClasses.entry == "string") {
-        statusMenuitem.classList.add(this.options.extraClasses.entry);
-      }
       statusMenuitem.setAttribute("disabled", true);
       aPopup._statusMenuitem = statusMenuitem;
     }

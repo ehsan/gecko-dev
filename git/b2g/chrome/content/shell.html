@@ -43,8 +43,7 @@
       <button id="home-button"></button>
       <button id="rotate-button"></button>
     </footer>
-#endif
-#ifdef MOZ_WIDGET_COCOA
+#elifdef MOZ_WIDGET_COCOA
     <!--
      If the document is empty at startup, we don't display the window
      at all on Mac OS...

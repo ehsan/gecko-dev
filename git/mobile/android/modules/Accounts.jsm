@@ -42,7 +42,7 @@ let Accounts = Object.freeze({
       if (error) {
         deferred.reject(error);
       } else {
-        deferred.resolve(data.exists);
+        deferred.resolve(JSON.parse(data).exists);
       }
     });
 

@@ -148,8 +148,7 @@ public abstract class ServerSyncStage extends AbstractSessionManagingSyncStage i
     String collection = getCollection();
     return new Server11Repository(collection,
                                   session.config.storageURL(),
-                                  session.getAuthHeaderProvider(),
-                                  session.config.infoCollections);
+                                  session.getAuthHeaderProvider());
   }
 
   /**

@@ -11,63 +11,74 @@ const TEST_URI = "data:text/html;charset=utf8,<title>bug859756</title>\n" +
 
 function test()
 {
-  const FILTER_PREF = "devtools.browserconsole.filter.jslog";
-  Services.prefs.setBoolPref(FILTER_PREF, true);
-
-  registerCleanupFunction(() => {
-    Services.prefs.clearUserPref(FILTER_PREF);
-  });
-
-  Task.spawn(function*() {
-    const {tab} = yield loadTab(TEST_URI);
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
 
     // Test for cached nsIConsoleMessages.
     Services.console.logStringMessage("test1 for bug859756");
 
     info("open web console");
-    let hud = yield openConsole(tab);
+    openConsole(null, consoleOpened);
+  }, true);
+}
 
-    ok(hud, "web console opened");
-    Services.console.logStringMessage("do-not-show-me");
-    content.console.log("foobarz");
+function consoleOpened(hud)
+{
+  ok(hud, "web console opened");
+  Services.console.logStringMessage("do-not-show-me");
+  content.console.log("foobarz");
 
-    yield waitForMessages({
-      webconsole: hud,
-      messages: [{
+  waitForMessages({
+    webconsole: hud,
+    messages: [
+      {
         text: "foobarz",
         category: CATEGORY_WEBDEV,
         severity: SEVERITY_LOG,
-      }],
-    });
-
+      },
+    ],
+  }).then(() => {
     let text = hud.outputNode.textContent;
     is(text.indexOf("do-not-show-me"), -1,
        "nsIConsoleMessages are not displayed");
     is(text.indexOf("test1 for bug859756"), -1,
        "nsIConsoleMessages are not displayed (confirmed)");
+    closeConsole(null, onWebConsoleClose);
+  });
+}
 
-    yield closeConsole(tab);
+function onWebConsoleClose()
+{
+  info("web console closed");
+  HUDService.toggleBrowserConsole().then(onBrowserConsoleOpen);
+}
 
-    info("web console closed");
-    hud = yield HUDService.toggleBrowserConsole();
-    ok(hud, "browser console opened");
+function onBrowserConsoleOpen(hud)
+{
+  ok(hud, "browser console opened");
+  Services.console.logStringMessage("test2 for bug859756");
 
-    Services.console.logStringMessage("test2 for bug859756");
-
-    let results = yield waitForMessages({
-      webconsole: hud,
-      messages: [{
+  waitForMessages({
+    webconsole: hud,
+    messages: [
+      {
         text: "test1 for bug859756",
         category: CATEGORY_JS,
-      }, {
+      },
+      {
         text: "test2 for bug859756",
         category: CATEGORY_JS,
-      }, {
+      },
+      {
         text: "do-not-show-me",
         category: CATEGORY_JS,
-      }],
-    });
+      },
+    ],
+  }).then(testFiltering);
 
+  function testFiltering(results)
+  {
     let msg = [...results[2].matched][0];
     ok(msg, "message element for do-not-show-me (nsIConsoleMessage)");
     isnot(msg.textContent.indexOf("do-not-show"), -1, "element content is correct");
@@ -76,5 +87,9 @@ function test()
     hud.setFilterState("jslog", false);
 
     ok(msg.classList.contains("filtered-by-type"), "element is filtered");
-  }).then(finishTest);
+
+    hud.setFilterState("jslog", true);
+
+    finishTest();
+  }
 }

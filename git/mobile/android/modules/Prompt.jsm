@@ -159,11 +159,17 @@ Prompt.prototype = {
   show: function(callback) {
     this.callback = callback;
     log("Sending message");
+    Services.obs.addObserver(this, "Prompt:Return", false);
     this._innerShow();
   },
 
   _innerShow: function() {
-    sendMessageToJava(this.msg, (data) => {
+    sendMessageToJava(this.msg, (aData) => {
+      log("observe " + aData);
+      let data = JSON.parse(aData);
+
+      Services.obs.removeObserver(this, "Prompt:Return", false);
+
       if (this.callback)
         this.callback(data);
     });

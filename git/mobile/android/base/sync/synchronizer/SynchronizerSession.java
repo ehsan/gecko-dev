@@ -148,6 +148,15 @@ implements RecordsChannelDelegate,
       return;
     }
 
+    if (!sessionA.dataAvailable() &&
+        !sessionB.dataAvailable()) {
+      Logger.info(LOG_TAG, "Neither session reports data available. Short-circuiting sync.");
+      sessionA.abort();
+      sessionB.abort();
+      this.delegate.onSynchronizeSkipped(this);
+      return;
+    }
+
     final SynchronizerSession session = this;
 
     // TODO: failed record handling.
