@@ -32,13 +32,17 @@ let Reader = {
   pageAction: {
     readerModeCallback: function(tabID) {
       Messaging.sendRequest({
-        type: "Reader:Toggle",
+        type: "Reader:Click",
         tabID: tabID
       });
     },
 
     readerModeActiveCallback: function(tabID) {
-      Reader.addTabToReadingList(tabID);
+      Messaging.sendRequest({
+        type: "Reader:LongClick",
+        tabID: tabID
+      });
+
       UITelemetry.addEvent("save.1", "pageaction", null, "reader");
     },
   },
@@ -79,8 +83,90 @@ let Reader = {
 
   observe: function(aMessage, aTopic, aData) {
     switch(aTopic) {
-      case "Reader:Removed": {
-        this.removeArticleFromCache(aData);
+      case "Reader:Add": {
+        let args = JSON.parse(aData);
+        if ('fromAboutReader' in args) {
+          // Ignore adds initiated from aboutReader menu banner
+          break;
+        }
+
+        let tabID = null;
+        let url, urlWithoutRef;
+
+        if ('tabID' in args) {
+          tabID = args.tabID;
+
+          let tab = BrowserApp.getTabForId(tabID);
+          let currentURI = tab.browser.currentURI;
+
+          url = currentURI.spec;
+          urlWithoutRef = currentURI.specIgnoringRef;
+        } else if ('url' in args) {
+          let uri = Services.io.newURI(args.url, null, null);
+          url = uri.spec;
+          urlWithoutRef = uri.specIgnoringRef;
+        } else {
+          throw new Error("Reader:Add requires a tabID or an URL as argument");
+        }
+
+        let sendResult = function(result, article) {
+          article = article || {};
+          this.log("Reader:Add success=" + result + ", url=" + url + ", title=" + article.title + ", excerpt=" + article.excerpt);
+
+          Messaging.sendRequest({
+            type: "Reader:Added",
+            result: result,
+            title: truncate(article.title, MAX_TITLE_LENGTH),
+            url: truncate(url, MAX_URI_LENGTH),
+            length: article.length,
+            excerpt: article.excerpt
+          });
+        }.bind(this);
+
+        let handleArticle = function(article) {
+          if (!article) {
+            sendResult(this.READER_ADD_FAILED, null);
+            return;
+          }
+
+          this.storeArticleInCache(article, function(success) {
+            let result = (success ? this.READER_ADD_SUCCESS : this.READER_ADD_FAILED);
+            sendResult(result, article);
+          }.bind(this));
+        }.bind(this);
+
+        this.getArticleFromCache(urlWithoutRef, function (article) {
+          // If the article is already in reading list, bail
+          if (article) {
+            sendResult(this.READER_ADD_DUPLICATE, null);
+            return;
+          }
+
+          if (tabID != null) {
+            this.getArticleForTab(tabID, urlWithoutRef, handleArticle);
+          } else {
+            this.parseDocumentFromURL(urlWithoutRef, handleArticle);
+          }
+        }.bind(this));
+        break;
+      }
+
+      case "Reader:Remove": {
+        let args = JSON.parse(aData);
+
+        if (!("url" in args)) {
+          throw new Error("Reader:Remove requires URL as an argument");
+        }
+
+        this.removeArticleFromCache(args.url, function(success) {
+          this.log("Reader:Remove success=" + success + ", url=" + args.url);
+          if (success && args.notify) {
+            Messaging.sendRequest({
+              type: "Reader:Removed",
+              url: args.url
+            });
+          }
+        }.bind(this));
         break;
       }
 
@@ -91,52 +177,6 @@ let Reader = {
         break;
       }
     }
-  },
-
-  addTabToReadingList: function(tabID) {
-    let tab = BrowserApp.getTabForId(tabID);
-    let currentURI = tab.browser.currentURI;
-    let url = currentURI.spec;
-    let urlWithoutRef = currentURI.specIgnoringRef;
-
-    let sendResult = function(result, article) {
-      article = article || {};
-
-      Messaging.sendRequest({
-        type: "Reader:AddToList",
-        result: result,
-        title: truncate(article.title, MAX_TITLE_LENGTH),
-        url: truncate(url, MAX_URI_LENGTH),
-        length: article.length,
-        excerpt: article.excerpt
-      });
-    }.bind(this);
-
-    let handleArticle = function(article) {
-      if (!article) {
-        sendResult(this.READER_ADD_FAILED, null);
-        return;
-      }
-
-      this.storeArticleInCache(article, function(success) {
-        let result = (success ? this.READER_ADD_SUCCESS : this.READER_ADD_FAILED);
-        sendResult(result, article);
-      }.bind(this));
-    }.bind(this);
-
-    this.getArticleFromCache(urlWithoutRef, function (article) {
-      // If the article is already in reading list, bail
-      if (article) {
-        sendResult(this.READER_ADD_DUPLICATE, null);
-        return;
-      }
-
-      if (tabID != null) {
-        this.getArticleForTab(tabID, urlWithoutRef, handleArticle);
-      } else {
-        this.parseDocumentFromURL(urlWithoutRef, handleArticle);
-      }
-    }.bind(this));
   },
 
   getStateForParseOnLoad: function Reader_getStateForParseOnLoad() {
@@ -285,9 +325,10 @@ let Reader = {
     }.bind(this));
   },
 
-  removeArticleFromCache: function Reader_removeArticleFromCache(url) {
+  removeArticleFromCache: function Reader_removeArticleFromCache(url, callback) {
     this._getCacheDB(function(cacheDB) {
       if (!cacheDB) {
+        callback(false);
         return;
       }
 
@@ -298,10 +339,12 @@ let Reader = {
 
       request.onerror = function(event) {
         this.log("Error removing article from the cache DB: " + url);
+        callback(false);
       }.bind(this);
 
       request.onsuccess = function(event) {
         this.log("Removed article from the cache DB: " + url);
+        callback(true);
       }.bind(this);
     }.bind(this));
   },
@@ -309,7 +352,8 @@ let Reader = {
   uninit: function Reader_uninit() {
     Services.prefs.removeObserver("reader.parse-on-load.", this);
 
-    Services.obs.removeObserver(this, "Reader:Removed");
+    Services.obs.removeObserver(this, "Reader:Add");
+    Services.obs.removeObserver(this, "Reader:Remove");
 
     let requests = this._requests;
     for (let url in requests) {

@@ -10,6 +10,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 
 let promise = require("devtools/toolkit/deprecated-sync-thenables");
 let EventEmitter = require("devtools/toolkit/event-emitter");
+let {CssLogic} = require("devtools/styleinspector/css-logic");
 let clipboard = require("sdk/clipboard");
 
 loader.lazyGetter(this, "MarkupView", () => require("devtools/markupview/markup-view").MarkupView);
@@ -409,11 +410,9 @@ InspectorPanel.prototype = {
     // On any new selection made by the user, store the unique css selector
     // of the selected node so it can be restored after reload of the same page
     if (reason !== "navigateaway" &&
-        this.canGetUniqueSelector &&
+        this.selection.node &&
         this.selection.isElementNode()) {
-      selection.getUniqueSelector().then((selector) => {
-        this.selectionCssSelector = selector;
-      }).then(null, console.error);
+      this.selectionCssSelector = CssLogic.findCssSelector(this.selection.node);
     }
 
     let selfUpdate = this.updating("inspector-panel");

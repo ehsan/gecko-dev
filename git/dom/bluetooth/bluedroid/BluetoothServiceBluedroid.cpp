@@ -92,11 +92,10 @@ public:
     sSetPropertyRunnableArray.Clear();
     sUnbondingRunnableArray.Clear();
 
-    // Bluetooth scan mode is SCAN_MODE_CONNECTABLE by default, i.e., It should
-    // be connectable and non-discoverable.
+    // Bluetooth scan mode is NONE by default
     NS_ENSURE_TRUE(sBtInterface, NS_ERROR_FAILURE);
     sBtInterface->SetAdapterProperty(
-      BluetoothNamedValue(NS_ConvertUTF8toUTF16("Discoverable"), false),
+      BluetoothNamedValue(NS_ConvertUTF8toUTF16("Discoverable"), true),
       new SetAdapterPropertyResultHandler());
 
     // Try to fire event 'AdapterAdded' to fit the original behaviour when

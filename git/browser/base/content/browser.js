@@ -1549,8 +1549,6 @@ var gBrowserInit = {
     // initialize the sync UI
     gSyncUI.init();
 #endif
-
-    gRemoteTabsUI.init();
   },
 
   nonBrowserWindowShutdown: function() {
@@ -6976,9 +6974,7 @@ let gPrivateBrowsingUI = {
 
 let gRemoteTabsUI = {
   init: function() {
-    if (window.location.href != getBrowserURL() &&
-        // Also check hidden window for the Mac no-window case
-        window.location.href != "chrome://browser/content/hiddenWindow.xul") {
+    if (window.location.href != getBrowserURL()) {
       return;
     }
 

@@ -21,7 +21,7 @@ Cu.import("resource://gre/modules/Messaging.jsm");
 #ifdef ANDROID
 let log = Cu.import("resource://gre/modules/AndroidLog.jsm",{}).AndroidLog.d.bind(null, "SSDP");
 #else
-let log = Cu.reportError;
+let log = Cc["@mozilla.org/consoleservice;1"].getService(Ci.nsIConsoleService).logStringMessage
 #endif
 
 XPCOMUtils.defineLazyGetter(this, "converter", function () {
