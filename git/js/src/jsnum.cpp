@@ -443,8 +443,8 @@ num_parseInt(JSContext *cx, uintN argc, Value *vp)
         if (vp[2].isDouble() &&
             vp[2].toDouble() > -1.0e21 &&
             vp[2].toDouble() < 1.0e21) {
-            if (!vp->setNumber(ParseIntDoubleHelper(vp[2].toDouble())))
-                MarkTypeCallerOverflow(cx);
+            vp->setDouble(ParseIntDoubleHelper(vp[2].toDouble()));
+            MarkTypeCallerOverflow(cx);
             return true;
         }
     }
@@ -483,7 +483,8 @@ num_parseInt(JSContext *cx, uintN argc, Value *vp)
         return false;
 
     /* Step 15. */
-    if (!vp->setNumber(number))
+    vp->setNumber(number);
+    if (!vp->isInt32())
         MarkTypeCallerOverflow(cx);
     return true;
 }

@@ -2906,7 +2906,8 @@ array_indexOfHelper(JSContext *cx, JSBool isLast, uintN argc, Value *vp)
             if (!StrictlyEqual(cx, *vp, tosearch, &equal))
                 return JS_FALSE;
             if (equal) {
-                if (!vp->setNumber(i))
+                vp->setNumber(i);
+                if (!vp->isInt32())
                     MarkTypeCallerOverflow(cx);
                 return JS_TRUE;
             }
