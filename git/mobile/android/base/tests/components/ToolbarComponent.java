@@ -83,7 +83,6 @@ public class ToolbarComponent extends BaseComponent {
      * Returns the root View for the browser toolbar.
      */
     private View getToolbarView() {
-        mSolo.waitForView(R.id.browser_toolbar);
         return mSolo.getView(R.id.browser_toolbar);
     }
 

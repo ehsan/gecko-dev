@@ -2707,9 +2707,9 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetri
   LogRendertraceRect(GetGuid(), "page", "brown", aLayerMetrics.GetScrollableRect());
   LogRendertraceRect(GetGuid(), "painted displayport", "lightgreen",
     aLayerMetrics.GetDisplayPort() + aLayerMetrics.GetScrollOffset());
-  if (!aLayerMetrics.GetCriticalDisplayPort().IsEmpty()) {
+  if (!aLayerMetrics.mCriticalDisplayPort.IsEmpty()) {
     LogRendertraceRect(GetGuid(), "painted critical displayport", "darkgreen",
-      aLayerMetrics.GetCriticalDisplayPort() + aLayerMetrics.GetScrollOffset());
+      aLayerMetrics.mCriticalDisplayPort + aLayerMetrics.GetScrollOffset());
   }
 
   mPaintThrottler.TaskComplete(GetFrameTime());

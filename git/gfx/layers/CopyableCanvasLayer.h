@@ -55,7 +55,7 @@ protected:
   UniquePtr<gl::SharedSurface> mGLFrontbuffer;
 
   bool mIsAlphaPremultiplied;
-  gl::OriginPos mOriginPos;
+  bool mNeedsYFlip;
 
   RefPtr<gfx::DataSourceSurface> mCachedTempSurface;
 

@@ -257,9 +257,9 @@ SharedFrameMetricsHelper::AboutToCheckerboard(const FrameMetrics& aContentMetric
   // converted to app units and then back to CSS pixels before being put in the FrameMetrics.
   // This process can introduce some rounding error, so we inflate the rect by one app unit
   // to account for that.
-  CSSRect painted = (aContentMetrics.GetCriticalDisplayPort().IsEmpty()
+  CSSRect painted = (aContentMetrics.mCriticalDisplayPort.IsEmpty()
                       ? aContentMetrics.GetDisplayPort()
-                      : aContentMetrics.GetCriticalDisplayPort())
+                      : aContentMetrics.mCriticalDisplayPort)
                     + aContentMetrics.GetScrollOffset();
   painted.Inflate(CSSMargin::FromAppUnits(nsMargin(1, 1, 1, 1)));
 

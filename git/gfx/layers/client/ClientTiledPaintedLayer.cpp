@@ -152,7 +152,7 @@ ClientTiledPaintedLayer::BeginPaint()
   // Compute the critical display port that applies to this layer in the
   // LayoutDevice space of this layer.
   ParentLayerRect criticalDisplayPort =
-    (displayportMetrics.GetCriticalDisplayPort() * displayportMetrics.GetZoom())
+    (displayportMetrics.mCriticalDisplayPort * displayportMetrics.GetZoom())
     + displayportMetrics.mCompositionBounds.TopLeft();
   mPaintData.mCriticalDisplayPort = RoundedOut(
     ApplyParentLayerToLayerTransform(transformDisplayPortToLayer, criticalDisplayPort));
@@ -189,7 +189,7 @@ ClientTiledPaintedLayer::UseFastPath()
 
   bool multipleTransactionsNeeded = gfxPlatform::GetPlatform()->UseProgressivePaint()
                                  || gfxPrefs::UseLowPrecisionBuffer()
-                                 || !parentMetrics.GetCriticalDisplayPort().IsEmpty();
+                                 || !parentMetrics.mCriticalDisplayPort.IsEmpty();
   bool isFixed = GetIsFixedPosition() || GetParent()->GetIsFixedPosition();
   return !multipleTransactionsNeeded || isFixed || parentMetrics.GetDisplayPort().IsEmpty();
 }

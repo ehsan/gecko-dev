@@ -149,7 +149,7 @@ GMPAudioDecoderParent::Close()
 
   // In case this is the last reference
   nsRefPtr<GMPAudioDecoderParent> kungfudeathgrip(this);
-  Release();
+  NS_RELEASE(kungfudeathgrip);
   Shutdown();
 
   return NS_OK;

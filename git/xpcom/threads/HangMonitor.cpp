@@ -8,14 +8,14 @@
 
 #include <set>
 
-#include "mozilla/Atomics.h"
 #include "mozilla/BackgroundHangMonitor.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/ProcessedStack.h"
 #include "mozilla/Telemetry.h"
+#include "mozilla/ProcessedStack.h"
+#include "mozilla/Atomics.h"
 #include "mozilla/StaticPtr.h"
-#include "mozilla/UniquePtr.h"
+#include "nsAutoPtr.h"
 #include "nsReadableUtils.h"
 #include "nsStackWalk.h"
 #include "nsThreadUtils.h"
@@ -363,7 +363,7 @@ ThreadMain(void*)
   Telemetry::ProcessedStack stack;
   int32_t systemUptime = -1;
   int32_t firefoxUptime = -1;
-  auto annotations = MakeUnique<ChromeHangAnnotations>();
+  nsAutoPtr<ChromeHangAnnotations> annotations = new ChromeHangAnnotations();
 #endif
 
   while (true) {
@@ -410,9 +410,10 @@ ThreadMain(void*)
       if (waitCount >= 2) {
         uint32_t hangDuration = PR_IntervalToSeconds(now - lastTimestamp);
         Telemetry::RecordChromeHang(hangDuration, stack, systemUptime,
-                                    firefoxUptime, Move(annotations));
+                                    firefoxUptime, annotations->IsEmpty() ?
+                                    nullptr : annotations.forget());
         stack.Clear();
-        annotations = MakeUnique<ChromeHangAnnotations>();
+        annotations = new ChromeHangAnnotations();
       }
 #endif
       lastTimestamp = timestamp;
