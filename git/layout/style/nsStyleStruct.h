@@ -2889,11 +2889,11 @@ public:
     return false;
   }
   nsStyleCorners& GetRadius() {
-    NS_ASSERTION(mType == eInset, "expected inset");
+    NS_ASSERTION(mType == eInset, "expected circle or ellipse");
     return mRadius;
   }
   const nsStyleCorners& GetRadius() const {
-    NS_ASSERTION(mType == eInset, "expected inset");
+    NS_ASSERTION(mType == eInset, "expected circle or ellipse");
     return mRadius;
   }
 

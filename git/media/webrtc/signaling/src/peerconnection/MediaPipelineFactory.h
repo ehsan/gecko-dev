@@ -29,6 +29,8 @@ private:
   nsresult CreateMediaPipelineReceiving(
       RefPtr<TransportFlow> aRtpFlow,
       RefPtr<TransportFlow> aRtcpFlow,
+      RefPtr<TransportFlow> aBundleRtpFlow,
+      RefPtr<TransportFlow> aBundleRtcpFlow,
       const JsepTrackPair& aTrackPair,
       const JsepTrack& aTrack,
       const RefPtr<MediaSessionConduit>& aConduit);
@@ -36,6 +38,8 @@ private:
   nsresult CreateMediaPipelineSending(
       RefPtr<TransportFlow> aRtpFlow,
       RefPtr<TransportFlow> aRtcpFlow,
+      RefPtr<TransportFlow> aBundleRtpFlow,
+      RefPtr<TransportFlow> aBundleRtcpFlow,
       const JsepTrackPair& aTrackPair,
       const JsepTrack& aTrack,
       const RefPtr<MediaSessionConduit>& aConduit);

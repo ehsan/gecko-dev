@@ -471,27 +471,6 @@ SipccSdpAttributeList::LoadSetup(sdp_t* sdp, uint16_t level)
   MOZ_CRASH("Invalid setup type from sipcc. This is probably corruption.");
 }
 
-void
-SipccSdpAttributeList::LoadSsrc(sdp_t* sdp, uint16_t level)
-{
-  auto ssrcs = MakeUnique<SdpSsrcAttributeList>();
-
-  for (uint16_t i = 1; i < UINT16_MAX; ++i) {
-    sdp_attr_t* attr = sdp_find_attr(sdp, level, 0, SDP_ATTR_SSRC, i);
-
-    if (!attr) {
-      break;
-    }
-
-    sdp_ssrc_t* ssrc = &(attr->attr.ssrc);
-    ssrcs->PushEntry(ssrc->ssrc, ssrc->attribute);
-  }
-
-  if (!ssrcs->mSsrcs.empty()) {
-    SetAttribute(ssrcs.release());
-  }
-}
-
 bool
 SipccSdpAttributeList::LoadGroups(sdp_t* sdp, uint16_t level,
                                   SdpErrorHolder& errorHolder)
@@ -844,7 +823,6 @@ SipccSdpAttributeList::Load(sdp_t* sdp, uint16_t level,
     LoadFmtp(sdp, level);
     LoadMsids(sdp, level, errorHolder);
     LoadRtcpFb(sdp, level, errorHolder);
-    LoadSsrc(sdp, level);
   }
 
   LoadIceAttributes(sdp, level);
@@ -1120,11 +1098,7 @@ SipccSdpAttributeList::GetSetup() const
 const SdpSsrcAttributeList&
 SipccSdpAttributeList::GetSsrc() const
 {
-  if (!HasAttribute(SdpAttribute::kSsrcAttribute)) {
-    MOZ_CRASH();
-  }
-  const SdpAttribute* attr = GetAttribute(SdpAttribute::kSsrcAttribute);
-  return *static_cast<const SdpSsrcAttributeList*>(attr);
+  MOZ_CRASH("Not yet implemented");
 }
 
 const SdpSsrcGroupAttributeList&

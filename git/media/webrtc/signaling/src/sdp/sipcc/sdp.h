@@ -919,10 +919,6 @@ typedef struct sdp_extmap {
     char             extension_attributes[SDP_MAX_STRING_LEN+1];
 } sdp_extmap_t;
 
-typedef struct sdp_ssrc {
-    uint32_t ssrc;
-    char     attribute[SDP_MAX_STRING_LEN + 1];
-} sdp_ssrc_t;
 
 /*
  * sdp_srtp_crypto_context_t
@@ -1015,7 +1011,6 @@ typedef struct sdp_attr {
         sdp_setup_type_e      setup;
         sdp_connection_type_e connection;
         sdp_extmap_t          extmap;
-        sdp_ssrc_t            ssrc;
     } attr;
     struct sdp_attr          *next_p;
 } sdp_attr_t;

@@ -114,7 +114,7 @@ nsBaseWidget::nsBaseWidget()
 : mWidgetListener(nullptr)
 , mAttachedWidgetListener(nullptr)
 , mContext(nullptr)
-, mCompositorVsyncDispatcher(nullptr)
+, mVsyncDispatcher(nullptr)
 , mCursor(eCursor_standard)
 , mUpdateCursor(true)
 , mBorderStyle(eBorderStyle_none)
@@ -234,9 +234,9 @@ nsBaseWidget::~nsBaseWidget()
   NS_IF_RELEASE(mContext);
   delete mOriginalBounds;
 
-  // Can have base widgets that are things like tooltips which don't have CompositorVsyncDispatchers
-  if (mCompositorVsyncDispatcher) {
-    mCompositorVsyncDispatcher->Shutdown();
+  // Can have base widgets that are things like tooltips which don't have vsyncDispatchers
+  if (mVsyncDispatcher) {
+    mVsyncDispatcher->Shutdown();
   }
 }
 
@@ -973,22 +973,22 @@ nsBaseWidget::GetPreferredCompositorBackends(nsTArray<LayersBackend>& aHints)
   aHints.AppendElement(LayersBackend::LAYERS_BASIC);
 }
 
-void nsBaseWidget::CreateCompositorVsyncDispatcher()
+void nsBaseWidget::CreateVsyncDispatcher()
 {
   if (gfxPrefs::HardwareVsyncEnabled()) {
     // Parent directly listens to the vsync source whereas
     // child process communicate via IPC
     // Should be called AFTER gfxPlatform is initialized
     if (XRE_IsParentProcess()) {
-      mCompositorVsyncDispatcher = new CompositorVsyncDispatcher();
+      mVsyncDispatcher = new VsyncDispatcher();
     }
   }
 }
 
-CompositorVsyncDispatcher*
-nsBaseWidget::GetCompositorVsyncDispatcher()
+VsyncDispatcher*
+nsBaseWidget::GetVsyncDispatcher()
 {
-  return mCompositorVsyncDispatcher;
+  return mVsyncDispatcher;
 }
 
 void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
@@ -1008,7 +1008,7 @@ void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
     return;
   }
 
-  CreateCompositorVsyncDispatcher();
+  CreateVsyncDispatcher();
   mCompositorParent = NewCompositorParent(aWidth, aHeight);
   MessageChannel *parentChannel = mCompositorParent->GetIPCChannel();
   nsRefPtr<ClientLayerManager> lm = new ClientLayerManager(this);

@@ -23,21 +23,21 @@ using namespace mozilla::layers;
 
 namespace mozilla {
 
-CompositorVsyncDispatcher::CompositorVsyncDispatcher()
+VsyncDispatcher::VsyncDispatcher()
   : mCompositorObserverLock("CompositorObserverLock")
 {
   MOZ_ASSERT(XRE_IsParentProcess());
-  gfxPlatform::GetPlatform()->GetHardwareVsync()->AddCompositorVsyncDispatcher(this);
+  gfxPlatform::GetPlatform()->GetHardwareVsync()->AddVsyncDispatcher(this);
 }
 
-CompositorVsyncDispatcher::~CompositorVsyncDispatcher()
+VsyncDispatcher::~VsyncDispatcher()
 {
   // We auto remove this vsync dispatcher from the vsync source in the nsBaseWidget
   MOZ_ASSERT(NS_IsMainThread());
 }
 
 void
-CompositorVsyncDispatcher::NotifyVsync(TimeStamp aVsyncTimestamp)
+VsyncDispatcher::NotifyVsync(TimeStamp aVsyncTimestamp)
 {
   // In hardware vsync thread
 #ifdef MOZ_ENABLE_PROFILER_SPS
@@ -53,7 +53,7 @@ CompositorVsyncDispatcher::NotifyVsync(TimeStamp aVsyncTimestamp)
 }
 
 void
-CompositorVsyncDispatcher::SetCompositorVsyncObserver(VsyncObserver* aVsyncObserver)
+VsyncDispatcher::SetCompositorVsyncObserver(VsyncObserver* aVsyncObserver)
 {
   MOZ_ASSERT(CompositorParent::IsInCompositorThread());
   MutexAutoLock lock(mCompositorObserverLock);
@@ -61,13 +61,13 @@ CompositorVsyncDispatcher::SetCompositorVsyncObserver(VsyncObserver* aVsyncObser
 }
 
 void
-CompositorVsyncDispatcher::Shutdown()
+VsyncDispatcher::Shutdown()
 {
-  // Need to explicitly remove CompositorVsyncDispatcher when the nsBaseWidget shuts down.
+  // Need to explicitly remove VsyncDispatcher when the nsBaseWidget shuts down.
   // Otherwise, we would get dead vsync notifications between when the nsBaseWidget
   // shuts down and the CompositorParent shuts down.
   MOZ_ASSERT(XRE_IsParentProcess());
   MOZ_ASSERT(NS_IsMainThread());
-  gfxPlatform::GetPlatform()->GetHardwareVsync()->RemoveCompositorVsyncDispatcher(this);
+  gfxPlatform::GetPlatform()->GetHardwareVsync()->RemoveVsyncDispatcher(this);
 }
 } // namespace mozilla

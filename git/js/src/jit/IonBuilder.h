@@ -598,8 +598,6 @@ class IonBuilder
     MDefinition *getAliasedVar(ScopeCoordinate sc);
     MDefinition *addLexicalCheck(MDefinition *input);
 
-    bool tryFoldInstanceOf(MDefinition *lhs, JSObject *protoObject);
-
     bool jsop_add(MDefinition *left, MDefinition *right);
     bool jsop_bitnot();
     bool jsop_bitop(JSOp op);

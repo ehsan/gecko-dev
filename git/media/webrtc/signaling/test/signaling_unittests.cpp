@@ -930,8 +930,7 @@ class SignalingAgent {
     const std::string stun_addr = g_stun_server_address,
     uint16_t stun_port = g_stun_server_port) :
     pc(nullptr),
-    name(aName),
-    mBundleEnabled(true) {
+    name(aName) {
     cfg_.addStunServer(stun_addr, stun_port);
 
     PeerConnectionImpl *pcImpl =
@@ -959,11 +958,6 @@ class SignalingAgent {
   {
     mozilla::SyncRunnable::DispatchToThread(gMainThread,
       WrapRunnable(this, &SignalingAgent::Init_m));
-  }
-
-  void SetBundleEnabled(bool enabled)
-  {
-    mBundleEnabled = enabled;
   }
 
   void WaitForGather() {
@@ -1063,12 +1057,6 @@ class SignalingAgent {
     return result;
   }
 
-  std::string RemoveBundle(const std::string& sdp) const {
-    ParsedSDP parsed(sdp);
-    parsed.DeleteLines("a=group:BUNDLE");
-    return parsed.getSdp();
-  }
-
   // Adds a stream to the PeerConnection.
   void AddStream(uint32_t hint =
          DOMMediaStream::HINT_CONTENTS_AUDIO |
@@ -1125,14 +1113,10 @@ class SignalingAgent {
     // Now call CreateOffer as JS would
     pObserver->state = TestObserver::stateNoResponse;
     ASSERT_EQ(pc->CreateOffer(options), NS_OK);
-
     ASSERT_EQ(pObserver->state, TestObserver::stateSuccess);
     SDPSanityCheck(pObserver->lastString, sdpCheck, true);
     ASSERT_EQ(signaling_state(), endState);
     offer_ = pObserver->lastString;
-    if (!mBundleEnabled) {
-      offer_ = RemoveBundle(offer_);
-    }
   }
 
   // sets the offer to match the local description
@@ -1140,9 +1124,6 @@ class SignalingAgent {
   void UpdateOffer(uint32_t sdpCheck) {
     offer_ = getLocalDescription();
     SDPSanityCheck(offer_, sdpCheck, true);
-    if (!mBundleEnabled) {
-      offer_ = RemoveBundle(offer_);
-    }
   }
 
   void CreateAnswer(uint32_t offerAnswerFlags,
@@ -1170,9 +1151,6 @@ class SignalingAgent {
     ASSERT_EQ(signaling_state(), endState);
 
     answer_ = pObserver->lastString;
-    if (!mBundleEnabled) {
-      answer_ = RemoveBundle(answer_);
-    }
   }
 
   // sets the answer to match the local description
@@ -1180,9 +1158,6 @@ class SignalingAgent {
   void UpdateAnswer(uint32_t sdpCheck) {
     answer_ = getLocalDescription();
     SDPSanityCheck(answer_, sdpCheck, false);
-    if (!mBundleEnabled) {
-      answer_ = RemoveBundle(answer_);
-    }
   }
 
   // At present, we use the hints field in a stream to find and
@@ -1207,9 +1182,6 @@ class SignalingAgent {
     ASSERT_TRUE(pObserver->state == TestObserver::stateSuccess);
     SDPSanityCheck(pObserver->lastString, sdpCheck, true);
     offer_ = pObserver->lastString;
-    if (!mBundleEnabled) {
-      offer_ = RemoveBundle(offer_);
-    }
   }
 
   void SetRemote(TestObserver::Action action, const std::string& remote,
@@ -1413,7 +1385,6 @@ public:
   nsRefPtr<DOMMediaStream> domMediaStream_;
   IceConfiguration cfg_;
   const std::string name;
-  bool mBundleEnabled;
 
   typedef struct {
     std::string candidate;
@@ -1694,9 +1665,7 @@ class SignalingAgentTest : public ::testing::Test {
 };
 
 
-class SignalingTest : public ::testing::Test,
-                      public ::testing::WithParamInterface<std::string>
-{
+class SignalingTest : public ::testing::Test {
 public:
   SignalingTest()
       : init_(false),
@@ -1735,11 +1704,6 @@ public:
     a2_ = new SignalingAgent(calleeName, stun_addr_, stun_port_);
     a1_->Init();
     a2_->Init();
-    if (GetParam() == "no_bundle") {
-      a1_->SetBundleEnabled(false);
-    } else if(GetParam() == "reject_bundle") {
-      a2_->SetBundleEnabled(false);
-    }
 
     a1_->SetPeer(a2_.get());
     a2_->SetPeer(a1_.get());
@@ -2102,23 +2066,23 @@ class FsFrPrefClearer {
     nsCOMPtr<nsIPrefBranch> mPrefs;
 };
 
-TEST_P(SignalingTest, JustInit)
+TEST_F(SignalingTest, JustInit)
 {
 }
 
-TEST_P(SignalingTest, CreateSetOffer)
+TEST_F(SignalingTest, CreateSetOffer)
 {
   OfferOptions options;
   CreateSetOffer(options, SHOULD_SENDRECV_AV);
 }
 
-TEST_P(SignalingTest, CreateOfferAudioVideoOptionUndefined)
+TEST_F(SignalingTest, CreateOfferAudioVideoOptionUndefined)
 {
   OfferOptions options;
   CreateOffer(options, OFFER_AV, SHOULD_SENDRECV_AV);
 }
 
-TEST_P(SignalingTest, CreateOfferNoVideoStreamRecvVideo)
+TEST_F(SignalingTest, CreateOfferNoVideoStreamRecvVideo)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2127,7 +2091,7 @@ TEST_P(SignalingTest, CreateOfferNoVideoStreamRecvVideo)
               SHOULD_SENDRECV_AUDIO | SHOULD_RECV_VIDEO);
 }
 
-TEST_P(SignalingTest, CreateOfferNoAudioStreamRecvAudio)
+TEST_F(SignalingTest, CreateOfferNoAudioStreamRecvAudio)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2136,7 +2100,7 @@ TEST_P(SignalingTest, CreateOfferNoAudioStreamRecvAudio)
               SHOULD_RECV_AUDIO | SHOULD_SENDRECV_VIDEO);
 }
 
-TEST_P(SignalingTest, CreateOfferNoVideoStream)
+TEST_F(SignalingTest, CreateOfferNoVideoStream)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2145,7 +2109,7 @@ TEST_P(SignalingTest, CreateOfferNoVideoStream)
               SHOULD_SENDRECV_AUDIO | SHOULD_OMIT_VIDEO);
 }
 
-TEST_P(SignalingTest, CreateOfferNoAudioStream)
+TEST_F(SignalingTest, CreateOfferNoAudioStream)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 0);
@@ -2154,7 +2118,7 @@ TEST_P(SignalingTest, CreateOfferNoAudioStream)
               SHOULD_OMIT_AUDIO | SHOULD_SENDRECV_VIDEO);
 }
 
-TEST_P(SignalingTest, CreateOfferDontReceiveAudio)
+TEST_F(SignalingTest, CreateOfferDontReceiveAudio)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 0);
@@ -2163,7 +2127,7 @@ TEST_P(SignalingTest, CreateOfferDontReceiveAudio)
               SHOULD_SEND_AUDIO | SHOULD_SENDRECV_VIDEO);
 }
 
-TEST_P(SignalingTest, CreateOfferDontReceiveVideo)
+TEST_F(SignalingTest, CreateOfferDontReceiveVideo)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2173,7 +2137,7 @@ TEST_P(SignalingTest, CreateOfferDontReceiveVideo)
 }
 
 // XXX Disabled pending resolution of Bug 840728
-TEST_P(SignalingTest, DISABLED_CreateOfferRemoveAudioStream)
+TEST_F(SignalingTest, DISABLED_CreateOfferRemoveAudioStream)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2183,7 +2147,7 @@ TEST_P(SignalingTest, DISABLED_CreateOfferRemoveAudioStream)
 }
 
 // XXX Disabled pending resolution of Bug 840728
-TEST_P(SignalingTest, DISABLED_CreateOfferDontReceiveAudioRemoveAudioStream)
+TEST_F(SignalingTest, DISABLED_CreateOfferDontReceiveAudioRemoveAudioStream)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 0);
@@ -2193,7 +2157,7 @@ TEST_P(SignalingTest, DISABLED_CreateOfferDontReceiveAudioRemoveAudioStream)
 }
 
 // XXX Disabled pending resolution of Bug 840728
-TEST_P(SignalingTest, DISABLED_CreateOfferDontReceiveVideoRemoveVideoStream)
+TEST_F(SignalingTest, DISABLED_CreateOfferDontReceiveVideoRemoveVideoStream)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2202,14 +2166,14 @@ TEST_P(SignalingTest, DISABLED_CreateOfferDontReceiveVideoRemoveVideoStream)
               SHOULD_SENDRECV_AUDIO);
 }
 
-TEST_P(SignalingTest, OfferAnswerNothingDisabled)
+TEST_F(SignalingTest, OfferAnswerNothingDisabled)
 {
   OfferOptions options;
   OfferAnswer(options, OFFER_AV | ANSWER_AV,
               SHOULD_SENDRECV_AV, SHOULD_SENDRECV_AV);
 }
 
-TEST_P(SignalingTest, OfferAnswerNoTrickle)
+TEST_F(SignalingTest, OfferAnswerNoTrickle)
 {
   OfferOptions options;
   OfferAnswer(options, OFFER_AV | ANSWER_AV,
@@ -2218,7 +2182,7 @@ TEST_P(SignalingTest, OfferAnswerNoTrickle)
               NO_TRICKLE);
 }
 
-TEST_P(SignalingTest, OfferAnswerOffererTrickles)
+TEST_F(SignalingTest, OfferAnswerOffererTrickles)
 {
   OfferOptions options;
   OfferAnswer(options, OFFER_AV | ANSWER_AV,
@@ -2227,7 +2191,7 @@ TEST_P(SignalingTest, OfferAnswerOffererTrickles)
               OFFERER_TRICKLES);
 }
 
-TEST_P(SignalingTest, OfferAnswerAnswererTrickles)
+TEST_F(SignalingTest, OfferAnswerAnswererTrickles)
 {
   OfferOptions options;
   OfferAnswer(options, OFFER_AV | ANSWER_AV,
@@ -2235,7 +2199,7 @@ TEST_P(SignalingTest, OfferAnswerAnswererTrickles)
               ANSWERER_TRICKLES);
 }
 
-TEST_P(SignalingTest, OfferAnswerBothTrickle)
+TEST_F(SignalingTest, OfferAnswerBothTrickle)
 {
   OfferOptions options;
   OfferAnswer(options, OFFER_AV | ANSWER_AV,
@@ -2243,7 +2207,7 @@ TEST_P(SignalingTest, OfferAnswerBothTrickle)
               BOTH_TRICKLE);
 }
 
-TEST_P(SignalingTest, OfferAnswerAudioBothTrickle)
+TEST_F(SignalingTest, OfferAnswerAudioBothTrickle)
 {
   OfferOptions options;
   OfferAnswer(options, OFFER_AUDIO | ANSWER_AUDIO,
@@ -2252,7 +2216,7 @@ TEST_P(SignalingTest, OfferAnswerAudioBothTrickle)
 }
 
 
-TEST_P(SignalingTest, OfferAnswerNothingDisabledFullCycle)
+TEST_F(SignalingTest, OfferAnswerNothingDisabledFullCycle)
 {
   OfferOptions options;
   OfferAnswer(options, OFFER_AV | ANSWER_AV,
@@ -2266,7 +2230,7 @@ TEST_P(SignalingTest, OfferAnswerNothingDisabledFullCycle)
 }
 
 // XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_P(SignalingTest, DISABLED_OfferAnswerDontReceiveAudioOnOffer)
+TEST_F(SignalingTest, DISABLED_OfferAnswerDontReceiveAudioOnOffer)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 0);
@@ -2277,7 +2241,7 @@ TEST_P(SignalingTest, DISABLED_OfferAnswerDontReceiveAudioOnOffer)
 }
 
 // XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_P(SignalingTest, DISABLED_OfferAnswerDontReceiveVideoOnOffer)
+TEST_F(SignalingTest, DISABLED_OfferAnswerDontReceiveVideoOnOffer)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2288,7 +2252,7 @@ TEST_P(SignalingTest, DISABLED_OfferAnswerDontReceiveVideoOnOffer)
 }
 
 // XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_P(SignalingTest, DISABLED_OfferAnswerDontReceiveAudioOnAnswer)
+TEST_F(SignalingTest, DISABLED_OfferAnswerDontReceiveAudioOnAnswer)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2299,7 +2263,7 @@ TEST_P(SignalingTest, DISABLED_OfferAnswerDontReceiveAudioOnAnswer)
 }
 
 // XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_P(SignalingTest, DISABLED_OfferAnswerDontReceiveVideoOnAnswer)
+TEST_F(SignalingTest, DISABLED_OfferAnswerDontReceiveVideoOnAnswer)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2310,7 +2274,7 @@ TEST_P(SignalingTest, DISABLED_OfferAnswerDontReceiveVideoOnAnswer)
 }
 
 // XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_P(SignalingTest, DISABLED_OfferAnswerDontAddAudioStreamOnOfferRecvAudio)
+TEST_F(SignalingTest, DISABLED_OfferAnswerDontAddAudioStreamOnOfferRecvAudio)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2320,7 +2284,7 @@ TEST_P(SignalingTest, DISABLED_OfferAnswerDontAddAudioStreamOnOfferRecvAudio)
               SHOULD_SEND_AUDIO | SHOULD_SENDRECV_VIDEO);
 }
 
-TEST_P(SignalingTest, OfferAnswerAudioInactive)
+TEST_F(SignalingTest, OfferAnswerAudioInactive)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2330,7 +2294,7 @@ TEST_P(SignalingTest, OfferAnswerAudioInactive)
               SHOULD_SENDRECV_VIDEO | SHOULD_INACTIVE_AUDIO);
 }
 
-TEST_P(SignalingTest, OfferAnswerVideoInactive)
+TEST_F(SignalingTest, OfferAnswerVideoInactive)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2352,7 +2316,7 @@ TEST_P(SignalingTest, OfferAnswerVideoInactive)
   ASSERT_GE(a2_->GetPacketsReceived(0), 40);
 }
 
-TEST_P(SignalingTest, OfferAnswerBothInactive)
+TEST_F(SignalingTest, OfferAnswerBothInactive)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2363,7 +2327,7 @@ TEST_P(SignalingTest, OfferAnswerBothInactive)
 }
 
 // XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_P(SignalingTest, DISABLED_OfferAnswerDontAddAudioStreamOnOffer)
+TEST_F(SignalingTest, DISABLED_OfferAnswerDontAddAudioStreamOnOffer)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 0);
@@ -2374,7 +2338,7 @@ TEST_P(SignalingTest, DISABLED_OfferAnswerDontAddAudioStreamOnOffer)
 }
 
 // XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_P(SignalingTest, DISABLED_OfferAnswerDontAddVideoStreamOnOfferRecvVideo)
+TEST_F(SignalingTest, DISABLED_OfferAnswerDontAddVideoStreamOnOfferRecvVideo)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2385,7 +2349,7 @@ TEST_P(SignalingTest, DISABLED_OfferAnswerDontAddVideoStreamOnOfferRecvVideo)
 }
 
 // XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_P(SignalingTest, DISABLED_OfferAnswerDontAddVideoStreamOnOffer)
+TEST_F(SignalingTest, DISABLED_OfferAnswerDontAddVideoStreamOnOffer)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2396,7 +2360,7 @@ TEST_P(SignalingTest, DISABLED_OfferAnswerDontAddVideoStreamOnOffer)
 }
 
 // XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_P(SignalingTest, DISABLED_OfferAnswerDontAddAudioStreamOnAnswer)
+TEST_F(SignalingTest, DISABLED_OfferAnswerDontAddAudioStreamOnAnswer)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2407,7 +2371,7 @@ TEST_P(SignalingTest, DISABLED_OfferAnswerDontAddAudioStreamOnAnswer)
 }
 
 // XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_P(SignalingTest, DISABLED_OfferAnswerDontAddVideoStreamOnAnswer)
+TEST_F(SignalingTest, DISABLED_OfferAnswerDontAddVideoStreamOnAnswer)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2418,7 +2382,7 @@ TEST_P(SignalingTest, DISABLED_OfferAnswerDontAddVideoStreamOnAnswer)
 }
 
 // XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_P(SignalingTest,
+TEST_F(SignalingTest,
        DISABLED_OfferAnswerDontAddVideoStreamOnAnswerDontReceiveVideoOnAnswer)
 {
   OfferOptions options;
@@ -2429,7 +2393,7 @@ TEST_P(SignalingTest,
 }
 
 // XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_P(SignalingTest,
+TEST_F(SignalingTest,
        DISABLED_OfferAnswerDontAddAudioStreamOnAnswerDontReceiveAudioOnAnswer)
 {
   OfferOptions options;
@@ -2441,7 +2405,7 @@ TEST_P(SignalingTest,
 }
 
 // XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_P(SignalingTest,
+TEST_F(SignalingTest,
        DISABLED_OfferAnswerDontAddAudioStreamOnOfferDontReceiveAudioOnOffer)
 {
   OfferOptions options;
@@ -2452,7 +2416,7 @@ TEST_P(SignalingTest,
 }
 
 // XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_P(SignalingTest,
+TEST_F(SignalingTest,
        DISABLED_OfferAnswerDontAddVideoStreamOnOfferDontReceiveVideoOnOffer)
 {
   OfferOptions options;
@@ -2464,7 +2428,7 @@ TEST_P(SignalingTest,
 }
 
 // XXX reject streams has changed. Re-enable when we can stop() received stream
-TEST_P(SignalingTest,
+TEST_F(SignalingTest,
   DISABLED_OfferAnswerDontReceiveAudioNoAudioStreamOnOfferDontReceiveVideoOnAnswer)
 {
   OfferOptions options;
@@ -2474,7 +2438,7 @@ TEST_P(SignalingTest,
               SHOULD_SENDRECV_VIDEO, SHOULD_SEND_VIDEO);
 }
 
-TEST_P(SignalingTest, CreateOfferAddCandidate)
+TEST_F(SignalingTest, CreateOfferAddCandidate)
 {
   OfferOptions options;
   CreateOfferAddCandidate(options, strSampleCandidate,
@@ -2482,7 +2446,7 @@ TEST_P(SignalingTest, CreateOfferAddCandidate)
                           SHOULD_SENDRECV_AV);
 }
 
-TEST_P(SignalingTest, AddIceCandidateEarly)
+TEST_F(SignalingTest, AddIceCandidateEarly)
 {
   OfferOptions options;
   AddIceCandidateEarly(strSampleCandidate,
@@ -2491,7 +2455,7 @@ TEST_P(SignalingTest, AddIceCandidateEarly)
 
 // XXX adam@nostrum.com -- This test seems questionable; we need to think
 // through what actually needs to be tested here.
-TEST_P(SignalingTest, DISABLED_OfferAnswerReNegotiateOfferAnswerDontReceiveVideoNoVideoStream)
+TEST_F(SignalingTest, DISABLED_OfferAnswerReNegotiateOfferAnswerDontReceiveVideoNoVideoStream)
 {
   OfferOptions aoptions;
   aoptions.setInt32Option("OfferToReceiveAudio", 1);
@@ -2508,7 +2472,7 @@ TEST_P(SignalingTest, DISABLED_OfferAnswerReNegotiateOfferAnswerDontReceiveVideo
               SHOULD_SENDRECV_AUDIO | SHOULD_INACTIVE_VIDEO);
 }
 
-TEST_P(SignalingTest, OfferAnswerDontAddAudioStreamOnAnswerNoOptions)
+TEST_F(SignalingTest, OfferAnswerDontAddAudioStreamOnAnswerNoOptions)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2518,7 +2482,7 @@ TEST_P(SignalingTest, OfferAnswerDontAddAudioStreamOnAnswerNoOptions)
               SHOULD_RECV_AUDIO | SHOULD_SENDRECV_VIDEO);
 }
 
-TEST_P(SignalingTest, OfferAnswerDontAddVideoStreamOnAnswerNoOptions)
+TEST_F(SignalingTest, OfferAnswerDontAddVideoStreamOnAnswerNoOptions)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2528,7 +2492,7 @@ TEST_P(SignalingTest, OfferAnswerDontAddVideoStreamOnAnswerNoOptions)
               SHOULD_SENDRECV_AUDIO | SHOULD_RECV_VIDEO);
 }
 
-TEST_P(SignalingTest, OfferAnswerDontAddAudioVideoStreamsOnAnswerNoOptions)
+TEST_F(SignalingTest, OfferAnswerDontAddAudioVideoStreamsOnAnswerNoOptions)
 {
   OfferOptions options;
   options.setInt32Option("OfferToReceiveAudio", 1);
@@ -2538,7 +2502,7 @@ TEST_P(SignalingTest, OfferAnswerDontAddAudioVideoStreamsOnAnswerNoOptions)
               SHOULD_RECV_AUDIO | SHOULD_RECV_VIDEO);
 }
 
-TEST_P(SignalingTest, FullCall)
+TEST_F(SignalingTest, FullCall)
 {
   OfferOptions options;
   OfferAnswer(options, OFFER_AV | ANSWER_AV,
@@ -2567,7 +2531,7 @@ TEST_P(SignalingTest, FullCall)
   a2_->CheckMediaPipeline(0, 0, (fRtcpMux ?  PIPELINE_RTCP_MUX : 0));
 }
 
-TEST_P(SignalingTest, FullCallAudioOnly)
+TEST_F(SignalingTest, FullCallAudioOnly)
 {
   OfferOptions options;
   OfferAnswer(options, OFFER_AUDIO | ANSWER_AUDIO,
@@ -2588,7 +2552,7 @@ TEST_P(SignalingTest, FullCallAudioOnly)
 
 // FIXME -- reject offered stream by .stop()ing the MST that was offered instead,
 // or by setting .active property to false on the created RTPReceiver object.
-TEST_P(SignalingTest, DISABLED_FullCallAnswererRejectsVideo)
+TEST_F(SignalingTest, DISABLED_FullCallAnswererRejectsVideo)
 {
   OfferOptions offeroptions;
   OfferOptions answeroptions;
@@ -2610,7 +2574,7 @@ TEST_P(SignalingTest, DISABLED_FullCallAnswererRejectsVideo)
   ASSERT_GE(a2_->GetPacketsReceived(0), 40);
 }
 
-TEST_P(SignalingTest, FullCallVideoOnly)
+TEST_F(SignalingTest, FullCallVideoOnly)
 {
   OfferOptions options;
   OfferAnswer(options, OFFER_VIDEO | ANSWER_VIDEO,
@@ -2636,7 +2600,7 @@ TEST_P(SignalingTest, FullCallVideoOnly)
   // ASSERT_GE(a2_->GetPacketsReceived(0), 40);
 }
 
-TEST_P(SignalingTest, OfferAndAnswerWithExtraCodec)
+TEST_F(SignalingTest, OfferAndAnswerWithExtraCodec)
 {
   EnsureInit();
   OfferOptions options;
@@ -2658,7 +2622,7 @@ TEST_P(SignalingTest, OfferAndAnswerWithExtraCodec)
   a2_->CloseReceiveStreams();
 }
 
-TEST_P(SignalingTest, FullCallTrickle)
+TEST_F(SignalingTest, FullCallTrickle)
 {
   OfferOptions options;
   OfferAnswer(options,
@@ -2679,7 +2643,7 @@ TEST_P(SignalingTest, FullCallTrickle)
 }
 
 // Offer answer with trickle but with chrome-style candidates
-TEST_P(SignalingTest, DISABLED_FullCallTrickleChrome)
+TEST_F(SignalingTest, DISABLED_FullCallTrickleChrome)
 {
   OfferOptions options;
   OfferAnswerTrickleChrome(options,
@@ -2698,7 +2662,7 @@ TEST_P(SignalingTest, DISABLED_FullCallTrickleChrome)
   ASSERT_GE(a2_->GetPacketsReceived(0), 40);
 }
 
-TEST_P(SignalingTest, FullCallTrickleBeforeSetLocal)
+TEST_F(SignalingTest, FullCallTrickleBeforeSetLocal)
 {
   OfferOptions options;
   Offer(options, OFFER_AV | ANSWER_AV, SHOULD_SENDRECV_AV);
@@ -2725,7 +2689,7 @@ TEST_P(SignalingTest, FullCallTrickleBeforeSetLocal)
 }
 
 // This test comes from Bug 810220
-TEST_P(SignalingTest, AudioOnlyG711Call)
+TEST_F(SignalingTest, AudioOnlyG711Call)
 {
   EnsureInit();
 
@@ -2756,7 +2720,7 @@ TEST_P(SignalingTest, AudioOnlyG711Call)
 
 }
 
-TEST_P(SignalingTest, IncomingOfferIceLite)
+TEST_F(SignalingTest, IncomingOfferIceLite)
 {
   EnsureInit();
 
@@ -2794,7 +2758,7 @@ TEST_P(SignalingTest, IncomingOfferIceLite)
 }
 
 // This test comes from Bug814038
-TEST_P(SignalingTest, ChromeOfferAnswer)
+TEST_F(SignalingTest, ChromeOfferAnswer)
 {
   EnsureInit();
 
@@ -2875,7 +2839,7 @@ TEST_P(SignalingTest, ChromeOfferAnswer)
 }
 
 
-TEST_P(SignalingTest, FullChromeHandshake)
+TEST_F(SignalingTest, FullChromeHandshake)
 {
   EnsureInit();
 
@@ -2951,7 +2915,7 @@ TEST_P(SignalingTest, FullChromeHandshake)
 // Disabled pending resolution of bug 818640.
 // Actually, this test is completely broken; you can't just call
 // SetRemote/CreateAnswer over and over again.
-TEST_P(SignalingTest, DISABLED_OfferAllDynamicTypes)
+TEST_F(SignalingTest, DISABLED_OfferAllDynamicTypes)
 {
   EnsureInit();
 
@@ -2995,7 +2959,7 @@ TEST_P(SignalingTest, DISABLED_OfferAllDynamicTypes)
 
 }
 
-TEST_P(SignalingTest, ipAddrAnyOffer)
+TEST_F(SignalingTest, ipAddrAnyOffer)
 {
   EnsureInit();
 
@@ -3045,7 +3009,7 @@ static void CreateSDPForBigOTests(std::string& offer, const std::string& number)
     "a=sendrecv\r\n";
 }
 
-TEST_P(SignalingTest, BigOValues)
+TEST_F(SignalingTest, BigOValues)
 {
   EnsureInit();
 
@@ -3057,7 +3021,7 @@ TEST_P(SignalingTest, BigOValues)
   ASSERT_EQ(a2_->pObserver->state, TestObserver::stateSuccess);
 }
 
-TEST_P(SignalingTest, BigOValuesExtraChars)
+TEST_F(SignalingTest, BigOValuesExtraChars)
 {
   EnsureInit();
 
@@ -3072,7 +3036,7 @@ TEST_P(SignalingTest, BigOValuesExtraChars)
   ASSERT_TRUE(a2_->pObserver->state == TestObserver::stateError);
 }
 
-TEST_P(SignalingTest, BigOValuesTooBig)
+TEST_F(SignalingTest, BigOValuesTooBig)
 {
   EnsureInit();
 
@@ -3087,7 +3051,7 @@ TEST_P(SignalingTest, BigOValuesTooBig)
   ASSERT_TRUE(a2_->pObserver->state == TestObserver::stateError);
 }
 
-TEST_P(SignalingTest, SetLocalAnswerInStable)
+TEST_F(SignalingTest, SetLocalAnswerInStable)
 {
   EnsureInit();
 
@@ -3102,7 +3066,7 @@ TEST_P(SignalingTest, SetLocalAnswerInStable)
             PeerConnectionImpl::kInvalidState);
 }
 
-TEST_P(SignalingTest, SetRemoteAnswerInStable) {
+TEST_F(SignalingTest, SetRemoteAnswerInStable) {
   EnsureInit();
 
   // The signaling state will remain "stable" because the
@@ -3113,7 +3077,7 @@ TEST_P(SignalingTest, SetRemoteAnswerInStable) {
             PeerConnectionImpl::kInvalidState);
 }
 
-TEST_P(SignalingTest, SetLocalAnswerInHaveLocalOffer) {
+TEST_F(SignalingTest, SetLocalAnswerInHaveLocalOffer) {
   OfferOptions options;
   CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
   a1_->SetLocal(TestObserver::OFFER, a1_->offer());
@@ -3128,7 +3092,7 @@ TEST_P(SignalingTest, SetLocalAnswerInHaveLocalOffer) {
             PeerConnectionImpl::kInvalidState);
 }
 
-TEST_P(SignalingTest, SetRemoteOfferInHaveLocalOffer) {
+TEST_F(SignalingTest, SetRemoteOfferInHaveLocalOffer) {
   OfferOptions options;
   CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
   a1_->SetLocal(TestObserver::OFFER, a1_->offer());
@@ -3143,7 +3107,7 @@ TEST_P(SignalingTest, SetRemoteOfferInHaveLocalOffer) {
             PeerConnectionImpl::kInvalidState);
 }
 
-TEST_P(SignalingTest, SetLocalOfferInHaveRemoteOffer) {
+TEST_F(SignalingTest, SetLocalOfferInHaveRemoteOffer) {
   OfferOptions options;
   CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
   a2_->SetRemote(TestObserver::OFFER, a1_->offer());
@@ -3158,7 +3122,7 @@ TEST_P(SignalingTest, SetLocalOfferInHaveRemoteOffer) {
             PeerConnectionImpl::kInvalidState);
 }
 
-TEST_P(SignalingTest, SetRemoteAnswerInHaveRemoteOffer) {
+TEST_F(SignalingTest, SetRemoteAnswerInHaveRemoteOffer) {
   OfferOptions options;
   CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
   a2_->SetRemote(TestObserver::OFFER, a1_->offer());
@@ -3174,7 +3138,7 @@ TEST_P(SignalingTest, SetRemoteAnswerInHaveRemoteOffer) {
 }
 
 // Disabled until the spec adds a failure callback to addStream
-TEST_P(SignalingTest, DISABLED_AddStreamInHaveLocalOffer) {
+TEST_F(SignalingTest, DISABLED_AddStreamInHaveLocalOffer) {
   OfferOptions options;
   CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
   a1_->SetLocal(TestObserver::OFFER, a1_->offer());
@@ -3186,7 +3150,7 @@ TEST_P(SignalingTest, DISABLED_AddStreamInHaveLocalOffer) {
 }
 
 // Disabled until the spec adds a failure callback to removeStream
-TEST_P(SignalingTest, DISABLED_RemoveStreamInHaveLocalOffer) {
+TEST_F(SignalingTest, DISABLED_RemoveStreamInHaveLocalOffer) {
   OfferOptions options;
   CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
   a1_->SetLocal(TestObserver::OFFER, a1_->offer());
@@ -3197,7 +3161,7 @@ TEST_P(SignalingTest, DISABLED_RemoveStreamInHaveLocalOffer) {
             PeerConnectionImpl::kInvalidState);
 }
 
-TEST_P(SignalingTest, AddCandidateInHaveLocalOffer) {
+TEST_F(SignalingTest, AddCandidateInHaveLocalOffer) {
   OfferOptions options;
   CreateOffer(options, OFFER_AUDIO, SHOULD_SENDRECV_AUDIO);
   a1_->SetLocal(TestObserver::OFFER, a1_->offer());
@@ -3307,7 +3271,7 @@ TEST_F(SignalingAgentTest, CreateNoInit) {
 /*
  * Test for Bug 843595
  */
-TEST_P(SignalingTest, missingUfrag)
+TEST_F(SignalingTest, missingUfrag)
 {
   EnsureInit();
 
@@ -3361,7 +3325,7 @@ TEST_P(SignalingTest, missingUfrag)
   ASSERT_TRUE(a2_->pObserver->state == TestObserver::stateError);
 }
 
-TEST_P(SignalingTest, AudioOnlyCalleeNoRtcpMux)
+TEST_F(SignalingTest, AudioOnlyCalleeNoRtcpMux)
 {
   EnsureInit();
 
@@ -3405,7 +3369,7 @@ TEST_P(SignalingTest, AudioOnlyCalleeNoRtcpMux)
 
 
 
-TEST_P(SignalingTest, AudioOnlyG722Only)
+TEST_F(SignalingTest, AudioOnlyG722Only)
 {
   EnsureInit();
 
@@ -3438,7 +3402,7 @@ TEST_P(SignalingTest, AudioOnlyG722Only)
   ASSERT_GE(a2_->GetPacketsReceived(0), 40);
 }
 
-TEST_P(SignalingTest, AudioOnlyG722MostPreferred)
+TEST_F(SignalingTest, AudioOnlyG722MostPreferred)
 {
   EnsureInit();
 
@@ -3462,7 +3426,7 @@ TEST_P(SignalingTest, AudioOnlyG722MostPreferred)
   a2_->CloseReceiveStreams();
 }
 
-TEST_P(SignalingTest, AudioOnlyG722Rejected)
+TEST_F(SignalingTest, AudioOnlyG722Rejected)
 {
   EnsureInit();
 
@@ -3492,13 +3456,8 @@ TEST_P(SignalingTest, AudioOnlyG722Rejected)
   a2_->CloseReceiveStreams();
 }
 
-TEST_P(SignalingTest, FullCallAudioNoMuxVideoMux)
+TEST_F(SignalingTest, FullCallAudioNoMuxVideoMux)
 {
-  if (GetParam() == "bundle") {
-    // This test doesn't make sense for bundle
-    return;
-  }
-
   EnsureInit();
 
   OfferOptions options;
@@ -3552,7 +3511,7 @@ TEST_P(SignalingTest, FullCallAudioNoMuxVideoMux)
     PIPELINE_VIDEO | PIPELINE_RTCP_NACK, VideoSessionConduit::FrameRequestPli);
 }
 
-TEST_P(SignalingTest, RtcpFbInOffer)
+TEST_F(SignalingTest, RtcpFbInOffer)
 {
   EnsureInit();
   OfferOptions options;
@@ -3561,7 +3520,7 @@ TEST_P(SignalingTest, RtcpFbInOffer)
   CheckRtcpFbSdp(a1_->offer(), ARRAY_TO_SET(std::string, expected));
 }
 
-TEST_P(SignalingTest, RtcpFbOfferAll)
+TEST_F(SignalingTest, RtcpFbOfferAll)
 {
   const char *feedbackTypes[] = { "nack", "nack pli", "ccm fir" };
   TestRtcpFbOffer(ARRAY_TO_SET(std::string, feedbackTypes),
@@ -3569,7 +3528,7 @@ TEST_P(SignalingTest, RtcpFbOfferAll)
                   VideoSessionConduit::FrameRequestPli);
 }
 
-TEST_P(SignalingTest, RtcpFbOfferNoNackBasic)
+TEST_F(SignalingTest, RtcpFbOfferNoNackBasic)
 {
   const char *feedbackTypes[] = { "nack pli", "ccm fir" };
   TestRtcpFbOffer(ARRAY_TO_SET(std::string, feedbackTypes),
@@ -3577,7 +3536,7 @@ TEST_P(SignalingTest, RtcpFbOfferNoNackBasic)
                   VideoSessionConduit::FrameRequestPli);
 }
 
-TEST_P(SignalingTest, RtcpFbOfferNoNackPli)
+TEST_F(SignalingTest, RtcpFbOfferNoNackPli)
 {
   const char *feedbackTypes[] = { "nack", "ccm fir" };
   TestRtcpFbOffer(ARRAY_TO_SET(std::string, feedbackTypes),
@@ -3585,7 +3544,7 @@ TEST_P(SignalingTest, RtcpFbOfferNoNackPli)
                   VideoSessionConduit::FrameRequestFir);
 }
 
-TEST_P(SignalingTest, RtcpFbOfferNoCcmFir)
+TEST_F(SignalingTest, RtcpFbOfferNoCcmFir)
 {
   const char *feedbackTypes[] = { "nack", "nack pli" };
   TestRtcpFbOffer(ARRAY_TO_SET(std::string, feedbackTypes),
@@ -3593,7 +3552,7 @@ TEST_P(SignalingTest, RtcpFbOfferNoCcmFir)
                   VideoSessionConduit::FrameRequestPli);
 }
 
-TEST_P(SignalingTest, RtcpFbOfferNoNack)
+TEST_F(SignalingTest, RtcpFbOfferNoNack)
 {
   const char *feedbackTypes[] = { "ccm fir" };
   TestRtcpFbOffer(ARRAY_TO_SET(std::string, feedbackTypes),
@@ -3601,7 +3560,7 @@ TEST_P(SignalingTest, RtcpFbOfferNoNack)
                   VideoSessionConduit::FrameRequestFir);
 }
 
-TEST_P(SignalingTest, RtcpFbOfferNoFrameRequest)
+TEST_F(SignalingTest, RtcpFbOfferNoFrameRequest)
 {
   const char *feedbackTypes[] = { "nack" };
   TestRtcpFbOffer(ARRAY_TO_SET(std::string, feedbackTypes),
@@ -3609,7 +3568,7 @@ TEST_P(SignalingTest, RtcpFbOfferNoFrameRequest)
                   VideoSessionConduit::FrameRequestNone);
 }
 
-TEST_P(SignalingTest, RtcpFbOfferPliOnly)
+TEST_F(SignalingTest, RtcpFbOfferPliOnly)
 {
   const char *feedbackTypes[] = { "nack pli" };
   TestRtcpFbOffer(ARRAY_TO_SET(std::string, feedbackTypes),
@@ -3617,7 +3576,7 @@ TEST_P(SignalingTest, RtcpFbOfferPliOnly)
                   VideoSessionConduit::FrameRequestPli);
 }
 
-TEST_P(SignalingTest, RtcpFbOfferNoFeedback)
+TEST_F(SignalingTest, RtcpFbOfferNoFeedback)
 {
   const char *feedbackTypes[] = { };
   TestRtcpFbOffer(ARRAY_TO_SET(std::string, feedbackTypes),
@@ -3625,7 +3584,7 @@ TEST_P(SignalingTest, RtcpFbOfferNoFeedback)
                   VideoSessionConduit::FrameRequestNone);
 }
 
-TEST_P(SignalingTest, RtcpFbAnswerAll)
+TEST_F(SignalingTest, RtcpFbAnswerAll)
 {
   const char *feedbackTypes[] = { "nack", "nack pli", "ccm fir" };
   TestRtcpFbAnswer(ARRAY_TO_SET(std::string, feedbackTypes),
@@ -3633,7 +3592,7 @@ TEST_P(SignalingTest, RtcpFbAnswerAll)
                   VideoSessionConduit::FrameRequestPli);
 }
 
-TEST_P(SignalingTest, RtcpFbAnswerNoNackBasic)
+TEST_F(SignalingTest, RtcpFbAnswerNoNackBasic)
 {
   const char *feedbackTypes[] = { "nack pli", "ccm fir" };
   TestRtcpFbAnswer(ARRAY_TO_SET(std::string, feedbackTypes),
@@ -3641,7 +3600,7 @@ TEST_P(SignalingTest, RtcpFbAnswerNoNackBasic)
                   VideoSessionConduit::FrameRequestPli);
 }
 
-TEST_P(SignalingTest, RtcpFbAnswerNoNackPli)
+TEST_F(SignalingTest, RtcpFbAnswerNoNackPli)
 {
   const char *feedbackTypes[] = { "nack", "ccm fir" };
   TestRtcpFbAnswer(ARRAY_TO_SET(std::string, feedbackTypes),
@@ -3649,7 +3608,7 @@ TEST_P(SignalingTest, RtcpFbAnswerNoNackPli)
                   VideoSessionConduit::FrameRequestFir);
 }
 
-TEST_P(SignalingTest, RtcpFbAnswerNoCcmFir)
+TEST_F(SignalingTest, RtcpFbAnswerNoCcmFir)
 {
   const char *feedbackTypes[] = { "nack", "nack pli" };
   TestRtcpFbAnswer(ARRAY_TO_SET(std::string, feedbackTypes),
@@ -3657,7 +3616,7 @@ TEST_P(SignalingTest, RtcpFbAnswerNoCcmFir)
                   VideoSessionConduit::FrameRequestPli);
 }
 
-TEST_P(SignalingTest, RtcpFbAnswerNoNack)
+TEST_F(SignalingTest, RtcpFbAnswerNoNack)
 {
   const char *feedbackTypes[] = { "ccm fir" };
   TestRtcpFbAnswer(ARRAY_TO_SET(std::string, feedbackTypes),
@@ -3665,7 +3624,7 @@ TEST_P(SignalingTest, RtcpFbAnswerNoNack)
                   VideoSessionConduit::FrameRequestFir);
 }
 
-TEST_P(SignalingTest, RtcpFbAnswerNoFrameRequest)
+TEST_F(SignalingTest, RtcpFbAnswerNoFrameRequest)
 {
   const char *feedbackTypes[] = { "nack" };
   TestRtcpFbAnswer(ARRAY_TO_SET(std::string, feedbackTypes),
@@ -3673,7 +3632,7 @@ TEST_P(SignalingTest, RtcpFbAnswerNoFrameRequest)
                   VideoSessionConduit::FrameRequestNone);
 }
 
-TEST_P(SignalingTest, RtcpFbAnswerPliOnly)
+TEST_F(SignalingTest, RtcpFbAnswerPliOnly)
 {
   const char *feedbackTypes[] = { "nack pli" };
   TestRtcpFbAnswer(ARRAY_TO_SET(std::string, feedbackTypes),
@@ -3681,7 +3640,7 @@ TEST_P(SignalingTest, RtcpFbAnswerPliOnly)
                   VideoSessionConduit::FrameRequestPli);
 }
 
-TEST_P(SignalingTest, RtcpFbAnswerNoFeedback)
+TEST_F(SignalingTest, RtcpFbAnswerNoFeedback)
 {
   const char *feedbackTypes[] = { };
   TestRtcpFbAnswer(ARRAY_TO_SET(std::string, feedbackTypes),
@@ -3691,7 +3650,7 @@ TEST_P(SignalingTest, RtcpFbAnswerNoFeedback)
 
 // In this test we will change the offer SDP's a=setup value
 // from actpass to passive.  This will make the answer do active.
-TEST_P(SignalingTest, AudioCallForceDtlsRoles)
+TEST_F(SignalingTest, AudioCallForceDtlsRoles)
 {
   EnsureInit();
 
@@ -3740,7 +3699,7 @@ TEST_P(SignalingTest, AudioCallForceDtlsRoles)
 
 // In this test we will change the offer SDP's a=setup value
 // from actpass to active.  This will make the answer do passive
-TEST_P(SignalingTest, AudioCallReverseDtlsRoles)
+TEST_F(SignalingTest, AudioCallReverseDtlsRoles)
 {
   EnsureInit();
 
@@ -3790,7 +3749,7 @@ TEST_P(SignalingTest, AudioCallReverseDtlsRoles)
 // In this test we will change the answer SDP's a=setup value
 // from active to passive.  This will make both sides do
 // active and should not connect.
-TEST_P(SignalingTest, AudioCallMismatchDtlsRoles)
+TEST_F(SignalingTest, AudioCallMismatchDtlsRoles)
 {
   EnsureInit();
 
@@ -3839,7 +3798,7 @@ TEST_P(SignalingTest, AudioCallMismatchDtlsRoles)
 // In this test we will change the offer SDP's a=setup value
 // from actpass to garbage.  It should ignore the garbage value
 // and respond with setup:active
-TEST_P(SignalingTest, AudioCallGarbageSetup)
+TEST_F(SignalingTest, AudioCallGarbageSetup)
 {
   EnsureInit();
 
@@ -3887,7 +3846,7 @@ TEST_P(SignalingTest, AudioCallGarbageSetup)
 
 // In this test we will change the offer SDP to remove the
 // a=setup line.  Answer should respond with a=setup:active.
-TEST_P(SignalingTest, AudioCallOfferNoSetupOrConnection)
+TEST_F(SignalingTest, AudioCallOfferNoSetupOrConnection)
 {
   EnsureInit();
 
@@ -3936,7 +3895,7 @@ TEST_P(SignalingTest, AudioCallOfferNoSetupOrConnection)
 // In this test we will change the answer SDP to remove the
 // a=setup line.  ICE should still connect since active will
 // be assumed.
-TEST_P(SignalingTest, AudioCallAnswerNoSetupOrConnection)
+TEST_F(SignalingTest, AudioCallAnswerNoSetupOrConnection)
 {
   EnsureInit();
 
@@ -3982,7 +3941,7 @@ TEST_P(SignalingTest, AudioCallAnswerNoSetupOrConnection)
 }
 
 
-TEST_P(SignalingTest, FullCallRealTrickle)
+TEST_F(SignalingTest, FullCallRealTrickle)
 {
   OfferOptions options;
   OfferAnswer(options, OFFER_AV | ANSWER_AV,
@@ -3998,7 +3957,7 @@ TEST_P(SignalingTest, FullCallRealTrickle)
   ASSERT_GE(a2_->GetPacketsReceived(0), 40);
 }
 
-TEST_P(SignalingTest, FullCallRealTrickleTestServer)
+TEST_F(SignalingTest, FullCallRealTrickleTestServer)
 {
   SetTestStunServer();
 
@@ -4018,7 +3977,7 @@ TEST_P(SignalingTest, FullCallRealTrickleTestServer)
   ASSERT_GE(a2_->GetPacketsReceived(0), 40);
 }
 
-TEST_P(SignalingTest, hugeSdp)
+TEST_F(SignalingTest, hugeSdp)
 {
   EnsureInit();
 
@@ -4125,7 +4084,7 @@ TEST_P(SignalingTest, hugeSdp)
 }
 
 // Test max_fs and max_fr prefs have proper impact on SDP offer
-TEST_P(SignalingTest, MaxFsFrInOffer)
+TEST_F(SignalingTest, MaxFsFrInOffer)
 {
   EnsureInit();
 
@@ -4144,7 +4103,7 @@ TEST_P(SignalingTest, MaxFsFrInOffer)
 }
 
 // Test max_fs and max_fr prefs have proper impact on SDP answer
-TEST_P(SignalingTest, MaxFsFrInAnswer)
+TEST_F(SignalingTest, MaxFsFrInAnswer)
 {
   EnsureInit();
 
@@ -4167,7 +4126,7 @@ TEST_P(SignalingTest, MaxFsFrInAnswer)
 }
 
 // Test SDP offer has proper impact on callee's codec configuration
-TEST_P(SignalingTest, MaxFsFrCalleeCodec)
+TEST_F(SignalingTest, MaxFsFrCalleeCodec)
 {
   EnsureInit();
 
@@ -4212,7 +4171,7 @@ TEST_P(SignalingTest, MaxFsFrCalleeCodec)
 }
 
 // Test SDP answer has proper impact on caller's codec configuration
-TEST_P(SignalingTest, MaxFsFrCallerCodec)
+TEST_F(SignalingTest, MaxFsFrCallerCodec)
 {
   EnsureInit();
 
@@ -4254,7 +4213,7 @@ TEST_P(SignalingTest, MaxFsFrCallerCodec)
 }
 
 // Validate offer with multiple video codecs
-TEST_P(SignalingTest, ValidateMultipleVideoCodecsInOffer)
+TEST_F(SignalingTest, ValidateMultipleVideoCodecsInOffer)
 {
   EnsureInit();
   OfferOptions options;
@@ -4286,7 +4245,7 @@ TEST_P(SignalingTest, ValidateMultipleVideoCodecsInOffer)
 }
 
 // Remove VP8 from offer and check that answer negotiates H264 P1 correctly and ignores unknown params
-TEST_P(SignalingTest, RemoveVP8FromOfferWithP1First)
+TEST_F(SignalingTest, RemoveVP8FromOfferWithP1First)
 {
   EnsureInit();
 
@@ -4335,7 +4294,7 @@ TEST_P(SignalingTest, RemoveVP8FromOfferWithP1First)
 }
 
 // Insert H.264 before VP8 in Offer, check answer selects H.264
-TEST_P(SignalingTest, OfferWithH264BeforeVP8)
+TEST_F(SignalingTest, OfferWithH264BeforeVP8)
 {
   EnsureInit();
 
@@ -4398,7 +4357,7 @@ TEST_P(SignalingTest, OfferWithH264BeforeVP8)
 
 #ifdef H264_P0_SUPPORTED
 // Remove H.264 P1 and VP8 from offer, check answer negotiates H.264 P0
-TEST_P(SignalingTest, OfferWithOnlyH264P0)
+TEST_F(SignalingTest, OfferWithOnlyH264P0)
 {
   EnsureInit();
 
@@ -4455,7 +4414,7 @@ TEST_P(SignalingTest, OfferWithOnlyH264P0)
 
 // Test negotiating an answer which has only H.264 P1
 // Which means replace VP8 with H.264 P1 in answer
-TEST_P(SignalingTest, AnswerWithoutVP8)
+TEST_F(SignalingTest, AnswerWithoutVP8)
 {
   EnsureInit();
 
@@ -4524,7 +4483,7 @@ TEST_P(SignalingTest, AnswerWithoutVP8)
 }
 
 // Test using a non preferred dynamic video payload type on answer negotiation
-TEST_P(SignalingTest, UseNonPrefferedPayloadTypeOnAnswer)
+TEST_F(SignalingTest, UseNonPrefferedPayloadTypeOnAnswer)
 {
   EnsureInit();
 
@@ -4592,7 +4551,7 @@ TEST_P(SignalingTest, UseNonPrefferedPayloadTypeOnAnswer)
   a2_->CloseReceiveStreams();
 }
 
-TEST_P(SignalingTest, VideoNegotiationFails)
+TEST_F(SignalingTest, VideoNegotiationFails)
 {
   EnsureInit();
 
@@ -4636,7 +4595,7 @@ TEST_P(SignalingTest, VideoNegotiationFails)
   a2_->CloseReceiveStreams();
 }
 
-TEST_P(SignalingTest, AudioNegotiationFails)
+TEST_F(SignalingTest, AudioNegotiationFails)
 {
   EnsureInit();
 
@@ -4670,124 +4629,6 @@ TEST_P(SignalingTest, AudioNegotiationFails)
   a1_->CloseSendStreams();
   a2_->CloseReceiveStreams();
 }
-
-TEST_P(SignalingTest, BundleStreamCorrelationBySsrc)
-{
-  if (GetParam() != "bundle") {
-    return;
-  }
-
-  EnsureInit();
-
-  OfferOptions options;
-
-  // We pass DONT_CHECK_AUDIO because we monkey around with payload types
-  a1_->CreateOffer(options, OFFER_AV, DONT_CHECK_AUDIO | SHOULD_SENDRECV_VIDEO);
-  ParsedSDP parsedOffer(a1_->offer());
-
-  // Sabotage unique payload-type matching
-  // TODO(bug 1056650): once we have multistream support, all we need to do
-  // here is run a test with two audio streams, since that will prevent the
-  // PTs from being unique
-  parsedOffer.ReplaceLine("m=audio",
-                          "m=audio 9 RTP/SAVPF 120\r\n");
-  parsedOffer.ReplaceLine("a=rtpmap:109",
-                          "a=rtpmap:120 opus/48000/2\r\n");
-
-  // Sabotage mid-based matching
-  std::string modifiedOffer = parsedOffer.getSdp();
-  size_t midExtStart =
-    modifiedOffer.find("urn:ietf:params:rtp-hdrext:sdes:mid");
-  if (midExtStart != std::string::npos) {
-    // Just garble it a little
-    modifiedOffer[midExtStart] = 'q';
-  }
-
-  a1_->SetLocal(TestObserver::OFFER, modifiedOffer);
-
-  a2_->SetRemote(TestObserver::OFFER, modifiedOffer, false);
-  a2_->CreateAnswer(OFFER_AV|ANSWER_AV,
-                    DONT_CHECK_AUDIO | SHOULD_SENDRECV_VIDEO);
-
-  a2_->SetLocal(TestObserver::ANSWER, a2_->answer(), false);
-
-  ASSERT_EQ(a2_->pObserver->lastStatusCode,
-            PeerConnectionImpl::kNoError);
-
-  a1_->SetRemote(TestObserver::ANSWER, a2_->answer(), false);
-
-  ASSERT_EQ(a1_->pObserver->lastStatusCode,
-            PeerConnectionImpl::kNoError);
-
-  WaitForCompleted();
-
-  // Wait for some data to get written
-  ASSERT_TRUE_WAIT(a1_->GetPacketsSent(0) >= 10 &&
-                   a2_->GetPacketsReceived(0) >= 10, kDefaultTimeout * 2);
-
-  a1_->CloseSendStreams();
-  a2_->CloseReceiveStreams();
-}
-
-TEST_P(SignalingTest, BundleStreamCorrelationByUniquePt)
-{
-  if (GetParam() != "bundle") {
-    return;
-  }
-
-  EnsureInit();
-
-  OfferOptions options;
-
-  a1_->CreateOffer(options, OFFER_AV, SHOULD_SENDRECV_AV);
-  ParsedSDP parsedOffer(a1_->offer());
-
-  std::string modifiedOffer = parsedOffer.getSdp();
-  // Sabotage ssrc matching
-  size_t ssrcStart =
-    modifiedOffer.find("a=ssrc:");
-  ASSERT_NE(std::string::npos, ssrcStart);
-  // Garble
-  modifiedOffer[ssrcStart+2] = 'q';
-
-  // Sabotage mid-based matching
-  size_t midExtStart =
-    modifiedOffer.find("urn:ietf:params:rtp-hdrext:sdes:mid");
-  if (midExtStart != std::string::npos) {
-    // Just garble it a little
-    modifiedOffer[midExtStart] = 'q';
-  }
-
-  a1_->SetLocal(TestObserver::OFFER, modifiedOffer);
-
-  a2_->SetRemote(TestObserver::OFFER, modifiedOffer, false);
-  a2_->CreateAnswer(OFFER_AV|ANSWER_AV,
-                    SHOULD_SENDRECV_AV);
-
-  a2_->SetLocal(TestObserver::ANSWER, a2_->answer(), false);
-
-  ASSERT_EQ(a2_->pObserver->lastStatusCode,
-            PeerConnectionImpl::kNoError);
-
-  a1_->SetRemote(TestObserver::ANSWER, a2_->answer(), false);
-
-  ASSERT_EQ(a1_->pObserver->lastStatusCode,
-            PeerConnectionImpl::kNoError);
-
-  WaitForCompleted();
-
-  // Wait for some data to get written
-  ASSERT_TRUE_WAIT(a1_->GetPacketsSent(0) >= 10 &&
-                   a2_->GetPacketsReceived(0) >= 10, kDefaultTimeout * 2);
-
-  a1_->CloseSendStreams();
-  a2_->CloseReceiveStreams();
-}
-
-INSTANTIATE_TEST_CASE_P(Variants, SignalingTest,
-                        ::testing::Values("bundle",
-                                          "no_bundle",
-                                          "reject_bundle"));
 
 } // End namespace test.
 

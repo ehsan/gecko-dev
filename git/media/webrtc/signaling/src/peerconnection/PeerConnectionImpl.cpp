@@ -1032,11 +1032,7 @@ PeerConnectionImpl::GetDatachannelParameters(
 
         *datachannelCodec =
           static_cast<const JsepApplicationCodecDescription*>(codec);
-        if (trackPair->mBundleLevel.isSome()) {
-          *level = static_cast<uint16_t>(*trackPair->mBundleLevel);
-        } else {
-          *level = static_cast<uint16_t>(trackPair->mLevel);
-        }
+        *level = static_cast<uint16_t>(trackPair->mLevel);
         return NS_OK;
       }
     }

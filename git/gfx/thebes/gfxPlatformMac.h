@@ -70,6 +70,7 @@ public:
 
     bool UseAcceleratedCanvas();
 
+    virtual bool UseTiling() MOZ_OVERRIDE;
     virtual bool UseProgressivePaint() MOZ_OVERRIDE;
     virtual already_AddRefed<mozilla::gfx::VsyncSource> CreateHardwareVsyncSource() MOZ_OVERRIDE;
 

@@ -81,8 +81,7 @@ class MediaPipeline : public sigslot::has_slots<> {
                 int level,
                 RefPtr<MediaSessionConduit> conduit,
                 RefPtr<TransportFlow> rtp_transport,
-                RefPtr<TransportFlow> rtcp_transport,
-                nsAutoPtr<MediaPipelineFilter> filter)
+                RefPtr<TransportFlow> rtcp_transport)
       : direction_(direction),
         stream_(stream),
         track_id_(track_id),
@@ -100,9 +99,7 @@ class MediaPipeline : public sigslot::has_slots<> {
         rtp_bytes_sent_(0),
         rtp_bytes_received_(0),
         pc_(pc),
-        description_(),
-        filter_(filter),
-        rtp_parser_(webrtc::RtpHeaderParser::Create()) {
+        description_() {
       // To indicate rtcp-mux rtcp_transport should be nullptr.
       // Therefore it's an error to send in the same flow for
       // both rtp and rtcp.
@@ -126,6 +123,13 @@ class MediaPipeline : public sigslot::has_slots<> {
 
   virtual nsresult Init();
 
+  // When we have offered bundle, the MediaPipelines are created in an
+  // indeterminate state; we do not know whether the answerer will take us
+  // up on our offer. In the meantime, we need to behave in a manner that
+  // errs on the side of packet loss when it is unclear whether an arriving
+  // packet is meant for us. We want to get out of this indeterminate state
+  // ASAP, which is what this function can be used for.
+  void SetUsingBundle_s(bool decision);
   MediaPipelineFilter* UpdateFilterFromRemoteDescription_s(
       nsAutoPtr<MediaPipelineFilter> filter);
 
@@ -243,6 +247,16 @@ class MediaPipeline : public sigslot::has_slots<> {
   // The transport objects. Read/written on STS thread.
   TransportInfo rtp_;
   TransportInfo rtcp_;
+  // These are for bundle. We have a separate set because when we have offered
+  // bundle, we do not know whether we will receive traffic on the transport
+  // in this pipeline's m-line, or the transport in the "master" m-line for
+  // the bundle. We need to be ready for either. Once this ambiguity is
+  // resolved, the transport we know that we'll be using will be set in
+  // rtp_transport_ and rtcp_transport_, and these will be unset.
+  // TODO(bcampen@mozilla.com): I'm pretty sure this could be leveraged for
+  // re-offer with a new address on an m-line too, with a little work.
+  nsAutoPtr<TransportInfo> possible_bundle_rtp_;
+  nsAutoPtr<TransportInfo> possible_bundle_rtcp_;
 
   // Pointers to the threads we need. Initialized at creation
   // and used all over the place.
@@ -356,11 +370,10 @@ public:
                         bool is_video,
                         RefPtr<MediaSessionConduit> conduit,
                         RefPtr<TransportFlow> rtp_transport,
-                        RefPtr<TransportFlow> rtcp_transport,
-                        nsAutoPtr<MediaPipelineFilter> filter) :
+                        RefPtr<TransportFlow> rtcp_transport) :
       MediaPipeline(pc, TRANSMIT, main_thread, sts_thread,
                     domstream->GetStream(), TRACK_INVALID, level,
-                    conduit, rtp_transport, rtcp_transport, filter),
+                    conduit, rtp_transport, rtcp_transport),
       listener_(new PipelineListener(conduit)),
       domstream_(domstream),
       is_video_(is_video)
@@ -523,11 +536,25 @@ class MediaPipelineReceive : public MediaPipeline {
                        RefPtr<MediaSessionConduit> conduit,
                        RefPtr<TransportFlow> rtp_transport,
                        RefPtr<TransportFlow> rtcp_transport,
+                       RefPtr<TransportFlow> bundle_rtp_transport,
+                       RefPtr<TransportFlow> bundle_rtcp_transport,
                        nsAutoPtr<MediaPipelineFilter> filter) :
       MediaPipeline(pc, RECEIVE, main_thread, sts_thread,
                     stream, track_id, level, conduit, rtp_transport,
-                    rtcp_transport, filter),
+                    rtcp_transport),
       segments_added_(0) {
+    filter_ = filter;
+    rtp_parser_ = webrtc::RtpHeaderParser::Create();
+    if (bundle_rtp_transport) {
+      if (bundle_rtcp_transport) {
+        MOZ_ASSERT(bundle_rtp_transport != bundle_rtcp_transport);
+        possible_bundle_rtp_ = new TransportInfo(bundle_rtp_transport, RTP);
+        possible_bundle_rtcp_ = new TransportInfo(bundle_rtcp_transport, RTCP);
+      } else {
+        possible_bundle_rtp_ = new TransportInfo(bundle_rtp_transport, MUX);
+        possible_bundle_rtcp_ = new TransportInfo(bundle_rtp_transport, MUX);
+      }
+    }
   }
 
   int segments_added() const { return segments_added_; }
@@ -552,10 +579,13 @@ class MediaPipelineReceiveAudio : public MediaPipelineReceive {
                             RefPtr<AudioSessionConduit> conduit,
                             RefPtr<TransportFlow> rtp_transport,
                             RefPtr<TransportFlow> rtcp_transport,
+                            RefPtr<TransportFlow> bundle_rtp_transport,
+                            RefPtr<TransportFlow> bundle_rtcp_transport,
                             nsAutoPtr<MediaPipelineFilter> filter) :
       MediaPipelineReceive(pc, main_thread, sts_thread,
                            stream, track_id, level, conduit, rtp_transport,
-                           rtcp_transport, filter),
+                           rtcp_transport, bundle_rtp_transport,
+                           bundle_rtcp_transport, filter),
       listener_(new PipelineListener(stream->AsSourceStream(),
                                      track_id, conduit)) {
   }
@@ -615,10 +645,13 @@ class MediaPipelineReceiveVideo : public MediaPipelineReceive {
                             RefPtr<VideoSessionConduit> conduit,
                             RefPtr<TransportFlow> rtp_transport,
                             RefPtr<TransportFlow> rtcp_transport,
+                            RefPtr<TransportFlow> bundle_rtp_transport,
+                            RefPtr<TransportFlow> bundle_rtcp_transport,
                             nsAutoPtr<MediaPipelineFilter> filter) :
       MediaPipelineReceive(pc, main_thread, sts_thread,
                            stream, track_id, level, conduit, rtp_transport,
-                           rtcp_transport, filter),
+                           rtcp_transport, bundle_rtp_transport,
+                           bundle_rtcp_transport, filter),
       renderer_(new PipelineRenderer(MOZ_THIS_IN_INITIALIZER_LIST())),
       listener_(new PipelineListener(stream->AsSourceStream(), track_id)) {
   }

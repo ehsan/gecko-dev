@@ -220,7 +220,7 @@ nsWindow::NotifyVsync(TimeStamp aVsyncTimestamp)
       return;
     }
 
-    CompositorVsyncDispatcher* vsyncDispatcher = gFocusedWindow->GetCompositorVsyncDispatcher();
+    VsyncDispatcher* vsyncDispatcher = gFocusedWindow->GetVsyncDispatcher();
     // During bootup, there is a delay between when the nsWindow is created
     // and when the Compositor is created, but vsync is already turned on
     if (vsyncDispatcher) {

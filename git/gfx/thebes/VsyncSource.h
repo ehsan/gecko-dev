@@ -9,7 +9,7 @@
 #include "nsTArray.h"
 
 namespace mozilla {
-class CompositorVsyncDispatcher;
+class VsyncDispatcher;
 
 namespace gfx {
 
@@ -24,8 +24,8 @@ public:
     public:
       Display();
       virtual ~Display();
-      void AddCompositorVsyncDispatcher(mozilla::CompositorVsyncDispatcher* aCompositorVsyncDispatcher);
-      void RemoveCompositorVsyncDispatcher(mozilla::CompositorVsyncDispatcher* aCompositorVsyncDispatcher);
+      void AddVsyncDispatcher(mozilla::VsyncDispatcher* aVsyncDispatcher);
+      void RemoveVsyncDispatcher(mozilla::VsyncDispatcher* aVsyncDispatcher);
       // Notified when this display's vsync occurs, on the hardware vsync thread
       void NotifyVsync(mozilla::TimeStamp aVsyncTimestamp);
 
@@ -35,15 +35,15 @@ public:
       virtual bool IsVsyncEnabled() = 0;
 
     private:
-      nsTArray<nsRefPtr<mozilla::CompositorVsyncDispatcher>> mCompositorVsyncDispatchers;
+      nsTArray<nsRefPtr<mozilla::VsyncDispatcher>> mVsyncDispatchers;
   }; // end Display
 
-  void AddCompositorVsyncDispatcher(mozilla::CompositorVsyncDispatcher* aCompositorVsyncDispatcher);
-  void RemoveCompositorVsyncDispatcher(mozilla::CompositorVsyncDispatcher* aCompositorVsyncDispatcher);
+  void AddVsyncDispatcher(mozilla::VsyncDispatcher* aVsyncDispatcher);
+  void RemoveVsyncDispatcher(mozilla::VsyncDispatcher* aVsyncDispatcher);
 
 protected:
   virtual Display& GetGlobalDisplay() = 0; // Works across all displays
-  virtual Display& FindDisplay(mozilla::CompositorVsyncDispatcher* aCompositorVsyncDispatcher);
+  virtual Display& FindDisplay(mozilla::VsyncDispatcher* aVsyncDispatcher);
   virtual ~VsyncSource() {}
 }; // VsyncSource
 } // gfx

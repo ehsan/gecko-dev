@@ -21,6 +21,7 @@ class CompositorVsyncObserver;
 
 class VsyncObserver
 {
+  // Must be destroyed on main thread since the compositor is as well
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(VsyncObserver)
 
 public:
@@ -33,11 +34,13 @@ protected:
   virtual ~VsyncObserver() {}
 }; // VsyncObserver
 
-class CompositorVsyncDispatcher MOZ_FINAL
+// VsyncDispatcher is used to dispatch vsync events to the registered observers.
+class VsyncDispatcher
 {
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(CompositorVsyncDispatcher)
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(VsyncDispatcher)
+
 public:
-  CompositorVsyncDispatcher();
+  VsyncDispatcher();
 
   // Called on the vsync thread when a hardware vsync occurs
   // The aVsyncTimestamp can mean different things depending on the platform:
@@ -52,10 +55,10 @@ public:
   void Shutdown();
 
 private:
-  virtual ~CompositorVsyncDispatcher();
+  virtual ~VsyncDispatcher();
   Mutex mCompositorObserverLock;
   nsRefPtr<VsyncObserver> mCompositorVsyncObserver;
-};
+}; // VsyncDispatcher
 
 } // namespace mozilla
 
