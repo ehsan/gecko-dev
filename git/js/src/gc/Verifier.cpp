@@ -444,15 +444,16 @@ NextNode(VerifyNode *node)
 void
 gc::StartVerifyPreBarriers(JSRuntime *rt)
 {
-    if (rt->gcVerifyPreData || rt->gcIncrementalState != NO_INCREMENTAL)
+    if (rt->gcVerifyPreData ||
+        rt->gcIncrementalState != NO_INCREMENTAL ||
+        !IsIncrementalGCSafe(rt))
+    {
         return;
+    }
 
     MinorGC(rt, JS::gcreason::API);
 
     AutoPrepareForTracing prep(rt);
-
-    if (!IsIncrementalGCSafe(rt))
-        return;
 
     for (GCChunkSet::Range r(rt->gcChunkSet.all()); !r.empty(); r.popFront())
         r.front()->bitmap.clear();

@@ -1035,6 +1035,7 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     mSetOpenerWindowCalled(false),
 #endif
     mCleanedUp(false),
+    mCallCleanUpAfterModalDialogCloses(false),
     mDialogAbuseCount(0),
     mStopAbuseDialogs(false),
     mDialogsPermanentlyDisabled(false)
@@ -1252,7 +1253,7 @@ nsGlobalWindow::~nsGlobalWindow()
   // involve auditing all of the references that inners and outers can have, and
   // separating the handling into CleanUp() and FreeInnerObjects.
   if (IsInnerWindow()) {
-    CleanUp();
+    CleanUp(true);
   } else {
     MOZ_ASSERT(mCleanedUp);
   }
@@ -1322,8 +1323,20 @@ nsGlobalWindow::MaybeForgiveSpamCount()
 }
 
 void
-nsGlobalWindow::CleanUp()
+nsGlobalWindow::CleanUp(bool aIgnoreModalDialog)
 {
+  if (IsOuterWindow() && !aIgnoreModalDialog) {
+    nsGlobalWindow* inner = GetCurrentInnerWindowInternal();
+    nsCOMPtr<nsIDOMModalContentWindow> dlg(do_QueryObject(inner));
+    if (dlg) {
+      // The window we're trying to clean up is the outer window of a
+      // modal dialog.  Defer cleanup until the window closes, and let
+      // ShowModalDialog take care of calling CleanUp.
+      mCallCleanUpAfterModalDialogCloses = true;
+      return;
+    }
+  }
+
   // Guarantee idempotence.
   if (mCleanedUp)
     return;
@@ -1391,7 +1404,7 @@ nsGlobalWindow::CleanUp()
   nsGlobalWindow *inner = GetCurrentInnerWindowInternal();
 
   if (inner) {
-    inner->CleanUp();
+    inner->CleanUp(aIgnoreModalDialog);
   }
 
   DisableGamepadUpdates();
@@ -2770,7 +2783,7 @@ nsGlobalWindow::DetachFromDocShell()
   }
 
   MaybeForgiveSpamCount();
-  CleanUp();
+  CleanUp(false);
 }
 
 void
@@ -7234,7 +7247,7 @@ nsGlobalWindow::ReallyCloseWindow()
       }
     }
 
-    CleanUp();
+    CleanUp(false);
   }
 }
 
@@ -7814,6 +7827,11 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aURI, nsIVariant *aArgs_,
   if (dialog) {
     rv = dialog->GetReturnValue(aRetVal);
     MOZ_ASSERT(NS_SUCCEEDED(rv));
+    nsGlobalModalWindow *win = static_cast<nsGlobalModalWindow*>(dialog.get());
+    if (win->mCallCleanUpAfterModalDialogCloses) {
+      win->mCallCleanUpAfterModalDialogCloses = false;
+      win->CleanUp(true);
+    }
   }
 
   return NS_OK;

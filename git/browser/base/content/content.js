@@ -34,14 +34,12 @@ addMessageListener("Browser:HideSessionRestoreButton", function (message) {
   }
 });
 
-if (!Services.prefs.getBoolPref("browser.tabs.remote")) {
-  addEventListener("DOMContentLoaded", function(event) {
-    LoginManagerContent.onContentLoaded(event);
-  });
-  addEventListener("DOMAutoComplete", function(event) {
-    LoginManagerContent.onUsernameInput(event);
-  });
-  addEventListener("blur", function(event) {
-    LoginManagerContent.onUsernameInput(event);
-  });
-}
+addEventListener("DOMContentLoaded", function(event) {
+  LoginManagerContent.onContentLoaded(event);
+});
+addEventListener("DOMAutoComplete", function(event) {
+  LoginManagerContent.onUsernameInput(event);
+});
+addEventListener("blur", function(event) {
+  LoginManagerContent.onUsernameInput(event);
+});
