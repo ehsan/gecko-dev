@@ -38,7 +38,6 @@ private:
 
 bool IsNSSErrorCode(PRErrorCode code);
 nsresult GetXPCOMFromNSSError(PRErrorCode code);
-bool ErrorIsOverridable(PRErrorCode code);
 
 } // psm
 } // mozilla

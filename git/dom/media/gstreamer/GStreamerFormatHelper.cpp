@@ -224,14 +224,24 @@ GStreamerFormatHelper::IsBlacklistEnabled()
 }
 
 /* static */ bool
-GStreamerFormatHelper::IsPluginFeatureBlacklisted(GstPluginFeature *aFeature)
+GStreamerFormatHelper::IsPluginFeatureBlacklisted(GstPluginFeature *aFeature,
+                                                  FactoryType aTypes)
 {
   if (!IsBlacklistEnabled()) {
     return false;
   }
 
+  const gchar *className =
+    gst_element_factory_get_klass(GST_ELEMENT_FACTORY_CAST(aFeature));
+
   const gchar *factoryName =
     gst_plugin_feature_get_name(aFeature);
+
+  if ((!(aTypes & FactoryTypeDecoder) && strstr(className, "Decoder")) ||
+      (!(aTypes & FactoryTypeDemuxer) && strstr(className, "Demuxer")) ||
+      (!(aTypes & FactoryTypeParser) && strstr(className, "Parser"))) {
+    return false;
+  }
 
   for (unsigned int i = 0; i < G_N_ELEMENTS(sPluginBlacklist); i++) {
     if (!strcmp(factoryName, sPluginBlacklist[i])) {
@@ -248,16 +258,8 @@ static gboolean FactoryFilter(GstPluginFeature *aFeature, gpointer)
     return FALSE;
   }
 
-  const gchar *className =
-    gst_element_factory_get_klass(GST_ELEMENT_FACTORY_CAST(aFeature));
-
-  if (!strstr(className, "Decoder") && !strstr(className, "Demux")) {
-    return FALSE;
-  }
-
-  return
-    gst_plugin_feature_get_rank(aFeature) >= GST_RANK_MARGINAL &&
-    !GStreamerFormatHelper::IsPluginFeatureBlacklisted(aFeature);
+  return !GStreamerFormatHelper::IsPluginFeatureBlacklisted(aFeature,
+                                                            (FactoryType)(FactoryTypeDecoder|FactoryTypeDemuxer));
 }
 
 /**

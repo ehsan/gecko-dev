@@ -517,11 +517,9 @@ already_AddRefed<InternalResponse>
 FetchDriver::BeginAndGetFilteredResponse(InternalResponse* aResponse)
 {
   MOZ_ASSERT(aResponse);
-  if (!aResponse->FinalURL()) {
-    nsAutoCString reqURL;
-    mRequest->GetURL(reqURL);
-    aResponse->SetUrl(reqURL);
-  }
+  nsAutoCString reqURL;
+  mRequest->GetURL(reqURL);
+  aResponse->SetUrl(reqURL);
 
   // FIXME(nsm): Handle mixed content check, step 7 of fetch.
 

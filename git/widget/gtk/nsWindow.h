@@ -13,6 +13,7 @@
 #include "nsAutoPtr.h"
 
 #include "mozcontainer.h"
+#include "nsWeakReference.h"
 
 #include "nsIDragService.h"
 #include "nsITimer.h"
@@ -67,7 +68,7 @@ class nsPluginNativeWindowGtk;
 class nsShmImage;
 #endif
 
-class nsWindow : public nsBaseWidget
+class nsWindow : public nsBaseWidget, public nsSupportsWeakReference
 {
 public:
     nsWindow();

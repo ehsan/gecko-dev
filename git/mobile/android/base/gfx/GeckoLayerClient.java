@@ -681,14 +681,12 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
         mCurrentViewTransform.offsetX = offset.x;
         mCurrentViewTransform.offsetY = offset.y;
 
-        if (mRootLayer != null) {
-            mRootLayer.setPositionAndResolution(
-                Math.round(x + mCurrentViewTransform.offsetX),
-                Math.round(y + mCurrentViewTransform.offsetY),
-                Math.round(x + width + mCurrentViewTransform.offsetX),
-                Math.round(y + height + mCurrentViewTransform.offsetY),
-                resolution);
-        }
+        mRootLayer.setPositionAndResolution(
+            Math.round(x + mCurrentViewTransform.offsetX),
+            Math.round(y + mCurrentViewTransform.offsetY),
+            Math.round(x + width + mCurrentViewTransform.offsetX),
+            Math.round(y + height + mCurrentViewTransform.offsetY),
+            resolution);
 
         if (layersUpdated && mRecordDrawTimes) {
             // If we got a layers update, that means a draw finished. Check to see if the area drawn matches
@@ -730,9 +728,6 @@ class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
     public LayerRenderer.Frame createFrame() {
         // Create the shaders and textures if necessary.
         if (!mLayerRendererInitialized) {
-            if (mLayerRenderer == null) {
-                return null;
-            }
             mLayerRenderer.checkMonitoringEnabled();
             mLayerRenderer.createDefaultProgram();
             mLayerRendererInitialized = true;

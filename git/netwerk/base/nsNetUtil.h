@@ -324,22 +324,7 @@ NS_NewChannelInternal(nsIChannel**           outChannel,
                       nsLoadFlags            aLoadFlags = nsIRequest::LOAD_NORMAL,
                       nsIIOService*          aIoService = nullptr)
 {
-  // NS_NewChannelInternal is mostly called for channel redirects. We should allow
-  // the creation of a channel even if the original channel did not have a loadinfo
-  // attached.
-  if (!aLoadInfo) {
-    return NS_NewChannelInternal(outChannel,
-                                 aUri,
-                                 nullptr, // aLoadingNode
-                                 nullptr, // aLoadingPrincipal
-                                 nullptr, // aTriggeringPrincipal
-                                 nsILoadInfo::SEC_NORMAL,
-                                 nsIContentPolicy::TYPE_OTHER,
-                                 aLoadGroup,
-                                 aCallbacks,
-                                 aLoadFlags,
-                                 aIoService);
-  }
+  MOZ_ASSERT(aLoadInfo, "Can not create a channel without a loadInfo");
   nsresult rv = NS_NewChannelInternal(outChannel,
                                       aUri,
                                       aLoadInfo->LoadingNode(),

@@ -32,8 +32,6 @@ public:
   virtual nsresult Output(int64_t aStreamOffset,
                           nsRefPtr<MediaData>& aOutput) MOZ_OVERRIDE;
 
-  virtual nsresult Flush() MOZ_OVERRIDE;
-
 protected:
   virtual bool PerformFormatSpecificProcess(mp4_demuxer::MP4Sample* aSample) MOZ_OVERRIDE;
 

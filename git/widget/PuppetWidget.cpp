@@ -67,10 +67,12 @@ MightNeedIMEFocus(const nsWidgetInitData* aInitData)
 #endif
 }
 
+
 // Arbitrary, fungible.
 const size_t PuppetWidget::kMaxDimension = 4000;
 
-NS_IMPL_ISUPPORTS_INHERITED0(PuppetWidget, nsBaseWidget)
+NS_IMPL_ISUPPORTS_INHERITED(PuppetWidget, nsBaseWidget,
+                            nsISupportsWeakReference)
 
 PuppetWidget::PuppetWidget(TabChild* aTabChild)
   : mTabChild(aTabChild)

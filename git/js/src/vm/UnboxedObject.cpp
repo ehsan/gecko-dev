@@ -197,7 +197,7 @@ UnboxedPlainObject::convertToNative(JSContext *cx)
         return false;
 
     RootedNativeObject nobj(cx, &obj->as<PlainObject>());
-    nobj->setLastPropertyMakeNative(cx, shape);
+    NativeObject::setLastPropertyMakeNative(cx, nobj, shape);
 
     for (size_t i = 0; i < values.length(); i++)
         nobj->initSlotUnchecked(i, values[i]);

@@ -296,55 +296,56 @@ PropDesc::trace(JSTracer *trc)
     gc::MarkValueRoot(trc, &set_, "PropDesc set");
 }
 
-inline bool
-NativeObject::updateSlotsForSpan(ExclusiveContext *cx, size_t oldSpan, size_t newSpan)
+/* static */ inline bool
+NativeObject::updateSlotsForSpan(ExclusiveContext *cx,
+                                 HandleNativeObject obj, size_t oldSpan, size_t newSpan)
 {
     MOZ_ASSERT(oldSpan != newSpan);
 
-    size_t oldCount = dynamicSlotsCount(numFixedSlots(), oldSpan, getClass());
-    size_t newCount = dynamicSlotsCount(numFixedSlots(), newSpan, getClass());
+    size_t oldCount = dynamicSlotsCount(obj->numFixedSlots(), oldSpan, obj->getClass());
+    size_t newCount = dynamicSlotsCount(obj->numFixedSlots(), newSpan, obj->getClass());
 
     if (oldSpan < newSpan) {
-        if (oldCount < newCount && !growSlots(cx, oldCount, newCount))
+        if (oldCount < newCount && !growSlots(cx, obj, oldCount, newCount))
             return false;
 
         if (newSpan == oldSpan + 1)
-            initSlotUnchecked(oldSpan, UndefinedValue());
+            obj->initSlotUnchecked(oldSpan, UndefinedValue());
         else
-            initializeSlotRange(oldSpan, newSpan - oldSpan);
+            obj->initializeSlotRange(oldSpan, newSpan - oldSpan);
     } else {
         /* Trigger write barriers on the old slots before reallocating. */
-        prepareSlotRangeForOverwrite(newSpan, oldSpan);
-        invalidateSlotRange(newSpan, oldSpan - newSpan);
+        obj->prepareSlotRangeForOverwrite(newSpan, oldSpan);
+        obj->invalidateSlotRange(newSpan, oldSpan - newSpan);
 
         if (oldCount > newCount)
-            shrinkSlots(cx, oldCount, newCount);
+            shrinkSlots(cx, obj, oldCount, newCount);
     }
 
     return true;
 }
 
-bool
-NativeObject::setLastProperty(ExclusiveContext *cx, Shape *shape)
+/* static */ bool
+NativeObject::setLastProperty(ExclusiveContext *cx, HandleNativeObject obj, HandleShape shape)
 {
-    MOZ_ASSERT(!inDictionaryMode());
+    MOZ_ASSERT(!obj->inDictionaryMode());
     MOZ_ASSERT(!shape->inDictionary());
-    MOZ_ASSERT(shape->compartment() == compartment());
-    MOZ_ASSERT(shape->numFixedSlots() == numFixedSlots());
-    MOZ_ASSERT(shape->getObjectClass() == getClass());
+    MOZ_ASSERT(shape->compartment() == obj->compartment());
+    MOZ_ASSERT(shape->numFixedSlots() == obj->numFixedSlots());
+    MOZ_ASSERT(shape->getObjectClass() == obj->getClass());
 
-    size_t oldSpan = lastProperty()->slotSpan();
+    size_t oldSpan = obj->lastProperty()->slotSpan();
     size_t newSpan = shape->slotSpan();
 
     if (oldSpan == newSpan) {
-        shape_ = shape;
+        obj->shape_ = shape;
         return true;
     }
 
-    if (!updateSlotsForSpan(cx, oldSpan, newSpan))
+    if (!updateSlotsForSpan(cx, obj, oldSpan, newSpan))
         return false;
 
-    shape_ = shape;
+    obj->shape_ = shape;
     return true;
 }
 
@@ -382,42 +383,43 @@ NativeObject::setLastPropertyMakeNonNative(Shape *shape)
     shape_ = shape;
 }
 
-void
-NativeObject::setLastPropertyMakeNative(ExclusiveContext *cx, Shape *shape)
+/* static */ void
+NativeObject::setLastPropertyMakeNative(ExclusiveContext *cx, HandleNativeObject obj,
+                                        HandleShape shape)
 {
-    MOZ_ASSERT(getClass()->isNative());
-    MOZ_ASSERT(!lastProperty()->isNative());
+    MOZ_ASSERT(obj->getClass()->isNative());
+    MOZ_ASSERT(!obj->lastProperty()->isNative());
     MOZ_ASSERT(shape->isNative());
-    MOZ_ASSERT(!inDictionaryMode());
+    MOZ_ASSERT(!obj->inDictionaryMode());
     MOZ_ASSERT(!shape->inDictionary());
-    MOZ_ASSERT(shape->compartment() == compartment());
+    MOZ_ASSERT(shape->compartment() == obj->compartment());
 
-    shape_ = shape;
-    slots_ = nullptr;
-    elements_ = emptyObjectElements;
+    obj->shape_ = shape;
+    obj->slots_ = nullptr;
+    obj->elements_ = emptyObjectElements;
 
     size_t oldSpan = shape->numFixedSlots();
     size_t newSpan = shape->slotSpan();
 
-    // A failure at this point will leave the object as a mutant, and we
+    // A failures at this point will leave the object as a mutant, and we
     // can't recover.
-    if (oldSpan != newSpan && !updateSlotsForSpan(cx, oldSpan, newSpan))
+    if (oldSpan != newSpan && !updateSlotsForSpan(cx, obj, oldSpan, newSpan))
         CrashAtUnhandlableOOM("NativeObject::setLastPropertyMakeNative");
 }
 
-bool
-NativeObject::setSlotSpan(ExclusiveContext *cx, uint32_t span)
+/* static */ bool
+NativeObject::setSlotSpan(ExclusiveContext *cx, HandleNativeObject obj, uint32_t span)
 {
-    MOZ_ASSERT(inDictionaryMode());
+    MOZ_ASSERT(obj->inDictionaryMode());
 
-    size_t oldSpan = lastProperty()->base()->slotSpan();
+    size_t oldSpan = obj->lastProperty()->base()->slotSpan();
     if (oldSpan == span)
         return true;
 
-    if (!updateSlotsForSpan(cx, oldSpan, span))
+    if (!updateSlotsForSpan(cx, obj, oldSpan, span))
         return false;
 
-    lastProperty()->base()->setSlotSpan(span);
+    obj->lastProperty()->base()->setSlotSpan(span);
     return true;
 }
 
@@ -446,11 +448,11 @@ ReallocateSlots(ExclusiveContext *cx, JSObject *obj, HeapSlot *oldSlots,
     return obj->zone()->pod_realloc<HeapSlot>(oldSlots, oldCount, newCount);
 }
 
-bool
-NativeObject::growSlots(ExclusiveContext *cx, uint32_t oldCount, uint32_t newCount)
+/* static */ bool
+NativeObject::growSlots(ExclusiveContext *cx, HandleNativeObject obj, uint32_t oldCount, uint32_t newCount)
 {
     MOZ_ASSERT(newCount > oldCount);
-    MOZ_ASSERT_IF(!is<ArrayObject>(), newCount >= SLOT_CAPACITY_MIN);
+    MOZ_ASSERT_IF(!obj->is<ArrayObject>(), newCount >= SLOT_CAPACITY_MIN);
 
     /*
      * Slot capacities are determined by the span of allocated objects. Due to
@@ -461,20 +463,20 @@ NativeObject::growSlots(ExclusiveContext *cx, uint32_t oldCount, uint32_t newCou
     MOZ_ASSERT(newCount < NELEMENTS_LIMIT);
 
     if (!oldCount) {
-        slots_ = AllocateSlots(cx, this, newCount);
-        if (!slots_)
+        obj->slots_ = AllocateSlots(cx, obj, newCount);
+        if (!obj->slots_)
             return false;
-        Debug_SetSlotRangeToCrashOnTouch(slots_, newCount);
+        Debug_SetSlotRangeToCrashOnTouch(obj->slots_, newCount);
         return true;
     }
 
-    HeapSlot *newslots = ReallocateSlots(cx, this, slots_, oldCount, newCount);
+    HeapSlot *newslots = ReallocateSlots(cx, obj, obj->slots_, oldCount, newCount);
     if (!newslots)
         return false;  /* Leave slots at its old size. */
 
-    slots_ = newslots;
+    obj->slots_ = newslots;
 
-    Debug_SetSlotRangeToCrashOnTouch(slots_ + oldCount, newCount - oldCount);
+    Debug_SetSlotRangeToCrashOnTouch(obj->slots_ + oldCount, newCount - oldCount);
 
     return true;
 }
@@ -488,24 +490,25 @@ FreeSlots(ExclusiveContext *cx, HeapSlot *slots)
     js_free(slots);
 }
 
-void
-NativeObject::shrinkSlots(ExclusiveContext *cx, uint32_t oldCount, uint32_t newCount)
+/* static */ void
+NativeObject::shrinkSlots(ExclusiveContext *cx, HandleNativeObject obj,
+                          uint32_t oldCount, uint32_t newCount)
 {
     MOZ_ASSERT(newCount < oldCount);
 
     if (newCount == 0) {
-        FreeSlots(cx, slots_);
-        slots_ = nullptr;
+        FreeSlots(cx, obj->slots_);
+        obj->slots_ = nullptr;
         return;
     }
 
-    MOZ_ASSERT_IF(!is<ArrayObject>(), newCount >= SLOT_CAPACITY_MIN);
+    MOZ_ASSERT_IF(!obj->is<ArrayObject>(), newCount >= SLOT_CAPACITY_MIN);
 
-    HeapSlot *newslots = ReallocateSlots(cx, this, slots_, oldCount, newCount);
+    HeapSlot *newslots = ReallocateSlots(cx, obj, obj->slots_, oldCount, newCount);
     if (!newslots)
         return;  /* Leave slots at its old size. */
 
-    slots_ = newslots;
+    obj->slots_ = newslots;
 }
 
 /* static */ bool
@@ -985,7 +988,7 @@ NativeObject::allocSlot(ExclusiveContext *cx, HandleNativeObject obj, uint32_t *
 
     *slotp = slot;
 
-    if (obj->inDictionaryMode() && !obj->setSlotSpan(cx, slot + 1))
+    if (obj->inDictionaryMode() && !setSlotSpan(cx, obj, slot + 1))
         return false;
 
     return true;

@@ -4332,9 +4332,9 @@ LRESULT CALLBACK nsWindow::WindowProcInternal(HWND hWnd, UINT msg, WPARAM wParam
 
   // Hold the window for the life of this method, in case it gets
   // destroyed during processing, unless we're in the dtor already.
-  nsCOMPtr<nsIWidget> kungFuDeathGrip;
+  nsCOMPtr<nsISupports> kungFuDeathGrip;
   if (!targetWindow->mInDtor)
-    kungFuDeathGrip = targetWindow;
+    kungFuDeathGrip = do_QueryInterface((nsBaseWidget*)targetWindow);
 
   targetWindow->IPCWindowProcHandler(msg, wParam, lParam);
 

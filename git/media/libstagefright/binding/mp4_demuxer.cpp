@@ -124,7 +124,9 @@ MP4Demuxer::Init()
                                         mSource, mAudioConfig.mTrackId,
                                         mMonitor);
       mPrivate->mIndexes.AppendElement(index);
-      mPrivate->mAudioIterator = new SampleIterator(index);
+      if (index->IsFragmented()) {
+        mPrivate->mAudioIterator = new SampleIterator(index);
+      }
     } else if (!mPrivate->mVideo.get() && !strncmp(mimeType, "video/", 6)) {
       sp<MediaSource> track = e->getTrack(i);
       if (track->start() != OK) {
@@ -136,7 +138,9 @@ MP4Demuxer::Init()
                                         mSource, mVideoConfig.mTrackId,
                                         mMonitor);
       mPrivate->mIndexes.AppendElement(index);
-      mPrivate->mVideoIterator = new SampleIterator(index);
+      if (index->IsFragmented()) {
+        mPrivate->mVideoIterator = new SampleIterator(index);
+      }
     }
   }
   sp<MetaData> metaData = e->getMetaData();

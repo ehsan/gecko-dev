@@ -31,7 +31,6 @@ using JS::ToInt32;
 
 using mozilla::NumbersAreIdentical;
 using mozilla::IsFloat32Representable;
-using mozilla::IsNaN;
 using mozilla::Maybe;
 using mozilla::DebugOnly;
 
@@ -630,7 +629,7 @@ MConstant *
 MConstant::NewTypedValue(TempAllocator &alloc, const Value &v, MIRType type, CompilerConstraintList *constraints)
 {
     MOZ_ASSERT(!IsSimdType(type));
-    MOZ_ASSERT_IF(type == MIRType_Float32, IsNaN(v.toDouble()) || v.toDouble() == double(float(v.toDouble())));
+    MOZ_ASSERT_IF(type == MIRType_Float32, v.toDouble() == double(float(v.toDouble())));
     MConstant *constant = new(alloc) MConstant(v, constraints);
     constant->setResultType(type);
     return constant;

@@ -409,15 +409,6 @@ static const FeatureInfo sFeatureInfoArr[] = {
          */
     },
     {
-        "read_buffer",
-        GLVersion::GL2,
-        GLESVersion::ES3,
-        GLContext::Extension_None,
-        {
-            GLContext::Extensions_End
-        }
-    },
-    {
         "renderbuffer_color_float",
         GLVersion::GL3,
         GLESVersion::ES3,

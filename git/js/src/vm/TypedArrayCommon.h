@@ -114,14 +114,6 @@ AnyTypedArrayViewData(const JSObject *obj)
 }
 
 inline uint32_t
-AnyTypedArrayBytesPerElement(const JSObject *obj)
-{
-    if (obj->is<TypedArrayObject>())
-        return obj->as<TypedArrayObject>().bytesPerElement();
-    return obj->as<SharedTypedArrayObject>().bytesPerElement();
-}
-
-inline uint32_t
 AnyTypedArrayByteLength(const JSObject *obj)
 {
     if (obj->is<TypedArrayObject>())

@@ -345,8 +345,6 @@ UpdateLastInputEventTime(void *aGdkEvent)
     sLastUserInputTime = timestamp;
 }
 
-NS_IMPL_ISUPPORTS_INHERITED0(nsWindow, nsBaseWidget)
-
 nsWindow::nsWindow()
 {
     mIsTopLevel       = false;
@@ -424,6 +422,9 @@ nsWindow::ReleaseGlobals()
     }
   }
 }
+
+NS_IMPL_ISUPPORTS_INHERITED(nsWindow, nsBaseWidget,
+                            nsISupportsWeakReference)
 
 void
 nsWindow::CommonCreate(nsIWidget *aParent, bool aListenForResizes)

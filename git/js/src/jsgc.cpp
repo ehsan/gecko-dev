@@ -5463,10 +5463,6 @@ GCRuntime::compactPhase(bool lastGC)
         releaseRelocatedArenas(relocatedList);
 #endif
 
-    // Ensure execess chunks are returns to the system and free arenas
-    // decommitted.
-    shrinkBuffers();
-
 #ifdef DEBUG
     CheckHashTablesAfterMovingGC(rt);
     for (GCZonesIter zone(rt); !zone.done(); zone.next()) {
@@ -6307,7 +6303,6 @@ js::PrepareForDebugGC(JSRuntime *rt)
 JS_PUBLIC_API(void)
 JS::ShrinkGCBuffers(JSRuntime *rt)
 {
-    MOZ_ASSERT(!rt->isHeapBusy());
     rt->gc.shrinkBuffers();
 }
 
@@ -6316,6 +6311,7 @@ GCRuntime::shrinkBuffers()
 {
     AutoLockHelperThreadState helperLock;
     AutoLockGC lock(rt);
+    MOZ_ASSERT(!rt->isHeapBusy());
 
     if (CanUseExtraThreads())
         helperState.startBackgroundShrink(lock);

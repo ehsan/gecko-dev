@@ -404,9 +404,6 @@ nsFrame::nsFrame(nsStyleContext* aContext)
   mState = NS_FRAME_FIRST_REFLOW | NS_FRAME_IS_DIRTY;
   mStyleContext = aContext;
   mStyleContext->AddRef();
-#ifdef DEBUG
-  mStyleContext->FrameAddRef();
-#endif
 }
 
 nsFrame::~nsFrame()
@@ -414,9 +411,6 @@ nsFrame::~nsFrame()
   MOZ_COUNT_DTOR(nsFrame);
 
   NS_IF_RELEASE(mContent);
-#ifdef DEBUG
-  mStyleContext->FrameRelease();
-#endif
   mStyleContext->Release();
 }
 
