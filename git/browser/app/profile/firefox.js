@@ -1122,3 +1122,8 @@ pref("browser.newtabpage.enabled", true);
 
 // Enable the DOM full-screen API.
 pref("full-screen-api.enabled", true);
+
+// Startup Crash Tracking
+// number of startup crashes that can occur before starting into safe mode automatically
+// (this pref has no effect if more than 6 hours have passed since the last crash)
+pref("toolkit.startup.max_resumed_crashes", 2);
