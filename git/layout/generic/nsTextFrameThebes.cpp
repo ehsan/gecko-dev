@@ -1136,7 +1136,7 @@ void BuildTextRunsScanner::FlushFrames(PRBool aFlushLineBreaks, PRBool aSuppress
   if (!mSkipIncompleteTextRuns && mCurrentFramesAllSameTextRun &&
       ((mCurrentFramesAllSameTextRun->GetFlags() & nsTextFrameUtils::TEXT_INCOMING_WHITESPACE) != 0) ==
       ((mCurrentRunContextInfo & nsTextFrameUtils::INCOMING_WHITESPACE) != 0) &&
-      ((mCurrentFramesAllSameTextRun->GetFlags() & gfxTextRunWordCache::TEXT_INCOMING_ARABICCHAR) != 0) ==
+      ((mCurrentFramesAllSameTextRun->GetFlags() & nsTextFrameUtils::TEXT_INCOMING_ARABICCHAR) != 0) ==
       ((mCurrentRunContextInfo & nsTextFrameUtils::INCOMING_ARABICCHAR) != 0) &&
       IsTextRunValidForMappedFlows(mCurrentFramesAllSameTextRun)) {
     // Optimization: We do not need to (re)build the textrun.
@@ -1149,7 +1149,7 @@ void BuildTextRunsScanner::FlushFrames(PRBool aFlushLineBreaks, PRBool aSuppress
     if (textRun->GetFlags() & nsTextFrameUtils::TEXT_TRAILING_WHITESPACE) {
       mNextRunContextInfo |= nsTextFrameUtils::INCOMING_WHITESPACE;
     }
-    if (textRun->GetFlags() & gfxTextRunWordCache::TEXT_TRAILING_ARABICCHAR) {
+    if (textRun->GetFlags() & nsTextFrameUtils::TEXT_TRAILING_ARABICCHAR) {
       mNextRunContextInfo |= nsTextFrameUtils::INCOMING_ARABICCHAR;
     }
   } else {
@@ -1359,8 +1359,9 @@ BuildTextRunsScanner::GetNextBreakBeforeFrame(PRUint32* aIndex)
 }
 
 static PRUint32
-GetSpacingFlags(nscoord spacing)
+GetSpacingFlags(const nsStyleCoord& aStyleCoord)
 {
+  nscoord spacing = StyleToCoord(aStyleCoord);
   if (!spacing)
     return 0;
   if (spacing > 0)
@@ -1485,7 +1486,7 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
     textFlags |= nsTextFrameUtils::TEXT_INCOMING_WHITESPACE;
   }
   if (mCurrentRunContextInfo & nsTextFrameUtils::INCOMING_ARABICCHAR) {
-    textFlags |= gfxTextRunWordCache::TEXT_INCOMING_ARABICCHAR;
+    textFlags |= nsTextFrameUtils::TEXT_INCOMING_ARABICCHAR;
   }
 
   nsAutoTArray<PRInt32,50> textBreakPoints;
@@ -1528,7 +1529,7 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
     if (NS_STYLE_TEXT_TRANSFORM_NONE != textStyle->mTextTransform) {
       anyTextTransformStyle = PR_TRUE;
     }
-    textFlags |= GetSpacingFlags(StyleToCoord(textStyle->mLetterSpacing));
+    textFlags |= GetSpacingFlags(textStyle->mLetterSpacing);
     textFlags |= GetSpacingFlags(textStyle->mWordSpacing);
     nsTextFrameUtils::CompressionMode compression =
       CSSWhitespaceToCompressionMode[textStyle->mWhiteSpace];
@@ -1658,7 +1659,7 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
     textFlags |= nsTextFrameUtils::TEXT_TRAILING_WHITESPACE;
   }
   if (mNextRunContextInfo & nsTextFrameUtils::INCOMING_ARABICCHAR) {
-    textFlags |= gfxTextRunWordCache::TEXT_TRAILING_ARABICCHAR;
+    textFlags |= nsTextFrameUtils::TEXT_TRAILING_ARABICCHAR;
   }
   // ContinueTextRunAcrossFrames guarantees that it doesn't matter which
   // frame's style is used, so use the last frame's
@@ -2139,7 +2140,7 @@ public:
       mLineContainer(aLineContainer),
       mFrame(aFrame), mStart(aStart), mTempIterator(aStart),
       mTabWidths(nsnull), mLength(aLength),
-      mWordSpacing(mTextStyle->mWordSpacing),
+      mWordSpacing(StyleToCoord(mTextStyle->mWordSpacing)),
       mLetterSpacing(StyleToCoord(mTextStyle->mLetterSpacing)),
       mJustificationSpacing(0),
       mHyphenWidth(-1),
@@ -2162,7 +2163,7 @@ public:
       mFrame(aFrame), mStart(aStart), mTempIterator(aStart),
       mTabWidths(nsnull),
       mLength(aFrame->GetContentLength()),
-      mWordSpacing(mTextStyle->mWordSpacing),
+      mWordSpacing(StyleToCoord(mTextStyle->mWordSpacing)),
       mLetterSpacing(StyleToCoord(mTextStyle->mLetterSpacing)),
       mJustificationSpacing(0),
       mHyphenWidth(-1),

@@ -38,7 +38,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsFrame.h"
-#include "nsBlockFrame.h"
+#include "nsAreaFrame.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"

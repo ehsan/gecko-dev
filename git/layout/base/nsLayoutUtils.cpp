@@ -3061,9 +3061,7 @@ nsLayoutUtils::IsReallyFixedPos(nsIFrame* aFrame)
                     NS_STYLE_POSITION_FIXED,
                   "IsReallyFixedPos called on non-'position:fixed' frame");
 
-  nsIAtom *parentType = aFrame->GetParent()->GetType();
-  return parentType == nsGkAtoms::viewportFrame ||
-         parentType == nsGkAtoms::pageContentFrame;
+  return aFrame->GetParent()->GetType() == nsGkAtoms::viewportFrame;
 }
 
 nsSetAttrRunnable::nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,

@@ -1865,7 +1865,7 @@ nsBoxFrame::CreateViewForFrame(nsPresContext*  aPresContext,
 }
 
 // If you make changes to this function, check its counterparts
-// in nsTextBoxFrame and nsXULLabelFrame
+// in nsTextBoxFrame and nsAreaFrame
 nsresult
 nsBoxFrame::RegUnregAccessKey(PRBool aDoReg)
 {

@@ -112,6 +112,7 @@ endif
 
 CPPSRCS		= \
 		nsAbsoluteContainingBlock.cpp \
+		nsAreaFrame.cpp \
 		nsBRFrame.cpp \
 		nsBlockBandData.cpp \
 		nsBlockFrame.cpp \

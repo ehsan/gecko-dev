@@ -279,7 +279,9 @@ nsMediaDocument::StartLayout()
   nsPresShellIterator iter(this);
   nsCOMPtr<nsIPresShell> shell;
   while ((shell = iter.GetNextShell())) {
-    if (shell->DidInitialReflow()) {
+    PRBool didInitialReflow = PR_FALSE;
+    shell->GetDidInitialReflow(&didInitialReflow);
+    if (didInitialReflow) {
       // Don't mess with this presshell: someone has already handled
       // its initial reflow.
       continue;

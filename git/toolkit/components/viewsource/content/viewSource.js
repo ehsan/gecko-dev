@@ -39,7 +39,6 @@
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
-const Cr = Components.results;
 const pageLoaderIface = Components.interfaces.nsIWebPageDescriptor;
 const nsISelectionPrivate = Components.interfaces.nsISelectionPrivate;
 const nsISelectionController = Components.interfaces.nsISelectionController;
@@ -228,17 +227,15 @@ function viewSource(url)
           //
           PageLoader.loadPage(arg, pageLoaderIface.DISPLAY_AS_SOURCE);
 
-          // The content was successfully loaded.
-          loadFromURL = false;
-
           // Record the page load in the session history so <back> will work.
           var shEntry = Cc["@mozilla.org/browser/session-history-entry;1"].createInstance(Ci.nsISHEntry);
           shEntry.setURI(makeURI(viewSrcUrl, null, null));
           shEntry.setTitle(viewSrcUrl);
           shEntry.loadType = Ci.nsIDocShellLoadInfo.loadHistory;
-          getBrowser().webNavigation.sessionHistory
-                      .QueryInterface(Ci.nsISHistoryInternal)
-                      .addEntry(shEntry, true);
+          getBrowser().webNavigation.sessionHistory.addEntry(shEntry, true);
+
+          // The content was successfully loaded from the page cookie.
+          loadFromURL = false;
         }
       } catch(ex) {
         // Ignore the failure.  The content will be loaded via the URL

@@ -43,6 +43,7 @@
 #include "nsIDocument.h"
 #include "nsIDOMClassInfo.h"
 #include "nsIJSContextStack.h"
+#include "nsIScriptContext.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIServiceManager.h"
 #include "nsIThreadManager.h"
@@ -229,4 +230,13 @@ nsDOMWorkerPool::Resume()
     nsAutoMonitor mon(mMonitor);
     mon.NotifyAll();
   }
+}
+
+nsIScriptContext*
+nsDOMWorkerPool::ScriptContext()
+{
+  NS_ASSERTION(NS_IsMainThread(),
+               "Don't touch the non-threadsafe script context off the main "
+               "thread!");
+  return mParentGlobal->GetContext();
 }

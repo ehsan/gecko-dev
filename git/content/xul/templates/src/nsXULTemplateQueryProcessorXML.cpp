@@ -191,7 +191,7 @@ nsXULTemplateQueryProcessorXML::GetDatasource(nsIArray* aDataSources,
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsPIDOMWindow> owner = do_QueryInterface(scriptObject);
-    req->Init(docPrincipal, context, owner, nsnull);
+    req->Init(docPrincipal, context, owner);
 
     rv = req->OpenRequest(NS_LITERAL_CSTRING("GET"), uriStr, PR_TRUE,
                           EmptyString(), EmptyString());

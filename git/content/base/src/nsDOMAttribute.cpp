@@ -77,10 +77,7 @@ nsDOMAttribute::nsDOMAttribute(nsDOMAttributeMap *aAttrMap,
 
 nsDOMAttribute::~nsDOMAttribute()
 {
-  if (mChild) {
-    static_cast<nsTextNode*>(mChild)->UnbindFromAttribute();
-    NS_RELEASE(mChild);
-  }
+  NS_IF_RELEASE(mChild);
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMAttribute)

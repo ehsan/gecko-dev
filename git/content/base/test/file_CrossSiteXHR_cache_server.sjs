@@ -1,3 +1,5 @@
+function d(s) { dump(s + "\n"); }
+
 function handleRequest(request, response)
 {
   var query = {};

@@ -1796,18 +1796,10 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
         PRBool termFuncSet = PR_FALSE;
 
         if (oldDoc == aDocument) {
-          // Suspend the current context's request before Pop() resumes the old
-          // context's request.
-          JSAutoSuspendRequest asr(cx);
-
-          // Pop our context here so that we get the correct one for the
-          // termination function.
-          cxPusher.Pop();
-
-          JSContext *oldCx = nsContentUtils::GetCurrentJSContext();
+          JSContext *cx = nsContentUtils::GetCurrentJSContext();
 
           nsIScriptContext *callerScx;
-          if (oldCx && (callerScx = GetScriptContextFromJSContext(oldCx))) {
+          if (cx && (callerScx = GetScriptContextFromJSContext(cx))) {
             // We're called from document.open() (and document.open() is
             // called from JS), clear the scope etc in a termination
             // function on the calling context to prevent clearing the
@@ -1815,7 +1807,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
             NS_ASSERTION(!currentInner->IsFrozen(),
                 "How does this opened window get into session history");
 
-            JSAutoRequest ar(oldCx);
+            JSAutoRequest ar(cx);
 
             callerScx->SetTerminationFunction(ClearWindowScope,
                                               static_cast<nsIDOMWindow *>
@@ -1823,9 +1815,6 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
             termFuncSet = PR_TRUE;
           }
-
-          // Re-push our context.
-          cxPusher.Push(cx);
         }
 
         // Don't clear scope on our current inner window if it's going to be

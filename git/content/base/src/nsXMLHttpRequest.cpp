@@ -1108,8 +1108,7 @@ nsXMLHttpRequest::Init()
 NS_IMETHODIMP
 nsXMLHttpRequest::Init(nsIPrincipal* aPrincipal,
                        nsIScriptContext* aScriptContext,
-                       nsPIDOMWindow* aOwnerWindow,
-                       nsIURI* aBaseURI)
+                       nsPIDOMWindow* aOwnerWindow)
 {
   NS_ENSURE_ARG_POINTER(aPrincipal);
 
@@ -1125,7 +1124,6 @@ nsXMLHttpRequest::Init(nsIPrincipal* aPrincipal,
   else {
     mOwner = nsnull;
   }
-  mBaseURI = aBaseURI;
 
   return NS_OK;
 }
@@ -1828,10 +1826,7 @@ nsXMLHttpRequest::OpenRequest(const nsACString& method,
   nsCOMPtr<nsIDocument> doc = GetDocumentFromScriptContext(mScriptContext);
   
   nsCOMPtr<nsIURI> baseURI;
-  if (mBaseURI) {
-    baseURI = mBaseURI;
-  }
-  else if (doc) {
+  if (doc) {
     baseURI = doc->GetBaseURI();
   }
 

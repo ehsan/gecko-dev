@@ -1,5 +1,6 @@
 function handleRequest(request, response)
 {
+  try {
   var query = {};
   request.queryString.split('&').forEach(function (val) {
     [name, value] = val.split('=');
@@ -9,44 +10,31 @@ function handleRequest(request, response)
   var isPreflight = request.method == "OPTIONS";
 
   // Check that request was correct
-
   if (!isPreflight && "headers" in query) {
     headers = eval(query.headers);
     for(headerName in headers) {
       if (request.getHeader(headerName) != headers[headerName]) {
-        sendHttp500(response,
-          "Header " + headerName + " had wrong value. Expected " +
-          headers[headerName] + " got " + request.getHeader(headerName));
-        return;
+        throw "Header " + headerName + " had wrong value. Expected " +
+              headers[headerName] + " got " + request.getHeader(headerName);
       }
     }
   }
-
   if (isPreflight && "requestHeaders" in query &&
       request.getHeader("Access-Control-Request-Headers") != query.requestHeaders) {
-    sendHttp500(response,
-      "Access-Control-Request-Headers had wrong value. Expected " +
-      query.requestHeaders + " got " +
-      request.getHeader("Access-Control-Request-Headers"));
-    return;
+    throw "Access-Control-Request-Headers had wrong value. Expected " +
+          query.requestHeaders + " got " +
+          request.getHeader("Access-Control-Request-Headers");
   }
-
   if (isPreflight && "requestMethod" in query &&
       request.getHeader("Access-Control-Request-Method") != query.requestMethod) {
-    sendHttp500(response,
-      "Access-Control-Request-Method had wrong value. Expected " +
-      query.requestMethod + " got " +
-      request.getHeader("Access-Control-Request-Method"));
-    return;
+    throw "Access-Control-Request-Method had wrong value. Expected " +
+          query.requestMethod + " got " +
+          request.getHeader("Access-Control-Request-Method");
   }
-
   if ("origin" in query && request.getHeader("Origin") != query.origin) {
-    sendHttp500(response,
-      "Origin had wrong value. Expected " + query.origin + " got " +
-      request.getHeader("Origin"));
-    return;
+    throw "Origin had wrong value. Expected " + query.origin + " got " +
+          request.getHeader("Origin");
   }
-
   if ("cookie" in query) {
     cookies = {};
     request.getHeader("Cookie").split(/ *; */).forEach(function (val) {
@@ -57,19 +45,15 @@ function handleRequest(request, response)
     query.cookie.split(",").forEach(function (val) {
       [name, value] = val.split('=');
       if (cookies[name] != value) {
-        sendHttp500(response,
-          "Cookie " + name  + " had wrong value. Expected " + value +
-          " got " + cookies[name]);
-        return;
+        throw "Cookie " + name  + " had wrong value. Expected " + value +
+              " got " + cookies[name];
       }
     });
   }
-
   if ("noCookie" in query && request.hasHeader("Cookie")) {
-    sendHttp500(response,
-      "Got cookies when didn't expect to: " + request.getHeader("Cookie"));
-    return;
+    throw "Got cookies when didn't expect to";
   }
+
 
   // Send response
        
@@ -81,6 +65,7 @@ function handleRequest(request, response)
 
   if (query.setCookie)
     response.setHeader("Set-Cookie", query.setCookie + "; path=/");
+
 
   if (isPreflight) {
     if (query.allowHeaders)
@@ -94,8 +79,9 @@ function handleRequest(request, response)
 
   response.setHeader("Content-Type", "application/xml", false);
   response.write("<res>hello pass</res>\n");
-}
-
-function sendHttp500(response, text) {
-  response.setStatusLine(null, 500, text);
+  
+  } catch (e) {
+    dump(e + "\n");
+    throw e;
+  }
 }
