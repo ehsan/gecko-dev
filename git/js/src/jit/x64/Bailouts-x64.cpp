@@ -47,7 +47,7 @@ class BailoutStack
 
 IonBailoutIterator::IonBailoutIterator(const JitActivationIterator &activations,
                                        BailoutStack *bailout)
-  : JitFrameIterator(activations),
+  : IonFrameIterator(activations),
     machine_(bailout->machineState())
 {
     uint8_t *sp = bailout->parentStackPointer();
@@ -62,7 +62,7 @@ IonBailoutIterator::IonBailoutIterator(const JitActivationIterator &activations,
 
 IonBailoutIterator::IonBailoutIterator(const JitActivationIterator &activations,
                                        InvalidationBailoutStack *bailout)
-  : JitFrameIterator(activations),
+  : IonFrameIterator(activations),
     machine_(bailout->machine())
 {
     returnAddressToFp_ = bailout->osiPointReturnAddress();

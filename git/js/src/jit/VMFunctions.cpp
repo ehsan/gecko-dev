@@ -1018,7 +1018,7 @@ Recompile(JSContext *cx)
 {
     JS_ASSERT(cx->currentlyRunningInJit());
     JitActivationIterator activations(cx->runtime());
-    JitFrameIterator iter(activations);
+    IonFrameIterator iter(activations);
 
     JS_ASSERT(iter.type() == JitFrame_Exit);
     ++iter;

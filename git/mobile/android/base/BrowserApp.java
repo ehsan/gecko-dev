@@ -38,7 +38,7 @@ import org.mozilla.gecko.health.HealthRecorder;
 import org.mozilla.gecko.health.SessionInformation;
 import org.mozilla.gecko.home.BrowserSearch;
 import org.mozilla.gecko.home.HomeBanner;
-import org.mozilla.gecko.home.HomePanelsManager;
+import org.mozilla.gecko.home.HomeConfigInvalidator;
 import org.mozilla.gecko.home.HomePager;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 import org.mozilla.gecko.home.SearchEngine;
@@ -356,6 +356,16 @@ abstract public class BrowserApp extends GeckoApp
         return super.onKeyDown(keyCode, event);
     }
 
+    void handleReaderListCountRequest() {
+        ThreadUtils.postToBackgroundThread(new Runnable() {
+            @Override
+            public void run() {
+                final int count = BrowserDB.getReadingListCount(getContentResolver());
+                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Reader:ListCountReturn", Integer.toString(count)));
+            }
+        });
+    }
+
     void handleReaderListStatusRequest(final String url) {
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
@@ -392,6 +402,9 @@ abstract public class BrowserApp extends GeckoApp
             public void run() {
                 BrowserDB.addReadingListItem(getContentResolver(), values);
                 showToast(R.string.reading_list_added, Toast.LENGTH_SHORT);
+
+                final int count = BrowserDB.getReadingListCount(getContentResolver());
+                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Reader:ListCountUpdated", Integer.toString(count)));
             }
         });
     }
@@ -1193,6 +1206,8 @@ abstract public class BrowserApp extends GeckoApp
                 Telemetry.HistogramAdd("PLACES_BOOKMARKS_COUNT", BrowserDB.getCount(getContentResolver(), "bookmarks"));
                 Telemetry.HistogramAdd("FENNEC_FAVICONS_COUNT", BrowserDB.getCount(getContentResolver(), "favicons"));
                 Telemetry.HistogramAdd("FENNEC_THUMBNAILS_COUNT", BrowserDB.getCount(getContentResolver(), "thumbnails"));
+            } else if (event.equals("Reader:ListCountRequest")) {
+                handleReaderListCountRequest();
             } else if (event.equals("Reader:ListStatusRequest")) {
                 handleReaderListStatusRequest(message.getString("url"));
             } else if (event.equals("Reader:Added")) {
@@ -1678,7 +1693,7 @@ abstract public class BrowserApp extends GeckoApp
     public void onLocaleReady(final String locale) {
         super.onLocaleReady(locale);
 
-        HomePanelsManager.getInstance().onLocaleReady(locale);
+        HomeConfigInvalidator.getInstance().onLocaleReady(locale);
 
         if (mMenu != null) {
             mMenu.clear();

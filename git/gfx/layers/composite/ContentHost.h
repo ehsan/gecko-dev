@@ -152,9 +152,6 @@ public:
 
   virtual bool Lock() {
     MOZ_ASSERT(!mLocked);
-    if (!mTextureHost) {
-      return false;
-    }
     if (!mTextureHost->Lock()) {
       return false;
     }

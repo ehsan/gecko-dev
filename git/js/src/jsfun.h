@@ -544,15 +544,8 @@ class FunctionExtended : public JSFunction
   public:
     static const unsigned NUM_EXTENDED_SLOTS = 2;
 
-    /* Arrow functions store their lexical |this| in the first extended slot. */
-    static const unsigned ARROW_THIS_SLOT = 0;
-
-    static inline size_t offsetOfExtendedSlot(unsigned which) {
-        MOZ_ASSERT(which < NUM_EXTENDED_SLOTS);
-        return offsetof(FunctionExtended, extendedSlots) + which * sizeof(HeapValue);
-    }
     static inline size_t offsetOfArrowThisSlot() {
-        return offsetOfExtendedSlot(ARROW_THIS_SLOT);
+        return offsetof(FunctionExtended, extendedSlots) + 0 * sizeof(HeapValue);
     }
 
   private:

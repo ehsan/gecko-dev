@@ -499,45 +499,29 @@ FxAccountsInternal.prototype = {
     this.currentAccountState = new AccountState(this);
   },
 
-  signOut: function signOut(localOnly) {
+  signOut: function signOut() {
     let currentState = this.currentAccountState;
+    let fxAccountsClient = this.fxAccountsClient;
     let sessionToken;
     return currentState.getUserAccountData().then(data => {
       // Save the session token for use in the call to signOut below.
       sessionToken = data && data.sessionToken;
-      return this._signOutLocal();
+      this.abortExistingFlow();
+      this.currentAccountState.signedInUser = null; // clear in-memory cache
+      return this.signedInUserStorage.set(null);
     }).then(() => {
-      // FxAccountsManager calls here, then does its own call
-      // to FxAccountsClient.signOut().
-      if (!localOnly) {
-        // Wrap this in a promise so *any* errors in signOut won't
-        // block the local sign out. This is *not* returned.
-        Promise.resolve().then(() => {
-          // This can happen in the background and shouldn't block
-          // the user from signing out. The server must tolerate
-          // clients just disappearing, so this call should be best effort.
-          return this._signOutServer(sessionToken);
-        }).then(null, err => {
-          log.error("Error during remote sign out of Firefox Accounts: " + err);
-        });
-      }
-    }).then(() => {
+      // Wrap this in a promise so *any* errors in signOut won't
+      // block the local sign out. This is *not* returned.
+      Promise.resolve().then(() => {
+        // This can happen in the background and shouldn't block
+        // the user from signing out. The server must tolerate
+        // clients just disappearing, so this call should be best effort.
+        return fxAccountsClient.signOut(sessionToken);
+      }).then(null, err => {
+        log.error("Error during remote sign out of Firefox Accounts: " + err);
+      });
       this.notifyObservers(ONLOGOUT_NOTIFICATION);
     });
-  },
-
-  /**
-   * This function should be called in conjunction with a server-side
-   * signOut via FxAccountsClient.
-   */
-  _signOutLocal: function signOutLocal() {
-    this.abortExistingFlow();
-    this.currentAccountState.signedInUser = null; // clear in-memory cache
-    return this.signedInUserStorage.set(null);
-  },
-
-  _signOutServer: function signOutServer(sessionToken) {
-    return this.fxAccountsClient.signOut(sessionToken);
   },
 
   /**
@@ -561,33 +545,27 @@ FxAccountsInternal.prototype = {
    */
   getKeys: function() {
     let currentState = this.currentAccountState;
-    return currentState.getUserAccountData().then((userData) => {
-      if (!userData) {
+    return currentState.getUserAccountData().then((data) => {
+      if (!data) {
         throw new Error("Can't get keys; User is not signed in");
       }
-      if (userData.kA && userData.kB) {
-        return userData;
+      if (data.kA && data.kB) {
+        return data;
       }
       if (!currentState.whenKeysReadyDeferred) {
         currentState.whenKeysReadyDeferred = Promise.defer();
-        if (userData.keyFetchToken) {
-          this.fetchAndUnwrapKeys(userData.keyFetchToken).then(
-            (dataWithKeys) => {
-              if (!dataWithKeys.kA || !dataWithKeys.kB) {
-                currentState.whenKeysReadyDeferred.reject(
-                  new Error("user data missing kA or kB")
-                );
-                return;
-              }
-              currentState.whenKeysReadyDeferred.resolve(dataWithKeys);
-            },
-            (err) => {
-              currentState.whenKeysReadyDeferred.reject(err);
+        this.fetchAndUnwrapKeys(data.keyFetchToken).then(
+          data => {
+            if (!data.kA || !data.kB) {
+              currentState.whenKeysReadyDeferred.reject(
+                new Error("user data missing kA or kB")
+              );
+              return;
             }
-          );
-        } else {
-          currentState.whenKeysReadyDeferred.reject('No keyFetchToken');
-        }
+            currentState.whenKeysReadyDeferred.resolve(data);
+          },
+          err => currentState.whenKeysReadyDeferred.reject(err)
+        );
       }
       return currentState.whenKeysReadyDeferred.promise;
     }).then(result => currentState.resolve(result));
@@ -599,7 +577,6 @@ FxAccountsInternal.prototype = {
     return Task.spawn(function* task() {
       // Sign out if we don't have a key fetch token.
       if (!keyFetchToken) {
-        log.warn("improper fetchAndUnwrapKeys() call: token missing");
         yield this.signOut();
         return null;
       }

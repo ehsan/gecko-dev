@@ -22,7 +22,6 @@
  */
 function ContentActor(connection, chromeGlobal)
 {
-  this._chromeGlobal = chromeGlobal;
   TabActor.call(this, connection, chromeGlobal);
   this.traits.reconfigure = false;
 }
@@ -33,7 +32,7 @@ ContentActor.prototype.constructor = ContentActor;
 
 Object.defineProperty(ContentActor.prototype, "docShell", {
   get: function() {
-    return this._chromeGlobal.docShell;
+    return this.chromeEventHandler.docShell;
   },
   enumerable: true,
   configurable: false

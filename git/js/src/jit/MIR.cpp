@@ -548,14 +548,8 @@ MConstant::printOpcode(FILE *fp) const
       case MIRType_String:
         fprintf(fp, "string %p", (void *)value().toString());
         break;
-      case MIRType_MagicOptimizedArguments:
-        fprintf(fp, "magic lazyargs");
-        break;
-      case MIRType_MagicHole:
-        fprintf(fp, "magic hole");
-        break;
-      case MIRType_MagicIsConstructing:
-        fprintf(fp, "magic is-constructing");
+      case MIRType_Magic:
+        fprintf(fp, "magic");
         break;
       default:
         MOZ_ASSUME_UNREACHABLE("unexpected type");
@@ -1128,7 +1122,7 @@ MPhi::typeIncludes(MDefinition *def)
             return types->isSubset(this->resultTypeSet());
         if (this->type() == MIRType_Value || types->empty())
             return true;
-        return this->type() == types->getKnownMIRType();
+        return this->type() == MIRTypeFromValueType(types->getKnownTypeTag());
     }
 
     if (def->type() == MIRType_Value) {
@@ -1701,9 +1695,7 @@ KnownNonStringPrimitive(MDefinition *op)
 {
     return !op->mightBeType(MIRType_Object)
         && !op->mightBeType(MIRType_String)
-        && !op->mightBeType(MIRType_MagicOptimizedArguments)
-        && !op->mightBeType(MIRType_MagicHole)
-        && !op->mightBeType(MIRType_MagicIsConstructing);
+        && !op->mightBeType(MIRType_Magic);
 }
 
 void
@@ -1827,9 +1819,7 @@ ObjectOrSimplePrimitive(MDefinition *op)
     return !op->mightBeType(MIRType_String)
         && !op->mightBeType(MIRType_Double)
         && !op->mightBeType(MIRType_Float32)
-        && !op->mightBeType(MIRType_MagicOptimizedArguments)
-        && !op->mightBeType(MIRType_MagicHole)
-        && !op->mightBeType(MIRType_MagicIsConstructing);
+        && !op->mightBeType(MIRType_Magic);
 }
 
 static bool
@@ -3075,7 +3065,7 @@ jit::DenseNativeElementType(types::CompilerConstraintList *constraints, MDefinit
 
         types::HeapTypeSetKey elementTypes = object->property(JSID_VOID);
 
-        MIRType type = elementTypes.knownMIRType(constraints);
+        MIRType type = MIRTypeFromValueType(elementTypes.knownTypeTag(constraints));
         if (type == MIRType_None)
             return MIRType_None;
 
@@ -3352,7 +3342,7 @@ TryAddTypeBarrierForWrite(TempAllocator &alloc, types::CompilerConstraintList *c
 
     JS_ASSERT(!aggregateProperty.empty());
 
-    MIRType propertyType = aggregateProperty.ref().knownMIRType(constraints);
+    MIRType propertyType = MIRTypeFromValueType(aggregateProperty.ref().knownTypeTag(constraints));
     switch (propertyType) {
       case MIRType_Boolean:
       case MIRType_Int32:

@@ -1012,12 +1012,9 @@ CodeGenerator::visitLambdaArrow(LLambdaArrow *lir)
 
     emitLambdaInit(output, scopeChain, info);
 
-    // Initialize extended slots. Lexical |this| is stored in the first one.
+    // Store the lexical |this| value.
     MOZ_ASSERT(info.flags & JSFunction::EXTENDED);
-    static_assert(FunctionExtended::NUM_EXTENDED_SLOTS == 2, "All slots must be initialized");
-    static_assert(FunctionExtended::ARROW_THIS_SLOT == 0, "|this| must be stored in first slot");
-    masm.storeValue(thisv, Address(output, FunctionExtended::offsetOfExtendedSlot(0)));
-    masm.storeValue(UndefinedValue(), Address(output, FunctionExtended::offsetOfExtendedSlot(1)));
+    masm.storeValue(thisv, Address(output, FunctionExtended::offsetOfArrowThisSlot()));
 
     masm.bind(ool->rejoin());
     return true;
@@ -1831,16 +1828,22 @@ CodeGenerator::visitPostWriteBarrierO(LPostWriteBarrierO *lir)
     if (!addOutOfLineCode(ool))
         return false;
 
-    Register temp = ToTempRegisterOrInvalid(lir->temp());
+    const Nursery &nursery = GetIonContext()->runtime->gcNursery();
+    Register temp = ToRegister(lir->temp());
 
     if (lir->object()->isConstant()) {
-        const Nursery &nursery = GetIonContext()->runtime->gcNursery();
         JS_ASSERT(!nursery.isInside(&lir->object()->toConstant()->toObject()));
     } else {
-        masm.branchPtrInNurseryRange(ToRegister(lir->object()), temp, ool->rejoin());
+        Register objreg = ToRegister(lir->object());
+        masm.movePtr(ImmWord(-ptrdiff_t(nursery.start())), temp);
+        masm.addPtr(objreg, temp);
+        masm.branchPtr(Assembler::Below, temp, Imm32(Nursery::NurserySize), ool->rejoin());
     }
 
-    masm.branchPtrInNurseryRange(ToRegister(lir->value()), temp, ool->entry());
+    Register valuereg = ToRegister(lir->value());
+    masm.movePtr(ImmWord(-ptrdiff_t(nursery.start())), temp);
+    masm.addPtr(valuereg, temp);
+    masm.branchPtr(Assembler::Below, temp, Imm32(Nursery::NurserySize), ool->entry());
 
     masm.bind(ool->rejoin());
 #endif
@@ -1855,17 +1858,27 @@ CodeGenerator::visitPostWriteBarrierV(LPostWriteBarrierV *lir)
     if (!addOutOfLineCode(ool))
         return false;
 
-    Register temp = ToTempRegisterOrInvalid(lir->temp());
+    ValueOperand value = ToValue(lir, LPostWriteBarrierV::Input);
+    masm.branchTestObject(Assembler::NotEqual, value, ool->rejoin());
+
+    const Nursery &nursery = GetIonContext()->runtime->gcNursery();
 
     if (lir->object()->isConstant()) {
-        const Nursery &nursery = GetIonContext()->runtime->gcNursery();
         JS_ASSERT(!nursery.isInside(&lir->object()->toConstant()->toObject()));
     } else {
-        masm.branchPtrInNurseryRange(ToRegister(lir->object()), temp, ool->rejoin());
+        Register temp = ToRegister(lir->temp());
+        Register objreg = ToRegister(lir->object());
+        masm.movePtr(ImmWord(-ptrdiff_t(nursery.start())), temp);
+        masm.addPtr(objreg, temp);
+        masm.branchPtr(Assembler::Below, temp, Imm32(Nursery::NurserySize), ool->rejoin());
     }
 
-    ValueOperand value = ToValue(lir, LPostWriteBarrierV::Input);
-    masm.branchValueIsNurseryObject(value, temp, ool->entry());
+    // This section is a little different because we mustn't trash the temp
+    // register before we use its contents.
+    Register temp = ToRegister(lir->temp());
+    masm.unboxObject(value, temp);
+    masm.addPtr(ImmWord(-ptrdiff_t(nursery.start())), temp);
+    masm.branchPtr(Assembler::Below, temp, Imm32(Nursery::NurserySize), ool->entry());
 
     masm.bind(ool->rejoin());
 #endif
@@ -4034,7 +4047,7 @@ CodeGenerator::visitGetArgumentsObjectArg(LGetArgumentsObjectArg *lir)
 #ifdef DEBUG
     Label success;
     masm.branchTestMagic(Assembler::NotEqual, out, &success);
-    masm.assumeUnreachable("Result from ArgumentObject shouldn't be JSVAL_TYPE_MAGIC.");
+    masm.assumeUnreachable("Result from ArgumentObject shouldn't be MIRType_Magic.");
     masm.bind(&success);
 #endif
     return true;
@@ -4053,7 +4066,7 @@ CodeGenerator::visitSetArgumentsObjectArg(LSetArgumentsObjectArg *lir)
 #ifdef DEBUG
     Label success;
     masm.branchTestMagic(Assembler::NotEqual, argAddr, &success);
-    masm.assumeUnreachable("Result in ArgumentObject shouldn't be JSVAL_TYPE_MAGIC.");
+    masm.assumeUnreachable("Result in ArgumentObject shouldn't be MIRType_Magic.");
     masm.bind(&success);
 #endif
     masm.storeValue(value, argAddr);

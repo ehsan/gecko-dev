@@ -27,7 +27,7 @@
 #include "vm/ForkJoin.h"
 #include "vm/Interpreter.h"
 
-#include "jit/JitFrameIterator-inl.h"
+#include "jit/IonFrameIterator-inl.h"
 #include "vm/Probes-inl.h"
 
 namespace js {
@@ -72,7 +72,7 @@ ReadFrameBooleanSlot(IonJSFrameLayout *fp, int32_t slot)
     return *(bool *)((char *)fp + OffsetOfFrameSlot(slot));
 }
 
-JitFrameIterator::JitFrameIterator(JSContext *cx)
+IonFrameIterator::IonFrameIterator(JSContext *cx)
   : current_(cx->mainThread().ionTop),
     type_(JitFrame_Exit),
     returnAddressToFp_(nullptr),
@@ -83,7 +83,7 @@ JitFrameIterator::JitFrameIterator(JSContext *cx)
 {
 }
 
-JitFrameIterator::JitFrameIterator(const ActivationIterator &activations)
+IonFrameIterator::IonFrameIterator(const ActivationIterator &activations)
     : current_(activations.jitTop()),
       type_(JitFrame_Exit),
       returnAddressToFp_(nullptr),
@@ -94,7 +94,7 @@ JitFrameIterator::JitFrameIterator(const ActivationIterator &activations)
 {
 }
 
-JitFrameIterator::JitFrameIterator(IonJSFrameLayout *fp, ExecutionMode mode)
+IonFrameIterator::IonFrameIterator(IonJSFrameLayout *fp, ExecutionMode mode)
   : current_((uint8_t *)fp),
     type_(JitFrame_IonJS),
     returnAddressToFp_(fp->returnAddress()),
@@ -104,14 +104,14 @@ JitFrameIterator::JitFrameIterator(IonJSFrameLayout *fp, ExecutionMode mode)
 }
 
 bool
-JitFrameIterator::checkInvalidation() const
+IonFrameIterator::checkInvalidation() const
 {
     IonScript *dummy;
     return checkInvalidation(&dummy);
 }
 
 bool
-JitFrameIterator::checkInvalidation(IonScript **ionScriptOut) const
+IonFrameIterator::checkInvalidation(IonScript **ionScriptOut) const
 {
     uint8_t *returnAddr = returnAddressToFp();
     JSScript *script = this->script();
@@ -137,13 +137,13 @@ JitFrameIterator::checkInvalidation(IonScript **ionScriptOut) const
 }
 
 CalleeToken
-JitFrameIterator::calleeToken() const
+IonFrameIterator::calleeToken() const
 {
     return ((IonJSFrameLayout *) current_)->calleeToken();
 }
 
 JSFunction *
-JitFrameIterator::callee() const
+IonFrameIterator::callee() const
 {
     JS_ASSERT(isScripted());
     JS_ASSERT(isFunctionFrame());
@@ -151,7 +151,7 @@ JitFrameIterator::callee() const
 }
 
 JSFunction *
-JitFrameIterator::maybeCallee() const
+IonFrameIterator::maybeCallee() const
 {
     if (isScripted() && (isFunctionFrame()))
         return callee();
@@ -159,7 +159,7 @@ JitFrameIterator::maybeCallee() const
 }
 
 bool
-JitFrameIterator::isNative() const
+IonFrameIterator::isNative() const
 {
     if (type_ != JitFrame_Exit || isFakeExitFrame())
         return false;
@@ -167,7 +167,7 @@ JitFrameIterator::isNative() const
 }
 
 bool
-JitFrameIterator::isOOLNative() const
+IonFrameIterator::isOOLNative() const
 {
     if (type_ != JitFrame_Exit)
         return false;
@@ -175,7 +175,7 @@ JitFrameIterator::isOOLNative() const
 }
 
 bool
-JitFrameIterator::isOOLPropertyOp() const
+IonFrameIterator::isOOLPropertyOp() const
 {
     if (type_ != JitFrame_Exit)
         return false;
@@ -183,7 +183,7 @@ JitFrameIterator::isOOLPropertyOp() const
 }
 
 bool
-JitFrameIterator::isOOLProxy() const
+IonFrameIterator::isOOLProxy() const
 {
     if (type_ != JitFrame_Exit)
         return false;
@@ -191,7 +191,7 @@ JitFrameIterator::isOOLProxy() const
 }
 
 bool
-JitFrameIterator::isDOMExit() const
+IonFrameIterator::isDOMExit() const
 {
     if (type_ != JitFrame_Exit)
         return false;
@@ -199,13 +199,13 @@ JitFrameIterator::isDOMExit() const
 }
 
 bool
-JitFrameIterator::isFunctionFrame() const
+IonFrameIterator::isFunctionFrame() const
 {
     return CalleeTokenIsFunction(calleeToken());
 }
 
 JSScript *
-JitFrameIterator::script() const
+IonFrameIterator::script() const
 {
     JS_ASSERT(isScripted());
     if (isBaselineJS())
@@ -216,7 +216,7 @@ JitFrameIterator::script() const
 }
 
 void
-JitFrameIterator::baselineScriptAndPc(JSScript **scriptRes, jsbytecode **pcRes) const
+IonFrameIterator::baselineScriptAndPc(JSScript **scriptRes, jsbytecode **pcRes) const
 {
     JS_ASSERT(isBaselineJS());
     JSScript *script = this->script();
@@ -246,7 +246,7 @@ JitFrameIterator::baselineScriptAndPc(JSScript **scriptRes, jsbytecode **pcRes) 
 }
 
 Value *
-JitFrameIterator::actualArgs() const
+IonFrameIterator::actualArgs() const
 {
     return jsFrame()->argv() + 1;
 }
@@ -275,7 +275,7 @@ SizeOfFramePrefix(FrameType type)
 }
 
 uint8_t *
-JitFrameIterator::prevFp() const
+IonFrameIterator::prevFp() const
 {
     size_t currentSize = SizeOfFramePrefix(type_);
     // This quick fix must be removed as soon as bug 717297 land.  This is
@@ -290,8 +290,8 @@ JitFrameIterator::prevFp() const
     return current_ + currentSize;
 }
 
-JitFrameIterator &
-JitFrameIterator::operator++()
+IonFrameIterator &
+IonFrameIterator::operator++()
 {
     JS_ASSERT(type_ != JitFrame_Entry);
 
@@ -319,7 +319,7 @@ JitFrameIterator::operator++()
 }
 
 uintptr_t *
-JitFrameIterator::spillBase() const
+IonFrameIterator::spillBase() const
 {
     // Get the base address to where safepoint registers are spilled.
     // Out-of-line calls do not unwind the extra padding space used to
@@ -329,7 +329,7 @@ JitFrameIterator::spillBase() const
 }
 
 MachineState
-JitFrameIterator::machineState() const
+IonFrameIterator::machineState() const
 {
     SafepointReader reader(ionScript(), safepoint());
     uintptr_t *spill = spillBase();
@@ -446,7 +446,7 @@ HandleExceptionIon(JSContext *cx, const InlineFrameIterator &frame, ResumeFromEx
 }
 
 static void
-HandleExceptionBaseline(JSContext *cx, const JitFrameIterator &frame, ResumeFromException *rfe,
+HandleExceptionBaseline(JSContext *cx, const IonFrameIterator &frame, ResumeFromException *rfe,
                         bool *calledDebugEpilogue)
 {
     JS_ASSERT(frame.isBaselineJS());
@@ -583,7 +583,7 @@ HandleException(ResumeFromException *rfe)
     if (cx->runtime()->hasIonReturnOverride())
         cx->runtime()->takeIonReturnOverride();
 
-    JitFrameIterator iter(cx);
+    IonFrameIterator iter(cx);
     while (!iter.isEntry()) {
         bool overrecursed = false;
         if (iter.isIonJS()) {
@@ -693,7 +693,7 @@ void
 HandleParallelFailure(ResumeFromException *rfe)
 {
     ForkJoinContext *cx = ForkJoinContext::current();
-    JitFrameIterator iter(cx->perThreadData->ionTop, ParallelExecution);
+    IonFrameIterator iter(cx->perThreadData->ionTop, ParallelExecution);
 
     parallel::Spew(parallel::SpewBailouts, "Bailing from VM reentry");
 
@@ -774,7 +774,7 @@ MarkCalleeToken(JSTracer *trc, CalleeToken token)
 
 #ifdef JS_NUNBOX32
 static inline uintptr_t
-ReadAllocation(const JitFrameIterator &frame, const LAllocation *a)
+ReadAllocation(const IonFrameIterator &frame, const LAllocation *a)
 {
     if (a->isGeneralReg()) {
         Register reg = a->toGeneralReg()->reg();
@@ -791,7 +791,7 @@ ReadAllocation(const JitFrameIterator &frame, const LAllocation *a)
 #endif
 
 static void
-MarkActualArguments(JSTracer *trc, const JitFrameIterator &frame)
+MarkActualArguments(JSTracer *trc, const IonFrameIterator &frame)
 {
     IonJSFrameLayout *layout = frame.jsFrame();
     JS_ASSERT(CalleeTokenIsFunction(layout->calleeToken()));
@@ -806,7 +806,7 @@ MarkActualArguments(JSTracer *trc, const JitFrameIterator &frame)
 
 #ifdef JS_NUNBOX32
 static inline void
-WriteAllocation(const JitFrameIterator &frame, const LAllocation *a, uintptr_t value)
+WriteAllocation(const IonFrameIterator &frame, const LAllocation *a, uintptr_t value)
 {
     if (a->isGeneralReg()) {
         Register reg = a->toGeneralReg()->reg();
@@ -825,7 +825,7 @@ WriteAllocation(const JitFrameIterator &frame, const LAllocation *a, uintptr_t v
 #endif
 
 static void
-MarkIonJSFrame(JSTracer *trc, const JitFrameIterator &frame)
+MarkIonJSFrame(JSTracer *trc, const IonFrameIterator &frame)
 {
     IonJSFrameLayout *layout = (IonJSFrameLayout *)frame.fp();
 
@@ -895,7 +895,7 @@ MarkIonJSFrame(JSTracer *trc, const JitFrameIterator &frame)
 
 #ifdef JSGC_GENERATIONAL
 static void
-UpdateIonJSFrameForMinorGC(JSTracer *trc, const JitFrameIterator &frame)
+UpdateIonJSFrameForMinorGC(JSTracer *trc, const IonFrameIterator &frame)
 {
     // Minor GCs may move slots/elements allocated in the nursery. Update
     // any slots/elements pointers stored in this frame.
@@ -941,7 +941,7 @@ UpdateIonJSFrameForMinorGC(JSTracer *trc, const JitFrameIterator &frame)
 #endif
 
 static void
-MarkBaselineStubFrame(JSTracer *trc, const JitFrameIterator &frame)
+MarkBaselineStubFrame(JSTracer *trc, const IonFrameIterator &frame)
 {
     // Mark the ICStub pointer stored in the stub frame. This is necessary
     // so that we don't destroy the stub code after unlinking the stub.
@@ -958,7 +958,7 @@ MarkBaselineStubFrame(JSTracer *trc, const JitFrameIterator &frame)
 void
 JitActivationIterator::jitStackRange(uintptr_t *&min, uintptr_t *&end)
 {
-    JitFrameIterator frames(jitTop(), SequentialExecution);
+    IonFrameIterator frames(jitTop(), SequentialExecution);
 
     if (frames.isFakeExitFrame()) {
         min = reinterpret_cast<uintptr_t *>(frames.fp());
@@ -994,7 +994,7 @@ JitActivationIterator::jitStackRange(uintptr_t *&min, uintptr_t *&end)
 }
 
 static void
-MarkJitExitFrame(JSTracer *trc, const JitFrameIterator &frame)
+MarkJitExitFrame(JSTracer *trc, const IonFrameIterator &frame)
 {
     // Ignore fake exit frames created by EnsureExitFrame.
     if (frame.isFakeExitFrame())
@@ -1134,7 +1134,7 @@ MarkJitExitFrame(JSTracer *trc, const JitFrameIterator &frame)
 }
 
 static void
-MarkRectifierFrame(JSTracer *trc, const JitFrameIterator &frame)
+MarkRectifierFrame(JSTracer *trc, const IonFrameIterator &frame)
 {
     // Mark thisv.
     //
@@ -1157,7 +1157,7 @@ MarkJitActivation(JSTracer *trc, const JitActivationIterator &activations)
     }
 #endif
 
-    for (JitFrameIterator frames(activations); !frames.done(); ++frames) {
+    for (IonFrameIterator frames(activations); !frames.done(); ++frames) {
         switch (frames.type()) {
           case JitFrame_Exit:
             MarkJitExitFrame(trc, frames);
@@ -1197,7 +1197,7 @@ UpdateJitActivationsForMinorGC(JSRuntime *rt, JSTracer *trc)
 {
     JS_ASSERT(trc->runtime()->isHeapMinorCollecting());
     for (JitActivationIterator activations(rt); !activations.done(); ++activations) {
-        for (JitFrameIterator frames(activations); !frames.done(); ++frames) {
+        for (IonFrameIterator frames(activations); !frames.done(); ++frames) {
             if (frames.type() == JitFrame_IonJS)
                 UpdateIonJSFrameForMinorGC(trc, frames);
         }
@@ -1220,7 +1220,7 @@ GetPcScript(JSContext *cx, JSScript **scriptRes, jsbytecode **pcRes)
     JSRuntime *rt = cx->runtime();
 
     // Recover the return address.
-    JitFrameIterator it(rt->mainThread.ionTop, SequentialExecution);
+    IonFrameIterator it(rt->mainThread.ionTop, SequentialExecution);
 
     // If the previous frame is a rectifier frame (maybe unwound),
     // skip past it.
@@ -1306,7 +1306,7 @@ SnapshotIterator::SnapshotIterator(IonScript *ionScript, SnapshotOffset snapshot
     JS_ASSERT(snapshotOffset < ionScript->snapshotsListSize());
 }
 
-SnapshotIterator::SnapshotIterator(const JitFrameIterator &iter)
+SnapshotIterator::SnapshotIterator(const IonFrameIterator &iter)
   : snapshot_(iter.ionScript()->snapshots(),
               iter.osiIndex()->snapshotOffset(),
               iter.ionScript()->snapshotsRVATableSize(),
@@ -1536,7 +1536,7 @@ SnapshotIterator::nextFrame()
 }
 
 IonScript *
-JitFrameIterator::ionScript() const
+IonFrameIterator::ionScript() const
 {
     JS_ASSERT(type() == JitFrame_IonJS);
 
@@ -1553,7 +1553,7 @@ JitFrameIterator::ionScript() const
 }
 
 const SafepointIndex *
-JitFrameIterator::safepoint() const
+IonFrameIterator::safepoint() const
 {
     if (!cachedSafepointIndex_)
         cachedSafepointIndex_ = ionScript()->getSafepointIndex(returnAddressToFp());
@@ -1561,7 +1561,7 @@ JitFrameIterator::safepoint() const
 }
 
 const OsiIndex *
-JitFrameIterator::osiIndex() const
+IonFrameIterator::osiIndex() const
 {
     SafepointReader reader(ionScript(), safepoint());
     return ionScript()->getOsiIndex(reader.osiReturnPointOffset());
@@ -1569,7 +1569,7 @@ JitFrameIterator::osiIndex() const
 
 template <AllowGC allowGC>
 void
-InlineFrameIteratorMaybeGC<allowGC>::resetOn(const JitFrameIterator *iter)
+InlineFrameIteratorMaybeGC<allowGC>::resetOn(const IonFrameIterator *iter)
 {
     frame_ = iter;
     framesRead_ = 0;
@@ -1580,8 +1580,8 @@ InlineFrameIteratorMaybeGC<allowGC>::resetOn(const JitFrameIterator *iter)
         findNextFrame();
     }
 }
-template void InlineFrameIteratorMaybeGC<NoGC>::resetOn(const JitFrameIterator *iter);
-template void InlineFrameIteratorMaybeGC<CanGC>::resetOn(const JitFrameIterator *iter);
+template void InlineFrameIteratorMaybeGC<NoGC>::resetOn(const IonFrameIterator *iter);
+template void InlineFrameIteratorMaybeGC<CanGC>::resetOn(const IonFrameIterator *iter);
 
 template <AllowGC allowGC>
 void
@@ -1719,9 +1719,9 @@ template bool InlineFrameIteratorMaybeGC<NoGC>::isConstructing() const;
 template bool InlineFrameIteratorMaybeGC<CanGC>::isConstructing() const;
 
 bool
-JitFrameIterator::isConstructing() const
+IonFrameIterator::isConstructing() const
 {
-    JitFrameIterator parent(*this);
+    IonFrameIterator parent(*this);
 
     // Skip the current frame and look at the caller's.
     do {
@@ -1760,7 +1760,7 @@ JitFrameIterator::isConstructing() const
 }
 
 unsigned
-JitFrameIterator::numActualArgs() const
+IonFrameIterator::numActualArgs() const
 {
     if (isScripted())
         return jsFrame()->numActualArgs();
@@ -1791,7 +1791,7 @@ struct DumpOp {
 };
 
 void
-JitFrameIterator::dumpBaseline() const
+IonFrameIterator::dumpBaseline() const
 {
     JS_ASSERT(isBaselineJS());
 
@@ -1898,7 +1898,7 @@ template void InlineFrameIteratorMaybeGC<NoGC>::dump() const;
 template void InlineFrameIteratorMaybeGC<CanGC>::dump() const;
 
 void
-JitFrameIterator::dump() const
+IonFrameIterator::dump() const
 {
     switch (type_) {
       case JitFrame_Entry:

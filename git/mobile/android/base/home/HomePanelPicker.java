@@ -28,8 +28,8 @@ import java.util.List;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.home.HomeConfig;
 import org.mozilla.gecko.home.HomeConfig.PanelConfig;
-import org.mozilla.gecko.home.PanelInfoManager.RequestCallback;
-import org.mozilla.gecko.home.PanelInfoManager.PanelInfo;
+import org.mozilla.gecko.home.PanelManager.RequestCallback;
+import org.mozilla.gecko.home.PanelManager.PanelInfo;
 
 /**
  * Dialog for selecting new home panels to add.
@@ -81,8 +81,8 @@ public class HomePanelPicker extends FragmentActivity {
      * available for install.
      */
     private void requestAvailablePanels() {
-        final PanelInfoManager pm = new PanelInfoManager();
-        pm.requestAvailablePanels(new RequestCallback() {
+        final PanelManager panelManager = new PanelManager();
+        panelManager.requestAvailablePanels(new RequestCallback() {
             @Override
             public void onComplete(final List<PanelInfo> panelInfos) {
                 mPanelInfos = panelInfos;
@@ -135,7 +135,7 @@ public class HomePanelPicker extends FragmentActivity {
 
     private void installNewPanelAndQuit(PanelInfo panelInfo) {
         final PanelConfig newPanelConfig = panelInfo.toPanelConfig();
-        HomePanelsManager.getInstance().installPanel(newPanelConfig);
+        HomeConfigInvalidator.getInstance().installPanel(newPanelConfig);
         showToastForNewPanel(newPanelConfig);
 
         setResult(Activity.RESULT_OK);

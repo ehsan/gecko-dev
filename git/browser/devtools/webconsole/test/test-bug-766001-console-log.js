@@ -3,8 +3,6 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-function onLoad123() {
+window.addEventListener("load", function() {
   console.log("Blah Blah");
-}
-
-window.addEventListener("load", onLoad123, false);
+}, false);

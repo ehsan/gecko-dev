@@ -169,13 +169,14 @@ nsDOMIdentity.prototype = {
     let message = this.DOMIdentityMessage(aOptions);
 
     // We permit calling of request() outside of a user input handler only when
-    // a certified or privileged app is calling, or when we are handling the
-    // (deprecated) get() or getVerifiedEmail() calls, which make use of an RP
-    // context marked as _internal.
+    // we are handling the (deprecated) get() or getVerifiedEmail() calls,
+    // which make use of an RP context marked as _internal, or when a certified
+    // app is calling.
+    //
+    // XXX Bug 982460 - grant the same privilege to packaged apps
 
     if (!aOptions._internal &&
-        this._appStatus !== Ci.nsIPrincipal.APP_STATUS_CERTIFIED &&
-        this._appStatus !== Ci.nsIPrincipal.APP_STATUS_PRIVILEGED) {
+        this._appStatus !== Ci.nsIPrincipal.APP_STATUS_CERTIFIED) {
 
       // If the caller is not special in one of those ways, see if the user has
       // preffed on 'syntheticEventsOk' (useful for testing); otherwise, if

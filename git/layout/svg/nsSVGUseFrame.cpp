@@ -187,13 +187,6 @@ nsSVGUseFrame::ReflowSVG()
   mRect.MoveTo(nsLayoutUtils::RoundGfxRectToAppRect(
                  gfxRect(x, y, 0.0, 0.0),
                  PresContext()->AppUnitsPerCSSPixel()).TopLeft());
-
-  // If we have a filter, we need to invalidate ourselves because filter
-  // output can change even if none of our descendants need repainting.
-  if (StyleSVGReset()->HasFilters()) {
-    InvalidateFrame();
-  }
-
   nsSVGUseFrameBase::ReflowSVG();
 }
 

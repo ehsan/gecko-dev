@@ -11,11 +11,11 @@
 
 #include "jit/IonFrames.h"
 
-#include "jit/JitFrameIterator.h"
+#include "jit/IonFrameIterator.h"
 #include "jit/LIR.h"
 #include "vm/ForkJoin.h"
 
-#include "jit/JitFrameIterator-inl.h"
+#include "jit/IonFrameIterator-inl.h"
 
 namespace js {
 namespace jit {
@@ -31,28 +31,28 @@ SafepointIndex::resolve()
 }
 
 inline uint8_t *
-JitFrameIterator::returnAddress() const
+IonFrameIterator::returnAddress() const
 {
     IonCommonFrameLayout *current = (IonCommonFrameLayout *) current_;
     return current->returnAddress();
 }
 
 inline size_t
-JitFrameIterator::prevFrameLocalSize() const
+IonFrameIterator::prevFrameLocalSize() const
 {
     IonCommonFrameLayout *current = (IonCommonFrameLayout *) current_;
     return current->prevFrameLocalSize();
 }
 
 inline FrameType
-JitFrameIterator::prevType() const
+IonFrameIterator::prevType() const
 {
     IonCommonFrameLayout *current = (IonCommonFrameLayout *) current_;
     return current->prevType();
 }
 
 inline bool
-JitFrameIterator::isFakeExitFrame() const
+IonFrameIterator::isFakeExitFrame() const
 {
     bool res = (prevType() == JitFrame_Unwound_Rectifier ||
                 prevType() == JitFrame_Unwound_IonJS ||
@@ -62,7 +62,7 @@ JitFrameIterator::isFakeExitFrame() const
 }
 
 inline IonExitFrameLayout *
-JitFrameIterator::exitFrame() const
+IonFrameIterator::exitFrame() const
 {
     JS_ASSERT(type() == JitFrame_Exit);
     JS_ASSERT(!isFakeExitFrame());
@@ -72,7 +72,7 @@ JitFrameIterator::exitFrame() const
 inline BaselineFrame *
 GetTopBaselineFrame(JSContext *cx)
 {
-    JitFrameIterator iter(cx);
+    IonFrameIterator iter(cx);
     JS_ASSERT(iter.type() == JitFrame_Exit);
     ++iter;
     if (iter.isBaselineStub())

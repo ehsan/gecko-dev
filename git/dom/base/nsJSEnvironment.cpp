@@ -482,7 +482,7 @@ public:
         if (sameOrigin) {
           init.mMessage = mErrorMsg;
           init.mLineno = mLineNumber;
-          init.mColno = mColumn;
+          init.mColumn = mColumn;
           init.mError = mError;
         } else {
           NS_WARNING("Not same origin error!");

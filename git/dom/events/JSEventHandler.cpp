@@ -142,7 +142,7 @@ JSEventHandler::HandleEvent(nsIDOMEvent* aEvent)
       lineNumber.Value() = scriptEvent->Lineno();
 
       columnNumber.Construct();
-      columnNumber.Value() = scriptEvent->Colno();
+      columnNumber.Value() = scriptEvent->Column();
 
       ThreadsafeAutoJSContext cx;
       error.Construct(cx);

@@ -14,7 +14,7 @@
 #include "jscntxt.h"
 #include "jsfun.h"
 
-#include "jit/JitFrameIterator.h"
+#include "jit/IonFrameIterator.h"
 
 namespace js {
 namespace jit {
@@ -282,7 +282,7 @@ MakeFrameDescriptor(uint32_t frameSize, FrameType type)
 inline JSScript *
 GetTopIonJSScript(uint8_t *ionTop, void **returnAddrOut, ExecutionMode mode)
 {
-    JitFrameIterator iter(ionTop, mode);
+    IonFrameIterator iter(ionTop, mode);
     JS_ASSERT(iter.type() == JitFrame_Exit);
     ++iter;
 

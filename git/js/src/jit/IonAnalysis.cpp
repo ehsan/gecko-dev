@@ -442,22 +442,6 @@ class TypeAnalyzer
 static MIRType
 GuessPhiType(MPhi *phi, bool *hasInputsWithEmptyTypes)
 {
-#ifdef DEBUG
-    // Check that different magic constants aren't flowing together.
-    MIRType magicType = MIRType_None;
-    for (size_t i = 0; i < phi->numOperands(); i++) {
-        MDefinition *in = phi->getOperand(i);
-        if (in->type() == MIRType_MagicOptimizedArguments ||
-            in->type() == MIRType_MagicHole ||
-            in->type() == MIRType_MagicIsConstructing)
-        {
-            if (magicType == MIRType_None)
-                magicType = in->type();
-            MOZ_ASSERT(magicType == in->type());
-        }
-    }
-#endif
-
     *hasInputsWithEmptyTypes = false;
 
     MIRType type = MIRType_None;
@@ -730,7 +714,7 @@ TypeAnalyzer::replaceRedundantPhi(MPhi *phi)
       case MIRType_Null:
         v = NullValue();
         break;
-      case MIRType_MagicOptimizedArguments:
+      case MIRType_Magic:
         v = MagicValue(JS_OPTIMIZED_ARGUMENTS);
         break;
       default:
@@ -753,10 +737,7 @@ TypeAnalyzer::insertConversions()
             return false;
 
         for (MPhiIterator phi(block->phisBegin()); phi != block->phisEnd();) {
-            if (phi->type() == MIRType_Undefined ||
-                phi->type() == MIRType_Null ||
-                phi->type() == MIRType_MagicOptimizedArguments)
-            {
+            if (phi->type() <= MIRType_Null || phi->type() == MIRType_Magic) {
                 replaceRedundantPhi(*phi);
                 phi = block->discardPhiAt(phi);
             } else {
