@@ -3058,7 +3058,7 @@ nsStyleText::nsStyleText(void)
   mHyphens = NS_STYLE_HYPHENS_MANUAL;
   mTextSizeAdjust = NS_STYLE_TEXT_SIZE_ADJUST_AUTO;
   mTextOrientation = NS_STYLE_TEXT_ORIENTATION_AUTO;
-  mTextCombineUpright = NS_STYLE_TEXT_COMBINE_UPRIGHT_NONE;
+  mTextCombineHorizontal = NS_STYLE_TEXT_COMBINE_HORIZ_NONE;
   mControlCharacterVisibility = NS_STYLE_CONTROL_CHARACTER_VISIBILITY_HIDDEN;
 
   mLetterSpacing.SetNormalValue();
@@ -3082,7 +3082,7 @@ nsStyleText::nsStyleText(const nsStyleText& aSource)
     mHyphens(aSource.mHyphens),
     mTextSizeAdjust(aSource.mTextSizeAdjust),
     mTextOrientation(aSource.mTextOrientation),
-    mTextCombineUpright(aSource.mTextCombineUpright),
+    mTextCombineHorizontal(aSource.mTextCombineHorizontal),
     mControlCharacterVisibility(aSource.mControlCharacterVisibility),
     mTabSize(aSource.mTabSize),
     mWordSpacing(aSource.mWordSpacing),
@@ -3107,7 +3107,7 @@ nsChangeHint nsStyleText::CalcDifference(const nsStyleText& aOther) const
     return NS_STYLE_HINT_FRAMECHANGE;
   }
 
-  if (mTextCombineUpright != aOther.mTextCombineUpright ||
+  if (mTextCombineHorizontal != aOther.mTextCombineHorizontal ||
       mControlCharacterVisibility != aOther.mControlCharacterVisibility) {
     return nsChangeHint_ReconstructFrame;
   }

@@ -126,7 +126,6 @@ struct RtspConnectionHandler : public AHandler {
           mSetupTracksSuccessful(false),
           mSeekPending(false),
           mPausePending(false),
-          mAborted(false),
           mFirstAccessUnit(true),
           mNTPAnchorUs(-1),
           mMediaAnchorUs(-1),
@@ -413,7 +412,6 @@ struct RtspConnectionHandler : public AHandler {
             {
                 int32_t result;
                 CHECK(msg->findInt32("result", &result));
-                mAborted = false;
 
                 LOGI("connection request completed with result %d (%s)",
                      result, strerror(-result));
@@ -461,10 +459,6 @@ struct RtspConnectionHandler : public AHandler {
 
                 LOGI("DESCRIBE completed with result %d (%s)",
                      result, strerror(-result));
-                if (mAborted) {
-                  LOGV("we're aborted, dropping stale packet.");
-                  break;
-                }
 
                 if (result == OK) {
                     sp<RefBase> obj;
@@ -584,10 +578,6 @@ struct RtspConnectionHandler : public AHandler {
 
                 LOGI("SETUP(%d) completed with result %d (%s)",
                      index, result, strerror(-result));
-                if (mAborted) {
-                  LOGV("we're aborted, dropping stale packet.");
-                  break;
-                }
 
                 if (result == OK) {
                     CHECK(track != NULL);
@@ -721,10 +711,6 @@ struct RtspConnectionHandler : public AHandler {
 
                 LOGI("PLAY completed with result %d (%s)",
                      result, strerror(-result));
-                if (mAborted) {
-                  LOGV("we're aborted, dropping stale packet.");
-                  break;
-                }
 
                 if (result == OK) {
                     sp<RefBase> obj;
@@ -830,7 +816,6 @@ struct RtspConnectionHandler : public AHandler {
                 mReceivedFirstRTCPPacket = false;
                 mReceivedFirstRTPPacket = false;
                 mSeekable = false;
-                mAborted = true;
 
                 sp<AMessage> reply = new AMessage('tear', id());
 
@@ -970,11 +955,6 @@ struct RtspConnectionHandler : public AHandler {
                     break;
                 }
 
-                if (mAborted) {
-                  LOGV("we're aborted, dropping stale packet.");
-                  break;
-                }
-
                 if (seqNum < track->mFirstSeqNumInSegment) {
                     LOGV("dropping stale access-unit (%d < %d)",
                          seqNum, track->mFirstSeqNumInSegment);
@@ -1067,10 +1047,6 @@ struct RtspConnectionHandler : public AHandler {
 
                 LOGI("PLAY completed with result %d (%s)",
                      result, strerror(-result));
-                if (mAborted) {
-                  LOGV("we're aborted, dropping stale packet.");
-                  break;
-                }
 
                 mCheckPending = false;
                 postAccessUnitTimeoutCheck();
@@ -1325,7 +1301,6 @@ private:
     bool mSetupTracksSuccessful;
     bool mSeekPending;
     bool mPausePending;
-    bool mAborted;
     bool mFirstAccessUnit;
 
     int64_t mNTPAnchorUs;
