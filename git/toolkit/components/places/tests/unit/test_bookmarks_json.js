@@ -161,21 +161,30 @@ function checkItem(aExpected, aNode) {
                       aExpected.lastModified);
           break;
         case "url":
-          if (!("feedUrl" in aExpected))
-            do_check_eq(aNode.uri, aExpected.url);
+          yield function() {
+            let deferred = Promise.defer();
+            PlacesUtils.livemarks.getLivemark(
+              { id: id },
+              function (aStatus, aLivemark) {
+                if (!Components.isSuccessCode(aStatus)) {
+                  do_check_eq(aNode.uri, aExpected.url);
+                }
+                deferred.resolve();
+              });
+            return deferred.promise; }();
           break;
         case "icon":
-          let (deferred = Promise.defer(), data) {
+          yield function() {
+            let deferred = Promise.defer();
             PlacesUtils.favicons.getFaviconDataForPage(
               NetUtil.newURI(aExpected.url),
               function (aURI, aDataLen, aData, aMimeType) {
-                deferred.resolve(aData);
+                let base64Icon = "data:image/png;base64," +
+                      base64EncodeString(String.fromCharCode.apply(String, aData));
+                do_check_true(base64Icon == aExpected.icon);
+                deferred.resolve();
               });
-            data = yield deferred.promise;
-            let base64Icon = "data:image/png;base64," +
-                             base64EncodeString(String.fromCharCode.apply(String, data));
-            do_check_true(base64Icon == aExpected.icon);
-          }
+            return deferred.promise; }();
           break;
         case "keyword":
           break;
@@ -192,13 +201,17 @@ function checkItem(aExpected, aNode) {
           do_check_eq((yield PlacesUtils.getCharsetForURI(testURI)), aExpected.charset);
           break;
         case "feedUrl":
-          yield PlacesUtils.livemarks.getLivemark(
-            { id: id },
-            (aStatus, aLivemark) => {
-              do_check_true(Components.isSuccessCode(aStatus));
-              do_check_eq(aLivemark.siteURI.spec, aExpected.url);
-              do_check_eq(aLivemark.feedURI.spec, aExpected.feedUrl);
-            });
+          yield function() {
+            let deferred = Promise.defer();
+            PlacesUtils.livemarks.getLivemark(
+              { id: id },
+              function (aStatus, aLivemark) {
+                do_check_true(Components.isSuccessCode(aStatus));
+                do_check_eq(aLivemark.siteURI.spec, aExpected.url);
+                do_check_eq(aLivemark.feedURI.spec, aExpected.feedUrl);
+                deferred.resolve();
+              });
+            return deferred.promise; }();
           break;
         case "children":
           let folder = aNode.QueryInterface(Ci.nsINavHistoryContainerResultNode);
