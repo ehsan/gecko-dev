@@ -29,8 +29,7 @@ class CameraPreviewMediaStream : public MediaStream {
 public:
   CameraPreviewMediaStream(DOMMediaStream* aWrapper) :
     MediaStream(aWrapper),
-    mMutex("mozilla::camera::CameraPreviewMediaStream"),
-    mFrameCallback(nullptr)
+    mMutex("mozilla::camera::CameraPreviewMediaStream")
   {
     mIsConsumed = false;
   }

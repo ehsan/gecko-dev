@@ -185,7 +185,6 @@ let FormAssistant = {
     addEventListener("resize", this, true, false);
     addEventListener("submit", this, true, false);
     addEventListener("pagehide", this, true, false);
-    addEventListener("beforeunload", this, true, false);
     addEventListener("input", this, true, false);
     addEventListener("keydown", this, true, false);
     addMessageListener("Forms:Select:Choice", this);
@@ -293,9 +292,7 @@ let FormAssistant = {
         break;
 
       case "pagehide":
-      case "beforeunload":
-        // We are only interested to the pagehide and beforeunload events from
-        // the root document.
+        // We are only interested to the pagehide event from the root document.
         if (target && target != content.document) {
           break;
         }
