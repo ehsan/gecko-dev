@@ -278,7 +278,8 @@ DOMEventTargetHelper::SetEventHandler(nsIAtom* aType,
 {
   nsRefPtr<EventHandlerNonNull> handler;
   JS::Rooted<JSObject*> callable(aCx);
-  if (aValue.isObject() && JS::IsCallable(callable = &aValue.toObject())) {
+  if (aValue.isObject() &&
+      JS_ObjectIsCallable(aCx, callable = &aValue.toObject())) {
     handler = new EventHandlerNonNull(callable, dom::GetIncumbentGlobal());
   }
   SetEventHandler(aType, EmptyString(), handler);

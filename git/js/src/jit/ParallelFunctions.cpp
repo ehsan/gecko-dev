@@ -101,10 +101,9 @@ jit::ParallelWriteGuard(ForkJoinContext *cx, JSObject *object)
         if (IsInTargetRegion(cx, &typedObj))
             return true;
 
-        // Check whether the object which owns the memory is thread-local.
-        if (typedObj.is<OwnedTypedObject>())
-            return cx->isThreadLocal(&typedObj.as<OwnedTypedObject>().owner());
-        return cx->isThreadLocal(&typedObj);
+        // Also check whether owner is thread-local.
+        ArrayBufferObject &owner = typedObj.owner();
+        return cx->isThreadLocal(&owner);
     }
 
     // For other kinds of writable objects, must be thread-local.

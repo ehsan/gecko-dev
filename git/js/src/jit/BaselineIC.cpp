@@ -5833,7 +5833,7 @@ DoGetNameFallback(JSContext *cx, BaselineFrame *frame, ICGetName_Fallback *stub_
         if (!GetScopeNameForTypeOf(cx, scopeChain, name, res))
             return false;
     } else {
-        if (!GetScopeName(cx, scopeChain, name, res))
+        if (!GetScopeName(cx, script, pc, scopeChain, name, res))
             return false;
     }
 
@@ -6505,7 +6505,7 @@ ComputeGetPropResult(JSContext *cx, BaselineFrame *frame, JSOp op, HandlePropert
 {
     // Handle arguments.length and arguments.callee on optimized arguments, as
     // it is not an object.
-    if (val.isMagic(JS_OPTIMIZED_ARGUMENTS) && IsOptimizedArguments(frame, val)) {
+    if (val.isMagic(JS_OPTIMIZED_ARGUMENTS) && IsOptimizedArguments(frame, val.address())) {
         if (op == JSOP_LENGTH) {
             res.setInt32(frame->numActualArgs());
         } else {
@@ -8512,8 +8512,7 @@ DoCallFallback(JSContext *cx, BaselineFrame *frame, ICCall_Fallback *stub_, uint
 
     // Handle funapply with JSOP_ARGUMENTS
     if (op == JSOP_FUNAPPLY && argc == 2 && args[1].isMagic(JS_OPTIMIZED_ARGUMENTS)) {
-        CallArgs callArgs = CallArgsFromVp(argc, vp);
-        if (!GuardFunApplyArgumentsOptimization(cx, frame, callArgs))
+        if (!GuardFunApplyArgumentsOptimization(cx, frame, callee, args, argc))
             return false;
     }
 
@@ -8533,7 +8532,7 @@ DoCallFallback(JSContext *cx, BaselineFrame *frame, ICCall_Fallback *stub_, uint
         return false;
 
     if (op == JSOP_NEW) {
-        if (!InvokeConstructor(cx, callee, argc, args, res))
+        if (!InvokeConstructor(cx, callee, argc, args, res.address()))
             return false;
     } else if (op == JSOP_EVAL && frame->scopeChain()->global().valueIsEval(callee)) {
         if (!DirectEval(cx, CallArgsFromVp(argc, vp)))

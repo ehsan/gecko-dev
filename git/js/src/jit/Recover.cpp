@@ -14,8 +14,6 @@
 #include "builtin/RegExp.h"
 #include "builtin/TypedObject.h"
 
-#include "gc/Heap.h"
-
 #include "jit/JitFrameIterator.h"
 #include "jit/JitSpewer.h"
 #include "jit/MIR.h"
@@ -1087,47 +1085,11 @@ RNewDerivedTypedObject::recover(JSContext *cx, SnapshotIterator &iter) const
     // while bailing out, which could try to walk the stack.
     types::AutoEnterAnalysis enter(cx);
 
-    JSObject *obj = OwnedTypedObject::createDerived(cx, descr, owner, offset);
+    JSObject *obj = TypedObject::createDerived(cx, descr, owner, offset);
     if (!obj)
         return false;
 
     RootedValue result(cx, ObjectValue(*obj));
-    iter.storeInstructionResult(result);
-    return true;
-}
-
-bool
-MCreateThisWithTemplate::writeRecoverData(CompactBufferWriter &writer) const
-{
-    MOZ_ASSERT(canRecoverOnBailout());
-    writer.writeUnsigned(uint32_t(RInstruction::Recover_CreateThisWithTemplate));
-    writer.writeByte(bool(initialHeap() == gc::TenuredHeap));
-    return true;
-}
-
-RCreateThisWithTemplate::RCreateThisWithTemplate(CompactBufferReader &reader)
-{
-    tenuredHeap_ = reader.readByte();
-}
-
-bool
-RCreateThisWithTemplate::recover(JSContext *cx, SnapshotIterator &iter) const
-{
-    RootedObject templateObject(cx, &iter.read().toObject());
-
-    // Use AutoEnterAnalysis to avoid invoking the object metadata callback
-    // while bailing out, which could try to walk the stack.
-    types::AutoEnterAnalysis enter(cx);
-
-    // See CodeGenerator::visitCreateThisWithTemplate
-    gc::AllocKind allocKind = templateObject->asTenured()->getAllocKind();
-    gc::InitialHeap initialHeap = tenuredHeap_ ? gc::TenuredHeap : gc::DefaultHeap;
-    JSObject *resultObject = JSObject::copy(cx, allocKind, initialHeap, templateObject);
-    if (!resultObject)
-        return false;
-
-    RootedValue result(cx);
-    result.setObject(*resultObject);
     iter.storeInstructionResult(result);
     return true;
 }

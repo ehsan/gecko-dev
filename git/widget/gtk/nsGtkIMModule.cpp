@@ -65,17 +65,15 @@ const static bool kUseSimpleContextDefault = MOZ_WIDGET_GTK == 2;
 nsGtkIMModule* nsGtkIMModule::sLastFocusedModule = nullptr;
 bool nsGtkIMModule::sUseSimpleContext;
 
-nsGtkIMModule::nsGtkIMModule(nsWindow* aOwnerWindow)
-    : mOwnerWindow(aOwnerWindow)
-    , mLastFocusedWindow(nullptr)
-    , mContext(nullptr)
-    , mSimpleContext(nullptr)
-    , mDummyContext(nullptr)
-    , mCompositionStart(UINT32_MAX)
-    , mProcessingKeyEvent(nullptr)
-    , mCompositionTargetOffset(UINT32_MAX)
-    , mCompositionState(eCompositionState_NotComposing)
-    , mIsIMFocused(false)
+nsGtkIMModule::nsGtkIMModule(nsWindow* aOwnerWindow) :
+    mOwnerWindow(aOwnerWindow), mLastFocusedWindow(nullptr),
+    mContext(nullptr),
+    mSimpleContext(nullptr),
+    mDummyContext(nullptr),
+    mCompositionStart(UINT32_MAX), mProcessingKeyEvent(nullptr),
+    mCompositionTargetOffset(UINT32_MAX),
+    mCompositionState(eCompositionState_NotComposing),
+    mIsIMFocused(false), mIgnoreNativeCompositionEvent(false)
 {
 #ifdef PR_LOGGING
     if (!gGtkIMLog) {
@@ -177,7 +175,7 @@ nsGtkIMModule::OnDestroyWindow(nsWindow* aWindow)
     NS_PRECONDITION(aWindow, "aWindow must not be null");
 
     if (mLastFocusedWindow == aWindow) {
-        EndIMEComposition(aWindow);
+        CancelIMEComposition(aWindow);
         if (mIsIMFocused) {
             Blur();
         }
@@ -387,12 +385,20 @@ nsGtkIMModule::OnFocusChangeInGecko(bool aFocus)
 {
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
         ("GtkIMModule(%p): OnFocusChangeInGecko, aFocus=%s, "
-         "mCompositionState=%s, mIsIMFocused=%s",
+         "mCompositionState=%s, mIsIMFocused=%s, "
+         "mIgnoreNativeCompositionEvent=%s",
          this, aFocus ? "YES" : "NO", GetCompositionStateName(),
-         mIsIMFocused ? "YES" : "NO"));
+         mIsIMFocused ? "YES" : "NO",
+         mIgnoreNativeCompositionEvent ? "YES" : "NO"));
 
     // We shouldn't carry over the removed string to another editor.
     mSelectedString.Truncate();
+
+    if (aFocus) {
+        // If we failed to commit forcedely in previous focused editor,
+        // we should reopen the gate for native signals in new focused editor.
+        mIgnoreNativeCompositionEvent = false;
+    }
 }
 
 void
@@ -409,18 +415,19 @@ nsGtkIMModule::ResetIME()
         return;
     }
 
+    mIgnoreNativeCompositionEvent = true;
     gtk_im_context_reset(im);
 }
 
 nsresult
-nsGtkIMModule::EndIMEComposition(nsWindow* aCaller)
+nsGtkIMModule::CommitIMEComposition(nsWindow* aCaller)
 {
     if (MOZ_UNLIKELY(IsDestroyed())) {
         return NS_OK;
     }
 
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-        ("GtkIMModule(%p): EndIMEComposition, aCaller=%p, "
+        ("GtkIMModule(%p): CommitIMEComposition, aCaller=%p, "
          "mCompositionState=%s",
          this, aCaller, GetCompositionStateName()));
 
@@ -435,15 +442,44 @@ nsGtkIMModule::EndIMEComposition(nsWindow* aCaller)
         return NS_OK;
     }
 
-    // Currently, GTK has API neither to commit nor to cancel composition
-    // forcibly.  Therefore, TextComposition will recompute commit string for
-    // the request even if native IME will cause unexpected commit string.
-    // So, we don't need to emulate commit or cancel composition with
-    // proper composition events and a text event.
-    // XXX ResetIME() might not enough for finishing compositoin on some
-    //     environments.  We should emulate focus change too because some IMEs
-    //     may commit or cancel composition at blur.
+    // XXX We should commit composition ourselves temporary...
     ResetIME();
+    CommitCompositionBy(mDispatchedCompositionString);
+
+    return NS_OK;
+}
+
+nsresult
+nsGtkIMModule::CancelIMEComposition(nsWindow* aCaller)
+{
+    if (MOZ_UNLIKELY(IsDestroyed())) {
+        return NS_OK;
+    }
+
+    PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
+        ("GtkIMModule(%p): CancelIMEComposition, aCaller=%p",
+         this, aCaller));
+
+    if (aCaller != mLastFocusedWindow) {
+        PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
+            ("    FAILED, the caller isn't focused window, mLastFocusedWindow=%p",
+             mLastFocusedWindow));
+        return NS_OK;
+    }
+
+    if (!IsComposing()) {
+        return NS_OK;
+    }
+
+    GtkIMContext *im = GetContext();
+    if (MOZ_UNLIKELY(!im)) {
+        PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
+            ("    FAILED, there are no context"));
+        return NS_OK;
+    }
+
+    ResetIME();
+    CommitCompositionBy(EmptyString());
 
     return NS_OK;
 }
@@ -499,7 +535,7 @@ nsGtkIMModule::SetInputContext(nsWindow* aCaller,
 
     // Release current IME focus if IME is enabled.
     if (changingEnabledState && IsEditable()) {
-        EndIMEComposition(mLastFocusedWindow);
+        CommitIMEComposition(mLastFocusedWindow);
         Blur();
     }
 
@@ -660,29 +696,6 @@ nsGtkIMModule::Blur()
     mIsIMFocused = false;
 }
 
-void
-nsGtkIMModule::OnSelectionChange(nsWindow* aCaller)
-{
-    if (MOZ_UNLIKELY(IsDestroyed())) {
-        return;
-    }
-
-    PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-        ("GtkIMModule(%p): OnSelectionChange(aCaller=0x%p), "
-         "mCompositionState=%s",
-         this, aCaller, GetCompositionStateName()));
-
-    if (aCaller != mLastFocusedWindow) {
-        PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-            ("    WARNING: the caller isn't focused window, "
-             "mLastFocusedWindow=%p",
-             mLastFocusedWindow));
-        return;
-    }
-
-    ResetIME();
-}
-
 /* static */
 void
 nsGtkIMModule::OnStartCompositionCallback(GtkIMContext *aContext,
@@ -735,7 +748,15 @@ nsGtkIMModule::OnEndCompositionNative(GtkIMContext *aContext)
         return;
     }
 
-    if (!IsComposing()) {
+    bool shouldIgnoreThisEvent = ShouldIgnoreNativeCompositionEvent();
+
+    // Finish the cancelling mode here rather than DispatchCompositionEnd()
+    // because DispatchCompositionEnd() is called ourselves when we need to
+    // commit the composition string *before* the focus moves completely.
+    // Note that the native commit can be fired *after* ResetIME().
+    mIgnoreNativeCompositionEvent = false;
+
+    if (!IsComposing() || shouldIgnoreThisEvent) {
         // If we already handled the commit event, we should do nothing here.
         return;
     }
@@ -764,6 +785,10 @@ nsGtkIMModule::OnChangeCompositionNative(GtkIMContext *aContext)
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
             ("    FAILED, given context doesn't match, GetContext()=%p",
              GetContext()));
+        return;
+    }
+
+    if (ShouldIgnoreNativeCompositionEvent()) {
         return;
     }
 
@@ -887,6 +912,10 @@ nsGtkIMModule::OnCommitCompositionNative(GtkIMContext *aContext,
         return;
     }
 
+    if (ShouldIgnoreNativeCompositionEvent()) {
+        return;
+    }
+
     // If IME doesn't change their keyevent that generated this commit,
     // don't send it through XIM - just send it as a normal key press
     // event.
@@ -1004,6 +1033,12 @@ nsGtkIMModule::DispatchCompositionStart()
                 ("    NOTE, the focused widget was destroyed/changed by keydown event"));
             return false;
         }
+    }
+
+    if (mIgnoreNativeCompositionEvent) {
+        PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
+            ("    WARNING, mIgnoreNativeCompositionEvent is already TRUE, but we forcedly reset"));
+        mIgnoreNativeCompositionEvent = false;
     }
 
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
@@ -1599,4 +1634,19 @@ void
 nsGtkIMModule::InitEvent(WidgetGUIEvent& aEvent)
 {
     aEvent.time = PR_Now() / 1000;
+}
+
+bool
+nsGtkIMModule::ShouldIgnoreNativeCompositionEvent()
+{
+    PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
+        ("GtkIMModule(%p): ShouldIgnoreNativeCompositionEvent, mLastFocusedWindow=%p, mIgnoreNativeCompositionEvent=%s",
+         this, mLastFocusedWindow,
+         mIgnoreNativeCompositionEvent ? "YES" : "NO"));
+
+    if (!mLastFocusedWindow) {
+        return true; // cannot continue
+    }
+
+    return mIgnoreNativeCompositionEvent;
 }

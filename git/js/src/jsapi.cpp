@@ -3997,26 +3997,16 @@ JS_GetFunctionArity(JSFunction *fun)
     return fun->nargs();
 }
 
-namespace JS {
-
-JS_PUBLIC_API(bool)
-IsCallable(JSObject *obj)
-{
-    return obj->isCallable();
-}
-
-JS_PUBLIC_API(bool)
-IsConstructor(JSObject *obj)
-{
-    return obj->isConstructor();
-}
-
-} /* namespace JS */
-
 JS_PUBLIC_API(bool)
 JS_ObjectIsFunction(JSContext *cx, JSObject *obj)
 {
     return obj->is<JSFunction>();
+}
+
+JS_PUBLIC_API(bool)
+JS_ObjectIsCallable(JSContext *cx, JSObject *obj)
+{
+    return obj->isCallable();
 }
 
 JS_PUBLIC_API(bool)
@@ -4476,15 +4466,15 @@ bool
 JS::Compile(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &options,
             const char *bytes, size_t length, MutableHandleScript script)
 {
-    mozilla::UniquePtr<char16_t, JS::FreePolicy> chars;
+    mozilla::ScopedFreePtr<char16_t> chars;
     if (options.utf8)
-        chars.reset(UTF8CharsToNewTwoByteCharsZ(cx, UTF8Chars(bytes, length), &length).get());
+        chars = UTF8CharsToNewTwoByteCharsZ(cx, UTF8Chars(bytes, length), &length).get();
     else
-        chars.reset(InflateString(cx, bytes, &length));
+        chars = InflateString(cx, bytes, &length);
     if (!chars)
         return false;
 
-    return Compile(cx, obj, options, chars.get(), length, script);
+    return Compile(cx, obj, options, chars, length, script);
 }
 
 bool
@@ -4676,15 +4666,15 @@ JS::CompileFunction(JSContext *cx, HandleObject obj, const ReadOnlyCompileOption
                     const char *name, unsigned nargs, const char *const *argnames,
                     const char *bytes, size_t length, MutableHandleFunction fun)
 {
-    mozilla::UniquePtr<char16_t, JS::FreePolicy> chars;
+    mozilla::ScopedFreePtr<char16_t> chars;
     if (options.utf8)
-        chars.reset(UTF8CharsToNewTwoByteCharsZ(cx, UTF8Chars(bytes, length), &length).get());
+        chars = UTF8CharsToNewTwoByteCharsZ(cx, UTF8Chars(bytes, length), &length).get();
     else
-        chars.reset(InflateString(cx, bytes, &length));
+        chars = InflateString(cx, bytes, &length);
     if (!chars)
         return false;
 
-    return CompileFunction(cx, obj, options, name, nargs, argnames, chars.get(), length, fun);
+    return CompileFunction(cx, obj, options, name, nargs, argnames, chars, length, fun);
 }
 
 JS_PUBLIC_API(bool)
@@ -5043,7 +5033,7 @@ JS::Construct(JSContext *cx, HandleValue fval, const JS::HandleValueArray& args,
     assertSameCompartment(cx, fval, args);
     AutoLastFrameCheck lfc(cx);
 
-    return InvokeConstructor(cx, fval, args.length(), args.begin(), rval);
+    return InvokeConstructor(cx, fval, args.length(), args.begin(), rval.address());
 }
 
 static JSObject *

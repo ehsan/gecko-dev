@@ -2479,7 +2479,7 @@ bool
 LIRGenerator::visitTypedObjectElements(MTypedObjectElements *ins)
 {
     JS_ASSERT(ins->type() == MIRType_Elements);
-    return define(new(alloc()) LTypedObjectElements(useRegister(ins->object())), ins);
+    return define(new(alloc()) LTypedObjectElements(useRegisterAtStart(ins->object())), ins);
 }
 
 bool
@@ -3704,33 +3704,6 @@ LIRGenerator::visitSimdConstant(MSimdConstant *ins)
         return define(new(alloc()) LFloat32x4(), ins);
 
     MOZ_CRASH("Unknown SIMD kind when generating constant");
-}
-
-bool
-LIRGenerator::visitSimdConvert(MSimdConvert *ins)
-{
-    MOZ_ASSERT(IsSimdType(ins->type()));
-    MDefinition *input = ins->input();
-    LUse use = useRegisterAtStart(input);
-
-    if (ins->type() == MIRType_Int32x4) {
-        MOZ_ASSERT(input->type() == MIRType_Float32x4);
-        return define(new(alloc()) LFloat32x4ToInt32x4(use), ins);
-    }
-
-    if (ins->type() == MIRType_Float32x4) {
-        MOZ_ASSERT(input->type() == MIRType_Int32x4);
-        return define(new(alloc()) LInt32x4ToFloat32x4(use), ins);
-    }
-
-    MOZ_CRASH("Unknown SIMD kind when generating constant");
-}
-
-bool
-LIRGenerator::visitSimdReinterpretCast(MSimdReinterpretCast *ins)
-{
-    MOZ_ASSERT(IsSimdType(ins->type()) && IsSimdType(ins->input()->type()));
-    return redefine(ins, ins->input());
 }
 
 bool

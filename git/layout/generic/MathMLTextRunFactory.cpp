@@ -524,9 +524,6 @@ MathVariant(uint32_t aCh, uint8_t aMathVar)
 
 }
 
-#define TT_SSTY TRUETYPE_TAG('s', 's', 't', 'y')
-#define TT_DTLS TRUETYPE_TAG('d', 't', 'l', 's')
-
 void
 MathMLTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
                                      gfxContext* aRefContext)
@@ -550,18 +547,16 @@ MathMLTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
   if (length) {
     font = styles[0]->StyleFont()->mFont;
 
-    if (mSSTYScriptLevel || (mFlags & MATH_FONT_FEATURE_DTLS)) {
-      bool foundSSTY = false;
-      bool foundDTLS = false;
+    if (mSSTYScriptLevel) {
+      bool found = false;
       // We respect ssty settings explicitly set by the user
       for (uint32_t i = 0; i < font.fontFeatureSettings.Length(); i++) {
-        if (font.fontFeatureSettings[i].mTag == TT_SSTY) {
-          foundSSTY = true;
-        } else if (font.fontFeatureSettings[i].mTag == TT_DTLS) {
-          foundDTLS = true;
+        if (font.fontFeatureSettings[i].mTag == TRUETYPE_TAG('s', 's', 't', 'y')) {
+          found = true;
+          break;
         }
       }
-      if (mSSTYScriptLevel && !foundSSTY) {
+      if (!found) {
         uint8_t sstyLevel = 0;
         float scriptScaling = pow(styles[0]->StyleFont()->mScriptSizeMultiplier,
                                   mSSTYScriptLevel);
@@ -595,26 +590,10 @@ MathMLTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
         }
         if (sstyLevel) {
           gfxFontFeature settingSSTY;
-          settingSSTY.mTag = TT_SSTY;
+          settingSSTY.mTag = TRUETYPE_TAG('s','s','t','y');
           settingSSTY.mValue = sstyLevel;
           font.fontFeatureSettings.AppendElement(settingSSTY);
         }
-      }
-      /*
-        Apply the dtls font feature setting (dotless).
-        This gets applied to the base frame and all descendants of the base
-        frame of certain <mover> and <munderover> frames.
-
-        See nsMathMLmunderoverFrame.cpp for a full description.
-
-        To opt out of this change, add the following to the stylesheet:
-        "font-feature-settings: 'dtls' 0"
-      */
-      if ((mFlags & MATH_FONT_FEATURE_DTLS) && !foundDTLS) {
-        gfxFontFeature settingDTLS;
-        settingDTLS.mTag = TT_DTLS;
-        settingDTLS.mValue = 1;
-        font.fontFeatureSettings.AppendElement(settingDTLS);
       }
     }
   }

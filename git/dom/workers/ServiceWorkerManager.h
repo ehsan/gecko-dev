@@ -203,6 +203,7 @@ class ServiceWorkerManager MOZ_FINAL : public nsIServiceWorkerManager
   friend class GetReadyPromiseRunnable;
   friend class GetRegistrationsRunnable;
   friend class GetRegistrationRunnable;
+  friend class UnregisterRunnable;
 
 public:
   NS_DECL_ISUPPORTS

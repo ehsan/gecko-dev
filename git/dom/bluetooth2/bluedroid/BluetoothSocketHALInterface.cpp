@@ -9,7 +9,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include "BluetoothHALHelpers.h"
-#include "nsClassHashtable.h"
 #include "nsXULAppAPI.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
@@ -110,34 +109,6 @@ BluetoothSocketHALInterface::Listen(BluetoothSocketType aType,
     ( ((_cmsghdr)->cmsg_level == SOL_SOCKET) && \
       ((_cmsghdr)->cmsg_type == SCM_RIGHTS) )
 
-class SocketMessageWatcher;
-
-/* |SocketMessageWatcherWrapper| wraps SocketMessageWatcher to keep it from
- * being released by hash table's Remove() method.
- */
-class SocketMessageWatcherWrapper
-{
-public:
-  SocketMessageWatcherWrapper(SocketMessageWatcher* aSocketMessageWatcher)
-  : mSocketMessageWatcher(aSocketMessageWatcher)
-  {
-    MOZ_ASSERT(mSocketMessageWatcher);
-  }
-
-  SocketMessageWatcher* GetSocketMessageWatcher()
-  {
-    return mSocketMessageWatcher;
-  }
-
-private:
-  SocketMessageWatcher* mSocketMessageWatcher;
-};
-
-/* |sWatcherHashTable| maps result handlers to corresponding watchers */
-static nsClassHashtable<nsRefPtrHashKey<BluetoothSocketResultHandler>,
-                        SocketMessageWatcherWrapper>
-  sWatcherHashtable;
-
 /* |SocketMessageWatcher| receives Bluedroid's socket setup
  * messages on the I/O thread. You need to inherit from this
  * class to make use of it.
@@ -164,14 +135,11 @@ public:
   static const unsigned char OFF_CHANNEL2 = 12;
   static const unsigned char OFF_STATUS = 16;
 
-  SocketMessageWatcher(int aFd, BluetoothSocketResultHandler* aRes)
+  SocketMessageWatcher(int aFd)
   : mFd(aFd)
   , mClientFd(-1)
   , mLen(0)
-  , mRes(aRes)
-  {
-    MOZ_ASSERT(mRes);
-  }
+  { }
 
   virtual ~SocketMessageWatcher()
   { }
@@ -196,7 +164,7 @@ public:
     }
 
     if (IsComplete() || status != STATUS_SUCCESS) {
-      StopWatching();
+      mWatcher.StopWatchingFileDescriptor();
       Proceed(status);
     }
   }
@@ -206,23 +174,12 @@ public:
 
   void Watch()
   {
-    // add this watcher and its result handler to hash table
-    sWatcherHashtable.Put(mRes, new SocketMessageWatcherWrapper(this));
-
     MessageLoopForIO::current()->WatchFileDescriptor(
       mFd,
       true,
       MessageLoopForIO::WATCH_READ,
       &mWatcher,
       this);
-  }
-
-  void StopWatching()
-  {
-    mWatcher.StopWatchingFileDescriptor();
-
-    // remove this watcher and its result handler from hash table
-    sWatcherHashtable.Remove(mRes);
   }
 
   bool IsComplete() const
@@ -265,11 +222,6 @@ public:
   int GetClientFd() const
   {
     return mClientFd;
-  }
-
-  BluetoothSocketResultHandler* GetResultHandler() const
-  {
-    return mRes;
   }
 
 private:
@@ -370,7 +322,6 @@ private:
   int mClientFd;
   unsigned char mLen;
   uint8_t mBuf[MSG1_SIZE + MSG2_SIZE];
-  nsRefPtr<BluetoothSocketResultHandler> mRes;
 };
 
 /* |SocketMessageWatcherTask| starts a SocketMessageWatcher
@@ -422,18 +373,23 @@ class ConnectWatcher MOZ_FINAL : public SocketMessageWatcher
 {
 public:
   ConnectWatcher(int aFd, BluetoothSocketResultHandler* aRes)
-  : SocketMessageWatcher(aFd, aRes)
+  : SocketMessageWatcher(aFd)
+  , mRes(aRes)
   { }
 
   void Proceed(BluetoothStatus aStatus) MOZ_OVERRIDE
   {
-    DispatchBluetoothSocketHALResult(
-      GetResultHandler(), &BluetoothSocketResultHandler::Connect,
-      GetFd(), GetBdAddress(), GetConnectionStatus(), aStatus);
-
+    if (mRes) {
+      DispatchBluetoothSocketHALResult(
+        mRes, &BluetoothSocketResultHandler::Connect, GetFd(),
+        GetBdAddress(), GetConnectionStatus(), aStatus);
+    }
     MessageLoopForIO::current()->PostTask(
       FROM_HERE, new DeleteTask<ConnectWatcher>(this));
   }
+
+private:
+  nsRefPtr<BluetoothSocketResultHandler> mRes;
 };
 
 void
@@ -480,18 +436,26 @@ class AcceptWatcher MOZ_FINAL : public SocketMessageWatcher
 {
 public:
   AcceptWatcher(int aFd, BluetoothSocketResultHandler* aRes)
-  : SocketMessageWatcher(aFd, aRes)
-  { }
+  : SocketMessageWatcher(aFd)
+  , mRes(aRes)
+  {
+    /* not supplying a result handler leaks received file descriptor */
+    MOZ_ASSERT(mRes);
+  }
 
   void Proceed(BluetoothStatus aStatus) MOZ_OVERRIDE
   {
-    DispatchBluetoothSocketHALResult(
-      GetResultHandler(), &BluetoothSocketResultHandler::Accept,
-      GetClientFd(), GetBdAddress(), GetConnectionStatus(), aStatus);
-
+    if (mRes) {
+      DispatchBluetoothSocketHALResult(
+        mRes, &BluetoothSocketResultHandler::Accept, GetClientFd(),
+        GetBdAddress(), GetConnectionStatus(), aStatus);
+    }
     MessageLoopForIO::current()->PostTask(
       FROM_HERE, new DeleteTask<AcceptWatcher>(this));
   }
+
+private:
+  nsRefPtr<BluetoothSocketResultHandler> mRes;
 };
 
 void
@@ -500,46 +464,6 @@ BluetoothSocketHALInterface::Accept(int aFd,
 {
   /* receive Bluedroid's socket-setup messages and client fd */
   Task* t = new SocketMessageWatcherTask(new AcceptWatcher(aFd, aRes));
-  XRE_GetIOMessageLoop()->PostTask(FROM_HERE, t);
-}
-
-/* |DeleteSocketMessageWatcherTask| deletes a watching SocketMessageWatcher
- * on the I/O task
- */
-class DeleteSocketMessageWatcherTask MOZ_FINAL : public Task
-{
-public:
-  DeleteSocketMessageWatcherTask(BluetoothSocketResultHandler* aRes)
-  : mRes(aRes)
-  {
-    MOZ_ASSERT(mRes);
-  }
-
-  void Run() MOZ_OVERRIDE
-  {
-    // look up hash table for the watcher corresponding to |mRes|
-    SocketMessageWatcherWrapper* wrapper = sWatcherHashtable.Get(mRes);
-    if (!wrapper) {
-      return;
-    }
-
-    // stop the watcher if it exists
-    SocketMessageWatcher* watcher = wrapper->GetSocketMessageWatcher();
-    watcher->StopWatching();
-    watcher->Proceed(STATUS_DONE);
-  }
-
-private:
-  BluetoothSocketResultHandler* mRes;
-};
-
-void
-BluetoothSocketHALInterface::Close(BluetoothSocketResultHandler* aRes)
-{
-  MOZ_ASSERT(aRes);
-
-  /* stop the watcher corresponding to |aRes| */
-  Task* t = new DeleteSocketMessageWatcherTask(aRes);
   XRE_GetIOMessageLoop()->PostTask(FROM_HERE, t);
 }
 

@@ -5171,11 +5171,9 @@ IonBuilder::createThisScriptedSingleton(JSFunction *target, MDefinition *callee)
 
     // Generate an inline path to create a new |this| object with
     // the given singleton prototype.
-    MConstant *templateConst = MConstant::NewConstraintlessObject(alloc(), templateObject);
     MCreateThisWithTemplate *createThis =
-        MCreateThisWithTemplate::New(alloc(), constraints(), templateConst,
+        MCreateThisWithTemplate::New(alloc(), constraints(), templateObject,
                                      templateObject->type()->initialHeap(constraints()));
-    current->add(templateConst);
     current->add(createThis);
 
     return createThis;

@@ -3167,23 +3167,11 @@ MNewObject::shouldUseVM() const
     return obj->hasSingletonType() || obj->hasDynamicSlots();
 }
 
-bool
-MCreateThisWithTemplate::canRecoverOnBailout() const
-{
-    MOZ_ASSERT(!templateObject()->denseElementsAreCopyOnWrite());
-    MOZ_ASSERT(!templateObject()->is<ArrayObject>());
-    return true;
-}
-
 MObjectState::MObjectState(MDefinition *obj)
 {
     // This instruction is only used as a summary for bailout paths.
     setRecoveredOnBailout();
-    JSObject *templateObject = nullptr;
-    if (obj->isNewObject())
-        templateObject = obj->toNewObject()->templateObject();
-    else
-        templateObject = obj->toCreateThisWithTemplate()->templateObject();
+    JSObject *templateObject = obj->toNewObject()->templateObject();
     numSlots_ = templateObject->slotSpan();
     numFixedSlots_ = templateObject->numFixedSlots();
 }

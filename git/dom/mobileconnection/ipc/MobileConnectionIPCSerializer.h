@@ -11,7 +11,7 @@
 #include "mozilla/dom/MobileNetworkInfo.h"
 #include "mozilla/dom/MozMobileConnectionBinding.h"
 
-using mozilla::AutoJSContext;
+using mozilla::AutoSafeJSContext;
 using mozilla::dom::MobileNetworkInfo;
 using mozilla::dom::MobileCellInfo;
 using mozilla::dom::MobileConnectionInfo;
@@ -261,7 +261,7 @@ struct ParamTraits<nsIMobileConnectionInfo*>
       return;
     }
 
-    AutoJSContext cx;
+    AutoSafeJSContext cx;
     nsString pString;
     bool pBool;
     nsCOMPtr<nsIMobileNetworkInfo> pNetworkInfo;
@@ -330,7 +330,7 @@ struct ParamTraits<nsIMobileConnectionInfo*>
       return true;
     }
 
-    AutoJSContext cx;
+    AutoSafeJSContext cx;
     nsString state;
     bool connected;
     bool emergencyOnly;

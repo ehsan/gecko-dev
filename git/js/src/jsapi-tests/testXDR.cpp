@@ -32,7 +32,7 @@ CompileScriptForPrincipalsVersionOrigin(JSContext *cx, JS::HandleObject obj,
            .setVersion(version);
     JS::RootedScript script(cx);
     JS::Compile(cx, obj, options, chars, nchars, &script);
-    JS_free(cx, chars);
+    free(chars);
     return script;
 }
 

@@ -102,14 +102,7 @@ public:
                                        nsPresContext* aPresContext,
                                        WidgetEvent* aEvent,
                                        nsEventStatus* aStatus,
-                                       EventDispatchingCallback* aCallBack,
-                                       bool aIsSynthesized = false);
-
-  /**
-   * This is called when PresShell ignores composition event or text event due
-   * to not safe to dispatch events.
-   */
-  static void OnCompositionEventDiscarded(WidgetEvent* aEvent);
+                                       EventDispatchingCallback* aCallBack);
 
   /**
    * Get TextComposition from widget.

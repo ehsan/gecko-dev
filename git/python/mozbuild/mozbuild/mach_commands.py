@@ -924,11 +924,11 @@ class RunDmd(MachCommandBase):
         help='Do not pass the -no-remote argument by default.')
     @CommandArgument('--background', '-b', action='store_true',
         help='Do not pass the -foreground argument by default on Mac')
-    @CommandArgument('--sample-below', default=None, type=str,
+    @CommandArgument('--sample_below', default=None, type=str,
         help='The sample size to use, [1..n]. Default is 4093.')
-    @CommandArgument('--max-frames', default=None, type=str,
+    @CommandArgument('--max_frames', default=None, type=str,
         help='The max number of stack frames to capture in allocation traces, [1..24] Default is 24.')
-    @CommandArgument('--max-records', default=None, type=str,
+    @CommandArgument('--max_records', default=None, type=str,
         help='Number of stack trace records to print of each kind, [1..1000000]. Default is 1000.')
     def dmd(self, params, remote, background, sample_below, max_frames, max_records):
         args = get_run_args(self, params, remote, background)
@@ -963,7 +963,6 @@ class RunDmd(MachCommandBase):
                 "DMD": dmd_str,
             },
             "Linux": {
-                "LD_PRELOAD": dmd_lib,
                 "LD_LIBRARY_PATH": lib_dir,
                 "DMD": dmd_str,
             },

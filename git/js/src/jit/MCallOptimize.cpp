@@ -19,8 +19,6 @@
 
 #include "vm/StringObject-inl.h"
 
-using mozilla::ArrayLength;
-
 namespace js {
 namespace jit {
 
@@ -180,24 +178,20 @@ IonBuilder::inlineNativeCall(CallInfo &callInfo, JSFunction *target)
 
     // TypedObject intrinsics.
     if (native == intrinsic_ObjectIsTypedObject)
-        return inlineHasClass(callInfo,
-                              &TransparentTypedObject::class_,
-                              &OwnedOpaqueTypedObject::class_,
-                              &InlineOpaqueTypedObject::class_);
+        return inlineHasClasses(callInfo,
+                                &TransparentTypedObject::class_, &OpaqueTypedObject::class_);
     if (native == intrinsic_ObjectIsTransparentTypedObject)
         return inlineHasClass(callInfo, &TransparentTypedObject::class_);
     if (native == intrinsic_ObjectIsOpaqueTypedObject)
-        return inlineHasClass(callInfo,
-                              &OwnedOpaqueTypedObject::class_,
-                              &InlineOpaqueTypedObject::class_);
+        return inlineHasClass(callInfo, &OpaqueTypedObject::class_);
     if (native == intrinsic_ObjectIsTypeDescr)
         return inlineObjectIsTypeDescr(callInfo);
     if (native == intrinsic_TypeDescrIsSimpleType)
-        return inlineHasClass(callInfo,
-                              &ScalarTypeDescr::class_, &ReferenceTypeDescr::class_);
+        return inlineHasClasses(callInfo,
+                                &ScalarTypeDescr::class_, &ReferenceTypeDescr::class_);
     if (native == intrinsic_TypeDescrIsArrayType)
-        return inlineHasClass(callInfo,
-                              &SizedArrayTypeDescr::class_, &UnsizedArrayTypeDescr::class_);
+        return inlineHasClasses(callInfo,
+                                &SizedArrayTypeDescr::class_, &UnsizedArrayTypeDescr::class_);
     if (native == intrinsic_TypeDescrIsSizedArrayType)
         return inlineHasClass(callInfo, &SizedArrayTypeDescr::class_);
     if (native == intrinsic_TypeDescrIsUnsizedArrayType)
@@ -1765,8 +1759,11 @@ IonBuilder::inlineNewDenseArrayForParallelExecution(CallInfo &callInfo)
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineHasClass(CallInfo &callInfo, const Class *clasp1, const Class *clasp2, const Class *clasp3)
+IonBuilder::inlineHasClasses(CallInfo &callInfo, const Class *clasp1, const Class *clasp2)
 {
+    // Thus far there has been no reason to complicate this beyond two classes,
+    // though it generalizes pretty well.
+    // clasp2 may be NULL.
     if (callInfo.constructing() || callInfo.argc() != 1)
         return InliningStatus_NotInlined;
 
@@ -1778,27 +1775,21 @@ IonBuilder::inlineHasClass(CallInfo &callInfo, const Class *clasp1, const Class 
     types::TemporaryTypeSet *types = callInfo.getArg(0)->resultTypeSet();
     const Class *knownClass = types ? types->getKnownClass() : nullptr;
     if (knownClass) {
-        pushConstant(BooleanValue(knownClass == clasp1 || knownClass == clasp2 || knownClass == clasp3));
+        pushConstant(BooleanValue(knownClass == clasp1 || knownClass == clasp2));
     } else {
         MHasClass *hasClass1 = MHasClass::New(alloc(), callInfo.getArg(0), clasp1);
         current->add(hasClass1);
-
-        if (!clasp2 && !clasp3) {
+        if (clasp2 == nullptr) {
             current->push(hasClass1);
         } else {
-            const Class *remaining[] = { clasp2, clasp3 };
-            MDefinition *last = hasClass1;
-            for (size_t i = 0; i < ArrayLength(remaining); i++) {
-                MHasClass *hasClass = MHasClass::New(alloc(), callInfo.getArg(0), remaining[i]);
-                current->add(hasClass);
-                MBitOr *either = MBitOr::New(alloc(), last, hasClass);
-                either->infer(inspector, pc);
-                current->add(either);
-                last = either;
-            }
-
+            // The following turns into branch-free, box-free code on x86, and should do so on ARM.
+            MHasClass *hasClass2 = MHasClass::New(alloc(), callInfo.getArg(0), clasp2);
+            current->add(hasClass2);
+            MBitOr *either = MBitOr::New(alloc(), hasClass1, hasClass2);
+            either->infer(inspector, pc);
+            current->add(either);
             // Convert to bool with the '!!' idiom
-            MNot *resultInverted = MNot::New(alloc(), last);
+            MNot *resultInverted = MNot::New(alloc(), either);
             resultInverted->cacheOperandMightEmulateUndefined();
             current->add(resultInverted);
             MNot *result = MNot::New(alloc(), resultInverted);

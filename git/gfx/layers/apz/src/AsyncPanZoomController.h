@@ -545,12 +545,9 @@ protected:
 
   /**
    * Tell the paint throttler to request a content repaint with the given
-   * metrics.  (Helper function used by RequestContentRepaint.) If aThrottled
-   * is set to false, the repaint request is sent directly without going through
-   * the paint throttler. In particular, the GeckoContentController::RequestContentRepaint
-   * function will be invoked before this function returns.
+   * metrics.  (Helper function used by RequestContentRepaint.)
    */
-  void RequestContentRepaint(FrameMetrics& aFrameMetrics, bool aThrottled = true);
+  void RequestContentRepaint(FrameMetrics& aFrameMetrics);
 
   /**
    * Actually send the next pending paint request to gecko.
@@ -798,12 +795,6 @@ public:
    * touch session.
    */
   void SetAllowedTouchBehavior(const nsTArray<TouchBehaviorFlags>& aBehaviors);
-
-  /**
-   * Flush a repaint request if one is needed, without throttling it with the
-   * paint throttler.
-   */
-  void FlushRepaintForNewInputBlock();
 
 private:
   void ScheduleContentResponseTimeout();

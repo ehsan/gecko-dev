@@ -996,17 +996,7 @@ ArrayBufferViewObject::neuter(void *newData)
     else if (is<TypedArrayObject>())
         as<TypedArrayObject>().neuter(newData);
     else
-        as<OwnedTypedObject>().neuter(newData);
-}
-
-uint8_t *
-ArrayBufferViewObject::dataPointer()
-{
-    if (is<DataViewObject>())
-        return static_cast<uint8_t *>(as<DataViewObject>().dataPointer());
-    if (is<TypedArrayObject>())
-        return static_cast<uint8_t *>(as<TypedArrayObject>().viewData());
-    return as<TypedObject>().typedMem();
+        as<TypedObject>().neuter(newData);
 }
 
 /* static */ ArrayBufferObject *

@@ -10524,32 +10524,6 @@ StkCommandParamsFactoryObject.prototype = {
     return method.call(this, cmdDetails, ctlvs);
   },
 
-  loadIconIfNecessary: function(cmdDetails, ctlvs, ret) {
-    let ctlv =
-      this.context.StkProactiveCmdHelper
-                  .searchForTag(COMPREHENSIONTLV_TAG_ICON_ID, ctlvs);
-    if (!ctlv || !this.context.ICCUtilsHelper.isICCServiceAvailable("IMG")) {
-      return ret;
-    }
-
-    let iconId = ctlv.value;
-    ret.iconSelfExplanatory = iconId.qualifier == 0 ? true : false;
-
-    let onerror = (function() {
-      this.context.RIL.sendChromeMessage(cmdDetails);
-    }).bind(this);
-
-    let onsuccess = (function(result) {
-      ret.icons = result[0];
-      this.context.RIL.sendChromeMessage(cmdDetails);
-    }).bind(this);
-
-    ret.pending = true;
-    this.context.IconLoader.loadIcons([iconId.identifier], onsuccess, onerror);
-
-    return ret;
-  },
-
   /**
    * Construct a param for Refresh.
    *
@@ -10759,7 +10733,27 @@ StkCommandParamsFactoryObject.prototype = {
       textMsg.userClear = true;
     }
 
-    return this.loadIconIfNecessary(cmdDetails, ctlvs, textMsg);
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ICON_ID, ctlvs);
+    if (!ctlv || !this.context.ICCUtilsHelper.isICCServiceAvailable("IMG")) {
+      return textMsg;
+    }
+
+    let iconId = ctlv.value;
+    textMsg.iconSelfExplanatory = iconId.qualifier == 0 ? true : false;
+
+    let onerror = (function() {
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    let onsuccess = (function(result) {
+      textMsg.icons = result[0];
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    textMsg.pending = true;
+    this.context.IconLoader.loadIcons([iconId.identifier], onsuccess, onerror);
+
+    return textMsg;
   },
 
   processSetUpIdleModeText: function(cmdDetails, ctlvs) {
@@ -10776,7 +10770,27 @@ StkCommandParamsFactoryObject.prototype = {
     }
     textMsg.text = ctlv.value.textString;
 
-    return this.loadIconIfNecessary(cmdDetails, ctlvs, textMsg);
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ICON_ID, ctlvs);
+    if (!ctlv || !this.context.ICCUtilsHelper.isICCServiceAvailable("IMG")) {
+      return textMsg;
+    }
+
+    let iconId = ctlv.value;
+    textMsg.iconSelfExplanatory = iconId.qualifier == 0 ? true : false;
+
+    let onerror = (function() {
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    let onsuccess = (function(result) {
+      textMsg.icons = result[0];
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    textMsg.pending = true;
+    this.context.IconLoader.loadIcons([iconId.identifier], onsuccess, onerror);
+
+    return textMsg;
   },
 
   processGetInkey: function(cmdDetails, ctlvs) {
@@ -10823,7 +10837,27 @@ StkCommandParamsFactoryObject.prototype = {
       input.isHelpAvailable = true;
     }
 
-    return this.loadIconIfNecessary(cmdDetails, ctlvs, input);
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ICON_ID, ctlvs);
+    if (!ctlv || !this.context.ICCUtilsHelper.isICCServiceAvailable("IMG")) {
+      return input;
+    }
+
+    let iconId = ctlv.value;
+    input.iconSelfExplanatory = iconId.qualifier == 0 ? true : false;
+
+    let onerror = (function() {
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    let onsuccess = (function(result) {
+      input.icons = result[0];
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    input.pending = true;
+    this.context.IconLoader.loadIcons([iconId.identifier], onsuccess, onerror);
+
+    return input;
   },
 
   processGetInput: function(cmdDetails, ctlvs) {
@@ -10875,7 +10909,27 @@ StkCommandParamsFactoryObject.prototype = {
       input.isHelpAvailable = true;
     }
 
-    return this.loadIconIfNecessary(cmdDetails, ctlvs, input);
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ICON_ID, ctlvs);
+    if (!ctlv || !this.context.ICCUtilsHelper.isICCServiceAvailable("IMG")) {
+      return input;
+    }
+
+    let iconId = ctlv.value;
+    input.iconSelfExplanatory = iconId.qualifier == 0 ? true : false;
+
+    let onerror = (function() {
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    let onsuccess = (function(result) {
+      input.icons = result[0];
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    input.pending = true;
+    this.context.IconLoader.loadIcons([iconId.identifier], onsuccess, onerror);
+
+    return input;
   },
 
   processEventNotify: function(cmdDetails, ctlvs) {
@@ -10888,7 +10942,28 @@ StkCommandParamsFactoryObject.prototype = {
       textMsg.text = ctlv.value.identifier;
     }
 
-    return this.loadIconIfNecessary(cmdDetails, ctlvs, textMsg);
+    ctlv = StkProactiveCmdHelper.searchForTag(
+      COMPREHENSIONTLV_TAG_ICON_ID, ctlvs);
+    if (!ctlv || !this.context.ICCUtilsHelper.isICCServiceAvailable("IMG")) {
+      return textMsg;
+    }
+
+    let iconId = ctlv.value;
+    textMsg.iconSelfExplanatory = iconId.qualifier == 0 ? true : false;
+
+    let onerror = (function() {
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    let onsuccess = (function(result) {
+      textMsg.icons = result[0];
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    textMsg.pending = true;
+    this.context.IconLoader.loadIcons([iconId.identifier], onsuccess, onerror);
+
+    return textMsg;
   },
 
   processSetupCall: function(cmdDetails, ctlvs) {
@@ -10921,7 +10996,27 @@ StkCommandParamsFactoryObject.prototype = {
       call.duration = ctlv.value;
     }
 
-    return this.loadIconIfNecessary(cmdDetails, ctlvs, call);
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ICON_ID, ctlvs);
+    if (!ctlv || !this.context.ICCUtilsHelper.isICCServiceAvailable("IMG")) {
+      return call;
+    }
+
+    let iconId = ctlv.value;
+    call.iconSelfExplanatory = iconId.qualifier == 0 ? true : false;
+
+    let onerror = (function() {
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    let onsuccess = (function(result) {
+      call.icons = result[0];
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    call.pending = true;
+    this.context.IconLoader.loadIcons([iconId.identifier], onsuccess, onerror);
+
+    return call;
   },
 
   processLaunchBrowser: function(cmdDetails, ctlvs) {
@@ -10944,7 +11039,27 @@ StkCommandParamsFactoryObject.prototype = {
 
     browser.mode = cmdDetails.commandQualifier & 0x03;
 
-    return this.loadIconIfNecessary(cmdDetails, ctlvs, browser);
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ICON_ID, ctlvs);
+    if (!ctlv || !this.context.ICCUtilsHelper.isICCServiceAvailable("IMG")) {
+      return browser;
+    }
+
+    let iconId = ctlv.value;
+    browser.iconSelfExplanatory = iconId.qualifier == 0 ? true : false;
+
+    let onerror = (function() {
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    let onsuccess = (function(result) {
+      browser.icons = result[0];
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    browser.pending = true;
+    this.context.IconLoader.loadIcons([iconId.identifier], onsuccess, onerror);
+
+    return browser;
   },
 
   processPlayTone: function(cmdDetails, ctlvs) {
@@ -10971,7 +11086,28 @@ StkCommandParamsFactoryObject.prototype = {
     // vibrate is only defined in TS 102.223
     playTone.isVibrate = (cmdDetails.commandQualifier & 0x01) !== 0x00;
 
-    return this.loadIconIfNecessary(cmdDetails, ctlvs, playTone);
+    ctlv = StkProactiveCmdHelper.searchForTag(
+      COMPREHENSIONTLV_TAG_ICON_ID, ctlvs);
+    if (!ctlv || !this.context.ICCUtilsHelper.isICCServiceAvailable("IMG")) {
+      return playTone;
+    }
+
+    let iconId = ctlv.value;
+    playTone.iconSelfExplanatory = iconId.qualifier == 0 ? true : false;
+
+    let onerror = (function() {
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    let onsuccess = (function(result) {
+      playTone.icons = result[0];
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    playTone.pending = true;
+    this.context.IconLoader.loadIcons([iconId.identifier], onsuccess, onerror);
+
+    return playTone;
   },
 
   /**
@@ -11028,7 +11164,27 @@ StkCommandParamsFactoryObject.prototype = {
       bipMsg.text = ctlv.value.identifier;
     }
 
-    return this.loadIconIfNecessary(cmdDetails, ctlvs, bipMsg);
+    ctlv = StkProactiveCmdHelper.searchForTag(COMPREHENSIONTLV_TAG_ICON_ID, ctlvs);
+    if (!ctlv || !this.context.ICCUtilsHelper.isICCServiceAvailable("IMG")) {
+      return bipMsg;
+    }
+
+    let iconId = ctlv.value;
+    bipMsg.iconSelfExplanatory = iconId.qualifier == 0 ? true : false;
+
+    let onerror = (function() {
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    let onsuccess = (function(result) {
+      bipMsg.icons = result[0];
+      this.context.RIL.sendChromeMessage(cmdDetails);
+    }).bind(this);
+
+    bipMsg.pending = true;
+    this.context.IconLoader.loadIcons([iconId.identifier], onsuccess, onerror);
+
+    return bipMsg;
   }
 };
 StkCommandParamsFactoryObject.prototype[STK_CMD_REFRESH] = function STK_CMD_REFRESH(cmdDetails, ctlvs) {

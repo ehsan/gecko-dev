@@ -12,7 +12,7 @@ EXPORTS += [
     'SpeakerManagerServiceChild.h',
 ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'SpeakerManager.cpp',
     'SpeakerManagerService.cpp',
     'SpeakerManagerServiceChild.cpp',

@@ -6,21 +6,20 @@ MARIONETTE_CONTEXT = "chrome";
 
 Cu.import("resource://gre/modules/Promise.jsm");
 
-const VOICEMAIL_SERVICE_CONTRACTID =
-  "@mozilla.org/voicemail/gonkvoicemailservice;1";
+const VOICEMAIL_PROVIDER_CONTRACTID = "@mozilla.org/ril/content-helper;1";
 
 const PREF_RIL_NUM_RADIO_INTERFACES = "ril.numRadioInterfaces";
 const PREF_DEFAULT_SERVICE_ID = "dom.voicemail.defaultServiceId";
 
-function setPrefAndVerify(prefKey, setVal, service, expectedVal, deferred) {
+function setPrefAndVerify(prefKey, setVal, service, attrName, expectedVal, deferred) {
   log("  Set '" + prefKey + "' to " + setVal);
   Services.prefs.setIntPref(prefKey, setVal);
   let prefVal = Services.prefs.getIntPref(prefKey);
   is(prefVal, setVal, "'" + prefKey + "' set to " + setVal);
 
   window.setTimeout(function() {
-    let defaultVal = service.getDefaultItem().serviceId;
-    is(defaultVal, expectedVal, "serviceId");
+    let defaultVal = service[attrName];
+    is(defaultVal, expectedVal, attrName);
 
     deferred.resolve(service);
   }, 0);
@@ -53,7 +52,7 @@ function getService(contractId, ifaceName) {
   return deferred.promise;
 }
 
-function checkInitialEquality(prefKey, service) {
+function checkInitialEquality(attrName, prefKey, service) {
   let deferred = Promise.defer();
 
   log("  Checking initial value for '" + prefKey + "'");
@@ -61,8 +60,8 @@ function checkInitialEquality(prefKey, service) {
   ok(isFinite(origPrefVal), "default '" + prefKey + "' value");
 
   window.setTimeout(function() {
-    let defaultVal = service.getDefaultItem().serviceId;
-    is(defaultVal, origPrefVal, "serviceId");
+    let defaultVal = service[attrName];
+    is(defaultVal, origPrefVal, attrName);
 
     deferred.resolve(service);
   }, 0);
@@ -70,30 +69,30 @@ function checkInitialEquality(prefKey, service) {
   return deferred.promise;
 }
 
-function checkSetToNegtiveValue(prefKey, service) {
+function checkSetToNegtiveValue(attrName, prefKey, service) {
   let deferred = Promise.defer();
 
   // Set to -1 and verify defaultVal == 0.
-  setPrefAndVerify(prefKey, -1, service, 0, deferred);
+  setPrefAndVerify(prefKey, -1, service, attrName, 0, deferred);
 
   return deferred.promise;
 }
 
-function checkSetToOverflowedValue(prefKey, numRil, service) {
+function checkSetToOverflowedValue(attrName, prefKey, numRil, service) {
   let deferred = Promise.defer();
 
   // Set to larger-equal than numRil and verify defaultVal == 0.
-  setPrefAndVerify(prefKey, numRil, service, 0, deferred);
+  setPrefAndVerify(prefKey, numRil, service, attrName, 0, deferred);
 
   return deferred.promise;
 }
 
-function checkValueChange(prefKey, numRil, service) {
+function checkValueChange(attrName, prefKey, numRil, service) {
   let deferred = Promise.defer();
 
   if (numRil > 1) {
     // Set to (numRil - 1) and verify defaultVal equals.
-    setPrefAndVerify(prefKey, numRil - 1, service, numRil - 1, deferred);
+    setPrefAndVerify(prefKey, numRil - 1, service, attrName, numRil - 1, deferred);
   } else {
     window.setTimeout(function() {
       deferred.resolve(service);
@@ -103,14 +102,14 @@ function checkValueChange(prefKey, numRil, service) {
   return deferred.promise;
 }
 
-function verify(contractId, ifaceName, prefKey, numRil) {
+function verify(contractId, ifaceName, attrName, prefKey, numRil) {
   let deferred = Promise.defer();
 
   getService(contractId, ifaceName)
-    .then(checkInitialEquality.bind(null, prefKey))
-    .then(checkSetToNegtiveValue.bind(null, prefKey))
-    .then(checkSetToOverflowedValue.bind(null, prefKey, numRil))
-    .then(checkValueChange.bind(null, prefKey, numRil))
+    .then(checkInitialEquality.bind(null, attrName, prefKey))
+    .then(checkSetToNegtiveValue.bind(null, attrName, prefKey))
+    .then(checkSetToOverflowedValue.bind(null, attrName, prefKey, numRil))
+    .then(checkValueChange.bind(null, attrName, prefKey, numRil))
     .then(function() {
       // Reset.
       Services.prefs.clearUserPref(prefKey);
@@ -122,6 +121,6 @@ function verify(contractId, ifaceName, prefKey, numRil) {
 }
 
 getNumRadioInterfaces()
-  .then(verify.bind(null, VOICEMAIL_SERVICE_CONTRACTID, "nsIVoicemailService",
-                    PREF_DEFAULT_SERVICE_ID))
+  .then(verify.bind(null, VOICEMAIL_PROVIDER_CONTRACTID, "nsIVoicemailProvider",
+                    "voicemailDefaultServiceId", PREF_DEFAULT_SERVICE_ID))
   .then(finish);

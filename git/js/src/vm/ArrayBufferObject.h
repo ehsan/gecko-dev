@@ -335,8 +335,9 @@ class ArrayBufferViewObject : public JSObject
 
     void neuter(void *newData);
 
-    uint8_t *dataPointer();
-
+    uint8_t *dataPointer() {
+        return static_cast<uint8_t *>(getPrivate());
+    }
     static void trace(JSTracer *trc, JSObject *obj);
 };
 

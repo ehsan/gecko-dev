@@ -56,6 +56,8 @@ class StaticWithObject;
  *
  * (See also AssertDynamicScopeMatchesStaticScope.)
  */
+JSObject *InnermostStaticScope(JSScript *script, jsbytecode *pc);
+
 template <AllowGC allowGC>
 class StaticScopeIter
 {
@@ -93,6 +95,7 @@ class StaticScopeIter
     StaticWithObject &staticWith() const;
     JSScript *funScript() const;
     JSFunction &fun() const;
+    PropertyName *lambdaName() const;
 };
 
 /*****************************************************************************/
@@ -627,12 +630,12 @@ class UninitializedLexicalObject : public ScopeObject
 template<XDRMode mode>
 bool
 XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope,
-                     MutableHandle<StaticBlockObject*> objp);
+                     StaticBlockObject **objp);
 
 template<XDRMode mode>
 bool
 XDRStaticWithObject(XDRState<mode> *xdr, HandleObject enclosingScope,
-                    MutableHandle<StaticWithObject*> objp);
+                    StaticWithObject **objp);
 
 extern JSObject *
 CloneNestedScopeObject(JSContext *cx, HandleObject enclosingScope, Handle<NestedScopeObject*> src);

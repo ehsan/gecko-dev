@@ -59,15 +59,6 @@ TaskThrottler::TaskComplete(const TimeStamp& aTimeStamp)
   }
 }
 
-void
-TaskThrottler::CancelPendingTask()
-{
-  if (mQueuedTask) {
-    mQueuedTask->Cancel();
-    mQueuedTask = nullptr;
-  }
-}
-
 TimeDuration
 TaskThrottler::TimeSinceLastRequest(const TimeStamp& aTimeStamp)
 {
