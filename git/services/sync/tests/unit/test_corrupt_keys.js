@@ -46,8 +46,10 @@ add_task(function test_locally_changed_keys() {
                           }],
                           attributes: {
                             image: "image"
-                          }
-                          }]}]};
+                          },
+                          extData: {
+                            weaveLastUsed: 1
+                          }}]}]};
     delete Svc.Session;
     Svc.Session = {
       getBrowserState: function () JSON.stringify(myTabs)

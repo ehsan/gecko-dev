@@ -7005,7 +7005,7 @@ NS_IMETHODIMP
 nsGlobalWindow::ClearInterval(int32_t aHandle)
 {
   ErrorResult rv;
-  ClearInterval(aHandle, rv);
+  ClearTimeoutOrInterval(aHandle, rv);
 
   return rv.ErrorCode();
 }

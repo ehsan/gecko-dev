@@ -47,8 +47,8 @@
 /* Following inclusions required for keepalive config not supported by NSPR. */
 #include "private/pprio.h"
 #if defined(XP_WIN)
-#include <winsock2.h>
-#include <mstcpip.h>
+#include <Winsock2.h>
+#include <Mstcpip.h>
 #elif defined(XP_UNIX)
 #include <errno.h>
 #include <netinet/tcp.h>

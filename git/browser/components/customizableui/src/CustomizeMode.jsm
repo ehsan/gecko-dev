@@ -660,9 +660,6 @@ CustomizeMode.prototype = {
       wrapper.setAttribute("flex", aNode.getAttribute("flex"));
     }
 
-    let removable = aPlace == "palette" || CustomizableUI.isWidgetRemovable(aNode);
-    wrapper.setAttribute("removable", removable);
-
     let contextMenuAttrName = aNode.getAttribute("context") ? "context" :
                                 aNode.getAttribute("contextmenu") ? "contextmenu" : "";
     let currentContextMenu = aNode.getAttribute(contextMenuAttrName);
@@ -1039,17 +1036,14 @@ CustomizeMode.prototype = {
       item = item.parentNode;
     }
 
-    let draggedItem = item.firstChild;
-    let placeForItem = CustomizableUI.getPlaceForItem(item);
-    let isRemovable = placeForItem == "palette" ||
-                      CustomizableUI.isWidgetRemovable(draggedItem);
-    if (item.classList.contains(kPlaceholderClass) || !isRemovable) {
+    if (item.classList.contains(kPlaceholderClass)) {
       return;
     }
 
     let dt = aEvent.dataTransfer;
     let documentId = aEvent.target.ownerDocument.documentElement.id;
-    let isInToolbar = placeForItem == "toolbar";
+    let draggedItem = item.firstChild;
+    let isInToolbar = CustomizableUI.getPlaceForItem(item) == "toolbar";
 
     dt.mozSetDataAt(kDragDataTypePrefix + documentId, draggedItem.id, 0);
     dt.effectAllowed = "move";
@@ -1624,8 +1618,7 @@ CustomizeMode.prototype = {
     let doc = aEvent.target.ownerDocument;
     doc.documentElement.setAttribute("customizing-movingItem", true);
     let item = this._getWrapper(aEvent.target);
-    if (item && !item.classList.contains(kPlaceholderClass) &&
-        item.getAttribute("removable") == "true") {
+    if (item && !item.classList.contains(kPlaceholderClass)) {
       item.setAttribute("mousedown", "true");
     }
   },

@@ -27,6 +27,8 @@
 #include <windows.h>
 #include <softpub.h>
 #include <wintrust.h>
+
+#pragma comment(lib, "wintrust.lib")
 #endif // XP_WIN
 
 namespace mozilla {

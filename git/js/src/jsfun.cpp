@@ -118,8 +118,8 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
 
         /* Callsite clones should never escape to script. */
         JSObject &maybeClone = iter.calleev().toObject();
-        if (maybeClone.is<JSFunction>())
-            vp.setObject(*maybeClone.as<JSFunction>().originalFunction());
+        if (maybeClone.is<JSFunction>() && maybeClone.as<JSFunction>().nonLazyScript()->isCallsiteClone())
+            vp.setObject(*maybeClone.as<JSFunction>().nonLazyScript()->originalFunction());
         else
             vp.set(iter.calleev());
 
@@ -1486,9 +1486,9 @@ FunctionConstructor(JSContext *cx, unsigned argc, Value *vp, GeneratorKind gener
     CurrentScriptFileLineOrigin(cx, &script, &filename, &lineno, &pcOffset, &originPrincipals);
     JSPrincipals *principals = PrincipalsForCompiledCode(args, cx);
 
-    const char *introductionType = "Function";
+    const char *introducer = "Function";
     if (generatorKind != NotGenerator)
-        introductionType = "GeneratorFunction";
+        introducer = "GeneratorFunction";
 
     const char *introducerFilename = filename;
     if (script && script->scriptSource()->introducerFilename())
@@ -1500,7 +1500,7 @@ FunctionConstructor(JSContext *cx, unsigned argc, Value *vp, GeneratorKind gener
            .setFileAndLine(filename, 1)
            .setNoScriptRval(false)
            .setCompileAndGo(true)
-           .setIntroductionInfo(introducerFilename, introductionType, lineno, pcOffset);
+           .setIntroductionInfo(introducerFilename, introducer, lineno, pcOffset);
 
     unsigned n = args.length() ? args.length() - 1 : 0;
     if (n > 0) {

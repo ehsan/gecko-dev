@@ -413,8 +413,8 @@ CheckAllocatorState(ThreadSafeContext *cx, AllocKind kind)
         return true;
 
     JSContext *ncx = cx->asJSContext();
-    JSRuntime *rt = ncx->runtime();
 #if defined(JS_GC_ZEAL) || defined(DEBUG)
+    JSRuntime *rt = ncx->runtime();
     JS_ASSERT_IF(rt->isAtomsCompartment(ncx->compartment()),
                  kind == FINALIZE_STRING ||
                  kind == FINALIZE_SHORT_STRING ||
@@ -426,22 +426,13 @@ CheckAllocatorState(ThreadSafeContext *cx, AllocKind kind)
     /* For testing out of memory conditions */
     JS_OOM_POSSIBLY_FAIL_REPORT(ncx);
 
-    if (allowGC) {
 #ifdef JS_GC_ZEAL
-        if (rt->needZealousGC())
-            js::gc::RunDebugGC(ncx);
+    if (allowGC && rt->needZealousGC())
+        js::gc::RunDebugGC(ncx);
 #endif
 
-        if (rt->interrupt) {
-            /*
-             * Invoking the operation handler can fail and we can't usefully
-             * handle that here. Just check in case we need to collect instead.
-             */
-            js::gc::GCIfNeeded(ncx);
-        }
-
+    if (allowGC)
         MaybeCheckStackRoots(ncx);
-    }
 
     return true;
 }

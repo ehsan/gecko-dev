@@ -21,10 +21,7 @@
 class JSAtom;
 class JSFreeOp;
 
-namespace js {
-class StackFrame;
-class ScriptFrameIter;
-}
+namespace js { class StackFrame; }
 
 // Raw JSScript* because this needs to be callable from a signal handler.
 extern JS_PUBLIC_API(unsigned)
@@ -42,8 +39,6 @@ class FrameDescription
         , linenoComputed(false)
     {
     }
-
-    explicit FrameDescription(const js::ScriptFrameIter& iter);
 
     unsigned lineno() {
         if (!linenoComputed) {
