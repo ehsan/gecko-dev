@@ -165,7 +165,7 @@ OptionFlagsToFormatInfo(char shortflag, bool isValued, size_t *length)
                                   "  -%c --%s=%s ",
                                   "  --%s=%s " };
 
-    // How mny chars w/o longflag?
+    /* How mny chars w/o longflag? */
     size_t lengths[4] = { strlen(fmt[0]) - 3,
                           strlen(fmt[1]) - 3,
                           strlen(fmt[2]) - 5,
@@ -462,6 +462,8 @@ OptionParser::getMultiStringOption(const char *longflag) const
 OptionParser::~OptionParser()
 {
     for (Option **it = options.begin(), **end = options.end(); it != end; ++it)
+        Foreground::delete_<Option>(*it);
+    for (Option **it = arguments.begin(), **end = arguments.end(); it != end; ++it)
         Foreground::delete_<Option>(*it);
 }
 

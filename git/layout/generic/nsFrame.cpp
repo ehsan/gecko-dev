@@ -2186,6 +2186,8 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
                      nsEventStatus*  aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
+  NS_ASSERTION(aPresContext == PresContext(),
+               "HandlePress called with different presContext");
   if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {
     return NS_OK;
   }
@@ -2563,6 +2565,9 @@ nsFrame::HandleDrag(nsPresContext* aPresContext,
     return NS_OK; // not selecting now
   }
 
+  NS_ASSERTION(target->PresContext()->PresShell() == fs->GetShell(),
+               "A different presShell received mouse move event during drag");
+
   // Stop auto scrolling, first.
   fs->StopAutoScrollTimer();
 
@@ -2585,8 +2590,11 @@ nsFrame::ExpandSelectionByMouseMove(nsFrameSelection* aFrameSelection,
 #ifdef DEBUG
   nsFrameSelection* draggingFrameSelection =
     nsFrameSelection::GetMouseDownFrameSelection();
-  NS_ASSERTION(draggingFrameSelection &&
-               draggingFrameSelection == GetConstFrameSelection(),
+  nsFrameSelection* selectionFrameForSelectingByMouse =
+    GetFrameSelectionForSelectingByMouse();
+  NS_ASSERTION(draggingFrameSelection,
+               "dragging FrameSelection must not be NULL");
+  NS_ASSERTION(draggingFrameSelection == selectionFrameForSelectingByMouse,
                "aFrameSelection must be handling current drag for selection");
 #endif
 
@@ -2831,12 +2839,12 @@ nsFrame::HandleRelease(nsPresContext* aPresContext,
                        nsGUIEvent* aEvent,
                        nsEventStatus* aEventStatus)
 {
-  nsCOMPtr<nsIContent> captureContent = nsIPresShell::GetCapturingContent();
-
-  // We can unconditionally stop capturing because
-  // we should never be capturing when the mouse button is up
-  nsIPresShell::SetCapturingContent(nsnull, 0);
-
+  // NOTE: You don't need to release mouse capture here. It'll be done
+  // in PresShell automatically.  If you need to do it here, you must
+  // do it after nsFrame::EndSelectionChangeByMouse() because we need
+  // to call nsFrameSelection::SetMouseDownState(PR_FALSE) first.
+  // If we release mouse event capture first, it doesn't cause
+  // MOUSEUP_REASON selection change event.
   nsFrame* targetFrame;
   nsRefPtr<nsFrameSelection> fs =
     FindDraggingFrameSelection(aPresContext->PresShell(), &targetFrame);
