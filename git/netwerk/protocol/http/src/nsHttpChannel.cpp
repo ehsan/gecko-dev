@@ -1061,6 +1061,9 @@ nsHttpChannel::ProcessNormal()
 nsresult
 nsHttpChannel::PromptTempRedirect()
 {
+    if (!gHttpHandler->PromptTempRedirect()) {
+        return NS_OK;
+    }
     nsresult rv;
     nsCOMPtr<nsIStringBundleService> bundleService =
             do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
@@ -1600,6 +1603,13 @@ nsHttpChannel::OpenCacheEntry(PRBool offline, PRBool *delayed)
 
         if (appCacheContainer) {
             appCacheContainer->GetApplicationCache(getter_AddRefs(mApplicationCache));
+            {
+                // XXX: Debugging 471227
+                if (mApplicationCache) {
+                    printf("(Bug 471227): picked up application cache %p from callbacks (%p)\n",
+                           mApplicationCache.get(), appCacheContainer.get());
+                }
+            }
         }
     }
 
@@ -1614,6 +1624,14 @@ nsHttpChannel::OpenCacheEntry(PRBool offline, PRBool *delayed)
             nsresult rv = appCacheService->ChooseApplicationCache
                 (cacheKey, getter_AddRefs(mApplicationCache));
             NS_ENSURE_SUCCESS(rv, rv);
+            {
+                // XXX: Debugging 471227
+                if (mApplicationCache) {
+                    printf("(Bug 471227): chose application cache %p\n",
+                           mApplicationCache.get());
+                }
+            }
+
         }
     }
 
