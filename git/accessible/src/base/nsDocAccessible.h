@@ -310,17 +310,6 @@ public:
   void ContentRemoved(nsIContent* aContainerNode, nsIContent* aChildNode);
 
   /**
-   * Updates accessible tree when rendered text is changed.
-   */
-  inline void UpdateText(nsIContent* aTextNode)
-  {
-    NS_ASSERTION(mNotificationController, "The document was shut down!");
-
-    if (mNotificationController)
-      mNotificationController->ScheduleTextUpdate(aTextNode);
-  }
-
-  /**
    * Recreate an accessible, results in hide/show events pair.
    */
   void RecreateAccessible(nsINode* aNode);

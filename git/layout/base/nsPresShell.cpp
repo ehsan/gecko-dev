@@ -9263,7 +9263,7 @@ nsIPresShell::AccService()
   if (gIsAccessibilityActive) {
     nsCOMPtr<nsIAccessibilityService> srv =
       do_GetService("@mozilla.org/accessibilityService;1");
-    return static_cast<nsAccessibilityService*>(srv.get());
+    return static_cast<nsAccessibilityService*>(srv);
   }
   return nsnull;
 #endif

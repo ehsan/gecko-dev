@@ -92,6 +92,7 @@ function TabItem(tab, options) {
   this.tabCanvas = new TabCanvas(this.tab, this.$canvas[0]);
 
   this.defaultSize = new Point(TabItems.tabWidth, TabItems.tabHeight);
+  this.locked = {};
   this._hidden = false;
   this.isATabItem = true;
   this._zoomPrep = false;
@@ -302,7 +303,7 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   getStorageData: function TabItem_getStorageData(getImageData) {
     let imageData = null;
 
-    if (getImageData && this.tab.linkedBrowser.currentURI.scheme != 'https') {
+    if (getImageData) { 
       if (this._cachedImageData)
         imageData = this._cachedImageData;
       else if (this.tabCanvas)
