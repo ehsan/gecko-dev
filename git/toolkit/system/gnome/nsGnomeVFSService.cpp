@@ -258,6 +258,7 @@ nsGnomeVFSService::ShowURIForInput(const nsACString &aUri)
   if (gnome_vfs_url_show_with_env(spec, NULL) == GNOME_VFS_OK)
     rv = NS_OK;
 
-  g_free(spec);
+  if (spec)
+    g_free(spec);
   return rv;
 }

@@ -306,8 +306,7 @@ class StackFrame
     /* Used for eval. */
     inline void initEvalFrame(JSContext *cx, JSScript *script, StackFrame *prev,
                               uint32 flags);
-    inline void initGlobalFrame(JSScript *script, JSObject &chain, StackFrame *prev,
-                                uint32 flags);
+    inline void initGlobalFrame(JSScript *script, JSObject &chain, uint32 flags);
 
     /* Used when activating generators. */
     inline void stealFrameAndSlots(js::Value *vp, StackFrame *otherfp,
@@ -851,8 +850,8 @@ class StackFrame
         return !!(flags_ & DEBUGGER);
     }
 
-    bool isDirectEvalOrDebuggerFrame() const {
-        return (flags_ & (EVAL | DEBUGGER)) && !(flags_ & GLOBAL);
+    bool isEvalOrDebuggerFrame() const {
+        return !!(flags_ & (EVAL | DEBUGGER));
     }
 
     bool hasOverriddenArgs() const {

@@ -125,7 +125,6 @@
 #endif
 #endif
 
-#include "base/basictypes.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsCycleCollectorUtils.h"
 #include "nsIProgrammingLanguage.h"
@@ -152,8 +151,7 @@
 #include "nsIXPConnect.h"
 #include "nsIJSRuntimeService.h"
 #include "xpcpublic.h"
-#include "base/histogram.h"
-#include "base/logging.h"
+
 #include <stdio.h>
 #include <string.h>
 #ifdef WIN32
@@ -983,7 +981,7 @@ struct nsCycleCollector
     PRBool mFollowupCollection;
     PRUint32 mCollectedObjects;
     PRBool mFirstCollection;
-    TimeStamp mCollectionStart;
+    PRTime mCollectionStart;
 
     nsCycleCollectionLanguageRuntime *mRuntimes[nsIProgrammingLanguage::MAX+1];
     nsCycleCollectionXPCOMRuntime mXPCOMRuntime;
@@ -2479,8 +2477,8 @@ nsCycleCollector::PrepareForCollection(nsTPtrArray<PtrInfo> *aWhiteNodes)
 
 #ifdef COLLECT_TIME_DEBUG
     printf("cc: nsCycleCollector::PrepareForCollection()\n");
+    mCollectionStart = PR_Now();
 #endif
-    mCollectionStart = TimeStamp::Now();
 
     mCollectionInProgress = PR_TRUE;
 
@@ -2510,13 +2508,10 @@ nsCycleCollector::CleanupAfterCollection()
     _heapmin();
 #endif
 
-    PRUint32 interval((TimeStamp::Now() - mCollectionStart).ToMilliseconds());
 #ifdef COLLECT_TIME_DEBUG
-    printf("cc: CleanupAfterCollection(), total time %ums\n", interval);
+    printf("cc: CleanupAfterCollection(), total time %lldms\n",
+           (PR_Now() - mCollectionStart) / PR_USEC_PER_MSEC);
 #endif
-    UMA_HISTOGRAM_TIMES("nsCycleCollector::Collect (ms)",
-                        base::TimeDelta::FromMilliseconds(interval));
-
 #ifdef DEBUG_CC
     ExplainLiveExpectedGarbage();
 #endif

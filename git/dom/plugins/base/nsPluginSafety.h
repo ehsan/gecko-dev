@@ -44,7 +44,7 @@
 #include "nsIPrefService.h"
 #include <prinrval.h>
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) && !defined(WINCE)
 #define CALL_SAFETY_ON
 #endif
 

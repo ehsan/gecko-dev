@@ -596,15 +596,6 @@ nsIOService::NewFileURI(nsIFile *file, nsIURI **result)
 NS_IMETHODIMP
 nsIOService::NewChannelFromURI(nsIURI *aURI, nsIChannel **result)
 {
-    return NewChannelFromURIWithProxyFlags(aURI, nsnull, 0, result);
-}
-
-NS_IMETHODIMP
-nsIOService::NewChannelFromURIWithProxyFlags(nsIURI *aURI,
-                                             nsIURI *aProxyURI,
-                                             PRUint32 proxyFlags,
-                                             nsIChannel **result)
-{
     nsresult rv;
     NS_ENSURE_ARG_POINTER(aURI);
     NS_TIMELINE_MARK_URI("nsIOService::NewChannelFromURI(%s)", aURI);
@@ -634,8 +625,7 @@ nsIOService::NewChannelFromURIWithProxyFlags(nsIURI *aURI,
                 NS_WARNING("failed to get protocol proxy service");
         }
         if (mProxyService) {
-            rv = mProxyService->Resolve(aProxyURI ? aProxyURI : aURI,
-                                        proxyFlags, getter_AddRefs(pi));
+            rv = mProxyService->Resolve(aURI, 0, getter_AddRefs(pi));
             if (NS_FAILED(rv))
                 pi = nsnull;
         }

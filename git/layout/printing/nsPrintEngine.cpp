@@ -261,6 +261,7 @@ nsPrintEngine::nsPrintEngine() :
   mIsDoingPrinting(PR_FALSE),
   mIsDoingPrintPreview(PR_FALSE),
   mProgressDialogIsShown(PR_FALSE),
+  mContainer(nsnull),
   mScreenDPI(115.0f),
   mPrt(nsnull),
   mPagePrintTimer(nsnull),
@@ -316,7 +317,7 @@ void nsPrintEngine::DestroyPrintingData()
 
 //--------------------------------------------------------
 nsresult nsPrintEngine::Initialize(nsIDocumentViewerPrint* aDocViewerPrint, 
-                                   nsIWeakReference*       aContainer,
+                                   nsISupports*            aContainer,
                                    nsIDocument*            aDocument,
                                    float                   aScreenDPI,
                                    FILE*                   aDebugFile)
@@ -326,7 +327,7 @@ nsresult nsPrintEngine::Initialize(nsIDocumentViewerPrint* aDocViewerPrint,
   NS_ENSURE_ARG_POINTER(aDocument);
 
   mDocViewerPrint = aDocViewerPrint;
-  mContainer      = aContainer;
+  mContainer      = aContainer;      // weak reference
   mDocument       = aDocument;
   mScreenDPI      = aScreenDPI;
 
@@ -365,11 +366,11 @@ void
 nsPrintEngine::InstallPrintPreviewListener()
 {
   if (!mPrt->mPPEventListeners) {
-    nsCOMPtr<nsIDocShell> docShell = do_QueryReferent(mContainer);
-    nsCOMPtr<nsPIDOMWindow> win(do_GetInterface(docShell));
-    if (win) {
-      nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(win->GetFrameElementInternal()));
-      mPrt->mPPEventListeners = new nsPrintPreviewListener(target);
+    nsCOMPtr<nsPIDOMWindow> win(do_GetInterface(mContainer));
+    nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(win->GetFrameElementInternal()));
+    mPrt->mPPEventListeners = new nsPrintPreviewListener(target);
+
+    if (mPrt->mPPEventListeners) {
       mPrt->mPPEventListeners->AddListeners();
     }
   }
@@ -535,7 +536,7 @@ nsPrintEngine::DoCommonPrint(PRBool                  aIsPrintPreview,
   PRBool isSelection = IsThereARangeSelection(mPrt->mCurrentFocusWin);
 
   // Get the docshell for this documentviewer
-  nsCOMPtr<nsIDocShell> webContainer(do_QueryReferent(mContainer, &rv));
+  nsCOMPtr<nsIDocShell> webContainer(do_QueryInterface(mContainer, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
   mPrt->mPrintObject = new nsPrintObject();
@@ -766,8 +767,8 @@ nsPrintEngine::PrintPreview(nsIPrintSettings* aPrintSettings,
 {
   // Get the DocShell and see if it is busy
   // (We can't Print Preview this document if it is still busy)
-  nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mContainer));
-  NS_ENSURE_STATE(docShell);
+  nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(mContainer));
+  NS_ASSERTION(docShell, "This has to be a docshell");
 
   PRUint32 busyFlags = nsIDocShell::BUSY_FLAGS_NONE;
   if (NS_FAILED(docShell->GetBusyFlags(&busyFlags)) ||
@@ -791,7 +792,7 @@ nsPrintEngine::PrintPreview(nsIPrintSettings* aPrintSettings,
 NS_IMETHODIMP
 nsPrintEngine::GetIsFramesetDocument(PRBool *aIsFramesetDocument)
 {
-  nsCOMPtr<nsIDocShell> webContainer(do_QueryReferent(mContainer));
+  nsCOMPtr<nsIDocShell> webContainer(do_QueryInterface(mContainer));
   *aIsFramesetDocument = IsParentAFrameSet(webContainer);
   return NS_OK;
 }
@@ -804,7 +805,7 @@ nsPrintEngine::GetIsIFrameSelected(PRBool *aIsIFrameSelected)
   *aIsIFrameSelected = PR_FALSE;
 
   // Get the docshell for this documentviewer
-  nsCOMPtr<nsIDocShell> webContainer(do_QueryReferent(mContainer));
+  nsCOMPtr<nsIDocShell> webContainer(do_QueryInterface(mContainer));
   // Get the currently focused window
   nsCOMPtr<nsIDOMWindow> currentFocusWin = FindFocusedDOMWindow();
   if (currentFocusWin && webContainer) {
@@ -2848,7 +2849,7 @@ nsPrintEngine::IsWindowsInOurSubTree(nsPIDOMWindow * window)
 
     if (docShellAsItem) {
       // get this DocViewer docshell
-      nsCOMPtr<nsIDocShell> thisDVDocShell(do_QueryReferent(mContainer));
+      nsCOMPtr<nsIDocShell> thisDVDocShell(do_QueryInterface(mContainer));
       while (!found) {
         nsCOMPtr<nsIDocShell> parentDocshell(do_QueryInterface(docShellAsItem));
         if (parentDocshell) {

@@ -2474,18 +2474,6 @@ nsBlockFrame::DeleteLine(nsBlockReflowState& aState,
   }
 }
 
-static void
-InvalidateThebesLayersInLineBox(nsIFrame* aBlock, nsLineBox* aLine)
-{
-  if (aBlock->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER_DESCENDANT) {
-    PRInt32 childCount = aLine->GetChildCount();
-    for (nsIFrame* f = aLine->mFirstChild; childCount;
-         --childCount, f = f->GetNextSibling()) {
-      FrameLayerBuilder::InvalidateThebesLayersInSubtree(f);
-    }
-  }
-}
-
 /**
  * Reflow a line. The line will either contain a single block frame
  * or contain 1 or more inline frames. aKeepReflowGoing indicates
@@ -2579,7 +2567,13 @@ nsBlockFrame::ReflowLine(nsBlockReflowState& aState,
       printf("  dirty line is %p\n", static_cast<void*>(aLine.get()));
 #endif
     Invalidate(dirtyRect);
-    InvalidateThebesLayersInLineBox(this, aLine);
+    if (GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER_DESCENDANT) {
+      PRInt32 childCount = aLine->GetChildCount();
+      for (nsIFrame* f = aLine->mFirstChild; childCount;
+           --childCount, f = f->GetNextSibling()) {
+        FrameLayerBuilder::InvalidateThebesLayersInSubtree(f);
+      }
+    }
   }
 
   return rv;
@@ -2738,7 +2732,6 @@ nsBlockFrame::SlideLine(nsBlockReflowState& aState,
   // Adjust line state
   aLine->SlideBy(aDY);
   Invalidate(aLine->GetVisualOverflowArea());
-  InvalidateThebesLayersInLineBox(this, aLine);
 
   // Adjust the frames in the line
   nsIFrame* kid = aLine->mFirstChild;
@@ -3453,6 +3446,9 @@ nsBlockFrame::ReflowInlineFrames(nsBlockReflowState& aState,
   }
   nsFlowAreaRect floatAvailableSpace = aState.GetFloatAvailableSpace();
 
+#ifdef DEBUG
+  PRInt32 spins = 0;
+#endif
   LineReflowStatus lineReflowStatus;
   do {
     nscoord availableSpaceHeight = 0;
@@ -3507,6 +3503,15 @@ nsBlockFrame::ReflowInlineFrames(nsBlockReflowState& aState,
           aState.mCurrentLineFloats.DeleteAll();
           aState.mBelowCurrentLineFloats.DeleteAll();
         }
+        
+  #ifdef DEBUG
+        spins++;
+        if (1000 == spins) {
+          ListTag(stdout);
+          printf(": yikes! spinning on a line over 1000 times!\n");
+          NS_ABORT();
+        }
+  #endif
 
         // Don't allow pullup on a subsequent LINE_REFLOW_REDO_NO_PULL pass
         allowPullUp = PR_FALSE;

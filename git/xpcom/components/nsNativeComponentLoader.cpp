@@ -204,8 +204,7 @@ nsNativeModuleLoader::LoadModule(nsILocalFile* aFile)
     void *module = PR_FindSymbol(data.library, "NSModule");
     if (module) {
         data.module = *(mozilla::Module const *const *) module;
-        if (mozilla::Module::kVersion == data.module->mVersion &&
-            mLibraries.Put(hashedFile, data))
+        if (mLibraries.Put(hashedFile, data))
             return data.module;
     }
     else {

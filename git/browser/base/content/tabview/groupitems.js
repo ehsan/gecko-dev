@@ -739,6 +739,8 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     this.droppable(true);
     this.setTrenches(this.bounds);
 
+    UI.setActive(this);
+
     iQ(this.container).show().animate({
       "-moz-transform": "scale(1)",
       "opacity": 1
@@ -748,13 +750,11 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         self._children.forEach(function(child) {
           iQ(child.container).show();
         });
-
-        UI.setActive(self);
-        self._sendToSubscribers("groupShown", { groupItemId: self.id });
       }
     });
 
     GroupItems.updateGroupCloseButtons();
+    self._sendToSubscribers("groupShown", { groupItemId: self.id });
   },
 
   // ----------

@@ -146,16 +146,7 @@ public:
   {
     nsCOMPtr<mozIStorageRow> row;
     while (NS_SUCCEEDED(aResultSet->GetNextRow(getter_AddRefs(row))) && row) {
-      // Skip tags, for the use-cases of this async getter they are useless.
-      PRInt64 grandParentId, tagsFolderId;
-      nsresult rv = row->GetInt64(1, &grandParentId);
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = mBookmarksSvc->GetTagsFolder(&tagsFolderId);
-      NS_ENSURE_SUCCESS(rv, rv);
-      if (grandParentId == tagsFolderId) {
-        continue;
-      }
-      rv = row->GetInt64(0, &mData.itemId);
+      nsresult rv = row->GetInt64(0, &mData.itemId);
       NS_ENSURE_SUCCESS(rv, rv);
       if (mCallback) {
         ((*mBookmarksSvc).*mCallback)(mData);
@@ -311,9 +302,8 @@ nsNavBookmarks::GetStatement(const nsCOMPtr<mozIStorageStatement>& aStmt)
   // importing, syncing or due to extensions.
   // Note: not using a JOIN is cheaper in this case.
   RETURN_IF_STMT(mDBFindURIBookmarks, NS_LITERAL_CSTRING(
-    "SELECT b.id, t.parent "
+    "SELECT b.id "
     "FROM moz_bookmarks b "
-    "JOIN moz_bookmarks t on t.id = b.parent "
     "WHERE b.fk = (SELECT id FROM moz_places WHERE url = :page_url) "
     "ORDER BY b.lastModified DESC, b.id DESC "));
 
@@ -950,7 +940,7 @@ nsNavBookmarks::InsertBookmark(PRInt64 aFolder,
   if (grandParentId == mTagsRoot) {
     // query for all bookmarks for that URI, notify for each
     nsTArray<PRInt64> bookmarks;
-    rv = GetBookmarkIdsForURITArray(aURI, bookmarks, true);
+    rv = GetBookmarkIdsForURITArray(aURI, bookmarks);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (bookmarks.Length()) {
@@ -1083,7 +1073,7 @@ nsNavBookmarks::RemoveItem(PRInt64 aItemId)
     rv = NS_NewURI(getter_AddRefs(uri), spec);
     NS_ENSURE_SUCCESS(rv, rv);
     nsTArray<PRInt64> bookmarks;
-    rv = GetBookmarkIdsForURITArray(uri, bookmarks, true);
+    rv = GetBookmarkIdsForURITArray(uri, bookmarks);
     NS_ENSURE_SUCCESS(rv, rv);
 
     for (PRUint32 i = 0; i < bookmarks.Length(); i++) {
@@ -1669,7 +1659,7 @@ nsNavBookmarks::RemoveFolderChildren(PRInt64 aFolderId)
         NS_ENSURE_SUCCESS(rv, rv);
 
         nsTArray<PRInt64> bookmarks;
-        rv = GetBookmarkIdsForURITArray(uri, bookmarks, true);
+        rv = GetBookmarkIdsForURITArray(uri, bookmarks);
         NS_ENSURE_SUCCESS(rv, rv);
 
         if (bookmarks.Length()) {
@@ -2559,8 +2549,7 @@ nsNavBookmarks::GetFolderIdForItem(PRInt64 aItemId, PRInt64* aFolderId)
 
 nsresult
 nsNavBookmarks::GetBookmarkIdsForURITArray(nsIURI* aURI,
-                                           nsTArray<PRInt64>& aResult,
-                                           bool aSkipTags)
+                                           nsTArray<PRInt64>& aResult)
 {
   NS_ENSURE_ARG(aURI);
 
@@ -2570,15 +2559,6 @@ nsNavBookmarks::GetBookmarkIdsForURITArray(nsIURI* aURI,
 
   PRBool more;
   while (NS_SUCCEEDED((rv = stmt->ExecuteStep(&more))) && more) {
-    if (aSkipTags) {
-      // Skip tags, for the use-cases of this async getter they are useless.
-      PRInt64 grandParentId;
-      nsresult rv = stmt->GetInt64(1, &grandParentId);
-      NS_ENSURE_SUCCESS(rv, rv);
-      if (grandParentId == mTagsRoot) {
-        continue;
-      }
-    }
     PRInt64 bookmarkId;
     rv = stmt->GetInt64(kFindBookmarksIndex_ID, &bookmarkId);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -2603,8 +2583,7 @@ nsNavBookmarks::GetBookmarkIdsForURI(nsIURI* aURI, PRUint32* aCount,
   nsTArray<PRInt64> bookmarks;
 
   // Get the information from the DB as a TArray
-  // TODO (bug 653816): make this API skip tags by default.
-  nsresult rv = GetBookmarkIdsForURITArray(aURI, bookmarks, false);
+  nsresult rv = GetBookmarkIdsForURITArray(aURI, bookmarks);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Copy the results into a new array for output

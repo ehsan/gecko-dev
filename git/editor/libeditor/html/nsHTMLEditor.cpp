@@ -1393,6 +1393,12 @@ PRBool nsHTMLEditor::IsModifiable()
   return !IsReadonly();
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  nsIHTMLEditor methods 
+#pragma mark -
+#endif
+
 NS_IMETHODIMP
 nsHTMLEditor::UpdateBaseURL()
 {
@@ -3478,6 +3484,11 @@ nsHTMLEditor::GetLinkedObjects(nsISupportsArray** aNodeList)
   return NS_OK;
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  nsIEditorStyleSheets methods 
+#pragma mark -
+#endif
 
 NS_IMETHODIMP
 nsHTMLEditor::AddStyleSheet(const nsAString &aURL)
@@ -3799,6 +3810,12 @@ nsHTMLEditor::GetEmbeddedObjects(nsISupportsArray** aNodeList)
 }
 
 
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  nsIEditor overrides 
+#pragma mark -
+#endif
+
 NS_IMETHODIMP nsHTMLEditor::DeleteNode(nsIDOMNode * aNode)
 {
   // do nothing if the node is read-only
@@ -3845,6 +3862,12 @@ NS_IMETHODIMP nsHTMLEditor::InsertTextImpl(const nsAString& aStringToInsert,
 
   return nsEditor::InsertTextImpl(aStringToInsert, aInOutNode, aInOutOffset, aDoc);
 }
+
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  nsStubMutationObserver overrides 
+#pragma mark -
+#endif
 
 void
 nsHTMLEditor::ContentAppended(nsIDocument *aDocument, nsIContent* aContainer,
@@ -3899,6 +3922,11 @@ nsHTMLEditor::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer,
   }
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  support utils
+#pragma mark -
+#endif
 
 /* This routine examines aNode and it's ancestors looking for any node which has the
    -moz-user-select: all style lit.  Return the highest such ancestor.  */
@@ -4043,6 +4071,12 @@ nsHTMLEditor::DebugUnitTests(PRInt32 *outNumTests, PRInt32 *outNumTestsFailed)
 #endif
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  StyleSheet utils 
+#pragma mark -
+#endif
+
 
 NS_IMETHODIMP 
 nsHTMLEditor::StyleSheetLoaded(nsCSSStyleSheet* aSheet, PRBool aWasAlternate,
@@ -4079,6 +4113,12 @@ nsHTMLEditor::StyleSheetLoaded(nsCSSStyleSheet* aSheet, PRBool aWasAlternate,
 
   return NS_OK;
 }
+
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  nsEditor overrides 
+#pragma mark -
+#endif
 
 
 /** All editor operations which alter the doc should be prefaced
@@ -4225,6 +4265,12 @@ nsHTMLEditor::SelectAll()
 }
 
 
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  Random methods 
+#pragma mark -
+#endif
+
 // this will NOT find aAttribute unless aAttribute has a non-null value
 // so singleton attributes like <Table border> will not be matched!
 void nsHTMLEditor::IsTextPropertySetByContent(nsIDOMNode        *aNode,
@@ -4294,6 +4340,9 @@ void nsHTMLEditor::IsTextPropertySetByContent(nsIDOMNode        *aNode,
   }
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 //================================================================
 // HTML Editor methods
@@ -4398,6 +4447,9 @@ nsHTMLEditor::GetEnclosingTable(nsIDOMNode *aNode)
   return tbl;
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 #ifdef PRE_NODE_IN_BODY
 nsCOMPtr<nsIDOMElement> nsHTMLEditor::FindPreElement()
@@ -4500,6 +4552,9 @@ nsHTMLEditor::SetSelectionAtDocumentStart(nsISelection *aSelection)
   return aSelection->Collapse(rootElement,0);
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
 
 ///////////////////////////////////////////////////////////////////////////
 // RemoveBlockContainer: remove inNode, reparenting it's children into their

@@ -4659,9 +4659,7 @@ MJitDataStats(JSContext *cx, uintN argc, jsval *vp)
 JSBool
 StringStats(JSContext *cx, uintN argc, jsval *vp)
 {
-    // XXX: should report something meaningful;  bug 625305 will probably fix
-    // this.
-    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(0));
+    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(cx->runtime->stringMemoryUsed));
     return true;
 }
 

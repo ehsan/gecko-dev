@@ -207,11 +207,11 @@ ShadowLayerForwarder::CreatedThebesBuffer(ShadowableLayer* aThebes,
 void
 ShadowLayerForwarder::CreatedImageBuffer(ShadowableLayer* aImage,
                                          nsIntSize aSize,
-                                         const SharedImage& aTempFrontImage)
+                                         const SurfaceDescriptor& aTempFrontSurface)
 {
   mTxn->AddEdit(OpCreateImageBuffer(NULL, Shadow(aImage),
                                     aSize,
-                                    aTempFrontImage));
+                                    aTempFrontSurface));
 }
 
 void
@@ -291,10 +291,10 @@ ShadowLayerForwarder::PaintedThebesBuffer(ShadowableLayer* aThebes,
 }
 void
 ShadowLayerForwarder::PaintedImage(ShadowableLayer* aImage,
-                                   const SharedImage& aNewFrontImage)
+                                   const SurfaceDescriptor& aNewFrontSurface)
 {
   mTxn->AddPaint(OpPaintImage(NULL, Shadow(aImage),
-                              aNewFrontImage));
+                              aNewFrontSurface));
 }
 void
 ShadowLayerForwarder::PaintedCanvas(ShadowableLayer* aCanvas,

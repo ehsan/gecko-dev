@@ -37,6 +37,7 @@
 
 #include "nsISupports.idl"
 #include "nspluginroot.idl"
+#include "nsIPlugin.idl"
 #include "nsIInputStream.idl"
 
 interface nsIPluginInstance;

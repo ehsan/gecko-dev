@@ -233,7 +233,7 @@ static void CheckClassInitialized()
   NPN_PLUGIN_LOG(PLUGIN_LOG_NORMAL,("NPN callbacks initialized\n"));
 }
 
-NS_IMPL_ISUPPORTS0(nsNPAPIPlugin)
+NS_IMPL_ISUPPORTS1(nsNPAPIPlugin, nsIPlugin)
 
 nsNPAPIPlugin::nsNPAPIPlugin()
 {
@@ -534,7 +534,7 @@ nsNPAPIPlugin::PluginFuncs()
   return &mPluginFuncs;
 }
 
-nsresult
+NS_IMETHODIMP
 nsNPAPIPlugin::CreatePluginInstance(nsIPluginInstance **aResult)
 {
   if (!aResult)
@@ -625,7 +625,7 @@ MakeNewNPAPIStreamInternal(NPP npp, const char *relativeURL, const char *target,
   return NPERR_NO_ERROR;
 }
 
-#if defined(MOZ_MEMORY_WINDOWS)
+#if defined(MOZ_MEMORY_WINDOWS) && !defined(MOZ_MEMORY_WINCE)
 extern "C" size_t malloc_usable_size(const void *ptr);
 #endif
 
@@ -738,7 +738,7 @@ doGetIdentifier(JSContext *cx, const NPUTF8* name)
   return StringToNPIdentifier(str);
 }
 
-#if defined(MOZ_MEMORY_WINDOWS)
+#if defined(MOZ_MEMORY_WINDOWS) && !defined(MOZ_MEMORY_WINCE)
 BOOL
 InHeap(HANDLE hHeap, LPVOID lpMem)
 {
@@ -1919,7 +1919,7 @@ _releasevariantvalue(NPVariant* variant)
       const NPString *s = &NPVARIANT_TO_STRING(*variant);
 
       if (s->UTF8Characters) {
-#if defined(MOZ_MEMORY_WINDOWS)
+#if defined(MOZ_MEMORY_WINDOWS) && !defined(MOZ_MEMORY_WINCE)
         if (malloc_usable_size((void *)s->UTF8Characters) != 0) {
           PR_Free((void *)s->UTF8Characters);
         } else {
@@ -2225,11 +2225,44 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   }
 #endif
 
-  // we no longer hand out any XPCOM objects
+  // we no longer hand out any XPCOM objects, except on WINCE,
+  // where it's needed for the ActiveX shunt that makes Flash
+  // work until we get an NPAPI plugin there.
+#ifdef WINCE
+  case NPNVDOMWindow: {
+    nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *)npp->ndata;
+    NS_ENSURE_TRUE(inst, NPERR_GENERIC_ERROR);
+
+    nsIDOMWindow *domWindow = inst->GetDOMWindow().get();
+
+    if (domWindow) {
+      // Pass over ownership of domWindow to the caller.
+      (*(nsIDOMWindow**)result) = domWindow;
+      return NPERR_NO_ERROR;
+    }
+
+    return NPERR_GENERIC_ERROR;
+  }
+
+  case NPNVDOMElement: {
+    nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *) npp->ndata;
+    NS_ENSURE_TRUE(inst, NPERR_GENERIC_ERROR);
+
+    nsCOMPtr<nsIDOMElement> e;
+    inst->GetDOMElement(getter_AddRefs(e));
+    if (e) {
+      NS_ADDREF(*(nsIDOMElement**)result = e.get());
+      return NPERR_NO_ERROR;
+    }
+
+    return NPERR_GENERIC_ERROR;
+  }
+#else
   case NPNVDOMElement:
     // fall through
   case NPNVDOMWindow:
     // fall through
+#endif /* WINCE */
   case NPNVserviceManager:
     // old XPCOM objects, no longer supported, but null out the out
     // param to avoid crashing plugins that still try to use this.

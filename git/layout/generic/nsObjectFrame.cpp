@@ -924,7 +924,6 @@ nsObjectFrame::CreateWidget(nscoord aWidth,
   } else {
 #ifndef XP_MACOSX
     rpc->RegisterPluginForGeometryUpdates(this);
-    rpc->RequestUpdatePluginGeometry(this);
 #endif
   }
 
@@ -1345,7 +1344,8 @@ public:
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
-                                   const nsRect& aAllowVisibleRegionExpansion);
+                                   const nsRect& aAllowVisibleRegionExpansion,
+                                   PRBool& aContainsRootContentDocBG);
 
   NS_DISPLAY_DECL_NAME("PluginReadback", TYPE_PLUGIN_READBACK)
 
@@ -1378,10 +1378,12 @@ nsDisplayPluginReadback::GetBounds(nsDisplayListBuilder* aBuilder)
 PRBool
 nsDisplayPluginReadback::ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                            nsRegion* aVisibleRegion,
-                                           const nsRect& aAllowVisibleRegionExpansion)
+                                           const nsRect& aAllowVisibleRegionExpansion,
+                                           PRBool& aContainsRootContentDocBG)
 {
   if (!nsDisplayItem::ComputeVisibility(aBuilder, aVisibleRegion,
-                                        aAllowVisibleRegionExpansion))
+                                        aAllowVisibleRegionExpansion,
+                                        aContainsRootContentDocBG))
     return PR_FALSE;
 
   nsRect expand;
@@ -1410,11 +1412,13 @@ nsDisplayPlugin::Paint(nsDisplayListBuilder* aBuilder,
 PRBool
 nsDisplayPlugin::ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
-                                   const nsRect& aAllowVisibleRegionExpansion)
+                                   const nsRect& aAllowVisibleRegionExpansion,
+                                   PRBool& aContainsRootContentDocBG)
 {
   mVisibleRegion.And(*aVisibleRegion, GetBounds(aBuilder));  
   return nsDisplayItem::ComputeVisibility(aBuilder, aVisibleRegion,
-                                          aAllowVisibleRegionExpansion);
+                                          aAllowVisibleRegionExpansion,
+                                          aContainsRootContentDocBG);
 }
 
 nsRegion
@@ -2545,7 +2549,7 @@ nsObjectFrame::HandleEvent(nsPresContext* aPresContext,
   }
 
   if (mInstanceOwner->SendNativeEvents() &&
-      NS_IS_PLUGIN_EVENT(anEvent)) {
+      (NS_IS_PLUGIN_EVENT(anEvent) || NS_IS_NON_RETARGETED_PLUGIN_EVENT(anEvent))) {
     *anEventStatus = mInstanceOwner->ProcessEvent(*anEvent);
     return rv;
   }
@@ -6890,7 +6894,7 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
     // Set this before calling ProcessEvent to avoid endless recursion.
     mSentInitialTopLevelWindowEvent = PR_TRUE;
 
-    nsPluginEvent pluginEvent(PR_TRUE, NS_PLUGIN_FOCUS_EVENT, nsnull);
+    nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, nsnull);
     NPCocoaEvent cocoaEvent;
     InitializeNPCocoaEvent(&cocoaEvent);
     cocoaEvent.type = NPCocoaEventWindowFocusChanged;

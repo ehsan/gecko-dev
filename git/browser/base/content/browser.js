@@ -6892,7 +6892,7 @@ var gPluginHandler = {
       "npapi-carbon-event-model-failure" : {
                                              barID    : "carbon-failure-plugins",
                                              iconURL  : "chrome://mozapps/skin/plugins/notifyPluginGeneric.png",
-                                             message  : gNavigatorBundle.getString("carbonFailurePluginsMessage.message"),
+                                             message  : gNavigatorBundle.getString("carbonFailurePluginsMessage.title"),
                                              buttons: [{
                                                          label     : gNavigatorBundle.getString("carbonFailurePluginsMessage.restartButton.label"),
                                                          accessKey : gNavigatorBundle.getString("carbonFailurePluginsMessage.restartButton.accesskey"),
