@@ -1828,10 +1828,7 @@ nsFrameSelection::TakeFocus(nsIContent *aNewFocus,
     // BUT only do this in an editor
 
     NS_ENSURE_STATE(mShell);
-    PRInt16 displaySelection;
-    nsresult result = mShell->GetSelectionFlags(&displaySelection);
-    if (NS_FAILED(result))
-      return result;
+    PRInt16 displaySelection = mShell->GetSelectionFlags();
 
     // Editor has DISPLAY_ALL selection type
     if (displaySelection == nsISelectionDisplay::DISPLAY_ALL)
@@ -3414,7 +3411,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTypedSelection)
   NS_INTERFACE_MAP_ENTRY(nsISelectionPrivate)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISelection)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(Selection)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Selection)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTypedSelection)

@@ -222,7 +222,6 @@ nsRefMapEntry::RemoveContent(nsIContent* aContent)
 
 nsXULDocument::nsXULDocument(void)
     : nsXMLDocument("application/vnd.mozilla.xul+xml"),
-      mDocDirection(Direction_Uninitialized),
       mDocLWTheme(Doc_Theme_Uninitialized),
       mState(eState_Master),
       mResolutionPhase(nsForwardReference::eStart)
@@ -390,7 +389,7 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsXULDocument)
       NS_INTERFACE_TABLE_ENTRY(nsXULDocument, nsICSSLoaderObserver)
     NS_OFFSET_AND_INTERFACE_TABLE_END
     NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-    NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(XULDocument)
+    NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XULDocument)
 NS_INTERFACE_MAP_END_INHERITING(nsXMLDocument)
 
 
@@ -4606,59 +4605,59 @@ nsXULDocument::GetWindowRoot()
 PRBool
 nsXULDocument::IsDocumentRightToLeft()
 {
-    if (mDocDirection == Direction_Uninitialized) {
-        mDocDirection = Direction_LeftToRight; // default to ltr on failure
-
-        // setting the localedir attribute on the root element forces a
-        // specific direction for the document.
-        nsIContent* content = GetRootContent();
-        if (content) {
-            static nsIContent::AttrValuesArray strings[] =
-                {&nsGkAtoms::ltr, &nsGkAtoms::rtl, nsnull};
-            switch (content->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::localedir,
-                                             strings, eCaseMatters)) {
-                case 0: mDocDirection = Direction_LeftToRight; return PR_FALSE;
-                case 1: mDocDirection = Direction_RightToLeft; return PR_TRUE;
-                default: break;// otherwise, not a valid value, so fall through
-            }
-        }
-
-        // otherwise, get the locale from the chrome registry and
-        // look up the intl.uidirection.<locale> preference
-        nsCOMPtr<nsIXULChromeRegistry> reg =
-            do_GetService(NS_CHROMEREGISTRY_CONTRACTID);
-        if (reg) {
-            nsCAutoString package;
-            PRBool isChrome;
-            if (NS_SUCCEEDED(mDocumentURI->SchemeIs("chrome", &isChrome)) &&
-                isChrome) {
-                mDocumentURI->GetHostPort(package);
-            }
-            else {
-                // use the 'global' package for about and resource uris.
-                // otherwise, just default to left-to-right.
-                PRBool isAbout, isResource;
-                if (NS_SUCCEEDED(mDocumentURI->SchemeIs("about", &isAbout)) &&
-                    isAbout) {
-                    package.AssignLiteral("global");
-                }
-                else if (NS_SUCCEEDED(mDocumentURI->SchemeIs("resource", &isResource)) &&
-                    isResource) {
-                    package.AssignLiteral("global");
-                }
-                else {
-                    return PR_FALSE;
-                }
-            }
-
-            PRBool isRTL = PR_FALSE;
-            reg->IsLocaleRTL(package, &isRTL);
-            mDocDirection = isRTL ?
-                            Direction_RightToLeft : Direction_LeftToRight;
+    // setting the localedir attribute on the root element forces a
+    // specific direction for the document.
+    nsIContent* content = GetRootContent();
+    if (content) {
+        static nsIContent::AttrValuesArray strings[] =
+            {&nsGkAtoms::ltr, &nsGkAtoms::rtl, nsnull};
+        switch (content->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::localedir,
+                                         strings, eCaseMatters)) {
+            case 0: return PR_FALSE;
+            case 1: return PR_TRUE;
+            default: break; // otherwise, not a valid value, so fall through
         }
     }
 
-    return (mDocDirection == Direction_RightToLeft);
+    // otherwise, get the locale from the chrome registry and
+    // look up the intl.uidirection.<locale> preference
+    nsCOMPtr<nsIXULChromeRegistry> reg =
+        do_GetService(NS_CHROMEREGISTRY_CONTRACTID);
+    if (!reg)
+        return PR_FALSE;
+
+    nsCAutoString package;
+    PRBool isChrome;
+    if (NS_SUCCEEDED(mDocumentURI->SchemeIs("chrome", &isChrome)) &&
+        isChrome) {
+        mDocumentURI->GetHostPort(package);
+    }
+    else {
+        // use the 'global' package for about and resource uris.
+        // otherwise, just default to left-to-right.
+        PRBool isAbout, isResource;
+        if (NS_SUCCEEDED(mDocumentURI->SchemeIs("about", &isAbout)) &&
+            isAbout) {
+            package.AssignLiteral("global");
+        }
+        else if (NS_SUCCEEDED(mDocumentURI->SchemeIs("resource", &isResource)) &&
+            isResource) {
+            package.AssignLiteral("global");
+        }
+        else {
+            return PR_FALSE;
+        }
+    }
+
+    PRBool isRTL = PR_FALSE;
+    reg->IsLocaleRTL(package, &isRTL);
+    return isRTL;
+}
+
+void
+nsXULDocument::ResetDocumentDirection()
+{
+    DocumentStatesChanged(NS_DOCUMENT_STATE_RTL_LOCALE);
 }
 
 int
@@ -4668,7 +4667,6 @@ nsXULDocument::DirectionChanged(const char* aPrefName, void* aData)
   nsXULDocument* doc = (nsXULDocument *)aData;
   if (doc) {
       doc->ResetDocumentDirection();
-      doc->DocumentStatesChanged(NS_DOCUMENT_STATE_RTL_LOCALE);
   }
 
   return 0;

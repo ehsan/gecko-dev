@@ -4745,6 +4745,11 @@ nsCSSFrameConstructor::FindSVGData(nsIContent* aContent,
     return &sSuppressData;
   }
 
+  // We don't need frames for animation elements
+  if (aContent->IsNodeOfType(nsINode::eANIMATION)) {
+    return &sSuppressData;
+  }
+
   // Reduce the number of frames we create unnecessarily. Note that this is not
   // where we select which frame in a <switch> to render! That happens in
   // nsSVGSwitchFrame::PaintSVG.
@@ -5822,8 +5827,7 @@ nsCSSFrameConstructor::FindFrameForContentSibling(nsIContent* aContent,
   // If the frame is out-of-flow, GetPrimaryFrame() will have returned the
   // out-of-flow frame; we want the placeholder.
   if (sibling->GetStateBits() & NS_FRAME_OUT_OF_FLOW) {
-    nsIFrame* placeholderFrame;
-    mPresShell->GetPlaceholderFrameFor(sibling, &placeholderFrame);
+    nsIFrame* placeholderFrame = mPresShell->FrameManager()->GetPlaceholderFrameFor(sibling);
     NS_ASSERTION(placeholderFrame, "no placeholder for out-of-flow frame");
     sibling = placeholderFrame;
   }
@@ -8242,8 +8246,7 @@ nsCSSFrameConstructor::ReplicateFixedFrames(nsPageContentFrame* aParentFrame)
   // are within fixed frames, because that would cause duplicates on the new
   // page - bug 389619)
   for (nsIFrame* fixed = firstFixed; fixed; fixed = fixed->GetNextSibling()) {
-    nsIFrame* prevPlaceholder = nsnull;
-    mPresShell->GetPlaceholderFrameFor(fixed, &prevPlaceholder);
+    nsIFrame* prevPlaceholder = mPresShell->FrameManager()->GetPlaceholderFrameFor(fixed);
     if (prevPlaceholder &&
         nsLayoutUtils::IsProperAncestorFrame(prevCanvasFrame, prevPlaceholder)) {
       nsresult rv = ConstructFrame(state, fixed->GetContent(),

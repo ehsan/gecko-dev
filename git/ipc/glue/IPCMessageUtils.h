@@ -299,18 +299,13 @@ struct ParamTraits<gfxMatrix>
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    if (!ReadParam(aMsg, aIter, &aResult->xx))
-      return false;
-    if (!ReadParam(aMsg, aIter, &aResult->xy))
-      return false;
-    if (!ReadParam(aMsg, aIter, &aResult->yx))
-      return false;
-    if (!ReadParam(aMsg, aIter, &aResult->yy))
-      return false;
-    if (!ReadParam(aMsg, aIter, &aResult->x0))
-      return false;
-    if (!ReadParam(aMsg, aIter, &aResult->y0))
-      return false;
+    if (ReadParam(aMsg, aIter, &aResult->xx) &&
+        ReadParam(aMsg, aIter, &aResult->xy) &&
+        ReadParam(aMsg, aIter, &aResult->yx) &&
+        ReadParam(aMsg, aIter, &aResult->yy) &&
+        ReadParam(aMsg, aIter, &aResult->x0) &&
+        ReadParam(aMsg, aIter, &aResult->y0))
+      return true;
 
     return true;
   }

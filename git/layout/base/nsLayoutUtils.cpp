@@ -98,6 +98,10 @@
 #include "nsSVGOuterSVGFrame.h"
 #endif
 
+#ifdef MOZ_XUL
+#include "nsXULPopupManager.h"
+#endif
+
 using namespace mozilla::layers;
 
 /**
@@ -779,6 +783,28 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(const nsEvent* aEvent, nsIFrame* aF
   return widgetToView - aFrame->GetOffsetTo(rootFrame);
 }
 
+nsIFrame*
+nsLayoutUtils::GetPopupFrameForEventCoordinates(const nsEvent* aEvent)
+{
+#ifdef MOZ_XUL
+  nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
+  if (!pm) {
+    return nsnull;
+  }
+  nsTArray<nsIFrame*> popups = pm->GetVisiblePopups();
+  PRUint32 i;
+  // Search from top to bottom
+  for (i = 0; i < popups.Length(); i++) {
+    nsIFrame* popup = popups[i];
+    if (popup->GetOverflowRect().Contains(
+          GetEventCoordinatesRelativeTo(aEvent, popup))) {
+      return popup;
+    }
+  }
+#endif
+  return nsnull;
+}
+
 gfxMatrix
 nsLayoutUtils::ChangeMatrixBasis(const gfxPoint &aOrigin,
                                  const gfxMatrix &aMatrix)
@@ -1203,6 +1229,12 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   PRUint32 flags = nsDisplayList::PAINT_DEFAULT;
   if (aFlags & PAINT_WIDGET_LAYERS) {
     flags |= nsDisplayList::PAINT_USE_WIDGET_LAYERS;
+    nsIWidget *widget = aFrame->GetWindow();
+    PRInt32 pixelRatio = widget->GetDeviceContext()->AppUnitsPerDevPixel();
+    nsIntRegion visibleWindowRegion(visibleRegion.ToOutsidePixels(pixelRatio));
+    nsIntRegion dirtyWindowRegion(aDirtyRegion.ToOutsidePixels(pixelRatio));
+
+    widget->UpdatePossiblyTransparentRegion(dirtyWindowRegion, visibleWindowRegion);
   }
   list.Paint(&builder, aRenderingContext, flags);
   // Flush the list so we don't trigger the IsEmpty-on-destruction assertion

@@ -1114,7 +1114,7 @@ statusbarpanel#statusbar-display {
 
 .tabbrowser-tab {
   border: none !important;
-  padding: 0px;
+  padding: 0 2px;
   margin-bottom: 1px;
 }
 
@@ -1125,8 +1125,8 @@ statusbarpanel#statusbar-display {
 .tab-icon-image {
   width: 16px;
   height: 16px;
-  -moz-margin-start: 4px;
-  -moz-margin-end: 3px;
+  -moz-margin-start: 1px;
+  -moz-margin-end: 4px;
   list-style-image: url("chrome://global/skin/icons/folder-item.png");
   -moz-image-region: rect(0px, 16px, 16px, 0px);
 }
@@ -1205,7 +1205,6 @@ statusbarpanel#statusbar-display {
 }
 
 .tab-close-button {
-  -moz-margin-end: 6px;
   padding: 0px;
   border: none;
   list-style-image: url("moz-icon://stock/gtk-close?size=menu");
@@ -1374,24 +1373,17 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
   -moz-box-shadow: none;
 }
 
-.ctrlTab-favicon[src],
-.allTabs-favicon[src] {
-  background-color: white;
-  padding: 2px;
-/* XXX: Upscaling images is ugly on Linux (bug 422179)
-  width: 24px;
-  height: 24px;
-  opacity: .7;
-*/
-  width: 20px;
-  height: 20px;
-  opacity: .8;
-}
-
 /* Ctrl-Tab */
 
 #ctrlTab-panel {
   padding: 10px;
+}
+
+.ctrlTab-favicon[src] {
+  background-color: white;
+  width: 20px;
+  height: 20px;
+  padding: 2px;
 }
 
 .ctrlTab-preview:not(#ctrlTab-showAll) .tabPreview-canvas {
@@ -1408,13 +1400,7 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
 /* All Tabs */
 
 #allTabs-panel {
-  /* compensate for the widget border and padding to center the panel correctly */
-  margin-left: -13px;
-}
-
-#allTabs-tab-close-button {
-  /*XXX without this, the closebutton can cause the panel to expand horizontally */
-  margin-right: -16px;
+  padding-bottom: 10px;
 }
 
 #allTabs-meta {
@@ -1426,8 +1412,9 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
   -moz-margin-end: 0;
 }
 
-#allTabs-stack {
-  margin: 10px;
+.allTabs-favicon {
+  margin-top: 1px;
+  -moz-margin-start: 1px;
 }
 
 .allTabs-preview-label {

@@ -535,7 +535,7 @@ protected:
   // should match).
   PRPackedBool           mIsModalContentWindow;
 
-  // Tracks activation state that's used for :-moz-window-inactive 
+  // Tracks activation state that's used for :-moz-window-inactive.
   PRPackedBool           mIsActive;
 
   // And these are the references between inner and outer windows.

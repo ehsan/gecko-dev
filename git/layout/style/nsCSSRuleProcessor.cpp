@@ -2354,9 +2354,8 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
   // Don't do our special handling of certain attributes if the attr
   // hasn't changed yet.
   if (aData->mAttrHasChanged) {
-    // check for the localedir, lwtheme and lwthemetextcolor attribute on root XUL elements
-    if ((aData->mAttribute == nsGkAtoms::localedir ||
-         aData->mAttribute == nsGkAtoms::lwtheme ||
+    // check for the lwtheme and lwthemetextcolor attribute on root XUL elements
+    if ((aData->mAttribute == nsGkAtoms::lwtheme ||
          aData->mAttribute == nsGkAtoms::lwthemetextcolor) &&
         aData->mNameSpaceID == kNameSpaceID_XUL &&
         aData->mContent == aData->mContent->GetOwnerDoc()->GetRootContent())

@@ -83,6 +83,7 @@ class XPCShellTests(object):
       This function is overloaded for a remote solution as os.path* won't work remotely.
     """
     self.testharnessdir = os.path.dirname(os.path.abspath(__file__))
+    self.headJSPath = self.testharnessdir.replace("\\", "/") + "/head.js"
     self.xpcshell = os.path.abspath(self.xpcshell)
 
     # we assume that httpd.js lives in components/ relative to xpcshell
@@ -152,9 +153,12 @@ class XPCShellTests(object):
       Load the root head.js file as the first file in our test path, before other head, test, and tail files.
       On a remote system, we overload this to add additional command line arguments, so this gets overloaded.
     """
+    # - NOTE: if you rename/add any of the constants set here, update
+    #   do_load_child_test_harness() in head.js
     self.xpcsCmd = [self.xpcshell, '-g', self.xrePath, '-j', '-s'] + \
         ['-e', 'const _HTTPD_JS_PATH = "%s";' % self.httpdJSPath,
-        '-f', os.path.join(self.testharnessdir, 'head.js')]
+         '-e', 'const _HEAD_JS_PATH = "%s";' % self.headJSPath,
+         '-f', os.path.join(self.testharnessdir, 'head.js')]
 
     if self.debuggerInfo:
       self.xpcsCmd = [self.debuggerInfo["path"]] + self.debuggerInfo["args"] + self.xpcsCmd
@@ -211,8 +215,8 @@ class XPCShellTests(object):
     """
     testfiles = sorted(glob(os.path.join(testdir, "test_*.js")))
     if self.singleFile:
-      if singleFile in [os.path.basename(x) for x in testfiles]:
-        testfiles = [os.path.join(testdir, singleFile)]
+      if self.singleFile in [os.path.basename(x) for x in testfiles]:
+        testfiles = [os.path.join(testdir, self.singleFile)]
       else: # not in this dir? skip it
         return None
             
@@ -277,7 +281,7 @@ class XPCShellTests(object):
     """
     return proc.returncode
 
-  def createLogFile(self, test, stdout):
+  def createLogFile(self, test, stdout, leakLogs):
     """
       For a given test and stdout buffer, create a log file.  also log any found leaks.
       On a remote system we have to fix the test name since it can contain directories.
@@ -286,10 +290,11 @@ class XPCShellTests(object):
       f = open(test + ".log", "w")
       f.write(stdout)
 
-      if os.path.exists(self.leakLogFile):
-        leaks = open(self.leakLogFile, "r")
-        f.write(leaks.read())
-        leaks.close()
+      for leakLog in leakLogs: 
+        if os.path.exists(leakLog):
+          leaks = open(leakLog, "r")
+          f.write(leaks.read())
+          leaks.close()
     finally:
       if f:
         f.close()
@@ -366,7 +371,7 @@ class XPCShellTests(object):
     for testdir in testdirs:
       self.buildXpcsCmd(testdir)
 
-      if testPath and not testdir.endswith(testPath):
+      if self.testPath and not testdir.endswith(self.testPath):
         continue
 
       testdir = os.path.abspath(testdir)
@@ -405,7 +410,9 @@ class XPCShellTests(object):
             # Not sure what else to do here...
             return True
 
-          if (self.getReturnCode(proc) != 0) or (stdout and re.search("^TEST-UNEXPECTED-FAIL", stdout, re.MULTILINE)):
+          if (self.getReturnCode(proc) != 0) or \
+              (stdout and re.search("^((parent|child): )?TEST-UNEXPECTED-FAIL", stdout, re.MULTILINE)) or \
+              (stdout and re.search(": SyntaxError:", stdout, re.MULTILINE)):
             print """TEST-UNEXPECTED-FAIL | %s | test failed (with xpcshell return code: %d), see following log:
   >>>>>>>
   %s
@@ -416,10 +423,17 @@ class XPCShellTests(object):
             passCount += 1
 
           checkForCrashes(testdir, self.symbolsPath, testName=test)
-          dumpLeakLog(self.leakLogFile, True)
+          # Find child process(es) leak log(s), if any: See InitLog() in
+          # xpcom/base/nsTraceRefcntImpl.cpp for logfile naming logic
+          leakLogs = [self.leakLogFile]
+          for childLog in glob(os.path.join(self.profileDir, "runxpcshelltests_leaks_*_pid*.log")):
+            if os.path.isfile(childLog):
+              leakLogs += [childLog]
+          for log in leakLogs:
+            dumpLeakLog(log, True)
 
           if self.logfiles and stdout:
-            self.createLogFile(test, stdout)
+            self.createLogFile(test, stdout, leakLogs)
         finally:
           if self.profileDir:
             self.removeDir(self.profileDir)

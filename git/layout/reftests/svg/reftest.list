@@ -24,6 +24,7 @@ include svg-integration/reftest.list
 == clipPath-basic-01.svg pass.svg
 == clipPath-basic-02.svg pass.svg
 == clipPath-basic-03.svg pass.svg
+== clipPath-basic-04.svg pass.svg
 == clipPath-winding-01.svg pass.svg
 == clip-surface-clone-01.svg clip-surface-clone-01-ref.svg
 == conditions-01.svg pass.svg
@@ -123,6 +124,7 @@ fails == inline-in-xul-basic-01.xul pass.svg
 == radialGradient-basic-02.svg pass.svg
 == radialGradient-basic-03.svg radialGradient-basic-03-ref.svg
 == rect-01.svg pass.svg
+== rect-02.svg pass.svg
 == rect-with-rx-and-ry-01.svg pass.svg
 == rect-with-rx-or-ry-01.svg rect-with-rx-or-ry-01-ref.svg
 == rootElement-null-01.svg pass.svg

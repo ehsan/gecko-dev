@@ -36,25 +36,28 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_WIDGET_QT
+#include <QApplication>
+#endif
+
 #include "ContentProcessChild.h"
 #include "TabChild.h"
 
 #include "mozilla/ipc/TestShellChild.h"
 #include "mozilla/net/NeckoChild.h"
-#include "History.h"
 
 #include "nsXULAppAPI.h"
 
-#include "nsDocShellCID.h"
-#include "nsNetUtil.h"
 #include "base/message_loop.h"
 #include "base/task.h"
 
-#include "nsChromeRegistry.h"
-
 using namespace mozilla::ipc;
 using namespace mozilla::net;
-using namespace mozilla::places;
+
+#ifdef MOZ_WIDGET_QT
+extern int    gArgc;
+extern char **gArgv;
+#endif
 
 namespace mozilla {
 namespace dom {
@@ -64,6 +67,10 @@ ContentProcessChild* ContentProcessChild::sSingleton;
 ContentProcessChild::ContentProcessChild()
     : mQuit(PR_FALSE)
 {
+#ifdef MOZ_WIDGET_QT
+    NS_ASSERTION(!qApp, "QApplication created too early?");
+    mQApp = new QApplication(gArgc, (char**)gArgv);
+#endif
 }
 
 ContentProcessChild::~ContentProcessChild()
@@ -134,15 +141,6 @@ ContentProcessChild::DeallocPNecko(PNeckoChild* necko)
     return true;
 }
 
-bool
-ContentProcessChild::RecvregisterChrome(const nsTArray<ChromePackage>& packages,
-                                        const nsTArray<ChromeResource>& resources)
-{
-    nsChromeRegistry* chromeRegistry = nsChromeRegistry::GetService();
-    chromeRegistry->RegisterRemoteChrome(packages, resources);
-    return true;
-}
-
 void
 ContentProcessChild::Quit()
 {
@@ -161,25 +159,6 @@ ContentProcessChild::ActorDestroy(ActorDestroyReason why)
     Quit();
 
     XRE_ShutdownChildProcess();
-}
-
-bool
-ContentProcessChild::RecvNotifyVisited(const nsCString& aURISpec, 
-                                       const bool& mIsVisited)
-{
-    nsresult rv;
-
-    // reconstruct our IPDL-passed nsIURI
-    nsCOMPtr<nsIURI> newURI;
-    rv = NS_NewURI(getter_AddRefs(newURI), aURISpec);
-    // Our failure mode is to consider the link unvisited.
-    if (NS_SUCCEEDED(rv)) {
-        History *hs = History::GetSingleton();
-        if (hs) {
-            hs->NotifyVisited(newURI, mIsVisited);
-        }
-    }
-    return true;
 }
 
 } // namespace dom

@@ -485,7 +485,7 @@ NS_INTERFACE_TABLE_HEAD(nsDOMStyleSheetList)
                       nsIDocumentObserver,
                       nsIMutationObserver)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(StyleSheetList)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(StyleSheetList)
 NS_INTERFACE_MAP_END
 
 
@@ -1137,7 +1137,7 @@ NS_INTERFACE_TABLE_HEAD(nsDOMStyleSheetSetList)
     NS_INTERFACE_TABLE_ENTRY(nsDOMStyleSheetSetList, nsIDOMDOMStringList)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(DOMStringList)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DOMStringList)
 NS_INTERFACE_MAP_END
 
 nsDOMStyleSheetSetList::nsDOMStyleSheetSetList(nsIDocument* aDocument)
@@ -1274,7 +1274,7 @@ NS_INTERFACE_MAP_BEGIN(nsDOMImplementation)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDOMImplementation)
   NS_INTERFACE_MAP_ENTRY(nsIPrivateDOMImplementation)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMDOMImplementation)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(DOMImplementation)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DOMImplementation)
 NS_INTERFACE_MAP_END
 
 
@@ -5555,22 +5555,20 @@ NS_IMETHODIMP
 nsDocument::InsertBefore(nsIDOMNode* aNewChild, nsIDOMNode* aRefChild,
                          nsIDOMNode** aReturn)
 {
-  return nsGenericElement::doReplaceOrInsertBefore(PR_FALSE, aNewChild, aRefChild, nsnull, this,
-                                          aReturn);
+  return ReplaceOrInsertBefore(PR_FALSE, aNewChild, aRefChild, aReturn);
 }
 
 NS_IMETHODIMP
 nsDocument::ReplaceChild(nsIDOMNode* aNewChild, nsIDOMNode* aOldChild,
                          nsIDOMNode** aReturn)
 {
-  return nsGenericElement::doReplaceOrInsertBefore(PR_TRUE, aNewChild, aOldChild, nsnull, this,
-                                          aReturn);
+  return ReplaceOrInsertBefore(PR_TRUE, aNewChild, aOldChild, aReturn);
 }
 
 NS_IMETHODIMP
 nsDocument::RemoveChild(nsIDOMNode* aOldChild, nsIDOMNode** aReturn)
 {
-  return nsGenericElement::doRemoveChild(aOldChild, nsnull, this, aReturn);
+  return nsINode::RemoveChild(aOldChild, aReturn);
 }
 
 NS_IMETHODIMP
@@ -5670,9 +5668,10 @@ nsDocument::IsSameNode(nsIDOMNode* aOther, PRBool* aReturn)
 NS_IMETHODIMP
 nsDocument::IsEqualNode(nsIDOMNode* aOther, PRBool* aReturn)
 {
-  NS_ENSURE_ARG_POINTER(aOther);
-
   *aReturn = PR_FALSE;
+
+  if (!aOther)
+    return NS_OK;
 
   // Node type check by QI.  We also reuse this later.
   nsCOMPtr<nsIDocument> aOtherDoc = do_QueryInterface(aOther);
@@ -6065,6 +6064,10 @@ nsDocument::AdoptNode(nsIDOMNode *aAdoptedNode, nsIDOMNode **aResult)
                                          nsIDOMUserDataHandler::NODE_ADOPTED,
                                          PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  if (adoptedNode->GetOwnerDoc() != this) {
+    return NS_ERROR_DOM_WRONG_DOCUMENT_ERR;
+  }
 
   return CallQueryInterface(adoptedNode, aResult);
 }
@@ -6754,12 +6757,11 @@ nsDocument::CreateElem(nsIAtom *aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
 PRBool
 nsDocument::IsSafeToFlush() const
 {
-  PRBool isSafeToFlush = PR_TRUE;
   nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
-  if (shell) {
-    shell->IsSafeToFlush(isSafeToFlush);
-  }
-  return isSafeToFlush;
+  if (!shell)
+    return PR_TRUE;
+
+  return shell->IsSafeToFlush();
 }
 
 nsresult

@@ -43,7 +43,10 @@
 
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
-#include "mozilla/chrome/ChromeTypes.h"
+
+#ifdef MOZ_WIDGET_QT
+class QApplication;
+#endif
 
 namespace mozilla {
 namespace dom {
@@ -72,14 +75,6 @@ public:
     virtual PNeckoChild* AllocPNecko();
     virtual bool DeallocPNecko(PNeckoChild*);
 
-    virtual bool RecvDummy(Shmem& foo) { return true; }
-
-    virtual bool RecvregisterChrome(const nsTArray<ChromePackage>& packages,
-                                    const nsTArray<ChromeResource>& resources);
-
-    virtual bool
-    RecvNotifyVisited(const nsCString& aURISpec, const bool& mIsVisited);
-
 private:
     NS_OVERRIDE
     virtual void ActorDestroy(ActorDestroyReason why);
@@ -92,6 +87,9 @@ private:
     nsTArray<nsAutoPtr<PTestShellChild> > mTestShells;
 
     PRBool mQuit;
+#ifdef MOZ_WIDGET_QT
+    nsAutoPtr<QApplication> mQApp;
+#endif
 
     DISALLOW_EVIL_CONSTRUCTORS(ContentProcessChild);
 };
