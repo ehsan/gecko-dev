@@ -2343,13 +2343,12 @@ TraceRecorder::TraceRecorder(JSContext* cx, VMSideExit* anchor, VMFragment* frag
     if (fragment == fragment->root) {
         /*
          * We poll the operation callback request flag. It is updated asynchronously whenever
-         * the callback is to be invoked. We can use INS_CONSTPTR here as JIT-ed code is per
-         * thread and cannot outlive the corresponding JSThreaData.
+         * the callback is to be invoked.
          */
         // XXX: this load is volatile.  If bug 545406 (loop-invariant code
         // hoisting) is implemented this fact will need to be made explicit.
-        LIns* flagptr = INS_CONSTPTR((void *) &JS_THREAD_DATA(cx)->interruptFlags);
-        LIns* x = lir->insLoad(LIR_ldi, flagptr, 0, ACC_LOAD_ANY);
+        LIns* x =
+            lir->insLoad(LIR_ldi, cx_ins, offsetof(JSContext, interruptFlags), ACC_LOAD_ANY);
         guard(true, lir->insEqI_0(x), snapshot(TIMEOUT_EXIT));
     }
 
@@ -2962,6 +2961,7 @@ public:
     JS_REQUIRES_STACK JS_ALWAYS_INLINE void
     visitGlobalSlot(Value *vp, unsigned n, unsigned slot) {
         debug_only_printf(LC_TMTracer, "global%d=", n);
+        JS_ASSERT(JS_THREAD_DATA(mCx)->waiveGCQuota);
         NativeToValue(mCx, *vp, *mTypeMap++, &mGlobal[slot]);
     }
 };
@@ -2995,6 +2995,7 @@ public:
 
     JS_REQUIRES_STACK JS_ALWAYS_INLINE bool
     visitStackSlots(Value *vp, size_t count, JSStackFrame* fp) {
+        JS_ASSERT(JS_THREAD_DATA(mCx)->waiveGCQuota);
         for (size_t i = 0; i < count; ++i) {
             if (vp == mStop)
                 return false;
@@ -3010,6 +3011,7 @@ public:
 
     JS_REQUIRES_STACK JS_ALWAYS_INLINE bool
     visitFrameObjPtr(JSObject **p, JSStackFrame* fp) {
+        JS_ASSERT(JS_THREAD_DATA(mCx)->waiveGCQuota);
         if ((Value *)p == mStop)
             return false;
         debug_only_printf(LC_TMTracer, "%s%u=", stackSlotKind(), 0);
@@ -6703,12 +6705,30 @@ ExecuteTree(JSContext* cx, TreeFragment* f, uintN& inlineCallCount,
     return ok;
 }
 
+class Guardian {
+    bool *flagp;
+public:
+    Guardian(bool *flagp) {
+        this->flagp = flagp;
+        JS_ASSERT(!*flagp);
+        *flagp = true;
+    }
+
+    ~Guardian() {
+        JS_ASSERT(*flagp);
+        *flagp = false;
+    }
+};
+
 static JS_FORCES_STACK void
 LeaveTree(TraceMonitor *tm, TracerState& state, VMSideExit* lr)
 {
     VOUCH_DOES_NOT_REQUIRE_STACK();
 
     JSContext* cx = state.cx;
+
+    /* Temporary waive the soft GC quota to make sure LeaveTree() doesn't fail. */
+    Guardian waiver(&JS_THREAD_DATA(cx)->waiveGCQuota);
 
     FrameInfo** callstack = state.callstackBase;
     double* stack = state.stackBase;
@@ -7096,7 +7116,7 @@ MonitorLoopEdge(JSContext* cx, uintN& inlineCallCount, RecordReason reason)
     }
 
     /* Do not enter the JIT code with a pending operation callback. */
-    if (JS_THREAD_DATA(cx)->interruptFlags) {
+    if (cx->interruptFlags) {
 #ifdef MOZ_TRACEVIS
         tvso.r = R_CALLBACK_PENDING;
 #endif
@@ -11003,7 +11023,7 @@ TraceRecorder::newArray(JSObject* ctor, uint32 argc, Value* argv, Value* rval)
     } else if (argc == 1 && argv[0].isNumber()) {
         // arr_ins = js_NewEmptyArray(cx, Array.prototype, length)
         LIns *args[] = { d2i(get(argv)), proto_ins, cx_ins }; // FIXME: is this 64-bit safe?
-        arr_ins = lir->insCall(&js_NewArrayWithSlots_ci, args);
+        arr_ins = lir->insCall(&js_NewEmptyArrayWithLength_ci, args);
         guard(false, lir->insEqP_0(arr_ins), OOM_EXIT);
     } else {
         // arr_ins = js_NewArrayWithSlots(cx, Array.prototype, argc)
@@ -11016,6 +11036,9 @@ TraceRecorder::newArray(JSObject* ctor, uint32 argc, Value* argv, Value* rval)
         for (uint32 i = 0; i < argc && !outOfMemory(); i++) {
             stobj_set_dslot(arr_ins, i, dslots_ins, argv[i], get(&argv[i]));
         }
+
+        if (argc > 0)
+            set_array_fslot(arr_ins, JSObject::JSSLOT_DENSE_ARRAY_COUNT, argc);
     }
 
     set(rval, arr_ins);
@@ -13634,24 +13657,23 @@ TraceRecorder::denseArrayElement(Value& oval, Value& ival, Value*& vp, LIns*& v_
     LIns* idx_ins = makeNumberInt32(get(&ival));
 
     VMSideExit* exit = snapshot(BRANCH_EXIT);
-
-    /*
-     * Arrays have both a length and a capacity, but we only need to check
-     * |index < capacity|;  in the case where |length < index < capacity|
-     * the entries [length..capacity-1] will have already been marked as
-     * holes by resizeDenseArrayElements() so we can read them and get
-     * the correct value.
-     */
+    /* check that the index is within bounds */
     LIns* dslots_ins =
         addName(lir->insLoad(LIR_ldp, obj_ins, offsetof(JSObject, dslots), ACC_OTHER), "dslots");
-    LIns* capacity_ins =
-        addName(lir->insLoad(LIR_ldi, dslots_ins, -int(sizeof(jsval)), ACC_OTHER), "capacity");
-
     jsuint capacity = obj->getDenseArrayCapacity();
-    bool within = (jsuint(idx) < capacity);
+    bool within = (jsuint(idx) < obj->getArrayLength() && jsuint(idx) < capacity);
     if (!within) {
-        /* If not idx < capacity, stay on trace (and read value as undefined). */
-        guard(true, lir->ins2(LIR_geui, idx_ins, capacity_ins), exit);
+        /* If not idx < min(length, capacity), stay on trace (and read value as undefined). */
+        JS_ASSERT(obj->isDenseArrayMinLenCapOk());
+        LIns* minLenCap =
+            addName(stobj_get_fslot_uint32(obj_ins, JSObject::JSSLOT_DENSE_ARRAY_MINLENCAP), "minLenCap");
+        LIns* br = lir->insBranch(LIR_jf,
+                                  lir->ins2(LIR_ltui, idx_ins, minLenCap),
+                                  NULL);
+
+        lir->insGuard(LIR_x, NULL, createGuardRecord(exit));
+        LIns* label = lir->ins0(LIR_label);
+        br->setTarget(label);
 
         CHECK_STATUS(guardPrototypeHasNoIndexedProperties(obj, obj_ins, MISMATCH_EXIT));
 
@@ -13661,8 +13683,11 @@ TraceRecorder::denseArrayElement(Value& oval, Value& ival, Value*& vp, LIns*& v_
         return RECORD_CONTINUE;
     }
 
-    /* Guard that index is within capacity. */
-    guard(true, lir->ins2(LIR_ltui, idx_ins, capacity_ins), exit);
+    /* Guard array min(length, capacity). */
+    JS_ASSERT(obj->isDenseArrayMinLenCapOk());
+    LIns* minLenCap =
+        addName(stobj_get_fslot_uint32(obj_ins, JSObject::JSSLOT_DENSE_ARRAY_MINLENCAP), "minLenCap");
+    guard(true, lir->ins2(LIR_ltui, idx_ins, minLenCap), exit);
 
     /* Load the value and guard on its type to unbox it. */
     vp = &obj->dslots[jsuint(idx)];
@@ -14646,16 +14671,15 @@ TraceRecorder::record_JSOP_IN()
 }
 
 static JSBool FASTCALL
-HasInstanceOnTrace(JSContext* cx, JSObject* ctor, ValueArgType arg)
+HasInstance(JSContext* cx, JSObject* ctor, ValueArgType arg)
 {
     const Value &argref = ValueArgToConstRef(arg);
     JSBool result = JS_FALSE;
-    if (!HasInstance(cx, ctor, &argref, &result))
+    if (!js_HasInstance(cx, ctor, &argref, &result))
         SetBuiltinError(cx);
     return result;
 }
-JS_DEFINE_CALLINFO_3(static, BOOL_FAIL, HasInstanceOnTrace, CONTEXT, OBJECT, VALUE, 0,
-                     ACC_STORE_ANY)
+JS_DEFINE_CALLINFO_3(static, BOOL_FAIL, HasInstance, CONTEXT, OBJECT, VALUE, 0, ACC_STORE_ANY)
 
 JS_REQUIRES_STACK AbortableRecordingStatus
 TraceRecorder::record_JSOP_INSTANCEOF()
@@ -14670,7 +14694,7 @@ TraceRecorder::record_JSOP_INSTANCEOF()
 
     enterDeepBailCall();
     LIns* args[] = {val_ins, get(&ctor), cx_ins};
-    stack(-2, lir->insCall(&HasInstanceOnTrace_ci, args));
+    stack(-2, lir->insCall(&HasInstance_ci, args));
     LIns* status_ins = lir->insLoad(LIR_ldi,
                                     lirbuf->state,
                                     offsetof(TracerState, builtinStatus), ACC_OTHER);
@@ -15696,6 +15720,9 @@ TraceRecorder::record_JSOP_NEWARRAY()
             count++;
         stobj_set_dslot(v_ins, i, dslots_ins, v, get(&v));
     }
+
+    if (count > 0)
+        set_array_fslot(v_ins, JSObject::JSSLOT_DENSE_ARRAY_COUNT, count);
 
     stack(-int(len), v_ins);
     return ARECORD_CONTINUE;

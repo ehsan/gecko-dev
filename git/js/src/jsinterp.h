@@ -116,8 +116,8 @@ struct JSStackFrame
     static jsbytecode *const sInvalidPC;
 #endif
 
-#if defined(JS_CPU_X86) || defined(JS_CPU_ARM)
     void                *ncode;         /* jit return pc */
+#if defined(JS_CPU_X86) || defined(JS_CPU_ARM)
     /* Guh. Align. */
     void                *align_[3];
 #endif
@@ -401,7 +401,7 @@ InstanceOf(JSContext *cx, JSObject *obj, Class *clasp, Value *argv)
 }
 
 extern JSBool
-HasInstance(JSContext *cx, JSObject *obj, const js::Value *v, JSBool *bp);
+js_HasInstance(JSContext *cx, JSObject *obj, const js::Value *v, JSBool *bp);
 
 inline void *
 GetInstancePrivate(JSContext *cx, JSObject *obj, Class *clasp, Value *argv)
