@@ -306,8 +306,7 @@ bool GrTextStrike::addGlyphToAtlas(GrGlyph* glyph, GrFontScaler* scaler) {
     int bytesPerPixel = GrMaskFormatBytesPerPixel(fMaskFormat);
 
     size_t size = glyph->fBounds.area() * bytesPerPixel;
-    GrAutoMalloc<1024> storage(size);
-
+    SkAutoSMalloc<1024> storage(size);
     if (fUseDistanceField) {
         if (!scaler->getPackedGlyphDFImage(glyph->fPackedID, glyph->width(),
                                            glyph->height(),

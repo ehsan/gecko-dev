@@ -373,11 +373,6 @@ struct IMEState {
     mEnabled(aEnabled), mOpen(aOpen)
   {
   }
-
-  bool IsEditable() const
-  {
-    return mEnabled == ENABLED || mEnabled == PASSWORD;
-  }
 };
 
 struct InputContext {

@@ -40,8 +40,8 @@ from mozprofile import Profile, Preferences
 from mozprofile.permissions import ServerLocations
 from urllib import quote_plus as encodeURIComponent
 from mozlog.structured.formatters import TbplFormatter
-from mozlog.structured.commandline import add_logging_group, setup_logging
 from mozlog.structured.handlers import StreamHandler
+from mozlog.structured.structuredlog import StructuredLogger
 
 # This should use the `which` module already in tree, but it is
 # not yet present in the mozharness environment
@@ -98,7 +98,7 @@ class MessageLogger(object):
                          'test_status', 'log',
                          'buffering_on', 'buffering_off'])
 
-    def __init__(self, logger, buffering=True):
+    def __init__(self, logger, buffering=True, name='mochitest'):
         self.logger = logger
         self.buffering = buffering
         self.tests_started = False
@@ -220,7 +220,7 @@ def call(*args, **kwargs):
   process.run()
   return process.wait()
 
-def killPid(pid, log):
+def killPid(pid):
   # see also https://bugzilla.mozilla.org/show_bug.cgi?id=911249#c58
   try:
     os.kill(pid, getattr(signal, "SIGKILL", signal.SIGTERM))
@@ -269,10 +269,9 @@ else:
 class MochitestServer(object):
   "Web server used to serve Mochitests, for closer fidelity to the real web."
 
-  def __init__(self, options, logger):
+  def __init__(self, options):
     if isinstance(options, optparse.Values):
       options = vars(options)
-    self._log = logger
     self._closeWhenDone = options['closeWhenDone']
     self._utilityPath = options['utilityPath']
     self._xrePath = options['xrePath']
@@ -318,9 +317,9 @@ class MochitestServer(object):
     command = [xpcshell] + args
     self._process = mozprocess.ProcessHandler(command, cwd=SCRIPT_DIR, env=env)
     self._process.run()
-    self._log.info("%s : launching %s" % (self.__class__.__name__, command))
+    log.info("%s : launching %s" % (self.__class__.__name__, command))
     pid = self._process.pid
-    self._log.info("runtests.py | Server pid: %d" % pid)
+    log.info("runtests.py | Server pid: %d" % pid)
 
   def ensureReady(self, timeout):
     assert timeout >= 0
@@ -333,7 +332,7 @@ class MochitestServer(object):
       time.sleep(1)
       i += 1
     else:
-      self._log.error("TEST-UNEXPECTED-FAIL | runtests.py | Timed out while waiting for server startup.")
+      log.error("TEST-UNEXPECTED-FAIL | runtests.py | Timed out while waiting for server startup.")
       self.stop()
       sys.exit(1)
 
@@ -357,12 +356,10 @@ class MochitestServer(object):
 class WebSocketServer(object):
   "Class which encapsulates the mod_pywebsocket server"
 
-  def __init__(self, options, scriptdir, logger, debuggerInfo=None):
+  def __init__(self, options, scriptdir, debuggerInfo=None):
     self.port = options.webSocketPort
-    self.debuggerInfo = debuggerInfo
-    self._log = logger
     self._scriptdir = scriptdir
-
+    self.debuggerInfo = debuggerInfo
 
   def start(self):
     # Invoke pywebsocket through a wrapper which adds special SIGINT handling.
@@ -386,7 +383,7 @@ class WebSocketServer(object):
     self._process = mozprocess.ProcessHandler(cmd, cwd=SCRIPT_DIR)
     self._process.run()
     pid = self._process.pid
-    self._log.info("runtests.py | Websocket server pid: %d" % pid)
+    log.info("runtests.py | Websocket server pid: %d" % pid)
 
   def stop(self):
     self._process.kill()
@@ -409,28 +406,13 @@ class MochitestUtilsMixin(object):
   TEST_PATH = "tests"
   CHROME_PATH = "redirect.html"
   urlOpts = []
-  structured_logger = None
 
-  def __init__(self, logger_options):
+  def __init__(self):
     self.update_mozinfo()
     self.server = None
     self.wsserver = None
     self.sslTunnel = None
     self._locations = None
-    # Structured logger
-    if self.structured_logger is None:
-        self.structured_logger = setup_logging('mochitest', logger_options, {})
-        # Add the tbpl logger if no handler is logging to stdout, to display formatted logs by default
-        has_stdout_logger = any(h.stream == sys.stdout for h in self.structured_logger.handlers)
-        if not has_stdout_logger:
-            handler = StreamHandler(sys.stdout, MochitestFormatter())
-            self.structured_logger.add_handler(handler)
-        MochitestUtilsMixin.structured_logger = self.structured_logger
-
-    self.message_logger = MessageLogger(logger=self.structured_logger)
-
-    # self.log should also be structured_logger, but to avoid regressions like bug 1044206 we're now logging with the stdlib's logger
-    self.log = log
 
   def update_mozinfo(self):
     """walk up directories to find mozinfo.json update the info"""
@@ -646,13 +628,13 @@ class MochitestUtilsMixin(object):
 
   def startWebSocketServer(self, options, debuggerInfo):
     """ Launch the websocket server """
-    self.wsserver = WebSocketServer(options, SCRIPT_DIR, self.log, debuggerInfo)
+    self.wsserver = WebSocketServer(options, SCRIPT_DIR, debuggerInfo)
     self.wsserver.start()
 
   def startWebServer(self, options):
     """Create the webserver and start it up"""
 
-    self.server = MochitestServer(options, self.log)
+    self.server = MochitestServer(options)
     self.server.start()
 
     if options.pidFile != "":
@@ -677,7 +659,7 @@ class MochitestUtilsMixin(object):
     self.startWebSocketServer(options, debuggerInfo)
 
     # start SSL pipe
-    self.sslTunnel = SSLTunnel(options, logger=self.log)
+    self.sslTunnel = SSLTunnel(options)
     self.sslTunnel.buildConfig(self.locations)
     self.sslTunnel.start()
 
@@ -693,24 +675,24 @@ class MochitestUtilsMixin(object):
         might spew to console might confuse things."""
     if self.server is not None:
       try:
-        self.log.info('Stopping web server')
+        log.info('Stopping web server')
         self.server.stop()
       except Exception:
-        self.log.critical('Exception when stopping web server')
+        log.critical('Exception when stopping web server')
 
     if self.wsserver is not None:
       try:
-        self.log.info('Stopping web socket server')
+        log.info('Stopping web socket server')
         self.wsserver.stop()
       except Exception:
-        self.log.critical('Exception when stopping web socket server');
+        log.critical('Exception when stopping web socket server');
 
     if self.sslTunnel is not None:
       try:
-        self.log.info('Stopping ssltunnel')
+        log.info('Stopping ssltunnel')
         self.sslTunnel.stop()
       except Exception:
-        self.log.critical('Exception stopping ssltunnel');
+        log.critical('Exception stopping ssltunnel');
 
   def copyExtraFilesToProfile(self, options):
     "Copy extra files or dirs specified on the command line to the testing profile."
@@ -722,7 +704,7 @@ class MochitestUtilsMixin(object):
         dest = os.path.join(options.profilePath, os.path.basename(abspath))
         shutil.copytree(abspath, dest)
       else:
-        self.log.warning("runtests.py | Failed to copy %s to profile" % abspath)
+        log.warning("runtests.py | Failed to copy %s to profile" % abspath)
 
   def installChromeJar(self, chrome, options):
     """
@@ -767,7 +749,7 @@ toolbar#nav-bar {
 
     # Call installChromeJar().
     if not os.path.isdir(os.path.join(SCRIPT_DIR, self.jarDir)):
-      self.log.error("TEST-UNEXPECTED-FAIL | invalid setup: missing mochikit extension")
+      log.error(message="TEST-UNEXPECTED-FAIL | invalid setup: missing mochikit extension")
       return None
 
     # Support Firefox (browser), B2G (shell), SeaMonkey (navigator), and Webapp
@@ -810,8 +792,7 @@ overlay chrome://webapprt/content/webapp.xul chrome://mochikit/content/browser-t
     return extensions
 
 class SSLTunnel:
-  def __init__(self, options, logger):
-    self.log = logger
+  def __init__(self, options):
     self.process = None
     self.utilityPath = options.utilityPath
     self.xrePath = options.xrePath
@@ -866,7 +847,7 @@ class SSLTunnel:
     bin_suffix = mozinfo.info.get('bin_suffix', '')
     ssltunnel = os.path.join(self.utilityPath, "ssltunnel" + bin_suffix)
     if not os.path.exists(ssltunnel):
-      self.log.error("INFO | runtests.py | expected to find ssltunnel at %s" % ssltunnel)
+      log.error("INFO | runtests.py | expected to find ssltunnel at %s" % ssltunnel)
       exit(1)
 
     env = environment(xrePath=self.xrePath)
@@ -874,7 +855,7 @@ class SSLTunnel:
     self.process = mozprocess.ProcessHandler([ssltunnel, self.configFile],
                                                env=env)
     self.process.run()
-    self.log.info("runtests.py | SSL tunnel pid: %d" % self.process.pid)
+    log.info("runtests.py | SSL tunnel pid: %d" % self.process.pid)
 
   def stop(self):
     """ Stops the SSL Tunnel and cleans up """
@@ -943,7 +924,7 @@ def checkAndConfigureV4l2loopback(device):
 
   return True, vcap.card
 
-def findTestMediaDevices(log):
+def findTestMediaDevices():
   '''
   Find the test media devices configured on this system, and return a dict
   containing information about them. The dict will have keys for 'audio'
@@ -1000,13 +981,24 @@ class Mochitest(MochitestUtilsMixin):
   vmwareHelper = None
   DEFAULT_TIMEOUT = 60.0
   mediaDevices = None
+  structured_logger = None
 
   # XXX use automation.py for test name to avoid breaking legacy
   # TODO: replace this with 'runtests.py' or 'mochitest' or the like
   test_name = 'automation.py'
 
-  def __init__(self, logger_options):
-    super(Mochitest, self).__init__(logger_options)
+  def __init__(self):
+    # Structured logger
+    if self.structured_logger is None:
+        self.structured_logger = StructuredLogger('mochitest')
+        stream_handler = StreamHandler(stream=sys.stdout, formatter=MochitestFormatter())
+        self.structured_logger.add_handler(stream_handler)
+        Mochitest.structured_logger = self.structured_logger
+
+    super(Mochitest, self).__init__()
+
+    # Structured logs parser
+    self.message_logger = MessageLogger(logger=self.structured_logger)
 
     # environment function for browserEnv
     self.environment = environment
@@ -1151,7 +1143,7 @@ class Mochitest(MochitestUtilsMixin):
     # TODO: this should really be upstreamed somewhere, maybe mozprofile
     certificateStatus = self.fillCertificateDB(options)
     if certificateStatus:
-      self.log.error("TEST-UNEXPECTED-FAIL | runtests.py | Certificate integration failed")
+      log.error("TEST-UNEXPECTED-FAIL | runtests.py | Certificate integration failed")
       return None
 
     return manifest
@@ -1188,7 +1180,7 @@ class Mochitest(MochitestUtilsMixin):
     try:
       browserEnv.update(dict(parseKeyValue(options.environment, context='--setenv')))
     except KeyValueParseError, e:
-      self.log.error(str(e))
+      log.error(str(e))
       return None
 
     browserEnv["XPCOM_MEM_BLOAT_LOG"] = self.leak_report_file
@@ -1229,12 +1221,12 @@ class Mochitest(MochitestUtilsMixin):
         if os.path.exists(options.pidFile + ".xpcshell.pid"):
           os.remove(options.pidFile + ".xpcshell.pid")
       except:
-        self.log.warning("cleaning up pidfile '%s' was unsuccessful from the test harness" % options.pidFile)
+        log.warning("cleaning up pidfile '%s' was unsuccessful from the test harness" % options.pidFile)
     options.manifestFile = None
 
   def dumpScreen(self, utilityPath):
     if self.haveDumpedScreen:
-      self.log.info("Not taking screenshot here: see the one that was previously logged")
+      log.info("Not taking screenshot here: see the one that was previously logged")
       return
     self.haveDumpedScreen = True
     dumpScreen(utilityPath)
@@ -1263,26 +1255,26 @@ class Mochitest(MochitestUtilsMixin):
           os.kill(processPID, signal.SIGABRT)
         except OSError:
           # https://bugzilla.mozilla.org/show_bug.cgi?id=921509
-          self.log.info("Can't trigger Breakpad, process no longer exists")
+          log.info("Can't trigger Breakpad, process no longer exists")
         return
-    self.log.info("Can't trigger Breakpad, just killing process")
-    killPid(processPID, self.log)
+    log.info("Can't trigger Breakpad, just killing process")
+    killPid(processPID)
 
   def checkForZombies(self, processLog, utilityPath, debuggerInfo):
     """Look for hung processes"""
 
     if not os.path.exists(processLog):
-      self.log.info('Automation Error: PID log not found: %s' % processLog)
+      log.info('Automation Error: PID log not found: %s' % processLog)
       # Whilst no hung process was found, the run should still display as a failure
       return True
 
     # scan processLog for zombies
-    self.log.info('zombiecheck | Reading PID log: %s' % processLog)
+    log.info('zombiecheck | Reading PID log: %s' % processLog)
     processList = []
     pidRE = re.compile(r'launched child process (\d+)$')
     with open(processLog) as processLogFD:
       for line in processLogFD:
-        self.log.info(line.rstrip())
+        log.info(line.rstrip())
         m = pidRE.search(line)
         if m:
           processList.append(int(m.group(1)))
@@ -1290,10 +1282,10 @@ class Mochitest(MochitestUtilsMixin):
     # kill zombies
     foundZombie = False
     for processPID in processList:
-      self.log.info("zombiecheck | Checking for orphan process with PID: %d" % processPID)
+      log.info("zombiecheck | Checking for orphan process with PID: %d" % processPID)
       if isPidAlive(processPID):
         foundZombie = True
-        self.log.error("TEST-UNEXPECTED-FAIL | zombiecheck | child process %d still alive after shutdown" % processPID)
+        log.error("TEST-UNEXPECTED-FAIL | zombiecheck | child process %d still alive after shutdown" % processPID)
         self.killAndGetStack(processPID, utilityPath, debuggerInfo, dump_screen=not debuggerInfo)
 
     return foundZombie
@@ -1304,14 +1296,14 @@ class Mochitest(MochitestUtilsMixin):
     from ctypes import cdll
     self.vmwareHelper = cdll.LoadLibrary(self.vmwareHelperPath)
     if self.vmwareHelper is None:
-      self.log.warning("runtests.py | Failed to load "
+      log.warning("runtests.py | Failed to load "
                    "VMware recording helper")
       return
-    self.log.info("runtests.py | Starting VMware recording.")
+    log.info("runtests.py | Starting VMware recording.")
     try:
       self.vmwareHelper.StartRecording()
     except Exception, e:
-      self.log.warning("runtests.py | Failed to start "
+      log.warning("runtests.py | Failed to start "
                   "VMware recording: (%s)" % str(e))
       self.vmwareHelper = None
 
@@ -1320,12 +1312,12 @@ class Mochitest(MochitestUtilsMixin):
     try:
       assert mozinfo.isWin
       if self.vmwareHelper is not None:
-        self.log.info("runtests.py | Stopping VMware recording.")
+        log.info("runtests.py | Stopping VMware recording.")
         self.vmwareHelper.StopRecording()
     except Exception, e:
-      self.log.warning("runtests.py | Failed to stop "
+      log.warning("runtests.py | Failed to stop "
                   "VMware recording: (%s)" % str(e))
-      self.log.exception('Error stopping VMWare recording')
+      log.exception('Error stopping VMWare recording')
 
     self.vmwareHelper = None
 
@@ -1392,12 +1384,12 @@ class Mochitest(MochitestUtilsMixin):
         args.append(testUrl)
 
       if detectShutdownLeaks:
-        shutdownLeaks = ShutdownLeaks(self.log.info)
+        shutdownLeaks = ShutdownLeaks(log.info)
       else:
         shutdownLeaks = None
 
       if mozinfo.info["asan"] and (mozinfo.isLinux or mozinfo.isMac):
-        lsanLeaks = LSANLeaks(self.log.info)
+        lsanLeaks = LSANLeaks(log.info)
       else:
         lsanLeaks = None
 
@@ -1442,7 +1434,7 @@ class Mochitest(MochitestUtilsMixin):
                    interactive=interactive,
                    outputTimeout=timeout)
       proc = runner.process_handler
-      self.log.info("runtests.py | Application pid: %d" % proc.pid)
+      log.info("runtests.py | Application pid: %d" % proc.pid)
 
       if onLaunch is not None:
         # Allow callers to specify an onLaunch callback to be fired after the
@@ -1471,11 +1463,11 @@ class Mochitest(MochitestUtilsMixin):
       # record post-test information
       if status:
         self.message_logger.dump_buffered()
-        self.log.error("TEST-UNEXPECTED-FAIL | %s | application terminated with exit code %s" % (self.lastTestSeen, status))
+        log.error("TEST-UNEXPECTED-FAIL | %s | application terminated with exit code %s" % (self.lastTestSeen, status))
       else:
         self.lastTestSeen = 'Main app process exited normally'
 
-      self.log.info("runtests.py | Application ran for: %s" % str(datetime.now() - startTime))
+      log.info("runtests.py | Application ran for: %s" % str(datetime.now() - startTime))
 
       # Do a final check for zombie child processes.
       zombieProcesses = self.checkForZombies(processLog, utilityPath, debuggerInfo)
@@ -1550,7 +1542,7 @@ class Mochitest(MochitestUtilsMixin):
         continue
 
       if not self.isTest(options, tp):
-        self.log.warning('Warning: %s from manifest %s is not a valid test' % (test['name'], test['manifest']))
+        log.warning('Warning: %s from manifest %s is not a valid test' % (test['name'], test['manifest']))
         continue
 
       testob = {'path': tp}
@@ -1575,7 +1567,7 @@ class Mochitest(MochitestUtilsMixin):
     testsToRun = []
     for test in tests:
       if test.has_key('disabled'):
-        self.log.info('TEST-SKIPPED | %s | %s' % (test['path'], test['disabled']))
+        log.info('TEST-SKIPPED | %s | %s' % (test['path'], test['disabled']))
         continue
       testsToRun.append(test['path'])
 
@@ -1685,9 +1677,9 @@ class Mochitest(MochitestUtilsMixin):
                                    options.debuggerInteractive)
 
     if options.useTestMediaDevices:
-      devices = findTestMediaDevices(self.log)
+      devices = findTestMediaDevices()
       if not devices:
-        self.log.error("Could not find test media devices to use")
+        log.error("Could not find test media devices to use")
         return 1
       self.mediaDevices = devices
 
@@ -1754,7 +1746,7 @@ class Mochitest(MochitestUtilsMixin):
       # detect shutdown leaks for m-bc runs
       detectShutdownLeaks = mozinfo.info["debug"] and options.browserChrome and not options.webapprtChrome
 
-      self.log.info("runtests.py | Running tests: start.\n")
+      log.info("runtests.py | Running tests: start.\n")
       try:
         status = self.runApp(testURL,
                              self.browserEnv,
@@ -1773,11 +1765,11 @@ class Mochitest(MochitestUtilsMixin):
                              quiet=options.quiet
         )
       except KeyboardInterrupt:
-        self.log.info("runtests.py | Received keyboard interrupt.\n");
+        log.info("runtests.py | Received keyboard interrupt.\n");
         status = -1
       except:
         traceback.print_exc()
-        self.log.error("Automation Error: Received unexpected exception while running application\n")
+        log.error("Automation Error: Received unexpected exception while running application\n")
         status = 1
 
     finally:
@@ -1793,7 +1785,7 @@ class Mochitest(MochitestUtilsMixin):
           logzip.write(logfile)
           os.remove(logfile)
 
-    self.log.info("runtests.py | Running tests: end.")
+    log.info("runtests.py | Running tests: end.")
 
     if self.manifest is not None:
       self.cleanup(options)
@@ -1810,7 +1802,7 @@ class Mochitest(MochitestUtilsMixin):
 
     self.message_logger.dump_buffered()
     self.message_logger.buffering = False
-    self.log.error(error_message)
+    log.error(error_message)
 
     browserProcessId = browserProcessId or proc.pid
     self.killAndGetStack(browserProcessId, utilityPath, debuggerInfo, dump_screen=not debuggerInfo)
@@ -1917,7 +1909,7 @@ class Mochitest(MochitestUtilsMixin):
         self.stackFixerProcess.communicate()
         status = self.stackFixerProcess.returncode
         if status and not didTimeout:
-          self.harness.log.info("TEST-UNEXPECTED-FAIL | runtests.py | Stack fixer process exited with code %d during test run" % status)
+          log.info("TEST-UNEXPECTED-FAIL | runtests.py | Stack fixer process exited with code %d during test run" % status)
 
       if self.shutdownLeaks:
         self.shutdownLeaks.process()
@@ -2061,16 +2053,15 @@ class Mochitest(MochitestUtilsMixin):
     return dirlist
 
 def main():
+
   # parse command line options
+  mochitest = Mochitest()
   parser = MochitestOptions()
-  add_logging_group(parser)
   options, args = parser.parse_args()
+  options = parser.verifyOptions(options, mochitest)
   if options is None:
     # parsing error
     sys.exit(1)
-  logger_options = {key: value for key, value in vars(options).iteritems() if key.startswith('log')}
-  mochitest = Mochitest(logger_options)
-  options = parser.verifyOptions(options, mochitest)
 
   options.utilityPath = mochitest.getFullPath(options.utilityPath)
   options.certPath = mochitest.getFullPath(options.certPath)

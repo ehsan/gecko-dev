@@ -343,44 +343,44 @@ nsDeviceSensors::FireDOMMotionEvent(nsIDOMDocument *domdoc,
 
   switch (type) {
   case nsIDeviceSensorData::TYPE_LINEAR_ACCELERATION:
-    if (!mLastAcceleration) {
-      mLastAcceleration.emplace();
+    if (mLastAcceleration.empty()) {
+      mLastAcceleration.construct();
     }
-    mLastAcceleration->mX.SetValue(x);
-    mLastAcceleration->mY.SetValue(y);
-    mLastAcceleration->mZ.SetValue(z);
+    mLastAcceleration.ref().mX.SetValue(x);
+    mLastAcceleration.ref().mY.SetValue(y);
+    mLastAcceleration.ref().mZ.SetValue(z);
     break;
   case nsIDeviceSensorData::TYPE_ACCELERATION:
-    if (!mLastAccelerationIncluduingGravity) {
-      mLastAccelerationIncluduingGravity.emplace();
+    if (mLastAccelerationIncluduingGravity.empty()) {
+      mLastAccelerationIncluduingGravity.construct();
     }
-    mLastAccelerationIncluduingGravity->mX.SetValue(x);
-    mLastAccelerationIncluduingGravity->mY.SetValue(y);
-    mLastAccelerationIncluduingGravity->mZ.SetValue(z);
+    mLastAccelerationIncluduingGravity.ref().mX.SetValue(x);
+    mLastAccelerationIncluduingGravity.ref().mY.SetValue(y);
+    mLastAccelerationIncluduingGravity.ref().mZ.SetValue(z);
     break;
   case nsIDeviceSensorData::TYPE_GYROSCOPE:
-    if (!mLastRotationRate) {
-      mLastRotationRate.emplace();
+    if (mLastRotationRate.empty()) {
+      mLastRotationRate.construct();
     }
-    mLastRotationRate->mAlpha.SetValue(x);
-    mLastRotationRate->mBeta.SetValue(y);
-    mLastRotationRate->mGamma.SetValue(z);
+    mLastRotationRate.ref().mAlpha.SetValue(x);
+    mLastRotationRate.ref().mBeta.SetValue(y);
+    mLastRotationRate.ref().mGamma.SetValue(z);
     break;
   }
 
   if (fireEvent) {
-    if (!mLastAcceleration) {
-      mLastAcceleration.emplace();
+    if (mLastAcceleration.empty()) {
+      mLastAcceleration.construct();
     }
-    if (!mLastAccelerationIncluduingGravity) {
-      mLastAccelerationIncluduingGravity.emplace();
+    if (mLastAccelerationIncluduingGravity.empty()) {
+      mLastAccelerationIncluduingGravity.construct();
     }
-    if (!mLastRotationRate) {
-      mLastRotationRate.emplace();
+    if (mLastRotationRate.empty()) {
+      mLastRotationRate.construct();
     }
-  } else if (!mLastAcceleration ||
-             !mLastAccelerationIncluduingGravity ||
-             !mLastRotationRate) {
+  } else if (mLastAcceleration.empty() ||
+             mLastAccelerationIncluduingGravity.empty() ||
+             mLastRotationRate.empty()) {
     return;
   }
 
@@ -393,9 +393,9 @@ nsDeviceSensors::FireDOMMotionEvent(nsIDOMDocument *domdoc,
   me->InitDeviceMotionEvent(NS_LITERAL_STRING("devicemotion"),
                             true,
                             false,
-                            *mLastAcceleration,
-                            *mLastAccelerationIncluduingGravity,
-                            *mLastRotationRate,
+                            mLastAcceleration.ref(),
+                            mLastAccelerationIncluduingGravity.ref(),
+                            mLastRotationRate.ref(),
                             Nullable<double>(DEFAULT_SENSOR_POLL),
                             rv);
 
@@ -404,8 +404,8 @@ nsDeviceSensors::FireDOMMotionEvent(nsIDOMDocument *domdoc,
   bool defaultActionEnabled = true;
   target->DispatchEvent(event, &defaultActionEnabled);
 
-  mLastRotationRate.reset();
-  mLastAccelerationIncluduingGravity.reset();
-  mLastAcceleration.reset();
+  mLastRotationRate.destroy();
+  mLastAccelerationIncluduingGravity.destroy();
+  mLastAcceleration.destroy();
   mLastDOMMotionEventTime = TimeStamp::Now();
 }

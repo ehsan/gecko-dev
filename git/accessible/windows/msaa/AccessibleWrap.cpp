@@ -900,7 +900,7 @@ AccessibleWrap::accNavigate(
 
 #define RELATIONTYPE(geckoType, stringType, atkType, msaaType, ia2Type) \
   case msaaType: \
-    xpRelation.emplace(RelationType::geckoType); \
+    xpRelation.construct(RelationType::geckoType); \
     break;
 
   switch(navDir) {
@@ -935,8 +935,8 @@ AccessibleWrap::accNavigate(
 
   pvarEndUpAt->vt = VT_EMPTY;
 
-  if (xpRelation) {
-    Relation rel = RelationByType(*xpRelation);
+  if (!xpRelation.empty()) {
+    Relation rel = RelationByType(xpRelation.ref());
     navAccessible = rel.Next();
   }
 

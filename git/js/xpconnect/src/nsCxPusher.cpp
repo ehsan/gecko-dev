@@ -39,21 +39,30 @@ AutoCxPusher::AutoCxPusher(JSContext* cx, bool allowNull)
   // Enter a request and a compartment for the duration that the cx is on the
   // stack if non-null.
   if (cx) {
-    mAutoRequest.emplace(cx);
+    mAutoRequest.construct(cx);
 
     // DOM JSContexts don't store their default compartment object on the cx.
     JSObject *compartmentObject = mScx ? mScx->GetWindowProxy()
                                        : js::DefaultObjectForContextOrNull(cx);
     if (compartmentObject)
-      mAutoCompartment.emplace(cx, compartmentObject);
+      mAutoCompartment.construct(cx, compartmentObject);
   }
 }
 
 AutoCxPusher::~AutoCxPusher()
 {
+  // GC when we pop a script entry point. This is a useful heuristic that helps
+  // us out on certain (flawed) benchmarks like sunspider, because it lets us
+  // avoid GCing during the timing loop.
+  //
+  // NB: We need to take care to only do this if we're in a compartment,
+  // otherwise JS_MaybeGC will segfault.
+  if (mScx && !mAutoCompartment.empty())
+    JS_MaybeGC(nsXPConnect::XPConnect()->GetCurrentJSContext());
+
   // Leave the compartment and request before popping.
-  mAutoCompartment.reset();
-  mAutoRequest.reset();
+  mAutoCompartment.destroyIfConstructed();
+  mAutoRequest.destroyIfConstructed();
 
   // When we push a context, we may save the frame chain and pretend like we
   // haven't entered any compartment. This gets restored on Pop(), but we can
@@ -103,7 +112,7 @@ AutoJSContext::Init(bool aSafe MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
 
   if (!mCx) {
     mCx = xpc->GetSafeJSContext();
-    mPusher.emplace(mCx);
+    mPusher.construct(mCx);
   }
 }
 
@@ -118,10 +127,10 @@ ThreadsafeAutoJSContext::ThreadsafeAutoJSContext(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_
 
   if (NS_IsMainThread()) {
     mCx = nullptr;
-    mAutoJSContext.emplace();
+    mAutoJSContext.construct();
   } else {
     mCx = mozilla::dom::workers::GetCurrentThreadJSContext();
-    mRequest.emplace(mCx);
+    mRequest.construct(mCx);
   }
 }
 
@@ -130,7 +139,7 @@ ThreadsafeAutoJSContext::operator JSContext*() const
   if (mCx) {
     return mCx;
   } else {
-    return *mAutoJSContext;
+    return mAutoJSContext.ref();
   }
 }
 
@@ -146,10 +155,10 @@ ThreadsafeAutoSafeJSContext::ThreadsafeAutoSafeJSContext(MOZ_GUARD_OBJECT_NOTIFI
 
   if (NS_IsMainThread()) {
     mCx = nullptr;
-    mAutoSafeJSContext.emplace();
+    mAutoSafeJSContext.construct();
   } else {
     mCx = mozilla::dom::workers::GetCurrentThreadJSContext();
-    mRequest.emplace(mCx);
+    mRequest.construct(mCx);
   }
 }
 
@@ -158,7 +167,7 @@ ThreadsafeAutoSafeJSContext::operator JSContext*() const
   if (mCx) {
     return mCx;
   } else {
-    return *mAutoSafeJSContext;
+    return mAutoSafeJSContext.ref();
   }
 }
 

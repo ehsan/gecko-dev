@@ -3369,7 +3369,7 @@ class LValueToString : public LInstructionHelper<1, BOX_PIECES, 1>
   public:
     LIR_HEADER(ValueToString)
 
-    explicit LValueToString(const LDefinition &tempToUnbox)
+    LValueToString(const LDefinition &tempToUnbox)
     {
         setTemp(0, tempToUnbox);
     }

@@ -2025,7 +2025,7 @@ class MTypedObjectProto
     public SingleObjectPolicy
 {
   private:
-    explicit MTypedObjectProto(MDefinition *object)
+    MTypedObjectProto(MDefinition *object)
       : MUnaryInstruction(object)
     {
         setResultType(MIRType_Object);
@@ -2132,7 +2132,7 @@ class MObjectState : public MVariadicInstruction
     uint32_t numSlots_;
     uint32_t numFixedSlots_;
 
-    explicit MObjectState(MDefinition *obj);
+    MObjectState(MDefinition *obj);
 
     bool init(TempAllocator &alloc, MDefinition *obj);
 
@@ -2688,7 +2688,7 @@ class MApplyArgs
 class MBail : public MNullaryInstruction
 {
   protected:
-    explicit MBail(BailoutKind kind)
+    MBail(BailoutKind kind)
       : MNullaryInstruction()
     {
         bailoutKind_ = kind;
@@ -10936,7 +10936,7 @@ class MAsmJSHeapAccess
     bool skipBoundsCheck_;
 
   public:
-    explicit MAsmJSHeapAccess(Scalar::Type vt)
+    MAsmJSHeapAccess(Scalar::Type vt)
       : viewType_(vt), skipBoundsCheck_(false)
     {}
 

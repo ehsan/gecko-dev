@@ -23,7 +23,7 @@ template<class T> class nsRefPtr;
  */
 class gfxTeeSurface : public gfxASurface {
 public:
-    explicit gfxTeeSurface(cairo_surface_t *csurf);
+    gfxTeeSurface(cairo_surface_t *csurf);
     gfxTeeSurface(gfxASurface **aSurfaces, int32_t aSurfaceCount);
 
     virtual const gfxIntSize GetSize() const;

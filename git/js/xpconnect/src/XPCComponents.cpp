@@ -3191,7 +3191,7 @@ nsXPCComponents_Utils::Dispatch(HandleValue runnableArg, HandleValue scope,
         JSObject *scopeObj = js::UncheckedUnwrap(&scope.toObject());
         if (!scopeObj)
             return NS_ERROR_FAILURE;
-        ac.emplace(cx, scopeObj);
+        ac.construct(cx, scopeObj);
         if (!JS_WrapValue(cx, &runnable))
             return NS_ERROR_FAILURE;
     }

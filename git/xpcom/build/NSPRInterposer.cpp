@@ -38,8 +38,7 @@ public:
   }
 };
 
-PRStatus PR_CALLBACK
-interposedClose(PRFileDesc* aFd)
+PRStatus PR_CALLBACK interposedClose(PRFileDesc* aFd)
 {
   // If we don't have a valid original function pointer something is very wrong.
   NS_ASSERTION(sCloseFn, "NSPR IO Interposing: sCloseFn is NULL");
@@ -48,8 +47,7 @@ interposedClose(PRFileDesc* aFd)
   return sCloseFn(aFd);
 }
 
-int32_t PR_CALLBACK
-interposedRead(PRFileDesc* aFd, void* aBuf, int32_t aAmt)
+int32_t PR_CALLBACK interposedRead(PRFileDesc* aFd, void* aBuf, int32_t aAmt)
 {
   // If we don't have a valid original function pointer something is very wrong.
   NS_ASSERTION(sReadFn, "NSPR IO Interposing: sReadFn is NULL");
@@ -58,8 +56,8 @@ interposedRead(PRFileDesc* aFd, void* aBuf, int32_t aAmt)
   return sReadFn(aFd, aBuf, aAmt);
 }
 
-int32_t PR_CALLBACK
-interposedWrite(PRFileDesc* aFd, const void* aBuf, int32_t aAmt)
+int32_t PR_CALLBACK interposedWrite(PRFileDesc* aFd, const void* aBuf,
+                                    int32_t aAmt)
 {
   // If we don't have a valid original function pointer something is very wrong.
   NS_ASSERTION(sWriteFn, "NSPR IO Interposing: sWriteFn is NULL");
@@ -68,8 +66,7 @@ interposedWrite(PRFileDesc* aFd, const void* aBuf, int32_t aAmt)
   return sWriteFn(aFd, aBuf, aAmt);
 }
 
-PRStatus PR_CALLBACK
-interposedFSync(PRFileDesc* aFd)
+PRStatus PR_CALLBACK interposedFSync(PRFileDesc* aFd)
 {
   // If we don't have a valid original function pointer something is very wrong.
   NS_ASSERTION(sFSyncFn, "NSPR IO Interposing: sFSyncFn is NULL");
@@ -78,8 +75,7 @@ interposedFSync(PRFileDesc* aFd)
   return sFSyncFn(aFd);
 }
 
-PRStatus PR_CALLBACK
-interposedFileInfo(PRFileDesc* aFd, PRFileInfo* aInfo)
+PRStatus PR_CALLBACK interposedFileInfo(PRFileDesc *aFd, PRFileInfo *aInfo)
 {
   // If we don't have a valid original function pointer something is very wrong.
   NS_ASSERTION(sFileInfoFn, "NSPR IO Interposing: sFileInfoFn is NULL");
@@ -88,8 +84,7 @@ interposedFileInfo(PRFileDesc* aFd, PRFileInfo* aInfo)
   return sFileInfoFn(aFd, aInfo);
 }
 
-PRStatus PR_CALLBACK
-interposedFileInfo64(PRFileDesc* aFd, PRFileInfo64* aInfo)
+PRStatus PR_CALLBACK interposedFileInfo64(PRFileDesc *aFd, PRFileInfo64 *aInfo)
 {
   // If we don't have a valid original function pointer something is very wrong.
   NS_ASSERTION(sFileInfo64Fn, "NSPR IO Interposing: sFileInfo64Fn is NULL");
@@ -102,8 +97,7 @@ interposedFileInfo64(PRFileDesc* aFd, PRFileInfo64* aInfo)
 
 namespace mozilla {
 
-void
-InitNSPRIOInterposing()
+void InitNSPRIOInterposing()
 {
   // Check that we have not interposed any of the IO methods before
   MOZ_ASSERT(!sCloseFn && !sReadFn && !sWriteFn && !sFSyncFn && !sFileInfoFn &&
@@ -141,8 +135,7 @@ InitNSPRIOInterposing()
   methods->fileInfo64 = &interposedFileInfo64;
 }
 
-void
-ClearNSPRIOInterposing()
+void ClearNSPRIOInterposing()
 {
   // If we have already cleared IO interposing, or not initialized it this is
   // actually bad.
