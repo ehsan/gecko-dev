@@ -303,21 +303,15 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
 
   do {
     MSG msg;
-    bool uiMessage = PeekUIMessage(&msg);
-
     // Give priority to keyboard and mouse messages.
-    if (uiMessage ||
-        PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
+    if (PeekUIMessage(&msg) ||
+        ::PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
       gotMessage = true;
       if (msg.message == WM_QUIT) {
         ::PostQuitMessage(msg.wParam);
         Exit();
       } else {
-        // If we had UI activity we would be processing it now so we know we
-        // have either kUIActivity or kActivityNoUIAVail.
-        mozilla::HangMonitor::NotifyActivity(
-          uiMessage ? mozilla::HangMonitor::kUIActivity :
-                      mozilla::HangMonitor::kActivityNoUIAVail);
+        mozilla::HangMonitor::NotifyActivity();
         ::TranslateMessage(&msg);
         ::DispatchMessageW(&msg);
       }
