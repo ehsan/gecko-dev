@@ -959,7 +959,7 @@ XPC_WN_Helper_Call(JSContext *cx, unsigned argc, jsval *vp)
     if (!ccx.IsValid())
         return false;
 
-    MOZ_ASSERT(obj == ccx.GetFlattenedJSObject());
+    JS_ASSERT(obj == ccx.GetFlattenedJSObject());
 
     SLIM_LOG_WILL_MORPH(cx, obj);
     PRE_HELPER_STUB_NO_SLIM
@@ -979,7 +979,7 @@ XPC_WN_Helper_Construct(JSContext *cx, unsigned argc, jsval *vp)
     if (!ccx.IsValid())
         return false;
 
-    MOZ_ASSERT(obj == ccx.GetFlattenedJSObject());
+    JS_ASSERT(obj == ccx.GetFlattenedJSObject());
 
     SLIM_LOG_WILL_MORPH(cx, obj);
     PRE_HELPER_STUB_NO_SLIM

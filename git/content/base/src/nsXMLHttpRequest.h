@@ -71,8 +71,6 @@ class nsXHREventTarget : public nsDOMEventTargetHelper,
 public:
   typedef mozilla::dom::XMLHttpRequestResponseType
           XMLHttpRequestResponseType;
-  typedef mozilla::ErrorResult
-          ErrorResult;
 
   virtual ~nsXHREventTarget() {}
   NS_DECL_ISUPPORTS_INHERITED
@@ -507,7 +505,7 @@ protected:
                 uint32_t count,
                 uint32_t *writeCount);
   nsresult CreateResponseParsedJSON(JSContext* aCx);
-  void CreatePartialBlob();
+  nsresult CreatePartialBlob(void);
   bool CreateDOMFile(nsIRequest *request);
   // Change the state of the object with this. The broadcast argument
   // determines if the onreadystatechange listener should be called.
@@ -611,9 +609,9 @@ protected:
   // response, i.e. when loading from a file, or when the http-stream
   // caches into a file or is reading from a cached file.
   nsRefPtr<nsDOMFile> mDOMFile;
-  // We stream data to mBlobSet when response type is "blob" or "moz-blob"
+  // We stream data to mBuilder when response type is "blob" or "moz-blob"
   // and mDOMFile is null.
-  nsAutoPtr<BlobSet> mBlobSet;
+  nsRefPtr<nsDOMBlobBuilder> mBuilder;
 
   nsString mOverrideMimeType;
 

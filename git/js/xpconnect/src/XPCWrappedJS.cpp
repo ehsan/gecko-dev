@@ -429,7 +429,7 @@ nsXPCWrappedJS::nsXPCWrappedJS(XPCCallContext& ccx,
         printf("//////// %d instances of nsXPCWrappedJS created\n", count);
 #endif
 
-    MOZ_ASSERT_IF(mMainThreadOnly, mMainThread);
+    JS_ASSERT_IF(mMainThreadOnly, mMainThread);
 
     InitStub(GetClass()->GetIID());
 

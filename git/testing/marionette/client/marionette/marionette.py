@@ -131,7 +131,7 @@ class Marionette(object):
     def __del__(self):
         if self.emulator:
             self.emulator.close()
-        if self.instance:
+        if self.bin:
             self.instance.close()
         for qemu in self.extra_emulators:
             qemu.emulator.close()

@@ -78,16 +78,6 @@ class MarionetteTestResult(unittest._TextTestResult):
                 else:
                     self.perfdata.join_results(testcase.perfdata)
 
-    def printErrorList(self, flavour, errors):
-        for test, err in errors:
-            self.stream.writeln(self.separator1)
-            self.stream.writeln("%s: %s" % (flavour,self.getDescription(test)))
-            self.stream.writeln(self.separator2)
-            errlines = err.strip().split('\n')
-            for line in errlines[0:-1]:
-                self.stream.writeln("%s" % line)
-            self.stream.writeln("TEST-UNEXPECTED-FAIL : %s" % errlines[-1])
-
 
 class MarionetteTextTestRunner(unittest.TextTestRunner):
 
@@ -336,11 +326,6 @@ class MarionetteTestRunner(object):
         if self.xml_output:
             with open(self.xml_output, 'w') as f:
                 f.write(self.generate_xml(self.results))
-
-        if self.marionette.instance:
-            self.marionette.instance.close()
-            self.marionette.instance = None
-        del self.marionette
 
     def run_test(self, test, testtype):
         if not self.httpd:

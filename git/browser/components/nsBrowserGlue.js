@@ -38,9 +38,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "PageThumbs",
 XPCOMUtils.defineLazyModuleGetter(this, "NewTabUtils",
                                   "resource:///modules/NewTabUtils.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "BrowserNewTabPreloader",
-                                  "resource:///modules/BrowserNewTabPreloader.jsm");
-
 XPCOMUtils.defineLazyModuleGetter(this, "PdfJs",
                                   "resource://pdf.js/PdfJs.jsm");
 
@@ -348,7 +345,6 @@ BrowserGlue.prototype = {
     webappsUI.init();
     PageThumbs.init();
     NewTabUtils.init();
-    BrowserNewTabPreloader.init();
     SignInToWebsiteUX.init();
     PdfJs.init();
 
@@ -374,7 +370,6 @@ BrowserGlue.prototype = {
     this._shutdownPlaces();
     this._sanitizer.onShutdown();
     PageThumbs.uninit();
-    BrowserNewTabPreloader.uninit();
   },
 
   // All initial windows have opened.

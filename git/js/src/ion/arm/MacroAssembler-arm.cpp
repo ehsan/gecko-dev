@@ -1051,9 +1051,9 @@ MacroAssemblerARM::ma_vpush(VFPRegister r)
 
 // branches when done from within arm-specific code
 void
-MacroAssemblerARM::ma_b(Label *dest, Assembler::Condition c, bool isPatchable)
+MacroAssemblerARM::ma_b(Label *dest, Assembler::Condition c)
 {
-    as_b(dest, c, isPatchable);
+    as_b(dest, c);
 }
 
 void
@@ -2851,7 +2851,7 @@ MacroAssemblerARMCompat::toggledJump(Label *label)
 {
     // Emit a B that can be toggled to a CMP. See ToggleToJmp(), ToggleToCmp().
     CodeOffsetLabel ret(nextOffset().getOffset());
-    ma_b(label, Always, true);
+    ma_b(label);
     return ret;
 }
 
