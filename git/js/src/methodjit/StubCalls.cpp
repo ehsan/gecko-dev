@@ -624,6 +624,148 @@ stubs::Name(VMFrame &f, uint32 index)
 }
 
 void JS_FASTCALL
+stubs::GetElem(VMFrame &f)
+{
+    JSContext *cx = f.cx;
+    JSFrameRegs &regs = f.regs;
+
+    Value lval = regs.sp[-2];
+    Value rval = regs.sp[-1];
+    const Value *copyFrom;
+
+    JSObject *obj;
+    jsid id;
+    int i;
+
+    if (lval.isString() && rval.isInt32()) {
+        Value retval;
+        JSString *str = lval.asString();
+        i = rval.asInt32();
+
+        if ((size_t)i >= str->length())
+            THROW();
+
+        str = JSString::getUnitString(cx, str, (size_t)i);
+        if (!str)
+            THROW();
+        f.regs.sp[-2].setString(str);
+        return;
+    }
+
+    if (!lval.isObject()) {
+        Value v;
+        if (!js_ValueToNonNullObject(cx, lval, &v));
+            THROW();
+        lval = v;
+    }
+    obj = &lval.asObject();
+
+    if (rval.isInt32()) {
+        if (obj->isDenseArray()) {
+            jsuint idx = jsuint(rval.asInt32());
+            
+            if (idx < obj->getArrayLength() &&
+                idx < obj->getDenseArrayCapacity()) {
+                copyFrom = obj->addressOfDenseArrayElement(idx);
+                if (!copyFrom->isMagic())
+                    goto end_getelem;
+                /* Otherwise, fall to getProperty(). */
+            }
+        } else if (obj->isArguments()
+#ifdef JS_TRACER
+                   && !GetArgsPrivateNative(obj)
+#endif
+                  ) {
+            uint32 arg = uint32(rval.asInt32());
+
+            if (arg < obj->getArgsLength()) {
+                JSStackFrame *afp = (JSStackFrame *) obj->getPrivate();
+                if (afp) {
+                    copyFrom = &afp->argv[arg];
+                    goto end_getelem;
+                }
+
+                copyFrom = obj->addressOfArgsElement(arg);
+                if (!copyFrom->isMagic())
+                    goto end_getelem;
+                /* Otherwise, fall to getProperty(). */
+            }
+        }
+        id = INT_TO_JSID(rval.asInt32());
+
+    } else {
+        if (!js_InternNonIntElementId(cx, obj, rval, &id))
+            THROW();
+    }
+
+    if (!obj->getProperty(cx, id, &rval))
+        THROW();
+    copyFrom = &rval;
+
+  end_getelem:
+    f.regs.sp[-2] = *copyFrom;
+}
+
+void JS_FASTCALL
+stubs::SetElem(VMFrame &f)
+{
+    JSContext *cx = f.cx;
+    JSFrameRegs &regs = f.regs;
+
+    Value &objval = regs.sp[-3];
+    Value &idval  = regs.sp[-2];
+    Value retval  = regs.sp[-1];
+    
+    JSObject *obj;
+    jsid id;
+
+    if (!objval.isObject()) {
+        Value v;
+        if (!js_ValueToNonNullObject(cx, objval, &v))
+            THROW();
+        objval = v;
+        obj = &v.asObject();
+    }
+    obj = &objval.asObject();
+
+    /* jsops.cpp:FETCH_ELEMENT_ID */
+    int32_t i_;
+    if (ValueFitsInInt32(idval, &i_)) {
+        id = INT_TO_JSID(i_);
+    } else if (!js_InternNonIntElementId(cx, obj, idval, &id, &regs.sp[-2])) {
+        THROW();
+    }
+
+    if (obj->isDenseArray() && JSID_IS_INT(id)) {
+        jsuint length = obj->getDenseArrayCapacity();
+        jsint i = JSID_TO_INT(id);
+        
+        if ((jsuint)i < length) {
+            if (obj->getDenseArrayElement(i).isMagic(JS_ARRAY_HOLE)) {
+                if (js_PrototypeHasIndexedProperties(cx, obj))
+                    goto mid_setelem;
+                if ((jsuint)i >= obj->getArrayLength())
+                    obj->setDenseArrayLength(i + 1);
+                obj->incDenseArrayCountBy(1);
+            }
+            obj->setDenseArrayElement(i, regs.sp[-1]);
+            goto end_setelem;
+        }
+    }
+
+  mid_setelem:
+    if (!obj->setProperty(cx, id, &regs.sp[-1]))
+        THROW();
+
+  end_setelem:
+    /* :FIXME: Moving the assigned object into the lowest stack slot
+     * is a temporary hack. What we actually want is an implementation
+     * of popAfterSet() that allows popping more than one value;
+     * this logic can then be handled in Compiler.cpp. */
+    regs.sp[-3] = retval;
+}
+
+void JS_FASTCALL
 stubs::CallName(VMFrame &f, uint32 index)
 {
     JSObject *obj = NameOp(f, index);
@@ -1262,171 +1404,5 @@ JSBool JS_FASTCALL
 stubs::NotEqual(VMFrame &f)
 {
     return InlineEqualityOp(f, false, true);
-}
-
-static inline bool
-DefaultValue(VMFrame &f, JSType hint, Value &v, int n)
-{
-    JS_ASSERT(v.isObject());
-    if (!v.asObject().defaultValue(f.cx, hint, &f.regs.sp[n]))
-        return false;
-    v = f.regs.sp[n];
-    return true;
-}
-
-void JS_FASTCALL
-stubs::Add(VMFrame &f)
-{
-    JSContext *cx = f.cx;
-    JSFrameRegs &regs = f.regs;
-    Value rval = regs.sp[-1];
-    Value lval = regs.sp[-2];
-
-    if (BothInt32(lval, rval)) {
-        int32_t l = lval.asInt32(), r = rval.asInt32();
-        int32_t sum = l + r;
-        regs.sp--;
-        if (JS_UNLIKELY(bool((l ^ sum) & (r ^ sum) & 0x80000000)))
-            regs.sp[-1].setDouble(double(l) + double(r));
-        else
-            regs.sp[-1].setInt32(sum);
-    } else
-#if JS_HAS_XML_SUPPORT
-    if (lval.isNonFunObj() && lval.asObject().isXML() &&
-        rval.isNonFunObj() && rval.asObject().isXML()) {
-        if (!js_ConcatenateXML(cx, &lval.asObject(), &rval.asObject(), &rval))
-            THROW();
-        regs.sp--;
-        regs.sp[-1] = rval;
-    } else
-#endif
-    {
-        if (lval.isObject() && !DefaultValue(f, JSTYPE_VOID, lval, -2))
-            THROW();
-        if (rval.isObject() && !DefaultValue(f, JSTYPE_VOID, rval, -1))
-            THROW();
-        bool lIsString, rIsString;
-        if ((lIsString = lval.isString()) | (rIsString = rval.isString())) {
-            JSString *lstr, *rstr;
-            if (lIsString) {
-                lstr = lval.asString();
-            } else {
-                lstr = js_ValueToString(cx, lval);
-                if (!lstr)
-                    THROW();
-                regs.sp[-2].setString(lstr);
-            }
-            if (rIsString) {
-                rstr = rval.asString();
-            } else {
-                rstr = js_ValueToString(cx, rval);
-                if (!rstr)
-                    THROW();
-                regs.sp[-1].setString(rstr);
-            }
-            JSString *str = js_ConcatStrings(cx, lstr, rstr);
-            if (!str)
-                THROW();
-            regs.sp--;
-            regs.sp[-1].setString(str);
-        } else {
-            double l, r;
-            if (!ValueToNumber(cx, lval, &l) || !ValueToNumber(cx, rval, &r))
-                THROW();
-            l += r;
-            regs.sp--;
-            regs.sp[-1].setNumber(l);
-        }
-    }
-}
-
-
-void JS_FASTCALL
-stubs::Sub(VMFrame &f)
-{
-    JSContext *cx = f.cx;
-    JSFrameRegs &regs = f.regs;
-    double d1, d2;
-    if (!ValueToNumber(cx, regs.sp[-2], &d1) ||
-        !ValueToNumber(cx, regs.sp[-1], &d2)) {
-        THROW();
-    }
-    double d = d1 - d2;
-    regs.sp[-2].setNumber(d);
-}
-
-void JS_FASTCALL
-stubs::Mul(VMFrame &f)
-{
-    JSContext *cx = f.cx;
-    JSFrameRegs &regs = f.regs;
-    double d1, d2;
-    if (!ValueToNumber(cx, regs.sp[-2], &d1) ||
-        !ValueToNumber(cx, regs.sp[-1], &d2)) {
-        THROW();
-    }
-    double d = d1 * d2;
-    regs.sp[-2].setNumber(d);
-}
-
-void JS_FASTCALL
-stubs::Div(VMFrame &f)
-{
-    JSContext *cx = f.cx;
-    JSRuntime *rt = cx->runtime;
-    JSFrameRegs &regs = f.regs;
-
-    double d1, d2;
-    if (!ValueToNumber(cx, regs.sp[-2], &d1) ||
-        !ValueToNumber(cx, regs.sp[-1], &d2)) {
-        THROW();
-    }
-    if (d2 == 0) {
-        const Value *vp;
-#ifdef XP_WIN
-        /* XXX MSVC miscompiles such that (NaN == 0) */
-        if (JSDOUBLE_IS_NaN(d2))
-            vp = &rt->NaNValue;
-        else
-#endif
-        if (d1 == 0 || JSDOUBLE_IS_NaN(d1))
-            vp = &rt->NaNValue;
-        else if (JSDOUBLE_IS_NEG(d1) != JSDOUBLE_IS_NEG(d2))
-            vp = &rt->negativeInfinityValue;
-        else
-            vp = &rt->positiveInfinityValue;
-        regs.sp[-2] = *vp;
-    } else {
-        d1 /= d2;
-        regs.sp[-2].setNumber(d1);
-    }
-}
-
-void JS_FASTCALL
-stubs::Mod(VMFrame &f)
-{
-    JSContext *cx = f.cx;
-    JSFrameRegs &regs = f.regs;
-
-    Value &lref = regs.sp[-2];
-    Value &rref = regs.sp[-1];
-    int32_t l, r;
-    if (lref.isInt32() && rref.isInt32() &&
-        (l = lref.asInt32()) >= 0 && (r = rref.asInt32()) > 0) {
-        int32_t mod = l % r;
-        regs.sp[-2].setInt32(mod);
-    } else {
-        double d1, d2;
-        if (!ValueToNumber(cx, regs.sp[-2], &d1) ||
-            !ValueToNumber(cx, regs.sp[-1], &d2)) {
-            THROW();
-        }
-        if (d2 == 0) {
-            regs.sp[-2].setDouble(js_NaN);
-        } else {
-            d1 = js_fmod(d1, d2);
-            regs.sp[-2].setDouble(d1);
-        }
-    }
 }
 

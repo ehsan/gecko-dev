@@ -130,7 +130,6 @@ class FrameEntry
     }
 
     void setCopied() {
-        JS_ASSERT(!isCopy());
         copied = true;
     }
 
@@ -147,7 +146,6 @@ class FrameEntry
      * Set copy index.
      */
     void setCopyOf(uint32 index) {
-        JS_ASSERT(!isCopied());
         index_ = index;
         copy = true;
     }
@@ -159,7 +157,6 @@ class FrameEntry
     uint32     index_;
     bool       copied;
     bool       copy;
-    FrameEntry *prev;
 };
 
 } /* namespace mjit */

@@ -123,7 +123,10 @@ FrameState::pop()
     if (!fe)
         return;
 
-    forgetRegs(fe);
+    if (fe->type.inRegister())
+        forgetReg(fe->type.reg());
+    if (fe->data.inRegister())
+        forgetReg(fe->data.reg());
 }
 
 inline void
@@ -413,15 +416,6 @@ FrameState::unpinReg(RegisterID reg)
 {
     JS_ASSERT(!regstate[reg].fe);
     regstate[reg].fe = regstate[reg].save;
-}
-
-inline void
-FrameState::forgetRegs(FrameEntry *fe)
-{
-    if (fe->type.inRegister())
-        forgetReg(fe->type.reg());
-    if (fe->data.inRegister())
-        forgetReg(fe->data.reg());
 }
 
 } /* namspace mjit */
