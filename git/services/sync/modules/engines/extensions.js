@@ -41,7 +41,6 @@ function ExtensionEngine() {
   this._init();
 }
 ExtensionEngine.prototype = {
-  get enabled() null, // XXX force disabled in-case the pref was somehow set
   __proto__: SyncEngine.prototype,
 
   displayName: "Extensions",

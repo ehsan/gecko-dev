@@ -59,8 +59,7 @@ function run_test() {
     log.info("Generating keypair + symmetric key");
 
     PubKeys.defaultKeyUri = "http://localhost:8080/pubkey";
-    let passphrase = { password: "my passphrase" };
-    keys = PubKeys.createKeypair(passphrase,
+    keys = PubKeys.createKeypair("my passphrase",
                                  "http://localhost:8080/pubkey",
                                  "http://localhost:8080/privkey");
     let crypto = Cc["@labs.mozilla.com/Weave/Crypto;1"].
@@ -79,19 +78,19 @@ function run_test() {
     cryptoWrap = new CryptoWrapper("http://localhost:8080/crypted-resource", auth);
     cryptoWrap.encryption = "http://localhost:8080/crypto-meta";
     cryptoWrap.cleartext = "my payload here";
-    cryptoWrap.encrypt(passphrase);
+    cryptoWrap.encrypt("my passphrase");
 
     log.info("Decrypting the record");
 
-    let payload = cryptoWrap.decrypt(passphrase);
+    let payload = cryptoWrap.decrypt("my passphrase");
     do_check_eq(payload, "my payload here");
     do_check_neq(payload, cryptoWrap.payload); // wrap.data.payload is the encrypted one
 
     log.info("Re-encrypting the record with alternate payload");
 
     cryptoWrap.cleartext = "another payload";
-    cryptoWrap.encrypt(passphrase);
-    payload = cryptoWrap.decrypt(passphrase);
+    cryptoWrap.encrypt("my passphrase");
+    payload = cryptoWrap.decrypt("my passphrase");
     do_check_eq(payload, "another payload");
 
     log.info("Done!");

@@ -44,7 +44,6 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://weave/ext/Observers.js");
-Cu.import("resource://weave/ext/Sync.js");
 Cu.import("resource://weave/log4moz.js");
 Cu.import("resource://weave/constants.js");
 Cu.import("resource://weave/util.js");
@@ -171,9 +170,13 @@ Engine.prototype = {
   },
 
   _init: function Engine__init() {
+    let levelPref = "log.logger.engine." + this.name;
+    let level = "Debug";
+    try { level = Utils.prefs.getCharPref(levelPref); }
+    catch (e) { /* ignore unset prefs */ }
+
     this._notify = Utils.notify("weave:engine:");
     this._log = Log4Moz.repository.getLogger("Engine." + this.logName);
-    let level = Svc.Prefs.get("log.logger.engine." + this.name, "Debug");
     this._log.level = Log4Moz.Level[level];
 
     this._tracker; // initialize tracker to load previously changed IDs
@@ -337,7 +340,7 @@ SyncEngine.prototype = {
     while ((item = newitems.iter.next())) {
       this._lowMemCheck();
       try {
-        item.decrypt(ID.get("WeaveCryptoID"));
+        item.decrypt(ID.get('WeaveCryptoID').password);
         if (this._reconcile(item)) {
           count.applied++;
           this._applyIncoming(item);
@@ -351,7 +354,6 @@ SyncEngine.prototype = {
 	this._log.error("Could not process incoming record: " +
 			Utils.exceptionStr(e));
       }
-      Sync.sleep(0);
     }
     if (this.lastSync < this._lastSyncTmp)
         this.lastSync = this._lastSyncTmp;
@@ -462,9 +464,8 @@ SyncEngine.prototype = {
         // skip getting siblings of already processed and deleted records
         if (!out.deleted && !(out.id in meta))
           this._store.createMetaRecords(out.id, meta);
-        out.encrypt(ID.get("WeaveCryptoID"));
+        out.encrypt(ID.get('WeaveCryptoID').password);
         up.pushData(JSON.parse(out.serialize())); // FIXME: inefficient
-        Sync.sleep(0);
       }
 
       this._store.cache.enabled = true;

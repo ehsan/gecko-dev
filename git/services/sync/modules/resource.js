@@ -253,7 +253,6 @@ Resource.prototype = {
     // they have payload data.
     if ("PUT" == action || "POST" == action) {
       this.filterUpload();
-      this._log.debug(action + " Length: " + this._data.length);
       this._log.trace(action + " Body: " + this._data);
 
       let type = ('Content-Type' in this._headers)?
