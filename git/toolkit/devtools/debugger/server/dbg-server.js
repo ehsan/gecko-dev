@@ -72,19 +72,11 @@ var DebuggerServer = {
   LONG_STRING_INITIAL_LENGTH: 1000,
 
   /**
-   * A handler function that prompts the user to accept or decline the incoming
-   * connection.
-   */
-  _allowConnection: null,
-
-  /**
-   * Prompt the user to accept or decline the incoming connection. This is the
-   * default implementation that products embedding the debugger server may
-   * choose to override.
+   * Prompt the user to accept or decline the incoming connection.
    *
    * @return true if the connection should be permitted, false otherwise
    */
-  _defaultAllowConnection: function DH__defaultAllowConnection() {
+  _allowConnection: function DH__allowConnection() {
     let title = L10N.getStr("remoteIncomingPromptTitle");
     let msg = L10N.getStr("remoteIncomingPromptMessage");
     let disableButton = L10N.getStr("remoteIncomingPromptDisable");
@@ -141,9 +133,9 @@ var DebuggerServer = {
     this._connections = {};
     this._nextConnID = 0;
     this._transportInitialized = true;
-    this._allowConnection = aAllowConnectionCallback ?
-                            aAllowConnectionCallback :
-                            this._defaultAllowConnection;
+    if (aAllowConnectionCallback) {
+      this._allowConnection = aAllowConnectionCallback;
+    }
   },
 
   get initialized() { return !!this.globalActorFactories; },
@@ -157,12 +149,9 @@ var DebuggerServer = {
    */
   destroy: function DH_destroy() {
     if (Object.keys(this._connections).length == 0) {
-      this.closeListener();
+      dumpn("Shutting down debugger server.");
       delete this.globalActorFactories;
       delete this.tabActorFactories;
-      delete this._allowConnection;
-      this._transportInitialized = false;
-      dumpn("Debugger server is shut down.");
     }
   },
 
@@ -231,6 +220,8 @@ var DebuggerServer = {
    *        number of open connections.
    */
   closeListener: function DH_closeListener(aForce) {
+    this._checkInit();
+
     if (!this._listener || this._socketConnections == 0) {
       return false;
     }
@@ -247,9 +238,8 @@ var DebuggerServer = {
   },
 
   /**
-   * Creates a new connection to the local debugger speaking over a fake
-   * transport. This connection results in straightforward calls to the onPacket
-   * handlers of each side.
+   * Creates a new connection to the local debugger speaking over an
+   * nsIPipe.
    *
    * @returns a client-side DebuggerTransport for communicating with
    *          the newly-created connection.
@@ -257,12 +247,16 @@ var DebuggerServer = {
   connectPipe: function DH_connectPipe() {
     this._checkInit();
 
-    let serverTransport = new LocalDebuggerTransport;
-    let clientTransport = new LocalDebuggerTransport(serverTransport);
-    serverTransport.other = clientTransport;
+    let toServer = Cc["@mozilla.org/pipe;1"].createInstance(Ci.nsIPipe);
+    toServer.init(true, true, 0, 0, null);
+    let toClient = Cc["@mozilla.org/pipe;1"].createInstance(Ci.nsIPipe);
+    toClient.init(true, true, 0, 0, null);
+
+    let serverTransport = new DebuggerTransport(toServer.inputStream,
+                                                toClient.outputStream);
     this._onConnection(serverTransport);
 
-    return clientTransport;
+    return new DebuggerTransport(toClient.inputStream, toServer.outputStream);
   },
 
 

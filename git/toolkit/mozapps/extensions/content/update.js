@@ -172,8 +172,9 @@ var gVersionInfoPage = {
             return;
           }
 
-          for (let addon of gUpdateWizard.addons)
-            addon.findUpdates(gVersionInfoPage, AddonManager.UPDATE_WHEN_NEW_APP_INSTALLED);
+          gUpdateWizard.addons.forEach(function(aAddon) {
+            aAddon.findUpdates(gVersionInfoPage, AddonManager.UPDATE_WHEN_NEW_APP_INSTALLED);
+          }, this);
         });
       });
     });
@@ -236,11 +237,11 @@ var gMismatchPage = {
     document.documentElement.getButton("next").focus();
 
     var incompatible = document.getElementById("mismatch.incompatible");
-    for (let addon of gUpdateWizard.addons) {
+    gUpdateWizard.addons.forEach(function(aAddon) {
       var listitem = document.createElement("listitem");
-      listitem.setAttribute("label", addon.name + " " + addon.version);
+      listitem.setAttribute("label", aAddon.name + " " + aAddon.version);
       incompatible.appendChild(listitem);
-    }
+    });
   }
 };
 
@@ -262,8 +263,9 @@ var gUpdatePage = {
     gUpdateWizard.errorItems = [];
 
     this._totalCount = gUpdateWizard.addons.length;
-    for (let addon of gUpdateWizard.addons)
-      addon.findUpdates(this, AddonManager.UPDATE_WHEN_NEW_APP_INSTALLED);
+    gUpdateWizard.addons.forEach(function(aAddon) {
+      aAddon.findUpdates(this, AddonManager.UPDATE_WHEN_NEW_APP_INSTALLED);
+    }, this);
   },
 
   onAllUpdatesFinished: function() {
@@ -308,12 +310,12 @@ var gFoundPage = {
 
     var foundUpdates = document.getElementById("found.updates");
     var itemCount = gUpdateWizard.addonsToUpdate.length;
-    for (let install of gUpdateWizard.addonsToUpdate) {
-      let listItem = foundUpdates.appendItem(install.name + " " + install.version);
+    gUpdateWizard.addonsToUpdate.forEach(function(aInstall) {
+      var listItem = foundUpdates.appendItem(aInstall.name + " " + aInstall.version);
       listItem.setAttribute("type", "checkbox");
       listItem.setAttribute("checked", "true");
-      listItem.install = install;
-    }
+      listItem.install = aInstall;
+    });
 
     if (!gUpdateWizard.xpinstallEnabled) {
       document.getElementById("xpinstallDisabledAlert").hidden = false;

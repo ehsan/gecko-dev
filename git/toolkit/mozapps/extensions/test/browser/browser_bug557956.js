@@ -37,8 +37,9 @@ function test() {
 function end_test() {
   // Test generates a lot of available installs so just cancel them all
   AddonManager.getAllInstalls(function(aInstalls) {
-    for (let install of aInstalls)
-      install.cancel();
+    aInstalls.forEach(function(aInstall) {
+      aInstall.cancel();
+    });
 
     finish();
   });
@@ -50,21 +51,20 @@ function install_test_addons(aCallback) {
   // Use a blank update URL
   Services.prefs.setCharPref(PREF_UPDATEURL, TESTROOT + "missing.rdf");
 
-  let names = ["browser_bug557956_1",
-               "browser_bug557956_2",
-               "browser_bug557956_3",
-               "browser_bug557956_4",
-               "browser_bug557956_5",
-               "browser_bug557956_6",
-               "browser_bug557956_7",
-               "browser_bug557956_8_1",
-               "browser_bug557956_9_1",
-               "browser_bug557956_10"];
-  for (let name of names) {
-    AddonManager.getInstallForURL(TESTROOT + "addons/" + name + ".xpi", function(aInstall) {
+  ["browser_bug557956_1",
+   "browser_bug557956_2",
+   "browser_bug557956_3",
+   "browser_bug557956_4",
+   "browser_bug557956_5",
+   "browser_bug557956_6",
+   "browser_bug557956_7",
+   "browser_bug557956_8_1",
+   "browser_bug557956_9_1",
+   "browser_bug557956_10"].forEach(function(aName) {
+    AddonManager.getInstallForURL(TESTROOT + "addons/" + aName + ".xpi", function(aInstall) {
       installs.push(aInstall);
     }, "application/x-xpinstall");
-  }
+  });
 
   var listener = {
     installCount: 0,
@@ -80,10 +80,10 @@ function install_test_addons(aCallback) {
     }
   };
 
-  for (let install of installs) {
-    install.addListener(listener);
-    install.install();
-  }
+  installs.forEach(function(aInstall) {
+    aInstall.addListener(listener);
+    aInstall.install();
+  });
 }
 
 function uninstall_test_addons(aCallback) {
@@ -98,10 +98,10 @@ function uninstall_test_addons(aCallback) {
                                "addon9@tests.mozilla.org",
                                "addon10@tests.mozilla.org"],
                                function(aAddons) {
-    for (let addon of aAddons) {
-      if (addon)
-        addon.uninstall();
-    }
+    aAddons.forEach(function(aAddon) {
+      if (aAddon)
+        aAddon.uninstall();
+    });
     aCallback();
   });
 }
@@ -353,8 +353,9 @@ add_test(function() {
                                  "addon9@tests.mozilla.org",
                                  "addon10@tests.mozilla.org"],
                                  function(aAddons) {
-      for (let addon of aAddons)
-        addon.userDisabled = true;
+      aAddons.forEach(function(aAddon) {
+        aAddon.userDisabled = true;
+      });
 
       // These add-ons were inactive in the old application
       var inactiveAddonIds = [
@@ -388,8 +389,9 @@ add_test(function() {
                                  "addon9@tests.mozilla.org",
                                  "addon10@tests.mozilla.org"],
                                  function(aAddons) {
-      for (let addon of aAddons)
-        addon.uninstall();
+      aAddons.forEach(function(aAddon) {
+        aAddon.uninstall();
+      });
 
       // These add-ons were inactive in the old application
       var inactiveAddonIds = [
@@ -448,13 +450,12 @@ add_test(function() {
                                  "addon9@tests.mozilla.org",
                                  "addon10@tests.mozilla.org"],
                                  function(aAddons) {
-
-      for (let addon of aAddons) {
-        if (addon.id == "addon10@tests.mozilla.org")
-          is(addon.isCompatible, true, "Addon10 should be compatible before compat overrides are refreshed");
+      aAddons.forEach(function(aAddon) {
+        if (aAddon.id == "addon10@tests.mozilla.org")
+          is(aAddon.isCompatible, true, "Addon10 should be compatible before compat overrides are refreshed");
         else
-          addon.uninstall();
-      }
+          aAddon.uninstall();
+      });
 
       Services.prefs.setCharPref(PREF_GETADDONS_BYIDS, TESTROOT + "browser_bug557956.xml");
       Services.prefs.setBoolPref(PREF_GETADDONS_CACHE_ENABLED, true);

@@ -14,10 +14,10 @@ var gProvider;
 function parseParams(aQuery) {
   let params = {};
 
-  for (let param of aQuery.split("&")) {
-    let [key, value] = param.split("=");
+  aQuery.split("&").forEach(function(aParam) {
+    let [key, value] = aParam.split("=");
     params[key] = value;
-  }
+  });
 
   return params;
 }

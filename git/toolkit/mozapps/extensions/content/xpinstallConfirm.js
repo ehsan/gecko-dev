@@ -142,14 +142,16 @@ XPInstallConfirm.onOK = function ()
     getService(Components.interfaces.nsITelemetry).
     getHistogramById("SECURITY_UI").
     add(Components.interfaces.nsISecurityUITelemetry.WARNING_CONFIRM_ADDON_INSTALL_CLICK_THROUGH);
-  for (let install of args.installs)
+  args.installs.forEach(function(install) {
     install.install();
+  });
   return true;
 }
 
 XPInstallConfirm.onCancel = function ()
 {
-  for (let install of args.installs)
+  args.installs.forEach(function(install) {
     install.cancel();
+  });
   return true;
 }
