@@ -22,7 +22,7 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(MobileCellInfo)
 
-  explicit MobileCellInfo(nsPIDOMWindow* aWindow);
+  MobileCellInfo(nsPIDOMWindow* aWindow);
 
   MobileCellInfo(int32_t aGsmLocationAreaCode, int64_t aGsmCellId,
                  int32_t aCdmaBaseStationId, int32_t aCdmaBaseStationLatitude,

@@ -13605,12 +13605,10 @@ SimRecordHelperObject.prototype = {
 
       let numInstances = GsmPDUHelper.readHexOctet();
 
-      // Data length is defined as 9n+1 or 9n+2. See TS 31.102, sub-clause
-      // 4.6.1.1. However, it's likely to have padding appended so we have a
-      // rather loose check.
-      if (octetLen < (9 * numInstances + 1)) {
-        Buf.seekIncoming((octetLen - 1) * Buf.PDU_HEX_OCTET_SIZE);
-        Buf.readStringDelimiter(strLen);
+      // Correct data length should be 9n+1 or 9n+2. See TS 31.102, sub-clause
+      // 4.6.1.1.
+      if (octetLen != (9 * numInstances + 1) ||
+          octetLen != (9 * numInstances + 2)) {
         if (onerror) {
           onerror();
         }
@@ -13631,7 +13629,6 @@ SimRecordHelperObject.prototype = {
                    GsmPDUHelper.readHexOctet()
         };
       }
-      Buf.seekIncoming((octetLen - 9 * numInstances - 1) * Buf.PDU_HEX_OCTET_SIZE);
       Buf.readStringDelimiter(strLen);
 
       let instances = [];
@@ -13691,8 +13688,6 @@ SimRecordHelperObject.prototype = {
       if (octetLen < offset + dataLen) {
         // Data length is not enough. See TS 31.102, clause 4.6.1.1, the
         // paragraph "Bytes 8 and 9: Length of Image Instance Data."
-        Buf.seekIncoming(octetLen * Buf.PDU_HEX_OCTET_SIZE);
-        Buf.readStringDelimiter(strLen);
         if (onerror) {
           onerror();
         }

@@ -1042,7 +1042,7 @@ LIRGenerator::visitCompare(MCompare *comp)
         return define(lir, comp);
     }
 
-    MOZ_CRASH("Unrecognized compare type.");
+    MOZ_ASSUME_UNREACHABLE("Unrecognized compare type.");
 }
 
 bool
@@ -1789,7 +1789,7 @@ LIRGenerator::visitToDouble(MToDouble *convert)
       default:
         // Objects might be effectful. Symbols will throw.
         // Strings are complicated - we don't handle them yet.
-        MOZ_CRASH("unexpected type");
+        MOZ_ASSUME_UNREACHABLE("unexpected type");
     }
 }
 
@@ -1839,7 +1839,7 @@ LIRGenerator::visitToFloat32(MToFloat32 *convert)
       default:
         // Objects might be effectful. Symbols will throw.
         // Strings are complicated - we don't handle them yet.
-        MOZ_CRASH("unexpected type");
+        MOZ_ASSUME_UNREACHABLE("unexpected type");
         return false;
     }
 }
@@ -1890,11 +1890,11 @@ LIRGenerator::visitToInt32(MToInt32 *convert)
       case MIRType_Object:
       case MIRType_Undefined:
         // Objects might be effectful. Symbols throw. Undefined coerces to NaN, not int32.
-        MOZ_CRASH("ToInt32 invalid input type");
+        MOZ_ASSUME_UNREACHABLE("ToInt32 invalid input type");
         return false;
 
       default:
-        MOZ_CRASH("unexpected type");
+        MOZ_ASSUME_UNREACHABLE("unexpected type");
     }
 }
 
@@ -1932,7 +1932,7 @@ LIRGenerator::visitTruncateToInt32(MTruncateToInt32 *truncate)
       default:
         // Objects might be effectful. Symbols throw.
         // Strings are complicated - we don't handle them yet.
-        MOZ_CRASH("unexpected type");
+        MOZ_ASSUME_UNREACHABLE("unexpected type");
     }
 }
 
@@ -1991,7 +1991,7 @@ LIRGenerator::visitToString(MToString *ins)
 
       default:
         // Float32, symbols, and objects are not supported.
-        MOZ_CRASH("unexpected type");
+        MOZ_ASSUME_UNREACHABLE("unexpected type");
     }
 }
 
@@ -2210,7 +2210,7 @@ LIRGenerator::visitLoadSlot(MLoadSlot *ins)
 
       case MIRType_Undefined:
       case MIRType_Null:
-        MOZ_CRASH("typed load must have a payload");
+        MOZ_ASSUME_UNREACHABLE("typed load must have a payload");
 
       default:
         return define(new(alloc()) LLoadSlotT(useRegister(ins->slots())), ins);
@@ -2316,7 +2316,7 @@ LIRGenerator::visitStoreSlot(MStoreSlot *ins)
         return add(new(alloc()) LStoreSlotT(useRegister(ins->slots()), useRegister(ins->value())), ins);
 
       case MIRType_Float32:
-        MOZ_CRASH("Float32 shouldn't be stored in a slot.");
+        MOZ_ASSUME_UNREACHABLE("Float32 shouldn't be stored in a slot.");
 
       default:
         return add(new(alloc()) LStoreSlotT(useRegister(ins->slots()), useRegisterOrConstant(ins->value())),
@@ -2559,7 +2559,7 @@ LIRGenerator::visitNot(MNot *ins)
       }
 
       default:
-        MOZ_CRASH("Unexpected MIRType.");
+        MOZ_ASSUME_UNREACHABLE("Unexpected MIRType.");
     }
 }
 
@@ -2635,7 +2635,7 @@ LIRGenerator::visitLoadElement(MLoadElement *ins)
       }
       case MIRType_Undefined:
       case MIRType_Null:
-        MOZ_CRASH("typed load must have a payload");
+        MOZ_ASSUME_UNREACHABLE("typed load must have a payload");
 
       default:
       {
@@ -2743,7 +2743,7 @@ LIRGenerator::visitArrayPopShift(MArrayPopShift *ins)
       }
       case MIRType_Undefined:
       case MIRType_Null:
-        MOZ_CRASH("typed load must have a payload");
+        MOZ_ASSUME_UNREACHABLE("typed load must have a payload");
 
       default:
       {
@@ -2864,7 +2864,7 @@ LIRGenerator::visitClampToUint8(MClampToUint8 *ins)
       }
 
       default:
-        MOZ_CRASH("unexpected type");
+        MOZ_ASSUME_UNREACHABLE("unexpected type");
     }
 }
 
@@ -3171,7 +3171,7 @@ LIRGenerator::visitAssertRange(MAssertRange *ins)
         break;
 
       default:
-        MOZ_CRASH("Unexpected Range for MIRType");
+        MOZ_ASSUME_UNREACHABLE("Unexpected Range for MIRType");
         break;
     }
 
@@ -3577,7 +3577,7 @@ LIRGenerator::visitAsmJSReturn(MAsmJSReturn *ins)
     else if (rval->type() == MIRType_Int32)
         lir->setOperand(0, useFixed(rval, ReturnReg));
     else
-        MOZ_CRASH("Unexpected asm.js return type");
+        MOZ_ASSUME_UNREACHABLE("Unexpected asm.js return type");
     return add(lir);
 }
 
@@ -3707,7 +3707,8 @@ LIRGenerator::visitSimdConstant(MSimdConstant *ins)
     if (ins->type() == MIRType_Float32x4)
         return define(new(alloc()) LFloat32x4(), ins);
 
-    MOZ_CRASH("Unknown SIMD kind when generating constant");
+    MOZ_ASSUME_UNREACHABLE("Unknown SIMD kind when generating constant");
+    return false;
 }
 
 bool
@@ -3728,7 +3729,8 @@ LIRGenerator::visitSimdExtractElement(MSimdExtractElement *ins)
         return define(new(alloc()) LSimdExtractElementF(use, ins->lane()), ins);
     }
 
-    MOZ_CRASH("Unknown SIMD kind when extracting element");
+    MOZ_ASSUME_UNREACHABLE("Unknown SIMD kind when extracting element");
+    return false;
 }
 
 bool
@@ -3784,7 +3786,8 @@ LIRGenerator::visitSimdBinaryArith(MSimdBinaryArith *ins)
         return lowerForFPU(add, ins, ins->lhs(), ins->rhs());
     }
 
-    MOZ_CRASH("Unknown SIMD kind when adding values");
+    MOZ_ASSUME_UNREACHABLE("Unknown SIMD kind when adding values");
+    return false;
 }
 
 bool
@@ -3975,7 +3978,7 @@ bool
 LIRGenerator::visitPhi(MPhi *phi)
 {
     // Phi nodes are not lowered because they are only meaningful for the register allocator.
-    MOZ_CRASH("Unexpected Phi node during Lowering.");
+    MOZ_ASSUME_UNREACHABLE("Unexpected Phi node during Lowering.");
 }
 
 bool
@@ -3983,19 +3986,19 @@ LIRGenerator::visitBeta(MBeta *beta)
 {
     // Beta nodes are supposed to be removed before because they are
     // only used to carry the range information for Range analysis
-    MOZ_CRASH("Unexpected Beta node during Lowering.");
+    MOZ_ASSUME_UNREACHABLE("Unexpected Beta node during Lowering.");
 }
 
 bool
 LIRGenerator::visitObjectState(MObjectState *objState)
 {
     // ObjectState nodes are always recovered on bailouts
-    MOZ_CRASH("Unexpected ObjectState node during Lowering.");
+    MOZ_ASSUME_UNREACHABLE("Unexpected ObjectState node during Lowering.");
 }
 
 bool
 LIRGenerator::visitArrayState(MArrayState *objState)
 {
     // ArrayState nodes are always recovered on bailouts
-    MOZ_CRASH("Unexpected ArrayState node during Lowering.");
+    MOZ_ASSUME_UNREACHABLE("Unexpected ArrayState node during Lowering.");
 }

@@ -528,31 +528,12 @@ function updateAboutMemoryFromReporters()
 //
 var gCurrentFileFormatVersion = 1;
 
-
-/**
- * Parse a string as JSON and extract the |memory_report| property if it has
- * one, which indicates the string is from a crash dump.
- *
- * @param aStr
- *        The string.
- * @return The extracted object.
- */
-function parseAndUnwrapIfCrashDump(aStr) {
-  let obj = JSON.parse(aStr);
-  if (obj.memory_report !== undefined) {
-    // It looks like a crash dump. The memory reports should be in the
-    // |memory_report| property.
-    obj = obj.memory_report;
-  }
-  return obj;
-}
-
 /**
  * Populate about:memory using the data in the given JSON object.
  *
  * @param aObj
- *        An object that (hopefully!) conforms to the JSON schema used by
- *        nsIMemoryInfoDumper.
+ *        An object containing JSON data that (hopefully!) conforms to the
+ *        schema used by nsIMemoryInfoDumper.
  */
 function updateAboutMemoryFromJSONObject(aObj)
 {
@@ -601,7 +582,7 @@ function updateAboutMemoryFromJSONObject(aObj)
 function updateAboutMemoryFromJSONString(aStr)
 {
   try {
-    let obj = parseAndUnwrapIfCrashDump(aStr);
+    let obj = JSON.parse(aStr);
     updateAboutMemoryFromJSONObject(obj);
   } catch (ex) {
     handleException(ex);
@@ -691,10 +672,10 @@ function updateAboutMemoryFromFile(aFilename)
 function updateAboutMemoryFromTwoFiles(aFilename1, aFilename2)
 {
   loadMemoryReportsFromFile(aFilename1, function(aStr1) {
-    loadMemoryReportsFromFile(aFilename2, function(aStr2) {
+    loadMemoryReportsFromFile(aFilename2, function f2(aStr2) {
       try {
-        let obj1 = parseAndUnwrapIfCrashDump(aStr1);
-        let obj2 = parseAndUnwrapIfCrashDump(aStr2);
+        let obj1 = JSON.parse(aStr1);
+        let obj2 = JSON.parse(aStr2);
         gIsDiff = true;
         updateAboutMemoryFromJSONObject(diffJSONObjects(obj1, obj2));
         gIsDiff = false;
@@ -906,6 +887,7 @@ function makeJSONReports(aDReportMap)
 
   return reports;
 }
+
 
 // Diff two JSON objects holding memory reports.
 function diffJSONObjects(aJson1, aJson2)

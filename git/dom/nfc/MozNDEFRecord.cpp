@@ -67,7 +67,10 @@ MozNDEFRecord::DropData()
 /* static */
 already_AddRefed<MozNDEFRecord>
 MozNDEFRecord::Constructor(const GlobalObject& aGlobal,
-                           const MozNDEFRecordOptions& aOptions,
+                           uint8_t aTnf,
+                           const Optional<Uint8Array>& aType,
+                           const Optional<Uint8Array>& aId,
+                           const Optional<Uint8Array>& aPayload,
                            ErrorResult& aRv)
 {
   nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobal.GetAsSupports());
@@ -77,7 +80,8 @@ MozNDEFRecord::Constructor(const GlobalObject& aGlobal,
   }
 
   nsRefPtr<MozNDEFRecord> ndefrecord = new MozNDEFRecord(aGlobal.Context(),
-                                                         win, aOptions);
+                                                         win, aTnf, aType, aId,
+                                                         aPayload);
   if (!ndefrecord) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
@@ -86,28 +90,27 @@ MozNDEFRecord::Constructor(const GlobalObject& aGlobal,
 }
 
 MozNDEFRecord::MozNDEFRecord(JSContext* aCx, nsPIDOMWindow* aWindow,
-                             const MozNDEFRecordOptions& aOptions)
+                             uint8_t aTnf,
+                             const Optional<Uint8Array>& aType,
+                             const Optional<Uint8Array>& aId,
+                             const Optional<Uint8Array>& aPayload)
+  : mTnf(aTnf)
 {
   mWindow = aWindow; // For GetParentObject()
 
-  mTnf = aOptions.mTnf;
-
-  if (aOptions.mType.WasPassed()) {
-    const Uint8Array& type = aOptions.mType.Value();
-    type.ComputeLengthAndData();
-    mType = Uint8Array::Create(aCx, this, type.Length(), type.Data());
+  if (aType.WasPassed()) {
+    aType.Value().ComputeLengthAndData();
+    mType = Uint8Array::Create(aCx, this, aType.Value().Length(), aType.Value().Data());
   }
 
-  if (aOptions.mId.WasPassed()) {
-    const Uint8Array& id = aOptions.mId.Value();
-    id.ComputeLengthAndData();
-    mId = Uint8Array::Create(aCx, this, id.Length(), id.Data());
+  if (aId.WasPassed()) {
+    aId.Value().ComputeLengthAndData();
+    mId = Uint8Array::Create(aCx, this, aId.Value().Length(), aId.Value().Data());
   }
 
-  if (aOptions.mPayload.WasPassed()) {
-    const Uint8Array& payload = aOptions.mPayload.Value();
-    payload.ComputeLengthAndData();
-    mPayload = Uint8Array::Create(aCx, this, payload.Length(), payload.Data());
+  if (aPayload.WasPassed()) {
+    aPayload.Value().ComputeLengthAndData();
+    mPayload = Uint8Array::Create(aCx, this, aPayload.Value().Length(), aPayload.Value().Data());
   }
 
   SetIsDOMBinding();

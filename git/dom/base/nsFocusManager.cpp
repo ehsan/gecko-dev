@@ -35,7 +35,6 @@
 #include "nsIObjectFrame.h"
 #include "nsBindingManager.h"
 #include "nsStyleCoord.h"
-#include "SelectionCarets.h"
 
 #include "mozilla/ContentEvents.h"
 #include "mozilla/dom/Element.h"
@@ -1544,11 +1543,6 @@ nsFocusManager::Blur(nsPIDOMWindow* aWindowToClear,
   if (!presShell) {
     mFocusedContent = nullptr;
     return true;
-  }
-
-  nsRefPtr<SelectionCarets> selectionCarets = presShell->GetSelectionCarets();
-  if (selectionCarets) {
-    selectionCarets->SetVisibility(false);
   }
 
   bool clearFirstBlurEvent = false;

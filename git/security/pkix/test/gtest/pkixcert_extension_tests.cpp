@@ -32,36 +32,41 @@ using namespace mozilla::pkix;
 using namespace mozilla::pkix::test;
 
 // Creates a self-signed certificate with the given extension.
-static ByteString
-CreateCert(const char* subjectCN,
-           const ByteString* extensions, // empty-string-terminated array
+static Input
+CreateCert(PLArenaPool* arena, const char* subjectStr,
+           SECItem const* const* extensions, // null-terminated array
            /*out*/ ScopedSECKEYPrivateKey& subjectKey)
 {
   static long serialNumberValue = 0;
   ++serialNumberValue;
-  ByteString serialNumber(CreateEncodedSerialNumber(serialNumberValue));
-  EXPECT_NE(ENCODING_FAILED, serialNumber);
-  ByteString issuerDER(CNToDERName(subjectCN));
-  EXPECT_NE(ENCODING_FAILED, issuerDER);
-  ByteString subjectDER(CNToDERName(subjectCN));
-  EXPECT_NE(ENCODING_FAILED, subjectDER);
-  return CreateEncodedCertificate(v3, sha256WithRSAEncryption,
+  const SECItem* serialNumber(CreateEncodedSerialNumber(arena,
+                                                        serialNumberValue));
+  EXPECT_TRUE(serialNumber);
+  const SECItem* issuerDER(ASCIIToDERName(arena, subjectStr));
+  EXPECT_TRUE(issuerDER);
+  const SECItem* subjectDER(ASCIIToDERName(arena, subjectStr));
+  EXPECT_TRUE(subjectDER);
+  SECItem* cert = CreateEncodedCertificate(
+                                  arena, v3,
+                                  SEC_OID_PKCS1_SHA256_WITH_RSA_ENCRYPTION,
                                   serialNumber, issuerDER,
                                   oneDayBeforeNow, oneDayAfterNow,
                                   subjectDER, extensions,
-                                  nullptr,
-                                  SignatureAlgorithm::rsa_pkcs1_with_sha256,
-                                  subjectKey);
+                                  nullptr, SEC_OID_SHA256, subjectKey);
+  EXPECT_TRUE(cert);
+  Input result;
+  EXPECT_EQ(Success, result.Init(cert->data, cert->len));
+  return result;
 }
 
 // Creates a self-signed certificate with the given extension.
-static ByteString
-CreateCert(const char* subjectStr,
-           const ByteString& extension,
+static Input
+CreateCert(PLArenaPool* arena, const char* subjectStr,
+           const SECItem* extension,
            /*out*/ ScopedSECKEYPrivateKey& subjectKey)
 {
-  const ByteString extensions[] = { extension, ByteString() };
-  return CreateCert(subjectStr, extensions, subjectKey);
+  const SECItem * extensions[] = { extension, nullptr };
+  return CreateCert(arena, subjectStr, extensions, subjectKey);
 }
 
 class TrustEverythingTrustDomain : public TrustDomain
@@ -141,17 +146,18 @@ TEST_F(pkixcert_extension, UnknownCriticalExtension)
       0x01, 0x01, 0xff, // BOOLEAN (length = 1) TRUE
       0x04, 0x00 // OCTET STRING (length = 0)
   };
-  static const ByteString
-    unknownCriticalExtension(unknownCriticalExtensionBytes,
-                             sizeof(unknownCriticalExtensionBytes));
-  const char* certCN = "Cert With Unknown Critical Extension";
+  static const SECItem unknownCriticalExtension = {
+    siBuffer,
+    const_cast<unsigned char*>(unknownCriticalExtensionBytes),
+    sizeof(unknownCriticalExtensionBytes)
+  };
+  const char* certCN = "CN=Cert With Unknown Critical Extension";
   ScopedSECKEYPrivateKey key;
-  ByteString cert(CreateCert(certCN, unknownCriticalExtension, key));
-  ASSERT_NE(ENCODING_FAILED, cert);
-  Input certInput;
-  ASSERT_EQ(Success, certInput.Init(cert.data(), cert.length()));
+  // cert is owned by the arena
+  Input cert(CreateCert(arena.get(), certCN,
+                              &unknownCriticalExtension, key));
   ASSERT_EQ(Result::ERROR_UNKNOWN_CRITICAL_EXTENSION,
-            BuildCertChain(trustDomain, certInput, Now(),
+            BuildCertChain(trustDomain, cert, Now(),
                            EndEntityOrCA::MustBeEndEntity,
                            KeyUsage::noParticularKeyUsageRequired,
                            KeyPurposeId::anyExtendedKeyUsage,
@@ -171,17 +177,18 @@ TEST_F(pkixcert_extension, UnknownNonCriticalExtension)
         0x85, 0x1a, 0x85, 0x1a, 0x01, 0x83, 0x74, 0x09, 0x03,
       0x04, 0x00 // OCTET STRING (length = 0)
   };
-  static const ByteString
-    unknownNonCriticalExtension(unknownNonCriticalExtensionBytes,
-                                sizeof(unknownNonCriticalExtensionBytes));
-  const char* certCN = "Cert With Unknown NonCritical Extension";
+  static const SECItem unknownNonCriticalExtension = {
+    siBuffer,
+    const_cast<unsigned char*>(unknownNonCriticalExtensionBytes),
+    sizeof(unknownNonCriticalExtensionBytes)
+  };
+  const char* certCN = "CN=Cert With Unknown NonCritical Extension";
   ScopedSECKEYPrivateKey key;
-  ByteString cert(CreateCert(certCN, unknownNonCriticalExtension, key));
-  ASSERT_NE(ENCODING_FAILED, cert);
-  Input certInput;
-  ASSERT_EQ(Success, certInput.Init(cert.data(), cert.length()));
+  // cert is owned by the arena
+  Input cert(CreateCert(arena.get(), certCN,
+                              &unknownNonCriticalExtension, key));
   ASSERT_EQ(Success,
-            BuildCertChain(trustDomain, certInput, Now(),
+            BuildCertChain(trustDomain, cert, Now(),
                            EndEntityOrCA::MustBeEndEntity,
                            KeyUsage::noParticularKeyUsageRequired,
                            KeyPurposeId::anyExtendedKeyUsage,
@@ -202,17 +209,18 @@ TEST_F(pkixcert_extension, WrongOIDCriticalExtension)
       0x01, 0x01, 0xff, // BOOLEAN (length = 1) TRUE
       0x04, 0x00 // OCTET STRING (length = 0)
   };
-  static const ByteString
-    wrongOIDCriticalExtension(wrongOIDCriticalExtensionBytes,
-                              sizeof(wrongOIDCriticalExtensionBytes));
-  const char* certCN = "Cert With Critical Wrong OID Extension";
+  static const SECItem wrongOIDCriticalExtension = {
+    siBuffer,
+    const_cast<unsigned char*>(wrongOIDCriticalExtensionBytes),
+    sizeof(wrongOIDCriticalExtensionBytes)
+  };
+  const char* certCN = "CN=Cert With Critical Wrong OID Extension";
   ScopedSECKEYPrivateKey key;
-  ByteString cert(CreateCert(certCN, wrongOIDCriticalExtension, key));
-  ASSERT_NE(ENCODING_FAILED, cert);
-  Input certInput;
-  ASSERT_EQ(Success, certInput.Init(cert.data(), cert.length()));
+  // cert is owned by the arena
+  Input cert(CreateCert(arena.get(), certCN,
+                              &wrongOIDCriticalExtension, key));
   ASSERT_EQ(Result::ERROR_UNKNOWN_CRITICAL_EXTENSION,
-            BuildCertChain(trustDomain, certInput, Now(),
+            BuildCertChain(trustDomain, cert, Now(),
                            EndEntityOrCA::MustBeEndEntity,
                            KeyUsage::noParticularKeyUsageRequired,
                            KeyPurposeId::anyExtendedKeyUsage,
@@ -235,17 +243,17 @@ TEST_F(pkixcert_extension, CriticalAIAExtension)
       0x04, 0x02, // OCTET STRING (length = 2)
         0x30, 0x00, // SEQUENCE (length = 0)
   };
-  static const ByteString
-    criticalAIAExtension(criticalAIAExtensionBytes,
-                         sizeof(criticalAIAExtensionBytes));
-  const char* certCN = "Cert With Critical AIA Extension";
+  static const SECItem criticalAIAExtension = {
+    siBuffer,
+    const_cast<unsigned char*>(criticalAIAExtensionBytes),
+    sizeof(criticalAIAExtensionBytes)
+  };
+  const char* certCN = "CN=Cert With Critical AIA Extension";
   ScopedSECKEYPrivateKey key;
-  ByteString cert(CreateCert(certCN, criticalAIAExtension, key));
-  ASSERT_NE(ENCODING_FAILED, cert);
-  Input certInput;
-  ASSERT_EQ(Success, certInput.Init(cert.data(), cert.length()));
+  // cert is owned by the arena
+  Input cert(CreateCert(arena.get(), certCN, &criticalAIAExtension, key));
   ASSERT_EQ(Success,
-            BuildCertChain(trustDomain, certInput, Now(),
+            BuildCertChain(trustDomain, cert, Now(),
                            EndEntityOrCA::MustBeEndEntity,
                            KeyUsage::noParticularKeyUsageRequired,
                            KeyPurposeId::anyExtendedKeyUsage,
@@ -265,17 +273,18 @@ TEST_F(pkixcert_extension, UnknownCriticalCEExtension)
       0x01, 0x01, 0xff, // BOOLEAN (length = 1) TRUE
       0x04, 0x00 // OCTET STRING (length = 0)
   };
-  static const ByteString
-    unknownCriticalCEExtension(unknownCriticalCEExtensionBytes,
-                               sizeof(unknownCriticalCEExtensionBytes));
-  const char* certCN = "Cert With Unknown Critical id-ce Extension";
+  static const SECItem unknownCriticalCEExtension = {
+    siBuffer,
+    const_cast<unsigned char*>(unknownCriticalCEExtensionBytes),
+    sizeof(unknownCriticalCEExtensionBytes)
+  };
+  const char* certCN = "CN=Cert With Unknown Critical id-ce Extension";
   ScopedSECKEYPrivateKey key;
-  ByteString cert(CreateCert(certCN, unknownCriticalCEExtension, key));
-  ASSERT_NE(ENCODING_FAILED, cert);
-  Input certInput;
-  ASSERT_EQ(Success, certInput.Init(cert.data(), cert.length()));
+  // cert is owned by the arena
+  Input cert(CreateCert(arena.get(), certCN,
+                              &unknownCriticalCEExtension, key));
   ASSERT_EQ(Result::ERROR_UNKNOWN_CRITICAL_EXTENSION,
-            BuildCertChain(trustDomain, certInput, Now(),
+            BuildCertChain(trustDomain, cert, Now(),
                            EndEntityOrCA::MustBeEndEntity,
                            KeyUsage::noParticularKeyUsageRequired,
                            KeyPurposeId::anyExtendedKeyUsage,
@@ -295,17 +304,17 @@ TEST_F(pkixcert_extension, KnownCriticalCEExtension)
       0x04, 0x03, // OCTET STRING (length = 3)
         0x02, 0x01, 0x00, // INTEGER (length = 1, value = 0)
   };
-  static const ByteString
-    criticalCEExtension(criticalCEExtensionBytes,
-                        sizeof(criticalCEExtensionBytes));
-  const char* certCN = "Cert With Known Critical id-ce Extension";
+  static const SECItem criticalCEExtension = {
+    siBuffer,
+    const_cast<unsigned char*>(criticalCEExtensionBytes),
+    sizeof(criticalCEExtensionBytes)
+  };
+  const char* certCN = "CN=Cert With Known Critical id-ce Extension";
   ScopedSECKEYPrivateKey key;
-  ByteString cert(CreateCert(certCN, criticalCEExtension, key));
-  ASSERT_NE(ENCODING_FAILED, cert);
-  Input certInput;
-  ASSERT_EQ(Success, certInput.Init(cert.data(), cert.length()));
+  // cert is owned by the arena
+  Input cert(CreateCert(arena.get(), certCN, &criticalCEExtension, key));
   ASSERT_EQ(Success,
-            BuildCertChain(trustDomain, certInput, Now(),
+            BuildCertChain(trustDomain, cert, Now(),
                            EndEntityOrCA::MustBeEndEntity,
                            KeyUsage::noParticularKeyUsageRequired,
                            KeyPurposeId::anyExtendedKeyUsage,
@@ -325,16 +334,18 @@ TEST_F(pkixcert_extension, DuplicateSubjectAltName)
           0x82, 11, // [2] (dNSName) (length = 11)
             'e', 'x', 'a', 'm', 'p', 'l', 'e', '.', 'c', 'o', 'm'
   };
-  static const ByteString DER(DER_BYTES, sizeof(DER_BYTES));
-  static const ByteString extensions[] = { DER, DER, ByteString() };
-  static const char* certCN = "Cert With Duplicate subjectAltName";
+  static const SECItem DER = {
+    siBuffer,
+    const_cast<unsigned char*>(DER_BYTES),
+    sizeof(DER_BYTES)
+  };
+  static SECItem const* const extensions[] = { &DER, &DER, nullptr };
+  static const char* certCN = "CN=Cert With Duplicate subjectAltName";
   ScopedSECKEYPrivateKey key;
-  ByteString cert(CreateCert(certCN, extensions, key));
-  ASSERT_NE(ENCODING_FAILED, cert);
-  Input certInput;
-  ASSERT_EQ(Success, certInput.Init(cert.data(), cert.length()));
+  // cert is owned by the arena
+  Input cert(CreateCert(arena.get(), certCN, extensions, key));
   ASSERT_EQ(Result::ERROR_EXTENSION_VALUE_INVALID,
-            BuildCertChain(trustDomain, certInput, Now(),
+            BuildCertChain(trustDomain, cert, Now(),
                            EndEntityOrCA::MustBeEndEntity,
                            KeyUsage::noParticularKeyUsageRequired,
                            KeyPurposeId::anyExtendedKeyUsage,

@@ -656,7 +656,6 @@ class ScriptSourceObject : public JSObject
         return getReservedSlot(ELEMENT_SLOT).toObjectOrNull();
     }
     const Value &elementAttributeName() const {
-        MOZ_ASSERT(!getReservedSlot(ELEMENT_PROPERTY_SLOT).isMagic());
         return getReservedSlot(ELEMENT_PROPERTY_SLOT);
     }
     JSScript *introductionScript() const {
