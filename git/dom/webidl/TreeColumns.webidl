@@ -5,7 +5,6 @@
 interface MozTreeBoxObject;
 interface MozTreeColumn;
 
-[ChromeOnly]
 interface TreeColumns {
   /**
    * The tree widget for these columns.

@@ -165,7 +165,6 @@ public:
   }
   virtual gfxImageSurface* LockImageSurface() MOZ_OVERRIDE;
   virtual gfxASurface* LockSurface() MOZ_OVERRIDE { return GetSurface(); }
-  virtual gfx::DrawTarget* LockDrawTarget();
   virtual void Unlock() MOZ_OVERRIDE;
   virtual void EnsureAllocated(gfx::IntSize aSize, gfxASurface::gfxContentType aType) MOZ_OVERRIDE;
 
@@ -177,7 +176,6 @@ private:
 
   nsRefPtr<gfxASurface> mSurface;
   nsRefPtr<gfxImageSurface> mSurfaceAsImage;
-  RefPtr<gfx::DrawTarget> mDrawTarget;
 
   gfxASurface::gfxContentType mContentType;
   gfx::IntSize mSize;

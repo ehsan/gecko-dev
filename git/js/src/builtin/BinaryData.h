@@ -8,9 +8,8 @@
 #define builtin_BinaryData_h
 
 #include "jsapi.h"
-#include "jsfriendapi.h"
 #include "jsobj.h"
-
+#include "jsfriendapi.h"
 #include "gc/Heap.h"
 
 namespace js {
@@ -278,7 +277,6 @@ class StructType : public JSObject
                       size_t offset, MutableHandleValue to);
 
     static void finalize(js::FreeOp *op, JSObject *obj);
-    static void trace(JSTracer *tracer, JSObject *obj);
 };
 
 class BinaryStruct : public JSObject
