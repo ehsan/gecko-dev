@@ -4,10 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_bytecode_analyzer_h__
+#if !defined(jsion_bytecode_analyzer_h__) && defined(JS_ION)
 #define jsion_bytecode_analyzer_h__
-
-#ifdef JS_ION
 
 // This file declares the data structures for building a MIRGraph from a
 // JSScript.
@@ -799,7 +797,5 @@ bool NeedsPostBarrier(CompileInfo &info, MDefinition *value);
 
 } // namespace ion
 } // namespace js
-
-#endif // JS_ION
 
 #endif // jsion_bytecode_analyzer_h__

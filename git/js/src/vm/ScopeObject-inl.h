@@ -315,4 +315,4 @@ JSObject::asDebugScope()
     return *static_cast<js::DebugScopeObject *>(this);
 }
 
-#endif /* ScopeObject_inl_h___ */
+#endif /* CallObject_inl_h___ */

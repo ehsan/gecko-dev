@@ -4,10 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_baseline_helpers_h__
+#if !defined(jsion_baseline_helpers_h__) && defined(JS_ION)
 #define jsion_baseline_helpers_h__
-
-#ifdef JS_ION
 
 #if defined(JS_CPU_X86)
 # include "x86/BaselineHelpers-x86.h"
@@ -25,6 +23,5 @@ namespace ion {
 } // namespace ion
 } // namespace js
 
-#endif // JS_ION
+#endif
 
-#endif // jsion_baseline_helpers_h__

@@ -1395,7 +1395,7 @@ bool
 LIRGenerator::visitToDouble(MToDouble *convert)
 {
     MDefinition *opd = convert->input();
-    mozilla::DebugOnly<MToDouble::ConversionKind> conversion = convert->conversion();
+    MToDouble::ConversionKind conversion = convert->conversion();
 
     switch (opd->type()) {
       case MIRType_Value:
