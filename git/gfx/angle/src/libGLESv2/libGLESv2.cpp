@@ -1050,11 +1050,6 @@ void __stdcall glCopyTexImage2D(GLenum target, GLint level, GLenum internalforma
 
         if (context)
         {
-            if (level > context->getMaximumTextureLevel())
-            {
-                return error(GL_INVALID_VALUE);
-            }
-
             switch (target)
             {
               case GL_TEXTURE_2D:
@@ -4585,11 +4580,6 @@ void __stdcall glTexImage2D(GLenum target, GLint level, GLint internalformat, GL
 
         if (context)
         {
-            if (level > context->getMaximumTextureLevel())
-            {
-                return error(GL_INVALID_VALUE);
-            }
-
             switch (target)
             {
               case GL_TEXTURE_2D:
