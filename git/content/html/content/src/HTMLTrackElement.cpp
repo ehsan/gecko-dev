@@ -290,15 +290,8 @@ HTMLTrackElement::BindToTree(nsIDocument* aDocument,
 void
 HTMLTrackElement::UnbindFromTree(bool aDeep, bool aNullParent)
 {
-  if (mMediaParent) {
-    // mTrack can be null if HTMLTrackElement::LoadResource has never been
-    // called.
-    if (mTrack) {
-      mMediaParent->RemoveTextTrack(mTrack);
-    }
-    if (aNullParent) {
-      mMediaParent = nullptr;
-    }
+  if (mMediaParent && aNullParent) {
+    mMediaParent = nullptr;
   }
 
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);

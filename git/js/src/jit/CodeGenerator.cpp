@@ -1025,18 +1025,6 @@ CodeGenerator::visitOsrScopeChain(LOsrScopeChain *lir)
 }
 
 bool
-CodeGenerator::visitOsrArgumentsObject(LOsrArgumentsObject *lir)
-{
-    const LAllocation *frame   = lir->getOperand(0);
-    const LDefinition *object  = lir->getDef(0);
-
-    const ptrdiff_t frameOffset = StackFrame::offsetOfArgumentsObject();
-
-    masm.loadPtr(Address(ToRegister(frame), frameOffset), ToRegister(object));
-    return true;
-}
-
-bool
 CodeGenerator::visitStackArgT(LStackArgT *lir)
 {
     const LAllocation *arg = lir->getArgument();
@@ -1916,7 +1904,7 @@ CodeGenerator::visitCallKnown(LCallKnown *call)
     Register calleereg = ToRegister(call->getFunction());
     Register objreg    = ToRegister(call->getTempObject());
     uint32_t unusedStack = StackOffsetOfPassedArg(call->argslot());
-    DebugOnly<JSFunction *> target = call->getSingleTarget();
+    JSFunction *target = call->getSingleTarget();
     ExecutionMode executionMode = gen->info().executionMode();
     Label end, uncompiled;
 

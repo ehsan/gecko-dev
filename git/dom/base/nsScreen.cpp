@@ -13,7 +13,6 @@
 #include "nsDOMEvent.h"
 #include "nsJSUtils.h"
 #include "mozilla/dom/ScreenBinding.h"
-#include "nsDeviceContext.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

@@ -18,7 +18,6 @@
 #include <gui/SurfaceTextureClient.h>
 #else
 #include <gui/Surface.h>
-#include <gui/GraphicBufferAlloc.h>
 #endif
 
 #include <hardware/hardware.h>
@@ -26,9 +25,7 @@
 #include <hardware/power.h>
 #include <suspend/autosuspend.h>
 
-#if ANDROID_VERSION == 17
 #include "GraphicBufferAlloc.h"
-#endif
 #include "BootAnimation.h"
 
 using namespace android;

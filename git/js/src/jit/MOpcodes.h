@@ -24,7 +24,6 @@ namespace jit {
     _(Beta)                                                                 \
     _(OsrValue)                                                             \
     _(OsrScopeChain)                                                        \
-    _(OsrArgumentsObject)                                                   \
     _(ReturnFromCtor)                                                       \
     _(CheckOverRecursed)                                                    \
     _(DefVar)                                                               \

@@ -1222,31 +1222,28 @@ BOffImm::getDest(Instruction *src)
 
 //VFPRegister implementation
 VFPRegister
-VFPRegister::doubleOverlay() const
+VFPRegister::doubleOverlay()
 {
     JS_ASSERT(!_isInvalid);
-    if (kind != Double) {
-        JS_ASSERT(_code % 2 == 0);
+    if (kind != Double)
         return VFPRegister(_code >> 1, Double);
-    }
     return *this;
 }
 VFPRegister
-VFPRegister::singleOverlay() const
+VFPRegister::singleOverlay()
 {
     JS_ASSERT(!_isInvalid);
     if (kind == Double) {
         // There are no corresponding float registers for d16-d31
-        JS_ASSERT(_code < 16);
+        ASSERT(_code < 16);
         return VFPRegister(_code << 1, Single);
     }
 
-    JS_ASSERT(_code % 2 == 0);
     return VFPRegister(_code, Single);
 }
 
 VFPRegister
-VFPRegister::sintOverlay() const
+VFPRegister::sintOverlay()
 {
     JS_ASSERT(!_isInvalid);
     if (kind == Double) {
@@ -1255,11 +1252,10 @@ VFPRegister::sintOverlay() const
         return VFPRegister(_code << 1, Int);
     }
 
-    JS_ASSERT(_code % 2 == 0);
     return VFPRegister(_code, Int);
 }
 VFPRegister
-VFPRegister::uintOverlay() const
+VFPRegister::uintOverlay()
 {
     JS_ASSERT(!_isInvalid);
     if (kind == Double) {
@@ -1268,7 +1264,6 @@ VFPRegister::uintOverlay() const
         return VFPRegister(_code << 1, UInt);
     }
 
-    JS_ASSERT(_code % 2 == 0);
     return VFPRegister(_code, UInt);
 }
 
@@ -1619,7 +1614,7 @@ class PoolHintData {
         JS_ASSERT(cond == cond_ >> 28);
         loadType = lt;
         ONES = expectedOnes;
-        destReg = destReg_.isDouble() ? destReg_.code() : destReg_.doubleOverlay().code();
+        destReg = destReg_.code();
         destType = destReg_.isDouble();
     }
     Assembler::Condition getCond() {
@@ -1630,8 +1625,8 @@ class PoolHintData {
         return Register::FromCode(destReg);
     }
     VFPRegister getVFPReg() {
-        VFPRegister r = VFPRegister(FloatRegister::FromCode(destReg));
-        return destType ? r : r.singleOverlay();
+        return VFPRegister(FloatRegister::FromCode(destReg),
+                           destType ? VFPRegister::Double : VFPRegister::Single);
     }
 
     int32_t getIndex() {

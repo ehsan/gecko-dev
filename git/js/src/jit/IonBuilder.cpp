@@ -23,8 +23,6 @@
 #include "jit/Lowering.h"
 #include "jit/MIRGraph.h"
 
-#include "vm/ArgumentsObject.h"
-
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
@@ -1035,7 +1033,7 @@ IonBuilder::maybeAddOsrTypeBarriers()
         if (info().isSlotAliased(i))
             continue;
 
-        MInstruction *def = osrBlock->getSlot(i)->toInstruction();
+        MInstruction *def = osrBlock->getSlot(i)->toOsrValue();
 
         JS_ASSERT(headerPhi->slot() == i);
         MPhi *preheaderPhi = preheader->getSlot(i)->toPhi();
@@ -5756,14 +5754,11 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
         osrBlock->initSlot(slot, scopev);
     }
 
-    // Initialize arguments object.
-    bool needsArgsObj = info().needsArgsObj();
-    MInstruction *argsObj = NULL;
+    // Initialize arguments object.  Ion will not allow OSR-ing into scripts
+    // with |needsArgsObj| set, so this can be undefined.
+    JS_ASSERT(!info().needsArgsObj());
     if (info().hasArguments()) {
-        if (needsArgsObj)
-            argsObj = MOsrArgumentsObject::New(entry);
-        else
-            argsObj = MConstant::New(UndefinedValue());
+        MInstruction *argsObj = MConstant::New(UndefinedValue());
         osrBlock->add(argsObj);
         osrBlock->initSlot(info().argsObjSlot(), argsObj);
     }
@@ -5779,30 +5774,14 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
 
         // Initialize arguments.
         for (uint32_t i = 0; i < info().nargs(); i++) {
-            uint32_t slot = needsArgsObj ? info().argSlotUnchecked(i) : info().argSlot(i);
+            // NB: Ion does not OSR into any function which |needsArgsObj|, so
+            // using argSlot() here instead of argSlotUnchecked() is ok.
+            uint32_t slot = info().argSlot(i);
+            ptrdiff_t offset = StackFrame::offsetOfFormalArg(info().fun(), i);
 
-            if (needsArgsObj) {
-                JS_ASSERT(argsObj && argsObj->isOsrArgumentsObject());
-                // If this is an aliased formal, then the arguments object
-                // contains a hole at this index.  Any references to this
-                // variable in the jitcode will come from JSOP_*ALIASEDVAR
-                // opcodes, so the slot itself can be set to undefined.  If
-                // it's not aliased, it must be retrieved from the arguments
-                // object.
-                MInstruction *osrv;
-                if (script()->formalIsAliased(i))
-                    osrv = MConstant::New(UndefinedValue());
-                else
-                    osrv = MGetArgumentsObjectArg::New(argsObj, i);
-
-                osrBlock->add(osrv);
-                osrBlock->initSlot(slot, osrv);
-            } else {
-                ptrdiff_t offset = StackFrame::offsetOfFormalArg(info().fun(), i);
-                MOsrValue *osrv = MOsrValue::New(entry, offset);
-                osrBlock->add(osrv);
-                osrBlock->initSlot(slot, osrv);
-            }
+            MOsrValue *osrv = MOsrValue::New(entry, offset);
+            osrBlock->add(osrv);
+            osrBlock->initSlot(slot, osrv);
         }
     }
 
@@ -5855,7 +5834,7 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
     for (uint32_t i = info().startArgSlot(); i < osrBlock->stackDepth(); i++) {
         MDefinition *existing = current->getSlot(i);
         MDefinition *def = osrBlock->getSlot(i);
-        JS_ASSERT_IF(!needsArgsObj || !info().isSlotAliased(i), def->type() == MIRType_Value);
+        JS_ASSERT(def->type() == MIRType_Value);
 
         // Aliased slots are never accessed, since they need to go through
         // the callobject. No need to type them here.
@@ -5897,7 +5876,7 @@ IonBuilder::newPendingLoopHeader(MBasicBlock *predecessor, jsbytecode *pc, bool 
         // Unbox the MOsrValue if it is known to be unboxable.
         for (uint32_t i = info().startArgSlot(); i < block->stackDepth(); i++) {
 
-            // The value of aliased args and slots are in the callobject. So we can't
+            // The value of aliased slots are in the callobject. So we can't
             // the value from the baseline frame.
             if (info().isSlotAliased(i))
                 continue;
@@ -5913,16 +5892,12 @@ IonBuilder::newPendingLoopHeader(MBasicBlock *predecessor, jsbytecode *pc, bool 
             Value existingValue;
             uint32_t arg = i - info().firstArgSlot();
             uint32_t var = i - info().firstLocalSlot();
-            if (info().fun() && i == info().thisSlot()) {
+            if (info().fun() && i == info().thisSlot())
                 existingValue = baselineFrame_->thisValue();
-            } else if (arg < info().nargs()) {
-                if (info().needsArgsObj())
-                    existingValue = baselineFrame_->argsObj().arg(arg);
-                else
-                    existingValue = baselineFrame_->unaliasedFormal(arg);
-            } else {
+            else if (arg < info().nargs())
+                existingValue = baselineFrame_->unaliasedFormal(arg);
+            else
                 existingValue = baselineFrame_->unaliasedVar(var);
-            }
 
             // Extract typeset from value.
             MIRType type = existingValue.isDouble()

@@ -66,19 +66,12 @@ TextTrackCueList::GetCueById(const nsAString& aId)
 void
 TextTrackCueList::AddCue(TextTrackCue& cue)
 {
-  if (mList.Contains(&cue)) {
-    return;
-  }
   mList.AppendElement(&cue);
 }
 
 void
-TextTrackCueList::RemoveCue(TextTrackCue& cue, ErrorResult& aRv)
+TextTrackCueList::RemoveCue(TextTrackCue& cue)
 {
-  if (!mList.Contains(&cue)) {
-    aRv.Throw(NS_ERROR_DOM_NOT_FOUND_ERR);
-    return;
-  }
   mList.RemoveElement(&cue);
 }
 

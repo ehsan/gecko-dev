@@ -21,7 +21,6 @@
 #include "gfxFontConstants.h"
 #include "nsPresContext.h"
 #include "imgRequestProxy.h"
-#include "nsDeviceContext.h"
 
 namespace css = mozilla::css;
 

@@ -52,7 +52,6 @@ using mozilla::unused;
 #include "imgIEncoder.h"
 
 #include "nsStringGlue.h"
-#include "GeckoProfiler.h" // For PROFILER_LABEL
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -2393,7 +2392,6 @@ nsWindow::DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect)
 void
 nsWindow::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect)
 {
-    PROFILER_LABEL("nsWindow", "DrawWindowOverlay");
     JNIEnv *env = GetJNIForThread();
     NS_ABORT_IF_FALSE(env, "No JNI environment at DrawWindowOverlay()!");
     if (!env)

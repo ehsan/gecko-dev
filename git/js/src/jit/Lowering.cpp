@@ -512,7 +512,7 @@ bool
 LIRGenerator::visitAssertFloat32(MAssertFloat32 *assertion)
 {
     MIRType type = assertion->input()->type();
-    DebugOnly<bool> checkIsFloat32 = assertion->mustBeFloat32();
+    bool checkIsFloat32 = assertion->mustBeFloat32();
 
     if (!allowFloat32Optimizations())
         return true;
@@ -1547,13 +1547,6 @@ LIRGenerator::visitOsrScopeChain(MOsrScopeChain *object)
 }
 
 bool
-LIRGenerator::visitOsrArgumentsObject(MOsrArgumentsObject *object)
-{
-    LOsrArgumentsObject *lir = new LOsrArgumentsObject(useRegister(object->entry()));
-    return define(lir, object);
-}
-
-bool
 LIRGenerator::visitToDouble(MToDouble *convert)
 {
     MDefinition *opd = convert->input();
@@ -1979,7 +1972,7 @@ LIRGenerator::visitTypeBarrier(MTypeBarrier *ins)
     bool needTemp = !types->unknownObject() && types->getObjectCount() > 0;
 
     MIRType inputType = ins->getOperand(0)->type();
-    DebugOnly<MIRType> outputType = ins->type();
+    MIRType outputType = ins->type();
 
     JS_ASSERT(inputType == outputType);
 
@@ -2472,7 +2465,7 @@ LIRGenerator::visitStoreTypedArrayElement(MStoreTypedArrayElement *ins)
     JS_ASSERT(ins->index()->type() == MIRType_Int32);
 
     if (ins->isFloatArray()) {
-        DebugOnly<bool> optimizeFloat32 = allowFloat32Optimizations();
+        bool optimizeFloat32 = allowFloat32Optimizations();
         JS_ASSERT_IF(optimizeFloat32 && ins->arrayType() == ScalarTypeRepresentation::TYPE_FLOAT32,
                      ins->value()->type() == MIRType_Float32);
         JS_ASSERT_IF(!optimizeFloat32 || ins->arrayType() == ScalarTypeRepresentation::TYPE_FLOAT64,
@@ -2501,7 +2494,7 @@ LIRGenerator::visitStoreTypedArrayElementHole(MStoreTypedArrayElementHole *ins)
     JS_ASSERT(ins->length()->type() == MIRType_Int32);
 
     if (ins->isFloatArray()) {
-        DebugOnly<bool> optimizeFloat32 = allowFloat32Optimizations();
+        bool optimizeFloat32 = allowFloat32Optimizations();
         JS_ASSERT_IF(optimizeFloat32 && ins->arrayType() == ScalarTypeRepresentation::TYPE_FLOAT32,
                      ins->value()->type() == MIRType_Float32);
         JS_ASSERT_IF(!optimizeFloat32 || ins->arrayType() == ScalarTypeRepresentation::TYPE_FLOAT64,

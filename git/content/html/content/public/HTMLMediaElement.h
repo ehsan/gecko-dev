@@ -530,12 +530,6 @@ public:
     mTextTracks->AddTextTrack(aTextTrack);
   }
 
-  void RemoveTextTrack(TextTrack* aTextTrack) {
-    if (mTextTracks) {
-      mTextTracks->RemoveTextTrack(*aTextTrack);
-    }
-  }
-
 protected:
   class MediaLoadListener;
   class StreamListener;

@@ -14,6 +14,7 @@
 #include "nsCOMPtr.h"
 #include "nsIPresShell.h"
 #include "nsRect.h"
+#include "nsDeviceContext.h"
 #include "nsFont.h"
 #include "gfxFontConstants.h"
 #include "nsIAtom.h"
@@ -64,7 +65,6 @@ class nsAnimationManager;
 class nsIDOMMediaQueryList;
 class nsRefreshDriver;
 class nsIWidget;
-class nsDeviceContext;
 
 namespace mozilla {
 class RestyleManager;
@@ -558,8 +558,8 @@ public:
   float ScreenWidthInchesForFontInflation(bool* aChanged = nullptr);
 
   static int32_t AppUnitsPerCSSPixel() { return mozilla::AppUnitsPerCSSPixel(); }
-  int32_t AppUnitsPerDevPixel() const;
-  static int32_t AppUnitsPerCSSInch() { return mozilla::AppUnitsPerCSSInch(); }
+  int32_t AppUnitsPerDevPixel() const  { return mDeviceContext->AppUnitsPerDevPixel(); }
+  static int32_t AppUnitsPerCSSInch() { return nsDeviceContext::AppUnitsPerCSSInch(); }
 
   static nscoord CSSPixelsToAppUnits(int32_t aPixels)
   { return NSToCoordRoundWithClamp(float(aPixels) *
@@ -578,7 +578,8 @@ public:
              float(AppUnitsPerCSSPixel())); }
 
   nscoord DevPixelsToAppUnits(int32_t aPixels) const
-  { return NSIntPixelsToAppUnits(aPixels, AppUnitsPerDevPixel()); }
+  { return NSIntPixelsToAppUnits(aPixels,
+                                 mDeviceContext->AppUnitsPerDevPixel()); }
 
   int32_t AppUnitsToDevPixels(nscoord aAppUnits) const
   { return NSAppUnitsToIntPixels(aAppUnits,
@@ -590,7 +591,7 @@ public:
   float CSSPixelsToDevPixels(float aPixels)
   {
     return NSAppUnitsToFloatPixels(CSSPixelsToAppUnits(aPixels),
-                                   float(AppUnitsPerDevPixel()));
+                                   float(mDeviceContext->AppUnitsPerDevPixel()));
   }
 
   int32_t DevPixelsToIntCSSPixels(int32_t aPixels)
@@ -600,9 +601,11 @@ public:
   { return AppUnitsToFloatCSSPixels(DevPixelsToAppUnits(aPixels)); }
 
   // If there is a remainder, it is rounded to nearest app units.
-  nscoord GfxUnitsToAppUnits(gfxFloat aGfxUnits) const;
+  nscoord GfxUnitsToAppUnits(gfxFloat aGfxUnits) const
+  { return mDeviceContext->GfxUnitsToAppUnits(aGfxUnits); }
 
-  gfxFloat AppUnitsToGfxUnits(nscoord aAppUnits) const;
+  gfxFloat AppUnitsToGfxUnits(nscoord aAppUnits) const
+  { return mDeviceContext->AppUnitsToGfxUnits(aAppUnits); }
 
   gfxRect AppUnitsToGfxUnits(const nsRect& aAppRect) const
   { return gfxRect(AppUnitsToGfxUnits(aAppRect.x),
@@ -612,7 +615,7 @@ public:
 
   static nscoord CSSTwipsToAppUnits(float aTwips)
   { return NSToCoordRoundWithClamp(
-      mozilla::AppUnitsPerCSSInch() * NS_TWIPS_TO_INCHES(aTwips)); }
+      nsDeviceContext::AppUnitsPerCSSInch() * NS_TWIPS_TO_INCHES(aTwips)); }
 
   // Margin-specific version, since they often need TwipsToAppUnits
   static nsMargin CSSTwipsToAppUnits(const nsIntMargin &marginInTwips)
@@ -622,7 +625,7 @@ public:
                     CSSTwipsToAppUnits(float(marginInTwips.left))); }
 
   static nscoord CSSPointsToAppUnits(float aPoints)
-  { return NSToCoordRound(aPoints * mozilla::AppUnitsPerCSSInch() /
+  { return NSToCoordRound(aPoints * nsDeviceContext::AppUnitsPerCSSInch() /
                           POINTS_PER_INCH_FLOAT); }
 
   nscoord RoundAppUnitsToNearestDevPixels(nscoord aAppUnits) const

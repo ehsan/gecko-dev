@@ -15,7 +15,6 @@
 #include "nsMenuPopupFrame.h"
 #include "nsClientRect.h"
 #include "nsView.h"
-#include "mozilla/AppUnits.h"
 
 class nsPopupBoxObject : public nsBoxObject,
                          public nsIPopupBoxObject
@@ -364,7 +363,7 @@ nsPopupBoxObject::GetAlignmentOffset(int32_t *aAlignmentOffset)
   if (!menuPopupFrame)
     return NS_OK;
 
-  int32_t pp = mozilla::AppUnitsPerCSSPixel();
+  int32_t pp = nsDeviceContext::AppUnitsPerCSSPixel();
   // Note that the offset might be along either the X or Y axis, but for the
   // sake of simplicity we use a point with only the X axis set so we can
   // use ToNearestPixels().

@@ -11,7 +11,6 @@
 #include "nsCOMPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsWrapperCache.h"
-#include "mozilla/ErrorResult.h"
 
 namespace mozilla {
 namespace dom {
@@ -48,7 +47,7 @@ public:
   TextTrackCue* GetCueById(const nsAString& aId);
 
   void AddCue(TextTrackCue& cue);
-  void RemoveCue(TextTrackCue& cue, ErrorResult& aRv);
+  void RemoveCue(TextTrackCue& cue);
 
 private:
   nsCOMPtr<nsISupports> mParent;

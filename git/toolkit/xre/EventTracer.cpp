@@ -56,7 +56,6 @@
 
 #include "mozilla/TimeStamp.h"
 #include "mozilla/WidgetTraceEvent.h"
-#include "nsDebug.h"
 #include <limits.h>
 #include <prenv.h>
 #include <prinrval.h>

@@ -17,7 +17,6 @@ import mdn_theme
 
 extensions = [
     'sphinx.ext.autodoc',
-    'sphinx.ext.graphviz',
 ]
 
 templates_path = ['_templates']

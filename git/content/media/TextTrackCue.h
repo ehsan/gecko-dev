@@ -116,21 +116,6 @@ public:
     CueChanged();
   }
 
-  void GetRegionId(nsAString& aRegionId) const
-  {
-    aRegionId = mRegionId;
-  }
-
-  void SetRegionId(const nsAString& aRegionId)
-  {
-    if (mRegionId == aRegionId) {
-      return;
-    }
-
-    mRegionId = aRegionId;
-    CueChanged();
-  }
-
   DirectionSetting Vertical() const
   {
     return mVertical;
@@ -319,7 +304,6 @@ private:
   int32_t mSize;
   bool mPauseOnExit;
   bool mSnapToLines;
-  nsString mRegionId;
   DirectionSetting mVertical;
   int mLine;
   TextTrackCueAlign mAlign;

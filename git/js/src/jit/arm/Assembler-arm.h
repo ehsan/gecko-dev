@@ -218,10 +218,10 @@ class VFPRegister
     bool isInvalid();
     bool isMissing();
 
-    VFPRegister doubleOverlay() const;
-    VFPRegister singleOverlay() const;
-    VFPRegister sintOverlay() const;
-    VFPRegister uintOverlay() const;
+    VFPRegister doubleOverlay();
+    VFPRegister singleOverlay();
+    VFPRegister sintOverlay();
+    VFPRegister uintOverlay();
 
     struct VFPRegIndexSplit;
     VFPRegIndexSplit encode();

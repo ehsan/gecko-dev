@@ -13,7 +13,6 @@ registerCleanupFunction(function () {
 });
 
 function test() {
-  requestLongerTimeout(2);
   waitForExplicitFinish();
   spawnNextTest();
 }

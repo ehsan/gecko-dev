@@ -163,11 +163,6 @@ MOCHITEST_FILES = \
 		test_browserElement_inproc_BrowserWindowResize.html \
 		$(NULL)
 
-# Disabled until we fix bug 906096.
-#		browserElement_SetInputMethodActive.js \
-#		test_browserElement_inproc_SetInputMethodActive.html \
-#		file_inputmethod.html \
-
 # Disabled due to https://bugzilla.mozilla.org/show_bug.cgi?id=774100
 #		test_browserElement_inproc_Reload.html \
 
@@ -243,8 +238,5 @@ MOCHITEST_FILES += \
 		test_browserElement_oop_VisibilityChange.html \
 		test_browserElement_oop_BrowserWindowResize.html \
 	$(NULL)
-
-# Disabled until we fix bug 906096.
-#		test_browserElement_oop_SetInputMethodActive.html \
 
 endif #}

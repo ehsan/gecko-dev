@@ -15,11 +15,8 @@ Important Concepts
 .. toctree::
    :maxdepth: 1
 
-   build-overview
    Mozconfig Files <mozconfigs>
    Profile Guided Optimization <pgo>
-   slow
-   environment-variables
 
 mozbuild
 ========
