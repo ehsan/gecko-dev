@@ -279,6 +279,7 @@ EXPORTS_NAMESPACES = vm
 
 EXPORTS_vm = \
 		Stack.h			\
+		StringObject.h \
 		$(NULL)
 
 ###############################################
@@ -291,6 +292,7 @@ VPATH		+= \
 EXPORTS_NAMESPACES += mozilla
 
 EXPORTS_mozilla = \
+		Types.h		\
 		Util.h          \
 		$(NULL)
 
@@ -650,7 +652,7 @@ check-malloc-function-usage: $(filter-out %jsalloc.h %jscntxt.h %jsutil.h, $(ALL
 
 	# We desire these numbers to go down, not up. See "User guide to memory
 	# management within SpiderMonkey" in jsutil.h.
-	$(srcdir)/config/check_source_count.py OffTheBooks:: 53 \
+	$(srcdir)/config/check_source_count.py OffTheBooks:: 52 \
 		"in Makefile.in" "{cx,rt}->{new_,new_array,malloc_,calloc_,realloc_}" $^
 	# This should go to zero, if possible.
 	$(srcdir)/config/check_source_count.py UnwantedForeground:: 34 \
@@ -726,6 +728,11 @@ export::
 	$(MKDIR) -p nanojit
 
 DEFINES		+= -DEXPORT_JS_API
+
+# mfbt is always packed with us, so if we're building a shared object,
+# we need to declare "exported" mfbt symbols on its behalf when we use
+# its headers.
+DEFINES		+= -DIMPL_MFBT
 
 # Some platforms that have stdint.h include it in system headers.  So
 # to reliably get limit macros defined, we'd always have to define the

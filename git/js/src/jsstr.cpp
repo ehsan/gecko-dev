@@ -82,6 +82,8 @@
 #include "jsstrinlines.h"
 #include "jsautooplen.h"        // generated headers last
 
+#include "vm/StringObject-inl.h"
+
 using namespace js;
 using namespace js::gc;
 
@@ -89,7 +91,7 @@ using namespace js::gc;
 bool
 JSString::isShort() const
 {
-    bool is_short = arena()->header()->thingKind == FINALIZE_SHORT_STRING;
+    bool is_short = arenaHeader()->getThingKind() == FINALIZE_SHORT_STRING;
     JS_ASSERT_IF(is_short, isFlat());
     return is_short;
 }
@@ -104,7 +106,7 @@ JSString::isFixed() const
 bool
 JSString::isExternal() const
 {
-    bool is_external = arena()->header()->thingKind == FINALIZE_EXTERNAL_STRING;
+    bool is_external = arenaHeader()->getThingKind() == FINALIZE_EXTERNAL_STRING;
     JS_ASSERT_IF(is_external, isFixed());
     return is_external;
 }
@@ -749,7 +751,7 @@ str_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
 
 Class js_StringClass = {
     js_String_str,
-    JSCLASS_HAS_RESERVED_SLOTS(JSObject::STRING_RESERVED_SLOTS) |
+    JSCLASS_HAS_RESERVED_SLOTS(StringObject::RESERVED_SLOTS) |
     JSCLASS_NEW_RESOLVE | JSCLASS_HAS_CACHED_PROTO(JSProto_String),
     PropertyStub,         /* addProperty */
     PropertyStub,         /* delProperty */
@@ -3454,10 +3456,10 @@ js_String(JSContext *cx, uintN argc, Value *vp)
     }
 
     if (IsConstructing(vp)) {
-        JSObject *obj = NewBuiltinClassInstance(cx, &js_StringClass);
-        if (!obj || !obj->initString(cx, str))
+        StringObject *strobj = StringObject::create(cx, str);
+        if (!strobj)
             return false;
-        vp->setObject(*obj);
+        vp->setObject(*strobj);
     } else {
         vp->setString(str);
     }
@@ -3521,14 +3523,13 @@ static JSFunctionSpec string_static_methods[] = {
 };
 
 const Shape *
-JSObject::assignInitialStringShape(JSContext *cx)
+StringObject::assignInitialShape(JSContext *cx)
 {
     JS_ASSERT(!cx->compartment->initialStringShape);
-    JS_ASSERT(isString());
     JS_ASSERT(nativeEmpty());
 
     return addDataProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.lengthAtom),
-                           JSSLOT_STRING_LENGTH, JSPROP_PERMANENT | JSPROP_READONLY);
+                           LENGTH_SLOT, JSPROP_PERMANENT | JSPROP_READONLY);
 }
 
 JSObject *
@@ -3550,7 +3551,7 @@ js_InitStringClass(JSContext *cx, JSObject *global)
         return NULL;
 
     JSObject *proto = NewObject<WithProto::Class>(cx, &js_StringClass, objectProto, global);
-    if (!proto || !proto->initString(cx, cx->runtime->emptyString))
+    if (!proto || !proto->asString()->init(cx, cx->runtime->emptyString))
         return NULL;
 
     /* Now create the String function. */

@@ -327,7 +327,7 @@ JSObject::setPrimitiveThis(const js::Value &pthis)
 inline /* gc::FinalizeKind */ unsigned
 JSObject::finalizeKind() const
 {
-    return js::gc::FinalizeKind(arena()->header()->thingKind);
+    return js::gc::FinalizeKind(arenaHeader()->getThingKind());
 }
 
 inline size_t
@@ -1226,7 +1226,7 @@ NewBuiltinClassInstance(JSContext *cx, Class *clasp, gc::FinalizeKind kind)
     }
     JS_ASSERT(global->isGlobal());
 
-    const Value &v = global->getReservedSlot(JS_GLOBAL_PROTO_SLOT(protoKey));
+    const Value &v = global->getReservedSlot(JSProto_LIMIT + protoKey);
     JSObject *proto;
     if (v.isObject()) {
         proto = &v.toObject();
@@ -1423,6 +1423,25 @@ NewObjectGCKind(JSContext *cx, js::Class *clasp)
     return gc::FINALIZE_OBJECT4;
 }
 
+static JS_ALWAYS_INLINE JSObject*
+NewObjectWithClassProto(JSContext *cx, Class *clasp, JSObject *proto,
+                        /*gc::FinalizeKind*/ unsigned _kind)
+{
+    JS_ASSERT(clasp->isNative());
+    gc::FinalizeKind kind = gc::FinalizeKind(_kind);
+
+    if (CanBeFinalizedInBackground(kind, clasp))
+        kind = (gc::FinalizeKind)(kind + 1);
+
+    JSObject* obj = js_NewGCObject(cx, kind);
+    if (!obj)
+        return NULL;
+
+    if (!obj->initSharingEmptyShape(cx, clasp, proto, proto->getParent(), NULL, kind))
+        return NULL;
+    return obj;
+}
+
 /* Make an object with pregenerated shape from a NEWOBJECT bytecode. */
 static inline JSObject *
 CopyInitializerObject(JSContext *cx, JSObject *baseobj)
@@ -1477,12 +1496,12 @@ DefineConstructorAndPrototype(JSContext *cx, JSObject *global,
     jsid id = ATOM_TO_JSID(cx->runtime->atomState.classAtoms[key]);
     JS_ASSERT(!global->nativeLookup(id));
 
-    if (!global->addDataProperty(cx, id, JS_GLOBAL_PROPERTY_SLOT(key), 0))
+    if (!global->addDataProperty(cx, id, key + JSProto_LIMIT * 2, 0))
         return false;
 
-    global->setSlot(JS_GLOBAL_CTOR_SLOT(key), ObjectValue(*ctor));
-    global->setSlot(JS_GLOBAL_PROTO_SLOT(key), ObjectValue(*proto));
-    global->setSlot(JS_GLOBAL_PROPERTY_SLOT(key), ObjectValue(*ctor));
+    global->setSlot(key, ObjectValue(*ctor));
+    global->setSlot(key + JSProto_LIMIT, ObjectValue(*proto));
+    global->setSlot(key + JSProto_LIMIT * 2, ObjectValue(*ctor));
     return true;
 }
 
