@@ -7,6 +7,8 @@
 const PREF_INTRO_SHOWN = "browser.newtabpage.introShown";
 
 let gIntro = {
+  _introShown: Services.prefs.getBoolPref(PREF_INTRO_SHOWN),
+
   _nodeIDSuffixes: [
     "panel",
     "what",
@@ -24,7 +26,7 @@ let gIntro = {
   },
 
   showIfNecessary: function() {
-    if (!Services.prefs.getBoolPref(PREF_INTRO_SHOWN)) {
+    if (!this._introShown) {
       Services.prefs.setBoolPref(PREF_INTRO_SHOWN, true);
       this.showPanel();
     }
