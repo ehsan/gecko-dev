@@ -16,7 +16,6 @@
 #include "nsAutoPtr.h"
 #include "nsString.h"
 #include "mozilla/Attributes.h"
-#include "nsIIPCSerializableURI.h"
 #include "mozilla/MemoryReporting.h"
 
 // {51fcd543-3b52-41f7-b91b-6b54102236e6}
@@ -26,12 +25,10 @@
 
 class nsNullPrincipalURI MOZ_FINAL : public nsIURI
                                    , public nsISizeOf
-                                   , public nsIIPCSerializableURI
 {
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIURI
-  NS_DECL_NSIIPCSERIALIZABLEURI
 
   // nsISizeOf
   virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
@@ -39,13 +36,8 @@ public:
 
   explicit nsNullPrincipalURI(const nsCString &aSpec);
 
-  // NB: This constructor exists only for deserialization.
-  nsNullPrincipalURI() { }
-
 private:
   ~nsNullPrincipalURI() {}
-
-  void InitializeFromSpec(const nsCString &aSpec);
 
   nsCString mScheme;
   nsCString mPath;

@@ -30,12 +30,10 @@ required_files = [("testharness_runner.html", "", False),
 
 def do_delayed_imports():
     global marionette
-    global errors
     try:
         import marionette
-        from marionette import errors
     except ImportError:
-        from marionette_driver import marionette, errors
+        import marionette_driver.marionette as marionette
 
 
 class MarionetteTestExecutor(TestExecutor):
@@ -155,13 +153,13 @@ class MarionetteTestExecutor(TestExecutor):
 
         try:
             self.marionette.set_script_timeout((timeout + extra_timeout) * 1000)
-        except IOError, errors.InvalidResponseException:
+        except IOError, marionette.errors.InvalidResponseException:
             self.logger.error("Lost marionette connection before starting test")
             return Stop
 
         try:
             result = self.convert_result(test, self.do_test(test, timeout))
-        except errors.ScriptTimeoutException:
+        except marionette.errors.ScriptTimeoutException:
             with result_lock:
                 if not result_flag.is_set():
                     result_flag.set()
@@ -181,7 +179,7 @@ class MarionetteTestExecutor(TestExecutor):
             #     else:
             #         break
             # Now need to check if the browser is still responsive and restart it if not
-        except (socket.timeout, errors.InvalidResponseException, IOError):
+        except (socket.timeout, marionette.errors.InvalidResponseException, IOError):
             # This can happen on a crash
             # Also, should check after the test if the firefox process is still running
             # and otherwise ignore any other result and set it to crash
@@ -252,7 +250,7 @@ class MarionetteReftestExecutor(MarionetteTestExecutor):
                 full_url = urlparse.urljoin(self.http_server_url, url)
                 try:
                     self.marionette.navigate(full_url)
-                except errors.MarionetteException:
+                except marionette.errors.MarionetteException:
                     return {"status": "ERROR",
                             "message": "Failed to load url %s" % (full_url,)}
                 if url_type == "test":

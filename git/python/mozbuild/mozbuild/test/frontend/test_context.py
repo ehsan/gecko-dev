@@ -11,7 +11,6 @@ from mozbuild.frontend.context import (
     Context,
     FUNCTIONS,
     SPECIAL_VARIABLES,
-    SUBCONTEXTS,
     VARIABLES,
 )
 
@@ -256,12 +255,6 @@ class TestSymbols(unittest.TestCase):
 
         for func, typ, doc in SPECIAL_VARIABLES.values():
             self._verify_doc(doc)
-
-        for name, cls in SUBCONTEXTS.items():
-            self._verify_doc(cls.__doc__)
-
-            for name, v in cls.VARIABLES.items():
-                self._verify_doc(v[2])
 
 
 if __name__ == '__main__':
