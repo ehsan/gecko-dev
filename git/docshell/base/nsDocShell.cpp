@@ -755,7 +755,6 @@ nsDocShell::nsDocShell():
     mIsAppTab(false),
     mUseGlobalHistory(false),
     mInPrivateBrowsing(false),
-    mDeviceSizeIsPageSize(false),
     mFiredUnloadEvent(false),
     mEODForCurrentDocument(false),
     mURIResultedInDocument(false),
@@ -3921,27 +3920,6 @@ nsDocShell::GetCurrentSHEntry(nsISHEntry** aEntry, bool* aOSHE)
     return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDocShell::SetDeviceSizeIsPageSize(bool aValue)
-{
-    if (mDeviceSizeIsPageSize != aValue) {
-      mDeviceSizeIsPageSize = aValue;
-      nsRefPtr<nsPresContext> presContext;
-      GetPresContext(getter_AddRefs(presContext));
-      if (presContext) {
-          presContext->MediaFeatureValuesChanged(presContext->eAlwaysRebuildStyle);
-      }
-    }
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShell::GetDeviceSizeIsPageSize(bool* aValue)
-{
-    *aValue = mDeviceSizeIsPageSize;
-    return NS_OK;
-}
-
 void
 nsDocShell::ClearFrameHistory(nsISHEntry* aEntry)
 {
@@ -4950,10 +4928,6 @@ nsDocShell::Create()
                                      mUseErrorPages);
         gAddedPreferencesVarCache = true;
     }
-
-    mDeviceSizeIsPageSize =
-        Preferences::GetBool("docshell.device_size_is_page_size",
-                             mDeviceSizeIsPageSize);
 
     nsCOMPtr<nsIObserverService> serv = services::GetObserverService();
     if (serv) {

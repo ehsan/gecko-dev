@@ -281,8 +281,12 @@ nsJARInputStream::ContinueInflate(char* aBuffer, uint32_t aCount,
         inflateEnd(&mZs);
 
         // stop returning valid data as soon as we know we have a bad CRC
-        if (mOutCrc != mInCrc)
+        if (mOutCrc != mInCrc) {
+            // asserting because while this rarely happens, you definitely
+            // want to catch it in debug builds!
+            NS_NOTREACHED(0);
             return NS_ERROR_FILE_CORRUPTED;
+        }
     }
 
     return NS_OK;

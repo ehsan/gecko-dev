@@ -350,13 +350,7 @@ TabTarget.prototype = {
    * Setup listeners for remote debugging, updating existing ones as necessary.
    */
   _setupRemoteListeners: function TabTarget__setupRemoteListeners() {
-    this._onTabDetached = (aType, aPacket) => {
-      // We have to filter message to ensure that this detach is for this tab
-      if (aPacket.from == this._form.actor) {
-        this.destroy();
-      }
-    };
-    this.client.addListener("tabDetached", this._onTabDetached);
+    this.client.addListener("tabDetached", this.destroy);
 
     this._onTabNavigated = function onRemoteTabNavigated(aType, aPacket) {
       let event = Object.create(null);
@@ -383,7 +377,7 @@ TabTarget.prototype = {
    */
   _teardownRemoteListeners: function TabTarget__teardownRemoteListeners() {
     this.client.removeListener("tabNavigated", this._onTabNavigated);
-    this.client.removeListener("tabDetached", this._onTabDetached);
+    this.client.removeListener("tabDetached", this.destroy);
   },
 
   /**
