@@ -67,8 +67,8 @@ PRBool nsDOMAttribute::sInitialized;
 
 nsDOMAttribute::nsDOMAttribute(nsDOMAttributeMap *aAttrMap,
                                already_AddRefed<nsINodeInfo> aNodeInfo,
-                               const nsAString   &aValue, PRBool aNsAware)
-  : nsIAttribute(aAttrMap, aNodeInfo, aNsAware), mValue(aValue), mChild(nsnull)
+                               const nsAString   &aValue)
+  : nsIAttribute(aAttrMap, aNodeInfo), mValue(aValue), mChild(nsnull)
 {
   NS_ABORT_IF_FALSE(mNodeInfo, "We must get a nodeinfo here!");
 
@@ -214,8 +214,7 @@ already_AddRefed<nsIAtom>
 nsDOMAttribute::GetNameAtom(nsIContent* aContent)
 {
   nsIAtom* result = nsnull;
-  if (!mNsAware &&
-      mNodeInfo->NamespaceID() == kNameSpaceID_None &&
+  if (mNodeInfo->NamespaceID() == kNameSpaceID_None &&
       aContent->IsInHTMLDocument() &&
       aContent->IsHTML()) {
     nsAutoString name;
@@ -435,7 +434,7 @@ nsDOMAttribute::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   const_cast<nsDOMAttribute*>(this)->GetValue(value);
 
   nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  *aResult = new nsDOMAttribute(nsnull, ni.forget(), value, mNsAware);
+  *aResult = new nsDOMAttribute(nsnull, ni.forget(), value);
   if (!*aResult) {
     return NS_ERROR_OUT_OF_MEMORY;
   }

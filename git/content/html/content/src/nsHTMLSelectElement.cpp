@@ -914,6 +914,8 @@ nsHTMLSelectElement::SetOptionsSelectedByIndex(PRInt32 aStartIndex,
     *aChangedSomething = PR_FALSE;
   }
 
+  nsresult rv;
+
   // Don't bother if the select is disabled
   if (!aSetDisabled && IsDisabled()) {
     return NS_OK;

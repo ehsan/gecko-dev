@@ -1234,7 +1234,7 @@ NS_METHOD nsWindow::Show(PRBool bState)
   
 #ifdef MOZ_XUL
   if (!wasVisible && bState)
-    Invalidate(PR_TRUE);
+    Invalidate(PR_FALSE);
 #endif
 
   return NS_OK;
@@ -2745,7 +2745,6 @@ nsWindow::MakeFullScreen(PRBool aFullScreen)
   if (nsUXThemeData::CheckForCompositor()) {
     style = GetWindowLong(mWnd, GWL_STYLE);
     SetWindowLong(mWnd, GWL_STYLE, style | WS_VISIBLE);
-    Invalidate(PR_FALSE);
   }
 
   // Let the dom know via web shell window
@@ -3181,12 +3180,8 @@ nsWindow::HasPendingInputEvent()
  **************************************************************/
 
 mozilla::layers::LayerManager*
-nsWindow::GetLayerManager(bool* aAllowRetaining)
+nsWindow::GetLayerManager()
 {
-  if (aAllowRetaining) {
-    *aAllowRetaining = true;
-  }
-
 #ifndef WINCE
   if (!mLayerManager) {
     nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);

@@ -108,11 +108,6 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, JSObject *scope, JSObject *obj
 
     XPCWrappedNative *wn = static_cast<XPCWrappedNative *>(xpc_GetJSPrivate(obj));
 
-    // If the object doesn't have classinfo we want to return the same
-    // XPCWrappedNative so that we keep the same set of interfaces.
-    if (!wn->GetClassInfo())
-        return DoubleWrap(cx, obj, flags);
-
     // We know that DOM objects only allow one object, we can return early.
     if (wn->HasProto() && wn->GetProto()->ClassIsDOMObject())
         return DoubleWrap(cx, obj, flags);
@@ -176,7 +171,17 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSO
     CompartmentPrivate *targetdata = static_cast<CompartmentPrivate *>(target->data);
     if (AccessCheck::isChrome(target)) {
         if (AccessCheck::isChrome(origin)) {
-            wrapper = &JSCrossCompartmentWrapper::singleton;
+            // Same origin we use a transparent wrapper, unless the compartment asks
+            // for an Xray.
+            if (targetdata && targetdata->preferXrays && IS_WN_WRAPPER(obj)) {
+                typedef XrayWrapper<JSCrossCompartmentWrapper, CrossCompartmentXray> Xray;
+                wrapper = &Xray::singleton;
+                xrayHolder = Xray::createHolder(cx, obj, parent);
+                if (!xrayHolder)
+                    return nsnull;
+            } else {
+                wrapper = &JSCrossCompartmentWrapper::singleton;
+            }
         } else if (flags & WAIVE_XRAY_WRAPPER_FLAG) {
             // If we waived the X-ray wrapper for this object, wrap it into a
             // special wrapper to transitively maintain the X-ray waiver.
@@ -278,8 +283,8 @@ WrapperFactory::WrapLocationObject(JSContext *cx, JSObject *obj)
 bool
 WrapperFactory::WaiveXrayAndWrap(JSContext *cx, jsval *vp)
 {
-    if (JSVAL_IS_PRIMITIVE(*vp))
-        return JS_WrapValue(cx, vp);
+    if (!JSVAL_IS_OBJECT(*vp))
+        return true;
 
     JSObject *obj = JSVAL_TO_OBJECT(*vp)->unwrap();
 

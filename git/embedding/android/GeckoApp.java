@@ -142,17 +142,12 @@ abstract public class GeckoApp
                     new BufferedReader(new FileReader("/proc/cpuinfo"));
                 String line;
                 while ((line = reader.readLine()) != null) {
-                    int index = line.indexOf("Processor");
+                    int index = line.indexOf("CPU architecture:");
                     if (index == -1)
                         continue;
-
-                    int version = 5;
-                    if (line.indexOf("(v8l)") != -1)
-                        version = 8;
-                    if (line.indexOf("(v7l)") != -1)
-                        version = 7;
-                    if (line.indexOf("(v6l)") != -1)
-                        version = 6;
+                    String versionStr = line.substring(18);
+                    Log.i("GeckoApp", "cpu version: " + versionStr);
+                    int version = Integer.parseInt(versionStr);
 
                     if (version < getMinCPUVersion()) {
                         showErrorDialog(
@@ -177,7 +172,7 @@ abstract public class GeckoApp
             // Load our JNI libs; we need to do this before launch() because
             // setInitialSize will be called even before Gecko is actually up
             // and running.
-            GeckoAppShell.loadGeckoLibs(getApplication().getPackageResourcePath());
+            GeckoAppShell.loadGeckoLibs();
 
             if (useLaunchButton) {
                 final Button b = new Button(this);
@@ -205,15 +200,6 @@ abstract public class GeckoApp
             String uri = intent.getDataString();
             GeckoAppShell.sendEventToGecko(new GeckoEvent(uri));
             Log.i("GeckoApp","onNewIntent: "+uri);
-        }
-        else if (Intent.ACTION_MAIN.equals(action)) {
-            Log.i("GeckoApp", "Intent : ACTION_MAIN");
-            GeckoAppShell.sendEventToGecko(new GeckoEvent(""));
-        }
-        else if (action.equals("org.mozilla.fennec.WEBAPP")) {
-            String uri = intent.getStringExtra("args");
-            GeckoAppShell.sendEventToGecko(new GeckoEvent(uri));
-            Log.i("GeckoApp","Intent : WEBAPP - " + uri);
         }
     }
 

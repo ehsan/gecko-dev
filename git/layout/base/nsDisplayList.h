@@ -226,7 +226,7 @@ public:
    * Call this if we're doing normal painting to the window.
    */
   void SetPaintingToWindow(PRBool aToWindow) { mIsPaintingToWindow = aToWindow; }
-  PRBool IsPaintingToWindow() const { return mIsPaintingToWindow; }
+  PRBool IsPaintingToWindow() { return mIsPaintingToWindow; }
   /**
    * Display the caret if needed.
    */

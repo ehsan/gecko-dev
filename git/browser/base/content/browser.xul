@@ -181,10 +181,21 @@
           <label id="editBookmarkPanelTitle"/>
           <description id="editBookmarkPanelDescription"/>
           <hbox>
+            <button id="editBookmarkPanelUndoRemoveButton"
+                    class="editBookmarkPanelHeaderButton"
+                    hidden="true"
+                    oncommand="StarUI.undoRemoveBookmarkCommand();"
+                    label="&editBookmark.undo.label;"
+                    accesskey="&editBookmark.undo.accessKey;"/>
             <button id="editBookmarkPanelRemoveButton"
                     class="editBookmarkPanelHeaderButton"
                     oncommand="StarUI.removeBookmarkButtonCommand();"
                     accesskey="&editBookmark.removeBookmark.accessKey;"/>
+            <button id="editBookmarkPanelEditButton"
+                    class="editBookmarkPanelHeaderButton"
+                    oncommand="StarUI.editButtonCommand();"
+                    label="&editBookmark.edit.label;"
+                    accesskey="&editBookmark.edit.accessKey;"/>
           </hbox>
         </vbox>
       </row>
@@ -1270,19 +1281,6 @@
                      label="&syncToolbarButton.label;"
                      oncommand="gSyncUI.handleToolbarButton()"/>
 #endif
-      <toolbarbutton id="feed-button"
-                     type="menu"
-                     class="toolbarbutton-1 chromeclass-toolbar-additional"
-                     disabled="true"
-                     label="&feedButton.label;"
-                     tooltiptext="&feedButton.tooltip;"
-                     onclick="return FeedHandler.onFeedButtonClick(event);">
-        <menupopup position="after_end"
-                   id="feed-menu"
-                   onpopupshowing="return FeedHandler.buildFeedList(this);"
-                   oncommand="return FeedHandler.subscribeToFeed(null, event);"
-                   onclick="checkForMiddleClick(this, event);"/>
-      </toolbarbutton>
     </toolbarpalette>
   </toolbox>
 

@@ -192,74 +192,6 @@ IsWindow(const char *name)
     return name[0] == 'W' && !strcmp(name, "Window");
 }
 
-static bool
-IsLocation(const char *name)
-{
-    return name[0] == 'L' && !strcmp(name, "Location");
-}
-
-static nsIPrincipal *
-GetPrincipal(JSObject *obj)
-{
-    NS_ASSERTION(!IS_SLIM_WRAPPER(obj), "global object is a slim wrapper?");
-    if (!IS_WN_WRAPPER(obj)) {
-        NS_ASSERTION(!(~obj->getClass()->flags &
-                       (JSCLASS_PRIVATE_IS_NSISUPPORTS | JSCLASS_HAS_PRIVATE)),
-                     "bad object");
-        nsCOMPtr<nsIScriptObjectPrincipal> objPrin =
-            do_QueryInterface((nsISupports*)xpc_GetJSPrivate(obj));
-        NS_ASSERTION(objPrin, "global isn't nsIScriptObjectPrincipal?");
-        return objPrin->GetPrincipal();
-    }
-
-    nsIXPConnect *xpc = nsXPConnect::GetRuntimeInstance()->GetXPConnect();
-    return xpc->GetPrincipal(obj, PR_TRUE);
-}
-
-bool
-AccessCheck::documentDomainMakesSameOrigin(JSContext *cx, JSObject *obj)
-{
-    JSObject *scope = nsnull;
-    JSStackFrame *fp = nsnull;
-    JS_FrameIterator(cx, &fp);
-    if (fp) {
-        while (fp->isDummyFrame()) {
-            if (!JS_FrameIterator(cx, &fp))
-                break;
-        }
-
-        if (fp)
-            scope = &fp->scopeChain();
-    }
-
-    if (!scope)
-        scope = JS_GetScopeChain(cx);
-
-    nsIPrincipal *subject;
-    nsIPrincipal *object;
-
-    {
-        JSAutoEnterCompartment ac;
-
-        if (!ac.enter(cx, scope))
-            return false;
-
-        subject = GetPrincipal(JS_GetGlobalForObject(cx, scope));
-    }
-
-    {
-        JSAutoEnterCompartment ac;
-
-        if (!ac.enter(cx, obj))
-            return false;
-
-        object = GetPrincipal(JS_GetGlobalForObject(cx, obj));
-    }
-
-    PRBool subsumes;
-    return NS_SUCCEEDED(subject->Subsumes(object, &subsumes)) && subsumes;
-}
-
 bool
 AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapper, jsid id,
                                           JSWrapper::Action act)
@@ -290,9 +222,47 @@ AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapper, jsid
     if (IsWindow(name) && IsFrameId(cx, obj, id))
         return true;
 
-    // We only reach this point for cross origin location objects (see
-    // SameOriginOrCrossOriginAccessiblePropertiesOnly::check).
-    if (!IsLocation(name) && documentDomainMakesSameOrigin(cx, obj))
+    nsIXPConnect *xpc = nsXPConnect::GetRuntimeInstance()->GetXPConnect();
+
+    JSObject *scope = nsnull;
+    JSStackFrame *fp = nsnull;
+    JS_FrameIterator(cx, &fp);
+    if (fp) {
+        while (fp->isDummyFrame()) {
+            if (!JS_FrameIterator(cx, &fp))
+                break;
+        }
+
+        if (fp)
+            scope = &fp->scopeChain();
+    }
+
+    if (!scope)
+        scope = JS_GetScopeChain(cx);
+
+    nsIPrincipal *subject;
+    nsIPrincipal *object;
+
+    {
+        JSAutoEnterCompartment ac;
+
+        if (!ac.enter(cx, scope))
+            return false;
+
+        subject = xpc->GetPrincipal(JS_GetGlobalForObject(cx, scope), PR_TRUE);
+    }
+
+    {
+        JSAutoEnterCompartment ac;
+
+        if (!ac.enter(cx, obj))
+            return false;
+
+        object = xpc->GetPrincipal(JS_GetGlobalForObject(cx, obj), PR_TRUE);
+    }
+
+    PRBool subsumes;
+    if (NS_SUCCEEDED(subject->Subsumes(object, &subsumes)) && subsumes)
         return true;
 
     return (act == JSWrapper::SET)

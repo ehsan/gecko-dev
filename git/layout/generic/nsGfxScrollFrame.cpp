@@ -109,10 +109,9 @@ nsHTMLScrollFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 }
 
 void
-nsHTMLScrollFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                            PRUint32 aFilter)
+nsHTMLScrollFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
 {
-  mInner.AppendAnonymousContentTo(aElements, aFilter);
+  mInner.AppendAnonymousContentTo(aElements);
 }
 
 void
@@ -198,16 +197,8 @@ nsHTMLScrollFrame::InvalidateInternal(const nsRect& aDamageRect,
       // the layer system wants us to invalidate.
       damage += GetScrollPosition() - mInner.mScrollPosAtLastPaint;
       nsRect r;
-      r.IntersectRect(damage, mInner.mScrollPort);
-      PRBool seperateThebes = IsScrollingActive() &&
-        !(aFlags & INVALIDATE_NO_THEBES_LAYERS) && r != damage;
-      if (seperateThebes) {
-        nsHTMLContainerFrame::InvalidateInternal(damage, 0, 0, aForChild,
-          aFlags | INVALIDATE_ONLY_THEBES_LAYERS);
-      }
-      if (!r.IsEmpty()) {
-        nsHTMLContainerFrame::InvalidateInternal(r, 0, 0, aForChild,
-          aFlags | (seperateThebes ? INVALIDATE_NO_THEBES_LAYERS : 0));
+      if (r.IntersectRect(damage, mInner.mScrollPort)) {
+        nsHTMLContainerFrame::InvalidateInternal(r, 0, 0, aForChild, aFlags);
       }
       if (mInner.mIsRoot && r != damage) {
         // Make sure we notify our prescontext about invalidations outside
@@ -974,10 +965,9 @@ nsXULScrollFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 }
 
 void
-nsXULScrollFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                           PRUint32 aFilter)
+nsXULScrollFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
 {
-  mInner.AppendAnonymousContentTo(aElements, aFilter);
+  mInner.AppendAnonymousContentTo(aElements);
 }
 
 void
@@ -1060,16 +1050,8 @@ nsXULScrollFrame::InvalidateInternal(const nsRect& aDamageRect,
     nsRect damage = aDamageRect + nsPoint(aX, aY) +
       GetScrollPosition() - mInner.mScrollPosAtLastPaint;
     nsRect r;
-    r.IntersectRect(damage, mInner.mScrollPort);
-    PRBool seperateThebes = IsScrollingActive() &&
-      !(aFlags & INVALIDATE_NO_THEBES_LAYERS) && r != damage;
-    if (seperateThebes) {
-      nsBoxFrame::InvalidateInternal(damage, 0, 0, aForChild,
-        aFlags | INVALIDATE_ONLY_THEBES_LAYERS);
-    }
-    if (!r.IsEmpty()) {
-      nsBoxFrame::InvalidateInternal(r, 0, 0, aForChild,
-        aFlags | (seperateThebes ? INVALIDATE_NO_THEBES_LAYERS : 0));
+    if (r.IntersectRect(damage, mInner.mScrollPort)) {
+      nsBoxFrame::InvalidateInternal(r, 0, 0, aForChild, aFlags);
     }
     return;
   }
@@ -1454,9 +1436,36 @@ nsGfxScrollFrameInner::ScrollTo(nsPoint aScrollPosition,
   }
 }
 
+static void InvalidateWidgets(nsIView* aView)
+{
+  if (aView->HasWidget()) {
+    nsIWidget* widget = aView->GetWidget();
+    nsWindowType type;
+    widget->GetWindowType(type);
+    if (type != eWindowType_popup) {
+      // Force the widget and everything in it to repaint. We can't
+      // just use Invalidate because the widget might have child
+      // widgets and they wouldn't get updated. We can't call
+      // UpdateView(aView) because the area to be repainted might be
+      // outside aView's clipped bounds. This isn't the greatest way
+      // to achieve this, perhaps, but it works.
+      widget->Show(PR_FALSE);
+      widget->Show(PR_TRUE);
+    }
+    return;
+  }
+
+  for (nsIView* v = aView->GetFirstChild(); v; v = v->GetNextSibling()) {
+    InvalidateWidgets(v);
+  }
+}
+
 // We can't use nsContainerFrame::PositionChildViews here because
 // we don't want to invalidate views that have moved.
-static void AdjustViews(nsIFrame* aFrame)
+// aInvalidateWidgets is set to true if we should invalidate the area
+// covered by every widget in the subtree.
+static void AdjustViewsAndWidgets(nsIFrame* aFrame,
+                                  PRBool aInvalidateWidgets)
 {
   nsIView* view = aFrame->GetView();
   if (view) {
@@ -1465,6 +1474,9 @@ static void AdjustViews(nsIFrame* aFrame)
     pt += aFrame->GetPosition();
     view->SetPosition(pt.x, pt.y);
 
+    if (aInvalidateWidgets) {
+      InvalidateWidgets(view);
+    }
     return;
   }
 
@@ -1478,7 +1490,7 @@ static void AdjustViews(nsIFrame* aFrame)
     // Recursively walk aFrame's child frames
     nsIFrame* childFrame = aFrame->GetFirstChild(childListName);
     while (childFrame) {
-      AdjustViews(childFrame);
+      AdjustViewsAndWidgets(childFrame, aInvalidateWidgets);
 
       // Get the next sibling child frame
       childFrame = childFrame->GetNextSibling();
@@ -1593,7 +1605,7 @@ void nsGfxScrollFrameInner::MarkActive()
   }
 }
 
-void nsGfxScrollFrameInner::ScrollVisual()
+void nsGfxScrollFrameInner::ScrollVisual(nsIntPoint aPixDelta)
 {
   nsRootPresContext* rootPresContext = mOuter->PresContext()->GetRootPresContext();
   if (!rootPresContext) {
@@ -1602,9 +1614,9 @@ void nsGfxScrollFrameInner::ScrollVisual()
 
   rootPresContext->RequestUpdatePluginGeometry(mOuter);
 
-  AdjustViews(mScrolledFrame);
-  // We need to call this after fixing up the view positions
-  // to be consistent with the frame hierarchy.
+  AdjustViewsAndWidgets(mScrolledFrame, PR_FALSE);
+  // We need to call this after fixing up the widget and view positions
+  // to be consistent with the view and frame hierarchy.
   PRUint32 flags = nsIFrame::INVALIDATE_REASON_SCROLL_REPAINT;
   nsIFrame* displayRoot = nsLayoutUtils::GetDisplayRootFrame(mOuter);
   if (IsScrollingActive() && CanScrollWithBlitting(mOuter, displayRoot)) {
@@ -1683,7 +1695,7 @@ nsGfxScrollFrameInner::ScrollToImpl(nsPoint aPt)
   mScrolledFrame->SetPosition(mScrollPort.TopLeft() - pt);
 
   // We pass in the amount to move visually
-  ScrollVisual();
+  ScrollVisual(curPosDevPx - ptDevPx);
 
   presContext->PresShell()->SynthesizeMouseMove(PR_TRUE);
   UpdateScrollbarPosition();
@@ -2234,8 +2246,7 @@ nsGfxScrollFrameInner::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 }
 
 void
-nsGfxScrollFrameInner::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                                PRUint32 aFilter)
+nsGfxScrollFrameInner::AppendAnonymousContentTo(nsBaseContentList& aElements)
 {
   aElements.MaybeAppendElement(mHScrollbarContent);
   aElements.MaybeAppendElement(mVScrollbarContent);

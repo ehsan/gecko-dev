@@ -217,8 +217,7 @@
       <textbox id="weavePassphrase"
                onkeyup="gSyncSetup.onPassphraseChange()"
                onchange="gSyncSetup.onPassphraseChange()"
-               onfocus="this.select();
-                        gSyncSetup.afterBackup();"/>
+               onfocus="this.select()"/>
 
       <vbox id="passphraseFeedback" pack="center">
         <hbox id="passphraseFeedbackRow" hidden="true" align="center">
@@ -253,13 +252,11 @@
     <groupbox align="center">
       <description>&syncKeyBackup.description;</description>
       <hbox>
-        <button id="printSyncKeyButton"
-                label="&button.syncKeyBackup.print.label;"
+        <button label="&button.syncKeyBackup.print.label;"
                 accesskey="&button.syncKeyBackup.print.accesskey;"
                 oncommand="gSyncUtils.passphrasePrint('weavePassphrase');
                            gSyncSetup.afterBackup();"/>
-        <button id="saveSyncKeyButton"
-                label="&button.syncKeyBackup.save.label;"
+        <button label="&button.syncKeyBackup.save.label;"
                 accesskey="&button.syncKeyBackup.save.accesskey;"
                 oncommand="gSyncUtils.passphraseSave('weavePassphrase');
                            gSyncSetup.afterBackup();"/>

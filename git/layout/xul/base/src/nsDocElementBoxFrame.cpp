@@ -75,8 +75,7 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        PRUint32 aFilter);
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
@@ -153,8 +152,7 @@ nsDocElementBoxFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 }
 
 void
-nsDocElementBoxFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                               PRUint32 aFilter)
+nsDocElementBoxFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
 {
   aElements.MaybeAppendElement(mPopupgroupContent);
   aElements.MaybeAppendElement(mTooltipContent);
