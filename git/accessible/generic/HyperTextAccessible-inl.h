@@ -49,7 +49,7 @@ HyperTextAccessible::AddToSelection(int32_t aStartOffset, int32_t aEndOffset)
 {
   dom::Selection* domSel = DOMSelection();
   return domSel &&
-    SetSelectionBoundsAt(domSel->RangeCount(), aStartOffset, aEndOffset);
+    SetSelectionBoundsAt(domSel->GetRangeCount(), aStartOffset, aEndOffset);
 }
 
 inline void

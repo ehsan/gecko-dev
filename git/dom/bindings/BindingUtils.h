@@ -2502,7 +2502,7 @@ XrayGetNativeProto(JSContext* cx, JS::Handle<JSObject*> obj,
   return JS_WrapObject(cx, protop);
 }
 
-extern NativePropertyHooks sEmptyNativePropertyHooks;
+extern NativePropertyHooks sWorkerNativePropertyHooks;
 
 // We use one constructor JSNative to represent all DOM interface objects (so
 // we can easily detect when we need to wrap them in an Xray wrapper). We store
@@ -2795,14 +2795,15 @@ public:
   void
   CreateProxyObject(JSContext* aCx, const js::Class* aClass,
                     const DOMProxyHandler* aHandler,
-                    JS::Handle<JSObject*> aProto, T* aNative,
+                    JS::Handle<JSObject*> aProto,
+                    JS::Handle<JSObject*> aParent, T* aNative,
                     JS::MutableHandle<JSObject*> aReflector)
   {
     js::ProxyOptions options;
     options.setClass(aClass);
     JS::Rooted<JS::Value> proxyPrivateVal(aCx, JS::PrivateValue(aNative));
     aReflector.set(js::NewProxyObject(aCx, aHandler, proxyPrivateVal, aProto,
-                                      /* parent= */nullptr, options));
+                                      aParent, options));
     if (aReflector) {
       mNative = aNative;
       mReflector = aReflector;
@@ -2811,10 +2812,10 @@ public:
 
   void
   CreateObject(JSContext* aCx, const JSClass* aClass,
-               JS::Handle<JSObject*> aProto,
+               JS::Handle<JSObject*> aProto, JS::Handle<JSObject*> aParent,
                T* aNative, JS::MutableHandle<JSObject*> aReflector)
   {
-    aReflector.set(JS_NewObjectWithGivenProto(aCx, aClass, aProto));
+    aReflector.set(JS_NewObjectWithGivenProto(aCx, aClass, aProto, aParent));
     if (aReflector) {
       js::SetReservedSlot(aReflector, DOM_OBJECT_SLOT, JS::PrivateValue(aNative));
       mNative = aNative;

@@ -475,9 +475,6 @@ GetClosestInterestingAccessible(id anObject)
     case roles::DEFINITION:
       return @"AXDefinition";
 
-    case roles::SWITCH:
-      return @"AXSwitch";
-
     default:
       break;
   }

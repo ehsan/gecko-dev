@@ -126,7 +126,7 @@ js::NewContext(JSRuntime *rt, size_t stackChunkSize)
             ok = rt->initSelfHosting(cx);
 
         if (ok && !rt->parentRuntime)
-            ok = rt->transformToPermanentAtoms(cx);
+            ok = rt->transformToPermanentAtoms();
 
         JS_EndRequest(cx);
 

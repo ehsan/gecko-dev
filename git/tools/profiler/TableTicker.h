@@ -77,7 +77,6 @@ class TableTicker: public Sampler {
     mTaskTracer = hasFeature(aFeatures, aFeatureCount, "tasktracer");
     mLayersDump = hasFeature(aFeatures, aFeatureCount, "layersdump");
     mDisplayListDump = hasFeature(aFeatures, aFeatureCount, "displaylistdump");
-    mProfileRestyle = hasFeature(aFeatures, aFeatureCount, "restyle");
 
 #if defined(XP_WIN)
     if (mProfilePower) {
@@ -211,7 +210,6 @@ class TableTicker: public Sampler {
   bool TaskTracer() const { return mTaskTracer; }
   bool LayersDump() const { return mLayersDump; }
   bool DisplayListDump() const { return mDisplayListDump; }
-  bool ProfileRestyle() const { return mProfileRestyle; }
 
 protected:
   // Called within a signal. This function must be reentrant
@@ -239,7 +237,6 @@ protected:
   bool mProfilePower;
   bool mLayersDump;
   bool mDisplayListDump;
-  bool mProfileRestyle;
 
   // Keep the thread filter to check against new thread that
   // are started while profiling

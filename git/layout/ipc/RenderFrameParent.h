@@ -14,6 +14,7 @@
 #include "mozilla/layers/LayersTypes.h"
 #include "mozilla/layout/PRenderFrameParent.h"
 #include "nsDisplayList.h"
+#include "RenderFrameUtils.h"
 
 class nsFrameLoader;
 class nsSubDocumentFrame;
@@ -57,6 +58,7 @@ public:
    * them to asynchronously pan and zoom.
    */
   RenderFrameParent(nsFrameLoader* aFrameLoader,
+                    ScrollingBehavior aScrollingBehavior,
                     TextureFactoryIdentifier* aTextureFactoryIdentifier,
                     uint64_t* aId, bool* aSuccess);
   virtual ~RenderFrameParent();
@@ -93,6 +95,8 @@ public:
                              const ZoomConstraints& aConstraints);
 
   bool HitTest(const nsRect& aRect);
+
+  bool UseAsyncPanZoom() { return !!mContentController; }
 
   void GetTextureFactoryIdentifier(TextureFactoryIdentifier* aTextureFactoryIdentifier);
 
