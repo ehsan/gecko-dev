@@ -170,6 +170,7 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance()
     mDrawingModel(kDefaultDrawingModel),
 #ifdef MOZ_WIDGET_ANDROID
     mANPDrawingModel(0),
+    mOnScreen(true),
     mFullScreenOrientation(dom::eScreenOrientation_LandscapePrimary),
     mWakeLocked(false),
     mFullScreen(false),
@@ -189,9 +190,6 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance()
     mUsePluginLayersPref(true)
 #else
     mUsePluginLayersPref(false)
-#endif
-#ifdef MOZ_WIDGET_ANDROID
-  , mOnScreen(true)
 #endif
 {
   mNPP.pdata = NULL;

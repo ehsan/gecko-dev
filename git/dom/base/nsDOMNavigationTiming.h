@@ -128,6 +128,7 @@ private:
   DOMTimeMilliSec mBeforeUnloadStart;
   DOMTimeMilliSec mUnloadStart;
   DOMTimeMilliSec mUnloadEnd;
+  DOMTimeMilliSec mNavigationEnd;
   DOMTimeMilliSec mLoadEventStart;
   DOMTimeMilliSec mLoadEventEnd;
 

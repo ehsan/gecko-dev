@@ -23,7 +23,6 @@ static int gNotOptimized;
 #include "AndroidBridge.h"
 #include "android_npapi.h"
 #include <android/log.h>
-#undef ALOG
 #define ALOG(args...) __android_log_print(ANDROID_LOG_INFO, "GeckoJavaEnv", ## args)
 #endif
 

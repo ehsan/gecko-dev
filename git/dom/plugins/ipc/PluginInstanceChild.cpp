@@ -1218,9 +1218,9 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
         (void) mPluginIface->setwindow(&mData, &mWindow);
 
 #elif defined(ANDROID)
-    // TODO: Need Android impl
+#  warning Need Android impl
 #elif defined(MOZ_WIDGET_QT)
-    // TODO: Need QT-nonX impl
+#  warning Need QT-nonX impl
 #else
 #  error Implement me for your OS
 #endif
@@ -3520,8 +3520,8 @@ PluginInstanceChild::ShowPluginFrame()
     }
 #endif
 
-    NS_ASSERTION(mWindow.width == uint32_t(mWindow.clipRect.right - mWindow.clipRect.left) &&
-                 mWindow.height == uint32_t(mWindow.clipRect.bottom - mWindow.clipRect.top),
+    NS_ASSERTION(mWindow.width == (mWindow.clipRect.right - mWindow.clipRect.left) &&
+                 mWindow.height == (mWindow.clipRect.bottom - mWindow.clipRect.top),
                  "Clip rect should be same size as window when using layers");
 
     // Clear accRect here to be able to pass

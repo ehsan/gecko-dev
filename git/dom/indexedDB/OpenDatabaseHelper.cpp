@@ -24,8 +24,7 @@ namespace {
 
 // If JS_STRUCTURED_CLONE_VERSION changes then we need to update our major
 // schema version.
-MOZ_STATIC_ASSERT(JS_STRUCTURED_CLONE_VERSION == 1,
-                  "Need to update the major schema version.");
+PR_STATIC_ASSERT(JS_STRUCTURED_CLONE_VERSION == 1);
 
 // Major schema version. Bump for almost everything.
 const PRUint32 kMajorSchemaVersion = 12;
@@ -37,10 +36,8 @@ const PRUint32 kMinorSchemaVersion = 0;
 // The schema version we store in the SQLite database is a (signed) 32-bit
 // integer. The major version is left-shifted 4 bits so the max value is
 // 0xFFFFFFF. The minor version occupies the lower 4 bits and its max is 0xF.
-MOZ_STATIC_ASSERT(kMajorSchemaVersion <= 0xFFFFFFF,
-                  "Major version needs to fit in 28 bits.");
-MOZ_STATIC_ASSERT(kMinorSchemaVersion <= 0xF,
-                  "Minor version needs to fit in 4 bits.");
+PR_STATIC_ASSERT(kMajorSchemaVersion <= 0xFFFFFFF);
+PR_STATIC_ASSERT(kMajorSchemaVersion <= 0xF);
 
 inline
 PRInt32
@@ -1803,8 +1800,7 @@ OpenDatabaseHelper::CreateDatabaseConnection(
     }
     else  {
       // This logic needs to change next time we change the schema!
-      MOZ_STATIC_ASSERT(kSQLiteSchemaVersion == PRInt32((12 << 4) + 0),
-                        "Need upgrade code from schema version increase.");
+      PR_STATIC_ASSERT(kSQLiteSchemaVersion == PRInt32((12 << 4) + 0));
 
       while (schemaVersion != kSQLiteSchemaVersion) {
         if (schemaVersion == 4) {
