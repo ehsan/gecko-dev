@@ -11,6 +11,7 @@
 #include "nsCRT.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
+#include "nsISupports.h"
 #include "nsIContent.h"
 #include "nsIContentViewerContainer.h"
 #include "nsIContentViewer.h"
@@ -20,6 +21,7 @@
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsStyleSet.h"
+#include "nsIStyleSheet.h"
 #include "nsCSSStyleSheet.h"
 #include "nsIFrame.h"
 #include "nsSubDocumentFrame.h"
@@ -29,16 +31,22 @@
 #include "nsISelectionListener.h"
 #include "nsISelectionPrivate.h"
 #include "nsIDOMHTMLDocument.h"
+#include "nsIDOMHTMLCollection.h"
 #include "nsIDOMHTMLElement.h"
+#include "nsIDOMRange.h"
+#include "nsContentCID.h"
+#include "nsLayoutCID.h"
 #include "nsContentUtils.h"
 #include "nsLayoutStylesheetCache.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/EncodingUtils.h"
 
+#include "nsIDeviceContextSpec.h"
 #include "nsViewManager.h"
 #include "nsView.h"
 
 #include "nsIPageSequenceFrame.h"
+#include "nsIURL.h"
 #include "nsNetUtil.h"
 #include "nsIContentViewerEdit.h"
 #include "nsIContentViewerFile.h"
@@ -46,12 +54,16 @@
 #include "nsIMarkupDocumentViewer.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIDocShellTreeOwner.h"
 #include "nsIDocShell.h"
 #include "nsIBaseWindow.h"
 #include "nsILayoutHistoryState.h"
 #include "nsCharsetSource.h"
 #include "nsGUIEvent.h"
 #include "nsHTMLReflowState.h"
+#include "nsIDOMHTMLAnchorElement.h"
+#include "nsIDOMHTMLAreaElement.h"
+#include "nsIDOMHTMLLinkElement.h"
 #include "nsIImageLoadingContent.h"
 #include "nsCopySupport.h"
 #include "nsIDOMHTMLFrameSetElement.h"
@@ -69,7 +81,10 @@
 #include "nsFocusManager.h"
 
 #include "nsIScrollableFrame.h"
+#include "nsIHTMLDocument.h"
+#include "nsGfxCIID.h"
 #include "nsStyleSheetService.h"
+#include "nsURILoader.h"
 #include "nsRenderingContext.h"
 #include "nsILoadContext.h"
 
@@ -87,13 +102,33 @@
 
 // Print Options
 #include "nsIPrintSettings.h"
+#include "nsIPrintSettingsService.h"
 #include "nsIPrintOptions.h"
+#include "nsIServiceManager.h"
 #include "nsISimpleEnumerator.h"
+#include "nsXPCOM.h"
+#include "nsISupportsPrimitives.h"
 
 // PrintOptions is now implemented by PrintSettingsService
 static const char sPrintOptionsContractID[]         = "@mozilla.org/gfx/printsettings-service;1";
 
+// Printing Events
+#include "nsPrintPreviewListener.h"
+
+#include "nsIDOMHTMLFrameElement.h"
+#include "nsIDOMHTMLIFrameElement.h"
+#include "nsIDOMHTMLObjectElement.h"
 #include "nsIPluginDocument.h"
+
+// Print Progress
+#include "nsIPrintProgress.h"
+#include "nsIPrintProgressParams.h"
+
+// Print error dialog
+#include "nsIWindowWatcher.h"
+
+// Printing 
+#include "nsPagePrintTimer.h"
 
 #endif // NS_PRINTING
 
@@ -107,12 +142,18 @@ static const char sPrintOptionsContractID[]         = "@mozilla.org/gfx/printset
 #include "nsISHistory.h"
 #include "nsISHistoryInternal.h"
 #include "nsIWebNavigation.h"
+#include "nsWeakPtr.h"
 #include "nsEventDispatcher.h"
 
 //paint forcing
+#include "prenv.h"
 #include <stdio.h>
 
+#include "nsObserverService.h"
+
 #include "mozilla/dom/Element.h"
+
+#include "jsfriendapi.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

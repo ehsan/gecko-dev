@@ -37,6 +37,7 @@ EXPORTS += [
     'nsIScriptGlobalObjectOwner.h',
     'nsIScriptNameSpaceManager.h',
     'nsIScriptObjectPrincipal.h',
+    'nsIScriptRuntime.h',
     'nsIScriptTimeoutHandler.h',
     'nsJSEnvironment.h',
     'nsJSUtils.h',

@@ -126,13 +126,11 @@ ClientImageLayer::RenderLayer()
     if (type == BUFFER_UNKNOWN) {
       return;
     }
-    TextureFlags flags = TEXTURE_FLAGS_DEFAULT;
-    if (mDisallowBigImage) {
-      flags |= TEXTURE_DISALLOW_BIGIMAGE;
-    }
     mImageClient = ImageClient::CreateImageClient(type,
                                                   ClientManager(),
-                                                  flags);
+                                                  mDisallowBigImage
+                                                    ? TEXTURE_DISALLOW_BIGIMAGE
+                                                    : 0);
     if (type == BUFFER_BRIDGE) {
       static_cast<ImageClientBridge*>(mImageClient.get())->SetLayer(this);
     }

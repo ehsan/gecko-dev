@@ -12,6 +12,9 @@
 #include "nsLayoutUtils.h"
 #include "Layers.h"
 #include "BasicLayers.h"
+#include "nsSubDocumentFrame.h"
+#include "nsCSSRendering.h"
+#include "nsCSSFrameConstructor.h"
 #include "gfxUtils.h"
 #include "nsRenderingContext.h"
 #include "MaskLayerImageCache.h"
@@ -20,10 +23,18 @@
 #include "LayerTreeInvalidation.h"
 #include "nsSVGIntegrationUtils.h"
 
+#include "mozilla/Preferences.h"
 #include "GeckoProfiler.h"
 #include "mozilla/gfx/Tools.h"
 
+#include "nsAnimationManager.h"
+#include "nsTransitionManager.h"
 #include <algorithm>
+
+#ifdef DEBUG
+#include <stdio.h>
+//#define DEBUG_DISPLAY_ITEM_DATA
+#endif
 
 using namespace mozilla::layers;
 using namespace mozilla::gfx;

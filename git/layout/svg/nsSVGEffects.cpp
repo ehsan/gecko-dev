@@ -16,7 +16,6 @@
 #include "nsSVGMaskFrame.h"
 #include "nsSVGTextPathFrame.h"
 #include "nsIReflowCallback.h"
-#include "RestyleManager.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

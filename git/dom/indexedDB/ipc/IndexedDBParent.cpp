@@ -82,9 +82,7 @@ IndexedDBParent::~IndexedDBParent()
 void
 IndexedDBParent::Disconnect()
 {
-  if (mDisconnected) {
-    return;
-  }
+  MOZ_ASSERT(!mDisconnected);
 
   mDisconnected = true;
 

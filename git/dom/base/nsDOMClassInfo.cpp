@@ -911,7 +911,8 @@ CutPrefix(const char *aName) {
 nsresult
 nsDOMClassInfo::RegisterClassProtos(int32_t aClassInfoID)
 {
-  nsScriptNameSpaceManager *nameSpaceManager = GetNameSpaceManager();
+  nsScriptNameSpaceManager *nameSpaceManager =
+    nsJSRuntime::GetNameSpaceManager();
   NS_ENSURE_TRUE(nameSpaceManager, NS_ERROR_NOT_INITIALIZED);
   bool found_old;
 
@@ -963,7 +964,8 @@ nsDOMClassInfo::RegisterClassProtos(int32_t aClassInfoID)
 nsresult
 nsDOMClassInfo::RegisterExternalClasses()
 {
-  nsScriptNameSpaceManager *nameSpaceManager = GetNameSpaceManager();
+  nsScriptNameSpaceManager *nameSpaceManager =
+    nsJSRuntime::GetNameSpaceManager();
   NS_ENSURE_TRUE(nameSpaceManager, NS_ERROR_NOT_INITIALIZED);
 
   nsCOMPtr<nsIComponentRegistrar> registrar;
@@ -1095,7 +1097,7 @@ nsDOMClassInfo::Init()
 
   NS_ENSURE_TRUE(!sIsInitialized, NS_ERROR_ALREADY_INITIALIZED);
 
-  nsScriptNameSpaceManager *nameSpaceManager = GetNameSpaceManager();
+  nsScriptNameSpaceManager *nameSpaceManager = nsJSRuntime::GetNameSpaceManager();
   NS_ENSURE_TRUE(nameSpaceManager, NS_ERROR_NOT_INITIALIZED);
 
   nsresult rv = CallGetService(nsIXPConnect::GetCID(), &sXPConnect);
@@ -2070,7 +2072,8 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * aProto)
     return NS_ERROR_FAILURE;
   }
 
-  nsScriptNameSpaceManager *nameSpaceManager = GetNameSpaceManager();
+  nsScriptNameSpaceManager *nameSpaceManager =
+    nsJSRuntime::GetNameSpaceManager();
   NS_ENSURE_TRUE(nameSpaceManager, NS_OK);
 
   bool unused;
@@ -2268,7 +2271,8 @@ nsWindowSH::Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     }
 
     // Now resolve everything from the namespace manager
-    nsScriptNameSpaceManager *nameSpaceManager = GetNameSpaceManager();
+    nsScriptNameSpaceManager *nameSpaceManager =
+      nsJSRuntime::GetNameSpaceManager();
     if (!nameSpaceManager) {
       NS_ERROR("Can't get namespace manager.");
       return NS_ERROR_UNEXPECTED;
@@ -2552,7 +2556,8 @@ private:
   {
     *aNameStruct = nullptr;
 
-    nsScriptNameSpaceManager *nameSpaceManager = GetNameSpaceManager();
+    nsScriptNameSpaceManager *nameSpaceManager =
+      nsJSRuntime::GetNameSpaceManager();
     if (!nameSpaceManager) {
       NS_ERROR("Can't get namespace manager.");
       return NS_ERROR_UNEXPECTED;
@@ -2759,7 +2764,8 @@ nsDOMConstructor::HasInstance(nsIXPConnectWrappedNative *wrapper,
     return NS_OK;
   }
 
-  nsScriptNameSpaceManager *nameSpaceManager = GetNameSpaceManager();
+  nsScriptNameSpaceManager *nameSpaceManager =
+    nsJSRuntime::GetNameSpaceManager();
   NS_ASSERTION(nameSpaceManager, "Can't get namespace manager?");
 
   const nsIID *class_iid;
@@ -3152,7 +3158,8 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
 {
   *did_resolve = false;
 
-  nsScriptNameSpaceManager *nameSpaceManager = GetNameSpaceManager();
+  nsScriptNameSpaceManager *nameSpaceManager =
+    nsJSRuntime::GetNameSpaceManager();
   NS_ENSURE_TRUE(nameSpaceManager, NS_ERROR_NOT_INITIALIZED);
 
   nsDependentJSString name(id);

@@ -9,6 +9,7 @@
 #define nsPresContext_h___
 
 #include "mozilla/Attributes.h"
+#include "nsISupports.h"
 #include "nsColor.h"
 #include "nsCoord.h"
 #include "nsCOMPtr.h"
@@ -21,6 +22,7 @@
 #include "nsCRT.h"
 #include "FramePropertyTable.h"
 #include "nsGkAtoms.h"
+#include "nsRefPtrHashtable.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsChangeHint.h"
 #include <algorithm>
@@ -28,6 +30,7 @@
 #include "gfxRect.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
+#include "nsIWidget.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/TimeStamp.h"
 #include "prclist.h"
@@ -37,17 +40,24 @@
 class nsBidiPresUtils;
 #endif // IBMBIDI
 
+struct nsRect;
+
+class imgIRequest;
+
 class nsAString;
 class nsIPrintSettings;
 class nsIDocument;
 class nsILanguageAtomService;
 class nsITheme;
 class nsIContent;
+class nsFontMetrics;
 class nsIFrame;
 class nsFrameManager;
 class nsILinkHandler;
+class nsStyleContext;
 class nsIAtom;
 class nsEventStateManager;
+class nsIURI;
 class nsICSSPseudoComparator;
 struct nsStyleBackground;
 struct nsStyleBorder;
@@ -58,9 +68,13 @@ struct nsFontFaceRuleContainer;
 class nsObjectFrame;
 class nsTransitionManager;
 class nsAnimationManager;
+class imgIContainer;
 class nsIDOMMediaQueryList;
 class nsRefreshDriver;
-class nsIWidget;
+
+#ifdef MOZ_REFLOW_PERF
+class nsRenderingContext;
+#endif
 
 namespace mozilla {
 class RestyleManager;

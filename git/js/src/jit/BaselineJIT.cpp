@@ -892,7 +892,7 @@ ion::ToggleBaselineSPS(JSRuntime *runtime, bool enable)
 }
 
 static void
-MarkActiveBaselineScripts(JSRuntime *rt, const JitActivationIterator &activation)
+MarkActiveBaselineScripts(JSContext *cx, const JitActivationIterator &activation)
 {
     for (ion::IonFrameIterator iter(activation); !iter.done(); ++iter) {
         switch (iter.type()) {
@@ -903,7 +903,7 @@ MarkActiveBaselineScripts(JSRuntime *rt, const JitActivationIterator &activation
             // Keep the baseline script around, since bailouts from the ion
             // jitcode might need to re-enter into the baseline jitcode.
             iter.script()->baselineScript()->setActive();
-            for (InlineFrameIterator inlineIter(rt, &iter); inlineIter.more(); ++inlineIter)
+            for (InlineFrameIterator inlineIter(cx, &iter); inlineIter.more(); ++inlineIter)
                 inlineIter.script()->baselineScript()->setActive();
             break;
           }
@@ -915,9 +915,19 @@ MarkActiveBaselineScripts(JSRuntime *rt, const JitActivationIterator &activation
 void
 ion::MarkActiveBaselineScripts(Zone *zone)
 {
-    JSRuntime *rt = zone->runtimeFromMainThread();
-    for (JitActivationIterator iter(rt); !iter.done(); ++iter) {
+    // First check if there is a JitActivation on the stack, so that there
+    // must be a valid IonContext.
+    JitActivationIterator iter(zone->runtimeFromMainThread());
+    if (iter.done())
+        return;
+
+    // If baseline is disabled, there are no baseline scripts on the stack.
+    JSContext *cx = GetIonContext()->cx;
+    if (!ion::IsBaselineEnabled(cx))
+        return;
+
+    for (; !iter.done(); ++iter) {
         if (iter.activation()->compartment()->zone() == zone)
-            MarkActiveBaselineScripts(rt, iter);
+            MarkActiveBaselineScripts(cx, iter);
     }
 }
