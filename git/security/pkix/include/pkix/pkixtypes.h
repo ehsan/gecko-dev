@@ -31,7 +31,7 @@
 
 namespace mozilla { namespace pkix {
 
-enum class DigestAlgorithm
+MOZILLA_PKIX_ENUM_CLASS DigestAlgorithm
 {
   sha512 = 1,
   sha384 = 2,
@@ -43,7 +43,7 @@ enum class DigestAlgorithm
 //   * secp521r1 (OID 1.3.132.0.35, RFC 5480)
 //   * secp384r1 (OID 1.3.132.0.34, RFC 5480)
 //   * secp256r1 (OID 1.2.840.10045.3.17, RFC 5480)
-enum class SignatureAlgorithm
+MOZILLA_PKIX_ENUM_CLASS SignatureAlgorithm
 {
   // ecdsa-with-SHA512 (OID 1.2.840.10045.4.3.4, RFC 5758 Section 3.2)
   ecdsa_with_sha512 = 1,
@@ -84,9 +84,9 @@ private:
   void operator=(const SignedDataWithSignature&) /*= delete*/;
 };
 
-enum class EndEntityOrCA { MustBeEndEntity = 0, MustBeCA = 1 };
+MOZILLA_PKIX_ENUM_CLASS EndEntityOrCA { MustBeEndEntity = 0, MustBeCA = 1 };
 
-enum class KeyUsage : uint8_t {
+MOZILLA_PKIX_ENUM_CLASS KeyUsage : uint8_t {
   digitalSignature = 0,
   nonRepudiation   = 1,
   keyEncipherment  = 2,
@@ -99,7 +99,7 @@ enum class KeyUsage : uint8_t {
   noParticularKeyUsageRequired = 0xff,
 };
 
-enum class KeyPurposeId {
+MOZILLA_PKIX_ENUM_CLASS KeyPurposeId {
   anyExtendedKeyUsage = 0,
   id_kp_serverAuth = 1,           // id-kp-serverAuth
   id_kp_clientAuth = 2,           // id-kp-clientAuth
@@ -118,7 +118,7 @@ struct CertPolicyId {
   static const CertPolicyId anyPolicy;
 };
 
-enum class TrustLevel {
+MOZILLA_PKIX_ENUM_CLASS TrustLevel {
   TrustAnchor = 1,        // certificate is a trusted root CA certificate or
                           // equivalent *for the given policy*.
   ActivelyDistrusted = 2, // certificate is known to be bad

@@ -86,7 +86,7 @@
 
 #define NS_DECL_FRAMEARENA_HELPERS                                \
   void* operator new(size_t, nsIPresShell*) MOZ_MUST_OVERRIDE;    \
-  virtual nsQueryFrame::FrameIID GetFrameId() MOZ_OVERRIDE MOZ_MUST_OVERRIDE;
+  virtual nsQueryFrame::FrameIID GetFrameId() MOZ_MUST_OVERRIDE;
 
 #define NS_IMPL_FRAMEARENA_HELPERS(class)                         \
   void* class::operator new(size_t sz, nsIPresShell* aShell)      \
@@ -138,8 +138,7 @@ public:
 
   // nsQueryFrame
   NS_DECL_QUERYFRAME
-  void* operator new(size_t, nsIPresShell*) MOZ_MUST_OVERRIDE;
-  virtual nsQueryFrame::FrameIID GetFrameId() MOZ_MUST_OVERRIDE;
+  NS_DECL_FRAMEARENA_HELPERS
 
   // nsIFrame
   virtual void Init(nsIContent*       aContent,

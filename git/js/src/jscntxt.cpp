@@ -1007,6 +1007,8 @@ ThreadSafeContext::recoverFromOutOfMemory()
         if (maybecx->isExceptionPending()) {
             MOZ_ASSERT(maybecx->isThrowingOutOfMemory());
             maybecx->clearPendingException();
+        } else {
+            MOZ_ASSERT(maybecx->runtime()->hadOutOfMemory);
         }
     }
 }

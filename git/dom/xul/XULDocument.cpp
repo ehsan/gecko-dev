@@ -782,12 +782,14 @@ XULDocument::AddBroadcastListenerFor(Element& aBroadcaster, Element& aListener,
 
     BroadcasterMapEntry* entry =
         static_cast<BroadcasterMapEntry*>
-                   (PL_DHashTableLookup(mBroadcasterMap, &aBroadcaster));
+                   (PL_DHashTableOperate(mBroadcasterMap, &aBroadcaster,
+                                            PL_DHASH_LOOKUP));
 
     if (PL_DHASH_ENTRY_IS_FREE(entry)) {
         entry =
             static_cast<BroadcasterMapEntry*>
-                       (PL_DHashTableAdd(mBroadcasterMap, &aBroadcaster));
+                       (PL_DHashTableOperate(mBroadcasterMap, &aBroadcaster,
+                                                PL_DHASH_ADD));
 
         if (! entry) {
             aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
@@ -848,7 +850,8 @@ XULDocument::RemoveBroadcastListenerFor(Element& aBroadcaster,
 
     BroadcasterMapEntry* entry =
         static_cast<BroadcasterMapEntry*>
-                   (PL_DHashTableLookup(mBroadcasterMap, &aBroadcaster));
+                   (PL_DHashTableOperate(mBroadcasterMap, &aBroadcaster,
+                                            PL_DHASH_LOOKUP));
 
     if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
         nsCOMPtr<nsIAtom> attr = do_GetAtom(aAttr);
@@ -863,7 +866,8 @@ XULDocument::RemoveBroadcastListenerFor(Element& aBroadcaster,
                 delete bl;
 
                 if (entry->mListeners.Count() == 0)
-                    PL_DHashTableRemove(mBroadcasterMap, &aBroadcaster);
+                    PL_DHashTableOperate(mBroadcasterMap, &aBroadcaster,
+                                         PL_DHASH_REMOVE);
 
                 break;
             }
@@ -970,7 +974,8 @@ XULDocument::AttributeChanged(nsIDocument* aDocument,
         CanBroadcast(aNameSpaceID, aAttribute)) {
         BroadcasterMapEntry* entry =
             static_cast<BroadcasterMapEntry*>
-                       (PL_DHashTableLookup(mBroadcasterMap, aElement));
+                       (PL_DHashTableOperate(mBroadcasterMap, aElement,
+                                                PL_DHASH_LOOKUP));
 
         if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
             // We've got listeners: push the value.
@@ -4166,7 +4171,7 @@ XULDocument::BroadcastAttributeChangeFromOverlay(nsIContent* aNode,
         return rv;
 
     BroadcasterMapEntry* entry = static_cast<BroadcasterMapEntry*>
-        (PL_DHashTableLookup(mBroadcasterMap, aNode->AsElement()));
+        (PL_DHashTableOperate(mBroadcasterMap, aNode->AsElement(), PL_DHASH_LOOKUP));
     if (!PL_DHASH_ENTRY_IS_BUSY(entry))
         return rv;
 

@@ -21,10 +21,9 @@
 
     var t = async_test(description);
 
-    var PORT = location.port !== "" ? ":" + location.port : "";
     var TARGET = document.querySelector("iframe");
-    var XORIGIN = "{{location[scheme]}}://{{domains[www1]}}" + PORT;
-    var SORIGIN = "{{location[scheme]}}://{{host}}" + PORT;
+    var XORIGIN = "http://{{domains[www1]}}:{{ports[http][0]}}";
+    var SORIGIN = "http://" + location.hostname;
     var ExpectedResult = ["#0", SORIGIN, "#3", SORIGIN];
     var ActualResult = [];
 

@@ -477,7 +477,8 @@ protected:
 
     const ByteString extensions[] = {
       signerEKUDER
-        ? CreateEncodedEKUExtension(*signerEKUDER, Critical::No)
+        ? CreateEncodedEKUExtension(*signerEKUDER,
+                                    ExtensionCriticality::NotCritical)
         : ByteString(),
       ByteString()
     };
@@ -627,7 +628,8 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_expired)
   static const char* signerName = "good_indirect_expired";
 
   const ByteString extensions[] = {
-    CreateEncodedEKUExtension(OCSPSigningEKUDER, Critical::No),
+    CreateEncodedEKUExtension(OCSPSigningEKUDER,
+                              ExtensionCriticality::NotCritical),
     ByteString()
   };
 
@@ -662,7 +664,8 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_future)
   static const char* signerName = "good_indirect_future";
 
   const ByteString extensions[] = {
-    CreateEncodedEKUExtension(OCSPSigningEKUDER, Critical::No),
+    CreateEncodedEKUExtension(OCSPSigningEKUDER,
+                              ExtensionCriticality::NotCritical),
     ByteString()
   };
 
@@ -769,7 +772,8 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_unknown_issuer)
 
   // Delegated responder cert signed by unknown issuer
   const ByteString extensions[] = {
-    CreateEncodedEKUExtension(OCSPSigningEKUDER, Critical::No),
+    CreateEncodedEKUExtension(OCSPSigningEKUDER,
+                              ExtensionCriticality::NotCritical),
     ByteString()
   };
   ScopedTestKeyPair signerKeyPair(GenerateKeyPair());
@@ -809,7 +813,7 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder,
 
   // sub-CA of root (root is the direct issuer of endEntity)
   const ByteString subCAExtensions[] = {
-    CreateEncodedBasicConstraints(true, 0, Critical::No),
+    CreateEncodedBasicConstraints(true, 0, ExtensionCriticality::NotCritical),
     ByteString()
   };
   ScopedTestKeyPair subCAKeyPair(GenerateKeyPair());
@@ -821,7 +825,8 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder,
 
   // Delegated responder cert signed by that sub-CA
   const ByteString extensions[] = {
-    CreateEncodedEKUExtension(OCSPSigningEKUDER, Critical::No),
+    CreateEncodedEKUExtension(OCSPSigningEKUDER,
+                              ExtensionCriticality::NotCritical),
     ByteString(),
   };
   ScopedTestKeyPair signerKeyPair(GenerateKeyPair());
@@ -862,7 +867,7 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder,
 
   // sub-CA of root (root is the direct issuer of endEntity)
   const ByteString subCAExtensions[] = {
-    CreateEncodedBasicConstraints(true, 0, Critical::No),
+    CreateEncodedBasicConstraints(true, 0, ExtensionCriticality::NotCritical),
     ByteString()
   };
   ScopedTestKeyPair subCAKeyPair(GenerateKeyPair());
@@ -876,7 +881,8 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder,
 
   // Delegated responder cert signed by that sub-CA
   const ByteString extensions[] = {
-    CreateEncodedEKUExtension(OCSPSigningEKUDER, Critical::No),
+    CreateEncodedEKUExtension(OCSPSigningEKUDER,
+                              ExtensionCriticality::NotCritical),
     ByteString()
   };
   ScopedTestKeyPair signerKeyPair(GenerateKeyPair());

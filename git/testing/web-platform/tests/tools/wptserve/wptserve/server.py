@@ -7,7 +7,6 @@ from SocketServer import ThreadingMixIn
 import ssl
 import sys
 import threading
-import time
 import traceback
 import types
 import urlparse
@@ -111,8 +110,7 @@ class WebTestServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
     daemon_threads = True
 
     def __init__(self, server_address, RequestHandlerClass, router, rewriter, bind_hostname,
-                 config=None, use_ssl=False, key_file=None, certificate=None,
-                 latency=None, **kwargs):
+                 config=None, use_ssl=False, key_file=None, certificate=None, **kwargs):
         """Server for HTTP(s) Requests
 
         :param server_address: tuple of (server_name, port)
@@ -139,16 +137,12 @@ class WebTestServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
                              port specified in the server_address parameter.
                              False to bind the server only to the port in the
                              server_address parameter, but not to the hostname.
-        :param latency: Delay in ms to wait before seving each response, or
-                        callable that returns a delay in ms
         """
         self.router = router
         self.rewriter = rewriter
 
         self.scheme = "https" if use_ssl else "http"
         self.logger = get_logger()
-
-        self.latency = latency
 
         if bind_hostname:
             hostname_port = server_address
@@ -218,15 +212,6 @@ class WebTestRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
             logger.debug("%s %s" % (request.method, request.request_path))
             handler = self.server.router.get_handler(request)
-
-            if self.server.latency is not None:
-                if callable(self.server.latency):
-                    latency = self.server.latency()
-                else:
-                    latency = self.server.latency
-                logger.warning("Latency enabled. Sleeping %i ms" % latency)
-                time.sleep(latency / 1000.)
-
             if handler is None:
                 response.set_error(404)
             else:
@@ -306,8 +291,6 @@ class WebTestHttpd(object):
     :param config: Dictionary holding environment configuration settings for
                    handlers to read, or None to use the default values.
     :param bind_hostname: Boolean indicating whether to bind server to hostname.
-    :param latency: Delay in ms to wait before seving each response, or
-                    callable that returns a delay in ms
 
     HTTP server designed for testing scenarios.
 
@@ -344,7 +327,7 @@ class WebTestHttpd(object):
                  use_ssl=False, key_file=None, certificate=None, router_cls=Router,
                  doc_root=os.curdir, routes=None,
                  rewriter_cls=RequestRewriter, bind_hostname=True, rewrites=None,
-                 latency=None, config=None):
+                 config=None):
 
         if routes is None:
             routes = default_routes.routes
@@ -374,8 +357,7 @@ class WebTestHttpd(object):
                                     bind_hostname=bind_hostname,
                                     use_ssl=use_ssl,
                                     key_file=key_file,
-                                    certificate=certificate,
-                                    latency=latency)
+                                    certificate=certificate)
             self.started = False
 
             _host, self.port = self.httpd.socket.getsockname()

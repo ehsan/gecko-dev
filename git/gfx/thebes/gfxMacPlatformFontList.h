@@ -46,18 +46,18 @@ public:
     virtual hb_blob_t *GetFontTable(uint32_t aTag) MOZ_OVERRIDE;
 
     virtual void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
-                                        FontListSizes* aSizes) const MOZ_OVERRIDE;
+                                        FontListSizes* aSizes) const;
 
-    nsresult ReadCMAP(FontInfoData *aFontInfoData = nullptr) MOZ_OVERRIDE;
+    nsresult ReadCMAP(FontInfoData *aFontInfoData = nullptr);
 
     bool RequiresAATLayout() const { return mRequiresAAT; }
 
     bool IsCFF();
 
 protected:
-    virtual gfxFont* CreateFontInstance(const gfxFontStyle *aFontStyle, bool aNeedsBold) MOZ_OVERRIDE;
+    virtual gfxFont* CreateFontInstance(const gfxFontStyle *aFontStyle, bool aNeedsBold);
 
-    virtual bool HasFontTable(uint32_t aTableTag) MOZ_OVERRIDE;
+    virtual bool HasFontTable(uint32_t aTableTag);
 
     static void DestroyBlobFunc(void* aUserData);
 

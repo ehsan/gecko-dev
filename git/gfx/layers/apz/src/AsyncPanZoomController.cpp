@@ -2639,10 +2639,19 @@ ViewTransform AsyncPanZoomController::GetCurrentAsyncTransform() const {
     }
   }
 
+  LayerToParentLayerScale scale(mFrameMetrics.mPresShellResolution      // non-transient portion
+                                * mFrameMetrics.GetAsyncZoom().scale);  // transient portion
   ParentLayerPoint translation = (currentScrollOffset - lastPaintScrollOffset)
                                * mFrameMetrics.GetZoom();
 
-  return ViewTransform(mFrameMetrics.GetAsyncZoom(), -translation);
+  return ViewTransform(scale, -translation);
+}
+
+Matrix4x4 AsyncPanZoomController::GetNontransientAsyncTransform() const {
+  ReentrantMonitorAutoEnter lock(mMonitor);
+  return Matrix4x4::Scaling(mLastContentPaintMetrics.mPresShellResolution,
+                            mLastContentPaintMetrics.mPresShellResolution,
+                            1.0f);
 }
 
 Matrix4x4 AsyncPanZoomController::GetTransformToLastDispatchedPaint() const {
@@ -2651,7 +2660,16 @@ Matrix4x4 AsyncPanZoomController::GetTransformToLastDispatchedPaint() const {
   LayerPoint scrollChange =
     (mLastContentPaintMetrics.GetScrollOffset() - mLastDispatchedPaintMetrics.GetScrollOffset())
     * mLastContentPaintMetrics.GetDevPixelsPerCSSPixel()
-    * mLastContentPaintMetrics.GetCumulativeResolution();
+    * mLastContentPaintMetrics.GetCumulativeResolution()
+      // This transform ("LD" in the terminology of the comment above
+      // GetScreenToApzcTransform() in APZCTreeManager.h) is applied in a
+      // coordinate space that includes the APZC's CSS transform ("LC").
+      // This CSS transform is the identity unless this APZC sets a pres-shell
+      // resolution, in which case the transform has a post-scale that cancels
+      // out the pres-shell resolution. We simulate applying the "LC" transform
+      // by dividing by the pres-shell resolution. This will go away once
+      // bug 1076192 is fixed.
+    / mLastContentPaintMetrics.mPresShellResolution;
 
   float zoomChange = mLastContentPaintMetrics.GetZoom().scale / mLastDispatchedPaintMetrics.GetZoom().scale;
 

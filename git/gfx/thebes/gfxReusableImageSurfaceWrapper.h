@@ -26,7 +26,7 @@ public:
   void ReadLock() MOZ_OVERRIDE;
   void ReadUnlock() MOZ_OVERRIDE;
 
-  Type GetType() MOZ_OVERRIDE
+  Type GetType()
   {
     return TYPE_IMAGE;
   }

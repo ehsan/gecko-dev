@@ -734,52 +734,98 @@ void imgRequestProxy::OnStartDecode()
   }
 }
 
-static const char*
-NotificationTypeToString(int32_t aType)
+void imgRequestProxy::OnSizeAvailable()
 {
-  switch(aType)
-  {
-    case imgINotificationObserver::SIZE_AVAILABLE: return "SIZE_AVAILABLE";
-    case imgINotificationObserver::FRAME_UPDATE: return "FRAME_UPDATE";
-    case imgINotificationObserver::FRAME_COMPLETE: return "FRAME_COMPLETE";
-    case imgINotificationObserver::LOAD_COMPLETE: return "LOAD_COMPLETE";
-    case imgINotificationObserver::DECODE_COMPLETE: return "DECODE_COMPLETE";
-    case imgINotificationObserver::DISCARD: return "DISCARD";
-    case imgINotificationObserver::UNLOCKED_DRAW: return "UNLOCKED_DRAW";
-    case imgINotificationObserver::IS_ANIMATED: return "IS_ANIMATED";
-    case imgINotificationObserver::HAS_TRANSPARENCY: return "HAS_TRANSPARENCY";
-    default:
-      NS_NOTREACHED("Notification list should be exhaustive");
-      return "(unknown notification)";
+  LOG_FUNC(GetImgLog(), "imgRequestProxy::OnStartContainer");
+
+  if (mListener && !mCanceled) {
+    // Hold a ref to the listener while we call it, just in case.
+    nsCOMPtr<imgINotificationObserver> kungFuDeathGrip(mListener);
+    mListener->Notify(this, imgINotificationObserver::SIZE_AVAILABLE, nullptr);
   }
 }
 
-void
-imgRequestProxy::Notify(int32_t aType, const nsIntRect* aRect)
+void imgRequestProxy::OnFrameUpdate(const nsIntRect * rect)
 {
-  MOZ_ASSERT(aType != imgINotificationObserver::LOAD_COMPLETE,
-             "Should call OnLoadComplete");
+  LOG_FUNC(GetImgLog(), "imgRequestProxy::OnFrameUpdate");
 
-  LOG_FUNC_WITH_PARAM(GetImgLog(), "imgRequestProxy::Notify", "type",
-                      NotificationTypeToString(aType));
-
-  if (!mListener || mCanceled) {
-    return;
+  if (mListener && !mCanceled) {
+    // Hold a ref to the listener while we call it, just in case.
+    nsCOMPtr<imgINotificationObserver> kungFuDeathGrip(mListener);
+    mListener->Notify(this, imgINotificationObserver::FRAME_UPDATE, rect);
   }
-
-  // Make sure the listener stays alive while we notify.
-  nsCOMPtr<imgINotificationObserver> listener(mListener);
-
-  mListener->Notify(this, aType, aRect);
 }
 
-void
-imgRequestProxy::OnLoadComplete(bool aLastPart)
+void imgRequestProxy::OnFrameComplete()
+{
+  LOG_FUNC(GetImgLog(), "imgRequestProxy::OnFrameComplete");
+
+  if (mListener && !mCanceled) {
+    // Hold a ref to the listener while we call it, just in case.
+    nsCOMPtr<imgINotificationObserver> kungFuDeathGrip(mListener);
+    mListener->Notify(this, imgINotificationObserver::FRAME_COMPLETE, nullptr);
+  }
+}
+
+void imgRequestProxy::OnDecodeComplete()
+{
+  LOG_FUNC(GetImgLog(), "imgRequestProxy::OnDecodeComplete");
+
+  if (mListener && !mCanceled) {
+    // Hold a ref to the listener while we call it, just in case.
+    nsCOMPtr<imgINotificationObserver> kungFuDeathGrip(mListener);
+    mListener->Notify(this, imgINotificationObserver::DECODE_COMPLETE, nullptr);
+  }
+}
+
+void imgRequestProxy::OnDiscard()
+{
+  LOG_FUNC(GetImgLog(), "imgRequestProxy::OnDiscard");
+
+  if (mListener && !mCanceled) {
+    // Hold a ref to the listener while we call it, just in case.
+    nsCOMPtr<imgINotificationObserver> kungFuDeathGrip(mListener);
+    mListener->Notify(this, imgINotificationObserver::DISCARD, nullptr);
+  }
+}
+
+void imgRequestProxy::OnUnlockedDraw()
+{
+  LOG_FUNC(GetImgLog(), "imgRequestProxy::OnUnlockedDraw");
+
+  if (mListener && !mCanceled) {
+    // Hold a ref to the listener while we call it, just in case.
+    nsCOMPtr<imgINotificationObserver> kungFuDeathGrip(mListener);
+    mListener->Notify(this, imgINotificationObserver::UNLOCKED_DRAW, nullptr);
+  }
+}
+
+void imgRequestProxy::OnImageHasTransparency()
+{
+  LOG_FUNC(GetImgLog(), "imgRequestProxy::OnImageHasTransparency");
+  if (mListener && !mCanceled) {
+    // Hold a ref to the listener while we call it, just in case.
+    nsCOMPtr<imgINotificationObserver> kungFuDeathGrip(mListener);
+    mListener->Notify(this, imgINotificationObserver::HAS_TRANSPARENCY, nullptr);
+  }
+}
+
+void imgRequestProxy::OnImageIsAnimated()
+{
+  LOG_FUNC(GetImgLog(), "imgRequestProxy::OnImageIsAnimated");
+  if (mListener && !mCanceled) {
+    // Hold a ref to the listener while we call it, just in case.
+    nsCOMPtr<imgINotificationObserver> kungFuDeathGrip(mListener);
+    mListener->Notify(this, imgINotificationObserver::IS_ANIMATED, nullptr);
+  }
+}
+
+void imgRequestProxy::OnLoadComplete(bool aLastPart)
 {
 #ifdef PR_LOGGING
   nsAutoCString name;
   GetName(name);
-  LOG_FUNC_WITH_PARAM(GetImgLog(), "imgRequestProxy::OnLoadComplete", "name", name.get());
+  LOG_FUNC_WITH_PARAM(GetImgLog(), "imgRequestProxy::OnStopRequest", "name", name.get());
 #endif
   // There's all sorts of stuff here that could kill us (the OnStopRequest call
   // on the listener, the removal from the loadgroup, the release of the
@@ -817,8 +863,7 @@ imgRequestProxy::OnLoadComplete(bool aLastPart)
   }
 }
 
-void
-imgRequestProxy::BlockOnload()
+void imgRequestProxy::BlockOnload()
 {
 #ifdef PR_LOGGING
   nsAutoCString name;
@@ -832,8 +877,7 @@ imgRequestProxy::BlockOnload()
   }
 }
 
-void
-imgRequestProxy::UnblockOnload()
+void imgRequestProxy::UnblockOnload()
 {
 #ifdef PR_LOGGING
   nsAutoCString name;

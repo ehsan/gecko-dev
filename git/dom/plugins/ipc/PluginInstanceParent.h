@@ -279,9 +279,9 @@ public:
                                  const nsIntRect& aRect);
     void DidComposite() { unused << SendNPP_DidComposite(); }
 
-    virtual PluginAsyncSurrogate* GetAsyncSurrogate() MOZ_OVERRIDE;
+    virtual PluginAsyncSurrogate* GetAsyncSurrogate();
 
-    virtual PluginInstanceParent* GetInstance() MOZ_OVERRIDE { return this; }
+    virtual PluginInstanceParent* GetInstance() { return this; }
 
     static PluginInstanceParent* Cast(NPP instance,
                                       PluginAsyncSurrogate** aSurrogate = nullptr);

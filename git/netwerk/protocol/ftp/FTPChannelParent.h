@@ -68,8 +68,7 @@ protected:
                    const ipc::PrincipalInfo& aRequestingPrincipalInfo,
                    const ipc::PrincipalInfo& aTriggeringPrincipalInfo,
                    const uint32_t& aSecurityFlags,
-                   const uint32_t& aContentPolicyType,
-                   const uint32_t& aInnerWindowID);
+                   const uint32_t& aContentPolicyType);
 
   // used to connect redirected-to channel in parent with just created
   // ChildChannel.  Used during HTTP->FTP redirects.

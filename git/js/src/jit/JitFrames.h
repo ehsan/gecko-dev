@@ -269,6 +269,7 @@ struct ResumeFromException
 };
 
 void HandleException(ResumeFromException *rfe);
+void HandleParallelFailure(ResumeFromException *rfe);
 
 void EnsureExitFrame(CommonFrameLayout *frame);
 

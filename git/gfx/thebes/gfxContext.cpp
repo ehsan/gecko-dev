@@ -27,7 +27,7 @@
 #include "mozilla/gfx/DrawTargetTiled.h"
 #include <algorithm>
 
-#if XP_WIN
+#if CAIRO_HAS_DWRITE_FONT
 #include "gfxWindowsPlatform.h"
 #endif
 
@@ -1309,11 +1309,7 @@ gfxContext::PushNewDT(gfxContentType content)
     newDT = mDT->CreateSimilarDrawTarget(IntSize(64, 64), format);
 
     if (!newDT) {
-      if (!gfxPlatform::GetPlatform()->DidRenderingDeviceReset()
-#ifdef XP_WIN
-          && !(mDT->GetBackendType() == BackendType::DIRECT2D1_1 && !gfxWindowsPlatform::GetPlatform()->GetD3D11ContentDevice())
-#endif
-          ) {
+      if (!gfxPlatform::GetPlatform()->DidRenderingDeviceReset()) {
         // If even this fails.. we're most likely just out of memory!
         NS_ABORT_OOM(BytesPerPixel(format) * 64 * 64);
       }

@@ -7,6 +7,7 @@
 #ifndef imgRequestProxy_h__
 #define imgRequestProxy_h__
 
+#include "mozilla/WeakPtr.h"
 #include "imgIRequest.h"
 #include "nsISecurityInfoProvider.h"
 
@@ -19,7 +20,6 @@
 #include "mozilla/TimeStamp.h"
 
 #include "imgRequest.h"
-#include "IProgressObserver.h"
 
 #define NS_IMGREQUESTPROXY_CID \
 { /* 20557898-1dd2-11b2-8f65-9c462ee2bc95 */         \
@@ -44,10 +44,10 @@ class ProgressTracker;
 } // namespace mozilla
 
 class imgRequestProxy : public imgIRequest,
-                        public mozilla::image::IProgressObserver,
                         public nsISupportsPriority,
                         public nsISecurityInfoProvider,
-                        public nsITimedChannel
+                        public nsITimedChannel,
+                        public mozilla::SupportsWeakPtr<imgRequestProxy>
 {
 protected:
   virtual ~imgRequestProxy();
@@ -95,29 +95,19 @@ public:
   // asynchronously-called function.
   void SyncNotifyListener();
 
-  // imgINotificationObserver methods:
-  virtual void Notify(int32_t aType,
-                      const nsIntRect* aRect = nullptr) MOZ_OVERRIDE;
-  virtual void OnLoadComplete(bool aLastPart) MOZ_OVERRIDE;
-
-  // imgIOnloadBlocker methods:
-  virtual void BlockOnload() MOZ_OVERRIDE;
-  virtual void UnblockOnload() MOZ_OVERRIDE;
-
-  // Other, internal-only methods:
-  virtual void SetHasImage() MOZ_OVERRIDE;
-  virtual void OnStartDecode() MOZ_OVERRIDE;
-
   // Whether we want notifications from ProgressTracker to be deferred until
   // an event it has scheduled has been fired.
-  virtual bool NotificationsDeferred() const MOZ_OVERRIDE
+  bool NotificationsDeferred() const
   {
     return mDeferNotifications;
   }
-  virtual void SetNotificationsDeferred(bool aDeferNotifications) MOZ_OVERRIDE
+  void SetNotificationsDeferred(bool aDeferNotifications)
   {
     mDeferNotifications = aDeferNotifications;
   }
+
+  // XXXbholley - This eventually gets folded into the new notification API.
+  void SetHasImage();
 
   // Removes all animation consumers that were created with
   // IncrementAnimationConsumers. This is necessary since we need
@@ -154,6 +144,27 @@ protected:
       nsRefPtr<imgRequestProxy> mOwner;
       nsresult mStatus;
   };
+
+  // The following notification functions are protected to ensure that (friend
+  // class) ProgressTracker is the only class allowed to send us
+  // notifications.
+
+  void OnStartDecode();
+  void OnSizeAvailable();
+  void OnFrameUpdate(const nsIntRect* aRect);
+  void OnFrameComplete();
+  void OnDecodeComplete();
+  void OnDiscard();
+  void OnUnlockedDraw();
+  void OnImageHasTransparency();
+  void OnImageIsAnimated();
+
+  /* non-virtual sort-of-nsIRequestObserver methods */
+  void OnLoadComplete(bool aLastPart);
+
+  /* non-virtual imgIOnloadBlocker methods */
+  void BlockOnload();
+  void UnblockOnload();
 
   /* Finish up canceling ourselves */
   void DoCancel(nsresult status);

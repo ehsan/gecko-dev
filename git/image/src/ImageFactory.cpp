@@ -71,7 +71,7 @@ ComputeImageFlags(ImageURL* uri, bool isMultiPart)
     imageFlags |= Image::INIT_FLAG_DECODE_ON_DRAW;
   }
   if (isMultiPart) {
-    imageFlags |= Image::INIT_FLAG_TRANSIENT;
+    imageFlags |= Image::INIT_FLAG_MULTIPART;
   }
 
   return imageFlags;

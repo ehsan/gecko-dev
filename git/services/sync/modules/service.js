@@ -1281,12 +1281,12 @@ Sync11Service.prototype = {
       histogram.add(1);
 
       // We successfully synchronized.
-      // Check if the identity wants to pre-fetch a migration sentinel from
-      // the server.
+      // Try and fetch the migration sentinel - it will end up in the recordManager
+      // cache, so a sync migration doesn't need a server round-trip.
       // If we have no clusterURL, we are probably doing a node reassignment
-      // so don't attempt to get it in that case.
+      // do don't attempt to get the credentials.
       if (this.clusterURL) {
-        this.identity.prefetchMigrationSentinel(this);
+        this.recordManager.get(this.storageURL + "meta/fxa_credentials");
       }
 
       // Now let's update our declined engines.

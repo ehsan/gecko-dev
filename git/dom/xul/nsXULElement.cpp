@@ -138,7 +138,7 @@ public:
   {
   }
 
-  NS_IMETHOD GetStyle(nsIDOMCSSStyleDeclaration** aStyle) MOZ_OVERRIDE
+  NS_IMETHOD GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
   {
     nsXULElement* element = static_cast<nsXULElement*>(mElement.get());
     NS_ADDREF(*aStyle = element->Style());

@@ -264,7 +264,8 @@ nsLoadGroup::Cancel(nsresult status)
 
         RequestMapEntry *entry =
             static_cast<RequestMapEntry *>
-                       (PL_DHashTableLookup(&mRequests, request));
+                       (PL_DHashTableOperate(&mRequests, request,
+                                                PL_DHASH_LOOKUP));
 
         if (PL_DHASH_ENTRY_IS_FREE(entry)) {
             // |request| was removed already
@@ -496,7 +497,8 @@ nsLoadGroup::AddRequest(nsIRequest *request, nsISupports* ctxt)
     {
       RequestMapEntry *entry =
           static_cast<RequestMapEntry *>
-                     (PL_DHashTableLookup(&mRequests, request));
+                     (PL_DHashTableOperate(&mRequests, request,
+                                          PL_DHASH_LOOKUP));
 
       NS_ASSERTION(PL_DHASH_ENTRY_IS_FREE(entry),
                    "Entry added to loadgroup twice, don't do that");
@@ -532,7 +534,8 @@ nsLoadGroup::AddRequest(nsIRequest *request, nsISupports* ctxt)
 
     RequestMapEntry *entry =
         static_cast<RequestMapEntry *>
-                   (PL_DHashTableAdd(&mRequests, request));
+                   (PL_DHashTableOperate(&mRequests, request,
+                                        PL_DHASH_ADD));
 
     if (!entry) {
         return NS_ERROR_OUT_OF_MEMORY;
@@ -569,7 +572,7 @@ nsLoadGroup::AddRequest(nsIRequest *request, nsISupports* ctxt)
                 // the damage...
                 //
 
-                PL_DHashTableRemove(&mRequests, request);
+                PL_DHashTableOperate(&mRequests, request, PL_DHASH_REMOVE);
 
                 rv = NS_OK;
 
@@ -615,7 +618,8 @@ nsLoadGroup::RemoveRequest(nsIRequest *request, nsISupports* ctxt,
     //
     RequestMapEntry *entry =
         static_cast<RequestMapEntry *>
-                   (PL_DHashTableLookup(&mRequests, request));
+                   (PL_DHashTableOperate(&mRequests, request,
+                                        PL_DHASH_LOOKUP));
 
     if (PL_DHASH_ENTRY_IS_FREE(entry)) {
         LOG(("LOADGROUP [%x]: Unable to remove request %x. Not in group!\n",

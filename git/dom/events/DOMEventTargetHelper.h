@@ -271,11 +271,11 @@ NS_DEFINE_STATIC_IID_ACCESSOR(DOMEventTargetHelper,
   using _class::RemoveEventListener;                \
   NS_FORWARD_NSIDOMEVENTTARGET(_class::)            \
   virtual mozilla::EventListenerManager*            \
-  GetOrCreateListenerManager() MOZ_OVERRIDE {       \
+  GetOrCreateListenerManager() {                    \
     return _class::GetOrCreateListenerManager();    \
   }                                                 \
   virtual mozilla::EventListenerManager*            \
-  GetExistingListenerManager() const MOZ_OVERRIDE { \
+  GetExistingListenerManager() const {              \
     return _class::GetExistingListenerManager();    \
   }
 

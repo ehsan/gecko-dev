@@ -3,41 +3,41 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsRandomGenerator.h"
-
-#include "nsNSSComponent.h"
 #include "pk11pub.h"
-#include "prerror.h"
 #include "secerr.h"
+#include "prerror.h"
+#include "nsNSSComponent.h"
+
+////////////////////////////////////////////////////////////////////////////////
+//// nsRandomGenerator
 
 NS_IMPL_ISUPPORTS(nsRandomGenerator, nsIRandomGenerator)
 
-// void generateRandomBytes(in unsigned long aLength,
-//                          [retval, array, size_is(aLength)] out octet aBuffer)
+////////////////////////////////////////////////////////////////////////////////
+//// nsIRandomGenerator
+
+/* void generateRandomBytes(in unsigned long aLength,
+                            [retval, array, size_is(aLength)] out octet aBuffer) */
 NS_IMETHODIMP
 nsRandomGenerator::GenerateRandomBytes(uint32_t aLength,
-                                       uint8_t** aBuffer)
+                                       uint8_t **aBuffer)
 {
   NS_ENSURE_ARG_POINTER(aBuffer);
   *aBuffer = nullptr;
-
-  nsNSSShutDownPreventionLock locker;
-  if (isAlreadyShutDown()) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
 
   mozilla::ScopedPK11SlotInfo slot(PK11_GetInternalSlot());
   if (!slot) {
     return NS_ERROR_FAILURE;
   }
 
-  uint8_t* buf = reinterpret_cast<uint8_t*>(NS_Alloc(aLength));
+  uint8_t *buf = reinterpret_cast<uint8_t *>(NS_Alloc(aLength));
   if (!buf) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
   SECStatus srv = PK11_GenerateRandomOnSlot(slot, buf, aLength);
 
-  if (srv != SECSuccess) {
+  if (SECSuccess != srv) {
     NS_Free(buf);
     return NS_ERROR_FAILURE;
   }
@@ -45,13 +45,4 @@ nsRandomGenerator::GenerateRandomBytes(uint32_t aLength,
   *aBuffer = buf;
 
   return NS_OK;
-}
-
-nsRandomGenerator::~nsRandomGenerator()
-{
-  nsNSSShutDownPreventionLock locker;
-  if (isAlreadyShutDown()) {
-    return;
-  }
-  shutdown(calledFromObject);
 }
