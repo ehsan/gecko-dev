@@ -1161,8 +1161,7 @@ var gEditItemOverlay = {
     this._folderMenuList.selectedItem = folderItem;
   },
 
-  onItemAdded: function EIO_onItemAdded(aItemId, aFolder, aIndex, aItemType,
-                                        aURI) {
+  onItemAdded: function EIO_onItemAdded(aItemId, aFolder, aIndex, aItemType) {
     this._lastNewItem = aItemId;
   },
 

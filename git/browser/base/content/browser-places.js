@@ -972,9 +972,8 @@ var PlacesStarButton = {
     this.updateState();
     this._batching = false;
   },
-
-  onItemAdded: function PSB_onItemAdded(aItemId, aFolder, aIndex, aItemType,
-                                        aURI) {
+  
+  onItemAdded: function PSB_onItemAdded(aItemId, aFolder, aIndex, aItemType) {
     if (!this._batching && !this._starred)
       this.updateState();
   },

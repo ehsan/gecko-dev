@@ -40,6 +40,8 @@
 
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/ipc/DocumentRendererParent.h"
+#include "mozilla/ipc/DocumentRendererShmemParent.h"
+#include "mozilla/ipc/DocumentRendererNativeIDParent.h"
 #include "mozilla/layout/RenderFrameParent.h"
 #include "mozilla/docshell/OfflineCacheUpdateParent.h"
 
@@ -218,19 +220,48 @@ TabParent::GetSSLStatus(nsISupports ** aStatus)
 }
 
 
-PDocumentRendererParent*
-TabParent::AllocPDocumentRenderer(const nsRect& documentRect,
-                                  const gfxMatrix& transform,
-                                  const nsString& bgcolor,
-                                  const PRUint32& renderFlags,
-                                  const bool& flushLayout,
-                                  const nsIntSize& renderSize)
+mozilla::ipc::PDocumentRendererParent*
+TabParent::AllocPDocumentRenderer(const PRInt32& x,
+        const PRInt32& y, const PRInt32& w, const PRInt32& h, const nsString& bgcolor,
+        const PRUint32& flags, const bool& flush)
 {
     return new DocumentRendererParent();
 }
 
 bool
 TabParent::DeallocPDocumentRenderer(PDocumentRendererParent* actor)
+{
+    delete actor;
+    return true;
+}
+
+mozilla::ipc::PDocumentRendererShmemParent*
+TabParent::AllocPDocumentRendererShmem(const PRInt32& x,
+        const PRInt32& y, const PRInt32& w, const PRInt32& h, const nsString& bgcolor,
+        const PRUint32& flags, const bool& flush, const gfxMatrix& aMatrix,
+        Shmem& buf)
+{
+    return new DocumentRendererShmemParent();
+}
+
+bool
+TabParent::DeallocPDocumentRendererShmem(PDocumentRendererShmemParent* actor)
+{
+    delete actor;
+    return true;
+}
+
+mozilla::ipc::PDocumentRendererNativeIDParent*
+TabParent::AllocPDocumentRendererNativeID(const PRInt32& x,
+        const PRInt32& y, const PRInt32& w, const PRInt32& h, const nsString& bgcolor,
+        const PRUint32& flags, const bool& flush, const gfxMatrix& aMatrix,
+        const PRUint32& nativeID)
+{
+    return new DocumentRendererNativeIDParent();
+}
+
+bool
+TabParent::DeallocPDocumentRendererNativeID(PDocumentRendererNativeIDParent* actor)
 {
     delete actor;
     return true;
@@ -663,8 +694,7 @@ PRenderFrameParent*
 TabParent::AllocPRenderFrame()
 {
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-  NS_WARN_IF_FALSE(frameLoader, "'message sent to unknown actor ID' coming up");
-  return frameLoader ? new RenderFrameParent(frameLoader) : nsnull;
+  return new RenderFrameParent(frameLoader);
 }
 
 bool

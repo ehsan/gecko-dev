@@ -74,6 +74,7 @@ nsAccelerometerSystem *gAccel = nsnull;
 nsIGeolocationUpdate *gLocationCallback = nsnull;
 
 nsAppShell *nsAppShell::gAppShell = nsnull;
+AndroidGeckoEvent *nsAppShell::gEarlyEvent = nsnull;
 
 nsAppShell::nsAppShell()
     : mQueueLock(nsnull),
@@ -82,6 +83,10 @@ nsAppShell::nsAppShell()
       mNumDraws(0)
 {
     gAppShell = this;
+    if (gEarlyEvent) {
+        mEventQueue.AppendElement(gEarlyEvent);
+        gEarlyEvent = nsnull;
+    }
 }
 
 nsAppShell::~nsAppShell()
@@ -111,10 +116,7 @@ nsAppShell::Init()
 
     mObserversHash.Init();
 
-    nsresult rv = nsBaseAppShell::Init();
-    if (AndroidBridge::Bridge())
-        AndroidBridge::Bridge()->NotifyAppShellReady();
-    return rv;
+    return nsBaseAppShell::Init();
 }
 
 

@@ -254,6 +254,8 @@ static bool
 EnumerateNativeProperties(JSContext *cx, JSObject *obj, JSObject *pobj, uintN flags, IdSet &ht,
                           typename EnumPolicy::ResultVector *props)
 {
+    JS_LOCK_OBJ(cx, pobj);
+
     size_t initialLength = props->length();
 
     /* Collect all unique properties from this object's scope. */
@@ -270,6 +272,8 @@ EnumerateNativeProperties(JSContext *cx, JSObject *obj, JSObject *pobj, uintN fl
     }
 
     Reverse(props->begin() + initialLength, props->end());
+
+    JS_UNLOCK_OBJ(cx, pobj);
     return true;
 }
 
@@ -624,16 +628,6 @@ GetIterator(JSContext *cx, JSObject *obj, uintN flags, Value *vp)
     bool keysOnly = (flags == JSITER_ENUMERATE);
 
     if (obj) {
-        /* Enumerate Iterator.prototype directly. */
-        JSIteratorOp op = obj->getClass()->ext.iteratorObject;
-        if (op && (obj->getClass() != &js_IteratorClass || obj->getNativeIterator())) {
-            JSObject *iterobj = op(cx, obj, !(flags & JSITER_FOREACH));
-            if (!iterobj)
-                return false;
-            vp->setObject(*iterobj);
-            return true;
-        }
-
         if (keysOnly) {
             /*
              * Check to see if this is the same as the most recent object which
@@ -823,12 +817,25 @@ js_ValueToIterator(JSContext *cx, uintN flags, Value *vp)
         if ((flags & JSITER_ENUMERATE)) {
             if (!js_ValueToObjectOrNull(cx, *vp, &obj))
                 return false;
-            /* fall through */
+            if (!obj)
+                return GetIterator(cx, NULL, flags, vp);
         } else {
             obj = js_ValueToNonNullObject(cx, *vp);
             if (!obj)
                 return false;
         }
+    }
+
+    AutoObjectRooter tvr(cx, obj);
+
+    /* Enumerate Iterator.prototype directly. */
+    JSIteratorOp op = obj->getClass()->ext.iteratorObject;
+    if (op && (obj->getClass() != &js_IteratorClass || obj->getNativeIterator())) {
+        JSObject *iterobj = op(cx, obj, !(flags & JSITER_FOREACH));
+        if (!iterobj)
+            return false;
+        vp->setObject(*iterobj);
+        return true;
     }
 
     return GetIterator(cx, obj, flags, vp);
@@ -915,11 +922,12 @@ SuppressDeletedPropertyHelper(JSContext *cx, JSObject *obj, IdPredicate predicat
                             return false;
                         if (prop) {
                             uintN attrs;
-                            if (obj2.object()->isNative())
+                            if (obj2.object()->isNative()) {
                                 attrs = ((Shape *) prop)->attributes();
-                            else if (!obj2.object()->getAttributes(cx, *idp, &attrs))
+                                JS_UNLOCK_OBJ(cx, obj2.object());
+                            } else if (!obj2.object()->getAttributes(cx, *idp, &attrs)) {
                                 return false;
-
+                            }
                             if (attrs & JSPROP_ENUMERATE)
                                 continue;
                         }
@@ -1081,8 +1089,7 @@ stopiter_hasInstance(JSContext *cx, JSObject *obj, const Value *v, JSBool *bp)
 
 Class js_StopIterationClass = {
     js_StopIteration_str,
-    JSCLASS_HAS_CACHED_PROTO(JSProto_StopIteration) |
-    JSCLASS_FREEZE_PROTO,
+    JSCLASS_HAS_CACHED_PROTO(JSProto_StopIteration),
     PropertyStub,   /* addProperty */
     PropertyStub,   /* delProperty */
     PropertyStub,   /* getProperty */

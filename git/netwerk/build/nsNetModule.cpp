@@ -124,9 +124,6 @@ NS_GENERIC_AGGREGATED_CONSTRUCTOR_INIT(nsLoadGroup, Init)
 #include "nsEffectiveTLDService.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsEffectiveTLDService, Init)
 
-#include "nsSerializationHelper.h"
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsSerializationHelper)
-
 ///////////////////////////////////////////////////////////////////////////////
 
 extern nsresult
@@ -744,7 +741,6 @@ NS_DEFINE_NAMED_CID(NS_NETWORK_LINK_SERVICE_CID);
 #elif defined(MOZ_ENABLE_QTNETWORK)
 NS_DEFINE_NAMED_CID(NS_NETWORK_LINK_SERVICE_CID);
 #endif
-NS_DEFINE_NAMED_CID(NS_SERIALIZATION_HELPER_CID);
 
 static const mozilla::Module::CIDEntry kNeckoCIDs[] = {
     { &kNS_IOSERVICE_CID, false, NULL, nsIOServiceConstructor },
@@ -870,7 +866,6 @@ static const mozilla::Module::CIDEntry kNeckoCIDs[] = {
 #elif defined(MOZ_ENABLE_QTNETWORK)
     { &kNS_NETWORK_LINK_SERVICE_CID, false, NULL, nsQtNetworkLinkServiceConstructor },
 #endif
-    { &kNS_SERIALIZATION_HELPER_CID, false, NULL, nsSerializationHelperConstructor },
     { NULL }
 };
 
@@ -1003,7 +998,6 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
 #elif defined(MOZ_ENABLE_QTNETWORK)
     { NS_NETWORK_LINK_SERVICE_CONTRACTID, &kNS_NETWORK_LINK_SERVICE_CID },
 #endif
-    { NS_SERIALIZATION_HELPER_CONTRACTID, &kNS_SERIALIZATION_HELPER_CID },
     { NULL }
 };
 

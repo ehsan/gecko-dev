@@ -1763,9 +1763,7 @@ ParseXMLSource(JSContext *cx, JSString *src)
     {
         Parser parser(cx);
         if (parser.init(chars, length, NULL, filename, lineno)) {
-            JSObject *scopeChain = JS_GetScopeChain(cx);
-            if (!scopeChain)
-                return NULL;
+            JSObject *scopeChain = &js_GetTopStackFrame(cx)->scopeChain();
             JSParseNode *pn = parser.parseXMLText(scopeChain, false);
             uintN flags;
             if (pn && GetXMLSettingFlags(cx, &flags)) {
@@ -4594,7 +4592,9 @@ HasFunctionProperty(JSContext *cx, JSObject *obj, jsid funid, JSBool *found)
 
     if (!js_LookupProperty(cx, obj, funid, &pobj, &prop))
         return false;
-    if (!prop) {
+    if (prop) {
+        pobj->dropProperty(cx, prop);
+    } else {
         xml = (JSXML *) obj->getPrivate();
         if (HasSimpleContent(xml)) {
             AutoObjectRooter tvr(cx);
@@ -4609,6 +4609,8 @@ HasFunctionProperty(JSContext *cx, JSObject *obj, jsid funid, JSBool *found)
             JS_ASSERT(tvr.object());
             if (!js_LookupProperty(cx, tvr.object(), funid, &pobj, &prop))
                 return false;
+            if (prop)
+                pobj->dropProperty(cx, prop);
         }
     }
     *found = (prop != NULL);
@@ -4722,6 +4724,7 @@ xml_lookupProperty(JSContext *cx, JSObject *obj, jsid id, JSObject **objp,
         if (!shape)
             return JS_FALSE;
 
+        JS_LOCK_OBJ(cx, obj);
         *objp = obj;
         *propp = (JSProperty *) shape;
     }
@@ -7123,7 +7126,9 @@ js_InitXMLClass(JSContext *cx, JSObject *obj)
     }
     JS_ASSERT(prop);
     shape = (Shape *) prop;
-    cval = Jsvalify(pobj->nativeGetSlot(shape->slot));
+    JS_ASSERT(pobj->containsSlot(shape->slot));
+    cval = Jsvalify(pobj->getSlotMT(cx, shape->slot));
+    JS_UNLOCK_OBJ(cx, pobj);
     JS_ASSERT(VALUE_IS_FUNCTION(cx, cval));
 
     /* Set default settings. */
@@ -7422,6 +7427,7 @@ js_FindXMLProperty(JSContext *cx, const Value &nameval, JSObject **objp, jsid *i
             if (!target->lookupProperty(cx, funid, &pobj, &prop))
                 return JS_FALSE;
             if (prop) {
+                pobj->dropProperty(cx, prop);
                 *idp = funid;
                 *objp = target;
                 return JS_TRUE;

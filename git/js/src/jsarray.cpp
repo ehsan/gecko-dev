@@ -385,6 +385,7 @@ GetArrayElement(JSContext *cx, JSObject *obj, jsdouble index, JSBool *hole,
         *hole = JS_TRUE;
         vp->setUndefined();
     } else {
+        obj2->dropProperty(cx, prop);
         if (!obj->getProperty(cx, idr.id(), vp))
             return JS_FALSE;
         *hole = JS_FALSE;
@@ -726,6 +727,7 @@ array_getProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp)
             shape = (const Shape *) prop;
             if (!js_NativeGet(cx, obj, obj2, shape, JSGET_METHOD_BARRIER, vp))
                 return JS_FALSE;
+            JS_UNLOCK_OBJ(cx, obj2);
         }
         return JS_TRUE;
     }
@@ -912,7 +914,9 @@ array_trace(JSTracer *trc, JSObject *obj)
     }
 }
 
-static JSBool
+namespace {
+
+JSBool
 array_fix(JSContext *cx, JSObject *obj, bool *success, AutoIdVector *props)
 {
     JS_ASSERT(obj->isDenseArray());
@@ -928,6 +932,8 @@ array_fix(JSContext *cx, JSObject *obj, bool *success, AutoIdVector *props)
     *success = true;
     return true;
 }
+
+} // namespace
 
 Class js_ArrayClass = {
     "Array",
@@ -1719,7 +1725,7 @@ js::array_sort(JSContext *cx, uintN argc, Value *vp)
 
     Value *argv = JS_ARGV(cx, vp);
     Value fval;
-    if (argc > 0 && !argv[0].isUndefined()) {
+    if (argc > 0) {
         if (argv[0].isPrimitive()) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_SORT_ARG);
             return false;
@@ -2457,7 +2463,7 @@ array_slice(JSContext *cx, uintN argc, Value *vp)
         }
         begin = (jsuint)d;
 
-        if (argc > 1 && !argv[1].isUndefined()) {
+        if (argc > 1) {
             if (!ValueToNumber(cx, argv[1], &d))
                 return JS_FALSE;
             d = js_DoubleToInteger(d);

@@ -63,6 +63,14 @@
 #include "jsgcinlines.h"
 #include "jsprobes.h"
 
+inline void
+JSObject::dropProperty(JSContext *cx, JSProperty *prop)
+{
+    JS_ASSERT(prop);
+    if (isNative())
+        JS_UNLOCK_OBJ(cx, this);
+}
+
 inline bool
 JSObject::preventExtensions(JSContext *cx, js::AutoIdVector *props)
 {
@@ -186,7 +194,7 @@ inline bool
 JSObject::methodWriteBarrier(JSContext *cx, const js::Shape &shape, const js::Value &v)
 {
     if (flags & (BRANDED | METHOD_BARRIER)) {
-        const js::Value &prev = nativeGetSlot(shape.slot);
+        const js::Value &prev = lockedGetSlot(shape.slot);
 
         if (ChangesMethodValue(prev, v)) {
             JS_FUNCTION_METER(cx, mwritebarrier);
@@ -200,7 +208,7 @@ inline bool
 JSObject::methodWriteBarrier(JSContext *cx, uint32 slot, const js::Value &v)
 {
     if (flags & (BRANDED | METHOD_BARRIER)) {
-        const js::Value &prev = nativeGetSlot(slot);
+        const js::Value &prev = lockedGetSlot(slot);
 
         if (ChangesMethodValue(prev, v)) {
             JS_FUNCTION_METER(cx, mwslotbarrier);
@@ -214,6 +222,42 @@ inline bool
 JSObject::ensureClassReservedSlots(JSContext *cx)
 {
     return !nativeEmpty() || ensureClassReservedSlotsForEmptyObject(cx);
+}
+
+inline js::Value
+JSObject::getSlotMT(JSContext *cx, uintN slot)
+{
+#ifdef JS_THREADSAFE
+    /*
+     * If thread-safe, define a getSlotMT() that bypasses, for a native object,
+     * the lock-free "fast path" test of (obj->title.ownercx == cx), to avoid
+     * needlessly switching from lock-free to lock-full scope when doing GC on
+     * a different context from the last one to own the scope. The caller in
+     * this case is probably a JSClass.mark function, e.g., fun_mark, or maybe
+     * a finalizer.
+     */
+    OBJ_CHECK_SLOT(this, slot);
+    return (title.ownercx == cx)
+           ? this->lockedGetSlot(slot)
+           : js::Valueify(js_GetSlotThreadSafe(cx, this, slot));
+#else
+    return this->lockedGetSlot(slot);
+#endif
+}
+
+inline void
+JSObject::setSlotMT(JSContext *cx, uintN slot, const js::Value &value)
+{
+#ifdef JS_THREADSAFE
+    /* Thread-safe way to set a slot. */
+    OBJ_CHECK_SLOT(this, slot);
+    if (title.ownercx == cx)
+        this->lockedSetSlot(slot, value);
+    else
+        js_SetSlotThreadSafe(cx, this, slot, js::Jsvalify(value));
+#else
+    this->lockedSetSlot(slot, value);
+#endif
 }
 
 inline js::Value
@@ -615,6 +659,10 @@ JSObject::init(JSContext *cx, js::Class *aclasp, JSObject *proto, JSObject *pare
     JS_ASSERT(capacity == numFixedSlots());
     ClearValueRange(slots, capacity, useHoles);
 
+#ifdef JS_THREADSAFE
+    js_InitTitle(cx, &title);
+#endif
+
     emptyShapes = NULL;
 }
 
@@ -629,6 +677,9 @@ JSObject::finish(JSContext *cx)
         freeSlotsArray(cx);
     if (emptyShapes)
         cx->free(emptyShapes);
+#ifdef JS_THREADSAFE
+    js_FinishTitle(cx, &title);
+#endif
 }
 
 inline bool
@@ -679,6 +730,8 @@ JSObject::hasProperty(JSContext *cx, jsid id, bool *foundp, uintN flags)
     if (!lookupProperty(cx, id, &pobj, &prop))
         return false;
     *foundp = !!prop;
+    if (prop)
+        pobj->dropProperty(cx, prop);
     return true;
 }
 
@@ -754,10 +807,14 @@ InitScopeForObject(JSContext* cx, JSObject* obj, js::Class *clasp, JSObject* pro
     js::EmptyShape *empty = NULL;
 
     if (proto) {
+        JS_LOCK_OBJ(cx, proto);
         if (proto->canProvideEmptyShape(clasp)) {
             empty = proto->getEmptyShape(cx, clasp, kind);
+            JS_UNLOCK_OBJ(cx, proto);
             if (!empty)
                 goto bad;
+        } else {
+            JS_UNLOCK_OBJ(cx, proto);
         }
     }
 
@@ -807,8 +864,10 @@ NewNativeClassInstance(JSContext *cx, Class *clasp, JSObject *proto,
         bool useHoles = (clasp == &js_ArrayClass);
         obj->init(cx, clasp, proto, parent, NULL, useHoles);
 
+        JS_LOCK_OBJ(cx, proto);
         JS_ASSERT(proto->canProvideEmptyShape(clasp));
         js::EmptyShape *empty = proto->getEmptyShape(cx, clasp, kind);
+        JS_UNLOCK_OBJ(cx, proto);
 
         if (empty)
             obj->setMap(empty);
@@ -1046,6 +1105,20 @@ NewObjectGCKind(JSContext *cx, js::Class *clasp)
         return gc::FINALIZE_OBJECT2;
     return gc::FINALIZE_OBJECT4;
 }
+
+class AutoPropertyDropper {
+    JSContext *cx;
+    JSObject *holder;
+    JSProperty *prop;
+
+  public:
+    AutoPropertyDropper(JSContext *cx, JSObject *obj, JSProperty *prop)
+      : cx(cx), holder(obj), prop(prop)
+    { JS_ASSERT(prop); }
+
+    ~AutoPropertyDropper()
+    { holder->dropProperty(cx, prop); }
+};
 
 } /* namespace js */
 

@@ -138,7 +138,7 @@ JS_FRIEND_DATA(JSScopeStats) js_scope_stats = {0};
 #endif
 
 bool
-PropertyTable::init(Shape *lastProp, JSContext *cx)
+PropertyTable::init(JSContext *cx, Shape *lastProp)
 {
     int sizeLog2;
 
@@ -156,15 +156,12 @@ PropertyTable::init(Shape *lastProp, JSContext *cx)
         sizeLog2 = MIN_SIZE_LOG2;
     }
 
-    /*
-     * Use cx->runtime->calloc for memory accounting and overpressure handling
-     * without OOM reporting. See PropertyTable::change.
-     */
-    entries = (Shape **) cx->runtime->calloc(JS_BIT(sizeLog2) * sizeof(Shape *));
+    entries = (Shape **) js_calloc(JS_BIT(sizeLog2) * sizeof(Shape *));
     if (!entries) {
         METER(tableAllocFails);
         return false;
     }
+    cx->runtime->updateMallocCounter(JS_BIT(sizeLog2) * sizeof(Shape *));
 
     hashShift = JS_DHASH_BITS - sizeLog2;
     for (Shape::Range r = lastProp->all(); !r.empty(); r.popFront()) {
@@ -190,7 +187,7 @@ Shape::maybeHash(JSContext *cx)
     uint32 nentries = entryCount();
     if (nentries >= PropertyTable::HASH_THRESHOLD) {
         table = cx->create<PropertyTable>(nentries);
-        return table && table->init(this, cx);
+        return table && table->init(cx, this);
     }
     return true;
 }
@@ -387,7 +384,7 @@ PropertyTable::search(jsid id, bool adding)
 }
 
 bool
-PropertyTable::change(int log2Delta, JSContext *cx)
+PropertyTable::change(JSContext *cx, int change)
 {
     int oldlog2, newlog2;
     uint32 oldsize, newsize, nbytes;
@@ -395,18 +392,13 @@ PropertyTable::change(int log2Delta, JSContext *cx)
 
     JS_ASSERT(entries);
 
-    /*
-     * Grow, shrink, or compress by changing this->entries. Here, we prefer
-     * cx->runtime->calloc to js_calloc, which on OOM waits for a background
-     * thread to finish sweeping and retry, if appropriate. Avoid cx->calloc
-     * so our caller can be in charge of whether to JS_ReportOutOfMemory.
-     */
+    /* Grow, shrink, or compress by changing this->entries. */
     oldlog2 = JS_DHASH_BITS - hashShift;
-    newlog2 = oldlog2 + log2Delta;
+    newlog2 = oldlog2 + change;
     oldsize = JS_BIT(oldlog2);
     newsize = JS_BIT(newlog2);
     nbytes = PROPERTY_TABLE_NBYTES(newsize);
-    newTable = (Shape **) cx->runtime->calloc(nbytes);
+    newTable = (Shape **) cx->calloc(nbytes);
     if (!newTable) {
         METER(tableAllocFails);
         return false;
@@ -417,6 +409,9 @@ PropertyTable::change(int log2Delta, JSContext *cx)
     removedCount = 0;
     oldTable = entries;
     entries = newTable;
+
+    /* Treat the above calloc as a JS_malloc, to match CreateScopeTable. */
+    cx->runtime->updateMallocCounter(nbytes);
 
     /* Copy only live entries, leaving removed and free ones behind. */
     for (oldspp = oldTable; oldsize != 0; oldspp++) {
@@ -431,12 +426,8 @@ PropertyTable::change(int log2Delta, JSContext *cx)
         oldsize--;
     }
 
-    /*
-     * Finally, free the old entries storage. Note that cx->runtime->free just
-     * calls js_free. Use js_free here to match PropertyTable::~PropertyTable,
-     * which cannot have a cx or rt parameter.
-     */
-    js_free(oldTable);
+    /* Finally, free the old entries storage. */
+    cx->free(oldTable);
     return true;
 }
 
@@ -755,15 +746,13 @@ JSObject::addPropertyInternal(JSContext *cx, jsid id,
         /* Check whether we need to grow, if the load factor is >= .75. */
         uint32 size = table->capacity();
         if (table->entryCount + table->removedCount >= size - (size >> 2)) {
-            int delta = table->removedCount < size >> 2;
-            if (!delta)
+            int change = table->removedCount < size >> 2;
+            if (!change)
                 METER(compresses);
             else
                 METER(grows);
-            if (!table->change(delta, cx) && table->entryCount + table->removedCount == size - 1) {
-                JS_ReportOutOfMemory(cx);
+            if (!table->change(cx, change) && table->entryCount + table->removedCount == size - 1)
                 return NULL;
-            }
             METER(searches);
             METER(changeSearches);
             spp = table->search(id, true);
@@ -1201,7 +1190,7 @@ JSObject::removeProperty(JSContext *cx, jsid id)
         uint32 size = table->capacity();
         if (size > PropertyTable::MIN_SIZE && table->entryCount <= size >> 2) {
             METER(shrinks);
-            (void) table->change(-1, cx);
+            (void) table->change(cx, -1);
         }
     }
 
@@ -1281,7 +1270,7 @@ JSObject::methodShapeChange(JSContext *cx, const Shape &shape)
     JS_ASSERT(!JSID_IS_VOID(shape.id));
     if (shape.isMethod()) {
 #ifdef DEBUG
-        const Value &prev = nativeGetSlot(shape.slot);
+        const Value &prev = lockedGetSlot(shape.slot);
         JS_ASSERT(&shape.methodObject() == &prev.toObject());
         JS_ASSERT(canHaveMethodBarrier());
         JS_ASSERT(hasMethodBarrier());

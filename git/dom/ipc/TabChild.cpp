@@ -56,6 +56,8 @@
 #include "nsThreadUtils.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "mozilla/ipc/DocumentRendererChild.h"
+#include "mozilla/ipc/DocumentRendererShmemChild.h"
+#include "mozilla/ipc/DocumentRendererNativeIDChild.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMWindowUtils.h"
@@ -91,7 +93,6 @@
 #include "PCOMContentPermissionRequestChild.h"
 
 using namespace mozilla::dom;
-using namespace mozilla::ipc;
 using namespace mozilla::layers;
 using namespace mozilla::layout;
 using namespace mozilla::docshell;
@@ -592,15 +593,16 @@ TabChild::DispatchWidgetEvent(nsGUIEvent& event)
   return true;
 }
 
-PDocumentRendererChild*
-TabChild::AllocPDocumentRenderer(const nsRect& documentRect,
-                                 const gfxMatrix& transform,
+mozilla::ipc::PDocumentRendererChild*
+TabChild::AllocPDocumentRenderer(const PRInt32& x,
+                                 const PRInt32& y,
+                                 const PRInt32& w,
+                                 const PRInt32& h,
                                  const nsString& bgcolor,
-                                 const PRUint32& renderFlags,
-                                 const bool& flushLayout,
-                                 const nsIntSize& renderSize)
+                                 const PRUint32& flags,
+                                 const bool& flush)
 {
-    return new DocumentRendererChild();
+    return new mozilla::ipc::DocumentRendererChild();
 }
 
 bool
@@ -611,15 +613,18 @@ TabChild::DeallocPDocumentRenderer(PDocumentRendererChild* actor)
 }
 
 bool
-TabChild::RecvPDocumentRendererConstructor(PDocumentRendererChild* actor,
-                                           const nsRect& documentRect,
-                                           const gfxMatrix& transform,
-                                           const nsString& bgcolor,
-                                           const PRUint32& renderFlags,
-                                           const bool& flushLayout,
-                                           const nsIntSize& renderSize)
+TabChild::RecvPDocumentRendererConstructor(
+        mozilla::ipc::PDocumentRendererChild *__a,
+        const PRInt32& aX,
+        const PRInt32& aY,
+        const PRInt32& aW,
+        const PRInt32& aH,
+        const nsString& bgcolor,
+        const PRUint32& flags,
+        const bool& flush)
 {
-    DocumentRendererChild *render = static_cast<DocumentRendererChild *>(actor);
+    mozilla::ipc::DocumentRendererChild *render = 
+        static_cast<mozilla::ipc::DocumentRendererChild *>(__a);
 
     nsCOMPtr<nsIWebBrowser> browser = do_QueryInterface(mWebNav);
     if (!browser)
@@ -631,16 +636,134 @@ TabChild::RecvPDocumentRendererConstructor(PDocumentRendererChild* actor,
         return true; // silently ignore
     }
 
+    PRUint32 width, height;
     nsCString data;
-    bool ret = render->RenderDocument(window,
-                                      documentRect, transform,
-                                      bgcolor,
-                                      renderFlags, flushLayout,
-                                      renderSize, data);
+    bool ret = render->RenderDocument(window, aX, aY, aW, aH, bgcolor, flags, flush,
+                                      width, height, data);
     if (!ret)
         return true; // silently ignore
 
-    return PDocumentRendererChild::Send__delete__(actor, renderSize, data);
+    return PDocumentRendererChild::Send__delete__(__a, width, height, data);
+}
+
+mozilla::ipc::PDocumentRendererShmemChild*
+TabChild::AllocPDocumentRendererShmem(
+        const PRInt32& x,
+        const PRInt32& y,
+        const PRInt32& w,
+        const PRInt32& h,
+        const nsString& bgcolor,
+        const PRUint32& flags,
+        const bool& flush,
+        const gfxMatrix& aMatrix,
+        Shmem& buf)
+{
+    return new mozilla::ipc::DocumentRendererShmemChild();
+}
+
+bool
+TabChild::DeallocPDocumentRendererShmem(PDocumentRendererShmemChild* actor)
+{
+    delete actor;
+    return true;
+}
+
+bool
+TabChild::RecvPDocumentRendererShmemConstructor(
+        PDocumentRendererShmemChild *__a,
+        const PRInt32& aX,
+        const PRInt32& aY,
+        const PRInt32& aW,
+        const PRInt32& aH,
+        const nsString& bgcolor,
+        const PRUint32& flags,
+        const bool& flush,
+        const gfxMatrix& aMatrix,
+        Shmem& aBuf)
+{
+    mozilla::ipc::DocumentRendererShmemChild *render = 
+        static_cast<mozilla::ipc::DocumentRendererShmemChild *>(__a);
+
+    nsCOMPtr<nsIWebBrowser> browser = do_QueryInterface(mWebNav);
+    if (!browser)
+        return true; // silently ignore
+ 
+   nsCOMPtr<nsIDOMWindow> window;
+    if (NS_FAILED(browser->GetContentDOMWindow(getter_AddRefs(window))) ||
+        !window)
+         return true; // silently ignore
+ 
+    render->RenderDocument(window, aX, aY, aW, aH, bgcolor, flags, flush,
+                           aMatrix, aBuf);
+
+    gfxRect dirtyArea(0, 0, nsPresContext::AppUnitsToIntCSSPixels(aW), 
+                      nsPresContext::AppUnitsToIntCSSPixels(aH));
+
+    dirtyArea = aMatrix.Transform(dirtyArea);
+
+    return PDocumentRendererShmemChild::Send__delete__(__a, dirtyArea.X(), dirtyArea.Y(), 
+                                                       dirtyArea.Width(), dirtyArea.Height(),
+                                                       aBuf);
+}
+
+mozilla::ipc::PDocumentRendererNativeIDChild*
+TabChild::AllocPDocumentRendererNativeID(
+        const PRInt32& x,
+        const PRInt32& y,
+        const PRInt32& w,
+        const PRInt32& h,
+        const nsString& bgcolor,
+        const PRUint32& flags,
+        const bool& flush,
+        const gfxMatrix& aMatrix,
+        const PRUint32& nativeID)
+{
+    return new mozilla::ipc::DocumentRendererNativeIDChild();
+}
+
+bool
+TabChild::DeallocPDocumentRendererNativeID(PDocumentRendererNativeIDChild* actor)
+{
+    delete actor;
+    return true;
+}
+
+bool
+TabChild::RecvPDocumentRendererNativeIDConstructor(
+        PDocumentRendererNativeIDChild *__a,
+        const PRInt32& aX,
+        const PRInt32& aY,
+        const PRInt32& aW,
+        const PRInt32& aH,
+        const nsString& bgcolor,
+        const PRUint32& flags,
+        const bool& flush,
+        const gfxMatrix& aMatrix,
+        const PRUint32& aNativeID)
+{
+    mozilla::ipc::DocumentRendererNativeIDChild* render =
+        static_cast<mozilla::ipc::DocumentRendererNativeIDChild*>(__a);
+
+    nsCOMPtr<nsIWebBrowser> browser = do_QueryInterface(mWebNav);
+    if (!browser)
+        return true; // silently ignore
+
+    nsCOMPtr<nsIDOMWindow> window;
+    if (NS_FAILED(browser->GetContentDOMWindow(getter_AddRefs(window))) ||
+        !window)
+        return true; // silently ignore
+
+    render->RenderDocument(window, aX, aY, aW, aH, bgcolor, flags, flush,
+                           aMatrix, aNativeID);
+
+    gfxRect dirtyArea(0, 0, nsPresContext::AppUnitsToIntCSSPixels(aW),
+                      nsPresContext::AppUnitsToIntCSSPixels(aH));
+
+    dirtyArea = aMatrix.Transform(dirtyArea);
+
+    return PDocumentRendererNativeIDChild::Send__delete__(__a, dirtyArea.X(), dirtyArea.Y(),
+                                                          dirtyArea.Width(), dirtyArea.Height(),
+                                                          aNativeID);
 }
 
 PContentDialogChild*

@@ -3204,7 +3204,7 @@ if (!hasRemembered)
          node = CERT_LIST_NEXT(node)
         )
     {
-      nsRefPtr<nsNSSCertificate> tempCert = nsNSSCertificate::Create(node->cert);
+      nsRefPtr<nsNSSCertificate> tempCert = new nsNSSCertificate(node->cert);
 
       if (!tempCert)
         continue;
@@ -3354,7 +3354,7 @@ nsNSSBadCertHandler(void *arg, PRFileDesc *sslSocket)
     return cancel_and_failure(infoObject);
 
   nsRefPtr<nsNSSCertificate> nssCert;
-  nssCert = nsNSSCertificate::Create(peerCert);
+  nssCert = new nsNSSCertificate(peerCert);
   if (!nssCert)
     return cancel_and_failure(infoObject);
 

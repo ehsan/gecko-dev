@@ -1141,8 +1141,7 @@ Worker::processOneEvent()
         }
     }
 
-    if (event)
-        event->destroy(context);
+    event->destroy(context);
     JS_ClearContextThread(context);
 
     {

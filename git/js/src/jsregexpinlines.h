@@ -60,9 +60,9 @@ namespace js {
 extern Class regexp_statics_class;
 
 static inline JSObject *
-regexp_statics_construct(JSContext *cx, JSObject *parent)
+regexp_statics_construct(JSContext *cx)
 {
-    JSObject *obj = NewObject<WithProto::Given>(cx, &regexp_statics_class, NULL, parent);
+    JSObject *obj = NewObject<WithProto::Given>(cx, &regexp_statics_class, NULL, NULL);
     if (!obj)
         return NULL;
     RegExpStatics *res = cx->create<RegExpStatics>();
