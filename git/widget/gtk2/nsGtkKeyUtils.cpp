@@ -618,7 +618,6 @@ KeymapWrapper::InitInputEvent(nsInputEvent& aInputEvent,
     switch(aInputEvent.eventStructType) {
         case NS_MOUSE_EVENT:
         case NS_MOUSE_SCROLL_EVENT:
-        case NS_WHEEL_EVENT:
         case NS_DRAG_EVENT:
         case NS_SIMPLE_GESTURE_EVENT:
         case NS_MOZTOUCH_EVENT:

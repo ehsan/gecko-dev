@@ -51,8 +51,8 @@ function performScrollingTest()
   InspectorUI.highlighter.removeListener("nodeselected", performScrollingTest);
 
   executeSoon(function() {
-    EventUtils.synthesizeWheel(div, 10, 10,
-      { deltaY: 50.0, deltaMode: WheelEvent.DOM_DELTA_PIXEL },
+    EventUtils.synthesizeMouseScroll(div, 10, 10,
+      {axis:"vertical", delta:50, type:"MozMousePixelScroll"},
       iframe.contentWindow);
   });
 

@@ -42,7 +42,6 @@ using nsIntSize;
 using nsKeyEvent;
 using nsMouseEvent;
 using nsMouseScrollEvent;
-using mozilla::widget::WheelEvent;
 using nsQueryContentEvent;
 using nsRect;
 using nsSelectionEvent;
@@ -306,7 +305,7 @@ child:
 
     RealMouseEvent(nsMouseEvent event);
     RealKeyEvent(nsKeyEvent event);
-    MouseWheelEvent(WheelEvent event);
+    MouseScrollEvent(nsMouseScrollEvent event);
     RealTouchEvent(nsTouchEvent event);
 
     /**

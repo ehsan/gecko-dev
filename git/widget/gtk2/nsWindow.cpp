@@ -114,8 +114,6 @@ extern "C" {
 
 #include "nsShmImage.h"
 
-#include "nsIDOMWheelEvent.h"
-
 using namespace mozilla;
 using namespace mozilla::widget;
 using mozilla::gl::GLContext;
@@ -2748,8 +2746,23 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
     // These are mapped to horizontal scroll
     case 6:
     case 7:
-        NS_WARNING("We're not supporting legacy horizontal scroll event");
-        return;
+        {
+            nsMouseScrollEvent event(true, NS_MOUSE_SCROLL, this);
+            event.pressure = mLastMotionPressure;
+            event.scrollFlags = nsMouseScrollEvent::kIsHorizontal;
+            event.refPoint.x = nscoord(aEvent->x);
+            event.refPoint.y = nscoord(aEvent->y);
+            // XXX Why is this delta value different from the scroll event?
+            event.delta = (aEvent->button == 6) ? -2 : 2;
+
+            KeymapWrapper::InitInputEvent(event, aEvent->state);
+
+            event.time = aEvent->time;
+
+            nsEventStatus status;
+            DispatchEvent(&event, status);
+            return;
+        }
     // Map buttons 8-9 to back/forward
     case 8:
         DispatchCommandEvent(nsGkAtoms::Back);
@@ -3111,44 +3124,44 @@ nsWindow::OnScrollEvent(GtkWidget *aWidget, GdkEventScroll *aEvent)
     if (gConsumeRollupEvent && rolledUp)
         return;
 
-    WheelEvent wheelEvent(true, NS_WHEEL_WHEEL, this);
-    wheelEvent.deltaMode = nsIDOMWheelEvent::DOM_DELTA_LINE;
+    nsMouseScrollEvent event(true, NS_MOUSE_SCROLL, this);
     switch (aEvent->direction) {
     case GDK_SCROLL_UP:
-        wheelEvent.deltaY = wheelEvent.lineOrPageDeltaY = -3;
+        event.scrollFlags = nsMouseScrollEvent::kIsVertical;
+        event.delta = -3;
         break;
     case GDK_SCROLL_DOWN:
-        wheelEvent.deltaY = wheelEvent.lineOrPageDeltaY = 3;
+        event.scrollFlags = nsMouseScrollEvent::kIsVertical;
+        event.delta = 3;
         break;
     case GDK_SCROLL_LEFT:
-        wheelEvent.deltaX = wheelEvent.lineOrPageDeltaX = -1;
+        event.scrollFlags = nsMouseScrollEvent::kIsHorizontal;
+        event.delta = -1;
         break;
     case GDK_SCROLL_RIGHT:
-        wheelEvent.deltaX = wheelEvent.lineOrPageDeltaX = 1;
+        event.scrollFlags = nsMouseScrollEvent::kIsHorizontal;
+        event.delta = 1;
         break;
     }
 
-    NS_ASSERTION(wheelEvent.deltaX || wheelEvent.deltaY,
-                 "deltaX or deltaY must be non-zero");
-
     if (aEvent->window == mGdkWindow) {
         // we are the window that the event happened on so no need for expensive WidgetToScreenOffset
-        wheelEvent.refPoint.x = nscoord(aEvent->x);
-        wheelEvent.refPoint.y = nscoord(aEvent->y);
+        event.refPoint.x = nscoord(aEvent->x);
+        event.refPoint.y = nscoord(aEvent->y);
     } else {
         // XXX we're never quite sure which GdkWindow the event came from due to our custom bubbling
         // in scroll_event_cb(), so use ScreenToWidget to translate the screen root coordinates into
         // coordinates relative to this widget.
         nsIntPoint point(NSToIntFloor(aEvent->x_root), NSToIntFloor(aEvent->y_root));
-        wheelEvent.refPoint = point - WidgetToScreenOffset();
+        event.refPoint = point - WidgetToScreenOffset();
     }
 
-    KeymapWrapper::InitInputEvent(wheelEvent, aEvent->state);
+    KeymapWrapper::InitInputEvent(event, aEvent->state);
 
-    wheelEvent.time = aEvent->time;
+    event.time = aEvent->time;
 
     nsEventStatus status;
-    DispatchEvent(&wheelEvent, status);
+    DispatchEvent(&event, status);
 }
 
 void
