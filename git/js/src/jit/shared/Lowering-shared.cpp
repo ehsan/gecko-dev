@@ -106,7 +106,9 @@ LIRGeneratorShared::buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKi
         return nullptr;
 
     size_t index = 0;
-    for (LRecoverInfo::OperandIter it(recoverInfo); !it; ++it) {
+    LRecoverInfo::OperandIter it(recoverInfo->begin());
+    LRecoverInfo::OperandIter end(recoverInfo->end());
+    for (; it != end; ++it) {
         // Check that optimized out operands are in eliminable slots.
         MOZ_ASSERT(it.canOptimizeOutIfUnused());
 
@@ -164,7 +166,9 @@ LIRGeneratorShared::buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKi
         return nullptr;
 
     size_t index = 0;
-    for (LRecoverInfo::OperandIter it(recoverInfo); !it; ++it) {
+    LRecoverInfo::OperandIter it(recoverInfo->begin());
+    LRecoverInfo::OperandIter end(recoverInfo->end());
+    for (; it != end; ++it) {
         // Check that optimized out operands are in eliminable slots.
         MOZ_ASSERT(it.canOptimizeOutIfUnused());
 

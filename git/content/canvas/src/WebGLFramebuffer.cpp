@@ -375,7 +375,6 @@ WebGLFramebuffer::Attachment::FinalizeAttachment(GLContext* gl, GLenum attachmen
 void
 WebGLFramebuffer::Delete()
 {
-    DetachAllAttachments();
     mColorAttachments.Clear();
     mDepthAttachment.Reset();
     mStencilAttachment.Reset();
@@ -384,29 +383,6 @@ WebGLFramebuffer::Delete()
     mContext->MakeContextCurrent();
     mContext->gl->fDeleteFramebuffers(1, &mGLName);
     LinkedListElement<WebGLFramebuffer>::removeFrom(mContext->mFramebuffers);
-}
-
-void
-WebGLFramebuffer::DetachAttachment(WebGLFramebuffer::Attachment& attachment)
-{
-    if (attachment.Texture())
-        attachment.Texture()->DetachFrom(this, attachment.mAttachmentPoint);
-
-    if (attachment.Renderbuffer())
-        attachment.Renderbuffer()->DetachFrom(this, attachment.mAttachmentPoint);
-}
-
-void
-WebGLFramebuffer::DetachAllAttachments()
-{
-    size_t count = mColorAttachments.Length();
-    for (size_t i = 0; i < count; i++) {
-        DetachAttachment(mColorAttachments[i]);
-    }
-
-    DetachAttachment(mDepthAttachment);
-    DetachAttachment(mStencilAttachment);
-    DetachAttachment(mDepthStencilAttachment);
 }
 
 void

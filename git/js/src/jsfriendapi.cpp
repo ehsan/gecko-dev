@@ -674,12 +674,6 @@ js::GetWeakmapKeyDelegate(JSObject *key)
     return nullptr;
 }
 
-JS_FRIEND_API(JSLinearString *)
-js::StringToLinearStringSlow(JSContext *cx, JSString *str)
-{
-    return str->ensureLinear(cx);
-}
-
 JS_FRIEND_API(void)
 JS_SetAccumulateTelemetryCallback(JSRuntime *rt, JSAccumulateTelemetryDataCallback callback)
 {

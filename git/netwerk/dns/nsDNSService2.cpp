@@ -684,12 +684,8 @@ nsDNSService::AsyncResolve(const nsACString  &hostname,
     nsresult rv;
     nsAutoCString hostACE;
     if (idn && !IsASCII(*hostPtr)) {
-        if (IsUTF8(*hostPtr) &&
-            NS_SUCCEEDED(idn->ConvertUTF8toACE(*hostPtr, hostACE))) {
+        if (NS_SUCCEEDED(idn->ConvertUTF8toACE(*hostPtr, hostACE)))
             hostPtr = &hostACE;
-        } else {
-            return NS_ERROR_FAILURE;
-        }
     }
 
     // make sure JS callers get notification on the main thread
@@ -751,12 +747,8 @@ nsDNSService::CancelAsyncResolve(const nsACString  &aHostname,
 
     nsAutoCString hostACE;
     if (idn && !IsASCII(aHostname)) {
-        if (IsUTF8(aHostname) &&
-            NS_SUCCEEDED(idn->ConvertUTF8toACE(aHostname, hostACE))) {
+        if (NS_SUCCEEDED(idn->ConvertUTF8toACE(aHostname, hostACE)))
             hostname = hostACE;
-        } else {
-            return NS_ERROR_FAILURE;
-        }
     }
 
     uint16_t af = GetAFForLookup(hostname, aFlags);
@@ -802,12 +794,8 @@ nsDNSService::Resolve(const nsACString &hostname,
     nsresult rv;
     nsAutoCString hostACE;
     if (idn && !IsASCII(*hostPtr)) {
-        if (IsUTF8(*hostPtr) &&
-            NS_SUCCEEDED(idn->ConvertUTF8toACE(*hostPtr, hostACE))) {
+        if (NS_SUCCEEDED(idn->ConvertUTF8toACE(*hostPtr, hostACE)))
             hostPtr = &hostACE;
-        } else {
-            return NS_ERROR_FAILURE;
-        }
     }
 
     //

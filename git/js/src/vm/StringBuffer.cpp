@@ -55,17 +55,8 @@ StringBuffer::inflateChars()
     MOZ_ASSERT(isLatin1());
 
     TwoByteCharBuffer twoByte(cx);
-
-    /*
-     * Note: we don't use Vector::capacity() because it always returns a
-     * value >= sInlineCapacity. Since Latin1CharBuffer::sInlineCapacity >
-     * TwoByteCharBuffer::sInlineCapacitychars, we'd always malloc here.
-     */
-    size_t capacity = Max(reserved_, latin1Chars().length());
-    if (!twoByte.reserve(capacity))
+    if (!twoByte.append(latin1Chars().begin(), latin1Chars().length()))
         return false;
-
-    twoByte.infallibleAppend(latin1Chars().begin(), latin1Chars().length());
 
     cb.destroy();
     cb.construct<TwoByteCharBuffer>(Move(twoByte));

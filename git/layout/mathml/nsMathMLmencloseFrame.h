@@ -109,7 +109,6 @@ protected:
   }
 
   nscoord mRuleThickness;
-  nscoord mRadicalRuleThickness;
   nsTArray<nsMathMLChar> mMathMLChar;
   int8_t mLongDivCharIndex, mRadicalCharIndex;
   nscoord mContentWidth;

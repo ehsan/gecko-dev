@@ -83,13 +83,9 @@ public:
    * to prevent the viewport from overscrolling the page rect), and axis locking
    * (which might prevent any displacement from happening). If overscroll
    * ocurred, its amount is written to |aOverscrollAmountOut|.
-   * The |aDisplacementOut| parameter is set to the adjusted
-   * displacement, and the function returns true iff internal overscroll amounts
-   * were changed.
+   * The adjusted displacement is returned.
    */
-  bool AdjustDisplacement(float aDisplacement,
-                          float& aDisplacementOut,
-                          float& aOverscrollAmountOut);
+  float AdjustDisplacement(float aDisplacement, float& aOverscrollAmountOut);
 
   /**
    * Overscrolls this axis by the requested amount in the requested direction.

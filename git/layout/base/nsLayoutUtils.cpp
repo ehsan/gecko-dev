@@ -2619,13 +2619,7 @@ CalculateFrameMetricsForDisplayPort(nsIFrame* aScrollFrame,
   nsIPresShell* presShell = presContext->PresShell();
   CSSToLayoutDeviceScale deviceScale(float(nsPresContext::AppUnitsPerCSSPixel())
                                      / presContext->AppUnitsPerDevPixel());
-  ParentLayerToLayerScale resolution;
-  if (aScrollFrame == presShell->GetRootScrollFrame()) {
-    // Only the root scrollable frame for a given presShell should pick up
-    // the presShell's resolution. All the other frames are 1.0.
-    resolution = ParentLayerToLayerScale(presShell->GetXResolution(),
-                                         presShell->GetYResolution());
-  }
+  ParentLayerToLayerScale resolution(presShell->GetResolution().width);
   LayoutDeviceToLayerScale cumulativeResolution(presShell->GetCumulativeResolution().width);
 
   metrics.mDevPixelsPerCSSPixel = deviceScale;
@@ -2985,16 +2979,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
       ss << "</body></html>";
     }
 
-    char line[1024];
-    while (!ss.eof()) {
-      ss.getline(line, sizeof(line));
-      fprintf_stderr(gfxUtils::sDumpPaintFile, "%s", line);
-      if (ss.fail()) {
-        // line was too long, skip to next newline
-        ss.clear();
-        ss.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-      }
-    }
+    fprintf(gfxUtils::sDumpPaintFile, "%s", ss.str().c_str());
 
     if (gfxUtils::sDumpPaintingToFile) {
       fclose(gfxUtils::sDumpPaintFile);

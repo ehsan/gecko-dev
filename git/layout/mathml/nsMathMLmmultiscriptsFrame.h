@@ -37,7 +37,8 @@ public:
                     nsHTMLReflowMetrics& aDesiredSize,
                     nsMathMLContainerFrame* aForFrame,
                     nscoord              aUserSubScriptShift,
-                    nscoord              aUserSupScriptShift);
+                    nscoord              aUserSupScriptShift,
+                    nscoord              aScriptSpace);
 
   uint8_t
   ScriptIncrement(nsIFrame* aFrame) MOZ_OVERRIDE;

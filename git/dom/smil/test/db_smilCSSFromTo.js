@@ -103,20 +103,6 @@ var _fromToTestLists = {
     new AnimTestcaseFromTo("10px", "20px", { midComp: "15px"}),
     new AnimTestcaseFromTo("41px", "1px", { midComp: "21px"}),
   ],
-  lengthPxSVG: [
-    new AnimTestcaseFromTo("0px", "12px", { fromComp: "0",
-                                            midComp:  "6",
-                                            toComp:  "12"}),
-    new AnimTestcaseFromTo("16px", "0px", { fromComp: "16",
-                                            midComp:   "8",
-                                            toComp:    "0"}),
-    new AnimTestcaseFromTo("10px", "20px", { fromComp: "10",
-                                             midComp:  "15",
-                                             toComp:   "20"}),
-    new AnimTestcaseFromTo("41px", "1px", { fromComp: "41",
-                                            midComp:  "21",
-                                            toComp:    "1"}),
-  ],
   lengthPctSVG: [
     new AnimTestcaseFromTo("20.5%", "0.5%", { midComp: "10.5%" }),
   ],
@@ -124,14 +110,6 @@ var _fromToTestLists = {
     new AnimTestcaseFromTo("10px", "10%", { midComp: "15px"},
                            "need support for interpolating between " +
                            "px and percent values"),
-  ],
-  lengthPxNoUnitsSVG: [
-    new AnimTestcaseFromTo("10", "20px", { fromComp: "10",
-                                           midComp:  "15",
-                                           toComp:   "20"}),
-    new AnimTestcaseFromTo("10px", "20", { fromComp: "10",
-                                           midComp:  "15",
-                                           toComp:   "20"}),
   ],
   opacity: [
     new AnimTestcaseFromTo("1", "0", { midComp: "0.5" }),
@@ -407,10 +385,9 @@ var gFromToBundles = [
   ])),
   new TestcaseBundle(gPropList.stroke_dashoffset,
                      [].concat(_fromToTestLists.lengthNoUnitsSVG,
-                               _fromToTestLists.lengthPxSVG,
+                               _fromToTestLists.lengthPx,
                                _fromToTestLists.lengthPxPctSVG,
-                               _fromToTestLists.lengthPctSVG,
-                               _fromToTestLists.lengthPxNoUnitsSVG)),
+                               _fromToTestLists.lengthPctSVG)),
   new TestcaseBundle(gPropList.stroke_linecap, [
     new AnimTestcaseFromTo("butt", "round"),
     new AnimTestcaseFromTo("round", "square"),
@@ -426,12 +403,11 @@ var gFromToBundles = [
   new TestcaseBundle(gPropList.stroke_opacity, _fromToTestLists.opacity),
   new TestcaseBundle(gPropList.stroke_width,
                      [].concat(_fromToTestLists.lengthNoUnitsSVG,
-                               _fromToTestLists.lengthPxSVG,
+                               _fromToTestLists.lengthPx,
                                _fromToTestLists.lengthPxPctSVG,
-                               _fromToTestLists.lengthPctSVG,
-                               _fromToTestLists.lengthPxNoUnitsSVG, [
+                               _fromToTestLists.lengthPctSVG, [
     new AnimTestcaseFromTo("inherit", "7px",
-                           { fromComp: "1", midComp: "4", toComp: "7" }),
+                           { fromComp: "1px", midComp: "4px"}),
   ])),
   new TestcaseBundle(gPropList.text_anchor, [
     new AnimTestcaseFromTo("start", "middle"),

@@ -6589,12 +6589,12 @@ JS::SetOutOfMemoryCallback(JSRuntime *rt, OutOfMemoryCallback cb, void *data)
 }
 
 JS_PUBLIC_API(bool)
-JS::CaptureCurrentStack(JSContext *cx, JS::MutableHandleObject stackp, unsigned maxFrameCount)
+JS::CaptureCurrentStack(JSContext *cx, JS::MutableHandleObject stackp)
 {
     JSCompartment *compartment = cx->compartment();
     JS_ASSERT(compartment);
     Rooted<SavedFrame *> frame(cx);
-    if (!compartment->savedStacks().saveCurrentStack(cx, &frame, maxFrameCount))
+    if (!compartment->savedStacks().saveCurrentStack(cx, &frame))
         return false;
     stackp.set(frame.get());
     return true;

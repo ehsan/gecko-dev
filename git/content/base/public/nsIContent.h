@@ -242,7 +242,7 @@ public:
                   static_cast<nsIContent*>(SubtreeRoot())->IsInNativeAnonymousSubtree()),
                  "Must have binding parent when in native anonymous subtree which is in document.\n"
                  "Native anonymous subtree which is not in document must have native anonymous root.");
-    return IsInNativeAnonymousSubtree() || (!IsInShadowTree() && GetBindingParent() != nullptr);
+    return IsInNativeAnonymousSubtree() || (!HasFlag(NODE_IS_IN_SHADOW_TREE) && GetBindingParent() != nullptr);
   }
 
   /**
@@ -883,10 +883,10 @@ public:
    */
   nsIFrame* GetPrimaryFrame() const
   {
-    return (IsInDoc() || IsInShadowTree()) ? mPrimaryFrame : nullptr;
+    return (IsInDoc() || HasFlag(NODE_IS_IN_SHADOW_TREE)) ? mPrimaryFrame : nullptr;
   }
   void SetPrimaryFrame(nsIFrame* aFrame) {
-    MOZ_ASSERT(IsInDoc() || IsInShadowTree(), "This will end badly!");
+    MOZ_ASSERT(IsInDoc() || HasFlag(NODE_IS_IN_SHADOW_TREE), "This will end badly!");
     NS_PRECONDITION(!aFrame || !mPrimaryFrame || aFrame == mPrimaryFrame,
                     "Losing track of existing primary frame");
     mPrimaryFrame = aFrame;
