@@ -522,17 +522,12 @@ nsEventDispatcher::DispatchDOMEvent(nsISupports* aTarget,
       privEvt->GetInternalNSEvent(&innerEvent);
       NS_ENSURE_TRUE(innerEvent, NS_ERROR_ILLEGAL_VALUE);
 
-      PRBool dontResetTrusted = PR_FALSE;
-      if (innerEvent->flags & NS_EVENT_DISPATCHED) {
-        innerEvent->target = nsnull;
-        innerEvent->originalTarget = nsnull;
-      }
-      else {
-        nsCOMPtr<nsIDOMNSEvent> nsevent(do_QueryInterface(privEvt));
-        nsevent->GetIsTrusted(&dontResetTrusted);
-      }
+      PRBool trusted;
+      nsCOMPtr<nsIDOMNSEvent> nsevent(do_QueryInterface(privEvt));
 
-      if (!dontResetTrusted) {
+      nsevent->GetIsTrusted(&trusted);
+
+      if (!trusted || (innerEvent->flags & NS_EVENT_DISPATCHED)) {
         //Check security state to determine if dispatcher is trusted
         privEvt->SetTrusted(nsContentUtils::IsCallerTrustedForWrite());
       }

@@ -466,8 +466,8 @@ PRBool nsStyleUtil::IsHTMLLink(nsIContent *aContent, nsIAtom *aTag,
         } else {
           linkState = eLinkState_NotLink;
         }
-        if (linkState != eLinkState_NotLink && aForStyling &&
-            aContent->IsInDoc()) {
+        if (linkState != eLinkState_NotLink && aForStyling) {
+          NS_ASSERTION(aContent->GetCurrentDoc(), "Must have document!");
           aContent->GetCurrentDoc()->AddStyleRelevantLink(aContent, hrefURI);
         }
         link->SetLinkState(linkState);
@@ -500,7 +500,8 @@ PRBool nsStyleUtil::IsLink(nsIContent     *aContent,
     nsCOMPtr<nsIURI> absURI;
     if (aContent->IsLink(getter_AddRefs(absURI))) {
       *aState = GetLinkStateFromURI(absURI, aContent, aLinkHandler);
-      if (aForStyling && aContent->IsInDoc()) {
+      if (aForStyling) {
+        NS_ASSERTION(aContent->GetCurrentDoc(), "Must have document!");
         aContent->GetCurrentDoc()->AddStyleRelevantLink(aContent, absURI);
       }
 

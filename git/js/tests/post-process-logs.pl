@@ -82,7 +82,6 @@ local ($test_id,
 local $test_memory = 0;
 local $test_cpuspeed = 0;
 local %test_reported = ();
-local $test_repo = 'CVS';
 
 while ($file = shift @ARGV)
 {
@@ -142,11 +141,7 @@ while ($file = shift @ARGV)
 
         last if ( $_ =~ /^arguments:/);
 
-        if (($envval) = $_ =~ /^environment: TEST_MOZILLA_HG=http:\/\/hg.mozilla.org\/(.*)/ )
-        {
-            $test_repo = $envval;
-        }
-        elsif (($envvar, $envval) = $_ =~ /^environment: (TEST_[A-Z0-9_]*)=(.*)/ )
+        if (($envvar, $envval) = $_ =~ /^environment: (TEST_[A-Z0-9_]*)=(.*)/ )
         {
             dbg "envvar=$envvar, envval=$envval";
             if ($envvar =~ /TEST_KERNEL/)
@@ -569,7 +564,6 @@ sub outputrecord
     my $output = 
         "TEST_ID=$test_id, " .
         "TEST_BRANCH=$test_branchid, " .
-        "TEST_REPO=$test_repo, " .
         "TEST_BUILDTYPE=$test_buildtype, " .
         "TEST_TYPE=$test_type, " .
         "TEST_OS=$test_os, " .

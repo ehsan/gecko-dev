@@ -75,7 +75,6 @@ public:
     eColor_TextSelectForeground,
     eColor_TextSelectBackgroundDisabled,
     eColor_TextSelectBackgroundAttention,
-    eColor_TextHighlightBackground,
 
     eColor_IMERawInputBackground,
     eColor_IMERawInputForeground,

@@ -1608,14 +1608,9 @@ PRBool nsWindow::CanTakeFocus()
 
 NS_METHOD nsWindow::Show(PRBool bState)
 {
-  PRBool wasVisible = mIsVisible;
-  // Set the status now so that anyone asking during ShowWindow or
-  // SetWindowPos would get the correct answer.
-  mIsVisible = bState;
-
   if (mWnd) {
     if (bState) {
-      if (!wasVisible && mWindowType == eWindowType_toplevel) {
+      if (!mIsVisible && mWindowType == eWindowType_toplevel) {
         switch (mSizeMode) {
           case nsSizeMode_Maximized :
             ::ShowWindow(mWnd, SW_SHOWMAXIMIZED);
@@ -1643,7 +1638,7 @@ NS_METHOD nsWindow::Show(PRBool bState)
         }
       } else {
         DWORD flags = SWP_NOSIZE | SWP_NOMOVE | SWP_SHOWWINDOW;
-        if (wasVisible)
+        if (mIsVisible)
           flags |= SWP_NOZORDER;
 
         if (mWindowType == eWindowType_popup) {
@@ -1673,9 +1668,11 @@ NS_METHOD nsWindow::Show(PRBool bState)
   }
   
 #ifdef MOZ_XUL
-  if (!wasVisible && bState)
+  if (!mIsVisible && bState)
     Invalidate(PR_FALSE);
 #endif
+
+  mIsVisible = bState;
 
   return NS_OK;
 }
@@ -3430,11 +3427,6 @@ BOOL nsWindow::OnChar(UINT charCode, UINT aScanCode, PRUint32 aFlags)
 {
   // ignore [shift+]alt+space so the OS can handle it
   if (mIsAltDown && !mIsControlDown && IS_VK_DOWN(NS_VK_SPACE)) {
-    return FALSE;
-  }
-  
-  // Ignore Ctrl+Enter (bug 318235)
-  if (mIsControlDown && charCode == 0xA) {
     return FALSE;
   }
 

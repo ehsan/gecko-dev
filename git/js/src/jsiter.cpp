@@ -306,8 +306,8 @@ iterator_self(JSContext *cx, uintN argc, jsval *vp)
 #define JSPROP_ROPERM   (JSPROP_READONLY | JSPROP_PERMANENT)
 
 static JSFunctionSpec iterator_methods[] = {
-    JS_FN(js_iterator_str,  iterator_self,  0,JSPROP_ROPERM),
-    JS_FN(js_next_str,      iterator_next,  0,JSPROP_ROPERM),
+    JS_FN(js_iterator_str,  iterator_self,  0,0,JSPROP_ROPERM),
+    JS_FN(js_next_str,      iterator_next,  0,0,JSPROP_ROPERM),
     JS_FS_END
 };
 
@@ -931,7 +931,7 @@ CloseGenerator(JSContext *cx, JSObject *obj)
  * Common subroutine of generator_(next|send|throw|close) methods.
  */
 static JSBool
-generator_op(JSContext *cx, JSGeneratorOp op, jsval *vp, uintN argc)
+generator_op(JSContext *cx, JSGeneratorOp op, jsval *vp)
 {
     JSObject *obj;
     JSGenerator *gen;
@@ -954,7 +954,7 @@ generator_op(JSContext *cx, JSGeneratorOp op, jsval *vp, uintN argc)
             break;
 
           case JSGENOP_SEND:
-            if (argc >= 1 && !JSVAL_IS_VOID(vp[2])) {
+            if (!JSVAL_IS_VOID(vp[2])) {
                 js_ReportValueError(cx, JSMSG_BAD_GENERATOR_SEND,
                                     JSDVG_SEARCH_STACK, vp[2], NULL);
                 return JS_FALSE;
@@ -973,7 +973,7 @@ generator_op(JSContext *cx, JSGeneratorOp op, jsval *vp, uintN argc)
           case JSGENOP_SEND:
             return js_ThrowStopIteration(cx);
           case JSGENOP_THROW:
-            JS_SetPendingException(cx, argc >= 1 ? vp[2] : JSVAL_VOID);
+            JS_SetPendingException(cx, vp[2]);
             return JS_FALSE;
           default:
             JS_ASSERT(op == JSGENOP_CLOSE);
@@ -981,7 +981,7 @@ generator_op(JSContext *cx, JSGeneratorOp op, jsval *vp, uintN argc)
         }
     }
 
-    arg = ((op == JSGENOP_SEND || op == JSGENOP_THROW) && argc != 0)
+    arg = (op == JSGENOP_SEND || op == JSGENOP_THROW)
           ? vp[2]
           : JSVAL_VOID;
     if (!SendToGenerator(cx, op, obj, gen, arg))
@@ -993,33 +993,33 @@ generator_op(JSContext *cx, JSGeneratorOp op, jsval *vp, uintN argc)
 static JSBool
 generator_send(JSContext *cx, uintN argc, jsval *vp)
 {
-    return generator_op(cx, JSGENOP_SEND, vp, argc);
+    return generator_op(cx, JSGENOP_SEND, vp);
 }
 
 static JSBool
 generator_next(JSContext *cx, uintN argc, jsval *vp)
 {
-    return generator_op(cx, JSGENOP_NEXT, vp, argc);
+    return generator_op(cx, JSGENOP_NEXT, vp);
 }
 
 static JSBool
 generator_throw(JSContext *cx, uintN argc, jsval *vp)
 {
-    return generator_op(cx, JSGENOP_THROW, vp, argc);
+    return generator_op(cx, JSGENOP_THROW, vp);
 }
 
 static JSBool
 generator_close(JSContext *cx, uintN argc, jsval *vp)
 {
-    return generator_op(cx, JSGENOP_CLOSE, vp, argc);
+    return generator_op(cx, JSGENOP_CLOSE, vp);
 }
 
 static JSFunctionSpec generator_methods[] = {
-    JS_FN(js_iterator_str,  iterator_self,      0,JSPROP_ROPERM),
-    JS_FN(js_next_str,      generator_next,     0,JSPROP_ROPERM),
-    JS_FN(js_send_str,      generator_send,     1,JSPROP_ROPERM),
-    JS_FN(js_throw_str,     generator_throw,    1,JSPROP_ROPERM),
-    JS_FN(js_close_str,     generator_close,    0,JSPROP_ROPERM),
+    JS_FN(js_iterator_str,  iterator_self,      0,0,JSPROP_ROPERM),
+    JS_FN(js_next_str,      generator_next,     0,0,JSPROP_ROPERM),
+    JS_FN(js_send_str,      generator_send,     1,1,JSPROP_ROPERM),
+    JS_FN(js_throw_str,     generator_throw,    1,1,JSPROP_ROPERM),
+    JS_FN(js_close_str,     generator_close,    0,0,JSPROP_ROPERM),
     JS_FS_END
 };
 

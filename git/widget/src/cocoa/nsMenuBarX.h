@@ -117,7 +117,6 @@ public:
   PRUint32          RegisterForCommand(nsMenuItemX* aItem);
   void              UnregisterCommand(PRUint32 aCommandID);
   PRUint32          GetMenuCount();
-  bool              MenuContainsAppMenu();
   nsMenuX*          GetMenuAt(PRUint32 aIndex);
   nsMenuItemX*      GetMenuItemForCommandID(PRUint32 inCommandID);
   nsresult          Paint();
@@ -125,6 +124,7 @@ public:
 
 protected:
   void              ConstructNativeMenus();
+  bool              MenuContainsAppMenu();
   nsresult          InsertMenuAtIndex(nsMenuX* aMenu, PRUint32 aIndex);
   void              RemoveMenuAtIndex(PRUint32 aIndex);
   nsChangeObserver* LookupContentChangeObserver(nsIContent* aContent);

@@ -1711,8 +1711,6 @@ nsDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
 
   mMayStartLayout = PR_FALSE;
 
-  mHaveInputEncoding = PR_TRUE;
-
   if (aReset) {
     Reset(aChannel, aLoadGroup);
   }
@@ -2147,8 +2145,8 @@ nsDocument::ElementFromPoint(PRInt32 aX, PRInt32 aY, nsIDOMElement** aReturn)
   // replace it with the first non-anonymous parent node of type element.
   while (ptContent &&
          !ptContent->IsNodeOfType(nsINode::eELEMENT) ||
-         ptContent->IsInAnonymousSubtree()) {
-    // XXXldb: Faster to jump to GetBindingParent if non-null?
+         ptContent->GetBindingParent() ||
+         ptContent->IsNativeAnonymous()) {
     ptContent = ptContent->GetParent();
   }
  
@@ -3176,10 +3174,6 @@ nsDocument::BeginLoad()
   // unblocking it while we know the document is loading.
   BlockOnload();
 
-  if (mScriptLoader) {
-    mScriptLoader->BeginDeferringScripts();
-  }
-
   NS_DOCUMENT_NOTIFY_OBSERVERS(BeginLoad, (this));
 }
 
@@ -3421,10 +3415,6 @@ nsDocument::DispatchContentLoadedEvents()
       
       parent = parent->GetParentDocument();
     } while (parent);
-  }
-
-  if (mScriptLoader) {
-    mScriptLoader->EndDeferringScripts();
   }
 
   UnblockOnload(PR_TRUE);
@@ -4969,12 +4959,7 @@ nsDocument::LookupNamespaceURI(const nsAString& aNamespacePrefix,
 NS_IMETHODIMP
 nsDocument::GetInputEncoding(nsAString& aInputEncoding)
 {
-  if (mHaveInputEncoding) {
-    return GetCharacterSet(aInputEncoding);
-  }
-
-  SetDOMStringToNull(aInputEncoding);
-  return NS_OK;
+  return GetCharacterSet(aInputEncoding);
 }
 
 NS_IMETHODIMP
@@ -5564,15 +5549,8 @@ nsDocument::FlushPendingNotifications(mozFlushType aType)
   // flush ourselves, then don't flush the parent, since that can cause things
   // like resizes of our frame's widget, which we can't handle while flushing
   // is unsafe.
-  // Since media queries mean that a size change of our container can
-  // affect style, we need to promote a style flush on ourself to a
-  // layout flush on our parent, since we need our container to be the
-  // correct size to determine the correct style.
   if (mParentDocument && IsSafeToFlush()) {
-    mozFlushType parentType = aType;
-    if (aType == Flush_Style)
-      parentType = Flush_Layout;
-    mParentDocument->FlushPendingNotifications(parentType);
+    mParentDocument->FlushPendingNotifications(aType);
   }
 
   nsPresShellIterator iter(this);

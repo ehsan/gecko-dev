@@ -178,12 +178,10 @@ nsButtonFrameRenderer::PaintOutlineAndFocusBorders(nsPresContext* aPresContext,
           const nsRect& aDirtyRect,
           const nsRect& aRect)
 {
-  // once we have all that we'll draw the focus if we have it. We will
-  // need to draw 2 focuses, the inner and the outer. This is so we
-  // can do any kind of look and feel. Some buttons have focus on the
-  // outside like mac and motif. While others like windows have it
-  // inside (dotted line).  Usually only one will be specifed. But I
-  // guess you could have both if you wanted to.
+  // once we have all that we'll draw the focus if we have it. We will need to draw 2 focuses,
+  // the inner and the outer. This is so we can do any kind of look and feel some buttons have
+  // focus on the outside like mac and motif. While others like windows have it inside (dotted line).
+  // Usually only one will be specifed. But I guess you could have both if you wanted to.
 
   nsRect rect;
 
@@ -194,7 +192,7 @@ nsButtonFrameRenderer::PaintOutlineAndFocusBorders(nsPresContext* aPresContext,
 
     const nsStyleBorder* border = mOuterFocusStyle->GetStyleBorder();
     nsCSSRendering::PaintBorder(aPresContext, aRenderingContext, mFrame,
-                                aDirtyRect, rect, *border, mOuterFocusStyle);
+                                aDirtyRect, rect, *border, mOuterFocusStyle, 0);
   }
 
   if (mInnerFocusStyle) { 
@@ -204,7 +202,7 @@ nsButtonFrameRenderer::PaintOutlineAndFocusBorders(nsPresContext* aPresContext,
 
     const nsStyleBorder* border = mInnerFocusStyle->GetStyleBorder();
     nsCSSRendering::PaintBorder(aPresContext, aRenderingContext, mFrame,
-                                aDirtyRect, rect, *border, mInnerFocusStyle);
+                                aDirtyRect, rect, *border, mInnerFocusStyle, 0);
   }
 }
 
@@ -229,7 +227,7 @@ nsButtonFrameRenderer::PaintBorderAndBackground(nsPresContext* aPresContext,
                                   aDirtyRect, buttonRect, *border, *padding,
                                   PR_FALSE);
   nsCSSRendering::PaintBorder(aPresContext, aRenderingContext, mFrame,
-                              aDirtyRect, buttonRect, *border, context);
+                              aDirtyRect, buttonRect, *border, context, 0);
 }
 
 

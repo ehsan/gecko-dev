@@ -163,11 +163,11 @@ let DownloadUtils = {
   getDownloadStatus: function DU_getDownloadStatus(aCurrBytes, aMaxBytes,
                                                    aSpeed, aLastSec)
   {
-    if (aMaxBytes == null)
+    if (isNil(aMaxBytes))
       aMaxBytes = -1;
-    if (aSpeed == null)
+    if (isNil(aSpeed))
       aSpeed = -1;
-    if (aLastSec == null)
+    if (isNil(aLastSec))
       aLastSec = Infinity;
 
     // Calculate the time remaining if we have valid values
@@ -211,7 +211,7 @@ let DownloadUtils = {
    */
   getTransferTotal: function DU_getTransferTotal(aCurrBytes, aMaxBytes)
   {
-    if (aMaxBytes == null)
+    if (isNil(aMaxBytes))
       aMaxBytes = -1;
 
     let [progress, progressUnits] = DownloadUtils.convertByteUnits(aCurrBytes);
@@ -248,7 +248,7 @@ let DownloadUtils = {
    */
   getTimeLeft: function DU_getTimeLeft(aSeconds, aLastSec)
   {
-    if (aLastSec == null)
+    if (isNil(aLastSec))
       aLastSec = Infinity;
 
     if (aSeconds < 0)
@@ -485,6 +485,18 @@ function convertTimeUnitsUnits(aTime, aIndex)
 function replaceInsert(aText, aIndex, aValue)
 {
   return aText.replace("#" + aIndex, aValue);
+}
+
+/**
+ * Private helper function to determine if an argument is null or undefined
+ *
+ * @param aArg
+ *        The argument to check for nullness or undefinedness
+ * @return true if null or undefined, false otherwise
+ */
+function isNil(aArg)
+{
+  return (aArg == null) || (aArg == undefined);
 }
 
 /**

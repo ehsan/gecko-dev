@@ -184,16 +184,10 @@ public:
   PRBool ShouldBuildChildFrames(nsIContent* aContent);
 
   // Style rule methods
-  nsresult WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc,
+  nsresult WalkRules(nsStyleSet* aStyleSet, 
+                     nsIStyleRuleProcessor::EnumFunc aFunc,
                      RuleProcessorData* aData,
                      PRBool* aCutOffInheritance);
-  /**
-   * Do any processing that needs to happen as a result of a change in
-   * the characteristics of the medium, and return whether this rule
-   * processor's rules have changed (e.g., because of media queries).
-   */
-  nsresult MediumFeaturesChanged(nsPresContext* aPresContext,
-                                 PRBool* aRulesChanged);
 
   NS_HIDDEN_(void) Traverse(nsIContent *aContent,
                             nsCycleCollectionTraversalCallback &cb);

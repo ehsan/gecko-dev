@@ -374,9 +374,6 @@ typedef PRUint32 nsReflowStatus;
 // The type of break requested can be found in these bits.
 #define NS_INLINE_BREAK_TYPE_MASK    0xF000
 
-// Set when a break was induced by completion of a first-letter
-#define NS_INLINE_BREAK_FIRST_LETTER_COMPLETE 0x10000
-
 //----------------------------------------
 // Macros that use those bits
 
@@ -1126,8 +1123,6 @@ public:
    *
    * It is not acceptable for a frame to mark itself dirty when this
    * method is called.
-   *
-   * This method must not return a negative value.
    */
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext) = 0;
 

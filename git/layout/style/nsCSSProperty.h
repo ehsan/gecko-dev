@@ -72,22 +72,8 @@ enum nsCSSType {
   eCSSType_Rect,
   eCSSType_ValuePair,
   eCSSType_ValueList,
-  eCSSType_ValuePairList
-};
-
-// The "descriptors" that can appear in a @font-face rule.
-// They have the syntax of properties but different value rules.
-// Keep in sync with kCSSRawFontDescs in nsCSSProps.cpp and
-// nsCSSFontFaceStyleDecl::Fields in nsCSSRules.cpp.
-enum nsCSSFontDesc {
-  eCSSFontDesc_UNKNOWN = -1,
-  eCSSFontDesc_Family,
-  eCSSFontDesc_Style,
-  eCSSFontDesc_Weight,
-  eCSSFontDesc_Stretch,
-  eCSSFontDesc_Src,
-  eCSSFontDesc_UnicodeRange,
-  eCSSFontDesc_COUNT
+  eCSSType_CounterData,
+  eCSSType_Quotes
 };
 
 #endif /* nsCSSProperty_h___ */

@@ -488,8 +488,7 @@ GetOrMakeFont(const nsAString& aName, const gfxFontStyle *aStyle)
 {
     nsRefPtr<gfxFont> font = gfxFontCache::GetCache()->Lookup(aName, aStyle);
     if (!font) {
-        nsRefPtr<gfxPangoFontEntry> fe = new gfxPangoFontEntry(aName);
-        font = new gfxPangoFont(fe, aStyle);
+        font = new gfxPangoFont(aName, aStyle);
         if (!font)
             return nsnull;
         gfxFontCache::GetCache()->AddNew(font);
@@ -553,9 +552,9 @@ gfxPangoFontGroup::Copy(const gfxFontStyle *aStyle)
  ** gfxPangoFont
  **/
 
-gfxPangoFont::gfxPangoFont(gfxPangoFontEntry *aFontEntry,
+gfxPangoFont::gfxPangoFont(const nsAString &aName,
                            const gfxFontStyle *aFontStyle)
-    : gfxFont(aFontEntry, aFontStyle),
+    : gfxFont(aName, aFontStyle),
       mPangoFont(nsnull), mCairoFont(nsnull),
       mHasMetrics(PR_FALSE), mAdjustedSize(0)
 {
@@ -571,9 +570,9 @@ static GQuark GetFontQuark()
     return quark;
 }
 
-gfxPangoFont::gfxPangoFont(PangoFont *aPangoFont, gfxPangoFontEntry *aFontEntry,
+gfxPangoFont::gfxPangoFont(PangoFont *aPangoFont, const nsAString &aName,
                            const gfxFontStyle *aFontStyle)
-    : gfxFont(aFontEntry, aFontStyle),
+    : gfxFont(aName, aFontStyle),
       mPangoFont(aPangoFont), mCairoFont(nsnull),
       mHasMetrics(PR_FALSE), mAdjustedSize(aFontStyle->size)
 {
@@ -743,8 +742,8 @@ gfxPangoFont::GetOrMakeFont(PangoFont *aPangoFont)
 
         // (The PangoFontDescription owns the family string)
         const char *family = pango_font_description_get_family(desc);
-        nsRefPtr<gfxPangoFontEntry> fe = new gfxPangoFontEntry(NS_ConvertUTF8toUTF16(family));
-        font = new gfxPangoFont(aPangoFont, fe, &fontStyle);
+        font = new gfxPangoFont(aPangoFont,
+                                NS_ConvertUTF8toUTF16(family), &fontStyle);
 
         pango_font_description_free(desc);
         if (!font)
@@ -781,7 +780,7 @@ gfxPangoFont::RealizePangoFont()
         return;
 
     PangoFontDescription *pangoFontDesc =
-        NewPangoFontDescription(GetName(), GetStyle());
+        NewPangoFontDescription(mName, GetStyle());
 
     PangoContext *pangoCtx = gdk_pango_context_get();
 
@@ -1013,10 +1012,10 @@ gfxPangoFont::GetMetrics()
     SanitizeMetrics(&mMetrics, PR_FALSE);
 
 #if 0
-    //    printf("font name: %s %f %f\n", NS_ConvertUTF16toUTF8(GetName()).get(), GetStyle()->size, mAdjustedSize);
+    //    printf("font name: %s %f %f\n", NS_ConvertUTF16toUTF8(mName).get(), GetStyle()->size, mAdjustedSize);
     //    printf ("pango font %s\n", pango_font_description_to_string (pango_font_describe (font)));
 
-    fprintf (stderr, "Font: %s\n", NS_ConvertUTF16toUTF8(GetName()).get());
+    fprintf (stderr, "Font: %s\n", NS_ConvertUTF16toUTF8(mName).get());
     fprintf (stderr, "    emHeight: %f emAscent: %f emDescent: %f\n", mMetrics.emHeight, mMetrics.emAscent, mMetrics.emDescent);
     fprintf (stderr, "    maxAscent: %f maxDescent: %f\n", mMetrics.maxAscent, mMetrics.maxDescent);
     fprintf (stderr, "    internalLeading: %f externalLeading: %f\n", mMetrics.externalLeading, mMetrics.internalLeading);

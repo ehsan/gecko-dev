@@ -71,7 +71,8 @@ struct JSFunction {
     union {
         struct {
             uint16      extra;  /* number of arg slots for local GC roots */
-            uint16      spare;  /* reserved for future use */
+            uint16      minargs;/* minimum number of specified arguments, used
+                                   only when calling fast native */
             JSNative    native; /* native method pointer or null */
             JSClass     *clasp; /* if non-null, constructor for this class */
         } n;
@@ -99,7 +100,7 @@ struct JSFunction {
                               ? (JSFastNative) (fun)->u.n.native              \
                               : NULL)
 #define FUN_MINARGS(fun)     (((fun)->flags & JSFUN_FAST_NATIVE)              \
-                              ? 0                                             \
+                              ? (fun)->u.n.minargs                            \
                               : (fun)->nargs)
 
 extern JSClass js_ArgumentsClass;

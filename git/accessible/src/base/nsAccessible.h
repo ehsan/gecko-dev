@@ -69,6 +69,9 @@ class nsIView;
 #define NS_OK_NO_ARIA_VALUE \
 NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_GENERAL, 0x21)
 
+// When mNextSibling is set to this, it indicates there ar eno more siblings
+#define DEAD_END_ACCESSIBLE static_cast<nsIAccessible*>((void*)1)
+
 // Saves a data member -- if child count equals this value we haven't
 // cached children or child count yet
 enum { eChildCountUninitialized = -1 };
@@ -103,8 +106,6 @@ public:
   virtual ~nsAccessible();
 
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsAccessible, nsAccessNode)
-
   NS_DECL_NSIACCESSIBLE
   NS_DECL_NSPIACCESSIBLE
   NS_DECL_NSIACCESSIBLEHYPERLINK
@@ -271,9 +272,7 @@ protected:
 
   // Data Members
   nsCOMPtr<nsIAccessible> mParent;
-  nsCOMPtr<nsIAccessible> mFirstChild;
-  nsCOMPtr<nsIAccessible> mNextSibling;
-
+  nsIAccessible *mFirstChild, *mNextSibling;
   nsRoleMapEntry *mRoleMapEntry; // Non-null indicates author-supplied role; possibly state & value as well
   PRInt32 mAccChildCount;
 };

@@ -44,7 +44,7 @@
 //#define FORCE_PR_LOG /* Allow logging in the release build */
 
 #include "nsITimer.h"
-#include "nsIEventTarget.h"
+#include "nsIThread.h"
 #include "nsIObserver.h"
 
 #include "nsCOMPtr.h"
@@ -121,7 +121,7 @@ private:
       NS_RELEASE(mCallback.o);
   }
 
-  nsCOMPtr<nsIEventTarget> mEventTarget;
+  nsCOMPtr<nsIThread>   mCallingThread;
 
   void *                mClosure;
 

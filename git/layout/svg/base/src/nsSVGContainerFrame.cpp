@@ -105,6 +105,13 @@ nsSVGDisplayContainerFrame::Init(nsIContent* aContent,
   return rv;
 }
 
+void
+nsSVGDisplayContainerFrame::Destroy()
+{
+  nsSVGUtils::StyleEffects(this);
+  nsSVGContainerFrame::Destroy();
+}
+
 NS_IMETHODIMP
 nsSVGDisplayContainerFrame::InsertFrames(nsIAtom* aListName,
                                          nsIFrame* aPrevFrame,

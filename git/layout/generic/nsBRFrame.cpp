@@ -273,10 +273,8 @@ NS_IMETHODIMP BRFrame::GetAccessible(nsIAccessible** aAccessible)
   NS_ENSURE_TRUE(mContent, NS_ERROR_FAILURE);
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
   NS_ENSURE_TRUE(accService, NS_ERROR_FAILURE);
-  nsIContent *parent = mContent->GetParent();
-  if (parent &&
-      parent->IsRootOfNativeAnonymousSubtree() &&
-      parent->GetChildCount() == 1) {
+  nsCOMPtr<nsIContent> parent = mContent->GetBindingParent();
+  if (parent && parent->IsNativeAnonymous() && parent->GetChildCount() == 1) {
     // This <br> is the only node in a text control, therefore it is the hacky
     // "bogus node" used when there is no text in the control
     return NS_ERROR_FAILURE;

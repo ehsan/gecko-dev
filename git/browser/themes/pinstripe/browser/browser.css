@@ -1022,7 +1022,7 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
 }
 
 .ac-url-text {
-  color: -moz-nativehyperlinktext;
+  color: #144fae;
   font-size: 0.95em;
 }
 

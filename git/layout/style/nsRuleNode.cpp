@@ -241,16 +241,6 @@ static nscoord CalcLength(const nsCSSValue& aValue,
   return CalcLengthWith(aValue, -1, nsnull, aStyleContext, aPresContext, aInherited);
 }
 
-/* static */ nscoord
-nsRuleNode::CalcLengthWithInitialFont(nsPresContext* aPresContext,
-                                      const nsCSSValue& aValue)
-{
-  nsStyleFont defaultFont(aPresContext);
-  PRBool inherited;
-  return CalcLengthWith(aValue, -1, &defaultFont, nsnull, aPresContext,
-                        inherited);
-}
-
 #define SETCOORD_NORMAL                 0x01   // N
 #define SETCOORD_AUTO                   0x02   // A
 #define SETCOORD_INHERIT                0x04   // H
@@ -966,10 +956,17 @@ ValueListArrayAtOffset(const nsRuleDataStruct& aRuleDataStruct, size_t aOffset)
                            (reinterpret_cast<const char*>(&aRuleDataStruct) + aOffset);
 }
 
-inline const nsCSSValuePairList*
-ValuePairListAtOffset(const nsRuleDataStruct& aRuleDataStruct, size_t aOffset)
+inline const nsCSSCounterData*
+CounterDataAtOffset(const nsRuleDataStruct& aRuleDataStruct, size_t aOffset)
 {
-  return * reinterpret_cast<const nsCSSValuePairList*const*>
+  return * reinterpret_cast<const nsCSSCounterData*const*>
+                           (reinterpret_cast<const char*>(&aRuleDataStruct) + aOffset);
+}
+
+inline const nsCSSQuotes*
+QuotesAtOffset(const nsRuleDataStruct& aRuleDataStruct, size_t aOffset)
+{
+  return * reinterpret_cast<const nsCSSQuotes*const*>
                            (reinterpret_cast<const char*>(&aRuleDataStruct) + aOffset);
 }
 
@@ -1033,14 +1030,28 @@ nsRuleNode::CheckSpecifiedProperties(const nsStyleStructID aSID,
         }
         break;
 
-      case eCSSType_ValuePairList:
+      case eCSSType_CounterData:
         {
           ++total;
-          const nsCSSValuePairList* quotes =
-              ValuePairListAtOffset(aRuleDataStruct, prop->offset);
+          const nsCSSCounterData* counterData =
+              CounterDataAtOffset(aRuleDataStruct, prop->offset);
+          if (counterData) {
+            ++specified;
+            if (eCSSUnit_Inherit == counterData->mCounter.GetUnit()) {
+              ++inherited;
+            }
+          }
+        }
+        break;
+
+      case eCSSType_Quotes:
+        {
+          ++total;
+          const nsCSSQuotes* quotes =
+              QuotesAtOffset(aRuleDataStruct, prop->offset);
           if (quotes) {
             ++specified;
-            if (eCSSUnit_Inherit == quotes->mXValue.GetUnit()) {
+            if (eCSSUnit_Inherit == quotes->mOpen.GetUnit()) {
               ++inherited;
             }
           }
@@ -2789,19 +2800,6 @@ nsRuleNode::ComputeTextData(void* aStartStruct,
            SETCOORD_LH | SETCOORD_NORMAL | SETCOORD_INITIAL_NORMAL,
            aContext, mPresContext, inherited);
 
-  // word-wrap: enum, normal, inherit
-  if (eCSSUnit_Enumerated == textData.mWordWrap.GetUnit()) {
-    text->mWordWrap = textData.mWordWrap.GetIntValue();
-  }
-  else if (eCSSUnit_Normal == textData.mWordWrap.GetUnit() ||
-           eCSSUnit_Initial == textData.mWordWrap.GetUnit()) {
-    text->mWordWrap = NS_STYLE_WORDWRAP_NORMAL;
-  }
-  else if (eCSSUnit_Inherit == textData.mWordWrap.GetUnit()) {
-    inherited = PR_TRUE;
-    text->mWordWrap = parentText->mWordWrap;
-  }
-
   COMPUTE_END_INHERITED(Text, text)
 }
 
@@ -4467,13 +4465,13 @@ nsRuleNode::ComputeContentData(void* aStartStruct,
   }
 
   // counter-increment: [string [int]]+, none, inherit
-  nsCSSValuePairList* ourIncrement = contentData.mCounterIncrement;
+  nsCSSCounterData* ourIncrement = contentData.mCounterIncrement;
   if (ourIncrement) {
-    if (eCSSUnit_None == ourIncrement->mXValue.GetUnit() ||
-        eCSSUnit_Initial == ourIncrement->mXValue.GetUnit()) {
+    if (eCSSUnit_None == ourIncrement->mCounter.GetUnit() ||
+        eCSSUnit_Initial == ourIncrement->mCounter.GetUnit()) {
       content->AllocateCounterIncrements(0);
     }
-    else if (eCSSUnit_Inherit == ourIncrement->mXValue.GetUnit()) {
+    else if (eCSSUnit_Inherit == ourIncrement->mCounter.GetUnit()) {
       inherited = PR_TRUE;
       count = parentContent->CounterIncrementCount();
       if (NS_SUCCEEDED(content->AllocateCounterIncrements(count))) {
@@ -4484,7 +4482,7 @@ nsRuleNode::ComputeContentData(void* aStartStruct,
         }
       }
     }
-    else if (eCSSUnit_String == ourIncrement->mXValue.GetUnit()) {
+    else if (eCSSUnit_String == ourIncrement->mCounter.GetUnit()) {
       count = 0;
       while (ourIncrement) {
         count++;
@@ -4495,13 +4493,13 @@ nsRuleNode::ComputeContentData(void* aStartStruct,
         ourIncrement = contentData.mCounterIncrement;
         while (ourIncrement) {
           PRInt32 increment;
-          if (eCSSUnit_Integer == ourIncrement->mYValue.GetUnit()) {
-            increment = ourIncrement->mYValue.GetIntValue();
+          if (eCSSUnit_Integer == ourIncrement->mValue.GetUnit()) {
+            increment = ourIncrement->mValue.GetIntValue();
           }
           else {
             increment = 1;
           }
-          ourIncrement->mXValue.GetStringValue(buffer);
+          ourIncrement->mCounter.GetStringValue(buffer);
           content->SetCounterIncrementAt(count++, buffer, increment);
           ourIncrement = ourIncrement->mNext;
         }
@@ -4510,13 +4508,13 @@ nsRuleNode::ComputeContentData(void* aStartStruct,
   }
 
   // counter-reset: [string [int]]+, none, inherit
-  nsCSSValuePairList* ourReset = contentData.mCounterReset;
+  nsCSSCounterData* ourReset = contentData.mCounterReset;
   if (ourReset) {
-    if (eCSSUnit_None == ourReset->mXValue.GetUnit() ||
-        eCSSUnit_Initial == ourReset->mXValue.GetUnit()) {
+    if (eCSSUnit_None == ourReset->mCounter.GetUnit() ||
+        eCSSUnit_Initial == ourReset->mCounter.GetUnit()) {
       content->AllocateCounterResets(0);
     }
-    else if (eCSSUnit_Inherit == ourReset->mXValue.GetUnit()) {
+    else if (eCSSUnit_Inherit == ourReset->mCounter.GetUnit()) {
       inherited = PR_TRUE;
       count = parentContent->CounterResetCount();
       if (NS_SUCCEEDED(content->AllocateCounterResets(count))) {
@@ -4527,7 +4525,7 @@ nsRuleNode::ComputeContentData(void* aStartStruct,
         }
       }
     }
-    else if (eCSSUnit_String == ourReset->mXValue.GetUnit()) {
+    else if (eCSSUnit_String == ourReset->mCounter.GetUnit()) {
       count = 0;
       while (ourReset) {
         count++;
@@ -4538,13 +4536,13 @@ nsRuleNode::ComputeContentData(void* aStartStruct,
         ourReset = contentData.mCounterReset;
         while (ourReset) {
           PRInt32 reset;
-          if (eCSSUnit_Integer == ourReset->mYValue.GetUnit()) {
-            reset = ourReset->mYValue.GetIntValue();
+          if (eCSSUnit_Integer == ourReset->mValue.GetUnit()) {
+            reset = ourReset->mValue.GetIntValue();
           }
           else {
             reset = 0;
           }
-          ourReset->mXValue.GetStringValue(buffer);
+          ourReset->mCounter.GetStringValue(buffer);
           content->SetCounterResetAt(count++, buffer, reset);
           ourReset = ourReset->mNext;
         }
@@ -4573,12 +4571,12 @@ nsRuleNode::ComputeQuotesData(void* aStartStruct,
   // quotes: [string string]+, none, inherit
   PRUint32 count;
   nsAutoString  buffer;
-  nsCSSValuePairList* ourQuotes = contentData.mQuotes;
+  nsCSSQuotes* ourQuotes = contentData.mQuotes;
   if (ourQuotes) {
     nsAutoString  closeBuffer;
     // FIXME Bug 389406: Implement eCSSUnit_Initial (correctly, unlike
     // style structs), and remove the "initial" value from ua.css.
-    if (eCSSUnit_Inherit == ourQuotes->mXValue.GetUnit()) {
+    if (eCSSUnit_Inherit == ourQuotes->mOpen.GetUnit()) {
       inherited = PR_TRUE;
       count = parentQuotes->QuotesCount();
       if (NS_SUCCEEDED(quotes->AllocateQuotes(count))) {
@@ -4588,10 +4586,10 @@ nsRuleNode::ComputeQuotesData(void* aStartStruct,
         }
       }
     }
-    else if (eCSSUnit_None == ourQuotes->mXValue.GetUnit()) {
+    else if (eCSSUnit_None == ourQuotes->mOpen.GetUnit()) {
       quotes->AllocateQuotes(0);
     }
-    else if (eCSSUnit_String == ourQuotes->mXValue.GetUnit()) {
+    else if (eCSSUnit_String == ourQuotes->mOpen.GetUnit()) {
       count = 0;
       while (ourQuotes) {
         count++;
@@ -4601,8 +4599,8 @@ nsRuleNode::ComputeQuotesData(void* aStartStruct,
         count = 0;
         ourQuotes = contentData.mQuotes;
         while (ourQuotes) {
-          ourQuotes->mXValue.GetStringValue(buffer);
-          ourQuotes->mYValue.GetStringValue(closeBuffer);
+          ourQuotes->mOpen.GetStringValue(buffer);
+          ourQuotes->mClose.GetStringValue(closeBuffer);
           Unquote(buffer);
           Unquote(closeBuffer);
           quotes->SetQuotesAt(count++, buffer, closeBuffer);

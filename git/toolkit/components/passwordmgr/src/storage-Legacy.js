@@ -316,9 +316,6 @@ LoginManagerStorage_legacy.prototype = {
         // decrypt entries for caller.
         [result, userCanceled] = this._decryptLogins(result);
 
-        if (userCanceled)
-            throw "User canceled Master Password entry";
-
         count.value = result.length; // needed for XPCOM
         return result;
     },
@@ -817,9 +814,10 @@ LoginManagerStorage_legacy.prototype = {
 
         this.log("Reading passwords from " + this._signonsFile.path);
 
-        // If it doesn't exist, just bail out.
+        // If it doesn't exist, just create an empty file and bail out.
         if (!this._signonsFile.exists()) {
-            this.log("No existing signons file found.");
+            this.log("Creating new signons file...");
+            this._writeFile();
             return;
         }
 

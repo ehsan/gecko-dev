@@ -833,7 +833,6 @@ ns4xPluginInstance::ns4xPluginInstance(NPPluginFuncs* callbacks,
     mStarted(PR_FALSE),
     mCached(PR_FALSE),
     mIsJavaPlugin(PR_FALSE),
-    mWantsAllNetworkStreams(PR_FALSE),
     mInPluginInitCall(PR_FALSE),
     fLibrary(aLibrary),
     mStreams(nsnull)
@@ -1435,13 +1434,6 @@ NPError ns4xPluginInstance::SetWindowless(PRBool aWindowless)
 NPError ns4xPluginInstance::SetTransparent(PRBool aTransparent)
 {
   mTransparent = aTransparent;
-  return NPERR_NO_ERROR;
-}
-
-////////////////////////////////////////////////////////////////////////
-NPError ns4xPluginInstance::SetWantsAllNetworkStreams(PRBool aWantsAllNetworkStreams)
-{
-  mWantsAllNetworkStreams = aWantsAllNetworkStreams;
   return NPERR_NO_ERROR;
 }
 

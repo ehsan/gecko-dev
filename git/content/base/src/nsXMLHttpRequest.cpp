@@ -84,7 +84,6 @@
 #include "nsLayoutStatics.h"
 #include "nsDOMError.h"
 #include "nsIHTMLDocument.h"
-#include "nsIDOM3Document.h"
 #include "nsWhitespaceTokenizer.h"
 #include "nsIMultiPartChannel.h"
 #include "nsIScriptObjectPrincipal.h"
@@ -703,15 +702,9 @@ nsXMLHttpRequest::ConvertBodyToText(nsAString& aOutBuffer)
   nsresult rv = NS_OK;
 
   nsCAutoString dataCharset;
-  nsCOMPtr<nsIDOM3Document> document(do_QueryInterface(mDocument));
+  nsCOMPtr<nsIDocument> document(do_QueryInterface(mDocument));
   if (document) {
-    nsAutoString inputEncoding;
-    document->GetInputEncoding(inputEncoding);
-    if (DOMStringIsNull(inputEncoding)) {
-      dataCharset.AssignLiteral("UTF-8");
-    } else {
-      CopyUTF16toUTF8(inputEncoding, dataCharset);
-    }
+    dataCharset = document->GetDocumentCharacterSet();
   } else {
     if (NS_FAILED(DetectCharset(dataCharset)) || dataCharset.IsEmpty()) {
       // MS documentation states UTF-8 is default for responseText
