@@ -54,13 +54,14 @@
 #include "mozilla/Hal.h"
 #include "mozilla/HalTypes.h"
 
-namespace mozilla {
-namespace layers {
-
 using namespace base;
+using namespace mozilla;
 using namespace mozilla::ipc;
 using namespace mozilla::gfx;
 using namespace std;
+
+namespace mozilla {
+namespace layers {
 
 CompositorParent::LayerTreeState::LayerTreeState()
   : mParent(nullptr)

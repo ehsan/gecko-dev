@@ -5059,10 +5059,10 @@ class MOZ_STACK_CLASS JS_PUBLIC_API(ForOfIterator) {
  */
 
 typedef void
-(* LargeAllocationFailureCallback)(void *data);
+(* LargeAllocationFailureCallback)();
 
 extern JS_PUBLIC_API(void)
-SetLargeAllocationFailureCallback(JSRuntime *rt, LargeAllocationFailureCallback afc, void *data);
+SetLargeAllocationFailureCallback(JSRuntime *rt, LargeAllocationFailureCallback afc);
 
 /*
  * Unlike the error reporter, which is only called if the exception for an OOM
@@ -5076,10 +5076,10 @@ SetLargeAllocationFailureCallback(JSRuntime *rt, LargeAllocationFailureCallback 
  */
 
 typedef void
-(* OutOfMemoryCallback)(JSContext *cx, void *data);
+(* OutOfMemoryCallback)(JSContext *cx);
 
 extern JS_PUBLIC_API(void)
-SetOutOfMemoryCallback(JSRuntime *rt, OutOfMemoryCallback cb, void *data);
+SetOutOfMemoryCallback(JSRuntime *rt, OutOfMemoryCallback cb);
 
 } /* namespace JS */
 

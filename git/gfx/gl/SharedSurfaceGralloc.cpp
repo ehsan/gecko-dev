@@ -29,11 +29,10 @@
 #define DEBUG_PRINT(...) do { } while (0)
 #endif
 
-namespace mozilla {
-namespace gl {
-
+using namespace mozilla;
 using namespace mozilla::gfx;
-using namespace mozilla::layers;
+using namespace gl;
+using namespace layers;
 using namespace android;
 
 SurfaceFactory_Gralloc::SurfaceFactory_Gralloc(GLContext* prodGL,
@@ -211,7 +210,4 @@ void
 SharedSurface_Gralloc::WaitForBufferOwnership()
 {
     mTextureClient->WaitReleaseFence();
-}
-
-}
 }

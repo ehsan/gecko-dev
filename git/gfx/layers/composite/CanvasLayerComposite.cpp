@@ -20,9 +20,8 @@
 #include "nsPoint.h"                    // for nsIntPoint
 #include "nsString.h"                   // for nsAutoCString
 
-namespace mozilla {
-namespace layers {
-
+using namespace mozilla;
+using namespace mozilla::layers;
 using namespace mozilla::gfx;
 
 CanvasLayerComposite::CanvasLayerComposite(LayerManagerComposite* aManager)
@@ -145,5 +144,3 @@ CanvasLayerComposite::PrintInfo(nsACString& aTo, const char* aPrefix)
   return aTo;
 }
 
-}
-}

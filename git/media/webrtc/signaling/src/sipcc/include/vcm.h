@@ -466,12 +466,10 @@ short vcmGetIceParams(const char *peerconnection, char **ufragp, char **pwdp);
  *  @param[in]  peerconnection - the peerconnection in use
  *  @param[in]  ufrag - the ufrag
  *  @param[in]  pwd - the pwd
- *  @param[in]  icelite - is peer ice lite
  *
  *  @return 0 success, error failure
  */
-short vcmSetIceSessionParams(const char *peerconnection, char *ufrag, char *pwd,
-                             cc_boolean icelite);
+short vcmSetIceSessionParams(const char *peerconnection, char *ufrag, char *pwd);
 
 /* Set ice candidate for trickle ICE.
  *

@@ -7111,13 +7111,8 @@ gsmsdp_install_peer_ice_attributes(fsm_fcb_t *fcb_p)
     if (sdp_res != SDP_SUCCESS)
       pwd = NULL;
 
-    /* ice-lite is a session level attribute only, RFC 5245 15.3 */
-    dcb_p->peer_ice_lite = sdp_attr_is_present(sdp_p->dest_sdp,
-      SDP_ATTR_ICE_LITE, SDP_SESSION_LEVEL, 0);
-
-    if ((ufrag && pwd) || dcb_p->peer_ice_lite) {
-        vcm_res = vcmSetIceSessionParams(dcb_p->peerconnection, ufrag, pwd,
-                                         dcb_p->peer_ice_lite);
+    if (ufrag && pwd) {
+        vcm_res = vcmSetIceSessionParams(dcb_p->peerconnection, ufrag, pwd);
         if (vcm_res)
             return (CC_CAUSE_SETTING_ICE_SESSION_PARAMETERS_FAILED);
     }

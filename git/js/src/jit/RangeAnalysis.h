@@ -588,11 +588,6 @@ class Range : public TempObject {
     void setSymbolicUpper(SymbolicBound *bound) {
         symbolicUpper_ = bound;
     }
-
-    void resetFractionalPart() {
-        canHaveFractionalPart_ = false;
-        optimize();
-    }
 };
 
 } // namespace jit

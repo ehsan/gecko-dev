@@ -51,11 +51,10 @@ public:
     NotAKnownUniform = -1,
 
     LayerTransform = 0,
-    MaskTransform,
-    LayerRect,
+    MaskQuadTransform,
+    LayerQuadRect,
     MatrixProj,
     TextureTransform,
-    TextureRect,
     RenderTargetOffset,
     LayerOpacity,
     Texture,
@@ -319,12 +318,12 @@ public:
   }
 
   void SetMaskLayerTransform(const gfx::Matrix4x4& aMatrix) {
-    SetMatrixUniform(KnownUniform::MaskTransform, aMatrix);
+    SetMatrixUniform(KnownUniform::MaskQuadTransform, aMatrix);
   }
 
-  void SetLayerRect(const gfx::Rect& aRect) {
+  void SetLayerQuadRect(const gfx::Rect& aRect) {
     float vals[4] = { float(aRect.x), float(aRect.y), float(aRect.width), float(aRect.height) };
-    SetUniform(KnownUniform::LayerRect, 4, vals);
+    SetUniform(KnownUniform::LayerQuadRect, 4, vals);
   }
 
   void SetProjectionMatrix(const gfx::Matrix4x4& aMatrix) {
@@ -334,11 +333,6 @@ public:
   // sets this program's texture transform, if it uses one
   void SetTextureTransform(const gfx::Matrix4x4& aMatrix) {
     SetMatrixUniform(KnownUniform::TextureTransform, aMatrix);
-  }
-
-  void SetTextureRect(const gfx::Rect& aRect) {
-    float vals[4] = { float(aRect.x), float(aRect.y), float(aRect.width), float(aRect.height) };
-    SetUniform(KnownUniform::TextureRect, 4, vals);
   }
 
   void SetRenderOffset(const nsIntPoint& aOffset) {

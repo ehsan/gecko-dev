@@ -755,7 +755,7 @@ CreateMappedArrayBuffer(JSContext *cx, unsigned argc, Value *vp)
             JS_ReportError(cx, "Unable to stat file");
             return false;
         }
-        if (st.st_size < off_t(offset)) {
+        if (st.st_size < offset) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
                                  JSMSG_ARG_INDEX_OUT_OF_RANGE, "2");
             return false;
@@ -800,26 +800,33 @@ Options(JSContext *cx, unsigned argc, jsval *vp)
         else if (strcmp(opt.ptr(), "strict_mode") == 0)
             JS::ContextOptionsRef(cx).toggleStrictMode();
         else {
-            JS_ReportError(cx,
-                           "unknown option name '%s'."
-                           " The valid names are strict,"
-                           " werror, and strict_mode.",
-                           opt.ptr());
+            char* msg = JS_sprintf_append(nullptr,
+                                          "unknown option name '%s'."
+                                          " The valid names are strict,"
+                                          " werror, and strict_mode.",
+                                          opt.ptr());
+            if (!msg) {
+                JS_ReportOutOfMemory(cx);
+                return false;
+            }
+
+            JS_ReportError(cx, msg);
+            free(msg);
             return false;
         }
     }
 
     char *names = strdup("");
     bool found = false;
-    if (names && oldContextOptions.extraWarnings()) {
+    if (!names && oldContextOptions.extraWarnings()) {
         names = JS_sprintf_append(names, "%s%s", found ? "," : "", "strict");
         found = true;
     }
-    if (names && oldContextOptions.werror()) {
+    if (!names && oldContextOptions.werror()) {
         names = JS_sprintf_append(names, "%s%s", found ? "," : "", "werror");
         found = true;
     }
-    if (names && oldContextOptions.strictMode()) {
+    if (!names && oldContextOptions.strictMode()) {
         names = JS_sprintf_append(names, "%s%s", found ? "," : "", "strict_mode");
         found = true;
     }
@@ -2432,7 +2439,7 @@ DumpHeap(JSContext *cx, unsigned argc, jsval *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     JSAutoByteString fileName;
-    if (args.hasDefined(0) && !args[0].isNull()) {
+    if (args.hasDefined(0)) {
         RootedString str(cx, JS::ToString(cx, args[0]));
         if (!str)
             return false;
@@ -5009,7 +5016,7 @@ my_ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
 }
 
 static void
-my_OOMCallback(JSContext *cx, void *data)
+my_OOMCallback(JSContext *cx)
 {
     // If a script is running, the engine is about to throw the string "out of
     // memory", which may or may not be caught. Otherwise the engine will just
@@ -6256,7 +6263,7 @@ main(int argc, char **argv, char **envp)
     if (!rt)
         return 1;
 
-    JS::SetOutOfMemoryCallback(rt, my_OOMCallback, nullptr);
+    JS::SetOutOfMemoryCallback(rt, my_OOMCallback);
     if (!SetRuntimeOptions(rt, op))
         return 1;
 

@@ -41,18 +41,19 @@
 
 struct nsCSSValueSharedList;
 
+using namespace mozilla::dom;
+using namespace mozilla::gfx;
+
 namespace mozilla {
 namespace layers {
-
-using namespace mozilla::gfx;
 
 enum Op { Resolve, Detach };
 
 static bool
-IsSameDimension(dom::ScreenOrientation o1, dom::ScreenOrientation o2)
+IsSameDimension(ScreenOrientation o1, ScreenOrientation o2)
 {
-  bool isO1portrait = (o1 == dom::eScreenOrientation_PortraitPrimary || o1 == dom::eScreenOrientation_PortraitSecondary);
-  bool isO2portrait = (o2 == dom::eScreenOrientation_PortraitPrimary || o2 == dom::eScreenOrientation_PortraitSecondary);
+  bool isO1portrait = (o1 == eScreenOrientation_PortraitPrimary || o1 == eScreenOrientation_PortraitSecondary);
+  bool isO2portrait = (o2 == eScreenOrientation_PortraitPrimary || o2 == eScreenOrientation_PortraitSecondary);
   return !(isO1portrait ^ isO2portrait);
 }
 
@@ -72,8 +73,8 @@ WalkTheTree(Layer* aLayer,
     if (const CompositorParent::LayerTreeState* state = CompositorParent::GetIndirectShadowTree(ref->GetReferentId())) {
       if (Layer* referent = state->mRoot) {
         if (!ref->GetVisibleRegion().IsEmpty()) {
-          dom::ScreenOrientation chromeOrientation = aTargetConfig.orientation();
-          dom::ScreenOrientation contentOrientation = state->mTargetConfig.orientation();
+          ScreenOrientation chromeOrientation = aTargetConfig.orientation();
+          ScreenOrientation contentOrientation = state->mTargetConfig.orientation();
           if (!IsSameDimension(chromeOrientation, contentOrientation) &&
               ContentMightReflowOnOrientationChange(aTargetConfig.clientBounds())) {
             aReady = false;

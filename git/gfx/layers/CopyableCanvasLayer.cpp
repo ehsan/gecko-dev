@@ -24,11 +24,11 @@
 #include "nsSize.h"                     // for nsIntSize
 #include "gfxUtils.h"
 
-namespace mozilla {
-namespace layers {
-
 using namespace mozilla::gfx;
 using namespace mozilla::gl;
+
+namespace mozilla {
+namespace layers {
 
 CopyableCanvasLayer::CopyableCanvasLayer(LayerManager* aLayerManager, void *aImplData) :
   CanvasLayer(aLayerManager, aImplData)
