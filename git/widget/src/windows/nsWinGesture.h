@@ -39,10 +39,6 @@
 #ifndef WinGesture_h__
 #define WinGesture_h__
 
-/*
- * nsWinGesture - Touch input handling for tablet displays.
- */
-
 #include "nsdefs.h"
 #include <winuser.h>
 #include "nsPoint.h"

@@ -48,22 +48,20 @@ class nsDOMXULCommandEvent : public nsDOMUIEvent,
                              public nsIDOMXULCommandEvent
 {
 public:
-  nsDOMXULCommandEvent(nsPresContext* aPresContext, nsInputEvent* aEvent);
+  nsDOMXULCommandEvent(nsPresContext* aPresContext, nsXULCommandEvent* aEvent);
+  virtual ~nsDOMXULCommandEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMXULCommandEvent, nsDOMUIEvent)
   NS_DECL_NSIDOMXULCOMMANDEVENT
 
   // Forward our inherited virtual methods to the base class
   NS_FORWARD_TO_NSDOMUIEVENT
 
-protected:
+private:
   // Convenience accessor for the event
-  nsInputEvent* Event() {
-    return static_cast<nsInputEvent*>(mEvent);
+  nsXULCommandEvent* Event() {
+    return static_cast<nsXULCommandEvent*>(mEvent);
   }
-
-  nsCOMPtr<nsIDOMEvent> mSourceEvent;
 };
 
 #endif  // nsDOMXULCommandEvent_h_

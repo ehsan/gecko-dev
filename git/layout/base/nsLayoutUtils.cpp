@@ -84,9 +84,7 @@
 #include "nsICanvasElement.h"
 #include "nsICanvasRenderingContextInternal.h"
 #include "gfxPlatform.h"
-#ifdef MOZ_MEDIA
 #include "nsHTMLVideoElement.h"
-#endif
 #include "imgIRequest.h"
 #include "imgIContainer.h"
 #include "nsIImageLoadingContent.h"
@@ -894,6 +892,13 @@ nsLayoutUtils::CombineBreakType(PRUint8 aOrigBreakType,
   return breakType;
 }
 
+PRBool
+nsLayoutUtils::IsRootElementFrame(nsIFrame* aFrame)
+{
+  return aFrame ==
+    aFrame->PresContext()->PresShell()->FrameConstructor()->GetRootElementFrame();
+}
+
 #ifdef DEBUG
 #include <stdio.h>
 
@@ -1040,7 +1045,7 @@ GetNextPage(nsIFrame* aPageContentFrame)
 
 nsresult
 nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFrame,
-                          const nsRegion& aDirtyRegion, nscolor aBackstop)
+                          const nsRegion& aDirtyRegion, nscolor aBackground)
 {
   nsAutoDisableGetUsedXAssertions disableAssert;
 
@@ -1048,12 +1053,11 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   nsDisplayList list;
   nsRect dirtyRect = aDirtyRegion.GetBounds();
 
-  nsresult rv;
-
   builder.EnterPresShell(aFrame, dirtyRect);
 
-  rv = aFrame->BuildDisplayListForStackingContext(&builder, dirtyRect, &list);
-
+  nsresult rv =
+    aFrame->BuildDisplayListForStackingContext(&builder, dirtyRect, &list);
+    
   if (NS_SUCCEEDED(rv) && aFrame->GetType() == nsGkAtoms::pageContentFrame) {
     // We may need to paint out-of-flow frames whose placeholders are
     // on other pages. Add those pages to our display list. Note that
@@ -1072,19 +1076,21 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
     }
   }
 
-  // For printing, this function is first called on an nsPageFrame, which
-  // creates a display list with a PageContent item. The PageContent item's
-  // paint function calls this function on the nsPageFrame's child which is
-  // an nsPageContentFrame. We only want to add the canvas background color
-  // item once, for the nsPageContentFrame.
-  if (NS_SUCCEEDED(rv) && aFrame->GetType() != nsGkAtoms::pageFrame) {
-    // Add the canvas background color.
-    rv = aFrame->PresContext()->PresShell()->AddCanvasBackgroundColorItem(
-           builder, list, aFrame, nsnull, aBackstop);
-  }
-
   builder.LeavePresShell(aFrame, dirtyRect);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  if (NS_GET_A(aBackground) > 0) {
+    // Fill the visible area with a background color. In the common case,
+    // the visible area is entirely covered by the background of the root
+    // document (at least!) so this will be removed by the optimizer. In some
+    // cases we might not have a root frame, so this will prevent garbage
+    // from being drawn.
+    rv = list.AppendNewToBottom(new (&builder) nsDisplaySolidColor(
+           aFrame,
+           nsRect(builder.ToReferenceFrame(aFrame), aFrame->GetSize()),
+           aBackground));
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
 #ifdef DEBUG
   if (gDumpPaintList) {

@@ -94,7 +94,6 @@ REQUIRES	= xpcom \
 		  uconv \
 		  txtsvc \
 		  thebes \
-		  html5 \
 		  $(NULL)
 
 CPPSRCS		= \
@@ -140,7 +139,6 @@ SHARED_LIBRARY_LIBS = \
 	$(DEPTH)/dom/src/threads/$(LIB_PREFIX)domthreads_s.$(LIB_SUFFIX) \
 	$(DEPTH)/editor/libeditor/text/$(LIB_PREFIX)texteditor_s.$(LIB_SUFFIX) \
 	$(DEPTH)/editor/libeditor/base/$(LIB_PREFIX)editorbase_s.$(LIB_SUFFIX) \
-	$(DEPTH)/parser/html/$(LIB_PREFIX)html5p_s.$(LIB_SUFFIX) \
 	$(NULL)
 
 ifdef MOZ_MEDIA
@@ -267,11 +265,9 @@ endif
 EXTRA_DSO_LDOPTS += $(MOZ_LOCATION_LIBS)
 
 ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
-EXTRA_DSO_LDOPTS += $(TK_LIBS)
-
-ifdef MOZ_ENABLE_CANVAS3D
-EXTRA_DSO_LDOPTS += -framework OpenGL
-endif
+EXTRA_DSO_LDOPTS += \
+	$(TK_LIBS) \
+	$(NULL)
 endif
 
 # Add explicit X11 dependency when building against X11 toolkits

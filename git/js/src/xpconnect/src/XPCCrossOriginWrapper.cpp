@@ -444,15 +444,14 @@ XPC_XOW_RewrapIfNeeded(JSContext *cx, JSObject *outerObj, jsval *vp)
     return XPC_XOW_WrapFunction(cx, outerObj, obj, vp);
   }
 
-  XPCWrappedNative *wn = nsnull;
   if (STOBJ_GET_CLASS(obj) == &sXPC_XOW_JSClass.base &&
       STOBJ_GET_PARENT(outerObj) != STOBJ_GET_PARENT(obj)) {
     *vp = OBJECT_TO_JSVAL(GetWrappedObject(cx, obj));
-  } else if (!(wn = XPCWrappedNative::GetAndMorphWrappedNativeOfJSObject(cx, obj))) {
+  } else if (!XPCWrappedNative::GetWrappedNativeOfJSObject(cx, obj)) {
     return JS_TRUE;
   }
 
-  return XPC_XOW_WrapObject(cx, JS_GetGlobalForObject(cx, outerObj), vp, wn);
+  return XPC_XOW_WrapObject(cx, JS_GetGlobalForObject(cx, outerObj), vp);
 }
 
 JSBool
@@ -472,7 +471,7 @@ XPC_XOW_WrapObject(JSContext *cx, JSObject *parent, jsval *vp,
   }
 
   if (!wn &&
-      !(wn = XPCWrappedNative::GetAndMorphWrappedNativeOfJSObject(cx, wrappedObj))) {
+      !(wn = XPCWrappedNative::GetWrappedNativeOfJSObject(cx, wrappedObj))) {
     return JS_TRUE;
   }
 

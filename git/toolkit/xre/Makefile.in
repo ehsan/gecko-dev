@@ -95,6 +95,11 @@ ifneq (,$(filter WINCE WINNT,$(OS_ARCH)))
 XPIDLSRCS += nsIWinAppHelper.idl
 endif
 
+EXPORTS = \
+	xrecore.h \
+	nsXULAppAPI.h \
+	$(NULL)
+
 CPPSRCS = \
 	nsAppRunner.cpp \
 	nsConsoleWriter.cpp \

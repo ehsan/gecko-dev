@@ -56,6 +56,7 @@
 #include "jspubtd.h"
 #include "jsregexp.h"
 #include "jsutil.h"
+#include "jsarray.h"
 
 JS_BEGIN_EXTERN_C
 
@@ -207,9 +208,10 @@ typedef struct InterpStruct InterpStruct;
 # define EVAL_CACHE_METER_LIST(_)   _(probe), _(hit), _(step), _(noscope)
 # define identity(x)                x
 
-struct JSEvalCacheMeter {
+/* Have to typedef this for LiveConnect C code, which includes us. */
+typedef struct JSEvalCacheMeter {
     uint64 EVAL_CACHE_METER_LIST(identity);
-};
+} JSEvalCacheMeter;
 
 # undef identity
 #endif
@@ -954,6 +956,7 @@ struct JSContext {
 
     /* State for object and array toSource conversion. */
     JSSharpObjectMap    sharpObjectMap;
+    JSHashTable         *busyArrayTable;
 
     /* Argument formatter support for JS_{Convert,Push}Arguments{,VA}. */
     JSArgumentFormatMap *argumentFormatMap;

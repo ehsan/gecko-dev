@@ -53,6 +53,7 @@ class nsMenuItemIconX;
 class nsMenuItemX;
 class nsIWidget;
 
+
 // MenuDelegate is used to receive Cocoa notifications for
 // setting up carbon events
 @interface MenuDelegate : NSObject
@@ -63,6 +64,7 @@ class nsIWidget;
 }
 - (id)initWithGeckoMenu:(nsMenuX*)geckoMenu;
 @end
+
 
 // Once instantiated, this object lives until its DOM node or its parent window is destroyed.
 // Do not hold references to this, they can become invalid any time the DOM node can be destroyed.

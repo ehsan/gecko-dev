@@ -3841,9 +3841,7 @@ CSSParserImpl::ParseColorOpacity(PRUint8& aOpacity)
   }
 
   PRUint8 value = nsStyleUtil::FloatToColorComponent(mToken.mNumber);
-  // Need to compare to something slightly larger
-  // than 0.5 due to floating point inaccuracies.
-  NS_ASSERTION(fabs(255.0f*mToken.mNumber - value) <= 0.51f,
+  NS_ASSERTION(fabs(mToken.mNumber - value/255.0f) <= 0.5f,
                "FloatToColorComponent did something weird");
 
   if (!ExpectSymbol(')', PR_TRUE)) {

@@ -37,7 +37,10 @@
 
 #include "nsISupports.idl"
 #include "nspluginroot.idl"
-#include "nsIPlugin.idl"
+
+%{C++
+#include "nsplugin.h"
+%}
 
 interface nsIPluginInstance;
 interface nsIDocument;
@@ -122,7 +125,7 @@ interface nsIPluginInstanceOwner : nsISupports
   void forceRedraw();
 
   /**
-   * Get NetscapeWindow, corresponds to NPNVnetscapeWindow
+   * Get the specified variable
    */
-  void getNetscapeWindow(in voidPtr aValue);
+  void getValue(in nsPluginInstancePeerVariable aVariable, in voidPtr aValue);
 };

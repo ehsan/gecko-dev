@@ -65,6 +65,7 @@ static const int sLeopardThemeColors[][2] = {
   { 0x96, 0xCF }  // gradient end
 };
 
+
 static int NativeGreyColorAsInt(ColorName name, BOOL isMain)
 {
   return sLeopardThemeColors[name][isMain ? 0 : 1];

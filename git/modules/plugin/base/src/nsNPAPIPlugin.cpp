@@ -54,8 +54,10 @@
 #include "nsIPrefBranch.h"
 #include "nsPluginLogging.h"
 
+#include "nsIPluginInstancePeer2.h"
 #include "nsIJSContextStack.h"
 
+#include "nsPIPluginInstancePeer.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMDocument.h"
 #include "nsPIDOMWindow.h"
@@ -98,7 +100,7 @@ enum eNPPStreamTypeInternal {
 
 static NS_DEFINE_IID(kMemoryCID, NS_MEMORY_CID);
 
-// Static stub functions that are exported to the plugin as entry
+// Static stub functions that are exported to the 4.x plugin as entry
 // points via the CALLBACKS variable.
 PR_BEGIN_EXTERN_C
 
@@ -253,8 +255,6 @@ nsNPAPIPlugin::CheckClassInitialized(void)
   CALLBACKS.getvalueforurl = ((NPN_GetValueForURLPtr)_getvalueforurl);
   CALLBACKS.setvalueforurl = ((NPN_SetValueForURLPtr)_setvalueforurl);
   CALLBACKS.getauthenticationinfo = ((NPN_GetAuthenticationInfoPtr)_getauthenticationinfo);
-  CALLBACKS.scheduletimer = ((NPN_ScheduleTimerPtr)_scheduletimer);
-  CALLBACKS.unscheduletimer = ((NPN_UnscheduleTimerPtr)_unscheduletimer);
 
   if (!sPluginThreadAsyncCallLock)
     sPluginThreadAsyncCallLock = nsAutoLock::NewLock("sPluginThreadAsyncCallLock");
@@ -578,13 +578,14 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
 
 nsresult
 nsNPAPIPlugin::CreateInstance(nsISupports *aOuter, const nsIID &aIID,
-                              void **aResult)
+                           void **aResult)
 {
   if (!aResult)
     return NS_ERROR_NULL_POINTER;
 
   *aResult = NULL;
 
+  // XXX This is suspicuous!
   nsRefPtr<nsNPAPIPluginInstance> inst =
     new nsNPAPIPluginInstance(&fCallbacks, fLibrary);
 
@@ -685,6 +686,8 @@ MakeNewNPAPIStreamInternal(NPP npp, const char *relativeURL, const char *target,
   PluginDestructionGuard guard(npp);
 
   nsIPluginInstance *inst = (nsIPluginInstance *) npp->ndata;
+
+  NS_ASSERTION(inst, "null instance");
   if (!inst)
     return NPERR_INVALID_INSTANCE_ERROR;
 
@@ -745,7 +748,7 @@ _geturl(NPP npp, const char* relativeURL, const char* target)
       (strncmp(relativeURL, "ftp:", 4) != 0)) {
     nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *) npp->ndata;
 
-    const char *name = nsPluginHost::GetPluginName(inst);
+    const char *name = nsPluginHostImpl::GetPluginName(inst);
 
     if (name && strstr(name, "Adobe") && strstr(name, "Acrobat")) {
       return NPERR_NO_ERROR;
@@ -881,8 +884,11 @@ _newstream(NPP npp, NPMIMEType type, const char* target, NPStream* *result)
     PluginDestructionGuard guard(inst);
 
     nsCOMPtr<nsIOutputStream> stream;
-    if (NS_SUCCEEDED(inst->NewStreamFromPlugin((const char*) type, target,
-                                               getter_AddRefs(stream)))) {
+    nsCOMPtr<nsIPluginInstancePeer> peer;
+    if (NS_SUCCEEDED(inst->GetPeer(getter_AddRefs(peer))) &&
+      peer &&
+      NS_SUCCEEDED(peer->NewStream((const char*) type, target,
+                                   getter_AddRefs(stream)))) {
       nsNPAPIStreamWrapper* wrapper = new nsNPAPIStreamWrapper(stream);
       if (wrapper) {
         (*result) = wrapper->GetNPStream();
@@ -996,7 +1002,10 @@ _status(NPP npp, const char *message)
 
   PluginDestructionGuard guard(inst);
 
-  inst->ShowStatus(message);
+  nsCOMPtr<nsIPluginInstancePeer> peer;
+  if (NS_SUCCEEDED(inst->GetPeer(getter_AddRefs(peer))) && peer) {
+    peer->ShowStatus(message);
+  }
 }
 
 void NP_CALLBACK
@@ -1118,8 +1127,13 @@ GetDocumentFromNPP(NPP npp)
 
   PluginDestructionGuard guard(inst);
 
+  nsCOMPtr<nsIPluginInstancePeer> pip;
+  inst->GetPeer(getter_AddRefs(pip));
+  nsCOMPtr<nsPIPluginInstancePeer> pp(do_QueryInterface(pip));
+  NS_ENSURE_TRUE(pp, nsnull);
+
   nsCOMPtr<nsIPluginInstanceOwner> owner;
-  inst->GetOwner(getter_AddRefs(owner));
+  pp->GetOwner(getter_AddRefs(owner));
   NS_ENSURE_TRUE(owner, nsnull);
 
   nsCOMPtr<nsIDocument> doc;
@@ -1886,11 +1900,11 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
 
     nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *) npp->ndata;
 
-    nsCOMPtr<nsIPluginInstanceOwner> owner;
-    inst->GetOwner(getter_AddRefs(owner));
-    NS_ENSURE_TRUE(owner, nsnull);
-
-    if (NS_SUCCEEDED(owner->GetNetscapeWindow(result))) {
+    nsCOMPtr<nsIPluginInstancePeer> peer;
+    if (NS_SUCCEEDED(inst->GetPeer(getter_AddRefs(peer))) &&
+        peer &&
+        NS_SUCCEEDED(peer->GetValue(nsPluginInstancePeerVariable_NetscapeWindow,
+                                    result))) {
       return NPERR_NO_ERROR;
     }
     return NPERR_GENERIC_ERROR;
@@ -2071,11 +2085,23 @@ _setvalue(NPP npp, NPPVariable variable, void *result)
           do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
         if (NS_SUCCEEDED(rv)) {
           NPBool bPushCaller = (result != nsnull);
+
           if (bPushCaller) {
-            JSContext *cx;
-            rv = inst->GetJSContext(&cx);
-            if (NS_SUCCEEDED(rv))
-              rv = contextStack->Push(cx);
+            rv = NS_ERROR_FAILURE;
+
+            nsCOMPtr<nsIPluginInstancePeer> peer;
+            if (NS_SUCCEEDED(inst->GetPeer(getter_AddRefs(peer))) && peer) {
+              nsCOMPtr<nsIPluginInstancePeer2> peer2 =
+                do_QueryInterface(peer);
+
+              if (peer2) {
+                JSContext *cx;
+                rv = peer2->GetJSContext(&cx);
+
+                if (NS_SUCCEEDED(rv))
+                  rv = contextStack->Push(cx);
+              }
+            }
           } else {
             rv = contextStack->Pop(nsnull);
           }
@@ -2421,7 +2447,7 @@ _setvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
         return NPERR_GENERIC_ERROR;
 
       nsCOMPtr<nsIPrompt> prompt;
-      nsPluginHost::GetPrompt(nsnull, getter_AddRefs(prompt));
+      nsPluginHostImpl::GetPrompt(nsnull, getter_AddRefs(prompt));
 
       char *cookie = (char*)value;
       char c = cookie[len];
@@ -2488,26 +2514,6 @@ _getauthenticationinfo(NPP instance, const char *protocol, const char *host,
   *plen = *password ? pwd8.Length() : 0;
 
   return NPERR_NO_ERROR;
-}
-
-uint32_t NP_CALLBACK
-_scheduletimer(NPP instance, uint32_t interval, NPBool repeat, void (*timerFunc)(NPP npp, uint32_t timerID))
-{
-  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *)instance->ndata;
-  if (!inst)
-    return 0;
-
-  return inst->ScheduleTimer(interval, repeat, timerFunc);
-}
-
-void NP_CALLBACK
-_unscheduletimer(NPP instance, uint32_t timerID)
-{
-  nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *)instance->ndata;
-  if (!inst)
-    return;
-
-  inst->UnscheduleTimer(timerID);
 }
 
 void

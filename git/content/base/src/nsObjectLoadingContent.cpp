@@ -52,7 +52,6 @@
 #include "nsIObjectFrame.h"
 #include "nsIPluginDocument.h"
 #include "nsIPluginHost.h"
-#include "nsIPluginInstance.h"
 #include "nsIPresShell.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptSecurityManager.h"

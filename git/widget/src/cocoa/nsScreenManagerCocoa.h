@@ -42,7 +42,9 @@
 #import <Cocoa/Cocoa.h>
 
 #include "nsCOMArray.h"
+
 #include "nsIScreenManager.h"
+
 #include "nsScreenCocoa.h"
 
 class nsScreenManagerCocoa : public nsIScreenManager

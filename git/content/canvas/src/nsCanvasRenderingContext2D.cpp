@@ -2938,7 +2938,9 @@ nsCanvasRenderingContext2D::DrawImage()
     gfxMatrix matrix;
     nsRefPtr<gfxPattern> pattern;
     nsRefPtr<gfxPath> path;
-
+#ifdef WINCE
+    nsRefPtr<gfxASurface> currentSurface;
+#endif
     nsLayoutUtils::SurfaceFromElementResult res =
         nsLayoutUtils::SurfaceFromElement(imgElt);
     if (!res.mSurface)
@@ -3024,30 +3026,29 @@ nsCanvasRenderingContext2D::DrawImage()
     matrix.Translate(gfxPoint(sx, sy));
     matrix.Scale(sw/dw, sh/dh);
 #ifdef WINCE
+    currentSurface = getter_AddRefs(mThebes->CurrentSurface());
+
     /* cairo doesn't have consistent semantics for drawing a surface onto
      * itself. Specifically, pixman will not preserve the contents when doing
      * the copy. So to get the desired semantics a temporary copy would be needed.
      * Instead we optimize opaque self copies here */
-    {
-        nsRefPtr<gfxASurface> csurf = mThebes->CurrentSurface();
-        if (csurf == imgsurf) {
-            if (imgsurf->GetType() == gfxASurface::SurfaceTypeImage) {
-                gfxImageSurface *surf = static_cast<gfxImageSurface*>(imgsurf.get());
-                gfxContext::GraphicsOperator op = mThebes->CurrentOperator();
-                PRBool opaque, unscaled;
+    if (currentSurface == imgsurf) {
+        if (imgsurf->GetType() == gfxASurface::SurfaceTypeImage) {
+            gfxImageSurface *surf = static_cast<gfxImageSurface*>(imgsurf.get());
+            gfxContext::GraphicsOperator op = mThebes->CurrentOperator();
+            PRBool opaque, unscaled;
 
-                opaque  = surf->Format() == gfxASurface::ImageFormatARGB32 &&
-                    (op == gfxContext::OPERATOR_SOURCE);
-                opaque |= surf->Format() == gfxASurface::ImageFormatRGB24  &&
-                    (op == gfxContext::OPERATOR_SOURCE || op == gfxContext::OPERATOR_OVER);
+            opaque  = surf->Format() == gfxASurface::ImageFormatARGB32 &&
+                (op == gfxContext::OPERATOR_SOURCE);
+            opaque |= surf->Format() == gfxASurface::ImageFormatRGB24  &&
+                (op == gfxContext::OPERATOR_SOURCE || op == gfxContext::OPERATOR_OVER);
 
-                unscaled = sw == dw && sh == dh;
+            unscaled = sw == dw && sh == dh;
 
-                if (opaque && unscaled) {
-                    bitblt(surf, sx, sy, sw, sh, dx, dy);
-                    rv = NS_OK;
-                    goto FINISH;
-                }
+            if (opaque && unscaled) {
+                bitblt(surf, sx, sy, sw, sh, dx, dy);
+                rv = NS_OK;
+                goto FINISH;
             }
         }
     }
@@ -3244,6 +3245,22 @@ nsCanvasRenderingContext2D::ConvertJSValToXPCObject(nsISupports** aSupports, REF
   }
 
   return JS_FALSE;
+}
+
+/* Check that the rect [x,y,w,h] is a valid subrect of [0,0,realWidth,realHeight]
+ * without overflowing any integers and the like.
+ */
+PRBool
+CheckSaneSubrectSize (PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h, PRInt32 realWidth, PRInt32 realHeight)
+{
+    if (w <= 0 || h <= 0 || x < 0 || y < 0)
+        return PR_FALSE;
+
+    if (x >= realWidth  || w > (realWidth - x) ||
+        y >= realHeight || h > (realHeight - y))
+        return PR_FALSE;
+
+    return PR_TRUE;
 }
 
 static void
@@ -3748,15 +3765,12 @@ nsCanvasRenderingContext2D::CreateImageData()
 
     JSAutoRequest ar(ctx);
 
-    int32 width, height;
-    if (!JS_ConvertArguments (ctx, argc, argv, "jj", &width, &height))
+    int32 w, h;
+    if (!JS_ConvertArguments (ctx, argc, argv, "jj", &w, &h))
         return NS_ERROR_DOM_SYNTAX_ERR;
 
-    if (width <= 0 || height <= 0)
+    if (w <= 0 || h <= 0)
         return NS_ERROR_DOM_INDEX_SIZE_ERR;
-
-    PRUint32 w = (PRUint32) width;
-    PRUint32 h = (PRUint32) height;
 
     // check for overflow when calculating len
     PRUint32 len0 = w * h;

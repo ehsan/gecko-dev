@@ -3246,14 +3246,14 @@ nsGenericElement::doInsertChildAt(nsIContent* aKid, PRUint32 aIndex,
 }
 
 nsresult
-nsGenericElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
+nsGenericElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
 {
   nsCOMPtr<nsIContent> oldKid = mAttrsAndChildren.GetSafeChildAt(aIndex);
   NS_ASSERTION(oldKid == GetChildAt(aIndex), "Unexpected child in RemoveChildAt");
 
   if (oldKid) {
     return doRemoveChildAt(aIndex, aNotify, oldKid, this, GetCurrentDoc(),
-                           mAttrsAndChildren, aMutationEvent);
+                           mAttrsAndChildren);
   }
 
   return NS_OK;
@@ -3264,8 +3264,7 @@ nsresult
 nsGenericElement::doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
                                   nsIContent* aKid, nsIContent* aParent,
                                   nsIDocument* aDocument,
-                                  nsAttrAndChildArray& aChildArray,
-                                  PRBool aMutationEvent)
+                                  nsAttrAndChildArray& aChildArray)
 {
   NS_PRECONDITION(aParent || aDocument, "Must have document if no parent!");
   NS_PRECONDITION(!aParent || aParent->GetCurrentDoc() == aDocument,
@@ -3301,7 +3300,6 @@ nsGenericElement::doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
 
   mozAutoSubtreeModified subtree(nsnull, nsnull);
   if (aNotify &&
-      aMutationEvent &&
       nsContentUtils::HasMutationListeners(aKid,
         NS_EVENT_BITS_MUTATION_NODEREMOVED, container)) {
     mozAutoRemovableBlockerRemover blockerRemover;
@@ -3443,7 +3441,7 @@ nsGenericElement::DestroyContent()
 
   // XXX We really should let cycle collection do this, but that currently still
   //     leaks (see https://bugzilla.mozilla.org/show_bug.cgi?id=406684).
-  nsContentUtils::ReleaseWrapper(this, this);
+  ReleaseWrapper();
 
   PRUint32 i, count = mAttrsAndChildren.ChildCount();
   for (i = 0; i < count; ++i) {
@@ -3946,13 +3944,10 @@ nsGenericElement::doRemoveChild(nsIDOMNode* aOldChild, nsIContent* aParent,
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsGenericElement)
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsGenericElement)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_ROOT_END
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGenericElement)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_LISTENERMANAGER
   NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 
   if (tmp->HasProperties() && tmp->IsNodeOfType(nsINode::eXUL)) {
     tmp->DeleteProperty(nsGkAtoms::contextmenulistener);
@@ -3988,25 +3983,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGenericElement)
       slots->mChildrenList = nsnull;
     }
   }
-
-  {
-    nsIDocument *doc;
-    if (!tmp->GetNodeParent() && (doc = tmp->GetOwnerDoc()) &&
-        tmp->HasFlag(NODE_MAY_BE_IN_BINDING_MNGR)) {
-      doc->BindingManager()->ChangeDocumentFor(tmp, doc, nsnull);
-    }
-  }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsGenericElement)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericElement)
-  // Always need to traverse script objects, so do that before we check
-  // if we're uncollectable.
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-
   nsIDocument* currentDoc = tmp->GetCurrentDoc();
   if (currentDoc && nsCCUncollectableMarker::InGeneration(
                       currentDoc->GetMarkedCCGeneration())) {
@@ -4020,6 +3999,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericElement)
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_LISTENERMANAGER
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_USERDATA
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_PRESERVED_WRAPPER
 
   if (tmp->HasProperties() && tmp->IsNodeOfType(nsINode::eXUL)) {
     nsISupports* property =
@@ -4273,7 +4253,9 @@ nsGenericElement::SetAttrAndNotify(PRInt32 aNamespaceID,
   if (aNotify) {
     stateMask = PRUint32(IntrinsicState());
     
-    nsNodeUtils::AttributeWillChange(this, aNamespaceID, aName, modType);
+    if (document) {
+      document->AttributeWillChange(this, aNamespaceID, aName);
+    }
   }
 
   if (aNamespaceID == kNameSpaceID_None) {
@@ -4511,16 +4493,15 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   
   nsIDocument *document = GetCurrentDoc();    
   mozAutoDocUpdate updateBatch(document, UPDATE_CONTENT_MODEL, aNotify);
+  if (document) {
+    if (kNameSpaceID_XLink == aNameSpaceID && nsGkAtoms::href == aName) {
+      // XLink URI might be changing.
+      document->ForgetLink(this);
+    }
 
-  if (aNotify) {
-    nsNodeUtils::AttributeWillChange(this, aNameSpaceID, aName,
-                                     nsIDOMMutationEvent::REMOVAL);
-  }
-
-  if (document && kNameSpaceID_XLink == aNameSpaceID &&
-      nsGkAtoms::href == aName) {
-    // XLink URI might be changing.
-    document->ForgetLink(this);
+    if (aNotify) {
+      document->AttributeWillChange(this, aNameSpaceID, aName);
+    }
   }
 
   // When notifying, make sure to keep track of states whose value

@@ -2091,8 +2091,14 @@ nsXULMenuCommandEvent::Run()
       menuFrame->SelectMenu(PR_FALSE);
 
     nsAutoHandlingUserInputStatePusher userInpStatePusher(mUserInput);
-    nsContentUtils::DispatchXULCommand(mMenu, mIsTrusted, nsnull, shell,
-                                       mControl, mAlt, mShift, mMeta);
+
+    nsEventStatus status = nsEventStatus_eIgnore;
+    nsXULCommandEvent commandEvent(mIsTrusted, NS_XUL_COMMAND, nsnull);
+    commandEvent.isShift = mShift;
+    commandEvent.isControl = mControl;
+    commandEvent.isAlt = mAlt;
+    commandEvent.isMeta = mMeta;
+    shell->HandleDOMEventWithTarget(mMenu, &commandEvent, &status);
   }
 
   if (popup && mCloseMenuMode != CloseMenuMode_None)

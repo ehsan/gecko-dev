@@ -39,9 +39,13 @@
 #define _CANVASUTILS_H_
 
 #include "prtypes.h"
+#include "nsContentUtils.h"
+#include "nsICanvasElement.h"
+#include "nsIPrincipal.h"
+#include "nsIDOMElement.h"
+#include "nsRect.h"
 
-class nsICanvasElement;
-class nsIPrincipal;
+#include "gfxASurface.h"
 
 namespace mozilla {
 

@@ -255,7 +255,7 @@ gTests.push({
             tagsField.popup.selectedIndex = 0;
             is(tree.view.selection.count, 1,
                "We have selected a tag from the autocomplete popup");
-            info("About to focus the autocomplete results tree");
+            dump("About to focus the autocomplete results tree\n");
             tree.focus();
             EventUtils.synthesizeKey("VK_RETURN", {}, self.window);
             break;
@@ -269,7 +269,7 @@ gTests.push({
     tagsField.popup.addEventListener("popuphidden", popupListener, true);
 
     // Open tags autocomplete popup.
-    info("About to focus the tagsField");
+    dump("About to focus the tagsField\n");
     tagsField.focus();
     tagsField.value = "";
     EventUtils.synthesizeKey("t", {}, this.window);
@@ -327,7 +327,7 @@ gTests.push({
       }, false);
     namePicker.value = "n";
     userEnteredName.label = "n";
-    info("About to focus the namePicker field");
+    dump("About to focus the namePicker field\n");
     namePicker.focus();
     EventUtils.synthesizeKey("VK_RETURN", {}, this.window);
   },
@@ -413,7 +413,7 @@ gTests.push({
             tagsField.popup.selectedIndex = 0;
             is(tree.view.selection.count, 1,
                "We have selected a tag from the autocomplete popup");
-            info("About to focus the autocomplete results tree");
+            dump("About to focus the autocomplete results tree\n");
             tree.focus();
             EventUtils.synthesizeKey("VK_ESCAPE", {}, self.window);
             break;
@@ -427,7 +427,7 @@ gTests.push({
     tagsField.popup.addEventListener("popuphidden", popupListener, true);
 
     // Open tags autocomplete popup.
-    info("About to focus the tagsField");
+    dump("About to focus the tagsField\n");
     tagsField.focus();
     tagsField.value = "";
     EventUtils.synthesizeKey("t", {}, this.window);
@@ -529,6 +529,7 @@ gTests.push({
 //------------------------------------------------------------------------------
 
 function test() {
+  dump("Starting test browser_bookmarksProperties.js\n");
   waitForExplicitFinish();
   // Sanity checks.
   ok(PlacesUtils, "PlacesUtils in context");
@@ -542,13 +543,14 @@ function runNextTest() {
   // Cleanup from previous test.
   if (gCurrentTest) {
     gCurrentTest.cleanup();
-    info("End of test: " + gCurrentTest.desc);
+    ok(true, "*** FINISHED TEST ***");
   }
 
   if (gTests.length > 0) {
     // Goto next tests.
     gCurrentTest = gTests.shift();
-    info("Start of test: " + gCurrentTest.desc);
+    ok(true, "*** TEST: " + gCurrentTest.desc);
+    dump("*** TEST: " + gCurrentTest.desc + "\n");
     gCurrentTest.setup();
     execute_test_in_sidebar();
   }
@@ -597,8 +599,8 @@ function open_properties_dialog() {
         if (aTopic === "domwindowopened") {
           ww.unregisterNotification(this);
           var win = aSubject.QueryInterface(Ci.nsIDOMWindow);
-          win.addEventListener("focus", function(event) {
-            win.removeEventListener("focus", arguments.callee, false);
+          win.addEventListener("load", function onLoad(event) {
+            win.removeEventListener("load", onLoad, false);
             // Windows has been loaded, execute our test now.
             executeSoon(function () {
               // Ensure overlay is loaded

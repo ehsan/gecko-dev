@@ -43,6 +43,7 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 
 function test() {
+  dump("Starting test browser_views_liveupdate.js\n");
   waitForExplicitFinish();
 
   // Sanity checks.

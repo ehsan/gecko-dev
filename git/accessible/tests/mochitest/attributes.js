@@ -4,7 +4,7 @@
 /**
  * Test object attributes.
  *
- * @param aAccOrElmOrID         [in] the accessible identifier
+ * @param aAccOrElmOrID         [in] the ID, DOM node or accessible
  * @param aAttrs                [in] the map of expected object attributes
  *                              (name/value pairs)
  * @param aSkipUnexpectedAttrs  [in] points this function doesn't fail if
@@ -12,19 +12,22 @@
  */
 function testAttrs(aAccOrElmOrID, aAttrs, aSkipUnexpectedAttrs)
 {
-  testAttrsInternal(aAccOrElmOrID, aAttrs, aSkipUnexpectedAttrs);
-}
+  var accessible = getAccessible(aAccOrElmOrID);
+  if (!accessible)
+    return;
 
-/**
- * Test object attributes that must not be present.
- *
- * @param aAccOrElmOrID         [in] the accessible identifier
- * @param aAbsentAttrs          [in] map of attributes that should not be
- *                              present (name/value pairs)
- */
-function testAbsentAttrs(aAccOrElmOrID, aAbsentAttrs, aSkipUnexpectedAttrs)
-{
-  testAttrsInternal(aAccOrElmOrID, {}, true, aAbsentAttrs);
+  var attrs = null;
+  try {
+    attrs = accessible.attributes;
+  } catch (e) { }
+  
+  if (!attrs) {
+    ok(false, "Can't get object attributes for " + aAccOrElmOrID);
+    return;
+  }
+  
+  var errorMsg = " for " + aAccOrElmOrID;
+  compareAttrs(errorMsg, attrs, aAttrs, aSkipUnexpectedAttrs);
 }
 
 /**
@@ -166,29 +169,7 @@ function getTextAttributes(aID, aAccessible, aIncludeDefAttrs, aOffset,
   return null;
 }
 
-function testAttrsInternal(aAccOrElmOrID, aAttrs, aSkipUnexpectedAttrs,
-                   aAbsentAttrs)
-{
-  var accessible = getAccessible(aAccOrElmOrID);
-  if (!accessible)
-    return;
-
-  var attrs = null;
-  try {
-    attrs = accessible.attributes;
-  } catch (e) { }
-  
-  if (!attrs) {
-    ok(false, "Can't get object attributes for " + aAccOrElmOrID);
-    return;
-  }
-  
-  var errorMsg = " for " + aAccOrElmOrID;
-  compareAttrs(errorMsg, attrs, aAttrs, aSkipUnexpectedAttrs, aAbsentAttrs);
-}
-
-function compareAttrs(aErrorMsg, aAttrs, aExpectedAttrs, aSkipUnexpectedAttrs,
-                      aAbsentAttrs)
+function compareAttrs(aErrorMsg, aAttrs, aExpectedAttrs, aSkipUnexpectedAttrs)
 {
   var enumerate = aAttrs.enumerate();
   while (enumerate.hasMoreElements()) {
@@ -219,19 +200,4 @@ function compareAttrs(aErrorMsg, aAttrs, aExpectedAttrs, aSkipUnexpectedAttrs,
       ok(false,
          "There is no expected attribute '" + name + "' " + aErrorMsg);
   }
-
-  if (aAbsentAttrs)
-    for (var name in aAbsentAttrs) {
-      var value = "";
-      try {
-        value = aAttrs.getStringProperty(name);
-      } catch(e) { }
-
-      if (value)
-        ok(false,
-           "There is an unexpected attribute '" + name + "' " + aErrorMsg);
-      else
-        ok(true,
-           "There is no unexpected attribute '" + name + "' " + aErrorMsg);
-    }
 }

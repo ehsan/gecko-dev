@@ -257,11 +257,12 @@ nsDocAccessible::SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry)
 
   mRoleMapEntry = aRoleMapEntry;
 
-  nsIDocument *parentDoc = mDocument->GetParentDocument();
-  if (!parentDoc)
-    return; // No parent document for the root document
-
   // Allow use of ARIA role from outer to override
+  nsIDocument *parentDoc = mDocument->GetParentDocument();
+  NS_ASSERTION(parentDoc, "No parent document during initialization!");
+  if (!parentDoc)
+    return;
+
   nsIContent *ownerContent = parentDoc->FindContentForSubDocument(mDocument);
   nsCOMPtr<nsIDOMNode> ownerNode(do_QueryInterface(ownerContent));
   if (ownerNode) {
@@ -806,26 +807,8 @@ nsresult nsDocAccessible::RemoveEventListeners()
   // Remove scroll position listener
   RemoveScrollListener();
 
-  NS_ASSERTION(mDocument, "No document during removal of listeners.");
-
-  if (mDocument) {
-    mDocument->RemoveObserver(this);
-
-    nsCOMPtr<nsISupports> container = mDocument->GetContainer();
-    nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem(do_QueryInterface(container));
-    NS_ASSERTION(docShellTreeItem, "doc should support nsIDocShellTreeItem.");
-
-    if (docShellTreeItem) {
-      PRInt32 itemType;
-      docShellTreeItem->GetItemType(&itemType);
-      if (itemType == nsIDocShellTreeItem::typeContent) {
-        nsCOMPtr<nsICommandManager> commandManager = do_GetInterface(docShellTreeItem);
-        if (commandManager) {
-          commandManager->RemoveCommandObserver(this, "obs_documentCreated");
-        }
-      }
-    }
-  }
+  // Remove document observer
+  mDocument->RemoveObserver(this);
 
   if (mScrollWatchTimer) {
     mScrollWatchTimer->Cancel();
@@ -840,6 +823,19 @@ nsresult nsDocAccessible::RemoveEventListeners()
       // Don't use GetPresShell() which can call Shutdown() if it sees dead pres shell
       nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
       caretAccessible->RemoveDocSelectionListener(presShell);
+    }
+  }
+
+  nsCOMPtr<nsISupports> container = mDocument->GetContainer();
+  nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem(do_QueryInterface(container));
+  NS_ENSURE_TRUE(docShellTreeItem, NS_ERROR_FAILURE);
+
+  PRInt32 itemType;
+  docShellTreeItem->GetItemType(&itemType);
+  if (itemType == nsIDocShellTreeItem::typeContent) {
+    nsCOMPtr<nsICommandManager> commandManager = do_GetInterface(docShellTreeItem);
+    if (commandManager) {
+      commandManager->RemoveCommandObserver(this, "obs_documentCreated");
     }
   }
 
@@ -1053,17 +1049,6 @@ NS_IMETHODIMP nsDocAccessible::Observe(nsISupports *aSubject, const char *aTopic
 NS_IMPL_NSIDOCUMENTOBSERVER_CORE_STUB(nsDocAccessible)
 NS_IMPL_NSIDOCUMENTOBSERVER_LOAD_STUB(nsDocAccessible)
 NS_IMPL_NSIDOCUMENTOBSERVER_STYLE_STUB(nsDocAccessible)
-
-void
-nsDocAccessible::AttributeWillChange(nsIDocument *aDocument,
-                                     nsIContent* aContent, PRInt32 aNameSpaceID,
-                                     nsIAtom* aAttribute, PRInt32 aModType)
-{
-  // XXX TODO: bugs 381599 467143 472142 472143
-  // Here we will want to cache whatever state we are potentially interested in,
-  // such as the existence of aria-pressed for button (so we know if we need to
-  // newly expose it as a toggle button) etc.
-}
 
 void
 nsDocAccessible::AttributeChanged(nsIDocument *aDocument, nsIContent* aContent,

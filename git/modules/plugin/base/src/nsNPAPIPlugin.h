@@ -40,9 +40,10 @@
 
 #include "nsIFactory.h"
 #include "nsIPlugin.h"
+#include "nsIPluginInstancePeer.h"
 #include "prlink.h"
 #include "npfunctions.h"
-#include "nsPluginHost.h"
+#include "nsPluginHostImpl.h"
 
 /*
  * Use this macro before each exported function
@@ -211,12 +212,6 @@ _getauthenticationinfo(NPP instance, const char *protocol, const char *host,
                        int32_t port, const char *scheme, const char *realm,
                        char **username, uint32_t *ulen, char **password,
                        uint32_t *plen);
-
-uint32_t NP_CALLBACK
-_scheduletimer(NPP instance, uint32_t interval, NPBool repeat, void (*timerFunc)(NPP npp, uint32_t timerID));
-
-void NP_CALLBACK
-_unscheduletimer(NPP instance, uint32_t timerID);
 
 PR_END_EXTERN_C
 

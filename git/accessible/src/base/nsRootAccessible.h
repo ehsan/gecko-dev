@@ -43,7 +43,7 @@
 
 #include "nsIAccessibleDocument.h"
 #ifdef MOZ_XUL
-#include "nsXULTreeAccessible.h"
+#include "nsIAccessibleTreeCache.h"
 #endif
 
 #include "nsHashtable.h"
@@ -51,6 +51,7 @@
 #include "nsIDocument.h"
 #include "nsIDOMFocusListener.h"
 #include "nsIDOMFormListener.h"
+#include "nsIDOMXULListener.h"
 #include "nsITimer.h"
 
 #define NS_ROOTACCESSIBLE_IMPL_CID                      \
@@ -139,9 +140,9 @@ public:
 
 #ifdef MOZ_XUL
     nsresult HandleTreeRowCountChangedEvent(nsIDOMEvent *aEvent,
-                                            nsXULTreeAccessible *aAccessible);
+                                            nsIAccessibleTreeCache *aAccessible);
     nsresult HandleTreeInvalidatedEvent(nsIDOMEvent *aEvent,
-                                        nsXULTreeAccessible *aAccessible);
+                                        nsIAccessibleTreeCache *aAccessible);
 
     PRUint32 GetChromeFlags();
 #endif

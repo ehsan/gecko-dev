@@ -669,16 +669,13 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
 
 #ifdef MOZ_XUL
   if (isTree) {
-    nsRefPtr<nsXULTreeAccessible> treeAcc =
-      nsAccUtils::QueryAccessibleTree(accessible);
+    nsCOMPtr<nsIAccessibleTreeCache> treeAcc(do_QueryInterface(accessible));
     NS_ASSERTION(treeAcc,
-                 "Accessible for xul:tree isn't nsXULTreeAccessible.");
+                 "Accessible for xul:tree doesn't implement nsIAccessibleTreeCache interface.");
 
     if (treeAcc) {
-      if (eventType.EqualsLiteral("TreeViewChanged")) {
-        treeAcc->TreeViewChanged();
-        return NS_OK;
-      }
+      if (eventType.EqualsLiteral("TreeViewChanged"))
+        return treeAcc->TreeViewChanged();
 
       if (eventType.EqualsLiteral("TreeRowCountChanged"))
         return HandleTreeRowCountChangedEvent(aEvent, treeAcc);
@@ -733,14 +730,16 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
       PRInt32 treeIndex = -1;
       multiSelect->GetCurrentIndex(&treeIndex);
       if (treeIndex >= 0) {
-        nsRefPtr<nsXULTreeAccessible> treeCache =
-          nsAccUtils::QueryAccessibleTree(accessible);
-        if (treeCache) {
-          treeCache->GetCachedTreeitemAccessible(treeIndex, nsnull,
-                                                 getter_AddRefs(treeItemAccessible));
-          if (treeItemAccessible)
-            accessible = treeItemAccessible;
+        nsCOMPtr<nsIAccessibleTreeCache> treeCache(do_QueryInterface(accessible));
+        if (!treeCache ||
+            NS_FAILED(treeCache->GetCachedTreeitemAccessible(
+                      treeIndex,
+                      nsnull,
+                      getter_AddRefs(treeItemAccessible))) ||
+                      !treeItemAccessible) {
+          return NS_ERROR_OUT_OF_MEMORY;
         }
+        accessible = treeItemAccessible;
       }
     }
   }
@@ -1182,7 +1181,7 @@ nsRootAccessible::HandlePopupHidingEvent(nsIDOMNode *aNode,
 #ifdef MOZ_XUL
 nsresult
 nsRootAccessible::HandleTreeRowCountChangedEvent(nsIDOMEvent *aEvent,
-                                                 nsXULTreeAccessible *aAccessible)
+                                                 nsIAccessibleTreeCache *aAccessible)
 {
   nsCOMPtr<nsIDOMDataContainerEvent> dataEvent(do_QueryInterface(aEvent));
   if (!dataEvent)
@@ -1204,13 +1203,12 @@ nsRootAccessible::HandleTreeRowCountChangedEvent(nsIDOMEvent *aEvent,
   indexVariant->GetAsInt32(&index);
   countVariant->GetAsInt32(&count);
 
-  aAccessible->InvalidateCache(index, count);
-  return NS_OK;
+  return aAccessible->InvalidateCache(index, count);
 }
 
 nsresult
 nsRootAccessible::HandleTreeInvalidatedEvent(nsIDOMEvent *aEvent,
-                                             nsXULTreeAccessible *aAccessible)
+                                             nsIAccessibleTreeCache *aAccessible)
 {
   nsCOMPtr<nsIDOMDataContainerEvent> dataEvent(do_QueryInterface(aEvent));
   if (!dataEvent)
@@ -1242,8 +1240,7 @@ nsRootAccessible::HandleTreeInvalidatedEvent(nsIDOMEvent *aEvent,
   if (endColVariant)
     endColVariant->GetAsInt32(&endCol);
 
-  aAccessible->TreeViewInvalidated(startRow, endRow, startCol, endCol);
-  return NS_OK;
+  return aAccessible->TreeViewInvalidated(startRow, endRow, startCol, endCol);
 }
 #endif
 

@@ -140,8 +140,6 @@ SDK_HEADERS =  \
 
 EXPORTS	= \
   nsXPCOMCIDInternal.h \
-  xrecore.h \
-  nsXULAppAPI.h \
   $(NULL)
 
 EXPORTS_mozilla = \

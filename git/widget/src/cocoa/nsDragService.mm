@@ -94,6 +94,7 @@ nsDragService::nsDragService()
   mNativeDragEvent = nil;
 }
 
+
 nsDragService::~nsDragService()
 {
 }
@@ -159,6 +160,7 @@ static nsresult SetUpDragClipboard(nsISupportsArray* aTransferableArray)
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
+
 
 NSImage*
 nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
@@ -324,6 +326,7 @@ nsDragService::InvokeDragSession(nsIDOMNode* aDOMNode, nsISupportsArray* aTransf
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
 NS_IMETHODIMP
 nsDragService::GetData(nsITransferable* aTransferable, PRUint32 aItemIndex)
 {
@@ -467,6 +470,7 @@ nsDragService::GetData(nsITransferable* aTransferable, PRUint32 aItemIndex)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
 NS_IMETHODIMP
 nsDragService::IsDataFlavorSupported(const char *aDataFlavor, PRBool *_retval)
 {
@@ -539,6 +543,7 @@ nsDragService::IsDataFlavorSupported(const char *aDataFlavor, PRBool *_retval)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
 NS_IMETHODIMP
 nsDragService::GetNumDropItems(PRUint32* aNumItems)
 {
@@ -568,6 +573,7 @@ nsDragService::GetNumDropItems(PRUint32* aNumItems)
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
+
 
 NS_IMETHODIMP
 nsDragService::EndDragSession(PRBool aDoneDrag)

@@ -164,9 +164,10 @@ function getTextDecorationRect(aPt, aLineSize, aAscent, aOffset, aStyle,
   lineHeight = Math.max(lineHeight, 1.0);
 
   var ascent = round(aAscent);
-  var descentLimit = Math.floor(aDescentLimit);
+  var descentLimit = round(aDescentLimit);
 
   var suggestedMaxRectHeight = Math.max(Math.min(ascent, descentLimit), 1.0);
+  var underlineOffsetAdjust = 0.0;
   r.height = lineHeight;
   if (aStyle == kDecorationStyleDouble) {
     var gap = round(lineHeight / 2.0);
@@ -180,20 +181,23 @@ function getTextDecorationRect(aPt, aLineSize, aAscent, aOffset, aStyle,
   } else if (aStyle == kDecorationStyleWavy) {
     r.height = lineHeight > 2.0 ? lineHeight * 4.0 : lineHeight * 3.0;
     if (liftupUnderline) {
+      descentLimit += lineHeight;
+      suggestedMaxRectHeight = Math.max(Math.min(ascent, descentLimit), 1.0);
       if (r.height > suggestedMaxRectHeight) {
         r.height = Math.max(suggestedMaxRectHeight, lineHeight * 2.0);
       }
     }
+    underlineOffsetAdjust = r.height / 2.0;
   }
 
   var baseline = Math.floor(aPt.y + aAscent + 0.5);
   var offset = 0.0;
 
-  offset = aOffset;
+  offset = aOffset + underlineOffsetAdjust;
   if (liftupUnderline) {
     if (descentLimit < -offset + r.height) {
       var offsetBottomAligned = -descentLimit + r.height;
-      var offsetTopAligned = 0.0;
+      var offsetTopAligned = underlineOffsetAdjust;
       offset = Math.min(offsetBottomAligned, offsetTopAligned);
     }
   }

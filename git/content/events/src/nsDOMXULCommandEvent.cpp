@@ -40,9 +40,9 @@
 #include "nsContentUtils.h"
 
 nsDOMXULCommandEvent::nsDOMXULCommandEvent(nsPresContext* aPresContext,
-                                           nsInputEvent* aEvent)
+                                           nsXULCommandEvent* aEvent)
   : nsDOMUIEvent(aPresContext,
-                 aEvent ? aEvent : new nsInputEvent(PR_FALSE, 0, nsnull))
+                 aEvent ? aEvent : new nsXULCommandEvent(PR_FALSE, 0, nsnull))
 {
   if (aEvent) {
     mEventIsInternal = PR_FALSE;
@@ -53,22 +53,19 @@ nsDOMXULCommandEvent::nsDOMXULCommandEvent(nsPresContext* aPresContext,
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMXULCommandEvent)
+nsDOMXULCommandEvent::~nsDOMXULCommandEvent()
+{
+  if (mEventIsInternal) {
+    nsXULCommandEvent* command = static_cast<nsXULCommandEvent*>(mEvent);
+    delete command;
+    mEvent = nsnull;
+  }
+}
 
 NS_IMPL_ADDREF_INHERITED(nsDOMXULCommandEvent, nsDOMUIEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMXULCommandEvent, nsDOMUIEvent)
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMXULCommandEvent,
-                                                nsDOMUIEvent)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSourceEvent)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMXULCommandEvent,
-                                                  nsDOMUIEvent)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSourceEvent)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMXULCommandEvent)
+NS_INTERFACE_MAP_BEGIN(nsDOMXULCommandEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMXULCommandEvent)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(XULCommandEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMUIEvent)
@@ -109,7 +106,7 @@ NS_IMETHODIMP
 nsDOMXULCommandEvent::GetSourceEvent(nsIDOMEvent** aSourceEvent)
 {
   NS_ENSURE_ARG_POINTER(aSourceEvent);
-  NS_IF_ADDREF(*aSourceEvent = mSourceEvent);
+  NS_IF_ADDREF(*aSourceEvent = Event()->sourceEvent);
   return NS_OK;
 }
 
@@ -126,12 +123,12 @@ nsDOMXULCommandEvent::InitCommandEvent(const nsAString& aType,
                                           aView, aDetail);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsInputEvent *event = Event();
+  nsXULCommandEvent *event = Event();
   event->isControl = aCtrlKey;
   event->isAlt = aAltKey;
   event->isShift = aShiftKey;
   event->isMeta = aMetaKey;
-  mSourceEvent = aSourceEvent;
+  event->sourceEvent = aSourceEvent;
 
   return NS_OK;
 }
@@ -139,7 +136,7 @@ nsDOMXULCommandEvent::InitCommandEvent(const nsAString& aType,
 
 nsresult NS_NewDOMXULCommandEvent(nsIDOMEvent** aInstancePtrResult,
                                   nsPresContext* aPresContext,
-                                  nsInputEvent *aEvent) 
+                                  nsXULCommandEvent *aEvent) 
 {
   nsDOMXULCommandEvent* it = new nsDOMXULCommandEvent(aPresContext, aEvent);
   if (nsnull == it) {

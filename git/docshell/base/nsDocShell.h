@@ -360,15 +360,8 @@ protected:
     // complete.
     nsresult CheckClassifier(nsIChannel *aChannel);
 
-    nsresult ScrollIfAnchor(nsIURI * aURI, PRBool * aWasAnchor,
-                            PRUint32 aLoadType, nscoord *cx, nscoord *cy,
-                            PRBool * aDoHashchange);
-
-    // Dispatches the hashchange event to the current thread, if the document's
-    // readystate is "complete".
-    nsresult DispatchAsyncHashchange();
-
-    nsresult FireHashchange();
+    NS_IMETHOD ScrollIfAnchor(nsIURI * aURI, PRBool * aWasAnchor,
+                              PRUint32 aLoadType, nscoord *cx, nscoord *cy);
 
     // Returns PR_TRUE if would have called FireOnLocationChange,
     // but did not because aFireOnLocationChange was false on entry.

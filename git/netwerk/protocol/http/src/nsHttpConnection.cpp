@@ -431,7 +431,7 @@ nsHttpConnection::CreateTransport(PRUint8 caps)
     NS_PRECONDITION(!mSocketTransport, "unexpected");
 
     nsCOMPtr<nsISocketTransportService> sts =
-            do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
+            do_GetService(kSocketTransportServiceCID, &rv);
     if (NS_FAILED(rv)) return rv;
 
     // configure the socket type based on the connection type requested.

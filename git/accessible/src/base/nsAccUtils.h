@@ -56,10 +56,6 @@ class nsAccessNode;
 class nsAccessible;
 class nsHTMLTableAccessible;
 class nsDocAccessible;
-#ifdef MOZ_XUL
-class nsXULTreeAccessible;
-class nsXULTreeitemAccessible;
-#endif
 
 class nsAccUtils
 {
@@ -357,20 +353,6 @@ public:
    */
   static already_AddRefed<nsDocAccessible>
     QueryAccessibleDocument(nsIAccessibleDocument *aAccessibleDocument);
-
-#ifdef MOZ_XUL
-  /**
-   * Query nsXULTreeAccessible from the given nsIAccessible.
-   */
-  static already_AddRefed<nsXULTreeAccessible>
-    QueryAccessibleTree(nsIAccessible *aAccessible);
-
-  /**
-   * Query nsXULTreeitemAccessible from the given nsIAccessNode.
-   */
-  static already_AddRefed<nsXULTreeitemAccessible>
-    QueryAccessibleTreeitem(nsIAccessNode *aAccessNode);
-#endif
 
 #ifdef DEBUG_A11Y
   /**

@@ -546,8 +546,7 @@ nsDisplayBackground::IsOpaque(nsDisplayListBuilder* aBuilder) {
       nsLayoutUtils::HasNonZeroCorner(mFrame->GetStyleBorder()->mBorderRadius))
     return PR_FALSE;
 
-  if (NS_GET_A(bg->mBackgroundColor) == 255 &&
-      !nsCSSRendering::IsCanvasFrame(mFrame))
+  if (NS_GET_A(bg->mBackgroundColor) == 255)
     return PR_TRUE;
 
   if (bottomLayer.mRepeat == NS_STYLE_BG_REPEAT_XY) {

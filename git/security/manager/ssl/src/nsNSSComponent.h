@@ -202,9 +202,7 @@ public:
 
 private:
   ~nsCryptoHash();
-
   HASHContext* mHashContext;
-  PRBool mInitialized;
 };
 
 class nsCryptoHMAC : public nsICryptoHMAC
