@@ -69,10 +69,6 @@ class WrapperFactory {
         return HasWrapperFlag(wrapper, WAIVE_XRAY_WRAPPER_FLAG);
     }
 
-    static JSObject *WaiveXray(JSContext *cx, JSObject *obj);
-
-    static JSObject *DoubleWrap(JSContext *cx, JSObject *obj, uintN flags);
-
     // Prepare a given object for wrapping in a new compartment.
     static JSObject *PrepareForWrapping(JSContext *cx,
                                         JSObject *scope,

@@ -171,7 +171,6 @@ SVGAnimatedNumberList::
     nlai->SetInfo(mElement);
     aValue.Swap(val);
   }
-  aPreventCachingOfSandwich = PR_FALSE;
   return rv;
 }
 

@@ -131,15 +131,6 @@ class PunboxAssembler : public JSC::MacroAssembler
         move(Imm64(val.asRawBits() & JSVAL_PAYLOAD_MASK), payload);
     }
 
-    /*
-     * Load a (64b) js::Value from 'address' into 'type' and 'payload', and
-     * return a label which can be used by
-     * Repatcher::patchAddressOffsetForValue to patch the address offset.
-     */
-    Label loadValueWithAddressOffsetPatch(Address address, RegisterID type, RegisterID payload) {
-        return loadValueAsComponents(address, type, payload);
-    }
-
     template <typename T>
     void storeValueFromComponents(RegisterID type, RegisterID payload, T address) {
         move(type, Registers::ValueReg);
@@ -152,43 +143,6 @@ class PunboxAssembler : public JSC::MacroAssembler
         move(type, Registers::ValueReg);
         orPtr(payload, Registers::ValueReg);
         storeValue(Registers::ValueReg, address);
-    }
-
-    /*
-     * Store a (64b) js::Value from 'type' and 'payload' into 'address', and
-     * return a label which can be used by
-     * Repatcher::patchAddressOffsetForValueStore to patch the address offset.
-     */
-    Label storeValueWithAddressOffsetPatch(RegisterID type, RegisterID payload, Address address) {
-        storeValueFromComponents(type, payload, address);
-        return label();
-    }
-
-    /* Overload for constant type. */
-    Label storeValueWithAddressOffsetPatch(ImmTag type, RegisterID payload, Address address) {
-        storeValueFromComponents(type, payload, address);
-        return label();
-    }
-
-    /* Overload for constant type and constant data. */
-    Label storeValueWithAddressOffsetPatch(const Value &v, Address address) {
-        storeValue(v, address);
-        return label();
-    }
-
-    /* Overloaded for store with value remat info. */
-    Label storeValueWithAddressOffsetPatch(const ValueRemat &vr, Address address) {
-        if (vr.isConstant()) {
-            return storeValueWithAddressOffsetPatch(vr.value(), address);
-        } else if (vr.isTypeKnown()) {
-            ImmType type(vr.knownType());
-            RegisterID data(vr.dataReg());
-            return storeValueWithAddressOffsetPatch(type, data, address);
-        } else {
-            RegisterID type(vr.typeReg());
-            RegisterID data(vr.dataReg());
-            return storeValueWithAddressOffsetPatch(type, data, address);
-        }
     }
 
     template <typename T>

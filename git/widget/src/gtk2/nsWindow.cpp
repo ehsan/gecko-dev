@@ -3014,12 +3014,8 @@ nsWindow::OnKeyPressEvent(GtkWidget *aWidget, GdkEventKey *aEvent)
 
     // if we are in the middle of composing text, XIM gets to see it
     // before mozilla does.
-    PRBool IMEWasEnabled = PR_FALSE;
-    if (mIMModule) {
-        IMEWasEnabled = mIMModule->IsEnabled();
-        if (mIMModule->OnKeyEvent(this, aEvent)) {
-            return TRUE;
-        }
+    if (mIMModule && mIMModule->OnKeyEvent(this, aEvent)) {
+        return TRUE;
     }
 
     nsEventStatus status;
@@ -3041,17 +3037,6 @@ nsWindow::OnKeyPressEvent(GtkWidget *aWidget, GdkEventKey *aEvent)
     if (DispatchKeyDownEvent(aEvent, &isKeyDownCancelled) &&
         NS_UNLIKELY(mIsDestroyed)) {
         return TRUE;
-    }
-
-    // If a keydown event handler causes to enable IME, i.e., it moves
-    // focus from IME unusable content to IME usable editor, we should
-    // send the native key event to IME for the first input on the editor.
-    if (!IMEWasEnabled && mIMModule && mIMModule->IsEnabled()) {
-        // Notice our keydown event was already dispatched.  This prevents
-        // unnecessary DOM keydown event in the editor.
-        if (mIMModule->OnKeyEvent(this, aEvent, PR_TRUE)) {
-            return TRUE;
-        }
     }
 
     // Don't pass modifiers as NS_KEY_PRESS events.

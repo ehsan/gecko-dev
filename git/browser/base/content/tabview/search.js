@@ -336,7 +336,7 @@ SearchEventHandlerClass.prototype = {
     
     iQ("#searchbutton").mousedown(function() {
       self.initiatedBy = "buttonclick";
-      ensureSearchShown();
+      ensureSearchShown(null);
       self.switchToInMode();      
     });
     
@@ -347,37 +347,30 @@ SearchEventHandlerClass.prototype = {
   
   // ----------
   // Function: beforeSearchKeyHandler
-  // Handles all keydown before the search interface is brought up.
+  // Handles all keypresses before the search interface is brought up.
   beforeSearchKeyHandler: function (event) {
     // Only match reasonable text-like characters for quick search.
-    if (event.altKey || event.ctrlKey || event.metaKey)
+    // TODO: Also include funky chars. Bug 593904
+    if (!String.fromCharCode(event.which).match(/[a-zA-Z0-9]/) || event.altKey || 
+        event.ctrlKey || event.metaKey)
       return;
-
-    if ((event.keyCode > 0 && event.keyCode <= event.DOM_VK_DELETE) ||
-        event.keyCode == event.DOM_VK_CONTEXT_MENU ||
-        event.keyCode == event.DOM_VK_SLEEP ||
-        (event.keyCode >= event.DOM_VK_F1 &&
-         event.keyCode <= event.DOM_VK_SCROLL_LOCK) ||
-        event.keyCode == event.DOM_VK_META) {
-      return;
-    }
 
     // If we are already in an input field, allow typing as normal.
     if (event.target.nodeName == "INPUT")
       return;
 
     this.switchToInMode();
-    this.initiatedBy = "keydown";
-    ensureSearchShown();
+    this.initiatedBy = "keypress";
+    ensureSearchShown(event);
   },
 
   // ----------
   // Function: inSearchKeyHandler
-  // Handles all keydown while search mode.
+  // Handles all keypresses while search mode.
   inSearchKeyHandler: function (event) {
     let term = iQ("#searchbox").val();
     if ((event.keyCode == event.DOM_VK_ESCAPE) || 
-        (event.keyCode == event.DOM_VK_BACK_SPACE && term.length <= 1 && this.initiatedBy == "keydown")) {
+        (event.keyCode == event.DOM_VK_BACK_SPACE && term.length <= 1 && this.initiatedBy == "keypress")) {
       hideSearch(event);
       return;
     }
@@ -403,9 +396,9 @@ SearchEventHandlerClass.prototype = {
   switchToBeforeMode: function switchToBeforeMode() {
     let self = this;
     if (this.currentHandler)
-      iQ(window).unbind("keydown", this.currentHandler);
+      iQ(window).unbind("keypress", this.currentHandler);
     this.currentHandler = function(event) self.beforeSearchKeyHandler(event);
-    iQ(window).keydown(this.currentHandler);
+    iQ(window).keypress(this.currentHandler);
   },
   
   // ----------
@@ -415,9 +408,9 @@ SearchEventHandlerClass.prototype = {
   switchToInMode: function switchToInMode() {
     let self = this;
     if (this.currentHandler)
-      iQ(window).unbind("keydown", this.currentHandler);
+      iQ(window).unbind("keypress", this.currentHandler);
     this.currentHandler = function(event) self.inSearchKeyHandler(event);
-    iQ(window).keydown(this.currentHandler);
+    iQ(window).keypress(this.currentHandler);
   }
 };
 
@@ -541,7 +534,7 @@ function performSearch() {
   matcher.doSearch(TabHandlers.onMatch, TabHandlers.onUnmatch, TabHandlers.onOther);
 }
 
-function ensureSearchShown(){
+function ensureSearchShown(event){
   var $search = iQ("#search");
   var $searchShade = iQ("#searchshade");
   var $searchbox = iQ("#searchbox");
@@ -553,13 +546,17 @@ function ensureSearchShown(){
     var mainWindow = gWindow.document.getElementById("main-window");
     mainWindow.setAttribute("activetitlebarcolor", "#717171");       
 
-    $searchbox[0].focus();
-    $searchbox[0].val = '0';
+    // Marshal the focusing, otherwise you end up with
+    // a race condition where only sometimes would the
+    // first keystroke be registered by the search box.
+    // When you marshal it never gets registered, so we
+    // manually 
+    setTimeout(function focusSearch() {
+      $searchbox[0].focus();
+      $searchbox[0].val = '0';
+      if (event != null)
+        $searchbox.val(String.fromCharCode(event.charCode));        
 
-    // NOTE: when this function is called by keydown handler, next keypress
-    // event or composition events of IME will be fired on the focused editor.
-
-    setTimeout(function dispatchTabViewSearchEnabledEvent() {
       let newEvent = document.createEvent("Events");
       newEvent.initEvent("tabviewsearchenabled", false, false);
       dispatchEvent(newEvent);

@@ -45,9 +45,8 @@
 #include "assembler/assembler/LinkBuffer.h"
 #include "assembler/assembler/MacroAssembler.h"
 #include "assembler/assembler/CodeLocation.h"
-#include "methodjit/CodeGenIncludes.h"
+#include "CodeGenIncludes.h"
 #include "methodjit/Compiler.h"
-#include "methodjit/ICRepatcher.h"
 #include "InlineFrameAssembler.h"
 #include "jsobj.h"
 
@@ -105,7 +104,17 @@ ic::GetGlobalName(VMFrame &f, ic::MICInfo *ic)
     repatcher.repatch(ic->shape, obj->shape());
 
     /* Patch loads. */
-    repatcher.patchAddressOffsetForValueLoad(ic->load, slot * sizeof(Value));
+    slot *= sizeof(Value);
+#if defined JS_CPU_X86
+    repatcher.repatch(ic->load.dataLabel32AtOffset(MICInfo::GET_DATA_OFFSET), slot);
+    repatcher.repatch(ic->load.dataLabel32AtOffset(MICInfo::GET_TYPE_OFFSET), slot + 4);
+#elif defined JS_CPU_ARM
+    // ic->load actually points to the LDR instruction which fetches the offset, but 'repatch'
+    // knows how to dereference it to find the integer value.
+    repatcher.repatch(ic->load.dataLabel32AtOffset(0), slot);
+#elif defined JS_PUNBOX64
+    repatcher.repatch(ic->load.dataLabel32AtOffset(ic->patchValueOffset), slot);
+#endif
 
     /* Do load anyway... this time. */
     stubs::GetGlobalName(f);
@@ -181,8 +190,24 @@ ic::SetGlobalName(VMFrame &f, ic::MICInfo *ic)
     repatcher.repatch(ic->shape, obj->shape());
 
     /* Patch loads. */
-    repatcher.patchAddressOffsetForValueStore(ic->load, slot * sizeof(Value),
-                                              ic->u.name.typeConst);
+    slot *= sizeof(Value);
+
+#if defined JS_CPU_X86
+    repatcher.repatch(ic->load.dataLabel32AtOffset(MICInfo::SET_TYPE_OFFSET), slot + 4);
+
+    uint32 dataOffset;
+    if (ic->u.name.typeConst)
+        dataOffset = MICInfo::SET_DATA_CONST_TYPE_OFFSET;
+    else
+        dataOffset = MICInfo::SET_DATA_TYPE_OFFSET;
+    repatcher.repatch(ic->load.dataLabel32AtOffset(dataOffset), slot);
+#elif defined JS_CPU_ARM
+    // ic->load actually points to the LDR instruction which fetches the offset, but 'repatch'
+    // knows how to dereference it to find the integer value.
+    repatcher.repatch(ic->load.dataLabel32AtOffset(0), slot);
+#elif defined JS_PUNBOX64
+    repatcher.repatch(ic->load.dataLabel32AtOffset(ic->patchValueOffset), slot);
+#endif
 
     if (ic->u.name.usePropertyCache)
         STRICT_VARIANT(stubs::SetGlobalName)(f, atom);
@@ -758,7 +783,7 @@ class CallCompiler : public BaseCompiler
         else
             masm.storeArg(1, argcReg.reg());
         masm.storeArg(0, cxReg);
-        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, fun->u.n.native), false);
+        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, fun->u.n.native));
 
         Jump hasException = masm.branchTest32(Assembler::Zero, Registers::ReturnReg,
                                               Registers::ReturnReg);

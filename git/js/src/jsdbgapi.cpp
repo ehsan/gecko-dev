@@ -725,9 +725,6 @@ js_watch_set(JSContext *cx, JSObject *obj, jsid id, Value *vp)
                 return JS_FALSE;
             }
 
-            /* Handler could have redefined the shape; see bug 624050. */
-            shape = wp->shape;
-
             /*
              * Pass the output of the handler to the setter. Security wrappers
              * prevent any funny business between watchpoints and setters.
@@ -1857,14 +1854,6 @@ JS_MakeSystemObject(JSContext *cx, JSObject *obj)
 {
     obj->setSystem();
     return true;
-}
-
-/************************************************************************/
-
-JS_PUBLIC_API(JSObject *)
-JS_UnwrapObject(JSContext *cx, JSObject *obj)
-{
-    return obj->unwrap();
 }
 
 /************************************************************************/

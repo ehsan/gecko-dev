@@ -227,8 +227,6 @@ public:
 
     static PRInt32 WindowsOSVersion();
 
-    static void GetDLLVersion(PRUnichar *aDLLPath, nsAString& aVersion);
-
     virtual void FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref);
 
 #ifdef CAIRO_HAS_DWRITE_FONT

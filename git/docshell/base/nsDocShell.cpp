@@ -3922,36 +3922,6 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
             // Bad Content Encoding.
             error.AssignLiteral("contentEncodingError");
             break;
-        case NS_ERROR_REMOTE_XUL:
-        {
-            error.AssignLiteral("remoteXUL");
-
-            /**
-             * We want to set an hardcoded messageStr which uses the
-             * brandShortName.
-             */
-            nsCOMPtr<nsIStringBundleService> stringBundleService =
-                mozilla::services::GetStringBundleService();
-            if (!stringBundleService) {
-                return NS_ERROR_FAILURE;
-            }
-
-            nsCOMPtr<nsIStringBundle> brandBundle;
-            rv = stringBundleService->CreateBundle(kBrandBundleURL,
-                                                   getter_AddRefs(brandBundle));
-            NS_ENSURE_SUCCESS(rv, rv);
-
-            nsXPIDLString brandName;
-            rv = brandBundle->GetStringFromName(NS_LITERAL_STRING("brandShortName").get(),
-                                                getter_Copies(brandName));
-
-            // We could use something like nsTextFormatter::smprintf.
-            messageStr.AssignLiteral("This page uses an unsupported technology "
-                                     "that is no longer available in ");
-            messageStr.Append(brandName);
-            messageStr.AppendLiteral(".");
-            break;
-        }
         case NS_ERROR_UNSAFE_CONTENT_TYPE:
             // Channel refused to load from an unrecognized content type.
             error.AssignLiteral("unsafeContentType");
@@ -6283,7 +6253,6 @@ nsDocShell::EndPageLoad(nsIWebProgress * aProgress,
                  aStatus == NS_ERROR_MALWARE_URI ||
                  aStatus == NS_ERROR_PHISHING_URI ||
                  aStatus == NS_ERROR_UNSAFE_CONTENT_TYPE ||
-                 aStatus == NS_ERROR_REMOTE_XUL ||
                  NS_ERROR_GET_MODULE(aStatus) == NS_ERROR_MODULE_SECURITY) {
             DisplayLoadError(aStatus, url, nsnull, aChannel);
         }
@@ -7323,7 +7292,7 @@ nsDocShell::CreateContentViewer(const char *aContentType,
                                       aContentHandler, getter_AddRefs(viewer));
 
     if (NS_FAILED(rv))
-        return rv;
+        return NS_ERROR_FAILURE;
 
     // Notify the current document that it is about to be unloaded!!
     //
@@ -7505,14 +7474,14 @@ nsDocShell::NewContentViewerObj(const char *aContentType,
 
     // Now create an instance of the content viewer
     // nsLayoutDLF makes the determination if it should be a "view-source" instead of "view"
-    nsresult rv = docLoaderFactory->CreateInstance("view",
-                                                   aOpenedChannel,
-                                                   aLoadGroup, aContentType,
-                                                   static_cast<nsIContentViewerContainer*>(this),
-                                                   nsnull,
-                                                   aContentHandler,
-                                                   aViewer);
-    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ENSURE_SUCCESS(docLoaderFactory->CreateInstance("view",
+                                                       aOpenedChannel,
+                                                       aLoadGroup, aContentType,
+                                                       static_cast<nsIContentViewerContainer*>(this),
+                                                       nsnull,
+                                                       aContentHandler,
+                                                       aViewer),
+                      NS_ERROR_FAILURE);
 
     (*aViewer)->SetContainer(static_cast<nsIContentViewerContainer *>(this));
     return NS_OK;

@@ -3057,7 +3057,7 @@ js_InferFlags(JSContext *cx, uintN defaultFlags)
 {
 #ifdef JS_TRACER
     if (JS_ON_TRACE(cx))
-        return JS_TRACE_MONITOR(cx).bailExit->lookupFlags;
+        return cx->bailExit->lookupFlags;
 #endif
 
     JS_ASSERT_NOT_ON_TRACE(cx);
@@ -3744,7 +3744,7 @@ DefineStandardSlot(JSContext *cx, JSObject *obj, JSProtoKey key, JSAtom *atom,
          * property is not yet present, force it into a new one bound to a
          * reserved slot. Otherwise, go through the normal property path.
          */
-        JS_ASSERT(obj->isGlobal());
+        JS_ASSERT(obj->getClass()->flags & JSCLASS_IS_GLOBAL);
         JS_ASSERT(obj->isNative());
 
         if (!obj->ensureClassReservedSlots(cx))
@@ -3841,7 +3841,10 @@ js_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
          * of obj (the global object) is has a reserved slot indexed by key;
          * and (c) key is not the null key.
          */
-        if (!(clasp->flags & JSCLASS_IS_ANONYMOUS) || !obj->isGlobal() || key == JSProto_Null) {
+        if (!(clasp->flags & JSCLASS_IS_ANONYMOUS) ||
+            !(obj->getClass()->flags & JSCLASS_IS_GLOBAL) ||
+            key == JSProto_Null)
+        {
             uint32 attrs = (clasp->flags & JSCLASS_IS_ANONYMOUS)
                            ? JSPROP_READONLY | JSPROP_PERMANENT
                            : 0;
@@ -4118,15 +4121,16 @@ JSBool
 js_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key,
                   JSObject **objp)
 {
-    JSObject *cobj;
+    JSObject *tmp, *cobj;
     JSResolvingKey rkey;
     JSResolvingEntry *rentry;
     uint32 generation;
     JSObjectOp init;
     Value v;
 
-    obj = obj->getGlobal();
-    if (!obj->isGlobal()) {
+    while ((tmp = obj->getParent()) != NULL)
+        obj = tmp;
+    if (!(obj->getClass()->flags & JSCLASS_IS_GLOBAL)) {
         *objp = NULL;
         return JS_TRUE;
     }
@@ -4170,7 +4174,7 @@ JSBool
 js_SetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key, JSObject *cobj, JSObject *proto)
 {
     JS_ASSERT(!obj->getParent());
-    if (!obj->isGlobal())
+    if (!(obj->getClass()->flags & JSCLASS_IS_GLOBAL))
         return JS_TRUE;
 
     return js_SetReservedSlot(cx, obj, key, ObjectOrNullValue(cobj)) &&
@@ -5198,9 +5202,6 @@ js_NativeSet(JSContext *cx, JSObject *obj, const Shape *shape, bool added, Value
         AutoShapeRooter tvr(cx, shape);
         if (!shape->set(cx, obj, vp))
             return false;
-
-        JS_ASSERT_IF(!obj->inDictionaryMode(), shape->slot == slot);
-        slot = shape->slot;
     }
 
     if (obj->containsSlot(slot) &&
@@ -6136,7 +6137,7 @@ js_GetClassPrototype(JSContext *cx, JSObject *scopeobj, JSProtoKey protoKey,
             }
         }
         scopeobj = scopeobj->getGlobal();
-        if (scopeobj->isGlobal()) {
+        if (scopeobj->getClass()->flags & JSCLASS_IS_GLOBAL) {
             const Value &v = scopeobj->getReservedSlot(JSProto_LIMIT + protoKey);
             if (v.isObject()) {
                 *protop = &v.toObject();
@@ -6399,7 +6400,8 @@ js_PrintObjectSlotName(JSTracer *trc, char *buf, size_t bufsize)
 
     if (!shape) {
         const char *slotname = NULL;
-        if (obj->isGlobal()) {
+        Class *clasp = obj->getClass();
+        if (clasp->flags & JSCLASS_IS_GLOBAL) {
 #define JS_PROTO(name,code,init)                                              \
     if ((code) == slot) { slotname = js_##name##_str; goto found; }
 #include "jsproto.tbl"

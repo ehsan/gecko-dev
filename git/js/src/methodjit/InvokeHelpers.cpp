@@ -57,7 +57,6 @@
 #include "methodjit/MonoIC.h"
 #include "jsanalyze.h"
 #include "methodjit/BaseCompiler.h"
-#include "methodjit/ICRepatcher.h"
 
 #include "jsinterpinlines.h"
 #include "jspropertycacheinlines.h"
@@ -74,8 +73,6 @@
 using namespace js;
 using namespace js::mjit;
 using namespace JSC;
-
-using ic::Repatcher;
 
 static jsbytecode *
 FindExceptionHandler(JSContext *cx)
@@ -503,22 +500,6 @@ js_InternalThrow(VMFrame &f)
 {
     JSContext *cx = f.cx;
 
-    // It's possible that from within RunTracer(), Interpret() returned with
-    // an error and finished the frame (i.e., called ScriptEpilogue), but has
-    // not yet performed an inline return.
-    //
-    // In this case, RunTracer() has no choice but to propagate the error
-    // up to the method JIT, and thus to this function. But ScriptEpilogue()
-    // has already been called. Detect this, and avoid double-finishing the
-    // frame. See HandleErrorInExcessFrame() and bug 624100.
-    if (f.fp()->finishedInInterpreter()) {
-        // If it's the last frame, just propagate the failure up again.
-        if (f.fp() == f.entryfp)
-            return NULL;
-
-        InlineReturn(f);
-    }
-
     // Make sure sp is up to date.
     JS_ASSERT(cx->regs == &f.regs);
 
@@ -553,19 +534,20 @@ js_InternalThrow(VMFrame &f)
         if (pc)
             break;
 
-        // The JIT guarantees that ScriptEpilogue() has always been run
-        // upon exiting to its caller. This is important for consistency,
-        // where execution modes make similar guarantees about prologues
-        // and epilogues. RunTracer(), Interpret(), and Invoke() all
-        // rely on this property.
-        JS_ASSERT(!f.fp()->finishedInInterpreter());
+        // If on the 'topmost' frame (where topmost means the first frame
+        // called into through js_Interpret). In this case, we still unwind,
+        // but we shouldn't return from a JS function, because we're not in a
+        // JS function.
+        bool lastFrame = (f.entryfp == f.fp());
         js_UnwindScope(cx, 0, cx->isExceptionPending());
+
+        // For consistency with Interpret(), always run the script epilogue.
+        // This simplifies interactions with RunTracer(), since it can assume
+        // no matter how a function exited (error or not), that the epilogue
+        // does not need to be run.
         ScriptEpilogue(f.cx, f.fp(), false);
 
-        // Don't remove the last frame, this is the responsibility of
-        // JaegerShot()'s caller. We only guarantee that ScriptEpilogue()
-        // has been run.
-        if (f.entryfp == f.fp())
+        if (lastFrame)
             break;
 
         JS_ASSERT(f.regs.sp == cx->regs->sp);
@@ -665,20 +647,9 @@ HandleErrorInExcessFrame(VMFrame &f, JSStackFrame *stopFp, bool searchedTopmostF
      */
     JSStackFrame *fp = cx->fp();
     if (searchedTopmostFrame) {
-        /*
-         * This is a special case meaning that fp->finishedInInterpreter() is
-         * true. If so, and fp == stopFp, our only choice is to propagate this
-         * error up, back to the method JIT, and then to js_InternalThrow,
-         * where this becomes a special case. See the comment there and bug
-         * 624100.
-         */
         if (fp == stopFp)
             return false;
 
-        /*
-         * Otherwise, the protocol here (like Invoke) is to assume that the
-         * execution mode finished the frame, and to just pop it.
-         */
         InlineReturn(f);
     }
 
@@ -904,7 +875,7 @@ FinishExcessFrames(VMFrame &f, JSStackFrame *entryFrame)
     return true;
 }
 
-#if defined JS_MONOIC
+#if JS_MONOIC
 static void
 UpdateTraceHintSingle(Repatcher &repatcher, JSC::CodeLocationJump jump, JSC::CodeLocationLabel target)
 {
@@ -920,59 +891,52 @@ UpdateTraceHintSingle(Repatcher &repatcher, JSC::CodeLocationJump jump, JSC::Cod
 }
 
 static void
-DisableTraceHint(VMFrame &f, ic::TraceICInfo &ic)
+DisableTraceHint(VMFrame &f, ic::TraceICInfo &tic)
 {
     Repatcher repatcher(f.jit());
-    UpdateTraceHintSingle(repatcher, ic.traceHint, ic.jumpTarget);
+    UpdateTraceHintSingle(repatcher, tic.traceHint, tic.jumpTarget);
 
-    if (ic.hasSlowTraceHint)
-        UpdateTraceHintSingle(repatcher, ic.slowTraceHint, ic.jumpTarget);
+    if (tic.hasSlowTraceHint)
+        UpdateTraceHintSingle(repatcher, tic.slowTraceHint, tic.jumpTarget);
 }
 
 static void
-ResetTraceHintAt(JSScript *script, js::mjit::JITScript *jit,
-                 jsbytecode *pc, uint16_t index, bool full)
+EnableTraceHintAt(JSScript *script, js::mjit::JITScript *jit, jsbytecode *pc, uint16_t index)
 {
     if (index >= jit->nTraceICs)
         return;
-    ic::TraceICInfo &ic = jit->traceICs[index];
-    if (!ic.initialized)
+    ic::TraceICInfo &tic = jit->traceICs[index];
+    if (!tic.initialized)
         return;
     
-    JS_ASSERT(ic.jumpTargetPC == pc);
+    JS_ASSERT(tic.jumpTargetPC == pc);
 
     JaegerSpew(JSpew_PICs, "Enabling trace IC %u in script %p\n", index, script);
 
     Repatcher repatcher(jit);
 
-    UpdateTraceHintSingle(repatcher, ic.traceHint, ic.stubEntry);
+    UpdateTraceHintSingle(repatcher, tic.traceHint, tic.stubEntry);
 
-    if (ic.hasSlowTraceHint)
-        UpdateTraceHintSingle(repatcher, ic.slowTraceHint, ic.stubEntry);
-
-    if (full) {
-        ic.traceData = NULL;
-        ic.loopCounterStart = 1;
-        ic.loopCounter = ic.loopCounterStart;
-    }
+    if (tic.hasSlowTraceHint)
+        UpdateTraceHintSingle(repatcher, tic.slowTraceHint, tic.stubEntry);
 }
 #endif
 
 void
-js::mjit::ResetTraceHint(JSScript *script, jsbytecode *pc, uint16_t index, bool full)
+js::mjit::EnableTraceHint(JSScript *script, jsbytecode *pc, uint16_t index)
 {
 #if JS_MONOIC
     if (script->jitNormal)
-        ResetTraceHintAt(script, script->jitNormal, pc, index, full);
+        EnableTraceHintAt(script, script->jitNormal, pc, index);
 
     if (script->jitCtor)
-        ResetTraceHintAt(script, script->jitCtor, pc, index, full);
+        EnableTraceHintAt(script, script->jitCtor, pc, index);
 #endif
 }
 
 #if JS_MONOIC
 void *
-RunTracer(VMFrame &f, ic::TraceICInfo &ic)
+RunTracer(VMFrame &f, ic::TraceICInfo &tic)
 #else
 void *
 RunTracer(VMFrame &f)
@@ -1000,28 +964,19 @@ RunTracer(VMFrame &f)
     uintN inlineCallCount = 0;
     void **traceData;
     uintN *traceEpoch;
-    uint32 *loopCounter;
-    uint32 hits;
 #if JS_MONOIC
-    traceData = &ic.traceData;
-    traceEpoch = &ic.traceEpoch;
-    loopCounter = &ic.loopCounter;
-    *loopCounter = 1;
-    hits = ic.loopCounterStart;
+    traceData = &tic.traceData;
+    traceEpoch = &tic.traceEpoch;
 #else
     traceData = NULL;
     traceEpoch = NULL;
-    loopCounter = NULL;
-    hits = 1;
 #endif
-    tpa = MonitorTracePoint(f.cx, inlineCallCount, &blacklist, traceData, traceEpoch,
-                            loopCounter, hits);
+    tpa = MonitorTracePoint(f.cx, inlineCallCount, &blacklist, traceData, traceEpoch);
     JS_ASSERT(!TRACE_RECORDER(cx));
 
 #if JS_MONOIC
-    ic.loopCounterStart = *loopCounter;
     if (blacklist)
-        DisableTraceHint(f, ic);
+        DisableTraceHint(f, tic);
 #endif
 
     // Even though ExecuteTree() bypasses the interpreter, it should propagate
@@ -1104,9 +1059,9 @@ RunTracer(VMFrame &f)
 #if defined JS_TRACER
 # if defined JS_MONOIC
 void *JS_FASTCALL
-stubs::InvokeTracer(VMFrame &f, ic::TraceICInfo *ic)
+stubs::InvokeTracer(VMFrame &f, ic::TraceICInfo *tic)
 {
-    return RunTracer(f, *ic);
+    return RunTracer(f, *tic);
 }
 
 # else

@@ -1752,19 +1752,8 @@ typedef enum JSGCParamKey {
     JSGC_NUMBER = 5,
 
     /* Max size of the code cache in bytes. */
-    JSGC_MAX_CODE_CACHE_BYTES = 6,
-
-    /* Select GC mode. */
-    JSGC_MODE = 7
+    JSGC_MAX_CODE_CACHE_BYTES = 6
 } JSGCParamKey;
-
-typedef enum JSGCMode {
-    /* Perform only global GCs. */
-    JSGC_MODE_GLOBAL = 0,
-
-    /* Perform per-compartment GCs until too much garbage has accumulated. */
-    JSGC_MODE_COMPARTMENT = 1
-} JSGCMode;
 
 extern JS_PUBLIC_API(void)
 JS_SetGCParameter(JSRuntime *rt, JSGCParamKey key, uint32 value);
@@ -2575,9 +2564,6 @@ JS_GetFunctionArity(JSFunction *fun);
  */
 extern JS_PUBLIC_API(JSBool)
 JS_ObjectIsFunction(JSContext *cx, JSObject *obj);
-
-extern JS_PUBLIC_API(JSBool)
-JS_ObjectIsCallable(JSContext *cx, JSObject *obj);
 
 extern JS_PUBLIC_API(JSBool)
 JS_DefineFunctions(JSContext *cx, JSObject *obj, JSFunctionSpec *fs);

@@ -169,7 +169,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
 
         /* If the string is an atom, we don't have to copy. */
         if (str->isAtomized()) {
-            JS_ASSERT(str->asCell()->compartment() == cx->runtime->atomsCompartment);
+            JS_ASSERT(str->asCell()->compartment() == cx->runtime->defaultCompartment);
             return true;
         }
     }

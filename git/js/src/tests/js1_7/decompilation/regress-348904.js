@@ -1,6 +1,5 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -13,19 +12,18 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Communicator client code, released
- * March 31, 1998.
+ * The Original Code is JavaScript Engine testing utilities.
  *
  * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2006
  * the Initial Developer. All Rights Reserved.
  *
- * Contributor(s):
+ * Contributor(s): Jesse Ruderman
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -37,33 +35,32 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef jsbool_h___
-#define jsbool_h___
-/*
- * JS boolean interface.
- */
+//-----------------------------------------------------------------------------
+var BUGNUMBER = 348904;
+var summary = 'decompilation for "let" in lvalue part of for..in';
+var actual = '';
+var expect = '';
 
-#include "jsapi.h"
-#include "jsobj.h"
 
-extern js::Class js_BooleanClass;
+//-----------------------------------------------------------------------------
+test();
+//-----------------------------------------------------------------------------
 
-inline bool
-JSObject::isBoolean() const
+function test()
 {
-    return getClass() == &js_BooleanClass;
+  enterFunc ('test');
+  printBugNumber(BUGNUMBER);
+  printStatus (summary);
+
+  var f = function () { for (let i = 3 in {}); }
+  actual = f + '';
+  expect = 'function () {\n    for (let i in {}) {\n    }\n}';
+  compareSource(expect, actual, summary);
+
+  var f = function () { for (let i = (y = 4) in {}); }
+  actual = f + '';
+  expect = 'function () {\n    y = 4;\n    for (let i in {}) {\n    }\n}';
+  compareSource(expect, actual, summary);
+
+  exitFunc ('test');
 }
-
-extern JSObject *
-js_InitBooleanClass(JSContext *cx, JSObject *obj);
-
-extern JSString *
-js_BooleanToString(JSContext *cx, JSBool b);
-
-extern JSBool
-js_BooleanToCharBuffer(JSContext *cx, JSBool b, JSCharBuffer &cb);
-
-extern JSBool
-js_ValueToBoolean(const js::Value &v);
-
-#endif /* jsbool_h___ */

@@ -972,9 +972,6 @@ jsd_GetValueString(JSDContext* jsdc, JSDValue* jsdval);
 extern JSString*
 jsd_GetValueFunctionName(JSDContext* jsdc, JSDValue* jsdval);
 
-extern JSFunction*
-jsd_GetValueFunction(JSDContext* jsdc, JSDValue* jsdval);
-
 /**************************************************/
 
 extern uintN

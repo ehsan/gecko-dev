@@ -215,7 +215,7 @@ JSWrapper::set(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id, Va
 }
 
 bool
-JSWrapper::keys(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
+JSWrapper::enumerateOwn(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
 {
     const jsid id = JSID_VOID;
     GET(GetPropertyNames(cx, wrappedObject(wrapper), JSITER_OWNONLY, &props));
@@ -500,11 +500,11 @@ JSCrossCompartmentWrapper::set(JSContext *cx, JSObject *wrapper, JSObject *recei
 }
 
 bool
-JSCrossCompartmentWrapper::keys(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
+JSCrossCompartmentWrapper::enumerateOwn(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
 {
     PIERCE(cx, wrapper, GET,
            NOTHING,
-           JSWrapper::keys(cx, wrapper, props),
+           JSWrapper::enumerateOwn(cx, wrapper, props),
            call.origin->wrap(cx, props));
 }
 

@@ -71,13 +71,6 @@ GfxInfo::GetDWriteEnabled(PRBool *aEnabled)
   return NS_ERROR_FAILURE;
 }
 
-/* readonly attribute DOMString DWriteVersion; */
-NS_IMETHODIMP
-GfxInfo::GetDWriteVersion(nsAString & aDwriteVersion)
-{
-  return NS_ERROR_FAILURE;
-}
-
 void
 GfxInfo::Init()
 {

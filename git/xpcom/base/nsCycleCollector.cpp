@@ -994,6 +994,8 @@ struct nsCycleCollector
 
     nsPurpleBuffer mPurpleBuf;
 
+    nsCOMPtr<nsICycleCollectorListener> mListener;
+
     void RegisterRuntime(PRUint32 langID, 
                          nsCycleCollectionLanguageRuntime *rt);
     nsCycleCollectionLanguageRuntime * GetRuntime(PRUint32 langID);
@@ -1405,7 +1407,7 @@ private:
     PtrInfo *mCurrPi;
     nsCycleCollectionLanguageRuntime **mRuntimes; // weak, from nsCycleCollector
     nsCString mNextEdgeName;
-    nsICycleCollectorListener *mListener;
+    nsCOMPtr<nsICycleCollectorListener> mListener;
 
 public:
     GCGraphBuilder(GCGraph &aGraph,
@@ -2497,6 +2499,7 @@ void
 nsCycleCollector::CleanupAfterCollection()
 {
     mWhiteNodes = nsnull;
+    mListener = nsnull;
     mCollectionInProgress = PR_FALSE;
 
 #ifdef XP_OS2
@@ -2523,6 +2526,14 @@ nsCycleCollector::Collect(PRUint32 aTryCollections,
 
     if (!PrepareForCollection(&whiteNodes))
         return 0;
+
+#ifdef DEBUG_CC
+    nsCOMPtr<nsICycleCollectorListener> tempListener;
+    if (!aListener && mParams.mDrawGraphs) {
+        tempListener = new nsCycleCollectorLogger();
+        aListener = tempListener;
+    }
+#endif
 
     PRUint32 totalCollections = 0;
     while (aTryCollections > totalCollections) {
@@ -3274,7 +3285,7 @@ nsCycleCollector_DEBUG_wasFreed(nsISupports *n)
 class nsCycleCollectorRunner : public nsRunnable
 {
     nsCycleCollector *mCollector;
-    nsICycleCollectorListener *mListener;
+    nsCOMPtr<nsICycleCollectorListener> mListener;
     Mutex mLock;
     CondVar mRequest;
     CondVar mReply;
@@ -3319,7 +3330,6 @@ public:
 
     nsCycleCollectorRunner(nsCycleCollector *collector)
         : mCollector(collector),
-          mListener(nsnull),
           mLock("cycle collector lock"),
           mRequest(mLock, "cycle collector request condvar"),
           mReply(mLock, "cycle collector reply condvar"),
@@ -3459,16 +3469,9 @@ PRUint32
 nsCycleCollector_collect(nsICycleCollectorListener *aListener)
 {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    nsCOMPtr<nsICycleCollectorListener> listener(aListener);
-#ifdef DEBUG_CC
-    if (!aListener && sCollector.mParams.mDrawGraphs) {
-        listener = new nsCycleCollectorLogger();
-    }
-#endif
-
     if (sCollectorRunner)
-        return sCollectorRunner->Collect(listener);
-    return sCollector ? sCollector->Collect(1, listener) : 0;
+        return sCollectorRunner->Collect(aListener);
+    return sCollector ? sCollector->Collect(1, aListener) : 0;
 }
 
 void

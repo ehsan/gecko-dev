@@ -1627,8 +1627,8 @@ class RegExpGuard
     static const size_t MAX_FLAT_PAT_LEN = 256;
 
     static JSString *flattenPattern(JSContext *cx, JSLinearString *patstr) {
-        StringBuffer sb(cx);
-        if (!sb.reserve(patstr->length()))
+        JSCharBuffer cb(cx);
+        if (!cb.reserve(patstr->length()))
             return NULL;
 
         static const jschar ESCAPE_CHAR = '\\';
@@ -1636,14 +1636,14 @@ class RegExpGuard
         size_t len = patstr->length();
         for (const jschar *it = chars; it != chars + len; ++it) {
             if (RegExp::isMetaChar(*it)) {
-                if (!sb.append(ESCAPE_CHAR) || !sb.append(*it))
+                if (!cb.append(ESCAPE_CHAR) || !cb.append(*it))
                     return NULL;
             } else {
-                if (!sb.append(*it))
+                if (!cb.append(*it))
                     return NULL;
             }
         }
-        return sb.finishString();
+        return js_NewStringFromCharBuffer(cx, cb);
     }
 
   public:
@@ -1913,7 +1913,7 @@ str_search(JSContext *cx, uintN argc, Value *vp)
 struct ReplaceData
 {
     ReplaceData(JSContext *cx)
-     : g(cx), sb(cx)
+     : g(cx), cb(cx)
     {}
 
     JSString           *str;           /* 'this' parameter object as a string */
@@ -1923,12 +1923,13 @@ struct ReplaceData
     JSLinearString     *repstr;        /* replacement string */
     const jschar       *dollar;        /* null or pointer to first $ in repstr */
     const jschar       *dollarEnd;     /* limit pointer for js_strchr_limit */
+    jsint              index;          /* index in result of next replacement */
     jsint              leftIndex;      /* left context index in str->chars */
     JSSubString        dollarStr;      /* for "$$" InterpretDollar result */
     bool               calledBack;     /* record whether callback has been called */
     InvokeSessionGuard session;        /* arguments for repeated lambda Invoke call */
     InvokeArgsGuard    singleShot;     /* arguments for single lambda Invoke call */
-    StringBuffer       sb;             /* buffer built during DoMatch */
+    JSCharBuffer       cb;             /* buffer built during DoMatch */
 };
 
 static bool
@@ -2121,12 +2122,8 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
     return true;
 }
 
-/* 
- * Precondition: |rdata.sb| already has necessary growth space reserved (as
- * derived from FindReplaceLength).
- */
 static void
-DoReplace(JSContext *cx, RegExpStatics *res, ReplaceData &rdata)
+DoReplace(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, jschar *chars)
 {
     JSLinearString *repstr = rdata.repstr;
     const jschar *cp;
@@ -2135,23 +2132,24 @@ DoReplace(JSContext *cx, RegExpStatics *res, ReplaceData &rdata)
     const jschar *dp = rdata.dollar;
     const jschar *ep = rdata.dollarEnd;
     for (; dp; dp = js_strchr_limit(dp, '$', ep)) {
-        /* Move one of the constant portions of the replacement value. */
         size_t len = dp - cp;
-        JS_ALWAYS_TRUE(rdata.sb.append(cp, len));
+        js_strncpy(chars, cp, len);
+        chars += len;
         cp = dp;
 
         JSSubString sub;
         size_t skip;
         if (InterpretDollar(cx, res, dp, ep, rdata, &sub, &skip)) {
             len = sub.length;
-            JS_ALWAYS_TRUE(rdata.sb.append(sub.chars, len));
+            js_strncpy(chars, sub.chars, len);
+            chars += len;
             cp += skip;
             dp += skip;
         } else {
             dp++;
         }
     }
-    JS_ALWAYS_TRUE(rdata.sb.append(cp, repstr->length() - (cp - bp)));
+    js_strncpy(chars, cp, repstr->length() - (cp - bp));
 }
 
 static bool
@@ -2171,10 +2169,14 @@ ReplaceRegExpCallback(JSContext *cx, RegExpStatics *res, size_t count, void *p)
         return false;
 
     size_t growth = leftlen + replen;
-    if (!rdata.sb.reserve(rdata.sb.length() + growth))
+    if (!rdata.cb.growByUninitialized(growth))
         return false;
-    JS_ALWAYS_TRUE(rdata.sb.append(left, leftlen)); /* skipped-over portion of the search value */
-    DoReplace(cx, res, rdata);
+
+    jschar *chars = rdata.cb.begin() + rdata.index;
+    rdata.index += growth;
+    js_strncpy(chars, left, leftlen);
+    chars += leftlen;
+    DoReplace(cx, res, rdata, chars);
     return true;
 }
 
@@ -2280,7 +2282,7 @@ BuildDollarReplacement(JSContext *cx, JSString *textstrArg, JSLinearString *reps
      *
      * Note that dollar vars _could_ make the resulting text smaller than this.
      */
-    StringBuffer newReplaceChars(cx);
+    JSCharBuffer newReplaceChars(cx);
     if (!newReplaceChars.reserve(textstr->length() - fm.patternLength() + repstr->length()))
         return false;
 
@@ -2321,7 +2323,7 @@ BuildDollarReplacement(JSContext *cx, JSString *textstrArg, JSLinearString *reps
     JSString *leftSide = js_NewDependentString(cx, textstr, 0, matchStart);
     ENSURE(leftSide);
 
-    JSString *newReplace = newReplaceChars.finishString();
+    JSString *newReplace = js_NewStringFromCharBuffer(cx, newReplaceChars);
     ENSURE(newReplace);
 
     JS_ASSERT(textstr->length() >= matchLimit);
@@ -2346,6 +2348,7 @@ str_replace_regexp(JSContext *cx, uintN argc, Value *vp, ReplaceData &rdata)
     if (!rep)
         return false;
 
+    rdata.index = 0;
     rdata.leftIndex = 0;
     rdata.calledBack = false;
 
@@ -2361,10 +2364,10 @@ str_replace_regexp(JSContext *cx, uintN argc, Value *vp, ReplaceData &rdata)
 
     JSSubString sub;
     res->getRightContext(&sub);
-    if (!rdata.sb.append(sub.chars, sub.length))
+    if (!rdata.cb.append(sub.chars, sub.length))
         return false;
 
-    JSString *retstr = rdata.sb.finishString();
+    JSString *retstr = js_NewStringFromCharBuffer(cx, rdata.cb);
     if (!retstr)
         return false;
 
@@ -3474,17 +3477,14 @@ NewShortString(JSContext *cx, const char *chars, size_t length)
 static const size_t sMinWasteSize = 16;
 
 JSFlatString *
-StringBuffer::finishString()
+js_NewStringFromCharBuffer(JSContext *cx, JSCharBuffer &cb)
 {
-    JSContext *cx = context();
     if (cb.empty())
         return ATOM_TO_STRING(cx->runtime->atomState.emptyAtom);
 
     size_t length = cb.length();
-    if (!checkLength(length))
-        return NULL;
 
-    JS_STATIC_ASSERT(JSShortString::MAX_SHORT_STRING_LENGTH < CharBuffer::InlineLength);
+    JS_STATIC_ASSERT(JSShortString::MAX_SHORT_STRING_LENGTH < JSCharBuffer::InlineLength);
     if (JSShortString::fitsIntoShortString(length))
         return NewShortString(cx, cb.begin(), length);
 
@@ -3680,9 +3680,15 @@ js_ValueToString(JSContext *cx, const Value &arg)
     return str;
 }
 
+static inline JSBool
+AppendAtom(JSAtom *atom, JSCharBuffer &cb)
+{
+    return cb.append(atom->chars(), atom->length());
+}
+
 /* This function implements E-262-3 section 9.8, toString. */
-bool
-js::ValueToStringBuffer(JSContext *cx, const Value &arg, StringBuffer &sb)
+JSBool
+js_ValueToCharBuffer(JSContext *cx, const Value &arg, JSCharBuffer &cb)
 {
     Value v = arg;
     if (v.isObject() && !DefaultValue(cx, &v.toObject(), JSTYPE_STRING, &v))
@@ -3694,16 +3700,16 @@ js::ValueToStringBuffer(JSContext *cx, const Value &arg, StringBuffer &sb)
         const jschar *chars = str->getChars(cx);
         if (!chars)
             return false;
-        return sb.append(chars, length);
+        return cb.append(chars, length);
     }
     if (v.isNumber())
-        return NumberValueToStringBuffer(cx, v, sb);
+        return js_NumberValueToCharBuffer(cx, v, cb);
     if (v.isBoolean())
-        return BooleanToStringBuffer(cx, v.toBoolean(), sb);
+        return js_BooleanToCharBuffer(cx, v.toBoolean(), cb);
     if (v.isNull())
-        return sb.append(cx->runtime->atomState.nullAtom);
+        return AppendAtom(cx->runtime->atomState.nullAtom, cb);
     JS_ASSERT(v.isUndefined());
-    return sb.append(cx->runtime->atomState.typeAtoms[JSTYPE_VOID]);
+    return AppendAtom(cx->runtime->atomState.typeAtoms[JSTYPE_VOID], cb);
 }
 
 JS_FRIEND_API(JSString *)
@@ -5570,9 +5576,9 @@ const bool js_alnum[] = {
 #define URI_CHUNK 64U
 
 static inline bool
-TransferBufferToString(JSContext *cx, StringBuffer &sb, Value *rval)
+TransferBufferToString(JSContext *cx, JSCharBuffer &cb, Value *rval)
 {
-    JSString *str = sb.finishString();
+    JSString *str = js_NewStringFromCharBuffer(cx, cb);
     if (!str)
         return false;
     rval->setString(str);
@@ -5602,7 +5608,7 @@ Encode(JSContext *cx, JSString *str, const jschar *unescapedSet,
         return JS_TRUE;
     }
 
-    StringBuffer sb(cx);
+    JSCharBuffer cb(cx);
     jschar hexBuf[4];
     hexBuf[0] = '%';
     hexBuf[3] = 0;
@@ -5610,7 +5616,7 @@ Encode(JSContext *cx, JSString *str, const jschar *unescapedSet,
         jschar c = chars[k];
         if (js_strchr(unescapedSet, c) ||
             (unescapedSet2 && js_strchr(unescapedSet2, c))) {
-            if (!sb.append(c))
+            if (!cb.append(c))
                 return JS_FALSE;
         } else {
             if ((c >= 0xDC00) && (c <= 0xDFFF)) {
@@ -5641,13 +5647,13 @@ Encode(JSContext *cx, JSString *str, const jschar *unescapedSet,
             for (size_t j = 0; j < L; j++) {
                 hexBuf[1] = HexDigits[utf8buf[j] >> 4];
                 hexBuf[2] = HexDigits[utf8buf[j] & 0xf];
-                if (!sb.append(hexBuf, 3))
+                if (!cb.append(hexBuf, 3))
                     return JS_FALSE;
             }
         }
     }
 
-    return TransferBufferToString(cx, sb, rval);
+    return TransferBufferToString(cx, cb, rval);
 }
 
 static JSBool
@@ -5663,7 +5669,7 @@ Decode(JSContext *cx, JSString *str, const jschar *reservedSet, Value *rval)
         return JS_TRUE;
     }
 
-    StringBuffer sb(cx);
+    JSCharBuffer cb(cx);
     for (size_t k = 0; k < length; k++) {
         jschar c = chars[k];
         if (c == '%') {
@@ -5705,26 +5711,26 @@ Decode(JSContext *cx, JSString *str, const jschar *reservedSet, Value *rval)
                         goto report_bad_uri;
                     c = (jschar)((v & 0x3FF) + 0xDC00);
                     jschar H = (jschar)((v >> 10) + 0xD800);
-                    if (!sb.append(H))
+                    if (!cb.append(H))
                         return JS_FALSE;
                 } else {
                     c = (jschar)v;
                 }
             }
             if (js_strchr(reservedSet, c)) {
-                if (!sb.append(chars + start, k - start + 1))
+                if (!cb.append(chars + start, k - start + 1))
                     return JS_FALSE;
             } else {
-                if (!sb.append(c))
+                if (!cb.append(c))
                     return JS_FALSE;
             }
         } else {
-            if (!sb.append(c))
+            if (!cb.append(c))
                 return JS_FALSE;
         }
     }
 
-    return TransferBufferToString(cx, sb, rval);
+    return TransferBufferToString(cx, cb, rval);
 
   report_bad_uri:
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_URI);

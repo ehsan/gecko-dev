@@ -1213,18 +1213,16 @@ js_NumberToString(JSContext *cx, jsdouble d)
     return js_NumberToStringWithBase(cx, d, 10);
 }
 
-namespace js {
-
 JSFlatString *
-NumberToString(JSContext *cx, jsdouble d)
+js::NumberToString(JSContext *cx, jsdouble d)
 {
     if (JSString *str = js_NumberToStringWithBase(cx, d, 10))
         return str->assertIsFlat();
     return NULL;
 }
 
-bool JS_FASTCALL
-NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb)
+JSBool JS_FASTCALL
+js_NumberValueToCharBuffer(JSContext *cx, const Value &v, JSCharBuffer &cb)
 {
     /* Convert to C-string. */
     ToCStringBuf cbuf;
@@ -1245,8 +1243,20 @@ NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb)
      */
     size_t cstrlen = strlen(cstr);
     JS_ASSERT(!cbuf.dbuf && cstrlen < cbuf.sbufSize);
-    return sb.appendInflated(cstr, cstrlen);
+    size_t sizeBefore = cb.length();
+    if (!cb.growByUninitialized(cstrlen))
+        return JS_FALSE;
+    jschar *appendBegin = cb.begin() + sizeBefore;
+#ifdef DEBUG
+    size_t oldcstrlen = cstrlen;
+    JSBool ok =
+#endif
+        js_InflateStringToBuffer(cx, cstr, cstrlen, appendBegin, &cstrlen);
+    JS_ASSERT(ok && cstrlen == oldcstrlen);
+    return JS_TRUE;
 }
+
+namespace js {
 
 bool
 ValueToNumberSlow(JSContext *cx, Value v, double *out)

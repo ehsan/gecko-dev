@@ -855,30 +855,6 @@ nsExternalResourceMap::ShowViewers()
   mMap.EnumerateRead(ExternalResourceShower, nsnull);
 }
 
-void
-TransferZoomLevels(nsIDocument* aFromDoc,
-                   nsIDocument* aToDoc)
-{
-  nsIPresShell* fromShell = aFromDoc->GetShell();
-  if (!fromShell)
-    return;
-
-  nsPresContext* fromCtxt = fromShell->GetPresContext();
-  if (!fromCtxt)
-    return;
-
-  nsIPresShell* toShell = aToDoc->GetShell();
-  if (!toShell)
-    return;
-
-  nsPresContext* toCtxt = toShell->GetPresContext();
-  if (!toCtxt)
-    return;
-
-  toCtxt->SetFullZoom(fromCtxt->GetFullZoom());
-  toCtxt->SetTextZoom(fromCtxt->TextZoom());
-}
-
 nsresult
 nsExternalResourceMap::AddExternalResource(nsIURI* aURI,
                                            nsIDocumentViewer* aViewer,
@@ -936,7 +912,6 @@ nsExternalResourceMap::AddExternalResource(nsIURI* aURI,
     newResource->mDocument = doc;
     newResource->mViewer = aViewer;
     newResource->mLoadGroup = aLoadGroup;
-    TransferZoomLevels(aDisplayDocument, doc);
   }
 
   const nsTArray< nsCOMPtr<nsIObserver> > & obs = load->Observers();
@@ -2991,7 +2966,19 @@ nsDocument::SetBaseURI(nsIURI* aURI)
 void
 nsDocument::GetBaseTarget(nsAString &aBaseTarget)
 {
-  aBaseTarget = mBaseTarget;
+  aBaseTarget.Truncate();
+  Element* head = GetHeadElement();
+  if (!head) {
+    return;
+  }
+  
+  for (ChildIterator iter(head); !iter.IsDone(); iter.Next()) {
+    nsIContent* child = iter;
+    if (child->NodeInfo()->Equals(nsGkAtoms::base, kNameSpaceID_XHTML) &&
+        child->GetAttr(kNameSpaceID_None, nsGkAtoms::target, aBaseTarget)) {
+      return;
+    }
+  }
 }
 
 void

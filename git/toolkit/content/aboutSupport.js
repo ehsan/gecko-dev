@@ -233,16 +233,12 @@ function populateGraphicsSection() {
     ]));
 
     var dwEnabled = false;
-    var dwriteEnabledStr = dwEnabled.toString();
-    var dwriteVersion;
     try {
       dwEnabled = gfxInfo.DWriteEnabled;
-      dwriteVersion = gfxInfo.DWriteVersion;
-      dwriteEnabledStr = dwEnabled.toString() + " (" + dwriteVersion + ")";
     } catch(e) {}
     trGraphics.push(createParentElement("tr", [
       createHeader(bundle.GetStringFromName("directWriteEnabled")),
-      createElement("td", dwriteEnabledStr),
+      createElement("td", dwEnabled),
     ]));
 
     var webglrenderer;
