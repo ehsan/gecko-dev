@@ -324,13 +324,21 @@ GeckoPointerController::getBounds(float* outMinX,
                                   float* outMaxX,
                                   float* outMaxY) const
 {
+    int32_t width, height, orientation;
+
     DisplayViewport viewport;
 
     mConfig->getDisplayInfo(false, &viewport);
 
     *outMinX = *outMinY = 0;
-    *outMaxX = viewport.logicalRight;
-    *outMaxY = viewport.logicalBottom;
+    if (orientation == DISPLAY_ORIENTATION_90 ||
+        orientation == DISPLAY_ORIENTATION_270) {
+        *outMaxX = viewport.deviceHeight;
+        *outMaxY = viewport.deviceWidth;
+    } else {
+        *outMaxX = viewport.deviceWidth;
+        *outMaxY = viewport.deviceHeight;
+    }
     return true;
 }
 

@@ -227,8 +227,7 @@ public:
                                       const int32_t& aState,
                                       const int32_t& aMountGeneration,
                                       const bool& aIsMediaPresent,
-                                      const bool& aIsSharing,
-                                      const bool& aIsFormatting);
+                                      const bool& aIsSharing);
 
     virtual bool RecvNuwaFork() MOZ_OVERRIDE;
 

@@ -71,7 +71,6 @@ namespace {
 enum MainThreadTaskCmd {
   NOTIFY_CONN_STATE_CHANGED,
   NOTIFY_DIALER,
-  NOTIFY_SCO_VOLUME_CHANGED,
   POST_TASK_RESPOND_TO_BLDN,
   POST_TASK_CLOSE_SCO
 };
@@ -276,16 +275,6 @@ public:
         break;
       case MainThreadTaskCmd::NOTIFY_DIALER:
         sBluetoothHfpManager->NotifyDialer(mParameter);
-        break;
-      case MainThreadTaskCmd::NOTIFY_SCO_VOLUME_CHANGED:
-        {
-          nsCOMPtr<nsIObserverService> os =
-            mozilla::services::GetObserverService();
-          NS_ENSURE_TRUE(os, NS_OK);
-
-          os->NotifyObservers(nullptr, "bluetooth-volume-change",
-                              mParameter.get());
-        }
         break;
       case MainThreadTaskCmd::POST_TASK_RESPOND_TO_BLDN:
         MessageLoop::current()->
@@ -518,7 +507,7 @@ void
 BluetoothHfpManager::ProcessConnectionState(bthf_connection_state_t aState,
                                             bt_bdaddr_t* aBdAddress)
 {
-  BT_LOGR("state %d", aState);
+  BT_LOGR("%s: state %d", __FUNCTION__, aState);
 
   mConnectionState = aState;
 
@@ -537,7 +526,7 @@ void
 BluetoothHfpManager::ProcessAudioState(bthf_audio_state_t aState,
                                        bt_bdaddr_t* aBdAddress)
 {
-  BT_LOGR("state %d", aState);
+  BT_LOGR("%s: state %d", __FUNCTION__, aState);
 
   mAudioState = aState;
 
@@ -563,8 +552,7 @@ BluetoothHfpManager::ProcessHangupCall()
 }
 
 void
-BluetoothHfpManager::ProcessVolumeControl(bthf_volume_type_t aType,
-                                          int aVolume)
+BluetoothHfpManager::ProcessVolumeControl(bthf_volume_type_t aType, int aVolume)
 {
   NS_ENSURE_TRUE_VOID(aVolume >= 0 && aVolume <= 15);
 
@@ -576,8 +564,9 @@ BluetoothHfpManager::ProcessVolumeControl(bthf_volume_type_t aType,
     NS_ENSURE_TRUE_VOID(aVolume != mCurrentVgs);
 
     nsString data;
+    nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
     data.AppendInt(aVolume);
-    BT_HF_DISPATCH_MAIN(MainThreadTaskCmd::NOTIFY_SCO_VOLUME_CHANGED, data);
+    os->NotifyObservers(nullptr, "bluetooth-volume-change", data.get());
   }
 }
 
@@ -702,7 +691,7 @@ BluetoothHfpManager::ProcessAtClcc()
 void
 BluetoothHfpManager::ProcessUnknownAt(char *aAtString)
 {
-  BT_LOGR("[%s]", aAtString);
+  BT_LOGR("%s: [%s]", __FUNCTION__, aAtString);
 
   NS_ENSURE_TRUE_VOID(sBluetoothHfpInterface);
   NS_ENSURE_TRUE_VOID(BT_STATUS_SUCCESS ==
@@ -967,8 +956,8 @@ BluetoothHfpManager::UpdatePhoneCIND(uint32_t aCallIndex, bool aSend)
   nsAutoCString number = NS_ConvertUTF16toUTF8(mCurrentCallArray[aCallIndex].mNumber);
   bthf_call_addrtype_t type = mCurrentCallArray[aCallIndex].mType;
 
-  BT_LOGR("[%d] state %d => BTHF: active[%d] held[%d] state[%d]",
-          aCallIndex, callState, numActive, numHeld, bthfCallState);
+  BT_LOGR("%s: [%d] state %d => BTHF: active[%d] held[%d] state[%d]",
+    __FUNCTION__, aCallIndex, callState, numActive, numHeld, bthfCallState);
 
   NS_ENSURE_TRUE_VOID(BT_STATUS_SUCCESS ==
     sBluetoothHfpInterface->phone_state_change(
@@ -1079,6 +1068,7 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
         mDialingRequestProcessed = true;
       }
       break;
+
     case nsITelephonyProvider::CALL_STATE_DISCONNECTED:
       // -1 is necessary because call 0 is an invalid (padding) call object.
       if (mCurrentCallArray.Length() - 1 ==
@@ -1094,6 +1084,7 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
         ResetCallArray();
       }
       break;
+
     default:
       break;
   }

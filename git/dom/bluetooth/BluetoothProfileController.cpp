@@ -16,11 +16,12 @@
 
 USING_BLUETOOTH_NAMESPACE
 
-#define BT_LOGR_PROFILE(mgr, msg, ...)               \
-  do {                                               \
-    nsCString name;                                  \
-    mgr->GetName(name);                              \
-    BT_LOGR("[%s] " msg, name.get(), ##__VA_ARGS__); \
+#define BT_LOGR_PROFILE(mgr, args...)                 \
+  do {                                                \
+    nsCString name;                                   \
+    mgr->GetName(name);                               \
+    BT_LOGR("%s: [%s] %s", __FUNCTION__, name.get(),  \
+      nsPrintfCString(args).get());                   \
   } while(0)
 
 BluetoothProfileController::BluetoothProfileController(

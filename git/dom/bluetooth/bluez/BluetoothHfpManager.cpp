@@ -820,11 +820,7 @@ BluetoothHfpManager::ReceiveSocketData(BluetoothSocket* aSocket,
       goto respond_with_ok;
     }
 
-    if (vgm < 0 || vgm > 15) {
-      BT_WARNING("Received invalid VGM value");
-      goto respond_with_ok;
-    }
-
+    NS_ASSERTION(vgm >= 0 && vgm <= 15, "Received invalid VGM value");
     mCurrentVgm = vgm;
 #ifdef MOZ_B2G_RIL
   } else if (msg.Find("AT+CHLD=?") != -1) {
@@ -899,18 +895,10 @@ BluetoothHfpManager::ReceiveSocketData(BluetoothSocket* aSocket,
       goto respond_with_ok;
     }
 
-    if (newVgs < 0 || newVgs > 15) {
-      BT_WARNING("Received invalid VGS value");
-      goto respond_with_ok;
-    }
-
-    nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-    if (!os) {
-      BT_WARNING("Failed to get observer service!");
-      goto respond_with_ok;
-    }
+    NS_ASSERTION(newVgs >= 0 && newVgs <= 15, "Received invalid VGS value");
 
     nsString data;
+    nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
     data.AppendInt(newVgs);
     os->NotifyObservers(nullptr, "bluetooth-volume-change", data.get());
 #ifdef MOZ_B2G_RIL

@@ -1865,7 +1865,6 @@ ContentParent::Observe(nsISupports* aSubject,
         int32_t  mountGeneration;
         bool     isMediaPresent;
         bool     isSharing;
-        bool     isFormatting;
 
         vol->GetName(volName);
         vol->GetMountPoint(mountPoint);
@@ -1873,11 +1872,10 @@ ContentParent::Observe(nsISupports* aSubject,
         vol->GetMountGeneration(&mountGeneration);
         vol->GetIsMediaPresent(&isMediaPresent);
         vol->GetIsSharing(&isSharing);
-        vol->GetIsFormatting(&isFormatting);
 
         unused << SendFileSystemUpdate(volName, mountPoint, state,
                                        mountGeneration, isMediaPresent,
-                                       isSharing, isFormatting);
+                                       isSharing);
     } else if (!strcmp(aTopic, "phone-state-changed")) {
         nsString state(aData);
         unused << SendNotifyPhoneStateChange(state);
