@@ -455,6 +455,22 @@ nsRenderingContext::SetTextRunRTL(PRBool aIsRTL)
 }
 
 void
+nsRenderingContext::SetFont(const nsFont& aFont, nsIAtom* aLanguage,
+                            gfxUserFontSet *aUserFontSet)
+{
+    mDeviceContext->GetMetricsFor(aFont, aLanguage, aUserFontSet,
+                                  *getter_AddRefs(mFontMetrics));
+}
+
+void
+nsRenderingContext::SetFont(const nsFont& aFont,
+                            gfxUserFontSet *aUserFontSet)
+{
+    mDeviceContext->GetMetricsFor(aFont, nsnull, aUserFontSet,
+                                  *getter_AddRefs(mFontMetrics));
+}
+
+void
 nsRenderingContext::SetFont(nsFontMetrics *aFontMetrics)
 {
     mFontMetrics = aFontMetrics;

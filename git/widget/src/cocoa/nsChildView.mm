@@ -126,7 +126,6 @@ PRBool gChildViewMethodsSwizzled = PR_FALSE;
 extern nsISupportsArray *gDraggedTransferables;
 
 ChildView* ChildViewMouseTracker::sLastMouseEventView = nil;
-NSEvent* ChildViewMouseTracker::sLastMouseMoveEvent = nil;
 NSWindow* ChildViewMouseTracker::sWindowUnderMouse = nil;
 
 #ifdef INVALIDATE_DEBUGGING
@@ -4901,8 +4900,6 @@ ChildViewMouseTracker::OnDestroyView(ChildView* aView)
 {
   if (sLastMouseEventView == aView) {
     sLastMouseEventView = nil;
-    [sLastMouseMoveEvent release];
-    sLastMouseMoveEvent = nil;
   }
 }
 
@@ -4949,22 +4946,10 @@ ChildViewMouseTracker::ReEvaluateMouseEnterState(NSEvent* aEvent)
 }
 
 void
-ChildViewMouseTracker::ResendLastMouseMoveEvent()
-{
-  if (sLastMouseMoveEvent) {
-    MouseMoved(sLastMouseMoveEvent);
-  }
-}
-
-void
 ChildViewMouseTracker::MouseMoved(NSEvent* aEvent)
 {
   MouseEnteredWindow(aEvent);
   [sLastMouseEventView handleMouseMoved:aEvent];
-  if (sLastMouseMoveEvent != aEvent) {
-    [sLastMouseMoveEvent release];
-    sLastMouseMoveEvent = [aEvent retain];
-  }
 }
 
 ChildView*

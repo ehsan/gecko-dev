@@ -914,7 +914,7 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     bool inDirectivePrologue;
 
     JS_ASSERT(!(tcflags & ~(TCF_COMPILE_N_GO | TCF_NO_SCRIPT_RVAL | TCF_NEED_MUTABLE_SCRIPT |
-                            TCF_COMPILE_FOR_EVAL | TCF_NEED_SCRIPT_OBJECT)));
+                            TCF_COMPILE_FOR_EVAL)));
 
     /*
      * The scripted callerFrame can only be given for compile-and-go scripts
@@ -968,10 +968,13 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
         tokenStream.setStrictMode();
     }
 
-#ifdef DEBUG
-    bool savedCallerFun;
-    savedCallerFun = false;
-#endif
+    /*
+     * If funbox is non-null after we create the new script, callerFrame->fun
+     * was saved in the 0th object table entry.
+     */
+    JSObjectBox *funbox;
+    funbox = NULL;
+
     if (tcflags & TCF_COMPILE_N_GO) {
         if (source) {
             /*
@@ -990,15 +993,12 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
              * function captured in case it refers to an upvar, and someone
              * wishes to decompile it while it's running.
              */
-            JSObjectBox *funbox = parser.newObjectBox(FUN_OBJECT(callerFrame->fun()));
+            funbox = parser.newObjectBox(FUN_OBJECT(callerFrame->fun()));
             if (!funbox)
                 goto out;
             funbox->emitLink = cg.objectList.lastbox;
             cg.objectList.lastbox = funbox;
             cg.objectList.length++;
-#ifdef DEBUG
-            savedCallerFun = true;
-#endif
         }
     }
 
@@ -1121,7 +1121,8 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     if (!script)
         goto out;
 
-    JS_ASSERT(script->savedCallerFun == savedCallerFun);
+    if (funbox)
+        script->savedCallerFun = true;
 
     {
         AutoShapeRooter shapeRoot(cx, script->bindings.lastShape());
@@ -1140,9 +1141,10 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     /* Fall through. */
 
   late_error:
-    if (script && !script->u.object)
+    if (script) {
         js_DestroyScript(cx, script, 7);
-    script = NULL;
+        script = NULL;
+    }
     goto out;
 }
 
@@ -4965,16 +4967,14 @@ CloneLeftHandSide(JSParseNode *opn, JSTreeContext *tc)
 
         pn->pn_link = dn->dn_uses;
         dn->dn_uses = pn;
-    } else {
+    } else if (opn->pn_defn) {
+        /* We copied some definition-specific state into pn. Clear it out. */
         pn->pn_expr = NULL;
-        if (opn->pn_defn) {
-            /* We copied some definition-specific state into pn. Clear it out. */
-            pn->pn_cookie.makeFree();
-            pn->pn_dflags &= ~PND_BOUND;
-            pn->pn_defn = false;
+        pn->pn_cookie.makeFree();
+        pn->pn_dflags &= ~PND_BOUND;
+        pn->pn_defn = false;
 
-            LinkUseToDef(pn, (JSDefinition *) opn, tc);
-        }
+        LinkUseToDef(pn, (JSDefinition *) opn, tc);
     }
     return pn;
 }

@@ -115,7 +115,7 @@ mjit::Compiler::Compiler(JSContext *cx, StackFrame *fp)
     jumpTableOffsets(CompilerAllocPolicy(cx, *thisFromCtor())),
     rootedObjects(CompilerAllocPolicy(cx, *thisFromCtor())),
     stubcc(cx, *thisFromCtor(), frame, script),
-    debugMode_(cx->compartment->debugMode()),
+    debugMode_(cx->compartment->debugMode),
 #if defined JS_TRACER
     addTraceHints(cx->traceJitEnabled),
 #endif
@@ -414,8 +414,7 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
     masm.forceFlushConstantPool();
     stubcc.masm.forceFlushConstantPool();
 #endif
-    JaegerSpew(JSpew_Insns, "## Fast code (masm) size = %lu, Slow code (stubcc) size = %lu.\n",
-               (unsigned long) masm.size(), (unsigned long) stubcc.size());
+    JaegerSpew(JSpew_Insns, "## Fast code (masm) size = %u, Slow code (stubcc) size = %u.\n", masm.size(), stubcc.size());
 
     size_t codeSize = masm.size() +
                       stubcc.size() +
@@ -2003,7 +2002,7 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_DEBUGGER)
             prepareStubCall(Uses(0));
             masm.move(ImmPtr(PC), Registers::ArgReg1);
-            INLINE_STUBCALL(stubs::DebuggerStatement);
+            INLINE_STUBCALL(stubs::Debugger);
           END_CASE(JSOP_DEBUGGER)
 
           BEGIN_CASE(JSOP_UNBRAND)

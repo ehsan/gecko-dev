@@ -49,6 +49,7 @@ MAKEFILES_dom="
   ipc/glue/Makefile
   ipc/ipdl/Makefile
   dom/Makefile
+  dom/public/coreEvents/Makefile
   dom/interfaces/base/Makefile
   dom/interfaces/canvas/Makefile
   dom/interfaces/core/Makefile

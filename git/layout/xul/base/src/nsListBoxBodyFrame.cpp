@@ -68,7 +68,6 @@
 #include "nsPIListBoxObject.h"
 #include "nsContentUtils.h"
 #include "nsChildIterator.h"
-#include "nsRenderingContext.h"
 
 /////////////// nsListScrollSmoother //////////////////
 
@@ -734,10 +733,7 @@ nsListBoxBodyFrame::ComputeIntrinsicWidth(nsBoxLayoutState& aBoxLayoutState)
             }
           }
 
-          nsRefPtr<nsFontMetrics> fm;
-          nsLayoutUtils::GetFontMetricsForStyleContext(styleContext,
-                                                       getter_AddRefs(fm));
-          rendContext->SetFont(fm);
+          nsLayoutUtils::SetFontFromStyle(rendContext, styleContext);
 
           nscoord textWidth =
             nsLayoutUtils::GetStringWidth(this, rendContext, value.get(), value.Length());

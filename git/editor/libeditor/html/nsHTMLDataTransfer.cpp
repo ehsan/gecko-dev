@@ -78,6 +78,7 @@
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsLinebreakConverter.h"
+#include "nsAHtml5FragmentParser.h"
 #include "nsHtml5Module.h"
 #include "nsTreeSanitizer.h"
 

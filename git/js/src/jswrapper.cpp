@@ -41,7 +41,6 @@
 
 #include "jsapi.h"
 #include "jscntxt.h"
-#include "jsexn.h"
 #include "jsgc.h"
 #include "jsgcmark.h"
 #include "jsiter.h"
@@ -72,19 +71,6 @@ bool
 JSObject::isWrapper() const
 {
     return isProxy() && getProxyHandler()->family() == &sWrapperFamily;
-}
-
-bool
-JSObject::isCrossCompartmentWrapper() const
-{
-    return isWrapper() && !!(getWrapperHandler()->flags() & JSWrapper::CROSS_COMPARTMENT);
-}
-
-JSWrapper *
-JSObject::getWrapperHandler() const
-{
-    JS_ASSERT(isWrapper());
-    return static_cast<JSWrapper *>(getProxyHandler());
 }
 
 JSObject *
@@ -409,11 +395,12 @@ ForceFrame::enter()
     LeaveTrace(context);
 
     JS_ASSERT(context->compartment == target->compartment());
+    JSCompartment *destination = context->compartment;
 
     JSObject *scopeChain = target->getGlobal();
     JS_ASSERT(scopeChain->isNative());
 
-    return context->stack.pushDummyFrame(context, REPORT_ERROR, *scopeChain, frame);
+    return context->stack.pushDummyFrame(context, *scopeChain, frame);
 }
 
 AutoCompartment::AutoCompartment(JSContext *cx, JSObject *target)
@@ -442,21 +429,8 @@ AutoCompartment::enter()
         JS_ASSERT(scopeChain->isNative());
 
         frame.construct();
-
-        /*
-         * Set the compartment eagerly so that pushDummyFrame associates the
-         * resource allocation request with 'destination' instead of 'origin'.
-         * (This is important when content has overflowed the stack and chrome
-         * is preparing to run JS to throw up a slow script dialog.) However,
-         * if an exception is thrown, we need it to be in origin's compartment
-         * so be careful to only report after restoring.
-         */
-        context->compartment = destination;
-        if (!context->stack.pushDummyFrame(context, DONT_REPORT_ERROR, *scopeChain, &frame.ref())) {
-            context->compartment = origin;
-            js_ReportOverRecursed(context);
+        if (!context->stack.pushDummyFrame(context, *scopeChain, &frame.ref()))
             return false;
-        }
 
         if (context->isExceptionPending())
             context->wrapPendingException();
@@ -474,24 +448,6 @@ AutoCompartment::leave()
         context->resetCompartment();
     }
     entered = false;
-}
-
-ErrorCopier::~ErrorCopier()
-{
-    JSContext *cx = ac.context;
-    if (cx->compartment == ac.destination &&
-        ac.origin != ac.destination &&
-        cx->isExceptionPending())
-    {
-        Value exc = cx->getPendingException();
-        if (exc.isObject() && exc.toObject().isError()) {
-            cx->clearPendingException();
-            ac.leave();
-            JSObject *copyobj = js_CopyErrorObject(cx, &exc.toObject(), scope);
-            if (copyobj)
-                cx->setPendingException(ObjectValue(*copyobj));
-        }
-    }
 }
 
 /* Cross compartment wrappers. */

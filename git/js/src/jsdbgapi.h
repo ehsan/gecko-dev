@@ -163,7 +163,10 @@ extern JS_PUBLIC_API(void)
 JS_ClearScriptTraps(JSContext *cx, JSScript *script);
 
 extern JS_PUBLIC_API(void)
-JS_ClearAllTrapsForCompartment(JSContext *cx);
+JS_ClearAllTraps(JSContext *cx);
+
+extern JS_PUBLIC_API(JSTrapStatus)
+JS_HandleTrap(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval);
 
 extern JS_PUBLIC_API(JSBool)
 JS_SetInterrupt(JSRuntime *rt, JSInterruptHook handler, void *closure);
@@ -505,10 +508,6 @@ JS_StopProfiling();
 
 extern JS_PUBLIC_API(JSBool)
 JS_DefineProfilingFunctions(JSContext *cx, JSObject *obj);
-
-/* Defined in vm/Debugger.cpp. */
-extern JS_PUBLIC_API(JSBool)
-JS_DefineDebuggerObject(JSContext *cx, JSObject *obj);
 
 #ifdef MOZ_CALLGRIND
 

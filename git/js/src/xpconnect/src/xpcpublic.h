@@ -219,7 +219,6 @@ struct CompartmentStats
     PRInt64 tjitCode;
     PRInt64 tjitDataAllocatorsMain;
     PRInt64 tjitDataAllocatorsReserve;
-    PRInt64 tjitDataNonAllocators;
 #endif
 };
 

@@ -255,7 +255,6 @@ HistoryStore.prototype = {
 
     let cb = Async.makeSyncCallback();
     let updatePlacesCallback = { 
-      handleResult: function handleResult() {},
       handleError: function handleError(resultCode, placeInfo) {
         failed.push(placeInfo.guid);
       }

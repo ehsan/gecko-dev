@@ -696,8 +696,8 @@ class CallCompiler : public BaseCompiler
         linker.link(notCompiled, ic.slowPathStart.labelAtOffset(ic.slowJoinOffset));
         JSC::CodeLocationLabel cs = linker.finalize();
 
-        JaegerSpew(JSpew_PICs, "generated CALL stub %p (%lu bytes)\n", cs.executableAddress(),
-                   (unsigned long) masm.size());
+        JaegerSpew(JSpew_PICs, "generated CALL stub %p (%d bytes)\n", cs.executableAddress(),
+                   masm.size());
 
         Repatcher repatch(from);
         JSC::CodeLocationJump oolJump = ic.slowPathStart.jumpAtOffset(ic.oolJumpOffset);
@@ -726,8 +726,7 @@ class CallCompiler : public BaseCompiler
                        JSC::CodeLocationLabel(jit->fastEntry));
 
         JaegerSpew(JSpew_PICs, "patched CALL path %p (obj: %p)\n",
-                   ic.funGuard.executableAddress(),
-                   static_cast<void*>(ic.fastGuardedObject));
+                   ic.funGuard.executableAddress(), ic.fastGuardedObject);
 
         return true;
     }
@@ -770,8 +769,8 @@ class CallCompiler : public BaseCompiler
         linker.link(done, ic.funGuard.labelAtOffset(ic.hotPathOffset));
         JSC::CodeLocationLabel cs = linker.finalize();
 
-        JaegerSpew(JSpew_PICs, "generated CALL closure stub %p (%lu bytes)\n",
-                   cs.executableAddress(), (unsigned long) masm.size());
+        JaegerSpew(JSpew_PICs, "generated CALL closure stub %p (%d bytes)\n",
+                   cs.executableAddress(), masm.size());
 
         Repatcher repatch(from);
         repatch.relink(ic.funJump, cs);
@@ -945,8 +944,8 @@ class CallCompiler : public BaseCompiler
         linker.link(funGuard, ic.slowPathStart);
         JSC::CodeLocationLabel cs = linker.finalize();
 
-        JaegerSpew(JSpew_PICs, "generated native CALL stub %p (%lu bytes)\n",
-                   cs.executableAddress(), (unsigned long) masm.size());
+        JaegerSpew(JSpew_PICs, "generated native CALL stub %p (%d bytes)\n",
+                   cs.executableAddress(), masm.size());
 
         Repatcher repatch(jit);
         repatch.relink(ic.funJump, cs);

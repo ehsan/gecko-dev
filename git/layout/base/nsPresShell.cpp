@@ -8999,13 +8999,7 @@ void ReflowCountMgr::PaintCount(const char*     aName,
                   NS_FONT_WEIGHT_NORMAL, NS_FONT_STRETCH_NORMAL, 0,
                   nsPresContext::CSSPixelsToAppUnits(11));
 
-      nsRefPtr<nsFontMetrics> fm;
-      aPresContext->DeviceContext()->GetMetricsFor(font,
-        // We have one frame, therefore we must have a root...
-        aPresContext->FrameManager()->GetRootFrame()->
-          GetStyleVisibility()->mLanguage,
-        aPresContext->GetUserFontSet(), *getter_AddRefs(fm));
-
+      nsRefPtr<nsFontMetrics> fm = aPresContext->GetMetricsFor(font);
       aRenderingContext->SetFont(fm);
       char buf[16];
       sprintf(buf, "%d", counter->mCount);
