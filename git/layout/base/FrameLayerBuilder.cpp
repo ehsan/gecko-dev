@@ -2630,10 +2630,6 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
     // so 'entry' could become invalid.
   }
 
-  if (!containerLayerFrame) {
-    return;
-  }
-
   ThebesDisplayItemLayerUserData* userData =
     static_cast<ThebesDisplayItemLayerUserData*>
       (aLayer->GetUserData(&gThebesDisplayItemLayerUserData));
