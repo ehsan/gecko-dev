@@ -47,11 +47,8 @@ function addResourceAlias() {
   const handler = Services.io.getProtocolHandler("resource")
                   .QueryInterface(Ci.nsIResProtocolHandler);
 
-  let modules = ["common", "crypto"];
-  for each (let module in modules) {
-    let uri = Services.io.newURI("resource:///modules/services-" + module + "/",
-                                 null, null);
-    handler.setSubstitution("services-" + module, uri);
-  }
+  let uri = Services.io.newURI("resource:///modules/services-common/", null,
+                               null);
+  handler.setSubstitution("services-common", uri);
 }
 addResourceAlias();
