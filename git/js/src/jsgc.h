@@ -734,8 +734,8 @@ struct Chunk {
         return info.numArenasFree == ArenasPerChunk;
     }
 
-    bool noAvailableArenas() const {
-        return info.numArenasFree == 0;
+    bool hasAvailableArenas() const {
+        return info.numArenasFree != 0;
     }
 
     inline void addToAvailableList(JSCompartment *compartment);
@@ -807,6 +807,9 @@ class ChunkPool {
      * Must be called either during the GC or with the GC lock taken.
      */
     Chunk *expire(JSRuntime *rt, bool releaseAll);
+
+    /* Must be called with the GC lock taken. */
+    void expireAndFree(JSRuntime *rt, bool releaseAll);
 
     /* Must be called either during the GC or with the GC lock taken. */
     JS_FRIEND_API(int64_t) countCleanDecommittedArenas(JSRuntime *rt);
@@ -1360,6 +1363,9 @@ js_GCThingIsMarked(void *thing, uintN color);
 extern void
 js_TraceStackFrame(JSTracer *trc, js::StackFrame *fp);
 
+extern bool
+js_IsAddressableGCThing(JSRuntime *rt, jsuword w, js::gc::AllocKind *thingKind, void **thing);
+
 namespace js {
 
 extern JS_REQUIRES_STACK void
@@ -1381,6 +1387,9 @@ TriggerCompartmentGC(JSCompartment *comp, js::gcstats::Reason reason);
 
 extern void
 MaybeGC(JSContext *cx);
+
+extern void
+ShrinkGCBuffers(JSRuntime *rt);
 
 } /* namespace js */
 
@@ -1453,7 +1462,7 @@ class GCHelperThread {
     PRCondVar         *done;
     volatile State    state;
 
-    JSContext         *context;
+    JSContext         *finalizationContext;
     bool              shrinkFlag;
 
     Vector<void **, 16, js::SystemAllocPolicy> freeVector;
@@ -1489,6 +1498,8 @@ class GCHelperThread {
         wakeup(NULL),
         done(NULL),
         state(IDLE),
+        finalizationContext(NULL),
+        shrinkFlag(false),
         freeCursor(NULL),
         freeCursorEnd(NULL),
         backgroundAllocation(true)
@@ -1498,7 +1509,10 @@ class GCHelperThread {
     void finish();
 
     /* Must be called with the GC lock taken. */
-    inline void startBackgroundSweep(bool shouldShrink);
+    void startBackgroundSweep(JSContext *cx, bool shouldShrink);
+
+    /* Must be called with the GC lock taken. */
+    void startBackgroundShrink();
 
     /* Must be called with the GC lock taken. */
     void waitBackgroundSweepEnd();
@@ -1543,7 +1557,7 @@ class GCHelperThread {
     }
 
     /* Must be called with the GC lock taken. */
-    bool prepareForBackgroundSweep(JSContext *cx);
+    bool prepareForBackgroundSweep();
 };
 
 #endif /* JS_THREADSAFE */
@@ -1773,6 +1787,12 @@ typedef void (*IterateCellCallback)(JSContext *cx, void *data, void *thing,
                                     JSGCTraceKind traceKind, size_t thingSize);
 
 /*
+ * This function calls |compartmentCallback| on every compartment.
+ */
+extern JS_FRIEND_API(void)
+IterateCompartments(JSContext *cx, void *data,
+                    IterateCompartmentCallback compartmentCallback);
+/*
  * This function calls |compartmentCallback| on every compartment,
  * |arenaCallback| on every in-use arena, and |cellCallback| on every in-use
  * cell in the GC heap.
@@ -1816,6 +1836,15 @@ NewCompartment(JSContext *cx, JSPrincipals *principals);
 /* Tries to run a GC no matter what (used for GC zeal). */
 void
 RunDebugGC(JSContext *cx);
+
+#if defined(JSGC_ROOT_ANALYSIS) && defined(DEBUG) && !defined(JS_THREADSAFE)
+/* Overwrites stack references to GC things which have not been rooted. */
+void CheckStackRoots(JSContext *cx);
+
+inline void MaybeCheckStackRoots(JSContext *cx) { CheckStackRoots(cx); }
+#else
+inline void MaybeCheckStackRoots(JSContext *cx) {}
+#endif
 
 const int ZealPokeThreshold = 1;
 const int ZealAllocThreshold = 2;

@@ -517,6 +517,22 @@ ChunkPool::expire(JSRuntime *rt, bool releaseAll)
     return freeList;
 }
 
+static void
+FreeChunkList(Chunk *chunkListHead)
+{
+    while (Chunk *chunk = chunkListHead) {
+        JS_ASSERT(!chunk->info.numArenasFreeCommitted);
+        chunkListHead = chunk->info.next;
+        FreeChunk(chunk);
+    }
+}
+
+void
+ChunkPool::expireAndFree(JSRuntime *rt, bool releaseAll)
+{
+    FreeChunkList(expire(rt, releaseAll));
+}
+
 JS_FRIEND_API(int64_t)
 ChunkPool::countCleanDecommittedArenas(JSRuntime *rt)
 {
@@ -551,16 +567,6 @@ Chunk::release(JSRuntime *rt, Chunk *chunk)
     JS_ASSERT(chunk);
     chunk->prepareToBeFreed(rt);
     FreeChunk(chunk);
-}
-
-static void
-FreeChunkList(Chunk *chunkListHead)
-{
-    while (Chunk *chunk = chunkListHead) {
-        JS_ASSERT(!chunk->info.numArenasFreeCommitted);
-        chunkListHead = chunk->info.next;
-        FreeChunk(chunk);
-    }
 }
 
 inline void
@@ -706,7 +712,7 @@ Chunk::fetchNextFreeArena(JSRuntime *rt)
 ArenaHeader *
 Chunk::allocateArena(JSCompartment *comp, AllocKind thingKind)
 {
-    JS_ASSERT(!noAvailableArenas());
+    JS_ASSERT(hasAvailableArenas());
 
     JSRuntime *rt = comp->rt;
 
@@ -714,7 +720,7 @@ Chunk::allocateArena(JSCompartment *comp, AllocKind thingKind)
                            ? fetchNextFreeArena(rt)
                            : fetchNextDecommittedArena();
     aheader->init(comp, thingKind);
-    if (JS_UNLIKELY(noAvailableArenas()))
+    if (JS_UNLIKELY(!hasAvailableArenas()))
         removeFromAvailableList();
 
     Probes::resizeHeap(comp, rt->gcBytes, rt->gcBytes + ArenaSize);
@@ -923,11 +929,12 @@ InFreeList(ArenaHeader *aheader, uintptr_t addr)
 }
 
 /*
- * Returns CGCT_VALID and mark it if the w can be a  live GC thing and sets
- * thingKind accordingly. Otherwise returns the reason for rejection.
+ * Tests whether w is a (possibly dead) GC thing. Returns CGCT_VALID and
+ * details about the thing if so. On failure, returns the reason for rejection.
  */
 inline ConservativeGCTest
-MarkIfGCThingWord(JSTracer *trc, jsuword w)
+IsAddressableGCThing(JSRuntime *rt, jsuword w,
+                     gc::AllocKind *thingKindPtr, ArenaHeader **arenaHeader, void **thing)
 {
     /*
      * We assume that the compiler never uses sub-word alignment to store
@@ -953,7 +960,7 @@ MarkIfGCThingWord(JSTracer *trc, jsuword w)
 
     Chunk *chunk = Chunk::fromAddress(addr);
 
-    if (!trc->runtime->gcChunkSet.has(chunk))
+    if (!rt->gcChunkSet.has(chunk))
         return CGCT_NOTCHUNK;
 
     /*
@@ -974,7 +981,7 @@ MarkIfGCThingWord(JSTracer *trc, jsuword w)
     if (!aheader->allocated())
         return CGCT_FREEARENA;
 
-    JSCompartment *curComp = trc->runtime->gcCurrentCompartment;
+    JSCompartment *curComp = rt->gcCurrentCompartment;
     if (curComp && curComp != aheader->compartment)
         return CGCT_OTHERCOMPARTMENT;
 
@@ -988,20 +995,41 @@ MarkIfGCThingWord(JSTracer *trc, jsuword w)
     uintptr_t shift = (offset - minOffset) % Arena::thingSize(thingKind);
     addr -= shift;
 
+    if (thing)
+        *thing = reinterpret_cast<void *>(addr);
+    if (arenaHeader)
+        *arenaHeader = aheader;
+    if (thingKindPtr)
+        *thingKindPtr = thingKind;
+    return CGCT_VALID;
+}
+
+/*
+ * Returns CGCT_VALID and mark it if the w can be a  live GC thing and sets
+ * thingKind accordingly. Otherwise returns the reason for rejection.
+ */
+inline ConservativeGCTest
+MarkIfGCThingWord(JSTracer *trc, jsuword w)
+{
+    void *thing;
+    ArenaHeader *aheader;
+    AllocKind thingKind;
+    ConservativeGCTest status = IsAddressableGCThing(trc->runtime, w, &thingKind, &aheader, &thing);
+    if (status != CGCT_VALID)
+        return status;
+
     /*
      * Check if the thing is free. We must use the list of free spans as at
      * this point we no longer have the mark bits from the previous GC run and
      * we must account for newly allocated things.
      */
-    if (InFreeList(aheader, addr))
+    if (InFreeList(aheader, uintptr_t(thing)))
         return CGCT_NOTLIVE;
-
-    void *thing = reinterpret_cast<void *>(addr);
 
 #ifdef DEBUG
     const char pattern[] = "machine_stack %lx";
-    char nameBuf[sizeof(pattern) - 3 + sizeof(addr) * 2];
-    JS_snprintf(nameBuf, sizeof(nameBuf), "machine_stack %lx", (unsigned long) addr);
+    char nameBuf[sizeof(pattern) - 3 + sizeof(thing) * 2];
+    JS_snprintf(nameBuf, sizeof(nameBuf), "machine_stack %lx", (unsigned long) thing);
     JS_SET_TRACING_NAME(trc, nameBuf);
 #endif
     MarkKind(trc, thing, MapAllocToTraceKind(thingKind));
@@ -1011,10 +1039,11 @@ MarkIfGCThingWord(JSTracer *trc, jsuword w)
         GCMarker *marker = static_cast<GCMarker *>(trc);
         if (marker->conservativeDumpFileName)
             marker->conservativeRoots.append(thing);
-        if (shift)
+        if (jsuword(thing) != w)
             marker->conservativeStats.unaligned++;
     }
 #endif
+
     return CGCT_VALID;
 }
 
@@ -1154,6 +1183,12 @@ RecordNativeStackTopForGC(JSContext *cx)
 
 } /* namespace js */
 
+bool
+js_IsAddressableGCThing(JSRuntime *rt, jsuword w, gc::AllocKind *thingKind, void **thing)
+{
+    return js::IsAddressableGCThing(rt, w, thingKind, NULL, thing) == CGCT_VALID;
+}
+
 #ifdef DEBUG
 static void
 CheckLeakedRoots(JSRuntime *rt);
@@ -1182,7 +1217,7 @@ js_FinishGC(JSRuntime *rt)
      * Finish the pool after the background thread stops in case it was doing
      * the background sweeping.
      */
-    FreeChunkList(rt->gcChunkPool.expire(rt, true));
+    rt->gcChunkPool.expireAndFree(rt, true);
 
 #ifdef DEBUG
     if (!rt->gcRootsHash.empty())
@@ -1342,7 +1377,7 @@ JSRuntime::setGCLastBytes(size_t lastBytes, JSGCInvocationKind gckind)
 void
 JSRuntime::reduceGCTriggerBytes(uint32_t amount) {
     JS_ASSERT(amount > 0);
-    JS_ASSERT(gcTriggerBytes >= amount);
+    JS_ASSERT(gcTriggerBytes - amount >= 0);
     if (gcTriggerBytes - amount < GC_ALLOCATION_THRESHOLD * GC_HEAP_GROWTH_FACTOR)
         return;
     gcTriggerBytes -= amount;
@@ -1361,7 +1396,7 @@ JSCompartment::setGCLastBytes(size_t lastBytes, JSGCInvocationKind gckind)
 void
 JSCompartment::reduceGCTriggerBytes(uint32_t amount) {
     JS_ASSERT(amount > 0);
-    JS_ASSERT(gcTriggerBytes >= amount);
+    JS_ASSERT(gcTriggerBytes - amount >= 0);
     if (gcTriggerBytes - amount < GC_ALLOCATION_THRESHOLD * GC_HEAP_GROWTH_FACTOR)
         return;
     gcTriggerBytes -= amount;
@@ -1641,12 +1676,6 @@ RunLastDitchGC(JSContext *cx)
 #endif
 }
 
-inline bool
-IsGCAllowed(JSContext *cx)
-{
-    return !JS_THREAD_DATA(cx)->waiveGCQuota;
-}
-
 /* static */ void *
 ArenaLists::refillFreeList(JSContext *cx, AllocKind thingKind)
 {
@@ -1658,7 +1687,7 @@ ArenaLists::refillFreeList(JSContext *cx, AllocKind thingKind)
 
     bool runGC = !!rt->gcIsNeeded;
     for (;;) {
-        if (JS_UNLIKELY(runGC) && IsGCAllowed(cx)) {
+        if (JS_UNLIKELY(runGC)) {
             RunLastDitchGC(cx);
 
             /* Report OOM of the GC failed to free enough memory. */
@@ -1679,14 +1708,11 @@ ArenaLists::refillFreeList(JSContext *cx, AllocKind thingKind)
             return thing;
 
         /*
-         * We failed to allocate. Run the GC if we can unless we have done it
-         * already. Otherwise report OOM but first schedule a new GC soon.
+         * We failed to allocate. Run the GC if we haven't done it already.
+         * Otherwise report OOM.
          */
-        if (runGC || !IsGCAllowed(cx)) {
-            AutoLockGC lock(rt);
-            TriggerGC(rt, gcstats::REFILL);
+        if (runGC)
             break;
-        }
         runGC = true;
     }
 
@@ -2231,7 +2257,11 @@ DecommitArenasFromAvailableList(JSRuntime *rt, Chunk **availableListHeadp)
              * be available for allocations either via the free list or via
              * the decommittedArenas bitmap. For that we just fetch the arena
              * from the free list before the decommit and then mark it as free
-             * and decommitted when we retake the GC lock.
+             * and decommitted when we retake the GC lock. However, if this
+             * arena also is the single free arena in the chunk, then during
+             * the decommit the allocation thread may find the chunk as
+             * present on the available list yet having no arenas to allocate.
+             * To avoid complications in this case we decommit inside the lock.
              *
              * We also must make sure that the aheader is not accessed again
              * after we decommit the arena.
@@ -2240,7 +2270,9 @@ DecommitArenasFromAvailableList(JSRuntime *rt, Chunk **availableListHeadp)
             size_t arenaIndex = Chunk::arenaIndex(aheader->arenaAddress());
             bool ok;
             {
-                AutoUnlockGC unlock(rt);
+                Maybe<AutoUnlockGC> maybayUnlock;
+                if (chunk->hasAvailableArenas())
+                    maybayUnlock.construct(rt);
                 ok = DecommitMemory(aheader->getArena(), ArenaSize);
             }
 
@@ -2397,26 +2429,51 @@ GCHelperThread::threadLoop()
 }
 
 bool
-GCHelperThread::prepareForBackgroundSweep(JSContext *cx)
+GCHelperThread::prepareForBackgroundSweep()
 {
-    JS_ASSERT(cx->runtime == rt);
     JS_ASSERT(state == IDLE);
     size_t maxArenaLists = MAX_BACKGROUND_FINALIZE_KINDS * rt->compartments.length();
-    if (!finalizeVector.reserve(maxArenaLists))
-        return false;
-    context = cx;
-    return true;
+    return finalizeVector.reserve(maxArenaLists);
 }
 
 /* Must be called with the GC lock taken. */
-inline void
-GCHelperThread::startBackgroundSweep(bool shouldShrink)
+void
+GCHelperThread::startBackgroundSweep(JSContext *cx, bool shouldShrink)
 {
     /* The caller takes the GC lock. */
     JS_ASSERT(state == IDLE);
+    JS_ASSERT(cx);
+    JS_ASSERT(!finalizationContext);
+    finalizationContext = cx;
     shrinkFlag = shouldShrink;
     state = SWEEPING;
     PR_NotifyCondVar(wakeup);
+}
+
+/* Must be called with the GC lock taken. */
+void
+GCHelperThread::startBackgroundShrink()
+{
+    switch (state) {
+      case IDLE:
+        JS_ASSERT(!finalizationContext);
+        shrinkFlag = true;
+        state = SWEEPING;
+        PR_NotifyCondVar(wakeup);
+        break;
+      case SWEEPING:
+        shrinkFlag = true;
+        break;
+      case ALLOCATING:
+      case CANCEL_ALLOCATION:
+        /*
+         * If we have started background allocation there is nothing to
+         * shrink.
+         */
+        break;
+      case SHUTDOWN:
+        JS_NOT_REACHED("No shrink on shutdown");
+    }
 }
 
 /* Must be called with the GC lock taken. */
@@ -2470,9 +2527,8 @@ GCHelperThread::replenishAndFreeLater(void *ptr)
 void
 GCHelperThread::doSweep()
 {
-    JS_ASSERT(context);
-
-    {
+    if (JSContext *cx = finalizationContext) {
+        finalizationContext = NULL;
         AutoUnlockGC unlock(rt);
 
         /*
@@ -2480,10 +2536,8 @@ GCHelperThread::doSweep()
          * finalizeObjects.
          */
         for (ArenaHeader **i = finalizeVector.begin(); i != finalizeVector.end(); ++i)
-            ArenaLists::backgroundFinalize(context, *i);
+            ArenaLists::backgroundFinalize(cx, *i);
         finalizeVector.resize(0);
-
-        context = NULL;
 
         if (freeCursor) {
             void **array = freeCursorEnd - FREE_ARRAY_LENGTH;
@@ -2499,7 +2553,18 @@ GCHelperThread::doSweep()
         freeVector.resize(0);
     }
 
-    ExpireChunksAndArenas(rt, shouldShrink());
+    bool shrinking = shrinkFlag;
+    ExpireChunksAndArenas(rt, shrinking);
+
+    /*
+     * The main thread may have called ShrinkGCBuffers while
+     * ExpireChunksAndArenas(rt, false) was running, so we recheck the flag
+     * afterwards.
+     */
+    if (!shrinking && shrinkFlag) {
+        shrinkFlag = false;
+        ExpireChunksAndArenas(rt, true);
+    }
 }
 
 #endif /* JS_THREADSAFE */
@@ -2982,7 +3047,7 @@ GCCycle(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind)
     JS_ASSERT(!cx->gcBackgroundFree);
     rt->gcHelperThread.waitBackgroundSweepOrAllocEnd();
     if (gckind != GC_LAST_CONTEXT && rt->state != JSRTS_LANDING) {
-        if (rt->gcHelperThread.prepareForBackgroundSweep(cx))
+        if (rt->gcHelperThread.prepareForBackgroundSweep())
             cx->gcBackgroundFree = &rt->gcHelperThread;
     }
 #endif
@@ -2993,12 +3058,10 @@ GCCycle(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind)
         js_PurgeThreads_PostGlobalSweep(cx);
 
 #ifdef JS_THREADSAFE
-    if (gckind != GC_LAST_CONTEXT && rt->state != JSRTS_LANDING) {
+    if (cx->gcBackgroundFree) {
         JS_ASSERT(cx->gcBackgroundFree == &rt->gcHelperThread);
         cx->gcBackgroundFree = NULL;
-        rt->gcHelperThread.startBackgroundSweep(gckind == GC_SHRINK);
-    } else {
-        JS_ASSERT(!cx->gcBackgroundFree);
+        rt->gcHelperThread.startBackgroundSweep(cx, gckind == GC_SHRINK);
     }
 #endif
 
@@ -3075,6 +3138,18 @@ js_GC(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind, gcstats::Re
 }
 
 namespace js {
+
+void
+ShrinkGCBuffers(JSRuntime *rt)
+{
+    AutoLockGC lock(rt);
+    JS_ASSERT(!rt->gcRunning);
+#ifndef JS_THREADSAFE
+    ExpireChunksAndArenas(rt, true);
+#else
+    rt->gcHelperThread.startBackgroundShrink();
+#endif
+}
 
 class AutoCopyFreeListToArenas {
     JSRuntime *rt;
@@ -3153,6 +3228,28 @@ struct IterateCellCallbackOp
     {}
     void operator()(Cell *cell) { (*callback)(cx, data, cell, traceKind, thingSize); }
 };
+
+void
+IterateCompartments(JSContext *cx, void *data,
+                    IterateCompartmentCallback compartmentCallback)
+{
+    CHECK_REQUEST(cx);
+
+    JSRuntime *rt = cx->runtime;
+    JS_ASSERT(!rt->gcRunning);
+
+    AutoLockGC lock(rt);
+    AutoGCSession gcsession(cx);
+#ifdef JS_THREADSAFE
+    rt->gcHelperThread.waitBackgroundSweepEnd();
+#endif
+    AutoUnlockGC unlock(rt);
+
+    AutoCopyFreeListToArenas copy(rt);
+    for (CompartmentsIter c(rt); !c.done(); c.next()) {
+        (*compartmentCallback)(cx, data, c);
+    }
+}
 
 void
 IterateCompartmentsArenasCells(JSContext *cx, void *data,
@@ -3279,21 +3376,102 @@ void
 RunDebugGC(JSContext *cx)
 {
 #ifdef JS_GC_ZEAL
-    if (IsGCAllowed(cx)) {
-        JSRuntime *rt = cx->runtime;
+    JSRuntime *rt = cx->runtime;
 
-        /*
-         * If rt->gcDebugCompartmentGC is true, only GC the current
-         * compartment. But don't GC the atoms compartment.
-         */
-        rt->gcTriggerCompartment = rt->gcDebugCompartmentGC ? cx->compartment : NULL;
-        if (rt->gcTriggerCompartment == rt->atomsCompartment)
-            rt->gcTriggerCompartment = NULL;
+    /*
+     * If rt->gcDebugCompartmentGC is true, only GC the current
+     * compartment. But don't GC the atoms compartment.
+     */
+    rt->gcTriggerCompartment = rt->gcDebugCompartmentGC ? cx->compartment : NULL;
+    if (rt->gcTriggerCompartment == rt->atomsCompartment)
+        rt->gcTriggerCompartment = NULL;
 
-        RunLastDitchGC(cx);
-    }
+    RunLastDitchGC(cx);
 #endif
 }
+
+#if defined(DEBUG) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
+
+static void
+CheckStackRoot(JSTracer *trc, jsuword *w)
+{
+    /* Mark memory as defined for valgrind, as in MarkWordConservatively. */
+#ifdef JS_VALGRIND
+    VALGRIND_MAKE_MEM_DEFINED(&w, sizeof(w));
+#endif
+
+    ConservativeGCTest test = MarkIfGCThingWord(trc, *w, DONT_MARK_THING);
+
+    if (test == CGCT_VALID) {
+        JSContext *iter = NULL;
+        bool matched = false;
+        JSRuntime *rt = trc->context->runtime;
+        while (JSContext *acx = js_ContextIterator(rt, JS_TRUE, &iter)) {
+            for (unsigned i = 0; i < THING_ROOT_COUNT; i++) {
+                Root<Cell*> *rooter = acx->thingGCRooters[i];
+                while (rooter) {
+                    if (rooter->address() == (Cell **) w)
+                        matched = true;
+                    rooter = rooter->previous();
+                }
+            }
+            CheckRoot *check = acx->checkGCRooters;
+            while (check) {
+                if (check->contains((uint8 *) w, sizeof(w)))
+                    matched = true;
+                check = check->previous();
+            }
+        }
+        if (!matched) {
+            /*
+             * Only poison the last byte in the word. It is easy to get
+             * accidental collisions when a value that does not occupy a full
+             * word is used to overwrite a now-dead GC thing pointer. In this
+             * case we want to avoid damaging the smaller value.
+             */
+            PoisonPtr(w);
+        }
+    }
+}
+
+static void
+CheckStackRootsRange(JSTracer *trc, jsuword *begin, jsuword *end)
+{
+    JS_ASSERT(begin <= end);
+    for (jsuword *i = begin; i != end; ++i)
+        CheckStackRoot(trc, i);
+}
+
+void
+CheckStackRoots(JSContext *cx)
+{
+    AutoCopyFreeListToArenas copy(cx->runtime);
+
+    JSTracer checker;
+    JS_TRACER_INIT(&checker, cx, EmptyMarkCallback);
+
+    ThreadData *td = JS_THREAD_DATA(cx);
+
+    ConservativeGCThreadData *ctd = &td->conservativeGC;
+    ctd->recordStackTop();
+
+    JS_ASSERT(ctd->hasStackToScan());
+    jsuword *stackMin, *stackEnd;
+#if JS_STACK_GROWTH_DIRECTION > 0
+    stackMin = td->nativeStackBase;
+    stackEnd = ctd->nativeStackTop;
+#else
+    stackMin = ctd->nativeStackTop + 1;
+    stackEnd = td->nativeStackBase;
+#endif
+
+    JS_ASSERT(stackMin <= stackEnd);
+    CheckStackRootsRange(&checker, stackMin, stackEnd);
+    CheckStackRootsRange(&checker, ctd->registerSnapshot.words,
+                         ArrayEnd(ctd->registerSnapshot.words));
+}
+
+#endif /* DEBUG && JSGC_ROOT_ANALYSIS && !JS_THREADSAFE */
 
 #ifdef JS_GC_ZEAL
 
