@@ -12,7 +12,6 @@
 #include "jstypes.h"
 
 #include "builtin/TypedObject.h"
-#include "jit/BaselineIC.h"
 #include "jit/Ion.h"
 #include "jit/IonLinker.h"
 #include "jit/IonSpewer.h"
@@ -436,6 +435,23 @@ IonCache::initializeAddCacheState(LInstruction *ins, AddCacheState *addState)
 {
 }
 
+static bool
+IsCacheableDOMProxy(JSObject *obj)
+{
+    if (!obj->is<ProxyObject>())
+        return false;
+
+    BaseProxyHandler *handler = obj->as<ProxyObject>().handler();
+
+    if (handler->family() != GetDOMProxyHandlerFamily())
+        return false;
+
+    if (obj->numFixedSlots() <= GetDOMProxyExpandoSlot())
+        return false;
+
+    return true;
+}
+
 static void
 GeneratePrototypeGuards(JSContext *cx, IonScript *ion, MacroAssembler &masm, JSObject *obj,
                         JSObject *holder, Register objectReg, Register scratchReg,
@@ -473,11 +489,8 @@ GeneratePrototypeGuards(JSContext *cx, IonScript *ion, MacroAssembler &masm, JSO
     }
 }
 
-// Note: This differs from IsCacheableProtoChain in BaselineIC.cpp in that
-// Ion caches can deal with objects on the proto chain that have uncacheable
-// prototypes.
 static bool
-IsCacheableProtoChainForIon(JSObject *obj, JSObject *holder)
+IsCacheableProtoChain(JSObject *obj, JSObject *holder)
 {
     while (obj != holder) {
         /*
@@ -494,9 +507,9 @@ IsCacheableProtoChainForIon(JSObject *obj, JSObject *holder)
 }
 
 static bool
-IsCacheableGetPropReadSlotForIon(JSObject *obj, JSObject *holder, Shape *shape)
+IsCacheableGetPropReadSlot(JSObject *obj, JSObject *holder, Shape *shape)
 {
-    if (!shape || !IsCacheableProtoChainForIon(obj, holder))
+    if (!shape || !IsCacheableProtoChain(obj, holder))
         return false;
 
     if (!shape->hasSlot() || !shape->hasDefaultGetter())
@@ -592,7 +605,7 @@ IsOptimizableArgumentsObjectForGetElem(JSObject *obj, Value idval)
 static bool
 IsCacheableGetPropCallNative(JSObject *obj, JSObject *holder, Shape *shape)
 {
-    if (!shape || !IsCacheableProtoChainForIon(obj, holder))
+    if (!shape || !IsCacheableProtoChain(obj, holder))
         return false;
 
     if (!shape->hasGetterValue() || !shape->getterValue().isObject())
@@ -619,7 +632,7 @@ IsCacheableGetPropCallNative(JSObject *obj, JSObject *holder, Shape *shape)
 static bool
 IsCacheableGetPropCallPropertyOp(JSObject *obj, JSObject *holder, Shape *shape)
 {
-    if (!shape || !IsCacheableProtoChainForIon(obj, holder))
+    if (!shape || !IsCacheableProtoChain(obj, holder))
         return false;
 
     if (shape->hasSlot() || shape->hasGetterValue() || shape->hasDefaultGetter())
@@ -895,7 +908,7 @@ EmitGetterCall(JSContext *cx, MacroAssembler &masm,
 
         if (!masm.icBuildOOLFakeExitFrame(returnAddr, aic))
             return false;
-        masm.enterFakeExitFrame(IonOOLNativeExitFrameLayout::Token());
+        masm.enterFakeExitFrame(ION_FRAME_OOL_NATIVE);
 
         // Construct and execute call.
         masm.setupUnalignedABICall(3, scratchReg);
@@ -940,7 +953,7 @@ EmitGetterCall(JSContext *cx, MacroAssembler &masm,
 
         if (!masm.icBuildOOLFakeExitFrame(returnAddr, aic))
             return false;
-        masm.enterFakeExitFrame(IonOOLPropertyOpExitFrameLayout::Token());
+        masm.enterFakeExitFrame(ION_FRAME_OOL_PROPERTY_OP);
 
         // Make the call.
         masm.setupUnalignedABICall(4, scratchReg);
@@ -1126,7 +1139,7 @@ CanAttachNativeGetProp(typename GetPropCache::Context cx, const GetPropCache &ca
     RootedScript script(cx);
     jsbytecode *pc;
     cache.getScriptedLocation(&script, &pc);
-    if (IsCacheableGetPropReadSlotForIon(obj, holder, shape) ||
+    if (IsCacheableGetPropReadSlot(obj, holder, shape) ||
         IsCacheableNoProperty(obj, holder, shape, pc, cache.output()))
     {
         return GetPropertyIC::CanAttachReadSlot;
@@ -1324,7 +1337,7 @@ EmitCallProxyGet(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &at
 
     if (!masm.icBuildOOLFakeExitFrame(returnAddr, aic))
         return false;
-    masm.enterFakeExitFrame(IonOOLProxyExitFrameLayout::Token());
+    masm.enterFakeExitFrame(ION_FRAME_OOL_PROXY);
 
     // Make the call.
     masm.setupUnalignedABICall(5, scratch);
@@ -2018,7 +2031,7 @@ IsCacheableSetPropCallNative(HandleObject obj, HandleObject holder, HandleShape 
 {
     JS_ASSERT(obj->isNative());
 
-    if (!shape || !IsCacheableProtoChainForIon(obj, holder))
+    if (!shape || !IsCacheableProtoChain(obj, holder))
         return false;
 
     return shape->hasSetterValue() && shape->setterObject() &&
@@ -2034,7 +2047,7 @@ IsCacheableSetPropCallPropertyOp(HandleObject obj, HandleObject holder, HandleSh
     if (!shape)
         return false;
 
-    if (!IsCacheableProtoChainForIon(obj, holder))
+    if (!IsCacheableProtoChain(obj, holder))
         return false;
 
     if (shape->hasSlot())
@@ -2099,7 +2112,7 @@ EmitCallProxySet(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &at
 
     if (!masm.icBuildOOLFakeExitFrame(returnAddr, aic))
         return false;
-    masm.enterFakeExitFrame(IonOOLProxyExitFrameLayout::Token());
+    masm.enterFakeExitFrame(ION_FRAME_OOL_PROXY);
 
     // Make the call.
     masm.setupUnalignedABICall(6, scratch);
@@ -2307,7 +2320,7 @@ GenerateCallSetter(JSContext *cx, IonScript *ion, MacroAssembler &masm,
 
         if (!masm.icBuildOOLFakeExitFrame(returnAddr, aic))
             return false;
-        masm.enterFakeExitFrame(IonOOLNativeExitFrameLayout::Token());
+        masm.enterFakeExitFrame(ION_FRAME_OOL_NATIVE);
 
         // Make the call
         masm.setupUnalignedABICall(3, scratchReg);
@@ -2353,7 +2366,7 @@ GenerateCallSetter(JSContext *cx, IonScript *ion, MacroAssembler &masm,
 
         if (!masm.icBuildOOLFakeExitFrame(returnAddr, aic))
             return false;
-        masm.enterFakeExitFrame(IonOOLPropertyOpExitFrameLayout::Token());
+        masm.enterFakeExitFrame(ION_FRAME_OOL_PROPERTY_OP);
 
         // Make the call.
         masm.setupUnalignedABICall(5, scratchReg);
@@ -4228,7 +4241,7 @@ IsCacheableNameReadSlot(JSContext *cx, HandleObject scopeChain, HandleObject obj
 
     if (obj->is<GlobalObject>()) {
         // Support only simple property lookups.
-        if (!IsCacheableGetPropReadSlotForIon(obj, holder, shape) &&
+        if (!IsCacheableGetPropReadSlot(obj, holder, shape) &&
             !IsCacheableNoProperty(obj, holder, shape, pc, output))
             return false;
     } else if (obj->is<CallObject>()) {

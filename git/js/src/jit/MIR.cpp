@@ -305,7 +305,6 @@ MDefinition::dump() const
     dump(stderr);
 }
 
-#ifdef DEBUG
 size_t
 MDefinition::useCount() const
 {
@@ -324,7 +323,6 @@ MDefinition::defUseCount() const
             count++;
     return count;
 }
-#endif
 
 bool
 MDefinition::hasOneUse() const
@@ -477,13 +475,6 @@ MConstant::NewAsmJS(TempAllocator &alloc, const Value &v, MIRType type)
     return constant;
 }
 
-MConstant *
-MConstant::NewConstraintlessObject(TempAllocator &alloc, JSObject *v)
-{
-    return new(alloc) MConstant(v);
-}
-
-
 types::TemporaryTypeSet *
 jit::MakeSingletonTypeSet(types::CompilerConstraintList *constraints, JSObject *obj)
 {
@@ -508,13 +499,6 @@ MConstant::MConstant(const js::Value &vp, types::CompilerConstraintList *constra
         setResultTypeSet(MakeSingletonTypeSet(constraints, &vp.toObject()));
     }
 
-    setMovable();
-}
-
-MConstant::MConstant(JSObject *obj)
-  : value_(ObjectValue(*obj))
-{
-    setResultType(MIRType_Object);
     setMovable();
 }
 
@@ -2779,8 +2763,8 @@ MBeta::printOpcode(FILE *fp) const
 bool
 MNewObject::shouldUseVM() const
 {
-    JSObject *obj = templateObject();
-    return obj->hasSingletonType() || obj->hasDynamicSlots();
+    return templateObject()->hasSingletonType() ||
+           templateObject()->hasDynamicSlots();
 }
 
 bool

@@ -138,7 +138,7 @@ ScopeObject::setEnclosingScope(HandleObject obj)
 }
 
 CallObject *
-CallObject::create(JSContext *cx, HandleShape shape, HandleTypeObject type)
+CallObject::create(JSContext *cx, HandleShape shape, HandleTypeObject type, HeapSlot *slots)
 {
     MOZ_ASSERT(!type->singleton(),
                "passed a singleton type to create() (use createSingleton() "
@@ -147,7 +147,7 @@ CallObject::create(JSContext *cx, HandleShape shape, HandleTypeObject type)
     MOZ_ASSERT(CanBeFinalizedInBackground(kind, &CallObject::class_));
     kind = gc::GetBackgroundAllocKind(kind);
 
-    JSObject *obj = JSObject::create(cx, kind, gc::DefaultHeap, shape, type);
+    JSObject *obj = JSObject::create(cx, kind, gc::DefaultHeap, shape, type, slots);
     if (!obj)
         return nullptr;
 
@@ -155,7 +155,7 @@ CallObject::create(JSContext *cx, HandleShape shape, HandleTypeObject type)
 }
 
 CallObject *
-CallObject::createSingleton(JSContext *cx, HandleShape shape)
+CallObject::createSingleton(JSContext *cx, HandleShape shape, HeapSlot *slots)
 {
     gc::AllocKind kind = gc::GetGCObjectKind(shape->numFixedSlots());
     MOZ_ASSERT(CanBeFinalizedInBackground(kind, &CallObject::class_));
@@ -164,7 +164,7 @@ CallObject::createSingleton(JSContext *cx, HandleShape shape)
     RootedTypeObject type(cx, cx->getSingletonType(&class_, nullptr));
     if (!type)
         return nullptr;
-    RootedObject obj(cx, JSObject::create(cx, kind, gc::TenuredHeap, shape, type));
+    RootedObject obj(cx, JSObject::create(cx, kind, gc::TenuredHeap, shape, type, slots));
     if (!obj)
         return nullptr;
 

@@ -894,7 +894,8 @@ WorkerThread::handleCompressionWorkload()
 
     {
         AutoUnlockWorkerThreadState unlock;
-        compressionTask->result = compressionTask->work();
+        if (!compressionTask->work())
+            compressionTask->setOOM();
     }
 
     compressionTask->workerThread = nullptr;
@@ -936,36 +937,27 @@ GlobalWorkerThreadState::compressionInProgress(SourceCompressionTask *task)
 bool
 SourceCompressionTask::complete()
 {
-    if (!active()) {
-        JS_ASSERT(!compressed);
-        return true;
-    }
-
-    {
+    JS_ASSERT_IF(!ss, !chars);
+    if (active()) {
         AutoLockWorkerThreadState lock;
+
         while (WorkerThreadState().compressionInProgress(this))
             WorkerThreadState().wait(GlobalWorkerThreadState::CONSUMER);
-    }
 
-    if (result == Success) {
-        ss->setCompressedSource(compressed, compressedBytes);
+        ss->ready_ = true;
 
         // Update memory accounting.
-        cx->updateMallocCounter(ss->computedSizeOfData());
-    } else {
-        js_free(compressed);
+        if (!oom)
+            cx->updateMallocCounter(ss->computedSizeOfData());
 
-        if (result == OOM)
-            js_ReportOutOfMemory(cx);
-        else if (result == Aborted && !ss->ensureOwnsSource(cx))
-            result = OOM;
+        ss = nullptr;
+        chars = nullptr;
     }
-
-    ss = nullptr;
-    compressed = nullptr;
-    JS_ASSERT(!active());
-
-    return result != OOM;
+    if (oom) {
+        js_ReportOutOfMemory(cx);
+        return false;
+    }
+    return true;
 }
 
 SourceCompressionTask *
@@ -982,6 +974,30 @@ GlobalWorkerThreadState::compressionTaskForSource(ScriptSource *ss)
         if (task && task->source() == ss)
             return task;
     }
+    return nullptr;
+}
+
+const jschar *
+ScriptSource::getOffThreadCompressionChars(ExclusiveContext *cx)
+{
+    // If this is being compressed off thread, return its uncompressed chars.
+
+    if (ready()) {
+        // Compression has already finished on the source.
+        return nullptr;
+    }
+
+    AutoLockWorkerThreadState lock;
+
+    // Look for a token that hasn't finished compressing and whose source is
+    // the given ScriptSource.
+    if (SourceCompressionTask *task = WorkerThreadState().compressionTaskForSource(this))
+        return task->uncompressedChars();
+
+    // Compressing has finished, so this ScriptSource is ready. Avoid future
+    // queries on the worker thread state when getting the chars.
+    ready_ = true;
+
     return nullptr;
 }
 
@@ -1081,8 +1097,15 @@ js::StartOffThreadCompression(ExclusiveContext *cx, SourceCompressionTask *task)
 bool
 SourceCompressionTask::complete()
 {
-    JS_ASSERT(!ss);
+    JS_ASSERT(!active() && !oom);
     return true;
+}
+
+const jschar *
+ScriptSource::getOffThreadCompressionChars(ExclusiveContext *cx)
+{
+    JS_ASSERT(ready());
+    return nullptr;
 }
 
 frontend::CompileError &

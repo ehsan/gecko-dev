@@ -802,7 +802,6 @@ struct ParamTraits<mozilla::layers::TextureFactoryIdentifier>
   static void Write(Message* aMsg, const paramType& aParam)
   {
     WriteParam(aMsg, aParam.mParentBackend);
-    WriteParam(aMsg, aParam.mSupportedBlendModes.serialize());
     WriteParam(aMsg, aParam.mMaxTextureSize);
     WriteParam(aMsg, aParam.mSupportsTextureBlitting);
     WriteParam(aMsg, aParam.mSupportsPartialUploads);
@@ -810,14 +809,10 @@ struct ParamTraits<mozilla::layers::TextureFactoryIdentifier>
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    uint32_t supportedBlendModes = 0;
-    bool result = ReadParam(aMsg, aIter, &aResult->mParentBackend) &&
-                  ReadParam(aMsg, aIter, &supportedBlendModes) &&
-                  ReadParam(aMsg, aIter, &aResult->mMaxTextureSize) &&
-                  ReadParam(aMsg, aIter, &aResult->mSupportsTextureBlitting) &&
-                  ReadParam(aMsg, aIter, &aResult->mSupportsPartialUploads);
-    aResult->mSupportedBlendModes.deserialize(supportedBlendModes);
-    return result;
+    return ReadParam(aMsg, aIter, &aResult->mParentBackend) &&
+           ReadParam(aMsg, aIter, &aResult->mMaxTextureSize) &&
+           ReadParam(aMsg, aIter, &aResult->mSupportsTextureBlitting) &&
+           ReadParam(aMsg, aIter, &aResult->mSupportsPartialUploads);
   }
 };
 

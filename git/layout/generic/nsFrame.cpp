@@ -1868,15 +1868,15 @@ WrapPreserve3DList(nsIFrame* aFrame, nsDisplayListBuilder* aBuilder, nsDisplayLi
 class AutoSaveRestoreBlendMode
 {
   nsDisplayListBuilder& mBuilder;
-  EnumSet<gfx::CompositionOp> mSavedBlendModes;
+  bool                  AutoResetContainsBlendMode;
 public:
   AutoSaveRestoreBlendMode(nsDisplayListBuilder& aBuilder)
-    : mBuilder(aBuilder)
-    , mSavedBlendModes(aBuilder.ContainedBlendModes())
-  { }
+    : mBuilder(aBuilder),
+      AutoResetContainsBlendMode(aBuilder.ContainsBlendMode()) {
+  }
 
   ~AutoSaveRestoreBlendMode() {
-    mBuilder.SetContainsBlendModes(mSavedBlendModes);
+    mBuilder.SetContainsBlendMode(AutoResetContainsBlendMode);
   }
 };
 
@@ -1929,7 +1929,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   // a nsDisplayBlendContainer. Set the blend mode back when the routine exits
   // so we keep track if the parent stacking context needs a container too.
   AutoSaveRestoreBlendMode autoRestoreBlendMode(*aBuilder);
-  aBuilder->SetContainsBlendModes(BlendModeSet());
+  aBuilder->SetContainsBlendMode(false);
  
   if (isTransformed) {
     const nsRect overflow = GetVisualOverflowRectRelativeToSelf();
@@ -2129,7 +2129,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
 
   if (aBuilder->ContainsBlendMode()) {
       resultList.AppendNewToTop(
-        new (aBuilder) nsDisplayBlendContainer(aBuilder, this, &resultList, aBuilder->ContainedBlendModes()));
+        new (aBuilder) nsDisplayBlendContainer(aBuilder, this, &resultList));
   }
 
   /* If there's blending, wrap up the list in a blend-mode item. Note
@@ -2343,7 +2343,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   nsDisplayList extraPositionedDescendants;
   if (isStackingContext) {
     if (disp->mMixBlendMode != NS_STYLE_BLEND_NORMAL) {
-      aBuilder->SetContainsBlendMode(disp->mMixBlendMode);
+      aBuilder->SetContainsBlendMode(true);
     }
     // True stacking context.
     // For stacking contexts, BuildDisplayListForStackingContext handles
@@ -5171,6 +5171,10 @@ nsIFrame::MovePositionBy(const nsPoint& aTranslation)
   nsHTMLReflowState::ApplyRelativePositioning(this, computedOffsets ?
                                               *computedOffsets : nsMargin(),
                                               &position);
+  NS_ASSERTION(StyleDisplay()->mPosition == NS_STYLE_POSITION_STICKY ||
+               GetPosition() + aTranslation == position,
+               "MovePositionBy should always lead to the movement "
+               "specified, unless the frame is position:sticky");
   SetPosition(position);
 }
 

@@ -82,9 +82,7 @@ protected:
  * The transform for the layer will be put in aMaskData
  */
 bool
-GetMaskData(Layer* aMaskLayer,
-            const gfx::Point& aDeviceOffset,
-            AutoMoz2DMaskData* aMaskData);
+GetMaskData(Layer* aMaskLayer, AutoMoz2DMaskData* aMaskData);
 
 // Paint the current source to a context using a mask, if present
 void
@@ -110,7 +108,6 @@ FillRectWithMask(gfx::DrawTarget* aDT,
                  const gfx::Matrix* aSurfaceTransform = nullptr);
 void
 FillRectWithMask(gfx::DrawTarget* aDT,
-                 const gfx::Point& aDeviceOffset,
                  const gfx::Rect& aRect,
                  gfx::SourceSurface* aSurface,
                  gfx::Filter aFilter,
@@ -118,7 +115,6 @@ FillRectWithMask(gfx::DrawTarget* aDT,
                  Layer* aMaskLayer);
 void
 FillRectWithMask(gfx::DrawTarget* aDT,
-                 const gfx::Point& aDeviceOffset,
                  const gfx::Rect& aRect,
                  const gfx::Color& aColor,
                  const gfx::DrawOptions& aOptions,

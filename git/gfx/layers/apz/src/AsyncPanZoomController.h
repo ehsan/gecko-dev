@@ -791,11 +791,6 @@ public:
     }
   }
 
-  // Make this APZC the root of the APZC tree. Clears the parent pointer.
-  void MakeRoot() {
-    mParent = nullptr;
-  }
-
   AsyncPanZoomController* GetLastChild() const { return mLastChild; }
   AsyncPanZoomController* GetPrevSibling() const { return mPrevSibling; }
   AsyncPanZoomController* GetParent() const { return mParent; }

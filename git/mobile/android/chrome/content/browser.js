@@ -173,11 +173,9 @@ const kDoNotTrackPrefState = Object.freeze({
   ALLOW_TRACKING: "2",
 });
 
-let Log = Cu.import("resource://gre/modules/AndroidLog.jsm", {}).AndroidLog;
-
-// Define the "dump" function as a binding of the Log.d function so it specifies
-// the "debug" priority and a log tag.
-let dump = Log.d.bind(null, "Browser");
+function dump(a) {
+  Services.console.logStringMessage(a);
+}
 
 function doChangeMaxLineBoxWidth(aWidth) {
   gReflowPending = null;

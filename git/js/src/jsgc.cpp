@@ -305,22 +305,6 @@ const uint32_t Arena::FirstThingOffsets[] = {
 
 #undef OFFSET
 
-const char *
-js::gc::TraceKindAsAscii(JSGCTraceKind kind)
-{
-    switch(kind) {
-      case JSTRACE_OBJECT: return "JSTRACE_OBJECT";
-      case JSTRACE_STRING: return "JSTRACE_STRING";
-      case JSTRACE_SCRIPT: return "JSTRACE_SCRIPT";
-      case JSTRACE_LAZY_SCRIPT: return "JSTRACE_SCRIPT";
-      case JSTRACE_JITCODE: return "JSTRACE_JITCODE";
-      case JSTRACE_SHAPE: return "JSTRACE_SHAPE";
-      case JSTRACE_BASE_SHAPE: return "JSTRACE_BASE_SHAPE";
-      case JSTRACE_TYPE_OBJECT: return "JSTRACE_TYPE_OBJECT";
-      default: return "INVALID";
-    }
-}
-
 /*
  * Finalization order for incrementally swept things.
  */
@@ -437,10 +421,11 @@ Arena::staticAsserts()
 void
 Arena::setAsFullyUnused(AllocKind thingKind)
 {
-    FreeSpan fullSpan;
-    size_t thingSize = Arena::thingSize(thingKind);
-    fullSpan.initFinal(thingsStart(thingKind), thingsEnd() - thingSize, thingSize);
-    aheader.setFirstFreeSpan(&fullSpan);
+    FreeSpan entireList;
+    entireList.first = thingsStart(thingKind);
+    uintptr_t arenaAddr = aheader.arenaAddress();
+    entireList.last = arenaAddr | ArenaMask;
+    aheader.setFirstFreeSpan(&entireList);
 }
 
 template<typename T>
@@ -460,7 +445,7 @@ Arena::finalize(FreeOp *fop, AllocKind thingKind, size_t thingSize)
 
     uintptr_t firstThing = thingsStart(thingKind);
     uintptr_t firstThingOrSuccessorOfLastMarkedThing = firstThing;
-    uintptr_t lastThing = thingsEnd() - thingSize;
+    uintptr_t lastByte = thingsEnd() - 1;
 
     FreeSpan newListHead;
     FreeSpan *newListTail = &newListHead;
@@ -473,9 +458,9 @@ Arena::finalize(FreeOp *fop, AllocKind thingKind, size_t thingSize)
             if (thing != firstThingOrSuccessorOfLastMarkedThing) {
                 // We just finished passing over one or more free things,
                 // so record a new FreeSpan.
-                newListTail->initBoundsUnchecked(firstThingOrSuccessorOfLastMarkedThing,
-                                                 thing - thingSize);
-                newListTail = newListTail->nextSpanUnchecked();
+                newListTail->first = firstThingOrSuccessorOfLastMarkedThing;
+                newListTail->last = thing - thingSize;
+                newListTail = newListTail->nextSpanUnchecked(thingSize);
             }
             firstThingOrSuccessorOfLastMarkedThing = thing + thingSize;
             nmarked++;
@@ -485,28 +470,28 @@ Arena::finalize(FreeOp *fop, AllocKind thingKind, size_t thingSize)
         }
     }
 
+    // Complete the last FreeSpan.
+    newListTail->first = firstThingOrSuccessorOfLastMarkedThing;
+    newListTail->last = lastByte;
+
     if (nmarked == 0) {
-        // Do nothing. The caller will update the arena header appropriately.
         JS_ASSERT(newListTail == &newListHead);
+        JS_ASSERT(newListTail->first == thingsStart(thingKind));
         JS_EXTRA_POISON(data, JS_SWEPT_TENURED_PATTERN, sizeof(data));
         return true;
     }
 
-    JS_ASSERT(firstThingOrSuccessorOfLastMarkedThing != firstThing);
-    uintptr_t lastMarkedThing = firstThingOrSuccessorOfLastMarkedThing - thingSize;
-    if (lastThing == lastMarkedThing) {
-        // If the last thing was marked, we will have already set the bounds of
-        // the final span, and we just need to terminate the list.
-        newListTail->initAsEmpty();
-    } else {
-        // Otherwise, end the list with a span that covers the final stretch of free things.
-        newListTail->initFinal(firstThingOrSuccessorOfLastMarkedThing, lastThing, thingSize);
-    }
-
 #ifdef DEBUG
     size_t nfree = 0;
-    for (const FreeSpan *span = &newListHead; !span->isEmpty(); span = span->nextSpan())
-        nfree += span->length(thingSize);
+    for (const FreeSpan *span = &newListHead; span != newListTail; span = span->nextSpan()) {
+        span->checkSpan();
+        JS_ASSERT(Arena::isAligned(span->first, thingSize));
+        JS_ASSERT(Arena::isAligned(span->last, thingSize));
+        nfree += (span->last - span->first) / thingSize + 1;
+    }
+    JS_ASSERT(Arena::isAligned(newListTail->first, thingSize));
+    JS_ASSERT(newListTail->last == lastByte);
+    nfree += (newListTail->last + 1 - newListTail->first) / thingSize;
     JS_ASSERT(nfree + nmarked == thingsPerArena(thingSize));
 #endif
     aheader.setFirstFreeSpan(&newListHead);
@@ -1537,9 +1522,7 @@ ArenaLists::allocateFromArenaInline(Zone *zone, AllocKind thingKind)
                     PushArenaAllocatedDuringSweep(zone->runtimeFromMainThread(), aheader);
                 }
             }
-            void *thing = freeLists[thingKind].allocate(Arena::thingSize(thingKind));
-            JS_ASSERT(thing);   // This allocation is infallible.
-            return thing;
+            return freeLists[thingKind].infallibleAllocate(Arena::thingSize(thingKind));
         }
 
         /* Make sure we hold the GC lock before we call PickChunk. */

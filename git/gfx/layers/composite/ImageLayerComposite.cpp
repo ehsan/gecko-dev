@@ -100,7 +100,6 @@ ImageLayerComposite::RenderLayer(const nsIntRect& aClipRect)
 
   EffectChain effectChain(this);
   LayerManagerComposite::AutoAddMaskEffect autoMaskEffect(mMaskLayer, effectChain);
-  AddBlendModeEffect(effectChain);
 
   gfx::Rect clipRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height);
   mImageHost->SetCompositor(mCompositor);

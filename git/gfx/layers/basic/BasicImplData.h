@@ -59,9 +59,7 @@ public:
    * set up to account for all the properties of the layer (transform,
    * opacity, etc).
    */
-  virtual void Paint(gfx::DrawTarget* aDT,
-                     const gfx::Point& aDeviceOffset,
-                     Layer* aMaskLayer) {}
+  virtual void Paint(gfx::DrawTarget* aDT, Layer* aMaskLayer) {}
 
   /**
    * Like Paint() but called for ThebesLayers with the additional parameters
@@ -72,11 +70,11 @@ public:
   virtual void PaintThebes(gfxContext* aContext,
                            Layer* aMasklayer,
                            LayerManager::DrawThebesLayerCallback aCallback,
-                           void* aCallbackData) {}
+                           void* aCallbackData,
+                           ReadbackProcessor* aReadback) {}
 
   virtual void Validate(LayerManager::DrawThebesLayerCallback aCallback,
-                        void* aCallbackData,
-                        ReadbackProcessor* aReadback) {}
+                        void* aCallbackData) {}
 
   /**
    * Layers will get this call when their layer manager is destroyed, this

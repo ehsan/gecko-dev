@@ -44,9 +44,7 @@ public:
     ColorLayer::SetVisibleRegion(aRegion);
   }
 
-  virtual void Paint(DrawTarget* aDT,
-                     const gfx::Point& aDeviceOffset,
-                     Layer* aMaskLayer) MOZ_OVERRIDE
+  virtual void Paint(DrawTarget* aDT, Layer* aMaskLayer) MOZ_OVERRIDE
   {
     if (IsHidden()) {
       return;
@@ -59,7 +57,7 @@ public:
       snapped = mat.TransformBounds(snapped);
     }
 
-    FillRectWithMask(aDT, aDeviceOffset, snapped, ToColor(mColor),
+    FillRectWithMask(aDT, snapped, ToColor(mColor),
                      DrawOptions(GetEffectiveOpacity(), GetEffectiveOperator(this)),
                      aMaskLayer);
   }

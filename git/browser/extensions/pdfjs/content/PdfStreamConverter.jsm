@@ -53,28 +53,12 @@ XPCOMUtils.defineLazyServiceGetter(Svc, 'mime',
                                    '@mozilla.org/mime;1',
                                    'nsIMIMEService');
 
-function getContainingBrowser(domWindow) {
-  return domWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                  .getInterface(Ci.nsIWebNavigation)
-                  .QueryInterface(Ci.nsIDocShell)
-                  .chromeEventHandler;
-}
-
 function getChromeWindow(domWindow) {
-  return getContainingBrowser(domWindow).ownerDocument.defaultView;
-}
-
-function getFindBar(domWindow) {
-  var browser = getContainingBrowser(domWindow);
-  try {
-    var tabbrowser = browser.getTabBrowser();
-    var tab = tabbrowser._getTabForBrowser(browser);
-    return tabbrowser.getFindBar(tab);
-  } catch (e) {
-    // FF22 has no _getTabForBrowser, and FF24 has no getFindBar
-    var chromeWindow = browser.ownerDocument.defaultView;
-    return chromeWindow.gFindBar;
-  }
+  var containingBrowser = domWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                   .getInterface(Ci.nsIWebNavigation)
+                                   .QueryInterface(Ci.nsIDocShell)
+                                   .chromeEventHandler;
+  return containingBrowser.ownerDocument.defaultView;
 }
 
 function setBoolPref(pref, value) {
@@ -290,10 +274,9 @@ ChromeActions.prototype = {
       var listener = {
         extListener: null,
         onStartRequest: function(aRequest, aContext) {
-          this.extListener = extHelperAppSvc.doContent(
-            (data.isAttachment ? 'application/octet-stream' :
-                                 'application/pdf'),
-            aRequest, frontWindow, false);
+          this.extListener = extHelperAppSvc.doContent((data.isAttachment ? '' :
+                                                        'application/pdf'),
+                                aRequest, frontWindow, false);
           this.extListener.onStartRequest(aRequest, aContext);
         },
         onStopRequest: function(aRequest, aContext, aStatusCode) {
@@ -333,13 +316,11 @@ ChromeActions.prototype = {
     return getBoolPref(PREF_PREFIX + '.pdfBugEnabled', false);
   },
   supportsIntegratedFind: function() {
-    // Integrated find is only supported when we're not in a frame
-    if (this.domWindow.frameElement !== null) {
-      return false;
-    }
-    // ... and when the new find events code exists.
-    var findBar = getFindBar(this.domWindow);
-    return findBar && ('updateControlState' in findBar);
+    // Integrated find is only supported when we're not in a frame and when the
+    // new find events code exists.
+    return this.domWindow.frameElement === null &&
+           getChromeWindow(this.domWindow).gFindBar &&
+           'updateControlState' in getChromeWindow(this.domWindow).gFindBar;
   },
   supportsDocumentFonts: function() {
     var prefBrowser = getIntPref('browser.display.use_document_fonts', 1);
@@ -456,7 +437,8 @@ ChromeActions.prototype = {
         (findPreviousType !== 'undefined' && findPreviousType !== 'boolean')) {
       return;
     }
-    getFindBar(this.domWindow).updateControlState(result, findPrevious);
+    getChromeWindow(this.domWindow).gFindBar
+                                   .updateControlState(result, findPrevious);
   },
   setPreferences: function(prefs, sendResponse) {
     var defaultBranch = Services.prefs.getDefaultBranch(PREF_PREFIX + '.');
@@ -934,8 +916,7 @@ PdfStreamConverter.prototype = {
         }, false, true);
         if (actions.supportsIntegratedFind()) {
           var chromeWindow = getChromeWindow(domWindow);
-          var findBar = getFindBar(domWindow);
-          var findEventManager = new FindEventManager(findBar,
+          var findEventManager = new FindEventManager(chromeWindow.gFindBar,
                                                       domWindow,
                                                       chromeWindow);
           findEventManager.bind();

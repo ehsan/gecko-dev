@@ -587,18 +587,12 @@ class MDefinition : public MNode
         uses_.remove(use);
     }
 
-#ifdef DEBUG
-    // Number of uses of this instruction. This function is only available
-    // in DEBUG mode since it requires traversing the list. Most users should
-    // use hasUses() or hasOneUse() instead.
+    // Number of uses of this instruction.
     size_t useCount() const;
 
-    // Number of uses of this instruction (only counting MDefinitions, ignoring
-    // MResumePoints). This function is only available in DEBUG mode since it
-    // requires traversing the list. Most users should use hasUses() or
-    // hasOneUse() instead.
+    // Number of uses of this instruction.
+    // (only counting MDefinitions, ignoring MResumePoints)
     size_t defUseCount() const;
-#endif
 
     // Test whether this MDefinition has exactly one use.
     bool hasOneUse() const;
@@ -1005,14 +999,12 @@ class MConstant : public MNullaryInstruction
 
   protected:
     MConstant(const Value &v, types::CompilerConstraintList *constraints);
-    MConstant(JSObject *obj);
 
   public:
     INSTRUCTION_HEADER(Constant)
     static MConstant *New(TempAllocator &alloc, const Value &v,
                           types::CompilerConstraintList *constraints = nullptr);
     static MConstant *NewAsmJS(TempAllocator &alloc, const Value &v, MIRType type);
-    static MConstant *NewConstraintlessObject(TempAllocator &alloc, JSObject *v);
 
     const js::Value &value() const {
         return value_;
@@ -1526,39 +1518,32 @@ class MNewArray : public MNullaryInstruction
     }
 };
 
-class MNewObject : public MUnaryInstruction
+class MNewObject : public MNullaryInstruction
 {
+    CompilerRootObject templateObject_;
     gc::InitialHeap initialHeap_;
     bool templateObjectIsClassPrototype_;
 
-    MNewObject(types::CompilerConstraintList *constraints, MConstant *templateConst,
+    MNewObject(types::CompilerConstraintList *constraints, JSObject *templateObject,
                gc::InitialHeap initialHeap, bool templateObjectIsClassPrototype)
-      : MUnaryInstruction(templateConst),
+      : templateObject_(templateObject),
         initialHeap_(initialHeap),
         templateObjectIsClassPrototype_(templateObjectIsClassPrototype)
     {
-        JSObject *obj = templateObject();
         JS_ASSERT_IF(templateObjectIsClassPrototype, !shouldUseVM());
         setResultType(MIRType_Object);
-        if (!obj->hasSingletonType())
-            setResultTypeSet(MakeSingletonTypeSet(constraints, obj));
-
-        // The constant is kept separated in a MConstant, this way we can safely
-        // mark it during GC if we recover the object allocation.  Otherwise, by
-        // making it emittedAtUses, we do not produce register allocations for
-        // it and inline its content inside the code produced by the
-        // CodeGenerator.
-        templateConst->setEmittedAtUses();
+        if (!templateObject->hasSingletonType())
+            setResultTypeSet(MakeSingletonTypeSet(constraints, templateObject));
     }
 
   public:
     INSTRUCTION_HEADER(NewObject)
 
     static MNewObject *New(TempAllocator &alloc, types::CompilerConstraintList *constraints,
-                           MConstant *templateConst, gc::InitialHeap initialHeap,
+                           JSObject *templateObject, gc::InitialHeap initialHeap,
                            bool templateObjectIsClassPrototype)
     {
-        return new(alloc) MNewObject(constraints, templateConst, initialHeap,
+        return new(alloc) MNewObject(constraints, templateObject, initialHeap,
                                      templateObjectIsClassPrototype);
     }
 
@@ -1571,18 +1556,11 @@ class MNewObject : public MUnaryInstruction
     }
 
     JSObject *templateObject() const {
-        return &getOperand(0)->toConstant()->value().toObject();
+        return templateObject_;
     }
 
     gc::InitialHeap initialHeap() const {
         return initialHeap_;
-    }
-
-    bool writeRecoverData(CompactBufferWriter &writer) const;
-    bool canRecoverOnBailout() const {
-        // The template object can safely be used in the recover instruction
-        // because it can never be mutated by any other function execution.
-        return true;
     }
 };
 
@@ -9369,6 +9347,33 @@ class MPostWriteBarrier : public MBinaryInstruction, public ObjectPolicy<0>
 #endif
 };
 
+class MNewSlots : public MNullaryInstruction
+{
+    unsigned nslots_;
+
+    MNewSlots(unsigned nslots)
+      : nslots_(nslots)
+    {
+        setResultType(MIRType_Slots);
+    }
+
+  public:
+    INSTRUCTION_HEADER(NewSlots)
+
+    static MNewSlots *New(TempAllocator &alloc, unsigned nslots) {
+        return new(alloc) MNewSlots(nslots);
+    }
+    unsigned nslots() const {
+        return nslots_;
+    }
+    AliasSet getAliasSet() const {
+        return AliasSet::None();
+    }
+    bool possiblyCalls() const {
+        return true;
+    }
+};
+
 class MNewDeclEnvObject : public MNullaryInstruction
 {
     CompilerRootObject templateObj_;
@@ -9395,19 +9400,22 @@ class MNewDeclEnvObject : public MNullaryInstruction
     }
 };
 
-class MNewCallObjectBase : public MNullaryInstruction
+class MNewCallObjectBase : public MUnaryInstruction
 {
     CompilerRootObject templateObj_;
 
   protected:
-    MNewCallObjectBase(JSObject *templateObj)
-      : MNullaryInstruction(),
+    MNewCallObjectBase(JSObject *templateObj, MDefinition *slots)
+      : MUnaryInstruction(slots),
         templateObj_(templateObj)
     {
         setResultType(MIRType_Object);
     }
 
   public:
+    MDefinition *slots() {
+        return getOperand(0);
+    }
     JSObject *templateObject() {
         return templateObj_;
     }
@@ -9421,14 +9429,14 @@ class MNewCallObject : public MNewCallObjectBase
   public:
     INSTRUCTION_HEADER(NewCallObject)
 
-    MNewCallObject(JSObject *templateObj)
-      : MNewCallObjectBase(templateObj)
+    MNewCallObject(JSObject *templateObj, MDefinition *slots)
+      : MNewCallObjectBase(templateObj, slots)
     {}
 
     static MNewCallObject *
-    New(TempAllocator &alloc, JSObject *templateObj)
+    New(TempAllocator &alloc, JSObject *templateObj, MDefinition *slots)
     {
-        return new(alloc) MNewCallObject(templateObj);
+        return new(alloc) MNewCallObject(templateObj, slots);
     }
 };
 
@@ -9437,23 +9445,23 @@ class MNewRunOnceCallObject : public MNewCallObjectBase
   public:
     INSTRUCTION_HEADER(NewRunOnceCallObject)
 
-    MNewRunOnceCallObject(JSObject *templateObj)
-      : MNewCallObjectBase(templateObj)
+    MNewRunOnceCallObject(JSObject *templateObj, MDefinition *slots)
+      : MNewCallObjectBase(templateObj, slots)
     {}
 
     static MNewRunOnceCallObject *
-    New(TempAllocator &alloc, JSObject *templateObj)
+    New(TempAllocator &alloc, JSObject *templateObj, MDefinition *slots)
     {
-        return new(alloc) MNewRunOnceCallObject(templateObj);
+        return new(alloc) MNewRunOnceCallObject(templateObj, slots);
     }
 };
 
-class MNewCallObjectPar : public MUnaryInstruction
+class MNewCallObjectPar : public MBinaryInstruction
 {
     CompilerRootObject templateObj_;
 
-    MNewCallObjectPar(MDefinition *cx, JSObject *templateObj)
-        : MUnaryInstruction(cx),
+    MNewCallObjectPar(MDefinition *cx, JSObject *templateObj, MDefinition *slots)
+        : MBinaryInstruction(cx, slots),
           templateObj_(templateObj)
     {
         setResultType(MIRType_Object);
@@ -9463,11 +9471,15 @@ class MNewCallObjectPar : public MUnaryInstruction
     INSTRUCTION_HEADER(NewCallObjectPar);
 
     static MNewCallObjectPar *New(TempAllocator &alloc, MDefinition *cx, MNewCallObjectBase *callObj) {
-        return new(alloc) MNewCallObjectPar(cx, callObj->templateObject());
+        return new(alloc) MNewCallObjectPar(cx, callObj->templateObject(), callObj->slots());
     }
 
     MDefinition *forkJoinContext() const {
         return getOperand(0);
+    }
+
+    MDefinition *slots() const {
+        return getOperand(1);
     }
 
     JSObject *templateObj() const {

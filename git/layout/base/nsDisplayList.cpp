@@ -518,6 +518,7 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mIsPaintingToWindow(false),
       mIsCompositingCheap(false),
       mContainsPluginItem(false),
+      mContainsBlendMode(false),
       mAncestorHasTouchEventHandler(false),
       mHaveScrollableDisplayPort(false)
 {
@@ -550,13 +551,6 @@ static void MarkFrameForDisplay(nsIFrame* aFrame, nsIFrame* aStopAtFrame) {
       break;
     }
   }
-}
-
-void nsDisplayListBuilder::SetContainsBlendMode(uint8_t aBlendMode)
-{
-  MOZ_ASSERT(aBlendMode != NS_STYLE_BLEND_NORMAL);
-  gfxContext::GraphicsOperator op = nsCSSRendering::GetGFXBlendMode(aBlendMode);
-  mContainedBlendModes += gfx::CompositionOpForOp(op);
 }
 
 void nsDisplayListBuilder::MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame,
@@ -3390,18 +3384,6 @@ nsRegion nsDisplayMixBlendMode::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
   return nsRegion();
 }
 
-LayerState
-nsDisplayMixBlendMode::GetLayerState(nsDisplayListBuilder* aBuilder,
-                                     LayerManager* aManager,
-                                     const ContainerLayerParameters& aParameters)
-{
-  gfxContext::GraphicsOperator op = nsCSSRendering::GetGFXBlendMode(mFrame->StyleDisplay()->mMixBlendMode);
-  if (aManager->SupportsMixBlendMode(gfx::CompositionOpForOp(op))) {
-    return LAYER_ACTIVE;
-  }
-  return LAYER_INACTIVE;
-}
-
 // nsDisplayMixBlendMode uses layers for rendering
 already_AddRefed<Layer>
 nsDisplayMixBlendMode::BuildLayer(nsDisplayListBuilder* aBuilder,
@@ -3455,19 +3437,8 @@ bool nsDisplayMixBlendMode::TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayIt
 
 nsDisplayBlendContainer::nsDisplayBlendContainer(nsDisplayListBuilder* aBuilder,
                                                  nsIFrame* aFrame, nsDisplayList* aList,
-                                                 BlendModeSet& aContainedBlendModes)
-    : nsDisplayWrapList(aBuilder, aFrame, aList)
-    , mContainedBlendModes(aContainedBlendModes)
-    , mCanBeActive(true)
-{
-  MOZ_COUNT_CTOR(nsDisplayBlendContainer);
-}
-
-nsDisplayBlendContainer::nsDisplayBlendContainer(nsDisplayListBuilder* aBuilder,
-                                                 nsIFrame* aFrame, nsDisplayList* aList)
-    : nsDisplayWrapList(aBuilder, aFrame, aList)
-    , mCanBeActive(false)
-{
+                                                 uint32_t aFlags)
+    : nsDisplayWrapList(aBuilder, aFrame, aList) {
   MOZ_COUNT_CTOR(nsDisplayBlendContainer);
 }
 
