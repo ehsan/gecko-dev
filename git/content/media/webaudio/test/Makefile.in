@@ -27,6 +27,7 @@ MOCHITEST_FILES := \
   test_bug867203.html \
   test_bug875221.html \
   test_bug875402.html \
+  test_bug894150.html \
   test_analyserNode.html \
   test_AudioBuffer.html \
   test_AudioContext.html \
@@ -56,9 +57,12 @@ MOCHITEST_FILES := \
   test_channelSplitterNode.html \
   test_channelSplitterNodeWithVolume.html \
   test_convolverNode.html \
+  test_convolverNodeChannelCount.html \
+  test_convolverNodeWithGain.html \
   test_convolverNode_mono_mono.html \
   test_currentTime.html \
   test_delayNode.html \
+  test_delayNodeAtMax.html \
   test_delayNodeSmallMaxDelay.html \
   test_delayNodeWithGain.html \
   test_dynamicsCompressorNode.html \
@@ -66,13 +70,21 @@ MOCHITEST_FILES := \
   test_gainNodeInLoop.html \
   test_maxChannelCount.html \
   test_mediaDecoding.html \
+  test_decodeMultichannel.html \
+  test_mediaElementAudioSourceNode.html \
   test_mediaStreamAudioDestinationNode.html \
+  test_mediaStreamAudioSourceNode.html \
+  test_mediaStreamAudioSourceNodeCrossOrigin.html \
+  test_mediaStreamAudioSourceNodeResampling.html \
   test_mixingRules.html \
   test_nodeToParamConnection.html \
   test_OfflineAudioContext.html \
   test_offlineDestinationChannelCountLess.html \
   test_offlineDestinationChannelCountMore.html \
+  test_oscillatorNode.html \
+  test_oscillatorNodeStart.html \
   test_pannerNode.html \
+  test_pannerNodeAbove.html \
   test_pannerNode_equalPower.html \
   test_periodicWave.html \
   test_scriptProcessorNode.html \
@@ -100,6 +112,13 @@ MOCHITEST_FILES := \
   audio-expected.wav \
   audio-mono-expected.wav \
   audio-mono-expected-2.wav \
+  audio-quad.wav \
   $(NULL)
+
+ifneq ($(OS_TARGET),Android) # bug 912474
+MOCHITEST_FILES += \
+  test_pannerNodeChannelCount.html \
+  $(NULL)
+endif
 
 include $(topsrcdir)/config/rules.mk

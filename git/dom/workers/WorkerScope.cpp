@@ -13,11 +13,15 @@
 #include "mozilla/dom/EventTargetBinding.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/FileReaderSyncBinding.h"
+#include "mozilla/dom/ImageData.h"
+#include "mozilla/dom/ImageDataBinding.h"
 #include "mozilla/dom/TextDecoderBinding.h"
 #include "mozilla/dom/TextEncoderBinding.h"
 #include "mozilla/dom/XMLHttpRequestBinding.h"
 #include "mozilla/dom/XMLHttpRequestUploadBinding.h"
 #include "mozilla/dom/URLBinding.h"
+#include "mozilla/dom/WorkerLocationBinding.h"
+#include "mozilla/dom/WorkerNavigatorBinding.h"
 #include "mozilla/OSFileConstants.h"
 #include "nsTraceRefcnt.h"
 #include "xpcpublic.h"
@@ -34,7 +38,6 @@
 #include "File.h"
 #include "FileReaderSync.h"
 #include "Location.h"
-#include "ImageData.h"
 #include "Navigator.h"
 #include "Principal.h"
 #include "ScriptLoader.h"
@@ -77,7 +80,7 @@ class WorkerGlobalScope : public workers::EventTarget
   };
 
   // Must be traced!
-  jsval mSlots[SLOT_COUNT];
+  JS::Heap<JS::Value> mSlots[SLOT_COUNT];
 
   enum
   {
@@ -128,7 +131,7 @@ protected:
   _trace(JSTracer* aTrc) MOZ_OVERRIDE
   {
     for (int32_t i = 0; i < SLOT_COUNT; i++) {
-      JS_CallValueTracer(aTrc, &mSlots[i], "WorkerGlobalScope instance slot");
+      JS_CallHeapValueTracer(aTrc, &mSlots[i], "WorkerGlobalScope instance slot");
     }
     mWorker->TraceInternal(aTrc);
     EventTarget::_trace(aTrc);
@@ -232,41 +235,15 @@ private:
     }
 
     if (JSVAL_IS_VOID(scope->mSlots[SLOT_location])) {
-      JS::Rooted<JSString*> href(aCx), protocol(aCx), host(aCx), hostname(aCx);
-      JS::Rooted<JSString*> port(aCx), pathname(aCx), search(aCx), hash(aCx);
-
       WorkerPrivate::LocationInfo& info = scope->mWorker->GetLocationInfo();
 
-#define COPY_STRING(_jsstr, _cstr)                                             \
-  if (info. _cstr .IsEmpty()) {                                                \
-    _jsstr = NULL;                                                             \
-  }                                                                            \
-  else {                                                                       \
-    if (!(_jsstr = JS_NewStringCopyN(aCx, info. _cstr .get(),                  \
-                                     info. _cstr .Length()))) {                \
-      return false;                                                            \
-    }                                                                          \
-    info. _cstr .Truncate();                                                   \
-  }
-
-      COPY_STRING(href, mHref);
-      COPY_STRING(protocol, mProtocol);
-      COPY_STRING(host, mHost);
-      COPY_STRING(hostname, mHostname);
-      COPY_STRING(port, mPort);
-      COPY_STRING(pathname, mPathname);
-      COPY_STRING(search, mSearch);
-      COPY_STRING(hash, mHash);
-
-#undef COPY_STRING
-
-      JSObject* location = location::Create(aCx, href, protocol, host, hostname,
-                                            port, pathname, search, hash);
+      nsRefPtr<WorkerLocation> location =
+        WorkerLocation::Create(aCx, aObj, info);
       if (!location) {
         return false;
       }
 
-      scope->mSlots[SLOT_location] = OBJECT_TO_JSVAL(location);
+      scope->mSlots[SLOT_location] = OBJECT_TO_JSVAL(location->GetJSObject());
     }
 
     aVp.set(scope->mSlots[SLOT_location]);
@@ -290,9 +267,10 @@ private:
     JS::Rooted<JSObject*> event(aCx, &JS_ARGV(aCx, aVp)[0].toObject());
 
     jsval argv[3] = { JSVAL_VOID, JSVAL_VOID, JSVAL_VOID };
-    if (!JS_GetProperty(aCx, event, "message", &argv[0]) ||
-        !JS_GetProperty(aCx, event, "filename", &argv[1]) ||
-        !JS_GetProperty(aCx, event, "lineno", &argv[2])) {
+    JS::AutoArrayRooter rootedArgv(aCx, ArrayLength(argv), argv);
+    if (!JS_GetProperty(aCx, event, "message", rootedArgv.handleAt(0)) ||
+        !JS_GetProperty(aCx, event, "filename", rootedArgv.handleAt(1)) ||
+        !JS_GetProperty(aCx, event, "lineno", rootedArgv.handleAt(2))) {
       return false;
     }
 
@@ -360,7 +338,7 @@ private:
 
     JSFunction* adaptor =
       js::NewFunctionWithReserved(aCx, UnwrapErrorEvent, 1, 0,
-                                  JS_GetGlobalForScopeChain(aCx), "unwrap");
+                                  JS::CurrentGlobalOrNull(aCx), "unwrap");
     if (!adaptor) {
       return false;
     }
@@ -397,12 +375,12 @@ private:
     }
 
     if (JSVAL_IS_VOID(scope->mSlots[SLOT_navigator])) {
-      JSObject* navigator = navigator::Create(aCx);
+      nsRefPtr<WorkerNavigator> navigator = WorkerNavigator::Create(aCx, aObj);
       if (!navigator) {
         return false;
       }
 
-      scope->mSlots[SLOT_navigator] = OBJECT_TO_JSVAL(navigator);
+      scope->mSlots[SLOT_navigator] = OBJECT_TO_JSVAL(navigator->GetJSObject());
     }
 
     aVp.set(scope->mSlots[SLOT_navigator]);
@@ -978,7 +956,7 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
     options.setVersion(JSVERSION_LATEST);
   JS::Rooted<JSObject*> global(aCx,
     JS_NewGlobalObject(aCx, DedicatedWorkerGlobalScope::Class(),
-                       GetWorkerPrincipal(), options));
+                       GetWorkerPrincipal(), JS::DontFireOnNewGlobalHook, options));
   if (!global) {
     return NULL;
   }
@@ -1002,14 +980,14 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
     return NULL;
   }
 
-  JSObject* scopeProto =
-    WorkerGlobalScope::InitClass(aCx, global, eventTargetProto);
+  JS::Rooted<JSObject*> scopeProto(aCx,
+    WorkerGlobalScope::InitClass(aCx, global, eventTargetProto));
   if (!scopeProto) {
     return NULL;
   }
 
-  JSObject* dedicatedScopeProto =
-    DedicatedWorkerGlobalScope::InitClass(aCx, global, scopeProto);
+  JS::Rooted<JSObject*> dedicatedScopeProto(aCx,
+    DedicatedWorkerGlobalScope::InitClass(aCx, global, scopeProto));
   if (!dedicatedScopeProto) {
     return NULL;
   }
@@ -1035,26 +1013,28 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
   // Init other classes we care about.
   if (!events::InitClasses(aCx, global, false) ||
       !file::InitClasses(aCx, global) ||
-      !exceptions::InitClasses(aCx, global) ||
-      !location::InitClass(aCx, global) ||
-      !imagedata::InitClass(aCx, global) ||
-      !navigator::InitClass(aCx, global)) {
+      !exceptions::InitClasses(aCx, global)) {
     return NULL;
   }
 
   // Init other paris-bindings.
   if (!FileReaderSyncBinding_workers::GetConstructorObject(aCx, global) ||
+      !ImageDataBinding::GetConstructorObject(aCx, global) ||
       !TextDecoderBinding_workers::GetConstructorObject(aCx, global) ||
       !TextEncoderBinding_workers::GetConstructorObject(aCx, global) ||
       !XMLHttpRequestBinding_workers::GetConstructorObject(aCx, global) ||
       !XMLHttpRequestUploadBinding_workers::GetConstructorObject(aCx, global) ||
-      !URLBinding_workers::GetConstructorObject(aCx, global)) {
+      !URLBinding_workers::GetConstructorObject(aCx, global) ||
+      !WorkerLocationBinding_workers::GetConstructorObject(aCx, global) ||
+      !WorkerNavigatorBinding_workers::GetConstructorObject(aCx, global)) {
     return NULL;
   }
 
   if (!JS_DefineProfilingFunctions(aCx, global)) {
     return NULL;
   }
+
+  JS_FireOnNewGlobalObject(aCx, global);
 
   return global;
 }

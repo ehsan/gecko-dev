@@ -37,8 +37,8 @@ GetThreadPoolLog()
 #define DEFAULT_IDLE_THREAD_LIMIT 1
 #define DEFAULT_IDLE_THREAD_TIMEOUT PR_SecondsToInterval(60)
 
-NS_IMPL_THREADSAFE_ADDREF(nsThreadPool)
-NS_IMPL_THREADSAFE_RELEASE(nsThreadPool)
+NS_IMPL_ADDREF(nsThreadPool)
+NS_IMPL_RELEASE(nsThreadPool)
 NS_IMPL_CLASSINFO(nsThreadPool, NULL, nsIClassInfo::THREADSAFE,
                   NS_THREADPOOL_CID)
 NS_IMPL_QUERY_INTERFACE3_CI(nsThreadPool, nsIThreadPool, nsIEventTarget,
@@ -100,7 +100,15 @@ nsThreadPool::PutEvent(nsIRunnable *event)
   }
   LOG(("THRD-P(%p) put [%p kill=%d]\n", this, thread.get(), killThread));
   if (killThread) {
-    thread->Shutdown();
+    // Pending events are processed on the current thread during
+    // nsIThread::Shutdown() execution, so if nsThreadPool::Dispatch() is called
+    // under caller's lock then deadlock could occur. This happens e.g. in case
+    // of nsStreamCopier. To prevent this situation, dispatch a shutdown event
+    // to the current thread instead of calling nsIThread::Shutdown() directly.
+
+    nsRefPtr<nsIRunnable> r = NS_NewRunnableMethod(thread,
+                                                   &nsIThread::Shutdown);
+    NS_DispatchToCurrentThread(r);
   } else {
     thread->Dispatch(this, NS_DISPATCH_NORMAL);
   }

@@ -57,14 +57,14 @@ public:
 
     if (aMainRuntime) {
       JS::Rooted<JS::Value> windowPropVal(aCx);
-      if (!JS_GetProperty(aCx, aObj, sClass.name, windowPropVal.address())) {
+      if (!JS_GetProperty(aCx, aObj, sClass.name, &windowPropVal)) {
         return NULL;
       }
 
       if (!JSVAL_IS_PRIMITIVE(windowPropVal)) {
         JS::Rooted<JS::Value> protoVal(aCx);
         if (!JS_GetProperty(aCx, JSVAL_TO_OBJECT(windowPropVal), "prototype",
-                            protoVal.address())) {
+                            &protoVal)) {
           return NULL;
         }
 
@@ -337,7 +337,7 @@ private:
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize \
   };
 
-DECL_EVENT_CLASS(Event::sClass, "Event")
+DECL_EVENT_CLASS(Event::sClass, "WorkerEvent")
 DECL_EVENT_CLASS(Event::sMainRuntimeClass, "WorkerEvent")
 
 #undef DECL_EVENT_CLASS
@@ -583,7 +583,7 @@ private:
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize \
   };
 
-DECL_MESSAGEEVENT_CLASS(MessageEvent::sClass, "MessageEvent")
+DECL_MESSAGEEVENT_CLASS(MessageEvent::sClass, "WorkerMessageEvent")
 DECL_MESSAGEEVENT_CLASS(MessageEvent::sMainRuntimeClass, "WorkerMessageEvent")
 
 #undef DECL_MESSAGEEVENT_CLASS
@@ -770,7 +770,7 @@ private:
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize \
   };
 
-DECL_ERROREVENT_CLASS(ErrorEvent::sClass, "ErrorEvent")
+DECL_ERROREVENT_CLASS(ErrorEvent::sClass, "WorkerErrorEvent")
 DECL_ERROREVENT_CLASS(ErrorEvent::sMainRuntimeClass, "WorkerErrorEvent")
 
 #undef DECL_ERROREVENT_CLASS
@@ -916,7 +916,7 @@ private:
 };
 
 JSClass ProgressEvent::sClass = {
-  "ProgressEvent",
+  "WorkerProgressEvent",
   JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(SLOT_COUNT),
   JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
   JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize
@@ -970,7 +970,7 @@ JSObject*
 CreateGenericEvent(JSContext* aCx, JS::Handle<JSString*> aType, bool aBubbles,
                    bool aCancelable, bool aMainRuntime)
 {
-  JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForScopeChain(aCx));
+  JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
   return Event::Create(aCx, global, aType, aBubbles, aCancelable, aMainRuntime);
 }
 
@@ -979,7 +979,7 @@ CreateMessageEvent(JSContext* aCx, JSAutoStructuredCloneBuffer& aData,
                    nsTArray<nsCOMPtr<nsISupports> >& aClonedObjects,
                    bool aMainRuntime)
 {
-  JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForScopeChain(aCx));
+  JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
   return MessageEvent::Create(aCx, global, aData, aClonedObjects, aMainRuntime);
 }
 
@@ -988,7 +988,7 @@ CreateErrorEvent(JSContext* aCx, JS::Handle<JSString*> aMessage,
                  JS::Handle<JSString*> aFilename, uint32_t aLineNumber,
                  bool aMainRuntime)
 {
-  JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForScopeChain(aCx));
+  JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
   return ErrorEvent::Create(aCx, global, aMessage, aFilename, aLineNumber,
                             aMainRuntime);
 }
@@ -997,7 +997,7 @@ JSObject*
 CreateProgressEvent(JSContext* aCx, JSString* aType, bool aLengthComputable,
                     double aLoaded, double aTotal)
 {
-  JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForScopeChain(aCx));
+  JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
   return ProgressEvent::Create(aCx, global, aType, aLengthComputable, aLoaded,
                                aTotal);
 }
