@@ -162,8 +162,6 @@
 #include "nsIStrictTransportSecurityService.h"
 #include "nsStructuredCloneContainer.h"
 #include "nsIStructuredCloneContainer.h"
-#include "nsIFaviconService.h"
-#include "mozIAsyncFavicons.h"
 
 // Editor-related
 #include "nsIEditingSession.h"
@@ -1389,11 +1387,6 @@ nsDocShell::LoadURI(nsIURI * aURI,
             // Set it back to false
             inheritOwner = PR_FALSE;
         }
-    }
-
-    if (aLoadFlags & LOAD_FLAGS_DISALLOW_INHERIT_OWNER) {
-        inheritOwner = PR_FALSE;
-        owner = do_CreateInstance("@mozilla.org/nullprincipal;1");
     }
 
     PRUint32 flags = 0;
@@ -6482,10 +6475,6 @@ nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
     // from inside this pagehide.
     mLoadingURI = nsnull;
     
-    // Stop any in-progress loading, so that we don't accidentally trigger any
-    // PageShow notifications from Embed() interrupting our loading below.
-    Stop();
-
     // Notify the current document that it is about to be unloaded!!
     //
     // It is important to fire the unload() notification *before* any state
@@ -7758,12 +7747,8 @@ nsDocShell::SetDocCurrentStateObj(nsISHEntry *shEntry)
     NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
 
     nsCOMPtr<nsIStructuredCloneContainer> scContainer;
-    if (shEntry) {
-        nsresult rv = shEntry->GetStateData(getter_AddRefs(scContainer));
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        // If shEntry is null, just set the document's state object to null.
-    }
+    nsresult rv = shEntry->GetStateData(getter_AddRefs(scContainer));
+    NS_ENSURE_SUCCESS(rv, rv);
 
     // It's OK for scContainer too be null here; that just means there's no
     // state data associated with this history entry.
@@ -8022,19 +8007,8 @@ nsDocShell::InternalLoad(nsIURI * aURI,
             NS_SUCCEEDED(URIInheritsSecurityContext(aURI, &inherits)) &&
             inherits) {
 
-            owner = GetInheritedPrincipal(PR_TRUE);
-        }
-    }
-
-    // Don't allow loads that would inherit our security context
-    // if this document came from an unsafe channel.
-    {
-        PRBool willInherit;
-        // This condition needs to match the one in DoChannelLoad.
-        // Except we reverse the rv check to be safe in case
-        // URIInheritsSecurityContext fails here and succeeds there.
-        rv = URIInheritsSecurityContext(aURI, &willInherit);
-        if (NS_FAILED(rv) || willInherit || IsAboutBlank(aURI)) {
+            // Don't allow loads that would inherit our security context
+            // if this document came from an unsafe channel.
             nsCOMPtr<nsIDocShellTreeItem> treeItem = this;
             do {
                 nsCOMPtr<nsIDocShell> itemDocShell =
@@ -8050,9 +8024,11 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                 treeItem->GetSameTypeParent(getter_AddRefs(parent));
                 parent.swap(treeItem);
             } while (treeItem);
+
+            owner = GetInheritedPrincipal(PR_TRUE);
         }
     }
-    
+
     //
     // Resolve the window target before going any further...
     // If the load has been targeted to another DocShell, then transfer the
@@ -8861,8 +8837,6 @@ nsDocShell::DoURILoad(nsIURI * aURI,
     PRBool inherit;
     // We expect URIInheritsSecurityContext to return success for an
     // about:blank URI, so don't call IsAboutBlank() if this call fails.
-    // This condition needs to match the one in InternalLoad where
-    // we're checking for things that will use the owner.
     rv = URIInheritsSecurityContext(aURI, &inherit);
     if (NS_SUCCEEDED(rv) && (inherit || IsAboutBlank(aURI))) {
         channel->SetOwner(aOwner);
@@ -9437,43 +9411,6 @@ nsDocShell::SetReferrerURI(nsIURI * aURI)
 // nsDocShell: Session History
 //*****************************************************************************
 
-namespace
-{
-    // Callback used in nsDocShell::AddState.  When we change URIs with
-    // push/replaceState, we use this callback to ensure that Places associates
-    // a favicon with the new URI.
-    class nsAddStateFaviconCallback : public nsIFaviconDataCallback
-    {
-    public:
-        NS_DECL_ISUPPORTS
-
-        nsAddStateFaviconCallback(nsIURI *aNewURI)
-          : mNewURI(aNewURI)
-        {
-        }
-
-        NS_IMETHODIMP
-        OnFaviconDataAvailable(nsIURI *aFaviconURI, PRUint32 aDataLen,
-                               const PRUint8 *aData, const nsACString &aMimeType)
-        {
-            NS_ASSERTION(aDataLen == 0,
-                         "We weren't expecting the callback to deliver data.");
-            nsCOMPtr<mozIAsyncFavicons> favSvc =
-                do_GetService("@mozilla.org/browser/favicon-service;1");
-            NS_ENSURE_STATE(favSvc);
-
-            return favSvc->SetAndFetchFaviconForPage(mNewURI, aFaviconURI,
-                                                     PR_FALSE, nsnull);
-        }
-
-    private:
-        nsCOMPtr<nsIURI> mNewURI;
-    };
-
-    NS_IMPL_ISUPPORTS1(nsAddStateFaviconCallback, nsIFaviconDataCallback)
-
-} // anonymous namespace
-
 NS_IMETHODIMP
 nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
                      const nsAString& aURL, PRBool aReplace, JSContext* aCx)
@@ -9699,11 +9636,6 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
         NS_ENSURE_SUCCESS(newSHEntry->SetDocIdentifier(ourDocIdent),
                           NS_ERROR_FAILURE);
 
-        // Set the new SHEntry's title (bug 655273).
-        nsString title;
-        mOSHE->GetTitle(getter_Copies(title));
-        newSHEntry->SetTitle(title);
-
         // AddToSessionHistory may not modify mOSHE.  In case it doesn't,
         // we'll just set mOSHE here.
         mOSHE = newSHEntry;
@@ -9749,28 +9681,6 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
         document->SetDocumentURI(newURI);
 
         AddURIVisit(newURI, oldURI, oldURI, 0);
-
-        // AddURIVisit doesn't set the title for the new URI in global history,
-        // so do that here.
-        if (mUseGlobalHistory) {
-            nsCOMPtr<IHistory> history = services::GetHistoryService();
-            if (history) {
-                history->SetURITitle(newURI, mTitle);
-            }
-            else if (mGlobalHistory) {
-                mGlobalHistory->SetPageTitle(newURI, mTitle);
-            }
-        }
-
-        // Inform the favicon service that our old favicon applies to this new
-        // URI.
-        nsCOMPtr<mozIAsyncFavicons> favSvc =
-            do_GetService("@mozilla.org/browser/favicon-service;1");
-        if (favSvc) {
-            nsCOMPtr<nsIFaviconDataCallback> callback =
-                new nsAddStateFaviconCallback(newURI);
-            favSvc->GetFaviconURLForPage(oldURI, callback);
-        }
     }
     else {
         FireDummyOnLocationChange();

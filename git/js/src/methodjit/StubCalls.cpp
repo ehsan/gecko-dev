@@ -236,7 +236,7 @@ stubs::SetName(VMFrame &f, JSAtom *origAtom)
                      * Purge the property cache of the id we may have just
                      * shadowed in obj's scope and proto chains.
                      */
-                    js_PurgeScopeChain(cx, obj, shape->propid);
+                    js_PurgeScopeChain(cx, obj, shape->id);
                     break;
                 }
             }
@@ -252,11 +252,11 @@ stubs::SetName(VMFrame &f, JSAtom *origAtom)
             uintN defineHow;
             JSOp op = JSOp(*f.regs.pc);
             if (op == JSOP_SETMETHOD)
-                defineHow = DNP_CACHE_RESULT | DNP_SET_METHOD;
+                defineHow = JSDNP_CACHE_RESULT | JSDNP_SET_METHOD;
             else if (op == JSOP_SETNAME)
-                defineHow = DNP_CACHE_RESULT | DNP_UNQUALIFIED;
+                defineHow = JSDNP_CACHE_RESULT | JSDNP_UNQUALIFIED;
             else
-                defineHow = DNP_CACHE_RESULT;
+                defineHow = JSDNP_CACHE_RESULT;
             if (!js_SetPropertyHelper(cx, obj, id, defineHow, &rval, strict))
                 THROW();
         } else {
@@ -447,12 +447,11 @@ stubs::GetElem(VMFrame &f)
             }
         } else if (obj->isArguments()) {
             uint32 arg = uint32(i);
-            ArgumentsObject *argsobj = obj->asArguments();
 
-            if (arg < argsobj->initialLength()) {
-                copyFrom = argsobj->addressOfElement(arg);
+            if (arg < obj->getArgsInitialLength()) {
+                copyFrom = obj->addressOfArgsElement(arg);
                 if (!copyFrom->isMagic()) {
-                    if (StackFrame *afp = (StackFrame *) argsobj->getPrivate())
+                    if (StackFrame *afp = (StackFrame *) obj->getPrivate())
                         copyFrom = &afp->canonicalActualArg(arg);
                     goto end_getelem;
                 }
@@ -2012,24 +2011,17 @@ stubs::Length(VMFrame &f)
     if (vp->isString()) {
         vp->setInt32(vp->toString()->length());
         return;
-    }
-
-    if (vp->isObject()) {
+    } else if (vp->isObject()) {
         JSObject *obj = &vp->toObject();
         if (obj->isArray()) {
             jsuint length = obj->getArrayLength();
             regs.sp[-1].setNumber(length);
             return;
-        }
-
-        if (obj->isArguments()) {
-            ArgumentsObject *argsobj = obj->asArguments();
-            if (!argsobj->hasOverriddenLength()) {
-                uint32 length = argsobj->initialLength();
-                JS_ASSERT(length < INT32_MAX);
-                regs.sp[-1].setInt32(int32_t(length));
-                return;
-            }
+        } else if (obj->isArguments() && !obj->isArgsLengthOverridden()) {
+            uint32 length = obj->getArgsInitialLength();
+            JS_ASSERT(length < INT32_MAX);
+            regs.sp[-1].setInt32(int32_t(length));
+            return;
         }
     }
 
@@ -2093,7 +2085,7 @@ InitPropOrMethod(VMFrame &f, JSAtom *atom, JSOp op)
 
         /* A new object, or one we just extended in a recent initprop op. */
         JS_ASSERT(!obj->lastProperty() ||
-                  obj->shape() == obj->lastProperty()->shapeid);
+                  obj->shape() == obj->lastProperty()->shape);
         obj->extend(cx, shape);
 
         /*
@@ -2109,12 +2101,13 @@ InitPropOrMethod(VMFrame &f, JSAtom *atom, JSOp op)
         jsid id = ATOM_TO_JSID(atom);
 
         uintN defineHow = (op == JSOP_INITMETHOD)
-                          ? DNP_CACHE_RESULT | DNP_SET_METHOD
-                          : DNP_CACHE_RESULT;
-        if (JS_UNLIKELY(atom == cx->runtime->atomState.protoAtom)
-            ? !js_SetPropertyHelper(cx, obj, id, defineHow, &rval, false)
-            : !DefineNativeProperty(cx, obj, id, rval, NULL, NULL,
-                                    JSPROP_ENUMERATE, 0, 0, defineHow)) {
+                          ? JSDNP_CACHE_RESULT | JSDNP_SET_METHOD
+                          : JSDNP_CACHE_RESULT;
+        if (!(JS_UNLIKELY(atom == cx->runtime->atomState.protoAtom)
+              ? js_SetPropertyHelper(cx, obj, id, defineHow, &rval, false)
+              : js_DefineNativeProperty(cx, obj, id, rval, NULL, NULL,
+                                        JSPROP_ENUMERATE, 0, 0, NULL,
+                                        defineHow))) {
             THROW();
         }
     }
@@ -2595,8 +2588,8 @@ stubs::DefVarOrConst(VMFrame &f, JSAtom *atom)
 
     /* Bind a variable only if it's not yet defined. */
     if (shouldDefine && 
-        !DefineNativeProperty(cx, obj, id, UndefinedValue(), PropertyStub, StrictPropertyStub,
-                              attrs, 0, 0)) {
+        !js_DefineNativeProperty(cx, obj, id, UndefinedValue(), PropertyStub, StrictPropertyStub,
+                                     attrs, 0, 0, NULL)) {
         THROW();
     }
 }

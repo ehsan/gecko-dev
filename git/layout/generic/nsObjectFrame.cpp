@@ -87,6 +87,7 @@ enum { XKeyPress = KeyPress };
 #include "nsIURL.h"
 #include "nsNetUtil.h"
 #include "nsIPluginInstanceOwner.h"
+#include "nsIPluginInstance.h"
 #include "nsNPAPIPluginInstance.h"
 #include "nsIPluginTagInfo.h"
 #include "plstr.h"
@@ -186,11 +187,23 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #include "nsCoreAnimationSupport.h"
 #endif
 
+#ifdef MOZ_X11
+#if (MOZ_PLATFORM_MAEMO == 5) && defined(MOZ_WIDGET_GTK2)
+#define MOZ_COMPOSITED_PLUGINS 1
+#define MOZ_USE_IMAGE_EXPOSE   1
+#include <X11/Xutil.h>
+#include <X11/Xatom.h>
+#include <X11/extensions/XShm.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#endif
+
 #ifdef MOZ_WIDGET_GTK2
 #include <gdk/gdk.h>
 #include <gdk/gdkx.h>
 #include <gtk/gtk.h>
 #include "gfxXlibNativeRenderer.h"
+#endif
 #endif
 
 #ifdef MOZ_WIDGET_QT
@@ -270,6 +283,8 @@ public:
   virtual ~nsPluginInstanceOwner();
 
   NS_DECL_ISUPPORTS
+
+  //nsIPluginInstanceOwner interface
   NS_DECL_NSIPLUGININSTANCEOWNER
 
   NS_IMETHOD GetURL(const char *aURL, const char *aTarget,
@@ -420,7 +435,6 @@ public:
     aDescription.Truncate();
     if (mInstance && mPluginHost) {
       nsCOMPtr<nsIPluginTag> pluginTag;
-      
       mPluginHost->GetPluginTagForInstance(mInstance,
                                            getter_AddRefs(pluginTag));
       if (pluginTag) {
@@ -448,6 +462,12 @@ public:
   {
     return strncmp(GetPluginName(), aPluginName, strlen(aPluginName)) == 0;
   }
+
+#ifdef MOZ_USE_IMAGE_EXPOSE
+  nsresult SetAbsoluteScreenPosition(nsIDOMElement* element,
+                                     nsIDOMClientRect* position,
+                                     nsIDOMClientRect* clip);
+#endif
 
   void NotifyPaintWaiter(nsDisplayListBuilder* aBuilder);
   // Return true if we set image with valid surface
@@ -489,13 +509,13 @@ private:
   void FixUpURLS(const nsString &name, nsAString &value);
 
   nsPluginNativeWindow       *mPluginWindow;
-  nsRefPtr<nsNPAPIPluginInstance> mInstance;
+  nsCOMPtr<nsIPluginInstance> mInstance;
   nsObjectFrame              *mObjectFrame; // owns nsPluginInstanceOwner
   nsCOMPtr<nsIContent>        mContent;
   nsCString                   mDocumentBase;
   char                       *mTagText;
   nsCOMPtr<nsIWidget>         mWidget;
-  nsRefPtr<nsPluginHost>      mPluginHost;
+  nsCOMPtr<nsIPluginHost>     mPluginHost;
 
 #ifdef XP_MACOSX
   NP_CGContext                              mCGPluginPortCopy;
@@ -577,6 +597,32 @@ private:
     const nsIntSize& mPluginSize;
     const nsIntRect& mDirtyRect;
   };
+#endif
+
+#ifdef MOZ_USE_IMAGE_EXPOSE
+
+  // On hildon, we attempt to use NPImageExpose which allows us faster
+  // painting.
+
+  // used to keep track of how big our buffer is.
+  nsIntSize mPluginSize;
+
+  // The absolute position on the screen to draw to.
+  gfxRect mAbsolutePosition;
+
+  // The clip region that we should draw into.
+  gfxRect mAbsolutePositionClip;
+
+  GC mXlibSurfGC;
+  Window mBlitWindow;
+  XImage *mSharedXImage;
+  XShmSegmentInfo mSharedSegmentInfo;
+
+  PRBool SetupXShm();
+  void ReleaseXShm();
+  void NativeImageDraw(NPRect* invalidRect = nsnull);
+  PRBool UpdateVisibility(PRBool aVisible);
+
 #endif
 
   PRPackedBool          mWaitingForPaint;
@@ -878,7 +924,6 @@ nsObjectFrame::CreateWidget(nscoord aWidth,
   } else {
 #ifndef XP_MACOSX
     rpc->RegisterPluginForGeometryUpdates(this);
-    rpc->RequestUpdatePluginGeometry(this);
 #endif
   }
 
@@ -1137,9 +1182,9 @@ nsObjectFrame::CallSetWindow(PRBool aCheckIsHidden)
   NPWindow *win = nsnull;
  
   nsresult rv = NS_ERROR_FAILURE;
-  nsRefPtr<nsNPAPIPluginInstance> pi;
+  nsCOMPtr<nsIPluginInstance> pi; 
   if (!mInstanceOwner ||
-      NS_FAILED(rv = mInstanceOwner->GetInstance(getter_AddRefs(pi))) ||
+      NS_FAILED(rv = mInstanceOwner->GetInstance(*getter_AddRefs(pi))) ||
       !pi ||
       NS_FAILED(rv = mInstanceOwner->GetWindow(win)) || 
       !win)
@@ -1299,7 +1344,8 @@ public:
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
-                                   const nsRect& aAllowVisibleRegionExpansion);
+                                   const nsRect& aAllowVisibleRegionExpansion,
+                                   PRBool& aContainsRootContentDocBG);
 
   NS_DISPLAY_DECL_NAME("PluginReadback", TYPE_PLUGIN_READBACK)
 
@@ -1332,10 +1378,12 @@ nsDisplayPluginReadback::GetBounds(nsDisplayListBuilder* aBuilder)
 PRBool
 nsDisplayPluginReadback::ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                            nsRegion* aVisibleRegion,
-                                           const nsRect& aAllowVisibleRegionExpansion)
+                                           const nsRect& aAllowVisibleRegionExpansion,
+                                           PRBool& aContainsRootContentDocBG)
 {
   if (!nsDisplayItem::ComputeVisibility(aBuilder, aVisibleRegion,
-                                        aAllowVisibleRegionExpansion))
+                                        aAllowVisibleRegionExpansion,
+                                        aContainsRootContentDocBG))
     return PR_FALSE;
 
   nsRect expand;
@@ -1364,11 +1412,13 @@ nsDisplayPlugin::Paint(nsDisplayListBuilder* aBuilder,
 PRBool
 nsDisplayPlugin::ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
-                                   const nsRect& aAllowVisibleRegionExpansion)
+                                   const nsRect& aAllowVisibleRegionExpansion,
+                                   PRBool& aContainsRootContentDocBG)
 {
   mVisibleRegion.And(*aVisibleRegion, GetBounds(aBuilder));  
   return nsDisplayItem::ComputeVisibility(aBuilder, aVisibleRegion,
-                                          aAllowVisibleRegionExpansion);
+                                          aAllowVisibleRegionExpansion,
+                                          aContainsRootContentDocBG);
 }
 
 nsRegion
@@ -1465,6 +1515,20 @@ nsObjectFrame::ComputeWidgetGeometry(const nsRegion& aRegion,
 }
 
 nsresult
+nsObjectFrame::SetAbsoluteScreenPosition(nsIDOMElement* element,
+                                         nsIDOMClientRect* position,
+                                         nsIDOMClientRect* clip)
+{
+#ifdef MOZ_USE_IMAGE_EXPOSE
+  if (!mInstanceOwner)
+    return NS_ERROR_NOT_AVAILABLE;
+  return mInstanceOwner->SetAbsoluteScreenPosition(element, position, clip);
+#else
+  return NS_ERROR_NOT_IMPLEMENTED;
+#endif
+}
+
+nsresult
 nsObjectFrame::PluginEventNotifier::Run() {
   nsCOMPtr<nsIObserverService> obsSvc =
     mozilla::services::GetObserverService();
@@ -1515,8 +1579,8 @@ nsObjectFrame::IsTransparentMode() const
     return PR_FALSE;
 
   nsresult rv;
-  nsRefPtr<nsNPAPIPluginInstance> pi;
-  rv = mInstanceOwner->GetInstance(getter_AddRefs(pi));
+  nsCOMPtr<nsIPluginInstance> pi;
+  rv = mInstanceOwner->GetInstance(*getter_AddRefs(pi));
   if (NS_FAILED(rv) || !pi)
     return PR_FALSE;
 
@@ -1633,8 +1697,8 @@ nsObjectFrame::PrintPlugin(nsRenderingContext& aRenderingContext,
     return;
 
   // finally we can get our plugin instance
-  nsRefPtr<nsNPAPIPluginInstance> pi;
-  if (NS_FAILED(objectFrame->GetPluginInstance(getter_AddRefs(pi))) || !pi)
+  nsCOMPtr<nsIPluginInstance> pi;
+  if (NS_FAILED(objectFrame->GetPluginInstance(*getter_AddRefs(pi))) || !pi)
     return;
 
   // now we need to setup the correct location for printing
@@ -2173,8 +2237,8 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
         return;
       }
 
-      nsRefPtr<nsNPAPIPluginInstance> inst;
-      GetPluginInstance(getter_AddRefs(inst));
+      nsCOMPtr<nsIPluginInstance> inst;
+      GetPluginInstance(*getter_AddRefs(inst));
       if (!inst) {
         NS_WARNING("null plugin instance during PaintPlugin");
         nativeDrawing.EndNativeDrawing();
@@ -2260,8 +2324,8 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
     }
   }
 #elif defined(XP_WIN)
-  nsRefPtr<nsNPAPIPluginInstance> inst;
-  GetPluginInstance(getter_AddRefs(inst));
+  nsCOMPtr<nsIPluginInstance> inst;
+  GetPluginInstance(*getter_AddRefs(inst));
   if (inst) {
     gfxRect frameGfxRect =
       PresContext()->AppUnitsToGfxUnits(aPluginRect);
@@ -2364,8 +2428,8 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
     ctx->SetMatrix(currentMatrix);
   }
 #elif defined(XP_OS2)
-  nsRefPtr<nsNPAPIPluginInstance> inst;
-  GetPluginInstance(getter_AddRefs(inst));
+  nsCOMPtr<nsIPluginInstance> inst;
+  GetPluginInstance(*getter_AddRefs(inst));
   if (inst) {
     // Look if it's windowless
     NPWindow *window;
@@ -2485,7 +2549,7 @@ nsObjectFrame::HandleEvent(nsPresContext* aPresContext,
   }
 
   if (mInstanceOwner->SendNativeEvents() &&
-      NS_IS_PLUGIN_EVENT(anEvent)) {
+      (NS_IS_PLUGIN_EVENT(anEvent) || NS_IS_NON_RETARGETED_PLUGIN_EVENT(anEvent))) {
     *anEventStatus = mInstanceOwner->ProcessEvent(*anEvent);
     return rv;
   }
@@ -2528,9 +2592,9 @@ nsObjectFrame::HandlePress(nsPresContext* aPresContext,
 #endif
 
 nsresult
-nsObjectFrame::GetPluginInstance(nsNPAPIPluginInstance** aPluginInstance)
+nsObjectFrame::GetPluginInstance(nsIPluginInstance*& aPluginInstance)
 {
-  *aPluginInstance = nsnull;
+  aPluginInstance = nsnull;
 
   if (!mInstanceOwner)
     return NS_OK;
@@ -2577,13 +2641,10 @@ nsObjectFrame::Instantiate(nsIChannel* aChannel, nsIStreamListener** aStreamList
   nsresult rv = PrepareInstanceOwner();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID, &rv));
-  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
-  if (NS_FAILED(rv)) {
+  nsCOMPtr<nsIPluginHost> pluginHost(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID, &rv));
+  if (NS_FAILED(rv))
     return rv;
-  }
-
-  mInstanceOwner->SetPluginHost(pluginHostCOM);
+  mInstanceOwner->SetPluginHost(pluginHost);
 
   // This must be done before instantiating the plugin
   FixupWindow(GetContentRectRelativeToSelf().Size());
@@ -2689,8 +2750,8 @@ nsObjectFrame::Instantiate(const char* aMimeType, nsIURI* aURI)
 void
 nsObjectFrame::TryNotifyContentObjectWrapper()
 {
-  nsRefPtr<nsNPAPIPluginInstance> inst;
-  mInstanceOwner->GetInstance(getter_AddRefs(inst));
+  nsCOMPtr<nsIPluginInstance> inst;
+  mInstanceOwner->GetInstance(*getter_AddRefs(inst));
   if (inst) {
     // The plugin may have set up new interfaces; we need to mess with our JS
     // wrapper.  Note that we DO NOT want to call this if there is no plugin
@@ -2726,7 +2787,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsStopPluginRunnable, nsRunnable, nsITimerCallback)
 
 #if defined(XP_MACOSX) || defined (XP_WIN)
 static const char*
-GetMIMEType(nsNPAPIPluginInstance *aPluginInstance)
+GetMIMEType(nsIPluginInstance *aPluginInstance)
 {
   if (aPluginInstance) {
     const char* mime = nsnull;
@@ -2766,13 +2827,13 @@ DoDelayedStop(nsPluginInstanceOwner *aInstanceOwner, PRBool aDelayedStop)
 static void
 DoStopPlugin(nsPluginInstanceOwner *aInstanceOwner, PRBool aDelayedStop)
 {
-  nsRefPtr<nsNPAPIPluginInstance> inst;
-  aInstanceOwner->GetInstance(getter_AddRefs(inst));
+  nsCOMPtr<nsIPluginInstance> inst;
+  aInstanceOwner->GetInstance(*getter_AddRefs(inst));
   if (inst) {
     NPWindow *win;
     aInstanceOwner->GetWindow(win);
     nsPluginNativeWindow *window = (nsPluginNativeWindow *)win;
-    nsRefPtr<nsNPAPIPluginInstance> nullinst;
+    nsCOMPtr<nsIPluginInstance> nullinst;
 
     if (window) 
       window->CallSetWindow(nullinst);
@@ -2788,7 +2849,7 @@ DoStopPlugin(nsPluginInstanceOwner *aInstanceOwner, PRBool aDelayedStop)
 
     nsCOMPtr<nsIPluginHost> pluginHost = do_GetService(MOZ_PLUGIN_HOST_CONTRACTID);
     NS_ASSERTION(pluginHost, "Without a pluginHost, how can we have an instance to destroy?");
-    static_cast<nsPluginHost*>(pluginHost.get())->StopPluginInstance(inst);
+    pluginHost->StopPluginInstance(inst);
 
     // the frame is going away along with its widget so tell the
     // window to forget its widget too
@@ -2843,9 +2904,9 @@ nsObjectFrame::StopPlugin()
 {
   PRBool delayedStop = PR_FALSE;
 #ifdef XP_WIN
-  nsRefPtr<nsNPAPIPluginInstance> inst;
+  nsCOMPtr<nsIPluginInstance> inst;
   if (mInstanceOwner)
-    mInstanceOwner->GetInstance(getter_AddRefs(inst));
+    mInstanceOwner->GetInstance(*getter_AddRefs(inst));
   if (inst) {
     // Delayed stop for Real plugin only; see bug 420886, 426852.
     const char* pluginType = ::GetMIMEType(inst);
@@ -2938,8 +2999,8 @@ nsObjectFrame::GetCursor(const nsPoint& aPoint, nsIFrame::Cursor& aCursor)
     return NS_ERROR_FAILURE;
   }
 
-  nsRefPtr<nsNPAPIPluginInstance> inst;
-  mInstanceOwner->GetInstance(getter_AddRefs(inst));
+  nsCOMPtr<nsIPluginInstance> inst;
+  mInstanceOwner->GetInstance(*getter_AddRefs(inst));
   if (!inst) {
     return NS_ERROR_FAILURE;
   }
@@ -2998,8 +3059,8 @@ nsObjectFrame::GetNextObjectFrame(nsPresContext* aPresContext, nsIFrame* aRoot)
   while (child) {
     nsIObjectFrame* outFrame = do_QueryFrame(child);
     if (outFrame) {
-      nsRefPtr<nsNPAPIPluginInstance> pi;
-      outFrame->GetPluginInstance(getter_AddRefs(pi));  // make sure we have a REAL plugin
+      nsCOMPtr<nsIPluginInstance> pi;
+      outFrame->GetPluginInstance(*getter_AddRefs(pi));  // make sure we have a REAL plugin
       if (pi)
         return outFrame;
     }
@@ -3119,10 +3180,9 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
 {
   // create nsPluginNativeWindow object, it is derived from NPWindow
   // struct and allows to manipulate native window procedure
-  nsCOMPtr<nsIPluginHost> pluginHostCOM = do_GetService(MOZ_PLUGIN_HOST_CONTRACTID);
-  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());  
-  if (pluginHost)
-    pluginHost->NewPluginNativeWindow(&mPluginWindow);
+  nsCOMPtr<nsIPluginHost> ph = do_GetService(MOZ_PLUGIN_HOST_CONTRACTID);
+  if (ph)
+    ph->NewPluginNativeWindow(&mPluginWindow);
   else
     mPluginWindow = nsnull;
 
@@ -3150,6 +3210,14 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
 
 #ifdef MOZ_COMPOSITED_PLUGINS
   mLastPoint = nsIntPoint(0,0);
+#endif
+
+#ifdef MOZ_USE_IMAGE_EXPOSE
+  mPluginSize = nsIntSize(0,0);
+  mXlibSurfGC = None;
+  mBlitWindow = nsnull;
+  mSharedXImage = nsnull;
+  mSharedSegmentInfo.shmaddr = nsnull;
 #endif
 
 #ifdef XP_MACOSX
@@ -3214,16 +3282,19 @@ nsPluginInstanceOwner::~nsPluginInstanceOwner()
   }
 
   // clean up plugin native window object
-  nsCOMPtr<nsIPluginHost> pluginHostCOM = do_GetService(MOZ_PLUGIN_HOST_CONTRACTID);
-  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
-  if (pluginHost) {
-    pluginHost->DeletePluginNativeWindow(mPluginWindow);
+  nsCOMPtr<nsIPluginHost> ph = do_GetService(MOZ_PLUGIN_HOST_CONTRACTID);
+  if (ph) {
+    ph->DeletePluginNativeWindow(mPluginWindow);
     mPluginWindow = nsnull;
   }
 
   if (mInstance) {
     mInstance->InvalidateOwner();
   }
+
+#ifdef MOZ_USE_IMAGE_EXPOSE
+  ReleaseXShm();
+#endif
 }
 
 /*
@@ -3244,8 +3315,8 @@ NS_INTERFACE_MAP_BEGIN(nsPluginInstanceOwner)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIPluginInstanceOwner)
 NS_INTERFACE_MAP_END
 
-nsresult
-nsPluginInstanceOwner::SetInstance(nsNPAPIPluginInstance *aInstance)
+NS_IMETHODIMP
+nsPluginInstanceOwner::SetInstance(nsIPluginInstance *aInstance)
 {
   NS_ASSERTION(!mInstance || !aInstance, "mInstance should only be set or unset!");
 
@@ -3321,12 +3392,10 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetDOMElement(nsIDOMElement* *result)
   return CallQueryInterface(mContent, result);
 }
 
-nsresult nsPluginInstanceOwner::GetInstance(nsNPAPIPluginInstance **aInstance)
+NS_IMETHODIMP nsPluginInstanceOwner::GetInstance(nsIPluginInstance *&aInstance)
 {
-  NS_ENSURE_ARG_POINTER(aInstance);
+  NS_IF_ADDREF(aInstance = mInstance);
 
-  NS_IF_ADDREF(mInstance);
-  *aInstance = mInstance;
   return NS_OK;
 }
 
@@ -3460,6 +3529,21 @@ NS_IMETHODIMP nsPluginInstanceOwner::InvalidateRect(NPRect *invalidRect)
     oldSize = container->GetCurrentSize();
     SetCurrentImage(container);
   }
+
+#ifdef MOZ_USE_IMAGE_EXPOSE
+  PRBool simpleImageRender = PR_FALSE;
+  nsresult rv = mInstance->GetValueFromPlugin(NPPVpluginWindowlessLocalBool,
+                                              &simpleImageRender);
+  // If the call returned an error code make sure we still use our default value.
+  if (NS_FAILED(rv)) {
+    simpleImageRender = PR_FALSE;
+  }
+
+  if (simpleImageRender) {
+    NativeImageDraw(invalidRect);
+    return NS_OK;
+  }
+#endif
 
 #ifndef XP_MACOSX
   // Windowed plugins should not be calling NPN_InvalidateRect, but
@@ -4313,7 +4397,9 @@ void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext,
   if (!mIOSurface || 
       (mIOSurface->GetWidth() != (size_t)aWidth || 
        mIOSurface->GetHeight() != (size_t)aHeight)) {
-    delete mIOSurface;
+    if (mIOSurface) {
+      delete mIOSurface;
+    }
 
     // If the renderer is backed by an IOSurface, resize it as required.
     mIOSurface = nsIOSurface::CreateIOSurface(aWidth, aHeight);
@@ -5231,7 +5317,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
       {
         // Ignore mouse-moved events that happen as part of a dragging
         // operation that started over another frame.  See bug 525078.
-        nsRefPtr<nsFrameSelection> frameselection = mObjectFrame->GetFrameSelection();
+        nsCOMPtr<nsFrameSelection> frameselection = mObjectFrame->GetFrameSelection();
         if (!frameselection->GetMouseDownState() ||
             (nsIPresShell::GetCapturingContent() == mObjectFrame->GetContent())) {
 #ifndef NP_NO_CARBON
@@ -5683,7 +5769,8 @@ nsPluginInstanceOwner::Destroy()
 #endif
 #ifdef XP_MACOSX
   RemoveFromCARefreshTimer(this);
-  delete mIOSurface;
+  if (mIOSurface)
+    delete mIOSurface;
   if (mColorProfile)
     ::CGColorSpaceRelease(mColorProfile);  
 #endif
@@ -5888,6 +5975,25 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
   if (!mInstance || !mObjectFrame)
     return;
 
+#ifdef MOZ_USE_IMAGE_EXPOSE
+  // through to be able to paint the context passed in.  This allows
+  // us to handle plugins that do not self invalidate (slowly, but
+  // accurately), and it allows us to reduce flicker.
+  PRBool simpleImageRender = PR_FALSE;
+  nsresult rv = mInstance->GetValueFromPlugin(NPPVpluginWindowlessLocalBool,
+                                              &simpleImageRender);
+  // If the call returned an error code make sure we still use our default value.
+  if (NS_FAILED(rv)) {
+    simpleImageRender = PR_FALSE;
+  }
+  if (simpleImageRender) {
+    gfxMatrix matrix = aContext->CurrentMatrix();
+    if (!matrix.HasNonAxisAlignedTransform())
+      NativeImageDraw();
+    return;
+  } 
+#endif
+
   // to provide crisper and faster drawing.
   gfxRect pluginRect = aFrameRect;
   if (aContext->UserToDevicePixelSnapped(pluginRect)) {
@@ -5957,6 +6063,286 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
   renderer.Draw(aContext, nsIntSize(window->width, window->height),
                 rendererFlags, screen, visual, nsnull);
 }
+
+#ifdef MOZ_USE_IMAGE_EXPOSE
+
+static GdkWindow* GetClosestWindow(nsIDOMElement *element)
+{
+  nsCOMPtr<nsIContent> content = do_QueryInterface(element);
+  nsIFrame* frame = content->GetPrimaryFrame();
+  if (!frame)
+    return nsnull;
+
+  nsIWidget* win = frame->GetNearestWidget();
+  if (!win)
+    return nsnull;
+
+  GdkWindow* w = static_cast<GdkWindow*>(win->GetNativeData(NS_NATIVE_WINDOW));
+  return w;
+}
+
+void
+nsPluginInstanceOwner::ReleaseXShm()
+{
+  if (mXlibSurfGC) {
+    XFreeGC(gdk_x11_get_default_xdisplay(), mXlibSurfGC);
+    mXlibSurfGC = None;
+  }
+ 
+ if (mSharedSegmentInfo.shmaddr) {
+    XShmDetach(gdk_x11_get_default_xdisplay(), &mSharedSegmentInfo);
+    shmdt(mSharedSegmentInfo.shmaddr);
+    mSharedSegmentInfo.shmaddr = nsnull;
+  }
+
+  if (mSharedXImage) {
+    XDestroyImage(mSharedXImage);
+    mSharedXImage = nsnull;
+  }
+}
+
+PRBool
+nsPluginInstanceOwner::SetupXShm()
+{
+  if (!mBlitWindow)
+    return PR_FALSE;
+
+  ReleaseXShm();
+
+  mXlibSurfGC = XCreateGC(gdk_x11_get_default_xdisplay(),
+                          mBlitWindow,
+                          0,
+                          0);
+  if (!mXlibSurfGC)
+    return PR_FALSE;
+
+  // we use 16 as the default depth because that is the value of the
+  // screen, but not the default X default depth.
+  XVisualInfo vinfo;
+  int foundVisual = XMatchVisualInfo(gdk_x11_get_default_xdisplay(),
+                                     gdk_x11_get_default_screen(),
+                                     16,
+                                     TrueColor,
+                                     &vinfo);
+  if (!foundVisual) 
+    return PR_FALSE;
+
+  memset(&mSharedSegmentInfo, 0, sizeof(XShmSegmentInfo));
+  mSharedXImage = XShmCreateImage(gdk_x11_get_default_xdisplay(),
+                                  vinfo.visual,
+                                  16,
+                                  ZPixmap,
+                                  0,
+                                  &mSharedSegmentInfo,
+                                  mPluginSize.width,
+                                  mPluginSize.height);
+  if (!mSharedXImage)
+    return PR_FALSE;
+
+  NS_ASSERTION(mSharedXImage->height, "do not call shmget with zero");
+  mSharedSegmentInfo.shmid = shmget(IPC_PRIVATE,
+                                    mSharedXImage->bytes_per_line * mSharedXImage->height,
+                                    IPC_CREAT | 0600);
+  if (mSharedSegmentInfo.shmid == -1) {
+    XDestroyImage(mSharedXImage);
+    mSharedXImage = nsnull;
+    return PR_FALSE;
+  }
+
+  mSharedXImage->data = static_cast<char*>(shmat(mSharedSegmentInfo.shmid, 0, 0));
+  if (mSharedXImage->data == (char*) -1) {
+    shmctl(mSharedSegmentInfo.shmid, IPC_RMID, 0);
+    XDestroyImage(mSharedXImage);
+    mSharedXImage = nsnull;
+    return PR_FALSE;
+  }
+    
+  mSharedSegmentInfo.shmaddr = mSharedXImage->data;
+  mSharedSegmentInfo.readOnly = False;
+
+  Status s = XShmAttach(gdk_x11_get_default_xdisplay(), &mSharedSegmentInfo);
+  XSync(gdk_x11_get_default_xdisplay(), False);
+  shmctl(mSharedSegmentInfo.shmid, IPC_RMID, 0);
+  if (!s) {
+    // attach failed, call shmdt and null shmaddr before calling
+    // ReleaseXShm().
+    shmdt(mSharedSegmentInfo.shmaddr);
+    mSharedSegmentInfo.shmaddr = nsnull;
+    ReleaseXShm();
+    return PR_FALSE;
+  }
+
+  return PR_TRUE;
+}
+
+
+// NativeImageDraw
+//
+// This method supports the NPImageExpose API which is specific to the
+// HILDON platform.  Basically what it allows us to do is to pass a
+// memory buffer into a plugin (namely flash), and have flash draw
+// directly into the buffer.
+//
+// It may be faster if the rest of the system used offscreen image
+// surfaces, but right now offscreen surfaces are using X
+// surfaces. And because of this, we need to create a new image
+// surface and copy that to the passed gfx context.
+//
+// This is not ideal and it should not be faster than what a
+// windowless plugin can do.  However, in A/B testing of flash on the
+// N900, this approach is considerably faster.
+//
+// Hopefully this API can die off in favor of a more robust plugin API.
+
+void
+nsPluginInstanceOwner::NativeImageDraw(NPRect* invalidRect)
+{
+  // if we haven't been positioned yet, ignore
+  if (!mBlitWindow)
+    return;
+
+  // if the clip rect is zero, we have nothing to do.
+  if (NSToIntCeil(mAbsolutePositionClip.Width()) == 0 ||
+      NSToIntCeil(mAbsolutePositionClip.Height()) == 0)
+    return;
+  
+  // The flash plugin on Maemo n900 requires the width/height to be
+  // even.
+  PRInt32 absPosWidth  = NSToIntCeil(mAbsolutePosition.Width()) / 2 * 2;
+  PRInt32 absPosHeight = NSToIntCeil(mAbsolutePosition.Height()) / 2 * 2;
+
+  // if the plugin is hidden, nothing to draw.
+  if (absPosHeight == 0 || absPosWidth == 0)
+    return;
+
+  // Making X or DOM method calls can cause our frame to go
+  // away, which might kill us...
+  nsCOMPtr<nsIPluginInstanceOwner> kungFuDeathGrip(this);
+
+  PRBool sizeChanged = (mPluginSize.width != absPosWidth ||
+                        mPluginSize.height != absPosHeight);
+
+  if (!mSharedXImage || sizeChanged) {
+    mPluginSize = nsIntSize(absPosWidth, absPosHeight);
+
+    if (NS_FAILED(SetupXShm()))
+      return;
+  }  
+  
+  NPWindow* window;
+  GetWindow(window);
+  NS_ASSERTION(window, "Window can not be null");
+
+  // setup window such that it knows about the size and clip.  This
+  // is to work around a flash clipping bug when using the Image
+  // Expose API.
+  if (!invalidRect && sizeChanged) {
+    NPRect newClipRect;
+    newClipRect.left = 0;
+    newClipRect.top = 0;
+    newClipRect.right = window->width;
+    newClipRect.bottom = window->height;
+    
+    window->clipRect = newClipRect; 
+    window->x = 0;
+    window->y = 0;
+      
+    NPSetWindowCallbackStruct* ws_info =
+      static_cast<NPSetWindowCallbackStruct*>(window->ws_info);
+    ws_info->visual = 0;
+    ws_info->colormap = 0;
+    ws_info->depth = 16;
+    mInstance->SetWindow(window);
+  }
+
+  NPEvent pluginEvent;
+  NPImageExpose imageExpose;
+  XGraphicsExposeEvent& exposeEvent = pluginEvent.xgraphicsexpose;
+
+  // set the drawing info
+  exposeEvent.type = GraphicsExpose;
+  exposeEvent.display = 0;
+
+  // Store imageExpose structure pointer as drawable member
+  exposeEvent.drawable = (Drawable)&imageExpose;
+  exposeEvent.count = 0;
+  exposeEvent.serial = 0;
+  exposeEvent.send_event = False;
+  exposeEvent.major_code = 0;
+  exposeEvent.minor_code = 0;
+
+  exposeEvent.x = 0;
+  exposeEvent.y = 0;
+  exposeEvent.width  = window->width;
+  exposeEvent.height = window->height;
+
+  imageExpose.x = 0;
+  imageExpose.y = 0;
+  imageExpose.width  = window->width;
+  imageExpose.height = window->height;
+
+  imageExpose.depth = 16;
+
+  imageExpose.translateX = 0;
+  imageExpose.translateY = 0;
+
+  if (window->width == 0)
+    return;
+  
+  float scale = mAbsolutePosition.Width() / (float) window->width;
+  
+  imageExpose.scaleX = scale;
+  imageExpose.scaleY = scale;
+
+  imageExpose.stride          = mPluginSize.width * 2;
+  imageExpose.data            = mSharedXImage->data;
+  imageExpose.dataSize.width  = mPluginSize.width;
+  imageExpose.dataSize.height = mPluginSize.height; 
+
+  if (invalidRect)
+    memset(mSharedXImage->data, 0, mPluginSize.width * mPluginSize.height * 2);
+
+  PRInt16 response = kNPEventNotHandled;
+  mInstance->HandleEvent(&pluginEvent, &response);
+  if (response == kNPEventNotHandled)
+    return;
+
+  // Setup the clip rectangle
+  XRectangle rect;
+  rect.x = NSToIntFloor(mAbsolutePositionClip.X());
+  rect.y = NSToIntFloor(mAbsolutePositionClip.Y());
+  rect.width = NSToIntCeil(mAbsolutePositionClip.Width());
+  rect.height = NSToIntCeil(mAbsolutePositionClip.Height());
+  
+  PRInt32 absPosX = NSToIntFloor(mAbsolutePosition.X());
+  PRInt32 absPosY = NSToIntFloor(mAbsolutePosition.Y());
+  
+  XSetClipRectangles(gdk_x11_get_default_xdisplay(),
+                     mXlibSurfGC,
+                     absPosX,
+                     absPosY, 
+                     &rect, 1,
+                     Unsorted);
+
+  XShmPutImage(gdk_x11_get_default_xdisplay(),
+               mBlitWindow,
+               mXlibSurfGC,
+               mSharedXImage,
+               0,
+               0,
+               absPosX,
+               absPosY,
+               mPluginSize.width,
+               mPluginSize.height,
+               PR_FALSE);
+  
+  XSetClipRectangles(gdk_x11_get_default_xdisplay(), mXlibSurfGC, 0, 0, nsnull, 0, Unsorted);  
+
+  XFlush(gdk_x11_get_default_xdisplay());
+  return;
+}
+#endif
+
 nsresult
 nsPluginInstanceOwner::Renderer::DrawWithXlib(gfxXlibSurface* xsurface, 
                                               nsIntPoint offset,
@@ -5971,7 +6357,7 @@ nsPluginInstanceOwner::Renderer::DrawWithXlib(gfxXlibSurface* xsurface,
     return NS_ERROR_UNEXPECTED;
   }
 
-  nsNPAPIPluginInstance *instance = mInstanceOwner->mInstance;
+  nsIPluginInstance *instance = mInstanceOwner->mInstance;
   if (!instance)
     return NS_ERROR_FAILURE;
 
@@ -6359,8 +6745,27 @@ NS_IMETHODIMP nsPluginInstanceOwner::CreateWidget(void)
 
 void nsPluginInstanceOwner::SetPluginHost(nsIPluginHost* aHost)
 {
-  mPluginHost = static_cast<nsPluginHost*>(aHost);
+  mPluginHost = aHost;
 }
+
+#ifdef MOZ_USE_IMAGE_EXPOSE
+PRBool nsPluginInstanceOwner::UpdateVisibility(PRBool aVisible)
+{
+  // NOTE: Death grip must be held by caller.
+  if (!mInstance)
+    return PR_TRUE;
+
+  NPEvent pluginEvent;
+  XVisibilityEvent& visibilityEvent = pluginEvent.xvisibility;
+  visibilityEvent.type = VisibilityNotify;
+  visibilityEvent.display = 0;
+  visibilityEvent.state = aVisible ? VisibilityUnobscured : VisibilityFullyObscured;
+  mInstance->HandleEvent(&pluginEvent, nsnull);
+
+  mWidgetVisible = PR_TRUE;
+  return PR_TRUE;
+}
+#endif
 
 // Mac specific code to fix up the port location and clipping region
 #ifdef XP_MACOSX
@@ -6489,7 +6894,7 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
     // Set this before calling ProcessEvent to avoid endless recursion.
     mSentInitialTopLevelWindowEvent = PR_TRUE;
 
-    nsPluginEvent pluginEvent(PR_TRUE, NS_PLUGIN_FOCUS_EVENT, nsnull);
+    nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, nsnull);
     NPCocoaEvent cocoaEvent;
     InitializeNPCocoaEvent(&cocoaEvent);
     cocoaEvent.type = NPCocoaEventWindowFocusChanged;
@@ -6605,3 +7010,57 @@ void nsPluginInstanceOwner::FixUpURLS(const nsString &name, nsAString &value)
       value = newURL;
   }
 }
+
+#ifdef MOZ_USE_IMAGE_EXPOSE
+nsresult
+nsPluginInstanceOwner::SetAbsoluteScreenPosition(nsIDOMElement* element,
+                                                 nsIDOMClientRect* position,
+                                                 nsIDOMClientRect* clip)
+{
+  if (!element || !position || !clip)
+    return NS_ERROR_FAILURE;
+  
+  // Making X or DOM method calls can cause our frame to go
+  // away, which might kill us...
+  nsCOMPtr<nsIPluginInstanceOwner> kungFuDeathGrip(this);
+
+  if (!mBlitWindow) {
+    mBlitWindow = GDK_WINDOW_XWINDOW(GetClosestWindow(element));
+    if (!mBlitWindow)
+      return NS_ERROR_FAILURE;
+  }
+
+  float left, top, width, height;
+  position->GetLeft(&left);
+  position->GetTop(&top);
+  position->GetWidth(&width);
+  position->GetHeight(&height);
+
+  mAbsolutePosition = gfxRect(left, top, width, height);
+  
+  clip->GetLeft(&left);
+  clip->GetTop(&top);
+  clip->GetWidth(&width);
+  clip->GetHeight(&height);
+
+  mAbsolutePositionClip = gfxRect(left, top, width, height);
+
+  UpdateVisibility(!(width == 0 && height == 0));
+
+  if (!mInstance)
+    return NS_OK;
+
+  PRBool simpleImageRender = PR_FALSE;
+  nsresult rv = mInstance->GetValueFromPlugin(NPPVpluginWindowlessLocalBool,
+                                              &simpleImageRender);
+  // If the call returned an error code make sure we still use our default value.
+  if (NS_FAILED(rv)) {
+    simpleImageRender = PR_FALSE;
+  }
+  if (simpleImageRender) {
+    NativeImageDraw();
+  }
+  return NS_OK;
+}
+#endif
+

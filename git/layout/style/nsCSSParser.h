@@ -49,6 +49,7 @@
 class nsCSSStyleSheet;
 class nsIPrincipal;
 class nsIURI;
+class nsIUnicharInputStream;
 struct nsCSSSelectorList;
 class nsMediaList;
 #ifdef MOZ_CSS_ANIMATIONS
@@ -112,12 +113,12 @@ public:
    * @param aAllowUnsafeRules see aEnableUnsafeRules in
    *                          mozilla::css::Loader::LoadSheetSync
    */
-  nsresult ParseSheet(const nsAString& aInput,
-                      nsIURI*          aSheetURL,
-                      nsIURI*          aBaseURI,
-                      nsIPrincipal*    aSheetPrincipal,
-                      PRUint32         aLineNumber,
-                      PRBool           aAllowUnsafeRules);
+  nsresult Parse(nsIUnicharInputStream* aInput,
+                 nsIURI*                aSheetURL,
+                 nsIURI*                aBaseURI,
+                 nsIPrincipal*          aSheetPrincipal,
+                 PRUint32               aLineNumber,
+                 PRBool                 aAllowUnsafeRules);
 
   // Parse HTML style attribute or its equivalent in other markup
   // languages.  aBaseURL is the base url to use for relative links in

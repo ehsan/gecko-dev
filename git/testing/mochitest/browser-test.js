@@ -17,18 +17,15 @@ function testOnLoad() {
     return;
 
   prefs.setBoolPref("testing.browserTestHarness.running", true);
-  gConfig = readConfig();
 
-  if (gConfig.testRoot == "browser") {
-    var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
-             getService(Ci.nsIWindowWatcher);
-    var sstring = Cc["@mozilla.org/supports-string;1"].
-                  createInstance(Ci.nsISupportsString);
-    sstring.data = location.search;
+  var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+           getService(Ci.nsIWindowWatcher);
+  var sstring = Cc["@mozilla.org/supports-string;1"].
+                createInstance(Ci.nsISupportsString);
+  sstring.data = location.search;
 
-    ww.openWindow(window, "chrome://mochikit/content/browser-harness.xul", "browserTest",
-                  "chrome,centerscreen,dialog=no,resizable,titlebar,toolbar=no,width=800,height=600", sstring);
-  }
+  ww.openWindow(window, "chrome://mochikit/content/browser-harness.xul", "browserTest",
+                "chrome,centerscreen,dialog=no,resizable,titlebar,toolbar=no,width=800,height=600", sstring);
 }
 
 function Tester(aTests, aDumper, aCallback) {

@@ -406,7 +406,8 @@ ParseIntStringHelper(JSContext *cx, const jschar *ws, const jschar *end, int may
 static jsdouble
 ParseIntDoubleHelper(jsdouble d)
 {
-    JS_ASSERT(-1e21 < d && d < 1e21);
+    if (!JSDOUBLE_IS_FINITE(d))
+        return js_NaN;
     if (d > 0)
         return floor(d);
     if (d < 0)
@@ -429,17 +430,7 @@ num_parseInt(JSContext *cx, uintN argc, Value *vp)
             *vp = vp[2];
             return true;
         }
-        /*
-         * Step 1 is |inputString = ToString(string)|. When string >= 
-         * 1e21, ToString(string) is in the form "NeM". 'e' marks the end of
-         * the word, which would mean the result of parseInt(string) should be |N|.
-         *
-         * To preserve this behaviour, we can't use the fast-path when string >
-         * 1e21, or else the result would be |NeM|.
-         */
-        if (vp[2].isDouble() &&
-            vp[2].toDouble() > -1.0e21 &&
-            vp[2].toDouble() < 1.0e21) {
+        if (vp[2].isDouble()) {
             vp->setDouble(ParseIntDoubleHelper(vp[2].toDouble()));
             return true;
         }
@@ -504,21 +495,9 @@ ParseInt(JSContext* cx, JSString* str)
 }
 
 static jsdouble FASTCALL
-ParseIntDouble(JSContext* cx, jsdouble d)
+ParseIntDouble(jsdouble d)
 {
-    /* Fast path - see comment in numParseInt. */
-    if (-1.0e21 < d && d < 1.0e21)
-        return ParseIntDoubleHelper(d);
-
-    /* Slow path - convert to a string and parse normally. */
-    JSString *inputString = js_NumberToString(cx, d);
-    if (!inputString) {
-        TraceMonitor *tm = JS_TRACE_MONITOR_ON_TRACE(cx);
-        SetBuiltinError(tm);
-        return js_NaN;
-    }
-
-    return ParseInt(cx, inputString);
+    return ParseIntDoubleHelper(d);
 }
 #endif
 
@@ -533,7 +512,7 @@ const char js_parseInt_str[]   = "parseInt";
 
 JS_DEFINE_TRCINFO_2(num_parseInt,
     (2, (static, DOUBLE_FAIL, ParseInt, CONTEXT, STRING,1, nanojit::ACCSET_NONE)),
-    (2, (static, DOUBLE_FAIL, ParseIntDouble, CONTEXT, DOUBLE,1, nanojit::ACCSET_NONE)))
+    (1, (static, DOUBLE, ParseIntDouble, DOUBLE,        1, nanojit::ACCSET_NONE)))
 
 JS_DEFINE_TRCINFO_1(num_parseFloat,
     (2, (static, DOUBLE_FAIL, ParseFloat, CONTEXT, STRING,   1, nanojit::ACCSET_NONE)))

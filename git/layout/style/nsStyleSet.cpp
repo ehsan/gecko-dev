@@ -1365,16 +1365,9 @@ nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
      }
   }
 
-  // If we're a style context for a link, then we already know whether
-  // our relevant link is visited, since that does not depend on our
-  // parent.  Otherwise, we need to match aNewParentContext.
-  PRBool relevantLinkVisited = aStyleContext->IsLinkContext() ?
-    aStyleContext->RelevantLinkVisited() :
-    aNewParentContext->RelevantLinkVisited();
-
   return GetContext(aNewParentContext, ruleNode, visitedRuleNode,
                     aStyleContext->IsLinkContext(),
-                    relevantLinkVisited,
+                    aStyleContext->RelevantLinkVisited(),
                     pseudoTag, pseudoType,
                     pseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement ||
                     pseudoType == nsCSSPseudoElements::ePseudo_before ||

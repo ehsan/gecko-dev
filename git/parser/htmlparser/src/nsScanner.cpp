@@ -209,7 +209,9 @@ nsresult nsScanner::SetDocumentCharset(const nsACString& aCharset , PRInt32 aSou
  */
 nsScanner::~nsScanner() {
 
-  delete mSlidingBuffer;
+  if (mSlidingBuffer) {
+    delete mSlidingBuffer;
+  }
 
   MOZ_COUNT_DTOR(nsScanner);
 }

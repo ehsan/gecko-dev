@@ -1137,82 +1137,40 @@ nsNativeThemeCocoa::DrawFrame(CGContextRef cgContext, HIThemeFrameKind inKind,
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-static const CellRenderSettings progressSettings[2][2] = {
-  // Vertical progress bar.
+static const CellRenderSettings progressSettings[2] = {
+  // Determined settings.
   {
-    // Determined settings.
     {
-      {
-        NSZeroSize, // mini
-        NSMakeSize(10, 0), // small
-        NSMakeSize(16, 0)  // regular
-      },
-      {
-        NSZeroSize, NSZeroSize, NSZeroSize
-      },
-      {
-        { // Leopard
-          {0, 0, 0, 0},     // mini
-          {1, 1, 1, 1},     // small
-          {1, 1, 1, 1}      // regular
-        }
-      }
+      NSZeroSize, // mini
+      NSMakeSize(0, 10), // small
+      NSMakeSize(0, 16)  // regular
     },
-    // There is no horizontal margin in regular undetermined size.
     {
-      {
-        NSZeroSize, // mini
-        NSMakeSize(10, 0), // small
-        NSMakeSize(16, 0)  // regular
-      },
-      {
-        NSZeroSize, NSZeroSize, NSZeroSize
-      },
-      {
-        { // Leopard
-          {0, 0, 0, 0},     // mini
-          {1, 1, 1, 1},     // small
-          {1, 0, 1, 0}      // regular
-        }
+      NSZeroSize, NSZeroSize, NSZeroSize
+    },
+    {
+      { // Leopard
+        {0, 0, 0, 0},     // mini
+        {1, 1, 1, 1},     // small
+        {1, 1, 1, 1}      // regular
       }
     }
   },
-  // Horizontal progress bar.
+  // There is no horizontal margin in regular undetermined size.
   {
-    // Determined settings.
     {
-      {
-        NSZeroSize, // mini
-        NSMakeSize(0, 10), // small
-        NSMakeSize(0, 16)  // regular
-      },
-      {
-        NSZeroSize, NSZeroSize, NSZeroSize
-      },
-      {
-        { // Leopard
-          {0, 0, 0, 0},     // mini
-          {1, 1, 1, 1},     // small
-          {1, 1, 1, 1}      // regular
-        }
-      }
+      NSZeroSize, // mini
+      NSMakeSize(0, 10), // small
+      NSMakeSize(0, 16)  // regular
     },
-    // There is no horizontal margin in regular undetermined size.
     {
-      {
-        NSZeroSize, // mini
-        NSMakeSize(0, 10), // small
-        NSMakeSize(0, 16)  // regular
-      },
-      {
-        NSZeroSize, NSZeroSize, NSZeroSize
-      },
-      {
-        { // Leopard
-          {0, 0, 0, 0},     // mini
-          {1, 1, 1, 1},     // small
-          {0, 1, 0, 1}      // regular
-        }
+      NSZeroSize, NSZeroSize, NSZeroSize
+    },
+    {
+      { // Leopard
+        {0, 0, 0, 0},     // mini
+        {1, 1, 1, 1},     // small
+        {0, 1, 0, 1}      // regular
       }
     }
   }
@@ -1236,7 +1194,7 @@ nsNativeThemeCocoa::DrawProgress(CGContextRef cgContext, const HIRect& inBoxRect
                                                       : NSClearControlTint)];
 
   DrawCellWithSnapping(cell, cgContext, inBoxRect,
-                       progressSettings[inIsHorizontal][inIsIndeterminate],
+                       progressSettings[inIsIndeterminate],
                        VerticalAlignFactor(aFrame), mCellDrawView,
                        IsFrameRTL(aFrame));
 
@@ -1470,12 +1428,9 @@ nsNativeThemeCocoa::GetScrollbarDrawInfo(HIThemeTrackDrawInfo& aTdi, nsIFrame *a
 
   aTdi.trackInfo.scrollbar.pressState = 0;
 
-  // Only go get these scrollbar button states if we need it. For example,
-  // there's no reason to look up scrollbar button states when we're only
-  // creating a TrackDrawInfo to determine the size of the thumb. There's
-  // also no reason to do this on Lion or later, whose scrollbars have no
-  // arrow buttons.
-  if (aShouldGetButtonStates && !nsToolkit::OnLionOrLater()) {
+  // Only go get these scrollbar button states if we need it. For example, there's no reaon to look up scrollbar button 
+  // states when we're only creating a TrackDrawInfo to determine the size of the thumb.
+  if (aShouldGetButtonStates) {
     nsEventStates buttonStates[4];
     GetScrollbarPressStates(aFrame, buttonStates);
     NSString *buttonPlacement = [[NSUserDefaults standardUserDefaults] objectForKey:@"AppleScrollBarVariant"];
@@ -1937,8 +1892,8 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
         NS_WARNING("Unable to animate progressbar!");
       }
       DrawProgress(cgContext, macRect, IsIndeterminateProgress(aFrame, eventState),
-                   aFrame->GetStyleDisplay()->mOrient != NS_STYLE_ORIENT_VERTICAL,
-		   GetProgressValue(aFrame), GetProgressMaxValue(aFrame), aFrame);
+                   PR_TRUE, GetProgressValue(aFrame),
+                   GetProgressMaxValue(aFrame), aFrame);
       break;
 
     case NS_THEME_PROGRESSBAR_VERTICAL:
@@ -2200,26 +2155,23 @@ nsNativeThemeCocoa::GetWidgetBorder(nsDeviceContext* aContext,
     case NS_THEME_SCROLLBAR_TRACK_HORIZONTAL:
     case NS_THEME_SCROLLBAR_TRACK_VERTICAL:
     {
-      // On Lion and later, scrollbars have no arrows.
-      if (!nsToolkit::OnLionOrLater()) {
-        // There's only an endcap to worry about when both arrows are on the bottom
-        NSString *buttonPlacement = [[NSUserDefaults standardUserDefaults] objectForKey:@"AppleScrollBarVariant"];
-        if (!buttonPlacement || [buttonPlacement isEqualToString:@"DoubleMax"]) {
-          PRBool isHorizontal = (aWidgetType == NS_THEME_SCROLLBAR_TRACK_HORIZONTAL);
+      // There's only an endcap to worry about when both arrows are on the bottom
+      NSString *buttonPlacement = [[NSUserDefaults standardUserDefaults] objectForKey:@"AppleScrollBarVariant"];
+      if (!buttonPlacement || [buttonPlacement isEqualToString:@"DoubleMax"]) {
+        PRBool isHorizontal = (aWidgetType == NS_THEME_SCROLLBAR_TRACK_HORIZONTAL);
 
-          nsIFrame *scrollbarFrame = GetParentScrollbarFrame(aFrame);
-          if (!scrollbarFrame) return NS_ERROR_FAILURE;
-          PRBool isSmall = (scrollbarFrame->GetStyleDisplay()->mAppearance == NS_THEME_SCROLLBAR_SMALL);
+        nsIFrame *scrollbarFrame = GetParentScrollbarFrame(aFrame);
+        if (!scrollbarFrame) return NS_ERROR_FAILURE;
+        PRBool isSmall = (scrollbarFrame->GetStyleDisplay()->mAppearance == NS_THEME_SCROLLBAR_SMALL);
 
-          // There isn't a metric for this, so just hardcode a best guess at the value.
-          // This value is even less exact due to the fact that the endcap is partially concave.
-          PRInt32 endcapSize = isSmall ? 5 : 6;
+        // There isn't a metric for this, so just hardcode a best guess at the value.
+        // This value is even less exact due to the fact that the endcap is partially concave.
+        PRInt32 endcapSize = isSmall ? 5 : 6;
 
-          if (isHorizontal)
-            aResult->SizeTo(endcapSize, 0, 0, 0);
-          else
-            aResult->SizeTo(0, endcapSize, 0, 0);
-        }
+        if (isHorizontal)
+          aResult->SizeTo(endcapSize, 0, 0, 0);
+        else
+          aResult->SizeTo(0, endcapSize, 0, 0);
       }
       break;
     }

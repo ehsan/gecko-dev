@@ -143,11 +143,13 @@ public:
   nsPluginNativeWindowWin();
   virtual ~nsPluginNativeWindowWin();
 
-  virtual nsresult CallSetWindow(nsRefPtr<nsNPAPIPluginInstance> &aPluginInstance);
+  virtual nsresult CallSetWindow(nsCOMPtr<nsIPluginInstance> &aPluginInstance);
 
 private:
+#ifndef WINCE
   nsresult SubclassAndAssociateWindow();
   nsresult UndoSubclassAndAssociateWindow();
+#endif
 
 public:
   // locals
@@ -175,7 +177,7 @@ static PRBool sInMessageDispatch = PR_FALSE;
 static PRBool sInPreviousMessageDispatch = PR_FALSE;
 static UINT sLastMsg = 0;
 
-static PRBool ProcessFlashMessageDelayed(nsPluginNativeWindowWin * aWin, nsNPAPIPluginInstance * aInst,
+static PRBool ProcessFlashMessageDelayed(nsPluginNativeWindowWin * aWin, nsIPluginInstance * aInst,
                                          HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
   NS_ENSURE_TRUE(aWin, NS_ERROR_NULL_POINTER);
@@ -204,14 +206,14 @@ static PRBool ProcessFlashMessageDelayed(nsPluginNativeWindowWin * aWin, nsNPAPI
 class nsDelayedPopupsEnabledEvent : public nsRunnable
 {
 public:
-  nsDelayedPopupsEnabledEvent(nsNPAPIPluginInstance *inst)
+  nsDelayedPopupsEnabledEvent(nsIPluginInstance *inst)
     : mInst(inst)
   {}
 
   NS_DECL_NSIRUNNABLE
 
 private:
-  nsRefPtr<nsNPAPIPluginInstance> mInst;
+  nsCOMPtr<nsIPluginInstance> mInst;
 };
 
 NS_IMETHODIMP nsDelayedPopupsEnabledEvent::Run()
@@ -232,7 +234,7 @@ static LRESULT CALLBACK PluginWndProcInternal(HWND hWnd, UINT msg, WPARAM wParam
   // The DispatchEvent(NS_PLUGIN_ACTIVATE) below can trigger a reentrant focus
   // event which might destroy us.  Hold a strong ref on the plugin instance
   // to prevent that, bug 374229.
-  nsRefPtr<nsNPAPIPluginInstance> inst;
+  nsCOMPtr<nsIPluginInstance> inst;
   win->GetPluginInstance(inst);
 
   // Real may go into a state where it recursivly dispatches the same event
@@ -286,6 +288,7 @@ static LRESULT CALLBACK PluginWndProcInternal(HWND hWnd, UINT msg, WPARAM wParam
 
       break;
 
+#ifndef WINCE
     case WM_MOUSEACTIVATE: {
       // If a child window of this plug-in is already focused,
       // don't focus the parent to avoid focus dance. We'll 
@@ -329,6 +332,7 @@ static LRESULT CALLBACK PluginWndProcInternal(HWND hWnd, UINT msg, WPARAM wParam
       }
       break;
     }
+#endif
   }
 
   // Macromedia Flash plugin may flood the message queue with some special messages
@@ -564,7 +568,7 @@ NS_IMETHODIMP PluginWindowEvent::Run()
   if (!hWnd)
     return NS_OK;
 
-  nsRefPtr<nsNPAPIPluginInstance> inst;
+  nsCOMPtr<nsIPluginInstance> inst;
   win->GetPluginInstance(inst);
 
   if (GetMsg() == WM_USER_FLASH) {
@@ -621,7 +625,7 @@ nsPluginNativeWindowWin::GetPluginWindowEvent(HWND aWnd, UINT aMsg, WPARAM aWPar
   return event;
 }
 
-nsresult nsPluginNativeWindowWin::CallSetWindow(nsRefPtr<nsNPAPIPluginInstance> &aPluginInstance)
+nsresult nsPluginNativeWindowWin::CallSetWindow(nsCOMPtr<nsIPluginInstance> &aPluginInstance)
 {
   // Note, 'window' can be null
 
@@ -649,6 +653,8 @@ nsresult nsPluginNativeWindowWin::CallSetWindow(nsRefPtr<nsNPAPIPluginInstance> 
     }
   }
 
+  // WINCE does not subclass windows.  See bug 300011 for the details.
+#ifndef WINCE
   if (window) {
     // grab the widget procedure before the plug-in does a subclass in
     // setwindow. We'll use this in PluginWndProc for forwarding focus
@@ -669,18 +675,23 @@ nsresult nsPluginNativeWindowWin::CallSetWindow(nsRefPtr<nsNPAPIPluginInstance> 
       }
     }
   }
+#endif
 
   nsPluginNativeWindow::CallSetWindow(aPluginInstance);
 
+#ifndef WINCE
   SubclassAndAssociateWindow();
 
   if (window && mPluginType == nsPluginType_Flash &&
       !GetPropW((HWND)window, L"PluginInstanceParentProperty")) {
     HookSetWindowLongPtr();
   }
+#endif
 
   return NS_OK;
 }
+
+#ifndef WINCE
 
 nsresult nsPluginNativeWindowWin::SubclassAndAssociateWindow()
 {
@@ -763,6 +774,7 @@ nsresult nsPluginNativeWindowWin::UndoSubclassAndAssociateWindow()
 
   return NS_OK;
 }
+#endif // WINCE
 
 nsresult PLUG_NewPluginNativeWindow(nsPluginNativeWindow ** aPluginNativeWindow)
 {

@@ -49,9 +49,6 @@
 #include "nsScriptLoader.h"
 #include "nsIJSContextStack.h"
 #include "nsIXULRuntime.h"
-#include "nsIScriptError.h"
-#include "nsIConsoleService.h"
-#include "nsIProtocolHandler.h"
 
 static PRBool
 IsChromeProcess()
@@ -446,8 +443,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
           JSObject* thisObject = JSVAL_TO_OBJECT(thisValue);
 
           if (!tac.enter(ctx, thisObject) ||
-              !JS_WrapValue(ctx, argv.jsval_addr()) ||
-              !JS_WrapValue(ctx, &funval))
+              !JS_WrapValue(ctx, argv.jsval_addr()))
             return NS_ERROR_UNEXPECTED;
 
           JS_CallFunctionValue(ctx, thisObject,
@@ -536,53 +532,6 @@ NS_NewGlobalMessageManager(nsIChromeFrameMessageManager** aResult)
   return CallQueryInterface(mm, aResult);
 }
 
-void
-ContentScriptErrorReporter(JSContext* aCx,
-                           const char* aMessage,
-                           JSErrorReport* aReport)
-{
-  nsresult rv;
-  nsCOMPtr<nsIScriptError> scriptError =
-      do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv);
-  if (NS_FAILED(rv)) {
-    return;
-  }
-  nsAutoString message, filename, line;
-  PRUint32 lineNumber, columnNumber, flags, errorNumber;
-
-  if (aReport) {
-    if (aReport->ucmessage) {
-      message.Assign(reinterpret_cast<const PRUnichar*>(aReport->ucmessage));
-    }
-    filename.AssignWithConversion(aReport->filename);
-    line.Assign(reinterpret_cast<const PRUnichar*>(aReport->uclinebuf));
-    lineNumber = aReport->lineno;
-    columnNumber = aReport->uctokenptr - aReport->uclinebuf;
-    flags = aReport->flags;
-    errorNumber = aReport->errorNumber;
-  } else {
-    lineNumber = columnNumber = errorNumber = 0;
-    flags = nsIScriptError::errorFlag | nsIScriptError::exceptionFlag;
-  }
-
-  if (message.IsEmpty()) {
-    message.AssignWithConversion(aMessage);
-  }
-
-  rv = scriptError->Init(message.get(), filename.get(), line.get(),
-                         lineNumber, columnNumber, flags,
-                         "Message manager content script");
-  if (NS_FAILED(rv)) {
-    return;
-  }
-
-  nsCOMPtr<nsIConsoleService> consoleService =
-      do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-  if (consoleService) {
-    (void) consoleService->LogMessage(scriptError);
-  }
-}
-
 nsDataHashtable<nsStringHashKey, nsFrameScriptExecutorJSObjectHolder*>*
   nsFrameScriptExecutor::sCachedScripts = nsnull;
 nsRefPtr<nsScriptCacheCleaner> nsFrameScriptExecutor::sScriptCacheCleaner;
@@ -666,7 +615,7 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
       JSObject* global = nsnull;
       mGlobal->GetJSObject(&global);
       if (global) {
-        (void) JS_ExecuteScript(mCx, global, holder->mObject, nsnull);
+        JS_ExecuteScript(mCx, global, holder->mObject, nsnull);
       }
     }
     JSContext* unused;
@@ -680,16 +629,6 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
   if (NS_FAILED(rv)) {
     return;
   }
-  
-  PRBool hasFlags;
-  rv = NS_URIChainHasFlags(uri,
-                           nsIProtocolHandler::URI_IS_LOCAL_RESOURCE,
-                           &hasFlags);
-  if (NS_FAILED(rv) || !hasFlags) {
-    NS_WARNING("Will not load a frame script!");
-    return;
-  }
-  
   nsCOMPtr<nsIChannel> channel;
   NS_NewChannel(getter_AddRefs(channel), uri);
   if (!channel) {
@@ -744,7 +683,7 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
                                   "Cached message manager script");
             sCachedScripts->Put(aURL, holder);
           }
-          (void) JS_ExecuteScript(mCx, global, scriptObj, nsnull);
+          JS_ExecuteScript(mCx, global, scriptObj, nsnull);
         }
         //XXX Argh, JSPrincipals are manually refcounted!
         JSPRINCIPALS_DROP(mCx, jsprin);

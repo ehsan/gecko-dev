@@ -405,15 +405,6 @@ nsLocation::GetHash(nsAString& aHash)
       aHash.Assign(PRUnichar('#'));
       aHash.Append(unicodeRef);
     }
-
-    if (aHash == mCachedHash) {
-      // Work around ShareThis stupidly polling location.hash every
-      // 5ms all the time by handing out the same exact string buffer
-      // we handed out last time.
-      aHash = mCachedHash;
-    } else {
-      mCachedHash = aHash;
-    }
   }
 
   return rv;

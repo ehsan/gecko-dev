@@ -96,12 +96,9 @@ static PRUint32 gGlyphExtentsSetupFallBackToTight = 0;
 
 gfxFontEntry::~gfxFontEntry() 
 {
-    delete mUserFontData;
-}
-
-PRBool gfxFontEntry::IsSymbolFont() 
-{
-    return mSymbolFont;
+    if (mUserFontData) {
+        delete mUserFontData;
+    }
 }
 
 PRBool gfxFontEntry::TestCharacterMap(PRUint32 aCh)

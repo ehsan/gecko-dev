@@ -71,6 +71,7 @@
 #include "nsCRT.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMDocumentRange.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsPIDOMEventTarget.h"
@@ -144,12 +145,12 @@ mozInlineSpellStatus::InitForEditorChange(
 {
   nsresult rv;
 
-  nsCOMPtr<nsIDOMDocument> doc;
-  rv = GetDocument(getter_AddRefs(doc));
+  nsCOMPtr<nsIDOMDocumentRange> docRange;
+  rv = GetDocumentRange(getter_AddRefs(docRange));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // save the anchor point as a range so we can find the current word later
-  rv = PositionToCollapsedRange(doc, aAnchorNode, aAnchorOffset,
+  rv = PositionToCollapsedRange(docRange, aAnchorNode, aAnchorOffset,
                                 getter_AddRefs(mAnchorRange));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -165,7 +166,7 @@ mozInlineSpellStatus::InitForEditorChange(
   mOp = eOpChange;
 
   // range to check
-  rv = doc->CreateRange(getter_AddRefs(mRange));
+  rv = docRange->CreateRange(getter_AddRefs(mRange));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // ...we need to put the start and end in the correct order
@@ -252,14 +253,14 @@ mozInlineSpellStatus::InitForNavigation(
     return NS_OK;
   }
 
-  nsCOMPtr<nsIDOMDocument> doc;
-  rv = GetDocument(getter_AddRefs(doc));
+  nsCOMPtr<nsIDOMDocumentRange> docRange;
+  rv = GetDocumentRange(getter_AddRefs(docRange));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = PositionToCollapsedRange(doc, aOldAnchorNode, aOldAnchorOffset,
+  rv = PositionToCollapsedRange(docRange, aOldAnchorNode, aOldAnchorOffset,
                                 getter_AddRefs(mOldNavigationAnchorRange));
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = PositionToCollapsedRange(doc, aNewAnchorNode, aNewAnchorOffset,
+  rv = PositionToCollapsedRange(docRange, aNewAnchorNode, aNewAnchorOffset,
                                 getter_AddRefs(mAnchorRange));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -440,16 +441,16 @@ mozInlineSpellStatus::FillNoCheckRangeFromAnchor(
                                    getter_AddRefs(mNoCheckRange));
 }
 
-// mozInlineSpellStatus::GetDocument
+// mozInlineSpellStatus::GetDocumentRange
 //
-//    Returns the nsIDOMDocument object for the document for the
+//    Returns the nsIDOMDocumentRange object for the document for the
 //    current spellchecker.
 
 nsresult
-mozInlineSpellStatus::GetDocument(nsIDOMDocument** aDocument)
+mozInlineSpellStatus::GetDocumentRange(nsIDOMDocumentRange** aDocRange)
 {
   nsresult rv;
-  *aDocument = nsnull;
+  *aDocRange = nsnull;
   if (! mSpellChecker->mEditor)
     return NS_ERROR_UNEXPECTED;
 
@@ -459,8 +460,11 @@ mozInlineSpellStatus::GetDocument(nsIDOMDocument** aDocument)
   nsCOMPtr<nsIDOMDocument> domDoc;
   rv = editor->GetDocument(getter_AddRefs(domDoc));
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(domDoc, NS_ERROR_NULL_POINTER);
-  domDoc.forget(aDocument);
+
+  nsCOMPtr<nsIDOMDocumentRange> docRange = do_QueryInterface(domDoc, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  docRange.swap(*aDocRange);
   return NS_OK;
 }
 
@@ -471,12 +475,12 @@ mozInlineSpellStatus::GetDocument(nsIDOMDocument** aDocument)
 //    updated as the DOM is changed.
 
 nsresult
-mozInlineSpellStatus::PositionToCollapsedRange(nsIDOMDocument* aDocument,
+mozInlineSpellStatus::PositionToCollapsedRange(nsIDOMDocumentRange* aDocRange,
     nsIDOMNode* aNode, PRInt32 aOffset, nsIDOMRange** aRange)
 {
   *aRange = nsnull;
   nsCOMPtr<nsIDOMRange> range;
-  nsresult rv = aDocument->CreateRange(getter_AddRefs(range));
+  nsresult rv = aDocRange->CreateRange(getter_AddRefs(range));
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = range->SetStart(aNode, aOffset);
@@ -1028,10 +1032,12 @@ mozInlineSpellChecker::MakeSpellCheckRange(
   nsCOMPtr<nsIDOMDocument> doc;
   rv = editor->GetDocument(getter_AddRefs(doc));
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
+
+  nsCOMPtr<nsIDOMDocumentRange> docrange = do_QueryInterface(doc);
+  NS_ENSURE_TRUE(docrange, NS_ERROR_FAILURE);
 
   nsCOMPtr<nsIDOMRange> range;
-  rv = doc->CreateRange(getter_AddRefs(range));
+  rv = docrange->CreateRange(getter_AddRefs(range));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // possibly use full range of the editor

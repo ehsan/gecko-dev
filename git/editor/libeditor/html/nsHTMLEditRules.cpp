@@ -40,6 +40,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/* build on macs with low memory */
+#if defined(XP_MAC) && defined(MOZ_MAC_LOWMEM)
+#pragma optimization_level 1
+#endif
+
 #include "nsHTMLEditRules.h"
 
 #include "nsEditor.h"
@@ -169,6 +174,19 @@ class nsEditableTextFunctor : public nsBoolDomIterFunctor
     nsHTMLEditor* mHTMLEditor;
 };
 
+
+/********************************************************
+ *  routine for making new rules instance
+ ********************************************************/
+
+nsresult
+NS_NewHTMLEditRules(nsIEditRules** aInstancePtrResult)
+{
+  nsHTMLEditRules * rules = new nsHTMLEditRules();
+  if (rules)
+    return rules->QueryInterface(NS_GET_IID(nsIEditRules), (void**) aInstancePtrResult);
+  return NS_ERROR_OUT_OF_MEMORY;
+}
 
 /********************************************************
  *  Constructor/Destructor 
@@ -412,7 +430,7 @@ nsHTMLEditRules::AfterEdit(PRInt32 action, nsIEditor::EDirection aDirection)
       nsresult res = mHTMLEditor->GetSelection(getter_AddRefs(selection));
       NS_ENSURE_SUCCESS(res, res);
       nsCOMPtr<nsISelectionPrivate> privateSelection(do_QueryInterface(selection));
-      nsRefPtr<nsFrameSelection> frameSelection;
+      nsCOMPtr<nsFrameSelection> frameSelection;
       privateSelection->GetFrameSelection(getter_AddRefs(frameSelection));
       if (frameSelection) {
         frameSelection->UndefineCaretBidiLevel();
@@ -8382,6 +8400,12 @@ nsHTMLEditRules::InsertMozBRIfNeeded(nsIDOMNode *aNode)
   }
   return res;
 }
+
+#ifdef XP_MAC
+#pragma mark -
+#pragma mark  nsIEditActionListener methods 
+#pragma mark -
+#endif
 
 NS_IMETHODIMP 
 nsHTMLEditRules::WillCreateNode(const nsAString& aTag, nsIDOMNode *aParent, PRInt32 aPosition)

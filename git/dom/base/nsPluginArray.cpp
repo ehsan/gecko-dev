@@ -48,7 +48,6 @@
 #include "nsDOMClassInfo.h"
 #include "nsPluginError.h"
 #include "nsContentUtils.h"
-#include "nsPluginHost.h"
 
 nsPluginArray::nsPluginArray(nsNavigator* navigator,
                              nsIDocShell *aDocShell)
@@ -86,9 +85,8 @@ NS_IMPL_RELEASE(nsPluginArray)
 NS_IMETHODIMP
 nsPluginArray::GetLength(PRUint32* aLength)
 {
-  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(mPluginHost.get());
-  if (AllowPlugins() && pluginHost)
-    return pluginHost->GetPluginCount(aLength);
+  if (AllowPlugins() && mPluginHost)
+    return mPluginHost->GetPluginCount(aLength);
   
   *aLength = 0;
   return NS_OK;
@@ -262,8 +260,7 @@ nsPluginArray::GetPlugins()
     if (!mPluginCount)
       return NS_OK;
 
-    nsPluginHost *pluginHost = static_cast<nsPluginHost*>(mPluginHost.get());
-    rv = pluginHost->GetPlugins(mPluginCount, mPluginArray);
+    rv = mPluginHost->GetPlugins(mPluginCount, mPluginArray);
     if (NS_SUCCEEDED(rv)) {
       // need to wrap each of these with a nsPluginElement, which
       // is scriptable.

@@ -41,6 +41,7 @@
 #define tracejit_Writer_h___
 
 #include "jsiter.h"
+#include "jsobj.h"
 #include "jsstr.h"
 #include "jstypedarray.h"
 #include "nanojit.h"
@@ -1216,7 +1217,13 @@ class Writer
                     "strChar");
     }
 
-    inline nj::LIns *getArgsLength(nj::LIns *args) const;
+    nj::LIns *getArgsLength(nj::LIns *args) const {
+        uint32 slot = JSObject::JSSLOT_ARGS_LENGTH;
+        nj::LIns *vaddr_ins = ldpObjSlots(args);
+        return name(lir->insLoad(nj::LIR_ldi, vaddr_ins, slot * sizeof(Value) + sPayloadOffset,
+                                 ACCSET_SLOTS),
+                    "argsLength");
+    }
 };
 
 }   /* namespace tjit */

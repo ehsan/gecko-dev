@@ -110,7 +110,6 @@ members = [
     'nsIDOMDocument.documentURI',
     'nsIDOMDocument.adoptNode',
     'nsIDOMDocument.defaultView',
-    'nsIDOMDocument.createNodeIterator',
     'nsIDOMElement.removeAttributeNS',
     'nsIDOMElement.removeAttribute',
     'nsIDOMElement.getAttribute',
@@ -390,6 +389,7 @@ members = [
     # dom/interfaces/threads - None.
 
     # dom/interfaces/traversal
+    'nsIDOMDocumentTraversal.createNodeIterator',
     'nsIDOMNodeIterator.nextNode',
 
     # dom/interfaces/xbl - None.
@@ -504,7 +504,6 @@ irregularFilenames = {
     'nsIWebGLRenderbuffer': 'nsIDOMWebGLRenderingContext',
     'nsIWebGLActiveInfo': 'nsIDOMWebGLRenderingContext',
     'nsIWebGLUniformLocation': 'nsIDOMWebGLRenderingContext',
-    'nsIWebGLExtension': 'nsIDOMWebGLRenderingContext',
 
     'nsIIndexedDatabaseUsageCallback': 'nsIIndexedDatabaseManager',
 

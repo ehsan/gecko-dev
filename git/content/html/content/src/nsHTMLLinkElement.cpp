@@ -389,12 +389,6 @@ already_AddRefed<nsIURI>
 nsHTMLLinkElement::GetStyleSheetURL(PRBool* aIsInline)
 {
   *aIsInline = PR_FALSE;
-  nsAutoString href;
-  GetAttr(kNameSpaceID_None, nsGkAtoms::href, href);
-  href.Trim(" \t\n\r\f"); // trim HTML5 whitespace
-  if (href.IsEmpty()) {
-    return nsnull;
-  }
   return Link::GetURI();
 }
 

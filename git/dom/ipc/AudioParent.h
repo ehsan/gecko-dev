@@ -62,9 +62,6 @@ class AudioParent : public PAudioParent, public nsITimerCallback
     RecvSetVolume(const float& aVolume);
 
     virtual bool
-    RecvMinWriteSample();
-
-    virtual bool
     RecvDrain();
 
     virtual bool
@@ -75,9 +72,6 @@ class AudioParent : public PAudioParent, public nsITimerCallback
 
     virtual bool
     RecvShutdown();
-
-    virtual bool
-    SendMinWriteSampleDone(PRInt32 minSamples);
 
     virtual bool
     SendDrainDone();

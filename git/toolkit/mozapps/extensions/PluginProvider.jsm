@@ -45,9 +45,6 @@ var EXPORTED_SYMBOLS = [];
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
-const URI_EXTENSION_STRINGS  = "chrome://mozapps/locale/extensions/extensions.properties";
-const STRING_TYPE_NAME       = "type.%ID%.name";
-
 ["LOG", "WARN", "ERROR"].forEach(function(aName) {
   this.__defineGetter__(aName, function() {
     Components.utils.import("resource://gre/modules/AddonLogging.jsm");
@@ -345,8 +342,4 @@ PluginWrapper.prototype = {
   }
 };
 
-AddonManagerPrivate.registerProvider(PluginProvider, [
-  new AddonManagerPrivate.AddonType("plugin", URI_EXTENSION_STRINGS,
-                                    STRING_TYPE_NAME,
-                                    AddonManager.VIEW_TYPE_LIST, 6000)
-]);
+AddonManagerPrivate.registerProvider(PluginProvider);

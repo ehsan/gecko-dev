@@ -80,6 +80,16 @@ static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
   };
 
 
+nsresult
+NS_NewTextEditRules(nsIEditRules** aInstancePtrResult)
+{
+  nsTextEditRules * rules = new nsTextEditRules();
+  if (rules)
+    return rules->QueryInterface(NS_GET_IID(nsIEditRules), (void**) aInstancePtrResult);
+  return NS_ERROR_OUT_OF_MEMORY;
+}
+
+
 /********************************************************
  *  Constructor/Destructor 
  ********************************************************/
@@ -244,7 +254,7 @@ nsTextEditRules::AfterEdit(PRInt32 action, nsIEditor::EDirection aDirection)
     if (action == nsEditor::kOpInsertText
         || action == nsEditor::kOpInsertIMEText) {
       nsCOMPtr<nsISelectionPrivate> privateSelection(do_QueryInterface(selection));
-      nsRefPtr<nsFrameSelection> frameSelection;
+      nsCOMPtr<nsFrameSelection> frameSelection;
       privateSelection->GetFrameSelection(getter_AddRefs(frameSelection));      
       if (frameSelection) {
         frameSelection->UndefineCaretBidiLevel();
@@ -627,9 +637,7 @@ nsTextEditRules::WillInsertText(PRInt32          aAction,
   nsresult res = TruncateInsertionIfNeeded(aSelection, inString, outString,
                                            aMaxLength, &truncated);
   NS_ENSURE_SUCCESS(res, res);
-  // If we're exceeding the maxlength when composing IME, we need to clean up
-  // the composing text, so we shouldn't return early.
-  if (truncated && outString->IsEmpty() && aAction != kInsertTextIME) {
+  if (truncated && outString->IsEmpty()) {
     *aCancel = PR_TRUE;
     return NS_OK;
   }

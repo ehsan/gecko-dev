@@ -206,10 +206,6 @@ abstract public class GeckoApp
                        new ViewGroup.LayoutParams(ViewGroup.LayoutParams.FILL_PARENT,
                                                   ViewGroup.LayoutParams.FILL_PARENT));
 
-        mConnectivityFilter = new IntentFilter();
-        mConnectivityFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
-        mConnectivityReceiver = new GeckoConnectivityReceiver();
-
         if (!checkAndSetLaunchState(LaunchState.PreLaunch,
                                     LaunchState.Launching))
             return;
@@ -259,6 +255,10 @@ abstract public class GeckoApp
                                    })
                 .show();
         }
+
+        mConnectivityFilter = new IntentFilter();
+        mConnectivityFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
+        mConnectivityReceiver = new GeckoConnectivityReceiver();
     }
 
     boolean IsNewInstall() {
@@ -516,10 +516,6 @@ abstract public class GeckoApp
             outFile.lastModified() == fileEntry.getTime() &&
             outFile.length() == fileEntry.getSize())
             return false;
-
-        surfaceView.mSplashStatusMsg =
-                    getResources().getString(R.string.splash_firstrun);
-        surfaceView.drawSplashScreen();
 
         if (!haveKilledZombies) {
             haveKilledZombies = true;

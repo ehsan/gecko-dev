@@ -3527,6 +3527,7 @@ nsTreeBodyFrame::PaintText(PRInt32              aRowIndex,
   NS_PRECONDITION(aColumn && aColumn->GetFrame(), "invalid column passed");
 
   PRBool isRTL = GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL;
+  nscoord rightEdge = aTextRect.XMost();
 
   // Now obtain the text for our cell.
   nsAutoString text;

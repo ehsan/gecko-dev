@@ -181,8 +181,6 @@ public:
   void SetTransactionIncomplete() { mTransactionIncomplete = true; }
 
   virtual PRBool IsCompositingCheap() { return PR_FALSE; }
-  virtual bool HasShadowManagerInternal() const { return false; }
-  bool HasShadowManager() const { return HasShadowManagerInternal(); }
 
 protected:
 #ifdef DEBUG
@@ -262,7 +260,6 @@ public:
 
   ShadowableLayer* Hold(Layer* aLayer);
 
-  bool HasShadowManager() const { return ShadowLayerForwarder::HasShadowManager(); }
   PLayersChild* GetShadowManager() const { return mShadowManager; }
 
   void SetShadowManager(PLayersChild* aShadowManager)
@@ -271,7 +268,6 @@ public:
   }
 
   virtual PRBool IsCompositingCheap();
-  virtual bool HasShadowManagerInternal() const { return HasShadowManager(); }
 
 private:
   /**

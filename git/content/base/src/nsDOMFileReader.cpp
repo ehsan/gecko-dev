@@ -51,6 +51,7 @@
 #include "nsIInputStream.h"
 #include "nsIMIMEService.h"
 #include "nsIPlatformCharset.h"
+#include "nsIUnicharInputStream.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsNetCID.h"
 #include "nsNetUtil.h"

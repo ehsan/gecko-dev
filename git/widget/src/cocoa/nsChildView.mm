@@ -69,7 +69,7 @@
 #include "nsGfxCIID.h"
 #include "nsIMenuRollup.h"
 #include "nsIDOMSimpleGestureEvent.h"
-#include "nsNPAPIPluginInstance.h"
+#include "nsIPluginInstance.h"
 #include "nsThemeConstants.h"
 
 #include "nsDragService.h"
@@ -322,14 +322,6 @@ ConvertGeckoRectToMacRect(const nsIntRect& aRect, Rect& outMacRect)
   outMacRect.top = aRect.y;
   outMacRect.right = aRect.x + aRect.width;
   outMacRect.bottom = aRect.y + aRect.height;
-}
-
-static inline void
-InitPluginEvent(nsPluginEvent &aEvent, NPCocoaEvent &aCocoaEvent)
-{
-  aEvent.time = PR_IntervalNow();
-  aEvent.pluginEvent = (void*)&aCocoaEvent;
-  aEvent.retargetToFocusedDocument = PR_FALSE;
 }
 
 // Flips a screen coordinate from a point in the cocoa coordinate system (bottom-left rect) to a point
@@ -717,8 +709,8 @@ void nsChildView::HidePlugin()
       [(ChildView*)mView pluginDrawingModel] == NPDrawingModelQuickDraw) {
     NPWindow* window;
     mPluginInstanceOwner->GetWindow(window);
-    nsRefPtr<nsNPAPIPluginInstance> instance;
-    mPluginInstanceOwner->GetInstance(getter_AddRefs(instance));
+    nsCOMPtr<nsIPluginInstance> instance;
+    mPluginInstanceOwner->GetInstance(*getter_AddRefs(instance));
     if (window && instance) {
        window->clipRect.top = 0;
        window->clipRect.left = 0;
@@ -1182,8 +1174,8 @@ void nsChildView::PaintQD()
   updateEvent.what = updateEvt;
   updateEvent.message = UInt32(window);
 
-  nsRefPtr<nsNPAPIPluginInstance> instance;
-  mPluginInstanceOwner->GetInstance(getter_AddRefs(instance));
+  nsCOMPtr<nsIPluginInstance> instance;
+  mPluginInstanceOwner->GetInstance(*getter_AddRefs(instance));
 
   instance->HandleEvent(&updateEvent, nsnull);
   EndDrawPlugin();
@@ -2343,12 +2335,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!mGeckoChild)
     return;
 
-  nsPluginEvent pluginEvent(PR_TRUE, NS_PLUGIN_FOCUS_EVENT, mGeckoChild);
+  nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
   NPCocoaEvent cocoaEvent;
   InitNPCocoaEvent(&cocoaEvent);
   cocoaEvent.type = NPCocoaEventWindowFocusChanged;
   cocoaEvent.data.focus.hasFocus = hasMain;
-  InitPluginEvent(pluginEvent, cocoaEvent);
+  pluginEvent.pluginEvent = &cocoaEvent;
   mGeckoChild->DispatchWindowEvent(pluginEvent);
 }
 
@@ -4685,9 +4677,10 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
     cocoaTextEvent.type = NPCocoaEventTextInput;
     cocoaTextEvent.data.text.text = (NPNSString*)text;
 
-    nsPluginEvent pluginEvent(PR_TRUE, NS_PLUGIN_INPUT_EVENT, mGeckoChild);
-    InitPluginEvent(pluginEvent, cocoaTextEvent);
-    mGeckoChild->DispatchWindowEvent(pluginEvent);
+    nsGUIEvent pluginTextEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
+    pluginTextEvent.time = PR_IntervalNow();
+    pluginTextEvent.pluginEvent = (void*)&cocoaTextEvent;
+    mGeckoChild->DispatchWindowEvent(pluginTextEvent);
 
     ::CFRelease(text);
     free(chars);
@@ -5206,10 +5199,11 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   InitNPCocoaEvent(&cocoaTextEvent);
   cocoaTextEvent.type = NPCocoaEventTextInput;
   cocoaTextEvent.data.text.text = (NPNSString*)string;
-
-  nsPluginEvent pluginEvent(PR_TRUE, NS_PLUGIN_INPUT_EVENT, mGeckoChild);
-  InitPluginEvent(pluginEvent, cocoaTextEvent);
-  mGeckoChild->DispatchWindowEvent(pluginEvent);
+  
+  nsGUIEvent pluginTextEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
+  pluginTextEvent.time = PR_IntervalNow();
+  pluginTextEvent.pluginEvent = (void*)&cocoaTextEvent;
+  mGeckoChild->DispatchWindowEvent(pluginTextEvent);
 }
 
 - (void)keyDown:(NSEvent*)theEvent
@@ -5239,10 +5233,10 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
       mPluginComplexTextInputRequested = NO;
 
       // Send key down event to the plugin.
-      nsPluginEvent pluginEvent(PR_TRUE, NS_PLUGIN_INPUT_EVENT, mGeckoChild);
+      nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
       NPCocoaEvent cocoaEvent;
       ConvertCocoaKeyEventToNPCocoaEvent(theEvent, cocoaEvent);
-      InitPluginEvent(pluginEvent, cocoaEvent);
+      pluginEvent.pluginEvent = &cocoaEvent;
       mGeckoChild->DispatchWindowEvent(pluginEvent);
       if (!mGeckoChild) {
         return;
@@ -5281,10 +5275,10 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
         mPluginComplexTextInputRequested = NO;
 
         // Send key down event to the plugin.
-        nsPluginEvent pluginEvent(PR_TRUE, NS_PLUGIN_INPUT_EVENT, mGeckoChild);
+        nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
         NPCocoaEvent cocoaEvent;
         ConvertCocoaKeyEventToNPCocoaEvent(theEvent, cocoaEvent);
-        InitPluginEvent(pluginEvent, cocoaEvent);
+        pluginEvent.pluginEvent = &cocoaEvent;
         mGeckoChild->DispatchWindowEvent(pluginEvent);
         if (!mGeckoChild) {
           return;
@@ -5607,12 +5601,12 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
     return NO;
 
   if (mPluginEventModel == NPEventModelCocoa) {
-    nsPluginEvent pluginEvent(PR_TRUE, NS_PLUGIN_FOCUS_EVENT, mGeckoChild);
+    nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
     NPCocoaEvent cocoaEvent;
     InitNPCocoaEvent(&cocoaEvent);
     cocoaEvent.type = NPCocoaEventFocusChanged;
     cocoaEvent.data.focus.hasFocus = getFocus;
-    InitPluginEvent(pluginEvent, cocoaEvent);
+    pluginEvent.pluginEvent = &cocoaEvent;
     mGeckoChild->DispatchWindowEvent(pluginEvent);
 
     if (getFocus)

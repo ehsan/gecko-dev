@@ -132,7 +132,8 @@ let WeaveGlue = {
       onAbort: function onAbort(aError) {
         self.jpake = null;
 
-        if (aError == "jpake.error.userabort" || container.hidden)
+        // No error means manual abort. Ignore.
+        if (!aError || container.hidden)
           return;
 
         // Automatically go to manual setup if we couldn't acquire a channel.
