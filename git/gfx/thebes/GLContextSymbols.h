@@ -64,7 +64,7 @@ struct GLContextSymbols
     }
 
     void Zero() {
-        memset(this, 0, sizeof(GLContextSymbols));
+        memset(this, 0, sizeof(this));
     }
 
     typedef void (GLAPIENTRY * PFNGLACTIVETEXTUREPROC) (GLenum texture);
