@@ -37,17 +37,18 @@ public:
   nsDOMPerformanceNavigationType GetType() const {
     return mNavigationType;
   }
-  inline DOMHighResTimeStamp GetNavigationStartHighRes() const {
-    return mNavigationStartHighRes;
-  }
+  uint16_t GetRedirectCount();
+
+  DOMTimeMilliSec GetRedirectStart();
+  DOMTimeMilliSec GetRedirectEnd();
   DOMTimeMilliSec GetNavigationStart() const {
-    return static_cast<int64_t>(GetNavigationStartHighRes());
-  }
-  mozilla::TimeStamp GetNavigationStartTimeStamp() const {
-    return mNavigationStartTimeStamp;
+    return mNavigationStart;
   }
   DOMTimeMilliSec GetUnloadEventStart();
   DOMTimeMilliSec GetUnloadEventEnd();
+  DOMTimeMilliSec GetFetchStart() const {
+    return mFetchStart;
+  }
   DOMTimeMilliSec GetDomLoading() const {
     return mDOMLoading;
   }
@@ -72,6 +73,7 @@ public:
 
   void NotifyNavigationStart();
   void NotifyFetchStart(nsIURI* aURI, nsDOMPerformanceNavigationType aNavigationType);
+  void NotifyRedirect(nsIURI* aOldURI, nsIURI* aNewURI);
   void NotifyBeforeUnload();
   void NotifyUnloadAccepted(nsIURI* aOldURI);
   void NotifyUnloadEventStart();
@@ -87,6 +89,7 @@ public:
   void NotifyDOMContentLoadedStart(nsIURI* aURI);
   void NotifyDOMContentLoadedEnd(nsIURI* aURI);
   DOMTimeMilliSec TimeStampToDOM(mozilla::TimeStamp aStamp) const;
+  DOMTimeMilliSec TimeStampToDOMOrFetchStart(mozilla::TimeStamp aStamp) const;
 
   inline DOMHighResTimeStamp TimeStampToDOMHighRes(mozilla::TimeStamp aStamp)
   {
@@ -99,15 +102,27 @@ private:
   ~nsDOMNavigationTiming();
 
   void Clear();
+  bool ReportRedirects();
 
   nsCOMPtr<nsIURI> mUnloadedURI;
   nsCOMPtr<nsIURI> mLoadedURI;
+  nsCOMArray<nsIURI> mRedirects;
+
+  typedef enum { NOT_CHECKED,
+                 CHECK_PASSED,
+                 NO_REDIRECTS,
+                 CHECK_FAILED} RedirectCheckState;
+  RedirectCheckState mRedirectCheck;
+  int16_t mRedirectCount;
 
   nsDOMPerformanceNavigationType mNavigationType;
-  DOMHighResTimeStamp mNavigationStartHighRes;
+  DOMTimeMilliSec mNavigationStart;
   mozilla::TimeStamp mNavigationStartTimeStamp;
   DOMTimeMilliSec DurationFromStart();
 
+  DOMTimeMilliSec mFetchStart;
+  DOMTimeMilliSec mRedirectStart;
+  DOMTimeMilliSec mRedirectEnd;
   DOMTimeMilliSec mBeforeUnloadStart;
   DOMTimeMilliSec mUnloadStart;
   DOMTimeMilliSec mUnloadEnd;

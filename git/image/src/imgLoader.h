@@ -255,7 +255,6 @@ public:
                      nsLoadFlags aLoadFlags,
                      nsISupports *aCacheKey,
                      nsIChannelPolicy *aPolicy,
-                     const nsAString& initiatorType,
                      imgRequestProxy **_retval);
   nsresult LoadImageWithChannel(nsIChannel *channel,
                                 imgINotificationObserver *aObserver,

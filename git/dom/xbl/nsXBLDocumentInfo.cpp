@@ -7,6 +7,7 @@
 #include "mozilla/DebugOnly.h"
 
 #include "nsXBLDocumentInfo.h"
+#include "nsHashtable.h"
 #include "nsIDocument.h"
 #include "nsXBLPrototypeBinding.h"
 #include "nsIScriptObjectPrincipal.h"

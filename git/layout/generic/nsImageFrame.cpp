@@ -1842,7 +1842,6 @@ nsImageFrame::LoadIcon(const nsAString& aSpec,
                        loadFlags,
                        nullptr,
                        nullptr,      /* channel policy not needed */
-                       EmptyString(),
                        aRequest);
 }
 

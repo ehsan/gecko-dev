@@ -462,15 +462,13 @@ mozilla::Mutex* ThreadProfile::GetMutex()
 
 void ThreadProfile::DuplicateLastSample() {
   // Scan the whole buffer (even unflushed parts)
-  // Adding mEntrySize makes the result of the modulus positive
-  // We search backwards from mWritePos-1 to mReadPos
-  for (int readPos  = (mWritePos + mEntrySize - 1) % mEntrySize;
-           readPos !=  (mReadPos + mEntrySize - 1) % mEntrySize;
-           readPos  =   (readPos + mEntrySize - 1) % mEntrySize) {
+  // we add mEntrySize to mReadPos to make sure that when
+  // we wrap around the result is mEntrySize-1 and not -1
+  for (int readPos = mWritePos; readPos != (mReadPos + mEntrySize - 1) % mEntrySize; readPos = (readPos + mEntrySize - 1) % mEntrySize) {
+    // Found the start of the last entry at position i
     if (mEntries[readPos].mTagName == 's') {
-      // Found the start of the last entry at position readPos
       int copyEndIdx = mWritePos;
-      // Go through the whole entry and duplicate it
+      // Go through the whole entry and duplicate it using a simple state machine
       for (;readPos != copyEndIdx; readPos = (readPos + 1) % mEntrySize) {
         switch (mEntries[readPos].mTagName) {
           // Copy with new time
@@ -481,7 +479,7 @@ void ThreadProfile::DuplicateLastSample() {
           case 'm':
             break;
           // Copy anything else we don't know about
-          // L, B, S, c, s, d, l, f, h, r, t, p
+          // L, B, S, m, c, s, d, l, f, h, r, t, p
           default:
             addTag(mEntries[readPos]);
             break;
