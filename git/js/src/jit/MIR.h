@@ -6572,18 +6572,16 @@ class MGetPropertyCache
     CompilerRootPropertyName name_;
     bool idempotent_;
     bool allowGetters_;
-    bool monitoredResult_;
 
     CacheLocationList location_;
 
     InlinePropertyTable *inlinePropertyTable_;
 
-    MGetPropertyCache(MDefinition *obj, PropertyName *name, bool monitoredResult)
+    MGetPropertyCache(MDefinition *obj, PropertyName *name)
       : MUnaryInstruction(obj),
         name_(name),
         idempotent_(false),
         allowGetters_(false),
-        monitoredResult_(monitoredResult),
         location_(),
         inlinePropertyTable_(nullptr)
     {
@@ -6598,9 +6596,8 @@ class MGetPropertyCache
   public:
     INSTRUCTION_HEADER(GetPropertyCache)
 
-    static MGetPropertyCache *New(TempAllocator &alloc, MDefinition *obj, PropertyName *name,
-                                  bool monitoredResult) {
-        return new(alloc) MGetPropertyCache(obj, name, monitoredResult);
+    static MGetPropertyCache *New(TempAllocator &alloc, MDefinition *obj, PropertyName *name) {
+        return new(alloc) MGetPropertyCache(obj, name);
     }
 
     InlinePropertyTable *initInlinePropertyTable(TempAllocator &alloc, jsbytecode *pc) {
@@ -6632,9 +6629,6 @@ class MGetPropertyCache
     }
     bool allowGetters() const {
         return allowGetters_;
-    }
-    bool monitoredResult() const {
-        return monitoredResult_;
     }
     void setAllowGetters() {
         allowGetters_ = true;

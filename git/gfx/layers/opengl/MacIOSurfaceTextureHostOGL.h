@@ -44,7 +44,9 @@ public:
   // MacIOSurfaceTextureSourceOGL doesn't own any gl texture
   virtual void DeallocateDeviceData() {}
 
-  virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
+  void SetCompositor(CompositorOGL* aCompositor) {
+    mCompositor = aCompositor;
+  }
 
   gl::GLContext* gl() const;
 

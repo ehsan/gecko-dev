@@ -14,12 +14,10 @@ function f() {
     for (var len of [ 3, 30, 300, 3000, 30000 ]) {
       var arr = ctor(len);
       for (var i = 0; i < arr.length; i++)
-        assertEq(arr[i], 0, "index " + i + " of " + ctor.name + " len " + len);
+        assertEq(arr[i], 0);
     }
   }
 }
 
 f();
-f();
-gc()
 f();

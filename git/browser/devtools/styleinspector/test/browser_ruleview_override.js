@@ -20,35 +20,34 @@ function simpleOverride(aInspector, aRuleView)
 
   let styleNode = addStyle(doc, style);
   doc.body.innerHTML = '<div id="testid" class="testclass">Styled Node</div>';
-  inspector.once("markupmutation", () => {
-    inspector.selection.setNode(doc.getElementById("testid"));
-    inspector.once("inspector-updated", () => {
-      let elementStyle = view._elementStyle;
 
-      let idRule = elementStyle.rules[1];
-      let idProp = idRule.textProps[0];
-      is(idProp.name, "background-color", "First ID prop should be background-color");
-      ok(!idProp.overridden, "ID prop should not be overridden.");
+  inspector.selection.setNode(doc.getElementById("testid"));
+  inspector.once("inspector-updated", () => {
+    let elementStyle = view._elementStyle;
 
-      let classRule = elementStyle.rules[2];
-      let classProp = classRule.textProps[0];
-      is(classProp.name, "background-color", "First class prop should be background-color");
-      ok(classProp.overridden, "Class property should be overridden.");
+    let idRule = elementStyle.rules[1];
+    let idProp = idRule.textProps[0];
+    is(idProp.name, "background-color", "First ID prop should be background-color");
+    ok(!idProp.overridden, "ID prop should not be overridden.");
 
-      // Override background-color by changing the element style.
-      let elementRule = elementStyle.rules[0];
-      elementRule.createProperty("background-color", "purple", "");
-      promiseDone(elementRule._applyingModifications.then(() => {
-        let elementProp = elementRule.textProps[0];
-        is(classProp.name, "background-color", "First element prop should now be background-color");
-        ok(!elementProp.overridden, "Element style property should not be overridden");
-        ok(idProp.overridden, "ID property should be overridden");
-        ok(classProp.overridden, "Class property should be overridden");
+    let classRule = elementStyle.rules[2];
+    let classProp = classRule.textProps[0];
+    is(classProp.name, "background-color", "First class prop should be background-color");
+    ok(classProp.overridden, "Class property should be overridden.");
 
-        styleNode.parentNode.removeChild(styleNode);
-        partialOverride();
-      }));
-    });
+    // Override background-color by changing the element style.
+    let elementRule = elementStyle.rules[0];
+    elementRule.createProperty("background-color", "purple", "");
+    promiseDone(elementRule._applyingModifications.then(() => {
+      let elementProp = elementRule.textProps[0];
+      is(classProp.name, "background-color", "First element prop should now be background-color");
+      ok(!elementProp.overridden, "Element style property should not be overridden");
+      ok(idProp.overridden, "ID property should be overridden");
+      ok(classProp.overridden, "Class property should be overridden");
+
+      styleNode.parentNode.removeChild(styleNode);
+      partialOverride();
+    }));
   });
 }
 
@@ -66,26 +65,25 @@ function partialOverride()
 
   let styleNode = addStyle(doc, style);
   doc.body.innerHTML = '<div id="testid" class="testclass">Styled Node</div>';
-  inspector.once("markupmutation", () => {
-    inspector.selection.setNode(doc.getElementById("testid"));
-    inspector.once("inspector-updated", () => {
-      let elementStyle = view._elementStyle;
 
-      let classRule = elementStyle.rules[2];
-      let classProp = classRule.textProps[0];
-      ok(!classProp.overridden, "Class prop shouldn't be overridden, some props are still being used.");
-      for (let computed of classProp.computed) {
-        if (computed.name.indexOf("margin-left") == 0) {
-          ok(computed.overridden, "margin-left props should be overridden.");
-        } else {
-          ok(!computed.overridden, "Non-margin-left props should not be overridden.");
-        }
+  inspector.selection.setNode(doc.getElementById("testid"));
+  inspector.once("inspector-updated", () => {
+    let elementStyle = view._elementStyle;
+
+    let classRule = elementStyle.rules[2];
+    let classProp = classRule.textProps[0];
+    ok(!classProp.overridden, "Class prop shouldn't be overridden, some props are still being used.");
+    for (let computed of classProp.computed) {
+      if (computed.name.indexOf("margin-left") == 0) {
+        ok(computed.overridden, "margin-left props should be overridden.");
+      } else {
+        ok(!computed.overridden, "Non-margin-left props should not be overridden.");
       }
+    }
 
-      styleNode.parentNode.removeChild(styleNode);
+    styleNode.parentNode.removeChild(styleNode);
 
-      importantOverride();
-    });
+    importantOverride();
   });
 }
 
@@ -102,30 +100,29 @@ function importantOverride()
     '}';
   let styleNode = addStyle(doc, style);
   doc.body.innerHTML = '<div id="testid" class="testclass">Styled Node</div>';
-  inspector.once("markupmutation", () => {
-    inspector.selection.setNode(doc.getElementById("testid"));
-    inspector.once("inspector-updated", () => {
-      let elementStyle = view._elementStyle;
 
-      let idRule = elementStyle.rules[1];
-      let idProp = idRule.textProps[0];
-      ok(idProp.overridden, "Not-important rule should be overridden.");
+  inspector.selection.setNode(doc.getElementById("testid"));
+  inspector.once("inspector-updated", () => {
+    let elementStyle = view._elementStyle;
 
-      let classRule = elementStyle.rules[2];
-      let classProp = classRule.textProps[0];
-      ok(!classProp.overridden, "Important rule should not be overridden.");
+    let idRule = elementStyle.rules[1];
+    let idProp = idRule.textProps[0];
+    ok(idProp.overridden, "Not-important rule should be overridden.");
 
-      styleNode.parentNode.removeChild(styleNode);
+    let classRule = elementStyle.rules[2];
+    let classProp = classRule.textProps[0];
+    ok(!classProp.overridden, "Important rule should not be overridden.");
 
-      let elementRule = elementStyle.rules[0];
-      let elementProp = elementRule.createProperty("background-color", "purple", "important");
-      promiseDone(elementRule._applyingModifications.then(() => {
-        ok(classProp.overridden, "New important prop should override class property.");
-        ok(!elementProp.overridden, "New important prop should not be overriden.");
+    styleNode.parentNode.removeChild(styleNode);
 
-        disableOverride();
-      }));
-    });
+    let elementRule = elementStyle.rules[0];
+    let elementProp = elementRule.createProperty("background-color", "purple", "important");
+    promiseDone(elementRule._applyingModifications.then(() => {
+      ok(classProp.overridden, "New important prop should override class property.");
+      ok(!elementProp.overridden, "New important prop should not be overriden.");
+
+      disableOverride();
+    }));
   });
 }
 
@@ -140,24 +137,23 @@ function disableOverride()
     '}';
   let styleNode = addStyle(doc, style);
   doc.body.innerHTML = '<div id="testid" class="testclass">Styled Node</div>';
-  inspector.once("markupmutation", () => {
-    inspector.selection.setNode(doc.getElementById("testid"));
-    inspector.once("inspector-updated", () => {
-      let elementStyle = view._elementStyle;
 
-      let idRule = elementStyle.rules[1];
-      let idProp = idRule.textProps[0];
-      idProp.setEnabled(false);
-      promiseDone(idRule._applyingModifications.then(() => {
-        let classRule = elementStyle.rules[2];
-        let classProp = classRule.textProps[0];
-        ok(!classProp.overridden, "Class prop should not be overridden after id prop was disabled.");
+  inspector.selection.setNode(doc.getElementById("testid"));
+  inspector.once("inspector-updated", () => {
+    let elementStyle = view._elementStyle;
 
-        styleNode.parentNode.removeChild(styleNode);
+    let idRule = elementStyle.rules[1];
+    let idProp = idRule.textProps[0];
+    idProp.setEnabled(false);
+    promiseDone(idRule._applyingModifications.then(() => {
+      let classRule = elementStyle.rules[2];
+      let classProp = classRule.textProps[0];
+      ok(!classProp.overridden, "Class prop should not be overridden after id prop was disabled.");
 
-        finishTest();
-      }));
-    });
+      styleNode.parentNode.removeChild(styleNode);
+
+      finishTest();
+    }));
   });
 }
 

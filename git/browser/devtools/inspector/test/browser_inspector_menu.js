@@ -103,7 +103,7 @@ function test() {
     let deleteNode = inspector.panelDoc.getElementById("node-menu-delete");
     ok(deleteNode, "the popup menu has a delete menu item");
 
-    inspector.once("inspector-updated", deleteTest);
+    inspector.once("markupmutation", deleteTest);
 
     let commandEvent = document.createEvent("XULCommandEvent");
     commandEvent.initCommandEvent("command", true, true, window, 0, false, false,
@@ -120,15 +120,12 @@ function test() {
 
   function deleteRootNode() {
     inspector.selection.setNode(doc.documentElement);
-
-    inspector.once("inspector-updated", () => {
-      let deleteNode = inspector.panelDoc.getElementById("node-menu-delete");
-      let commandEvent = inspector.panelDoc.createEvent("XULCommandEvent");
-      commandEvent.initCommandEvent("command", true, true, window, 0, false, false,
-                                    false, false, null);
-      deleteNode.dispatchEvent(commandEvent);
-      executeSoon(isRootStillAlive);
-    });
+    let deleteNode = inspector.panelDoc.getElementById("node-menu-delete");
+    let commandEvent = inspector.panelDoc.createEvent("XULCommandEvent");
+    commandEvent.initCommandEvent("command", true, true, window, 0, false, false,
+                                  false, false, null);
+    deleteNode.dispatchEvent(commandEvent);
+    executeSoon(isRootStillAlive);
   }
 
   function isRootStillAlive() {

@@ -1,7 +1,8 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-function test() {
+function test()
+{
   waitForExplicitFinish();
   ignoreAllUncaughtExceptions();
 
@@ -22,7 +23,8 @@ function test() {
 
   content.location = "data:text/html," + encodeURIComponent(html);
 
-  function setupInfobarTest() {
+  function setupInfobarTest()
+  {
     nodes = [
       {node: doc.querySelector("#top"), position: "bottom", tag: "DIV", id: "#top", classes: ".class1.class2"},
       {node: doc.querySelector("#vertical"), position: "overlap", tag: "DIV", id: "#vertical", classes: ""},
@@ -38,25 +40,18 @@ function test() {
     openInspector(runTests);
   }
 
-  function mouseOverContainerToShowHighlighter(node, cb) {
-    let container = getContainerForRawNode(inspector.markup, node);
-    EventUtils.synthesizeMouse(container.tagLine, 2, 2, {type: "mousemove"},
-      inspector.markup.doc.defaultView);
-    executeSoon(cb);
-  }
-
-  function runTests(aInspector) {
+  function runTests(aInspector)
+  {
     inspector = aInspector;
-    inspector.selection.setNode(content.document.querySelector("body"));
-    inspector.once("inspector-updated", () => {
-      cursor = 0;
-      executeSoon(function() {
-        mouseOverContainerToShowHighlighter(nodes[0].node, nodeSelected);
-      });
+    cursor = 0;
+    executeSoon(function() {
+      inspector.selection.setNode(nodes[0].node, "");
+      nodeSelected();
     });
   }
 
-  function nodeSelected() {
+  function nodeSelected()
+  {
     executeSoon(function() {
       performTest();
       cursor++;
@@ -64,16 +59,18 @@ function test() {
         finishUp();
       } else {
         let node = nodes[cursor].node;
-        mouseOverContainerToShowHighlighter(node, nodeSelected);
+        inspector.selection.setNode(node, "");
+        nodeSelected();
       }
     });
   }
 
-  function performTest() {
+  function performTest()
+  {
     let browser = gBrowser.selectedBrowser;
     let stack = browser.parentNode;
 
-    let container = stack.querySelector(".highlighter-nodeinfobar-positioner");
+    let container = stack.querySelector(".highlighter-nodeinfobar-container");
     is(container.getAttribute("position"), nodes[cursor].position, "node " + cursor + ": position matches.");
 
     let tagNameLabel = stack.querySelector(".highlighter-nodeinfobar-tagname");
@@ -92,3 +89,4 @@ function test() {
     finish();
   }
 }
+

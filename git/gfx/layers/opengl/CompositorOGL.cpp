@@ -845,6 +845,8 @@ CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
                                  LOCAL_GL_ONE, LOCAL_GL_ONE);
   mGLContext->fEnable(LOCAL_GL_BLEND);
 
+  mGLContext->fEnable(LOCAL_GL_SCISSOR_TEST);
+
   if (aClipRectOut && !aClipRectIn) {
     aClipRectOut->SetRect(0, 0, width, height);
   }
@@ -1096,8 +1098,6 @@ CompositorOGL::DrawQuadInternal(const Rect& aRect,
   }
   IntRect intClipRect;
   clipRect.ToIntRect(&intClipRect);
-
-  ScopedGLState scopedScissorTestState(mGLContext, LOCAL_GL_SCISSOR_TEST, true);
   ScopedScissorRect autoScissor(mGLContext,
                                 intClipRect.x,
                                 FlipY(intClipRect.y + intClipRect.height),

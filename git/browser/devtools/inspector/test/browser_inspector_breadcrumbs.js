@@ -57,10 +57,7 @@ function test()
 
     if (cursor >= nodes.length) {
       inspector.off("breadcrumbs-updated", nodeSelected);
-      // breadcrumbs-updated is an event that is fired before the rest of the
-      // inspector is updated, so there'll be hanging connections if we finish
-      // up before waiting for everything to end.
-      inspector.once("inspector-updated", finishUp);
+      finishUp();
     } else {
       let node = nodes[cursor].node;
       inspector.selection.setNode(node);

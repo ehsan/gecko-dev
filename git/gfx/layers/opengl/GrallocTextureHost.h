@@ -51,7 +51,7 @@ public:
 
   gl::GLContext* gl() const;
 
-  virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
+  void SetCompositor(CompositorOGL* aCompositor);
 
   void ForgetBuffer()
   {
