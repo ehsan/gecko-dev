@@ -573,9 +573,9 @@ public:
   // XPCOM GetValue() is OK
   void SetValue(const nsAString& aValue, ErrorResult& aRv);
 
-  Nullable<Date> GetValueAsDate(ErrorResult& aRv);
+  JS::Value GetValueAsDate(JSContext* aCx, ErrorResult& aRv);
 
-  void SetValueAsDate(Nullable<Date>, ErrorResult& aRv);
+  void SetValueAsDate(JSContext* aCx, JS::Value aValue, ErrorResult& aRv);
 
   double ValueAsNumber() const
   {

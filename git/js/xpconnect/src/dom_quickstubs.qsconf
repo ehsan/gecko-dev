@@ -100,6 +100,10 @@ members = [
     'nsIBoxObject.width',
     'nsIBoxObject.height',
 
+    # Audio
+    'nsIDOMNotifyAudioAvailableEvent.frameBuffer',
+    'nsIDOMNotifyAudioAvailableEvent.time',
+
     # dom/indexedDB
     'nsIIDBCursor.*',
     'nsIIDBCursorWithValue.*',

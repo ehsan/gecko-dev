@@ -221,7 +221,7 @@ float Axis::GetExcess() {
   }
 }
 
-Axis::Overscroll Axis::DisplacementWillOverscroll(float aDisplacement) {
+Axis::Overscroll Axis::DisplacementWillOverscroll(int32_t aDisplacement) {
   // If the current pan plus a displacement takes the window to the left of or
   // above the current page rect.
   bool minus = GetOrigin() + aDisplacement < GetPageStart();
@@ -240,7 +240,7 @@ Axis::Overscroll Axis::DisplacementWillOverscroll(float aDisplacement) {
   return OVERSCROLL_NONE;
 }
 
-float Axis::DisplacementWillOverscrollAmount(float aDisplacement) {
+float Axis::DisplacementWillOverscrollAmount(int32_t aDisplacement) {
   switch (DisplacementWillOverscroll(aDisplacement)) {
   case OVERSCROLL_MINUS: return (GetOrigin() + aDisplacement) - GetPageStart();
   case OVERSCROLL_PLUS: return (GetCompositionEnd() + aDisplacement) - GetPageEnd();
