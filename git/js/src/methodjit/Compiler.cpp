@@ -114,7 +114,7 @@ mjit::Compiler::Compiler(JSContext *cx, StackFrame *fp)
     jumpTables(CompilerAllocPolicy(cx, *thisFromCtor())),
     jumpTableOffsets(CompilerAllocPolicy(cx, *thisFromCtor())),
     stubcc(cx, *thisFromCtor(), frame, script),
-    debugMode_(cx->compartment->debugMode),
+    debugMode_(cx->compartment->debugMode()),
 #if defined JS_TRACER
     addTraceHints(cx->traceJitEnabled),
 #endif
@@ -2013,7 +2013,7 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_DEBUGGER)
             prepareStubCall(Uses(0));
             masm.move(ImmPtr(PC), Registers::ArgReg1);
-            INLINE_STUBCALL(stubs::Debugger);
+            INLINE_STUBCALL(stubs::DebuggerStatement);
           END_CASE(JSOP_DEBUGGER)
 
           BEGIN_CASE(JSOP_UNBRAND)

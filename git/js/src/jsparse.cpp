@@ -906,7 +906,7 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     bool inDirectivePrologue;
 
     JS_ASSERT(!(tcflags & ~(TCF_COMPILE_N_GO | TCF_NO_SCRIPT_RVAL | TCF_NEED_MUTABLE_SCRIPT |
-                            TCF_COMPILE_FOR_EVAL)));
+                            TCF_COMPILE_FOR_EVAL | TCF_NEED_SCRIPT_OBJECT)));
 
     /*
      * The scripted callerFrame can only be given for compile-and-go scripts
@@ -958,13 +958,10 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
         tokenStream.setStrictMode();
     }
 
-    /*
-     * If funbox is non-null after we create the new script, callerFrame->fun
-     * was saved in the 0th object table entry.
-     */
-    JSObjectBox *funbox;
-    funbox = NULL;
-
+#ifdef DEBUG
+    bool savedCallerFun;
+    savedCallerFun = false;
+#endif
     if (tcflags & TCF_COMPILE_N_GO) {
         if (source) {
             /*
@@ -983,12 +980,15 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
              * function captured in case it refers to an upvar, and someone
              * wishes to decompile it while it's running.
              */
-            funbox = parser.newObjectBox(FUN_OBJECT(callerFrame->fun()));
+            JSObjectBox *funbox = parser.newObjectBox(FUN_OBJECT(callerFrame->fun()));
             if (!funbox)
                 goto out;
             funbox->emitLink = cg.objectList.lastbox;
             cg.objectList.lastbox = funbox;
             cg.objectList.length++;
+#ifdef DEBUG
+            savedCallerFun = true;
+#endif
         }
     }
 
@@ -1111,8 +1111,7 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     if (!script)
         goto out;
 
-    if (funbox)
-        script->savedCallerFun = true;
+    JS_ASSERT(script->savedCallerFun == savedCallerFun);
 
     {
         AutoShapeRooter shapeRoot(cx, script->bindings.lastShape());
@@ -1130,10 +1129,9 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
     /* Fall through. */
 
   late_error:
-    if (script) {
+    if (script && !script->u.object)
         js_DestroyScript(cx, script);
-        script = NULL;
-    }
+    script = NULL;
     goto out;
 }
 

@@ -62,6 +62,7 @@
 #include "jscompartment.h"
 #include "jscntxt.h"
 #include "jsversion.h"
+#include "jsdbg.h"
 #include "jsdbgapi.h"
 #include "jsexn.h"
 #include "jsfun.h"
@@ -1833,7 +1834,6 @@ MarkRuntime(JSTracer *trc)
         gc_lock_traversal(r.front(), trc);
 
     js_TraceAtomState(trc);
-    js_MarkTraps(trc);
 
     JSContext *iter = NULL;
     while (JSContext *acx = js_ContextIterator(rt, JS_TRUE, &iter))
@@ -1849,7 +1849,7 @@ MarkRuntime(JSTracer *trc)
         i.threadData()->mark(trc);
 
     /*
-     * We mark extra roots at the last thing so it can use use additional
+     * We mark extra roots at the end so that the hook can use additional
      * colors to implement cycle collection.
      */
     if (rt->gcExtraRootsTraceOp)
@@ -2195,9 +2195,7 @@ SweepCompartments(JSContext *cx, JSGCInvocationKind gckind)
     while (read < end) {
         JSCompartment *compartment = *read++;
 
-        if (!compartment->hold &&
-            (compartment->arenaListsAreEmpty() || gckind == GC_LAST_CONTEXT))
-        {
+        if (compartment->isAboutToBeCollected(gckind)) {
             compartment->freeLists.checkEmpty();
             if (callback)
                 JS_ALWAYS_TRUE(callback(cx, compartment, JSCOMPARTMENT_DESTROY));
@@ -2281,20 +2279,21 @@ MarkAndSweep(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind GCTIM
     if (comp) {
         for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
             (*c)->markCrossCompartmentWrappers(&gcmarker);
+        Debugger::markCrossCompartmentDebuggerObjectReferents(&gcmarker);
     } else {
         js_MarkScriptFilenames(rt);
     }
 
     MarkRuntime(&gcmarker);
-
     gcmarker.drainMarkStack();
 
     /*
      * Mark weak roots.
      */
-    while (true) {
-        if (!js_TraceWatchPoints(&gcmarker) && !WeakMapBase::markAllIteratively(&gcmarker))
-            break;
+    while (js_TraceWatchPoints(&gcmarker) ||
+           WeakMapBase::markAllIteratively(&gcmarker) ||
+           Debugger::mark(&gcmarker, gckind))
+    {
         gcmarker.drainMarkStack();
     }
 
@@ -2351,6 +2350,8 @@ MarkAndSweep(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind GCTIM
         comp->finalizeShapeArenaLists(cx);
         GCTIMESTAMP(sweepShapeEnd);
     } else {
+        Debugger::sweepAll(cx);
+
         SweepCrossCompartmentWrappers(cx);
         for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); c++)
             (*c)->finalizeObjectArenaLists(cx);
@@ -2744,6 +2745,7 @@ class AutoCopyFreeListToArenas {
 void
 TraceRuntime(JSTracer *trc)
 {
+    JS_ASSERT(!IS_GC_MARKING_TRACER(trc));
     LeaveTrace(trc->context);
 
 #ifdef JS_THREADSAFE

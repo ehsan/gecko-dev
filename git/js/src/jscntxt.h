@@ -503,7 +503,7 @@ struct JSRuntime {
     /*
      * Right now, we only support runtime-wide debugging.
      */
-    JSBool              debugMode;
+    bool                debugMode;
 
 #ifdef JS_TRACER
     /* True if any debug hooks not supported by the JIT are enabled. */
@@ -514,8 +514,13 @@ struct JSRuntime {
 #endif
 
     /* More debugging state, see jsdbgapi.c. */
-    JSCList             trapList;
     JSCList             watchPointList;
+
+    /*
+     * Linked list of all js::Debugger objects. This may be accessed by the GC
+     * thread, if any, or a thread that is in a request and holds gcLock.
+     */
+    JSCList             debuggerList;
 
     /* Client opaque pointers */
     void                *data;
@@ -540,8 +545,8 @@ struct JSRuntime {
     PRCondVar           *stateChange;
 
     /*
-     * Lock serializing trapList and watchPointList accesses, and count of all
-     * mutations to trapList and watchPointList made by debugger threads.  To
+     * Lock serializing watchPointList accesses, and count of all
+     * mutations to watchPointList made by debugger threads.  To
      * keep the code simple, we define debuggerMutations for the thread-unsafe
      * case too.
      */

@@ -859,6 +859,18 @@ NonNullObject(JSContext *cx, const Value &v)
     return &v.toObject();
 }
 
+const char *
+InformalValueTypeName(const Value &v)
+{
+    return v.isObject() ? v.toObject().getClass()->name :
+           v.isString() ? "string" :
+           v.isNumber() ? "number" :
+           v.isBoolean() ? "boolean" :
+           v.isNull() ? "null" :
+           v.isUndefined() ? "undefined" :
+           "value";
+}
+
 }
 
 /* ES5 15.2.4.2.  Note steps 1 and 2 are errata. */
@@ -987,7 +999,7 @@ EvalCacheLookup(JSContext *cx, JSLinearString *str, StackFrame *caller, uintN st
              * Get the prior (cache-filling) eval's saved caller function.
              * See Compiler::compileScript in jsparse.cpp.
              */
-            JSFunction *fun = script->getFunction(0);
+            JSFunction *fun = script->getCallerFunction();
 
             if (fun == caller->fun()) {
                 /*
@@ -3742,7 +3754,8 @@ DefineConstructorAndPrototype(JSContext *cx, JSObject *obj, JSProtoKey key, JSAt
                               JSObject *protoProto, Class *clasp,
                               Native constructor, uintN nargs,
                               JSPropertySpec *ps, JSFunctionSpec *fs,
-                              JSPropertySpec *static_ps, JSFunctionSpec *static_fs)
+                              JSPropertySpec *static_ps, JSFunctionSpec *static_fs,
+                              JSObject **ctorp)
 {
     /*
      * Create a prototype object for this class.
@@ -3881,6 +3894,8 @@ DefineConstructorAndPrototype(JSContext *cx, JSObject *obj, JSProtoKey key, JSAt
     if (key != JSProto_Null && !js_SetClassObject(cx, obj, key, ctor, proto))
         goto bad;
 
+    if (ctorp)
+        *ctorp = ctor;
     return proto;
 
 bad:
@@ -3928,7 +3943,8 @@ JSObject *
 js_InitClass(JSContext *cx, JSObject *obj, JSObject *protoProto,
              Class *clasp, Native constructor, uintN nargs,
              JSPropertySpec *ps, JSFunctionSpec *fs,
-             JSPropertySpec *static_ps, JSFunctionSpec *static_fs)
+             JSPropertySpec *static_ps, JSFunctionSpec *static_fs,
+             JSObject **ctorp)
 {
     JSAtom *atom = js_Atomize(cx, clasp->name, strlen(clasp->name));
     if (!atom)
@@ -3954,7 +3970,7 @@ js_InitClass(JSContext *cx, JSObject *obj, JSObject *protoProto,
     }
 
     return DefineConstructorAndPrototype(cx, obj, key, atom, protoProto, clasp, constructor, nargs,
-                                         ps, fs, static_ps, static_fs);
+                                         ps, fs, static_ps, static_fs, ctorp);
 }
 
 bool
