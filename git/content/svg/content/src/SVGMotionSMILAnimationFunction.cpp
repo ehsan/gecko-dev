@@ -70,16 +70,17 @@ SVGMotionSMILAnimationFunction::SetAttr(nsIAtom* aAttribute,
     if (aParseResult) {
       *aParseResult = rv;
     }
-  } else if (aAttribute == nsGkAtoms::path ||
-             aAttribute == nsGkAtoms::by ||
-             aAttribute == nsGkAtoms::from ||
-             aAttribute == nsGkAtoms::to ||
-             aAttribute == nsGkAtoms::values) {
+  } else if (aAttribute == nsGkAtoms::path) {
     aResult.SetTo(aValue);
-    MarkStaleIfAttributeAffectsPath(aAttribute);
     if (aParseResult) {
       *aParseResult = NS_OK;
     }
+    MarkStaleIfAttributeAffectsPath(aAttribute);
+  } else if (aAttribute == nsGkAtoms::by ||
+             aAttribute == nsGkAtoms::from ||
+             aAttribute == nsGkAtoms::to ||
+             aAttribute == nsGkAtoms::values) {
+    MarkStaleIfAttributeAffectsPath(aAttribute);
   } else {
     // Defer to superclass method
     return nsSMILAnimationFunction::SetAttr(aAttribute, aValue,

@@ -75,8 +75,7 @@ ExpectTagAndGetLength(Input& input, uint8_t expectedTag, uint16_t& length)
     return Fail(SEC_ERROR_BAD_DER);
   }
 
-  // Ensure the input is long enough for the length it says it has.
-  return input.EnsureLength(length);
+  return Success;
 }
 
 } } } // namespace mozilla::pkix::der

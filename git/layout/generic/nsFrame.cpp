@@ -3451,43 +3451,40 @@ static FrameTarget GetSelectionClosestFrameForLine(
   // Account for end of lines (any iterator from the block is valid)
   if (aLine == aParent->end_lines())
     return DrillDownToSelectionFrame(aParent, true, aFlags);
-  nsIFrame *closestFromIStart = nullptr, *closestFromIEnd = nullptr;
-  nscoord closestIStart = aLine->IStart(), closestIEnd = aLine->IEnd();
-  WritingMode wm = aLine->mWritingMode;
-  LogicalPoint pt(wm, aPoint, aLine->mContainerWidth);
+  nsIFrame *closestFromLeft = nullptr, *closestFromRight = nullptr;
+  nsRect rect = aLine->mBounds;
+  nscoord closestLeft = rect.x, closestRight = rect.XMost();
   for (int32_t n = aLine->GetChildCount(); n;
        --n, frame = frame->GetNextSibling()) {
     if (!SelfIsSelectable(frame, aFlags) || frame->IsEmpty())
       continue;
-    LogicalRect frameRect = LogicalRect(wm, frame->GetRect(),
-                                        aLine->mContainerWidth);
-    if (pt.I(wm) >= frameRect.IStart(wm)) {
-      if (pt.I(wm) < frameRect.IEnd(wm)) {
+    nsRect frameRect = frame->GetRect();
+    if (aPoint.x >= frameRect.x) {
+      if (aPoint.x < frameRect.XMost()) {
         return GetSelectionClosestFrameForChild(frame, aPoint, aFlags);
       }
-      if (frameRect.IEnd(wm) >= closestIStart) {
-        closestFromIStart = frame;
-        closestIStart = frameRect.IEnd(wm);
+      if (frameRect.XMost() >= closestLeft) {
+        closestFromLeft = frame;
+        closestLeft = frameRect.XMost();
       }
     } else {
-      if (frameRect.IStart(wm) <= closestIEnd) {
-        closestFromIEnd = frame;
-        closestIEnd = frameRect.IStart(wm);
+      if (frameRect.x <= closestRight) {
+        closestFromRight = frame;
+        closestRight = frameRect.x;
       }
     }
   }
-  if (!closestFromIStart && !closestFromIEnd) {
+  if (!closestFromLeft && !closestFromRight) {
     // We should only get here if there are no selectable frames on a line
     // XXX Do we need more elaborate handling here?
     return FrameTarget::Null();
   }
-  if (closestFromIStart &&
-      (!closestFromIEnd ||
-       (abs(pt.I(wm) - closestIStart) <= abs(pt.I(wm) - closestIEnd)))) {
-    return GetSelectionClosestFrameForChild(closestFromIStart, aPoint,
-                                            aFlags);
+  if (closestFromLeft &&
+      (!closestFromRight ||
+       (abs(aPoint.x - closestLeft) <= abs(aPoint.x - closestRight)))) {
+    return GetSelectionClosestFrameForChild(closestFromLeft, aPoint, aFlags);
   }
-  return GetSelectionClosestFrameForChild(closestFromIEnd, aPoint, aFlags);
+  return GetSelectionClosestFrameForChild(closestFromRight, aPoint, aFlags);
 }
 
 // This method is for the special handling we do for block frames; they're
@@ -3516,18 +3513,15 @@ static FrameTarget GetSelectionClosestFrameForBlock(nsIFrame* aFrame,
   }
   nsBlockFrame::line_iterator curLine = firstLine;
   nsBlockFrame::line_iterator closestLine = end;
-  // Convert aPoint into a LogicalPoint in the writing-mode of this block
-  WritingMode wm = curLine->mWritingMode;
-  LogicalPoint pt(wm, aPoint, curLine->mContainerWidth);
   while (curLine != end) {
-    // Check to see if our point lies within the line's block-direction bounds
-    nscoord BCoord = pt.B(wm) - curLine->BStart();
-    nscoord BSize = curLine->BSize();
-    if (BCoord >= 0 && BCoord < BSize) {
+    // Check to see if our point lies with the line's Y bounds
+    nscoord y = aPoint.y - curLine->mBounds.y;
+    nscoord height = curLine->mBounds.height;
+    if (y >= 0 && y < height) {
       closestLine = curLine;
       break; // We found the line; stop looking
     }
-    if (BCoord < 0)
+    if (y < 0)
       break;
     ++curLine;
   }
@@ -3556,7 +3550,7 @@ static FrameTarget GetSelectionClosestFrameForBlock(nsIFrame* aFrame,
         return DrillDownToSelectionFrame(aFrame, true, aFlags);
       closestLine = prevLine;
     } else { // Figure out which line is closer
-      if (pt.B(wm) - prevLine->BEnd() < nextLine->BStart() - pt.B(wm))
+      if (aPoint.y - prevLine->mBounds.YMost() < nextLine->mBounds.y - aPoint.y)
         closestLine = prevLine;
       else
         closestLine = nextLine;
@@ -7199,28 +7193,18 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
                "Don't call - overflow rects not maintained on these SVG frames");
 
   nsRect bounds(nsPoint(0, 0), aNewSize);
-  // Store the passed in overflow area if we are a preserve-3d frame or we have
-  // a transform, and it's not just the frame bounds.
-  if (Preserves3D() || HasPerspective() || IsTransformed()) {
-    if (!aOverflowAreas.VisualOverflow().IsEqualEdges(bounds) ||
-        !aOverflowAreas.ScrollableOverflow().IsEqualEdges(bounds)) {
-
-      nsOverflowAreas* initial =
-        static_cast<nsOverflowAreas*>(Properties().Get(nsIFrame::InitialOverflowProperty()));
-      if (!initial) {
-        Properties().Set(nsIFrame::InitialOverflowProperty(),
-                         new nsOverflowAreas(aOverflowAreas));
-      } else if (initial != &aOverflowAreas) {
-        *initial = aOverflowAreas;
-      }
+  // Store the passed in overflow area if we are a preserve-3d frame,
+  // and it's not just the frame bounds.
+  if ((Preserves3D() || HasPerspective()) && (!aOverflowAreas.VisualOverflow().IsEqualEdges(bounds) ||
+                        !aOverflowAreas.ScrollableOverflow().IsEqualEdges(bounds))) {
+    nsOverflowAreas* initial =
+      static_cast<nsOverflowAreas*>(Properties().Get(nsIFrame::InitialOverflowProperty()));
+    if (!initial) {
+      Properties().Set(nsIFrame::InitialOverflowProperty(),
+                       new nsOverflowAreas(aOverflowAreas));
+    } else if (initial != &aOverflowAreas) {
+      *initial = aOverflowAreas;
     }
-#ifdef DEBUG
-    Properties().Set(nsIFrame::DebugInitialOverflowPropertyApplied(), nullptr);
-#endif
-  } else {
-#ifdef DEBUG
-  Properties().Delete(nsIFrame::DebugInitialOverflowPropertyApplied());
-#endif
   }
 
   // This is now called FinishAndStoreOverflow() instead of 

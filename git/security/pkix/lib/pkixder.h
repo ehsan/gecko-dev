@@ -95,7 +95,7 @@ public:
 
   Result Expect(const uint8_t* expected, size_t expectedLen)
   {
-    if (EnsureLength(expectedLen) != Success) {
+    if (input + expectedLen > end) {
       return Fail(SEC_ERROR_BAD_DER);
     }
     if (memcmp(input, expected, expectedLen)) {
@@ -132,7 +132,7 @@ public:
 
   Result Skip(uint16_t len)
   {
-    if (EnsureLength(len) != Success) {
+    if (input + len > end) {
       return Fail(SEC_ERROR_BAD_DER);
     }
     input += len;
@@ -141,7 +141,7 @@ public:
 
   Result Skip(uint16_t len, Input& skippedInput)
   {
-    if (EnsureLength(len) != Success) {
+    if (input + len > end) {
       return Fail(SEC_ERROR_BAD_DER);
     }
     if (skippedInput.Init(input, len) != Success) {
@@ -153,7 +153,7 @@ public:
 
   Result Skip(uint16_t len, SECItem& skippedItem)
   {
-    if (EnsureLength(len) != Success) {
+    if (input + len > end) {
       return Fail(SEC_ERROR_BAD_DER);
     }
     skippedItem.type = siBuffer;
@@ -166,14 +166,6 @@ public:
   void SkipToEnd()
   {
     input = end;
-  }
-
-  Result EnsureLength(uint16_t len)
-  {
-    if (input + len > end) {
-      return Fail(SEC_ERROR_BAD_DER);
-    }
-    return Success;
   }
 
   bool AtEnd() const { return input == end; }

@@ -44,7 +44,6 @@ SEARCH_PATHS = [
     'testing/xpcshell',
     'testing/marionette/client',
     'testing/marionette/client/marionette',
-    'testing/marionette/transport',
     'testing/mozbase/mozcrash',
     'testing/mozbase/mozdevice',
     'testing/mozbase/mozfile',

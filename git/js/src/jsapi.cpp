@@ -1486,127 +1486,119 @@ JS_strdup(JSRuntime *rt, const char *s)
 #undef JS_AddRoot
 
 JS_PUBLIC_API(bool)
-JS::AddValueRoot(JSContext *cx, JS::Heap<JS::Value> *vp)
+JS_AddValueRoot(JSContext *cx, jsval *vp)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    return AddValueRoot(cx, vp->unsafeGet(), nullptr);
+    return AddValueRoot(cx, vp, nullptr);
 }
 
 JS_PUBLIC_API(bool)
-JS::AddStringRoot(JSContext *cx, JS::Heap<JSString *> *rp)
+JS_AddStringRoot(JSContext *cx, JSString **rp)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    return AddStringRoot(cx, rp->unsafeGet(), nullptr);
+    return AddStringRoot(cx, rp, nullptr);
 }
 
 JS_PUBLIC_API(bool)
-JS::AddObjectRoot(JSContext *cx, JS::Heap<JSObject *> *rp)
+JS_AddObjectRoot(JSContext *cx, JSObject **rp)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    return AddObjectRoot(cx, rp->unsafeGet(), nullptr);
+    return AddObjectRoot(cx, rp, nullptr);
 }
 
 JS_PUBLIC_API(bool)
-JS::AddNamedValueRoot(JSContext *cx, JS::Heap<JS::Value> *vp, const char *name)
+JS_AddNamedValueRoot(JSContext *cx, jsval *vp, const char *name)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    return AddValueRoot(cx, vp->unsafeGet(), name);
+    return AddValueRoot(cx, vp, name);
 }
 
 JS_PUBLIC_API(bool)
-JS::AddNamedValueRootRT(JSRuntime *rt, JS::Heap<JS::Value> *vp, const char *name)
+JS_AddNamedValueRootRT(JSRuntime *rt, jsval *vp, const char *name)
 {
-    return AddValueRootRT(rt, vp->unsafeGet(), name);
+    return AddValueRootRT(rt, vp, name);
 }
 
 JS_PUBLIC_API(bool)
-JS::AddNamedStringRoot(JSContext *cx, JS::Heap<JSString *> *rp, const char *name)
-{
-    AssertHeapIsIdle(cx);
-    CHECK_REQUEST(cx);
-    return AddStringRoot(cx, rp->unsafeGet(), name);
-}
-
-JS_PUBLIC_API(bool)
-JS::AddNamedObjectRoot(JSContext *cx, JS::Heap<JSObject *> *rp, const char *name)
+JS_AddNamedStringRoot(JSContext *cx, JSString **rp, const char *name)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    return AddObjectRoot(cx, rp->unsafeGet(), name);
+    return AddStringRoot(cx, rp, name);
 }
 
 JS_PUBLIC_API(bool)
-JS::AddNamedScriptRoot(JSContext *cx, JS::Heap<JSScript *> *rp, const char *name)
+JS_AddNamedObjectRoot(JSContext *cx, JSObject **rp, const char *name)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    return AddScriptRoot(cx, rp->unsafeGet(), name);
+    return AddObjectRoot(cx, rp, name);
+}
+
+JS_PUBLIC_API(bool)
+JS_AddNamedScriptRoot(JSContext *cx, JSScript **rp, const char *name)
+{
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    return AddScriptRoot(cx, rp, name);
 }
 
 /* We allow unrooting from finalizers within the GC */
 
 JS_PUBLIC_API(void)
-JS::RemoveValueRoot(JSContext *cx, JS::Heap<JS::Value> *vp)
+JS_RemoveValueRoot(JSContext *cx, jsval *vp)
 {
     CHECK_REQUEST(cx);
     RemoveRoot(cx->runtime(), (void *)vp);
-    *vp = UndefinedValue();
 }
 
 JS_PUBLIC_API(void)
-JS::RemoveStringRoot(JSContext *cx, JS::Heap<JSString *> *rp)
+JS_RemoveStringRoot(JSContext *cx, JSString **rp)
 {
     CHECK_REQUEST(cx);
     RemoveRoot(cx->runtime(), (void *)rp);
-    *rp = nullptr;
 }
 
 JS_PUBLIC_API(void)
-JS::RemoveObjectRoot(JSContext *cx, JS::Heap<JSObject *> *rp)
+JS_RemoveObjectRoot(JSContext *cx, JSObject **rp)
 {
     CHECK_REQUEST(cx);
     RemoveRoot(cx->runtime(), (void *)rp);
-    *rp = nullptr;
 }
 
 JS_PUBLIC_API(void)
-JS::RemoveScriptRoot(JSContext *cx, JS::Heap<JSScript *> *rp)
+JS_RemoveScriptRoot(JSContext *cx, JSScript **rp)
 {
     CHECK_REQUEST(cx);
     RemoveRoot(cx->runtime(), (void *)rp);
-    *rp = nullptr;
 }
 
 JS_PUBLIC_API(void)
-JS::RemoveValueRootRT(JSRuntime *rt, JS::Heap<JS::Value> *vp)
+JS_RemoveValueRootRT(JSRuntime *rt, jsval *vp)
 {
     RemoveRoot(rt, (void *)vp);
-    *vp = UndefinedValue();
 }
 
 JS_PUBLIC_API(void)
-JS::RemoveStringRootRT(JSRuntime *rt, JS::Heap<JSString *> *rp)
+JS_RemoveStringRootRT(JSRuntime *rt, JSString **rp)
 {
     RemoveRoot(rt, (void *)rp);
-    *rp = nullptr;
 }
 
 JS_PUBLIC_API(void)
-JS::RemoveObjectRootRT(JSRuntime *rt, JS::Heap<JSObject *> *rp)
+JS_RemoveObjectRootRT(JSRuntime *rt, JSObject **rp)
 {
     RemoveRoot(rt, (void *)rp);
-    *rp = nullptr;
 }
 
 JS_PUBLIC_API(void)
-JS::RemoveScriptRootRT(JSRuntime *rt, JS::Heap<JSScript *> *rp)
+JS_RemoveScriptRootRT(JSRuntime *rt, JSScript **rp)
 {
     RemoveRoot(rt, (void *)rp);
-    *rp = nullptr;
 }
 
 JS_PUBLIC_API(bool)
@@ -3100,62 +3092,13 @@ DefineSelfHostedProperty(JSContext *cx,
 }
 
 JS_PUBLIC_API(bool)
-JS_DefineProperty(JSContext *cx, HandleObject obj, const char *name, HandleValue value,
-                  unsigned attrs,
-                  PropertyOp getter /* = nullptr */, JSStrictPropertyOp setter /* = nullptr */)
+JS_DefineProperty(JSContext *cx, JSObject *objArg, const char *name, jsval valueArg,
+                  PropertyOp getter, JSStrictPropertyOp setter, unsigned attrs)
 {
+    RootedObject obj(cx, objArg);
+    RootedValue value(cx, valueArg);
     return DefineProperty(cx, obj, name, value, GetterWrapper(getter), SetterWrapper(setter),
                           attrs, 0);
-}
-
-JS_PUBLIC_API(bool)
-JS_DefineProperty(JSContext *cx, HandleObject obj, const char *name, HandleObject valueArg,
-                  unsigned attrs,
-                  PropertyOp getter /* = nullptr */, JSStrictPropertyOp setter /* = nullptr */)
-{
-    RootedValue value(cx, ObjectValue(*valueArg));
-    return DefineProperty(cx, obj, name, value, GetterWrapper(getter), SetterWrapper(setter),
-                          attrs, 0);
-}
-
-JS_PUBLIC_API(bool)
-JS_DefineProperty(JSContext *cx, HandleObject obj, const char *name, HandleString valueArg,
-                  unsigned attrs,
-                  PropertyOp getter /* = nullptr */, JSStrictPropertyOp setter /* = nullptr */)
-{
-    RootedValue value(cx, StringValue(valueArg));
-    return DefineProperty(cx, obj, name, value, GetterWrapper(getter), SetterWrapper(setter),
-                          attrs, 0);
-}
-
-JS_PUBLIC_API(bool)
-JS_DefineProperty(JSContext *cx, HandleObject obj, const char *name, int32_t valueArg,
-                  unsigned attrs,
-                  PropertyOp getter /* = nullptr */, JSStrictPropertyOp setter /* = nullptr */)
-{
-    Value value = Int32Value(valueArg);
-    return DefineProperty(cx, obj, name, HandleValue::fromMarkedLocation(&value),
-                          GetterWrapper(getter), SetterWrapper(setter), attrs, 0);
-}
-
-JS_PUBLIC_API(bool)
-JS_DefineProperty(JSContext *cx, HandleObject obj, const char *name, uint32_t valueArg,
-                  unsigned attrs,
-                  PropertyOp getter /* = nullptr */, JSStrictPropertyOp setter /* = nullptr */)
-{
-    Value value = UINT_TO_JSVAL(valueArg);
-    return DefineProperty(cx, obj, name, HandleValue::fromMarkedLocation(&value),
-                          GetterWrapper(getter), SetterWrapper(setter), attrs, 0);
-}
-
-JS_PUBLIC_API(bool)
-JS_DefineProperty(JSContext *cx, HandleObject obj, const char *name, double valueArg,
-                  unsigned attrs,
-                  PropertyOp getter /* = nullptr */, JSStrictPropertyOp setter /* = nullptr */)
-{
-    Value value = NumberValue(valueArg);
-    return DefineProperty(cx, obj, name, HandleValue::fromMarkedLocation(&value),
-                          GetterWrapper(getter), SetterWrapper(setter), attrs, 0);
 }
 
 static bool
@@ -5981,7 +5924,7 @@ JS_DropExceptionState(JSContext *cx, JSExceptionState *state)
     if (state) {
         if (state->throwing && JSVAL_IS_GCTHING(state->exception)) {
             assertSameCompartment(cx, state->exception);
-            RemoveRoot(cx->runtime(), &state->exception);
+            JS_RemoveValueRoot(cx, &state->exception);
         }
         js_free(state);
     }

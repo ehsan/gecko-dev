@@ -117,15 +117,10 @@ CanvasLayerD3D10::UpdateSurface()
     return;
   }
 
-  if (!mTexture) {
-    return;
-  }
-
   if (mGLContext) {
     SharedSurface_GL* surf = mGLContext->RequestFrame();
-    if (!surf) {
-      return;
-    }
+    if (!surf)
+        return;
 
     switch (surf->Type()) {
       case SharedSurfaceType::EGLSurfaceANGLE: {
