@@ -6,7 +6,7 @@
 
 MODULE = 'txtsvc'
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'nsFilteredContentIterator.cpp',
     'nsTextServicesDocument.cpp',
 ]

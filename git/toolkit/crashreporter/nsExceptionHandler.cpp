@@ -83,7 +83,6 @@ using mozilla::InjectCrashRunnable;
 
 #include "mozilla/mozalloc_oom.h"
 #include "mozilla/LateWriteChecks.h"
-#include "mozilla/WindowsDllBlocklist.h"
 
 #if defined(XP_MACOSX)
 CFStringRef reporterClientAppID = CFSTR("org.mozilla.crashreporter");
@@ -222,6 +221,11 @@ static const int kAvailablePhysicalMemoryParameterLen =
 static const char kIsGarbageCollectingParameter[] = "IsGarbageCollecting=";
 static const int kIsGarbageCollectingParameterLen =
   sizeof(kIsGarbageCollectingParameter)-1;
+
+#ifdef XP_WIN
+static const char kBlockedDllsParameter[] = "BlockedDllList=";
+static const int kBlockedDllsParameterLen = sizeof(kBlockedDllsParameter) - 1;
+#endif
 
 // this holds additional data sent via the API
 static Mutex* crashReporterAPILock;
@@ -541,10 +545,9 @@ bool MinidumpCallback(
         WriteFile(hFile, isGarbageCollecting ? "1" : "0", 1, &nBytes, nullptr);
         WriteFile(hFile, "\n", 1, &nBytes, nullptr);
       }
-
-#ifdef HAS_DLL_BLOCKLIST
-      DllBlocklist_WriteNotes(hFile);
-#endif
+      WriteFile(hFile, kBlockedDllsParameter, kBlockedDllsParameterLen, &nBytes, nullptr);
+      WriteBlockedDlls(hFile);
+      WriteFile(hFile, "\n", 1, &nBytes, nullptr);
 
       // Try to get some information about memory.
       MEMORYSTATUSEX statex;

@@ -50,15 +50,13 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(TableRowsCollection)
 
   // nsWrapperCache
-  using nsWrapperCache::GetWrapperPreserveColor;
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
-protected:
-  virtual JSObject* GetWrapperPreserveColorInternal() MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext *cx,
+                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE
   {
-    return nsWrapperCache::GetWrapperPreserveColor();
+    return mozilla::dom::HTMLCollectionBinding::Wrap(cx, scope, this);
   }
 
+protected:
   // Those rows that are not in table sections
   HTMLTableElement* mParent;
   nsRefPtr<nsContentList> mOrphanRows;  
@@ -82,13 +80,6 @@ TableRowsCollection::~TableRowsCollection()
   // release it!  this is to avoid circular references.  The
   // instantiator who provided mParent is responsible for managing our
   // reference for us.
-}
-
-JSObject*
-TableRowsCollection::WrapObject(JSContext* aCx,
-                                JS::Handle<JSObject*> aScope)
-{
-  return HTMLCollectionBinding::Wrap(aCx, aScope, this);
 }
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(TableRowsCollection, mOrphanRows)

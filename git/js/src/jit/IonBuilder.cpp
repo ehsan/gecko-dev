@@ -596,14 +596,6 @@ IonBuilder::build()
     if (instrumentedProfiling())
         current->add(MFunctionBoundary::New(script(), MFunctionBoundary::Enter));
 
-    // Guard against over-recursion. Do this before we start unboxing, since
-    // this will create an OSI point that will read the incoming argument
-    // values, which is nice to do before their last real use, to minimize
-    // register/stack pressure.
-    MCheckOverRecursed *check = new MCheckOverRecursed;
-    current->add(check);
-    check->setResumePoint(current->entryResumePoint());
-
     // Parameters have been checked to correspond to the typeset, now we unbox
     // what we can in an infallible manner.
     rewriteParameters();
@@ -614,6 +606,11 @@ IonBuilder::build()
 
     if (info().needsArgsObj() && !initArgumentsObject())
         return false;
+
+    // Guard against over-recursion.
+    MCheckOverRecursed *check = new MCheckOverRecursed;
+    current->add(check);
+    check->setResumePoint(current->entryResumePoint());
 
     // Prevent |this| from being DCE'd: necessary for constructors.
     if (info().fun())
@@ -6532,9 +6529,9 @@ IonBuilder::getElemTryScalarElemOfTypedObject(bool *emitted,
     JS_ASSERT(objTypeReprs.allOfArrayKind());
 
     // Must always be loading the same scalar type
-    if (!elemTypeReprs.singleton())
+    if (elemTypeReprs.length() != 1)
         return true;
-    ScalarTypeRepresentation *elemTypeRepr = elemTypeReprs.getTypeRepresentation()->asScalar();
+    ScalarTypeRepresentation *elemTypeRepr = elemTypeReprs.get(0)->asScalar();
 
     // Get the length.
     size_t lenOfAll = objTypeReprs.arrayLength();
@@ -6553,19 +6550,40 @@ IonBuilder::getElemTryScalarElemOfTypedObject(bool *emitted,
     // Typed-object accesses usually in bounds (bail out otherwise).
     index = addBoundsCheck(index, length);
 
-    // Since we passed the bounds check, it is impossible for the
-    // result of multiplication to overflow; so enable imul path.
-    const int32_t alignment = elemTypeRepr->alignment();
-    MMul *indexAsByteOffset = MMul::New(index, constantInt(alignment),
-                                        MIRType_Int32, MMul::Integer);
-    current->add(indexAsByteOffset);
-
     // Find location within the owner object.
-    MDefinition *elements, *scaledOffset;
-    loadTypedObjectElements(obj, indexAsByteOffset, alignment, &elements, &scaledOffset);
+    MDefinition *owner;
+    MDefinition *indexFromOwner;
+    if (obj->isNewDerivedTypedObject()) {
+        MNewDerivedTypedObject *ins = obj->toNewDerivedTypedObject();
+        MDefinition *ownerOffset = ins->offset();
+
+        // Typed array offsets are expressed in units of the (array)
+        // element alignment.  The binary data uses byte units for
+        // offsets (such as the owner offset here).
+
+        MConstant *alignment = MConstant::New(Int32Value(elemTypeRepr->alignment()));
+        current->add(alignment);
+
+        MDiv *scaledOffset = MDiv::NewAsmJS(ownerOffset, alignment, MIRType_Int32);
+        current->add(scaledOffset);
+
+        MAdd *scaledOffsetPlusIndex = MAdd::NewAsmJS(scaledOffset, index,
+                                                     MIRType_Int32);
+        current->add(scaledOffsetPlusIndex);
+
+        owner = ins->owner();
+        indexFromOwner = scaledOffsetPlusIndex;
+    } else {
+        owner = obj;
+        indexFromOwner = index;
+    }
+
+    // Load the element data.
+    MTypedObjectElements *elements = MTypedObjectElements::New(owner);
+    current->add(elements);
 
     // Load the element.
-    MLoadTypedArrayElement *load = MLoadTypedArrayElement::New(elements, scaledOffset, elemTypeRepr->type());
+    MLoadTypedArrayElement *load = MLoadTypedArrayElement::New(elements, indexFromOwner, elemTypeRepr->type());
     current->add(load);
     current->push(load);
 
@@ -6595,7 +6613,8 @@ IonBuilder::getElemTryComplexElemOfTypedObject(bool *emitted,
     JS_ASSERT(objTypeReprs.allOfArrayKind());
 
     MDefinition *type = loadTypedObjectType(obj);
-    MDefinition *elemType = typeObjectForElementFromArrayStructType(type);
+    MInstruction *elemType = MLoadFixedSlot::New(type, JS_TYPEOBJ_SLOT_ARRAY_ELEM_TYPE);
+    current->add(elemType);
 
     // Get the length.
     size_t lenOfAll = objTypeReprs.arrayLength();
@@ -6625,14 +6644,33 @@ IonBuilder::getElemTryComplexElemOfTypedObject(bool *emitted,
     current->add(indexAsByteOffset);
 
     // Find location within the owner object.
-    MDefinition *owner, *ownerOffset;
-    loadTypedObjectData(obj, indexAsByteOffset, &owner, &ownerOffset);
+    MDefinition *owner;
+    MDefinition *indexAsByteOffsetFromOwner;
+    if (obj->isNewDerivedTypedObject()) {
+        MNewDerivedTypedObject *ins = obj->toNewDerivedTypedObject();
+        MDefinition *ownerOffset = ins->offset();
+
+        MAdd *offsetPlusScaledIndex = MAdd::NewAsmJS(ownerOffset,
+                                                     indexAsByteOffset,
+                                                     MIRType_Int32);
+        current->add(offsetPlusScaledIndex);
+
+        owner = ins->owner();
+        indexAsByteOffsetFromOwner = offsetPlusScaledIndex;
+    } else {
+        owner = obj;
+        indexAsByteOffsetFromOwner = indexAsByteOffset;
+    }
+
+    // Load the element data.
+    MTypedObjectElements *elements = MTypedObjectElements::New(owner);
+    current->add(elements);
 
     // Create the derived type object.
     MInstruction *derived = new MNewDerivedTypedObject(elemTypeReprs,
                                                        elemType,
                                                        owner,
-                                                       ownerOffset);
+                                                       indexAsByteOffsetFromOwner);
 
     types::TemporaryTypeSet *resultTypes = bytecodeTypes(pc);
     derived->setResultTypeSet(resultTypes);
@@ -8190,25 +8228,36 @@ IonBuilder::getPropTryScalarPropOfTypedObject(bool *emitted,
                                               types::TemporaryTypeSet *resultTypes)
 {
     // Must always be loading the same scalar type
-    if (!fieldTypeReprs.singleton())
+    if (fieldTypeReprs.length() != 1)
         return true;
-    ScalarTypeRepresentation *fieldTypeRepr = fieldTypeReprs.getTypeRepresentation()->asScalar();
+    ScalarTypeRepresentation *fieldTypeRepr = fieldTypeReprs.get(0)->asScalar();
 
-    // OK, perform the optimization
+    // OK!
+    *emitted = true;
 
     MDefinition *typedObj = current->pop();
 
     // Find location within the owner object.
-    MDefinition *elements, *scaledOffset;
-    loadTypedObjectElements(typedObj, constantInt(fieldOffset),
-                            fieldTypeRepr->alignment(),
-                            &elements, &scaledOffset);
+    MDefinition *owner, *ownerOffset;
+    loadTypedObjectData(typedObj, fieldOffset, &owner, &ownerOffset);
+
+    // Load the element data.
+    MTypedObjectElements *elements = MTypedObjectElements::New(owner);
+    current->add(elements);
 
     // Reading from an Uint32Array will result in a double for values
     // that don't fit in an int32. We have to bailout if this happens
     // and the instruction is not known to return a double.
     bool allowDouble = resultTypes->hasType(types::Type::DoubleType());
     MIRType knownType = MIRTypeForTypedArrayRead(fieldTypeRepr->type(), allowDouble);
+
+    // Typed array offsets are expressed in units of the alignment,
+    // and the binary data API guarantees all offsets are properly
+    // aligned. So just do the divide.
+    MConstant *alignment = MConstant::New(Int32Value(fieldTypeRepr->alignment()));
+    current->add(alignment);
+    MDiv *scaledOffset = MDiv::NewAsmJS(ownerOffset, alignment, MIRType_Int32);
+    current->add(scaledOffset);
 
     MLoadTypedArrayElement *load =
         MLoadTypedArrayElement::New(elements, scaledOffset,
@@ -8217,7 +8266,6 @@ IonBuilder::getPropTryScalarPropOfTypedObject(bool *emitted,
     load->setResultTypeSet(resultTypes);
     current->add(load);
     current->push(load);
-    *emitted = true;
     return true;
 }
 
@@ -8233,8 +8281,7 @@ IonBuilder::getPropTryComplexPropOfTypedObject(bool *emitted,
     if (fieldIndex == SIZE_MAX)
         return true;
 
-    // OK, perform the optimization
-
+    *emitted = true;
     MDefinition *typedObj = current->pop();
 
     // Identify the type object for the field.
@@ -8243,8 +8290,7 @@ IonBuilder::getPropTryComplexPropOfTypedObject(bool *emitted,
 
     // Find location within the owner object.
     MDefinition *owner, *ownerOffset;
-    loadTypedObjectData(typedObj, constantInt(fieldOffset),
-                        &owner, &ownerOffset);
+    loadTypedObjectData(typedObj, fieldOffset, &owner, &ownerOffset);
 
     // Create the derived type object.
     MInstruction *derived = new MNewDerivedTypedObject(fieldTypeReprs,
@@ -8254,7 +8300,6 @@ IonBuilder::getPropTryComplexPropOfTypedObject(bool *emitted,
     derived->setResultTypeSet(resultTypes);
     current->add(derived);
     current->push(derived);
-    *emitted = true;
     return true;
 }
 
@@ -8704,34 +8749,43 @@ IonBuilder::setPropTryTypedObject(bool *emitted, MDefinition *obj,
         return true;
 
       case TypeRepresentation::Scalar:
-        return setPropTryScalarPropOfTypedObject(emitted, obj, fieldOffset,
-                                                 value, fieldTypeReprs);
+        break;
     }
 
-    MOZ_ASSUME_UNREACHABLE("Unknown kind");
-}
-
-bool
-IonBuilder::setPropTryScalarPropOfTypedObject(bool *emitted,
-                                              MDefinition *obj,
-                                              int32_t fieldOffset,
-                                              MDefinition *value,
-                                              TypeRepresentationSet fieldTypeReprs)
-{
     // Must always be storing the same scalar type
-    if (!fieldTypeReprs.singleton())
+    if (fieldTypeReprs.length() != 1)
         return true;
-    ScalarTypeRepresentation *fieldTypeRepr =
-        fieldTypeReprs.getTypeRepresentation()->asScalar();
+    ScalarTypeRepresentation *fieldTypeRepr = fieldTypeReprs.get(0)->asScalar();
 
-    // OK! Perform the optimization.
+    // OK!
+    *emitted = true;
 
-    if (!storeScalarTypedObjectValue(obj, constantInt(fieldOffset), fieldTypeRepr, value))
-        return false;
+    MTypedObjectElements *elements = MTypedObjectElements::New(obj);
+    current->add(elements);
+
+    // Typed array offsets are expressed in units of the alignment,
+    // and the binary data API guarantees all offsets are properly
+    // aligned.
+    JS_ASSERT(fieldOffset % fieldTypeRepr->alignment() == 0);
+    int32_t scaledFieldOffset = fieldOffset / fieldTypeRepr->alignment();
+
+    MConstant *offset = MConstant::New(Int32Value(scaledFieldOffset));
+    current->add(offset);
+
+    // Clamp value to [0, 255] for Uint8ClampedArray.
+    MDefinition *toWrite = value;
+    if (fieldTypeRepr->type() == ScalarTypeRepresentation::TYPE_UINT8_CLAMPED) {
+        toWrite = MClampToUint8::New(value);
+        current->add(toWrite->toInstruction());
+    }
+
+    MStoreTypedArrayElement *store =
+        MStoreTypedArrayElement::New(elements, offset, toWrite,
+                                     fieldTypeRepr->type());
+    current->add(store);
 
     current->push(value);
 
-    *emitted = true;
     return true;
 }
 
@@ -9566,12 +9620,12 @@ IonBuilder::loadTypedObjectType(MDefinition *typedObj)
 // into dead code).
 void
 IonBuilder::loadTypedObjectData(MDefinition *typedObj,
-                                MDefinition *offset,
+                                int32_t offset,
                                 MDefinition **owner,
                                 MDefinition **ownerOffset)
 {
-    JS_ASSERT(typedObj->type() == MIRType_Object);
-    JS_ASSERT(offset->type() == MIRType_Int32);
+    MConstant *offsetDef = MConstant::New(Int32Value(offset));
+    current->add(offsetDef);
 
     // Shortcircuit derived type objects, meaning the intermediate
     // objects created to represent `a.b` in an expression like
@@ -9582,7 +9636,8 @@ IonBuilder::loadTypedObjectData(MDefinition *typedObj,
         // If we see that the
         MNewDerivedTypedObject *ins = typedObj->toNewDerivedTypedObject();
 
-        MAdd *offsetAdd = MAdd::NewAsmJS(ins->offset(), offset, MIRType_Int32);
+        MAdd *offsetAdd = MAdd::NewAsmJS(ins->offset(), offsetDef,
+                                         MIRType_Int32);
         current->add(offsetAdd);
 
         *owner = ins->owner();
@@ -9591,38 +9646,7 @@ IonBuilder::loadTypedObjectData(MDefinition *typedObj,
     }
 
     *owner = typedObj;
-    *ownerOffset = offset;
-}
-
-// Takes as input a typed object, an offset into that typed object's
-// memory, and the type repr of the data found at that offset. Returns
-// the elements pointer and a scaled offset. The scaled offset is
-// expressed in units of `unit`; when working with typed array MIR,
-// this is typically the alignment.
-void
-IonBuilder::loadTypedObjectElements(MDefinition *typedObj,
-                                    MDefinition *offset,
-                                    int32_t unit,
-                                    MDefinition **ownerElements,
-                                    MDefinition **ownerScaledOffset)
-{
-    MDefinition *owner, *ownerOffset;
-    loadTypedObjectData(typedObj, offset, &owner, &ownerOffset);
-
-    // Load the element data.
-    MTypedObjectElements *elements = MTypedObjectElements::New(owner);
-    current->add(elements);
-
-    // Scale to a different unit for compat with typed array MIRs.
-    if (unit != 1) {
-        MDiv *scaledOffset = MDiv::NewAsmJS(ownerOffset, constantInt(unit), MIRType_Int32);
-        current->add(scaledOffset);
-        *ownerScaledOffset = scaledOffset;
-    } else {
-        *ownerScaledOffset = ownerOffset;
-    }
-
-    *ownerElements = elements;
+    *ownerOffset = offsetDef;
 }
 
 // Looks up the offset/type-repr-set of the field `id`, given the type
@@ -9650,7 +9674,7 @@ IonBuilder::lookupTypedObjectField(MDefinition *typedObj,
                                  fieldTypeReprs, fieldIndex))
         return false;
     if (fieldTypeReprs->empty())
-        return true;
+        return false;
 
     // Field offset must be representable as signed integer.
     if (offset >= size_t(INT_MAX)) {
@@ -9665,18 +9689,6 @@ IonBuilder::lookupTypedObjectField(MDefinition *typedObj,
 }
 
 MDefinition *
-IonBuilder::typeObjectForElementFromArrayStructType(MDefinition *typeObj)
-{
-    MInstruction *elemType = MLoadFixedSlot::New(typeObj, JS_TYPEOBJ_SLOT_ARRAY_ELEM_TYPE);
-    current->add(elemType);
-
-    MInstruction *unboxElemType = MUnbox::New(elemType, MIRType_Object, MUnbox::Infallible);
-    current->add(unboxElemType);
-
-    return unboxElemType;
-}
-
-MDefinition *
 IonBuilder::typeObjectForFieldFromStructType(MDefinition *typeObj,
                                              size_t fieldIndex)
 {
@@ -9685,60 +9697,16 @@ IonBuilder::typeObjectForFieldFromStructType(MDefinition *typeObj,
     MInstruction *fieldTypes = MLoadFixedSlot::New(typeObj, JS_TYPEOBJ_SLOT_STRUCT_FIELD_TYPES);
     current->add(fieldTypes);
 
-    MInstruction *unboxFieldTypes = MUnbox::New(fieldTypes, MIRType_Object, MUnbox::Infallible);
-    current->add(unboxFieldTypes);
-
     // Index into list with index of field.
 
-    MInstruction *fieldTypesElements = MElements::New(unboxFieldTypes);
+    MInstruction *fieldTypesElements = MElements::New(fieldTypes);
     current->add(fieldTypesElements);
 
-    MConstant *fieldIndexDef = constantInt(fieldIndex);
+    MConstant *fieldIndexDef = MConstant::New(Int32Value(fieldIndex));
+    current->add(fieldIndexDef);
 
     MInstruction *fieldType = MLoadElement::New(fieldTypesElements, fieldIndexDef, false, false);
     current->add(fieldType);
 
-    MInstruction *unboxFieldType = MUnbox::New(fieldType, MIRType_Object, MUnbox::Infallible);
-    current->add(unboxFieldType);
-
-    return unboxFieldType;
-}
-
-bool
-IonBuilder::storeScalarTypedObjectValue(MDefinition *typedObj,
-                                        MDefinition *offset,
-                                        ScalarTypeRepresentation *typeRepr,
-                                        MDefinition *value)
-{
-    // Find location within the owner object.
-    MDefinition *elements, *scaledOffset;
-    loadTypedObjectElements(typedObj, offset, typeRepr->alignment(), &elements, &scaledOffset);
-
-    // Clamp value to [0, 255] when type is Uint8Clamped
-    MDefinition *toWrite = value;
-    if (typeRepr->type() == ScalarTypeRepresentation::TYPE_UINT8_CLAMPED) {
-        toWrite = MClampToUint8::New(value);
-        current->add(toWrite->toInstruction());
-    }
-
-    MStoreTypedArrayElement *store =
-        MStoreTypedArrayElement::New(elements, scaledOffset, toWrite,
-                                     typeRepr->type());
-    current->add(store);
-
-    return true;
-}
-
-MConstant *
-IonBuilder::constant(const Value &v)
-{
-    MConstant *c = MConstant::New(v);
-    current->add(c);
-    return c;
-}
-
-MConstant *
-IonBuilder::constantInt(int32_t i)
-{
-    return constant(Int32Value(i));
+    return fieldType;
 }

@@ -10,7 +10,6 @@
 #include <stdio.h>
 
 #include "mozilla/Util.h"
-#include "mozilla/WindowsDllBlocklist.h"
 
 #include "nsXULAppAPI.h"
 #ifdef XP_MACOSX
@@ -39,8 +38,8 @@ main(int argc, char** argv, char** envp)
     setbuf(stdout, 0);
 #endif
 
-#ifdef HAS_DLL_BLOCKLIST
-    DllBlocklist_Initialize();
+#ifdef XRE_HAS_DLL_BLOCKLIST
+    XRE_SetupDllBlocklist();
 #endif
 
     int result = XRE_XPCShellMain(argc, argv, envp);
