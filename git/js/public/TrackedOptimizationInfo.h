@@ -110,8 +110,6 @@ namespace JS {
       "not definitely a TypedObject struct")                            \
     _(NotUnboxed,                                                       \
       "not definitely an unboxed object")                               \
-    _(UnboxedConvertedToNative,                                         \
-      "unboxed object may have been converted")                         \
     _(StructNoField,                                                    \
       "struct doesn't definitely have field")                           \
     _(InconsistentFieldType,                                            \

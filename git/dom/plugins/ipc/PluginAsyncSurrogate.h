@@ -79,7 +79,6 @@ public:
   void AsyncCallArriving();
 
   void NotifyAsyncInitFailed();
-  void DestroyAsyncStream(NPStream* aStream);
 
 private:
   explicit PluginAsyncSurrogate(PluginModuleParent* aParent);
@@ -118,7 +117,6 @@ private:
                                   uint32_t* aCount);
   static bool ScriptableConstruct(NPObject* aObject, const NPVariant* aArgs,
                                   uint32_t aArgCount, NPVariant* aResult);
-  static nsNPAPIPluginStreamListener* GetStreamListener(NPStream* aStream);
 
 private:
   struct PendingNewStreamCall

@@ -2767,14 +2767,6 @@ LIRGenerator::visitStoreUnboxedString(MStoreUnboxedString *ins)
 }
 
 void
-LIRGenerator::visitConvertUnboxedObjectToNative(MConvertUnboxedObjectToNative *ins)
-{
-    LInstruction *check = new(alloc()) LConvertUnboxedObjectToNative(useRegister(ins->object()));
-    add(check, ins);
-    assignSafepoint(check, ins);
-}
-
-void
 LIRGenerator::visitEffectiveAddress(MEffectiveAddress *ins)
 {
     define(new(alloc()) LEffectiveAddress(useRegister(ins->base()), useRegister(ins->index())), ins);
