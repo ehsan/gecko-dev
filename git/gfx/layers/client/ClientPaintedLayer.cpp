@@ -40,7 +40,7 @@ ClientPaintedLayer::PaintThebes()
                "Can only draw in drawing phase");
   
   uint32_t flags = RotatedContentBuffer::PAINT_CAN_DRAW_ROTATED;
-#ifndef MOZ_IGNORE_PAINT_WILL_RESAMPLE
+#ifndef MOZ_WIDGET_ANDROID
   if (ClientManager()->CompositorMightResample()) {
     flags |= RotatedContentBuffer::PAINT_WILL_RESAMPLE;
   }

@@ -5,13 +5,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
- * Set of helper methods to implement logging for Windows sandbox.
+ * Set of helper methods to implement a warn only sandbox.
+ * Only providing simple namespaced functions as this code will probably be
+ * removed once we are properly shipping the content sandbox.
  */
 
-#ifndef security_sandbox_sandboxLogging_h__
-#define security_sandbox_sandboxLogging_h__
+#ifndef security_sandbox_warnOnlySandbox_h__
+#define security_sandbox_warnOnlySandbox_h__
 
-#include "loggingTypes.h"
+#include "wosTypes.h"
 
 #ifdef SANDBOX_EXPORTS
 #define SANDBOX_EXPORT __declspec(dllexport)
@@ -24,14 +26,14 @@ class TargetPolicy;
 }
 
 namespace mozilla {
-namespace sandboxing {
+namespace warnonlysandbox {
 
 // This is used to pass a LogCallback to the sandboxing code, as the logging
 // requires code to which we cannot link directly.
 void SANDBOX_EXPORT ProvideLogFunction(LogFunction aLogFunction);
 
-// Set up dummy interceptions via the broker, so we can log calls.
-void ApplyLoggingPolicy(sandbox::TargetPolicy& aPolicy);
+// Set up the sandbox to allow everything via the broker, so we can log calls.
+void ApplyWarnOnlyPolicy(sandbox::TargetPolicy& aPolicy);
 
 // Log a "BLOCKED" msg to the browser console and, if DEBUG build, stderr.
 // If the logging of a stack trace is enabled then the default aFramesToSkip
@@ -54,7 +56,7 @@ void LogAllowed(const char* aFunctionName, const wchar_t* aContext,
                 uint16_t aLength);
 
 
-} // sandboxing
+} // warnonlysandbox
 } // mozilla
 
-#endif // security_sandbox_sandboxLogging_h__
+#endif // security_sandbox_warnOnlySandbox_h__

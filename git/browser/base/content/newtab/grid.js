@@ -28,13 +28,13 @@ let gGrid = {
   /**
    * All cells contained in the grid.
    */
-  _cells: [],
+  _cells: null,
   get cells() this._cells,
 
   /**
    * All sites contained in the grid's cells. Sites may be empty.
    */
-  get sites() [for (cell of this.cells) cell.site],
+  get sites() [cell.site for each (cell in this.cells)],
 
   // Tells whether the grid has already been initialized.
   get ready() !!this._ready,
