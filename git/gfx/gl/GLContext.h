@@ -23,7 +23,6 @@
 #include "gfxImageSurface.h"
 #include "gfxContext.h"
 #include "gfxRect.h"
-#include "gfx3DMatrix.h"
 #include "nsISupportsImpl.h"
 #include "prlink.h"
 
@@ -48,11 +47,9 @@ namespace mozilla {
 namespace gl {
 class GLContext;
 
-typedef uintptr_t SharedTextureHandle;
 
 enum ShaderProgramType {
     RGBALayerProgramType,
-    RGBALayerExternalProgramType,
     BGRALayerProgramType,
     RGBXLayerProgramType,
     BGRXLayerProgramType,
@@ -99,11 +96,6 @@ public:
         UseNearestFilter = 0x1,
         NeedsYFlip       = 0x2,
         ForceSingleTile  = 0x4
-    };
-
-    enum TextureShareType {
-        ThreadShared     = 0x0,
-        ProcessShared    = 0x1
     };
 
     typedef gfxASurface::gfxContentType ContentType;
@@ -505,7 +497,8 @@ public:
     GLContext(const ContextFormat& aFormat,
               bool aIsOffscreen = false,
               GLContext *aSharedContext = nsnull)
-      : mUserBoundDrawFBO(0),
+      : mFlushGuaranteesResolve(false),
+        mUserBoundDrawFBO(0),
         mUserBoundReadFBO(0),
         mInternalBoundDrawFBO(0),
         mInternalBoundReadFBO(0),
@@ -791,11 +784,23 @@ public:
     bool IsOffscreen() {
         return mIsOffscreen;
     }
+
+private:
+    bool mFlushGuaranteesResolve;
+
+public:
+    void SetFlushGuaranteesResolve(bool aFlushGuaranteesResolve) {
+        mFlushGuaranteesResolve = aFlushGuaranteesResolve;
+    }
     
     // Before reads from offscreen texture
     void GuaranteeResolve() {
-        BlitDirtyFBOs();
-        fFinish();
+        if (mFlushGuaranteesResolve) {
+            BlitDirtyFBOs();
+            fFlush();
+        } else {
+            fFinish();
+        }
     }
 
     /*
@@ -855,75 +860,7 @@ public:
         return IsExtensionSupported(EXT_framebuffer_blit) || IsExtensionSupported(ANGLE_framebuffer_blit);
     }
 
-    enum SharedTextureBufferType {
-        TextureID
-#ifdef MOZ_WIDGET_ANDROID
-        , SurfaceTexture
-#endif
-    };
 
-    /**
-     * Create new shared GLContext content handle, must be released by ReleaseSharedHandle.
-     */
-    virtual SharedTextureHandle CreateSharedHandle(TextureImage::TextureShareType aType) { return nsnull; }
-    /*
-     * Create a new shared GLContext content handle, using the passed buffer as a source.
-     * Must be released by ReleaseSharedHandle. UpdateSharedHandle will have no effect
-     * on handles created with this method, as the caller owns the source (the passed buffer)
-     * and is responsible for updating it accordingly.
-     */
-    virtual SharedTextureHandle CreateSharedHandle(TextureImage::TextureShareType aType,
-                                                   void* aBuffer,
-                                                   SharedTextureBufferType aBufferType) { return nsnull; }  
-    /**
-     * Publish GLContext content to intermediate buffer attached to shared handle.
-     * Shared handle content is ready to be used after call returns, and no need extra Flush/Finish are required.
-     * GLContext must be current before this call
-     */
-    virtual void UpdateSharedHandle(TextureImage::TextureShareType aType,
-                                    SharedTextureHandle aSharedHandle) { }
-    /**
-     * - It is better to call ReleaseSharedHandle before original GLContext destroyed,
-     *     otherwise warning will be thrown on attempt to destroy Texture associated with SharedHandle, depends on backend implementation.
-     * - It does not require to be called on context where it was created,
-     *     because SharedHandle suppose to keep Context reference internally,
-     *     or don't require specific context at all, for example IPC SharedHandle.
-     * - Not recommended to call this between AttachSharedHandle and Draw Target call.
-     *      if it is really required for some special backend, then DetachSharedHandle API must be added with related implementation.
-     * - It is recommended to stop any possible access to SharedHandle (Attachments, pending GL calls) before calling Release,
-     *      otherwise some artifacts might appear or even crash if API backend implementation does not expect that.
-     * SharedHandle (currently EGLImage) does not require GLContext because it is EGL call, and can be destroyed
-     *   at any time, unless EGLImage have siblings (which are not expected with current API).
-     */
-    virtual void ReleaseSharedHandle(TextureImage::TextureShareType aType,
-                                     SharedTextureHandle aSharedHandle) { }
-
-
-    typedef struct {
-        GLenum mTarget;
-        ShaderProgramType mProgramType;
-        gfx3DMatrix mTextureTransform;
-    } SharedHandleDetails;
-
-    /**
-     * Returns information necessary for rendering a shared handle.
-     * These values change depending on what sharing mechanism is in use
-     */
-    virtual bool GetSharedHandleDetails(TextureImage::TextureShareType aType,
-                                        SharedTextureHandle aSharedHandle,
-                                        SharedHandleDetails& aDetails) { return false; }
-    /**
-     * Attach Shared GL Handle to GL_TEXTURE_2D target
-     * GLContext must be current before this call
-     */
-    virtual bool AttachSharedHandle(TextureImage::TextureShareType aType,
-                                    SharedTextureHandle aSharedHandle) { return false; }
-
-    /**
-     * Detach Shared GL Handle from GL_TEXTURE_2D target
-     */
-    virtual void DetachSharedHandle(TextureImage::TextureShareType aType,
-                                    SharedTextureHandle aSharedHandle) { return; }
 
 private:
     GLuint mUserBoundDrawFBO;
@@ -1283,6 +1220,12 @@ public:
         BindUserReadFBO(read);
     }
 
+    void fFinish() {
+        BeforeGLReadCall();
+        raw_fFinish();
+        AfterGLReadCall();
+    }
+
     // Draw/Read
     void fBlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter) {
         BeforeGLDrawCall();
@@ -1521,7 +1464,6 @@ public:
                                                RectTriangles& aRects,
                                                bool aFlipY = false);
 
-
     /**
      * Known GL extensions that can be queried by
      * IsExtensionSupported.  The results of this are cached, and as
@@ -1564,7 +1506,6 @@ public:
         ARB_robustness,
         EXT_robustness,
         ARB_sync,
-        OES_EGL_image,
         Extensions_Max
     };
 
@@ -1588,55 +1529,21 @@ public:
     // MacOS X builds; see bug 584919.  We can replace this with one
     // later on.  This is handy to use in WebGL contexts as well,
     // so making it public.
-    template<size_t Size>
+    template<size_t setlen>
     struct ExtensionBitset {
         ExtensionBitset() {
-            for (size_t i = 0; i < Size; ++i)
-                extensions[i] = false;
-        }
-
-        void Load(const char* extStr, const char** extList, bool verbose = false) {
-            char* exts = strdup(extStr);
-
-            if (verbose)
-                printf_stderr("Extensions: %s\n", exts);
-
-            char* cur = exts;
-            bool done = false;
-            while (!done) {
-                char* space = strchr(cur, ' ');
-                if (space) {
-                    *space = '\0';
-                } else {
-                    done = true;
-                }
-
-                for (int i = 0; extList[i]; ++i) {
-                    if (strcmp(cur, extList[i]) == 0) {
-                        if (verbose)
-                            printf_stderr("Found extension %s\n", cur);
-                        extensions[i] = 1;
-                    }
-                }
-
-                cur = space + 1;
-            }
-
-            free(exts);
+            for (size_t i = 0; i < setlen; ++i)
+                values[i] = false;
         }
 
         bool& operator[](size_t index) {
-            MOZ_ASSERT(index < Size, "out of range");
-            return extensions[index];
+            NS_ASSERTION(index < setlen, "out of range");
+            return values[index];
         }
 
-        bool extensions[Size];
+        bool values[setlen];
     };
 
-protected:
-    ExtensionBitset<Extensions_Max> mAvailableExtensions;
-
-public:
     /**
      * Context reset constants.
      * These are used to determine who is guilty when a context reset
@@ -1759,12 +1666,7 @@ protected:
         GLsizei samples;
     };
 
-    enum ColorByteOrder {
-      ForceRGBA,
-      DefaultByteOrder
-    };
-
-    GLFormats ChooseGLFormats(ContextFormat& aCF, GLContext::ColorByteOrder aByteOrder = GLContext::DefaultByteOrder);
+    GLFormats ChooseGLFormats(ContextFormat& aCF);
     void CreateTextureForOffscreen(const GLFormats& aFormats, const gfxIntSize& aSize,
                                    GLuint& texture);
     void CreateRenderbuffersForOffscreen(const GLContext::GLFormats& aFormats, const gfxIntSize& aSize,
@@ -1783,6 +1685,8 @@ protected:
     GLuint mOffscreenColorRB;
     GLuint mOffscreenDepthRB;
     GLuint mOffscreenStencilRB;
+
+    ExtensionBitset<Extensions_Max> mAvailableExtensions;
 
     // Clear to transparent black, with 0 depth and stencil,
     // while preserving current ClearColor etc. values.
@@ -2266,7 +2170,7 @@ public:
         AFTER_GL_CALL;
     }
 
-    void fFinish() {
+    void raw_fFinish() {
         BEFORE_GL_CALL;
         mSymbols.fFinish();
         AFTER_GL_CALL;
@@ -3103,14 +3007,6 @@ public:
      void GLAPIENTRY fGetSynciv(GLsync sync, GLenum pname, GLsizei bufSize, GLsizei *length, GLint *values) {
          BEFORE_GL_CALL;
          mSymbols.fGetSynciv(sync, pname, bufSize, length, values);
-         AFTER_GL_CALL;
-     }
-
-     // OES_EGL_image (GLES)
-     void fImageTargetTexture2D(GLenum target, GLeglImage image)
-     {
-         BEFORE_GL_CALL;
-         mSymbols.fImageTargetTexture2D(target, image);
          AFTER_GL_CALL;
      }
 

@@ -13,10 +13,9 @@ import android.os.SystemClock;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
-
+import android.view.View.OnTouchListener;
 import org.mozilla.gecko.ui.PanZoomController;
 import org.mozilla.gecko.ui.SimpleScaleGestureDetector;
-import org.mozilla.gecko.OnInterceptTouchListener;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 
@@ -68,7 +67,7 @@ public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
     private final ListenerTimeoutProcessor mListenerTimeoutProcessor;
 
     // the listener we use to notify gecko of touch events
-    private OnInterceptTouchListener mOnTouchListener;
+    private OnTouchListener mOnTouchListener;
 
     // whether or not we should wait for touch listeners to respond (this state is
     // per-tab and is updated when we switch tabs).
@@ -149,10 +148,6 @@ public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
             return true;
         }
 
-        if (mOnTouchListener.onInterceptTouchEvent(mView, event)) {
-            return true;
-        }
-
         if (isDownEvent(event)) {
             // this is the start of a new block of events! whee!
             mHoldInQueue = mWaitForTouchListeners;
@@ -227,7 +222,7 @@ public final class TouchEventHandler implements Tabs.OnTabsChangedListener {
     }
 
     /* This function MUST be called on the UI thread. */
-    public void setOnTouchListener(OnInterceptTouchListener onTouchListener) {
+    public void setOnTouchListener(OnTouchListener onTouchListener) {
         mOnTouchListener = onTouchListener;
     }
 

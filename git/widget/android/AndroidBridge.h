@@ -174,7 +174,7 @@ public:
 
     void ScheduleRestart();
 
-    void SetLayerClient(JNIEnv* env, jobject jobj);
+    void SetLayerClient(jobject jobj);
     AndroidGeckoLayerClient &GetLayerClient() { return *mLayerClient; }
 
     void SetSurfaceView(jobject jobj);
@@ -260,7 +260,7 @@ public:
     void *CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoSurfaceView& surfaceView);
 
     // Switch Java to composite with the Gecko Compositor thread
-    void RegisterCompositor(JNIEnv* env = NULL, bool resetting = false);
+    void RegisterCompositor();
     EGLSurface ProvideEGLSurface();
 
     bool GetStaticStringField(const char *classID, const char *field, nsAString &result, JNIEnv* env = nsnull);
@@ -297,10 +297,6 @@ public:
 
     void *AcquireNativeWindow(JNIEnv* aEnv, jobject aSurface);
     void ReleaseNativeWindow(void *window);
-
-    void *AcquireNativeWindowFromSurfaceTexture(JNIEnv* aEnv, jobject aSurface);
-    void ReleaseNativeWindowForSurfaceTexture(void *window);
-
     bool SetNativeWindowFormat(void *window, int width, int height, int format);
 
     bool LockWindow(void *window, unsigned char **bits, int *width, int *height, int *format, int *stride);
@@ -339,6 +335,10 @@ public:
     void SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
                           nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY);
 
+    jobject CreateSurface();
+    void DestroySurface(jobject surface);
+    void ShowSurface(jobject surface, const gfxRect& aRect, bool aInverted, bool aBlend);
+    void HideSurface(jobject surface);
 
     void AddPluginView(jobject view, const gfxRect& rect, bool isFullScreen);
     void RemovePluginView(jobject view, bool isFullScreen);
@@ -356,13 +356,6 @@ public:
     void PumpMessageLoop();
 
     void NotifyWakeLockChanged(const nsAString& topic, const nsAString& state);
-
-    int GetAPIVersion() { return mAPIVersion; }
-    bool IsHoneycomb() { return mAPIVersion >= 11 && mAPIVersion <= 13; }
-
-    void ScheduleComposite();
-    void RegisterSurfaceTextureFrameListener(jobject surfaceTexture, int id);
-    void UnregisterSurfaceTextureFrameListener(jobject surfaceTexture);
 
 protected:
     static AndroidBridge *sBridge;
@@ -394,8 +387,6 @@ protected:
     bool mHasNativeBitmapAccess;
     bool mHasNativeWindowAccess;
     bool mHasNativeWindowFallback;
-
-    int mAPIVersion;
 
     nsCOMArray<nsIRunnable> mRunnableQueue;
 
@@ -486,8 +477,6 @@ protected:
     jmethodID jUnlockScreenOrientation;
     jmethodID jPumpMessageLoop;
     jmethodID jNotifyWakeLockChanged;
-    jmethodID jRegisterSurfaceTextureFrameListener;
-    jmethodID jUnregisterSurfaceTextureFrameListener;
 
     // For native surface stuff
     jclass jSurfaceClass;
@@ -513,7 +502,6 @@ protected:
     int (* AndroidBitmap_unlockPixels)(JNIEnv *env, jobject bitmap);
 
     void* (*ANativeWindow_fromSurface)(JNIEnv *env, jobject surface);
-    void* (*ANativeWindow_fromSurfaceTexture)(JNIEnv *env, jobject surfaceTexture);
     void (*ANativeWindow_release)(void *window);
     int (*ANativeWindow_setBuffersGeometry)(void *window, int width, int height, int format);
 

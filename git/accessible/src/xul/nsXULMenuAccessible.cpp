@@ -120,7 +120,7 @@ nsXULMenuitemAccessible::NativeInteractiveState() const
     // Note: keep in sinc with nsXULPopupManager::IsValidMenuItem() logic.
     bool skipNavigatingDisabledMenuItem = true;
     nsMenuFrame* menuFrame = do_QueryFrame(GetFrame());
-    if (menuFrame && !menuFrame->IsOnMenuBar()) {
+    if (!menuFrame->IsOnMenuBar()) {
       skipNavigatingDisabledMenuItem = LookAndFeel::
         GetInt(LookAndFeel::eIntID_SkipNavigatingDisabledMenuItem, 0) != 0;
     }

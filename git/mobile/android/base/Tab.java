@@ -168,8 +168,7 @@ public final class Tab {
                             saveThumbnailToDB(new BitmapDrawable(bitmap));
 
                         mThumbnail = new BitmapDrawable(bitmap);
-                        if (bitmap != b)
-                            b.recycle();
+                        b.recycle();
                     } catch (OutOfMemoryError oom) {
                         Log.e(LOGTAG, "Unable to create/scale bitmap", oom);
                         mThumbnail = null;

@@ -132,11 +132,6 @@ def _deadState(proto=None):
     if proto is not None:  pfx = proto.name() +'::'
     return ExprVar(pfx +'__Dead')
 
-def _dyingState(proto=None):
-    pfx = ''
-    if proto is not None:  pfx = proto.name() +'::'
-    return ExprVar(pfx +'__Dying')
-
 def _startState(proto=None, fq=False):
     pfx = ''
     if proto:
@@ -146,9 +141,6 @@ def _startState(proto=None, fq=False):
 
 def _deleteId():
     return ExprVar('Msg___delete____ID')
-
-def _deleteReplyId():
-    return ExprVar('Reply___delete____ID')
 
 def _lookupListener(idexpr):
     return ExprCall(ExprVar('Lookup'), args=[ idexpr ])
@@ -1455,7 +1447,6 @@ class _GenerateProtocolCode(ipdl.ast.Visitor):
         stateenum.addId(_deadState().name)
         stateenum.addId(_nullState().name)
         stateenum.addId(_errorState().name)
-        stateenum.addId(_dyingState().name)
         for ts in p.transitionStmts:
             stateenum.addId(ts.state.decl.cxxname)
         if len(p.transitionStmts):
@@ -1617,12 +1608,8 @@ class _GenerateProtocolCode(ipdl.ast.Visitor):
         nullerrorblock = Block()
         if ptype.hasDelete:
             ifdelete = StmtIf(ExprBinary(_deleteId(), '==', msgexpr))
-            if ptype.hasReentrantDelete:
-                nextState = _dyingState()
-            else:
-                nextState = _deadState()
             ifdelete.addifstmts([
-                StmtExpr(ExprAssn(ExprDeref(nextvar), nextState)),
+                StmtExpr(ExprAssn(ExprDeref(nextvar), _deadState())),
                 StmtReturn(ExprLiteral.TRUE) ])
             nullerrorblock.addstmt(ifdelete)
         nullerrorblock.addstmt(
@@ -1636,21 +1623,6 @@ class _GenerateProtocolCode(ipdl.ast.Visitor):
             _runtimeAbort('__delete__()d actor'),
             StmtReturn(ExprLiteral.FALSE) ])
         fromswitch.addcase(CaseLabel(_deadState().name), deadblock)
-
-        # special case for Dying
-        dyingblock = Block()
-        if ptype.hasReentrantDelete:
-            ifdelete = StmtIf(ExprBinary(_deleteReplyId(), '==', msgexpr))
-            ifdelete.addifstmt(
-                StmtExpr(ExprAssn(ExprDeref(nextvar), _deadState())))
-            dyingblock.addstmt(ifdelete)
-            dyingblock.addstmt(
-                StmtReturn(ExprLiteral.TRUE))
-        else:
-            dyingblock.addstmts([
-                _runtimeAbort('__delete__()d (and unexpectedly dying) actor'),
-                StmtReturn(ExprLiteral.FALSE) ])
-        fromswitch.addcase(CaseLabel(_dyingState().name), dyingblock)
 
         unreachedblock = Block()
         unreachedblock.addstmts([
@@ -2889,21 +2861,6 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
 
                 method.addstmts([ routedecl, routeif, Whitespace.NL ])
 
-            # in the event of an RPC delete message, we want to loudly complain about
-            # messages that are received that are not a reply to the original message
-            if ptype.hasReentrantDelete:
-                msgVar = ExprVar(params[0].name)
-                ifdying = StmtIf(ExprBinary(
-                    ExprBinary(ExprVar('mState'), '==', _dyingState(ptype)),
-                    '&&',
-                    ExprBinary(
-                        ExprBinary(ExprCall(ExprSelect(msgVar, '.', 'is_reply')), '!=', ExprLiteral.TRUE),
-                        '||',
-                        ExprBinary(ExprCall(ExprSelect(msgVar, '.', 'is_rpc')), '!=', ExprLiteral.TRUE))))
-                ifdying.addifstmts([_fatalError('incoming message racing with actor deletion'),
-                                    StmtReturn(_Result.Processed)])
-                method.addstmt(ifdying)
-
             # bug 509581: don't generate the switch stmt if there
             # is only the default case; MSVC doesn't like that
             if switch.nr_cases > 1:
@@ -3081,18 +3038,16 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             ])
 
             dumpvar = ExprVar('aDump')
-            seqvar = ExprVar('aSequence')
             getdump = MethodDefn(MethodDecl(
                 'TakeMinidump',
-                params=[ Decl(Type('nsILocalFile', ptrptr=1), dumpvar.name),
-                         Decl(Type.UINT32PTR, seqvar.name)],
+                params=[ Decl(Type('nsILocalFile', ptrptr=1), dumpvar.name) ],
                 ret=Type.BOOL,
                 const=1))
             getdump.addstmts([
                 CppDirective('ifdef', 'MOZ_CRASHREPORTER'),
                 StmtReturn(ExprCall(
                     ExprVar('XRE_TakeMinidumpForChild'),
-                    args=[ ExprCall(otherpidvar), dumpvar, seqvar ])),
+                    args=[ ExprCall(otherpidvar), dumpvar ])),
                 CppDirective('else'),
                 StmtReturn.FALSE,
                 CppDirective('endif')
@@ -4519,13 +4474,9 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
         ifsendok.addifstmts([ Whitespace.NL,
                               StmtExpr(ExprAssn(sendok, ExprLiteral.FALSE, '&=')) ])
 
-        method.addstmt(ifsendok)
-
-        if self.protocol.decl.type.hasReentrantDelete:
-            method.addstmts(self.transition(md, 'in', actor.var(), reply=True))
-
         method.addstmts(
-            self.dtorEpilogue(md, actor.var())
+            [ ifsendok ]
+            + self.dtorEpilogue(md, actor.var())
             + [ Whitespace.NL, StmtReturn(sendok) ])
 
         return method
@@ -4903,7 +4854,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             saveIdStmts = [ ]
         return idvar, saveIdStmts
 
-    def transition(self, md, direction, actor=None, reply=False):
+    def transition(self, md, direction, actor=None):
         if actor is not None:  stateexpr = _actorState(actor)
         else:                  stateexpr = self.protocol.stateVar()
         
@@ -4915,13 +4866,12 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             action = ExprVar('Trigger::Recv')
         else: assert 0 and 'unknown combo %s/%s'% (self.side, direction)
 
-        msgid = md.pqMsgId() if not reply else md.pqReplyId()
         ifbad = StmtIf(ExprNot(
             ExprCall(
                 ExprVar(self.protocol.name +'::Transition'),
                 args=[ stateexpr,
                        ExprCall(ExprVar('Trigger'),
-                                args=[ action, ExprVar(msgid) ]),
+                                args=[ action, ExprVar(md.pqMsgId()) ]),
                        ExprAddrOf(stateexpr) ])))
         ifbad.addifstmts(_badTransition())
         return [ ifbad ]

@@ -49,10 +49,6 @@ public:
   bool
   GenerateCrashReport(Toplevel* t, const AnnotationTable* processNotes);
 
-  bool
-  GenerateCrashReportForMinidump(nsILocalFile* minidump,
-                                 const AnnotationTable* processNotes);
-
   /* Instantiate a new crash reporter actor from a given parent that manages
      the protocol.
   */
@@ -139,7 +135,7 @@ CrashReporterParent::GenerateCrashReport(Toplevel* t,
                                          const AnnotationTable* processNotes)
 {
   nsCOMPtr<nsILocalFile> crashDump;
-  if (t->TakeMinidump(getter_AddRefs(crashDump), NULL) &&
+  if (t->TakeMinidump(getter_AddRefs(crashDump)) &&
       CrashReporter::GetIDFromMinidump(crashDump, mChildDumpID)) {
     return GenerateChildData(processNotes);
   }

@@ -46,7 +46,6 @@ import android.text.style.UnderlineSpan;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.LayoutInflater;
-import android.view.MotionEvent;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -96,7 +95,6 @@ public class AboutHomeContent extends ScrollView
     protected AboutHomeSection mRemoteTabs;
 
     private View.OnClickListener mRemoteTabClickListener;
-    private OnInterceptTouchListener mOnInterceptTouchListener;
 
     public interface UriLoadCallback {
         public void callback(String uriSpec);
@@ -361,24 +359,6 @@ public class AboutHomeContent extends ScrollView
         super.onConfigurationChanged(newConfig);
     }
 
-    @Override
-    public boolean onInterceptTouchEvent(MotionEvent event) {
-        if (mOnInterceptTouchListener != null && mOnInterceptTouchListener.onInterceptTouchEvent(this, event))
-            return true;
-        return super.onInterceptTouchEvent(event);
-    }
-
-    @Override
-    public boolean onTouchEvent(MotionEvent event) {
-        if (mOnInterceptTouchListener != null && mOnInterceptTouchListener.onTouch(this, event))
-            return true;
-        return super.onTouchEvent(event);
-    }
-
-    public void setOnInterceptTouchListener(OnInterceptTouchListener listener) {
-        mOnInterceptTouchListener = listener;
-    }
-
     private String readFromZipFile(Activity activity, String filename) {
         ZipFile zip = null;
         String str = null;
@@ -573,7 +553,7 @@ public class AboutHomeContent extends ScrollView
                     if (favicon != null)
                         ((ImageView) container.findViewById(R.id.last_tab_favicon)).setImageDrawable(favicon);
 
-                    container.setOnClickListener(new View.OnClickListener() {
+                    container.findViewById(R.id.last_tab_row).setOnClickListener(new View.OnClickListener() {
                         public void onClick(View v) {
                             GeckoApp.mAppContext.loadUrlInTab(url);
                         }
@@ -635,8 +615,8 @@ public class AboutHomeContent extends ScrollView
             else if (!TextUtils.equals(client, tab.name))
                 break;
 
-            final RelativeLayout row = (RelativeLayout) mInflater.inflate(R.layout.abouthome_remote_tab_row, mRemoteTabs.getItemsContainer(), false);
-            ((TextView) row.findViewById(R.id.remote_tab_title)).setText(TextUtils.isEmpty(tab.title) ? tab.url : tab.title);
+            final TextView row = (TextView) mInflater.inflate(R.layout.abouthome_remote_tab_row, mRemoteTabs.getItemsContainer(), false);
+            row.setText(TextUtils.isEmpty(tab.title) ? tab.url : tab.title);
             row.setTag(tab.url);
             mRemoteTabs.addItem(row);
             row.setOnClickListener(mRemoteTabClickListener);
