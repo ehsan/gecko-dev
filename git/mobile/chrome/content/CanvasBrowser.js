@@ -72,7 +72,7 @@ CanvasBrowser.prototype = {
     // XXX
   },
 
-  setCurrentBrowser: function(browser, skipZoom) {
+  setCurrentBrowser: function(browser) {
     let currentBrowser = this._browser;
     if (currentBrowser) {
       // stop monitor paint events for this browser
@@ -89,11 +89,8 @@ CanvasBrowser.prototype = {
     browser.addEventListener("MozAfterPaint", this._paintHandler, false);
 
     this._browser = browser;
-    
-    // endLoading(and startLoading in most cases) calls zoom anyway
-    if (!skipZoom) {
-      self.zoomToPage();
-    }
+
+    self.zoomToPage();
   },
 
   startLoading: function() {
