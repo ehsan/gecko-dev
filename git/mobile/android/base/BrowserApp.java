@@ -1730,7 +1730,8 @@ public class BrowserApp extends GeckoApp
         // If the URL doesn't look like a search query, just load it.
         if (!StringUtils.isSearchQuery(url, true)) {
             Tabs.getInstance().loadUrl(url, Tabs.LOADURL_USER_ENTERED);
-            Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL, TelemetryContract.Method.ACTIONBAR, "user");
+
+            Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL);
             return;
         }
 
@@ -1756,7 +1757,7 @@ public class BrowserApp extends GeckoApp
                 // using the default search engine.
                 if (TextUtils.isEmpty(keywordUrl)) {
                     Tabs.getInstance().loadUrl(url, Tabs.LOADURL_USER_ENTERED);
-                    Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL, TelemetryContract.Method.ACTIONBAR, "user");
+                    Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL);
                     return;
                 }
 
@@ -1766,7 +1767,7 @@ public class BrowserApp extends GeckoApp
                 final String searchUrl = keywordUrl.replace("%s", URLEncoder.encode(keywordSearch));
                 Tabs.getInstance().loadUrl(searchUrl, Tabs.LOADURL_USER_ENTERED);
                 Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL,
-                                      TelemetryContract.Method.ACTIONBAR,
+                                      TelemetryContract.Method.NONE,
                                       "keyword");
             }
         });

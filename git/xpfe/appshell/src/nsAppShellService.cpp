@@ -629,7 +629,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
     isPrivateBrowsingWindow = parentContext->UsePrivateBrowsing();
   }
 
-  if (parentContext) {
+  if (!isUsingRemoteTabs && parentContext) {
     isUsingRemoteTabs = parentContext->UseRemoteTabs();
   }
 

@@ -23,6 +23,12 @@
 
 BEGIN_BLUETOOTH_NAMESPACE
 
+const bt_interface_t*
+GetBluetoothInterface()
+{
+  return BluetoothServiceBluedroid::GetBluetoothInterface();
+}
+
 void
 StringToBdAddressType(const nsAString& aBdAddress,
                       bt_bdaddr_t *aRetBdAddressType)
