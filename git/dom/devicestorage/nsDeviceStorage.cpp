@@ -47,6 +47,8 @@
 #include "nsIStringBundle.h"
 #include <algorithm>
 
+#include "mozilla/dom/DeviceStorageBinding.h"
+
 // Microsoft's API Name hackery sucks
 #undef CreateEvent
 
@@ -487,6 +489,8 @@ DeviceStorageFile::DeviceStorageFile(const nsAString& aStorageType,
   , mRootDir(aRootDir)
   , mPath(aPath)
   , mEditable(false)
+  , mLength(UINT64_MAX)
+  , mLastModifiedDate(UINT64_MAX)
 {
   Init();
   AppendRelativePath(mRootDir);
@@ -503,6 +507,8 @@ DeviceStorageFile::DeviceStorageFile(const nsAString& aStorageType,
   , mStorageName(aStorageName)
   , mPath(aPath)
   , mEditable(false)
+  , mLength(UINT64_MAX)
+  , mLastModifiedDate(UINT64_MAX)
 {
   Init();
   AppendRelativePath(aPath);
@@ -514,6 +520,8 @@ DeviceStorageFile::DeviceStorageFile(const nsAString& aStorageType,
   : mStorageType(aStorageType)
   , mStorageName(aStorageName)
   , mEditable(false)
+  , mLength(UINT64_MAX)
+  , mLastModifiedDate(UINT64_MAX)
 {
   Init();
 }
@@ -958,6 +966,45 @@ DeviceStorageFile::Remove()
   return NS_OK;
 }
 
+nsresult
+DeviceStorageFile::CalculateMimeType()
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  nsAutoCString mimeType;
+  nsCOMPtr<nsIMIMEService> mimeService =
+    do_GetService(NS_MIMESERVICE_CONTRACTID);
+  if (mimeService) {
+    nsresult rv = mimeService->GetTypeFromFile(mFile, mimeType);
+    if (NS_FAILED(rv)) {
+      mimeType.Truncate();
+      return rv;
+    }
+  }
+
+  mMimeType = NS_ConvertUTF8toUTF16(mimeType);
+  return NS_OK;
+}
+
+nsresult
+DeviceStorageFile::CalculateSizeAndModifiedDate()
+{
+  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
+
+  int64_t fileSize;
+  nsresult rv = mFile->GetFileSize(&fileSize);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mLength = fileSize;
+
+  PRTime modDate;
+  rv = mFile->GetLastModifiedTime(&modDate);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mLastModifiedDate = modDate;
+  return NS_OK;
+}
+
 void
 DeviceStorageFile::CollectFiles(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles,
                                 PRTime aSince)
@@ -1034,6 +1081,7 @@ DeviceStorageFile::collectFilesInternal(nsTArray<nsRefPtr<DeviceStorageFile> > &
     } else if (isFile) {
       nsRefPtr<DeviceStorageFile> dsf =
         new DeviceStorageFile(mStorageType, mStorageName, mRootDir, newPath);
+      dsf->CalculateSizeAndModifiedDate();
       aFiles.AppendElement(dsf);
     }
   }
@@ -1344,8 +1392,16 @@ nsIFileToJsval(nsPIDOMWindow* aWindow, DeviceStorageFile* aFile)
 
   nsString  compositePath;
   aFile->GetCompositePath(compositePath);
-  nsCOMPtr<nsIDOMBlob> blob = new nsDOMFileFile(aFile->mFile, compositePath,
-                                                EmptyString());
+
+  // This check is useful to know if somewhere the DeviceStorageFile
+  // has not been properly set. Mimetype is not checked because it can be
+  // empty.
+  NS_ASSERTION(aFile->mLength != UINT64_MAX, "Size not set");
+  NS_ASSERTION(aFile->mLastModifiedDate != UINT64_MAX, "LastModifiedDate not set");
+
+  nsCOMPtr<nsIDOMBlob> blob = new nsDOMFileFile(compositePath, aFile->mMimeType,
+                                                aFile->mLength, aFile->mFile,
+                                                aFile->mLastModifiedDate);
   return InterfaceToJsval(aWindow, blob, &NS_GET_IID(nsIDOMBlob));
 }
 
@@ -1486,6 +1542,8 @@ ContinueCursorEvent::GetNextFile()
     if (!typeChecker->Check(cursorStorageType, file->mFile)) {
       continue;
     }
+
+    file->CalculateMimeType();
     return file.forget();
   }
 
@@ -1530,7 +1588,9 @@ ContinueCursorEvent::Run()
   nsRefPtr<DeviceStorageFile> file = GetNextFile();
 
   nsDOMDeviceStorageCursor* cursor = static_cast<nsDOMDeviceStorageCursor*>(mRequest.get());
-  JS::Value val = nsIFileToJsval(cursor->GetOwner(), file);
+
+  AutoJSContext cx;
+  JS::Rooted<JS::Value> val(cx, nsIFileToJsval(cursor->GetOwner(), file));
 
   if (file) {
     cursor->mOkToCallContinue = true;
@@ -1747,7 +1807,8 @@ public:
       mFile->GetStatus(state);
     }
 
-    JS::Value result = StringToJsval(mRequest->GetOwner(), state);
+    AutoJSContext cx;
+    JS::Rooted<JS::Value> result(cx, StringToJsval(mRequest->GetOwner(), state));
     mRequest->FireSuccess(result);
     mRequest = nullptr;
     return NS_OK;
@@ -1785,7 +1846,8 @@ public:
   {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-    JS::Value result = JSVAL_NULL;
+    AutoJSContext cx;
+    JS::Rooted<JS::Value> result(cx, JSVAL_NULL);
     nsPIDOMWindow* window = mRequest->GetOwner();
 
     if (mFile) {
@@ -1867,6 +1929,7 @@ public:
   : mFile(aFile)
     {
       mRequest.swap(aRequest);
+      mFile->CalculateMimeType();
     }
 
   ~ReadFileEvent() {}
@@ -1881,6 +1944,13 @@ public:
       mFile->mFile->Exists(&check);
       if (!check) {
         r = new PostErrorEvent(mRequest, POST_ERROR_EVENT_FILE_DOES_NOT_EXIST);
+      }
+    }
+
+    if (!r) {
+      nsresult rv = mFile->CalculateSizeAndModifiedDate();
+      if (NS_FAILED(rv)) {
+        r = new PostErrorEvent(mRequest, POST_ERROR_EVENT_UNKNOWN);
       }
     }
 
@@ -2976,21 +3046,20 @@ nsDOMDeviceStorage::EnumerateEditable(const JS::Value & aName,
 }
 
 
-static PRTime
-ExtractDateFromOptions(JSContext* aCx, const JS::Value& aOptions)
+static bool
+ExtractDateFromOptions(JSContext* aCx, const JS::Value& aOptions, PRTime* aTime)
 {
-  PRTime result = 0;
-  mozilla::idl::DeviceStorageEnumerationParameters params;
-  if (!JSVAL_IS_VOID(aOptions) && !aOptions.isNull()) {
-    nsresult rv = params.Init(aCx, &aOptions);
-    if (NS_SUCCEEDED(rv) && !JSVAL_IS_VOID(params.since) && !params.since.isNull() && params.since.isObject()) {
-      JS::Rooted<JSObject*> obj(aCx, JSVAL_TO_OBJECT(params.since));
-      if (JS_ObjectIsDate(aCx, obj) && js_DateIsValid(obj)) {
-        result = js_DateGetMsecSinceEpoch(obj);
-      }
-    }
+  JS::Rooted<JS::Value> options(aCx, aOptions);
+  RootedDictionary<DeviceStorageEnumerationParameters> params(aCx);
+  if (!params.Init(aCx, options)) {
+    return false;
   }
-  return result;
+  if (params.mSince.WasPassed() && !params.mSince.Value().IsUndefined()) {
+    *aTime = params.mSince.Value().TimeStamp();
+  } else {
+    *aTime = 0;
+  }
+  return true;
 }
 
 nsresult
@@ -3018,7 +3087,9 @@ nsDOMDeviceStorage::EnumerateInternal(const JS::Value & aName,
       path.Assign(jspath);
     } else if (!JSVAL_IS_PRIMITIVE(aName)) {
       // it also might be an options object
-      since = ExtractDateFromOptions(aCx, aName);
+      if (!ExtractDateFromOptions(aCx, aName, &since)) {
+        return NS_ERROR_FAILURE;
+      }
     } else {
       return NS_ERROR_FAILURE;
     }
@@ -3026,7 +3097,9 @@ nsDOMDeviceStorage::EnumerateInternal(const JS::Value & aName,
     if (aArgc == 2 && (JSVAL_IS_VOID(aOptions) || aOptions.isNull() || !aOptions.isObject())) {
       return NS_ERROR_FAILURE;
     }
-    since = ExtractDateFromOptions(aCx, aOptions);
+    if (!ExtractDateFromOptions(aCx, aOptions, &since)) {
+      return NS_ERROR_FAILURE;
+    }
   }
 
   nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(mStorageType,

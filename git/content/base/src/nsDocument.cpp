@@ -5076,7 +5076,7 @@ nsDocument::Register(const nsAString& aName, const JS::Value& aOptions,
                      JSContext* aCx, uint8_t aOptionalArgc,
                      jsval* aConstructor /* out param */)
 {
-  ElementRegistrationOptions options;
+  RootedDictionary<ElementRegistrationOptions> options(aCx);
   if (aOptionalArgc > 0) {
     JSAutoCompartment ac(aCx, GetWrapper());
     JS::Rooted<JS::Value> opts(aCx, aOptions);
@@ -9262,7 +9262,7 @@ nsDocument::CreateTouchList(nsIVariant* aPoints,
       aPoints->GetAsISupports(getter_AddRefs(data));
       nsCOMPtr<nsIDOMTouch> point = do_QueryInterface(data);
       if (point) {
-        retval->Append(point);
+        retval->Append(static_cast<Touch*>(point.get()));
       }
     } else if (type == nsIDataType::VTYPE_ARRAY) {
       uint16_t valueType;
@@ -9277,7 +9277,7 @@ nsDocument::CreateTouchList(nsIVariant* aPoints,
           nsCOMPtr<nsISupports> supports = dont_AddRef(values[i]);
           nsCOMPtr<nsIDOMTouch> point = do_QueryInterface(supports);
           if (point) {
-            retval->Append(point);
+            retval->Append(static_cast<Touch*>(point.get()));
           }
         }
       }
