@@ -21,12 +21,6 @@ public:
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIPRINTINGPROMPTSERVICE
-
-    virtual PPrintProgressDialogChild*
-    AllocPPrintProgressDialogChild();
-
-    virtual bool
-    DeallocPPrintProgressDialogChild(PPrintProgressDialogChild* aActor);
 };
 
 #endif
