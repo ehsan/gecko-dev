@@ -554,8 +554,7 @@ bool OpenSlesInput::CbThreadImpl() {
   while (fifo_->size() > 0 && recording_) {
     int8_t* audio = fifo_->Pop();
     audio_buffer_->SetRecordedBuffer(audio, buffer_size_samples());
-    audio_buffer_->SetVQEData(delay_provider_ ?
-                              delay_provider_->PlayoutDelayMs() : 0,
+    audio_buffer_->SetVQEData(delay_provider_->PlayoutDelayMs(),
                               recording_delay_, 0);
     audio_buffer_->DeliverRecordedData();
   }

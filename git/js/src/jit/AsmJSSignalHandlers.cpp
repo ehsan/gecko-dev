@@ -458,8 +458,6 @@ HandleException(PEXCEPTION_POINTERS exception)
     if (module.containsPC(faultingAddress)) {
         activation->setResumePC(pc);
         *ppc = module.operationCallbackExit();
-
-        JSRuntime::AutoLockForOperationCallback lock(rt);
         module.unprotectCode(rt);
         return true;
     }
@@ -645,7 +643,6 @@ HandleMachException(JSRuntime *rt, const ExceptionRequest &request)
 
     const AsmJSModule &module = activation->module();
     if (HandleSimulatorInterrupt(rt, activation, faultingAddress)) {
-        JSRuntime::AutoLockForOperationCallback lock(rt);
         module.unprotectCode(rt);
         return true;
     }
@@ -661,8 +658,6 @@ HandleMachException(JSRuntime *rt, const ExceptionRequest &request)
     if (module.containsPC(faultingAddress)) {
         activation->setResumePC(pc);
         *ppc = module.operationCallbackExit();
-
-        JSRuntime::AutoLockForOperationCallback lock(rt);
         module.unprotectCode(rt);
 
         // Update the thread state with the new pc.
@@ -895,7 +890,6 @@ HandleSignal(int signum, siginfo_t *info, void *ctx)
 
     const AsmJSModule &module = activation->module();
     if (HandleSimulatorInterrupt(rt, activation, faultingAddress)) {
-        JSRuntime::AutoLockForOperationCallback lock(rt);
         module.unprotectCode(rt);
         return true;
     }
@@ -911,8 +905,6 @@ HandleSignal(int signum, siginfo_t *info, void *ctx)
     if (module.containsPC(faultingAddress)) {
         activation->setResumePC(pc);
         *ppc = module.operationCallbackExit();
-
-        JSRuntime::AutoLockForOperationCallback lock(rt);
         module.unprotectCode(rt);
         return true;
     }

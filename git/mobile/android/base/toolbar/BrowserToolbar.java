@@ -470,9 +470,8 @@ public class BrowserToolbar extends GeckoRelativeLayout
             // Progress-related handling
             switch (msg) {
                 case START:
-                    updateProgressVisibility(tab, Tab.LOAD_PROGRESS_INIT);
+                    updateProgressVisibility(tab, 0);
                     // Fall through.
-                case ADDED:
                 case LOCATION_CHANGE:
                 case LOAD_ERROR:
                 case LOADED:
