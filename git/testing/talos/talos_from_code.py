@@ -57,7 +57,7 @@ def main():
         else:
             print "ERROR: You have tried to download a file " + \
                   "from: %s " % fileUrl + \
-                  "which is a location different than http://talos-bundles.pvt.build.mozilla.org/"
+                  "which is a location different than http://build.mozilla.org/talos/"
             print "ERROR: This is only allowed for the certain branches."
             sys.exit(1)
     except Exception, e:
@@ -67,13 +67,13 @@ def main():
 def passesRestrictions(talosJsonUrl, fileUrl):
     '''
     Only certain branches are exempted from having to host their downloadable files
-    in talos-bundles.pvt.build.mozilla.org
+    in build.mozilla.org
     '''
     if talosJsonUrl.startswith("http://hg.mozilla.org/try/") == True or \
        talosJsonUrl.startswith("http://hg.mozilla.org/projects/pine/") == True:
         return True
     else:
-        p = re.compile('^http://talos-bundles.pvt.build.mozilla.org/')
+        p = re.compile('^http://build.mozilla.org/talos/')
         m = p.match(fileUrl)
         if m == None:
             return False
