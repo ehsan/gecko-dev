@@ -10,7 +10,6 @@
 #include "mozilla/EventListenerManager.h"
 #include "mozilla/dom/Console.h"
 #include "mozilla/dom/DedicatedWorkerGlobalScopeBinding.h"
-#include "mozilla/dom/Fetch.h"
 #include "mozilla/dom/FunctionBinding.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/ServiceWorkerGlobalScopeBinding.h"
@@ -306,7 +305,8 @@ already_AddRefed<Promise>
 WorkerGlobalScope::Fetch(const RequestOrScalarValueString& aInput,
                          const RequestInit& aInit, ErrorResult& aRv)
 {
-  return FetchRequest(this, aInput, aInit, aRv);
+  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
+  return nullptr;
 }
 
 DedicatedWorkerGlobalScope::DedicatedWorkerGlobalScope(WorkerPrivate* aWorkerPrivate)

@@ -1048,11 +1048,8 @@ if (Services.prefs.getBoolPref("privacy.panicButton.enabled")) {
       let win = aContainer.ownerDocument.defaultView;
       for (let item of variableHeightItems) {
         if (aSetHeights) {
-          let cs = win.getComputedStyle(item, null);
-          let height = cs.getPropertyValue("height");
-          let width = cs.getPropertyValue("width");
+          let height = win.getComputedStyle(item, null).getPropertyValue("height");
           item.style.height = height;
-          item.style.width = width;
           // In the main menu panel, need to set the height of the container of this
           // description because otherwise the text will overflow:
           if (item.id == "PanelUI-panic-mainDesc" &&
@@ -1063,7 +1060,6 @@ if (Services.prefs.getBoolPref("privacy.panicButton.enabled")) {
           }
         } else {
           item.style.removeProperty("height");
-          item.style.removeProperty("width");
           if (item.id == "PanelUI-panic-mainDesc") {
             item.parentNode.style.removeProperty("min-height");
           }

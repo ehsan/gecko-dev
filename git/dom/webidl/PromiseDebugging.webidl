@@ -55,17 +55,4 @@ interface PromiseDebugging {
    * depend on p.
    */
   static sequence<Promise<any>> getDependentPromises(Promise<any> p);
-
-  /**
-   * Get the number of milliseconds elapsed since the given promise was created.
-   */
-  static DOMHighResTimeStamp getPromiseLifetime(Promise<any> p);
-
-  /*
-   * Get the number of milliseconds elapsed between the promise being created
-   * and being settled.  Throws NS_ERROR_UNEXPECTED if the promise has not
-   * settled.
-   */
-  [Throws]
-  static DOMHighResTimeStamp getTimeToSettle(Promise<any> p);
 };

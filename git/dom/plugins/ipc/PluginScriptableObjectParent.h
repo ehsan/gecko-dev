@@ -18,6 +18,7 @@ namespace plugins {
 
 class PluginInstanceParent;
 class PluginScriptableObjectParent;
+class PPluginIdentifierParent;
 
 struct ParentNPObject : NPObject
 {
@@ -48,11 +49,11 @@ public:
   ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
   virtual bool
-  AnswerHasMethod(const PluginIdentifier& aId,
+  AnswerHasMethod(PPluginIdentifierParent* aId,
                   bool* aHasMethod) MOZ_OVERRIDE;
 
   virtual bool
-  AnswerInvoke(const PluginIdentifier& aId,
+  AnswerInvoke(PPluginIdentifierParent* aId,
                const InfallibleTArray<Variant>& aArgs,
                Variant* aResult,
                bool* aSuccess) MOZ_OVERRIDE;
@@ -63,25 +64,25 @@ public:
                       bool* aSuccess) MOZ_OVERRIDE;
 
   virtual bool
-  AnswerHasProperty(const PluginIdentifier& aId,
+  AnswerHasProperty(PPluginIdentifierParent* aId,
                     bool* aHasProperty) MOZ_OVERRIDE;
 
   virtual bool
-  AnswerGetParentProperty(const PluginIdentifier& aId,
+  AnswerGetParentProperty(PPluginIdentifierParent* aId,
                           Variant* aResult,
                           bool* aSuccess) MOZ_OVERRIDE;
 
   virtual bool
-  AnswerSetProperty(const PluginIdentifier& aId,
+  AnswerSetProperty(PPluginIdentifierParent* aId,
                     const Variant& aValue,
                     bool* aSuccess) MOZ_OVERRIDE;
 
   virtual bool
-  AnswerRemoveProperty(const PluginIdentifier& aId,
+  AnswerRemoveProperty(PPluginIdentifierParent* aId,
                        bool* aSuccess) MOZ_OVERRIDE;
 
   virtual bool
-  AnswerEnumerate(InfallibleTArray<PluginIdentifier>* aProperties,
+  AnswerEnumerate(InfallibleTArray<PPluginIdentifierParent*>* aProperties,
                   bool* aSuccess) MOZ_OVERRIDE;
 
   virtual bool

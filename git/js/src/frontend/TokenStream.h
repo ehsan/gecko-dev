@@ -173,7 +173,11 @@ struct CompileError {
     JSErrorReport report;
     char *message;
     ErrorArgumentsType argumentsType;
-    CompileError() : message(nullptr), argumentsType(ArgumentsAreUnicode) {}
+    CompileError()
+      : message(nullptr), argumentsType(ArgumentsAreUnicode)
+    {
+        mozilla::PodZero(&report);
+    }
     ~CompileError();
     void throwError(JSContext *cx);
 

@@ -105,8 +105,20 @@ this.DataStoreChangeNotifier = {
       delete this.sysMsgOnChangeLongTimers[storeKey];
     }
 
-    systemMessenger.broadcastMessage("datastore-update-" + aStore,
-                                     { owner: aOwner });
+    // Get all the manifest URLs of the apps which can access the datastore.
+    var manifestURLs = dataStoreService.getAppManifestURLsForDataStore(aStore);
+    var enumerate = manifestURLs.enumerate();
+    while (enumerate.hasMoreElements()) {
+      var manifestURL = enumerate.getNext().QueryInterface(Ci.nsISupportsString);
+      debug("Notify app " + manifestURL + " of datastore updates");
+      // Send the system message 'datastore-update-{store name}' to all the
+      // pages for these apps. With the manifest URL of the owner in the message
+      // payload, it notifies the consumer a sync operation should be performed.
+      systemMessenger.sendMessage("datastore-update-" + aStore,
+                                  { owner: aOwner },
+                                  null,
+                                  Services.io.newURI(manifestURL, null, null));
+    }
   },
 
   // Use the following logic to broadcast system messages in a moderate pattern.

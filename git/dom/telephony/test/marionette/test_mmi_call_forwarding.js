@@ -32,6 +32,33 @@ function waitForManagerEvent(aEventName) {
 }
 
 /**
+ * Wrap DOMRequest onsuccess/onerror events to Promise resolve/reject.
+ *
+ * Fulfill params: A DOMEvent.
+ * Reject params: A DOMEvent.
+ *
+ * @param aRequest
+ *        A DOMRequest instance.
+ *
+ * @return A deferred promise.
+ */
+function wrapDomRequestAsPromise(aRequest) {
+  let deferred = Promise.defer();
+
+  ok(aRequest instanceof DOMRequest,
+     "aRequest is instanceof " + aRequest.constructor);
+
+  aRequest.addEventListener("success", function(aEvent) {
+    deferred.resolve(aEvent);
+  });
+  aRequest.addEventListener("error", function(aEvent) {
+    deferred.reject(aEvent);
+  });
+
+  return deferred.promise;
+}
+
+/**
  * Configures call forward options.
  *
  * Fulfill params: (none)
@@ -46,7 +73,8 @@ function waitForManagerEvent(aEventName) {
  */
 function setCallForwardingOption(aOptions) {
   let request = connection.setCallForwardingOption(aOptions);
-  return request.then(null, () => { throw request.error; });
+  return wrapDomRequestAsPromise(request)
+    .then(null, () => { throw request.error; });
 }
 
 const TEST_DATA = [

@@ -21,7 +21,6 @@
 #include "nsIAnonymousContentCreator.h"
 #include "nsFrameManager.h"
 #include "nsIDocument.h"
-#include "ScrollbarStyles.h"
 
 struct nsFrameItems;
 struct nsAbsoluteItems;

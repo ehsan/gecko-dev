@@ -1125,6 +1125,8 @@ public abstract class GeckoApp
     @Override
     public void onCreate(Bundle savedInstanceState)
     {
+        GeckoAppShell.registerGlobalExceptionHandler();
+
         // Enable Android Strict Mode for developers' local builds (the "default" channel).
         if ("default".equals(AppConstants.MOZ_UPDATE_CHANNEL)) {
             enableStrictMode();
@@ -1188,6 +1190,8 @@ public abstract class GeckoApp
             Class.forName("android.os.AsyncTask");
         } catch (ClassNotFoundException e) {}
 
+        MemoryMonitor.getInstance().init(getApplicationContext());
+
         // GeckoAppShell is tightly coupled to us, rather than
         // the app context, because various parts of Fennec (e.g.,
         // GeckoScreenOrientation) use GAS to access the Activity in
@@ -1196,6 +1200,13 @@ public abstract class GeckoApp
         // `(GeckoApplication) getApplication()` here.
         GeckoAppShell.setContextGetter(this);
         GeckoAppShell.setGeckoInterface(this);
+
+        Tabs.getInstance().attachToContext(this);
+        try {
+            Favicons.initializeWithContext(this);
+        } catch (Exception e) {
+            Log.e(LOGTAG, "Exception starting favicon cache. Corrupt resources?", e);
+        }
 
         // Did the OS locale change while we were backgrounded? If so,
         // we need to die so that Gecko will re-init add-ons that touch
@@ -1241,20 +1252,6 @@ public abstract class GeckoApp
                     GeckoThread.createAndStart();
                 }
             }, 1000 * 5 /* 5 seconds */);
-        }
-
-        // Heavy load on the Gecko thread can slow down the time it takes for UI to appear on
-        // single-core devices. By minimizing the Gecko thread priority, we ensure that the UI
-        // appears quickly. The priority is reset to normal once thumbnails are loaded.
-        ThreadUtils.reduceGeckoPriority();
-
-        MemoryMonitor.getInstance().init(getApplicationContext());
-
-        Tabs.getInstance().attachToContext(this);
-        try {
-            Favicons.initializeWithContext(this);
-        } catch (Exception e) {
-            Log.e(LOGTAG, "Exception starting favicon cache. Corrupt resources?", e);
         }
 
         Bundle stateBundle = getIntent().getBundleExtra(EXTRA_STATE_BUNDLE);
@@ -1633,10 +1630,6 @@ public abstract class GeckoApp
         } else if (NotificationHelper.HELPER_BROADCAST_ACTION.equals(action)) {
             NotificationHelper.getInstance(getApplicationContext()).handleNotificationIntent(intent);
         }
-
-        // Reset Gecko to normal priority. We may reduce the
-        // priority again later, e.g. for loading thumbnails.
-        ThreadUtils.resetGeckoPriority();
     }
 
     private String restoreSessionTabs(final boolean isExternalURL) throws SessionRestoreException {

@@ -55,6 +55,7 @@ using namespace js::gc;
 
 using mozilla::DebugOnly;
 using mozilla::PodArrayZero;
+using mozilla::PodZero;
 using mozilla::PointerRangeSize;
 
 bool
@@ -380,6 +381,7 @@ js_ReportOutOfMemory(ThreadSafeContext *cxArg)
 
     /* Fill out the report, but don't do anything that requires allocation. */
     JSErrorReport report;
+    PodZero(&report);
     report.flags = JSREPORT_ERROR;
     report.errorNumber = JSMSG_OUT_OF_MEMORY;
     PopulateReportBlame(cx, &report);
@@ -501,6 +503,7 @@ js_ReportErrorVA(JSContext *cx, unsigned flags, const char *format, va_list ap)
         return false;
     messagelen = strlen(message);
 
+    PodZero(&report);
     report.flags = flags;
     report.errorNumber = JSMSG_USER_DEFINED_ERROR;
     report.ucmessage = ucmessage = InflateString(cx, message, &messagelen);
@@ -805,6 +808,7 @@ js_ReportErrorNumberVA(JSContext *cx, unsigned flags, JSErrorCallback callback,
         return true;
     warning = JSREPORT_IS_WARNING(flags);
 
+    PodZero(&report);
     report.flags = flags;
     report.errorNumber = errorNumber;
     PopulateReportBlame(cx, &report);
@@ -844,6 +848,7 @@ js_ReportErrorNumberUCArray(JSContext *cx, unsigned flags, JSErrorCallback callb
     bool warning = JSREPORT_IS_WARNING(flags);
 
     JSErrorReport report;
+    PodZero(&report);
     report.flags = flags;
     report.errorNumber = errorNumber;
     PopulateReportBlame(cx, &report);

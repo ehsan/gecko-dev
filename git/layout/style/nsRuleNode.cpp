@@ -17,7 +17,6 @@
 #include "mozilla/Likely.h"
 #include "mozilla/LookAndFeel.h"
 
-#include "nsDeviceContext.h"
 #include "nsRuleNode.h"
 #include "nscore.h"
 #include "nsIWidget.h"
@@ -5296,13 +5295,6 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
               canStoreInRuleTree,
               SETDSC_ENUMERATED | SETDSC_UNSET_INITIAL,
               parentDisplay->mMixBlendMode, NS_STYLE_BLEND_NORMAL,
-              0, 0, 0, 0);
-
-  // scroll-behavior: enum, inherit, initial
-  SetDiscrete(*aRuleData->ValueForScrollBehavior(), display->mScrollBehavior,
-              canStoreInRuleTree,
-              SETDSC_ENUMERATED | SETDSC_UNSET_INITIAL,
-              parentDisplay->mScrollBehavior, NS_STYLE_SCROLL_BEHAVIOR_AUTO,
               0, 0, 0, 0);
 
     // isolation: enum, inherit, initial

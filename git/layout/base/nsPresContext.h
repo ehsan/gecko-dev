@@ -138,7 +138,6 @@ class nsRootPresContext;
 class nsPresContext : public nsIObserver {
 public:
   typedef mozilla::FramePropertyTable FramePropertyTable;
-  typedef mozilla::ScrollbarStyles ScrollbarStyles;
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIOBSERVER
@@ -680,13 +679,14 @@ public:
   nscoord RoundAppUnitsToNearestDevPixels(nscoord aAppUnits) const
   { return DevPixelsToAppUnits(AppUnitsToDevPixels(aAppUnits)); }
 
-  void SetViewportScrollbarStylesOverride(const ScrollbarStyles& aScrollbarStyle)
+  void SetViewportOverflowOverride(uint8_t aX, uint8_t aY)
   {
-    mViewportStyleScrollbar = aScrollbarStyle;
+    mViewportStyleOverflow.mHorizontal = aX;
+    mViewportStyleOverflow.mVertical = aY;
   }
-  ScrollbarStyles GetViewportScrollbarStylesOverride()
+  mozilla::ScrollbarStyles GetViewportOverflowOverride()
   {
-    return mViewportStyleScrollbar;
+    return mViewportStyleOverflow;
   }
 
   /**
@@ -1280,7 +1280,7 @@ protected:
 
   nscolor               mBodyTextColor;
 
-  ScrollbarStyles       mViewportStyleScrollbar;
+  mozilla::ScrollbarStyles mViewportStyleOverflow;
   uint8_t               mFocusRingWidth;
 
   bool mExistThrottledUpdates;

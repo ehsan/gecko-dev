@@ -504,14 +504,12 @@ class DeviceManagerADB(DeviceManager):
         if directive == "os" or directive == "all":
             ret["os"] = self.shellCheckOutput(["getprop", "ro.build.display.id"])
         if directive == "uptime" or directive == "all":
-            uptime = self.shellCheckOutput(["uptime"])
-            if not uptime:
+            utime = self.shellCheckOutput(["uptime"])
+            if (not utime):
                 raise DMError("error getting uptime")
-            m = re.match("up time: ((\d+) days, )*(\d{2}):(\d{2}):(\d{2})", uptime)
-            if m:
-                uptime = "%d days %d hours %d minutes %d seconds" % tuple(
-                    [int(g or 0) for g in m.groups()[1:]])
-            ret["uptime"] = uptime
+            m = re.match("up time: ((\d+) days, )*(\d{2}):(\d{2}):(\d{2})", utime)
+            ret["uptime"] = "%d days %d hours %d minutes %d seconds" % tuple(
+                [int(g or 0) for g in m.groups()[1:]])
         if directive == "process" or directive == "all":
             ret["process"] = self.shellCheckOutput(["ps"])
         if directive == "systime" or directive == "all":
@@ -522,7 +520,7 @@ class DeviceManagerADB(DeviceManager):
                 key, value = line.split(":")
                 meminfo[key] = value.strip()
             ret["memtotal"] = meminfo["MemTotal"]
-        self._logger.debug("getInfo: %s" % ret)
+        self._logger.info(ret)
         return ret
 
     def uninstallApp(self, appName, installPath=None):

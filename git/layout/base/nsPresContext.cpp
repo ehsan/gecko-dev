@@ -189,9 +189,7 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
   : mType(aType), mDocument(aDocument), mBaseMinFontSize(0),
     mTextZoom(1.0), mFullZoom(1.0), mLastFontInflationScreenWidth(-1.0),
     mPageSize(-1, -1), mPPScale(1.0f),
-    mViewportStyleScrollbar(NS_STYLE_OVERFLOW_AUTO,
-                            NS_STYLE_OVERFLOW_AUTO,
-                            NS_STYLE_SCROLL_BEHAVIOR_AUTO),
+    mViewportStyleOverflow(NS_STYLE_OVERFLOW_AUTO, NS_STYLE_OVERFLOW_AUTO),
     mImageAnimationModePref(imgIContainer::kNormalAnimMode),
     mAllInvalidated(false),
     mPaintFlashing(false), mPaintFlashingInitialized(false)
@@ -970,6 +968,11 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
 
   mAnimationManager = new nsAnimationManager(this);
 
+  // Since CounterStyleManager is also the name of a method of
+  // nsPresContext, it is necessary to prefix the class with the mozilla
+  // namespace here.
+  mCounterStyleManager = new mozilla::CounterStyleManager(this);
+
   if (mDocument->GetDisplayDocument()) {
     NS_ASSERTION(mDocument->GetDisplayDocument()->GetShell() &&
                  mDocument->GetDisplayDocument()->GetShell()->GetPresContext(),
@@ -1097,10 +1100,6 @@ nsPresContext::SetShell(nsIPresShell* aShell)
     mFontFaceSet->DestroyUserFontSet();
     mFontFaceSet = nullptr;
   }
-  if (mCounterStyleManager) {
-    mCounterStyleManager->Disconnect();
-    mCounterStyleManager = nullptr;
-  }
 
   if (mShell) {
     // Remove ourselves as the charset observer from the shell's doc, because
@@ -1114,11 +1113,6 @@ nsPresContext::SetShell(nsIPresShell* aShell)
   mShell = aShell;
 
   if (mShell) {
-    // Since CounterStyleManager is also the name of a method of
-    // nsPresContext, it is necessary to prefix the class with the mozilla
-    // namespace here.
-    mCounterStyleManager = new mozilla::CounterStyleManager(this);
-
     nsIDocument *doc = mShell->GetDocument();
     NS_ASSERTION(doc, "expect document here");
     if (doc) {
@@ -1161,6 +1155,10 @@ nsPresContext::SetShell(nsIPresShell* aShell)
     if (mRestyleManager) {
       mRestyleManager->Disconnect();
       mRestyleManager = nullptr;
+    }
+    if (mCounterStyleManager) {
+      mCounterStyleManager->Disconnect();
+      mCounterStyleManager = nullptr;
     }
 
     if (IsRoot()) {
@@ -2524,11 +2522,6 @@ nsPresContext::NotifyDidPaintForSubtree(uint32_t aFlags)
       return;
     }
   }
-
-  if (!PresShell()->IsVisible() && !mFireAfterPaintEvents) {
-    return;
-  }
-
   // Non-root prescontexts fire MozAfterPaint to all their descendants
   // unconditionally, even if no invalidations have been collected. This is
   // because we don't want to eat the cost of collecting invalidations for

@@ -28,7 +28,6 @@
 #include "nsIFrame.h"
 #include "nsIPresShell.h"
 #include "nsISVGChildFrame.h"
-#include "nsLayoutUtils.h"
 #include "nsPresContext.h"
 #include "nsRenderingContext.h"
 #include "nsStyleCoord.h"
@@ -557,7 +556,6 @@ nsSVGUtils::PaintFrameWithEffects(nsIFrame *aFrame,
   if (opacity != 1.0f && CanOptimizeOpacity(aFrame))
     opacity = 1.0f;
 
-  DrawTarget* drawTarget = aContext->GetDrawTarget();
   gfxContext *gfx = aContext->ThebesContext();
   bool complexEffects = false;
 
@@ -589,9 +587,7 @@ nsSVGUtils::PaintFrameWithEffects(nsIFrame *aFrame,
         // GetCanvasTM().
         overflowRect = overflowRect + aFrame->GetPosition();
       }
-      gfx->Clip(NSRectToRect(overflowRect,
-                             aFrame->PresContext()->AppUnitsPerDevPixel(),
-                             *drawTarget));
+      aContext->IntersectClip(overflowRect);
     }
     gfx->PushGroup(gfxContentType::COLOR_ALPHA);
   }
@@ -670,8 +666,7 @@ nsSVGUtils::PaintFrameWithEffects(nsIFrame *aFrame,
 
   if (maskSurface) {
     gfx->Mask(maskSurface, maskTransform);
-  } else if (opacity != 1.0f ||
-             aFrame->StyleDisplay()->mMixBlendMode != NS_STYLE_BLEND_NORMAL) {
+  } else if (opacity != 1.0f) {
     gfx->Paint(opacity);
   }
 
@@ -1590,7 +1585,7 @@ nsSVGUtils::PaintSVGGlyph(Element* aElement, gfxContext* aContext,
   aContext->GetDrawTarget()->AddUserData(&gfxTextContextPaint::sUserDataKey,
                                          aContextPaint, nullptr);
   nsRefPtr<nsRenderingContext> context(new nsRenderingContext());
-  context->Init(aContext);
+  context->Init(frame->PresContext()->DeviceContext(), aContext);
   svgFrame->NotifySVGChanged(nsISVGChildFrame::TRANSFORM_CHANGED);
   gfxMatrix m;
   if (frame->GetContent()->IsSVG()) {

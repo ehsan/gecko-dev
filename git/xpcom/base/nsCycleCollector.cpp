@@ -3242,11 +3242,6 @@ nsCycleCollector::CollectWhite()
 
   whiteNodes.SetCapacity(mWhiteNodeCount);
   uint32_t numWhiteGCed = 0;
-  uint32_t numWhiteJSZones = 0;
-
-  bool hasJSRuntime = !!mJSRuntime;
-  nsCycleCollectionParticipant* zoneParticipant =
-    hasJSRuntime ? mJSRuntime->ZoneParticipant() : nullptr;
 
   NodePool::Enumerator etor(mGraph.mNodes);
   while (!etor.IsDone()) {
@@ -3256,9 +3251,6 @@ nsCycleCollector::CollectWhite()
       pinfo->mParticipant->Root(pinfo->mPointer);
       if (pinfo->IsGrayJS()) {
         ++numWhiteGCed;
-        if (MOZ_UNLIKELY(pinfo->mParticipant == zoneParticipant)) {
-          ++numWhiteJSZones;
-        }
       }
     }
   }
@@ -3268,7 +3260,6 @@ nsCycleCollector::CollectWhite()
              "More freed GCed nodes than total freed nodes.");
   mResults.mFreedRefCounted += count - numWhiteGCed;
   mResults.mFreedGCed += numWhiteGCed;
-  mResults.mFreedJSZones += numWhiteJSZones;
 
   timeLog.Checkpoint("CollectWhite::Root");
 

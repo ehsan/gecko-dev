@@ -227,7 +227,7 @@ nsSVGMaskFrame::GetMaskForMaskedFrame(gfxContext* aContext,
     aContext->CurrentMatrix() * gfxMatrix::Translation(-maskSurfaceRect.TopLeft());
 
   nsRefPtr<nsRenderingContext> tmpCtx = new nsRenderingContext();
-  tmpCtx->Init(maskDT);
+  tmpCtx->Init(this->PresContext()->DeviceContext(), maskDT);
   tmpCtx->ThebesContext()->SetMatrix(maskSurfaceMatrix);
 
   mMatrixForChildren = GetMaskTransform(aMaskedFrame) * aMatrix;

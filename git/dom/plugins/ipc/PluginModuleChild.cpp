@@ -37,6 +37,7 @@
 #include "mozilla/plugins/StreamNotifyChild.h"
 #include "mozilla/plugins/BrowserStreamChild.h"
 #include "mozilla/plugins/PluginStreamChild.h"
+#include "PluginIdentifierChild.h"
 #include "mozilla/dom/CrashReporterChild.h"
 
 #include "nsNPAPIPlugin.h"
@@ -120,7 +121,6 @@ PluginModuleChild::~PluginModuleChild()
     // other similar hooks.
 
     DeinitGraphics();
-    PluginScriptableObjectChild::ClearIdentifiers();
 
     gInstance = nullptr;
 }
@@ -1844,6 +1844,38 @@ PluginModuleChild::AnswerNP_Initialize(NPError* _retval)
 #endif
 }
 
+PPluginIdentifierChild*
+PluginModuleChild::AllocPPluginIdentifierChild(const nsCString& aString,
+                                               const int32_t& aInt,
+                                               const bool& aTemporary)
+{
+    // We cannot call SetPermanent within this function because Manager() isn't
+    // set up yet.
+    if (aString.IsVoid()) {
+        return new PluginIdentifierChildInt(aInt);
+    }
+    return new PluginIdentifierChildString(aString);
+}
+
+bool
+PluginModuleChild::RecvPPluginIdentifierConstructor(PPluginIdentifierChild* actor,
+                                                    const nsCString& aString,
+                                                    const int32_t& aInt,
+                                                    const bool& aTemporary)
+{
+    if (!aTemporary) {
+        static_cast<PluginIdentifierChild*>(actor)->MakePermanent();
+    }
+    return true;
+}
+
+bool
+PluginModuleChild::DeallocPPluginIdentifierChild(PPluginIdentifierChild* aActor)
+{
+    delete aActor;
+    return true;
+}
+
 #if defined(XP_WIN)
 BOOL WINAPI
 PMCGetWindowInfoHook(HWND hWnd, PWINDOWINFO pwi)
@@ -2148,11 +2180,18 @@ PluginModuleChild::NPN_GetStringIdentifier(const NPUTF8* aName)
     if (!aName)
         return 0;
 
+    PluginModuleChild* self = PluginModuleChild::current();
     nsDependentCString name(aName);
-    PluginIdentifier ident(name);
-    PluginScriptableObjectChild::StackIdentifier stackID(ident);
-    stackID.MakePermanent();
-    return stackID.ToNPIdentifier();
+
+    PluginIdentifierChildString* ident = self->mStringIdentifiers.Get(name);
+    if (!ident) {
+        nsCString nameCopy(name);
+
+        ident = new PluginIdentifierChildString(nameCopy);
+        self->SendPPluginIdentifierConstructor(ident, nameCopy, -1, false);
+    }
+    ident->MakePermanent();
+    return ident;
 }
 
 void
@@ -2167,16 +2206,23 @@ PluginModuleChild::NPN_GetStringIdentifiers(const NPUTF8** aNames,
         NS_RUNTIMEABORT("Bad input! Headed for a crash!");
     }
 
+    PluginModuleChild* self = PluginModuleChild::current();
+
     for (int32_t index = 0; index < aNameCount; ++index) {
         if (!aNames[index]) {
             aIdentifiers[index] = 0;
             continue;
         }
         nsDependentCString name(aNames[index]);
-        PluginIdentifier ident(name);
-        PluginScriptableObjectChild::StackIdentifier stackID(ident);
-        stackID.MakePermanent();
-        aIdentifiers[index] = stackID.ToNPIdentifier();
+        PluginIdentifierChildString* ident = self->mStringIdentifiers.Get(name);
+        if (!ident) {
+            nsCString nameCopy(name);
+
+            ident = new PluginIdentifierChildString(nameCopy);
+            self->SendPPluginIdentifierConstructor(ident, nameCopy, -1, false);
+        }
+        ident->MakePermanent();
+        aIdentifiers[index] = ident;
     }
 }
 
@@ -2185,8 +2231,9 @@ PluginModuleChild::NPN_IdentifierIsString(NPIdentifier aIdentifier)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
 
-    PluginScriptableObjectChild::StackIdentifier stack(aIdentifier);
-    return stack.IsString();
+    PluginIdentifierChild* ident =
+        static_cast<PluginIdentifierChild*>(aIdentifier);
+    return ident->IsString();
 }
 
 NPIdentifier
@@ -2195,10 +2242,18 @@ PluginModuleChild::NPN_GetIntIdentifier(int32_t aIntId)
     PLUGIN_LOG_DEBUG_FUNCTION;
     AssertPluginThread();
 
-    PluginIdentifier ident(aIntId);
-    PluginScriptableObjectChild::StackIdentifier stackID(ident);
-    stackID.MakePermanent();
-    return stackID.ToNPIdentifier();
+    PluginModuleChild* self = PluginModuleChild::current();
+
+    PluginIdentifierChildInt* ident = self->mIntIdentifiers.Get(aIntId);
+    if (!ident) {
+        nsCString voidString;
+        voidString.SetIsVoid(true);
+
+        ident = new PluginIdentifierChildInt(aIntId);
+        self->SendPPluginIdentifierConstructor(ident, voidString, aIntId, false);
+    }
+    ident->MakePermanent();
+    return ident;
 }
 
 NPUTF8*
@@ -2206,9 +2261,8 @@ PluginModuleChild::NPN_UTF8FromIdentifier(NPIdentifier aIdentifier)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
 
-    PluginScriptableObjectChild::StackIdentifier stackID(aIdentifier);
-    if (stackID.IsString()) {
-        return ToNewCString(stackID.GetString());
+    if (static_cast<PluginIdentifierChild*>(aIdentifier)->IsString()) {
+      return static_cast<PluginIdentifierChildString*>(aIdentifier)->ToString();
     }
     return nullptr;
 }
@@ -2218,9 +2272,8 @@ PluginModuleChild::NPN_IntFromIdentifier(NPIdentifier aIdentifier)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
 
-    PluginScriptableObjectChild::StackIdentifier stackID(aIdentifier);
-    if (!stackID.IsString()) {
-        return stackID.GetInt();
+    if (!static_cast<PluginIdentifierChild*>(aIdentifier)->IsString()) {
+      return static_cast<PluginIdentifierChildInt*>(aIdentifier)->ToInt();
     }
     return INT32_MIN;
 }
