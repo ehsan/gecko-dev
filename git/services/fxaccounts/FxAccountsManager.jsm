@@ -44,10 +44,6 @@ this.FxAccountsManager = {
   // session tokens and are only required to handle the email.
   _activeSession: null,
 
-  // Are we refreshing our authentication? If so, allow attempts to sign in
-  // while we are already signed in.
-  _refreshing: false,
-
   // We only expose the email and the verified status so far.
   get _user() {
     if (!this._activeSession || !this._activeSession.email) {
@@ -107,7 +103,7 @@ this.FxAccountsManager = {
     }
 
     // Check that there is no signed in account first.
-    if ((!this._refreshing) && this._activeSession) {
+    if (this._activeSession) {
       return this._error(ERROR_ALREADY_SIGNED_IN_USER, {
         user: this._user
       });
@@ -116,7 +112,7 @@ this.FxAccountsManager = {
     let client = this._getFxAccountsClient();
     return this._fxAccounts.getSignedInUser().then(
       user => {
-        if ((!this._refreshing) && user) {
+        if (user) {
           return this._error(ERROR_ALREADY_SIGNED_IN_USER, {
             user: this._user
           });
@@ -382,34 +378,23 @@ this.FxAccountsManager = {
 
           // RPs might require an authentication refresh.
           if (aOptions &&
-              (typeof(aOptions.refreshAuthentication) != "undefined")) {
+              aOptions.refreshAuthentication) {
             let gracePeriod = aOptions.refreshAuthentication;
-            if (typeof(gracePeriod) !== "number" || isNaN(gracePeriod)) {
+            if (typeof gracePeriod != 'number' || isNaN(gracePeriod)) {
               return this._error(ERROR_INVALID_REFRESH_AUTH_VALUE);
             }
-            // Forcing refreshAuth to silent is a contradiction in terms,
-            // though it will sometimes succeed silently.
-            if (aOptions.silent) {
-              return this._error(ERROR_NO_SILENT_REFRESH_AUTH);
-            }
+
             if ((Date.now() / 1000) - this._activeSession.authAt > gracePeriod) {
               // Grace period expired, so we sign out and request the user to
               // authenticate herself again. If the authentication succeeds, we
               // will return the assertion. Otherwise, we will return an error.
-              this._refreshing = true;
-              return this._uiRequest(UI_REQUEST_REFRESH_AUTH,
-                                     aAudience, user.accountId).then(
-                (assertion) => {
-                  this._refreshing = false;
-                  return assertion;
-                },
-                (reason) => {
-                  this._refreshing = false;
-                  return this._signOut().then(
-                    () => {
-                      return this._error(reason);
-                    }
-                  );
+              return this._signOut().then(
+                () => {
+                  if (aOptions.silent) {
+                    return Promise.resolve(null);
+                  }
+                  return this._uiRequest(UI_REQUEST_REFRESH_AUTH,
+                                         aAudience, user.accountId);
                 }
               );
             }

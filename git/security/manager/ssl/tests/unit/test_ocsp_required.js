@@ -53,7 +53,9 @@ function add_tests_in_mode(useMozillaPKIX)
   add_connection_test("ocsp-stapling-none.example.com",
                       getXPCOMStatusFromNSS(SEC_ERROR_OCSP_BAD_SIGNATURE));
   add_test(function () {
-    do_check_eq(gOCSPRequestCount, 1);
+    // TODO(bug 977865): mozilla::pkix keeps requesting responses from
+    // failing responders
+    do_check_eq(gOCSPRequestCount, useMozillaPKIX ? 2 : 1);
     gOCSPRequestCount = 0;
     run_next_test();
   });

@@ -690,7 +690,7 @@ js::NewReshapedObject(JSContext *cx, HandleTypeObject type, JSObject *parent,
         }
         Shape *nshape = shape;
         while (!nshape->isEmptyShape()) {
-            ids[nshape->slot()].set(nshape->propid());
+            ids[nshape->slot()] = nshape->propid();
             nshape = nshape->previous();
         }
     }

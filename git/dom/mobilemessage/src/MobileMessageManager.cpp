@@ -131,7 +131,7 @@ MobileMessageManager::Send(JSContext* aCx, JS::Handle<JSObject*> aGlobal,
                            uint32_t aServiceId,
                            JS::Handle<JSString*> aNumber,
                            const nsAString& aMessage,
-                           JS::MutableHandle<JS::Value> aRequest)
+                           JS::Value* aRequest)
 {
   nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
   NS_ENSURE_TRUE(smsService, NS_ERROR_FAILURE);
@@ -149,14 +149,16 @@ MobileMessageManager::Send(JSContext* aCx, JS::Handle<JSObject*> aGlobal,
   NS_ENSURE_SUCCESS(rv, rv);
 
   js::AssertSameCompartment(aCx, aGlobal);
+  JS::Rooted<JS::Value> rval(aCx);
   rv = nsContentUtils::WrapNative(aCx,
                                   static_cast<nsIDOMDOMRequest*>(request.get()),
-                                  aRequest);
+                                  &rval);
   if (NS_FAILED(rv)) {
     NS_ERROR("Failed to create the js value!");
     return rv;
   }
 
+  *aRequest = rval;
   return NS_OK;
 }
 
@@ -206,7 +208,7 @@ MobileMessageManager::Send(JS::Handle<JS::Value> aNumber,
 
   if (aNumber.isString()) {
     JS::Rooted<JSString*> str(aCx, aNumber.toString());
-    return Send(aCx, global, serviceId, str, aMessage, aReturn);
+    return Send(aCx, global, serviceId, str, aMessage, aReturn.address());
   }
 
   // Must be an array then.
@@ -234,7 +236,7 @@ MobileMessageManager::Send(JS::Handle<JS::Value> aNumber,
       return NS_ERROR_FAILURE;
     }
 
-    nsresult rv = Send(aCx, global, serviceId, str, aMessage, requests[i]);
+    nsresult rv = Send(aCx, global, serviceId, str, aMessage, &requests[i]);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

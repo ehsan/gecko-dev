@@ -235,7 +235,7 @@ XDRScriptBindings(XDRState<mode> *xdr, LifoAllocScope &las, unsigned numArgs, ui
             RootedAtom atom(cx);
             if (!XDRAtom(xdr, &atom))
                 return false;
-            atoms[i].setString(atom);
+            atoms[i] = StringValue(atom);
         }
 
         Binding *bindingArray = las.alloc().newArrayUninitialized<Binding>(nameCount);

@@ -20,7 +20,10 @@ interface Console {
   void time(optional any time);
   void timeEnd(optional any time);
 
+  [Throws]
   void profile(any... data);
+
+  [Throws]
   void profileEnd(any... data);
 
   void assert(boolean condition, any... data);

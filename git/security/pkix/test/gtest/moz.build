@@ -7,7 +7,6 @@
 LIBRARY_NAME = 'mozillapkix_gtest'
 
 SOURCES += [
-    'nssgtest.cpp',
     'pkixder_input_tests.cpp',
     'pkixder_pki_types_tests.cpp',
     'pkixder_universal_types_tests.cpp',

@@ -110,10 +110,7 @@ extern bool
 math_imul(JSContext *cx, unsigned argc, js::Value *vp);
 
 extern bool
-RoundFloat32(JSContext *cx, HandleValue v, float *out);
-
-extern bool
-RoundFloat32(JSContext *cx, HandleValue arg, MutableHandleValue res);
+RoundFloat32(JSContext *cx, Handle<Value> v, float *out);
 
 extern bool
 math_fround(JSContext *cx, unsigned argc, js::Value *vp);

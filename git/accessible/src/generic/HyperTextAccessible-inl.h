@@ -21,15 +21,22 @@ namespace a11y {
 inline bool
 HyperTextAccessible::IsValidOffset(int32_t aOffset)
 {
-  return ConvertMagicOffset(aOffset) <= CharacterCount();
+  int32_t offset = ConvertMagicOffset(aOffset);
+  return offset >= 0 && offset <= static_cast<int32_t>(CharacterCount());
 }
 
 inline bool
 HyperTextAccessible::IsValidRange(int32_t aStartOffset, int32_t aEndOffset)
 {
-  uint32_t endOffset = ConvertMagicOffset(aEndOffset);
-  return ConvertMagicOffset(aStartOffset) <= endOffset &&
-    endOffset <= CharacterCount();
+  int32_t startOffset = ConvertMagicOffset(aStartOffset);
+  if (startOffset < 0)
+    return false;
+
+  int32_t endOffset = ConvertMagicOffset(aEndOffset);
+  if (endOffset < 0 || startOffset > endOffset)
+    return false;
+
+  return endOffset <= static_cast<int32_t>(CharacterCount());
 }
 
 inline bool
@@ -101,8 +108,8 @@ HyperTextAccessible::PasteText(int32_t aPosition)
   }
 }
 
-inline uint32_t
-HyperTextAccessible::ConvertMagicOffset(int32_t aOffset) const
+inline int32_t
+HyperTextAccessible::ConvertMagicOffset(int32_t aOffset)
 {
   if (aOffset == nsIAccessibleText::TEXT_OFFSET_END_OF_TEXT)
     return CharacterCount();
@@ -110,11 +117,11 @@ HyperTextAccessible::ConvertMagicOffset(int32_t aOffset) const
   if (aOffset == nsIAccessibleText::TEXT_OFFSET_CARET)
     return CaretOffset();
 
-  return aOffset < 0 ? std::numeric_limits<uint32_t>::max() : aOffset;
+  return aOffset;
 }
 
-inline uint32_t
-HyperTextAccessible::AdjustCaretOffset(uint32_t aOffset) const
+inline int32_t
+HyperTextAccessible::AdjustCaretOffset(int32_t aOffset) const
 {
   // It is the same character offset when the caret is visually at the very
   // end of a line or the start of a new line (soft line break). Getting text
