@@ -106,8 +106,6 @@ endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),android)
 OSHELPER += nsMIMEInfoAndroid.cpp
 OSHELPER += nsAndroidHandlerApp.cpp
-OSHELPER += nsExternalSharingAppService.cpp
-EXPORTS += nsExternalSharingAppService.h
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
@@ -134,9 +132,8 @@ EXPORTS_mozilla/dom = \
     ExternalHelperAppParent.h \
     ExternalHelperAppChild.h
 
-EXPORTS += \
+EXPORTS = \
 		$(OSDIR)/nsOSHelperAppService.h \
-		nsExternalHelperAppService.h \
 		$(NULL)
 
 XPIDLSRCS = \
@@ -146,7 +143,6 @@ XPIDLSRCS = \
 	nsIHelperAppLauncherDialog.idl \
 	nsIContentDispatchChooser.idl \
 	nsIHandlerService.idl	\
-	nsIExternalSharingAppService.idl \
 	$(NULL)
 
 CPPSRCS	= \

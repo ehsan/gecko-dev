@@ -207,9 +207,6 @@ public:
         PRPackedBool mReady;
     };
 
-    nsHttpResponseHead * GetResponseHead() const { return mResponseHead; }
-    nsHttpRequestHead * GetRequestHead() { return &mRequestHead; }
-
 protected:
   nsresult ApplyContentConversions();
 

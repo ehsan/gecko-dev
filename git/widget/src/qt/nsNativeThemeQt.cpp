@@ -132,7 +132,6 @@ nsNativeThemeQt::DrawWidgetBackground(nsIRenderingContext* aContext,
     gfxContext* context = aContext->ThebesContext();
     nsRefPtr<gfxASurface> surface = context->CurrentSurface();
 
-#ifdef CAIRO_HAS_QT_SURFACE
     if (surface->GetType() == gfxASurface::SurfaceTypeQPainter) {
         gfxQPainterSurface* qSurface = (gfxQPainterSurface*) (surface.get());
         QPainter *painter = qSurface->GetQPainter();
@@ -142,9 +141,8 @@ nsNativeThemeQt::DrawWidgetBackground(nsIRenderingContext* aContext,
         return DrawWidgetBackground(painter, aContext,
                                     aFrame, aWidgetType,
                                     aRect, aClipRect);
-    } else
-#endif
-    if (surface->GetType() == gfxASurface::SurfaceTypeImage) {
+    }
+    else if (surface->GetType() == gfxASurface::SurfaceTypeImage) {
         gfxImageSurface* qSurface = (gfxImageSurface*) (surface.get());
         QImage tempQImage(qSurface->Data(),
                           qSurface->Width(),

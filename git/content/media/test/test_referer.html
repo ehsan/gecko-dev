@@ -21,13 +21,14 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=584480
 var media = [];
 
 function checkComplete() {
+  complete = true;
   for (var i=0; i<media.length; ++i) {
-    if (!media[i]._complete) {
-      return;
-    }
+    complete = media[i]._complete;
   }
 
-  SimpleTest.finish();
+  if (complete) {
+    SimpleTest.finish();
+  }
 }
  
 function loadError(evt) {

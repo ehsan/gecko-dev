@@ -57,7 +57,7 @@ public:
   nsOggReader(nsBuiltinDecoder* aDecoder);
   ~nsOggReader();
 
-  virtual nsresult Init(nsBuiltinDecoderReader* aCloneDonor);
+  virtual nsresult Init();
   virtual nsresult ResetDecode();
   virtual PRBool DecodeAudioData();
 

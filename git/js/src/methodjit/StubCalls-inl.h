@@ -44,15 +44,19 @@
 namespace js {
 namespace mjit {
 
-static inline void
-ThrowException(VMFrame &f)
-{
-    void *ptr = JS_FUNC_TO_DATA_PTR(void *, JaegerThrowpoline);
-    *f.returnAddressLocation() = ptr;
-}
+#define THROW()  \
+    do {         \
+        void *ptr = JS_FUNC_TO_DATA_PTR(void *, JaegerThrowpoline); \
+        *f.returnAddressLocation() = ptr; \
+        return;  \
+    } while (0)
 
-#define THROW()   do { ThrowException(f); return; } while (0)
-#define THROWV(v) do { ThrowException(f); return v; } while (0)
+#define THROWV(v)       \
+    do {                \
+        void *ptr = JS_FUNC_TO_DATA_PTR(void *, JaegerThrowpoline); \
+        *f.returnAddressLocation() = ptr; \
+        return v;       \
+    } while (0)
 
 static inline JSObject *
 ValueToObject(JSContext *cx, Value *vp)
@@ -85,7 +89,7 @@ ReportAtomNotDefined(JSContext *cx, JSAtom *atom)
 
 #define NATIVE_GET(cx,obj,pobj,shape,getHow,vp,onerr)                         \
     JS_BEGIN_MACRO                                                            \
-        if (shape->isDataDescriptor() && shape->hasDefaultGetter()) {         \
+        if (shape->hasDefaultGetter()) {                                      \
             /* Fast path for Object instance properties. */                   \
             JS_ASSERT((shape)->slot != SHAPE_INVALID_SLOT ||                  \
                       !shape->hasDefaultSetter());                            \

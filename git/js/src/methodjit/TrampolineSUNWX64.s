@@ -71,7 +71,10 @@ JaegerTrampoline:
     /* Space for the rest of the VMFrame. */
     subq  $0x28, %rsp
 
-    /* This is actually part of the VMFrame. */
+    /*  
+     * This is actually part of the VMFrame, but we need to save |r8| for
+     * SafePointTrampoline.
+     */
     pushq %r8
 
     /* Set cx->regs and set the active frame. Save rdx and align frame in one. */
@@ -81,16 +84,10 @@ JaegerTrampoline:
     movq  %rsp, %rdi
     call PushActiveVMFrame
 
-    /* Jump into into the JIT'd code. */
-    jmp *0(%rsp)
-.size   JaegerTrampoline, . - JaegerTrampoline
-
-/ void JaegerTrampolineReturn()
-.global JaegerTrampolineReturn
-.type   JaegerTrampolineReturn, @function
-JaegerTrampolineReturn:
-    or   %rdx, %rcx
-    movq %rcx, 0x30(%rbx)
+    /*
+     * Jump into into the JIT'd code.
+     */
+    call *0(%rsp)
     movq %rsp, %rdi
     call PopActiveVMFrame
 
@@ -103,7 +100,7 @@ JaegerTrampolineReturn:
     popq %rbp
     movq $1, %rax
     ret
-.size   JaegerTrampolineReturn, . - JaegerTrampolineReturn
+.size   JaegerTrampoline, . - JaegerTrampoline
 
 
 / void *JaegerThrowpoline(js::VMFrame *vmFrame)
@@ -129,11 +126,19 @@ JaegerThrowpoline:
     ret
 .size   JaegerThrowpoline, . - JaegerThrowpoline
 
+.global SafePointTrampoline
+.type   SafePointTrampoline, @function
+SafePointTrampoline:
+    popq %rax
+    movq %rax, 0x50(%rbx)
+    jmp  *8(%rsp)
+.size   SafePointTrampoline, . - SafePointTrampoline
+
 .global InjectJaegerReturn
 .type   InjectJaegerReturn, @function
 InjectJaegerReturn:
     movq 0x30(%rbx), %rcx        /* load fp->rval_ into typeReg */
-    movq 0x28(%rbx), %rax        /* fp->ncode_ */
+    movq 0x50(%rbx), %rax        /* fp->ncode_ */
 
     /* Reimplementation of PunboxAssembler::loadValueAsComponents() */
     movq %r14, %rdx              /* payloadReg = payloadMaskReg */

@@ -80,7 +80,6 @@ LOCAL_INCLUDES += \
 		-I$(topsrcdir)/uriloader/exthandler \
 		-I$(srcdir)/../../netwerk/base/src \
 		-I$(srcdir)/../src/base \
-		-I$(srcdir)/../../xpcom/base \
 		$(NULL)
 
 DEFINES += -DBIN_SUFFIX='"$(BIN_SUFFIX)"'
