@@ -432,7 +432,9 @@ var PlacesCommandHook = {
       if (starIcon && isElementVisible(starIcon)) {
         // Make sure the bookmark properties dialog hangs toward the middle of
         // the location bar in RTL builds
-        var position = (getComputedStyle(gNavToolbox, "").direction == "rtl") ? 'after_start' : 'after_end';
+        var position = "after_end";
+        if (gURLBar.getAttribute("chromedir") == "rtl")
+          position = "after_start";
         if (aShowEditUI)
           StarUI.showEditBookmarkPopup(itemId, starIcon, position);
 #ifdef ADVANCED_STARRING_UI
@@ -522,7 +524,10 @@ var PlacesCommandHook = {
    *            A short description of the feed. Optional.
    */
   addLiveBookmark: function PCH_addLiveBookmark(url, feedTitle, feedSubtitle) {
-    var feedURI = makeURI(url);
+    var ios = 
+        Cc["@mozilla.org/network/io-service;1"].
+        getService(Ci.nsIIOService);
+    var feedURI = ios.newURI(url, null, null);
     
     var doc = gBrowser.contentDocument;
     var title = (arguments.length > 1) ? feedTitle : doc.title;

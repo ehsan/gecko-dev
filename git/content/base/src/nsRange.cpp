@@ -317,10 +317,8 @@ nsRange::ContentRemoved(nsIDocument* aDocument,
   nsINode* container = NODE_FROM(aContainer, aDocument);
 
   // Adjust position if a sibling was removed...
-  if (container == mStartParent) {
-    if (aIndexInContainer < mStartOffset) {
-      --mStartOffset;
-    }
+  if (container == mStartParent && aIndexInContainer < mStartOffset) {
+    --mStartOffset;
   }
   // ...or gravitate if an ancestor was removed.
   else if (nsContentUtils::ContentIsDescendantOf(mStartParent, aChild)) {
@@ -329,10 +327,8 @@ nsRange::ContentRemoved(nsIDocument* aDocument,
   }
 
   // Do same thing for end boundry.
-  if (container == mEndParent) {
-    if (aIndexInContainer < mEndOffset) {
-      --mEndOffset;
-    }
+  if (container == mEndParent && aIndexInContainer < mEndOffset) {
+    --mEndOffset;
   }
   else if (nsContentUtils::ContentIsDescendantOf(mEndParent, aChild)) {
     mEndParent = container;

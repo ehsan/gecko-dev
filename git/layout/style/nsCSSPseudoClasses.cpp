@@ -73,8 +73,7 @@ nsCSSPseudoClasses::HasStringArg(nsIAtom* aAtom)
 {
   return aAtom == nsCSSPseudoClasses::lang ||
          aAtom == nsCSSPseudoClasses::mozEmptyExceptChildrenWithLocalname ||
-         aAtom == nsCSSPseudoClasses::mozSystemMetric ||
-         aAtom == nsCSSPseudoClasses::mozLocaleDir;
+         aAtom == nsCSSPseudoClasses::mozSystemMetric;
 }
 
 PRBool

@@ -171,9 +171,7 @@ protected:
                                             const nsAString& aUnmodifiedCharacters)
   { return NS_ERROR_UNEXPECTED; }
 
-  // Stores the clip rectangles in aRects into mClipRects. Returns true
-  // if the new rectangles are different from the old rectangles.
-  PRBool StoreWindowClipRegion(const nsTArray<nsIntRect>& aRects);
+  void StoreWindowClipRegion(const nsTArray<nsIntRect>& aRects);
 
 protected: 
   void*             mClientData;

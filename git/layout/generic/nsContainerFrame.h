@@ -44,7 +44,6 @@
 #include "nsSplittableFrame.h"
 #include "nsFrameList.h"
 #include "nsLayoutUtils.h"
-#include "nsAutoPtr.h"
 
 /**
  * Child list name indices
@@ -77,8 +76,8 @@ public:
   NS_IMETHOD Init(nsIContent* aContent,
                   nsIFrame*   aParent,
                   nsIFrame*   aPrevInFlow);
-  NS_IMETHOD SetInitialChildList(nsIAtom*     aListName,
-                                 nsFrameList& aChildList);
+  NS_IMETHOD SetInitialChildList(nsIAtom*  aListName,
+                                 nsIFrame* aChildList);
   NS_IMETHOD AppendFrames(nsIAtom*  aListName,
                           nsIFrame* aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*  aListName,
@@ -87,7 +86,7 @@ public:
   NS_IMETHOD RemoveFrame(nsIAtom*  aListName,
                          nsIFrame* aOldFrame);
 
-  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
+  virtual nsIFrame* GetFirstChild(nsIAtom* aListName) const;
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
   virtual void Destroy();
   virtual void ChildIsDirty(nsIFrame* aChild);
@@ -111,6 +110,11 @@ public:
   virtual void DeleteNextInFlowChild(nsPresContext* aPresContext,
                                      nsIFrame*      aNextInFlow,
                                      PRBool         aDeletingEmptyFrames);
+
+  static PRInt32 LengthOf(nsIFrame* aFrameList) {
+    nsFrameList tmp(aFrameList);
+    return tmp.GetLength();
+  }
 
   // Positions the frame's view based on the frame's origin
   static void PositionFrameView(nsIFrame* aKidFrame);
@@ -277,6 +281,13 @@ public:
                                            nsReflowStatus&          aStatus);
 
   /**
+   * Inserts aFrameList's frames into our main child list--without reparenting
+   * or requesting reflow.
+   */
+  virtual nsresult AddFrames(nsIFrame* aFrameList,
+                             nsIFrame* aPrevSibling);
+
+  /**
    * Removes aChild without destroying it and without requesting reflow.
    * Continuations are not affected. Checks the primary and overflow
    * or overflow containers and excess overflow containers lists, depending
@@ -338,33 +349,15 @@ protected:
    */
 
   /**
-   * Get the frames on the overflow list.  Can return null if there are no
-   * overflow frames.  The caller does NOT take ownership of the list; it's
-   * still owned by this frame.  A non-null return value indicates that the
-   * list is nonempty.
+   * Get the frames on the overflow list
    */
-  inline nsFrameList* GetOverflowFrames() const;
-
+  nsIFrame* GetOverflowFrames(nsPresContext*  aPresContext,
+                              PRBool          aRemoveProperty) const;
   /**
-   * As GetOverflowFrames, but removes the overflow frames property.  The
-   * caller is responsible for deleting nsFrameList and either passing
-   * ownership of the frames to someone else or destroying the frames.  A
-   * non-null return value indicates that the list is nonempty.  The
-   * recommended way to use this function it to assign its return value
-   * into an nsAutoPtr.
-   */
-  inline nsFrameList* StealOverflowFrames();
-  
-  /**
-   * Set the overflow list.  aOverflowFrames must not be an empty list.
+   * Set the overflow list
    */
   nsresult SetOverflowFrames(nsPresContext*  aPresContext,
-                             const nsFrameList& aOverflowFrames);
-
-  /**
-   * Destroy the overflow list and any frames that are on  it.
-   */
-  void DestroyOverflowList(nsPresContext* aPresContext);
+                             nsIFrame*       aOverflowFrames);
 
   /**
    * Moves any frames on both the prev-in-flow's overflow list and the
@@ -575,25 +568,5 @@ private:
   /* Tells us whether to pay attention to OOF frames or non-OOF frames */
   PRBool mWalkOOFFrames;
 };
-
-inline
-nsFrameList*
-nsContainerFrame::GetOverflowFrames() const
-{
-  nsFrameList* list =
-    static_cast<nsFrameList*>(GetProperty(nsGkAtoms::overflowProperty));
-  NS_ASSERTION(!list || !list->IsEmpty(), "Unexpected empty overflow list");
-  return list;
-}
-
-inline
-nsFrameList*
-nsContainerFrame::StealOverflowFrames()
-{
-  nsFrameList* list =
-    static_cast<nsFrameList*>(UnsetProperty(nsGkAtoms::overflowProperty));
-  NS_ASSERTION(!list || !list->IsEmpty(), "Unexpected empty overflow list");
-  return list;
-}
 
 #endif /* nsContainerFrame_h___ */

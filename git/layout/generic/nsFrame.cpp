@@ -400,7 +400,7 @@ nsFrame::Init(nsIContent*      aContent,
 }
 
 NS_IMETHODIMP nsFrame::SetInitialChildList(nsIAtom*        aListName,
-                                           nsFrameList&    aChildList)
+                                           nsIFrame*       aChildList)
 {
   // XXX This shouldn't be getting called at all, but currently is for backwards
   // compatility reasons...
@@ -408,7 +408,7 @@ NS_IMETHODIMP nsFrame::SetInitialChildList(nsIAtom*        aListName,
   NS_ERROR("not a container");
   return NS_ERROR_UNEXPECTED;
 #else
-  NS_ASSERTION(aChildList.IsEmpty(), "not a container");
+  NS_ASSERTION(nsnull == aChildList, "not a container");
   return NS_OK;
 #endif
 }
@@ -759,10 +759,10 @@ nsFrame::GetAdditionalChildListName(PRInt32 aIndex) const
   return nsnull;
 }
 
-nsFrameList
-nsFrame::GetChildList(nsIAtom* aListName) const
+nsIFrame*
+nsFrame::GetFirstChild(nsIAtom* aListName) const
 {
-  return nsFrameList::EmptyList();
+  return nsnull;
 }
 
 static nsIFrame*
@@ -1665,12 +1665,6 @@ nsresult
 nsIFrame::CreateWidgetForView(nsIView* aView)
 {
   return aView->CreateWidget(kWidgetCID);
-}
-
-nsIFrame*
-nsIFrame::GetLastChild(nsIAtom* aListName) const
-{
-  return nsLayoutUtils::GetLastSibling(GetFirstChild(aListName));
 }
 
 /**
@@ -4267,6 +4261,35 @@ nsFrame::XMLQuote(nsString& aString)
 #endif
 
 PRBool
+nsFrame::ParentDisablesSelection() const
+{
+/*
+  // should never be called now
+  nsIFrame* parent = GetParent();
+  if (parent) {
+	  PRBool selectable;
+	  parent->IsSelectable(selectable);
+    return (selectable ? PR_FALSE : PR_TRUE);
+  }
+  return PR_FALSE;
+*/
+/*
+  PRBool selected;
+  if (NS_FAILED(GetSelected(&selected)))
+    return PR_FALSE;
+  if (selected)
+    return PR_FALSE; //if this frame is selected and no one has overridden the selection from "higher up"
+                     //then no one below us will be disabled by this frame.
+  nsIFrame* target = GetParent();
+  if (target)
+    return ((nsFrame *)target)->ParentDisablesSelection();
+  return PR_FALSE; //default this does not happen
+  */
+  
+  return PR_FALSE;
+}
+
+PRBool
 nsIFrame::IsVisibleForPainting(nsDisplayListBuilder* aBuilder) {
   if (!GetStyleVisibility()->IsVisible())
     return PR_FALSE;
@@ -4464,30 +4487,55 @@ nsFrame::DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 
 }
 #endif
 
-void
-nsIFrame::SetSelected(PRBool aSelected, SelectionType aType)
+/*this method may.. invalidate if the state was changed or if aForceRedraw is PR_TRUE
+  it will not update immediately.*/
+NS_IMETHODIMP
+nsFrame::SetSelected(nsPresContext* aPresContext, nsIDOMRange *aRange, PRBool aSelected, nsSpread aSpread, SelectionType aType)
 {
-  NS_ASSERTION(!GetPrevContinuation(),
-               "Should only be called on first in flow");
-  if (aType != nsISelectionController::SELECTION_NORMAL)
-    return;
+/*
+  if (aSelected && ParentDisablesSelection())
+    return NS_OK;
+*/
 
-  // check whether style allows selection
-  PRBool selectable;
-  IsSelectable(&selectable, nsnull);
-  if (!selectable)
-    return;
-
-  for (nsIFrame* f = this; f; f = f->GetNextContinuation()) {
-    if (aSelected) {
-      AddStateBits(NS_FRAME_SELECTED_CONTENT);
-    } else {
-      RemoveStateBits(NS_FRAME_SELECTED_CONTENT);
-    }
-
-    // Repaint this frame subtree's entire area
-    InvalidateOverflowRect();
+  if (aType == nsISelectionController::SELECTION_NORMAL) {
+    // check whether style allows selection
+    PRBool  selectable;
+    IsSelectable(&selectable, nsnull);
+    if (!selectable)
+      return NS_OK;
   }
+
+/*
+  if (eSpreadDown == aSpread){
+    nsIFrame* kid = GetFirstChild(nsnull);
+    while (nsnull != kid) {
+      kid->SetSelected(nsnull,aSelected,aSpread);
+      kid = kid->GetNextSibling();
+    }
+  }
+*/
+  if ( aSelected ){
+    AddStateBits(NS_FRAME_SELECTED_CONTENT);
+  }
+  else
+    RemoveStateBits(NS_FRAME_SELECTED_CONTENT);
+
+  // Repaint this frame subtree's entire area
+  InvalidateOverflowRect();
+
+#ifdef IBMBIDI
+  PRInt32 start, end;
+  nsIFrame* frame = GetNextSibling();
+  if (frame) {
+    GetFirstLeaf(aPresContext, &frame);
+    GetOffsets(start, end);
+    if (start && end) {
+      frame->SetSelected(aPresContext, aRange, aSelected, aSpread, aType);
+    }
+  }
+#endif // IBMBIDI
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -6872,11 +6920,10 @@ nsFrame::TraceMsg(const char* aFormatString, ...)
 }
 
 void
-nsFrame::VerifyDirtyBitSet(const nsFrameList& aFrameList)
+nsFrame::VerifyDirtyBitSet(nsIFrame* aFrameList)
 {
-  for (nsFrameList::Enumerator e(aFrameList); !e.AtEnd(); e.Next()) {
-    NS_ASSERTION(e.get()->GetStateBits() & NS_FRAME_IS_DIRTY,
-                 "dirty bit not set");
+  for (nsIFrame*f = aFrameList; f; f = f->GetNextSibling()) {
+    NS_ASSERTION(f->GetStateBits() & NS_FRAME_IS_DIRTY, "dirty bit not set");
   }
 }
 

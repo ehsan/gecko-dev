@@ -4883,7 +4883,7 @@ nsGlobalWindow::CheckForAbusePoint()
   
   nsCOMPtr<nsIDocShellTreeItem> item(do_QueryInterface(mDocShell));
 
-  NS_ASSERTION(item, "Docshell doesn't implement nsIDocShellTreeItem?");
+  NS_ASSERTION(item, "Docshell doesn't implenent nsIDocShellTreeItem?");
 
   PRInt32 type = nsIDocShellTreeItem::typeChrome;
   item->GetItemType(&type);

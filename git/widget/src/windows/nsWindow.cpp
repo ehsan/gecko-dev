@@ -318,6 +318,7 @@ nsWindow::nsWindow() : nsBaseWidget()
   mWnd                  = nsnull;
   mPaintDC              = nsnull;
   mPrevWndProc          = nsnull;
+  mDeferredPositioner   = nsnull;
   mOldIMC               = nsnull;
   mNativeDragTarget     = nsnull;
   mInDtor               = PR_FALSE;
@@ -770,6 +771,8 @@ LPCWSTR nsWindow::WindowClass()
 // Return the proper popup window class
 LPCWSTR nsWindow::WindowPopupClass()
 {
+  const LPCWSTR className = L"MozillaDropShadowWindowClass";
+
   if (!nsWindow::sIsPopupClassRegistered) {
     WNDCLASSW wc;
 
@@ -782,7 +785,7 @@ LPCWSTR nsWindow::WindowPopupClass()
     wc.hCursor       = NULL;
     wc.hbrBackground = mBrush;
     wc.lpszMenuName  = NULL;
-    wc.lpszClassName = kClassNameDropShadow;
+    wc.lpszClassName = className;
 
     nsWindow::sIsPopupClassRegistered = ::RegisterClassW(&wc);
     if (!nsWindow::sIsPopupClassRegistered) {
@@ -793,7 +796,7 @@ LPCWSTR nsWindow::WindowPopupClass()
     }
   }
 
-  return kClassNameDropShadow;
+  return className;
 }
 
 /**************************************************************
@@ -1268,10 +1271,25 @@ NS_METHOD nsWindow::Move(PRInt32 aX, PRInt32 aY)
       }
     }
 #endif
-    ClearThemeRegion();
-    VERIFY(::SetWindowPos(mWnd, NULL, aX, aY, 0, 0,
-                          SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSIZE));
-    SetThemeRegion();
+
+    nsIWidget *par = GetParent();
+    HDWP      deferrer = NULL;
+
+    if (nsnull != par) {
+      deferrer = ((nsWindow *)par)->mDeferredPositioner;
+    }
+
+    if (NULL != deferrer) {
+      VERIFY(((nsWindow *)par)->mDeferredPositioner = ::DeferWindowPos(deferrer,
+                            mWnd, NULL, aX, aY, 0, 0,
+                            SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSIZE));
+    }
+    else {
+      ClearThemeRegion();
+      VERIFY(::SetWindowPos(mWnd, NULL, aX, aY, 0, 0,
+                            SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSIZE));
+      SetThemeRegion();
+    }
   }
   return NS_OK;
 }
@@ -1292,17 +1310,29 @@ NS_METHOD nsWindow::Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint)
   mBounds.height = aHeight;
 
   if (mWnd) {
-    UINT  flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOMOVE;
+    nsIWidget *par = GetParent();
+    HDWP      deferrer = NULL;
 
+    if (nsnull != par) {
+      deferrer = ((nsWindow *)par)->mDeferredPositioner;
+    }
+
+    UINT  flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOMOVE;
 #ifndef WINCE
     if (!aRepaint) {
       flags |= SWP_NOREDRAW;
     }
 #endif
 
-    ClearThemeRegion();
-    VERIFY(::SetWindowPos(mWnd, NULL, 0, 0, aWidth, GetHeight(aHeight), flags));
-    SetThemeRegion();
+    if (NULL != deferrer) {
+      VERIFY(((nsWindow *)par)->mDeferredPositioner = ::DeferWindowPos(deferrer,
+                            mWnd, NULL, 0, 0, aWidth, GetHeight(aHeight), flags));
+    }
+    else {
+      ClearThemeRegion();
+      VERIFY(::SetWindowPos(mWnd, NULL, 0, 0, aWidth, GetHeight(aHeight), flags));
+      SetThemeRegion();
+    }
   }
 
   if (aRepaint)
@@ -1329,6 +1359,13 @@ NS_METHOD nsWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeig
   mBounds.height = aHeight;
 
   if (mWnd) {
+    nsIWidget *par = GetParent();
+    HDWP      deferrer = NULL;
+
+    if (nsnull != par) {
+      deferrer = ((nsWindow *)par)->mDeferredPositioner;
+    }
+
     UINT  flags = SWP_NOZORDER | SWP_NOACTIVATE;
 #ifndef WINCE
     if (!aRepaint) {
@@ -1336,9 +1373,15 @@ NS_METHOD nsWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeig
     }
 #endif
 
-    ClearThemeRegion();
-    VERIFY(::SetWindowPos(mWnd, NULL, aX, aY, aWidth, GetHeight(aHeight), flags));
-    SetThemeRegion();
+    if (NULL != deferrer) {
+      VERIFY(((nsWindow *)par)->mDeferredPositioner = ::DeferWindowPos(deferrer,
+                            mWnd, NULL, aX, aY, aWidth, GetHeight(aHeight), flags));
+    }
+    else {
+      ClearThemeRegion();
+      VERIFY(::SetWindowPos(mWnd, NULL, aX, aY, aWidth, GetHeight(aHeight), flags));
+      SetThemeRegion();
+    }
   }
 
   if (aRepaint)
@@ -1869,6 +1912,142 @@ NS_METHOD nsWindow::SetCursor(nsCursor aCursor)
   return NS_OK;
 }
 
+// Adjust cursor image data
+PRUint8* nsWindow::Data32BitTo1Bit(PRUint8* aImageData,
+                                   PRUint32 aWidth, PRUint32 aHeight)
+{
+  // We need (aWidth + 7) / 8 bytes plus zero-padding up to a multiple of
+  // 4 bytes for each row (HBITMAP requirement). Bug 353553.
+  PRUint32 outBpr = ((aWidth + 31) / 8) & ~3;
+
+  // Allocate and clear mask buffer
+  PRUint8* outData = (PRUint8*)PR_Calloc(outBpr, aHeight);
+  if (!outData)
+    return NULL;
+
+  PRInt32 *imageRow = (PRInt32*)aImageData;
+  for (PRUint32 curRow = 0; curRow < aHeight; curRow++) {
+    PRUint8 *outRow = outData + curRow * outBpr;
+    PRUint8 mask = 0x80;
+    for (PRUint32 curCol = 0; curCol < aWidth; curCol++) {
+      // Use sign bit to test for transparency, as alpha byte is highest byte
+      if (*imageRow++ < 0)
+        *outRow |= mask;
+
+      mask >>= 1;
+      if (!mask) {
+        outRow ++;
+        mask = 0x80;
+      }
+    }
+  }
+
+  return outData;
+}
+
+PRBool nsWindow::IsCursorTranslucencySupported()
+{
+#ifdef WINCE
+  return PR_FALSE;
+#else
+  static PRBool didCheck = PR_FALSE;
+  static PRBool isSupported = PR_FALSE;
+  if (!didCheck) {
+    didCheck = PR_TRUE;
+    // Cursor translucency is supported on Windows XP and newer
+    isSupported = nsWindow::GetWindowsVersion() >= 0x501;
+  }
+
+  return isSupported;
+#endif
+}
+
+/**
+ * Convert the given image data to a HBITMAP. If the requested depth is
+ * 32 bit and the OS supports translucency, a bitmap with an alpha channel
+ * will be returned.
+ *
+ * @param aImageData The image data to convert. Must use the format accepted
+ *                   by CreateDIBitmap.
+ * @param aWidth     With of the bitmap, in pixels.
+ * @param aHeight    Height of the image, in pixels.
+ * @param aDepth     Image depth, in bits. Should be one of 1, 24 and 32.
+ *
+ * @return The HBITMAP representing the image. Caller should call
+ *         DeleteObject when done with the bitmap.
+ *         On failure, NULL will be returned.
+ */
+HBITMAP nsWindow::DataToBitmap(PRUint8* aImageData,
+                               PRUint32 aWidth,
+                               PRUint32 aHeight,
+                               PRUint32 aDepth)
+{
+#ifndef WINCE
+  HDC dc = ::GetDC(NULL);
+
+  if (aDepth == 32 && IsCursorTranslucencySupported()) {
+    // Alpha channel. We need the new header.
+    BITMAPV4HEADER head = { 0 };
+    head.bV4Size = sizeof(head);
+    head.bV4Width = aWidth;
+    head.bV4Height = aHeight;
+    head.bV4Planes = 1;
+    head.bV4BitCount = aDepth;
+    head.bV4V4Compression = BI_BITFIELDS;
+    head.bV4SizeImage = 0; // Uncompressed
+    head.bV4XPelsPerMeter = 0;
+    head.bV4YPelsPerMeter = 0;
+    head.bV4ClrUsed = 0;
+    head.bV4ClrImportant = 0;
+
+    head.bV4RedMask   = 0x00FF0000;
+    head.bV4GreenMask = 0x0000FF00;
+    head.bV4BlueMask  = 0x000000FF;
+    head.bV4AlphaMask = 0xFF000000;
+
+    HBITMAP bmp = ::CreateDIBitmap(dc,
+                                   reinterpret_cast<CONST BITMAPINFOHEADER*>(&head),
+                                   CBM_INIT,
+                                   aImageData,
+                                   reinterpret_cast<CONST BITMAPINFO*>(&head),
+                                   DIB_RGB_COLORS);
+    ::ReleaseDC(NULL, dc);
+    return bmp;
+  }
+
+  char reserved_space[sizeof(BITMAPINFOHEADER) + sizeof(RGBQUAD) * 2];
+  BITMAPINFOHEADER& head = *(BITMAPINFOHEADER*)reserved_space;
+
+  head.biSize = sizeof(BITMAPINFOHEADER);
+  head.biWidth = aWidth;
+  head.biHeight = aHeight;
+  head.biPlanes = 1;
+  head.biBitCount = (WORD)aDepth;
+  head.biCompression = BI_RGB;
+  head.biSizeImage = 0; // Uncompressed
+  head.biXPelsPerMeter = 0;
+  head.biYPelsPerMeter = 0;
+  head.biClrUsed = 0;
+  head.biClrImportant = 0;
+  
+  BITMAPINFO& bi = *(BITMAPINFO*)reserved_space;
+
+  if (aDepth == 1) {
+    RGBQUAD black = { 0, 0, 0, 0 };
+    RGBQUAD white = { 255, 255, 255, 0 };
+
+    bi.bmiColors[0] = white;
+    bi.bmiColors[1] = black;
+  }
+
+  HBITMAP bmp = ::CreateDIBitmap(dc, &head, CBM_INIT, aImageData, &bi, DIB_RGB_COLORS);
+  ::ReleaseDC(NULL, dc);
+  return bmp;
+#else
+  return nsnull;
+#endif
+}
+
 // Setting the actual cursor
 NS_IMETHODIMP nsWindow::SetCursor(imgIContainer* aCursor,
                                   PRUint32 aHotspotX, PRUint32 aHotspotY)
@@ -1878,14 +2057,14 @@ NS_IMETHODIMP nsWindow::SetCursor(imgIContainer* aCursor,
     return NS_OK;
   }
 
-  PRInt32 width;
-  PRInt32 height;
+  // Get the image data
+  nsRefPtr<gfxImageSurface> frame;
+  aCursor->CopyCurrentFrame(getter_AddRefs(frame));
+  if (!frame)
+    return NS_ERROR_NOT_AVAILABLE;
 
-  nsresult rv;
-  rv = aCursor->GetWidth(&width);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aCursor->GetHeight(&height);
-  NS_ENSURE_SUCCESS(rv, rv);
+  PRInt32 width = frame->Width();
+  PRInt32 height = frame->Height();
 
   // Reject cursors greater than 128 pixels in either direction, to prevent
   // spoofing.
@@ -1894,9 +2073,30 @@ NS_IMETHODIMP nsWindow::SetCursor(imgIContainer* aCursor,
   if (width > 128 || height > 128)
     return NS_ERROR_NOT_AVAILABLE;
 
-  HCURSOR cursor;
-  rv = nsWindowGfx::CreateIcon(aCursor, PR_TRUE, aHotspotX, aHotspotY, &cursor);
-  NS_ENSURE_SUCCESS(rv, rv);
+  PRUint8 *data = frame->Data();
+
+  HBITMAP bmp = DataToBitmap(data, width, -height, 32);
+  PRUint8* a1data = Data32BitTo1Bit(data, width, height);
+  if (!a1data) {
+    return NS_ERROR_FAILURE;
+  }
+
+  HBITMAP mbmp = DataToBitmap(a1data, width, -height, 1);
+  PR_Free(a1data);
+
+  ICONINFO info = {0};
+  info.fIcon = FALSE;
+  info.xHotspot = aHotspotX;
+  info.yHotspot = aHotspotY;
+  info.hbmMask = mbmp;
+  info.hbmColor = bmp;
+  
+  HCURSOR cursor = ::CreateIconIndirect(&info);
+  ::DeleteObject(mbmp);
+  ::DeleteObject(bmp);
+  if (cursor == NULL) {
+    return NS_ERROR_FAILURE;
+  }
 
   mCursor = nsCursor(-1);
   ::SetCursor(cursor);
@@ -2099,22 +2299,11 @@ NS_IMETHODIMP nsWindow::Update()
  *
  **************************************************************/
 
-static PRBool
-ClipRegionContainedInRect(const nsTArray<nsIntRect>& aClipRects,
-                          const nsIntRect& aRect)
-{
-  for (PRUint32 i = 0; i < aClipRects.Length(); ++i) {
-    if (!aRect.Contains(aClipRects[i]))
-      return PR_FALSE;
-  }
-  return PR_TRUE;
-}
-
 void
 nsWindow::Scroll(const nsIntPoint& aDelta, const nsIntRect& aSource,
                  const nsTArray<Configuration>& aConfigurations)
 {
-  // We use SW_SCROLLCHILDREN if all the windows that intersect the
+  // We can use SW_SCROLLCHILDREN if all the windows that intersect the
   // affected area are moving by the scroll amount.
   // First, build the set of widgets that are to be moved by the scroll
   // amount.
@@ -2149,25 +2338,7 @@ nsWindow::Scroll(const nsIntPoint& aDelta, const nsIntRect& aSource,
     }
   }
 
-  if (flags & SW_SCROLLCHILDREN) {
-    for (PRUint32 i = 0; i < aConfigurations.Length(); ++i) {
-      const Configuration& configuration = aConfigurations[i];
-      nsWindow* w = static_cast<nsWindow*>(configuration.mChild);
-      // Widgets that will be scrolled by SW_SCROLLCHILDREN but which
-      // will be partly visible outside the scroll area after scrolling
-      // must be invalidated, because SW_SCROLLCHILDREN doesn't
-      // update parts of widgets outside the area it scrolled, even
-      // if it moved them.
-      if (w->mBounds.Intersects(affectedRect) &&
-          !ClipRegionContainedInRect(configuration.mClipRegion,
-                                     affectedRect - (w->mBounds.TopLeft() + aDelta))) {
-        w->Invalidate(PR_FALSE);
-      }
-    }
-  }
-
-  // Note that when SW_SCROLLCHILDREN is used, WM_MOVE messages are sent
-  // which will update the mBounds of the children.
+  nsIntRect destRect = aSource + aDelta;
   RECT clip = { affectedRect.x, affectedRect.y, affectedRect.XMost(), affectedRect.YMost() };
   ::ScrollWindowEx(mWnd, aDelta.x, aDelta.y, &clip, &clip, NULL, NULL, flags);
 
@@ -2340,6 +2511,51 @@ nsIntPoint nsWindow::WidgetToScreenOffset()
   point.y = 0;
   ::ClientToScreen(mWnd, &point);
   return nsIntPoint(point.x, point.y);
+}
+
+/**************************************************************
+ *
+ * SECTION: Deferred window positioning.
+ *
+ * nsIWidget::BeginResizingChildren,
+ * nsIWidget::EndResizingChildren
+ *
+ * Filters child paint events during a resize operation.
+ *
+ **************************************************************/
+
+NS_METHOD nsWindow::BeginResizingChildren(void)
+{
+  if (NULL == mDeferredPositioner)
+    mDeferredPositioner = ::BeginDeferWindowPos(1);
+  return NS_OK;
+}
+
+NS_METHOD nsWindow::EndResizingChildren(void)
+{
+  if (NULL != mDeferredPositioner) {
+    ::EndDeferWindowPos(mDeferredPositioner);
+    mDeferredPositioner = NULL;
+  }
+  return NS_OK;
+}
+
+LPARAM nsWindow::lParamToScreen(LPARAM lParam)
+{
+  POINT pt;
+  pt.x = GET_X_LPARAM(lParam);
+  pt.y = GET_Y_LPARAM(lParam);
+  ::ClientToScreen(mWnd, &pt);
+  return MAKELPARAM(pt.x, pt.y);
+}
+
+LPARAM nsWindow::lParamToClient(LPARAM lParam)
+{
+  POINT pt;
+  pt.x = GET_X_LPARAM(lParam);
+  pt.y = GET_Y_LPARAM(lParam);
+  ::ScreenToClient(mWnd, &pt);
+  return MAKELPARAM(pt.x, pt.y);
 }
 
 /**************************************************************
@@ -5324,15 +5540,9 @@ nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
     // We put the region back just below, anyway.
     ::SetWindowRgn(w->mWnd, NULL, TRUE);
 #endif
-    nsIntRect bounds;
-    w->GetBounds(bounds);
-    if (bounds.Size() != configuration.mBounds.Size()) {
-      w->Resize(configuration.mBounds.x, configuration.mBounds.y,
-                configuration.mBounds.width, configuration.mBounds.height,
-                PR_TRUE);
-    } else if (bounds.TopLeft() != configuration.mBounds.TopLeft()) {
-      w->Move(configuration.mBounds.x, configuration.mBounds.y);
-    }
+    w->Resize(configuration.mBounds.x, configuration.mBounds.y,
+              configuration.mBounds.width, configuration.mBounds.height,
+              PR_TRUE);
     nsresult rv = w->SetWindowClipRegion(configuration.mClipRegion, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -5365,11 +5575,6 @@ nsresult
 nsWindow::SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                               PRBool aIntersectWithExisting)
 {
-  if (!aIntersectWithExisting) {
-    if (!StoreWindowClipRegion(aRects))
-      return NS_OK;
-  }
-
   HRGN dest = CreateHRGNFromArray(aRects);
   if (!dest)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -5451,6 +5656,13 @@ void nsWindow::OnDestroy()
 
     if (mtrailer->GetCaptureWindow() == mWnd)
       mtrailer->SetCaptureWindow(nsnull);
+  }
+
+  // If we were in the middle of deferred window positioning then free the memory for the
+  // multiple-window position structure.
+  if (mDeferredPositioner) {
+    VERIFY(::EndDeferWindowPos(mDeferredPositioner));
+    mDeferredPositioner = NULL;
   }
 
   // Free GDI window class objects
@@ -6383,24 +6595,6 @@ PRBool nsWindow::CanTakeFocus()
     }
   }
   return PR_FALSE;
-}
-
-LPARAM nsWindow::lParamToScreen(LPARAM lParam)
-{
-  POINT pt;
-  pt.x = GET_X_LPARAM(lParam);
-  pt.y = GET_Y_LPARAM(lParam);
-  ::ClientToScreen(mWnd, &pt);
-  return MAKELPARAM(pt.x, pt.y);
-}
-
-LPARAM nsWindow::lParamToClient(LPARAM lParam)
-{
-  POINT pt;
-  pt.x = GET_X_LPARAM(lParam);
-  pt.y = GET_Y_LPARAM(lParam);
-  ::ScreenToClient(mWnd, &pt);
-  return MAKELPARAM(pt.x, pt.y);
 }
 
 /**************************************************************

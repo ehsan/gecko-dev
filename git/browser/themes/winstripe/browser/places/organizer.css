@@ -20,36 +20,36 @@
 }
 
 #back-button,
-#forward-button:-moz-locale-dir(rtl) {  
+#forward-button[chromedir="rtl"] {  
   -moz-image-region: rect(0px, 24px, 24px, 0px);
 }
 #back-button:not([disabled="true"]):hover,
-#forward-button:not([disabled="true"]):hover:-moz-locale-dir(rtl) {
+#forward-button:not([disabled="true"]):hover[chromedir="rtl"] {
   -moz-image-region: rect(24px, 24px, 48px, 0px);
 }
 #back-button[disabled="true"],
-#forward-button:-moz-locale-dir(rtl)[disabled="true"] {
+#forward-button[chromedir="rtl"][disabled="true"] {
   -moz-image-region: rect(48px, 24px, 72px, 0px) !important;
 }
 #back-button:not([disabled="true"]):hover:active,
-#forward-button:not([disabled="true"]):hover:active:-moz-locale-dir(rtl) {
+#forward-button:not([disabled="true"]):hover:active[chromedir="rtl"] {
   -moz-image-region: rect(72px, 24px, 96px, 0px);
 }
 
 #forward-button,
-#back-button:-moz-locale-dir(rtl) {
+#back-button[chromedir="rtl"] {
   -moz-image-region: rect(0px, 48px, 24px, 24px);
 }
 #forward-button:not([disabled="true"]):hover,
-#back-button:not([disabled="true"]):hover:-moz-locale-dir(rtl) {
+#back-button:not([disabled="true"]):hover[chromedir="rtl"] {
   -moz-image-region: rect(24px, 48px, 48px, 24px);
 }
 #forward-button[disabled="true"],
-#back-button:-moz-locale-dir(rtl)[disabled="true"] {
+#back-button[chromedir="rtl"][disabled="true"] {
   -moz-image-region: rect(48px, 48px, 72px, 24px) !important;
 }
 #forward-button:not([disabled="true"]):hover:active,
-#back-button:not([disabled="true"]):hover:active:-moz-locale-dir(rtl) {
+#back-button:not([disabled="true"]):hover:active[chromedir="rtl"] {
   -moz-image-region: rect(72px, 48px, 96px, 24px);
 }
 
@@ -73,10 +73,6 @@
   border: 1px solid transparent;
 }
 
-#placesMenu > menu[_moz-menuactive="true"] {
-  background-color: transparent;
-}
-
 #placesMenu > menu:hover {
   border-color: ThreeDHighlight ThreeDShadow ThreeDShadow ThreeDHighlight;
 }
@@ -94,7 +90,7 @@
   background: url(chrome://global/skin/arrow/arrow-dn.gif) right center no-repeat;
 }
 
-#placesMenu:-moz-locale-dir(rtl) > menu > label {
+#placesMenu[chromedir="rtl"] > menu > label {
   background-position: left center;
 }
 

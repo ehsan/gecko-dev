@@ -45,10 +45,6 @@ toolbarpaletteitem[place="palette"] > toolbaritem > hbox[type="places"] {
   display: none;
 }
 
-#feed-menu:-moz-locale-dir(rtl) > menuitem {
-  direction: rtl;
-}
-
 #urlbar[pageproxystate="invalid"] > #urlbar-icons > :not(#go-button) ,
 #urlbar[pageproxystate="valid"] > #urlbar-icons > #go-button ,
 #urlbar[isempty="true"] > #urlbar-icons > #go-button {

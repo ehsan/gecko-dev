@@ -72,11 +72,14 @@ public:
 #ifdef NS_DEBUG
   NS_IMETHOD
   SetInitialChildList(nsIAtom*        aListName,
-                      nsFrameList&    aChildList)
+                      nsIFrame*       aChildList)
   {
-    NS_ASSERTION(aChildList.NotEmpty() && aChildList.GetLength() == 1,
+    nsresult rv = nsBlockFrame::SetInitialChildList(aListName, aChildList);
+    // cannot use mFrames{.FirstChild()|.etc} since the block code doesn't set mFrames
+    nsFrameList frameList(aChildList);
+    NS_ASSERTION(frameList.FirstChild() && frameList.GetLength() == 1,
                  "there must be one and only one child frame");
-    return nsBlockFrame::SetInitialChildList(aListName, aChildList);
+    return rv;
   }
 #endif
 

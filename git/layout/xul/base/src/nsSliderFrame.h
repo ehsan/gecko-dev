@@ -167,7 +167,7 @@ public:
                          nsEventStatus* aEventStatus);
 
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
+                                 nsIFrame*       aChildList);
 
   virtual nsIAtom* GetType() const;
 
@@ -191,9 +191,8 @@ public:
                          nsEventStatus*  aEventStatus);
 
   NS_IMETHOD HandleMultiplePress(nsPresContext* aPresContext,
-                                 nsGUIEvent *    aEvent,
-                                 nsEventStatus*  aEventStatus,
-                                 PRBool aControlHeld)  { return NS_OK; }
+                         nsGUIEvent *    aEvent,
+                         nsEventStatus*  aEventStatus)  { return NS_OK; }
 
   NS_IMETHOD HandleDrag(nsPresContext* aPresContext,
                         nsGUIEvent *    aEvent,

@@ -474,6 +474,7 @@
 #else
                           key="goBackKb"
 #endif
+                          chromedir="&locale.dir;"
                           command="Browser:BackOrBackDuplicate"
                           onclick="checkForMiddleClick(this, event);"/>
                 <menuitem id="historyMenuForward"
@@ -483,6 +484,7 @@
 #else
                           key="goForwardKb"
 #endif
+                          chromedir="&locale.dir;"
                           command="Browser:ForwardOrForwardDuplicate"
                           onclick="checkForMiddleClick(this, event);"/>
                 <menuitem id="historyMenuHome"

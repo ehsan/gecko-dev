@@ -513,16 +513,13 @@ nsBlockFrame::GetBaseline() const
 /////////////////////////////////////////////////////////////////////////////
 // Child frame enumeration
 
-nsFrameList
-nsBlockFrame::GetChildList(nsIAtom* aListName) const
+nsIFrame*
+nsBlockFrame::GetFirstChild(nsIAtom* aListName) const
 {
   if (nsGkAtoms::absoluteList == aListName) {
-    return mAbsoluteContainer.GetChildList();
+    return mAbsoluteContainer.GetFirstChild();
   }
   else if (nsnull == aListName) {
-    // XXXbz once we start using mFrames, or some other sane storage for our
-    // in-flow kids, we could switch GetChildList to returning a |const
-    // nsFrameList&|.
     return (mLines.empty()) ? nsnull : mLines.front()->mFirstChild;
   }
   else if (aListName == nsGkAtoms::overflowList) {
@@ -530,29 +527,15 @@ nsBlockFrame::GetChildList(nsIAtom* aListName) const
     return overflowLines ? overflowLines->front()->mFirstChild : nsnull;
   }
   else if (aListName == nsGkAtoms::overflowOutOfFlowList) {
-    return GetOverflowOutOfFlows();
+    return GetOverflowOutOfFlows().FirstChild();
   }
   else if (aListName == nsGkAtoms::floatList) {
-    return mFloats;
+    return mFloats.FirstChild();
   }
   else if (aListName == nsGkAtoms::bulletList) {
     return (HaveOutsideBullet()) ? mBullet : nsnull;
   }
-  return nsContainerFrame::GetChildList(aListName);
-}
-
-nsIFrame*
-nsBlockFrame::GetLastChild(nsIAtom* aListName) const
-{
-  if (aListName) {
-    return nsBlockFrameSuper::GetLastChild(aListName);
-  }
-
-  if (mLines.empty()) {
-    return nsnull;
-  }
-
-  return mLines.back()->LastChild();
+  return nsContainerFrame::GetFirstChild(aListName);;
 }
 
 #define NS_BLOCK_FRAME_OVERFLOW_OOF_LIST_INDEX  (NS_CONTAINER_LIST_COUNT_INCL_OC + 0)
@@ -1035,7 +1018,7 @@ nsBlockFrame::Reflow(nsPresContext*           aPresContext,
         nsLineList::iterator nextToLastLine = ----end_lines();
         PushLines(state, nextToLastLine);
       }
-      state.mOverflowPlaceholders.Clear();
+      state.mOverflowPlaceholders.SetFrames(nsnull);
     }
     state.mReflowStatus |= NS_FRAME_REFLOW_NEXTINFLOW;
     if (NS_FRAME_IS_COMPLETE(state.mReflowStatus))
@@ -4495,7 +4478,7 @@ nsBlockFrame::DrainOverflowLines(nsBlockReflowState& aState)
           ReparentFrame(f, prevBlock, this);
         }
         mFloats.InsertFrames(nsnull, nsnull, oofs.mList.FirstChild());
-        oofs.mList.Clear();
+        oofs.mList.SetFrames(nsnull);
       }
     }
     
@@ -4511,7 +4494,7 @@ nsBlockFrame::DrainOverflowLines(nsBlockReflowState& aState)
     if (oofs.mList.NotEmpty()) {
       // The overflow floats go after our regular floats
       mFloats.AppendFrames(nsnull, oofs.mList.FirstChild());
-      oofs.mList.Clear();
+      oofs.mList.SetFrames(nsnull);
     }
   }
 
@@ -4893,20 +4876,20 @@ ShouldPutNextSiblingOnNewLine(nsIFrame* aLastFrame)
 }
 
 nsresult
-nsBlockFrame::AddFrames(const nsFrameList& aFrameList,
+nsBlockFrame::AddFrames(nsIFrame* aFrameList,
                         nsIFrame* aPrevSibling)
 {
   // Clear our line cursor, since our lines may change.
   ClearLineCursor();
 
-  if (aFrameList.IsEmpty()) {
+  if (nsnull == aFrameList) {
     return NS_OK;
   }
 
   // If we're inserting at the beginning of our list and we have an
   // inside bullet, insert after that bullet.
   if (!aPrevSibling && mBullet && !HaveOutsideBullet()) {
-    NS_ASSERTION(!aFrameList.ContainsFrame(mBullet),
+    NS_ASSERTION(!nsFrameList(aFrameList).ContainsFrame(mBullet),
                  "Trying to make mBullet prev sibling to itself");
     aPrevSibling = mBullet;
   }
@@ -4961,7 +4944,7 @@ nsBlockFrame::AddFrames(const nsFrameList& aFrameList,
     }
 
     // Now (partially) join the sibling lists together
-    aPrevSibling->SetNextSibling(aFrameList.FirstChild());
+    aPrevSibling->SetNextSibling(aFrameList);
   }
   else if (! mLines.empty()) {
     prevSiblingNextFrame = mLines.front()->mFirstChild;
@@ -4971,7 +4954,7 @@ nsBlockFrame::AddFrames(const nsFrameList& aFrameList,
 
   // Walk through the new frames being added and update the line data
   // structures to fit.
-  nsIFrame* newFrame = aFrameList.FirstChild();
+  nsIFrame* newFrame = aFrameList;
   while (newFrame) {
     NS_ASSERTION(newFrame->GetType() != nsGkAtoms::placeholderFrame ||
                  (!newFrame->GetStyleDisplay()->IsAbsolutelyPositioned() &&
@@ -6167,9 +6150,8 @@ nsBlockFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     DisplayOverflowContainers(aBuilder, aDirtyRect, aLists);
   }
 
-  aBuilder->MarkFramesForDisplayList(this, mFloats, aDirtyRect);
-  aBuilder->MarkFramesForDisplayList(this, mAbsoluteContainer.GetChildList(),
-                                     aDirtyRect);
+  aBuilder->MarkFramesForDisplayList(this, mFloats.FirstChild(), aDirtyRect);
+  aBuilder->MarkFramesForDisplayList(this, mAbsoluteContainer.GetFirstChild(), aDirtyRect);
 
   // Don't use the line cursor if we might have a descendant placeholder ...
   // it might skip lines that contain placeholders but don't themselves
@@ -6419,7 +6401,7 @@ nsBlockFrame::Init(nsIContent*      aContent,
 
 NS_IMETHODIMP
 nsBlockFrame::SetInitialChildList(nsIAtom*        aListName,
-                                  nsFrameList&    aChildList)
+                                  nsIFrame*       aChildList)
 {
   nsresult rv = NS_OK;
 
@@ -6459,7 +6441,6 @@ nsBlockFrame::SetInitialChildList(nsIAtom*        aListName,
     if (NS_FAILED(rv)) {
       return rv;
     }
-    aChildList.Clear();
 
     // Create list bullet if this is a list-item. Note that this is done
     // here so that RenumberLists will work (it needs the bullets to
