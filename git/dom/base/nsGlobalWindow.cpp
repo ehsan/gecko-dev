@@ -393,29 +393,6 @@ IsAboutBlank(nsIURI* aURI)
   return str.EqualsLiteral("about:blank");  
 }
 
-static void
-StripNullChars(const nsAString& aInStr,
-               nsAString& aOutStr)
-{
-  // In common cases where we don't have nulls in the
-  // string we can simple simply bypass the checking code.
-  PRInt32 firstNullPos = aInStr.FindChar('\0');
-  if (firstNullPos == kNotFound) {
-    aOutStr.Assign(aInStr);
-    return;
-  }
-  
-  nsAString::const_iterator start, end;
-  aInStr.BeginReading(start); 
-  aInStr.EndReading(end); 
-
-  while (start != end) {
-    if (*start != '\0')
-      aOutStr.Append(*start);
-    ++start;
-  }
-}
-
 class nsDummyJavaPluginOwner : public nsIPluginInstanceOwner
 {
 public:
@@ -4221,7 +4198,7 @@ nsGlobalWindow::Alert(const nsAString& aString)
   // Remove non-terminating null characters from the 
   // string. See bug #310037. 
   nsAutoString final;
-  StripNullChars(*str, final);
+  nsContentUtils::StripNullChars(*str, final);
 
   return prompter->Alert(title.get(), final.get());
 }
@@ -4251,7 +4228,7 @@ nsGlobalWindow::Confirm(const nsAString& aString, PRBool* aReturn)
   // Remove non-terminating null characters from the 
   // string. See bug #310037. 
   nsAutoString final;
-  StripNullChars(aString, final);
+  nsContentUtils::StripNullChars(aString, final);
 
   return prompter->Confirm(title.get(), final.get(),
                            aReturn);
@@ -4299,8 +4276,8 @@ nsGlobalWindow::Prompt(const nsAString& aMessage, const nsAString& aInitial,
   // Remove non-terminating null characters from the 
   // string. See bug #310037. 
   nsAutoString fixedMessage, fixedInitial;
-  StripNullChars(aMessage, fixedMessage);
-  StripNullChars(aInitial, fixedInitial);
+  nsContentUtils::StripNullChars(aMessage, fixedMessage);
+  nsContentUtils::StripNullChars(aInitial, fixedInitial);
 
   rv = prompter->Prompt(title.get(), fixedMessage.get(), nsnull,
                         aSavePassword, fixedInitial.get(),
@@ -4564,6 +4541,13 @@ nsGlobalWindow::Print()
 
       if (printSettingsAreGlobal) {
         printSettingsService->GetGlobalPrintSettings(getter_AddRefs(printSettings));
+
+        if (printSettings) {
+          // Call any code that requires a run of the event loop.
+          EnterModalState();
+          printSettings->SetupSilentPrinting();
+          LeaveModalState();
+        }
 
         nsXPIDLString printerName;
         printSettingsService->GetDefaultPrinterName(getter_Copies(printerName));

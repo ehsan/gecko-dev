@@ -42,6 +42,28 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include <QtGui/QApplication>
+#include <QtGui/QDesktopWidget>
+#include <QtGui/QCursor>
+#include <QtGui/QIcon>
+#include <QtGui/QX11Info>
+#include <QtGui/QGraphicsScene>
+#include <QtGui/QGraphicsView>
+#include <QtGui/QGraphicsSceneContextMenuEvent>
+#include <QtGui/QGraphicsSceneDragDropEvent>
+#include <QtGui/QGraphicsSceneMouseEvent>
+#include <QtGui/QGraphicsSceneHoverEvent>
+#include <QtGui/QGraphicsSceneWheelEvent>
+#include <QtGui/QGraphicsSceneResizeEvent>
+#include <QtGui/QStyleOptionGraphicsItem>
+
+#include <QtCore/QDebug>
+#include <QtCore/QEvent>
+#include <QtCore/QVariant>
+#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
+#include <QPinchGesture>
+#endif // QT version check
+
 #include "prlink.h"
 
 #include "nsWindow.h"
@@ -66,30 +88,16 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsAutoPtr.h"
 
-#include <QtGui/QApplication>
-#include <QtGui/QDesktopWidget>
-#include <QtGui/QCursor>
-#include <QtGui/QIcon>
-#include <QtGui/QX11Info>
-#include <QtGui/QGraphicsScene>
-#include <QtGui/QGraphicsView>
-#include <QtGui/QGraphicsSceneContextMenuEvent>
-#include <QtGui/QGraphicsSceneDragDropEvent>
-#include <QtGui/QGraphicsSceneMouseEvent>
-#include <QtGui/QGraphicsSceneHoverEvent>
-#include <QtGui/QGraphicsSceneWheelEvent>
-#include <QtGui/QGraphicsSceneResizeEvent>
-#include <QtGui/QStyleOptionGraphicsItem>
-
-#include <QtCore/QDebug>
-#include <QtCore/QEvent>
-#include <QtCore/QVariant>
-
 #include "gfxQtPlatform.h"
 #include "gfxXlibSurface.h"
 #include "gfxQPainterSurface.h"
 #include "gfxContext.h"
 #include "gfxSharedImageSurface.h"
+
+#include "nsIDOMSimpleGestureEvent.h" //Gesture support
+
+// imported in nsWidgetFactory.cpp
+PRBool gDisableNativeTheme = PR_FALSE;
 
 // Buffered Pixmap stuff
 static QPixmap *gBufferPixmap = nsnull;
@@ -98,6 +106,7 @@ static int gBufferPixmapUsageCount = 0;
 // Buffered shared image + pixmap
 static gfxSharedImageSurface *gBufferImage = nsnull;
 static gfxSharedImageSurface *gBufferImageTemp = nsnull;
+static QSize gBufferMaxSize(0, 0);
 PRBool gNeedColorConversion = PR_FALSE;
 extern "C" {
 #include "pixman.h"
@@ -165,7 +174,9 @@ nsWindow::nsWindow()
     mIsDestroyed      = PR_FALSE;
     mIsShown          = PR_FALSE;
     mEnabled          = PR_TRUE;
-
+#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
+    mMouseEventsDisabled = PR_FALSE;
+#endif // qt version check
     mWidget              = nsnull;
     mIsVisible           = PR_FALSE;
     mActivatePending     = PR_FALSE;
@@ -219,14 +230,16 @@ UpdateOffScreenBuffers(QSize aSize, int aDepth)
 {
     gfxIntSize size(aSize.width(), aSize.height());
     if (gBufferPixmap) {
-        if (gBufferPixmap->size().width() < size.width ||
-            gBufferPixmap->size().height() < size.height) {
+        if (gBufferMaxSize.width() < size.width ||
+            gBufferMaxSize.height() < size.height) {
             FreeOffScreenBuffers();
         } else
             return true;
     }
 
-    gBufferPixmap = new QPixmap(size.width, size.height);
+    gBufferMaxSize.setWidth(PR_MAX(gBufferMaxSize.width(), size.width));
+    gBufferMaxSize.setHeight(PR_MAX(gBufferMaxSize.height(), size.height));
+    gBufferPixmap = new QPixmap(gBufferMaxSize.width(), gBufferMaxSize.height());
     if (!gBufferPixmap)
         return false;
 
@@ -657,13 +670,6 @@ nsWindow::Invalidate(const nsIntRect &aRect,
 NS_IMETHODIMP
 nsWindow::Update()
 {
-    if (!mWidget)
-        return NS_OK;
-
-    // Just proceed all pending paints
-    if (GetViewWidget())
-        GetViewWidget()->repaint();
-
     return NS_OK;
 }
 
@@ -986,12 +992,16 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption)
     else
         r = mWidget->boundingRect();
 
-    mDirtyScrollArea = QRegion();
+    if (r.isEmpty())
+        return nsEventStatus_eIgnore;
+
+    if (!mDirtyScrollArea.isEmpty())
+        mDirtyScrollArea = QRegion();
 
     gfxQtPlatform::RenderMode renderMode = gfxQtPlatform::GetPlatform()->GetRenderMode();
     // Prepare offscreen buffers if RenderMode Xlib or Image
     if (renderMode != gfxQtPlatform::RENDER_QPAINTER)
-        if (!UpdateOffScreenBuffers(r.size().toSize(), QX11Info().depth()))
+        if (!UpdateOffScreenBuffers(QSize(r.width(), r.height()), QX11Info().depth()))
             return nsEventStatus_eIgnore;
 
     nsRefPtr<gfxASurface> targetSurface = nsnull;
@@ -1008,6 +1018,10 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption)
         return nsEventStatus_eIgnore;
 
     nsRefPtr<gfxContext> ctx = new gfxContext(targetSurface);
+
+    // We will paint to 0, 0 position in offscrenn buffer
+    if (renderMode != gfxQtPlatform::RENDER_QPAINTER)
+        ctx->Translate(gfxPoint(-r.x(), -r.y()));
 
     nsPaintEvent event(PR_TRUE, NS_PAINT, this);
 
@@ -1056,8 +1070,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption)
                                    0, 0,
                                    0, 0,
                                    0, 0,
-                                   gBufferImageTemp->GetSize().width,
-                                   gBufferImageTemp->GetSize().height);
+                                   rect.width, rect.height);
             pixman_image_unref(src_image);
             pixman_image_unref(dst_image);
         }
@@ -1065,17 +1078,18 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption)
         Display *disp = gBufferPixmap->x11Info().display();
         XGCValues gcv;
         gcv.graphics_exposures = False;
-        GC gc = XCreateGC (disp, gBufferPixmap->handle(), GCGraphicsExposures, &gcv);
+        GC gc = XCreateGC(disp, gBufferPixmap->handle(), GCGraphicsExposures, &gcv);
         XShmPutImage(disp, gBufferPixmap->handle(), gc, gBufferImage->image(),
-                     rect.x, rect.y, rect.x, rect.y, rect.width, rect.height,
+                     0, 0, 0, 0, rect.width, rect.height,
                      False);
-        XFreeGC (disp, gc);
+        XSync(disp, False);
+        XFreeGC(disp, gc);
     }
 
     if (renderMode != gfxQtPlatform::RENDER_QPAINTER) {
         if (gBufferPixmap->handle())
             aPainter->drawPixmap(QPoint(rect.x, rect.y), *gBufferPixmap,
-                                 QRect(rect.x, rect.y, rect.width, rect.height));
+                                 QRect(0, 0, rect.width, rect.height));
         else {
             QImage img(gBufferImage->Data(),
                        gBufferImage->Width(),
@@ -1083,7 +1097,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption)
                        gBufferImage->Stride(),
                        QImage::Format_RGB32);
             aPainter->drawImage(QPoint(rect.x, rect.y), img,
-                                QRect(rect.x, rect.y, rect.width, rect.height));
+                                QRect(0, 0, rect.width, rect.height));
         }
     }
 
@@ -1179,6 +1193,14 @@ nsWindow::OnLeaveNotifyEvent(QGraphicsSceneHoverEvent *aEvent)
 nsEventStatus
 nsWindow::OnMotionNotifyEvent(QGraphicsSceneMouseEvent *aEvent)
 {
+#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
+    if (mMouseEventsDisabled) {
+        // Block the mouse events if currently executing pinch gesture; otherwise there
+        // will be also some panning during the zooming
+        return nsEventStatus_eIgnore;
+    }
+#endif
+
     nsMouseEvent event(PR_TRUE, NS_MOUSE_MOVE, this, nsMouseEvent::eReal);
 
     event.refPoint.x = nscoord(aEvent->pos().x());
@@ -1487,6 +1509,94 @@ nsWindow::hideEvent(QHideEvent *)
     return nsEventStatus_eConsumeDoDefault;
 }
 
+//Gestures are only supported in 4.6.0 >
+#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
+nsEventStatus nsWindow::OnTouchEvent(QTouchEvent *event, PRBool &handled)
+{
+    handled = PR_FALSE;
+    const QList<QTouchEvent::TouchPoint> &touchPoints = event->touchPoints();
+
+    if (event->type() == QEvent::TouchBegin) {
+        handled = PR_TRUE;
+        for (int i = touchPoints.count() -1; i >= 0; i--) {
+            QPointF fpos = touchPoints[i].pos();
+            nsGestureNotifyEvent gestureNotifyEvent(PR_TRUE, NS_GESTURENOTIFY_EVENT_START, this);
+            gestureNotifyEvent.refPoint = nsIntPoint(fpos.x(), fpos.y());
+            DispatchEvent(&gestureNotifyEvent);
+        }
+    }
+    if (touchPoints.count() == 2) {
+        mTouchPointDistance = DistanceBetweenPoints(touchPoints.at(0).scenePos(),
+                                                    touchPoints.at(1).scenePos());
+        if (event->type() == QEvent::TouchBegin) {
+            mLastPinchDistance = mTouchPointDistance;
+        }
+    }
+
+    //Disable mouse events when gestures are used, because they cause problems with
+    //Fennec
+    mMouseEventsDisabled = touchPoints.count() >= 2;
+
+    return nsEventStatus_eIgnore;
+}
+
+nsEventStatus nsWindow::OnGestureEvent(QGestureEvent *event, PRBool &handled)
+{
+    handled = PR_FALSE;
+    nsSimpleGestureEvent mozGesture(PR_TRUE, 0, this, 0, 0.0);
+
+    if (QGesture *gesture = event->gesture(Qt::PinchGesture)) {
+        QPinchGesture *pinch = static_cast<QPinchGesture*>(gesture);
+        handled = PR_TRUE;
+
+        QPointF centerPoint = pinch->centerPoint();
+        mozGesture.refPoint.x = nscoord(centerPoint.x());
+        mozGesture.refPoint.y = nscoord(centerPoint.y());
+
+        if (pinch->state() == Qt::GestureStarted) {
+            mozGesture.message = NS_SIMPLE_GESTURE_MAGNIFY_START;
+            mozGesture.delta = 0.0;
+            mLastPinchDistance = mTouchPointDistance;
+            event->accept();
+        }
+        else if (pinch->state() == Qt::GestureUpdated) {
+            mozGesture.message = NS_SIMPLE_GESTURE_MAGNIFY_UPDATE;
+            //-1 because zoom in is positive
+            mozGesture.delta = -1.0 * (mLastPinchDistance - mTouchPointDistance);
+            mLastPinchDistance = mTouchPointDistance;
+        }
+        else {
+            handled = PR_FALSE;
+        }
+    }
+
+    if (handled) {
+        Qt::KeyboardModifiers modifiers = QApplication::keyboardModifiers();
+
+        mozGesture.isShift   = (modifiers & Qt::ShiftModifier) ? PR_TRUE : PR_FALSE;
+        mozGesture.isControl = (modifiers & Qt::ControlModifier) ? PR_TRUE : PR_FALSE;
+        mozGesture.isMeta    = PR_FALSE;
+        mozGesture.isAlt     = (modifiers & Qt::AltModifier) ? PR_TRUE : PR_FALSE;
+        mozGesture.button    = 0;
+        mozGesture.time      = 0;
+
+        return DispatchEvent(&mozGesture);
+    }
+    return nsEventStatus_eIgnore;
+}
+
+double
+nsWindow::DistanceBetweenPoints(const QPointF &aFirstPoint, const QPointF &aSecondPoint)
+{
+    double result = 0;
+    double deltaX = abs(aFirstPoint.x() - aSecondPoint.x());
+    double deltaY = abs(aFirstPoint.y() - aSecondPoint.y());
+    result = sqrt(deltaX*deltaX + deltaY*deltaY);
+    return result;
+}
+
+#endif //qt version check
+
 void
 nsWindow::ThemeChanged()
 {
@@ -1675,9 +1785,12 @@ nsWindow::SetWindowClass(const nsAString &xulWinType)
     class_hint->res_name[0] = toupper(class_hint->res_name[0]);
     if (!role) role = class_hint->res_name;
 
-    XSetClassHint(GetViewWidget()->x11Info().display(),
-                  GetViewWidget()->handle(),
-                  class_hint);
+    QWidget *widget = GetViewWidget();
+    // If widget not show, handle might be null
+    if (widget && widget->handle())
+        XSetClassHint(widget->x11Info().display(),
+                      widget->handle(),
+                      class_hint);
 
     nsMemory::Free(class_hint->res_class);
     nsMemory::Free(class_hint->res_name);
@@ -1869,7 +1982,9 @@ initialize_prefs(void)
 
     PRBool val = PR_TRUE;
     nsresult rv;
-    rv = prefs->GetBoolPref("mozilla.widget.raise-on-setfocus", &val);
+    rv = prefs->GetBoolPref("mozilla.widget.disable-native-theme", &val);
+    if (NS_SUCCEEDED(rv))
+        gDisableNativeTheme = val;
 
     return NS_OK;
 }
@@ -1929,7 +2044,8 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
     switch (mWindowType) {
     case eWindowType_dialog:
         windowName = "topLevelDialog";
-        mIsTopLevel = PR_TRUE;
+        if (!parent)
+            mIsTopLevel = PR_TRUE;
         break;
     case eWindowType_popup:
         windowName = "topLevelPopup";
@@ -1960,35 +2076,29 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
 
     // create a QGraphicsView if this is a new toplevel window
 
-    if (eWindowType_dialog == mWindowType ||
-        eWindowType_toplevel == mWindowType)
-    {
-        MozQGraphicsView* newView = 0;
-        QGraphicsScene *scene = new QGraphicsScene();
-        if (!scene) {
-            delete widget;
-            return nsnull;
-        }
-
-        newView = new MozQGraphicsView(scene);
+    if (mIsTopLevel) {
+        QGraphicsView* newView = nsnull;
+        newView = new MozQGraphicsView(widget);
         if (!newView) {
-            delete scene;
             delete widget;
             return nsnull;
         }
-        newView->setTopLevel(widget);
 
+        // Enable gestures:
+#if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
+        newView->grabGesture(Qt::PinchGesture);
+        newView->viewport()->grabGesture(Qt::PinchGesture);
+#endif
         newView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         newView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        newView->show();
-        newView->raise();
+        newView->showNormal();
 
-        scene->addItem(widget);
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
         // Top level widget is just container, and should not be painted
         widget->setFlag(QGraphicsItem::ItemHasNoContents);
 #endif
-    }
+    } else if (eWindowType_dialog == mWindowType && parent)
+        parent->scene()->addItem(widget);
 
     if (mWindowType == eWindowType_popup) {
         widget->setZValue(100);
@@ -2238,3 +2348,32 @@ nsWindow::AreBoundsSane(void)
 
     return PR_FALSE;
 }
+
+NS_IMETHODIMP
+nsWindow::SetIMEEnabled(PRUint32 aState)
+{
+    NS_ENSURE_TRUE(mWidget, NS_ERROR_FAILURE);
+
+    switch (aState) {
+        case nsIWidget::IME_STATUS_ENABLED:
+        case nsIWidget::IME_STATUS_PASSWORD:
+            mWidget->showVKB();
+            break;
+        default:
+            mWidget->hideVKB();
+            break;
+    }
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsWindow::GetIMEEnabled(PRUint32* aState)
+{
+    NS_ENSURE_ARG_POINTER(aState);
+    NS_ENSURE_TRUE(mWidget, NS_ERROR_FAILURE);
+
+    *aState = mWidget->isVKBOpen() ? IME_STATUS_ENABLED : IME_STATUS_DISABLED;
+    return NS_OK;
+}
+
