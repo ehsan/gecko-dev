@@ -1562,10 +1562,12 @@ AccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
 {
   uint32_t eventType = aEvent->GetEventType();
 
-  MOZ_STATIC_ASSERT(sizeof(gWinEventMap)/sizeof(gWinEventMap[0]) == nsIAccessibleEvent::EVENT_LAST_ENTRY,
-                    "MSAA event map skewed");
+  NS_ENSURE_TRUE(eventType > 0 &&
+                 eventType < nsIAccessibleEvent::EVENT_LAST_ENTRY,
+                 NS_ERROR_FAILURE);
 
-  NS_ENSURE_TRUE(eventType > 0 && eventType < ArrayLength(gWinEventMap), NS_ERROR_FAILURE);
+  NS_ASSERTION(gWinEventMap[nsIAccessibleEvent::EVENT_LAST_ENTRY] == kEVENT_LAST_ENTRY,
+               "MSAA event map skewed");
 
   uint32_t winEvent = gWinEventMap[eventType];
   if (!winEvent)

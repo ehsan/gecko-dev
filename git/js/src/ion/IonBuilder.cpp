@@ -5,8 +5,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "IonAnalysis.h"
 #include "IonBuilder.h"
 #include "Lowering.h"
@@ -42,8 +40,7 @@ IonBuilder::IonBuilder(JSContext *cx, TempAllocator *temp, MIRGraph *graph,
     inliningDepth(inliningDepth),
     failedBoundsCheck_(info->script()->failedBoundsCheck),
     failedShapeGuard_(info->script()->failedShapeGuard),
-    lazyArguments_(NULL),
-    callee_(NULL)
+    lazyArguments_(NULL)
 {
     script_.init(info->script());
     pc = info->startPC();
@@ -575,15 +572,6 @@ IonBuilder::initScopeChain()
 {
     MInstruction *scope = NULL;
 
-    // Add callee, it will be removed if it is not used by neither the scope
-    // chain nor the function body.
-    JSFunction *fun = info().fun();
-    if (fun) {
-        JS_ASSERT(!callee_);
-        callee_ = MCallee::New();
-        current->add(callee_);
-    }
-
     // If the script doesn't use the scopechain, then it's already initialized
     // from earlier.
     if (!script()->analysis()->usesScopeChain())
@@ -596,19 +584,22 @@ IonBuilder::initScopeChain()
     if (!script()->compileAndGo)
         return abort("non-CNG global scripts are not supported");
 
-    if (fun) {
-        scope = MFunctionEnvironment::New(callee_);
+    if (JSFunction *fun = info().fun()) {
+        MCallee *callee = MCallee::New();
+        current->add(callee);
+
+        scope = MFunctionEnvironment::New(callee);
         current->add(scope);
 
         // This reproduce what is done in CallObject::createForFunction
         if (fun->isHeavyweight()) {
             if (fun->isNamedLambda()) {
-                scope = createDeclEnvObject(callee_, scope);
+                scope = createDeclEnvObject(callee, scope);
                 if (!scope)
                     return false;
             }
 
-            scope = createCallObject(callee_, scope);
+            scope = createCallObject(callee, scope);
             if (!scope)
                 return false;
         }
@@ -981,11 +972,11 @@ IonBuilder::inspectOpcode(JSOp op)
         return jsop_getname(name);
       }
 
-      case JSOP_GETINTRINSIC:
+      case JSOP_INTRINSICNAME:
       case JSOP_CALLINTRINSIC:
       {
         RootedPropertyName name(cx, info().getAtom(pc)->asPropertyName());
-        return jsop_intrinsic(name);
+        return jsop_intrinsicname(name);
       }
 
       case JSOP_BINDNAME:
@@ -1041,9 +1032,12 @@ IonBuilder::inspectOpcode(JSOp op)
         return jsop_this();
 
       case JSOP_CALLEE:
-        JS_ASSERT(callee_);
-        current->push(callee_);
-        return true;
+      {
+        MCallee *callee = MCallee::New();
+        current->add(callee);
+        current->push(callee);
+        return callee;
+      }
 
       case JSOP_GETPROP:
       case JSOP_CALLPROP:
@@ -2354,8 +2348,7 @@ IonBuilder::lookupSwitch(JSOp op, jssrcnote *sn)
             current->end(MGoto::New(cond));
         } else {
             // End previous conditional block with an MTest.
-            MTest *test = MTest::New(prevCmpIns, prevBody, cond);
-            prevCond->end(test);
+            prevCond->end(MTest::New(prevCmpIns, prevBody, cond));
 
             // If the previous cond shared its body with a prior cond, then
             // add the previous cond as a predecessor to its body (since it's
@@ -2393,8 +2386,7 @@ IonBuilder::lookupSwitch(JSOp op, jssrcnote *sn)
     } else {
         // Last conditional block has body that is distinct from
         // the default block.
-        MTest *test = MTest::New(prevCmpIns, prevBody, defaultBody);
-        prevCond->end(test);
+        prevCond->end(MTest::New(prevCmpIns, prevBody, defaultBody));
 
         // Add the cond as a predecessor as a default, but only if
         // the default is shared with another block, because otherwise
@@ -2726,8 +2718,6 @@ IonBuilder::processCondSwitchBody(CFGState &state)
 bool
 IonBuilder::jsop_andor(JSOp op)
 {
-    JS_ASSERT(op == JSOP_AND || op == JSOP_OR);
-
     jsbytecode *rhsStart = pc + js_CodeSpec[op].length;
     jsbytecode *joinStart = pc + GetJumpOffset(pc);
     JS_ASSERT(joinStart > pc);
@@ -2740,12 +2730,12 @@ IonBuilder::jsop_andor(JSOp op)
     if (!evalRhs || !join)
         return false;
 
-    MTest *test = (op == JSOP_AND)
-                  ? MTest::New(lhs, evalRhs, join)
-                  : MTest::New(lhs, join, evalRhs);
-    TypeOracle::UnaryTypes types = oracle->unaryTypes(script(), pc);
-    test->infer(types, cx);
-    current->end(test);
+    if (op == JSOP_AND) {
+        current->end(MTest::New(lhs, evalRhs, join));
+    } else {
+        JS_ASSERT(op == JSOP_OR);
+        current->end(MTest::New(lhs, join, evalRhs));
+    }
 
     if (!cfgStack_.append(CFGState::AndOr(joinStart, join)))
         return false;
@@ -2795,8 +2785,7 @@ IonBuilder::jsop_ifeq(JSOp op)
     if (!ifTrue || !ifFalse)
         return false;
 
-    MTest *test = MTest::New(ins, ifTrue, ifFalse);
-    current->end(test);
+    current->end(MTest::New(ins, ifTrue, ifFalse));
 
     // The bytecode for if/ternary gets emitted either like this:
     //
@@ -2968,8 +2957,7 @@ IonBuilder::jsop_bitop(JSOp op)
     }
 
     current->add(ins);
-    TypeOracle::BinaryTypes types = oracle->binaryTypes(script(), pc);
-    ins->infer(types);
+    ins->infer(oracle->binaryTypes(script(), pc));
 
     current->push(ins);
     if (ins->isEffectful() && !resumeAfter(ins))
@@ -3022,7 +3010,7 @@ IonBuilder::jsop_binary(JSOp op, MDefinition *left, MDefinition *right)
 
     TypeOracle::BinaryTypes types = oracle->binaryTypes(script(), pc);
     current->add(ins);
-    ins->infer(types, cx);
+    ins->infer(cx, types);
     current->push(ins);
 
     if (ins->isEffectful())
@@ -3108,12 +3096,9 @@ IonBuilder::jsop_call_inline(HandleFunction callee, uint32_t argc, bool construc
 {
     AssertCanGC();
 
-    int calleePos = -((int) argc + 2);
-    current->peek(calleePos)->setFoldedUnchecked();
-
     // Rewrite the stack position containing the function with the constant
     // function definition, before we take the inlineResumePoint
-    current->rewriteAtDepth(calleePos, constFun);
+    current->rewriteAtDepth(-((int) argc + 2), constFun);
 
     // This resume point collects outer variables only.  It is used to recover
     // the stack state before the current bytecode.
@@ -3519,7 +3504,6 @@ IonBuilder::inlineScriptedCall(AutoObjectVector &targets, uint32_t argc, bool co
         MPassArg *passArg = top->peek(argSlotDepth)->toPassArg();
         MBasicBlock *block = passArg->block();
         MDefinition *wrapped = passArg->getArgument();
-        wrapped->setFoldedUnchecked();
         passArg->replaceAllUsesWith(wrapped);
         top->rewriteAtDepth(argSlotDepth, wrapped);
         block->discard(passArg);
@@ -4216,7 +4200,7 @@ IonBuilder::jsop_compare(JSOp op)
     current->push(ins);
 
     TypeOracle::BinaryTypes b = oracle->binaryTypes(script(), pc);
-    ins->infer(b, cx);
+    ins->infer(cx, b);
 
     if (ins->isEffectful() && !resumeAfter(ins))
         return false;
@@ -5142,7 +5126,7 @@ IonBuilder::jsop_getname(HandlePropertyName name)
 }
 
 bool
-IonBuilder::jsop_intrinsic(HandlePropertyName name)
+IonBuilder::jsop_intrinsicname(HandlePropertyName name)
 {
     types::StackTypeSet *types = oracle->propertyRead(script(), pc);
     JSValueType type = types->getKnownTypeTag();
@@ -5740,8 +5724,6 @@ IonBuilder::jsop_not()
     MNot *ins = new MNot(value);
     current->add(ins);
     current->push(ins);
-    TypeOracle::UnaryTypes types = oracle->unaryTypes(script(), pc);
-    ins->infer(types, cx);
     return true;
 }
 
@@ -6655,6 +6637,21 @@ IonBuilder::jsop_lambda(JSFunction *fun)
     MLambda *ins = MLambda::New(current->scopeChain(), fun);
     current->add(ins);
     current->push(ins);
+
+    return resumeAfter(ins);
+}
+
+bool
+IonBuilder::jsop_deflocalfun(uint32_t local, JSFunction *fun)
+{
+    JS_ASSERT(script()->analysis()->usesScopeChain());
+
+    MLambda *ins = MLambda::New(current->scopeChain(), fun);
+    current->add(ins);
+    current->push(ins);
+
+    current->setLocal(local);
+    current->pop();
 
     return resumeAfter(ins);
 }

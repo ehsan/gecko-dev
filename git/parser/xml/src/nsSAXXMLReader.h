@@ -16,7 +16,6 @@
 #include "nsISAXDTDHandler.h"
 #include "nsISAXErrorHandler.h"
 #include "nsISAXLexicalHandler.h"
-#include "nsIMozSAXXMLDeclarationHandler.h"
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/Attributes.h"
 
@@ -80,7 +79,6 @@ private:
   nsCOMPtr<nsISAXDTDHandler> mDTDHandler;
   nsCOMPtr<nsISAXErrorHandler> mErrorHandler;
   nsCOMPtr<nsISAXLexicalHandler> mLexicalHandler;
-  nsCOMPtr<nsIMozSAXXMLDeclarationHandler> mDeclarationHandler;
   nsCOMPtr<nsIURI> mBaseURI;
   nsCOMPtr<nsIStreamListener> mListener;
   nsCOMPtr<nsIRequestObserver> mParserObserver;

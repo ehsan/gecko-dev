@@ -124,7 +124,8 @@ public:
 
   static char* strdup_(const char* aStr)
   {
-    char* s = (char*) InfallibleAllocPolicy::malloc_(strlen(aStr) + 1);
+    char* s = (char*) gMallocTable->malloc(strlen(aStr) + 1);
+    ExitOnFailure(s);
     strcpy(s, aStr);
     return s;
   }
@@ -143,15 +144,6 @@ public:
     void* mem = malloc_(sizeof(T));
     ExitOnFailure(mem);
     return new (mem) T(p1);
-  }
-
-  template <class T>
-  static void delete_(T *p)
-  {
-    if (p) {
-      p->~T();
-      InfallibleAllocPolicy::free_(p);
-    }
   }
 
   static void reportAllocOverflow() { ExitOnFailure(nullptr); }
@@ -502,191 +494,25 @@ public:
 };
 
 //---------------------------------------------------------------------------
-// Location service
-//---------------------------------------------------------------------------
-
-// This class is used to print details about code locations.
-class LocationService
-{
-  // WriteLocation() is the key function in this class.  It's basically a
-  // wrapper around NS_DescribeCodeAddress.
-  //
-  // However, NS_DescribeCodeAddress is very slow on some platforms, and we
-  // have lots of repeated (i.e. same PC) calls to it.  So we do some caching
-  // of results.  Each cached result includes two strings (|mFunction| and
-  // |mLibrary|), so we also optimize them for space in the following ways.
-  //
-  // - The number of distinct library names is small, e.g. a few dozen.  There
-  //   is lots of repetition, especially of libxul.  So we intern them in their
-  //   own table, which saves space over duplicating them for each cache entry.
-  //
-  // - The number of distinct function names is much higher, so we duplicate
-  //   them in each cache entry.  That's more space-efficient than interning
-  //   because entries containing single-occurrence function names are quickly
-  //   overwritten, and their copies released.  In addition, empty function
-  //   names are common, so we use nullptr to represent them compactly.
-
-  struct StringHasher
-  {
-      typedef const char* Lookup;
-
-      static uint32_t hash(const char* const& aS)
-      {
-          return HashString(aS);
-      }
-
-      static bool match(const char* const& aA, const char* const& aB)
-      {
-          return strcmp(aA, aB) == 0;
-      }
-  };
-
-  typedef js::HashSet<const char*, StringHasher, InfallibleAllocPolicy>
-          StringTable;
-
-  StringTable mLibraryStrings;
-
-  struct Entry
-  {
-    const void* mPc;        // the entry is unused if this is null
-    char*       mFunction;  // owned by the Entry;  may be null
-    const char* mLibrary;   // owned by mLibraryStrings;  never null
-                            //   in a non-empty entry is in use
-    ptrdiff_t   mLOffset;
-
-    Entry()
-      : mPc(nullptr), mFunction(nullptr), mLibrary(nullptr), mLOffset(0)
-    {}
-
-    ~Entry()
-    {
-      // We don't free mLibrary because it's externally owned.
-      InfallibleAllocPolicy::free_(mFunction);
-    }
-
-    void Replace(const void* aPc, const char* aFunction, const char* aLibrary,
-                 ptrdiff_t aLOffset)
-    {
-      mPc = aPc;
-
-      // Convert "" to nullptr.  Otherwise, make a copy of the name.
-      InfallibleAllocPolicy::free_(mFunction);
-      mFunction =
-        !aFunction[0] ? nullptr : InfallibleAllocPolicy::strdup_(aFunction);
-
-      mLibrary = aLibrary;
-      mLOffset = aLOffset;
-    }
-
-    size_t SizeOfExcludingThis() {
-      // Don't measure mLibrary because it's externally owned.
-      return MallocSizeOf(mFunction);
-    }
-  };
-
-  // A direct-mapped cache.  When doing a dump just after starting desktop
-  // Firefox (which is similar to dumping after a longer-running session,
-  // thanks to the limit on how many groups we dump), a cache with 2^24 entries
-  // (which approximates an infinite-entry cache) has a ~91% hit rate.  A cache
-  // with 2^12 entries has a ~83% hit rate, and takes up ~85 KiB (on 32-bit
-  // platforms) or ~150 KiB (on 64-bit platforms).
-  static const size_t kNumEntries = 1 << 12;
-  static const size_t kMask = kNumEntries - 1;
-  Entry mEntries[kNumEntries];
-
-  size_t mNumCacheHits;
-  size_t mNumCacheMisses;
-
-public:
-  LocationService()
-    : mEntries(), mNumCacheHits(0), mNumCacheMisses(0)
-  {
-    (void)mLibraryStrings.init(64);
-  }
-
-  void WriteLocation(const Writer& aWriter, const void* aPc)
-  {
-    MOZ_ASSERT(gStateLock->IsLocked());
-
-    uint32_t index = HashGeneric(aPc) & kMask;
-    MOZ_ASSERT(index < kNumEntries);
-    Entry& entry = mEntries[index];
-
-    MOZ_ASSERT(aPc);    // important, because null represents an empty entry
-    if (entry.mPc != aPc) {
-      mNumCacheMisses++;
-
-      // NS_DescribeCodeAddress can (on Linux) acquire a lock inside
-      // the shared library loader.  Another thread might call malloc
-      // while holding that lock (when loading a shared library).  So
-      // we have to exit gStateLock around this call.  For details, see
-      // https://bugzilla.mozilla.org/show_bug.cgi?id=363334#c3
-      nsCodeAddressDetails details;
-      {
-        AutoUnlockState unlock;
-        (void)NS_DescribeCodeAddress(const_cast<void*>(aPc), &details);
-      }
-
-      // Intern the library name.
-      const char* library = nullptr;
-      StringTable::AddPtr p = mLibraryStrings.lookupForAdd(details.library);
-      if (!p) {
-        library = InfallibleAllocPolicy::strdup_(details.library);
-        (void)mLibraryStrings.add(p, library);
-      } else {
-        library = *p;
-      }
-
-      entry.Replace(aPc, details.function, library, details.loffset);
-
-    } else {
-      mNumCacheHits++;
-    }
-
-    MOZ_ASSERT(entry.mPc == aPc);
-
-    // Use "???" for unknown functions.
-    W("   %s[%s +0x%X] %p\n", entry.mFunction ? entry.mFunction : "???",
-      entry.mLibrary, entry.mLOffset, entry.mPc);
-  }
-
-  size_t SizeOfIncludingThis()
-  {
-    size_t n = MallocSizeOf(this);
-    for (uint32_t i = 0; i < kNumEntries; i++) {
-      n += mEntries[i].SizeOfExcludingThis();
-    }
-
-    n += mLibraryStrings.sizeOfExcludingThis(MallocSizeOf);
-    for (StringTable::Range r = mLibraryStrings.all();
-         !r.empty();
-         r.popFront()) {
-      n += MallocSizeOf(r.front());
-    }
-
-    return n;
-  }
-
-  size_t CacheCapacity() const { return kNumEntries; }
-
-  size_t CacheCount() const
-  {
-    size_t n = 0;
-    for (size_t i = 0; i < kNumEntries; i++) {
-      if (mEntries[i].mPc) {
-        n++;
-      }
-    }
-    return n;
-  }
-
-  size_t NumCacheHits()   const { return mNumCacheHits; }
-  size_t NumCacheMisses() const { return mNumCacheMisses; }
-};
-
-//---------------------------------------------------------------------------
 // Stack traces
 //---------------------------------------------------------------------------
+
+static void
+PcInfo(const void* aPc, nsCodeAddressDetails* aDetails)
+{
+  // NS_DescribeCodeAddress can (on Linux) acquire a lock inside
+  // the shared library loader.  Another thread might call malloc
+  // while holding that lock (when loading a shared library).  So
+  // we have to exit gStateLock around this call.  For details, see
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=363334#c3
+  {
+    AutoUnlockState unlock;
+    (void)NS_DescribeCodeAddress(const_cast<void*>(aPc), aDetails);
+  }
+  if (!aDetails->function[0]) {
+    strcpy(aDetails->function, "???");
+  }
+}
 
 class StackTrace
 {
@@ -712,7 +538,7 @@ public:
     qsort(mPcs, mLength, sizeof(mPcs[0]), StackTrace::QsortCmp);
   }
 
-  void Print(const Writer& aWriter, LocationService* aLocService) const;
+  void Print(const Writer& aWriter) const;
 
   // Hash policy.
 
@@ -758,7 +584,7 @@ typedef js::HashSet<StackTrace*, StackTrace, InfallibleAllocPolicy>
 static StackTraceTable* gStackTraceTable = nullptr;
 
 void
-StackTrace::Print(const Writer& aWriter, LocationService* aLocService) const
+StackTrace::Print(const Writer& aWriter) const
 {
   if (mLength == 0) {
     W("   (empty)\n");
@@ -772,8 +598,13 @@ StackTrace::Print(const Writer& aWriter, LocationService* aLocService) const
   }
 
   for (uint32_t i = 0; i < mLength; i++) {
+    nsCodeAddressDetails details;
     void* pc = mPcs[i];
-    aLocService->WriteLocation(aWriter, pc);
+    PcInfo(pc, &details);
+    if (details.function[0]) {
+      W("   %s[%s +0x%X] %p\n", details.function, details.library,
+        details.loffset, pc);
+    }
   }
 }
 
@@ -1335,8 +1166,8 @@ public:
       BlockGroup()
   {}
 
-  void Print(const Writer& aWriter, LocationService* aLocService,
-             uint32_t aM, uint32_t aN, const char* aStr, const char* astr,
+  void Print(const Writer& aWriter, uint32_t aM, uint32_t aN,
+             const char* aStr, const char* astr,
              size_t aCategoryUsableSize, size_t aCumulativeUsableSize,
              size_t aTotalUsableSize) const;
 
@@ -1355,8 +1186,7 @@ typedef js::HashSet<LiveBlockGroup, LiveBlockGroup, InfallibleAllocPolicy>
         LiveBlockGroupTable;
 
 void
-LiveBlockGroup::Print(const Writer& aWriter, LocationService* aLocService,
-                      uint32_t aM, uint32_t aN,
+LiveBlockGroup::Print(const Writer& aWriter, uint32_t aM, uint32_t aN,
                       const char* aStr, const char* astr,
                       size_t aCategoryUsableSize, size_t aCumulativeUsableSize,
                       size_t aTotalUsableSize) const
@@ -1383,11 +1213,11 @@ LiveBlockGroup::Print(const Writer& aWriter, LocationService* aLocService,
     Percent(aCumulativeUsableSize, aCategoryUsableSize));
 
   W(" Allocated at\n");
-  mAllocStackTrace->Print(aWriter, aLocService);
+  mAllocStackTrace->Print(aWriter);
 
   if (IsReported()) {
     W("\n Reported by '%s' at\n", mReporterName);
-    mReportStackTrace->Print(aWriter, aLocService);
+    mReportStackTrace->Print(aWriter);
   }
 
   W("\n");
@@ -1403,8 +1233,8 @@ public:
       BlockGroup()
   {}
 
-  void Print(const Writer& aWriter, LocationService* aLocService,
-             uint32_t aM, uint32_t aN, const char* aStr, const char* astr,
+  void Print(const Writer& aWriter, uint32_t aM, uint32_t aN,
+             const char* aStr, const char* astr,
              size_t aCategoryUsableSize, size_t aCumulativeUsableSize,
              size_t aTotalUsableSize) const;
 
@@ -1424,9 +1254,7 @@ typedef js::HashSet<DoubleReportBlockGroup, DoubleReportBlockGroup,
 DoubleReportBlockGroupTable* gDoubleReportBlockGroupTable = nullptr;
 
 void
-DoubleReportBlockGroup::Print(const Writer& aWriter,
-                              LocationService* aLocService,
-                              uint32_t aM, uint32_t aN,
+DoubleReportBlockGroup::Print(const Writer& aWriter, uint32_t aM, uint32_t aN,
                               const char* aStr, const char* astr,
                               size_t aCategoryUsableSize,
                               size_t aCumulativeUsableSize,
@@ -1446,13 +1274,13 @@ DoubleReportBlockGroup::Print(const Writer& aWriter,
     Show(mGroupSize.Slop(),   gBuf3, kBufLen, showTilde));
 
   W(" Allocated at\n");
-  mAllocStackTrace->Print(aWriter, aLocService);
+  mAllocStackTrace->Print(aWriter);
 
   W("\n Previously reported by '%s' at\n", mReporterName1);
-  mReportStackTrace1->Print(aWriter, aLocService);
+  mReportStackTrace1->Print(aWriter);
 
   W("\n Now reported by '%s' at\n", mReporterName2);
-  mReportStackTrace2->Print(aWriter, aLocService);
+  mReportStackTrace2->Print(aWriter);
 
   W("\n");
 }
@@ -1490,8 +1318,8 @@ public:
     mGroupSize.Add(aBg.mGroupSize);
   }
 
-  void Print(const Writer& aWriter, LocationService* aLocService,
-             uint32_t aM, uint32_t aN, const char* aStr, const char* astr,
+  void Print(const Writer& aWriter, uint32_t aM, uint32_t aN,
+             const char* aStr, const char* astr,
              size_t aCategoryUsableSize, size_t aCumulativeUsableSize,
              size_t aTotalUsableSize) const;
 
@@ -1526,14 +1354,17 @@ typedef js::HashSet<FrameGroup, FrameGroup, InfallibleAllocPolicy>
         FrameGroupTable;
 
 void
-FrameGroup::Print(const Writer& aWriter, LocationService* aLocService,
-                  uint32_t aM, uint32_t aN, const char* aStr, const char* astr,
+FrameGroup::Print(const Writer& aWriter, uint32_t aM, uint32_t aN,
+                  const char* aStr, const char* astr,
                   size_t aCategoryUsableSize, size_t aCumulativeUsableSize,
                   size_t aTotalUsableSize) const
 {
   (void)aCumulativeUsableSize;
 
   bool showTilde = mGroupSize.IsSampled();
+
+  nsCodeAddressDetails details;
+  PcInfo(mPc, &details);
 
   W("%s: %s block%s and %s block group%s in frame group %s of %s\n",
     aStr,
@@ -1553,8 +1384,8 @@ FrameGroup::Print(const Writer& aWriter, LocationService* aLocService,
     astr);
 
   W(" PC is\n");
-  aLocService->WriteLocation(aWriter, mPc);
-  W("\n");
+  W("   %s[%s +0x%X] %p\n\n", details.function, details.library,
+    details.loffset, mPc);
 }
 
 //---------------------------------------------------------------------------
@@ -1636,13 +1467,6 @@ BadArg(const char* aArg)
   StatusMsg("\n");
   exit(1);
 }
-
-#ifdef XP_MACOSX
-static void
-NopStackWalkCallback(void* aPc, void* aSp, void* aClosure)
-{
-}
-#endif
 
 // Note that fopen() can allocate.
 static FILE*
@@ -1735,16 +1559,6 @@ Init(const malloc_table_t* aMallocTable)
   // Finished parsing $DMD.
 
   StatusMsg("DMD is enabled\n");
-
-#ifdef XP_MACOSX
-  // On Mac OS X we need to call StackWalkInitCriticalAddress() very early
-  // (prior to the creation of any mutexes, apparently) otherwise we can get
-  // hangs when getting stack traces (bug 821577).  But
-  // StackWalkInitCriticalAddress() isn't exported from xpcom/, so instead we
-  // just call NS_StackWalk, because that calls StackWalkInitCriticalAddress().
-  // See the comment above StackWalkInitCriticalAddress() for more details.
-  (void)NS_StackWalk(NopStackWalkCallback, 0, nullptr, 0, nullptr);
-#endif
 
   gStateLock = InfallibleAllocPolicy::new_<Mutex>();
 
@@ -1866,8 +1680,7 @@ ReportOnAlloc(const void* aPtr, const char* aReporterName)
 // This works for LiveBlockGroups, DoubleReportBlockGroups and FrameGroups.
 template <class TGroup>
 static void
-PrintSortedGroups(const Writer& aWriter, LocationService* aLocService,
-                  const char* aStr, const char* astr,
+PrintSortedGroups(const Writer& aWriter, const char* aStr, const char* astr,
                   const js::HashSet<TGroup, TGroup, InfallibleAllocPolicy>& aTGroupTable,
                   size_t aCategoryUsableSize, size_t aTotalUsableSize)
 {
@@ -1905,8 +1718,8 @@ PrintSortedGroups(const Writer& aWriter, LocationService* aLocService,
     const TGroup* tg = tgArray[i];
     cumulativeUsableSize += tg->GroupSize().Usable();
     if (i < MaxTGroups) {
-      tg->Print(aWriter, aLocService, i+1, numTGroups, aStr, astr,
-                aCategoryUsableSize, cumulativeUsableSize, aTotalUsableSize);
+      tg->Print(aWriter, i+1, numTGroups, aStr, astr, aCategoryUsableSize,
+                cumulativeUsableSize, aTotalUsableSize);
     } else if (i == MaxTGroups) {
       W("%s: stopping after %s %s groups\n\n", aStr,
         Show(MaxTGroups, gBuf1, kBufLen), name);
@@ -1919,13 +1732,12 @@ PrintSortedGroups(const Writer& aWriter, LocationService* aLocService,
 
 static void
 PrintSortedBlockAndFrameGroups(const Writer& aWriter,
-                               LocationService* aLocService,
                                const char* aStr, const char* astr,
                                const LiveBlockGroupTable& aLiveBlockGroupTable,
                                size_t aCategoryUsableSize,
                                size_t aTotalUsableSize)
 {
-  PrintSortedGroups(aWriter, aLocService, aStr, astr, aLiveBlockGroupTable,
+  PrintSortedGroups(aWriter, aStr, astr, aLiveBlockGroupTable,
                     aCategoryUsableSize, aTotalUsableSize);
 
   // Frame groups are totally dependent on vagaries of stack traces, so we
@@ -1935,7 +1747,7 @@ PrintSortedBlockAndFrameGroups(const Writer& aWriter,
   }
 
   FrameGroupTable frameGroupTable;
-  (void)frameGroupTable.init(2048);
+  frameGroupTable.init(2048);
   for (LiveBlockGroupTable::Range r = aLiveBlockGroupTable.all();
        !r.empty();
        r.popFront()) {
@@ -1962,7 +1774,7 @@ PrintSortedBlockAndFrameGroups(const Writer& aWriter,
       p->Add(bg);
     }
   }
-  PrintSortedGroups(aWriter, aLocService, aStr, astr, frameGroupTable, kNoSize,
+  PrintSortedGroups(aWriter, aStr, astr, frameGroupTable, kNoSize,
                     aTotalUsableSize);
 }
 
@@ -1991,7 +1803,7 @@ SizeOf(Sizes* aSizes)
 }
 
 static void
-ClearGlobalState()
+ClearState()
 {
   // Unreport all blocks, except those that were reported on allocation,
   // because they need to keep their reported marking.
@@ -2003,7 +1815,7 @@ ClearGlobalState()
 
   // Clear errors.
   gDoubleReportBlockGroupTable->finish();
-  (void)gDoubleReportBlockGroupTable->init();
+  gDoubleReportBlockGroupTable->init();
 }
 
 MOZ_EXPORT void
@@ -2061,19 +1873,14 @@ Dump(Writer aWriter)
   W("$DMD = '%s'\n", gDMDEnvVar);
   W("Sample-below size = %lld\n\n", (long long)(gSampleBelowSize));
 
-  // Allocate this on the heap instead of the stack because it's fairly large.
-  LocationService* locService = InfallibleAllocPolicy::new_<LocationService>();
-
-  PrintSortedGroups(aWriter, locService, "Double-reported", "double-reported",
+  PrintSortedGroups(aWriter, "Double-reported", "double-reported",
                     *gDoubleReportBlockGroupTable, kNoSize, kNoSize);
 
-  PrintSortedBlockAndFrameGroups(aWriter, locService,
-                                 "Unreported", "unreported",
+  PrintSortedBlockAndFrameGroups(aWriter, "Unreported", "unreported",
                                  unreportedLiveBlockGroupTable,
                                  unreportedUsableSize, totalUsableSize);
 
-  PrintSortedBlockAndFrameGroups(aWriter, locService,
-                                 "Reported", "reported",
+  PrintSortedBlockAndFrameGroups(aWriter, "Reported", "reported",
                                  reportedLiveBlockGroupTable,
                                  reportedUsableSize, totalUsableSize);
 
@@ -2112,14 +1919,12 @@ Dump(Writer aWriter)
       Show(gLiveBlockTable->capacity(), gBuf2, kBufLen),
       Show(gLiveBlockTable->count(),    gBuf3, kBufLen));
 
-    W("\nData structures that are partly cleared after Dump() ends:\n");
+    W("\nData structures that are cleared after Dump() ends:\n");
 
     W("  Double-report table: %10s bytes (%s entries, %s used)\n",
       Show(sizes.mDoubleReportTable,                 gBuf1, kBufLen),
       Show(gDoubleReportBlockGroupTable->capacity(), gBuf2, kBufLen),
       Show(gDoubleReportBlockGroupTable->count(),    gBuf3, kBufLen));
-
-    W("\nData structures that are destroyed after Dump() ends:\n");
 
     size_t unreportedSize =
       unreportedLiveBlockGroupTable.sizeOfIncludingThis(MallocSizeOf);
@@ -2135,30 +1940,10 @@ Dump(Writer aWriter)
       Show(reportedLiveBlockGroupTable.capacity(), gBuf2, kBufLen),
       Show(reportedLiveBlockGroupTable.count(),    gBuf3, kBufLen));
 
-    W("  Location service:    %10s bytes\n",
-      Show(locService->SizeOfIncludingThis(), gBuf1, kBufLen));
-
-    W("\nCounts:\n");
-
-    size_t hits   = locService->NumCacheHits();
-    size_t misses = locService->NumCacheMisses();
-    size_t requests = hits + misses;
-    W("  Location service:    %10s requests\n",
-      Show(requests, gBuf1, kBufLen));
-
-    size_t count    = locService->CacheCount();
-    size_t capacity = locService->CacheCapacity();
-    double hitRate   = 100 * double(hits) / requests;
-    double occupancy = 100 * double(count) / capacity;
-    W("  Location service cache:  %4.1f%% hit rate, %.1f%% occupancy at end\n",
-      hitRate, occupancy);
-
     W("\n");
   }
 
-  InfallibleAllocPolicy::delete_(locService);
-
-  ClearGlobalState();
+  ClearState();
 
   StatusMsg("}\n");
 }

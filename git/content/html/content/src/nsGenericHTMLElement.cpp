@@ -3336,7 +3336,7 @@ nsGenericHTMLFormElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 nsresult
 nsGenericHTMLFormElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
-  if (aVisitor.mEvent->mFlags.mIsTrusted) {
+  if (NS_IS_TRUSTED_EVENT(aVisitor.mEvent)) {
     switch (aVisitor.mEvent->message) {
       case NS_FOCUS_CONTENT:
       {

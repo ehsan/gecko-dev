@@ -79,8 +79,8 @@ class Element;
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID \
-{ 0x1517f31a, 0x0ef9, 0x4629, \
- { 0xb4, 0x7f, 0x56, 0x31, 0x0d, 0x80, 0x61, 0xaf } }
+{ 0xcb362f1b, 0x8a05, 0x4d4f, \
+  { 0x90, 0x63, 0xf2, 0x5f, 0x8b, 0x8c, 0xb2, 0xe1 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -1685,7 +1685,9 @@ public:
 #undef DEPRECATED_OPERATION
   void WarnOnceAbout(DeprecatedOperations aOperation, bool asError = false);
 
-  virtual void PostVisibilityUpdateEvent() = 0;
+  // This method may fire a DOM event; if it does so it will happen
+  // synchronously if aFireEventSync is true, asynchronously otherwise.
+  virtual void UpdateVisibilityState(bool aFireEventSync) = 0;
   
   bool IsSyntheticDocument() { return mIsSyntheticDocument; }
 

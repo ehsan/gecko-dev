@@ -7,8 +7,6 @@
 #ifndef jsscopeinlines_h___
 #define jsscopeinlines_h___
 
-#include "mozilla/DebugOnly.h"
-
 #include "jsarray.h"
 #include "jsbool.h"
 #include "jscntxt.h"

@@ -11,7 +11,6 @@ interface nsIMediaDevice : nsISupports
 {
   readonly attribute DOMString type;
   readonly attribute DOMString name;
-  readonly attribute DOMString id;
 };
 
 [scriptable, function, uuid(24544878-d35e-4962-8c5f-fb84e97bdfee)]

@@ -201,13 +201,12 @@ nsEventListenerManager::GetTargetAsInnerWindow() const
 }
 
 void
-nsEventListenerManager::AddEventListenerInternal(
-                          nsIDOMEventListener* aListener,
-                          uint32_t aType,
-                          nsIAtom* aTypeAtom,
-                          const EventListenerFlags& aFlags,
-                          bool aHandler,
-                          bool aAllEvents)
+nsEventListenerManager::AddEventListener(nsIDOMEventListener *aListener,
+                                         uint32_t aType,
+                                         nsIAtom* aTypeAtom,
+                                         int32_t aFlags,
+                                         bool aHandler,
+                                         bool aAllEvents)
 {
   NS_ABORT_IF_FALSE((aType && aTypeAtom) || aAllEvents, "Missing type");
 
@@ -243,7 +242,7 @@ nsEventListenerManager::AddEventListenerInternal(
 
   // Detect the type of event listener.
   nsCOMPtr<nsIXPConnectWrappedJS> wjs;
-  if (aFlags.mListenerIsJSListener) {
+  if (aFlags & NS_PRIV_EVENT_FLAG_SCRIPT) {
     ls->mListenerType = eJSEventListener;
   } else if ((wjs = do_QueryInterface(aListener))) {
     ls->mListenerType = eWrappedJSListener;
@@ -252,10 +251,10 @@ nsEventListenerManager::AddEventListenerInternal(
   }
 
 
-  if (aFlags.mInSystemGroup) {
+  if (aFlags & NS_EVENT_FLAG_SYSTEM_EVENT) {
     mMayHaveSystemGroupListeners = true;
   }
-  if (aFlags.mCapture) {
+  if (aFlags & NS_EVENT_FLAG_CAPTURE) {
     mMayHaveCapturingListeners = true;
   }
 
@@ -325,9 +324,8 @@ nsEventListenerManager::AddEventListenerInternal(
     nsPIDOMWindow* window = GetInnerWindowForTarget();
     // we don't want touchevent listeners added by scrollbars to flip this flag
     // so we ignore listeners created with system event flag
-    if (window && !aFlags.mInSystemGroup) {
+    if (window && !(aFlags & NS_EVENT_FLAG_SYSTEM_EVENT))
       window->SetHasTouchEventListeners();
-    }
   } else if (aTypeAtom == nsGkAtoms::onmouseenter ||
              aTypeAtom == nsGkAtoms::onmouseleave) {
     mMayHaveMouseEnterLeaveEventListener = true;
@@ -421,18 +419,18 @@ nsEventListenerManager::DisableDevice(uint32_t aType)
 }
 
 void
-nsEventListenerManager::RemoveEventListenerInternal(
-                          nsIDOMEventListener* aListener, 
-                          uint32_t aType,
-                          nsIAtom* aUserType,
-                          const EventListenerFlags& aFlags,
-                          bool aAllEvents)
+nsEventListenerManager::RemoveEventListener(nsIDOMEventListener *aListener, 
+                                            uint32_t aType,
+                                            nsIAtom* aUserType,
+                                            int32_t aFlags,
+                                            bool aAllEvents)
 {
   if (!aListener || !aType || mClearingListeners) {
     return;
   }
 
   nsListenerStruct* ls;
+  aFlags &= ~NS_PRIV_EVENT_UNTRUSTED_PERMITTED;
 
   uint32_t count = mListeners.Length();
   uint32_t typeCount = 0;
@@ -448,7 +446,7 @@ nsEventListenerManager::RemoveEventListenerInternal(
     if (EVENT_TYPE_EQUALS(ls, aType, aUserType, aAllEvents)) {
       ++typeCount;
       if (ls->mListener == aListener &&
-          ls->mFlags.EqualsIgnoringTrustness(aFlags)) {
+          (ls->mFlags & ~NS_PRIV_EVENT_UNTRUSTED_PERMITTED) == aFlags) {
         nsRefPtr<nsEventListenerManager> kungFuDeathGrip = this;
         mListeners.RemoveElementAt(i);
         --count;
@@ -498,22 +496,21 @@ ListenerCanHandle(nsListenerStruct* aLs, nsEvent* aEvent)
 void
 nsEventListenerManager::AddEventListenerByType(nsIDOMEventListener *aListener, 
                                                const nsAString& aType,
-                                               const EventListenerFlags& aFlags)
+                                               int32_t aFlags)
 {
   nsCOMPtr<nsIAtom> atom = do_GetAtom(NS_LITERAL_STRING("on") + aType);
   uint32_t type = nsContentUtils::GetEventId(atom);
-  AddEventListenerInternal(aListener, type, atom, aFlags);
+  AddEventListener(aListener, type, atom, aFlags);
 }
 
 void
-nsEventListenerManager::RemoveEventListenerByType(
-                          nsIDOMEventListener* aListener,
-                          const nsAString& aType,
-                          const EventListenerFlags& aFlags)
+nsEventListenerManager::RemoveEventListenerByType(nsIDOMEventListener *aListener, 
+                                                  const nsAString& aType,
+                                                  int32_t aFlags)
 {
   nsCOMPtr<nsIAtom> atom = do_GetAtom(NS_LITERAL_STRING("on") + aType);
   uint32_t type = nsContentUtils::GetEventId(atom);
-  RemoveEventListenerInternal(aListener, type, atom, aFlags);
+  RemoveEventListener(aListener, type, atom, aFlags);
 }
 
 nsListenerStruct*
@@ -552,15 +549,14 @@ nsEventListenerManager::SetEventHandlerInternal(nsIScriptContext *aContext,
   if (!ls) {
     // If we didn't find a script listener or no listeners existed
     // create and add a new one.
-    EventListenerFlags flags;
-    flags.mListenerIsJSListener = true;
+    const uint32_t flags = NS_EVENT_FLAG_BUBBLE | NS_PRIV_EVENT_FLAG_SCRIPT;
 
     nsCOMPtr<nsIJSEventListener> scriptListener;
     rv = NS_NewJSEventListener(aContext, aScopeObject, mTarget, aName,
                                aHandler, getter_AddRefs(scriptListener));
 
     if (NS_SUCCEEDED(rv)) {
-      AddEventListenerInternal(scriptListener, eventType, aName, flags, true);
+      AddEventListener(scriptListener, eventType, aName, flags, true);
 
       ls = FindEventHandler(eventType, aName);
     }
@@ -576,7 +572,7 @@ nsEventListenerManager::SetEventHandlerInternal(nsIScriptContext *aContext,
     // Set flag to indicate possible need for compilation later
     ls->mHandlerIsString = !aHandler.HasEventHandler();
     if (aPermitUntrustedEvents) {
-      ls->mFlags.mAllowUntrustedEvents = true;
+      ls->mFlags |= NS_PRIV_EVENT_UNTRUSTED_PERMITTED;
     }
 
     *aListenerStruct = ls;
@@ -901,6 +897,7 @@ nsEventListenerManager::HandleEventSubType(nsListenerStruct* aListenerStruct,
                                            nsIDOMEventListener* aListener,
                                            nsIDOMEvent* aDOMEvent,
                                            nsIDOMEventTarget* aCurrentTarget,
+                                           uint32_t aPhaseFlags,
                                            nsCxPusher* aPusher)
 {
   nsresult result = NS_OK;
@@ -935,19 +932,20 @@ nsEventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
                                             nsEvent* aEvent,
                                             nsIDOMEvent** aDOMEvent,
                                             nsIDOMEventTarget* aCurrentTarget,
+                                            uint32_t aFlags,
                                             nsEventStatus* aEventStatus,
                                             nsCxPusher* aPusher)
 {
   //Set the value of the internal PreventDefault flag properly based on aEventStatus
   if (*aEventStatus == nsEventStatus_eConsumeNoDefault) {
-    aEvent->mFlags.mDefaultPrevented = true;
+    aEvent->flags |= NS_EVENT_FLAG_NO_DEFAULT;
   }
 
   nsAutoTObserverArray<nsListenerStruct, 2>::EndLimitedIterator iter(mListeners);
   nsAutoPopupStatePusher popupStatePusher(nsDOMEvent::GetEventPopupControlState(aEvent));
   bool hasListener = false;
   while (iter.HasMore()) {
-    if (aEvent->mFlags.mImmediatePropagationStopped) {
+    if (aEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH_IMMEDIATELY) {
       break;
     }
     nsListenerStruct* ls = &iter.GetNext();
@@ -955,8 +953,13 @@ nsEventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
     // Handle only trusted events, except when listener permits untrusted events.
     if (ListenerCanHandle(ls, aEvent)) {
       hasListener = true;
-      if (ls->IsListening(aEvent) &&
-          (aEvent->mFlags.mIsTrusted || ls->mFlags.mAllowUntrustedEvents)) {
+      // XXX The (mFlags & aFlags) test here seems fragile. Shouldn't we
+      // specifically only test the capture/bubble flags.
+      if ((ls->mFlags & aFlags & ~NS_EVENT_FLAG_SYSTEM_EVENT) &&
+          (ls->mFlags & NS_EVENT_FLAG_SYSTEM_EVENT) ==
+          (aFlags & NS_EVENT_FLAG_SYSTEM_EVENT) &&
+          (NS_IS_TRUSTED_EVENT(aEvent) ||
+           ls->mFlags & NS_PRIV_EVENT_UNTRUSTED_PERMITTED)) {
         if (!*aDOMEvent) {
           nsEventDispatcher::CreateEvent(aPresContext, aEvent,
                                          EmptyString(), aDOMEvent);
@@ -987,8 +990,9 @@ nsEventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
 
           nsRefPtr<nsIDOMEventListener> kungFuDeathGrip = ls->mListener;
           if (NS_FAILED(HandleEventSubType(ls, ls->mListener, *aDOMEvent,
-                                           aCurrentTarget, aPusher))) {
-            aEvent->mFlags.mExceptionHasBeenRisen = true;
+                                           aCurrentTarget, aFlags,
+                                           aPusher))) {
+            aEvent->flags |= NS_EVENT_FLAG_EXCEPTION_THROWN;
           }
         }
       }
@@ -1002,7 +1006,7 @@ nsEventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
     mNoListenerForEventAtom = aEvent->userType;
   }
 
-  if (aEvent->mFlags.mDefaultPrevented) {
+  if (aEvent->flags & NS_EVENT_FLAG_NO_DEFAULT) {
     *aEventStatus = nsEventStatus_eConsumeNoDefault;
   }
 }
@@ -1020,9 +1024,12 @@ nsEventListenerManager::AddEventListener(const nsAString& aType,
                                          bool aUseCapture,
                                          bool aWantsUntrusted)
 {
-  EventListenerFlags flags;
-  flags.mCapture = aUseCapture;
-  flags.mAllowUntrustedEvents = aWantsUntrusted;
+  int32_t flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
+
+  if (aWantsUntrusted) {
+    flags |= NS_PRIV_EVENT_UNTRUSTED_PERMITTED;
+  }
+
   return AddEventListenerByType(aListener, aType, flags);
 }
 
@@ -1031,8 +1038,8 @@ nsEventListenerManager::RemoveEventListener(const nsAString& aType,
                                             nsIDOMEventListener* aListener, 
                                             bool aUseCapture)
 {
-  EventListenerFlags flags;
-  flags.mCapture = aUseCapture;
+  int32_t flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
+  
   RemoveEventListenerByType(aListener, aType, flags);
 }
 
@@ -1042,12 +1049,14 @@ nsEventListenerManager::AddListenerForAllEvents(nsIDOMEventListener* aListener,
                                                 bool aWantsUntrusted,
                                                 bool aSystemEventGroup)
 {
-  EventListenerFlags flags;
-  flags.mCapture = aUseCapture;
-  flags.mAllowUntrustedEvents = aWantsUntrusted;
-  flags.mInSystemGroup = aSystemEventGroup;
-  AddEventListenerInternal(aListener, NS_EVENT_TYPE_ALL, nullptr, flags,
-                           false, true);
+  int32_t flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
+  if (aWantsUntrusted) {
+    flags |= NS_PRIV_EVENT_UNTRUSTED_PERMITTED;
+  }
+  if (aSystemEventGroup) {
+    flags |= NS_EVENT_FLAG_SYSTEM_EVENT;
+  }
+  AddEventListener(aListener, NS_EVENT_TYPE_ALL, nullptr, flags, false, true);
 }
 
 void
@@ -1055,11 +1064,11 @@ nsEventListenerManager::RemoveListenerForAllEvents(nsIDOMEventListener* aListene
                                                    bool aUseCapture,
                                                    bool aSystemEventGroup)
 {
-  EventListenerFlags flags;
-  flags.mCapture = aUseCapture;
-  flags.mInSystemGroup = aSystemEventGroup;
-  RemoveEventListenerInternal(aListener, NS_EVENT_TYPE_ALL, nullptr, flags,
-                              true);
+  int32_t flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE;
+  if (aSystemEventGroup) {
+    flags |= NS_EVENT_FLAG_SYSTEM_EVENT;
+  }
+  RemoveEventListener(aListener, NS_EVENT_TYPE_ALL, nullptr, flags, true);
 }
 
 bool
@@ -1140,6 +1149,9 @@ nsEventListenerManager::GetListenerInfo(nsCOMArray<nsIEventListenerInfo>* aList)
   uint32_t count = mListeners.Length();
   for (uint32_t i = 0; i < count; ++i) {
     const nsListenerStruct& ls = mListeners.ElementAt(i);
+    bool capturing = !!(ls.mFlags & NS_EVENT_FLAG_CAPTURE);
+    bool systemGroup = !!(ls.mFlags & NS_EVENT_FLAG_SYSTEM_EVENT);
+    bool allowsUntrusted = !!(ls.mFlags & NS_PRIV_EVENT_UNTRUSTED_PERMITTED);
     // If this is a script handler and we haven't yet
     // compiled the event handler itself go ahead and compile it
     if ((ls.mListenerType == eJSEventListener) && ls.mHandlerIsString) {
@@ -1149,9 +1161,8 @@ nsEventListenerManager::GetListenerInfo(nsCOMArray<nsIEventListenerInfo>* aList)
     const nsDependentSubstring& eventType =
       Substring(nsDependentAtomString(ls.mTypeAtom), 2);
     nsRefPtr<nsEventListenerInfo> info =
-      new nsEventListenerInfo(eventType, ls.mListener, ls.mFlags.mCapture,
-                              ls.mFlags.mAllowUntrustedEvents,
-                              ls.mFlags.mInSystemGroup);
+      new nsEventListenerInfo(eventType, ls.mListener, capturing,
+                              allowsUntrusted, systemGroup);
     NS_ENSURE_TRUE(info, NS_ERROR_OUT_OF_MEMORY);
     aList->AppendObject(info);
   }

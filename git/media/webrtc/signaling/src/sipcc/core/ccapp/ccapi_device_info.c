@@ -12,9 +12,7 @@
 #include "ccapi_snapshot.h"
 #include "ccapi_device_info.h"
 #include "util_string.h"
-#include "CSFLog.h"
 
-static const char* logTag = "ccapi_device_info";
 
 /**
  * gets the device name
@@ -34,7 +32,15 @@ cc_deviceinfo_ref_t CCAPI_DeviceInfo_getDeviceHandle ()
  */
 cc_string_t CCAPI_DeviceInfo_getDeviceName (cc_deviceinfo_ref_t handle)
 {
-  CSFLogDebug(logTag, "Call to deprecated function %s, returning empty string", __FUNCTION__);
+  static const char *fname="CCAPI_DeviceInfo_getDeviceName";
+  cc_device_info_t *device = handle;
+  CCAPP_DEBUG(DEB_F_PREFIX"Entering\n", DEB_F_PREFIX_ARGS(SIP_CC_PROV, fname));
+
+  if ( device != NULL ) {
+     CCAPP_DEBUG(DEB_F_PREFIX"returned %s\n", DEB_F_PREFIX_ARGS(SIP_CC_PROV, fname), device->name);
+     return device->name;
+  }
+
   return strlib_empty();
 }
 

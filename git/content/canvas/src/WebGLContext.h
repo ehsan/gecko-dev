@@ -978,6 +978,7 @@ protected:
     nsLayoutUtils::SurfaceFromElementResult SurfaceFromElement(ElementType* aElement) {
         MOZ_ASSERT(aElement);
         uint32_t flags =
+            nsLayoutUtils::SFE_WANT_NEW_SURFACE |
             nsLayoutUtils::SFE_WANT_IMAGE_SURFACE;
 
         if (mPixelStoreColorspaceConversion == LOCAL_GL_NONE)

@@ -5,13 +5,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* JS symbol tables. */
-
+/*
+ * JS symbol tables.
+ */
 #include <stdlib.h>
 #include <string.h>
-
-#include "mozilla/DebugOnly.h"
-
 #include "jstypes.h"
 #include "jsclist.h"
 #include "jsutil.h"
@@ -304,7 +302,6 @@ Shape::replaceLastProperty(JSContext *cx, const StackBaseShape &base,
     }
 
     StackShape child(shape);
-    StackShape::AutoRooter childRoot(cx, &child);
     {
         UnrootedUnownedBaseShape nbase = BaseShape::getUnowned(cx, base);
         if (!nbase)
@@ -1183,7 +1180,7 @@ InitialShapeEntry::InitialShapeEntry(const ReadBarriered<Shape> &shape, TaggedPr
 }
 
 inline InitialShapeEntry::Lookup
-InitialShapeEntry::getLookup() const
+InitialShapeEntry::getLookup()
 {
     return Lookup(shape->getObjectClass(), proto, shape->getObjectParent(),
                   shape->numFixedSlots(), shape->getObjectFlags());
@@ -1201,12 +1198,11 @@ InitialShapeEntry::hash(const Lookup &lookup)
 /* static */ inline bool
 InitialShapeEntry::match(const InitialShapeEntry &key, const Lookup &lookup)
 {
-    const Shape *shape = *key.shape.unsafeGet();
-    return lookup.clasp == shape->getObjectClass()
+    return lookup.clasp == key.shape->getObjectClass()
         && lookup.proto.toWord() == key.proto.toWord()
-        && lookup.parent == shape->getObjectParent()
-        && lookup.nfixed == shape->numFixedSlots()
-        && lookup.baseFlags == shape->getObjectFlags();
+        && lookup.parent == key.shape->getObjectParent()
+        && lookup.nfixed == key.shape->numFixedSlots()
+        && lookup.baseFlags == key.shape->getObjectFlags();
 }
 
 /* static */ Shape *

@@ -488,11 +488,7 @@ JSStructuredCloneWriter::parseTransferable()
             return false;
         }
 
-        JSObject* tObj = UnwrapObjectChecked(&v.toObject());
-        if (!tObj) {
-            JS_ReportError(context(), "Permission denied to access object");
-            return false;
-        }
+        JSObject* tObj = &v.toObject();
         if (!tObj->isArrayBuffer()) {
             reportErrorTransferable();
             return false;

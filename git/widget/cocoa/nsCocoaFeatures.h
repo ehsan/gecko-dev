@@ -13,7 +13,6 @@ class nsCocoaFeatures {
 public:
   static int32_t OSXVersion();
   static bool OnLionOrLater();
-  static bool OnMountainLionOrLater();
   static bool SupportCoreAnimationPlugins();
 
 private:

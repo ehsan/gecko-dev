@@ -23,7 +23,7 @@
 #include "imgIContainer.h"
 #include "nsIProperties.h"
 #include "nsITimer.h"
-#include "nsIRequest.h"
+#include "nsWeakReference.h"
 #include "nsTArray.h"
 #include "imgFrame.h"
 #include "nsThreadUtils.h"
@@ -38,6 +38,8 @@
   #include "imgIContainerDebug.h"
 #endif
 
+class imgIDecoder;
+class imgIContainerObserver;
 class nsIInputStream;
 
 #define NS_RASTERIMAGE_CID \
@@ -150,18 +152,18 @@ public:
   NS_DECL_IMGICONTAINERDEBUG
 #endif
 
-  // (no public constructor - use ImageFactory)
+  RasterImage(imgStatusTracker* aStatusTracker = nullptr);
   virtual ~RasterImage();
 
   virtual nsresult StartAnimation();
   virtual nsresult StopAnimation();
 
   // Methods inherited from Image
-  nsresult Init(imgDecoderObserver* aObserver,
+  nsresult Init(imgIDecoderObserver* aObserver,
                 const char* aMimeType,
                 const char* aURIString,
                 uint32_t aFlags);
-  virtual void  GetCurrentFrameRect(nsIntRect& aRect) MOZ_OVERRIDE;
+  void     GetCurrentFrameRect(nsIntRect& aRect);
 
   // Raster-specific methods
   static NS_METHOD WriteToRasterImage(nsIInputStream* aIn, void* aClosure,
@@ -247,15 +249,11 @@ public:
    */
   nsresult AddSourceData(const char *aBuffer, uint32_t aCount);
 
-  virtual nsresult OnImageDataAvailable(nsIRequest* aRequest,
-                                        nsISupports* aContext,
-                                        nsIInputStream* aInStr,
-                                        uint64_t aSourceOffset,
-                                        uint32_t aCount) MOZ_OVERRIDE;
-  virtual nsresult OnImageDataComplete(nsIRequest* aRequest,
-                                       nsISupports* aContext,
-                                       nsresult aResult) MOZ_OVERRIDE;
-  virtual nsresult OnNewSourceData() MOZ_OVERRIDE;
+  /* Called after the all the source data has been added with addSourceData. */
+  nsresult SourceDataComplete();
+
+  /* Called for multipart images when there's a new source image to add. */
+  nsresult NewSourceData();
 
   /**
    * A hint of the number of bytes of source data that the image contains. If
@@ -639,7 +637,8 @@ private: // data
   //! # loops remaining before animation stops (-1 no stop)
   int32_t                    mLoopCount;
   
-  mozilla::WeakPtr<imgDecoderObserver> mObserver;
+  //! imgIDecoderObserver
+  nsWeakPtr                  mObserver;
 
   // Discard members
   uint32_t                   mLockCount;
@@ -729,11 +728,7 @@ private: // data
   bool StoringSourceData() const;
 
 protected:
-  RasterImage(imgStatusTracker* aStatusTracker = nullptr);
-
   bool ShouldAnimate();
-
-  friend class ImageFactory;
 };
 
 inline NS_IMETHODIMP RasterImage::GetAnimationMode(uint16_t *aAnimationMode) {

@@ -52,6 +52,13 @@ public:
    */
   virtual bool GetMuted(AudioChannelType aType, bool aElementHidden);
 
+  /**
+   * Sync the phone status with telephony
+   */
+#ifdef MOZ_WIDGET_GONK
+  void SetPhoneInCall(bool aActive);
+#endif
+
 protected:
   void Notify();
 

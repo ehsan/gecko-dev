@@ -190,9 +190,9 @@ public final class TabsAccessor {
 
         int position = 0;
         for (Tab tab : tabs) {
-            // Skip this tab if it has a null URL or is in private browsing mode
+            // Skip this tab if it has a null URL.
             String url = tab.getURL();
-            if (url == null || tab.isPrivate())
+            if (url == null)
                 continue;
 
             ContentValues values = new ContentValues();

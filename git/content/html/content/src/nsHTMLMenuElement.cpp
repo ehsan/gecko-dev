@@ -86,8 +86,7 @@ nsHTMLMenuElement::SendShowEvent()
   }
 
   nsEvent event(true, NS_SHOW_EVENT);
-  event.mFlags.mBubbles = false;
-  event.mFlags.mCancelable = false;
+  event.flags |= NS_EVENT_FLAG_CANT_CANCEL | NS_EVENT_FLAG_CANT_BUBBLE;
 
   nsCOMPtr<nsIPresShell> shell = document->GetShell();
   if (!shell) {

@@ -193,8 +193,7 @@ public:
 };
 
 AudioManager::AudioManager() : mPhoneState(PHONE_STATE_CURRENT),
-                 mObserver(new HeadphoneSwitchObserver()),
-                 mFMChannelIsMuted(0)
+                 mObserver(new HeadphoneSwitchObserver())
 {
   RegisterSwitchObserver(SWITCH_HEADPHONES, mObserver);
 
@@ -295,32 +294,17 @@ AudioManager::GetPhoneState(int32_t* aState)
 NS_IMETHODIMP
 AudioManager::SetPhoneState(int32_t aState)
 {
-  if (mPhoneState == aState) {
-    return NS_OK;
-  }
-
   if (AudioSystem::setPhoneState(aState)) {
     return NS_ERROR_FAILURE;
   }
 
   mPhoneState = aState;
 
-  if (aState == PHONE_STATE_IN_CALL) {
-    if (!mPhoneAudioAgent) {
-      mPhoneAudioAgent = do_CreateInstance("@mozilla.org/audiochannelagent;1");
-      MOZ_ASSERT(mPhoneAudioAgent);
-      // Telephony doesn't be paused by any other channels.
-      mPhoneAudioAgent->Init(AUDIO_CHANNEL_TELEPHONY, nullptr);
-
-      // Telephony can always play.
-      bool canPlay;
-      mPhoneAudioAgent->StartPlaying(&canPlay);
-    }
-  } else if (mPhoneAudioAgent) {
-    mPhoneAudioAgent->StopPlaying();
-    mPhoneAudioAgent = nullptr;
+  nsRefPtr<AudioChannelService> audioChannelService = AudioChannelService::GetAudioChannelService();
+  if (!audioChannelService) {
+    return NS_ERROR_FAILURE;
   }
-
+  audioChannelService->SetPhoneInCall(aState == nsIAudioManager::PHONE_STATE_IN_CALL);
   return NS_OK;
 }
 

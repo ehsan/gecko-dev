@@ -215,19 +215,16 @@ PrintDefinition(FILE *fp, const LDefinition &def)
 static void
 PrintUse(char *buf, size_t size, const LUse *use)
 {
-    switch (use->policy()) {
-      case LUse::REGISTER:
+    if (use->policy() == LUse::ANY) {
+        JS_snprintf(buf, size, "v%d:*", use->virtualRegister());
+    } else if (use->policy() == LUse::REGISTER) {
         JS_snprintf(buf, size, "v%d:r", use->virtualRegister());
-        break;
-      case LUse::FIXED:
+    } else {
         // Unfortunately, we don't know here whether the virtual register is a
         // float or a double. Should we steal a bit in LUse for help? For now,
         // nothing defines any fixed xmm registers.
         JS_snprintf(buf, size, "v%d:%s", use->virtualRegister(),
                     Registers::GetName(Registers::Code(use->registerCode())));
-        break;
-      default:
-        JS_snprintf(buf, size, "v%d:*", use->virtualRegister());
     }
 }
 
@@ -378,3 +375,16 @@ LMoveGroup::printOperands(FILE *fp)
             fprintf(fp, ", ");
     }
 }
+
+Label *
+LTestVAndBranch::ifTrue()
+{
+    return ifTrue_->lir()->label();
+}
+
+Label *
+LTestVAndBranch::ifFalse()
+{
+    return ifFalse_->lir()->label();
+}
+

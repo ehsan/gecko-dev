@@ -102,9 +102,6 @@
 #ifdef MOZ_DASH
 #include "DASHDecoder.h"
 #endif
-#ifdef MOZ_WMF
-#include "WMFDecoder.h"
-#endif
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gMediaElementLog;
@@ -2166,6 +2163,7 @@ nsHTMLMediaElement::CreateDecoder(const nsACString& aType)
     }
   }
 #endif
+
 #ifdef MOZ_RAW
   if (DecoderTraits::IsRawType(aType)) {
     nsRefPtr<RawDecoder> decoder = new RawDecoder();
@@ -2214,17 +2212,10 @@ nsHTMLMediaElement::CreateDecoder(const nsACString& aType)
     }
   }
 #endif
+
 #ifdef MOZ_DASH
   if (DecoderTraits::IsDASHMPDType(aType)) {
     nsRefPtr<DASHDecoder> decoder = new DASHDecoder();
-    if (decoder->Init(this)) {
-      return decoder.forget();
-    }
-  }
-#endif
-#ifdef MOZ_WMF
-  if (DecoderTraits::IsWMFSupportedType(aType)) {
-    nsRefPtr<WMFDecoder> decoder = new WMFDecoder();
     if (decoder->Init(this)) {
       return decoder.forget();
     }

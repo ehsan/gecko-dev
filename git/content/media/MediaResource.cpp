@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "MediaResource.h"
 
 #include "mozilla/Mutex.h"
@@ -28,6 +26,7 @@
 #include "nsICachingChannel.h"
 #include "nsURILoader.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
+#include "mozilla/Util.h" // for DebugOnly
 #include "nsContentUtils.h"
 #include "nsHostObjectProtocolHandler.h"
 

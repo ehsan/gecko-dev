@@ -25,8 +25,8 @@ nsDOMTimeEvent::nsDOMTimeEvent(nsPresContext* aPresContext, nsEvent* aEvent)
     mDetail = event->detail;
   }
 
-  mEvent->mFlags.mBubbles = false;
-  mEvent->mFlags.mCancelable = false;
+  mEvent->flags |= NS_EVENT_FLAG_CANT_BUBBLE |
+                   NS_EVENT_FLAG_CANT_CANCEL;
 
   if (mPresContext) {
     nsCOMPtr<nsISupports> container = mPresContext->GetContainer();

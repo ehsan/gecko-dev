@@ -203,13 +203,6 @@ MediaDevice::GetType(nsAString& aType)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-MediaDevice::GetId(nsAString& aID)
-{
-  aID.Assign(mID);
-  return NS_OK;
-}
-
 MediaEngineSource*
 MediaDevice::GetSource()
 {

@@ -74,7 +74,7 @@ nsMenuItemIconX::~nsMenuItemIconX()
 }
 
 // Called from mMenuObjectX's destructor, to prevent us from outliving it
-// (as might otherwise happen if calls to our imgINotificationObserver methods
+// (as might otherwise happen if calls to our imgIDecoderObserver methods
 // are still outstanding).  mMenuObjectX owns our nNativeMenuItem.
 void nsMenuItemIconX::Destroy()
 {

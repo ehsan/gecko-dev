@@ -94,14 +94,12 @@ MarionetteComponent.prototype = {
         catch(e) {}
         Services.prefs.setBoolPref(DEBUGGER_FORCELOCAL_PREF, marionette_forcelocal);
 
-        if (!marionette_forcelocal) {
-          // See bug 800138.  Because the first socket that opens with
-          // force-local=false fails, we open a dummy socket that will fail.
-          // This allows the following attempt by Marionette to open a socket
-          // to succeed.
-          let insaneSacrificialGoat = new ServerSocket(666, false, 4);
-          insaneSacrificialGoat.asyncListen(this);
-        }
+        // See bug 800138.  Because the first socket that opens with
+        // force-local=false fails, we open a dummy socket that will fail.
+        // This allows the following attempt by Marionette to open a socket
+        // to succeed.
+        let insaneSacrificialGoat = new ServerSocket(666, false, 4);
+        insaneSacrificialGoat.asyncListen(this);
 
         this.init();
         break;

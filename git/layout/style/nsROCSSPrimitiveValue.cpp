@@ -180,8 +180,8 @@ nsROCSSPrimitiveValue::GetCssText(nsAString& aCssText)
     case CSS_RGBCOLOR :
       {
         NS_ASSERTION(mValue.mColor, "mValue.mColor should never be null");
-        ErrorResult error;
         NS_NAMED_LITERAL_STRING(comma, ", ");
+        nsCOMPtr<nsIDOMCSSPrimitiveValue> colorCSSValue;
         nsAutoString colorValue;
         if (mValue.mColor->HasAlpha())
           tmpStr.AssignLiteral("rgba(");
@@ -189,27 +189,39 @@ nsROCSSPrimitiveValue::GetCssText(nsAString& aCssText)
           tmpStr.AssignLiteral("rgb(");
 
         // get the red component
-        mValue.mColor->Red()->GetCssText(colorValue, error);
-        if (error.Failed())
+        result = mValue.mColor->GetRed(getter_AddRefs(colorCSSValue));
+        if (NS_FAILED(result))
+          break;
+        result = colorCSSValue->GetCssText(colorValue);
+        if (NS_FAILED(result))
           break;
         tmpStr.Append(colorValue + comma);
 
         // get the green component
-        mValue.mColor->Green()->GetCssText(colorValue, error);
-        if (error.Failed())
+        result = mValue.mColor->GetGreen(getter_AddRefs(colorCSSValue));
+        if (NS_FAILED(result))
+          break;
+        result = colorCSSValue->GetCssText(colorValue);
+        if (NS_FAILED(result))
           break;
         tmpStr.Append(colorValue + comma);
 
         // get the blue component
-        mValue.mColor->Blue()->GetCssText(colorValue, error);
-        if (error.Failed())
+        result = mValue.mColor->GetBlue(getter_AddRefs(colorCSSValue));
+        if (NS_FAILED(result))
+          break;
+        result = colorCSSValue->GetCssText(colorValue);
+        if (NS_FAILED(result))
           break;
         tmpStr.Append(colorValue);
 
         if (mValue.mColor->HasAlpha()) {
           // get the alpha component
-          mValue.mColor->Alpha()->GetCssText(colorValue, error);
-          if (error.Failed())
+          result = mValue.mColor->GetAlpha(getter_AddRefs(colorCSSValue));
+          if (NS_FAILED(result))
+            break;
+          result = colorCSSValue->GetCssText(colorValue);
+          if (NS_FAILED(result))
             break;
           tmpStr.Append(comma + colorValue);
         }
@@ -483,19 +495,19 @@ NS_IMETHODIMP
 nsROCSSPrimitiveValue::GetRGBColorValue(nsIDOMRGBColor** aColor)
 {
   ErrorResult error;
-  NS_IF_ADDREF(*aColor = GetRGBColorValue(error));
+  *aColor = GetRGBColorValue(error).get();
   return error.ErrorCode();
 }
 
-nsDOMCSSRGBColor*
+already_AddRefed<nsIDOMRGBColor>
 nsROCSSPrimitiveValue::GetRGBColorValue(ErrorResult& aRv)
 {
   if (mType != CSS_RGBCOLOR) {
     aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
     return nullptr;
   }
-
   NS_ASSERTION(mValue.mColor, "mValue.mColor should never be null");
+  NS_ADDREF(mValue.mColor);
   return mValue.mColor;
 }
 

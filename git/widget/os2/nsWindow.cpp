@@ -2723,7 +2723,7 @@ bool nsWindow::DispatchKeyEvent(MPARAM mp1, MPARAM mp2)
   // If keydown default was prevented, do same for keypress
   pressEvent.message = NS_KEY_PRESS;
   if (rc) {
-    pressEvent.mFlags.mDefaultPrevented = true;
+    pressEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
   }
 
   if (usChar) {

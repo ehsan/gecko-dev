@@ -51,9 +51,7 @@ nsFileStreamBase::~nsFileStreamBase()
     Close();
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsFileStreamBase,
-                              nsISeekableStream,
-                              nsIFileMetadata)
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsFileStreamBase, nsISeekableStream)
 
 NS_IMETHODIMP
 nsFileStreamBase::Seek(int32_t whence, int64_t offset)
@@ -122,52 +120,6 @@ nsFileStreamBase::SetEOF()
 #else
     // XXX not implemented
 #endif
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsFileStreamBase::GetSize(int64_t* _retval)
-{
-    nsresult rv = DoPendingOpen();
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (!mFD) {
-        return NS_BASE_STREAM_CLOSED;
-    }
-
-    PRFileInfo64 info;
-    if (PR_GetOpenFileInfo64(mFD, &info) == PR_FAILURE) {
-        return NS_BASE_STREAM_OSERROR;
-    }
-
-    *_retval = int64_t(info.size);
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsFileStreamBase::GetLastModified(int64_t* _retval)
-{
-    nsresult rv = DoPendingOpen();
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (!mFD) {
-        return NS_BASE_STREAM_CLOSED;
-    }
-
-    PRFileInfo64 info;
-    if (PR_GetOpenFileInfo64(mFD, &info) == PR_FAILURE) {
-        return NS_BASE_STREAM_OSERROR;
-    }
-
-    int64_t modTime = int64_t(info.modifyTime);
-    if (modTime == 0) {
-        *_retval = 0;
-    }
-    else {
-        *_retval = modTime / int64_t(PR_USEC_PER_MSEC);
-    }
 
     return NS_OK;
 }
@@ -982,12 +934,13 @@ nsSafeFileOutputStream::Write(const char *buf, uint32_t count, uint32_t *result)
 ////////////////////////////////////////////////////////////////////////////////
 // nsFileStream
 
-NS_IMPL_ISUPPORTS_INHERITED3(nsFileStream,
+NS_IMPL_ISUPPORTS_INHERITED4(nsFileStream, 
                              nsFileStreamBase,
                              nsIInputStream,
                              nsIOutputStream,
-                             nsIFileStream)
-
+                             nsIFileStream,
+                             nsIFileMetadata)
+ 
 NS_IMETHODIMP
 nsFileStream::Init(nsIFile* file, int32_t ioFlags, int32_t perm,
                    int32_t behaviorFlags)
@@ -1004,6 +957,52 @@ nsFileStream::Init(nsIFile* file, int32_t ioFlags, int32_t perm,
 
     return MaybeOpen(file, ioFlags, perm,
                      mBehaviorFlags & nsIFileStream::DEFER_OPEN);
+}
+
+NS_IMETHODIMP
+nsFileStream::GetSize(int64_t* _retval)
+{
+    nsresult rv = DoPendingOpen();
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    if (!mFD) {
+        return NS_BASE_STREAM_CLOSED;
+    }
+
+    PRFileInfo64 info;
+    if (PR_GetOpenFileInfo64(mFD, &info) == PR_FAILURE) {
+        return NS_BASE_STREAM_OSERROR;
+    }
+
+    *_retval = int64_t(info.size);
+
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsFileStream::GetLastModified(int64_t* _retval)
+{
+    nsresult rv = DoPendingOpen();
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    if (!mFD) {
+        return NS_BASE_STREAM_CLOSED;
+    }
+
+    PRFileInfo64 info;
+    if (PR_GetOpenFileInfo64(mFD, &info) == PR_FAILURE) {
+        return NS_BASE_STREAM_OSERROR;
+    }
+
+    int64_t modTime = int64_t(info.modifyTime);
+    if (modTime == 0) {
+        *_retval = 0;
+    }
+    else {
+        *_retval = modTime / int64_t(PR_USEC_PER_MSEC);
+    }
+
+    return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

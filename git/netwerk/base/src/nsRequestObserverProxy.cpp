@@ -3,8 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "nscore.h"
 #include "nsRequestObserverProxy.h"
 #include "nsIRequest.h"
@@ -13,6 +11,7 @@
 #include "nsAutoPtr.h"
 #include "nsString.h"
 #include "prlog.h"
+#include "mozilla/Util.h"
 
 using namespace mozilla;
 

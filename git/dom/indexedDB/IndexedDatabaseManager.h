@@ -23,6 +23,7 @@
 
 #define INDEXEDDB_MANAGER_CONTRACTID "@mozilla.org/dom/indexeddb/manager;1"
 
+class mozIStorageQuotaCallback;
 class nsIAtom;
 class nsIFile;
 class nsITimer;
@@ -133,8 +134,6 @@ public:
                                      FactoryPrivilege aPrivilege,
                                      nsIFile** aDirectory);
 
-  void UninitializeOriginsByPattern(const nsACString& aPattern);
-
   // Determine if the quota is lifted for the Window the current thread is
   // using.
   static inline bool
@@ -173,7 +172,9 @@ public:
                  const nsAString& aDatabaseName);
 
   void
-  AddFileManager(FileManager* aFileManager);
+  AddFileManager(const nsACString& aOrigin,
+                 const nsAString& aDatabaseName,
+                 FileManager* aFileManager);
 
   void InvalidateFileManagersForPattern(const nsACString& aPattern);
 
@@ -500,6 +501,10 @@ private:
 
   // A timer that gets activated at shutdown to ensure we close all databases.
   nsCOMPtr<nsITimer> mShutdownTimer;
+
+  // A single threadsafe instance of our quota callback. Created on the main
+  // thread during GetOrCreate().
+  nsCOMPtr<mozIStorageQuotaCallback> mQuotaCallbackSingleton;
 
   // A list of all successfully initialized origins. This list isn't protected
   // by any mutex but it is only ever touched on the IO thread.

@@ -1686,7 +1686,7 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
 
     // If prevent default on keydown, do same for keypress
     if (setNoDefault) {
-        event.mFlags.mDefaultPrevented = true;
+        event.flags |= NS_EVENT_FLAG_NO_DEFAULT;
     }
 
     // If there is no charcode attainable from the text, try to
@@ -1871,7 +1871,7 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
     event.keyCode = domCharCode ? 0 : domKeyCode;
 
     if (setNoDefault)
-        event.mFlags.mDefaultPrevented = true;
+        event.flags |= NS_EVENT_FLAG_NO_DEFAULT;
 
     // send the key press event
     return DispatchEvent(&event);
@@ -2955,7 +2955,7 @@ nsWindow::Show(bool aState)
 }
 
 NS_IMETHODIMP
-nsWindow::Resize(double aWidth, double aHeight, bool aRepaint)
+nsWindow::Resize(double aWidth, int32_t double, bool aRepaint)
 {
     mBounds.width = NSToIntRound(aWidth);
     mBounds.height = NSToIntRound(aHeight);

@@ -3,8 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "HTMLTableAccessible.h"
 
 #include "Accessible-inl.h"
@@ -347,7 +345,7 @@ HTMLTableAccessible::
   HTMLTableAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   AccessibleWrap(aContent, aDoc), xpcAccessibleTable(this)
 {
-  mGenericTypes |= eTable;
+  mFlags |= eTableAccessible;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

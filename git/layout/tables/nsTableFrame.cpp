@@ -2938,24 +2938,29 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
             break;
           }
 
-          // Insert the kid's new next-in-flow into our sibling list...
+          // Insert the continuing frame into the sibling list.
           mFrames.InsertFrame(nullptr, kidFrame, kidNextInFlow);
-          // and in rowGroups after childX so that it will get pushed below.
-          rowGroups.InsertElementAt(childX + 1,
-                      static_cast <nsTableRowGroupFrame*>(kidNextInFlow));
+
+          // Fall through and update |rowGroups| with the new rowgroup, just as
+          // it would have been if we had called OrderRowGroups again.
+          // Note that rowGroups doesn't get used again after we PushChildren
+          // below, anyway.
         }
 
+        // Put the nextinflow so that it will get pushed
+        rowGroups.InsertElementAt(childX + 1,
+                           static_cast <nsTableRowGroupFrame*>(kidNextInFlow));
+
         // We've used up all of our available space so push the remaining
-        // children.
+        // children to the next-in-flow
         if (allowRepeatedFooter) {
           PlaceRepeatedFooter(aReflowState, tfoot, footerHeight);
         }
         else if (tfoot && tfoot->IsRepeatable()) {
           tfoot->SetRepeatable(false);
         }
-
         nsIFrame* nextSibling = kidFrame->GetNextSibling();
-        if (nextSibling) {
+        if (nullptr != nextSibling) {
           PushChildren(rowGroups, childX + 1);
         }
         break;

@@ -76,7 +76,8 @@ protected:
 inline HTMLImageMapAccessible*
 Accessible::AsImageMap()
 {
-  return IsImageMap() ? static_cast<HTMLImageMapAccessible*>(this) : nullptr;
+  return IsImageMapAccessible() ?
+    static_cast<HTMLImageMapAccessible*>(this) : nullptr;
 }
 
 } // namespace a11y

@@ -972,8 +972,7 @@ WebRtc_Word32 AudioDeviceLinuxALSA::RecordingDeviceName(
         memset(guid, 0, kAdmMaxGuidSize);
     }
     
-    return GetDevicesInfo(1, false, index, name, kAdmMaxDeviceNameSize,
-                          guid, kAdmMaxGuidSize);
+    return GetDevicesInfo(1, false, index, name, kAdmMaxDeviceNameSize);
 }
 
 WebRtc_Word16 AudioDeviceLinuxALSA::RecordingDevices()
@@ -1817,9 +1816,7 @@ WebRtc_Word32 AudioDeviceLinuxALSA::GetDevicesInfo(
     const bool playback,
     const WebRtc_Word32 enumDeviceNo,
     char* enumDeviceName,
-    const WebRtc_Word32 ednLen,
-    char* enumDeviceId,
-    const WebRtc_Word32 ediLen) const
+    const WebRtc_Word32 ednLen) const
 {
     
     // Device enumeration based on libjingle implementation
@@ -1858,8 +1855,6 @@ WebRtc_Word32 AudioDeviceLinuxALSA::GetDevicesInfo(
             function == FUNC_GET_DEVICE_NAME_FOR_AN_ENUM) && enumDeviceNo == 0)
         {
             strcpy(enumDeviceName, "default");
-            if (enumDeviceId)
-                memset(enumDeviceId, 0, ediLen);
 
             err = LATE(snd_device_name_free_hint)(hints);
             if (err != 0)
@@ -1922,11 +1917,6 @@ WebRtc_Word32 AudioDeviceLinuxALSA::GetDevicesInfo(
                     // We have found the enum device, copy the name to buffer.
                     strncpy(enumDeviceName, desc, ednLen);
                     enumDeviceName[ednLen-1] = '\0';
-                    if (enumDeviceId)
-                    {
-                        strncpy(enumDeviceId, name, ediLen);
-                        enumDeviceId[ediLen-1] = '\0';
-                    }
                     keepSearching = false;
                     // Replace '\n' with '-'.
                     char * pret = strchr(enumDeviceName, '\n'/*0xa*/); //LF
@@ -1939,11 +1929,6 @@ WebRtc_Word32 AudioDeviceLinuxALSA::GetDevicesInfo(
                     // We have found the enum device, copy the name to buffer.
                     strncpy(enumDeviceName, name, ednLen);
                     enumDeviceName[ednLen-1] = '\0';
-                    if (enumDeviceId)
-                    {
-                        strncpy(enumDeviceId, name, ediLen);
-                        enumDeviceId[ediLen-1] = '\0';
-                    }
                     keepSearching = false;
                 }
 

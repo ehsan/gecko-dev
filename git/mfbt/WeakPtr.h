@@ -113,8 +113,7 @@ class WeakPtr
 {
   public:
     WeakPtr(const WeakPtr<T>& o) : ref(o.ref) {}
-    // Ensure that ref is dereferenceable in the uninitialized state
-    WeakPtr() : ref(new typename SupportsWeakPtr<T>::WeakReference(nullptr)) {}
+    WeakPtr() : ref(nullptr) {}
 
     operator T*() const {
       return ref->get();

@@ -22,7 +22,7 @@ public:
     LeafAccessible(aContent, aDoc)
   {
     mStateFlags |= eHasNumericValue;
-    mType = eProgressType;
+    mFlags |= eProgressAccessible;
   }
 
   NS_DECL_ISUPPORTS_INHERITED

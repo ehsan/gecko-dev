@@ -45,7 +45,6 @@
 #include "nsISMILAttr.h"
 #include "nsClientRect.h"
 #include "nsIDOMDOMTokenList.h"
-#include "nsEvent.h"
 
 class nsIDOMEventListener;
 class nsIFrame;
@@ -723,15 +722,12 @@ public:
    * through the full dispatching of the presshell of the aPresContext; if it's
    * false the event will be dispatched only as a DOM event.
    * If aPresContext is nullptr, this does nothing.
-   *
-   * @param aFlags      Extra flags for the dispatching event.  The true flags
-   *                    will be respected.
    */
   static nsresult DispatchClickEvent(nsPresContext* aPresContext,
                                      nsInputEvent* aSourceEvent,
                                      nsIContent* aTarget,
                                      bool aFullDispatch,
-                                     const mozilla::widget::EventFlags* aFlags,
+                                     uint32_t aFlags,
                                      nsEventStatus* aStatus);
 
   /**

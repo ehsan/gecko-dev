@@ -3,10 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Attributes.h"
-#include "mozilla/DebugOnly.h"
-#include "mozilla/Likely.h"
-
 #include "nsView.h"
 #include "nsIWidget.h"
 #include "nsWidgetsCID.h"
@@ -16,6 +12,9 @@
 #include "nsIComponentManager.h"
 #include "nsGfxCIID.h"
 #include "nsIInterfaceRequestor.h"
+#include "mozilla/Attributes.h"
+#include "mozilla/Likely.h"
+#include "mozilla/Util.h"
 #include "nsXULPopupManager.h"
 #include "nsIWidgetListener.h"
 
@@ -1071,15 +1070,6 @@ nsView::DidPaintWindow()
 {
   nsCOMPtr<nsViewManager> vm = mViewManager;
   vm->DidPaintWindow();
-}
-
-void
-nsView::RequestRepaint()
-{
-  nsIPresShell* presShell = mViewManager->GetPresShell();
-  if (presShell) {
-    presShell->ScheduleViewManagerFlush();
-  }
 }
 
 nsEventStatus

@@ -864,7 +864,7 @@ nsHTMLScrollFrame::AccessibleType()
     return a11y::eNoType;
   }
 
-  return a11y::eHyperTextType;
+  return a11y::eHyperText;
 }
 #endif
 
@@ -2847,7 +2847,7 @@ nsGfxScrollFrameInner::FireScrollEvent()
   } else {
     // scroll events fired at elements don't bubble (although scroll events
     // fired at documents do, to the window)
-    event.mFlags.mBubbles = false;
+    event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
     nsEventDispatcher::Dispatch(content, prescontext, &event, nullptr, &status);
   }
 }

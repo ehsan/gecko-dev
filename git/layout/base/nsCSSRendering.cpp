@@ -6,14 +6,6 @@
 
 /* utility functions for drawing borders and backgrounds */
 
-#include <cmath> // for std::abs(float/double)
-#include <cstdlib> // for std::abs(int/long)
-#include <ctime>
-
-#include "mozilla/DebugOnly.h"
-#include "mozilla/HashFunctions.h"
-#include "mozilla/Types.h"
-
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
 #include "nsIFrame.h"
@@ -55,7 +47,12 @@
 #include "nsCSSRenderingBorders.h"
 #include "mozilla/css/ImageLoader.h"
 #include "ImageContainer.h"
+#include "mozilla/HashFunctions.h"
 #include "mozilla/Telemetry.h"
+#include "mozilla/Types.h"
+#include <ctime>
+#include <cstdlib> // for std::abs(int/long)
+#include <cmath> // for std::abs(float/double)
 
 using namespace mozilla;
 using namespace mozilla::css;

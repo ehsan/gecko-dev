@@ -22,8 +22,6 @@
 #endif
 #include "nsDOMClassInfoID.h"
 
-using namespace mozilla::dom;
-
 NS_IMPL_CYCLE_COLLECTION_1(nsEventListenerInfo, mListener)
 
 DOMCI_DATA(EventListenerInfo, nsEventListenerInfo)
@@ -252,9 +250,10 @@ nsEventListenerService::AddSystemEventListener(nsIDOMEventTarget *aTarget,
   nsEventListenerManager* manager = aTarget->GetListenerManager(true);
   NS_ENSURE_STATE(manager);
 
-  EventListenerFlags flags =
-    aUseCapture ? TrustedEventsAtSystemGroupCapture() :
-                  TrustedEventsAtSystemGroupBubble();
+  int32_t flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE |
+                                NS_EVENT_FLAG_SYSTEM_EVENT :
+                                NS_EVENT_FLAG_BUBBLE |
+                                NS_EVENT_FLAG_SYSTEM_EVENT;
   manager->AddEventListenerByType(aListener, aType, flags);
   return NS_OK;
 }
@@ -270,9 +269,10 @@ nsEventListenerService::RemoveSystemEventListener(nsIDOMEventTarget *aTarget,
 
   nsEventListenerManager* manager = aTarget->GetListenerManager(false);
   if (manager) {
-    EventListenerFlags flags =
-      aUseCapture ? TrustedEventsAtSystemGroupCapture() :
-                    TrustedEventsAtSystemGroupBubble();
+    int32_t flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE |
+                                  NS_EVENT_FLAG_SYSTEM_EVENT :
+                                  NS_EVENT_FLAG_BUBBLE |
+                                  NS_EVENT_FLAG_SYSTEM_EVENT;
     manager->RemoveEventListenerByType(aListener, aType, flags);
   }
 

@@ -405,10 +405,8 @@ static nsDefaultMimeTypeEntry defaultMimeEntries [] =
 #ifdef MOZ_DASH
   { APPLICATION_DASH, "mpd" },
 #endif
-#if defined(MOZ_GSTREAMER) || defined(MOZ_WMF)
+#ifdef MOZ_GSTREAMER
   { VIDEO_MP4, "mp4" },
-  { AUDIO_MP4, "m4a" },
-  { AUDIO_MP3, "mp3" },
 #endif
 #ifdef MOZ_RAW
   { VIDEO_RAW, "yuv" }
@@ -484,9 +482,10 @@ static nsExtraMimeTypeEntry extraMimeEntries [] =
 #ifdef MOZ_DASH
   { APPLICATION_DASH, "mpd", "DASH Media Presentation Description" },
 #endif
+#if defined(MOZ_MEDIA_PLUGINS) || defined(MOZ_WIDGET_GONK)
   { AUDIO_MP3, "mp3", "MPEG Audio" },
+#endif
   { VIDEO_MP4, "mp4", "MPEG-4 Video" },
-  { AUDIO_MP4, "m4a", "MPEG-4 Audio" },
   { VIDEO_RAW, "yuv", "Raw YUV Video" },
   { AUDIO_WAV, "wav", "Waveform Audio" },
   { VIDEO_3GPP, "3gpp,3gp", "3GPP Video" }

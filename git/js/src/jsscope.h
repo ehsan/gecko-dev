@@ -951,7 +951,7 @@ struct InitialShapeEntry
     inline InitialShapeEntry();
     inline InitialShapeEntry(const ReadBarriered<Shape> &shape, TaggedProto proto);
 
-    inline Lookup getLookup() const;
+    inline Lookup getLookup();
 
     static inline HashNumber hash(const Lookup &lookup);
     static inline bool match(const InitialShapeEntry &key, const Lookup &lookup);

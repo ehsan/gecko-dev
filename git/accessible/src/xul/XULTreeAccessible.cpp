@@ -37,8 +37,7 @@ XULTreeAccessible::
   XULTreeAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   AccessibleWrap(aContent, aDoc)
 {
-  mType = eXULTreeType;
-  mGenericTypes |= eSelect;
+  mFlags |= eSelectAccessible | eXULTreeAccessible;
 
   mTree = nsCoreUtils::GetTreeBoxObject(aContent);
   NS_ASSERTION(mTree, "Can't get mTree!\n");
@@ -54,7 +53,7 @@ XULTreeAccessible::
     nsCOMPtr<nsIAutoCompletePopup> autoCompletePopupElm =
       do_QueryInterface(parentContent);
     if (autoCompletePopupElm)
-      mGenericTypes |= eAutoCompletePopup;
+      mFlags |= eAutoCompletePopupAccessible;
   }
 
   mAccessibleCache.Init(kDefaultTreeCacheSize);

@@ -739,8 +739,8 @@ InMemoryArcsEnumeratorImpl::HasMoreElements(bool* aResult)
         if (NS_FAILED(rv = mHashArcs->Count(&itemCount)))   return(rv);
         if (itemCount > 0) {
             --itemCount;
-            nsCOMPtr<nsIRDFResource> tmp = do_QueryElementAt(mHashArcs, itemCount);
-            tmp.forget(&mCurrent);
+            mCurrent = static_cast<nsIRDFResource *>
+                                  (mHashArcs->ElementAt(itemCount));
             mHashArcs->RemoveElementAt(itemCount);
             *aResult = true;
             return NS_OK;

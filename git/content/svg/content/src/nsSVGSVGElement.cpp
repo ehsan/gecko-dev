@@ -917,16 +917,6 @@ nsSVGSVGElement::GetViewBoxTransform() const
 }
 
 void
-nsSVGSVGElement::UpdateHasChildrenOnlyTransform()
-{
-  bool hasChildrenOnlyTransform =
-    HasViewBoxOrSyntheticViewBox() ||
-    (IsRoot() && (mCurrentTranslate != nsSVGTranslatePoint(0.0f, 0.0f) ||
-                  mCurrentScale != 1.0f));
-  mHasChildrenOnlyTransform = hasChildrenOnlyTransform;
-}
-
-void
 nsSVGSVGElement::ChildrenOnlyTransformChanged(uint32_t aFlags)
 {
   // Avoid wasteful calls:
@@ -936,13 +926,12 @@ nsSVGSVGElement::ChildrenOnlyTransformChanged(uint32_t aFlags)
 
   nsChangeHint changeHint;
 
-  bool hadChildrenOnlyTransform = mHasChildrenOnlyTransform;
+  bool hasChildrenOnlyTransform = HasViewBoxOrSyntheticViewBox() ||
+    (IsRoot() && (mCurrentTranslate != nsSVGTranslatePoint(0.0f, 0.0f) ||
+                  mCurrentScale != 1.0f));
 
-  UpdateHasChildrenOnlyTransform();
-
-  if (hadChildrenOnlyTransform != mHasChildrenOnlyTransform) {
+  if (hasChildrenOnlyTransform != mHasChildrenOnlyTransform) {
     // Reconstruct the frame tree to handle stacking context changes:
-    // XXXjwatt don't do this for root-<svg> or even outer-<svg>?
     changeHint = nsChangeHint_ReconstructFrame;
   } else {
     // We just assume the old and new transforms are different.
@@ -960,6 +949,8 @@ nsSVGSVGElement::ChildrenOnlyTransformChanged(uint32_t aFlags)
       !(aFlags & eDuringReflow)) {
     nsLayoutUtils::PostRestyleEvent(this, nsRestyleHint(0), changeHint);
   }
+
+  mHasChildrenOnlyTransform = hasChildrenOnlyTransform;
 }
 
 nsresult

@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "nsLoadGroup.h"
 #include "nsISupportsArray.h"
 #include "nsEnumeratorUtils.h"
@@ -20,6 +18,7 @@
 #include "nsString.h"
 #include "nsTArray.h"
 #include "mozilla/Telemetry.h"
+#include "mozilla/Util.h"
 
 using namespace mozilla;
 

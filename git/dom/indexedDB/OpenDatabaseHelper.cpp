@@ -2,18 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "OpenDatabaseHelper.h"
 
 #include "nsIFile.h"
 
-#include "mozilla/dom/quota/QuotaManager.h"
 #include "mozilla/storage.h"
 #include "nsEscape.h"
-#include "nsNetUtil.h"
 #include "nsThreadUtils.h"
 #include "snappy/snappy.h"
+#include "test_quota.h"
 
 #include "nsIBFCacheEntry.h"
 #include "IDBEvents.h"
@@ -22,7 +19,6 @@
 
 using namespace mozilla;
 USING_INDEXEDDB_NAMESPACE
-USING_QUOTA_NAMESPACE
 
 namespace {
 
@@ -1634,15 +1630,15 @@ OpenDatabaseHelper::DoDatabaseWork()
   rv = dbFile->GetPath(mDatabaseFilePath);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  nsCOMPtr<nsIFile> fmDirectory;
-  rv = dbDirectory->Clone(getter_AddRefs(fmDirectory));
+  nsCOMPtr<nsIFile> fileManagerDirectory;
+  rv = dbDirectory->Clone(getter_AddRefs(fileManagerDirectory));
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  rv = fmDirectory->Append(filename);
+  rv = fileManagerDirectory->Append(filename);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsCOMPtr<mozIStorageConnection> connection;
-  rv = CreateDatabaseConnection(dbFile, fmDirectory, mName, mASCIIOrigin,
+  rv = CreateDatabaseConnection(mName, dbFile, fileManagerDirectory,
                                 getter_AddRefs(connection));
   if (NS_FAILED(rv) &&
       NS_ERROR_GET_MODULE(rv) != NS_ERROR_MODULE_DOM_INDEXEDDB) {
@@ -1693,12 +1689,12 @@ OpenDatabaseHelper::DoDatabaseWork()
 
   nsRefPtr<FileManager> fileManager = mgr->GetFileManager(mASCIIOrigin, mName);
   if (!fileManager) {
-    fileManager = new FileManager(mASCIIOrigin, mPrivilege, mName);
+    fileManager = new FileManager(mASCIIOrigin, mName);
 
-    rv = fileManager->Init(fmDirectory, connection);
+    rv = fileManager->Init(fileManagerDirectory, connection);
     NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-    mgr->AddFileManager(fileManager);
+    mgr->AddFileManager(mASCIIOrigin, mName, fileManager);
   }
 
   mFileManager = fileManager.forget();
@@ -1709,26 +1705,23 @@ OpenDatabaseHelper::DoDatabaseWork()
 // static
 nsresult
 OpenDatabaseHelper::CreateDatabaseConnection(
-                                        nsIFile* aDBFile,
-                                        nsIFile* aFMDirectory,
                                         const nsAString& aName,
-                                        const nsACString& aOrigin,
+                                        nsIFile* aDBFile,
+                                        nsIFile* aFileManagerDirectory,
                                         mozIStorageConnection** aConnection)
 {
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
   NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
 
-  nsCOMPtr<nsIFileURL> dbFileUrl =
-    IDBFactory::GetDatabaseFileURL(aDBFile, aOrigin);
-  NS_ENSURE_TRUE(dbFileUrl, NS_ERROR_FAILURE);
+  NS_NAMED_LITERAL_CSTRING(quotaVFSName, "quota");
 
-  nsCOMPtr<mozIStorageService> ss =
+  nsCOMPtr<mozIStorageServiceQuotaManagement> ss =
     do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID);
   NS_ENSURE_TRUE(ss, NS_ERROR_FAILURE);
 
   nsCOMPtr<mozIStorageConnection> connection;
-  nsresult rv =
-    ss->OpenDatabaseWithFileURL(dbFileUrl, getter_AddRefs(connection));
+  nsresult rv = ss->OpenDatabaseWithVFS(aDBFile, quotaVFSName,
+                                        getter_AddRefs(connection));
   if (rv == NS_ERROR_FILE_CORRUPTED) {
     // If we're just opening the database during origin initialization, then
     // we don't want to erase any files. The failure here will fail origin
@@ -1742,20 +1735,21 @@ OpenDatabaseHelper::CreateDatabaseConnection(
     NS_ENSURE_SUCCESS(rv, rv);
 
     bool exists;
-    rv = aFMDirectory->Exists(&exists);
+    rv = aFileManagerDirectory->Exists(&exists);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (exists) {
       bool isDirectory;
-      rv = aFMDirectory->IsDirectory(&isDirectory);
+      rv = aFileManagerDirectory->IsDirectory(&isDirectory);
       NS_ENSURE_SUCCESS(rv, rv);
       NS_ENSURE_TRUE(isDirectory, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-      rv = aFMDirectory->Remove(true);
+      rv = aFileManagerDirectory->Remove(true);
       NS_ENSURE_SUCCESS(rv, rv);
     }
 
-    rv = ss->OpenDatabaseWithFileURL(dbFileUrl, getter_AddRefs(connection));
+    rv = ss->OpenDatabaseWithVFS(aDBFile, quotaVFSName,
+                                 getter_AddRefs(connection));
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2351,8 +2345,6 @@ DeleteDatabaseHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
   NS_ASSERTION(!aConnection, "How did we get a connection here?");
 
-  const FactoryPrivilege& privilege = mOpenHelper->Privilege();
-
   IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
   NS_ASSERTION(mgr, "This should never fail!");
 
@@ -2378,57 +2370,59 @@ DeleteDatabaseHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   rv = dbFile->Exists(&exists);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
+  int rc;
+
   if (exists) {
-    int64_t fileSize;
-
-    if (privilege != Chrome) {
-      rv = dbFile->GetFileSize(&fileSize);
-      NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-    }
-
-    rv = dbFile->Remove(false);
+    nsString dbFilePath;
+    rv = dbFile->GetPath(dbFilePath);
     NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-    if (privilege != Chrome) {
-      QuotaManager* quotaManager = QuotaManager::Get();
-      NS_ASSERTION(quotaManager, "Shouldn't be null!");
+    rc = sqlite3_quota_remove(NS_ConvertUTF16toUTF8(dbFilePath).get());
+    if (rc != SQLITE_OK) {
+      NS_WARNING("Failed to delete db file!");
+      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+    }
 
-      quotaManager->DecreaseUsageForOrigin(mASCIIOrigin, fileSize);
+    // sqlite3_quota_remove won't actually remove anything if we're not tracking
+    // the quota here. Manually remove the file if it exists.
+    rv = dbFile->Exists(&exists);
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+
+    if (exists) {
+      rv = dbFile->Remove(false);
+      NS_ENSURE_SUCCESS(rv, rv);
     }
   }
 
-  nsCOMPtr<nsIFile> fmDirectory;
-  rv = directory->Clone(getter_AddRefs(fmDirectory));
+  nsCOMPtr<nsIFile> fileManagerDirectory;
+  rv = directory->Clone(getter_AddRefs(fileManagerDirectory));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = fileManagerDirectory->Append(filename);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  rv = fmDirectory->Append(filename);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  rv = fmDirectory->Exists(&exists);
+  rv = fileManagerDirectory->Exists(&exists);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   if (exists) {
     bool isDirectory;
-    rv = fmDirectory->IsDirectory(&isDirectory);
+    rv = fileManagerDirectory->IsDirectory(&isDirectory);
     NS_ENSURE_SUCCESS(rv, rv);
     NS_ENSURE_TRUE(isDirectory, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-    uint64_t usage = 0;
-
-    if (privilege != Chrome) {
-      rv = FileManager::GetUsage(fmDirectory, &usage);
-      NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-    }
-
-    rv = fmDirectory->Remove(true);
+    nsString fileManagerDirectoryPath;
+    rv = fileManagerDirectory->GetPath(fileManagerDirectoryPath);
     NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-    if (privilege != Chrome) {
-      QuotaManager* quotaManager = QuotaManager::Get();
-      NS_ASSERTION(quotaManager, "Shouldn't be null!");
-
-      quotaManager->DecreaseUsageForOrigin(mASCIIOrigin, usage);
+    rc = sqlite3_quota_remove(
+      NS_ConvertUTF16toUTF8(fileManagerDirectoryPath).get());
+    if (rc != SQLITE_OK) {
+      NS_WARNING("Failed to delete file directory!");
+      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
+
+    rv = fileManagerDirectory->Remove(true);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   return NS_OK;

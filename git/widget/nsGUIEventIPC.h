@@ -14,23 +14,6 @@ namespace IPC
 {
 
 template<>
-struct ParamTraits<mozilla::widget::EventFlags>
-{
-  typedef mozilla::widget::EventFlags paramType;
-
-  static void Write(Message* aMsg, const paramType& aParam)
-  {
-    aMsg->WriteBytes(&aParam, sizeof(paramType));
-  }
-
-  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
-  {
-    return aMsg->ReadBytes(aIter, reinterpret_cast<const char**>(aResult),
-                           sizeof(paramType));
-  }
-};
-
-template<>
 struct ParamTraits<nsEvent>
 {
   typedef nsEvent paramType;
@@ -41,7 +24,7 @@ struct ParamTraits<nsEvent>
     WriteParam(aMsg, aParam.message);
     WriteParam(aMsg, aParam.refPoint);
     WriteParam(aMsg, aParam.time);
-    WriteParam(aMsg, aParam.mFlags);
+    WriteParam(aMsg, aParam.flags);
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
@@ -51,7 +34,7 @@ struct ParamTraits<nsEvent>
                ReadParam(aMsg, aIter, &aResult->message) &&
                ReadParam(aMsg, aIter, &aResult->refPoint) &&
                ReadParam(aMsg, aIter, &aResult->time) &&
-               ReadParam(aMsg, aIter, &aResult->mFlags);
+               ReadParam(aMsg, aIter, &aResult->flags);
     aResult->eventStructType = static_cast<nsEventStructType>(eventStructType);
     return ret;
   }

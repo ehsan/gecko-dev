@@ -495,6 +495,10 @@ T* DowncastCCParticipant(void *p)
 // Helpers for implementing a concrete nsCycleCollectionParticipant 
 ///////////////////////////////////////////////////////////////////////////////
 
+#define NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE                               \
+  static const CCParticipantVTable<NS_CYCLE_COLLECTION_INNERCLASS>::Type       \
+      NS_CYCLE_COLLECTION_INNERNAME;
+
 #define NS_DECL_CYCLE_COLLECTION_CLASS_BODY_NO_UNLINK(_class, _base)           \
 public:                                                                        \
   static NS_METHOD TraverseImpl(NS_CYCLE_COLLECTION_CLASSNAME(_class) *that,   \
@@ -519,26 +523,13 @@ public:                                                                        \
   NS_DECL_CYCLE_COLLECTION_CLASS_BODY_NO_UNLINK(_class, _base)                 \
   static NS_METHOD UnlinkImpl(void *p);
 
-#define NS_PARTICIPANT_AS(type, participant)                                   \
-  const_cast<type*>(reinterpret_cast<const type*>(participant))
-
-#define NS_IMPL_GET_XPCOM_CYCLE_COLLECTION_PARTICIPANT(_class)                 \
-  static nsXPCOMCycleCollectionParticipant* GetParticipant()                   \
-  {                                                                            \
-    static const CCParticipantVTable<NS_CYCLE_COLLECTION_CLASSNAME(_class)>    \
-      ::Type p = {                                                             \
-        NS_IMPL_CYCLE_COLLECTION_VTABLE(NS_CYCLE_COLLECTION_CLASSNAME(_class)) \
-      };                                                                       \
-    return NS_PARTICIPANT_AS(nsXPCOMCycleCollectionParticipant, &p);           \
-  }
-
 #define NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(_class, _base)                \
 class NS_CYCLE_COLLECTION_INNERCLASS                                           \
  : public nsXPCOMCycleCollectionParticipant                                    \
 {                                                                              \
   NS_DECL_CYCLE_COLLECTION_CLASS_BODY(_class, _base)                           \
-  NS_IMPL_GET_XPCOM_CYCLE_COLLECTION_PARTICIPANT(_class)                       \
-};
+};                                                                             \
+NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
 
 #define NS_DECL_CYCLE_COLLECTION_CLASS(_class)                                 \
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(_class, _class)
@@ -553,8 +544,8 @@ class NS_CYCLE_COLLECTION_INNERCLASS                                            
   static NS_METHOD_(bool) CanSkipImpl(void *p, bool aRemovingAllowed);           \
   static NS_METHOD_(bool) CanSkipInCCImpl(void *p);                              \
   static NS_METHOD_(bool) CanSkipThisImpl(void *p);                              \
-  NS_IMPL_GET_XPCOM_CYCLE_COLLECTION_PARTICIPANT(_class)                       \
-};
+};                                                                               \
+NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
 
 #define NS_DECL_CYCLE_COLLECTION_SKIPPABLE_CLASS(_class)                       \
         NS_DECL_CYCLE_COLLECTION_SKIPPABLE_CLASS_AMBIGUOUS(_class, _class)
@@ -565,8 +556,8 @@ class NS_CYCLE_COLLECTION_INNERCLASS                                           \
 {                                                                              \
   NS_DECL_CYCLE_COLLECTION_CLASS_BODY(_class, _base)                           \
   static NS_METHOD_(void) TraceImpl(void *p, TraceCallback cb, void *closure); \
-  NS_IMPL_GET_XPCOM_CYCLE_COLLECTION_PARTICIPANT(_class)                       \
-};
+};                                                                             \
+NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
 
 #define NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS_AMBIGUOUS(_class, _base)   \
 class NS_CYCLE_COLLECTION_INNERCLASS                                                      \
@@ -578,8 +569,8 @@ class NS_CYCLE_COLLECTION_INNERCLASS                                            
   static NS_METHOD_(bool) CanSkipImpl(void *p, bool aRemovingAllowed);                    \
   static NS_METHOD_(bool) CanSkipInCCImpl(void *p);                                       \
   static NS_METHOD_(bool) CanSkipThisImpl(void *p);                                       \
-  NS_IMPL_GET_XPCOM_CYCLE_COLLECTION_PARTICIPANT(_class)                        \
-};
+};                                                                                        \
+NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
 
 #define NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS(_class)  \
   NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS_AMBIGUOUS(_class, _class)
@@ -595,8 +586,8 @@ class NS_CYCLE_COLLECTION_INNERCLASS                                            
   static NS_METHOD_(bool) CanSkipImpl(void *p, bool aRemovingAllowed);                \
   static NS_METHOD_(bool) CanSkipInCCImpl(void *p);                                   \
   static NS_METHOD_(bool) CanSkipThisImpl(void *p);                                   \
-  NS_IMPL_GET_XPCOM_CYCLE_COLLECTION_PARTICIPANT(_class)                       \
-};
+};                                                                                    \
+NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
 
 #define NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(_class)  \
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(_class, _class)
@@ -622,8 +613,8 @@ class NS_CYCLE_COLLECTION_INNERCLASS                                           \
 {                                                                              \
 public:                                                                        \
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_BODY(_class, _base_class)           \
-  NS_IMPL_GET_XPCOM_CYCLE_COLLECTION_PARTICIPANT(_class)                       \
-};
+};                                                                             \
+NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
 
 #define NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(_class,             \
                                                            _base_class)        \
@@ -632,8 +623,8 @@ class NS_CYCLE_COLLECTION_INNERCLASS                                           \
 {                                                                              \
 public:                                                                        \
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_BODY_NO_UNLINK(_class, _base_class) \
-  NS_IMPL_GET_XPCOM_CYCLE_COLLECTION_PARTICIPANT(_class)                       \
-};
+};                                                                             \
+NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
 
 #define NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(_class,         \
                                                                _base_class)    \
@@ -642,8 +633,8 @@ class NS_CYCLE_COLLECTION_INNERCLASS                                           \
 {                                                                              \
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_BODY(_class, _base_class)           \
   static NS_METHOD_(void) TraceImpl(void *p, TraceCallback cb, void *closure); \
-  NS_IMPL_GET_XPCOM_CYCLE_COLLECTION_PARTICIPANT(_class)                       \
-};
+};                                                                             \
+NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
 
 /**
  * This implements a stub UnmarkIfPurple function for classes that want to be
@@ -705,18 +696,28 @@ struct Skippable
 // Cycle collector participant implementations.
 
 // A native class is non-nsISupports and uses nsCycleCollectingAutoRefCnt.
-#define NS_IMPL_CYCLE_COLLECTION_NATIVE_CLASS(_class)
+#define NS_IMPL_CYCLE_COLLECTION_NATIVE_CLASS(_class)                          \
+  const CCParticipantVTable<NS_CYCLE_COLLECTION_CLASSNAME(_class)>             \
+    ::Type _class::NS_CYCLE_COLLECTION_INNERNAME =                             \
+  { NS_IMPL_CYCLE_COLLECTION_NATIVE_VTABLE(NS_CYCLE_COLLECTION_CLASSNAME(_class)) };
 
 // For native classes containing JS pointers.
-#define NS_IMPL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(_class)
+#define NS_IMPL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(_class)            \
+  const CCParticipantVTable<NS_CYCLE_COLLECTION_CLASSNAME(_class)>             \
+    ::Type _class::NS_CYCLE_COLLECTION_INNERNAME =                             \
+  { NS_IMPL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_VTABLE(NS_CYCLE_COLLECTION_CLASSNAME(_class)) };
 
 // A legacy native class is non-nsISupports, but does not use
 // nsCycleCollectingAutoRefCnt. This should be avoided because it can
 // cause leaks.
-#define NS_IMPL_CYCLE_COLLECTION_LEGACY_NATIVE_CLASS(_class)
+#define NS_IMPL_CYCLE_COLLECTION_LEGACY_NATIVE_CLASS(_class)                   \
+  NS_IMPL_CYCLE_COLLECTION_NATIVE_CLASS(_class)
 
 // For nsISupports classes.
-#define NS_IMPL_CYCLE_COLLECTION_CLASS(_class)
+#define NS_IMPL_CYCLE_COLLECTION_CLASS(_class)                                 \
+  const CCParticipantVTable<NS_CYCLE_COLLECTION_CLASSNAME(_class)>             \
+    ::Type _class::NS_CYCLE_COLLECTION_INNERNAME =                             \
+  { NS_IMPL_CYCLE_COLLECTION_VTABLE(NS_CYCLE_COLLECTION_CLASSNAME(_class)) };
 
 
 // Cycle collector participant declarations.
@@ -746,16 +747,8 @@ struct Skippable
   {                                                                            \
      NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS_BODY(_class)                        \
      NS_DECL_CYCLE_COLLECTION_NATIVE_UNMARK_IF_PURPLE(_class)                  \
-     static nsCycleCollectionParticipant* GetParticipant()                     \
-     {                                                                         \
-        static const CCParticipantVTable<NS_CYCLE_COLLECTION_CLASSNAME(_class)> \
-        ::Type p = {                                                          \
-           NS_IMPL_CYCLE_COLLECTION_NATIVE_VTABLE(                             \
-              NS_CYCLE_COLLECTION_CLASSNAME(_class))                           \
-        };                                                                     \
-        return NS_PARTICIPANT_AS(nsCycleCollectionParticipant, &p);            \
-    }                                                                          \
-  };
+  };                                                                           \
+  NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
 
 #define NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(_class)            \
   class NS_CYCLE_COLLECTION_INNERCLASS                                         \
@@ -765,16 +758,8 @@ struct Skippable
     NS_DECL_CYCLE_COLLECTION_NATIVE_UNMARK_IF_PURPLE(_class)                   \
     static NS_METHOD_(void) TraceImpl(void *p, TraceCallback cb,               \
                                       void *closure);                          \
-    static nsScriptObjectTracer* GetParticipant()                              \
-    {                                                                          \
-      static const CCParticipantVTable<NS_CYCLE_COLLECTION_CLASSNAME(_class)>  \
-        ::Type participant = {                                                 \
-          NS_IMPL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_VTABLE(                \
-            NS_CYCLE_COLLECTION_CLASSNAME(_class))                             \
-        };                                                                     \
-      return NS_PARTICIPANT_AS(nsScriptObjectTracer, &participant);            \
-    }                                  \
-  };
+  };                                                                           \
+  NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
 
 #define NS_DECL_CYCLE_COLLECTION_LEGACY_NATIVE_CLASS(_class)                   \
   class NS_CYCLE_COLLECTION_INNERCLASS                                         \
@@ -782,16 +767,8 @@ struct Skippable
   {                                                                            \
      NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS_BODY(_class)                        \
      NS_DECL_CYCLE_COLLECTION_STUB_UNMARK_IF_PURPLE(_class)                    \
-    static nsCycleCollectionParticipant* GetParticipant()                      \
-    {                                                                          \
-      static const CCParticipantVTable<NS_CYCLE_COLLECTION_CLASSNAME(_class)>  \
-        ::Type p = {                                                           \
-          NS_IMPL_CYCLE_COLLECTION_NATIVE_VTABLE(                              \
-              NS_CYCLE_COLLECTION_CLASSNAME(_class))                           \
-        };                                                                     \
-      return NS_PARTICIPANT_AS(nsCycleCollectionParticipant, &p);              \
-    }                                                                          \
-  };
+  };                                                                           \
+  NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
 
 #define NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(_class, _root_function)           \
   NS_METHOD                                                                    \

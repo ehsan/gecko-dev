@@ -143,7 +143,7 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
 
     void nonMarkingTrace(JSTracer *trc) {
         for (Range r = Base::all(); !r.empty(); r.popFront())
-            gc::Mark(trc, &r.front().value, "WeakMap entry");
+            markValue(trc, &r.front().value);
     }
 
     bool keyNeedsMark(JSObject *key) {

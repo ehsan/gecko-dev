@@ -31,7 +31,7 @@ HTMLSelectListAccessible::
   HTMLSelectListAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   AccessibleWrap(aContent, aDoc)
 {
-  mGenericTypes |= eListControl | eSelect;
+  mFlags |= eSelectAccessible | eListControlAccessible;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -397,7 +397,7 @@ HTMLComboboxAccessible::
   HTMLComboboxAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   AccessibleWrap(aContent, aDoc)
 {
-  mGenericTypes |= eCombobox;
+  mFlags |= eComboboxAccessible;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

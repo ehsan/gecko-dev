@@ -797,15 +797,15 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
     if (roleMapEntry) {
       // Create pure ARIA grid/treegrid related accessibles if they weren't used
       // on accessible HTML table elements.
-      if ((roleMapEntry->accTypes & eTableCell)) {
-        if (aContext->IsTableRow() &&
-            (frame->AccessibleType() != eHTMLTableCellType ||
+      if ((roleMapEntry->accTypes & Accessible::eTableCellAccessible)) {
+        if (aContext->IsOfType(Accessible::eTableRowAccessible) &&
+            (frame->AccessibleType() != eHTMLTableCell ||
              aContext->GetContent() != content->GetParent())) {
           newAcc = new ARIAGridCellAccessibleWrap(content, document);
         }
 
-      } else if ((roleMapEntry->accTypes & eTable) &&
-                 frame->AccessibleType() != eHTMLTableType) {
+      } else if ((roleMapEntry->accTypes & Accessible::eTableAccessible) &&
+                 frame->AccessibleType() != eHTMLTable) {
         newAcc = new ARIAGridAccessibleWrap(content, document);
       }
     }
@@ -822,21 +822,23 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
       // If table has strong ARIA role then all table descendants shouldn't
       // expose their native roles.
       if (!roleMapEntry && newAcc) {
-        if (frame->AccessibleType() == eHTMLTableRowType) {
+        if (frame->AccessibleType() == eHTMLTableRow) {
           nsRoleMapEntry* contextRoleMap = aContext->ARIARoleMap();
-          if (contextRoleMap && !(contextRoleMap->accTypes & eTable))
+          if (contextRoleMap &&
+              !(contextRoleMap->accTypes & Accessible::eTableAccessible))
             roleMapEntry = &nsARIAMap::gEmptyRoleMap;
 
-        } else if (frame->AccessibleType() == eHTMLTableCellType &&
+        } else if (frame->AccessibleType() == eHTMLTableCell &&
                    aContext->ARIARoleMap() == &nsARIAMap::gEmptyRoleMap) {
           roleMapEntry = &nsARIAMap::gEmptyRoleMap;
 
         } else if (content->Tag() == nsGkAtoms::dt ||
                    content->Tag() == nsGkAtoms::li ||
                    content->Tag() == nsGkAtoms::dd ||
-                   frame->AccessibleType() == eHTMLLiType) {
+                   frame->AccessibleType() == eHTMLLi) {
           nsRoleMapEntry* contextRoleMap = aContext->ARIARoleMap();
-          if (contextRoleMap && !(contextRoleMap->accTypes & eList))
+          if (contextRoleMap &&
+              !(contextRoleMap->accTypes & Accessible::eListAccessible))
             roleMapEntry = &nsARIAMap::gEmptyRoleMap;
         }
       }
@@ -1174,7 +1176,7 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame* aFrame,
                                                      Accessible* aContext)
 {
   DocAccessible* document = aContext->Document();
-  if (aContext->IsTableRow()) {
+  if (aContext->IsOfType(Accessible::eTableRowAccessible)) {
     if (nsCoreUtils::IsHTMLTableHeader(aContent) &&
         aContext->GetContent() == aContent->GetParent()) {
       Accessible* accessible = new HTMLTableHeaderCellAccessibleWrap(aContent,
@@ -1242,7 +1244,7 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame* aFrame,
     return accessible;
   }
 
-  if (aContext->IsList()) {
+  if (aContext->IsOfType(Accessible::eListAccessible)) {
     // If list item is a child of accessible list then create an accessible for
     // it unconditionally by tag name. nsBlockFrame creates the list item
     // accessible for other elements styled as list items.
@@ -1306,70 +1308,70 @@ nsAccessibilityService::CreateAccessibleByFrameType(nsIFrame* aFrame,
   switch (aFrame->AccessibleType()) {
     case eNoType:
       return nullptr;
-    case eHTMLBRType:
+    case eHTMLBR:
       newAcc = new HTMLBRAccessible(aContent, document);
       break;
-    case eHTMLButtonType:
+    case eHTMLButton:
       newAcc = new HTMLButtonAccessible(aContent, document);
       break;
-    case eHTMLCanvasType:
+    case eHTMLCanvas:
       newAcc = new HTMLCanvasAccessible(aContent, document);
       break;
-    case eHTMLCaptionType:
-      if (aContext->IsTable() &&
+    case eHTMLCaption:
+      if (aContext->IsOfType(Accessible::eTableAccessible) &&
           aContext->GetContent() == aContent->GetParent()) {
         newAcc = new HTMLCaptionAccessible(aContent, document);
       }
       break;
-    case eHTMLCheckboxType:
+    case eHTMLCheckbox:
       newAcc = new HTMLCheckboxAccessible(aContent, document);
       break;
-    case eHTMLComboboxType:
+    case eHTMLCombobox:
       newAcc = new HTMLComboboxAccessible(aContent, document);
       break;
-    case eHTMLFileInputType:
+    case eHTMLFileInput:
       newAcc = new HTMLFileInputAccessible(aContent, document);
       break;
-    case eHTMLGroupboxType:
+    case eHTMLGroupbox:
       newAcc = new HTMLGroupboxAccessible(aContent, document);
       break;
-    case eHTMLHRType:
+    case eHTMLHR:
       newAcc = new HTMLHRAccessible(aContent, document);
       break;
-    case eHTMLImageMapType:
+    case eHTMLImageMap:
       newAcc = new HTMLImageMapAccessible(aContent, document);
       break;
-    case eHTMLLabelType:
+    case eHTMLLabel:
       newAcc = new HTMLLabelAccessible(aContent, document);
       break;
-    case eHTMLLiType:
-      if (aContext->IsList() &&
+    case eHTMLLi:
+      if (aContext->IsOfType(Accessible::eListAccessible) &&
           aContext->GetContent() == aContent->GetParent()) {
         newAcc = new HTMLLIAccessible(aContent, document);
       }
       break;
-    case eHTMLSelectListType:
+    case eHTMLSelectList:
       newAcc = new HTMLSelectListAccessible(aContent, document);
       break;
-    case eHTMLMediaType:
+    case eHTMLMedia:
       newAcc = new EnumRoleAccessible(aContent, document, roles::GROUPING);
       break;
-    case eHTMLRadioButtonType:
+    case eHTMLRadioButton:
       newAcc = new HTMLRadioButtonAccessible(aContent, document);
       break;
-    case eHTMLTableType:
+    case eHTMLTable:
       newAcc = new HTMLTableAccessibleWrap(aContent, document);
       break;
-    case eHTMLTableCellType:
+    case eHTMLTableCell:
       // Accessible HTML table cell must be a child of accessible HTML table row.
-      if (aContext->IsHTMLTableRow())
+      if (aContext->IsOfType(Accessible::eHTMLTableRowAccessible))
         newAcc = new HTMLTableCellAccessibleWrap(aContent, document);
       break;
 
-    case eHTMLTableRowType: {
+    case eHTMLTableRow: {
       // Accessible HTML table row must be a child of tbody/tfoot/thead of
       // accessible HTML table or must be a child of accessible of HTML table.
-      if (aContext->IsTable()) {
+      if (aContext->IsOfType(Accessible::eTableAccessible)) {
         nsIContent* parentContent = aContent->GetParent();
         nsIFrame* parentFrame = parentContent->GetPrimaryFrame();
         if (parentFrame->GetType() == nsGkAtoms::tableRowGroupFrame) {
@@ -1384,26 +1386,26 @@ nsAccessibilityService::CreateAccessibleByFrameType(nsIFrame* aFrame,
       }
       break;
     }
-    case eHTMLTextFieldType:
+    case eHTMLTextField:
       newAcc = new HTMLTextFieldAccessible(aContent, document);
       break;
-    case eHyperTextType:
+    case eHyperText:
       if (aContent->Tag() != nsGkAtoms::dt && aContent->Tag() != nsGkAtoms::dd)
         newAcc = new HyperTextAccessibleWrap(aContent, document);
       break;
 
-    case eImageType:
+    case eImage:
       newAcc = new ImageAccessibleWrap(aContent, document);
       break;
-    case eOuterDocType:
+    case eOuterDoc:
       newAcc = new OuterDocAccessible(aContent, document);
       break;
-    case ePluginType: {
+    case ePlugin: {
       nsObjectFrame* objectFrame = do_QueryFrame(aFrame);
       newAcc = CreatePluginAccessible(objectFrame, aContent, aContext);
       break;
     }
-    case eTextLeafType:
+    case eTextLeaf:
       newAcc = new TextLeafAccessibleWrap(aContent, document);
       break;
   }

@@ -33,7 +33,6 @@ RUN_MOCHITEST = \
     --console-level=INFO --log-file=./$@.log --file-level=INFO \
     --failure-file=$(call core_abspath,_tests/testing/mochitest/makefailures.json) \
     --testing-modules-dir=$(call core_abspath,_tests/modules) \
-    --extra-profile-file=$(DIST)/plugins \
     $(SYMBOLS_PATH) $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
 
 RERUN_MOCHITEST = \
@@ -42,7 +41,6 @@ RERUN_MOCHITEST = \
     --console-level=INFO --log-file=./$@.log --file-level=INFO \
     --run-only-tests=makefailures.json \
     --testing-modules-dir=$(call core_abspath,_tests/modules) \
-    --extra-profile-file=$(DIST)/plugins \
     $(SYMBOLS_PATH) $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
 
 RUN_MOCHITEST_REMOTE = \
@@ -155,7 +153,6 @@ endif
 
 # Usage: |make [EXTRA_TEST_ARGS=...] *test|.
 RUN_REFTEST = rm -f ./$@.log && $(PYTHON) _tests/reftest/runreftest.py \
-  --extra-profile-file=$(DIST)/plugins \
   $(SYMBOLS_PATH) $(EXTRA_TEST_ARGS) $(1) | tee ./$@.log
 
 REMOTE_REFTEST = rm -f ./$@.log && $(PYTHON) _tests/reftest/remotereftest.py \

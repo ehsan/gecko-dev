@@ -36,7 +36,7 @@ Accessible::SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry)
 {
   mRoleMapEntry = aRoleMapEntry;
   if (mRoleMapEntry)
-    mGenericTypes |= mRoleMapEntry->accTypes;
+    mFlags |= mRoleMapEntry->accTypes;
 }
 
 inline bool

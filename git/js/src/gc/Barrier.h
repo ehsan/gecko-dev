@@ -628,7 +628,6 @@ class ReadBarriered
     T *operator->() const { return get(); }
 
     T **unsafeGet() { return &value; }
-    T * const * unsafeGet() const { return &value; }
 
     void set(T *v) { value = v; }
 

@@ -24,13 +24,11 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class nsFileStreamBase : public nsISeekableStream,
-                         public nsIFileMetadata
+class nsFileStreamBase : public nsISeekableStream
 {
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSISEEKABLESTREAM
-    NS_DECL_NSIFILEMETADATA
 
     nsFileStreamBase();
     virtual ~nsFileStreamBase();
@@ -126,8 +124,8 @@ public:
     NS_IMETHOD IsNonBlocking(bool* _retval)
     {
         return nsFileStreamBase::IsNonBlocking(_retval);
-    }
-
+    } 
+    
     // Overrided from nsFileStreamBase
     NS_IMETHOD Seek(int32_t aWhence, int64_t aOffset);
 
@@ -262,11 +260,13 @@ protected:
 class nsFileStream : public nsFileStreamBase,
                      public nsIInputStream,
                      public nsIOutputStream,
-                     public nsIFileStream
+                     public nsIFileStream,
+                     public nsIFileMetadata
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_NSIFILESTREAM
+    NS_DECL_NSIFILEMETADATA
     NS_FORWARD_NSIINPUTSTREAM(nsFileStreamBase::)
 
     // Can't use NS_FORWARD_NSIOUTPUTSTREAM due to overlapping methods

@@ -4,7 +4,7 @@
 
 #include "tests.h"
 
-#include "mozilla/DebugOnly.h"
+#include "mozilla/Util.h"
 
 BEGIN_TEST(testOOM)
 {

@@ -28,7 +28,7 @@ HTMLImageMapAccessible::
   HTMLImageMapAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   ImageAccessibleWrap(aContent, aDoc)
 {
-  mType = eImageMapType;
+  mFlags |= eImageMapAccessible;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

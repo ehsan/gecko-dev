@@ -67,7 +67,7 @@ class XULDeckAccessible : public AccessibleWrap
 public:
   XULDeckAccessible(nsIContent* aContent, DocAccessible* aDoc) :
     AccessibleWrap(aContent, aDoc)
-    { mType = eXULDeckType; }
+    { mFlags |= eXULDeckAccessible; }
 
   // Accessible
   virtual a11y::role NativeRole();

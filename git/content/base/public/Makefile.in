@@ -40,7 +40,6 @@ nsDOMFile.h \
 nsLineBreaker.h \
 nsReferencedElement.h \
 nsTreeSanitizer.h \
-nsViewportInfo.h \
 nsXMLNameSpaceMap.h \
 nsHostObjectProtocolHandler.h \
 $(NULL)

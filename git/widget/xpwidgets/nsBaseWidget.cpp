@@ -761,15 +761,12 @@ nsBaseWidget::AutoLayerManagerSetup::~AutoLayerManagerSetup()
 nsBaseWidget::AutoUseBasicLayerManager::AutoUseBasicLayerManager(nsBaseWidget* aWidget)
   : mWidget(aWidget)
 {
-  mPreviousTemporarilyUseBasicLayerManager =
-    mWidget->mTemporarilyUseBasicLayerManager;
   mWidget->mTemporarilyUseBasicLayerManager = true;
 }
 
 nsBaseWidget::AutoUseBasicLayerManager::~AutoUseBasicLayerManager()
 {
-  mWidget->mTemporarilyUseBasicLayerManager =
-    mPreviousTemporarilyUseBasicLayerManager;
+  mWidget->mTemporarilyUseBasicLayerManager = false;
 }
 
 bool

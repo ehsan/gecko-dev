@@ -560,7 +560,7 @@ protected:
   public:
     nsDelayedMouseEvent(nsMouseEvent* aEvent) : nsDelayedInputEvent()
     {
-      mEvent = new nsMouseEvent(aEvent->mFlags.mIsTrusted,
+      mEvent = new nsMouseEvent(NS_IS_TRUSTED_EVENT(aEvent),
                                 aEvent->message,
                                 aEvent->widget,
                                 aEvent->reason,
@@ -580,7 +580,7 @@ protected:
   public:
     nsDelayedKeyEvent(nsKeyEvent* aEvent) : nsDelayedInputEvent()
     {
-      mEvent = new nsKeyEvent(aEvent->mFlags.mIsTrusted,
+      mEvent = new nsKeyEvent(NS_IS_TRUSTED_EVENT(aEvent),
                               aEvent->message,
                               aEvent->widget);
       Init(aEvent);

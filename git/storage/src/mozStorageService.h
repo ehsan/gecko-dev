@@ -15,6 +15,7 @@
 #include "mozilla/Mutex.h"
 
 #include "mozIStorageService.h"
+#include "mozIStorageServiceQuotaManagement.h"
 
 class nsIMemoryReporter;
 class nsIMemoryMultiReporter;
@@ -27,6 +28,7 @@ namespace storage {
 class Connection;
 class Service : public mozIStorageService
               , public nsIObserver
+              , public mozIStorageServiceQuotaManagement
 {
 public:
   /**
@@ -56,6 +58,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_MOZISTORAGESERVICE
   NS_DECL_NSIOBSERVER
+  NS_DECL_MOZISTORAGESERVICEQUOTAMANAGEMENT
 
   /**
    * Obtains an already AddRefed pointer to XPConnect.  This is used by

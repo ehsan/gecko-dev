@@ -7,8 +7,6 @@
 #include <algorithm>
 #include <stdarg.h>
 
-#include "mozilla/DebugOnly.h"
-
 #include "BindingUtils.h"
 
 #include "AccessCheck.h"

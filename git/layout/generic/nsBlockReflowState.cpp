@@ -6,8 +6,6 @@
 
 /* state used in reflow of block frames */
 
-#include "mozilla/DebugOnly.h"
-
 #include "nsBlockReflowContext.h"
 #include "nsBlockReflowState.h"
 #include "nsBlockFrame.h"
@@ -20,6 +18,8 @@
 #include "FrameLayerBuilder.h"
 
 #include "nsINameSpaceManager.h"
+
+#include "mozilla/Util.h" // for DebugOnly
 
 #ifdef DEBUG
 #include "nsBlockDebugFlags.h"

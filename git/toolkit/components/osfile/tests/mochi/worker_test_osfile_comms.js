@@ -3,7 +3,32 @@
 
 "use strict";
 
-importScripts('worker_test_osfile_shared.js');
+function log(text) {
+  dump("WORKER "+text+"\n");
+}
+
+function send(message) {
+  self.postMessage(message);
+}
+
+function finish() {
+  send({kind: "finish"});
+}
+
+function ok(condition, description) {
+  send({kind: "ok", condition: condition, description:description});
+}
+function is(a, b, description) {
+  let outcome = a == b; // Need to decide outcome here, as not everything can be serialized
+  send({kind: "is", outcome: outcome, description: description, a:""+a, b:""+b});
+}
+function isnot(a, b, description) {
+  let outcome = a != b; // Need to decide outcome here, as not everything can be serialized
+  send({kind: "isnot", outcome: outcome, description: description, a:""+a, b:""+b});
+}
+function info(description) {
+  send({kind: "info", description:description});
+}
 
 // The set of samples for communications test. Declare as a global
 // variable to prevent this from being garbage-collected too early.

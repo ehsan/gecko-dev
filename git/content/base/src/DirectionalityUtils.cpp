@@ -490,9 +490,6 @@ private:
                                                             startAfterNode);
     if (textNode) {
       nsTextNodeDirectionalityMap::AddEntryToMap(textNode, rootNode);
-    } else {
-      rootNode->ClearHasDirAutoSet();
-      rootNode->UnsetProperty(nsGkAtoms::dirAutoSetBy);
     }
     return PL_DHASH_REMOVE;
   }

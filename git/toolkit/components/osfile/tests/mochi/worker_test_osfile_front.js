@@ -1,7 +1,13 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-importScripts('worker_test_osfile_shared.js');
+function log(text) {
+  dump("WORKER "+text+"\n");
+}
+
+function send(message) {
+  self.postMessage(message);
+}
 
 function should_throw(f) {
   try {
@@ -39,6 +45,23 @@ self.onmessage = function onmessage_start(msg) {
   }
   finish();
 };
+
+function finish() {
+  send({kind: "finish"});
+}
+
+function ok(condition, description) {
+  send({kind: "ok", condition: condition, description:description});
+}
+function is(a, b, description) {
+  send({kind: "is", a: a, b:b, description:description});
+}
+function isnot(a, b, description) {
+  send({kind: "isnot", a: a, b:b, description:description});
+}
+function info(description) {
+  send({kind: "info", description:description});
+}
 
 function test_init() {
   info("Starting test_init");

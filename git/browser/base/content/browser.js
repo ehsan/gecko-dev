@@ -2321,10 +2321,6 @@ function URLBarSetURI(aURI) {
 
   if (value == null) {
     let uri = aURI || gBrowser.currentURI;
-    // Strip off "wyciwyg://" and passwords for the location bar
-    try {
-      uri = Services.uriFixup.createExposableURI(uri);
-    } catch (e) {}
 
     // Replace initial page URIs with an empty string
     // only if there's no opener (bug 370555).
@@ -3499,7 +3495,7 @@ function OpenBrowserWindow(options)
 
   var extraFeatures = "";
 #ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
-  if (options && options.private) {
+  if (typeof options == "object" && options.private) {
 #else
   if (gPrivateBrowsingUI.privateBrowsingEnabled) {
 #endif
@@ -3805,6 +3801,11 @@ var XULBrowserWindow = {
     delete this.isImage;
     return this.isImage = document.getElementById("isImage");
   },
+  get _uriFixup () {
+    delete this._uriFixup;
+    return this._uriFixup = Cc["@mozilla.org/docshell/urifixup;1"]
+                              .getService(Ci.nsIURIFixup);
+  },
 
   init: function () {
     this.throbberElement = document.getElementById("navigator-throbber");
@@ -4098,7 +4099,12 @@ var XULBrowserWindow = {
       }
 
       if (gURLBar) {
-        URLBarSetURI(aLocationURI);
+        // Strip off "wyciwyg://" and passwords for the location bar
+        let uri = aLocationURI;
+        try {
+          uri = this._uriFixup.createExposableURI(uri);
+        } catch (e) {}
+        URLBarSetURI(uri);
 
         // Update starring UI
         PlacesStarButton.updateState();
@@ -4518,8 +4524,9 @@ var TabsProgressListener = {
       // or history.push/pop/replaceState.
       if (aRequest) {
         // Initialize the click-to-play state.
+        aBrowser._clickToPlayDoorhangerShown = false;
         aBrowser._clickToPlayPluginsActivated = false;
-        aBrowser._pluginScriptedState = gPluginHandler.PLUGIN_SCRIPTED_STATE_NONE;
+        aBrowser._pluginScriptedState = PLUGIN_SCRIPTED_STATE_NONE;
       }
       FullZoom.onLocationChange(aLocationURI, false, aBrowser);
     }

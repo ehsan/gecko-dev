@@ -257,7 +257,7 @@ BRFrame::AccessibleType()
     return a11y::eNoType;
   }
 
-  return a11y::eHTMLBRType;
+  return a11y::eHTMLBR;
 }
 #endif
 

@@ -214,7 +214,7 @@ private:
    */
   void CoalesceSelChangeEvents(AccSelChangeEvent* aTailEvent,
                                AccSelChangeEvent* aThisEvent,
-                               uint32_t aThisIndex);
+                               int32_t aThisIndex);
 
   /**
    * Coalesce text change events caused by sibling hide events.

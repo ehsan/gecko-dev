@@ -5,7 +5,7 @@
 
 #include "VectorImage.h"
 
-#include "imgDecoderObserver.h"
+#include "imgIDecoderObserver.h"
 #include "SVGDocumentWrapper.h"
 #include "gfxContext.h"
 #include "gfxPlatform.h"
@@ -188,7 +188,7 @@ VectorImage::~VectorImage()
 // Methods inherited from Image.h
 
 nsresult
-VectorImage::Init(imgDecoderObserver* aObserver,
+VectorImage::Init(imgIDecoderObserver* aObserver,
                   const char* aMimeType,
                   const char* aURIString,
                   uint32_t aFlags)
@@ -201,9 +201,7 @@ VectorImage::Init(imgDecoderObserver* aObserver,
                     !mHaveRestrictedRegion && !mError,
                     "Flags unexpectedly set before initialization");
 
-  if (aObserver) {
-    mObserver = aObserver->asWeakPtr();
-  }
+  mObserver = do_GetWeakReference(aObserver);
   NS_ABORT_IF_FALSE(!strcmp(aMimeType, SVG_MIMETYPE), "Unexpected mimetype");
 
   mIsInitialized = true;
@@ -243,30 +241,6 @@ size_t
 VectorImage::OutOfProcessSizeOfDecoded() const
 {
   return 0;
-}
-
-nsresult
-VectorImage::OnImageDataComplete(nsIRequest* aRequest,
-                                 nsISupports* aContext,
-                                 nsresult aStatus)
-{
-  return OnStopRequest(aRequest, aContext, aStatus);
-}
-
-nsresult
-VectorImage::OnImageDataAvailable(nsIRequest* aRequest,
-                                  nsISupports* aContext,
-                                  nsIInputStream* aInStr,
-                                  uint64_t aSourceOffset,
-                                  uint32_t aCount)
-{
-  return OnDataAvailable(aRequest, aContext, aInStr, aSourceOffset, aCount);
-}
-
-nsresult
-VectorImage::OnNewSourceData()
-{
-  return NS_OK;
 }
 
 nsresult
@@ -711,7 +685,7 @@ VectorImage::OnStopRequest(nsIRequest* aRequest, nsISupports* aCtxt,
   mRenderingObserver = new SVGRootRenderingObserver(mSVGDocumentWrapper, this);
 
   // Tell *our* observers that we're done loading
-  RefPtr<imgDecoderObserver> observer(mObserver);
+  nsCOMPtr<imgIDecoderObserver> observer = do_QueryReferent(mObserver);
   if (observer) {
     // NOTE: This signals that width/height are available.
     observer->OnStartContainer();
@@ -750,10 +724,17 @@ VectorImage::OnDataAvailable(nsIRequest* aRequest, nsISupports* aCtxt,
 void
 VectorImage::InvalidateObserver()
 {
-  RefPtr<imgDecoderObserver> observer(mObserver);
-  if (observer) {
-    observer->FrameChanged(&nsIntRect::GetMaxSizedIntRect());
-    observer->OnStopFrame();
+  if (!mObserver)
+    return;
+
+  nsCOMPtr<imgIContainerObserver> containerObs(do_QueryReferent(mObserver));
+  if (containerObs) {
+    containerObs->FrameChanged(&nsIntRect::GetMaxSizedIntRect());
+  }
+
+  nsCOMPtr<imgIDecoderObserver> decoderObs(do_QueryReferent(mObserver));
+  if (decoderObs) {
+    decoderObs->OnStopFrame();
   }
 }
 

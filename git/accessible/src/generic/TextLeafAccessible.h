@@ -45,7 +45,8 @@ protected:
 inline TextLeafAccessible*
 Accessible::AsTextLeaf()
 {
-  return IsTextLeaf() ? static_cast<TextLeafAccessible*>(this) : nullptr;
+  return mFlags & eTextLeafAccessible ?
+    static_cast<TextLeafAccessible*>(this) : nullptr;
 }
 
 } // namespace a11y

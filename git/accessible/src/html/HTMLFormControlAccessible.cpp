@@ -532,7 +532,7 @@ HTMLFileInputAccessible::
 HTMLFileInputAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   HyperTextAccessibleWrap(aContent, aDoc)
 {
-  mType = eHTMLFileInputType;
+  mFlags |= eHTMLFileInputAccessible;
 }
 
 role

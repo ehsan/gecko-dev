@@ -19,6 +19,8 @@ XPIDLSRCS	= \
 		imgICache.idl             \
 		imgIContainer.idl         \
 		imgIContainerDebug.idl    \
+		imgIContainerObserver.idl \
+		imgIDecoderObserver.idl   \
 		imgIEncoder.idl           \
 		imgILoader.idl            \
 		imgINotificationObserver.idl \

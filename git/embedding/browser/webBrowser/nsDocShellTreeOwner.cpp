@@ -860,9 +860,11 @@ nsDocShellTreeOwner::AddChromeListeners()
   nsEventListenerManager* elmP = target->GetListenerManager(true);
   if (elmP) {
     elmP->AddEventListenerByType(this, NS_LITERAL_STRING("dragover"),
-                                 dom::TrustedEventsAtSystemGroupBubble());
+                                 NS_EVENT_FLAG_BUBBLE |
+                                 NS_EVENT_FLAG_SYSTEM_EVENT);
     elmP->AddEventListenerByType(this, NS_LITERAL_STRING("drop"),
-                                 dom::TrustedEventsAtSystemGroupBubble());
+                                 NS_EVENT_FLAG_BUBBLE |
+                                 NS_EVENT_FLAG_SYSTEM_EVENT);
   }
 
   return rv;
@@ -891,9 +893,11 @@ nsDocShellTreeOwner::RemoveChromeListeners()
   if (elmP)
   {
     elmP->RemoveEventListenerByType(this, NS_LITERAL_STRING("dragover"),
-                                    dom::TrustedEventsAtSystemGroupBubble());
+                                    NS_EVENT_FLAG_BUBBLE |
+                                    NS_EVENT_FLAG_SYSTEM_EVENT);
     elmP->RemoveEventListenerByType(this, NS_LITERAL_STRING("drop"),
-                                    dom::TrustedEventsAtSystemGroupBubble());
+                                    NS_EVENT_FLAG_BUBBLE |
+                                    NS_EVENT_FLAG_SYSTEM_EVENT);
   }
 
   return NS_OK;

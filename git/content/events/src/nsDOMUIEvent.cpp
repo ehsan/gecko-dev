@@ -292,14 +292,19 @@ NS_IMETHODIMP
 nsDOMUIEvent::GetCancelBubble(bool* aCancelBubble)
 {
   NS_ENSURE_ARG_POINTER(aCancelBubble);
-  *aCancelBubble = mEvent->mFlags.mPropagationStopped;
+  *aCancelBubble =
+    (mEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH) ? true : false;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMUIEvent::SetCancelBubble(bool aCancelBubble)
 {
-  mEvent->mFlags.mPropagationStopped = aCancelBubble;
+  if (aCancelBubble) {
+    mEvent->flags |= NS_EVENT_FLAG_STOP_DISPATCH;
+  } else {
+    mEvent->flags &= ~NS_EVENT_FLAG_STOP_DISPATCH;
+  }
   return NS_OK;
 }
 

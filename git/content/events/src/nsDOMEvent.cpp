@@ -267,7 +267,12 @@ nsDOMEvent::GetOriginalTarget(nsIDOMEventTarget** aOriginalTarget)
 NS_IMETHODIMP
 nsDOMEvent::SetTrusted(bool aTrusted)
 {
-  mEvent->mFlags.mIsTrusted = aTrusted;
+  if (aTrusted) {
+    mEvent->flags |= NS_EVENT_FLAG_TRUSTED;
+  } else {
+    mEvent->flags &= ~NS_EVENT_FLAG_TRUSTED;
+  }
+
   return NS_OK;
 }
 
@@ -325,11 +330,12 @@ nsDOMEvent::GetEventPhase(uint16_t* aEventPhase)
   // if or when Bug 235441 is fixed.
   if ((mEvent->currentTarget &&
        mEvent->currentTarget == mEvent->target) ||
-       mEvent->mFlags.InTargetPhase()) {
+      ((mEvent->flags & NS_EVENT_FLAG_CAPTURE) &&
+       (mEvent->flags & NS_EVENT_FLAG_BUBBLE))) {
     *aEventPhase = nsIDOMEvent::AT_TARGET;
-  } else if (mEvent->mFlags.mInCapturePhase) {
+  } else if (mEvent->flags & NS_EVENT_FLAG_CAPTURE) {
     *aEventPhase = nsIDOMEvent::CAPTURING_PHASE;
-  } else if (mEvent->mFlags.mInBubblingPhase) {
+  } else if (mEvent->flags & NS_EVENT_FLAG_BUBBLE) {
     *aEventPhase = nsIDOMEvent::BUBBLING_PHASE;
   } else {
     *aEventPhase = nsIDOMEvent::NONE;
@@ -340,14 +346,14 @@ nsDOMEvent::GetEventPhase(uint16_t* aEventPhase)
 NS_IMETHODIMP
 nsDOMEvent::GetBubbles(bool* aBubbles)
 {
-  *aBubbles = mEvent->mFlags.mBubbles;
+  *aBubbles = !(mEvent->flags & NS_EVENT_FLAG_CANT_BUBBLE);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMEvent::GetCancelable(bool* aCancelable)
 {
-  *aCancelable = mEvent->mFlags.mCancelable;
+  *aCancelable = !(mEvent->flags & NS_EVENT_FLAG_CANT_CANCEL);
   return NS_OK;
 }
 
@@ -361,15 +367,15 @@ nsDOMEvent::GetTimeStamp(uint64_t* aTimeStamp)
 NS_IMETHODIMP
 nsDOMEvent::StopPropagation()
 {
-  mEvent->mFlags.mPropagationStopped = true;
+  mEvent->flags |= NS_EVENT_FLAG_STOP_DISPATCH;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMEvent::StopImmediatePropagation()
 {
-  mEvent->mFlags.mPropagationStopped = true;
-  mEvent->mFlags.mImmediatePropagationStopped = true;
+  mEvent->flags |=
+    (NS_EVENT_FLAG_STOP_DISPATCH_IMMEDIATELY | NS_EVENT_FLAG_STOP_DISPATCH);
   return NS_OK;
 }
 
@@ -420,18 +426,20 @@ nsDOMEvent::PreventCapture()
 NS_IMETHODIMP
 nsDOMEvent::GetIsTrusted(bool *aIsTrusted)
 {
-  *aIsTrusted = mEvent->mFlags.mIsTrusted;
+  *aIsTrusted = NS_IS_TRUSTED_EVENT(mEvent);
+
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMEvent::PreventDefault()
 {
-  if (mEvent->mFlags.mCancelable) {
-    mEvent->mFlags.mDefaultPrevented = true;
+  if (!(mEvent->flags & NS_EVENT_FLAG_CANT_CANCEL)) {
+    mEvent->flags |= NS_EVENT_FLAG_NO_DEFAULT;
 
     // Need to set an extra flag for drag events.
-    if (mEvent->eventStructType == NS_DRAG_EVENT && mEvent->mFlags.mIsTrusted) {
+    if (mEvent->eventStructType == NS_DRAG_EVENT &&
+        NS_IS_TRUSTED_EVENT(mEvent)) {
       nsCOMPtr<nsINode> node = do_QueryInterface(mEvent->currentTarget);
       if (!node) {
         nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(mEvent->currentTarget);
@@ -440,7 +448,7 @@ nsDOMEvent::PreventDefault()
         }
       }
       if (node && !nsContentUtils::IsChromeDoc(node->OwnerDoc())) {
-        mEvent->mFlags.mDefaultPreventedByContent = true;
+        mEvent->flags |= NS_EVENT_FLAG_NO_DEFAULT_CALLED_IN_CONTENT;
       }
     }
   }
@@ -460,9 +468,9 @@ NS_IMETHODIMP
 nsDOMEvent::InitEvent(const nsAString& aEventTypeArg, bool aCanBubbleArg, bool aCancelableArg)
 {
   // Make sure this event isn't already being dispatched.
-  NS_ENSURE_TRUE(!mEvent->mFlags.mIsBeingDispatched, NS_OK);
+  NS_ENSURE_TRUE(!NS_IS_EVENT_IN_DISPATCH(mEvent), NS_OK);
 
-  if (mEvent->mFlags.mIsTrusted) {
+  if (NS_IS_TRUSTED_EVENT(mEvent)) {
     // Ensure the caller is permitted to dispatch trusted DOM events.
     if (!nsContentUtils::IsCallerChrome()) {
       SetTrusted(false);
@@ -471,8 +479,17 @@ nsDOMEvent::InitEvent(const nsAString& aEventTypeArg, bool aCanBubbleArg, bool a
 
   SetEventType(aEventTypeArg);
 
-  mEvent->mFlags.mBubbles = aCanBubbleArg;
-  mEvent->mFlags.mCancelable = aCancelableArg;
+  if (aCanBubbleArg) {
+    mEvent->flags &= ~NS_EVENT_FLAG_CANT_BUBBLE;
+  } else {
+    mEvent->flags |= NS_EVENT_FLAG_CANT_BUBBLE;
+  }
+
+  if (aCancelableArg) {
+    mEvent->flags &= ~NS_EVENT_FLAG_CANT_CANCEL;
+  } else {
+    mEvent->flags |= NS_EVENT_FLAG_CANT_CANCEL;
+  }
 
   // Clearing the old targets, so that the event is targeted correctly when
   // re-dispatching it.
@@ -780,7 +797,7 @@ nsDOMEvent::DuplicatePrivateData()
   newEvent->target                 = mEvent->target;
   newEvent->currentTarget          = mEvent->currentTarget;
   newEvent->originalTarget         = mEvent->originalTarget;
-  newEvent->mFlags                 = mEvent->mFlags;
+  newEvent->flags                  = mEvent->flags;
   newEvent->time                   = mEvent->time;
   newEvent->refPoint               = mEvent->refPoint;
   newEvent->userType               = mEvent->userType;
@@ -812,7 +829,7 @@ nsDOMEvent::SetTarget(nsIDOMEventTarget* aTarget)
 NS_IMETHODIMP_(bool)
 nsDOMEvent::IsDispatchStopped()
 {
-  return mEvent->mFlags.mPropagationStopped;
+  return !!(mEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH);
 }
 
 NS_IMETHODIMP_(nsEvent*)
@@ -917,7 +934,7 @@ nsDOMEvent::GetEventPopupControlState(nsEvent *aEvent)
     }
     break;
   case NS_KEY_EVENT :
-    if (aEvent->mFlags.mIsTrusted) {
+    if (NS_IS_TRUSTED_EVENT(aEvent)) {
       uint32_t key = static_cast<nsKeyEvent *>(aEvent)->keyCode;
       switch(aEvent->message) {
       case NS_KEY_PRESS :
@@ -942,7 +959,7 @@ nsDOMEvent::GetEventPopupControlState(nsEvent *aEvent)
     }
     break;
   case NS_MOUSE_EVENT :
-    if (aEvent->mFlags.mIsTrusted &&
+    if (NS_IS_TRUSTED_EVENT(aEvent) &&
         static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton) {
       switch(aEvent->message) {
       case NS_MOUSE_BUTTON_UP :
@@ -1142,7 +1159,7 @@ NS_IMETHODIMP
 nsDOMEvent::GetPreventDefault(bool* aReturn)
 {
   NS_ENSURE_ARG_POINTER(aReturn);
-  *aReturn = mEvent && mEvent->mFlags.mDefaultPrevented;
+  *aReturn = mEvent && (mEvent->flags & NS_EVENT_FLAG_NO_DEFAULT);
   return NS_OK;
 }
 

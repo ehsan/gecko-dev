@@ -89,7 +89,6 @@
 #include "sampler.h"
 #include "nsAnimationManager.h"
 #include "nsTransitionManager.h"
-#include "nsViewportInfo.h"
 
 using namespace mozilla;
 using namespace mozilla::css;
@@ -5214,11 +5213,11 @@ nsLayoutUtils::FontSizeInflationEnabled(nsPresContext *aPresContext)
     int32_t screenLeft, screenTop, screenWidth, screenHeight;
     screen->GetRect(&screenLeft, &screenTop, &screenWidth, &screenHeight);
 
-    nsViewportInfo vInf =
+    ViewportInfo vInf =
       nsContentUtils::GetViewportInfo(aPresContext->PresShell()->GetDocument(),
                                       screenWidth, screenHeight);
 
-  if (vInf.GetDefaultZoom() >= 1.0 || vInf.IsAutoSizeEnabled()) {
+    if (vInf.defaultZoom >= 1.0 || vInf.autoSize) {
       return false;
     }
   }

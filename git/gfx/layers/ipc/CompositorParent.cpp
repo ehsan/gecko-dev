@@ -6,8 +6,6 @@
 
 #include <map>
 
-#include "mozilla/DebugOnly.h"
-
 #include "base/basictypes.h"
 
 #if defined(MOZ_WIDGET_ANDROID)

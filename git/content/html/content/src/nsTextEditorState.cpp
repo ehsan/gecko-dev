@@ -1518,14 +1518,17 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
       target->GetListenerManager(false);
     if (manager) {
       manager->RemoveEventListenerByType(mTextListener,
-        NS_LITERAL_STRING("keydown"),
-        dom::TrustedEventsAtSystemGroupBubble());
+                                         NS_LITERAL_STRING("keydown"),
+                                         NS_EVENT_FLAG_BUBBLE |
+                                         NS_EVENT_FLAG_SYSTEM_EVENT);
       manager->RemoveEventListenerByType(mTextListener,
-        NS_LITERAL_STRING("keypress"),
-        dom::TrustedEventsAtSystemGroupBubble());
+                                         NS_LITERAL_STRING("keypress"),
+                                         NS_EVENT_FLAG_BUBBLE |
+                                         NS_EVENT_FLAG_SYSTEM_EVENT);
       manager->RemoveEventListenerByType(mTextListener,
-        NS_LITERAL_STRING("keyup"),
-        dom::TrustedEventsAtSystemGroupBubble());
+                                         NS_LITERAL_STRING("keyup"),
+                                         NS_EVENT_FLAG_BUBBLE |
+                                         NS_EVENT_FLAG_SYSTEM_EVENT);
     }
 
     NS_RELEASE(mTextListener);
@@ -1944,13 +1947,16 @@ nsTextEditorState::InitializeKeyboardEventListeners()
   if (manager) {
     manager->AddEventListenerByType(mTextListener,
                                     NS_LITERAL_STRING("keydown"),
-                                    dom::TrustedEventsAtSystemGroupBubble());
+                                    NS_EVENT_FLAG_BUBBLE |
+                                    NS_EVENT_FLAG_SYSTEM_EVENT);
     manager->AddEventListenerByType(mTextListener,
                                     NS_LITERAL_STRING("keypress"),
-                                    dom::TrustedEventsAtSystemGroupBubble());
+                                    NS_EVENT_FLAG_BUBBLE |
+                                    NS_EVENT_FLAG_SYSTEM_EVENT);
     manager->AddEventListenerByType(mTextListener,
                                     NS_LITERAL_STRING("keyup"),
-                                    dom::TrustedEventsAtSystemGroupBubble());
+                                    NS_EVENT_FLAG_BUBBLE |
+                                    NS_EVENT_FLAG_SYSTEM_EVENT);
   }
 
   mSelCon->SetScrollableFrame(do_QueryFrame(mBoundFrame->GetFirstPrincipalChild()));

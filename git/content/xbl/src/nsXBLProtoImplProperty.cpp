@@ -18,8 +18,7 @@
 nsXBLProtoImplProperty::nsXBLProtoImplProperty(const PRUnichar* aName,
                                                const PRUnichar* aGetter, 
                                                const PRUnichar* aSetter,
-                                               const PRUnichar* aReadOnly,
-                                               uint32_t aLineNumber) :
+                                               const PRUnichar* aReadOnly) :
   nsXBLProtoImplMember(aName), 
   mGetterText(nullptr),
   mSetterText(nullptr),
@@ -36,14 +35,10 @@ nsXBLProtoImplProperty::nsXBLProtoImplProperty(const PRUnichar* aName,
       mJSAttributes |= JSPROP_READONLY;
   }
 
-  if (aGetter) {
+  if (aGetter)
     AppendGetterText(nsDependentString(aGetter));
-    SetGetterLineNumber(aLineNumber);
-  }
-  if (aSetter) {
+  if (aSetter)
     AppendSetterText(nsDependentString(aSetter));
-    SetSetterLineNumber(aLineNumber);
-  }
 }
 
 nsXBLProtoImplProperty::nsXBLProtoImplProperty(const PRUnichar* aName,

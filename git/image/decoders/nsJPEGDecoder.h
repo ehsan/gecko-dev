@@ -17,7 +17,7 @@
 
 #include "nsAutoPtr.h"
 
-#include "imgDecoderObserver.h"
+#include "imgIDecoderObserver.h"
 #include "nsIInputStream.h"
 #include "nsIPipe.h"
 #include "qcms.h"
@@ -52,7 +52,7 @@ class RasterImage;
 class nsJPEGDecoder : public Decoder
 {
 public:
-  nsJPEGDecoder(RasterImage &aImage, imgDecoderObserver* aObserver, Decoder::DecodeStyle aDecodeStyle);
+  nsJPEGDecoder(RasterImage &aImage, imgIDecoderObserver* aObserver, Decoder::DecodeStyle aDecodeStyle);
   virtual ~nsJPEGDecoder();
 
   virtual void InitInternal();

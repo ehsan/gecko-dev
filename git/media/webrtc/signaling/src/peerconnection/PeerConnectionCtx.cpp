@@ -104,8 +104,8 @@ nsresult PeerConnectionCtx::Initialize() {
   if (!mCCM->startSDPMode())
     return NS_ERROR_FAILURE;
 
-  mDevice = mCCM->getActiveDevice();
   mCCM->addCCObserver(this);
+  mDevice = mCCM->getActiveDevice();
   NS_ENSURE_TRUE(mDevice.get(), NS_ERROR_FAILURE);
   ChangeSipccState(PeerConnectionImpl::kStarting);
   return NS_OK;

@@ -9,7 +9,6 @@
 #include "imgRequest.h"
 #include "imgIContainer.h"
 #include "imgRequestProxy.h"
-#include "imgDecoderObserver.h"
 #include "Image.h"
 #include "ImageLogging.h"
 #include "RasterImage.h"
@@ -20,6 +19,121 @@
 #include "mozilla/Services.h"
 
 using namespace mozilla::image;
+
+NS_IMPL_ISUPPORTS3(imgStatusTrackerObserver,
+                   imgIDecoderObserver,
+                   imgIContainerObserver,
+                   nsISupportsWeakReference)
+
+/** imgIContainerObserver methods **/
+
+/* [noscript] void frameChanged (in nsIntRect dirtyRect); */
+NS_IMETHODIMP imgStatusTrackerObserver::FrameChanged(const nsIntRect *dirtyRect)
+{
+  LOG_SCOPE(GetImgLog(), "imgStatusTrackerObserver::FrameChanged");
+  NS_ABORT_IF_FALSE(mTracker->GetImage(),
+                    "FrameChanged callback before we've created our image");
+
+  mTracker->RecordFrameChanged(dirtyRect);
+
+  nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mTracker->mConsumers);
+  while (iter.HasMore()) {
+    mTracker->SendFrameChanged(iter.GetNext(), dirtyRect);
+  }
+
+  return NS_OK;
+}
+
+/** imgIDecoderObserver methods **/
+
+NS_IMETHODIMP imgStatusTrackerObserver::OnStartDecode()
+{
+  LOG_SCOPE(GetImgLog(), "imgStatusTrackerObserver::OnStartDecode");
+  NS_ABORT_IF_FALSE(mTracker->GetImage(),
+                    "OnStartDecode callback before we've created our image");
+
+  if (mTracker->GetRequest() && !mTracker->GetRequest()->GetMultipart()) {
+    MOZ_ASSERT(!mTracker->mBlockingOnload);
+    mTracker->mBlockingOnload = true;
+
+    mTracker->RecordBlockOnload();
+
+    nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mTracker->mConsumers);
+    while (iter.HasMore()) {
+      mTracker->SendBlockOnload(iter.GetNext());
+    }
+  }
+
+  /* In the case of streaming jpegs, it is possible to get multiple OnStartDecodes which
+     indicates the beginning of a new decode.
+     The cache entry's size therefore needs to be reset to 0 here.  If we do not do this,
+     the code in imgStatusTrackerObserver::OnStopFrame will continue to increase the data size cumulatively.
+  */
+  if (mTracker->GetRequest()) {
+    mTracker->GetRequest()->ResetCacheEntry();
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP imgStatusTrackerObserver::OnStartRequest()
+{
+  NS_NOTREACHED("imgRequest(imgIDecoderObserver)::OnStartRequest");
+  return NS_OK;
+}
+
+/* void onStartContainer (); */
+NS_IMETHODIMP imgStatusTrackerObserver::OnStartContainer()
+{
+  LOG_SCOPE(GetImgLog(), "imgStatusTrackerObserver::OnStartContainer");
+
+  NS_ABORT_IF_FALSE(mTracker->GetImage(),
+                    "OnStartContainer callback before we've created our image");
+  mTracker->RecordStartContainer(mTracker->GetImage());
+
+  nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mTracker->mConsumers);
+  while (iter.HasMore()) {
+    mTracker->SendStartContainer(iter.GetNext());
+  }
+
+  return NS_OK;
+}
+
+/* [noscript] void onDataAvailable ([const] in nsIntRect rect); */
+NS_IMETHODIMP imgStatusTrackerObserver::OnDataAvailable(const nsIntRect * rect)
+{
+  LOG_SCOPE(GetImgLog(), "imgStatusTrackerObserver::OnDataAvailable");
+  NS_ABORT_IF_FALSE(mTracker->GetImage(),
+                    "OnDataAvailable callback before we've created our image");
+
+  mTracker->RecordDataAvailable();
+
+  nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mTracker->mConsumers);
+  while (iter.HasMore()) {
+    mTracker->SendDataAvailable(iter.GetNext(), rect);
+  }
+
+  return NS_OK;
+}
+
+/* void onStopFrame (); */
+NS_IMETHODIMP imgStatusTrackerObserver::OnStopFrame()
+{
+  LOG_SCOPE(GetImgLog(), "imgStatusTrackerObserver::OnStopFrame");
+  NS_ABORT_IF_FALSE(mTracker->GetImage(),
+                    "OnStopFrame callback before we've created our image");
+
+  mTracker->RecordStopFrame();
+
+  nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mTracker->mConsumers);
+  while (iter.HasMore()) {
+    mTracker->SendStopFrame(iter.GetNext());
+  }
+
+  mTracker->MaybeUnblockOnload();
+
+  return NS_OK;
+}
 
 static void
 FireFailureNotification(imgRequest* aRequest)
@@ -35,180 +149,79 @@ FireFailureNotification(imgRequest* aRequest)
   }
 }
 
-class imgStatusTrackerObserver : public imgDecoderObserver
+/* void onStopDecode (in nsresult status); */
+NS_IMETHODIMP imgStatusTrackerObserver::OnStopDecode(nsresult aStatus)
 {
-public:
-  imgStatusTrackerObserver(imgStatusTracker* aTracker)
-  : mTracker(aTracker) {}
+  LOG_SCOPE(GetImgLog(), "imgStatusTrackerObserver::OnStopDecode");
+  NS_ABORT_IF_FALSE(mTracker->GetImage(),
+                    "OnStopDecode callback before we've created our image");
 
-  virtual ~imgStatusTrackerObserver() {}
-
-  void SetTracker(imgStatusTracker* aTracker) {
-    mTracker = aTracker;
+  // We finished the decode, and thus have the decoded frames. Update the cache
+  // entry size to take this into account.
+  if (mTracker->GetRequest()) {
+    mTracker->GetRequest()->UpdateCacheEntrySize();
   }
 
-  /** imgDecoderObserver methods **/
+  bool preexistingError = mTracker->GetImageStatus() == imgIRequest::STATUS_ERROR;
 
-  virtual void OnStartDecode()
-  {
-    LOG_SCOPE(GetImgLog(), "imgStatusTrackerObserver::OnStartDecode");
-    NS_ABORT_IF_FALSE(mTracker->GetImage(),
-                      "OnStartDecode callback before we've created our image");
+  mTracker->RecordStopDecode(aStatus);
 
-    if (mTracker->GetRequest() && !mTracker->GetRequest()->GetMultipart()) {
-      MOZ_ASSERT(!mTracker->mBlockingOnload);
-      mTracker->mBlockingOnload = true;
-
-      mTracker->RecordBlockOnload();
-
-      nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mTracker->mConsumers);
-      while (iter.HasMore()) {
-        mTracker->SendBlockOnload(iter.GetNext());
-      }
-    }
-
-    /* In the case of streaming jpegs, it is possible to get multiple OnStartDecodes which
-       indicates the beginning of a new decode.
-       The cache entry's size therefore needs to be reset to 0 here.  If we do not do this,
-       the code in imgStatusTrackerObserver::OnStopFrame will continue to increase the data size cumulatively.
-    */
-    if (mTracker->GetRequest()) {
-      mTracker->GetRequest()->ResetCacheEntry();
-    }
+  nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mTracker->mConsumers);
+  while (iter.HasMore()) {
+    mTracker->SendStopDecode(iter.GetNext(), aStatus);
   }
 
-  virtual void OnStartRequest()
-  {
-    NS_NOTREACHED("imgRequest(imgDecoderObserver)::OnStartRequest");
+  // This is really hacky. We need to handle the case where we start decoding,
+  // block onload, but then hit an error before we get to our first frame.
+  mTracker->MaybeUnblockOnload();
+
+  if (NS_FAILED(aStatus) && !preexistingError && mTracker->GetRequest()) {
+    FireFailureNotification(mTracker->GetRequest());
   }
 
-  virtual void OnStartContainer()
-  {
-    LOG_SCOPE(GetImgLog(), "imgStatusTrackerObserver::OnStartContainer");
+  return NS_OK;
+}
 
-    NS_ABORT_IF_FALSE(mTracker->GetImage(),
-                      "OnStartContainer callback before we've created our image");
-    mTracker->RecordStartContainer(mTracker->GetImage());
+NS_IMETHODIMP imgStatusTrackerObserver::OnStopRequest(bool aLastPart)
+{
+  NS_NOTREACHED("imgRequest(imgIDecoderObserver)::OnStopRequest");
+  return NS_OK;
+}
 
-    nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mTracker->mConsumers);
-    while (iter.HasMore()) {
-      mTracker->SendStartContainer(iter.GetNext());
-    }
+/* void onDiscard (); */
+NS_IMETHODIMP imgStatusTrackerObserver::OnDiscard()
+{
+  NS_ABORT_IF_FALSE(mTracker->GetImage(),
+                    "OnDiscard callback before we've created our image");
+
+  mTracker->RecordDiscard();
+
+  // Update the cache entry size, since we just got rid of frame data
+  if (mTracker->GetRequest()) {
+    mTracker->GetRequest()->UpdateCacheEntrySize();
   }
 
-  virtual void OnDataAvailable(const nsIntRect* rect)
-  {
-    LOG_SCOPE(GetImgLog(), "imgStatusTrackerObserver::OnDataAvailable");
-    NS_ABORT_IF_FALSE(mTracker->GetImage(),
-                      "OnDataAvailable callback before we've created our image");
-
-    mTracker->RecordDataAvailable();
-
-    nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mTracker->mConsumers);
-    while (iter.HasMore()) {
-      mTracker->SendDataAvailable(iter.GetNext(), rect);
-    }
+  nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mTracker->mConsumers);
+  while (iter.HasMore()) {
+    mTracker->SendDiscard(iter.GetNext());
   }
 
-  virtual void FrameChanged(const nsIntRect* dirtyRect)
-  {
-    LOG_SCOPE(GetImgLog(), "imgStatusTrackerObserver::FrameChanged");
-    NS_ABORT_IF_FALSE(mTracker->GetImage(),
-                      "FrameChanged callback before we've created our image");
+  return NS_OK;
+}
 
-    mTracker->RecordFrameChanged(dirtyRect);
+NS_IMETHODIMP imgStatusTrackerObserver::OnImageIsAnimated()
+{
+  NS_ABORT_IF_FALSE(mTracker->GetImage(),
+                    "OnImageIsAnimated callback before we've created our image");
+  mTracker->RecordImageIsAnimated();
 
-    nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mTracker->mConsumers);
-    while (iter.HasMore()) {
-      mTracker->SendFrameChanged(iter.GetNext(), dirtyRect);
-    }
+  nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mTracker->mConsumers);
+  while (iter.HasMore()) {
+    mTracker->SendImageIsAnimated(iter.GetNext());
   }
 
-  virtual void OnStopFrame()
-  {
-    LOG_SCOPE(GetImgLog(), "imgStatusTrackerObserver::OnStopFrame");
-    NS_ABORT_IF_FALSE(mTracker->GetImage(),
-                      "OnStopFrame callback before we've created our image");
-
-    mTracker->RecordStopFrame();
-
-    nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mTracker->mConsumers);
-    while (iter.HasMore()) {
-      mTracker->SendStopFrame(iter.GetNext());
-    }
-
-    mTracker->MaybeUnblockOnload();
-  }
-
-  virtual void OnStopDecode(nsresult aStatus)
-  {
-    LOG_SCOPE(GetImgLog(), "imgStatusTrackerObserver::OnStopDecode");
-    NS_ABORT_IF_FALSE(mTracker->GetImage(),
-                      "OnStopDecode callback before we've created our image");
-
-    // We finished the decode, and thus have the decoded frames. Update the cache
-    // entry size to take this into account.
-    if (mTracker->GetRequest()) {
-      mTracker->GetRequest()->UpdateCacheEntrySize();
-    }
-
-    bool preexistingError = mTracker->GetImageStatus() == imgIRequest::STATUS_ERROR;
-
-    mTracker->RecordStopDecode(aStatus);
-
-    nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mTracker->mConsumers);
-    while (iter.HasMore()) {
-      mTracker->SendStopDecode(iter.GetNext(), aStatus);
-    }
-
-    // This is really hacky. We need to handle the case where we start decoding,
-    // block onload, but then hit an error before we get to our first frame.
-    mTracker->MaybeUnblockOnload();
-
-    if (NS_FAILED(aStatus) && !preexistingError && mTracker->GetRequest()) {
-      FireFailureNotification(mTracker->GetRequest());
-    }
-  }
-
-  virtual void OnStopRequest(bool aLastPart)
-  {
-    NS_NOTREACHED("imgRequest(imgDecoderObserver)::OnStopRequest");
-  }
-
-  virtual void OnDiscard()
-  {
-    NS_ABORT_IF_FALSE(mTracker->GetImage(),
-                      "OnDiscard callback before we've created our image");
-
-    mTracker->RecordDiscard();
-
-    // Update the cache entry size, since we just got rid of frame data
-    if (mTracker->GetRequest()) {
-      mTracker->GetRequest()->UpdateCacheEntrySize();
-    }
-
-    nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mTracker->mConsumers);
-    while (iter.HasMore()) {
-      mTracker->SendDiscard(iter.GetNext());
-    }
-  }
-
-  virtual void OnImageIsAnimated()
-  {
-    NS_ABORT_IF_FALSE(mTracker->GetImage(),
-                      "OnImageIsAnimated callback before we've created our image");
-    mTracker->RecordImageIsAnimated();
-
-    nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mTracker->mConsumers);
-    while (iter.HasMore()) {
-      mTracker->SendImageIsAnimated(iter.GetNext());
-    }
-  }
-
-private:
-  imgStatusTracker* mTracker;
-};
-
+  return NS_OK;
+}
 
 // imgStatusTracker methods
 
@@ -232,9 +245,6 @@ imgStatusTracker::imgStatusTracker(const imgStatusTracker& aOther)
     // Note: we explicitly don't copy mRequestRunnable, because it won't be
     // nulled out when the mRequestRunnable's Run function eventually gets
     // called.
-{}
-
-imgStatusTracker::~imgStatusTracker()
 {}
 
 void
@@ -393,20 +403,21 @@ imgStatusTracker::SyncNotify(imgRequestProxy* proxy)
     proxy->BlockOnload();
 
   if (mImage) {
-    // OnDataAvailable
-    // XXX - Should only send partial rects here, but that needs to
-    // wait until we fix up the observer interface
-    nsIntRect r;
-    mImage->GetCurrentFrameRect(r);
+    int16_t imageType = mImage->GetType();
+    // Send frame messages (OnDataAvailable, OnStopFrame)
+    if (imageType == imgIContainer::TYPE_VECTOR ||
+        static_cast<RasterImage*>(mImage)->GetNumFrames() > 0) {
 
-    // If there's any content in this frame at all (always true for
-    // vector images, true for raster images that have decoded at
-    // least one frame) then send OnFrameUpdate.
-    if (!r.IsEmpty())
+      // OnDataAvailable
+      // XXX - Should only send partial rects here, but that needs to
+      // wait until we fix up the observer interface
+      nsIntRect r;
+      mImage->GetCurrentFrameRect(r);
       proxy->OnFrameUpdate(&r);
 
-    if (mState & stateFrameStopped)
-      proxy->OnStopFrame();
+      if (mState & stateFrameStopped)
+        proxy->OnStopFrame();
+    }
 
     // OnImageIsAnimated
     bool isAnimated = false;
@@ -605,6 +616,7 @@ imgStatusTracker::SendDiscard(imgRequestProxy* aProxy)
     aProxy->OnDiscard();
 }
 
+/* non-virtual imgIContainerObserver methods */
 void
 imgStatusTracker::RecordFrameChanged(const nsIntRect* aDirtyRect)
 {

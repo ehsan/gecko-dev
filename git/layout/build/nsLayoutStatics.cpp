@@ -79,10 +79,6 @@
 #include "MediaPluginHost.h"
 #endif
 
-#ifdef MOZ_WMF
-#include "WMFDecoder.h"
-#endif
-
 #ifdef MOZ_SYDNEYAUDIO
 #include "AudioStream.h"
 #endif
@@ -338,19 +334,15 @@ nsLayoutStatics::Shutdown()
   FrameLayerBuilder::Shutdown();
 
 #ifdef MOZ_MEDIA_PLUGINS
-  MediaPluginHost::Shutdown();
+  MediaPluginHost::Shutdown();  
 #endif
 
 #ifdef MOZ_SYDNEYAUDIO
   AudioStream::ShutdownLibrary();
 #endif
 
-#ifdef MOZ_WMF
-  WMFDecoder::UnloadDLLs();
-#endif
-
   nsCORSListenerProxy::Shutdown();
-
+  
   nsIPresShell::ReleaseStatics();
 
   nsTreeSanitizer::ReleaseStatics();

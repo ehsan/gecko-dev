@@ -9,13 +9,11 @@
  * JS execution context.
  */
 
-#include <limits.h>
+#include <limits.h> /* make sure that <features.h> is included and we can use
+                       __GLIBC__ to detect glibc presence */
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "mozilla/DebugOnly.h"
-
 #ifdef ANDROID
 # include <android/log.h>
 # include <fstream>
@@ -683,7 +681,7 @@ JSBool
 js_ExpandErrorArguments(JSContext *cx, JSErrorCallback callback,
                         void *userRef, const unsigned errorNumber,
                         char **messagep, JSErrorReport *reportp,
-                        ErrorArgumentsType argumentsType, va_list ap)
+                        bool charArgs, va_list ap)
 {
     const JSErrorFormatString *efs;
     int i;
@@ -723,7 +721,7 @@ js_ExpandErrorArguments(JSContext *cx, JSErrorCallback callback,
             for (i = 0; i < argCount; i++) {
                 if (messageArgsPassed) {
                     /* Do nothing. */
-                } else if (argumentsType == ArgumentsAreASCII) {
+                } else if (charArgs) {
                     char *charArg = va_arg(ap, char *);
                     size_t charArgLength = strlen(charArg);
                     reportp->messageArgs[i] = InflateString(cx, charArg, &charArgLength);
@@ -820,7 +818,7 @@ js_ExpandErrorArguments(JSContext *cx, JSErrorCallback callback,
 error:
     if (!messageArgsPassed && reportp->messageArgs) {
         /* free the arguments only if we allocated them */
-        if (argumentsType == ArgumentsAreASCII) {
+        if (charArgs) {
             i = 0;
             while (reportp->messageArgs[i])
                 js_free((void *)reportp->messageArgs[i++]);
@@ -842,7 +840,7 @@ error:
 JSBool
 js_ReportErrorNumberVA(JSContext *cx, unsigned flags, JSErrorCallback callback,
                        void *userRef, const unsigned errorNumber,
-                       ErrorArgumentsType argumentsType, va_list ap)
+                       JSBool charArgs, va_list ap)
 {
     JSErrorReport report;
     char *message;
@@ -858,7 +856,7 @@ js_ReportErrorNumberVA(JSContext *cx, unsigned flags, JSErrorCallback callback,
     PopulateReportBlame(cx, &report);
 
     if (!js_ExpandErrorArguments(cx, callback, userRef, errorNumber,
-                                 &message, &report, argumentsType, ap)) {
+                                 &message, &report, !!charArgs, ap)) {
         return JS_FALSE;
     }
 
@@ -871,7 +869,7 @@ js_ReportErrorNumberVA(JSContext *cx, unsigned flags, JSErrorCallback callback,
          * js_ExpandErrorArguments owns its messageArgs only if it had to
          * inflate the arguments (from regular |char *|s).
          */
-        if (argumentsType == ArgumentsAreASCII) {
+        if (charArgs) {
             int i = 0;
             while (report.messageArgs[i])
                 js_free((void *)report.messageArgs[i++]);
@@ -903,7 +901,7 @@ js_ReportErrorNumberUCArray(JSContext *cx, unsigned flags, JSErrorCallback callb
     char *message;
     va_list dummy;
     if (!js_ExpandErrorArguments(cx, callback, userRef, errorNumber,
-                                 &message, &report, ArgumentsAreUnicode, dummy)) {
+                                 &message, &report, JS_FALSE, dummy)) {
         return false;
     }
 

@@ -5,8 +5,6 @@
 
 #include <stdio.h>
 
-#include "mozilla/DebugOnly.h"
-
 #include "nsNavHistory.h"
 
 #include "mozIPlacesAutoComplete.h"
@@ -34,6 +32,7 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsMathUtils.h"
 #include "mozilla/storage.h"
+#include "mozilla/Util.h"
 #include "mozilla/Preferences.h"
 
 #ifdef MOZ_XUL
