@@ -34,6 +34,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+#include "nsIWidget.h"
 
 extern nsresult CoverageTest(int * argc, char **argv);
 

@@ -40,7 +40,7 @@
 #define nsEventStateManager_h__
 
 #include "nsIEventStateManager.h"
-#include "nsEvent.h"
+#include "nsGUIEvent.h"
 #include "nsIContent.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
@@ -291,16 +291,12 @@ protected:
   void GetPrevDocShell(nsIDocShellTreeNode* aNode,
                        nsIDocShellTreeItem** aResult);
 
-  // These functions are for mousewheel and pixel scrolling
+  // These functions are for mousewheel scrolling
   nsresult GetParentScrollingView(nsInputEvent* aEvent,
                                   nsPresContext* aPresContext,
                                   nsIFrame* &targetOuterFrame,
                                   nsPresContext* &presCtxOuter);
-  void SendLineScrollEvent(nsIFrame* aTargetFrame,
-                           nsMouseScrollEvent* aEvent,
-                           nsPresContext* aPresContext,
-                           nsEventStatus* aStatus,
-                           PRInt32 aNumLines);
+
   void SendPixelScrollEvent(nsIFrame* aTargetFrame,
                             nsMouseScrollEvent* aEvent,
                             nsPresContext* aPresContext,

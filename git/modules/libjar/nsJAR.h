@@ -164,7 +164,7 @@ class nsJAR : public nsIZipReader, public nsIJAR
                          PRUint32 aLen);
 
     nsresult CalculateDigest(const char* aInBuf, PRUint32 aInBufLen,
-                             nsCString& digest);
+                             char** digest);
 
     //-- Debugging
     void DumpMetadata(const char* aMessage);

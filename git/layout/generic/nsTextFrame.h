@@ -442,10 +442,8 @@ protected:
   };
   TextDecorations GetTextDecorations(nsPresContext* aPresContext);
 
-  // Set non empty rect to aRect, it should be overflow rect or frame rect.
-  // If the result rect is larger than the given rect, this returns PR_TRUE.
-  PRBool CombineSelectionUnderlineRect(nsPresContext* aPresContext,
-                                       nsRect& aRect);
+  PRBool HasSelectionOverflowingDecorations(nsPresContext* aPresContext,
+                                            float* aRatio = nsnull);
 
   PRBool IsFloatingFirstLetterChild();
 };

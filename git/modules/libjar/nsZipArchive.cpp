@@ -745,7 +745,7 @@ nsZipArchive::FindInit(const char * aPattern, nsZipFind **aFind)
 
   *aFind = new nsZipFind(this, pattern, regExp);
   if (!*aFind) {
-    PL_strfree(pattern);
+    PR_FREEIF(pattern);
     return ZIP_ERR_MEMORY;
   }
 
@@ -1348,7 +1348,7 @@ nsZipFind::nsZipFind(nsZipArchive* aZip, char* aPattern, PRBool aRegExp) :
 
 nsZipFind::~nsZipFind()
 {
-  PL_strfree(mPattern);
+  PR_FREEIF(mPattern);
 
   MOZ_COUNT_DTOR(nsZipFind);
 }

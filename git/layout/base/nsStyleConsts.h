@@ -42,6 +42,7 @@
 #define nsStyleConsts_h___
 
 #include "nsFont.h"
+#include "nsIWidget.h"
 
 // cairo doesn't support invert
 // #define GFX_HAS_INVERT
@@ -105,6 +106,9 @@
 // float-edge
 #define NS_STYLE_FLOAT_EDGE_CONTENT       0
 #define NS_STYLE_FLOAT_EDGE_MARGIN        1
+
+// key-equivalent
+#define NS_STYLE_KEY_EQUIVALENT_NONE      0
 
 // user-focus
 #define NS_STYLE_USER_FOCUS_NONE            0
@@ -739,10 +743,10 @@
 #define NS_STYLE_FILL_RULE_EVENODD              1
 
 // image-rendering
-#define NS_STYLE_IMAGE_RENDERING_AUTO             0
-#define NS_STYLE_IMAGE_RENDERING_OPTIMIZESPEED    1
-#define NS_STYLE_IMAGE_RENDERING_OPTIMIZEQUALITY  2
-#define NS_STYLE_IMAGE_RENDERING_CRISPEDGES       3
+#define NS_STYLE_IMAGE_RENDERING_AUTO                   0
+#define NS_STYLE_IMAGE_RENDERING_OPTIMIZESPEED          1
+#define NS_STYLE_IMAGE_RENDERING_OPTIMIZEQUALITY        2
+#define NS_STYLE_IMAGE_RENDERING_DISABLE_RESAMPLING     3
 
 // pointer-events
 #define NS_STYLE_POINTER_EVENTS_NONE            0

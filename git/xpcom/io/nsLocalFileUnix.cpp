@@ -941,36 +941,44 @@ nsLocalFile::Remove(PRBool recursive)
     if (NS_FAILED(rv))
         return rv;
 
-    if (isSymLink || !S_ISDIR(mCachedStat.st_mode))
+    if (!recursive && isSymLink)
         return NSRESULT_FOR_RETURN(unlink(mPath.get()));
 
-    if (recursive) {
-        nsDirEnumeratorUnix *dir = new nsDirEnumeratorUnix();
-        if (!dir)
-            return NS_ERROR_OUT_OF_MEMORY;
+    if (S_ISDIR(mCachedStat.st_mode)) {
+        if (recursive) {
+            nsDirEnumeratorUnix *dir = new nsDirEnumeratorUnix();
+            if (!dir)
+                return NS_ERROR_OUT_OF_MEMORY;
 
-        nsCOMPtr<nsISimpleEnumerator> dirRef(dir); // release on exit
+            nsCOMPtr<nsISimpleEnumerator> dirRef(dir); // release on exit
 
-        rv = dir->Init(this, PR_FALSE);
-        if (NS_FAILED(rv))
-            return rv;
-
-        PRBool more;
-        while (dir->HasMoreElements(&more), more) {
-            nsCOMPtr<nsISupports> item;
-            rv = dir->GetNext(getter_AddRefs(item));
+            rv = dir->Init(this, PR_FALSE);
             if (NS_FAILED(rv))
-                return NS_ERROR_FAILURE;
-
-            nsCOMPtr<nsIFile> file = do_QueryInterface(item, &rv);
-            if (NS_FAILED(rv))
-                return NS_ERROR_FAILURE;
-            if (NS_FAILED(rv = file->Remove(recursive)))
                 return rv;
+
+            PRBool more;
+            while (dir->HasMoreElements(&more), more) {
+                nsCOMPtr<nsISupports> item;
+                rv = dir->GetNext(getter_AddRefs(item));
+                if (NS_FAILED(rv))
+                    return NS_ERROR_FAILURE;
+
+                nsCOMPtr<nsIFile> file = do_QueryInterface(item, &rv);
+                if (NS_FAILED(rv))
+                    return NS_ERROR_FAILURE;
+                if (NS_FAILED(rv = file->Remove(recursive)))
+                    return rv;
+            }
         }
+
+        if (rmdir(mPath.get()) == -1)
+            return NSRESULT_FOR_ERRNO();
+    } else {
+        if (unlink(mPath.get()) == -1)
+            return NSRESULT_FOR_ERRNO();
     }
 
-    return NSRESULT_FOR_RETURN(rmdir(mPath.get()));
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1405,8 +1413,7 @@ nsLocalFile::IsSymlink(PRBool *_retval)
     CHECK_mPath();
 
     struct stat symStat;
-    if (lstat(mPath.get(), &symStat) == -1)
-        return NSRESULT_FOR_ERRNO();
+    lstat(mPath.get(), &symStat);
     *_retval=S_ISLNK(symStat.st_mode);
     return NS_OK;
 }
@@ -1476,13 +1483,16 @@ nsLocalFile::GetNativeTarget(nsACString &_retval)
     _retval.Truncate();
 
     struct stat symStat;
-    if (lstat(mPath.get(), &symStat) == -1)
-        return NSRESULT_FOR_ERRNO();
-
+    lstat(mPath.get(), &symStat);
     if (!S_ISLNK(symStat.st_mode))
         return NS_ERROR_FILE_INVALID_PATH;
 
-    PRInt32 size = (PRInt32)symStat.st_size;
+    PRInt64 targetSize64;
+    if (NS_FAILED(GetFileSizeOfLink(&targetSize64)))
+        return NS_ERROR_FAILURE;
+
+    PRInt32 size;
+    LL_L2I(size, targetSize64);
     char *target = (char *)nsMemory::Alloc(size + 1);
     if (!target)
         return NS_ERROR_OUT_OF_MEMORY;
@@ -1493,19 +1503,14 @@ nsLocalFile::GetNativeTarget(nsACString &_retval)
     }
     target[size] = '\0';
 
-    nsresult rv = NS_OK;
+    nsresult rv;
+    PRBool isSymlink;
     nsCOMPtr<nsIFile> self(this);
-    PRInt32 maxLinks = 40;
-    while (PR_TRUE) {
-        if (maxLinks-- == 0) {
-            rv = NS_ERROR_FILE_UNRESOLVABLE_SYMLINK;
-            break;
-        }
+    nsCOMPtr<nsIFile> parent;
+    while (NS_SUCCEEDED(rv = self->GetParent(getter_AddRefs(parent)))) {
+        NS_ASSERTION(parent != nsnull, "no parent?!");
 
         if (target[0] != '/') {
-            nsCOMPtr<nsIFile> parent;
-            if (NS_FAILED(rv = self->GetParent(getter_AddRefs(parent))))
-                break;
             nsCOMPtr<nsILocalFile> localFile(do_QueryInterface(parent, &rv));
             if (NS_FAILED(rv))
                 break;
@@ -1513,39 +1518,45 @@ nsLocalFile::GetNativeTarget(nsACString &_retval)
                 break;
             if (NS_FAILED(rv = localFile->GetNativePath(_retval)))
                 break;
+            if (NS_FAILED(rv = parent->IsSymlink(&isSymlink)))
+                break;
             self = parent;
         } else {
-            _retval = target;
+            nsCOMPtr<nsILocalFile> localFile;
+            rv = NS_NewNativeLocalFile(nsDependentCString(target), PR_TRUE,
+                                       getter_AddRefs(localFile));
+            if (NS_FAILED(rv))
+                break;
+            if (NS_FAILED(rv = localFile->IsSymlink(&isSymlink)))
+                break;
+            _retval = target; // XXX can we avoid this buffer copy?
+            self = do_QueryInterface(localFile);
         }
+        if (NS_FAILED(rv) || !isSymlink)
+            break;
 
         const nsPromiseFlatCString &flatRetval = PromiseFlatCString(_retval);
 
-        // Any failure in testing the current target we'll just interpret
-        // as having reached our destiny.
-        if (lstat(flatRetval.get(), &symStat) == -1)
-            break;
-
-        // And of course we're done if it isn't a symlink.
-        if (!S_ISLNK(symStat.st_mode))
-            break;
-
-        PRInt32 newSize = (PRInt32)symStat.st_size;
-        if (newSize > size) {
-            char *newTarget = (char *)nsMemory::Realloc(target, newSize + 1);
-            if (!newTarget) {
-                rv = NS_ERROR_OUT_OF_MEMORY;
-                break;
-            }
-            target = newTarget;
-            size = newSize;
-        }
-
-        PRInt32 linkLen = readlink(flatRetval.get(), target, size);
-        if (linkLen == -1) {
+        // strip off any and all trailing '/'
+        PRInt32 len = strlen(target);
+        while (target[len-1] == '/' && len > 1)
+            target[--len] = '\0';
+        if (lstat(flatRetval.get(), &symStat) < 0) {
             rv = NSRESULT_FOR_ERRNO();
             break;
         }
-        target[linkLen] = '\0';
+        if (!S_ISLNK(symStat.st_mode)) {
+            rv = NS_ERROR_FILE_INVALID_PATH;
+            break;
+        }
+        size = symStat.st_size;
+        if (readlink(flatRetval.get(), target, size) < 0) {
+            rv = NSRESULT_FOR_ERRNO();
+            break;
+        }
+        target[size] = '\0';
+
+        _retval.Truncate();
     }
 
     nsMemory::Free(target);

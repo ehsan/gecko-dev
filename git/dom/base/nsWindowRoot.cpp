@@ -54,7 +54,6 @@
 #include "nsString.h"
 #include "nsEventDispatcher.h"
 #include "nsIProgrammingLanguage.h"
-#include "nsGUIEvent.h"
 
 #include "nsCycleCollectionParticipant.h"
 

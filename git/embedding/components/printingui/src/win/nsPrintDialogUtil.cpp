@@ -71,6 +71,7 @@ WIN_LIBS=                                       \
 #include "nsString.h"
 #include "nsIServiceManager.h"
 #include "nsReadableUtils.h"
+#include "nsIWidget.h"
 #include "nsIPrintSettings.h"
 #include "nsIPrintSettingsWin.h"
 #include "nsIPrintOptions.h"

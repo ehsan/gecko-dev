@@ -40,9 +40,8 @@
 #define nsIMenuRollup_h___
 
 #include "nsISupports.h"
+#include "nsIWidget.h"
 #include "nsTArray.h"
-
-class nsIWidget;
 
 #define NS_IMENUROLLUP_IID \
   {0x2b65d177, 0xc3e4, 0x4564, \

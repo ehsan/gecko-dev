@@ -50,7 +50,6 @@ nsDOMSimpleGestureEvent::nsDOMSimpleGestureEvent(nsPresContext* aPresContext, ns
   } else {
     mEventIsInternal = PR_TRUE;
     mEvent->time = PR_Now();
-    mEvent->refPoint.x = mEvent->refPoint.y = 0;
   }
 }
 

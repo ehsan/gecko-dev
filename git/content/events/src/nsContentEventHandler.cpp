@@ -88,12 +88,7 @@ nsContentEventHandler::Init(nsQueryContentEvent* aEvent)
   if (!mPresShell)
     return NS_ERROR_NOT_AVAILABLE;
 
-  // If text frame which has overflowing selection underline is dirty,
-  // we need to flush the pending reflow here.
-  nsresult rv = mPresShell->FlushPendingNotifications(Flush_Layout);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = mPresShell->GetSelectionForCopy(getter_AddRefs(mSelection));
+  nsresult rv = mPresShell->GetSelectionForCopy(getter_AddRefs(mSelection));
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ASSERTION(mSelection,
                "GetSelectionForCopy succeeded, but the result is null");
@@ -514,7 +509,7 @@ nsContentEventHandler::OnQueryTextRect(nsQueryContentEvent* aEvent)
   if (NS_FAILED(rv))
     return rv;
 
-  nsCOMPtr<nsIRange> range = new nsRange();
+  nsRefPtr<nsRange> range = new nsRange();
   if (!range) {
     return NS_ERROR_OUT_OF_MEMORY;
   }

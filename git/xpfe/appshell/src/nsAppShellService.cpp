@@ -51,6 +51,7 @@
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 
+#include "nsIWidget.h"
 #include "nsIWindowMediator.h"
 #include "nsIWindowWatcher.h"
 #include "nsPIWindowWatcher.h"

@@ -2463,6 +2463,7 @@ nsPluginHostImpl::nsPluginHostImpl()
   mIsDestroyed = PR_FALSE;
   mOverrideInternalTypes = PR_FALSE;
   mAllowAlienStarHandler = PR_FALSE;
+  mUnusedLibraries.Clear();
   mDefaultPluginDisabled = PR_FALSE;
   mJavaEnabled = PR_TRUE;
 
@@ -3142,8 +3143,8 @@ NS_IMETHODIMP nsPluginHostImpl::Destroy(void)
 void nsPluginHostImpl::UnloadUnusedLibraries()
 {
   // unload any remaining plugin libraries from memory
-  for (PRUint32 i = 0; i < mUnusedLibraries.Length(); i++) {
-    PRLibrary * library = mUnusedLibraries[i];
+  for (PRInt32 i = 0; i < mUnusedLibraries.Count(); i++) {
+    PRLibrary * library = (PRLibrary *)mUnusedLibraries[i];
     if (library)
       PostPluginUnloadEvent(library);
   }
@@ -4442,7 +4443,7 @@ NS_IMETHODIMP nsPluginHostImpl::GetPluginFactory(const char *aMimeType, nsIPlugi
         return NS_ERROR_FAILURE;
 
       // remove from unused lib list, if it is there
-      if (mUnusedLibraries.Contains(pluginLibrary))
+      if (mUnusedLibraries.IndexOf(pluginLibrary) > -1)
         mUnusedLibraries.RemoveElement(pluginLibrary);
 
       pluginTag->mLibrary = pluginLibrary;
@@ -4612,31 +4613,21 @@ struct pluginFileinDirectory
 
 // QuickSort callback for comparing the modification time of two files
 // if the times are the same, compare the filenames
-
-NS_SPECIALIZE_TEMPLATE
-class nsDefaultComparator<pluginFileinDirectory, pluginFileinDirectory>
+static int ComparePluginFileInDirectory (const void *v1, const void *v2, void *)
 {
-  public:
-  PRBool Equals(const pluginFileinDirectory& aA,
-                const pluginFileinDirectory& aB) const {
-    if (aA.mModTime == aB.mModTime &&
-        Compare(aA.mFilename, aB.mFilename,
-                nsCaseInsensitiveStringComparator()) == 0)
-      return PR_TRUE;
-    else
-      return PR_FALSE;
-  }
-  PRBool LessThan(const pluginFileinDirectory& aA,
-                  const pluginFileinDirectory& aB) const {
-    if (aA.mModTime < aB.mModTime)
-      return PR_TRUE;
-    else if(aA.mModTime == aB.mModTime)
-      return Compare(aA.mFilename, aB.mFilename,
-                     nsCaseInsensitiveStringComparator()) < 0;
-    else
-      return PR_FALSE;
-  }
-};
+  const pluginFileinDirectory* pfd1 = static_cast<const pluginFileinDirectory*>(v1);
+  const pluginFileinDirectory* pfd2 = static_cast<const pluginFileinDirectory*>(v2);
+
+  PRInt32 result = 0;
+  if (LL_EQ(pfd1->mModTime, pfd2->mModTime))
+    result = Compare(pfd1->mFilename, pfd2->mFilename, nsCaseInsensitiveStringComparator());
+  else if (LL_CMP(pfd1->mModTime, >, pfd2->mModTime))
+    result = -1;
+  else
+    result = 1;
+
+  return result;
+}
 
 typedef NS_NPAPIPLUGIN_CALLBACK(char *, NP_GETMIMEDESCRIPTION)(void);
 
@@ -4678,6 +4669,28 @@ static nsresult FixUpPluginInfo(nsPluginInfo &aInfo, nsPluginFile &aPluginFile)
   return NS_OK;
 }
 
+/* Helper class which automatically deallocates a nsVoidArray of 
+ * pluginFileinDirectories when the array goes out of scope.
+ */
+class nsAutoPluginFileDeleter
+{
+public:
+  nsAutoPluginFileDeleter (nsAutoVoidArray& aPluginFiles)
+    :mPluginFiles(aPluginFiles)
+  {}
+ 
+  ~nsAutoPluginFileDeleter()
+  {
+    for (PRInt32 i = 0; i < mPluginFiles.Count(); ++i) {
+      pluginFileinDirectory* pfd = static_cast<pluginFileinDirectory*>(mPluginFiles[i]);
+      delete pfd;
+    }
+  }
+protected:
+  // A reference to the array for which to perform deallocation.
+  nsAutoVoidArray& mPluginFiles;
+};
+
 nsresult nsPluginHostImpl::ScanPluginsDirectory(nsIFile * pluginsDir,
                                                 nsIComponentManager * compManager,
                                                 PRBool aCreatePluginList,
@@ -4701,8 +4714,11 @@ nsresult nsPluginHostImpl::ScanPluginsDirectory(nsIFile * pluginsDir,
   if (NS_FAILED(rv))
     return rv;
 
-  // Collect all the files in this directory in an array we can sort later
-  nsAutoTArray<pluginFileinDirectory, 8> pluginFilesArray;
+  // Collect all the files in this directory in a void array we can sort later
+  nsAutoVoidArray pluginFilesArray;  // array for sorting files in this directory
+
+  // Setup the helper which will cleanup the array.
+  nsAutoPluginFileDeleter pluginFileArrayDeleter(pluginFilesArray);
 
   PRBool hasMore;
   while (NS_SUCCEEDED(iter->HasMoreElements(&hasMore)) && hasMore) {
@@ -4724,7 +4740,7 @@ nsresult nsPluginHostImpl::ScanPluginsDirectory(nsIFile * pluginsDir,
       continue;
 
     if (nsPluginsDir::IsPluginFile(dirEntry)) {
-      pluginFileinDirectory * item = pluginFilesArray.AppendElement();
+      pluginFileinDirectory * item = new pluginFileinDirectory();
       if (!item)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -4734,24 +4750,25 @@ nsresult nsPluginHostImpl::ScanPluginsDirectory(nsIFile * pluginsDir,
 
       item->mModTime = fileModTime;
       item->mFilename = filePath;
+      pluginFilesArray.AppendElement(item);
     }
   } // end round of up of plugin files
 
   // now sort the array by file modification time or by filename, if equal
   // put newer plugins first to weed out dups and catch upgrades, see bug 119966
-  pluginFilesArray.Sort();
+  pluginFilesArray.Sort(ComparePluginFileInDirectory, nsnull);
 
   // finally, go through the array, looking at each entry and continue processing it
-  for (PRUint32 i = 0; i < pluginFilesArray.Length(); i++) {
-    pluginFileinDirectory &pfd = pluginFilesArray[i];
+  for (PRInt32 i = 0; i < pluginFilesArray.Count(); i++) {
+    pluginFileinDirectory* pfd = static_cast<pluginFileinDirectory*>(pluginFilesArray[i]);
     nsCOMPtr <nsIFile> file = do_CreateInstance("@mozilla.org/file/local;1");
     nsCOMPtr <nsILocalFile> localfile = do_QueryInterface(file);
-    localfile->InitWithPath(pfd.mFilename);
-    PRInt64 fileModTime = pfd.mModTime;
+    localfile->InitWithPath(pfd->mFilename);
+    PRInt64 fileModTime = pfd->mModTime;
 
     // Look for it in our cache
     nsRefPtr<nsPluginTag> pluginTag;
-    RemoveCachedPluginsInfo(NS_ConvertUTF16toUTF8(pfd.mFilename).get(),
+    RemoveCachedPluginsInfo(NS_ConvertUTF16toUTF8(pfd->mFilename).get(),
                             getter_AddRefs(pluginTag));
 
     PRBool enabled = PR_TRUE;
@@ -6246,7 +6263,7 @@ nsPluginHostImpl::ParsePostBufferToFixHeaders(
   const char CRLFCRLF[] = {CR,LF,CR,LF,'\0'}; // C string"\r\n\r\n"
   const char ContentLenHeader[] = "Content-length";
 
-  nsAutoTArray<const char*, 8> singleLF;
+  nsAutoVoidArray singleLF;
   const char *pSCntlh = 0;// pointer to start of ContentLenHeader in inPostData
   const char *pSod = 0;   // pointer to start of data in inPostData
   const char *pEoh = 0;   // pointer to end of headers in inPostData
@@ -6296,11 +6313,11 @@ nsPluginHostImpl::ParsePostBufferToFixHeaders(
         }
       } else if (*s == LF) {
         if (*(s-1) != CR) {
-          singleLF.AppendElement(s);
+          singleLF.AppendElement((void*)s);
         }
         if (pSCntlh && (s+1 < pEod) && (*(s+1) == LF)) {
           s++;
-          singleLF.AppendElement(s);
+          singleLF.AppendElement((void*)s);
           s++;
           pEoh = pSod = s; // data stars here
           break;
@@ -6327,7 +6344,7 @@ nsPluginHostImpl::ParsePostBufferToFixHeaders(
     newBufferLen = dataLen + headersLen;
     // in case there were single LFs in headers
     // reserve an extra space for CR will be added before each single LF
-    int cntSingleLF = singleLF.Length();
+    int cntSingleLF = singleLF.Count();
     newBufferLen += cntSingleLF;
 
     if (!(*outPostData = p = (char*)nsMemory::Alloc(newBufferLen)))
@@ -6337,7 +6354,7 @@ nsPluginHostImpl::ParsePostBufferToFixHeaders(
     const char *s = inPostData;
     if (cntSingleLF) {
       for (int i=0; i<cntSingleLF; i++) {
-        const char *plf = singleLF.ElementAt(i); // ptr to single LF in headers
+        const char *plf = (const char*) singleLF.ElementAt(i); // ptr to single LF in headers
         int n = plf - s; // bytes to copy
         if (n) { // for '\n\n' there is nothing to memcpy
           memcpy(p, s, n);
@@ -6616,7 +6633,7 @@ nsPluginHostImpl::ScanForRealInComponentsFolder(nsIComponentManager * aCompManag
 
 nsresult nsPluginHostImpl::AddUnusedLibrary(PRLibrary * aLibrary)
 {
-  if (!mUnusedLibraries.Contains(aLibrary)) // don't add duplicates
+  if (mUnusedLibraries.IndexOf(aLibrary) == -1) // don't add duplicates
     mUnusedLibraries.AppendElement(aLibrary);
 
   return NS_OK;
