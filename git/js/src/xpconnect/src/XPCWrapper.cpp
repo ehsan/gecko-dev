@@ -75,8 +75,7 @@ Unwrap(JSContext *cx, JSObject *wrapper)
   }
 
   if (clasp == &XPCSafeJSObjectWrapper::SJOWClass.base) {
-    JSObject *wrappedObj =
-      XPCSafeJSObjectWrapper::GetUnsafeObject(cx, wrapper);
+    JSObject *wrappedObj = STOBJ_GET_PARENT(wrapper);
 
     if (NS_FAILED(XPCCrossOriginWrapper::CanAccessWrapper(cx, wrappedObj, nsnull))) {
       JS_ClearPendingException(cx);

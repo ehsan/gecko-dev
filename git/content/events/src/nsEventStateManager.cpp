@@ -787,7 +787,8 @@ nsEventStateManager::Init()
 
   observerService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_TRUE);
 
-  nsIPrefBranch2* prefBranch = nsContentUtils::GetPrefBranch();
+  nsCOMPtr<nsIPrefBranch2> prefBranch =
+    do_QueryInterface(nsContentUtils::GetPrefBranch());
 
   if (prefBranch) {
     if (sESMInstanceCount == 1) {
@@ -866,7 +867,8 @@ nsEventStateManager::~nsEventStateManager()
 nsresult
 nsEventStateManager::Shutdown()
 {
-  nsIPrefBranch2* prefBranch = nsContentUtils::GetPrefBranch();
+  nsCOMPtr<nsIPrefBranch2> prefBranch =
+    do_QueryInterface(nsContentUtils::GetPrefBranch());
 
   if (prefBranch) {
     prefBranch->RemoveObserver("accessibility.accesskeycausesactivation", this);

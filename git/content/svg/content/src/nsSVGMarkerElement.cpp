@@ -414,8 +414,7 @@ nsSVGMarkerElement::GetViewBoxTransform()
     float refY = mLengthAttributes[REFY].GetAnimValue(mCoordCtx);
 
     gfxMatrix viewBoxTM =
-      nsSVGUtils::GetViewBoxTransform(this,
-                                      viewportWidth, viewportHeight,
+      nsSVGUtils::GetViewBoxTransform(viewportWidth, viewportHeight,
                                       viewbox.x, viewbox.y,
                                       viewbox.width, viewbox.height,
                                       mPreserveAspectRatio,

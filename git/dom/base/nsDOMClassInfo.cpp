@@ -2630,7 +2630,6 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN(CSSStyleDeclaration, nsIDOMCSSStyleDeclaration)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMCSSStyleDeclaration)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMCSS2Properties)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGCSS2Properties)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSCSS2Properties)
   DOM_CLASSINFO_MAP_END
 
@@ -2638,7 +2637,6 @@ nsDOMClassInfo::Init()
                                       nsIDOMCSSStyleDeclaration)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMCSSStyleDeclaration)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMCSS2Properties)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGCSS2Properties)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSCSS2Properties)
   DOM_CLASSINFO_MAP_END
 

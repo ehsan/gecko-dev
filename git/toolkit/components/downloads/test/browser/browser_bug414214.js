@@ -61,12 +61,18 @@ function test()
 
   // register a callback to add a load listener to know when the download
   // manager opens
-  ww.registerNotification(function (aSubject, aTopic, aData) {
-    ww.unregisterNotification(arguments.callee);
+  var obs = {
+    observe: function(aSubject, aTopic, aData) {
+      // unregister ourself
+      ww.unregisterNotification(this);
 
-    var win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
-    win.addEventListener("DOMContentLoaded", finishUp, false);
-  });
+      var win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
+      win.addEventListener("DOMContentLoaded", finishUp, false);
+    }
+  };
+
+  // register our observer
+  ww.registerNotification(obs);
 
   // The window doesn't open once we call show, so we need to wait a little bit
   function finishUp() {

@@ -139,20 +139,6 @@ cleanup:
         PKIX_RETURN(OCSPCHECKER);
 }
 
-/*
- * FUNCTION: pkix_OcspChecker_MapResultCodeToRevStatus
- */
-PKIX_RevocationStatus
-pkix_OcspChecker_MapResultCodeToRevStatus(SECErrorCodes resultCode)
-{
-        switch (resultCode) {
-            case SEC_ERROR_REVOKED_CERTIFICATE:
-                return PKIX_RevStatus_Revoked;
-            default:
-                return PKIX_RevStatus_NoInfo;
-        }
-}
-
 /* --Public-Functions--------------------------------------------- */
 
 /*
@@ -212,7 +198,7 @@ pkix_OcspChecker_CheckLocal(
                 revStatus = PKIX_RevStatus_Success;
                 resultCode = 0;
             } else {
-                revStatus = pkix_OcspChecker_MapResultCodeToRevStatus(resultCode);
+                revStatus = PKIX_RevStatus_Revoked;
             }
         }
 
@@ -340,7 +326,7 @@ pkix_OcspChecker_CheckExternal(
                                                   plContext),
             PKIX_OCSPRESPONSEGETSTATUSFORCERTFAILED);
         if (passed == PKIX_FALSE) {
-            revStatus = pkix_OcspChecker_MapResultCodeToRevStatus(resultCode);
+            revStatus = PKIX_RevStatus_Revoked;
         } else {
             revStatus = PKIX_RevStatus_Success;
         }

@@ -101,9 +101,7 @@ function test() {
       return;
     gBrowser.removeEventListener("load", arguments.callee, false);
     Watcher.seen = false;
-    var appStartup = Cc['@mozilla.org/toolkit/app-startup;1'].
-                     getService(Ci.nsIAppStartup);
-    appStartup.quit(Ci.nsIAppStartup.eAttemptQuit);
+    goQuitApplication();
     Watcher.allowClose = true;
     ok(Watcher.seen, "Should have seen a prompt dialog");
     ok(!window.closed, "Shouldn't have closed the window");
@@ -113,7 +111,7 @@ function test() {
       win2.removeEventListener("load", arguments.callee, false);
       win2.close();
       gBrowser.removeTab(gBrowser.selectedTab);
-      executeSoon(finish_test);
+      finish_test();
     }, false);
   }, false);
 }

@@ -73,6 +73,8 @@ function waitForEvent(aEventType, aTarget, aFunc, aContext, aArg1, aArg2)
 function registerA11yEventListener(aEventType, aEventHandler)
 {
   listenA11yEvents(true);
+
+  gA11yEventApplicantsCount++;
   addA11yEventListener(aEventType, aEventHandler);
 }
 
@@ -84,6 +86,8 @@ function registerA11yEventListener(aEventType, aEventHandler)
 function unregisterA11yEventListener(aEventType, aEventHandler)
 {
   removeA11yEventListener(aEventType, aEventHandler);
+
+  gA11yEventApplicantsCount--;
   listenA11yEvents(false);
 }
 
@@ -169,6 +173,7 @@ function eventQueue(aEventType)
   this.invoke = function eventQueue_invoke()
   {
     listenA11yEvents(true);
+    gA11yEventApplicantsCount++;
 
     // XXX: Intermittent test_events_caretmove.html fails withouth timeout,
     // see bug 474952.
@@ -190,7 +195,7 @@ function eventQueue(aEventType)
    */
   this.processNextInvoker = function eventQueue_processNextInvoker()
   {
-    // Finish processing of the current invoker.
+    // Finish rocessing of the current invoker.
     var testFailed = false;
 
     var invoker = this.getInvoker();
@@ -239,6 +244,7 @@ function eventQueue(aEventType)
 
     // Check if need to stop the test.
     if (testFailed || this.mIndex == this.mInvokers.length - 1) {
+      gA11yEventApplicantsCount--;
       listenA11yEvents(false);
 
       var res = this.onFinish();
@@ -768,9 +774,7 @@ var gA11yEventObserver =
 {
   // The service reference needs to live in the observer, instead of as a global var,
   //   to be available in observe() catch case too.
-  observerService :
-    Components.classes["@mozilla.org/observer-service;1"]
-              .getService(nsIObserverService),
+  observerService : null,
 
   observe: function observe(aSubject, aTopic, aData)
   {
@@ -819,17 +823,17 @@ var gA11yEventObserver =
 
 function listenA11yEvents(aStartToListen)
 {
-  if (aStartToListen) {
-    // Add observer when adding the first applicant only.
-    if (!(gA11yEventApplicantsCount++))
-      gA11yEventObserver.observerService
-                        .addObserver(gA11yEventObserver, "accessible-event", false);
-  } else {
-    // Remove observer when there are no more applicants only.
-    // '< 0' case should not happen, but just in case: removeObserver() will throw.
-    if (--gA11yEventApplicantsCount <= 0)
-      gA11yEventObserver.observerService
-                        .removeObserver(gA11yEventObserver, "accessible-event");
+  if (aStartToListen && !gA11yEventObserver.observerService) {
+    gA11yEventObserver.observerService =
+        Components.classes["@mozilla.org/observer-service;1"].getService(nsIObserverService);
+    
+    gA11yEventObserver.observerService
+                      .addObserver(gA11yEventObserver, "accessible-event", false);
+  } else if (!gA11yEventApplicantsCount) {
+    gA11yEventObserver.observerService
+                      .removeObserver(gA11yEventObserver, "accessible-event");
+    // Release service (variable), so listenA11yEvents(true) can be called again if need be and work.
+    gA11yEventObserver.observerService = null;
   }
 }
 

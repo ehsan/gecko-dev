@@ -868,7 +868,7 @@ nsSMILAnimationFunction::GetAccumulate() const
   if (!value)
     return PR_FALSE;
 
-  return value->GetEnumValue();
+  return (value->GetEnumValue() == PR_TRUE);
 }
 
 PRBool
@@ -878,7 +878,7 @@ nsSMILAnimationFunction::GetAdditive() const
   if (!value)
     return PR_FALSE;
 
-  return value->GetEnumValue();
+  return (value->GetEnumValue() == PR_TRUE);
 }
 
 nsSMILAnimationFunction::nsSMILCalcMode

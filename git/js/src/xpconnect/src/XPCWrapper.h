@@ -131,7 +131,7 @@ WrapObject(JSContext *cx, JSObject *parent, jsval v, jsval *vp);
 namespace XPCSafeJSObjectWrapper {
 
 JSObject *
-GetUnsafeObject(JSContext *cx, JSObject *obj);
+GetUnsafeObject(JSObject *obj);
 
 JSBool
 WrapObject(JSContext *cx, JSObject *scope, jsval v, jsval *vp);

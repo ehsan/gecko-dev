@@ -158,7 +158,8 @@ nsFocusManager::nsFocusManager()
 
 nsFocusManager::~nsFocusManager()
 {
-  nsIPrefBranch2* prefBranch = nsContentUtils::GetPrefBranch();
+  nsCOMPtr<nsIPrefBranch2> prefBranch =
+    do_QueryInterface(nsContentUtils::GetPrefBranch());
 
   if (prefBranch) {
     prefBranch->RemoveObserver("accessibility.browsewithcaret", this);
@@ -179,7 +180,8 @@ nsFocusManager::Init()
     nsContentUtils::GetBoolPref("accessibility.tabfocus_applies_to_xul",
                                 nsIContent::sTabFocusModelAppliesToXUL);
 
-  nsIPrefBranch2* prefBranch = nsContentUtils::GetPrefBranch();
+  nsCOMPtr<nsIPrefBranch2> prefBranch =
+    do_QueryInterface(nsContentUtils::GetPrefBranch());
   prefBranch->AddObserver("accessibility.browsewithcaret", fm, PR_TRUE);
   prefBranch->AddObserver("accessibility.tabfocus_applies_to_xul", fm, PR_TRUE);
 

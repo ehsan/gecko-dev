@@ -2096,7 +2096,7 @@ var gCSSProperties = {
 	}
 	,
 	"clip-path": {
-		domProp: "clipPath",
+		domProp: null,
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "none" ],
@@ -2104,7 +2104,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"clip-rule": {
-		domProp: "clipRule",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "nonzero" ],
@@ -2112,7 +2112,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"color-interpolation": {
-		domProp: "colorInterpolation",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "sRGB" ],
@@ -2120,7 +2120,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"color-interpolation-filters": {
-		domProp: "colorInterpolationFilters",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "linearRGB" ],
@@ -2128,7 +2128,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"dominant-baseline": {
-		domProp: "dominantBaseline",
+		domProp: null,
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "auto" ],
@@ -2136,7 +2136,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"fill": {
-		domProp: "fill",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		prerequisites: { "color": "blue" },
@@ -2145,7 +2145,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"fill-opacity": {
-		domProp: "fillOpacity",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "1", "2.8", "1.000" ],
@@ -2153,7 +2153,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"fill-rule": {
-		domProp: "fillRule",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "nonzero" ],
@@ -2161,7 +2161,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"filter": {
-		domProp: "filter",
+		domProp: null,
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "none" ],
@@ -2169,7 +2169,7 @@ var gCSSProperties = {
 		invalid_values: [ "url(#myfilt) none" ]
 	},
 	"flood-color": {
-		domProp: "floodColor",
+		domProp: null,
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		prerequisites: { "color": "blue" },
@@ -2178,7 +2178,7 @@ var gCSSProperties = {
 		invalid_values: [ "url('#myserver')", "url(foo.svg#myserver)", 'url("#myserver") green' ]
 	},
 	"flood-opacity": {
-		domProp: "floodOpacity",
+		domProp: null,
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "1", "2.8", "1.000" ],
@@ -2186,7 +2186,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"image-rendering": {
-		domProp: "imageRendering",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "auto" ],
@@ -2194,7 +2194,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"lighting-color": {
-		domProp: "lightingColor",
+		domProp: null,
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		prerequisites: { "color": "blue" },
@@ -2203,7 +2203,7 @@ var gCSSProperties = {
 		invalid_values: [ "url('#myserver')", "url(foo.svg#myserver)", 'url("#myserver") green' ]
 	},
 	"marker": {
-		domProp: "marker",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_TRUE_SHORTHAND,
 		subproperties: [ "marker-start", "marker-mid", "marker-end" ],
@@ -2212,7 +2212,7 @@ var gCSSProperties = {
 		invalid_values: [ "none none", "url(#mysym) url(#mysym)", "none url(#mysym)", "url(#mysym) none" ]
 	},
 	"marker-end": {
-		domProp: "markerEnd",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "none" ],
@@ -2220,7 +2220,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"marker-mid": {
-		domProp: "markerMid",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "none" ],
@@ -2228,7 +2228,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"marker-start": {
-		domProp: "markerStart",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "none" ],
@@ -2236,7 +2236,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"mask": {
-		domProp: "mask",
+		domProp: null,
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "none" ],
@@ -2244,7 +2244,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"shape-rendering": {
-		domProp: "shapeRendering",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "auto" ],
@@ -2252,7 +2252,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"stop-color": {
-		domProp: "stopColor",
+		domProp: null,
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		prerequisites: { "color": "blue" },
@@ -2261,7 +2261,7 @@ var gCSSProperties = {
 		invalid_values: [ "url('#myserver')", "url(foo.svg#myserver)", 'url("#myserver") green' ]
 	},
 	"stop-opacity": {
-		domProp: "stopOpacity",
+		domProp: null,
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "1", "2.8", "1.000" ],
@@ -2269,7 +2269,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"stroke": {
-		domProp: "stroke",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "none" ],
@@ -2277,7 +2277,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"stroke-dasharray": {
-		domProp: "strokeDasharray",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "none" ],
@@ -2285,7 +2285,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"stroke-dashoffset": {
-		domProp: "strokeDashoffset",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "0", "-0px", "0em" ],
@@ -2293,7 +2293,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"stroke-linecap": {
-		domProp: "strokeLinecap",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "butt" ],
@@ -2301,7 +2301,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"stroke-linejoin": {
-		domProp: "strokeLinejoin",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "miter" ],
@@ -2309,7 +2309,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"stroke-miterlimit": {
-		domProp: "strokeMiterlimit",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "4" ],
@@ -2317,7 +2317,7 @@ var gCSSProperties = {
 		invalid_values: [ "0.9", "0", "-1", "3px", "-0.3" ]
 	},
 	"stroke-opacity": {
-		domProp: "strokeOpacity",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "1", "2.8", "1.000" ],
@@ -2325,7 +2325,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"stroke-width": {
-		domProp: "strokeWidth",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "1px" ],
@@ -2333,7 +2333,7 @@ var gCSSProperties = {
 		invalid_values: [ "-0.1px", "-3px" ]
 	},
 	"text-anchor": {
-		domProp: "textAnchor",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "start" ],
@@ -2341,7 +2341,7 @@ var gCSSProperties = {
 		invalid_values: []
 	},
 	"text-rendering": {
-		domProp: "textRendering",
+		domProp: null,
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "auto" ],

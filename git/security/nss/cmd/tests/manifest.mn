@@ -43,7 +43,6 @@ MODULE = nss
 CSRCS = \
 	baddbdir.c \
 	conflict.c \
-	dertimetest.c \
 	nonspr10.c \
 	remtest.c \
 	$(NULL)

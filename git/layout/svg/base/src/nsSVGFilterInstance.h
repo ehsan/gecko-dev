@@ -65,7 +65,6 @@ class NS_STACK_CLASS nsSVGFilterInstance
 {
 public:
   float GetPrimitiveLength(nsSVGLength2 *aLength) const;
-  void ConvertLocation(float aValues[3]) const;
 
   nsSVGFilterInstance(nsIFrame *aTargetFrame,
                       nsSVGFilterPaintCallback *aPaintCallback,

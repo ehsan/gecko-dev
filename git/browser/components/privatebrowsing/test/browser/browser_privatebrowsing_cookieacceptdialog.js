@@ -50,32 +50,33 @@ function test() {
   waitForExplicitFinish();
 
   function checkRememberOption(expectedDisabled, callback) {
-    function observer(aSubject, aTopic, aData) {
-      if (aTopic != "domwindowopened")
-        return;
+    let observer = {
+      observe: function(aSubject, aTopic, aData) {
+        if (aTopic === "domwindowopened") {
+          ww.unregisterNotification(this);
+          let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
+          win.addEventListener("load", function onLoad(event) {
+            win.removeEventListener("load", onLoad, false);
 
-      ww.unregisterNotification(observer);
-      let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
-      win.addEventListener("load", function onLoad(event) {
-        win.removeEventListener("load", onLoad, false);
+            executeSoon(function() {
+              let doc = win.document;
+              let remember = doc.getElementById("persistDomainAcceptance");
+              ok(remember, "The remember checkbox should exist");
 
-        executeSoon(function () {
-          let doc = win.document;
-          let remember = doc.getElementById("persistDomainAcceptance");
-          ok(remember, "The remember checkbox should exist");
+              if (expectedDisabled)
+                is(remember.getAttribute("disabled"), "true",
+                   "The checkbox should be disabled");
+              else
+                ok(!remember.hasAttribute("disabled"),
+                   "The checkbox should not be disabled");
 
-          if (expectedDisabled)
-            is(remember.getAttribute("disabled"), "true",
-               "The checkbox should be disabled");
-          else
-            ok(!remember.hasAttribute("disabled"),
-               "The checkbox should not be disabled");
-
-          win.close();
-          callback();
-        });
-      }, false);
-    }
+              win.close();
+              callback();
+            });
+          }, false);
+        }
+      }
+    };
     ww.registerNotification(observer);
 
     let remember = {};

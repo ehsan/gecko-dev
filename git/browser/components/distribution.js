@@ -138,7 +138,6 @@ DistributionCustomizer.prototype = {
       let m = /^item\.(\d+)\.(\w+)\.?(\w*)/.exec(keys[i]);
       if (m) {
         let [foo, iid, iprop, ilocale] = m;
-        iid = parseInt(iid);
 
         if (ilocale)
           continue;
@@ -155,7 +154,7 @@ DistributionCustomizer.prototype = {
         if (iprop == "type" && items[iid]["type"] == "default")
           defaultItemId = iid;
 
-        if (maxItemId < iid)
+        if (maxItemId < parseInt(iid))
           maxItemId = iid;
       } else {
         dump("Key did not match: " + keys[i] + "\n");
