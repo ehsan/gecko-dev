@@ -239,7 +239,6 @@ nsFocusManager::Observe(nsISupports *aSubject,
     mFirstBlurEvent = nsnull;
     mFirstFocusEvent = nsnull;
     mWindowBeingLowered = nsnull;
-    mDelayedBlurFocusEvents.Clear();
     mMouseDownEventHandlingDocument = nsnull;
   }
 
@@ -1732,7 +1731,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
     mFocusedContent = aContent;
 
     nsIContent* focusedNode = aWindow->GetFocusedNode();
-    PRBool isRefocus = focusedNode && focusedNode->IsEqualTo(aContent);
+    PRBool isRefocus = focusedNode && focusedNode->IsEqual(aContent);
 
     aWindow->SetFocusedNode(aContent, focusMethod);
 
@@ -2181,9 +2180,13 @@ nsFocusManager::GetSelectionLocation(nsIDocument* aDocument,
       // logical frame's primary node - so for this case we need to
       // change caretContent to that node.
 
-      if (startContent->NodeType() == nsIDOMNode::TEXT_NODE) {
+      nsCOMPtr<nsIDOMNode> domNode(do_QueryInterface(startContent));
+      PRUint16 nodeType;
+      domNode->GetNodeType(&nodeType);
+
+      if (nodeType == nsIDOMNode::TEXT_NODE) {
         nsAutoString nodeValue;
-        startContent->AppendTextTo(nodeValue);
+        domNode->GetNodeValue(nodeValue);
 
         PRBool isFormControl =
           startContent->IsNodeOfType(nsINode::eHTML_FORM_CONTROL);

@@ -54,7 +54,7 @@
 #include "nsIChannelEventSink.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsContentUtils.h"
-#include "mozilla/Preferences.h"
+#include "nsIPrefService.h"
 
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
@@ -74,8 +74,6 @@
 #include "nsChannelPolicy.h"
 
 #include "nsStyleSet.h"
-
-using namespace mozilla;
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo *gFontDownloaderLog = PR_NewLogModule("fontdownloader");
@@ -106,8 +104,11 @@ nsFontFaceLoader::~nsFontFaceLoader()
 void
 nsFontFaceLoader::StartedLoading(nsIStreamLoader *aStreamLoader)
 {
-  PRInt32 loadTimeout =
-    Preferences::GetInt("gfx.downloadable_fonts.fallback_delay", 3000);
+  PRInt32 loadTimeout = 3000;
+  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (prefs) {
+    prefs->GetIntPref("gfx.downloadable_fonts.fallback_delay", &loadTimeout);
+  }
   if (loadTimeout > 0) {
     mLoadTimer = do_CreateInstance("@mozilla.org/timer;1");
     if (mLoadTimer) {
@@ -685,15 +686,4 @@ nsUserFontSet::ReplaceFontEntry(gfxProxyFontEntry *aProxy,
   }
   static_cast<gfxMixedFontFamily*>(aProxy->Family())->
     ReplaceFontEntry(aProxy, aFontEntry);
-}
-
-nsCSSFontFaceRule*
-nsUserFontSet::FindRuleForEntry(gfxFontEntry *aFontEntry)
-{
-  for (PRUint32 i = 0; i < mRules.Length(); ++i) {
-    if (mRules[i].mFontEntry == aFontEntry) {
-      return mRules[i].mContainer.mRule;
-    }
-  }
-  return nsnull;
 }

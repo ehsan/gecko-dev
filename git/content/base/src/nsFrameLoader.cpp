@@ -1405,7 +1405,6 @@ nsFrameLoader::MaybeCreateDocShell()
   nsCOMPtr<nsISupports> container =
     doc->GetContainer();
   nsCOMPtr<nsIWebNavigation> parentAsWebNav = do_QueryInterface(container);
-  NS_ENSURE_STATE(parentAsWebNav);
 
   // Create the docshell...
   mDocShell = do_CreateInstance("@mozilla.org/docshell;1");
@@ -1458,7 +1457,6 @@ nsFrameLoader::MaybeCreateDocShell()
     // this some other way.....  Not sure how yet.
     nsCOMPtr<nsIDocShellTreeOwner> parentTreeOwner;
     parentAsItem->GetTreeOwner(getter_AddRefs(parentTreeOwner));
-    NS_ENSURE_STATE(parentTreeOwner);
     mIsTopLevelContent =
       AddTreeItemToTreeOwner(docShellAsItem, mOwnerContent, parentTreeOwner,
                              parentType, parentAsNode);
@@ -1904,10 +1902,9 @@ public:
     nsInProcessTabChildGlobal* tabChild =
       static_cast<nsInProcessTabChildGlobal*>(mFrameLoader->mChildMessageManager.get());
     if (tabChild && tabChild->GetInnerManager()) {
-      nsFrameScriptCx cx(static_cast<nsPIDOMEventTarget*>(tabChild), tabChild);
-      nsRefPtr<nsFrameMessageManager> mm = tabChild->GetInnerManager();
-      mm->ReceiveMessage(static_cast<nsPIDOMEventTarget*>(tabChild), mMessage,
-                         PR_FALSE, mJSON, nsnull, nsnull);
+      tabChild->GetInnerManager()->
+        ReceiveMessage(static_cast<nsPIDOMEventTarget*>(tabChild), mMessage,
+                       PR_FALSE, mJSON, nsnull, nsnull);
     }
     return NS_OK;
   }

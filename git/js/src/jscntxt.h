@@ -657,6 +657,12 @@ struct JSRuntime {
 #endif
 
 #ifdef DEBUG
+    /* Function invocation metering. */
+    jsrefcount          inlineCalls;
+    jsrefcount          nativeCalls;
+    jsrefcount          nonInlineCalls;
+    jsrefcount          constructs;
+
     /*
      * NB: emptyShapes (in JSCompartment) is init'ed iff at least one
      * of these envars is set:
@@ -1085,7 +1091,7 @@ struct JSContext
     js::ContextStack    stack;
 
     /* ContextStack convenience functions */
-    bool hasfp() const                { return stack.hasfp(); }
+    bool running() const              { return stack.running(); }
     js::StackFrame* fp() const        { return stack.fp(); }
     js::StackFrame* maybefp() const   { return stack.maybefp(); }
     js::FrameRegs& regs() const       { return stack.regs(); }
@@ -1138,7 +1144,7 @@ struct JSContext
      * This typically occurs via the JSAPI right after a context is constructed.
      */
     bool canSetDefaultVersion() const {
-        return !stack.hasfp() && !hasVersionOverride;
+        return !stack.running() && !hasVersionOverride;
     }
 
     /* Force a version for future script compilation. */
@@ -1180,11 +1186,10 @@ struct JSContext
      * default version.
      */
     void maybeMigrateVersionOverride() {
-        JS_ASSERT(stack.empty());
-        if (JS_UNLIKELY(isVersionOverridden())) {
-            defaultVersion = versionOverride;
-            clearVersionOverride();
-        }
+        if (JS_LIKELY(!isVersionOverridden() && stack.empty()))
+            return;
+        defaultVersion = versionOverride;
+        clearVersionOverride();
     }
 
     /*
@@ -1199,7 +1204,7 @@ struct JSContext
         if (hasVersionOverride)
             return versionOverride;
 
-        if (stack.hasfp()) {
+        if (stack.running()) {
             /* There may be a scripted function somewhere on the stack! */
             js::StackFrame *f = fp();
             while (f && !f->isScriptFrame())

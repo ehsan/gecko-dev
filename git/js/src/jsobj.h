@@ -351,19 +351,18 @@ struct JSObject : js::gc::Cell {
     inline bool nativeContains(const js::Shape &shape);
 
     enum {
-        DELEGATE                  =   0x01,
-        SYSTEM                    =   0x02,
-        NOT_EXTENSIBLE            =   0x04,
-        BRANDED                   =   0x08,
-        GENERIC                   =   0x10,
-        METHOD_BARRIER            =   0x20,
-        INDEXED                   =   0x40,
-        OWN_SHAPE                 =   0x80,
-        BOUND_FUNCTION            =  0x100,
-        HAS_EQUALITY              =  0x200,
-        VAROBJ                    =  0x400,
-        METHOD_THRASH_COUNT_MASK  = 0x3000,
-        METHOD_THRASH_COUNT_SHIFT =     12,
+        DELEGATE                  =  0x01,
+        SYSTEM                    =  0x02,
+        NOT_EXTENSIBLE            =  0x04,
+        BRANDED                   =  0x08,
+        GENERIC                   =  0x10,
+        METHOD_BARRIER            =  0x20,
+        INDEXED                   =  0x40,
+        OWN_SHAPE                 =  0x80,
+        BOUND_FUNCTION            = 0x100,
+        HAS_EQUALITY              = 0x200,
+        METHOD_THRASH_COUNT_MASK  = 0xc00,
+        METHOD_THRASH_COUNT_SHIFT =    10,
         METHOD_THRASH_COUNT_MAX   = METHOD_THRASH_COUNT_MASK >> METHOD_THRASH_COUNT_SHIFT
     };
 
@@ -467,10 +466,6 @@ struct JSObject : js::gc::Cell {
 
     /* Sets an object's HAS_EQUALITY flag based on its clasp. */
     inline void syncSpecialEquality();
-
-    /* See StackFrame::varObj. */
-    inline bool isVarObj() const { return flags & VAROBJ; }
-    inline void makeVarObj() { flags |= VAROBJ; }
 
   private:
     void generateOwnShape(JSContext *cx);
@@ -1251,12 +1246,6 @@ static JS_ALWAYS_INLINE bool
 operator==(const JSObject &lhs, const JSObject &rhs)
 {
     return &lhs == &rhs;
-}
-
-static JS_ALWAYS_INLINE bool
-operator!=(const JSObject &lhs, const JSObject &rhs)
-{
-    return &lhs != &rhs;
 }
 
 inline js::Value*

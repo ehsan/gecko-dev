@@ -1762,10 +1762,6 @@ DocumentViewerImpl::SetDocumentInternal(nsIDocument* aDocument,
   aDocument->SetContainer(container);
 
   if (mDocument != aDocument) {
-    if (mDocument->IsStaticDocument()) {
-      mDocument->SetScriptGlobalObject(nsnull);
-      mDocument->Destroy();
-    }
     // Replace the old document with the new one. Do this only when
     // the new document really is a new document.
     mDocument = aDocument;
@@ -3863,8 +3859,16 @@ DocumentViewerImpl::PrintPreviewNavigate(PRInt16 aType, PRInt32 aPageNum)
   }
 
   if (fndPageFrame) {
+    nscoord deadSpaceGapTwips = 0;
+    nsIPageSequenceFrame * sqf = do_QueryFrame(seqFrame);
+    if (sqf) {
+      sqf->GetDeadSpaceValue(&deadSpaceGapTwips);
+    }
+
+    nscoord deadSpaceGap = nsPresContext::CSSTwipsToAppUnits(deadSpaceGapTwips);
     nscoord newYPosn =
-      nscoord(mPrintEngine->GetPrintPreviewScale() * fndPageFrame->GetPosition().y);
+      nscoord(mPrintEngine->GetPrintPreviewScale() * 
+              float(fndPageFrame->GetPosition().y - deadSpaceGap));
     sf->ScrollTo(nsPoint(pt.x, newYPosn), nsIScrollableFrame::INSTANT);
   }
   return NS_OK;

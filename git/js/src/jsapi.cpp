@@ -1525,7 +1525,7 @@ JS_SetGlobalObject(JSContext *cx, JSObject *obj)
     CHECK_REQUEST(cx);
 
     cx->globalObject = obj;
-    if (!cx->hasfp())
+    if (!cx->running())
         cx->resetCompartment();
 }
 
@@ -4219,7 +4219,7 @@ JS_CloneFunctionObject(JSContext *cx, JSObject *funobj, JSObject *parent)
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, parent);  // XXX no funobj for now
     if (!parent) {
-        if (cx->hasfp())
+        if (cx->running())
             parent = GetScopeChain(cx, cx->fp());
         if (!parent)
             parent = cx->globalObject;
@@ -4937,7 +4937,7 @@ JS_ExecuteScript(JSContext *cx, JSObject *obj, JSObject *scriptObj, jsval *rval)
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj, scriptObj);
 
-    JSBool ok = ExternalExecute(cx, scriptObj->getScript(), *obj, Valueify(rval));
+    JSBool ok = Execute(cx, *obj, scriptObj->getScript(), NULL, 0, Valueify(rval));
     LAST_FRAME_CHECKS(cx, ok);
     return ok;
 }
@@ -4970,8 +4970,7 @@ EvaluateUCScriptForPrincipalsCommon(JSContext *cx, JSObject *obj,
         return false;
     }
     JS_ASSERT(script->getVersion() == compileVersion);
-
-    bool ok = ExternalExecute(cx, script, *obj, Valueify(rval));
+    bool ok = Execute(cx, *obj, script, NULL, 0, Valueify(rval));
     LAST_FRAME_CHECKS(cx, ok);
     js_DestroyScript(cx, script);
     return ok;
@@ -5193,7 +5192,7 @@ JS_IsRunning(JSContext *cx)
     VOUCH_DOES_NOT_REQUIRE_STACK();
 
 #ifdef JS_TRACER
-    JS_ASSERT_IF(JS_ON_TRACE(cx) && JS_TRACE_MONITOR_ON_TRACE(cx)->tracecx == cx, cx->hasfp());
+    JS_ASSERT_IF(JS_ON_TRACE(cx) && JS_TRACE_MONITOR_ON_TRACE(cx)->tracecx == cx, cx->running());
 #endif
     StackFrame *fp = cx->maybefp();
     while (fp && fp->isDummyFrame())
@@ -5201,20 +5200,26 @@ JS_IsRunning(JSContext *cx)
     return fp != NULL;
 }
 
-JS_PUBLIC_API(JSBool)
+JS_PUBLIC_API(JSStackFrame *)
 JS_SaveFrameChain(JSContext *cx)
 {
     CHECK_REQUEST(cx);
-    LeaveTrace(cx);
-    return cx->stack.saveFrameChain();
+    StackFrame *fp = js_GetTopStackFrame(cx);
+    if (!fp)
+        return NULL;
+    cx->stack.saveActiveSegment();
+    return Jsvalify(fp);
 }
 
 JS_PUBLIC_API(void)
-JS_RestoreFrameChain(JSContext *cx)
+JS_RestoreFrameChain(JSContext *cx, JSStackFrame *fp)
 {
     CHECK_REQUEST(cx);
     JS_ASSERT_NOT_ON_TRACE(cx);
-    cx->stack.restoreFrameChain();
+    JS_ASSERT(!cx->running());
+    if (!fp)
+        return;
+    cx->stack.restoreSegment();
 }
 
 /************************************************************************/

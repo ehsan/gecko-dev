@@ -62,9 +62,6 @@ _CHROME_FILES = \
     test_bug635835.xul \
     test_fileconstructor.xul \
     fileconstructor_file.png \
-    test_bug339494.xul \
-    test_bug357450.xul \
-    test_bug571390.xul \
     $(NULL)
 
 libs:: $(_TEST_FILES)

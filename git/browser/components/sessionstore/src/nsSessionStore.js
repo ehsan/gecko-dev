@@ -869,14 +869,7 @@ SessionStoreService.prototype = {
     if (!aWindow.__SSi || !this._windows[aWindow.__SSi]) {
       return;
     }
-
-    // notify that the session store will stop tracking this window so that
-    // extensions can store any data about this window in session store before
-    // that's not possible anymore
-    let event = aWindow.document.createEvent("Events");
-    event.initEvent("SSWindowClosing", true, false);
-    aWindow.dispatchEvent(event);
-
+    
     if (this.windowToFocus && this.windowToFocus == aWindow) {
       delete this.windowToFocus;
     }
@@ -2904,7 +2897,7 @@ SessionStoreService.prototype = {
         // instead of gotoIndex. See bug 597315.
         browser.webNavigation.sessionHistory.getEntryAtIndex(activeIndex, true);
         browser.webNavigation.sessionHistory.
-          QueryInterface(Ci.nsISHistory).reloadCurrentEntry();
+          QueryInterface(Ci.nsISHistory_2_0_BRANCH).reloadCurrentEntry();
       }
       catch (ex) {
         // ignore page load errors

@@ -1150,8 +1150,7 @@ js_NewGenerator(JSContext *cx)
     if (!obj)
         return NULL;
 
-    FrameRegs &stackRegs = cx->regs();
-    StackFrame *stackfp = stackRegs.fp();
+    StackFrame *stackfp = cx->fp();
     JS_ASSERT(stackfp->base() == cx->regs().sp);
     JS_ASSERT(stackfp->actualArgs() <= stackfp->formalArgs());
 
@@ -1180,9 +1179,12 @@ js_NewGenerator(JSContext *cx)
     gen->enumerators = NULL;
     gen->floating = genfp;
 
-    /* Copy from the stack to the generator's floating frame. */
-    gen->regs.rebaseFromTo(stackRegs, *genfp);
-    genfp->stealFrameAndSlots(genvp, stackfp, stackvp, stackRegs.sp);
+    /* Initialize regs stored in generator. */
+    gen->regs = cx->regs();
+    gen->regs.rebaseFromTo(stackfp, genfp);
+
+    /* Copy frame off the stack. */
+    genfp->stealFrameAndSlots(genvp, stackfp, stackvp, cx->regs().sp);
     genfp->initFloatingGenerator();
 
     obj->setPrivate(gen);
@@ -1251,29 +1253,54 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
     }
 
     StackFrame *genfp = gen->floatingFrame();
+    Value *genvp = gen->floatingStack;
+    uintN vplen = genfp->formalArgsEnd() - genvp;
 
+    StackFrame *stackfp;
+    Value *stackvp;
     JSBool ok;
     {
-        GeneratorFrameGuard gfg;
-        if (!cx->stack.pushGeneratorFrame(cx, gen, &gfg)) {
+        /*
+         * Get a pointer to new frame/slots. This memory is not "claimed", so
+         * the code before pushExecuteFrame must not reenter the interpreter.
+         */
+        GeneratorFrameGuard frame;
+        if (!cx->stack.getGeneratorFrame(cx, vplen, genfp->numSlots(), &frame)) {
             gen->state = JSGEN_CLOSED;
             return JS_FALSE;
         }
+        stackfp = frame.fp();
+        stackvp = frame.vp();
 
-        StackFrame *fp = gfg.fp();
-        gen->regs = cx->regs();
-        JS_ASSERT(gen->liveFrame() == fp);
+        /* Copy frame onto the stack. */
+        stackfp->stealFrameAndSlots(stackvp, genfp, genvp, gen->regs.sp);
+        stackfp->resetGeneratorPrev(cx);
+        stackfp->unsetFloatingGenerator();
+        gen->regs.rebaseFromTo(genfp, stackfp);
+        MUST_FLOW_THROUGH("restore");
+
+        /* Officially push frame. frame's destructor pops. */
+        cx->stack.pushGeneratorFrame(gen->regs, &frame);
 
         cx->enterGenerator(gen);   /* OOM check above. */
         JSObject *enumerators = cx->enumerators;
         cx->enumerators = gen->enumerators;
 
-        ok = RunScript(cx, fp->script(), fp);
+        ok = RunScript(cx, stackfp->script(), stackfp);
 
         gen->enumerators = cx->enumerators;
         cx->enumerators = enumerators;
         cx->leaveGenerator(gen);
+
+        /*
+         * Copy the stack frame and rebase the regs, but not before popping
+         * the stack, since cx->regs == &gen->regs.
+         */
+        genfp->stealFrameAndSlots(genvp, stackfp, stackvp, gen->regs.sp);
+        genfp->setFloatingGenerator();
     }
+    MUST_FLOW_LABEL(restore)
+    gen->regs.rebaseFromTo(stackfp, genfp);
 
     if (gen->floatingFrame()->isYielding()) {
         /* Yield cannot fail, throw or be called on closing. */

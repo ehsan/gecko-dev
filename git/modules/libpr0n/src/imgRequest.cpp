@@ -80,7 +80,8 @@
 #include "nsNetUtil.h"
 #include "nsIProtocolHandler.h"
 
-#include "mozilla/Preferences.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch2.h"
 
 #include "DiscardTracker.h"
 #include "nsAsyncRedirectVerifyHelper.h"
@@ -92,19 +93,11 @@
 #define MAXBYTESFORSYNC_PREF "image.mem.max_bytes_for_sync_decode"
 #define SVG_MIMETYPE "image/svg+xml"
 
-using namespace mozilla;
 using namespace mozilla::imagelib;
 
 /* Kept up to date by a pref observer. */
 static PRBool gDecodeOnDraw = PR_FALSE;
 static PRBool gDiscardable = PR_FALSE;
-
-static const char* kObservedPrefs[] = {
-  DISCARD_PREF,
-  DECODEONDRAW_PREF,
-  DISCARD_TIMEOUT_PREF,
-  nsnull
-};
 
 /*
  * Pref observer goop. Yuck.
@@ -115,28 +108,31 @@ static PRBool gRegisteredPrefObserver = PR_FALSE;
 
 // Reloader
 static void
-ReloadPrefs()
+ReloadPrefs(nsIPrefBranch *aBranch)
 {
   // Discardable
-  gDiscardable = Preferences::GetBool(DISCARD_PREF, gDiscardable);
+  PRBool discardable;
+  nsresult rv = aBranch->GetBoolPref(DISCARD_PREF, &discardable);
+  if (NS_SUCCEEDED(rv))
+    gDiscardable = discardable;
 
   // Decode-on-draw
-  gDecodeOnDraw = Preferences::GetBool(DECODEONDRAW_PREF, gDecodeOnDraw);
+  PRBool decodeondraw;
+  rv = aBranch->GetBoolPref(DECODEONDRAW_PREF, &decodeondraw);
+  if (NS_SUCCEEDED(rv))
+    gDecodeOnDraw = decodeondraw;
 
   // Progressive decoding knobs
   PRInt32 bytesAtATime, maxMS, maxBytesForSync;
-  if (NS_SUCCEEDED(Preferences::GetInt(BYTESATATIME_PREF, &bytesAtATime))) {
+  rv = aBranch->GetIntPref(BYTESATATIME_PREF, &bytesAtATime);
+  if (NS_SUCCEEDED(rv))
     RasterImage::SetDecodeBytesAtATime(bytesAtATime);
-  }
-
-  if (NS_SUCCEEDED(Preferences::GetInt(MAXMS_PREF, &maxMS))) {
+  rv = aBranch->GetIntPref(MAXMS_PREF, &maxMS);
+  if (NS_SUCCEEDED(rv))
     RasterImage::SetMaxMSBeforeYield(maxMS);
-  }
-
-  if (NS_SUCCEEDED(Preferences::GetInt(MAXBYTESFORSYNC_PREF,
-                                       &maxBytesForSync))) {
+  rv = aBranch->GetIntPref(MAXBYTESFORSYNC_PREF, &maxBytesForSync);
+  if (NS_SUCCEEDED(rv))
     RasterImage::SetMaxBytesForSyncDecode(maxBytesForSync);
-  }
 
   // Discard timeout
   mozilla::imagelib::DiscardTracker::ReloadTimeout();
@@ -165,8 +161,15 @@ imgRequestPrefObserver::Observe(nsISupports     *aSubject,
       strcmp(NS_LossyConvertUTF16toASCII(aData).get(), DISCARD_TIMEOUT_PREF))
     return NS_OK;
 
+  // Get the pref branch
+  nsCOMPtr<nsIPrefBranch> branch = do_QueryInterface(aSubject);
+  if (!branch) {
+    NS_WARNING("Couldn't get pref branch within imgRequestPrefObserver::Observe!");
+    return NS_OK;
+  }
+
   // Process the change
-  ReloadPrefs();
+  ReloadPrefs(branch);
 
   return NS_OK;
 }
@@ -223,8 +226,6 @@ nsresult imgRequest::Init(nsIURI *aURI,
   mKeyURI = aKeyURI;
   mRequest = aRequest;
   mChannel = aChannel;
-  mTimedChannel = do_QueryInterface(mChannel);
-
   mChannel->GetNotificationCallbacks(getter_AddRefs(mPrevChannelSink));
 
   NS_ASSERTION(mPrevChannelSink != this,
@@ -240,10 +241,15 @@ nsresult imgRequest::Init(nsIURI *aURI,
 
   // Register our pref observer if it hasn't been done yet.
   if (NS_UNLIKELY(!gRegisteredPrefObserver)) {
-    nsCOMPtr<nsIObserver> observer(new imgRequestPrefObserver());
-    Preferences::AddStrongObservers(observer, kObservedPrefs);
-    ReloadPrefs();
-    gRegisteredPrefObserver = PR_TRUE;
+    nsCOMPtr<nsIPrefBranch2> branch = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (branch) {
+      nsCOMPtr<nsIObserver> observer(new imgRequestPrefObserver());
+      branch->AddObserver(DISCARD_PREF, observer, PR_FALSE);
+      branch->AddObserver(DECODEONDRAW_PREF, observer, PR_FALSE);
+      branch->AddObserver(DISCARD_TIMEOUT_PREF, observer, PR_FALSE);
+      ReloadPrefs(branch);
+      gRegisteredPrefObserver = PR_TRUE;
+    }
   }
 
   return NS_OK;
@@ -950,7 +956,6 @@ NS_IMETHODIMP imgRequest::OnStopRequest(nsIRequest *aRequest, nsISupports *ctxt,
     statusTracker.SendStopRequest(srIter.GetNext(), lastPart, status);
   }
 
-  mTimedChannel = nsnull;
   return NS_OK;
 }
 
@@ -1272,7 +1277,6 @@ imgRequest::OnRedirectVerifyCallback(nsresult result)
   }
 
   mChannel = mNewRedirectChannel;
-  mTimedChannel = do_QueryInterface(mChannel);
   mNewRedirectChannel = nsnull;
 
   // Don't make any cache changes if we're going to point to the same thing. We

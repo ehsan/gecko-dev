@@ -86,7 +86,7 @@ public:
   // nsISupports and cycle collection
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsXULTreeGridRowAccessible,
-                                           nsXULTreeItemAccessibleBase)
+                                           nsAccessible)
 
   // nsAccessNode
   virtual void Shutdown();
@@ -140,8 +140,6 @@ public:
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsXULTreeGridCellAccessible,
-                                           nsLeafAccessible)
 
   // nsIAccessible
   NS_IMETHOD GetFocusedChild(nsIAccessible **aFocusedChild);

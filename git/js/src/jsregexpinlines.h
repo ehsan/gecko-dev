@@ -128,8 +128,9 @@ class RegExp
 #if ENABLE_YARR_JIT
         codeBlock.release();
 #endif
+        // YYY
         if (byteCode)
-            Foreground::delete_<JSC::Yarr::BytecodePattern>(byteCode);
+            delete byteCode;
     }
 
     bool compileHelper(JSContext *cx, JSLinearString &pattern);

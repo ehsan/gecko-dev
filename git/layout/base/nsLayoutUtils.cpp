@@ -98,8 +98,6 @@
 #include "gfxDrawable.h"
 #include "gfxUtils.h"
 #include "nsDataHashtable.h"
-#include "nsTextFrame.h"
-#include "nsFontFaceList.h"
 
 #include "nsSVGUtils.h"
 #include "nsSVGIntegrationUtils.h"
@@ -2588,26 +2586,26 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(
   PRBool hasIntrinsicWidth, hasIntrinsicHeight;
   nscoord intrinsicWidth, intrinsicHeight;
 
-  if (aIntrinsicSize.width.GetUnit() == eStyleUnit_Coord) {
+  if (aIntrinsicSize.width.GetUnit() == eStyleUnit_Coord ||
+      aIntrinsicSize.width.GetUnit() == eStyleUnit_Percent) {
     hasIntrinsicWidth = PR_TRUE;
-    intrinsicWidth = aIntrinsicSize.width.GetCoordValue();
-    if (intrinsicWidth < 0)
-      intrinsicWidth = 0;
+    intrinsicWidth = nsLayoutUtils::ComputeWidthValue(aRenderingContext,
+                           aFrame, aCBSize.width, 0, boxSizingAdjust.width +
+                           boxSizingToMarginEdgeWidth, aIntrinsicSize.width);
   } else {
-    NS_ASSERTION(aIntrinsicSize.width.GetUnit() == eStyleUnit_None,
-                 "unexpected unit");
     hasIntrinsicWidth = PR_FALSE;
     intrinsicWidth = 0;
   }
 
-  if (aIntrinsicSize.height.GetUnit() == eStyleUnit_Coord) {
+  if (aIntrinsicSize.height.GetUnit() == eStyleUnit_Coord ||
+      (aIntrinsicSize.height.GetUnit() == eStyleUnit_Percent &&
+       aCBSize.height != NS_AUTOHEIGHT)) {
     hasIntrinsicHeight = PR_TRUE;
-    intrinsicHeight = aIntrinsicSize.height.GetCoordValue();
+    intrinsicHeight = nsLayoutUtils::
+      ComputeHeightDependentValue(aCBSize.height, aIntrinsicSize.height);
     if (intrinsicHeight < 0)
       intrinsicHeight = 0;
   } else {
-    NS_ASSERTION(aIntrinsicSize.height.GetUnit() == eStyleUnit_None,
-                 "unexpected unit");
     hasIntrinsicHeight = PR_FALSE;
     intrinsicHeight = 0;
   }
@@ -4056,77 +4054,6 @@ nsLayoutUtils::AssertTreeOnlyEmptyNextInFlows(nsIFrame *aSubtreeRoot)
   } while (childList);
 }
 #endif
-
-/* static */
-nsresult
-nsLayoutUtils::GetFontFacesForFrames(nsIFrame* aFrame,
-                                     nsFontFaceList* aFontFaceList)
-{
-  NS_PRECONDITION(aFrame, "NULL frame pointer");
-
-  if (aFrame->GetType() == nsGkAtoms::textFrame) {
-    return GetFontFacesForText(aFrame, 0, PR_INT32_MAX, PR_FALSE,
-                               aFontFaceList);
-  }
-
-  while (aFrame) {
-    nsIAtom* childLists[] = { nsnull, nsGkAtoms::popupList };
-    for (int i = 0; i < NS_ARRAY_LENGTH(childLists); ++i) {
-      nsFrameList children(aFrame->GetChildList(childLists[i]));
-      for (nsFrameList::Enumerator e(children); !e.AtEnd(); e.Next()) {
-        nsIFrame* child = e.get();
-        if (child->GetPrevContinuation()) {
-          continue;
-        }
-        child = nsPlaceholderFrame::GetRealFrameFor(child);
-        nsresult rv = GetFontFacesForFrames(child, aFontFaceList);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-    }
-    aFrame = GetNextContinuationOrSpecialSibling(aFrame);
-  }
-
-  return NS_OK;
-}
-
-/* static */
-nsresult
-nsLayoutUtils::GetFontFacesForText(nsIFrame* aFrame,
-                                   PRInt32 aStartOffset, PRInt32 aEndOffset,
-                                   PRBool aFollowContinuations,
-                                   nsFontFaceList* aFontFaceList)
-{
-  NS_PRECONDITION(aFrame, "NULL frame pointer");
-
-  if (aFrame->GetType() != nsGkAtoms::textFrame) {
-    return NS_OK;
-  }
-
-  nsTextFrame* curr = static_cast<nsTextFrame*>(aFrame);
-  do {
-    PRInt32 offset = curr->GetContentOffset();
-    PRInt32 fstart = NS_MAX(offset, aStartOffset);
-    PRInt32 fend = NS_MIN(curr->GetContentEnd(), aEndOffset);
-    if (fstart >= fend) {
-      continue;
-    }
-
-    // overlapping with the offset we want
-    curr->EnsureTextRun();
-    gfxTextRun* textRun = curr->GetTextRun();
-    NS_ENSURE_TRUE(textRun, NS_ERROR_OUT_OF_MEMORY);
-
-    gfxSkipCharsIterator iter(textRun->GetSkipChars());
-    PRUint32 skipStart = iter.ConvertOriginalToSkipped(fstart - offset);
-    PRUint32 skipEnd = iter.ConvertOriginalToSkipped(fend - offset);
-    aFontFaceList->AddFontsFromTextRun(textRun,
-                                       skipStart, skipEnd - skipStart,
-                                       curr);
-  } while (aFollowContinuations &&
-           (curr = static_cast<nsTextFrame*>(curr->GetNextContinuation())));
-
-  return NS_OK;
-}
 
 /* static */
 void

@@ -60,7 +60,7 @@ function HistoryRec(collection, id) {
 }
 HistoryRec.prototype = {
   __proto__: CryptoWrapper.prototype,
-  _logName: "Sync.Record.History",
+  _logName: "Record.History",
   ttl: HISTORY_TTL
 };
 

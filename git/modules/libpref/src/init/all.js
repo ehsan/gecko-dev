@@ -247,7 +247,7 @@ pref("accessibility.typeaheadfind.startlinksonly", false);
 pref("accessibility.typeaheadfind.timeout", 4000);
 pref("accessibility.typeaheadfind.enabletimeout", true);
 pref("accessibility.typeaheadfind.soundURL", "beep");
-pref("accessibility.typeaheadfind.enablesound", true);
+pref("accessibility.typeaheadfind.enablesound", false);
 pref("accessibility.typeaheadfind.prefillwithselection", true);
 
 // use Mac OS X Appearance panel text smoothing setting when rendering text, disabled by default
@@ -611,6 +611,7 @@ pref("javascript.options.methodjit_always", false);
 // Comment 32 and Bug 613551.
 pref("javascript.options.mem.high_water_mark", 128);
 pref("javascript.options.mem.max", -1);
+pref("javascript.options.mem.gc_frequency",   300);
 pref("javascript.options.mem.gc_per_compartment", true);
 pref("javascript.options.mem.log", false);
 
@@ -794,7 +795,7 @@ pref("network.websocket.timeout.ping.response", 10);
 
 // Defines whether or not to try and negotiate the stream-deflate compression
 // extension with the websocket server
-pref("network.websocket.extensions.stream-deflate", true);
+pref("network.websocket.extensions.stream-deflate", false);
 
 // </ws>
 
@@ -1812,7 +1813,7 @@ pref("gfx.font_rendering.cleartype_params.rendering_mode", -1);
 // (i.e. a specific rendering_mode has not been explicitly set).
 // Currently we apply this setting to the sans-serif Microsoft "core Web fonts".
 pref("gfx.font_rendering.cleartype_params.force_gdi_classic_for_families",
-     "Arial,Consolas,Courier New,Microsoft Sans Serif,Segoe UI,Tahoma,Trebuchet MS,Verdana");
+     "Arial,Courier New,Segoe UI,Tahoma,Trebuchet MS,Verdana");
 // The maximum size at which we will force GDI classic mode using
 // force_gdi_classic_for_families.
 pref("gfx.font_rendering.cleartype_params.force_gdi_classic_max_size", 15);

@@ -51,7 +51,6 @@
 #include "nsIStreamListener.h"
 #include "nsIURI.h"
 #include "nsIPrincipal.h"
-#include "nsITimedChannel.h"
 
 #include "nsCategoryCache.h"
 #include "nsCOMPtr.h"
@@ -219,8 +218,6 @@ private:
   nsCOMPtr<nsIInterfaceRequestor> mPrevChannelSink;
 
   nsTObserverArray<imgRequestProxy*> mObservers;
-
-  nsCOMPtr<nsITimedChannel> mTimedChannel;
 
   nsCString mContentType;
 

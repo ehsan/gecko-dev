@@ -54,7 +54,7 @@
 #include "nsIDOMXULElement.h"
 #include "nsIDOMNSUIEvent.h"
 #include "nsIURI.h"
-#include "nsIDOMHTMLTextAreaElement.h"
+#include "nsIDOMNSHTMLTextAreaElement.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMText.h"
 #include "nsFocusManager.h"
@@ -558,7 +558,7 @@ nsXBLPrototypeHandler::GetController(nsPIDOMEventTarget* aTarget)
     xulElement->GetControllers(getter_AddRefs(controllers));
 
   if (!controllers) {
-    nsCOMPtr<nsIDOMHTMLTextAreaElement> htmlTextArea(do_QueryInterface(aTarget));
+    nsCOMPtr<nsIDOMNSHTMLTextAreaElement> htmlTextArea(do_QueryInterface(aTarget));
     if (htmlTextArea)
       htmlTextArea->GetControllers(getter_AddRefs(controllers));
   }

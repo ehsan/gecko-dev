@@ -124,8 +124,7 @@ function TabItem(tab, options) {
       groupItem.add(drag.info.$el);
     } else {
       phantom.removeClass("phantom acceptsDrop");
-      let opts = {container:phantom, bounds:phantom.bounds(), focusTitle: true};
-      new GroupItem([$target, drag.info.$el], opts);
+      new GroupItem([$target, drag.info.$el], {container:phantom, bounds:phantom.bounds()});
     }
   };
 
@@ -1081,9 +1080,6 @@ let TabItems = {
       tab._tabViewTabItem.removeTrenches();
       Items.unsquish(null, tab._tabViewTabItem);
 
-      tab._tabViewTabItem.tab = null;
-      tab._tabViewTabItem.tabCanvas.tab = null;
-      tab._tabViewTabItem.tabCanvas = null;
       tab._tabViewTabItem = null;
       Storage.saveTab(tab, null);
 

@@ -164,6 +164,7 @@ NS_INTERFACE_MAP_BEGIN(nsSHistory)
    NS_INTERFACE_MAP_ENTRY(nsISHistory)
    NS_INTERFACE_MAP_ENTRY(nsIWebNavigation)
    NS_INTERFACE_MAP_ENTRY(nsISHistoryInternal)
+   NS_INTERFACE_MAP_ENTRY(nsISHistory_2_0_BRANCH)
 NS_INTERFACE_MAP_END
 
 //*****************************************************************************

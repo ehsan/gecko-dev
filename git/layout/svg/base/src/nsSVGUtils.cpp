@@ -749,7 +749,7 @@ nsSVGUtils::GetOuterSVGFrameAndCoveredRegion(nsIFrame* aFrame, nsRect* aRect)
 }
 
 gfxMatrix
-nsSVGUtils::GetViewBoxTransform(const nsSVGElement* aElement,
+nsSVGUtils::GetViewBoxTransform(nsSVGElement* aElement,
                                 float aViewportWidth, float aViewportHeight,
                                 float aViewboxX, float aViewboxY,
                                 float aViewboxWidth, float aViewboxHeight,
@@ -763,7 +763,7 @@ nsSVGUtils::GetViewBoxTransform(const nsSVGElement* aElement,
 }
 
 gfxMatrix
-nsSVGUtils::GetViewBoxTransform(const nsSVGElement* aElement,
+nsSVGUtils::GetViewBoxTransform(nsSVGElement* aElement,
                                 float aViewportWidth, float aViewportHeight,
                                 float aViewboxX, float aViewboxY,
                                 float aViewboxWidth, float aViewboxHeight,
