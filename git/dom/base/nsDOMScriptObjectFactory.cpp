@@ -31,7 +31,7 @@
 #endif
 #include "nsThreadUtils.h"
 
-using mozilla::dom::GetNameSpaceManager;
+static NS_DEFINE_CID(kDOMScriptObjectFactoryCID, NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 
 nsIExceptionProvider* gExceptionProvider = nullptr;
 
@@ -57,6 +57,9 @@ nsDOMScriptObjectFactory::nsDOMScriptObjectFactory()
 
   NS_ASSERTION(!gExceptionProvider, "Registered twice?!");
   provider.swap(gExceptionProvider);
+
+  // And pre-create the javascript language.
+  NS_CreateJSRuntime(getter_AddRefs(mJSRuntime));
 }
 
 NS_INTERFACE_MAP_BEGIN(nsDOMScriptObjectFactory)
@@ -78,7 +81,7 @@ nsDOMScriptObjectFactory::GetClassInfoInstance(nsDOMClassInfoID aID)
 NS_IMETHODIMP_(nsISupports *)
 nsDOMScriptObjectFactory::GetExternalClassInfoInstance(const nsAString& aName)
 {
-  nsScriptNameSpaceManager *nameSpaceManager = GetNameSpaceManager();
+  nsScriptNameSpaceManager *nameSpaceManager = nsJSRuntime::GetNameSpaceManager();
   NS_ENSURE_TRUE(nameSpaceManager, nullptr);
 
   const nsGlobalNameStruct *globalStruct = nameSpaceManager->LookupName(aName);
@@ -155,7 +158,7 @@ nsDOMScriptObjectFactory::RegisterDOMClassInfo(const char *aName,
 					       bool aHasClassInterface,
 					       const nsCID *aConstructorCID)
 {
-  nsScriptNameSpaceManager *nameSpaceManager = GetNameSpaceManager();
+  nsScriptNameSpaceManager *nameSpaceManager = nsJSRuntime::GetNameSpaceManager();
   NS_ENSURE_TRUE(nameSpaceManager, NS_ERROR_NOT_INITIALIZED);
 
   return nameSpaceManager->RegisterDOMCIData(aName,
@@ -166,6 +169,42 @@ nsDOMScriptObjectFactory::RegisterDOMClassInfo(const char *aName,
                                              aHasClassInterface,
                                              aConstructorCID);
 }
+
+
+// Factories
+nsresult
+NS_GetJSRuntime(nsIScriptRuntime** aLanguage)
+{
+  nsCOMPtr<nsIDOMScriptObjectFactory> factory =
+    do_GetService(kDOMScriptObjectFactoryCID);
+  NS_ENSURE_TRUE(factory, NS_ERROR_FAILURE);
+
+  NS_IF_ADDREF(*aLanguage = factory->GetJSRuntime());
+  return NS_OK;
+}
+
+nsresult NS_GetScriptRuntime(const nsAString &aLanguageName,
+                             nsIScriptRuntime **aLanguage)
+{
+  *aLanguage = NULL;
+
+  NS_ENSURE_TRUE(aLanguageName.EqualsLiteral("application/javascript"),
+                 NS_ERROR_FAILURE);
+
+  return NS_GetJSRuntime(aLanguage);
+}
+
+nsresult NS_GetScriptRuntimeByID(uint32_t aScriptTypeID,
+                                 nsIScriptRuntime **aLanguage)
+{
+  *aLanguage = NULL;
+
+  NS_ENSURE_TRUE(aScriptTypeID == nsIProgrammingLanguage::JAVASCRIPT,
+                 NS_ERROR_FAILURE);
+
+  return NS_GetJSRuntime(aLanguage);
+}
+
 
 NS_IMPL_ISUPPORTS1(nsDOMExceptionProvider, nsIExceptionProvider)
 

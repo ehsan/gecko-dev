@@ -273,10 +273,9 @@ struct ParamTraits<nsKeyEvent>
         ReadParam(aMsg, aIter, &aResult->keyCode) &&
         ReadParam(aMsg, aIter, &aResult->charCode) &&
         ReadParam(aMsg, aIter, &aResult->isChar) &&
-        ReadParam(aMsg, aIter, &aResult->location))
-    {
-      aResult->mKeyNameIndex = static_cast<mozilla::widget::KeyNameIndex>(keyNameIndex);
-      aResult->mNativeKeyEvent = NULL;
+        ReadParam(aMsg, aIter, &aResult->location)) {
+      aResult->mKeyNameIndex =
+        static_cast<mozilla::widget::KeyNameIndex>(keyNameIndex);
       return true;
     }
     return false;

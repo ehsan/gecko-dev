@@ -14,7 +14,6 @@
 #include <unistd.h>
 
 #include "jsapi.h"
-#include "jsscript.h"
 
 using namespace js;
 
@@ -152,14 +151,13 @@ TraceLogging::log(Type type, const char* file, unsigned int lineno)
     if (curEntry >= numEntries)
         grow();
 
-    // Save the time spend logging the information in order to discard this
-    // time from the logged time. Especially needed when increasing the array
-    // or flushing the information.
+    // Save the time spend logging the information in order to discard this time from the logged time.
+    // Especially needed when increasing the array or flushing the information.
     loggingTime += rdtsc()-now;
 }
 
 void
-TraceLogging::log(Type type, const JS::CompileOptions &options)
+TraceLogging::log(Type type, const CompileOptions &options)
 {
     this->log(type, options.filename, options.lineno);
 }

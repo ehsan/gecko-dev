@@ -256,7 +256,7 @@ class ObjectPtr
  * Unsets the gray bit for anything reachable from |thing|. |kind| should not be
  * JSTRACE_SHAPE. |thing| should be non-null.
  */
-extern JS_FRIEND_API(bool)
+extern JS_FRIEND_API(void)
 UnmarkGrayGCThingRecursively(void *thing, JSGCTraceKind kind);
 
 /*

@@ -331,7 +331,6 @@ typedef struct vcm_audioAttrs_t_ {
 typedef struct vcm_attrs_t_ {
   cc_boolean         mute;
   cc_boolean         is_video;
-  cc_boolean         rtcp_mux;
   vcm_audioAttrs_t audio; /**< audio line attribs */
   vcm_videoAttrs_t video; /**< Video Atrribs */
 } vcm_mediaAttrs_t;

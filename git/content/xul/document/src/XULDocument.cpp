@@ -65,6 +65,8 @@
 #include "nsIObjectOutputStream.h"
 #include "nsContentList.h"
 #include "nsIScriptGlobalObject.h"
+#include "nsIScriptGlobalObjectOwner.h"
+#include "nsIScriptRuntime.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
@@ -3523,7 +3525,7 @@ XULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
             rv = mCurrentScriptProto->Compile(mOffThreadCompileString.get(),
                                               mOffThreadCompileString.Length(),
                                               uri, 1, this,
-                                              mCurrentPrototype,
+                                              mCurrentPrototype->GetScriptGlobalObject(),
                                               this);
             if (NS_SUCCEEDED(rv) && !mCurrentScriptProto->GetScriptObject()) {
                 // We will be notified via OnOffThreadCompileComplete when the
@@ -3613,8 +3615,20 @@ XULDocument::OnScriptCompileComplete(JSScript* aScript, nsresult aStatus)
             // Ignore the return value, as we don't need to propagate
             // a failure to write to the FastLoad file, because this
             // method aborts that whole process on error.
-            scriptProto->SerializeOutOfLine(nullptr, mCurrentPrototype);
+            nsIScriptGlobalObject* global =
+                mCurrentPrototype->GetScriptGlobalObject();
+
+            NS_ASSERTION(global != nullptr, "master prototype w/o global?!");
+            if (global) {
+                nsIScriptContext *scriptContext =
+                    global->GetScriptContext();
+                NS_ASSERTION(scriptContext != nullptr,
+                             "Failed to get script context for language");
+                if (scriptContext)
+                    scriptProto->SerializeOutOfLine(nullptr, global);
+            }
         }
+
         // ignore any evaluation errors
     }
 

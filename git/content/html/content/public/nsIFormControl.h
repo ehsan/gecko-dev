@@ -15,7 +15,6 @@ class nsFormSubmission;
 namespace mozilla {
 namespace dom {
 class Element;
-class HTMLFieldSetElement;
 } // namespace dom
 } // namespace mozilla
 
@@ -87,12 +86,6 @@ class nsIFormControl : public nsISupports
 public:
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IFORMCONTROL_IID)
-
-  /**
-   * Get the fieldset for this form control.
-   * @return the fieldset
-   */
-  virtual mozilla::dom::HTMLFieldSetElement *GetFieldSet() = 0;
 
   /**
    * Get the form for this form control.

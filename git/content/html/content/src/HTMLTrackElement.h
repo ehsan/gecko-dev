@@ -21,16 +21,6 @@
 namespace mozilla {
 namespace dom {
 
-// Map html attribute string values to TextTrackKind enums.
-static const nsAttrValue::EnumTable kKindTable[] = {
-  { "subtitles", static_cast<int16_t>(TextTrackKind::Subtitles) },
-  { "captions", static_cast<int16_t>(TextTrackKind::Captions) },
-  { "descriptions", static_cast<int16_t>(TextTrackKind::Descriptions) },
-  { "chapters", static_cast<int16_t>(TextTrackKind::Chapters) },
-  { "metadata", static_cast<int16_t>(TextTrackKind::Metadata) },
-  { 0 }
-};
-
 class WebVTTLoadListener;
 
 class HTMLTrackElement MOZ_FINAL : public nsGenericHTMLElement
@@ -45,11 +35,8 @@ public:
                                            nsGenericHTMLElement)
 
   // HTMLTrackElement WebIDL
-  void GetKind(DOMString& aKind) const;
-  void SetKind(const nsAString& aKind, ErrorResult& aError)
-  {
-    SetHTMLAttr(nsGkAtoms::kind, aKind, aError);
-  }
+  TextTrackKind Kind() const;
+  void SetKind(TextTrackKind aKind, ErrorResult& aError);
 
   void GetSrc(DOMString& aSrc) const
   {
