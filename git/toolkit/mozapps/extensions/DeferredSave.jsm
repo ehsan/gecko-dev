@@ -38,7 +38,7 @@ const DEFAULT_SAVE_DELAY_MS = 50;
  *        that marks the data as needing to be saved, and when the DeferredSave
  *        begins writing the data to disk. Default 50 milliseconds.
  */
-this.DeferredSave = function (aPath, aDataProvider, aDelay) {
+function DeferredSave(aPath, aDataProvider, aDelay) {
   // Set up loggers for this instance of DeferredSave
   let leafName = OS.Path.basename(aPath);
   Cu.import("resource://gre/modules/AddonLogging.jsm");
@@ -87,7 +87,7 @@ this.DeferredSave = function (aPath, aDataProvider, aDelay) {
     this._delay = DEFAULT_SAVE_DELAY_MS;
 }
 
-this.DeferredSave.prototype = {
+DeferredSave.prototype = {
   get dirty() {
     return this._pending || this.writeInProgress;
   },

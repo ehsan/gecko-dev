@@ -123,10 +123,6 @@ let tests = [
 ];
 
 function run_test() {
-  if (oldDownloadManagerDisabled()) {
-    return;
-  }
-
   // setup a download listener to run tests during and after the download
   DownloadListener.init();
   Services.prefs.setBoolPref("browser.download.manager.showWhenStarting", false);

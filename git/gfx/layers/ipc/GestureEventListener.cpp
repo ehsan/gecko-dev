@@ -110,24 +110,17 @@ nsEventStatus GestureEventListener::HandleInputEvent(const InputData& aEvent)
       HandleTapCancel(event);
     }
 
-    size_t eventTouchesMatched = 0;
+    bool foundAlreadyExistingTouch = false;
     for (size_t i = 0; i < mTouches.Length(); i++) {
-      bool isTouchRemoved = true;
       for (size_t j = 0; j < event.mTouches.Length(); j++) {
         if (mTouches[i].mIdentifier == event.mTouches[j].mIdentifier) {
-          eventTouchesMatched++;
-          isTouchRemoved = false;
+          foundAlreadyExistingTouch = true;
           mTouches[i] = event.mTouches[j];
         }
       }
-      if (isTouchRemoved) {
-        // this touch point was lifted, so remove it from our list
-        mTouches.RemoveElementAt(i);
-        i--;
-      }
     }
 
-    NS_WARN_IF_FALSE(eventTouchesMatched == event.mTouches.Length(), "Touch moved, but not in list");
+    NS_WARN_IF_FALSE(foundAlreadyExistingTouch, "Touch moved, but not in list");
 
     break;
   }
