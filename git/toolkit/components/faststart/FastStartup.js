@@ -154,15 +154,6 @@ nsFastStartupCLH.prototype = {
   //
   handle: function fs_handle(cmdLine) {
     // the rest of this only handles -faststart here
-
-    if (cmdLine.handleFlag("shutdown-faststart", false)) {
-      cmdLine.preventDefault = true;
-      // Shutdown this service
-      let appstartup = Cc["@mozilla.org/toolkit/app-startup;1"].getService(Ci.nsIAppStartup);
-      appstartup.quit(Ci.nsIAppStartup.eAttemptQuit);
-      return;
-    }
-
     if (cmdLine.handleFlag("faststart-hidden", false) || (getenv(RESTART_ENV_VAR) == "1"))
       cmdLine.preventDefault = true;
 
@@ -193,8 +184,7 @@ nsFastStartupCLH.prototype = {
     }
   },
 
-  helpInfo: "    -faststart-hidden      Start the FastStart service\n" +
-            "    -shutdown-faststart    Shutdown the FastStart service\n",
+  helpInfo: "    -faststart-hidden\n",
 
   // QI
   QueryInterface: XPCOMUtils.generateQI([Ci.nsICommandLineHandler]),
