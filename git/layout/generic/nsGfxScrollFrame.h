@@ -177,10 +177,12 @@ public:
   }
   nsRect GetScrollRange() const;
 
-  nsPoint ClampAndRestrictToDevPixels(const nsPoint& aPt, nsIntPoint* aPtDevPx) const;
+  nsPoint RestrictToDevPixels(const nsPoint& aPt, nsIntPoint* aPtDevPx, bool aShouldClamp) const;
   nsPoint ClampScrollPosition(const nsPoint& aPt) const;
   static void AsyncScrollCallback(nsITimer *aTimer, void* anInstance);
-  void ScrollTo(nsPoint aScrollPosition, nsIScrollableFrame::ScrollMode aMode);
+  void ScrollTo(nsPoint aScrollPosition, nsIScrollableFrame::ScrollMode aMode) {
+    ScrollToWithSmoothnessProfile(aScrollPosition, aMode, nsGkAtoms::other);
+  };
   void ScrollToImpl(nsPoint aScrollPosition);
   void ScrollVisual(nsPoint aOldScrolledFramePosition);
   void ScrollBy(nsIntPoint aDelta, nsIScrollableFrame::ScrollUnit aUnit,
@@ -261,6 +263,8 @@ public:
 
   bool IsIgnoringViewportClipping() const;
 
+  bool ShouldClampScrollPosition() const;
+
   bool IsAlwaysActive() const;
   void MarkActive();
   void MarkInactive();
@@ -338,6 +342,12 @@ public:
   // If true, the layer should always be active because we always build a layer.
   // Used for asynchronous scrolling.
   bool mShouldBuildLayer:1;
+
+protected:
+  void ScrollToWithSmoothnessProfile(nsPoint aScrollPosition,
+                                     nsIScrollableFrame::ScrollMode aMode,
+                                     nsIAtom *aProfile); // nsnull indicates no smooth scroll
+
 };
 
 /**

@@ -62,8 +62,8 @@ class nsComputedDOMStyle : public nsDOMCSSDeclaration,
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsComputedDOMStyle,
-                                           nsICSSDeclaration)
+  NS_DECL_CYCLE_COLLECTION_SKIPPABLE_CLASS_AMBIGUOUS(nsComputedDOMStyle,
+                                                     nsICSSDeclaration)
 
   NS_IMETHOD Init(nsIDOMElement *aElement,
                   const nsAString& aPseudoElt,
@@ -260,7 +260,13 @@ private:
   nsIDOMCSSValue* DoGetBorderTopLeftRadius();
   nsIDOMCSSValue* DoGetBorderTopRightRadius();
   nsIDOMCSSValue* DoGetFloatEdge();
-  nsIDOMCSSValue* DoGetBorderImage();
+
+  /* Border Image */
+  nsIDOMCSSValue* DoGetBorderImageSource();
+  nsIDOMCSSValue* DoGetBorderImageSlice();
+  nsIDOMCSSValue* DoGetBorderImageWidth();
+  nsIDOMCSSValue* DoGetBorderImageOutset();
+  nsIDOMCSSValue* DoGetBorderImageRepeat();
 
   /* Box Shadow */
   nsIDOMCSSValue* DoGetBoxShadow();

@@ -77,7 +77,6 @@ public class BrowserToolbar extends LinearLayout {
 
     final private Context mContext;
     private Handler mHandler;
-    private boolean mInflated;
     private int mColor;
     private int mCounterColor;
     private int[] mPadding;
@@ -94,7 +93,6 @@ public class BrowserToolbar extends LinearLayout {
     public BrowserToolbar(Context context, AttributeSet attrs) {
         super(context, attrs);
         mContext = context;
-        mInflated = false;
         mTitleCanExpand = true;
 
         // Get the device's highlight color
@@ -111,18 +109,7 @@ public class BrowserToolbar extends LinearLayout {
         typedArray.recycle();
     }
 
-    @Override
-    protected void onFinishInflate () {
-        super.onFinishInflate();
-
-        // HACK: Without this, the onFinishInflate is called twice
-        // This issue is due to a bug when Android inflates a layout with a
-        // parent. Fixed in Honeycomb
-        if (mInflated)
-            return;
-
-        mInflated = true;
-
+    public void init() {
         mAwesomeBar = (Button) findViewById(R.id.awesome_bar);
         mAwesomeBar.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View v) {
@@ -209,7 +196,7 @@ public class BrowserToolbar extends LinearLayout {
     }
 
     private void onAwesomeBarSearch() {
-        GeckoApp.mAppContext.onEditRequested();
+        GeckoApp.mAppContext.onSearchRequested();
     }
 
     private void addTab() {
@@ -307,13 +294,13 @@ public class BrowserToolbar extends LinearLayout {
         Tab tab = Tabs.getInstance().getSelectedTab();
         // Setting a null title for about:home will ensure we just see
         // the "Enter Search or Address" placeholder text
-        if (tab != null && tab.getURL().equals("about:home"))
+        if (tab != null && "about:home".equals(tab.getURL()))
             title = null;
         mAwesomeBar.setText(title);
     }
 
     public void setFavicon(Drawable image) {
-        if (Tabs.getInstance().getSelectedTab().isLoading())
+        if (Tabs.getInstance().getSelectedTab().getState() == Tab.STATE_LOADING)
             return;
 
         if (image != null)
@@ -335,15 +322,30 @@ public class BrowserToolbar extends LinearLayout {
         }
     }
 
+    public void show() {
+        if (Build.VERSION.SDK_INT >= 11)
+            GeckoActionBar.show(GeckoApp.mAppContext);
+        else
+            setVisibility(View.VISIBLE);
+    }
+
+    public void hide() {
+        if (Build.VERSION.SDK_INT >= 11)
+            GeckoActionBar.hide(GeckoApp.mAppContext);
+        else
+            setVisibility(View.GONE);
+    }
+
     public void refresh() {
         Tab tab = Tabs.getInstance().getSelectedTab();
         if (tab != null) {
+            String url = tab.getURL();
             setTitle(tab.getDisplayTitle());
             setFavicon(tab.getFavicon());
             setSecurityMode(tab.getSecurityMode());
-            setProgressVisibility(tab.isLoading());
-            setShadowVisibility(!(tab.getURL().startsWith("about:")));
-            updateTabCountAndAnimate(Tabs.getInstance().getCount());
+            setProgressVisibility(tab.getState() == Tab.STATE_LOADING);
+            setShadowVisibility((url == null) || !url.startsWith("about:"));
+            updateTabCount(Tabs.getInstance().getCount());
         }
     }
 }

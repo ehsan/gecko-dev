@@ -114,7 +114,8 @@ public class GeckoAppShell
     public static native void callObserver(String observerKey, String topic, String data);
     public static native void removeObserver(String observerKey);
     public static native void loadGeckoLibsNative(String apkName);
-    public static native void loadSQLiteLibsNative(String apkName, boolean shouldExtract);
+    public static native void loadSQLiteLibsNative(String apkName);
+    public static native void loadNSSLibsNative(String apkName);
     public static native void onChangeNetworkLinkStatus(String status);
     public static native void reportJavaCrash(String stack);
 
@@ -397,7 +398,8 @@ public class GeckoAppShell
                 }
             }
         }
-        loadSQLiteLibsNative(apkName, extractLibs);
+        loadSQLiteLibsNative(apkName);
+        loadNSSLibsNative(apkName);
         loadGeckoLibsNative(apkName);
     }
 
@@ -603,6 +605,11 @@ public class GeckoAppShell
                 imm, text, start, end, newEnd);
     }
 
+    public static void notifyScreenShot(ByteBuffer data, int tabId, int width, int height) {
+        // this stub is never called in XUL Fennec, but we need it so that the JNI code
+        // shared between XUL and Native Fennec doesn't die.
+    }
+
     private static CountDownLatch sGeckoPendingAcks = null;
 
     // Block the current thread until the Gecko event loop is caught up
@@ -677,6 +684,42 @@ public class GeckoAppShell
                     }
                 }
             });
+    }
+
+    /*
+     * Keep these values consistent with |SensorType| in Hal.h
+     */
+    private static final int SENSOR_ORIENTATION = 1;
+    private static final int SENSOR_ACCELERATION = 2;
+    private static final int SENSOR_PROXIMITY = 3;
+
+    private static Sensor gProximitySensor = null;
+
+    public static void enableSensor(int aSensortype) {
+        SensorManager sm = (SensorManager)
+            GeckoApp.surfaceView.getContext().
+            getSystemService(Context.SENSOR_SERVICE);
+
+        switch(aSensortype) {
+        case SENSOR_PROXIMITY:
+            if(gProximitySensor == null)
+                gProximitySensor = sm.getDefaultSensor(Sensor.TYPE_PROXIMITY);
+            sm.registerListener(GeckoApp.surfaceView, gProximitySensor,
+                                SensorManager.SENSOR_DELAY_GAME);
+            break;
+        }
+    }
+
+    public static void disableSensor(int aSensortype) {
+        SensorManager sm = (SensorManager)
+            GeckoApp.surfaceView.getContext().
+            getSystemService(Context.SENSOR_SERVICE);
+
+        switch(aSensortype) {
+        case SENSOR_PROXIMITY:
+            sm.unregisterListener(GeckoApp.surfaceView, gProximitySensor);
+            break;
+        }
     }
 
     public static void moveTaskToBack() {
@@ -1777,6 +1820,9 @@ public class GeckoAppShell
             }
         }
         return false;
+    }
+
+    public static void emitGeckoAccessibilityEvent (int eventType, String[] textList, String description, boolean enabled, boolean checked, boolean password) {
     }
 
     public static double[] getCurrentNetworkInformation() {
