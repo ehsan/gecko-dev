@@ -160,18 +160,4 @@ public class INIParser extends INISection {
         mSections.remove(name);
     }
 
-    // rename a section; nuking any previous section with the new
-    // name in the process
-    public void renameSection(String oldName, String newName) {
-        // ensure that we have parsed the file
-        getSections();
-
-        mSections.remove(newName);
-        INISection section = mSections.get(oldName);
-        if (section == null)
-            return;
-
-        mSections.remove(oldName);
-        mSections.put(newName, section);
-    }
 }

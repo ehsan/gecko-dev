@@ -14,20 +14,13 @@
   <script type="application/javascript"
           src="../role.js"></script>
   <script type="application/javascript"
-          src="../events.js"></script>
-  <script type="application/javascript"
           src="../states.js"></script>
 
   <script type="application/javascript">
-  //gA11yEventDumpToConsole = true;
-  function doPreTest()
-  {
-    var imgMap = document.getElementById("imagemap");
-    waitForImageMap(imgMap, doTest);
-  }
-
   function doTest()
   {
+    ensureImageMapTree("imagemap");
+
     var accTree = {
       role: ROLE_IMAGE_MAP,
       children: [
@@ -77,9 +70,8 @@
   }
 
   SimpleTest.waitForExplicitFinish();
-  addA11yLoadEvent(doPreTest);
+  addA11yLoadEvent(doTest);
   </script>
-
 </head>
 <body>
 

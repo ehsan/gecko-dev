@@ -1401,8 +1401,7 @@ HTMLTableAccessible::IsProbablyLayoutTable()
   // Check for styled background color across rows (alternating background
   // color is a common feature for data tables).
   PRUint32 childCount = ChildCount();
-  nscolor rowColor = 0;
-  nscolor prevRowColor;
+  nscolor rowColor, prevRowColor;
   for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
     Accessible* child = GetChildAt(childIdx);
     if (child->Role() == roles::ROW) {

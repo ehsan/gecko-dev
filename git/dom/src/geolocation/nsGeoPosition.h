@@ -12,7 +12,6 @@
 #include "nsIDOMGeoPositionCoords.h"
 #include "nsIDOMGeoPosition.h"
 #include "nsString.h"
-#include "mozilla/Attributes.h"
 
 ////////////////////////////////////////////////////
 // nsGeoPositionCoords
@@ -41,7 +40,7 @@ private:
 // nsGeoPosition
 ////////////////////////////////////////////////////
 
-class nsGeoPosition MOZ_FINAL : public nsIDOMGeoPosition
+class nsGeoPosition : public nsIDOMGeoPosition
 {
 public:
   NS_DECL_ISUPPORTS

@@ -11,7 +11,6 @@
 #include "nsIObserver.h"
 #include "nsIContent.h"
 #include "nsIWidget.h"
-#include "mozilla/Attributes.h"
 
 #define FOCUSMETHOD_MASK 0xF000
 #define FOCUSMETHODANDRING_MASK 0xF0F000
@@ -34,9 +33,9 @@ struct nsDelayedBlurOrFocusEvent;
  * which receives key events.
  */
 
-class nsFocusManager MOZ_FINAL : public nsIFocusManager,
-                                 public nsIObserver,
-                                 public nsSupportsWeakReference
+class nsFocusManager : public nsIFocusManager,
+                       public nsIObserver,
+                       public nsSupportsWeakReference
 {
   typedef mozilla::widget::InputContextAction InputContextAction;
 

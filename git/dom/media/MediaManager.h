@@ -11,7 +11,6 @@
 
 #include "nsPIDOMWindow.h"
 #include "nsIDOMNavigatorUserMedia.h"
-#include "mozilla/Attributes.h"
 
 namespace mozilla {
 
@@ -74,7 +73,7 @@ private:
 typedef nsTArray<nsRefPtr<GetUserMediaCallbackMediaStreamListener> > StreamListeners;
 typedef nsClassHashtable<nsUint64HashKey, StreamListeners> WindowTable;
 
-class MediaManager MOZ_FINAL : public nsIObserver {
+class MediaManager : public nsIObserver {
 public:
   static MediaManager* Get() {
     if (!sSingleton) {

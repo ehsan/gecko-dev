@@ -9,8 +9,6 @@
 #ifndef jsinfer_h___
 #define jsinfer_h___
 
-#include "mozilla/Attributes.h"
-
 #include "jsalloc.h"
 #include "jsfriendapi.h"
 #include "jsprvtd.h"
@@ -1264,7 +1262,7 @@ inline const char * TypeObjectString(TypeObject *type) { return NULL; }
 #endif
 
 /* Print a warning, dump state and abort the program. */
-MOZ_NORETURN void TypeFailure(JSContext *cx, const char *fmt, ...);
+void TypeFailure(JSContext *cx, const char *fmt, ...);
 
 } /* namespace types */
 } /* namespace js */

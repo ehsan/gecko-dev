@@ -168,7 +168,7 @@ MOZ_NEVER_INLINE void
 CC_AbortIfNull(void *ptr)
 {
     if (!ptr)
-        MOZ_CRASH();
+        MOZ_Assert("ptr was null", __FILE__, __LINE__);
 }
 
 // Various parameters of this collector can be tuned using environment

@@ -375,6 +375,13 @@ public:
   mozilla::dom::Element* AsElement();
 
   /**
+   * Return whether the node is a content node
+   */
+  bool IsContent() const {
+    return IsNodeOfType(eCONTENT);
+  }
+
+  /**
    * Return this node as nsIContent.  Should only be used for nodes for which
    * IsContent() is true.  This is defined inline in nsIContent.h.
    */
@@ -1275,8 +1282,6 @@ private:
     ElementHasPointerLock,
     // Set if the node may have DOMMutationObserver attached to it.
     NodeMayHaveDOMMutationObserver,
-    // Set if node is Content
-    NodeIsContent,
     // Guard value
     BooleanFlagCount
   };
@@ -1306,7 +1311,6 @@ public:
     { return GetBoolFlag(NodeHasRenderingObservers); }
   void SetHasRenderingObservers(bool aValue)
     { SetBoolFlag(NodeHasRenderingObservers, aValue); }
-  bool IsContent() const { return GetBoolFlag(NodeIsContent); }
   bool HasID() const { return GetBoolFlag(ElementHasID); }
   bool MayHaveStyle() const { return GetBoolFlag(ElementMayHaveStyle); }
   bool HasName() const { return GetBoolFlag(ElementHasName); }
@@ -1345,7 +1349,6 @@ public:
 protected:
   void SetParentIsContent(bool aValue) { SetBoolFlag(ParentIsContent, aValue); }
   void SetInDocument() { SetBoolFlag(IsInDocument); }
-  void SetNodeIsContent() { SetBoolFlag(NodeIsContent); }
   void ClearInDocument() { ClearBoolFlag(IsInDocument); }
   void SetIsElement() { SetBoolFlag(NodeIsElement); }
   void ClearIsElement() { ClearBoolFlag(NodeIsElement); }

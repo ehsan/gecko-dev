@@ -28,7 +28,6 @@
 #include "mozilla/jsipc/PContextWrapperChild.h"
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Attributes.h"
 
 #if defined(MOZ_SYDNEYAUDIO)
 #include "nsAudioStream.h"
@@ -142,7 +141,7 @@ private:
     nsString mData;
 };
 
-class ConsoleListener MOZ_FINAL : public nsIConsoleListener
+class ConsoleListener : public nsIConsoleListener
 {
 public:
     ConsoleListener(ContentChild* aChild)
@@ -283,7 +282,7 @@ ContentChild::AllocPMemoryReportRequest()
 
 // This is just a wrapper for InfallibleTArray<MemoryReport> that implements
 // nsISupports, so it can be passed to nsIMemoryMultiReporter::CollectReports.
-class MemoryReportsWrapper MOZ_FINAL : public nsISupports {
+class MemoryReportsWrapper : public nsISupports {
 public:
     NS_DECL_ISUPPORTS
     MemoryReportsWrapper(InfallibleTArray<MemoryReport> *r) : mReports(r) { }
@@ -291,7 +290,7 @@ public:
 };
 NS_IMPL_ISUPPORTS0(MemoryReportsWrapper)
 
-class MemoryReportCallback MOZ_FINAL : public nsIMemoryMultiReporterCallback
+class MemoryReportCallback : public nsIMemoryMultiReporterCallback
 {
 public:
     NS_DECL_ISUPPORTS

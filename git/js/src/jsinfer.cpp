@@ -322,8 +322,10 @@ types::TypeFailure(JSContext *cx, const char *fmt, ...)
     /* Dump type state, even if INFERFLAGS is unset. */
     cx->compartment->types.print(cx, true);
 
-    MOZ_ReportAssertionFailure(msgbuf, __FILE__, __LINE__);
-    MOZ_CRASH();
+    /* Always active, even in release builds */
+    MOZ_Assert(msgbuf, __FILE__, __LINE__);
+
+    *((volatile int *)NULL) = 0;  /* Should never be reached */
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -5257,15 +5259,14 @@ NestingPrologue(JSContext *cx, StackFrame *fp)
         /*
          * Check the stack has no frames for this activation, any of its inner
          * functions or any of their transitive inner functions.
-         *
-         * Also, if the script has an extensible scope, then the arg/var array
-         * can be moved unexpectedly, so abort the optimization.
          */
-        if (!ClearActiveNesting(script) || script->funHasExtensibleScope) {
+        if (!ClearActiveNesting(script)) {
             script->reentrantOuterFunction = true;
             MarkTypeObjectFlags(cx, fp->fun(), OBJECT_FLAG_REENTRANT_FUNCTION);
         }
 
+        /* Extensibility guards in the frontend guarantee the slots won't move. */
+        JS_ASSERT(!script->funHasExtensibleScope);
         nesting->activeCall = &fp->callObj();
         nesting->argArray = Valueify(nesting->activeCall->argArray());
         nesting->varArray = Valueify(nesting->activeCall->varArray());

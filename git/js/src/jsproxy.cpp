@@ -1461,7 +1461,7 @@ static void
 proxy_TraceObject(JSTracer *trc, JSObject *obj)
 {
 #ifdef DEBUG
-    if (!trc->runtime->gcDisableStrictProxyCheckingCount && obj->isWrapper()) {
+    if (obj->isWrapper()) {
         JSObject *referent = &GetProxyPrivate(obj).toObject();
         if (referent->compartment() != obj->compartment()) {
             /*

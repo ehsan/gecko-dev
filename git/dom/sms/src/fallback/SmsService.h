@@ -7,13 +7,12 @@
 #define mozilla_dom_sms_SmsService_h
 
 #include "nsISmsService.h"
-#include "mozilla/Attributes.h"
 
 namespace mozilla {
 namespace dom {
 namespace sms {
 
-class SmsService MOZ_FINAL : public nsISmsService
+class SmsService : public nsISmsService
 {
 public:
   NS_DECL_ISUPPORTS

@@ -9,13 +9,12 @@
 #include "mozilla/dom/sms/PSms.h"
 #include "nsIDOMSmsFilter.h"
 #include "Types.h"
-#include "mozilla/Attributes.h"
 
 namespace mozilla {
 namespace dom {
 namespace sms {
 
-class SmsFilter MOZ_FINAL : public nsIDOMMozSmsFilter
+class SmsFilter : public nsIDOMMozSmsFilter
 {
 public:
   NS_DECL_ISUPPORTS

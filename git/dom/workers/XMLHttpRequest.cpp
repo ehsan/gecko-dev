@@ -28,7 +28,6 @@
 #include "XMLHttpRequestUpload.h"
 
 #include "DOMBindingInlines.h"
-#include "mozilla/Attributes.h"
 
 USING_WORKERS_NAMESPACE
 
@@ -83,7 +82,7 @@ using mozilla::ErrorResult;
 
 BEGIN_WORKERS_NAMESPACE
 
-class Proxy MOZ_FINAL : public nsIDOMEventListener
+class Proxy : public nsIDOMEventListener
 {
 public:
   // Read on multiple threads.
@@ -377,8 +376,8 @@ public:
   }
 };
 
-class LoadStartDetectionRunnable MOZ_FINAL : public nsIRunnable,
-                                             public nsIDOMEventListener
+class LoadStartDetectionRunnable : public nsIRunnable,
+                                   public nsIDOMEventListener
 {
   WorkerPrivate* mWorkerPrivate;
   nsRefPtr<Proxy> mProxy;

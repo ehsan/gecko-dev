@@ -4514,8 +4514,7 @@ AssertMarkedOrAllocated(const EdgeValue &edge)
     const char *label = edge.label ? edge.label : "<unknown>";
 
     JS_snprintf(msgbuf, sizeof(msgbuf), "[barrier verifier] Unmarked edge: %s", label);
-    MOZ_ReportAssertionFailure(msgbuf, __FILE__, __LINE__);
-    MOZ_CRASH();
+    MOZ_Assert(msgbuf, __FILE__, __LINE__);
 }
 
 static void
@@ -4604,8 +4603,11 @@ MaybeVerifyBarriers(JSContext *cx, bool always)
 {
     JSRuntime *rt = cx->runtime;
 
-    if (rt->gcZeal() != ZealVerifierValue)
+    if (rt->gcZeal() != ZealVerifierValue) {
+        if (rt->gcVerifyData)
+            EndVerifyBarriers(rt);
         return;
+    }
 
     uint32_t freq = rt->gcZealFrequency;
 

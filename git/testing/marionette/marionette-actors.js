@@ -1271,7 +1271,7 @@ MarionetteDriverActor.prototype = {
     if (this.context == "chrome") {
       let file;
       if (this.importedScripts.exists()) {
-        file = FileUtils.openFileOutputStream(this.importedScripts, FileUtils.MODE_APPEND | FileUtils.MODE_WRONLY);
+        file = FileUtils.openFileOutputStream(this.importedScripts, FileUtils.MODE_APPEND);
       }
       else {
         file = FileUtils.openFileOutputStream(this.importedScripts, FileUtils.MODE_WRONLY | FileUtils.MODE_CREATE);

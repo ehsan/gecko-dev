@@ -39,7 +39,6 @@
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
 #include "xpcpublic.h"
-#include "mozilla/Attributes.h"
 
 #ifdef ANDROID
 #include <android/log.h>
@@ -142,7 +141,7 @@ struct WorkerJSRuntimeStats : public JS::RuntimeStats
   }
 };
   
-class WorkerMemoryReporter MOZ_FINAL : public nsIMemoryMultiReporter
+class WorkerMemoryReporter : public nsIMemoryMultiReporter
 {
   WorkerPrivate* mWorkerPrivate;
   nsCString mAddressString;
@@ -978,7 +977,7 @@ public:
   }
 };
 
-class CloseRunnable MOZ_FINAL : public WorkerControlRunnable
+class CloseRunnable : public WorkerControlRunnable
 {
 public:
   CloseRunnable(WorkerPrivate* aWorkerPrivate)
@@ -1279,7 +1278,7 @@ DummyCallback(nsITimer* aTimer, void* aClosure)
   // Nothing!
 }
 
-class WorkerRunnableEventTarget MOZ_FINAL : public nsIEventTarget
+class WorkerRunnableEventTarget : public nsIEventTarget
 {
 protected:
   nsRefPtr<WorkerRunnable> mWorkerRunnable;

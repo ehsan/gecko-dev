@@ -3542,13 +3542,9 @@ ParseOptionsObject(JSContext *cx, jsval from, SandboxOptions &options)
     return NS_OK;
 }
 
-static nsresult
-AssembleSandboxMemoryReporterName(JSContext *cx, nsCString &sandboxName)
+nsresult
+GetSandboxNameFromStack(JSContext *cx, nsCString &sandboxName)
 {
-    // Use a default name when the caller did not provide a sandboxName.
-    if (sandboxName.IsEmpty())
-        sandboxName = NS_LITERAL_CSTRING("[anonymous sandbox]");
-
     nsXPConnect* xpc = nsXPConnect::GetXPConnect();
     NS_ENSURE_TRUE(xpc, NS_ERROR_XPC_UNEXPECTED);
 
@@ -3561,19 +3557,8 @@ AssembleSandboxMemoryReporterName(JSContext *cx, nsCString &sandboxName)
     nsCOMPtr<nsIStackFrame> frame;
     xpc->GetCurrentJSStack(getter_AddRefs(frame));
 
-    // Append the caller's location information.
-    if (frame) {
-        nsCString location;
-        PRInt32 lineNumber = 0;
-        frame->GetFilename(getter_Copies(location));
-        frame->GetLineNumber(&lineNumber);
-        
-        sandboxName.AppendLiteral(" (from: ");
-        sandboxName.Append(location);
-        sandboxName.AppendLiteral(":");
-        sandboxName.AppendInt(lineNumber);
-        sandboxName.AppendLiteral(")");
-    }
+    if (frame)
+        frame->GetFilename(getter_Copies(sandboxName));
 
     return NS_OK;
 }
@@ -3617,8 +3602,13 @@ nsXPCComponents_utils_Sandbox::CallOrConstruct(nsIXPConnectWrappedNative *wrappe
     if (argc > 1 && NS_FAILED(ParseOptionsObject(cx, argv[1], options)))
         return ThrowAndFail(NS_ERROR_INVALID_ARG, cx, _retval);
 
-    if (NS_FAILED(AssembleSandboxMemoryReporterName(cx, options.sandboxName)))
+    // If there is no options object given, or no sandboxName property
+    // specified, use the caller's filename as sandboxName.
+    if (options.sandboxName.IsEmpty() &&
+        NS_FAILED(GetSandboxNameFromStack(cx, options.sandboxName)))
+    {
         return ThrowAndFail(NS_ERROR_INVALID_ARG, cx, _retval);
+    }
 
     rv = xpc_CreateSandboxObject(cx, vp, prinOrSop, options);
 

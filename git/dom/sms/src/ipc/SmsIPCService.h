@@ -8,7 +8,6 @@
 
 #include "nsISmsService.h"
 #include "nsISmsDatabaseService.h"
-#include "mozilla/Attributes.h"
 
 namespace mozilla {
 namespace dom {
@@ -16,8 +15,8 @@ namespace sms {
 
 class PSmsChild;
 
-class SmsIPCService MOZ_FINAL : public nsISmsService
-                              , public nsISmsDatabaseService
+class SmsIPCService : public nsISmsService
+                    , public nsISmsDatabaseService
 {
 public:
   NS_DECL_ISUPPORTS

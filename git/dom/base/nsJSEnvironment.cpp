@@ -78,7 +78,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/Attributes.h"
 
 #include "sampler.h"
 
@@ -191,7 +190,7 @@ static nsIScriptSecurityManager *sSecurityManager;
 
 static bool sGCOnMemoryPressure;
 
-class nsMemoryPressureObserver MOZ_FINAL : public nsIObserver
+class nsMemoryPressureObserver : public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS
@@ -3926,7 +3925,7 @@ nsresult NS_CreateJSRuntime(nsIScriptRuntime **aRuntime)
 // to/from nsISupports.
 // When consumed by non-JS (eg, another script language), conversion is done
 // on-the-fly.
-class nsJSArgArray MOZ_FINAL : public nsIJSArgArray {
+class nsJSArgArray : public nsIJSArgArray {
 public:
   nsJSArgArray(JSContext *aContext, PRUint32 argc, jsval *argv, nsresult *prv);
   ~nsJSArgArray();

@@ -9,7 +9,6 @@
 #include "nsIDOMSmsCursor.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsCOMPtr.h"
-#include "mozilla/Attributes.h"
 
 class nsIDOMMozSmsMessage;
 class nsIDOMMozSmsRequest;
@@ -18,7 +17,7 @@ namespace mozilla {
 namespace dom {
 namespace sms {
 
-class SmsCursor MOZ_FINAL : public nsIDOMMozSmsCursor
+class SmsCursor : public nsIDOMMozSmsCursor
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
