@@ -2299,10 +2299,8 @@ public class BrowserApp extends GeckoApp
 
     @Override
     public void openOptionsMenu() {
-        if (areTabsShown()) {
-            mTabsPanel.showMenu();
+        if (!hasTabsSideBar() && areTabsShown())
             return;
-        }
 
         // Scroll custom menu to the top
         if (mMenuPanel != null)

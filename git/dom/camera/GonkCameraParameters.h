@@ -101,7 +101,6 @@ protected:
   int32_t mExposureCompensationMaxIndex;
   nsTArray<int> mZoomRatios;
   nsTArray<nsString> mIsoModes;
-  nsTArray<nsString> mSceneModes;
   nsClassHashtable<nsStringHashKey, nsCString> mIsoModeMap;
 
   // This subclass of android::CameraParameters just gives
@@ -225,10 +224,6 @@ protected:
   // Call once to initialize local cached values used in translating other
   // arguments between Gecko and Gonk. Always returns NS_OK.
   nsresult Initialize();
-
-  // Returns true if we're a memory-constrained platform that requires
-  // certain features to be disabled; returns false otherwise.
-  static bool IsLowMemoryPlatform();
 };
 
 } // namespace mozilla

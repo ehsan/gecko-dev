@@ -1591,22 +1591,22 @@ nsContextMenu.prototype = {
   },
   markLink: function CM_markLink(origin) {
     // send link to social, if it is the page url linkURI will be null
-    SocialMarks.markLink(origin, this.linkURI ? this.linkURI.spec : null, this.target);
+    SocialMarks.markLink(origin, this.linkURI ? this.linkURI.spec : null);
   },
   shareLink: function CM_shareLink() {
-    SocialShare.sharePage(null, { url: this.linkURI.spec }, this.target);
+    SocialShare.sharePage(null, { url: this.linkURI.spec });
   },
 
   shareImage: function CM_shareImage() {
-    SocialShare.sharePage(null, { url: this.imageURL, previews: [ this.mediaURL ] }, this.target);
+    SocialShare.sharePage(null, { url: this.imageURL, previews: [ this.mediaURL ] });
   },
 
   shareVideo: function CM_shareVideo() {
-    SocialShare.sharePage(null, { url: this.mediaURL, source: this.mediaURL }, this.target);
+    SocialShare.sharePage(null, { url: this.mediaURL, source: this.mediaURL });
   },
 
   shareSelect: function CM_shareSelect(selection) {
-    SocialShare.sharePage(null, { url: this.browser.currentURI.spec, text: selection }, this.target);
+    SocialShare.sharePage(null, { url: this.browser.currentURI.spec, text: selection });
   },
 
   savePageAs: function CM_savePageAs() {

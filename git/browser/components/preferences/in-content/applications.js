@@ -1693,8 +1693,10 @@ var gApplicationsPane = {
     var typeItem = this._list.selectedItem;
     var handlerInfo = this._handledTypes[typeItem.type];
 
-    gSubDialog.open("chrome://browser/content/preferences/applicationManager.xul",
-                    "resizable=no", handlerInfo);
+    openDialog("chrome://browser/content/preferences/applicationManager.xul",
+               "",
+               "modal,centerscreen,resizable=no",
+               handlerInfo);
 
     // Rebuild the actions menu so that we revert to the previous selection,
     // or "Always ask" if the previous default application has been removed
@@ -1755,8 +1757,9 @@ var gApplicationsPane = {
     params.filename      = null;
     params.handlerApp    = null;
 
-    gSubDialog.open("chrome://global/content/appPicker.xul",
-                    null, params);
+    window.openDialog("chrome://global/content/appPicker.xul", null,
+                      "chrome,modal,centerscreen,titlebar,dialog=yes",
+                      params);
 
     if (this.isValidHandlerApp(params.handlerApp)) {
       handlerApp = params.handlerApp;

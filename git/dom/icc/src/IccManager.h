@@ -26,6 +26,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IccManager, DOMEventTargetHelper)
 
   IccManager(nsPIDOMWindow* aWindow);
+  ~IccManager();
 
   void
   Shutdown();
@@ -50,9 +51,6 @@ public:
 
   virtual JSObject*
   WrapObject(JSContext* aCx) MOZ_OVERRIDE;
-
-private:
-  ~IccManager();
 
 private:
   nsTArray<nsRefPtr<IccListener>> mIccListeners;

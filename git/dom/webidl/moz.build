@@ -39,7 +39,6 @@ WEBIDL_FILES = [
     'AudioStreamTrack.webidl',
     'AudioTrack.webidl',
     'AudioTrackList.webidl',
-    'AutocompleteInfo.webidl',
     'BarProp.webidl',
     'BatteryManager.webidl',
     'BeforeUnloadEvent.webidl',

@@ -24,7 +24,6 @@
                  android:padding="@dimen/browser_toolbar_button_padding"
                  android:src="@drawable/menu_tabs"
                  android:contentDescription="@string/menu"
-                 android:background="@drawable/action_bar_button"
-                 android:visibility="gone"/>
+                 android:background="@drawable/action_bar_button"/>
 
 </merge>

@@ -30,8 +30,6 @@ public:
   IMPL_EVENT_HANDLER(devicefound);
 
   void Notify(const BluetoothSignal& aData); // BluetoothSignalObserver
-
-  virtual void DisconnectFromOwner() MOZ_OVERRIDE;
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
 private:
