@@ -107,6 +107,39 @@ public:
 }; 
 
 NS_IMPL_ISUPPORTS1(D2DCacheReporter, nsIMemoryReporter)
+
+class D2DVRAMReporter :
+    public nsIMemoryReporter
+{
+public:
+    D2DVRAMReporter()
+    { }
+
+    NS_DECL_ISUPPORTS
+
+    NS_IMETHOD GetPath(char **memoryPath) {
+        *memoryPath = strdup("gfx/d2d/surfacevram");
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetDescription(char **desc) {
+        *desc = strdup("Video memory used by D2D surfaces");
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetMemoryUsed(PRInt64 *memoryUsed) {
+        cairo_device_t *device =
+            gfxWindowsPlatform::GetPlatform()->GetD2DDevice();
+        if (device) {
+            *memoryUsed = cairo_d2d_get_surface_vram_usage(device);
+        } else {
+            *memoryUsed = 0;
+        }
+        return NS_OK;
+    }
+};
+
+NS_IMPL_ISUPPORTS1(D2DVRAMReporter, nsIMemoryReporter)
 #endif
 
 #ifdef WINCE
@@ -189,9 +222,10 @@ gfxWindowsPlatform::gfxWindowsPlatform()
 
 #ifdef CAIRO_HAS_D2D_SURFACE
     NS_RegisterMemoryReporter(new D2DCacheReporter());
+    NS_RegisterMemoryReporter(new D2DVRAMReporter());
     mD2DDevice = NULL;
 
-    if (isVistaOrHigher && 0) {
+    if (isVistaOrHigher) {
         // We need a DWriteFactory to work.
         HMODULE d3d10module = LoadLibraryA("d3d10_1.dll");
         D3D10CreateDevice1Func createD3DDevice = (D3D10CreateDevice1Func)
@@ -276,6 +310,11 @@ gfxWindowsPlatform::gfxWindowsPlatform()
     PRInt32 rmode;
     if (NS_SUCCEEDED(pref->GetIntPref("mozilla.widget.render-mode", &rmode))) {
         if (rmode >= 0 && rmode < RENDER_MODE_MAX) {
+#ifdef CAIRO_HAS_DWRITE_FONT
+	    if (rmode != RENDER_DIRECT2D && !useDirectWrite) {
+		mDWriteFactory = nsnull;
+	    }
+#endif
 #ifndef CAIRO_HAS_DDRAW_SURFACE
             if (rmode == RENDER_DDRAW || rmode == RENDER_DDRAW_GL)
                 rmode = RENDER_IMAGE_STRETCH24;
@@ -590,16 +629,6 @@ gfxWindowsPlatform::WindowsOSVersion()
         }
     }
     return winVersion;
-}
-
-void
-gfxWindowsPlatform::InitDisplayCaps()
-{
-    HDC dc = GetDC((HWND)nsnull);
-
-    gfxPlatform::sDPI = GetDeviceCaps(dc, LOGPIXELSY);
-
-    ReleaseDC((HWND)nsnull, dc);
 }
 
 void
