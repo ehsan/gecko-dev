@@ -855,7 +855,7 @@ nsFocusManager::ContentRemoved(nsIDocument* aDocument, nsIContent* aContent)
       }
     }
 
-    NotifyFocusStateChange(content, shouldShowFocusRing, false);
+    NotifyFocusStateChange(aContent, shouldShowFocusRing, false);
   }
 
   return NS_OK;

@@ -103,13 +103,6 @@ function testSwitchRunning()
   ok(gDebugger.editor.getText().search(/firstCall/) == -1,
     "The first script is no longer displayed.");
 
-  closeDebuggerAndFinish(gTab);
-}
-
-registerCleanupFunction(function() {
   removeTab(gTab);
-  gPane = null;
-  gTab = null;
-  gDebuggee = null;
-  gDebugger = null;
-});
+  finish();
+}
