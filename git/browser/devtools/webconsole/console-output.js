@@ -82,8 +82,7 @@ const CONSOLE_API_LEVELS_TO_SEVERITIES = {
   groupCollapsed: "log",
   groupEnd: "log",
   time: "log",
-  timeEnd: "log",
-  count: "log"
+  timeEnd: "log"
 };
 
 // Array of known message source URLs we need to hide from output.
@@ -1078,20 +1077,7 @@ Messages.ConsoleGeneric = function(packet)
       line: packet.lineNumber,
     },
   };
-  switch (packet.level) {
-    case "count": {
-      let counter = packet.counter, label = counter.label;
-      if (!label) {
-        label = l10n.getStr("noCounterLabel");
-      }
-      Messages.Extended.call(this, [label+ ": " + counter.count], options);
-      break;
-    }
-    default:
-      Messages.Extended.call(this, packet.arguments, options);
-      break;
-  }
-
+  Messages.Extended.call(this, packet.arguments, options);
   this._repeatID.consoleApiLevel = packet.level;
 };
 

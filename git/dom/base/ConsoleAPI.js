@@ -11,9 +11,6 @@ let Cc = Components.classes;
 // The maximum allowed number of concurrent timers per page.
 const MAX_PAGE_TIMERS = 10000;
 
-// The maximum allowed number of concurrent counters per page.
-const MAX_PAGE_COUNTERS = 10000;
-
 // The regular expression used to parse %s/%d and other placeholders for
 // variables in strings that need to be interpolated.
 const ARGUMENT_PATTERN = /%\d*\.?\d*([osdif])\b/g;
@@ -141,9 +138,6 @@ ConsoleAPI.prototype = {
           self.queueCall("assert", args);
         }
       },
-      count: function CA_count() {
-        self.queueCall("count", arguments);
-      },
       __exposedProps__: {
         log: "r",
         info: "r",
@@ -160,8 +154,7 @@ ConsoleAPI.prototype = {
         timeEnd: "r",
         profile: "r",
         profileEnd: "r",
-        assert: "r",
-        count: "r"
+        assert: "r"
       }
     };
 
@@ -189,7 +182,6 @@ ConsoleAPI.prototype = {
       profile: genPropDesc('profile'),
       profileEnd: genPropDesc('profileEnd'),
       assert: genPropDesc('assert'),
-      count: genPropDesc('count'),
       __noSuchMethod__: { enumerable: true, configurable: true, writable: true,
                           value: function() {} },
       __mozillaConsole__: { value: true }
@@ -202,7 +194,6 @@ ConsoleAPI.prototype = {
     this._timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
     this._window = Cu.getWeakReference(aWindow);
     this.timerRegistry = new Map();
-    this.counterRegistry = new Map();
 
     return contentObj;
   },
@@ -340,9 +331,6 @@ ConsoleAPI.prototype = {
         break;
       case "timeEnd":
         consoleEvent.timer = this.stopTimer(args[0], meta.monotonicTimer);
-        break;
-      case "count":
-        consoleEvent.counter = this.increaseCounter(frame, args[0]);
         break;
       default:
         // unknown console API method!
@@ -512,48 +500,6 @@ ConsoleAPI.prototype = {
     let duration = aTimestamp - this.timerRegistry.get(key);
     this.timerRegistry.delete(key);
     return { name: aName, duration: duration };
-  },
-
-  /*
-   * A registry of counsole.count() counters.
-   * @type Map
-   */
-  counterRegistry: null,
-
-  /**
-   * Increases the given counter by one or creates a new counter if the label
-   * is not known so far.
-   *
-   * @param object aFrame
-   *        The current stack frame to extract the filename and linenumber
-   *        from the console.count() invocation.
-   * @param string aLabel
-   *        The label of the counter. If no label is provided, the script url
-   *        and line number is used for associating the counters
-   * @return object
-   *        The label property holds the counters label and the count property
-   *        holds the current count.
-   **/
-  increaseCounter: function CA_increaseCounter(aFrame, aLabel) {
-    let key = null, label = null;
-    try {
-      label = key = aLabel ? aLabel + "" : "";
-    } catch (ex) { }
-    if (!key) {
-      key = aFrame.filename + ":" + aFrame.lineNumber;
-    }
-    let counter = null;
-    if (!this.counterRegistry.has(key)) {
-      if (this.counterRegistry.size > MAX_PAGE_COUNTERS - 1) {
-        return { error: "maxCountersExceeded" };
-      }
-      counter = { label: label, count: 1 };
-      this.counterRegistry.set(key, counter);
-    } else {
-      counter = this.counterRegistry.get(key);
-      counter.count += 1;
-    }
-    return { label: counter.label, count: counter.count };
   }
 };
 
