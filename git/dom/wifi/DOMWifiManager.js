@@ -62,19 +62,6 @@ MozWifiConnectionInfo.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports])
 }
 
-function MozWifiCapabilities(obj) {
-  this.security = obj.security;
-  this.eapMethod = obj.eapMethod;
-  this.eapPhase2 = obj.eapPhase2;
-  this.certificate = obj.certificate;
-}
-
-MozWifiCapabilities.prototype = {
-  classID: Components.ID("08c88ece-8092-481b-863b-5515a52e411a"),
-  contractID: "@mozilla.org/mozwificapabilities;1",
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports])
-}
-
 function DOMWifiManager() {
   this.defineEventHandlerGetterSetter("onstatuschange");
   this.defineEventHandlerGetterSetter("onconnectionInfoUpdate");
@@ -98,7 +85,6 @@ DOMWifiManager.prototype = {
     this._connectionStatus = "disconnected";
     this._enabled = false;
     this._lastConnectionInfo = null;
-    this._capabilities = null;
 
     const messages = ["WifiManager:getNetworks:Return:OK", "WifiManager:getNetworks:Return:NO",
                       "WifiManager:getKnownNetworks:Return:OK", "WifiManager:getKnownNetworks:Return:NO",
@@ -128,7 +114,6 @@ DOMWifiManager.prototype = {
       this._enabled = state.enabled;
       this._connectionStatus = state.status;
       this._macAddress = state.macAddress;
-      this._capabilities = this._convertWifiCapabilities(state.capabilities);
     } else {
       this._currentNetwork = null;
       this._lastConnectionInfo = null;
@@ -172,12 +157,6 @@ DOMWifiManager.prototype = {
   _convertConnectionInfo: function(aInfo) {
     let info = aInfo ? new MozWifiConnectionInfo(aInfo) : null;
     return info;
-  },
-
-  _convertWifiCapabilities: function(aCapabilities) {
-    let capabilities = aCapabilities ?
-                         new MozWifiCapabilities(aCapabilities) : null;
-    return capabilities;
   },
 
   _genReadonlyPropDesc: function(value) {
@@ -516,10 +495,6 @@ DOMWifiManager.prototype = {
     return this._lastConnectionInfo;
   },
 
-  get capabilities() {
-    return this._capabilities;
-  },
-
   defineEventHandlerGetterSetter: function(name) {
     Object.defineProperty(this, name, {
       get: function() {
@@ -533,8 +508,7 @@ DOMWifiManager.prototype = {
 };
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([
-  DOMWifiManager, MozWifiNetwork, MozWifiConnection, MozWifiCapabilities,
-  MozWifiConnectionInfo
+  DOMWifiManager, MozWifiNetwork, MozWifiConnection, MozWifiConnectionInfo
 ]);
 
 let debug;
