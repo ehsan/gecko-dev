@@ -216,7 +216,6 @@ pref("browser.urlbar.matchOnlyTyped", false);
 // 0: Match anywhere (e.g., middle of words)
 // 1: Match on word boundaries and then try matching anywhere
 // 2: Match only on word boundaries (e.g., after / or .)
-// 3: Match at the beginning of the url or title
 pref("browser.urlbar.matchBehavior", 1);
 pref("browser.urlbar.filter.javascript", true);
 

@@ -81,7 +81,6 @@ CPPSRCS		= \
 		TestProxies.cpp \
 		TestThreadPoolListener.cpp \
 		TestTimers.cpp \
-		TestOOM.cpp \
 		$(NULL)
 
 ifndef MOZ_ENABLE_LIBXUL

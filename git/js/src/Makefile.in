@@ -40,6 +40,7 @@
 DEPTH		= ../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
+VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
@@ -85,25 +86,6 @@ PACKAGE_FILE = js.pkg
 ifndef JS_STATIC_BUILD
 FORCE_SHARED_LIB = 1
 endif
-
-ifeq (86,$(findstring 86,$(OS_TEST)))
-ifeq (64,$(findstring 64,$(OS_TEST)))
-else
-DEFINES += -DAVMPLUS_IA32
-NANOJIT_ARCH = i386
-ENABLE_JIT = 1
-endif
-endif
-
-ifeq ($(OS_ARCH),Linux)
-DEFINES += -DAVMPLUS_LINUX -DLINUX
-endif
-
-ifeq ($(OS_ARCH),WINNT)
-DEFINES += -DAVMPLUS_WIN32
-endif
-
-VPATH		= $(srcdir)
 
 CPPSRCS		= \
 		jsapi.cpp \
@@ -192,47 +174,11 @@ EXPORTS		= \
 		jsscript.h \
 		jsstddef.h \
 		jsstr.h \
-		jstracer.h \
 		jstypes.h \
 		jsutil.h \
 		jsxdrapi.h \
 		jsxml.h \
 		$(NULL)
-
-ifdef ENABLE_JIT
-VPATH		+= $(srcdir)/nanojit
-
-EXPORTS += \
-		Assembler.h     \
-		LIR.h		\
-		avmplus.h	\
-		vm_fops.h	\
-		Fragmento.h	\
-		Native.h	\
-		Native$(NANOJIT_ARCH).h \
-		RegAlloc.h	\
-		nanojit.h	\
-		builtins.tbl \
-		$(NULL)
-
-CPPSRCS += \
-		jstracer.cpp \
-		Assembler.cpp  \
-		Fragmento.cpp  \
-		LIR.cpp        \
-		RegAlloc.cpp   \
-		avmplus.cpp    \
-		Native$(NANOJIT_ARCH).cpp \
-		jsbuiltins.cpp         \
-		$(NULL)
-
-ifdef DEBUG
-EXPORTS += TraceTreeDrawer.h
-CPPSRCS += TraceTreeDrawer.cpp
-endif
-
-DEFINES += -DFEATURE_NANOJIT -DJS_TRACER
-endif
 
 ifdef HAVE_DTRACE
 EXPORTS 	+= \
@@ -302,9 +248,6 @@ GARBAGE += jsautooplen.h host_jsoplengen$(HOST_BIN_SUFFIX)
 
 USE_HOST_CXX = 1
 
-HOST_SIMPLE_PROGRAMS += host_jsoplengen$(HOST_BIN_SUFFIX)
-GARBAGE += jsautooplen.h host_jsoplengen$(HOST_BIN_SUFFIX)
-
 ifdef HAVE_DTRACE
 ifneq ($(OS_ARCH),Darwin)
 DTRACE_PROBE_OBJ = $(LIBRARY_NAME)-dtrace.$(OBJ_SUFFIX)
@@ -313,10 +256,6 @@ MOZILLA_DTRACE_SRC = $(srcdir)/javascript-trace.d
 endif
 
 include $(topsrcdir)/config/rules.mk
-
-# our build system doesn't handle subdir srcs very gracefully today
-export::
-	mkdir -p nanojit
 
 DEFINES		+= -DEXPORT_JS_API 
 
@@ -375,9 +314,11 @@ EXTRA_DSO_LDOPTS += C:/Program\ Files/Intel/VTune/Analyzer/Lib/VtuneApi.lib
 LIBS +=  C:/Program\ Files/Intel/VTune/Analyzer/Lib/VtuneApi.lib
 endif
 
+LDFLAGS		+= $(pathsubst -l%,$(NSPR_STATIC_PATH)/%.a,$(NSPR_LIBS))
+
 # BeOS and HP-UX do not require the extra linking of "-lm"
 ifeq (,$(filter BeOS HP-UX WINNT WINCE OpenVMS,$(OS_ARCH)))
-EXTRA_LIBS	+= -lm
+LDFLAGS		+= -lm
 endif
 
 # Prevent floating point errors caused by VC++ optimizations
@@ -390,7 +331,7 @@ endif
 endif # WINNT
 
 ifeq ($(OS_ARCH),FreeBSD)
-EXTRA_LIBS	+= -pthread
+LDFLAGS		+= -pthread
 endif
 ifeq ($(OS_ARCH),IRIX)
 ifdef USE_N32
@@ -398,10 +339,10 @@ DASH_R		+= -n32
 endif
 endif
 ifeq ($(OS_ARCH),Linux)
-EXTRA_LIBS	+= -ldl
+LDFLAGS		+= -ldl
 endif
 ifeq ($(OS_ARCH),OSF1)
-EXTRA_LIBS	+= -lc_r
+LDFLAGS		+= -lc_r
 endif
 ifeq ($(OS_ARCH),SunOS)
 ifeq ($(TARGET_CPU),sparc)
@@ -418,9 +359,9 @@ endif # JS_ULTRASPARC_OPTS
 
 endif
 ifeq ($(OS_RELEASE),4.1)
-EXTRA_LIBS	+= -ldl -lnsl
+LDFLAGS		+= -ldl -lnsl
 else
-EXTRA_LIBS	+= -lposix4 -ldl -lnsl -lsocket
+LDFLAGS		+= -lposix4 -ldl -lnsl -lsocket
 endif
 endif
 

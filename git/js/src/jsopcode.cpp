@@ -1,5 +1,5 @@
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set sw=4 ts=8 et tw=99:
+ * vim: set sw=4 ts=8 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -324,6 +324,10 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
         i = (jsint)GET_UINT16(pc);
         goto print_int;
 
+      case JOF_2BYTE:
+        fprintf(fp, " %u", (uintN)pc[1]);
+        break;
+
       case JOF_TABLESWITCH:
       case JOF_TABLESWITCHX:
       {
@@ -407,10 +411,6 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
       case JOF_UINT24:
         JS_ASSERT(op == JSOP_UINT24 || op == JSOP_NEWARRAY);
         i = (jsint)GET_UINT24(pc);
-        goto print_int;
-
-      case JOF_UINT8:
-        i = pc[1];
         goto print_int;
 
       case JOF_INT8:
@@ -1181,7 +1181,7 @@ GetArgOrVarAtom(JSPrinter *jp, uintN slot)
     JSAtom *name;
 
     LOCAL_ASSERT_RV(jp->fun, NULL);
-    LOCAL_ASSERT_RV(slot < (uintN) JS_GET_LOCAL_NAME_COUNT(jp->fun), NULL);
+    LOCAL_ASSERT_RV(slot < JS_GET_LOCAL_NAME_COUNT(jp->fun), NULL);
     name = JS_LOCAL_NAME_TO_ATOM(jp->localNames[slot]);
 #if !JS_HAS_DESTRUCTURING
     LOCAL_ASSERT_RV(name, NULL);
@@ -2135,7 +2135,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 if ((cs->prec != 0 &&
                      cs->prec <= js_CodeSpec[NEXT_OP(pc)].prec) ||
                     pc[JSOP_GROUP_LENGTH] == JSOP_NULL ||
-                    pc[JSOP_GROUP_LENGTH] == JSOP_NULLTHIS ||
                     pc[JSOP_GROUP_LENGTH] == JSOP_DUP ||
                     pc[JSOP_GROUP_LENGTH] == JSOP_IFEQ ||
                     pc[JSOP_GROUP_LENGTH] == JSOP_IFNE) {
@@ -2692,31 +2691,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                     todo = SprintCString(&ss->sprinter, rval);
                 break;
               }
-
-              case JSOP_CALLUPVAR:
-              case JSOP_GETUPVAR:
-                i = JS_UPVAR_LOCAL_NAME_START(jp->fun) + GET_UINT16(pc);
-                if (i >= JS_GET_LOCAL_NAME_COUNT(jp->fun)) {
-                    JSUpvarArray *uva;
-
-                    /*
-                     * We must be in an eval called from jp->fun, where
-                     * jp->script is the eval-compiled script.
-                     */
-                    JS_ASSERT(cx->fp->flags & JSFRAME_EVAL);
-                    JS_ASSERT(cx->fp->script == jp->script);
-                    JS_ASSERT(cx->fp->down->fun == jp->fun);
-                    JS_ASSERT(FUN_INTERPRETED(jp->fun));
-                    JS_ASSERT(jp->script != jp->fun->u.i.script);
-                    JS_ASSERT(jp->script->upvarsOffset != 0);
-
-                    uva = JS_SCRIPT_UPVARS(jp->script);
-                    i = GET_UINT16(pc);
-                    JS_ASSERT(UPVAR_FRAME_SKIP(uva->vector[i]) == 1);
-                    i = UPVAR_FRAME_SLOT(uva->vector[i]);
-                }
-                atom = GetArgOrVarAtom(jp, i);
-                goto do_name;
 
               case JSOP_CALLLOCAL:
               case JSOP_GETLOCAL:
@@ -3898,7 +3872,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                      * arrange to advance over the call to this lambda.
                      */
                     pc += len;
-                    LOCAL_ASSERT(*pc == JSOP_NULL || *pc == JSOP_NULLTHIS);
+                    LOCAL_ASSERT(*pc == JSOP_NULL);
                     pc += JSOP_NULL_LENGTH;
                     LOCAL_ASSERT(*pc == JSOP_CALL);
                     LOCAL_ASSERT(GET_ARGC(pc) == 0);
@@ -5124,18 +5098,12 @@ DecompileExpression(JSContext *cx, JSScript *script, JSFunction *fun,
     return name;
 }
 
-uintN
-js_ReconstructStackDepth(JSContext *cx, JSScript *script, jsbytecode *pc)
-{
-    return ReconstructPCStack(cx, script, pc, NULL);
-}
-
 static intN
-ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
+ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *pc,
                    jsbytecode **pcstack)
 {
     intN pcdepth, nuses, ndefs;
-    jsbytecode *pc;
+    jsbytecode *begin;
     JSOp op;
     const JSCodeSpec *cs;
     ptrdiff_t oplen;
@@ -5151,9 +5119,10 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
      * FIXME: Code to compute oplen copied from js_Disassemble1 and reduced.
      * FIXME: Optimize to use last empty-stack sequence point.
      */
-    LOCAL_ASSERT(script->main <= target && target < script->code + script->length);
+    LOCAL_ASSERT(script->main <= pc && pc < script->code + script->length);
     pcdepth = 0;
-    for (pc = script->main; pc < target; pc += oplen) {
+    begin = pc;
+    for (pc = script->main; pc < begin; pc += oplen) {
         op = (JSOp) *pc;
         if (op == JSOP_TRAP)
             op = JS_GetTrapOpcode(cx, script, pc);
@@ -5177,8 +5146,8 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
         }
 
         /*
-         * A (C ? T : E) expression requires skipping either T (if target is in
-         * E) or both T and E (if target is after the whole expression) before
+         * A (C ? T : E) expression requires skipping either T (if begin is in
+         * E) or both T and E (if begin is after the whole expression) before
          * adjusting pcdepth based on the JSOP_IFEQ or JSOP_IFEQX at pc that
          * tests condition C.  We know that the stack depth can't change from
          * what it was with C on top of stack.
@@ -5188,21 +5157,20 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
             ptrdiff_t jmpoff, jmplen;
 
             jmpoff = js_GetSrcNoteOffset(sn, 0);
-            if (pc + jmpoff < target) {
+            if (pc + jmpoff < begin) {
                 pc += jmpoff;
                 op = (JSOp) *pc;
                 JS_ASSERT(op == JSOP_GOTO || op == JSOP_GOTOX);
                 cs = &js_CodeSpec[op];
                 oplen = cs->length;
-                JS_ASSERT(oplen > 0);
                 jmplen = GetJumpOffset(pc, pc);
-                if (pc + jmplen < target) {
+                if (pc + jmplen < begin) {
                     oplen = (uintN) jmplen;
                     continue;
                 }
 
                 /*
-                 * Ok, target lies in E. Manually pop C off the model stack,
+                 * Ok, begin lies in E.  Manually pop C off the model stack,
                  * since we have moved beyond the IFEQ now.
                  */
                 --pcdepth;
@@ -5251,10 +5219,8 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
          */
         switch (op) {
           default:
-            if (pcstack) {
-                for (i = 0; i != ndefs; ++i)
-                    pcstack[pcdepth + i] = pc;
-            }
+            for (i = 0; i != ndefs; ++i)
+                pcstack[pcdepth + i] = pc;
             break;
 
           case JSOP_CASE:
@@ -5265,16 +5231,13 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
 
           case JSOP_DUP:
             JS_ASSERT(ndefs == 2);
-            if (pcstack)
-                pcstack[pcdepth + 1] = pcstack[pcdepth];
+            pcstack[pcdepth + 1] = pcstack[pcdepth];
             break;
 
           case JSOP_DUP2:
             JS_ASSERT(ndefs == 4);
-            if (pcstack) {
-                pcstack[pcdepth + 2] = pcstack[pcdepth];
-                pcstack[pcdepth + 3] = pcstack[pcdepth + 1];
-            }
+            pcstack[pcdepth + 2] = pcstack[pcdepth];
+            pcstack[pcdepth + 3] = pcstack[pcdepth + 1];
             break;
 
           case JSOP_LEAVEBLOCKEXPR:
@@ -5287,18 +5250,17 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
              */
             JS_ASSERT(ndefs == 0);
             LOCAL_ASSERT(pcdepth >= 1);
-            LOCAL_ASSERT(nuses == 0 || !pcstack ||
+            LOCAL_ASSERT(nuses == 0 ||
                          *pcstack[pcdepth - 1] == JSOP_ENTERBLOCK ||
                          (*pcstack[pcdepth - 1] == JSOP_TRAP &&
                           JS_GetTrapOpcode(cx, script, pcstack[pcdepth - 1])
                           == JSOP_ENTERBLOCK));
-            if (pcstack)
-                pcstack[pcdepth - 1] = pc;
+            pcstack[pcdepth - 1] = pc;
             break;
         }
         pcdepth += ndefs;
     }
-    LOCAL_ASSERT(pc == target);
+    LOCAL_ASSERT(pc == begin);
     return pcdepth;
 
 #undef LOCAL_ASSERT

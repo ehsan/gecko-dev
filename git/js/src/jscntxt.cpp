@@ -65,9 +65,6 @@
 #include "jsscope.h"
 #include "jsscript.h"
 #include "jsstr.h"
-#ifdef JS_TRACER
-#include "jstracer.h"
-#endif
 
 #ifdef JS_THREADSAFE
 #include "prtypes.h"
@@ -113,9 +110,6 @@ js_ThreadDestructorCB(void *ptr)
      */
     JS_ASSERT(JS_CLIST_IS_EMPTY(&thread->contextList));
     GSN_CACHE_CLEAR(&thread->gsnCache);
-#if defined JS_TRACER
-    js_FinishJIT(&thread->traceMonitor);
-#endif
     free(thread);
 }
 
@@ -151,11 +145,6 @@ js_GetCurrentThread(JSRuntime *rt)
         JS_INIT_CLIST(&thread->contextList);
         thread->id = js_CurrentThreadId();
         thread->gcMallocBytes = 0;
-#ifdef JS_TRACER
-        memset(&thread->traceMonitor, 0, sizeof(thread->traceMonitor));
-        js_InitJIT(&thread->traceMonitor);
-#endif
-        thread->scriptsToGC = NULL;
 
         /*
          * js_SetContextThread initializes the remaining fields as necessary.
@@ -338,7 +327,6 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
         js_DestroyContext(cx, JSDCM_NEW_FAILED);
         return NULL;
     }
-
     return cx;
 }
 
@@ -510,7 +498,9 @@ js_ContextIterator(JSRuntime *rt, JSBool unlocked, JSContext **iterp)
 
     if (unlocked)
         JS_LOCK_GC(rt);
-    cx = (JSContext *) (cx ? cx->links.next : rt->contextList.next);
+    if (!cx)
+        cx = (JSContext *)&rt->contextList;
+    cx = (JSContext *)cx->links.next;
     if (&cx->links == &rt->contextList)
         cx = NULL;
     *iterp = cx;

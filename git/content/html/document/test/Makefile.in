@@ -70,7 +70,6 @@ _TEST_FILES = 	test_bug1682.html \
 		test_bug404320.html \
 		test_form-parsing.html \
 		test_viewport.html \
-		test_documentAll.html \
 		$(NULL)
 
 libs:: $(_TEST_FILES)

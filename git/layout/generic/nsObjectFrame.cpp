@@ -327,7 +327,9 @@ public:
 
 #endif /* OJI */
 
-  // nsIDOMMouseListener interfaces 
+ /** nsIDOMMouseListener interfaces 
+  * @see nsIDOMMouseListener
+  */
   NS_IMETHOD MouseDown(nsIDOMEvent* aMouseEvent);
   NS_IMETHOD MouseUp(nsIDOMEvent* aMouseEvent);
   NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent);
@@ -335,8 +337,9 @@ public:
   NS_IMETHOD MouseOver(nsIDOMEvent* aMouseEvent);
   NS_IMETHOD MouseOut(nsIDOMEvent* aMouseEvent);
   NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);     
+  /* END interfaces from nsIDOMMouseListener*/
 
-  // nsIDOMMouseMotionListener interfaces
+  // nsIDOMMouseListener intefaces
   NS_IMETHOD MouseMove(nsIDOMEvent* aMouseEvent);
   NS_IMETHOD DragMove(nsIDOMEvent* aMouseEvent) { return NS_OK; }
 
@@ -344,11 +347,12 @@ public:
   NS_IMETHOD KeyDown(nsIDOMEvent* aKeyEvent);
   NS_IMETHOD KeyUp(nsIDOMEvent* aKeyEvent);
   NS_IMETHOD KeyPress(nsIDOMEvent* aKeyEvent);
+  // end nsIDOMKeyListener interfaces
 
   // nsIDOMFocuListener interfaces
   NS_IMETHOD Focus(nsIDOMEvent * aFocusEvent);
   NS_IMETHOD Blur(nsIDOMEvent * aFocusEvent);
-
+  
   // nsIDOMDragListener interfaces
   NS_IMETHOD DragEnter(nsIDOMEvent* aMouseEvent);
   NS_IMETHOD DragOver(nsIDOMEvent* aMouseEvent);
@@ -363,7 +367,7 @@ public:
 
   void PrepareToStop(PRBool aDelayedStop);
 
-  // nsIEventListener interface
+  //nsIEventListener interface
   nsEventStatus ProcessEvent(const nsGUIEvent & anEvent);
   
 #ifdef XP_WIN
@@ -3137,10 +3141,10 @@ nsresult nsPluginInstanceOwner::EnsureCachedAttrParamArrays()
 
 static void InitializeEventRecord(EventRecord* event)
 {
-  memset(event, 0, sizeof(EventRecord));
-  ::GetGlobalMouse(&event->where);
-  event->when = ::TickCount();
-  event->modifiers = ::GetCurrentEventKeyModifiers();
+    memset(event, 0, sizeof(EventRecord));
+    ::GetGlobalMouse(&event->where);
+    event->when = ::TickCount();
+    event->modifiers = ::GetCurrentEventKeyModifiers();
 }
 
 NPDrawingModel nsPluginInstanceOwner::GetDrawingModel()
@@ -3455,7 +3459,7 @@ nsresult nsPluginInstanceOwner::DispatchKeyToPlugin(nsIDOMEvent* aKeyEvent)
   return NS_OK;
 }    
 
-/*=============== nsIDOMMouseMotionListener ======================*/
+/*=============== nsIMouseMotionListener ======================*/
 
 nsresult
 nsPluginInstanceOwner::MouseMove(nsIDOMEvent* aMouseEvent)
@@ -3466,7 +3470,7 @@ nsPluginInstanceOwner::MouseMove(nsIDOMEvent* aMouseEvent)
   // continue only for cases without child window
 #endif
 
-  // don't send mouse events if we are hidden
+  // don't send mouse events if we are hiddden
   if (!mWidgetVisible)
     return NS_OK;
 
@@ -3487,7 +3491,7 @@ nsPluginInstanceOwner::MouseMove(nsIDOMEvent* aMouseEvent)
   return NS_OK;
 }
 
-/*=============== nsIDOMMouseListener ======================*/
+/*=============== nsIMouseListener ======================*/
 
 nsresult
 nsPluginInstanceOwner::MouseDown(nsIDOMEvent* aMouseEvent)
@@ -3560,7 +3564,7 @@ nsresult nsPluginInstanceOwner::DispatchMouseToPlugin(nsIDOMEvent* aMouseEvent)
   // continue only for cases without child window
 #endif
 
-  // don't send mouse events if we are hidden
+  // don't send mouse events if we are hiddden
   if (!mWidgetVisible)
     return NS_OK;
 
@@ -3592,10 +3596,10 @@ nsPluginInstanceOwner::HandleEvent(nsIDOMEvent* aEvent)
 static unsigned int XInputEventState(const nsInputEvent& anEvent)
 {
   unsigned int state = 0;
-  if (anEvent.isShift) state |= ShiftMask;
-  if (anEvent.isControl) state |= ControlMask;
-  if (anEvent.isAlt) state |= Mod1Mask;
-  if (anEvent.isMeta) state |= Mod4Mask;
+  if(anEvent.isShift) state |= ShiftMask;
+  if(anEvent.isControl) state |= ControlMask;
+  if(anEvent.isAlt) state |= Mod1Mask;
+  if(anEvent.isMeta) state |= Mod4Mask;
   return state;
 }
 #endif
@@ -4336,10 +4340,10 @@ void nsPluginInstanceOwner::StartTimer(unsigned int aDelay)
 
 void nsPluginInstanceOwner::CancelTimer()
 {
-  if (mPluginTimer) {
-    mPluginTimer->Cancel();
-    mPluginTimer = nsnull;
-  }
+    if (mPluginTimer) {
+        mPluginTimer->Cancel();
+        mPluginTimer = nsnull;
+    }
 }
 
 nsresult nsPluginInstanceOwner::Init(nsPresContext* aPresContext,
@@ -4714,3 +4718,5 @@ void nsPluginInstanceOwner::FixUpURLS(const nsString &name, nsAString &value)
       value = newURL;
   }
 }
+
+

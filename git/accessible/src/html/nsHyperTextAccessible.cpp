@@ -735,30 +735,6 @@ nsHyperTextAccessible::HypertextOffsetsToDOMRange(PRInt32 aStartHTOffset,
   NS_ENSURE_ARG_POINTER(aEndOffset);
   *aEndOffset = -1;
 
-  // If the given offsets are 0 and associated editor is empty then return
-  // collapsed range with editor root element as range container.
-  if (aStartHTOffset == 0 && aEndHTOffset == 0) {
-    nsCOMPtr<nsIEditor> editor;
-    GetAssociatedEditor(getter_AddRefs(editor));
-    if (editor) {
-      PRBool isEmpty = PR_FALSE;
-      editor->GetDocumentIsEmpty(&isEmpty);
-      if (isEmpty) {
-        nsCOMPtr<nsIDOMElement> editorRootElm;
-        editor->GetRootElement(getter_AddRefs(editorRootElm));
-
-        nsCOMPtr<nsIDOMNode> editorRoot(do_QueryInterface(editorRootElm));
-        if (editorRoot) {
-          *aStartOffset = *aEndOffset = 0;
-          NS_ADDREF(*aStartNode = editorRoot);
-          NS_ADDREF(*aEndNode = editorRoot);
-
-          return NS_OK;
-        }
-      }
-    }
-  }
-
   nsCOMPtr<nsIAccessible> startAcc, endAcc;
   PRInt32 startOffset = aStartHTOffset, endOffset = aEndHTOffset;
   nsIFrame *startFrame = nsnull, *endFrame = nsnull;
@@ -1204,24 +1180,12 @@ nsHyperTextAccessible::GetDefaultTextAttributes(nsIPersistentProperties **aAttri
   nsCOMPtr<nsIDOMElement> element = nsAccUtils::GetDOMElementFor(mDOMNode);
 
   nsCSSTextAttr textAttr(PR_TRUE, element, nsnull);
-  while (textAttr.Iterate()) {
+  while (textAttr.iterate()) {
     nsCAutoString name;
     nsAutoString value, oldValue;
-    if (textAttr.Get(name, value))
+    if (textAttr.get(name, value))
       attributes->SetStringProperty(name, value, oldValue);
   }
-
-  nsIFrame *sourceFrame = nsAccUtils::GetFrameFor(element);
-  if (sourceFrame) {
-    nsBackgroundTextAttr backgroundTextAttr(sourceFrame, nsnull);
-
-    nsAutoString value;
-    if (backgroundTextAttr.Get(value)) {
-      nsAccUtils::SetAccAttr(attributes,
-                             nsAccessibilityAtoms::backgroundColor, value);
-    }
-  }
-
   return NS_OK;
 }
 
@@ -2324,34 +2288,15 @@ nsHyperTextAccessible::GetCSSTextAttributes(PRBool aIncludeDefAttrs,
   nsCOMPtr<nsIDOMElement> rootElm(nsAccUtils::GetDOMElementFor(mDOMNode));
 
   nsCSSTextAttr textAttr(aIncludeDefAttrs, sourceElm, rootElm);
-  while (textAttr.Iterate()) {
+  while (textAttr.iterate()) {
     nsCAutoString name;
     nsAutoString value, oldValue;
-    if (aAttributes && textAttr.Get(name, value))
+    if (aAttributes && textAttr.get(name, value))
       aAttributes->SetStringProperty(name, value, oldValue);
 
     nsresult rv = GetRangeForTextAttr(aSourceNode, &textAttr,
                                       aStartHTOffset, aEndHTOffset);
     NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  nsIFrame *sourceFrame = nsAccUtils::GetFrameFor(sourceElm);
-  if (sourceFrame) {
-    nsIFrame *rootFrame = nsnull;
-
-    if (!aIncludeDefAttrs)
-      rootFrame = nsAccUtils::GetFrameFor(rootElm);
-
-    nsBackgroundTextAttr backgroundTextAttr(sourceFrame, rootFrame);
-    nsAutoString value;
-    if (backgroundTextAttr.Get(value)) {
-      nsAccUtils::SetAccAttr(aAttributes,
-                             nsAccessibilityAtoms::backgroundColor, value);
-    }
-
-    nsresult rv = GetRangeForTextAttr(aSourceNode, &backgroundTextAttr,
-                                      aStartHTOffset, aEndHTOffset);
-    return rv;
   }
 
   return NS_OK;
@@ -2383,7 +2328,7 @@ nsHyperTextAccessible::GetRangeForTextAttr(nsIDOMNode *aNode,
     nsCOMPtr<nsIDOMElement> currElm(nsAccUtils::GetDOMElementFor(currNode));
     NS_ENSURE_STATE(currElm);
 
-    if (currNode != aNode && !aComparer->Equal(currElm)) {
+    if (currNode != aNode && !aComparer->equal(currElm)) {
       PRInt32 startHTOffset = 0;
       nsCOMPtr<nsIAccessible> startAcc;
       nsresult rv = DOMPointToHypertextOffset(tmpNode, -1, &startHTOffset,
@@ -2419,7 +2364,7 @@ nsHyperTextAccessible::GetRangeForTextAttr(nsIDOMNode *aNode,
 
     // Stop new end offset searching if the given text attribute changes its
     // value.
-    if (!aComparer->Equal(currElm)) {
+    if (!aComparer->equal(currElm)) {
       PRInt32 endHTOffset = 0;
       nsresult rv = DOMPointToHypertextOffset(currNode, -1, &endHTOffset);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -2465,7 +2410,7 @@ nsHyperTextAccessible::FindEndOffsetInSubtree(nsIDOMNode *aCurrNode,
 
   // If the given text attribute (pointed by nsTextAttr object) changes its
   // value on the traversed element then fit the end of range.
-  if (!aComparer->Equal(currElm)) {
+  if (!aComparer->equal(currElm)) {
     PRInt32 endHTOffset = 0;
     nsresult rv = DOMPointToHypertextOffset(aCurrNode, -1, &endHTOffset);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -2516,7 +2461,7 @@ nsHyperTextAccessible::FindStartOffsetInSubtree(nsIDOMNode *aCurrNode,
 
   // If the given text attribute (pointed by nsTextAttr object) changes its
   // value on the traversed element then fit the start of range.
-  if (!aComparer->Equal(currElm)) {
+  if (!aComparer->equal(currElm)) {
     PRInt32 startHTOffset = 0;
     nsCOMPtr<nsIAccessible> startAcc;
     nsresult rv = DOMPointToHypertextOffset(aPrevNode, -1, &startHTOffset,

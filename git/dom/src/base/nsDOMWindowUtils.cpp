@@ -55,8 +55,6 @@
 #include "nsIParser.h"
 #include "nsJSEnvironment.h"
 
-#include "nsIViewManager.h"
-
 #if defined(MOZ_X11) && defined(MOZ_WIDGET_GTK2)
 #include <gdk/gdk.h>
 #include <gdk/gdkx.h>
@@ -295,9 +293,7 @@ NS_IMETHODIMP
 nsDOMWindowUtils::SendKeyEvent(const nsAString& aType,
                                PRInt32 aKeyCode,
                                PRInt32 aCharCode,
-                               PRInt32 aModifiers,
-                               PRBool aPreventDefault,
-                               PRBool* aDefaultActionTaken)
+                               PRInt32 aModifiers)
 {
   PRBool hasCap = PR_FALSE;
   if (NS_FAILED(nsContentUtils::GetSecurityManager()->IsCapabilityEnabled("UniversalXPConnect", &hasCap))
@@ -330,17 +326,8 @@ nsDOMWindowUtils::SendKeyEvent(const nsAString& aType,
   event.refPoint.x = event.refPoint.y = 0;
   event.time = PR_IntervalNow();
 
-  if (aPreventDefault) {
-    event.flags |= NS_EVENT_FLAG_NO_DEFAULT;
-  }
-
   nsEventStatus status;
-  nsresult rv = widget->DispatchEvent(&event, status);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  *aDefaultActionTaken = (status != nsEventStatus_eConsumeNoDefault);
-  
-  return NS_OK;
+  return widget->DispatchEvent(&event, status);
 }
 
 NS_IMETHODIMP
@@ -466,28 +453,5 @@ nsDOMWindowUtils::GarbageCollect()
   nsJSContext::CC();
   nsJSContext::CC();
 
-  return NS_OK;
-}
-
-
-NS_IMETHODIMP
-nsDOMWindowUtils::ProcessUpdates()
-{
-  nsCOMPtr<nsIDocShell> docShell = mWindow->GetDocShell();
-  if (!docShell) 
-    return NS_ERROR_UNEXPECTED;
-  nsCOMPtr<nsIPresShell> presShell;
-  
-  nsresult rv = docShell->GetPresShell(getter_AddRefs(presShell));
-  if (!NS_SUCCEEDED(rv) || !presShell) 
-    return NS_ERROR_UNEXPECTED;
-  
-  nsIViewManager *viewManager = presShell->GetViewManager();
-  if (!viewManager)
-    return NS_ERROR_UNEXPECTED;
-  
-  nsIViewManager::UpdateViewBatch batch;
-  batch.BeginUpdateViewBatch(viewManager);
-  batch.EndUpdateViewBatch(NS_VMREFRESH_IMMEDIATE);
   return NS_OK;
 }

@@ -4,7 +4,6 @@
 ~$
 \.pyc$
 (^|/)TAGS$
-\.DS_Store$
 
 # User files that may appear at the root
 ^\.mozconfig$

@@ -105,8 +105,6 @@ nsApplicationAccessible::Init()
 NS_IMETHODIMP
 nsApplicationAccessible::GetName(nsAString& aName)
 {
-  aName.Truncate();
-
   nsCOMPtr<nsIStringBundleService> bundleService =
     do_GetService(NS_STRINGBUNDLE_CONTRACTID);
 

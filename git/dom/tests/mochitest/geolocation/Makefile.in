@@ -50,7 +50,6 @@ _TEST_FILES	= \
 		prompt_common.js       \
 		geolocation_common.js  \
 		geolocation.html \
-		test_optional_api_params.html \
 		$(NULL)
 
 

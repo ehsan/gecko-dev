@@ -50,7 +50,7 @@
 #include "gfxImageSurface.h"
 #include "gfxQPainterSurface.h"
 
-#include "gfxFT2Fonts.h"
+#include "gfxQtFonts.h"
 
 #include "nsUnicharUtils.h"
 
@@ -339,7 +339,7 @@ gfxFontGroup *
 gfxQtPlatform::CreateFontGroup(const nsAString &aFamilies,
                                const gfxFontStyle *aStyle)
 {
-    return new gfxFT2FontGroup(aFamilies, aStyle);
+    return new gfxQtFontGroup(aFamilies, aStyle);
 }
 
 /* static */

@@ -1,6 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 sts=2 expandtab
- * ***** BEGIN LICENSE BLOCK *****
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -94,7 +92,7 @@ DispatchNamedNotification(const nsAString &aName,
   if ([GrowlApplicationBridge isGrowlInstalled] == NO ||
       [GrowlApplicationBridge isGrowlRunning] == NO)
     return NS_ERROR_NOT_AVAILABLE;
-
+  
   mozGrowlDelegate *delegate =
     static_cast<mozGrowlDelegate *>([GrowlApplicationBridge growlDelegate]);
   if (!delegate)
@@ -184,14 +182,14 @@ nsAlertsService::ShowAlertNotification(const nsAString& aImageUrl,
                "Growl Delegate was not registered properly.");
 
   if (!aAlertName.IsEmpty()) {
-    return DispatchNamedNotification(aAlertName, aImageUrl, aAlertTitle,
+    return DispatchNamedNotification(aAlertTitle, aImageUrl, aAlertTitle,
                                      aAlertText, aAlertCookie, aAlertListener);
   }
 
   nsresult rv;
   nsCOMPtr<nsIStringBundleService> bundleService =
     do_GetService("@mozilla.org/intl/stringbundle;1", &rv);
-
+  
   // We don't want to fail just yet if we can't get the alert name
   nsString name = NS_LITERAL_STRING("General Notification");
   if (NS_SUCCEEDED(rv)) {

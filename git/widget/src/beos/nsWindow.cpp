@@ -1937,7 +1937,7 @@ bool nsWindow::CallMethod(MethodInfo *info)
 		{
 			NS_ASSERTION(info->nArgs == 4, "Wrong number of arguments to CallMethod");
 
-			nsDragEvent event(PR_TRUE, (int32)  info->args[0], this);
+			nsMouseEvent event(PR_TRUE, (int32)  info->args[0], this, nsMouseEvent::eReal);
 			nsPoint point(((int32 *)info->args)[1], ((int32 *)info->args)[2]);
 			InitEvent (event, &point);
 			uint32 mod = (uint32) info->args[3];
@@ -2630,7 +2630,7 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, nsPoint aPoint, PRUint3
                                     PRUint16 aButton)
 {
 	PRBool result = PR_FALSE;
-	if (nsnull != mEventCallback)
+	if (nsnull != mEventCallback || nsnull != mMouseListener)
 	{
 		nsMouseEvent event(PR_TRUE, aEventType, this, nsMouseEvent::eReal);
 		InitEvent (event, &aPoint);
@@ -2642,9 +2642,31 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, nsPoint aPoint, PRUint3
 		event.button = aButton;
 
 		// call the event callback
-    result = DispatchWindowEvent(&event);
-    NS_RELEASE(event.widget);
-    return result;
+		if (nsnull != mEventCallback)
+		{
+			result = DispatchWindowEvent(&event);
+			NS_RELEASE(event.widget);
+			return result;
+		}
+		else
+		{
+			switch(aEventType)
+			{
+			case NS_MOUSE_MOVE :
+				result = ConvertStatus(mMouseListener->MouseMoved(event));
+				break;
+
+			case NS_MOUSE_BUTTON_DOWN :
+				result = ConvertStatus(mMouseListener->MousePressed(event));
+				break;
+
+			case NS_MOUSE_BUTTON_UP :
+				result = ConvertStatus(mMouseListener->MouseReleased(event)) && ConvertStatus(mMouseListener->MouseClicked(event));
+				break;
+			}
+			NS_RELEASE(event.widget);
+			return result;
+		}
 	}
 
 	return PR_FALSE;

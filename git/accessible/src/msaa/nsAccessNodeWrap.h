@@ -159,9 +159,6 @@ class nsAccessNodeWrap :  public nsAccessNode,
     static int FilterA11yExceptions(unsigned int aCode, EXCEPTION_POINTERS *aExceptionInfo);
 
     static PRBool IsOnlyMsaaCompatibleJawsPresent();
-
-    static void TurnOffNewTabSwitchingForJawsAndWE();
-
     static void DoATSpecificProcessing();
   protected:
     void GetAccessibleFor(nsIDOMNode *node, nsIAccessible **newAcc);

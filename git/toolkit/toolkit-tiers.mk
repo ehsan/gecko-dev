@@ -189,7 +189,15 @@ endif
 # "toolkit" was.
 #
 
+ifdef MOZ_XUL_APP
 tier_toolkit_dirs += chrome
+else
+ifdef MOZ_XUL
+tier_toolkit_dirs += rdf/chrome
+else
+tier_toolkit_dirs += embedding/minimo/chromelite
+endif
+endif
 
 tier_toolkit_dirs += profile
 

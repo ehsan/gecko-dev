@@ -1203,7 +1203,7 @@ retry:
             if (ts->flags & TSF_NEWLINES)
                 break;
         }
-    } while (ScanAsSpace((jschar)c));
+    } while (ScanAsSpace(c));
 
     tp = NewToken(ts, -1);
     if (c == EOF) {
@@ -1725,7 +1725,7 @@ retry:
                     cp[3] == 'n' &&
                     cp[4] == 'e') {
                     SkipChars(ts, 5);
-                    while ((c = GetChar(ts)) != '\n' && ScanAsSpace((jschar)c))
+                    while ((c = GetChar(ts)) != '\n' && ScanAsSpace(c))
                         continue;
                     if (JS7_ISDEC(c)) {
                         line = JS7_UNDEC(c);
@@ -1737,7 +1737,7 @@ retry:
                             }
                             line = temp;
                         }
-                        while (c != '\n' && ScanAsSpace((jschar)c))
+                        while (c != '\n' && ScanAsSpace(c))
                             c = GetChar(ts);
                         i = 0;
                         if (c == '"') {
@@ -1752,7 +1752,7 @@ retry:
                             }
                             if (c == '"') {
                                 while ((c = GetChar(ts)) != '\n' &&
-                                       ScanAsSpace((jschar)c)) {
+                                       ScanAsSpace(c)) {
                                     continue;
                                 }
                             }
