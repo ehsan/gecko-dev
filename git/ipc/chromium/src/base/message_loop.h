@@ -203,17 +203,12 @@ public:
   //   This type of ML is used in Mozilla parent processes which initialize
   //   XPCOM and use the gecko event loop.
   //
-  // TYPE_MOZILLA_NONMAINTHREAD
-  //   This type of ML is used in Mozilla parent processes which initialize
-  //   XPCOM and use the nsThread event loop.
-  //
   enum Type {
     TYPE_DEFAULT,
     TYPE_UI,
     TYPE_IO,
     TYPE_MOZILLA_CHILD,
-    TYPE_MOZILLA_UI,
-    TYPE_MOZILLA_NONMAINTHREAD
+    TYPE_MOZILLA_UI
   };
 
   // Normally, it is not necessary to instantiate a MessageLoop.  Instead, it
