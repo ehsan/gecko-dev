@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsCOMPtr.h"
+#include "NSThreadUtils.h"
 #include "nsGeoPosition.h"
 #include "nsIConsoleService.h"
 #include "nsServiceManagerUtils.h"

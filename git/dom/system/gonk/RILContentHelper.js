@@ -375,7 +375,8 @@ function RILContentHelper() {
   };
   this.voicemailInfo = new VoicemailInfo();
 
-  this.initDOMRequestHelper(/* aWindow */ null, RIL_IPC_MSG_NAMES);
+  this.initRequests();
+  this.initMessageListener(RIL_IPC_MSG_NAMES);
   this._windowsMap = [];
   Services.obs.addObserver(this, "xpcom-shutdown", false);
 }
@@ -388,8 +389,7 @@ RILContentHelper.prototype = {
                                          Ci.nsIVoicemailProvider,
                                          Ci.nsITelephonyProvider,
                                          Ci.nsIIccProvider,
-                                         Ci.nsIObserver,
-                                         Ci.nsISupportsWeakReference]),
+                                         Ci.nsIObserver]),
   classID:   RILCONTENTHELPER_CID,
   classInfo: XPCOMUtils.generateCI({classID: RILCONTENTHELPER_CID,
                                     classDescription: "RILContentHelper",
@@ -1236,7 +1236,7 @@ RILContentHelper.prototype = {
 
   observe: function observe(subject, topic, data) {
     if (topic == "xpcom-shutdown") {
-      this.destroyDOMRequestHelper();
+      this.removeMessageListener();
       Services.obs.removeObserver(this, "xpcom-shutdown");
     }
   },
@@ -1300,7 +1300,7 @@ RILContentHelper.prototype = {
         this.rilContext.retryCount = data.retryCount;
         if (this.rilContext.cardState != data.cardState) {
           this.rilContext.cardState = data.cardState;
-          this._deliverEvent("_iccListeners",
+          this._deliverEvent("_mobileConnectionListeners",
                              "notifyCardStateChanged",
                              null);
         }

@@ -51,20 +51,20 @@ protected:
                              const IPCSmsRequest& aRequest) MOZ_OVERRIDE;
 
   virtual PSmsRequestParent*
-  AllocPSmsRequestParent(const IPCSmsRequest& aRequest) MOZ_OVERRIDE;
+  AllocPSmsRequest(const IPCSmsRequest& aRequest) MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPSmsRequestParent(PSmsRequestParent* aActor) MOZ_OVERRIDE;
+  DeallocPSmsRequest(PSmsRequestParent* aActor) MOZ_OVERRIDE;
 
   virtual bool
   RecvPMobileMessageCursorConstructor(PMobileMessageCursorParent* aActor,
                                       const IPCMobileMessageCursor& aCursor) MOZ_OVERRIDE;
 
   virtual PMobileMessageCursorParent*
-  AllocPMobileMessageCursorParent(const IPCMobileMessageCursor& aCursor) MOZ_OVERRIDE;
+  AllocPMobileMessageCursor(const IPCMobileMessageCursor& aCursor) MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPMobileMessageCursorParent(PMobileMessageCursorParent* aActor) MOZ_OVERRIDE;
+  DeallocPMobileMessageCursor(PMobileMessageCursorParent* aActor) MOZ_OVERRIDE;
 
   bool
   GetMobileMessageDataFromMessage(nsISupports* aMsg, MobileMessageData& aData);

@@ -77,41 +77,41 @@ public:
     const void GetProcessName(nsAString& aName);
 
     PCompositorChild*
-    AllocPCompositorChild(mozilla::ipc::Transport* aTransport,
-                          base::ProcessId aOtherProcess) MOZ_OVERRIDE;
+    AllocPCompositor(mozilla::ipc::Transport* aTransport,
+                     base::ProcessId aOtherProcess) MOZ_OVERRIDE;
     PImageBridgeChild*
-    AllocPImageBridgeChild(mozilla::ipc::Transport* aTransport,
-                           base::ProcessId aOtherProcess) MOZ_OVERRIDE;
+    AllocPImageBridge(mozilla::ipc::Transport* aTransport,
+                      base::ProcessId aOtherProcess) MOZ_OVERRIDE;
 
     virtual bool RecvSetProcessPrivileges(const ChildPrivileges& aPrivs);
 
-    virtual PBrowserChild* AllocPBrowserChild(const IPCTabContext &aContext,
-                                              const uint32_t &chromeFlags);
-    virtual bool DeallocPBrowserChild(PBrowserChild*);
+    virtual PBrowserChild* AllocPBrowser(const IPCTabContext &aContext,
+                                         const uint32_t &chromeFlags);
+    virtual bool DeallocPBrowser(PBrowserChild*);
 
-    virtual PDeviceStorageRequestChild* AllocPDeviceStorageRequestChild(const DeviceStorageParams&);
-    virtual bool DeallocPDeviceStorageRequestChild(PDeviceStorageRequestChild*);
+    virtual PDeviceStorageRequestChild* AllocPDeviceStorageRequest(const DeviceStorageParams&);
+    virtual bool DeallocPDeviceStorageRequest(PDeviceStorageRequestChild*);
 
-    virtual PBlobChild* AllocPBlobChild(const BlobConstructorParams& aParams);
-    virtual bool DeallocPBlobChild(PBlobChild*);
+    virtual PBlobChild* AllocPBlob(const BlobConstructorParams& aParams);
+    virtual bool DeallocPBlob(PBlobChild*);
 
     virtual PCrashReporterChild*
-    AllocPCrashReporterChild(const mozilla::dom::NativeThreadId& id,
-                             const uint32_t& processType);
+    AllocPCrashReporter(const mozilla::dom::NativeThreadId& id,
+                        const uint32_t& processType);
     virtual bool
-    DeallocPCrashReporterChild(PCrashReporterChild*);
+    DeallocPCrashReporter(PCrashReporterChild*);
 
-    virtual PHalChild* AllocPHalChild() MOZ_OVERRIDE;
-    virtual bool DeallocPHalChild(PHalChild*) MOZ_OVERRIDE;
+    virtual PHalChild* AllocPHal() MOZ_OVERRIDE;
+    virtual bool DeallocPHal(PHalChild*) MOZ_OVERRIDE;
 
-    virtual PIndexedDBChild* AllocPIndexedDBChild();
-    virtual bool DeallocPIndexedDBChild(PIndexedDBChild* aActor);
+    virtual PIndexedDBChild* AllocPIndexedDB();
+    virtual bool DeallocPIndexedDB(PIndexedDBChild* aActor);
 
     virtual PMemoryReportRequestChild*
-    AllocPMemoryReportRequestChild();
+    AllocPMemoryReportRequest();
 
     virtual bool
-    DeallocPMemoryReportRequestChild(PMemoryReportRequestChild* actor);
+    DeallocPMemoryReportRequest(PMemoryReportRequestChild* actor);
 
     virtual bool
     RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* child);
@@ -125,45 +125,44 @@ public:
                                 const bool& aDumpChildProcesses);
     virtual bool
     RecvDumpGCAndCCLogsToFile(const nsString& aIdentifier,
-                              const bool& aDumpAllTraces,
                               const bool& aDumpChildProcesses);
 
-    virtual PTestShellChild* AllocPTestShellChild();
-    virtual bool DeallocPTestShellChild(PTestShellChild*);
+    virtual PTestShellChild* AllocPTestShell();
+    virtual bool DeallocPTestShell(PTestShellChild*);
     virtual bool RecvPTestShellConstructor(PTestShellChild*);
     jsipc::JavaScriptChild *GetCPOWManager();
 
-    virtual PNeckoChild* AllocPNeckoChild();
-    virtual bool DeallocPNeckoChild(PNeckoChild*);
+    virtual PNeckoChild* AllocPNecko();
+    virtual bool DeallocPNecko(PNeckoChild*);
 
-    virtual PExternalHelperAppChild *AllocPExternalHelperAppChild(
+    virtual PExternalHelperAppChild *AllocPExternalHelperApp(
             const OptionalURIParams& uri,
             const nsCString& aMimeContentType,
             const nsCString& aContentDisposition,
             const bool& aForceSave,
             const int64_t& aContentLength,
             const OptionalURIParams& aReferrer);
-    virtual bool DeallocPExternalHelperAppChild(PExternalHelperAppChild *aService);
+    virtual bool DeallocPExternalHelperApp(PExternalHelperAppChild *aService);
 
-    virtual PSmsChild* AllocPSmsChild();
-    virtual bool DeallocPSmsChild(PSmsChild*);
+    virtual PSmsChild* AllocPSms();
+    virtual bool DeallocPSms(PSmsChild*);
 
-    virtual PStorageChild* AllocPStorageChild();
-    virtual bool DeallocPStorageChild(PStorageChild* aActor);
+    virtual PStorageChild* AllocPStorage();
+    virtual bool DeallocPStorage(PStorageChild* aActor);
 
-    virtual PBluetoothChild* AllocPBluetoothChild();
-    virtual bool DeallocPBluetoothChild(PBluetoothChild* aActor);
+    virtual PBluetoothChild* AllocPBluetooth();
+    virtual bool DeallocPBluetooth(PBluetoothChild* aActor);
 
-    virtual PSpeechSynthesisChild* AllocPSpeechSynthesisChild();
-    virtual bool DeallocPSpeechSynthesisChild(PSpeechSynthesisChild* aActor);
+    virtual PSpeechSynthesisChild* AllocPSpeechSynthesis();
+    virtual bool DeallocPSpeechSynthesis(PSpeechSynthesisChild* aActor);
 
     virtual bool RecvRegisterChrome(const InfallibleTArray<ChromePackage>& packages,
                                     const InfallibleTArray<ResourceMapping>& resources,
                                     const InfallibleTArray<OverrideMapping>& overrides,
                                     const nsCString& locale);
 
-    virtual mozilla::jsipc::PJavaScriptChild* AllocPJavaScriptChild();
-    virtual bool DeallocPJavaScriptChild(mozilla::jsipc::PJavaScriptChild*);
+    virtual mozilla::jsipc::PJavaScriptChild* AllocPJavaScript();
+    virtual bool DeallocPJavaScript(mozilla::jsipc::PJavaScriptChild*);
 
     virtual bool RecvSetOffline(const bool& offline);
 

@@ -39,10 +39,6 @@ const SETTINGS_WIFI_DHCPSERVER_ENDIP   = "tethering.wifi.dhcpserver.endip";
 const SETTINGS_WIFI_DNS1               = "tethering.wifi.dns1";
 const SETTINGS_WIFI_DNS2               = "tethering.wifi.dns2";
 
-// Settings DB path for USB tethering.
-const SETTINGS_USB_DHCPSERVER_STARTIP  = "tethering.usb.dhcpserver.startip";
-const SETTINGS_USB_DHCPSERVER_ENDIP    = "tethering.usb.dhcpserver.endip";
-
 // Default value for WIFI tethering.
 const DEFAULT_WIFI_IP                  = "192.168.1.1";
 const DEFAULT_WIFI_PREFIX              = "24";
@@ -53,10 +49,6 @@ const DEFAULT_WIFI_SECURITY_TYPE       = "open";
 const DEFAULT_WIFI_SECURITY_PASSWORD   = "1234567890";
 const DEFAULT_DNS1                     = "8.8.8.8";
 const DEFAULT_DNS2                     = "8.8.4.4";
-
-// Default value for USB tethering.
-const DEFAULT_USB_DHCPSERVER_STARTIP   = "192.168.0.10";
-const DEFAULT_USB_DHCPSERVER_ENDIP     = "192.168.0.30";
 
 const WIFI_FIRMWARE_AP            = "AP";
 const WIFI_FIRMWARE_STATION       = "STA";
@@ -388,10 +380,8 @@ var WifiManager = (function() {
     doBooleanCommand("WPS_PBC", "OK", callback);
   }
 
-  function wpsPinCommand(detail, callback) {
-    doStringCommand("WPS_PIN " +
-                    (detail.bssid === undefined ? "any" : detail.bssid) +
-                    (detail.pin === undefined ? "" : (" " + detail.pin)),
+  function wpsPinCommand(pin, callback) {
+    doStringCommand("WPS_PIN any" + (pin === undefined ? "" : (" " + pin)),
                     callback);
   }
 
@@ -1576,29 +1566,29 @@ function getNetworkKey(network)
   var ssid = "",
       encryption = "OPEN";
 
-  if ("security" in network) {
+  if ("capabilities" in network) {
     // manager network object, represents an AP
     // object structure
     // {
     //   .ssid           : SSID of AP
-    //   .security[]     : "WPA-PSK" for WPA-PSK
+    //   .capabilities[] : "WPA-PSK" for WPA-PSK
     //                     "WPA-EAP" for WPA-EAP
     //                     "WEP" for WEP
     //                     "" for OPEN
     //   other keys
     // }
 
-    var security = network.security;
+    var capabilities = network.capabilities;
     ssid = network.ssid;
 
-    for (let j = 0; j < security.length; j++) {
-      if (security[j] === "WPA-PSK") {
+    for (let j = 0; j < capabilities.length; j++) {
+      if (capabilities[j] === "WPA-PSK") {
         encryption = "WPA-PSK";
         break;
-      } else if (security[j] === "WPA-EAP") {
+      } else if (capabilities[j] === "WPA-EAP") {
         encryption = "WPA-EAP";
         break;
-      } else if (security[j] === "WEP") {
+      } else if (capabilities[j] === "WEP") {
         encryption = "WEP";
         break;
       }
@@ -1650,16 +1640,6 @@ function getKeyManagement(flags) {
   return types;
 }
 
-function getCapabilities(flags) {
-  var types = [];
-  if (!flags)
-    return types;
-
-  if (/\[WPS/.test(flags))
-    types.push("WPS");
-  return types;
-}
-
 // These constants shamelessly ripped from WifiManager.java
 // strength is the value returned by scan_results. It is nominally in dB. We
 // transform it into a percentage for clients looking to simply show a
@@ -1682,14 +1662,12 @@ function calculateSignal(strength) {
   return Math.floor(((strength - MIN_RSSI) / (MAX_RSSI - MIN_RSSI)) * 100);
 }
 
-function Network(ssid, security, password, capabilities) {
+function Network(ssid, capabilities, password) {
   this.ssid = ssid;
-  this.security = security;
+  this.capabilities = capabilities;
 
   if (typeof password !== "undefined")
     this.password = password;
-  if (capabilities !== undefined)
-    this.capabilities = capabilities;
   // TODO connected here as well?
 
   this.__exposedProps__ = Network.api;
@@ -1697,7 +1675,6 @@ function Network(ssid, security, password, capabilities) {
 
 Network.api = {
   ssid: "r",
-  security: "r",
   capabilities: "r",
   known: "r",
 
@@ -1715,8 +1692,7 @@ Network.api = {
 // Note: We never use ScanResult.prototype, so the fact that it's unrelated to
 // Network.prototype is OK.
 function ScanResult(ssid, bssid, flags, signal) {
-  Network.call(this, ssid, getKeyManagement(flags), undefined,
-               getCapabilities(flags));
+  Network.call(this, ssid, getKeyManagement(flags));
   this.bssid = bssid;
   this.signalStrength = signal;
   this.relSignalStrength = calculateSignal(Number(signal));
@@ -1892,9 +1868,11 @@ function WifiWorker() {
   // self.configuredNetworks and prepares it for the DOM.
   netToDOM = function(net) {
     var ssid = dequote(net.ssid);
-    var security = (net.key_mgmt === "NONE" && net.wep_key0) ? ["WEP"] :
-                   (net.key_mgmt && net.key_mgmt !== "NONE") ? [net.key_mgmt] :
-                   [];
+    var capabilities = (net.key_mgmt === "NONE" && net.wep_key0)
+                       ? ["WEP"]
+                       : (net.key_mgmt && net.key_mgmt !== "NONE")
+                       ? [net.key_mgmt]
+                       : [];
     var password;
     if (("psk" in net && net.psk) ||
         ("password" in net && net.password) ||
@@ -1902,7 +1880,7 @@ function WifiWorker() {
       password = "*";
     }
 
-    var pub = new Network(ssid, security, password);
+    var pub = new Network(ssid, capabilities, password);
     if (net.identity)
       pub.identity = dequote(net.identity);
     if (net.netId)
@@ -1923,7 +1901,6 @@ function WifiWorker() {
     delete net.bssid;
     delete net.signalStrength;
     delete net.relSignalStrength;
-    delete net.security;
     delete net.capabilities;
 
     if (!configured)
@@ -2275,17 +2252,17 @@ function WifiWorker() {
               network.password = "*";
             }
           } else if (!self._allowWpaEap &&
-                     (eapIndex = network.security.indexOf("WPA-EAP")) >= 0) {
+                     (eapIndex = network.capabilities.indexOf("WPA-EAP")) >= 0) {
             // Don't offer to connect to WPA-EAP networks unless one has been
             // configured through other means (e.g. it was added directly to
             // wpa_supplicant.conf). Here, we have an unknown WPA-EAP network,
             // so we ignore it entirely if it only supports WPA-EAP, otherwise
             // we take EAP out of the list and offer the rest of the
-            // security.
-            if (network.security.length === 1)
+            // capabilities.
+            if (network.capabilities.length === 1)
               continue;
 
-            network.security.splice(eapIndex, 1);
+            network.capabilities.splice(eapIndex, 1);
           }
 
           self.networksArray.push(network);
@@ -2356,9 +2333,6 @@ function WifiWorker() {
   lock.get(SETTINGS_WIFI_DNS2, this);
   lock.get(SETTINGS_WIFI_TETHERING_ENABLED, this);
 
-  lock.get(SETTINGS_USB_DHCPSERVER_STARTIP, this);
-  lock.get(SETTINGS_USB_DHCPSERVER_ENDIP, this);
-
   this._wifiTetheringSettingsToRead = [SETTINGS_WIFI_SSID,
                                        SETTINGS_WIFI_SECURITY_TYPE,
                                        SETTINGS_WIFI_SECURITY_PASSWORD,
@@ -2368,9 +2342,8 @@ function WifiWorker() {
                                        SETTINGS_WIFI_DHCPSERVER_ENDIP,
                                        SETTINGS_WIFI_DNS1,
                                        SETTINGS_WIFI_DNS2,
-                                       SETTINGS_WIFI_TETHERING_ENABLED,
-                                       SETTINGS_USB_DHCPSERVER_STARTIP,
-                                       SETTINGS_USB_DHCPSERVER_ENDIP];
+                                       SETTINGS_WIFI_TETHERING_ENABLED];
+
 }
 
 function translateState(state) {
@@ -2428,9 +2401,6 @@ WifiWorker.prototype = {
     this.tetheringSettings[SETTINGS_WIFI_DHCPSERVER_ENDIP] = DEFAULT_WIFI_DHCPSERVER_ENDIP;
     this.tetheringSettings[SETTINGS_WIFI_DNS1] = DEFAULT_DNS1;
     this.tetheringSettings[SETTINGS_WIFI_DNS2] = DEFAULT_DNS2;
-
-    this.tetheringSettings[SETTINGS_USB_DHCPSERVER_STARTIP] = DEFAULT_USB_DHCPSERVER_STARTIP;
-    this.tetheringSettings[SETTINGS_USB_DHCPSERVER_ENDIP] = DEFAULT_USB_DHCPSERVER_ENDIP;
   },
 
   // Internal methods.
@@ -2766,15 +2736,15 @@ WifiWorker.prototype = {
         if (id === "__exposedProps__") {
           continue;
         }
-        if (id === "security") {
+        if (id === "capabilities") {
           result[id] = 0;
-          var security = element[id];
-          for (let j = 0; j < security.length; j++) {
-            if (security[j] === "WPA-PSK") {
+          var capabilities = element[id];
+          for (let j = 0; j < capabilities.length; j++) {
+            if (capabilities[j] === "WPA-PSK") {
               result[id] |= Ci.nsIWifiScanResult.WPA_PSK;
-            } else if (security[j] === "WPA-EAP") {
+            } else if (capabilities[j] === "WPA-EAP") {
               result[id] |= Ci.nsIWifiScanResult.WPA_EAP;
-            } else if (security[j] === "WEP") {
+            } else if (capabilities[j] === "WEP") {
               result[id] |= Ci.nsIWifiScanResult.WEP;
             } else {
              result[id] = 0;
@@ -2900,10 +2870,8 @@ WifiWorker.prototype = {
     let securityId;
     let interfaceIp;
     let prefix;
-    let wifiDhcpStartIp;
-    let wifiDhcpEndIp;
-    let usbDhcpStartIp;
-    let usbDhcpEndIp;
+    let dhcpStartIp;
+    let dhcpEndIp;
     let dns1;
     let dns2;
 
@@ -2912,10 +2880,8 @@ WifiWorker.prototype = {
     securityId = this.tetheringSettings[SETTINGS_WIFI_SECURITY_PASSWORD];
     interfaceIp = this.tetheringSettings[SETTINGS_WIFI_IP];
     prefix = this.tetheringSettings[SETTINGS_WIFI_PREFIX];
-    wifiDhcpStartIp = this.tetheringSettings[SETTINGS_WIFI_DHCPSERVER_STARTIP];
-    wifiDhcpEndIp = this.tetheringSettings[SETTINGS_WIFI_DHCPSERVER_ENDIP];
-    usbDhcpStartIp = this.tetheringSettings[SETTINGS_USB_DHCPSERVER_STARTIP];
-    usbDhcpEndIp = this.tetheringSettings[SETTINGS_USB_DHCPSERVER_ENDIP];
+    dhcpStartIp = this.tetheringSettings[SETTINGS_WIFI_DHCPSERVER_STARTIP];
+    dhcpEndIp = this.tetheringSettings[SETTINGS_WIFI_DHCPSERVER_ENDIP];
     dns1 = this.tetheringSettings[SETTINGS_WIFI_DNS1];
     dns2 = this.tetheringSettings[SETTINGS_WIFI_DNS2];
 
@@ -2937,8 +2903,7 @@ WifiWorker.prototype = {
     }
     // Using the default values here until application supports these settings.
     if (interfaceIp == "" || prefix == "" ||
-        wifiDhcpStartIp == "" || wifiDhcpEndIp == "" ||
-        usbDhcpStartIp == "" || usbDhcpEndIp == "") {
+        dhcpStartIp == "" || dhcpEndIp == "") {
       debug("Invalid subnet information.");
       return null;
     }
@@ -2949,10 +2914,8 @@ WifiWorker.prototype = {
       key: securityId,
       ip: interfaceIp,
       prefix: prefix,
-      wifiStartIp: wifiDhcpStartIp,
-      wifiEndIp: wifiDhcpEndIp,
-      usbStartIp: usbDhcpStartIp,
-      usbEndIp: usbDhcpEndIp,
+      startIp: dhcpStartIp,
+      endIp: dhcpEndIp,
       dns1: dns1,
       dns2: dns2,
       enable: enable,
@@ -3105,7 +3068,7 @@ WifiWorker.prototype = {
           self._sendMessage(message, false, "WPS PBC failed", msg);
       });
     } else if (detail.method === "pin") {
-      WifiManager.wpsPin(detail, function(pin) {
+      WifiManager.wpsPin(detail.pin, function(pin) {
         if (pin)
           self._sendMessage(message, true, pin, msg);
         else
@@ -3299,8 +3262,6 @@ WifiWorker.prototype = {
       case SETTINGS_WIFI_DHCPSERVER_ENDIP:
       case SETTINGS_WIFI_DNS1:
       case SETTINGS_WIFI_DNS2:
-      case SETTINGS_USB_DHCPSERVER_STARTIP:
-      case SETTINGS_USB_DHCPSERVER_ENDIP:
         if (aResult !== null) {
           this.tetheringSettings[aName] = aResult;
         }

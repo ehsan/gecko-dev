@@ -99,8 +99,13 @@ class BuildProgressFooter(object):
         self._monitor = monitor
 
     def _clear_lines(self, n):
-        self._fh.write(self._t.move(self._t.height - n, 0))
-        self._fh.write(self._t.clear_eos())
+        for i in range(n):
+            self._fh.write(self._t.move_x(0))
+            self._fh.write(self._t.clear_eol())
+            self._fh.write(self._t.move_up())
+
+        self._fh.write(self._t.move_down())
+        self._fh.write(self._t.move_x(0))
 
     def clear(self):
         """Removes the footer from the current terminal."""
@@ -122,7 +127,7 @@ class BuildProgressFooter(object):
         current_encountered = False
         for tier in self._monitor.tiers:
             if tier == self._monitor.current_tier:
-                parts.extend([('underline_yellow', tier), ' '])
+                parts.extend([('yellow', tier), ' '])
                 current_encountered = True
             elif not current_encountered:
                 parts.extend([('green', tier), ' '])
@@ -133,7 +138,7 @@ class BuildProgressFooter(object):
         parts.extend([('bold', 'SUBTIER'), ':', ' '])
         for subtier in self._monitor.subtiers:
             if subtier == self._monitor.current_subtier:
-                parts.extend([('underline_yellow', subtier), ' '])
+                parts.extend([('yellow', subtier), ' '])
                 current_encountered = True
             elif not current_encountered:
                 parts.extend([('green', subtier), ' '])

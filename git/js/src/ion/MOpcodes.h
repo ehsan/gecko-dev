@@ -98,7 +98,6 @@ namespace ion {
     _(Elements)                                                             \
     _(ConstantElements)                                                     \
     _(ConvertElementsToDoubles)                                             \
-    _(MaybeToDoubleElement)                                                 \
     _(LoadSlot)                                                             \
     _(StoreSlot)                                                            \
     _(FunctionEnvironment)                                                  \

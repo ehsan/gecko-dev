@@ -135,9 +135,6 @@ var ChromeSelectionHandler = {
     this._handleSelectionPoint(aMsg.change, pos, true);
     this._selectionMoveActive = false;
     
-    // Clear any existing scroll timers
-    this._clearTimers();
-
     // Update the position of our selection monocles
     this._updateSelectionUI("end", true, true);
   },

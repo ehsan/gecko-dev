@@ -208,27 +208,27 @@ IndexedDBParent::RecvPIndexedDBDeleteDatabaseRequestConstructor(
 }
 
 PIndexedDBDatabaseParent*
-IndexedDBParent::AllocPIndexedDBDatabaseParent(const nsString& aName,
-                                               const uint64_t& aVersion)
+IndexedDBParent::AllocPIndexedDBDatabase(const nsString& aName,
+                                         const uint64_t& aVersion)
 {
   return new IndexedDBDatabaseParent();
 }
 
 bool
-IndexedDBParent::DeallocPIndexedDBDatabaseParent(PIndexedDBDatabaseParent* aActor)
+IndexedDBParent::DeallocPIndexedDBDatabase(PIndexedDBDatabaseParent* aActor)
 {
   delete aActor;
   return true;
 }
 
 PIndexedDBDeleteDatabaseRequestParent*
-IndexedDBParent::AllocPIndexedDBDeleteDatabaseRequestParent(const nsString& aName)
+IndexedDBParent::AllocPIndexedDBDeleteDatabaseRequest(const nsString& aName)
 {
   return new IndexedDBDeleteDatabaseRequestParent(mFactory);
 }
 
 bool
-IndexedDBParent::DeallocPIndexedDBDeleteDatabaseRequestParent(
+IndexedDBParent::DeallocPIndexedDBDeleteDatabaseRequest(
                                   PIndexedDBDeleteDatabaseRequestParent* aActor)
 {
   delete aActor;
@@ -627,7 +627,7 @@ IndexedDBDatabaseParent::RecvPIndexedDBTransactionConstructor(
 }
 
 PIndexedDBTransactionParent*
-IndexedDBDatabaseParent::AllocPIndexedDBTransactionParent(
+IndexedDBDatabaseParent::AllocPIndexedDBTransaction(
                                                const TransactionParams& aParams)
 {
   MOZ_ASSERT(aParams.type() ==
@@ -636,7 +636,7 @@ IndexedDBDatabaseParent::AllocPIndexedDBTransactionParent(
 }
 
 bool
-IndexedDBDatabaseParent::DeallocPIndexedDBTransactionParent(
+IndexedDBDatabaseParent::DeallocPIndexedDBTransaction(
                                             PIndexedDBTransactionParent* aActor)
 {
   delete aActor;
@@ -827,14 +827,14 @@ IndexedDBTransactionParent::RecvPIndexedDBObjectStoreConstructor(
 }
 
 PIndexedDBObjectStoreParent*
-IndexedDBTransactionParent::AllocPIndexedDBObjectStoreParent(
+IndexedDBTransactionParent::AllocPIndexedDBObjectStore(
                                     const ObjectStoreConstructorParams& aParams)
 {
   return new IndexedDBObjectStoreParent();
 }
 
 bool
-IndexedDBTransactionParent::DeallocPIndexedDBObjectStoreParent(
+IndexedDBTransactionParent::DeallocPIndexedDBObjectStore(
                                             PIndexedDBObjectStoreParent* aActor)
 {
   delete aActor;
@@ -954,7 +954,7 @@ IndexedDBVersionChangeTransactionParent::RecvPIndexedDBObjectStoreConstructor(
 }
 
 PIndexedDBObjectStoreParent*
-IndexedDBVersionChangeTransactionParent::AllocPIndexedDBObjectStoreParent(
+IndexedDBVersionChangeTransactionParent::AllocPIndexedDBObjectStore(
                                     const ObjectStoreConstructorParams& aParams)
 {
   if (aParams.type() ==
@@ -963,7 +963,7 @@ IndexedDBVersionChangeTransactionParent::AllocPIndexedDBObjectStoreParent(
     return new IndexedDBVersionChangeObjectStoreParent();
   }
 
-  return IndexedDBTransactionParent::AllocPIndexedDBObjectStoreParent(aParams);
+  return IndexedDBTransactionParent::AllocPIndexedDBObjectStore(aParams);
 }
 
 /*******************************************************************************
@@ -1030,7 +1030,7 @@ IndexedDBCursorParent::RecvPIndexedDBRequestConstructor(
 }
 
 PIndexedDBRequestParent*
-IndexedDBCursorParent::AllocPIndexedDBRequestParent(
+IndexedDBCursorParent::AllocPIndexedDBRequest(
                                              const CursorRequestParams& aParams)
 {
   MOZ_ASSERT(mCursor);
@@ -1038,7 +1038,7 @@ IndexedDBCursorParent::AllocPIndexedDBRequestParent(
 }
 
 bool
-IndexedDBCursorParent::DeallocPIndexedDBRequestParent(PIndexedDBRequestParent* aActor)
+IndexedDBCursorParent::DeallocPIndexedDBRequest(PIndexedDBRequestParent* aActor)
 {
   delete aActor;
   return true;
@@ -1179,14 +1179,14 @@ IndexedDBObjectStoreParent::RecvPIndexedDBIndexConstructor(
 }
 
 PIndexedDBRequestParent*
-IndexedDBObjectStoreParent::AllocPIndexedDBRequestParent(
+IndexedDBObjectStoreParent::AllocPIndexedDBRequest(
                                         const ObjectStoreRequestParams& aParams)
 {
   return new IndexedDBObjectStoreRequestParent(mObjectStore, aParams.type());
 }
 
 bool
-IndexedDBObjectStoreParent::DeallocPIndexedDBRequestParent(
+IndexedDBObjectStoreParent::DeallocPIndexedDBRequest(
                                                 PIndexedDBRequestParent* aActor)
 {
   delete aActor;
@@ -1194,14 +1194,14 @@ IndexedDBObjectStoreParent::DeallocPIndexedDBRequestParent(
 }
 
 PIndexedDBIndexParent*
-IndexedDBObjectStoreParent::AllocPIndexedDBIndexParent(
+IndexedDBObjectStoreParent::AllocPIndexedDBIndex(
                                           const IndexConstructorParams& aParams)
 {
   return new IndexedDBIndexParent();
 }
 
 bool
-IndexedDBObjectStoreParent::DeallocPIndexedDBIndexParent(
+IndexedDBObjectStoreParent::DeallocPIndexedDBIndex(
                                                   PIndexedDBIndexParent* aActor)
 {
   delete aActor;
@@ -1209,14 +1209,14 @@ IndexedDBObjectStoreParent::DeallocPIndexedDBIndexParent(
 }
 
 PIndexedDBCursorParent*
-IndexedDBObjectStoreParent::AllocPIndexedDBCursorParent(
+IndexedDBObjectStoreParent::AllocPIndexedDBCursor(
                               const ObjectStoreCursorConstructorParams& aParams)
 {
   MOZ_CRASH("Caller is supposed to manually construct a cursor!");
 }
 
 bool
-IndexedDBObjectStoreParent::DeallocPIndexedDBCursorParent(
+IndexedDBObjectStoreParent::DeallocPIndexedDBCursor(
                                                  PIndexedDBCursorParent* aActor)
 {
   delete aActor;
@@ -1408,27 +1408,27 @@ IndexedDBIndexParent::RecvPIndexedDBRequestConstructor(
 }
 
 PIndexedDBRequestParent*
-IndexedDBIndexParent::AllocPIndexedDBRequestParent(const IndexRequestParams& aParams)
+IndexedDBIndexParent::AllocPIndexedDBRequest(const IndexRequestParams& aParams)
 {
   return new IndexedDBIndexRequestParent(mIndex, aParams.type());
 }
 
 bool
-IndexedDBIndexParent::DeallocPIndexedDBRequestParent(PIndexedDBRequestParent* aActor)
+IndexedDBIndexParent::DeallocPIndexedDBRequest(PIndexedDBRequestParent* aActor)
 {
   delete aActor;
   return true;
 }
 
 PIndexedDBCursorParent*
-IndexedDBIndexParent::AllocPIndexedDBCursorParent(
+IndexedDBIndexParent::AllocPIndexedDBCursor(
                                     const IndexCursorConstructorParams& aParams)
 {
   MOZ_CRASH("Caller is supposed to manually construct a cursor!");
 }
 
 bool
-IndexedDBIndexParent::DeallocPIndexedDBCursorParent(PIndexedDBCursorParent* aActor)
+IndexedDBIndexParent::DeallocPIndexedDBCursor(PIndexedDBCursorParent* aActor)
 {
   delete aActor;
   return true;

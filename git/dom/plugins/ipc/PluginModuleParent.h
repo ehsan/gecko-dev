@@ -75,22 +75,22 @@ private:
 protected:
 
     virtual PPluginIdentifierParent*
-    AllocPPluginIdentifierParent(const nsCString& aString,
-                                 const int32_t& aInt,
-                                 const bool& aTemporary);
+    AllocPPluginIdentifier(const nsCString& aString,
+                           const int32_t& aInt,
+                           const bool& aTemporary);
 
     virtual bool
-    DeallocPPluginIdentifierParent(PPluginIdentifierParent* aActor);
+    DeallocPPluginIdentifier(PPluginIdentifierParent* aActor);
 
     PPluginInstanceParent*
-    AllocPPluginInstanceParent(const nsCString& aMimeType,
-                               const uint16_t& aMode,
-                               const InfallibleTArray<nsCString>& aNames,
-                               const InfallibleTArray<nsCString>& aValues,
-                               NPError* rv);
+    AllocPPluginInstance(const nsCString& aMimeType,
+                         const uint16_t& aMode,
+                         const InfallibleTArray<nsCString>& aNames,
+                         const InfallibleTArray<nsCString>& aValues,
+                         NPError* rv);
 
     virtual bool
-    DeallocPPluginInstanceParent(PPluginInstanceParent* aActor);
+    DeallocPPluginInstance(PPluginInstanceParent* aActor);
 
 public:
     // aFilePath is UTF8, not native!
@@ -177,10 +177,10 @@ protected:
     RecvPluginHideWindow(const uint32_t& aWindowId) MOZ_OVERRIDE;
 
     virtual PCrashReporterParent*
-    AllocPCrashReporterParent(mozilla::dom::NativeThreadId* id,
-                              uint32_t* processType) MOZ_OVERRIDE;
+    AllocPCrashReporter(mozilla::dom::NativeThreadId* id,
+                        uint32_t* processType) MOZ_OVERRIDE;
     virtual bool
-    DeallocPCrashReporterParent(PCrashReporterParent* actor) MOZ_OVERRIDE;
+    DeallocPCrashReporter(PCrashReporterParent* actor) MOZ_OVERRIDE;
 
     virtual bool
     RecvSetCursor(const NSCursorInfo& aCursorInfo) MOZ_OVERRIDE;

@@ -167,8 +167,8 @@ public:
    */
   MessageLoop * GetMessageLoop() const;
 
-  PCompositableChild* AllocPCompositableChild(const TextureInfo& aInfo, uint64_t* aID) MOZ_OVERRIDE;
-  bool DeallocPCompositableChild(PCompositableChild* aActor) MOZ_OVERRIDE;
+  PCompositableChild* AllocPCompositable(const TextureInfo& aInfo, uint64_t* aID) MOZ_OVERRIDE;
+  bool DeallocPCompositable(PCompositableChild* aActor) MOZ_OVERRIDE;
 
   /**
    * This must be called by the static function DeleteImageBridgeSync defined
@@ -177,11 +177,11 @@ public:
   ~ImageBridgeChild();
 
   virtual PGrallocBufferChild*
-  AllocPGrallocBufferChild(const gfxIntSize&, const uint32_t&, const uint32_t&,
-                           MaybeMagicGrallocBufferHandle*) MOZ_OVERRIDE;
+  AllocPGrallocBuffer(const gfxIntSize&, const uint32_t&, const uint32_t&,
+                      MaybeMagicGrallocBufferHandle*) MOZ_OVERRIDE;
 
   virtual bool
-  DeallocPGrallocBufferChild(PGrallocBufferChild* actor) MOZ_OVERRIDE;
+  DeallocPGrallocBuffer(PGrallocBufferChild* actor) MOZ_OVERRIDE;
 
   /**
    * Allocate a gralloc SurfaceDescriptor remotely.

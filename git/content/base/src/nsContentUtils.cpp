@@ -4360,13 +4360,6 @@ nsContentUtils::IsSystemPrincipal(nsIPrincipal* aPrincipal)
   return NS_SUCCEEDED(rv) && isSystem;
 }
 
-bool
-nsContentUtils::IsExpandedPrincipal(nsIPrincipal* aPrincipal)
-{
-  nsCOMPtr<nsIExpandedPrincipal> ep = do_QueryInterface(aPrincipal);
-  return !!ep;
-}
-
 nsIPrincipal*
 nsContentUtils::GetSystemPrincipal()
 {

@@ -1367,30 +1367,17 @@ Blob<Child>::RecvPBlobStreamConstructor(StreamType* aActor)
   return aActor->Send__delete__(aActor, params);
 }
 
-BlobTraits<Parent>::StreamType*
-BlobTraits<Parent>::BaseType::AllocPBlobStreamParent()
+template <ActorFlavorEnum ActorFlavor>
+typename Blob<ActorFlavor>::StreamType*
+Blob<ActorFlavor>::AllocPBlobStream()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  return new InputStreamActor<Parent>();
+  return new InputStreamActor<ActorFlavor>();
 }
 
-BlobTraits<Child>::StreamType*
-BlobTraits<Child>::BaseType::AllocPBlobStreamChild()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  return new InputStreamActor<Child>();
-}
-
+template <ActorFlavorEnum ActorFlavor>
 bool
-BlobTraits<Parent>::BaseType::DeallocPBlobStreamParent(BlobTraits<Parent>::StreamType* aActor)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  delete aActor;
-  return true;
-}
-
-bool
-BlobTraits<Child>::BaseType::DeallocPBlobStreamChild(BlobTraits<Child>::StreamType* aActor)
+Blob<ActorFlavor>::DeallocPBlobStream(StreamType* aActor)
 {
   MOZ_ASSERT(NS_IsMainThread());
   delete aActor;

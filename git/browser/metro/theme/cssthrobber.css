@@ -5,38 +5,41 @@
 %filter substitution
 %include defines.inc
 
-#container[enabled] .progressBall {
+.progressContainer {
+}
+
+.progressBall {
   position: absolute;
   opacity: 0;
   transform: rotate(225deg);
   animation: orbit 7.15s infinite;
 }
 
-#container[enabled] .progressBall:nth-child(1) {
+.progressBall:nth-child(1) {
   animation-delay: 1.56s;
 }
 
-#container[enabled] .progressBall:nth-child(2) {
+.progressBall:nth-child(2) {
   animation-delay: 0.31s;
 }
 
-#container[enabled] .progressBall:nth-child(3) {
+.progressBall:nth-child(3) {
   animation-delay: 0.62s;
 }
 
-#container[enabled] .progressBall:nth-child(4) {
+.progressBall:nth-child(4) {
   animation-delay: 0.94s;
 }
 
-#container[enabled] .progressBall:nth-child(5) {
+.progressBall:nth-child(5) {
   animation-delay: 1.25s;
 }
 
-#container[enabled] .progressBall:nth-child(1)::after,
-#container[enabled] .progressBall:nth-child(2)::after,
-#container[enabled] .progressBall:nth-child(3)::after,
-#container[enabled] .progressBall:nth-child(4)::after,
-#container[enabled] .progressBall:nth-child(5)::after {
+.progressBall:nth-child(1)::after,
+.progressBall:nth-child(2)::after,
+.progressBall:nth-child(3)::after,
+.progressBall:nth-child(4)::after,
+.progressBall:nth-child(5)::after {
   content: "";
   display: block;
   width: 5px;

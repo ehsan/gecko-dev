@@ -110,26 +110,26 @@ SmsChild::RecvNotifyDeliveryErrorMessage(const MobileMessageData& aData)
 }
 
 PSmsRequestChild*
-SmsChild::AllocPSmsRequestChild(const IPCSmsRequest& aRequest)
+SmsChild::AllocPSmsRequest(const IPCSmsRequest& aRequest)
 {
   MOZ_CRASH("Caller is supposed to manually construct a request!");
 }
 
 bool
-SmsChild::DeallocPSmsRequestChild(PSmsRequestChild* aActor)
+SmsChild::DeallocPSmsRequest(PSmsRequestChild* aActor)
 {
   delete aActor;
   return true;
 }
 
 PMobileMessageCursorChild*
-SmsChild::AllocPMobileMessageCursorChild(const IPCMobileMessageCursor& aCursor)
+SmsChild::AllocPMobileMessageCursor(const IPCMobileMessageCursor& aCursor)
 {
   MOZ_CRASH("Caller is supposed to manually construct a cursor!");
 }
 
 bool
-SmsChild::DeallocPMobileMessageCursorChild(PMobileMessageCursorChild* aActor)
+SmsChild::DeallocPMobileMessageCursor(PMobileMessageCursorChild* aActor)
 {
   // MobileMessageCursorChild is refcounted, must not be freed manually.
   // Originally AddRefed in SendCursorRequest() in SmsIPCService.cpp.

@@ -22,15 +22,7 @@ class nsIContent;
 class nsIAtom;
 class nsIDocument;
 class nsIScriptContext;
-
-namespace mozilla {
-namespace dom {
-
-class XBLChildrenElement;
-
-}
-}
-
+class nsXBLChildrenElement;
 class nsAnonymousContentList;
 struct JSContext;
 class JSObject;
@@ -144,14 +136,14 @@ public:
 
   bool AllowScripts();  // XXX make const
 
-  mozilla::dom::XBLChildrenElement* FindInsertionPointFor(nsIContent* aChild);
+  nsXBLChildrenElement* FindInsertionPointFor(nsIContent* aChild);
 
   bool HasFilteredInsertionPoints()
   {
     return !mInsertionPoints.IsEmpty();
   }
 
-  mozilla::dom::XBLChildrenElement* GetDefaultInsertionPoint()
+  nsXBLChildrenElement* GetDefaultInsertionPoint()
   {
     return mDefaultInsertionPoint;
   }
@@ -184,11 +176,11 @@ protected:
   // attribute. These points must be up-to-date with respect to their parent's
   // children, even if their parent has another binding attached to it,
   // preventing us from rendering their contents directly.
-  nsRefPtr<mozilla::dom::XBLChildrenElement> mDefaultInsertionPoint;
-  nsTArray<nsRefPtr<mozilla::dom::XBLChildrenElement> > mInsertionPoints;
+  nsRefPtr<nsXBLChildrenElement> mDefaultInsertionPoint;
+  nsTArray<nsRefPtr<nsXBLChildrenElement> > mInsertionPoints;
   nsRefPtr<nsAnonymousContentList> mAnonymousContentList;
 
-  mozilla::dom::XBLChildrenElement* FindInsertionPointForInternal(nsIContent* aChild);
+  nsXBLChildrenElement* FindInsertionPointForInternal(nsIContent* aChild);
 };
 
 #endif // nsXBLBinding_h_

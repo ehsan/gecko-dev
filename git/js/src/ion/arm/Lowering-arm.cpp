@@ -325,14 +325,6 @@ LIRGeneratorARM::newLGetPropertyCacheT(MGetPropertyCache *ins)
     return new LGetPropertyCacheT(useRegister(ins->object()), LDefinition::BogusTemp());
 }
 
-LGetElementCacheT *
-LIRGeneratorARM::newLGetElementCacheT(MGetElementCache *ins)
-{
-    return new LGetElementCacheT(useRegister(ins->object()),
-                                 useRegister(ins->index()),
-                                 LDefinition::BogusTemp());
-}
-
 bool
 LIRGeneratorARM::visitGuardShape(MGuardShape *ins)
 {

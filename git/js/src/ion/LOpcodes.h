@@ -131,7 +131,6 @@
     _(Slots)                        \
     _(Elements)                     \
     _(ConvertElementsToDoubles)     \
-    _(MaybeToDoubleElement)         \
     _(LoadSlotV)                    \
     _(LoadSlotT)                    \
     _(StoreSlotV)                   \

@@ -70,6 +70,7 @@
 #include "nsRuleNode.h"
 #include "nsIDOMMutationEvent.h"
 #include "ChildIterator.h"
+#include "nsXBLChildrenElement.h"
 #include "nsCSSRendering.h"
 #include "nsError.h"
 #include "nsLayoutUtils.h"

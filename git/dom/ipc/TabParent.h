@@ -156,12 +156,12 @@ public:
                                            const float& aMinZoom,
                                            const float& aMaxZoom);
     virtual bool RecvContentReceivedTouch(const bool& aPreventDefault);
-    virtual PContentDialogParent* AllocPContentDialogParent(const uint32_t& aType,
-                                                            const nsCString& aName,
-                                                            const nsCString& aFeatures,
-                                                            const InfallibleTArray<int>& aIntParams,
-                                                            const InfallibleTArray<nsString>& aStringParams);
-    virtual bool DeallocPContentDialogParent(PContentDialogParent* aDialog)
+    virtual PContentDialogParent* AllocPContentDialog(const uint32_t& aType,
+                                                      const nsCString& aName,
+                                                      const nsCString& aFeatures,
+                                                      const InfallibleTArray<int>& aIntParams,
+                                                      const InfallibleTArray<nsString>& aStringParams);
+    virtual bool DeallocPContentDialog(PContentDialogParent* aDialog)
     {
       delete aDialog;
       return true;
@@ -193,21 +193,21 @@ public:
     bool SendRealTouchEvent(nsTouchEvent& event);
 
     virtual PDocumentRendererParent*
-    AllocPDocumentRendererParent(const nsRect& documentRect, const gfxMatrix& transform,
-                                 const nsString& bgcolor,
-                                 const uint32_t& renderFlags, const bool& flushLayout,
-                                 const nsIntSize& renderSize);
-    virtual bool DeallocPDocumentRendererParent(PDocumentRendererParent* actor);
+    AllocPDocumentRenderer(const nsRect& documentRect, const gfxMatrix& transform,
+                           const nsString& bgcolor,
+                           const uint32_t& renderFlags, const bool& flushLayout,
+                           const nsIntSize& renderSize);
+    virtual bool DeallocPDocumentRenderer(PDocumentRendererParent* actor);
 
     virtual PContentPermissionRequestParent*
-    AllocPContentPermissionRequestParent(const nsCString& aType, const nsCString& aAccess, const IPC::Principal& aPrincipal);
-    virtual bool DeallocPContentPermissionRequestParent(PContentPermissionRequestParent* actor);
+    AllocPContentPermissionRequest(const nsCString& aType, const nsCString& aAccess, const IPC::Principal& aPrincipal);
+    virtual bool DeallocPContentPermissionRequest(PContentPermissionRequestParent* actor);
 
-    virtual POfflineCacheUpdateParent* AllocPOfflineCacheUpdateParent(
+    virtual POfflineCacheUpdateParent* AllocPOfflineCacheUpdate(
             const URIParams& aManifestURI,
             const URIParams& aDocumentURI,
             const bool& stickDocument) MOZ_OVERRIDE;
-    virtual bool DeallocPOfflineCacheUpdateParent(POfflineCacheUpdateParent* actor);
+    virtual bool DeallocPOfflineCacheUpdate(POfflineCacheUpdateParent* actor);
 
     JSBool GetGlobalJSObject(JSContext* cx, JSObject** globalp);
 
@@ -236,10 +236,10 @@ protected:
 
     virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 
-    virtual PIndexedDBParent* AllocPIndexedDBParent(const nsCString& aASCIIOrigin,
-                                                    bool* /* aAllowed */);
+    virtual PIndexedDBParent* AllocPIndexedDB(const nsCString& aASCIIOrigin,
+                                              bool* /* aAllowed */);
 
-    virtual bool DeallocPIndexedDBParent(PIndexedDBParent* aActor);
+    virtual bool DeallocPIndexedDB(PIndexedDBParent* aActor);
 
     virtual bool
     RecvPIndexedDBConstructor(PIndexedDBParent* aActor,
@@ -269,10 +269,10 @@ protected:
     bool ShouldDelayDialogs();
     bool AllowContentIME();
 
-    virtual PRenderFrameParent* AllocPRenderFrameParent(ScrollingBehavior* aScrolling,
-                                                        TextureFactoryIdentifier* aTextureFactoryIdentifier,
-                                                        uint64_t* aLayersId) MOZ_OVERRIDE;
-    virtual bool DeallocPRenderFrameParent(PRenderFrameParent* aFrame) MOZ_OVERRIDE;
+    virtual PRenderFrameParent* AllocPRenderFrame(ScrollingBehavior* aScrolling,
+                                                  TextureFactoryIdentifier* aTextureFactoryIdentifier,
+                                                  uint64_t* aLayersId) MOZ_OVERRIDE;
+    virtual bool DeallocPRenderFrame(PRenderFrameParent* aFrame) MOZ_OVERRIDE;
 
     // IME
     static TabParent *mIMETabParent;

@@ -15,6 +15,8 @@ EXPORT_LIBRARY = 1
 FORCE_STATIC_LIB = 1
 LIBXUL_LIBRARY = 1
 
+MODULE_NAME	= nsUCUtil
+
 CSRCS		= \
 		ugen.c \
 		uscan.c \

@@ -1290,14 +1290,6 @@ MMul::canOverflow()
     return !range() || !range()->isInt32();
 }
 
-bool
-MUrsh::canOverflow()
-{
-    if (!canOverflow_)
-        return false;
-    return !range() || !range()->isInt32();
-}
-
 static inline bool
 KnownNonStringPrimitive(MDefinition *op)
 {

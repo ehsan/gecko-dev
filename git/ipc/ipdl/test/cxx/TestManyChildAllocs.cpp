@@ -38,14 +38,14 @@ TestManyChildAllocsParent::RecvDone()
 }
 
 bool
-TestManyChildAllocsParent::DeallocPTestManyChildAllocsSubParent(
+TestManyChildAllocsParent::DeallocPTestManyChildAllocsSub(
     PTestManyChildAllocsSubParent* __a)
 {
     delete __a; return true;
 }
 
 PTestManyChildAllocsSubParent*
-TestManyChildAllocsParent::AllocPTestManyChildAllocsSubParent()
+TestManyChildAllocsParent::AllocPTestManyChildAllocsSub()
 {
     return new TestManyChildAllocsSubParent();
 }
@@ -87,14 +87,14 @@ bool TestManyChildAllocsChild::RecvGo()
 }
 
 bool
-TestManyChildAllocsChild::DeallocPTestManyChildAllocsSubChild(
+TestManyChildAllocsChild::DeallocPTestManyChildAllocsSub(
     PTestManyChildAllocsSubChild* __a)
 {
     delete __a; return true;
 }
 
 PTestManyChildAllocsSubChild*
-TestManyChildAllocsChild::AllocPTestManyChildAllocsSubChild()
+TestManyChildAllocsChild::AllocPTestManyChildAllocsSub()
 {
     return new TestManyChildAllocsSubChild();
 }

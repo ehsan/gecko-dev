@@ -561,21 +561,26 @@ flyoutpanel > settings:first-child {
   width: 400px;
 }
 
-#sync-disconnectpanel {
-  margin-top: 25px;
-}
-
 #sync-disconnectwarntitle {
   font-weight: bold;
 }
 
-#sync-disconnectthrobber .progressContainer {
+#sync-disconnectthrobber {
+  margin-top: 25px;
+}
+
+#disconnectthrobber {
+  width: 25px;
+  height: 25px;
+}
+
+#syncdisconnectthrobber .progressContainer {
   width: 25px;
   height: 25px;
   margin-right: 10px;
 }
 
-#sync-disconnectthrobber .progressBall {
+#syncdisconnectthrobber .progressBall {
   margin: 2px;
   width: 22px;
   height: 22px;
@@ -705,21 +710,6 @@ setting[type="radio"] > vbox {
   vertical-align: middle;
   margin: 0;
   width: 50%;
-}
-
-#clear-notification {
-  max-height: 25px;
-}
-
-#clearprivacythrobber .progressContainer {
-  width: 25px;
-  height: 25px;
-}
-
-#clearprivacythrobber .progressBall {
-  margin: 2px;
-  width: 22px;
-  height: 22px;
 }
 
 #clear-notification-done {
