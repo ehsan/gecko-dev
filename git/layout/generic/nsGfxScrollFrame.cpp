@@ -159,7 +159,7 @@ nsHTMLScrollFrame::GetType() const
 struct MOZ_STACK_CLASS ScrollReflowState {
   const nsHTMLReflowState& mReflowState;
   nsBoxLayoutState mBoxState;
-  ScrollbarStyles mStyles;
+  nsGfxScrollFrameInner::ScrollbarStyles mStyles;
   nsMargin mComputedBorder;
 
   // === Filled in by ReflowScrolledFrame ===
@@ -652,7 +652,7 @@ nsHTMLScrollFrame::PlaceScrollArea(const ScrollReflowState& aState,
 nscoord
 nsHTMLScrollFrame::GetIntrinsicVScrollbarWidth(nsRenderingContext *aRenderingContext)
 {
-  ScrollbarStyles ss = GetScrollbarStyles();
+  nsGfxScrollFrameInner::ScrollbarStyles ss = GetScrollbarStyles();
   if (ss.mVertical != NS_STYLE_OVERFLOW_SCROLL || !mInner.mVScrollbarBox)
     return 0;
 
@@ -861,7 +861,7 @@ nsHTMLScrollFrame::AccessibleType()
   // Create an accessible regardless of focusable state because the state can be
   // changed during frame life cycle without any notifications to accessibility.
   if (mContent->IsRootOfNativeAnonymousSubtree() ||
-      GetScrollbarStyles() ==
+      GetScrollbarStyles() == nsIScrollableFrame::
         ScrollbarStyles(NS_STYLE_OVERFLOW_HIDDEN, NS_STYLE_OVERFLOW_HIDDEN) ) {
     return a11y::eNoType;
   }
@@ -1080,7 +1080,7 @@ nsXULScrollFrame::GetPrefSize(nsBoxLayoutState& aState)
 
   nsSize pref = mInner.mScrolledFrame->GetPrefSize(aState);
 
-  ScrollbarStyles styles = GetScrollbarStyles();
+  nsGfxScrollFrameInner::ScrollbarStyles styles = GetScrollbarStyles();
 
   // scrolled frames don't have their own margins
 
@@ -1113,7 +1113,7 @@ nsXULScrollFrame::GetMinSize(nsBoxLayoutState& aState)
 
   nsSize min = mInner.mScrolledFrame->GetMinSizeForScrollArea(aState);
 
-  ScrollbarStyles styles = GetScrollbarStyles();
+  nsGfxScrollFrameInner::ScrollbarStyles styles = GetScrollbarStyles();
 
   if (mInner.mVScrollbarBox &&
       styles.mVertical == NS_STYLE_OVERFLOW_SCROLL) {
@@ -2342,7 +2342,7 @@ static void HandleScrollPref(nsIScrollable *aScrollable, int32_t aOrientation,
   }
 }
 
-ScrollbarStyles
+nsGfxScrollFrameInner::ScrollbarStyles
 nsGfxScrollFrameInner::GetScrollbarStylesFromFrame() const
 {
   nsPresContext* presContext = mOuter->PresContext();

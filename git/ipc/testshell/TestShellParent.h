@@ -40,7 +40,7 @@ public:
 class TestShellCommandParent : public PTestShellCommandParent
 {
 public:
-  TestShellCommandParent() : mCx(nullptr) { }
+  TestShellCommandParent() : mCx(NULL) { }
 
   bool SetCallback(JSContext* aCx, JS::Value aCallback);
 

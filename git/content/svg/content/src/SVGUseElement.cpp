@@ -13,7 +13,6 @@
 #include "nsIPresShell.h"
 #include "mozilla/dom/Element.h"
 #include "nsContentUtils.h"
-#include "nsIURI.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(Use)
 

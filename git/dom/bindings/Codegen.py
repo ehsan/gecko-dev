@@ -80,7 +80,7 @@ class CGNativePropertyHooks(CGThing):
     def declare(self):
         if self.descriptor.workers:
             return ""
-        return "extern const NativePropertyHooks* sNativePropertyHooks;\n"
+        return "extern const NativePropertyHooks sNativePropertyHooks;\n"
     def define(self):
         if self.descriptor.workers:
             return ""
@@ -112,7 +112,7 @@ class CGNativePropertyHooks(CGThing):
         else:
             prototypeID += "_ID_Count"
         parent = self.descriptor.interface.parent
-        parentHooks = (toBindingNamespace(parent.identifier.name) + "::sNativePropertyHooks"
+        parentHooks = ("&" + toBindingNamespace(parent.identifier.name) + "::sNativePropertyHooks"
                        if parent else 'nullptr')
 
         return CGWrapper(CGIndenter(CGList([CGGeneric(resolveOwnProperty),
@@ -125,13 +125,11 @@ class CGNativePropertyHooks(CGThing):
                                             CGGeneric(constructorID),
                                             CGGeneric(parentHooks)],
                                            ",\n")),
-                         pre="static const NativePropertyHooks sNativePropertyHooksStruct = {\n",
-                         post=("\n"
-                               "};\n"
-                               "const NativePropertyHooks* sNativePropertyHooks = &sNativePropertyHooksStruct;\n")).define()
+                         pre="const NativePropertyHooks sNativePropertyHooks = {\n",
+                         post="\n};\n").define()
 
 def NativePropertyHooks(descriptor):
-    return "&sWorkerNativePropertyHooks" if descriptor.workers else "sNativePropertyHooks"
+    return "&sWorkerNativePropertyHooks" if descriptor.workers else "&sNativePropertyHooks"
 
 def DOMClass(descriptor):
         protoList = ['prototypes::id::' + proto for proto in descriptor.prototypeChain]
@@ -168,7 +166,7 @@ class CGDOMJSClass(CGThing):
         # Our current reserved slot situation is unsafe for globals. Fix bug 760095!
         assert "Window" not in descriptor.interface.identifier.name
     def declare(self):
-        return ""
+        return "extern DOMJSClass Class;\n"
     def define(self):
         traceHook = TRACE_HOOK_NAME if self.descriptor.customTrace else 'nullptr'
         callHook = LEGACYCALLER_HOOK_NAME if self.descriptor.operations["LegacyCaller"] else 'nullptr'
@@ -181,7 +179,7 @@ class CGDOMJSClass(CGThing):
             newResolveHook = "JS_ResolveStub"
             enumerateHook = "JS_EnumerateStub"
         return """
-static DOMJSClass Class = {
+DOMJSClass Class = {
   { "%s",
     %s,
     %s, /* addProperty */
@@ -567,19 +565,9 @@ class CGHeaders(CGWrapper):
         interfaceDeps = [d.interface for d in descriptors]
         ancestors = []
         for iface in interfaceDeps:
-            if iface.parent:
-                # We're going to need our parent's prototype, to use as the
-                # prototype of our prototype object.
+            while iface.parent:
                 ancestors.append(iface.parent)
-                # And if we have an interface object, we'll need the nearest
-                # ancestor with an interface object too, so we can use its
-                # interface object as the proto of our interface object.
-                if iface.hasInterfaceObject():
-                    parent = iface.parent
-                    while parent and not parent.hasInterfaceObject():
-                        parent = parent.parent
-                    if parent:
-                        ancestors.append(parent)
+                iface = iface.parent
         interfaceDeps.extend(ancestors)
         bindingIncludes = set(self.getDeclarationFilename(d) for d in interfaceDeps)
 
@@ -651,6 +639,7 @@ class CGHeaders(CGWrapper):
                             declareIncludes.add(typeDesc.headerFile)
                         else:
                             implementationIncludes.add(typeDesc.headerFile)
+                        bindingHeaders.add(self.getDeclarationFilename(typeDesc.interface))
             elif unrolled.isDictionary():
                 bindingHeaders.add(self.getDeclarationFilename(unrolled.inner))
             elif unrolled.isCallback():
@@ -972,14 +961,6 @@ class CGAbstractClassHook(CGAbstractStaticMethod):
     def generate_code(self):
         # Override me
         assert(False)
-
-class CGGetJSClassMethod(CGAbstractMethod):
-    def __init__(self, descriptor):
-        CGAbstractMethod.__init__(self, descriptor, 'GetJSClass', 'JSClass*',
-                                  [])
-
-    def definition_body(self):
-        return "  return Class.ToJSClass();"
 
 class CGAddPropertyHook(CGAbstractClassHook):
     """
@@ -1890,7 +1871,7 @@ class CGGetPerInterfaceObject(CGAbstractMethod):
         args = [Argument('JSContext*', 'aCx'),
                 Argument('JS::Handle<JSObject*>', 'aGlobal')] + extraArgs
         CGAbstractMethod.__init__(self, descriptor, name,
-                                  'JS::Handle<JSObject*>', args)
+                                  'JS::Handle<JSObject*>', args, inline=True)
         self.id = idPrefix + "id::" + self.descriptor.name
     def definition_body(self):
         return ("""
@@ -2048,6 +2029,16 @@ class CGConstructorEnabledViaFunc(CGAbstractMethod):
         func = self.descriptor.interface.getExtendedAttribute("Func")
         assert isinstance(func, list) and len(func) == 1
         return "  return %s(cx, obj);" % func[0]
+
+class CGIsMethod(CGAbstractMethod):
+    def __init__(self, descriptor):
+        args = [Argument('JSObject*', 'obj')]
+        CGAbstractMethod.__init__(self, descriptor, 'Is', 'bool', args)
+
+    def definition_body(self):
+        # Non-proxy implementation would check
+        #   js::GetObjectJSClass(obj) == &Class.mBase
+        return """  return IsProxy(obj);"""
 
 def CreateBindingJSObject(descriptor, properties, parent):
     # When we have unforgeable properties, we're going to define them
@@ -6877,7 +6868,21 @@ class CGPrototypeTraitsClass(CGClass):
         templateSpecialization = ['prototypes::id::' + descriptor.name]
         enums = [ClassEnum('', ['Depth'],
                            [descriptor.interface.inheritanceDepth()])]
+        typedefs = [ClassTypedef('NativeType', descriptor.nativeType)]
         CGClass.__init__(self, 'PrototypeTraits', indent=indent,
+                         templateArgs=templateArgs,
+                         templateSpecialization=templateSpecialization,
+                         enums=enums, typedefs=typedefs, isStruct=True)
+    def deps(self):
+        return set()
+
+class CGPrototypeIDMapClass(CGClass):
+    def __init__(self, descriptor, indent=''):
+        templateArgs = [Argument('class', 'ConcreteClass')]
+        templateSpecialization = [descriptor.nativeType]
+        enums = [ClassEnum('', ['PrototypeID'],
+                           ['prototypes::id::' + descriptor.name])]
+        CGClass.__init__(self, 'PrototypeIDMap', indent=indent,
                          templateArgs=templateArgs,
                          templateSpecialization=templateSpecialization,
                          enums=enums, isStruct=True)
@@ -7119,10 +7124,10 @@ class CGDOMJSProxyHandlerDOMClass(CGThing):
         CGThing.__init__(self)
         self.descriptor = descriptor
     def declare(self):
-        return ""
+        return "extern const DOMClass Class;\n"
     def define(self):
         return """
-static const DOMClass Class = """ + DOMClass(self.descriptor) + """;
+const DOMClass Class = """ + DOMClass(self.descriptor) + """;
 
 """
 
@@ -7715,33 +7720,6 @@ class CGDOMJSProxyHandler(CGClass):
                          constructors=constructors,
                          methods=methods)
 
-class CGDOMJSProxyHandlerDeclarer(CGThing):
-    """
-    A class for declaring a DOMProxyHandler.
-    """
-    def __init__(self, handlerThing):
-        self.handlerThing = handlerThing
-
-    def declare(self):
-        # Our class declaration should happen when we're defining
-        return ""
-
-    def define(self):
-        return self.handlerThing.declare()
-
-class CGDOMJSProxyHandlerDefiner(CGThing):
-    """
-    A class for defining a DOMProxyHandler.
-    """
-    def __init__(self, handlerThing):
-        self.handlerThing = handlerThing
-
-    def declare(self):
-        return ""
-
-    def define(self):
-        return self.handlerThing.define()
-
 def stripTrailingWhitespace(text):
     tail = '\n' if text.endswith('\n') else ''
     lines = text.splitlines()
@@ -7763,8 +7741,6 @@ class CGDescriptor(CGThing):
         self._deps = descriptor.interface.getDeps()
 
         cgThings = []
-        cgThings.append(CGGeneric(declare="typedef %s NativeType;\n" %
-                                  descriptor.nativeType))
         # These are set to true if at least one non-static
         # method/getter/setter or jsonifier exist on the interface.
         (hasMethod, hasGetter, hasLenientGetter, hasSetter, hasJsonifier,
@@ -7873,6 +7849,12 @@ class CGDescriptor(CGThing):
         if descriptor.interface.hasInterfacePrototypeObject():
             cgThings.append(CGPrototypeJSClass(descriptor, properties))
 
+        cgThings.append(CGCreateInterfaceObjectsMethod(descriptor, properties))
+        if descriptor.interface.hasInterfacePrototypeObject():
+            cgThings.append(CGGetProtoObjectMethod(descriptor))
+        if descriptor.interface.hasInterfaceObject():
+            cgThings.append(CGGetConstructorObjectMethod(descriptor))
+
         if descriptor.interface.hasInterfaceObject():
             cgThings.append(CGDefineDOMInterfaceMethod(descriptor))
 
@@ -7909,15 +7891,13 @@ class CGDescriptor(CGThing):
                 if not descriptor.wrapperCache:
                     raise TypeError("We need a wrappercache to support expandos for proxy-based "
                                     "bindings (" + descriptor.name + ")")
-                handlerThing = CGDOMJSProxyHandler(descriptor)
-                cgThings.append(CGDOMJSProxyHandlerDeclarer(handlerThing))
                 cgThings.append(CGProxyIsProxy(descriptor))
                 cgThings.append(CGProxyUnwrap(descriptor))
                 cgThings.append(CGDOMJSProxyHandlerDOMClass(descriptor))
-                cgThings.append(CGDOMJSProxyHandlerDefiner(handlerThing))
+                cgThings.append(CGDOMJSProxyHandler(descriptor))
+                cgThings.append(CGIsMethod(descriptor))
             else:
                 cgThings.append(CGDOMJSClass(descriptor))
-                cgThings.append(CGGetJSClassMethod(descriptor))
 
             if descriptor.wrapperCache:
                 cgThings.append(CGWrapWithCacheMethod(descriptor, properties))
@@ -7925,17 +7905,6 @@ class CGDescriptor(CGThing):
             else:
                 cgThings.append(CGWrapNonWrapperCacheMethod(descriptor,
                                                             properties))
-
-        # CGCreateInterfaceObjectsMethod needs to come after our
-        # CGDOMJSClass, if any.
-        cgThings.append(CGCreateInterfaceObjectsMethod(descriptor, properties))
-
-        # CGGetProtoObjectMethod and CGGetConstructorObjectMethod need
-        # to come after CGCreateInterfaceObjectsMethod.
-        if descriptor.interface.hasInterfacePrototypeObject():
-            cgThings.append(CGGetProtoObjectMethod(descriptor))
-        if descriptor.interface.hasInterfaceObject():
-            cgThings.append(CGGetConstructorObjectMethod(descriptor))
 
         cgThings = CGList((CGIndenter(t, declareOnly=True) for t in cgThings), "\n")
         cgThings = CGWrapper(cgThings, pre='\n', post='\n')
@@ -8199,6 +8168,7 @@ if (""",
 
 
         initializerCtor = ClassConstructor([],
+            bodyInHeader=True,
             visibility="public",
             body=(
                 "// Safe to pass a null context if we pass a null value\n"
@@ -8584,12 +8554,9 @@ class CGForwardDeclarations(CGWrapper):
             # Don't need to do anything for void, primitive, string, any or object.
             # There may be some other cases we are missing.
 
-        # Needed for at least Wrap.
+        # Needed for at least PrototypeTraits, PrototypeIDMap, and Wrap.
         for d in descriptors:
             builder.add(d.nativeType)
-
-        # We just about always need NativePropertyHooks
-        builder.addInMozillaDom("NativePropertyHooks")
 
         for callback in mainCallbacks:
             forwardDeclareForType(callback)
@@ -8629,7 +8596,7 @@ class CGBindingRoot(CGThing):
             return any(m.getExtendedAttribute("Pref") for m in iface.members + [iface]);
         requiresPreferences = any(descriptorRequiresPreferences(d) for d in descriptors)
         hasOwnedDescriptors = any(d.nativeOwnership == 'owned' for d in descriptors)
-        hasProxies = any(d.concrete and d.proxy for d in descriptors)
+        requiresContentUtils = any(d.interface.hasInterfaceObject() for d in descriptors)
         def descriptorHasChromeOnly(desc):
             return (any(isChromeOnly(a) for a in desc.interface.members) or
                     desc.interface.getExtendedAttribute("ChromeOnly") is not None or
@@ -8672,6 +8639,25 @@ class CGBindingRoot(CGThing):
 
         callForEachType(descriptors + callbackDescriptors, dictionaries,
                         mainCallbacks, checkForXPConnectImpls)
+
+        descriptorsWithPrototype = filter(lambda d: d.interface.hasInterfacePrototypeObject(),
+                                          descriptors)
+        traitsClasses = [CGPrototypeTraitsClass(d) for d in descriptorsWithPrototype]
+
+        # We must have a 1:1 mapping here, skip for prototypes which
+        # share an implementation with other prototypes.
+        traitsClasses.extend([CGPrototypeIDMapClass(d) for d in descriptorsWithPrototype
+                              if d.unsharedImplementation])
+
+        # Wrap all of that in our namespaces.
+        if len(traitsClasses) > 0:
+            traitsClasses = CGNamespace.build(['mozilla', 'dom'],
+                                     CGWrapper(CGList(traitsClasses),
+                                               declarePre='\n'),
+                                               declareOnly=True)
+            traitsClasses = CGWrapper(traitsClasses, declarePost='\n')
+        else:
+            traitsClasses = None
 
         # Do codegen for all the enums
         cgthings = [ CGEnum(e) for e in config.getEnums(webIDLFile) ]
@@ -8723,7 +8709,7 @@ class CGBindingRoot(CGThing):
                                              callbackDescriptors + jsImplemented),
                        CGWrapper(CGGeneric("using namespace mozilla::dom;"),
                                  defineOnly=True),
-                       curr],
+                       traitsClasses, curr],
                       "\n")
 
         # Add header includes.
@@ -8733,21 +8719,19 @@ class CGBindingRoot(CGThing):
                          callbackDescriptors,
                          ['mozilla/dom/BindingDeclarations.h',
                           'mozilla/ErrorResult.h',
-                          'jspubtd.h',
-                          'js/RootingAPI.h',
-                          ],
+                          'mozilla/dom/DOMJSClass.h',
+                          'mozilla/dom/DOMJSProxyHandler.h'],
                          ['mozilla/dom/BindingUtils.h',
                           'mozilla/dom/Nullable.h',
                           'PrimitiveConversions.h',
                           'WrapperFactory.h',
-                          'mozilla/dom/DOMJSClass.h',
                           ] + (['WorkerPrivate.h',
                                 'nsThreadUtils.h'] if hasWorkerStuff else [])
                             + (['mozilla/Preferences.h'] if requiresPreferences else [])
                             + (['mozilla/dom/NonRefcountedDOMObject.h'] if hasOwnedDescriptors else [])
+                            + (['nsContentUtils.h'] if requiresContentUtils else [])
                             + (['nsCxPusher.h'] if dictionaries else [])
                             + (['AccessCheck.h'] if hasChromeOnly else [])
-                            + (['mozilla/dom/DOMJSProxyHandler.h'] if hasProxies else [])
                             + (['xpcprivate.h'] if isEventTarget else [])
                             + (['nsPIDOMWindow.h'] if len(jsImplemented) != 0 else [])
                             + (['nsDOMQS.h'] if needsDOMQS["value"] else [])
@@ -10244,8 +10228,7 @@ class GlobalGenRoots():
     def PrototypeList(config):
 
         # Prototype ID enum.
-        descriptorsWithPrototype = config.getDescriptors(hasInterfacePrototypeObject=True)
-        protos = [d.name for d in descriptorsWithPrototype]
+        protos = [d.name for d in config.getDescriptors(hasInterfacePrototypeObject=True)]
         idEnum = CGNamespacedEnum('id', 'ID', ['_ID_Start'] + protos,
                                   [0, '_ID_Start'])
         idEnum = CGList([idEnum])
@@ -10288,14 +10271,16 @@ class GlobalGenRoots():
 
         curr.append(idEnum)
 
-        traitsDecls = [CGGeneric(declare="""
+        traitsDecl = CGGeneric(declare="""
 template <prototypes::ID PrototypeID>
 struct PrototypeTraits;
-""")]
-        traitsDecls.extend(CGPrototypeTraitsClass(d) for d in descriptorsWithPrototype)
+
+template <class ConcreteClass>
+struct PrototypeIDMap;
+""")
 
         traitsDecl = CGNamespace.build(['mozilla', 'dom'],
-                                        CGList(traitsDecls, "\n"))
+                                        CGWrapper(traitsDecl, post='\n'))
 
         curr.append(traitsDecl)
 

@@ -20,9 +20,9 @@ namespace dom {
 
 class Element;
 
-#define MOZILLA_DOM_LINK_IMPLEMENTATION_IID               \
-{ 0xb25edee6, 0xdd35, 0x4f8b,                             \
-  { 0xab, 0x90, 0x66, 0xd0, 0xbd, 0x3c, 0x22, 0xd5 } }
+#define MOZILLA_DOM_LINK_IMPLEMENTATION_IID \
+  { 0x7EA57721, 0xE373, 0x458E, \
+    {0x8F, 0x44, 0xF8, 0x96, 0x56, 0xB4, 0x14, 0xF5 } }
 
 class Link : public nsISupports
 {
@@ -45,8 +45,8 @@ public:
   /**
    * @return the URI this link is for, if available.
    */
-  nsIURI* GetURI() const;
-  virtual nsIURI* GetURIExternal() const {
+  already_AddRefed<nsIURI> GetURI() const;
+  virtual already_AddRefed<nsIURI> GetURIExternal() const {
     return GetURI();
   }
 
@@ -111,11 +111,11 @@ protected:
    */
   bool HasURI() const
   {
-    if (HasCachedURI()) {
+    if (mCachedURI)
       return true;
-    }
 
-    return !!GetURI();
+    nsCOMPtr<nsIURI> uri(GetURI());
+    return !!uri;
   }
 
   nsIURI* GetCachedURI() const { return mCachedURI; }

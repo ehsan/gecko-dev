@@ -9,7 +9,6 @@
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "jsdbgapi.h"
-#include "jsfriendapi.h"
 
 using namespace mozilla;
 

@@ -76,7 +76,8 @@ WinUtils::Initialize()
   if (!sDwmDll && WinUtils::GetWindowsVersion() >= WinUtils::VISTA_VERSION) {
     sDwmDll = ::LoadLibraryW(kDwmLibraryName);
 
-    if (sDwmDll) {
+    // MSDN: "If the function succeeds, the return value is greater than 31."
+    if (uintptr_t(sDwmDll) > 31) {
       dwmExtendFrameIntoClientAreaPtr = (DwmExtendFrameIntoClientAreaProc)::GetProcAddress(sDwmDll, "DwmExtendFrameIntoClientArea");
       dwmIsCompositionEnabledPtr = (DwmIsCompositionEnabledProc)::GetProcAddress(sDwmDll, "DwmIsCompositionEnabled");
       dwmSetIconicThumbnailPtr = (DwmSetIconicThumbnailProc)::GetProcAddress(sDwmDll, "DwmSetIconicThumbnail");

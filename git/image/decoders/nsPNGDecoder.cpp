@@ -121,7 +121,7 @@ nsPNGDecoder::nsPNGDecoder(RasterImage &aImage)
 nsPNGDecoder::~nsPNGDecoder()
 {
   if (mPNG)
-    png_destroy_read_struct(&mPNG, mInfo ? &mInfo : nullptr, nullptr);
+    png_destroy_read_struct(&mPNG, mInfo ? &mInfo : NULL, NULL);
   if (mCMSLine)
     nsMemory::Free(mCMSLine);
   if (interlacebuf)
@@ -237,7 +237,7 @@ nsPNGDecoder::InitInternal()
   /* Always decode to 24 bit pixdepth */
 
   mPNG = png_create_read_struct(PNG_LIBPNG_VER_STRING,
-                                nullptr, nsPNGDecoder::error_callback,
+                                NULL, nsPNGDecoder::error_callback,
                                 nsPNGDecoder::warning_callback);
   if (!mPNG) {
     PostDecoderError(NS_ERROR_OUT_OF_MEMORY);
@@ -247,7 +247,7 @@ nsPNGDecoder::InitInternal()
   mInfo = png_create_info_struct(mPNG);
   if (!mInfo) {
     PostDecoderError(NS_ERROR_OUT_OF_MEMORY);
-    png_destroy_read_struct(&mPNG, nullptr, nullptr);
+    png_destroy_read_struct(&mPNG, NULL, NULL);
     return;
   }
 
@@ -348,7 +348,7 @@ nsPNGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
       if (!HasError())
         PostDataError();
 
-      png_destroy_read_struct(&mPNG, &mInfo, nullptr);
+      png_destroy_read_struct(&mPNG, &mInfo, NULL);
       return;
     }
 
@@ -498,7 +498,7 @@ nsPNGDecoder::info_callback(png_structp png_ptr, png_infop info_ptr)
   int bit_depth, color_type, interlace_type, compression_type, filter_type;
   unsigned int channels;
 
-  png_bytep trans = nullptr;
+  png_bytep trans = NULL;
   int num_trans = 0;
 
   nsPNGDecoder *decoder =
@@ -633,8 +633,7 @@ nsPNGDecoder::info_callback(png_structp png_ptr, png_infop info_ptr)
 
 #ifdef PNG_APNG_SUPPORTED
   if (png_get_valid(png_ptr, info_ptr, PNG_INFO_acTL))
-    png_set_progressive_frame_fn(png_ptr, nsPNGDecoder::frame_info_callback,
-                                 nullptr);
+    png_set_progressive_frame_fn(png_ptr, nsPNGDecoder::frame_info_callback, NULL);
 
   if (png_get_first_frame_is_hidden(png_ptr, info_ptr)) {
     decoder->mFrameIsHidden = true;
@@ -681,14 +680,14 @@ nsPNGDecoder::row_callback(png_structp png_ptr, png_bytep new_row,
    * image is interlacing, and you turned on the interlace handler,
    * this function will be called for every row in every pass.
    * Some of these rows will not be changed from the previous pass.
-   * When the row is not changed, the new_row variable will be
-   * nullptr. The rows and passes are called in order, so you don't
-   * really need the row_num and pass, but I'm supplying them
-   * because it may make your life easier.
+   * When the row is not changed, the new_row variable will be NULL.
+   * The rows and passes are called in order, so you don't really
+   * need the row_num and pass, but I'm supplying them because it
+   * may make your life easier.
    *
-   * For the non-nullptr rows of interlaced images, you must call
+   * For the non-NULL rows of interlaced images, you must call
    * png_progressive_combine_row() passing in the row and the
-   * old row.  You can call this function for nullptr rows (it will
+   * old row.  You can call this function for NULL rows (it will
    * just return) and for non-interlaced images (it just does the
    * memcpy for you) if it will make the code easier.  Thus, you
    * can just do this for all cases:

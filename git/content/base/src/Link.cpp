@@ -111,20 +111,27 @@ Link::LinkState() const
   return nsEventStates();
 }
 
-nsIURI*
+already_AddRefed<nsIURI>
 Link::GetURI() const
 {
+  nsCOMPtr<nsIURI> uri(mCachedURI);
+
   // If we have this URI cached, use it.
-  if (mCachedURI) {
-    return mCachedURI;
+  if (uri) {
+    return uri.forget();
   }
 
   // Otherwise obtain it.
   Link *self = const_cast<Link *>(this);
   Element *element = self->mElement;
-  mCachedURI = element->GetHrefURI();
+  uri = element->GetHrefURI();
 
-  return mCachedURI;
+  // We want to cache the URI if we have it
+  if (uri) {
+    mCachedURI = uri;
+  }
+
+  return uri.forget();
 }
 
 void
