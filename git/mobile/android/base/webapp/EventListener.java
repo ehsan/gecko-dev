@@ -152,6 +152,7 @@ public class EventListener implements GeckoEventListener {
         int index = allocator.findOrAllocatePackage(aPackageName);
         allocator.putOrigin(index, aOrigin);
     }
+
     public static void uninstallWebapp(final String packageName) {
         // On uninstall, we need to do a couple of things:
         //   1. nuke the running app process.
@@ -160,15 +161,19 @@ public class EventListener implements GeckoEventListener {
             @Override
             public void run() {
                 int index = Allocator.getInstance(GeckoAppShell.getContext()).releaseIndexForApp(packageName);
+
                 // if -1, nothing to do; we didn't think it was installed anyway
                 if (index == -1)
                     return;
+
                 killWebappSlot(GeckoAppShell.getContext(), index);
+
                 // then nuke the profile
                 GeckoProfile.removeProfile(GeckoAppShell.getContext(), "webapp" + index);
             }
         });
     }
+
     /**
      * Used in both uninstall and swiping away from the recent task list.
      *

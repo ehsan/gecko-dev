@@ -14,8 +14,8 @@
 using namespace mozilla;
 
 JSObject*
-WebGLTexture::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope) {
-    return dom::WebGLTextureBinding::Wrap(cx, scope, this);
+WebGLTexture::WrapObject(JSContext *cx) {
+    return dom::WebGLTextureBinding::Wrap(cx, this);
 }
 
 WebGLTexture::WebGLTexture(WebGLContext *context)
@@ -125,7 +125,7 @@ WebGLTexture::Bind(GLenum aTarget) {
         // thanks to the WebKit people for finding this out: GL_TEXTURE_WRAP_R is not
         // present in GLES 2, but is present in GL and it seems as if for cube maps
         // we need to set it to GL_CLAMP_TO_EDGE to get the expected GLES behavior.
-        if (mTarget == LOCAL_GL_TEXTURE_CUBE_MAP && !mContext->gl->IsGLES2())
+        if (mTarget == LOCAL_GL_TEXTURE_CUBE_MAP && !mContext->gl->IsGLES())
             mContext->gl->fTexParameteri(mTarget, LOCAL_GL_TEXTURE_WRAP_R, LOCAL_GL_CLAMP_TO_EDGE);
     }
 
@@ -334,7 +334,7 @@ WebGLTexture::ResolvedFakeBlackStatus() {
     }
 
     if (ImageInfoBase().mType == LOCAL_GL_FLOAT &&
-        !Context()->IsExtensionEnabled(WebGLContext::OES_texture_float_linear))
+        !Context()->IsExtensionEnabled(WebGLExtensionID::OES_texture_float_linear))
     {
         if (mMinFilter == LOCAL_GL_LINEAR ||
             mMinFilter == LOCAL_GL_LINEAR_MIPMAP_LINEAR ||
@@ -354,7 +354,7 @@ WebGLTexture::ResolvedFakeBlackStatus() {
             mFakeBlackStatus = WebGLTextureFakeBlackStatus::IncompleteTexture;
         }
     } else if (ImageInfoBase().mType == LOCAL_GL_HALF_FLOAT_OES &&
-               !Context()->IsExtensionEnabled(WebGLContext::OES_texture_half_float_linear))
+               !Context()->IsExtensionEnabled(WebGLExtensionID::OES_texture_half_float_linear))
     {
         if (mMinFilter == LOCAL_GL_LINEAR ||
             mMinFilter == LOCAL_GL_LINEAR_MIPMAP_LINEAR ||

@@ -136,28 +136,39 @@ ScopeObject::setEnclosingScope(HandleObject obj)
     setFixedSlot(SCOPE_CHAIN_SLOT, ObjectValue(*obj));
 }
 
-/*
- * Construct a bare-bones call object given a shape, type, and slots pointer.
- * The call object must be further initialized to be usable.
- */
 CallObject *
-CallObject::create(JSContext *cx, HandleScript script, HandleShape shape, HandleTypeObject type, HeapSlot *slots)
+CallObject::create(JSContext *cx, HandleShape shape, HandleTypeObject type, HeapSlot *slots)
 {
+    MOZ_ASSERT(!type->singleton(),
+               "passed a singleton type to create() (use createSingleton() "
+               "instead)");
     gc::AllocKind kind = gc::GetGCObjectKind(shape->numFixedSlots());
-    JS_ASSERT(CanBeFinalizedInBackground(kind, &CallObject::class_));
+    MOZ_ASSERT(CanBeFinalizedInBackground(kind, &CallObject::class_));
     kind = gc::GetBackgroundAllocKind(kind);
 
-    gc::InitialHeap heap = script->treatAsRunOnce() ? gc::TenuredHeap : gc::DefaultHeap;
-    JSObject *obj = JSObject::create(cx, kind, heap, shape, type, slots);
+    JSObject *obj = JSObject::create(cx, kind, gc::DefaultHeap, shape, type, slots);
     if (!obj)
         return nullptr;
 
-    if (script->treatAsRunOnce()) {
-        RootedObject nobj(cx, obj);
-        if (!JSObject::setSingletonType(cx, nobj))
-            return nullptr;
-        return &nobj->as<CallObject>();
-    }
+    return &obj->as<CallObject>();
+}
+
+CallObject *
+CallObject::createSingleton(JSContext *cx, HandleShape shape, HeapSlot *slots)
+{
+    gc::AllocKind kind = gc::GetGCObjectKind(shape->numFixedSlots());
+    MOZ_ASSERT(CanBeFinalizedInBackground(kind, &CallObject::class_));
+    kind = gc::GetBackgroundAllocKind(kind);
+
+    RootedTypeObject type(cx, cx->getSingletonType(&class_, nullptr));
+    if (!type)
+        return nullptr;
+    RootedObject obj(cx, JSObject::create(cx, kind, gc::TenuredHeap, shape, type, slots));
+    if (!obj)
+        return nullptr;
+
+    MOZ_ASSERT(obj->hasSingletonType(),
+               "type created inline above must be a singleton");
 
     return &obj->as<CallObject>();
 }
@@ -261,8 +272,8 @@ CallObject *
 CallObject::createForStrictEval(JSContext *cx, AbstractFramePtr frame)
 {
     JS_ASSERT(frame.isStrictEvalFrame());
-    JS_ASSERT_IF(frame.isStackFrame(), cx->interpreterFrame() == frame.asStackFrame());
-    JS_ASSERT_IF(frame.isStackFrame(), cx->interpreterRegs().pc == frame.script()->code());
+    JS_ASSERT_IF(frame.isInterpreterFrame(), cx->interpreterFrame() == frame.asInterpreterFrame());
+    JS_ASSERT_IF(frame.isInterpreterFrame(), cx->interpreterRegs().pc == frame.script()->code());
 
     RootedFunction callee(cx);
     RootedScript script(cx, frame.script());
@@ -755,19 +766,19 @@ js::XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope,
     if (!xdr->codeUint32(&offset))
         return false;
 
+    /*
+     * XDR the block object's properties. We know that there are 'count'
+     * properties to XDR, stored as id/aliased pairs.  (The empty string as
+     * id indicates an int id.)
+     */
     if (mode == XDR_DECODE) {
         obj->setLocalOffset(offset);
 
-        /*
-         * XDR the block object's properties. We know that there are 'count'
-         * properties to XDR, stored as id/shortid pairs.
-         */
         for (unsigned i = 0; i < count; i++) {
             RootedAtom atom(cx);
             if (!XDRAtom(xdr, &atom))
                 return false;
 
-            /* The empty string indicates an int id. */
             RootedId id(cx, atom != cx->runtime()->emptyString
                             ? AtomToId(atom)
                             : INT_TO_JSID(i));
@@ -793,10 +804,6 @@ js::XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope,
         for (Shape::Range<NoGC> r(obj->lastProperty()); !r.empty(); r.popFront())
             shapes[obj->shapeToIndex(r.front())] = &r.front();
 
-        /*
-         * XDR the block object's properties. We know that there are 'count'
-         * properties to XDR, stored as id/shortid pairs.
-         */
         RootedShape shape(cx);
         RootedId propid(cx);
         RootedAtom atom(cx);
@@ -808,7 +815,6 @@ js::XDRStaticBlockObject(XDRState<mode> *xdr, HandleObject enclosingScope,
             propid = shape->propid();
             JS_ASSERT(JSID_IS_ATOM(propid) || JSID_IS_INT(propid));
 
-            /* The empty string indicates an int id. */
             atom = JSID_IS_ATOM(propid)
                    ? JSID_TO_ATOM(propid)
                    : cx->runtime()->emptyString;
@@ -1118,7 +1124,7 @@ class DebugScopeProxy : public BaseProxyHandler
      * the normal Call/BlockObject scope objects and thus must be recovered
      * from somewhere else:
      *  + if the invocation for which the scope was created is still executing,
-     *    there is a StackFrame live on the stack holding the values;
+     *    there is a JS frame live on the stack holding the values;
      *  + if the invocation for which the scope was created finished executing:
      *     - and there was a DebugScopeObject associated with scope, then the
      *       DebugScopes::onPop(Call|Block) handler copied out the unaliased
@@ -1144,7 +1150,7 @@ class DebugScopeProxy : public BaseProxyHandler
         if (scope->is<CallObject>() && !scope->as<CallObject>().isForEval()) {
             CallObject &callobj = scope->as<CallObject>();
             RootedScript script(cx, callobj.callee().nonLazyScript());
-            if (!script->ensureHasTypes(cx))
+            if (!script->ensureHasTypes(cx) || !script->ensureHasAnalyzedArgsUsage(cx))
                 return false;
 
             Bindings &bindings = script->bindings;
@@ -1173,7 +1179,7 @@ class DebugScopeProxy : public BaseProxyHandler
                 } else {
                     /* The unaliased value has been lost to the debugger. */
                     if (action == GET)
-                        vp.set(UndefinedValue());
+                        vp.set(MagicValue(JS_OPTIMIZED_OUT));
                 }
             } else {
                 JS_ASSERT(bi->kind() == Binding::ARGUMENT);
@@ -1202,7 +1208,7 @@ class DebugScopeProxy : public BaseProxyHandler
                 } else {
                     /* The unaliased value has been lost to the debugger. */
                     if (action == GET)
-                        vp.set(UndefinedValue());
+                        vp.set(MagicValue(JS_OPTIMIZED_OUT));
                 }
 
                 if (action == SET)
@@ -1319,15 +1325,13 @@ class DebugScopeProxy : public BaseProxyHandler
     }
 
     bool getPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
-                               MutableHandle<PropertyDescriptor> desc,
-                               unsigned flags) MOZ_OVERRIDE
+                               MutableHandle<PropertyDescriptor> desc) MOZ_OVERRIDE
     {
-        return getOwnPropertyDescriptor(cx, proxy, id, desc, flags);
+        return getOwnPropertyDescriptor(cx, proxy, id, desc);
     }
 
     bool getOwnPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
-                                  MutableHandle<PropertyDescriptor> desc,
-                                  unsigned flags) MOZ_OVERRIDE
+                                  MutableHandle<PropertyDescriptor> desc) MOZ_OVERRIDE
     {
         Rooted<DebugScopeObject*> debugScope(cx, &proxy->as<DebugScopeObject>());
         Rooted<ScopeObject*> scope(cx, &debugScope->scope());
@@ -1355,7 +1359,7 @@ class DebugScopeProxy : public BaseProxyHandler
             return true;
         }
 
-        return JS_GetOwnPropertyDescriptorById(cx, scope, id, flags, desc);
+        return JS_GetOwnPropertyDescriptorById(cx, scope, id, desc);
     }
 
     bool get(JSContext *cx, HandleObject proxy, HandleObject receiver,  HandleId id,
@@ -1596,7 +1600,7 @@ class DebugScopes::MissingScopesRef : public gc::BufferableRef
         MissingScopeMap::Ptr p = map->lookup(key);
         if (!p)
             return;
-        JS_SET_TRACING_LOCATION(trc, &const_cast<ScopeIterKey &>(p->key()).enclosingScope());
+        trc->setTracingLocation(&const_cast<ScopeIterKey &>(p->key()).enclosingScope());
         Mark(trc, &key.enclosingScope(), "MissingScopesRef");
         map->rekeyIfMoved(prior, key);
     }
@@ -1859,7 +1863,7 @@ DebugScopes::onPopCall(AbstractFramePtr frame, JSContext *cx)
 
     if (frame.fun()->isHeavyweight()) {
         /*
-         * The StackFrame may be observed before the prologue has created the
+         * The frame may be observed before the prologue has created the
          * CallObject. See ScopeIter::settle.
          */
         if (!frame.hasCallObj())
@@ -1879,7 +1883,7 @@ DebugScopes::onPopCall(AbstractFramePtr frame, JSContext *cx)
     }
 
     /*
-     * When the StackFrame is popped, the values of unaliased variables
+     * When the JS stack frame is popped, the values of unaliased variables
      * are lost. If there is any debug scope referring to this scope, save a
      * copy of the unaliased variables' values in an array for later debugger
      * access via DebugScopeProxy::handleUnaliasedAccess.
@@ -1976,7 +1980,7 @@ DebugScopes::onPopStrictEvalScope(AbstractFramePtr frame)
         return;
 
     /*
-     * The StackFrame may be observed before the prologue has created the
+     * The stack frame may be observed before the prologue has created the
      * CallObject. See ScopeIter::settle.
      */
     if (frame.hasCallObj())
@@ -2011,11 +2015,7 @@ DebugScopes::updateLiveScopes(JSContext *cx)
      * the flag for us, at exactly the time when execution resumes fp->prev().
      */
     for (AllFramesIter i(cx); !i.done(); ++i) {
-        /*
-         * Debug-mode currently disables Ion compilation in the compartment of
-         * the debuggee.
-         */
-        if (i.isIon())
+        if (!i.hasUsableAbstractFramePtr())
             continue;
 
         AbstractFramePtr frame = i.abstractFramePtr();
@@ -2105,7 +2105,7 @@ GetDebugScopeForMissing(JSContext *cx, const ScopeIter &si)
 
     /*
      * Create the missing scope object. For block objects, this takes care of
-     * storing variable values after the StackFrame has been popped. For call
+     * storing variable values after the stack frame has been popped. For call
      * objects, we only use the pretend call object to access callee, bindings
      * and to receive dynamically added properties. Together, this provides the
      * nice invariant that every DebugScopeObject has a ScopeObject.
@@ -2248,13 +2248,11 @@ RemoveReferencedNames(JSContext *cx, HandleScript script, PropertyNameSet &remai
 
         switch (JSOp(*pc)) {
           case JSOP_NAME:
-          case JSOP_CALLNAME:
           case JSOP_SETNAME:
             name = script->getName(pc);
             break;
 
           case JSOP_GETALIASEDVAR:
-          case JSOP_CALLALIASEDVAR:
           case JSOP_SETALIASEDVAR:
             name = ScopeCoordinateName(cx->runtime()->scopeCoordinateNameCache, script, pc);
             break;

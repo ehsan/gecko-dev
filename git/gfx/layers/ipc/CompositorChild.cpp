@@ -20,6 +20,7 @@
 #include "nsTArray.h"                   // for nsTArray, nsTArray_Impl
 #include "nsXULAppAPI.h"                // for XRE_GetIOMessageLoop, etc
 #include "FrameLayerBuilder.h"
+#include "mozilla/dom/TabChild.h"
 
 using mozilla::layers::LayerTransactionChild;
 
@@ -120,6 +121,21 @@ CompositorChild::RecvInvalidateAll()
   return true;
 }
 
+bool
+CompositorChild::RecvDidComposite(const uint64_t& aId)
+{
+  if (mLayerManager) {
+    MOZ_ASSERT(aId == 0);
+    mLayerManager->DidComposite();
+  } else if (aId != 0) {
+    dom::TabChild *child = dom::TabChild::GetFrom(aId);
+    if (child) {
+      child->DidComposite();
+    }
+  }
+  return true;
+}
+
 void
 CompositorChild::ActorDestroy(ActorDestroyReason aWhy)
 {
@@ -211,7 +227,7 @@ CompositorChild::SharedFrameMetricsData::GetViewID()
   MOZ_ASSERT(frame);
   // Not locking to read of mScrollId since it should not change after being
   // initially set.
-  return frame->mScrollId;
+  return frame->GetScrollId();
 }
 
 uint32_t

@@ -6,7 +6,7 @@
 
 #include "TransportSecurityInfo.h"
 
-#include "insanity/pkixtypes.h"
+#include "pkix/pkixtypes.h"
 #include "nsNSSComponent.h"
 #include "nsIWebProgressListener.h"
 #include "nsNSSCertificate.h"
@@ -62,13 +62,13 @@ TransportSecurityInfo::virtualDestroyNSSReference()
 {
 }
 
-NS_IMPL_ISUPPORTS6(TransportSecurityInfo,
-                   nsITransportSecurityInfo,
-                   nsIInterfaceRequestor,
-                   nsISSLStatusProvider,
-                   nsIAssociatedContentSecurity,
-                   nsISerializable,
-                   nsIClassInfo)
+NS_IMPL_ISUPPORTS(TransportSecurityInfo,
+                  nsITransportSecurityInfo,
+                  nsIInterfaceRequestor,
+                  nsISSLStatusProvider,
+                  nsIAssociatedContentSecurity,
+                  nsISerializable,
+                  nsIClassInfo)
 
 nsresult
 TransportSecurityInfo::SetHostName(const char* host)
@@ -755,7 +755,7 @@ AppendErrorTextMismatch(const nsString &host,
   const char16_t *params[1];
   nsresult rv;
 
-  insanity::pkix::ScopedCERTCertificate nssCert;
+  mozilla::pkix::ScopedCERTCertificate nssCert;
 
   nsCOMPtr<nsIX509Cert2> cert2 = do_QueryInterface(ix509, &rv);
   if (cert2)
@@ -792,7 +792,7 @@ AppendErrorTextMismatch(const nsString &host,
       certName = CERT_GetCommonName(&nssCert->subject);
     if (certName) {
       ++nameCount;
-      allNames.AssignASCII(certName);
+      allNames.Assign(NS_ConvertUTF8toUTF16(certName));
       PORT_Free(certName);
     }
   }

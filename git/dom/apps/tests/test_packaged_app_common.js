@@ -5,7 +5,6 @@
 var PackagedTestHelper = (function PackagedTestHelper() {
   "use strict";
 
-  var launchableValue;
   var steps;
   var index = -1;
   var gSJSPath = "tests/dom/apps/tests/file_packaged_app.sjs";
@@ -13,18 +12,31 @@ var PackagedTestHelper = (function PackagedTestHelper() {
   var gAppName = "appname";
   var gApp = null;
   var gInstallOrigin = "http://mochi.test:8888";
+  var timeoutID;
+
+  function timeoutError() {
+    ok(false, "Timeout! Probably waiting on a app installation event");
+    info("Finishing this test suite!");
+    finish();
+  }
 
   function debug(aMsg) {
     //dump("== PackageTestHelper debug == " + aMsg + "\n");
   }
 
   function next() {
+    if (timeoutID) {
+      clearTimeout(timeoutID);
+    }
     index += 1;
     if (index >= steps.length) {
       ok(false, "Shouldn't get here!");
       return;
     }
     try {
+      // There's nothing here that should take more than 30 seconds, even on
+      // heavy loads. So there's no need to stop further tests for five minutes.
+      timeoutID = setTimeout(timeoutError, 30000);
       steps[index]();
     } catch(ex) {
       ok(false, "Caught exception", ex);
@@ -36,7 +48,9 @@ var PackagedTestHelper = (function PackagedTestHelper() {
   }
 
   function finish() {
-    SpecialPowers.setAllAppsLaunchable(launchableValue);
+    if (timeoutID) {
+      clearTimeout(timeoutID);
+    }
     SpecialPowers.removePermission("webapps-manage", document);
     SimpleTest.finish();
   }
@@ -180,6 +194,9 @@ var PackagedTestHelper = (function PackagedTestHelper() {
       is(aApp.readyToApplyDownload, aExpectedApp.readyToApplyDownload,
          "Check readyToApplyDownload");
     }
+    if (typeof aExpectedApp.origin !== "undefined") {
+      is(aApp.origin, aExpectedApp.origin, "Check origin");
+    }
     if (aLaunchable) {
       if (aUninstall) {
         checkUninstallApp(aApp);
@@ -218,12 +235,12 @@ var PackagedTestHelper = (function PackagedTestHelper() {
     checkAppState: checkAppState,
     checkAppDownloadError: checkAppDownloadError,
     get gSJSPath() { return gSJSPath; },
+    set gSJSPath(aValue) { gSJSPath = aValue },
     get gSJS() { return gSJS; },
     get gAppName() { return gAppName;},
     get gApp() { return gApp; },
     set gApp(aValue) { gApp = aValue; },
-    gInstallOrigin: gInstallOrigin,
-    launchableValue: launchableValue
+    gInstallOrigin: gInstallOrigin
   };
 
 })();

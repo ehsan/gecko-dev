@@ -482,6 +482,20 @@ gfxMacFontFamily::LocalizedName(nsAString& aLocalizedName)
     aLocalizedName = mName;
 }
 
+// Return the CSS weight value to use for the given face, overriding what
+// AppKit gives us (used to adjust families with bad weight values, see
+// bug 931426).
+// A return value of 0 indicates no override - use the existing weight.
+static inline int
+GetWeightOverride(const nsAString& aPSName)
+{
+    nsAutoCString prefName("font.weight-override.");
+    // The PostScript name is required to be ASCII; if it's not, the font is
+    // broken anyway, so we really don't care that this is lossy.
+    LossyAppendUTF16toASCII(aPSName, prefName);
+    return Preferences::GetInt(prefName.get(), 0);
+}
+
 void
 gfxMacFontFamily::FindStyleVariations(FontInfoData *aFontInfoData)
 {
@@ -514,11 +528,20 @@ gfxMacFontFamily::FindStyleVariations(FontInfoData *aFontInfoData)
             }
         }
 
-        int32_t cssWeight = gfxMacPlatformFontList::AppleWeightToCSSWeight(appKitWeight) * 100;
-
         // make a nsString
         nsAutoString postscriptFontName;
         GetStringForNSString(psname, postscriptFontName);
+
+        int32_t cssWeight = GetWeightOverride(postscriptFontName);
+        if (cssWeight) {
+            // scale down and clamp, to get a value from 1..9
+            cssWeight = ((cssWeight + 50) / 100);
+            cssWeight = std::max(1, std::min(cssWeight, 9));
+        } else {
+            cssWeight =
+                gfxMacPlatformFontList::AppleWeightToCSSWeight(appKitWeight);
+        }
+        cssWeight *= 100; // scale up to CSS values
 
         if ([facename isEqualToString:@"Regular"] ||
             [facename isEqualToString:@"Bold"] ||
@@ -807,13 +830,13 @@ gfxMacPlatformFontList::RegisteredFontsChangedNotificationCallback(CFNotificatio
         return;
     }
 
+    gfxMacPlatformFontList* fl = static_cast<gfxMacPlatformFontList*>(observer);
+
     // xxx - should be carefully pruning the list of fonts, not rebuilding it from scratch
-    static_cast<gfxMacPlatformFontList*>(observer)->UpdateFontList();
+    fl->UpdateFontList();
 
     // modify a preference that will trigger reflow everywhere
-    static const char kPrefName[] = "font.internaluseonly.changed";
-    bool fontInternalChange = Preferences::GetBool(kPrefName, false);
-    Preferences::SetBool(kPrefName, !fontInternalChange);
+    fl->ForceGlobalReflow();
 }
 
 gfxFontEntry*
@@ -1106,7 +1129,8 @@ MacFontInfo::LoadFontFamilyData(const nsAString& aFamilyName)
             // load the cmap data
             FontFaceData fontData;
             CFDataRef cmapTable = CTFontCopyTable(fontRef, kCTFontTableCmap,
-                                                 kCTFontTableOptionNoOptions);
+                                                  kCTFontTableOptionNoOptions);
+
             if (cmapTable) {
                 bool unicodeFont = false, symbolFont = false; // ignored
                 const uint8_t *cmapData =
@@ -1134,6 +1158,7 @@ MacFontInfo::LoadFontFamilyData(const nsAString& aFamilyName)
         if (mLoadOtherNames && hasOtherFamilyNames) {
             CFDataRef nameTable = CTFontCopyTable(fontRef, kCTFontTableName,
                                                   kCTFontTableOptionNoOptions);
+
             if (nameTable) {
                 const char *nameData = (const char*)CFDataGetBytePtr(nameTable);
                 uint32_t nameLen = CFDataGetLength(nameTable);

@@ -161,8 +161,7 @@ CustomizeMode.prototype = {
       let toolbarVisibilityBtn = document.getElementById(kToolbarVisibilityBtn);
       let togglableToolbars = window.getTogglableToolbars();
       let bookmarksToolbar = document.getElementById("PersonalToolbar");
-      if (togglableToolbars.length == 0 ||
-          (togglableToolbars.length == 1 && togglableToolbars[0] == bookmarksToolbar)) {
+      if (togglableToolbars.length == 0) {
         toolbarVisibilityBtn.setAttribute("hidden", "true");
       } else {
         toolbarVisibilityBtn.removeAttribute("hidden");
@@ -180,10 +179,10 @@ CustomizeMode.prototype = {
       // customization mode when pressing ESC.
       document.addEventListener("keypress", this);
 
-      // Same goes for the menu button - if we're customizing, a mousedown to the
+      // Same goes for the menu button - if we're customizing, a click on the
       // menu button means a quick exit from customization mode.
       window.PanelUI.hide();
-      window.PanelUI.menuButton.addEventListener("mousedown", this);
+      window.PanelUI.menuButton.addEventListener("command", this);
       window.PanelUI.menuButton.open = true;
       window.PanelUI.beginBatchUpdate();
 
@@ -234,7 +233,7 @@ CustomizeMode.prototype = {
       this._showPanelCustomizationPlaceholders();
 
       yield this._wrapToolbarItems();
-      yield this.populatePalette();
+      this.populatePalette();
 
       this._addDragHandlers(this.visiblePalette);
 
@@ -332,7 +331,7 @@ CustomizeMode.prototype = {
     CustomizableUI.removeListener(this);
 
     this.document.removeEventListener("keypress", this);
-    this.window.PanelUI.menuButton.removeEventListener("mousedown", this);
+    this.window.PanelUI.menuButton.removeEventListener("command", this);
     this.window.PanelUI.menuButton.open = false;
 
     this.window.PanelUI.beginBatchUpdate();
@@ -639,7 +638,7 @@ CustomizeMode.prototype = {
     let fragment = this.document.createDocumentFragment();
     let toolboxPalette = this.window.gNavToolbox.palette;
 
-    return Task.spawn(function() {
+    try {
       let unusedWidgets = CustomizableUI.getUnusedWidgets(toolboxPalette);
       for (let widget of unusedWidgets) {
         let paletteItem = this.makePaletteItem(widget, "palette");
@@ -649,7 +648,9 @@ CustomizeMode.prototype = {
       this.visiblePalette.appendChild(fragment);
       this._stowedPalette = this.window.gNavToolbox.palette;
       this.window.gNavToolbox.palette = this.visiblePalette;
-    }.bind(this)).then(null, ERROR);
+    } catch (ex) {
+      ERROR(ex);
+    }
   },
 
   //XXXunf Maybe this should use -moz-element instead of wrapping the node?
@@ -985,7 +986,7 @@ CustomizeMode.prototype = {
       CustomizableUI.reset();
 
       yield this._wrapToolbarItems();
-      yield this.populatePalette();
+      this.populatePalette();
 
       this.persistCurrentSets(true);
 
@@ -1011,7 +1012,7 @@ CustomizeMode.prototype = {
       CustomizableUI.undoReset();
 
       yield this._wrapToolbarItems();
-      yield this.populatePalette();
+      this.populatePalette();
 
       this.persistCurrentSets(true);
 
@@ -1180,13 +1181,13 @@ CustomizeMode.prototype = {
       case "dragend":
         this._onDragEnd(aEvent);
         break;
-      case "mousedown":
-        if (aEvent.button == 0 &&
-            (aEvent.originalTarget == this.window.PanelUI.menuButton)) {
+      case "command":
+        if (aEvent.originalTarget == this.window.PanelUI.menuButton) {
           this.exit();
           aEvent.preventDefault();
-          return;
         }
+        break;
+      case "mousedown":
         this._onMouseDown(aEvent);
         break;
       case "mouseup":

@@ -13,6 +13,7 @@ let Cr = Components.results;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/AddonManager.jsm");
+Cu.import("resource://gre/modules/DownloadNotifications.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/JNI.jsm");
 Cu.import('resource://gre/modules/Payment.jsm');
@@ -131,7 +132,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "CharsetMenu",
 
 // Lazily-loaded JS modules that use observer notifications
 [
-  ["Home", ["HomeBanner:Get", "HomePanels:Get", "HomePanels:Installed", "HomePanels:Uninstalled"], "resource://gre/modules/Home.jsm"],
+  ["Home", ["HomeBanner:Get", "HomePanels:Get", "HomePanels:Authenticate", "HomePanels:RefreshView",
+            "HomePanels:Installed", "HomePanels:Uninstalled"], "resource://gre/modules/Home.jsm"],
 ].forEach(module => {
   let [name, notifications, resource] = module;
   XPCOMUtils.defineLazyModuleGetter(this, name, resource);
@@ -242,12 +244,6 @@ function resolveGeckoURI(aURI) {
     return handler.resolveURI(Services.io.newURI(aURI, null, null));
   }
   return aURI;
-}
-
-function shouldShowProgress(url) {
-  return (url != "about:home" &&
-          url != "about:privatebrowsing" &&
-          !url.startsWith("about:reader"));
 }
 
 /**
@@ -365,7 +361,7 @@ var BrowserApp = {
 
     NativeWindow.init();
     LightWeightThemeWebInstaller.init();
-    Downloads.init();
+    DownloadNotifications.init();
     FormAssistant.init();
     IndexedDB.init();
     HealthReportStatusListener.init();
@@ -653,7 +649,7 @@ var BrowserApp = {
       function(aTarget) {
         aTarget.muted = true;
       });
-  
+
     NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.unmute"),
       NativeWindow.contextmenus.mediaContext("media-muted"),
       function(aTarget) {
@@ -746,6 +742,7 @@ var BrowserApp = {
 
   shutdown: function shutdown() {
     NativeWindow.uninit();
+    DownloadNotifications.uninit();
     LightWeightThemeWebInstaller.uninit();
     FormAssistant.uninit();
     IndexedDB.uninit();
@@ -1170,20 +1167,6 @@ var BrowserApp = {
 #endif
       }
 
-      // Pref name translation.
-      switch (prefName) {
-#ifdef MOZ_TELEMETRY_REPORTING
-        // Telemetry pref differs based on build.
-        case Telemetry.SHARED_PREF_TELEMETRY_ENABLED:
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-          prefName = "toolkit.telemetry.enabledPreRelease";
-#else
-          prefName = "toolkit.telemetry.enabled";
-#endif
-          break;
-#endif
-      }
-
       try {
         switch (Services.prefs.getPrefType(prefName)) {
           case Ci.nsIPrefBranch.PREF_BOOL:
@@ -1299,20 +1282,6 @@ var BrowserApp = {
         break;
     }
 
-    // Pref name translation.
-    switch (json.name) {
-#ifdef MOZ_TELEMETRY_REPORTING
-      // Telemetry pref differs based on build.
-      case Telemetry.SHARED_PREF_TELEMETRY_ENABLED:
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-        json.name = "toolkit.telemetry.enabledPreRelease";
-#else
-        json.name = "toolkit.telemetry.enabled";
-#endif
-        break;
-#endif
-    }
-
     switch (json.type) {
       case "bool":
         Services.prefs.setBoolPref(json.name, json.value);
@@ -1339,16 +1308,6 @@ var BrowserApp = {
 
       try {
         switch (key) {
-          case "history_downloads":
-            Sanitizer.clearItem("history");
-
-            // If we're also removing downloaded files, don't clear the
-            // download history yet since it will be handled when the files are
-            // removed.
-            if (!json["downloadFiles"]) {
-              Sanitizer.clearItem("downloads");
-            }
-            break;
           case "cookies_sessions":
             Sanitizer.clearItem("cookies");
             Sanitizer.clearItem("sessions");
@@ -1853,7 +1812,7 @@ var NativeWindow = {
         return;
 
       sendMessageToJava({
-        type: "Menu:Update", 
+        type: "Menu:Update",
         id: aId,
         options: aOptions
       });
@@ -1879,7 +1838,7 @@ var NativeWindow = {
    *                     automatically dismiss before this time.
    *        checkbox:    A string to appear next to a checkbox under the notification
    *                     message. The button callback functions will be called with
-   *                     the checked state as an argument.                   
+   *                     the checked state as an argument.
    */
     show: function(aMessage, aValue, aButtons, aTabID, aOptions) {
       if (aButtons == null) {
@@ -2072,13 +2031,6 @@ var NativeWindow = {
         if (uri)
           return uri.schemeIs("tel");
         return false;
-      }
-    },
-
-    textContext: {
-      matches: function textContext(aElement) {
-        return ((aElement instanceof Ci.nsIDOMHTMLInputElement && aElement.mozIsTextField(false))
-                || aElement instanceof Ci.nsIDOMHTMLTextAreaElement);
       }
     },
 
@@ -2288,7 +2240,7 @@ var NativeWindow = {
             mode: SelectionHandler.SELECT_AT_POINT,
             x: x,
             y: y
-          })) { 
+          })) {
             SelectionHandler.attachCaret(target);
           }
         }
@@ -2930,6 +2882,7 @@ function Tab(aURL, aParams) {
   this.lastTouchedAt = Date.now();
   this._zoom = 1.0;
   this._drawZoom = 1.0;
+  this._restoreZoom = false;
   this._fixedMarginLeft = 0;
   this._fixedMarginTop = 0;
   this._fixedMarginRight = 0;
@@ -3058,10 +3011,13 @@ Tab.prototype = {
     this.browser.addEventListener("blur", this, true);
     this.browser.addEventListener("scroll", this, true);
     this.browser.addEventListener("MozScrolledAreaChanged", this, true);
-    // Note that the XBL binding is untrusted
-    this.browser.addEventListener("PluginBindingAttached", this, true, true);
     this.browser.addEventListener("pageshow", this, true);
     this.browser.addEventListener("MozApplicationManifest", this, true);
+
+    // Note that the XBL binding is untrusted
+    this.browser.addEventListener("PluginBindingAttached", this, true, true);
+    this.browser.addEventListener("VideoBindingAttached", this, true, true);
+    this.browser.addEventListener("VideoBindingCast", this, true, true);
 
     Services.obs.addObserver(this, "before-first-paint", false);
     Services.obs.addObserver(this, "after-viewport-change", false);
@@ -3178,7 +3134,7 @@ Tab.prototype = {
                                 viewportWidth - 15);
   },
 
-  /** 
+  /**
    * Reloads the tab with the desktop mode setting.
    */
   reloadWithMode: function (aDesktopMode) {
@@ -3227,9 +3183,12 @@ Tab.prototype = {
     this.browser.removeEventListener("blur", this, true);
     this.browser.removeEventListener("scroll", this, true);
     this.browser.removeEventListener("MozScrolledAreaChanged", this, true);
-    this.browser.removeEventListener("PluginBindingAttached", this, true);
     this.browser.removeEventListener("pageshow", this, true);
     this.browser.removeEventListener("MozApplicationManifest", this, true);
+
+    this.browser.removeEventListener("PluginBindingAttached", this, true, true);
+    this.browser.removeEventListener("VideoBindingAttached", this, true, true);
+    this.browser.removeEventListener("VideoBindingCast", this, true, true);
 
     Services.obs.removeObserver(this, "before-first-paint");
     Services.obs.removeObserver(this, "after-viewport-change");
@@ -3528,6 +3487,7 @@ Tab.prototype = {
 
     let win = this.browser.contentWindow;
     win.scrollTo(x, y);
+    this.saveSessionZoom(aViewport.zoom);
 
     this.userScrollPos.x = win.scrollX;
     this.userScrollPos.y = win.scrollY;
@@ -3577,12 +3537,13 @@ Tab.prototype = {
   getViewport: function() {
     let screenW = gScreenWidth - gViewportMargins.left - gViewportMargins.right;
     let screenH = gScreenHeight - gViewportMargins.top - gViewportMargins.bottom;
+    let zoom = this.restoredSessionZoom() || this._zoom;
 
     let viewport = {
       width: screenW,
       height: screenH,
-      cssWidth: screenW / this._zoom,
-      cssHeight: screenH / this._zoom,
+      cssWidth: screenW / zoom,
+      cssHeight: screenH / zoom,
       pageLeft: 0,
       pageTop: 0,
       pageRight: screenW,
@@ -3590,13 +3551,13 @@ Tab.prototype = {
       // We make up matching css page dimensions
       cssPageLeft: 0,
       cssPageTop: 0,
-      cssPageRight: screenW / this._zoom,
-      cssPageBottom: screenH / this._zoom,
+      cssPageRight: screenW / zoom,
+      cssPageBottom: screenH / zoom,
       fixedMarginLeft: this._fixedMarginLeft,
       fixedMarginTop: this._fixedMarginTop,
       fixedMarginRight: this._fixedMarginRight,
       fixedMarginBottom: this._fixedMarginBottom,
-      zoom: this._zoom,
+      zoom: zoom,
     };
 
     // Set the viewport offset to current scroll offset
@@ -3808,7 +3769,7 @@ Tab.prototype = {
 
             if (sizes == "any") {
               // Since Java expects an integer, use -1 to represent icons with sizes="any"
-              maxSize = -1; 
+              maxSize = -1;
             } else {
               let tokens = sizes.split(" ");
               tokens.forEach(function(token) {
@@ -3982,6 +3943,16 @@ Tab.prototype = {
         break;
       }
 
+      case "VideoBindingAttached": {
+        CastingApps.handleVideoBindingAttached(this, aEvent);
+        break;
+      }
+
+      case "VideoBindingCast": {
+        CastingApps.handleVideoBindingCast(this, aEvent);
+        break;
+      }
+
       case "MozApplicationManifest": {
         OfflineApps.offlineAppRequested(aEvent.originalTarget.defaultView);
         break;
@@ -4090,15 +4061,14 @@ Tab.prototype = {
 
       // Check to see if we restoring the content from a previous presentation (session)
       // since there should be no real network activity
-      let restoring = aStateFlags & Ci.nsIWebProgressListener.STATE_RESTORING;
-      let showProgress = restoring ? false : shouldShowProgress(uri);
+      let restoring = (aStateFlags & Ci.nsIWebProgressListener.STATE_RESTORING) > 0;
 
       let message = {
         type: "Content:StateChange",
         tabID: this.id,
         uri: uri,
         state: aStateFlags,
-        showProgress: showProgress,
+        restoring: restoring,
         success: success
       };
       sendMessageToJava(message);
@@ -4219,6 +4189,9 @@ Tab.prototype = {
       tabID: this.id,
     };
 
+    // Restore zoom only when moving in session history, not for new page loads.
+    this._restoreZoom = aMessage != "New";
+
     if (aParams) {
       if ("url" in aParams)
         message.url = aParams.url;
@@ -4229,6 +4202,22 @@ Tab.prototype = {
     }
 
     sendMessageToJava(message);
+  },
+
+  saveSessionZoom: function(aZoom) {
+    let cwu = this.browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
+    cwu.setResolution(aZoom / window.devicePixelRatio, aZoom / window.devicePixelRatio);
+  },
+
+  restoredSessionZoom: function() {
+    if (!this._restoreZoom) {
+      return null;
+    }
+
+    let cwu = this.browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
+    let res = {x: {}, y: {}};
+    cwu.getResolution(res.x, res.y);
+    return res.x.value * window.devicePixelRatio;
   },
 
   OnHistoryNewEntry: function(aUri) {
@@ -4259,6 +4248,11 @@ Tab.prototype = {
   OnHistoryPurge: function(aNumEntries) {
     this._sendHistoryEvent("Purge", { numEntries: aNumEntries });
     return true;
+  },
+
+  OnHistoryReplaceEntry: function(aIndex) {
+    // we don't do anything with this, so don't propogate it
+    // for now anyway.
   },
 
   get metadata() {
@@ -4355,8 +4349,11 @@ Tab.prototype = {
     // In all of these cases, we maintain how much actual content is visible
     // within the screen width. Note that "actual content" may be different
     // with respect to CSS pixels because of the CSS viewport size changing.
-    let zoomScale = (screenW * oldBrowserWidth) / (aOldScreenWidth * viewportW);
-    let zoom = (aInitialLoad && metadata.defaultZoom) ? metadata.defaultZoom : this.clampZoom(this._zoom * zoomScale);
+    let zoom = this.restoredSessionZoom() || metadata.defaultZoom;
+    if (!zoom || !aInitialLoad) {
+      let zoomScale = (screenW * oldBrowserWidth) / (aOldScreenWidth * viewportW);
+      zoom = this.clampZoom(this._zoom * zoomScale);
+    }
     this.setResolution(zoom, false);
     this.setScrollClampingSize(zoom);
 
@@ -4492,7 +4489,8 @@ Tab.prototype = {
           // and zoom when calculating the new ones, so we need to reset these
           // things here before calling updateMetadata.
           this.setBrowserSize(kDefaultCSSViewportWidth, kDefaultCSSViewportHeight);
-          this.setResolution(gScreenWidth / this.browserWidth, false);
+          let zoom = this.restoredSessionZoom() || gScreenWidth / this.browserWidth;
+          this.setResolution(zoom, true);
           ViewportHandler.updateMetadata(this, true);
 
           // Note that if we draw without a display-port, things can go wrong. By the
@@ -4501,7 +4499,7 @@ Tab.prototype = {
           // call above does so at the end of the updateViewportSize function. As long
           // as that is happening, we don't need to do it again here.
 
-          if (contentDocument.mozSyntheticDocument) {
+          if (!this.restoredSessionZoom() && contentDocument.mozSyntheticDocument) {
             // for images, scale to fit width. this needs to happen *after* the call
             // to updateMetadata above, because that call sets the CSS viewport which
             // will affect the page size (i.e. contentDocument.body.scroll*) that we
@@ -4953,8 +4951,8 @@ var BrowserEventHandler = {
         let rect = rects[0];
         // if either width or height is zero, we don't want to move the click to the edge of the element. See bug 757208
         if (rect.width != 0 && rect.height != 0) {
-          aX = Math.min(Math.floor(rect.left + rect.width), Math.max(Math.ceil(rect.left), aX));
-          aY = Math.min(Math.floor(rect.top + rect.height), Math.max(Math.ceil(rect.top),  aY));
+          aX = Math.min(Math.ceil(rect.left + rect.width) - 1, Math.max(Math.ceil(rect.left), aX));
+          aY = Math.min(Math.ceil(rect.top + rect.height) - 1, Math.max(Math.ceil(rect.top),  aY));
         }
       }
     }
@@ -5685,12 +5683,7 @@ let HealthReportStatusListener = {
 
   PREF_TELEMETRY_ENABLED:
 #ifdef MOZ_TELEMETRY_REPORTING
-    // Telemetry pref differs based on build.
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-    "toolkit.telemetry.enabledPreRelease",
-#else
     "toolkit.telemetry.enabled",
-#endif
 #else
     null,
 #endif
@@ -5907,7 +5900,10 @@ var XPInstallObserver = {
         if (!tab)
           return;
 
-        let host = installInfo.originatingURI.host;
+        let host = null;
+        if (installInfo.originatingURI) {
+          host = installInfo.originatingURI.host;
+        }
 
         let brandShortName = Strings.brand.GetStringFromName("brandShortName");
         let notificationName, buttons, message;
@@ -5935,7 +5931,23 @@ var XPInstallObserver = {
           }
         } else {
           notificationName = "xpinstall";
-          message = strings.formatStringFromName("xpinstallPromptWarning2", [brandShortName, host], 2);
+          if (host) {
+            // We have a host which asked for the install.
+            message = strings.formatStringFromName("xpinstallPromptWarning2", [brandShortName, host], 2);
+          } else {
+            // Without a host we address the add-on as the initiator of the install.
+            let addon = null;
+            if (installInfo.installs.length > 0) {
+              addon = installInfo.installs[0].name;
+            }
+            if (addon) {
+              // We have an addon name, show the regular message.
+              message = strings.formatStringFromName("xpinstallPromptWarningLocal", [brandShortName, addon], 2);
+            } else {
+              // We don't have an addon name, show an alternative message.
+              message = strings.formatStringFromName("xpinstallPromptWarningDirect", [brandShortName], 1);
+            }
+          }
 
           buttons = [{
             label: strings.GetStringFromName("xpinstallPromptAllowButton"),
@@ -6468,119 +6480,6 @@ var IndexedDB = {
   }
 };
 
-var ClipboardHelper = {
-  // Recorded so search with option can be removed/replaced when default engine changed.
-  _searchMenuItem: -1,
-
-  get clipboardHelper() {
-    delete this.clipboardHelper;
-    return this.clipboardHelper = Cc["@mozilla.org/widget/clipboardhelper;1"].getService(Ci.nsIClipboardHelper);
-  },
-
-  get clipboard() {
-    delete this.clipboard;
-    return this.clipboard = Cc["@mozilla.org/widget/clipboard;1"].getService(Ci.nsIClipboard);
-  },
-
-  copy: function(aElement, aX, aY) {
-    if (SelectionHandler.isSelectionActive()) {
-      SelectionHandler.copySelection();
-      return;
-    }
-
-    let selectionStart = aElement.selectionStart;
-    let selectionEnd = aElement.selectionEnd;
-    if (selectionStart != selectionEnd) {
-      string = aElement.value.slice(selectionStart, selectionEnd);
-      this.clipboardHelper.copyString(string, aElement.ownerDocument);
-    } else {
-      this.clipboardHelper.copyString(aElement.value, aElement.ownerDocument);
-    }
-  },
-
-  paste: function(aElement) {
-    if (!aElement || !(aElement instanceof Ci.nsIDOMNSEditableElement))
-      return;
-    let target = aElement.QueryInterface(Ci.nsIDOMNSEditableElement);
-    target.editor.paste(Ci.nsIClipboard.kGlobalClipboard);
-    target.focus();  
-  },
-
-  inputMethod: function(aElement) {
-    Cc["@mozilla.org/imepicker;1"].getService(Ci.nsIIMEPicker).show();
-  },
-
-  getCopyContext: function(isCopyAll) {
-    return {
-      matches: function(aElement, aX, aY) {
-        // Do not show "Copy All" for normal non-input text selection.
-        if (!isCopyAll && SelectionHandler.isSelectionActive())
-          return true;
-
-        if (NativeWindow.contextmenus.textContext.matches(aElement)) {
-          // Don't include "copy" for password fields.
-          // mozIsTextField(true) tests for only non-password fields.
-          if (aElement instanceof Ci.nsIDOMHTMLInputElement && !aElement.mozIsTextField(true))
-            return false;
-
-          let selectionStart = aElement.selectionStart;
-          let selectionEnd = aElement.selectionEnd;
-          if (selectionStart != selectionEnd)
-            return true;
-
-          if (isCopyAll && aElement.textLength > 0)
-            return true;
-        }
-        return false;
-      }
-    };
-  },
-
-  selectAllContext: {
-    matches: function selectAllContextMatches(aElement, aX, aY) {
-      if (SelectionHandler.isSelectionActive())
-        return true;
-
-      if (NativeWindow.contextmenus.textContext.matches(aElement))
-        return (aElement.selectionStart > 0 || aElement.selectionEnd < aElement.textLength);
-
-      return false;
-    }
-  },
-
-  shareContext: {
-    matches: function shareContextMatches(aElement, aX, aY) {
-      return SelectionHandler.isSelectionActive();
-    }
-  },
-
-  searchWithContext: {
-    matches: function searchWithContextMatches(aElement, aX, aY) {
-      return SelectionHandler.isSelectionActive();
-    }
-  },
-
-  pasteContext: {
-    matches: function(aElement) {
-      if (NativeWindow.contextmenus.textContext.matches(aElement)) {
-        let flavors = ["text/unicode"];
-        return ClipboardHelper.clipboard.hasDataMatchingFlavors(flavors, flavors.length, Ci.nsIClipboard.kGlobalClipboard);
-      }
-      return false;
-    }
-  },
-
-  cutContext: {
-    matches: function(aElement) {
-      let copyctx = ClipboardHelper.getCopyContext(false);
-      if (NativeWindow.contextmenus.textContext.matches(aElement)) {
-        return copyctx.matches(aElement);
-      }
-      return false;
-    }
-  }
-};
-
 var CharacterEncoding = {
   _charsets: [],
 
@@ -6748,7 +6647,7 @@ var IdentityHandler = {
                                .QueryInterface(Components.interfaces.nsISSLStatusProvider)
                                .SSLStatus;
 
-    // Don't pass in the actual location object, since it can cause us to 
+    // Don't pass in the actual location object, since it can cause us to
     // hold on to the window object too long.  Just pass in the fields we
     // care about. (bug 424829)
     let locationObj = {};
@@ -6798,7 +6697,7 @@ var IdentityHandler = {
 
       return result;
     }
-    
+
     // Otherwise, we don't know the cert owner
     result.owner = Strings.browser.GetStringFromName("identity.ownerUnknown3");
 
@@ -7262,7 +7161,7 @@ var WebappsUI = {
          manifestURL: aData.app.manifestURL,
          origin: origin
       }, (data) => {
-        let profilePath = JSON.parse(data).profile;
+        let profilePath = data.profile;
         if (!profilePath)
           return;
 
@@ -7410,7 +7309,7 @@ var WebappsUI = {
         favicon.src = WebappsUI.DEFAULT_ICON;
       }
     };
-  
+
     favicon.src = aIconURL;
   },
 
@@ -7539,8 +7438,6 @@ var RemoteDebugger = {
 };
 
 var Telemetry = {
-  SHARED_PREF_TELEMETRY_ENABLED: "datareporting.telemetry.enabled",
-
   addData: function addData(aHistogramId, aValue) {
     let histogram = Services.telemetry.getHistogramById(aHistogramId);
     histogram.add(aValue);
@@ -7578,17 +7475,13 @@ let Reader = {
   pageAction: {
     readerModeCallback: function(){
       sendMessageToJava({
-        gecko: {
-          type: "Reader:Click",
-        }
+        type: "Reader:Click",
       });
     },
 
     readerModeActiveCallback: function(){
       sendMessageToJava({
-        gecko: {
-          type: "Reader:LongClick",
-        }
+        type: "Reader:LongClick",
       });
     },
   },
@@ -8595,3 +8488,21 @@ HTMLContextMenuItem.prototype = Object.create(ContextMenuItem.prototype, {
     }
   },
 });
+
+/**
+ * CID of Downloads.jsm's implementation of nsITransfer.
+ */
+const kTransferCid = Components.ID("{1b4c85df-cbdd-4bb6-b04e-613caece083c}");
+
+/**
+ * Contract ID of the service implementing nsITransfer.
+ */
+const kTransferContractId = "@mozilla.org/transfer;1";
+
+// Override Toolkit's nsITransfer implementation with the one from the
+// JavaScript API for downloads.  This will eventually be removed when
+// nsIDownloadManager will not be available anymore (bug 851471).  The
+// old code in this module will be removed in bug 899110.
+Components.manager.QueryInterface(Ci.nsIComponentRegistrar)
+                  .registerFactory(kTransferCid, "",
+                                   kTransferContractId, null);

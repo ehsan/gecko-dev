@@ -48,6 +48,8 @@ public:
   virtual nsISupports* GetParentObject();
 };
 
+NS_DEFINE_STATIC_IID_ACCESSOR(nsRenamedInterface, NS_RENAMED_INTERFACE_IID)
+
 // IID for the IndirectlyImplementedInterface
 #define NS_INDIRECTLY_IMPLEMENTED_INTERFACE_IID \
 { 0xfed55b69, 0x7012, 0x4849, \
@@ -68,6 +70,8 @@ public:
   void IndirectlyImplementedMethod();
 };
 
+NS_DEFINE_STATIC_IID_ACCESSOR(IndirectlyImplementedInterface, NS_INDIRECTLY_IMPLEMENTED_INTERFACE_IID)
+
 // IID for the TestExternalInterface
 #define NS_TEST_EXTERNAL_INTERFACE_IID \
 { 0xd5ba0c99, 0x9b1d, 0x4e71, \
@@ -79,12 +83,14 @@ public:
   NS_DECL_ISUPPORTS
 };
 
+NS_DEFINE_STATIC_IID_ACCESSOR(TestExternalInterface, NS_TEST_EXTERNAL_INTERFACE_IID)
+
 class TestNonWrapperCacheInterface : public nsISupports
 {
 public:
   NS_DECL_ISUPPORTS
 
-  virtual JSObject* WrapObject(JSContext* cx, JS::Handle<JSObject*> scope);
+  virtual JSObject* WrapObject(JSContext* cx);
 };
 
 class OnlyForUseInConstructor : public nsISupports,
@@ -983,7 +989,8 @@ public:
   virtual nsISupports* GetParentObject();
 
   void NamedGetter(const nsAString&, bool&, nsAString&);
-  void GetSupportedNames(nsTArray<nsString>&);
+  bool NameIsEnumerable(const nsAString&);
+  void GetSupportedNames(unsigned, nsTArray<nsString>&);
 };
 
 class TestIndexedGetterAndSetterAndNamedGetterInterface : public nsISupports,
@@ -996,7 +1003,8 @@ public:
   virtual nsISupports* GetParentObject();
 
   void NamedGetter(const nsAString&, bool&, nsAString&);
-  void GetSupportedNames(nsTArray<nsString>&);
+  bool NameIsEnumerable(const nsAString&);
+  void GetSupportedNames(unsigned, nsTArray<nsString>&);
   int32_t IndexedGetter(uint32_t, bool&);
   void IndexedSetter(uint32_t, int32_t);
   uint32_t Length();
@@ -1013,9 +1021,10 @@ public:
 
   uint32_t IndexedGetter(uint32_t, bool&);
   void NamedGetter(const nsAString&, bool&, nsAString&);
+  bool NameIsEnumerable(const nsAString&);
   void NamedItem(const nsAString&, nsAString&);
   uint32_t Length();
-  void GetSupportedNames(nsTArray<nsString>&);
+  void GetSupportedNames(unsigned, nsTArray<nsString>&);
 };
 
 class TestIndexedSetterInterface : public nsISupports,
@@ -1044,7 +1053,8 @@ public:
 
   void NamedSetter(const nsAString&, TestIndexedSetterInterface&);
   TestIndexedSetterInterface* NamedGetter(const nsAString&, bool&);
-  void GetSupportedNames(nsTArray<nsString>&);
+  bool NameIsEnumerable(const nsAString&);
+  void GetSupportedNames(unsigned, nsTArray<nsString>&);
 };
 
 class TestIndexedAndNamedSetterInterface : public nsISupports,
@@ -1061,8 +1071,9 @@ public:
   uint32_t Length();
   void NamedSetter(const nsAString&, TestIndexedSetterInterface&);
   TestIndexedSetterInterface* NamedGetter(const nsAString&, bool&);
+  bool NameIsEnumerable(const nsAString&);
   void SetNamedItem(const nsAString&, TestIndexedSetterInterface&);
-  void GetSupportedNames(nsTArray<nsString>&);
+  void GetSupportedNames(unsigned, nsTArray<nsString>&);
 };
 
 class TestIndexedAndNamedGetterAndSetterInterface : public TestIndexedSetterInterface
@@ -1071,13 +1082,14 @@ public:
   uint32_t IndexedGetter(uint32_t, bool&);
   uint32_t Item(uint32_t);
   void NamedGetter(const nsAString&, bool&, nsAString&);
+  bool NameIsEnumerable(const nsAString&);
   void NamedItem(const nsAString&, nsAString&);
   void IndexedSetter(uint32_t, int32_t&);
   void IndexedSetter(uint32_t, const nsAString&) MOZ_DELETE;
   void NamedSetter(const nsAString&, const nsAString&);
   void Stringify(nsAString&);
   uint32_t Length();
-  void GetSupportedNames(nsTArray<nsString>&);
+  void GetSupportedNames(unsigned, nsTArray<nsString>&);
 };
 
 class TestCppKeywordNamedMethodsInterface : public nsISupports,
@@ -1139,7 +1151,8 @@ public:
 
   void NamedDeleter(const nsAString&, bool&);
   long NamedGetter(const nsAString&, bool&);
-  void GetSupportedNames(nsTArray<nsString>&);
+  bool NameIsEnumerable(const nsAString&);
+  void GetSupportedNames(unsigned, nsTArray<nsString>&);
 };
 
 class TestNamedDeleterWithRetvalInterface : public nsISupports,
@@ -1154,9 +1167,10 @@ public:
   bool NamedDeleter(const nsAString&, bool&);
   bool NamedDeleter(const nsAString&) MOZ_DELETE;
   long NamedGetter(const nsAString&, bool&);
+  bool NameIsEnumerable(const nsAString&);
   bool DelNamedItem(const nsAString&);
   bool DelNamedItem(const nsAString&, bool&) MOZ_DELETE;
-  void GetSupportedNames(nsTArray<nsString>&);
+  void GetSupportedNames(unsigned, nsTArray<nsString>&);
 };
 
 class TestIndexedAndNamedDeleterInterface : public nsISupports,
@@ -1175,9 +1189,10 @@ public:
   void NamedDeleter(const nsAString&, bool&);
   void NamedDeleter(const nsAString&) MOZ_DELETE;
   long NamedGetter(const nsAString&, bool&);
+  bool NameIsEnumerable(const nsAString&);
   void DelNamedItem(const nsAString&);
   void DelNamedItem(const nsAString&, bool&) MOZ_DELETE;
-  void GetSupportedNames(nsTArray<nsString>&);
+  void GetSupportedNames(unsigned, nsTArray<nsString>&);
 };
 
 class TestParentInterface : public nsISupports,

@@ -28,12 +28,16 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Timer.jsm");
-let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
+
+let promise = Cu.import("resource://gre/modules/devtools/deprecated-sync-thenables.js").Promise;
 const { defer, resolve, reject } = promise;
 
 XPCOMUtils.defineLazyServiceGetter(this, "socketTransportService",
                                    "@mozilla.org/network/socket-transport-service;1",
                                    "nsISocketTransportService");
+
+XPCOMUtils.defineLazyModuleGetter(this, "console",
+                                  "resource://gre/modules/devtools/Console.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "devtools",
                                   "resource://gre/modules/devtools/Loader.jsm");
@@ -246,9 +250,7 @@ this.DebuggerClient = function (aTransport)
   this._activeRequests = new Map;
   this._eventsEnabled = true;
 
-  this.compat = new ProtocolCompatibility(this, [
-    new SourcesShim(),
-  ]);
+  this.compat = new ProtocolCompatibility(this, []);
   this.traits = {};
 
   this.request = this.request.bind(this);
@@ -933,41 +935,6 @@ const FeatureCompatibilityShim = {
 };
 
 /**
- * A shim to support the "sources" and "newSource" packets for older servers
- * which don't support them.
- */
-function SourcesShim() {
-  this._sourcesSeen = new Set();
-}
-
-SourcesShim.prototype = Object.create(FeatureCompatibilityShim);
-let SSProto = SourcesShim.prototype;
-
-SSProto.name = "sources";
-
-SSProto.onPacketTest = function (aPacket) {
-  if (aPacket.traits) {
-    return aPacket.traits.sources
-      ? SUPPORTED
-      : NOT_SUPPORTED;
-  }
-  return SKIP;
-};
-
-SSProto.translatePacket = function (aPacket, aReplacePacket, aExtraPacket,
-                                    aKeepPacket) {
-  if (aPacket.type !== "newScript" || this._sourcesSeen.has(aPacket.url)) {
-    return aKeepPacket();
-  }
-  this._sourcesSeen.add(aPacket.url);
-  return aExtraPacket({
-    from: aPacket.from,
-    type: "newSource",
-    source: aPacket.source
-  });
-};
-
-/**
  * Creates a tab client for the remote debugging protocol server. This client
  * is a front to the tab actor created in the server side, hiding the protocol
  * details in a traditional JavaScript API.
@@ -1412,7 +1379,7 @@ ThreadClient.prototype = {
     after: function (aResponse) {
       if (aResponse.error) {
         // There was an error resuming, back to paused state.
-        self._state = "paused";
+        this._state = "paused";
       }
       return aResponse;
     },
@@ -1444,17 +1411,32 @@ ThreadClient.prototype = {
    * @param function aOnResponse
    *        Called with the thread's response.
    */
-  setBreakpoint: function (aLocation, aOnResponse) {
+  setBreakpoint: function ({ url, line, column, condition }, aOnResponse) {
     // A helper function that sets the breakpoint.
     let doSetBreakpoint = function (aCallback) {
-      let packet = { to: this._actor, type: "setBreakpoint",
-                     location: aLocation };
+      const location = {
+        url: url,
+        line: line,
+        column: column
+      };
+
+      let packet = {
+        to: this._actor,
+        type: "setBreakpoint",
+        location: location,
+        condition: condition
+      };
       this.client.request(packet, function (aResponse) {
         // Ignoring errors, since the user may be setting a breakpoint in a
         // dead script that will reappear on a page reload.
         if (aOnResponse) {
-          let bpClient = new BreakpointClient(this.client, aResponse.actor,
-                                              aLocation);
+          let root = this.client.mainRoot;
+          let bpClient = new BreakpointClient(
+            this.client,
+            aResponse.actor,
+            location,
+            root.traits.conditionalBreakpoints ? condition : undefined
+          );
           if (aCallback) {
             aCallback(aOnResponse(aResponse, bpClient));
           } else {
@@ -1526,52 +1508,11 @@ ThreadClient.prototype = {
    * @param aOnResponse Function
    *        Called with the thread's response.
    */
-  getSources: function (aOnResponse) {
-    // This is how we should get sources if the server supports "sources"
-    // requests.
-    let getSources = DebuggerClient.requester({
-      type: "sources"
-    }, {
-      telemetry: "SOURCES"
-    });
-
-    // This is how we should deduct what sources exist from the existing scripts
-    // when the server does not support "sources" requests.
-    let getSourcesBackwardsCompat = DebuggerClient.requester({
-      type: "scripts"
-    }, {
-      after: function (aResponse) {
-        if (aResponse.error) {
-          return aResponse;
-        }
-
-        let sourceActorsByURL = aResponse.scripts
-          .reduce(function (aSourceActorsByURL, aScript) {
-            aSourceActorsByURL[aScript.url] = aScript.source;
-            return aSourceActorsByURL;
-          }, {});
-
-        return {
-          sources: [
-            { url: url, actor: sourceActorsByURL[url] }
-            for (url of Object.keys(sourceActorsByURL))
-          ]
-        }
-      },
-      telemetry: "SOURCES"
-    });
-
-    // On the first time `getSources` is called, patch the thread client with
-    // the best method for the server's capabilities.
-    let threadClient = this;
-    this.compat.supportsFeature("sources").then(function () {
-      threadClient.getSources = getSources;
-    }, function () {
-      threadClient.getSources = getSourcesBackwardsCompat;
-    }).then(function () {
-      threadClient.getSources(aOnResponse);
-    });
-  },
+  getSources: DebuggerClient.requester({
+    type: "sources"
+  }, {
+    telemetry: "SOURCES"
+  }),
 
   _doInterrupted: function (aAction, aError) {
     if (this.paused) {
@@ -2246,12 +2187,19 @@ SourceClient.prototype = {
  * @param aLocation object
  *        The location of the breakpoint. This is an object with two properties:
  *        url and line.
+ * @param aCondition string
+ *        The conditional expression of the breakpoint
  */
-function BreakpointClient(aClient, aActor, aLocation) {
+function BreakpointClient(aClient, aActor, aLocation, aCondition) {
   this._client = aClient;
   this._actor = aActor;
   this.location = aLocation;
   this.request = this._client.request;
+
+  // The condition property should only exist if it's a truthy value
+  if (aCondition) {
+    this.condition = aCondition;
+  }
 }
 
 BreakpointClient.prototype = {
@@ -2268,6 +2216,65 @@ BreakpointClient.prototype = {
   }, {
     telemetry: "DELETE"
   }),
+
+  /**
+   * Determines if this breakpoint has a condition
+   */
+  hasCondition: function() {
+    let root = this._client.mainRoot;
+    // XXX bug 990137: We will remove support for client-side handling of
+    // conditional breakpoints
+    if (root.traits.conditionalBreakpoints) {
+      return "condition" in this;
+    } else {
+      return "conditionalExpression" in this;
+    }
+  },
+
+  /**
+   * Get the condition of this breakpoint. Currently we have to
+   * support locally emulated conditional breakpoints until the
+   * debugger servers are updated (see bug 990137). We used a
+   * different property when moving it server-side to ensure that we
+   * are testing the right code.
+   */
+  getCondition: function() {
+    let root = this._client.mainRoot;
+    if (root.traits.conditionalBreakpoints) {
+      return this.condition;
+    } else {
+      return this.conditionalExpression;
+    }
+  },
+
+  /**
+   * Set the condition of this breakpoint
+   */
+  setCondition: function(gThreadClient, aCondition) {
+    let root = this._client.mainRoot;
+    let deferred = promise.defer();
+
+    if (root.traits.conditionalBreakpoints) {
+      let info = {
+        url: this.location.url,
+        line: this.location.line,
+        condition: aCondition
+      };
+      gThreadClient.setBreakpoint(info, (aResponse, ignoredBreakpoint) => {
+        if(aResponse && aResponse.error) {
+          deferred.reject(aResponse);
+        } else {
+          this.condition = aCondition;
+          deferred.resolve(null);
+        }
+      });
+    } else {
+      this.conditionalExpression = aCondition;
+      deferred.resolve(null);
+    }
+
+    return deferred.promise;
+  }
 };
 
 eventSource(BreakpointClient.prototype);

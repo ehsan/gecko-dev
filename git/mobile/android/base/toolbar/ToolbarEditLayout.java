@@ -14,7 +14,7 @@ import org.mozilla.gecko.toolbar.BrowserToolbar.OnDismissListener;
 import org.mozilla.gecko.toolbar.BrowserToolbar.OnFilterListener;
 import org.mozilla.gecko.toolbar.ToolbarEditText.OnTextTypeChangeListener;
 import org.mozilla.gecko.toolbar.ToolbarEditText.TextType;
-import org.mozilla.gecko.widget.GeckoLinearLayout;
+import org.mozilla.gecko.widget.ThemedLinearLayout;
 
 import android.content.Context;
 import android.util.AttributeSet;
@@ -31,7 +31,7 @@ import android.widget.ImageButton;
 * and its matching 'go' button which changes depending on the
 * current type of text in the entry.
 */
-public class ToolbarEditLayout extends GeckoLinearLayout {
+public class ToolbarEditLayout extends ThemedLinearLayout {
 
     private final ToolbarEditText mEditText;
     private final ImageButton mGo;
@@ -125,7 +125,15 @@ public class ToolbarEditLayout extends GeckoLinearLayout {
         imm.showSoftInput(mEditText, InputMethodManager.SHOW_IMPLICIT);
     }
 
-    void prepareShowAnimation(PropertyAnimator animator) {
+    void prepareAnimation(final boolean showing, final PropertyAnimator animator) {
+        if (showing) {
+            prepareShowAnimation(animator);
+        } else {
+            prepareHideAnimation(animator);
+        }
+    }
+
+    private void prepareShowAnimation(final PropertyAnimator animator) {
         if (animator == null) {
             mEditText.requestFocus();
             showSoftInput();
@@ -143,6 +151,25 @@ public class ToolbarEditLayout extends GeckoLinearLayout {
             public void onPropertyAnimationEnd() {
                 ViewHelper.setAlpha(mGo, 1.0f);
                 showSoftInput();
+            }
+        });
+    }
+
+    private void prepareHideAnimation(final PropertyAnimator animator) {
+        if (animator == null) {
+            return;
+        }
+
+        animator.addPropertyAnimationListener(new PropertyAnimationListener() {
+            @Override
+            public void onPropertyAnimationStart() {
+                ViewHelper.setAlpha(mGo, 0.0f);
+            }
+
+            @Override
+            public void onPropertyAnimationEnd() {
+                // The enclosing view is invisible, so unhide the go button.
+                ViewHelper.setAlpha(mGo, 1.0f);
             }
         });
     }

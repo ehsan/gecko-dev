@@ -603,12 +603,6 @@ struct FlowLengthProperty {
   // The offset of the next fixed continuation after mStartOffset, or
   // of the end of the text if there is none
   int32_t mEndFlowOffset;
-
-  static void Destroy(void* aObject, nsIAtom* aPropertyName,
-                      void* aPropertyValue, void* aData)
-  {
-    delete static_cast<FlowLengthProperty*>(aPropertyValue);
-  }
 };
 
 int32_t nsTextFrame::GetInFlowContentLength() {
@@ -641,7 +635,7 @@ int32_t nsTextFrame::GetInFlowContentLength() {
   if (!flowLength) {
     flowLength = new FlowLengthProperty;
     if (NS_FAILED(mContent->SetProperty(nsGkAtoms::flowlength, flowLength,
-                                        FlowLengthProperty::Destroy))) {
+                                        nsINode::DeleteProperty<FlowLengthProperty>))) {
       delete flowLength;
       flowLength = nullptr;
     }
@@ -1780,14 +1774,10 @@ GetFontGroupForFrame(nsIFrame* aFrame, float aFontSizeInflation,
 }
 
 static already_AddRefed<gfxContext>
-GetReferenceRenderingContext(nsTextFrame* aTextFrame, nsRenderingContext* aRC)
+CreateReferenceThebesContext(nsTextFrame* aTextFrame)
 {
-  nsRefPtr<nsRenderingContext> tmp = aRC;
-  if (!tmp) {
-    tmp = aTextFrame->PresContext()->PresShell()->GetReferenceRenderingContext();
-    if (!tmp)
-      return nullptr;
-  }
+  nsRefPtr<nsRenderingContext> tmp =
+    aTextFrame->PresContext()->PresShell()->CreateReferenceRenderingContext();
 
   nsRefPtr<gfxContext> ctx = tmp->ThebesContext();
   return ctx.forget();
@@ -1801,7 +1791,7 @@ GetHyphenTextRun(gfxTextRun* aTextRun, gfxContext* aContext, nsTextFrame* aTextF
 {
   nsRefPtr<gfxContext> ctx = aContext;
   if (!ctx) {
-    ctx = GetReferenceRenderingContext(aTextFrame, nullptr);
+    ctx = CreateReferenceThebesContext(aTextFrame);
   }
   if (!ctx)
     return nullptr;
@@ -2564,7 +2554,7 @@ nsTextFrame::EnsureTextRun(TextRunType aWhichTextRun,
   } else {
     nsRefPtr<gfxContext> ctx = aReferenceContext;
     if (!ctx) {
-      ctx = GetReferenceRenderingContext(this, nullptr);
+      ctx = CreateReferenceThebesContext(this);
     }
     if (ctx) {
       BuildTextRuns(ctx, this, aLineContainer, aLine, aWhichTextRun);
@@ -2843,6 +2833,14 @@ public:
                                     bool* aBreakBefore);
   virtual int8_t GetHyphensOption() {
     return mTextStyle->mHyphens;
+  }
+
+  virtual already_AddRefed<gfxContext> GetContext() {
+    return CreateReferenceThebesContext(GetFrame());
+  }
+
+  virtual uint32_t GetAppUnitsPerDevUnit() {
+    return mTextRun->GetAppUnitsPerDevUnit();
   }
 
   void GetSpacingInternal(uint32_t aStart, uint32_t aLength, Spacing* aSpacing,
@@ -3200,16 +3198,9 @@ gfxFloat
 PropertyProvider::GetHyphenWidth()
 {
   if (mHyphenWidth < 0) {
-    mHyphenWidth = mLetterSpacing;
-    nsRefPtr<gfxContext> context(GetReferenceRenderingContext(GetFrame(),
-                                                              nullptr));
-    if (context) {
-      mHyphenWidth +=
-        GetFontGroup()->GetHyphenWidth(context,
-                                       mTextRun->GetAppUnitsPerDevUnit());
-    }
+    mHyphenWidth = GetFontGroup()->GetHyphenWidth(this);
   }
-  return mHyphenWidth;
+  return mHyphenWidth + mLetterSpacing;
 }
 
 void
@@ -3981,10 +3972,8 @@ nsContinuingTextFrame::Init(nsIContent* aContent,
   // NOTE: bypassing nsTextFrame::Init!!!
   nsFrame::Init(aContent, aParent, aPrevInFlow);
 
-#ifdef IBMBIDI
   nsTextFrame* nextContinuation =
     static_cast<nsTextFrame*>(aPrevInFlow->GetNextContinuation());
-#endif // IBMBIDI
   // Hook the frame into the flow
   SetPrevInFlow(aPrevInFlow);
   aPrevInFlow->SetNextInFlow(this);
@@ -4008,7 +3997,6 @@ nsContinuingTextFrame::Init(nsIContent* aContent,
       }
     }
   }
-#ifdef IBMBIDI
   if (aPrevInFlow->GetStateBits() & NS_FRAME_IS_BIDI) {
     FramePropertyTable *propTable = PresContext()->PropertyTable();
     // Get all the properties from the prev-in-flow first to take
@@ -4037,7 +4025,6 @@ nsContinuingTextFrame::Init(nsIContent* aContent,
     }
     mState |= NS_FRAME_IS_BIDI;
   } // prev frame is bidi
-#endif // IBMBIDI
 }
 
 void
@@ -4446,7 +4433,6 @@ nsTextFrame::CharacterDataChanged(CharacterDataChangeInfo* aInfo)
 nsTextFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
   nsFrame::DidSetStyleContext(aOldStyleContext);
-  ClearTextRuns();
 }
 
 class nsDisplayTextGeometry : public nsDisplayItemGenericGeometry
@@ -7573,12 +7559,6 @@ struct NewlineProperty {
   int32_t mStartOffset;
   // The offset of the first \n after mStartOffset, or -1 if there is none
   int32_t mNewlineOffset;
-
-  static void Destroy(void* aObject, nsIAtom* aPropertyName,
-                      void* aPropertyValue, void* aData)
-  {
-    delete static_cast<NewlineProperty*>(aPropertyValue);
-  }
 };
 
 nsresult
@@ -8110,7 +8090,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
     if (!cachedNewlineOffset) {
       cachedNewlineOffset = new NewlineProperty;
       if (NS_FAILED(mContent->SetProperty(nsGkAtoms::newline, cachedNewlineOffset,
-                                          NewlineProperty::Destroy))) {
+                                          nsINode::DeleteProperty<NewlineProperty>))) {
         delete cachedNewlineOffset;
         cachedNewlineOffset = nullptr;
       }

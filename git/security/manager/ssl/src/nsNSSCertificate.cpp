@@ -10,7 +10,7 @@
 #include "prprf.h"
 #include "CertVerifier.h"
 #include "ExtendedValidation.h"
-#include "insanity/pkixtypes.h"
+#include "pkix/pkixtypes.h"
 #include "nsNSSComponent.h" // for PIPNSS string bundle calls.
 #include "nsNSSCleaner.h"
 #include "nsCOMPtr.h"
@@ -40,6 +40,7 @@
 #include "nsXULAppAPI.h"
 #include "ScopedNSSTypes.h"
 #include "nsProxyRelease.h"
+#include "mozilla/Base64.h"
 
 #include "nspr.h"
 #include "certdb.h"
@@ -66,14 +67,14 @@ NSSCleanupAutoPtrClass_WithParam(PLArenaPool, PORT_FreeArena, FalseParam, false)
 // in the list to mean not yet initialized.
 #define CERT_TYPE_NOT_YET_INITIALIZED (1 << 30)
 
-NS_IMPL_ISUPPORTS7(nsNSSCertificate,
-                   nsIX509Cert,
-                   nsIX509Cert2,
-                   nsIX509Cert3,
-                   nsIIdentityInfo,
-                   nsISMimeCert,
-                   nsISerializable,
-                   nsIClassInfo)
+NS_IMPL_ISUPPORTS(nsNSSCertificate,
+                  nsIX509Cert,
+                  nsIX509Cert2,
+                  nsIX509Cert3,
+                  nsIIdentityInfo,
+                  nsISMimeCert,
+                  nsISerializable,
+                  nsIClassInfo)
 
 /*static*/ nsNSSCertificate*
 nsNSSCertificate::Create(CERTCertificate* cert, SECOidTag* evOidPolicy)
@@ -822,7 +823,7 @@ nsNSSCertificate::GetChain(nsIArray** _rvChain)
   nsresult rv;
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("Getting chain for \"%s\"\n", mCert->nickname));
 
-  ::insanity::pkix::ScopedCERTCertList nssChain;
+  ::mozilla::pkix::ScopedCERTCertList nssChain;
   RefPtr<SharedCertVerifier> certVerifier(GetDefaultCertVerifier());
   NS_ENSURE_TRUE(certVerifier, NS_ERROR_UNEXPECTED);
 
@@ -1073,6 +1074,31 @@ nsNSSCertificate::GetTokenName(nsAString& aTokenName)
       if (NS_SUCCEEDED(rv))
         aTokenName = tok;
     }
+  }
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsNSSCertificate::GetSha256SubjectPublicKeyInfoDigest(nsACString& aSha256SPKIDigest)
+{
+  nsNSSShutDownPreventionLock locker;
+  if (isAlreadyShutDown()) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  aSha256SPKIDigest.Truncate();
+  Digest digest;
+  nsresult rv = digest.DigestBuf(SEC_OID_SHA256, mCert->derPublicKey.data,
+                                 mCert->derPublicKey.len);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+  rv = Base64Encode(nsDependentCSubstring(
+                      reinterpret_cast<const char*> (digest.get().data),
+                      digest.get().len),
+                    aSha256SPKIDigest);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
   }
   return NS_OK;
 }
@@ -1540,9 +1566,9 @@ nsNSSCertificate::GetValidEVPolicyOid(nsACString& outDottedOid)
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS1(nsNSSCertList, nsIX509CertList)
+NS_IMPL_ISUPPORTS(nsNSSCertList, nsIX509CertList)
 
-nsNSSCertList::nsNSSCertList(insanity::pkix::ScopedCERTCertList& certList,
+nsNSSCertList::nsNSSCertList(mozilla::pkix::ScopedCERTCertList& certList,
                              const nsNSSShutDownPreventionLock& proofOfLock)
 {
   if (certList) {
@@ -1680,7 +1706,7 @@ nsNSSCertList::GetEnumerator(nsISimpleEnumerator** _retval)
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS1(nsNSSCertListEnumerator, nsISimpleEnumerator)
+NS_IMPL_ISUPPORTS(nsNSSCertListEnumerator, nsISimpleEnumerator)
 
 nsNSSCertListEnumerator::nsNSSCertListEnumerator(
   CERTCertList* certList, const nsNSSShutDownPreventionLock& proofOfLock)

@@ -161,7 +161,12 @@ class RefTest(object):
       prefs['reftest.ignoreWindowSize'] = True
     if options.filter:
       prefs['reftest.filter'] = options.filter
+    if options.shuffle:
+      prefs['reftest.shuffle'] = True
     prefs['reftest.focusFilterMode'] = options.focusFilterMode
+
+    if options.e10s:
+      prefs['browser.tabs.remote.autostart'] = True
 
     for v in options.extraPrefs:
       thispref = v.split('=')
@@ -201,7 +206,7 @@ class RefTest(object):
     return profile
 
   def buildBrowserEnv(self, options, profileDir):
-    browserEnv = self.automation.environment(xrePath = options.xrePath)
+    browserEnv = self.automation.environment(xrePath = options.xrePath, debugger=options.debugger)
     browserEnv["XPCOM_DEBUG_BREAK"] = "stack"
 
     for v in options.environment:
@@ -438,12 +443,23 @@ class ReftestOptions(OptionParser):
                            "only test items that have a matching test URL will be run.")
     defaults["filter"] = None
 
+    self.add_option("--shuffle",
+                    action = "store_true", dest = "shuffle",
+                    help = "run reftests in random order")
+    defaults["shuffle"] = False
+
     self.add_option("--focus-filter-mode",
                     action = "store", type = "string", dest = "focusFilterMode",
                     help = "filters tests to run by whether they require focus. "
                            "Valid values are `all', `needs-focus', or `non-needs-focus'. "
                            "Defaults to `all'.")
     defaults["focusFilterMode"] = "all"
+
+    self.add_option("--e10s",
+                    action = "store_true",
+                    dest = "e10s",
+                    help = "enables content processes")
+    defaults["e10s"] = False
 
     self.set_defaults(**defaults)
 

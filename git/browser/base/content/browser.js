@@ -79,14 +79,8 @@ this.__defineSetter__("AddonManager", function (val) {
   return this.AddonManager = val;
 });
 
-this.__defineGetter__("PluralForm", function() {
-  Cu.import("resource://gre/modules/PluralForm.jsm");
-  return this.PluralForm;
-});
-this.__defineSetter__("PluralForm", function (val) {
-  delete this.PluralForm;
-  return this.PluralForm = val;
-});
+XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
+  "resource://gre/modules/PluralForm.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "TelemetryStopwatch",
   "resource://gre/modules/TelemetryStopwatch.jsm");
@@ -146,6 +140,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "gCustomizationTabPreloader",
 
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
   "resource://gre/modules/PrivateBrowsingUtils.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "Translation",
+  "resource:///modules/translation/Translation.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "SitePermissions",
   "resource:///modules/SitePermissions.jsm");
@@ -263,15 +260,7 @@ function UpdateBackForwardCommands(aWebNavigation) {
       backBroadcaster.setAttribute("disabled", true);
   }
 
-  let canGoForward = aWebNavigation.canGoForward;
-  if (forwardDisabled) {
-    // Force the button to either be hidden (if we are already disabled,
-    // and should be), or to show if we're about to un-disable it:
-    // otherwise no transition will occur and it'll never show:
-    CombinedBackForward.setForwardButtonOcclusion(!canGoForward);
-  }
-
-  if (forwardDisabled == canGoForward) {
+  if (forwardDisabled == aWebNavigation.canGoForward) {
     if (forwardDisabled)
       forwardBroadcaster.removeAttribute("disabled");
     else
@@ -433,7 +422,7 @@ var gPopupBlockerObserver = {
     if (!this._reportButton && gURLBar)
       this._reportButton = document.getElementById("page-report-button");
 
-    if (!gBrowser.pageReport) {
+    if (!gBrowser.selectedBrowser.blockedPopups) {
       // Hide the icon in the location bar (if the location bar exists)
       if (gURLBar)
         this._reportButton.hidden = true;
@@ -446,11 +435,11 @@ var gPopupBlockerObserver = {
     // Only show the notification again if we've not already shown it. Since
     // notifications are per-browser, we don't need to worry about re-adding
     // it.
-    if (!gBrowser.pageReport.reported) {
+    if (!gBrowser.selectedBrowser.blockedPopups.reported) {
       if (gPrefService.getBoolPref("privacy.popups.showBrowserMessage")) {
         var brandBundle = document.getElementById("bundle_brand");
         var brandShortName = brandBundle.getString("brandShortName");
-        var popupCount = gBrowser.pageReport.length;
+        var popupCount = gBrowser.selectedBrowser.blockedPopups.length;
 #ifdef XP_WIN
         var popupButtonText = gNavigatorBundle.getString("popupWarningButton");
         var popupButtonAccesskey = gNavigatorBundle.getString("popupWarningButton.accesskey");
@@ -485,7 +474,7 @@ var gPopupBlockerObserver = {
 
       // Record the fact that we've reported this blocked popup, so we don't
       // show it again.
-      gBrowser.pageReport.reported = true;
+      gBrowser.selectedBrowser.blockedPopups.reported = true;
     }
   },
 
@@ -502,7 +491,7 @@ var gPopupBlockerObserver = {
   fillPopupList: function (aEvent)
   {
     // XXXben - rather than using |currentURI| here, which breaks down on multi-framed sites
-    //          we should really walk the pageReport and create a list of "allow for <host>"
+    //          we should really walk the blockedPopups and create a list of "allow for <host>"
     //          menuitems for the common subset of hosts present in the report, this will
     //          make us frame-safe.
     //
@@ -510,7 +499,8 @@ var gPopupBlockerObserver = {
     //          also back out the fix for bug 343772 where
     //          nsGlobalWindow::CheckOpenAllow() was changed to also
     //          check if the top window's location is whitelisted.
-    var uri = gBrowser.currentURI;
+    let browser = gBrowser.selectedBrowser;
+    var uri = browser.currentURI;
     var blockedPopupAllowSite = document.getElementById("blockedPopupAllowSite");
     try {
       blockedPopupAllowSite.removeAttribute("hidden");
@@ -540,16 +530,18 @@ var gPopupBlockerObserver = {
       blockedPopupAllowSite.removeAttribute("disabled");
 
     var foundUsablePopupURI = false;
-    var pageReports = gBrowser.pageReport;
-    if (pageReports) {
-      for (let pageReport of pageReports) {
+    var blockedPopups = browser.blockedPopups;
+    if (blockedPopups) {
+      for (let i = 0; i < blockedPopups.length; i++) {
+        let blockedPopup = blockedPopups[i];
+
         // popupWindowURI will be null if the file picker popup is blocked.
         // xxxdz this should make the option say "Show file picker" and do it (Bug 590306)
-        if (!pageReport.popupWindowURI)
+        if (!blockedPopup.popupWindowURI)
           continue;
-        var popupURIspec = pageReport.popupWindowURI.spec;
+        var popupURIspec = blockedPopup.popupWindowURI;
 
-        // Sometimes the popup URI that we get back from the pageReport
+        // Sometimes the popup URI that we get back from the blockedPopup
         // isn't useful (for instance, netscape.com's popup URI ends up
         // being "http://www.netscape.com", which isn't really the URI of
         // the popup they're trying to show).  This isn't going to be
@@ -570,11 +562,11 @@ var gPopupBlockerObserver = {
                                                         [popupURIspec]);
         menuitem.setAttribute("label", label);
         menuitem.setAttribute("popupWindowURI", popupURIspec);
-        menuitem.setAttribute("popupWindowFeatures", pageReport.popupWindowFeatures);
-        menuitem.setAttribute("popupWindowName", pageReport.popupWindowName);
+        menuitem.setAttribute("popupWindowFeatures", blockedPopup.popupWindowFeatures);
+        menuitem.setAttribute("popupWindowName", blockedPopup.popupWindowName);
         menuitem.setAttribute("oncommand", "gPopupBlockerObserver.showBlockedPopup(event);");
-        menuitem.requestingWindow = pageReport.requestingWindow;
-        menuitem.requestingDocument = pageReport.requestingDocument;
+        menuitem.setAttribute("popupReportIndex", i);
+        menuitem.popupReportBrowser = browser;
         aEvent.target.appendChild(menuitem);
       }
     }
@@ -613,17 +605,9 @@ var gPopupBlockerObserver = {
   showBlockedPopup: function (aEvent)
   {
     var target = aEvent.target;
-    var popupWindowURI = target.getAttribute("popupWindowURI");
-    var features = target.getAttribute("popupWindowFeatures");
-    var name = target.getAttribute("popupWindowName");
-
-    var dwi = target.requestingWindow;
-
-    // If we have a requesting window and the requesting document is
-    // still the current document, open the popup.
-    if (dwi && dwi.document == target.requestingDocument) {
-      dwi.open(popupWindowURI, name, features);
-    }
+    var popupReportIndex = target.getAttribute("popupReportIndex");
+    let browser = target.popupReportBrowser;
+    browser.unblockPopup(popupReportIndex);
   },
 
   editPopupSettings: function ()
@@ -928,7 +912,6 @@ var gBrowserInit = {
 
     // Misc. inits.
     CombinedStopReload.init();
-    CombinedBackForward.init();
     gPrivateBrowsingUI.init();
     TabsInTitlebar.init();
 
@@ -1038,6 +1021,7 @@ var gBrowserInit = {
     gFormSubmitObserver.init();
     gRemoteTabsUI.init();
     gPageStyleMenu.init();
+    LanguageDetectionListener.init();
 
     // Initialize the full zoom setting.
     // We do this before the session restore service gets initialized so we can
@@ -1211,13 +1195,6 @@ var gBrowserInit = {
     }
 #endif
 
-    if (gMultiProcessBrowser) {
-      // Bug 862519 - Backspace doesn't work in electrolysis builds.
-      // We bypass the problem by disabling the backspace-to-go-back command.
-      document.getElementById("cmd_handleBackspace").setAttribute("disabled", true);
-      document.getElementById("key_delete").setAttribute("disabled", true);
-    }
-
     SessionStore.promiseInitialized.then(() => {
       // Bail out if the window has been closed in the meantime.
       if (window.closed) {
@@ -1281,7 +1258,6 @@ var gBrowserInit = {
     // uninit methods don't depend on the services having been initialized).
 
     CombinedStopReload.uninit();
-    CombinedBackForward.uninit();
 
     gGestureSupport.init(false);
 
@@ -1894,55 +1870,47 @@ function loadURI(uri, referrer, postData, allowThirdPartyFixup) {
   } catch (e) {}
 }
 
-function getShortcutOrURIAndPostData(aURL) {
-  return Task.spawn(function() {
-    let mayInheritPrincipal = false;
-    let postData = null;
-    let shortcutURL = null;
-    let keyword = aURL;
-    let param = "";
+function getShortcutOrURIAndPostData(aURL, aCallback) {
+  let mayInheritPrincipal = false;
+  let postData = null;
+  let shortcutURL = null;
+  let keyword = aURL;
+  let param = "";
 
-    let offset = aURL.indexOf(" ");
-    if (offset > 0) {
-      keyword = aURL.substr(0, offset);
-      param = aURL.substr(offset + 1);
-    }
+  let offset = aURL.indexOf(" ");
+  if (offset > 0) {
+    keyword = aURL.substr(0, offset);
+    param = aURL.substr(offset + 1);
+  }
 
-    let engine = Services.search.getEngineByAlias(keyword);
-    if (engine) {
-      let submission = engine.getSubmission(param);
-      postData = submission.postData;
-      throw new Task.Result({ postData: submission.postData,
-                              url: submission.uri.spec,
-                              mayInheritPrincipal: mayInheritPrincipal });
-    }
+  let engine = Services.search.getEngineByAlias(keyword);
+  if (engine) {
+    let submission = engine.getSubmission(param);
+    postData = submission.postData;
+    aCallback({ postData: submission.postData, url: submission.uri.spec,
+                mayInheritPrincipal: mayInheritPrincipal });
+    return;
+  }
 
-    [shortcutURL, postData] =
-      PlacesUtils.getURLAndPostDataForKeyword(keyword);
+  [shortcutURL, postData] =
+    PlacesUtils.getURLAndPostDataForKeyword(keyword);
 
-    if (!shortcutURL)
-      throw new Task.Result({ postData: postData, url: aURL,
-                              mayInheritPrincipal: mayInheritPrincipal });
+  if (!shortcutURL) {
+    aCallback({ postData: postData, url: aURL,
+                mayInheritPrincipal: mayInheritPrincipal });
+    return;
+  }
 
-    let escapedPostData = "";
-    if (postData)
-      escapedPostData = unescape(postData);
+  let escapedPostData = "";
+  if (postData)
+    escapedPostData = unescape(postData);
 
-    if (/%s/i.test(shortcutURL) || /%s/i.test(escapedPostData)) {
-      let charset = "";
-      const re = /^(.*)\&mozcharset=([a-zA-Z][_\-a-zA-Z0-9]+)\s*$/;
-      let matches = shortcutURL.match(re);
-      if (matches)
-        [, shortcutURL, charset] = matches;
-      else {
-        // Try to get the saved character-set.
-        try {
-          // makeURI throws if URI is invalid.
-          // Will return an empty string if character-set is not found.
-          charset = yield PlacesUtils.getCharsetForURI(makeURI(shortcutURL));
-        } catch (e) {}
-      }
+  if (/%s/i.test(shortcutURL) || /%s/i.test(escapedPostData)) {
+    let charset = "";
+    const re = /^(.*)\&mozcharset=([a-zA-Z][_\-a-zA-Z0-9]+)\s*$/;
+    let matches = shortcutURL.match(re);
 
+    let continueOperation = function () {
       // encodeURIComponent produces UTF-8, and cannot be used for other charsets.
       // escape() works in those cases, but it doesn't uri-encode +, @, and /.
       // Therefore we need to manually replace these ASCII characters by their
@@ -1960,23 +1928,45 @@ function getShortcutOrURIAndPostData(aURL) {
       if (/%s/i.test(escapedPostData)) // POST keyword
         postData = getPostDataStream(escapedPostData, param, encodedParam,
                                                "application/x-www-form-urlencoded");
-    }
-    else if (param) {
-      // This keyword doesn't take a parameter, but one was provided. Just return
-      // the original URL.
-      postData = null;
 
-      throw new Task.Result({ postData: postData, url: aURL,
-                              mayInheritPrincipal: mayInheritPrincipal });
+      // This URL came from a bookmark, so it's safe to let it inherit the current
+      // document's principal.
+      mayInheritPrincipal = true;
+
+      aCallback({ postData: postData, url: shortcutURL,
+                  mayInheritPrincipal: mayInheritPrincipal });
     }
 
+    if (matches) {
+      [, shortcutURL, charset] = matches;
+      continueOperation();
+    } else {
+      // Try to get the saved character-set.
+      // makeURI throws if URI is invalid.
+      // Will return an empty string if character-set is not found.
+      try {
+        PlacesUtils.getCharsetForURI(makeURI(shortcutURL))
+                   .then(c => { charset = c; continueOperation(); });
+      } catch (ex) {
+        continueOperation();
+      }
+    }
+  }
+  else if (param) {
+    // This keyword doesn't take a parameter, but one was provided. Just return
+    // the original URL.
+    postData = null;
+
+    aCallback({ postData: postData, url: aURL,
+                mayInheritPrincipal: mayInheritPrincipal });
+  } else {
     // This URL came from a bookmark, so it's safe to let it inherit the current
     // document's principal.
     mayInheritPrincipal = true;
 
-    throw new Task.Result({ postData: postData, url: shortcutURL,
-                            mayInheritPrincipal: mayInheritPrincipal });
-  });
+    aCallback({ postData: postData, url: shortcutURL,
+                mayInheritPrincipal: mayInheritPrincipal });
+  }
 }
 
 function getPostDataStream(aStringData, aKeyword, aEncKeyword, aType) {
@@ -2777,8 +2767,7 @@ var newTabButtonObserver = {
   onDrop: function (aEvent)
   {
     let url = browserDragAndDrop.drop(aEvent, { });
-    Task.spawn(function() {
-      let data = yield getShortcutOrURIAndPostData(url);
+    getShortcutOrURIAndPostData(url, data => {
       if (data.url) {
         // allow third-party services to fixup this URL
         openNewTabWith(data.url, null, data.postData, aEvent, true);
@@ -2798,8 +2787,7 @@ var newWindowButtonObserver = {
   onDrop: function (aEvent)
   {
     let url = browserDragAndDrop.drop(aEvent, { });
-    Task.spawn(function() {
-      let data = yield getShortcutOrURIAndPostData(url);
+    getShortcutOrURIAndPostData(url, data => {
       if (data.url) {
         // allow third-party services to fixup this URL
         openNewWindowWith(data.url, null, data.postData, true);
@@ -2922,7 +2910,7 @@ const BrowserSearch = {
 #endif
     let openSearchPageIfFieldIsNotActive = function(aSearchBar) {
       if (!aSearchBar || document.activeElement != aSearchBar.textbox.inputField)
-        openUILinkIn(Services.search.defaultEngine.searchForm, "current");
+        openUILinkIn("about:home", "current");
     };
 
     let searchBar = this.searchBar;
@@ -3801,7 +3789,6 @@ var XULBrowserWindow = {
   onUpdateCurrentBrowser: function XWB_onUpdateCurrentBrowser(aStateFlags, aStatus, aMessage, aTotalProgress) {
     if (FullZoom.updateBackgroundTabs)
       FullZoom.onLocationChange(gBrowser.currentURI, true);
-    CombinedBackForward.setForwardButtonOcclusion(!gBrowser.webProgress.canGoForward);
     var nsIWebProgressListener = Components.interfaces.nsIWebProgressListener;
     var loadingDone = aStateFlags & nsIWebProgressListener.STATE_STOP;
     // use a pseudo-object instead of a (potentially nonexistent) channel for getting
@@ -3875,43 +3862,6 @@ var LinkTargetDisplay = {
     XULBrowserWindow.updateStatusField();
   }
 };
-
-let CombinedBackForward = {
-  init: function() {
-    this.forwardButton = document.getElementById("forward-button");
-    // Add a transition listener to the url bar to hide the forward button
-    // when necessary
-    if (gURLBar)
-      gURLBar.addEventListener("transitionend", this);
-    // On startup, or if the user customizes, our listener isn't attached,
-    // and no transitions fire anyway, so we need to make sure we've hidden the
-    // button if necessary:
-    if (this.forwardButton && this.forwardButton.hasAttribute("disabled")) {
-      this.setForwardButtonOcclusion(true);
-    }
-  },
-  uninit: function() {
-    if (gURLBar)
-      gURLBar.removeEventListener("transitionend", this);
-  },
-  handleEvent: function(aEvent) {
-    if (aEvent.type == "transitionend" &&
-        (aEvent.propertyName == "margin-left" || aEvent.propertyName == "margin-right") &&
-        this.forwardButton.hasAttribute("disabled")) {
-      this.setForwardButtonOcclusion(true);
-    }
-  },
-  setForwardButtonOcclusion: function(shouldBeOccluded) {
-    if (!this.forwardButton)
-      return;
-
-    let hasAttribute = this.forwardButton.hasAttribute("occluded-by-urlbar");
-    if (shouldBeOccluded && !hasAttribute)
-      this.forwardButton.setAttribute("occluded-by-urlbar", "true");
-    else if (!shouldBeOccluded && hasAttribute)
-      this.forwardButton.removeAttribute("occluded-by-urlbar");
-  }
-}
 
 var CombinedStopReload = {
   init: function () {
@@ -3997,10 +3947,12 @@ var TabsProgressListener = {
     // Collect telemetry data about tab load times.
     if (aWebProgress.isTopLevel) {
       if (aStateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW) {
-        if (aStateFlags & Ci.nsIWebProgressListener.STATE_START)
+        if (aStateFlags & Ci.nsIWebProgressListener.STATE_START) {
           TelemetryStopwatch.start("FX_PAGE_LOAD_MS", aBrowser);
-        else if (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP)
+          Services.telemetry.getHistogramById("FX_TOTAL_TOP_VISITS").add(true);
+        } else if (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP) {
           TelemetryStopwatch.finish("FX_PAGE_LOAD_MS", aBrowser);
+        }
       } else if (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
                  aStatus == Cr.NS_BINDING_ABORTED) {
         TelemetryStopwatch.cancel("FX_PAGE_LOAD_MS", aBrowser);
@@ -5146,8 +5098,7 @@ function middleMousePaste(event) {
     lastLocationChange = gBrowser.selectedBrowser.lastLocationChange;
   }
 
-  Task.spawn(function() {
-    let data = yield getShortcutOrURIAndPostData(clipboard);
+  getShortcutOrURIAndPostData(clipboard, data => {
     try {
       makeURI(data.url);
     } catch (ex) {
@@ -5178,8 +5129,7 @@ function handleDroppedLink(event, url, name)
 {
   let lastLocationChange = gBrowser.selectedBrowser.lastLocationChange;
 
-  Task.spawn(function() {
-    let data = yield getShortcutOrURIAndPostData(url);
+  getShortcutOrURIAndPostData(url, data => {
     if (data.url &&
         lastLocationChange == gBrowser.selectedBrowser.lastLocationChange)
       loadURI(data.url, null, data.postData, false);
@@ -5341,6 +5291,15 @@ function setStyleDisabled(disabled) {
   if (disabled)
     gPageStyleMenu.disableStyle();
 }
+
+
+var LanguageDetectionListener = {
+  init: function() {
+    window.messageManager.addMessageListener("LanguageDetection:Result", msg => {
+      Translation.languageDetected(msg.target, msg.data);
+    });
+  }
+};
 
 
 var BrowserOffline = {
@@ -6986,10 +6945,6 @@ var TabContextMenu = {
                       aPopupMenu.triggerNode : gBrowser.selectedTab;
     let disabled = gBrowser.tabs.length == 1;
 
-    // Enable the "Close Tab" menuitem when the window doesn't close with the last tab.
-    document.getElementById("context_closeTab").disabled =
-      disabled && gBrowser.tabContainer._closeWindowWithLastTab;
-
     var menuItems = aPopupMenu.getElementsByAttribute("tbattr", "tabbrowser-multiple");
     for (let menuItem of menuItems)
       menuItem.disabled = disabled;
@@ -7125,6 +7080,20 @@ XPCOMUtils.defineLazyGetter(ResponsiveUI, "ResponsiveUIManager", function() {
   let tmp = {};
   Cu.import("resource:///modules/devtools/responsivedesign.jsm", tmp);
   return tmp.ResponsiveUIManager;
+});
+
+function openEyedropper() {
+  var eyedropper = new this.Eyedropper(this);
+  eyedropper.open();
+}
+
+Object.defineProperty(this, "Eyedropper", {
+  get: function() {
+    let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
+    return devtools.require("devtools/eyedropper/eyedropper").Eyedropper;
+  },
+  configurable: true,
+  enumerable: true
 });
 
 XPCOMUtils.defineLazyGetter(window, "gShowPageResizers", function () {

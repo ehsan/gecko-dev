@@ -18,9 +18,9 @@ using namespace mozilla;
 using namespace mozilla::gl;
 
 JSObject*
-WebGLFramebuffer::WrapObject(JSContext* cx, JS::Handle<JSObject*> scope)
+WebGLFramebuffer::WrapObject(JSContext* cx)
 {
-    return dom::WebGLFramebufferBinding::Wrap(cx, scope, this);
+    return dom::WebGLFramebufferBinding::Wrap(cx, this);
 }
 
 WebGLFramebuffer::WebGLFramebuffer(WebGLContext* context)
@@ -830,7 +830,7 @@ bool WebGLFramebuffer::CheckColorAttachmentNumber(GLenum attachment, const char*
 {
     const char* const errorFormating = "%s: attachment: invalid enum value 0x%x";
 
-    if (mContext->IsExtensionEnabled(WebGLContext::WEBGL_draw_buffers)) {
+    if (mContext->IsExtensionEnabled(WebGLExtensionID::WEBGL_draw_buffers)) {
         if (attachment < LOCAL_GL_COLOR_ATTACHMENT0 ||
             attachment >= GLenum(LOCAL_GL_COLOR_ATTACHMENT0 + mContext->mGLMaxColorAttachments))
         {
@@ -890,7 +890,7 @@ FinalizeDrawAndReadBuffers(GLContext* aGL, bool aColorBufferDefined)
     //
     // Note that this test is not performed if OpenGL 4.2 or ARB_ES2_compatibility is
     // available.
-    if (aGL->IsGLES2() ||
+    if (aGL->IsGLES() ||
         aGL->IsSupported(GLFeature::ES2_compatibility) ||
         aGL->IsAtLeast(ContextProfile::OpenGL, 420))
     {

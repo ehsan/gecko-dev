@@ -29,7 +29,7 @@
 
 #include "jsfriendapi.h"
 
-NS_IMPL_ISUPPORTS3(nsBinaryOutputStream, nsIObjectOutputStream, nsIBinaryOutputStream, nsIOutputStream)
+NS_IMPL_ISUPPORTS(nsBinaryOutputStream, nsIObjectOutputStream, nsIBinaryOutputStream, nsIOutputStream)
 
 NS_IMETHODIMP
 nsBinaryOutputStream::Flush() 
@@ -325,7 +325,7 @@ nsBinaryOutputStream::PutBuffer(char* aBuffer, uint32_t aLength)
         mBufferAccess->PutBuffer(aBuffer, aLength);
 }
 
-NS_IMPL_ISUPPORTS3(nsBinaryInputStream, nsIObjectInputStream, nsIBinaryInputStream, nsIInputStream)
+NS_IMPL_ISUPPORTS(nsBinaryInputStream, nsIObjectInputStream, nsIBinaryInputStream, nsIInputStream)
 
 NS_IMETHODIMP
 nsBinaryInputStream::Available(uint64_t* aResult)
@@ -752,7 +752,7 @@ nsBinaryInputStream::ReadArrayBuffer(uint32_t aLength, JS::Handle<JS::Value> aBu
         JS_GetArrayBufferByteLength(buffer) < aLength) {
         return NS_ERROR_FAILURE;
     }
-    uint8_t* data = JS_GetStableArrayBufferData(cx, &aBuffer.toObject());
+    uint8_t* data = JS_GetStableArrayBufferData(cx, buffer);
     if (!data) {
         return NS_ERROR_FAILURE;
     }
