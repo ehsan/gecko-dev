@@ -35,10 +35,7 @@ public:
 protected:
   virtual ~WyciwygChannelParent();
 
-  virtual bool RecvInit(const URIParams&          uri,
-                        const ipc::PrincipalInfo& aRequestingPrincipalInfo,
-                        const uint32_t&           aSecurityFlags,
-                        const uint32_t&           aContentPolicyType) MOZ_OVERRIDE;
+  virtual bool RecvInit(const URIParams& uri) MOZ_OVERRIDE;
   virtual bool RecvAsyncOpen(const URIParams& original,
                              const uint32_t& loadFlags,
                              const IPC::SerializedLoadContext& loadContext,

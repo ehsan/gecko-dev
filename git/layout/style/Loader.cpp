@@ -119,8 +119,7 @@ public:
                 nsIStyleSheetLinkingElement* aOwningElement,
                 bool aIsAlternate,
                 nsICSSLoaderObserver* aObserver,
-                nsIPrincipal* aLoaderPrincipal,
-                nsINode* aRequestingNode);
+                nsIPrincipal* aLoaderPrincipal);
 
   // Data for loading a sheet linked from an @import rule
   SheetLoadData(Loader* aLoader,
@@ -128,8 +127,7 @@ public:
                 CSSStyleSheet* aSheet,
                 SheetLoadData* aParentData,
                 nsICSSLoaderObserver* aObserver,
-                nsIPrincipal* aLoaderPrincipal,
-                nsINode* aRequestingNode);
+                nsIPrincipal* aLoaderPrincipal);
 
   // Data for loading a non-document sheet
   SheetLoadData(Loader* aLoader,
@@ -140,8 +138,7 @@ public:
                 bool aUseSystemPrincipal,
                 const nsCString& aCharset,
                 nsICSSLoaderObserver* aObserver,
-                nsIPrincipal* aLoaderPrincipal,
-                nsINode* aRequestingNode);
+                nsIPrincipal* aLoaderPrincipal);
 
   already_AddRefed<nsIURI> GetReferrerURI();
 
@@ -237,9 +234,6 @@ public:
   // The principal that identifies who started loading us.
   nsCOMPtr<nsIPrincipal>                mLoaderPrincipal;
 
-  // The node that identifies who started loading us.
-  nsCOMPtr<nsINode>                     mRequestingNode;
-
   // The charset to use if the transport and sheet don't indicate one.
   // May be empty.  Must be empty if mOwningElement is non-null.
   nsCString                             mCharsetHint;
@@ -320,8 +314,7 @@ SheetLoadData::SheetLoadData(Loader* aLoader,
                              nsIStyleSheetLinkingElement* aOwningElement,
                              bool aIsAlternate,
                              nsICSSLoaderObserver* aObserver,
-                             nsIPrincipal* aLoaderPrincipal,
-                             nsINode* aRequestingNode)
+                             nsIPrincipal* aLoaderPrincipal)
   : mLoader(aLoader),
     mTitle(aTitle),
     mURI(aURI),
@@ -340,8 +333,7 @@ SheetLoadData::SheetLoadData(Loader* aLoader,
     mSheetAlreadyComplete(false),
     mOwningElement(aOwningElement),
     mObserver(aObserver),
-    mLoaderPrincipal(aLoaderPrincipal),
-    mRequestingNode(aRequestingNode)
+    mLoaderPrincipal(aLoaderPrincipal)
 {
   NS_PRECONDITION(mLoader, "Must have a loader!");
 }
@@ -351,8 +343,7 @@ SheetLoadData::SheetLoadData(Loader* aLoader,
                              CSSStyleSheet* aSheet,
                              SheetLoadData* aParentData,
                              nsICSSLoaderObserver* aObserver,
-                             nsIPrincipal* aLoaderPrincipal,
-                             nsINode* aRequestingNode)
+                             nsIPrincipal* aLoaderPrincipal)
   : mLoader(aLoader),
     mURI(aURI),
     mLineNumber(1),
@@ -371,8 +362,7 @@ SheetLoadData::SheetLoadData(Loader* aLoader,
     mSheetAlreadyComplete(false),
     mOwningElement(nullptr),
     mObserver(aObserver),
-    mLoaderPrincipal(aLoaderPrincipal),
-    mRequestingNode(aRequestingNode)
+    mLoaderPrincipal(aLoaderPrincipal)
 {
   NS_PRECONDITION(mLoader, "Must have a loader!");
   if (mParentData) {
@@ -395,8 +385,7 @@ SheetLoadData::SheetLoadData(Loader* aLoader,
                              bool aUseSystemPrincipal,
                              const nsCString& aCharset,
                              nsICSSLoaderObserver* aObserver,
-                             nsIPrincipal* aLoaderPrincipal,
-                             nsINode* aRequestingNode)
+                             nsIPrincipal* aLoaderPrincipal)
   : mLoader(aLoader),
     mURI(aURI),
     mLineNumber(1),
@@ -415,7 +404,6 @@ SheetLoadData::SheetLoadData(Loader* aLoader,
     mOwningElement(nullptr),
     mObserver(aObserver),
     mLoaderPrincipal(aLoaderPrincipal),
-    mRequestingNode(aRequestingNode),
     mCharsetHint(aCharset)
 {
   NS_PRECONDITION(mLoader, "Must have a loader!");
@@ -1427,22 +1415,6 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
     return NS_BINDING_ABORTED;
   }
 
-  bool inherit = false;
-  nsIPrincipal* requestingPrincipal = aLoadData->mLoaderPrincipal;
-  if (requestingPrincipal) {
-    rv = NS_URIChainHasFlags(aLoadData->mURI,
-                             nsIProtocolHandler::URI_INHERITS_SECURITY_CONTEXT,
-                             &inherit);
-    inherit =
-      ((NS_SUCCEEDED(rv) && inherit) ||
-       (nsContentUtils::URIIsLocalFile(aLoadData->mURI) &&
-        NS_SUCCEEDED(aLoadData->mLoaderPrincipal->
-                     CheckMayLoad(aLoadData->mURI, false, false))));
-  }
-  else {
-    requestingPrincipal = nsContentUtils::GetSystemPrincipal();
-  }
-
   if (aLoadData->mSyncLoad) {
     LOG(("  Synchronous load"));
     NS_ASSERTION(!aLoadData->mObserver, "Observer for a sync load?");
@@ -1469,22 +1441,9 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
     // Just load it
     nsCOMPtr<nsIInputStream> stream;
     nsCOMPtr<nsIChannel> channel;
-    // Note that we are calling NS_OpenURIInternal() with both a node and a
-    // principal.  This is because of a case where the node is the document
-    // being styled and the principal is the stylesheet (perhaps from a
-    // different origin)  that is applying the styles.
-    rv = NS_OpenURIInternal(getter_AddRefs(stream),
-                            aLoadData->mURI,
-                            aLoadData->mRequestingNode,
-                            requestingPrincipal,
-                            nsILoadInfo::SEC_NORMAL,
-                            nsIContentPolicy::TYPE_OTHER,
-                            nullptr,   // aLoadGroup
-                            nullptr,   // aCallbacks
-                            nsIRequest::LOAD_NORMAL,
-                            nullptr,   // aIoService
-                            getter_AddRefs(channel));
-
+    rv = NS_OpenURI(getter_AddRefs(stream), aLoadData->mURI, nullptr,
+                    nullptr, nullptr, nsIRequest::LOAD_NORMAL,
+                    getter_AddRefs(channel));
     if (NS_FAILED(rv)) {
       LOG_ERROR(("  Failed to open URI synchronously"));
       SheetComplete(aLoadData, rv);
@@ -1568,27 +1527,11 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
     }
   }
 
-  nsLoadFlags securityFlags = nsILoadInfo::SEC_NORMAL;
-  if (inherit) {
-    securityFlags |= nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL;
-  }
-
   nsCOMPtr<nsIChannel> channel;
-  // Note we are calling NS_NewChannelInternal here with a node and a principal.
-  // This is because of a case where the node is the document being styled and
-  // the principal is the stylesheet (perhaps from a different origin)  that is
-  // applying the styles.
-  rv = NS_NewChannelInternal(getter_AddRefs(channel),
-                             aLoadData->mURI,
-                             aLoadData->mRequestingNode,
-                             requestingPrincipal,
-                             securityFlags,
-                             nsIContentPolicy::TYPE_STYLESHEET,
-                             channelPolicy,
-                             loadGroup,
-                             nullptr,   // aCallbacks
-                             nsIChannel::LOAD_NORMAL |
-                             nsIChannel::LOAD_CLASSIFY_URI);
+  rv = NS_NewChannel(getter_AddRefs(channel),
+                     aLoadData->mURI, nullptr, loadGroup, nullptr,
+                     nsIChannel::LOAD_NORMAL | nsIChannel::LOAD_CLASSIFY_URI,
+                     channelPolicy);
 
   if (NS_FAILED(rv)) {
 #ifdef DEBUG
@@ -1628,6 +1571,24 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
   // Now tell the channel we expect text/css data back....  We do
   // this before opening it, so it's only treated as a hint.
   channel->SetContentType(NS_LITERAL_CSTRING("text/css"));
+
+  if (aLoadData->mLoaderPrincipal) {
+    bool inherit;
+    rv = NS_URIChainHasFlags(aLoadData->mURI,
+                             nsIProtocolHandler::URI_INHERITS_SECURITY_CONTEXT,
+                             &inherit);
+    inherit =
+      ((NS_SUCCEEDED(rv) && inherit) ||
+       (nsContentUtils::URIIsLocalFile(aLoadData->mURI) &&
+        NS_SUCCEEDED(aLoadData->mLoaderPrincipal->
+                     CheckMayLoad(aLoadData->mURI, false, false))));
+    nsCOMPtr<nsILoadInfo> loadInfo =
+      new LoadInfo(aLoadData->mLoaderPrincipal,
+                   inherit ?
+                     LoadInfo::eInheritPrincipal : LoadInfo::eDontInheritPrincipal,
+                   LoadInfo::eNotSandboxed);
+    channel->SetLoadInfo(loadInfo);
+  }
 
   // We don't have to hold on to the stream loader.  The ownership
   // model is: Necko owns the stream loader, which owns the load data,
@@ -1956,7 +1917,7 @@ Loader::LoadInlineStyle(nsIContent* aElement,
 
   SheetLoadData* data = new SheetLoadData(this, aTitle, nullptr, sheet,
                                           owningElement, *aIsAlternate,
-                                          aObserver, nullptr, static_cast<nsINode*>(aElement));
+                                          aObserver, nullptr);
 
   // We never actually load this, so just set its principal directly
   sheet->SetPrincipal(aElement->NodePrincipal());
@@ -2041,10 +2002,9 @@ Loader::LoadStyleLink(nsIContent* aElement,
   }
 
   // Now we need to actually load it
-  nsCOMPtr<nsINode> requestingNode = do_QueryInterface(context);
   SheetLoadData* data = new SheetLoadData(this, aTitle, aURL, sheet,
                                           owningElement, *aIsAlternate,
-                                          aObserver, principal, requestingNode);
+                                          aObserver, principal);
   NS_ADDREF(data);
 
   // If we have to parse and it's an alternate non-inline, defer it
@@ -2192,9 +2152,8 @@ Loader::LoadChildSheet(CSSStyleSheet* aParentSheet,
     return NS_OK;
   }
 
-  nsCOMPtr<nsINode> requestingNode = do_QueryInterface(context);
   SheetLoadData* data = new SheetLoadData(this, aURL, sheet, parentData,
-                                          observer, principal, requestingNode);
+                                          observer, principal);
 
   NS_ADDREF(data);
   bool syncLoad = data->mSyncLoad;
@@ -2306,7 +2265,7 @@ Loader::InternalLoadNonDocumentSheet(nsIURI* aURL,
   SheetLoadData* data =
     new SheetLoadData(this, aURL, sheet, syncLoad, aAllowUnsafeRules,
                       aUseSystemPrincipal, aCharset, aObserver,
-                      aOriginPrincipal, mDocument);
+                      aOriginPrincipal);
 
   NS_ADDREF(data);
   rv = LoadSheet(data, state);
@@ -2341,8 +2300,7 @@ Loader::PostLoadEvent(nsIURI* aURI,
                       aElement,
                       aWasAlternate,
                       aObserver,
-                      nullptr,
-                      mDocument);
+                      nullptr);
   NS_ENSURE_TRUE(evt, NS_ERROR_OUT_OF_MEMORY);
 
   if (!mPostedEvents.AppendElement(evt)) {

@@ -639,33 +639,10 @@ nsPluginStreamListenerPeer::RequestRead(NPByteRange* rangeList)
 
   nsresult rv = NS_OK;
 
-  nsRefPtr<nsPluginInstanceOwner> owner = mPluginInstance->GetOwner();
-  nsCOMPtr<nsIDocument> doc;
-  if (owner) {
-    rv = owner->GetDocument(getter_AddRefs(doc));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
   nsCOMPtr<nsIInterfaceRequestor> callbacks = do_QueryReferent(mWeakPtrChannelCallbacks);
   nsCOMPtr<nsILoadGroup> loadGroup = do_QueryReferent(mWeakPtrChannelLoadGroup);
-
-  nsCOMPtr<nsIPrincipal> principal = doc ? doc->NodePrincipal() : nullptr;
-  if (!principal) {
-    principal = do_CreateInstance("@mozilla.org/nullprincipal;1", &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
   nsCOMPtr<nsIChannel> channel;
-  rv = NS_NewChannelInternal(getter_AddRefs(channel),
-                             mURL,
-                             doc,
-                             principal,
-                             nsILoadInfo::SEC_NORMAL,
-                             nsIContentPolicy::TYPE_OTHER,
-                             nullptr,   // aChannelPolicy
-                             loadGroup,
-                             callbacks);
-
+  rv = NS_NewChannel(getter_AddRefs(channel), mURL, nullptr, loadGroup, callbacks);
   if (NS_FAILED(rv))
     return rv;
 

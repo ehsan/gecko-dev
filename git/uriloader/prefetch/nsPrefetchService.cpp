@@ -28,7 +28,6 @@
 #include "nsIDOMNode.h"
 #include "nsINode.h"
 #include "nsIDocument.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla;
 
@@ -189,15 +188,9 @@ nsPrefetchNode::OpenChannel()
     nsCOMPtr<nsILoadGroup> loadGroup = source->OwnerDoc()->GetDocumentLoadGroup();
     nsresult rv = NS_NewChannel(getter_AddRefs(mChannel),
                                 mURI,
-                                nsContentUtils::GetSystemPrincipal(),
-                                nsILoadInfo::SEC_NORMAL,
-                                nsIContentPolicy::TYPE_OTHER,
-                                nullptr,  // aChannelPolicy
-                                loadGroup, // aLoadGroup
-                                this,      // aCallbacks
+                                nullptr, loadGroup, this,
                                 nsIRequest::LOAD_BACKGROUND |
                                 nsICachingChannel::LOAD_ONLY_IF_MODIFIED);
-
     NS_ENSURE_SUCCESS(rv, rv);
 
     // configure HTTP specific stuff

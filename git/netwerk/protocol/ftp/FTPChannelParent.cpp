@@ -16,8 +16,6 @@
 #include "mozilla/ipc/URIUtils.h"
 #include "mozilla/unused.h"
 #include "SerializedLoadContext.h"
-#include "nsIContentPolicy.h"
-#include "mozilla/ipc/BackgroundUtils.h"
 
 using namespace mozilla::ipc;
 
@@ -80,9 +78,7 @@ FTPChannelParent::Init(const FTPChannelCreationArgs& aArgs)
   case FTPChannelCreationArgs::TFTPChannelOpenArgs:
   {
     const FTPChannelOpenArgs& a = aArgs.get_FTPChannelOpenArgs();
-    return DoAsyncOpen(a.uri(), a.startPos(), a.entityID(), a.uploadStream(),
-                       a.requestingPrincipalInfo(), a.securityFlags(),
-                       a.contentPolicyType());
+    return DoAsyncOpen(a.uri(), a.startPos(), a.entityID(), a.uploadStream());
   }
   case FTPChannelCreationArgs::TFTPChannelConnectArgs:
   {
@@ -99,10 +95,7 @@ bool
 FTPChannelParent::DoAsyncOpen(const URIParams& aURI,
                               const uint64_t& aStartPos,
                               const nsCString& aEntityID,
-                              const OptionalInputStreamParams& aUploadStream,
-                              const ipc::PrincipalInfo& aRequestingPrincipalInfo,
-                              const uint32_t& aSecurityFlags,
-                              const uint32_t& aContentPolicyType)
+                              const OptionalInputStreamParams& aUploadStream)
 {
   nsCOMPtr<nsIURI> uri = DeserializeURI(aURI);
   if (!uri)
@@ -120,24 +113,8 @@ FTPChannelParent::DoAsyncOpen(const URIParams& aURI,
   if (NS_FAILED(rv))
     return SendFailedAsyncOpen(rv);
 
-  nsCOMPtr<nsIPrincipal> requestingPrincipal =
-    mozilla::ipc::PrincipalInfoToPrincipal(aRequestingPrincipalInfo, &rv);
-  if (NS_FAILED(rv)) {
-    return SendFailedAsyncOpen(rv);
-  }
-
   nsCOMPtr<nsIChannel> chan;
-  rv = NS_NewChannel(getter_AddRefs(chan),
-                     uri,
-                     requestingPrincipal,
-                     aSecurityFlags,
-                     aContentPolicyType,
-                     nullptr, // aChannelPolicy
-                     nullptr, // aLoadGroup
-                     nullptr, // aCallbacks
-                     nsIRequest::LOAD_NORMAL,
-                     ios);
-
+  rv = NS_NewChannel(getter_AddRefs(chan), uri, ios);
   if (NS_FAILED(rv))
     return SendFailedAsyncOpen(rv);
 

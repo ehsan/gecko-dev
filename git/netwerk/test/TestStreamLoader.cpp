@@ -4,7 +4,6 @@
 #include "nsThreadUtils.h"
 #include "prlog.h"
 #include "mozilla/Attributes.h"
-#include "nsIScriptSecurityManager.h"
 
 #if defined(PR_LOGGING)
 //
@@ -66,20 +65,8 @@ int main(int argc, char **argv)
     if (NS_FAILED(rv))
       return -1;
 
-    nsCOMPtr<nsIScriptSecurityManager> secman =
-      do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, -1);
-       nsCOMPtr<nsIPrincipal> systemPrincipal;
-    rv = secman->GetSystemPrincipal(getter_AddRefs(systemPrincipal));
-    NS_ENSURE_SUCCESS(rv, -1);
-
     nsCOMPtr<nsIChannel> chan;
-    rv = NS_NewChannel(getter_AddRefs(chan),
-                       uri,
-                       systemPrincipal,
-                       nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_OTHER);
-
+    rv = NS_NewChannel(getter_AddRefs(chan), uri);
     if (NS_FAILED(rv))
       return -1;
 

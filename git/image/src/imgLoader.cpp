@@ -635,8 +635,7 @@ static nsresult NewImageChannel(nsIChannel **aResult,
                                 const nsCString& aAcceptHeader,
                                 nsLoadFlags aLoadFlags,
                                 nsIChannelPolicy *aPolicy,
-                                nsIPrincipal *aLoadingPrincipal,
-                                nsISupports *aRequestingContext)
+                                nsIPrincipal *aLoadingPrincipal)
 {
   nsresult rv;
   nsCOMPtr<nsIHttpChannel> newHttpChannel;
@@ -661,44 +660,17 @@ static nsresult NewImageChannel(nsIChannel **aResult,
   // canceled too.
   //
   aLoadFlags |= nsIChannel::LOAD_CLASSIFY_URI;
-
-  nsCOMPtr<nsIPrincipal> requestingPrincipal = aLoadingPrincipal;
-  bool isSandBoxed = false;
-  // only inherit if we have a principal
-  bool inherit = false;
-  if (requestingPrincipal) {
-    inherit = nsContentUtils::ChannelShouldInheritPrincipal(requestingPrincipal,
-                                                            aURI,
-                                                            false,  // aInheritForAboutBlank
-                                                            false); // aForceInherit
-  }
-  else {
-    requestingPrincipal = nsContentUtils::GetSystemPrincipal();
-  }
-  nsCOMPtr<nsINode> requestingNode = do_QueryInterface(aRequestingContext);
-  nsSecurityFlags securityFlags = nsILoadInfo::SEC_NORMAL;
-  if (inherit) {
-    securityFlags |= nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL;
-  }
-  // Note we are calling NS_NewChannelInternal() here with a node and a principal.
-  // This is for things like background images that are specified by user
-  // stylesheets, where the document is being styled, but the principal is that
-  // of the user stylesheet.
-  rv = NS_NewChannelInternal(aResult,
-                             aURI,
-                             requestingNode,
-                             requestingPrincipal,
-                             securityFlags,
-                             nsIContentPolicy::TYPE_IMAGE,
-                             aPolicy,
-                             nullptr,   // loadGroup
-                             callbacks,
-                             aLoadFlags);
-
+  rv = NS_NewChannel(aResult,
+                     aURI,        // URI
+                     nullptr,      // Cached IOService
+                     nullptr,      // LoadGroup
+                     callbacks,   // Notification Callbacks
+                     aLoadFlags,
+                     aPolicy);
   if (NS_FAILED(rv))
     return rv;
 
-  *aForcePrincipalCheckForCacheEntry = inherit && !isSandBoxed;
+  *aForcePrincipalCheckForCacheEntry = false;
 
   // Initialize HTTP-specific attributes
   newHttpChannel = do_QueryInterface(*aResult);
@@ -723,6 +695,11 @@ static nsresult NewImageChannel(nsIChannel **aResult,
 
     p->AdjustPriority(priority);
   }
+
+  bool setOwner = nsContentUtils::SetUpChannelOwner(aLoadingPrincipal,
+                                                    *aResult, aURI, false,
+                                                    false, false);
+  *aForcePrincipalCheckForCacheEntry = setOwner;
 
   // Create a new loadgroup for this new channel, using the old group as
   // the parent. The indirection keeps the channel insulated from cancels,
@@ -1503,8 +1480,7 @@ bool imgLoader::ValidateRequestWithNewChannel(imgRequest *request,
                          mAcceptHeader,
                          aLoadFlags,
                          aPolicy,
-                         aLoadingPrincipal,
-                         aCX);
+                         aLoadingPrincipal);
     if (NS_FAILED(rv)) {
       return false;
     }
@@ -2018,8 +1994,7 @@ nsresult imgLoader::LoadImage(nsIURI *aURI,
                          mAcceptHeader,
                          requestFlags,
                          aPolicy,
-                         aLoadingPrincipal,
-                         aCX);
+                         aLoadingPrincipal);
     if (NS_FAILED(rv))
       return NS_ERROR_FAILURE;
 

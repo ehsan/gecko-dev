@@ -18,7 +18,6 @@
 #include "nsIProgressEventSink.h"
 #include "mozilla/ipc/URIUtils.h"
 #include "SerializedLoadContext.h"
-#include "mozilla/ipc/BackgroundUtils.h"
 
 using namespace mozilla::ipc;
 
@@ -81,28 +80,7 @@ WyciwygChannelChild::Init(nsIURI* uri)
   URIParams serializedUri;
   SerializeURI(uri, serializedUri);
 
-  // propagate loadInfo
-  mozilla::ipc::PrincipalInfo principalInfo;
-  uint32_t securityFlags;
-  uint32_t policyType;
-  if (mLoadInfo) {
-    mozilla::ipc::PrincipalToPrincipalInfo(mLoadInfo->LoadingPrincipal(),
-                                           &principalInfo);
-    securityFlags = mLoadInfo->GetSecurityFlags();
-    policyType = mLoadInfo->GetContentPolicyType();
-  }
-  else {
-    // use default values if no loadInfo is provided
-    mozilla::ipc::PrincipalToPrincipalInfo(nsContentUtils::GetSystemPrincipal(),
-                                           &principalInfo);
-    securityFlags = nsILoadInfo::SEC_NORMAL;
-    policyType = nsIContentPolicy::TYPE_OTHER;
-  }
-
-  SendInit(serializedUri,
-           principalInfo,
-           securityFlags,
-           policyType);
+  SendInit(serializedUri);
   return NS_OK;
 }
 

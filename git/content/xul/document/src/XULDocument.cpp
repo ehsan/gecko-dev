@@ -12,7 +12,7 @@
   Notes
   -----
 
-  1. We do some monkey business in the document observer methods to
+  1. We do some monkey business in the document observer methods to`
      keep the element map in sync for HTML elements. Why don't we just
      do it for _all_ elements? Well, in the case of XUL elements,
      which may be lazily created during frame construction, the
@@ -23,6 +23,7 @@
 
 #include "mozilla/ArrayUtils.h"
 
+// Note the ALPHABETICAL ORDERING
 #include "XULDocument.h"
 
 #include "nsError.h"
@@ -90,7 +91,6 @@
 #include "nsTextNode.h"
 #include "nsJSUtils.h"
 #include "mozilla/dom/URL.h"
-#include "nsIContentPolicy.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -122,6 +122,9 @@ const nsForwardReference::Phase nsForwardReference::kPasses[] = {
     nsForwardReference::eHookup,
     nsForwardReference::eDone
 };
+
+const uint32_t kMaxAttrNameLength = 512;
+const uint32_t kMaxAttributeLength = 4096;
 
 //----------------------------------------------------------------------
 //
@@ -2692,19 +2695,18 @@ XULDocument::LoadOverlayInternal(nsIURI* aURI, bool aIsDynamic,
 
         nsCOMPtr<nsILoadGroup> group = do_QueryReferent(mDocumentLoadGroup);
         nsCOMPtr<nsIChannel> channel;
-        // Set the owner of the channel to be our principal so
-        // that the overlay's JSObjects etc end up being created
-        // with the right principal and in the correct
-        // compartment.
-        rv = NS_NewChannel(getter_AddRefs(channel),
-                           aURI,
-                           NodePrincipal(),
-                           nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL,
-                           nsIContentPolicy::TYPE_OTHER,
-                           nullptr,    // aChannelPolicy
-                           group);
+        rv = NS_NewChannel(getter_AddRefs(channel), aURI, nullptr, group);
 
         if (NS_SUCCEEDED(rv)) {
+            // Set the owner of the channel to be our principal so
+            // that the overlay's JSObjects etc end up being created
+            // with the right principal and in the correct
+            // compartment.
+            nsCOMPtr<nsILoadInfo> loadInfo =
+                new LoadInfo(NodePrincipal(), LoadInfo::eInheritPrincipal,
+                             LoadInfo::eNotSandboxed);
+            channel->SetLoadInfo(loadInfo);
+
             rv = channel->AsyncOpen(listener, nullptr);
         }
 
@@ -3335,15 +3337,8 @@ XULDocument::LoadScript(nsXULPrototypeScript* aScriptProto, bool* aBlock)
 
         // Note: the loader will keep itself alive while it's loading.
         nsCOMPtr<nsIStreamLoader> loader;
-        rv = NS_NewStreamLoader(getter_AddRefs(loader),
-                                aScriptProto->mSrcURI,
-                                this, // aObserver
-                                this, // aRequestingContext
-                                nsILoadInfo::SEC_NORMAL,
-                                nsIContentPolicy::TYPE_OTHER,
-                                nullptr, // aContext
-                                group);
-
+        rv = NS_NewStreamLoader(getter_AddRefs(loader), aScriptProto->mSrcURI,
+                                this, nullptr, group);
         if (NS_FAILED(rv)) {
             mCurrentScriptProto = nullptr;
             return rv;

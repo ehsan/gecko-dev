@@ -1220,9 +1220,7 @@ BluetoothHfpManager::Disconnect(BluetoothProfileController* aController)
 
   if (!sBluetoothHfpInterface) {
     BT_LOGR("sBluetoothHfpInterface is null");
-    if (aController) {
-      aController->NotifyCompletion(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
-    }
+    aController->NotifyCompletion(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     return;
   }
 

@@ -25,8 +25,6 @@ const MOBILENETWORKINFO_CID =
   Components.ID("{a6c8416c-09b4-46d1-bf29-6520d677d085}");
 const MOBILECELLINFO_CID =
   Components.ID("{0635d9ab-997e-4cdf-84e7-c1883752dff3}");
-const TELEPHONYCALLBACK_CID =
-  Components.ID("{6e1af17e-37f3-11e4-aed3-60a44c237d2b}");
 
 const NS_XPCOM_SHUTDOWN_OBSERVER_ID      = "xpcom-shutdown";
 const NS_PREFBRANCH_PREFCHANGE_TOPIC_ID  = "nsPref:changed";
@@ -45,10 +43,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "gNetworkManager",
 XPCOMUtils.defineLazyServiceGetter(this, "gRadioInterfaceLayer",
                                    "@mozilla.org/ril;1",
                                    "nsIRadioInterfaceLayer");
-
-XPCOMUtils.defineLazyServiceGetter(this, "gGonkTelephonyService",
-                                  "@mozilla.org/telephony/telephonyservice;1",
-                                  "nsIGonkTelephonyService");
 
 let DEBUG = RIL.DEBUG_RIL;
 function debug(s) {
@@ -140,41 +134,6 @@ MMIResult.prototype = {
                       additionalInformation: 'r'},
 };
 
-/**
- * Wrap a MobileConnectionCallback to a TelephonyCallback.
- */
-function TelephonyCallback(aCallback) {
-  this.callback = aCallback;
-}
-TelephonyCallback.prototype = {
-  QueryInterface:   XPCOMUtils.generateQI([Ci.nsITelephonyCallback]),
-  classID:          TELEPHONYCALLBACK_CID,
-
-  notifyDialMMI: function(mmiServiceCode) {
-    this.serviceCode = mmiServiceCode;
-  },
-
-  notifyDialMMISuccess: function(result) {
-    this.callback.notifySendCancelMmiSuccess(result);
-  },
-
-  notifyDialMMIError: function(error) {
-    this.callback.notifyError(error, "", this.serviceCode);
-  },
-
-  notifyDialMMIErrorWithInfo: function(error, info) {
-    this.callback.notifyError(error, "", this.serviceCode, info);
-  },
-
-  notifyDialError: function() {
-    throw Cr.NS_ERROR_UNEXPECTED;
-  },
-
-  notifyDialSuccess: function() {
-    throw Cr.NS_ERROR_UNEXPECTED;
-  },
-};
-
 function MobileConnectionProvider(aClientId, aRadioInterface) {
   this._clientId = aClientId;
   this._radioInterface = aRadioInterface;
@@ -229,7 +188,7 @@ MobileConnectionProvider.prototype = {
       key = "ro.telephony.default_network";
       let indexString = libcutils.property_get(key, "");
       let index = parseInt(indexString, 10);
-      if (DEBUG) this._debug("Fallback to " + key + ": " + index);
+      if (DEBUG) this._debug("Fallback to " + key + ": " + index)
 
       let networkTypes = RIL.RIL_PREFERRED_NETWORK_TYPE_TO_GECKO[index];
       supportedNetworkTypes = networkTypes ?
@@ -423,7 +382,10 @@ MobileConnectionProvider.prototype = {
   },
 
   _rulesToCallForwardingOptions: function(aRules) {
-    return aRules.map(rule => new CallForwardingOptions(rule));
+    for (let i = 0; i < aRules.length; i++) {
+      let info = new CallForwardingOptions(aRules[i]);
+      aRules[i] = info;
+    }
   },
 
   _dispatchNotifyError: function(aCallback, aErrorMsg) {
@@ -551,13 +513,6 @@ MobileConnectionProvider.prototype = {
 
     this.radioState = aRadioState;
     this.deliverListenerEvent("notifyRadioStateChanged");
-  },
-
-  notifyCFStateChanged: function(aAction, aReason, aNumber, aTimeSeconds,
-                                 aServiceClass) {
-    this.deliverListenerEvent("notifyCFStateChanged",
-                              [true, aAction, aReason, aNumber, aTimeSeconds,
-                                aServiceClass]);
   },
 
   getSupportedNetworkTypes: function(aTypes) {
@@ -725,8 +680,49 @@ MobileConnectionProvider.prototype = {
   },
 
   sendMMI: function(aMmi, aCallback) {
-    let telephonyCallback = new TelephonyCallback(aCallback);
-    gGonkTelephonyService.dialMMI(this._clientId, aMmi, telephonyCallback);
+    this._radioInterface.sendWorkerMessage("sendMMI", {mmi: aMmi},
+                                           (function(aResponse) {
+      aResponse.serviceCode = aResponse.mmiServiceCode || "";
+      // We expect to have an IMEI at this point if the request was supposed
+      // to query for the IMEI, so getting a successful reply from the RIL
+      // without containing an actual IMEI number is considered an error.
+      if (aResponse.serviceCode === RIL.MMI_KS_SC_IMEI &&
+          !aResponse.statusMessage) {
+        aResponse.errorMsg = aResponse.errorMsg ||
+                             RIL.GECKO_ERROR_GENERIC_FAILURE;
+      }
+
+      if (aResponse.errorMsg) {
+        if (aResponse.additionalInformation) {
+          aCallback.notifyError(aResponse.errorMsg, "",
+                                aResponse.serviceCode,
+                                aResponse.additionalInformation);
+        } else {
+          aCallback.notifyError(aResponse.errorMsg, "",
+                                aResponse.serviceCode);
+        }
+        return false;
+      }
+
+      if (aResponse.isSetCallForward) {
+        this.deliverListenerEvent("notifyCFStateChanged",
+                                  [!aResponse.errorMsg, aResponse.action,
+                                   aResponse.reason, aResponse.number,
+                                   aResponse.timeSeconds, aResponse.serviceClass]);
+      }
+
+      // MMI query call forwarding options request returns a set of rules that
+      // will be exposed in the form of an array of MozCallForwardingOptions
+      // instances.
+      if (aResponse.serviceCode === RIL.MMI_KS_SC_CALL_FORWARDING &&
+          aResponse.additionalInformation) {
+        this._rulesToCallForwardingOptions(aResponse.additionalInformation);
+      }
+
+      let mmiResult = new MMIResult(aResponse);
+      aCallback.notifySendCancelMmiSuccess(mmiResult);
+      return false;
+    }).bind(this));
   },
 
   cancelMMI: function(aCallback) {
@@ -766,9 +762,11 @@ MobileConnectionProvider.prototype = {
         return false;
       }
 
-      this.notifyCFStateChanged(aResponse.action, aResponse.reason,
-                                aResponse.number, aResponse.timeSeconds,
-                                aResponse.serviceClass);
+      this.deliverListenerEvent("notifyCFStateChanged",
+                                [!aResponse.errorMsg, aResponse.action,
+                                 aResponse.reason, aResponse.number,
+                                 aResponse.timeSeconds, aResponse.serviceClass]);
+
       aCallback.notifySuccess();
       return false;
     }).bind(this));
@@ -788,8 +786,9 @@ MobileConnectionProvider.prototype = {
         return false;
       }
 
-      aCallback.notifyGetCallForwardingSuccess(
-        this._rulesToCallForwardingOptions(aResponse.rules));
+      let infos = aResponse.rules;
+      this._rulesToCallForwardingOptions(infos);
+      aCallback.notifyGetCallForwardingSuccess(infos);
       return false;
     }).bind(this));
   },
@@ -1215,17 +1214,6 @@ MobileConnectionService.prototype = {
 
     provider.lastKnownHomeNetwork = aNetwork;
     provider.deliverListenerEvent("notifyLastKnownHomeNetworkChanged");
-  },
-
-  notifyCFStateChanged: function(aClientId, aAction, aReason, aNumber,
-                                 aTimeSeconds, aServiceClass) {
-    if (DEBUG) {
-      debug("notifyCFStateChanged for " + aClientId);
-    }
-
-    let provider = this.getItemByServiceId(aClientId);
-    provider.notifyCFStateChanged(aAction, aReason, aNumber, aTimeSeconds,
-                                  aServiceClass);
   },
 
   /**

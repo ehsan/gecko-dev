@@ -815,6 +815,4 @@ nsBufferedOutputStream::GetUnbufferedStream(nsISupports* *aStream)
     return NS_OK;
 }
 
-#undef METER
-
 ////////////////////////////////////////////////////////////////////////////////

@@ -80,21 +80,13 @@ protected:
                                const IPCCallStateData& aData) MOZ_OVERRIDE;
 
   virtual bool
-  RecvNotifyDialMMI(const nsString& aServiceCode) MOZ_OVERRIDE;
+  RecvNotifyDialError(const nsString& aError) MOZ_OVERRIDE;
+
+  virtual bool
+  RecvNotifyDialSuccess(const uint32_t& aCallIndex,
+                        const nsString& aNumber) MOZ_OVERRIDE;
 
 private:
-  bool
-  DoResponse(const DialResponseError& aResponse);
-
-  bool
-  DoResponse(const DialResponseCallSuccess& aResponse);
-
-  bool
-  DoResponse(const DialResponseMMISuccess& aResponse);
-
-  bool
-  DoResponse(const DialResponseMMIError& aResponse);
-
   nsCOMPtr<nsITelephonyListener> mListener;
   nsCOMPtr<nsITelephonyCallback> mCallback;
 };

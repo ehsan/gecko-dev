@@ -9,7 +9,6 @@
 #include "nsIStreamListener.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
-#include "nsContentUtils.h"
 #include <algorithm>
 //#include "prthread.h"
 
@@ -50,12 +49,7 @@ createChannel( const char *url ) {
 
         // Allocate a new input channel on this thread.
         printf( "Calling NS_OpenURI...\n" );
-
-        nsresult rv = NS_OpenURI(getter_AddRefs(result),
-                                 uri,
-                                 nsContentUtils::GetSystemPrincipal(),
-                                 nsILoadInfo::SEC_NORMAL,
-                                 nsIContentPolicy::TYPE_OTHER);
+        nsresult rv = NS_OpenURI( getter_AddRefs( result ), uri, 0 );
 
         if ( NS_SUCCEEDED( rv ) ) {
             printf( "...NS_OpenURI completed OK\n" );

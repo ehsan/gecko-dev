@@ -23,7 +23,6 @@
 #include "nsISupportsUtils.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
-#include "nsContentUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsStringStream.h"
 #include "mozilla/storage.h"
@@ -47,12 +46,7 @@ GetDefaultIcon(nsIChannel **aChannel)
   nsresult rv = NS_NewURI(getter_AddRefs(defaultIconURI),
                           NS_LITERAL_CSTRING(FAVICON_DEFAULT_URL));
   NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_NewChannel(aChannel,
-                       defaultIconURI,
-                       nsContentUtils::GetSystemPrincipal(),
-                       nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_OTHER);
+  return NS_NewChannel(aChannel, defaultIconURI);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -25,7 +25,6 @@
 #include "mozilla/Services.h"
 #include "nsIStringBundle.h"
 #include "nsIXULAppInfo.h"
-#include "nsContentUtils.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -346,12 +345,7 @@ NS_METHOD nsSound::Play(nsIURL *aURL)
         g_free(path);
     } else {
         nsCOMPtr<nsIStreamLoader> loader;
-        rv = NS_NewStreamLoader(getter_AddRefs(loader),
-                                aURL,
-                                this, // aObserver
-                                nsContentUtils::GetSystemPrincipal(),
-                                nsILoadInfo::SEC_NORMAL,
-                                nsIContentPolicy::TYPE_OTHER);
+        rv = NS_NewStreamLoader(getter_AddRefs(loader), aURL, this);
     }
 
     return rv;

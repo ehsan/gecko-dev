@@ -112,7 +112,6 @@
 #include "nsIWindowWatcher.h"
 #include "nsIPromptFactory.h"
 #include "nsITransportSecurityInfo.h"
-#include "nsINode.h"
 #include "nsINSSErrorsService.h"
 #include "nsIApplicationCacheChannel.h"
 #include "nsIApplicationCacheContainer.h"
@@ -9179,29 +9178,6 @@ nsDocShell::JustStartedNetworkLoad()
            mDocumentRequest != GetCurrentDocChannel();
 }
 
-nsresult
-nsDocShell::CreatePrincipalFromReferrer(nsIURI*        aReferrer,
-                                        nsIPrincipal** outPrincipal)
-{
-  nsresult rv;
-  nsCOMPtr<nsIScriptSecurityManager> secMan =
-    do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  uint32_t appId;
-  rv = GetAppId(&appId);
-  NS_ENSURE_SUCCESS(rv, rv);
-  bool isInBrowserElement;
-  rv = GetIsInBrowserElement(&isInBrowserElement);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = secMan->GetAppCodebasePrincipal(aReferrer,
-                                       appId,
-                                       isInBrowserElement,
-                                       outPrincipal);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return NS_OK;
-}
-
 NS_IMETHODIMP
 nsDocShell::InternalLoad(nsIURI * aURI,
                          nsIURI * aReferrer,
@@ -9320,8 +9296,12 @@ nsDocShell::InternalLoad(nsIURI * aURI,
     // XXXbz would be nice to know the loading principal here... but we don't
     nsCOMPtr<nsIPrincipal> loadingPrincipal = do_QueryInterface(aOwner);
     if (!loadingPrincipal && aReferrer) {
-      rv = CreatePrincipalFromReferrer(aReferrer, getter_AddRefs(loadingPrincipal));
-      NS_ENSURE_SUCCESS(rv, rv);
+        nsCOMPtr<nsIScriptSecurityManager> secMan =
+            do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        rv = secMan->GetSimpleCodebasePrincipal(aReferrer,
+                                                getter_AddRefs(loadingPrincipal));
     }
 
     rv = NS_CheckContentLoadPolicy(contentType,
@@ -9369,7 +9349,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
     {
         bool willInherit;
         // This condition needs to match the one in
-        // nsContentUtils::ChannelShouldInheritPrincipal.
+        // nsContentUtils::SetUpChannelOwner.
         // Except we reverse the rv check to be safe in case
         // nsContentUtils::URIInheritsSecurityContext fails here and
         // succeeds there.
@@ -9987,7 +9967,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                    (aFlags & INTERNAL_LOAD_FLAGS_FIRST_LOAD) != 0,
                    (aFlags & INTERNAL_LOAD_FLAGS_BYPASS_CLASSIFIER) != 0,
                    (aFlags & INTERNAL_LOAD_FLAGS_FORCE_ALLOW_COOKIES) != 0,
-                   srcdoc, aBaseURI, contentType);
+                   srcdoc, aBaseURI);
     if (req && aRequest)
         NS_ADDREF(*aRequest = req);
 
@@ -10067,8 +10047,7 @@ nsDocShell::DoURILoad(nsIURI * aURI,
                       bool aBypassClassifier,
                       bool aForceAllowCookies,
                       const nsAString &aSrcdoc,
-                      nsIURI * aBaseURI,
-                      nsContentPolicyType aContentPolicyType)
+                      nsIURI * aBaseURI)
 {
 #ifdef MOZ_VISUAL_EVENT_TRACER
     nsAutoCString urlSpec;
@@ -10139,55 +10118,14 @@ nsDocShell::DoURILoad(nsIURI * aURI,
     nsCOMPtr<nsIChannel> channel;
 
     bool isSrcdoc = !aSrcdoc.IsVoid();
-
-    nsCOMPtr<nsINode> requestingNode;
-    if (mScriptGlobal) {
-      requestingNode = mScriptGlobal->GetFrameElementInternal();
-      if (!requestingNode) {
-        requestingNode = mScriptGlobal->GetExtantDoc();
-      }
-    }
-
-    bool isSandBoxed = mSandboxFlags & SANDBOXED_ORIGIN;
-    // only inherit if we have a requestingPrincipal
-    bool inherit = false;
-
-    nsCOMPtr<nsIPrincipal> requestingPrincipal = do_QueryInterface(aOwner);
-    if (requestingPrincipal) {
-      inherit = nsContentUtils::ChannelShouldInheritPrincipal(requestingPrincipal,
-                                                              aURI,
-                                                              true, // aInheritForAboutBlank
-                                                              isSrcdoc);
-    }
-    else if (!requestingPrincipal && aReferrerURI) {
-      rv = CreatePrincipalFromReferrer(aReferrerURI,
-                                       getter_AddRefs(requestingPrincipal));
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-    else {
-      requestingPrincipal = nsContentUtils::GetSystemPrincipal();
-    }
-
-    nsSecurityFlags securityFlags = nsILoadInfo::SEC_NORMAL;
-    if (inherit) {
-      securityFlags |= nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL;
-    }
-    if (isSandBoxed) {
-      securityFlags |= nsILoadInfo::SEC_SANDBOXED;
-    }
-
     if (!isSrcdoc) {
-        rv = NS_NewChannelInternal(getter_AddRefs(channel),
-                                   aURI,
-                                   requestingNode,
-                                   requestingPrincipal,
-                                   securityFlags,
-                                   aContentPolicyType,
-                                   channelPolicy,
-                                   nullptr,   // loadGroup
-                                   static_cast<nsIInterfaceRequestor*>(this),
-                                   loadFlags);
-
+        rv = NS_NewChannel(getter_AddRefs(channel),
+                           aURI,
+                           nullptr,
+                           nullptr,
+                           static_cast<nsIInterfaceRequestor *>(this),
+                           loadFlags,
+                           channelPolicy);
         if (NS_FAILED(rv)) {
             if (rv == NS_ERROR_UNKNOWN_PROTOCOL) {
                 // This is a uri with a protocol scheme we don't know how
@@ -10235,14 +10173,6 @@ nsDocShell::DoURILoad(nsIURI * aURI,
             MOZ_ASSERT(isc);
             isc->SetBaseURI(aBaseURI);
         }
-        // NS_NewInputStreamChannel does not yet attach the loadInfo in nsNetutil.h,
-        // hence we have to manually attach the loadInfo for that channel.
-        nsCOMPtr<nsILoadInfo> loadInfo =
-          new LoadInfo(requestingPrincipal,
-                       requestingNode,
-                       securityFlags,
-                       aContentPolicyType);
-        channel->SetLoadInfo(loadInfo);
     }
 
     nsCOMPtr<nsIApplicationCacheChannel> appCacheChannel =
@@ -10404,6 +10334,11 @@ nsDocShell::DoURILoad(nsIURI * aURI,
             httpChannel->SetReferrer(aReferrerURI);
         }
     }
+
+    nsCOMPtr<nsIPrincipal> ownerPrincipal = do_QueryInterface(aOwner);
+    nsContentUtils::SetUpChannelOwner(ownerPrincipal, channel, aURI, true,
+                                      mSandboxFlags & SANDBOXED_ORIGIN,
+                                      isSrcdoc);
 
     nsCOMPtr<nsIScriptChannel> scriptChannel = do_QueryInterface(channel);
     if (scriptChannel) {

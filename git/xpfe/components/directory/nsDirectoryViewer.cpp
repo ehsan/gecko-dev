@@ -49,7 +49,6 @@
 #include "nsIDocument.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/ScriptSettings.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla;
 
@@ -943,11 +942,7 @@ nsHTTPIndex::FireTimer(nsITimer* aTimer, void* aClosure)
           rv = NS_NewURI(getter_AddRefs(url), uri.get());
           nsCOMPtr<nsIChannel>	channel;
           if (NS_SUCCEEDED(rv) && (url)) {
-            rv = NS_NewChannel(getter_AddRefs(channel),
-                               url,
-                               nsContentUtils::GetSystemPrincipal(),
-                               nsILoadInfo::SEC_NORMAL,
-                               nsIContentPolicy::TYPE_OTHER);
+            rv = NS_NewChannel(getter_AddRefs(channel), url, nullptr, nullptr);
           }
           if (NS_SUCCEEDED(rv) && (channel)) {
             channel->SetNotificationCallbacks(httpIndex);
@@ -1300,13 +1295,7 @@ nsDirectoryViewerFactory::CreateInstance(const char *aCommand,
     if (NS_FAILED(rv)) return rv;
     
     nsCOMPtr<nsIChannel> channel;
-    rv = NS_NewChannel(getter_AddRefs(channel),
-                       uri,
-                       nsContentUtils::GetSystemPrincipal(),
-                       nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_OTHER,
-                       nullptr, // aChannelPolicy
-                       aLoadGroup);
+    rv = NS_NewChannel(getter_AddRefs(channel), uri, nullptr, aLoadGroup);
     if (NS_FAILED(rv)) return rv;
     
     nsCOMPtr<nsIStreamListener> listener;

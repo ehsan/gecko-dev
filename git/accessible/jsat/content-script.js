@@ -140,7 +140,6 @@ addMessageListener(
     if (!eventManager) {
       eventManager = new EventManager(this, contentControl);
     }
-    eventManager.inTest = m.json.inTest;
     eventManager.start();
 
     sendAsyncMessage('AccessFu:ContentStarted');

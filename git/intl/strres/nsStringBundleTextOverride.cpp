@@ -9,7 +9,6 @@
 
 #include "nsNetUtil.h"
 #include "nsAppDirectoryServiceDefs.h"
-#include "nsContentUtils.h"
 
 // first we need a simple class which wraps a nsIPropertyElement and
 // cuts out the leading URL from the key
@@ -149,12 +148,7 @@ nsStringBundleTextOverride::Init()
     if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIInputStream> in;
-    rv = NS_OpenURI(getter_AddRefs(in),
-                    uri,
-                    nsContentUtils::GetSystemPrincipal(),
-                    nsILoadInfo::SEC_NORMAL,
-                    nsIContentPolicy::TYPE_OTHER);
-
+    rv = NS_OpenURI(getter_AddRefs(in), uri);
     if (NS_FAILED(rv)) return rv;
 
     static NS_DEFINE_CID(kPersistentPropertiesCID, NS_IPERSISTENTPROPERTIES_CID);

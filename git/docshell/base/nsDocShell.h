@@ -9,7 +9,6 @@
 #define nsDocShell_h__
 
 #include "nsITimer.h"
-#include "nsContentPolicyUtils.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIBaseWindow.h"
@@ -318,8 +317,7 @@ protected:
                                bool aBypassClassifier,
                                bool aForceAllowCookies,
                                const nsAString &aSrcdoc,
-                               nsIURI * baseURI,
-                               nsContentPolicyType aContentPolicyType);
+                               nsIURI * baseURI);
     NS_IMETHOD AddHeadersToChannel(nsIInputStream * aHeadersData, 
                                   nsIChannel * aChannel);
     virtual nsresult DoChannelLoad(nsIChannel * aChannel,
@@ -699,9 +697,6 @@ protected:
     };
 
     bool JustStartedNetworkLoad();
-
-    nsresult CreatePrincipalFromReferrer(nsIURI*        aReferrer,
-                                         nsIPrincipal** outPrincipal);
 
     enum FrameType {
         eFrameTypeRegular,

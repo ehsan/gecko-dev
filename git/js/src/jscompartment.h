@@ -295,9 +295,6 @@ struct JSCompartment
     js::WeakMapBase              *gcWeakMapList;
 
   private:
-    /* Whether to preserve JIT code on non-shrinking GCs. */
-    bool                         gcPreserveJitCode;
-
     enum {
         DebugMode = 1 << 0,
         DebugNeedDelazification = 1 << 1
@@ -350,7 +347,7 @@ struct JSCompartment
 
     void trace(JSTracer *trc);
     void markRoots(JSTracer *trc);
-    bool preserveJitCode() { return gcPreserveJitCode; }
+    bool isDiscardingJitCode(JSTracer *trc);
     void sweep(js::FreeOp *fop, bool releaseTypes);
     void sweepCrossCompartmentWrappers();
     void purge();

@@ -1492,12 +1492,7 @@ nsFrameScriptExecutor::TryCacheLoadAndCompileScript(const nsAString& aURL,
   }
 
   nsCOMPtr<nsIChannel> channel;
-  NS_NewChannel(getter_AddRefs(channel),
-                uri,
-                nsContentUtils::GetSystemPrincipal(),
-                nsILoadInfo::SEC_NORMAL,
-                nsIContentPolicy::TYPE_OTHER);
-
+  NS_NewChannel(getter_AddRefs(channel), uri);
   if (!channel) {
     return;
   }

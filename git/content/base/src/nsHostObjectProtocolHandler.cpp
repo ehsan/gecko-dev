@@ -537,10 +537,8 @@ nsHostObjectProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsILoadInfo> loadInfo =
-    new mozilla::LoadInfo(info->mPrincipal,
-                          nullptr,
-                          nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL,
-                          nsIContentPolicy::TYPE_OTHER);
+    new mozilla::LoadInfo(info->mPrincipal, LoadInfo::eInheritPrincipal,
+                          LoadInfo::eNotSandboxed);
   channel->SetLoadInfo(loadInfo);
   channel->SetOriginalURI(uri);
   channel->SetContentType(NS_ConvertUTF16toUTF8(type));
