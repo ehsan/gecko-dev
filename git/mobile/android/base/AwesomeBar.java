@@ -405,11 +405,6 @@ public class AwesomeBar extends Activity implements GeckoEventListener {
             ExpandableListView exList = (ExpandableListView)list;
             int childPosition = ExpandableListView.getPackedPositionChild(info.packedPosition);
             int groupPosition = ExpandableListView.getPackedPositionGroup(info.packedPosition);
-
-            // Check if long tap is on a header row
-            if (groupPosition < 0 || childPosition < 0)
-                return;
-
             selectedItem = exList.getExpandableListAdapter().getChild(groupPosition, childPosition);
 
             Map map = (Map)selectedItem;

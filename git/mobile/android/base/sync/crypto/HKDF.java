@@ -40,6 +40,7 @@ package org.mozilla.gecko.sync.crypto;
 import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -97,9 +98,7 @@ public class HKDF {
             T = Utils.concatAll(T, Tn);
         }
 
-        byte[] result = new byte[len];
-        System.arraycopy(T, 0, result, 0, len);
-        return result;
+        return Arrays.copyOfRange(T, 0, len);
     }
 
     /*

@@ -318,7 +318,7 @@ struct JSRuntime
     js::gcstats::Statistics gcStats;
 
     /* The reason that an interrupt-triggered GC should be called. */
-    js::gcreason::Reason gcTriggerReason;
+    js::gcstats::Reason gcTriggerReason;
 
     /* Pre-allocated space for the GC mark stack. */
     uintptr_t           gcMarkStackArray[js::MARK_STACK_LENGTH];

@@ -365,7 +365,7 @@ nsXPConnect::NeedCollect()
 }
 
 void
-nsXPConnect::Collect(PRUint32 reason, PRUint32 kind)
+nsXPConnect::Collect(bool shrinkingGC)
 {
     // We're dividing JS objects into 2 categories:
     //
@@ -424,20 +424,16 @@ nsXPConnect::Collect(PRUint32 reason, PRUint32 kind)
     // XPCCallContext::Init we disable the conservative scanner if that call
     // has started the request on this thread.
     js::AutoSkipConservativeScan ascs(cx);
-    MOZ_ASSERT(reason < js::gcreason::NUM_REASONS);
-    js::gcreason::Reason gcreason = (js::gcreason::Reason)reason;
-    if (kind == nsGCShrinking) {
-        js::ShrinkingGC(cx, gcreason);
-    } else {
-        MOZ_ASSERT(kind == nsGCNormal);
-        js::GCForReason(cx, gcreason);
-    }
+    if (shrinkingGC)
+        JS_ShrinkingGC(cx);
+    else
+        JS_GC(cx);
 }
 
 NS_IMETHODIMP
-nsXPConnect::GarbageCollect(PRUint32 reason, PRUint32 kind)
+nsXPConnect::GarbageCollect(bool shrinkingGC)
 {
-    Collect(reason, kind);
+    Collect(shrinkingGC);
     return NS_OK;
 }
 
