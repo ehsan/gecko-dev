@@ -459,7 +459,7 @@ GetWrapperCache(nsGlobalWindow*)
 inline nsWrapperCache*
 GetWrapperCache(void* p)
 {
-  return nullptr;
+  return NULL;
 }
 
 // Helper template for smart pointers to resolve ambiguity between

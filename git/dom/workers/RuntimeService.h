@@ -181,8 +181,7 @@ public:
   }
 
   static void
-  SetDefaultJSContextOptions(const JS::ContextOptions& aContentOptions,
-                             const JS::ContextOptions& aChromeOptions)
+  SetDefaultJSContextOptions(uint32_t aContentOptions, uint32_t aChromeOptions)
   {
     AssertIsOnMainThread();
     sDefaultJSSettings.content.options = aContentOptions;

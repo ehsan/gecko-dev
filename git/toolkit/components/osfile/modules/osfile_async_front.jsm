@@ -367,20 +367,6 @@ File.prototype = {
   },
 
   /**
-   * Set the last access and modification date of the file.
-   * The time stamp resolution is 1 second at best, but might be worse
-   * depending on the platform.
-   *
-   * @return {promise}
-   * @rejects {TypeError}
-   * @rejects {OS.File.Error}
-   */
-  setDates: function setDates(accessDate, modificationDate) {
-    return Scheduler.post("File_prototype_setDates",
-                          [this._fdmsg, accessDate, modificationDate], this);
-  },
-
-  /**
    * Read a number of bytes from the file and into a buffer.
    *
    * @param {Typed array | C pointer} buffer This buffer will be
@@ -576,22 +562,6 @@ File.stat = function stat(path) {
   return Scheduler.post(
     "stat", [Type.path.toMsg(path)],
     path).then(File.Info.fromMsg);
-};
-
-
-/**
- * Set the last access and modification date of the file.
- * The time stamp resolution is 1 second at best, but might be worse
- * depending on the platform.
- *
- * @return {promise}
- * @rejects {TypeError}
- * @rejects {OS.File.Error}
- */
-File.setDates = function setDates(path, accessDate, modificationDate) {
-  return Scheduler.post("setDates",
-                        [Type.path.toMsg(path), accessDate, modificationDate],
-                        this);
 };
 
 /**

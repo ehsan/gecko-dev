@@ -674,7 +674,7 @@ js::gc::MarkRuntime(JSTracer *trc, bool useSavedRoots)
         MarkAtoms(trc);
         rt->staticStrings.trace(trc);
 #ifdef JS_ION
-        jit::JitRuntime::Mark(trc);
+        jit::IonRuntime::Mark(trc);
 #endif
     }
 

@@ -643,7 +643,8 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
                                nsRect* aDisplayPort,
                                nsRect* aCriticalDisplayPort,
                                ViewID aScrollId,
-                               const nsDisplayItem::ContainerParameters& aContainerParameters) {
+                               const nsDisplayItem::ContainerParameters& aContainerParameters,
+                               bool aMayHaveTouchListeners) {
   nsPresContext* presContext = aForFrame->PresContext();
   int32_t auPerDevPixel = presContext->AppUnitsPerDevPixel();
   LayoutDeviceToLayerScale resolution(aContainerParameters.mXScale, aContainerParameters.mYScale);
@@ -718,16 +719,7 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
   metrics.mZoom = metrics.mCumulativeResolution * metrics.mDevPixelsPerCSSPixel
                 * layerToScreenScale;
 
-  if (presShell) {
-    nsIDocument* document = nullptr;
-    document = presShell->GetDocument();
-    if (document) {
-      nsCOMPtr<nsPIDOMWindow> innerWin(document->GetInnerWindow());
-      if (innerWin) {
-        metrics.mMayHaveTouchListeners = innerWin->HasTouchEventListeners();
-      }
-    }
-  }
+  metrics.mMayHaveTouchListeners = aMayHaveTouchListeners;
 
   // Calculate the composition bounds as the size of the scroll frame and
   // its origin relative to the reference frame.
@@ -1256,6 +1248,14 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
     }
   }
 
+  bool mayHaveTouchListeners = false;
+  if (document) {
+    nsCOMPtr<nsPIDOMWindow> innerWin(document->GetInnerWindow());
+    if (innerWin) {
+      mayHaveTouchListeners = innerWin->HasTouchEventListeners();
+    }
+  }
+
   nsRect viewport(aBuilder->ToReferenceFrame(aForFrame), aForFrame->GetSize());
 
   RecordFrameMetrics(aForFrame, rootScrollFrame,
@@ -1263,7 +1263,7 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
                      root, mVisibleRect, viewport,
                      (usingDisplayport ? &displayport : nullptr),
                      (usingCriticalDisplayport ? &criticalDisplayport : nullptr),
-                     id, containerParameters);
+                     id, containerParameters, mayHaveTouchListeners);
   if (usingDisplayport &&
       !(root->GetContentFlags() & Layer::CONTENT_OPAQUE)) {
     // See bug 693938, attachment 567017
@@ -3576,7 +3576,7 @@ nsDisplayScrollLayer::BuildLayer(nsDisplayListBuilder* aBuilder,
                      mVisibleRect, viewport,
                      (usingDisplayport ? &displayport : nullptr),
                      (usingCriticalDisplayport ? &criticalDisplayport : nullptr),
-                     scrollId, aContainerParameters);
+                     scrollId, aContainerParameters, false);
 
   return layer.forget();
 }

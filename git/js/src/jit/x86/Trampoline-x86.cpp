@@ -10,10 +10,10 @@
 #include "jit/Bailouts.h"
 #include "jit/BaselineJIT.h"
 #include "jit/ExecutionModeInlines.h"
+#include "jit/IonCompartment.h"
 #include "jit/IonFrames.h"
 #include "jit/IonLinker.h"
 #include "jit/IonSpewer.h"
-#include "jit/JitCompartment.h"
 #ifdef JS_ION_PERF
 # include "jit/PerfSpewer.h"
 #endif
@@ -47,7 +47,7 @@ enum EnterJitEbpArgumentOffset {
  * using the standard cdecl calling convention.
  */
 IonCode *
-JitRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
+IonRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
 {
     MacroAssembler masm(cx);
 
@@ -285,7 +285,7 @@ JitRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
 }
 
 IonCode *
-JitRuntime::generateInvalidator(JSContext *cx)
+IonRuntime::generateInvalidator(JSContext *cx)
 {
     AutoIonContextAlloc aica(cx);
     MacroAssembler masm(cx);
@@ -328,7 +328,7 @@ JitRuntime::generateInvalidator(JSContext *cx)
     masm.lea(Operand(esp, ebx, TimesOne, sizeof(InvalidationBailoutStack)), esp);
 
     // Jump to shared bailout tail. The BailoutInfo pointer has to be in ecx.
-    IonCode *bailoutTail = cx->runtime()->jitRuntime()->getBailoutTail();
+    IonCode *bailoutTail = cx->runtime()->ionRuntime()->getBailoutTail();
     masm.jmp(bailoutTail);
 
     Linker linker(masm);
@@ -343,7 +343,7 @@ JitRuntime::generateInvalidator(JSContext *cx)
 }
 
 IonCode *
-JitRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void **returnAddrOut)
+IonRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void **returnAddrOut)
 {
     MacroAssembler masm(cx);
 
@@ -492,12 +492,12 @@ GenerateBailoutThunk(JSContext *cx, MacroAssembler &masm, uint32_t frameClass)
     }
 
     // Jump to shared bailout tail. The BailoutInfo pointer has to be in ecx.
-    IonCode *bailoutTail = cx->runtime()->jitRuntime()->getBailoutTail();
+    IonCode *bailoutTail = cx->runtime()->ionRuntime()->getBailoutTail();
     masm.jmp(bailoutTail);
 }
 
 IonCode *
-JitRuntime::generateBailoutTable(JSContext *cx, uint32_t frameClass)
+IonRuntime::generateBailoutTable(JSContext *cx, uint32_t frameClass)
 {
     MacroAssembler masm;
 
@@ -519,7 +519,7 @@ JitRuntime::generateBailoutTable(JSContext *cx, uint32_t frameClass)
 }
 
 IonCode *
-JitRuntime::generateBailoutHandler(JSContext *cx)
+IonRuntime::generateBailoutHandler(JSContext *cx)
 {
     MacroAssembler masm;
 
@@ -536,7 +536,7 @@ JitRuntime::generateBailoutHandler(JSContext *cx)
 }
 
 IonCode *
-JitRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
+IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
 {
     typedef MoveResolver::MoveOperand MoveOperand;
 
@@ -717,7 +717,7 @@ JitRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
 }
 
 IonCode *
-JitRuntime::generatePreBarrier(JSContext *cx, MIRType type)
+IonRuntime::generatePreBarrier(JSContext *cx, MIRType type)
 {
     MacroAssembler masm;
 
@@ -762,7 +762,7 @@ typedef bool (*HandleDebugTrapFn)(JSContext *, BaselineFrame *, uint8_t *, bool 
 static const VMFunction HandleDebugTrapInfo = FunctionInfo<HandleDebugTrapFn>(HandleDebugTrap);
 
 IonCode *
-JitRuntime::generateDebugTrapHandler(JSContext *cx)
+IonRuntime::generateDebugTrapHandler(JSContext *cx)
 {
     MacroAssembler masm;
 
@@ -783,7 +783,7 @@ JitRuntime::generateDebugTrapHandler(JSContext *cx)
     masm.movePtr(ImmPtr(nullptr), BaselineStubReg);
     EmitEnterStubFrame(masm, scratch3);
 
-    IonCode *code = cx->runtime()->jitRuntime()->getVMWrapper(HandleDebugTrapInfo);
+    IonCode *code = cx->runtime()->ionRuntime()->getVMWrapper(HandleDebugTrapInfo);
     if (!code)
         return nullptr;
 
@@ -818,7 +818,7 @@ JitRuntime::generateDebugTrapHandler(JSContext *cx)
 }
 
 IonCode *
-JitRuntime::generateExceptionTailStub(JSContext *cx)
+IonRuntime::generateExceptionTailStub(JSContext *cx)
 {
     MacroAssembler masm;
 
@@ -835,7 +835,7 @@ JitRuntime::generateExceptionTailStub(JSContext *cx)
 }
 
 IonCode *
-JitRuntime::generateBailoutTailStub(JSContext *cx)
+IonRuntime::generateBailoutTailStub(JSContext *cx)
 {
     MacroAssembler masm;
 

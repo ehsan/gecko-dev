@@ -155,7 +155,7 @@ LinkableAccessible::AccessKey() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// LinkableAccessible. Accessible
+// LinkableAccessible. nsAccessNode
 
 void
 LinkableAccessible::Shutdown()

@@ -853,9 +853,8 @@ pref("dom.min_background_timeout_value", 1000);
 pref("dom.experimental_forms", false);
 pref("dom.forms.number", false);
 
-// Enable <input type=color> by default. It will be turned off for remaining
-// platforms which don't have a color picker implemented yet.
-pref("dom.forms.color", true);
+// Don't enable <input type=color> yet:
+pref("dom.forms.color", false);
 
 // Enables system messages and activities
 pref("dom.sysmsg.enabled", false);

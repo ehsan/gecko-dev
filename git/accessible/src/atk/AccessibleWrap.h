@@ -52,6 +52,7 @@ public:
   virtual ~AccessibleWrap();
   void ShutdownAtkObject();
 
+  // nsAccessNode
   virtual void Shutdown();
 
   // return the atk object for this AccessibleWrap

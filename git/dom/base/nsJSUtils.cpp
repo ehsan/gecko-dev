@@ -203,14 +203,16 @@ class MOZ_STACK_CLASS AutoDontReportUncaught {
 public:
   AutoDontReportUncaught(JSContext* aContext) : mContext(aContext) {
     MOZ_ASSERT(aContext);
-    mWasSet = JS::ContextOptionsRef(mContext).dontReportUncaught();
+    uint32_t oldOptions = JS_GetOptions(mContext);
+    mWasSet = oldOptions & JSOPTION_DONT_REPORT_UNCAUGHT;
     if (!mWasSet) {
-      JS::ContextOptionsRef(mContext).setDontReportUncaught(true);
+      JS_SetOptions(mContext, oldOptions | JSOPTION_DONT_REPORT_UNCAUGHT);
     }
   }
   ~AutoDontReportUncaught() {
     if (!mWasSet) {
-      JS::ContextOptionsRef(mContext).setDontReportUncaught(false);
+      JS_SetOptions(mContext,
+                    JS_GetOptions(mContext) & ~JSOPTION_DONT_REPORT_UNCAUGHT);
     }
   }
 };

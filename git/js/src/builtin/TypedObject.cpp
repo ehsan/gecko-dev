@@ -343,7 +343,7 @@ TypeEquivalent(JSContext *cx, unsigned int argc, Value *vp)
 },
 
 static const JSFunctionSpec NumericTypeObjectMethods[] = {
-    {"handle", {nullptr, nullptr}, 2, 0, "HandleCreate"},
+    {"handle", {NULL, NULL}, 2, 0, "HandleCreate"},
     JS_FS_END
 };
 
@@ -546,7 +546,7 @@ const JSPropertySpec ArrayType::typeObjectProperties[] = {
 };
 
 const JSFunctionSpec ArrayType::typeObjectMethods[] = {
-    {"handle", {nullptr, nullptr}, 2, 0, "HandleCreate"},
+    {"handle", {NULL, NULL}, 2, 0, "HandleCreate"},
     JS_FN("repeat", ArrayType::repeat, 1, 0),
     JS_FN("toSource", ArrayType::toSource, 0, 0),
     JS_FS_END
@@ -978,7 +978,7 @@ const JSPropertySpec StructType::typeObjectProperties[] = {
 };
 
 const JSFunctionSpec StructType::typeObjectMethods[] = {
-    {"handle", {nullptr, nullptr}, 2, 0, "HandleCreate"},
+    {"handle", {NULL, NULL}, 2, 0, "HandleCreate"},
     JS_FN("toSource", StructType::toSource, 0, 0),
     JS_FS_END
 };
@@ -1081,9 +1081,9 @@ StructType::layout(JSContext *cx, HandleObject structType, HandleObject fields)
     // fieldOffsets : { string: integer, ... }
     // fieldTypes : { string: Type, ... }
     RootedObject fieldOffsets(
-        cx, NewObjectWithClassProto(cx, &JSObject::class_, nullptr, nullptr));
+        cx, NewObjectWithClassProto(cx, &JSObject::class_, NULL, NULL));
     RootedObject fieldTypes(
-        cx, NewObjectWithClassProto(cx, &JSObject::class_, nullptr, nullptr));
+        cx, NewObjectWithClassProto(cx, &JSObject::class_, NULL, NULL));
     for (size_t i = 0; i < typeRepr->fieldCount(); i++) {
         const StructField &field = typeRepr->field(i);
         RootedId fieldId(cx, field.id);
@@ -1338,18 +1338,18 @@ js_InitTypedObjectClass(JSContext *cx, HandleObject obj)
 
     RootedObject handle(cx, NewBuiltinClassInstance(cx, &JSObject::class_));
     if (!module)
-        return nullptr;
+        return NULL;
 
     if (!JS_DefineFunctions(cx, handle, TypedHandle::handleStaticMethods))
-        return nullptr;
+        return NULL;
 
     RootedValue handleValue(cx, ObjectValue(*handle));
     if (!JSObject::defineProperty(cx, module, cx->names().Handle,
                                   handleValue,
-                                  nullptr, nullptr,
+                                  NULL, NULL,
                                   JSPROP_READONLY | JSPROP_PERMANENT))
     {
-        return nullptr;
+        return NULL;
     }
 
     return module;
@@ -1427,7 +1427,7 @@ TypedDatum::createUnattached(JSContext *cx,
 
     RootedObject obj(cx, createUnattachedWithClass(cx, &T::class_, type));
     if (!obj)
-        return nullptr;
+        return NULL;
 
     return &obj->as<T>();
 }
@@ -1457,9 +1457,9 @@ TypedDatum::createUnattachedWithClass(JSContext *cx,
     }
 
     RootedObject obj(
-        cx, NewObjectWithClassProto(cx, clasp, &*proto, nullptr));
+        cx, NewObjectWithClassProto(cx, clasp, &*proto, NULL));
     if (!obj)
-        return nullptr;
+        return NULL;
 
     obj->setPrivate(nullptr);
     obj->initReservedSlot(JS_DATUM_SLOT_TYPE_OBJ, ObjectValue(*type));
@@ -1542,7 +1542,7 @@ ReportDatumTypeError(JSContext *cx,
     if (!typeReprStr)
         return false;
 
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                          errorNumber, typeReprStr);
 
     JS_free(cx, (void *) typeReprStr);
@@ -2174,10 +2174,10 @@ const Class TypedObject::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     TypedDatum::obj_finalize,
-    nullptr,        /* checkAccess */
-    nullptr,        /* call        */
-    nullptr,        /* construct   */
-    nullptr,        /* hasInstance */
+    NULL,           /* checkAccess */
+    NULL,           /* call        */
+    NULL,           /* construct   */
+    NULL,           /* hasInstance */
     TypedDatum::obj_trace,
     JS_NULL_CLASS_EXT,
     {
@@ -2204,7 +2204,7 @@ const Class TypedObject::class_ = {
         TypedDatum::obj_deleteElement,
         TypedDatum::obj_deleteSpecial,
         TypedDatum::obj_enumerate,
-        nullptr, /* thisObject */
+        NULL, /* thisObject */
     }
 };
 
@@ -2213,13 +2213,13 @@ TypedObject::createZeroed(JSContext *cx, HandleObject type)
 {
     Rooted<TypedObject*> obj(cx, createUnattached<TypedObject>(cx, type));
     if (!obj)
-        return nullptr;
+        return NULL;
 
     TypeRepresentation *typeRepr = typeRepresentation(*type);
     size_t memsize = typeRepr->size();
     void *memory = JS_malloc(cx, memsize);
     if (!memory)
-        return nullptr;
+        return NULL;
     memset(memory, 0, memsize);
     obj->attach(memory);
     return obj;
@@ -2264,10 +2264,10 @@ const Class TypedHandle::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     TypedDatum::obj_finalize,
-    nullptr,        /* checkAccess */
-    nullptr,        /* call        */
-    nullptr,        /* construct   */
-    nullptr,        /* hasInstance */
+    NULL,           /* checkAccess */
+    NULL,           /* call        */
+    NULL,           /* construct   */
+    NULL,           /* hasInstance */
     TypedDatum::obj_trace,
     JS_NULL_CLASS_EXT,
     {
@@ -2294,15 +2294,15 @@ const Class TypedHandle::class_ = {
         TypedDatum::obj_deleteElement,
         TypedDatum::obj_deleteSpecial,
         TypedDatum::obj_enumerate,
-        nullptr, /* thisObject */
+        NULL, /* thisObject */
     }
 };
 
 const JSFunctionSpec TypedHandle::handleStaticMethods[] = {
-    {"move", {nullptr, nullptr}, 3, 0, "HandleMove"},
-    {"get", {nullptr, nullptr}, 1, 0, "HandleGet"},
-    {"set", {nullptr, nullptr}, 2, 0, "HandleSet"},
-    {"isHandle", {nullptr, nullptr}, 1, 0, "HandleTest"},
+    {"move", {NULL, NULL}, 3, 0, "HandleMove"},
+    {"get", {NULL, NULL}, 1, 0, "HandleGet"},
+    {"set", {NULL, NULL}, 2, 0, "HandleSet"},
+    {"isHandle", {NULL, NULL}, 1, 0, "HandleTest"},
     JS_FS_END
 };
 
@@ -2426,7 +2426,7 @@ js::IsAttached(ThreadSafeContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     JS_ASSERT(args[0].isObject() && IsTypedDatum(args[0].toObject()));
-    args.rval().setBoolean(TypedMem(args[0].toObject()) != nullptr);
+    args.rval().setBoolean(TypedMem(args[0].toObject()) != NULL);
     return true;
 }
 

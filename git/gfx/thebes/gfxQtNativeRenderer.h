@@ -54,6 +54,13 @@ public:
         DRAW_SUPPORTS_ALTERNATE_SCREEN = 0x20
     };
 
+    struct DrawOutput {
+        nsRefPtr<gfxASurface> mSurface;
+        bool mUniformAlpha;
+        bool mUniformColor;
+        gfxRGBA      mColor;
+    };
+
     /**
      * @param flags see above
      * @param size Draw()'s drawing is guaranteed to be restricted to
@@ -65,7 +72,8 @@ public:
      * otherwise *resultSurface is set to nullptr.
      */
     nsresult Draw(gfxContext* ctx, nsIntSize size,
-                  uint32_t flags, Screen* screen, Visual* visual);
+                  uint32_t flags, Screen* screen, Visual* visual,
+                  DrawOutput* output);
 };
 
 #endif /*GFXQTNATIVERENDER_H_*/
