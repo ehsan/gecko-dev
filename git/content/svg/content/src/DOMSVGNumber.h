@@ -43,8 +43,6 @@ namespace mozilla {
  */
 class DOMSVGNumber MOZ_FINAL : public nsIDOMSVGNumber
 {
-  friend class AutoChangeNumberNotifier;
-
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(MOZILLA_DOMSVGNUMBER_IID)
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS

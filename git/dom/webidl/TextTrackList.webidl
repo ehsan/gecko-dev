@@ -13,7 +13,6 @@ interface TextTrackList : EventTarget {
   getter TextTrack (unsigned long index);
   TextTrack? getTrackById(DOMString id);
 
-           attribute EventHandler onchange;
            attribute EventHandler onaddtrack;
            attribute EventHandler onremovetrack;
 };

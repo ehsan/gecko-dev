@@ -65,6 +65,7 @@ nsIntRect gScreenBounds;
 static uint32_t sScreenRotation;
 static uint32_t sPhysicalScreenRotation;
 static nsIntRect sVirtualBounds;
+static gfxMatrix sRotationMatrix;
 
 static nsRefPtr<GLContext> sGLContext;
 static nsTArray<nsWindow *> sTopWindows;
@@ -146,6 +147,19 @@ nsWindow::nsWindow()
         property_get("ro.sf.hwrotation", propValue, "0");
         sPhysicalScreenRotation = atoi(propValue) / 90;
 
+        // Unlike nsScreenGonk::SetRotation(), only support 0 and 180 as there
+        // are no known screens that are mounted at 90 or 270 at the moment.
+        switch (sPhysicalScreenRotation) {
+        case nsIScreen::ROTATION_0_DEG:
+            break;
+        case nsIScreen::ROTATION_180_DEG:
+            sRotationMatrix.Translate(gfxPoint(gScreenBounds.width,
+                                               gScreenBounds.height));
+            sRotationMatrix.Rotate(M_PI);
+            break;
+        default:
+            MOZ_CRASH("Unknown rotation");
+        }
         sVirtualBounds = gScreenBounds;
 
         sScreenInitialized = true;
@@ -755,6 +769,9 @@ nsScreenGonk::SetRotation(uint32_t aRotation)
         return NS_OK;
 
     sScreenRotation = aRotation;
+    sRotationMatrix =
+        ComputeTransformForRotation(gScreenBounds,
+                                    ScreenRotation(EffectiveScreenRotation()));
     uint32_t rotation = EffectiveScreenRotation();
     if (rotation == nsIScreen::ROTATION_90_DEG ||
         rotation == nsIScreen::ROTATION_270_DEG) {

@@ -37,35 +37,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMSVGStringList)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-//----------------------------------------------------------------------
-// Helper class: AutoChangeStringListNotifier
-// Stack-based helper class to pair calls to WillChangeStringListList and
-// DidChangeStringListList.
-class MOZ_STACK_CLASS AutoChangeStringListNotifier
-{
-public:
-  AutoChangeStringListNotifier(DOMSVGStringList* aStringList MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-    : mStringList(aStringList)
-  {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-    MOZ_ASSERT(mStringList, "Expecting non-null stringList");
-    mEmptyOrOldValue =
-      mStringList->mElement->WillChangeStringList(mStringList->mIsConditionalProcessingAttribute,
-                                                  mStringList->mAttrEnum);
-  }
-
-  ~AutoChangeStringListNotifier()
-  {
-    mStringList->mElement->DidChangeStringList(mStringList->mIsConditionalProcessingAttribute,
-                                               mStringList->mAttrEnum, mEmptyOrOldValue);
-  }
-
-private:
-  DOMSVGStringList* const mStringList;
-  nsAttrValue       mEmptyOrOldValue;
-  MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
 /* static */ already_AddRefed<DOMSVGStringList>
 DOMSVGStringList::GetDOMWrapper(SVGStringList *aList,
                                 nsSVGElement *aElement,
@@ -114,8 +85,12 @@ void
 DOMSVGStringList::Clear()
 {
   if (InternalList().IsExplicitlySet()) {
-    AutoChangeStringListNotifier notifier(this);
+    nsAttrValue emptyOrOldValue =
+      mElement->WillChangeStringList(mIsConditionalProcessingAttribute,
+                                     mAttrEnum);
     InternalList().Clear();
+    mElement->DidChangeStringList(mIsConditionalProcessingAttribute,
+                                  mAttrEnum, emptyOrOldValue);
   }
 }
 
@@ -165,8 +140,13 @@ DOMSVGStringList::InsertItemBefore(const nsAString& aNewItem, uint32_t aIndex,
     return;
   }
 
-  AutoChangeStringListNotifier notifier(this);
+  nsAttrValue emptyOrOldValue =
+    mElement->WillChangeStringList(mIsConditionalProcessingAttribute,
+                                   mAttrEnum);
   InternalList().InsertItem(aIndex, aNewItem);
+
+  mElement->DidChangeStringList(mIsConditionalProcessingAttribute, mAttrEnum,
+                                emptyOrOldValue);
   aRetval = aNewItem;
 }
 
@@ -184,8 +164,13 @@ DOMSVGStringList::ReplaceItem(const nsAString& aNewItem, uint32_t aIndex,
   }
 
   aRetval = InternalList()[aIndex];
-  AutoChangeStringListNotifier notifier(this);
+  nsAttrValue emptyOrOldValue =
+    mElement->WillChangeStringList(mIsConditionalProcessingAttribute,
+                                   mAttrEnum);
   InternalList().ReplaceItem(aIndex, aNewItem);
+
+  mElement->DidChangeStringList(mIsConditionalProcessingAttribute, mAttrEnum,
+                                emptyOrOldValue);
 }
 
 void
@@ -197,8 +182,13 @@ DOMSVGStringList::RemoveItem(uint32_t aIndex, nsAString& aRetval,
     return;
   }
 
-  AutoChangeStringListNotifier notifier(this);
+  nsAttrValue emptyOrOldValue =
+    mElement->WillChangeStringList(mIsConditionalProcessingAttribute,
+                                   mAttrEnum);
   InternalList().RemoveItem(aIndex);
+
+  mElement->DidChangeStringList(mIsConditionalProcessingAttribute, mAttrEnum,
+                                emptyOrOldValue);
 }
 
 void

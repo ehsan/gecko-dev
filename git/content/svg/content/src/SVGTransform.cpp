@@ -4,18 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "SVGTransform.h"
-
 #include "mozilla/dom/SVGTransform.h"
 #include "mozilla/dom/SVGMatrix.h"
 #include "mozilla/dom/SVGTransformBinding.h"
 #include "nsError.h"
 #include "nsSVGAnimatedTransformList.h"
 #include "nsSVGAttrTearoffTable.h"
-
-namespace {
-  const double kRadPerDegree = 2.0 * M_PI / 360.0;
-}
 
 namespace mozilla {
 namespace dom {
@@ -64,40 +58,6 @@ SVGTransform::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return SVGTransformBinding::Wrap(aCx, aScope, this);
 }
-
-//----------------------------------------------------------------------
-// Helper class: AutoChangeTransformNotifier
-// Stack-based helper class to pair calls to WillChangeTransformList
-// and DidChangeTransformList.
-class MOZ_STACK_CLASS AutoChangeTransformNotifier
-{
-public:
-  AutoChangeTransformNotifier(SVGTransform* aTransform MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-    : mTransform(aTransform)
-  {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-    MOZ_ASSERT(mTransform, "Expecting non-null transform");
-    if (mTransform->HasOwner()) {
-      mEmptyOrOldValue =
-        mTransform->Element()->WillChangeTransformList();
-    }
-  }
-
-  ~AutoChangeTransformNotifier()
-  {
-    if (mTransform->HasOwner()) {
-      mTransform->Element()->DidChangeTransformList(mEmptyOrOldValue);
-      if (mTransform->mList->IsAnimating()) {
-        mTransform->Element()->AnimationNeedsResample();
-      }
-    }
-  }
-
-private:
-  SVGTransform* const mTransform;
-  nsAttrValue   mEmptyOrOldValue;
-  MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
 
 //----------------------------------------------------------------------
 // Ctors:
@@ -209,8 +169,9 @@ SVGTransform::SetTranslate(float tx, float ty, ErrorResult& rv)
     return;
   }
 
-  AutoChangeTransformNotifier notifier(this);
+  nsAttrValue emptyOrOldValue = NotifyElementWillChange();
   Transform().SetTranslate(tx, ty);
+  NotifyElementDidChange(emptyOrOldValue);
 }
 
 void
@@ -225,8 +186,9 @@ SVGTransform::SetScale(float sx, float sy, ErrorResult& rv)
       Matrixgfx().xx == sx && Matrixgfx().yy == sy) {
     return;
   }
-  AutoChangeTransformNotifier notifier(this);
+  nsAttrValue emptyOrOldValue = NotifyElementWillChange();
   Transform().SetScale(sx, sy);
+  NotifyElementDidChange(emptyOrOldValue);
 }
 
 void
@@ -245,8 +207,9 @@ SVGTransform::SetRotate(float angle, float cx, float cy, ErrorResult& rv)
     }
   }
 
-  AutoChangeTransformNotifier notifier(this);
+  nsAttrValue emptyOrOldValue = NotifyElementWillChange();
   Transform().SetRotate(angle, cx, cy);
+  NotifyElementDidChange(emptyOrOldValue);
 }
 
 void
@@ -262,14 +225,13 @@ SVGTransform::SetSkewX(float angle, ErrorResult& rv)
     return;
   }
 
-  if (!NS_finite(tan(angle * kRadPerDegree))) {
-    rv.Throw(NS_ERROR_RANGE_ERR);
+  nsAttrValue emptyOrOldValue = NotifyElementWillChange();
+  nsresult result = Transform().SetSkewX(angle);
+  if (NS_FAILED(result)) {
+    rv.Throw(result);
     return;
   }
-
-  AutoChangeTransformNotifier notifier(this);
-  DebugOnly<nsresult> result = Transform().SetSkewX(angle);
-  MOZ_ASSERT(NS_SUCCEEDED(result), "SetSkewX unexpectedly failed");
+  NotifyElementDidChange(emptyOrOldValue);
 }
 
 void
@@ -285,14 +247,13 @@ SVGTransform::SetSkewY(float angle, ErrorResult& rv)
     return;
   }
 
-  if (!NS_finite(tan(angle * kRadPerDegree))) {
-    rv.Throw(NS_ERROR_RANGE_ERR);
+  nsAttrValue emptyOrOldValue = NotifyElementWillChange();
+  nsresult result = Transform().SetSkewY(angle);
+  if (NS_FAILED(result)) {
+    rv.Throw(result);
     return;
   }
-
-  AutoChangeTransformNotifier notifier(this);
-  DebugOnly<nsresult> result = Transform().SetSkewY(angle);
-  MOZ_ASSERT(NS_SUCCEEDED(result), "SetSkewY unexpectedly failed");
+  NotifyElementDidChange(emptyOrOldValue);
 }
 
 //----------------------------------------------------------------------
@@ -366,8 +327,23 @@ SVGTransform::SetMatrix(const gfxMatrix& aMatrix)
     return;
   }
 
-  AutoChangeTransformNotifier notifier(this);
+  nsAttrValue emptyOrOldValue = NotifyElementWillChange();
   Transform().SetMatrix(aMatrix);
+  NotifyElementDidChange(emptyOrOldValue);
+}
+
+//----------------------------------------------------------------------
+// Implementation helpers
+
+void
+SVGTransform::NotifyElementDidChange(const nsAttrValue& aEmptyOrOldValue)
+{
+  if (HasOwner()) {
+    Element()->DidChangeTransformList(aEmptyOrOldValue);
+    if (mList->mAList->IsAnimating()) {
+      Element()->AnimationNeedsResample();
+    }
+  }
 }
 
 } // namespace dom

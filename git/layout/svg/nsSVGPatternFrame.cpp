@@ -33,14 +33,12 @@ using namespace mozilla::gfx;
 //----------------------------------------------------------------------
 // Helper classes
 
-class MOZ_STACK_CLASS nsSVGPatternFrame::AutoPatternReferencer
+class nsSVGPatternFrame::AutoPatternReferencer
 {
 public:
-  AutoPatternReferencer(nsSVGPatternFrame *aFrame
-                        MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+  AutoPatternReferencer(nsSVGPatternFrame *aFrame)
     : mFrame(aFrame)
   {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     // Reference loops should normally be detected in advance and handled, so
     // we're not expecting to encounter them here
     NS_ABORT_IF_FALSE(!mFrame->mLoopFlag, "Undetected reference loop!");
@@ -51,7 +49,6 @@ public:
   }
 private:
   nsSVGPatternFrame *mFrame;
-  MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 //----------------------------------------------------------------------

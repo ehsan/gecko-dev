@@ -28,7 +28,7 @@ class FixedList
 
   public:
     FixedList()
-      : list_(nullptr), length_(0)
+      : length_(0), list_(nullptr)
     { }
 
     // Dynamic memory allocation requires the ability to report failure.

@@ -34,5 +34,7 @@ interface nsIDOMHTMLIFrameElement : nsISupports
   readonly attribute nsIDOMDocument   contentDocument;
   readonly attribute nsIDOMWindow     contentWindow;
 
+           attribute DOMString        sandbox;
+
            attribute boolean          allowFullscreen;
 };

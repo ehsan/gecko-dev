@@ -46,8 +46,6 @@ class SVGStringList;
 class DOMSVGStringList MOZ_FINAL : public nsISupports
                                  , public nsWrapperCache
 {
-  friend class AutoChangeStringListNotifier;
-
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGStringList)

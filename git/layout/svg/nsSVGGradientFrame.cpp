@@ -24,14 +24,12 @@ using namespace mozilla::dom;
 //----------------------------------------------------------------------
 // Helper classes
 
-class MOZ_STACK_CLASS nsSVGGradientFrame::AutoGradientReferencer
+class nsSVGGradientFrame::AutoGradientReferencer
 {
 public:
-  AutoGradientReferencer(nsSVGGradientFrame *aFrame
-                         MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+  AutoGradientReferencer(nsSVGGradientFrame *aFrame)
     : mFrame(aFrame)
   {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     // Reference loops should normally be detected in advance and handled, so
     // we're not expecting to encounter them here
     NS_ABORT_IF_FALSE(!mFrame->mLoopFlag, "Undetected reference loop!");
@@ -42,7 +40,6 @@ public:
   }
 private:
   nsSVGGradientFrame *mFrame;
-  MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 //----------------------------------------------------------------------

@@ -500,6 +500,10 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         return BitmapUtils.decodeResource(context, resId, options);
     }
 
+    Bitmap getShadowPattern() {
+        return getDrawable("shadow");
+    }
+
     Bitmap getScrollbarImage() {
         return getDrawable("scrollbar");
     }

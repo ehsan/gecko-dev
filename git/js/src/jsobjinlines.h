@@ -1058,12 +1058,15 @@ NewObjectMetadata(ExclusiveContext *cxArg, JSObject **pmetadata)
         if (JS_UNLIKELY((size_t)cx->compartment()->hasObjectMetadataCallback()) &&
             !cx->compartment()->activeAnalysis)
         {
+            JS::DisableGenerationalGC(cx->runtime());
+
             // Use AutoEnterAnalysis to prohibit both any GC activity under the
             // callback, and any reentering of JS via Invoke() etc.
             types::AutoEnterAnalysis enter(cx);
 
-            if (!cx->compartment()->callObjectMetadataCallback(cx, pmetadata))
-                return false;
+            bool status = cx->compartment()->callObjectMetadataCallback(cx, pmetadata);
+            JS::EnableGenerationalGC(cx->runtime());
+            return status;
         }
     }
     return true;

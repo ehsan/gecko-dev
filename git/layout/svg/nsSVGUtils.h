@@ -204,8 +204,7 @@ public:
     CLIP_MASK 
   };
 
-  SVGAutoRenderState(nsRenderingContext *aContext, RenderMode aMode
-                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
+  SVGAutoRenderState(nsRenderingContext *aContext, RenderMode aMode);
   ~SVGAutoRenderState();
 
   void SetPaintingToWindow(bool aPaintingToWindow);
@@ -218,7 +217,6 @@ private:
   void *mOriginalRenderState;
   RenderMode mMode;
   bool mPaintingToWindow;
-  MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 

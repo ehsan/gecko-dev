@@ -96,7 +96,6 @@ class nsStringHashKey;
 class nsTextFragment;
 class nsViewportInfo;
 class nsWrapperCache;
-class nsAttrValue;
 
 struct JSPropertyDescriptor;
 struct JSRuntime;
@@ -833,10 +832,10 @@ public:
    * A helper function that parses a sandbox attribute (of an <iframe> or
    * a CSP directive) and converts it to the set of flags used internally.
    *
-   * @param sandboxAttr   the sandbox attribute
-   * @return              the set of flags (0 if sandboxAttr is null)
+   * @param aAttribute 	the value of the sandbox attribute
+   * @return 			the set of flags
    */
-  static uint32_t ParseSandboxAttributeToFlags(const nsAttrValue* sandboxAttr);
+  static uint32_t ParseSandboxAttributeToFlags(const nsAString& aSandboxAttr);
 
 
   /**
