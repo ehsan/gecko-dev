@@ -184,8 +184,6 @@ protected:
   nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
   PRFileDesc* mFd;
   CertVerificationState mCertVerificationState;
-  PRIntervalTime mCertVerificationStarted;
-  PRIntervalTime mCertVerificationEnded;
   PRUint32 mSecurityState;
   PRInt32 mSubRequestsHighSecurity;
   PRInt32 mSubRequestsLowSecurity;

@@ -71,11 +71,6 @@ public class MultiTileLayer extends Layer {
     private final LinkedList<SubTile> mTiles;
     private final HashMap<Long, SubTile> mPositionHash;
 
-    // Copies of the last set origin/resolution, to decide when to invalidate
-    // the buffer
-    private Point mOrigin;
-    private float mResolution;
-
     public MultiTileLayer(CairoImage image, IntSize tileSize) {
         super();
 
@@ -107,7 +102,7 @@ public class MultiTileLayer extends Layer {
      * Invalidates the backing buffer. Data will not be uploaded from an invalid
      * backing buffer. This method is only valid inside a transaction.
      */
-    protected void invalidateBuffer() {
+    public void invalidateBuffer() {
         if (!inTransaction()) {
             throw new RuntimeException("invalidateBuffer() is only valid inside a transaction");
         }
@@ -186,16 +181,17 @@ public class MultiTileLayer extends Layer {
                 // entire width, regardless of the dirty-rect's width, and so
                 // can override existing data.
                 Point origin = getOffsetOrigin();
-                Region validRegion = new Region(tile.getValidTextureArea());
-                validRegion.translate(tileOrigin.x - origin.x, tileOrigin.y - origin.y);
+                Rect validRect = tile.getValidTextureArea();
+                validRect.offset(tileOrigin.x - origin.x, tileOrigin.y - origin.y);
+                Region validRegion = new Region(validRect);
                 validRegion.op(mValidRegion, Region.Op.INTERSECT);
 
                 // SingleTileLayer can't draw complex regions, so in that case,
                 // just invalidate the entire area.
                 tile.invalidateTexture();
-                if (!validRegion.isEmpty() && !validRegion.isComplex()) {
-                    validRegion.translate(origin.x - tileOrigin.x, origin.y - tileOrigin.y);
-                    tile.getValidTextureArea().set(validRegion.getBounds());
+                if (!validRegion.isComplex()) {
+                    validRect.set(validRegion.getBounds());
+                    validRect.offset(origin.x - tileOrigin.x, origin.y - tileOrigin.y);
                 }
             } else {
                 // Update tile metrics
@@ -290,6 +286,7 @@ public class MultiTileLayer extends Layer {
         //     valid by monitoring reflows on the browser element, or
         //     something along these lines.
         LinkedList<SubTile> invalidTiles = new LinkedList<SubTile>();
+        Rect bounds = mValidRegion.getBounds();
         for (ListIterator<SubTile> i = mTiles.listIterator(); i.hasNext();) {
             SubTile tile = i.next();
 
@@ -304,7 +301,7 @@ public class MultiTileLayer extends Layer {
 
             // First bracketed clause: Invalidate off-screen, off-buffer tiles
             // Second: Invalidate visible tiles at the wrong resolution that have updates
-            if ((!opRegion.op(tilespaceTileBounds, mValidRegion, Region.Op.INTERSECT) &&
+            if ((!Rect.intersects(bounds, tilespaceTileBounds) &&
                  !Rect.intersects(tilespaceViewport, tilespaceTileBounds)) ||
                 (!FloatUtils.fuzzyEquals(tile.getResolution(), getResolution()) &&
                  opRegion.op(tilespaceTileBounds, updateRegion, Region.Op.INTERSECT))) {
@@ -418,8 +415,9 @@ public class MultiTileLayer extends Layer {
 
     @Override
     public void setOrigin(Point origin) {
-        if (mOrigin == null || !origin.equals(mOrigin)) {
-            mOrigin = origin;
+        Point oldOrigin = getOrigin();
+
+        if (!origin.equals(oldOrigin)) {
             super.setOrigin(origin);
             invalidateBuffer();
         }
@@ -427,8 +425,9 @@ public class MultiTileLayer extends Layer {
 
     @Override
     public void setResolution(float resolution) {
-        if (!FloatUtils.fuzzyEquals(resolution, mResolution)) {
-            mResolution = resolution;
+        float oldResolution = getResolution();
+
+        if (!FloatUtils.fuzzyEquals(resolution, oldResolution)) {
             super.setResolution(resolution);
             invalidateBuffer();
         }
@@ -442,7 +441,7 @@ public class MultiTileLayer extends Layer {
      * Invalidates all sub-tiles. This should be called if the source backing
      * this layer has changed. This method is only valid inside a transaction.
      */
-    protected void invalidateTiles() {
+    public void invalidateTiles() {
         if (!inTransaction()) {
             throw new RuntimeException("invalidateTiles() is only valid inside a transaction");
         }
