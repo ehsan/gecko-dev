@@ -186,7 +186,7 @@ RegExp::compileHelper(JSContext *cx, UString &pattern)
     compiled = jsRegExpCompile(pattern.chars(), pattern.length(),
                                ignoreCase() ? JSRegExpIgnoreCase : JSRegExpDoNotIgnoreCase,
                                multiline() ? JSRegExpMultiline : JSRegExpSingleLine,
-                               &parenCount, &error);
+                               NULL, &error);
     if (!error)
         return true;
     handlePCREError(cx, error);

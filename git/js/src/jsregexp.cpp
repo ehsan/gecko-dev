@@ -218,13 +218,15 @@ RegExp::execute(JSContext *cx, JSString *input, size_t *lastIndex, bool test, Va
         inputOffset = *lastIndex;
     }
 #if ENABLE_YARR_JIT
-    int result = JSC::Yarr::executeRegex(cx, compiled, chars, *lastIndex - inputOffset, len, buf,
-                                         bufCount);
+    bool found = JSC::Yarr::executeRegex(cx, compiled, chars, *lastIndex - inputOffset, len, buf,
+                                         bufCount) != -1;
 #else
-    int result = jsRegExpExecute(cx, compiled, chars, len, *lastIndex - inputOffset, buf, 
-                                 bufCount) < 0 ? -1 : buf[0];
+    bool found;
+    if (jsRegExpExecute(cx, compiled, chars, len, *lastIndex - inputOffset, buf, bufCount) < 0)
+        return false; /* FIXME: error code reporting for PPC. */
+    found = buf[0] > 0;
 #endif
-    if (result == -1) {
+    if (!found) {
         *rval = NullValue();
         return true;
     }
