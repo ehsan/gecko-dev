@@ -193,7 +193,6 @@ let UI = {
 
             self._lastClick = 0;
             self._lastClickPositions = null;
-            gTabView.firstUseExperienced = true;
           } else {
             self._lastClick = Date.now();
             self._lastClickPositions = new Point(e.clientX, e.clientY);
@@ -225,8 +224,13 @@ let UI = {
       TabItems.init();
       TabItems.pausePainting();
 
-      if (!hasGroupItemsData)
-        this.reset();
+      // if first time in Panorama or no group data:
+      let firstTime = true;
+      if (gPrefBranch.prefHasUserValue("experienced_first_run"))
+        firstTime = !gPrefBranch.getBoolPref("experienced_first_run");
+
+      if (firstTime || !hasGroupItemsData)
+        this.reset(firstTime);
 
       // ___ resizing
       if (this._pageBounds)
@@ -239,18 +243,19 @@ let UI = {
       });
 
       // ___ setup observer to save canvas images
-      function domWinClosedObserver(subject, topic, data) {
-        if (topic == "domwindowclosed" && subject == gWindow) {
+      function quitObserver(subject, topic, data) {
+        if (topic == "quit-application-requested") {
           if (self.isTabViewVisible())
             GroupItems.removeHiddenGroups();
+
           TabItems.saveAll(true);
           self._save();
         }
       }
       Services.obs.addObserver(
-        domWinClosedObserver, "domwindowclosed", false);
+        quitObserver, "quit-application-requested", false);
       this._cleanupFunctions.push(function() {
-        Services.obs.removeObserver(domWinClosedObserver, "domwindowclosed");
+        Services.obs.removeObserver(quitObserver, "quit-application-requested");
       });
 
       // ___ Done
@@ -295,7 +300,8 @@ let UI = {
 
   // Function: reset
   // Resets the Panorama view to have just one group with all tabs
-  reset: function UI_reset() {
+  // and, if firstTime == true, add the welcome video/tab
+  reset: function UI_reset(firstTime) {
     let padding = Trenches.defaultRadius;
     let welcomeWidth = 300;
     let pageBounds = Items.getPageBounds();
@@ -333,6 +339,31 @@ let UI = {
       groupItem.add(item, {immediately: true});
     });
     GroupItems.setActiveGroupItem(groupItem);
+
+    if (firstTime) {
+      gPrefBranch.setBoolPref("experienced_first_run", true);
+      // ensure that the first run pref is flushed to the file, in case a crash 
+      // or force quit happens before the pref gets flushed automatically.
+      Services.prefs.savePrefFile(null);
+
+      /* DISABLED BY BUG 626754. To be reenabled via bug 626926.
+      let url = gPrefBranch.getCharPref("welcome_url");
+      let newTab = gBrowser.loadOneTab(url, {inBackground: true});
+      let newTabItem = newTab._tabViewTabItem;
+      let parent = newTabItem.parent;
+      Utils.assert(parent, "should have a parent");
+
+      newTabItem.parent.remove(newTabItem);
+      let aspect = TabItems.tabHeight / TabItems.tabWidth;
+      let welcomeBounds = new Rect(UI.rtl ? pageBounds.left : box.right, box.top,
+                                   welcomeWidth, welcomeWidth * aspect);
+      newTabItem.setBounds(welcomeBounds, true);
+
+      // Remove the newly created welcome-tab from the tab bar
+      if (!this.isTabViewVisible())
+        GroupItems._updateTabBar();
+      */
+    }
   },
 
   // Function: blurAll
@@ -448,8 +479,6 @@ let UI = {
     let event = document.createEvent("Events");
     event.initEvent("tabviewshown", true, false);
 
-    Storage.saveVisibilityData(gWindow, "true");
-
     // Close the active group if it was empty. This will happen when the
     // user returns to Panorama after looking at an app tab, having
     // closed all other tabs. (If the user is looking at an orphan tab, then
@@ -494,6 +523,8 @@ let UI = {
 
       TabItems.resumePainting();
     }
+
+    Storage.saveVisibilityData(gWindow, "true");
   },
 
   // ----------
@@ -527,11 +558,11 @@ let UI = {
 #ifdef XP_MACOSX
     this.setTitlebarColors(false);
 #endif
-    Storage.saveVisibilityData(gWindow, "false");
-
     let event = document.createEvent("Events");
     event.initEvent("tabviewhidden", true, false);
     dispatchEvent(event);
+
+    Storage.saveVisibilityData(gWindow, "false");
   },
 
 #ifdef XP_MACOSX
@@ -582,7 +613,7 @@ let UI = {
     if (!this._storageBusyCount) {
       let hasGroupItemsData = GroupItems.load();
       if (!hasGroupItemsData)
-        this.reset();
+        this.reset(false);
   
       TabItems.resumeReconnecting();
       GroupItems._updateTabBar();
@@ -1163,7 +1194,6 @@ let UI = {
         GroupItems.setActiveGroupItem(groupItem);
         phantom.remove();
         dragOutInfo = null;
-        gTabView.firstUseExperienced = true;
       } else {
         collapse();
       }
@@ -1423,7 +1453,7 @@ let UI = {
     this._save();
     GroupItems.saveAll();
     TabItems.saveAll();
-  }
+  },
 };
 
 // ----------

@@ -37,10 +37,12 @@
 
 const NUM_TABS = 12;
 
+Cu.import("resource://gre/modules/Services.jsm");
 let ss = Cc["@mozilla.org/browser/sessionstore;1"].
          getService(Ci.nsISessionStore);
 
 let stateBackup = ss.getBrowserState();
+
 
 function test() {
   /** Test for Bug 590268 - Provide access to sessionstore tab data sooner **/
@@ -175,3 +177,4 @@ function test() {
 function r() {
   return "" + Date.now() + Math.random();
 }
+

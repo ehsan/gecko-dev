@@ -110,19 +110,10 @@ class GeckoAppShell
     }
 
     public static long getFreeSpace() {
-        try {
-            if (sFreeSpace == -1) {
-                File cacheDir = getCacheDir();
-                if (cacheDir != null) {
-                    StatFs cacheStats = new StatFs(cacheDir.getPath());
-                    sFreeSpace = cacheStats.getFreeBlocks() * 
-                        cacheStats.getBlockSize();
-                } else {
-                    Log.i("GeckoAppShell", "Unable to get cache dir");
-                }
-            }
-        } catch (Exception e) {
-            Log.e("GeckoAppShell", "exception while stating cache dir: ", e);
+        if (sFreeSpace == -1) {
+            StatFs cacheStats = new StatFs(getCacheDir().getPath());
+            sFreeSpace = cacheStats.getFreeBlocks() * 
+                cacheStats.getBlockSize();
         }
         return sFreeSpace;
     }
@@ -216,7 +207,7 @@ class GeckoAppShell
             if (Build.VERSION.SDK_INT >= 8) {
                 File extHome =  geckoApp.getExternalFilesDir(null);
                 File extProf = new File (extHome, "mozilla");
-                if (extHome != null && extProf != null && extProf.exists())
+                if (extHome.exists())
                     moveDir(extProf, profileDir);
             }
         } else {
@@ -231,7 +222,7 @@ class GeckoAppShell
 
             File intHome =  geckoApp.getFilesDir();
             File intProf = new File(intHome, "mozilla");
-            if (intHome != null && intProf != null && intProf.exists())
+            if (intHome.exists())
                 moveDir(intProf, profileDir);
         }
         GeckoAppShell.putenv("HOME=" + homeDir);

@@ -703,25 +703,18 @@ gfxWindowsPlatform::GetDLLVersion(const PRUnichar *aDLLPath, nsAString& aVersion
     versInfoSize = GetFileVersionInfoSizeW(aDLLPath, NULL);
     nsAutoTArray<BYTE,512> versionInfo;
     
-    if (versInfoSize == 0 ||
-        !versionInfo.AppendElements(PRUint32(versInfoSize)))
-    {
+    if (!versionInfo.AppendElements(PRUint32(versInfoSize))) {
         return;
     }
-
     if (!GetFileVersionInfoW(aDLLPath, 0, versInfoSize, 
-           LPBYTE(versionInfo.Elements())))
-    {
+           LPBYTE(versionInfo.Elements()))) {
         return;
     } 
 
-    UINT len = 0;
-    VS_FIXEDFILEINFO *fileInfo = nsnull;
+    UINT len;
+    VS_FIXEDFILEINFO *fileInfo;
     if (!VerQueryValue(LPBYTE(versionInfo.Elements()), TEXT("\\"),
-           (LPVOID *)&fileInfo, &len) ||
-        len == 0 ||
-        fileInfo == nsnull)
-    {
+           (LPVOID *)&fileInfo , &len)) {
         return;
     }
 
@@ -757,13 +750,13 @@ gfxWindowsPlatform::GetFontCacheSize(nsAString& aSize)
     if (file == INVALID_HANDLE_VALUE) {
         return;
     }
-
+     
     WCHAR size[256];
 
     double sizeMB = (double(findFileData.nFileSizeLow) +
                      findFileData.nFileSizeHigh * (double(MAXDWORD) + 1))
                     / 1000000.0;
-    swprintf_s(size, NS_ARRAY_LENGTH(size), L"%.2f MB", sizeMB);
+    swprintf_s(size, sizeof(size), L"%.2f MB", sizeMB);
     aSize.Assign(size);
     FindClose(file);
 }

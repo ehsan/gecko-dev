@@ -297,7 +297,6 @@ private:
 
 //-------------------------------------------------------------
 class DocumentViewerImpl : public nsIDocumentViewer,
-                           public nsIContentViewer_MOZILLA_2_0_BRANCH,
                            public nsIContentViewerEdit,
                            public nsIContentViewerFile,
                            public nsIMarkupDocumentViewer,
@@ -357,8 +356,6 @@ public:
   // nsIDocumentViewerPrint Printing Methods
   NS_DECL_NSIDOCUMENTVIEWERPRINT
 
-  // nsIContentViewer_MOZILLA_2_0_BRANCH interface...
-  NS_DECL_NSICONTENTVIEWER_MOZILLA_2_0_BRANCH
 protected:
   virtual ~DocumentViewerImpl();
 
@@ -588,7 +585,6 @@ NS_INTERFACE_MAP_BEGIN(DocumentViewerImpl)
 #ifdef NS_PRINTING
     NS_INTERFACE_MAP_ENTRY(nsIWebBrowserPrint)
 #endif
-    NS_INTERFACE_MAP_ENTRY(nsIContentViewer_MOZILLA_2_0_BRANCH)
 NS_INTERFACE_MAP_END
 
 DocumentViewerImpl::~DocumentViewerImpl()
@@ -1018,6 +1014,7 @@ DocumentViewerImpl::LoadComplete(nsresult aStatus)
     shell->FlushPendingNotifications(Flush_Layout);
   }
 
+  nsresult rv = NS_OK;
   NS_ENSURE_TRUE(mDocument, NS_ERROR_NOT_AVAILABLE);
 
   // First, get the window from the document...
@@ -1113,7 +1110,11 @@ DocumentViewerImpl::LoadComplete(nsresult aStatus)
   }
 #endif
 
-  return mStopped ? NS_SUCCESS_LOAD_STOPPED : NS_OK;
+  if (!mStopped && window) {
+    window->DispatchSyncPopState();
+  }
+
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -1288,9 +1289,6 @@ DocumentViewerImpl::PageHide(PRBool aIsUnload)
     window->PageHidden();
 
   if (aIsUnload) {
-    // Poke the GC. The window might be collectable garbage now.
-    nsJSContext::PokeGC();
-
     // if Destroy() was called during OnPageHide(), mDocument is nsnull.
     NS_ENSURE_STATE(mDocument);
 
@@ -1599,20 +1597,14 @@ DocumentViewerImpl::Destroy()
 
     // Reverse ownership. Do this *after* calling sanitize so that sanitize
     // doesn't cause mutations that make the SHEntry drop the presentation
-
-    // Grab a reference to mSHEntry before calling into things like
-    // SyncPresentationState that might mess with our members.
+    if (savePresentation) {
+      mSHEntry->SetContentViewer(this);
+    }
+    else {
+      mSHEntry->SyncPresentationState();
+    }
     nsCOMPtr<nsISHEntry> shEntry = mSHEntry; // we'll need this below
     mSHEntry = nsnull;
-
-    if (savePresentation) {
-      shEntry->SetContentViewer(this);
-    }
-
-    // Always sync the presentation state.  That way even if someone screws up
-    // and shEntry has no window state at this point we'll be ok; we just won't
-    // cache ourselves.
-    shEntry->SyncPresentationState();
 
     // Break the link from the document/presentation to the docshell, so that
     // link traversals cannot affect the currently-loaded document.
@@ -1798,7 +1790,6 @@ DocumentViewerImpl::SetDocumentInternal(nsIDocument* aDocument,
   if (mPresContext) {
     DestroyPresContext();
 
-    mWindow = nsnull;
     InitInternal(mParentWidget, nsnull, mBounds, PR_TRUE, PR_TRUE, PR_FALSE);
   }
 
@@ -4302,13 +4293,6 @@ NS_IMETHODIMP
 DocumentViewerImpl::GetHistoryEntry(nsISHEntry **aHistoryEntry)
 {
   NS_IF_ADDREF(*aHistoryEntry = mSHEntry);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-DocumentViewerImpl::GetIsTabModalPromptAllowed(PRBool *aAllowed)
-{
-  *aAllowed = !(mInPermitUnload || mHidden);
   return NS_OK;
 }
 

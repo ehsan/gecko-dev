@@ -791,7 +791,7 @@ XPCLazyCallContext::SetWrapper(XPCWrappedNative* wrapper,
     if(mTearOff)
         mFlattenedJSObject = mTearOff->GetJSObject();
     else
-        mFlattenedJSObject = mWrapper->GetFlatJSObject();
+        mFlattenedJSObject = mWrapper->GetFlatJSObjectAndMark();
 }
 inline void
 XPCLazyCallContext::SetWrapper(JSObject* flattenedJSObject)

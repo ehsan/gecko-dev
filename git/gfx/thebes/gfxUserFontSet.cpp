@@ -193,8 +193,6 @@ gfxUserFontSet::FindFontEntry(const nsAString& aName,
     // hasn't been loaded yet, start the load process
     LoadStatus status;
 
-    // NOTE that if all sources in the entry fail, this will delete proxyEntry,
-    // so we cannot use it again if status==STATUS_END_OF_LIST
     status = LoadNext(proxyEntry);
 
     // if the load succeeded immediately, the font entry was replaced so
@@ -203,12 +201,9 @@ gfxUserFontSet::FindFontEntry(const nsAString& aName,
         return family->FindFontForStyle(aFontStyle, aNeedsBold);
     }
 
-    // check whether we should wait for load to complete before painting
-    // a fallback font -- but not if all sources failed (bug 633500)
-    aWaitForUserFont = (status != STATUS_END_OF_LIST) &&
-        (proxyEntry->mLoadingState < gfxProxyFontEntry::LOADING_SLOWLY);
-
     // if either loading or an error occurred, return null
+    aWaitForUserFont =
+        (proxyEntry->mLoadingState < gfxProxyFontEntry::LOADING_SLOWLY);
     return nsnull;
 }
 
