@@ -7,7 +7,6 @@
 #define _NS_PKCS12BLOB_H_
 
 #include "nsCOMPtr.h"
-#include "nsString.h"
 #include "nsIFile.h"
 #include "nsIPK11TokenDB.h"
 #include "nsNSSHelper.h"

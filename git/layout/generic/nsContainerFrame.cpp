@@ -29,7 +29,6 @@
 #include "nsBlockFrame.h"
 #include "mozilla/AutoRestore.h"
 #include "nsIFrameInlines.h"
-#include "nsPrintfCString.h"
 #include <algorithm>
 
 #ifdef DEBUG
@@ -1822,28 +1821,26 @@ nsOverflowContinuationTracker::EndFinish(nsIFrame* aChild)
 
 #ifdef DEBUG_FRAME_DUMP
 void
-nsContainerFrame::List(FILE* out, const char* aPrefix, uint32_t aFlags) const
+nsContainerFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
 {
-  nsCString str;
-  ListGeneric(str, aPrefix, aFlags);
+  ListGeneric(out, aIndent, aFlags);
 
   // Output the children
   bool outputOneList = false;
   ChildListIterator lists(this);
   for (; !lists.IsDone(); lists.Next()) {
     if (outputOneList) {
-      str += aPrefix;
+      IndentBy(out, aIndent);
     }
     if (lists.CurrentID() != kPrincipalList) {
       if (!outputOneList) {
-        str += "\n";
-        str += aPrefix;
+        fputs("\n", out);
+        IndentBy(out, aIndent);
       }
-      str += nsPrintfCString("%s %p ", mozilla::layout::ChildListName(lists.CurrentID()),
-                             &GetChildList(lists.CurrentID()));
+      fputs(mozilla::layout::ChildListName(lists.CurrentID()), out);
+      fprintf(out, " %p ", &GetChildList(lists.CurrentID()));
     }
-    fprintf_stderr(out, "%s<\n", str.get());
-    str = "";
+    fputs("<\n", out);
     nsFrameList::Enumerator childFrames(lists.CurrentList());
     for (; !childFrames.AtEnd(); childFrames.Next()) {
       nsIFrame* kid = childFrames.get();
@@ -1851,16 +1848,15 @@ nsContainerFrame::List(FILE* out, const char* aPrefix, uint32_t aFlags) const
       NS_ASSERTION(kid->GetParent() == this, "bad parent frame pointer");
 
       // Have the child frame list
-      nsCString pfx(aPrefix);
-      pfx += "  ";
-      kid->List(out, pfx.get(), aFlags);
+      kid->List(out, aIndent + 1, aFlags);
     }
-    fprintf_stderr(out, "%s>\n", aPrefix);
+    IndentBy(out, aIndent);
+    fputs(">\n", out);
     outputOneList = true;
   }
 
   if (!outputOneList) {
-    fprintf_stderr(out, "%s<>\n", str.get());
+    fputs("<>\n", out);
   }
 }
 #endif

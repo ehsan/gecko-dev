@@ -22,6 +22,8 @@
 namespace mozilla {
 namespace layers {
 
+DeviceManagerD3D9 *LayerManagerD3D9::mDefaultDeviceManager = nullptr;
+
 LayerManagerD3D9::LayerManagerD3D9(nsIWidget *aWidget)
   : mWidget(aWidget)
   , mDeviceResetCount(0)
@@ -55,9 +57,15 @@ LayerManagerD3D9::Initialize(bool force)
     }
   }
 
-  mDeviceManager = gfxWindowsPlatform::GetPlatform()->GetD3D9DeviceManager();
-  if (!mDeviceManager) {
-    return false;
+  if (!mDefaultDeviceManager) {
+    mDeviceManager = gfxWindowsPlatform::GetPlatform()->GetD3D9DeviceManager();
+    if (!mDeviceManager) {
+      return false;
+    }
+
+    mDefaultDeviceManager = mDeviceManager;
+  } else {
+    mDeviceManager = mDefaultDeviceManager;
   }
 
   mSwapChain = mDeviceManager->
@@ -148,7 +156,7 @@ LayerManagerD3D9::EndTransaction(DrawThebesLayerCallback aCallback,
 
     // The results of our drawing always go directly into a pixel buffer,
     // so we don't need to pass any global transform here.
-    mRoot->ComputeEffectiveTransforms(gfx::Matrix4x4());
+    mRoot->ComputeEffectiveTransforms(gfx3DMatrix());
 
     SetCompositingDisabled(aFlags & END_NO_COMPOSITE);
     Render();
@@ -225,10 +233,10 @@ LayerManagerD3D9::ReportFailure(const nsACString &aMsg, HRESULT aCode)
 void
 LayerManagerD3D9::Render()
 {
-  if (mSwapChain->PrepareForRendering() != DeviceOK) {
+  DeviceManagerState state = mSwapChain->PrepareForRendering();
+  if (state != DeviceOK) {
     return;
   }
-
   deviceManager()->SetupRenderState();
 
   SetupPipeline();

@@ -92,7 +92,6 @@ let ShortcutUtils = {
       }
     } else {
       key = aElemKey.getAttribute("key");
-      key = key.toUpperCase();
     }
     return elemString + key;
   }

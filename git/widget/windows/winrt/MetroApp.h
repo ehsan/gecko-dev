@@ -44,10 +44,8 @@ public:
 
   void Run();
   void CoreExit();
-  void Shutdown();
 
-  // Set when gecko enters xpcom shutdown.
-  static bool sGeckoShuttingDown;
+  void ShutdownXPCOM();
 
   // Shared pointers between framework and widget
   static void SetBaseWidget(MetroWidget* aPtr);

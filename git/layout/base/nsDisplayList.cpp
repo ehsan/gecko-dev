@@ -49,7 +49,6 @@
 #include "mozilla/Preferences.h"
 #include "ActiveLayerTracker.h"
 #include "nsContentUtils.h"
-#include "nsPrintfCString.h"
 
 #include <stdint.h>
 #include <algorithm>
@@ -224,7 +223,7 @@ static void AddTransformFunctions(nsCSSValueList* aList,
       }
       case eCSSKeyword_matrix:
       {
-        gfx::Matrix4x4 matrix;
+        gfx3DMatrix matrix;
         matrix._11 = array->Item(1).GetFloatValue();
         matrix._12 = array->Item(2).GetFloatValue();
         matrix._13 = 0;
@@ -246,7 +245,7 @@ static void AddTransformFunctions(nsCSSValueList* aList,
       }
       case eCSSKeyword_matrix3d:
       {
-        gfx::Matrix4x4 matrix;
+        gfx3DMatrix matrix;
         matrix._11 = array->Item(1).GetFloatValue();
         matrix._12 = array->Item(2).GetFloatValue();
         matrix._13 = array->Item(3).GetFloatValue();
@@ -275,9 +274,7 @@ static void AddTransformFunctions(nsCSSValueList* aList,
                                                          canStoreInRuleTree,
                                                          aBounds,
                                                          aAppUnitsPerPixel);
-        gfx::Matrix4x4 transform;
-        gfx::ToMatrix4x4(matrix, transform);
-        aFunctions.AppendElement(TransformMatrix(transform));
+        aFunctions.AppendElement(TransformMatrix(matrix));
         break;
       }
       case eCSSKeyword_perspective:
@@ -1598,16 +1595,6 @@ nsDisplaySolidColor::Paint(nsDisplayListBuilder* aBuilder,
   aCtx->FillRect(mVisibleRect);
 }
 
-#ifdef MOZ_DUMP_PAINTING
-void
-nsDisplaySolidColor::WriteDebugInfo(nsACString& aTo)
-{
-  aTo += nsPrintfCString(" (rgba %d,%d,%d,%d)",
-                 NS_GET_R(mColor), NS_GET_G(mColor),
-                 NS_GET_B(mColor), NS_GET_A(mColor));
-}
-#endif
-
 static void
 RegisterThemeGeometry(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
 {
@@ -1969,12 +1956,11 @@ nsDisplayBackgroundImage::ConfigureLayer(ImageLayer* aLayer, const nsIntPoint& a
   mozilla::gfx::IntSize imageSize = mImageContainer->GetCurrentSize();
   NS_ASSERTION(imageSize.width != 0 && imageSize.height != 0, "Invalid image size!");
 
-  gfxPoint p = mDestRect.TopLeft() + aOffset;
-  gfx::Matrix transform;
-  transform.Translate(p.x, p.y);
+  gfxMatrix transform;
+  transform.Translate(mDestRect.TopLeft() + aOffset);
   transform.Scale(mDestRect.width/imageSize.width,
                   mDestRect.height/imageSize.height);
-  aLayer->SetBaseTransform(gfx::Matrix4x4::From2D(transform));
+  aLayer->SetBaseTransform(gfx3DMatrix::From2D(transform));
   aLayer->SetVisibleRegion(nsIntRect(0, 0, imageSize.width, imageSize.height));
 }
 
@@ -2275,9 +2261,9 @@ nsDisplayThemedBackground::~nsDisplayThemedBackground()
 
 #ifdef MOZ_DUMP_PAINTING
 void
-nsDisplayThemedBackground::WriteDebugInfo(nsACString& aTo)
+nsDisplayThemedBackground::WriteDebugInfo(FILE *aOutput)
 {
-  aTo += nsPrintfCString(" (themed, appearance:%d)", mAppearance);
+  fprintf_stderr(aOutput, "(themed, appearance:%d) ", mAppearance);
 }
 #endif
 
@@ -2459,16 +2445,6 @@ nsDisplayBackgroundColor::HitTest(nsDisplayListBuilder* aBuilder,
 
   aOutFrames->AppendElement(mFrame);
 }
-
-#ifdef MOZ_DUMP_PAINTING
-void
-nsDisplayBackgroundColor::WriteDebugInfo(nsACString& aTo)
-{
-  aTo += nsPrintfCString(" (rgba %d,%d,%d,%d)", 
-          NS_GET_R(mColor), NS_GET_G(mColor),
-          NS_GET_B(mColor), NS_GET_A(mColor));
-}
-#endif
 
 nsRect
 nsDisplayOutline::GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) {
@@ -3219,14 +3195,6 @@ bool nsDisplayOpacity::TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* a
   return true;
 }
 
-#ifdef MOZ_DUMP_PAINTING
-void
-nsDisplayOpacity::WriteDebugInfo(nsACString& aTo)
-{
-  aTo += nsPrintfCString(" (opacity %f)", mFrame->StyleDisplay()->mOpacity);
-}
-#endif
-
 nsDisplayMixBlendMode::nsDisplayMixBlendMode(nsDisplayListBuilder* aBuilder,
                                              nsIFrame* aFrame, nsDisplayList* aList,
                                              uint32_t aFlags)
@@ -3730,15 +3698,6 @@ nsDisplayScrollLayer::GetScrollLayerCount()
   return reinterpret_cast<intptr_t>(props.Get(nsIFrame::ScrollLayerCount()));
 #endif
 }
-
-#ifdef MOZ_DUMP_PAINTING
-void
-nsDisplayScrollLayer::WriteDebugInfo(nsACString& aTo)
-{
-  aTo += nsPrintfCString(" (scrollframe %p scrolledframe %p)",
-                         mScrollFrame, mScrolledFrame);
-}
-#endif
 
 nsDisplayScrollInfoLayer::nsDisplayScrollInfoLayer(
   nsDisplayListBuilder* aBuilder,
@@ -4897,7 +4856,7 @@ bool nsDisplaySVGEffects::TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem
 
 #ifdef MOZ_DUMP_PAINTING
 void
-nsDisplaySVGEffects::PrintEffects(nsACString& aTo)
+nsDisplaySVGEffects::PrintEffects(FILE* aOutput)
 {
   nsIFrame* firstFrame =
     nsLayoutUtils::FirstContinuationOrSpecialSibling(mFrame);
@@ -4906,32 +4865,32 @@ nsDisplaySVGEffects::PrintEffects(nsACString& aTo)
   bool isOK = true;
   nsSVGClipPathFrame *clipPathFrame = effectProperties.GetClipPathFrame(&isOK);
   bool first = true;
-  aTo += " effects=(";
+  fprintf_stderr(aOutput, " effects=(");
   if (mFrame->StyleDisplay()->mOpacity != 1.0f) {
     first = false;
-    aTo += nsPrintfCString("opacity(%f)", mFrame->StyleDisplay()->mOpacity);
+    fprintf_stderr(aOutput, "opacity(%f)", mFrame->StyleDisplay()->mOpacity);
   }
   if (clipPathFrame) {
     if (!first) {
-      aTo += ", ";
+      fprintf_stderr(aOutput, ", ");
     }
-    aTo += nsPrintfCString("clip(%s)", clipPathFrame->IsTrivial() ? "trivial" : "non-trivial");
+    fprintf_stderr(aOutput, "clip(%s)", clipPathFrame->IsTrivial() ? "trivial" : "non-trivial");
     first = false;
   }
   if (effectProperties.GetFilterFrame(&isOK)) {
     if (!first) {
-      aTo += ", ";
+      fprintf_stderr(aOutput, ", ");
     }
-    aTo += "filter";
+    fprintf_stderr(aOutput, "filter");
     first = false;
   }
   if (effectProperties.GetMaskFrame(&isOK)) {
     if (!first) {
-      aTo += ", ";
+      fprintf_stderr(aOutput, ", ");
     }
-    aTo += "mask";
+    fprintf_stderr(aOutput, "mask");
   }
-  aTo += ")";
+  fprintf_stderr(aOutput, ")");
 }
 #endif
 
