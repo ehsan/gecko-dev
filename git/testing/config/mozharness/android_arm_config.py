@@ -104,7 +104,7 @@ config = {
                 "--xre-path=%(xre_path)s", "--testing-modules-dir=%(modules_dir)s",
                 "--apk=%(installer_path)s", "--no-logfiles",
                 "--symbols-path=%(symbols_path)s",
-                "--manifest=tests/xpcshell_android.ini",
+                "--manifest=tests/xpcshell.ini",
                 # Bug 1064002 - Land once mozharness changes land
                 #"--log-raw=%(raw_log_file)s",
                 #"--total-chunks=3",
