@@ -102,7 +102,7 @@ using mozilla::MutexAutoLock;
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
 using mozilla::dom::workers::exceptions::ThrowDOMExceptionForCode;
-using mozilla::xpconnect::memory::ReportJSRuntimeExplicitTreeStats;
+using mozilla::xpconnect::memory::ReportJSRuntimeStats;
 
 USING_WORKERS_NAMESPACE
 
@@ -154,8 +154,6 @@ SwapToISupportsArray(SmartPtr<T>& aSrc,
     static_cast<typename ISupportsBaseInfo<T>::ISupportsBase*>(raw);
   dest->swap(rawSupports);
 }
-
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(JsWorkerMallocSizeOf, "js-worker")
 
 class WorkerMemoryReporter : public nsIMemoryMultiReporter
 {
@@ -228,19 +226,13 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD GetName(nsACString &aName)
-  {
-      aName.AssignLiteral("workers");
-      return NS_OK;
-  }
-
   NS_IMETHOD
   CollectReports(nsIMemoryMultiReporterCallback* aCallback,
                  nsISupports* aClosure)
   {
     AssertIsOnMainThread();
 
-    JS::RuntimeStats rtStats(JsWorkerMallocSizeOf, xpc::GetCompartmentName,
+    JS::RuntimeStats rtStats(xpc::JsMallocSizeOf, xpc::GetCompartmentName,
                              xpc::DestroyCompartmentName);
     nsresult rv = CollectForRuntime(/* isQuick = */false, &rtStats);
     if (NS_FAILED(rv)) {
@@ -249,7 +241,7 @@ public:
 
     // Always report, even if we're disabled, so that we at least get an entry
     // in about::memory.
-    ReportJSRuntimeExplicitTreeStats(rtStats, mPathPrefix, aCallback, aClosure);
+    ReportJSRuntimeStats(rtStats, mPathPrefix, aCallback, aClosure);
 
     return NS_OK;
   }
@@ -1531,7 +1523,7 @@ public:
     JSAutoSuspendRequest asr(aCx);
 
     *mSucceeded = mIsQuick
-      ? JS::GetExplicitNonHeapForRuntime(JS_GetRuntime(aCx), static_cast<int64_t*>(mData), JsWorkerMallocSizeOf)
+      ? JS::GetExplicitNonHeapForRuntime(JS_GetRuntime(aCx), static_cast<int64_t*>(mData), xpc::JsMallocSizeOf)
       : JS::CollectRuntimeStats(JS_GetRuntime(aCx), static_cast<JS::RuntimeStats*>(mData));
 
     {

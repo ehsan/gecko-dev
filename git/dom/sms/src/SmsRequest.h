@@ -39,7 +39,7 @@
 #define mozilla_dom_sms_SmsRequest_h
 
 #include "nsIDOMSmsRequest.h"
-#include "nsDOMEventTargetHelper.h"
+#include "nsDOMEventTargetWrapperCache.h"
 
 class nsIDOMMozSmsMessage;
 class nsIDOMMozSmsCursor;
@@ -49,7 +49,7 @@ namespace dom {
 namespace sms {
 
 class SmsRequest : public nsIDOMMozSmsRequest
-                 , public nsDOMEventTargetHelper
+                 , public nsDOMEventTargetWrapperCache
 {
 public:
   friend class SmsRequestManager;
@@ -70,10 +70,10 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMMOZSMSREQUEST
 
-  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetWrapperCache::)
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(SmsRequest,
-                                                         nsDOMEventTargetHelper)
+                                                         nsDOMEventTargetWrapperCache)
 
   void Reset();
 

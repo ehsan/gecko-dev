@@ -148,21 +148,22 @@ JSRuntime::createBumpPointerAllocator(JSContext *cx)
     return bumpAlloc_;
 }
 
-RegExpCache *
-JSRuntime::createRegExpCache(JSContext *cx)
+RegExpPrivateCache *
+JSRuntime::createRegExpPrivateCache(JSContext *cx)
 {
-    JS_ASSERT(!reCache_);
+    JS_ASSERT(!repCache_);
     JS_ASSERT(cx->runtime == this);
 
-    RegExpCache *newCache = new_<RegExpCache>(this);
+    RegExpPrivateCache *newCache = new_<RegExpPrivateCache>(this);
+
     if (!newCache || !newCache->init()) {
         js_ReportOutOfMemory(cx);
-        delete_<RegExpCache>(newCache);
+        delete_<RegExpPrivateCache>(newCache);
         return NULL;
     }
 
-    reCache_ = newCache;
-    return reCache_;
+    repCache_ = newCache;
+    return repCache_;
 }
 
 JSScript *
@@ -962,8 +963,7 @@ DSTOffsetCache::DSTOffsetCache()
 }
 
 JSContext::JSContext(JSRuntime *rt)
-  : ContextFriendFields(rt),
-    defaultVersion(JSVERSION_DEFAULT),
+  : defaultVersion(JSVERSION_DEFAULT),
     hasVersionOverride(false),
     throwing(false),
     exception(UndefinedValue()),
@@ -972,6 +972,12 @@ JSContext::JSContext(JSRuntime *rt)
     localeCallbacks(NULL),
     resolvingList(NULL),
     generatingError(false),
+#if JS_STACK_GROWTH_DIRECTION > 0
+    stackLimit(UINTPTR_MAX),
+#else
+    stackLimit(0),
+#endif
+    runtime(rt),
     compartment(NULL),
     stack(thisDuringConstruction()),  /* depends on cx->thread_ */
     parseMapPool_(NULL),
@@ -1007,6 +1013,7 @@ JSContext::JSContext(JSRuntime *rt)
     , stackIterAssertionEnabled(true)
 #endif
 {
+    PodZero(&sharpObjectMap);
     PodZero(&link);
 #ifdef JS_THREADSAFE
     PodZero(&threadLinks);
@@ -1171,8 +1178,8 @@ JSRuntime::purge(JSContext *cx)
     /* FIXME: bug 506341 */
     propertyCache.purge(cx);
 
-    delete_<RegExpCache>(reCache_);
-    reCache_ = NULL;
+    delete_<RegExpPrivateCache>(repCache_);
+    repCache_ = NULL;
 }
 
 void

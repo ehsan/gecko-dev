@@ -163,6 +163,38 @@ __try {
 // IAccessible methods
 //-----------------------------------------------------
 
+
+STDMETHODIMP nsAccessibleWrap::AccessibleObjectFromWindow(HWND hwnd,
+                                                          DWORD dwObjectID,
+                                                          REFIID riid,
+                                                          void **ppvObject)
+{
+  // open the dll dynamically
+  if (!gmAccLib)
+    gmAccLib =::LoadLibraryW(L"OLEACC.DLL");
+
+  if (gmAccLib) {
+    if (!gmAccessibleObjectFromWindow)
+      gmAccessibleObjectFromWindow = (LPFNACCESSIBLEOBJECTFROMWINDOW)GetProcAddress(gmAccLib,"AccessibleObjectFromWindow");
+
+    if (gmAccessibleObjectFromWindow)
+      return gmAccessibleObjectFromWindow(hwnd, dwObjectID, riid, ppvObject);
+  }
+
+  return E_FAIL;
+}
+
+STDMETHODIMP nsAccessibleWrap::NotifyWinEvent(DWORD event,
+                                              HWND hwnd,
+                                              LONG idObjectType,
+                                              LONG idObject)
+{
+  if (gmNotifyWinEvent)
+    return gmNotifyWinEvent(event, hwnd, idObjectType, idObject);
+
+  return E_FAIL;
+}
+
 STDMETHODIMP nsAccessibleWrap::get_accParent( IDispatch __RPC_FAR *__RPC_FAR *ppdispParent)
 {
 __try {
@@ -179,9 +211,9 @@ __try {
         nsWinUtils::IsWindowEmulationStarted() &&
         nsCoreUtils::IsTabDocument(doc->GetDocumentNode())) {
       HWND hwnd = static_cast<HWND>(doc->GetNativeWindow());
-      if (hwnd && SUCCEEDED(::AccessibleObjectFromWindow(hwnd, OBJID_WINDOW,
-                                                         IID_IAccessible,
-                                                         (void**)ppdispParent))) {
+      if (hwnd && SUCCEEDED(AccessibleObjectFromWindow(hwnd, OBJID_WINDOW,
+                                                       IID_IAccessible,
+                                                       (void**)ppdispParent))) {
         return S_OK;
       }
     }
@@ -1145,8 +1177,8 @@ STDMETHODIMP
 nsAccessibleWrap::scrollTo(enum IA2ScrollType aScrollType)
 {
 __try {
-  nsAccessNode::ScrollTo(aScrollType);
-  return S_OK;
+  nsresult rv = ScrollTo(aScrollType);
+  return GetHRESULT(rv);
 
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
@@ -1366,7 +1398,9 @@ __try {
   // Any two-letter subcode is understood to be a [ISO3166] country code.
 
   nsAutoString lang;
-  Language(lang);
+  nsresult rv = GetLanguage(lang);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
 
   // If primary code consists from two letters then expose it as language.
   PRInt32 offset = lang.FindChar('-', 0);
@@ -1556,13 +1590,13 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
 #endif
 
   // Fire MSAA event for client area window.
-  ::NotifyWinEvent(winEvent, hWnd, OBJID_CLIENT, childID);
+  NotifyWinEvent(winEvent, hWnd, OBJID_CLIENT, childID);
 
   // JAWS announces collapsed combobox navigation based on focus events.
   if (Compatibility::IsJAWS()) {
     if (eventType == nsIAccessibleEvent::EVENT_SELECTION &&
       accessible->Role() == roles::COMBOBOX_OPTION) {
-      ::NotifyWinEvent(EVENT_OBJECT_FOCUS, hWnd, OBJID_CLIENT, childID);
+      NotifyWinEvent(EVENT_OBJECT_FOCUS, hWnd, OBJID_CLIENT, childID);
     }
   }
 
@@ -1695,9 +1729,8 @@ IDispatch *nsAccessibleWrap::NativeAccessible(nsIAccessible *aXPAccessible)
     accObject->GetHwnd(&hwnd);
     if (hwnd) {
       IDispatch *retval = nsnull;
-      ::AccessibleObjectFromWindow(reinterpret_cast<HWND>(hwnd),
-                                   OBJID_WINDOW, IID_IAccessible,
-                                   (void **) &retval);
+      AccessibleObjectFromWindow(reinterpret_cast<HWND>(hwnd),
+        OBJID_WINDOW, IID_IAccessible, (void **) &retval);
       return retval;
     }
   }

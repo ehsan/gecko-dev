@@ -178,16 +178,7 @@ typedef enum
   /* Unicode-6.0 additions */
   HB_SCRIPT_BATAK,                  /* Batk */
   HB_SCRIPT_BRAHMI,                 /* Brah */
-  HB_SCRIPT_MANDAIC,                /* Mand */
-
-  /* Unicode-6.1 additions */
-  HB_SCRIPT_CHAKMA,                 /* Cakm */
-  HB_SCRIPT_MEROITIC_CURSIVE,       /* Merc */
-  HB_SCRIPT_MEROITIC_HIEROGLYPHS,   /* Mero */
-  HB_SCRIPT_MIAO,                   /* Plrd */
-  HB_SCRIPT_SHARADA,                /* Shrd */
-  HB_SCRIPT_SORA_SOMPENG,           /* Sora */
-  HB_SCRIPT_TAKRI                   /* Takr */        
+  HB_SCRIPT_MANDAIC                 /* Mand */
 } hb_script_t;
 
 

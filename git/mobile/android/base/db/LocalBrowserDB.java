@@ -50,7 +50,6 @@ import android.content.ContentUris;
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.CursorWrapper;
-import android.database.MatrixCursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
@@ -271,35 +270,10 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
                             new String[] { Bookmarks._ID,
                                            Bookmarks.URL,
                                            Bookmarks.TITLE,
-                                           Bookmarks.FAVICON,
-                                           Bookmarks.KEYWORD },
+                                           Bookmarks.FAVICON },
                             Bookmarks.IS_FOLDER + " = 0",
                             null,
                             Bookmarks.TITLE + " ASC");
-
-        return new LocalDBCursor(c);
-    }
-
-    public Cursor getMobileBookmarks(ContentResolver cr) {
-        return getBookmarks(cr, true);
-    }
-
-    public Cursor getDesktopBookmarks(ContentResolver cr) {
-        return getBookmarks(cr, false);
-    }
-
-    private Cursor getBookmarks(ContentResolver cr, boolean mobileBookmarks) {
-        String parentSelection = mobileBookmarks ? " = ?" : " != ?";
-        long mobileFolderId = getMobileBookmarksFolderId(cr);
-        Cursor c = cr.query(appendProfile(Bookmarks.CONTENT_URI),
-                            new String[] { Bookmarks._ID,
-                                           Bookmarks.URL,
-                                           Bookmarks.TITLE,
-                                           Bookmarks.FAVICON },
-                            Bookmarks.IS_FOLDER + " = 0 AND " +
-                            Bookmarks.PARENT + parentSelection,
-                            new String[] { String.valueOf(mobileFolderId) },
-                            Bookmarks.DATE_MODIFIED + " DESC");
 
         return new LocalDBCursor(c);
     }
@@ -315,24 +289,6 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         cursor.close();
 
         return (count == 1);
-    }
-
-    public String getUrlForKeyword(ContentResolver cr, String keyword) {
-        Cursor cursor = cr.query(appendProfile(Bookmarks.CONTENT_URI),
-                                 new String[] { Bookmarks.URL },
-                                 Bookmarks.KEYWORD + " = ?",
-                                 new String[] { keyword },
-                                 null);
-
-        if (!cursor.moveToFirst()) {
-            cursor.close();
-            return null;
-        }
-
-        String url = cursor.getString(cursor.getColumnIndexOrThrow(Bookmarks.URL));
-        cursor.close();
-
-        return url;
     }
 
     private long getMobileBookmarksFolderId(ContentResolver cr) {
@@ -384,18 +340,6 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
         cr.delete(appendProfile(Bookmarks.CONTENT_URI),
                   Bookmarks.URL + " = ?",
                   new String[] { uri });
-    }
-
-    public void updateBookmark(ContentResolver cr, String oldUri, String uri, String title, String keyword) {
-        ContentValues values = new ContentValues();
-        values.put(Browser.BookmarkColumns.TITLE, title);
-        values.put(Bookmarks.URL, uri);
-        values.put(Bookmarks.KEYWORD, keyword);
-
-        cr.update(appendProfile(Bookmarks.CONTENT_URI),
-                  values,
-                  Bookmarks.URL + " = ?",
-                  new String[] { oldUri });
     }
 
     public BitmapDrawable getFaviconForUrl(ContentResolver cr, String uri) {
@@ -466,26 +410,6 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
         if (updated == 0)
             cr.insert(appendProfile(Images.CONTENT_URI), values);
-    }
-
-    public byte[] getThumbnailForUrl(ContentResolver cr, String uri) {
-        Cursor c = cr.query(appendProfile(Images.CONTENT_URI),
-                            new String[] { Images.THUMBNAIL },
-                            Images.URL + " = ?",
-                            new String[] { uri },
-                            null);
-
-        if (!c.moveToFirst()) {
-            c.close();
-            return null;
-        }
-
-        int thumbnailIndex = c.getColumnIndexOrThrow(Images.THUMBNAIL);
-
-        byte[] b = c.getBlob(thumbnailIndex);
-        c.close();
-
-        return b;
     }
 
     private static class LocalDBCursor extends CursorWrapper {

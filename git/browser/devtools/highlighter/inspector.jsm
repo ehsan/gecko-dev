@@ -222,11 +222,9 @@ InspectorUI.prototype = {
   openInspectorUI: function IUI_openInspectorUI(aNode)
   {
     // InspectorUI is already up and running. Lock a node if asked (via context).
-    if (this.isInspectorOpen) {
-      if (aNode) {
-        this.inspectNode(aNode);
-        this.stopInspecting();
-      }
+    if (this.isInspectorOpen && aNode) {
+      this.inspectNode(aNode);
+      this.stopInspecting();
       return;
     }
 

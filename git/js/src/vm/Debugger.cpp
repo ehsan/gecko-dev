@@ -399,7 +399,7 @@ Debugger::getHook(Hook hook) const
 }
 
 bool
-Debugger::hasAnyLiveHooks() const
+Debugger::hasAnyLiveHooks(JSContext *cx) const
 {
     if (!enabled)
         return false;
@@ -414,7 +414,7 @@ Debugger::hasAnyLiveHooks() const
 
     /* If any breakpoints are in live scripts, return true. */
     for (Breakpoint *bp = firstBreakpoint(); bp; bp = bp->nextInDebugger()) {
-        if (!IsAboutToBeFinalized(bp->site->script))
+        if (!IsAboutToBeFinalized(cx, bp->site->script))
             return true;
     }
 
@@ -1063,14 +1063,14 @@ Debugger::markKeysInCompartment(JSTracer *tracer)
     const ObjectMap &objStorage = objects;
     for (ObjectMap::Range r = objStorage.all(); !r.empty(); r.popFront()) {
         const HeapPtrObject &key = r.front().key;
-        if (key->compartment() == comp && IsAboutToBeFinalized(key))
+        if (key->compartment() == comp && IsAboutToBeFinalized(tracer->context, key))
             gc::MarkObject(tracer, key, "cross-compartment WeakMap key");
     }
 
     const ObjectMap &envStorage = environments;
     for (ObjectMap::Range r = envStorage.all(); !r.empty(); r.popFront()) {
         const HeapPtrObject &key = r.front().key;
-        if (key->compartment() == comp && IsAboutToBeFinalized(key))
+        if (key->compartment() == comp && IsAboutToBeFinalized(tracer->context, key))
             js::gc::MarkObject(tracer, key, "cross-compartment WeakMap key");
     }
 
@@ -1079,7 +1079,7 @@ Debugger::markKeysInCompartment(JSTracer *tracer)
     const ScriptMap &scriptStorage = scripts;
     for (ScriptMap::Range r = scriptStorage.all(); !r.empty(); r.popFront()) {
         const HeapPtrScript &key = r.front().key;
-        if (key->compartment() == comp && IsAboutToBeFinalized(key))
+        if (key->compartment() == comp && IsAboutToBeFinalized(tracer->context, key))
             gc::MarkScript(tracer, key, "cross-compartment WeakMap key");
     }
 }
@@ -1143,7 +1143,8 @@ Debugger::markAllIteratively(GCMarker *trc)
      * Find all Debugger objects in danger of GC. This code is a little
      * convoluted since the easiest way to find them is via their debuggees.
      */
-    JSRuntime *rt = trc->runtime;
+    JSContext *cx = trc->context;
+    JSRuntime *rt = cx->runtime;
     JSCompartment *comp = rt->gcCurrentCompartment;
     for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); c++) {
         JSCompartment *dc = *c;
@@ -1158,8 +1159,6 @@ Debugger::markAllIteratively(GCMarker *trc)
         const GlobalObjectSet &debuggees = dc->getDebuggees();
         for (GlobalObjectSet::Range r = debuggees.all(); !r.empty(); r.popFront()) {
             GlobalObject *global = r.front();
-            if (IsAboutToBeFinalized(global))
-                continue;
 
             /*
              * Every debuggee has at least one debugger, so in this case
@@ -1180,8 +1179,8 @@ Debugger::markAllIteratively(GCMarker *trc)
                 if (comp && comp != dbgobj->compartment())
                     continue;
 
-                bool dbgMarked = !IsAboutToBeFinalized(dbgobj);
-                if (!dbgMarked && dbg->hasAnyLiveHooks()) {
+                bool dbgMarked = !IsAboutToBeFinalized(cx, dbgobj);
+                if (!dbgMarked && dbg->hasAnyLiveHooks(cx)) {
                     /*
                      * obj could be reachable only via its live, enabled
                      * debugger hooks, which may yet be called.
@@ -1194,13 +1193,13 @@ Debugger::markAllIteratively(GCMarker *trc)
                 if (dbgMarked) {
                     /* Search for breakpoints to mark. */
                     for (Breakpoint *bp = dbg->firstBreakpoint(); bp; bp = bp->nextInDebugger()) {
-                        if (!IsAboutToBeFinalized(bp->site->script)) {
+                        if (!IsAboutToBeFinalized(cx, bp->site->script)) {
                             /*
                              * The debugger and the script are both live.
                              * Therefore the breakpoint handler is live.
                              */
                             const HeapPtrObject &handler = bp->getHandler();
-                            if (IsAboutToBeFinalized(handler)) {
+                            if (IsAboutToBeFinalized(cx, handler)) {
                                 MarkObject(trc, bp->getHandler(), "breakpoint handler");
                                 markedAny = true;
                             }
@@ -1259,7 +1258,7 @@ Debugger::sweepAll(JSContext *cx)
     for (JSCList *p = &rt->debuggerList; (p = JS_NEXT_LINK(p)) != &rt->debuggerList;) {
         Debugger *dbg = Debugger::fromLinks(p);
 
-        if (IsAboutToBeFinalized(dbg->object)) {
+        if (IsAboutToBeFinalized(cx, dbg->object)) {
             /*
              * dbg is being GC'd. Detach it from its debuggees. In the case of
              * runtime-wide GC, the debuggee might be GC'd too. Since detaching
@@ -1280,7 +1279,7 @@ Debugger::sweepAll(JSContext *cx)
         GlobalObjectSet &debuggees = (*c)->getDebuggees();
         for (GlobalObjectSet::Enum e(debuggees); !e.empty(); e.popFront()) {
             GlobalObject *global = e.front();
-            if (IsAboutToBeFinalized(global))
+            if (IsAboutToBeFinalized(cx, global))
                 detachAllDebuggersFromGlobal(cx, global, &e);
         }
     }
@@ -2561,7 +2560,7 @@ DebuggerFrame_getOlder(JSContext *cx, uintN argc, Value *vp)
     THIS_FRAME(cx, argc, vp, "get this", args, thisobj, thisfp);
     Debugger *dbg = Debugger::fromChildJSObject(thisobj);
     for (StackFrame *fp = thisfp->prev(); fp; fp = fp->prev()) {
-        if (dbg->observesFrame(fp))
+        if (!fp->isDummyFrame() && dbg->observesFrame(fp))
             return dbg->getScriptFrame(cx, fp, vp);
     }
     args.rval().setNull();

@@ -409,11 +409,11 @@ Highlighter.prototype = {
    *
    * <box id="highlighter-nodeinfobar-container">
    *   <box id="Highlighter-nodeinfobar-arrow-top"/>
-   *   <hbox id="highlighter-nodeinfobar">
-   *     <xhtml:span id="highlighter-nodeinfobar-tagname"/>
-   *     <xhtml:span id="highlighter-nodeinfobar-id"/>
-   *     <xhtml:span id="highlighter-nodeinfobar-classes"/>
-   *   </hbox>
+   *   <vbox id="highlighter-nodeinfobar">
+   *     <label id="highlighter-nodeinfobar-tagname"/>
+   *     <label id="highlighter-nodeinfobar-id"/>
+   *     <vbox id="highlighter-nodeinfobar-classes"/>
+   *   </vbox>
    *   <box id="Highlighter-nodeinfobar-arrow-bottom"/>
    * </box>
    *
@@ -438,16 +438,16 @@ Highlighter.prototype = {
     arrowBoxBottom.className = "highlighter-nodeinfobar-arrow";
     arrowBoxBottom.id = "highlighter-nodeinfobar-arrow-bottom";
 
-    let tagNameLabel = this.chromeDoc.createElementNS("http://www.w3.org/1999/xhtml", "span");
+    let tagNameLabel = this.chromeDoc.createElement("label");
     tagNameLabel.id = "highlighter-nodeinfobar-tagname";
+    tagNameLabel.className = "plain";
 
-    let idLabel = this.chromeDoc.createElementNS("http://www.w3.org/1999/xhtml", "span");
+    let idLabel = this.chromeDoc.createElement("label");
     idLabel.id = "highlighter-nodeinfobar-id";
+    idLabel.className = "plain";
 
-    let classesBox = this.chromeDoc.createElementNS("http://www.w3.org/1999/xhtml", "span");
+    let classesBox = this.chromeDoc.createElement("hbox");
     classesBox.id = "highlighter-nodeinfobar-classes";
-    // Add some content to force a better boundingClientRect down below.
-    classesBox.textContent = "&nbsp;";
 
     nodeInfobar.appendChild(tagNameLabel);
     nodeInfobar.appendChild(idLabel);
@@ -528,7 +528,7 @@ Highlighter.prototype = {
   },
 
   /**
-   * Update node information (tagName#id.class)
+   * Update node information (tagName#id.class) 
    */
   updateInfobar: function Highlighter_updateInfobar()
   {
@@ -540,9 +540,20 @@ Highlighter.prototype = {
 
     // Classes
     let classes = this.nodeInfo.classesBox;
+    while (classes.hasChildNodes()) {
+      classes.removeChild(classes.firstChild);
+    }
 
-    classes.textContent = this.node.classList.length ?
-                            "." + Array.join(this.node.classList, ".") : "";
+    if (this.node.className) {
+      let fragment = this.chromeDoc.createDocumentFragment();
+      for (let i = 0; i < this.node.classList.length; i++) {
+        let classLabel = this.chromeDoc.createElement("label");
+        classLabel.className = "highlighter-nodeinfobar-class plain";
+        classLabel.textContent = "." + this.node.classList[i];
+        fragment.appendChild(classLabel);
+      }
+      classes.appendChild(fragment);
+    }
   },
 
   /**

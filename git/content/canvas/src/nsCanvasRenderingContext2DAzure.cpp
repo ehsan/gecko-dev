@@ -227,7 +227,6 @@ protected:
   nsTArray<GradientStop> mRawStops;
   RefPtr<GradientStops> mStops;
   Type mType;
-  virtual ~nsCanvasGradientAzure() {}
 };
 
 class nsCanvasRadialGradientAzure : public nsCanvasGradientAzure
@@ -288,7 +287,7 @@ NS_INTERFACE_MAP_END
  **/
 #define NS_CANVASPATTERNAZURE_PRIVATE_IID \
     {0xc9bacc25, 0x28da, 0x421e, {0x9a, 0x4b, 0xbb, 0xd6, 0x93, 0x05, 0x12, 0xbc}}
-class nsCanvasPatternAzure MOZ_FINAL : public nsIDOMCanvasPattern
+class nsCanvasPatternAzure : public nsIDOMCanvasPattern
 {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_CANVASPATTERNAZURE_PRIVATE_IID)
@@ -1828,6 +1827,8 @@ nsCanvasRenderingContext2DAzure::GetMozFillRule(nsAString& aString)
         aString.AssignLiteral("nonzero"); break;
     case FILL_EVEN_ODD:
         aString.AssignLiteral("evenodd"); break;
+    default:
+        return NS_ERROR_FAILURE;
     }
 
     return NS_OK;
@@ -2841,6 +2842,9 @@ nsCanvasRenderingContext2DAzure::GetTextAlign(nsAString& ta)
   case TEXT_ALIGN_CENTER:
     ta.AssignLiteral("center");
     break;
+  default:
+    NS_ERROR("textAlign holds invalid value");
+    return NS_ERROR_FAILURE;
   }
 
   return NS_OK;
@@ -2888,6 +2892,9 @@ nsCanvasRenderingContext2DAzure::GetTextBaseline(nsAString& tb)
   case TEXT_BASELINE_BOTTOM:
     tb.AssignLiteral("bottom");
     break;
+  default:
+    NS_ERROR("textBaseline holds invalid value");
+    return NS_ERROR_FAILURE;
   }
 
   return NS_OK;
@@ -3025,11 +3032,6 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
 
       RefPtr<ScaledFont> scaledFont =
         gfxPlatform::GetPlatform()->GetScaledFontForFont(font);
-
-      if (!scaledFont) {
-        // This can occur when something switched DirectWrite off.
-        return;
-      }
 
       GlyphBuffer buffer;
 
@@ -3282,6 +3284,9 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
   case TEXT_BASELINE_BOTTOM:
     anchorY = -fontMetrics.emDescent;
     break;
+  default:
+    NS_ERROR("mTextBaseline holds invalid value");
+    return NS_ERROR_FAILURE;
   }
 
   processor.mPt.y += anchorY;
@@ -3430,6 +3435,8 @@ nsCanvasRenderingContext2DAzure::GetLineCap(nsAString& capstyle)
   case CAP_SQUARE:
     capstyle.AssignLiteral("square");
     break;
+  default:
+    return NS_ERROR_FAILURE;
   }
 
   return NS_OK;

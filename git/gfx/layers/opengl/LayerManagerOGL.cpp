@@ -106,6 +106,14 @@ LayerManagerOGL::Destroy()
     }
     mRoot = nsnull;
 
+    // Make a copy, since SetLayerManager will cause mImageContainers
+    // to get mutated.
+    nsTArray<ImageContainer*> imageContainers(mImageContainers);
+    for (PRUint32 i = 0; i < imageContainers.Length(); ++i) {
+      ImageContainer *c = imageContainers[i];
+      c->SetLayerManager(nsnull);
+    }
+
     CleanupResources();
 
     mDestroyed = true;
@@ -473,6 +481,19 @@ LayerManagerOGL::CreateContainerLayer()
   return layer.forget();
 }
 
+already_AddRefed<ImageContainer>
+LayerManagerOGL::CreateImageContainer()
+{
+  if (mDestroyed) {
+    NS_WARNING("Call on destroyed layer manager");
+    return nsnull;
+  }
+
+  nsRefPtr<ImageContainer> container = new ImageContainerOGL(this);
+  RememberImageContainer(container);
+  return container.forget();
+}
+
 already_AddRefed<ImageLayer>
 LayerManagerOGL::CreateImageLayer()
 {
@@ -507,6 +528,26 @@ LayerManagerOGL::CreateCanvasLayer()
 
   nsRefPtr<CanvasLayer> layer = new CanvasLayerOGL(this);
   return layer.forget();
+}
+
+void
+LayerManagerOGL::ForgetImageContainer(ImageContainer *aContainer)
+{
+  NS_ASSERTION(aContainer->Manager() == this,
+               "ForgetImageContainer called on non-owned container!");
+
+  if (!mImageContainers.RemoveElement(aContainer)) {
+    NS_WARNING("ForgetImageContainer couldn't find container it was supposed to forget!");
+    return;
+  }
+}
+
+void
+LayerManagerOGL::RememberImageContainer(ImageContainer *aContainer)
+{
+  NS_ASSERTION(aContainer->Manager() == this,
+               "RememberImageContainer called on non-owned container!");
+  mImageContainers.AppendElement(aContainer);
 }
 
 LayerOGL*
@@ -782,18 +823,7 @@ LayerManagerOGL::Render()
 
   mGLContext->fEnable(LOCAL_GL_SCISSOR_TEST);
 
-  static int i = 0;
-  i++;
-  i=i%3;
-  if( i == 0 ) {
-  mGLContext->fClearColor(1.0, 0.0, 0.0, 0.0);
-  } else if( i == 1 ) {
-  mGLContext->fClearColor(0.0, 0.0, 0.0, 0.0);
-  } else if( i == 2 ) {
-  mGLContext->fClearColor(1.0, 1.0, 0.0, 0.0);
-  } else {
-  mGLContext->fClearColor(0.0, 1.0, 0.0, 0.0);
-  }
+  mGLContext->fClearColor(1.0, 1.0, 1.0, 0.0);
   mGLContext->fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT);
 
   // Render our layers.

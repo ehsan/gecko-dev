@@ -234,8 +234,6 @@ char **gArgv;
 static const char gToolkitVersion[] = NS_STRINGIFY(GRE_MILESTONE);
 static const char gToolkitBuildID[] = NS_STRINGIFY(GRE_BUILDID);
 
-static nsIProfileLock* gProfileLock;
-
 static int    gRestartArgc;
 static char **gRestartArgv;
 
@@ -830,15 +828,6 @@ nsXULAppInfo::InvalidateCachesOnRestart()
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsXULAppInfo::GetReplacedLockTime(PRInt64 *aReplacedLockTime)
-{
-  if (!gProfileLock)
-    return NS_ERROR_NOT_AVAILABLE;
-  gProfileLock->GetReplacedLockTime(aReplacedLockTime);
-  return NS_OK;
-}
-
 #ifdef XP_WIN
 // Matches the enum in WinNT.h for the Vista SDK but renamed so that we can
 // safely build with the Vista SDK and without it.
@@ -1341,8 +1330,7 @@ DumpHelp()
          "  -P <profile>       Start with <profile>.\n"
          "  -migration         Start with migration wizard.\n"
          "  -ProfileManager    Start with ProfileManager.\n"
-         "  -no-remote         Do not accept or send remote commands; implies -new-instance.\n"
-         "  -new-instance      Open new instance, not a new window in running instance.\n"
+         "  -no-remote         Open new instance, not a new window in running instance.\n"
          "  -UILocale <locale> Start with <locale> resources as UI Locale.\n"
          "  -safe-mode         Disables extensions and themes for this session.\n", gAppData->name);
 
@@ -2918,22 +2906,14 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     gSafeMode = true;
 #endif
 
-  // Handle -no-remote and -new-instance command line arguments. Setup
-  // the environment to better accommodate other components and various
-  // restart scenarios.
+  // Handle -no-remote command line argument. Setup the environment to
+  // better accommodate other components and various restart scenarios.
   ar = CheckArg("no-remote", true);
   if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument -no-remote is invalid when argument -osint is specified\n");
+    PR_fprintf(PR_STDERR, "Error: argument -a requires an application name\n");
     return 1;
   } else if (ar == ARG_FOUND) {
     SaveToEnv("MOZ_NO_REMOTE=1");
-  }
-  ar = CheckArg("new-instance", true);
-  if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument -new-instance is invalid when argument -osint is specified\n");
-    return 1;
-  } else if (ar == ARG_FOUND) {
-    SaveToEnv("MOZ_NEW_INSTANCE=1");
   }
 
   // Handle -help and -version command line arguments.
@@ -3055,16 +3035,10 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
 #ifdef MOZ_ENABLE_XREMOTE
     // handle -remote now that xpcom is fired up
-    bool disableRemote, newInstance;
+    bool disableRemote = false;
     {
       char *e = PR_GetEnv("MOZ_NO_REMOTE");
       disableRemote = (e && *e);
-      if (disableRemote) {
-        newInstance = true;
-      } else {
-        e = PR_GetEnv("MOZ_NEW_INSTANCE");
-        newInstance = (e && *e);
-      }
     }
 
     const char* xremotearg;
@@ -3079,7 +3053,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       return HandleRemoteArgument(xremotearg, desktopStartupIDPtr);
     }
 
-    if (!newInstance) {
+    if (!disableRemote) {
       // Try to remote the entire command line. If this fails, start up normally.
       RemoteResult rr = RemoteCommandLine(desktopStartupIDPtr);
       if (rr == REMOTE_FOUND)
@@ -3210,7 +3184,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       ProfileMissingDialog(nativeApp);
       return 1;
     }
-    gProfileLock = profileLock;
 
     nsCOMPtr<nsILocalFile> profD;
     rv = profileLock->GetDirectory(getter_AddRefs(profD));
@@ -3595,7 +3568,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     // unlock the profile after ScopedXPCOMStartup object (xpcom) 
     // has gone out of scope.  see bug #386739 for more details
     profileLock->Unlock();
-    gProfileLock = nsnull;
 
 #if defined(MOZ_WIDGET_QT)
     nsQAppInstance::Release();

@@ -418,8 +418,10 @@ XPCWrappedNativeScope::FinishedMarkPhaseOfGC(JSContext* cx, XPCJSRuntime* rt)
     while (cur) {
         XPCWrappedNativeScope* next = cur->mNext;
 
+        js::AutoSwitchCompartment sc(cx, cur->mGlobalJSObject);
+
         if (cur->mGlobalJSObject &&
-            JS_IsAboutToBeFinalized(cur->mGlobalJSObject)) {
+            JS_IsAboutToBeFinalized(cx, cur->mGlobalJSObject)) {
             cur->mGlobalJSObject.finalize(cx);
             cur->mScriptObjectPrincipal = nsnull;
             if (cur->GetCachedDOMPrototypes().IsInitialized())
@@ -434,11 +436,11 @@ XPCWrappedNativeScope::FinishedMarkPhaseOfGC(JSContext* cx, XPCJSRuntime* rt)
             cur = nsnull;
         } else {
             if (cur->mPrototypeJSObject &&
-                JS_IsAboutToBeFinalized(cur->mPrototypeJSObject)) {
+                JS_IsAboutToBeFinalized(cx, cur->mPrototypeJSObject)) {
                 cur->mPrototypeJSObject.finalize(cx);
             }
             if (cur->mPrototypeNoHelper &&
-                JS_IsAboutToBeFinalized(cur->mPrototypeNoHelper)) {
+                JS_IsAboutToBeFinalized(cx, cur->mPrototypeNoHelper)) {
                 cur->mPrototypeNoHelper = nsnull;
             }
         }

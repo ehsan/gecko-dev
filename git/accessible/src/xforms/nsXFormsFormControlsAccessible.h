@@ -297,7 +297,7 @@ public:
   // nsAccessible
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
-  virtual bool CanHaveAnonChildren();
+  virtual bool GetAllowsAnonChildAccessibles();
 };
 
 

@@ -162,6 +162,8 @@ public:
 
   virtual already_AddRefed<CanvasLayer> CreateCanvasLayer();
 
+  virtual already_AddRefed<ImageContainer> CreateImageContainer();
+
   virtual already_AddRefed<ShadowThebesLayer> CreateShadowThebesLayer();
   virtual already_AddRefed<ShadowContainerLayer> CreateShadowContainerLayer();
   virtual already_AddRefed<ShadowImageLayer> CreateShadowImageLayer();
@@ -170,6 +172,16 @@ public:
 
   virtual LayersBackend GetBackendType() { return LAYERS_OPENGL; }
   virtual void GetBackendName(nsAString& name) { name.AssignLiteral("OpenGL"); }
+
+  /**
+   * Image Container management.
+   */
+
+  /* Forget this image container.  Should be called by ImageContainerOGL
+   * on its current layer manager before switching to a new one.
+   */
+  void ForgetImageContainer(ImageContainer* aContainer);
+  void RememberImageContainer(ImageContainer* aContainer);
 
   /**
    * Helper methods.
@@ -413,6 +425,11 @@ private:
   nsRefPtr<GLContext> mGLContext;
 
   already_AddRefed<mozilla::gl::GLContext> CreateContext();
+
+  // The image containers that this layer manager has created.
+  // The destructor will tell the layer manager to remove
+  // it from the list.
+  nsTArray<ImageContainer*> mImageContainers;
 
   static ProgramType sLayerProgramTypes[];
 

@@ -69,7 +69,6 @@ CPPSRCS	= \
 	AndroidFlexViewWrapper.cpp \
 	AndroidGraphicBuffer.cpp \
 	AndroidJNI.cpp \
-	AndroidMediaLayer.cpp \
 	nsWindow.cpp \
 	nsLookAndFeel.cpp \
 	nsScreenManagerAndroid.cpp \

@@ -140,7 +140,7 @@ nsXULComboboxAccessible::Description(nsString& aDescription)
 }
 
 bool
-nsXULComboboxAccessible::CanHaveAnonChildren()
+nsXULComboboxAccessible::GetAllowsAnonChildAccessibles()
 {
   if (mContent->NodeInfo()->Equals(nsGkAtoms::textbox, kNameSpaceID_XUL) ||
       mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::editable,

@@ -83,7 +83,6 @@
 #include "prmem.h"
 #include "nsDOMFile.h"
 #include "nsWrapperCacheInlines.h"
-#include "nsDOMEventTargetHelper.h"
 
 using namespace mozilla;
 
@@ -92,9 +91,9 @@ using namespace mozilla;
 #define TRUE_OR_FAIL_WEBSOCKET(x, ret)                                    \
   PR_BEGIN_MACRO                                                          \
     if (NS_UNLIKELY(!(x))) {                                              \
-      NS_WARNING("ENSURE_TRUE_AND_FAIL_IF_FAILED(" #x ") failed");        \
-      FailConnection(nsIWebSocketChannel::CLOSE_INTERNAL_ERROR);          \
-      return ret;                                                         \
+       NS_WARNING("ENSURE_TRUE_AND_FAIL_IF_FAILED(" #x ") failed");       \
+       FailConnection();                                                  \
+       return ret;                                                        \
     }                                                                     \
   PR_END_MACRO
 
@@ -103,7 +102,7 @@ using namespace mozilla;
     nsresult __rv = res;                                                  \
     if (NS_FAILED(__rv)) {                                                \
       NS_ENSURE_SUCCESS_BODY(res, ret)                                    \
-      FailConnection(nsIWebSocketChannel::CLOSE_INTERNAL_ERROR);          \
+      FailConnection();                                                   \
       return ret;                                                         \
     }                                                                     \
   PR_END_MACRO
@@ -160,8 +159,7 @@ nsWebSocket::PrintErrorOnConsole(const char *aBundleURI,
 
 // when this is called the browser side wants no more part of it
 nsresult
-nsWebSocket::CloseConnection(PRUint16 aReasonCode,
-                             const nsACString& aReasonString)
+nsWebSocket::CloseConnection()
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
   if (mDisconnected)
@@ -174,7 +172,7 @@ nsWebSocket::CloseConnection(PRUint16 aReasonCode,
   if (mReadyState == nsIWebSocket::CONNECTING) {
     SetReadyState(nsIWebSocket::CLOSED);
     if (mChannel) {
-      mChannel->Close(aReasonCode, aReasonString);
+      mChannel->Close(mClientReasonCode, mClientReason);
     }
     Disconnect();
     return NS_OK;
@@ -188,7 +186,7 @@ nsWebSocket::CloseConnection(PRUint16 aReasonCode,
     return NS_OK;
   }
 
-  return mChannel->Close(aReasonCode, aReasonString);
+  return mChannel->Close(mClientReasonCode, mClientReason);
 }
 
 nsresult
@@ -221,13 +219,12 @@ nsWebSocket::ConsoleError()
 
 
 nsresult
-nsWebSocket::FailConnection(PRUint16 aReasonCode,
-                            const nsACString& aReasonString)
+nsWebSocket::FailConnection()
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
   ConsoleError();
 
-  nsresult rv = CloseConnection(aReasonCode, aReasonString);
+  nsresult rv = CloseConnection();
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = CreateAndDispatchSimpleEvent(NS_LITERAL_STRING("error"));
@@ -325,7 +322,7 @@ nsWebSocket::OnStop(nsISupports *aContext, nsresult aStatusCode)
   if (mDisconnected)
     return NS_OK;
 
-  mCloseEventWasClean = NS_SUCCEEDED(aStatusCode);
+  mClosedCleanly = NS_SUCCEEDED(aStatusCode);
 
   if (aStatusCode == NS_BASE_STREAM_CLOSED &&
       mReadyState >= nsIWebSocket::CLOSING) {
@@ -363,16 +360,10 @@ nsWebSocket::OnServerClose(nsISupports *aContext, PRUint16 aCode,
                            const nsACString &aReason)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
+  mServerReasonCode = aCode;
+  CopyUTF8toUTF16(aReason, mServerReason);
 
-  // store code/string for onclose DOM event
-  mCloseEventCode = aCode;
-  CopyUTF8toUTF16(aReason, mCloseEventReason);
-
-  // Send reciprocal Close frame.
-  // 5.5.1: "When sending a Close frame in response, the endpoint typically
-  // echos the status code it received"
-  CloseConnection(aCode, aReason);
-
+  CloseConnection();                              /* reciprocate! */
   return NS_OK;
 }
 
@@ -415,9 +406,10 @@ nsWebSocket::GetInterface(const nsIID &aIID, void **aResult)
 nsWebSocket::nsWebSocket() : mKeepingAlive(false),
                              mCheckMustKeepAlive(true),
                              mTriggeredCloseEvent(false),
+                             mClosedCleanly(false),
                              mDisconnected(false),
-                             mCloseEventWasClean(false),
-                             mCloseEventCode(nsIWebSocketChannel::CLOSE_ABNORMAL),
+                             mClientReasonCode(0),
+                             mServerReasonCode(nsIWebSocketChannel::CLOSE_ABNORMAL),
                              mReadyState(nsIWebSocket::CONNECTING),
                              mOutgoingBufferedAmount(0),
                              mBinaryType(WS_BINARY_TYPE_BLOB),
@@ -460,11 +452,11 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsWebSocket)
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(nsWebSocket,
-                                               nsDOMEventTargetHelper)
+                                               nsDOMEventTargetWrapperCache)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsWebSocket,
-                                                  nsDOMEventTargetHelper)
+                                                  nsDOMEventTargetWrapperCache)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnOpenListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnMessageListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnCloseListener)
@@ -475,7 +467,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsWebSocket,
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsWebSocket,
-                                                nsDOMEventTargetHelper)
+                                                nsDOMEventTargetWrapperCache)
   tmp->Disconnect();
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnOpenListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnMessageListener)
@@ -495,10 +487,10 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsWebSocket)
   NS_INTERFACE_MAP_ENTRY(nsIWebSocketListener)
   NS_INTERFACE_MAP_ENTRY(nsIRequest)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WebSocket)
-NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetWrapperCache)
 
-NS_IMPL_ADDREF_INHERITED(nsWebSocket, nsDOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(nsWebSocket, nsDOMEventTargetHelper)
+NS_IMPL_ADDREF_INHERITED(nsWebSocket, nsDOMEventTargetWrapperCache)
+NS_IMPL_RELEASE_INHERITED(nsWebSocket, nsDOMEventTargetWrapperCache)
 
 //-----------------------------------------------------------------------------
 // nsWebSocket::nsIJSNativeInitializer methods:
@@ -631,7 +623,7 @@ public:
   ~nsAutoCloseWS()
   {
     if (!mWebSocket->mChannel) {
-      mWebSocket->CloseConnection(nsIWebSocketChannel::CLOSE_INTERNAL_ERROR);
+      mWebSocket->CloseConnection();
     }
   }
 private:
@@ -914,9 +906,9 @@ nsWebSocket::SetReadyState(PRUint16 aNewReadyState)
     mReadyState = aNewReadyState;
 
     // The close event must be dispatched asynchronously.
-    rv = NS_DispatchToMainThread(new nsWSCloseEvent(this, mCloseEventWasClean,
-                                                    mCloseEventCode,
-                                                    mCloseEventReason),
+    rv = NS_DispatchToMainThread(new nsWSCloseEvent(this, mClosedCleanly,
+                                                    mServerReasonCode,
+                                                    mServerReason),
                                  NS_DISPATCH_NORMAL);
     if (NS_FAILED(rv)) {
       NS_WARNING("Failed to dispatch the close event");
@@ -1421,27 +1413,29 @@ nsWebSocket::Close(PRUint16 code, const nsAString & reason, PRUint8 argc)
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Not running on main thread");
 
   // the reason code is optional, but if provided it must be in a specific range
-  PRUint16 closeCode = 0;
   if (argc >= 1) {
-    if (code != 1000 && (code < 3000 || code > 4999)) {
+    if (code != 1000 && (code < 3000 || code > 4999))
       return NS_ERROR_DOM_INVALID_ACCESS_ERR;
-    }
-    closeCode = code;
   }
 
-  nsCAutoString closeReason;
+  nsCAutoString utf8Reason;
   if (argc >= 2) {
-    if (ContainsUnpairedSurrogates(reason)) {
+    if (ContainsUnpairedSurrogates(reason))
       return NS_ERROR_DOM_SYNTAX_ERR;
-    }
-    CopyUTF16toUTF8(reason, closeReason);
+
+    CopyUTF16toUTF8(reason, utf8Reason);
 
     // The API requires the UTF-8 string to be 123 or less bytes
-    if (closeReason.Length() > 123) {
+    if (utf8Reason.Length() > 123)
       return NS_ERROR_DOM_SYNTAX_ERR;
-    }
   }
 
+  // Format checks for reason and code both passed, they can now be assigned.
+  if (argc >= 1)
+    mClientReasonCode = code;
+  if (argc >= 2)
+    mClientReason = utf8Reason;
+  
   if (mReadyState == nsIWebSocket::CLOSING ||
       mReadyState == nsIWebSocket::CLOSED) {
     return NS_OK;
@@ -1452,12 +1446,12 @@ nsWebSocket::Close(PRUint16 code, const nsAString & reason, PRUint8 argc)
     // before calling it
     nsRefPtr<nsWebSocket> kungfuDeathGrip = this;
 
-    FailConnection(closeCode, closeReason);
+    FailConnection();
     return NS_OK;
   }
 
   // mReadyState == nsIWebSocket::OPEN
-  CloseConnection(closeCode, closeReason);
+  CloseConnection();
 
   return NS_OK;
 }
@@ -1600,7 +1594,8 @@ nsWebSocket::Cancel(nsresult aStatus)
     return NS_OK;
 
   ConsoleError();
-  return CloseConnection(nsIWebSocketChannel::CLOSE_GOING_AWAY);
+  mClientReasonCode = nsIWebSocketChannel::CLOSE_GOING_AWAY;
+  return CloseConnection();
 }
 
 NS_IMETHODIMP

@@ -179,9 +179,6 @@ TelemetryPing.prototype = {
   _histograms: {},
   _initialized: false,
   _prevValues: {},
-  // Generate a unique id once per session so the server can cope with
-  // duplicate submissions.
-  _uuid: generateUUID(),
 
   /**
    * Returns a set of histograms that can be converted into JSON
@@ -394,9 +391,12 @@ TelemetryPing.prototype = {
     }
   },
 
-  getSessionPayloadAndSlug: function getSessionPayloadAndSlug(reason) {
-    let isTestPing = (reason == "test-ping");
-    let slug = (isTestPing ? reason : this._uuid);
+  /**
+   * Send data to the server. Record success/send-time in histograms
+   */
+  send: function send(reason, server) {
+    // populate histograms one last time
+    this.gatherMemory();
     let payloadObj = {
       ver: PAYLOAD_VERSION,
       info: this.getMetadata(reason),
@@ -405,24 +405,16 @@ TelemetryPing.prototype = {
       slowSQL: Telemetry.slowSQL
     };
 
-    return { slug: slug, payload: JSON.stringify(payloadObj) };
-  },
-
-  /**
-   * Send data to the server. Record success/send-time in histograms
-   */
-  send: function send(reason, server) {
-    // populate histograms one last time
-    this.gatherMemory();
-
-    let data = this.getSessionPayloadAndSlug(reason);
     let isTestPing = (reason == "test-ping");
-    let submitPath = "/submit/telemetry/" + data.slug;
+    // Generate a unique id once per session so the server can cope with duplicate submissions.
+    // Use a deterministic url for testing.
+    if (!this._path)
+      this._path = "/submit/telemetry/" + (isTestPing ? reason : generateUUID());
     
     let hping = Telemetry.getHistogramById("TELEMETRY_PING");
     let hsuccess = Telemetry.getHistogramById("TELEMETRY_SUCCESS");
 
-    let url = server + submitPath;
+    let url = server + this._path;
     let request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
                   .createInstance(Ci.nsIXMLHttpRequest);
     request.mozBackgroundRequest = true;
@@ -446,7 +438,7 @@ TelemetryPing.prototype = {
     request.addEventListener("error", function(aEvent) finishRequest(request.channel), false);
     request.addEventListener("load", function(aEvent) finishRequest(request.channel), false);
 
-    request.send(data.payload);
+    request.send(JSON.stringify(payloadObj));
   },
   
   attachObservers: function attachObservers() {

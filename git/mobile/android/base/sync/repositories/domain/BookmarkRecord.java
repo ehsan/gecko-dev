@@ -95,51 +95,6 @@ public class BookmarkRecord extends Record {
            parentID + "/" + androidParentID + "/" + parentName + ">";
   }
 
-  // Oh God, this is terribly thread-unsafe. These record objects should be immutable.
-  @SuppressWarnings("unchecked")
-  protected JSONArray copyChildren() {
-    if (this.children == null) {
-      return null;
-    }
-    JSONArray children = new JSONArray();
-    children.addAll(this.children);
-    return children;
-  }
-
-  @SuppressWarnings("unchecked")
-  protected JSONArray copyTags() {
-    if (this.tags == null) {
-      return null;
-    }
-    JSONArray tags = new JSONArray();
-    tags.addAll(this.tags);
-    return tags;
-  }
-
-  @Override
-  public Record copyWithIDs(String guid, long androidID) {
-    BookmarkRecord out = new BookmarkRecord(guid, this.collection, this.lastModified, this.deleted);
-    out.androidID = androidID;
-    out.sortIndex = this.sortIndex;
-
-    // Copy BookmarkRecord fields.
-    out.title           = this.title;
-    out.bookmarkURI     = this.bookmarkURI;
-    out.description     = this.description;
-    out.keyword         = this.keyword;
-    out.parentID        = this.parentID;
-    out.parentName      = this.parentName;
-    out.androidParentID = this.androidParentID;
-    out.type            = this.type;
-    out.pos             = this.pos;
-    out.androidPosition = this.androidPosition;
-
-    out.children        = this.copyChildren();
-    out.tags            = this.copyTags();
-
-    return out;
-  }
-
   @Override
   public void initFromPayload(CryptoRecord payload) {
     ExtendedJSONObject p = payload.payload;
@@ -224,18 +179,21 @@ public class BookmarkRecord extends Record {
   }
 
   private void trace(String s) {
-    Utils.trace(LOG_TAG, s);
+    if (Utils.ENABLE_TRACE_LOGGING) {
+      Log.d(LOG_TAG, s);
+    }
   }
 
   @Override
-  public boolean equalPayloads(Object o) {
-    trace("Calling BookmarkRecord.equalPayloads.");
-    if (o == null || !(o instanceof BookmarkRecord)) {
+  public boolean equals(Object o) {
+    trace("Calling BookmarkRecord.equals.");
+    if (!(o instanceof BookmarkRecord)) {
       return false;
     }
 
     BookmarkRecord other = (BookmarkRecord) o;
-    if (!super.equalPayloads(other)) {
+    
+    if (!super.equals(other)) {
       return false;
     }
 
@@ -278,15 +236,8 @@ public class BookmarkRecord extends Record {
         && RepoUtils.stringsEqual(this.keyword, other.keyword)
         && jsonArrayStringsEqual(this.tags, other.tags);
   }
-
-  // TODO: two records can be congruent if their child lists are different.
-  @Override
-  public boolean congruentWith(Object o) {
-    return this.equalPayloads(o) &&
-           super.congruentWith(o);
-  }
-
-  // Converts two JSONArrays to strings and checks if they are the same.
+  
+  // Converts to JSONArrays to strings and checks if they are the same.
   // This is only useful for stuff like tags where we aren't actually
   // touching the data there (and therefore ordering won't change)
   private boolean jsonArrayStringsEqual(JSONArray a, JSONArray b) {
@@ -296,6 +247,7 @@ public class BookmarkRecord extends Record {
     if (a != null && b == null) return false;
     return RepoUtils.stringsEqual(a.toJSONString(), b.toJSONString());
   }
+
 }
 
 

@@ -464,12 +464,7 @@ PluginInstanceParent::AnswerPStreamNotifyConstructor(PStreamNotifyParent* actor,
                                            file, actor);
     }
 
-    if (streamDestroyed) {
-        // If the stream was destroyed, we must return an error code in the
-        // constructor.
-        *result = NPERR_GENERIC_ERROR;
-    }
-    else {
+    if (!streamDestroyed) {
         static_cast<StreamNotifyParent*>(actor)->ClearDestructionFlag();
         if (*result != NPERR_NO_ERROR)
             return PStreamNotifyParent::Send__delete__(actor,
@@ -652,6 +647,9 @@ PluginInstanceParent::GetImage(ImageContainer* aContainer, Image** aImage)
 #ifdef XP_MACOSX
     if (ioSurface) {
         format = Image::MAC_IO_SURFACE;
+        if (!aContainer->Manager()) {
+            return NS_ERROR_FAILURE;
+        }
     }
 #endif
 

@@ -590,7 +590,7 @@ nsXFormsSelectComboboxAccessible::NativeState()
 }
 
 bool
-nsXFormsSelectComboboxAccessible::CanHaveAnonChildren()
+nsXFormsSelectComboboxAccessible::GetAllowsAnonChildAccessibles()
 {
   return true;
 }

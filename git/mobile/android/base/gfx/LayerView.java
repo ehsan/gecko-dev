@@ -37,10 +37,13 @@
 
 package org.mozilla.gecko.gfx;
 
-import org.mozilla.gecko.GeckoInputConnection;
+import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.GeckoEventListener;
 import org.mozilla.gecko.gfx.FloatSize;
 import org.mozilla.gecko.gfx.InputConnectionHandler;
 import org.mozilla.gecko.gfx.LayerController;
+import org.mozilla.gecko.GeckoInputConnection;
 import org.mozilla.gecko.ui.SimpleScaleGestureDetector;
 import android.content.Context;
 import android.opengl.GLSurfaceView;
@@ -56,13 +59,17 @@ import android.util.Log;
 import java.nio.IntBuffer;
 import java.util.LinkedList;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 /**
  * A view rendered by the layer compositor.
  *
  * This view delegates to LayerRenderer to actually do the drawing. Its role is largely that of a
  * mediator between the LayerRenderer and the LayerController.
  */
-public class LayerView extends FlexibleGLSurfaceView {
+public class LayerView extends FlexibleGLSurfaceView implements GeckoEventListener {
     private Context mContext;
     private LayerController mController;
     private InputConnectionHandler mInputConnectionHandler;
@@ -74,7 +81,8 @@ public class LayerView extends FlexibleGLSurfaceView {
     private static String LOGTAG = "GeckoLayerView";
     /* List of events to be processed if the page does not prevent them. Should only be touched on the main thread */
     private LinkedList<MotionEvent> mEventQueue = new LinkedList<MotionEvent>();
-
+    private boolean touchEventsEnabled = false;
+    private String touchEventsPrefName = "dom.w3c_touch_events.enabled";
 
     public LayerView(Context context, LayerController controller) {
         super(context);
@@ -92,6 +100,31 @@ public class LayerView extends FlexibleGLSurfaceView {
         setFocusable(true);
         setFocusableInTouchMode(true);
 
+        GeckoAppShell.registerGeckoEventListener("Preferences:Data", this);
+        JSONArray jsonPrefs = new JSONArray();
+        jsonPrefs.put(touchEventsPrefName);
+        GeckoEvent event = new GeckoEvent("Preferences:Get", jsonPrefs.toString());
+        GeckoAppShell.sendEventToGecko(event);
+
+        createGLThread();
+    }
+
+    public void handleMessage(String event, JSONObject message) {
+        if (event.equals("Preferences:Data")) {
+            try {
+                JSONArray jsonPrefs = message.getJSONArray("preferences");
+                for (int i = 0; i < jsonPrefs.length(); i++) {
+                    JSONObject jPref = jsonPrefs.getJSONObject(i);
+                    final String prefName = jPref.getString("name");
+                    if (prefName.equals(touchEventsPrefName)) {
+                        touchEventsEnabled = jPref.getBoolean("value");
+                        GeckoAppShell.unregisterGeckoEventListener("Preferences:Data", this);
+                    }
+                }
+            } catch(JSONException ex) {
+                Log.e(LOGTAG, "Error decoding JSON", ex);
+            }
+        }
     }
 
     private void addToEventQueue(MotionEvent event) {
@@ -113,7 +146,7 @@ public class LayerView extends FlexibleGLSurfaceView {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (mController.onTouchEvent(event)) {
+        if (touchEventsEnabled && mController.onTouchEvent(event)) {
             addToEventQueue(event);
             return true;
         }
@@ -195,14 +228,6 @@ public class LayerView extends FlexibleGLSurfaceView {
                 mRenderTime = System.nanoTime();
             }
         }
-    }
-
-    public void addLayer(Layer layer) {
-        mRenderer.addLayer(layer);
-    }
-
-    public void removeLayer(Layer layer) {
-        mRenderer.removeLayer(layer);
     }
 
     /**

@@ -50,6 +50,7 @@
 #include "nsITreeView.h"
 #include "nsICSSPseudoComparator.h"
 #include "nsIScrollbarMediator.h"
+#include "nsIDragSession.h"
 #include "nsITimer.h"
 #include "nsIReflowCallback.h"
 #include "nsTArray.h"
@@ -534,9 +535,6 @@ protected: // Data Members
       // If the drop is actually allowed here or not.
       bool                     mDropAllowed;
 
-      // True while dragging over the tree.
-      bool mIsDragging;
-
       // The row the mouse is hovering over during a drop.
       PRInt32                  mDropRow;
 
@@ -548,6 +546,8 @@ protected: // Data Members
 
       // The drag action that was received for this slot
       PRUint32                 mDragAction;
+
+      nsCOMPtr<nsIDragSession> mDragSession;
 
       // Timer for opening/closing spring loaded folders or scrolling the tree.
       nsCOMPtr<nsITimer>       mTimer;

@@ -221,23 +221,23 @@ Mark(JSTracer *trc, const MarkablePtr<JSXML> &xml, const char *name)
 }
 
 inline bool
-IsMarked(const js::Value &v)
+IsMarked(JSContext *cx, const js::Value &v)
 {
     if (v.isMarkable())
-        return !IsAboutToBeFinalized(v);
+        return !IsAboutToBeFinalized(cx, v);
     return true;
 }
 
 inline bool
-IsMarked(JSObject *o)
+IsMarked(JSContext *cx, JSObject *o)
 {
-    return !IsAboutToBeFinalized(o);
+    return !IsAboutToBeFinalized(cx, o);
 }
 
 inline bool
-IsMarked(Cell *cell)
+IsMarked(JSContext *cx, Cell *cell)
 {
-    return !IsAboutToBeFinalized(cell);
+    return !IsAboutToBeFinalized(cx, cell);
 }
 
 } /* namespace gc */

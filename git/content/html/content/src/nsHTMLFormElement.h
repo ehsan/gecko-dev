@@ -151,8 +151,6 @@ public:
   virtual bool GetValueMissingState(const nsAString& aName) const;
   virtual void SetValueMissingState(const nsAString& aName, bool aValue);
 
-  virtual nsEventStates IntrinsicState() const;
-
   // nsIContent
   virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,

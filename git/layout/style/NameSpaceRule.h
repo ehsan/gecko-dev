@@ -84,9 +84,6 @@ public:
 
   void GetURLSpec(nsString& aURLSpec) const { aURLSpec = mURLSpec; }
 
-  virtual NS_MUST_OVERRIDE size_t
-    SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
   // nsIDOMCSSRule interface
   NS_DECL_NSIDOMCSSRULE
 

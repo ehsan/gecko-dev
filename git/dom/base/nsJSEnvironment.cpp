@@ -2195,7 +2195,7 @@ nsJSContext::GetGlobalObject()
   }
 #endif
 
-  JSClass *c = JS_GetClass(global);
+  JSClass *c = JS_GET_CLASS(mContext, global);
 
   if (!c || ((~c->flags) & (JSCLASS_HAS_PRIVATE |
                             JSCLASS_PRIVATE_IS_NSISUPPORTS))) {
@@ -3381,13 +3381,12 @@ CCTimerFired(nsITimer *aTimer, void *aClosure)
       // Just few new suspected objects, return early.
       return;
     }
-    
+    sPreviousSuspectedCount = suspected;
     PRTime startTime;
     if (sPostGCEventsToConsole) {
       startTime = PR_Now();
     }
     nsCycleCollector_forgetSkippable();
-    sPreviousSuspectedCount = nsCycleCollector_suspectedCount();
     sCleanupSinceLastGC = true;
     if (sPostGCEventsToConsole) {
       PRTime delta = PR_Now() - startTime;
@@ -3398,7 +3397,7 @@ CCTimerFired(nsITimer *aTimer, void *aClosure)
         sMaxForgetSkippableTime = delta;
       }
       sTotalForgetSkippableTime += delta;
-      sRemovedPurples += (suspected - sPreviousSuspectedCount);
+      sRemovedPurples += (suspected - nsCycleCollector_suspectedCount());
       ++sForgetSkippableBeforeCC;
     }
   } else {
@@ -3496,7 +3495,7 @@ nsJSContext::PokeShrinkGCBuffers()
 void
 nsJSContext::MaybePokeCC()
 {
-  if (sCCTimer || sDidShutdown) {
+  if (sCCTimer) {
     return;
   }
 
@@ -4117,6 +4116,10 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsJSArgArray)
 nsresult
 nsJSArgArray::GetArgs(PRUint32 *argc, void **argv)
 {
+  if (!mArgv) {
+    NS_WARNING("nsJSArgArray has no argv!");
+    return NS_ERROR_UNEXPECTED;
+  }
   *argv = (void *)mArgv;
   *argc = mArgc;
   return NS_OK;

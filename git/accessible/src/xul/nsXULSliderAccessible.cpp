@@ -190,7 +190,7 @@ nsXULSliderAccessible::SetCurrentValue(double aValue)
 }
 
 bool
-nsXULSliderAccessible::CanHaveAnonChildren()
+nsXULSliderAccessible::GetAllowsAnonChildAccessibles()
 {
   // Do not allow anonymous xul:slider be accessible.
   return false;

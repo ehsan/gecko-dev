@@ -160,7 +160,8 @@ using mozilla::layers::LayerManagerOGL;
 #define MAX_RECTS_IN_REGION 100
 
 /* utility functions */
-static bool       check_for_rollup(gdouble aMouseX, gdouble aMouseY,
+static bool       check_for_rollup(GdkWindow *aWindow,
+                                   gdouble aMouseX, gdouble aMouseY,
                                    bool aIsWheel, bool aAlwaysRollup);
 static bool       is_mouse_in_window(GdkWindow* aWindow,
                                      gdouble aMouseX, gdouble aMouseY);
@@ -295,10 +296,12 @@ UpdateLastInputEventTime()
 nsWindow *nsWindow::sLastDragMotionWindow = NULL;
 bool nsWindow::sIsDraggingOutOf = false;
 
+// This is the time of the last button press event.  The drag service
+// uses it as the time to start drags.
+guint32   nsWindow::sLastButtonPressTime = 0;
 // Time of the last button release event. We use it to detect when the
 // drag ended before we could properly setup drag and drop.
 guint32   nsWindow::sLastButtonReleaseTime = 0;
-static guint32 sRetryGrabTime;
 
 static NS_DEFINE_IID(kCDragServiceCID,  NS_DRAGSERVICE_CID);
 
@@ -1426,31 +1429,6 @@ SetUserTimeAndStartupIDForActivatedWindow(GtkWidget* aWindow)
     GTKToolkit->SetDesktopStartupID(EmptyCString());
 }
 
-/* static */ guint32
-nsWindow::GetCurrentEventTime()
-{
-    static guint32 sLastCurrentEventTime = GDK_CURRENT_TIME;
-
-    guint32 timestamp = gtk_get_current_event_time();
-
-    if (timestamp == GDK_CURRENT_TIME) {
-        timestamp = gdk_x11_display_get_user_time(gdk_display_get_default());
-
-        // The user_time is not updated on all user events, so check that we
-        // haven't returned a more recent timestamp.  If so, use the more
-        // recent timestamp to ensure that subsequent requests will override
-        // previous requests.  Timestamps are just the least significant bits
-        // of a monotonically increasing function, and so the use of unsigned
-        // overflow arithmetic.
-        if (sLastCurrentEventTime != GDK_CURRENT_TIME &&
-            sLastCurrentEventTime - timestamp <= G_MAXUINT32/2)
-            return sLastCurrentEventTime;
-    }       
-
-    sLastCurrentEventTime = timestamp;
-    return timestamp;
-}
-
 NS_IMETHODIMP
 nsWindow::SetFocus(bool aRaise)
 {
@@ -1904,7 +1882,7 @@ nsWindow::CaptureMouse(bool aCapture)
 
     if (aCapture) {
         gtk_grab_add(widget);
-        GrabPointer(GetCurrentEventTime());
+        GrabPointer();
     }
     else {
         ReleaseGrabs();
@@ -1936,7 +1914,7 @@ nsWindow::CaptureRollupEvents(nsIRollupListener *aListener,
         // real grab is only done when there is no dragging
         if (!nsWindow::DragInProgress()) {
             gtk_grab_add(widget);
-            GrabPointer(GetCurrentEventTime());
+            GrabPointer();
         }
     }
     else {
@@ -2379,7 +2357,7 @@ nsWindow::OnConfigureEvent(GtkWidget *aWidget, GdkEventConfigure *aEvent)
         // Cygwin/X (bug 672103).
         if (mBounds.x != screenBounds.x ||
             mBounds.y != screenBounds.y) {
-            check_for_rollup(0, 0, false, true);
+            check_for_rollup(aEvent->window, 0, 0, false, true);
         }
     }
 
@@ -2762,7 +2740,8 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
             return;
     }
 
-    // We haven't received the corresponding release event yet.
+    // Always save the time of this event
+    sLastButtonPressTime = aEvent->time;
     sLastButtonReleaseTime = 0;
 
     nsWindow *containerWindow = GetContainerWindow();
@@ -2771,8 +2750,8 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
     }
 
     // check to see if we should rollup
-    bool rolledUp =
-        check_for_rollup(aEvent->x_root, aEvent->y_root, false, false);
+    bool rolledUp = check_for_rollup(aEvent->window, aEvent->x_root,
+                                       aEvent->y_root, false, false);
     if (gConsumeRollupEvent && rolledUp)
         return;
 
@@ -2936,7 +2915,7 @@ nsWindow::OnContainerFocusOutEvent(GtkWidget *aWidget, GdkEventFocus *aEvent)
         }
 
         if (shouldRollup) {
-            check_for_rollup(0, 0, false, true);
+            check_for_rollup(aEvent->window, 0, 0, false, true);
         }
     }
 
@@ -3295,8 +3274,8 @@ void
 nsWindow::OnScrollEvent(GtkWidget *aWidget, GdkEventScroll *aEvent)
 {
     // check to see if we should rollup
-    bool rolledUp =
-        check_for_rollup(aEvent->x_root, aEvent->y_root, true, false);
+    bool rolledUp =  check_for_rollup(aEvent->window, aEvent->x_root,
+                                        aEvent->y_root, true, false);
     if (gConsumeRollupEvent && rolledUp)
         return;
 
@@ -3410,12 +3389,10 @@ nsWindow::OnWindowStateEvent(GtkWidget *aWidget, GdkEventWindowState *aEvent)
 
     nsSizeModeEvent event(true, NS_SIZEMODE, this);
 
-    // We don't care about anything but changes in the maximized/icon/fullscreen
+    // We don't care about anything but changes in the maximized/icon
     // states
     if ((aEvent->changed_mask
-         & (GDK_WINDOW_STATE_ICONIFIED |
-            GDK_WINDOW_STATE_MAXIMIZED |
-            GDK_WINDOW_STATE_FULLSCREEN)) == 0) {
+         & (GDK_WINDOW_STATE_ICONIFIED|GDK_WINDOW_STATE_MAXIMIZED)) == 0) {
         return;
     }
 
@@ -3427,11 +3404,6 @@ nsWindow::OnWindowStateEvent(GtkWidget *aWidget, GdkEventWindowState *aEvent)
         DispatchMinimizeEventAccessible();
 #endif //ACCESSIBILITY
     }
-    else if (aEvent->new_window_state & GDK_WINDOW_STATE_FULLSCREEN) {
-        LOG(("\tFullscreen\n"));
-        event.mSizeMode = nsSizeMode_Fullscreen;
-        mSizeState = nsSizeMode_Fullscreen;
-    }
     else if (aEvent->new_window_state & GDK_WINDOW_STATE_MAXIMIZED) {
         LOG(("\tMaximized\n"));
         event.mSizeMode = nsSizeMode_Maximized;
@@ -3439,6 +3411,11 @@ nsWindow::OnWindowStateEvent(GtkWidget *aWidget, GdkEventWindowState *aEvent)
 #ifdef ACCESSIBILITY
         DispatchMaximizeEventAccessible();
 #endif //ACCESSIBILITY
+    }
+    else if (aEvent->new_window_state & GDK_WINDOW_STATE_FULLSCREEN) {
+        LOG(("\tFullscreen\n"));
+        event.mSizeMode = nsSizeMode_Fullscreen;
+        mSizeState = nsSizeMode_Fullscreen;
     }
     else {
         LOG(("\tNormal\n"));
@@ -4516,7 +4493,7 @@ void
 nsWindow::EnsureGrabs(void)
 {
     if (mRetryPointerGrab)
-        GrabPointer(sRetryGrabTime);
+        GrabPointer();
 }
 
 void
@@ -4905,13 +4882,11 @@ nsWindow::UpdateTranslucentWindowAlphaInternal(const nsIntRect& aRect,
 }
 
 void
-nsWindow::GrabPointer(guint32 aTime)
+nsWindow::GrabPointer(void)
 {
-    LOG(("GrabPointer time=0x%08x retry=%d\n",
-         (unsigned int)aTime, mRetryPointerGrab));
+    LOG(("GrabPointer %d\n", mRetryPointerGrab));
 
     mRetryPointerGrab = false;
-    sRetryGrabTime = aTime;
 
     // If the window isn't visible, just set the flag to retry the
     // grab.  When this window becomes visible, the grab will be
@@ -4935,17 +4910,11 @@ nsWindow::GrabPointer(guint32 aTime)
                                              GDK_POINTER_MOTION_HINT_MASK |
 #endif
                                              GDK_POINTER_MOTION_MASK),
-                              (GdkWindow *)NULL, NULL, aTime);
+                              (GdkWindow *)NULL, NULL, GDK_CURRENT_TIME);
 
-    if (retval == GDK_GRAB_NOT_VIEWABLE) {
-        LOG(("GrabPointer: window not viewable; will retry\n"));
+    if (retval != GDK_GRAB_SUCCESS) {
+        LOG(("GrabPointer: pointer grab failed\n"));
         mRetryPointerGrab = true;
-    } else if (retval != GDK_GRAB_SUCCESS) {
-        LOG(("GrabPointer: pointer grab failed: %i\n", retval));
-        // A failed grab indicates that another app has grabbed the pointer.
-        // Check for rollup now, because, without the grab, we likely won't
-        // get subsequent button press events.
-        check_for_rollup(0, 0, false, true);
     }
 }
 
@@ -5254,7 +5223,7 @@ nsWindow::HideWindowChrome(bool aShouldHide)
 }
 
 static bool
-check_for_rollup(gdouble aMouseX, gdouble aMouseY,
+check_for_rollup(GdkWindow *aWindow, gdouble aMouseX, gdouble aMouseY,
                  bool aIsWheel, bool aAlwaysRollup)
 {
     bool retVal = false;

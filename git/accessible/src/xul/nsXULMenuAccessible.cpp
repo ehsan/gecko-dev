@@ -320,7 +320,7 @@ nsXULMenuitemAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet,
 }
 
 bool
-nsXULMenuitemAccessible::CanHaveAnonChildren()
+nsXULMenuitemAccessible::GetAllowsAnonChildAccessibles()
 {
   // That indicates we don't walk anonymous children for menuitems
   return false;

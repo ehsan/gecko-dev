@@ -257,8 +257,6 @@ public:
     return nsCSSProperty(mOrder.ElementAt(aValue));
   }
 
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
 private:
   nsAutoTArray<PRUint8, 8> mOrder;
 

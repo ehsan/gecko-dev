@@ -101,14 +101,20 @@ private:
   static nsIDOMBlob*
   GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName)
   {
-    nsIDOMBlob* blob = GetPrivate(aCx, aObj);
-    if (blob) {
-      return blob;
+    JSClass* classPtr = NULL;
+
+    if (aObj) {
+      nsIDOMBlob* blob = GetPrivate(aCx, aObj);
+      if (blob) {
+        return blob;
+      }
+
+      classPtr = JS_GET_CLASS(aCx, aObj);
     }
 
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
                          JSMSG_INCOMPATIBLE_PROTO, sClass.name, aFunctionName,
-                         JS_GetClass(aObj)->name);
+                         classPtr ? classPtr->name : "Object");
     return NULL;
   }
 
@@ -123,7 +129,7 @@ private:
   static void
   Finalize(JSContext* aCx, JSObject* aObj)
   {
-    JS_ASSERT(JS_GetClass(aObj) == &sClass);
+    JS_ASSERT(JS_GET_CLASS(aCx, aObj) == &sClass);
 
     nsIDOMBlob* blob = GetPrivate(aCx, aObj);
     NS_IF_RELEASE(blob);
@@ -272,7 +278,7 @@ public:
   GetPrivate(JSContext* aCx, JSObject* aObj)
   {
     if (aObj) {
-      JSClass* classPtr = JS_GetClass(aObj);
+      JSClass* classPtr = JS_GET_CLASS(aCx, aObj);
       if (classPtr == &sClass) {
         nsISupports* priv = static_cast<nsISupports*>(JS_GetPrivate(aCx, aObj));
         nsCOMPtr<nsIDOMFile> file = do_QueryInterface(priv);
@@ -293,14 +299,19 @@ private:
   static nsIDOMFile*
   GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName)
   {
-    nsIDOMFile* file = GetPrivate(aCx, aObj);
-    if (file) {
-      return file;
+    JSClass* classPtr = NULL;
+
+    if (aObj) {
+      nsIDOMFile* file = GetPrivate(aCx, aObj);
+      if (file) {
+        return file;
+      }
+      classPtr = JS_GET_CLASS(aCx, aObj);
     }
 
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
                          JSMSG_INCOMPATIBLE_PROTO, sClass.name, aFunctionName,
-                         JS_GetClass(aObj)->name);
+                         classPtr ? classPtr->name : "Object");
     return NULL;
   }
 
@@ -315,7 +326,7 @@ private:
   static void
   Finalize(JSContext* aCx, JSObject* aObj)
   {
-    JS_ASSERT(JS_GetClass(aObj) == &sClass);
+    JS_ASSERT(JS_GET_CLASS(aCx, aObj) == &sClass);
 
     nsIDOMFile* file = GetPrivate(aCx, aObj);
     NS_IF_RELEASE(file);
@@ -389,7 +400,7 @@ nsIDOMBlob*
 Blob::GetPrivate(JSContext* aCx, JSObject* aObj)
 {
   if (aObj) {
-    JSClass* classPtr = JS_GetClass(aObj);
+    JSClass* classPtr = JS_GET_CLASS(aCx, aObj);
     if (classPtr == &sClass || classPtr == File::Class()) {
       nsISupports* priv = static_cast<nsISupports*>(JS_GetPrivate(aCx, aObj));
       nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(priv);

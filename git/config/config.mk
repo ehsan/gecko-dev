@@ -163,37 +163,24 @@ PYTHON_PATH = %pythonpath main
 endif
 
 # determine debug-related options
-_DEBUG_ASFLAGS :=
 _DEBUG_CFLAGS :=
 _DEBUG_LDFLAGS :=
 
 ifdef MOZ_DEBUG
-  _DEBUG_CFLAGS += $(MOZ_DEBUG_ENABLE_DEFS)
+  _DEBUG_CFLAGS += $(MOZ_DEBUG_ENABLE_DEFS) $(MOZ_DEBUG_FLAGS)
+  _DEBUG_LDFLAGS += $(MOZ_DEBUG_LDFLAGS)
   XULPPFLAGS += $(MOZ_DEBUG_ENABLE_DEFS)
 else
   _DEBUG_CFLAGS += $(MOZ_DEBUG_DISABLE_DEFS)
   XULPPFLAGS += $(MOZ_DEBUG_DISABLE_DEFS)
-endif
-
-ifneq (,$(MOZ_DEBUG)$(MOZ_DEBUG_SYMBOLS))
-  ifeq ($(AS),yasm)
-    ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
-      _DEBUG_ASFLAGS += -g cv8
-    else
-      ifneq ($(OS_ARCH),Darwin)
-        _DEBUG_ASFLAGS += -g dwarf2
-      endif
-    endif
-  else
-    _DEBUG_ASFLAGS += $(MOZ_DEBUG_FLAGS)
+  ifdef MOZ_DEBUG_SYMBOLS
+    _DEBUG_CFLAGS += $(MOZ_DEBUG_FLAGS)
+    _DEBUG_LDFLAGS += $(MOZ_DEBUG_LDFLAGS)
   endif
-  _DEBUG_CFLAGS += $(MOZ_DEBUG_FLAGS)
-  _DEBUG_LDFLAGS += $(MOZ_DEBUG_LDFLAGS)
 endif
 
 MOZALLOC_LIB = $(call EXPAND_LIBNAME_PATH,mozalloc,$(DIST)/lib)
 
-ASFLAGS += $(_DEBUG_ASFLAGS)
 OS_CFLAGS += $(_DEBUG_CFLAGS)
 OS_CXXFLAGS += $(_DEBUG_CFLAGS)
 OS_LDFLAGS += $(_DEBUG_LDFLAGS)
@@ -211,8 +198,13 @@ else # ! MOZ_DEBUG
 # Used for generating an optimized build with debugging symbols.
 # Used in the Windows nightlies to generate symbols for crash reporting.
 ifdef MOZ_DEBUG_SYMBOLS
-OS_CXXFLAGS += -UDEBUG -DNDEBUG
-OS_CFLAGS += -UDEBUG -DNDEBUG
+ifeq ($(AS),yasm)
+ASFLAGS += -g cv8
+else
+ASFLAGS += -Zi
+endif
+OS_CXXFLAGS += -Zi -UDEBUG -DNDEBUG
+OS_CFLAGS += -Zi -UDEBUG -DNDEBUG
 ifdef HAVE_64BIT_OS
 OS_LDFLAGS += -DEBUG -OPT:REF,ICF
 else

@@ -2026,7 +2026,7 @@ TypeCompartment::newAllocationSiteTypeObject(JSContext *cx, const AllocationSite
          * observed by other code before all properties have been added. Mark
          * all the properties as definite properties of the object.
          */
-        JSObject *baseobj = key.script->getObject(GET_UINT32_INDEX(pc));
+        JSObject *baseobj = key.script->getObject(GET_SLOTNO(pc));
 
         if (!res->addDefiniteProperties(cx, baseobj))
             return NULL;
@@ -2045,6 +2045,13 @@ GetAtomId(JSContext *cx, JSScript *script, const jsbytecode *pc, unsigned offset
 {
     unsigned index = js_GetIndexFromBytecode(script, (jsbytecode*) pc, offset);
     return MakeTypeId(cx, ATOM_TO_JSID(script->getAtom(index)));
+}
+
+static inline JSObject *
+GetScriptObject(JSContext *cx, JSScript *script, const jsbytecode *pc, unsigned offset)
+{
+    unsigned index = js_GetIndexFromBytecode(script, (jsbytecode*) pc, offset);
+    return script->getObject(index);
 }
 
 static inline const Value &
@@ -3521,7 +3528,7 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
         break;
 
       case JSOP_OBJECT: {
-        JSObject *obj = script->getObject(GET_UINT32_INDEX(pc));
+        JSObject *obj = GetScriptObject(cx, script, pc, 0);
         pushed[0].addType(cx, Type::ObjectType(obj));
         break;
       }
@@ -3826,7 +3833,7 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       case JSOP_DEFLOCALFUN:
       case JSOP_DEFLOCALFUN_FC: {
         unsigned off = (op == JSOP_DEFLOCALFUN || op == JSOP_DEFLOCALFUN_FC) ? SLOTNO_LEN : 0;
-        JSObject *obj = script->getObject(GET_UINT32_INDEX(pc + off));
+        JSObject *obj = GetScriptObject(cx, script, pc, off);
 
         TypeSet *res = NULL;
         if (op == JSOP_LAMBDA || op == JSOP_LAMBDA_FC) {
@@ -4556,12 +4563,6 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
         if (op != JSOP_THIS)
             continue;
 
-        /* Maintain ordering property on how 'this' is used, as described above. */
-        if (offset < lastThisPopped) {
-            *pbaseobj = NULL;
-            return false;
-        }
-
         SSAValue thisv = SSAValue::PushedValue(offset, 0);
         SSAUseChain *uses = analysis->useChain(thisv);
 
@@ -4571,6 +4572,11 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
             return false;
         }
 
+        /* Maintain ordering property on how 'this' is used, as described above. */
+        if (offset < lastThisPopped) {
+            *pbaseobj = NULL;
+            return false;
+        }
         lastThisPopped = uses->offset;
 
         /* Only handle 'this' values popped in unconditional code. */
@@ -5033,7 +5039,7 @@ TypeMonitorCallSlow(JSContext *cx, JSObject *callee,
 }
 
 static inline bool
-IsAboutToBeFinalized(TypeObjectKey *key)
+IsAboutToBeFinalized(JSContext *cx, TypeObjectKey *key)
 {
     /* Mask out the low bit indicating whether this is a type or JS object. */
     return !reinterpret_cast<const gc::Cell *>(uintptr_t(key) & ~1)->isMarked();
@@ -5663,9 +5669,6 @@ JSObject::splicePrototype(JSContext *cx, JSObject *proto)
      */
     JS_ASSERT_IF(cx->typeInferenceEnabled(), hasSingletonType());
 
-    /* Inner objects may not appear on prototype chains. */
-    JS_ASSERT_IF(proto, !proto->getClass()->ext.outerObject);
-
     /*
      * Force type instantiation when splicing lazy types. This may fail,
      * in which case inference will be disabled for the compartment.
@@ -5946,7 +5949,7 @@ TypeSet::sweep(JSContext *cx, JSCompartment *compartment)
         objectCount = 0;
         for (unsigned i = 0; i < oldCapacity; i++) {
             TypeObjectKey *object = oldArray[i];
-            if (object && !IsAboutToBeFinalized(object)) {
+            if (object && !IsAboutToBeFinalized(cx, object)) {
                 TypeObjectKey **pentry =
                     HashSetInsert<TypeObjectKey *,TypeObjectKey,TypeObjectKey>
                         (compartment, objectSet, objectCount, object);
@@ -5959,7 +5962,7 @@ TypeSet::sweep(JSContext *cx, JSCompartment *compartment)
         setBaseObjectCount(objectCount);
     } else if (objectCount == 1) {
         TypeObjectKey *object = (TypeObjectKey *) objectSet;
-        if (IsAboutToBeFinalized(object)) {
+        if (IsAboutToBeFinalized(cx, object)) {
             objectSet = NULL;
             setBaseObjectCount(0);
         }
@@ -6159,7 +6162,7 @@ TypeCompartment::sweep(JSContext *cx)
             const AllocationSiteKey &key = e.front().key;
             TypeObject *object = e.front().value;
 
-            if (IsAboutToBeFinalized(key.script) || !object->isMarked())
+            if (IsAboutToBeFinalized(cx, key.script) || !object->isMarked())
                 e.removeFront();
         }
     }
@@ -6221,7 +6224,7 @@ TypeScript::Sweep(JSContext *cx, JSScript *script)
         Type type = result->type;
 
         if (!type.isUnknown() && !type.isAnyObject() && type.isObject() &&
-            IsAboutToBeFinalized(type.objectKey())) {
+            IsAboutToBeFinalized(cx, type.objectKey())) {
             *presult = result->next;
             cx->delete_(result);
         } else {

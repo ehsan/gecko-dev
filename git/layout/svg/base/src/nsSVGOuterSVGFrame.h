@@ -124,10 +124,21 @@ public:
                                nsIAtom*        aAttribute,
                                PRInt32         aModType);
 
+  // nsSVGOuterSVGFrame methods:
+
+  void InvalidateCoveredRegion(nsIFrame *aFrame);
+  // Calls aSVG->UpdateCoveredRegion and returns true if the covered
+  // region actually changed. If it changed, invalidates the old and new
+  // covered regions, taking filters into account, like
+  // InvalidateCoveredRegion.
+  bool UpdateAndInvalidateCoveredRegion(nsIFrame *aFrame);
+
+  bool IsRedrawSuspended();
+
   // nsISVGSVGFrame interface:
-  virtual void SuspendRedraw();
-  virtual void UnsuspendRedraw();
-  virtual void NotifyViewportChange();
+  NS_IMETHOD SuspendRedraw();
+  NS_IMETHOD UnsuspendRedraw();
+  NS_IMETHOD NotifyViewportChange();
 
   // nsSVGContainerFrame methods:
   virtual gfxMatrix GetCanvasTM();
@@ -158,9 +169,9 @@ protected:
   // subtree if we were to use a list (see bug 381285 comment 20).
   nsTHashtable<nsVoidPtrHashKey> mForeignObjectHash;
 
+  PRUint32 mRedrawSuspendCount;
   nsAutoPtr<gfxMatrix> mCanvasTM;
 
-  PRUint32 mRedrawSuspendCount;
   float mFullZoom;
 
   bool mViewportInitialized;

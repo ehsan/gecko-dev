@@ -157,7 +157,6 @@
 #include "nsIMemoryReporter.h"
 #include "xpcpublic.h"
 #include "nsXPCOMPrivate.h"
-#include "sampler.h"
 #include <stdio.h>
 #include <string.h>
 #ifdef WIN32
@@ -1418,54 +1417,30 @@ public:
 
     NS_IMETHOD Begin()
     {
-        char basename[MAXPATHLEN] = {'\0'};
-        char ccname[MAXPATHLEN] = {'\0'};
+        char name[MAXPATHLEN] = {'\0'};
 #ifdef XP_WIN
         // On Windows, tmpnam returns useless stuff, such as "\\s164.".
         // Therefore we need to call the APIs directly.
-        GetTempPathA(mozilla::ArrayLength(basename), basename);
+        GetTempPathA(mozilla::ArrayLength(name), name);
 #else
-        tmpnam(basename);
-        char *lastSlash = strrchr(basename, XPCOM_FILE_PATH_SEPARATOR[0]);
+        tmpnam(name);
+        char *lastSlash = strrchr(name, XPCOM_FILE_PATH_SEPARATOR[0]);
         if (lastSlash) {
             *lastSlash = '\0';
         }
 #endif
-
-        ++gLogCounter;
-
-#ifdef DEBUG
-        // Dump the JS heap.
-        char gcname[MAXPATHLEN] = {'\0'};
-        sprintf(gcname, "%s%sgc-edges-%d.%d.log", basename,
+        sprintf(name, "%s%scc-edges-%d.%d.log", name,
                 XPCOM_FILE_PATH_SEPARATOR,
-                gLogCounter, base::GetCurrentProcId());
-
-        FILE* gcDumpFile = fopen(gcname, "w");
-        if (!gcDumpFile)
-            return NS_ERROR_FAILURE;
-        xpc::DumpJSHeap(gcDumpFile);
-        fclose(gcDumpFile);
-#endif
-
-        // Open a file for dumping the CC graph.
-        sprintf(ccname, "%s%scc-edges-%d.%d.log", basename,
-                XPCOM_FILE_PATH_SEPARATOR,
-                gLogCounter, base::GetCurrentProcId());
-        mStream = fopen(ccname, "w");
-        if (!mStream)
-            return NS_ERROR_FAILURE;
+                ++gLogCounter, base::GetCurrentProcId());
+        mStream = fopen(name, "w");
 
         nsCOMPtr<nsIConsoleService> cs =
             do_GetService(NS_CONSOLESERVICE_CONTRACTID);
         if (cs) {
-            cs->LogStringMessage(NS_ConvertUTF8toUTF16(ccname).get());
-#ifdef DEBUG
-            cs->LogStringMessage(NS_ConvertUTF8toUTF16(gcname).get());
-#endif
+            cs->LogStringMessage(NS_ConvertUTF8toUTF16(name).get());
         }
 
-        return NS_OK;
+        return mStream ? NS_OK : NS_ERROR_FAILURE;
     }
     NS_IMETHOD NoteRefCountedObject(PRUint64 aAddress, PRUint32 refCount,
                                     const char *aObjectDescription)
@@ -3864,7 +3839,6 @@ void
 nsCycleCollector_forgetSkippable()
 {
     if (sCollector) {
-        SAMPLE_LABEL("CC", "nsCycleCollector_forgetSkippable");
         sCollector->ForgetSkippable();
     }
 }
@@ -3873,7 +3847,6 @@ PRUint32
 nsCycleCollector_collect(nsICycleCollectorListener *aListener)
 {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    SAMPLE_LABEL("CC", "nsCycleCollector_collect");
     nsCOMPtr<nsICycleCollectorListener> listener(aListener);
     if (!aListener && sCollector && sCollector->mParams.mLogGraphs) {
         listener = new nsCycleCollectorLogger();
@@ -3909,7 +3882,6 @@ nsCycleCollector_shutdown()
     NS_ASSERTION(!sCollectorThread, "Should have finished before!");
 
     if (sCollector) {
-        SAMPLE_LABEL("CC", "nsCycleCollector_shutdown");
         sCollector->Shutdown();
         delete sCollector;
         sCollector = nsnull;

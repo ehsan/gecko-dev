@@ -48,7 +48,7 @@
 
 #include "nsIEventSource.h"
 #include "nsIJSNativeInitializer.h"
-#include "nsDOMEventTargetHelper.h"
+#include "nsDOMEventTargetWrapperCache.h"
 #include "nsIObserver.h"
 #include "nsIStreamListener.h"
 #include "nsIChannelEventSink.h"
@@ -69,7 +69,7 @@
 class AsyncVerifyRedirectCallbackFwr;
 class nsAutoClearFields;
 
-class nsEventSource: public nsDOMEventTargetHelper,
+class nsEventSource: public nsDOMEventTargetWrapperCache,
                      public nsIEventSource,
                      public nsIJSNativeInitializer,
                      public nsIObserver,
@@ -85,7 +85,7 @@ public:
   virtual ~nsEventSource();
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS_INHERITED(nsEventSource,
-                                                                   nsDOMEventTargetHelper)
+                                                                   nsDOMEventTargetWrapperCache)
 
   NS_DECL_NSIEVENTSOURCE
 

@@ -61,7 +61,7 @@ public:
   virtual void Description(nsString& aDescription);
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
-  virtual bool CanHaveAnonChildren();
+  virtual bool GetAllowsAnonChildAccessibles();
 
   // ActionAccessible
   virtual PRUint8 ActionCount();
