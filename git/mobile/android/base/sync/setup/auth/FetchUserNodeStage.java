@@ -62,8 +62,7 @@ public class FetchUserNodeStage implements AuthenticatorStage {
       }
     };
     String nodeRequestUrl = aa.nodeServer + Constants.AUTH_NODE_PATHNAME + Constants.AUTH_NODE_VERSION + aa.username + "/" + Constants.AUTH_NODE_SUFFIX;
-    // Might contain a plaintext username in the case of old Sync accounts.
-    Logger.pii(LOG_TAG, "NodeUrl: " + nodeRequestUrl);
+    Logger.debug(LOG_TAG, "nodeUrl: " + nodeRequestUrl);
     final BaseResource httpResource = makeFetchNodeRequest(callbackDelegate, nodeRequestUrl);
     // Make request on separate thread.
     AccountAuthenticator.runOnThread(new Runnable() {

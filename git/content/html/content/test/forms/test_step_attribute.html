@@ -48,7 +48,7 @@ var types = [
 var input = document.createElement("input");
 document.getElementById('content').appendChild(input);
 
-function checkValidity(aElement, aValidity, aApply, aData)
+function checkValidity(aElement, aValidity, aApply)
 {
   aValidity = aApply ? aValidity : true;
 
@@ -60,9 +60,16 @@ function checkValidity(aElement, aValidity, aApply, aData)
   if (aValidity) {
     is(aElement.validationMessage, "", "There should be no validation message.");
   } else {
+    var value = parseFloat(aElement.value);
+    var min = parseFloat(aElement.min);
+    if (isNaN(min)) min = 0;
+    var step = parseFloat(aElement.step);
+    if (isNaN(step) || step <= 0) step = 1;
+    var modulo = (value - min) % step;
+
     is(aElement.validationMessage, "Please select a valid value. "  +
-       "The two nearest valid values are " + aData.low + " and " + aData.high + ".",
-       "There should be a validation message.");
+       "The two nearest valid values are " + (value - modulo) + " and " +
+       (value - modulo + step) + ".", "There should be a validation message.");
   }
 
   is(aElement.mozMatchesSelector(":valid"), aElement.willValidate && aValidity,
@@ -116,7 +123,7 @@ for each (var data in types) {
   } else {
     // When step=0, the allowed step is 1.
     input.value = '1.2';
-    checkValidity(input, false, apply, { low: 1, high: 2 });
+    checkValidity(input, false, apply);
 
     input.value = '1';
     checkValidity(input, true, apply);
@@ -130,11 +137,11 @@ for each (var data in types) {
     checkValidity(input, true, apply);
 
     input.value = '1.5';
-    checkValidity(input, false, apply, { low: 1, high: 2 });
+    checkValidity(input, false, apply);
 
     // When step is negative, the allowed step value is 1.
     input.step = '-0.1';
-    checkValidity(input, false, apply, { low: 1, high: 2 });
+    checkValidity(input, false, apply);
 
     input.value = '1';
     checkValidity(input, true, apply);
@@ -142,7 +149,7 @@ for each (var data in types) {
     // When step is missing, the allowed step value is 1.
     input.removeAttribute('step');
     input.value = '1.5';
-    checkValidity(input, false, apply, { low: 1, high: 2 });
+    checkValidity(input, false, apply);
 
     input.value = '1';
     checkValidity(input, true, apply);
@@ -170,7 +177,7 @@ for each (var data in types) {
     checkValidity(input, true, apply);
 
     input.value = '2';
-    checkValidity(input, false, apply, { low: 1, high: 3 });
+    checkValidity(input, false, apply);
 
     input.removeAttribute('step'); // step = 1
     input.min = '0.5';
@@ -178,7 +185,7 @@ for each (var data in types) {
     checkValidity(input, true, apply);
 
     input.value = '1';
-    checkValidity(input, false, apply, { low: 0.5, high: 1.5 });
+    checkValidity(input, false, apply);
 
     input.min = '-0.1';
     input.step = '1';
@@ -186,7 +193,7 @@ for each (var data in types) {
     checkValidity(input, true, apply);
 
     input.value = '0.1';
-    checkValidity(input, false, apply, { low: -0.1, high: 0.9 });
+    checkValidity(input, false, apply);
 
     // When min is set to NaN, there is no step base (step base=0 actually).
     input.min = 'foo';
@@ -195,14 +202,14 @@ for each (var data in types) {
     checkValidity(input, true, apply);
 
     input.value = '0.5';
-    checkValidity(input, false, apply, { low: 0, high: 1 });
+    checkValidity(input, false, apply);
 
     input.min = '';
     input.value = '1';
     checkValidity(input, true, apply);
 
     input.value = '0.5';
-    checkValidity(input, false, apply, { low: 0, high: 1 });
+    checkValidity(input, false, apply);
 
     input.removeAttribute('min');
 
@@ -213,7 +220,7 @@ for each (var data in types) {
     // Regular situations.
     input.step = '2';
     input.value = '1.5';
-    checkValidity(input, false, apply, { low: 0, high: 2 });
+    checkValidity(input, false, apply);
 
     input.value = '42.0';
     checkValidity(input, true, apply);
@@ -222,12 +229,6 @@ for each (var data in types) {
     input.step = '0.1';
     input.value = '-0.1';
     checkValidity(input, true, apply);
-
-    input.step = '2';
-    input.removeAttribute('min');
-    input.max = '10';
-    input.value = '-9';
-    checkValidity(input, false, apply, {low: -10, high: -8});
   }
 
   if (input.type == 'number') {
@@ -240,12 +241,12 @@ for each (var data in types) {
     is(input.validationMessage, "Please select a valid value. " +
                                 "The nearest valid value is 9.",
        "The validation message should not include the higher value.");
+    input.removeAttribute('min');
+    input.removeAttribute('max');
   }
 
   // Cleaning up,
   input.removeAttribute('step');
-  input.removeAttribute('max');
-  input.removeAttribute('min');
   input.value = '';
 }
 

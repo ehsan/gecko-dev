@@ -26,6 +26,18 @@
 
 namespace js {
 
+/*
+ * To reuse space in StmtInfoBCE, rename breaks and continues for use during
+ * try/catch/finally code generation and backpatching. To match most common
+ * use cases, the macro argument is a struct, not a struct pointer. Only a
+ * loop, switch, or label statement info record can have breaks and continues,
+ * and only a for loop has an update backpatch chain, so it's safe to overlay
+ * these for the "trying" StmtTypes.
+ */
+#define CATCHNOTE(stmt)  ((stmt).update)
+#define GOSUBS(stmt)     ((stmt).breaks)
+#define GUARDJUMP(stmt)  ((stmt).continues)
+
 struct TryNode {
     JSTryNote       note;
     TryNode       *prev;
@@ -50,8 +62,6 @@ class GCConstList {
     size_t length() const { return list.length(); }
     void finish(ConstArray *array);
 };
-
-class StmtInfoBCE;
 
 struct BytecodeEmitter
 {
@@ -153,11 +163,18 @@ struct BytecodeEmitter
         return true;
     }
 
-    bool checkSingletonContext();
+    bool checkSingletonContext() {
+        if (!script->compileAndGo || sc->inFunction())
+            return false;
+        for (StmtInfoBCE *stmt = topStmt; stmt; stmt = stmt->down) {
+            if (STMT_IS_LOOP(stmt))
+                return false;
+        }
+        hasSingletons = true;
+        return true;
+    }
 
     bool needsImplicitThis();
-
-    void tellDebuggerAboutCompiledScript(JSContext *cx);
 
     TokenStream *tokenStream() { return &parser->tokenStream; }
 
@@ -222,19 +239,19 @@ EmitN(JSContext *cx, BytecodeEmitter *bce, JSOp op, size_t extra);
  * value other than undefined if the constant was found, true with *vp set to
  * JSVAL_VOID if not found, and false on error.
  */
-bool
+JSBool
 DefineCompileTimeConstant(JSContext *cx, BytecodeEmitter *bce, JSAtom *atom, ParseNode *pn);
 
 /*
  * Emit code into bce for the tree rooted at pn.
  */
-bool
+JSBool
 EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn);
 
 /*
  * Emit function code using bce for the tree rooted at body.
  */
-bool
+JSBool
 EmitFunctionScript(JSContext *cx, BytecodeEmitter *bce, ParseNode *body);
 
 } /* namespace frontend */
@@ -404,7 +421,7 @@ NewSrcNote3(JSContext *cx, BytecodeEmitter *bce, SrcNoteType type, ptrdiff_t off
 jssrcnote *
 AddToSrcNoteDelta(JSContext *cx, BytecodeEmitter *bce, jssrcnote *sn, ptrdiff_t delta);
 
-bool
+JSBool
 FinishTakingSrcNotes(JSContext *cx, BytecodeEmitter *bce, jssrcnote *notes);
 
 void

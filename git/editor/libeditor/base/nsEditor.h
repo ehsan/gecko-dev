@@ -19,7 +19,7 @@
 #include "mozilla/Selection.h"
 #include "nsIDOMCharacterData.h"
 #include "nsIPrivateTextRange.h"
-#include "nsTransactionManager.h"
+#include "nsITransactionManager.h"
 #include "nsIComponentManager.h"
 #include "nsCOMArray.h"
 #include "nsIEditActionListener.h"
@@ -218,7 +218,7 @@ public:
   virtual nsresult BeginIMEComposition();
   virtual nsresult UpdateIMEComposition(const nsAString &aCompositionString,
                                         nsIPrivateTextRangeList *aTextRange)=0;
-  void EndIMEComposition();
+  nsresult EndIMEComposition();
 
   void SwitchTextDirectionTo(PRUint32 aDirection);
 
@@ -325,11 +325,11 @@ protected:
 
 
   // called after a transaction is done successfully
-  void DoAfterDoTransaction(nsITransaction *aTxn);
+  NS_IMETHOD DoAfterDoTransaction(nsITransaction *aTxn);
   // called after a transaction is undone successfully
-  void DoAfterUndoTransaction();
+  NS_IMETHOD DoAfterUndoTransaction();
   // called after a transaction is redone successfully
-  void DoAfterRedoTransaction();
+  NS_IMETHOD DoAfterRedoTransaction();
 
   typedef enum {
     eDocumentCreated,
@@ -821,7 +821,7 @@ protected:
 
   nsCOMPtr<nsIInlineSpellChecker> mInlineSpellChecker;
 
-  nsRefPtr<nsTransactionManager> mTxnMgr;
+  nsCOMPtr<nsITransactionManager> mTxnMgr;
   nsCOMPtr<mozilla::dom::Element> mRootElement; // cached root node
   nsCOMPtr<nsIPrivateTextRangeList> mIMETextRangeList; // IME special selection ranges
   nsCOMPtr<nsIDOMCharacterData>     mIMETextNode;      // current IME text node

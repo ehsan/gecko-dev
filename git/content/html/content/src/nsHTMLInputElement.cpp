@@ -939,14 +939,7 @@ nsHTMLInputElement::SetWidth(PRUint32 aWidth)
 NS_IMETHODIMP
 nsHTMLInputElement::GetValue(nsAString& aValue)
 {
-  nsresult rv = GetValueInternal(aValue);
-
-  // Don't return non-sanitized value for number inputs.
-  if (mType == NS_FORM_INPUT_NUMBER) {
-    SanitizeValue(aValue);
-  }
-
-  return rv;
+  return GetValueInternal(aValue);
 }
 
 nsresult
@@ -1010,7 +1003,8 @@ nsHTMLInputElement::GetValueAsDouble() const
   GetValueInternal(stringValue);
   doubleValue = stringValue.ToDouble(&ec);
 
-  return NS_SUCCEEDED(ec) ? doubleValue : MOZ_DOUBLE_NaN();
+  return NS_FAILED(ec) ? std::numeric_limits<double>::quiet_NaN()
+                       : doubleValue;
 }
 
 NS_IMETHODIMP 
@@ -1079,7 +1073,7 @@ NS_IMETHODIMP
 nsHTMLInputElement::GetValueAsNumber(double* aValueAsNumber)
 {
   *aValueAsNumber = DoesValueAsNumberApply() ? GetValueAsDouble()
-                                             : MOZ_DOUBLE_NaN();
+                                             : std::numeric_limits<double>::quiet_NaN();
   return NS_OK;
 }
 
@@ -1095,47 +1089,19 @@ nsHTMLInputElement::SetValueAsNumber(double aValueAsNumber)
 }
 
 double
-nsHTMLInputElement::GetMinAsDouble() const
+nsHTMLInputElement::GetStepBase() const
 {
-  // Should only be used for <input type='number'> for the moment.
-  MOZ_ASSERT(mType == NS_FORM_INPUT_NUMBER);
-
   if (!HasAttr(kNameSpaceID_None, nsGkAtoms::min)) {
-    return MOZ_DOUBLE_NaN();
+    return kDefaultStepBase;
   }
 
   nsAutoString minStr;
   GetAttr(kNameSpaceID_None, nsGkAtoms::min, minStr);
 
   PRInt32 ec;
-  double min = minStr.ToDouble(&ec);
-  return NS_SUCCEEDED(ec) ? min : MOZ_DOUBLE_NaN();
-}
+  double stepBase = minStr.ToDouble(&ec);
 
-double
-nsHTMLInputElement::GetMaxAsDouble() const
-{
-  // Should only be used for <input type='number'> for the moment.
-  MOZ_ASSERT(mType == NS_FORM_INPUT_NUMBER);
-
-  if (!HasAttr(kNameSpaceID_None, nsGkAtoms::max)) {
-    return MOZ_DOUBLE_NaN();
-  }
-
-  nsAutoString maxStr;
-  GetAttr(kNameSpaceID_None, nsGkAtoms::max, maxStr);
-
-  PRInt32 ec;
-  double max = maxStr.ToDouble(&ec);
-  return NS_SUCCEEDED(ec) ? max : MOZ_DOUBLE_NaN();
-}
-
-double
-nsHTMLInputElement::GetStepBase() const
-{
-  double stepBase = GetMinAsDouble();
-
-  return MOZ_DOUBLE_IS_NaN(stepBase) ? kDefaultStepBase : stepBase;
+  return NS_FAILED(ec) ? kDefaultStepBase : stepBase;
 }
 
 nsresult
@@ -1151,16 +1117,33 @@ nsHTMLInputElement::ApplyStep(PRInt32 aStep)
   }
 
   double value = GetValueAsDouble();
-  if (MOZ_DOUBLE_IS_NaN(value)) {
+  if (value != value) { // NaN
     return NS_OK;
   }
 
-  double min = GetMinAsDouble();
+  // TODO: refactorize with GetMin(), see bug 636634.
+  double min = std::numeric_limits<double>::quiet_NaN();
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::min)) {
+    nsAutoString minStr;
+    GetAttr(kNameSpaceID_None, nsGkAtoms::min, minStr);
+    PRInt32 ec;
+    double minTmp = minStr.ToDouble(&ec);
+    if (!NS_FAILED(ec)) {
+      min = minTmp;
+    }
+  }
 
-  double max = GetMaxAsDouble();
-  if (!MOZ_DOUBLE_IS_NaN(max)) {
-    // "max - (max - stepBase) % step" is the nearest valid value to max.
-    max = max - NS_floorModulo(max - GetStepBase(), step);
+  // TODO: refactorize with GetMax(), see bug 636634.
+  double max = std::numeric_limits<double>::quiet_NaN();
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::max)) {
+    nsAutoString maxStr;
+    GetAttr(kNameSpaceID_None, nsGkAtoms::max, maxStr);
+    PRInt32 ec;
+    double maxTmp = maxStr.ToDouble(&ec);
+    if (!NS_FAILED(ec)) {
+      // "max - (max - stepBase) % step" is the nearest valid value to max.
+      max = maxTmp - NS_floorModulo(maxTmp - GetStepBase(), step);
+    }
   }
 
   // Cases where we are clearly going in the wrong way.
@@ -1188,12 +1171,12 @@ nsHTMLInputElement::ApplyStep(PRInt32 aStep)
   // min unless stepUp() moves us higher than min.
   if (GetValidityState(VALIDITY_STATE_RANGE_UNDERFLOW) && aStep > 0 &&
       value <= min) {
-    MOZ_ASSERT(!MOZ_DOUBLE_IS_NaN(min)); // min can't be NaN if we are here!
+    MOZ_ASSERT(min == min); // min can't be NaN if we are here!
     value = min;
   // Same goes for stepDown() and max.
   } else if (GetValidityState(VALIDITY_STATE_RANGE_OVERFLOW) && aStep < 0 &&
              value >= max) {
-    MOZ_ASSERT(!MOZ_DOUBLE_IS_NaN(max)); // max can't be NaN if we are here!
+    MOZ_ASSERT(max == max); // max can't be NaN if we are here!
     value = max;
   // If we go down, we want to clamp on min.
   } else if (aStep < 0 && min == min) {
@@ -2090,12 +2073,6 @@ nsHTMLInputElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 
   // Fire onchange (if necessary), before we do the blur, bug 357684.
   if (aVisitor.mEvent->message == NS_BLUR_CONTENT) {
-    // In number inputs we can't allow the user to set an invalid value.
-    if (mType == NS_FORM_INPUT_NUMBER) {
-      nsAutoString aValue;
-      GetValueInternal(aValue);
-      SetValueInternal(aValue, false, false);
-    }
     FireChangeEventIfNeeded();
   }
 
@@ -4007,17 +3984,21 @@ nsHTMLInputElement::HasPatternMismatch() const
 bool
 nsHTMLInputElement::IsRangeOverflow() const
 {
-  if (!DoesMinMaxApply()) {
+  nsAutoString maxStr;
+  if (!DoesMinMaxApply() ||
+      !GetAttr(kNameSpaceID_None, nsGkAtoms::max, maxStr)) {
     return false;
   }
 
-  double max = GetMaxAsDouble();
-  if (MOZ_DOUBLE_IS_NaN(max)) {
+  PRInt32 ec;
+  double max = maxStr.ToDouble(&ec);
+  if (NS_FAILED(ec)) {
     return false;
   }
 
   double value = GetValueAsDouble();
-  if (MOZ_DOUBLE_IS_NaN(value)) {
+  // value can be NaN when value="".
+  if (value != value) {
     return false;
   }
 
@@ -4027,17 +4008,21 @@ nsHTMLInputElement::IsRangeOverflow() const
 bool
 nsHTMLInputElement::IsRangeUnderflow() const
 {
-  if (!DoesMinMaxApply()) {
+  nsAutoString minStr;
+  if (!DoesMinMaxApply() ||
+      !GetAttr(kNameSpaceID_None, nsGkAtoms::min, minStr)) {
     return false;
   }
 
-  double min = GetMinAsDouble();
-  if (MOZ_DOUBLE_IS_NaN(min)) {
+  PRInt32 ec;
+  double min = minStr.ToDouble(&ec);
+  if (NS_FAILED(ec)) {
     return false;
   }
 
   double value = GetValueAsDouble();
-  if (MOZ_DOUBLE_IS_NaN(value)) {
+  // value can be NaN when value="".
+  if (value != value) {
     return false;
   }
 
@@ -4052,7 +4037,7 @@ nsHTMLInputElement::HasStepMismatch() const
   }
 
   double value = GetValueAsDouble();
-  if (MOZ_DOUBLE_IS_NaN(value)) {
+  if (value != value) {
     // The element can't suffer from step mismatch if it's value isn't a number.
     return false;
   }
@@ -4063,7 +4048,7 @@ nsHTMLInputElement::HasStepMismatch() const
   }
 
   // Value has to be an integral multiple of step.
-  return NS_floorModulo(value - GetStepBase(), step) != 0;
+  return fmod(value - GetStepBase(), step) != 0;
 }
 
 void
@@ -4283,11 +4268,14 @@ nsHTMLInputElement::GetValidationMessage(nsAString& aValidationMessage,
     case VALIDITY_STATE_RANGE_OVERFLOW:
     {
       nsXPIDLString message;
-
-      double max = GetMaxAsDouble();
-      MOZ_ASSERT(!MOZ_DOUBLE_IS_NaN(max));
-
       nsAutoString maxStr;
+      GetAttr(kNameSpaceID_None, nsGkAtoms::max, maxStr);
+
+      // We want to show the double as parsed so we parse it and change maxStr.
+      PRInt32 ec;
+      double max = maxStr.ToDouble(&ec);
+      NS_ASSERTION(NS_SUCCEEDED(ec), "max must be a number at this point!");
+      maxStr.Truncate();
       maxStr.AppendFloat(max);
 
       const PRUnichar* params[] = { maxStr.get() };
@@ -4300,11 +4288,14 @@ nsHTMLInputElement::GetValidationMessage(nsAString& aValidationMessage,
     case VALIDITY_STATE_RANGE_UNDERFLOW:
     {
       nsXPIDLString message;
-
-      double min = GetMinAsDouble();
-      MOZ_ASSERT(!MOZ_DOUBLE_IS_NaN(min));
-
       nsAutoString minStr;
+      GetAttr(kNameSpaceID_None, nsGkAtoms::min, minStr);
+
+      // We want to show the double as parsed so we parse it and change minStr.
+      PRInt32 ec;
+      double min = minStr.ToDouble(&ec);
+      NS_ASSERTION(NS_SUCCEEDED(ec), "min must be a number at this point!");
+      minStr.Truncate();
       minStr.AppendFloat(min);
 
       const PRUnichar* params[] = { minStr.get() };
@@ -4319,19 +4310,29 @@ nsHTMLInputElement::GetValidationMessage(nsAString& aValidationMessage,
       nsXPIDLString message;
 
       double value = GetValueAsDouble();
-      MOZ_ASSERT(!MOZ_DOUBLE_IS_NaN(value));
+      NS_ASSERTION(value == value, "The element can't suffer from a step "
+                                   "mismatch if its value is NaN");
 
       double step = GetStep();
-      MOZ_ASSERT(step != kStepAny);
+      NS_ASSERTION(step != kStepAny, "The element can't suffer from a step "
+                                     "mismatch if @step is 'any'");
 
-      double stepBase = GetStepBase();
+      PRInt32 ec;
+      nsAutoString minStr;
+      GetAttr(kNameSpaceID_None, nsGkAtoms::min, minStr);
+      double min = minStr.ToDouble(&ec);
+      if (NS_FAILED(ec)) {
+        min = 0.f;
+      }
 
-      double valueLow = value - NS_floorModulo(value - stepBase, step);
-      double valueHigh = value + step - NS_floorModulo(value - stepBase, step);
+      double valueLow = value - fmod(value - min, step);
+      double valueHigh = value + step - fmod(value - min, step);
 
-      double max = GetMaxAsDouble();
+      nsAutoString maxStr;
+      GetAttr(kNameSpaceID_None, nsGkAtoms::max, maxStr);
+      double max = maxStr.ToDouble(&ec);
 
-      if (MOZ_DOUBLE_IS_NaN(max) || valueHigh <= max) {
+      if (NS_FAILED(ec) || valueHigh <= max) {
         nsAutoString valueLowStr, valueHighStr;
         valueLowStr.AppendFloat(valueLow);
         valueHighStr.AppendFloat(valueHigh);
@@ -4788,17 +4789,24 @@ nsHTMLInputElement::UpdateHasRange()
     return;
   }
 
-  // <input type=number> has a range if min or max is a valid double.
+  // <input type=number> has a range if min or max is a valid float number.
+  nsAutoString tmpStr;
 
-  double min = GetMinAsDouble();
-  if (!MOZ_DOUBLE_IS_NaN(min)) {
-    mHasRange = true;
-    return;
+  if (GetAttr(kNameSpaceID_None, nsGkAtoms::min, tmpStr)) {
+    PRInt32 ec;
+    tmpStr.ToDouble(&ec);
+    if (NS_SUCCEEDED(ec)) {
+      mHasRange = true;
+      return;
+    }
   }
 
-  double max = GetMaxAsDouble();
-  if (!MOZ_DOUBLE_IS_NaN(max)) {
-    mHasRange = true;
-    return;
+  if (GetAttr(kNameSpaceID_None, nsGkAtoms::max, tmpStr)) {
+    PRInt32 ec;
+    tmpStr.ToDouble(&ec);
+    if (NS_SUCCEEDED(ec)) {
+      mHasRange = true;
+      return;
+    }
   }
 }

@@ -920,9 +920,7 @@ void nsBaseWidget::CreateCompositor()
 
 bool nsBaseWidget::UseOffMainThreadCompositing()
 {
-  bool isSmallPopup = ((mWindowType == eWindowType_popup) && 
-                      (mPopupType != ePopupTypePanel));
-  return sUseOffMainThreadCompositing && !isSmallPopup;
+  return sUseOffMainThreadCompositing;
 }
 
 LayerManager* nsBaseWidget::GetLayerManager(PLayersChild* aShadowManager,

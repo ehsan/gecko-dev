@@ -12,10 +12,9 @@
 
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
-#include "mozilla/Attributes.h"
 
-class nsXREDirProvider MOZ_FINAL : public nsIDirectoryServiceProvider2,
-                                   public nsIProfileStartup
+class nsXREDirProvider : public nsIDirectoryServiceProvider2,
+                         public nsIProfileStartup
 {
 public:
   // we use a custom isupports implementation (no refcount)

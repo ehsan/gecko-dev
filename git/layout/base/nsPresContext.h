@@ -1350,9 +1350,6 @@ public:
 
   /**
    * Get the current DOM generation counter.
-   *
-   * See nsFrameManagerBase::GetGlobalGenerationNumber() for a
-   * global generation number.
    */
   PRUint32 GetDOMGeneration() { return mDOMGeneration; }
 

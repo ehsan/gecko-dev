@@ -5417,25 +5417,24 @@ JSScript::makeAnalysis(JSContext *cx)
 }
 
 bool
-JSFunction::setTypeForScriptedFunction(JSContext *cx, bool singleton)
+JSScript::typeSetFunction(JSContext *cx, JSFunction *fun, bool singleton)
 {
-    JS_ASSERT(script());
-    JS_ASSERT(script()->function() == this);
+    function_ = fun;
 
     if (!cx->typeInferenceEnabled())
         return true;
 
     if (singleton) {
-        if (!setSingletonType(cx))
+        if (!fun->setSingletonType(cx))
             return false;
     } else {
-        TypeObject *type = cx->compartment->types.newTypeObject(cx, script(),
-                                                                JSProto_Function, getProto());
+        TypeObject *type = cx->compartment->types.newTypeObject(cx, this,
+                                                                JSProto_Function, fun->getProto());
         if (!type)
             return false;
 
-        setType(type);
-        type->interpretedFunction = this;
+        function_->setType(type);
+        type->interpretedFunction = function_;
     }
 
     return true;

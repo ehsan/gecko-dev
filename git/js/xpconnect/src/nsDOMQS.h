@@ -17,7 +17,7 @@
 
 #define DEFINE_UNWRAP_CAST(_interface, _base, _bit)                           \
 template <>                                                                   \
-MOZ_ALWAYS_INLINE JSBool                                                      \
+inline JSBool                                                                 \
 xpc_qsUnwrapThis<_interface>(JSContext *cx,                                   \
                              JSObject *obj,                                   \
                              _interface **ppThis,                             \

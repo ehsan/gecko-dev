@@ -55,8 +55,9 @@ public class AccountAuthenticator {
       abort(AuthenticationResult.FAILURE_OTHER, e);
       return;
     }
-    Logger.pii(LOG_TAG, "Username:" + username);
-    Logger.debug(LOG_TAG, "Running first stage.");
+    Logger.debug(LOG_TAG, "username:" + username);
+
+    Logger.debug(LOG_TAG, "running first stage.");
     // Start first stage of authentication.
     runNextStage();
   }

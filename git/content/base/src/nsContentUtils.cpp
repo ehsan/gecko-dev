@@ -4453,17 +4453,6 @@ nsContentUtils::DropJSObjects(void* aScriptObjectHolder)
   return rv;
 }
 
-#ifdef DEBUG
-/* static */
-bool
-nsContentUtils::AreJSObjectsHeld(void* aScriptHolder)
-{
-  bool isHeld = false;
-  sXPConnect->TestJSHolder(aScriptHolder, &isHeld);
-  return isHeld;
-}
-#endif
-
 /* static */
 void
 nsContentUtils::NotifyInstalledMenuKeyboardListener(bool aInstalling)

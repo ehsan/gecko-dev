@@ -15,6 +15,8 @@
 struct JSContext;
 struct JSCompartment;
 
+extern void js_DumpStackFrame(JSContext *, js::StackFrame *);
+
 namespace js {
 
 class StackFrame;
@@ -54,6 +56,10 @@ typedef mjit::CallSite InlinedSite;
 struct InlinedSite {};
 #endif
 typedef size_t FrameRejoinState;
+
+namespace detail {
+    struct OOMCheck;
+}
 
 /*****************************************************************************/
 
@@ -260,10 +266,7 @@ class StackFrame
         LOWERED_CALL_APPLY   = 0x200000,  /* Pushed by a lowered call/apply */
 
         /* Debugger state */
-        PREV_UP_TO_DATE    =   0x400000,  /* see DebugScopes::updateLiveScopes */
-
-        /* Used in tracking calls and profiling (see vm/SPSProfiler.cpp) */
-        HAS_PUSHED_SPS_FRAME = 0x800000  /* SPS was notified of enty */
+        PREV_UP_TO_DATE    =   0x400000   /* see DebugScopes::updateLiveScopes */
     };
 
   private:
@@ -796,14 +799,6 @@ class StackFrame
     void setHookData(void *v) {
         hookData_ = v;
         flags_ |= HAS_HOOK_DATA;
-    }
-
-    bool hasPushedSPSFrame() {
-        return !!(flags_ & HAS_PUSHED_SPS_FRAME);
-    }
-
-    void setPushedSPSFrame() {
-        flags_ |= HAS_PUSHED_SPS_FRAME;
     }
 
     /* Return value */

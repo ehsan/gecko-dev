@@ -1384,6 +1384,9 @@ IDBObjectStore::GetAddInfo(JSContext* aCx,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
+  nsString targetObjectPropName;
+  JSObject* targetObject = nsnull;
+
   GetAddInfoClosure data = {this, aCloneWriteInfo, aValue};
 
   if (mAutoIncrement && HasValidKeyPath()) {

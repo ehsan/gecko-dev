@@ -235,8 +235,6 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
     if (!script->fullyInitFromEmitter(cx, &bce))
         return NULL;
 
-    bce.tellDebuggerAboutCompiledScript(cx);
-
     if (!MarkInnerAndOuterFunctions(cx, script))
         return NULL;
 

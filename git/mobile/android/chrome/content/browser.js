@@ -1026,14 +1026,8 @@ var NativeWindow = {
    *        persistence: An integer. The notification will not automatically
    *                     dismiss for this many page loads. If persistence is set
    *                     to -1, the doorhanger will never automatically dismiss.
-   *        persistWhileVisible:
-   *                     A boolean. If true, a visible notification will always
-   *                     persist across location changes.
    *        timeout:     A time in milliseconds. The notification will not
    *                     automatically dismiss before this time.
-   *        checkbox:    A string to appear next to a checkbox under the notification
-   *                     message. The button callback functions will be called with
-   *                     the checked state as an argument.                   
    */
     show: function(aMessage, aValue, aButtons, aTabID, aOptions) {
       aButtons.forEach((function(aButton) {
@@ -1427,8 +1421,8 @@ var SelectionHandler = {
   },
 
   // Units in pixels
-  HANDLE_WIDTH: 45,
-  HANDLE_HEIGHT: 66,
+  HANDLE_WIDTH: 35,
+  HANDLE_HEIGHT: 64,
   HANDLE_PADDING: 20,
   HANDLE_HORIZONTAL_OFFSET: 5,
 

@@ -147,13 +147,13 @@ function _parseModifiers(aEvent)
     mval |= nsIDOMWindowUtils.MODIFIER_NUMLOCK;
   }
   if (aEvent.scrollLockKey) {
-    mval |= nsIDOMWindowUtils.MODIFIER_SCROLLLOCK;
+    mval |= nsIDOMWindowUtils.MODIFIER_SCROLL;
   }
   if (aEvent.symbolLockKey) {
     mval |= nsIDOMWindowUtils.MODIFIER_SYMBOLLOCK;
   }
-  if (aEvent.osKey) {
-    mval |= nsIDOMWindowUtils.MODIFIER_OS;
+  if (aEvent.winKey) {
+    mval |= nsIDOMWindowUtils.MODIFIER_WIN;
   }
 
   return mval;

@@ -18,7 +18,6 @@
 #include "nsCharSeparatedTokenizer.h"
 #include "nsContentUtils.h"
 #include "nsDOMClassInfoID.h"
-#include "nsGlobalWindow.h"
 #include "nsHashKeys.h"
 #include "nsPIDOMWindow.h"
 #include "nsServiceManagerUtils.h"
@@ -414,8 +413,6 @@ IDBFactory::OpenCommon(const nsAString& aName,
 
   if (mWindow) {
     window = mWindow;
-    scriptOwner =
-      static_cast<nsGlobalWindow*>(window.get())->FastGetGlobalJSObject();
   }
   else {
     scriptOwner = mOwningObject;

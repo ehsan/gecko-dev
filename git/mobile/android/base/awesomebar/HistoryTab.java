@@ -19,7 +19,6 @@ import android.widget.ListView;
 import android.database.Cursor;
 import android.view.MenuInflater;
 import android.util.Log;
-import android.view.LayoutInflater;
 import android.view.ViewGroup;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -92,7 +91,7 @@ public class HistoryTab extends AwesomeBarTab {
 
     public ListView getListView() {
         if (mView == null) {
-            mView = (ExpandableListView) (LayoutInflater.from(mContext).inflate(R.layout.awesomebar_expandable_list, null));
+            mView = new ExpandableListView(mContext, null, R.style.AwesomeBarList);
             ((Activity)mContext).registerForContextMenu(mView);
             mView.setTag(TAG);
             mView.setOnTouchListener(mListListener);

@@ -798,7 +798,7 @@ DisableIncrementalGC(JSRuntime *rt)
 JS_FRIEND_API(bool)
 IsIncrementalBarrierNeeded(JSRuntime *rt)
 {
-    return (rt->gcIncrementalState == gc::MARK && !rt->isHeapBusy());
+    return (rt->gcIncrementalState == gc::MARK && !rt->gcRunning);
 }
 
 JS_FRIEND_API(bool)
@@ -824,7 +824,7 @@ IncrementalReferenceBarrier(void *ptr)
 {
     if (!ptr)
         return;
-    JS_ASSERT(!static_cast<gc::Cell *>(ptr)->compartment()->rt->isHeapBusy());
+    JS_ASSERT(!static_cast<gc::Cell *>(ptr)->compartment()->rt->gcRunning);
     uint32_t kind = gc::GetGCThingTraceKind(ptr);
     if (kind == JSTRACE_OBJECT)
         JSObject::writeBarrierPre((JSObject *) ptr);
@@ -865,14 +865,6 @@ GetTestingFunctions(JSContext *cx)
         return NULL;
 
     return obj;
-}
-
-JS_FRIEND_API(void)
-SetRuntimeProfilingStack(JSRuntime *rt, ProfileEntry *stack, uint32_t *size,
-                         uint32_t max)
-{
-    rt->spsProfiler.setProfilingStack(stack, size, max);
-    ReleaseAllJITCode(rt->defaultFreeOp());
 }
 
 } // namespace js

@@ -26,8 +26,6 @@
 #include "cutils/properties.h"
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk" , ## args)
-#define LOGW(args...) __android_log_print(ANDROID_LOG_WARN, "Gonk", ## args)
-#define LOGE(args...) __android_log_print(ANDROID_LOG_ERROR, "Gonk", ## args)
 
 #define IS_TOPLEVEL() (mWindowType == eWindowType_toplevel || mWindowType == eWindowType_dialog)
 
@@ -485,10 +483,20 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
     // Set mUseAcceleratedRendering here to make it consistent with
     // nsBaseWidget::GetLayerManager
     mUseAcceleratedRendering = GetShouldAccelerate();
+    if (!mUseAcceleratedRendering) {
+        if (!sFramebufferOpen) {
+            sFramebufferOpen = Framebuffer::Open();
+            if (!sFramebufferOpen) {
+                LOG("Failed to mmap fb(?!?), aborting ...");
+                NS_RUNTIMEABORT("Can't open GL context and can't fall back on /dev/graphics/fb0 ...");
+            }
+        }
+    }
+
     nsWindow *topWindow = sTopWindows[0];
 
     if (!topWindow) {
-        LOGW(" -- no topwindow\n");
+        LOG(" -- no topwindow\n");
         return nsnull;
     }
 
@@ -498,38 +506,23 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
             return mLayerManager;
     }
 
-    if (mUseAcceleratedRendering) {
-        DebugOnly<nsIntRect> fbBounds = gScreenBounds;
-        if (!sGLContext) {
-            sGLContext = GLContextProvider::CreateForWindow(this);
-        }
-
-        MOZ_ASSERT(fbBounds.value == gScreenBounds);
-        if (sGLContext) {
-            nsRefPtr<LayerManagerOGL> layerManager = new LayerManagerOGL(this);
-
-            if (layerManager->Initialize(sGLContext)) {
-                mLayerManager = layerManager;
-                return mLayerManager;
-            } else {
-                LOGW("Could not create OGL LayerManager");
-            }
-        } else {
-            LOGW("GL context was not created");
-        }
+    DebugOnly<nsIntRect> fbBounds = gScreenBounds;
+    if (!sGLContext) {
+      sGLContext = GLContextProvider::CreateForWindow(this);
     }
+    MOZ_ASSERT(fbBounds.value == gScreenBounds);
+    if (sGLContext) {
+        nsRefPtr<LayerManagerOGL> layerManager = new LayerManagerOGL(this);
 
-    // Fall back to software rendering.
-    sFramebufferOpen = Framebuffer::Open();
-    if (sFramebufferOpen) {
-        LOG("Falling back to framebuffer software rendering");
-    } else {
-        LOGE("Failed to mmap fb(?!?), aborting ...");
-        NS_RUNTIMEABORT("Can't open GL context and can't fall back on /dev/graphics/fb0 ...");
+        if (layerManager->Initialize(sGLContext)) {
+            mLayerManager = layerManager;
+            return mLayerManager;
+        } else {
+            LOG("Could not create OGL LayerManager");
+        }
     }
 
     mLayerManager = new BasicShadowLayerManager(this);
-    mUseAcceleratedRendering = false;
 
     return mLayerManager;
 }

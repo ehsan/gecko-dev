@@ -580,18 +580,6 @@ protected:
   void UpdateHasRange();
 
   /**
-   * Returns the min attribute as a double.
-   * Returns NaN if the min attribute isn't a valid floating point number.
-   */
-  double GetMinAsDouble() const;
-
-  /**
-   * Returns the max attribute as a double.
-   * Returns NaN if the max attribute isn't a valid floating point number.
-   */
-  double GetMaxAsDouble() const;
-
-  /**
    * Returns the current step value.
    * Returns kStepAny if the current step is "any" string.
    *

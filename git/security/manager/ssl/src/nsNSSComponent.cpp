@@ -1287,7 +1287,7 @@ nsresult nsNSSComponent::getParamsForNextCrlToDownload(nsAutoString *url, PRTime
     char *tempTimeString;
     PRTime tempTime;
     nsCAutoString timingPrefCString(updateTimePref);
-    LossyAppendUTF16toASCII(tempCrlKey, timingPrefCString);
+    timingPrefCString.AppendWithConversion(tempCrlKey);
     // No PRTime/Int64 type in prefs; stored as string; parsed here as PRInt64
     rv = pref->GetCharPref(timingPrefCString.get(), &tempTimeString);
     if (NS_FAILED(rv)){
@@ -1327,7 +1327,7 @@ nsresult nsNSSComponent::getParamsForNextCrlToDownload(nsAutoString *url, PRTime
 
     if(nearestUpdateTime == 0 || tempTime < nearestUpdateTime){
       nsCAutoString urlPrefCString(updateURLPref);
-      LossyAppendUTF16toASCII(tempCrlKey, urlPrefCString);
+      urlPrefCString.AppendWithConversion(tempCrlKey);
       rv = pref->GetCharPref(urlPrefCString.get(), &tempUrl);
       if (NS_FAILED(rv) || (!tempUrl)){
         continue;
@@ -3300,6 +3300,7 @@ PSMContentDownloader::handleContentDownloadError(nsresult errCode)
       //This is the case for automatic download. Update failure history
       nsCAutoString updateErrCntPrefStr(CRL_AUTOUPDATE_ERRCNT_PREF);
       nsCAutoString updateErrDetailPrefStr(CRL_AUTOUPDATE_ERRDETAIL_PREF);
+      PRUnichar *nameInDb;
       nsCString errMsg;
       PRInt32 errCnt;
 
@@ -3308,8 +3309,9 @@ PSMContentDownloader::handleContentDownloadError(nsresult errCode)
         return rv;
       }
       
-      LossyAppendUTF16toASCII(mCrlAutoDownloadKey, updateErrCntPrefStr);
-      LossyAppendUTF16toASCII(mCrlAutoDownloadKey, updateErrDetailPrefStr);
+      nameInDb = (PRUnichar *)mCrlAutoDownloadKey.get();
+      updateErrCntPrefStr.AppendWithConversion(nameInDb);
+      updateErrDetailPrefStr.AppendWithConversion(nameInDb);  
       errMsg.AssignWithConversion(tmpMessage.get());
       
       rv = pref->GetIntPref(updateErrCntPrefStr.get(),&errCnt);

@@ -21,7 +21,6 @@
 #include "nsIObserver.h"
 #include "nsIOutputStream.h"
 #include "nsIFile.h"
-#include "mozilla/Attributes.h"
 
 /**
  * The StartupCache is a persistent cache of simple key-value pairs,
@@ -89,7 +88,7 @@ struct CacheEntry
 
 // We don't want to refcount StartupCache, and ObserverService wants to
 // refcount its listeners, so we'll let it refcount this instead.
-class StartupCacheListener MOZ_FINAL : public nsIObserver
+class StartupCacheListener : public nsIObserver
 {
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
@@ -180,7 +179,7 @@ private:
 // references to the same object. We only support that if that object
 // is a singleton.
 #ifdef DEBUG
-class StartupCacheDebugOutputStream MOZ_FINAL
+class StartupCacheDebugOutputStream
   : public nsIObjectOutputStream
 {  
   NS_DECL_ISUPPORTS
@@ -206,7 +205,7 @@ class StartupCacheDebugOutputStream MOZ_FINAL
       {0xb5, 0x77, 0xf9, 0x23, 0x57, 0xed, 0xa8, 0x84}}
 // contract id: "@mozilla.org/startupcache/cache;1"
 
-class StartupCacheWrapper MOZ_FINAL
+class StartupCacheWrapper 
   : public nsIStartupCache
 {
   NS_DECL_ISUPPORTS

@@ -32,6 +32,7 @@ IDBRequest::IDBRequest()
   mActorParent(nsnull),
   mErrorCode(NS_OK),
   mHaveResultOrErrorCode(false),
+  mRooted(false),
   mLineNo(0)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -40,6 +41,8 @@ IDBRequest::IDBRequest()
 IDBRequest::~IDBRequest()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  UnrootResultVal();
 }
 
 // static
@@ -71,6 +74,7 @@ IDBRequest::Reset()
   mResultVal = JSVAL_VOID;
   mHaveResultOrErrorCode = false;
   mError = nsnull;
+  UnrootResultVal();
 }
 
 nsresult
@@ -78,6 +82,7 @@ IDBRequest::NotifyHelperCompleted(HelperBase* aHelper)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!mHaveResultOrErrorCode, "Already called!");
+  NS_ASSERTION(!PreservingWrapper(), "Already rooted?!");
   NS_ASSERTION(JSVAL_IS_VOID(mResultVal), "Should be undefined!");
 
   // See if our window is still valid. If not then we're going to pretend that
@@ -111,7 +116,7 @@ IDBRequest::NotifyHelperCompleted(HelperBase* aHelper)
   JSAutoRequest ar(cx);
   JSAutoEnterCompartment ac;
   if (ac.enter(cx, global)) {
-    AssertIsRooted();
+    RootResultVal();
 
     rv = aHelper->GetSuccessResult(cx, &mResultVal);
     if (NS_FAILED(rv)) {
@@ -139,6 +144,7 @@ IDBRequest::NotifyHelperSentResultsToChildProcess(nsresult aRv)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!mHaveResultOrErrorCode, "Already called!");
+  NS_ASSERTION(!PreservingWrapper(), "Already rooted?!");
   NS_ASSERTION(JSVAL_IS_VOID(mResultVal), "Should be undefined!");
 
   // See if our window is still valid. If not then we're going to pretend that
@@ -165,6 +171,7 @@ IDBRequest::SetError(nsresult aRv)
   mErrorCode = aRv;
 
   mResultVal = JSVAL_VOID;
+  UnrootResultVal();
 }
 
 #ifdef DEBUG
@@ -230,6 +237,18 @@ IDBRequest::FillScriptErrorEvent(nsScriptErrorEvent* aEvent) const
 {
   aEvent->lineNr = mLineNo;
   aEvent->fileName = mFilename.get();
+}
+
+void
+IDBRequest::RootResultValInternal()
+{
+  NS_HOLD_JS_OBJECTS(this, IDBRequest);
+}
+
+void
+IDBRequest::UnrootResultValInternal()
+{
+  NS_DROP_JS_OBJECTS(this, IDBRequest);
 }
 
 NS_IMETHODIMP
@@ -308,6 +327,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBRequest, IDBWrapperCache)
   tmp->mResultVal = JSVAL_VOID;
+  tmp->UnrootResultVal();
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(success)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(error)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSource)
@@ -346,6 +366,8 @@ IDBRequest::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 IDBOpenDBRequest::~IDBOpenDBRequest()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  UnrootResultVal();
 }
 
 // static
@@ -376,6 +398,18 @@ IDBOpenDBRequest::SetTransaction(IDBTransaction* aTransaction)
                "Shouldn't have a transaction here!");
 
   mTransaction = aTransaction;
+}
+
+void
+IDBOpenDBRequest::RootResultValInternal()
+{
+  NS_HOLD_JS_OBJECTS(this, IDBOpenDBRequest);
+}
+
+void
+IDBOpenDBRequest::UnrootResultValInternal()
+{
+  NS_DROP_JS_OBJECTS(this, IDBOpenDBRequest);
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(IDBOpenDBRequest)
