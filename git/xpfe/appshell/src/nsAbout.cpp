@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,7 +12,7 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Communicator client code.
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
  * Netscape Communications Corporation.
@@ -35,59 +35,50 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/ModuleUtils.h"
-#include "nscore.h"
-#include "nsIWindowMediator.h"
 #include "nsAbout.h"
+#include "nsIIOService.h"
+#include "nsIServiceManager.h"
+#include "nsIChannel.h"
+#include "nsCOMPtr.h"
+#include "nsIURI.h"
+#include "nsNetCID.h"
+#include "nsIScriptSecurityManager.h"
+#include "nsLiteralString.h"
 
-#include "nsIAppShellService.h"
-#include "nsAppShellService.h"
-#include "nsWindowMediator.h"
-#include "nsChromeTreeOwner.h"
-#include "nsAppShellCID.h"
+NS_IMPL_ISUPPORTS1(nsAbout, nsIAboutModule)
 
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsAppShellService)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsAbout)
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsWindowMediator, Init)
+static const char kURI[] = "chrome://global/content/about.xhtml";
 
-NS_DEFINE_NAMED_CID(NS_APPSHELLSERVICE_CID);
-NS_DEFINE_NAMED_CID(NS_WINDOWMEDIATOR_CID);
-NS_DEFINE_NAMED_CID(NS_ABOUT_CID);
-
-static const mozilla::Module::CIDEntry kAppShellCIDs[] = {
-  { &kNS_APPSHELLSERVICE_CID, false, NULL, nsAppShellServiceConstructor },
-  { &kNS_WINDOWMEDIATOR_CID, false, NULL, nsWindowMediatorConstructor },
-  { &kNS_ABOUT_CID, false, NULL, nsAboutConstructor },
-  { NULL }
-};
-
-static const mozilla::Module::ContractIDEntry kAppShellContracts[] = {
-  { NS_APPSHELLSERVICE_CONTRACTID, &kNS_APPSHELLSERVICE_CID },
-  { NS_WINDOWMEDIATOR_CONTRACTID, &kNS_WINDOWMEDIATOR_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX, &kNS_ABOUT_CID },
-  { NULL }
-};
-
-static nsresult
-nsAppShellModuleConstructor()
+NS_IMETHODIMP
+nsAbout::NewChannel(nsIURI *aURI, nsIChannel **result)
 {
-  return nsChromeTreeOwner::InitGlobals();
+    nsresult rv;
+    nsCOMPtr<nsIIOService> ioService(do_GetService(NS_IOSERVICE_CONTRACTID, &rv));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIChannel> tempChannel;
+    rv = ioService->NewChannel(NS_LITERAL_CSTRING(kURI), nsnull, nsnull, 
+                               getter_AddRefs(tempChannel));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIScriptSecurityManager> securityManager = 
+             do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIPrincipal> principal;
+    rv = securityManager->GetCodebasePrincipal(aURI, getter_AddRefs(principal));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsISupports> owner = do_QueryInterface(principal);
+    rv = tempChannel->SetOwner(owner);
+    *result = tempChannel.get();
+    NS_ADDREF(*result);
+    return rv;
 }
 
-static void
-nsAppShellModuleDestructor()
+NS_IMETHODIMP
+nsAbout::GetURIFlags(nsIURI *aURI, PRUint32 *result)
 {
-  nsChromeTreeOwner::FreeGlobals();
+    *result = nsIAboutModule::ALLOW_SCRIPT;
+    return NS_OK;
 }
-
-static const mozilla::Module kAppShellModule = {
-  mozilla::Module::kVersion,
-  kAppShellCIDs,
-  kAppShellContracts,
-  NULL,
-  NULL,
-  nsAppShellModuleConstructor,
-  nsAppShellModuleDestructor
-};
-
-NSMODULE_DEFN(appshell) = &kAppShellModule;

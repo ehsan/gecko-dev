@@ -60,6 +60,7 @@ CPPSRCS		= \
 		nsAppShellWindowEnumerator.cpp \
 		nsWebShellWindow.cpp \
 		nsWindowMediator.cpp \
+		nsAbout.cpp \
 		nsAppShellFactory.cpp \
 		$(NULL)
 

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,7 +12,7 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Communicator client code.
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
  * Netscape Communications Corporation.
@@ -35,59 +35,24 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/ModuleUtils.h"
-#include "nscore.h"
-#include "nsIWindowMediator.h"
-#include "nsAbout.h"
+#ifndef nsAbout_h_
+#define nsAbout_h_
 
-#include "nsIAppShellService.h"
-#include "nsAppShellService.h"
-#include "nsWindowMediator.h"
-#include "nsChromeTreeOwner.h"
-#include "nsAppShellCID.h"
+#include "nsIAboutModule.h"
 
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsAppShellService)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsAbout)
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsWindowMediator, Init)
-
-NS_DEFINE_NAMED_CID(NS_APPSHELLSERVICE_CID);
-NS_DEFINE_NAMED_CID(NS_WINDOWMEDIATOR_CID);
-NS_DEFINE_NAMED_CID(NS_ABOUT_CID);
-
-static const mozilla::Module::CIDEntry kAppShellCIDs[] = {
-  { &kNS_APPSHELLSERVICE_CID, false, NULL, nsAppShellServiceConstructor },
-  { &kNS_WINDOWMEDIATOR_CID, false, NULL, nsWindowMediatorConstructor },
-  { &kNS_ABOUT_CID, false, NULL, nsAboutConstructor },
-  { NULL }
-};
-
-static const mozilla::Module::ContractIDEntry kAppShellContracts[] = {
-  { NS_APPSHELLSERVICE_CONTRACTID, &kNS_APPSHELLSERVICE_CID },
-  { NS_WINDOWMEDIATOR_CONTRACTID, &kNS_WINDOWMEDIATOR_CID },
-  { NS_ABOUT_MODULE_CONTRACTID_PREFIX, &kNS_ABOUT_CID },
-  { NULL }
-};
-
-static nsresult
-nsAppShellModuleConstructor()
-{
-  return nsChromeTreeOwner::InitGlobals();
+#define NS_ABOUT_CID                                                           \
+{ /* {1f1ce501-663a-11d3-b7a0-be426e4e69bc} */                                 \
+0x1f1ce501, 0x663a, 0x11d3, { 0xb7, 0xa0, 0xbe, 0x42, 0x6e, 0x4e, 0x69, 0xbc } \
 }
 
-static void
-nsAppShellModuleDestructor()
+class nsAbout : public nsIAboutModule
 {
-  nsChromeTreeOwner::FreeGlobals();
-}
+public:
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIABOUTMODULE
 
-static const mozilla::Module kAppShellModule = {
-  mozilla::Module::kVersion,
-  kAppShellCIDs,
-  kAppShellContracts,
-  NULL,
-  NULL,
-  nsAppShellModuleConstructor,
-  nsAppShellModuleDestructor
+    nsAbout() {}
+    virtual ~nsAbout() {}
 };
 
-NSMODULE_DEFN(appshell) = &kAppShellModule;
+#endif // nsAbout_h_
