@@ -32,7 +32,7 @@
 #include "gtest_utils.h"
 
 using namespace mozilla;
-MtransportTestUtils *test_utils;
+MtransportTestUtils test_utils;
 
 namespace {
 
@@ -157,13 +157,11 @@ TEST_F(DispatchTest, TestRet) {
 
 
 int main(int argc, char **argv) {
-  test_utils = new MtransportTestUtils();
+    test_utils.InitServices();
 
   // Start the tests
   ::testing::InitGoogleTest(&argc, argv);
 
-  int rv = RUN_ALL_TESTS();
-  delete test_utils;
-  return rv;
+  return RUN_ALL_TESTS();
 }
 

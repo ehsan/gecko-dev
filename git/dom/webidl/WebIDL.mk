@@ -29,7 +29,6 @@ webidl_files = \
   EventTarget.webidl \
   FileList.webidl \
   FileReaderSync.webidl \
-  GainNode.webidl \
   HTMLCollection.webidl \
   HTMLOptionsCollection.webidl \
   HTMLPropertiesCollection.webidl \

@@ -703,21 +703,17 @@ ifdef relativesrcdir
 LOCALE_SRCDIR = $(call EXPAND_LOCALE_SRCDIR,$(relativesrcdir))
 endif
 
-ifdef relativesrcdir
-MAKE_JARS_FLAGS += --relativesrcdir=$(relativesrcdir)
-ifneq (en-US,$(AB_CD))
+ifdef LOCALE_SRCDIR
+# if LOCALE_MERGEDIR is set, use mergedir first, then the localization,
+# and finally en-US
 ifdef LOCALE_MERGEDIR
-MAKE_JARS_FLAGS += --locale-mergedir=$(LOCALE_MERGEDIR)
+MAKE_JARS_FLAGS += -c $(LOCALE_MERGEDIR)/$(subst /locales,,$(relativesrcdir))
 endif
-ifdef IS_LANGUAGE_REPACK
-MAKE_JARS_FLAGS += --l10n-base=$(L10NBASEDIR)
+MAKE_JARS_FLAGS += -c $(LOCALE_SRCDIR)
+ifdef LOCALE_MERGEDIR
+MAKE_JARS_FLAGS += -c $(topsrcdir)/$(relativesrcdir)/en-US
 endif
-else
-MAKE_JARS_FLAGS += -c $(LOCALE_SRCDIR)
-endif # en-US
-else
-MAKE_JARS_FLAGS += -c $(LOCALE_SRCDIR)
-endif # ! relativesrcdir
+endif
 
 ifdef LOCALE_MERGEDIR
 MERGE_FILE = $(firstword \

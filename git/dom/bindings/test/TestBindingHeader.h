@@ -682,20 +682,6 @@ public:
   uint32_t Length();
 };
 
-class TestCppKeywordNamedMethodsInterface : public nsISupports,
-                                            public nsWrapperCache
-{
-public:
-  NS_DECL_ISUPPORTS
-
-  // We need a GetParentObject to make binding codegen happy
-  virtual nsISupports* GetParentObject();
-
-  bool Continue();
-  bool Delete();
-  int32_t Volatile();
-};
-
 } // namespace dom
 } // namespace mozilla
 

@@ -63,8 +63,8 @@ class MoveEmitterARM
 
 typedef MoveEmitterARM MoveEmitter;
 
-} // namespace ion
-} // namespace js
+} // ion
+} // js
 
 #endif // jsion_move_resolver_arm_shared_h__
 

@@ -15,6 +15,8 @@
 #include "jspubtd.h"
 #include "jsutil.h"
 
+JS_BEGIN_EXTERN_C
+
 /*
  * JS operation bytecodes.
  */
@@ -329,6 +331,8 @@ js_ReconstructStackDepth(JSContext *cx, JSScript *script, jsbytecode *pc);
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
+
+JS_END_EXTERN_C
 
 #define JSDVG_IGNORE_STACK      0
 #define JSDVG_SEARCH_STACK      1

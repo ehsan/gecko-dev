@@ -921,7 +921,7 @@ void ExtractFontsFromJar(nsIFile* aLocalDir)
     jarFile->GetLastModifiedTime(&jarModifiedTime);
 
     mozilla::scache::StartupCache* cache = mozilla::scache::StartupCache::GetSingleton();
-    if (cache && NS_SUCCEEDED(cache->GetBuffer(JAR_LAST_MODIFED_TIME, &cachedModifiedTimeBuf, &longSize))
+    if (NS_SUCCEEDED(cache->GetBuffer(JAR_LAST_MODIFED_TIME, &cachedModifiedTimeBuf, &longSize))
         && longSize == sizeof(int64_t)) {
         if (jarModifiedTime < *((int64_t*) cachedModifiedTimeBuf)) {
             return;
@@ -979,7 +979,7 @@ void ExtractFontsFromJar(nsIFile* aLocalDir)
             }
         }
     }
-    if (allFontsExtracted && cache) {
+    if (allFontsExtracted) {
         cache->PutBuffer(JAR_LAST_MODIFED_TIME, (char*)&jarModifiedTime, sizeof(int64_t));
     }
 }

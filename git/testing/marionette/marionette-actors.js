@@ -689,9 +689,7 @@ MarionetteDriverActor.prototype = {
     }
 
     let curWindow = this.getCurrentWindow();
-    let marionette = new Marionette(this, curWindow, "chrome",
-                                    this.marionetteLog, this.marionettePerf,
-                                    this.scriptTimeout);
+    let marionette = new Marionette(this, curWindow, "chrome", this.marionetteLog, this.marionettePerf);
     let _chromeSandbox = this.createExecuteSandbox(curWindow, marionette, aRequest.args, aRequest.specialPowers);
     if (!_chromeSandbox)
       return;
@@ -801,8 +799,7 @@ MarionetteDriverActor.prototype = {
     let original_onerror = curWindow.onerror;
     let that = this;
     let marionette = new Marionette(this, curWindow, "chrome",
-                                    this.marionetteLog, this.marionettePerf,
-                                    this.scriptTimeout);
+                                    this.marionetteLog, this.marionettePerf);
     marionette.command_id = this.command_id;
 
     function chromeAsyncReturnFunc(value, status) {

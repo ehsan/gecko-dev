@@ -78,7 +78,6 @@ public:
     PRStatus DoHandshake(PRFileDesc *fd, int16_t oflags = -1);
     int16_t GetPollFlags() const;
     bool IsConnected() const { return mState == SOCKS_CONNECTED; }
-    void ForgetFD() { mFD = nullptr; }
 
 private:
     void HandshakeFinished(PRErrorCode err = 0);
@@ -274,10 +273,8 @@ nsSOCKSSocketInfo::OnLookupComplete(nsICancelable *aRequest,
     mLookupStatus = aStatus;
     mDnsRec = aRecord;
     mState = SOCKS_DNS_COMPLETE;
-    if (mFD) {
-      ConnectToProxy(mFD);
-      ForgetFD();
-    }
+    ConnectToProxy(mFD);
+    mFD = nullptr;
     return NS_OK;
 }
 
@@ -1128,7 +1125,6 @@ nsSOCKSIOLayerClose(PRFileDesc *fd)
 
     if (info && id == nsSOCKSIOLayerIdentity)
     {
-        info->ForgetFD();
         NS_RELEASE(info);
         fd->identity = PR_INVALID_IO_LAYER;
     }

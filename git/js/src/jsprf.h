@@ -27,6 +27,8 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+JS_BEGIN_EXTERN_C
+
 /*
 ** sprintf into a fixed size buffer. Guarantees that a NUL is at the end
 ** of the buffer. Returns the length of the written output, NOT including
@@ -73,5 +75,7 @@ extern JS_PUBLIC_API(uint32_t) JS_vsnprintf(char *out, uint32_t outlen, const ch
 extern JS_PUBLIC_API(char*) JS_vsmprintf(const char *fmt, va_list ap);
 extern JS_PUBLIC_API(char*) JS_vsprintf_append(char *last, const char *fmt, va_list ap);
 extern JS_PUBLIC_API(uint32_t) JS_vsxprintf(JSStuffFunc f, void *arg, const char *fmt, va_list ap);
+
+JS_END_EXTERN_C
 
 #endif /* jsprf_h___ */

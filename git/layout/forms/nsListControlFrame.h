@@ -389,11 +389,6 @@ protected:
   nscoord HeightOfARow() {
     return GetOptionsContainer()->HeightOfARow();
   }
-
-  /**
-   * @return how many displayable options/optgroups this frame has.
-   */
-  uint32_t GetNumberOfRows();
   
   // Data Members
   int32_t      mStartSelectionIndex;

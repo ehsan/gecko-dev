@@ -73,11 +73,6 @@ SystemMessageManager.prototype = {
 
     aHandler.handleMessage(wrapped ? aMessage
                                    : ObjectWrapper.wrap(aMessage, this._window));
-
-    // Notify the parent process the message is handled.
-    cpmm.sendAsyncMessage("SystemMessageManager:HandleMessageDone",
-                          { type: aType,
-                            message: aMessage });
   },
 
   mozSetMessageHandler: function sysMessMgr_setMessageHandler(aType, aHandler) {
@@ -222,4 +217,4 @@ SystemMessageManager.prototype = {
                                     classDescription: "System Messages"})
 }
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([SystemMessageManager]);
+const NSGetFactory = XPCOMUtils.generateNSGetFactory([SystemMessageManager]);

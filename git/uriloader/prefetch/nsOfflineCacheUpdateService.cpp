@@ -95,7 +95,8 @@ GetAppIDAndInBrowserFromWindow(nsIDOMWindow *aWindow,
         return NS_OK;
     }
 
-    nsCOMPtr<nsILoadContext> loadContext = do_GetInterface(aWindow);
+    nsCOMPtr<nsIWebNavigation> webNav = do_GetInterface(aWindow);
+    nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(webNav);
     if (!loadContext) {
         return NS_OK;
     }

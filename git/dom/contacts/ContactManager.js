@@ -439,24 +439,6 @@ ContactManager.prototype = {
 
   askPermission: function (aAccess, aRequest, aAllowCallback, aCancelCallback) {
     if (DEBUG) debug("askPermission for contacts");
-    let access;
-    switch(aAccess) {
-      case "create":
-        access = "create";
-        break;
-      case "update":
-      case "remove":
-        access = "write";
-        break;
-      case "find":
-      case "getSimContacts":
-      case "listen":
-        access = "read";
-        break;
-      default:
-        access = "unknown";
-      }
-      
     let requestID = this.getRequestId({
       request: aRequest,
       allow: function() {
@@ -474,7 +456,7 @@ ContactManager.prototype = {
     let principal = this._window.document.nodePrincipal;
     cpmm.sendAsyncMessage("PermissionPromptHelper:AskPermission", {
       type: "contacts",
-      access: access,
+      access: aAccess,
       requestID: requestID,
       origin: principal.origin,
       appID: principal.appId,
@@ -526,7 +508,7 @@ ContactManager.prototype = {
     this._setMetaData(newContact, aContact);
     if (DEBUG) debug("send: " + JSON.stringify(newContact));
     request = this.createRequest();
-    let options = { contact: newContact, reason: reason };
+    let options = { contact: newContact };
     let allowCallback = function() {
       cpmm.sendAsyncMessage("Contact:Save", {requestID: this.getRequestId({request: request, reason: reason}), options: options});
     }.bind(this)
@@ -619,5 +601,5 @@ ContactManager.prototype = {
                                      flags: nsIClassInfo.DOM_OBJECT})
 }
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(
+const NSGetFactory = XPCOMUtils.generateNSGetFactory(
                        [Contact, ContactManager, ContactProperties, ContactAddress, ContactField, ContactTelField, ContactFindOptions])

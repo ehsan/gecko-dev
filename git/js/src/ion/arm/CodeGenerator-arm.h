@@ -168,8 +168,8 @@ class OutOfLineBailout : public OutOfLineCodeBase<CodeGeneratorARM>
     }
 };
 
-} // namespace ion
-} // namespace js
+} // ion
+} // js
 
 #endif // jsion_codegen_arm_h__
 

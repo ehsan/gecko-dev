@@ -1347,7 +1347,7 @@ ContentParent::DeallocPHal(PHalParent* aHal)
 PIndexedDBParent*
 ContentParent::AllocPIndexedDB()
 {
-  return new IndexedDBParent(this);
+  return new IndexedDBParent();
 }
 
 bool

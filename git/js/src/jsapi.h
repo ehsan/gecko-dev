@@ -14,8 +14,10 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/StandardInteger.h"
-#include "mozilla/RangedPtr.h"
-#include "mozilla/ThreadLocal.h"
+#ifdef __cplusplus
+# include "mozilla/RangedPtr.h"
+# include "mozilla/ThreadLocal.h"
+#endif
 
 #include <stddef.h>
 #include <stdio.h>
@@ -27,10 +29,12 @@
 #include "js/Utility.h"
 #include "gc/Root.h"
 
+#ifdef __cplusplus
 #include <limits> /* for std::numeric_limits */
 
 #include "jsalloc.h"
 #include "js/Vector.h"
+#endif
 
 /************************************************************************/
 
@@ -41,6 +45,7 @@
 
 /************************************************************************/
 
+#ifdef __cplusplus
 namespace JS {
 
 typedef mozilla::RangedPtr<const jschar> CharPtr;
@@ -1591,6 +1596,30 @@ struct JSValueAlignmentTester { char c; JS::Value v; };
 JS_STATIC_ASSERT(sizeof(JSValueAlignmentTester) == 16);
 #endif /* DEBUG */
 
+#else  /* defined(__cplusplus) */
+
+/*
+ * For SpiderMonkey C clients, there is no JS::Value class, only the
+ * traditional jsval with the traditional JSVAL_* operations. Since
+ * SpiderMonkey itself is always compiled as C++, this relies on the binary
+ * compatibility of jsval_layout and JS::Value (statically asserted below).
+ */
+typedef union jsval_layout jsval;
+
+static JS_ALWAYS_INLINE jsval_layout
+JSVAL_TO_IMPL(jsval v)
+{
+    return v;
+}
+
+static JS_ALWAYS_INLINE jsval
+IMPL_TO_JSVAL(jsval_layout l)
+{
+    return l;
+}
+
+#endif  /* defined(__cplusplus) */
+
 #ifdef DEBUG
 typedef struct { char c; jsval_layout l; } JSLayoutAlignmentTester;
 JS_STATIC_ASSERT(sizeof(JSLayoutAlignmentTester) == 16);
@@ -1599,6 +1628,8 @@ JS_STATIC_ASSERT(sizeof(JSLayoutAlignmentTester) == 16);
 JS_STATIC_ASSERT(sizeof(jsval_layout) == sizeof(jsval));
 
 /************************************************************************/
+
+#ifdef __cplusplus
 
 typedef JS::Handle<JSObject*> JSHandleObject;
 typedef JS::Handle<JSString*> JSHandleString;
@@ -1618,6 +1649,43 @@ typedef JS::RawScript   JSRawScript;
 typedef JS::RawString   JSRawString;
 typedef JS::RawId       JSRawId;
 typedef JS::RawValue    JSRawValue;
+
+#else
+
+/*
+ * Handle support for C API users. Handles must be destroyed in the reverse
+ * order that they were created (as in a stack).
+ */
+
+typedef struct { JSObject **_; } JSHandleObject;
+typedef struct { JSString **_; } JSHandleString;
+typedef struct { jsval     *_; } JSHandleValue;
+typedef struct { jsid      *_; } JSHandleId;
+
+typedef struct { JSObject   **_; } JSMutableHandleObject;
+typedef struct { JSFunction **_; } JSMutableHandleFunction;
+typedef struct { JSScript   **_; } JSMutableHandleScript;
+typedef struct { JSString   **_; } JSMutableHandleString;
+typedef struct { jsval       *_; } JSMutableHandleValue;
+typedef struct { jsid        *_; } JSMutableHandleId;
+
+typedef JSObject   *JSRawObject;
+typedef JSFunction *JSRawFunction;
+typedef JSScript   *JSRawScript;
+typedef JSString   *JSRawString;
+typedef jsid       *JSRawId;
+typedef jsval      *JSRawValue;
+
+JSBool JS_CreateHandleObject(JSContext *cx, JSObject *obj, JSHandleObject *phandle);
+void JS_DestroyHandleObject(JSContext *cx, JSHandleObject handle);
+
+JSBool JS_CreateMutableHandleObject(JSContext *cx, JSObject *obj, JSMutableHandleObject *phandle);
+void JS_DestroyMutableHandleObject(JSContext *cx, JSMutableHandleObject handle);
+
+JSBool JS_CreateHandleId(JSContext *cx, jsid id, JSHandleId *phandle);
+void JS_DestroyHandleId(JSContext *cx, JSHandleId handle);
+
+#endif
 
 /* JSClass operation signatures. */
 
@@ -1733,6 +1801,9 @@ typedef JSType
 typedef struct JSFreeOp JSFreeOp;
 
 struct JSFreeOp {
+#ifndef __cplusplus
+    JSRuntime   *runtime;
+#else
   private:
     JSRuntime   *runtime_;
 
@@ -1744,6 +1815,7 @@ struct JSFreeOp {
     JSRuntime *runtime() const {
         return runtime_;
     }
+#endif
 };
 
 /*
@@ -2014,6 +2086,8 @@ typedef JSBool (*WriteStructuredCloneOp)(JSContext *cx, JSStructuredCloneWriter 
 typedef void (*StructuredCloneErrorOp)(JSContext *cx, uint32_t errorid);
 
 /************************************************************************/
+
+JS_BEGIN_EXTERN_C
 
 /*
  * Silence warning about returning JS::Value (aka jsval) from functions with C
@@ -2398,6 +2472,8 @@ JSVAL_IS_UNIVERSAL(jsval v)
     return !JSVAL_IS_GCTHING(v);
 }
 
+#ifdef __cplusplus
+
 namespace JS {
 
 class AutoIdRooter : private AutoGCRooter
@@ -2426,6 +2502,8 @@ class AutoIdRooter : private AutoGCRooter
 };
 
 } /* namespace JS */
+
+#endif /* __cplusplus */
 
 /************************************************************************/
 
@@ -2585,6 +2663,7 @@ JS_ValueToSource(JSContext *cx, jsval v);
 extern JS_PUBLIC_API(JSBool)
 JS_ValueToNumber(JSContext *cx, jsval v, double *dp);
 
+#ifdef __cplusplus
 namespace js {
 /*
  * DO NOT CALL THIS.  Use JS::ToNumber
@@ -2640,6 +2719,7 @@ ToBoolean(const Value &v)
 }
 
 } /* namespace JS */
+#endif /* __cplusplus */
 
 extern JS_PUBLIC_API(JSBool)
 JS_DoubleIsInt32(double d, int32_t *ip);
@@ -2671,6 +2751,7 @@ JS_ValueToInt64(JSContext *cx, jsval v, int64_t *ip);
 extern JS_PUBLIC_API(JSBool)
 JS_ValueToUint64(JSContext *cx, jsval v, uint64_t *ip);
 
+#ifdef __cplusplus
 namespace js {
 /* DO NOT CALL THIS.  Use JS::ToInt16. */
 extern JS_PUBLIC_API(bool)
@@ -2785,6 +2866,7 @@ ToUint64(JSContext *cx, const js::Value &v, uint64_t *out)
 
 
 } /* namespace JS */
+#endif /* __cplusplus */
 
 /*
  * Convert a value to a number, then to a uint32_t, according to the ECMA rules
@@ -2883,6 +2965,9 @@ JS_EndRequest(JSContext *cx);
 extern JS_PUBLIC_API(JSBool)
 JS_IsInRequest(JSRuntime *rt);
 
+#ifdef __cplusplus
+JS_END_EXTERN_C
+
 namespace JS {
 
 extern mozilla::ThreadLocal<JSRuntime *> TlsRuntime;
@@ -2955,6 +3040,9 @@ class JSAutoCheckRequest {
 #endif
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
+
+JS_BEGIN_EXTERN_C
+#endif
 
 extern JS_PUBLIC_API(JSContextCallback)
 JS_SetContextCallback(JSRuntime *rt, JSContextCallback cxCallback);
@@ -3166,6 +3254,9 @@ JS_RefreshCrossCompartmentWrappers(JSContext *cx, JSObject *ob);
  * the corresponding JS_LeaveCompartment call.
  */
 
+#ifdef __cplusplus
+JS_END_EXTERN_C
+
 class JS_PUBLIC_API(JSAutoCompartment)
 {
     JSContext *cx_;
@@ -3176,6 +3267,9 @@ class JS_PUBLIC_API(JSAutoCompartment)
     JSAutoCompartment(JSContext *cx, JSStackFrame *target);
     ~JSAutoCompartment();
 };
+
+JS_BEGIN_EXTERN_C
+#endif
 
 /* NB: This API is infallible; a NULL return value does not indicate error. */
 extern JS_PUBLIC_API(JSCompartment *)
@@ -3373,12 +3467,14 @@ JS_EnumerateDiagnosticMemoryRegions(JSEnumerateDiagnosticMemoryCallback callback
 extern JS_PUBLIC_API(jsval)
 JS_ComputeThis(JSContext *cx, jsval *vp);
 
+#ifdef __cplusplus
 #undef JS_THIS
 static inline jsval
 JS_THIS(JSContext *cx, jsval *vp)
 {
     return JSVAL_IS_PRIMITIVE(vp[1]) ? JS_ComputeThis(cx, vp) : vp[1];
 }
+#endif
 
 /*
  * |this| is passed to functions in ES5 without change.  Functions themselves
@@ -4043,6 +4139,8 @@ JS_IdArrayGet(JSContext *cx, JSIdArray *ida, int index);
 extern JS_PUBLIC_API(void)
 JS_DestroyIdArray(JSContext *cx, JSIdArray *ida);
 
+#ifdef __cplusplus
+
 namespace JS {
 
 class AutoIdArray : private AutoGCRooter {
@@ -4090,6 +4188,8 @@ class AutoIdArray : private AutoGCRooter {
 };
 
 } /* namespace JS */
+
+#endif /* __cplusplus */
 
 extern JS_PUBLIC_API(JSBool)
 JS_ValueToId(JSContext *cx, jsval v, jsid *idp);
@@ -4688,6 +4788,7 @@ struct JSPrincipals {
     uint32_t    debugToken;
 #endif
 
+#ifdef __cplusplus
     void setDebugToken(uint32_t token) {
 # ifdef DEBUG
         debugToken = token;
@@ -4699,6 +4800,7 @@ struct JSPrincipals {
      * embedding.
      */
     JS_PUBLIC_API(void) dump();
+#endif
 };
 
 extern JS_PUBLIC_API(void)
@@ -4904,6 +5006,9 @@ JS_CompileUCFunction(JSContext *cx, JSObject *obj, const char *name,
                      const jschar *chars, size_t length,
                      const char *filename, unsigned lineno);
 
+#ifdef __cplusplus
+JS_END_EXTERN_C
+
 namespace JS {
 
 /* Options for JavaScript compilation. */
@@ -4963,6 +5068,9 @@ CompileFunction(JSContext *cx, JSHandleObject obj, CompileOptions options,
                 const jschar *chars, size_t length);
 
 } /* namespace JS */
+
+JS_BEGIN_EXTERN_C
+#endif /* __cplusplus */
 
 extern JS_PUBLIC_API(JSString *)
 JS_DecompileScript(JSContext *cx, JSScript *script, const char *name, unsigned indent);
@@ -5083,6 +5191,9 @@ JS_EvaluateUCScriptForPrincipalsVersionOrigin(JSContext *cx, JSObject *obj,
                                               const char *filename, unsigned lineno,
                                               jsval *rval, JSVersion version);
 
+#ifdef __cplusplus
+JS_END_EXTERN_C
+
 namespace JS {
 
 extern JS_PUBLIC_API(bool)
@@ -5099,6 +5210,9 @@ Evaluate(JSContext *cx, JSHandleObject obj, CompileOptions options,
 
 } /* namespace JS */
 
+JS_BEGIN_EXTERN_C
+#endif
+
 extern JS_PUBLIC_API(JSBool)
 JS_CallFunction(JSContext *cx, JSObject *obj, JSFunction *fun, unsigned argc,
                 jsval *argv, jsval *rval);
@@ -5110,6 +5224,9 @@ JS_CallFunctionName(JSContext *cx, JSObject *obj, const char *name, unsigned arg
 extern JS_PUBLIC_API(JSBool)
 JS_CallFunctionValue(JSContext *cx, JSObject *obj, jsval fval, unsigned argc,
                      jsval *argv, jsval *rval);
+
+#ifdef __cplusplus
+JS_END_EXTERN_C
 
 namespace JS {
 
@@ -5137,6 +5254,9 @@ Call(JSContext *cx, jsval thisv, JSObject *funObj, unsigned argc, jsval *argv, j
 }
 
 } /* namespace JS */
+
+JS_BEGIN_EXTERN_C
+#endif /* __cplusplus */
 
 /*
  * These functions allow setting an operation callback that will be called
@@ -5416,6 +5536,8 @@ JS_GetStringEncodingLength(JSContext *cx, JSString *str);
 JS_PUBLIC_API(size_t)
 JS_EncodeStringToBuffer(JSString *str, char *buffer, size_t length);
 
+#ifdef __cplusplus
+
 class JSAutoByteString {
   public:
     JSAutoByteString(JSContext *cx, JSString *str JS_GUARD_OBJECT_NOTIFIER_PARAM)
@@ -5467,6 +5589,8 @@ class JSAutoByteString {
     JSAutoByteString(const JSAutoByteString &another);
     JSAutoByteString &operator=(const JSAutoByteString &another);
 };
+
+#endif
 
 /************************************************************************/
 /*
@@ -5531,6 +5655,9 @@ JS_StructuredClone(JSContext *cx, jsval v, jsval *vp,
                    const JSStructuredCloneCallbacks *optionalCallbacks,
                    void *closure);
 
+#ifdef __cplusplus
+JS_END_EXTERN_C
+
 /* RAII sugar for JS_WriteStructuredClone. */
 class JS_PUBLIC_API(JSAutoStructuredCloneBuffer) {
     uint64_t *data_;
@@ -5588,6 +5715,9 @@ class JS_PUBLIC_API(JSAutoStructuredCloneBuffer) {
     JSAutoStructuredCloneBuffer(const JSAutoStructuredCloneBuffer &other);
     JSAutoStructuredCloneBuffer &operator=(const JSAutoStructuredCloneBuffer &other);
 };
+
+JS_BEGIN_EXTERN_C
+#endif
 
 /* API for implementing custom serialization behavior (for ImageData, File, etc.) */
 
@@ -5923,6 +6053,9 @@ JS_ClearRuntimeThread(JSRuntime *rt);
 extern JS_PUBLIC_API(void)
 JS_SetRuntimeThread(JSRuntime *rt);
 
+#ifdef __cplusplus
+JS_END_EXTERN_C
+
 class JSAutoSetRuntimeThread
 {
     JSRuntime *runtime;
@@ -5936,6 +6069,9 @@ class JSAutoSetRuntimeThread
         JS_ClearRuntimeThread(runtime);
     }
 };
+
+JS_BEGIN_EXTERN_C
+#endif
 
 /************************************************************************/
 
@@ -6021,5 +6157,7 @@ JS_DecodeScript(JSContext *cx, const void *data, uint32_t length,
 extern JS_PUBLIC_API(JSObject *)
 JS_DecodeInterpretedFunction(JSContext *cx, const void *data, uint32_t length,
                              JSPrincipals *principals, JSPrincipals *originPrincipals);
+
+JS_END_EXTERN_C
 
 #endif /* jsapi_h___ */

@@ -20,12 +20,12 @@ XPCOMUtils.defineLazyModuleGetter(this,
   "DebuggerServer", "resource://gre/modules/devtools/dbg-server.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this,
-  "Services", "resource://gre/modules/Services.jsm");
+  "Services", "resource:///modules/Services.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this,
-  "FileUtils", "resource://gre/modules/FileUtils.jsm");
+  "FileUtils", "resource:///modules/FileUtils.jsm");
 
-this.EXPORTED_SYMBOLS = ["DebuggerUI"];
+let EXPORTED_SYMBOLS = ["DebuggerUI"];
 
 /**
  * Provides a simple mechanism of managing debugger instances.
@@ -33,10 +33,10 @@ this.EXPORTED_SYMBOLS = ["DebuggerUI"];
  * @param nsIDOMWindow aWindow
  *        The chrome window for which the DebuggerUI instance is created.
  */
-this.DebuggerUI = function DebuggerUI(aWindow) {
+function DebuggerUI(aWindow) {
   this.chromeWindow = aWindow;
   this.listenToTabs();
-};
+}
 
 DebuggerUI.prototype = {
   /**

@@ -9,7 +9,7 @@ import os
 import traceback
 from remotexpcshelltests import XPCShellRemote, RemoteXPCShellOptions
 from automationutils import *
-from mozdevice import devicemanagerADB
+import devicemanagerADB
 
 DEVICE_TEST_ROOT = '/data/local/tests'
 

@@ -9067,7 +9067,7 @@ nsDocument::IsFullScreenEnabled(bool aCallerIsChrome, bool aLogFailure)
     docShell->GetFullscreenAllowed(&allowed);
   }
   if (!allowed) {
-    LogFullScreenDenied(aLogFailure, "FullScreenDeniedIframeNotAllowed", this);
+    LogFullScreenDenied(aLogFailure, "FullScreenDeniedIframeDisallowed", this);
   }
 
   return allowed;

@@ -1264,11 +1264,7 @@ bool GetObjectProperty(JSContext *cx, HandleObject obj,
   return true;
 }
 
-} /* namespace ctypes */
-} /* namespace js */
-
-using namespace js;
-using namespace js::ctypes;
+JS_BEGIN_EXTERN_C
 
 JS_PUBLIC_API(JSBool)
 JS_InitCTypesClass(JSContext* cx, JSObject *globalArg)
@@ -1329,8 +1325,7 @@ JS_SetCTypesCallbacks(JSRawObject ctypesObj, JSCTypesCallbacks* callbacks)
   JS_SetReservedSlot(ctypesObj, SLOT_CALLBACKS, PRIVATE_TO_JSVAL(callbacks));
 }
 
-namespace js {
-namespace ctypes {
+JS_END_EXTERN_C
 
 /*******************************************************************************
 ** Type conversion functions

@@ -865,7 +865,7 @@ TabParent::ReceiveMessage(const nsString& aMessage,
 PIndexedDBParent*
 TabParent::AllocPIndexedDB(const nsCString& aASCIIOrigin, bool* /* aAllowed */)
 {
-  return new IndexedDBParent(this);
+  return new IndexedDBParent();
 }
 
 bool

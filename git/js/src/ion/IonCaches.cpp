@@ -114,8 +114,7 @@ GeneratePrototypeGuards(JSContext *cx, MacroAssembler &masm, JSObject *obj, JSOb
     JSObject *pobj = IsCacheableListBase(obj)
                      ? obj->getTaggedProto().toObjectOrNull()
                      : obj->getProto();
-    if (!pobj)
-        return;
+    JS_ASSERT(pobj);
     while (pobj != holder) {
         if (pobj->hasUncacheableProto()) {
             JS_ASSERT(!pobj->hasSingletonType());
@@ -1294,9 +1293,6 @@ IsPropertyAddInlineable(JSContext *cx, HandleObject obj, jsid id, uint32_t oldSl
 
     // If object has a non-default resolve hook, don't inline
     if (obj->getClass()->resolve != JS_ResolveStub)
-        return false;
-
-    if (!obj->isExtensible())
         return false;
 
     // walk up the object prototype chain and ensure that all prototypes
