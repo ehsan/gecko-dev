@@ -24,7 +24,6 @@
 #include "nsThemeConstants.h"
 #include <algorithm>
 
-using mozilla::dom::Element;
 using mozilla::dom::HTMLMeterElement;
 
 nsIFrame*
@@ -62,8 +61,16 @@ nsMeterFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   // Get the NodeInfoManager and tag necessary to create the meter bar div.
   nsCOMPtr<nsIDocument> doc = mContent->GetDocument();
 
+  nsCOMPtr<nsINodeInfo> nodeInfo;
+  nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::div, nullptr,
+                                                 kNameSpaceID_XHTML,
+                                                 nsIDOMNode::ELEMENT_NODE);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
+
   // Create the div.
-  mBarDiv = doc->CreateHTMLElement(nsGkAtoms::div);
+  nsresult rv = NS_NewHTMLElement(getter_AddRefs(mBarDiv), nodeInfo.forget(),
+                                  mozilla::dom::NOT_FROM_PARSER);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Associate ::-moz-meter-bar pseudo-element to the anonymous child.
   nsCSSPseudoElements::Type pseudoType = nsCSSPseudoElements::ePseudo_mozMeterBar;
@@ -271,12 +278,12 @@ nsMeterFrame::ShouldUseNativeStyle() const
                                                  NS_AUTHOR_SPECIFIED_BORDER | NS_AUTHOR_SPECIFIED_BACKGROUND);
 }
 
-Element*
-nsMeterFrame::GetPseudoElement(nsCSSPseudoElements::Type aType)
+nsIContent*
+nsMeterFrame::GetPseudoElementContent(nsCSSPseudoElements::Type aType)
 {
   if (aType == nsCSSPseudoElements::ePseudo_mozMeterBar) {
     return mBarDiv;
   }
 
-  return nsContainerFrame::GetPseudoElement(aType);
+  return nsContainerFrame::GetPseudoElementContent(aType);
 }

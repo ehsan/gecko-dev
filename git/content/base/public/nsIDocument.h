@@ -1960,12 +1960,6 @@ public:
     return mCreatingStaticClone;
   }
 
-  /**
-   * Creates a new element in the HTML namespace with a local name given by
-   * aTag.
-   */
-  already_AddRefed<Element> CreateHTMLElement(nsIAtom* aTag);
-
   // WebIDL API
   nsIGlobalObject* GetParentObject() const
   {

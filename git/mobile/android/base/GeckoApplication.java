@@ -16,7 +16,6 @@ import android.content.res.Configuration;
 import android.util.Log;
 
 public class GeckoApplication extends Application {
-    private static final String LOG_TAG = "GeckoApplication";
 
     private boolean mInited;
     private boolean mInBackground;
@@ -30,8 +29,8 @@ public class GeckoApplication extends Application {
      */
     @Override
     public void onConfigurationChanged(Configuration config) {
-        Log.d(LOG_TAG, "onConfigurationChanged: " + config.locale +
-                       ", background: " + mInBackground);
+        Log.d("GeckoApplication", "onConfigurationChanged: " + config.locale +
+                                  ", background: " + mInBackground);
 
         // Do nothing if we're in the background. It'll simply cause a loop
         // (Bug 936756 Comment 11), and it's not necessary.
@@ -42,13 +41,7 @@ public class GeckoApplication extends Application {
 
         // Otherwise, correct the locale. This catches some cases that GeckoApp
         // doesn't get a chance to.
-        try {
-            LocaleManager.correctLocale(getResources(), config);
-        } catch (IllegalStateException ex) {
-            // GeckoApp hasn't started, so we have no ContextGetter in LocaleManager.
-            Log.w(LOG_TAG, "Couldn't correct locale.", ex);
-        }
-
+        LocaleManager.correctLocale(getResources(), config);
         super.onConfigurationChanged(config);
     }
 

@@ -479,7 +479,7 @@ JSContext::currentScript(jsbytecode **ppc,
 
     if (ppc) {
         *ppc = act->asInterpreter()->regs().pc;
-        JS_ASSERT(script->containsPC(*ppc));
+        JS_ASSERT(*ppc >= script->code && *ppc < script->code + script->length);
     }
     return script;
 }

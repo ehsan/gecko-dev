@@ -33,7 +33,6 @@
 #define LONG_SIDE_TO_SHORT_SIDE_RATIO 10
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 nsIFrame*
 NS_NewRangeFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -99,25 +98,31 @@ nsRangeFrame::DestroyFrom(nsIFrame* aDestructRoot)
 }
 
 nsresult
-nsRangeFrame::MakeAnonymousDiv(Element** aResult,
+nsRangeFrame::MakeAnonymousDiv(nsIContent** aResult,
                                nsCSSPseudoElements::Type aPseudoType,
                                nsTArray<ContentInfo>& aElements)
 {
+  // Get the NodeInfoManager and tag necessary to create the anonymous divs.
   nsCOMPtr<nsIDocument> doc = mContent->GetDocument();
-  nsRefPtr<Element> resultElement = doc->CreateHTMLElement(nsGkAtoms::div);
 
+  nsCOMPtr<nsINodeInfo> nodeInfo;
+  nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::div, nullptr,
+                                                 kNameSpaceID_XHTML,
+                                                 nsIDOMNode::ELEMENT_NODE);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
+  nsresult rv = NS_NewHTMLElement(aResult, nodeInfo.forget(),
+                                  dom::NOT_FROM_PARSER);
+  NS_ENSURE_SUCCESS(rv, rv);
   // Associate the pseudo-element with the anonymous child.
   nsRefPtr<nsStyleContext> newStyleContext =
     PresContext()->StyleSet()->ResolvePseudoElementStyle(mContent->AsElement(),
                                                          aPseudoType,
                                                          StyleContext(),
-                                                         resultElement);
+                                                         (*aResult)->AsElement());
 
-  if (!aElements.AppendElement(ContentInfo(resultElement, newStyleContext))) {
+  if (!aElements.AppendElement(ContentInfo(*aResult, newStyleContext))) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
-
-  resultElement.forget(aResult);
   return NS_OK;
 }
 
@@ -828,8 +833,8 @@ nsRangeFrame::ShouldUseNativeStyle() const
                                                  STYLES_DISABLING_NATIVE_THEMING);
 }
 
-Element*
-nsRangeFrame::GetPseudoElement(nsCSSPseudoElements::Type aType)
+nsIContent*
+nsRangeFrame::GetPseudoElementContent(nsCSSPseudoElements::Type aType)
 {
   if (aType == nsCSSPseudoElements::ePseudo_mozRangeTrack) {
     return mTrackDiv;
@@ -843,5 +848,5 @@ nsRangeFrame::GetPseudoElement(nsCSSPseudoElements::Type aType)
     return mProgressDiv;
   }
 
-  return nsContainerFrame::GetPseudoElement(aType);
+  return nsContainerFrame::GetPseudoElementContent(aType);
 }

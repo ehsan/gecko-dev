@@ -48,21 +48,6 @@
 #include "nsIMemoryReporter.h"
 #include "nsThreadUtils.h"
 
-#ifdef DEBUG
-#define ENSURE_MAIN_PROCESS(message, pref) do {                                \
-  if (MOZ_UNLIKELY(XRE_GetProcessType() != GeckoProcessType_Default)) {        \
-    nsPrintfCString msg("ENSURE_MAIN_PROCESS failed. %s %s", message, pref);   \
-    NS_WARNING(msg.get());                                                     \
-    return NS_ERROR_NOT_AVAILABLE;                                             \
-  }                                                                            \
-} while (0);
-#else
-#define ENSURE_MAIN_PROCESS(message, pref)                                     \
-  if (MOZ_UNLIKELY(XRE_GetProcessType() != GeckoProcessType_Default)) {        \
-    return NS_ERROR_NOT_AVAILABLE;                                             \
-  }
-#endif
-
 class PrefCallback;
 
 namespace mozilla {
@@ -601,7 +586,7 @@ NS_IMETHODIMP
 Preferences::ResetPrefs()
 {
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    NS_ERROR("cannot reset prefs from content process");
+    NS_ERROR("cannot set prefs from content process");
     return NS_ERROR_NOT_AVAILABLE;
   }
 
@@ -618,7 +603,7 @@ NS_IMETHODIMP
 Preferences::ResetUserPrefs()
 {
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    NS_ERROR("cannot reset user prefs from content process");
+    NS_ERROR("cannot set prefs from content process");
     return NS_ERROR_NOT_AVAILABLE;
   }
 
@@ -630,7 +615,7 @@ NS_IMETHODIMP
 Preferences::SavePrefFile(nsIFile *aFile)
 {
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    NS_ERROR("cannot save pref file from content process");
+    NS_ERROR("cannot save prefs from content process");
     return NS_ERROR_NOT_AVAILABLE;
   }
 
@@ -1452,7 +1437,7 @@ Preferences::GetComplex(const char* aPref, const nsIID &aType, void** aResult)
 nsresult
 Preferences::SetCString(const char* aPref, const char* aValue)
 {
-  ENSURE_MAIN_PROCESS("Cannot SetCString from content process:", aPref);
+  NS_ENSURE_TRUE(XRE_GetProcessType() == GeckoProcessType_Default, NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
   return PREF_SetCharPref(aPref, aValue, false);
 }
@@ -1461,7 +1446,7 @@ Preferences::SetCString(const char* aPref, const char* aValue)
 nsresult
 Preferences::SetCString(const char* aPref, const nsACString &aValue)
 {
-  ENSURE_MAIN_PROCESS("Cannot SetCString from content process:", aPref);
+  NS_ENSURE_TRUE(XRE_GetProcessType() == GeckoProcessType_Default, NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
   return PREF_SetCharPref(aPref, PromiseFlatCString(aValue).get(), false);
 }
@@ -1470,7 +1455,7 @@ Preferences::SetCString(const char* aPref, const nsACString &aValue)
 nsresult
 Preferences::SetString(const char* aPref, const PRUnichar* aValue)
 {
-  ENSURE_MAIN_PROCESS("Cannot SetString from content process:", aPref);
+  NS_ENSURE_TRUE(XRE_GetProcessType() == GeckoProcessType_Default, NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
   return PREF_SetCharPref(aPref, NS_ConvertUTF16toUTF8(aValue).get(), false);
 }
@@ -1479,7 +1464,7 @@ Preferences::SetString(const char* aPref, const PRUnichar* aValue)
 nsresult
 Preferences::SetString(const char* aPref, const nsAString &aValue)
 {
-  ENSURE_MAIN_PROCESS("Cannot SetString from content process:", aPref);
+  NS_ENSURE_TRUE(XRE_GetProcessType() == GeckoProcessType_Default, NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
   return PREF_SetCharPref(aPref, NS_ConvertUTF16toUTF8(aValue).get(), false);
 }
@@ -1488,7 +1473,7 @@ Preferences::SetString(const char* aPref, const nsAString &aValue)
 nsresult
 Preferences::SetBool(const char* aPref, bool aValue)
 {
-  ENSURE_MAIN_PROCESS("Cannot SetBool from content process:", aPref);
+  NS_ENSURE_TRUE(XRE_GetProcessType() == GeckoProcessType_Default, NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
   return PREF_SetBoolPref(aPref, aValue, false);
 }
@@ -1497,7 +1482,7 @@ Preferences::SetBool(const char* aPref, bool aValue)
 nsresult
 Preferences::SetInt(const char* aPref, int32_t aValue)
 {
-  ENSURE_MAIN_PROCESS("Cannot SetInt from content process:", aPref);
+  NS_ENSURE_TRUE(XRE_GetProcessType() == GeckoProcessType_Default, NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
   return PREF_SetIntPref(aPref, aValue, false);
 }
@@ -1515,7 +1500,7 @@ Preferences::SetComplex(const char* aPref, const nsIID &aType,
 nsresult
 Preferences::ClearUser(const char* aPref)
 {
-  ENSURE_MAIN_PROCESS("Cannot ClearUser from content process:", aPref);
+  NS_ENSURE_TRUE(XRE_GetProcessType() == GeckoProcessType_Default, NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
   return PREF_ClearUserPref(aPref);
 }
@@ -1897,5 +1882,3 @@ Preferences::GetDefaultType(const char* aPref)
 }
 
 } // namespace mozilla
-
-#undef ENSURE_MAIN_PROCESS

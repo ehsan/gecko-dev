@@ -389,7 +389,7 @@ DecoderTraits::CanHandleMediaType(const char* aMIMEType,
 #ifdef MOZ_WEBM
   if (IsWebMType(nsDependentCString(aMIMEType))) {
     codecList = gWebMCodecs;
-    result = CANPLAY_MAYBE;
+    result = CANPLAY_YES;
   }
 #endif
 #ifdef MOZ_GSTREAMER

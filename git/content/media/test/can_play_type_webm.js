@@ -4,8 +4,8 @@ function check_webm(v, enabled) {
   }
 
   // WebM types
-  check("video/webm", "maybe");
-  check("audio/webm", "maybe");
+  check("video/webm", "probably");
+  check("audio/webm", "probably");
 
   // Supported Webm codecs
   check("audio/webm; codecs=vorbis", "probably");

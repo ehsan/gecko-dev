@@ -431,7 +431,6 @@ EnsureTrackPropertyTypes(JSContext *cx, JSObject *obj, jsid id)
         AutoEnterAnalysis enter(cx);
         if (obj->hasLazyType() && !obj->getType(cx)) {
             cx->compartment()->types.setPendingNukeTypes(cx);
-            cx->clearPendingException();
             return;
         }
         if (!obj->type()->unknownProperties())
@@ -625,7 +624,8 @@ TypeScript::BytecodeTypes(JSScript *script, jsbytecode *pc, uint32_t *hint, TYPE
     uint32_t *bytecodeMap = nullptr;
     MOZ_CRASH();
 #endif
-    uint32_t offset = script->pcToOffset(pc);
+    uint32_t offset = pc - script->code;
+    JS_ASSERT(offset < script->length);
 
     // See if this pc is the next typeset opcode after the last one looked up.
     if (bytecodeMap[*hint + 1] == offset && (*hint + 1) < script->nTypeSets) {
@@ -684,7 +684,7 @@ struct AllocationSiteKey : public DefaultHasher<AllocationSiteKey> {
     AllocationSiteKey() { mozilla::PodZero(this); }
 
     static inline uint32_t hash(AllocationSiteKey key) {
-        return uint32_t(size_t(key.script->offsetToPC(key.offset)) ^ key.kind);
+        return uint32_t(size_t(key.script->code + key.offset)) ^ key.kind;
     }
 
     static inline bool match(const AllocationSiteKey &a, const AllocationSiteKey &b) {
@@ -705,7 +705,7 @@ TypeScript::InitObject(JSContext *cx, JSScript *script, jsbytecode *pc, JSProtoK
     JS_ASSERT(!UseNewTypeForInitializer(script, pc, kind));
 
     /* :XXX: Limit script->length so we don't need to check the offset up front? */
-    uint32_t offset = script->pcToOffset(pc);
+    uint32_t offset = pc - script->code;
 
     if (!cx->typeInferenceEnabled() || !script->compileAndGo || offset >= AllocationSiteKey::OFFSET_LIMIT)
         return GetTypeNewObject(cx, kind);
@@ -721,7 +721,7 @@ TypeScript::InitObject(JSContext *cx, JSScript *script, jsbytecode *pc, JSProtoK
     AllocationSiteTable::Ptr p = cx->compartment()->types.allocationSiteTable->lookup(key);
 
     if (p)
-        return p->value();
+        return p->value;
     return cx->compartment()->types.addAllocationSiteTypeObject(cx, key);
 }
 

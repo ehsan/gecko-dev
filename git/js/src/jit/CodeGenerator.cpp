@@ -2742,7 +2742,8 @@ CodeGenerator::maybeCreateScriptCounts()
             MResumePoint *resume = block->entryResumePoint();
             while (resume->caller())
                 resume = resume->caller();
-            JS_ASSERT(script->containsPC(resume->pc()));
+            DebugOnly<uint32_t> offset = resume->pc() - script->code;
+            JS_ASSERT(offset < script->length);
         }
 
         if (!counts->block(i).init(block->id(), offset, block->numSuccessors()))

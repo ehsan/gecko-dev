@@ -506,7 +506,6 @@ public:
     static bool CanUseDirect3D9();
     static int  GetPrefLayoutFrameRate();
     static bool GetPrefLayersDump();
-    static bool GetPrefLayersScrollGraph();
 
     static bool OffMainThreadCompositionRequired();
 

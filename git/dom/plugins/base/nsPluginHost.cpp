@@ -147,6 +147,7 @@ static const char *kPluginRegistryVersion = "0.16";
 // The minimum registry version we know how to read
 static const char *kMinimumRegistryVersion = "0.9";
 
+static NS_DEFINE_IID(kIPluginTagInfoIID, NS_IPLUGINTAGINFO_IID);
 static const char kDirectoryServiceContractID[] = "@mozilla.org/file/directory_service;1";
 
 #define kPluginRegistryFilename NS_LITERAL_CSTRING("pluginreg.dat")
@@ -787,8 +788,14 @@ nsPluginHost::InstantiatePluginInstance(const char *aMimeType, nsIURI* aURL,
     return rv;
   }
 
+  nsCOMPtr<nsIPluginTagInfo> pti;
+  rv = instanceOwner->QueryInterface(kIPluginTagInfoIID, getter_AddRefs(pti));
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
   nsPluginTagType tagType;
-  rv = instanceOwner->GetTagType(&tagType);
+  rv = pti->GetTagType(&tagType);
   if (NS_FAILED(rv)) {
     return rv;
   }

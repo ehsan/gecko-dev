@@ -24,8 +24,6 @@ class nsRangeFrame : public nsContainerFrame,
   nsRangeFrame(nsStyleContext* aContext);
   virtual ~nsRangeFrame();
 
-  typedef mozilla::dom::Element Element;
-
 public:
   NS_DECL_QUERYFRAME_TARGET(nsRangeFrame)
   NS_DECL_QUERYFRAME
@@ -124,11 +122,11 @@ public:
    */
   void UpdateForValueChange();
 
-  virtual Element* GetPseudoElement(nsCSSPseudoElements::Type aType) MOZ_OVERRIDE;
+  virtual nsIContent* GetPseudoElementContent(nsCSSPseudoElements::Type aType) MOZ_OVERRIDE;
 
 private:
 
-  nsresult MakeAnonymousDiv(Element** aResult,
+  nsresult MakeAnonymousDiv(nsIContent** aResult,
                             nsCSSPseudoElements::Type aPseudoType,
                             nsTArray<ContentInfo>& aElements);
 
@@ -147,7 +145,7 @@ private:
    * The div used to show the ::-moz-range-track pseudo-element.
    * @see nsRangeFrame::CreateAnonymousContent
    */
-  nsCOMPtr<Element> mTrackDiv;
+  nsCOMPtr<nsIContent> mTrackDiv;
 
   /**
    * The div used to show the ::-moz-range-progress pseudo-element, which is
@@ -155,13 +153,13 @@ private:
    * thumb's current position.
    * @see nsRangeFrame::CreateAnonymousContent
    */
-  nsCOMPtr<Element> mProgressDiv;
+  nsCOMPtr<nsIContent> mProgressDiv;
 
   /**
    * The div used to show the ::-moz-range-thumb pseudo-element.
    * @see nsRangeFrame::CreateAnonymousContent
    */
-  nsCOMPtr<Element> mThumbDiv;
+  nsCOMPtr<nsIContent> mThumbDiv;
 };
 
 #endif

@@ -30,7 +30,6 @@
 #include "js/PropertyKey.h"
 #include "js/RequiredDefines.h"
 #include "js/RootingAPI.h"
-#include "js/SliceBudget.h"
 #include "js/StructuredClone.h"
 #include "js/Tracer.h"
 #include "js/TypeDecls.h"

@@ -153,8 +153,8 @@
 #include <process.h>
 #include <shlobj.h>
 #include "nsThreadUtils.h"
-#include <comdef.h>
-#include <wbemidl.h>
+#include <comutil.h>
+#include <Wbemidl.h>
 #endif
 
 #ifdef XP_MACOSX
@@ -2484,7 +2484,7 @@ WriteVersion(nsIFile* aProfileDir, const nsCString& aVersion,
     PR_Write(fd, appDir.get(), appDir.Length());
   }
 
-  static const char kInvalidationHeader[] = NS_LINEBREAK "InvalidateCaches=1";
+  static const char kInvalidationHeader[] = "InvalidateCaches=1" NS_LINEBREAK;
   if (invalidateCache)
     PR_Write(fd, kInvalidationHeader, sizeof(kInvalidationHeader) - 1);
 

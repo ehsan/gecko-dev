@@ -237,7 +237,7 @@ class ICEntry
     }
 
     jsbytecode *pc(JSScript *script) const {
-        return script->offsetToPC(pcOffset_);
+        return script->code + pcOffset_;
     }
 
     bool isForOp() const {

@@ -26,15 +26,9 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// For M_PI from cmath
-#ifdef _MSC_VER
-#  define _USE_MATH_DEFINES
-#endif
-
+#include "DenormalDisabler.h"
 #include "Biquad.h"
 
-#include <cmath>
-#include <float.h>
 #include <algorithm>
 
 namespace WebCore {
@@ -53,6 +47,8 @@ Biquad::~Biquad()
 
 void Biquad::process(const float* sourceP, float* destP, size_t framesToProcess)
 {
+    int n = framesToProcess;
+
     // Create local copies of member variables
     double x1 = m_x1;
     double x2 = m_x2;
@@ -65,12 +61,12 @@ void Biquad::process(const float* sourceP, float* destP, size_t framesToProcess)
     double a1 = m_a1;
     double a2 = m_a2;
 
-    for (size_t i = 0; i < framesToProcess; ++i) {
+    while (n--) {
         // FIXME: this can be optimized by pipelining the multiply adds...
-        double x = sourceP[i];
-        double y = b0*x + b1*x1 + b2*x2 - a1*y1 - a2*y2;
+        float x = *sourceP++;
+        float y = b0*x + b1*x1 + b2*x2 - a1*y1 - a2*y2;
 
-        destP[i] = y;
+        *destP++ = y;
 
         // Update state variables
         x2 = x1;
@@ -79,22 +75,12 @@ void Biquad::process(const float* sourceP, float* destP, size_t framesToProcess)
         y1 = y;
     }
 
-    // Avoid introducing a stream of subnormals when input is silent and the
-    // tail approaches zero.
-    if (x1 == 0.0 && x2 == 0.0 && (y1 != 0.0 || y2 != 0.0) &&
-        fabs(y1) < FLT_MIN && fabs(y2) < FLT_MIN) {
-      // Flush future values to zero (until there is new input).
-      y1 = y2 = 0.0;
-      // Flush calculated values.
-      for (int i = framesToProcess; i-- && fabs(destP[i]) < FLT_MIN; ) {
-        destP[i] = 0.0f;
-      }
-    }
-    // Local variables back to member.
-    m_x1 = x1;
-    m_x2 = x2;
-    m_y1 = y1;
-    m_y2 = y2;
+    // Local variables back to member. Flush denormals here so we
+    // don't slow down the inner loop above.
+    m_x1 = DenormalDisabler::flushDenormalFloatToZero(x1);
+    m_x2 = DenormalDisabler::flushDenormalFloatToZero(x2);
+    m_y1 = DenormalDisabler::flushDenormalFloatToZero(y1);
+    m_y2 = DenormalDisabler::flushDenormalFloatToZero(y2);
 }
 
 void Biquad::reset()

@@ -404,6 +404,7 @@ pref("gfx.content.azure.backends", "cairo");
 pref("gfx.content.azure.backends", "cairo");
 #endif
 #ifdef ANDROID
+pref("gfx.textures.poweroftwo.force-enabled", false);
 pref("gfx.content.azure.backends", "cairo");
 #endif
 
@@ -589,6 +590,7 @@ pref("browser.fixup.alternate.enabled", true);
 pref("browser.fixup.alternate.prefix", "www.");
 pref("browser.fixup.alternate.suffix", ".com");
 pref("browser.fixup.hide_user_pass", true);
+pref("browser.fixup.use-utf8", false);
 
 // Location Bar AutoComplete
 pref("browser.urlbar.autocomplete.enabled", true);
@@ -4242,10 +4244,6 @@ pref("layers.draw-bigimage-borders", false);
 pref("layers.frame-counter", false);
 // Max number of layers per container. See Overwrite in mobile prefs.
 pref("layers.max-active", -1);
-// When a layer is moving it will add a scroll graph to measure the smoothness
-// of the movement. NOTE: This pref triggers composites to refresh
-// the graph.
-pref("layers.scroll-graph", false);
 
 // Set the default values, and then override per-platform as needed
 pref("layers.offmainthreadcomposition.enabled", false);

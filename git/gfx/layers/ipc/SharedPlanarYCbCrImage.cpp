@@ -45,12 +45,6 @@ SharedPlanarYCbCrImage::~SharedPlanarYCbCrImage() {
   }
 }
 
-DeprecatedSharedPlanarYCbCrImage::DeprecatedSharedPlanarYCbCrImage(ISurfaceAllocator* aAllocator)
-: PlanarYCbCrImage(nullptr)
-, mSurfaceAllocator(aAllocator), mAllocated(false)
-{
-  MOZ_COUNT_CTOR(DeprecatedSharedPlanarYCbCrImage);
-}
 
 DeprecatedSharedPlanarYCbCrImage::~DeprecatedSharedPlanarYCbCrImage() {
   MOZ_COUNT_DTOR(DeprecatedSharedPlanarYCbCrImage);

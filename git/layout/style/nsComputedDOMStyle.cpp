@@ -488,8 +488,14 @@ nsComputedDOMStyle::GetStyleContextForElementNoFlush(Element* aElement,
     if (type >= nsCSSPseudoElements::ePseudo_PseudoElementCount) {
       return nullptr;
     }
+    Element* pseudoElement = nullptr;
     nsIFrame* frame = nsLayoutUtils::GetStyleFrame(aElement);
-    Element* pseudoElement = frame ? frame->GetPseudoElement(type) : nullptr;
+    if (frame) {
+      nsIContent* pseudoContent = frame->GetPseudoElementContent(type);
+      if (pseudoContent && pseudoContent->IsElement()) {
+        pseudoElement = pseudoContent->AsElement();
+      }
+    }
     sc = styleSet->ResolvePseudoElementStyle(aElement, type, parentContext,
                                              pseudoElement);
   } else {

@@ -59,7 +59,6 @@
 #include "nsTextNode.h"
 #include "mozilla/dom/CDATASection.h"
 #include "mozilla/dom/Comment.h"
-#include "mozilla/dom/Element.h"
 #include "mozilla/dom/ProcessingInstruction.h"
 
 using namespace mozilla::dom;
@@ -463,7 +462,7 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, uint32_t aAttsCount,
   nsresult rv = NS_OK;
 
   nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsCOMPtr<Element> content;
+  nsCOMPtr<nsIContent> content;
   rv = NS_NewElement(getter_AddRefs(content), ni.forget(), aFromParser);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -490,7 +489,7 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, uint32_t aAttsCount,
     }
 
     if (!aNodeInfo->NamespaceEquals(kNameSpaceID_SVG)) {
-      content.forget(aResult);
+      content.swap(*aResult);
 
       return NS_OK;
     }
@@ -511,7 +510,7 @@ nsXMLContentSink::CreateElement(const PRUnichar** aAtts, uint32_t aAttsCount,
     }
   } 
 
-  content.forget(aResult);
+  content.swap(*aResult);
 
   return NS_OK;
 }

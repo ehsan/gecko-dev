@@ -10,64 +10,18 @@
 #include "gfxUtils.h"
 #include "gfx2DGlue.h"
 #include "ScopedGLHelpers.h"
-#include "GLUploadHelpers.h"
-
-#include "TextureImageEGL.h"
-#ifdef XP_MACOSX
-#include "TextureImageCGL.h"
-#endif
 
 namespace mozilla {
 namespace gl {
 
 already_AddRefed<TextureImage>
-CreateTextureImage(GLContext* gl,
-                   const nsIntSize& aSize,
-                   TextureImage::ContentType aContentType,
-                   GLenum aWrapMode,
-                   TextureImage::Flags aFlags,
-                   TextureImage::ImageFormat aImageFormat)
-{
-    switch (gl->GetContextType()) {
-#ifdef XP_MACOSX
-        case ContextTypeCGL:
-            return CreateTextureImageCGL(gl, aSize, aContentType, aWrapMode, aFlags, aImageFormat);
-#endif
-        case ContextTypeEGL:
-            return CreateTextureImageEGL(gl, aSize, aContentType, aWrapMode, aFlags, aImageFormat);
-        default:
-            return CreateBasicTextureImage(gl, aSize, aContentType, aWrapMode, aFlags, aImageFormat);
-    }
-}
-
-
-static already_AddRefed<TextureImage>
-TileGenFunc(GLContext* gl,
-            const nsIntSize& aSize,
-            TextureImage::ContentType aContentType,
-            TextureImage::Flags aFlags,
-            TextureImage::ImageFormat aImageFormat)
-{
-    switch (gl->GetContextType()) {
-#ifdef XP_MACOSX
-        case ContextTypeCGL:
-            return TileGenFuncCGL(gl, aSize, aContentType, aFlags, aImageFormat);
-#endif
-        case ContextTypeEGL:
-            return TileGenFuncEGL(gl, aSize, aContentType, aFlags, aImageFormat);
-        default:
-            return nullptr;
-    }
-}
-already_AddRefed<TextureImage>
-
 TextureImage::Create(GLContext* gl,
                      const nsIntSize& size,
                      TextureImage::ContentType contentType,
                      GLenum wrapMode,
                      TextureImage::Flags flags)
 {
-    return CreateTextureImage(gl, size, contentType, wrapMode, flags);
+    return gl->CreateTextureImage(size, contentType, wrapMode, flags);
 }
 
 // Moz2D equivalent...
@@ -119,8 +73,9 @@ BasicTextureImage::~BasicTextureImage()
     // if we don't have a context (either real or shared),
     // then they went away when the contex was deleted, because it
     // was the only one that had access to it.
-    if (ctx && ctx->MakeCurrent()) {
-        ctx->fDeleteTextures(1, &mTexture);
+    if (ctx && !ctx->IsDestroyed()) {
+        mGLContext->MakeCurrent();
+        mGLContext->fDeleteTextures(1, &mTexture);
     }
 }
 
@@ -130,7 +85,7 @@ BasicTextureImage::BeginUpdate(nsIntRegion& aRegion)
     NS_ASSERTION(!mUpdateSurface, "BeginUpdate() without EndUpdate()?");
 
     // determine the region the client will need to repaint
-    if (CanUploadSubTextures(mGLContext)) {
+    if (mGLContext->CanUploadSubTextures()) {
         GetUpdateRegion(aRegion);
     } else {
         aRegion = nsIntRect(nsIntPoint(0, 0), mSize);
@@ -184,13 +139,12 @@ BasicTextureImage::EndUpdate()
     bool relative = FinishedSurfaceUpdate();
 
     mTextureFormat =
-        UploadSurfaceToTexture(mGLContext,
-                               mUpdateSurface,
-                               mUpdateRegion,
-                               mTexture,
-                               mTextureState == Created,
-                               mUpdateOffset,
-                               relative);
+        mGLContext->UploadSurfaceToTexture(mUpdateSurface,
+                                           mUpdateRegion,
+                                           mTexture,
+                                           mTextureState == Created,
+                                           mUpdateOffset,
+                                           relative);
     FinishedSurfaceUpload();
 
     mUpdateSurface = nullptr;
@@ -243,13 +197,12 @@ BasicTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, 
     }
 
     mTextureFormat =
-        UploadSurfaceToTexture(mGLContext,
-                               aSurf,
-                               region,
-                               mTexture,
-                               mTextureState == Created,
-                               bounds.TopLeft() + aFrom,
-                               false);
+        mGLContext->UploadSurfaceToTexture(aSurf,
+                                           region,
+                                           mTexture,
+                                           mTextureState == Created,
+                                           bounds.TopLeft() + aFrom,
+                                           false);
     mTextureState = Valid;
     return true;
 }
@@ -333,24 +286,6 @@ CreateBasicTextureImage(GLContext* aGL,
   return CreateBasicTextureImage(aGL, ThebesIntSize(aSize), aContentType, aWrapMode, aFlags);
 }
 
-static bool
-WantsSmallTiles(GLContext* gl)
-{
-    // We must use small tiles for good performance if we can't use
-    // glTexSubImage2D() for some reason.
-    if (!CanUploadSubTextures(gl))
-        return true;
-
-    // We can't use small tiles on the SGX 540, because of races in texture upload.
-    if (gl->WorkAroundDriverBugs() &&
-        gl->Renderer() == GLContext::RendererSGX540)
-        return false;
-
-    // Don't use small tiles otherwise. (If we implement incremental texture upload,
-    // then we will want to revisit this.)
-    return false;
-}
-
 TiledTextureImage::TiledTextureImage(GLContext* aGL,
                                      nsIntSize aSize,
                                      TextureImage::ContentType aContentType,
@@ -366,7 +301,7 @@ TiledTextureImage::TiledTextureImage(GLContext* aGL,
     , mTextureState(Created)
     , mImageFormat(aImageFormat)
 {
-    if (!(aFlags & TextureImage::DisallowBigImage) && WantsSmallTiles(mGL)) {
+    if (!(aFlags & TextureImage::DisallowBigImage) && mGL->WantsSmallTiles()) {
       mTileSize = 256;
     } else {
       mGL->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, (GLint*) &mTileSize);
@@ -410,7 +345,7 @@ TiledTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, 
         if (tileRegion.IsEmpty())
             continue;
 
-        if (CanUploadSubTextures(mGL)) {
+        if (mGL->CanUploadSubTextures()) {
           tileRegion.MoveBy(-xPos, -yPos); // translate into tile local space
         } else {
           // If sub-textures are unsupported, expand to tile boundaries
@@ -711,7 +646,7 @@ void TiledTextureImage::Resize(const nsIntSize& aSize)
 
             // Create a new tile.
             nsRefPtr<TextureImage> teximg =
-                TileGenFunc(mGL, size, mContentType, mFlags, mImageFormat);
+                    mGL->TileGenFunc(size, mContentType, mFlags, mImageFormat);
             if (replace)
                 mImages.ReplaceElementAt(i, teximg.forget());
             else
@@ -764,9 +699,7 @@ CreateBasicTextureImage(GLContext* aGL,
                         TextureImage::ImageFormat aImageFormat)
 {
     bool useNearestFilter = aFlags & TextureImage::UseNearestFilter;
-    if (!aGL->MakeCurrent()) {
-      return nullptr;
-    }
+    aGL->MakeCurrent();
 
     GLuint texture = 0;
     aGL->fGenTextures(1, &texture);

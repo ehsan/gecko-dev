@@ -85,10 +85,9 @@
 #include "mozilla/gfx/Tools.h"
 
 using namespace mozilla;
-using namespace mozilla::css;
-using namespace mozilla::dom;
 using namespace mozilla::layers;
 using namespace mozilla::layout;
+using namespace mozilla::css;
 
 // Struct containing cached metrics for box-wrapped frames.
 struct nsBoxLayoutMetrics
@@ -8106,8 +8105,8 @@ nsIFrame::IsPseudoStackingContextFromStyle() {
          disp->IsFloating(this);
 }
 
-Element*
-nsIFrame::GetPseudoElement(nsCSSPseudoElements::Type aType)
+nsIContent*
+nsIFrame::GetPseudoElementContent(nsCSSPseudoElements::Type aType)
 {
   nsIFrame* frame = nullptr;
 
@@ -8117,14 +8116,7 @@ nsIFrame::GetPseudoElement(nsCSSPseudoElements::Type aType)
     frame = nsLayoutUtils::GetAfterFrame(this);
   }
 
-  if (frame) {
-    nsIContent* content = frame->GetContent();
-    if (content->IsElement()) {
-      return content->AsElement();
-    }
-  }
-  
-  return nullptr;
+  return frame ? frame->GetContent() : nullptr;
 }
 
 nsIFrame::ContentOffsets::ContentOffsets()

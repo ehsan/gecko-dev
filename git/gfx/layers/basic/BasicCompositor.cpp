@@ -4,7 +4,6 @@
 * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "BasicCompositor.h"
-#include "TextureHostBasic.h"
 #include "ipc/AutoOpenSurface.h"
 #include "mozilla/layers/Effects.h"
 #include "mozilla/layers/YCbCrImageDataSerializer.h"
@@ -22,6 +21,16 @@ namespace mozilla {
 using namespace mozilla::gfx;
 
 namespace layers {
+
+/**
+ * A texture source interface that can be used by the software Compositor.
+ */
+class TextureSourceBasic
+{
+public:
+  virtual ~TextureSourceBasic() {}
+  virtual gfx::SourceSurface* GetSurface() = 0;
+};
 
 class DataTextureSourceBasic : public DataTextureSource
                              , public TextureSourceBasic
@@ -80,7 +89,7 @@ public:
 
   virtual TextureSourceBasic* AsSourceBasic() MOZ_OVERRIDE { return this; }
 
-  SourceSurface *GetSurface() MOZ_OVERRIDE { return mSurface; }
+  SourceSurface *GetSurface() { return mSurface; }
 
   virtual void SetCompositor(Compositor* aCompositor)
   {
@@ -114,10 +123,7 @@ protected:
   }
 
   virtual TemporaryRef<gfx::DataSourceSurface> GetAsSurface() MOZ_OVERRIDE {
-    if (!mSurface) {
-        return nullptr;
-    }
-    return mSurface->GetDataSurface();
+    return nullptr;
   }
 
   BasicCompositor *mCompositor;

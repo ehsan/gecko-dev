@@ -32,7 +32,6 @@
 #include "nsNodeUtils.h"
 #include "mozAutoDocUpdate.h"
 #include "nsTextNode.h"
-#include "mozilla/dom/Element.h"
 
 #include "pldhash.h"
 #include "rdf.h"
@@ -249,7 +248,7 @@ protected:
     nsresult
     CreateElement(int32_t aNameSpaceID,
                   nsIAtom* aTag,
-                  Element** aResult);
+                  nsIContent** aResult);
 
     /**
      * Set the container and empty attributes on a node. If
@@ -584,11 +583,9 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
         else if (isGenerationElement) {
             // It's the "resource" element. Create a new element using
             // the namespace ID and tag from the template element.
-            nsCOMPtr<Element> element;
-            rv = CreateElement(nameSpaceID, tag, getter_AddRefs(element));
+            rv = CreateElement(nameSpaceID, tag, getter_AddRefs(realKid));
             if (NS_FAILED(rv))
                 return rv;
-            realKid = element.forget();
 
             // Add the resource element to the content support map so
             // we can remove the match based on the content node later.
@@ -652,10 +649,8 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
         }
         else {
             // It's just a generic element. Create it!
-            nsCOMPtr<Element> element;
-            rv = CreateElement(nameSpaceID, tag, getter_AddRefs(element));
+            rv = CreateElement(nameSpaceID, tag, getter_AddRefs(realKid));
             if (NS_FAILED(rv)) return rv;
-            realKid = element.forget();
         }
 
         if (realKid && !realKidAlreadyExisted) {
@@ -1239,7 +1234,7 @@ nsXULContentBuilder::EnsureElementHasGenericChild(nsIContent* parent,
 
     if (rv == NS_RDF_NO_VALUE) {
         // we need to construct a new child element.
-        nsCOMPtr<Element> element;
+        nsCOMPtr<nsIContent> element;
 
         rv = CreateElement(nameSpaceID, tag, getter_AddRefs(element));
         if (NS_FAILED(rv))
@@ -1357,18 +1352,25 @@ nsXULContentBuilder::GetElementsForResult(nsIXULTemplateResult* aResult,
 nsresult
 nsXULContentBuilder::CreateElement(int32_t aNameSpaceID,
                                    nsIAtom* aTag,
-                                   Element** aResult)
+                                   nsIContent** aResult)
 {
     nsCOMPtr<nsIDocument> doc = mRoot->GetDocument();
     NS_ASSERTION(doc != nullptr, "not initialized");
     if (! doc)
         return NS_ERROR_NOT_INITIALIZED;
 
+    nsCOMPtr<nsIContent> result;
     nsCOMPtr<nsINodeInfo> nodeInfo =
         doc->NodeInfoManager()->GetNodeInfo(aTag, nullptr, aNameSpaceID,
                                             nsIDOMNode::ELEMENT_NODE);
 
-    return NS_NewElement(aResult, nodeInfo.forget(), NOT_FROM_PARSER);
+    nsresult rv = NS_NewElement(getter_AddRefs(result), nodeInfo.forget(),
+                                NOT_FROM_PARSER);
+    if (NS_FAILED(rv))
+        return rv;
+
+    result.forget(aResult);
+    return NS_OK;
 }
 
 nsresult
