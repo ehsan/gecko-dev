@@ -1110,7 +1110,7 @@ GCRuntime::GCRuntime(JSRuntime *rt) :
 #ifdef JS_GC_MARKING_VALIDATION
     markingValidator(nullptr),
 #endif
-    interFrameGC(false),
+    interFrameGC(0),
     sliceBudget(SliceBudget::Unlimited),
     incrementalAllowed(true),
     generationalDisabled(0),
@@ -2697,19 +2697,6 @@ GCRuntime::releaseRelocatedArenasWithoutUnlocking(ArenaHeader *relocatedList, co
 }
 
 #endif // JSGC_COMPACTING
-
-void
-GCRuntime::releaseHeldRelocatedArenas()
-{
-#if defined(JSGC_COMPACTING) && defined(DEBUG)
-    // In debug mode we don't release relocated arenas straight away.  Instead
-    // we protect them and hold onto them until the next GC sweep phase to catch
-    // any pointers to them that didn't get forwarded.
-    unprotectRelocatedArenas(relocatedArenasToRelease);
-    releaseRelocatedArenas(relocatedArenasToRelease);
-    relocatedArenasToRelease = nullptr;
-#endif
-}
 
 void
 ReleaseArenaList(JSRuntime *rt, ArenaHeader *aheader, const AutoLockGC &lock)
@@ -5132,7 +5119,11 @@ GCRuntime::beginSweepPhase(bool lastGC)
 
     MOZ_ASSERT(!abortSweepAfterCurrentGroup);
 
-    releaseHeldRelocatedArenas();
+#if defined(JSGC_COMPACTING) && defined(DEBUG)
+    unprotectRelocatedArenas(relocatedArenasToRelease);
+    releaseRelocatedArenas(relocatedArenasToRelease);
+    relocatedArenasToRelease = nullptr;
+#endif
 
     computeNonIncrementalMarkingForValidation();
 
@@ -5693,21 +5684,8 @@ GCRuntime::resetIncrementalGC(const char *reason)
       }
 
 #ifdef JSGC_COMPACTING
-      case COMPACT: {
-        {
-            gcstats::AutoPhase ap(stats, gcstats::PHASE_WAIT_BACKGROUND_THREAD);
-            rt->gc.waitBackgroundSweepOrAllocEnd();
-        }
-
-        JSGCInvocationKind oldInvocationKind = invocationKind;
-        invocationKind = GC_NORMAL;
-
-        SliceBudget budget;
-        incrementalCollectSlice(budget, JS::gcreason::RESET);
-
-        invocationKind = oldInvocationKind;
+      case COMPACT:
         break;
-      }
 #endif
 
       default:
@@ -6297,8 +6275,6 @@ GCRuntime::finishGC(JS::gcreason::Reason reason)
 void
 GCRuntime::notifyDidPaint()
 {
-    MOZ_ASSERT(CurrentThreadCanAccessRuntime(rt));
-
 #ifdef JS_GC_ZEAL
     if (zealMode == ZealFrameVerifierPreValue) {
         verifyPreBarriers();
@@ -6397,8 +6373,7 @@ GCRuntime::onOutOfMallocMemory(const AutoLockGC &lock)
     // Throw away any excess chunks we have lying around.
     freeEmptyChunks(rt, lock);
 
-    // Release any relocated arenas we may be holding on to, without releasing
-    // the GC lock.
+    // Release any relocated areans we may be holding on to.
 #if defined(JSGC_COMPACTING) && defined(DEBUG)
     unprotectRelocatedArenas(relocatedArenasToRelease);
     releaseRelocatedArenasWithoutUnlocking(relocatedArenasToRelease, lock);
@@ -6560,10 +6535,6 @@ gc::MergeCompartments(JSCompartment *source, JSCompartment *target)
 
     source->clearTables();
     source->unsetIsDebuggee();
-
-    // Release any relocated arenas which we may be holding on to as they might
-    // be in the source zone
-    rt->gc.releaseHeldRelocatedArenas();
 
     // Fixup compartment pointers in source to refer to target, and make sure
     // type information generations are in sync.

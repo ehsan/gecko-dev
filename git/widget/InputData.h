@@ -22,10 +22,6 @@ namespace dom {
 class Touch;
 }
 
-namespace gfx {
-class Matrix4x4;
-}
-
 enum InputType
 {
   MULTITOUCH_INPUT,
@@ -230,8 +226,6 @@ public:
   // and rotation angle.
   explicit MultiTouchInput(const WidgetMouseEvent& aMouseEvent);
 
-  void TransformToLocal(const gfx::Matrix4x4& aTransform);
-
   MultiTouchType mType;
   nsTArray<SingleTouchData> mTouches;
 };
@@ -302,8 +296,6 @@ public:
   {
   }
 
-  void TransformToLocal(const gfx::Matrix4x4& aTransform);
-
   PanGestureType mType;
   ScreenPoint mPanStartPoint;
 
@@ -364,8 +356,6 @@ public:
       mPreviousSpan(aPreviousSpan)
   {
   }
-
-  void TransformToLocal(const gfx::Matrix4x4& aTransform);
 
   PinchGestureType mType;
 
@@ -435,8 +425,6 @@ public:
   {
   }
 
-  void TransformToLocal(const gfx::Matrix4x4& aTransform);
-
   TapGestureType mType;
 
   // The location of the tap in screen pixels.
@@ -481,8 +469,6 @@ public:
      mDeltaX(aDeltaX),
      mDeltaY(aDeltaY)
   {}
-
-  void TransformToLocal(const gfx::Matrix4x4& aTransform);
 
   ScrollDeltaType mDeltaType;
   ScrollMode mScrollMode;

@@ -212,8 +212,6 @@ int32_t VideoCaptureDS::SetCameraOutputIfNeeded(
     VideoCaptureCapability capability;
     int32_t capabilityIndex;
 
-    // Store the new requested size
-    _requestedCapability = requestedCapability;
     // Match the requested capability with the supported.
     if ((capabilityIndex = _dsInfo.GetBestMatchedCapability(_deviceUniqueId,
                                                             _requestedCapability,

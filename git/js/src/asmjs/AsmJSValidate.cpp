@@ -4162,22 +4162,50 @@ IsLiteralOrConst(FunctionCompiler &f, ParseNode *pn, AsmJSNumLit *lit)
 }
 
 static bool
-CheckFinalReturn(FunctionCompiler &f, ParseNode *lastNonEmptyStmt)
+CheckFinalReturn(FunctionCompiler &f, ParseNode *stmt, RetType *retType)
 {
-    if (!f.hasAlreadyReturned()) {
-        f.setReturnedType(RetType::Void);
-        f.returnVoid();
+    if (stmt && stmt->isKind(PNK_RETURN)) {
+        if (ParseNode *coercionNode = BinaryLeft(stmt)) {
+            AsmJSNumLit lit;
+            if (IsLiteralOrConst(f, coercionNode, &lit)) {
+                switch (lit.which()) {
+                  case AsmJSNumLit::BigUnsigned:
+                  case AsmJSNumLit::OutOfRangeInt:
+                    return f.fail(coercionNode, "returned literal is out of integer range");
+                  case AsmJSNumLit::Fixnum:
+                  case AsmJSNumLit::NegativeInt:
+                    *retType = RetType::Signed;
+                    break;
+                  case AsmJSNumLit::Double:
+                    *retType = RetType::Double;
+                    break;
+                  case AsmJSNumLit::Float:
+                    *retType = RetType::Float;
+                    break;
+                  case AsmJSNumLit::Int32x4:
+                    *retType = RetType::Int32x4;
+                    break;
+                  case AsmJSNumLit::Float32x4:
+                    *retType = RetType::Float32x4;
+                    break;
+                }
+                return true;
+            }
+
+            AsmJSCoercion coercion;
+            if (!CheckTypeAnnotation(f.m(), coercionNode, &coercion))
+                return false;
+
+            *retType = RetType(coercion);
+            return true;
+        }
+
+        *retType = RetType::Void;
         return true;
     }
 
-    if (!lastNonEmptyStmt->isKind(PNK_RETURN)) {
-        if (f.returnedType() != RetType::Void)
-            return f.fail(lastNonEmptyStmt, "void incompatible with previous return type");
-
-        f.returnVoid();
-        return true;
-    }
-
+    *retType = RetType::Void;
+    f.returnVoid();
     return true;
 }
 
@@ -7460,10 +7488,14 @@ CheckFunction(ModuleCompiler &m, LifoAlloc &lifo, MIRGenerator **mir, ModuleComp
             lastNonEmptyStmt = stmtIter;
     }
 
-    if (!CheckFinalReturn(f, lastNonEmptyStmt))
+    RetType retType;
+    if (!CheckFinalReturn(f, lastNonEmptyStmt, &retType))
         return false;
 
-    Signature sig(Move(argTypes), f.returnedType());
+    if (!CheckReturnType(f, lastNonEmptyStmt, retType))
+        return false;
+
+    Signature sig(Move(argTypes), retType);
     ModuleCompiler::Func *func = nullptr;
     if (!CheckFunctionSignature(m, fn, Move(sig), FunctionName(fn), &func))
         return false;

@@ -295,10 +295,9 @@ IonBuilder::getPolyCallTargets(types::TemporaryTypeSet *calleeTypes, bool constr
         JSObject *obj = calleeTypes->getSingleObject(i);
         if (!obj) {
             types::TypeObject *typeObj = calleeTypes->getTypeObject(i);
-            if (!typeObj)
-                continue;
-
+            MOZ_ASSERT(typeObj);
             obj = typeObj->maybeInterpretedFunction();
+
             if (!obj) {
                 targets.clear();
                 return true;
@@ -3368,7 +3367,7 @@ IonBuilder::improveTypesAtCompare(MCompare *ins, bool trueBranch, MTest *test)
         if (altersUndefined) {
             flags |= types::TYPE_FLAG_UNDEFINED;
             // If TypeSet emulates undefined, then we cannot filter the objects.
-            if (subject->resultTypeSet()->maybeEmulatesUndefined(constraints()))
+            if (subject->resultTypeSet()->maybeEmulatesUndefined())
                 flags |= types::TYPE_FLAG_ANYOBJECT;
         }
 
@@ -3492,14 +3491,14 @@ IonBuilder::improveTypesAtTest(MDefinition *ins, bool trueBranch, MTest *test)
 
         // If the typeset does emulate undefined, then we cannot filter out
         // objects.
-        if (oldType->maybeEmulatesUndefined(constraints()))
+        if (oldType->maybeEmulatesUndefined())
             flags |= types::TYPE_FLAG_ANYOBJECT;
 
         // Only intersect the typesets if it will generate a more narrow
         // typeset. The first part takes care of primitives and AnyObject,
         // while the second line specific (type)objects.
         if (!oldType->hasAnyFlag(~flags & types::TYPE_FLAG_BASE_MASK) &&
-            (oldType->maybeEmulatesUndefined(constraints()) || !oldType->maybeObject()))
+            (oldType->maybeEmulatesUndefined() || !oldType->maybeObject()))
         {
             return true;
         }
@@ -3741,7 +3740,7 @@ IonBuilder::processCondSwitchCase(CFGState &state)
         MDefinition *caseOperand = current->pop();
         MDefinition *switchOperand = current->peek(-1);
         MCompare *cmpResult = MCompare::New(alloc(), switchOperand, caseOperand, JSOP_STRICTEQ);
-        cmpResult->infer(constraints(), inspector, pc);
+        cmpResult->infer(inspector, pc);
         MOZ_ASSERT(!cmpResult->isEffectful());
         current->add(cmpResult);
         current->end(newTest(cmpResult, bodyBlock, caseBlock));
@@ -5749,9 +5748,6 @@ IonBuilder::testShouldDOMCall(types::TypeSet *inTypes,
         if (!curType)
             continue;
 
-        if (!curType->hasStableClassAndProto(constraints()))
-            return false;
-
         if (!instanceChecker(curType->clasp(), jinfo->protoID, jinfo->depth))
             return false;
     }
@@ -5826,7 +5822,7 @@ IonBuilder::makeCallHelper(JSFunction *target, CallInfo &callInfo, bool cloneAtC
         types::TemporaryTypeSet *thisTypes = callInfo.thisArg()->resultTypeSet();
         if (thisTypes &&
             thisTypes->getKnownMIRType() == MIRType_Object &&
-            thisTypes->isDOMClass(constraints()) &&
+            thisTypes->isDOMClass() &&
             testShouldDOMCall(thisTypes, target, JSJitInfo::Method))
         {
             isDOMCall = true;
@@ -6027,7 +6023,7 @@ IonBuilder::jsop_compare(JSOp op)
     current->add(ins);
     current->push(ins);
 
-    ins->infer(constraints(), inspector, pc);
+    ins->infer(inspector, pc);
 
     if (ins->isEffectful() && !resumeAfter(ins))
         return false;
@@ -6590,7 +6586,7 @@ MTest *
 IonBuilder::newTest(MDefinition *ins, MBasicBlock *ifTrue, MBasicBlock *ifFalse)
 {
     MTest *test = MTest::New(alloc(), ins, ifTrue, ifFalse);
-    test->cacheOperandMightEmulateUndefined(constraints());
+    test->cacheOperandMightEmulateUndefined();
     return test;
 }
 
@@ -7647,7 +7643,7 @@ IonBuilder::pushDerivedTypedObject(bool *emitted,
     // immutable).
     types::TemporaryTypeSet *objTypes = obj->resultTypeSet();
     const Class *expectedClass = nullptr;
-    if (const Class *objClass = objTypes ? objTypes->getKnownClass(constraints()) : nullptr) {
+    if (const Class *objClass = objTypes ? objTypes->getKnownClass() : nullptr) {
         MOZ_ASSERT(IsTypedObjectClass(objClass));
         expectedClass = GetOutlineTypedObjectClass(IsOpaqueTypedObjectClass(objClass));
     }
@@ -7657,8 +7653,8 @@ IonBuilder::pushDerivedTypedObject(bool *emitted,
     // Determine (if possible) the class/proto that the observed type set
     // describes.
     types::TemporaryTypeSet *observedTypes = bytecodeTypes(pc);
-    const Class *observedClass = observedTypes->getKnownClass(constraints());
-    JSObject *observedProto = observedTypes->getCommonPrototype(constraints());
+    const Class *observedClass = observedTypes->getKnownClass();
+    JSObject *observedProto = observedTypes->getCommonPrototype();
 
     // If expectedClass/expectedProto are both non-null (and hence
     // known), we can predict precisely what TI type object
@@ -7696,7 +7692,7 @@ IonBuilder::getElemTryDense(bool *emitted, MDefinition *obj, MDefinition *index)
 {
     MOZ_ASSERT(*emitted == false);
 
-    if (!ElementAccessIsDenseNative(constraints(), obj, index))
+    if (!ElementAccessIsDenseNative(obj, index))
         return true;
 
     // Don't generate a fast path if there have been bounds check failures
@@ -7723,7 +7719,7 @@ IonBuilder::getElemTryTypedStatic(bool *emitted, MDefinition *obj, MDefinition *
     MOZ_ASSERT(*emitted == false);
 
     Scalar::Type arrayType;
-    if (!ElementAccessIsAnyTypedArray(constraints(), obj, index, &arrayType))
+    if (!ElementAccessIsAnyTypedArray(obj, index, &arrayType))
         return true;
 
     if (!LIRGenerator::allowStaticTypedArrayAccesses())
@@ -7789,7 +7785,7 @@ IonBuilder::getElemTryTypedArray(bool *emitted, MDefinition *obj, MDefinition *i
     MOZ_ASSERT(*emitted == false);
 
     Scalar::Type arrayType;
-    if (!ElementAccessIsAnyTypedArray(constraints(), obj, index, &arrayType))
+    if (!ElementAccessIsAnyTypedArray(obj, index, &arrayType))
         return true;
 
     // Emit typed getelem variant.
@@ -8410,7 +8406,7 @@ IonBuilder::setElemTryTypedStatic(bool *emitted, MDefinition *object,
     MOZ_ASSERT(*emitted == false);
 
     Scalar::Type arrayType;
-    if (!ElementAccessIsAnyTypedArray(constraints(), object, index, &arrayType))
+    if (!ElementAccessIsAnyTypedArray(object, index, &arrayType))
         return true;
 
     if (!LIRGenerator::allowStaticTypedArrayAccesses())
@@ -8470,7 +8466,7 @@ IonBuilder::setElemTryTypedArray(bool *emitted, MDefinition *object,
     MOZ_ASSERT(*emitted == false);
 
     Scalar::Type arrayType;
-    if (!ElementAccessIsAnyTypedArray(constraints(), object, index, &arrayType))
+    if (!ElementAccessIsAnyTypedArray(object, index, &arrayType))
         return true;
 
     // Emit typed setelem variant.
@@ -8487,7 +8483,7 @@ IonBuilder::setElemTryDense(bool *emitted, MDefinition *object,
 {
     MOZ_ASSERT(*emitted == false);
 
-    if (!ElementAccessIsDenseNative(constraints(), object, index))
+    if (!ElementAccessIsDenseNative(object, index))
         return true;
     if (PropertyWriteNeedsTypeBarrier(alloc(), constraints(), current,
                                       &object, nullptr, &value, /* canModify = */ true))
@@ -8807,7 +8803,7 @@ IonBuilder::jsop_length_fastPath()
 
         // Compute the length for array objects.
         if (objTypes &&
-            objTypes->getKnownClass(constraints()) == &ArrayObject::class_ &&
+            objTypes->getKnownClass() == &ArrayObject::class_ &&
             !objTypes->hasObjectFlags(constraints(), types::OBJECT_FLAG_LENGTH_OVERFLOW))
         {
             current->pop();
@@ -9006,7 +9002,7 @@ IonBuilder::jsop_not()
     MNot *ins = MNot::New(alloc(), value);
     current->add(ins);
     current->push(ins);
-    ins->cacheOperandMightEmulateUndefined(constraints());
+    ins->cacheOperandMightEmulateUndefined();
     return true;
 }
 
@@ -9730,7 +9726,7 @@ IonBuilder::getPropTryCommonGetter(bool *emitted, MDefinition *obj, PropertyName
     if (!canUseCommonGetter)
         return true;
 
-    bool isDOM = objTypes->isDOMClass(constraints());
+    bool isDOM = objTypes->isDOMClass();
 
     if (isDOM && testShouldDOMCall(objTypes, commonGetter, JSJitInfo::Getter)) {
         const JSJitInfo *jitinfo = commonGetter->jitInfo();
@@ -10173,7 +10169,7 @@ IonBuilder::setPropTryCommonSetter(bool *emitted, MDefinition *obj,
     if (!canUseCommonSetter)
         return true;
 
-    bool isDOM = objTypes->isDOMClass(constraints());
+    bool isDOM = objTypes->isDOMClass();
 
     // Emit common setter.
 
@@ -10847,7 +10843,7 @@ IonBuilder::jsop_typeof()
     MDefinition *input = current->pop();
     MTypeOf *ins = MTypeOf::New(alloc(), input, input->type());
 
-    ins->cacheInputMaybeCallableOrEmulatesUndefined(constraints());
+    ins->cacheInputMaybeCallableOrEmulatesUndefined();
 
     current->add(ins);
     current->push(ins);
@@ -11097,7 +11093,7 @@ IonBuilder::jsop_in()
     MDefinition *obj = current->peek(-1);
     MDefinition *id = current->peek(-2);
 
-    if (ElementAccessIsDenseNative(constraints(), obj, id) &&
+    if (ElementAccessIsDenseNative(obj, id) &&
         !ElementAccessHasExtraIndexedProperty(constraints(), obj))
     {
         return jsop_in_dense();
@@ -11155,12 +11151,15 @@ HasOnProtoChain(types::CompilerConstraintList *constraints, types::TypeObjectKey
     MOZ_ASSERT(protoObject);
 
     while (true) {
-        if (!object->hasStableClassAndProto(constraints) ||
+        if (object->unknownProperties() ||
             !object->clasp()->isNative() ||
             !object->hasTenuredProto())
         {
             return false;
         }
+
+        // Guard against mutating __proto__.
+        object->hasFlags(constraints, types::OBJECT_FLAG_UNKNOWN_PROPERTIES);
 
         JSObject *proto = object->proto().toObjectOrNull();
         if (!proto) {
@@ -11397,7 +11396,7 @@ IonBuilder::typedObjectPrediction(types::TemporaryTypeSet *types)
     TypedObjectPrediction out;
     for (uint32_t i = 0; i < types->getObjectCount(); i++) {
         types::TypeObject *type = types->getTypeObject(i);
-        if (!type || !types::TypeObjectKey::get(type)->hasStableClassAndProto(constraints()))
+        if (!type || type->unknownProperties())
             return TypedObjectPrediction();
 
         if (!IsTypedObjectClass(type->clasp()))
@@ -11479,7 +11478,7 @@ IonBuilder::loadTypedObjectElements(MDefinition *typedObj,
         setForceAbort();
 
     types::TemporaryTypeSet *ownerTypes = owner->resultTypeSet();
-    const Class *clasp = ownerTypes ? ownerTypes->getKnownClass(constraints()) : nullptr;
+    const Class *clasp = ownerTypes ? ownerTypes->getKnownClass() : nullptr;
     if (clasp && IsInlineTypedObjectClass(clasp)) {
         // Perform the load directly from the owner pointer.
         if (!ownerByteOffset.add(InlineTypedObject::offsetOfDataStart()))

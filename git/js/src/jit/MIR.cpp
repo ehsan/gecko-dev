@@ -333,7 +333,7 @@ MInstruction::clearResumePoint()
 }
 
 static bool
-MaybeEmulatesUndefined(types::CompilerConstraintList *constraints, MDefinition *op)
+MaybeEmulatesUndefined(MDefinition *op)
 {
     if (!op->mightBeType(MIRType_Object))
         return false;
@@ -342,11 +342,11 @@ MaybeEmulatesUndefined(types::CompilerConstraintList *constraints, MDefinition *
     if (!types)
         return true;
 
-    return types->maybeEmulatesUndefined(constraints);
+    return types->maybeEmulatesUndefined();
 }
 
 static bool
-MaybeCallable(types::CompilerConstraintList *constraints, MDefinition *op)
+MaybeCallable(MDefinition *op)
 {
     if (!op->mightBeType(MIRType_Object))
         return false;
@@ -355,7 +355,7 @@ MaybeCallable(types::CompilerConstraintList *constraints, MDefinition *op)
     if (!types)
         return true;
 
-    return types->maybeCallable(constraints);
+    return types->maybeCallable();
 }
 
 MTest *
@@ -365,11 +365,11 @@ MTest::New(TempAllocator &alloc, MDefinition *ins, MBasicBlock *ifTrue, MBasicBl
 }
 
 void
-MTest::cacheOperandMightEmulateUndefined(types::CompilerConstraintList *constraints)
+MTest::cacheOperandMightEmulateUndefined()
 {
     MOZ_ASSERT(operandMightEmulateUndefined());
 
-    if (!MaybeEmulatesUndefined(constraints, getOperand(0)))
+    if (!MaybeEmulatesUndefined(getOperand(0)))
         markOperandCantEmulateUndefined();
 }
 
@@ -644,7 +644,7 @@ jit::MakeSingletonTypeSet(types::CompilerConstraintList *constraints, JSObject *
     // (because mutating __proto__ will change an object's TypeObject).
     MOZ_ASSERT(constraints);
     types::TypeObjectKey *objType = types::TypeObjectKey::get(obj);
-    objType->hasStableClassAndProto(constraints);
+    objType->hasFlags(constraints, types::OBJECT_FLAG_UNKNOWN_PROPERTIES);
 
     LifoAlloc *alloc = GetJitContext()->temp->lifoAlloc();
     return alloc->new_<types::TemporaryTypeSet>(alloc, types::Type::ObjectType(obj));
@@ -2307,8 +2307,7 @@ ObjectOrSimplePrimitive(MDefinition *op)
 }
 
 static bool
-CanDoValueBitwiseCmp(types::CompilerConstraintList *constraints,
-                     MDefinition *lhs, MDefinition *rhs, bool looseEq)
+CanDoValueBitwiseCmp(MDefinition *lhs, MDefinition *rhs, bool looseEq)
 {
     // Only primitive (not double/string) or objects are supported.
     // I.e. Undefined/Null/Boolean/Int32 and Object
@@ -2316,7 +2315,7 @@ CanDoValueBitwiseCmp(types::CompilerConstraintList *constraints,
         return false;
 
     // Objects that emulate undefined are not supported.
-    if (MaybeEmulatesUndefined(constraints, lhs) || MaybeEmulatesUndefined(constraints, rhs))
+    if (MaybeEmulatesUndefined(lhs) || MaybeEmulatesUndefined(rhs))
         return false;
 
     // In the loose comparison more values could be the same,
@@ -2430,15 +2429,12 @@ MBinaryInstruction::tryUseUnsignedOperands()
 }
 
 void
-MCompare::infer(types::CompilerConstraintList *constraints, BaselineInspector *inspector, jsbytecode *pc)
+MCompare::infer(BaselineInspector *inspector, jsbytecode *pc)
 {
     MOZ_ASSERT(operandMightEmulateUndefined());
 
-    if (!MaybeEmulatesUndefined(constraints, getOperand(0)) &&
-        !MaybeEmulatesUndefined(constraints, getOperand(1)))
-    {
+    if (!MaybeEmulatesUndefined(getOperand(0)) && !MaybeEmulatesUndefined(getOperand(1)))
         markNoOperandEmulatesUndefined();
-    }
 
     MIRType lhs = getOperand(0)->type();
     MIRType rhs = getOperand(1)->type();
@@ -2542,7 +2538,7 @@ MCompare::infer(types::CompilerConstraintList *constraints, BaselineInspector *i
     }
 
     // Determine if we can do the compare based on a quick value check.
-    if (!relationalEq && CanDoValueBitwiseCmp(constraints, getOperand(0), getOperand(1), looseEq)) {
+    if (!relationalEq && CanDoValueBitwiseCmp(getOperand(0), getOperand(1), looseEq)) {
         compareType_ = Compare_Value;
         return;
     }
@@ -2638,11 +2634,11 @@ MTypeOf::foldsTo(TempAllocator &alloc)
 }
 
 void
-MTypeOf::cacheInputMaybeCallableOrEmulatesUndefined(types::CompilerConstraintList *constraints)
+MTypeOf::cacheInputMaybeCallableOrEmulatesUndefined()
 {
     MOZ_ASSERT(inputMaybeCallableOrEmulatesUndefined());
 
-    if (!MaybeEmulatesUndefined(constraints, input()) && !MaybeCallable(constraints, input()))
+    if (!MaybeEmulatesUndefined(input()) && !MaybeCallable(input()))
         markInputNotCallableOrEmulatesUndefined();
 }
 
@@ -3353,11 +3349,11 @@ MCompare::filtersUndefinedOrNull(bool trueBranch, MDefinition **subject, bool *f
 }
 
 void
-MNot::cacheOperandMightEmulateUndefined(types::CompilerConstraintList *constraints)
+MNot::cacheOperandMightEmulateUndefined()
 {
     MOZ_ASSERT(operandMightEmulateUndefined());
 
-    if (!MaybeEmulatesUndefined(constraints, getOperand(0)))
+    if (!MaybeEmulatesUndefined(getOperand(0)))
         markOperandCantEmulateUndefined();
 }
 
@@ -4061,8 +4057,7 @@ MArrayJoin::foldsTo(TempAllocator &alloc) {
 }
 
 bool
-jit::ElementAccessIsDenseNative(types::CompilerConstraintList *constraints,
-                                MDefinition *obj, MDefinition *id)
+jit::ElementAccessIsDenseNative(MDefinition *obj, MDefinition *id)
 {
     if (obj->mightBeType(MIRType_String))
         return false;
@@ -4075,13 +4070,12 @@ jit::ElementAccessIsDenseNative(types::CompilerConstraintList *constraints,
         return false;
 
     // Typed arrays are native classes but do not have dense elements.
-    const Class *clasp = types->getKnownClass(constraints);
+    const Class *clasp = types->getKnownClass();
     return clasp && clasp->isNative() && !IsAnyTypedArrayClass(clasp);
 }
 
 bool
-jit::ElementAccessIsAnyTypedArray(types::CompilerConstraintList *constraints,
-                                  MDefinition *obj, MDefinition *id,
+jit::ElementAccessIsAnyTypedArray(MDefinition *obj, MDefinition *id,
                                   Scalar::Type *arrayType)
 {
     if (obj->mightBeType(MIRType_String))
@@ -4094,10 +4088,10 @@ jit::ElementAccessIsAnyTypedArray(types::CompilerConstraintList *constraints,
     if (!types)
         return false;
 
-    *arrayType = types->getTypedArrayType(constraints);
+    *arrayType = types->getTypedArrayType();
     if (*arrayType != Scalar::MaxTypedArrayViewType)
         return true;
-    *arrayType = types->getSharedTypedArrayType(constraints);
+    *arrayType = types->getSharedTypedArrayType();
     return *arrayType != Scalar::MaxTypedArrayViewType;
 }
 
@@ -4309,7 +4303,7 @@ jit::PropertyReadOnPrototypeNeedsTypeBarrier(types::CompilerConstraintList *cons
         if (!object)
             continue;
         while (true) {
-            if (!object->hasStableClassAndProto(constraints) || !object->hasTenuredProto())
+            if (!object->hasTenuredProto())
                 return BarrierKind::TypeSet;
             if (!object->proto().isObject())
                 break;
