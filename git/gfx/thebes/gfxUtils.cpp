@@ -1216,8 +1216,6 @@ gfxUtils::EncodeSourceSurface(SourceSurface* aSurface,
       }
     }
   }
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(!imgData.empty(), NS_ERROR_FAILURE);
 
   if (aBinaryOrData == eBinaryEncode) {
     if (aFile) {
