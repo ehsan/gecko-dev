@@ -185,9 +185,6 @@ var DebuggerServer = {
    */
   addBrowserActors: function DH_addBrowserActors() {
     this.addActors("chrome://global/content/devtools/dbg-browser-actors.js");
-    this.addActors("chrome://global/content/devtools/dbg-webconsole-actors.js");
-    this.addTabActor(this.WebConsoleActor, "consoleActor");
-    this.addGlobalActor(this.WebConsoleActor, "consoleActor");
     if ("nsIProfiler" in Ci)
       this.addActors("chrome://global/content/devtools/dbg-profiler-actors.js");
   },
@@ -538,7 +535,6 @@ DebuggerServerConnection.prototype = {
                     "': " + safeErrorString(e))
         });
       }
-      instance.parentID = actor.parentID;
       // We want the newly-constructed actor to completely replace the factory
       // actor. Reusing the existing actor ID will make sure ActorPool.addActor
       // does the right thing.
