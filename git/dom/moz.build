@@ -50,7 +50,6 @@ PARALLEL_DIRS += [
     'encoding',
     'file',
     'fmradio',
-    'asmjscache',
     'media',
     'messages',
     'power',

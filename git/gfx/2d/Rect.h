@@ -153,17 +153,6 @@ IntRectTyped<units> RoundedIn(const RectTyped<units>& aRect)
                              int32_t(copy.height));
 }
 
-template<class units>
-IntRectTyped<units> RoundedOut(const RectTyped<units>& aRect)
-{
-  RectTyped<units> copy(aRect);
-  copy.RoundOut();
-  return IntRectTyped<units>(int32_t(copy.x),
-                             int32_t(copy.y),
-                             int32_t(copy.width),
-                             int32_t(copy.height));
-}
-
 }
 }
 

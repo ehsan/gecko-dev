@@ -1668,7 +1668,7 @@ ArenaLists::refillFreeList(ThreadSafeContext *cx, AllocKind thingKind)
                  cx->asJSContext()->runtime()->gcIncrementalState != NO_INCREMENTAL &&
                  zone->gcBytes > zone->gcTriggerBytes;
 
-#ifdef JS_WORKER_THREADS
+#ifdef JS_THREADSAFE
     JS_ASSERT_IF(cx->isJSContext() && allowGC,
                  !cx->asJSContext()->runtime()->currentThreadHasExclusiveAccess());
 #endif
@@ -1700,19 +1700,14 @@ ArenaLists::refillFreeList(ThreadSafeContext *cx, AllocKind thingKind)
         } else {
 #ifdef JS_WORKER_THREADS
             /*
-             * If we're off the main thread, we try to allocate once and
-             * return whatever value we get. If we aren't in a ForkJoin
-             * session (i.e. we are in a worker thread async with the main
-             * thread), we need to first ensure the main thread is not in a GC
-             * session.
+             * If we're off the main thread, we try to allocate once and return
+             * whatever value we get. First, though, we need to ensure the main
+             * thread is not in a GC session.
              */
-            mozilla::Maybe<AutoLockWorkerThreadState> lock;
             JSRuntime *rt = zone->runtimeFromAnyThread();
-            if (rt->exclusiveThreadsPresent()) {
-                lock.construct<WorkerThreadState &>(*rt->workerThreadState);
-                while (rt->isHeapBusy())
-                    rt->workerThreadState->wait(WorkerThreadState::PRODUCER);
-            }
+            AutoLockWorkerThreadState lock(*rt->workerThreadState);
+            while (rt->isHeapBusy())
+                rt->workerThreadState->wait(WorkerThreadState::PRODUCER);
 
             void *thing = cx->allocator()->arenas.allocateFromArenaInline(zone, thingKind);
             if (thing)
@@ -2829,7 +2824,6 @@ PurgeRuntime(JSRuntime *rt)
     rt->interpreterStack().purge(rt);
 
     rt->gsnCache.purge();
-    rt->scopeCoordinateNameCache.purge();
     rt->newObjectCache.purge();
     rt->nativeIterCache.purge();
     rt->sourceDataCache.purge();

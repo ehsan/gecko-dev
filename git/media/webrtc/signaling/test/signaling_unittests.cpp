@@ -416,8 +416,7 @@ TestObserver::OnStateChange(PCObserverStateType state_type, ER&, void*)
 {
   nsresult rv;
   PCImplReadyState gotready;
-  PCImplIceConnectionState gotice;
-  PCImplIceGatheringState goticegathering;
+  PCImplIceState gotice;
   PCImplSipccState gotsipcc;
   PCImplSignalingState gotsignaling;
 
@@ -432,20 +431,12 @@ TestObserver::OnStateChange(PCObserverStateType state_type, ER&, void*)
               << PCImplReadyStateValues::strings[int(gotready)].value
               << std::endl;
     break;
-  case PCObserverStateType::IceConnectionState:
-    rv = pc->IceConnectionState(&gotice);
+  case PCObserverStateType::IceState:
+    rv = pc->IceState(&gotice);
     NS_ENSURE_SUCCESS(rv, rv);
-    std::cout << "ICE Connection State: "
-              << PCImplIceConnectionStateValues::strings[int(gotice)].value
+    std::cout << "ICE State: "
+              << PCImplIceStateValues::strings[int(gotice)].value
               << std::endl;
-    break;
-  case PCObserverStateType::IceGatheringState:
-    rv = pc->IceGatheringState(&goticegathering);
-    NS_ENSURE_SUCCESS(rv, rv);
-    std::cout
-        << "ICE Gathering State: "
-        << PCImplIceGatheringStateValues::strings[int(goticegathering)].value
-        << std::endl;
     break;
   case PCObserverStateType::SdpState:
     std::cout << "SDP State: " << std::endl;
@@ -467,7 +458,6 @@ TestObserver::OnStateChange(PCObserverStateType state_type, ER&, void*)
     break;
   default:
     // Unknown State
-    MOZ_CRASH("Unknown state change type.");
     break;
   }
 
@@ -769,19 +759,16 @@ class SignalingAgent {
   }
 
   void WaitForGather() {
-    ASSERT_TRUE_WAIT(ice_gathering_state() == PCImplIceGatheringState::Complete,
-                     5000);
+    ASSERT_TRUE_WAIT(ice_state() == PCImplIceState::IceWaiting, 5000);
 
     std::cout << name << ": Init Complete" << std::endl;
   }
 
   bool WaitForGatherAllowFail() {
-    EXPECT_TRUE_WAIT(
-        ice_gathering_state() == PCImplIceGatheringState::Complete ||
-        ice_connection_state() == PCImplIceConnectionState::Failed,
-        5000);
+    EXPECT_TRUE_WAIT(ice_state() == PCImplIceState::IceWaiting ||
+                     ice_state() == PCImplIceState::IceFailed, 5000);
 
-    if (ice_connection_state() == PCImplIceConnectionState::Failed) {
+    if (ice_state() == PCImplIceState::IceFailed) {
       std::cout << name << ": Init Failed" << std::endl;
       return false;
     }
@@ -795,14 +782,9 @@ class SignalingAgent {
     return pc->SipccState();
   }
 
-  PCImplIceConnectionState ice_connection_state()
+  PCImplIceState ice_state()
   {
-    return pc->IceConnectionState();
-  }
-
-  PCImplIceGatheringState ice_gathering_state()
-  {
-    return pc->IceGatheringState();
+    return pc->IceState();
   }
 
   PCImplSignalingState signaling_state()
@@ -1059,7 +1041,7 @@ void CreateAnswer(sipcc::MediaConstraints& constraints, std::string offer,
 
 
   bool IceCompleted() {
-    return pc->IceConnectionState() == PCImplIceConnectionState::Connected;
+    return pc->IceState() == PCImplIceState::IceConnected;
   }
 
   void AddIceCandidate(const char* candidate, const char* mid, unsigned short level,

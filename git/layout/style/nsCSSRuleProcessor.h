@@ -106,7 +106,6 @@ public:
 #endif
 
   virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData) MOZ_OVERRIDE;
-  virtual nsRestyleHint HasStateDependentStyle(PseudoElementStateRuleProcessorData* aData) MOZ_OVERRIDE;
 
   virtual bool HasDocumentStateDependentStyle(StateRuleProcessorData* aData) MOZ_OVERRIDE;
 
@@ -171,11 +170,6 @@ private:
 
   RuleCascadeData* GetRuleCascade(nsPresContext* aPresContext);
   void RefreshRuleCascade(nsPresContext* aPresContext);
-
-  nsRestyleHint HasStateDependentStyle(ElementDependentRuleProcessorData* aData,
-                                       mozilla::dom::Element* aStatefulElement,
-                                       nsCSSPseudoElements::Type aPseudoType,
-                                       nsEventStates aStateMask);
 
   // The sheet order here is the same as in nsStyleSet::mSheets
   sheet_array_type mSheets;

@@ -240,7 +240,7 @@ struct JSStructuredCloneWriter {
           memory(out.context()), callbacks(cb), closure(cbClosure),
           transferable(out.context(), tVal), transferableObjects(out.context()) { }
 
-    bool init() { return memory.init() && parseTransferable() && writeTransferMap(); }
+    bool init() { return parseTransferable() && memory.init() && writeTransferMap(); }
 
     bool write(const js::Value &v);
 

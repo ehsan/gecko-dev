@@ -46,7 +46,6 @@
 using namespace js;
 using namespace js::types;
 
-using mozilla::Abs;
 using mozilla::MinDoubleValue;
 using mozilla::NegativeInfinity;
 using mozilla::PodCopy;
@@ -582,7 +581,7 @@ JS_ALWAYS_INLINE
 static T *
 BackfillInt32InBuffer(int32_t si, T *buffer, size_t size, size_t *length)
 {
-    uint32_t ui = Abs(si);
+    uint32_t ui = mozilla::Abs(si);
     JS_ASSERT_IF(si == INT32_MIN, ui == uint32_t(INT32_MAX) + 1);
 
     RangedPtr<T> end(buffer + size - 1, buffer, size);
@@ -643,9 +642,9 @@ js::Int32ToAtom(ExclusiveContext *cx, int32_t si)
 
 /* Returns a non-nullptr pointer to inside cbuf.  */
 static char *
-Int32ToCString(ToCStringBuf *cbuf, int32_t i, size_t *len, int base = 10)
+IntToCString(ToCStringBuf *cbuf, int i, size_t *len, int base = 10)
 {
-    uint32_t u = Abs(i);
+    unsigned u = (i < 0) ? -unsigned(i) : i;
 
     RangedPtr<char> cp(cbuf->sbuf + ToCStringBuf::sbufSize - 1, cbuf->sbuf, ToCStringBuf::sbufSize);
     char *end = cp.get();
@@ -1306,7 +1305,7 @@ js::NumberToCString(JSContext *cx, ToCStringBuf *cbuf, double d, int base/* = 10
     int32_t i;
     size_t len;
     return mozilla::DoubleIsInt32(d, &i)
-           ? Int32ToCString(cbuf, i, &len, base)
+           ? IntToCString(cbuf, i, &len, base)
            : FracNumberToCString(cx, cbuf, d, base);
 }
 
@@ -1347,7 +1346,7 @@ js_NumberToStringWithBase(ThreadSafeContext *cx, double d, int base)
         }
 
         size_t len;
-        numStr = Int32ToCString(&cbuf, i, &len, base);
+        numStr = IntToCString(&cbuf, i, &len, base);
         JS_ASSERT(!cbuf.dbuf && numStr >= cbuf.sbuf && numStr < cbuf.sbuf + cbuf.sbufSize);
     } else {
         if (comp) {
@@ -1458,7 +1457,7 @@ js::NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb)
     const char *cstr;
     size_t cstrlen;
     if (v.isInt32()) {
-        cstr = Int32ToCString(&cbuf, v.toInt32(), &cstrlen);
+        cstr = IntToCString(&cbuf, v.toInt32(), &cstrlen);
         JS_ASSERT(cstrlen == strlen(cstr));
     } else {
         cstr = NumberToCString(cx, &cbuf, v.toDouble());

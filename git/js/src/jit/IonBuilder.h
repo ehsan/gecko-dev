@@ -769,7 +769,6 @@ class IonBuilder : public MIRGenerator
     uint32_t typeArrayHint;
 
     GSNCache gsn;
-    ScopeCoordinateNameCache scopeCoordinateNameCache;
 
     jsbytecode *pc;
     MBasicBlock *current;

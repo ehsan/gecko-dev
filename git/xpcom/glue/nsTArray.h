@@ -28,9 +28,6 @@ template <class T>
 class Heap;
 } /* namespace JS */
 
-class nsRegion;
-class nsIntRegion;
-
 //
 // nsTArray is a resizable array class, like std::vector.
 //
@@ -660,22 +657,12 @@ struct nsTArray_CopyChooser {
 };
 
 //
-// Some classes require constructors/destructors to be called, so they are
+// JS::Heap<E> elements require constructors/destructors to be called and so is
 // specialized here.
 //
 template <class E>
 struct nsTArray_CopyChooser<JS::Heap<E> > {
   typedef nsTArray_CopyWithConstructors<E> Type;
-};
-
-template<>
-struct nsTArray_CopyChooser<nsRegion> {
-  typedef nsTArray_CopyWithConstructors<nsRegion> Type;
-};
-
-template<>
-struct nsTArray_CopyChooser<nsIntRegion> {
-  typedef nsTArray_CopyWithConstructors<nsIntRegion> Type;
 };
 
 //

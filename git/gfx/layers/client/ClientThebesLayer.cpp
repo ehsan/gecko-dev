@@ -49,11 +49,11 @@ ClientThebesLayer::PaintThebes()
     uint32_t flags = 0;
 #ifndef MOZ_WIDGET_ANDROID
     if (ClientManager()->CompositorMightResample()) {
-      flags |= RotatedContentBuffer::PAINT_WILL_RESAMPLE;
+      flags |= ThebesLayerBuffer::PAINT_WILL_RESAMPLE;
     }
-    if (!(flags & RotatedContentBuffer::PAINT_WILL_RESAMPLE)) {
+    if (!(flags & ThebesLayerBuffer::PAINT_WILL_RESAMPLE)) {
       if (MayResample()) {
-        flags |= RotatedContentBuffer::PAINT_WILL_RESAMPLE;
+        flags |= ThebesLayerBuffer::PAINT_WILL_RESAMPLE;
       }
     }
 #endif
@@ -94,12 +94,12 @@ ClientThebesLayer::RenderLayer()
   }
   
   if (!mContentClient) {
-    mContentClient = ContentClient::CreateContentClient(ClientManager()->AsShadowForwarder());
+    mContentClient = ContentClient::CreateContentClient(ClientManager());
     if (!mContentClient) {
       return;
     }
     mContentClient->Connect();
-    ClientManager()->AsShadowForwarder()->Attach(mContentClient, this);
+    ClientManager()->Attach(mContentClient, this);
     MOZ_ASSERT(mContentClient->GetForwarder());
   }
 
@@ -154,7 +154,7 @@ already_AddRefed<ThebesLayer>
 ClientLayerManager::CreateThebesLayer()
 {
   NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
-  if (Preferences::GetBool("layers.force-tiles") && AsShadowForwarder()->GetCompositorBackendType() == LAYERS_OPENGL) {
+  if (Preferences::GetBool("layers.force-tiles") && GetCompositorBackendType() == LAYERS_OPENGL) {
     nsRefPtr<ClientTiledThebesLayer> layer =
       new ClientTiledThebesLayer(this);
     CREATE_SHADOW(Thebes);

@@ -362,7 +362,7 @@ class ICEntry
     _(GetProp_Fallback)         \
     _(GetProp_ArrayLength)      \
     _(GetProp_TypedArrayLength) \
-    _(GetProp_Primitive)        \
+    _(GetProp_String)           \
     _(GetProp_StringLength)     \
     _(GetProp_Native)           \
     _(GetProp_NativePrototype)  \
@@ -4105,45 +4105,44 @@ class ICGetProp_TypedArrayLength : public ICStub
     };
 };
 
-// Stub for accessing a property on a primitive's prototype.
-class ICGetProp_Primitive : public ICMonitoredStub
+// Stub for accessing a string's length.
+class ICGetProp_String : public ICMonitoredStub
 {
     friend class ICStubSpace;
 
   protected: // Protected to silence Clang warning.
-    // Shape of String.prototype/Number.prototype to check for.
-    HeapPtrShape protoShape_;
+    // Shape of String.prototype to check for.
+    HeapPtrShape stringProtoShape_;
 
     // Fixed or dynamic slot offset.
     uint32_t offset_;
 
-    ICGetProp_Primitive(IonCode *stubCode, ICStub *firstMonitorStub,
-                        HandleShape protoShape, uint32_t offset);
+    ICGetProp_String(IonCode *stubCode, ICStub *firstMonitorStub,
+                     HandleShape stringProtoShape, uint32_t offset);
 
   public:
-    static inline ICGetProp_Primitive *New(ICStubSpace *space, IonCode *code, ICStub *firstMonitorStub,
-                                           HandleShape protoShape, uint32_t offset)
+    static inline ICGetProp_String *New(ICStubSpace *space, IonCode *code, ICStub *firstMonitorStub,
+                                        HandleShape stringProtoShape, uint32_t offset)
     {
         if (!code)
             return nullptr;
-        return space->allocate<ICGetProp_Primitive>(code, firstMonitorStub, protoShape, offset);
+        return space->allocate<ICGetProp_String>(code, firstMonitorStub, stringProtoShape, offset);
     }
 
-    HeapPtrShape &protoShape() {
-        return protoShape_;
+    HeapPtrShape &stringProtoShape() {
+        return stringProtoShape_;
     }
-    static size_t offsetOfProtoShape() {
-        return offsetof(ICGetProp_Primitive, protoShape_);
+    static size_t offsetOfStringProtoShape() {
+        return offsetof(ICGetProp_String, stringProtoShape_);
     }
 
     static size_t offsetOfOffset() {
-        return offsetof(ICGetProp_Primitive, offset_);
+        return offsetof(ICGetProp_String, offset_);
     }
 
     class Compiler : public ICStubCompiler {
         ICStub *firstMonitorStub_;
-        JSValueType primitiveType_;
-        RootedObject prototype_;
+        RootedObject stringPrototype_;
         bool isFixedSlot_;
         uint32_t offset_;
 
@@ -4151,27 +4150,23 @@ class ICGetProp_Primitive : public ICMonitoredStub
 
       protected:
         virtual int32_t getKey() const {
-            static_assert(sizeof(JSValueType) == 1, "JSValueType should fit in one byte");
-            return static_cast<int32_t>(kind)
-                | (static_cast<int32_t>(isFixedSlot_) << 16)
-                | (static_cast<int32_t>(primitiveType_) << 24);
+            return static_cast<int32_t>(kind) | (static_cast<int32_t>(isFixedSlot_) << 16);
         }
 
       public:
-        Compiler(JSContext *cx, ICStub *firstMonitorStub, JSValueType primitiveType,
-                 HandleObject prototype, bool isFixedSlot, uint32_t offset)
-          : ICStubCompiler(cx, ICStub::GetProp_Primitive),
+        Compiler(JSContext *cx, ICStub *firstMonitorStub, HandleObject stringPrototype,
+                 bool isFixedSlot, uint32_t offset)
+          : ICStubCompiler(cx, ICStub::GetProp_String),
             firstMonitorStub_(firstMonitorStub),
-            primitiveType_(primitiveType),
-            prototype_(cx, prototype),
+            stringPrototype_(cx, stringPrototype),
             isFixedSlot_(isFixedSlot),
             offset_(offset)
         {}
 
         ICStub *getStub(ICStubSpace *space) {
-            RootedShape protoShape(cx, prototype_->lastProperty());
-            return ICGetProp_Primitive::New(space, getStubCode(), firstMonitorStub_,
-                                            protoShape, offset_);
+            RootedShape stringProtoShape(cx, stringPrototype_->lastProperty());
+            return ICGetProp_String::New(space, getStubCode(), firstMonitorStub_,
+                                         stringProtoShape, offset_);
         }
     };
 };

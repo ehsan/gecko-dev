@@ -14,7 +14,6 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/RefPtr.h"
-#include "mozilla/StaticPtr.h"
 #include "mozilla/Util.h"  // for Maybe
 #include "gfxASurface.h"
 #include "gfxPattern.h"  // Workaround for flaw in bug 921753 part 2.
@@ -70,7 +69,7 @@ class SurfaceCacheImpl;
 ///////////////////////////////////////////////////////////////////////////////
 
 // The single surface cache instance.
-static StaticRefPtr<SurfaceCacheImpl> sInstance;
+static SurfaceCacheImpl* sInstance = nullptr;
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -224,11 +223,9 @@ private:
  * maintains high-level invariants and encapsulates the details of the surface
  * cache's implementation.
  */
-class SurfaceCacheImpl : public nsISupports
+class SurfaceCacheImpl
 {
 public:
-  NS_DECL_ISUPPORTS
-
   SurfaceCacheImpl(uint32_t aSurfaceCacheExpirationTimeMS,
                    uint32_t aSurfaceCacheSize)
     : mExpirationTracker(MOZ_THIS_IN_INITIALIZER_LIST(),
@@ -245,7 +242,7 @@ public:
       os->AddObserver(mMemoryPressureObserver, "memory-pressure", false);
   }
 
-  virtual ~SurfaceCacheImpl()
+  ~SurfaceCacheImpl()
   {
     nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
     if (os)
@@ -461,7 +458,6 @@ private:
   Cost                                                      mAvailableCost;
 };
 
-NS_IMPL_ISUPPORTS1(SurfaceCacheImpl, nsISupports)
 NS_IMPL_ISUPPORTS1(SurfaceCacheImpl::MemoryPressureObserver, nsIObserver)
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -512,6 +508,7 @@ SurfaceCache::Initialize()
 SurfaceCache::Shutdown()
 {
   MOZ_ASSERT(sInstance, "No singleton - was Shutdown() called twice?");
+  delete sInstance;
   sInstance = nullptr;
 }
 

@@ -11,7 +11,6 @@
 #include <vector>
 #include <algorithm>
 #include "MacIOSurface.h"
-#include "FilterNodeSoftware.h"
 
 using namespace std;
 
@@ -209,24 +208,16 @@ DrawTargetCG::CreateSourceSurfaceFromData(unsigned char *aData,
   return newSurf;
 }
 
-// This function returns a retained CGImage that needs to be released after
-// use. The reason for this is that we want to either reuse an existing CGImage
-// or create a new one.
 static CGImageRef
-GetRetainedImageFromSourceSurface(SourceSurface *aSurface)
+GetImageFromSourceSurface(SourceSurface *aSurface)
 {
   if (aSurface->GetType() == SURFACE_COREGRAPHICS_IMAGE)
-    return CGImageRetain(static_cast<SourceSurfaceCG*>(aSurface)->GetImage());
+    return static_cast<SourceSurfaceCG*>(aSurface)->GetImage();
   else if (aSurface->GetType() == SURFACE_COREGRAPHICS_CGCONTEXT)
-    return CGImageRetain(static_cast<SourceSurfaceCGContext*>(aSurface)->GetImage());
-
-  if (aSurface->GetType() == SURFACE_DATA) {
-    DataSourceSurface* dataSource = static_cast<DataSourceSurface*>(aSurface);
-    return CreateCGImage(nullptr, dataSource->GetData(), dataSource->GetSize(),
-                         dataSource->Stride(), dataSource->GetFormat());
-  }
-
-  MOZ_CRASH("unsupported source surface");
+    return static_cast<SourceSurfaceCGContext*>(aSurface)->GetImage();
+  else if (aSurface->GetType() == SURFACE_DATA)
+    return static_cast<DataSourceSurfaceCG*>(aSurface)->GetImage();
+  abort();
 }
 
 TemporaryRef<SourceSurface>
@@ -288,6 +279,8 @@ DrawTargetCG::DrawSurface(SourceSurface *aSurface,
 {
   MarkChanged();
 
+  CGImageRef image;
+  CGImageRef subimage = nullptr;
   CGContextSaveGState(mCg);
 
   CGContextSetBlendMode(mCg, ToBlendMode(aDrawOptions.mCompositionOp));
@@ -297,13 +290,14 @@ DrawTargetCG::DrawSurface(SourceSurface *aSurface,
   CGContextSetShouldAntialias(cg, aDrawOptions.mAntialiasMode != AA_NONE);
 
   CGContextConcatCTM(cg, GfxMatrixToCGAffineTransform(mTransform));
-  CGImageRef image = GetRetainedImageFromSourceSurface(aSurface);
-
+  image = GetImageFromSourceSurface(aSurface);
   /* we have two options here:
    *  - create a subimage -- this is slower
    *  - fancy things with clip and different dest rects */
-  CGImageRef subimage = CGImageCreateWithImageInRect(image, RectToCGRect(aSource));
-  CGImageRelease(image);
+  {
+    subimage = CGImageCreateWithImageInRect(image, RectToCGRect(aSource));
+    image = subimage;
+  }
 
   CGContextScaleCTM(cg, 1, -1);
 
@@ -312,29 +306,13 @@ DrawTargetCG::DrawSurface(SourceSurface *aSurface,
 
   CGContextSetInterpolationQuality(cg, InterpolationQualityFromFilter(aSurfOptions.mFilter));
 
-  CGContextDrawImage(cg, flippedRect, subimage);
+  CGContextDrawImage(cg, flippedRect, image);
 
   fixer.Fix(mCg);
 
   CGContextRestoreGState(mCg);
 
   CGImageRelease(subimage);
-}
-
-TemporaryRef<FilterNode>
-DrawTargetCG::CreateFilter(FilterType aType)
-{
-  return FilterNodeSoftware::Create(aType);
-}
-
-void
-DrawTargetCG::DrawFilter(FilterNode *aNode,
-                         const Rect &aSourceRect,
-                         const Point &aDestPoint,
-                         const DrawOptions &aOptions)
-{
-  FilterNodeSoftware* filter = static_cast<FilterNodeSoftware*>(aNode);
-  filter->Draw(this, aSourceRect, aDestPoint, aOptions);
 }
 
 static CGColorRef ColorToCGColor(CGColorSpaceRef aColorSpace, const Color& aColor)
@@ -681,7 +659,7 @@ CreateCGPattern(const Pattern &aPattern, CGAffineTransform aUserSpace)
 {
   const SurfacePattern& pat = static_cast<const SurfacePattern&>(aPattern);
   // XXX: is .get correct here?
-  CGImageRef image = GetRetainedImageFromSourceSurface(pat.mSurface.get());
+  CGImageRef image = GetImageFromSourceSurface(pat.mSurface.get());
   CGFloat xStep, yStep;
   switch (pat.mExtendMode) {
     case EXTEND_CLAMP:
@@ -718,7 +696,7 @@ CreateCGPattern(const Pattern &aPattern, CGAffineTransform aUserSpace)
                                                       GfxMatrixToCGAffineTransform(pat.mMatrix)),
                               aUserSpace);
   transform = CGAffineTransformTranslate(transform, 0, -static_cast<float>(CGImageGetHeight(image)));
-  return CGPatternCreate(image, bounds, transform, xStep, yStep, kCGPatternTilingConstantSpacing,
+  return CGPatternCreate(CGImageRetain(image), bounds, transform, xStep, yStep, kCGPatternTilingConstantSpacing,
                          true, &patternCallbacks);
 }
 
@@ -783,6 +761,7 @@ DrawTargetCG::MaskSurface(const Pattern &aSource,
 {
   MarkChanged();
 
+  CGImageRef image;
   CGContextSaveGState(mCg);
 
   CGContextSetBlendMode(mCg, ToBlendMode(aDrawOptions.mCompositionOp));
@@ -792,7 +771,7 @@ DrawTargetCG::MaskSurface(const Pattern &aSource,
   CGContextSetShouldAntialias(cg, aDrawOptions.mAntialiasMode != AA_NONE);
 
   CGContextConcatCTM(cg, GfxMatrixToCGAffineTransform(mTransform));
-  CGImageRef image = GetRetainedImageFromSourceSurface(aMask);
+  image = GetImageFromSourceSurface(aMask);
 
   // use a negative-y so that the mask image draws right ways up
   CGContextScaleCTM(cg, 1, -1);
@@ -810,8 +789,6 @@ DrawTargetCG::MaskSurface(const Pattern &aSource,
     SetFillFromPattern(cg, mColorSpace, aSource);
     CGContextFillRect(cg, CGRectMake(aOffset.x, aOffset.y, size.width, size.height));
   }
-
-  CGImageRelease(image);
 
   fixer.Fix(mCg);
 
@@ -846,7 +823,7 @@ DrawTargetCG::FillRect(const Rect &aRect,
       // should give us better performance, better output, smaller PDF and
       // matches what cairo does.
       const SurfacePattern& pat = static_cast<const SurfacePattern&>(aPattern);
-      CGImageRef image = GetRetainedImageFromSourceSurface(pat.mSurface.get());
+      CGImageRef image = GetImageFromSourceSurface(pat.mSurface.get());
       CGContextClipToRect(cg, RectToCGRect(aRect));
       CGContextConcatCTM(cg, GfxMatrixToCGAffineTransform(pat.mMatrix));
       CGContextTranslateCTM(cg, 0, CGImageGetHeight(image));
@@ -857,7 +834,6 @@ DrawTargetCG::FillRect(const Rect &aRect,
       CGContextSetInterpolationQuality(cg, InterpolationQualityFromFilter(pat.mFilter));
 
       CGContextDrawImage(cg, imageRect, image);
-      CGImageRelease(image);
     } else {
       SetFillFromPattern(cg, mColorSpace, aPattern);
       CGContextFillRect(cg, RectToCGRect(aRect));
@@ -1190,15 +1166,18 @@ DrawTargetCG::CopySurface(SourceSurface *aSurface,
 {
   MarkChanged();
 
+  CGImageRef image;
+  CGImageRef subimage = nullptr;
   if (aSurface->GetType() == SURFACE_COREGRAPHICS_IMAGE ||
       aSurface->GetType() == SURFACE_COREGRAPHICS_CGCONTEXT) {
-    CGImageRef image = GetRetainedImageFromSourceSurface(aSurface);
-
+    image = GetImageFromSourceSurface(aSurface);
     /* we have two options here:
      *  - create a subimage -- this is slower
      *  - fancy things with clip and different dest rects */
-    CGImageRef subimage = CGImageCreateWithImageInRect(image, IntRectToCGRect(aSourceRect));
-    CGImageRelease(image);
+    {
+      subimage = CGImageCreateWithImageInRect(image, IntRectToCGRect(aSourceRect));
+      image = subimage;
+    }
     // XXX: it might be more efficient for us to do the copy directly if we have access to the bits
 
     CGContextSaveGState(mCg);
@@ -1217,7 +1196,7 @@ DrawTargetCG::CopySurface(SourceSurface *aSurface,
     if (mFormat == FORMAT_A8) {
       CGContextClearRect(mCg, flippedRect);
     }
-    CGContextDrawImage(mCg, flippedRect, subimage);
+    CGContextDrawImage(mCg, flippedRect, image);
 
     CGContextRestoreGState(mCg);
 
@@ -1230,7 +1209,8 @@ DrawTargetCG::DrawSurfaceWithShadow(SourceSurface *aSurface, const Point &aDest,
 {
   MarkChanged();
 
-  CGImageRef image = GetRetainedImageFromSourceSurface(aSurface);
+  CGImageRef image;
+  image = GetImageFromSourceSurface(aSurface);
 
   IntSize size = aSurface->GetSize();
   CGContextSaveGState(mCg);
@@ -1250,7 +1230,6 @@ DrawTargetCG::DrawSurfaceWithShadow(SourceSurface *aSurface, const Point &aDest,
 
   CGContextDrawImage(mCg, flippedRect, image);
 
-  CGImageRelease(image);
   CGContextRestoreGState(mCg);
 
 }
@@ -1453,12 +1432,11 @@ DrawTargetCG::Mask(const Pattern &aSource,
       //FillRect(rect, aSource, drawOptions);
     } else if (aMask.GetType() == PATTERN_SURFACE) {
       const SurfacePattern& pat = static_cast<const SurfacePattern&>(aMask);
-      CGImageRef mask = GetRetainedImageFromSourceSurface(pat.mSurface.get());
+      CGImageRef mask = GetImageFromSourceSurface(pat.mSurface.get());
       Rect rect(0,0, CGImageGetWidth(mask), CGImageGetHeight(mask));
       // XXX: probably we need to do some flipping of the image or something
       CGContextClipToMask(mCg, RectToCGRect(rect), mask);
       FillRect(rect, aSource, aDrawOptions);
-      CGImageRelease(mask);
     }
   }
 

@@ -657,10 +657,6 @@ private: // data
   bool                       mInDecoder;
   // END LOCKED MEMBER VARIABLES
 
-  // Notification state. Used to avoid recursive notifications.
-  ImageStatusDiff            mStatusDiff;
-  bool                       mNotifying:1;
-
   // Boolean flags (clustered together to conserve space):
   bool                       mHasSize:1;       // Has SetSize() been called?
   bool                       mDecodeOnDraw:1;  // Decoding on draw?
@@ -692,10 +688,6 @@ private: // data
   bool                       mPendingError:1;
 
   // Decoding
-  nsresult RequestDecodeIfNeeded(nsresult aStatus,
-                                 eShutdownIntent aIntent,
-                                 bool aDone,
-                                 bool aWasSize);
   nsresult WantDecodedFrames();
   nsresult SyncDecode();
   nsresult InitDecoder(bool aDoSizeDecode);

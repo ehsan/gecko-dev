@@ -288,7 +288,6 @@ public:
   static void
   GetStorageId(PersistenceType aPersistenceType,
                const nsACString& aOrigin,
-               Client::Type aClientType,
                const nsAString& aName,
                nsACString& aDatabaseId);
 

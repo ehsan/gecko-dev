@@ -995,10 +995,8 @@ enum ccType {
 // Top level structure for the cycle collector.
 ////////////////////////////////////////////////////////////////////////
 
-class nsCycleCollector : public nsISupports
+class nsCycleCollector
 {
-    NS_DECL_ISUPPORTS
-
     bool mCollectionInProgress;
     // mScanInProgress should be false when we're collecting white objects.
     bool mScanInProgress;
@@ -1029,7 +1027,7 @@ class nsCycleCollector : public nsISupports
 
 public:
     nsCycleCollector();
-    virtual ~nsCycleCollector();
+    ~nsCycleCollector();
 
     void RegisterJSRuntime(CycleCollectedJSRuntime *aJSRuntime);
     void ForgetJSRuntime();
@@ -1081,8 +1079,6 @@ private:
     void CleanupAfterCollection();
 };
 
-NS_IMPL_ISUPPORTS1(nsCycleCollector, nsISupports)
-
 /**
  * GraphWalker is templatized over a Visitor class that must provide
  * the following two methods:
@@ -1120,7 +1116,7 @@ public:
 ////////////////////////////////////////////////////////////////////////
 
 struct CollectorData {
-  nsRefPtr<nsCycleCollector> mCollector;
+  nsCycleCollector* mCollector;
   CycleCollectedJSRuntime* mRuntime;
 };
 
@@ -2594,20 +2590,23 @@ nsCycleCollector::ForgetJSRuntime()
 
 #ifdef DEBUG
 static bool
-HasParticipant(void *aPtr, nsCycleCollectionParticipant *aParti)
+nsCycleCollector_isScanSafe(void *s, nsCycleCollectionParticipant *cp)
 {
-    if (aParti) {
+    if (!s)
+        return false;
+
+    if (cp)
         return true;
-    }
 
     nsXPCOMCycleCollectionParticipant *xcp;
-    ToParticipant(static_cast<nsISupports*>(aPtr), &xcp);
+    ToParticipant(static_cast<nsISupports*>(s), &xcp);
+
     return xcp != nullptr;
 }
 #endif
 
 MOZ_ALWAYS_INLINE void
-nsCycleCollector::Suspect(void *aPtr, nsCycleCollectionParticipant *aParti,
+nsCycleCollector::Suspect(void *n, nsCycleCollectionParticipant *cp,
                           nsCycleCollectingAutoRefCnt *aRefCnt)
 {
     CheckThreadSafety();
@@ -2616,16 +2615,13 @@ nsCycleCollector::Suspect(void *aPtr, nsCycleCollectionParticipant *aParti,
     // we are canonicalizing nsISupports pointers using QI, so we will
     // see some spurious refcount traffic here.
 
-    if (MOZ_UNLIKELY(mScanInProgress)) {
+    if (MOZ_UNLIKELY(mScanInProgress))
         return;
-    }
 
-    MOZ_ASSERT(aPtr, "Don't suspect null pointers");
+    MOZ_ASSERT(nsCycleCollector_isScanSafe(n, cp),
+               "suspected a non-scansafe pointer");
 
-    MOZ_ASSERT(HasParticipant(aPtr, aParti),
-               "Suspected nsISupports pointer must QI to nsXPCOMCycleCollectionParticipant");
-
-    mPurpleBuf.Put(aPtr, aParti, aRefCnt);
+    mPurpleBuf.Put(n, cp, aRefCnt);
 }
 
 void
@@ -3105,11 +3101,12 @@ nsCycleCollector_startup()
         MOZ_CRASH();
     }
 
-    CollectorData* data = new CollectorData;
-    data->mCollector = new nsCycleCollector();
+    nsAutoPtr<nsCycleCollector> collector(new nsCycleCollector());
+    nsAutoPtr<CollectorData> data(new CollectorData);
     data->mRuntime = nullptr;
+    data->mCollector = collector.forget();
 
-    sCollectorData.set(data);
+    sCollectorData.set(data.forget());
 }
 
 void
@@ -3213,6 +3210,7 @@ nsCycleCollector_shutdown()
         MOZ_ASSERT(data->mCollector);
         PROFILER_LABEL("CC", "nsCycleCollector_shutdown");
         data->mCollector->Shutdown();
+        delete data->mCollector;
         data->mCollector = nullptr;
         if (!data->mRuntime) {
           delete data;

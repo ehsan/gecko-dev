@@ -33,16 +33,9 @@ interface PeerConnectionImpl  {
   [Throws]
   void setRemoteDescription(long action, DOMString sdp);
 
-  /* Stats call, calls either |onGetStatsSuccess| or |onGetStatsError| on our
-     observer. (see the |PeerConnectionObserver| interface) */
+  /* Stats call */
   [Throws]
   void getStats(MediaStreamTrack? selector, boolean internalStats);
-
-  /* Scrapes the RLogRingbuffer, and calls either |onGetLoggingSuccess|
-     or |onGetLoggingError| on our observer.
-     (see the |PeerConnectionObserver| interface) */
-  [Throws]
-  void getLogging(DOMString pattern);
 
   /* Adds the stream created by GetUserMedia */
   [Throws]
@@ -70,8 +63,7 @@ interface PeerConnectionImpl  {
   readonly attribute DOMString localDescription;
   readonly attribute DOMString remoteDescription;
 
-  readonly attribute PCImplIceConnectionState iceConnectionState;
-  readonly attribute PCImplIceGatheringState iceGatheringState;
+  readonly attribute PCImplIceState iceState;
   readonly attribute PCImplReadyState readyState;
   readonly attribute PCImplSignalingState signalingState;
   readonly attribute PCImplSipccState sipccState;
