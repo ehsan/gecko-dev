@@ -445,14 +445,15 @@ static const PRUint32 deviceFamilyIntelGMAX3000[] = {
 };
 
 // see bug 595364 comment 10
-static const PRUint32 deviceFamilyIntelBlockDirect2D[] = {
+// We have Direct2D crashes with these Intel GMA X3000 cards. They seem to constitute the first
+// generation of DX10 cards.
+static const PRUint32 deviceFamilyIntelGMAX3000BlockDirect2D[] = {
     0x2982, /* IntelG35_1 */
     0x2983, /* IntelG35_2 */
     0x2A02, /* IntelGL960_1 */
     0x2A03, /* IntelGL960_2 */
     0x2A12, /* IntelGM965_1 */
-    0x2A13, /* IntelGM965_2 */
-    0
+    0x2A13  /* IntelGM965_2 */
 };
 
 static const PRUint32 deviceFamilyIntelGMAX4500HD[] = {
@@ -494,7 +495,7 @@ static const GfxDriverInfo driverInfo[] = {
    * Implement special Direct2D blocklist from bug 595364
    */
   { allWindowsVersions,
-    vendorIntel, deviceFamilyIntelBlockDirect2D,
+    vendorIntel, deviceFamilyIntelGMAX3000BlockDirect2D,
     nsIGfxInfo::FEATURE_DIRECT2D, nsIGfxInfo::FEATURE_BLOCKED,
     DRIVER_LESS_THAN, allDriverVersions },
 
@@ -520,14 +521,14 @@ static const GfxDriverInfo driverInfo[] = {
   IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindowsVista, deviceFamilyIntelGMA950,   V(7,14,10,1504))
   IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindowsVista, deviceFamilyIntelGMA3150,  V(7,14,10,2124))
   IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindowsVista, deviceFamilyIntelGMAX3000, V(7,15,10,1666))
-  IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindowsVista, deviceFamilyIntelGMAX4500HD, V(8,15,10,2202))
+  IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindowsVista, deviceFamilyIntelGMAX4500HD, V(8,15,10,2182))
 
   IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindows7, deviceFamilyIntelGMA500,   V(5,0,0,2026))
   IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindows7, deviceFamilyIntelGMA900,   allDriverVersions)
   IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindows7, deviceFamilyIntelGMA950,   V(8,15,10,1930))
   IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindows7, deviceFamilyIntelGMA3150,  V(8,14,10,2117))
   IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindows7, deviceFamilyIntelGMAX3000, V(8,15,10,1930))
-  IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindows7, deviceFamilyIntelGMAX4500HD, V(8,15,10,2202))
+  IMPLEMENT_INTEL_DRIVER_BLOCKLIST(gfxWindowsPlatform::kWindows7, deviceFamilyIntelGMAX4500HD, V(8,15,10,2182))
 
   /* OpenGL on any Intel hardware is not suggested */
   { allWindowsVersions,

@@ -45,7 +45,6 @@
 #include "mozilla/net/NeckoParent.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefBranch2.h"
-#include "nsIPrefService.h"
 #include "nsIPrefLocalizedString.h"
 #include "nsIObserverService.h"
 #include "nsContentUtils.h"
@@ -272,10 +271,7 @@ ContentParent::Observe(nsISupports* aSubject,
     if (!strcmp(aTopic, "nsPref:changed")) {
         // We know prefs are ASCII here.
         NS_LossyConvertUTF16toASCII strData(aData);
-        nsCString prefBuffer;
-        nsCOMPtr<nsIPrefServiceInternal> prefs = do_GetService("@mozilla.org/preferences-service;1");
-        prefs->SerializePreference(strData, prefBuffer);
-        if (!SendPreferenceUpdate(prefBuffer))
+        if (!SendNotifyRemotePrefObserver(strData))
             return NS_ERROR_NOT_AVAILABLE;
     }
     else if (!strcmp(aTopic, NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC)) {
@@ -516,27 +512,22 @@ ContentParent::RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON)
 bool
 ContentParent::RecvGeolocationStart()
 {
-  if (mGeolocationWatchID == -1) {
-    nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
-    if (!geo) {
-      return true;
-    }
-    geo->WatchPosition(this, nsnull, nsnull, &mGeolocationWatchID);
+  nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
+  if (!geo) {
+    return true;
   }
+  geo->WatchPosition(this, nsnull, nsnull, &mGeolocationWatchID);
   return true;
 }
 
 bool
 ContentParent::RecvGeolocationStop()
 {
-  if (mGeolocationWatchID != -1) {
-    nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
-    if (!geo) {
-      return true;
-    }
-    geo->ClearWatch(mGeolocationWatchID);
-    mGeolocationWatchID = -1;
+  nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
+  if (!geo) {
+    return true;
   }
+  geo->ClearWatch(mGeolocationWatchID);
   return true;
 }
 

@@ -75,7 +75,7 @@ child:
 
     async NotifyVisited(URI uri);
 
-    PreferenceUpdate(nsCString pref);
+    NotifyRemotePrefObserver(nsCString aDomain);
 
     NotifyAlertsObserver(nsCString topic, nsString data);
 
