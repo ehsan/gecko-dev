@@ -245,7 +245,7 @@ DebuggerPane.prototype = {
   _initServer: function DP__initServer() {
     if (!DebuggerServer.initialized) {
       // Always allow connections from nsIPipe transports.
-      DebuggerServer.init(function() true);
+      DebuggerServer.init(function () { return true; });
       DebuggerServer.addBrowserActors();
     }
   },

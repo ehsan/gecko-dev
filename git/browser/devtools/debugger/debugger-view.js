@@ -59,12 +59,9 @@ let DebuggerView = {
     this._stepInButton = document.getElementById("step-in");
     this._stepOutButton = document.getElementById("step-out");
     this._scriptsSearchbox = document.getElementById("scripts-search");
-    this._globalOperatorLabel = document.getElementById("global-operator-label");
-    this._globalOperatorButton = document.getElementById("global-operator-button");
-    this._tokenOperatorLabel = document.getElementById("token-operator-label");
-    this._tokenOperatorButton = document.getElementById("token-operator-button");
-    this._lineOperatorLabel = document.getElementById("line-operator-label");
-    this._lineOperatorButton = document.getElementById("line-operator-button");
+    this._globalOperatorButton = document.getElementById("global-operator");
+    this._tokenOperatorButton = document.getElementById("token-operator");
+    this._lineOperatorButton = document.getElementById("line-operator");
   },
 
   /**
@@ -82,16 +79,12 @@ let DebuggerView = {
 
     this._scriptsSearchbox.setAttribute("placeholder",
       L10N.getFormatStr("emptyFilterText", [LayoutHelpers.prettyKey(this._fileSearchKey)]));
-    this._globalOperatorLabel.setAttribute("value",
+    this._globalOperatorButton.setAttribute("value",
       L10N.getFormatStr("searchPanelGlobal", [LayoutHelpers.prettyKey(this._globalSearchKey)]));
-    this._tokenOperatorLabel.setAttribute("value",
+    this._tokenOperatorButton.setAttribute("value",
       L10N.getFormatStr("searchPanelToken", [LayoutHelpers.prettyKey(this._tokenSearchKey)]));
-    this._lineOperatorLabel.setAttribute("value",
+    this._lineOperatorButton.setAttribute("value",
       L10N.getFormatStr("searchPanelLine", [LayoutHelpers.prettyKey(this._lineSearchKey)]));
-
-    this._globalOperatorButton.setAttribute("label", SEARCH_GLOBAL_FLAG);
-    this._tokenOperatorButton.setAttribute("label", SEARCH_TOKEN_FLAG);
-    this._lineOperatorButton.setAttribute("label", SEARCH_LINE_FLAG);
   },
 
   /**
@@ -262,11 +255,8 @@ let DebuggerView = {
   _stepInButton: null,
   _stepOutButton: null,
   _scriptsSearchbox: null,
-  _globalOperatorLabel: null,
   _globalOperatorButton: null,
-  _tokenOperatorLabel: null,
   _tokenOperatorButton: null,
-  _lineOperatorLabel: null,
   _lineOperatorButton: null
 };
 
