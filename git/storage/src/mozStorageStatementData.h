@@ -45,7 +45,6 @@
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
 #include "nsIEventTarget.h"
-#include "nsProxyRelease.h"
 
 #include "mozStorageBindingParamsArray.h"
 #include "mozIStorageBaseStatement.h"
@@ -108,14 +107,9 @@ public:
   /**
    * NULLs out our sqlite3_stmt (it is held by the owner) after reseting it and
    * clear all bindings to it.  This is expected to occur on the async thread.
-   *
-   * @param aReleaseThread
-   *        The thread that we should release mParamsArray and mStatementOwner
-   *        on.  This may not be the thread we are called on.
    */
-  inline void finalize(nsIEventTarget *aReleaseThread)
+  inline void finalize()
   {
-    NS_PRECONDITION(aReleaseThread, "Must have a non-NULL release thread!");
     NS_PRECONDITION(mStatementOwner, "Must have a statement owner!");
 #ifdef DEBUG
     {
@@ -137,10 +131,6 @@ public:
       (void)::sqlite3_reset(mStatement);
       (void)::sqlite3_clear_bindings(mStatement);
       mStatement = NULL;
-    }
-    (void)NS_ProxyRelease(aReleaseThread, mStatementOwner, PR_TRUE);
-    if (mParamsArray) {
-      (void)NS_ProxyRelease(aReleaseThread, mParamsArray, PR_TRUE);
     }
   }
 

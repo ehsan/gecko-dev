@@ -137,6 +137,18 @@ BindAndDrawQuadWithTextureRect(GLContext* aGl,
   }
 }
 
+static void
+SetAntialiasingFlags(Layer* aLayer, gfxContext* aTarget)
+{
+  nsRefPtr<gfxASurface> surface = aTarget->CurrentSurface();
+  if (surface->GetContentType() != gfxASurface::CONTENT_COLOR_ALPHA) {
+    // Destination doesn't have alpha channel; no need to set any special flags
+    return;
+  }
+
+  surface->SetSubpixelAntialiasingEnabled(
+      !(aLayer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA));
+}
 
 class ThebesLayerBufferOGL
 {
@@ -196,6 +208,7 @@ ThebesLayerBufferOGL::RenderTo(const nsIntPoint& aOffset,
   if (mTexImageOnWhite) {
     gl()->fActiveTexture(LOCAL_GL_TEXTURE1);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexImageOnWhite->Texture());
+    gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
   }
 
   float xres = mLayer->GetXResolution();
@@ -291,7 +304,8 @@ public:
     return ThebesLayerBuffer::BeginPaint(mLayer, 
                                          aContentType, 
                                          aXResolution, 
-                                         aYResolution);
+                                         aYResolution,
+                                         0);
   }
 
   // ThebesLayerBuffer interface
@@ -731,13 +745,16 @@ ThebesLayerOGL::RenderLayer(int aPreviousFrameBuffer,
       NS_ERROR("GL should never need to update ThebesLayers in an empty transaction");
     } else {
       void* callbackData = mOGLManager->GetThebesLayerCallbackData();
+      SetAntialiasingFlags(this, state.mContext);
       callback(this, state.mContext, state.mRegionToDraw,
                state.mRegionToInvalidate, callbackData);
-      // Everything that's visible has been validated. Do this instead of
+      // Everything that's visible has been validated. Do this instead of just
       // OR-ing with aRegionToDraw, since that can lead to a very complex region
       // here (OR doesn't automatically simplify to the simplest possible
       // representation of a region.)
-      mValidRegion.Or(mValidRegion, mVisibleRegion);
+      nsIntRegion tmp;
+      tmp.Or(mVisibleRegion, state.mRegionToDraw);
+      mValidRegion.Or(mValidRegion, tmp);
     }
   }
 

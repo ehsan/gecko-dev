@@ -1968,6 +1968,10 @@ static void DrawPlugin(ImageContainer* aContainer, void* aObjectFrame)
 void
 nsObjectFrame::UpdateImageLayer(ImageContainer* aContainer, const gfxRect& aRect)
 {
+  if (!mInstanceOwner) {
+    return;
+  }
+
 #ifdef XP_MACOSX
   mInstanceOwner->DoCocoaEventDrawRect(aRect, nsnull);
 #endif
@@ -1984,7 +1988,7 @@ nsPluginInstanceOwner::SetCurrentImage(ImageContainer* aContainer)
     inst->GetImage(aContainer, getter_AddRefs(image));
     if (image) {
 #ifdef XP_MACOSX
-      if (image->GetFormat() == Image::MAC_IO_SURFACE) {
+      if (image->GetFormat() == Image::MAC_IO_SURFACE && mObjectFrame) {
         MacIOSurfaceImage *oglImage = static_cast<MacIOSurfaceImage*>(image.get());
         oglImage->SetCallback(&DrawPlugin, mObjectFrame);
       }
@@ -2140,10 +2144,15 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
       // This will destroy any old background sink and notify us that the
       // background is now unknown
       readback->SetSink(nsnull);
-      NS_ASSERTION(!mBackgroundSink, "Should have been cleared");
-
       readback->SetSize(nsIntSize(size.width, size.height));
 
+      if (mBackgroundSink) {
+        // Maybe we still have a background sink associated with another
+        // readback layer that wasn't recycled for some reason? Unhook it
+        // now so that if this frame goes away, it doesn't have a dangling
+        // reference to us.
+        mBackgroundSink->Destroy();
+      }
       mBackgroundSink =
         new PluginBackgroundSink(this,
                                  readback->AllocateSequenceNumber());
@@ -3505,26 +3514,18 @@ NS_IMETHODIMP nsPluginInstanceOwner::InvalidateRect(NPRect *invalidRect)
               presContext->DevPixelsToAppUnits(invalidRect->top),
               presContext->DevPixelsToAppUnits(invalidRect->right - invalidRect->left),
               presContext->DevPixelsToAppUnits(invalidRect->bottom - invalidRect->top));
- if (container) {
-   gfxIntSize newSize = container->GetCurrentSize();
-   if (newSize != oldSize) {
-     // The image size has changed - invalidate the old area too, bug 635405.
-     nsRect oldRect = nsRect(0, 0,
-                             presContext->DevPixelsToAppUnits(oldSize.width),
-                             presContext->DevPixelsToAppUnits(oldSize.height));
-     rect.UnionRect(rect, oldRect);
-   }
- }
- rect.MoveBy(mObjectFrame->GetUsedBorderAndPadding().TopLeft());
-#ifndef XP_MACOSX
-  mObjectFrame->InvalidateLayer(rect, nsDisplayItem::TYPE_PLUGIN);
-#else
-  if (mozilla::FrameLayerBuilder::HasDedicatedLayer(mObjectFrame, nsDisplayItem::TYPE_PLUGIN)) {
-    mObjectFrame->InvalidateWithFlags(rect, nsIFrame::INVALIDATE_NO_UPDATE_LAYER_TREE);
-  } else {
-    mObjectFrame->Invalidate(rect);
+  if (container) {
+    gfxIntSize newSize = container->GetCurrentSize();
+    if (newSize != oldSize) {
+      // The image size has changed - invalidate the old area too, bug 635405.
+      nsRect oldRect = nsRect(0, 0,
+                              presContext->DevPixelsToAppUnits(oldSize.width),
+                              presContext->DevPixelsToAppUnits(oldSize.height));
+      rect.UnionRect(rect, oldRect);
+    }
   }
-#endif
+  rect.MoveBy(mObjectFrame->GetUsedBorderAndPadding().TopLeft());
+  mObjectFrame->InvalidateLayer(rect, nsDisplayItem::TYPE_PLUGIN);
   return NS_OK;
 }
 
@@ -4757,6 +4758,14 @@ nsPluginInstanceOwner::MouseDown(nsIDOMEvent* aMouseEvent)
 nsresult
 nsPluginInstanceOwner::MouseUp(nsIDOMEvent* aMouseEvent)
 {
+  // Don't send a mouse-up event to the plugin if it isn't focused.  This can
+  // happen if the previous mouse-down was sent to a DOM element above the
+  // plugin, the mouse is still above the plugin, and the mouse-down event
+  // caused the element to disappear.  See bug 627649.
+  if (!mContentFocused) {
+    aMouseEvent->PreventDefault();
+    return NS_OK;
+  }
   return DispatchMouseToPlugin(aMouseEvent);
 }
 
