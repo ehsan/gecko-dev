@@ -747,10 +747,6 @@ var AddonRepository = {
    *         The callback to pass results to
    */
   getAddonsByIDs: function(aIDs, aCallback) {
-    let startupInfo = Cc["@mozilla.org/toolkit/app-startup;1"].
-                      getService(Ci.nsIAppStartup).
-                      getStartupInfo();
-
     let ids = aIDs.slice(0);
 
     let params = {
@@ -758,20 +754,10 @@ var AddonRepository = {
       IDS : ids.map(encodeURIComponent).join(',')
     };
 
-    if (startupInfo.process) {
-      if (startupInfo.main)
-        params.TIME_MAIN = startupInfo.main - startupInfo.process;
-      if (startupInfo.firstPaint)
-        params.TIME_FIRST_PAINT = startupInfo.firstPaint - startupInfo.process;
-      if (startupInfo.sessionRestored)
-        params.TIME_SESSION_RESTORED = startupInfo.sessionRestored -
-                                       startupInfo.process;
-    };
-
     let url = this._formatURLPref(PREF_GETADDONS_BYIDS, params);
 
     let self = this;
-    function handleResults(aElements, aTotalResults, aCompatData  ) {
+    function handleResults(aElements, aTotalResults, aCompatData) {
       // Don't use this._parseAddons() so that, for example,
       // incompatible add-ons are not filtered out
       let results = [];

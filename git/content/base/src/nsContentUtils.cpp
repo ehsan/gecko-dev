@@ -45,6 +45,7 @@
 
 #include "jsapi.h"
 #include "jsdbgapi.h"
+#include "jstypedarray.h"
 
 #include "nsJSUtils.h"
 #include "nsCOMPtr.h"
@@ -178,6 +179,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsICategoryManager.h"
 #include "nsIViewManager.h"
 #include "nsEventStateManager.h"
+#include "nsIDOMHTMLInputElement.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -211,6 +213,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 
 using namespace mozilla::dom;
 using namespace mozilla::layers;
+using namespace mozilla::widget;
 using namespace mozilla;
 
 const char kLoadAsData[] = "loadAsData";
@@ -528,7 +531,7 @@ nsContentUtils::InitializeEventTable() {
 #include "nsEventNameList.h"
 #undef WINDOW_ONLY_EVENT
 #undef EVENT
-    nsnull
+    { nsnull }
   };
 
   sAtomEventTable = new nsDataHashtable<nsISupportsHashKey, EventNameMapping>;
@@ -576,7 +579,7 @@ nsContentUtils::InitializeTouchEventTable()
 #include "nsEventNameList.h"
 #undef TOUCH_EVENT
 #undef EVENT
-      nsnull
+      { nsnull }
     };
     // Subtract one from the length because of the trailing null
     for (PRUint32 i = 0; i < ArrayLength(touchEventArray) - 1; ++i) {
@@ -647,6 +650,27 @@ nsContentUtils::Atob(const nsAString& aAsciiBase64String,
     return NS_ERROR_DOM_INVALID_CHARACTER_ERR;
   }
   return rv;
+}
+
+bool
+nsContentUtils::IsAutocompleteEnabled(nsIDOMHTMLInputElement* aInput)
+{
+  NS_PRECONDITION(aInput, "aInput should not be null!");
+
+  nsAutoString autocomplete;
+  aInput->GetAutocomplete(autocomplete);
+
+  if (autocomplete.IsEmpty()) {
+    nsCOMPtr<nsIDOMHTMLFormElement> form;
+    aInput->GetForm(getter_AddRefs(form));
+    if (!form) {
+      return true;
+    }
+
+    form->GetAutocomplete(autocomplete);
+  }
+
+  return autocomplete.EqualsLiteral("on");
 }
 
 /**
@@ -733,7 +757,7 @@ struct NormalizeNewlinesCharTraits<CharT*> {
 
 #else
 
-NS_SPECIALIZE_TEMPLATE
+template <>
 struct NormalizeNewlinesCharTraits<char*> {
   public:
     typedef char value_type;
@@ -748,7 +772,7 @@ struct NormalizeNewlinesCharTraits<char*> {
     char* mCharPtr;
 };
 
-NS_SPECIALIZE_TEMPLATE
+template <>
 struct NormalizeNewlinesCharTraits<PRUnichar*> {
   public:
     typedef PRUnichar value_type;
@@ -2093,8 +2117,9 @@ nsContentUtils::SplitQName(const nsIContent* aNamespaceResolver,
     const PRUnichar* end;
     aQName.EndReading(end);
     nsAutoString nameSpace;
-    rv = aNamespaceResolver->LookupNamespaceURI(Substring(aQName.get(), colon),
-                                                nameSpace);
+    rv = aNamespaceResolver->LookupNamespaceURIInternal(Substring(aQName.get(),
+                                                                  colon),
+                                                        nameSpace);
     NS_ENSURE_SUCCESS(rv, rv);
 
     *aNamespace = NameSpaceManager()->GetNameSpaceID(nameSpace);
@@ -2762,21 +2787,29 @@ nsresult nsContentUtils::FormatLocalizedString(PropertiesFile aFile,
 }
 
 /* static */ nsresult
-nsContentUtils::ReportToConsole(PropertiesFile aFile,
+nsContentUtils::ReportToConsole(PRUint32 aErrorFlags,
+                                const char *aCategory,
+                                nsIDocument* aDocument,
+                                PropertiesFile aFile,
                                 const char *aMessageName,
                                 const PRUnichar **aParams,
                                 PRUint32 aParamsLength,
                                 nsIURI* aURI,
                                 const nsAFlatString& aSourceLine,
                                 PRUint32 aLineNumber,
-                                PRUint32 aColumnNumber,
-                                PRUint32 aErrorFlags,
-                                const char *aCategory,
-                                PRUint64 aInnerWindowId)
+                                PRUint32 aColumnNumber)
 {
   NS_ASSERTION((aParams && aParamsLength) || (!aParams && !aParamsLength),
                "Supply either both parameters and their number or no"
                "parameters and 0.");
+
+  PRUint64 innerWindowID = 0;
+  if (aDocument) {
+    if (!aURI) {
+      aURI = aDocument->GetDocumentURI();
+    }
+    innerWindowID = aDocument->InnerWindowID();
+  }
 
   nsresult rv;
   if (!sConsoleService) { // only need to bother null-checking here
@@ -2807,38 +2840,11 @@ nsContentUtils::ReportToConsole(PropertiesFile aFile,
                                      aSourceLine.get(),
                                      aLineNumber, aColumnNumber,
                                      aErrorFlags, aCategory,
-                                     aInnerWindowId);
+                                     innerWindowID);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIScriptError> logError = do_QueryInterface(errorObject);
   return sConsoleService->LogMessage(logError);
-}
-
-/* static */ nsresult
-nsContentUtils::ReportToConsole(PropertiesFile aFile,
-                                const char *aMessageName,
-                                const PRUnichar **aParams,
-                                PRUint32 aParamsLength,
-                                nsIURI* aURI,
-                                const nsAFlatString& aSourceLine,
-                                PRUint32 aLineNumber,
-                                PRUint32 aColumnNumber,
-                                PRUint32 aErrorFlags,
-                                const char *aCategory,
-                                nsIDocument* aDocument)
-{
-  nsIURI* uri = aURI;
-  PRUint64 innerWindowID = 0;
-  if (aDocument) {
-    if (!uri) {
-      uri = aDocument->GetDocumentURI();
-    }
-    innerWindowID = aDocument->InnerWindowID();
-  }
-
-  return ReportToConsole(aFile, aMessageName, aParams, aParamsLength, uri,
-                         aSourceLine, aLineNumber, aColumnNumber, aErrorFlags,
-                         aCategory, innerWindowID);
 }
 
 bool
@@ -3706,12 +3712,12 @@ nsContentUtils::CreateDocument(const nsAString& aNamespaceURI,
                                nsIURI* aDocumentURI, nsIURI* aBaseURI,
                                nsIPrincipal* aPrincipal,
                                nsIScriptGlobalObject* aEventObject,
-                               bool aSVGDocument,
+                               DocumentFlavor aFlavor,
                                nsIDOMDocument** aResult)
 {
   nsresult rv = NS_NewDOMDocument(aResult, aNamespaceURI, aQualifiedName,
                                   aDoctype, aDocumentURI, aBaseURI, aPrincipal,
-                                  true, aEventObject, aSVGDocument);
+                                  true, aEventObject, aFlavor);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDocument> document = do_QueryInterface(*aResult);
@@ -4002,25 +4008,6 @@ nsContentUtils::DropJSObjects(void* aScriptObjectHolder)
     nsLayoutStatics::Release();
   }
   return rv;
-}
-
-/* static */
-PRUint32
-nsContentUtils::GetWidgetStatusFromIMEStatus(PRUint32 aState)
-{
-  switch (aState & nsIContent::IME_STATUS_MASK_ENABLED) {
-    case nsIContent::IME_STATUS_DISABLE:
-      return nsIWidget::IME_STATUS_DISABLED;
-    case nsIContent::IME_STATUS_ENABLE:
-      return nsIWidget::IME_STATUS_ENABLED;
-    case nsIContent::IME_STATUS_PASSWORD:
-      return nsIWidget::IME_STATUS_PASSWORD;
-    case nsIContent::IME_STATUS_PLUGIN:
-      return nsIWidget::IME_STATUS_PLUGIN;
-    default:
-      NS_ERROR("The given state doesn't have valid enable state");
-      return nsIWidget::IME_STATUS_ENABLED;
-  }
 }
 
 /* static */
@@ -5271,6 +5258,29 @@ nsContentUtils::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
   return rv;
 }
 
+nsresult
+nsContentUtils::CreateArrayBuffer(JSContext *aCx, const nsACString& aData,
+                                  JSObject** aResult)
+{
+  if (!aCx) {
+    return NS_ERROR_FAILURE;
+  }
+
+  PRInt32 dataLen = aData.Length();
+  *aResult = js_CreateArrayBuffer(aCx, dataLen);
+  if (!*aResult) {
+    return NS_ERROR_FAILURE;
+  }
+
+  if (dataLen > 0) {
+    JSObject *abuf = js::ArrayBuffer::getArrayBuffer(*aResult);
+    NS_ASSERTION(abuf, "What happened?");
+    memcpy(JS_GetArrayBufferData(abuf), aData.BeginReading(), dataLen);
+  }
+
+  return NS_OK;
+}
+
 void
 nsContentUtils::StripNullChars(const nsAString& aInStr, nsAString& aOutStr)
 {
@@ -5419,6 +5429,10 @@ public:
   }
 
   NS_IMETHOD_(void) NoteNextEdgeName(const char* name)
+  {
+  }
+
+  NS_IMETHOD_(void) NoteWeakMapping(void* map, void* key, void* val)
   {
   }
 

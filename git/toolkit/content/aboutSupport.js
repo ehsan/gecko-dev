@@ -180,6 +180,14 @@ function populateGraphicsSection() {
       ]));
     }
   }
+  
+  function pushLiteralInfoRow(table, name, value)
+  {
+    table.push(createParentElement("tr", [
+      createHeader(name),
+      createElement("td", value),
+    ]));
+  }
 
   function errorMessageForFeature(feature) {
     var errorMessage;
@@ -241,8 +249,8 @@ function populateGraphicsSection() {
   if (gfxInfo) {
     let trGraphics = [];
     pushInfoRow(trGraphics, "adapterDescription", gfxInfo.adapterDescription);
-    pushInfoRow(trGraphics, "adapterVendorID", hexValueToString(gfxInfo.adapterVendorID));
-    pushInfoRow(trGraphics, "adapterDeviceID", hexValueToString(gfxInfo.adapterDeviceID));
+    pushInfoRow(trGraphics, "adapterVendorID", gfxInfo.adapterVendorID);
+    pushInfoRow(trGraphics, "adapterDeviceID", gfxInfo.adapterDeviceID);
     pushInfoRow(trGraphics, "adapterRAM", gfxInfo.adapterRAM);
     pushInfoRow(trGraphics, "adapterDrivers", gfxInfo.adapterDriver);
     pushInfoRow(trGraphics, "driverVersion", gfxInfo.adapterDriverVersion);
@@ -250,8 +258,8 @@ function populateGraphicsSection() {
 
 #ifdef XP_WIN
     pushInfoRow(trGraphics, "adapterDescription2", gfxInfo.adapterDescription2);
-    pushInfoRow(trGraphics, "adapterVendorID2", hexValueToString(gfxInfo.adapterVendorID2));
-    pushInfoRow(trGraphics, "adapterDeviceID2", hexValueToString(gfxInfo.adapterDeviceID2));
+    pushInfoRow(trGraphics, "adapterVendorID2", gfxInfo.adapterVendorID2);
+    pushInfoRow(trGraphics, "adapterDeviceID2", gfxInfo.adapterDeviceID2);
     pushInfoRow(trGraphics, "adapterRAM2", gfxInfo.adapterRAM2);
     pushInfoRow(trGraphics, "adapterDrivers2", gfxInfo.adapterDriver2);
     pushInfoRow(trGraphics, "driverVersion2", gfxInfo.adapterDriverVersion2);
@@ -308,6 +316,15 @@ function populateGraphicsSection() {
     pushFeatureInfoRow(trGraphics, "webglRenderer", webglfeature, webglenabled, webglrenderer);
 
     appendChildren(graphics_tbody, trGraphics);
+    
+    // display registered graphics properties
+    let graphics_info_properties = document.getElementById("graphics-info-properties");
+    var info = gfxInfo.getInfo();
+    let trGraphicsProperties = [];
+    for (var property in info) {
+      pushLiteralInfoRow(trGraphicsProperties, property, info[property]);
+    }
+    appendChildren(graphics_info_properties, trGraphicsProperties);
    
     // display any failures that have occurred
     let graphics_failures_tbody = document.getElementById("graphics-failures-tbody");
@@ -317,6 +334,8 @@ function populateGraphicsSection() {
         ])
     );
     appendChildren(graphics_failures_tbody, trGraphicsFailures);
+
+
 
   } // end if (gfxInfo)
 
@@ -335,9 +354,9 @@ function populateGraphicsSection() {
     }
   }
 
-  let msg = acceleratedWindows + "/" + totalWindows;
+  let msg = acceleratedWindows;
   if (acceleratedWindows) {
-    msg += " " + mgrType;
+    msg += "/" + totalWindows + " " + mgrType;
   } else {
 #ifdef XP_WIN
     var feature = gfxInfo.FEATURE_DIRECT3D_9_LAYERS;

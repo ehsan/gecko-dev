@@ -110,6 +110,9 @@
 #define NS_LIVEMARKSERVICE_CONTRACTID \
   "@mozilla.org/browser/livemark-service;2"
 
+#define NS_TAGGINGSERVICE_CONTRACTID \
+"@mozilla.org/browser/tagging-service;1"
+
 #define NS_FAVICONSERVICE_CONTRACTID \
   "@mozilla.org/browser/favicon-service;1"
 
@@ -160,9 +163,9 @@
 #define NS_TYPEAHEADFIND_CID \
 { 0xe7f70966, 0x9a37, 0x48d7, { 0x8a, 0xeb, 0x35, 0x99, 0x8f, 0x31, 0x09, 0x0e} }
 
-// {42ef1d52-3351-4973-98f8-d18f089bccfa}
+// {7902e243-9b00-4673-9288-1b7fc246a8f8}
 #define NS_URLCLASSIFIERPREFIXSET_CID \
-{ 0x42ef1d52, 0x3351, 0x4973, { 0x98, 0xf8, 0xd1, 0x8f, 0x08, 0x9b, 0xcc, 0xfa} }
+{ 0x7902e243, 0x9b00, 0x4673, { 0x92, 0x88, 0x1b, 0x7f, 0xc2, 0x46, 0xa8, 0xf8} }
 
 // {5eb7c3c1-ec1f-4007-87cc-eefb37d68ce6}
 #define NS_URLCLASSIFIERDBSERVICE_CID \

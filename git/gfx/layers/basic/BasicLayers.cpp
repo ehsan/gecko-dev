@@ -36,6 +36,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "mozilla/Attributes.h"
+
 #include "gfxSharedImageSurface.h"
 
 #include "mozilla/layers/PLayerChild.h"
@@ -63,6 +65,8 @@
 #endif
 
 #include "GLContext.h"
+
+#define PIXMAN_DONT_DEFINE_STDINT
 #include "pixman.h"
 
 namespace mozilla {
@@ -1136,10 +1140,6 @@ BasicCanvasLayer::UpdateSurface(gfxASurface* aDestSurface)
 
     NS_ASSERTION(isurf->Stride() == mBounds.width * 4, "gfxImageSurface stride isn't what we expect!");
 
-    // We have to flush to ensure that any buffered GL operations are
-    // in the framebuffer before we read.
-    mGLContext->fFlush();
-
     PRUint32 currentFramebuffer = 0;
 
     mGLContext->fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, (GLint*)&currentFramebuffer);
@@ -2209,17 +2209,17 @@ private:
     return static_cast<BasicShadowLayerManager*>(mManager);
   }
 
-  NS_OVERRIDE virtual void
+  virtual void
   PaintBuffer(gfxContext* aContext,
               const nsIntRegion& aRegionToDraw,
               const nsIntRegion& aExtendedRegionToDraw,
               const nsIntRegion& aRegionToInvalidate,
               bool aDidSelfCopy,
               LayerManager::DrawThebesLayerCallback aCallback,
-              void* aCallbackData);
+              void* aCallbackData) MOZ_OVERRIDE;
 
-  NS_OVERRIDE virtual already_AddRefed<gfxASurface>
-  CreateBuffer(Buffer::ContentType aType, const nsIntSize& aSize);
+  virtual already_AddRefed<gfxASurface>
+  CreateBuffer(Buffer::ContentType aType, const nsIntSize& aSize) MOZ_OVERRIDE;
 
   void DestroyBackBuffer()
   {

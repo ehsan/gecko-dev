@@ -42,6 +42,7 @@
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
 #include "nsTArray.h"
+#include "nsString.h"
 #include "nsUrlClassifierPrefixSet.h"
 #include "nsIUrlClassifierPrefixSet.h"
 #include "nsIRandomGenerator.h"
@@ -67,6 +68,79 @@ static const PRLogModuleInfo *gUrlClassifierPrefixSetLog = nsnull;
 #define LOG_ENABLED() (false)
 #endif
 
+class nsPrefixSetReporter : public nsIMemoryReporter
+{
+public:
+  nsPrefixSetReporter(nsUrlClassifierPrefixSet * aParent, const nsACString & aName);
+  virtual ~nsPrefixSetReporter() {};
+
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIMEMORYREPORTER
+
+private:
+  nsCString mPath;
+  nsUrlClassifierPrefixSet * mParent;
+};
+
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsPrefixSetReporter, nsIMemoryReporter)
+
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(StoragePrefixSetMallocSizeOf,
+                                     "storage/prefixset")
+
+nsPrefixSetReporter::nsPrefixSetReporter(nsUrlClassifierPrefixSet * aParent,
+                                         const nsACString & aName)
+: mParent(aParent)
+{
+  mPath.Assign(NS_LITERAL_CSTRING("explicit/storage/prefixset"));
+  if (!aName.IsEmpty()) {
+    mPath.Append("/");
+    mPath.Append(aName);
+  }
+}
+
+NS_IMETHODIMP
+nsPrefixSetReporter::GetProcess(nsACString & aProcess)
+{
+  aProcess.Truncate();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPrefixSetReporter::GetPath(nsACString & aPath)
+{
+  aPath.Assign(mPath);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPrefixSetReporter::GetKind(PRInt32 * aKind)
+{
+  *aKind = nsIMemoryReporter::KIND_HEAP;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPrefixSetReporter::GetUnits(PRInt32 * aUnits)
+{
+  *aUnits = nsIMemoryReporter::UNITS_BYTES;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPrefixSetReporter::GetAmount(PRInt64 * aAmount)
+{
+  *aAmount = mParent->SizeOfIncludingThis(StoragePrefixSetMallocSizeOf);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPrefixSetReporter::GetDescription(nsACString & aDescription)
+{
+  aDescription.Assign(NS_LITERAL_CSTRING("Memory used by a PrefixSet for "
+                                         "UrlClassifier, in bytes."));
+  return NS_OK;
+}
+
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsUrlClassifierPrefixSet, nsIUrlClassifierPrefixSet)
 
 nsUrlClassifierPrefixSet::nsUrlClassifierPrefixSet()
@@ -84,6 +158,14 @@ nsUrlClassifierPrefixSet::nsUrlClassifierPrefixSet()
   if (NS_FAILED(rv)) {
     LOG(("Failed to initialize PrefixSet"));
   }
+
+  mReporter = new nsPrefixSetReporter(this, NS_LITERAL_CSTRING("all"));
+  NS_RegisterMemoryReporter(mReporter);
+}
+
+nsUrlClassifierPrefixSet::~nsUrlClassifierPrefixSet()
+{
+  NS_UnregisterMemoryReporter(mReporter);
 }
 
 nsresult
@@ -199,6 +281,8 @@ PRUint32 nsUrlClassifierPrefixSet::BinSearch(PRUint32 start,
 NS_IMETHODIMP
 nsUrlClassifierPrefixSet::Contains(PRUint32 aPrefix, bool * aFound)
 {
+  mPrefixSetLock.AssertCurrentThreadOwns();
+
   *aFound = false;
 
   if (!mHasPrefixes) {
@@ -250,17 +334,16 @@ nsUrlClassifierPrefixSet::Contains(PRUint32 aPrefix, bool * aFound)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsUrlClassifierPrefixSet::EstimateSize(PRUint32 * aSize)
+size_t
+nsUrlClassifierPrefixSet::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
   MutexAutoLock lock(mPrefixSetLock);
-  *aSize = sizeof(bool);
-  if (mHasPrefixes) {
-    *aSize += sizeof(PRUint16) * mDeltas.Length();
-    *aSize += sizeof(PRUint32) * mIndexPrefixes.Length();
-    *aSize += sizeof(PRUint32) * mIndexStarts.Length();
-  }
-  return NS_OK;
+  size_t n = 0;
+  n += aMallocSizeOf(this, sizeof(nsUrlClassifierPrefixSet));
+  n += mDeltas.SizeOfExcludingThis(aMallocSizeOf);
+  n += mIndexPrefixes.SizeOfExcludingThis(aMallocSizeOf);
+  n += mIndexStarts.SizeOfExcludingThis(aMallocSizeOf);
+  return n;
 }
 
 NS_IMETHODIMP

@@ -116,6 +116,7 @@
 
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/PathHelpers.h"
+#include "mozilla/Preferences.h"
 
 #ifdef XP_WIN
 #include "gfxWindowsPlatform.h"
@@ -989,9 +990,10 @@ nsresult
 NS_NewCanvasRenderingContext2DAzure(nsIDOMCanvasRenderingContext2D** aResult)
 {
 #ifdef XP_WIN
-  if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() !=
+  if ((gfxWindowsPlatform::GetPlatform()->GetRenderMode() !=
       gfxWindowsPlatform::RENDER_DIRECT2D ||
-      !gfxWindowsPlatform::GetPlatform()->DWriteEnabled()) {
+      !gfxWindowsPlatform::GetPlatform()->DWriteEnabled()) &&
+      !Preferences::GetBool("gfx.canvas.azure.prefer-skia", false)) {
     return NS_ERROR_NOT_AVAILABLE;
   }
 #elif !defined(XP_MACOSX) && !defined(ANDROID)
@@ -1094,14 +1096,11 @@ nsCanvasRenderingContext2DAzure::SetStyleFromStringOrInterface(const nsAString& 
   }
 
   nsContentUtils::ReportToConsole(
-    nsContentUtils::eDOM_PROPERTIES,
-    "UnexpectedCanvasVariantStyle",
-    nsnull, 0,
-    nsnull,
-    EmptyString(), 0, 0,
     nsIScriptError::warningFlag,
     "Canvas",
-    mCanvasElement ? HTMLCanvasElement()->OwnerDoc() : nsnull);
+    mCanvasElement ? HTMLCanvasElement()->OwnerDoc() : nsnull,
+    nsContentUtils::eDOM_PROPERTIES,
+    "UnexpectedCanvasVariantStyle");
 
   return NS_OK;
 }
@@ -1293,6 +1292,12 @@ nsCanvasRenderingContext2DAzure::InitializeWithTarget(DrawTarget *target, PRInt3
   if (!target)
   {
     mTarget = gfxPlatform::GetPlatform()->CreateOffscreenDrawTarget(IntSize(1, 1), FORMAT_B8G8R8A8);
+    if (!mTarget) {
+      // SupportsAzure() is controlled by the "gfx.canvas.azure.prefer-skia"
+      // pref so that may be the reason rather than an OOM.
+      mValid = false;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
   } else {
     mValid = true;
   }
@@ -1887,7 +1892,8 @@ nsCanvasRenderingContext2DAzure::CreatePattern(nsIDOMHTMLElement *image,
                                                const nsAString& repeat,
                                                nsIDOMCanvasPattern **_retval)
 {
-  if (!image) {
+  nsCOMPtr<nsIContent> content = do_QueryInterface(image);
+  if (!content) {
     return NS_ERROR_DOM_TYPE_MISMATCH_ERR;
   }
 
@@ -1906,39 +1912,32 @@ nsCanvasRenderingContext2DAzure::CreatePattern(nsIDOMHTMLElement *image,
     return NS_ERROR_DOM_SYNTAX_ERR;
   }
 
-  nsCOMPtr<nsIContent> content = do_QueryInterface(image);
   nsHTMLCanvasElement* canvas = nsHTMLCanvasElement::FromContent(content);
-
   if (canvas) {
     nsIntSize size = canvas->GetSize();
     if (size.width == 0 || size.height == 0) {
       return NS_ERROR_DOM_INVALID_STATE_ERR;
     }
-  }
 
-  // Special case for Canvas, which could be an Azure canvas!
-  if (canvas) {
-    if (canvas->CountContexts() == 1) {
-      nsICanvasRenderingContextInternal *srcCanvas = canvas->GetContextAtIndex(0);
-
+    // Special case for Canvas, which could be an Azure canvas!
+    nsICanvasRenderingContextInternal *srcCanvas = canvas->GetContextAtIndex(0);
+    if (srcCanvas) {
       // This might not be an Azure canvas!
-      if (srcCanvas) {
-        RefPtr<SourceSurface> srcSurf = srcCanvas->GetSurfaceSnapshot();
+      RefPtr<SourceSurface> srcSurf = srcCanvas->GetSurfaceSnapshot();
 
-        nsRefPtr<nsCanvasPatternAzure> pat =
-          new nsCanvasPatternAzure(srcSurf, repeatMode, content->NodePrincipal(), canvas->IsWriteOnly(), false);
+      nsRefPtr<nsCanvasPatternAzure> pat =
+        new nsCanvasPatternAzure(srcSurf, repeatMode, content->NodePrincipal(), canvas->IsWriteOnly(), false);
 
-        *_retval = pat.forget().get();
-        return NS_OK;
-      }
+      *_retval = pat.forget().get();
+      return NS_OK;
     }
   }
 
   // The canvas spec says that createPattern should use the first frame
   // of animated images
   nsLayoutUtils::SurfaceFromElementResult res =
-    nsLayoutUtils::SurfaceFromElement(image, nsLayoutUtils::SFE_WANT_FIRST_FRAME |
-                                              nsLayoutUtils::SFE_WANT_NEW_SURFACE);
+    nsLayoutUtils::SurfaceFromElement(content->AsElement(),
+      nsLayoutUtils::SFE_WANT_FIRST_FRAME | nsLayoutUtils::SFE_WANT_NEW_SURFACE);
 
   if (!res.mSurface) {
     return NS_ERROR_NOT_AVAILABLE;
@@ -2974,7 +2973,7 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
   virtual void DrawText(nscoord xOffset, nscoord width)
   {
     gfxPoint point = mPt;
-    point.x += xOffset * mAppUnitsPerDevPixel;
+    point.x += xOffset;
 
     // offset is given in terms of left side of string
     if (mTextRun->IsRightToLeft()) {
@@ -3568,7 +3567,8 @@ nsCanvasRenderingContext2DAzure::DrawImage(nsIDOMElement *imgElt, float a1,
                                            float a6, float a7, float a8,
                                            PRUint8 optional_argc)
 {
-  if (!imgElt) {
+  nsCOMPtr<nsIContent> content = do_QueryInterface(imgElt);
+  if (!content) {
     return NS_ERROR_DOM_TYPE_MISMATCH_ERR;
   }
 
@@ -3589,50 +3589,39 @@ nsCanvasRenderingContext2DAzure::DrawImage(nsIDOMElement *imgElt, float a1,
   double sx,sy,sw,sh;
   double dx,dy,dw,dh;
 
-  nsCOMPtr<nsIContent> content = do_QueryInterface(imgElt);
+  RefPtr<SourceSurface> srcSurf;
+  gfxIntSize imgSize;
+
   nsHTMLCanvasElement* canvas = nsHTMLCanvasElement::FromContent(content);
   if (canvas) {
     nsIntSize size = canvas->GetSize();
     if (size.width == 0 || size.height == 0) {
       return NS_ERROR_DOM_INVALID_STATE_ERR;
     }
-  }
-    
-  RefPtr<SourceSurface> srcSurf;
 
-  gfxIntSize imgSize;
-  nsRefPtr<gfxASurface> imgsurf =
-    CanvasImageCache::Lookup(imgElt, HTMLCanvasElement(), &imgSize);
-
-  if (imgsurf) {
-    srcSurf = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mTarget, imgsurf);
-  }
-
-  // We know an Azure canvas always has an HTMLCanvasElement!
-  if (canvas == HTMLCanvasElement()) {
-    // Self-copy.
-    srcSurf = mTarget->Snapshot();
-    imgSize = gfxIntSize(mWidth, mHeight);
-  }
-
-  // Special case for Canvas, which could be an Azure canvas!
-  if (canvas) {
-    if (canvas->CountContexts() == 1) {
-      nsICanvasRenderingContextInternal *srcCanvas = canvas->GetContextAtIndex(0);
-
+    // Special case for Canvas, which could be an Azure canvas!
+    nsICanvasRenderingContextInternal *srcCanvas = canvas->GetContextAtIndex(0);
+    if (srcCanvas == this) {
+      // Self-copy.
+      srcSurf = mTarget->Snapshot();
+      imgSize = gfxIntSize(mWidth, mHeight);
+    } else if (srcCanvas) {
       // This might not be an Azure canvas!
-      if (srcCanvas) {
-        srcSurf = srcCanvas->GetSurfaceSnapshot();
+      srcSurf = srcCanvas->GetSurfaceSnapshot();
 
-        if (srcSurf && mCanvasElement) {
-          // Do security check here.
-          CanvasUtils::DoDrawImageSecurityCheck(HTMLCanvasElement(),
-                                                content->NodePrincipal(), canvas->IsWriteOnly(),
-                                                false);
-
-          imgSize = gfxIntSize(srcSurf->GetSize().width, srcSurf->GetSize().height);
-        }
+      if (srcSurf && mCanvasElement) {
+        // Do security check here.
+        CanvasUtils::DoDrawImageSecurityCheck(HTMLCanvasElement(),
+                                              content->NodePrincipal(), canvas->IsWriteOnly(),
+                                              false);
+        imgSize = gfxIntSize(srcSurf->GetSize().width, srcSurf->GetSize().height);
       }
+    }
+  } else {
+    gfxASurface* imgsurf =
+      CanvasImageCache::Lookup(imgElt, HTMLCanvasElement(), &imgSize);
+    if (imgsurf) {
+      srcSurf = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mTarget, imgsurf);
     }
   }
 
@@ -3641,19 +3630,18 @@ nsCanvasRenderingContext2DAzure::DrawImage(nsIDOMElement *imgElt, float a1,
     // of animated images
     PRUint32 sfeFlags = nsLayoutUtils::SFE_WANT_FIRST_FRAME;
     nsLayoutUtils::SurfaceFromElementResult res =
-      nsLayoutUtils::SurfaceFromElement(imgElt, sfeFlags);
+      nsLayoutUtils::SurfaceFromElement(content->AsElement(), sfeFlags);
 
     if (!res.mSurface) {
       // Spec says to silently do nothing if the element is still loading.
       return res.mIsStillLoading ? NS_OK : NS_ERROR_NOT_AVAILABLE;
     }
 
-    // Ignore nsnull cairo surfaces! See bug 666312.
-    if (!res.mSurface->CairoSurface()) {
+    // Ignore cairo surfaces that are bad! See bug 666312.
+    if (res.mSurface->CairoStatus()) {
       return NS_OK;
     }
 
-    imgsurf = res.mSurface.forget();
     imgSize = res.mSize;
 
     if (mCanvasElement) {
@@ -3664,10 +3652,10 @@ nsCanvasRenderingContext2DAzure::DrawImage(nsIDOMElement *imgElt, float a1,
 
     if (res.mImageRequest) {
       CanvasImageCache::NotifyDrawImage(imgElt, HTMLCanvasElement(),
-                                        res.mImageRequest, imgsurf, imgSize);
+                                        res.mImageRequest, res.mSurface, imgSize);
     }
 
-    srcSurf = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mTarget, imgsurf);
+    srcSurf = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mTarget, res.mSurface);
   }
 
   if (optional_argc == 0) {

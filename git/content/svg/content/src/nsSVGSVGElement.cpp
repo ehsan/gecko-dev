@@ -62,6 +62,7 @@
 #include "nsSVGSVGElement.h"
 #include "nsContentErrors.h" // For NS_PROPTABLE_PROP_OVERWRITTEN
 #include "nsContentUtils.h"
+#include "nsStyleUtil.h"
 
 #include "nsEventDispatcher.h"
 #include "nsSMILTimeContainer.h"
@@ -666,7 +667,17 @@ nsSVGSVGElement::CreateSVGTransformFromMatrix(nsIDOMSVGMatrix *matrix,
 NS_IMETHODIMP
 nsSVGSVGElement::GetElementById(const nsAString & elementId, nsIDOMElement **_retval)
 {
-  return NS_ERROR_NOT_IMPLEMENTED;
+  NS_ENSURE_ARG_POINTER(_retval);
+  *_retval = nsnull;
+
+  nsresult rv = NS_OK;
+  nsAutoString selector(NS_LITERAL_STRING("#"));
+  nsStyleUtil::AppendEscapedCSSIdent(PromiseFlatString(elementId), selector);
+  nsIContent* element = nsGenericElement::doQuerySelector(this, selector, &rv);
+  if (NS_SUCCEEDED(rv) && element) {
+    return CallQueryInterface(element, _retval);
+  }
+  return rv;
 }
 
 //----------------------------------------------------------------------
@@ -886,7 +897,7 @@ nsSVGSVGElement::IsAttributeMapped(const nsIAtom* name) const
     sViewportsMap
   };
 
-  return FindAttributeDependence(name, map, ArrayLength(map)) ||
+  return FindAttributeDependence(name, map) ||
     nsSVGSVGElementBase::IsAttributeMapped(name);
 }
 
@@ -1075,7 +1086,7 @@ nsSVGSVGElement::WillBeOutermostSVG(nsIContent* aParent,
 {
   nsIContent* parent = aBindingParent ? aBindingParent : aParent;
 
-  while (parent && parent->GetNameSpaceID() == kNameSpaceID_SVG) {
+  while (parent && parent->IsSVG()) {
     nsIAtom* tag = parent->Tag();
     if (tag == nsGkAtoms::foreignObject) {
       // SVG in a foreignObject must have its own <svg> (nsSVGOuterSVGFrame).
