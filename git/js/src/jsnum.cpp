@@ -372,9 +372,14 @@ ParseIntStringHelper(JSContext *cx, const jschar *ws, const jschar *end, int may
              * Non-standard: ES5 requires that parseInt interpret leading-zero
              * strings not starting with "0x" or "0X" as decimal (absent an
              * explicitly specified non-zero radix), but we continue to
-             * interpret such strings as octal, as per ES3 and web practice.
+             * interpret such strings as octal when the caller is not in strict
+             * mode code.  This strictness check throws us off trace, but it
+             * only happens in code that doesn't specify an explicit, non-zero
+             * radix; thus it is easily avoidable, and idiomatic code will not
+             * suffer.
              */
-            radix = 8;
+            JSStackFrame *fp = js_GetScriptedCaller(cx, NULL);
+            radix = (fp && !fp->script->strictModeCode) ? 8 : 10;
         } else {
             radix = 10;
         }

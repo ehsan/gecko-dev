@@ -1898,22 +1898,12 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame
     }
       break;
 
-    case NS_THEME_LISTBOX: {
-      // We have to draw this by hand because kHIThemeFrameListBox drawing
-      // is buggy on 10.5, see bug 579259.
+    case NS_THEME_LISTBOX:
+      // HIThemeSetFill is not available on 10.3
       CGContextSetRGBFillColor(cgContext, 1.0, 1.0, 1.0, 1.0);
       CGContextFillRect(cgContext, macRect);
-
-      // #8E8E8E for the top border, #BEBEBE for the rest.
-      int x = macRect.origin.x, y = macRect.origin.y;
-      int w = macRect.size.width, h = macRect.size.height;
-      CGContextSetRGBFillColor(cgContext, 0.557, 0.557, 0.557, 1.0);
-      CGContextFillRect(cgContext, CGRectMake(x, y, w, 1));
-      CGContextSetRGBFillColor(cgContext, 0.745, 0.745, 0.745, 1.0);
-      CGContextFillRect(cgContext, CGRectMake(x, y + 1, 1, h - 1));
-      CGContextFillRect(cgContext, CGRectMake(x + w - 1, y + 1, 1, h - 1));
-      CGContextFillRect(cgContext, CGRectMake(x + 1, y + h - 1, w - 2, 1));
-    }
+      DrawFrame(cgContext, kHIThemeFrameListBox, macRect,
+                (IsDisabled(aFrame) || IsReadOnly(aFrame)), eventState);
       break;
     
     case NS_THEME_TAB:

@@ -904,8 +904,7 @@ nsTextEditorState::nsTextEditorState(nsITextControlElement* aOwningElement)
   : mTextCtrlElement(aOwningElement),
     mBoundFrame(nsnull),
     mTextListener(nsnull),
-    mEditorInitialized(PR_FALSE),
-    mInitializing(PR_FALSE)
+    mEditorInitialized(PR_FALSE)
 {
   MOZ_COUNT_CTOR(nsTextEditorState);
 }
@@ -1083,12 +1082,6 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
   if (mEditorInitialized) {
     // Do not initialize the editor multiple times.
     return NS_OK;
-  }
-
-  // Don't attempt to initialize recursively!
-  InitializationGuard guard(*this);
-  if (guard.IsInitializingRecursively()) {
-    return NS_ERROR_NOT_INITIALIZED;
   }
 
   // Note that we don't check mEditor here, because we might already have one

@@ -42,8 +42,8 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MODULE = jsperf
-MODULE_NAME = jsperf
+MODULE = perf
+MODULE_NAME = perf
 GRE_MODULE = 1
 
 EXTRA_JS_MODULES = \

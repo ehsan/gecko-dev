@@ -926,16 +926,6 @@ nsBaseWidget::GetAcceleratedRendering()
   return mUseAcceleratedRendering;
 }
 
-NS_METHOD nsBaseWidget::RegisterTouchWindow()
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_METHOD nsBaseWidget::UnregisterTouchWindow()
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
 NS_IMETHODIMP
 nsBaseWidget::OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta,
                                              PRBool aIsHorizontal,

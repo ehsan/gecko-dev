@@ -1154,7 +1154,7 @@ namespace nanojit
                 op = LIR_cmovq;
 #endif
             } else if (iftrue->isD() && iffalse->isD()) {
-                op = LIR_cmovd;
+                NanoAssertMsg(0, "LIR_fcmov doesn't exist yet, sorry");
             } else {
                 NanoAssert(0);  // type error
             }
@@ -1478,7 +1478,6 @@ namespace nanojit
 
                 case LIR_cmovi:
                 CASE64(LIR_cmovq:)
-                case LIR_cmovd:
                     live.add(ins->oprnd1(), 0);
                     live.add(ins->oprnd2(), 0);
                     live.add(ins->oprnd3(), 0);
@@ -1628,7 +1627,7 @@ namespace nanojit
     }
 
     char* LInsPrinter::formatImmI(RefBuf* buf, int32_t c) {
-        if (-10000 < c && c < 10000) {
+        if (-10000 < c || c < 10000) {
             VMPI_snprintf(buf->buf, buf->len, "%d", c);
         } else {
 #if !defined NANOJIT_64BIT
@@ -1640,16 +1639,18 @@ namespace nanojit
         return buf->buf;
     }
 
-#if defined NANOJIT_64BIT
     char* LInsPrinter::formatImmQ(RefBuf* buf, uint64_t c) {
-        if (-10000 < (int64_t)c && c < 10000) {
+        if (-10000 < (int64_t)c || c < 10000) {
             VMPI_snprintf(buf->buf, buf->len, "%dLL", (int)c);
         } else {
+#if defined NANOJIT_64BIT
             formatAddr(buf, (void*)c);
+#else
+            VMPI_snprintf(buf->buf, buf->len, "0x%llxLL", c);
+#endif
         }
         return buf->buf;
     }
-#endif
 
     char* LInsPrinter::formatImmD(RefBuf* buf, double c) {
         VMPI_snprintf(buf->buf, buf->len, "%g", c);
@@ -1901,7 +1902,6 @@ namespace nanojit
 
             CASE64(LIR_cmovq:)
             case LIR_cmovi:
-            case LIR_cmovd:
                 VMPI_snprintf(s, n, "%s = %s %s ? %s : %s", formatRef(&b1, i), lirNames[op],
                     formatRef(&b2, i->oprnd1()),
                     formatRef(&b3, i->oprnd2()),
@@ -3150,12 +3150,6 @@ namespace nanojit
             formals[2] = LTy_Q;
             break;
 #endif
-
-        case LIR_cmovd:
-            checkLInsIsACondOrConst(op, 1, a);
-            formals[1] = LTy_D;
-            formals[2] = LTy_D;
-            break;
 
         default:
             NanoAssert(0);
