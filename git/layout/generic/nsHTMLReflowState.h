@@ -170,7 +170,7 @@ public:
     : frame(aFrame)
     , rendContext(aRenderingContext)
   {
-    InitOffsets(aContainingBlockWidth, frame->GetType());
+    InitOffsets(aContainingBlockWidth);
   }
 
 #ifdef DEBUG
@@ -199,12 +199,11 @@ private:
    * fills in the mComputedPadding member.
    * @return PR_TRUE if the padding is dependent on the containing block width
    */
-   bool ComputePadding(nscoord aContainingBlockWidth, nsIAtom* aFrameType);
+   bool ComputePadding(nscoord aContainingBlockWidth);
 
 protected:
 
   void InitOffsets(nscoord aContainingBlockWidth,
-                   nsIAtom* aFrameType,
                    const nsMargin *aBorder = nsnull,
                    const nsMargin *aPadding = nsnull);
 
@@ -407,6 +406,13 @@ public:
     GetContainingBlockContentWidth(const nsHTMLReflowState* aReflowState);
 
   /**
+   * Find the containing block of aFrame.  This may return null if
+   * there isn't one (but that should really only happen for root
+   * frames).
+   */
+  static nsIFrame* GetContainingBlockFor(const nsIFrame* aFrame);
+
+  /**
    * Calculate the used line-height property. The return value will be >= 0.
    */
   nscoord CalcLineHeight() const;
@@ -491,16 +497,15 @@ public:
 #endif
 
 protected:
-  void InitFrameType(nsIAtom* aFrameType);
+  void InitFrameType();
   void InitCBReflowState();
-  void InitResizeFlags(nsPresContext* aPresContext, nsIAtom* aFrameType);
+  void InitResizeFlags(nsPresContext* aPresContext);
 
   void InitConstraints(nsPresContext* aPresContext,
                        nscoord         aContainingBlockWidth,
                        nscoord         aContainingBlockHeight,
                        const nsMargin* aBorder,
-                       const nsMargin* aPadding,
-                       nsIAtom*        aFrameType);
+                       const nsMargin* aPadding);
 
   // Returns the nearest containing block or block frame (whether or not
   // it is a containing block) for the specified frame.  Also returns
@@ -516,14 +521,12 @@ protected:
                                 nscoord           aBlockLeftContentEdge,
                                 nscoord           aBlockContentWidth,
                                 const nsHTMLReflowState* cbrs,
-                                nsHypotheticalBox& aHypotheticalBox,
-                                nsIAtom*          aFrameType);
+                                nsHypotheticalBox& aHypotheticalBox);
 
   void InitAbsoluteConstraints(nsPresContext* aPresContext,
                                const nsHTMLReflowState* cbrs,
                                nscoord aContainingBlockWidth,
-                               nscoord aContainingBlockHeight,
-                               nsIAtom* aFrameType);
+                               nscoord aContainingBlockHeight);
 
   void ComputeRelativeOffsets(const nsHTMLReflowState* cbrs,
                               nscoord aContainingBlockWidth,
@@ -542,8 +545,7 @@ protected:
                                          nscoord* aOutsideBoxSizing);
 
   void CalculateBlockSideMargins(nscoord aAvailWidth,
-                                 nscoord aComputedWidth,
-                                 nsIAtom* aFrameType);
+                                 nscoord aComputedWidth);
 };
 
 #endif /* nsHTMLReflowState_h___ */

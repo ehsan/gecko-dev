@@ -98,6 +98,8 @@ public:
   // nsIFrame overrides - see there for a description
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  
+  virtual bool IsContainingBlock() const;
 
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
                                  nsFrameList&    aChildList);

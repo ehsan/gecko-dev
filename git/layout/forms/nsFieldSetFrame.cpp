@@ -84,7 +84,6 @@ public:
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              bool aShrinkWrap);
   virtual nscoord GetBaseline() const;
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD Reflow(nsPresContext*           aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -107,6 +106,7 @@ public:
                          nsIFrame*      aOldFrame);
 
   virtual nsIAtom* GetType() const;
+  virtual bool IsContainingBlock() const;
 
 #ifdef ACCESSIBILITY  
   virtual already_AddRefed<nsAccessible> CreateAccessible();
@@ -145,17 +145,16 @@ nsFieldSetFrame::nsFieldSetFrame(nsStyleContext* aContext)
   mLegendSpace  = 0;
 }
 
-void
-nsFieldSetFrame::DestroyFrom(nsIFrame* aDestructRoot)
-{
-  DestroyAbsoluteFrames(aDestructRoot);
-  nsHTMLContainerFrame::DestroyFrom(aDestructRoot);
-}
-
 nsIAtom*
 nsFieldSetFrame::GetType() const
 {
   return nsGkAtoms::fieldSetFrame;
+}
+
+bool
+nsFieldSetFrame::IsContainingBlock() const
+{
+  return PR_TRUE;
 }
 
 NS_IMETHODIMP
@@ -604,7 +603,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     ConsiderChildOverflow(aDesiredSize.mOverflowAreas, mLegendFrame);
   if (mContentFrame)
     ConsiderChildOverflow(aDesiredSize.mOverflowAreas, mContentFrame);
-  FinishReflowWithAbsoluteFrames(aPresContext, aDesiredSize, aReflowState, aStatus);
+  FinishAndStoreOverflow(&aDesiredSize);
 
   Invalidate(aDesiredSize.VisualOverflow());
 
