@@ -50,8 +50,8 @@
 #include "jsscript.h"
 
 typedef struct JSFrameRegs {
-    jsbytecode      *pc;            /* program counter */
     js::Value       *sp;            /* stack pointer */
+    jsbytecode      *pc;            /* program counter */
 } JSFrameRegs;
 
 /* JS stack frame flags. */
@@ -101,6 +101,12 @@ struct JSStackFrame
     jsbytecode          *savedPC;       /* only valid if cx->fp != this */
 #ifdef DEBUG
     static jsbytecode *const sInvalidPC;
+#endif
+
+#if defined(JS_CPU_X86) || defined(JS_CPU_ARM)
+    void                *ncode;         /* jit return pc */
+    /* Guh. Align. */
+    void                *align_[3];
 #endif
 
     /*
@@ -354,6 +360,9 @@ InvokeConstructor(JSContext *cx, const InvokeArgsGuard &args, JSBool clampReturn
 
 extern JS_REQUIRES_STACK bool
 Interpret(JSContext *cx);
+
+extern JS_REQUIRES_STACK bool
+RunScript(JSContext *cx, JSScript *script, JSFunction *fun, JSObject *scopeChain);
 
 #define JSPROP_INITIALIZER 0x100   /* NB: Not a valid property attribute. */
 
