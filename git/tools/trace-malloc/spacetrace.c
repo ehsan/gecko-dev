@@ -70,6 +70,9 @@
 #include <gdfontmb.h>
 #endif /* HAVE_BOUTELL_GD */
 
+/*
+** Ugh, MSVC6's qsort is too slow...
+*/
 #include "nsQuickSort.h"
 #include "prlong.h"
 /*

@@ -711,8 +711,10 @@ nsTextEditRules::WillInsertText(PRInt32          aAction,
     return NS_ERROR_FAILURE;
 
   // we need to get the doc
-  nsCOMPtr<nsIDOMDocument> doc = mEditor->GetDOMDocument();
-  NS_ENSURE_TRUE(doc, NS_ERROR_NOT_INITIALIZED);
+  nsCOMPtr<nsIDOMDocument>doc;
+  res = mEditor->GetDocument(getter_AddRefs(doc));
+  NS_ENSURE_SUCCESS(res, res);
+  NS_ENSURE_TRUE(doc, NS_ERROR_NULL_POINTER);
     
   if (aAction == kInsertTextIME) 
   { 

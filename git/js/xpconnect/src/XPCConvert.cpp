@@ -912,7 +912,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
     JSObject *flat;
     if (cache) {
         flat = cache->GetWrapper();
-        if (cache->IsDOMBinding()) {
+        if (cache->IsProxy()) {
             XPCCallContext &ccx = lccx.GetXPCCallContext();
             if (!ccx.IsValid())
                 return false;

@@ -100,7 +100,7 @@ public:
   nsChildContentList(nsINode* aNode)
     : mNode(aNode)
   {
-    SetIsDOMBinding();
+    SetIsProxy();
   }
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS

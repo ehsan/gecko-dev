@@ -255,7 +255,6 @@ body[narrow] #launcher[session] > .launchButton {
   -moz-transition-duration: 0ms;
 }
 
-.launchButton[hidden],
 #launcher:not([session]) > #restorePreviousSessionSeparator,
 #launcher:not([session]) > #restorePreviousSession {
   display: none;
@@ -299,10 +298,6 @@ body[narrow] #restorePreviousSession {
   line-height: 0; /* remove extra vertical space due to non-zero font-size */
 }
 
-#downloads::before {
-  content: url("chrome://browser/content/abouthome/downloads.png");
-}
-
 #bookmarks::before {
   content: url("chrome://browser/content/abouthome/bookmarks.png");
 }
@@ -311,20 +306,20 @@ body[narrow] #restorePreviousSession {
   content: url("chrome://browser/content/abouthome/history.png");
 }
 
-#apps::before {
-  content: url("chrome://browser/content/abouthome/apps.png");
+#settings::before {
+  content: url("chrome://browser/content/abouthome/settings.png");
 }
 
 #addons::before {
   content: url("chrome://browser/content/abouthome/addons.png");
 }
 
-#sync::before {
-  content: url("chrome://browser/content/abouthome/sync.png");
+#downloads::before {
+  content: url("chrome://browser/content/abouthome/downloads.png");
 }
 
-#settings::before {
-  content: url("chrome://browser/content/abouthome/settings.png");
+#sync::before {
+  content: url("chrome://browser/content/abouthome/sync.png");
 }
 
 #restorePreviousSession::before {

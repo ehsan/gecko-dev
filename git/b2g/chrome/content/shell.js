@@ -7,7 +7,12 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
+const CC = Components.Constructor;
 const Cr = Components.results;
+
+const LocalFile = CC('@mozilla.org/file/local;1',
+                     'nsILocalFile',
+                     'initWithPath');
 
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import('resource://gre/modules/Services.jsm');
@@ -39,6 +44,22 @@ XPCOMUtils.defineLazyServiceGetter(Services, 'fm', function() {
            .getService(Ci.nsFocusManager);
 });
 
+#ifndef MOZ_WIDGET_GONK
+// In order to use http:// scheme instead of file:// scheme
+// (that is much more restricted) the following code kick-off
+// a local http server listening on http://127.0.0.1:7777 and
+// http://localhost:7777.
+function startupHttpd(baseDir, port) {
+  const httpdURL = 'chrome://browser/content/httpd.js';
+  let httpd = {};
+  Services.scriptloader.loadSubScript(httpdURL, httpd);
+  let server = new httpd.nsHttpServer();
+  server.registerDirectory('/', new LocalFile(baseDir));
+  server.registerContentType('appcache', 'text/cache-manifest');
+  server.start(port);
+}
+#endif
+
 // FIXME Bug 707625
 // until we have a proper security model, add some rights to
 // the pre-installed web applications
@@ -50,8 +71,6 @@ function addPermissions(urls) {
     'geolocation'
   ];
   urls.forEach(function(url) {
-    url = url.trim();
-    dump("XxXxX adding permissions for " + url);
     let uri = Services.io.newURI(url, null, null);
     let allow = Ci.nsIPermissionManager.ALLOW_ACTION;
 
@@ -76,7 +95,17 @@ var shell = {
         return homeSrc;
     } catch (e) {}
 
-    return Services.prefs.getCharPref('browser.homescreenURL');
+    let urls = Services.prefs.getCharPref('browser.homescreenURL').split(',');
+    for (let i = 0; i < urls.length; i++) {
+      let url = urls[i];
+      if (url.substring(0, 7) != 'file://')
+        return url;
+
+      let file = new LocalFile(url.substring(7, url.length));
+      if (file.exists())
+        return url;
+    }
+    return null;
   },
 
   start: function shell_init() {
@@ -103,12 +132,32 @@ var shell = {
       Services.audioManager.masterVolume = 0.5;
     } catch(e) {}
 
-    let domains = "";
     try {
-      domains = Services.prefs.getCharPref('b2g.privileged.domains');
-    } catch(e) {}
+      Services.io.offline = false;
 
-    addPermissions(domains.split(","));
+      let fileScheme = 'file://';
+      if (homeURL.substring(0, fileScheme.length) == fileScheme) {
+#ifndef MOZ_WIDGET_GONK
+        homeURL = homeURL.replace(fileScheme, '');
+
+        let baseDir = homeURL.split('/');
+        baseDir.pop();
+        baseDir = baseDir.join('/');
+
+        const SERVER_PORT = 7777;
+        startupHttpd(baseDir, SERVER_PORT);
+
+        let baseHost = 'http://localhost';
+        homeURL = homeURL.replace(baseDir, baseHost + ':' + SERVER_PORT);
+#else
+        homeURL = 'http://localhost:7777' + homeURL.replace(fileScheme, '');
+#endif
+      }
+      addPermissions([homeURL]);
+    } catch (e) {
+      let msg = 'Fatal error during startup: [' + e + '[' + homeURL + ']';
+      return alert(msg);
+    }
 
     // Load webapi.js as a frame script
     let frameScriptUrl = 'chrome://browser/content/webapi.js';
