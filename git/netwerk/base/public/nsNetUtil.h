@@ -48,9 +48,8 @@
 #include "nsMemory.h"
 #include "nsCOMPtr.h"
 #include "prio.h" // for read/write flags, permissions, etc.
-#include "nsHashKeys.h"
 
-#include "plstr.h"
+#include "nsCRT.h"
 #include "nsIURI.h"
 #include "nsIStandardURL.h"
 #include "nsIURLParser.h"
@@ -107,9 +106,10 @@
 #include "nsIChannelPolicy.h"
 #include "nsISocketProviderService.h"
 #include "nsISocketProvider.h"
-#include "nsIRedirectChannelRegistrar.h"
 #include "nsIMIMEHeaderParam.h"
 #include "mozilla/Services.h"
+
+#include "nsIRedirectChannelRegistrar.h"
 
 #ifdef MOZILLA_INTERNAL_API
 
@@ -229,14 +229,8 @@ NS_NewChannel(nsIChannel           **result,
                 rv |= chan->SetLoadGroup(loadGroup);
             if (callbacks)
                 rv |= chan->SetNotificationCallbacks(callbacks);
-            if (loadFlags != nsIRequest::LOAD_NORMAL) {
-                // Retain the LOAD_REPLACE load flag if set.
-                nsLoadFlags normalLoadFlags = 0;
-                chan->GetLoadFlags(&normalLoadFlags);
-                rv |= chan->SetLoadFlags(loadFlags | 
-                                         (normalLoadFlags & 
-                                          nsIChannel::LOAD_REPLACE));
-            }
+            if (loadFlags != nsIRequest::LOAD_NORMAL)
+                rv |= chan->SetLoadFlags(loadFlags);
             if (channelPolicy) {
                 nsCOMPtr<nsIWritablePropertyBag2> props = do_QueryInterface(chan);
                 if (props) {
@@ -1624,7 +1618,7 @@ NS_SecurityHashURI(nsIURI* aURI)
     nsCAutoString scheme;
     PRUint32 schemeHash = 0;
     if (NS_SUCCEEDED(baseURI->GetScheme(scheme)))
-        schemeHash = mozilla::HashString(scheme);
+        schemeHash = nsCRT::HashCode(scheme.get());
 
     // TODO figure out how to hash file:// URIs
     if (scheme.EqualsLiteral("file"))
@@ -1637,16 +1631,17 @@ NS_SecurityHashURI(nsIURI* aURI)
         nsCAutoString spec;
         PRUint32 specHash = baseURI->GetSpec(spec);
         if (NS_SUCCEEDED(specHash))
-            specHash = mozilla::HashString(spec);
+            specHash = nsCRT::HashCode(spec.get());
         return specHash;
     }
 
     nsCAutoString host;
     PRUint32 hostHash = 0;
     if (NS_SUCCEEDED(baseURI->GetAsciiHost(host)))
-        hostHash = mozilla::HashString(host);
+        hostHash = nsCRT::HashCode(host.get());
 
-    return mozilla::AddToHash(schemeHash, hostHash, NS_GetRealPort(baseURI));
+    // XOR to combine hash values
+    return schemeHash ^ hostHash ^ NS_GetRealPort(baseURI);
 }
 
 inline bool

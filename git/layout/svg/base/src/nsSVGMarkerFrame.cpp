@@ -122,7 +122,7 @@ nsSVGMarkerFrame::GetCanvasTM()
 
 
 nsresult
-nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
+nsSVGMarkerFrame::PaintMark(nsSVGRenderState *aContext,
                             nsSVGPathGeometryFrame *aMarkedFrame,
                             nsSVGMark *aMark, float aStrokeWidth)
 {
@@ -148,7 +148,7 @@ nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
   mY = aMark->y;
   mAutoAngle = aMark->angle;
 
-  gfxContext *gfx = aContext->ThebesContext();
+  gfxContext *gfx = aContext->GetGfxContext();
 
   if (GetStyleDisplay()->IsScrollableOverflow()) {
     gfx->Save();
@@ -163,9 +163,8 @@ nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
     nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
     if (SVGFrame) {
       // The CTM of each frame referencing us may be different.
-      SVGFrame->NotifySVGChanged(
-                          nsISVGChildFrame::DO_NOT_NOTIFY_RENDERING_OBSERVERS |
-                          nsISVGChildFrame::TRANSFORM_CHANGED);
+      SVGFrame->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                                 nsISVGChildFrame::TRANSFORM_CHANGED);
       nsSVGUtils::PaintFrameWithEffects(aContext, nsnull, kid);
     }
   }

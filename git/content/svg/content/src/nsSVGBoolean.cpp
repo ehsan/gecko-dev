@@ -70,26 +70,13 @@ GetValueFromString(const nsAString &aValueAsString,
   return NS_ERROR_DOM_SYNTAX_ERR;
 }
 
-static nsresult
-GetValueFromAtom(const nsIAtom* aValueAsAtom, bool *aValue)
-{
-  if (aValueAsAtom == nsGkAtoms::_true) {
-    *aValue = true;
-    return NS_OK;
-  }
-  if (aValueAsAtom == nsGkAtoms::_false) {
-    *aValue = false;
-    return NS_OK;
-  }
-  return NS_ERROR_DOM_SYNTAX_ERR;
-}
-
 nsresult
-nsSVGBoolean::SetBaseValueAtom(const nsIAtom* aValue, nsSVGElement *aSVGElement)
+nsSVGBoolean::SetBaseValueString(const nsAString &aValueAsString,
+                                 nsSVGElement *aSVGElement)
 {
   bool val;
 
-  nsresult rv = GetValueFromAtom(aValue, &val);
+  nsresult rv = GetValueFromString(aValueAsString, &val);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -108,28 +95,30 @@ nsSVGBoolean::SetBaseValueAtom(const nsIAtom* aValue, nsSVGElement *aSVGElement)
   return NS_OK;
 }
 
-nsIAtom*
-nsSVGBoolean::GetBaseValueAtom() const
+void
+nsSVGBoolean::GetBaseValueString(nsAString & aValueAsString)
 {
-  return mBaseVal ? nsGkAtoms::_true : nsGkAtoms::_false;
+  aValueAsString.Assign(mBaseVal
+                        ? NS_LITERAL_STRING("true")
+                        : NS_LITERAL_STRING("false"));
 }
 
 void
-nsSVGBoolean::SetBaseValue(bool aValue, nsSVGElement *aSVGElement)
+nsSVGBoolean::SetBaseValue(bool aValue,
+                           nsSVGElement *aSVGElement)
 {
   NS_PRECONDITION(aValue == true || aValue == false, "Boolean out of range");
 
-  if (aValue == mBaseVal) {
-    return;
+  if (aValue != mBaseVal) {
+    mBaseVal = aValue;
+    if (!mIsAnimated) {
+      mAnimVal = mBaseVal;
+    }
+    else {
+      aSVGElement->AnimationNeedsResample();
+    }
+    aSVGElement->DidChangeBoolean(mAttrEnum, true);
   }
-
-  mBaseVal = aValue;
-  if (!mIsAnimated) {
-    mAnimVal = mBaseVal;
-  } else {
-    aSVGElement->AnimationNeedsResample();
-  }
-  aSVGElement->DidChangeBoolean(mAttrEnum);
 }
 
 void
@@ -190,9 +179,8 @@ void
 nsSVGBoolean::SMILBool::ClearAnimValue()
 {
   if (mVal->mIsAnimated) {
+    mVal->SetAnimValue(mVal->mBaseVal, mSVGElement);
     mVal->mIsAnimated = false;
-    mVal->mAnimVal = mVal->mBaseVal;
-    mSVGElement->DidAnimateBoolean(mVal->mAttrEnum);
   }
 }
 

@@ -121,8 +121,6 @@ let gTests = [
   function(controller) {
     print("handleEndComposition");
     controller.handleEndComposition();
-    // an input event always follows compositionend event.
-    controller.handleText();
   },
   function(controller) {
     print("handleEscape");

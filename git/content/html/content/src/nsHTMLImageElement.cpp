@@ -363,8 +363,10 @@ nsHTMLImageElement::ParseAttribute(PRInt32 aNamespaceID,
       return ParseAlignValue(aValue, aResult);
     }
     if (aAttribute == nsGkAtoms::crossorigin) {
-      ParseCORSValue(aValue, aResult);
-      return true;
+      return aResult.ParseEnumValue(aValue, nsGenericHTMLElement::kCORSAttributeTable, false,
+                                    // default value is anonymous if aValue is
+                                    // not a value we understand
+                                    &nsGenericHTMLElement::kCORSAttributeTable[0]);
     }
     if (ParseImageAttribute(aAttribute, aValue, aResult)) {
       return true;
@@ -660,8 +662,17 @@ nsHTMLImageElement::CopyInnerTo(nsGenericElement* aDest) const
   return nsGenericHTMLElement::CopyInnerTo(aDest);
 }
 
-CORSMode
+nsGenericHTMLElement::CORSMode
 nsHTMLImageElement::GetCORSMode()
 {
-  return AttrValueToCORSMode(GetParsedAttr(nsGkAtoms::crossorigin));
+  nsGenericHTMLElement::CORSMode ret = nsGenericHTMLElement::CORS_NONE;
+
+  const nsAttrValue* value = GetParsedAttr(nsGkAtoms::crossorigin);
+  if (value) {
+    NS_ASSERTION(value->Type() == nsAttrValue::eEnum,
+                 "Why is this not an enum value?");
+    ret = nsGenericHTMLElement::CORSMode(value->GetEnumValue());
+  }
+
+  return ret;
 }

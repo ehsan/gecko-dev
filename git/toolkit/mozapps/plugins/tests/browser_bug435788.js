@@ -1,8 +1,6 @@
 const TEST_ROOT = "http://example.com/browser/toolkit/mozapps/plugins/tests/";
 
-let tmp = {};
-Components.utils.import("resource://gre/modules/AddonManager.jsm", tmp);
-let AddonManager = tmp.AddonManager;
+Components.utils.import("resource://gre/modules/AddonManager.jsm");
 
 var gPFS;
 

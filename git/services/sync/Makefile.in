@@ -86,6 +86,8 @@ ifndef NO_DIST_INSTALL
 endif
 
 
-TEST_DIRS += tests
+ifdef ENABLE_TESTS
+DIRS += tests
+endif
 
 include $(topsrcdir)/config/rules.mk

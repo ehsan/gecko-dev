@@ -45,12 +45,7 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE		= xpcom
 
-DIRS		= \
-  external \
-  component \
-  bug656331_component \
-  component_no_aslr \
-  $(NULL)
+DIRS		= external component bug656331_component
 
 ifeq ($(OS_ARCH),WINNT)
 DIRS		+= windows
@@ -91,7 +86,6 @@ CPP_UNIT_TESTS = \
                  ShowAlignments.cpp \
                  ShowSSEConfig.cpp \
                  TestAutoPtr.cpp \
-                 TestBloomFilter.cpp \
                  TestCOMArray.cpp \
                  TestCOMPtr.cpp \
                  TestCOMPtrEq.cpp \

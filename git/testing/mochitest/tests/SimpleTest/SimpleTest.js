@@ -274,7 +274,6 @@ SimpleTest._logResult = function(test, passString, failString) {
     var msg = [resultString, url, diagnostic].join(" | ");
     if (parentRunner) {
         if (isError) {
-            parentRunner.addFailedTest(url);
             parentRunner.error(msg);
         } else {
             parentRunner.log(msg);
@@ -285,7 +284,7 @@ SimpleTest._logResult = function(test, passString, failString) {
 };
 
 SimpleTest.info = function(name, message) {
-    SimpleTest._logResult({result:true, name:name, diag:message}, "TEST-INFO");
+    this._logResult({result:true, name:name, diag:message}, "TEST-INFO");
 };
 
 /**

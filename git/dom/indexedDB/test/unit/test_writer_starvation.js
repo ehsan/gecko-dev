@@ -7,6 +7,11 @@ var testGenerator = testSteps();
 
 function testSteps()
 {
+  const READ_ONLY = Components.interfaces.nsIIDBTransaction.READ_ONLY;
+  const READ_WRITE = Components.interfaces.nsIIDBTransaction.READ_WRITE;
+  const VERSION_CHANGE =
+    Components.interfaces.nsIIDBTransaction.VERSION_CHANGE;
+
   const name = this.window ? window.location.pathname : "Splendid Test";
   const description = "My Test Database";
 
@@ -18,7 +23,7 @@ function testSteps()
 
   let db = event.target.result;
 
-  is(event.target.transaction.mode, "versionchange", "Correct mode");
+  is(event.target.transaction.mode, VERSION_CHANGE, "Correct mode");
 
   let objectStore = db.createObjectStore("foo", { autoIncrement: true });
 
@@ -53,10 +58,10 @@ function testSteps()
     request = db.transaction("foo").objectStore("foo").get(key);
     request.onerror = errorHandler;
     request.onsuccess = function(event) {
-      is(event.target.transaction.mode, "readonly", "Correct mode");
+      is(event.target.transaction.mode, READ_ONLY, "Correct mode");
       callbackCount++;
       if (callbackCount == 100) {
-        request = db.transaction("foo", "readwrite")
+        request = db.transaction("foo", READ_WRITE)
                     .objectStore("foo")
                     .add({}, readerCount);
         request.onerror = errorHandler;

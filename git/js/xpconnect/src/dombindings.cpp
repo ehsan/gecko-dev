@@ -59,11 +59,10 @@ namespace dom {
 namespace binding {
 
 
+static jsid s_constructor_id = JSID_VOID;
 static jsid s_prototype_id = JSID_VOID;
 
 static jsid s_length_id = JSID_VOID;
-
-static jsid s_VOID_id = JSID_VOID;
 
 bool
 DefineStaticJSVal(JSContext *cx, jsid &id, const char *string)
@@ -83,7 +82,8 @@ DefineStaticJSVals(JSContext *cx)
 {
     JSAutoRequest ar(cx);
 
-    return SET_JSID_TO_STRING(cx, prototype) &&
+    return SET_JSID_TO_STRING(cx, constructor) &&
+           SET_JSID_TO_STRING(cx, prototype) &&
            SET_JSID_TO_STRING(cx, length) &&
            DefinePropertyStaticJSVals(cx);
 }
@@ -106,11 +106,17 @@ static bool
 XPCOMObjectToJsval(JSContext *cx, JSObject *scope, xpcObjectHelper &helper,
                    bool allowNativeWrapper, jsval *rval)
 {
+    // XXX The OBJ_IS_NOT_GLOBAL here is not really right. In
+    // fact, this code is depending on the fact that the
+    // global object will not have been collected, and
+    // therefore this NativeInterface2JSObject will not end up
+    // creating a new XPCNativeScriptableShared.
+
     XPCLazyCallContext lccx(JS_CALLER, cx, scope);
 
     nsresult rv;
     if (!XPCConvert::NativeInterface2JSObject(lccx, rval, NULL, helper, NULL, NULL,
-                                              allowNativeWrapper, &rv)) {
+                                              allowNativeWrapper, OBJ_IS_NOT_GLOBAL, &rv)) {
         // I can't tell if NativeInterface2JSObject throws JS exceptions
         // or not.  This is a sloppy stab at the right semantics; the
         // method really ought to be fixed to behave consistently.
@@ -218,39 +224,6 @@ Unwrap(JSContext *cx, jsval v, NoType **ppArg, nsISupports **ppArgRef, jsval *vp
 }
 
 
-// Because we use proxies for wrapping DOM list objects we don't get the benefits of the property
-// cache. To improve performance when using a property that lives on the prototype chain we
-// implemented a cheap caching mechanism. Every DOM list proxy object stores a pointer to a shape
-// in an extra slot. The first time we access a property on the object that lives on the prototype
-// we check if all the DOM properties on the prototype chain are the real DOM properties and in
-// that case we store a pointer to the shape of the object's prototype in the extra slot. From
-// then on, every time we access a DOM property that lives on the prototype we check that the
-// shape of the prototype is still identical to the cached shape and we do a fast lookup of the
-// property. If the shape has changed, we recheck all the DOM properties on the prototype chain
-// and we update the shape pointer if they are still the real DOM properties. This mechanism
-// covers addition/removal of properties, changes in getters/setters, changes in the prototype
-// chain, ... It does not cover changes in the values of the properties. For those we store an
-// enum value in a reserved slot in every DOM prototype object. The value starts off as USE_CACHE.
-// If a property of a DOM prototype object is set to a different value, we set the value to
-// CHECK_CACHE. The next time we try to access the value of a property on that DOM prototype
-// object we check if all the DOM properties on that DOM prototype object still match the real DOM
-// properties. If they do we set the value to USE_CACHE again, if they're not we set the value to
-// DONT_USE_CACHE. If the value is USE_CACHE we do the fast lookup.
-
-template<class LC>
-typename ListBase<LC>::Properties ListBase<LC>::sProtoProperties[] = {
-    { s_VOID_id, NULL, NULL }
-};
-template<class LC>
-size_t ListBase<LC>::sProtoPropertiesCount = 0;
-
-template<class LC>
-typename ListBase<LC>::Methods ListBase<LC>::sProtoMethods[] = {
-    { s_VOID_id, NULL, 0 }
-};
-template<class LC>
-size_t ListBase<LC>::sProtoMethodsCount = 0;
-
 template<class LC>
 ListBase<LC> ListBase<LC>::instance;
 
@@ -298,27 +271,19 @@ ListBase<LC>::setProtoShape(JSObject *obj, js::Shape *shape)
     js::SetProxyExtra(obj, JSPROXYSLOT_PROTOSHAPE, PrivateValue(shape));
 }
 
-static JSBool
-UnwrapSecurityWrapper(JSContext *cx, JSObject *obj, JSObject *callee, JSObject **unwrapped)
-{
-    JS_ASSERT(XPCWrapper::IsSecurityWrapper(obj));
-
-    if (callee && JS_GetGlobalForObject(cx, obj) == JS_GetGlobalForObject(cx, callee)) {
-        *unwrapped = js::UnwrapObject(obj);
-    } else {
-        *unwrapped = XPCWrapper::Unwrap(cx, obj);
-        if (!*unwrapped)
-            return Throw(cx, NS_ERROR_XPC_SECURITY_MANAGER_VETO);
-    }
-    return true;
-}
-
 template<class LC>
 bool
 ListBase<LC>::instanceIsListObject(JSContext *cx, JSObject *obj, JSObject *callee)
 {
-    if (XPCWrapper::IsSecurityWrapper(obj) && !UnwrapSecurityWrapper(cx, obj, callee, &obj))
-        return false;
+    if (XPCWrapper::IsSecurityWrapper(obj)) {
+        if (callee && JS_GetGlobalForObject(cx, obj) == JS_GetGlobalForObject(cx, callee)) {
+            obj = js::UnwrapObject(obj);
+        } else {
+            obj = XPCWrapper::Unwrap(cx, obj);
+            if (!obj)
+                return Throw(cx, NS_ERROR_XPC_SECURITY_MANAGER_VETO);
+        }
+    }
 
     if (!objIsList(obj)) {
         // FIXME: Throw a proper DOM exception.
@@ -408,7 +373,7 @@ interface_hasInstance(JSContext *cx, JSObject *obj, const JS::Value *vp, JSBool 
             } else {
                 JSObject *protoObj = JSVAL_TO_OBJECT(prototype);
                 JSObject *proto = other;
-                while ((proto = JS_GetPrototype(proto))) {
+                while ((proto = JS_GetPrototype(cx, proto))) {
                     if (proto == protoObj) {
                         *bp = true;
                         return true;
@@ -425,41 +390,18 @@ interface_hasInstance(JSContext *cx, JSObject *obj, const JS::Value *vp, JSBool 
     return true;
 }
 
-enum {
-    USE_CACHE = 0,
-    CHECK_CACHE = 1,
-    DONT_USE_CACHE = 2
-};
-
-static JSBool
-InvalidateProtoShape_add(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
-static JSBool
-InvalidateProtoShape_set(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp);
-
-js::Class sInterfacePrototypeClass = {
-    "Object",
-    JSCLASS_HAS_RESERVED_SLOTS(1),
-    InvalidateProtoShape_add,   /* addProperty */
-    JS_PropertyStub,            /* delProperty */
-    JS_PropertyStub,            /* getProperty */
-    InvalidateProtoShape_set,   /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub
-};
-
-static JSBool
-InvalidateProtoShape_add(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
+template<class LC>
+JSObject *
+ListBase<LC>::getPrototype(JSContext *cx, XPCWrappedNativeScope *scope, bool *enabled)
 {
-    if (JSID_IS_STRING(id) && JS_InstanceOf(cx, obj, Jsvalify(&sInterfacePrototypeClass), NULL))
-        js::SetReservedSlot(obj, 0, PrivateUint32Value(CHECK_CACHE));
-    return JS_TRUE;
-}
+    if (!scope->NewDOMBindingsEnabled()) {
+        *enabled = false;
+        return NULL;
+    }
 
-static JSBool
-InvalidateProtoShape_set(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp)
-{
-    return InvalidateProtoShape_add(cx, obj, id, vp);
+    *enabled = true;
+
+    return getPrototype(cx, scope);
 }
 
 template<class LC>
@@ -471,10 +413,8 @@ ListBase<LC>::getPrototype(JSContext *cx, XPCWrappedNativeScope *scope)
 
     JSObject *interfacePrototype;
     if (cache.IsInitialized()) {
-        if (cache.Get(sInterfaceClass.name, &interfacePrototype)) {
-            xpc_UnmarkGrayObject(interfacePrototype);
+        if (cache.Get(sInterfaceClass.name, &interfacePrototype))
             return interfacePrototype;
-        }
     } else if (!cache.Init()) {
         return NULL;
     }
@@ -484,14 +424,14 @@ ListBase<LC>::getPrototype(JSContext *cx, XPCWrappedNativeScope *scope)
         return NULL;
 
     JSObject *global = scope->GetGlobalJSObject();
-    interfacePrototype = JS_NewObject(cx, Jsvalify(&sInterfacePrototypeClass), proto, global);
+    interfacePrototype = JS_NewObject(cx, NULL, proto, global);
     if (!interfacePrototype)
         return NULL;
 
-    for (size_t n = 0; n < sProtoPropertiesCount; ++n) {
+    for (size_t n = 0; n < ArrayLength(sProtoProperties); ++n) {
         JS_ASSERT(sProtoProperties[n].getter);
         jsid id = sProtoProperties[n].id;
-        unsigned attrs = JSPROP_ENUMERATE | JSPROP_SHARED;
+        uintN attrs = JSPROP_ENUMERATE | JSPROP_SHARED;
         if (!sProtoProperties[n].setter)
             attrs |= JSPROP_READONLY;
         if (!JS_DefinePropertyById(cx, interfacePrototype, id, JSVAL_VOID,
@@ -499,7 +439,7 @@ ListBase<LC>::getPrototype(JSContext *cx, XPCWrappedNativeScope *scope)
             return NULL;
     }
 
-    for (size_t n = 0; n < sProtoMethodsCount; ++n) {
+    for (size_t n = 0; n < ArrayLength(sProtoMethods); ++n) {
         jsid id = sProtoMethods[n].id;
         JSFunction *fun = JS_NewFunctionById(cx, sProtoMethods[n].native, sProtoMethods[n].nargs,
                                              0, js::GetObjectParent(interfacePrototype), id);
@@ -512,19 +452,18 @@ ListBase<LC>::getPrototype(JSContext *cx, XPCWrappedNativeScope *scope)
     }
 
     JSObject *interface = JS_NewObject(cx, Jsvalify(&sInterfaceClass), NULL, global);
-    if (!interface)
+    if (!interface ||
+        !JS_DefinePropertyById(cx, interface, s_prototype_id, OBJECT_TO_JSVAL(interfacePrototype),
+                               nsnull, nsnull, JSPROP_PERMANENT | JSPROP_READONLY))
         return NULL;
 
-    if (!JS_LinkConstructorAndPrototype(cx, interface, interfacePrototype))
+    if (!JS_DefinePropertyById(cx, interfacePrototype, s_constructor_id,
+                               OBJECT_TO_JSVAL(interface), nsnull, nsnull, 0))
         return NULL;
 
     if (!JS_DefineProperty(cx, global, sInterfaceClass.name, OBJECT_TO_JSVAL(interface), NULL,
                            NULL, 0))
         return NULL;
-
-    // This needs to happen after we've set all our own properties on interfacePrototype, to
-    // overwrite the value set by InvalidateProtoShape_add when we set our own properties.
-    js::SetReservedSlot(interfacePrototype, 0, PrivateUint32Value(USE_CACHE));
 
     if (!cache.Put(sInterfaceClass.name, interfacePrototype))
         return NULL;
@@ -583,7 +522,7 @@ IdToInt32(JSContext *cx, jsid id)
     JSAutoRequest ar(cx);
 
     jsval idval;
-    double array_index;
+    jsdouble array_index;
     int32_t i;
     if (!::JS_IdToValue(cx, id, &idval) ||
         !::JS_ValueToNumber(cx, idval, &array_index) ||
@@ -603,13 +542,12 @@ GetArrayIndexFromId(JSContext *cx, jsid id)
         return -1;
     if (NS_LIKELY(JSID_IS_ATOM(id))) {
         JSAtom *atom = JSID_TO_ATOM(id);
-        jschar s = *js::GetAtomChars(atom);
+        jschar s = *atom->chars();
         if (NS_LIKELY((unsigned)s >= 'a' && (unsigned)s <= 'z'))
             return -1;
 
-        uint32_t i;
-        JSLinearString *str = js::AtomToLinearString(JSID_TO_ATOM(id));
-        return js::StringIsArrayIndex(str, &i) ? i : -1;
+        jsuint i;
+        return js::StringIsArrayIndex(JSID_TO_ATOM(id), &i) ? i : -1;
     }
     return IdToInt32(cx, id);
 }
@@ -662,7 +600,7 @@ ListBase<LC>::getOwnPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id, 
 
     JSObject *expando;
     if (!xpc::WrapperFactory::IsXrayWrapper(proxy) && (expando = getExpandoObject(proxy))) {
-        unsigned flags = (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED;
+        uintN flags = (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED;
         if (!JS_GetPropertyDescriptorById(cx, expando, id, flags, desc))
             return false;
         if (desc->obj) {
@@ -736,12 +674,12 @@ ListBase<LC>::ensureExpandoObject(JSContext *cx, JSObject *obj)
 
         JSCompartment *compartment = js::GetObjectCompartment(obj);
         xpc::CompartmentPrivate *priv =
-            static_cast<xpc::CompartmentPrivate *>(JS_GetCompartmentPrivate(compartment));
+            static_cast<xpc::CompartmentPrivate *>(js_GetCompartmentPrivate(compartment));
         if (!priv->RegisterDOMExpandoObject(expando))
             return NULL;
 
         js::SetProxyExtra(obj, JSPROXYSLOT_EXPANDO, ObjectValue(*expando));
-        JS_SetPrivate(expando, js::GetProxyPrivate(obj).toPrivate());
+        JS_SetPrivate(cx, expando, js::GetProxyPrivate(obj).toPrivate());
     }
     return expando;
 }
@@ -832,7 +770,7 @@ template<class LC>
 bool
 ListBase<LC>::enumerate(JSContext *cx, JSObject *proxy, AutoIdVector &props)
 {
-    JSObject *proto = JS_GetPrototype(proxy);
+    JSObject *proto = JS_GetPrototype(cx, proxy);
     return getOwnPropertyNames(cx, proxy, props) &&
            (!proto || js::GetPropertyNames(cx, proto, 0, &props));
 }
@@ -902,47 +840,31 @@ ListBase<LC>::has(JSContext *cx, JSObject *proxy, jsid id, bool *bp)
 
 template<class LC>
 bool
-ListBase<LC>::protoIsClean(JSContext *cx, JSObject *proto, bool *isClean)
+ListBase<LC>::shouldCacheProtoShape(JSContext *cx, JSObject *proto, bool *shouldCache)
 {
     JSPropertyDescriptor desc;
-    for (size_t n = 0; n < sProtoPropertiesCount; ++n) {
+    for (size_t n = 0; n < ArrayLength(sProtoProperties); ++n) {
         jsid id = sProtoProperties[n].id;
         if (!JS_GetPropertyDescriptorById(cx, proto, id, JSRESOLVE_QUALIFIED, &desc))
             return false;
-        JSStrictPropertyOp setter =
-            sProtoProperties[n].setter ? sProtoProperties[n].setter : InvalidateProtoShape_set;
         if (desc.obj != proto || desc.getter != sProtoProperties[n].getter ||
-            desc.setter != setter) {
-            *isClean = false;
+            desc.setter != sProtoProperties[n].setter) {
+            *shouldCache = false;
             return true;
         }
     }
 
-    for (size_t n = 0; n < sProtoMethodsCount; ++n) {
+    for (size_t n = 0; n < ArrayLength(sProtoMethods); ++n) {
         jsid id = sProtoMethods[n].id;
         if (!JS_GetPropertyDescriptorById(cx, proto, id, JSRESOLVE_QUALIFIED, &desc))
             return false;
         if (desc.obj != proto || desc.getter || JSVAL_IS_PRIMITIVE(desc.value) ||
-            n >= js::GetObjectSlotSpan(proto) || js::GetObjectSlot(proto, n + 1) != desc.value ||
+            n >= js::GetObjectSlotSpan(proto) || js::GetObjectSlot(proto, n) != desc.value ||
             !JS_IsNativeFunction(JSVAL_TO_OBJECT(desc.value), sProtoMethods[n].native)) {
-            *isClean = false;
+            *shouldCache = false;
             return true;
         }
     }
-
-    *isClean = true;
-    return true;
-}
-
-template<class LC>
-bool
-ListBase<LC>::shouldCacheProtoShape(JSContext *cx, JSObject *proto, bool *shouldCache)
-{
-    bool ok = protoIsClean(cx, proto, shouldCache);
-    if (!ok || !*shouldCache)
-        return ok;
-
-    js::SetReservedSlot(proto, 0, PrivateUint32Value(USE_CACHE));
 
     JSObject *protoProto = js::GetObjectProto(proto);
     if (!protoProto) {
@@ -959,7 +881,7 @@ ListBase<LC>::resolveNativeName(JSContext *cx, JSObject *proxy, jsid id, JSPrope
 {
     JS_ASSERT(xpc::WrapperFactory::IsXrayWrapper(proxy));
 
-    for (size_t n = 0; n < sProtoPropertiesCount; ++n) {
+    for (size_t n = 0; n < ArrayLength(sProtoProperties); ++n) {
         if (id == sProtoProperties[n].id) {
             desc->attrs = JSPROP_ENUMERATE | JSPROP_SHARED;
             if (!sProtoProperties[n].setter)
@@ -971,7 +893,7 @@ ListBase<LC>::resolveNativeName(JSContext *cx, JSObject *proxy, jsid id, JSPrope
         }
     }
 
-    for (size_t n = 0; n < sProtoMethodsCount; ++n) {
+    for (size_t n = 0; n < ArrayLength(sProtoMethods); ++n) {
         if (id == sProtoMethods[n].id) {
             JSFunction *fun = JS_NewFunctionById(cx, sProtoMethods[n].native,
                                                  sProtoMethods[n].nargs, 0, proxy, id);
@@ -994,28 +916,12 @@ template<class LC>
 bool
 ListBase<LC>::nativeGet(JSContext *cx, JSObject *proxy, JSObject *proto, jsid id, bool *found, Value *vp)
 {
-    uint32_t cache = js::GetReservedSlot(proto, 0).toPrivateUint32();
-    if (cache == CHECK_CACHE) {
-        bool isClean;
-        if (!protoIsClean(cx, proto, &isClean))
-            return false;
-        if (!isClean) {
-            js::SetReservedSlot(proto, 0, PrivateUint32Value(DONT_USE_CACHE));
-            return true;
-        }
-        js::SetReservedSlot(proto, 0, PrivateUint32Value(USE_CACHE));
-    }
-    else if (cache == DONT_USE_CACHE) {
-        return true;
-    }
-    else {
 #ifdef DEBUG
-        bool isClean;
-        JS_ASSERT(protoIsClean(cx, proto, &isClean) && isClean);
+    bool shouldCache;
+    JS_ASSERT(shouldCacheProtoShape(cx, proto, &shouldCache) && shouldCache);
 #endif
-    }
 
-    for (size_t n = 0; n < sProtoPropertiesCount; ++n) {
+    for (size_t n = 0; n < ArrayLength(sProtoProperties); ++n) {
         if (id == sProtoProperties[n].id) {
             *found = true;
             if (!vp)
@@ -1024,13 +930,13 @@ ListBase<LC>::nativeGet(JSContext *cx, JSObject *proxy, JSObject *proto, jsid id
             return sProtoProperties[n].getter(cx, proxy, id, vp);
         }
     }
-    for (size_t n = 0; n < sProtoMethodsCount; ++n) {
+    for (size_t n = 0; n < ArrayLength(sProtoMethods); ++n) {
         if (id == sProtoMethods[n].id) {
             *found = true;
             if (!vp)
                 return true;
 
-            *vp = js::GetObjectSlot(proto, n + 1);
+            *vp = js::GetObjectSlot(proto, n);
             JS_ASSERT(JS_IsNativeFunction(&vp->toObject(), sProtoMethods[n].native));
             return true;
         }
@@ -1230,15 +1136,8 @@ ListBase<LC>::keys(JSContext *cx, JSObject *proxy, AutoIdVector &props)
 
 template<class LC>
 bool
-ListBase<LC>::iterate(JSContext *cx, JSObject *proxy, unsigned flags, Value *vp)
+ListBase<LC>::iterate(JSContext *cx, JSObject *proxy, uintN flags, Value *vp)
 {
-    if (flags == JSITER_FOR_OF) {
-        JSObject *iterobj = JS_NewElementIterator(cx, proxy);
-        if (!iterobj)
-            return false;
-        vp->setObject(*iterobj);
-        return true;
-    }
     return ProxyHandler::iterate(cx, proxy, flags, vp);
 }
 
@@ -1285,13 +1184,7 @@ ListBase<LC>::finalize(JSContext *cx, JSObject *proxy)
     if (cache) {
         cache->ClearWrapper();
     }
-    XPCJSRuntime *rt = nsXPConnect::GetRuntimeInstance();
-    if (rt) {
-        rt->DeferredRelease(nativeToSupports(list));
-    }
-    else {
-        NS_RELEASE(list);
-    }
+    NS_RELEASE(list);
 }
 
 
@@ -1301,7 +1194,10 @@ NoBase::getPrototype(JSContext *cx, XPCWrappedNativeScope *scope)
     // We need to pass the object prototype to JS_NewObject. If we pass NULL then the JS engine
     // will look up a prototype on the global by using the class' name and we'll recurse into
     // getPrototype.
-    return JS_GetObjectPrototype(cx, scope->GetGlobalJSObject());
+    JSObject* proto;
+    if (!js_GetClassPrototype(cx, scope->GetGlobalJSObject(), JSProto_Object, &proto))
+        return NULL;
+    return proto;
 }
 
 

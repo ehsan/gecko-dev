@@ -68,10 +68,10 @@
 
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
+#include "jsstrinlines.h"
 
 #include "vm/Stack-inl.h"
 #include "vm/String-inl.h"
-#include "vm/StringBuffer-inl.h"
 
 using namespace mozilla;
 using namespace js;
@@ -80,7 +80,7 @@ using namespace js::types;
 
 /* Forward declarations for ErrorClass's initializer. */
 static JSBool
-Exception(JSContext *cx, unsigned argc, Value *vp);
+Exception(JSContext *cx, uintN argc, Value *vp);
 
 static void
 exn_trace(JSTracer *trc, JSObject *obj);
@@ -89,12 +89,12 @@ static void
 exn_finalize(JSContext *cx, JSObject *obj);
 
 static JSBool
-exn_resolve(JSContext *cx, JSObject *obj, jsid id, unsigned flags,
+exn_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
             JSObject **objp);
 
 Class js::ErrorClass = {
     js_Error_str,
-    JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_NEW_RESOLVE |
+    JSCLASS_HAS_PRIVATE | JSCLASS_NEW_RESOLVE |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Error),
     JS_PropertyStub,         /* addProperty */
     JS_PropertyStub,         /* delProperty */
@@ -104,9 +104,11 @@ Class js::ErrorClass = {
     (JSResolveOp)exn_resolve,
     JS_ConvertStub,
     exn_finalize,
+    NULL,                 /* reserved0   */
     NULL,                 /* checkAccess */
     NULL,                 /* call        */
     NULL,                 /* construct   */
+    NULL,                 /* xdrObject   */
     NULL,                 /* hasInstance */
     exn_trace
 };
@@ -115,7 +117,7 @@ typedef struct JSStackTraceElem {
     js::HeapPtrString   funName;
     size_t              argc;
     const char          *filename;
-    unsigned               ulineno;
+    uintN               ulineno;
 } JSStackTraceElem;
 
 typedef struct JSExnPrivate {
@@ -123,9 +125,9 @@ typedef struct JSExnPrivate {
     JSErrorReport       *errorReport;
     js::HeapPtrString   message;
     js::HeapPtrString   filename;
-    unsigned               lineno;
+    uintN               lineno;
     size_t              stackDepth;
-    int                exnType;
+    intN                exnType;
     JSStackTraceElem    stackElems[1];
 } JSExnPrivate;
 
@@ -289,7 +291,7 @@ struct SuppressErrorsGuard
 struct AppendArg {
     Vector<Value> &values;
     AppendArg(Vector<Value> &values) : values(values) {}
-    bool operator()(unsigned, Value *vp) {
+    bool operator()(uintN, Value *vp) {
         return values.append(*vp);
     }
 };
@@ -299,12 +301,13 @@ SetExnPrivate(JSContext *cx, JSObject *exnObject, JSExnPrivate *priv);
 
 static bool
 InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
-               JSString *filename, unsigned lineno, JSErrorReport *report, int exnType)
+               JSString *filename, uintN lineno, JSErrorReport *report, intN exnType)
 {
     JS_ASSERT(exnObject->isError());
     JS_ASSERT(!exnObject->getPrivate());
 
-    JSCheckAccessOp checkAccess = cx->runtime->securityCallbacks->checkObjectAccess;
+    JSSecurityCallbacks *callbacks = JS_GetSecurityCallbacks(cx);
+    JSCheckAccessOp checkAccess = callbacks ? callbacks->checkObjectAccess : NULL;
 
     Vector<JSStackTraceElem> frames(cx);
     Vector<Value> values(cx);
@@ -342,7 +345,7 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
             }
             if (fp->isScriptFrame()) {
                 frame.filename = fp->script()->filename;
-                frame.ulineno = PCToLineNumber(fp->script(), i.pc());
+                frame.ulineno = js_PCToLineNumber(cx, fp->script(), i.pc());
             } else {
                 frame.ulineno = 0;
                 frame.filename = NULL;
@@ -416,21 +419,22 @@ exn_trace(JSTracer *trc, JSObject *obj)
     priv = GetExnPrivate(obj);
     if (priv) {
         if (priv->message)
-            MarkString(trc, &priv->message, "exception message");
+            MarkString(trc, priv->message, "exception message");
         if (priv->filename)
-            MarkString(trc, &priv->filename, "exception filename");
+            MarkString(trc, priv->filename, "exception filename");
 
         elem = priv->stackElems;
         for (vcount = i = 0; i != priv->stackDepth; ++i, ++elem) {
             if (elem->funName)
-                MarkString(trc, &elem->funName, "stack trace function name");
+                MarkString(trc, elem->funName, "stack trace function name");
             if (IS_GC_MARKING_TRACER(trc) && elem->filename)
                 js_MarkScriptFilename(elem->filename);
             vcount += elem->argc;
         }
         vp = GetStackTraceValueBuffer(priv);
-        for (i = 0; i != vcount; ++i, ++vp)
-            MarkValue(trc, vp, "stack trace argument");
+        for (i = 0; i != vcount; ++i, ++vp) {
+            MarkValue(trc, *vp, "stack trace argument");
+        }
     }
 }
 
@@ -442,7 +446,7 @@ SetExnPrivate(JSContext *cx, JSObject *exnObject, JSExnPrivate *priv)
     JS_ASSERT(exnObject->isError());
     if (JSErrorReport *report = priv->errorReport) {
         if (JSPrincipals *prin = report->originPrincipals)
-            JS_HoldPrincipals(prin);
+            JSPRINCIPALS_HOLD(cx, prin);
     }
     exnObject->setPrivate(priv);
 }
@@ -454,7 +458,7 @@ exn_finalize(JSContext *cx, JSObject *obj)
         if (JSErrorReport *report = priv->errorReport) {
             /* HOLD called by SetExnPrivate. */
             if (JSPrincipals *prin = report->originPrincipals)
-                JS_DropPrincipals(cx->runtime, prin);
+                JSPRINCIPALS_DROP(cx, prin);
             cx->free_(report);
         }
         cx->free_(priv);
@@ -462,7 +466,7 @@ exn_finalize(JSContext *cx, JSObject *obj)
 }
 
 static JSBool
-exn_resolve(JSContext *cx, JSObject *obj, jsid id, unsigned flags,
+exn_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
             JSObject **objp)
 {
     JSExnPrivate *priv;
@@ -471,7 +475,7 @@ exn_resolve(JSContext *cx, JSObject *obj, jsid id, unsigned flags,
     JSString *stack;
     const char *prop;
     jsval v;
-    unsigned attrs;
+    uintN attrs;
 
     *objp = NULL;
     priv = GetExnPrivate(obj);
@@ -718,7 +722,7 @@ FilenameToString(JSContext *cx, const char *filename)
 }
 
 static JSBool
-Exception(JSContext *cx, unsigned argc, Value *vp)
+Exception(JSContext *cx, uintN argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -745,7 +749,7 @@ Exception(JSContext *cx, unsigned argc, Value *vp)
 
     /* Set the 'message' property. */
     JSString *message;
-    if (args.hasDefined(0)) {
+    if (args.length() != 0 && !args[0].isUndefined()) {
         message = ToString(cx, args[0]);
         if (!message)
             return false;
@@ -782,10 +786,10 @@ Exception(JSContext *cx, unsigned argc, Value *vp)
         if (!ToUint32(cx, args[2], &lineno))
             return false;
     } else {
-        lineno = iter.done() ? 0 : PCToLineNumber(iter.fp()->script(), iter.pc());
+        lineno = iter.done() ? 0 : js_PCToLineNumber(cx, iter.fp()->script(), iter.pc());
     }
 
-    int exnType = args.callee().toFunction()->getExtendedSlot(0).toInt32();
+    intN exnType = args.callee().toFunction()->getExtendedSlot(0).toInt32();
     if (!InitExnPrivate(cx, obj, message, filename, lineno, NULL, exnType))
         return false;
 
@@ -795,7 +799,7 @@ Exception(JSContext *cx, unsigned argc, Value *vp)
 
 /* ES5 15.11.4.4 (NB: with subsequent errata). */
 static JSBool
-exn_toString(JSContext *cx, unsigned argc, Value *vp)
+exn_toString(JSContext *cx, uintN argc, Value *vp)
 {
     JS_CHECK_RECURSION(cx, return false);
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -874,7 +878,7 @@ exn_toString(JSContext *cx, unsigned argc, Value *vp)
  * Return a string that may eval to something similar to the original object.
  */
 static JSBool
-exn_toSource(JSContext *cx, unsigned argc, Value *vp)
+exn_toSource(JSContext *cx, uintN argc, Value *vp)
 {
     JS_CHECK_RECURSION(cx, return false);
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -967,8 +971,16 @@ JS_STATIC_ASSERT(JSProto_Error + JSEXN_SYNTAXERR    == JSProto_SyntaxError);
 JS_STATIC_ASSERT(JSProto_Error + JSEXN_TYPEERR      == JSProto_TypeError);
 JS_STATIC_ASSERT(JSProto_Error + JSEXN_URIERR       == JSProto_URIError);
 
+static JS_INLINE JSProtoKey
+GetExceptionProtoKey(intN exn)
+{
+    JS_ASSERT(JSEXN_ERR <= exn);
+    JS_ASSERT(exn < JSEXN_LIMIT);
+    return JSProtoKey(JSProto_Error + exn);
+}
+
 static JSObject *
-InitErrorClass(JSContext *cx, GlobalObject *global, int type, JSObject &proto)
+InitErrorClass(JSContext *cx, GlobalObject *global, intN type, JSObject &proto)
 {
     JSProtoKey key = GetExceptionProtoKey(type);
     JSAtom *name = cx->runtime->atomState.classAtoms[key];
@@ -1019,8 +1031,8 @@ js_InitExceptionClasses(JSContext *cx, JSObject *obj)
 
     GlobalObject *global = &obj->asGlobal();
 
-    JSObject *objectProto = global->getOrCreateObjectPrototype(cx);
-    if (!objectProto)
+    JSObject *objectProto;
+    if (!js_GetClassPrototype(cx, global, JSProto_Object, &objectProto))
         return NULL;
 
     /* Initialize the base Error class first. */
@@ -1033,7 +1045,7 @@ js_InitExceptionClasses(JSContext *cx, JSObject *obj)
         return NULL;
 
     /* Define all remaining *Error constructors. */
-    for (int i = JSEXN_ERR + 1; i < JSEXN_LIMIT; i++) {
+    for (intN i = JSEXN_ERR + 1; i < JSEXN_LIMIT; i++) {
         if (!InitErrorClass(cx, global, i, *errorProto))
             return NULL;
     }
@@ -1043,7 +1055,7 @@ js_InitExceptionClasses(JSContext *cx, JSObject *obj)
 
 const JSErrorFormatString*
 js_GetLocalizedErrorMessage(JSContext* cx, void *userRef, const char *locale,
-                            const unsigned errorNumber)
+                            const uintN errorNumber)
 {
     const JSErrorFormatString *errorString = NULL;
 
@@ -1243,7 +1255,7 @@ js_ReportUncaughtException(JSContext *cx)
         reportp = &report;
         PodZero(&report);
         report.filename = filename.ptr();
-        report.lineno = (unsigned) lineno;
+        report.lineno = (uintN) lineno;
         if (JSVAL_IS_STRING(roots[2])) {
             JSFixedString *fixed = JSVAL_TO_STRING(roots[2])->ensureFixed(cx);
             if (!fixed)
@@ -1319,8 +1331,8 @@ js_CopyErrorObject(JSContext *cx, JSObject *errobj, JSObject *scope)
     copy->exnType = priv->exnType;
 
     // Create the Error object.
-    JSObject *proto = scope->global().getOrCreateCustomErrorPrototype(cx, copy->exnType);
-    if (!proto)
+    JSObject *proto;
+    if (!js_GetClassPrototype(cx, &scope->global(), GetExceptionProtoKey(copy->exnType), &proto))
         return NULL;
     JSObject *copyobj = NewObjectWithGivenProto(cx, &ErrorClass, proto, NULL);
     SetExnPrivate(cx, copyobj, copy);

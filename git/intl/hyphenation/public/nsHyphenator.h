@@ -43,6 +43,7 @@
 #include "nsTArray.h"
 
 class nsIURI;
+class nsIUGenCategory;
 
 class nsHyphenator
 {
@@ -60,6 +61,7 @@ private:
 
 protected:
   void                      *mDict;
+  nsCOMPtr<nsIUGenCategory>  mCategories;
 };
 
 #endif // nsHyphenator_h__

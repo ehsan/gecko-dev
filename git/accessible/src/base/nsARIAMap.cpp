@@ -105,7 +105,7 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     roles::PUSHBUTTON,
     kUseMapRole,
     eNoValue,
-    ePressAction,
+    eClickAction,
     eNoLiveAttr,
     kNoReqStates,
     eARIAPressed
@@ -136,7 +136,7 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     "combobox",
     roles::COMBOBOX,
     kUseMapRole,
-    eNoValue,
+    eHasValueMinMax,
     eOpenCloseAction,
     eNoLiveAttr,
     states::COLLAPSED | states::HASPOPUP,
@@ -220,6 +220,15 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     kNoReqStates
   },
   {
+    "label",
+    roles::LABEL,
+    kUseMapRole,
+    eNoValue,
+    eNoAction,
+    eNoLiveAttr,
+    kNoReqStates
+  },
+  {
     "link",
     roles::LINK,
     kUseMapRole,
@@ -235,7 +244,8 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    states::READONLY
+    states::READONLY,
+    eARIAMultiSelectable
   },
   {
     "listbox",
@@ -255,7 +265,9 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eNoValue,
     eNoAction, // XXX: should depend on state, parent accessible
     eNoLiveAttr,
-    states::READONLY
+    states::READONLY,
+    eARIASelectable,
+    eARIACheckedMixed
   },
   {
     "log",

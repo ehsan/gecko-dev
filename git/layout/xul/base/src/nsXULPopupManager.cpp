@@ -61,9 +61,11 @@
 #include "nsPIDOMWindow.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIBaseWindow.h"
+#include "nsIDocShellTreeItem.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsCaret.h"
 #include "nsIDocument.h"
+#include "nsPIDOMWindow.h"
 #include "nsPIWindowRoot.h"
 #include "nsFrameManager.h"
 #include "nsIObserverService.h"
@@ -1616,9 +1618,10 @@ nsXULPopupManager::SetCaptureState(nsIContent* aOldPopup)
 
   if (item) {
     nsMenuPopupFrame* popup = item->Frame();
-    mWidget = popup->GetWidget();
-    if (mWidget) {
-      mWidget->CaptureRollupEvents(this, true, popup->ConsumeOutsideClicks());
+    nsCOMPtr<nsIWidget> widget = popup->GetWidget();
+    if (widget) {
+      widget->CaptureRollupEvents(this, true, popup->ConsumeOutsideClicks());
+      mWidget = widget;
       popup->AttachedDismissalListener();
     }
   }

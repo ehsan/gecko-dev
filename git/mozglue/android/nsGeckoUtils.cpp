@@ -36,9 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include <jni.h>
-// Wrap malloc and free to use jemalloc
-#define malloc __wrap_malloc
-#define free __wrap_free
 #include <stdlib.h>
 
 extern "C"

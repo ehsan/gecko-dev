@@ -38,6 +38,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
+
 #include "TaskbarTabPreview.h"
 #include "nsWindowGfx.h"
 #include "nsUXThemeData.h"
@@ -388,3 +390,4 @@ TaskbarTabPreview::UpdateNext() {
 } // namespace widget
 } // namespace mozilla
 
+#endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7

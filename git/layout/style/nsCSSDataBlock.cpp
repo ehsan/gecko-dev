@@ -307,20 +307,6 @@ nsCSSCompressedDataBlock::CreateEmptyBlock()
     return result;
 }
 
-size_t
-nsCSSCompressedDataBlock::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
-{
-    size_t n = aMallocSizeOf(this);
-
-    const char* cursor = Block();
-    const char* cursor_end = BlockEnd();
-    while (cursor < cursor_end) {
-        n += ValueAtCursor(cursor)->SizeOfExcludingThis(aMallocSizeOf);
-        cursor += CDBValueStorage_advance;
-    }
-    return n;
-}
-
 /*****************************************************************************/
 
 nsCSSExpandedDataBlock::nsCSSExpandedDataBlock()

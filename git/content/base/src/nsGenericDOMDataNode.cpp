@@ -752,9 +752,6 @@ nsGenericDOMDataNode::SplitData(PRUint32 aOffset, nsIContent** aReturn,
     return rv;
   }
 
-  nsIDocument* document = GetCurrentDoc();
-  mozAutoDocUpdate updateBatch(document, UPDATE_CONTENT_MODEL, true);
-
   // Use Clone for creating the new node so that the new node is of same class
   // as this node!
   nsCOMPtr<nsIContent> newContent = CloneDataNode(mNodeInfo, false);
@@ -997,11 +994,12 @@ nsGenericDOMDataNode::GetClassAttributeName() const
   return nsnull;
 }
 
-size_t
-nsGenericDOMDataNode::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
+PRInt64
+nsGenericDOMDataNode::SizeOf() const
 {
-  size_t n = nsIContent::SizeOfExcludingThis(aMallocSizeOf);
-  n += mText.SizeOfExcludingThis(aMallocSizeOf);
-  return n;
+  PRInt64 size = dom::MemoryReporter::GetBasicSize<nsGenericDOMDataNode,
+                                                   nsIContent>(this);
+  size += mText.SizeOf() - sizeof(mText);
+  return size;
 }
 

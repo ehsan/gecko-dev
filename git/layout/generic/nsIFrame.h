@@ -291,9 +291,8 @@ typedef PRUint64 nsFrameState;
 // A display item for this frame has been painted as part of a ThebesLayer.
 #define NS_FRAME_PAINTED_THEBES                     NS_FRAME_STATE_BIT(38)
 
-// Frame is or is a descendant of something with a fixed height, unless that
-// ancestor is a body or html element, and has no closer ancestor that is
-// overflow:auto or overflow:scroll.
+// Frame is or is a descendant of something with a fixed height, and
+// has no closer ancestor that is overflow:auto or overflow:scroll.
 #define NS_FRAME_IN_CONSTRAINED_HEIGHT              NS_FRAME_STATE_BIT(39)
 
 // This is only set during painting
@@ -1058,8 +1057,12 @@ public:
    * @return  the child list.  If the requested list is unsupported by this
    *          frame type, an empty list will be returned.
    */
-  virtual const nsFrameList& GetChildList(ChildListID aListID) const = 0;
-  const nsFrameList& PrincipalChildList() { return GetChildList(kPrincipalList); }
+  // XXXbz if all our frame storage were actually backed by nsFrameList, we
+  // could make this return a const reference...  nsBlockFrame is the only real
+  // culprit here.  Make sure to assign the return value of this function into
+  // a |const nsFrameList&|, not an nsFrameList.
+  virtual nsFrameList GetChildList(ChildListID aListID) const = 0;
+  nsFrameList PrincipalChildList() { return GetChildList(kPrincipalList); }
   virtual void GetChildLists(nsTArray<ChildList>* aLists) const = 0;
   // XXXbz this method should go away
   nsIFrame* GetFirstChild(ChildListID aListID) const {
@@ -1244,14 +1247,8 @@ public:
    */
   bool Preserves3D() const;
 
-  bool HasPerspective() const;
-
-  bool ChildrenHavePerspective() const;
-
   // Calculate the overflow size of all child frames, taking preserve-3d into account
   void ComputePreserve3DChildrenOverflow(nsOverflowAreas& aOverflowAreas, const nsRect& aBounds);
-
-  void RecomputePerspectiveChildrenOverflow(const nsStyleContext* aStartStyle, const nsRect* aBounds);
 
   /**
    * Event handling of GUI events.
@@ -2425,15 +2422,14 @@ public:
    * Get the frame whose style context should be the parent of this
    * frame's style context (i.e., provide the parent style context).
    * This frame must either be an ancestor of this frame or a child.  If
-   * this returns a child frame, then the child frame must be sure to
-   * return a grandparent or higher!  Furthermore, if a child frame is
-   * returned it must have the same GetContent() as this frame.
+   * this frame returns a child frame, then the child frame must be sure
+   * to return a grandparent or higher!
    *
    * @return The frame whose style context should be the parent of this frame's
    *         style context.  Null is permitted, and means that this frame's
    *         style context should be the root of the style context tree.
    */
-  virtual nsIFrame* GetParentStyleContextFrame() const = 0;
+  virtual nsIFrame* GetParentStyleContextFrame() = 0;
 
   /**
    * Determines whether a frame is visible for painting;
@@ -2538,17 +2534,12 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
   virtual bool SupportsVisibilityHidden() { return true; }
 
   /**
-   * Returns true if the frame has a valid clip rect set via the 'clip'
-   * property, and the 'clip' property applies to this frame. The 'clip'
-   * property applies to HTML frames if they are absolutely positioned. The
-   * 'clip' property applies to SVG frames regardless of the value of the
-   * 'position' property.
-   *
-   * If this method returns true, then we also set aRect to the computed clip
-   * rect, with coordinates relative to this frame's origin. aRect must not be
-   * null!
+   * Returns true if the frame is absolutely positioned and has a clip
+   * rect set via the 'clip' property. If true, then we also set aRect
+   * to the computed clip rect coordinates relative to this frame's origin.
+   * aRect must not be null!
    */
-  bool GetClipPropClipRect(const nsStyleDisplay* aDisp, nsRect* aRect,
+  bool GetAbsPosClipRect(const nsStyleDisplay* aDisp, nsRect* aRect,
                            const nsSize& aSize) const;
 
   /**

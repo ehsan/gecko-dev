@@ -51,7 +51,6 @@
 #include "IDBFactory.h"
 #include "IndexedDatabaseManager.h"
 
-using namespace mozilla;
 USING_INDEXEDDB_NAMESPACE
 
 namespace {
@@ -2324,7 +2323,6 @@ SetVersionHelper::NotifyTransactionComplete(IDBTransaction* aTransaction)
   }
 
   mOpenRequest->SetTransaction(nsnull);
-  mOpenRequest = nsnull;
 
   rv = mOpenHelper->NotifySetVersionFinished();
   mOpenHelper = nsnull;

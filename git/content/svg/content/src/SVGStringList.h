@@ -54,13 +54,10 @@ class SVGStringList
 
 public:
 
-  SVGStringList() : mIsSet(false), mIsCommaSeparated(false) {}
+  SVGStringList() : mIsSet(false) {}
   ~SVGStringList(){}
 
-  void SetIsCommaSeparated(bool aIsCommaSeparated) {
-    mIsCommaSeparated = aIsCommaSeparated;
-  }
-  nsresult SetValue(const nsAString& aValue);
+  nsresult SetValue(const nsAString& aValue, bool aIsCommaSeparated);
 
   void Clear() {
     mStrings.Clear();
@@ -68,7 +65,7 @@ public:
   }
 
   /// This may return an incomplete string on OOM, but that's acceptable.
-  void GetValue(nsAString& aValue) const;
+  void GetValue(nsAString& aValue, bool aIsCommaSeparated) const;
 
   bool IsEmpty() const {
     return mStrings.IsEmpty();
@@ -94,8 +91,9 @@ public:
     mStrings.Compact();
   }
 
-  // Returns true if the value of this stringlist has been explicitly
-  // set by markup or a DOM call, false otherwise.
+  // Returns true if the animated value of this stringlist has been explicitly
+  // set by taking on the base value which has been explicitly set by markup
+  // or a DOM call, false otherwise.
   bool IsExplicitlySet() const
     { return mIsSet; }
 
@@ -170,7 +168,6 @@ protected:
    */
   nsTArray<nsString> mStrings;
   bool mIsSet;
-  bool mIsCommaSeparated;
 };
 
 } // namespace mozilla

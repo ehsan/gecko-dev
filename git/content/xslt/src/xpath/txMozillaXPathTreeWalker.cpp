@@ -453,7 +453,7 @@ txXPathNodeUtils::getLocalName(const txXPathNode& aNode, nsAString& aLocalName)
     // Check for html
     if (aNode.Content()->NodeInfo()->NamespaceEquals(kNameSpaceID_None) &&
         aNode.Content()->IsHTML()) {
-        nsContentUtils::ASCIIToUpper(aLocalName);
+        ToUpperCase(aLocalName);
     }
 }
 
@@ -560,6 +560,14 @@ txXPathNodeUtils::isWhitespace(const txXPathNode& aNode)
     NS_ASSERTION(aNode.isContent() && isText(aNode), "Wrong type!");
 
     return aNode.Content()->TextIsOnlyWhitespace();
+}
+
+/* static */
+txXPathNode*
+txXPathNodeUtils::getDocument(const txXPathNode& aNode)
+{
+    nsIDocument* document = aNode.mNode->GetCurrentDoc();
+    return document ? new txXPathNode(document) : nsnull;
 }
 
 /* static */

@@ -57,8 +57,6 @@
 #include "gfxPlatform.h"
 #include "nsIAtom.h"
 #include "nsISupportsImpl.h"
-#include "gfxPattern.h"
-#include "mozilla/HashFunctions.h"
 
 typedef struct _cairo_scaled_font cairo_scaled_font_t;
 
@@ -492,24 +490,16 @@ private:
 };
 
 
-// used when iterating over all fonts looking for a match for a given character
-struct GlobalFontMatch {
-    GlobalFontMatch(const PRUint32 aCharacter,
-                    PRInt32 aRunScript,
-                    const gfxFontStyle *aStyle) :
-        mCh(aCharacter), mRunScript(aRunScript), mStyle(aStyle),
-        mMatchRank(0), mCount(0), mCmapsTested(0)
-        {
-
-        }
-
-    const PRUint32         mCh;          // codepoint to be matched
-    PRInt32                mRunScript;   // Unicode script for the codepoint
-    const gfxFontStyle*    mStyle;       // style to match
-    PRInt32                mMatchRank;   // metric indicating closest match
-    nsRefPtr<gfxFontEntry> mBestMatch;   // current best match
-    PRUint32               mCount;       // number of fonts matched
-    PRUint32               mCmapsTested; // number of cmaps tested
+// used when picking fallback font
+struct FontSearch {
+    FontSearch(const PRUint32 aCharacter, gfxFont *aFont) :
+        mCh(aCharacter), mFontToMatch(aFont), mMatchRank(0), mCount(0) {
+    }
+    const PRUint32         mCh;
+    gfxFont*               mFontToMatch;
+    PRInt32                mMatchRank;
+    nsRefPtr<gfxFontEntry> mBestMatch;
+    PRUint32               mCount;
 };
 
 class gfxFontFamily {
@@ -523,22 +513,10 @@ public:
         mFaceNamesInitialized(false),
         mHasStyles(false),
         mIsSimpleFamily(false),
-        mIsBadUnderlineFamily(false),
-        mCharacterMapInitialized(false)
+        mIsBadUnderlineFamily(false)
         { }
 
-    virtual ~gfxFontFamily() {
-        // clear Family pointers in our faces; the font entries might stay
-        // alive due to cached font objects, but they can no longer refer
-        // to their families.
-        PRUint32 i = mAvailableFonts.Length();
-        while (i) {
-             gfxFontEntry *fe = mAvailableFonts[--i];
-             if (fe) {
-                 fe->SetFamily(nsnull);
-             }
-        }
-    }
+    virtual ~gfxFontFamily() { }
 
     const nsString& Name() { return mName; }
 
@@ -570,12 +548,9 @@ public:
     gfxFontEntry *FindFontForStyle(const gfxFontStyle& aFontStyle, 
                                    bool& aNeedsSyntheticBold);
 
-    // checks for a matching font within the family
+    // iterates over faces looking for a match with a given characters
     // used as part of the font fallback process
-    void FindFontForChar(GlobalFontMatch *aMatchData);
-
-    // checks all fonts for a matching font within the family
-    void SearchAllFontsForChar(GlobalFontMatch *aMatchData);
+    void FindFontForChar(FontSearch *aMatchData);
 
     // read in other family names, if any, and use functor to add each into cache
     virtual void ReadOtherFamilyNames(gfxPlatformFontList *aPlatformFontList);
@@ -598,30 +573,12 @@ public:
     gfxFontEntry* FindFont(const nsAString& aPostscriptName);
 
     // read in cmaps for all the faces
-    void ReadAllCMAPs() {
+    void ReadCMAP() {
         PRUint32 i, numFonts = mAvailableFonts.Length();
-        for (i = 0; i < numFonts; i++) {
-            gfxFontEntry *fe = mAvailableFonts[i];
-            if (!fe) {
-                continue;
-            }
-            fe->ReadCMAP();
-            mCharacterMap.Union(fe->mCharacterMap);
-        }
-        mCharacterMap.Compact();
-        mCharacterMapInitialized = true;
-    }
-
-    bool TestCharacterMap(PRUint32 aCh) {
-        if (!mCharacterMapInitialized) {
-            ReadAllCMAPs();
-        }
-        return mCharacterMap.test(aCh);
-    }
-
-    void ResetCharacterMap() {
-        mCharacterMap.reset();
-        mCharacterMapInitialized = false;
+        // called from RunLoader BEFORE CheckForSimpleFamily so that there cannot
+        // be any NULL entries in mAvailableFonts
+        for (i = 0; i < numFonts; i++)
+            mAvailableFonts[i]->ReadCMAP();
     }
 
     // mark this family as being in the "bad" underline offset blacklist
@@ -664,14 +621,12 @@ protected:
 
     nsString mName;
     nsTArray<nsRefPtr<gfxFontEntry> >  mAvailableFonts;
-    gfxSparseBitSet mCharacterMap;
     bool mOtherFamilyNamesInitialized;
     bool mHasOtherFamilyNames;
     bool mFaceNamesInitialized;
     bool mHasStyles;
     bool mIsSimpleFamily;
     bool mIsBadUnderlineFamily;
-    bool mCharacterMapInitialized;
 
     enum {
         // for "simple" families, the faces are stored in mAvailableFonts
@@ -811,7 +766,7 @@ protected:
         bool KeyEquals(const KeyTypePointer aKey) const;
         static KeyTypePointer KeyToPointer(KeyType aKey) { return &aKey; }
         static PLDHashNumber HashKey(const KeyTypePointer aKey) {
-            return mozilla::HashGeneric(aKey->mStyle->Hash(), aKey->mFontEntry);
+            return NS_PTR_TO_INT32(aKey->mFontEntry) ^ aKey->mStyle->Hash();
         }
         enum { ALLOW_MEMMOVE = true };
 
@@ -1361,8 +1316,7 @@ public:
      */
     virtual void Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
                       gfxContext *aContext, DrawMode aDrawMode, gfxPoint *aBaselineOrigin,
-                      Spacing *aSpacing, gfxPattern *aStrokePattern);
-
+                      Spacing *aSpacing);
     /**
      * Measure a run of characters. See gfxTextRun::Metrics.
      * @param aTight if false, then return the union of the glyph extents
@@ -1785,8 +1739,7 @@ public:
             FLAG_CHAR_IS_TAB              = 0x08,
             FLAG_CHAR_IS_NEWLINE          = 0x10,
             FLAG_CHAR_IS_LOW_SURROGATE    = 0x20,
-            CHAR_IDENTITY_FLAGS_MASK      = 0x38,
-
+            
             GLYPH_COUNT_MASK = 0x00FFFF00U,
             GLYPH_COUNT_SHIFT = 8
         };
@@ -1840,10 +1793,6 @@ public:
             return !IsSimpleGlyph() && (mValue & FLAG_CHAR_IS_LOW_SURROGATE) != 0;
         }
 
-        PRUint32 CharIdentityFlags() const {
-            return IsSimpleGlyph() ? 0 : (mValue & CHAR_IDENTITY_FLAGS_MASK);
-        }
-
         void SetClusterStart(bool aIsClusterStart) {
             NS_ASSERTION(!IsSimpleGlyph(),
                          "can't call SetClusterStart on simple glyphs");
@@ -1870,17 +1819,15 @@ public:
         CompressedGlyph& SetSimpleGlyph(PRUint32 aAdvanceAppUnits, PRUint32 aGlyph) {
             NS_ASSERTION(IsSimpleAdvance(aAdvanceAppUnits), "Advance overflow");
             NS_ASSERTION(IsSimpleGlyphID(aGlyph), "Glyph overflow");
-            NS_ASSERTION(!CharIdentityFlags(), "Char identity flags lost");
-            mValue = (mValue & (FLAGS_CAN_BREAK_BEFORE | FLAG_CHAR_IS_SPACE)) |
+            mValue = (mValue & FLAGS_CAN_BREAK_BEFORE) |
                 FLAG_IS_SIMPLE_GLYPH |
                 (aAdvanceAppUnits << ADVANCE_SHIFT) | aGlyph;
             return *this;
         }
         CompressedGlyph& SetComplex(bool aClusterStart, bool aLigatureStart,
                 PRUint32 aGlyphCount) {
-            mValue = (mValue & (FLAGS_CAN_BREAK_BEFORE | FLAG_CHAR_IS_SPACE)) |
+            mValue = (mValue & FLAGS_CAN_BREAK_BEFORE) |
                 FLAG_NOT_MISSING |
-                CharIdentityFlags() |
                 (aClusterStart ? 0 : FLAG_NOT_CLUSTER_START) |
                 (aLigatureStart ? 0 : FLAG_NOT_LIGATURE_GROUP_START) |
                 (aGlyphCount << GLYPH_COUNT_SHIFT);
@@ -1891,9 +1838,7 @@ public:
          * the cluster-start flag (see bugs 618870 and 619286).
          */
         CompressedGlyph& SetMissing(PRUint32 aGlyphCount) {
-            mValue = (mValue & (FLAGS_CAN_BREAK_BEFORE | FLAG_NOT_CLUSTER_START |
-                                FLAG_CHAR_IS_SPACE)) |
-                CharIdentityFlags() |
+            mValue = (mValue & (FLAGS_CAN_BREAK_BEFORE | FLAG_NOT_CLUSTER_START)) |
                 (aGlyphCount << GLYPH_COUNT_SHIFT);
             return *this;
         }
@@ -2417,7 +2362,7 @@ public:
               gfxFont::DrawMode aDrawMode,
               PRUint32 aStart, PRUint32 aLength,
               PropertyProvider *aProvider,
-              gfxFloat *aAdvanceWidth, gfxPattern *aStrokePattern);
+              gfxFloat *aAdvanceWidth);
 
     /**
      * Computes the ReflowMetrics for a substring.
@@ -2862,7 +2807,7 @@ private:
     // **** drawing helper ****
     void DrawGlyphs(gfxFont *aFont, gfxContext *aContext,
                     gfxFont::DrawMode aDrawMode, gfxPoint *aPt,
-                    gfxPattern *aStrokePattern, PRUint32 aStart, PRUint32 aEnd,
+                    PRUint32 aStart, PRUint32 aEnd,
                     PropertyProvider *aProvider,
                     PRUint32 aSpacingStart, PRUint32 aSpacingEnd);
 
@@ -3000,8 +2945,7 @@ public:
     // search through pref fonts for a character, return nsnull if no matching pref font
     virtual already_AddRefed<gfxFont> WhichPrefFontSupportsChar(PRUint32 aCh);
 
-    virtual already_AddRefed<gfxFont>
-        WhichSystemFontSupportsChar(PRUint32 aCh, PRInt32 aRunScript);
+    virtual already_AddRefed<gfxFont> WhichSystemFontSupportsChar(PRUint32 aCh);
 
     template<typename T>
     void ComputeRanges(nsTArray<gfxTextRange>& mRanges,

@@ -54,7 +54,6 @@ DIRS = \
   styleinspector \
   tilt \
   scratchpad \
-  debugger \
   shared \
   $(NULL)
 

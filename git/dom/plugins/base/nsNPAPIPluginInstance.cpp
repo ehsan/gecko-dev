@@ -80,14 +80,20 @@ NS_IMPL_THREADSAFE_ISUPPORTS0(nsNPAPIPluginInstance)
 
 nsNPAPIPluginInstance::nsNPAPIPluginInstance(nsNPAPIPlugin* plugin)
   :
-    mDrawingModel(kDefaultDrawingModel),
+#ifdef XP_MACOSX
+#ifdef NP_NO_QUICKDRAW
+    mDrawingModel(NPDrawingModelCoreGraphics),
+#else
+    mDrawingModel(NPDrawingModelQuickDraw),
+#endif
+#endif
 #ifdef MOZ_WIDGET_ANDROID
     mSurface(nsnull),
     mANPDrawingModel(0),
-    mOnScreen(true),
 #endif
     mRunning(NOT_STARTED),
     mWindowless(false),
+    mWindowlessLocal(false),
     mTransparent(false),
     mCached(false),
     mUsesDOMForCursor(false),
@@ -492,6 +498,13 @@ nsresult nsNPAPIPluginInstance::SetWindow(NPWindow* window)
 }
 
 nsresult
+nsNPAPIPluginInstance::NewStreamToPlugin(nsIPluginStreamListener** listener)
+{
+  // This method can be removed at the next opportunity.
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+nsresult
 nsNPAPIPluginInstance::NewStreamFromPlugin(const char* type, const char* target,
                                            nsIOutputStream* *result)
 {
@@ -641,6 +654,18 @@ nsresult nsNPAPIPluginInstance::GetNPP(NPP* aNPP)
   return NS_OK;
 }
 
+void
+nsNPAPIPluginInstance::SetURI(nsIURI* uri)
+{
+  mURI = uri;
+}
+
+nsIURI*
+nsNPAPIPluginInstance::GetURI()
+{
+  return mURI.get();
+}
+
 NPError nsNPAPIPluginInstance::SetWindowless(bool aWindowless)
 {
   mWindowless = aWindowless;
@@ -658,6 +683,12 @@ NPError nsNPAPIPluginInstance::SetWindowless(bool aWindowless)
     }
   }
 
+  return NPERR_NO_ERROR;
+}
+
+NPError nsNPAPIPluginInstance::SetWindowlessLocal(bool aWindowlessLocal)
+{
+  mWindowlessLocal = aWindowlessLocal;
   return NPERR_NO_ERROR;
 }
 
@@ -679,17 +710,12 @@ nsNPAPIPluginInstance::UsesDOMForCursor()
   return mUsesDOMForCursor;
 }
 
+#if defined(XP_MACOSX)
 void nsNPAPIPluginInstance::SetDrawingModel(NPDrawingModel aModel)
 {
   mDrawingModel = aModel;
 }
 
-void nsNPAPIPluginInstance::RedrawPlugin()
-{
-  mOwner->RedrawPlugin();
-}
-
-#if defined(XP_MACOSX)
 void nsNPAPIPluginInstance::SetEventModel(NPEventModel aModel)
 {
   // the event model needs to be set for the object frame immediately
@@ -705,44 +731,6 @@ void nsNPAPIPluginInstance::SetEventModel(NPEventModel aModel)
 #endif
 
 #if defined(MOZ_WIDGET_ANDROID)
-
-static void SendLifecycleEvent(nsNPAPIPluginInstance* aInstance, PRUint32 aAction)
-{
-  ANPEvent event;
-  event.inSize = sizeof(ANPEvent);
-  event.eventType = kLifecycle_ANPEventType;
-  event.data.lifecycle.action = aAction;
-  aInstance->HandleEvent(&event, nsnull);
-}
-
-void nsNPAPIPluginInstance::NotifyForeground(bool aForeground)
-{
-  PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("nsNPAPIPluginInstance::SetForeground this=%p\n foreground=%d",this, aForeground));
-  if (RUNNING != mRunning)
-    return;
-
-  SendLifecycleEvent(this, aForeground ? kResume_ANPLifecycleAction : kPause_ANPLifecycleAction);
-}
-
-void nsNPAPIPluginInstance::NotifyOnScreen(bool aOnScreen)
-{
-  PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("nsNPAPIPluginInstance::SetOnScreen this=%p\n onScreen=%d",this, aOnScreen));
-  if (RUNNING != mRunning || mOnScreen == aOnScreen)
-    return;
-
-  mOnScreen = aOnScreen;
-  SendLifecycleEvent(this, aOnScreen ? kOnScreen_ANPLifecycleAction : kOffScreen_ANPLifecycleAction);
-}
-
-void nsNPAPIPluginInstance::MemoryPressure()
-{
-  PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("nsNPAPIPluginInstance::MemoryPressure this=%p\n",this));
-  if (RUNNING != mRunning)
-    return;
-
-  SendLifecycleEvent(this, kFreeMemory_ANPLifecycleAction);
-}
-
 void nsNPAPIPluginInstance::SetANPDrawingModel(PRUint32 aModel)
 {
   mANPDrawingModel = aModel;
@@ -977,15 +965,15 @@ nsNPAPIPluginInstance::HandleGUIEvent(const nsGUIEvent& anEvent, bool* handled)
 #endif
 
 nsresult
-nsNPAPIPluginInstance::GetImageContainer(ImageContainer**aContainer)
+nsNPAPIPluginInstance::GetImage(ImageContainer* aContainer, Image** aImage)
 {
-  *aContainer = nsnull;
+  *aImage = nsnull;
 
   if (RUNNING != mRunning)
     return NS_OK;
 
   AutoPluginLibraryCall library(this);
-  return !library ? NS_ERROR_FAILURE : library->GetImageContainer(&mNPP, aContainer);
+  return !library ? NS_ERROR_FAILURE : library->GetImage(&mNPP, aContainer, aImage);
 }
 
 nsresult
@@ -1369,6 +1357,20 @@ nsNPAPIPluginInstance::InvalidateRegion(NPRegion invalidRegion)
 }
 
 nsresult
+nsNPAPIPluginInstance::ForceRedraw()
+{
+  if (RUNNING != mRunning)
+    return NS_OK;
+
+  nsCOMPtr<nsIPluginInstanceOwner> owner;
+  GetOwner(getter_AddRefs(owner));
+  if (!owner)
+    return NS_ERROR_FAILURE;
+
+  return owner->ForceRedraw();
+}
+
+nsresult
 nsNPAPIPluginInstance::GetMIMEType(const char* *result)
 {
   if (!mMIMEType)
@@ -1460,32 +1462,6 @@ nsNPAPIPluginInstance::URLRedirectResponse(void* notifyData, NPBool allow)
       currentListener->URLRedirectResponse(allow);
     }
   }
-}
-
-NPError
-nsNPAPIPluginInstance::InitAsyncSurface(NPSize *size, NPImageFormat format,
-                                        void *initData, NPAsyncSurface *surface)
-{
-  if (mOwner)
-    return mOwner->InitAsyncSurface(size, format, initData, surface);
-
-  return NPERR_GENERIC_ERROR;
-}
-
-NPError
-nsNPAPIPluginInstance::FinalizeAsyncSurface(NPAsyncSurface *surface)
-{
-  if (mOwner)
-    return mOwner->FinalizeAsyncSurface(surface);
-
-  return NPERR_GENERIC_ERROR;
-}
-
-void
-nsNPAPIPluginInstance::SetCurrentAsyncSurface(NPAsyncSurface *surface, NPRect *changed)
-{
-  if (mOwner)
-    mOwner->SetCurrentAsyncSurface(surface, changed);
 }
 
 class CarbonEventModelFailureEvent : public nsRunnable {

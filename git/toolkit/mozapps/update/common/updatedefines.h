@@ -112,13 +112,7 @@
 #else
 # include <sys/wait.h>
 # include <unistd.h>
-
-#ifdef SOLARIS
-# include <sys/stat.h>
-# include <dirent.h>
-#else
 # include <fts.h>
-#endif
 
 #ifdef XP_MACOSX
 # include <sys/time.h>

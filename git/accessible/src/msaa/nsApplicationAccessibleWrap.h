@@ -52,9 +52,6 @@ public:
   // nsISupporst
   NS_DECL_ISUPPORTS_INHERITED
 
-  // nsIAccessible
-  NS_IMETHOD GetAttributes(nsIPersistentProperties** aAttributes);
-
   // IUnknown
   STDMETHODIMP QueryInterface(REFIID, void**);
 

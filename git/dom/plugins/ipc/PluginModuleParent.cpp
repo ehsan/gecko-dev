@@ -206,7 +206,7 @@ PluginModuleParent::TimeoutChanged(const char* aPref, void* aModule)
     } else if (!strcmp(aPref, kParentTimeoutPref)) {
       // The timeout value used by the child for its parent
       PRInt32 timeoutSecs = Preferences::GetInt(kParentTimeoutPref, 0);
-      unused << static_cast<PluginModuleParent*>(aModule)->SendSetParentHangTimeout(timeoutSecs);
+      static_cast<PluginModuleParent*>(aModule)->SendSetParentHangTimeout(timeoutSecs);
     }
     return 0;
 }
@@ -687,11 +687,12 @@ PluginModuleParent::HandleGUIEvent(NPP instance,
 #endif
 
 nsresult
-PluginModuleParent::GetImageContainer(NPP instance,
-                             mozilla::layers::ImageContainer** aContainer)
+PluginModuleParent::GetImage(NPP instance,
+                             mozilla::layers::ImageContainer* aContainer,
+                             mozilla::layers::Image** aImage)
 {
     PluginInstanceParent* i = InstCast(instance);
-    return !i ? NS_ERROR_FAILURE : i->GetImageContainer(aContainer);
+    return !i ? NS_ERROR_FAILURE : i->GetImage(aContainer, aImage);
 }
 
 nsresult
@@ -749,12 +750,7 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs
         return NS_ERROR_FAILURE;
     }
 
-    uint32_t flags = 0;
-    if (mozilla::Preferences::GetBool("plugin.allow.asyncdrawing", false)) {
-      flags |= kAllowAsyncDrawing;
-    }
-
-    if (!CallNP_Initialize(flags, error)) {
+    if (!CallNP_Initialize(error)) {
         return NS_ERROR_FAILURE;
     }
     else if (*error != NPERR_NO_ERROR) {
@@ -778,15 +774,10 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
         return NS_ERROR_FAILURE;
     }
 
-    uint32_t flags = 0;
-    if (mozilla::Preferences::GetBool("plugin.allow.asyncdrawing", false)) {
-      flags |= kAllowAsyncDrawing;
-    }
-
-    if (!CallNP_Initialize(flags, error))
+    if (!CallNP_Initialize(error))
         return NS_ERROR_FAILURE;
 
-#if defined XP_WIN
+#if defined XP_WIN && MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
     // Send the info needed to join the chrome process's audio session to the
     // plugin process
     nsID id;

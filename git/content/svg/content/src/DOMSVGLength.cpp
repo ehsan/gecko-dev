@@ -156,14 +156,8 @@ DOMSVGLength::SetValue(float aUserUnitValue)
   // unit as it is.
 
   if (HasOwner()) {
-    if (InternalItem().GetValueInUserUnits(Element(), Axis()) ==
-        aUserUnitValue) {
-      return NS_OK;
-    }
-    nsAttrValue emptyOrOldValue = Element()->WillChangeLengthList(mAttrEnum);
-    if (InternalItem().SetFromUserUnitValue(aUserUnitValue, Element(), Axis()))
-    {
-      Element()->DidChangeLengthList(mAttrEnum, emptyOrOldValue);
+    if (InternalItem().SetFromUserUnitValue(aUserUnitValue, Element(), Axis())) {
+      Element()->DidChangeLengthList(mAttrEnum, true);
       if (mList->mAList->IsAnimating()) {
         Element()->AnimationNeedsResample();
       }
@@ -201,12 +195,8 @@ DOMSVGLength::SetValueInSpecifiedUnits(float aValue)
   }
 
   if (HasOwner()) {
-    if (InternalItem().GetValueInCurrentUnits() == aValue) {
-      return NS_OK;
-    }
-    nsAttrValue emptyOrOldValue = Element()->WillChangeLengthList(mAttrEnum);
     InternalItem().SetValueInCurrentUnits(aValue);
-    Element()->DidChangeLengthList(mAttrEnum, emptyOrOldValue);
+    Element()->DidChangeLengthList(mAttrEnum, true);
     if (mList->mAList->IsAnimating()) {
       Element()->AnimationNeedsResample();
     }
@@ -228,12 +218,8 @@ DOMSVGLength::SetValueAsString(const nsAString& aValue)
     return NS_ERROR_DOM_SYNTAX_ERR;
   }
   if (HasOwner()) {
-    if (InternalItem() == value) {
-      return NS_OK;
-    }
-    nsAttrValue emptyOrOldValue = Element()->WillChangeLengthList(mAttrEnum);
     InternalItem() = value;
-    Element()->DidChangeLengthList(mAttrEnum, emptyOrOldValue);
+    Element()->DidChangeLengthList(mAttrEnum, true);
     if (mList->mAList->IsAnimating()) {
       Element()->AnimationNeedsResample();
     }
@@ -273,13 +259,8 @@ DOMSVGLength::NewValueSpecifiedUnits(PRUint16 aUnit, float aValue)
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
   }
   if (HasOwner()) {
-    if (InternalItem().GetUnit() == aUnit &&
-        InternalItem().GetValueInCurrentUnits() == aValue) {
-      return NS_OK;
-    }
-    nsAttrValue emptyOrOldValue = Element()->WillChangeLengthList(mAttrEnum);
     InternalItem().SetValueAndUnit(aValue, PRUint8(aUnit));
-    Element()->DidChangeLengthList(mAttrEnum, emptyOrOldValue);
+    Element()->DidChangeLengthList(mAttrEnum, true);
     if (mList->mAList->IsAnimating()) {
       Element()->AnimationNeedsResample();
     }
@@ -301,12 +282,7 @@ DOMSVGLength::ConvertToSpecifiedUnits(PRUint16 aUnit)
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
   }
   if (HasOwner()) {
-    if (InternalItem().GetUnit() == aUnit) {
-      return NS_OK;
-    }
-    nsAttrValue emptyOrOldValue = Element()->WillChangeLengthList(mAttrEnum);
     if (InternalItem().ConvertToUnit(PRUint8(aUnit), Element(), Axis())) {
-      Element()->DidChangeLengthList(mAttrEnum, emptyOrOldValue);
       return NS_OK;
     }
   } else {

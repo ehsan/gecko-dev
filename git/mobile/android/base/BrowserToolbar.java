@@ -64,9 +64,8 @@ import android.widget.TextView;
 import android.widget.TextSwitcher;
 import android.widget.ViewSwitcher.ViewFactory;
 
-public class BrowserToolbar {
-    private static final String LOGTAG = "GeckoToolbar";
-    private LinearLayout mLayout;
+public class BrowserToolbar extends LinearLayout {
+    private static final String LOGTAG = "GeckoToolbar";    
     private Button mAwesomeBar;
     private ImageButton mTabs;
     public ImageButton mFavicon;
@@ -78,6 +77,7 @@ public class BrowserToolbar {
 
     final private Context mContext;
     private Handler mHandler;
+    private boolean mInflated;
     private int mColor;
     private int mCounterColor;
     private int[] mPadding;
@@ -91,19 +91,17 @@ public class BrowserToolbar {
 
     private int mCount;
 
-    public BrowserToolbar(Context context) {
+    public BrowserToolbar(Context context, AttributeSet attrs) {
+        super(context, attrs);
         mContext = context;
-    }
-
-    public void from(LinearLayout layout) {
-        mLayout = layout;
+        mInflated = false;
         mTitleCanExpand = true;
 
         // Get the device's highlight color
         TypedArray typedArray;
 
         if (Build.VERSION.SDK_INT >= 11) {            
-            typedArray = mContext.obtainStyledAttributes(new int[] { android.R.attr.textColorHighlight });
+            typedArray = context.obtainStyledAttributes(new int[] { android.R.attr.textColorHighlight });
         } else {
             ContextThemeWrapper wrapper  = new ContextThemeWrapper(mContext, android.R.style.TextAppearance);
             typedArray = wrapper.getTheme().obtainStyledAttributes(new int[] { android.R.attr.textColorHighlight });
@@ -111,14 +109,28 @@ public class BrowserToolbar {
 
         mColor = typedArray.getColor(typedArray.getIndex(0), 0);
         typedArray.recycle();
-        mAwesomeBar = (Button) mLayout.findViewById(R.id.awesome_bar);
+    }
+
+    @Override
+    protected void onFinishInflate () {
+        super.onFinishInflate();
+
+        // HACK: Without this, the onFinishInflate is called twice
+        // This issue is due to a bug when Android inflates a layout with a
+        // parent. Fixed in Honeycomb
+        if (mInflated)
+            return;
+
+        mInflated = true;
+
+        mAwesomeBar = (Button) findViewById(R.id.awesome_bar);
         mAwesomeBar.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View v) {
                 onAwesomeBarSearch();
             }
         });
 
-        Resources resources = mContext.getResources();
+        Resources resources = getResources();
         
         mPadding = new int[] { mAwesomeBar.getPaddingLeft(),
                                mAwesomeBar.getPaddingTop(),
@@ -133,7 +145,7 @@ public class BrowserToolbar {
 
         mAwesomeBar.setPadding(mPadding[0], mPadding[1], mPadding[2], mPadding[3]);
 
-        mTabs = (ImageButton) mLayout.findViewById(R.id.tabs);
+        mTabs = (ImageButton) findViewById(R.id.tabs);
         mTabs.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View v) {
                 if (Tabs.getInstance().getCount() > 1)
@@ -146,7 +158,7 @@ public class BrowserToolbar {
 
         mCounterColor = 0xFFC7D1DB;
 
-        mTabsCount = (TextSwitcher) mLayout.findViewById(R.id.tabs_count);
+        mTabsCount = (TextSwitcher) findViewById(R.id.tabs_count);
         mTabsCount.removeAllViews();
         mTabsCount.setFactory(new ViewFactory() {
             public View makeView() {
@@ -170,18 +182,18 @@ public class BrowserToolbar {
         mTabsCount.setText("0");
         mCount = 0;
 
-        mFavicon = (ImageButton) mLayout.findViewById(R.id.favicon);
-        mSiteSecurity = (ImageButton) mLayout.findViewById(R.id.site_security);
+        mFavicon = (ImageButton) findViewById(R.id.favicon);
+        mSiteSecurity = (ImageButton) findViewById(R.id.site_security);
         mProgressSpinner = (AnimationDrawable) resources.getDrawable(R.drawable.progress_spinner);
         
-        mStop = (ImageButton) mLayout.findViewById(R.id.stop);
+        mStop = (ImageButton) findViewById(R.id.stop);
         mStop.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View v) {
                 doStop();
             }
         });
 
-        mShadow = (ImageView) mLayout.findViewById(R.id.shadow);
+        mShadow = (ImageView) findViewById(R.id.shadow);
 
         mHandler = new Handler();
         mSlideUpIn = new TranslateAnimation(0, 0, 40, 0);
@@ -197,7 +209,7 @@ public class BrowserToolbar {
     }
 
     private void onAwesomeBarSearch() {
-        GeckoApp.mAppContext.onSearchRequested();
+        GeckoApp.mAppContext.onEditRequested();
     }
 
     private void addTab() {
@@ -293,22 +305,15 @@ public class BrowserToolbar {
 
     public void setTitle(CharSequence title) {
         Tab tab = Tabs.getInstance().getSelectedTab();
-
-        // We use about:empty as a placeholder for an external page load and
-        // we don't want to change the title
-        if (tab != null && "about:empty".equals(tab.getURL()))
-            return;
-
         // Setting a null title for about:home will ensure we just see
         // the "Enter Search or Address" placeholder text
-        if (tab != null && "about:home".equals(tab.getURL()))
+        if (tab != null && tab.getURL().equals("about:home"))
             title = null;
-
         mAwesomeBar.setText(title);
     }
 
     public void setFavicon(Drawable image) {
-        if (Tabs.getInstance().getSelectedTab().getState() == Tab.STATE_LOADING)
+        if (Tabs.getInstance().getSelectedTab().isLoading())
             return;
 
         if (image != null)
@@ -330,38 +335,15 @@ public class BrowserToolbar {
         }
     }
 
-    public void setVisibility(int visibility) {
-        mLayout.setVisibility(visibility);
-    }
-
-    public void requestFocusFromTouch() {
-        mLayout.requestFocusFromTouch();
-    }
-
-    public void show() {
-        if (Build.VERSION.SDK_INT >= 11)
-            GeckoActionBar.show(GeckoApp.mAppContext);
-        else
-            mLayout.setVisibility(View.VISIBLE);
-    }
-
-    public void hide() {
-        if (Build.VERSION.SDK_INT >= 11)
-            GeckoActionBar.hide(GeckoApp.mAppContext);
-        else
-            mLayout.setVisibility(View.GONE);
-    }
-
     public void refresh() {
         Tab tab = Tabs.getInstance().getSelectedTab();
         if (tab != null) {
-            String url = tab.getURL();
             setTitle(tab.getDisplayTitle());
             setFavicon(tab.getFavicon());
             setSecurityMode(tab.getSecurityMode());
-            setProgressVisibility(tab.getState() == Tab.STATE_LOADING);
-            setShadowVisibility((url == null) || !url.startsWith("about:"));
-            updateTabCount(Tabs.getInstance().getCount());
+            setProgressVisibility(tab.isLoading());
+            setShadowVisibility(!(tab.getURL().startsWith("about:")));
+            updateTabCountAndAnimate(Tabs.getInstance().getCount());
         }
     }
 }

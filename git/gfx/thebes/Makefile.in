@@ -75,10 +75,10 @@ EXPORTS	= \
 	gfxSkipChars.h \
 	gfxTeeSurface.h \
 	gfxTypes.h \
+	gfxUnicodeProperties.h \
 	gfxUtils.h \
 	gfxUserFontSet.h \
 	nsCoreAnimationSupport.h \
-	nsIOSurface.h \
 	gfxSharedImageSurface.h \
 	$(NULL)
 
@@ -202,6 +202,7 @@ CPPSRCS	= \
 	gfxTeeSurface.cpp \
 	gfxUserFontSet.cpp \
 	gfxUtils.cpp \
+	gfxUnicodeProperties.cpp \
 	gfxScriptItemizer.cpp \
 	gfxHarfBuzzShaper.cpp \
 	gfxSharedImageSurface.cpp \
@@ -274,9 +275,6 @@ CPPSRCS += \
 	gfxPDFSurface.cpp \
 	nsUnicodeRange.cpp \
 	$(NULL)
-# This is set for "normal Android", that is, when Gecko is running on
-# top of the android java runtime.
-DEFINES +=	-DMOZ_USING_ANDROID_JAVA_WIDGETS
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)
@@ -363,7 +361,7 @@ endif
 
 CSRCS += woff.c
 
-DEFINES += -DIMPL_THEBES -DWOFF_MOZILLA_CLIENT -DHB_DONT_DEFINE_STDINT
+DEFINES += -DIMPL_THEBES -DWOFF_MOZILLA_CLIENT
 
 ifeq (WINNT,$(OS_TARGET))
 DEFINES += -DOTS_DLL

@@ -127,7 +127,6 @@
       <handler event="keypress"><![CDATA[
         var win = this.findbar._currentWindow ||
                   this.findbar.browser.contentWindow;
-        var controller = this.findbar._getSelectionController(win);
 
         var shouldHandle = !event.altKey && !event.ctrlKey &&
                            !event.metaKey && !event.shiftKey;
@@ -141,22 +140,22 @@
             break;
           case KeyEvent.DOM_VK_PAGE_UP:
             if (shouldHandle) {
-              controller.scrollPage(false);
+              win.scrollByPages(-1);
               event.preventDefault();
             }
             break;
           case KeyEvent.DOM_VK_PAGE_DOWN:
             if (shouldHandle) {
-              controller.scrollPage(true);
+              win.scrollByPages(1);
               event.preventDefault();
             }
             break;
           case KeyEvent.DOM_VK_UP:
-            controller.scrollLine(false);
+            win.scrollByLines(-1);
             event.preventDefault();
             break;
           case KeyEvent.DOM_VK_DOWN:
-            controller.scrollLine(true);
+            win.scrollByLines(1);
             event.preventDefault();
             break;
         }
@@ -354,7 +353,7 @@
             return;
 
           var prefsvc =
-            aSubject.QueryInterface(Components.interfaces.nsIPrefBranch);
+            aSubject.QueryInterface(Components.interfaces.nsIPrefBranch2);
 
           switch (aPrefName) {
             case "accessibility.typeaheadfind":
@@ -383,7 +382,7 @@
 
         var prefsvc =
           Components.classes["@mozilla.org/preferences-service;1"]
-                    .getService(Components.interfaces.nsIPrefBranch);
+                    .getService(Components.interfaces.nsIPrefBranch2);
 
         this._quickFindTimeoutLength =
           prefsvc.getIntPref("accessibility.typeaheadfind.timeout");
@@ -443,7 +442,7 @@
 
           var prefsvc =
             Components.classes["@mozilla.org/preferences-service;1"]
-                      .getService(Components.interfaces.nsIPrefBranch);
+                      .getService(Components.interfaces.nsIPrefBranch2);
           prefsvc.removeObserver("accessibility.typeaheadfind",
                                  this._observer);
           prefsvc.removeObserver("accessibility.typeaheadfind.linksonly",
@@ -1101,7 +1100,7 @@
         <body><![CDATA[
           var prefsvc =
             Components.classes["@mozilla.org/preferences-service;1"]
-                      .getService(Components.interfaces.nsIPrefBranch);
+                      .getService(Components.interfaces.nsIPrefBranch2);
 
           // Just set the pref; our observer will change the find bar behavior
           prefsvc.setIntPref("accessibility.typeaheadfind.casesensitive",
@@ -1704,7 +1703,7 @@
         <body><![CDATA[
           var prefsvc =
             Components.classes["@mozilla.org/preferences-service;1"]
-                      .getService(Components.interfaces.nsIPrefBranch);
+                      .getService(Components.interfaces.nsIPrefBranch2);
           var userWantsPrefill = true;
           this.open(aMode);
 

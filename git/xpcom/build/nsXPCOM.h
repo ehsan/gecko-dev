@@ -240,7 +240,7 @@ NS_NewNativeLocalFile(const nsACString &path,
 
 /**
  * Allocates a block of memory of a particular size. If the memory cannot
- * be allocated (because of an out-of-memory condition), the process aborts.
+ * be allocated (because of an out-of-memory condition), null is returned.
  *
  * @param size   The size of the block to allocate
  * @result       The block of memory
@@ -262,7 +262,8 @@ NS_Alloc(PRSize size);
  * If s is the size of the block to which ptr points, the first min(s, size)
  * bytes of ptr's block are copied to the new block. If the allocation
  * succeeds, ptr is freed and a pointer to the new block is returned. If the
- * allocation fails, the process aborts.
+ * allocation fails, ptr is not freed and null is returned. The returned
+ * value may be the same as ptr.
  */
 XPCOM_API(void*)
 NS_Realloc(void* ptr, PRSize size);

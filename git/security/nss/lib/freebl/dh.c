@@ -38,7 +38,7 @@
  * Diffie-Hellman parameter generation, key generation, and secret derivation.
  * KEA secret generation and verification.
  *
- * $Id: dh.c,v 1.10 2012/03/28 22:35:14 rrelyea%redhat.com Exp $
+ * $Id: dh.c,v 1.9 2010/07/20 01:26:02 wtc%google.com Exp $
  */
 #ifdef FREEBL_NO_DEPEND
 #include "stubs.h"
@@ -215,7 +215,7 @@ DH_Derive(SECItem *publicValue,
           SECItem *prime, 
           SECItem *privateValue, 
           SECItem *derivedSecret, 
-          unsigned int outBytes)
+          unsigned int maxOutBytes)
 {
     mp_int p, Xa, Yb, ZZ;
     mp_err err = MP_OKAY;
@@ -251,24 +251,15 @@ DH_Derive(SECItem *publicValue,
     /* grab the derived secret */
     err = mp_to_unsigned_octets(&ZZ, secret, len);
     if (err >= 0) err = MP_OKAY;
-    /* 
-    ** if outBytes is 0 take all of the bytes from the derived secret.
-    ** if outBytes is not 0 take exactly outBytes from the derived secret, zero
-    ** pad at the beginning if necessary, and truncate beginning bytes 
-    ** if necessary.
+    /* Take minimum of bytes requested and bytes in derived secret,
+    ** if maxOutBytes is 0 take all of the bytes from the derived secret.
     */
-    if (outBytes > 0)
-	nb = outBytes;
+    if (maxOutBytes > 0)
+	nb = PR_MIN(len, maxOutBytes);
     else
 	nb = len;
     SECITEM_AllocItem(NULL, derivedSecret, nb);
-    if (len < nb) {
-	unsigned int offset = nb - len;
-	memset(derivedSecret->data, 0, offset);
-	memcpy(derivedSecret->data + offset, secret, len);
-    } else {
-	memcpy(derivedSecret->data, secret + len - nb, nb);
-    }
+    memcpy(derivedSecret->data, secret, nb);
 cleanup:
     mp_clear(&p);
     mp_clear(&Xa);

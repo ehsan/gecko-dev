@@ -48,6 +48,7 @@
 #endif
 #include "gfxWindowsPlatform.h"
 #include "gfxContext.h"
+#include "gfxUnicodeProperties.h"
 
 #include "cairo-win32.h"
 
@@ -156,13 +157,9 @@ gfxGDIFont::ShapeWord(gfxContext *aContext,
 
     bool ok = false;
 
-    // Ensure the cairo font is set up, so there's no risk it'll fall back to
-    // creating a "toy" font internally (see bug 544617).
-    // We must check that this succeeded, otherwise we risk cairo creating the
-    // wrong kind of font internally as a fallback (bug 744480).
-    if (!SetupCairoFont(aContext)) {
-        return false;
-    }
+    // ensure the cairo font is set up, so there's no risk it'll fall back to
+    // creating a "toy" font internally (see bug 544617)
+    SetupCairoFont(aContext);
 
 #ifdef MOZ_GRAPHITE
     if (mGraphiteShaper && gfxPlatform::GetPlatform()->UseGraphiteShaping()) {
@@ -232,12 +229,6 @@ gfxGDIFont::ShapeWord(gfxContext *aContext,
 #endif
     }
 
-    if (ok && IsSyntheticBold()) {
-        float synBoldOffset =
-                GetSyntheticBoldOffset() * CalcXScale(aContext);
-        aShapedWord->AdjustAdvancesForSyntheticBold(synBoldOffset);
-    }
-
     return ok;
 }
 
@@ -301,8 +292,6 @@ gfxGDIFont::Measure(gfxTextRun *aTextRun,
     return metrics;
 }
 
-#define OBLIQUE_SKEW_FACTOR 0.3
-
 void
 gfxGDIFont::Initialize()
 {
@@ -331,13 +320,6 @@ gfxGDIFont::Initialize()
             delete mMetrics;
             mMetrics = nsnull;
         }
-    }
-
-    // (bug 724231) for local user fonts, we don't use GDI's synthetic bold,
-    // as it could lead to a different, incompatible face being used
-    // but instead do our own multi-striking
-    if (mNeedsBold && GetFontEntry()->IsLocalUserFont()) {
-        mApplySyntheticBold = true;
     }
 
     // this may end up being zero
@@ -452,31 +434,12 @@ gfxGDIFont::Initialize()
         SanitizeMetrics(mMetrics, GetFontEntry()->mIsBadUnderlineFont);
     }
 
-    if (IsSyntheticBold()) {
-        mMetrics->aveCharWidth += GetSyntheticBoldOffset();
-        mMetrics->maxAdvance += GetSyntheticBoldOffset();
-    }
-
     mFontFace = cairo_win32_font_face_create_for_logfontw_hfont(&logFont,
                                                                 mFont);
 
     cairo_matrix_t sizeMatrix, ctm;
     cairo_matrix_init_identity(&ctm);
     cairo_matrix_init_scale(&sizeMatrix, mAdjustedSize, mAdjustedSize);
-
-    bool italic = (mStyle.style & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE));
-    if (italic && !mFontEntry->IsItalic()) {
-        double skewfactor = OBLIQUE_SKEW_FACTOR;
-        cairo_matrix_t style;
-        cairo_matrix_init(&style,
-                          1,                //xx
-                          0,                //yx
-                          -1 * skewfactor,  //xy
-                          1,                //yy
-                          0,                //x0
-                          0);               //y0
-        cairo_matrix_multiply(&sizeMatrix, &sizeMatrix, &style);
-    }
 
     cairo_font_options_t *fontOptions = cairo_font_options_create();
     if (mAntialiasOption != kAntialiasDefault) {
@@ -519,23 +482,22 @@ gfxGDIFont::FillLogFont(LOGFONTW& aLogFont, gfxFloat aSize)
 {
     GDIFontEntry *fe = static_cast<GDIFontEntry*>(GetFontEntry());
 
-    PRUint16 weight;
-    if (fe->IsUserFont()) {
-        if (fe->IsLocalUserFont()) {
-            // for local user fonts, don't change the original weight
-            // in the entry's logfont, because that could alter the
-            // choice of actual face used (bug 724231)
-            weight = 0;
-        } else {
+    PRUint16 weight = mNeedsBold ? 700 : fe->Weight();
+    bool italic = (mStyle.style & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE));
+
+    // if user font, disable italics/bold if defined to be italics/bold face
+    // this avoids unwanted synthetic italics/bold
+    if (fe->mIsUserFont) {
+        if (fe->IsItalic())
+            italic = false; // avoid synthetic italic
+        if (fe->IsBold() || !mNeedsBold) {
             // avoid GDI synthetic bold which occurs when weight
             // specified is >= font data weight + 200
-            weight = mNeedsBold ? 700 : 200;
+            weight = 200; 
         }
-    } else {
-        weight = mNeedsBold ? 700 : fe->Weight();
     }
 
-    fe->FillLogFont(&aLogFont, weight, aSize, 
+    fe->FillLogFont(&aLogFont, italic, weight, aSize, 
                     (mAntialiasOption == kAntialiasSubpixel) ? true : false);
 }
 

@@ -146,11 +146,6 @@ nsMathMLElement::ParseAttribute(PRInt32 aNamespaceID,
                                              aValue, aResult);
 }
 
-static nsGenericElement::MappedAttributeEntry sMtableStyles[] = {
-  { &nsGkAtoms::width },
-  { nsnull }
-};
-
 static nsGenericElement::MappedAttributeEntry sTokenStyles[] = {
   { &nsGkAtoms::mathsize_ },
   { &nsGkAtoms::fontsize_ },
@@ -176,10 +171,6 @@ static nsGenericElement::MappedAttributeEntry sCommonPresStyles[] = {
 bool
 nsMathMLElement::IsAttributeMapped(const nsIAtom* aAttribute) const
 {
-  static const MappedAttributeEntry* const mtableMap[] = {
-    sMtableStyles,
-    sCommonPresStyles
-  };
   static const MappedAttributeEntry* const tokenMap[] = {
     sTokenStyles,
     sCommonPresStyles
@@ -203,9 +194,6 @@ nsMathMLElement::IsAttributeMapped(const nsIAtom* aAttribute) const
       tag == nsGkAtoms::math)
     return FindAttributeDependence(aAttribute, mstyleMap);
 
-  if (tag == nsGkAtoms::mtable_)
-    return FindAttributeDependence(aAttribute, mtableMap);
-
   if (tag == nsGkAtoms::maction_ ||
       tag == nsGkAtoms::maligngroup_ ||
       tag == nsGkAtoms::malignmark_ ||
@@ -223,6 +211,7 @@ nsMathMLElement::IsAttributeMapped(const nsIAtom* aAttribute) const
       tag == nsGkAtoms::msub_ ||
       tag == nsGkAtoms::msubsup_ ||
       tag == nsGkAtoms::msup_ ||
+      tag == nsGkAtoms::mtable_ ||
       tag == nsGkAtoms::mtd_ ||
       tag == nsGkAtoms::mtr_ ||
       tag == nsGkAtoms::munder_ ||
@@ -470,19 +459,6 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
       colorValue->SetColorValue(color);
     }
   }
-
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Position)) {
-    // width: value
-    nsCSSValue* width = aData->ValueForWidth();
-    if (width->GetUnit() == eCSSUnit_Null) {
-      const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::width);
-      // This does not handle auto and unitless values
-      if (value && value->Type() == nsAttrValue::eString) {
-        ParseNumericValue(value->GetStringValue(), *width, 0);
-      }
-    }
-  }
-
 }
 
 nsresult

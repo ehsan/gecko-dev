@@ -45,7 +45,6 @@
 #include "nsIAuthModule.h"
 #include "nsCOMPtr.h"
 #include "plbase64.h"
-#include "prnetdb.h"
 
 //-----------------------------------------------------------------------------
 
@@ -59,7 +58,6 @@
 #include "nsISSLStatusProvider.h"
 
 static const char kAllowProxies[] = "network.automatic-ntlm-auth.allow-proxies";
-static const char kAllowNonFqdn[] = "network.automatic-ntlm-auth.allow-non-fqdn";
 static const char kTrustedURIs[]  = "network.automatic-ntlm-auth.trusted-uris";
 static const char kForceGeneric[] = "network.auth.force-generic-ntlm";
 
@@ -121,20 +119,6 @@ MatchesBaseURI(const nsCSubstring &matchScheme,
     }
 
     return false;
-}
-
-static bool
-IsNonFqdn(nsIURI *uri)
-{
-    nsCAutoString host;
-    PRNetAddr addr;
-
-    if (NS_FAILED(uri->GetAsciiHost(host)))
-        return false;
-
-    // return true if host does not contain a dot and is not an ip address
-    return !host.IsEmpty() && host.FindChar('.') == kNotFound &&
-           PR_StringToNetAddr(host.BeginReading(), &addr) != PR_SUCCESS;
 }
 
 static bool
@@ -226,15 +210,6 @@ CanUseDefaultCredentials(nsIHttpAuthenticableChannel *channel,
 
     nsCOMPtr<nsIURI> uri;
     channel->GetURI(getter_AddRefs(uri));
-
-    bool allowNonFqdn;
-    if (NS_FAILED(prefs->GetBoolPref(kAllowNonFqdn, &allowNonFqdn)))
-        allowNonFqdn = false;
-    if (allowNonFqdn && uri && IsNonFqdn(uri)) {
-        LOG(("Host is non-fqdn, default credentials are allowed\n"));
-        return true;
-    }
-
     bool isTrustedHost = (uri && TestPref(uri, kTrustedURIs));
     LOG(("Default credentials allowed for host: %d\n", isTrustedHost));
     return isTrustedHost;

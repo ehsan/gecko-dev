@@ -127,16 +127,10 @@ void
 nsSVGViewBox::SetBaseValue(float aX, float aY, float aWidth, float aHeight,
                            nsSVGElement *aSVGElement)
 {
-  if (mHasBaseVal && mBaseVal == nsSVGViewBoxRect(aX, aY, aWidth, aHeight)) {
-    return;
-  }
-
-  nsAttrValue emptyOrOldValue = aSVGElement->WillChangeViewBox();
-
   mBaseVal = nsSVGViewBoxRect(aX, aY, aWidth, aHeight);
   mHasBaseVal = true;
 
-  aSVGElement->DidChangeViewBox(emptyOrOldValue);
+  aSVGElement->DidChangeViewBox(true);
   if (mAnimVal) {
     aSVGElement->AnimationNeedsResample();
   }
@@ -191,7 +185,7 @@ nsSVGViewBox::SetBaseValueString(const nsAString& aValue,
     if (mAnimVal) {
       aSVGElement->AnimationNeedsResample();
     }
-    // We don't need to call Will/DidChange* here - we're only called by
+    // We don't need to call DidChange* here - we're only called by
     // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
     // which takes care of notifying.
   }

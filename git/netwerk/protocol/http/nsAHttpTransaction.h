@@ -39,7 +39,6 @@
 #define nsAHttpTransaction_h__
 
 #include "nsISupports.h"
-#include "nsTArray.h"
 
 class nsAHttpConnection;
 class nsAHttpSegmentReader;
@@ -102,18 +101,6 @@ public:
     // abstract object. Pipelines may have multiple, SPDY has 0,
     // normal http transactions have 1.
     virtual PRUint32 Http1xTransactionCount() = 0;
-
-    // called to remove the unused sub transactions from an object that can
-    // handle multiple transactions simultaneously (i.e. pipelines or spdy).
-    //
-    // Returns NS_ERROR_NOT_IMPLEMENTED if the object does not implement
-    // sub-transactions.
-    //
-    // Returns NS_ERROR_ALREADY_OPENED if the subtransactions have been
-    // at least partially written and cannot be moved.
-    //
-    virtual nsresult TakeSubTransactions(
-        nsTArray<nsRefPtr<nsAHttpTransaction> > &outTransactions) = 0;
 };
 
 #define NS_DECL_NSAHTTPTRANSACTION \
@@ -131,8 +118,7 @@ public:
     void     Close(nsresult reason);                                    \
     void     SetSSLConnectFailed();                                     \
     nsHttpRequestHead *RequestHead();                                   \
-    PRUint32 Http1xTransactionCount();                                  \
-    nsresult TakeSubTransactions(nsTArray<nsRefPtr<nsAHttpTransaction> > &outTransactions);
+    PRUint32 Http1xTransactionCount();
 
 //-----------------------------------------------------------------------------
 // nsAHttpSegmentReader

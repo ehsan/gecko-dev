@@ -53,8 +53,6 @@
 #include "gfxContext.h"
 #include "gfxMatrix.h"
 #include "gfxPlatform.h"
-#include "nsSVGEffects.h"
-#include "nsSVGPaintServerFrame.h"
 
 using namespace mozilla;
 
@@ -323,14 +321,14 @@ nsSVGGlyphFrame::GetType() const
 // nsISVGChildFrame methods
 
 NS_IMETHODIMP
-nsSVGGlyphFrame::PaintSVG(nsRenderingContext *aContext,
+nsSVGGlyphFrame::PaintSVG(nsSVGRenderState *aContext,
                           const nsIntRect *aDirtyRect)
 {
   if (!GetStyleVisibility()->IsVisible())
     return NS_OK;
 
-  gfxContext *gfx = aContext->ThebesContext();
-  PRUint16 renderMode = SVGAutoRenderState::GetRenderMode(aContext);
+  gfxContext *gfx = aContext->GetGfxContext();
+  PRUint16 renderMode = aContext->GetRenderMode();
 
   switch (GetStyleSVG()->mTextRendering) {
   case NS_STYLE_TEXT_RENDERING_OPTIMIZESPEED:
@@ -341,7 +339,7 @@ nsSVGGlyphFrame::PaintSVG(nsRenderingContext *aContext,
     break;
   }
 
-  if (renderMode != SVGAutoRenderState::NORMAL) {
+  if (renderMode != nsSVGRenderState::NORMAL) {
 
     gfxMatrix matrix = gfx->CurrentMatrix();
     SetupGlobalTransform(gfx);
@@ -354,11 +352,11 @@ nsSVGGlyphFrame::PaintSVG(nsRenderingContext *aContext,
     else
       gfx->SetFillRule(gfxContext::FILL_RULE_WINDING);
 
-    if (renderMode == SVGAutoRenderState::CLIP_MASK) {
+    if (renderMode == nsSVGRenderState::CLIP_MASK) {
       gfx->SetColor(gfxRGBA(1.0f, 1.0f, 1.0f, 1.0f));
-      DrawCharacters(&iter, gfx, gfxFont::GLYPH_FILL);
+      FillCharacters(&iter, gfx);
     } else {
-      DrawCharacters(&iter, gfx, gfxFont::GLYPH_PATH);
+      AddCharactersToPath(&iter, gfx);
     }
 
     gfx->SetMatrix(matrix);
@@ -373,13 +371,19 @@ nsSVGGlyphFrame::PaintSVG(nsRenderingContext *aContext,
   CharacterIterator iter(this, true);
   iter.SetInitialMatrix(gfx);
 
-  nsRefPtr<gfxPattern> strokePattern;
-  DrawMode drawMode = SetupCairoState(gfx, getter_AddRefs(strokePattern));
-
-  if (drawMode) {
-    DrawCharacters(&iter, gfx, drawMode, strokePattern);
+  if (SetupCairoFill(gfx)) {
+    gfxMatrix matrix = gfx->CurrentMatrix();
+    FillCharacters(&iter, gfx);
+    gfx->SetMatrix(matrix);
   }
-  
+
+  if (SetupCairoStroke(gfx)) {
+    // SetupCairoStroke will clear mTextRun whenever
+    // there is a pattern or gradient on the text
+    iter.Reset();
+
+    StrokeCharacters(&iter, gfx);
+  }
   gfx->Restore();
 
   return NS_OK;
@@ -440,9 +444,7 @@ nsSVGGlyphFrame::GetFrameForPoint(const nsPoint &aPoint)
 NS_IMETHODIMP_(nsRect)
 nsSVGGlyphFrame::GetCoveredRegion()
 {
-  // See bug 614732 comment 32:
-  //return nsSVGUtils::TransformFrameRectToOuterSVG(mRect, GetCanvasTM(), PresContext());
-  return mCoveredRegion;
+  return mRect;
 }
 
 NS_IMETHODIMP
@@ -450,9 +452,13 @@ nsSVGGlyphFrame::UpdateCoveredRegion()
 {
   mRect.SetEmpty();
 
-  // XXX here we have tmpCtx use its default identity matrix, but does this
-  // function call anything that will call GetCanvasTM and break things?
+  gfxMatrix matrix = GetCanvasTM();
+  if (matrix.IsSingular()) {
+    return NS_ERROR_FAILURE;
+  }
+
   nsRefPtr<gfxContext> tmpCtx = MakeTmpCtx();
+  tmpCtx->Multiply(matrix);
 
   bool hasStroke = HasStroke();
   if (hasStroke) {
@@ -485,18 +491,12 @@ nsSVGGlyphFrame::UpdateCoveredRegion()
   // calls to record and then reset the stroke width.
   gfxRect extent = tmpCtx->GetUserPathExtent();
   if (hasStroke) {
-    extent =
-      nsSVGUtils::PathExtentsToMaxStrokeExtents(extent, this, gfxMatrix());
+    extent = nsSVGUtils::PathExtentsToMaxStrokeExtents(extent, this);
   }
 
   if (!extent.IsEmpty()) {
-    mRect = nsLayoutUtils::RoundGfxRectToAppRect(extent, 
-              PresContext()->AppUnitsPerCSSPixel());
+    mRect = nsSVGUtils::ToAppPixelRect(PresContext(), extent);
   }
-
-  // See bug 614732 comment 32.
-  mCoveredRegion = nsSVGUtils::TransformFrameRectToOuterSVG(
-    mRect, GetCanvasTM(), PresContext());
 
   return NS_OK;
 }
@@ -521,34 +521,46 @@ nsSVGGlyphFrame::InitialUpdate()
 void
 nsSVGGlyphFrame::NotifySVGChanged(PRUint32 aFlags)
 {
-  NS_ABORT_IF_FALSE(!(aFlags & DO_NOT_NOTIFY_RENDERING_OBSERVERS) ||
-                    (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
-                    "Must be NS_STATE_SVG_NONDISPLAY_CHILD!");
-
-  NS_ABORT_IF_FALSE(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
-                    "Invalidation logic may need adjusting");
-
   if (aFlags & TRANSFORM_CHANGED) {
     ClearTextRun();
   }
-  if (!(aFlags & DO_NOT_NOTIFY_RENDERING_OBSERVERS)) {
+  if (!(aFlags & SUPPRESS_INVALIDATION)) {
     nsSVGUtils::UpdateGraphic(this);
   }
 }
 
-void
+NS_IMETHODIMP
 nsSVGGlyphFrame::NotifyRedrawSuspended()
 {
-  AddStateBits(NS_STATE_SVG_REDRAW_SUSPENDED);
+  // XXX should we cache the fact that redraw is suspended?
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsSVGGlyphFrame::NotifyRedrawUnsuspended()
+{
+  if (GetStateBits() & NS_STATE_SVG_DIRTY)
+    nsSVGUtils::UpdateGraphic(this);
+
+  return NS_OK;
 }
 
 void
-nsSVGGlyphFrame::NotifyRedrawUnsuspended()
+nsSVGGlyphFrame::AddCharactersToPath(CharacterIterator *aIter,
+                                     gfxContext *aContext)
 {
-  RemoveStateBits(NS_STATE_SVG_REDRAW_SUSPENDED);
+  if (aIter->SetupForDirectTextRunDrawing(aContext)) {
+    mTextRun->Draw(aContext, gfxPoint(0, 0), gfxFont::GLYPH_PATH, 0,
+                   mTextRun->GetLength(), nsnull, nsnull);
+    return;
+  }
 
-  if (GetStateBits() & NS_STATE_SVG_DIRTY)
-    nsSVGUtils::UpdateGraphic(this);
+  PRUint32 i;
+  while ((i = aIter->NextCluster()) != aIter->InvalidCluster()) {
+    aIter->SetupForDrawing(aContext);
+    mTextRun->Draw(aContext, gfxPoint(0, 0), gfxFont::GLYPH_PATH, i,
+                   aIter->ClusterLength(), nsnull, nsnull);
+  }
 }
 
 void
@@ -574,26 +586,39 @@ nsSVGGlyphFrame::AddBoundingBoxesToPath(CharacterIterator *aIter,
 }
 
 void
-nsSVGGlyphFrame::DrawCharacters(CharacterIterator *aIter,
-                                gfxContext *aContext,
-                                DrawMode aDrawMode,
-                                gfxPattern *aStrokePattern)
+nsSVGGlyphFrame::FillCharacters(CharacterIterator *aIter,
+                                gfxContext *aContext)
 {
-  if (aDrawMode & gfxFont::GLYPH_STROKE) {
-    aIter->SetLineWidthAndDashesForDrawing(aContext);
-  }
-
   if (aIter->SetupForDirectTextRunDrawing(aContext)) {
-    mTextRun->Draw(aContext, gfxPoint(0, 0), aDrawMode, 0,
-                   mTextRun->GetLength(), nsnull, nsnull, aStrokePattern);
+    mTextRun->Draw(aContext, gfxPoint(0, 0), gfxFont::GLYPH_FILL, 0,
+                   mTextRun->GetLength(), nsnull, nsnull);
     return;
   }
 
   PRUint32 i;
   while ((i = aIter->NextCluster()) != aIter->InvalidCluster()) {
     aIter->SetupForDrawing(aContext);
-    mTextRun->Draw(aContext, gfxPoint(0, 0), aDrawMode, i,
-                   aIter->ClusterLength(), nsnull, nsnull, aStrokePattern);
+    mTextRun->Draw(aContext, gfxPoint(0, 0), gfxFont::GLYPH_FILL, i,
+                   aIter->ClusterLength(), nsnull, nsnull);
+  }
+}
+
+void
+nsSVGGlyphFrame::StrokeCharacters(CharacterIterator *aIter,
+                                gfxContext *aContext)
+{
+  aIter->SetLineWidthAndDashesForDrawing(aContext);
+  if (aIter->SetupForDirectTextRunDrawing(aContext)) {
+    mTextRun->Draw(aContext, gfxPoint(0, 0), gfxFont::GLYPH_STROKE, 0,
+                   mTextRun->GetLength(), nsnull, nsnull);
+    return;
+  }
+
+  PRUint32 i;
+  while ((i = aIter->NextCluster()) != aIter->InvalidCluster()) {
+    aIter->SetupForDrawing(aContext);
+    mTextRun->Draw(aContext, gfxPoint(0, 0), gfxFont::GLYPH_STROKE, i,
+                   aIter->ClusterLength(), nsnull, nsnull);
   }
 }
 
@@ -631,9 +656,7 @@ nsSVGGlyphFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
   if ((aFlags & nsSVGUtils::eBBoxIncludeStroke) != 0 &&
       ((aFlags & nsSVGUtils::eBBoxIgnoreStrokeIfNone) == 0 || HasStroke())) {
     bbox =
-      bbox.Union(nsSVGUtils::PathExtentsToMaxStrokeExtents(pathExtents,
-                                                           this,
-                                                           aToBBoxUserspace));
+      bbox.Union(nsSVGUtils::PathExtentsToMaxStrokeExtents(pathExtents, this));
   }
 
   return bbox;
@@ -888,51 +911,6 @@ nsSVGGlyphFrame::GetBaselineOffset(float aMetricsScale)
     return 0.0;
   }
   return baselineAppUnits * aMetricsScale;
-}
-
-DrawMode
-nsSVGGlyphFrame::SetupCairoState(gfxContext *aContext, gfxPattern **aStrokePattern)
-{
-  DrawMode toDraw = DrawMode(0);
-  const nsStyleSVG* style = GetStyleSVG();
-
-  if (HasStroke()) {
-    gfxContextMatrixAutoSaveRestore matrixRestore(aContext);
-    aContext->IdentityMatrix();
-
-    toDraw = DrawMode(toDraw | gfxFont::GLYPH_STROKE);
-
-    SetupCairoStrokeHitGeometry(aContext);
-    float opacity = style->mStrokeOpacity;
-    nsSVGPaintServerFrame *ps = GetPaintServer(&style->mStroke,
-                                               nsSVGEffects::StrokeProperty());
-
-    nsRefPtr<gfxPattern> strokePattern;
-
-    if (ps) {
-      // Gradient or Pattern: can get pattern directly from frame
-      strokePattern = ps->GetPaintServerPattern(this, opacity);
-    }
-
-    if (!strokePattern) {
-      nscolor color;
-      nsSVGUtils::GetFallbackOrPaintColor(aContext, GetStyleContext(),
-                                          &nsStyleSVG::mStroke, &opacity,
-                                          &color);
-      strokePattern = new gfxPattern(gfxRGBA(NS_GET_R(color) / 255.0,
-                                             NS_GET_G(color) / 255.0,
-                                             NS_GET_B(color) / 255.0,
-                                             NS_GET_A(color) / 255.0 * opacity));
-    }
-
-    strokePattern.forget(aStrokePattern);
-  }
-
-  if (SetupCairoFill(aContext)) {
-    toDraw = DrawMode(toDraw | gfxFont::GLYPH_FILL);
-  }
-
-  return toDraw;
 }
 
 //----------------------------------------------------------------------

@@ -2,6 +2,8 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 "use strict";
 
+Cu.import("resource:///modules/devtools/LayoutHelpers.jsm");
+
 function init(callback) {
   let iframe = gBrowser.ownerDocument.createElement("iframe");
 

@@ -166,9 +166,13 @@ static const char sPrintOptionsContractID[]         = "@mozilla.org/gfx/printset
 #include "nsIWindowWatcher.h"
 
 // Printing 
+#include "nsPrintEngine.h"
 #include "nsPagePrintTimer.h"
 
 #endif // NS_PRINTING
+
+// FrameSet
+#include "nsIDocument.h"
 
 //focus
 #include "nsIDOMEventTarget.h"
@@ -186,6 +190,9 @@ static const char sPrintOptionsContractID[]         = "@mozilla.org/gfx/printset
 //paint forcing
 #include "prenv.h"
 #include <stdio.h>
+
+//switch to page layout
+#include "nsGfxCIID.h"
 
 #include "nsObserverService.h"
 
@@ -1282,7 +1289,7 @@ DocumentViewerImpl::PageHide(bool aIsUnload)
 
   if (aIsUnload) {
     // Poke the GC. The window might be collectable garbage now.
-    nsJSContext::PokeGC(js::gcreason::PAGE_HIDE, NS_GC_DELAY * 2);
+    nsJSContext::PokeGC(js::gcreason::PAGE_HIDE);
 
     // if Destroy() was called during OnPageHide(), mDocument is nsnull.
     NS_ENSURE_STATE(mDocument);
@@ -1563,8 +1570,9 @@ DocumentViewerImpl::Destroy()
           // The invalidate that removing this view causes is dropped because
           // the Freeze call above sets painting to be suppressed for our
           // document. So we do it ourselves and make it happen.
-          vm->InvalidateViewNoSuppression(rootView,
-            rootView->GetBounds() - rootView->GetPosition());
+          vm->UpdateViewNoSuppression(rootView,
+            rootView->GetBounds() - rootView->GetPosition(),
+            NS_VMREFRESH_NO_SYNC);
 
           nsIView *rootViewParent = rootView->GetParent();
           if (rootViewParent) {
@@ -2821,6 +2829,8 @@ DocumentViewerImpl::SetTextZoom(float aTextZoom)
 
   mTextZoom = aTextZoom;
 
+  nsIViewManager::UpdateViewBatch batch(GetViewManager());
+      
   // Set the text zoom on all children of mContainer (even if our zoom didn't
   // change, our children's zoom may be different, though it would be unusual).
   // Do this first, in case kids are auto-sizing and post reflow commands on
@@ -2837,6 +2847,8 @@ DocumentViewerImpl::SetTextZoom(float aTextZoom)
   // And do the external resources
   mDocument->EnumerateExternalResources(SetExtResourceTextZoom, &ZoomInfo);
 
+  batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
+  
   return NS_OK;
 }
 
@@ -2858,6 +2870,8 @@ DocumentViewerImpl::SetMinFontSize(PRInt32 aMinFontSize)
 
   mMinFontSize = aMinFontSize;
 
+  nsIViewManager::UpdateViewBatch batch(GetViewManager());
+      
   // Set the min font on all children of mContainer (even if our min font didn't
   // change, our children's min font may be different, though it would be unusual).
   // Do this first, in case kids are auto-sizing and post reflow commands on
@@ -2866,7 +2880,7 @@ DocumentViewerImpl::SetMinFontSize(PRInt32 aMinFontSize)
 
   // Now change our own min font
   nsPresContext* pc = GetPresContext();
-  if (pc && aMinFontSize != mPresContext->MinFontSize(nsnull)) {
+  if (pc && aMinFontSize != mPresContext->MinFontSize()) {
     pc->SetMinFontSize(aMinFontSize);
   }
 
@@ -2874,6 +2888,8 @@ DocumentViewerImpl::SetMinFontSize(PRInt32 aMinFontSize)
   mDocument->EnumerateExternalResources(SetExtResourceMinFontSize,
                                         NS_INT32_TO_PTR(aMinFontSize));
 
+  batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
+  
   return NS_OK;
 }
 
@@ -2882,7 +2898,7 @@ DocumentViewerImpl::GetMinFontSize(PRInt32* aMinFontSize)
 {
   NS_ENSURE_ARG_POINTER(aMinFontSize);
   nsPresContext* pc = GetPresContext();
-  *aMinFontSize = pc ? pc->MinFontSize(nsnull) : 0;
+  *aMinFontSize = pc ? pc->MinFontSize() : 0;
   return NS_OK;
 }
 
@@ -2896,6 +2912,7 @@ DocumentViewerImpl::SetFullZoom(float aFullZoom)
     nsCOMPtr<nsIPresShell> shell = pc->GetPresShell();
     NS_ENSURE_TRUE(shell, NS_OK);
 
+    nsIViewManager::UpdateViewBatch batch(shell->GetViewManager());
     if (!mPrintPreviewZoomed) {
       mOriginalPrintPreviewScale = pc->GetPrintPreviewScale();
       mPrintPreviewZoomed = true;
@@ -2914,11 +2931,14 @@ DocumentViewerImpl::SetFullZoom(float aFullZoom)
       nsRect rect(nsPoint(0, 0), rootFrame->GetSize());
       rootFrame->Invalidate(rect);
     }
+    batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
     return NS_OK;
   }
 #endif
 
   mPageZoom = aFullZoom;
+
+  nsIViewManager::UpdateViewBatch batch(GetViewManager());
 
   struct ZoomInfo ZoomInfo = { aFullZoom };
   CallChildren(SetChildFullZoom, &ZoomInfo);
@@ -2930,6 +2950,8 @@ DocumentViewerImpl::SetFullZoom(float aFullZoom)
 
   // And do the external resources
   mDocument->EnumerateExternalResources(SetExtResourceFullZoom, &ZoomInfo);
+
+  batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
 
   return NS_OK;
 }

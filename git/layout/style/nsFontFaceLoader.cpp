@@ -447,14 +447,6 @@ nsUserFontSet::StartLoad(gfxProxyFontEntry *aProxy,
   return rv;
 }
 
-static PLDHashOperator DetachFontEntries(const nsAString& aKey,
-                                         nsRefPtr<gfxMixedFontFamily>& aFamily,
-                                         void* aUserArg)
-{
-  aFamily->DetachFontEntries();
-  return PL_DHASH_NEXT;
-}
-
 bool
 nsUserFontSet::UpdateRules(const nsTArray<nsFontFaceRuleContainer>& aRules)
 {
@@ -474,7 +466,6 @@ nsUserFontSet::UpdateRules(const nsTArray<nsFontFaceRuleContainer>& aRules)
   // destroy the font family records; we need to re-create them
   // because we might end up with faces in a different order,
   // even if they're the same font entries as before
-  mFontFamilies.Enumerate(DetachFontEntries, nsnull);
   mFontFamilies.Clear();
 
   for (PRUint32 i = 0, i_end = aRules.Length(); i < i_end; ++i) {
@@ -707,11 +698,8 @@ nsUserFontSet::ReplaceFontEntry(gfxProxyFontEntry *aProxy,
       break;
     }
   }
-  gfxMixedFontFamily *family =
-    static_cast<gfxMixedFontFamily*>(aProxy->Family());
-  if (family) {
-    family->ReplaceFontEntry(aProxy, aFontEntry);
-  }
+  static_cast<gfxMixedFontFamily*>(aProxy->Family())->
+    ReplaceFontEntry(aProxy, aFontEntry);
 }
 
 nsCSSFontFaceRule*

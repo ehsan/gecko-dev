@@ -8,7 +8,7 @@
  * Keeps thumbnails of open web pages up-to-date.
  */
 let gBrowserThumbnails = {
-  _captureDelayMS: 1000,
+  _captureDelayMS: 2000,
 
   /**
    * Map of capture() timeouts assigned to their browsers.
@@ -44,6 +44,9 @@ let gBrowserThumbnails = {
     this._tabEvents.forEach(function (aEvent) {
       gBrowser.tabContainer.removeEventListener(aEvent, this, false);
     }, this);
+
+    this._timeouts = null;
+    this._pageThumbs = null;
   },
 
   handleEvent: function Thumbnails_handleEvent(aEvent) {
@@ -74,8 +77,10 @@ let gBrowserThumbnails = {
   },
 
   _capture: function Thumbnails_capture(aBrowser) {
-    if (this._shouldCapture(aBrowser))
-      this._pageThumbs.captureAndStore(aBrowser);
+    if (this._shouldCapture(aBrowser)) {
+      let canvas = this._pageThumbs.capture(aBrowser.contentWindow);
+      this._pageThumbs.store(aBrowser.currentURI.spec, canvas);
+    }
   },
 
   _delayedCapture: function Thumbnails_delayedCapture(aBrowser) {
@@ -93,10 +98,6 @@ let gBrowserThumbnails = {
   },
 
   _shouldCapture: function Thumbnails_shouldCapture(aBrowser) {
-    // Capture only if it's the currently selected tab.
-    if (aBrowser != gBrowser.selectedBrowser)
-      return false;
-
     let doc = aBrowser.contentDocument;
 
     // FIXME Bug 720575 - Don't capture thumbnails for SVG or XML documents as
@@ -113,15 +114,6 @@ let gBrowserThumbnails = {
       return false;
 
     let channel = aBrowser.docShell.currentDocumentChannel;
-
-    // No valid document channel. We shouldn't take a screenshot.
-    if (!channel)
-      return false;
-
-    // Don't take screenshots of internally redirecting about: pages.
-    // This includes error pages.
-    if (channel.originalURI.schemeIs("about"))
-      return false;
 
     try {
       // If the channel is a nsIHttpChannel get its http status code.

@@ -50,7 +50,6 @@
 #include "nsNetUtil.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIGSettingsService.h"
-#include "nsInterfaceHashtable.h"
 
 class nsUnixSystemProxySettings : public nsISystemProxySettings {
 public:
@@ -65,8 +64,6 @@ private:
   
   nsCOMPtr<nsIGConfService> mGConf;
   nsCOMPtr<nsIGSettingsService> mGSettings;
-  nsCOMPtr<nsIGSettingsCollection> mProxySettings;
-  nsInterfaceHashtable<nsCStringHashKey, nsIGSettingsCollection> mSchemeProxySettings;
   bool IsProxyMode(const char* aMode);
   nsresult SetProxyResultFromGConf(const char* aKeyBase, const char* aType, nsACString& aResult);
   nsresult GetProxyFromGConf(const nsACString& aScheme, const nsACString& aHost, PRInt32 aPort, nsACString& aResult);
@@ -79,14 +76,8 @@ NS_IMPL_ISUPPORTS1(nsUnixSystemProxySettings, nsISystemProxySettings)
 nsresult
 nsUnixSystemProxySettings::Init()
 {
-  mSchemeProxySettings.Init(5);
   mGConf = do_GetService(NS_GCONFSERVICE_CONTRACTID);
   mGSettings = do_GetService(NS_GSETTINGSSERVICE_CONTRACTID);
-  if (mGSettings) {
-    mGSettings->GetCollectionForSchema(NS_LITERAL_CSTRING("org.gnome.system.proxy"),
-                                       getter_AddRefs(mProxySettings));
-  }
-
   return NS_OK;
 }
 
@@ -101,17 +92,22 @@ nsUnixSystemProxySettings::IsProxyMode(const char* aMode)
 nsresult
 nsUnixSystemProxySettings::GetPACURI(nsACString& aResult)
 {
-  if (mProxySettings) {
-    nsCString proxyMode;
-    // Check if mode is auto
-    nsresult rv = mProxySettings->GetString(NS_LITERAL_CSTRING("mode"), proxyMode);
-    if (rv == NS_OK && proxyMode.Equals("auto")) {
-      return mProxySettings->GetString(NS_LITERAL_CSTRING("autoconfig-url"), aResult);
+  if (mGSettings) {
+    nsCOMPtr<nsIGSettingsCollection> proxy_settings;
+    mGSettings->GetCollectionForSchema(NS_LITERAL_CSTRING("org.gnome.system.proxy"), 
+                                       getter_AddRefs(proxy_settings));
+    if (proxy_settings) {
+      nsCString proxyMode;
+      // Check if mode is auto
+      nsresult rv = proxy_settings->GetString(NS_LITERAL_CSTRING("mode"), proxyMode);
+      if (rv == NS_OK && proxyMode.Equals("auto")) {
+        return proxy_settings->GetString(NS_LITERAL_CSTRING("autoconfig-url"), aResult);
+      }
+      /* The org.gnome.system.proxy schema has been found, but auto mode is not set.
+       * Don't try the GConf and return empty string. */
+      aResult.Truncate();
+      return NS_OK;
     }
-    /* The org.gnome.system.proxy schema has been found, but auto mode is not set.
-     * Don't try the GConf and return empty string. */
-    aResult.Truncate();
-    return NS_OK;
   }
 
   if (mGConf && IsProxyMode("auto")) {
@@ -270,16 +266,10 @@ nsresult
 nsUnixSystemProxySettings::SetProxyResultFromGSettings(const char* aKeyBase, const char* aType,
                                                        nsACString& aResult)
 {
-  nsDependentCString key(aKeyBase);
-
-  nsCOMPtr<nsIGSettingsCollection> proxy_settings = mSchemeProxySettings.Get(key);
-  nsresult rv;
-  if (!proxy_settings) {
-    rv = mGSettings->GetCollectionForSchema(key, getter_AddRefs(proxy_settings));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    mSchemeProxySettings.Put(key, proxy_settings);
-  }
+  nsCOMPtr<nsIGSettingsCollection> proxy_settings;
+  nsresult rv = mGSettings->GetCollectionForSchema(nsDependentCString(aKeyBase),
+                                                   getter_AddRefs(proxy_settings));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCAutoString host;
   rv = proxy_settings->GetString(NS_LITERAL_CSTRING("host"), host);
@@ -461,8 +451,16 @@ nsUnixSystemProxySettings::GetProxyFromGSettings(const nsACString& aScheme,
                                                  PRInt32 aPort,
                                                  nsACString& aResult)
 {
+  nsCOMPtr<nsIGSettingsCollection> proxy_settings;
+  nsresult rv;
+
+  rv = mGSettings->GetCollectionForSchema(NS_LITERAL_CSTRING("org.gnome.system.proxy"),
+                                          getter_AddRefs(proxy_settings));
+  if (NS_FAILED(rv))
+    return rv;
+
   nsCString proxyMode; 
-  nsresult rv = mProxySettings->GetString(NS_LITERAL_CSTRING("mode"), proxyMode);
+  rv = proxy_settings->GetString(NS_LITERAL_CSTRING("mode"), proxyMode);
   NS_ENSURE_SUCCESS(rv, rv);
   
   if (!proxyMode.Equals("manual")) {
@@ -471,7 +469,7 @@ nsUnixSystemProxySettings::GetProxyFromGSettings(const nsACString& aScheme,
   }
 
   nsCOMPtr<nsIArray> ignoreList;
-  if (NS_SUCCEEDED(mProxySettings->GetStringList(NS_LITERAL_CSTRING("ignore-hosts"),
+  if (NS_SUCCEEDED(proxy_settings->GetStringList(NS_LITERAL_CSTRING("ignore-hosts"),
                                                  getter_AddRefs(ignoreList))) && ignoreList) {
     PRUint32 len = 0;
     ignoreList->GetLength(&len);
@@ -528,7 +526,7 @@ nsUnixSystemProxySettings::GetProxyForURI(nsIURI* aURI, nsACString& aResult)
   rv = aURI->GetPort(&port);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (mProxySettings) {
+  if (mGSettings) {
     rv = GetProxyFromGSettings(scheme, host, port, aResult);
     if (rv == NS_OK)
       return rv;

@@ -77,28 +77,13 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(IDBCursor)
 
-  enum Type
-  {
-    OBJECTSTORE = 0,
-    INDEXKEY,
-    INDEXOBJECT
-  };
-
-  enum Direction
-  {
-    NEXT = 0,
-    NEXT_UNIQUE,
-    PREV,
-    PREV_UNIQUE
-  };
-
   // For OBJECTSTORE cursors.
   static
   already_AddRefed<IDBCursor>
   Create(IDBRequest* aRequest,
          IDBTransaction* aTransaction,
          IDBObjectStore* aObjectStore,
-         Direction aDirection,
+         PRUint16 aDirection,
          const Key& aRangeKey,
          const nsACString& aContinueQuery,
          const nsACString& aContinueToQuery,
@@ -111,7 +96,7 @@ public:
   Create(IDBRequest* aRequest,
          IDBTransaction* aTransaction,
          IDBIndex* aIndex,
-         Direction aDirection,
+         PRUint16 aDirection,
          const Key& aRangeKey,
          const nsACString& aContinueQuery,
          const nsACString& aContinueToQuery,
@@ -124,7 +109,7 @@ public:
   Create(IDBRequest* aRequest,
          IDBTransaction* aTransaction,
          IDBIndex* aIndex,
-         Direction aDirection,
+         PRUint16 aDirection,
          const Key& aRangeKey,
          const nsACString& aContinueQuery,
          const nsACString& aContinueToQuery,
@@ -132,13 +117,17 @@ public:
          const Key& aObjectKey,
          StructuredCloneReadInfo& aCloneReadInfo);
 
+  enum Type
+  {
+    OBJECTSTORE = 0,
+    INDEXKEY,
+    INDEXOBJECT
+  };
+
   IDBTransaction* Transaction()
   {
     return mTransaction;
   }
-
-  static nsresult ParseDirection(const nsAString& aDirection,
-                                 Direction* aResult);
 
 protected:
   IDBCursor();
@@ -149,7 +138,7 @@ protected:
   CreateCommon(IDBRequest* aRequest,
                IDBTransaction* aTransaction,
                IDBObjectStore* aObjectStore,
-               Direction aDirection,
+               PRUint16 aDirection,
                const Key& aRangeKey,
                const nsACString& aContinueQuery,
                const nsACString& aContinueToQuery);
@@ -163,10 +152,12 @@ protected:
   nsRefPtr<IDBObjectStore> mObjectStore;
   nsRefPtr<IDBIndex> mIndex;
 
+  nsCOMPtr<nsIScriptContext> mScriptContext;
+  nsCOMPtr<nsPIDOMWindow> mOwner;
   JSObject* mScriptOwner;
 
   Type mType;
-  Direction mDirection;
+  PRUint16 mDirection;
   nsCString mContinueQuery;
   nsCString mContinueToQuery;
 

@@ -49,6 +49,7 @@
 #include "nsAutoPtr.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "nsISocketTransportService.h"
+#include "nsHashSets.h"
 
 #include "nsIObserver.h"
 #include "nsITimer.h"
@@ -101,10 +102,6 @@ public:
     // Stops timer scheduled for next pruning of dead connections if
     // there are no more idle connections or active spdy ones
     void ConditionallyStopPruneDeadConnectionsTimer();
-
-    // Stops timer used for the read timeout tick if there are no currently
-    // active connections.
-    void ConditionallyStopReadTimeoutTick();
 
     // adds a transaction to the list of managed transactions.
     nsresult AddTransaction(nsHttpTransaction *, PRInt32 priority);
@@ -413,12 +410,6 @@ private:
     // Timer for next pruning of dead connections.
     nsCOMPtr<nsITimer> mTimer;
 
-    // A 1s tick to call nsHttpConnection::ReadTimeoutTick on
-    // active http/1 connections. Disabled when there are no
-    // active connections.
-    nsCOMPtr<nsITimer> mReadTimeoutTick;
-    bool mReadTimeoutTickArmed;
-
     //
     // the connection table
     //
@@ -428,16 +419,11 @@ private:
     nsClassHashtable<nsCStringHashKey, nsConnectionEntry> mCT;
 
     // mAlternateProtocolHash is used only for spdy/2 upgrades for now
-    // protected by the monitor
-    nsTHashtable<nsCStringHashKey> mAlternateProtocolHash;
-    static PLDHashOperator TrimAlternateProtocolHash(nsCStringHashKey *entry,
+    nsCStringHashSet mAlternateProtocolHash; // protected by the monitor
+    static PLDHashOperator TrimAlternateProtocolHash(PLDHashTable *table,
+                                                     PLDHashEntryHdr *hdr,
+                                                     PRUint32 number,
                                                      void *closure);
-    // Read Timeout Tick handlers
-    void ActivateTimeoutTick();
-    void ReadTimeoutTick();
-    static PLDHashOperator ReadTimeoutTickCB(const nsACString &key,
-                                             nsAutoPtr<nsConnectionEntry> &ent,
-                                             void *closure);
 };
 
 #endif // !nsHttpConnectionMgr_h__

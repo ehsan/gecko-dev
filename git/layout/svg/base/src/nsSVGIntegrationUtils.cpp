@@ -217,11 +217,12 @@ public:
     : mBuilder(aBuilder), mInnerList(aInnerList), mFrame(aFrame),
       mOffset(aOffset) {}
 
-  virtual void Paint(nsRenderingContext *aContext, nsIFrame *aTarget,
+  virtual void Paint(nsSVGRenderState *aContext, nsIFrame *aTarget,
                      const nsIntRect* aDirtyRect)
   {
-    nsRenderingContext::AutoPushTranslation push(aContext, -mOffset);
-    mInnerList->PaintForFrame(mBuilder, aContext, mFrame, nsDisplayList::PAINT_DEFAULT);
+    nsRenderingContext* ctx = aContext->GetRenderingContext(aTarget);
+    nsRenderingContext::AutoPushTranslation push(ctx, -mOffset);
+    mInnerList->PaintForFrame(mBuilder, ctx, mFrame, nsDisplayList::PAINT_DEFAULT);
   }
 
 private:
@@ -282,8 +283,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
 
   gfxContext* gfx = aCtx->ThebesContext();
   gfxMatrix savedCTM = gfx->CurrentMatrix();
-
-  //SVGAutoRenderState autoRenderState(aCtx, SVGAutoRenderState::NORMAL);
+  nsSVGRenderState svgContext(aCtx);
 
   nsRect userSpaceRect = GetNonSVGUserSpace(firstFrame) + aBuilder->ToReferenceFrame(firstFrame);
   PRInt32 appUnitsPerDevPixel = aEffectsFrame->PresContext()->AppUnitsPerDevPixel();
@@ -307,7 +307,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
    */
   if (clipPathFrame && isTrivialClip) {
     gfx->Save();
-    clipPathFrame->ClipPaint(aCtx, aEffectsFrame, matrix);
+    clipPathFrame->ClipPaint(&svgContext, aEffectsFrame, matrix);
   }
 
   /* Paint the child */
@@ -315,7 +315,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
     RegularFramePaintCallback paint(aBuilder, aInnerList, aEffectsFrame,
                                     userSpaceRect.TopLeft());
     nsIntRect r = (aDirtyRect - userSpaceRect.TopLeft()).ToOutsidePixels(appUnitsPerDevPixel);
-    filterFrame->FilterPaint(aCtx, aEffectsFrame, &paint, &r);
+    filterFrame->FilterPaint(&svgContext, aEffectsFrame, &paint, &r);
   } else {
     gfx->SetMatrix(savedCTM);
     aInnerList->PaintForFrame(aBuilder, aCtx, aEffectsFrame,
@@ -336,14 +336,14 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   gfx->PopGroupToSource();
 
   nsRefPtr<gfxPattern> maskSurface =
-    maskFrame ? maskFrame->ComputeMaskAlpha(aCtx, aEffectsFrame,
+    maskFrame ? maskFrame->ComputeMaskAlpha(&svgContext, aEffectsFrame,
                                             matrix, opacity) : nsnull;
 
   nsRefPtr<gfxPattern> clipMaskSurface;
   if (clipPathFrame && !isTrivialClip) {
     gfx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
 
-    nsresult rv = clipPathFrame->ClipPaint(aCtx, aEffectsFrame, matrix);
+    nsresult rv = clipPathFrame->ClipPaint(&svgContext, aEffectsFrame, matrix);
     clipMaskSurface = gfx->PopGroup();
 
     if (NS_SUCCEEDED(rv) && clipMaskSurface) {
@@ -443,8 +443,7 @@ PaintFrameCallback::operator()(gfxContext* aContext,
 
   mFrame->AddStateBits(NS_FRAME_DRAWING_AS_PAINTSERVER);
 
-  nsRenderingContext context;
-  context.Init(mFrame->PresContext()->DeviceContext(), aContext);
+  nsSVGRenderState renderState(aContext);
   aContext->Save();
 
   // Clip to aFillRect so that we don't paint outside.
@@ -476,7 +475,7 @@ PaintFrameCallback::operator()(gfxContext* aContext,
 
   // Draw.
   nsRect dirty(bbox.x, bbox.y, mPaintServerSize.width, mPaintServerSize.height);
-  nsLayoutUtils::PaintFrame(&context, mFrame,
+  nsLayoutUtils::PaintFrame(renderState.GetRenderingContext(mTarget), mFrame,
                             dirty, NS_RGBA(0, 0, 0, 0),
                             nsLayoutUtils::PAINT_IN_TRANSFORM |
                             nsLayoutUtils::PAINT_ALL_CONTINUATIONS);

@@ -118,6 +118,9 @@ public abstract class Record {
   /**
    * Return true iff the input is a Record and has the same
    * collection and guid as this object.
+   *
+   * @param o
+   * @return
    */
   public boolean equalIdentifiers(Object o) {
     if (o == null || !(o instanceof Record)) {
@@ -147,11 +150,11 @@ public abstract class Record {
   }
 
   /**
+   * Return true iff the input is a Record which is substantially the
+   * same as this object.
+   *
    * @param o
-   *        The object to which this object should be compared.
    * @return
-   *        true iff the input is a Record which is substantially the
-   *        same as this object.
    */
   public boolean equalPayloads(Object o) {
     if (!this.equalIdentifiers(o)) {
@@ -162,14 +165,12 @@ public abstract class Record {
   }
 
   /**
-   *
+   * Return true iff the input is a Record which is substantially the
+   * same as this object, considering the ability and desire two
+   * reconcile the two objects if possible.
    *
    * @param o
-   *        The object to which this object should be compared.
    * @return
-   *        true iff the input is a Record which is substantially the
-   *        same as this object, considering the ability and desire to
-   *        reconcile the two objects if possible.
    */
   public boolean congruentWith(Object o) {
     if (!this.equalIdentifiers(o)) {
@@ -223,39 +224,8 @@ public abstract class Record {
     return ((Record) o).lastModified == this.lastModified;
   }
 
-  protected abstract void populatePayload(ExtendedJSONObject payload);
-  protected abstract void initFromPayload(ExtendedJSONObject payload);
-
-  public void initFromEnvelope(CryptoRecord envelope) {
-    ExtendedJSONObject p = envelope.payload;
-    this.guid = envelope.guid;
-    checkGUIDs(p);
-
-    this.collection    = envelope.collection;
-    this.lastModified  = envelope.lastModified;
-
-    final Object del = p.get("deleted");
-    if (del instanceof Boolean) {
-      this.deleted = (Boolean) del;
-    } else {
-      this.initFromPayload(p);
-    }
-
-  }
-
-  public CryptoRecord getEnvelope() {
-    CryptoRecord rec = new CryptoRecord(this);
-    ExtendedJSONObject payload = new ExtendedJSONObject();
-    payload.put("id", this.guid);
-
-    if (this.deleted) {
-      payload.put("deleted", true);
-    } else {
-      populatePayload(payload);
-    }
-    rec.payload = payload;
-    return rec;
-  }
+  public abstract void initFromPayload(CryptoRecord payload);
+  public abstract CryptoRecord getPayload();
 
   public String toJSONString() {
     throw new RuntimeException("Cannot JSONify non-CryptoRecord Records.");
@@ -268,27 +238,6 @@ public abstract class Record {
       // Can't happen.
       return null;
     }
-  }
-
-  /**
-   * Utility for safely populating an output CryptoRecord.
-   *
-   * @param rec
-   * @param key
-   * @param value
-   */
-  protected void putPayload(CryptoRecord rec, String key, String value) {
-    if (value == null) {
-      return;
-    }
-    rec.payload.put(key, value);
-  }
-
-  protected void putPayload(ExtendedJSONObject payload, String key, String value) {
-    if (value == null) {
-      return;
-    }
-    payload.put(key, value);
   }
 
   protected void checkGUIDs(ExtendedJSONObject payload) {
@@ -305,12 +254,13 @@ public abstract class Record {
   }
 
   /**
+   * Return an identical copy of this record with the provided two values.
+   *
    * Oh for persistent data structures.
    *
    * @param guid
    * @param androidID
    * @return
-   *        An identical copy of this record with the provided two values.
    */
   public abstract Record copyWithIDs(String guid, long androidID);
 }

@@ -73,6 +73,8 @@ using namespace mozilla;
 
 #define ILLEGAL_CHAR_RANGE(c) (0!=((c) & 0x80))
 
+static intN sXPCOMUCStringFinalizerIndex = -1;
+
 /***********************************************************/
 
 // static
@@ -114,12 +116,38 @@ XPCConvert::GetISupportsFromJSObject(JSObject* obj, nsISupports** iface)
 /***************************************************************************/
 
 static void
-FinalizeXPCOMUCString(const JSStringFinalizer *fin, jschar *chars)
+FinalizeXPCOMUCString(JSContext *cx, JSString *str)
 {
-    nsMemory::Free(chars);
+    NS_ASSERTION(sXPCOMUCStringFinalizerIndex != -1,
+                 "XPCConvert: XPCOM Unicode string finalizer called uninitialized!");
+
+    jschar* buffer = const_cast<jschar *>(JS_GetStringCharsZ(cx, str));
+    NS_ASSERTION(buffer, "How could this OOM if we allocated the memory?");
+    nsMemory::Free(buffer);
 }
 
-static const JSStringFinalizer sXPCOMUCStringFinalizer = { FinalizeXPCOMUCString };
+
+static JSBool
+AddXPCOMUCStringFinalizer()
+{
+
+    sXPCOMUCStringFinalizerIndex =
+        JS_AddExternalStringFinalizer(FinalizeXPCOMUCString);
+
+    if (sXPCOMUCStringFinalizerIndex == -1) {
+        return false;
+    }
+
+    return true;
+}
+
+//static
+void
+XPCConvert::RemoveXPCOMUCStringFinalizer()
+{
+    JS_RemoveExternalStringFinalizer(FinalizeXPCOMUCString);
+    sXPCOMUCStringFinalizerIndex = -1;
+}
 
 // static
 JSBool
@@ -144,11 +172,11 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
     case nsXPTType::T_I8    : *d = INT_TO_JSVAL(int32_t(*((int8_t*)s)));             break;
     case nsXPTType::T_I16   : *d = INT_TO_JSVAL(int32_t(*((int16_t*)s)));            break;
     case nsXPTType::T_I32   : *d = INT_TO_JSVAL(*((int32_t*)s));                     break;
-    case nsXPTType::T_I64   : *d = DOUBLE_TO_JSVAL(double(*((int64_t*)s)));          break;
+    case nsXPTType::T_I64   : *d = DOUBLE_TO_JSVAL(jsdouble(*((int64_t*)s)));        break;
     case nsXPTType::T_U8    : *d = INT_TO_JSVAL(int32_t(*((uint8_t*)s)));            break;
     case nsXPTType::T_U16   : *d = INT_TO_JSVAL(int32_t(*((uint16_t*)s)));           break;
     case nsXPTType::T_U32   : *d = UINT_TO_JSVAL(*((uint32_t*)s));                   break;
-    case nsXPTType::T_U64   : *d = DOUBLE_TO_JSVAL(double(*((uint64_t*)s)));         break;
+    case nsXPTType::T_U64   : *d = DOUBLE_TO_JSVAL(jsdouble(*((uint64_t*)s)));       break;
     case nsXPTType::T_FLOAT : *d = DOUBLE_TO_JSVAL(*((float*)s));                    break;
     case nsXPTType::T_DOUBLE: *d = DOUBLE_TO_JSVAL(*((double*)s));                   break;
     case nsXPTType::T_BOOL  :
@@ -291,9 +319,13 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
                     if (!p)
                         return false;
 
+                    if (sXPCOMUCStringFinalizerIndex == -1 &&
+                        !AddXPCOMUCStringFinalizer())
+                        return false;
+
                     JSString* jsString =
                         JS_NewExternalString(cx, p, len,
-                                             &sXPCOMUCStringFinalizer);
+                                             sXPCOMUCStringFinalizerIndex);
 
                     if (!jsString) {
                         nsMemory::Free(p);
@@ -318,10 +350,14 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
                     if (!unicodeString)
                         return false;
 
+                    if (sXPCOMUCStringFinalizerIndex == -1 &&
+                        !AddXPCOMUCStringFinalizer())
+                        return false;
+
                     JSString* jsString = JS_NewExternalString(cx,
                                                               (jschar*)unicodeString,
                                                               cString->Length(),
-                                                              &sXPCOMUCStringFinalizer);
+                                                              sXPCOMUCStringFinalizerIndex);
 
                     if (!jsString) {
                         nsMemory::Free(unicodeString);
@@ -348,9 +384,16 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
                                                            pErr, d);
                     }
                     // else...
+
+                    // XXX The OBJ_IS_NOT_GLOBAL here is not really right. In
+                    // fact, this code is depending on the fact that the
+                    // global object will not have been collected, and
+                    // therefore this NativeInterface2JSObject will not end up
+                    // creating a new XPCNativeScriptableShared.
                     xpcObjectHelper helper(iface);
                     if (!NativeInterface2JSObject(lccx, d, nsnull, helper, iid,
-                                                  nsnull, true, pErr))
+                                                  nsnull, true,
+                                                  OBJ_IS_NOT_GLOBAL, pErr))
                         return false;
 
 #ifdef DEBUG
@@ -403,7 +446,7 @@ XPCConvert::JSData2Native(XPCCallContext& ccx, void* d, jsval s,
 
     int32_t  ti;
     uint32_t tu;
-    double td;
+    jsdouble td;
     JSBool   tb;
     JSBool isDOMString = true;
 
@@ -869,6 +912,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
                                      const nsID* iid,
                                      XPCNativeInterface** Interface,
                                      bool allowNativeWrapper,
+                                     bool isGlobal,
                                      nsresult* pErr)
 {
     NS_ASSERTION(!Interface || iid,
@@ -1008,6 +1052,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
             return false;
 
         rv = XPCWrappedNative::GetNewOrUsed(ccx, aHelper, xpcscope, iface,
+                                            isGlobal,
                                             getter_AddRefs(strongWrapper));
 
         wrapper = strongWrapper;
@@ -1175,7 +1220,7 @@ XPCConvert::JSObject2NativeInterface(XPCCallContext& ccx,
         // we aren't, throw an exception eagerly.
         JSObject* inner = nsnull;
         if (XPCWrapper::IsSecurityWrapper(src)) {
-            inner = XPCWrapper::Unwrap(cx, src, false);
+            inner = XPCWrapper::Unwrap(cx, src);
             if (!inner) {
                 if (pErr)
                     *pErr = NS_ERROR_XPC_SECURITY_MANAGER_VETO;
@@ -1354,7 +1399,7 @@ XPCConvert::JSValToXPCException(XPCCallContext& ccx,
             }
 
 
-            unsigned ignored;
+            uintN ignored;
             JSBool found;
 
             // heuristic to see if it might be usable as an xpcexception

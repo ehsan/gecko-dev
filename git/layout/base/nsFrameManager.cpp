@@ -215,15 +215,20 @@ protected:
 
 //----------------------------------------------------------------------
 
+nsFrameManager::nsFrameManager()
+{
+}
+
 nsFrameManager::~nsFrameManager()
 {
   NS_ASSERTION(!mPresShell, "nsFrameManager::Destroy never called");
 }
 
 nsresult
-nsFrameManager::Init(nsStyleSet* aStyleSet)
+nsFrameManager::Init(nsIPresShell* aPresShell,
+                     nsStyleSet*  aStyleSet)
 {
-  if (!mPresShell) {
+  if (!aPresShell) {
     NS_ERROR("null pres shell");
     return NS_ERROR_FAILURE;
   }
@@ -233,6 +238,7 @@ nsFrameManager::Init(nsStyleSet* aStyleSet)
     return NS_ERROR_FAILURE;
   }
 
+  mPresShell = aPresShell;
   mStyleSet = aStyleSet;
   return NS_OK;
 }
@@ -263,7 +269,7 @@ nsFrameManager::Destroy()
 
 // Placeholder frame functions
 nsPlaceholderFrame*
-nsFrameManager::GetPlaceholderFrameFor(const nsIFrame* aFrame)
+nsFrameManager::GetPlaceholderFrameFor(nsIFrame* aFrame)
 {
   NS_PRECONDITION(aFrame, "null param unexpected");
 
@@ -673,8 +679,9 @@ VerifyStyleTree(nsPresContext* aPresContext, nsIFrame* aFrame,
     nsFrameList::Enumerator childFrames(lists.CurrentList());
     for (; !childFrames.AtEnd(); childFrames.Next()) {
       nsIFrame* child = childFrames.get();
-      if (!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
-        // only do frames that are in flow
+      if (!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW)
+          || (child->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER)) {
+        // only do frames that don't have placeholders
         if (nsGkAtoms::placeholderFrame == child->GetType()) { 
           // placeholder: first recurse and verify the out of flow frame,
           // then verify the placeholder's context
@@ -682,9 +689,7 @@ VerifyStyleTree(nsPresContext* aPresContext, nsIFrame* aFrame,
             nsPlaceholderFrame::GetRealFrameForPlaceholder(child);
 
           // recurse to out of flow frame, letting the parent context get resolved
-          do {
-            VerifyStyleTree(aPresContext, outOfFlowFrame, nsnull);
-          } while ((outOfFlowFrame = outOfFlowFrame->GetNextContinuation()));
+          VerifyStyleTree(aPresContext, outOfFlowFrame, nsnull);
 
           // verify placeholder using the parent frame's context as
           // parent context
@@ -928,8 +933,9 @@ nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
           nsFrameList::Enumerator childFrames(lists.CurrentList());
           for (; !childFrames.AtEnd(); childFrames.Next()) {
             nsIFrame* child = childFrames.get();
-            // only do frames that are in flow
-            if (!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW) &&
+            // only do frames that don't have placeholders
+            if ((!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW) ||
+                 (child->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER)) &&
                 child != providerChild) {
 #ifdef DEBUG
               if (nsGkAtoms::placeholderFrame == child->GetType()) {
@@ -1061,11 +1067,6 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       NS_SubtractHint(aMinChange, nsChangeHint_ClearAncestorIntrinsics);
   }
 
-  // We need to generate a new change list entry for every frame whose style
-  // comparision returns one of these hints. These hints don't automatically
-  // update all their descendant frames.
-  aMinChange = NS_SubtractHint(aMinChange, nsChangeHint_UpdateTransformLayer);
-  aMinChange = NS_SubtractHint(aMinChange, nsChangeHint_UpdateOpacityLayer);
   aMinChange = NS_SubtractHint(aMinChange, nsChangeHint_UpdateOverflow);
 
   // It would be nice if we could make stronger assertions here; they
@@ -1141,11 +1142,6 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
         parentContext = nsnull;
     }
     else {
-      MOZ_ASSERT(providerFrame->GetContent() == aFrame->GetContent(),
-                 "Postcondition for GetParentStyleContextFrame() violated. "
-                 "That means we need to add the current element to the "
-                 "ancestor filter.");
-
       // resolve the provider here (before aFrame below).
 
       // assumeDifferenceHint forces the parent's change to be also
@@ -1394,12 +1390,8 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       undisplayedParent = localContent;
     }
     if (checkUndisplayed && mUndisplayedMap) {
-      UndisplayedNode* undisplayed =
-        mUndisplayedMap->GetFirstNode(undisplayedParent);
-      for (AncestorFilter::AutoAncestorPusher
-             pushAncestor(undisplayed, aTreeMatchContext.mAncestorFilter,
-                          undisplayedParent ? undisplayedParent->AsElement()
-                                            : nsnull);
+      for (UndisplayedNode* undisplayed =
+                              mUndisplayedMap->GetFirstNode(undisplayedParent);
            undisplayed; undisplayed = undisplayed->mNext) {
         NS_ASSERTION(undisplayedParent ||
                      undisplayed->mContent ==
@@ -1547,17 +1539,13 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
 
       // now do children
       nsIFrame::ChildListIterator lists(aFrame);
-      for (AncestorFilter::AutoAncestorPusher
-             pushAncestor(!lists.IsDone(),
-                          aTreeMatchContext.mAncestorFilter,
-                          content && content->IsElement() ? content->AsElement()
-                                                          : nsnull);
-           !lists.IsDone(); lists.Next()) {
+      for (; !lists.IsDone(); lists.Next()) {
         nsFrameList::Enumerator childFrames(lists.CurrentList());
         for (; !childFrames.AtEnd(); childFrames.Next()) {
           nsIFrame* child = childFrames.get();
-          if (!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
-            // only do frames that are in flow
+          if (!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW)
+              || (child->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER)) {
+            // only do frames that don't have placeholders
             if (nsGkAtoms::placeholderFrame == child->GetType()) { // placeholder
               // get out of flow frame and recur there
               nsIFrame* outOfFlowFrame =
@@ -1662,9 +1650,8 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
                                       RestyleTracker&    aRestyleTracker,
                                       bool               aRestyleDescendants)
 {
-  nsIContent *content = aFrame->GetContent();
   if (aMinChange) {
-    aChangeList->AppendChange(aFrame, content, aMinChange);
+    aChangeList->AppendChange(aFrame, aFrame->GetContent(), aMinChange);
   }
 
   nsChangeHint topLevelChange = aMinChange;
@@ -1683,10 +1670,6 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
   TreeMatchContext treeMatchContext(true,
                                     nsRuleWalker::eRelevantLinkUnvisited,
                                     mPresShell->GetDocument());
-  nsIContent *parent = content ? content->GetParent() : nsnull;
-  Element *parentElement =
-    parent && parent->IsElement() ? parent->AsElement() : nsnull;
-  treeMatchContext.mAncestorFilter.Init(parentElement);
   nsTArray<nsIContent*> visibleKidsOfHiddenElement;
   do {
     // Outer loop over special siblings

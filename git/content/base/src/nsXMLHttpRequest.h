@@ -63,7 +63,7 @@
 #include "nsITimer.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsDOMProgressEvent.h"
-#include "nsDOMEventTargetHelper.h"
+#include "nsDOMEventTargetWrapperCache.h"
 #include "nsContentUtils.h"
 #include "nsDOMFile.h"
 #include "nsDOMBlobBuilder.h"
@@ -72,18 +72,17 @@ class nsILoadGroup;
 class AsyncVerifyRedirectCallbackForwarder;
 class nsIUnicodeDecoder;
 
-class nsXHREventTarget : public nsDOMEventTargetHelper,
+class nsXHREventTarget : public nsDOMEventTargetWrapperCache,
                          public nsIXMLHttpRequestEventTarget
 {
 public:
   virtual ~nsXHREventTarget() {}
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsXHREventTarget,
-                                           nsDOMEventTargetHelper)
+                                           nsDOMEventTargetWrapperCache)
   NS_DECL_NSIXMLHTTPREQUESTEVENTTARGET
   NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
-  virtual void DisconnectFromOwner();
 protected:
   nsRefPtr<nsDOMEventListenerWrapper> mOnLoadListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
@@ -98,10 +97,12 @@ class nsXMLHttpRequestUpload : public nsXHREventTarget,
                                public nsIXMLHttpRequestUpload
 {
 public:
-  nsXMLHttpRequestUpload(nsDOMEventTargetHelper* aOwner)
+  nsXMLHttpRequestUpload(nsPIDOMWindow* aOwner,
+                         nsIScriptContext* aScriptContext)
   {
-    BindToOwner(aOwner);
-  }                                         
+    mOwner = aOwner;
+    mScriptContext = aScriptContext;
+  }
   NS_DECL_ISUPPORTS_INHERITED
   NS_FORWARD_NSIXMLHTTPREQUESTEVENTTARGET(nsXHREventTarget::)
   NS_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget::)
@@ -205,8 +206,7 @@ public:
                                                                    nsXHREventTarget)
   bool AllowUploadProgress();
   void RootResultArrayBuffer();
-
-  virtual void DisconnectFromOwner();
+  
 protected:
   friend class nsMultipartProxyListener;
 
@@ -365,7 +365,7 @@ protected:
   void HandleTimeoutCallback();
 
   bool mErrorLoad;
-  bool mWaitingForOnStopRequest;
+
   bool mProgressTimerIsActive;
   bool mProgressEventWasDelayed;
   bool mIsHtml;

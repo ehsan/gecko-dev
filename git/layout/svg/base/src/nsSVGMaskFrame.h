@@ -42,7 +42,6 @@
 #include "gfxMatrix.h"
 
 class gfxContext;
-class nsRenderingContext;
 
 typedef nsSVGContainerFrame nsSVGMaskFrameBase;
 
@@ -51,18 +50,15 @@ class nsSVGMaskFrame : public nsSVGMaskFrameBase
   friend nsIFrame*
   NS_NewSVGMaskFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  nsSVGMaskFrame(nsStyleContext* aContext)
-    : nsSVGMaskFrameBase(aContext)
-    , mInUse(false)
-  {
-    AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
-  }
+  nsSVGMaskFrame(nsStyleContext* aContext) :
+    nsSVGMaskFrameBase(aContext),
+    mInUse(false) {}
 
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
   // nsSVGMaskFrame method:
-  already_AddRefed<gfxPattern> ComputeMaskAlpha(nsRenderingContext *aContext,
+  already_AddRefed<gfxPattern> ComputeMaskAlpha(nsSVGRenderState *aContext,
                                                 nsIFrame* aParent,
                                                 const gfxMatrix &aMatrix,
                                                 float aOpacity = 1.0f);

@@ -51,14 +51,13 @@ class nsPIDOMWindow;
 
 BEGIN_TELEPHONY_NAMESPACE
 
-class Telephony : public nsDOMEventTargetHelper,
+class Telephony : public nsDOMEventTargetWrapperCache,
                   public nsIDOMTelephony
 {
   nsCOMPtr<nsIRadioInterfaceLayer> mRIL;
   nsCOMPtr<nsIRILTelephonyCallback> mRILTelephonyCallback;
 
   NS_DECL_EVENT_HANDLER(incoming)
-  NS_DECL_EVENT_HANDLER(callschanged)
 
   TelephonyCall* mActiveCall;
   nsTArray<nsRefPtr<TelephonyCall> > mCalls;
@@ -73,10 +72,10 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMTELEPHONY
   NS_DECL_NSIRILTELEPHONYCALLBACK
-  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetWrapperCache::)
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(
                                                    Telephony,
-                                                   nsDOMEventTargetHelper)
+                                                   nsDOMEventTargetWrapperCache)
 
   static already_AddRefed<Telephony>
   Create(nsPIDOMWindow* aOwner, nsIRadioInterfaceLayer* aRIL);
@@ -84,7 +83,7 @@ public:
   nsIDOMEventTarget*
   ToIDOMEventTarget() const
   {
-    return static_cast<nsDOMEventTargetHelper*>(
+    return static_cast<nsDOMEventTargetWrapperCache*>(
              const_cast<Telephony*>(this));
   }
 
@@ -100,7 +99,6 @@ public:
     NS_ASSERTION(!mCalls.Contains(aCall), "Already know about this one!");
     mCalls.AppendElement(aCall);
     mCallsArray = nsnull;
-    NotifyCallsChanged(aCall);
   }
 
   void
@@ -109,7 +107,6 @@ public:
     NS_ASSERTION(mCalls.Contains(aCall), "Didn't know about this one!");
     mCalls.RemoveElement(aCall);
     mCallsArray = nsnull;
-    NotifyCallsChanged(aCall);
   }
 
   nsIRadioInterfaceLayer*
@@ -131,17 +128,14 @@ public:
   }
 
 private:
-  Telephony();
+  Telephony()
+  : mActiveCall(nsnull), mCallsArray(nsnull), mRooted(false)
+  { }
+
   ~Telephony();
 
-  already_AddRefed<TelephonyCall>
-  CreateNewDialingCall(const nsAString& aNumber);
-
   void
-  NoteDialedCallFromOtherInstance(const nsAString& aNumber);
-
-  nsresult
-  NotifyCallsChanged(TelephonyCall* aCall);
+  SwitchActiveCall(TelephonyCall* aCall);
 
   class RILTelephonyCallback : public nsIRILTelephonyCallback
   {

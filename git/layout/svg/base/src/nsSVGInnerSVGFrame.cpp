@@ -39,6 +39,7 @@
 #include "nsSVGInnerSVGFrame.h"
 #include "nsIFrame.h"
 #include "nsISVGChildFrame.h"
+#include "nsSVGOuterSVGFrame.h"
 #include "nsIDOMSVGAnimatedRect.h"
 #include "nsSVGSVGElement.h"
 #include "nsSVGContainerFrame.h"
@@ -83,7 +84,7 @@ nsSVGInnerSVGFrame::GetType() const
 // nsISVGChildFrame methods
 
 NS_IMETHODIMP
-nsSVGInnerSVGFrame::PaintSVG(nsRenderingContext *aContext,
+nsSVGInnerSVGFrame::PaintSVG(nsSVGRenderState *aContext,
                              const nsIntRect *aDirtyRect)
 {
   gfxContextAutoSaveRestore autoSR;
@@ -100,7 +101,7 @@ nsSVGInnerSVGFrame::PaintSVG(nsRenderingContext *aContext,
     nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
     gfxMatrix clipTransform = parent->GetCanvasTM();
 
-    gfxContext *gfx = aContext->ThebesContext();
+    gfxContext *gfx = aContext->GetGfxContext();
     autoSR.SetContext(gfx);
     gfxRect clipRect =
       nsSVGUtils::GetClipRectForFrame(this, x, y, width, height);
@@ -113,13 +114,6 @@ nsSVGInnerSVGFrame::PaintSVG(nsRenderingContext *aContext,
 void
 nsSVGInnerSVGFrame::NotifySVGChanged(PRUint32 aFlags)
 {
-  NS_ABORT_IF_FALSE(!(aFlags & DO_NOT_NOTIFY_RENDERING_OBSERVERS) ||
-                    (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
-                    "Must be NS_STATE_SVG_NONDISPLAY_CHILD!");
-
-  NS_ABORT_IF_FALSE(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
-                    "Invalidation logic may need adjusting");
-
   if (aFlags & COORD_CONTEXT_CHANGED) {
 
     nsSVGSVGElement *svg = static_cast<nsSVGSVGElement*>(mContent);
@@ -171,24 +165,14 @@ nsSVGInnerSVGFrame::AttributeChanged(PRInt32  aNameSpaceID,
     if (aAttribute == nsGkAtoms::width ||
         aAttribute == nsGkAtoms::height) {
 
-      nsSVGSVGElement* svg = static_cast<nsSVGSVGElement*>(mContent);
-      if (svg->mViewBox.IsValid()) {
+      if (static_cast<nsSVGSVGElement*>(mContent)->mViewBox.IsValid()) {
 
         // make sure our cached transform matrix gets (lazily) updated
         mCanvasTM = nsnull;
 
         nsSVGUtils::NotifyChildrenOfSVGChange(this, TRANSFORM_CHANGED);
       } else {
-
-        PRUint32 flags = COORD_CONTEXT_CHANGED;
-
-        if (mCanvasTM && mCanvasTM->IsSingular()) {
-
-          mCanvasTM = nsnull;
-
-          flags |= TRANSFORM_CHANGED;
-        }
-        nsSVGUtils::NotifyChildrenOfSVGChange(this, flags);
+        nsSVGUtils::NotifyChildrenOfSVGChange(this, COORD_CONTEXT_CHANGED);
       }
 
     } else if (aAttribute == nsGkAtoms::transform ||
@@ -232,28 +216,33 @@ nsSVGInnerSVGFrame::GetFrameForPoint(const nsPoint &aPoint)
 //----------------------------------------------------------------------
 // nsISVGSVGFrame methods:
 
-void
+NS_IMETHODIMP
 nsSVGInnerSVGFrame::SuspendRedraw()
 {
-  if (GetParent()->GetStateBits() & NS_STATE_SVG_REDRAW_SUSPENDED)
-    return;
-
-  nsSVGUtils::NotifyRedrawSuspended(this);
+  nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(this);
+  if (!outerSVGFrame) {
+    NS_ERROR("no outer svg frame");
+    return NS_ERROR_FAILURE;
+  }
+  return outerSVGFrame->SuspendRedraw();
 }
 
-void
+NS_IMETHODIMP
 nsSVGInnerSVGFrame::UnsuspendRedraw()
 {
-  if (GetParent()->GetStateBits() & NS_STATE_SVG_REDRAW_SUSPENDED)
-    return;
-
-  nsSVGUtils::NotifyRedrawUnsuspended(this);
+  nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(this);
+  if (!outerSVGFrame) {
+    NS_ERROR("no outer svg frame");
+    return NS_ERROR_FAILURE;
+  }
+  return outerSVGFrame->UnsuspendRedraw();
 }
 
-void
+NS_IMETHODIMP
 nsSVGInnerSVGFrame::NotifyViewportChange()
 {
   NS_ERROR("Inner SVG frames should not get Viewport changes.");
+  return NS_ERROR_FAILURE;
 }
 
 //----------------------------------------------------------------------
@@ -268,7 +257,7 @@ nsSVGInnerSVGFrame::GetCanvasTM()
     nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
     nsSVGSVGElement *content = static_cast<nsSVGSVGElement*>(mContent);
 
-    gfxMatrix tm = content->PrependLocalTransformsTo(parent->GetCanvasTM());
+    gfxMatrix tm = content->PrependLocalTransformTo(parent->GetCanvasTM());
 
     mCanvasTM = new gfxMatrix(tm);
   }

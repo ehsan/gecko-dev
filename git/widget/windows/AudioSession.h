@@ -36,6 +36,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+
 namespace mozilla {
 namespace widget {
 
@@ -58,3 +60,5 @@ nsresult StopAudioSession();
 
 } // namespace widget
 } // namespace mozilla
+
+#endif // MOZ_WINSK_TARGETVER >= MOZ_NTDDI_LONGHORN

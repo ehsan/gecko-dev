@@ -88,7 +88,6 @@ EXPORTS		= \
 		nsDebugImpl.h \
 		nsIAllocator.h \
 		nsIID.h \
-		nsISizeOf.h \
 		nsISupportsObsolete.h \
 		nsStackWalk.h \
 		nsTraceRefcntImpl.h \
@@ -104,7 +103,6 @@ EXPORTS_mozilla = \
 	MapsMemoryReporter.h \
 	ClearOnShutdown.h \
 	AvailableMemoryTracker.h \
-	StackWalk.h \
 	$(NULL)
 
 ifeq (windows,$(MOZ_WIDGET_TOOLKIT))

@@ -84,6 +84,13 @@ JSFunction::initializeExtended()
     toExtended()->extendedSlots[1].init(js::UndefinedValue());
 }
 
+inline void
+JSFunction::setJoinable()
+{
+    JS_ASSERT(isInterpreted());
+    flags |= JSFUN_JOINABLE;
+}
+
 inline bool
 JSFunction::isClonedMethod() const
 {
@@ -303,7 +310,7 @@ GetFunctionNameBytes(JSContext *cx, JSFunction *fun, JSAutoByteString *bytes)
 extern JSFunctionSpec function_methods[];
 
 extern JSBool
-Function(JSContext *cx, unsigned argc, Value *vp);
+Function(JSContext *cx, uintN argc, Value *vp);
 
 extern bool
 IsBuiltinFunctionConstructor(JSFunction *fun);

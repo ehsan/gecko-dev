@@ -40,18 +40,30 @@
 
 #include "jsapi.h"
 
-BEGIN_WORKERS_NAMESPACE
-
 namespace {
 
+void
+PrincipalDestroy(JSContext*, JSPrincipals*)
+{
+  // nothing
+}
+
+JSBool
+PrincipalSubsume(JSPrincipals*, JSPrincipals*)
+{
+  return JS_TRUE;
+}
+
+const char gPrincipalCodebase[] = "Web Worker";
+
 JSPrincipals gPrincipal = {
-  1
-#ifdef DEBUG
-  , kJSPrincipalsDebugToken
-#endif
+  const_cast<char*>(gPrincipalCodebase),
+  1, PrincipalDestroy, PrincipalSubsume
 };
 
 } // anonymous namespace
+
+BEGIN_WORKERS_NAMESPACE
 
 JSPrincipals*
 GetWorkerPrincipal()

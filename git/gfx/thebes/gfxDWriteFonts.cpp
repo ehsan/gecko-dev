@@ -82,12 +82,28 @@ GetCairoAntialiasOption(gfxFont::AntialiasOption anAntialiasOption)
 #endif
 
 static bool
+HasClearType()
+{
+    OSVERSIONINFO versionInfo;
+    versionInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+
+    return (GetVersionEx(&versionInfo) &&
+            (versionInfo.dwMajorVersion > 5 ||
+             (versionInfo.dwMajorVersion == 5 &&
+              versionInfo.dwMinorVersion >= 1))); // XP or newer
+}
+
+static bool
 UsingClearType()
 {
     BOOL fontSmoothing;
     if (!SystemParametersInfo(SPI_GETFONTSMOOTHING, 0, &fontSmoothing, 0) ||
         !fontSmoothing)
     {
+        return false;    
+    }
+
+    if (!HasClearType()) {
         return false;
     }
 
@@ -670,7 +686,7 @@ gfxDWriteFont::GetFontTable(PRUint32 aTag)
         FontTableRec *ftr = new FontTableRec(mFontFace, context);
         return hb_blob_create(static_cast<const char*>(data), size,
                               HB_MEMORY_MODE_READONLY,
-                              ftr, DestroyBlobFunc);
+                              DestroyBlobFunc, ftr);
     }
 
     if (mFontEntry->IsUserFont() && !mFontEntry->IsLocalUserFont()) {

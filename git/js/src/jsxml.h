@@ -123,8 +123,9 @@ struct JSXMLArrayCursor
     }
 };
 
-void js_XMLArrayCursorTrace(JSTracer *trc, JSXMLArrayCursor<JSXML> *cursor);
-void js_XMLArrayCursorTrace(JSTracer *trc, JSXMLArrayCursor<JSObject> *cursor);
+template<class T>
+void
+js_XMLArrayCursorTrace(JSTracer *trc, JSXMLArrayCursor<T> *cursor);
 
 #define JSXML_PRESET_CAPACITY   JS_BIT(31)
 #define JSXML_CAPACITY_MASK     JS_BITMASK(31)
@@ -147,8 +148,8 @@ typedef enum JSXMLClass {
 #define JSXML_CLASS_HAS_KIDS(class_)    ((class_) < JSXML_CLASS_ATTRIBUTE)
 #define JSXML_CLASS_HAS_VALUE(class_)   ((class_) >= JSXML_CLASS_ATTRIBUTE)
 #define JSXML_CLASS_HAS_NAME(class_)                                          \
-    ((unsigned)((class_) - JSXML_CLASS_ELEMENT) <=                               \
-     (unsigned)(JSXML_CLASS_PROCESSING_INSTRUCTION - JSXML_CLASS_ELEMENT))
+    ((uintN)((class_) - JSXML_CLASS_ELEMENT) <=                               \
+     (uintN)(JSXML_CLASS_PROCESSING_INSTRUCTION - JSXML_CLASS_ELEMENT))
 
 #ifdef DEBUG_notme
 #include "jsclist.h"

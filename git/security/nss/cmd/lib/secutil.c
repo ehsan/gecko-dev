@@ -86,19 +86,6 @@ static char consoleName[] =  {
 #include "nssutil.h"
 #include "ssl.h"
 
-static PRBool wrapEnabled = PR_TRUE;
-
-void
-SECU_EnableWrap(PRBool enable)
-{
-    wrapEnabled = enable;
-}
-
-PRBool
-SECU_GetWrapEnabled()
-{
-    return wrapEnabled;
-}
 
 void 
 SECU_PrintErrMsg(FILE *out, int level, char *progName, char *msg, ...)
@@ -802,15 +789,11 @@ SECU_PrintAsHex(FILE *out, SECItem *data, const char *m, int level)
     unsigned int limit = 15;
 
     if ( m ) {
-	SECU_Indent(out, level); fprintf(out, "%s:", m);
+	SECU_Indent(out, level); fprintf(out, "%s:\n", m);
 	level++;
-	if (wrapEnabled)
-	    fprintf(out, "\n");
     }
-
-    if (wrapEnabled) {
-	SECU_Indent(out, level); column = level*INDENT_MULT;
-    }
+    
+    SECU_Indent(out, level); column = level*INDENT_MULT;
     if (!data->len) {
 	fprintf(out, "(empty)\n");
 	return;
@@ -843,8 +826,7 @@ SECU_PrintAsHex(FILE *out, SECItem *data, const char *m, int level)
 	    column += 2;
 	    break;
 	}
-	if (wrapEnabled &&
-	    (column > 76 || (i % 16 == limit))) {
+	if (column > 76 || (i % 16 == limit)) {
 	    secu_Newline(out);
 	    SECU_Indent(out, level); 
 	    column = level*INDENT_MULT;
@@ -867,7 +849,7 @@ SECU_PrintAsHex(FILE *out, SECItem *data, const char *m, int level)
 	    } else {
 		column = 77;
 	    }
-	    if (wrapEnabled && column > 76) {
+	    if (column > 76) {
 		secu_Newline(out);
         	SECU_Indent(out, level); column = level*INDENT_MULT;
 	    }
@@ -993,8 +975,7 @@ SECU_PrintInteger(FILE *out, SECItem *i, char *m, int level)
 }
 
 static void
-secu_PrintRawStringQuotesOptional(FILE *out, SECItem *si, const char *m, 
-				  int level, PRBool quotes)
+secu_PrintRawString(FILE *out, SECItem *si, const char *m, int level)
 {
     int column;
     unsigned int i;
@@ -1007,13 +988,11 @@ secu_PrintRawStringQuotesOptional(FILE *out, SECItem *si, const char *m,
 	SECU_Indent(out, level); 
 	column = level*INDENT_MULT;
     }
-    if (quotes) {
-	fprintf(out, "\""); column++;
-    }
+    fprintf(out, "\""); column++;
 
     for (i = 0; i < si->len; i++) {
 	unsigned char val = si->data[i];
-	if (wrapEnabled && column > 76) {
+	if (column > 76) {
 	    secu_Newline(out);
 	    SECU_Indent(out, level); column = level*INDENT_MULT;
 	}
@@ -1021,19 +1000,10 @@ secu_PrintRawStringQuotesOptional(FILE *out, SECItem *si, const char *m,
 	fprintf(out,"%c", printable[val]); column++;
     }
 
-    if (quotes) {
-	fprintf(out, "\""); column++;
-    }
-    if (wrapEnabled &&
-        (column != level*INDENT_MULT || column > 76)) {
+    fprintf(out, "\""); column++;
+    if (column != level*INDENT_MULT || column > 76) {
 	secu_Newline(out);
     }
-}
-
-static void
-secu_PrintRawString(FILE *out, SECItem *si, const char *m, int level)
-{
-    secu_PrintRawStringQuotesOptional(out, si, m, level, PR_TRUE);
 }
 
 void
@@ -2439,8 +2409,7 @@ SECU_PrintRDN(FILE *out, CERTRDN *rdn, const char *msg, int level)
 }
 
 void
-SECU_PrintNameQuotesOptional(FILE *out, CERTName *name, const char *msg, 
-			     int level, PRBool quotes)
+SECU_PrintName(FILE *out, CERTName *name, const char *msg, int level)
 {
     char *nameStr = NULL;
     char *str;
@@ -2461,19 +2430,13 @@ SECU_PrintNameQuotesOptional(FILE *out, CERTName *name, const char *msg,
     my.data = (unsigned char *)str;
     my.len  = PORT_Strlen(str);
 #if 1
-    secu_PrintRawStringQuotesOptional(out, &my, msg, level, quotes);
+    secu_PrintRawString(out, &my, msg, level);
 #else
     SECU_Indent(out, level); fprintf(out, "%s: ", msg);
     fprintf(out, str);
     secu_Newline(out);
 #endif
     PORT_Free(nameStr);
-}
-
-void
-SECU_PrintName(FILE *out, CERTName *name, const char *msg, int level)
-{
-    SECU_PrintNameQuotesOptional(out, name, msg, level, PR_TRUE);
 }
 
 void
@@ -2790,15 +2753,8 @@ SECU_PrintFingerprints(FILE *out, SECItem *derCert, char *m, int level)
     fpItem.data = fingerprint;
     fpItem.len = MD5_LENGTH;
     fpStr = CERT_Hexify(&fpItem, 1);
-    SECU_Indent(out, level);  fprintf(out, "%s (MD5):", m);
-    if (wrapEnabled) {
-	fprintf(out, "\n");
-	SECU_Indent(out, level+1);
-    }
-    else {
-	fprintf(out, " ");
-    }
-    fprintf(out, "%s\n", fpStr);
+    SECU_Indent(out, level);  fprintf(out, "%s (MD5):\n", m);
+    SECU_Indent(out, level+1); fprintf(out, "%s\n", fpStr);
     PORT_Free(fpStr);
     fpStr = NULL;
     if (rv != SECSuccess && !err)
@@ -2810,18 +2766,10 @@ SECU_PrintFingerprints(FILE *out, SECItem *derCert, char *m, int level)
     fpItem.data = fingerprint;
     fpItem.len = SHA1_LENGTH;
     fpStr = CERT_Hexify(&fpItem, 1);
-    SECU_Indent(out, level);  fprintf(out, "%s (SHA1):", m);
-    if (wrapEnabled) {
-	fprintf(out, "\n");
-	SECU_Indent(out, level+1);
-    }
-    else {
-	fprintf(out, " ");
-    }
-    fprintf(out, "%s\n", fpStr);
+    SECU_Indent(out, level);  fprintf(out, "%s (SHA1):\n", m);
+    SECU_Indent(out, level+1); fprintf(out, "%s\n", fpStr);
     PORT_Free(fpStr);
-    if (wrapEnabled)
-	fprintf(out, "\n");
+    fprintf(out, "\n");
 
     if (err) 
 	PORT_SetError(err);
@@ -2959,7 +2907,7 @@ SECU_PrintCRLInfo(FILE *out, CERTCrl *crl, char *m, int level)
     if (crl->entries != NULL) {
 	iv = 0;
 	while ((entry = crl->entries[iv++]) != NULL) {
-	    sprintf(om, "Entry %d (0x%x):\n", iv, iv); 
+	    sprintf(om, "Entry (%x):\n", iv); 
 	    SECU_Indent(out, level + 1); fputs(om, out);
 	    SECU_PrintInteger(out, &(entry->serialNumber), "Serial Number",
 			      level + 2);

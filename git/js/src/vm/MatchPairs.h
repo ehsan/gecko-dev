@@ -93,7 +93,7 @@ class MatchPairs
 
     int *buffer() { return buffer_; }
 
-    friend class RegExpShared;
+    friend class detail::RegExpPrivate;
 
   public:
     /*

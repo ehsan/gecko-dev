@@ -198,19 +198,11 @@ nsHTMLEditUtils::IsListItem(dom::Element* node)
 ///////////////////////////////////////////////////////////////////////////
 // IsTableElement: true if node an html table, td, tr, ...
 //                  
-bool
+bool 
 nsHTMLEditUtils::IsTableElement(nsIDOMNode *node)
 {
   NS_PRECONDITION(node, "null node passed to nsHTMLEditor::IsTableElement");
-  nsCOMPtr<dom::Element> element = do_QueryInterface(node);
-  return element && IsTableElement(element);
-}
-
-bool
-nsHTMLEditUtils::IsTableElement(dom::Element* node)
-{
-  MOZ_ASSERT(node);
-  nsCOMPtr<nsIAtom> nodeAtom = node->Tag();
+  nsCOMPtr<nsIAtom> nodeAtom = nsEditor::GetTag(node);
   return (nodeAtom == nsEditProperty::table)
       || (nodeAtom == nsEditProperty::tr)
       || (nodeAtom == nsEditProperty::td)

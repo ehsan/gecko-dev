@@ -39,6 +39,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
+
 #include "mozilla/Util.h"
 
 #include <nsITaskbarPreviewController.h>
@@ -355,4 +357,6 @@ TaskbarWindowPreview::UpdateButton(PRUint32 index) {
 
 } // namespace widget
 } // namespace mozilla
+
+#endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
 

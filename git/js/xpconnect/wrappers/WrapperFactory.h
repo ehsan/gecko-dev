@@ -48,18 +48,12 @@ class WrapperFactory {
            IS_XRAY_WRAPPER_FLAG    = WAIVE_XRAY_WRAPPER_FLAG << 1,
            SCRIPT_ACCESS_ONLY_FLAG = IS_XRAY_WRAPPER_FLAG << 1,
            PARTIALLY_TRANSPARENT   = SCRIPT_ACCESS_ONLY_FLAG << 1,
-           SOW_FLAG                = PARTIALLY_TRANSPARENT << 1,
-
-           // Prevent scripts from shadowing native properties.
-           // NB: Applies only to Xray wrappers.
-           // NB: This will prevent scriptable helpers from defining special
-           //     handlers for properties defined in IDL. Use with caution.
-           SHADOWING_FORBIDDEN     = SOW_FLAG << 1 };
+           SOW_FLAG                = PARTIALLY_TRANSPARENT << 1 };
 
     // Return true if any of any of the nested wrappers have the flag set.
-    static bool HasWrapperFlag(JSObject *wrapper, unsigned flag) {
-        unsigned flags = 0;
-        js::UnwrapObject(wrapper, true, &flags);
+    static bool HasWrapperFlag(JSObject *wrapper, uintN flag) {
+        uintN flags = 0;
+        js::UnwrapObject(wrapper, &flags);
         return !!(flags & flag);
     }
 
@@ -75,26 +69,22 @@ class WrapperFactory {
         return HasWrapperFlag(wrapper, WAIVE_XRAY_WRAPPER_FLAG);
     }
 
-    static bool IsShadowingForbidden(JSObject *wrapper) {
-        return HasWrapperFlag(wrapper, SHADOWING_FORBIDDEN);
-    }
-
     static JSObject *WaiveXray(JSContext *cx, JSObject *obj);
 
-    static JSObject *DoubleWrap(JSContext *cx, JSObject *obj, unsigned flags);
+    static JSObject *DoubleWrap(JSContext *cx, JSObject *obj, uintN flags);
 
     // Prepare a given object for wrapping in a new compartment.
     static JSObject *PrepareForWrapping(JSContext *cx,
                                         JSObject *scope,
                                         JSObject *obj,
-                                        unsigned flags);
+                                        uintN flags);
 
     // Rewrap an object that is about to cross compartment boundaries.
     static JSObject *Rewrap(JSContext *cx,
                             JSObject *obj,
                             JSObject *wrappedProto,
                             JSObject *parent,
-                            unsigned flags);
+                            uintN flags);
 
     // Return true if this is a location object.
     static bool IsLocationObject(JSObject *obj);

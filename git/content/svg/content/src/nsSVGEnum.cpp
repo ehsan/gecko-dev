@@ -67,12 +67,15 @@ nsSVGEnum::GetMapping(nsSVGElement *aSVGElement)
 }
 
 nsresult
-nsSVGEnum::SetBaseValueAtom(const nsIAtom* aValue, nsSVGElement *aSVGElement)
+nsSVGEnum::SetBaseValueString(const nsAString& aValue,
+                              nsSVGElement *aSVGElement)
 {
+  nsCOMPtr<nsIAtom> valAtom = do_GetAtom(aValue);
+
   nsSVGEnumMapping *mapping = GetMapping(aSVGElement);
 
   while (mapping && mapping->mKey) {
-    if (aValue == *(mapping->mKey)) {
+    if (valAtom == *(mapping->mKey)) {
       mIsBaseSet = true;
       if (mBaseVal != mapping->mVal) {
         mBaseVal = mapping->mVal;
@@ -96,19 +99,19 @@ nsSVGEnum::SetBaseValueAtom(const nsIAtom* aValue, nsSVGElement *aSVGElement)
   return NS_ERROR_DOM_SYNTAX_ERR;
 }
 
-nsIAtom*
-nsSVGEnum::GetBaseValueAtom(nsSVGElement *aSVGElement)
+void
+nsSVGEnum::GetBaseValueString(nsAString& aValue, nsSVGElement *aSVGElement)
 {
   nsSVGEnumMapping *mapping = GetMapping(aSVGElement);
 
   while (mapping && mapping->mKey) {
     if (mBaseVal == mapping->mVal) {
-      return *mapping->mKey;
+      (*mapping->mKey)->ToString(aValue);
+      return;
     }
     mapping++;
   }
   NS_ERROR("unknown enumeration value");
-  return nsGkAtoms::_empty;
 }
 
 nsresult
@@ -128,7 +131,7 @@ nsSVGEnum::SetBaseValue(PRUint16 aValue,
         else {
           aSVGElement->AnimationNeedsResample();
         }
-        aSVGElement->DidChangeEnum(mAttrEnum);
+        aSVGElement->DidChangeEnum(mAttrEnum, true);
       }
       return NS_OK;
     }
@@ -200,9 +203,8 @@ void
 nsSVGEnum::SMILEnum::ClearAnimValue()
 {
   if (mVal->mIsAnimated) {
+    mVal->SetAnimValue(mVal->mBaseVal, mSVGElement);
     mVal->mIsAnimated = false;
-    mVal->mAnimVal = mVal->mBaseVal;
-    mSVGElement->DidAnimateEnum(mVal->mAttrEnum);
   }
 }
 

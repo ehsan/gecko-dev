@@ -43,7 +43,7 @@ const Cr = Components.results;
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
-const DB_VERSION = 4;
+const DB_VERSION = 3;
 const DAY_IN_MS  = 86400000; // 1 day in milliseconds
 
 function FormHistory() {
@@ -74,11 +74,6 @@ FormHistory.prototype = {
                 "lastUsed"  : "INTEGER",
                 "guid"      : "TEXT"
             },
-            moz_deleted_formhistory: {
-                "id"          : "INTEGER PRIMARY KEY",
-                "timeDeleted" : "INTEGER",
-                "guid"        : "TEXT"
-            }
         },
         indices : {
             moz_formhistory_index : {
@@ -248,25 +243,12 @@ FormHistory.prototype = {
         let stmt;
         let query = "DELETE FROM moz_formhistory WHERE id = :id";
         let params = { id : id };
-        let existingTransactionInProgress;
 
         try {
-            // Don't start a transaction if one is already in progress since we can't nest them.
-            existingTransactionInProgress = this.dbConnection.transactionInProgress;
-            if (!existingTransactionInProgress)
-                this.dbConnection.beginTransaction();
-            this.moveToDeletedTable("VALUES (:guid, :timeDeleted)", {
-              guid: guid,
-              timeDeleted: Date.now()
-            });
-
-            // remove from the formhistory database
             stmt = this.dbCreateStatement(query, params);
             stmt.execute();
             this.sendStringNotification("removeEntry", name, value, guid);
         } catch (e) {
-            if (!existingTransactionInProgress)
-                this.dbConnection.rollbackTransaction();
             this.log("removeEntry failed: " + e);
             throw e;
         } finally {
@@ -274,8 +256,6 @@ FormHistory.prototype = {
                 stmt.reset();
             }
         }
-        if (!existingTransactionInProgress)
-            this.dbConnection.commitTransaction();
     },
 
 
@@ -287,26 +267,12 @@ FormHistory.prototype = {
         let stmt;
         let query = "DELETE FROM moz_formhistory WHERE fieldname = :fieldname";
         let params = { fieldname : name };
-        let existingTransactionInProgress;
 
         try {
-            // Don't start a transaction if one is already in progress since we can't nest them.
-            existingTransactionInProgress = this.dbConnection.transactionInProgress;
-            if (!existingTransactionInProgress)
-                this.dbConnection.beginTransaction();
-            this.moveToDeletedTable(
-              "SELECT guid, :timeDeleted FROM moz_formhistory " +
-              "WHERE fieldname = :fieldname", {
-                fieldname: name,
-                timeDeleted: Date.now()
-            });
-
             stmt = this.dbCreateStatement(query, params);
             stmt.execute();
             this.sendStringNotification("removeEntriesForName", name);
         } catch (e) {
-            if (!existingTransactionInProgress)
-                this.dbConnection.rollbackTransaction();
             this.log("removeEntriesForName failed: " + e);
             throw e;
         } finally {
@@ -314,8 +280,6 @@ FormHistory.prototype = {
                 stmt.reset();
             }
         }
-        if (!existingTransactionInProgress)
-            this.dbConnection.commitTransaction();
     },
 
 
@@ -326,24 +290,12 @@ FormHistory.prototype = {
 
         let stmt;
         let query = "DELETE FROM moz_formhistory";
-        let existingTransactionInProgress;
 
         try {
-            // Don't start a transaction if one is already in progress since we can't nest them.
-            existingTransactionInProgress = this.dbConnection.transactionInProgress;
-            if (!existingTransactionInProgress)
-                this.dbConnection.beginTransaction();
-            this.moveToDeletedTable(
-              "SELECT guid, :timeDeleted FROM moz_formhistory", {
-              timeDeleted: Date.now()
-            });
-
             stmt = this.dbCreateStatement(query);
             stmt.execute();
             this.sendNotification("removeAllEntries", null);
         } catch (e) {
-            if (!existingTransactionInProgress)
-                this.dbConnection.rollbackTransaction();
             this.log("removeEntriesForName failed: " + e);
             throw e;
         } finally {
@@ -351,8 +303,6 @@ FormHistory.prototype = {
                 stmt.reset();
             }
         }
-        if (!existingTransactionInProgress)
-            this.dbConnection.commitTransaction();
     },
 
 
@@ -393,26 +343,11 @@ FormHistory.prototype = {
                         beginTime : beginTime,
                         endTime   : endTime
                      };
-        let existingTransactionInProgress;
-
         try {
-            // Don't start a transaction if one is already in progress since we can't nest them.
-            existingTransactionInProgress = this.dbConnection.transactionInProgress;
-            if (!existingTransactionInProgress)
-                this.dbConnection.beginTransaction();
-            this.moveToDeletedTable(
-                  "SELECT guid, :timeDeleted FROM moz_formhistory " +
-                  "WHERE firstUsed >= :beginTime AND firstUsed <= :endTime", {
-              beginTime: beginTime,
-              endTime: endTime
-            });
-
             stmt = this.dbCreateStatement(query, params);
             stmt.executeStep();
             this.sendIntNotification("removeEntriesByTimeframe", beginTime, endTime);
         } catch (e) {
-            if (!existingTransactionInProgress)
-                this.dbConnection.rollbackTransaction();
             this.log("removeEntriesByTimeframe failed: " + e);
             throw e;
         } finally {
@@ -420,31 +355,7 @@ FormHistory.prototype = {
                 stmt.reset();
             }
         }
-        if (!existingTransactionInProgress)
-            this.dbConnection.commitTransaction();
-    },
 
-    moveToDeletedTable : function (values, params) {
-#ifdef ANDROID
-        this.log("move entries to deleted");
-
-        let stmt;
-
-        try {
-            // move the entry to the deleted items table
-            let query = "INSERT INTO moz_deleted_formhistory (guid, timeDeleted) ";
-            if (values) query += values;
-            stmt = this.dbCreateStatement(query, params);
-            stmt.execute();
-        } catch (e) {
-            this.log("move entry failed: " + e);
-            throw e;
-        } finally {
-            if (stmt) {
-                stmt.reset();
-            }
-        }
-#endif
     },
 
     get dbConnection() {
@@ -491,7 +402,7 @@ FormHistory.prototype = {
             this.expireOldEntries();
             break;
         case "profile-before-change":
-            this._dbClose(false);
+            this._dbClose();
             break;
         default:
             this.log("Oops! Unexpected notification: " + topic);
@@ -736,7 +647,8 @@ FormHistory.prototype = {
         this.log("Creating DB -- tables");
         for (let name in this.dbSchema.tables) {
             let table = this.dbSchema.tables[name];
-            this.dbCreateTable(name, table);
+            let tSQL = [[col, table[col]].join(" ") for (col in table)].join(", ");
+            this.dbConnection.createTable(name, tSQL);
         }
 
         this.log("Creating DB -- indices");
@@ -750,11 +662,6 @@ FormHistory.prototype = {
         this.dbConnection.schemaVersion = DB_VERSION;
     },
 
-    dbCreateTable: function(name, table) {
-        let tSQL = [[col, table[col]].join(" ") for (col in table)].join(", ");
-        this.log("Creating table " + name + " with " + tSQL);
-        this.dbConnection.createTable(name, tSQL);
-    },
 
     dbMigrate : function (oldVersion) {
         this.log("Attempting to migrate from version " + oldVersion);
@@ -913,11 +820,6 @@ FormHistory.prototype = {
         }
     },
 
-    dbMigrateToVersion4 : function () {
-        if (!this.dbConnection.tableExists("moz_deleted_formhistory")) {
-            this.dbCreateTable("moz_deleted_formhistory", this.dbSchema.tables.moz_deleted_formhistory);
-        }
-    },
 
     /*
      * dbAreExpectedColumnsPresent
@@ -966,29 +868,18 @@ FormHistory.prototype = {
      * _dbClose
      *
      * Finalize all statements and close the connection.
-     *
-      * @param aBlocking - Should we spin the loop waiting for the db to be
-      *                    closed.
      */
-    _dbClose : function FH__dbClose(aBlocking) {
+    _dbClose : function FH__dbClose() {
         for each (let stmt in this.dbStmts) {
             stmt.finalize();
         }
         this.dbStmts = {};
-        if (this.dbConnection === undefined)
-            return;
-
-        let completed = false;
-        try {
-            this.dbConnection.asyncClose(function () { completed = true; });
-        } catch (e) {
-            completed = true;
-            Components.utils.reportError(e);
-        }
-
-        let thread = Services.tm.currentThread;
-        while (aBlocking && !completed) {
-            thread.processNextEvent(true);
+        if (this.dbConnection !== undefined) {
+            try {
+                this.dbConnection.close();
+            } catch (e) {
+                Components.utils.reportError(e);
+            }
         }
     },
 
@@ -1007,7 +898,7 @@ FormHistory.prototype = {
         let backupFile = this.dbFile.leafName + ".corrupt";
         storage.backupDatabaseFile(this.dbFile, backupFile);
 
-        this._dbClose(true);
+        this._dbClose();
         this.dbFile.remove(false);
     }
 };

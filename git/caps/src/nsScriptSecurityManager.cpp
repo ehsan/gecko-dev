@@ -517,13 +517,6 @@ NS_IMPL_ISUPPORTS4(nsScriptSecurityManager,
 ///////////////////////////////////////////////////
 
 ///////////////// Security Checks /////////////////
-
-/* static */ JSPrincipals *
-nsScriptSecurityManager::ObjectPrincipalFinder(JSObject *aObj)
-{
-    return nsJSPrincipals::get(doGetObjectPrincipal(aObj));
-}
-
 JSBool
 nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
 {
@@ -544,7 +537,7 @@ nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
 
     if (!subjectPrincipal) {
         // See bug 553448 for discussion of this case.
-        NS_ASSERTION(!JS_GetSecurityCallbacks(js::GetRuntime(cx))->findObjectPrincipals,
+        NS_ASSERTION(!JS_GetSecurityCallbacks(cx)->findObjectPrincipals,
                      "CSP: Should have been able to find subject principal. "
                      "Reluctantly granting access.");
         return JS_TRUE;
@@ -2186,7 +2179,11 @@ nsScriptSecurityManager::GetScriptPrincipal(JSContext *cx,
         NS_ERROR("Script compiled without principals!");
         return nsnull;
     }
-    return nsJSPrincipals::get(jsp);
+    nsJSPrincipals *nsJSPrin = static_cast<nsJSPrincipals *>(jsp);
+    nsIPrincipal* result = nsJSPrin->nsIPrincipalPtr;
+    if (!result)
+        *rv = NS_ERROR_FAILURE;
+    return result;
 }
 
 // static
@@ -2486,10 +2483,11 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
     if (aAllowShortCircuit) {
         nsIPrincipal *principal = doGetObjectPrincipal(origObj, false);
 
-        // Because of inner window reuse, we can have objects with one principal
-        // living in a scope with a different (but same-origin) principal. So
-        // just check same-origin here.
-        NS_ASSERTION(NS_SUCCEEDED(CheckSameOriginPrincipal(result, principal)),
+        // Location is always wrapped (even for same-compartment), so we can
+        // loosen the check to same-origin instead of same-principal.
+        NS_ASSERTION(strcmp(jsClass->name, "Location") == 0 ?
+                     NS_SUCCEEDED(CheckSameOriginPrincipal(result, principal)) :
+                     result == principal,
                      "Principal mismatch.  Not good");
     }
 #endif
@@ -3333,6 +3331,7 @@ nsScriptSecurityManager::nsScriptSecurityManager(void)
     mPrincipals.Init(31);
 }
 
+
 nsresult nsScriptSecurityManager::Init()
 {
     nsXPConnect* xpconnect = nsXPConnect::GetXPConnect();
@@ -3367,6 +3366,10 @@ nsresult nsScriptSecurityManager::Init()
     nsRefPtr<nsSystemPrincipal> system = new nsSystemPrincipal();
     NS_ENSURE_TRUE(system, NS_ERROR_OUT_OF_MEMORY);
 
+    JSPrincipals *jsprin;
+    rv = system->Init(&jsprin);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     mSystemPrincipal = system;
 
     //-- Register security check callback in the JS engine
@@ -3378,19 +3381,20 @@ nsresult nsScriptSecurityManager::Init()
     rv = runtimeService->GetRuntime(&sRuntime);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    static const JSSecurityCallbacks securityCallbacks = {
+    static JSSecurityCallbacks securityCallbacks = {
         CheckObjectAccess,
-        nsJSPrincipals::Subsume,
-        nsJSPrincipals::Transcode,
-        ObjectPrincipalFinder,
+        NULL,
+        NULL,
         ContentSecurityPolicyPermitsJSAction
     };
 
-    MOZ_ASSERT(!JS_GetSecurityCallbacks(sRuntime));
-    JS_SetSecurityCallbacks(sRuntime, &securityCallbacks);
-    JS_InitDestroyPrincipalsCallback(sRuntime, nsJSPrincipals::Destroy);
+#ifdef DEBUG
+    JSSecurityCallbacks *oldcallbacks =
+#endif
+    JS_SetRuntimeSecurityCallbacks(sRuntime, &securityCallbacks);
+    NS_ASSERTION(!oldcallbacks, "Someone else set security callbacks!");
 
-    JS_SetTrustedPrincipals(sRuntime, system);
+    JS_SetTrustedPrincipals(sRuntime, jsprin);
 
     return NS_OK;
 }
@@ -3414,7 +3418,7 @@ void
 nsScriptSecurityManager::Shutdown()
 {
     if (sRuntime) {
-        JS_SetSecurityCallbacks(sRuntime, NULL);
+        JS_SetRuntimeSecurityCallbacks(sRuntime, NULL);
         JS_SetTrustedPrincipals(sRuntime, NULL);
         sRuntime = nsnull;
     }
@@ -3438,6 +3442,13 @@ nsScriptSecurityManager::GetScriptSecurityManager()
         rv = ssManager->Init();
         NS_ASSERTION(NS_SUCCEEDED(rv), "Failed to initialize nsScriptSecurityManager");
         if (NS_FAILED(rv)) {
+            delete ssManager;
+            return nsnull;
+        }
+ 
+        rv = nsJSPrincipals::Startup();
+        if (NS_FAILED(rv)) {
+            NS_WARNING("can't initialize JS engine security protocol glue!");
             delete ssManager;
             return nsnull;
         }

@@ -59,8 +59,6 @@
 #include <dlfcn.h>
 #include "nscore.h"
 
-#include <fcntl.h>
-
 #ifdef __SUNPRO_CC
 #include <stdio.h>
 #endif
@@ -112,29 +110,20 @@ x_error_handler(Display *, XErrorEvent *ev)
 
 static void glxtest()
 {
-  // we want to redirect to /dev/null stdout, stderr, and while we're at it,
-  // any PR logging file descriptors. To that effect, we redirect all positive
-  // file descriptors up to what open() returns here. In particular, 1 is stdout and 2 is stderr.
-  int fd = open("/dev/null", O_WRONLY);
-  for (int i = 1; i < fd; i++)
-    dup2(fd, i);
-  close(fd);
-
   ///// Open libGL and load needed symbols /////
 #ifdef __OpenBSD__
-  #define LIBGL_FILENAME "libGL.so"
+  void *libgl = dlopen("libGL.so", RTLD_LAZY);
 #else
-  #define LIBGL_FILENAME "libGL.so.1"
+  void *libgl = dlopen("libGL.so.1", RTLD_LAZY);
 #endif
-  void *libgl = dlopen(LIBGL_FILENAME, RTLD_LAZY);
   if (!libgl)
-    fatal_error("Unable to load " LIBGL_FILENAME);
+    fatal_error("Unable to load libGL.so.1");
   
   typedef void* (* PFNGLXGETPROCADDRESS) (const char *);
   PFNGLXGETPROCADDRESS glXGetProcAddress = cast<PFNGLXGETPROCADDRESS>(dlsym(libgl, "glXGetProcAddress"));
   
   if (!glXGetProcAddress)
-    fatal_error("Unable to find glXGetProcAddress in " LIBGL_FILENAME);
+    fatal_error("Unable to find glXGetProcAddress in libGL.so.1");
 
   typedef GLXFBConfig* (* PFNGLXQUERYEXTENSION) (Display *, int *, int *);
   PFNGLXQUERYEXTENSION glXQueryExtension = cast<PFNGLXQUERYEXTENSION>(glXGetProcAddress("glXQueryExtension"));

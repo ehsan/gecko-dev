@@ -447,7 +447,7 @@ SVGMotionSMILAnimationFunction::SetKeyPoints(const nsAString& aKeyPoints,
 void
 SVGMotionSMILAnimationFunction::UnsetKeyPoints()
 {
-  mKeyPoints.Clear();
+  mKeyTimes.Clear();
   SetKeyPointsErrorFlag(false);
   mHasChanged = true;
 }

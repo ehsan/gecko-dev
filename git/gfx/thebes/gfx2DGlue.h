@@ -122,8 +122,9 @@ inline gfxContext::GraphicsLineCap ThebesLineCap(CapStyle aStyle)
     return gfxContext::LINE_CAP_ROUND;
   case CAP_SQUARE:
     return gfxContext::LINE_CAP_SQUARE;
+  default:
+    return gfxContext::LINE_CAP_BUTT;
   }
-  MOZ_NOT_REACHED("Incomplete switch");
 }
 
 inline CapStyle ToCapStyle(gfxContext::GraphicsLineCap aStyle)
@@ -135,8 +136,9 @@ inline CapStyle ToCapStyle(gfxContext::GraphicsLineCap aStyle)
     return CAP_ROUND;
   case gfxContext::LINE_CAP_SQUARE:
     return CAP_SQUARE;
+  default:
+    return CAP_BUTT;
   }
-  MOZ_NOT_REACHED("Incomplete switch");
 }
 
 inline gfxContext::GraphicsLineJoin ThebesLineJoin(JoinStyle aStyle)
@@ -162,8 +164,9 @@ inline JoinStyle ToJoinStyle(gfxContext::GraphicsLineJoin aStyle)
     return JOIN_BEVEL;
   case gfxContext::LINE_JOIN_ROUND:
     return JOIN_ROUND;
+  default:
+    return JOIN_MITER;
   }
-  MOZ_NOT_REACHED("Incomplete switch");
 }
 
 inline gfxMatrix ThebesMatrix(const Matrix &aMatrix)

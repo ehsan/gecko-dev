@@ -39,7 +39,6 @@
  */
 
 #include "nsDOMSettableTokenList.h"
-#include "dombindings.h"
 
 
 nsDOMSettableTokenList::nsDOMSettableTokenList(nsGenericElement *aElement, nsIAtom* aAttrAtom)
@@ -79,10 +78,3 @@ nsDOMSettableTokenList::SetValue(const nsAString& aValue)
   return mElement->SetAttr(kNameSpaceID_None, mAttrAtom, aValue, true);
 }
 
-JSObject*
-nsDOMSettableTokenList::WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
-                                   bool *triedToWrap)
-{
-  return mozilla::dom::binding::DOMSettableTokenList::create(cx, scope, this,
-                                                             triedToWrap);
-}

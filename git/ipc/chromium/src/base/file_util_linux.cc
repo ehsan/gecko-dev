@@ -5,9 +5,6 @@
 #include "base/file_util.h"
 
 #include <fcntl.h>
-#if defined(ANDROID) || defined(OS_POSIX)
-#include <unistd.h>
-#endif
 
 #include <string>
 #include <vector>

@@ -50,6 +50,7 @@
 #include "nsWeakPtr.h"
 #include "nsVoidArray.h"
 #include "nsTArray.h"
+#include "nsHashSets.h"
 #include "nsIDOMXMLDocument.h"
 #include "nsIDOMDocumentXBL.h"
 #include "nsStubDocumentObserver.h"
@@ -123,7 +124,6 @@ class nsXMLEventsManager;
 class nsHTMLStyleSheet;
 class nsHTMLCSSStyleSheet;
 class nsDOMNavigationTiming;
-class nsWindowSizes;
 
 /**
  * Right now our identifier map entries contain information for 'name'
@@ -238,7 +238,8 @@ public:
     static KeyTypePointer KeyToPointer(KeyType& aKey) { return &aKey; }
     static PLDHashNumber HashKey(KeyTypePointer aKey)
     {
-      return mozilla::HashGeneric(aKey->mCallback, aKey->mData);
+      return (NS_PTR_TO_INT32(aKey->mCallback) >> 2) ^
+             (NS_PTR_TO_INT32(aKey->mData));
     }
     enum { ALLOW_MEMMOVE = true };
     
@@ -505,8 +506,7 @@ public:
   typedef mozilla::dom::Element Element;
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-
-  NS_DECL_SIZEOF_EXCLUDING_THIS
+  NS_DECL_DOM_MEMORY_REPORTER_SIZEOF
 
   using nsINode::GetScriptTypeID;
 
@@ -991,9 +991,6 @@ public:
   // Posts an event to call UpdateVisibilityState
   virtual void PostVisibilityUpdateEvent();
 
-  virtual void DocSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const;
-  // DocSizeOfIncludingThis is inherited from nsIDocument.
-
 protected:
   friend class nsNodeUtils;
 
@@ -1193,10 +1190,6 @@ protected:
   // Whether we're currently under a FlushPendingNotifications call to
   // our presshell.  This is used to handle flush reentry correctly.
   bool mInFlush:1;
-
-  // Parser aborted. True if the parser of this document was forcibly
-  // terminated instead of letting it finish at its own pace.
-  bool mParserAborted:1;
 
   PRUint8 mXMLDeclarationBits;
 

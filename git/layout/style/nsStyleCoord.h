@@ -57,7 +57,6 @@ enum nsStyleUnit {
   eStyleUnit_Degree       = 12,     // (float) angle in degrees
   eStyleUnit_Grad         = 13,     // (float) angle in grads
   eStyleUnit_Radian       = 14,     // (float) angle in radians
-  eStyleUnit_Turn         = 15,     // (float) angle in turns
   eStyleUnit_Coord        = 20,     // (nscoord) value is twips
   eStyleUnit_Integer      = 30,     // (int) value is simple integer
   eStyleUnit_Enumerated   = 32,     // (int) value has enumerated meaning
@@ -111,12 +110,7 @@ public:
   inline nsStyleCoord(const nsStyleCoord& aCopy);
   inline nsStyleCoord(const nsStyleUnion& aValue, nsStyleUnit aUnit);
 
-  nsStyleCoord&  operator=(const nsStyleCoord& aOther)
-  {
-    mUnit = aOther.mUnit;
-    mValue = aOther.mValue;
-    return *this;
-  }
+  nsStyleCoord&  operator=(const nsStyleCoord& aCopy);
   bool           operator==(const nsStyleCoord& aOther) const;
   bool           operator!=(const nsStyleCoord& aOther) const;
 
@@ -126,7 +120,7 @@ public:
   }
 
   bool IsAngleValue() const {
-    return eStyleUnit_Degree <= mUnit && mUnit <= eStyleUnit_Turn;
+    return eStyleUnit_Degree <= mUnit && mUnit <= eStyleUnit_Radian;
   }
 
   bool IsCalcUnit() const {
@@ -179,7 +173,7 @@ public:
   void  SetNoneValue();
   void  SetCalcValue(Calc* aValue);
 
-private:
+public: // FIXME: private!
   nsStyleUnit   mUnit;
   nsStyleUnion  mValue;
 };
@@ -278,8 +272,9 @@ inline nsStyleCoord::nsStyleCoord(const nsStyleCoord& aCopy)
 }
 
 inline nsStyleCoord::nsStyleCoord(const nsStyleUnion& aValue, nsStyleUnit aUnit)
-  : mUnit(aUnit), mValue(aValue)
+  : mUnit(aUnit)
 {
+  memcpy(&mValue, &aValue, sizeof(nsStyleUnion));
 }
 
 inline bool nsStyleCoord::operator!=(const nsStyleCoord& aOther) const
@@ -328,8 +323,8 @@ inline float nsStyleCoord::GetFactorValue() const
 inline float nsStyleCoord::GetAngleValue() const
 {
   NS_ASSERTION(mUnit >= eStyleUnit_Degree &&
-               mUnit <= eStyleUnit_Turn, "not an angle value");
-  if (mUnit >= eStyleUnit_Degree && mUnit <= eStyleUnit_Turn) {
+               mUnit <= eStyleUnit_Radian, "not an angle value");
+  if (mUnit >= eStyleUnit_Degree && mUnit <= eStyleUnit_Radian) {
     return mValue.mFloat;
   }
   return 0.0f;
@@ -347,7 +342,7 @@ inline nsStyleCoord::Calc* nsStyleCoord::GetCalcValue() const
 
 inline void nsStyleCoord::GetUnionValue(nsStyleUnion& aValue) const
 {
-  aValue = mValue;
+  memcpy(&aValue, &mValue, sizeof(nsStyleUnion));
 }
 
 // -------------------------

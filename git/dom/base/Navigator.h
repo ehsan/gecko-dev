@@ -65,11 +65,6 @@ class nsIDOMMozConnection;
 class nsIDOMTelephony;
 #endif
 
-#ifdef MOZ_B2G_BT
-#include "nsIDOMNavigatorBluetooth.h"
-#endif
-
-class nsIDOMAdapter;
 //*****************************************************************************
 // Navigator: Script "navigator" object
 //*****************************************************************************
@@ -89,10 +84,6 @@ namespace network {
 class Connection;
 } // namespace Connection;
 
-namespace power {
-class PowerManager;
-} // namespace power
-
 class Navigator : public nsIDOMNavigator
                 , public nsIDOMClientInformation
                 , public nsIDOMNavigatorGeolocation
@@ -103,9 +94,6 @@ class Navigator : public nsIDOMNavigator
                 , public nsIDOMNavigatorTelephony
 #endif
                 , public nsIDOMMozNavigatorNetwork
-#ifdef MOZ_B2G_BT
-                , public nsIDOMNavigatorBluetooth
-#endif
 {
 public:
   Navigator(nsPIDOMWindow *aInnerWindow);
@@ -123,10 +111,6 @@ public:
 #endif
   NS_DECL_NSIDOMMOZNAVIGATORNETWORK
 
-#ifdef MOZ_B2G_BT
-  NS_DECL_NSIDOMNAVIGATORBLUETOOTH
-#endif
-
   static void Init();
 
   void Invalidate();
@@ -136,7 +120,7 @@ public:
 
   static bool HasDesktopNotificationSupport();
 
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
+  PRInt64 SizeOf() const;
 
   /**
    * For use during document.write where our inner window changes.
@@ -152,15 +136,11 @@ private:
   nsRefPtr<nsGeolocation> mGeolocation;
   nsRefPtr<nsDesktopNotificationCenter> mNotification;
   nsRefPtr<battery::BatteryManager> mBatteryManager;
-  nsRefPtr<power::PowerManager> mPowerManager;
   nsRefPtr<sms::SmsManager> mSmsManager;
 #ifdef MOZ_B2G_RIL
   nsCOMPtr<nsIDOMTelephony> mTelephony;
 #endif
   nsRefPtr<network::Connection> mConnection;
-#ifdef MOZ_B2G_BT
-  nsCOMPtr<nsIDOMBluetoothAdapter> mBluetooth;
-#endif
   nsWeakPtr mWindow;
 };
 

@@ -50,7 +50,7 @@ struct THEBES_API gfxQuad {
         mPoints[3] = aFour;
     }
 
-    bool Contains(const gfxPoint& aPoint)
+    PRBool Contains(const gfxPoint& aPoint)
     {
         return (gfxLineSegment(mPoints[0], mPoints[1]).PointsOnSameSide(aPoint, mPoints[2]) &&
                 gfxLineSegment(mPoints[1], mPoints[2]).PointsOnSameSide(aPoint, mPoints[3]) &&

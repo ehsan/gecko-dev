@@ -7,6 +7,9 @@ var testGenerator = testSteps();
 
 function testSteps()
 {
+  const READ_WRITE = Components.interfaces.nsIIDBTransaction.READ_WRITE;
+  const VERSION_CHANGE = Components.interfaces.nsIIDBTransaction.VERSION_CHANGE;
+
   const name = this.window ? window.location.pathname : "Splendid Test";
   const description = "My Test Database";
 
@@ -38,7 +41,7 @@ function testSteps()
     let db = event.target.result;
 
     is(db.version, version, "Database version number updated correctly");
-    is(event.target.transaction.mode, "versionchange", "Correct mode");
+    is(event.target.transaction.mode, VERSION_CHANGE, "Correct mode");
 
     executeSoon(function() { testGenerator.next(); });
     yield;

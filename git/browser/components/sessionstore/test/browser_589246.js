@@ -252,7 +252,7 @@ function onWindowUnloaded() {
   let previousClosedWindowData = ss.getClosedWindowData();
 
   // Now we want to open a new window
-  let newWin = openDialog(location, "_blank", "chrome,all,dialog=no", "about:mozilla");
+  let newWin = openDialog(location, "_blank", "chrome,all,dialog=no", "about:robots");
   newWin.addEventListener("load", function(aEvent) {
     newWin.removeEventListener("load", arguments.callee, false);
 

@@ -51,7 +51,7 @@
  * http://www.w3.org/TR/DOM-Level-2-Style
  */
 
-[builtinclass, scriptable, uuid(76732e62-da09-4aef-850a-78b9f6d5c8cf)]
+[builtinclass, scriptable, uuid(0a6fc4c6-a62a-4f52-9ab6-3d398b958843)]
 interface nsIDOMCSS2Properties : nsISupports
 {
            attribute DOMString        background;
@@ -559,7 +559,16 @@ interface nsIDOMCSS2Properties : nsISupports
            attribute DOMString        MozMarginStart;
                                         // raises(DOMException) on setting
 
+           attribute DOMString        MozOpacity;
+                                        // raises(DOMException) on setting
+
            attribute DOMString        MozOrient;
+                                        // raises(DOMException) on setting
+
+           attribute DOMString        MozOutline;
+                                        // raises(DOMException) on setting
+
+           attribute DOMString        MozOutlineColor;
                                         // raises(DOMException) on setting
 
            attribute DOMString        MozOutlineRadius;
@@ -575,6 +584,15 @@ interface nsIDOMCSS2Properties : nsISupports
                                         // raises(DOMException) on setting
 
            attribute DOMString        MozOutlineRadiusBottomright;
+                                        // raises(DOMException) on setting
+
+           attribute DOMString        MozOutlineStyle;
+                                        // raises(DOMException) on setting
+
+           attribute DOMString        MozOutlineWidth;
+                                        // raises(DOMException) on setting
+
+           attribute DOMString        MozOutlineOffset;
                                         // raises(DOMException) on setting
 
            attribute DOMString        MozPaddingEnd;

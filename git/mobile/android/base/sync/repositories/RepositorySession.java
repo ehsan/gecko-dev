@@ -1,15 +1,47 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Android Sync Client.
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ * Jason Voll <jvoll@mozilla.com>
+ * Richard Newman <rnewman@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 package org.mozilla.gecko.sync.repositories;
 
-import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import org.mozilla.gecko.sync.Logger;
+import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionBeginDelegate;
 import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFetchRecordsDelegate;
 import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFinishDelegate;
@@ -18,23 +50,19 @@ import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionStoreDeleg
 import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionWipeDelegate;
 import org.mozilla.gecko.sync.repositories.domain.Record;
 
+import android.util.Log;
+
 /**
- * A <code>RepositorySession</code> is created and used thusly:
+ * A RepositorySession is created and used thusly:
  *
- *<ul>
- * <li>Construct, with a reference to its parent {@link Repository}, by calling
- *   {@link Repository#createSession(RepositorySessionCreationDelegate, android.content.Context)}.</li>
- * <li>Populate with saved information by calling {@link #unbundle(RepositorySessionBundle)}.</li>
- * <li>Begin a sync by calling {@link #begin(RepositorySessionBeginDelegate)}. <code>begin()</code>
- *   is an appropriate place to initialize expensive resources.</li>
- * <li>Perform operations such as {@link #fetchSince(long, RepositorySessionFetchRecordsDelegate)} and
- *   {@link #store(Record)}.</li>
- * <li>Finish by calling {@link #finish(RepositorySessionFinishDelegate)}, retrieving and storing
- *   the current bundle.</li>
- *</ul>
+ * * Construct, with a reference to its parent Repository, by calling
+ *   Repository.createSession().
+ * * Populate with saved information by calling unbundle().
+ * * Begin a sync by calling begin().
+ * * Perform operations such as fetchSince() and store().
+ * * Finish by calling finish(), retrieving and storing the current bundle.
  *
- * If <code>finish()</code> is not called, {@link #abort()} must be called. These calls must
- * <em>always</em> be paired with <code>begin()</code>.
+ * @author rnewman
  *
  */
 public abstract class RepositorySession {
@@ -48,11 +76,15 @@ public abstract class RepositorySession {
 
   private static final String LOG_TAG = "RepositorySession";
 
-  protected static void trace(String message) {
-    Logger.trace(LOG_TAG, message);
+  private static void error(String message) {
+    Utils.error(LOG_TAG, message);
   }
 
-  private SessionStatus status = SessionStatus.UNSTARTED;
+  protected static void trace(String message) {
+    Utils.trace(LOG_TAG, message);
+  }
+
+  protected SessionStatus status = SessionStatus.UNSTARTED;
   protected Repository repository;
   protected RepositorySessionStoreDelegate delegate;
 
@@ -81,7 +113,7 @@ public abstract class RepositorySession {
 
   public abstract void guidsSince(long timestamp, RepositorySessionGuidsSinceDelegate delegate);
   public abstract void fetchSince(long timestamp, RepositorySessionFetchRecordsDelegate delegate);
-  public abstract void fetch(String[] guids, RepositorySessionFetchRecordsDelegate delegate) throws InactiveSessionException;
+  public abstract void fetch(String[] guids, RepositorySessionFetchRecordsDelegate delegate);
   public abstract void fetchAll(RepositorySessionFetchRecordsDelegate delegate);
 
   /**
@@ -109,24 +141,17 @@ public abstract class RepositorySession {
    * Store success calls are not guaranteed.
    */
   public void setStoreDelegate(RepositorySessionStoreDelegate delegate) {
-    Logger.debug(LOG_TAG, "Setting store delegate to " + delegate);
+    Log.d(LOG_TAG, "Setting store delegate to " + delegate);
     this.delegate = delegate;
   }
   public abstract void store(Record record) throws NoStoreDelegateException;
 
   public void storeDone() {
-    // Our default behavior will be to assume that the Runnable is
-    // executed as soon as all the stores synchronously finish, so
-    // our end timestamp can just be… now.
-    storeDone(now());
-  }
-
-  public void storeDone(final long end) {
-    Logger.debug(LOG_TAG, "Scheduling onStoreCompleted for after storing is done.");
+    Log.d(LOG_TAG, "Scheduling onStoreCompleted for after storing is done.");
     Runnable command = new Runnable() {
       @Override
       public void run() {
-        delegate.onStoreCompleted(end);
+        delegate.onStoreCompleted();
       }
     };
     storeWorkQueue.execute(command);
@@ -154,26 +179,21 @@ public abstract class RepositorySession {
    *
    */
   protected void sharedBegin() throws InvalidSessionTransitionException {
-    Logger.debug(LOG_TAG, "Shared begin.");
-    if (delegateQueue.isShutdown()) {
+    if (this.status == SessionStatus.UNSTARTED) {
+      this.status = SessionStatus.ACTIVE;
+    } else {
+      error("Tried to begin() an already active or finished session");
       throw new InvalidSessionTransitionException(null);
     }
-    if (storeWorkQueue.isShutdown()) {
-      throw new InvalidSessionTransitionException(null);
-    }
-    this.transitionFrom(SessionStatus.UNSTARTED, SessionStatus.ACTIVE);
   }
 
-  /**
-   * Start the session. This is an appropriate place to initialize
-   * data access components such as database handles.
-   *
-   * @param delegate
-   * @throws InvalidSessionTransitionException
-   */
-  public void begin(RepositorySessionBeginDelegate delegate) throws InvalidSessionTransitionException {
-    sharedBegin();
-    delegate.deferredBeginDelegate(delegateQueue).onBeginSucceeded(this);
+  public void begin(RepositorySessionBeginDelegate delegate) {
+    try {
+      sharedBegin();
+      delegate.deferredBeginDelegate(delegateQueue).onBeginSucceeded(this);
+    } catch (Exception e) {
+      delegate.deferredBeginDelegate(delegateQueue).onBeginFailed(e);
+    }
   }
 
   protected RepositorySessionBundle getBundle() {
@@ -188,106 +208,53 @@ public abstract class RepositorySession {
    *
    * The Synchronizer most likely wants to bump the bundle timestamp to be a value
    * return from a fetch call.
+   *
+   * @param optional
+   * @return
    */
   protected RepositorySessionBundle getBundle(RepositorySessionBundle optional) {
-    Logger.debug(LOG_TAG, "RepositorySession.getBundle(optional).");
+    System.out.println("RepositorySession.getBundle(optional).");
     // Why don't we just persist the old bundle?
     RepositorySessionBundle bundle = (optional == null) ? new RepositorySessionBundle() : optional;
     bundle.put("timestamp", this.lastSyncTimestamp);
-    Logger.debug(LOG_TAG, "Setting bundle timestamp to " + this.lastSyncTimestamp);
+    System.out.println("Setting bundle timestamp to " + this.lastSyncTimestamp);
     return bundle;
   }
 
   /**
    * Just like finish(), but doesn't do any work that should only be performed
    * at the end of a successful sync, and can be called any time.
+   *
+   * @param delegate
    */
   public void abort(RepositorySessionFinishDelegate delegate) {
-    this.abort();
+    this.status = SessionStatus.DONE;    // TODO: ABORTED?
     delegate.deferredFinishDelegate(delegateQueue).onFinishSucceeded(this, this.getBundle(null));
   }
 
-  /**
-   * Abnormally terminate the repository session, freeing or closing
-   * any resources that were opened during the lifetime of the session.
-   */
-  public void abort() {
-    // TODO: do something here.
-    this.setStatus(SessionStatus.ABORTED);
-    try {
-      storeWorkQueue.shutdownNow();
-    } catch (Exception e) {
-      Logger.error(LOG_TAG, "Caught exception shutting down store work queue.", e);
-    }
-    try {
-      delegateQueue.shutdown();
-    } catch (Exception e) {
-      Logger.error(LOG_TAG, "Caught exception shutting down delegate queue.", e);
-    }
-  }
-
-  /**
-   * End the repository session, freeing or closing any resources
-   * that were opened during the lifetime of the session.
-   *
-   * @param delegate notified of success or failure.
-   * @throws InactiveSessionException
-   */
-  public void finish(final RepositorySessionFinishDelegate delegate) throws InactiveSessionException {
-    try {
-      this.transitionFrom(SessionStatus.ACTIVE, SessionStatus.DONE);
+  public void finish(final RepositorySessionFinishDelegate delegate) {
+    if (this.status == SessionStatus.ACTIVE) {
+      this.status = SessionStatus.DONE;
       delegate.deferredFinishDelegate(delegateQueue).onFinishSucceeded(this, this.getBundle(null));
-    } catch (InvalidSessionTransitionException e) {
-      Logger.error(LOG_TAG, "Tried to finish() an unstarted or already finished session");
-      InactiveSessionException ex = new InactiveSessionException(null);
-      ex.initCause(e);
-      throw ex;
+    } else {
+      Log.e(LOG_TAG, "Tried to finish() an unstarted or already finished session");
+      Exception e = new InvalidSessionTransitionException(null);
+      delegate.deferredFinishDelegate(delegateQueue).onFinishFailed(e);
     }
-
-    Logger.info(LOG_TAG, "Shutting down work queues.");
-    storeWorkQueue.shutdown();
-    delegateQueue.shutdown();
+    Log.i(LOG_TAG, "Shutting down work queues.");
+ //   storeWorkQueue.shutdown();
+ //   delegateQueue.shutdown();
   }
 
-  /**
-   * Run the provided command if we're active and our delegate queue
-   * is not shut down.
-   */
-  protected synchronized void executeDelegateCommand(Runnable command)
-      throws InactiveSessionException {
-    if (!isActive() || delegateQueue.isShutdown()) {
-      throw new InactiveSessionException(null);
-    }
-    delegateQueue.execute(command);
-  }
-
-  public synchronized void ensureActive() throws InactiveSessionException {
-    if (!isActive()) {
-      throw new InactiveSessionException(null);
-    }
-  }
-
-  public synchronized boolean isActive() {
+  public boolean isActive() {
     return status == SessionStatus.ACTIVE;
   }
 
-  public synchronized SessionStatus getStatus() {
-    return status;
-  }
-
-  public synchronized void setStatus(SessionStatus status) {
-    this.status = status;
-  }
-
-  public synchronized void transitionFrom(SessionStatus from, SessionStatus to) throws InvalidSessionTransitionException {
-    if (from == null || this.status == from) {
-      Logger.trace(LOG_TAG, "Successfully transitioning from " + this.status + " to " + to);
-
-      this.status = to;
-      return;
-    }
-    Logger.warn(LOG_TAG, "Wanted to transition from " + from + " but in state " + this.status);
-    throw new InvalidSessionTransitionException(null);
+  public void abort() {
+    // TODO: do something here.
+    status = SessionStatus.ABORTED;
+    storeWorkQueue.shutdown();
+    delegateQueue.shutdown();
   }
 
   /**
@@ -329,11 +296,11 @@ public abstract class RepositorySession {
                                     final Record localRecord,
                                     final long lastRemoteRetrieval,
                                     final long lastLocalRetrieval) {
-    Logger.debug(LOG_TAG, "Reconciling remote " + remoteRecord.guid + " against local " + localRecord.guid);
+    Log.d(LOG_TAG, "Reconciling remote " + remoteRecord.guid + " against local " + localRecord.guid);
 
     if (localRecord.equalPayloads(remoteRecord)) {
       if (remoteRecord.lastModified > localRecord.lastModified) {
-        Logger.debug(LOG_TAG, "Records are equal. No record application needed.");
+        Log.d(LOG_TAG, "Records are equal. No record application needed.");
         return null;
       }
 
@@ -347,7 +314,7 @@ public abstract class RepositorySession {
     // * The modified times of each record (interpreted through the lens of clock skew);
     // * ...
     boolean localIsMoreRecent = localRecord.lastModified > remoteRecord.lastModified;
-    Logger.debug(LOG_TAG, "Local record is more recent? " + localIsMoreRecent);
+    Log.d(LOG_TAG, "Local record is more recent? " + localIsMoreRecent);
     Record donor = localIsMoreRecent ? localRecord : remoteRecord;
 
     // Modify the local record to match the remote record's GUID and values.
@@ -371,15 +338,9 @@ public abstract class RepositorySession {
    * redundantly.
    *
    * The default implementation does nothing.
+   *
+   * @param record
    */
   protected synchronized void trackRecord(Record record) {
-  }
-
-  protected synchronized void untrackRecord(Record record) {
-  }
-
-  // Ah, Java. You wretched creature.
-  public Iterator<String> getTrackedRecordIDs() {
-    return new ArrayList<String>().iterator();
   }
 }

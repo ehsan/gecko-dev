@@ -43,7 +43,6 @@
 #include "nsIXPConnect.h"
 #include "jsapi.h"
 #include "nsJSUtils.h"
-#include "nsJSPrincipals.h"
 #include "nsNetUtil.h"
 #include "nsScriptLoader.h"
 #include "nsIJSContextStack.h"
@@ -350,8 +349,7 @@ class MMListenerRemover
 {
 public:
   MMListenerRemover(nsFrameMessageManager* aMM)
-    : mWasHandlingMessage(aMM->mHandlingMessage)
-    , mMM(aMM)
+  : mMM(aMM), mWasHandlingMessage(aMM->mHandlingMessage)
   {
     mMM->mHandlingMessage = true;
   }
@@ -811,15 +809,16 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
       JSAutoRequest ar(mCx);
       JSObject* global = nsnull;
       mGlobal->GetJSObject(&global);
-      JSAutoEnterCompartment ac;
-      if (global && ac.enter(mCx, global)) {
+      if (global) {
+        JSPrincipals* jsprin = nsnull;
+        mPrincipal->GetJSPrincipals(mCx, &jsprin);
+
         uint32 oldopts = JS_GetOptions(mCx);
         JS_SetOptions(mCx, oldopts | JSOPTION_NO_SCRIPT_RVAL);
 
         JSScript* script =
-          JS_CompileUCScriptForPrincipals(mCx, nsnull,
-                                          nsJSPrincipals::get(mPrincipal),
-                                          static_cast<const jschar*>(dataString.get()),
+          JS_CompileUCScriptForPrincipals(mCx, nsnull, jsprin,
+                                         (jschar*)dataString.get(),
                                           dataString.Length(),
                                           url.get(), 1);
 
@@ -839,6 +838,8 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
           }
           (void) JS_ExecuteScript(mCx, global, script, nsnull);
         }
+        //XXX Argh, JSPrincipals are manually refcounted!
+        JSPRINCIPALS_DROP(mCx, jsprin);
       }
     } 
     JSContext* unused;
@@ -865,6 +866,8 @@ nsFrameScriptExecutor::InitTabChildGlobalInternal(nsISupports* aScope)
 
   nsContentUtils::GetSecurityManager()->GetSystemPrincipal(getter_AddRefs(mPrincipal));
 
+  JS_SetNativeStackQuota(cx, 128 * sizeof(size_t) * 1024);
+
   JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_PRIVATE_IS_NSISUPPORTS);
   JS_SetVersion(cx, JSVERSION_LATEST);
   JS_SetErrorReporter(cx, ContentScriptErrorReporter);
@@ -880,7 +883,9 @@ nsFrameScriptExecutor::InitTabChildGlobalInternal(nsISupports* aScope)
   JS_SetContextPrivate(cx, aScope);
 
   nsresult rv =
-    xpc->InitClassesWithNewWrappedGlobal(cx, aScope, mPrincipal,
+    xpc->InitClassesWithNewWrappedGlobal(cx, aScope,
+                                         NS_GET_IID(nsISupports),
+                                         mPrincipal, nsnull,
                                          flags, getter_AddRefs(mGlobal));
   NS_ENSURE_SUCCESS(rv, false);
 
@@ -1089,7 +1094,7 @@ NS_NewChildProcessMessageManager(nsISyncMessageSender** aResult)
 {
   NS_ASSERTION(!nsFrameMessageManager::sChildProcessManager,
                "Re-creating sChildProcessManager");
-  bool isChrome = IsChromeProcess();
+  PRBool isChrome = IsChromeProcess();
   nsFrameMessageManager* mm = new nsFrameMessageManager(false,
                                                         isChrome ? SendSyncMessageToSameProcessParent
                                                                  : SendSyncMessageToParentProcess,

@@ -90,6 +90,8 @@ public class SyncStorageRecordRequest extends SyncStorageRequest {
 
   /**
    * Helper for turning a JSON object into a payload.
+   * @param body
+   * @return
    * @throws UnsupportedEncodingException
    */
   protected StringEntity jsonEntity(JSONObject body) throws UnsupportedEncodingException {

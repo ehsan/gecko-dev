@@ -535,8 +535,7 @@ SVGPathData::ToFlattenedPath(const gfxMatrix& aMatrix) const
   return ctx->GetFlattenedPath();
 }
 
-static double
-AngleOfVector(const gfxPoint& aVector)
+static float AngleOfVector(gfxPoint v)
 {
   // C99 says about atan2 "A domain error may occur if both arguments are
   // zero" and "On a domain error, the function returns an implementation-
@@ -544,13 +543,18 @@ AngleOfVector(const gfxPoint& aVector)
   // seems to commonly be zero, but it could just as easily be a NaN value.
   // We specifically want zero in this case, hence the check:
 
-  return (aVector != gfxPoint(0.0, 0.0)) ? atan2(aVector.y, aVector.x) : 0.0;
+  return (v != gfxPoint(0.0f, 0.0f)) ? atan2(v.y, v.x) : 0.0f;
 }
 
-static float
-AngleOfVectorF(const gfxPoint& aVector)
+// TODO replace callers with calls to AngleOfVector
+static double
+CalcVectorAngle(double ux, double uy, double vx, double vy)
 {
-  return static_cast<float>(AngleOfVector(aVector));
+  double ta = atan2(uy, ux);
+  double tb = atan2(vy, vx);
+  if (tb >= ta)
+    return tb-ta;
+  return 2 * M_PI - (ta-tb);
 }
 
 void
@@ -584,7 +588,7 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
     {
     case nsIDOMSVGPathSeg::PATHSEG_CLOSEPATH:
       segEnd = pathStart;
-      segStartAngle = segEndAngle = AngleOfVectorF(segEnd - segStart);
+      segStartAngle = segEndAngle = AngleOfVector(segEnd - segStart);
       break;
 
     case nsIDOMSVGPathSeg::PATHSEG_MOVETO_ABS:
@@ -597,7 +601,7 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
       pathStart = segEnd;
       // If authors are going to specify multiple consecutive moveto commands
       // with markers, me might as well make the angle do something useful:
-      segStartAngle = segEndAngle = AngleOfVectorF(segEnd - segStart);
+      segStartAngle = segEndAngle = AngleOfVector(segEnd - segStart);
       i += 2;
       break;
 
@@ -608,7 +612,7 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
       } else {
         segEnd = segStart + gfxPoint(mData[i], mData[i+1]);
       }
-      segStartAngle = segEndAngle = AngleOfVectorF(segEnd - segStart);
+      segStartAngle = segEndAngle = AngleOfVector(segEnd - segStart);
       i += 2;
       break;
 
@@ -632,8 +636,8 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
       if (cp2 == segEnd) {
         cp2 = cp1;
       }
-      segStartAngle = AngleOfVectorF(cp1 - segStart);
-      segEndAngle = AngleOfVectorF(segEnd - cp2);
+      segStartAngle = AngleOfVector(cp1 - segStart);
+      segEndAngle = AngleOfVector(segEnd - cp2);
       i += 6;
       break;
     }
@@ -650,8 +654,8 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
         segEnd = segStart + gfxPoint(mData[i+2], mData[i+3]);
       }
       prevCP = cp1;
-      segStartAngle = AngleOfVectorF(cp1 - segStart);
-      segEndAngle = AngleOfVectorF(segEnd - cp1);
+      segStartAngle = AngleOfVector(cp1 - segStart);
+      segEndAngle = AngleOfVector(segEnd - cp1);
       i += 4;
       break;
     }
@@ -691,7 +695,7 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
 
       if (rx == 0.0 || ry == 0.0) {
         // F.6.6 step 1 - straight line or coincidental points
-        segStartAngle = segEndAngle = AngleOfVectorF(segEnd - segStart);
+        segStartAngle = segEndAngle = AngleOfVector(segEnd - segStart);
         i += 7;
         break;
       }
@@ -732,10 +736,9 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
       double cyp = -root * ry * x1p / rx;
 
       double theta, delta;
-      theta = AngleOfVector(gfxPoint((x1p-cxp)/rx, (y1p-cyp)/ry) -   // F.6.5.5
-                            gfxPoint(1.0, 0.0));
-      delta = AngleOfVector(gfxPoint((-x1p-cxp)/rx, (-y1p-cyp)/ry) - // F.6.5.6
-                            gfxPoint((x1p-cxp)/rx, (y1p-cyp)/ry));
+      theta = CalcVectorAngle(1.0, 0.0, (x1p-cxp)/rx, (y1p-cyp)/ry); // F.6.5.5
+      delta = CalcVectorAngle((x1p-cxp)/rx, (y1p-cyp)/ry,
+                              (-x1p-cxp)/rx, (-y1p-cyp)/ry);         // F.6.5.6
       if (!sweepFlag && delta > 0)
         delta -= 2.0 * M_PI;
       else if (sweepFlag && delta < 0)
@@ -754,8 +757,8 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
         ty2 = -ty2;
       }
 
-      segStartAngle = static_cast<float>(atan2(ty1, tx1));
-      segEndAngle = static_cast<float>(atan2(ty2, tx2));
+      segStartAngle = atan2(ty1, tx1);
+      segEndAngle = atan2(ty2, tx2);
       i += 7;
       break;
     }
@@ -767,7 +770,7 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
       } else {
         segEnd = segStart + gfxPoint(mData[i++], 0.0f);
       }
-      segStartAngle = segEndAngle = AngleOfVectorF(segEnd - segStart);
+      segStartAngle = segEndAngle = AngleOfVector(segEnd - segStart);
       break;
 
     case nsIDOMSVGPathSeg::PATHSEG_LINETO_VERTICAL_ABS:
@@ -777,7 +780,7 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
       } else {
         segEnd = segStart + gfxPoint(0.0f, mData[i++]);
       }
-      segStartAngle = segEndAngle = AngleOfVectorF(segEnd - segStart);
+      segStartAngle = segEndAngle = AngleOfVector(segEnd - segStart);
       break;
 
     case nsIDOMSVGPathSeg::PATHSEG_CURVETO_CUBIC_SMOOTH_ABS:
@@ -800,8 +803,8 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
       if (cp2 == segEnd) {
         cp2 = cp1;
       }
-      segStartAngle = AngleOfVectorF(cp1 - segStart);
-      segEndAngle = AngleOfVectorF(segEnd - cp2);
+      segStartAngle = AngleOfVector(cp1 - segStart);
+      segEndAngle = AngleOfVector(segEnd - cp2);
       i += 4;
       break;
     }
@@ -818,8 +821,8 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
         segEnd = segStart + gfxPoint(mData[i], mData[i+1]);
       }
       prevCP = cp1;
-      segStartAngle = AngleOfVectorF(cp1 - segStart);
-      segEndAngle = AngleOfVectorF(segEnd - cp1);
+      segStartAngle = AngleOfVector(cp1 - segStart);
+      segEndAngle = AngleOfVector(segEnd - cp1);
       i += 2;
       break;
     }
@@ -849,8 +852,7 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
     }
 
     // Add the mark at the end of this segment, and set its position:
-    if (!aMarks->AppendElement(nsSVGMark(static_cast<float>(segEnd.x),
-                                         static_cast<float>(segEnd.y), 0))) {
+    if (!aMarks->AppendElement(nsSVGMark(segEnd.x, segEnd.y, 0))) {
       aMarks->Clear(); // OOM, so try to free some
       return;
     }

@@ -58,7 +58,6 @@ interface nsIDOMDocument;
 interface nsIDOMDocumentFragment;
 interface nsIDOMDocumentType;
 interface nsIDOMElement;
-interface nsIDOMNSElement;
 interface nsIDOMNamedNodeMap;
 interface nsIDOMNode;
 interface nsIDOMNodeList;
@@ -71,6 +70,7 @@ interface nsIDOMClientRectList;
 
 // Needed for raises() in our IDL
 interface DOMException;
+interface RangeException;
 
 // Style Sheets
 interface nsIDOMStyleSheetList;
@@ -129,7 +129,3 @@ interface nsIDOMPkcs11;
 // Used font face (for inspector)
 interface nsIDOMFontFace;
 interface nsIDOMFontFaceList;
-
-// Power
-interface nsIDOMMozPowerManager;
-interface nsIDOMMozWakeLock;

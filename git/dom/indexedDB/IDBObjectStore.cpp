@@ -198,7 +198,7 @@ public:
                    IDBRequest* aRequest,
                    IDBObjectStore* aObjectStore,
                    IDBKeyRange* aKeyRange,
-                   IDBCursor::Direction aDirection)
+                   PRUint16 aDirection)
   : AsyncConnectionHelper(aTransaction, aRequest), mObjectStore(aObjectStore),
     mKeyRange(aKeyRange), mDirection(aDirection)
   { }
@@ -224,7 +224,7 @@ private:
   // In-params.
   nsRefPtr<IDBObjectStore> mObjectStore;
   nsRefPtr<IDBKeyRange> mKeyRange;
-  const IDBCursor::Direction mDirection;
+  const PRUint16 mDirection;
 
   // Out-params.
   Key mKey;
@@ -618,12 +618,12 @@ IDBObjectStore::AppendIndexUpdateInfo(PRInt64 aIndexID,
   if (aMultiEntry && !JSVAL_IS_PRIMITIVE(key) &&
       JS_IsArrayObject(aCx, JSVAL_TO_OBJECT(key))) {
     JSObject* array = JSVAL_TO_OBJECT(key);
-    uint32_t arrayLength;
+    jsuint arrayLength;
     if (!JS_GetArrayLength(aCx, array, &arrayLength)) {
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
 
-    for (uint32_t arrayIndex = 0; arrayIndex < arrayLength; arrayIndex++) {
+    for (jsuint arrayIndex = 0; arrayIndex < arrayLength; arrayIndex++) {
       jsval arrayItem;
       if (!JS_GetElement(aCx, array, arrayIndex, &arrayItem)) {
         return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
@@ -900,7 +900,7 @@ SwapBytes(PRUint32 u)
 #endif
 }
 
-static inline double
+static inline jsdouble
 SwapBytes(PRUint64 u)
 {
 #ifdef IS_BIG_ENDIAN
@@ -913,7 +913,7 @@ SwapBytes(PRUint64 u)
          ((u & 0x00ff000000000000LLU) >> 40) |
          ((u & 0xff00000000000000LLU) >> 56);
 #else
-  return double(u);
+  return jsdouble(u);
 #endif
 }
 
@@ -1038,7 +1038,7 @@ IDBObjectStore::StructuredCloneWriteCallback(JSContext* aCx,
   StructuredCloneWriteInfo* cloneWriteInfo =
     reinterpret_cast<StructuredCloneWriteInfo*>(aClosure);
 
-  if (JS_GetClass(aObj) == &gDummyPropClass) {
+  if (JS_GET_CLASS(aCx, aObj) == &gDummyPropClass) {
     NS_ASSERTION(cloneWriteInfo->mOffsetToKeyProp == 0,
                  "We should not have been here before!");
     cloneWriteInfo->mOffsetToKeyProp = js_GetSCOffset(aWriter);
@@ -1532,7 +1532,7 @@ IDBObjectStore::GetAll(const jsval& aKey,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  if (aOptionalArgCount < 2 || aLimit == 0) {
+  if (aOptionalArgCount < 2) {
     aLimit = PR_UINT32_MAX;
   }
 
@@ -1637,7 +1637,7 @@ IDBObjectStore::Clear(nsIIDBRequest** _retval)
 
 NS_IMETHODIMP
 IDBObjectStore::OpenCursor(const jsval& aKey,
-                           const nsAString& aDirection,
+                           PRUint16 aDirection,
                            JSContext* aCx,
                            PRUint8 aOptionalArgCount,
                            nsIIDBRequest** _retval)
@@ -1650,16 +1650,21 @@ IDBObjectStore::OpenCursor(const jsval& aKey,
 
   nsresult rv;
 
-  IDBCursor::Direction direction = IDBCursor::NEXT;
-
   nsRefPtr<IDBKeyRange> keyRange;
   if (aOptionalArgCount) {
     rv = IDBKeyRange::FromJSVal(aCx, aKey, getter_AddRefs(keyRange));
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (aOptionalArgCount >= 2) {
-      rv = IDBCursor::ParseDirection(aDirection, &direction);
-      NS_ENSURE_SUCCESS(rv, rv);
+      if (aDirection != nsIIDBCursor::NEXT &&
+          aDirection != nsIIDBCursor::NEXT_NO_DUPLICATE &&
+          aDirection != nsIIDBCursor::PREV &&
+          aDirection != nsIIDBCursor::PREV_NO_DUPLICATE) {
+        return NS_ERROR_DOM_INDEXEDDB_NON_TRANSIENT_ERR;
+      }
+    }
+    else {
+      aDirection = nsIIDBCursor::NEXT;
     }
   }
 
@@ -1667,7 +1672,7 @@ IDBObjectStore::OpenCursor(const jsval& aKey,
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<OpenCursorHelper> helper =
-    new OpenCursorHelper(mTransaction, request, this, keyRange, direction);
+    new OpenCursorHelper(mTransaction, request, this, keyRange, aDirection);
 
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
@@ -1695,7 +1700,7 @@ IDBObjectStore::CreateIndex(const nsAString& aName,
 
     JSObject* obj = JSVAL_TO_OBJECT(aKeyPath);
 
-    uint32_t length;
+    jsuint length;
     if (!JS_GetArrayLength(aCx, obj, &length)) {
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
@@ -1706,7 +1711,7 @@ IDBObjectStore::CreateIndex(const nsAString& aName,
 
     keyPathArray.SetCapacity(length);
 
-    for (uint32_t index = 0; index < length; index++) {
+    for (jsuint index = 0; index < length; index++) {
       jsval val;
       JSString* jsstr;
       nsDependentJSString str;
@@ -1745,7 +1750,7 @@ IDBObjectStore::CreateIndex(const nsAString& aName,
 
   if (!transaction ||
       transaction != mTransaction ||
-      mTransaction->GetMode() != IDBTransaction::VERSION_CHANGE) {
+      mTransaction->Mode() != nsIIDBTransaction::VERSION_CHANGE) {
     return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
@@ -1871,7 +1876,7 @@ IDBObjectStore::DeleteIndex(const nsAString& aName)
 
   if (!transaction ||
       transaction != mTransaction ||
-      mTransaction->GetMode() != IDBTransaction::VERSION_CHANGE) {
+      mTransaction->Mode() != nsIIDBTransaction::VERSION_CHANGE) {
     return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
@@ -2014,7 +2019,7 @@ AddHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
       // This is a duplicate of the js engine's byte munging here
       union {
-        double d;
+        jsdouble d;
         PRUint64 u;
       } pun;
     
@@ -2280,13 +2285,13 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
   nsCAutoString directionClause;
   switch (mDirection) {
-    case IDBCursor::NEXT:
-    case IDBCursor::NEXT_UNIQUE:
+    case nsIIDBCursor::NEXT:
+    case nsIIDBCursor::NEXT_NO_DUPLICATE:
       directionClause.AssignLiteral(" ORDER BY key_value ASC");
       break;
 
-    case IDBCursor::PREV:
-    case IDBCursor::PREV_UNIQUE:
+    case nsIIDBCursor::PREV:
+    case nsIIDBCursor::PREV_NO_DUPLICATE:
       directionClause.AssignLiteral(" ORDER BY key_value DESC");
       break;
 
@@ -2339,8 +2344,8 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_NAMED_LITERAL_CSTRING(rangeKey, "range_key");
 
   switch (mDirection) {
-    case IDBCursor::NEXT:
-    case IDBCursor::NEXT_UNIQUE:
+    case nsIIDBCursor::NEXT:
+    case nsIIDBCursor::NEXT_NO_DUPLICATE:
       AppendConditionClause(keyValue, currentKey, false, false,
                             keyRangeClause);
       AppendConditionClause(keyValue, currentKey, false, true,
@@ -2355,8 +2360,8 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
       }
       break;
 
-    case IDBCursor::PREV:
-    case IDBCursor::PREV_UNIQUE:
+    case nsIIDBCursor::PREV:
+    case nsIIDBCursor::PREV_NO_DUPLICATE:
       AppendConditionClause(keyValue, currentKey, true, false, keyRangeClause);
       AppendConditionClause(keyValue, currentKey, true, true,
                            continueToKeyRangeClause);
@@ -2846,5 +2851,5 @@ nsresult
 CountHelper::GetSuccessResult(JSContext* aCx,
                               jsval* aVal)
 {
-  return JS_NewNumberValue(aCx, static_cast<double>(mCount), aVal);
+  return JS_NewNumberValue(aCx, static_cast<jsdouble>(mCount), aVal);
 }

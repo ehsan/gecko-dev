@@ -53,6 +53,7 @@
 using namespace mozilla;
 
 // static
+bool nsHtml5Module::sEnabled = true;
 bool nsHtml5Module::sOffMainThread = true;
 nsIThread* nsHtml5Module::sStreamParserThread = nsnull;
 nsIThread* nsHtml5Module::sMainThread = nsnull;

@@ -9,23 +9,32 @@
 
 #include "mozilla/dom/indexedDB/IndexedDatabase.h"
 
-#include "nsDOMEventTargetHelper.h"
+#include "nsDOMEventTargetWrapperCache.h"
 
 BEGIN_INDEXEDDB_NAMESPACE
 
-class IDBWrapperCache : public nsDOMEventTargetHelper
+class IDBWrapperCache : public nsDOMEventTargetWrapperCache
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(
                                                    IDBWrapperCache,
-                                                   nsDOMEventTargetHelper)
+                                                   nsDOMEventTargetWrapperCache)
 
   JSObject* GetScriptOwner() const
   {
     return mScriptOwner;
   }
-  bool SetScriptOwner(JSObject* aScriptOwner);
+
+  nsIScriptContext* GetScriptContext() const
+  {
+    return mScriptContext;
+  }
+
+  nsPIDOMWindow* GetOwner() const
+  {
+    return mOwner;
+  }
 
   JSObject* GetParentObject()
   {
@@ -35,7 +44,7 @@ public:
 
     // Do what nsEventTargetSH::PreCreate does.
     nsCOMPtr<nsIScriptGlobalObject> parent;
-    nsDOMEventTargetHelper::GetParentObject(getter_AddRefs(parent));
+    nsDOMEventTargetWrapperCache::GetParentObject(getter_AddRefs(parent));
 
     return parent ? parent->GetGlobalJSObject() : nsnull;
   }
@@ -43,7 +52,7 @@ public:
   static IDBWrapperCache* FromSupports(nsISupports* aSupports)
   {
     return static_cast<IDBWrapperCache*>(
-      nsDOMEventTargetHelper::FromSupports(aSupports));
+      nsDOMEventTargetWrapperCache::FromSupports(aSupports));
   }
 
 protected:
@@ -51,9 +60,9 @@ protected:
   : mScriptOwner(nsnull)
   { }
 
-  virtual ~IDBWrapperCache();
+  virtual ~IDBWrapperCache()
+  { }
 
-private:
   JSObject* mScriptOwner;
 };
 

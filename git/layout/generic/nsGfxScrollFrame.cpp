@@ -53,6 +53,7 @@
 #include "nsIDocument.h"
 #include "nsFontMetrics.h"
 #include "nsIDocumentObserver.h"
+#include "nsIDocument.h"
 #include "nsBoxLayoutState.h"
 #include "nsINodeInfo.h"
 #include "nsScrollbarFrame.h"
@@ -428,7 +429,7 @@ nsHTMLScrollFrame::TryLayout(ScrollReflowState* aState,
     ComputeInsideBorderSize(aState, desiredInsideBorderSize);
   nsSize scrollPortSize = nsSize(NS_MAX(0, aState->mInsideBorderSize.width - vScrollbarDesiredWidth),
                                  NS_MAX(0, aState->mInsideBorderSize.height - hScrollbarDesiredHeight));
-
+                                                                                
   if (!aForce) {
     nsRect scrolledRect =
       mInner.GetScrolledRectInternal(aState->mContentsOverflowAreas.ScrollableOverflow(),
@@ -441,7 +442,8 @@ nsHTMLScrollFrame::TryLayout(ScrollReflowState* aState,
         aState->mStyles.mHorizontal == NS_STYLE_OVERFLOW_SCROLL ||
         scrolledRect.XMost() >= scrollPortSize.width + oneDevPixel ||
         scrolledRect.x <= -oneDevPixel;
-      if (scrollPortSize.width < hScrollbarMinSize.width)
+      if (aState->mInsideBorderSize.height < hScrollbarMinSize.height ||
+          scrollPortSize.width < hScrollbarMinSize.width)
         wantHScrollbar = false;
       if (wantHScrollbar != aAssumeHScroll)
         return false;
@@ -453,7 +455,8 @@ nsHTMLScrollFrame::TryLayout(ScrollReflowState* aState,
         aState->mStyles.mVertical == NS_STYLE_OVERFLOW_SCROLL ||
         scrolledRect.YMost() >= scrollPortSize.height + oneDevPixel ||
         scrolledRect.y <= -oneDevPixel;
-      if (scrollPortSize.height < vScrollbarMinSize.height)
+      if (aState->mInsideBorderSize.width < vScrollbarMinSize.width ||
+          scrollPortSize.height < vScrollbarMinSize.height)
         wantVScrollbar = false;
       if (wantVScrollbar != aAssumeVScroll)
         return false;
@@ -966,7 +969,7 @@ nsHTMLScrollFrame::GetFrameName(nsAString& aResult) const
 already_AddRefed<nsAccessible>
 nsHTMLScrollFrame::CreateAccessible()
 {
-  // Create an accessible regardless of focusable state because the state can be
+  // Create an accessible regardless focusable state because the state can be
   // changed during frame life cycle without any notifications to accessibility.
   if (mContent->IsRootOfNativeAnonymousSubtree() ||
       GetScrollbarStyles() == nsIScrollableFrame::
@@ -1304,16 +1307,14 @@ NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
 
 const double kCurrentVelocityWeighting = 0.25;
 const double kStopDecelerationWeighting = 0.4;
+const double kSmoothScrollAnimationDuration = 150; // milliseconds
 
 class nsGfxScrollFrameInner::AsyncScroll {
 public:
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::TimeDuration TimeDuration;
 
-  AsyncScroll():
-    mIsFirstIteration(true)
-    {}
-
+  AsyncScroll() {}
   ~AsyncScroll() {
     if (mScrollTimer) mScrollTimer->Cancel();
   }
@@ -1322,8 +1323,7 @@ public:
   nsSize VelocityAt(TimeStamp aTime); // In nscoords per second
 
   void InitSmoothScroll(TimeStamp aTime, nsPoint aCurrentPos,
-                        nsSize aCurrentVelocity, nsPoint aDestination,
-                        nsIAtom *aOrigin);
+                        nsSize aCurrentVelocity, nsPoint aDestination);
 
   bool IsFinished(TimeStamp aTime) {
     return aTime > mStartTime + mDuration; // XXX or if we've hit the wall
@@ -1331,27 +1331,6 @@ public:
 
   nsCOMPtr<nsITimer> mScrollTimer;
   TimeStamp mStartTime;
-
-  // mPrevStartTime holds previous 3 timestamps for intervals averaging (to
-  // reduce duration fluctuations). When AsyncScroll is constructed and no
-  // previous timestamps are available (indicated with mIsFirstIteration),
-  // initialize mPrevStartTime using imaginary previous timestamps with maximum
-  // relevant intervals between them.
-  TimeStamp mPrevStartTime[3];
-  bool mIsFirstIteration;
-
-  // Cached Preferences values to avoid re-reading them when extending an existing
-  // animation for the same event origin (can be as frequent as every 10(!)ms for 
-  // a quick roll of the mouse wheel).
-  // These values are minimum and maximum animation duration per event origin,
-  // and a global ratio which defines how longer is the animation's duration
-  // compared to the average recent events intervals (such that for a relatively
-  // consistent events rate, the next event arrives before current animation ends)
-  nsCOMPtr<nsIAtom> mOrigin;
-  PRInt32 mOriginMinMS;
-  PRInt32 mOriginMaxMS;
-  double  mIntervalRatio;
-
   TimeDuration mDuration;
   nsPoint mStartPos;
   nsPoint mDestination;
@@ -1373,8 +1352,6 @@ protected:
   void InitTimingFunction(nsSMILKeySpline& aTimingFunction,
                           nscoord aCurrentPos, nscoord aCurrentVelocity,
                           nscoord aDestination);
-
-  void InitDuration(nsIAtom *aOrigin);
 };
 
 nsPoint
@@ -1394,91 +1371,15 @@ nsGfxScrollFrameInner::AsyncScroll::VelocityAt(TimeStamp aTime) {
                                   mStartPos.y, mDestination.y));
 }
 
-/*
- * Calculate/update mDuration, possibly dynamically according to events rate and event origin.
- * (also maintain previous timestamps - which are only used here).
- */
-void
-nsGfxScrollFrameInner::AsyncScroll::InitDuration(nsIAtom *aOrigin) {
-  if (!aOrigin){
-    aOrigin = nsGkAtoms::other;
-  }
-
-  // Read preferences only on first iteration or for a different event origin.
-  if (mIsFirstIteration || aOrigin != mOrigin) {
-    mOrigin = aOrigin;
-    mOriginMinMS = mOriginMaxMS = 0;
-    bool isOriginSmoothnessEnabled = false;
-    mIntervalRatio = 1;
-
-    // Default values for all preferences are defined in all.js
-    static const PRInt32 kDefaultMinMS = 150, kDefaultMaxMS = 150;
-    static const bool kDefaultIsSmoothEnabled = true;
-
-    nsCAutoString originName;
-    aOrigin->ToUTF8String(originName);
-    nsCAutoString prefBase = NS_LITERAL_CSTRING("general.smoothScroll.") + originName;
-
-    isOriginSmoothnessEnabled = Preferences::GetBool(prefBase.get(), kDefaultIsSmoothEnabled);
-    if (isOriginSmoothnessEnabled) {
-      nsCAutoString prefMin = prefBase + NS_LITERAL_CSTRING(".durationMinMS");
-      nsCAutoString prefMax = prefBase + NS_LITERAL_CSTRING(".durationMaxMS");
-      mOriginMinMS = Preferences::GetInt(prefMin.get(), kDefaultMinMS);
-      mOriginMaxMS = Preferences::GetInt(prefMax.get(), kDefaultMaxMS);
-
-      static const PRInt32 kSmoothScrollMaxAllowedAnimationDurationMS = 10000;
-      mOriginMaxMS = clamped(mOriginMaxMS, 0, kSmoothScrollMaxAllowedAnimationDurationMS);
-      mOriginMinMS = clamped(mOriginMinMS, 0, mOriginMaxMS);
-    }
-
-    // Keep the animation duration longer than the average event intervals
-    //   (to "connect" consecutive scroll animations before the scroll comes to a stop).
-    static const double kDefaultDurationToIntervalRatio = 2; // Duplicated at all.js
-    mIntervalRatio = Preferences::GetInt("general.smoothScroll.durationToIntervalRatio",
-                                         kDefaultDurationToIntervalRatio * 100) / 100.0;
-
-    // Duration should be at least as long as the intervals -> ratio is at least 1
-    mIntervalRatio = NS_MAX(1.0, mIntervalRatio);
-
-    if (mIsFirstIteration) {
-      // Starting a new scroll (i.e. not when extending an existing scroll animation),
-      //   create imaginary prev timestamps with maximum relevant intervals between them.
-      mIsFirstIteration = false;
-
-      // Longest relevant interval (which results in maximum duration)
-      TimeDuration maxDelta = TimeDuration::FromMilliseconds(mOriginMaxMS / mIntervalRatio);
-      mPrevStartTime[0] = mStartTime         - maxDelta;
-      mPrevStartTime[1] = mPrevStartTime[0]  - maxDelta;
-      mPrevStartTime[2] = mPrevStartTime[1]  - maxDelta;
-    }
-  }
-
-  // Average last 3 delta durations (rounding errors up to 2ms are negligible for us)
-  PRInt32 eventsDeltaMs = (mStartTime - mPrevStartTime[2]).ToMilliseconds() / 3;
-  mPrevStartTime[2] = mPrevStartTime[1];
-  mPrevStartTime[1] = mPrevStartTime[0];
-  mPrevStartTime[0] = mStartTime;
-
-  // Modulate duration according to events rate (quicker events -> shorter durations).
-  // The desired effect is to use longer duration when scrolling slowly, such that
-  // it's easier to follow, but reduce the duration to make it feel more snappy when
-  // scrolling quickly. To reduce fluctuations of the duration, we average event
-  // intervals using the recent 4 timestamps (now + three prev -> 3 intervals).
-  PRInt32 durationMS = clamped<PRInt32>(eventsDeltaMs * mIntervalRatio, mOriginMinMS, mOriginMaxMS);
-
-  mDuration = TimeDuration::FromMilliseconds(durationMS);
-}
-
 void
 nsGfxScrollFrameInner::AsyncScroll::InitSmoothScroll(TimeStamp aTime,
                                                      nsPoint aCurrentPos,
                                                      nsSize aCurrentVelocity,
-                                                     nsPoint aDestination,
-                                                     nsIAtom *aOrigin) {
+                                                     nsPoint aDestination) {
   mStartTime = aTime;
   mStartPos = aCurrentPos;
   mDestination = aDestination;
-  InitDuration(aOrigin);
+  mDuration = TimeDuration::FromMilliseconds(kSmoothScrollAnimationDuration);
   InitTimingFunction(mTimingFunctionX, mStartPos.x, aCurrentVelocity.width, aDestination.x);
   InitTimingFunction(mTimingFunctionY, mStartPos.y, aCurrentVelocity.height, aDestination.y);
 }
@@ -1643,18 +1544,13 @@ nsGfxScrollFrameInner::AsyncScrollCallback(nsITimer *aTimer, void* anInstance)
 
 /*
  * this method wraps calls to ScrollToImpl(), either in one shot or incrementally,
- *  based on the setting of the smoothness scroll pref
+ *  based on the setting of the smooth scroll pref
  */
 void
-nsGfxScrollFrameInner::ScrollToWithOrigin(nsPoint aScrollPosition,
-                                          nsIScrollableFrame::ScrollMode aMode,
-                                          nsIAtom *aOrigin)
+nsGfxScrollFrameInner::ScrollTo(nsPoint aScrollPosition,
+                                nsIScrollableFrame::ScrollMode aMode)
 {
-  if (ShouldClampScrollPosition()) {
-    mDestination = ClampScrollPosition(aScrollPosition);
-  } else {
-    mDestination = aScrollPosition;
-  }
+  mDestination = ClampScrollPosition(aScrollPosition);
 
   if (aMode == nsIScrollableFrame::INSTANT) {
     // Asynchronous scrolling is not allowed, so we'll kill any existing
@@ -1700,7 +1596,7 @@ nsGfxScrollFrameInner::ScrollToWithOrigin(nsPoint aScrollPosition,
 
   if (isSmoothScroll) {
     mAsyncScroll->InitSmoothScroll(now, currentPosition, currentVelocity,
-                                   mDestination, aOrigin);
+                                   aScrollPosition);
   }
 }
 
@@ -1817,15 +1713,6 @@ bool nsGfxScrollFrameInner::IsIgnoringViewportClipping() const
   return subdocFrame && !subdocFrame->ShouldClipSubdocument();
 }
 
-bool nsGfxScrollFrameInner::ShouldClampScrollPosition() const
-{
-  if (!mIsRoot)
-    return true;
-  nsSubDocumentFrame* subdocFrame = static_cast<nsSubDocumentFrame*>
-    (nsLayoutUtils::GetCrossDocParentFrame(mOuter->PresContext()->PresShell()->GetRootFrame()));
-  return !subdocFrame || subdocFrame->ShouldClampScrollPosition();
-}
-
 bool nsGfxScrollFrameInner::IsAlwaysActive() const
 {
   // The root scrollframe for a non-chrome document which is the direct
@@ -1925,23 +1812,17 @@ ClampInt(nscoord aLower, nscoord aVal, nscoord aUpper, nscoord aAppUnitsPerPixel
 }
 
 nsPoint
-nsGfxScrollFrameInner::RestrictToDevPixels(const nsPoint& aPt,
-                                           nsIntPoint* aPtDevPx,
-                                           bool aShouldClamp) const
+nsGfxScrollFrameInner::ClampAndRestrictToDevPixels(const nsPoint& aPt,
+                                                   nsIntPoint* aPtDevPx) const
 {
   nsPresContext* presContext = mOuter->PresContext();
   nscoord appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
   // Convert to device pixels so we scroll to an integer offset of device
   // pixels. But we also need to make sure that our position remains
   // inside the allowed region.
-  if (aShouldClamp) {
-    nsRect scrollRange = GetScrollRange();
-    *aPtDevPx = nsIntPoint(ClampInt(scrollRange.x, aPt.x, scrollRange.XMost(), appUnitsPerDevPixel),
-                           ClampInt(scrollRange.y, aPt.y, scrollRange.YMost(), appUnitsPerDevPixel));
-  } else {
-    *aPtDevPx = nsIntPoint(NSAppUnitsToIntPixels(aPt.x, appUnitsPerDevPixel),
-                           NSAppUnitsToIntPixels(aPt.y, appUnitsPerDevPixel));
-  }
+  nsRect scrollRange = GetScrollRange();
+  *aPtDevPx = nsIntPoint(ClampInt(scrollRange.x, aPt.x, scrollRange.XMost(), appUnitsPerDevPixel),
+                         ClampInt(scrollRange.y, aPt.y, scrollRange.YMost(), appUnitsPerDevPixel));
   return nsPoint(NSIntPixelsToAppUnits(aPtDevPx->x, appUnitsPerDevPixel),
                  NSIntPixelsToAppUnits(aPtDevPx->y, appUnitsPerDevPixel));
 }
@@ -1977,8 +1858,7 @@ nsGfxScrollFrameInner::ScrollToImpl(nsPoint aPt)
   nsPresContext* presContext = mOuter->PresContext();
   nscoord appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
   nsIntPoint ptDevPx;
-
-  nsPoint pt = RestrictToDevPixels(aPt, &ptDevPx, ShouldClampScrollPosition());
+  nsPoint pt = ClampAndRestrictToDevPixels(aPt, &ptDevPx);
 
   nsPoint curPos = GetScrollPosition();
   if (pt == curPos) {
@@ -2314,36 +2194,22 @@ void
 nsGfxScrollFrameInner::ScrollBy(nsIntPoint aDelta,
                                 nsIScrollableFrame::ScrollUnit aUnit,
                                 nsIScrollableFrame::ScrollMode aMode,
-                                nsIntPoint* aOverflow,
-                                nsIAtom *aOrigin)
+                                nsIntPoint* aOverflow)
 {
   nsSize deltaMultiplier;
-  if (!aOrigin){
-    aOrigin = nsGkAtoms::other;
-  }
-  bool isGenericOrigin = (aOrigin == nsGkAtoms::other);
   switch (aUnit) {
   case nsIScrollableFrame::DEVICE_PIXELS: {
     nscoord appUnitsPerDevPixel =
       mOuter->PresContext()->AppUnitsPerDevPixel();
     deltaMultiplier = nsSize(appUnitsPerDevPixel, appUnitsPerDevPixel);
-    if (isGenericOrigin){
-      aOrigin = nsGkAtoms::pixels;
-    }
     break;
   }
   case nsIScrollableFrame::LINES: {
     deltaMultiplier = GetLineScrollAmount();
-    if (isGenericOrigin){
-      aOrigin = nsGkAtoms::lines;
-    }
     break;
   }
   case nsIScrollableFrame::PAGES: {
     deltaMultiplier = GetPageScrollAmount();
-    if (isGenericOrigin){
-      aOrigin = nsGkAtoms::pages;
-    }
     break;
   }
   case nsIScrollableFrame::WHOLE: {
@@ -2363,7 +2229,7 @@ nsGfxScrollFrameInner::ScrollBy(nsIntPoint aDelta,
 
   nsPoint newPos = mDestination +
     nsPoint(aDelta.x*deltaMultiplier.width, aDelta.y*deltaMultiplier.height);
-  ScrollToWithOrigin(newPos, aMode, aOrigin);
+  ScrollTo(newPos, aMode);
 
   if (aOverflow) {
     nsPoint clampAmount = mDestination - newPos;
@@ -2779,9 +2645,8 @@ void nsGfxScrollFrameInner::CurPosAttributeChanged(nsIContent* aContent)
     // was.
     UpdateScrollbarPosition();
   }
-  ScrollToWithOrigin(dest,
-                     isSmooth ? nsIScrollableFrame::SMOOTH : nsIScrollableFrame::INSTANT,
-                     nsGkAtoms::scrollbars);
+  ScrollTo(dest,
+           isSmooth ? nsIScrollableFrame::SMOOTH : nsIScrollableFrame::INSTANT);
 }
 
 /* ============= Scroll events ========== */
@@ -3372,8 +3237,7 @@ nsGfxScrollFrameInner::ReflowFinished()
     nsPoint scrollPos = GetScrollPosition();
     // XXX shouldn't we use GetPageScrollAmount/GetLineScrollAmount here?
     if (vScroll) {
-      const double kScrollMultiplier = Preferences::GetInt("toolkit.scrollbox.verticalScrollDistance",
-                                                           NS_DEFAULT_VERTICAL_SCROLL_DISTANCE);
+      const double kScrollMultiplier = 3;
       nscoord fontHeight = GetLineScrollAmount().height * kScrollMultiplier;
       // We normally use (scrollArea.height - fontHeight) for height
       // of page scrolling.  However, it is too small when

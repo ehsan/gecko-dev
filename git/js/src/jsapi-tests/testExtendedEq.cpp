@@ -26,9 +26,11 @@ js::Class TestExtendedEq_JSClass = {
     JS_ResolveStub,
     NULL,                  /* convert */
     NULL,                  /* finalize */
+    NULL,                  /* reserved0   */
     NULL,                  /* checkAccess */
     NULL,                  /* call        */
     NULL,                  /* construct   */
+    NULL,                  /* xdrObject   */
     NULL,                  /* hasInstance */
     NULL,                  /* mark        */
     {

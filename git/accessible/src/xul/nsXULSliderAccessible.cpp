@@ -53,8 +53,8 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULSliderAccessible::
-  nsXULSliderAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsAccessibleWrap(aContent, aDoc)
+  nsXULSliderAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsAccessibleWrap(aContent, aShell)
 {
 }
 
@@ -190,7 +190,7 @@ nsXULSliderAccessible::SetCurrentValue(double aValue)
 }
 
 bool
-nsXULSliderAccessible::CanHaveAnonChildren()
+nsXULSliderAccessible::GetAllowsAnonChildAccessibles()
 {
   // Do not allow anonymous xul:slider be accessible.
   return false;
@@ -289,8 +289,8 @@ nsXULSliderAccessible::SetSliderAttr(nsIAtom *aName, double aValue)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULThumbAccessible::
-  nsXULThumbAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsAccessibleWrap(aContent, aDoc)
+  nsXULThumbAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
+  nsAccessibleWrap(aContent, aShell)
 {
 }
 

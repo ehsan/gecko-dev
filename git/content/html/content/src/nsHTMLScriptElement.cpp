@@ -57,7 +57,6 @@
 #include "nsTArray.h"
 #include "nsDOMJSUtils.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 class nsHTMLScriptElement : public nsGenericHTMLElement,
@@ -109,22 +108,17 @@ public:
   virtual void GetScriptText(nsAString& text);
   virtual void GetScriptCharset(nsAString& charset);
   virtual void FreezeUriAsyncDefer();
-  virtual CORSMode GetCORSMode() const;
 
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               bool aCompileEventHandlers);
-  virtual bool ParseAttribute(PRInt32 aNamespaceID,
-                              nsIAtom* aAttribute,
-                              const nsAString& aValue,
-                              nsAttrValue& aResult);
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   // nsGenericElement
   virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue, bool aNotify);
+                                const nsAString* aValue, bool aNotify);
 
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
@@ -182,22 +176,6 @@ nsHTMLScriptElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   }
 
   return NS_OK;
-}
-
-bool
-nsHTMLScriptElement::ParseAttribute(PRInt32 aNamespaceID,
-                                    nsIAtom* aAttribute,
-                                    const nsAString& aValue,
-                                    nsAttrValue& aResult)
-{
-  if (aNamespaceID == kNameSpaceID_None &&
-      aAttribute == nsGkAtoms::crossorigin) {
-    ParseCORSValue(aValue, aResult);
-    return true;
-  }
-
-  return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
-                                              aResult);
 }
 
 nsresult
@@ -263,7 +241,7 @@ nsHTMLScriptElement::SetAsync(bool aValue)
 
 nsresult
 nsHTMLScriptElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                  const nsAttrValue* aValue, bool aNotify)
+                                  const nsAString* aValue, bool aNotify)
 {
   if (nsGkAtoms::async == aName && kNameSpaceID_None == aNamespaceID) {
     mForceAsync = false;
@@ -331,12 +309,6 @@ nsHTMLScriptElement::FreezeUriAsyncDefer()
   }
   
   mFrozen = true;
-}
-
-CORSMode
-nsHTMLScriptElement::GetCORSMode() const
-{
-  return AttrValueToCORSMode(GetParsedAttr(nsGkAtoms::crossorigin));
 }
 
 bool

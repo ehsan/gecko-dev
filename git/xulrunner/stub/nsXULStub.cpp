@@ -395,7 +395,7 @@ main(int argc, char **argv)
     if (absfwurl) {
       CFURLRef xulurl =
         CFURLCreateCopyAppendingPathComponent(NULL, absfwurl,
-                                              CFSTR("XUL.framework"),
+                                              CFSTR("XUL.Framework"),
                                               true);
 
       if (xulurl) {

@@ -45,6 +45,7 @@
 #include "nsNetUtil.h"
 #include "nsXMLProcessingInstruction.h"
 #include "nsUnicharUtils.h"
+#include "nsParserUtils.h"
 #include "nsGkAtoms.h"
 #include "nsThreadUtils.h"
 #include "nsContentUtils.h"
@@ -208,12 +209,10 @@ nsXMLStylesheetPI::GetStyleSheetInfo(nsAString& aTitle,
   nsAutoString data;
   GetData(data);
 
-  nsContentUtils::GetPseudoAttributeValue(data, nsGkAtoms::title, aTitle);
+  nsParserUtils::GetQuotedAttributeValue(data, nsGkAtoms::title, aTitle);
 
   nsAutoString alternate;
-  nsContentUtils::GetPseudoAttributeValue(data,
-                                          nsGkAtoms::alternate,
-                                          alternate);
+  nsParserUtils::GetQuotedAttributeValue(data, nsGkAtoms::alternate, alternate);
 
   // if alternate, does it have title?
   if (alternate.EqualsLiteral("yes")) {
@@ -224,13 +223,13 @@ nsXMLStylesheetPI::GetStyleSheetInfo(nsAString& aTitle,
     *aIsAlternate = true;
   }
 
-  nsContentUtils::GetPseudoAttributeValue(data, nsGkAtoms::media, aMedia);
+  nsParserUtils::GetQuotedAttributeValue(data, nsGkAtoms::media, aMedia);
 
   nsAutoString type;
-  nsContentUtils::GetPseudoAttributeValue(data, nsGkAtoms::type, type);
+  nsParserUtils::GetQuotedAttributeValue(data, nsGkAtoms::type, type);
 
   nsAutoString mimeType, notUsed;
-  nsContentUtils::SplitMimeType(type, mimeType, notUsed);
+  nsParserUtils::SplitMimeType(type, mimeType, notUsed);
   if (!mimeType.IsEmpty() && !mimeType.LowerCaseEqualsLiteral("text/css")) {
     aType.Assign(type);
     return;

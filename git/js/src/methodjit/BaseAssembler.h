@@ -784,8 +784,10 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
     Jump guardArrayExtent(int offset, RegisterID reg,
                           const Int32Key &key, Condition cond) {
         Address extent(reg, offset);
-        if (key.isConstant())
+        if (key.isConstant()) {
+            JS_ASSERT(key.index() >= 0);
             return branch32(cond, extent, Imm32(key.index()));
+        }
         return branch32(cond, extent, key.reg());
     }
 

@@ -89,15 +89,15 @@ XPCWrappedNativeProto::~XPCWrappedNativeProto()
 
 JSBool
 XPCWrappedNativeProto::Init(XPCCallContext& ccx,
-                            const XPCNativeScriptableCreateInfo* scriptableCreateInfo,
-                            bool callPostCreatePrototype)
+                            JSBool isGlobal,
+                            const XPCNativeScriptableCreateInfo* scriptableCreateInfo)
 {
     nsIXPCScriptable *callback = scriptableCreateInfo ?
                                  scriptableCreateInfo->GetCallback() :
                                  nsnull;
     if (callback) {
         mScriptableInfo =
-            XPCNativeScriptableInfo::Construct(ccx, scriptableCreateInfo);
+            XPCNativeScriptableInfo::Construct(ccx, isGlobal, scriptableCreateInfo);
         if (!mScriptableInfo)
             return false;
     }
@@ -128,38 +128,21 @@ XPCWrappedNativeProto::Init(XPCCallContext& ccx,
                                         mScope->GetPrototypeJSObject(),
                                         true, parent);
 
-    bool success = !!mJSProtoObject;
-    if (success) {
-        JS_SetPrivate(mJSProtoObject, this);
-        if (callPostCreatePrototype)
-            success = CallPostCreatePrototype(ccx);
+    JSBool ok = mJSProtoObject && JS_SetPrivate(ccx, mJSProtoObject, this);
+
+    if (ok && callback) {
+        nsresult rv = callback->PostCreatePrototype(ccx, mJSProtoObject);
+        if (NS_FAILED(rv)) {
+            JS_SetPrivate(ccx, mJSProtoObject, nsnull);
+            mJSProtoObject = nsnull;
+            XPCThrower::Throw(rv, ccx);
+            return false;
+        }
     }
 
     DEBUG_ReportShadowedMembers(mSet, nsnull, this);
 
-    return success;
-}
-
-bool
-XPCWrappedNativeProto::CallPostCreatePrototype(XPCCallContext& ccx)
-{
-    // Nothing to do if we don't have a scriptable callback.
-    nsIXPCScriptable *callback = mScriptableInfo ? mScriptableInfo->GetCallback()
-                                                 : nsnull;
-    if (!callback)
-        return true;
-
-    // Call the helper. This can handle being called if it's not implemented,
-    // so we don't have to check any sort of "want" here. See xpc_map_end.h.
-    nsresult rv = callback->PostCreatePrototype(ccx, mJSProtoObject);
-    if (NS_FAILED(rv)) {
-        JS_SetPrivate(mJSProtoObject, nsnull);
-        mJSProtoObject = nsnull;
-        XPCThrower::Throw(rv, ccx);
-        return false;
-    }
-
-    return true;
+    return ok;
 }
 
 void
@@ -182,7 +165,7 @@ XPCWrappedNativeProto::JSProtoObjectFinalized(JSContext *cx, JSObject *obj)
 }
 
 void
-XPCWrappedNativeProto::SystemIsBeingShutDown()
+XPCWrappedNativeProto::SystemIsBeingShutDown(JSContext* cx)
 {
     // Note that the instance might receive this call multiple times
     // as we walk to here from various places.
@@ -198,7 +181,7 @@ XPCWrappedNativeProto::SystemIsBeingShutDown()
 
     if (mJSProtoObject) {
         // short circuit future finalization
-        JS_SetPrivate(mJSProtoObject, nsnull);
+        JS_SetPrivate(cx, mJSProtoObject, nsnull);
         mJSProtoObject = nsnull;
     }
 }
@@ -209,8 +192,8 @@ XPCWrappedNativeProto::GetNewOrUsed(XPCCallContext& ccx,
                                     XPCWrappedNativeScope* scope,
                                     nsIClassInfo* classInfo,
                                     const XPCNativeScriptableCreateInfo* scriptableCreateInfo,
-                                    QITableEntry* offsets,
-                                    bool callPostCreatePrototype)
+                                    JSBool isGlobal,
+                                    QITableEntry* offsets)
 {
     NS_ASSERTION(scope, "bad param");
     NS_ASSERTION(classInfo, "bad param");
@@ -240,7 +223,7 @@ XPCWrappedNativeProto::GetNewOrUsed(XPCCallContext& ccx,
 
     proto = new XPCWrappedNativeProto(scope, classInfo, ciFlags, set, offsets);
 
-    if (!proto || !proto->Init(ccx, scriptableCreateInfo, callPostCreatePrototype)) {
+    if (!proto || !proto->Init(ccx, isGlobal, scriptableCreateInfo)) {
         delete proto.get();
         return nsnull;
     }

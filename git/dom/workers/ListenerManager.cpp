@@ -107,9 +107,6 @@ struct Listener : PRCList
   static void
   Remove(JSContext* aCx, Listener* aListener)
   {
-    if (js::IsIncrementalBarrierNeeded(aCx))
-      js::IncrementalValueBarrier(aListener->mListenerVal);
-
     PR_REMOVE_LINK(aListener);
     JS_free(aCx, aListener);
   }
@@ -343,7 +340,7 @@ bool
 ListenerManager::DispatchEvent(JSContext* aCx, JSObject* aTarget,
                                JSObject* aEvent, bool* aPreventDefaultCalled)
 {
-  if (!events::IsSupportedEventClass(aEvent)) {
+  if (!events::IsSupportedEventClass(aCx, aEvent)) {
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
                          JSMSG_INCOMPATIBLE_METHOD,
                          "EventTarget", "dispatchEvent", "Event object");
@@ -410,10 +407,12 @@ ListenerManager::DispatchEvent(JSContext* aCx, JSObject* aTarget,
     return true;
   }
 
-  events::SetEventTarget(aEvent, aTarget);
+  if (!events::SetEventTarget(aCx, aEvent, aTarget)) {
+    return false;
+  }
 
   for (size_t index = 0; index < listeners.length(); index++) {
-    if (events::EventImmediatePropagationStopped(aEvent)) {
+    if (events::EventImmediatePropagationStopped(aCx, aEvent)) {
       break;
     }
 
@@ -435,8 +434,6 @@ ListenerManager::DispatchEvent(JSContext* aCx, JSObject* aTarget,
 
     static const char sHandleEventChars[] = "handleEvent";
 
-    JSObject* thisObj = aTarget;
-
     JSBool hasHandleEvent;
     if (!JS_HasProperty(aCx, listenerObj, sHandleEventChars, &hasHandleEvent)) {
       if (!JS_ReportPendingException(aCx)) {
@@ -452,13 +449,11 @@ ListenerManager::DispatchEvent(JSContext* aCx, JSObject* aTarget,
         }
         continue;
       }
-
-      thisObj = listenerObj;
     }
 
     jsval argv[] = { OBJECT_TO_JSVAL(aEvent) };
     jsval rval = JSVAL_VOID;
-    if (!JS_CallFunctionValue(aCx, thisObj, listenerVal, ArrayLength(argv),
+    if (!JS_CallFunctionValue(aCx, aTarget, listenerVal, ArrayLength(argv),
                               argv, &rval)) {
       if (!JS_ReportPendingException(aCx)) {
         return false;
@@ -467,9 +462,11 @@ ListenerManager::DispatchEvent(JSContext* aCx, JSObject* aTarget,
     }
   }
 
-  events::SetEventTarget(aEvent, NULL);
+  if (!events::SetEventTarget(aCx, aEvent, NULL)) {
+    return false;
+  }
 
-  *aPreventDefaultCalled = events::EventWasCanceled(aEvent);
+  *aPreventDefaultCalled = events::EventWasCanceled(aCx, aEvent);
   return true;
 }
 

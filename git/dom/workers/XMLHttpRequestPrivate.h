@@ -61,13 +61,12 @@ class XMLHttpRequestPrivate : public events::EventTarget,
   JSObject* mUploadJSObject;
   WorkerPrivate* mWorkerPrivate;
   nsRefPtr<Proxy> mProxy;
+  PRUint32 mJSObjectRootCount;
 
-  bool mJSObjectRooted;
   bool mMultipart;
   bool mBackgroundRequest;
   bool mWithCredentials;
   bool mCanceled;
-  PRUint32 mTimeout;
 
 public:
   XMLHttpRequestPrivate(JSObject* aObj, WorkerPrivate* aWorkerPrivate);
@@ -76,12 +75,12 @@ public:
   void
   FinalizeInstance(JSContext* aCx)
   {
-    ReleaseProxy(XHRIsGoingAway);
+    ReleaseProxy();
     events::EventTarget::FinalizeInstance(aCx);
   }
 
   void
-  Unpin(JSContext* aCx);
+  UnrootJSObject(JSContext* aCx);
 
   JSObject*
   GetJSObject()
@@ -124,9 +123,6 @@ public:
   SetResponseType(JSContext* aCx, jsval aOldVal, jsval *aVp);
 
   bool
-  SetTimeout(JSContext* aCx, jsval aOldVal, jsval *aVp);
-
-  bool
   Abort(JSContext* aCx);
 
   JSString*
@@ -152,13 +148,11 @@ public:
   OverrideMimeType(JSContext* aCx, JSString* aMimeType);
 
 private:
-  enum ReleaseType { Default, XHRIsGoingAway, WorkerIsGoingAway };
-
   void
-  ReleaseProxy(ReleaseType aType = Default);
+  ReleaseProxy();
 
   bool
-  MaybePin(JSContext* aCx);
+  RootJSObject(JSContext* aCx);
 
   bool
   MaybeDispatchPrematureAbortEvents(JSContext* aCx);
@@ -170,7 +164,7 @@ private:
   bool
   SendInProgress() const
   {
-    return mJSObjectRooted;
+    return mJSObjectRootCount != 0;
   }
 };
 

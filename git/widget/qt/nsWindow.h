@@ -173,7 +173,9 @@ public:
     NS_IMETHOD         GetHasTransparentBackground(bool& aTransparent);
     NS_IMETHOD         HideWindowChrome(bool aShouldHide);
     NS_IMETHOD         MakeFullScreen(bool aFullScreen);
-    NS_IMETHOD         Invalidate(const nsIntRect &aRect);
+    NS_IMETHOD         Invalidate(const nsIntRect &aRect,
+                                  bool          aIsSynchronous);
+    NS_IMETHOD         Update();
 
     virtual void*      GetNativeData(PRUint32 aDataType);
     NS_IMETHOD         SetTitle(const nsAString& aTitle);
@@ -229,7 +231,6 @@ public:
     NS_IMETHOD         ReparentNativeWidget(nsIWidget* aNewParent);
 
     QWidget* GetViewWidget();
-    virtual PRUint32 GetGLFrameBufferFormat() MOZ_OVERRIDE;
 
 protected:
     nsCOMPtr<nsIWidget> mParent;

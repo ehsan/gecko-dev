@@ -92,8 +92,7 @@ GetGSNCache(JSContext *cx)
 
 class AutoNamespaceArray : protected AutoGCRooter {
   public:
-    AutoNamespaceArray(JSContext *cx)
-        : AutoGCRooter(cx, NAMESPACES), context(cx) {
+    AutoNamespaceArray(JSContext *cx) : AutoGCRooter(cx, NAMESPACES) {
         array.init();
     }
 
@@ -103,11 +102,9 @@ class AutoNamespaceArray : protected AutoGCRooter {
 
     uint32_t length() const { return array.length; }
 
-  private:
-    JSContext *context;
+  public:
     friend void AutoGCRooter::trace(JSTracer *trc);
 
-  public:
     JSXMLArray<JSObject> array;
 };
 
@@ -214,7 +211,7 @@ class CompartmentChecker
     
     void check(JSIdArray *ida) {
         if (ida) {
-            for (int i = 0; i < ida->length; i++) {
+            for (jsint i = 0; i < ida->length; i++) {
                 if (JSID_IS_OBJECT(ida->vector[i]))
                     check(ida->vector[i]);
             }
@@ -319,7 +316,7 @@ CallJSNative(JSContext *cx, Native native, const CallArgs &args)
     return ok;
 }
 
-extern JSBool CallOrConstructBoundFunction(JSContext *, unsigned, js::Value *);
+extern JSBool CallOrConstructBoundFunction(JSContext *, uintN, js::Value *);
 
 STATIC_PRECONDITION(ubound(args.argv_) >= argc)
 JS_ALWAYS_INLINE bool
@@ -376,8 +373,8 @@ CallJSPropertyOpSetter(JSContext *cx, StrictPropertyOp op, JSObject *obj, jsid i
 }
 
 inline bool
-CallSetter(JSContext *cx, JSObject *obj, jsid id, StrictPropertyOp op, unsigned attrs,
-           unsigned shortid, JSBool strict, Value *vp)
+CallSetter(JSContext *cx, JSObject *obj, jsid id, StrictPropertyOp op, uintN attrs,
+           uintN shortid, JSBool strict, Value *vp)
 {
     if (attrs & JSPROP_SETTER)
         return InvokeGetterOrSetter(cx, obj, CastAsObjectJsval(op), 1, vp, vp);
@@ -441,14 +438,14 @@ JSContext::maybeOverrideVersion(JSVersion newVersion)
     return true;
 }
 
-inline unsigned
+inline uintN
 JSContext::getCompileOptions() const { return js::VersionFlagsToOptions(findVersion()); }
 
-inline unsigned
+inline uintN
 JSContext::allOptions() const { return getRunOptions() | getCompileOptions(); }
 
 inline void
-JSContext::setCompileOptions(unsigned newcopts)
+JSContext::setCompileOptions(uintN newcopts)
 {
     JS_ASSERT((newcopts & JSCOMPILEOPTION_MASK) == newcopts);
     if (JS_LIKELY(getCompileOptions() == newcopts))
@@ -459,7 +456,7 @@ JSContext::setCompileOptions(unsigned newcopts)
 }
 
 inline void
-JSContext::assertValidStackDepth(unsigned depth)
+JSContext::assertValidStackDepth(uintN depth)
 {
 #ifdef DEBUG
     JS_ASSERT(0 <= regs().sp - fp()->base());

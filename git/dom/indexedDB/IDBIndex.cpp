@@ -186,7 +186,7 @@ public:
                       IDBRequest* aRequest,
                       IDBIndex* aIndex,
                       IDBKeyRange* aKeyRange,
-                      IDBCursor::Direction aDirection)
+                      PRUint16 aDirection)
   : AsyncConnectionHelper(aTransaction, aRequest), mIndex(aIndex),
     mKeyRange(aKeyRange), mDirection(aDirection)
   { }
@@ -206,7 +206,7 @@ private:
   // In-params.
   nsRefPtr<IDBIndex> mIndex;
   nsRefPtr<IDBKeyRange> mKeyRange;
-  const IDBCursor::Direction mDirection;
+  const PRUint16 mDirection;
 
   // Out-params.
   Key mKey;
@@ -223,7 +223,7 @@ public:
                    IDBRequest* aRequest,
                    IDBIndex* aIndex,
                    IDBKeyRange* aKeyRange,
-                   IDBCursor::Direction aDirection)
+                   PRUint16 aDirection)
   : AsyncConnectionHelper(aTransaction, aRequest), mIndex(aIndex),
     mKeyRange(aKeyRange), mDirection(aDirection)
   { }
@@ -248,7 +248,7 @@ private:
   // In-params.
   nsRefPtr<IDBIndex> mIndex;
   nsRefPtr<IDBKeyRange> mKeyRange;
-  const IDBCursor::Direction mDirection;
+  const PRUint16 mDirection;
 
   // Out-params.
   Key mKey;
@@ -307,6 +307,8 @@ IDBIndex::Create(IDBObjectStore* aObjectStore,
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aObjectStore, "Null pointer!");
   NS_ASSERTION(aIndexInfo, "Null pointer!");
+
+  IDBDatabase* database = aObjectStore->Transaction()->Database();
 
   nsRefPtr<IDBIndex> index = new IDBIndex();
 
@@ -524,7 +526,7 @@ IDBIndex::GetAll(const jsval& aKey,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  if (aOptionalArgCount < 2 || aLimit == 0) {
+  if (aOptionalArgCount < 2) {
     aLimit = PR_UINT32_MAX;
   }
 
@@ -563,7 +565,7 @@ IDBIndex::GetAllKeys(const jsval& aKey,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  if (aOptionalArgCount < 2 || aLimit == 0) {
+  if (aOptionalArgCount < 2) {
     aLimit = PR_UINT32_MAX;
   }
 
@@ -582,7 +584,7 @@ IDBIndex::GetAllKeys(const jsval& aKey,
 
 NS_IMETHODIMP
 IDBIndex::OpenCursor(const jsval& aKey,
-                     const nsAString& aDirection,
+                     PRUint16 aDirection,
                      JSContext* aCx,
                      PRUint8 aOptionalArgCount,
                      nsIIDBRequest** _retval)
@@ -596,16 +598,21 @@ IDBIndex::OpenCursor(const jsval& aKey,
 
   nsresult rv;
 
-  IDBCursor::Direction direction = IDBCursor::NEXT;
-
   nsRefPtr<IDBKeyRange> keyRange;
   if (aOptionalArgCount) {
     rv = IDBKeyRange::FromJSVal(aCx, aKey, getter_AddRefs(keyRange));
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (aOptionalArgCount >= 2) {
-      rv = IDBCursor::ParseDirection(aDirection, &direction);
-      NS_ENSURE_SUCCESS(rv, rv);
+      if (aDirection != nsIIDBCursor::NEXT &&
+          aDirection != nsIIDBCursor::NEXT_NO_DUPLICATE &&
+          aDirection != nsIIDBCursor::PREV &&
+          aDirection != nsIIDBCursor::PREV_NO_DUPLICATE) {
+        return NS_ERROR_DOM_INDEXEDDB_NON_TRANSIENT_ERR;
+      }
+    }
+    else {
+      aDirection = nsIIDBCursor::NEXT;
     }
   }
 
@@ -613,7 +620,7 @@ IDBIndex::OpenCursor(const jsval& aKey,
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<OpenCursorHelper> helper =
-    new OpenCursorHelper(transaction, request, this, keyRange, direction);
+    new OpenCursorHelper(transaction, request, this, keyRange, aDirection);
 
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
@@ -624,7 +631,7 @@ IDBIndex::OpenCursor(const jsval& aKey,
 
 NS_IMETHODIMP
 IDBIndex::OpenKeyCursor(const jsval& aKey,
-                        const nsAString& aDirection,
+                        PRUint16 aDirection,
                         JSContext* aCx,
                         PRUint8 aOptionalArgCount,
                         nsIIDBRequest** _retval)
@@ -638,16 +645,21 @@ IDBIndex::OpenKeyCursor(const jsval& aKey,
 
   nsresult rv;
 
-  IDBCursor::Direction direction = IDBCursor::NEXT;
-
   nsRefPtr<IDBKeyRange> keyRange;
   if (aOptionalArgCount) {
     rv = IDBKeyRange::FromJSVal(aCx, aKey, getter_AddRefs(keyRange));
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (aOptionalArgCount >= 2) {
-      rv = IDBCursor::ParseDirection(aDirection, &direction);
-      NS_ENSURE_SUCCESS(rv, rv);
+      if (aDirection != nsIIDBCursor::NEXT &&
+          aDirection != nsIIDBCursor::NEXT_NO_DUPLICATE &&
+          aDirection != nsIIDBCursor::PREV &&
+          aDirection != nsIIDBCursor::PREV_NO_DUPLICATE) {
+        return NS_ERROR_DOM_INDEXEDDB_NON_TRANSIENT_ERR;
+      }
+    }
+    else {
+      aDirection = nsIIDBCursor::NEXT;
     }
   }
 
@@ -655,7 +667,7 @@ IDBIndex::OpenKeyCursor(const jsval& aKey,
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<OpenKeyCursorHelper> helper =
-    new OpenKeyCursorHelper(transaction, request, this, keyRange, direction);
+    new OpenKeyCursorHelper(transaction, request, this, keyRange, aDirection);
 
   rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
@@ -894,7 +906,7 @@ GetAllKeysHelper::GetSuccessResult(JSContext* aCx,
   }
 
   if (!keys.IsEmpty()) {
-    if (!JS_SetArrayLength(aCx, array, uint32_t(keys.Length()))) {
+    if (!JS_SetArrayLength(aCx, array, jsuint(keys.Length()))) {
       NS_WARNING("Failed to set array length!");
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
@@ -1022,16 +1034,16 @@ OpenKeyCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
   nsCAutoString directionClause(" ORDER BY value ");
   switch (mDirection) {
-    case IDBCursor::NEXT:
-    case IDBCursor::NEXT_UNIQUE:
+    case nsIIDBCursor::NEXT:
+    case nsIIDBCursor::NEXT_NO_DUPLICATE:
       directionClause += NS_LITERAL_CSTRING("ASC, object_data_key ASC");
       break;
 
-    case IDBCursor::PREV:
+    case nsIIDBCursor::PREV:
       directionClause += NS_LITERAL_CSTRING("DESC, object_data_key DESC");
       break;
 
-    case IDBCursor::PREV_UNIQUE:
+    case nsIIDBCursor::PREV_NO_DUPLICATE:
       directionClause += NS_LITERAL_CSTRING("DESC, object_data_key ASC");
       break;
 
@@ -1082,7 +1094,7 @@ OpenKeyCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_NAMED_LITERAL_CSTRING(rangeKey, "range_key");
 
   switch (mDirection) {
-    case IDBCursor::NEXT:
+    case nsIIDBCursor::NEXT:
       if (mKeyRange && !mKeyRange->Upper().IsUnset()) {
         AppendConditionClause(value, rangeKey, true, !mKeyRange->IsUpperOpen(),
                               queryStart);
@@ -1102,7 +1114,7 @@ OpenKeyCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
         NS_LITERAL_CSTRING(" LIMIT ");
       break;
 
-    case IDBCursor::NEXT_UNIQUE:
+    case nsIIDBCursor::NEXT_NO_DUPLICATE:
       if (mKeyRange && !mKeyRange->Upper().IsUnset()) {
         AppendConditionClause(value, rangeKey, true, !mKeyRange->IsUpperOpen(),
                               queryStart);
@@ -1118,7 +1130,7 @@ OpenKeyCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
         NS_LITERAL_CSTRING(" LIMIT ");
       break;
 
-    case IDBCursor::PREV:
+    case nsIIDBCursor::PREV:
       if (mKeyRange && !mKeyRange->Lower().IsUnset()) {
         AppendConditionClause(value, rangeKey, false, !mKeyRange->IsLowerOpen(),
                               queryStart);
@@ -1139,7 +1151,7 @@ OpenKeyCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
         NS_LITERAL_CSTRING(" LIMIT ");
       break;
 
-    case IDBCursor::PREV_UNIQUE:
+    case nsIIDBCursor::PREV_NO_DUPLICATE:
       if (mKeyRange && !mKeyRange->Lower().IsUnset()) {
         AppendConditionClause(value, rangeKey, false, !mKeyRange->IsLowerOpen(),
                               queryStart);
@@ -1203,18 +1215,18 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
   nsCAutoString directionClause(" ORDER BY index_table.value ");
   switch (mDirection) {
-    case IDBCursor::NEXT:
-    case IDBCursor::NEXT_UNIQUE:
+    case nsIIDBCursor::NEXT:
+    case nsIIDBCursor::NEXT_NO_DUPLICATE:
       directionClause +=
         NS_LITERAL_CSTRING("ASC, index_table.object_data_key ASC");
       break;
 
-    case IDBCursor::PREV:
+    case nsIIDBCursor::PREV:
       directionClause +=
         NS_LITERAL_CSTRING("DESC, index_table.object_data_key DESC");
       break;
 
-    case IDBCursor::PREV_UNIQUE:
+    case nsIIDBCursor::PREV_NO_DUPLICATE:
       directionClause +=
         NS_LITERAL_CSTRING("DESC, index_table.object_data_key ASC");
       break;
@@ -1282,7 +1294,7 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_NAMED_LITERAL_CSTRING(limit, " LIMIT ");
 
   switch (mDirection) {
-    case IDBCursor::NEXT:
+    case nsIIDBCursor::NEXT:
       if (mKeyRange && !mKeyRange->Upper().IsUnset()) {
         AppendConditionClause(value, rangeKey, true, !mKeyRange->IsUpperOpen(),
                               queryStart);
@@ -1300,7 +1312,7 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
         directionClause + limit;
       break;
 
-    case IDBCursor::NEXT_UNIQUE:
+    case nsIIDBCursor::NEXT_NO_DUPLICATE:
       if (mKeyRange && !mKeyRange->Upper().IsUnset()) {
         AppendConditionClause(value, rangeKey, true, !mKeyRange->IsUpperOpen(),
                               queryStart);
@@ -1316,7 +1328,7 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
         directionClause + limit;
       break;
 
-    case IDBCursor::PREV:
+    case nsIIDBCursor::PREV:
       if (mKeyRange && !mKeyRange->Lower().IsUnset()) {
         AppendConditionClause(value, rangeKey, false, !mKeyRange->IsLowerOpen(),
                               queryStart);
@@ -1334,7 +1346,7 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
         directionClause + limit;
       break;
 
-    case IDBCursor::PREV_UNIQUE:
+    case nsIIDBCursor::PREV_NO_DUPLICATE:
       if (mKeyRange && !mKeyRange->Lower().IsUnset()) {
         AppendConditionClause(value, rangeKey, false, !mKeyRange->IsLowerOpen(),
                               queryStart);
@@ -1440,5 +1452,5 @@ nsresult
 CountHelper::GetSuccessResult(JSContext* aCx,
                               jsval* aVal)
 {
-  return JS_NewNumberValue(aCx, static_cast<double>(mCount), aVal);
+  return JS_NewNumberValue(aCx, static_cast<jsdouble>(mCount), aVal);
 }

@@ -87,6 +87,7 @@ nsDOMScriptObjectFactory::nsDOMScriptObjectFactory() :
 
     if (xs) {
       xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_DOM);
+      xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_DOM_RANGE);
       xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_SVG);
       xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_DOM_XPATH);
       xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_DOM_INDEXEDDB);
@@ -287,6 +288,8 @@ nsDOMScriptObjectFactory::Observe(nsISupports *aSubject,
         xs->UnregisterExceptionProvider(gExceptionProvider,
                                         NS_ERROR_MODULE_DOM);
         xs->UnregisterExceptionProvider(gExceptionProvider,
+                                        NS_ERROR_MODULE_DOM_RANGE);
+        xs->UnregisterExceptionProvider(gExceptionProvider,
                                         NS_ERROR_MODULE_SVG);
         xs->UnregisterExceptionProvider(gExceptionProvider,
                                         NS_ERROR_MODULE_DOM_XPATH);
@@ -383,6 +386,8 @@ nsDOMExceptionProvider::GetException(nsresult result,
 
   switch (NS_ERROR_GET_MODULE(result))
   {
+    case NS_ERROR_MODULE_DOM_RANGE:
+      return NS_NewRangeException(result, aDefaultException, _retval);
     case NS_ERROR_MODULE_SVG:
       return NS_NewSVGException(result, aDefaultException, _retval);
     case NS_ERROR_MODULE_DOM_XPATH:

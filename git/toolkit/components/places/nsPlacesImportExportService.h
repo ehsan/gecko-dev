@@ -8,7 +8,7 @@
 #include "nsIOutputStream.h"
 #include "nsIFaviconService.h"
 #include "nsIAnnotationService.h"
-#include "mozIAsyncLivemarks.h"
+#include "nsILivemarkService.h"
 #include "nsINavHistoryService.h"
 #include "nsINavBookmarksService.h"
 #include "nsIChannel.h"
@@ -41,7 +41,7 @@ class nsPlacesImportExportService : public nsIPlacesImportExportService,
     nsCOMPtr<nsIAnnotationService> mAnnotationService;
     nsCOMPtr<nsINavBookmarksService> mBookmarksService;
     nsCOMPtr<nsINavHistoryService> mHistoryService;
-    nsCOMPtr<mozIAsyncLivemarks> mLivemarkService;
+    nsCOMPtr<nsILivemarkService> mLivemarkService;
 
     nsCOMPtr<nsIChannel> mImportChannel;
     bool mIsImportDefaults;

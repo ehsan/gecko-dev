@@ -143,9 +143,7 @@ public:
   void DropReference();
 
   /**
-   * Finds the index of a given option element.
-   * If the option isn't part of the collection, return NS_ERROR_FAILURE
-   * without setting aIndex.
+   * Finds the index of a given option element
    *
    * @param aOption the option to get the index of
    * @param aStartIndex the index to start looking at
@@ -202,8 +200,8 @@ public:
   }
 
 private:
-  nsCheapSet<nsStringHashKey> mValues;
-  nsCheapSet<nsUint32HashKey> mIndices;
+  nsCheapStringSet mValues;
+  nsCheapInt32Set mIndices;
 };
 
 class NS_STACK_CLASS nsSafeOptionListMutation
@@ -394,10 +392,9 @@ public:
                                bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep, bool aNullParent);
   virtual nsresult BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                 const nsAttrValueOrString* aValue,
-                                 bool aNotify);
+                                 const nsAString* aValue, bool aNotify);
   virtual nsresult AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue, bool aNotify);
+                                const nsAString* aValue, bool aNotify);
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              bool aNotify);
   

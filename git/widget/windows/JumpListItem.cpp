@@ -37,6 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
+
 #include "JumpListItem.h"
 
 #include <shellapi.h>
@@ -735,6 +737,11 @@ nsresult JumpListLink::GetShellItem(nsCOMPtr<nsIJumpListItem>& item, nsRefPtr<IS
   rv = uri->GetSpec(spec);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  // Load vista+ SHCreateItemFromParsingName
+  if (!WinUtils::VistaCreateItemFromParsingNameInit()) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
   // Create the IShellItem
   if (FAILED(WinUtils::SHCreateItemFromParsingName(
                NS_ConvertASCIItoUTF16(spec).get(), NULL, IID_PPV_ARGS(&psi)))) {
@@ -839,3 +846,4 @@ nsresult JumpListItem::HashURI(nsCOMPtr<nsICryptoHash> &aCryptoHash,
 } // namespace widget
 } // namespace mozilla
 
+#endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7

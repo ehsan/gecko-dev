@@ -50,10 +50,9 @@
 
 using namespace mozilla;
 
-class nsRenderingContext;
 class nsSVGImageFrame;
 
-class nsSVGImageListener MOZ_FINAL : public nsStubImageDecoderObserver
+class nsSVGImageListener : public nsStubImageDecoderObserver
 {
 public:
   nsSVGImageListener(nsSVGImageFrame *aFrame);
@@ -91,7 +90,7 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsRenderingContext *aContext, const nsIntRect *aDirtyRect);
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, const nsIntRect *aDirtyRect);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
 
   // nsSVGPathGeometryFrame methods:
@@ -310,7 +309,7 @@ nsSVGImageFrame::TransformContextForPainting(gfxContext* aGfxContext)
 //----------------------------------------------------------------------
 // nsISVGChildFrame methods:
 NS_IMETHODIMP
-nsSVGImageFrame::PaintSVG(nsRenderingContext *aContext,
+nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext,
                           const nsIntRect *aDirtyRect)
 {
   nsresult rv = NS_OK;
@@ -321,8 +320,8 @@ nsSVGImageFrame::PaintSVG(nsRenderingContext *aContext,
   float x, y, width, height;
   nsSVGImageElement *imgElem = static_cast<nsSVGImageElement*>(mContent);
   imgElem->GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
-  NS_ASSERTION(width > 0 && height > 0,
-               "Should only be painting things with valid width/height");
+  if (width <= 0 || height <= 0)
+    return NS_OK;
 
   if (!mImageContainer) {
     nsCOMPtr<imgIRequest> currentRequest;
@@ -336,7 +335,7 @@ nsSVGImageFrame::PaintSVG(nsRenderingContext *aContext,
   }
 
   if (mImageContainer) {
-    gfxContext* ctx = aContext->ThebesContext();
+    gfxContext* ctx = aContext->GetGfxContext();
     gfxContextAutoSaveRestore autoRestorer(ctx);
 
     if (GetStyleDisplay()->IsScrollableOverflow()) {
@@ -366,9 +365,7 @@ nsSVGImageFrame::PaintSVG(nsRenderingContext *aContext,
     if (aDirtyRect) {
       dirtyRect = aDirtyRect->ToAppUnits(appUnitsPerDevPx);
       // Adjust dirtyRect to match our local coordinate system.
-      nsRect rootRect =
-        nsSVGUtils::TransformFrameRectToOuterSVG(mRect, GetCanvasTM(), PresContext());
-      dirtyRect.MoveBy(-rootRect.TopLeft());
+      dirtyRect.MoveBy(-mRect.TopLeft());
     }
 
     // XXXbholley - I don't think huge images in SVGs are common enough to
@@ -405,7 +402,7 @@ nsSVGImageFrame::PaintSVG(nsRenderingContext *aContext,
       // That method needs our image to have a fixed native width & height,
       // and that's not always true for TYPE_VECTOR images.
       nsLayoutUtils::DrawSingleImage(
-        aContext,
+        aContext->GetRenderingContext(this),
         mImageContainer,
         nsLayoutUtils::GetGraphicsFilterForFrame(this),
         destRect,
@@ -415,7 +412,7 @@ nsSVGImageFrame::PaintSVG(nsRenderingContext *aContext,
       rootSVGElem->ClearImageOverridePreserveAspectRatio();
     } else { // mImageContainer->GetType() == TYPE_RASTER
       nsLayoutUtils::DrawSingleUnscaledImage(
-        aContext,
+        aContext->GetRenderingContext(this),
         mImageContainer,
         nsLayoutUtils::GetGraphicsFilterForFrame(this),
         nsPoint(0, 0),
@@ -486,19 +483,14 @@ nsSVGImageFrame::UpdateCoveredRegion()
 
   gfxContext context(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
 
-  gfxMatrix identity;
-  GeneratePath(&context, &identity);
+  GeneratePath(&context);
+  context.IdentityMatrix();
 
   gfxRect extent = context.GetUserPathExtent();
 
   if (!extent.IsEmpty()) {
-    mRect = nsLayoutUtils::RoundGfxRectToAppRect(extent, 
-              PresContext()->AppUnitsPerCSSPixel());
+    mRect = nsSVGUtils::ToAppPixelRect(PresContext(), extent);
   }
-
-  // See bug 614732 comment 32.
-  mCoveredRegion = nsSVGUtils::TransformFrameRectToOuterSVG(
-    mRect, GetCanvasTM(), PresContext());
 
   return NS_OK;
 }

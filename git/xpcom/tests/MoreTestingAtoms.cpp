@@ -59,5 +59,6 @@ static const nsStaticAtom MoreTestingAtoms_info[] = {
 
 void MoreTestingAtoms::AddRefAtoms()
 {
-  NS_RegisterStaticAtoms(MoreTestingAtoms_info);
+  NS_RegisterStaticAtoms(MoreTestingAtoms_info, 
+                         mozilla::ArrayLength(MoreTestingAtoms_info));
 }

@@ -207,7 +207,7 @@ function testSteps()
   openRequest.onsuccess = grabEventAndContinueHandler;
   yield;
 
-  let trans = db.transaction(["mystore"], "readwrite");
+  let trans = db.transaction(["mystore"], IDBTransaction.READ_WRITE);
   store = trans.objectStore("mystore");
   index = store.index("myindex");
   is(index.multiEntry, true, "index still is multiEntry");

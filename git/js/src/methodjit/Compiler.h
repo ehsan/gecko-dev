@@ -380,10 +380,6 @@ class Compiler : public BaseCompiler
         uint32_t source;
         uint32_t target;
 
-#ifdef JS_CPU_X64
-        Label sourceTrampoline;
-#endif
-
         Jump fastJump;
         MaybeJump slowJump;
     };
@@ -404,7 +400,7 @@ class Compiler : public BaseCompiler
     analyze::CrossScriptSSA ssa;
 
     GlobalObject *globalObj;
-    const HeapSlot *globalSlots;  /* Original slots pointer. */
+    const HeapValue *globalSlots;  /* Original slots pointer. */
 
     Assembler masm;
     FrameState frame;
@@ -488,7 +484,7 @@ private:
     bool hasGlobalReallocation;
     bool oomInVector;       // True if we have OOM'd appending to a vector. 
     bool overflowICSpace;   // True if we added a constant pool in a reserved space.
-    uint64_t gcNumber;
+    uint32_t gcNumber;
     enum { NoApplyTricks, LazyArgsObj } applyTricks;
     PCLengthEntry *pcLengths;
 
@@ -574,7 +570,6 @@ private:
     /* Analysis helpers. */
     CompileStatus prepareInferenceTypes(JSScript *script, ActiveFrame *a);
     void ensureDoubleArguments();
-    void markUndefinedLocal(uint32_t offset, uint32_t i);
     void markUndefinedLocals();
     void fixDoubleTypes(jsbytecode *target);
     void watchGlobalReallocation();
@@ -611,6 +606,7 @@ private:
 
     /* Non-emitting helpers. */
     void pushSyncedEntry(uint32_t pushed);
+    uint32_t fullAtomIndex(jsbytecode *pc);
     bool jumpInScript(Jump j, jsbytecode *pc);
     bool compareTwoValues(JSContext *cx, JSOp op, const Value &lhs, const Value &rhs);
     bool canUseApplyTricks();
@@ -618,7 +614,7 @@ private:
     /* Emitting helpers. */
     bool constantFoldBranch(jsbytecode *target, bool taken);
     bool emitStubCmpOp(BoolStub stub, jsbytecode *target, JSOp fused);
-    bool iter(unsigned flags);
+    bool iter(uintN flags);
     void iterNext(ptrdiff_t offset);
     bool iterMore(jsbytecode *target);
     void iterEnd();
@@ -691,7 +687,7 @@ private:
     bool jsop_instanceof();
     void jsop_name(PropertyName *name, JSValueType type);
     bool jsop_xname(PropertyName *name);
-    void enterBlock(StaticBlockObject *block);
+    void enterBlock(JSObject *obj);
     void leaveBlock();
     void emitEval(uint32_t argc);
     void jsop_arguments(RejoinState rejoin);

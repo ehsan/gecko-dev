@@ -261,11 +261,11 @@ GLXLibrary::EnsureInitialized()
         mHasRobustness = true;
     }
 
-    gIsATI = serverVendor && DoesStringMatch(serverVendor, "ATI");
+    gIsATI = serverVendor && DoesVendorStringMatch(serverVendor, "ATI");
     gIsChromium = (serverVendor &&
-                   DoesStringMatch(serverVendor, "Chromium")) ||
+                   DoesVendorStringMatch(serverVendor, "Chromium")) ||
         (serverVersionStr &&
-         DoesStringMatch(serverVersionStr, "Chromium"));
+         DoesVendorStringMatch(serverVersionStr, "Chromium"));
 
     mInitialized = true;
     return true;
@@ -776,12 +776,7 @@ TRY_AGAIN_NO_SHARING:
             return false;
         }
 
-        if (!IsExtensionSupported("GL_EXT_framebuffer_object"))
-            return false;
-
-        InitFramebuffers();
-
-        return true;
+        return IsExtensionSupported("GL_EXT_framebuffer_object");
     }
 
     bool MakeCurrentImpl(bool aForce = false)
@@ -1166,7 +1161,6 @@ GLContextProviderGLX::CreateForWindow(nsIWidget *aWidget)
                                                                      vinfo,
                                                                      shareContext,
                                                                      false);
-
     return glContext.forget();
 }
 

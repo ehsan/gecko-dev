@@ -93,9 +93,6 @@ public:
     return FromMilliseconds(aSeconds * 1000.0);
   }
   static TimeDuration FromMilliseconds(double aMilliseconds);
-  static inline TimeDuration FromMicroseconds(double aMicroseconds) {
-    return FromMilliseconds(aMicroseconds / 1000.0);
-  }
 
   TimeDuration operator+(const TimeDuration& aOther) const {
     return TimeDuration::FromTicks(mValue + aOther.mValue);

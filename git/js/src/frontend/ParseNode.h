@@ -589,7 +589,7 @@ struct ParseNode {
             ParseNode   *left;
             ParseNode   *right;
             Value       *pval;          /* switch case value */
-            unsigned       iflags;         /* JSITER_* flags for PNK_FOR node */
+            uintN       iflags;         /* JSITER_* flags for PNK_FOR node */
         } binary;
         struct {                        /* one kid if unary */
             ParseNode   *kid;
@@ -619,7 +619,7 @@ struct ParseNode {
             AtomDefnMapPtr   defnMap;
             ParseNode        *tree;     /* sub-tree containing name uses */
         } nameset;
-        double        dval;             /* aligned numeric literal value */
+        jsdouble        dval;           /* aligned numeric literal value */
         class {
             friend class LoopControlStatement;
             PropertyName     *label;    /* target of break/continue statement */
@@ -753,17 +753,17 @@ struct ParseNode {
 #define PNX_HOLEY      0x400            /* array initialiser has holes */
 #define PNX_NONCONST   0x800            /* initialiser has non-constants */
 
-    unsigned frameLevel() const {
+    uintN frameLevel() const {
         JS_ASSERT(pn_arity == PN_FUNC || pn_arity == PN_NAME);
         return pn_cookie.level();
     }
 
-    unsigned frameSlot() const {
+    uintN frameSlot() const {
         JS_ASSERT(pn_arity == PN_FUNC || pn_arity == PN_NAME);
         return pn_cookie.slot();
     }
 
-    inline bool test(unsigned flag) const;
+    inline bool test(uintN flag) const;
 
     bool isLet() const          { return test(PND_LET); }
     bool isConst() const        { return test(PND_CONST); }
@@ -929,20 +929,12 @@ struct ParseNode {
 #endif
     inline ConditionalExpression &asConditionalExpression();
     inline PropertyAccess &asPropertyAccess();
-
-#ifdef DEBUG
-    inline void dump(int indent);
-#endif
 };
 
 struct NullaryNode : public ParseNode {
     static inline NullaryNode *create(ParseNodeKind kind, TreeContext *tc) {
         return (NullaryNode *)ParseNode::create(kind, PN_NULLARY, tc);
     }
-
-#ifdef DEBUG
-    inline void dump();
-#endif
 };
 
 struct UnaryNode : public ParseNode {
@@ -955,10 +947,6 @@ struct UnaryNode : public ParseNode {
     static inline UnaryNode *create(ParseNodeKind kind, TreeContext *tc) {
         return (UnaryNode *)ParseNode::create(kind, PN_UNARY, tc);
     }
-
-#ifdef DEBUG
-    inline void dump(int indent);
-#endif
 };
 
 struct BinaryNode : public ParseNode {
@@ -979,10 +967,6 @@ struct BinaryNode : public ParseNode {
     static inline BinaryNode *create(ParseNodeKind kind, TreeContext *tc) {
         return (BinaryNode *)ParseNode::create(kind, PN_BINARY, tc);
     }
-
-#ifdef DEBUG
-    inline void dump(int indent);
-#endif
 };
 
 struct TernaryNode : public ParseNode {
@@ -999,40 +983,24 @@ struct TernaryNode : public ParseNode {
     static inline TernaryNode *create(ParseNodeKind kind, TreeContext *tc) {
         return (TernaryNode *)ParseNode::create(kind, PN_TERNARY, tc);
     }
-
-#ifdef DEBUG
-    inline void dump(int indent);
-#endif
 };
 
 struct ListNode : public ParseNode {
     static inline ListNode *create(ParseNodeKind kind, TreeContext *tc) {
         return (ListNode *)ParseNode::create(kind, PN_LIST, tc);
     }
-
-#ifdef DEBUG
-    inline void dump(int indent);
-#endif
 };
 
 struct FunctionNode : public ParseNode {
     static inline FunctionNode *create(ParseNodeKind kind, TreeContext *tc) {
         return (FunctionNode *)ParseNode::create(kind, PN_FUNC, tc);
     }
-
-#ifdef DEBUG
-    inline void dump(int indent);
-#endif
 };
 
 struct NameNode : public ParseNode {
     static NameNode *create(ParseNodeKind kind, JSAtom *atom, TreeContext *tc);
 
     inline void initCommon(TreeContext *tc);
-
-#ifdef DEBUG
-    inline void dump(int indent);
-#endif
 };
 
 struct NameSetNode : public ParseNode {
@@ -1286,10 +1254,6 @@ class PropertyByValue : public ParseNode {
 ParseNode *
 CloneLeftHandSide(ParseNode *opn, TreeContext *tc);
 
-#ifdef DEBUG
-void DumpParseTree(ParseNode *pn, int indent = 0);
-#endif
-
 /*
  * js::Definition is a degenerate subtype of the PN_FUNC and PN_NAME variants
  * of js::ParseNode, allocated only for function, var, const, and let
@@ -1480,7 +1444,7 @@ class ParseNodeAllocator {
 };
 
 inline bool
-ParseNode::test(unsigned flag) const
+ParseNode::test(uintN flag) const
 {
     JS_ASSERT(pn_defn || pn_arity == PN_FUNC || pn_arity == PN_NAME);
 #ifdef DEBUG

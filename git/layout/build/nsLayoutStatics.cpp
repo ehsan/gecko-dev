@@ -82,6 +82,7 @@
 #include "nsCrossSiteListenerProxy.h"
 #include "nsHTMLDNSPrefetch.h"
 #include "nsHtml5Module.h"
+#include "nsCrossSiteListenerProxy.h"
 #include "nsFocusManager.h"
 #include "nsFrameList.h"
 #include "nsListControlFrame.h"
@@ -123,7 +124,8 @@
 
 #include "nsHyphenationManager.h"
 #include "nsEditorSpellCheck.h"
-#include "nsWindowMemoryReporter.h"
+#include "nsDOMMemoryReporter.h"
+#include "mozilla/dom/sms/SmsRequestManager.h"
 
 extern void NS_ShutdownChainItemPool();
 
@@ -268,7 +270,9 @@ nsLayoutStatics::Initialize()
 
   NS_SealStaticAtomTable();
 
-  nsWindowMemoryReporter::Init();
+  nsDOMMemoryMultiReporter::Init();
+
+  sms::SmsRequestManager::Init();
 
   return NS_OK;
 }
@@ -276,8 +280,10 @@ nsLayoutStatics::Initialize()
 void
 nsLayoutStatics::Shutdown()
 {
-  // Don't need to shutdown nsWindowMemoryReporter, that will be done by the
-  // memory reporter manager.
+  sms::SmsRequestManager::Shutdown();
+
+  // Don't need to shutdown nsDOMMemoryReporter, that will be done by the memory
+  // reporter manager.
 
   nsFrameScriptExecutor::Shutdown();
   nsFocusManager::Shutdown();

@@ -104,7 +104,7 @@ class nsAccessible : public nsAccessNodeWrap,
                      public nsIAccessibleValue
 {
 public:
-  nsAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsAccessible(nsIContent *aContent, nsIWeakReference *aShell);
   virtual ~nsAccessible();
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -128,17 +128,6 @@ public:
    * get the description of this accessible
    */
   virtual void Description(nsString& aDescription);
-
-  /**
-   * Return DOM node associated with this accessible.
-   */
-  inline already_AddRefed<nsIDOMNode> DOMNode() const
-  {
-    nsIDOMNode *DOMNode = nsnull;
-    if (GetNode())
-      CallQueryInterface(GetNode(), &DOMNode);
-    return DOMNode;
-  }
 
   /**
    * Returns the accessible name specified by ARIA.
@@ -213,11 +202,6 @@ public:
    * Use State() to get complete set of states.
    */
   virtual PRUint64 NativeState();
-
-  /**
-   * Return bit set of invisible and offscreen states.
-   */
-  PRUint64 VisibilityState();
 
   /**
    * Returns attributes for accessible without explicitly setted ARIA
@@ -404,9 +388,9 @@ public:
   virtual nsresult HandleAccEvent(AccEvent* aAccEvent);
 
   /**
-   * Return true if this accessible allows accessible children from anonymous subtree.
+   * Return true if there are accessible children in anonymous content
    */
-  virtual bool CanHaveAnonChildren();
+  virtual bool GetAllowsAnonChildAccessibles();
 
   /**
    * Returns text of accessible if accessible has text role otherwise empty
@@ -646,7 +630,7 @@ protected:
    * Set accessible parent and index in parent.
    */
   virtual void BindToParent(nsAccessible* aParent, PRUint32 aIndexInParent);
-  virtual void UnbindFromParent();
+  void UnbindFromParent();
 
   /**
    * Return sibling accessible at the given offset.
@@ -706,6 +690,8 @@ protected:
 
   virtual nsIFrame* GetBoundsFrame();
   virtual void GetBoundsRect(nsRect& aRect, nsIFrame** aRelativeFrame);
+
+  PRUint64 VisibilityState(); 
 
   //////////////////////////////////////////////////////////////////////////////
   // Name helpers

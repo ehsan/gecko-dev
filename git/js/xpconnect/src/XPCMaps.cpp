@@ -622,6 +622,7 @@ XPCNativeScriptableSharedMap::~XPCNativeScriptableSharedMap()
 JSBool
 XPCNativeScriptableSharedMap::GetNewOrUsed(uint32_t flags,
                                            char* name,
+                                           bool isGlobal,
                                            PRUint32 interfacesBitmap,
                                            XPCNativeScriptableInfo* si)
 {
@@ -642,7 +643,7 @@ XPCNativeScriptableSharedMap::GetNewOrUsed(uint32_t flags,
                                           interfacesBitmap);
         if (!shared)
             return false;
-        shared->PopulateJSClass();
+        shared->PopulateJSClass(isGlobal);
     }
     si->SetScriptableShared(shared);
     return true;

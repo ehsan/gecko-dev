@@ -128,11 +128,6 @@ public:
   NPBool     ConvertPoint(double sourceX, double sourceY, NPCoordinateSpace sourceSpace,
                           double *destX, double *destY, NPCoordinateSpace destSpace);
   
-  virtual NPError InitAsyncSurface(NPSize *size, NPImageFormat format,
-                                   void *initData, NPAsyncSurface *surface);
-  virtual NPError FinalizeAsyncSurface(NPAsyncSurface *surface);
-  virtual void SetCurrentAsyncSurface(NPAsyncSurface *surface, NPRect *changed);
-
   //nsIPluginTagInfo interface
   NS_DECL_NSIPLUGINTAGINFO
   
@@ -146,7 +141,9 @@ public:
 #endif
 
   nsresult Destroy();  
-
+  
+  void PrepareToStop(bool aDelayedStop);
+  
 #ifdef XP_WIN
   void Paint(const RECT& aDirty, HDC aDC);
 #elif defined(XP_MACOSX)
@@ -173,11 +170,14 @@ public:
   
   //locals
   
-  nsresult Init(nsIContent* aContent);
+  nsresult Init(nsPresContext* aPresContext, nsObjectFrame* aFrame,
+                nsIContent* aContent);
   
   void* GetPluginPortFromWidget();
   void ReleasePluginPort(void* pluginPort);
-
+  
+  void SetPluginHost(nsIPluginHost* aHost);
+  
   nsEventStatus ProcessEvent(const nsGUIEvent & anEvent);
   
 #ifdef XP_MACOSX
@@ -187,8 +187,9 @@ public:
   bool IsRemoteDrawingCoreAnimation();
   NPEventModel GetEventModel();
   static void CARefresh(nsITimer *aTimer, void *aClosure);
-  void AddToCARefreshTimer();
-  void RemoveFromCARefreshTimer();
+  static void AddToCARefreshTimer(nsPluginInstanceOwner *aPluginInstance);
+  static void RemoveFromCARefreshTimer(nsPluginInstanceOwner *aPluginInstance);
+  void SetupCARefresh();
   // This calls into the plugin (NPP_SetWindow) and can run script.
   void* FixUpPluginWindow(PRInt32 inPaintState);
   void HidePluginWindow();
@@ -215,10 +216,16 @@ public:
   void UpdateWindowVisibility(bool aVisible);
   void UpdateDocumentActiveState(bool aIsActive);
 #endif // XP_MACOSX
-
-  void SetFrame(nsObjectFrame *aFrame);
-  nsObjectFrame* GetFrame();
-
+  void CallSetWindow();
+  
+  void SetOwner(nsObjectFrame *aOwner)
+  {
+    mObjectFrame = aOwner;
+  }
+  nsObjectFrame* GetOwner() {
+    return mObjectFrame;
+  }
+  
   PRUint32 GetLastEventloopNestingLevel() const {
     return mLastEventloopNestingLevel; 
   }
@@ -279,10 +286,8 @@ public:
   }
   
   void NotifyPaintWaiter(nsDisplayListBuilder* aBuilder);
-
-  // Returns the image container that has our currently displayed image.
-  already_AddRefed<ImageContainer> GetImageContainer();
-
+  // Return true if we set image with valid surface
+  bool SetCurrentImage(ImageContainer* aContainer);
   /**
    * Returns the bounds of the current async-rendered surface. This can only
    * change in response to messages received by the event loop (i.e. not during
@@ -299,7 +304,7 @@ public:
   
   bool UseAsyncRendering();
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
   nsIntRect GetVisibleRect() {
     return nsIntRect(0, 0, mPluginWindow->width, mPluginWindow->height);
   }
@@ -330,25 +335,26 @@ private:
   }
   
   void FixUpURLS(const nsString &name, nsAString &value);
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
   void SendSize(int width, int height);
+  void SendOnScreenEvent(bool onScreen);
 
   bool AddPluginView(const gfxRect& aRect);
   void RemovePluginView();
 
+  bool mOnScreen;
   bool mInverted;
 
   // For kOpenGL_ANPDrawingModel
-  nsRefPtr<mozilla::AndroidMediaLayer> mLayer;
+  mozilla::AndroidMediaLayer *mLayer;
 #endif 
  
   nsPluginNativeWindow       *mPluginWindow;
   nsRefPtr<nsNPAPIPluginInstance> mInstance;
-  nsObjectFrame              *mObjectFrame;
-  nsIContent                 *mContent; // WEAK, content owns us
+  nsObjectFrame              *mObjectFrame; // owns nsPluginInstanceOwner
+  nsCOMPtr<nsIContent>        mContent;
   nsCString                   mDocumentBase;
   char                       *mTagText;
-  bool                        mWidgetCreationComplete;
   nsCOMPtr<nsIWidget>         mWidget;
   nsRefPtr<nsPluginHost>      mPluginHost;
   
@@ -384,7 +390,10 @@ private:
 #endif
   bool                        mPluginWindowVisible;
   bool                        mPluginDocumentActiveState;
-
+  
+  // If true, destroy the widget on destruction. Used when plugin stop
+  // is being delayed to a safer point in time.
+  bool                        mDestroyWidget;
   PRUint16          mNumCachedAttrs;
   PRUint16          mNumCachedParams;
   char              **mCachedAttrParamNames;
@@ -392,11 +401,6 @@ private:
   
 #ifdef XP_MACOSX
   NPEventModel mEventModel;
-  // This is a hack! UseAsyncRendering() can incorrectly return false
-  // when we don't have an object frame (possible as of bug 90268).
-  // We hack around this by always returning true if we've ever
-  // returned true.
-  bool mUseAsyncRendering;
 #endif
   
   // pointer to wrapper for nsIDOMContextMenuListener

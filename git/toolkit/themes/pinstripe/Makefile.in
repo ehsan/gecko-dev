@@ -48,6 +48,8 @@ ifdef MOZ_HELP_VIEWER
 DIRS	+= help
 endif
 
-TEST_DIRS += mochitests
+ifdef ENABLE_TESTS
+DIRS  += mochitests
+endif
 
 include $(topsrcdir)/config/rules.mk

@@ -41,6 +41,7 @@
 #include "nsICancelable.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsIServiceManager.h"
 #include "nsProxyRelease.h"
 #include "nsReadableUtils.h"
@@ -408,7 +409,7 @@ nsDNSService::Init()
     nsAdoptingCString ipv4OnlyDomains;
 
     // read prefs
-    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (prefs) {
         PRInt32 val;
         if (NS_SUCCEEDED(prefs->GetIntPref(kPrefDnsCacheEntries, &val)))

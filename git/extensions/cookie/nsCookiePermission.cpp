@@ -51,6 +51,7 @@
 #include "nsIURI.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsIChannel.h"
 #include "nsIHttpChannelInternal.h"
 #include "nsIDOMWindow.h"
@@ -104,7 +105,7 @@ nsCookiePermission::Init()
   if (NS_FAILED(rv)) return false;
 
   // failure to access the pref service is non-fatal...
-  nsCOMPtr<nsIPrefBranch> prefBranch =
+  nsCOMPtr<nsIPrefBranch2> prefBranch =
       do_GetService(NS_PREFSERVICE_CONTRACTID);
   if (prefBranch) {
     prefBranch->AddObserver(kCookiesLifetimePolicy, this, false);

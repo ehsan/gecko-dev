@@ -44,7 +44,7 @@
 
 /* make clicking on links stand out a bit (bug 532206) */
 * > *:not(embed):focus, * > *:focus > font {
-  outline: 2px solid @color_background_highlight@ !important;
+  outline: 2px solid #8db8d8 !important;
   /*
     XXX How do I preserve mac focusring without blowing focus color on other platforms?
     outline-color: -moz-mac-focusring !important;
@@ -53,11 +53,6 @@
 
 *:-moz-any-link:focus {
   outline-offset: -2px;
-}
-
-::-moz-selection {
-  background-color: @color_background_highlight@;
-  color: @color_text_highlight@;
 }
 
 /* Style the scrollbars */
@@ -127,14 +122,14 @@ xul|scrollbarbutton[sbattr="scrollbar-bottom-top"] {
   display: none;
 }
 
-xul|scrollbar xul|thumb {
-  background-color: @color_background_scroller@ !important;
+xul|thumb {
+  background-color: rgba(0, 0, 0, 0.4) !important;
   -moz-border-top-colors: none !important;
   -moz-border-bottom-colors: none !important;
   -moz-border-right-colors: none !important;
   -moz-border-left-colors: none !important;
   border: 1px solid rgba(255, 255, 255, 0.4) !important;
-  border-radius: 3px;
+  -moz-border-radius: 3px;
 }
 
 select:not([size]):not([multiple]) > xul|scrollbar,
@@ -153,7 +148,7 @@ button,
 xul|button,
 * > input:not([type="image"]) {
   -moz-appearance: none !important;  /* See bug 598421 for fixing the platform */
-  border-radius: 3px;
+  -moz-border-radius: 3px;
 }
 
 select[size],
@@ -240,7 +235,7 @@ select > button {
   border-width: 0px !important;
   margin: 0px !important;
   padding: 0px !important;
-  border-radius: 0;
+  -moz-border-radius: 0;
   color: #414141;
 
   background-size: auto auto, 100% 90%;
@@ -352,7 +347,7 @@ option:active,
 select:active,
 label:active,
 textarea:active {
-  background-color: @color_background_highlight_overlay@ !important;
+  background-color: rgba(141, 184, 216, 0.5) !important;
 }
 
 /* 
@@ -370,8 +365,4 @@ input > .anonymous-div:after {
  */
 video {
     image-rendering: -moz-crisp-edges;
-}
-
-xul|menulist {
-  -moz-binding: url("chrome://browser/content/bindings.xml#menulist");
 }

@@ -164,8 +164,6 @@ DestroyMatchList(nsISupports* aKey, nsTemplateMatch*& aMatch, void* aContext)
 
 nsXULTemplateBuilder::~nsXULTemplateBuilder(void)
 {
-    Uninit(true);
-
     if (--gRefCnt == 0) {
         NS_IF_RELEASE(gRDFService);
         NS_IF_RELEASE(gRDFContainerUtils);
@@ -173,6 +171,8 @@ nsXULTemplateBuilder::~nsXULTemplateBuilder(void)
         NS_IF_RELEASE(gScriptSecurityManager);
         NS_IF_RELEASE(gObserverService);
     }
+
+    Uninit(true);
 }
 
 

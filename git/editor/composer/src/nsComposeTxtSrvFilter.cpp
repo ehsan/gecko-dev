@@ -46,6 +46,7 @@ nsComposeTxtSrvFilter::nsComposeTxtSrvFilter() :
 {
 
   mBlockQuoteAtom  = do_GetAtom("blockquote");
+  mPreAtom         = do_GetAtom("pre");
   mSpanAtom        = do_GetAtom("span");
   mTableAtom       = do_GetAtom("table");
   mMozQuoteAtom    = do_GetAtom("_moz_quote");
@@ -78,7 +79,7 @@ nsComposeTxtSrvFilter::Skip(nsIDOMNode* aNode, bool *_retval)
         *_retval = content->AttrValueIs(kNameSpaceID_None, mTypeAtom,
                                         mCiteAtom, eIgnoreCase);
       }
-    } else if (tag == mSpanAtom) {
+    } else if (tag == mPreAtom || tag == mSpanAtom) {
       if (mIsForMail) {
         *_retval = content->AttrValueIs(kNameSpaceID_None, mMozQuoteAtom,
                                         mTrueAtom, eIgnoreCase);

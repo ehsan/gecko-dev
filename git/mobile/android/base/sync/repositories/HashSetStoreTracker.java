@@ -5,7 +5,6 @@
 package org.mozilla.gecko.sync.repositories;
 
 import java.util.HashSet;
-import java.util.Iterator;
 
 import org.mozilla.gecko.sync.repositories.domain.Record;
 
@@ -52,10 +51,5 @@ public class HashSetStoreTracker implements StoreTracker {
         return isTrackedForExclusion(r.guid);
       }
     };
-  }
-
-  @Override
-  public Iterator<String> recordsTrackedForExclusion() {
-    return this.guids.iterator();
   }
 }

@@ -13,6 +13,14 @@ function testSteps()
 {
   const Ci = Components.interfaces;
 
+  const INITIAL = Ci.nsIIDBTransaction.INITIAL;
+  const LOADING = Ci.nsIIDBTransaction.LOADING;
+  const COMMITTING = Ci.nsIIDBTransaction.COMMITTING;
+  const DONE = Ci.nsIIDBTransaction.DONE;
+  const READ_ONLY = Ci.nsIIDBTransaction.READ_ONLY;
+  const READ_WRITE = Ci.nsIIDBTransaction.READ_WRITE;
+  const VERSION_CHANGE = Ci.nsIIDBTransaction.VERSION_CHANGE;
+
   const name = this.window ? window.location.pathname : "Splendid Test";
   const description = "My Test Database";
 
@@ -35,7 +43,8 @@ function testSteps()
   index = objectStore.createIndex("fooindex", "indexKey", { unique: true });
 
   is(transaction.db, db, "Correct database");
-  is(transaction.mode, "versionchange", "Correct mode");
+  is(transaction.readyState, LOADING, "Correct readyState");
+  is(transaction.mode, VERSION_CHANGE, "Correct mode");
   is(transaction.objectStoreNames.length, 1, "Correct names length");
   is(transaction.objectStoreNames.item(0), "foo", "Correct name");
   is(transaction.objectStore("foo"), objectStore, "Can get stores");
@@ -54,7 +63,8 @@ function testSteps()
   event = yield;
 
   is(transaction.db, db, "Correct database");
-  is(transaction.mode, "versionchange", "Correct mode");
+  is(transaction.readyState, DONE, "Correct readyState");
+  is(transaction.mode, VERSION_CHANGE, "Correct mode");
   is(transaction.objectStoreNames.length, 1, "Correct names length");
   is(transaction.objectStoreNames.item(0), "foo", "Correct name");
   is(transaction.onabort, null, "No abort listener");
@@ -155,7 +165,7 @@ function testSteps()
 
   yield;
 
-  request = db.transaction("foo", "readwrite").objectStore("foo").add({});
+  request = db.transaction("foo", READ_WRITE).objectStore("foo").add({});
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
   event = yield;
@@ -170,7 +180,7 @@ function testSteps()
 
   let key;
 
-  request = db.transaction("foo", "readwrite").objectStore("foo").add({});
+  request = db.transaction("foo", READ_WRITE).objectStore("foo").add({});
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
   event = yield;
@@ -182,7 +192,9 @@ function testSteps()
     ok(false, "Shouldn't see a complete event here!");
   };
 
+  is(event.target.transaction.readyState, LOADING, "Correct readyState");
   event.target.transaction.abort();
+  is(event.target.transaction.readyState, DONE, "Correct readyState");
 
   event = yield;
 
@@ -206,7 +218,7 @@ function testSteps()
       abortEventCount++;
       event.preventDefault();
   };
-  objectStore = db.transaction("foo", "readwrite").objectStore("foo");
+  objectStore = db.transaction("foo", READ_WRITE).objectStore("foo");
 
   for (let i = 0; i < 10; i++) {
     request = objectStore.add({});
@@ -235,7 +247,7 @@ function testSteps()
   }
 
   // Set up some predictible data
-  transaction = db.transaction("foo", "readwrite");
+  transaction = db.transaction("foo", READ_WRITE);
   objectStore = transaction.objectStore("foo");
   objectStore.clear();
   objectStore.add({}, 1);
@@ -257,7 +269,9 @@ function testSteps()
 
   // During INITIAL
   transaction = db.transaction("foo");
+  is(transaction.readyState, INITIAL, "in INITIAL state");
   transaction.abort();
+  is(transaction.readyState, DONE, "in DONE state after abort()");
   try {
     transaction.abort();
     ok(false, "second abort should throw an error");
@@ -270,7 +284,9 @@ function testSteps()
   transaction = db.transaction("foo");
   transaction.objectStore("foo").get(1).onerror = abortErrorHandler;
   expectedAbortEventCount++;
+  is(transaction.readyState, LOADING, "in LOADING state");
   transaction.abort();
+  is(transaction.readyState, DONE, "in DONE state after abort()");
   try {
     transaction.abort();
     ok(false, "second abort should throw an error");
@@ -285,7 +301,9 @@ function testSteps()
   event = yield;
   transaction.objectStore("foo").get(1).onerror = abortErrorHandler;
   expectedAbortEventCount++
+  is(transaction.readyState, LOADING, "in LOADING state");
   transaction.abort();
+  is(transaction.readyState, DONE, "in DONE state after abort()");
   try {
     transaction.abort();
     ok(false, "second abort should throw an error");
@@ -295,14 +313,16 @@ function testSteps()
   }
 
   // During LOADING from error callback
-  transaction = db.transaction("foo", "readwrite");
+  transaction = db.transaction("foo", READ_WRITE);
   transaction.objectStore("foo").add({}, 1).onerror = function(event) {
     event.preventDefault();
 
     transaction.objectStore("foo").get(1).onerror = abortErrorHandler;
     expectedAbortEventCount++
 
+    is(transaction.readyState, LOADING, "in LOADING state");
     transaction.abort();
+    is(transaction.readyState, DONE, "in DONE state after abort()");
     continueToNextStep();
   }
   yield;
@@ -317,19 +337,22 @@ function testSteps()
   makeNewRequest();
   transaction.objectStore("foo").get(1).onsuccess = function(event) {
     executeSoon(function() {
+      is(transaction.readyState, LOADING, "in LOADING state");
       transaction.abort();
       expectedAbortEventCount++;
+      is(transaction.readyState, DONE, "in DONE state after abort()");
       continueToNextStep();
     });
   };
   yield;
   
   // During COMMITTING
-  transaction = db.transaction("foo", "readwrite");
+  transaction = db.transaction("foo", READ_WRITE);
   transaction.objectStore("foo").put({hello: "world"}, 1).onsuccess = function(event) {
     continueToNextStep();
   };
   yield;
+  is(transaction.readyState, COMMITTING, "in COMMITTING state");
   try {
     transaction.abort();
     ok(false, "second abort should throw an error");
@@ -339,6 +362,7 @@ function testSteps()
   }
   transaction.oncomplete = grabEventAndContinueHandler;
   event = yield;
+  is(transaction.readyState, DONE, "in DONE state");
 
   // Since the previous transaction shouldn't have caused any error events,
   // we know that all events should have fired by now.
@@ -346,7 +370,7 @@ function testSteps()
      "All abort errors fired");
 
   // Abort both failing and succeeding requests
-  transaction = db.transaction("foo", "readwrite");
+  transaction = db.transaction("foo", READ_WRITE);
   transaction.onabort = transaction.oncomplete = grabEventAndContinueHandler;
   transaction.objectStore("foo").add({indexKey: "key"}).onsuccess = function(event) {
     transaction.abort();

@@ -53,11 +53,6 @@ try:
     import json
 except ImportError:
     deps.append('simplejson')
-try:
-    import sqlite3
-except ImportError:
-    deps.append('pysqlite')
-
 
 # take description from README
 here = os.path.dirname(os.path.abspath(__file__))

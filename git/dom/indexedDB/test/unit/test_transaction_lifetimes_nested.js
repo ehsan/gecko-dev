@@ -20,6 +20,7 @@ function testSteps()
   yield;
 
   let transaction1 = db.transaction("foo");
+  is(transaction1.readyState, IDBTransaction.INITIAL, "Correct readyState");
 
   let transaction2;
 
@@ -34,17 +35,28 @@ function testSteps()
   thread.dispatch(function() {
     eventHasRun = true;
 
+    is(transaction1.readyState, IDBTransaction.INITIAL,
+       "Correct readyState");
+
     transaction2 = db.transaction("foo");
+    is(transaction2.readyState, IDBTransaction.INITIAL,
+       "Correct readyState");
+
   }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
 
   while (!eventHasRun) {
     thread.processNextEvent(false);
   }
 
+  is(transaction1.readyState, IDBTransaction.INITIAL, "Correct readyState");
+
   ok(transaction2, "Non-null transaction2");
+  is(transaction2.readyState, IDBTransaction.DONE, "Correct readyState");
 
   continueToNextStep();
   yield;
+
+  is(transaction1.readyState, IDBTransaction.DONE, "Correct readyState");
 
   finishTest();
   yield;

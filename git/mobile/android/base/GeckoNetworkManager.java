@@ -186,9 +186,8 @@ public class GeckoNetworkManager
       return;
     }
 
-    GeckoAppShell.sendEventToGecko(GeckoEvent.createNetworkEvent(
-                                       getNetworkSpeed(mNetworkType),
-                                       isNetworkUsuallyMetered(mNetworkType)));
+    GeckoAppShell.sendEventToGecko(new GeckoEvent(getNetworkSpeed(mNetworkType),
+                                                  isNetworkUsuallyMetered(mNetworkType)));
   }
 
   public double[] getCurrentInformation() {

@@ -625,7 +625,7 @@ PluginModuleChild::AnswerNP_Shutdown(NPError *rv)
 {
     AssertPluginThread();
 
-#if defined XP_WIN
+#if defined XP_WIN && MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
     mozilla::widget::StopAudioSession();
 #endif
 
@@ -689,7 +689,7 @@ PluginModuleChild::RecvSetAudioSessionData(const nsID& aId,
                                            const nsString& aDisplayName,
                                            const nsString& aIconPath)
 {
-#if !defined XP_WIN
+#if !defined XP_WIN || MOZ_WINSDK_TARGETVER < MOZ_NTDDI_LONGHORN
     NS_RUNTIMEABORT("Not Reached!");
     return false;
 #else
@@ -975,17 +975,6 @@ _convertpoint(NPP instance,
 static void NP_CALLBACK
 _urlredirectresponse(NPP instance, void* notifyData, NPBool allow);
 
-static NPError NP_CALLBACK
-_initasyncsurface(NPP instance, NPSize *size,
-                  NPImageFormat format, void *initData,
-                  NPAsyncSurface *surface);
-
-static NPError NP_CALLBACK
-_finalizeasyncsurface(NPP instance, NPAsyncSurface *surface);
-
-static void NP_CALLBACK
-_setcurrentasyncsurface(NPP instance, NPAsyncSurface *surface, NPRect *changed);
-
 } /* namespace child */
 } /* namespace plugins */
 } /* namespace mozilla */
@@ -1047,10 +1036,7 @@ const NPNetscapeFuncs PluginModuleChild::sBrowserFuncs = {
     mozilla::plugins::child::_convertpoint,
     NULL, // handleevent, unimplemented
     NULL, // unfocusinstance, unimplemented
-    mozilla::plugins::child::_urlredirectresponse,
-    mozilla::plugins::child::_initasyncsurface,
-    mozilla::plugins::child::_finalizeasyncsurface,
-    mozilla::plugins::child::_setcurrentasyncsurface
+    mozilla::plugins::child::_urlredirectresponse
 };
 
 PluginInstanceChild*
@@ -1823,26 +1809,6 @@ _urlredirectresponse(NPP instance, void* notifyData, NPBool allow)
     InstCast(instance)->NPN_URLRedirectResponse(notifyData, allow);
 }
 
-NPError NP_CALLBACK
-_initasyncsurface(NPP instance, NPSize *size,
-                  NPImageFormat format, void *initData,
-                  NPAsyncSurface *surface)
-{
-    return InstCast(instance)->NPN_InitAsyncSurface(size, format, initData, surface);
-}
-
-NPError NP_CALLBACK
-_finalizeasyncsurface(NPP instance, NPAsyncSurface *surface)
-{
-    return InstCast(instance)->NPN_FinalizeAsyncSurface(surface);
-}
-
-void NP_CALLBACK
-_setcurrentasyncsurface(NPP instance, NPAsyncSurface *surface, NPRect *changed)
-{
-    InstCast(instance)->NPN_SetCurrentAsyncSurface(surface, changed);
-}
-
 } /* namespace child */
 } /* namespace plugins */
 } /* namespace mozilla */
@@ -1866,12 +1832,10 @@ PluginModuleChild::AnswerNP_GetEntryPoints(NPError* _retval)
 }
 
 bool
-PluginModuleChild::AnswerNP_Initialize(const uint32_t& aFlags, NPError* _retval)
+PluginModuleChild::AnswerNP_Initialize(NPError* _retval)
 {
     PLUGIN_LOG_DEBUG_METHOD;
     AssertPluginThread();
-
-    mAsyncDrawingAllowed = aFlags & kAllowAsyncDrawing;
 
 #ifdef OS_WIN
     SetEventHooks();

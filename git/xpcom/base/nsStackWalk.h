@@ -43,7 +43,7 @@
 /* WARNING: This file is intended to be included from C or C++ files. */
 
 #include "nscore.h"
-#include <mozilla/StandardInteger.h>
+#include <mozilla/StdInt.h>
 
 PR_BEGIN_EXTERN_C
 

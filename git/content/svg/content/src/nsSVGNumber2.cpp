@@ -149,12 +149,9 @@ nsSVGNumber2::GetBaseValueString(nsAString & aValueAsString)
 }
 
 void
-nsSVGNumber2::SetBaseValue(float aValue, nsSVGElement *aSVGElement)
+nsSVGNumber2::SetBaseValue(float aValue,
+                           nsSVGElement *aSVGElement)
 {
-  if (mIsBaseSet && aValue == mBaseVal) {
-    return;
-  }
-
   mBaseVal = aValue;
   mIsBaseSet = true;
   if (!mIsAnimated) {
@@ -163,7 +160,7 @@ nsSVGNumber2::SetBaseValue(float aValue, nsSVGElement *aSVGElement)
   else {
     aSVGElement->AnimationNeedsResample();
   }
-  aSVGElement->DidChangeNumber(mAttrEnum);
+  aSVGElement->DidChangeNumber(mAttrEnum, true);
 }
 
 void
@@ -227,9 +224,8 @@ void
 nsSVGNumber2::SMILNumber::ClearAnimValue()
 {
   if (mVal->mIsAnimated) {
+    mVal->SetAnimValue(mVal->mBaseVal, mSVGElement);
     mVal->mIsAnimated = false;
-    mVal->mAnimVal = mVal->mBaseVal;
-    mSVGElement->DidAnimateNumber(mVal->mAttrEnum);
   }
 }
 

@@ -50,6 +50,7 @@
 #include "nsIWindowWatcher.h"
 #include "nsIDOMWindow.h"
 #include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsIPrefLocalizedString.h"
 #include "nsIObserverService.h"
 #include "nsContentUtils.h"
@@ -217,7 +218,7 @@ ContentParent::Init()
         obs->AddObserver(this, "a11y-init-or-shutdown", false);
 #endif
     }
-    nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    nsCOMPtr<nsIPrefBranch2> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
     if (prefs) {
         prefs->AddObserver("", this, false);
     }
@@ -330,7 +331,7 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     SetChildMemoryReporters(empty);
 
     // remove the global remote preferences observers
-    nsCOMPtr<nsIPrefBranch> prefs 
+    nsCOMPtr<nsIPrefBranch2> prefs 
             (do_GetService(NS_PREFSERVICE_CONTRACTID));
     if (prefs) { 
         prefs->RemoveObserver("", this);

@@ -37,6 +37,7 @@
 
 #include "mozilla/ModuleUtils.h"
 
+#include "nsICharsetAlias.h"
 #include "nsCOMPtr.h"
 
 #include "nspr.h"

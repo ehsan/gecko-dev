@@ -54,12 +54,6 @@ js::GlobalObject::getRegExpStatics() const
     return static_cast<RegExpStatics *>(resObj.getPrivate());
 }
 
-inline size_t
-SizeOfRegExpStaticsData(const JSObject *obj, JSMallocSizeOfFun mallocSizeOf)
-{
-    return mallocSizeOf(obj->getPrivate());
-}
-
 inline
 RegExpStatics::RegExpStatics()
   : bufferLink(NULL),

@@ -36,9 +36,9 @@
 
 let EXPORTED_SYMBOLS = [ "WindowDraggingElement" ];
 
-function WindowDraggingElement(elem) {
+function WindowDraggingElement(elem, window) {
   this._elem = elem;
-  this._window = elem.ownerDocument.defaultView;
+  this._window = window;
 #ifdef XP_WIN
   if (!this.isPanel())
     this._elem.addEventListener("MozMouseHittest", this, false);

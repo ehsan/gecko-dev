@@ -137,7 +137,7 @@ TestShellCommandParent::RunCallback(const nsString& aResponse)
   NS_ENSURE_TRUE(str, JS_FALSE);
 
   jsval argv[] = { STRING_TO_JSVAL(str) };
-  unsigned argc = ArrayLength(argv);
+  uintN argc = ArrayLength(argv);
 
   jsval rval;
   JSBool ok = JS_CallFunctionValue(mCx, global, mCallback, argc, argv, &rval);

@@ -52,6 +52,7 @@ JAVAFILES = \
   DoAlert.java \
   DoCommand.java \
   FindProcThread.java \
+  NtpMessage.java \
   Power.java \
   RedirOutputThread.java \
   RunCmdThread.java \

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2007,2008,2009  Red Hat, Inc.
+ * Copyright (C) 2007,2008,2009  Red Hat, Inc.
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -24,9 +24,9 @@
  * Red Hat Author(s): Behdad Esfahbod
  */
 
-#include "hb-mutex-private.hh"
+#define HB_OT_LAYOUT_CC
 #include "hb-open-file-private.hh"
-#include "hb-ot-layout-gdef-table.hh"
+#include "hb-ot-layout-gdef-private.hh"
 #include "hb-ot-layout-gsubgpos-private.hh"
 
 #ifdef HAVE_GLIB
@@ -35,6 +35,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+HB_BEGIN_DECLS
 
 
 int
@@ -192,3 +193,4 @@ main (int argc, char **argv)
 }
 
 
+HB_END_DECLS

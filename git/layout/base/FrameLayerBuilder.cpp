@@ -219,7 +219,7 @@ protected:
      * supports being optimized to an ImageLayer (TYPE_RASTER only) returns
      * an ImageContainer for the image.
      */
-    already_AddRefed<ImageContainer> CanOptimizeImageLayer();
+    already_AddRefed<ImageContainer> CanOptimizeImageLayer(LayerManager* aManager);
 
     /**
      * The region of visible content in the layer, relative to the
@@ -969,13 +969,13 @@ ContainerState::FindOpaqueBackgroundColorFor(PRInt32 aThebesLayerIndex)
 }
 
 already_AddRefed<ImageContainer>
-ContainerState::ThebesLayerData::CanOptimizeImageLayer()
+ContainerState::ThebesLayerData::CanOptimizeImageLayer(LayerManager* aManager)
 {
   if (!mImage || !mImageClip.mRoundedClipRects.IsEmpty()) {
     return nsnull;
   }
 
-  return mImage->GetContainer();
+  return mImage->GetContainer(aManager);
 }
 
 void
@@ -987,10 +987,9 @@ ContainerState::PopThebesLayerData()
   ThebesLayerData* data = mThebesLayerDataStack[lastIndex];
 
   nsRefPtr<Layer> layer;
-  nsRefPtr<ImageContainer> imageContainer = data->CanOptimizeImageLayer(); 
+  nsRefPtr<ImageContainer> imageContainer = data->CanOptimizeImageLayer(mManager); 
 
-  if ((data->mIsSolidColorInVisibleRegion || imageContainer) &&
-      data->mLayer->GetValidRegion().IsEmpty()) {
+  if (data->mIsSolidColorInVisibleRegion || imageContainer) {
     NS_ASSERTION(!(data->mIsSolidColorInVisibleRegion && imageContainer),
                  "Can't be a solid color as well as an image!");
     if (imageContainer) {
@@ -1044,7 +1043,6 @@ ContainerState::PopThebesLayerData()
     data->mLayer->SetVisibleRegion(nsIntRegion());
   } else {
     layer = data->mLayer;
-    imageContainer = nsnull;
   }
 
   gfxMatrix transform;
@@ -1052,7 +1050,7 @@ ContainerState::PopThebesLayerData()
     NS_ERROR("Only 2D transformations currently supported");
   }
   
-  // ImageLayers are already configured with a visible region
+  //ImageLayers are already configured with a visible region
   if (!imageContainer) {
     NS_ASSERTION(!transform.HasNonIntegerTranslation(),
                  "Matrix not just an integer translation?");
@@ -1313,19 +1311,6 @@ ContainerState::FindThebesLayerFor(nsDisplayItem* aItem,
   return layer.forget();
 }
 
-#ifdef MOZ_DUMP_PAINTING
-static void
-DumpPaintedImage(nsDisplayItem* aItem, gfxASurface* aSurf)
-{
-  nsCString string(aItem->Name());
-  string.Append("-");
-  string.AppendInt((PRUint64)aItem);
-  fprintf(gfxUtils::sDumpPaintFile, "array[\"%s\"]=\"", string.BeginReading());
-  aSurf->DumpAsDataURL(gfxUtils::sDumpPaintFile);
-  fprintf(gfxUtils::sDumpPaintFile, "\";");
-}
-#endif
-
 static void
 PaintInactiveLayer(nsDisplayListBuilder* aBuilder,
                    nsDisplayItem* aItem,
@@ -1333,47 +1318,23 @@ PaintInactiveLayer(nsDisplayListBuilder* aBuilder,
 {
   // This item has an inactive layer. Render it to a ThebesLayer
   // using a temporary BasicLayerManager.
-  PRInt32 appUnitsPerDevPixel = AppUnitsPerDevPixel(aItem);
-  nsIntRect itemVisibleRect =
-    aItem->GetVisibleRect().ToOutsidePixels(appUnitsPerDevPixel);
-
-  nsRefPtr<gfxContext> context = aContext;
-#ifdef MOZ_DUMP_PAINTING
-  nsRefPtr<gfxASurface> surf; 
-  if (gfxUtils::sDumpPainting) {
-    surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(itemVisibleRect.Size(), 
-                                                              gfxASurface::CONTENT_COLOR_ALPHA);
-    surf->SetDeviceOffset(-itemVisibleRect.TopLeft());
-    context = new gfxContext(surf);
-  }
-#endif
-
   nsRefPtr<BasicLayerManager> tempManager = new BasicLayerManager();
-  tempManager->BeginTransactionWithTarget(context);
+  tempManager->BeginTransactionWithTarget(aContext);
   nsRefPtr<Layer> layer =
     aItem->BuildLayer(aBuilder, tempManager, FrameLayerBuilder::ContainerParameters());
   if (!layer) {
     tempManager->EndTransaction(nsnull, nsnull);
     return;
   }
+  PRInt32 appUnitsPerDevPixel = AppUnitsPerDevPixel(aItem);
+  nsIntRect itemVisibleRect =
+    aItem->GetVisibleRect().ToOutsidePixels(appUnitsPerDevPixel);
   RestrictVisibleRegionForLayer(layer, itemVisibleRect);
-  
+
   tempManager->SetRoot(layer);
   aBuilder->LayerBuilder()->WillEndTransaction(tempManager);
   tempManager->EndTransaction(FrameLayerBuilder::DrawThebesLayer, aBuilder);
   aBuilder->LayerBuilder()->DidEndTransaction(tempManager);
- 
-#ifdef MOZ_DUMP_PAINTING
-  if (gfxUtils::sDumpPainting) {
-    DumpPaintedImage(aItem, surf);
-  
-    surf->SetDeviceOffset(gfxPoint(0, 0));
-    aContext->SetSource(surf, itemVisibleRect.TopLeft());
-    aContext->Rectangle(itemVisibleRect);
-    aContext->Fill();
-    aItem->SetPainted();
-  }
-#endif
 }
 
 /*
@@ -1738,13 +1699,13 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
   }
 
   gfxMatrix transform2d;
-  bool canDraw2D = transform.CanDraw2D(&transform2d);
+  bool is2D = transform.Is2D(&transform2d);
   gfxSize scale;
   bool isRetained = aLayerBuilder->GetRetainingLayerManager() == aLayer->Manager();
   // Only fiddle with scale factors for the retaining layer manager, since
   // it only matters for retained layers
   // XXX Should we do something for 3D transforms?
-  if (canDraw2D && isRetained) {
+  if (is2D && isRetained) {
     //Scale factors are normalized to a power of 2 to reduce the number of resolution changes
     scale = transform2d.ScaleFactors(true);
     // For frames with a changing transform that's not just a translation,
@@ -1794,7 +1755,7 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
       result.mInActiveTransformedSubtree = true;
     }
   }
-  if (isRetained && (!canDraw2D || transform2d.HasNonIntegerTranslation())) {
+  if (isRetained && (!is2D || transform2d.HasNonIntegerTranslation())) {
     result.mDisableSubpixelAntialiasingInDescendants = true;
   }
   return result;
@@ -2040,32 +2001,6 @@ FrameLayerBuilder::GetDedicatedLayer(nsIFrame* aFrame, PRUint32 aDisplayItemKey)
   return nsnull;
 }
 
-#ifdef MOZ_DUMP_PAINTING
-static void DebugPaintItem(nsRenderingContext* aDest, nsDisplayItem *aItem, nsDisplayListBuilder* aBuilder)
-{
-  nsRect appUnitBounds = aItem->GetBounds(aBuilder);
-  gfxRect bounds(appUnitBounds.x, appUnitBounds.y, appUnitBounds.width, appUnitBounds.height);
-  bounds.ScaleInverse(aDest->AppUnitsPerDevPixel());
-
-  nsRefPtr<gfxASurface> surf = 
-    gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(bounds.width, bounds.height), 
-                                                       gfxASurface::CONTENT_COLOR_ALPHA);
-  surf->SetDeviceOffset(-bounds.TopLeft());
-  nsRefPtr<gfxContext> context = new gfxContext(surf);
-  nsRefPtr<nsRenderingContext> ctx = new nsRenderingContext();
-  ctx->Init(aDest->DeviceContext(), context);
-
-  aItem->Paint(aBuilder, ctx);
-  DumpPaintedImage(aItem, surf);
-  aItem->SetPainted();
-    
-  surf->SetDeviceOffset(gfxPoint(0, 0));
-  aDest->ThebesContext()->SetSource(surf, bounds.TopLeft());
-  aDest->ThebesContext()->Rectangle(bounds);
-  aDest->ThebesContext()->Fill();
-}
-#endif
-
 /*
  * A note on residual transforms:
  *
@@ -2240,16 +2175,7 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
       if (frame) {
         frame->AddStateBits(NS_FRAME_PAINTED_THEBES);
       }
-#ifdef MOZ_DUMP_PAINTING
-
-      if (gfxUtils::sDumpPainting) {
-        DebugPaintItem(rc, cdi->mItem, builder);
-      } else {
-#else
-      {
-#endif
-        cdi->mItem->Paint(builder, rc);
-      }
+      cdi->mItem->Paint(builder, rc);
     }
 
     if (builder->LayerBuilder()->CheckDOMModified())
@@ -2283,10 +2209,10 @@ FrameLayerBuilder::CheckDOMModified()
 
 #ifdef MOZ_DUMP_PAINTING
 void
-FrameLayerBuilder::DumpRetainedLayerTree(FILE* aFile)
+FrameLayerBuilder::DumpRetainedLayerTree()
 {
   if (mRetainingManager) {
-    mRetainingManager->Dump(aFile);
+    mRetainingManager->Dump(stdout);
   }
 }
 #endif

@@ -135,11 +135,6 @@ WifiGeoPositionProvider.prototype = {
       this.wifiService = Cc["@mozilla.org/wifi/monitor;1"].getService(Components.interfaces.nsIWifiMonitor);
       this.wifiService.startWatching(this);
     }
-    if (this.hasSeenWiFi) {
-      this.hasSeenWiFi = false;
-      this.wifiService.stopWatching(this);
-      this.wifiService.startWatching(this);
-    }
   },
 
   shutdown: function() { 
@@ -244,7 +239,7 @@ WifiGeoPositionProvider.prototype = {
 
     // This is a background load
     xhr.mozBackgroundRequest = true;
-    xhr.open("GET", providerUrl, true);
+    xhr.open("GET", providerUrl, false);
     xhr.channel.loadFlags = Ci.nsIChannel.LOAD_ANONYMOUS;
     xhr.addEventListener("error", function(req) {
         LOG("onerror: " + req);

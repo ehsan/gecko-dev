@@ -79,7 +79,8 @@ let EXPORTED_SYMBOLS = [
  */
 
 XPCOMUtils.defineLazyGetter(this, "_prefs", function() {
-  return Services.prefs.getBranch(PREF_TASKBAR_BRANCH);
+  return Services.prefs.getBranch(PREF_TASKBAR_BRANCH)
+                       .QueryInterface(Ci.nsIPrefBranch2);
 });
 
 XPCOMUtils.defineLazyGetter(this, "_stringBundle", function() {

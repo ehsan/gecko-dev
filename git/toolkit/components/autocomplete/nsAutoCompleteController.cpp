@@ -43,7 +43,6 @@
 #include "nsAutoCompleteController.h"
 #include "nsAutoCompleteSimpleResult.h"
 
-#include "nsAutoPtr.h"
 #include "nsNetCID.h"
 #include "nsIIOService.h"
 #include "nsToolkitCompsCID.h"
@@ -81,13 +80,12 @@ nsAutoCompleteController::nsAutoCompleteController() :
   mDefaultIndexCompleted(false),
   mBackspaced(false),
   mPopupClosedByCompositionStart(false),
-  mCompositionState(eCompositionState_None),
+  mIsIMEComposing(false),
+  mIgnoreHandleText(false),
   mSearchStatus(nsAutoCompleteController::STATUS_NONE),
   mRowCount(0),
   mSearchesOngoing(0),
-  mSearchesFailed(0),
-  mFirstSearchResult(false),
-  mImmediateSearchesCount(0)
+  mFirstSearchResult(false)
 {
 }
 
@@ -163,7 +161,6 @@ nsAutoCompleteController::SetInput(nsIAutoCompleteInput *aInput)
   mResults.SetCapacity(searchCount);
   mSearches.SetCapacity(searchCount);
   mMatchCounts.SetLength(searchCount);
-  mImmediateSearchesCount = 0;
 
   const char *searchCID = kAutoCompleteSearchCID;
 
@@ -176,17 +173,8 @@ nsAutoCompleteController::SetInput(nsIAutoCompleteInput *aInput)
 
     // Use the created cid to get a pointer to the search service and store it for later
     nsCOMPtr<nsIAutoCompleteSearch> search = do_GetService(cid.get());
-    if (search) {
+    if (search)
       mSearches.AppendObject(search);
-
-      // Count immediate searches.
-      PRUint16 searchType = nsIAutoCompleteSearchDescriptor::SEARCH_TYPE_DELAYED;
-      nsCOMPtr<nsIAutoCompleteSearchDescriptor> searchDesc =
-        do_QueryInterface(search);
-      if (searchDesc && NS_SUCCEEDED(searchDesc->GetSearchType(&searchType)) &&
-          searchType == nsIAutoCompleteSearchDescriptor::SEARCH_TYPE_IMMEDIATE)
-        mImmediateSearchesCount++;
-    }
   }
 
   return NS_OK;
@@ -196,29 +184,16 @@ NS_IMETHODIMP
 nsAutoCompleteController::StartSearch(const nsAString &aSearchString)
 {
   mSearchString = aSearchString;
-  StartSearches();
+  StartSearchTimer();
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsAutoCompleteController::HandleText()
 {
-  // Note: the events occur in the following order when IME is used.
-  // 1. a compositionstart event(HandleStartComposition)
-  // 2. some input events (HandleText), eCompositionState_Composing
-  // 3. a compositionend event(HandleEndComposition)
-  // 4. an input event(HandleText), eCompositionState_Committing
   // We should do nothing during composition.
-  if (mCompositionState == eCompositionState_Composing) {
+  if (mIsIMEComposing) {
     return NS_OK;
-  }
-
-  bool handlingCompositionCommit =
-    (mCompositionState == eCompositionState_Committing);
-  bool popupClosedByCompositionStart = mPopupClosedByCompositionStart;
-  if (handlingCompositionCommit) {
-    mCompositionState = eCompositionState_None;
-    mPopupClosedByCompositionStart = false;
   }
 
   if (!mInput) {
@@ -235,6 +210,22 @@ nsAutoCompleteController::HandleText()
   nsCOMPtr<nsIAutoCompleteInput> input(mInput);
   input->GetTextValue(newValue);
 
+  // Note: the events occur in the following order when IME is used.
+  // 1. composition start event(HandleStartComposition)
+  // 2. composition end event(HandleEndComposition)
+  // 3. input event(HandleText)
+  // Note that the input event occurs if IME composition is cancelled, as well.
+  // In HandleEndComposition, we are processing the popup properly.
+  // Therefore, the input event after composition end event should do nothing.
+  // (E.g., calling StopSearch() and ClosePopup().)
+  // If it is not, popup is always closed after composition end.
+  if (mIgnoreHandleText) {
+    mIgnoreHandleText = false;
+    if (newValue.Equals(mSearchString))
+      return NS_OK;
+    NS_ERROR("Now is after composition end event. But the value was changed.");
+  }
+
   // Stop all searches in case they are async.
   StopSearch();
 
@@ -250,13 +241,8 @@ nsAutoCompleteController::HandleText()
   NS_ENSURE_TRUE(!disabled, NS_OK);
 
   // Don't search again if the new string is the same as the last search
-  // However, if this is called immediately after compositionend event,
-  // we need to search the same value again since the search was canceled
-  // at compositionstart event handler.
-  if (!handlingCompositionCommit && newValue.Length() > 0 &&
-      newValue.Equals(mSearchString)) {
+  if (newValue.Length() > 0 && newValue.Equals(mSearchString))
     return NS_OK;
-  }
 
   // Determine if the user has removed text from the end (probably by backspacing)
   if (newValue.Length() < mSearchString.Length() &&
@@ -272,18 +258,11 @@ nsAutoCompleteController::HandleText()
 
   // Don't search if the value is empty
   if (newValue.Length() == 0) {
-    // If autocomplete popup was closed by compositionstart event handler,
-    // we should reopen it forcibly even if the value is empty.
-    if (popupClosedByCompositionStart && handlingCompositionCommit) {
-      bool cancel;
-      HandleKeyNavigation(nsIDOMKeyEvent::DOM_VK_DOWN, &cancel);
-      return NS_OK;
-    }
     ClosePopup();
     return NS_OK;
   }
 
-  StartSearches();
+  StartSearchTimer();
 
   return NS_OK;
 }
@@ -337,10 +316,10 @@ nsAutoCompleteController::HandleEscape(bool *_retval)
 NS_IMETHODIMP
 nsAutoCompleteController::HandleStartComposition()
 {
-  NS_ENSURE_TRUE(mCompositionState != eCompositionState_Composing, NS_OK);
+  NS_ENSURE_TRUE(!mIsIMEComposing, NS_OK);
 
   mPopupClosedByCompositionStart = false;
-  mCompositionState = eCompositionState_Composing;
+  mIsIMEComposing = true;
 
   if (!mInput)
     return NS_OK;
@@ -369,14 +348,29 @@ nsAutoCompleteController::HandleStartComposition()
 NS_IMETHODIMP
 nsAutoCompleteController::HandleEndComposition()
 {
-  NS_ENSURE_TRUE(mCompositionState == eCompositionState_Composing, NS_OK);
+  NS_ENSURE_TRUE(mIsIMEComposing, NS_OK);
 
-  // We can't yet retrieve the committed value from the editor, since it isn't
-  // completely committed yet. Set mCompositionState to
-  // eCompositionState_Committing, so that when HandleText() is called (in
-  // response to the "input" event), we know that we should handle the
-  // committed text.
-  mCompositionState = eCompositionState_Committing;
+  mIsIMEComposing = false;
+  bool forceOpenPopup = mPopupClosedByCompositionStart;
+  mPopupClosedByCompositionStart = false;
+
+  if (!mInput)
+    return NS_OK;
+
+  nsAutoString value;
+  mInput->GetTextValue(value);
+  SetSearchString(EmptyString());
+  if (!value.IsEmpty()) {
+    // Show the popup with a filtered result set
+    HandleText();
+  } else if (forceOpenPopup) {
+    bool cancel;
+    HandleKeyNavigation(nsIDOMKeyEvent::DOM_VK_DOWN, &cancel);
+  }
+  // On here, |value| and |mSearchString| are same. Therefore, next HandleText should be
+  // ignored. Because there are no reason to research.
+  mIgnoreHandleText = true;
+
   return NS_OK;
 }
 
@@ -494,7 +488,7 @@ nsAutoCompleteController::HandleKeyNavigation(PRUint32 aKey, bool *_retval)
             return NS_OK;
           }
 
-          StartSearches();
+          StartSearchTimer();
         }
       }
     }
@@ -733,16 +727,7 @@ NS_IMETHODIMP
 nsAutoCompleteController::Notify(nsITimer *timer)
 {
   mTimer = nsnull;
-
-  if (mImmediateSearchesCount == 0) {
-    // If there were no immediate searches, BeforeSearches has not yet been
-    // called, so do it now.
-    nsresult rv = BeforeSearches();
-    if (NS_FAILED(rv))
-      return rv;
-  }
-  StartSearch(nsIAutoCompleteSearchDescriptor::SEARCH_TYPE_DELAYED);
-  AfterSearches();
+  StartSearch();
   return NS_OK;
 }
 
@@ -1017,50 +1002,31 @@ nsAutoCompleteController::ClosePopup()
 }
 
 nsresult
-nsAutoCompleteController::BeforeSearches()
+nsAutoCompleteController::StartSearch()
 {
   NS_ENSURE_STATE(mInput);
-
+  nsCOMPtr<nsIAutoCompleteInput> input(mInput);
   mSearchStatus = nsIAutoCompleteController::STATUS_SEARCHING;
   mDefaultIndexCompleted = false;
 
-  // The first search result will clear mResults array, though we should pass
-  // the previous result to each search to allow them to reuse it.  So we
-  // temporarily cache current results till AfterSearches().
-  if (!mResultCache.AppendObjects(mResults)) {
+  // Cache the current results so that we can pass these through to all the
+  // searches without losing them
+  nsCOMArray<nsIAutoCompleteResult> resultCache;
+  if (!resultCache.AppendObjects(mResults)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  mSearchesOngoing = mSearches.Count();
-  mSearchesFailed = 0;
+  PRUint32 count = mSearches.Count();
+  mSearchesOngoing = count;
   mFirstSearchResult = true;
 
   // notify the input that the search is beginning
-  mInput->OnSearchBegin();
+  input->OnSearchBegin();
 
-  return NS_OK;
-}
-
-nsresult
-nsAutoCompleteController::StartSearch(PRUint16 aSearchType)
-{
-  NS_ENSURE_STATE(mInput);
-  nsCOMPtr<nsIAutoCompleteInput> input = mInput;
-
-  for (PRInt32 i = 0; i < mSearches.Count(); ++i) {
+  PRUint32 searchesFailed = 0;
+  for (PRUint32 i = 0; i < count; ++i) {
     nsCOMPtr<nsIAutoCompleteSearch> search = mSearches[i];
-
-    // Filter on search type.  Not all the searches implement this interface,
-    // in such a case just consider them delayed.
-    PRUint16 searchType = nsIAutoCompleteSearchDescriptor::SEARCH_TYPE_DELAYED;
-    nsCOMPtr<nsIAutoCompleteSearchDescriptor> searchDesc =
-      do_QueryInterface(search);
-    if (searchDesc)
-      searchDesc->GetSearchType(&searchType);
-    if (searchType != aSearchType)
-      continue;
-
-    nsIAutoCompleteResult *result = mResultCache.SafeObjectAt(i);
+    nsIAutoCompleteResult *result = resultCache.SafeObjectAt(i);
 
     if (result) {
       PRUint16 searchResult;
@@ -1078,7 +1044,7 @@ nsAutoCompleteController::StartSearch(PRUint16 aSearchType)
 
     rv = search->StartSearch(mSearchString, searchParam, result, static_cast<nsIAutoCompleteObserver *>(this));
     if (NS_FAILED(rv)) {
-      ++mSearchesFailed;
+      ++searchesFailed;
       --mSearchesOngoing;
     }
     // Because of the joy of nested event loops (which can easily happen when some
@@ -1092,15 +1058,10 @@ nsAutoCompleteController::StartSearch(PRUint16 aSearchType)
     }
   }
 
-  return NS_OK;
-}
-
-void
-nsAutoCompleteController::AfterSearches()
-{
-  mResultCache.Clear();
-  if (mSearchesFailed == mSearches.Count())
+  if (searchesFailed == count)
     PostSearchCleanup();
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1126,7 +1087,7 @@ nsAutoCompleteController::StopSearch()
 }
 
 nsresult
-nsAutoCompleteController::StartSearches()
+nsAutoCompleteController::StartSearchTimer()
 {
   // Don't create a new search timer if we're already waiting for one to fire.
   // If we don't check for this, we won't be able to cancel the original timer
@@ -1134,37 +1095,9 @@ nsAutoCompleteController::StartSearches()
   if (mTimer || !mInput)
     return NS_OK;
 
-  // Get the timeout for delayed searches.
   PRUint32 timeout;
   mInput->GetTimeout(&timeout);
 
-  PRUint32 immediateSearchesCount = mImmediateSearchesCount;
-  if (timeout == 0) {
-    // All the searches should be executed immediately.
-    immediateSearchesCount = mSearches.Count();
-  }
-
-  if (immediateSearchesCount > 0) {
-    nsresult rv = BeforeSearches();
-    if (NS_FAILED(rv))
-      return rv;
-    StartSearch(nsIAutoCompleteSearchDescriptor::SEARCH_TYPE_IMMEDIATE);
-
-    if (mSearches.Count() == immediateSearchesCount) {
-      // Either all searches are immediate, or the timeout is 0.  In the
-      // latter case we still have to execute the delayed searches, otherwise
-      // this will be a no-op.
-      StartSearch(nsIAutoCompleteSearchDescriptor::SEARCH_TYPE_DELAYED);
-
-      // All the searches have been started, just finish.
-      AfterSearches();
-      return NS_OK;
-    }
-  }
-
-  MOZ_ASSERT(timeout > 0, "Trying to delay searches with a 0 timeout!");
-
-  // Now start the delayed searches.
   nsresult rv;
   mTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
   if (NS_FAILED(rv))

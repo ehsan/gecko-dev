@@ -402,7 +402,7 @@ struct RecompilationMonitor
     unsigned frameExpansions;
 
     /* If a GC occurs it may discard jit code on the stack. */
-    uint64_t gcNumber;
+    unsigned gcNumber;
 
     RecompilationMonitor(JSContext *cx)
         : cx(cx),
@@ -454,22 +454,8 @@ enum JaegerStatus
      * The trap has been reinstalled, but should not execute again when
      * resuming execution.
      */
-    Jaeger_UnfinishedAtTrap = 3,
-
-    /*
-     * An exception was thrown before entering jit code, so the caller should
-     * 'goto error'.
-     */
-    Jaeger_ThrowBeforeEnter = 4
+    Jaeger_UnfinishedAtTrap = 3
 };
-
-static inline bool
-JaegerStatusToSuccess(JaegerStatus status)
-{
-    JS_ASSERT(status != Jaeger_Unfinished);
-    JS_ASSERT(status != Jaeger_UnfinishedAtTrap);
-    return status == Jaeger_Returned;
-}
 
 /*
  * Method JIT compartment data. Currently, there is exactly one per
@@ -487,7 +473,7 @@ class JaegerCompartment {
     void Finish();
 
   public:
-    bool Initialize(JSContext *cx);
+    bool Initialize();
 
     JaegerCompartment();
     ~JaegerCompartment() { Finish(); }
@@ -774,14 +760,6 @@ struct CrossChunkEdge
     /* Locations of the jump(s) for the source, NULL if not compiled. */
     void *sourceJump1;
     void *sourceJump2;
-
-#ifdef JS_CPU_X64
-    /*
-     * Location of a trampoline for the edge to perform an indirect jump if
-     * out of range, NULL if the source is not compiled.
-     */
-    void *sourceTrampoline;
-#endif
 
     /* Any jump table entries along this edge. */
     typedef Vector<void**,4,SystemAllocPolicy> JumpTableEntryVector;

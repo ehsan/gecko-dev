@@ -193,10 +193,10 @@ jsd_DestroyThreadState(JSDContext* jsdc, JSDThreadState* jsdthreadstate)
     free(jsdthreadstate);
 }
 
-unsigned
+uintN
 jsd_GetCountOfStackFrames(JSDContext* jsdc, JSDThreadState* jsdthreadstate)
 {
-    unsigned count = 0;
+    uintN count = 0;
 
     JSD_LOCK_THREADSTATES(jsdc);
 
@@ -425,8 +425,8 @@ JSBool
 jsd_EvaluateUCScriptInStackFrame(JSDContext* jsdc, 
                                  JSDThreadState* jsdthreadstate,
                                  JSDStackFrameInfo* jsdframe,
-                                 const jschar *bytes, unsigned length,
-                                 const char *filename, unsigned lineno,
+                                 const jschar *bytes, uintN length,
+                                 const char *filename, uintN lineno,
                                  JSBool eatExceptions, jsval *rval)
 {
     JSBool retval;
@@ -463,8 +463,8 @@ JSBool
 jsd_EvaluateScriptInStackFrame(JSDContext* jsdc, 
                                JSDThreadState* jsdthreadstate,
                                JSDStackFrameInfo* jsdframe,
-                               const char *bytes, unsigned length,
-                               const char *filename, unsigned lineno,
+                               const char *bytes, uintN length,
+                               const char *filename, uintN lineno,
                                JSBool eatExceptions, jsval *rval)
 {
     JSBool retval;

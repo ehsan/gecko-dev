@@ -65,12 +65,7 @@
 
 #include "gc/Barrier.h"
 #include "js/TemplateLib.h"
-
-#include "vm/BooleanObject.h"
 #include "vm/GlobalObject.h"
-#include "vm/NumberObject.h"
-#include "vm/RegExpStatics.h"
-#include "vm/StringObject.h"
 
 #include "jsatominlines.h"
 #include "jsfuninlines.h"
@@ -80,9 +75,6 @@
 #include "jsscriptinlines.h"
 
 #include "gc/Barrier-inl.h"
-
-#include "vm/ObjectImpl-inl.h"
-#include "vm/RegExpStatics-inl.h"
 #include "vm/String-inl.h"
 
 inline bool
@@ -101,7 +93,7 @@ JSObject::privateRef(uint32_t nfixed) const
      */
     JS_ASSERT(nfixed == numFixedSlots());
     JS_ASSERT(hasPrivate());
-    js::HeapSlot *end = &fixedSlots()[nfixed];
+    js::HeapValue *end = &fixedSlots()[nfixed];
     return *reinterpret_cast<void**>(end);
 }
 
@@ -119,19 +111,6 @@ JSObject::setPrivate(void *data)
     privateWriteBarrierPre(pprivate);
     *pprivate = data;
     privateWriteBarrierPost(pprivate);
-}
-
-inline void
-JSObject::setPrivateUnbarriered(void *data)
-{
-    void **pprivate = &privateRef(numFixedSlots());
-    *pprivate = data;
-}
-
-inline void
-JSObject::initPrivate(void *data)
-{
-    privateRef(numFixedSlots()) = data;
 }
 
 inline bool
@@ -193,7 +172,7 @@ JSObject::setSpecial(JSContext *cx, js::SpecialId sid, js::Value *vp, JSBool str
 }
 
 inline JSBool
-JSObject::setGenericAttributes(JSContext *cx, jsid id, unsigned *attrsp)
+JSObject::setGenericAttributes(JSContext *cx, jsid id, uintN *attrsp)
 {
     js::types::MarkTypePropertyConfigured(cx, this, id);
     js::GenericAttributesOp op = getOps()->setGenericAttributes;
@@ -201,20 +180,20 @@ JSObject::setGenericAttributes(JSContext *cx, jsid id, unsigned *attrsp)
 }
 
 inline JSBool
-JSObject::setPropertyAttributes(JSContext *cx, js::PropertyName *name, unsigned *attrsp)
+JSObject::setPropertyAttributes(JSContext *cx, js::PropertyName *name, uintN *attrsp)
 {
     return setGenericAttributes(cx, ATOM_TO_JSID(name), attrsp);
 }
 
 inline JSBool
-JSObject::setElementAttributes(JSContext *cx, uint32_t index, unsigned *attrsp)
+JSObject::setElementAttributes(JSContext *cx, uint32_t index, uintN *attrsp)
 {
     js::ElementAttributesOp op = getOps()->setElementAttributes;
     return (op ? op : js_SetElementAttributes)(cx, this, index, attrsp);
 }
 
 inline JSBool
-JSObject::setSpecialAttributes(JSContext *cx, js::SpecialId sid, unsigned *attrsp)
+JSObject::setSpecialAttributes(JSContext *cx, js::SpecialId sid, uintN *attrsp)
 {
     return setGenericAttributes(cx, SPECIALID_TO_JSID(sid), attrsp);
 }
@@ -372,6 +351,20 @@ JSObject::dynamicSlotIndex(size_t slot)
     return slot - numFixedSlots();
 }
 
+/*static*/ inline size_t
+JSObject::dynamicSlotsCount(size_t nfixed, size_t span)
+{
+    if (span <= nfixed)
+        return 0;
+    span -= nfixed;
+    if (span <= SLOT_CAPACITY_MIN)
+        return SLOT_CAPACITY_MIN;
+
+    size_t slots = js::RoundUpPow2(span);
+    JS_ASSERT(slots >= span);
+    return slots;
+}
+
 inline size_t
 JSObject::numDynamicSlots() const
 {
@@ -413,7 +406,7 @@ JSObject::canRemoveLastProperty()
         && previous->getObjectFlags() == lastProperty()->getObjectFlags();
 }
 
-inline const js::HeapSlot *
+inline const js::HeapValue *
 JSObject::getRawSlots()
 {
     JS_ASSERT(isGlobal());
@@ -421,31 +414,38 @@ JSObject::getRawSlots()
 }
 
 inline const js::Value &
-JSObject::getReservedSlot(unsigned index) const
+JSObject::getReservedSlot(uintN index) const
 {
     JS_ASSERT(index < JSSLOT_FREE(getClass()));
     return getSlot(index);
 }
 
-inline js::HeapSlot &
-JSObject::getReservedSlotRef(unsigned index)
+inline js::HeapValue &
+JSObject::getReservedSlotRef(uintN index)
 {
     JS_ASSERT(index < JSSLOT_FREE(getClass()));
     return getSlotRef(index);
 }
 
 inline void
-JSObject::setReservedSlot(unsigned index, const js::Value &v)
+JSObject::setReservedSlot(uintN index, const js::Value &v)
 {
     JS_ASSERT(index < JSSLOT_FREE(getClass()));
     setSlot(index, v);
 }
 
-inline void
-JSObject::initReservedSlot(unsigned index, const js::Value &v)
+inline const js::Value &
+JSObject::getPrimitiveThis() const
 {
-    JS_ASSERT(index < JSSLOT_FREE(getClass()));
-    initSlot(index, v);
+    JS_ASSERT(isPrimitive());
+    return getFixedSlot(JSSLOT_PRIMITIVE_THIS);
+}
+
+inline void
+JSObject::setPrimitiveThis(const js::Value &pthis)
+{
+    JS_ASSERT(isPrimitive());
+    setFixedSlot(JSSLOT_PRIMITIVE_THIS, pthis);
 }
 
 inline bool
@@ -463,7 +463,7 @@ inline void
 JSObject::prepareSlotRangeForOverwrite(size_t start, size_t end)
 {
     for (size_t i = start; i < end; i++)
-        getSlotAddressUnchecked(i)->js::HeapSlot::~HeapSlot();
+        getSlotAddressUnchecked(i)->js::HeapValue::~HeapValue();
 }
 
 inline void
@@ -472,7 +472,7 @@ JSObject::prepareElementRangeForOverwrite(size_t start, size_t end)
     JS_ASSERT(isDenseArray());
     JS_ASSERT(end <= getDenseArrayInitializedLength());
     for (size_t i = start; i < end; i++)
-        elements[i].js::HeapSlot::~HeapSlot();
+        elements[i].js::HeapValue::~HeapValue();
 }
 
 inline uint32_t
@@ -543,110 +543,93 @@ JSObject::ensureElements(JSContext *cx, uint32_t capacity)
     return true;
 }
 
-inline js::HeapSlotArray
+inline js::HeapValueArray
 JSObject::getDenseArrayElements()
 {
     JS_ASSERT(isDenseArray());
-    return js::HeapSlotArray(elements);
+    return js::HeapValueArray(elements);
 }
 
 inline const js::Value &
-JSObject::getDenseArrayElement(unsigned idx)
+JSObject::getDenseArrayElement(uintN idx)
 {
     JS_ASSERT(isDenseArray() && idx < getDenseArrayInitializedLength());
     return elements[idx];
 }
 
 inline void
-JSObject::setDenseArrayElement(unsigned idx, const js::Value &val)
+JSObject::setDenseArrayElement(uintN idx, const js::Value &val)
 {
     JS_ASSERT(isDenseArray() && idx < getDenseArrayInitializedLength());
-    elements[idx].set(this, idx, val);
+    elements[idx] = val;
 }
 
 inline void
-JSObject::initDenseArrayElement(unsigned idx, const js::Value &val)
+JSObject::initDenseArrayElement(uintN idx, const js::Value &val)
 {
     JS_ASSERT(isDenseArray() && idx < getDenseArrayInitializedLength());
-    elements[idx].init(this, idx, val);
+    elements[idx].init(val);
 }
 
 inline void
-JSObject::setDenseArrayElementWithType(JSContext *cx, unsigned idx, const js::Value &val)
+JSObject::setDenseArrayElementWithType(JSContext *cx, uintN idx, const js::Value &val)
 {
     js::types::AddTypePropertyId(cx, this, JSID_VOID, val);
     setDenseArrayElement(idx, val);
 }
 
 inline void
-JSObject::initDenseArrayElementWithType(JSContext *cx, unsigned idx, const js::Value &val)
+JSObject::initDenseArrayElementWithType(JSContext *cx, uintN idx, const js::Value &val)
 {
     js::types::AddTypePropertyId(cx, this, JSID_VOID, val);
     initDenseArrayElement(idx, val);
 }
 
 inline void
-JSObject::copyDenseArrayElements(unsigned dstStart, const js::Value *src, unsigned count)
+JSObject::copyDenseArrayElements(uintN dstStart, const js::Value *src, uintN count)
 {
     JS_ASSERT(dstStart + count <= getDenseArrayCapacity());
     JSCompartment *comp = compartment();
     for (unsigned i = 0; i < count; ++i)
-        elements[dstStart + i].set(comp, this, dstStart + i, src[i]);
+        elements[dstStart + i].set(comp, src[i]);
 }
 
 inline void
-JSObject::initDenseArrayElements(unsigned dstStart, const js::Value *src, unsigned count)
+JSObject::initDenseArrayElements(uintN dstStart, const js::Value *src, uintN count)
 {
     JS_ASSERT(dstStart + count <= getDenseArrayCapacity());
     JSCompartment *comp = compartment();
     for (unsigned i = 0; i < count; ++i)
-        elements[dstStart + i].init(comp, this, dstStart + i, src[i]);
+        elements[dstStart + i].init(comp, src[i]);
 }
 
 inline void
-JSObject::moveDenseArrayElements(unsigned dstStart, unsigned srcStart, unsigned count)
+JSObject::moveDenseArrayElements(uintN dstStart, uintN srcStart, uintN count)
 {
     JS_ASSERT(dstStart + count <= getDenseArrayCapacity());
     JS_ASSERT(srcStart + count <= getDenseArrayInitializedLength());
 
     /*
-     * Using memmove here would skip write barriers. Also, we need to consider
-     * an array containing [A, B, C], in the following situation:
-     *
-     * 1. Incremental GC marks slot 0 of array (i.e., A), then returns to JS code.
-     * 2. JS code moves slots 1..2 into slots 0..1, so it contains [B, C, C].
-     * 3. Incremental GC finishes by marking slots 1 and 2 (i.e., C).
-     *
-     * Since normal marking never happens on B, it is very important that the
-     * write barrier is invoked here on B, despite the fact that it exists in
-     * the array before and after the move.
-    */
-    JSCompartment *comp = compartment();
-    if (comp->needsBarrier()) {
-        if (dstStart < srcStart) {
-            js::HeapSlot *dst = elements + dstStart;
-            js::HeapSlot *src = elements + srcStart;
-            for (unsigned i = 0; i < count; i++, dst++, src++)
-                dst->set(comp, this, dst - elements, *src);
-        } else {
-            js::HeapSlot *dst = elements + dstStart + count - 1;
-            js::HeapSlot *src = elements + srcStart + count - 1;
-            for (unsigned i = 0; i < count; i++, dst--, src--)
-                dst->set(comp, this, dst - elements, *src);
-        }
+     * Use a custom write barrier here since it's performance sensitive. We
+     * only want to barrier the elements that are being overwritten.
+     */
+    uintN markStart, markEnd;
+    if (dstStart > srcStart) {
+        markStart = js::Max(srcStart + count, dstStart);
+        markEnd = dstStart + count;
     } else {
-        memmove(elements + dstStart, elements + srcStart, count * sizeof(js::HeapSlot));
+        markStart = dstStart;
+        markEnd = js::Min(dstStart + count, srcStart);
     }
+    prepareElementRangeForOverwrite(markStart, markEnd);
+
+    memmove(elements + dstStart, elements + srcStart, count * sizeof(js::Value));
 }
 
 inline void
-JSObject::moveDenseArrayElementsUnbarriered(unsigned dstStart, unsigned srcStart, unsigned count)
+JSObject::moveDenseArrayElementsUnbarriered(uintN dstStart, uintN srcStart, uintN count)
 {
     JS_ASSERT(!compartment()->needsBarrier());
-
-    JS_ASSERT(dstStart + count <= getDenseArrayCapacity());
-    JS_ASSERT(srcStart + count <= getDenseArrayCapacity());
-
     memmove(elements + dstStart, elements + srcStart, count * sizeof(js::Value));
 }
 
@@ -852,6 +835,11 @@ inline bool JSObject::setSystem(JSContext *cx)
     return setFlag(cx, js::BaseShape::SYSTEM);
 }
 
+inline bool JSObject::isDelegate() const
+{
+    return lastProperty()->hasObjectFlag(js::BaseShape::DELEGATE);
+}
+
 inline bool JSObject::setDelegate(JSContext *cx)
 {
     return setFlag(cx, js::BaseShape::DELEGATE, GENERATE_SHAPE);
@@ -882,6 +870,11 @@ inline bool JSObject::setUncacheableProto(JSContext *cx)
     return setFlag(cx, js::BaseShape::UNCACHEABLE_PROTO, GENERATE_SHAPE);
 }
 
+inline bool JSObject::isExtensible() const
+{
+    return !lastProperty()->hasObjectFlag(js::BaseShape::NOT_EXTENSIBLE);
+}
+
 inline bool JSObject::isBoundFunction() const
 {
     return lastProperty()->hasObjectFlag(js::BaseShape::BOUND_FUNCTION);
@@ -910,7 +903,6 @@ inline bool JSObject::isCall() const { return hasClass(&js::CallClass); }
 inline bool JSObject::isClonedBlock() const { return isBlock() && !!getProto(); }
 inline bool JSObject::isDate() const { return hasClass(&js::DateClass); }
 inline bool JSObject::isDeclEnv() const { return hasClass(&js::DeclEnvClass); }
-inline bool JSObject::isElementIterator() const { return hasClass(&js::ElementIteratorClass); }
 inline bool JSObject::isError() const { return hasClass(&js::ErrorClass); }
 inline bool JSObject::isFunction() const { return hasClass(&js::FunctionClass); }
 inline bool JSObject::isFunctionProxy() const { return hasClass(&js::FunctionProxyClass); }
@@ -923,7 +915,6 @@ inline bool JSObject::isNumber() const { return hasClass(&js::NumberClass); }
 inline bool JSObject::isObject() const { return hasClass(&js::ObjectClass); }
 inline bool JSObject::isPrimitive() const { return isNumber() || isString() || isBoolean(); }
 inline bool JSObject::isRegExp() const { return hasClass(&js::RegExpClass); }
-inline bool JSObject::isRegExpStatics() const { return hasClass(&js::RegExpStaticsClass); }
 inline bool JSObject::isScope() const { return isCall() || isDeclEnv() || isNestedScope(); }
 inline bool JSObject::isStaticBlock() const { return isBlock() && !getProto(); }
 inline bool JSObject::isStopIteration() const { return hasClass(&js::StopIterationClass); }
@@ -969,62 +960,30 @@ JSObject::isQName() const
 }
 
 inline void
-JSObject::getSlotRangeUnchecked(size_t start, size_t length,
-                                js::HeapSlot **fixedStart, js::HeapSlot **fixedEnd,
-                                js::HeapSlot **slotsStart, js::HeapSlot **slotsEnd)
-{
-    JS_ASSERT(!isDenseArray());
-
-    size_t fixed = numFixedSlots();
-    if (start < fixed) {
-        if (start + length < fixed) {
-            *fixedStart = &fixedSlots()[start];
-            *fixedEnd = &fixedSlots()[start + length];
-            *slotsStart = *slotsEnd = NULL;
-        } else {
-            size_t localCopy = fixed - start;
-            *fixedStart = &fixedSlots()[start];
-            *fixedEnd = &fixedSlots()[start + localCopy];
-            *slotsStart = &slots[0];
-            *slotsEnd = &slots[length - localCopy];
-        }
-    } else {
-        *fixedStart = *fixedEnd = NULL;
-        *slotsStart = &slots[start - fixed];
-        *slotsEnd = &slots[start - fixed + length];
-    }
-}
-
-inline void
-JSObject::getSlotRange(size_t start, size_t length,
-                       js::HeapSlot **fixedStart, js::HeapSlot **fixedEnd,
-                       js::HeapSlot **slotsStart, js::HeapSlot **slotsEnd)
-{
-    JS_ASSERT(slotInRange(start + length, SENTINEL_ALLOWED));
-    getSlotRangeUnchecked(start, length, fixedStart, fixedEnd, slotsStart, slotsEnd);
-}
-
-inline void
 JSObject::initializeSlotRange(size_t start, size_t length)
 {
     /*
      * No bounds check, as this is used when the object's shape does not
      * reflect its allocated slots (updateSlotsForSpan).
      */
-    js::HeapSlot *fixedStart, *fixedEnd, *slotsStart, *slotsEnd;
-    getSlotRangeUnchecked(start, length, &fixedStart, &fixedEnd, &slotsStart, &slotsEnd);
-
-    JSCompartment *comp = compartment();
-    size_t offset = start;
-    for (js::HeapSlot *sp = fixedStart; sp != fixedEnd; sp++)
-        sp->init(comp, this, offset++, js::UndefinedValue());
-    for (js::HeapSlot *sp = slotsStart; sp != slotsEnd; sp++)
-        sp->init(comp, this, offset++, js::UndefinedValue());
+    JS_ASSERT(!isDenseArray());
+    size_t fixed = numFixedSlots();
+    if (start < fixed) {
+        if (start + length < fixed) {
+            js::InitValueRange(fixedSlots() + start, length, false);
+        } else {
+            size_t localClear = fixed - start;
+            js::InitValueRange(fixedSlots() + start, localClear, false);
+            js::InitValueRange(slots, length - localClear, false);
+        }
+    } else {
+        js::InitValueRange(slots + start - fixed, length, false);
+    }
 }
 
 /* static */ inline JSObject *
 JSObject::create(JSContext *cx, js::gc::AllocKind kind,
-                 js::HandleShape shape, js::HandleTypeObject type, js::HeapSlot *slots)
+                 js::HandleShape shape, js::HandleTypeObject type, js::HeapValue *slots)
 {
     /*
      * Callers must use dynamicSlotsCount to size the initial slot array of the
@@ -1076,10 +1035,8 @@ JSObject::createDenseArray(JSContext *cx, js::gc::AllocKind kind,
     uint32_t capacity = js::gc::GetGCKindSlots(kind) - js::ObjectElements::VALUES_PER_HEADER;
 
     JSObject *obj = js_NewGCObject(cx, kind);
-    if (!obj) {
-        js_ReportOutOfMemory(cx);
+    if (!obj)
         return NULL;
-    }
 
     obj->shape_.init(shape);
     obj->type_.init(type);
@@ -1100,7 +1057,7 @@ JSObject::finish(JSContext *cx)
 }
 
 inline bool
-JSObject::hasProperty(JSContext *cx, jsid id, bool *foundp, unsigned flags)
+JSObject::hasProperty(JSContext *cx, jsid id, bool *foundp, uintN flags)
 {
     JSObject *pobj;
     JSProperty *prop;
@@ -1120,8 +1077,9 @@ JSObject::isCallable()
 inline JSPrincipals *
 JSObject::principals(JSContext *cx)
 {
-    if (JSObjectPrincipalsFinder find = cx->runtime->securityCallbacks->findObjectPrincipals)
-        return find(this);
+    JSSecurityCallbacks *cb = JS_GetSecurityCallbacks(cx);
+    if (JSObjectPrincipalsFinder finder = cb ? cb->findObjectPrincipals : NULL)
+        return finder(cx, this);
     return cx->compartment ? cx->compartment->principals : NULL;
 }
 
@@ -1133,8 +1091,8 @@ JSObject::slotSpan() const
     return lastProperty()->slotSpan();
 }
 
-inline js::HeapSlot &
-JSObject::nativeGetSlotRef(unsigned slot)
+inline js::HeapValue &
+JSObject::nativeGetSlotRef(uintN slot)
 {
     JS_ASSERT(isNative());
     JS_ASSERT(slot < slotSpan());
@@ -1142,7 +1100,7 @@ JSObject::nativeGetSlotRef(unsigned slot)
 }
 
 inline const js::Value &
-JSObject::nativeGetSlot(unsigned slot) const
+JSObject::nativeGetSlot(uintN slot) const
 {
     JS_ASSERT(isNative());
     JS_ASSERT(slot < slotSpan());
@@ -1166,7 +1124,7 @@ JSObject::nativeGetMethod(const js::Shape *shape) const
 }
 
 inline void
-JSObject::nativeSetSlot(unsigned slot, const js::Value &value)
+JSObject::nativeSetSlot(uintN slot, const js::Value &value)
 {
     JS_ASSERT(isNative());
     JS_ASSERT(slot < slotSpan());
@@ -1178,6 +1136,12 @@ JSObject::nativeSetSlotWithType(JSContext *cx, const js::Shape *shape, const js:
 {
     nativeSetSlot(shape->slot(), value);
     js::types::AddTypePropertyId(cx, this, shape->propid(), value);
+}
+
+inline bool
+JSObject::isNative() const
+{
+    return lastProperty()->isNative();
 }
 
 inline bool
@@ -1198,6 +1162,12 @@ JSObject::nativeEmpty() const
     return lastProperty()->isEmptyShape();
 }
 
+inline bool
+JSObject::inDictionaryMode() const
+{
+    return lastProperty()->inDictionary();
+}
+
 inline uint32_t
 JSObject::propertyCount() const
 {
@@ -1211,43 +1181,37 @@ JSObject::hasPropertyTable() const
 }
 
 inline size_t
-JSObject::computedSizeOfThisSlotsElements() const
+JSObject::sizeOfThis() const
 {
-    size_t n = sizeOfThis();
+    return arenaHeader()->getThingSize();
+}
 
-    if (hasDynamicSlots())
-        n += numDynamicSlots() * sizeof(js::Value);
-
-    if (hasDynamicElements())
-        n += (js::ObjectElements::VALUES_PER_HEADER + getElementsHeader()->capacity) *
-             sizeof(js::Value);
-
-    return n;
+inline size_t
+JSObject::computedSizeOfIncludingThis() const
+{
+    size_t slotsSize, elementsSize;
+    sizeOfExcludingThis(NULL, &slotsSize, &elementsSize);
+    return sizeOfThis() + slotsSize + elementsSize;
 }
 
 inline void
 JSObject::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf,
-                              size_t *slotsSize, size_t *elementsSize,
-                              size_t *miscSize) const
+                              size_t *slotsSize, size_t *elementsSize) const
 {
-    *slotsSize = 0;
     if (hasDynamicSlots()) {
-        *slotsSize += mallocSizeOf(slots);
+        size_t computedSize = numDynamicSlots() * sizeof(js::Value);
+        *slotsSize = mallocSizeOf ? mallocSizeOf(slots) : computedSize;
+    } else {
+        *slotsSize = 0;
     }
-
-    *elementsSize = 0;
     if (hasDynamicElements()) {
-        *elementsSize += mallocSizeOf(getElementsHeader());
-    }
-
-    /* Other things may be measured in the future if DMD indicates it is worthwhile. */
-    *miscSize = 0;
-    if (isFunction()) {
-        *miscSize += toFunction()->sizeOfMisc(mallocSizeOf);
-    } else if (isArguments()) {
-        *miscSize += asArguments().sizeOfMisc(mallocSizeOf);
-    } else if (isRegExpStatics()) {
-        *miscSize += js::SizeOfRegExpStaticsData(this, mallocSizeOf);
+        size_t computedSize =
+            (js::ObjectElements::VALUES_PER_HEADER +
+             getElementsHeader()->capacity) * sizeof(js::Value);
+        *elementsSize =
+            mallocSizeOf ? mallocSizeOf(getElementsHeader()) : computedSize;
+    } else {
+        *elementsSize = 0;
     }
 }
 
@@ -1268,7 +1232,7 @@ inline JSBool
 JSObject::defineGeneric(JSContext *cx, jsid id, const js::Value &value,
                         JSPropertyOp getter /* = JS_PropertyStub */,
                         JSStrictPropertyOp setter /* = JS_StrictPropertyStub */,
-                        unsigned attrs /* = JSPROP_ENUMERATE */)
+                        uintN attrs /* = JSPROP_ENUMERATE */)
 {
     js::DefineGenericOp op = getOps()->defineGeneric;
     return (op ? op : js_DefineProperty)(cx, this, id, &value, getter, setter, attrs);
@@ -1278,7 +1242,7 @@ inline JSBool
 JSObject::defineProperty(JSContext *cx, js::PropertyName *name, const js::Value &value,
                         JSPropertyOp getter /* = JS_PropertyStub */,
                         JSStrictPropertyOp setter /* = JS_StrictPropertyStub */,
-                        unsigned attrs /* = JSPROP_ENUMERATE */)
+                        uintN attrs /* = JSPROP_ENUMERATE */)
 {
     return defineGeneric(cx, ATOM_TO_JSID(name), value, getter, setter, attrs);
 }
@@ -1287,7 +1251,7 @@ inline JSBool
 JSObject::defineElement(JSContext *cx, uint32_t index, const js::Value &value,
                         JSPropertyOp getter /* = JS_PropertyStub */,
                         JSStrictPropertyOp setter /* = JS_StrictPropertyStub */,
-                        unsigned attrs /* = JSPROP_ENUMERATE */)
+                        uintN attrs /* = JSPROP_ENUMERATE */)
 {
     js::DefineElementOp op = getOps()->defineElement;
     return (op ? op : js_DefineElement)(cx, this, index, &value, getter, setter, attrs);
@@ -1297,7 +1261,7 @@ inline JSBool
 JSObject::defineSpecial(JSContext *cx, js::SpecialId sid, const js::Value &value,
                         JSPropertyOp getter /* = JS_PropertyStub */,
                         JSStrictPropertyOp setter /* = JS_StrictPropertyStub */,
-                        unsigned attrs /* = JSPROP_ENUMERATE */)
+                        uintN attrs /* = JSPROP_ENUMERATE */)
 {
     return defineGeneric(cx, SPECIALID_TO_JSID(sid), value, getter, setter, attrs);
 }
@@ -1372,20 +1336,20 @@ JSObject::getSpecial(JSContext *cx, JSObject *receiver, js::SpecialId sid, js::V
 }
 
 inline JSBool
-JSObject::getGenericAttributes(JSContext *cx, jsid id, unsigned *attrsp)
+JSObject::getGenericAttributes(JSContext *cx, jsid id, uintN *attrsp)
 {
     js::GenericAttributesOp op = getOps()->getGenericAttributes;
-    return (op ? op : js_GetAttributes)(cx, this, id, attrsp);
+    return (op ? op : js_GetAttributes)(cx, this, id, attrsp);    
 }
 
 inline JSBool
-JSObject::getPropertyAttributes(JSContext *cx, js::PropertyName *name, unsigned *attrsp)
+JSObject::getPropertyAttributes(JSContext *cx, js::PropertyName *name, uintN *attrsp)
 {
     return getGenericAttributes(cx, ATOM_TO_JSID(name), attrsp);
 }
 
 inline JSBool
-JSObject::getElementAttributes(JSContext *cx, uint32_t index, unsigned *attrsp)
+JSObject::getElementAttributes(JSContext *cx, uint32_t index, uintN *attrsp)
 {
     jsid id;
     if (!js::IndexToId(cx, index, &id))
@@ -1394,7 +1358,7 @@ JSObject::getElementAttributes(JSContext *cx, uint32_t index, unsigned *attrsp)
 }
 
 inline JSBool
-JSObject::getSpecialAttributes(JSContext *cx, js::SpecialId sid, unsigned *attrsp)
+JSObject::getSpecialAttributes(JSContext *cx, js::SpecialId sid, uintN *attrsp)
 {
     return getGenericAttributes(cx, SPECIALID_TO_JSID(sid), attrsp);
 }
@@ -1614,16 +1578,6 @@ NewObjectCache::fillType(EntryIndex entry, Class *clasp, js::types::TypeObject *
     return fill(entry, clasp, type, kind, obj);
 }
 
-inline void
-NewObjectCache::copyCachedToObject(JSObject *dst, JSObject *src)
-{
-    js_memcpy(dst, src, dst->sizeOfThis());
-#ifdef JSGC_GENERATIONAL
-    Shape::writeBarrierPost(dst->shape_, &dst->shape_);
-    types::TypeObject::writeBarrierPost(dst->type_, &dst->type_);
-#endif
-}
-
 inline JSObject *
 NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entry_)
 {
@@ -1632,7 +1586,7 @@ NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entry_)
 
     JSObject *obj = js_TryNewGCObject(cx, entry->kind);
     if (obj) {
-        copyCachedToObject(obj, &entry->templateObject);
+        js_memcpy(obj, &entry->templateObject, entry->nbytes);
         Probes::createObject(cx, obj);
         return obj;
     }
@@ -1649,7 +1603,7 @@ NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entry_)
 
     obj = js_NewGCObject(cx, entry->kind);
     if (obj) {
-        copyCachedToObject(obj, baseobj);
+        js_memcpy(obj, baseobj, nbytes);
         Probes::createObject(cx, obj);
         return obj;
     }
@@ -1844,13 +1798,13 @@ NewObjectGCKind(JSContext *cx, js::Class *clasp)
  * may or may not need dynamic slots.
  */
 inline bool
-PreallocateObjectDynamicSlots(JSContext *cx, Shape *shape, HeapSlot **slots)
+PreallocateObjectDynamicSlots(JSContext *cx, Shape *shape, HeapValue **slots)
 {
     if (size_t count = JSObject::dynamicSlotsCount(shape->numFixedSlots(), shape->slotSpan())) {
-        *slots = (HeapSlot *) cx->malloc_(count * sizeof(HeapSlot));
+        *slots = (HeapValue *) cx->malloc_(count * sizeof(HeapValue));
         if (!*slots)
             return false;
-        Debug_SetSlotRangeToCrashOnTouch(*slots, count);
+        Debug_SetValueRangeToCrashOnTouch(*slots, count);
         return true;
     }
     *slots = NULL;
@@ -1906,6 +1860,71 @@ PropDesc::checkSetter(JSContext *cx)
     return true;
 }
 
+namespace detail {
+
+template<typename T> class PrimitiveBehavior { };
+
+template<>
+class PrimitiveBehavior<JSString *> {
+  public:
+    static inline bool isType(const Value &v) { return v.isString(); }
+    static inline JSString *extract(const Value &v) { return v.toString(); }
+    static inline Class *getClass() { return &StringClass; }
+};
+
+template<>
+class PrimitiveBehavior<bool> {
+  public:
+    static inline bool isType(const Value &v) { return v.isBoolean(); }
+    static inline bool extract(const Value &v) { return v.toBoolean(); }
+    static inline Class *getClass() { return &BooleanClass; }
+};
+
+template<>
+class PrimitiveBehavior<double> {
+  public:
+    static inline bool isType(const Value &v) { return v.isNumber(); }
+    static inline double extract(const Value &v) { return v.toNumber(); }
+    static inline Class *getClass() { return &NumberClass; }
+};
+
+} /* namespace detail */
+
+inline JSObject *
+NonGenericMethodGuard(JSContext *cx, CallArgs args, Native native, Class *clasp, bool *ok)
+{
+    const Value &thisv = args.thisv();
+    if (thisv.isObject()) {
+        JSObject &obj = thisv.toObject();
+        if (obj.getClass() == clasp) {
+            *ok = true;  /* quell gcc overwarning */
+            return &obj;
+        }
+    }
+
+    *ok = HandleNonGenericMethodClassMismatch(cx, args, native, clasp);
+    return NULL;
+}
+
+template <typename T>
+inline bool
+BoxedPrimitiveMethodGuard(JSContext *cx, CallArgs args, Native native, T *v, bool *ok)
+{
+    typedef detail::PrimitiveBehavior<T> Behavior;
+
+    const Value &thisv = args.thisv();
+    if (Behavior::isType(thisv)) {
+        *v = Behavior::extract(thisv);
+        return true;
+    }
+
+    if (!NonGenericMethodGuard(cx, args, native, Behavior::getClass(), ok))
+        return false;
+
+    *v = Behavior::extract(thisv.toObject().getPrimitiveThis());
+    return true;
+}
+
 inline bool
 ObjectClassIs(JSObject &obj, ESClassValue classValue, JSContext *cx)
 {
@@ -1917,18 +1936,9 @@ ObjectClassIs(JSObject &obj, ESClassValue classValue, JSContext *cx)
       case ESClass_Number: return obj.isNumber();
       case ESClass_String: return obj.isString();
       case ESClass_Boolean: return obj.isBoolean();
-      case ESClass_RegExp: return obj.isRegExp();
     }
     JS_NOT_REACHED("bad classValue");
     return false;
-}
-
-inline bool
-IsObjectWithClass(const Value &v, ESClassValue classValue, JSContext *cx)
-{
-    if (!v.isObject())
-        return false;
-    return ObjectClassIs(v.toObject(), classValue, cx);
 }
 
 static JS_ALWAYS_INLINE bool
@@ -1957,7 +1967,7 @@ ValueIsSpecial(JSObject *obj, Value *propval, SpecialId *sidp, JSContext *cx)
 JSObject *
 DefineConstructorAndPrototype(JSContext *cx, HandleObject obj, JSProtoKey key, HandleAtom atom,
                               JSObject *protoProto, Class *clasp,
-                              Native constructor, unsigned nargs,
+                              Native constructor, uintN nargs,
                               JSPropertySpec *ps, JSFunctionSpec *fs,
                               JSPropertySpec *static_ps, JSFunctionSpec *static_fs,
                               JSObject **ctorp = NULL,
@@ -1967,7 +1977,7 @@ DefineConstructorAndPrototype(JSContext *cx, HandleObject obj, JSProtoKey key, H
 
 extern JSObject *
 js_InitClass(JSContext *cx, js::HandleObject obj, JSObject *parent_proto,
-             js::Class *clasp, JSNative constructor, unsigned nargs,
+             js::Class *clasp, JSNative constructor, uintN nargs,
              JSPropertySpec *ps, JSFunctionSpec *fs,
              JSPropertySpec *static_ps, JSFunctionSpec *static_fs,
              JSObject **ctorp = NULL,
@@ -1997,14 +2007,14 @@ js_PurgeScopeChain(JSContext *cx, JSObject *obj, jsid id)
 }
 
 inline void
-JSObject::setSlot(unsigned slot, const js::Value &value)
+JSObject::setSlot(uintN slot, const js::Value &value)
 {
     JS_ASSERT(slotInRange(slot));
-    getSlotRef(slot).set(this, slot, value);
+    getSlotRef(slot).set(compartment(), value);
 }
 
 inline void
-JSObject::initSlot(unsigned slot, const js::Value &value)
+JSObject::initSlot(uintN slot, const js::Value &value)
 {
     JS_ASSERT(getSlot(slot).isUndefined() || getSlot(slot).isMagic(JS_ARRAY_HOLE));
     JS_ASSERT(slotInRange(slot));
@@ -2012,23 +2022,64 @@ JSObject::initSlot(unsigned slot, const js::Value &value)
 }
 
 inline void
-JSObject::initSlotUnchecked(unsigned slot, const js::Value &value)
+JSObject::initSlotUnchecked(uintN slot, const js::Value &value)
 {
-    getSlotAddressUnchecked(slot)->init(this, slot, value);
+    getSlotAddressUnchecked(slot)->init(value);
 }
 
 inline void
-JSObject::setFixedSlot(unsigned slot, const js::Value &value)
+JSObject::setFixedSlot(uintN slot, const js::Value &value)
 {
     JS_ASSERT(slot < numFixedSlots());
-    fixedSlots()[slot].set(this, slot, value);
+    fixedSlots()[slot] = value;
 }
 
 inline void
-JSObject::initFixedSlot(unsigned slot, const js::Value &value)
+JSObject::initFixedSlot(uintN slot, const js::Value &value)
 {
     JS_ASSERT(slot < numFixedSlots());
-    fixedSlots()[slot].init(this, slot, value);
+    fixedSlots()[slot].init(value);
+}
+
+inline void
+JSObject::privateWriteBarrierPre(void **old)
+{
+#ifdef JSGC_INCREMENTAL
+    JSCompartment *comp = compartment();
+    if (comp->needsBarrier()) {
+        if (*old && getClass()->trace)
+            getClass()->trace(comp->barrierTracer(), this);
+    }
+#endif
+}
+
+inline void
+JSObject::privateWriteBarrierPost(void **old)
+{
+}
+
+inline void
+JSObject::writeBarrierPre(JSObject *obj)
+{
+#ifdef JSGC_INCREMENTAL
+    /*
+     * This would normally be a null test, but TypeScript::global uses 0x1 as a
+     * special value.
+     */
+    if (uintptr_t(obj) < 32)
+        return;
+
+    JSCompartment *comp = obj->compartment();
+    if (comp->needsBarrier()) {
+        JS_ASSERT(!comp->rt->gcRunning);
+        MarkObjectUnbarriered(comp->barrierTracer(), obj, "write barrier");
+    }
+#endif
+}
+
+inline void
+JSObject::writeBarrierPost(JSObject *obj, void *addr)
+{
 }
 
 #endif /* jsobjinlines_h___ */

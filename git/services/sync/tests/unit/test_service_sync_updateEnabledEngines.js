@@ -69,8 +69,7 @@ function setUp() {
   Service.username = "johndoe";
   Service.password = "ilovejane";
   Service.passphrase = "abcdeabcdeabcdeabcdeabcdea";
-  Service.serverURL = TEST_SERVER_URL;
-  Service.clusterURL = TEST_CLUSTER_URL;
+  Service.clusterURL = "http://localhost:8080/";
   // So that we can poke at meta/global.
   new FakeCryptoService();
 

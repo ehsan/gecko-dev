@@ -152,6 +152,7 @@ public:
 
   virtual void InitAsSessionStorage(nsIURI* aDomainURI);
   virtual void InitAsLocalStorage(nsIURI* aDomainURI, bool aCanUseChromePersist);
+  virtual void InitAsGlobalStorage(const nsACString& aDomainDemanded);
 
   virtual nsTArray<nsString>* GetKeys(bool aCallerSecure) = 0;
   virtual nsresult GetLength(bool aCallerSecure, PRUint32* aLength) = 0;
@@ -250,6 +251,7 @@ public:
 
   virtual void InitAsSessionStorage(nsIURI* aDomainURI);
   virtual void InitAsLocalStorage(nsIURI* aDomainURI, bool aCanUseChromePersist);
+  virtual void InitAsGlobalStorage(const nsACString& aDomainDemanded);
 
   bool SessionOnly() {
     return mSessionOnly;
@@ -360,6 +362,7 @@ public:
   // nsPIDOMStorage
   virtual nsresult InitAsSessionStorage(nsIPrincipal *aPrincipal, const nsSubstring &aDocumentURI);
   virtual nsresult InitAsLocalStorage(nsIPrincipal *aPrincipal, const nsSubstring &aDocumentURI);
+  virtual nsresult InitAsGlobalStorage(const nsACString &aDomainDemanded);
   virtual already_AddRefed<nsIDOMStorage> Clone();
   virtual already_AddRefed<nsIDOMStorage> Fork(const nsSubstring &aDocumentURI);
   virtual bool IsForkOf(nsIDOMStorage* aThat);
@@ -419,7 +422,7 @@ public:
   nsDOMStorageType mStorageType;
 
   friend class nsIDOMStorage2;
-  nsCOMPtr<nsIPrincipal> mPrincipal;
+  nsPIDOMStorage* mSecurityChecker;
   nsPIDOMStorage* mEventBroadcaster;
 };
 
@@ -439,6 +442,7 @@ public:
   // nsPIDOMStorage
   virtual nsresult InitAsSessionStorage(nsIPrincipal *aPrincipal, const nsSubstring &aDocumentURI);
   virtual nsresult InitAsLocalStorage(nsIPrincipal *aPrincipal, const nsSubstring &aDocumentURI);
+  virtual nsresult InitAsGlobalStorage(const nsACString &aDomainDemanded);
   virtual already_AddRefed<nsIDOMStorage> Clone();
   virtual already_AddRefed<nsIDOMStorage> Fork(const nsSubstring &aDocumentURI);
   virtual bool IsForkOf(nsIDOMStorage* aThat);
@@ -600,8 +604,6 @@ public:
   NS_DECL_NSIDOMSTORAGEEVENT
   NS_FORWARD_NSIDOMEVENT(nsDOMEvent::)
 
-  virtual nsresult InitFromCtor(const nsAString& aType,
-                                JSContext* aCx, jsval* aVal);
 protected:
   nsString mKey;
   nsString mOldValue;

@@ -50,7 +50,8 @@ interface nsIDOMPopStateEvent : nsIDOMEvent
                          in nsIVariant stateArg);
 };
 
-dictionary PopStateEventInit : EventInit
+[scriptable, uuid(2300bd68-f6e0-4c58-a1aa-45f94cdabfbd)]
+interface nsIPopStateEventInit : nsIEventInit
 {
-  nsIVariant state;
+  attribute nsIVariant state;
 };

@@ -47,7 +47,9 @@ MODULE		= testing_xpcshell
 
 # Here's how you let the build system know there are tests in the
 # "example" folder:
-TEST_DIRS += example
+ifdef ENABLE_TESTS
+DIRS  += example
+endif
 
 include $(topsrcdir)/config/rules.mk
 

@@ -55,41 +55,50 @@ namespace JS {
 using namespace js;
 
 static void
-StatsCompartmentCallback(JSRuntime *rt, void *data, JSCompartment *compartment)
+CompartmentStatsCallback(JSContext *cx, void *vdata, JSCompartment *compartment)
 {
     // Append a new CompartmentStats to the vector.
-    RuntimeStats *rtStats = static_cast<RuntimeStats *>(data);
+    RuntimeStats *rtStats = static_cast<RuntimeStats *>(vdata);
 
     // CollectRuntimeStats reserves enough space.
     MOZ_ALWAYS_TRUE(rtStats->compartmentStatsVector.growBy(1));
     CompartmentStats &cStats = rtStats->compartmentStatsVector.back();
-    rtStats->initExtraCompartmentStats(compartment, &cStats);
+    cStats.init(rtStats->getNameCb(cx, compartment), rtStats->destroyNameCb);
     rtStats->currCompartmentStats = &cStats;
 
     // Get the compartment-level numbers.
 #ifdef JS_METHODJIT
     cStats.mjitCode = compartment->sizeOfMjitCode();
 #endif
-    compartment->sizeOfTypeInferenceData(&cStats.typeInferenceSizes, rtStats->mallocSizeOf);
+    compartment->sizeOfTypeInferenceData(cx, &cStats.typeInferenceSizes, rtStats->mallocSizeOf);
     cStats.shapesCompartmentTables = compartment->sizeOfShapeTable(rtStats->mallocSizeOf);
 }
 
 static void
-StatsChunkCallback(JSRuntime *rt, void *data, gc::Chunk *chunk)
+ExplicitNonHeapCompartmentCallback(JSContext *cx, void *data, JSCompartment *compartment)
+{
+#ifdef JS_METHODJIT
+    size_t *n = static_cast<size_t *>(data);
+    *n += compartment->sizeOfMjitCode();
+#endif
+}
+
+static void
+ChunkCallback(JSContext *cx, void *vdata, gc::Chunk *chunk)
 {
     // Nb: This function is only called for dirty chunks, which is why we
     // increment gcHeapChunkDirtyDecommitted.
-    RuntimeStats *rtStats = static_cast<RuntimeStats *>(data);
+    RuntimeStats *rtStats = static_cast<RuntimeStats *>(vdata);
     for (size_t i = 0; i < gc::ArenasPerChunk; i++)
         if (chunk->decommittedArenas.get(i))
             rtStats->gcHeapChunkDirtyDecommitted += gc::ArenaSize;
 }
 
 static void
-StatsArenaCallback(JSRuntime *rt, void *data, gc::Arena *arena,
-                   JSGCTraceKind traceKind, size_t thingSize)
+ArenaCallback(JSContext *cx, void *vdata, gc::Arena *arena,
+              JSGCTraceKind traceKind, size_t thingSize)
 {
-    RuntimeStats *rtStats = static_cast<RuntimeStats *>(data);
+    RuntimeStats *rtStats = static_cast<RuntimeStats *>(vdata);
 
     rtStats->currCompartmentStats->gcHeapArenaHeaders += sizeof(gc::ArenaHeader);
     size_t allocationSpace = arena->thingsSpan(thingSize);
@@ -98,15 +107,15 @@ StatsArenaCallback(JSRuntime *rt, void *data, gc::Arena *arena,
     // We don't call the callback on unused things.  So we compute the
     // unused space like this:  arenaUnused = maxArenaUnused - arenaUsed.
     // We do this by setting arenaUnused to maxArenaUnused here, and then
-    // subtracting thingSize for every used cell, in StatsCellCallback().
+    // subtracting thingSize for every used cell, in CellCallback().
     rtStats->currCompartmentStats->gcHeapArenaUnused += allocationSpace;
 }
 
 static void
-StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKind,
-                  size_t thingSize)
+CellCallback(JSContext *cx, void *vdata, void *thing, JSGCTraceKind traceKind,
+             size_t thingSize)
 {
-    RuntimeStats *rtStats = static_cast<RuntimeStats *>(data);
+    RuntimeStats *rtStats = static_cast<RuntimeStats *>(vdata);
     CompartmentStats *cStats = rtStats->currCompartmentStats;
     switch (traceKind) {
     case JSTRACE_OBJECT:
@@ -117,12 +126,10 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
         } else {
             cStats->gcHeapObjectsNonFunction += thingSize;
         }
-        size_t slotsSize, elementsSize, miscSize;
-        obj->sizeOfExcludingThis(rtStats->mallocSizeOf, &slotsSize,
-                                 &elementsSize, &miscSize);
+        size_t slotsSize, elementsSize;
+        obj->sizeOfExcludingThis(rtStats->mallocSizeOf, &slotsSize, &elementsSize);
         cStats->objectSlots += slotsSize;
         cStats->objectElements += elementsSize;
-        cStats->objectMisc += miscSize;
         break;
     }
     case JSTRACE_STRING:
@@ -176,42 +183,54 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
         break;
     }
     }
-    // Yes, this is a subtraction:  see StatsArenaCallback() for details.
+    // Yes, this is a subtraction:  see ArenaCallback() for details.
     cStats->gcHeapArenaUnused -= thingSize;
 }
 
 JS_PUBLIC_API(bool)
 CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats)
 {
-    if (!rtStats->compartmentStatsVector.reserve(rt->compartments.length()))
+    JSContext *cx = JS_NewContext(rt, 0);
+    if (!cx)
         return false;
-    
-    rtStats->gcHeapChunkCleanDecommitted =
-        rt->gcChunkPool.countCleanDecommittedArenas(rt) * gc::ArenaSize;
-    rtStats->gcHeapChunkCleanUnused =
-        size_t(JS_GetGCParameter(rt, JSGC_UNUSED_CHUNKS)) * gc::ChunkSize -
-        rtStats->gcHeapChunkCleanDecommitted;
-    rtStats->gcHeapChunkTotal =
-        size_t(JS_GetGCParameter(rt, JSGC_TOTAL_CHUNKS)) * gc::ChunkSize;
-    
-    IterateCompartmentsArenasCells(rt, rtStats, StatsCompartmentCallback,
-                                   StatsArenaCallback, StatsCellCallback);
-    IterateChunks(rt, rtStats, StatsChunkCallback);
-    
-    rtStats->runtimeObject = rtStats->mallocSizeOf(rt);
-    
-    rt->sizeOfExcludingThis(rtStats->mallocSizeOf,
-                            &rtStats->runtimeNormal,
-                            &rtStats->runtimeTemporary,
-                            &rtStats->runtimeRegexpCode,
-                            &rtStats->runtimeStackCommitted,
-                            &rtStats->runtimeGCMarker);
-    
-    rtStats->runtimeAtomsTable =
-        rt->atomState.atoms.sizeOfExcludingThis(rtStats->mallocSizeOf);
-    
-    for (ContextIter acx(rt); !acx.done(); acx.next())
-        rtStats->runtimeContexts += acx->sizeOfIncludingThis(rtStats->mallocSizeOf);
+
+    {
+        JSAutoRequest ar(cx);
+
+        if (!rtStats->compartmentStatsVector.reserve(rt->compartments.length()))
+            return false;
+
+        rtStats->gcHeapChunkCleanDecommitted =
+            rt->gcChunkPool.countCleanDecommittedArenas(rt) * gc::ArenaSize;
+        rtStats->gcHeapChunkCleanUnused =
+            size_t(JS_GetGCParameter(rt, JSGC_UNUSED_CHUNKS)) * gc::ChunkSize -
+            rtStats->gcHeapChunkCleanDecommitted;
+        rtStats->gcHeapChunkTotal =
+            size_t(JS_GetGCParameter(rt, JSGC_TOTAL_CHUNKS)) * gc::ChunkSize;
+
+        IterateCompartmentsArenasCells(cx, rtStats, CompartmentStatsCallback,
+                                       ArenaCallback, CellCallback);
+        IterateChunks(cx, rtStats, ChunkCallback);
+
+        rtStats->runtimeObject = rtStats->mallocSizeOf(rt);
+
+        rt->sizeOfExcludingThis(rtStats->mallocSizeOf,
+                                &rtStats->runtimeNormal,
+                                &rtStats->runtimeTemporary,
+                                &rtStats->runtimeRegexpCode,
+                                &rtStats->runtimeStackCommitted);
+
+        // Nb: we use sizeOfExcludingThis() because atomState.atoms is within
+        // JSRuntime, and so counted when JSRuntime is counted.
+        rtStats->runtimeAtomsTable =
+            rt->atomState.atoms.sizeOfExcludingThis(rtStats->mallocSizeOf);
+
+        JSContext *acx, *iter = NULL;
+        while ((acx = JS_ContextIteratorUnlocked(rt, &iter)) != NULL)
+            rtStats->runtimeContexts += acx->sizeOfIncludingThis(rtStats->mallocSizeOf);
+    }
+
+    JS_DestroyContextNoGC(cx);
 
     // This is initialized to all bytes stored in used chunks, and then we
     // subtract used space from it each time around the loop.
@@ -243,8 +262,7 @@ CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats)
         rtStats->totalObjects += cStats.gcHeapObjectsNonFunction +
                                  cStats.gcHeapObjectsFunction +
                                  cStats.objectSlots +
-                                 cStats.objectElements +
-                                 cStats.objectMisc;
+                                 cStats.objectElements;
         rtStats->totalShapes  += cStats.gcHeapShapesTree +
                                  cStats.gcHeapShapesDict +
                                  cStats.gcHeapShapesBase +
@@ -287,60 +305,42 @@ CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats)
     return true;
 }
 
-static void
-ExplicitNonHeapCompartmentCallback(JSRuntime *rt, void *data, JSCompartment *compartment)
+JS_PUBLIC_API(bool)
+GetExplicitNonHeapForRuntime(JSRuntime *rt, int64_t *amount,
+                             JSMallocSizeOfFun mallocSizeOf)
 {
-#ifdef JS_METHODJIT
-    size_t *n = static_cast<size_t *>(data);
-    *n += compartment->sizeOfMjitCode();
-#endif
-}
+    JSContext *cx = JS_NewContext(rt, 0);
+    if (!cx)
+        return false;
 
-JS_PUBLIC_API(int64_t)
-GetExplicitNonHeapForRuntime(JSRuntime *rt, JSMallocSizeOfFun mallocSizeOf)
-{
     // explicit/<compartment>/gc-heap/*
-    size_t n = size_t(JS_GetGCParameter(rt, JSGC_TOTAL_CHUNKS)) * gc::ChunkSize;
+    *amount = int64_t(JS_GetGCParameter(rt, JSGC_TOTAL_CHUNKS)) *
+              gc::ChunkSize;
 
-    // explicit/<compartment>/mjit-code
-    JS_IterateCompartments(rt, &n, ExplicitNonHeapCompartmentCallback);
-    
-    // explicit/runtime/regexp-code
-    // explicit/runtime/stack-committed
-    size_t regexpCode, stackCommitted;
-    rt->sizeOfExcludingThis(mallocSizeOf,
-                            NULL,
-                            NULL,
-                            &regexpCode,
-                            &stackCommitted,
-                            NULL);
-    
-    n += regexpCode;
-    n += stackCommitted;
+    {
+        JSAutoRequest ar(cx);
 
-    return int64_t(n);
-}
+        // explicit/<compartment>/mjit-code
+        size_t n = 0;
+        IterateCompartments(cx, &n, ExplicitNonHeapCompartmentCallback);
+        *amount += n;
 
-JS_PUBLIC_API(size_t)
-SystemCompartmentCount(const JSRuntime *rt)
-{
-    size_t n = 0;
-    for (size_t i = 0; i < rt->compartments.length(); i++) {
-        if (rt->compartments[i]->isSystemCompartment)
-            ++n;
+        // explicit/runtime/regexp-code
+        // explicit/runtime/stack-committed
+        size_t regexpCode, stackCommitted;
+        rt->sizeOfExcludingThis(mallocSizeOf,
+                                NULL,
+                                NULL,
+                                &regexpCode,
+                                &stackCommitted);
+
+        *amount += regexpCode;
+        *amount += stackCommitted;
     }
-    return n;
-}
 
-JS_PUBLIC_API(size_t)
-UserCompartmentCount(const JSRuntime *rt)
-{
-    size_t n = 0;
-    for (size_t i = 0; i < rt->compartments.length(); i++) {
-        if (!rt->compartments[i]->isSystemCompartment)
-            ++n;
-    }
-    return n;
+    JS_DestroyContextNoGC(cx);
+
+    return true;
 }
 
 } // namespace JS

@@ -114,7 +114,6 @@ MediateRace(const RPCChannel::Message& parent,
   }
 }
 
-#if defined(OS_LINUX)
 static string
 ReplaceAll(const string& haystack, const string& needle, const string& with)
 {
@@ -128,7 +127,6 @@ ReplaceAll(const string& haystack, const string& needle, const string& with)
 
   return munged;
 }
-#endif
 
 string
 MungePluginDsoPath(const string& path)

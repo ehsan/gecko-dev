@@ -50,10 +50,10 @@ namespace js {
 class BooleanObject : public JSObject
 {
     /* Stores this Boolean object's [[PrimitiveValue]]. */
-    static const unsigned PRIMITIVE_VALUE_SLOT = 0;
+    static const uintN PRIMITIVE_VALUE_SLOT = 0;
 
   public:
-    static const unsigned RESERVED_SLOTS = 1;
+    static const uintN RESERVED_SLOTS = 1;
 
     /*
      * Creates a new Boolean object boxing the given primitive bool.  The
@@ -67,13 +67,14 @@ class BooleanObject : public JSObject
      */
     static inline BooleanObject *createWithProto(JSContext *cx, bool b, JSObject &proto);
 
-    bool unbox() const {
-        return getFixedSlot(PRIMITIVE_VALUE_SLOT).toBoolean();
+    Value unbox() const {
+        JS_ASSERT(getSlot(PRIMITIVE_VALUE_SLOT).isBoolean());
+        return getSlot(PRIMITIVE_VALUE_SLOT);
     }
 
   private:
     inline void setPrimitiveValue(bool b) {
-        setFixedSlot(PRIMITIVE_VALUE_SLOT, BooleanValue(b));
+        setSlot(PRIMITIVE_VALUE_SLOT, BooleanValue(b));
     }
 
     /* For access to init, as Boolean.prototype is special. */

@@ -60,7 +60,7 @@
 #include "nsThreadUtils.h"
 #include "nsNetUtil.h"
 #include "nsAsyncDOMEvent.h"
-#include "nsGenericElement.h"
+#include "nsGenericHTMLElement.h"
 
 #include "nsIPresShell.h"
 #include "nsEventStates.h"
@@ -81,8 +81,6 @@
 
 #include "mozAutoDocUpdate.h"
 #include "mozilla/dom/Element.h"
-
-using namespace mozilla;
 
 #ifdef DEBUG_chb
 static void PrintReqURL(imgIRequest* req) {
@@ -777,9 +775,9 @@ nsImageLoadingContent::LoadImage(nsIURI* aNewURI,
 
   nsLoadFlags loadFlags = aLoadFlags;
   PRInt32 corsmode = GetCORSMode();
-  if (corsmode == CORS_ANONYMOUS) {
+  if (corsmode == nsGenericHTMLElement::CORS_ANONYMOUS) {
     loadFlags |= imgILoader::LOAD_CORS_ANONYMOUS;
-  } else if (corsmode == CORS_USE_CREDENTIALS) {
+  } else if (corsmode == nsGenericHTMLElement::CORS_USE_CREDENTIALS) {
     loadFlags |= imgILoader::LOAD_CORS_USE_CREDENTIALS;
   }
 
@@ -1189,8 +1187,8 @@ nsImageLoadingContent::CreateStaticImageClone(nsImageLoadingContent* aDest) cons
   aDest->mSuppressed = mSuppressed;
 }
 
-CORSMode
+nsGenericHTMLElement::CORSMode
 nsImageLoadingContent::GetCORSMode()
 {
-  return CORS_NONE;
+  return nsGenericHTMLElement::CORS_NONE;
 }

@@ -501,17 +501,12 @@ static inline int backup_file(const char *name)
     return rename(name, fname.c_str());
 }
 
-void do_file(const char *name, bool backup = false, bool force = false)
+void do_file(const char *name, bool backup = false)
 {
     std::ifstream file(name, std::ios::in|std::ios::binary);
     Elf *elf = new Elf(file);
     unsigned int size = elf->getSize();
     fprintf(stderr, "%s: ", name);
-    if (elf->getType() != ET_DYN) {
-        fprintf(stderr, "Not a shared object. Skipping\n");
-        delete elf;
-        return;
-    }
 
     for (ElfSection *section = elf->getSection(1); section != NULL;
          section = section->getNext()) {
@@ -536,7 +531,7 @@ void do_file(const char *name, bool backup = false, bool force = false)
         break;
     }
     if (exit == 0) {
-        if (!force && (elf->getSize() >= size)) {
+        if (elf->getSize() >= size) {
             fprintf(stderr, "No gain. Skipping\n");
         } else if (backup && backup_file(name) != 0) {
             fprintf(stderr, "Couln't create backup file\n");
@@ -553,17 +548,14 @@ int main(int argc, char *argv[])
 {
     int arg;
     bool backup = false;
-    bool force = false;
     char *lastSlash = rindex(argv[0], '/');
     if (lastSlash != NULL)
         rundir = strndup(argv[0], lastSlash - argv[0]);
     for (arg = 1; arg < argc; arg++) {
-        if (strcmp(argv[arg], "-f") == 0)
-            force = true;
-        else if (strcmp(argv[arg], "-b") == 0)
+        if (strcmp(argv[arg], "-b") == 0)
             backup = true;
         else
-            do_file(argv[arg], backup, force);
+            do_file(argv[arg], backup);
     }
 
     free(rundir);

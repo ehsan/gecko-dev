@@ -53,7 +53,9 @@ XPCSHELL_TESTS = \
   $(NULL)
 
 ifneq (,$(filter gtk2 cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
-TEST_DIRS += mochitest
+ifdef ENABLE_TESTS
+DIRS  += mochitest
+endif
 endif
 
 include $(topsrcdir)/config/rules.mk

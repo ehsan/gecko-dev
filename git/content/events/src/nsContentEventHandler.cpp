@@ -215,10 +215,8 @@ static PRUint32 CountNewlinesInXPLength(nsIContent* aContent,
   const nsTextFragment* text = aContent->GetText();
   if (!text)
     return 0;
-  // For automated tests, we should abort on debug build.
-  NS_ABORT_IF_FALSE(
-    (aXPLength == PR_UINT32_MAX || aXPLength <= text->GetLength()),
-    "aXPLength is out-of-bounds");
+  NS_ASSERTION(aXPLength == PR_UINT32_MAX || aXPLength <= text->GetLength(),
+               "text offset is out-of-bounds");
   const PRUint32 length = NS_MIN(aXPLength, text->GetLength());
   PRUint32 newlines = 0;
   for (PRUint32 i = 0; i < length; ++i) {
@@ -238,17 +236,11 @@ static PRUint32 CountNewlinesInNativeLength(nsIContent* aContent,
   if (!text) {
     return 0;
   }
-  // For automated tests, we should abort on debug build.
-  NS_ABORT_IF_FALSE(
-    (aNativeLength == PR_UINT32_MAX || aNativeLength <= text->GetLength() * 2),
-    "aNativeLength is unexpected value");
   const PRUint32 xpLength = text->GetLength();
   PRUint32 newlines = 0;
   for (PRUint32 i = 0, nativeOffset = 0;
        i < xpLength && nativeOffset < aNativeLength;
        ++i, ++nativeOffset) {
-    // For automated tests, we should abort on debug build.
-    NS_ABORT_IF_FALSE(i < text->GetLength(), "i is out-of-bounds");
     if (text->CharAt(i) == '\n') {
       ++newlines;
       ++nativeOffset;

@@ -45,7 +45,6 @@
 
 #include "jsarray.h"
 #include "jsbool.h"
-#include "jsexn.h"
 #include "jsfun.h"
 #include "jsiter.h"
 #include "jsnum.h"
@@ -100,20 +99,20 @@ class GlobalObject : public JSObject {
      * Count of slots to store built-in constructors, prototypes, and initial
      * visible properties for the constructors.
      */
-    static const unsigned STANDARD_CLASS_SLOTS  = JSProto_LIMIT * 3;
+    static const uintN STANDARD_CLASS_SLOTS  = JSProto_LIMIT * 3;
 
     /* One-off properties stored after slots for built-ins. */
-    static const unsigned THROWTYPEERROR          = STANDARD_CLASS_SLOTS;
-    static const unsigned GENERATOR_PROTO         = THROWTYPEERROR + 1;
-    static const unsigned REGEXP_STATICS          = GENERATOR_PROTO + 1;
-    static const unsigned FUNCTION_NS             = REGEXP_STATICS + 1;
-    static const unsigned RUNTIME_CODEGEN_ENABLED = FUNCTION_NS + 1;
-    static const unsigned EVAL                    = RUNTIME_CODEGEN_ENABLED + 1;
-    static const unsigned FLAGS                   = EVAL + 1;
-    static const unsigned DEBUGGERS               = FLAGS + 1;
+    static const uintN THROWTYPEERROR          = STANDARD_CLASS_SLOTS;
+    static const uintN GENERATOR_PROTO         = THROWTYPEERROR + 1;
+    static const uintN REGEXP_STATICS          = GENERATOR_PROTO + 1;
+    static const uintN FUNCTION_NS             = REGEXP_STATICS + 1;
+    static const uintN RUNTIME_CODEGEN_ENABLED = FUNCTION_NS + 1;
+    static const uintN EVAL                    = RUNTIME_CODEGEN_ENABLED + 1;
+    static const uintN FLAGS                   = EVAL + 1;
+    static const uintN DEBUGGERS               = FLAGS + 1;
 
     /* Total reserved-slot count for global objects. */
-    static const unsigned RESERVED_SLOTS = DEBUGGERS + 1;
+    static const uintN RESERVED_SLOTS = DEBUGGERS + 1;
 
     void staticAsserts() {
         /*
@@ -187,9 +186,6 @@ class GlobalObject : public JSObject {
     bool arrayBufferClassInitialized() const {
         return classIsInitialized(JSProto_ArrayBuffer);
     }
-    bool errorClassesInitialized() const {
-        return classIsInitialized(JSProto_Error);
-    }
 
   public:
     static GlobalObject *create(JSContext *cx, Class *clasp);
@@ -199,7 +195,7 @@ class GlobalObject : public JSObject {
      * ctor, a method which creates objects with the given class.
      */
     JSFunction *
-    createConstructor(JSContext *cx, JSNative ctor, Class *clasp, JSAtom *name, unsigned length,
+    createConstructor(JSContext *cx, JSNative ctor, Class *clasp, JSAtom *name, uintN length,
                       gc::AllocKind kind = JSFunction::FinalizeKind);
 
     /*
@@ -296,17 +292,6 @@ class GlobalObject : public JSObject {
                 return NULL;
         }
         return &self->getPrototype(JSProto_ArrayBuffer).toObject();
-    }
-
-    JSObject *getOrCreateCustomErrorPrototype(JSContext *cx, int exnType) {
-        GlobalObject *self = this;
-        JSProtoKey key = GetExceptionProtoKey(exnType);
-        if (!errorClassesInitialized()) {
-            Root<GlobalObject*> root(cx, &self);
-            if (!js_InitExceptionClasses(cx, this))
-                return NULL;
-        }
-        return &self->getPrototype(key).toObject();
     }
 
     JSObject *getOrCreateGeneratorPrototype(JSContext *cx) {

@@ -352,10 +352,8 @@ nsGenericHTMLElement::SetAttribute(const nsAString& aName,
     nsCOMPtr<nsIAtom> nameAtom;
     if (IsInHTMLDocument()) {
       nsAutoString lower;
-      rv = nsContentUtils::ASCIIToLower(aName, lower);
-      if (NS_SUCCEEDED(rv)) {
-        nameAtom = do_GetAtom(lower);
-      }
+      nsContentUtils::ASCIIToLower(aName, lower);
+      nameAtom = do_GetAtom(lower);
     }
     else {
       nameAtom = do_GetAtom(aName);
@@ -835,7 +833,7 @@ nsGenericHTMLElement::SetOuterHTML(const nsAString& aOuterHTML)
                                       namespaceID,
                                       OwnerDoc()->GetCompatibilityMode() ==
                                         eCompatibility_NavQuirks,
-                                      true);
+                                      PR_TRUE);
     parent->ReplaceChild(fragment, this, &rv);
     return rv;
   }
@@ -857,7 +855,7 @@ nsGenericHTMLElement::SetOuterHTML(const nsAString& aOuterHTML)
   nsCOMPtr<nsIDOMDocumentFragment> df;
   nsresult rv = nsContentUtils::CreateContextualFragment(context,
                                                          aOuterHTML,
-                                                         true,
+                                                         PR_TRUE,
                                                          getter_AddRefs(df));
   NS_ENSURE_SUCCESS(rv, rv);
   nsCOMPtr<nsINode> fragment = do_QueryInterface(df);
@@ -961,6 +959,9 @@ nsGenericHTMLElement::InsertAdjacentHTML(const nsAString& aPosition,
       break;
     case eAfterEnd:
       destination->InsertBefore(fragment, GetNextSibling(), &rv);
+      break;
+    default:
+      NS_NOTREACHED("Bad position.");
       break;
   }
   return rv;
@@ -1282,14 +1283,11 @@ nsGenericHTMLElement::GetHrefURIForAnchors() const
 
 nsresult
 nsGenericHTMLElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                   const nsAttrValue* aValue, bool aNotify)
+                                   const nsAString* aValue, bool aNotify)
 {
   if (aNamespaceID == kNameSpaceID_None) {
-    if (nsContentUtils::IsEventAttributeName(aName, EventNameType_HTML) &&
-        aValue) {
-      NS_ABORT_IF_FALSE(aValue->Type() == nsAttrValue::eString,
-        "Expected string value for script body");
-      nsresult rv = AddScriptEventListener(aName, aValue->GetStringValue());
+    if (nsContentUtils::IsEventAttributeName(aName, EventNameType_HTML) && aValue) {
+      nsresult rv = AddScriptEventListener(aName, *aValue);
       NS_ENSURE_SUCCESS(rv, rv);
     }
     else if (aNotify && aName == nsGkAtoms::spellcheck) {
@@ -2490,25 +2488,24 @@ nsGenericHTMLElement::GetContentEditable(nsAString& aContentEditable)
 nsresult
 nsGenericHTMLElement::SetContentEditable(const nsAString& aContentEditable)
 {
-  if (nsContentUtils::EqualsLiteralIgnoreASCIICase(aContentEditable, "inherit")) {
+  nsString contentEditable;
+  ToLowerCase(aContentEditable, contentEditable);
+
+  if (contentEditable.EqualsLiteral("inherit")) {
     UnsetAttr(kNameSpaceID_None, nsGkAtoms::contenteditable, true);
 
     return NS_OK;
   }
 
-  if (nsContentUtils::EqualsLiteralIgnoreASCIICase(aContentEditable, "true")) {
-    SetAttr(kNameSpaceID_None, nsGkAtoms::contenteditable, NS_LITERAL_STRING("true"), true);
-    
-    return NS_OK;
-  }
-  
-  if (nsContentUtils::EqualsLiteralIgnoreASCIICase(aContentEditable, "false")) {
-    SetAttr(kNameSpaceID_None, nsGkAtoms::contenteditable, NS_LITERAL_STRING("false"), true);
-
-    return NS_OK;
+  if (!contentEditable.EqualsLiteral("true") &&
+      !contentEditable.EqualsLiteral("false")) {
+    return NS_ERROR_DOM_SYNTAX_ERR;
   }
 
-  return NS_ERROR_DOM_SYNTAX_ERR;
+  SetAttr(kNameSpaceID_None, nsGkAtoms::contenteditable, contentEditable,
+          true);
+
+  return NS_OK;
 }
 
 nsresult
@@ -2746,8 +2743,7 @@ nsGenericHTMLFormElement::UnbindFromTree(bool aDeep, bool aNullParent)
 
 nsresult
 nsGenericHTMLFormElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                        const nsAttrValueOrString* aValue,
-                                        bool aNotify)
+                                        const nsAString* aValue, bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     nsAutoString tmp;
@@ -2803,17 +2799,16 @@ nsGenericHTMLFormElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
 nsresult
 nsGenericHTMLFormElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                       const nsAttrValue* aValue, bool aNotify)
+                                       const nsAString* aValue, bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     // add the control to the hashtable as needed
 
     if (mForm && (aName == nsGkAtoms::name || aName == nsGkAtoms::id) &&
-        aValue && !aValue->IsEmptyString()) {
-      NS_ABORT_IF_FALSE(aValue->Type() == nsAttrValue::eAtom,
-        "Expected atom value for name/id");
-      mForm->AddElementToTable(this,
-        nsDependentAtomString(aValue->GetAtomValue()));
+        aValue) {
+      if (!aValue->IsEmpty()) {
+        mForm->AddElementToTable(this, *aValue);
+      }
     }
 
     if (mForm && aName == nsGkAtoms::type) {
@@ -2845,7 +2840,7 @@ nsGenericHTMLFormElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       nsIDocument* doc = GetCurrentDoc();
       if (doc) {
         Element* formIdElement = nsnull;
-        if (aValue && !aValue->IsEmptyString()) {
+        if (aValue && !aValue->IsEmpty()) {
           formIdElement = AddFormIdObserver();
         }
 
@@ -2888,6 +2883,14 @@ nsGenericHTMLFormElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 
   return nsGenericHTMLElement::PreHandleEvent(aVisitor);
 }
+
+const nsAttrValue::EnumTable nsGenericHTMLElement::kCORSAttributeTable[] = {
+  // Order matters here
+  // See ParseAttribute in nsHTMLImageElement or nsHTMLMediaElement
+  { "anonymous",       nsGenericHTMLElement::CORS_ANONYMOUS       },
+  { "use-credentials", nsGenericHTMLElement::CORS_USE_CREDENTIALS },
+  { 0 }
+};
 
 /* virtual */
 bool

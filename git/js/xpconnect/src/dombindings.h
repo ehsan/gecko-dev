@@ -43,7 +43,6 @@
 #include "jsapi.h"
 #include "jsproxy.h"
 #include "xpcpublic.h"
-#include "nsString.h"
 
 namespace mozilla {
 namespace dom {
@@ -143,10 +142,6 @@ public:
         *found = false;
         return true;
     }
-    static nsISupports* nativeToSupports(nsISupports* aNative)
-    {
-        return aNative;
-    }
 };
 
 template<class ListType, class IndexOps, class NameOps=NoOps>
@@ -184,13 +179,11 @@ private:
     struct Methods {
         jsid &id;
         JSNative native;
-        unsigned nargs;
+        uintN nargs;
     };
 
     static Properties sProtoProperties[];
-    static size_t sProtoPropertiesCount;
     static Methods sProtoMethods[];
-    static size_t sProtoMethodsCount;
 
     static JSObject *ensureExpandoObject(JSContext *cx, JSObject *obj);
 
@@ -217,11 +210,7 @@ public:
     static JSObject *create(JSContext *cx, XPCWrappedNativeScope *scope, ListType *list,
                             nsWrapperCache* cache, bool *triedToWrap);
 
-    static JSObject *getPrototype(JSContext *cx, XPCWrappedNativeScope *scope, bool *enabled)
-    {
-        *enabled = true;
-        return getPrototype(cx, scope);
-    }
+    static JSObject *getPrototype(JSContext *cx, XPCWrappedNativeScope *scope, bool *enabled);
 
     bool getPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id, bool set,
                                JSPropertyDescriptor *desc);
@@ -242,7 +231,7 @@ public:
     bool set(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id, bool strict,
              JS::Value *vp);
     bool keys(JSContext *cx, JSObject *proxy, JS::AutoIdVector &props);
-    bool iterate(JSContext *cx, JSObject *proxy, unsigned flags, JS::Value *vp);
+    bool iterate(JSContext *cx, JSObject *proxy, uintN flags, JS::Value *vp);
 
     /* Spidermonkey extensions. */
     bool hasInstance(JSContext *cx, JSObject *proxy, const JS::Value *vp, bool *bp);
@@ -255,25 +244,20 @@ public:
     static bool objIsList(JSObject *obj) {
         return js::IsProxy(obj) && proxyHandlerIsList(js::GetProxyHandler(obj));
     }
-    static inline bool instanceIsListObject(JSContext *cx, JSObject *obj, JSObject *callee);
+    static bool instanceIsListObject(JSContext *cx, JSObject *obj, JSObject *callee);
     virtual bool isInstanceOf(JSObject *prototype)
     {
         return js::GetObjectClass(prototype) == &sInterfaceClass;
     }
-    static inline ListType *getListObject(JSObject *obj);
+    static ListType *getListObject(JSObject *obj);
 
     static JSObject *getPrototype(JSContext *cx, XPCWrappedNativeScope *scope);
-    static inline bool protoIsClean(JSContext *cx, JSObject *proto, bool *isClean);
     static bool shouldCacheProtoShape(JSContext *cx, JSObject *proto, bool *shouldCache);
     static bool resolveNativeName(JSContext *cx, JSObject *proxy, jsid id,
                                   JSPropertyDescriptor *desc);
     static bool nativeGet(JSContext *cx, JSObject *proxy, JSObject *proto, jsid id, bool *found,
                           JS::Value *vp);
     static ListType *getNative(JSObject *proxy);
-    static nsISupports* nativeToSupports(ListType* aNative)
-    {
-        return Base::nativeToSupports(aNative);
-    }
 };
 
 struct nsISupportsResult

@@ -166,7 +166,6 @@ private:
     friend class gfxPlatformMac;
 
     gfxMacPlatformFontList();
-    virtual ~gfxMacPlatformFontList();
 
     // initialize font lists
     virtual nsresult InitFontList();
@@ -182,23 +181,12 @@ private:
 
     static void ATSNotification(ATSFontNotificationInfoRef aInfo, void* aUserArg);
 
-    // search fonts system-wide for a given character, null otherwise
-    virtual gfxFontEntry* GlobalFontFallback(const PRUint32 aCh,
-                                             PRInt32 aRunScript,
-                                             const gfxFontStyle* aMatchStyle,
-                                             PRUint32& aCmapCount);
-
-    virtual bool UsesSystemFallback() { return true; }
-
     // keep track of ATS generation to prevent unneeded updates when loading downloaded fonts
     PRUint32 mATSGeneration;
 
     enum {
         kATSGenerationInitial = -1
     };
-
-    // default font for use with system-wide font fallback
-    CTFontRef mDefaultFont;
 };
 
 #endif /* gfxMacPlatformFontList_H_ */

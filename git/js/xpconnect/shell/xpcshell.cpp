@@ -81,7 +81,6 @@
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "nsIXPCSecurityManager.h"
-#include "nsJSPrincipals.h"
 #include "xpcpublic.h"
 #ifdef XP_MACOSX
 #include "xpcshellMacUtils.h"
@@ -168,8 +167,8 @@ GetLocationProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
     //XXX: your platform should really implement this
     return false;
 #else
-    JSScript *script;
-    JS_DescribeScriptedCaller(cx, &script, NULL);
+    JSStackFrame *fp = JS_GetScriptedCaller(cx, NULL);
+    JSScript *script = JS_GetFrameScript(cx, fp);
     const char *filename = JS_GetScriptFilename(cx, script);
 
     if (filename) {
@@ -377,7 +376,7 @@ my_ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
 }
 
 static JSBool
-ReadLine(JSContext *cx, unsigned argc, jsval *vp)
+ReadLine(JSContext *cx, uintN argc, jsval *vp)
 {
     // While 4096 might be quite arbitrary, this is something to be fixed in
     // bug 105707. It is also the same limit as in ProcessFile.
@@ -419,9 +418,9 @@ ReadLine(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
-Print(JSContext *cx, unsigned argc, jsval *vp)
+Print(JSContext *cx, uintN argc, jsval *vp)
 {
-    unsigned i, n;
+    uintN i, n;
     JSString *str;
 
     jsval *argv = JS_ARGV(cx, vp);
@@ -443,7 +442,7 @@ Print(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
-Dump(JSContext *cx, unsigned argc, jsval *vp)
+Dump(JSContext *cx, uintN argc, jsval *vp)
 {
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
 
@@ -468,14 +467,14 @@ Dump(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
-Load(JSContext *cx, unsigned argc, jsval *vp)
+Load(JSContext *cx, uintN argc, jsval *vp)
 {
     JSObject *obj = JS_THIS_OBJECT(cx, vp);
     if (!obj)
         return false;
 
     jsval *argv = JS_ARGV(cx, vp);
-    for (unsigned i = 0; i < argc; i++) {
+    for (uintN i = 0; i < argc; i++) {
         JSString *str = JS_ValueToString(cx, argv[i]);
         if (!str)
             return false;
@@ -504,7 +503,7 @@ Load(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
-Version(JSContext *cx, unsigned argc, jsval *vp)
+Version(JSContext *cx, uintN argc, jsval *vp)
 {
     if (argc > 0 && JSVAL_IS_INT(JS_ARGV(cx, vp)[0]))
         JS_SET_RVAL(cx, vp, INT_TO_JSVAL(JS_SetVersion(cx, JSVersion(JSVAL_TO_INT(JS_ARGV(cx, vp)[0])))));
@@ -514,7 +513,7 @@ Version(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
-BuildDate(JSContext *cx, unsigned argc, jsval *vp)
+BuildDate(JSContext *cx, uintN argc, jsval *vp)
 {
     fprintf(gOutFile, "built on %s at %s\n", __DATE__, __TIME__);
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
@@ -522,7 +521,7 @@ BuildDate(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
-Quit(JSContext *cx, unsigned argc, jsval *vp)
+Quit(JSContext *cx, uintN argc, jsval *vp)
 {
     gExitCode = 0;
     JS_ConvertArguments(cx, argc, JS_ARGV(cx, vp),"/ i", &gExitCode);
@@ -533,7 +532,7 @@ Quit(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
-DumpXPC(JSContext *cx, unsigned argc, jsval *vp)
+DumpXPC(JSContext *cx, uintN argc, jsval *vp)
 {
     int32_t depth = 2;
 
@@ -550,7 +549,7 @@ DumpXPC(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
-GC(JSContext *cx, unsigned argc, jsval *vp)
+GC(JSContext *cx, uintN argc, jsval *vp)
 {
     JS_GC(cx);
 #ifdef JS_GCMETER
@@ -562,7 +561,7 @@ GC(JSContext *cx, unsigned argc, jsval *vp)
 
 #ifdef JS_GC_ZEAL
 static JSBool
-GCZeal(JSContext *cx, unsigned argc, jsval *vp)
+GCZeal(JSContext *cx, uintN argc, jsval *vp)
 {
     uint32_t zeal;
     if (!JS_ValueToECMAUint32(cx, argc ? JS_ARGV(cx, vp)[0] : JSVAL_VOID, &zeal))
@@ -577,7 +576,7 @@ GCZeal(JSContext *cx, unsigned argc, jsval *vp)
 #ifdef DEBUG
 
 static JSBool
-DumpHeap(JSContext *cx, unsigned argc, jsval *vp)
+DumpHeap(JSContext *cx, uintN argc, jsval *vp)
 {
     void* startThing = NULL;
     JSGCTraceKind startTraceKind = JSTRACE_OBJECT;
@@ -645,12 +644,10 @@ DumpHeap(JSContext *cx, unsigned argc, jsval *vp)
         }
     }
 
-    ok = JS_DumpHeap(JS_GetRuntime(cx), dumpFile, startThing, startTraceKind, thingToFind,
+    ok = JS_DumpHeap(cx, dumpFile, startThing, startTraceKind, thingToFind,
                      maxDepth, thingToIgnore);
     if (dumpFile != gOutFile)
         fclose(dumpFile);
-    if (!ok)
-        JS_ReportOutOfMemory(cx);
     return ok;
 
   not_traceable_arg:
@@ -663,7 +660,7 @@ DumpHeap(JSContext *cx, unsigned argc, jsval *vp)
 #endif /* DEBUG */
 
 static JSBool
-Clear(JSContext *cx, unsigned argc, jsval *vp)
+Clear(JSContext *cx, uintN argc, jsval *vp)
 {
     if (argc > 0 && !JSVAL_IS_PRIMITIVE(JS_ARGV(cx, vp)[0])) {
         JS_ClearScope(cx, JSVAL_TO_OBJECT(JS_ARGV(cx, vp)[0]));
@@ -677,7 +674,7 @@ Clear(JSContext *cx, unsigned argc, jsval *vp)
 
 static JSBool
 SendCommand(JSContext* cx,
-            unsigned argc,
+            uintN argc,
             jsval* vp)
 {
     if (argc == 0) {
@@ -708,7 +705,7 @@ SendCommand(JSContext* cx,
 
 static JSBool
 GetChildGlobalObject(JSContext* cx,
-                     unsigned,
+                     uintN,
                      jsval* vp)
 {
     JSObject* global;
@@ -765,7 +762,7 @@ MapContextOptionNameToFlag(JSContext* cx, const char* name)
 }
 
 static JSBool
-Options(JSContext *cx, unsigned argc, jsval *vp)
+Options(JSContext *cx, uintN argc, jsval *vp)
 {
     uint32_t optset, flag;
     JSString *str;
@@ -774,7 +771,7 @@ Options(JSContext *cx, unsigned argc, jsval *vp)
 
     optset = 0;
     jsval *argv = JS_ARGV(cx, vp);
-    for (unsigned i = 0; i < argc; i++) {
+    for (uintN i = 0; i < argc; i++) {
         str = JS_ValueToString(cx, argv[i]);
         if (!str)
             return false;
@@ -815,7 +812,7 @@ Options(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
-Parent(JSContext *cx, unsigned argc, jsval *vp)
+Parent(JSContext *cx, uintN argc, jsval *vp)
 {
     if (argc != 1) {
         JS_ReportError(cx, "Wrong number of arguments");
@@ -828,7 +825,7 @@ Parent(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    *vp = OBJECT_TO_JSVAL(JS_GetParent(JSVAL_TO_OBJECT(v)));
+    *vp = OBJECT_TO_JSVAL(JS_GetParent(cx, JSVAL_TO_OBJECT(v)));
     return true;
 }
 
@@ -926,7 +923,7 @@ env_enumerate(JSContext *cx, JSObject *obj)
     if (reflected)
         return true;
 
-    for (evp = (char **)JS_GetPrivate(obj); (name = *evp) != NULL; evp++) {
+    for (evp = (char **)JS_GetPrivate(cx, obj); (name = *evp) != NULL; evp++) {
         value = strchr(name, '=');
         if (!value)
             continue;
@@ -948,7 +945,7 @@ env_enumerate(JSContext *cx, JSObject *obj)
 }
 
 static JSBool
-env_resolve(JSContext *cx, JSObject *obj, jsid id, unsigned flags,
+env_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
             JSObject **objp)
 {
     JSString *idstr, *valstr;
@@ -1006,7 +1003,7 @@ JSErrorFormatString jsShell_ErrorFormatString[JSShellErr_Limit] = {
 };
 
 static const JSErrorFormatString *
-my_GetErrorMessage(void *userRef, const char *locale, const unsigned errorNumber)
+my_GetErrorMessage(void *userRef, const char *locale, const uintN errorNumber)
 {
     if (errorNumber == 0 || errorNumber >= JSShellErr_Limit)
         return NULL;
@@ -1237,7 +1234,7 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
             xpc_ActivateDebugMode();
             break;
         case 'P':
-            if (JS_GetClass(JS_GetPrototype(obj)) != &global_class) {
+            if (JS_GET_CLASS(cx, JS_GetPrototype(cx, obj)) != &global_class) {
                 JSObject *gobj;
 
                 if (!JS_DeepFreezeObject(cx, obj))
@@ -1689,7 +1686,7 @@ nsXPCFunctionThisTranslator::TranslateThis(nsISupports *aInitialThis,
 static JSContextCallback gOldJSContextCallback;
 
 static JSBool
-ContextCallback(JSContext *cx, unsigned contextOp)
+ContextCallback(JSContext *cx, uintN contextOp)
 {
     if (gOldJSContextCallback && !gOldJSContextCallback(cx, contextOp))
         return false;
@@ -1740,12 +1737,10 @@ GetCurrentWorkingDirectory(nsAString& workingDirectory)
 }
 
 static JSPrincipals *
-FindObjectPrincipals(JSObject *obj)
+FindObjectPrincipals(JSContext *cx, JSObject *obj)
 {
     return gJSPrincipals;
 }
-
-static JSSecurityCallbacks shellSecurityCallbacks;
 
 int
 main(int argc, char **argv, char **envp)
@@ -1763,10 +1758,6 @@ main(int argc, char **argv, char **envp)
     // unbuffer stdout so that output is in the correct order; note that stderr
     // is unbuffered by default
     setbuf(stdout, 0);
-#endif
-
-#ifdef XRE_HAS_DLL_BLOCKLIST
-    XRE_SetupDllBlocklist();
 #endif
 
     gErrFile = stderr;
@@ -1908,8 +1899,10 @@ main(int argc, char **argv, char **envp)
                     fprintf(gErrFile, "+++ Failed to obtain SystemPrincipal from ScriptSecurityManager service.\n");
                 } else {
                     // fetch the JS principals and stick in a global
-                    gJSPrincipals = nsJSPrincipals::get(systemprincipal);
-                    JS_HoldPrincipals(gJSPrincipals);
+                    rv = systemprincipal->GetJSPrincipals(cx, &gJSPrincipals);
+                    if (NS_FAILED(rv)) {
+                        fprintf(gErrFile, "+++ Failed to obtain JS principals from SystemPrincipal.\n");
+                    }
                     secman->SetSystemPrincipal(systemprincipal);
                 }
             } else {
@@ -1917,11 +1910,10 @@ main(int argc, char **argv, char **envp)
             }
         }
 
-        const JSSecurityCallbacks *scb = JS_GetSecurityCallbacks(rt);
-        NS_ASSERTION(scb, "We are assuming that nsScriptSecurityManager::Init() has been run");
-        shellSecurityCallbacks = *scb;
-        shellSecurityCallbacks.findObjectPrincipals = FindObjectPrincipals;
-        JS_SetSecurityCallbacks(rt, &shellSecurityCallbacks);
+        JSSecurityCallbacks *cb = JS_GetRuntimeSecurityCallbacks(rt);
+        NS_ASSERTION(cb, "We are assuming that nsScriptSecurityManager::Init() has been run");
+        NS_ASSERTION(!cb->findObjectPrincipals, "Your pigeon is in my hole!");
+        cb->findObjectPrincipals = FindObjectPrincipals;
 
 #ifdef TEST_TranslateThis
         nsCOMPtr<nsIXPCFunctionThisTranslator>
@@ -1950,7 +1942,9 @@ main(int argc, char **argv, char **envp)
 
         nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
         rv = xpc->InitClassesWithNewWrappedGlobal(cx, backstagePass,
+                                                  NS_GET_IID(nsISupports),
                                                   systemprincipal,
+                                                  nsnull,
                                                   nsIXPConnect::
                                                   FLAG_SYSTEM_GLOBAL_OBJECT,
                                                   getter_AddRefs(holder));
@@ -1983,12 +1977,10 @@ main(int argc, char **argv, char **envp)
             }
 
             envobj = JS_DefineObject(cx, glob, "environment", &env_class, NULL, 0);
-            if (!envobj) {
+            if (!envobj || !JS_SetPrivate(cx, envobj, envp)) {
                 JS_EndRequest(cx);
                 return 1;
             }
-
-            JS_SetPrivate(envobj, envp);
 
             nsAutoString workingDirectory;
             if (GetCurrentWorkingDirectory(workingDirectory))
@@ -2011,7 +2003,7 @@ main(int argc, char **argv, char **envp)
             xpc->WrapJS(cx, glob, NS_GET_IID(nsIJSContextStack),
                         (void**) getter_AddRefs(bogus));
 #endif
-            JS_DropPrincipals(rt, gJSPrincipals);
+            JSPRINCIPALS_DROP(cx, gJSPrincipals);
             JS_ClearScope(cx, glob);
             JS_GC(cx);
             JSContext *oldcx;

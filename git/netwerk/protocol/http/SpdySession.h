@@ -77,13 +77,6 @@ public:
   bool CanReuse() { return !mShouldGoAway && !mClosed; }
   void DontReuse();
   bool RoomForMoreStreams();
-
-  // When the connection is active this is called every 15 seconds
-  void ReadTimeoutTick(PRIntervalTime now);
-  
-  // Idle time represents time since "goodput".. e.g. a data or header frame
-  PRIntervalTime IdleTime();
-
   PRUint32 RegisterStreamID(SpdyStream *);
 
   const static PRUint8 kFlag_Control   = 0x80;
@@ -92,19 +85,10 @@ public:
   const static PRUint8 kFlag_Data_UNI  = 0x02;
   const static PRUint8 kFlag_Data_ZLIB = 0x02;
   
-  // The protocol document for v2 specifies that the
-  // highest value (3) is the highest priority, but in
-  // reality 0 is the highest priority. 
-  //
-  // Draft 3 notes here https://sites.google.com/a/chromium.org/dev/spdy/spdy-protocol/
-  // are the best guide to the mistake. Also see
-  // GetLowestPriority() and GetHighestPriority() in spdy_framer.h of
-  // chromium source.
-
-  const static PRUint8 kPri00   = 0 << 6; // highest
-  const static PRUint8 kPri01   = 1 << 6;
-  const static PRUint8 kPri02   = 2 << 6;
-  const static PRUint8 kPri03   = 3 << 6; // lowest
+  const static PRUint8 kPri00   = 0x00;
+  const static PRUint8 kPri01   = 0x40;
+  const static PRUint8 kPri02   = 0x80;
+  const static PRUint8 kPri03   = 0xC0;
 
   enum
   {
@@ -121,7 +105,7 @@ public:
     CONTROL_TYPE_LAST = 10
   };
 
-  enum rstReason
+  enum
   {
     RST_PROTOCOL_ERROR = 1,
     RST_INVALID_STREAM = 2,
@@ -197,8 +181,6 @@ private:
     PROCESSING_CONTROL_RST_STREAM
   };
 
-  void        DeterminePingThreshold();
-  nsresult    HandleSynReplyForValidStream();
   PRUint32    GetWriteQueueSize();
   void        ChangeDownstreamState(enum stateType);
   void        ResetDownstreamState();
@@ -208,10 +190,9 @@ private:
   nsresult    ConvertHeaders(nsDependentCSubstring &,
                              nsDependentCSubstring &);
   void        GeneratePing(PRUint32);
-  void        ClearPing(bool);
   void        GenerateRstStream(PRUint32, PRUint32);
   void        GenerateGoAway();
-  void        CleanupStream(SpdyStream *, nsresult, rstReason);
+  void        CleanupStream(SpdyStream *, nsresult);
 
   void        SetWriteCallbacks();
   void        FlushOutputQueue();
@@ -220,10 +201,6 @@ private:
   void        ActivateStream(SpdyStream *);
   void        ProcessPending();
 
-  // a wrapper for all calls to the nshttpconnection level segment writer. Used
-  // to track network I/O for timeout purposes
-  nsresult   NetworkRead(nsAHttpSegmentWriter *, char *, PRUint32, PRUint32 *);
-  
   static PLDHashOperator ShutdownEnumerator(nsAHttpTransaction *,
                                             nsAutoPtr<SpdyStream> &,
                                             void *);
@@ -355,13 +332,6 @@ private:
   PRUint32             mOutputQueueUsed;
   PRUint32             mOutputQueueSent;
   nsAutoArrayPtr<char> mOutputQueueBuffer;
-
-  PRIntervalTime       mPingThreshold;
-  PRIntervalTime       mLastReadEpoch;     // used for ping timeouts
-  PRIntervalTime       mLastDataReadEpoch; // used for IdleTime()
-  PRIntervalTime       mPingSentEpoch;
-  PRUint32             mNextPingID;
-  bool                 mPingThresholdExperiment;
 };
 
 }} // namespace mozilla::net

@@ -49,7 +49,7 @@ import android.util.Log;
 class SerialRecordConsumer extends RecordConsumer {
   private static final String LOG_TAG = "SerialRecordConsumer";
   protected boolean stopEventually = false;
-  private volatile long counter = 0;
+  private long counter = 0;
 
   public SerialRecordConsumer(RecordsConsumerDelegate delegate) {
     this.delegate = delegate;
@@ -130,8 +130,7 @@ class SerialRecordConsumer extends RecordConsumer {
   }
 
   private void consumerIsDone() {
-    long counterNow = this.counter;
-    info("Consumer is done. Processed " + counterNow + ((counterNow == 1) ? " record." : " records."));
+    info("Consumer is done. Processed " + counter + ((counter == 1) ? " record." : " records."));
     delegate.consumerIsDone(stopImmediately);
   }
 

@@ -47,14 +47,11 @@
 #include "gfxFont.h"
 #include "nsTextFragment.h"
 
-class nsRenderingContext;
 class nsSVGTextFrame;
 class nsSVGTextPathFrame;
 class nsSVGGlyphFrame;
 class CharacterIterator;
 struct CharacterPosition;
-
-typedef gfxFont::DrawMode DrawMode;
 
 typedef nsSVGGeometryFrame nsSVGGlyphFrameBase;
 
@@ -173,7 +170,7 @@ public:
 
   // nsISVGChildFrame interface:
   // These four always use the global transform, even if NS_STATE_NONDISPLAY_CHILD
-  NS_IMETHOD PaintSVG(nsRenderingContext *aContext,
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext,
                       const nsIntRect *aDirtyRect);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHOD UpdateCoveredRegion();
@@ -183,8 +180,8 @@ public:
   NS_IMETHOD_(nsRect) GetCoveredRegion();
   NS_IMETHOD InitialUpdate();
   virtual void NotifySVGChanged(PRUint32 aFlags);
-  virtual void NotifyRedrawSuspended();
-  virtual void NotifyRedrawUnsuspended();
+  NS_IMETHOD NotifyRedrawSuspended();
+  NS_IMETHOD NotifyRedrawUnsuspended();
   NS_IMETHOD_(bool) IsDisplayContainer() { return false; }
   NS_IMETHOD_(bool) HasValidCoveredRect() {
     return !(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD);
@@ -239,10 +236,10 @@ protected:
                            gfxContext *aContext);
   void AddBoundingBoxesToPath(CharacterIterator *aIter,
                               gfxContext *aContext);
-  void DrawCharacters(CharacterIterator *aIter,
-                      gfxContext *aContext,
-                      DrawMode aDrawMode,
-                      gfxPattern *aStrokePattern = nsnull);
+  void FillCharacters(CharacterIterator *aIter,
+                      gfxContext *aContext);
+  void StrokeCharacters(CharacterIterator *aIter,
+                        gfxContext *aContext);
 
   void NotifyGlyphMetricsChange();
   void SetupGlobalTransform(gfxContext *aContext);
@@ -267,10 +264,6 @@ protected:
   bool mCompressWhitespace;
   bool mTrimLeadingWhitespace;
   bool mTrimTrailingWhitespace;
-
-private:
-  DrawMode SetupCairoState(gfxContext *aContext,
-                           gfxPattern **aStrokePattern);
 };
 
 #endif

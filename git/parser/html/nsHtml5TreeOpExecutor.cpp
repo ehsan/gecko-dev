@@ -923,21 +923,20 @@ nsHtml5TreeOpExecutor::ConvertIfNotPreloadedYet(const nsAString& aURL)
   if (mPreloadedURLs.Contains(spec)) {
     return nsnull;
   }
-  mPreloadedURLs.PutEntry(spec);
+  mPreloadedURLs.Put(spec);
   return uri.forget();
 }
 
 void
 nsHtml5TreeOpExecutor::PreloadScript(const nsAString& aURL,
                                      const nsAString& aCharset,
-                                     const nsAString& aType,
-                                     const nsAString& aCrossOrigin)
+                                     const nsAString& aType)
 {
   nsCOMPtr<nsIURI> uri = ConvertIfNotPreloadedYet(aURL);
   if (!uri) {
     return;
   }
-  mDocument->ScriptLoader()->PreloadURI(uri, aCharset, aType, aCrossOrigin);
+  mDocument->ScriptLoader()->PreloadURI(uri, aCharset, aType);
 }
 
 void

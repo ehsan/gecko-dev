@@ -1,21 +1,55 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Android Sync Client.
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Richard Newman <rnewman@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 package org.mozilla.gecko.sync.middleware;
 
 import java.io.UnsupportedEncodingException;
 import java.util.concurrent.ExecutorService;
 
-import org.mozilla.gecko.sync.CryptoRecord;
 import org.mozilla.gecko.sync.crypto.CryptoException;
 import org.mozilla.gecko.sync.crypto.KeyBundle;
-import org.mozilla.gecko.sync.repositories.InactiveSessionException;
+import org.mozilla.gecko.sync.CryptoRecord;
 import org.mozilla.gecko.sync.repositories.NoStoreDelegateException;
 import org.mozilla.gecko.sync.repositories.RecordFactory;
 import org.mozilla.gecko.sync.repositories.RepositorySession;
 import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFetchRecordsDelegate;
+import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionGuidsSinceDelegate;
 import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionStoreDelegate;
+import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionWipeDelegate;
 import org.mozilla.gecko.sync.repositories.domain.Record;
 
 /**
@@ -57,12 +91,14 @@ import org.mozilla.gecko.sync.repositories.domain.Record;
  * @author rnewman
  *
  */
-public class Crypto5MiddlewareRepositorySession extends MiddlewareRepositorySession {
+public class Crypto5MiddlewareRepositorySession extends RepositorySession {
   private KeyBundle keyBundle;
+  private RepositorySession inner;
   private RecordFactory recordFactory;
 
   public Crypto5MiddlewareRepositorySession(RepositorySession session, Crypto5MiddlewareRepository repository, RecordFactory recordFactory) {
-    super(session, repository);
+    super(repository);
+    this.inner = session;
     this.keyBundle = repository.keyBundle;
     this.recordFactory = recordFactory;
   }
@@ -110,7 +146,7 @@ public class Crypto5MiddlewareRepositorySession extends MiddlewareRepositorySess
     }
 
     @Override
-    public void onFetchSucceeded(Record[] records, long fetchEnd) {
+    public void onFetchSucceeded(Record[] records, long end) {
       for (Record record : records) {
         try {
           this.onFetchedRecord(record);
@@ -118,12 +154,12 @@ public class Crypto5MiddlewareRepositorySession extends MiddlewareRepositorySess
           this.onFetchFailed(e, record);
         }
       }
-      this.onFetchCompleted(fetchEnd);
+      this.onFetchCompleted(end);
     }
 
     @Override
-    public void onFetchCompleted(final long fetchEnd) {
-      next.onFetchCompleted(fetchEnd);
+    public void onFetchCompleted(long end) {
+      next.onFetchCompleted(end);
     }
 
     @Override
@@ -142,6 +178,13 @@ public class Crypto5MiddlewareRepositorySession extends MiddlewareRepositorySess
   }
 
   @Override
+  public void guidsSince(long timestamp,
+                         RepositorySessionGuidsSinceDelegate delegate) {
+    // TODO: need to do anything here?
+    inner.guidsSince(timestamp, delegate);
+  }
+
+  @Override
   public void fetchSince(long timestamp,
                          RepositorySessionFetchRecordsDelegate delegate) {
     inner.fetchSince(timestamp, makeUnwrappingDelegate(delegate));
@@ -149,7 +192,7 @@ public class Crypto5MiddlewareRepositorySession extends MiddlewareRepositorySess
 
   @Override
   public void fetch(String[] guids,
-                    RepositorySessionFetchRecordsDelegate delegate) throws InactiveSessionException {
+                    RepositorySessionFetchRecordsDelegate delegate) {
     inner.fetch(guids, makeUnwrappingDelegate(delegate));
   }
 
@@ -170,7 +213,7 @@ public class Crypto5MiddlewareRepositorySession extends MiddlewareRepositorySess
     if (delegate == null) {
       throw new NoStoreDelegateException();
     }
-    CryptoRecord rec = record.getEnvelope();
+    CryptoRecord rec = record.getPayload();
     rec.keyBundle = this.keyBundle;
     try {
       rec.encrypt();
@@ -183,5 +226,15 @@ public class Crypto5MiddlewareRepositorySession extends MiddlewareRepositorySess
     }
     // Allow the inner session to do delegate handling.
     inner.store(rec);
+  }
+
+  @Override
+  public void wipe(RepositorySessionWipeDelegate delegate) {
+    inner.wipe(delegate);
+  }
+
+  @Override
+  public void storeDone() {
+    inner.storeDone();
   }
 }

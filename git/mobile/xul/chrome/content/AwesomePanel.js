@@ -23,7 +23,6 @@ var AwesomeScreen = {
       document.getElementById("syncsetup-container"),
 #endif
       document.getElementById("urlbar-container"),
-      document.getElementById("tool-app-close"),
       document.getElementById("search-engines-popup"),
       document.getElementById("context-popup")
     ]
@@ -57,7 +56,7 @@ var AwesomeScreen = {
 
     let willShowPanel = (!this._activePanel && aPanel);
     if (willShowPanel) {
-      BrowserUI.pushDialog(aPanel);
+      BrowserUI.pushDialog(this._activePanel);
       BrowserUI._edit.attachController();
       BrowserUI._editURI();
       this.container.hidden = this.headers.hidden = false;

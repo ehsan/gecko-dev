@@ -85,7 +85,10 @@
  * move to u.i.script->flags. For now we use function flag bits to minimize
  * pointer-chasing.
  */
-// 0x0001 was JSFUN_JOINABLE, but was deleted for bug 739808.
+#define JSFUN_JOINABLE      0x0001  /* function is null closure that does not
+                                       appear to call itself via its own name
+                                       or arguments.callee */
+
 #define JSFUN_PROTOTYPE     0x0800  /* function is Function.prototype for some
                                        global object */
 
@@ -155,7 +158,7 @@ struct JSFunction : public JSObject
     }
 
     bool joinable() const {
-        return false;
+        return flags & JSFUN_JOINABLE;
     }
 
     /*
@@ -167,6 +170,8 @@ struct JSFunction : public JSObject
     inline void initEnvironment(JSObject *obj);
 
     static inline size_t offsetOfEnvironment() { return offsetof(JSFunction, u.i.env_); }
+
+    inline void setJoinable();
 
     js::HeapPtrScript &script() const {
         JS_ASSERT(isInterpreted());
@@ -189,7 +194,7 @@ struct JSFunction : public JSObject
         return isInterpreted() ? NULL : native();
     }
 
-    static unsigned offsetOfNativeOrScript() {
+    static uintN offsetOfNativeOrScript() {
         JS_STATIC_ASSERT(offsetof(U, n.native) == offsetof(U, i.script_));
         JS_STATIC_ASSERT(offsetof(U, n.native) == offsetof(U, nativeOrScript));
         return offsetof(JSFunction, u.nativeOrScript);
@@ -218,11 +223,11 @@ struct JSFunction : public JSObject
     /* Bound function accessors. */
 
     inline bool initBoundFunction(JSContext *cx, const js::Value &thisArg,
-                                  const js::Value *args, unsigned argslen);
+                                  const js::Value *args, uintN argslen);
 
     inline JSObject *getBoundFunctionTarget() const;
     inline const js::Value &getBoundFunctionThis() const;
-    inline const js::Value &getBoundFunctionArgument(unsigned which) const;
+    inline const js::Value &getBoundFunctionArgument(uintN which) const;
     inline size_t getBoundFunctionArgumentCount() const;
 
   private:
@@ -285,12 +290,6 @@ struct JSFunction : public JSObject
     inline JSAtom *methodAtom() const;
     inline void setMethodAtom(JSAtom *atom);
 
-    /*
-     * Measures things hanging off this JSFunction that are counted by the
-     * |miscSize| argument in JSObject::sizeOfExcludingThis().
-     */
-    size_t sizeOfMisc(JSMallocSizeOfFun mallocSizeOf) const;
-
   private:
     /* 
      * These member functions are inherited from JSObject, but should never be applied to
@@ -315,11 +314,11 @@ JSObject::toFunction() const
 }
 
 extern JSString *
-fun_toStringHelper(JSContext *cx, JSObject *obj, unsigned indent);
+fun_toStringHelper(JSContext *cx, JSObject *obj, uintN indent);
 
 extern JSFunction *
-js_NewFunction(JSContext *cx, JSObject *funobj, JSNative native, unsigned nargs,
-               unsigned flags, js::HandleObject parent, JSAtom *atom,
+js_NewFunction(JSContext *cx, JSObject *funobj, JSNative native, uintN nargs,
+               uintN flags, js::HandleObject parent, JSAtom *atom,
                js::gc::AllocKind kind = JSFunction::FinalizeKind);
 
 extern JSFunction * JS_FASTCALL
@@ -334,7 +333,7 @@ js_NewFlatClosure(JSContext *cx, JSFunction *fun);
 
 extern JSFunction *
 js_DefineFunction(JSContext *cx, js::HandleObject obj, jsid id, JSNative native,
-                  unsigned nargs, unsigned flags,
+                  uintN nargs, uintN flags,
                   js::gc::AllocKind kind = JSFunction::FinalizeKind);
 
 /*
@@ -344,18 +343,42 @@ js_DefineFunction(JSContext *cx, js::HandleObject obj, jsid id, JSNative native,
 #define JSV2F_SEARCH_STACK      0x10000
 
 extern JSFunction *
-js_ValueToFunction(JSContext *cx, const js::Value *vp, unsigned flags);
+js_ValueToFunction(JSContext *cx, const js::Value *vp, uintN flags);
 
 extern JSObject *
-js_ValueToCallableObject(JSContext *cx, js::Value *vp, unsigned flags);
+js_ValueToCallableObject(JSContext *cx, js::Value *vp, uintN flags);
 
 extern void
-js_ReportIsNotFunction(JSContext *cx, const js::Value *vp, unsigned flags);
+js_ReportIsNotFunction(JSContext *cx, const js::Value *vp, uintN flags);
 
 extern void
 js_PutCallObject(js::StackFrame *fp);
 
 namespace js {
+
+CallObject *
+CreateFunCallObject(JSContext *cx, StackFrame *fp);
+
+CallObject *
+CreateEvalCallObject(JSContext *cx, StackFrame *fp);
+
+extern JSBool
+GetCallArg(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
+
+extern JSBool
+GetCallVar(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
+
+extern JSBool
+GetCallUpvar(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
+
+extern JSBool
+SetCallArg(JSContext *cx, JSObject *obj, jsid id, JSBool strict, js::Value *vp);
+
+extern JSBool
+SetCallVar(JSContext *cx, JSObject *obj, jsid id, JSBool strict, js::Value *vp);
+
+extern JSBool
+SetCallUpvar(JSContext *cx, JSObject *obj, jsid id, JSBool strict, js::Value *vp);
 
 /*
  * Function extended with reserved slots for use by various kinds of functions.
@@ -386,6 +409,9 @@ JSFunction::toExtended() const
     return static_cast<const js::FunctionExtended *>(this);
 }
 
+extern JSBool
+js_GetArgsValue(JSContext *cx, js::StackFrame *fp, js::Value *vp);
+
 /*
  * Get the arguments object for the given frame.  If the frame is strict mode
  * code, its current arguments will be copied into the arguments object.
@@ -396,7 +422,7 @@ JSFunction::toExtended() const
  *     named parameter by synthesizing an arguments access at the start of the
  *     function.
  */
-extern js::ArgumentsObject *
+extern JSObject *
 js_GetArgsObject(JSContext *cx, js::StackFrame *fp);
 
 extern void
@@ -405,17 +431,13 @@ js_PutArgsObject(js::StackFrame *fp);
 inline bool
 js_IsNamedLambda(JSFunction *fun) { return (fun->flags & JSFUN_LAMBDA) && fun->atom; }
 
-namespace js {
+extern JSBool
+js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp);
 
 extern JSBool
-XDRFunctionObject(JSXDRState *xdr, JSObject **objp);
-
-} /* namespace js */
+js_fun_apply(JSContext *cx, uintN argc, js::Value *vp);
 
 extern JSBool
-js_fun_apply(JSContext *cx, unsigned argc, js::Value *vp);
-
-extern JSBool
-js_fun_call(JSContext *cx, unsigned argc, js::Value *vp);
+js_fun_call(JSContext *cx, uintN argc, js::Value *vp);
 
 #endif /* jsfun_h___ */

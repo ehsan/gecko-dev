@@ -21,14 +21,15 @@ function test() {
         let presenter = instance.presenter;
         let canvas = presenter.canvas;
 
-        presenter._onSetupMesh = function() {
-          let p = getPickablePoint(presenter);
+        presenter.onSetupMesh = function() {
 
-          presenter.pickNode(p[0], p[1], {
+          presenter.pickNode(canvas.width / 2, canvas.height / 2, {
             onpick: function(data)
             {
               ok(data.index > 0,
                 "Simply picking a node didn't work properly.");
+              ok(!presenter.highlight.disabled,
+                "After only picking a node, it shouldn't be highlighted.");
 
               Services.obs.addObserver(cleanup, DESTROYED, false);
               InspectorUI.closeInspectorUI();

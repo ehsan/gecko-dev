@@ -42,9 +42,9 @@
 
 #include "nsAutoPtr.h"
 #include "nsIContent.h"
+#include "nsIWeakReference.h"
 
 class nsAccessible;
-class nsDocAccessible;
 struct WalkState;
 
 /**
@@ -53,7 +53,7 @@ struct WalkState;
 class nsAccTreeWalker
 {
 public:
-  nsAccTreeWalker(nsDocAccessible* aDoc, nsIContent* aNode, 
+  nsAccTreeWalker(nsIWeakReference *aShell, nsIContent *aNode, 
                   bool aWalkAnonymousContent, bool aWalkCache = false);
   virtual ~nsAccTreeWalker();
 
@@ -93,7 +93,7 @@ private:
    */
   void PopState();
 
-  nsDocAccessible* mDoc;
+  nsCOMPtr<nsIWeakReference> mWeakShell;
   PRInt32 mChildFilter;
   bool mWalkCache;
   WalkState* mState;

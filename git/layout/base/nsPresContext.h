@@ -119,7 +119,8 @@ enum nsPresContext_CachedBoolPrefType {
 
 // supported values for cached integer pref types
 enum nsPresContext_CachedIntPrefType {
-  kPresContext_ScrollbarSide = 1,
+  kPresContext_MinimumFontSize = 1,
+  kPresContext_ScrollbarSide,
   kPresContext_BidiDirection
 };
 
@@ -303,26 +304,23 @@ public:
   }
 
   /**
-   * Get the default font for the given language and generic font ID.
-   * If aLanguage is nsnull, the document's language is used.
-   *
-   * This object is read-only, you must copy the font to modify it.
+   * Get the default font corresponding to the given ID.  This object is
+   * read-only, you must copy the font to modify it.
    * 
    * When aFontID is kPresContext_DefaultVariableFontID or
    * kPresContext_DefaultFixedFontID (which equals
    * kGenericFont_moz_fixed, which is used for the -moz-fixed generic),
    * the nsFont returned has its name as a CSS generic family (serif or
    * sans-serif for the former, monospace for the latter), and its size
-   * as the default font size for variable or fixed fonts for the
-   * language group.
+   * as the default font size for variable or fixed fonts for the pres
+   * context's language group.
    *
-   * For aFontID corresponding to a CSS Generic, the nsFont returned has
-   * its name set to that generic font's name, and its size set to
-   * the user's preference for font size for that generic and the
-   * given language.
+   * For aFontID corresponds to a CSS Generic, the nsFont returned has
+   * its name as the name or names of the fonts in the user's
+   * preferences for the given generic and the pres context's language
+   * group, and its size set to the default variable font size.
    */
-  NS_HIDDEN_(const nsFont*) GetDefaultFont(PRUint8 aFontID,
-                                           nsIAtom *aLanguage) const;
+  NS_HIDDEN_(const nsFont*) GetDefaultFont(PRUint8 aFontID) const;
 
   /** Get a cached boolean pref, by its type */
   // *  - initially created for bugs 31816, 20760, 22963
@@ -351,6 +349,8 @@ public:
     // If called with a constant parameter, the compiler should optimize
     // this switch statement away.
     switch (aPrefType) {
+    case kPresContext_MinimumFontSize:
+      return mMinimumFontSizePref;
     case kPresContext_ScrollbarSide:
       return mPrefScrollbarSide;
     case kPresContext_BidiDirection:
@@ -528,20 +528,15 @@ public:
 
     mTextZoom = aZoom;
     if (HasCachedStyleData()) {
-      // Media queries could have changed, since we changed the meaning
+      // Media queries could have changed since we changed the meaning
       // of 'em' units in them.
       MediaFeatureValuesChanged(true);
       RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
     }
   }
 
-  /**
-   * Get the minimum font size for the specified language. If aLanguage
-   * is nsnull, then the document's language is used.
-   */
-  PRInt32 MinFontSize(nsIAtom *aLanguage) const {
-    const LangGroupFontPrefs *prefs = GetFontPrefsForLang(aLanguage);
-    return NS_MAX(mMinFontSize, prefs->mMinimumFontSize);
+  PRInt32 MinFontSize() const {
+    return NS_MAX(mMinFontSize, mMinimumFontSizePref);
   }
 
   void SetMinFontSize(PRInt32 aMinFontSize) {
@@ -550,7 +545,7 @@ public:
 
     mMinFontSize = aMinFontSize;
     if (HasCachedStyleData()) {
-      // Media queries could have changed, since we changed the meaning
+      // Media queries could have changed since we changed the meaning
       // of 'em' units in them.
       MediaFeatureValuesChanged(true);
       RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
@@ -968,8 +963,14 @@ public:
   bool MayHaveFixedBackgroundFrames() { return mMayHaveFixedBackgroundFrames; }
   void SetHasFixedBackgroundFrame() { mMayHaveFixedBackgroundFrames = true; }
 
-  virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
+  virtual NS_MUST_OVERRIDE size_t
+        SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
+    // XXX: lots of things hang off nsPresContext and should be included in
+    // this measurement.  Bug 671299 may add them.
+    return 0;
+  }
+  virtual NS_MUST_OVERRIDE size_t
+        SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
     return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
   }
 
@@ -992,78 +993,7 @@ protected:
   static NS_HIDDEN_(void) PrefChangedUpdateTimerCallback(nsITimer *aTimer, void *aClosure);
 
   NS_HIDDEN_(void) GetUserPreferences();
-
-  // Allow nsAutoPtr<LangGroupFontPrefs> dtor to access this protected struct's
-  // dtor:
-  struct LangGroupFontPrefs;
-  friend class nsAutoPtr<LangGroupFontPrefs>;
-  struct LangGroupFontPrefs {
-    // Font sizes default to zero; they will be set in GetFontPreferences
-    LangGroupFontPrefs()
-      : mLangGroup(nsnull)
-      , mMinimumFontSize(0)
-      , mDefaultVariableFont("serif", NS_FONT_STYLE_NORMAL, NS_FONT_VARIANT_NORMAL,
-                             NS_FONT_WEIGHT_NORMAL, NS_FONT_STRETCH_NORMAL, 0, 0)
-      , mDefaultFixedFont("monospace", NS_FONT_STYLE_NORMAL,
-                          NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL,
-                          NS_FONT_STRETCH_NORMAL, 0, 0)
-      , mDefaultSerifFont("serif", NS_FONT_STYLE_NORMAL, NS_FONT_VARIANT_NORMAL,
-                        NS_FONT_WEIGHT_NORMAL, NS_FONT_STRETCH_NORMAL, 0, 0)
-      , mDefaultSansSerifFont("sans-serif", NS_FONT_STYLE_NORMAL,
-                              NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL,
-                              NS_FONT_STRETCH_NORMAL, 0, 0)
-      , mDefaultMonospaceFont("monospace", NS_FONT_STYLE_NORMAL,
-                              NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL,
-                              NS_FONT_STRETCH_NORMAL, 0, 0)
-      , mDefaultCursiveFont("cursive", NS_FONT_STYLE_NORMAL,
-                            NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL,
-                            NS_FONT_STRETCH_NORMAL, 0, 0)
-      , mDefaultFantasyFont("fantasy", NS_FONT_STYLE_NORMAL,
-                            NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL,
-                            NS_FONT_STRETCH_NORMAL, 0, 0)
-    {}
-
-    size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
-      size_t n = 0;
-      LangGroupFontPrefs *curr = mNext;
-      while (curr) {
-        n += aMallocSizeOf(curr);
-
-        // Measurement of the following members may be added later if DMD finds
-        // it is worthwhile:
-        // - mLangGroup
-        // - mDefault*Font
-
-        curr = curr->mNext;
-      }
-      return n;
-    }
-
-    nsCOMPtr<nsIAtom> mLangGroup;
-    nscoord mMinimumFontSize;
-    nsFont mDefaultVariableFont;
-    nsFont mDefaultFixedFont;
-    nsFont mDefaultSerifFont;
-    nsFont mDefaultSansSerifFont;
-    nsFont mDefaultMonospaceFont;
-    nsFont mDefaultCursiveFont;
-    nsFont mDefaultFantasyFont;
-    nsAutoPtr<LangGroupFontPrefs> mNext;
-  };
-
-  /**
-   * Fetch the user's font preferences for the given aLanguage's
-   * langugage group.
-   */
-  const LangGroupFontPrefs* GetFontPrefsForLang(nsIAtom *aLanguage) const;
-
-  void ResetCachedFontPrefs() {
-    // Throw away any other LangGroupFontPrefs objects:
-    mLangGroupFontPrefs.mNext = nsnull;
-
-    // Make GetFontPreferences reinitialize mLangGroupFontPrefs:
-    mLangGroupFontPrefs.mLangGroup = nsnull;
-  }
+  NS_HIDDEN_(void) GetFontPreferences();
 
   NS_HIDDEN_(void) UpdateCharSet(const nsCString& aCharSet);
 
@@ -1158,6 +1088,9 @@ protected:
   // container for per-context fonts (downloadable, SVG, etc.)
   nsUserFontSet*        mUserFontSet;
   
+  PRInt32               mFontScaler;
+  nscoord               mMinimumFontSizePref;
+
   nsRect                mVisibleArea;
   nsSize                mPageSize;
   float                 mPageScale;
@@ -1181,7 +1114,13 @@ protected:
   PRUint16              mImageAnimationMode;
   PRUint16              mImageAnimationModePref;
 
-  LangGroupFontPrefs    mLangGroupFontPrefs;
+  nsFont                mDefaultVariableFont;
+  nsFont                mDefaultFixedFont;
+  nsFont                mDefaultSerifFont;
+  nsFont                mDefaultSansSerifFont;
+  nsFont                mDefaultMonospaceFont;
+  nsFont                mDefaultCursiveFont;
+  nsFont                mDefaultFantasyFont;
 
   nscoord               mBorderWidthTable[3];
 
@@ -1333,6 +1272,14 @@ public:
   virtual bool IsRoot() { return true; }
 
   /**
+   * This method is called off an event to force the plugin geometry to
+   * be updated. First we try to paint, since updating plugin geometry
+   * during paint is best for keeping plugins in sync with content.
+   * But we also force geometry updates in case painting doesn't work.
+   */
+  void SynchronousPluginGeometryUpdate();
+
+  /**
    * Call this after reflow and scrolling to ensure that the geometry
    * of any windowed plugins is updated. aFrame is the root of the
    * frame subtree whose geometry has changed.
@@ -1377,7 +1324,16 @@ public:
    */
   void FlushWillPaintObservers();
 
-  virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
+  virtual NS_MUST_OVERRIDE size_t
+        SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE {
+    // XXX: several things hang off an nsRootPresContext and should be included
+    // in this measurement.  Bug 671299 may do this.
+    return nsPresContext::SizeOfExcludingThis(aMallocSizeOf);
+  }
+  virtual NS_MUST_OVERRIDE size_t
+        SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE {
+    return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
+  }
 
 protected:
   class RunWillPaintObservers : public nsRunnable {
@@ -1394,17 +1350,7 @@ protected:
     nsRootPresContext* mPresContext;
   };
 
-  friend class nsPresContext;
-  void CancelUpdatePluginGeometryTimer()
-  {
-    if (mUpdatePluginGeometryTimer) {
-      mUpdatePluginGeometryTimer->Cancel();
-      mUpdatePluginGeometryTimer = nsnull;
-    }
-  }
-
   nsCOMPtr<nsITimer> mNotifyDidPaintTimer;
-  nsCOMPtr<nsITimer> mUpdatePluginGeometryTimer;
   nsTHashtable<nsPtrHashKey<nsObjectFrame> > mRegisteredPlugins;
   // if mNeedsToUpdatePluginGeometry is set, then this is the frame to
   // use as the root of the subtree to search for plugin updates, or

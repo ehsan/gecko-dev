@@ -175,7 +175,21 @@ let gSyncUI = {
     this.clearError(title);
   },
 
+  // Set visibility of "Setup Sync" link
+  showSetupSyncAboutHome: function SUI_showSetupSyncAboutHome(toShow) {
+    let browsers = gBrowser.browsers;
+    for (let i = 0; i < browsers.length; i++) {
+      let b = browsers[i];
+      if ("about:home" == b.currentURI.spec) {
+        b.contentDocument.getElementById("setupSyncLink").hidden = !toShow;
+      }
+    }
+  },
+
   onSetupComplete: function SUI_onSetupComplete() {
+    // Remove "setup sync" link in about:home if it is open. 
+    this.showSetupSyncAboutHome(false);
+
     onLoginFinish();
   },
 
@@ -223,6 +237,8 @@ let gSyncUI = {
 
   onStartOver: function SUI_onStartOver() {
     this.clearError();
+    // Make "setup sync" link visible in about:home if it is open. 
+    this.showSetupSyncAboutHome(true);
   },
 
   onQuotaNotice: function onQuotaNotice(subject, data) {
@@ -275,7 +291,7 @@ let gSyncUI = {
     if (win)
       win.focus();
     else {
-      window.openDialog("chrome://browser/content/sync/setup.xul",
+      window.openDialog("chrome://browser/content/syncSetup.xul",
                         "weaveSetup", "centerscreen,chrome,resizable=no",
                         wizardType);
     }
@@ -289,7 +305,7 @@ let gSyncUI = {
     if (win)
       win.focus();
     else
-      window.openDialog("chrome://browser/content/sync/addDevice.xul",
+      window.openDialog("chrome://browser/content/syncAddDevice.xul",
                         "syncAddDevice", "centerscreen,chrome,resizable=no");
   },
 
@@ -299,7 +315,7 @@ let gSyncUI = {
       win.focus();
     else
       Services.ww.activeWindow.openDialog(
-        "chrome://browser/content/sync/quota.xul", "",
+        "chrome://browser/content/syncQuota.xul", "",
         "centerscreen,chrome,dialog,modal");
   },
 

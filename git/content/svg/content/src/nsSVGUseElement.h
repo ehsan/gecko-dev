@@ -103,9 +103,7 @@ public:
   void DestroyAnonymousContent();
 
   // nsSVGElement specializations:
-  virtual gfxMatrix PrependLocalTransformsTo(const gfxMatrix &aMatrix,
-                      TransformTypes aWhich = eAllTransforms) const;
-  virtual bool HasValidDimensions() const;
+  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix) const;
 
   // nsIContent interface
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
@@ -131,7 +129,8 @@ protected:
   virtual LengthAttributesInfo GetLengthInfo();
   virtual StringAttributesInfo GetStringInfo();
 
-  void SyncWidthOrHeight(nsIAtom *aName);
+  bool HasValidDimensions();
+  void SyncWidthHeight(nsIAtom *aName);
   void LookupHref();
   void TriggerReclone();
   void UnlinkSource();

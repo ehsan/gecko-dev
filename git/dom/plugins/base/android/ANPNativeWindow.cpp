@@ -52,16 +52,14 @@ using namespace mozilla;
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GeckoPlugins" , ## args)
 #define ASSIGN(obj, name)   (obj)->name = anp_native_window_##name
 
-static nsresult GetOwner(NPP instance, nsPluginInstanceOwner** owner) {
+static ANPNativeWindow anp_native_window_acquireNativeWindow(NPP instance) {
   nsNPAPIPluginInstance* pinst = static_cast<nsNPAPIPluginInstance*>(instance->ndata);
 
-  return pinst->GetOwner((nsIPluginInstanceOwner**)owner);
-}
-
-static ANPNativeWindow anp_native_window_acquireNativeWindow(NPP instance) {
-  nsRefPtr<nsPluginInstanceOwner> owner;
-  if (NS_FAILED(GetOwner(instance, getter_AddRefs(owner))))
+  nsPluginInstanceOwner* owner;
+  if (NS_FAILED(pinst->GetOwner((nsIPluginInstanceOwner**)&owner))) {
     return NULL;
+  }
+
 
   ANPNativeWindow window = owner->Layer()->GetNativeWindowForContent();
   owner->Invalidate();
@@ -70,9 +68,12 @@ static ANPNativeWindow anp_native_window_acquireNativeWindow(NPP instance) {
 }
 
 static void anp_native_window_invertPluginContent(NPP instance, bool isContentInverted) {
-  nsRefPtr<nsPluginInstanceOwner> owner;
-  if (NS_FAILED(GetOwner(instance, getter_AddRefs(owner))))
+  nsNPAPIPluginInstance* pinst = static_cast<nsNPAPIPluginInstance*>(instance->ndata);
+
+  nsPluginInstanceOwner* owner;
+  if (NS_FAILED(pinst->GetOwner((nsIPluginInstanceOwner**)&owner))) {
     return;
+  }
 
   owner->Layer()->SetInverted(isContentInverted);
 }

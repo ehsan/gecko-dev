@@ -41,82 +41,115 @@
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
-#include "mozilla/Util.h"
 
-nsTransactionStack::nsTransactionStack(nsTransactionStack::Type aType)
+nsTransactionStack::nsTransactionStack()
   : mQue(0)
-  , mType(aType)
 {
-}
+} 
 
 nsTransactionStack::~nsTransactionStack()
 {
   Clear();
 }
 
-void
+nsresult
 nsTransactionStack::Push(nsTransactionItem *aTransaction)
 {
-  if (!aTransaction) {
-    return;
-  }
+  NS_ENSURE_TRUE(aTransaction, NS_ERROR_NULL_POINTER);
 
   /* nsDeque's Push() method adds new items at the back
    * of the deque.
    */
   NS_ADDREF(aTransaction);
   mQue.Push(aTransaction);
+
+  return NS_OK;
 }
 
-already_AddRefed<nsTransactionItem>
-nsTransactionStack::Pop()
+nsresult
+nsTransactionStack::Pop(nsTransactionItem **aTransaction)
 {
+  NS_ENSURE_TRUE(aTransaction, NS_ERROR_NULL_POINTER);
+
   /* nsDeque is a FIFO, so the top of our stack is actually
    * the back of the deque.
    */
-  return static_cast<nsTransactionItem*> (mQue.Pop());
+  *aTransaction = (nsTransactionItem *)mQue.Pop();
+
+  return NS_OK;
 }
 
-already_AddRefed<nsTransactionItem>
-nsTransactionStack::PopBottom()
+nsresult
+nsTransactionStack::PopBottom(nsTransactionItem **aTransaction)
 {
+  NS_ENSURE_TRUE(aTransaction, NS_ERROR_NULL_POINTER);
+
   /* nsDeque is a FIFO, so the bottom of our stack is actually
    * the front of the deque.
    */
-  return static_cast<nsTransactionItem*> (mQue.PopFront());
+  *aTransaction = (nsTransactionItem *)mQue.PopFront();
+
+  return NS_OK;
 }
 
-already_AddRefed<nsTransactionItem>
-nsTransactionStack::Peek()
+nsresult
+nsTransactionStack::Peek(nsTransactionItem **aTransaction)
 {
-  nsTransactionItem* transaction = nsnull;
-  if (mQue.GetSize()) {
-    NS_IF_ADDREF(transaction = static_cast<nsTransactionItem*>(mQue.Last()));
+  NS_ENSURE_TRUE(aTransaction, NS_ERROR_NULL_POINTER);
+
+  if (!mQue.GetSize()) {
+    *aTransaction = 0;
+    return NS_OK;
   }
 
-  return transaction;
+  NS_IF_ADDREF(*aTransaction = static_cast<nsTransactionItem*>(mQue.Last()));
+
+  return NS_OK;
 }
 
-already_AddRefed<nsTransactionItem>
-nsTransactionStack::GetItem(PRInt32 aIndex)
+nsresult
+nsTransactionStack::GetItem(PRInt32 aIndex, nsTransactionItem **aTransaction)
 {
-  nsTransactionItem* transaction = nsnull;
-  if (aIndex >= 0 && aIndex < mQue.GetSize()) {
-    NS_IF_ADDREF(transaction =
-                 static_cast<nsTransactionItem*>(mQue.ObjectAt(aIndex)));
-  }
+  NS_ENSURE_TRUE(aTransaction, NS_ERROR_NULL_POINTER);
 
-  return transaction;
+  if (aIndex < 0 || aIndex >= mQue.GetSize())
+    return NS_ERROR_FAILURE;
+
+  NS_IF_ADDREF(*aTransaction =
+               static_cast<nsTransactionItem*>(mQue.ObjectAt(aIndex)));
+
+  return NS_OK;
 }
 
-void
-nsTransactionStack::Clear()
+nsresult
+nsTransactionStack::Clear(void)
 {
   nsRefPtr<nsTransactionItem> tx;
+  nsresult result    = NS_OK;
 
-  do {
-    tx = mType == FOR_UNDO ? Pop() : PopBottom();
-  } while (tx);
+  /* Pop all transactions off the stack and release them. */
+
+  result = Pop(getter_AddRefs(tx));
+
+  NS_ENSURE_SUCCESS(result, result);
+
+  while (tx) {
+    result = Pop(getter_AddRefs(tx));
+
+    NS_ENSURE_SUCCESS(result, result);
+  }
+
+  return NS_OK;
+}
+
+nsresult
+nsTransactionStack::GetSize(PRInt32 *aStackSize)
+{
+  NS_ENSURE_TRUE(aStackSize, NS_ERROR_NULL_POINTER);
+
+  *aStackSize = mQue.GetSize();
+
+  return NS_OK;
 }
 
 void
@@ -131,3 +164,32 @@ nsTransactionStack::DoTraverse(nsCycleCollectionTraversalCallback &cb)
     }
   }
 }
+
+nsTransactionRedoStack::~nsTransactionRedoStack()
+{
+  Clear();
+}
+
+nsresult
+nsTransactionRedoStack::Clear(void)
+{
+  nsRefPtr<nsTransactionItem> tx;
+  nsresult result       = NS_OK;
+
+  /* When clearing a Redo stack, we have to clear from the
+   * bottom of the stack towards the top!
+   */
+
+  result = PopBottom(getter_AddRefs(tx));
+
+  NS_ENSURE_SUCCESS(result, result);
+
+  while (tx) {
+    result = PopBottom(getter_AddRefs(tx));
+
+    NS_ENSURE_SUCCESS(result, result);
+  }
+
+  return NS_OK;
+}
+

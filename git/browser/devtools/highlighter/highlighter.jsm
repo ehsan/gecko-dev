@@ -43,11 +43,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 const Cu = Components.utils;
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-
 Cu.import("resource:///modules/devtools/LayoutHelpers.jsm");
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 var EXPORTED_SYMBOLS = ["Highlighter"];
 
@@ -62,9 +58,6 @@ const INSPECTOR_INVISIBLE_ELEMENTS = {
   "style": true,
   "title": true,
 };
-
-const PSEUDO_CLASSES = [":hover", ":active", ":focus"];
-  // add ":visited" and ":link" after bug 713106 is fixed
 
 /**
  * A highlighter mechanism.
@@ -116,8 +109,6 @@ const PSEUDO_CLASSES = [":hover", ":active", ":focus"];
  *   "highlighting" - Highlighter is highlighting
  *   "locked" - The selected node has been locked
  *   "unlocked" - The selected ndoe has been unlocked
- *   "pseudoclasstoggled" - A pseudo-class lock has changed on the selected node
-
  *
  * Structure:
  *
@@ -245,17 +236,6 @@ Highlighter.prototype = {
     if (oldNode !== this.node) {
       this.emitEvent("nodeselected");
     }
-  },
-
-  /**
-   * Notify that a pseudo-class lock was toggled on the highlighted element
-   *
-   * @param aPseudo - The pseudo-class to toggle, e.g. ":hover".
-   */
-  pseudoClassLockToggled: function Highlighter_pseudoClassLockToggled(aPseudo)
-  {  
-    this.emitEvent("pseudoclasstoggled", [aPseudo]);
-    this.updateInfobar();
   },
 
   /**
@@ -429,11 +409,11 @@ Highlighter.prototype = {
    *
    * <box id="highlighter-nodeinfobar-container">
    *   <box id="Highlighter-nodeinfobar-arrow-top"/>
-   *   <hbox id="highlighter-nodeinfobar">
-   *     <xhtml:span id="highlighter-nodeinfobar-tagname"/>
-   *     <xhtml:span id="highlighter-nodeinfobar-id"/>
-   *     <xhtml:span id="highlighter-nodeinfobar-classes"/>
-   *   </hbox>
+   *   <vbox id="highlighter-nodeinfobar">
+   *     <label id="highlighter-nodeinfobar-tagname"/>
+   *     <label id="highlighter-nodeinfobar-id"/>
+   *     <vbox id="highlighter-nodeinfobar-classes"/>
+   *   </vbox>
    *   <box id="Highlighter-nodeinfobar-arrow-bottom"/>
    * </box>
    *
@@ -458,36 +438,25 @@ Highlighter.prototype = {
     arrowBoxBottom.className = "highlighter-nodeinfobar-arrow";
     arrowBoxBottom.id = "highlighter-nodeinfobar-arrow-bottom";
 
-    let tagNameLabel = this.chromeDoc.createElementNS("http://www.w3.org/1999/xhtml", "span");
+    let tagNameLabel = this.chromeDoc.createElement("label");
     tagNameLabel.id = "highlighter-nodeinfobar-tagname";
+    tagNameLabel.className = "plain";
 
-    let idLabel = this.chromeDoc.createElementNS("http://www.w3.org/1999/xhtml", "span");
+    let idLabel = this.chromeDoc.createElement("label");
     idLabel.id = "highlighter-nodeinfobar-id";
+    idLabel.className = "plain";
 
-    let classesBox = this.chromeDoc.createElementNS("http://www.w3.org/1999/xhtml", "span");
+    let classesBox = this.chromeDoc.createElement("hbox");
     classesBox.id = "highlighter-nodeinfobar-classes";
-    
-    let pseudoClassesBox = this.chromeDoc.createElementNS("http://www.w3.org/1999/xhtml", "span");
-    pseudoClassesBox.id = "highlighter-nodeinfobar-pseudo-classes";
-    
-    // Add some content to force a better boundingClientRect down below.
-    pseudoClassesBox.textContent = "&nbsp;";
 
     nodeInfobar.appendChild(tagNameLabel);
     nodeInfobar.appendChild(idLabel);
     nodeInfobar.appendChild(classesBox);
-    nodeInfobar.appendChild(pseudoClassesBox);
     container.appendChild(arrowBoxTop);
     container.appendChild(nodeInfobar);
     container.appendChild(arrowBoxBottom);
 
     aParent.appendChild(container);
-
-    nodeInfobar.onclick = (function _onInfobarRightClick(aEvent) {
-      if (aEvent.button == 2) {
-        this.openPseudoClassMenu();
-      }
-    }).bind(this);
 
     let barHeight = container.getBoundingClientRect().height;
 
@@ -495,49 +464,9 @@ Highlighter.prototype = {
       tagNameLabel: tagNameLabel,
       idLabel: idLabel,
       classesBox: classesBox,
-      pseudoClassesBox: pseudoClassesBox,
       container: container,
       barHeight: barHeight,
     };
-  },
-
-  /**
-   * Open the infobar's pseudo-class context menu.
-   */
-  openPseudoClassMenu: function Highlighter_openPseudoClassMenu()
-  {
-    let menu = this.chromeDoc.createElement("menupopup");
-    menu.id = "infobar-context-menu";
-
-    let popupSet = this.chromeDoc.getElementById("mainPopupSet");
-    popupSet.appendChild(menu);
-    
-    let fragment = this.buildPseudoClassMenu();
-    menu.appendChild(fragment);
-
-    menu.openPopup(this.nodeInfo.pseudoClassesBox, "end_before", 0, 0, true, false);
-  },  
-  
-  /**
-   * Create the menuitems for toggling the selection's pseudo-class state
-   *
-   * @returns DocumentFragment. The menuitems for toggling pseudo-classes.
-   */
-  buildPseudoClassMenu: function IUI_buildPseudoClassesMenu()
-  {
-    let fragment = this.chromeDoc.createDocumentFragment();
-    for (let i = 0; i < PSEUDO_CLASSES.length; i++) {
-      let pseudo = PSEUDO_CLASSES[i];
-      let item = this.chromeDoc.createElement("menuitem");
-      item.setAttribute("type", "checkbox");
-      item.setAttribute("label", pseudo);
-      item.addEventListener("command",
-                            this.pseudoClassLockToggled.bind(this, pseudo), false);
-      item.setAttribute("checked", DOMUtils.hasPseudoClassLock(this.node,
-                         pseudo));
-      fragment.appendChild(item);
-    }
-    return fragment;
   },
 
   /**
@@ -599,7 +528,7 @@ Highlighter.prototype = {
   },
 
   /**
-   * Update node information (tagName#id.class)
+   * Update node information (tagName#id.class) 
    */
   updateInfobar: function Highlighter_updateInfobar()
   {
@@ -611,17 +540,20 @@ Highlighter.prototype = {
 
     // Classes
     let classes = this.nodeInfo.classesBox;
+    while (classes.hasChildNodes()) {
+      classes.removeChild(classes.firstChild);
+    }
 
-    classes.textContent = this.node.classList.length ?
-                            "." + Array.join(this.node.classList, ".") : "";
-
-    // Pseudo-classes
-    let pseudos = PSEUDO_CLASSES.filter(function(pseudo) {
-      return DOMUtils.hasPseudoClassLock(this.node, pseudo);
-    }, this);
-
-    let pseudoBox = this.nodeInfo.pseudoClassesBox;
-    pseudoBox.textContent = pseudos.join("");
+    if (this.node.className) {
+      let fragment = this.chromeDoc.createDocumentFragment();
+      for (let i = 0; i < this.node.classList.length; i++) {
+        let classLabel = this.chromeDoc.createElement("label");
+        classLabel.className = "highlighter-nodeinfobar-class plain";
+        classLabel.textContent = "." + this.node.classList[i];
+        fragment.appendChild(classLabel);
+      }
+      classes.appendChild(fragment);
+    }
   },
 
   /**
@@ -696,8 +628,8 @@ Highlighter.prototype = {
    */
   computeZoomFactor: function Highlighter_computeZoomFactor() {
     this.zoom =
-      this.win.QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIDOMWindowUtils)
+      this.win.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+      .getInterface(Components.interfaces.nsIDOMWindowUtils)
       .screenPixelsPerCSSPixel;
   },
 
@@ -884,6 +816,3 @@ Highlighter.prototype = {
 
 ///////////////////////////////////////////////////////////////////////////
 
-XPCOMUtils.defineLazyGetter(this, "DOMUtils", function () {
-  return Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils)
-});

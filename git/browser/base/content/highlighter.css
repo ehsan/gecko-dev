@@ -34,13 +34,20 @@
   direction: ltr;
 }
 
+#inspector-top-resizer {
+  display: none;
+}
+
+#inspector-toolbar[treepanel-open] > vbox > #inspector-top-resizer {
+  display: -moz-box;
+}
+
 /*
  * Node Infobar
  */
 
 #highlighter-nodeinfobar-container {
   position: absolute;
-  max-width: 95%;
 }
 
 #highlighter-nodeinfobar-container:not([disable-transitions]) {
@@ -53,17 +60,15 @@
   display: block;
   white-space: nowrap;
   direction: ltr;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 #highlighter-nodeinfobar-container[locked] > #highlighter-nodeinfobar {
   pointer-events: auto;
 }
 
-html|*#highlighter-nodeinfobar-id,
-html|*#highlighter-nodeinfobar-classes,
-html|*#highlighter-nodeinfobar-tagname {
+#highlighter-nodeinfobar-id,
+.highlighter-nodeinfobar-class,
+#highlighter-nodeinfobar-tagname {
   -moz-user-select: text;
   cursor: text;
 }
@@ -84,10 +89,10 @@ html|*#highlighter-nodeinfobar-tagname {
   visibility: hidden;
 }
 
-html|*#highlighter-nodeinfobar-tagname {
-  text-transform: lowercase;
+#highlighter-nodeinfobar-id:empty {
+  display: none;
 }
 
-.devtools-toolbarbutton:not([label]) > .toolbarbutton-text {
-  display: none;
+#highlighter-nodeinfobar-tagname {
+  text-transform: lowercase;
 }

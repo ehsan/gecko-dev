@@ -35,19 +35,17 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* This file is used for both about:memory and about:compartments. */
-
 body.verbose {
   /* override setting in about.css */
   max-width: 100% !important;
 }
 
-body.non-verbose pre.entries {
+body.non-verbose pre.tree {
   overflow-x: hidden;
   text-overflow: ellipsis;
 }
 
-h2 {
+.sectionHeader {
   background: #ddd;
   padding-left: .1em;
 }

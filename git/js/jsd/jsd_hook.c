@@ -152,12 +152,12 @@ jsd_ThrowHandler(JSContext *cx, JSScript *script, jsbytecode *pc,
 JSTrapStatus
 jsd_CallExecutionHook(JSDContext* jsdc,
                       JSContext *cx,
-                      unsigned type,
+                      uintN type,
                       JSD_ExecutionHookProc hook,
                       void* hookData,
                       jsval* rval)
 {
-    unsigned hookanswer = JSD_HOOK_THROW == type ? 
+    uintN hookanswer = JSD_HOOK_THROW == type ? 
                             JSD_HOOK_RETURN_CONTINUE_THROW :
                             JSD_HOOK_RETURN_CONTINUE;
     JSDThreadState* jsdthreadstate;
@@ -204,7 +204,7 @@ jsd_CallExecutionHook(JSDContext* jsdc,
 JSBool
 jsd_CallCallHook (JSDContext* jsdc,
                   JSContext *cx,
-                  unsigned type,
+                  uintN type,
                   JSD_CallHookProc hook,
                   void* hookData)
 {

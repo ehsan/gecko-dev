@@ -71,7 +71,8 @@ public:
   virtual nsresult GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime);
 
 private:
-  bool ReadFromResource(MediaResource *aResource, PRUint8 *aBuf, PRUint32 aLength);
+  bool ReadFromStream(nsMediaStream *aStream, PRUint8 *aBuf,
+                        PRUint32 aLength);
 
   nsRawVideoHeader mMetadata;
   PRUint32 mCurrentFrame;

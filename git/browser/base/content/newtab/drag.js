@@ -36,11 +36,11 @@ let gDrag = {
   start: function Drag_start(aSite, aEvent) {
     this._draggedSite = aSite;
 
-    // Mark nodes as being dragged.
-    let selector = ".newtab-site, .newtab-control, .newtab-thumbnail";
-    let nodes = aSite.node.parentNode.querySelectorAll(selector);
-    for (let i = 0; i < nodes.length; i++)
-      nodes[i].setAttribute("dragged", "true");
+    // Prevent moz-transform for left, top.
+    aSite.node.setAttribute("dragged", "true");
+
+    // Make sure the dragged site is floating above the grid.
+    aSite.node.setAttribute("ontop", "true");
 
     this._setDragData(aSite, aEvent);
 
@@ -88,12 +88,13 @@ let gDrag = {
    * @param aEvent The 'dragend' event.
    */
   end: function Drag_end(aSite, aEvent) {
-    let nodes = aSite.node.parentNode.querySelectorAll("[dragged]");
-    for (let i = 0; i < nodes.length; i++)
-      nodes[i].removeAttribute("dragged");
+    aSite.node.removeAttribute("dragged");
 
     // Slide the dragged site back into its cell (may be the old or the new cell).
-    gTransformation.slideSiteTo(aSite, aSite.cell, {unfreeze: true});
+    gTransformation.slideSiteTo(aSite, aSite.cell, {
+      unfreeze: true,
+      callback: function () aSite.node.removeAttribute("ontop")
+    });
 
     this._draggedSite = null;
   },
@@ -105,11 +106,7 @@ let gDrag = {
    */
   isValid: function Drag_isValid(aEvent) {
     let dt = aEvent.dataTransfer;
-    let mimeType = "text/x-moz-url";
-
-    // Check that the drag data is non-empty.
-    // Can happen when dragging places folders.
-    return dt && dt.types.contains(mimeType) && dt.getData(mimeType);
+    return dt && dt.types.contains("text/x-moz-url");
   },
 
   /**
@@ -131,13 +128,13 @@ let gDrag = {
     // Create and use an empty drag element. We don't want to use the default
     // drag image with its default opacity.
     let dragElement = document.createElementNS(HTML_NAMESPACE, "div");
-    dragElement.classList.add("newtab-drag");
-    let scrollbox = document.getElementById("newtab-scrollbox");
-    scrollbox.appendChild(dragElement);
+    dragElement.classList.add("drag-element");
+    let body = document.getElementById("body");
+    body.appendChild(dragElement);
     dt.setDragImage(dragElement, 0, 0);
 
     // After the 'dragstart' event has been processed we can remove the
     // temporary drag element from the DOM.
-    setTimeout(function () scrollbox.removeChild(dragElement), 0);
+    setTimeout(function () body.removeChild(dragElement), 0);
   }
 };

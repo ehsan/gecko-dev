@@ -224,8 +224,6 @@ public:
    */
   const PRUint8* GetData(nsZipItem* aItem);
 
-  bool GetComment(nsACString &aComment);
-
   /**
    * Gets the amount of memory taken up by the archive's mapping.
    * @return the size
@@ -244,9 +242,6 @@ private:
 
   nsZipItem*    mFiles[ZIP_TABSIZE];
   PLArenaPool   mArena;
-
-  const char*   mCommentPtr;
-  PRUint16      mCommentLen;
 
   // Whether we synthesized the directory entries
   bool          mBuiltSynthetics;

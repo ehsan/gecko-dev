@@ -166,10 +166,11 @@ nsImageControlFrame::CreateAccessible()
 {
   nsAccessibilityService* accService = nsIPresShell::AccService();
   if (accService) {
-    if (mContent->Tag() == nsGkAtoms::button || 
-        mContent->Tag() == nsGkAtoms::input) {
-      return accService->CreateHTMLButtonAccessible(mContent, 
-                                                    PresContext()->PresShell());
+    if (mContent->Tag() == nsGkAtoms::button) {
+      return accService->CreateHTML4ButtonAccessible(mContent, PresContext()->PresShell());
+    }
+    else if (mContent->Tag() == nsGkAtoms::input) {
+      return accService->CreateHTMLButtonAccessible(mContent, PresContext()->PresShell());
     }
   }
 

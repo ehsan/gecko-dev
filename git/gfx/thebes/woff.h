@@ -40,7 +40,7 @@
 
 /* API for the WOFF encoder and decoder */
 
-#include "mozilla/StandardInteger.h"
+#include "mozilla/StdInt.h"
 
 #include <stdio.h> /* only for FILE, needed for woffPrintStatus */
 

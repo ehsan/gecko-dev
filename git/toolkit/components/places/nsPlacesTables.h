@@ -167,7 +167,6 @@
     "  id INTEGER PRIMARY KEY" \
     ", host TEXT NOT NULL UNIQUE" \
     ", frecency INTEGER" \
-    ", typed INTEGER NOT NULL DEFAULT 0" \
   ")" \
 )
 

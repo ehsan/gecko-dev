@@ -192,7 +192,7 @@ nsPlaceholderFrame::CanContinueTextRun() const
 }
 
 nsIFrame*
-nsPlaceholderFrame::GetParentStyleContextFrame() const
+nsPlaceholderFrame::GetParentStyleContextFrame()
 {
   NS_PRECONDITION(GetParent(), "How can we not have a parent here?");
 

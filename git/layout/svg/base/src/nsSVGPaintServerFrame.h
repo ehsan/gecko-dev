@@ -47,11 +47,8 @@ typedef nsSVGContainerFrame nsSVGPaintServerFrameBase;
 class nsSVGPaintServerFrame : public nsSVGPaintServerFrameBase
 {
 protected:
-  nsSVGPaintServerFrame(nsStyleContext* aContext)
-    : nsSVGPaintServerFrameBase(aContext)
-  {
-    AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
-  }
+  nsSVGPaintServerFrame(nsStyleContext* aContext) :
+    nsSVGPaintServerFrameBase(aContext) {}
 
 public:
   NS_DECL_FRAMEARENA_HELPERS

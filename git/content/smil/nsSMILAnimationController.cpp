@@ -399,14 +399,8 @@ nsSMILAnimationController::DoSample(bool aSkipUnchangedContainers)
   // Set running sample flag -- do this before flushing styles so that when we
   // flush styles we don't end up requesting extra samples
   mRunningSample = true;
-  nsCOMPtr<nsIDocument> kungFuDeathGrip(mDocument);  // keeps 'this' alive too
   mDocument->FlushPendingNotifications(Flush_Style);
 
-  // WARNING: 
-  // WARNING: the above flush may have destroyed the pres shell and/or
-  // WARNING: frames and other layout related objects.
-  // WARNING:
-  
   // STEP 1: Bring model up to date
   // (i)  Rewind elements where necessary
   // (ii) Run milestone samples
@@ -693,12 +687,10 @@ nsSMILAnimationController::SampleAnimation(AnimationElementPtrKey* aKey,
   NS_ENSURE_TRUE(aData, PL_DHASH_NEXT);
 
   nsISMILAnimationElement* animElem = aKey->GetKey();
-  if (animElem->PassesConditionalProcessingTests()) {
-    SampleAnimationParams* params = static_cast<SampleAnimationParams*>(aData);
+  SampleAnimationParams* params = static_cast<SampleAnimationParams*>(aData);
 
-    SampleTimedElement(animElem, params->mActiveContainers);
-    AddAnimationToCompositorTable(animElem, params->mCompositorTable);
-  }
+  SampleTimedElement(animElem, params->mActiveContainers);
+  AddAnimationToCompositorTable(animElem, params->mCompositorTable);
 
   return PL_DHASH_NEXT;
 }

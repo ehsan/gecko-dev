@@ -42,7 +42,7 @@
 #include "nsIDOMGeoPosition.h"
 
 typedef nsIDOMGeoPositionAddress  *GeoPositionAddress;
-typedef nsGeoPositionCoords       *GeoPositionCoords;
+typedef nsIDOMGeoPositionCoords   *GeoPositionCoords;
 typedef nsIDOMGeoPosition         *GeoPosition;
 
 namespace IPC {
@@ -233,7 +233,7 @@ struct ParamTraits<GeoPosition>
 
     nsCOMPtr<nsIDOMGeoPositionCoords> coords;
     aParam->GetCoords(getter_AddRefs(coords));
-    GeoPositionCoords simpleCoords = static_cast<GeoPositionCoords>(coords.get());
+    GeoPositionCoords simpleCoords = coords.get();
     WriteParam(aMsg, simpleCoords);
 
     nsCOMPtr<nsIDOMGeoPositionAddress> address;

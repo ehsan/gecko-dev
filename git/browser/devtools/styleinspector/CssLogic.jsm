@@ -77,18 +77,10 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-const RX_UNIVERSAL_SELECTOR = /\s*\*\s*/g;
-const RX_NOT = /:not\((.*?)\)/g;
-const RX_PSEUDO_CLASS_OR_ELT = /(:[\w-]+\().*?\)/g;
-const RX_CONNECTORS = /\s*[\s>+~]\s*/g;
-const RX_ID = /\s*#\w+\s*/g;
-const RX_CLASS_OR_ATTRIBUTE = /\s*(?:\.\w+|\[.+?\])\s*/g;
-const RX_PSEUDO = /\s*:?:([\w-]+)(\(?\)?)\s*/g;
-
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-var EXPORTED_SYMBOLS = ["CssLogic", "CssSelector"];
+var EXPORTED_SYMBOLS = ["CssLogic"];
 
 function CssLogic()
 {
@@ -240,7 +232,7 @@ CssLogic.prototype = {
     // Update the CssSheet objects.
     this.forEachSheet(function(aSheet) {
       aSheet._sheetAllowed = -1;
-      if (aSheet.contentSheet && aSheet.sheetAllowed) {
+      if (!aSheet.systemSheet && aSheet.sheetAllowed) {
         ruleCount += aSheet.ruleCount;
       }
     }, this);
@@ -353,7 +345,7 @@ CssLogic.prototype = {
 
     let sheets = [];
     this.forEachSheet(function (aSheet) {
-      if (aSheet.contentSheet) {
+      if (!aSheet.systemSheet) {
         sheets.push(aSheet);
       }
     }, this);
@@ -403,7 +395,7 @@ CssLogic.prototype = {
       }
 
       sheet = new CssSheet(this, aDomSheet, aIndex);
-      if (sheet.sheetAllowed && sheet.contentSheet) {
+      if (sheet.sheetAllowed && !sheet.systemSheet) {
         this._ruleCount += sheet.ruleCount;
       }
 
@@ -577,7 +569,7 @@ CssLogic.prototype = {
 
     this.forEachSheet(function (aSheet) {
       // We do not show unmatched selectors from system stylesheets
-      if (!aSheet.contentSheet || aSheet.disabled || !aSheet.mediaMatches) {
+      if (aSheet.systemSheet || aSheet.disabled || !aSheet.mediaMatches) {
         return;
       }
 
@@ -672,7 +664,7 @@ CssLogic.prototype = {
           sheet._passId = this._passId;
         }
 
-        if (filter === CssLogic.FILTER.ALL && !sheet.contentSheet) {
+        if (filter !== CssLogic.FILTER.UA && sheet.systemSheet) {
           continue;
         }
 
@@ -718,7 +710,7 @@ CssLogic.prototype = {
     let result = {};
 
     this.forSomeSheets(function (aSheet) {
-      if (!aSheet.contentSheet || aSheet.disabled || !aSheet.mediaMatches) {
+      if (aSheet.systemSheet || aSheet.disabled || !aSheet.mediaMatches) {
         return false;
       }
 
@@ -873,23 +865,29 @@ XPCOMUtils.defineLazyGetter(CssLogic, "_strings", function() Services.strings
         .createBundle("chrome://browser/locale/devtools/styleinspector.properties"));
 
 /**
- * Is the given property sheet a content stylesheet?
+ * Is the given property sheet a system (user agent) stylesheet?
  *
  * @param {CSSStyleSheet} aSheet a stylesheet
- * @return {boolean} true if the given stylesheet is a content stylesheet,
+ * @return {boolean} true if the given stylesheet is a system stylesheet or
  * false otherwise.
  */
-CssLogic.isContentStylesheet = function CssLogic_isContentStylesheet(aSheet)
+CssLogic.isSystemStyleSheet = function CssLogic_isSystemStyleSheet(aSheet)
 {
-  // All sheets with owner nodes have been included by content.
-  if (aSheet.ownerNode) {
+  if (!aSheet) {
     return true;
   }
 
-  // If the sheet has a CSSImportRule we need to check the parent stylesheet.
-  if (aSheet.ownerRule instanceof Ci.nsIDOMCSSImportRule) {
-    return CssLogic.isContentStylesheet(aSheet.parentStyleSheet);
-  }
+  let url = aSheet.href;
+
+  if (!url) return false;
+  if (url.length === 0) return true;
+
+  // Check for http[s]
+  if (url[0] === 'h') return false;
+  if (url.substr(0, 9) === "resource:") return true;
+  if (url.substr(0, 7) === "chrome:") return true;
+  if (url === "XPCSafeJSObjectWrapper.cpp") return true;
+  if (url.substr(0, 6) === "about:") return true;
 
   return false;
 };
@@ -927,8 +925,7 @@ CssLogic.shortSource = function CssLogic_shortSource(aSheet)
     return url.query;
   }
 
-  let dataUrl = aSheet.href.match(/^(data:[^,]*),/);
-  return dataUrl ? dataUrl[1] : aSheet.href;
+  return aSheet.href;
 }
 
 /**
@@ -945,7 +942,7 @@ function CssSheet(aCssLogic, aDomSheet, aIndex)
 {
   this._cssLogic = aCssLogic;
   this.domSheet = aDomSheet;
-  this.index = this.contentSheet ? aIndex : -100 * aIndex;
+  this.index = this.systemSheet ? -100 * aIndex : aIndex;
 
   // Cache of the sheets href. Cached by the getter.
   this._href = null;
@@ -963,21 +960,21 @@ function CssSheet(aCssLogic, aDomSheet, aIndex)
 
 CssSheet.prototype = {
   _passId: null,
-  _contentSheet: null,
+  _systemSheet: null,
   _mediaMatches: null,
 
   /**
    * Tells if the stylesheet is provided by the browser or not.
    *
-   * @return {boolean} false if this is a browser-provided stylesheet, or true
+   * @return {boolean} true if this is a browser-provided stylesheet, or false
    * otherwise.
    */
-  get contentSheet()
+  get systemSheet()
   {
-    if (this._contentSheet === null) {
-      this._contentSheet = CssLogic.isContentStylesheet(this.domSheet);
+    if (this._systemSheet === null) {
+      this._systemSheet = CssLogic.isSystemStyleSheet(this.domSheet);
     }
-    return this._contentSheet;
+    return this._systemSheet;
   },
 
   /**
@@ -1051,7 +1048,7 @@ CssSheet.prototype = {
     this._sheetAllowed = true;
 
     let filter = this._cssLogic.sourceFilter;
-    if (filter === CssLogic.FILTER.ALL && !this.contentSheet) {
+    if (filter === CssLogic.FILTER.ALL && this.systemSheet) {
       this._sheetAllowed = false;
     }
     if (filter !== CssLogic.FILTER.ALL && filter !== CssLogic.FILTER.UA) {
@@ -1199,40 +1196,25 @@ function CssRule(aCssSheet, aDomRule, aElement)
   this._cssSheet = aCssSheet;
   this._domRule = aDomRule;
 
-  let parentRule = aDomRule.parentRule;
-  if (parentRule && parentRule.type == Ci.nsIDOMCSSRule.MEDIA_RULE) {
-    this.mediaText = parentRule.media.mediaText;
-  }
-
   if (this._cssSheet) {
     // parse _domRule.selectorText on call to this.selectors
     this._selectors = null;
     this.line = this._cssSheet._cssLogic.domUtils.getRuleLine(this._domRule);
     this.source = this._cssSheet.shortSource + ":" + this.line;
-    if (this.mediaText) {
-      this.source += " @media " + this.mediaText;
-    }
     this.href = this._cssSheet.href;
-    this.contentRule = this._cssSheet.contentSheet;
+    this.systemRule = this._cssSheet.systemSheet;
   } else if (aElement) {
     this._selectors = [ new CssSelector(this, "@element.style") ];
     this.line = -1;
     this.source = CssLogic.l10n("rule.sourceElement");
     this.href = "#";
-    this.contentRule = true;
+    this.systemRule = false;
     this.sourceElement = aElement;
   }
 }
 
 CssRule.prototype = {
   _passId: null,
-
-  mediaText: "",
-
-  get isMediaRule()
-  {
-    return !!this.mediaText;
-  },
 
   /**
    * Check if the parent stylesheet is allowed by the CssLogic.sourceFilter.
@@ -1414,12 +1396,12 @@ CssSelector.prototype = {
   /**
    * Check if the selector comes from a browser-provided stylesheet.
    *
-   * @return {boolean} true if the selector comes from a content-provided
+   * @return {boolean} true if the selector comes from a browser-provided
    * stylesheet, or false otherwise.
    */
-  get contentRule()
+  get systemRule()
   {
-    return this._cssRule.contentRule;
+    return this._cssRule.systemRule;
   },
 
   /**
@@ -1456,31 +1438,6 @@ CssSelector.prototype = {
   },
 
   /**
-   * Retrieve the pseudo-elements that we support. This list should match the
-   * elements specified in layout/style/nsCSSPseudoElementList.h
-   */
-  get pseudoElements()
-  {
-    if (!CssSelector._pseudoElements) {
-      let pseudos = CssSelector._pseudoElements = new Set();
-      pseudos.add("after");
-      pseudos.add("before");
-      pseudos.add("first-letter");
-      pseudos.add("first-line");
-      pseudos.add("selection");
-      pseudos.add("-moz-focus-inner");
-      pseudos.add("-moz-focus-outer");
-      pseudos.add("-moz-list-bullet");
-      pseudos.add("-moz-list-number");
-      pseudos.add("-moz-math-anonymous");
-      pseudos.add("-moz-math-stretchy");
-      pseudos.add("-moz-progress-bar");
-      pseudos.add("-moz-selection");
-    }
-    return CssSelector._pseudoElements;
-  },
-
-  /**
    * Retrieve specificity information for the current selector.
    *
    * @see http://www.w3.org/TR/css3-selectors/#specificity
@@ -1495,58 +1452,37 @@ CssSelector.prototype = {
       return this._specificity;
     }
 
-    let specificity = {
-      ids: 0,
-      classes: 0,
-      tags: 0
-    };
+    let specificity = {};
 
-    let text = this.text;
+    specificity.ids = 0;
+    specificity.classes = 0;
+    specificity.tags = 0;
 
+    // Split on CSS combinators (section 5.2).
+    // TODO: We need to properly parse the selector. See bug 592743.
     if (!this.elementStyle) {
-      // Remove universal selectors as they are not relevant as far as specificity
-      // is concerned.
-      text = text.replace(RX_UNIVERSAL_SELECTOR, "");
-
-      // not() is ignored but any selectors contained by it are counted. Let's
-      // remove the not() and keep the contents.
-      text = text.replace(RX_NOT, " $1");
-
-      // Simplify remaining psuedo classes & elements.
-      text = text.replace(RX_PSEUDO_CLASS_OR_ELT, " $1)");
-
-      // Replace connectors with spaces
-      text = text.replace(RX_CONNECTORS, " ");
-
-      text.split(/\s/).forEach(function(aSimple) {
-        // Count IDs.
-        aSimple = aSimple.replace(RX_ID, function() {
-          specificity.ids++;
-          return "";
-        });
-
-        // Count class names and attribute matchers.
-        aSimple = aSimple.replace(RX_CLASS_OR_ATTRIBUTE, function() {
-          specificity.classes++;
-          return "";
-        });
-
-        aSimple = aSimple.replace(RX_PSEUDO, function(aDummy, aPseudoName) {
-          if (this.pseudoElements.has(aPseudoName)) {
-            // Pseudo elements count as tags.
-            specificity.tags++;
-          } else {
-            // Pseudo classes count as classes.
-            specificity.classes++;
-          }
-          return "";
-        }.bind(this));
-
-        if (aSimple) {
+      this.text.split(/[ >+]/).forEach(function(aSimple) {
+        // The regex leaves empty nodes combinators like ' > '
+        if (!aSimple) {
+          return;
+        }
+        // See http://www.w3.org/TR/css3-selectors/#specificity
+        // We can count the IDs by counting the '#' marks.
+        specificity.ids += (aSimple.match(/#/g) || []).length;
+        // Similar with class names and attribute matchers
+        specificity.classes += (aSimple.match(/\./g) || []).length;
+        specificity.classes += (aSimple.match(/\[/g) || []).length;
+        // Pseudo elements count as elements.
+        specificity.tags += (aSimple.match(/:/g) || []).length;
+        // If we have anything of substance before we get into ids/classes/etc
+        // then it must be a tag if it isn't '*'.
+        let tag = aSimple.split(/[#.[:]/)[0];
+        if (tag && tag != "*") {
           specificity.tags++;
         }
       }, this);
     }
+
     this._specificity = specificity;
 
     return this._specificity;
@@ -1858,12 +1794,12 @@ function CssSelectorInfo(aSelector, aProperty, aValue, aStatus)
   4 important
   5 inline important
   */
-  let scorePrefix = this.contentRule ? 2 : 0;
+  let scorePrefix = this.systemRule ? 0 : 2;
   if (this.elementStyle) {
     scorePrefix++;
   }
   if (this.important) {
-    scorePrefix += this.contentRule ? 2 : 1;
+    scorePrefix += this.systemRule ? 1 : 2;
   }
 
   this.specificityScore = "" + scorePrefix + this.specificity.ids +
@@ -1966,9 +1902,9 @@ CssSelectorInfo.prototype = {
    * @return {boolean} true if the selector comes from a browser-provided
    * stylesheet, or false otherwise.
    */
-  get contentRule()
+  get systemRule()
   {
-    return this.selector.contentRule;
+    return this.selector.systemRule;
   },
 
   /**
@@ -1980,8 +1916,8 @@ CssSelectorInfo.prototype = {
    */
   compareTo: function CssSelectorInfo_compareTo(aThat)
   {
-    if (!this.contentRule && aThat.contentRule) return 1;
-    if (this.contentRule && !aThat.contentRule) return -1;
+    if (this.systemRule && !aThat.systemRule) return 1;
+    if (!this.systemRule && aThat.systemRule) return -1;
 
     if (this.elementStyle && !aThat.elementStyle) {
       if (!this.important && aThat.important) return 1;

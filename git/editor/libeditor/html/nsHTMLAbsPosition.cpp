@@ -62,7 +62,6 @@
 #include "nsIDOMRGBColor.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/Element.h"
 
 using namespace mozilla;
 
@@ -562,7 +561,6 @@ nsHTMLEditor::AbsolutelyPositionElement(nsIDOMElement * aElement,
     }
   }
   else {
-    res = NS_OK;
     mHTMLCSSUtils->RemoveCSSProperty(aElement,
                                      nsEditProperty::cssPosition,
                                      EmptyString(), false);
@@ -585,8 +583,10 @@ nsHTMLEditor::AbsolutelyPositionElement(nsIDOMElement * aElement,
                                        EmptyString(), false);
     }
 
-    nsCOMPtr<dom::Element> element = do_QueryInterface(aElement);
-    if (element && element->IsHTML(nsGkAtoms::div) && !HasStyleOrIdOrClass(element)) {
+    bool hasStyleOrIdOrClass;
+    res = HasStyleOrIdOrClass(aElement, &hasStyleOrIdOrClass);
+    NS_ENSURE_SUCCESS(res, res);
+    if (!hasStyleOrIdOrClass && nsHTMLEditUtils::IsDiv(aElement)) {
       nsHTMLEditRules* htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
       NS_ENSURE_TRUE(htmlRules, NS_ERROR_FAILURE);
       res = htmlRules->MakeSureElemStartsOrEndsOnCR(aElement);

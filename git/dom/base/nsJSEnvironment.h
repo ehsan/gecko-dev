@@ -47,7 +47,6 @@
 #include "prtime.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIXPConnect.h"
-#include "nsIArray.h"
 
 class nsIXPConnectJSObjectHolder;
 class nsRootedJSValueArray;
@@ -55,10 +54,6 @@ class nsScriptNameSpaceManager;
 namespace mozilla {
 template <class> class Maybe;
 }
-
-// The amount of time we wait between a request to GC (due to leaving
-// a page) and doing the actual GC.
-#define NS_GC_DELAY                 4000 // ms
 
 class nsJSContext : public nsIScriptContext,
                     public nsIXPCScriptNotify
@@ -148,14 +143,15 @@ public:
   virtual nsresult SetOuterObject(JSObject* aOuterObject);
   virtual nsresult InitOuterWindow();
   virtual bool IsContextInitialized();
+  virtual void FinalizeContext();
 
   virtual void ScriptEvaluated(bool aTerminated);
-  virtual void SetTerminationFunction(nsScriptTerminationFunc aFunc,
-                                      nsIDOMWindow* aRef);
+  virtual nsresult SetTerminationFunction(nsScriptTerminationFunc aFunc,
+                                          nsISupports* aRef);
   virtual bool GetScriptsEnabled();
   virtual void SetScriptsEnabled(bool aEnabled, bool aFireTimeouts);
 
-  virtual nsresult SetProperty(JSObject* aTarget, const char* aPropName, nsISupports* aVal);
+  virtual nsresult SetProperty(void *aTarget, const char *aPropName, nsISupports *aVal);
 
   virtual bool GetProcessingScriptTag();
   virtual void SetProcessingScriptTag(bool aResult);
@@ -165,6 +161,7 @@ public:
   virtual void SetGCOnDestruction(bool aGCOnDestruction);
 
   virtual nsresult InitClasses(JSObject* aGlobalObj);
+  virtual void ClearScope(void* aGlobalObj, bool bClearPolluters);
 
   virtual void WillInitializeContext();
   virtual void DidInitializeContext();
@@ -191,7 +188,7 @@ public:
   static void CycleCollectNow(nsICycleCollectorListener *aListener = nsnull,
                               PRInt32 aExtraForgetSkippableCalls = 0);
 
-  static void PokeGC(js::gcreason::Reason aReason, int aDelay = 0);
+  static void PokeGC(js::gcreason::Reason aReason);
   static void KillGCTimer();
 
   static void PokeShrinkGCBuffers();
@@ -352,10 +349,11 @@ public:
 // nsISupports conversion. If this interface is not supported, the object will
 // be queried for nsIArray, and everything converted via xpcom objects.
 #define NS_IJSARGARRAY_IID \
-{ 0xb6acdac8, 0xf5c6, 0x432c, \
-  { 0xa8, 0x6e, 0x33, 0xee, 0xb1, 0xb0, 0xcd, 0xdc } }
+ { /*{E96FB2AE-CB4F-44a0-81F8-D91C80AFE9A3} */ \
+ 0xe96fb2ae, 0xcb4f, 0x44a0, \
+ { 0x81, 0xf8, 0xd9, 0x1c, 0x80, 0xaf, 0xe9, 0xa3 } }
 
-class nsIJSArgArray : public nsIArray
+class nsIJSArgArray: public nsISupports
 {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IJSARGARRAY_IID)

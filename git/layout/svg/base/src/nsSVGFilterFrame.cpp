@@ -250,7 +250,7 @@ nsSVGFilterFrame::AttributeChanged(PRInt32  aNameSpaceID,
 }
 
 nsresult
-nsSVGFilterFrame::FilterPaint(nsRenderingContext *aContext,
+nsSVGFilterFrame::FilterPaint(nsSVGRenderState *aContext,
                               nsIFrame *aTarget,
                               nsSVGFilterPaintCallback *aPaintCallback,
                               const nsIntRect *aDirtyRect)
@@ -263,7 +263,7 @@ nsSVGFilterFrame::FilterPaint(nsRenderingContext *aContext,
   nsRefPtr<gfxASurface> result;
   nsresult rv = instance.get()->Render(getter_AddRefs(result));
   if (NS_SUCCEEDED(rv) && result) {
-    nsSVGUtils::CompositeSurfaceMatrix(aContext->ThebesContext(),
+    nsSVGUtils::CompositeSurfaceMatrix(aContext->GetGfxContext(),
       result, instance.get()->GetFilterSpaceToDeviceSpaceTransform(), 1.0);
   }
   return rv;

@@ -75,7 +75,6 @@
 #include "nsGUIEvent.h"
 #include "nsIIOService.h"
 #include "nsDocument.h"
-#include "nsAttrValueOrString.h"
 
 #include "nsPresState.h"
 #include "nsLayoutErrors.h"
@@ -120,8 +119,6 @@
 
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/Util.h" // DebugOnly
-
-#include "nsIIDNService.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -187,7 +184,7 @@ static const nsAttrValue::EnumTable* kInputDefaultAutocomplete = &kInputAutocomp
   {0xb5, 0x13, 0x7b, 0x36, 0x93, 0x43, 0xe3, 0xa0} \
 }
 
-class nsHTMLInputElementState MOZ_FINAL : public nsISupports
+class nsHTMLInputElementState : public nsISupports
 {
   public:
     NS_DECLARE_STATIC_IID_ACCESSOR(NS_INPUT_ELEMENT_STATE_IID)
@@ -587,9 +584,6 @@ nsHTMLInputElement::nsHTMLInputElement(already_AddRefed<nsINodeInfo> aNodeInfo,
 
 nsHTMLInputElement::~nsHTMLInputElement()
 {
-  if (mFileList) {
-    mFileList->Disconnect();
-  }
   DestroyImageLoadingContent();
   FreeData();
 }
@@ -637,10 +631,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLInputElement,
                                                   nsGenericHTMLFormElement)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mControllers)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mFiles)
-  if (tmp->mFileList) {
-    tmp->mFileList->Disconnect();
-    tmp->mFileList = nsnull;
-  }
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFileList);
   //XXX should unlink more?
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
                                                               
@@ -731,7 +722,7 @@ nsHTMLInputElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 
 nsresult
 nsHTMLInputElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                  const nsAttrValueOrString* aValue,
+                                  const nsAString* aValue,
                                   bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
@@ -748,7 +739,7 @@ nsHTMLInputElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     } else if (aNotify && aName == nsGkAtoms::src &&
                mType == NS_FORM_INPUT_IMAGE) {
       if (aValue) {
-        LoadImage(aValue->String(), true, aNotify);
+        LoadImage(*aValue, true, aNotify);
       } else {
         // Null value means the attr got unset; drop the image
         CancelImageRequests(aNotify);
@@ -764,7 +755,8 @@ nsHTMLInputElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
 nsresult
 nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                 const nsAttrValue* aValue, bool aNotify)
+                                 const nsAString* aValue,
+                                 bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     //
@@ -2779,7 +2771,7 @@ nsHTMLInputElement::GetFiles(nsIDOMFileList** aFileList)
   }
 
   if (!mFileList) {
-    mFileList = new nsDOMFileList(static_cast<nsIContent*>(this));
+    mFileList = new nsDOMFileList();
     if (!mFileList) return NS_ERROR_OUT_OF_MEMORY;
 
     UpdateFileList();
@@ -3836,7 +3828,7 @@ nsHTMLInputElement::GetValidationMessage(nsAString& aValidationMessage,
       const PRUnichar* params[] = { strMaxLength.get(), strTextLength.get() };
       rv = nsContentUtils::FormatLocalizedString(nsContentUtils::eDOM_PROPERTIES,
                                                  "FormValidationTextTooLong",
-                                                 params, message);
+                                                 params, 2, message);
       aValidationMessage = message;
       break;
     }
@@ -3895,7 +3887,7 @@ nsHTMLInputElement::GetValidationMessage(nsAString& aValidationMessage,
         const PRUnichar* params[] = { title.get() };
         rv = nsContentUtils::FormatLocalizedString(nsContentUtils::eDOM_PROPERTIES,
                                                    "FormValidationPatternMismatchWithTitle",
-                                                   params, message);
+                                                   params, 1, message);
       }
       aValidationMessage = message;
       break;
@@ -3926,34 +3918,18 @@ nsHTMLInputElement::IsValidEmailAddressList(const nsAString& aValue)
 bool
 nsHTMLInputElement::IsValidEmailAddress(const nsAString& aValue)
 {
-  nsCAutoString value = NS_ConvertUTF16toUTF8(aValue);
   PRUint32 i = 0;
-  PRUint32 length = value.Length();
-
-  // Puny-encode the string if needed before running the validation algorithm.
-  nsCOMPtr<nsIIDNService> idnSrv = do_GetService(NS_IDNSERVICE_CONTRACTID);
-  if (idnSrv) {
-    bool ace;
-    if (NS_SUCCEEDED(idnSrv->IsACE(value, &ace)) && !ace) {
-      nsCAutoString punyCodedValue;
-      if (NS_SUCCEEDED(idnSrv->ConvertUTF8toACE(value, punyCodedValue))) {
-        value = punyCodedValue;
-        length = value.Length();
-      }
-    }
-  } else {
-    NS_ERROR("nsIIDNService isn't present!");
-  }
+  PRUint32 length = aValue.Length();
 
   // If the email address is empty, begins with a '@' or ends with a '.',
   // we know it's invalid.
-  if (length == 0 || value[0] == '@' || value[length-1] == '.') {
+  if (length == 0 || aValue[0] == '@' || aValue[length-1] == '.') {
     return false;
   }
 
   // Parsing the username.
-  for (; i < length && value[i] != '@'; ++i) {
-    PRUnichar c = value[i];
+  for (; i < length && aValue[i] != '@'; ++i) {
+    PRUnichar c = aValue[i];
 
     // The username characters have to be in this list to be valid.
     if (!(nsCRT::IsAsciiAlpha(c) || nsCRT::IsAsciiDigit(c) ||
@@ -3972,17 +3948,17 @@ nsHTMLInputElement::IsValidEmailAddress(const nsAString& aValue)
   }
 
   // The domain name can't begin with a dot.
-  if (value[i] == '.') {
+  if (aValue[i] == '.') {
     return false;
   }
 
   // Parsing the domain name.
   for (; i < length; ++i) {
-    PRUnichar c = value[i];
+    PRUnichar c = aValue[i];
 
     if (c == '.') {
       // A dot can't follow a dot.
-      if (value[i-1] == '.') {
+      if (aValue[i-1] == '.') {
         return false;
       }
     } else if (!(nsCRT::IsAsciiAlpha(c) || nsCRT::IsAsciiDigit(c) ||

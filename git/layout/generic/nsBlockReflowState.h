@@ -179,6 +179,10 @@ public:
     }
   }
 
+  nsLineBox* NewLineBox(nsIFrame* aFrame, PRInt32 aCount, bool aIsBlock);
+
+  void FreeLineBox(nsLineBox* aLine);
+
   //----------------------------------------
 
   // This state is the "global" state computed once for the reflow of

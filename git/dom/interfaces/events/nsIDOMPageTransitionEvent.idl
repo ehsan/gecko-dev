@@ -61,7 +61,8 @@ interface nsIDOMPageTransitionEvent : nsIDOMEvent
                                in boolean persisted);
 };
 
-dictionary PageTransitionEventInit : EventInit
+[scriptable, uuid(bf3eaa61-5048-48c4-b8b9-9bf833ca63d6)]
+interface nsIPageTransitionEventInit : nsIEventInit
 {
-  boolean persisted;
+  attribute boolean persisted;
 };

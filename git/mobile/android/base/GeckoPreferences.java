@@ -71,24 +71,20 @@ public class GeckoPreferences
 {
     private static final String LOGTAG = "GeckoPreferences";
 
-    private ArrayList<String> mPreferencesList;
+    private ArrayList<String> mPreferencesList = new ArrayList<String>();
     private PreferenceScreen mPreferenceScreen;
     private static boolean sIsCharEncodingEnabled = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        if (Build.VERSION.SDK_INT >= 11)
+            GeckoActionBar.setDisplayHomeAsUpEnabled(this, true);
+
         addPreferencesFromResource(R.xml.preferences);
-        GeckoAppShell.registerGeckoEventListener("Preferences:Data", this);
-   }
-
-   @Override
-   public void onWindowFocusChanged(boolean hasFocus) {
-        if (!hasFocus)
-            return;
-
-        mPreferencesList = new ArrayList<String>();
         mPreferenceScreen = getPreferenceScreen();
+        GeckoAppShell.registerGeckoEventListener("Preferences:Data", this);
         initGroups(mPreferenceScreen);
         initValues();
     }
@@ -114,7 +110,7 @@ public class GeckoPreferences
     private void initValues() {
         JSONArray jsonPrefs = new JSONArray(mPreferencesList);
 
-        GeckoEvent event = GeckoEvent.createBroadcastEvent("Preferences:Get", jsonPrefs.toString());
+        GeckoEvent event = new GeckoEvent("Preferences:Get", jsonPrefs.toString());
         GeckoAppShell.sendEventToGecko(event);
     }
 
@@ -233,7 +229,7 @@ public class GeckoPreferences
                                     jsonPref.put("type", "string");
                                     jsonPref.put("value", input1.getText().toString());
                     
-                                    GeckoEvent event = GeckoEvent.createBroadcastEvent("Preferences:Set", jsonPref.toString());
+                                    GeckoEvent event = new GeckoEvent("Preferences:Set", jsonPref.toString());
                                     GeckoAppShell.sendEventToGecko(event);
                                 } catch(Exception ex) {
                                     Log.e(LOGTAG, "Error setting masterpassword", ex);
@@ -274,7 +270,7 @@ public class GeckoPreferences
                                     jsonPref.put("type", "string");
                                     jsonPref.put("value", input.getText().toString());
                         
-                                    GeckoEvent event = GeckoEvent.createBroadcastEvent("Preferences:Set", jsonPref.toString());
+                                    GeckoEvent event = new GeckoEvent("Preferences:Set", jsonPref.toString());
                                     GeckoAppShell.sendEventToGecko(event);
                                 } catch(Exception ex) {
                                     Log.e(LOGTAG, "Error setting masterpassword", ex);
@@ -373,7 +369,7 @@ public class GeckoPreferences
                 jsonPref.put("value", String.valueOf(value));
             }
 
-            GeckoEvent event = GeckoEvent.createBroadcastEvent("Preferences:Set", jsonPref.toString());
+            GeckoEvent event = new GeckoEvent("Preferences:Set", jsonPref.toString());
             GeckoAppShell.sendEventToGecko(event);
         } catch (JSONException e) {
             Log.e(LOGTAG, "JSON exception: ", e);

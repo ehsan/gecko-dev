@@ -47,8 +47,6 @@
 #include "nsPresContext.h"
 #include "nsIFrame.h" // to get nsIBox, which is a typedef
 
-#define NS_DEFAULT_VERTICAL_SCROLL_DISTANCE 3
-
 class nsBoxLayoutState;
 class nsIScrollPositionListener;
 
@@ -165,7 +163,7 @@ public:
    * values are in device pixels.
    */
   virtual void ScrollBy(nsIntPoint aDelta, ScrollUnit aUnit, ScrollMode aMode,
-                        nsIntPoint* aOverflow = nsnull, nsIAtom *aOrigin = nsnull) = 0;
+                        nsIntPoint* aOverflow = nsnull) = 0;
   /**
    * This tells the scroll frame to try scrolling to the scroll
    * position that was restored from the history. This must be called

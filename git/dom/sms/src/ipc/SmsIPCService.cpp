@@ -108,17 +108,6 @@ SmsIPCService::CreateSmsMessage(PRInt32 aId,
  * Implementation of nsISmsDatabaseService.
  */
 NS_IMETHODIMP
-SmsIPCService::SaveReceivedMessage(const nsAString& aSender,
-                                   const nsAString& aBody,
-                                   PRUint64 aDate, PRInt32* aId)
-{
-  GetSmsChild()->SendSaveReceivedMessage(nsString(aSender), nsString(aBody),
-                                         aDate, aId);
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 SmsIPCService::SaveSentMessage(const nsAString& aReceiver,
                                const nsAString& aBody,
                                PRUint64 aDate, PRInt32* aId)

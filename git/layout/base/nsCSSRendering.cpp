@@ -2425,8 +2425,7 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
 
   // We can skip painting the background color if a background image is opaque.
   if (drawBackgroundColor &&
-      bg->BottomLayer().mRepeat.mXRepeat == NS_STYLE_BG_REPEAT_REPEAT &&
-      bg->BottomLayer().mRepeat.mYRepeat == NS_STYLE_BG_REPEAT_REPEAT &&
+      bg->BottomLayer().mRepeat == NS_STYLE_BG_REPEAT_XY &&
       bg->BottomLayer().mImage.IsOpaque())
     drawBackgroundColor = false;
 
@@ -2684,13 +2683,14 @@ PrepareBackgroundLayer(nsPresContext* aPresContext,
 
   state.mDestArea = nsRect(imageTopLeft + aBorderArea.TopLeft(), imageSize);
   state.mFillArea = state.mDestArea;
-  PRIntn repeatX = aLayer.mRepeat.mXRepeat;
-  PRIntn repeatY = aLayer.mRepeat.mYRepeat;
-  if (repeatX == NS_STYLE_BG_REPEAT_REPEAT) {
+  PRIntn repeat = aLayer.mRepeat;
+  PR_STATIC_ASSERT(NS_STYLE_BG_REPEAT_XY ==
+                   (NS_STYLE_BG_REPEAT_X | NS_STYLE_BG_REPEAT_Y));
+  if (repeat & NS_STYLE_BG_REPEAT_X) {
     state.mFillArea.x = bgClipRect.x;
     state.mFillArea.width = bgClipRect.width;
   }
-  if (repeatY == NS_STYLE_BG_REPEAT_REPEAT) {
+  if (repeat & NS_STYLE_BG_REPEAT_Y) {
     state.mFillArea.y = bgClipRect.y;
     state.mFillArea.height = bgClipRect.height;
   }

@@ -36,6 +36,8 @@
 #ifdef __APPLE__
 
 #include "sharkctl.h"
+
+#include "sharkctl.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>

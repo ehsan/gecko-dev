@@ -37,6 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
+
 #include "JumpListBuilder.h"
 
 #include "nsError.h"
@@ -56,10 +58,6 @@
 #include "nsStringStream.h"
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
-#include "mozilla/LazyIdleThread.h"
-
-// The amount of time, in milliseconds, that our IO thread will stay alive after the last event it processes.
-#define DEFAULT_THREAD_TIMEOUT_MS 30000
 
 namespace mozilla {
 namespace widget {
@@ -89,8 +87,7 @@ JumpListBuilder::JumpListBuilder() :
   CoCreateInstance(CLSID_DestinationList, NULL, CLSCTX_INPROC_SERVER,
                    IID_ICustomDestinationList, getter_AddRefs(mJumpListMgr));
 
-  // Make a lazy thread for any IO
-  mIOThread = new LazyIdleThread(DEFAULT_THREAD_TIMEOUT_MS, LazyIdleThread::ManualShutdown);
+  NS_NewThread(getter_AddRefs(mIOThread));
   Preferences::AddStrongObserver(this, kPrefTaskbarEnabled);
 }
 
@@ -772,3 +769,4 @@ AsyncDeleteAllFaviconsFromDisk::~AsyncDeleteAllFaviconsFromDisk()
 } // namespace widget
 } // namespace mozilla
 
+#endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7

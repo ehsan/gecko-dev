@@ -43,13 +43,14 @@
 #include "nsCycleCollectionParticipant.h"
 
 class nsTransactionStack;
+class nsTransactionRedoStack;
 class nsTransactionManager;
 
 class nsTransactionItem
 {
   nsCOMPtr<nsITransaction> mTransaction;
   nsTransactionStack      *mUndoStack;
-  nsTransactionStack      *mRedoStack;
+  nsTransactionRedoStack  *mRedoStack;
   nsAutoRefCnt             mRefCnt;
 
 public:

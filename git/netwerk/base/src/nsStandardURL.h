@@ -54,7 +54,6 @@
 #include "nsCOMPtr.h"
 #include "nsURLHelper.h"
 #include "nsIClassInfo.h"
-#include "nsISizeOf.h"
 #include "prclist.h"
 
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -76,7 +75,6 @@ class nsStandardURL : public nsIFileURL
                     , public nsISerializable
                     , public nsIIPCSerializable
                     , public nsIClassInfo
-                    , public nsISizeOf
 {
 public:
     NS_DECL_ISUPPORTS
@@ -88,10 +86,6 @@ public:
     NS_DECL_NSIIPCSERIALIZABLE
     NS_DECL_NSICLASSINFO
     NS_DECL_NSIMUTABLE
-
-    // nsISizeOf
-    virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-    virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
     nsStandardURL(bool aSupportsFileURL = false);
     virtual ~nsStandardURL();
@@ -121,6 +115,7 @@ public: /* internal -- HPUX compiler can't handle this being private */
                 mLen += 1 + right.mLen;
             }
         }
+            
     };
 
     //

@@ -204,7 +204,7 @@ class nsHtml5Highlighter
     /**
      * Ends a wrapper around a run of characters.
      */
-    void EndCharactersAndStartMarkupRun();
+    void EndCharacters();
 
     /**
      * Starts an <a>.

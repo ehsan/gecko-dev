@@ -61,7 +61,7 @@ def main(file):
     appdata['flags'] = ' | '.join(flags) if flags else '0'
     appdata['App:profile'] = '"%s"' % appdata['App:profile'] if 'App:profile' in appdata else 'NULL'
 
-    print '''#include "nsXREAppData.h"
+    print '''#include "nsXULAppAPI.h"
              static const nsXREAppData sAppData = {
                  sizeof(nsXREAppData),
                  NULL, // directory

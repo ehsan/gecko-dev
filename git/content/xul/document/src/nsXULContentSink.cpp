@@ -74,6 +74,7 @@
 #include "nsLayoutCID.h"
 #include "nsNetUtil.h"
 #include "nsRDFCID.h"
+#include "nsParserUtils.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
 #include "nsXULElement.h"
@@ -1078,7 +1079,7 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
           // various version strings anyway.  So we make no attempt to support
           // languages other than JS for language=
           nsAutoString lang(aAttributes[1]);
-          if (nsContentUtils::IsJavaScriptLanguage(lang, &version)) {
+          if (nsParserUtils::IsJavaScriptLanguage(lang, &version)) {
               langID = nsIProgrammingLanguage::JAVASCRIPT;
 
               // Even when JS version < 1.6 is specified, E4X is

@@ -792,7 +792,6 @@ let events = [
   'mouseout',
   'mousemove',
   'click',
-  'dblclick',
   'resize',
   'change',
   'blur',

@@ -68,6 +68,7 @@
 #include "prtime.h"
 #include "prlog.h"
 #include "prmem.h"
+#include "nsParserUtils.h"
 #include "nsRect.h"
 #include "nsGenericElement.h"
 #include "nsIWebNavigation.h"
@@ -264,11 +265,11 @@ CheckXSLTParamPI(nsIDOMProcessingInstruction* aPi,
   if (target.EqualsLiteral("xslt-param-namespace")) {
     aPi->GetData(data);
     nsAutoString prefix, namespaceAttr;
-    nsContentUtils::GetPseudoAttributeValue(data, nsGkAtoms::prefix,
-                                            prefix);
+    nsParserUtils::GetQuotedAttributeValue(data, nsGkAtoms::prefix,
+                                           prefix);
     if (!prefix.IsEmpty() &&
-        nsContentUtils::GetPseudoAttributeValue(data, nsGkAtoms::_namespace,
-                                                namespaceAttr)) {
+        nsParserUtils::GetQuotedAttributeValue(data, nsGkAtoms::_namespace,
+                                               namespaceAttr)) {
       aProcessor->AddXSLTParamNamespace(prefix, namespaceAttr);
     }
   }
@@ -277,14 +278,14 @@ CheckXSLTParamPI(nsIDOMProcessingInstruction* aPi,
   else if (target.EqualsLiteral("xslt-param")) {
     aPi->GetData(data);
     nsAutoString name, namespaceAttr, select, value;
-    nsContentUtils::GetPseudoAttributeValue(data, nsGkAtoms::name,
-                                            name);
-    nsContentUtils::GetPseudoAttributeValue(data, nsGkAtoms::_namespace,
-                                            namespaceAttr);
-    if (!nsContentUtils::GetPseudoAttributeValue(data, nsGkAtoms::select, select)) {
+    nsParserUtils::GetQuotedAttributeValue(data, nsGkAtoms::name,
+                                           name);
+    nsParserUtils::GetQuotedAttributeValue(data, nsGkAtoms::_namespace,
+                                           namespaceAttr);
+    if (!nsParserUtils::GetQuotedAttributeValue(data, nsGkAtoms::select, select)) {
       select.SetIsVoid(true);
     }
-    if (!nsContentUtils::GetPseudoAttributeValue(data, nsGkAtoms::value, value)) {
+    if (!nsParserUtils::GetQuotedAttributeValue(data, nsGkAtoms::value, value)) {
       value.SetIsVoid(true);
     }
     if (!name.IsEmpty()) {
@@ -1339,7 +1340,7 @@ nsXMLContentSink::HandleProcessingInstruction(const PRUnichar *aTarget,
 
   // If it's not a CSS stylesheet PI...
   nsAutoString type;
-  nsContentUtils::GetPseudoAttributeValue(data, nsGkAtoms::type, type);
+  nsParserUtils::GetQuotedAttributeValue(data, nsGkAtoms::type, type);
 
   if (mState != eXMLContentSinkState_InProlog ||
       !target.EqualsLiteral("xml-stylesheet") ||
@@ -1367,18 +1368,16 @@ nsXMLContentSink::ParsePIData(const nsString &aData, nsString &aHref,
                               bool &aIsAlternate)
 {
   // If there was no href, we can't do anything with this PI
-  if (!nsContentUtils::GetPseudoAttributeValue(aData, nsGkAtoms::href, aHref)) {
+  if (!nsParserUtils::GetQuotedAttributeValue(aData, nsGkAtoms::href, aHref)) {
     return false;
   }
 
-  nsContentUtils::GetPseudoAttributeValue(aData, nsGkAtoms::title, aTitle);
+  nsParserUtils::GetQuotedAttributeValue(aData, nsGkAtoms::title, aTitle);
 
-  nsContentUtils::GetPseudoAttributeValue(aData, nsGkAtoms::media, aMedia);
+  nsParserUtils::GetQuotedAttributeValue(aData, nsGkAtoms::media, aMedia);
 
   nsAutoString alternate;
-  nsContentUtils::GetPseudoAttributeValue(aData,
-                                          nsGkAtoms::alternate,
-                                          alternate);
+  nsParserUtils::GetQuotedAttributeValue(aData, nsGkAtoms::alternate, alternate);
 
   aIsAlternate = alternate.EqualsLiteral("yes");
 

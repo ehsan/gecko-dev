@@ -724,6 +724,6 @@ XPCOMUtils.defineLazyGetter(AeroPeek, "cacheTimer", function ()
 
 XPCOMUtils.defineLazyServiceGetter(AeroPeek, "prefs",
                                    "@mozilla.org/preferences-service;1",
-                                   "nsIPrefBranch");
+                                   "nsIPrefBranch2");
 
 AeroPeek.initialize();

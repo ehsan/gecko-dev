@@ -38,13 +38,8 @@
 #include "SmsServicesFactory.h"
 #include "nsXULAppAPI.h"
 #include "SmsService.h"
-#include "SmsIPCService.h"
-#ifndef MOZ_B2G_RIL
 #include "SmsDatabaseService.h"
-#endif
-#include "nsServiceManagerUtils.h"
-
-#define RIL_SMS_DATABASE_SERVICE_CONTRACTID "@mozilla.org/sms/rilsmsdatabaseservice;1"
+#include "SmsIPCService.h"
 
 namespace mozilla {
 namespace dom {
@@ -72,11 +67,7 @@ SmsServicesFactory::CreateSmsDatabaseService()
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     smsDBService = new SmsIPCService();
   } else {
-#ifdef MOZ_B2G_RIL
-    smsDBService = do_GetService(RIL_SMS_DATABASE_SERVICE_CONTRACTID);
-#else
     smsDBService = new SmsDatabaseService();
-#endif
   }
 
   return smsDBService.forget();

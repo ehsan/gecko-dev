@@ -46,6 +46,7 @@
 #include "nsTArray.h"
 #include "nsAlgorithm.h"
 #include "mozilla/Preferences.h"
+#include "cairo-xlib-xrender.h"
 
 using namespace mozilla;
 
