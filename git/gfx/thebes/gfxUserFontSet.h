@@ -14,7 +14,6 @@
 #include "nsIPrincipal.h"
 #include "nsIScriptError.h"
 #include "nsURIHashKey.h"
-#include "mozilla/net/ReferrerPolicy.h"
 
 class nsFontFaceLoader;
 
@@ -53,7 +52,6 @@ struct gfxFontFaceSrc {
     nsString               mLocalName;     // full font name if local
     nsCOMPtr<nsIURI>       mURI;           // uri if url
     nsCOMPtr<nsIURI>       mReferrer;      // referrer url if url
-    mozilla::net::ReferrerPolicy mReferrerPolicy;
     nsCOMPtr<nsIPrincipal> mOriginPrincipal; // principal if url
 
     nsRefPtr<gfxFontFaceBufferSource> mBuffer;
@@ -75,7 +73,6 @@ operator==(const gfxFontFaceSrc& a, const gfxFontFaceSrc& b)
                    NS_SUCCEEDED(a.mURI->Equals(b.mURI, &equals)) && equals &&
                    NS_SUCCEEDED(a.mReferrer->Equals(b.mReferrer, &equals)) &&
                      equals &&
-                   a.mReferrerPolicy == b.mReferrerPolicy &&
                    a.mOriginPrincipal->Equals(b.mOriginPrincipal);
         }
         case gfxFontFaceSrc::eSourceType_Buffer:

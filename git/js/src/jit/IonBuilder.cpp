@@ -768,11 +768,6 @@ IonBuilder::build()
         return false;
     }
 
-    if (shouldForceAbort()) {
-        abortReason_ = AbortReason_Disable;
-        return false;
-    }
-
     MOZ_ASSERT(loopDepth_ == 0);
     abortReason_ = AbortReason_NoAbort;
     return true;
@@ -916,17 +911,6 @@ IonBuilder::buildInline(IonBuilder *callerBuilder, MResumePoint *callerResumePoi
 
     // Discard unreferenced & pre-allocated resume points.
     replaceMaybeFallbackFunctionGetter(nullptr);
-
-    if (!abortedNewScriptPropertiesTypes().empty()) {
-        MOZ_ASSERT(!info().executionModeIsAnalysis());
-        abortReason_ = AbortReason_NewScriptProperties;
-        return false;
-    }
-
-    if (shouldForceAbort()) {
-        abortReason_ = AbortReason_Disable;
-        return false;
-    }
 
     return true;
 }
@@ -1824,9 +1808,6 @@ IonBuilder::inspectOpcode(JSOp op)
 
       case JSOP_DEBUGLEAVEBLOCK:
         return true;
-
-      case JSOP_DEBUGGER:
-        return jsop_debugger();
 
       default:
 #ifdef DEBUG
@@ -4973,15 +4954,15 @@ IonBuilder::inlineCalls(CallInfo &callInfo, ObjectVector &targets,
     // Inline each of the inlineable targets.
     MOZ_ASSERT(targets.length() == originals.length());
     for (uint32_t i = 0; i < targets.length(); i++) {
-        // Target must be inlineable.
-        if (!choiceSet[i])
-            continue;
-
         // When original != target, the target is a callsite clone. The
         // original should be used for guards, and the target should be the
         // actual function inlined.
         JSFunction *original = &originals[i]->as<JSFunction>();
         JSFunction *target = &targets[i]->as<JSFunction>();
+
+        // Target must be inlineable.
+        if (!choiceSet[i])
+            continue;
 
         // Target must be reachable by the MDispatchInstruction.
         if (maybeCache && !maybeCache->propTable()->hasFunction(original)) {
@@ -7301,7 +7282,7 @@ IonBuilder::checkTypedObjectIndexInBounds(int32_t elemSize,
                                           MDefinition *obj,
                                           MDefinition *index,
                                           TypedObjectPrediction objPrediction,
-                                          LinearSum *indexAsByteOffset)
+                                          MDefinition **indexAsByteOffset)
 {
     // Ensure index is an integer.
     MInstruction *idInt32 = MToInt32::New(alloc(), index);
@@ -7327,7 +7308,14 @@ IonBuilder::checkTypedObjectIndexInBounds(int32_t elemSize,
 
     index = addBoundsCheck(idInt32, length);
 
-    return indexAsByteOffset->add(index, elemSize);
+    // Since we passed the bounds check, it is impossible for the
+    // result of multiplication to overflow; so enable imul path.
+    MMul *mul = MMul::New(alloc(), index, constantInt(elemSize),
+                          MIRType_Int32, MMul::Integer);
+    current->add(mul);
+
+    *indexAsByteOffset = mul;
+    return true;
 }
 
 bool
@@ -7344,7 +7332,7 @@ IonBuilder::getElemTryScalarElemOfTypedObject(bool *emitted,
     ScalarTypeDescr::Type elemType = elemPrediction.scalarType();
     MOZ_ASSERT(elemSize == ScalarTypeDescr::alignment(elemType));
 
-    LinearSum indexAsByteOffset(alloc());
+    MDefinition *indexAsByteOffset;
     if (!checkTypedObjectIndexInBounds(elemSize, obj, index, objPrediction, &indexAsByteOffset))
         return true;
 
@@ -7365,7 +7353,7 @@ IonBuilder::getElemTryReferenceElemOfTypedObject(bool *emitted,
     ReferenceTypeDescr::Type elemType = elemPrediction.referenceType();
     size_t elemSize = ReferenceTypeDescr::size(elemType);
 
-    LinearSum indexAsByteOffset(alloc());
+    MDefinition *indexAsByteOffset;
     if (!checkTypedObjectIndexInBounds(elemSize, obj, index, objPrediction, &indexAsByteOffset))
         return true;
 
@@ -7376,7 +7364,7 @@ IonBuilder::getElemTryReferenceElemOfTypedObject(bool *emitted,
 
 bool
 IonBuilder::pushScalarLoadFromTypedObject(MDefinition *obj,
-                                          const LinearSum &byteOffset,
+                                          MDefinition *offset,
                                           ScalarTypeDescr::Type elemType)
 {
     int32_t size = ScalarTypeDescr::size(elemType);
@@ -7384,14 +7372,10 @@ IonBuilder::pushScalarLoadFromTypedObject(MDefinition *obj,
 
     // Find location within the owner object.
     MDefinition *elements, *scaledOffset;
-    int32_t adjustment;
-    loadTypedObjectElements(obj, byteOffset, size, &elements, &scaledOffset, &adjustment);
+    loadTypedObjectElements(obj, offset, size, &elements, &scaledOffset);
 
     // Load the element.
-    MLoadTypedArrayElement *load = MLoadTypedArrayElement::New(alloc(), elements, scaledOffset,
-                                                               elemType,
-                                                               DoesNotRequireMemoryBarrier,
-                                                               adjustment);
+    MLoadTypedArrayElement *load = MLoadTypedArrayElement::New(alloc(), elements, scaledOffset, elemType);
     current->add(load);
     current->push(load);
 
@@ -7417,14 +7401,13 @@ IonBuilder::pushScalarLoadFromTypedObject(MDefinition *obj,
 
 bool
 IonBuilder::pushReferenceLoadFromTypedObject(MDefinition *typedObj,
-                                             const LinearSum &byteOffset,
+                                             MDefinition *byteOffset,
                                              ReferenceTypeDescr::Type type)
 {
     // Find location within the owner object.
     MDefinition *elements, *scaledOffset;
-    int32_t adjustment;
     size_t alignment = ReferenceTypeDescr::alignment(type);
-    loadTypedObjectElements(typedObj, byteOffset, alignment, &elements, &scaledOffset, &adjustment);
+    loadTypedObjectElements(typedObj, byteOffset, alignment, &elements, &scaledOffset);
 
     types::TemporaryTypeSet *observedTypes = bytecodeTypes(pc);
 
@@ -7432,17 +7415,17 @@ IonBuilder::pushReferenceLoadFromTypedObject(MDefinition *typedObj,
     BarrierKind barrier = BarrierKind::NoBarrier;
     switch (type) {
       case ReferenceTypeDescr::TYPE_ANY:
-        load = MLoadElement::New(alloc(), elements, scaledOffset, false, false, adjustment);
+        load = MLoadElement::New(alloc(), elements, scaledOffset, false, false);
         if (!observedTypes->unknown())
             barrier = BarrierKind::TypeSet;
         break;
       case ReferenceTypeDescr::TYPE_OBJECT:
-        load = MLoadUnboxedObjectOrNull::New(alloc(), elements, scaledOffset, adjustment);
+        load = MLoadUnboxedObjectOrNull::New(alloc(), elements, scaledOffset);
         if (!observedTypes->unknownObject() || !observedTypes->hasType(types::Type::NullType()))
             barrier = BarrierKind::TypeSet;
         break;
       case ReferenceTypeDescr::TYPE_STRING:
-        load = MLoadUnboxedString::New(alloc(), elements, scaledOffset, adjustment);
+        load = MLoadUnboxedString::New(alloc(), elements, scaledOffset);
         observedTypes->addType(types::Type::StringType(), alloc().lifoAlloc());
         break;
     }
@@ -7466,7 +7449,7 @@ IonBuilder::getElemTryComplexElemOfTypedObject(bool *emitted,
     MDefinition *type = loadTypedObjectType(obj);
     MDefinition *elemTypeObj = typeObjectForElementFromArrayStructType(type);
 
-    LinearSum indexAsByteOffset(alloc());
+    MDefinition *indexAsByteOffset;
     if (!checkTypedObjectIndexInBounds(elemSize, obj, index, objPrediction, &indexAsByteOffset))
         return true;
 
@@ -7477,27 +7460,20 @@ IonBuilder::getElemTryComplexElemOfTypedObject(bool *emitted,
 bool
 IonBuilder::pushDerivedTypedObject(bool *emitted,
                                    MDefinition *obj,
-                                   const LinearSum &baseByteOffset,
+                                   MDefinition *offset,
                                    TypedObjectPrediction derivedPrediction,
                                    MDefinition *derivedTypeObj)
 {
     // Find location within the owner object.
-    MDefinition *owner;
-    LinearSum ownerByteOffset(alloc());
-    loadTypedObjectData(obj, &owner, &ownerByteOffset);
-
-    if (!ownerByteOffset.add(baseByteOffset, 1))
-        setForceAbort();
-
-    MDefinition *offset = ConvertLinearSum(alloc(), current, ownerByteOffset,
-                                           /* convertConstant = */ true);
+    MDefinition *owner, *ownerOffset;
+    loadTypedObjectData(obj, offset, &owner, &ownerOffset);
 
     // Create the derived typed object.
     MInstruction *derivedTypedObj = MNewDerivedTypedObject::New(alloc(),
                                                                 derivedPrediction,
                                                                 derivedTypeObj,
                                                                 owner,
-                                                                offset);
+                                                                ownerOffset);
     current->add(derivedTypedObj);
     current->push(derivedTypedObj);
 
@@ -8260,7 +8236,7 @@ IonBuilder::setElemTryReferenceElemOfTypedObject(bool *emitted,
     ReferenceTypeDescr::Type elemType = elemPrediction.referenceType();
     size_t elemSize = ReferenceTypeDescr::size(elemType);
 
-    LinearSum indexAsByteOffset(alloc());
+    MDefinition *indexAsByteOffset;
     if (!checkTypedObjectIndexInBounds(elemSize, obj, index, objPrediction, &indexAsByteOffset))
         return true;
 
@@ -8286,7 +8262,7 @@ IonBuilder::setElemTryScalarElemOfTypedObject(bool *emitted,
     ScalarTypeDescr::Type elemType = elemPrediction.scalarType();
     MOZ_ASSERT(elemSize == ScalarTypeDescr::alignment(elemType));
 
-    LinearSum indexAsByteOffset(alloc());
+    MDefinition *indexAsByteOffset;
     if (!checkTypedObjectIndexInBounds(elemSize, obj, index, objPrediction, &indexAsByteOffset))
         return true;
 
@@ -8658,16 +8634,18 @@ IonBuilder::jsop_setelem_typed_object(Scalar::Type arrayType, SetElemSafety safe
 {
     MOZ_ASSERT(safety == SetElem_Unsafe); // Can be fixed, but there's been no reason to as of yet
 
-    MInstruction *intIndex = MToInt32::New(alloc(), index);
-    current->add(intIndex);
+    MInstruction *int_index = MToInt32::New(alloc(), index);
+    current->add(int_index);
 
     size_t elemSize = ScalarTypeDescr::alignment(arrayType);
+    MMul *byteOffset = MMul::New(alloc(), int_index, constantInt(elemSize),
+                                        MIRType_Int32, MMul::Integer);
+    current->add(byteOffset);
 
-    LinearSum byteOffset(alloc());
-    if (!byteOffset.add(intIndex, elemSize))
-        setForceAbort();
+    if (!storeScalarTypedObjectValue(object, byteOffset, arrayType, racy, value))
+        return false;
 
-    return storeScalarTypedObjectValue(object, byteOffset, arrayType, racy, value);
+    return true;
 }
 
 bool
@@ -9500,11 +9478,7 @@ IonBuilder::getPropTryScalarPropOfTypedObject(bool *emitted, MDefinition *typedO
 
     *emitted = true;
 
-    LinearSum byteOffset(alloc());
-    if (!byteOffset.add(fieldOffset))
-        setForceAbort();
-
-    return pushScalarLoadFromTypedObject(typedObj, byteOffset, fieldType);
+    return pushScalarLoadFromTypedObject(typedObj, constantInt(fieldOffset), fieldType);
 }
 
 bool
@@ -9521,11 +9495,7 @@ IonBuilder::getPropTryReferencePropOfTypedObject(bool *emitted, MDefinition *typ
 
     *emitted = true;
 
-    LinearSum byteOffset(alloc());
-    if (!byteOffset.add(fieldOffset))
-        setForceAbort();
-
-    return pushReferenceLoadFromTypedObject(typedObj, byteOffset, fieldType);
+    return pushReferenceLoadFromTypedObject(typedObj, constantInt(fieldOffset), fieldType);
 }
 
 bool
@@ -9547,11 +9517,7 @@ IonBuilder::getPropTryComplexPropOfTypedObject(bool *emitted,
     MDefinition *type = loadTypedObjectType(typedObj);
     MDefinition *fieldTypeObj = typeObjectForFieldFromStructType(type, fieldIndex);
 
-    LinearSum byteOffset(alloc());
-    if (!byteOffset.add(fieldOffset))
-        setForceAbort();
-
-    return pushDerivedTypedObject(emitted, typedObj, byteOffset,
+    return pushDerivedTypedObject(emitted, typedObj, constantInt(fieldOffset),
                                   fieldPrediction, fieldTypeObj);
 }
 
@@ -10204,11 +10170,7 @@ IonBuilder::setPropTryReferencePropOfTypedObject(bool *emitted,
     if (globalType->hasFlags(constraints(), types::OBJECT_FLAG_TYPED_OBJECT_NEUTERED))
         return true;
 
-    LinearSum byteOffset(alloc());
-    if (!byteOffset.add(fieldOffset))
-        setForceAbort();
-
-    if (!storeReferenceTypedObjectValue(obj, byteOffset, fieldType, value))
+    if (!storeReferenceTypedObjectValue(obj, constantInt(fieldOffset), fieldType, value))
         return false;
 
     current->push(value);
@@ -10232,11 +10194,9 @@ IonBuilder::setPropTryScalarPropOfTypedObject(bool *emitted,
     if (globalType->hasFlags(constraints(), types::OBJECT_FLAG_TYPED_OBJECT_NEUTERED))
         return true;
 
-    LinearSum byteOffset(alloc());
-    if (!byteOffset.add(fieldOffset))
-        setForceAbort();
+    // OK! Perform the optimization.
 
-    if (!storeScalarTypedObjectValue(obj, byteOffset, fieldType, false, value))
+    if (!storeScalarTypedObjectValue(obj, constantInt(fieldOffset), fieldType, false, value))
         return false;
 
     current->push(value);
@@ -11073,18 +11033,6 @@ IonBuilder::jsop_instanceof()
     return resumeAfter(ins);
 }
 
-bool
-IonBuilder::jsop_debugger()
-{
-    MDebugger *debugger = MDebugger::New(alloc());
-    current->add(debugger);
-
-    // The |debugger;| statement will always bail out to baseline if
-    // cx->compartment()->isDebuggee(). Resume in-place and have baseline
-    // handle the details.
-    return resumeAt(debugger, pc);
-}
-
 MInstruction *
 IonBuilder::addConvertElementsToDoubles(MDefinition *elements)
 {
@@ -11211,10 +11159,12 @@ IonBuilder::loadTypedObjectType(MDefinition *typedObj)
 // into dead code).
 void
 IonBuilder::loadTypedObjectData(MDefinition *typedObj,
+                                MDefinition *offset,
                                 MDefinition **owner,
-                                LinearSum *ownerOffset)
+                                MDefinition **ownerOffset)
 {
     MOZ_ASSERT(typedObj->type() == MIRType_Object);
+    MOZ_ASSERT(offset->type() == MIRType_Int32);
 
     // Shortcircuit derived type objects, meaning the intermediate
     // objects created to represent `a.b` in an expression like
@@ -11224,15 +11174,20 @@ IonBuilder::loadTypedObjectData(MDefinition *typedObj,
     if (typedObj->isNewDerivedTypedObject()) {
         MNewDerivedTypedObject *ins = typedObj->toNewDerivedTypedObject();
 
-        SimpleLinearSum base = ExtractLinearSum(ins->offset());
-        if (!ownerOffset->add(base))
-            setForceAbort();
+        // Note: we never need to check for neutering on this path,
+        // because when we create the derived typed object, we check
+        // for neutering there, if needed.
+
+        MAdd *offsetAdd = MAdd::NewAsmJS(alloc(), ins->offset(), offset, MIRType_Int32);
+        current->add(offsetAdd);
 
         *owner = ins->owner();
+        *ownerOffset = offsetAdd;
         return;
     }
 
     *owner = typedObj;
+    *ownerOffset = offset;
 }
 
 // Takes as input a typed object, an offset into that typed object's
@@ -11242,54 +11197,29 @@ IonBuilder::loadTypedObjectData(MDefinition *typedObj,
 // this is typically the alignment.
 void
 IonBuilder::loadTypedObjectElements(MDefinition *typedObj,
-                                    const LinearSum &baseByteOffset,
-                                    int32_t scale,
+                                    MDefinition *offset,
+                                    int32_t unit,
                                     MDefinition **ownerElements,
-                                    MDefinition **ownerScaledOffset,
-                                    int32_t *ownerByteAdjustment)
+                                    MDefinition **ownerScaledOffset)
 {
-    MDefinition *owner;
-    LinearSum ownerByteOffset(alloc());
-    loadTypedObjectData(typedObj, &owner, &ownerByteOffset);
+    MDefinition *owner, *ownerOffset;
+    loadTypedObjectData(typedObj, offset, &owner, &ownerOffset);
 
-    if (!ownerByteOffset.add(baseByteOffset))
-        setForceAbort();
+    // Load the element data.
+    MTypedObjectElements *elements = MTypedObjectElements::New(alloc(), owner);
+    current->add(elements);
 
-    types::TemporaryTypeSet *ownerTypes = owner->resultTypeSet();
-    const Class *clasp = ownerTypes ? ownerTypes->getKnownClass() : nullptr;
-    if (clasp && IsInlineTypedObjectClass(clasp)) {
-        // Perform the load directly from the owner pointer.
-        if (!ownerByteOffset.add(InlineTypedObject::offsetOfDataStart()))
-            setForceAbort();
-        *ownerElements = owner;
+    // Scale to a different unit for compat with typed array MIRs.
+    if (unit != 1) {
+        MDiv *scaledOffset = MDiv::NewAsmJS(alloc(), ownerOffset, constantInt(unit), MIRType_Int32,
+                                            /* unsignd = */ false);
+        current->add(scaledOffset);
+        *ownerScaledOffset = scaledOffset;
     } else {
-        bool definitelyOutline = clasp && IsOutlineTypedObjectClass(clasp);
-        *ownerElements = MTypedObjectElements::New(alloc(), owner, definitelyOutline);
-        current->add((*ownerElements)->toInstruction());
+        *ownerScaledOffset = ownerOffset;
     }
 
-    // Extract the constant adjustment from the byte offset.
-    *ownerByteAdjustment = ownerByteOffset.constant();
-    int32_t negativeAdjustment;
-    if (!SafeSub(0, *ownerByteAdjustment, &negativeAdjustment))
-        setForceAbort();
-    if (!ownerByteOffset.add(negativeAdjustment))
-        setForceAbort();
-
-    // Scale the byte offset if required by the MIR node which will access the
-    // typed object. In principle we should always be able to cleanly divide
-    // the terms in this lienar sum due to alignment restrictions, but due to
-    // limitations of ExtractLinearSum when applied to the terms in derived
-    // typed objects this isn't always be possible. In these cases, fall back
-    // on an explicit division operation.
-    if (ownerByteOffset.divide(scale)) {
-        *ownerScaledOffset = ConvertLinearSum(alloc(), current, ownerByteOffset);
-    } else {
-        MDefinition *unscaledOffset = ConvertLinearSum(alloc(), current, ownerByteOffset);
-        *ownerScaledOffset = MDiv::NewAsmJS(alloc(), unscaledOffset, constantInt(scale),
-                                            MIRType_Int32, /* unsigned = */ false);
-        current->add((*ownerScaledOffset)->toInstruction());
-    }
+    *ownerElements = elements;
 }
 
 // Looks up the offset/type-repr-set of the field `id`, given the type
@@ -11358,16 +11288,15 @@ IonBuilder::typeObjectForFieldFromStructType(MDefinition *typeObj,
 
 bool
 IonBuilder::storeScalarTypedObjectValue(MDefinition *typedObj,
-                                        const LinearSum &byteOffset,
+                                        MDefinition *byteOffset,
                                         ScalarTypeDescr::Type type,
                                         bool racy,
                                         MDefinition *value)
 {
     // Find location within the owner object.
     MDefinition *elements, *scaledOffset;
-    int32_t adjustment;
     size_t alignment = ScalarTypeDescr::alignment(type);
-    loadTypedObjectElements(typedObj, byteOffset, alignment, &elements, &scaledOffset, &adjustment);
+    loadTypedObjectElements(typedObj, byteOffset, alignment, &elements, &scaledOffset);
 
     // Clamp value to [0, 255] when type is Uint8Clamped
     MDefinition *toWrite = value;
@@ -11378,7 +11307,7 @@ IonBuilder::storeScalarTypedObjectValue(MDefinition *typedObj,
 
     MStoreTypedArrayElement *store =
         MStoreTypedArrayElement::New(alloc(), elements, scaledOffset, toWrite,
-                                     type, DoesNotRequireMemoryBarrier, adjustment);
+                                     type);
     if (racy)
         store->setRacy();
     current->add(store);
@@ -11388,35 +11317,33 @@ IonBuilder::storeScalarTypedObjectValue(MDefinition *typedObj,
 
 bool
 IonBuilder::storeReferenceTypedObjectValue(MDefinition *typedObj,
-                                           const LinearSum &byteOffset,
+                                           MDefinition *byteOffset,
                                            ReferenceTypeDescr::Type type,
                                            MDefinition *value)
 {
     // Find location within the owner object.
     MDefinition *elements, *scaledOffset;
-    int32_t adjustment;
     size_t alignment = ReferenceTypeDescr::alignment(type);
-    loadTypedObjectElements(typedObj, byteOffset, alignment, &elements, &scaledOffset, &adjustment);
+    loadTypedObjectElements(typedObj, byteOffset, alignment, &elements, &scaledOffset);
 
     MInstruction *store;
     switch (type) {
       case ReferenceTypeDescr::TYPE_ANY:
         if (NeedsPostBarrier(info(), value))
             current->add(MPostWriteBarrier::New(alloc(), typedObj, value));
-        store = MStoreElement::New(alloc(), elements, scaledOffset, value, false, adjustment);
-        store->toStoreElement()->setNeedsBarrier();
+        store = MStoreElement::New(alloc(), elements, scaledOffset, value, false);
         break;
       case ReferenceTypeDescr::TYPE_OBJECT:
         // Note: We cannot necessarily tell at this point whether a post
         // barrier is needed, because the type policy may insert ToObjectOrNull
         // instructions later, and those may require a post barrier. Therefore,
         // defer the insertion of post barriers to the type policy.
-        store = MStoreUnboxedObjectOrNull::New(alloc(), elements, scaledOffset, value, typedObj, adjustment);
+        store = MStoreUnboxedObjectOrNull::New(alloc(), elements, scaledOffset, value, typedObj);
         break;
       case ReferenceTypeDescr::TYPE_STRING:
         // Strings are not nursery allocated, so these writes do not need post
         // barriers.
-        store = MStoreUnboxedString::New(alloc(), elements, scaledOffset, value, adjustment);
+        store = MStoreUnboxedString::New(alloc(), elements, scaledOffset, value);
         break;
     }
 

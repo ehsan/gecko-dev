@@ -1167,16 +1167,6 @@ MarionetteServerConnection.prototype = {
       return;
     }
 
-    // At least on desktop, navigating in chrome scope does not
-    // correspond to something a user can do, and leaves marionette
-    // and the browser in an unusable state. Return a generic error insted.
-    // TODO: Error codes need to be refined as a part of bug 1100545 and
-    // bug 945729.
-    if (appName == "Firefox") {
-      sendError("Cannot navigate in chrome context", 13, null, command_id);
-      return;
-    }
-
     this.getCurrentWindow().location.href = aRequest.parameters.url;
     let checkTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
     let start = new Date().getTime();
@@ -2899,7 +2889,7 @@ function BrowserObj(win, server) {
   this.startPage = "about:blank";
   this.mainContentId = null; // used in B2G to identify the homescreen content page
   this.newSession = true; //used to set curFrameId upon new session
-  this.elementManager = new ElementManager([NAME, LINK_TEXT, PARTIAL_LINK_TEXT]);
+  this.elementManager = new ElementManager([SELECTOR, NAME, LINK_TEXT, PARTIAL_LINK_TEXT]);
   this.setBrowser(win);
   this.frameManager = new FrameManager(server); //We should have one FM per BO so that we can handle modals in each Browser
 

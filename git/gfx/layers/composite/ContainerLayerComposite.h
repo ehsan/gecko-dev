@@ -94,8 +94,6 @@ public:
 
   virtual const char* Name() const MOZ_OVERRIDE { return "ContainerLayerComposite"; }
   UniquePtr<PreparedData> mPrepared;
-
-  RefPtr<CompositingRenderTarget> mLastIntermediateSurface;
 };
 
 class RefLayerComposite : public RefLayer,
@@ -160,7 +158,6 @@ public:
 
   virtual const char* Name() const MOZ_OVERRIDE { return "RefLayerComposite"; }
   UniquePtr<PreparedData> mPrepared;
-  RefPtr<CompositingRenderTarget> mLastIntermediateSurface;
 };
 
 } /* layers */

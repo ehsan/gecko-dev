@@ -1377,12 +1377,7 @@ bool
 js::math_hypot(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return math_hypot_handle(cx, args, args.rval());
-}
 
-bool
-js::math_hypot_handle(JSContext *cx, HandleValueArray args, MutableHandleValue res)
-{
     // IonMonkey calls the system hypot function directly if two arguments are
     // given. Do that here as well to get the same results.
     if (args.length() == 2) {
@@ -1393,7 +1388,7 @@ js::math_hypot_handle(JSContext *cx, HandleValueArray args, MutableHandleValue r
             return false;
 
         double result = ecmaHypot(x, y);
-        res.setNumber(result);
+        args.rval().setNumber(result);
         return true;
     }
 
@@ -1424,7 +1419,7 @@ js::math_hypot_handle(JSContext *cx, HandleValueArray args, MutableHandleValue r
     double result = isInfinite ? PositiveInfinity<double>() :
                     isNaN ? GenericNaN() :
                     scale * sqrt(sumsq);
-    res.setNumber(result);
+    args.rval().setNumber(result);
     return true;
 }
 

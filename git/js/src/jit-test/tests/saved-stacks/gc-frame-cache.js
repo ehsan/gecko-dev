@@ -9,7 +9,7 @@ function assertAboutEq(actual, expected) {
                     ". FUZZ_FACTOR = " + FUZZ_FACTOR);
 }
 
-var stacks = [];
+const stacks = [];
 
 stacks.push(saveStack());
 stacks.push(saveStack());

@@ -22,7 +22,6 @@
 #include "nsHashKeys.h"
 #include "mozilla/LinkedList.h"
 #include "nsHtml5DocumentBuilder.h"
-#include "mozilla/net/ReferrerPolicy.h"
 
 class nsHtml5Parser;
 class nsHtml5TreeBuilder;
@@ -37,7 +36,6 @@ class nsHtml5TreeOpExecutor MOZ_FINAL : public nsHtml5DocumentBuilder,
                                         public mozilla::LinkedListElement<nsHtml5TreeOpExecutor>
 {
   friend class nsHtml5FlushLoopGuard;
-  typedef mozilla::net::ReferrerPolicy ReferrerPolicy;
 
   public:
     NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
@@ -68,12 +66,6 @@ class nsHtml5TreeOpExecutor MOZ_FINAL : public nsHtml5DocumentBuilder,
     nsTHashtable<nsCStringHashKey> mPreloadedURLs;
 
     nsCOMPtr<nsIURI> mSpeculationBaseURI;
-
-    /**
-     * Need to keep track of whether the referrer policy was already set.
-     */
-    bool             mSpeculationReferrerPolicyWasSet;
-    ReferrerPolicy   mSpeculationReferrerPolicy;
 
     nsCOMPtr<nsIURI> mViewSourceBaseURI;
 
@@ -265,8 +257,6 @@ class nsHtml5TreeOpExecutor MOZ_FINAL : public nsHtml5DocumentBuilder,
     void PreloadImage(const nsAString& aURL, const nsAString& aCrossOrigin);
 
     void SetSpeculationBase(const nsAString& aURL);
-
-    void SetSpeculationReferrerPolicy(const nsAString& aReferrerPolicy);
     
     void AddBase(const nsAString& aURL);
 

@@ -65,7 +65,7 @@ class ScriptedDirectProxyHandler : public DirectProxyHandler {
     virtual bool getEnumerablePropertyKeys(JSContext *cx, HandleObject proxy,
                                            AutoIdVector &props) const MOZ_OVERRIDE;
     virtual bool iterate(JSContext *cx, HandleObject proxy, unsigned flags,
-                         MutableHandleObject objp) const MOZ_OVERRIDE;
+                         MutableHandleValue vp) const MOZ_OVERRIDE;
 
     virtual bool isCallable(JSObject *obj) const MOZ_OVERRIDE;
     virtual bool isConstructor(JSObject *obj) const MOZ_OVERRIDE {

@@ -8,7 +8,7 @@
 
 #include "RasterImage.h"
 #include "mozilla/RefPtr.h"
-#include "DecodePool.h"
+#include "DecodeStrategy.h"
 #include "ImageMetadata.h"
 #include "Orientation.h"
 #include "mozilla/Telemetry.h"
@@ -43,11 +43,6 @@ public:
   /**
    * Writes data to the decoder.
    *
-   * If aBuffer is null and aCount is 0, Write() flushes any buffered data to
-   * the decoder. Data is buffered if the decoder wasn't able to completely
-   * decode it because it needed a new frame.  If it's necessary to flush data,
-   * NeedsToFlushData() will return true.
-   *
    * @param aBuffer buffer containing the data to be written
    * @param aCount the number of bytes to write
    *
@@ -62,7 +57,7 @@ public:
    *
    * Notifications Sent: TODO
    */
-  void Finish(ShutdownReason aReason);
+  void Finish(RasterImage::eShutdownIntent aShutdownIntent);
 
   /**
    * Informs the shared decoder that all the data has been written.
@@ -115,12 +110,6 @@ public:
   }
 
   size_t BytesDecoded() const { return mBytesDecoded; }
-
-  // The amount of time we've spent inside Write() so far for this decoder.
-  TimeDuration DecodeTime() const { return mDecodeTime; }
-
-  // The number of times Write() has been called so far for this decoder.
-  uint32_t ChunkCount() const { return mChunkCount; }
 
   // The number of frames we have, including anything in-progress. Thus, this
   // is only 0 if we haven't begun any frames.
@@ -176,11 +165,6 @@ public:
                     uint8_t palette_depth = 0);
 
   virtual bool NeedsNewFrame() const { return mNeedsNewFrame; }
-
-  // Returns true if we may have stored data that we need to flush now that we
-  // have a new frame to decode into. Callers can use Write() to actually
-  // flush the data; see the documentation for that method.
-  bool NeedsToFlushData() const { return mNeedsToFlushData; }
 
   // Try to allocate a frame as described in mNewFrameData and return the
   // status code from that attempt. Clears mNewFrameData.
@@ -264,10 +248,6 @@ protected:
   uint32_t* mColormap;       // Current colormap to be used in Cairo format
   uint32_t mColormapSize;
 
-  // Telemetry data for this decoder.
-  TimeDuration mDecodeTime;
-  uint32_t mChunkCount;
-
   uint32_t mDecodeFlags;
   size_t mBytesDecoded;
   bool mDecodeDone;
@@ -304,7 +284,6 @@ private:
   };
   NewFrameData mNewFrameData;
   bool mNeedsNewFrame;
-  bool mNeedsToFlushData;
   bool mInitialized;
   bool mSizeDecode;
   bool mInFrame;

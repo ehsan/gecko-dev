@@ -120,7 +120,6 @@ class nsIdentifierMapEntry : public nsStringHashKey
 {
 public:
   typedef mozilla::dom::Element Element;
-  typedef mozilla::net::ReferrerPolicy ReferrerPolicy;
 
   explicit nsIdentifierMapEntry(const nsAString& aKey) :
     nsStringHashKey(&aKey), mNameContentList(nullptr)
@@ -1092,12 +1091,10 @@ public:
   void MaybeEndOutermostXBLUpdate();
 
   virtual void MaybePreLoadImage(nsIURI* uri,
-                                 const nsAString &aCrossOriginAttr,
-                                 ReferrerPolicy aReferrerPolicy) MOZ_OVERRIDE;
+                                 const nsAString &aCrossOriginAttr) MOZ_OVERRIDE;
 
   virtual void PreloadStyle(nsIURI* uri, const nsAString& charset,
-                            const nsAString& aCrossOriginAttr,
-                            ReferrerPolicy aReferrerPolicy) MOZ_OVERRIDE;
+                            const nsAString& aCrossOriginAttr) MOZ_OVERRIDE;
 
   virtual nsresult LoadChromeSheetSync(nsIURI* uri, bool isAgentSheet,
                                        mozilla::CSSStyleSheet** sheet) MOZ_OVERRIDE;

@@ -60,10 +60,10 @@ WaiveXrayWrapper::get(JSContext *cx, HandleObject wrapper,
 
 bool
 WaiveXrayWrapper::iterate(JSContext *cx, HandleObject proxy, unsigned flags,
-                          MutableHandleObject objp) const
+                         MutableHandleValue vp) const
 {
-    return CrossCompartmentWrapper::iterate(cx, proxy, flags, objp) &&
-           (!objp || WrapperFactory::WaiveXrayAndWrap(cx, objp));
+    return CrossCompartmentWrapper::iterate(cx, proxy, flags, vp) &&
+           WrapperFactory::WaiveXrayAndWrap(cx, vp);
 }
 
 bool

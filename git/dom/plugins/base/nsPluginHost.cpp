@@ -3122,7 +3122,6 @@ nsresult nsPluginHost::NewPluginURLStream(const nsString& aURL,
       // errors about malformed requests if we include it in POSTs. See
       // bug 724465.
       nsCOMPtr<nsIURI> referer;
-      net::ReferrerPolicy referrerPolicy = net::RP_Default;
 
       nsCOMPtr<nsIObjectLoadingContent> olc = do_QueryInterface(element);
       if (olc)
@@ -3134,10 +3133,9 @@ nsresult nsPluginHost::NewPluginURLStream(const nsString& aURL,
           return NS_ERROR_FAILURE;
         }
         referer = doc->GetDocumentURI();
-        referrerPolicy = doc->GetReferrerPolicy();
       }
 
-      rv = httpChannel->SetReferrerWithPolicy(referer, referrerPolicy);
+      rv = httpChannel->SetReferrer(referer);
       NS_ENSURE_SUCCESS(rv,rv);
     }
 

@@ -13,7 +13,6 @@
 #include "mozilla/LinkedList.h"
 
 #include "jit/BytecodeAnalysis.h"
-#include "jit/IonAnalysis.h"
 #include "jit/IonOptimizationLevels.h"
 #include "jit/MIR.h"
 #include "jit/MIRGenerator.h"
@@ -480,23 +479,23 @@ class IonBuilder
                              size_t *fieldIndex);
     MDefinition *loadTypedObjectType(MDefinition *value);
     void loadTypedObjectData(MDefinition *typedObj,
+                             MDefinition *offset,
                              MDefinition **owner,
-                             LinearSum *ownerOffset);
+                             MDefinition **ownerOffset);
     void loadTypedObjectElements(MDefinition *typedObj,
-                                 const LinearSum &byteOffset,
-                                 int32_t scale,
+                                 MDefinition *offset,
+                                 int32_t unit,
                                  MDefinition **ownerElements,
-                                 MDefinition **ownerScaledOffset,
-                                 int32_t *ownerByteAdjustment);
+                                 MDefinition **ownerScaledOffset);
     MDefinition *typeObjectForElementFromArrayStructType(MDefinition *typedObj);
     MDefinition *typeObjectForFieldFromStructType(MDefinition *type,
                                                   size_t fieldIndex);
     bool storeReferenceTypedObjectValue(MDefinition *typedObj,
-                                        const LinearSum &byteOffset,
+                                        MDefinition *byteOffset,
                                         ReferenceTypeDescr::Type type,
                                         MDefinition *value);
     bool storeScalarTypedObjectValue(MDefinition *typedObj,
-                                     const LinearSum &byteOffset,
+                                     MDefinition *offset,
                                      ScalarTypeDescr::Type type,
                                      bool racy,
                                      MDefinition *value);
@@ -504,17 +503,17 @@ class IonBuilder
                                        MDefinition *obj,
                                        MDefinition *index,
                                        TypedObjectPrediction objTypeDescrs,
-                                       LinearSum *indexAsByteOffset);
+                                       MDefinition **indexAsByteOffset);
     bool pushDerivedTypedObject(bool *emitted,
                                 MDefinition *obj,
-                                const LinearSum &byteOffset,
+                                MDefinition *offset,
                                 TypedObjectPrediction derivedTypeDescrs,
                                 MDefinition *derivedTypeObj);
     bool pushScalarLoadFromTypedObject(MDefinition *obj,
-                                       const LinearSum &byteoffset,
+                                       MDefinition *offset,
                                        ScalarTypeDescr::Type type);
     bool pushReferenceLoadFromTypedObject(MDefinition *typedObj,
-                                          const LinearSum &byteOffset,
+                                          MDefinition *byteOffset,
                                           ReferenceTypeDescr::Type type);
     MDefinition *neuterCheck(MDefinition *obj);
 
@@ -680,7 +679,6 @@ class IonBuilder
     bool jsop_instanceof();
     bool jsop_getaliasedvar(ScopeCoordinate sc);
     bool jsop_setaliasedvar(ScopeCoordinate sc);
-    bool jsop_debugger();
 
     /* Inlining. */
 
@@ -794,7 +792,6 @@ class IonBuilder
                                   const Class *clasp3 = nullptr,
                                   const Class *clasp4 = nullptr);
     InliningStatus inlineIsConstructing(CallInfo &callInfo);
-    InliningStatus inlineSubstringKernel(CallInfo &callInfo);
 
     // Testing functions.
     InliningStatus inlineForceSequentialOrInParallelSection(CallInfo &callInfo);

@@ -68,11 +68,13 @@ public:
   struct MOZ_STACK_CLASS EvaluateOptions {
     bool coerceToString;
     bool reportUncaught;
+    bool needResult;
     JS::AutoObjectVector scopeChain;
 
     explicit EvaluateOptions(JSContext* cx)
       : coerceToString(false)
       , reportUncaught(true)
+      , needResult(true)
       , scopeChain(cx)
     {}
 
@@ -85,6 +87,11 @@ public:
       reportUncaught = aReport;
       return *this;
     }
+
+    EvaluateOptions& setNeedResult(bool aNeedResult) {
+      needResult = aNeedResult;
+      return *this;
+    }
   };
 
   // aEvaluationGlobal is the global to evaluate in.  The return value
@@ -95,41 +102,35 @@ public:
                                  JS::Handle<JSObject*> aEvaluationGlobal,
                                  JS::CompileOptions &aCompileOptions,
                                  const EvaluateOptions& aEvaluateOptions,
-                                 JS::MutableHandle<JS::Value> aRetValue);
+                                 JS::MutableHandle<JS::Value> aRetValue,
+                                 void **aOffThreadToken = nullptr);
 
   static nsresult EvaluateString(JSContext* aCx,
                                  JS::SourceBufferHolder& aSrcBuf,
                                  JS::Handle<JSObject*> aEvaluationGlobal,
                                  JS::CompileOptions &aCompileOptions,
                                  const EvaluateOptions& aEvaluateOptions,
-                                 JS::MutableHandle<JS::Value> aRetValue);
+                                 JS::MutableHandle<JS::Value> aRetValue,
+                                 void **aOffThreadToken = nullptr);
 
 
   static nsresult EvaluateString(JSContext* aCx,
                                  const nsAString& aScript,
                                  JS::Handle<JSObject*> aEvaluationGlobal,
-                                 JS::CompileOptions &aCompileOptions);
+                                 JS::CompileOptions &aCompileOptions,
+                                 void **aOffThreadToken = nullptr);
 
   static nsresult EvaluateString(JSContext* aCx,
                                  JS::SourceBufferHolder& aSrcBuf,
                                  JS::Handle<JSObject*> aEvaluationGlobal,
                                  JS::CompileOptions &aCompileOptions,
-                                 void **aOffThreadToken);
+                                 void **aOffThreadToken = nullptr);
 
   // Returns false if an exception got thrown on aCx.  Passing a null
   // aElement is allowed; that wil produce an empty aScopeChain.
   static bool GetScopeChainForElement(JSContext* aCx,
                                       mozilla::dom::Element* aElement,
                                       JS::AutoObjectVector& aScopeChain);
-private:
-  // Implementation for our EvaluateString bits
-  static nsresult EvaluateString(JSContext* aCx,
-                                 JS::SourceBufferHolder& aSrcBuf,
-                                 JS::Handle<JSObject*> aEvaluationGlobal,
-                                 JS::CompileOptions& aCompileOptions,
-                                 const EvaluateOptions& aEvaluateOptions,
-                                 JS::MutableHandle<JS::Value> aRetValue,
-                                 void **aOffThreadToken);
 };
 
 class MOZ_STACK_CLASS AutoDontReportUncaught {

@@ -1402,7 +1402,7 @@ nsresult
 PresShell::CreatePreferenceStyleSheet()
 {
   NS_ASSERTION(!mPrefStyleSheet, "prefStyleSheet already exists");
-  mPrefStyleSheet = new CSSStyleSheet(CORS_NONE, mozilla::net::RP_Default);
+  mPrefStyleSheet = new CSSStyleSheet(CORS_NONE);
   nsCOMPtr<nsIURI> uri;
   nsresult rv = NS_NewURI(getter_AddRefs(uri), "about:PreferenceStyleSheet", nullptr);
   if (NS_FAILED(rv)) {
@@ -6411,8 +6411,7 @@ nsIPresShell::SetPointerCapturingContent(uint32_t aPointerId, nsIContent* aConte
   if (pointerCaptureInfo) {
     pointerCaptureInfo->mPendingContent = aContent;
   } else {
-    gPointerCaptureList->Put(aPointerId,
-                             new PointerCaptureInfo(aContent, GetPointerPrimaryState(aPointerId)));
+    gPointerCaptureList->Put(aPointerId, new PointerCaptureInfo(aContent));
   }
 }
 
@@ -6443,6 +6442,16 @@ nsIPresShell::GetPointerCapturingContent(uint32_t aPointerId)
   return nullptr;
 }
 
+/* static */ uint16_t
+nsIPresShell::GetPointerType(uint32_t aPointerId)
+{
+  PointerInfo* pointerInfo = nullptr;
+  if (gActivePointersIds->Get(aPointerId, &pointerInfo) && pointerInfo) {
+    return pointerInfo->mPointerType;
+  }
+  return nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
+}
+
 /* static */ bool
 nsIPresShell::CheckPointerCaptureState(uint32_t aPointerId)
 {
@@ -6454,7 +6463,6 @@ nsIPresShell::CheckPointerCaptureState(uint32_t aPointerId)
     if (pointerCaptureInfo->mPendingContent || pointerCaptureInfo->mReleaseContent) {
       if (pointerCaptureInfo->mOverrideContent) {
         uint16_t pointerType = GetPointerType(aPointerId);
-        bool isPrimary = pointerCaptureInfo->mPrimaryState;
         nsCOMPtr<nsIContent> content;
         pointerCaptureInfo->mOverrideContent.swap(content);
         if (pointerCaptureInfo->mReleaseContent) {
@@ -6463,7 +6471,7 @@ nsIPresShell::CheckPointerCaptureState(uint32_t aPointerId)
         if (pointerCaptureInfo->Empty()) {
           gPointerCaptureList->Remove(aPointerId);
         }
-        DispatchGotOrLostPointerCaptureEvent(false, aPointerId, pointerType, isPrimary, content);
+        DispatchGotOrLostPointerCaptureEvent(false, aPointerId, pointerType, content);
         didDispatchEvent = true;
       } else if (pointerCaptureInfo->mPendingContent && pointerCaptureInfo->mReleaseContent) {
         // If anybody calls element.releasePointerCapture
@@ -6481,32 +6489,11 @@ nsIPresShell::CheckPointerCaptureState(uint32_t aPointerId)
       pointerCaptureInfo->mReleaseContent = false;
       DispatchGotOrLostPointerCaptureEvent(true, aPointerId,
                                            GetPointerType(aPointerId),
-                                           pointerCaptureInfo->mPrimaryState,
                                            pointerCaptureInfo->mOverrideContent);
       didDispatchEvent = true;
     }
   }
   return didDispatchEvent;
-}
-
-/* static */ uint16_t
-nsIPresShell::GetPointerType(uint32_t aPointerId)
-{
-  PointerInfo* pointerInfo = nullptr;
-  if (gActivePointersIds->Get(aPointerId, &pointerInfo) && pointerInfo) {
-    return pointerInfo->mPointerType;
-  }
-  return nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
-}
-
-/* static */ bool
-nsIPresShell::GetPointerPrimaryState(uint32_t aPointerId)
-{
-  PointerInfo* pointerInfo = nullptr;
-  if (gActivePointersIds->Get(aPointerId, &pointerInfo) && pointerInfo) {
-    return pointerInfo->mPrimaryState;
-  }
-  return false;
 }
 
 /* static */ bool
@@ -6527,23 +6514,20 @@ PresShell::UpdateActivePointerState(WidgetGUIEvent* aEvent)
   case NS_MOUSE_ENTER:
     // In this case we have to know information about available mouse pointers
     if (WidgetMouseEvent* mouseEvent = aEvent->AsMouseEvent()) {
-      gActivePointersIds->Put(mouseEvent->pointerId,
-                              new PointerInfo(false, mouseEvent->inputSource, true));
+      gActivePointersIds->Put(mouseEvent->pointerId, new PointerInfo(false, mouseEvent->inputSource));
     }
     break;
   case NS_POINTER_DOWN:
     // In this case we switch pointer to active state
     if (WidgetPointerEvent* pointerEvent = aEvent->AsPointerEvent()) {
-      gActivePointersIds->Put(pointerEvent->pointerId,
-                              new PointerInfo(true, pointerEvent->inputSource, pointerEvent->isPrimary));
+      gActivePointersIds->Put(pointerEvent->pointerId, new PointerInfo(true, pointerEvent->inputSource));
     }
     break;
   case NS_POINTER_UP:
     // In this case we remove information about pointer or turn off active state
     if (WidgetPointerEvent* pointerEvent = aEvent->AsPointerEvent()) {
       if(pointerEvent->inputSource != nsIDOMMouseEvent::MOZ_SOURCE_TOUCH) {
-        gActivePointersIds->Put(pointerEvent->pointerId,
-                                new PointerInfo(false, pointerEvent->inputSource, pointerEvent->isPrimary));
+        gActivePointersIds->Put(pointerEvent->pointerId, new PointerInfo(false, pointerEvent->inputSource));
       } else {
         gActivePointersIds->Remove(pointerEvent->pointerId);
       }
@@ -8261,14 +8245,12 @@ void
 nsIPresShell::DispatchGotOrLostPointerCaptureEvent(bool aIsGotCapture,
                                                    uint32_t aPointerId,
                                                    uint16_t aPointerType,
-                                                   bool aIsPrimary,
                                                    nsIContent* aCaptureTarget)
 {
   PointerEventInit init;
   init.mPointerId = aPointerId;
   init.mBubbles = true;
   ConvertPointerTypeToString(aPointerType, init.mPointerType);
-  init.mIsPrimary = aIsPrimary;
   nsRefPtr<mozilla::dom::PointerEvent> event;
   event = PointerEvent::Constructor(aCaptureTarget,
                                     aIsGotCapture

@@ -346,14 +346,7 @@ size_t parseNumber(Buffer aBuf)
 class Replay
 {
 public:
-  Replay(): mOps(0) {
-#ifdef _WIN32
-    // See comment in FdPrintf.h as to why native win32 handles are used.
-    mStdErr = reinterpret_cast<intptr_t>(GetStdHandle(STD_ERROR_HANDLE));
-#else
-    mStdErr = fileno(stderr);
-#endif
-  }
+  Replay(): mOps(0) {}
 
   MemSlot& operator[] (size_t index) const
   {
@@ -463,11 +456,10 @@ public:
     }
     jemalloc_stats_t stats;
     ::jemalloc_stats_impl(&stats);
-    FdPrintf(mStdErr,
-             "#%zu mapped: %zu; allocated: %zu; waste: %zu; dirty: %zu; "
-             "bookkeep: %zu; binunused: %zu\n", mOps, stats.mapped,
-             stats.allocated, stats.waste, stats.page_cache,
-             stats.bookkeeping, stats.bin_unused);
+    FdPrintf(2, "#%zu mapped: %zu; allocated: %zu; waste: %zu; dirty: %zu; "
+                "bookkeep: %zu; binunused: %zu\n", mOps, stats.mapped,
+                stats.allocated, stats.waste, stats.page_cache,
+                stats.bookkeeping, stats.bin_unused);
     /* TODO: Add more data, like actual RSS as measured by OS, but compensated
      * for the replay internal data. */
   }
@@ -478,7 +470,6 @@ private:
     memset(aSlot.mPtr, 0x5a, aSlot.mSize);
   }
 
-  intptr_t mStdErr;
   size_t mOps;
   MemSlotList mSlots;
 };

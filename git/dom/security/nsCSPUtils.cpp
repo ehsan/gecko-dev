@@ -873,30 +873,6 @@ nsCSPPolicy::permitsBaseURI(nsIURI* aUri) const
 }
 
 bool
-nsCSPPolicy::permitsFormAction(nsIURI* aUri) const
-{
-#ifdef PR_LOGGING
-  {
-    nsAutoCString spec;
-    aUri->GetSpec(spec);
-    CSPUTILSLOG(("nsCSPPolicy::permitsFormAction, aUri: %s", spec.get()));
-  }
-#endif
-
-  // Try to find a form-action directive
-  for (uint32_t i = 0; i < mDirectives.Length(); i++) {
-    if (mDirectives[i]->equals(CSP_FORM_ACTION)) {
-      return mDirectives[i]->permits(aUri);
-    }
-  }
-
-  // form-action is only enforced if explicitly defined in the
-  // policy - do *not* consult default-src, see:
-  // http://www.w3.org/TR/CSP2/#directive-default-src
-  return true;
-}
-
-bool
 nsCSPPolicy::allows(nsContentPolicyType aContentType,
                     enum CSPKeyword aKeyword,
                     const nsAString& aHashOrNonce) const
@@ -999,10 +975,10 @@ nsCSPPolicy::getDirectiveStringForContentType(nsContentPolicyType aContentType,
 }
 
 void
-nsCSPPolicy::getDirectiveAsString(enum CSPDirective aDir, nsAString& outDirective) const
+nsCSPPolicy::getDirectiveStringForBaseURI(nsAString& outDirective) const
 {
   for (uint32_t i = 0; i < mDirectives.Length(); i++) {
-    if (mDirectives[i]->equals(aDir)) {
+    if (mDirectives[i]->equals(CSP_BASE_URI)) {
       mDirectives[i]->toString(outDirective);
       return;
     }

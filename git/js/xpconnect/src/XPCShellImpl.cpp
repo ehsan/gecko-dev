@@ -1066,9 +1066,7 @@ ProcessArgs(JSContext *cx, JS::Handle<JSObject*> obj, char **argv, int argc, XPC
                 return usage();
             }
 
-            JS::CompileOptions opts(cx);
-            opts.setFileAndLine("-e", 1);
-            JS::Evaluate(cx, obj, opts, argv[i], strlen(argv[i]), &rval);
+            JS_EvaluateScript(cx, obj, argv[i], strlen(argv[i]), "-e", 1, &rval);
 
             isInteractive = false;
             break;

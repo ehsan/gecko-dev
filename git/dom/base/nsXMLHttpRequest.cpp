@@ -2722,12 +2722,9 @@ nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
 
       nsCOMPtr<nsIURI> docCurURI;
       nsCOMPtr<nsIURI> docOrigURI;
-      net::ReferrerPolicy referrerPolicy = net::RP_Default;
-
       if (doc) {
         docCurURI = doc->GetDocumentURI();
         docOrigURI = doc->GetOriginalURI();
-        referrerPolicy = doc->GetReferrerPolicy();
       }
 
       nsCOMPtr<nsIURI> referrerURI;
@@ -2743,7 +2740,7 @@ nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
       if (!referrerURI)
         referrerURI = principalURI;
 
-      httpChannel->SetReferrerWithPolicy(referrerURI, referrerPolicy);
+      httpChannel->SetReferrer(referrerURI);
     }
 
     // Some extensions override the http protocol handler and provide their own

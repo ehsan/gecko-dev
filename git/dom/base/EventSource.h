@@ -109,8 +109,6 @@ protected:
 
   nsresult GetBaseURI(nsIURI **aBaseURI);
 
-  net::ReferrerPolicy GetReferrerPolicy();
-
   nsresult SetupHttpChannel();
   nsresult InitChannelAndRequestEventSource();
   nsresult ResetConnection();

@@ -66,7 +66,6 @@ imgRequest::imgRequest(imgLoader* aLoader)
  , mValidator(nullptr)
  , mInnerWindowId(0)
  , mCORSMode(imgIRequest::CORS_NONE)
- , mReferrerPolicy(mozilla::net::RP_Default)
  , mImageErrorCode(NS_OK)
  , mDecodeRequested(false)
  , mIsMultiPartChannel(false)
@@ -95,8 +94,7 @@ nsresult imgRequest::Init(nsIURI *aURI,
                           imgCacheEntry *aCacheEntry,
                           void *aLoadId,
                           nsIPrincipal* aLoadingPrincipal,
-                          int32_t aCORSMode,
-                          ReferrerPolicy aReferrerPolicy)
+                          int32_t aCORSMode)
 {
   MOZ_ASSERT(NS_IsMainThread(), "Cannot use nsIURI off main thread!");
 
@@ -119,7 +117,6 @@ nsresult imgRequest::Init(nsIURI *aURI,
 
   mLoadingPrincipal = aLoadingPrincipal;
   mCORSMode = aCORSMode;
-  mReferrerPolicy = aReferrerPolicy;
 
   mChannel->GetNotificationCallbacks(getter_AddRefs(mPrevChannelSink));
 

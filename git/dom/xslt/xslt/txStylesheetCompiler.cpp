@@ -24,25 +24,21 @@
 #include "nsTArray.h"
 
 using namespace mozilla;
-using mozilla::net::ReferrerPolicy;
 
 txStylesheetCompiler::txStylesheetCompiler(const nsAString& aStylesheetURI,
-                                           ReferrerPolicy aReferrerPolicy,
                                            txACompileObserver* aObserver)
     : txStylesheetCompilerState(aObserver)
 {
-    mStatus = init(aStylesheetURI, aReferrerPolicy, nullptr, nullptr);
+    mStatus = init(aStylesheetURI, nullptr, nullptr);
 }
 
 txStylesheetCompiler::txStylesheetCompiler(const nsAString& aStylesheetURI,
                                            txStylesheet* aStylesheet,
                                            txListIterator* aInsertPosition,
-                                           ReferrerPolicy aReferrerPolicy,
                                            txACompileObserver* aObserver)
     : txStylesheetCompilerState(aObserver)
 {
-    mStatus = init(aStylesheetURI, aReferrerPolicy, aStylesheet,
-                   aInsertPosition);
+    mStatus = init(aStylesheetURI, aStylesheet, aInsertPosition);
 }
 
 void
@@ -419,7 +415,6 @@ txStylesheetCompiler::getStylesheet()
 nsresult
 txStylesheetCompiler::loadURI(const nsAString& aUri,
                               const nsAString& aReferrerUri,
-                              ReferrerPolicy aReferrerPolicy,
                               txStylesheetCompiler* aCompiler)
 {
     PR_LOG(txLog::xslt, PR_LOG_ALWAYS,
@@ -429,9 +424,8 @@ txStylesheetCompiler::loadURI(const nsAString& aUri,
     if (mStylesheetURI.Equals(aUri)) {
         return NS_ERROR_XSLT_LOAD_RECURSION;
     }
-    return mObserver ?
-        mObserver->loadURI(aUri, aReferrerUri, aReferrerPolicy, aCompiler) :
-        NS_ERROR_FAILURE;
+    return mObserver ? mObserver->loadURI(aUri, aReferrerUri, aCompiler) :
+                       NS_ERROR_FAILURE;
 }
 
 void
@@ -542,14 +536,12 @@ txStylesheetCompilerState::txStylesheetCompilerState(txACompileObserver* aObserv
 
 nsresult
 txStylesheetCompilerState::init(const nsAString& aStylesheetURI,
-                                ReferrerPolicy aReferrerPolicy,
                                 txStylesheet* aStylesheet,
                                 txListIterator* aInsertPosition)
 {
     NS_ASSERTION(!aStylesheet || aInsertPosition,
                  "must provide insertposition if loading subsheet");
     mStylesheetURI = aStylesheetURI;
-    mReferrerPolicy = aReferrerPolicy;
     // Check for fragment identifier of an embedded stylesheet.
     int32_t fragment = aStylesheetURI.FindChar('#') + 1;
     if (fragment > 0) {
@@ -773,7 +765,7 @@ txStylesheetCompilerState::loadIncludedStylesheet(const nsAString& aURI)
 
     nsRefPtr<txStylesheetCompiler> compiler =
         new txStylesheetCompiler(aURI, mStylesheet, &mToplevelIterator,
-                                 mReferrerPolicy, observer);
+                                 observer);
     NS_ENSURE_TRUE(compiler, NS_ERROR_OUT_OF_MEMORY);
 
     // step forward before calling the observer in case of syncronous loading
@@ -783,7 +775,7 @@ txStylesheetCompilerState::loadIncludedStylesheet(const nsAString& aURI)
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    rv = mObserver->loadURI(aURI, mStylesheetURI, mReferrerPolicy, compiler);
+    rv = mObserver->loadURI(aURI, mStylesheetURI, compiler);
     if (NS_FAILED(rv)) {
         mChildCompilerList.RemoveElement(compiler);
     }
@@ -809,16 +801,14 @@ txStylesheetCompilerState::loadImportedStylesheet(const nsAString& aURI,
     txACompileObserver* observer = static_cast<txStylesheetCompiler*>(this);
 
     nsRefPtr<txStylesheetCompiler> compiler =
-        new txStylesheetCompiler(aURI, mStylesheet, &iter, mReferrerPolicy,
-                                 observer);
+        new txStylesheetCompiler(aURI, mStylesheet, &iter, observer);
     NS_ENSURE_TRUE(compiler, NS_ERROR_OUT_OF_MEMORY);
 
     if (mChildCompilerList.AppendElement(compiler) == nullptr) {
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    nsresult rv = mObserver->loadURI(aURI, mStylesheetURI, mReferrerPolicy,
-                                     compiler);
+    nsresult rv = mObserver->loadURI(aURI, mStylesheetURI, compiler);
     if (NS_FAILED(rv)) {
         mChildCompilerList.RemoveElement(compiler);
     }
@@ -1080,8 +1070,7 @@ extern bool
 TX_XSLTFunctionAvailable(nsIAtom* aName, int32_t aNameSpaceID)
 {
     nsRefPtr<txStylesheetCompiler> compiler =
-        new txStylesheetCompiler(EmptyString(),
-                                 mozilla::net::RP_Default, nullptr);
+        new txStylesheetCompiler(EmptyString(), nullptr);
     NS_ENSURE_TRUE(compiler, false);
 
     nsAutoPtr<FunctionCall> fnCall;

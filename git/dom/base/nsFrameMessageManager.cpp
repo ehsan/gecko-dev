@@ -976,7 +976,6 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
       nsIGlobalObject* nativeGlobal =
         xpc::NativeGlobal(js::GetGlobalForObjectCrossCompartment(wrappedJS->GetJSObject()));
       AutoEntryScript aes(nativeGlobal);
-      aes.TakeOwnershipOfErrorReporting();
       JSContext* cx = aes.cx();
       JS::Rooted<JSObject*> object(cx, wrappedJS->GetJSObject());
 
@@ -1018,31 +1017,23 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
                             aMessage.Length()));
       NS_ENSURE_TRUE(jsMessage, NS_ERROR_OUT_OF_MEMORY);
       JS::Rooted<JS::Value> syncv(cx, JS::BooleanValue(aIsSync));
-      bool ok = JS_DefineProperty(cx, param, "target", targetv, JSPROP_ENUMERATE) &&
-                JS_DefineProperty(cx, param, "name", jsMessage, JSPROP_ENUMERATE) &&
-                JS_DefineProperty(cx, param, "sync", syncv, JSPROP_ENUMERATE) &&
-                JS_DefineProperty(cx, param, "json", json, JSPROP_ENUMERATE) && // deprecated
-                JS_DefineProperty(cx, param, "data", json, JSPROP_ENUMERATE) &&
-                JS_DefineProperty(cx, param, "objects", cpowsv, JSPROP_ENUMERATE);
-      NS_ENSURE_TRUE(ok, NS_ERROR_UNEXPECTED);
+      JS_DefineProperty(cx, param, "target", targetv, JSPROP_ENUMERATE);
+      JS_DefineProperty(cx, param, "name", jsMessage, JSPROP_ENUMERATE);
+      JS_DefineProperty(cx, param, "sync", syncv, JSPROP_ENUMERATE);
+      JS_DefineProperty(cx, param, "json", json, JSPROP_ENUMERATE); // deprecated
+      JS_DefineProperty(cx, param, "data", json, JSPROP_ENUMERATE);
+      JS_DefineProperty(cx, param, "objects", cpowsv, JSPROP_ENUMERATE);
 
       // message.principal == null
       if (!aPrincipal) {
-        bool ok = JS_DefineProperty(cx, param, "principal",
-                                    JS::UndefinedHandleValue, JSPROP_ENUMERATE);
-        NS_ENSURE_TRUE(ok, NS_ERROR_UNEXPECTED);
+        JS_DefineProperty(cx, param, "principal", JS::UndefinedHandleValue, JSPROP_ENUMERATE);
       }
 
       // message.principal = the principal
       else {
         JS::Rooted<JS::Value> principalValue(cx);
-        nsresult rv = nsContentUtils::WrapNative(cx, aPrincipal,
-                                                 &NS_GET_IID(nsIPrincipal),
-                                                 &principalValue);
-        NS_ENSURE_SUCCESS(rv, rv);
-        bool ok = JS_DefineProperty(cx, param, "principal", principalValue,
-                                    JSPROP_ENUMERATE);
-        NS_ENSURE_TRUE(ok, NS_ERROR_UNEXPECTED);
+        rv = nsContentUtils::WrapNative(cx, aPrincipal, &NS_GET_IID(nsIPrincipal), &principalValue);
+        JS_DefineProperty(cx, param, "principal", principalValue, JSPROP_ENUMERATE);
       }
 
       JS::Rooted<JS::Value> thisValue(cx, JS::UndefinedValue());
@@ -1066,9 +1057,8 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
       } else {
         // If the listener is a JS object which has receiveMessage function:
         if (!JS_GetProperty(cx, object, "receiveMessage", &funval) ||
-            !funval.isObject()) {
+            !funval.isObject())
           return NS_ERROR_UNEXPECTED;
-        }
 
         // Check if the object is even callable.
         NS_ENSURE_STATE(JS::IsCallable(&funval.toObject()));
@@ -1086,14 +1076,15 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
           return NS_ERROR_UNEXPECTED;
         }
 
-        if (!JS_CallFunctionValue(cx, thisObject, funval,
-                                  JS::HandleValueArray(argv), &rval)) {
+        if (!JS_CallFunctionValue(cx, thisObject, funval, JS::HandleValueArray(argv), &rval)) {
+          nsJSUtils::ReportPendingException(cx);
           continue;
         }
         if (aJSONRetVal) {
           nsString json;
           if (!JS_Stringify(cx, &rval, JS::NullPtr(), JS::NullHandleValue,
                            JSONCreator, &json)) {
+            nsJSUtils::ReportPendingException(cx);
             continue;
           }
           aJSONRetVal->AppendElement(json);

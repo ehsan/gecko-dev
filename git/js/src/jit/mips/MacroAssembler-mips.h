@@ -430,10 +430,6 @@ class MacroAssemblerMIPSCompat : public MacroAssemblerMIPS
         append(desc, currentOffset(), framePushed_);
     }
 
-    void callAndPushReturnAddress(Label *label) {
-        ma_callIonHalfPush(label);
-    }
-
     void branch(JitCode *c) {
         BufferOffset bo = m_buffer.nextOffset();
         addPendingJump(bo, ImmPtr(c->raw()), Relocation::JITCODE);
@@ -529,10 +525,6 @@ class MacroAssemblerMIPSCompat : public MacroAssemblerMIPS
         ma_lw(ScratchRegister, address);
         as_jr(ScratchRegister);
         as_nop();
-    }
-
-    void jump(JitCode *code) {
-        branch(code);
     }
 
     void neg32(Register reg) {
@@ -676,7 +668,6 @@ class MacroAssemblerMIPSCompat : public MacroAssemblerMIPS
     void branchTestNull(Condition cond, const ValueOperand &value, Label *label);
     void branchTestNull(Condition cond, Register tag, Label *label);
     void branchTestNull(Condition cond, const BaseIndex &src, Label *label);
-    void branchTestNull(Condition cond, const Address &address, Label *label);
     void testNullSet(Condition cond, const ValueOperand &value, Register dest);
 
     void branchTestObject(Condition cond, const ValueOperand &value, Label *label);

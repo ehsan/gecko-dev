@@ -37,7 +37,6 @@ protected:
   bool                             mInheritOwner;
   bool                             mOwnerIsExplicit;
   bool                             mSendReferrer;
-  nsDocShellInfoReferrerPolicy     mReferrerPolicy;
   nsDocShellInfoLoadType           mLoadType;
   nsCOMPtr<nsISHEntry>             mSHEntry;
   nsString                         mTarget;

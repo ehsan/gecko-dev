@@ -120,8 +120,7 @@ nsXBLResourceLoader::LoadResources(bool* aResult)
       // Passing nullptr for pretty much everything -- cause we don't care!
       // XXX: initialDocumentURI is nullptr! 
       nsRefPtr<imgRequestProxy> req;
-      nsContentUtils::LoadImage(url, doc, docPrincipal, docURL,
-                                doc->GetReferrerPolicy(), nullptr,
+      nsContentUtils::LoadImage(url, doc, docPrincipal, docURL, nullptr,
                                 nsIRequest::LOAD_BACKGROUND, EmptyString(),
                                 getter_AddRefs(req));
     }

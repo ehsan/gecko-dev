@@ -294,8 +294,7 @@ nsContextMenuInfo::GetBackgroundImageRequestInternal(nsIDOMNode *aDOMNode, imgRe
           nsRefPtr<imgLoader> il = imgLoader::GetInstance();
           NS_ENSURE_TRUE(il, NS_ERROR_FAILURE);
 
-          return il->LoadImage(bgUri, nullptr, nullptr,
-                               doc->GetReferrerPolicy(), principal, nullptr,
+          return il->LoadImage(bgUri, nullptr, nullptr, principal, nullptr,
                                nullptr, nullptr, nsIRequest::LOAD_NORMAL,
                                nullptr, nsIContentPolicy::TYPE_IMAGE,
                                EmptyString(), aRequest);

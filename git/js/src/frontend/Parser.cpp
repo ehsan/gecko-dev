@@ -2438,11 +2438,6 @@ Parser<FullParseHandler>::standaloneLazyFunction(HandleFunction fun, unsigned st
     if (!pn)
         return null();
 
-    // Our tokenStream has no current token, so pn's position is garbage.
-    // Substitute the position of the first token in our source.
-    if (!tokenStream.peekTokenPos(&pn->pn_pos))
-        return null();
-
     Directives directives(/* strict = */ strict);
     FunctionBox *funbox = newFunctionBox(pn, fun, /* outerpc = */ nullptr, directives,
                                          generatorKind);
@@ -5812,9 +5807,7 @@ Parser<ParseHandler>::statement(bool canHaveDirectives)
 
       case TOK_YIELD: {
         TokenKind next;
-        TokenStream::Modifier modifier = yieldExpressionsSupported() ? TokenStream::Operand
-                                                                     : TokenStream::None;
-        if (!tokenStream.peekToken(&next, modifier))
+        if (!tokenStream.peekToken(&next))
             return null();
         if (next == TOK_COLON) {
             if (!checkYieldNameValidity())
@@ -6173,7 +6166,7 @@ Parser<ParseHandler>::assignExpr()
             return stringLiteral();
     }
 
-    if (tt == TOK_YIELD && yieldExpressionsSupported())
+    if (tt == TOK_YIELD && (versionNumber() >= JSVERSION_1_7 || pc->isGenerator()))
         return yieldExpression();
 
     tokenStream.ungetToken();

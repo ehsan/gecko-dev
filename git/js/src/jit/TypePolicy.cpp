@@ -817,10 +817,8 @@ StoreTypedArrayPolicy::adjustValueInput(TempAllocator &alloc, MInstruction *ins,
 bool
 StoreTypedArrayPolicy::adjustInputs(TempAllocator &alloc, MInstruction *ins)
 {
-    SingleObjectPolicy::staticAdjustInputs(alloc, ins);
-
     MStoreTypedArrayElement *store = ins->toStoreTypedArrayElement();
-    MOZ_ASSERT(IsValidElementsType(store->elements(), store->offsetAdjustment()));
+    MOZ_ASSERT(store->elements()->type() == MIRType_Elements);
     MOZ_ASSERT(store->index()->type() == MIRType_Int32);
 
     return adjustValueInput(alloc, ins, store->arrayType(), store->value(), 2);
@@ -849,8 +847,6 @@ StoreTypedArrayElementStaticPolicy::adjustInputs(TempAllocator &alloc, MInstruct
 bool
 StoreUnboxedObjectOrNullPolicy::adjustInputs(TempAllocator &alloc, MInstruction *ins)
 {
-    SingleObjectPolicy::staticAdjustInputs(alloc, ins);
-
     // Change the value input to a ToObjectOrNull instruction if it might be
     // a non-null primitive. Insert a post barrier for the instruction's object
     // and whatever its new value is, unless the value is definitely null.
@@ -1005,7 +1001,6 @@ FilterTypeSetPolicy::adjustInputs(TempAllocator &alloc, MInstruction *ins)
     _(MixPolicy<ObjectPolicy<0>, NoFloatPolicy<3> >)                    \
     _(MixPolicy<ObjectPolicy<0>, ObjectPolicy<1> >)                     \
     _(MixPolicy<ObjectPolicy<0>, StringPolicy<1> >)                     \
-    _(MixPolicy<ObjectPolicy<0>, ConvertToStringPolicy<2> >)            \
     _(MixPolicy<ObjectPolicy<1>, ConvertToStringPolicy<0> >)            \
     _(MixPolicy<StringPolicy<0>, IntPolicy<1> >)                        \
     _(MixPolicy<StringPolicy<0>, StringPolicy<1> >)                     \

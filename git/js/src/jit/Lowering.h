@@ -145,7 +145,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool visitCharCodeAt(MCharCodeAt *ins);
     bool visitFromCharCode(MFromCharCode *ins);
     bool visitStringSplit(MStringSplit *ins);
-    bool visitSubstr(MSubstr *ins);
     bool visitStart(MStart *start);
     bool visitOsrEntry(MOsrEntry *entry);
     bool visitNop(MNop *nop);
@@ -296,7 +295,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool visitUnknownValue(MUnknownValue *ins);
     bool visitLexicalCheck(MLexicalCheck *ins);
     bool visitThrowUninitializedLexical(MThrowUninitializedLexical *ins);
-    bool visitDebugger(MDebugger *ins);
 };
 
 } // namespace jit

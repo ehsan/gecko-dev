@@ -109,16 +109,20 @@ let ContentPolicyParent = {
                .getService(Ci.nsIMessageBroadcaster);
     ppmm.addMessageListener("Addons:ContentPolicy:Run", this);
 
-    this._policies = new Map();
+    this._policies = [];
   },
 
-  addContentPolicy: function(name, cid) {
-    this._policies.set(name, cid);
+  addContentPolicy: function(cid) {
+    this._policies.push(cid);
     NotificationTracker.add(["content-policy"]);
   },
 
-  removeContentPolicy: function(name) {
-    this._policies.delete(name);
+  removeContentPolicy: function(cid) {
+    let index = this._policies.lastIndexOf(cid);
+    if (index > -1) {
+      this._policies.splice(index, 1);
+    }
+
     NotificationTracker.remove(["content-policy"]);
   },
 
@@ -131,14 +135,8 @@ let ContentPolicyParent = {
   },
 
   shouldLoad: function(aData, aObjects) {
-    for (let policyCID of this._policies.values()) {
-      let policy;
-      try {
-        policy = Cc[policyCID].getService(Ci.nsIContentPolicy);
-      } catch (e) {
-        // Current Gecko behavior is to ignore entries that don't QI.
-        continue;
-      }
+    for (let policyCID of this._policies) {
+      let policy = Cc[policyCID].getService(Ci.nsIContentPolicy);
       try {
         let contentLocation = BrowserUtils.makeURI(aData.contentLocation);
         let requestOrigin = aData.requestOrigin ? BrowserUtils.makeURI(aData.requestOrigin) : null;
@@ -169,7 +167,7 @@ let CategoryManagerInterposition = new Interposition("CategoryManagerInterpositi
 CategoryManagerInterposition.methods.addCategoryEntry =
   function(addon, target, category, entry, value, persist, replace) {
     if (category == "content-policy") {
-      ContentPolicyParent.addContentPolicy(entry, value);
+      ContentPolicyParent.addContentPolicy(entry);
     }
 
     target.addCategoryEntry(category, entry, value, persist, replace);

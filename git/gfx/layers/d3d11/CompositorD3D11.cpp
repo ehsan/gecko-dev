@@ -494,8 +494,9 @@ CompositorD3D11::SetRenderTarget(CompositingRenderTarget* aRenderTarget)
   MOZ_ASSERT(aRenderTarget);
   CompositingRenderTargetD3D11* newRT =
     static_cast<CompositingRenderTargetD3D11*>(aRenderTarget);
+  ID3D11RenderTargetView* view = newRT->mRTView;
   mCurrentRT = newRT;
-  mCurrentRT->BindRenderTarget(mContext);
+  mContext->OMSetRenderTargets(1, &view, nullptr);
   PrepareViewport(newRT->GetSize());
 }
 
@@ -1070,12 +1071,12 @@ CompositorD3D11::SetSamplerForFilter(Filter aFilter)
 {
   ID3D11SamplerState *sampler;
   switch (aFilter) {
-    case Filter::POINT:
-    sampler = mAttachments->mPointSamplerState;
-    break;
-  case Filter::LINEAR:
   default:
+  case Filter::LINEAR:
     sampler = mAttachments->mLinearSamplerState;
+    break;
+  case Filter::POINT:
+    sampler = mAttachments->mPointSamplerState;
     break;
   }
 

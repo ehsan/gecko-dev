@@ -20,7 +20,6 @@ Decoder::Decoder(RasterImage &aImage)
   , mProgress(NoProgress)
   , mImageData(nullptr)
   , mColormap(nullptr)
-  , mChunkCount(0)
   , mDecodeFlags(0)
   , mBytesDecoded(0)
   , mDecodeDone(false)
@@ -28,7 +27,6 @@ Decoder::Decoder(RasterImage &aImage)
   , mFrameCount(0)
   , mFailCode(NS_OK)
   , mNeedsNewFrame(false)
-  , mNeedsToFlushData(false)
   , mInitialized(false)
   , mSizeDecode(false)
   , mInFrame(false)
@@ -96,26 +94,16 @@ Decoder::Write(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy)
   PROFILER_LABEL("ImageDecoder", "Write",
     js::ProfileEntry::Category::GRAPHICS);
 
-  MOZ_ASSERT(NS_IsMainThread() || aStrategy == DecodeStrategy::ASYNC);
+  MOZ_ASSERT(NS_IsMainThread() || aStrategy == DECODE_ASYNC);
 
   // We're strict about decoder errors
   MOZ_ASSERT(!HasDecoderError(),
              "Not allowed to make more decoder calls after error!");
 
-  // Begin recording telemetry data.
-  TimeStamp start = TimeStamp::Now();
-  mChunkCount++;
-
   // Keep track of the total number of bytes written.
   mBytesDecoded += aCount;
 
-  // If we're flushing data, clear the flag.
-  if (aBuffer == nullptr && aCount == 0) {
-    MOZ_ASSERT(mNeedsToFlushData, "Flushing when we don't need to");
-    mNeedsToFlushData = false;
-  }
-
-  // If a data error occured, just ignore future data.
+  // If a data error occured, just ignore future data
   if (HasDataError())
     return;
 
@@ -129,23 +117,18 @@ Decoder::Write(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy)
 
   // If we're a synchronous decoder and we need a new frame to proceed, let's
   // create one and call it again.
-  if (aStrategy == DecodeStrategy::SYNC) {
-    while (NeedsNewFrame() && !HasDataError()) {
-      nsresult rv = AllocateFrame();
+  while (aStrategy == DECODE_SYNC && NeedsNewFrame() && !HasDataError()) {
+    nsresult rv = AllocateFrame();
 
-      if (NS_SUCCEEDED(rv)) {
-        // Use the data we saved when we asked for a new frame.
-        WriteInternal(nullptr, 0, aStrategy);
-      }
+    if (NS_SUCCEEDED(rv)) {
+      // Tell the decoder to use the data it saved when it asked for a new frame.
+      WriteInternal(nullptr, 0, aStrategy);
     }
   }
-
-  // Finish telemetry.
-  mDecodeTime += (TimeStamp::Now() - start);
 }
 
 void
-Decoder::Finish(ShutdownReason aReason)
+Decoder::Finish(RasterImage::eShutdownIntent aShutdownIntent)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -182,7 +165,7 @@ Decoder::Finish(ShutdownReason aReason)
     }
 
     bool usable = !HasDecoderError();
-    if (aReason != ShutdownReason::NOT_NEEDED && !HasDecoderError()) {
+    if (aShutdownIntent != RasterImage::eShutdownIntent_NotNeeded && !HasDecoderError()) {
       // If we only have a data error, we're usable if we have at least one complete frame.
       if (GetCompleteFrameCount() == 0) {
         usable = false;
@@ -262,12 +245,6 @@ Decoder::AllocateFrame()
   // Mark ourselves as not needing another frame before talking to anyone else
   // so they can tell us if they need yet another.
   mNeedsNewFrame = false;
-
-  // If we've received any data at all, we may have pending data that needs to
-  // be flushed now that we have a frame to decode into.
-  if (mBytesDecoded > 0) {
-    mNeedsToFlushData = true;
-  }
 
   return rv;
 }

@@ -133,8 +133,6 @@ public:
   NS_IMETHOD SetRequestMethod(const nsACString& aMethod);
   NS_IMETHOD GetReferrer(nsIURI **referrer);
   NS_IMETHOD SetReferrer(nsIURI *referrer);
-  NS_IMETHOD GetReferrerPolicy(uint32_t *referrerPolicy);
-  NS_IMETHOD SetReferrerWithPolicy(nsIURI *referrer, uint32_t referrerPolicy);
   NS_IMETHOD GetRequestHeader(const nsACString& aHeader, nsACString& aValue);
   NS_IMETHOD SetRequestHeader(const nsACString& aHeader,
                               const nsACString& aValue, bool aMerge);
@@ -384,8 +382,6 @@ protected:
   nsAutoPtr<nsString>               mContentDispositionFilename;
 
   nsRefPtr<nsHttpHandler>           mHttpHandler;  // keep gHttpHandler alive
-
-  uint32_t                          mReferrerPolicy;
 
   // Performance tracking
   // The initiator type (for this resource) - how was the resource referenced in

@@ -37,8 +37,6 @@
 #include "nsEmbedCID.h"
 #include "nsToolkitCompsCID.h"
 
-#include "mozilla/net/ReferrerPolicy.h"
-
 #include "SQLFunctions.h"
 
 #include "mozilla/Preferences.h"
@@ -1861,10 +1859,7 @@ nsDownloadManager::RetryDownload(nsDownload* dl)
   dl->mCancelable = wbp;
   (void)wbp->SetProgressListener(dl);
 
-  // referrer policy can be anything since referrer is nullptr
-  rv = wbp->SavePrivacyAwareURI(dl->mSource, nullptr,
-                                nullptr, mozilla::net::RP_Default,
-                                nullptr, nullptr,
+  rv = wbp->SavePrivacyAwareURI(dl->mSource, nullptr, nullptr, nullptr, nullptr,
                                 dl->mTarget, dl->mPrivate);
   if (NS_FAILED(rv)) {
     dl->mCancelable = nullptr;

@@ -110,9 +110,6 @@ enum BailoutKind
     // For the initial snapshot when entering a function.
     Bailout_InitialState,
 
-    // We hit a |debugger;| statement.
-    Bailout_Debugger,
-
     // END Normal bailouts
 
 
@@ -204,8 +201,6 @@ BailoutKindString(BailoutKind kind)
         return "Bailout_GuardThreadExclusive";
       case Bailout_InitialState:
         return "Bailout_InitialState";
-      case Bailout_Debugger:
-        return "Bailout_Debugger";
 
       // Bailouts caused by invalid assumptions.
       case Bailout_OverflowInvalidate:

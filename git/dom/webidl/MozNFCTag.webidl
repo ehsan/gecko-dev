@@ -74,9 +74,6 @@ interface MozNFCTag {
 
   [Throws]
   DOMRequest makeReadOnly();
-
-  [Throws]
-  DOMRequest format();
 };
 
 // Mozilla Only

@@ -32,7 +32,6 @@ GonkMediaDataDecoder::GonkMediaDataDecoder(GonkDecoderManager* aManager,
   , mCallback(aCallback)
   , mManager(aManager)
   , mSignaledEOS(false)
-  , mDrainComplete(false)
 {
   MOZ_COUNT_CTOR(GonkMediaDataDecoder);
 }
@@ -46,7 +45,6 @@ nsresult
 GonkMediaDataDecoder::Init()
 {
   mDecoder = mManager->Init(mCallback);
-  mDrainComplete = false;
   return mDecoder.get() ? NS_OK : NS_ERROR_UNEXPECTED;
 }
 
@@ -91,7 +89,7 @@ GonkMediaDataDecoder::ProcessOutput()
 {
   nsAutoPtr<MediaData> output;
   nsresult rv;
-  while (true && !mDrainComplete) {
+  while (true) {
     rv = mManager->Output(mLastStreamOffset, output);
     if (rv == NS_OK) {
       mCallback->Output(output.forget());
@@ -119,7 +117,6 @@ GonkMediaDataDecoder::ProcessOutput()
       }
       mCallback->DrainComplete();
       mSignaledEOS = false;
-      mDrainComplete = true;
       return;
     }
     mCallback->Error();
