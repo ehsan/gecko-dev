@@ -41,23 +41,21 @@
 
 interface nsIDOMNodeIterator;
 interface nsIDOMNodeFilter;
+interface nsIDOMTreeWalker;
 
 
-[scriptable, uuid(5af83f50-c8d5-4824-be29-1aa9d640bacb)]
+[scriptable, uuid(13f236c0-47f8-11d5-b6a3-009027446e84)]
 // Introduced in DOM Level 2:
-interface nsIDOMNodeIterator : nsISupports
+interface nsIDOMDocumentTraversal : nsISupports
 {
-  readonly attribute nsIDOMNode       root;
-  readonly attribute unsigned long    whatToShow;
-  readonly attribute nsIDOMNodeFilter filter;
-  readonly attribute boolean          expandEntityReferences;
-  nsIDOMNode         nextNode()
+  nsIDOMNodeIterator createNodeIterator(in nsIDOMNode root,
+                                        in unsigned long whatToShow,
+                                        in nsIDOMNodeFilter filter,
+                                        in boolean entityReferenceExpansion)
                                         raises(DOMException);
-  nsIDOMNode         previousNode()
+  nsIDOMTreeWalker   createTreeWalker(in nsIDOMNode root,
+                                      in unsigned long whatToShow,
+                                      in nsIDOMNodeFilter filter,
+                                      in boolean entityReferenceExpansion)
                                         raises(DOMException);
-  void               detach();
-
-  // WebKit extensions, convenient for debugging.
-  readonly attribute nsIDOMNode referenceNode;
-  readonly attribute boolean    pointerBeforeReferenceNode;
 };
