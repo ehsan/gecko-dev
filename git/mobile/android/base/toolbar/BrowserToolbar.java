@@ -5,7 +5,6 @@
 
 package org.mozilla.gecko.toolbar;
 
-import org.mozilla.gecko.AboutPages;
 import org.mozilla.gecko.BrowserApp;
 import org.mozilla.gecko.CustomEditText;
 import org.mozilla.gecko.InputMethods;
@@ -1109,7 +1108,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
         }
 
         // Setting a null title will ensure we just see the "Enter Search or Address" placeholder text.
-        if (AboutPages.isTitlelessAboutPage(url)) {
+        if ("about:home".equals(url) || "about:privatebrowsing".equals(url)) {
             setTitle(null);
             return;
         }
