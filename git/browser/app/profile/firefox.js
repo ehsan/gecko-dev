@@ -244,14 +244,6 @@ pref("browser.urlbar.restrict.tag", "+");
 pref("browser.urlbar.match.title", "#");
 pref("browser.urlbar.match.url", "@");
 
-// The default behavior for the urlbar can be configured to use any combination
-// of the restrict or match filters with each additional filter restricting
-// more (intersection). Add the following values to set the behavior as the
-// default: 1: history, 2: bookmark, 4: tag, 8: title, 16: url
-// E.g., 0 = show all results (no filtering), 1 = only visited pages in history,
-// 2 = only bookmarks, 3 = visited bookmarks, 1+16 = history matching in the url
-pref("browser.urlbar.default.behavior", 0);
-
 // Number of milliseconds to wait for the http headers (and thus
 // the Content-Disposition filename) before giving up and falling back to 
 // picking a filename without that info in hand so that the user sees some
@@ -551,6 +543,10 @@ pref("browser.preferences.animateFadeIn", false);
 
 pref("browser.download.show_plugins_in_list", true);
 pref("browser.download.hide_plugins_without_extensions", true);
+
+// Setting this pref to |true| forces BiDi UI menu items and keyboard shortcuts
+// to be exposed. By default, only expose it for bidi-associated system locales.
+pref("bidi.browser.ui", false);
 
 // Backspace and Shift+Backspace behavior
 // 0 goes Back/Forward

@@ -481,19 +481,14 @@ static PRBool IsSpaceCombiningSequenceTail(const nsTextFragment* aFrag, PRUint32
 
 // Check whether aPos is a space for CSS 'word-spacing' purposes
 static PRBool IsCSSWordSpacingSpace(const nsTextFragment* aFrag,
-                                    PRUint32 aPos, const nsStyleText* aStyleText)
+                                    PRUint32 aPos)
 {
   NS_ASSERTION(aPos < aFrag->GetLength(), "No text for IsSpace!");
 
   PRUnichar ch = aFrag->CharAt(aPos);
-  switch (ch) {
-  case ' ':
-  case CH_NBSP:
+  if (ch == ' ' || ch == CH_CJKSP)
     return !IsSpaceCombiningSequenceTail(aFrag, aPos + 1);
-  case '\t': return !aStyleText->WhiteSpaceIsSignificant();
-  case '\n': return !aStyleText->NewlineIsSignificant();
-  default: return PR_FALSE;
-  }
+  return ch == '\t' || ch == '\f' || ch == '\n';
 }
 
 // Check whether the string aChars/aLength starts with space that's
@@ -2332,8 +2327,7 @@ PropertyProvider::GetSpacingInternal(PRUint32 aStart, PRUint32 aLength,
           // End of a cluster, not in a ligature: put letter-spacing after it
           aSpacing[runOffsetInSubstring + i].mAfter += mLetterSpacing;
         }
-        if (IsCSSWordSpacingSpace(mFrag, i + run.GetOriginalOffset(),
-                                  mTextStyle)) {
+        if (IsCSSWordSpacingSpace(mFrag, i + run.GetOriginalOffset())) {
           // It kinda sucks, but space characters can be part of clusters,
           // and even still be whitespace (I think!)
           iter.SetSkippedOffset(run.GetSkippedOffset() + i);

@@ -346,31 +346,24 @@ struct ClearedGlobalObject : public JSDHashEntryHdr
     JSObject* mGlobalObject;
 };
 
-void XPCJSRuntime::TraceXPConnectRoots(JSTracer *trc, JSBool rootGlobals)
+void XPCJSRuntime::TraceXPConnectRoots(JSTracer *trc)
 {
-    if(mUnrootedGlobalCount != 0)
+    if(mClearedGlobalObjects.ops)
     {
         JSContext *iter = nsnull, *acx;
         while((acx = JS_ContextIterator(GetJSRuntime(), &iter)))
         {
-            if(JS_HAS_OPTION(acx, JSOPTION_UNROOTED_GLOBAL))
+            JSDHashEntryHdr* entry =
+                JS_DHashTableOperate(&mClearedGlobalObjects, acx,
+                                     JS_DHASH_LOOKUP);
+            if(JS_DHASH_ENTRY_IS_BUSY(entry))
             {
-                NS_ASSERTION(nsXPConnect::GetXPConnect()->GetRequestDepth(acx)
-                             == 0, "active cx must be always rooted");
-                NS_ASSERTION(acx->globalObject, "bad state");
-                JS_CALL_OBJECT_TRACER(trc, acx->globalObject,
+                ClearedGlobalObject* clearedGlobal =
+                    reinterpret_cast<ClearedGlobalObject*>(entry);
+                JS_CALL_OBJECT_TRACER(trc, clearedGlobal->mGlobalObject,
                                       "global object");
-                if(rootGlobals)
-                {
-                    NS_ASSERTION(mUnrootedGlobalCount != 0, "bad state");
-                    NS_ASSERTION(trc == acx->runtime->gcMarkingTracer,
-                                 "bad tracer");
-                    JS_ToggleOptions(acx, JSOPTION_UNROOTED_GLOBAL);
-                    --mUnrootedGlobalCount;
-                }
             }
         }
-        NS_ASSERTION(!rootGlobals || mUnrootedGlobalCount == 0, "bad state");
     }
 
     XPCWrappedNativeScope::TraceJS(trc, this);
@@ -440,24 +433,77 @@ void XPCJSRuntime::AddXPConnectRoots(JSContext* cx,
         JS_DHashTableEnumerate(&mJSHolders, NoteJSHolder, &cb);
 }
 
-void XPCJSRuntime::UnrootContextGlobals()
+void XPCJSRuntime::UnsetContextGlobals()
 {
-    mUnrootedGlobalCount = 0;
+    if(!mClearedGlobalObjects.ops)
+        return;
+
+    RestoreContextGlobals();
+
     JSContext *iter = nsnull, *acx;
     while((acx = JS_ContextIterator(GetJSRuntime(), &iter)))
     {
-        NS_ASSERTION(!JS_HAS_OPTION(acx, JSOPTION_UNROOTED_GLOBAL),
-                     "unrooted global should be set only during CC");
         if(nsXPConnect::GetXPConnect()->GetRequestDepth(acx) == 0)
         {
             JS_ClearNewbornRoots(acx);
             if(acx->globalObject)
             {
-                JS_ToggleOptions(acx, JSOPTION_UNROOTED_GLOBAL);
-                ++mUnrootedGlobalCount;
+                JSDHashEntryHdr* entry =
+                    JS_DHashTableOperate(&mClearedGlobalObjects, acx,
+                                         JS_DHASH_ADD);
+                ClearedGlobalObject* clearedGlobal =
+                    reinterpret_cast<ClearedGlobalObject*>(entry);
+                if(clearedGlobal)
+                {
+                    clearedGlobal->mContext = acx;
+                    clearedGlobal->mGlobalObject = acx->globalObject;
+                    acx->globalObject = nsnull;
+                }
             }
         }
     }
+}
+
+JSDHashOperator
+RemoveContextGlobal(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 number,
+                    void *arg)
+{
+  return JS_DHASH_REMOVE;
+}
+
+void XPCJSRuntime::RestoreContextGlobals()
+{
+    if(!mClearedGlobalObjects.ops || mClearedGlobalObjects.entryCount == 0)
+        return;
+
+    JSContext *iter = nsnull, *acx;
+    while((acx = JS_ContextIterator(GetJSRuntime(), &iter)))
+    {
+        JSDHashEntryHdr* entry =
+            JS_DHashTableOperate(&mClearedGlobalObjects, acx, JS_DHASH_LOOKUP);
+        if(JS_DHASH_ENTRY_IS_BUSY(entry))
+        {
+            ClearedGlobalObject* clearedGlobal =
+                reinterpret_cast<ClearedGlobalObject*>(entry);
+            acx->globalObject = clearedGlobal->mGlobalObject;
+        }
+    }
+    JS_DHashTableEnumerate(&mClearedGlobalObjects, RemoveContextGlobal, nsnull);
+}
+
+JSObject* XPCJSRuntime::GetUnsetContextGlobal(JSContext* cx)
+{
+    if(!mClearedGlobalObjects.ops)
+        return nsnull;
+
+    JSDHashEntryHdr* entry =
+        JS_DHashTableOperate(&mClearedGlobalObjects, cx, JS_DHASH_LOOKUP);
+    ClearedGlobalObject* clearedGlobal =
+        reinterpret_cast<ClearedGlobalObject*>(entry);
+
+    return JS_DHASH_ENTRY_IS_BUSY(entry) ?
+           clearedGlobal->mGlobalObject :
+           nsnull;
 }
 
 // static
@@ -959,6 +1005,11 @@ XPCJSRuntime::~XPCJSRuntime()
         JS_DHashTableFinish(&mJSHolders);
         mJSHolders.ops = nsnull;
     }
+    if(mClearedGlobalObjects.ops)
+    {
+        JS_DHashTableFinish(&mClearedGlobalObjects);
+        mClearedGlobalObjects.ops = nsnull;
+    }
 
     if(mJSRuntime)
     {
@@ -992,8 +1043,7 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
    mDoingFinalization(JS_FALSE),
    mVariantRoots(nsnull),
    mWrappedJSRoots(nsnull),
-   mObjectHolderRoots(nsnull),
-   mUnrootedGlobalCount(0)
+   mObjectHolderRoots(nsnull)
 {
 #ifdef XPC_CHECK_WRAPPERS_AT_SHUTDOWN
     DEBUG_WrappedNativeHashtable =
@@ -1039,6 +1089,9 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
     if(!JS_DHashTableInit(&mJSHolders, JS_DHashGetStubOps(), nsnull,
                           sizeof(ObjectHolder), 512))
         mJSHolders.ops = nsnull;
+    if(!JS_DHashTableInit(&mClearedGlobalObjects, JS_DHashGetStubOps(), nsnull,
+                          sizeof(ClearedGlobalObject), JS_DHASH_MIN_SIZE))
+        mClearedGlobalObjects.ops = nsnull;
 
     // Install a JavaScript 'debugger' keyword handler in debug builds only
 #ifdef DEBUG

@@ -465,8 +465,6 @@
 // Simple gestures include
 #include "nsIDOMSimpleGestureEvent.h"
 
-#include "nsIDOMNSMouseEvent.h"
-
 static NS_DEFINE_CID(kCPluginManagerCID, NS_PLUGINMANAGER_CID);
 static NS_DEFINE_CID(kDOMSOF_CID, NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 
@@ -2151,20 +2149,17 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(MouseEvent, nsIDOMMouseEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMouseEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSMouseEvent)
     DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(MouseScrollEvent, nsIDOMMouseScrollEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMouseScrollEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMouseEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSMouseEvent)
     DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(DragEvent, nsIDOMDragEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDragEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSMouseEvent)
     DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -6457,9 +6452,8 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   // binding a name) a new undefined property that's not already
   // defined on our prototype chain. This way we can access this
   // expando w/o ever getting back into XPConnect.
-  JSStackFrame *fp = NULL;
   if ((flags & (JSRESOLVE_ASSIGNING)) &&
-      !(JS_FrameIterator(cx, &fp) && fp->regs && (JSOp)*fp->regs->pc == JSOP_BINDNAME) &&
+      !(cx->fp && cx->fp->regs && (JSOp)*cx->fp->regs->pc == JSOP_BINDNAME) &&
       win->IsInnerWindow()) {
     JSObject *realObj;
     wrapper->GetJSObject(&realObj);

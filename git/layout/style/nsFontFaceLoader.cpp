@@ -78,8 +78,8 @@ static PRLogModuleInfo *gFontDownloaderLog = PR_NewLogModule("fontdownloader");
 
 
 nsFontFaceLoader::nsFontFaceLoader(gfxFontEntry *aFontToLoad, nsIURI *aFontURI,
-                                   nsIPresShell *aShell)
-  : mFontEntry(aFontToLoad), mFontURI(aFontURI), mShell(aShell)
+                                   gfxUserFontSet::LoaderContext *aContext)
+  : mFontEntry(aFontToLoad), mFontURI(aFontURI), mLoaderContext(aContext)
 {
 
 }
@@ -115,80 +115,44 @@ nsFontFaceLoader::OnStreamComplete(nsIStreamLoader* aLoader,
 
   PRBool fontUpdate;
 
-  // first, check to make sure we're not torn down
-  if (mShell->IsDestroying()) {
-    return aStatus;
-  }
-
-  nsPresContext *ctx = mShell->GetPresContext();
-  if (!ctx) {
-    return aStatus;
-  }
-
   // whether an error occurred or not, notify the user font set of the completion
-  fontUpdate = ctx->GetUserFontSet()->OnLoadComplete(mFontEntry, aLoader,
-                                                     aString, aStringLen,
-                                                     aStatus);
+  fontUpdate = mLoaderContext->mUserFontSet->OnLoadComplete(mFontEntry, aLoader,
+                                                            aString, aStringLen,
+                                                            aStatus);
 
   // when new font loaded, need to reflow
   if (fontUpdate) {
-    // Update layout for the presence of the new font.  Since this is
-    // asynchronous, reflows will coalesce.
-    ctx->UserFontSetUpdated();
-    LOG(("fontdownloader (%p) reflow\n", this));
+    nsFontFaceLoaderContext *loaderCtx 
+                       = static_cast<nsFontFaceLoaderContext*> (mLoaderContext);
+
+    nsIPresShell *ps = loaderCtx->mPresContext->PresShell();
+    if (ps) {
+      // Update layout for the presence of the new font.  Since this is
+      // asynchronous, reflows will coalesce.
+      // nsPresContext::FlushUserFontSet does the same thing when we
+      // remove a user font set, for fonts becoming unavailable, or when
+      // we add one, because if we change it dynamically we need to
+      // trigger reflow to cause gfx to request the fonts.
+      ps->StyleChangeReflow();
+      LOG(("fontdownloader (%p) reflow\n", this));
+    }
   }
 
   return aStatus;
 }
 
 nsresult
-nsFontFaceLoader::CheckLoadAllowed(nsIPrincipal* aSourcePrincipal,
-                                   nsIURI* aTargetURI,
-                                   nsISupports* aContext)
-{
-  nsresult rv;
-  
-  if (!aSourcePrincipal)
-    return NS_OK;
-    
-  // check content policy
-  PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
-  rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_FONT,
-                                 aTargetURI,
-                                 aSourcePrincipal,
-                                 aContext,
-                                 EmptyCString(), // mime type
-                                 nsnull,
-                                 &shouldLoad,
-                                 nsContentUtils::GetContentPolicy(),
-                                 nsContentUtils::GetSecurityManager());
-
-  if (NS_FAILED(rv) || NS_CP_REJECTED(shouldLoad)) {
-    return NS_ERROR_CONTENT_BLOCKED;
-  }
-
-  return NS_OK;
-}
-  
-nsUserFontSet::nsUserFontSet(nsPresContext *aContext)
-  : mPresContext(aContext)
-{
-  NS_ASSERTION(mPresContext, "null context passed to nsUserFontSet");
-}
-
-nsUserFontSet::~nsUserFontSet()
-{
-
-}
-
-nsresult 
-nsUserFontSet::StartLoad(gfxFontEntry *aFontToLoad, 
-                          const gfxFontFaceSrc *aFontFaceSrc)
+nsFontFaceLoader::CreateHandler(gfxFontEntry *aFontToLoad, 
+                                const gfxFontFaceSrc *aFontFaceSrc,
+                                gfxUserFontSet::LoaderContext *aContext)
 {
   nsresult rv;
   
   // check same-site origin
-  nsIPresShell *ps = mPresContext->PresShell();
+  nsFontFaceLoaderContext *loaderCtx 
+                             = static_cast<nsFontFaceLoaderContext*> (aContext);
+
+  nsIPresShell *ps = loaderCtx->mPresContext->PresShell();
   if (!ps)
     return NS_ERROR_FAILURE;
     
@@ -209,8 +173,7 @@ nsUserFontSet::StartLoad(gfxFontEntry *aFontToLoad,
     principal = do_QueryInterface(aFontFaceSrc->mOriginPrincipal);
   }
   
-  rv = nsFontFaceLoader::CheckLoadAllowed(principal, aFontFaceSrc->mURI, 
-                                          ps->GetDocument());
+  rv = CheckLoadAllowed(principal, aFontFaceSrc->mURI, ps->GetDocument());
   if (NS_FAILED(rv)) {
 #ifdef PR_LOGGING
     if (LOG_ENABLED()) {
@@ -228,7 +191,7 @@ nsUserFontSet::StartLoad(gfxFontEntry *aFontToLoad,
     
   nsRefPtr<nsFontFaceLoader> fontLoader = new nsFontFaceLoader(aFontToLoad, 
                                                                aFontFaceSrc->mURI, 
-                                                               ps);
+                                                               aContext);
   if (!fontLoader)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -282,3 +245,34 @@ nsUserFontSet::StartLoad(gfxFontEntry *aFontToLoad,
 
   return rv;
 }
+
+nsresult
+nsFontFaceLoader::CheckLoadAllowed(nsIPrincipal* aSourcePrincipal,
+                                   nsIURI* aTargetURI,
+                                   nsISupports* aContext)
+{
+  nsresult rv;
+  
+  if (!aSourcePrincipal)
+    return NS_OK;
+    
+  // check content policy
+  PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
+  rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_FONT,
+                                 aTargetURI,
+                                 aSourcePrincipal,
+                                 aContext,
+                                 EmptyCString(), // mime type
+                                 nsnull,
+                                 &shouldLoad,
+                                 nsContentUtils::GetContentPolicy(),
+                                 nsContentUtils::GetSecurityManager());
+
+  if (NS_FAILED(rv) || NS_CP_REJECTED(shouldLoad)) {
+    return NS_ERROR_CONTENT_BLOCKED;
+  }
+
+  return NS_OK;
+}
+  
+

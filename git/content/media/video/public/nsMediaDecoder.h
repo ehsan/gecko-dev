@@ -134,10 +134,6 @@ class nsMediaDecoder : public nsIObserver
   // seeking in the media resource.
   virtual PRBool IsSeeking() const = 0;
 
-  // Return PR_TRUE if the decoder has reached the end of playback.
-  // Call in the main thread only.
-  virtual PRBool IsEnded() const = 0;
-
   // Return the current number of bytes loaded from the video file.
   // This is used for progress events.
   virtual PRUint64 GetBytesLoaded() = 0;
@@ -227,18 +223,6 @@ protected:
   // Framerate of video being displayed in the element
   // expressed in numbers of frames per second.
   float mFramerate;
-
-  // True if the decoder is being shutdown. At this point all events that
-  // are currently queued need to return immediately to prevent javascript
-  // being run that operates on the element and decoder during shutdown.
-  // Read/Write from the main thread only.
-  PRPackedBool mShuttingDown;
-
-  // True if the decoder is currently in the Stop() method. This is used to
-  // prevent recursive calls into Stop while it is spinning the event loop
-  // waiting for the playback event loop to shutdown. Read/Write from the
-  // main thread only.
-  PRPackedBool mStopping;
 };
 
 #endif

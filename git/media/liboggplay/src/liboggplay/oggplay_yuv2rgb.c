@@ -54,10 +54,7 @@
  *  V = 0.615 R - 0.515 G - 0.100 B
  */
 
-// Optimized YUV to RGB conversion routine disabled due to generating
-// incorrect colours. See Annodex trac ticket 421:
-// http://trac.annodex.net/ticket/421
-#if 0 //defined(__MMX__) || defined(__SSE__) || defined(__SSE2__) || defined(__SSE3__)
+#if defined(__MMX__) || defined(__SSE__) || defined(__SSE2__) || defined(__SSE3__)
 
 #if defined(WIN32)
 #define restrict

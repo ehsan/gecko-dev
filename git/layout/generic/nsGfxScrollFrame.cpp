@@ -2843,14 +2843,13 @@ nsGfxScrollFrameInner::SaveState(nsIStatefulFrame::SpecialStateID aStateID)
   nsRect childRect = child->GetBounds();
   childRect.x = x;
   childRect.y = y;
-  nsPresState* state = new nsPresState();
-  if (!state) {
-    return nsnull;
-  }
+  nsAutoPtr<nsPresState> state;
+  nsresult rv = NS_NewPresState(getter_Transfers(state));
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
   state->SetScrollState(childRect);
 
-  return state;
+  return state.forget();
 }
 
 void

@@ -1260,16 +1260,7 @@ nsXBLService::FetchBindingDocument(nsIContent* aBoundElement, nsIDocument* aBoun
     xblListener->AddRequest(req);
 
     // Now kick off the async read.
-    rv = channel->AsyncOpen(xblListener, nsnull);
-    if (NS_FAILED(rv)) {
-      // Well, we won't be getting a load.  Make sure to clean up our stuff!
-      target->RemoveEventListener(NS_LITERAL_STRING("load"),
-                                  static_cast<nsIDOMLoadListener*>(xblListener),
-                                  PR_FALSE);
-      if (bindingManager) {
-        bindingManager->RemoveLoadingDocListener(aDocumentURI);
-      }
-    }
+    channel->AsyncOpen(xblListener, nsnull);
     return NS_OK;
   }
 

@@ -208,7 +208,6 @@ static PRLogModuleInfo* gDOMLeakPRLog;
 #endif
 
 nsIFactory *nsGlobalWindow::sComputedDOMStyleFactory   = nsnull;
-nsIDOMStorageList *nsGlobalWindow::sGlobalStorageList  = nsnull;
 
 static nsIEntropyCollector *gEntropyCollector          = nsnull;
 static PRInt32              gRefCnt                    = 0;
@@ -781,7 +780,6 @@ void
 nsGlobalWindow::ShutDown()
 {
   NS_IF_RELEASE(sComputedDOMStyleFactory);
-  NS_IF_RELEASE(sGlobalStorageList);
 }
 
 // static
@@ -1005,6 +1003,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGlobalWindow)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mScriptContexts[i])
   }
 
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(gGlobalStorageList)
+
   for (PRUint32 i = 0; i < NS_STID_ARRAY_UBOUND; ++i) {      
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mInnerWindowHolders[i])
   }
@@ -1035,6 +1035,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
   for (PRUint32 i = 0; i < NS_STID_ARRAY_UBOUND; ++i) {      
     NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mScriptContexts[i])
   }
+
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(gGlobalStorageList)
 
   for (PRUint32 i = 0; i < NS_STID_ARRAY_UBOUND; ++i) {      
     NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mInnerWindowHolders[i])
@@ -3874,9 +3876,6 @@ nsGlobalWindow::EnsureReflowFlushAndPaint()
   NS_ASSERTION(mDocShell, "EnsureReflowFlushAndPaint() called with no "
                "docshell!");
 
-  if (!mDocShell)
-    return;
-
   nsCOMPtr<nsIPresShell> presShell;
   mDocShell->GetPresShell(getter_AddRefs(presShell));
 
@@ -5933,8 +5932,6 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aURI, nsIVariant *aArgs,
 {
   *aRetVal = nsnull;
 
-  NS_ENSURE_TRUE(mDocShell, NS_ERROR_FAILURE);
-
   nsCOMPtr<nsIDOMWindow> dlgWin;
   nsAutoString options(NS_LITERAL_STRING("-moz-internal-modal=1,status=1"));
 
@@ -6042,7 +6039,6 @@ nsGlobalWindow::Find(const nsAString& aStr, PRBool aCaseSensitive,
   *aDidFind = PR_FALSE;
 
   nsCOMPtr<nsIWebBrowserFind> finder(do_GetInterface(mDocShell));
-  NS_ENSURE_TRUE(finder, NS_ERROR_FAILURE);
 
   // Set the options of the search
   rv = finder->SetSearchString(PromiseFlatString(aStr).get());
@@ -6704,12 +6700,12 @@ nsGlobalWindow::GetGlobalStorage(nsIDOMStorageList ** aGlobalStorage)
   NS_ENSURE_ARG_POINTER(aGlobalStorage);
 
 #ifdef MOZ_STORAGE
-  if (!sGlobalStorageList) {
-    nsresult rv = NS_NewDOMStorageList(&sGlobalStorageList);
+  if (!gGlobalStorageList) {
+    nsresult rv = NS_NewDOMStorageList(getter_AddRefs(gGlobalStorageList));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  *aGlobalStorage = sGlobalStorageList;
+  *aGlobalStorage = gGlobalStorageList;
   NS_IF_ADDREF(*aGlobalStorage);
 
   return NS_OK;
@@ -9405,8 +9401,7 @@ nsNavigator::MozIsLocallyAvailable(const nsAString &aURI,
 
   if (aWhenOffline) {
     loadFlags |= nsICachingChannel::LOAD_CHECK_OFFLINE_CACHE |
-                 nsICachingChannel::LOAD_ONLY_FROM_CACHE |
-                 nsIRequest::LOAD_FROM_CACHE;
+                 nsICachingChannel::LOAD_ONLY_FROM_CACHE;
   }
 
   nsCOMPtr<nsIChannel> channel;

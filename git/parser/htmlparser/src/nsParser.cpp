@@ -806,7 +806,6 @@ nsParser::Initialize(PRBool aConstructor)
   mFlags = NS_PARSER_FLAG_OBSERVERS_ENABLED |
            NS_PARSER_FLAG_PARSER_ENABLED |
            NS_PARSER_FLAG_CAN_TOKENIZE;
-  mScriptsExecuting = 0;
 
   MOZ_TIMER_DEBUGLOG(("Reset: Parse Time: nsParser::nsParser(), this=%p\n", this));
   MOZ_TIMER_RESET(mParseTime);
@@ -1785,8 +1784,7 @@ nsParser::IsComplete()
 }
 
 
-void nsParser::HandleParserContinueEvent(nsParserContinueEvent *ev)
-{
+void nsParser::HandleParserContinueEvent(nsParserContinueEvent *ev) {
   // Ignore any revoked continue events...
   if (mContinueEvent != ev)
     return;
@@ -1794,21 +1792,7 @@ void nsParser::HandleParserContinueEvent(nsParserContinueEvent *ev)
   mFlags &= ~NS_PARSER_FLAG_PENDING_CONTINUE_EVENT;
   mContinueEvent = nsnull;
 
-  NS_ASSERTION(mScriptsExecuting == 0, "Interrupted in the middle of a script?");
   ContinueInterruptedParsing();
-}
-
-void
-nsParser::ScriptExecuting()
-{
-  ++mScriptsExecuting;
-}
-
-void
-nsParser::ScriptDidExecute()
-{
-  NS_ASSERTION(mScriptsExecuting > 0, "Too many calls to ScriptDidExecute");
-  --mScriptsExecuting;
 }
 
 nsresult
@@ -2208,6 +2192,7 @@ nsParser::ResumeParse(PRBool allowIteration, PRBool aIsFinalChunk,
     NS_ASSERTION(!mSpeculativeScriptThread || !mSpeculativeScriptThread->Parsing(),
                  "Bad races happening, expect to crash!");
 
+    CParserContext *originalContext = mParserContext;
     result = WillBuildModel(mParserContext->mScanner->GetFilename());
     if (NS_FAILED(result)) {
       mFlags &= ~NS_PARSER_FLAG_CAN_TOKENIZE;
@@ -2256,9 +2241,13 @@ nsParser::ResumeParse(PRBool allowIteration, PRBool aIsFinalChunk,
             mParserContext->mDTD->WillInterruptParse(mSink);
           }
 
-          if (mFlags & NS_PARSER_FLAG_PARSER_ENABLED) {
-            // If we were blocked by a recursive invocation, don't re-block.
-            BlockParser();
+          BlockParser();
+
+          // If our context has changed, then someone did a document.write of
+          // an asynchronous script that blocked a sub context. Since *that*
+          // block already might have started a speculative parse, we don't
+          // have to.
+          if (mParserContext == originalContext) {
             SpeculativelyParse();
           }
           return NS_OK;
@@ -2882,8 +2871,7 @@ nsParser::OnDataAvailable(nsIRequest *request, nsISupports* aContext,
 
     // Don't bother to start parsing until we've seen some
     // non-whitespace data
-    if (mScriptsExecuting == 0 &&
-        theContext->mScanner->FirstNonWhitespacePosition() >= 0) {
+    if (theContext->mScanner->FirstNonWhitespacePosition() >= 0) {
       if (mSink) {
         mSink->WillParse();
       }
@@ -2910,6 +2898,14 @@ nsParser::OnStopRequest(nsIRequest *request, nsISupports* aContext,
     mSpeculativeScriptThread->StopParsing(PR_FALSE);
   }
 
+  if (eOnStart == mParserContext->mStreamListenerState) {
+    // If you're here, then OnDataAvailable() never got called.  Prior
+    // to necko, we never dealt with this case, but the problem may
+    // have existed.  Everybody can live with an empty input stream, so
+    // just resume parsing.
+    rv = ResumeParse(PR_TRUE, PR_TRUE);
+  }
+
   CParserContext *pc = mParserContext;
   while (pc) {
     if (pc->mRequest == request) {
@@ -2926,7 +2922,7 @@ nsParser::OnStopRequest(nsIRequest *request, nsISupports* aContext,
   if (mParserFilter)
     mParserFilter->Finish();
 
-  if (mScriptsExecuting == 0 && NS_SUCCEEDED(rv)) {
+  if (NS_SUCCEEDED(rv)) {
     if (mSink) {
       mSink->WillParse();
     }

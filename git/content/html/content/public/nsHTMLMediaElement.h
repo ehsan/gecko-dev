@@ -138,9 +138,9 @@ public:
   // events can be fired.
   void ChangeReadyState(nsMediaReadyState aState);
 
-  // Is the media element potentially playing as defined by the HTML 5 specification.
-  // http://www.whatwg.org/specs/web-apps/current-work/#potentially-playing
-  PRBool IsPotentiallyPlaying() const;
+  // Is the media element actively playing as defined by the HTML 5 specification.
+  // http://www.whatwg.org/specs/web-apps/current-work/#actively
+  PRBool IsActivelyPlaying() const;
 
   // Has playback ended as defined by the HTML 5 specification.
   // http://www.whatwg.org/specs/web-apps/current-work/#ended
@@ -213,6 +213,9 @@ protected:
   // If true then we have begun downloading the media content.
   // Set to false when completed, or not yet started.
   PRPackedBool mBegun;
+
+  // If truen then the video playback has completed.
+  PRPackedBool mEnded;
 
   // True when the decoder has loaded enough data to display the
   // first frame of the content.

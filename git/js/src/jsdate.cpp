@@ -2104,7 +2104,7 @@ js_Date(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     jsdouble d;
 
     /* Date called as function. */
-    if (!JS_IsConstructing(cx)) {
+    if (!(cx->fp->flags & JSFRAME_CONSTRUCTING)) {
         return date_format(cx, PRMJ_Now() / PRMJ_USEC_PER_MSEC,
                            FORMATSPEC_FULL, rval);
     }

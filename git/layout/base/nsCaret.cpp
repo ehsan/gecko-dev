@@ -163,9 +163,6 @@ nsresult nsCaret::Init(nsIPresShell *inPresShell)
   {
     StartBlinking();
   }
-#ifdef IBMBIDI
-  mBidiUI = nsContentUtils::GetBoolPref("bidi.browser.ui");
-#endif
 
   return NS_OK;
 }
@@ -760,7 +757,8 @@ nsCaret::GetCaretFrameForNodeOffset(nsIContent*             aContentNode,
   // NS_STYLE_DIRECTION_LTR : LTR or Default
   // NS_STYLE_DIRECTION_RTL
   // NS_STYLE_DIRECTION_INHERIT
-  if (mBidiUI)
+  nsPresContext *presContext = presShell->GetPresContext();
+  if (presContext && presContext->BidiEnabled())
   {
     // If there has been a reflow, take the caret Bidi level to be the level of the current frame
     if (aBidiLevel & BIDI_LEVEL_UNDEFINED)
@@ -1220,6 +1218,7 @@ nsresult nsCaret::UpdateHookRect(nsPresContext* aPresContext,
 
 #ifdef IBMBIDI
   // Simon -- make a hook to draw to the left or right of the caret to show keyboard language direction
+  PRBool bidiEnabled;
   PRBool isCaretRTL=PR_FALSE;
   nsIBidiKeyboard* bidiKeyboard = nsContentUtils::GetBidiKeyboard();
   if (!bidiKeyboard || NS_FAILED(bidiKeyboard->IsLangRTL(&isCaretRTL)))
@@ -1227,7 +1226,14 @@ nsresult nsCaret::UpdateHookRect(nsPresContext* aPresContext,
     // keyboard direction, or the user has no right-to-left keyboard
     // installed, so we  never draw the hook.
     return NS_OK;
-  if (mBidiUI)
+  if (isCaretRTL)
+  {
+    bidiEnabled = PR_TRUE;
+    aPresContext->SetBidiEnabled();
+  }
+  else
+    bidiEnabled = aPresContext->BidiEnabled();
+  if (bidiEnabled)
   {
     if (isCaretRTL != mKeyboardRTL)
     {

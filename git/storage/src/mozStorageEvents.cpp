@@ -376,7 +376,7 @@ private:
           nsAutoUnlock cancelationScope(mLock);
 
           // Yield, and try again
-          (void)PR_Sleep(PR_INTERVAL_NO_WAIT);
+          PR_Sleep(PR_INTERVAL_NO_WAIT);
           continue;
         }
 

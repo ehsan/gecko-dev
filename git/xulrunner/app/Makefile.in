@@ -208,10 +208,10 @@ endif
 
 ifneq (,$(filter-out OS2 WINCE WINNT Darwin BeOS,$(OS_ARCH)))
 
-xulrunner:: $(topsrcdir)/build/unix/mozilla.in $(GLOBAL_DEPS)
-	cat $< | sed -e "s|%MOZAPPDIR%|$(installdir)|" \
+xulrunner:: mozilla.in $(GLOBAL_DEPS)
+	cat $< | sed -e "s|%MOZAPPDIR%|$(mozappdir)|" \
                 -e "s|%MOZ_USER_DIR%|.mozilla/xulrunner|" \
-                -e "s|%MOZ_APP_DISPLAYNAME%|$(MOZ_APP_DISPLAYNAME)|" > $@
+		-e "s|%MREDIR%|$(mredir)|" > $@
 	chmod +x $@
 
 libs:: xulrunner

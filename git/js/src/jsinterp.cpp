@@ -109,7 +109,7 @@ js_GenerateShape(JSContext *cx, JSBool gcLocked, JSScopeProperty *sprop)
     return shape;
 }
 
-JS_REQUIRES_STACK void
+void
 js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
                      uintN scopeIndex, uintN protoIndex,
                      JSObject *pobj, JSScopeProperty *sprop,
@@ -231,8 +231,7 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
 #endif
                         SCOPE_MAKE_UNIQUE_SHAPE(cx, scope);
                         SCOPE_SET_BRANDED(scope);
-                        if (OBJ_SCOPE(obj) == scope)
-                            kshape = scope->shape;
+                        kshape = scope->shape;
                     }
                     vword = JSVAL_OBJECT_TO_PCVAL(v);
                     break;
@@ -302,7 +301,7 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
     PCMETER(cache->fills++);
 }
 
-JS_REQUIRES_STACK JSAtom *
+JSAtom *
 js_FullTestPropertyCache(JSContext *cx, jsbytecode *pc,
                          JSObject **objp, JSObject **pobjp,
                          JSPropCacheEntry **entryp)
@@ -803,7 +802,7 @@ js_ComputeGlobalThis(JSContext *cx, JSBool lazy, jsval *argv)
          * imposes a performance penalty on all js_ComputeGlobalThis calls,
          * and it represents a maintenance hazard.
          */
-        fp = js_GetTopStackFrame(cx);    /* quell GCC overwarning */
+        fp = cx->fp;    /* quell GCC overwarning */
         if (lazy) {
             JS_ASSERT(fp->argv == argv);
             fp->dormantNext = cx->dormantFrameChain;
@@ -850,10 +849,8 @@ ComputeThis(JSContext *cx, JSBool lazy, jsval *argv)
         thisp = JSVAL_TO_OBJECT(argv[-1]);
     } else {
         thisp = JSVAL_TO_OBJECT(argv[-1]);
-        if (OBJ_GET_CLASS(cx, thisp) == &js_CallClass ||
-            OBJ_GET_CLASS(cx, thisp) == &js_BlockClass) {
+        if (OBJ_GET_CLASS(cx, thisp) == &js_CallClass)
             return js_ComputeGlobalThis(cx, lazy, argv);
-        }
 
         if (thisp->map->ops->thisObject) {
             /* Some objects (e.g., With) delegate 'this' to another object. */
@@ -1265,7 +1262,7 @@ have_fun:
 
     /* Default return value for a constructor is the new object. */
     frame.rval = (flags & JSINVOKE_CONSTRUCT) ? vp[1] : JSVAL_VOID;
-    frame.down = js_GetTopStackFrame(cx);
+    frame.down = cx->fp;
     frame.annotation = NULL;
     frame.scopeChain = NULL;    /* set below for real, after cx->fp is set */
     frame.regs = NULL;
@@ -1469,7 +1466,7 @@ js_Execute(JSContext *cx, JSObject *chain, JSScript *script,
 
     hook = cx->debugHooks->executeHook;
     hookData = mark = NULL;
-    oldfp = js_GetTopStackFrame(cx);
+    oldfp = cx->fp;
     frame.script = script;
     if (down) {
         /* Propagate arg state for eval and the debugger API. */
@@ -1836,7 +1833,7 @@ js_InternNonIntElementId(JSContext *cx, JSObject *obj, jsval idval, jsid *idp)
  * Enter the new with scope using an object at sp[-1] and associate the depth
  * of the with block with sp + stackIndex.
  */
-JS_STATIC_INTERPRET JS_REQUIRES_STACK JSBool
+JS_STATIC_INTERPRET JSBool
 js_EnterWith(JSContext *cx, jsint stackIndex)
 {
     JSStackFrame *fp;
@@ -1875,7 +1872,7 @@ js_EnterWith(JSContext *cx, jsint stackIndex)
     return JS_TRUE;
 }
 
-JS_STATIC_INTERPRET JS_REQUIRES_STACK void
+JS_STATIC_INTERPRET void
 js_LeaveWith(JSContext *cx)
 {
     JSObject *withobj;
@@ -1889,7 +1886,7 @@ js_LeaveWith(JSContext *cx)
     js_EnablePropertyCache(cx);
 }
 
-JS_REQUIRES_STACK JSClass *
+JSClass *
 js_IsActiveWithOrBlock(JSContext *cx, JSObject *obj, int stackDepth)
 {
     JSClass *clasp;
@@ -1903,7 +1900,7 @@ js_IsActiveWithOrBlock(JSContext *cx, JSObject *obj, int stackDepth)
     return NULL;
 }
 
-JS_STATIC_INTERPRET JS_REQUIRES_STACK jsint
+JS_STATIC_INTERPRET jsint
 js_CountWithBlocks(JSContext *cx, JSStackFrame *fp)
 {
     jsint n;
@@ -1924,7 +1921,7 @@ js_CountWithBlocks(JSContext *cx, JSStackFrame *fp)
  * Unwind block and scope chains to match the given depth. The function sets
  * fp->sp on return to stackDepth.
  */
-JS_REQUIRES_STACK JSBool
+JSBool
 js_UnwindScope(JSContext *cx, JSStackFrame *fp, jsint stackDepth,
                JSBool normalUnwind)
 {
@@ -1994,7 +1991,7 @@ js_DoIncDec(JSContext *cx, const JSCodeSpec *cs, jsval *vp, jsval *vp2)
 
 #ifdef DEBUG
 
-JS_STATIC_INTERPRET JS_REQUIRES_STACK void
+JS_STATIC_INTERPRET void
 js_TraceOpcode(JSContext *cx, jsint len)
 {
     FILE *tracefp;
@@ -2446,7 +2443,7 @@ JS_STATIC_ASSERT(JSOP_INCNAME_LENGTH == JSOP_DECNAME_LENGTH);
 JS_STATIC_ASSERT(JSOP_INCNAME_LENGTH == JSOP_NAMEINC_LENGTH);
 JS_STATIC_ASSERT(JSOP_INCNAME_LENGTH == JSOP_NAMEDEC_LENGTH);
 
-JS_REQUIRES_STACK JSBool
+JSBool
 js_Interpret(JSContext *cx)
 {
     JSRuntime *rt;
@@ -4907,7 +4904,6 @@ js_Interpret(JSContext *cx)
                 argc = applylen;
             }
             regs.sp = vp + 2 + argc;
-            TRACE_1(ApplyComplete, argc);
             goto do_call_with_specified_vp_and_argc;
           }
           

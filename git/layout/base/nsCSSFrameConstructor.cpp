@@ -1854,7 +1854,6 @@ nsCSSFrameConstructor::nsCSSFrameConstructor(nsIDocument *aDocument,
   , mGfxScrollFrame(nsnull)
   , mPageSequenceFrame(nsnull)
   , mUpdateCount(0)
-  , mFocusSuppressCount(0)
   , mQuotesDirty(PR_FALSE)
   , mCountersDirty(PR_FALSE)
   , mIsDestroyingFrameTree(PR_FALSE)
@@ -7675,7 +7674,7 @@ nsCSSFrameConstructor::ReconstructDocElementHierarchyInternal()
           // RemoveMappingsForFrameSubtree() which would otherwise lead to a
           // crash since we cleared the placeholder map above (bug 398982).
           PRBool wasDestroyingFrameTree = mIsDestroyingFrameTree;
-          WillDestroyFrameTree(PR_FALSE);
+          WillDestroyFrameTree();
 
           rv = state.mFrameManager->RemoveFrame(docElementFrame->GetParent(),
                     GetChildListNameFor(docElementFrame), docElementFrame);
@@ -10165,7 +10164,6 @@ nsCSSFrameConstructor::AttributeChanged(nsIContent* aContent,
 void
 nsCSSFrameConstructor::BeginUpdate() {
   NS_SuppressFocusEvent();
-  ++mFocusSuppressCount;
   ++mUpdateCount;
 }
 
@@ -10179,10 +10177,8 @@ nsCSSFrameConstructor::EndUpdate()
     RecalcQuotesAndCounters();
     NS_ASSERTION(mUpdateCount == 1, "Odd update count");
   }
-  if (mFocusSuppressCount) {
-    NS_UnsuppressFocusEvent();
-    --mFocusSuppressCount;
-  }
+  NS_UnsuppressFocusEvent();
+  --mUpdateCount;
 }
 
 void
@@ -10202,25 +10198,8 @@ nsCSSFrameConstructor::RecalcQuotesAndCounters()
   NS_ASSERTION(!mCountersDirty, "Counter updates will be lost");  
 }
 
-class nsFocusUnsuppressEvent : public nsRunnable {
-  public:
-    NS_DECL_NSIRUNNABLE
-    nsFocusUnsuppressEvent(PRUint32 aCount) : mCount(aCount) {}
-  private:
-    PRUint32 mCount;
-  };
-
-NS_IMETHODIMP nsFocusUnsuppressEvent::Run()
-{
-  while (mCount) {
-    --mCount;
-    NS_UnsuppressFocusEvent();
-  }
-  return NS_OK;
-}
-
 void
-nsCSSFrameConstructor::WillDestroyFrameTree(PRBool aDestroyingPresShell)
+nsCSSFrameConstructor::WillDestroyFrameTree()
 {
 #if defined(DEBUG_dbaron_off)
   mCounterManager.Dump();
@@ -10234,14 +10213,6 @@ nsCSSFrameConstructor::WillDestroyFrameTree(PRBool aDestroyingPresShell)
 
   // Cancel all pending re-resolves
   mRestyleEvent.Revoke();
-
-  if (mFocusSuppressCount && aDestroyingPresShell) {
-    nsRefPtr<nsFocusUnsuppressEvent> ev =
-      new nsFocusUnsuppressEvent(mFocusSuppressCount);
-    if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev))) {
-      mFocusSuppressCount = 0;
-    }
-  }
 }
 
 //STATIC
@@ -11806,6 +11777,9 @@ nsCSSFrameConstructor::CreateFloatingLetterFrame(
   // its primary frame to be a text frame).  So use its parent for the
   // first-letter.
   nsIContent* letterContent = aTextContent->GetParent();
+  NS_ASSERTION(!letterContent->IsRootOfNativeAnonymousSubtree(),
+               "Reframes of this letter frame will mess with the root of a "
+               "native anonymous content subtree!");
   InitAndRestoreFrame(aState, letterContent,
                       aState.GetGeometricParent(aStyleContext->GetStyleDisplay(),
                                                 aParentFrame),
@@ -11928,6 +11902,9 @@ nsCSSFrameConstructor::CreateLetterFrame(nsFrameConstructorState& aState,
         // content for a non-text frame (because we want its primary frame to
         // be a text frame).  So use its parent for the first-letter.
         nsIContent* letterContent = aTextContent->GetParent();
+        NS_ASSERTION(!letterContent->IsRootOfNativeAnonymousSubtree(),
+                     "Reframes of this letter frame will mess with the root "
+                     "of a native anonymous content subtree!");
         letterFrame->Init(letterContent, aParentFrame, nsnull);
 
         InitAndRestoreFrame(aState, aTextContent, letterFrame, nsnull,

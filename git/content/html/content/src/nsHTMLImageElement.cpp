@@ -138,8 +138,9 @@ public:
   virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            PRBool aNotify);
-  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                             PRBool aNotify);
+
+  // XXXbz What about UnsetAttr?  We don't seem to unload images when
+  // that happens...
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
@@ -527,17 +528,6 @@ nsHTMLImageElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     
   return nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
                                        aNotify);
-}
-
-nsresult
-nsHTMLImageElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                              PRBool aNotify)
-{
-  if (aNameSpaceID == kNameSpaceID_None && aAttribute == nsGkAtoms::src) {
-    CancelImageRequests(aNotify);
-  }
-
-  return nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
 }
 
 nsresult

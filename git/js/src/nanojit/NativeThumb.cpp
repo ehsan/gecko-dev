@@ -209,30 +209,18 @@ namespace nanojit
 		}
 	}
 	
-	void Assembler::nMarkExecute(Page* page, int flags)
+	void Assembler::nMarkExecute(Page* page, int32_t count, bool enable)
 	{
-		NanoAssert(sizeof(Page) == NJ_PAGE_SIZE);
 	#ifdef UNDER_CE
-		static const DWORD kProtFlags[4] = 
-		{
-			PAGE_READONLY,			// 0
-			PAGE_READWRITE,			// PAGE_WRITE
-			PAGE_EXECUTE_READ,		// PAGE_EXEC
-			PAGE_EXECUTE_READWRITE	// PAGE_EXEC|PAGE_WRITE
-		};
-		DWORD prot = kProtFlags[flags & (PAGE_WRITE|PAGE_EXEC)];
 		DWORD dwOld;
-		BOOL res = VirtualProtect(page, NJ_PAGE_SIZE, prot, &dwOld);
-		if (!res)
-		{
-			// todo: we can't abort or assert here, we have to fail gracefully.
-			NanoAssertMsg(false, "FATAL ERROR: VirtualProtect() failed\n");
-		}
+		VirtualProtect(page, NJ_PAGE_SIZE, PAGE_EXECUTE_READWRITE, &dwOld);
 	#endif
 	#ifdef AVMPLUS_PORTING_API
-		NanoJIT_PortAPI_MarkExecutable(page, (void*)((char*)page+NJ_PAGE_SIZE), flags);
-		// todo, must add error-handling to the portapi
+		NanoJIT_PortAPI_MarkExecutable(page, (void*)((int32_t)page+count));
 	#endif
+		(void)page;
+		(void)count;
+		(void)enable;
 	}
 			
 	Register Assembler::nRegisterAllocFromSet(int set)
@@ -376,7 +364,7 @@ namespace nanojit
 		}
 	}
 
-	NIns* Assembler::asm_branch(bool branchOnFalse, LInsp cond, NIns* targ, bool isfar)
+	NIns* Assembler::asm_branch(bool branchOnFalse, LInsp cond, NIns* targ)
 	{
 		NIns* at = 0;
 		LOpcode condop = cond->opcode();
@@ -980,8 +968,6 @@ namespace nanojit
 
 	void Assembler::underrunProtect(int bytes)
 	{
-		NanoAssertMsg(bytes<=LARGEST_UNDERRUN_PROT, "constant LARGEST_UNDERRUN_PROT is too small"); 
-
 		// perhaps bytes + sizeof(PageHeader)/sizeof(NIns) + 4 ?
 		intptr_t u = bytes + 4;
 		if (!samepage(_nIns-u, _nIns-1)) {
@@ -1016,7 +1002,7 @@ namespace nanojit
 		int offset = int(target)-int(_nIns-2+2);
 		*(--_nIns) = (NIns)(0xF800 | ((offset>>1)&0x7FF) );
 		*(--_nIns) = (NIns)(0xF000 | ((offset>>12)&0x7FF) );
-		asm_output("bl %X offset=%d",(int)target, offset);
+		asm_output2("bl %X offset=%d",(int)target, offset);
 	}
 
 
@@ -1028,7 +1014,7 @@ namespace nanojit
 		int br_off = int(target) - int(br_base);
 		NanoAssert(-(1<<11) <= br_off && br_off < (1<<11));
 		*(--_nIns) = (NIns)(0xE000 | ((br_off>>1)&0x7FF));
-		asm_output("b %X offset=%d", (int)target, br_off);
+		asm_output2("b %X offset=%d", (int)target, br_off);
 	}
 
 	void Assembler::JMP(NIns *target)
@@ -1049,7 +1035,7 @@ namespace nanojit
 			mask |= rmask(R8);
 		}
 		*(--_nIns) = (NIns)(0xB400 | mask);
-		asm_output("push {%x}", mask);
+		asm_output1("push {%x}", mask);
 	}
 
 	void Assembler::POPr(Register r)
@@ -1059,7 +1045,7 @@ namespace nanojit
 		if (r == PC)
 			r = R8;
 		*(--_nIns) = (NIns)(0xBC00 | (1<<(r)));
-		asm_output("pop {%s}",gpn(r));
+		asm_output1("pop {%s}",gpn(r));
 	}
 
 	void Assembler::POP_mask(RegisterMask mask)
@@ -1071,7 +1057,7 @@ namespace nanojit
 			mask |= rmask(R8);
 		}
 		*(--_nIns) = (NIns)(0xBC00 | mask);
-		asm_output("pop {%x}", mask);
+		asm_output1("pop {%x}", mask);
 	}
 
 	void Assembler::MOVi(Register r, int32_t v)
@@ -1079,7 +1065,7 @@ namespace nanojit
 		NanoAssert(isU8(v));
 		underrunProtect(2);
 		*(--_nIns) = (NIns)(0x2000 | r<<8 | v);
-		asm_output("mov %s,#%d",gpn(r),v);
+		asm_output2("mov %s,#%d",gpn(r),v);
 	}
 
 	void Assembler::LDi(Register r, int32_t v)
@@ -1105,13 +1091,13 @@ namespace nanojit
 		int tt = int(target) - int(_nIns-1+2);
 		if (tt < (1<<8) && tt >= -(1<<8))	{
 			*(--_nIns) = (NIns)(0xD000 | ((c)<<8) | (tt>>1)&0xFF );
-			asm_output("b%s %X offset=%d", ccname[c], target, tt);
+			asm_output3("b%s %X offset=%d", ccname[c], target, tt);
 		} else {
 			NIns *skip = _nIns;
 			BL(target);
 			c ^= 1;
 			*(--_nIns) = (NIns)(0xD000 | c<<8 | 1 );
-			asm_output("b%s %X", ccname[c], skip);
+			asm_output2("b%s %X", ccname[c], skip);
 		}
 	}
 
@@ -1122,14 +1108,14 @@ namespace nanojit
 		NanoAssert(isU8(off));
 		underrunProtect(2);
 		*(--_nIns) = (NIns)(0x9000 | ((reg)<<8) | off );
-		asm_output("str %s, %d(%s)", gpn(reg), offset, gpn(SP));
+		asm_output3("str %s, %d(%s)", gpn(reg), offset, gpn(SP));
 	}
 
 	void Assembler::STR_index(Register base, Register off, Register reg)
 	{
 		underrunProtect(2);
 		*(--_nIns) = (NIns)(0x5000 | (off<<6) | (base<<3) | (reg));
-		asm_output("str %s,(%s+%s)",gpn(reg),gpn(base),gpn(off));
+		asm_output3("str %s,(%s+%s)",gpn(reg),gpn(base),gpn(off));
 	}
 
 	void Assembler::STR_m(Register base, int32_t offset, Register reg)
@@ -1138,7 +1124,7 @@ namespace nanojit
 		underrunProtect(2);
 		int32_t off = offset>>2;
 		*(--_nIns) = (NIns)(0x6000 | off<<6 | base<<3 | reg);
-		asm_output("str %s,%d(%s)", gpn(reg), offset, gpn(base)); 
+		asm_output3("str %s,%d(%s)", gpn(reg), offset, gpn(base)); 
 	}
 
 	void Assembler::LDMIA(Register base, RegisterMask regs)
@@ -1146,7 +1132,7 @@ namespace nanojit
 		underrunProtect(2);
 		NanoAssert((regs&rmask(base))==0 && isU8(regs));
 		*(--_nIns) = (NIns)(0xC800 | base<<8 | regs);
-		asm_output("ldmia %s!,{%x}", gpn(base), regs);
+		asm_output2("ldmia %s!,{%x}", gpn(base), regs);
 	}
 
 	void Assembler::STMIA(Register base, RegisterMask regs)
@@ -1154,7 +1140,7 @@ namespace nanojit
 		underrunProtect(2);
 		NanoAssert((regs&rmask(base))==0 && isU8(regs));
 		*(--_nIns) = (NIns)(0xC000 | base<<8 | regs);
-		asm_output("stmia %s!,{%x}", gpn(base), regs);
+		asm_output2("stmia %s!,{%x}", gpn(base), regs);
 	}
 
 	void Assembler::ST(Register base, int32_t offset, Register reg)
@@ -1197,7 +1183,7 @@ namespace nanojit
 		underrunProtect(2);
 		NanoAssert(isU8(i));
 		*(--_nIns) = (NIns)(0x3000 | r<<8 | i);
-		asm_output("add %s,#%d", gpn(r), i);
+		asm_output2("add %s,#%d", gpn(r), i);
 	}
 
 	void Assembler::ADDi(Register r, int32_t i)
@@ -1209,7 +1195,7 @@ namespace nanojit
 			NanoAssert((i&3)==0 && i >= 0 && i < (1<<9));
 			underrunProtect(2);
 			*(--_nIns) = (NIns)(0xB000 | i>>2);
-			asm_output("add %s,#%d", gpn(SP), i);
+			asm_output2("add %s,#%d", gpn(SP), i);
 		}
 		else if (isU8(i)) {
 			ADDi8(r,i);
@@ -1229,7 +1215,7 @@ namespace nanojit
 		underrunProtect(2);
 		NanoAssert(isU8(i));
 		*(--_nIns) = (NIns)(0x3800 | r<<8 | i);
-		asm_output("sub %s,#%d", gpn(r), i);
+		asm_output2("sub %s,#%d", gpn(r), i);
 	}
 
 	void Assembler::SUBi(Register r, int32_t i)
@@ -1241,7 +1227,7 @@ namespace nanojit
 			NanoAssert((i&3)==0 && i >= 0 && i < (1<<9));
 			underrunProtect(2);
 			*(--_nIns) = (NIns)(0xB080 | i>>2);
-			asm_output("sub %s,#%d", gpn(SP), i);
+			asm_output2("sub %s,#%d", gpn(SP), i);
 		}
 		else if (isU8(i)) {
 			SUBi8(r,i);
@@ -1263,7 +1249,7 @@ namespace nanojit
 			int offset = int(addr)-int(_nIns-2+2);
 			*(--_nIns) = (NIns)(0xF800 | ((offset>>1)&0x7FF) );
 			*(--_nIns) = (NIns)(0xF000 | ((offset>>12)&0x7FF) );
-			asm_output("call %08X:%s", addr, ci->_name);
+			asm_output2("call %08X:%s", addr, ci->_name);
 		}
 		else
 		{
@@ -1282,7 +1268,7 @@ namespace nanojit
 			*(--_nIns) = (NIns)(0x4700 | (IP<<3));
 			*(--_nIns) = (NIns)(0xE000 | (4>>1));
 			*(--_nIns) = (NIns)(0x4800 | (Scratch<<8) | (1));
-			asm_output("call %08X:%s", addr, ci->_name);
+			asm_output2("call %08X:%s", addr, ci->_name);
 		}
 	}
 
@@ -1316,7 +1302,7 @@ namespace nanojit
 
 		int data_off = int(data) - (int(_nIns+1)&~3);
 		*(--_nIns) = (NIns)(0x4800 | r<<8 | data_off>>2);
-		asm_output("ldr %s,%d(PC) [%X]",gpn(r),data_off,(int)data);
+		asm_output3("ldr %s,%d(PC) [%X]",gpn(r),data_off,(int)data);
 	}
     #endif /* FEATURE_NANOJIT */
 }

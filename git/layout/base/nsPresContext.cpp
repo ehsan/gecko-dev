@@ -1787,9 +1787,16 @@ nsPresContext::FlushUserFontSet()
         NS_IF_RELEASE(mUserFontSet);
 
         if (rules.Length() > 0) {
-          gfxUserFontSet *fs = new nsUserFontSet(this);
-          if (!fs)
+          nsFontFaceLoaderContext *loaderCtx =
+            new nsFontFaceLoaderContext(this);
+          if (!loaderCtx)
             return;
+          gfxUserFontSet *fs = new gfxUserFontSet(loaderCtx);
+          // user font set owns loader context
+          if (!fs) {
+            delete loaderCtx;
+            return;
+          }
           mUserFontSet = fs;
           NS_ADDREF(mUserFontSet);
 
@@ -1809,10 +1816,11 @@ nsPresContext::FlushUserFontSet()
         // If we've changed, created, or destroyed a user font set, we
         // need to trigger a style change reflow.
         // We need to enqueue a style change reflow (for later) to
-        // reflect that we're dropping @font-face rules.  (However,
-        // without a reflow, nothing will happen to start any downloads
-        // that are needed.)
-        UserFontSetUpdated();
+        // reflect that we're dropping @font-face rules.  This is the
+        // same thing nsFontFaceLoader does when font downloads
+        // complete.  (However, without a reflow, nothing will happen
+        // to start any downloads that are needed.)
+        mShell->StyleChangeReflow();
       }
     }
 
@@ -1847,27 +1855,6 @@ nsPresContext::RebuildUserFontSet()
       mPostedFlushUserFontSet = PR_TRUE;
     }
   }    
-}
-
-void
-nsPresContext::UserFontSetUpdated()
-{
-  if (!mShell)
-    return;
-
-  // Changes to the set of available fonts can cause updates to layout by:
-  //
-  //   1. Changing the font used for text, which changes anything that
-  //      depends on text measurement, including line breaking and
-  //      intrinsic widths, and any other parts of layout that depend on
-  //      font metrics.  This requires a style change reflow to update.
-  //
-  //   2. Changing the value of the 'ex' and 'ch' units in style data,
-  //      which also depend on font metrics.  Updating this information
-  //      requires rebuilding the rule tree from the top, avoiding the
-  //      reuse of cached data even when no style rules have changed.
-
-  PostRebuildAllStyleDataEvent(NS_STYLE_HINT_REFLOW);
 }
 
 void

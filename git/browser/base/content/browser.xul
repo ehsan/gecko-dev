@@ -136,6 +136,7 @@
                     accesskey="&editBookmark.undo.accessKey;"/>
             <button id="editBookmarkPanelRemoveButton"
                     oncommand="StarUI.removeBookmarkButtonCommand();"
+                    label="&editBookmark.removeBookmark.label;"
                     accesskey="&editBookmark.removeBookmark.accessKey;"/>
             <button id="editBookmarkPanelEditButton"
                     oncommand="StarUI.editButtonCommand();"

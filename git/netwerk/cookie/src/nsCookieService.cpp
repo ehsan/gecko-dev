@@ -409,11 +409,11 @@ NS_IMPL_ISUPPORTS5(nsCookieService,
                    nsISupportsWeakReference)
 
 nsCookieService::nsCookieService()
- : mHostTable(&mDefaultHostTable)
- , mCookieCount(0)
+ : mCookieCount(0)
  , mCookiesPermissions(BEHAVIOR_ACCEPT)
  , mMaxNumberOfCookies(kMaxNumberOfCookies)
  , mMaxCookiesPerHost(kMaxCookiesPerHost)
+ , mHostTable(&mDefaultHostTable)
 {
 }
 
@@ -472,9 +472,6 @@ nsCookieService::Init()
 nsresult
 nsCookieService::InitDB()
 {
-  // null out any existing connection
-  CloseDB();
-
   nsCOMPtr<nsIFile> cookieFile;
   nsresult rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, getter_AddRefs(cookieFile));
   if (NS_FAILED(rv)) return rv;
@@ -621,21 +618,8 @@ nsCookieService::CreateTable()
     "expiry INTEGER, lastAccessed INTEGER, isSecure INTEGER, isHttpOnly INTEGER)"));
 }
 
-void
-nsCookieService::CloseDB()
-{
-  // finalize our statements and close the db connection.
-  // since we own these objects, nulling the pointers is sufficient here.
-  mStmtInsert = nsnull;
-  mStmtDelete = nsnull;
-  mStmtUpdate = nsnull;
-  mDBConn = nsnull;
-}
-
 nsCookieService::~nsCookieService()
 {
-  CloseDB();
-
   gCookieService = nsnull;
 }
 
@@ -659,7 +643,8 @@ nsCookieService::Observe(nsISupports     *aSubject,
       }
 
       // Close the DB connection before changing
-      CloseDB();
+      mDBConn->Close();
+      mDBConn = nsnull;
     }
 
   } else if (!strcmp(aTopic, "profile-do-change")) {
@@ -679,7 +664,10 @@ nsCookieService::Observe(nsISupports     *aSubject,
         NotifyChanged(nsnull, NS_LITERAL_STRING("reload").get());
       }
       // close the connection to the on-disk DB
-      CloseDB();
+      mStmtInsert = nsnull;
+      mStmtDelete = nsnull;
+      mStmtUpdate = nsnull;
+      mDBConn = nsnull;
       // continue to use the in-memory DB
     } else if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(aData)) {
       // open the connection to the on-disk DB
@@ -843,9 +831,8 @@ nsCookieService::RemoveAll()
       // Database must be corrupted, so remove it completely.
       nsCOMPtr<nsIFile> dbFile;
       mDBConn->GetDatabaseFile(getter_AddRefs(dbFile));
-      CloseDB();
+      mDBConn->Close();
       dbFile->Remove(PR_FALSE);
-
       InitDB();
     }
   }

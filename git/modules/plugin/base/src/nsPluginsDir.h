@@ -35,8 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsPluginsDir_h_
-#define nsPluginsDir_h_
+#ifndef nsPluginsDir_h___
+#define nsPluginsDir_h___
 
 #include "nsError.h"
 #include "nsIFile.h"
@@ -57,6 +57,7 @@ public:
 struct PRLibrary;
 
 struct nsPluginInfo {
+	PRUint32 fPluginInfoSize;	// indicates how large the structure is currently.
 	char* fName;				// name of the plugin
 	char* fDescription;			// etc.
 	PRUint32 fVariantCount;
@@ -66,6 +67,9 @@ struct nsPluginInfo {
 	char* fFileName;
 	char* fFullPath;
 	char* fVersion;
+#ifdef XP_MACOSX
+  PRBool fBundle;
+#endif
 };
 
 /**
@@ -101,6 +105,9 @@ public:
 	 * Should be called after GetPluginInfo to free all allocated stuff
 	 */
 	nsresult FreePluginInfo(nsPluginInfo &PluginInfo);
+
+	// Open the resource fork for the plugin
+	short OpenPluginResource(void);
 };
 
-#endif /* nsPluginsDir_h_ */
+#endif /* nsPluginsDir_h___ */

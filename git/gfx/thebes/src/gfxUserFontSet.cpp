@@ -109,9 +109,13 @@ gfxMixedFontFamily::FindWeightsForStyle(gfxFontEntry* aFontsForWeights[],
 }
 
 
-gfxUserFontSet::gfxUserFontSet()
+gfxUserFontSet::gfxUserFontSet(LoaderContext *aContext)
+    : mLoaderContext(aContext)
 {
+    NS_ASSERTION(mLoaderContext, "font set loader context not initialized");
     mFontFamilies.Init(5);
+    mLoaderContext->mUserFontSet = this;
+
     IncrementGeneration();
 }
 
@@ -276,6 +280,10 @@ gfxUserFontSet::LoadNext(gfxProxyFontEntry *aProxyEntry)
 
     NS_ASSERTION(aProxyEntry->mSrcIndex < numSrc, "already at the end of the src list for user font");
 
+    NS_ASSERTION(mLoaderContext, "user font loader context not initialized");
+    if (!mLoaderContext)
+        return STATUS_ERROR; 
+
     if (aProxyEntry->mIsLoading) {
         aProxyEntry->mSrcIndex++;
     } else {
@@ -311,7 +319,8 @@ gfxUserFontSet::LoadNext(gfxProxyFontEntry *aProxyEntry)
         else {
             if (gfxPlatform::GetPlatform()->IsFontFormatSupported(currSrc.mURI, 
                     currSrc.mFormatFlags)) {
-                nsresult rv = StartLoad(aProxyEntry, &currSrc);
+                nsresult rv = mLoaderContext->mLoaderProc(aProxyEntry, &currSrc,
+                                                          mLoaderContext);
                 PRBool loadOK = NS_SUCCEEDED(rv);
                 
                 if (loadOK) {

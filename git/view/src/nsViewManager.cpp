@@ -1229,8 +1229,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
              aEvent->message != NS_MOUSE_EXIT &&
              aEvent->message != NS_MOUSE_ENTER) ||
             NS_IS_KEY_EVENT(aEvent) ||
-            NS_IS_IME_EVENT(aEvent) ||
-            NS_IS_PLUGIN_EVENT(aEvent)) {
+            NS_IS_IME_EVENT(aEvent)) {
           gLastUserEventTime = PR_IntervalToMicroseconds(PR_IntervalNow());
         }
 
@@ -1246,7 +1245,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
         
         if (!NS_IS_KEY_EVENT(aEvent) && !NS_IS_IME_EVENT(aEvent) &&
             !NS_IS_CONTEXT_MENU_KEY(aEvent) && !NS_IS_FOCUS_EVENT(aEvent) &&
-            !NS_IS_QUERY_CONTENT_EVENT(aEvent) && !NS_IS_PLUGIN_EVENT(aEvent) &&
+            !NS_IS_QUERY_CONTENT_EVENT(aEvent) &&
              aEvent->eventStructType != NS_ACCESSIBLE_EVENT) {
           // will dispatch using coordinates. Pretty bogus but it's consistent
           // with what presshell does.
@@ -2416,10 +2415,7 @@ nsViewManager::ProcessSynthMouseMoveEvent(PRBool aFromScroll)
   event.time = PR_IntervalNow();
   // XXX set event.isShift, event.isControl, event.isAlt, event.isMeta ?
 
-  nsCOMPtr<nsIViewObserver> observer = pointVM->GetViewObserver();
-  if (observer) {
-    observer->DispatchSynthMouseMove(&event, !aFromScroll);
-  }
+  pointVM->GetViewObserver()->DispatchSynthMouseMove(&event, !aFromScroll);
 
   if (!aFromScroll)
     mSynthMouseMoveEvent.Forget();

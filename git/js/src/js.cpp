@@ -537,10 +537,7 @@ extern void js_InitJITStatsClass(JSContext *cx, JSObject *glob);
             break;
 
         case 'b':
-            if (++i == argc)
-                return usage();
-
-            gBranchLimit = atoi(argv[i]);
+            gBranchLimit = atoi(argv[++i]);
             gEnableBranchCallback = (gBranchLimit != 0);
             break;
 
@@ -1118,7 +1115,7 @@ GetTrapArgs(JSContext *cx, uintN argc, jsval *argv, JSScript **scriptp,
     uintN intarg;
     JSScript *script;
 
-    *scriptp = JS_GetScriptedCaller(cx, NULL)->script;
+    *scriptp = cx->fp->down->script;
     *ip = 0;
     if (argc != 0) {
         v = argv[0];
@@ -1205,7 +1202,7 @@ LineToPC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_LINE2PC_USAGE);
         return JS_FALSE;
     }
-    script = JS_GetScriptedCaller(cx, NULL)->script;
+    script = cx->fp->down->script;
     if (!GetTrapArgs(cx, argc, argv, &script, &i))
         return JS_FALSE;
     lineno = (i == 0) ? script->lineno : (uintN)i;
@@ -2560,7 +2557,6 @@ EvalInContext(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
         JS_ReportOutOfMemory(cx);
         return JS_FALSE;
     }
-    JS_SetOptions(scx, JS_GetOptions(cx));
 
 #ifdef JS_THREADSAFE
     JS_BeginRequest(scx);

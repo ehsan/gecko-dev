@@ -1118,7 +1118,7 @@ RequestReader.prototype =
 
     // if we don't have a full line, wait until we do
     if (!readSuccess)
-      return false;
+      return true;
 
     // we have the first non-blank line
     try

@@ -980,7 +980,7 @@ MOZ_PNG_LIBS='$(call EXPAND_LIBNAME_PATH,mozpng,$(DEPTH)/modules/libimg/png)'
 
 MOZ_JS_LIBS='-L$(LIBXUL_DIST)/bin -lmozjs'
 DYNAMIC_XPCOM_LIBS='-L$(LIBXUL_DIST)/bin -lxpcom -lxpcom_core'
-MOZ_FIX_LINK_PATHS='-Wl,-rpath-link,$(LIBXUL_DIST)/bin -Wl,-rpath-link,$(prefix)/lib'
+MOZ_FIX_LINK_PATHS='-Wl,-rpath-link,$(LIBXUL_DIST)/bin -Wl,-rpath-link,$(PREFIX)/lib'
 XPCOM_FROZEN_LDOPTS='-L$(LIBXUL_DIST)/bin -lxpcom'
 LIBXUL_LIBS='$(XPCOM_FROZEN_LDOPTS) -lxul'
 XPCOM_GLUE_LDOPTS='$(LIBXUL_DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) $(XPCOM_FROZEN_LDOPTS)'
@@ -1243,9 +1243,6 @@ Darwin)
         ;;
     i*86*)
         OS_TEST=i386 
-        ;;
-    x86_64)
-        OS_TEST=x86_64
         ;;
     *)
         if test -z "$CROSS_COMPILE" ; then
@@ -4719,7 +4716,6 @@ cairo-qt)
     MOZ_ENABLE_QT=1
     MOZ_ENABLE_XREMOTE=1
     USE_ELF_DYNSTR_GC=
-    NS_PRINTING=
 
     AC_DEFINE(MOZ_X11)
     MOZ_X11=1
@@ -5246,11 +5242,6 @@ MOZ_ARG_DISABLE_BOOL(printing,
 [  --disable-printing  Disable printing support],
     NS_PRINTING=,
     NS_PRINTING=1 )
-
-if test "$MOZ_WIDGET_TOOLKIT" == "qt"; then
-    AC_MSG_WARN([Printing does not work with Qt at this time. Omitting printing support.])
-    NS_PRINTING=
-fi
 
 if test "$NS_PRINTING"; then
     AC_DEFINE(NS_PRINTING)
@@ -8337,7 +8328,7 @@ fi
 ac_configure_args="$ac_configure_args --includedir=$dist/include"
 ac_configure_args="$ac_configure_args --bindir=$dist/bin"
 ac_configure_args="$ac_configure_args --libdir=$dist/lib"
-ac_configure_args="$ac_configure_args --with-sync-build-files=$_topsrcdir"
+ac_configure_args="$ac_configure_args --with-sync-build-files=$srcdir"
 if test "$MOZ_MEMORY"; then
    ac_configure_args="$ac_configure_args --enable-jemalloc"  
 fi

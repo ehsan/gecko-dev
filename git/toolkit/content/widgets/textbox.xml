@@ -281,7 +281,6 @@
       <handler event="click">
         <![CDATA[
           if (!this.mIgnoreClick && this.clickSelectsAll &&
-              document.activeElement == this.inputField &&
               this.inputField.selectionStart == this.inputField.selectionEnd)
             this.editor.selectAll();
         ]]>

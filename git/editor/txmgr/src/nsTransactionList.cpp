@@ -100,14 +100,14 @@ NS_IMETHODIMP nsTransactionList::ItemIsBatch(PRInt32 aIndex, PRBool *aIsBatch)
   if (!txMgr)
     return NS_ERROR_FAILURE;
 
-  nsRefPtr<nsTransactionItem> item;
+  nsTransactionItem *item = 0;
 
   nsresult result = NS_ERROR_FAILURE;
 
   if (mTxnStack)
-    result = mTxnStack->GetItem(aIndex, getter_AddRefs(item));
+    result = mTxnStack->GetItem(aIndex, &item);
   else if (mTxnItem)
-    result = mTxnItem->GetChild(aIndex, getter_AddRefs(item));
+    result = mTxnItem->GetChild(aIndex, &item);
 
   if (NS_FAILED(result))
     return result;
@@ -131,14 +131,14 @@ NS_IMETHODIMP nsTransactionList::GetItem(PRInt32 aIndex, nsITransaction **aItem)
   if (!txMgr)
     return NS_ERROR_FAILURE;
 
-  nsRefPtr<nsTransactionItem> item;
+  nsTransactionItem *item = 0;
 
   nsresult result = NS_ERROR_FAILURE;
 
   if (mTxnStack)
-    result = mTxnStack->GetItem(aIndex, getter_AddRefs(item));
+    result = mTxnStack->GetItem(aIndex, &item);
   else if (mTxnItem)
-    result = mTxnItem->GetChild(aIndex, getter_AddRefs(item));
+    result = mTxnItem->GetChild(aIndex, &item);
 
   if (NS_FAILED(result))
     return result;
@@ -146,7 +146,14 @@ NS_IMETHODIMP nsTransactionList::GetItem(PRInt32 aIndex, nsITransaction **aItem)
   if (!item)
     return NS_ERROR_FAILURE;
 
-  return item->GetTransaction(aItem);
+  result = item->GetTransaction(aItem);
+
+  if (NS_FAILED(result))
+    return result;
+
+  NS_IF_ADDREF(*aItem);
+
+  return NS_OK;
 }
 
 /* long getNumChildrenForItem (in long aIndex); */
@@ -162,14 +169,14 @@ NS_IMETHODIMP nsTransactionList::GetNumChildrenForItem(PRInt32 aIndex, PRInt32 *
   if (!txMgr)
     return NS_ERROR_FAILURE;
 
-  nsRefPtr<nsTransactionItem> item;
+  nsTransactionItem *item = 0;
 
   nsresult result = NS_ERROR_FAILURE;
 
   if (mTxnStack)
-    result = mTxnStack->GetItem(aIndex, getter_AddRefs(item));
+    result = mTxnStack->GetItem(aIndex, &item);
   else if (mTxnItem)
-    result = mTxnItem->GetChild(aIndex, getter_AddRefs(item));
+    result = mTxnItem->GetChild(aIndex, &item);
 
   if (NS_FAILED(result))
     return result;
@@ -193,14 +200,14 @@ NS_IMETHODIMP nsTransactionList::GetChildListForItem(PRInt32 aIndex, nsITransact
   if (!txMgr)
     return NS_ERROR_FAILURE;
 
-  nsRefPtr<nsTransactionItem> item;
+  nsTransactionItem *item = 0;
 
   nsresult result = NS_ERROR_FAILURE;
 
   if (mTxnStack)
-    result = mTxnStack->GetItem(aIndex, getter_AddRefs(item));
+    result = mTxnStack->GetItem(aIndex, &item);
   else if (mTxnItem)
-    result = mTxnItem->GetChild(aIndex, getter_AddRefs(item));
+    result = mTxnItem->GetChild(aIndex, &item);
 
   if (NS_FAILED(result))
     return result;

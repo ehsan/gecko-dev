@@ -1705,7 +1705,7 @@ PresShell::Destroy()
   CancelPostedReflowCallbacks();
 
   // Destroy the frame manager. This will destroy the frame hierarchy
-  mFrameConstructor->WillDestroyFrameTree(PR_TRUE);
+  mFrameConstructor->WillDestroyFrameTree();
   FrameManager()->Destroy();
 
   NS_WARN_IF_FALSE(!mWeakFrames, "Weak frames alive after destroying FrameManager");
@@ -4554,11 +4554,6 @@ PresShell::DoFlushPendingNotifications(mozFlushType aType,
     if (!mIsDestroying) {
       mPresContext->FlushPendingMediaFeatureValuesChanged();
 
-      // Flush any pending update of the user font set, since that could
-      // cause style changes (for updating ex/ch units, and to cause a
-      // reflow).
-      mPresContext->FlushUserFontSet();
-
       mFrameConstructor->ProcessPendingRestyles();
     }
 
@@ -4585,6 +4580,10 @@ PresShell::DoFlushPendingNotifications(mozFlushType aType,
     // be good.
     
     if (aType >= Flush_Layout && !mIsDestroying) {
+      // Flush any pending update of the user font set, since that could
+      // post a style change reflow.
+      mPresContext->FlushUserFontSet();
+
       mFrameConstructor->RecalcQuotesAndCounters();
       mViewManager->FlushDelayedResize();
       ProcessReflowCommands(aInterruptibleReflow);
@@ -5409,54 +5408,41 @@ PresShell::Paint(nsIView*             aView,
                  const nsRegion&      aDirtyRegion)
 {
   AUTO_LAYOUT_PHASE_ENTRY_POINT(GetPresContext(), Paint);
+  nsIFrame* frame;
+  nsresult  rv = NS_OK;
 
-  NS_ASSERTION(!mIsDestroying, "painting a destroyed PresShell");
-  NS_ASSERTION(aView, "null view");
+  if (mIsDestroying) {
+    NS_ASSERTION(PR_FALSE, "A paint message was dispatched to a destroyed PresShell");
+    return NS_OK;
+  }
 
-  // Compute the backstop color for the view.  This color must be
-  // totally transparent if the view is within a glass or transparent
-  // widget; otherwise, we compose all the view managers' default
-  // background colors in order to get something completely opaque.
-  // Nested view managers might not have an opaque default, but the
-  // root view manager must.  See bug 467459.
+  NS_ASSERTION(!(nsnull == aView), "null view");
 
-  PRBool needTransparency = PR_FALSE;
-  nsIViewManager *lastMgr = mViewManager;
+  frame = static_cast<nsIFrame*>(aView->GetClientData());
   nscolor backgroundColor;
-  lastMgr->GetDefaultBackgroundColor(&backgroundColor);
-
+  mViewManager->GetDefaultBackgroundColor(&backgroundColor);
   for (nsIView *view = aView; view; view = view->GetParent()) {
-    if (view->HasWidget() &&
-        view->GetWidget()->GetTransparencyMode() != eTransparencyOpaque) {
-      backgroundColor = NS_RGBA(0,0,0,0);
-      needTransparency = PR_TRUE;
-      break;
-    }
-    if (NS_GET_A(backgroundColor) < 255) {
-      nsIViewManager *thisMgr = view->GetViewManager();
-      NS_ASSERTION(thisMgr, "view without view manager");
-      if (lastMgr != thisMgr) {
-        nscolor underColor;
-        thisMgr->GetDefaultBackgroundColor(&underColor);
-        backgroundColor = NS_ComposeColors(underColor, backgroundColor);
-        lastMgr = thisMgr;
+    if (view->HasWidget()) {
+      // Both glass and transparent windows need the transparent bg color
+      if (eTransparencyOpaque != view->GetWidget()->GetTransparencyMode()) {
+        backgroundColor = NS_RGBA(0,0,0,0);
+        break;
       }
     }
   }
-
-  NS_ASSERTION(needTransparency || NS_GET_A(backgroundColor) == 255,
-               "root view manager's default background isn't opaque");
   
-  nsIFrame* frame = static_cast<nsIFrame*>(aView->GetClientData());
-  if (frame) {
-    nsLayoutUtils::PaintFrame(aRenderingContext, frame, aDirtyRegion,
-                              backgroundColor);
-  } else if (NS_GET_A(backgroundColor) > 0) {
-    aRenderingContext->SetColor(backgroundColor);
-    aRenderingContext->FillRect(aDirtyRegion.GetBounds());
+  if (!frame) {
+    if (NS_GET_A(backgroundColor) > 0) {
+      aRenderingContext->SetColor(backgroundColor);
+      aRenderingContext->FillRect(aDirtyRegion.GetBounds());
+    }
+    return NS_OK;
   }
 
-  return NS_OK;
+  nsLayoutUtils::PaintFrame(aRenderingContext, frame, aDirtyRegion,
+                            backgroundColor);
+
+  return rv;
 }
 
 nsIFrame*
@@ -5637,8 +5623,7 @@ PresShell::HandleEvent(nsIView         *aView,
 
   PRBool dispatchUsingCoordinates =
       !NS_IS_KEY_EVENT(aEvent) && !NS_IS_IME_EVENT(aEvent) &&
-      !NS_IS_CONTEXT_MENU_KEY(aEvent) && !NS_IS_FOCUS_EVENT(aEvent) &&
-      !NS_IS_PLUGIN_EVENT(aEvent);
+      !NS_IS_CONTEXT_MENU_KEY(aEvent) && !NS_IS_FOCUS_EVENT(aEvent);
 
   // if this event has no frame, we need to retarget it at a parent
   // view that has a frame.
@@ -5736,7 +5721,7 @@ PresShell::HandleEvent(nsIView         *aView,
     nsIEventStateManager *esm = mPresContext->EventStateManager();
 
     if (NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_EVENT(aEvent) ||
-        NS_IS_CONTEXT_MENU_KEY(aEvent) || NS_IS_PLUGIN_EVENT(aEvent)) {
+        NS_IS_CONTEXT_MENU_KEY(aEvent)) {
       esm->GetFocusedFrame(&mCurrentEventFrame);
       if (mCurrentEventFrame) {
         esm->GetFocusedContent(getter_AddRefs(mCurrentEventContent));
@@ -5969,7 +5954,7 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
                                  aStatus, aView);
 
     // 2. Give event to the DOM for third party and JS use.
-    if (GetCurrentEventFrame() && NS_SUCCEEDED(rv)) {
+    if ((GetCurrentEventFrame()) && NS_SUCCEEDED(rv)) {
       // We want synthesized mouse moves to cause mouseover and mouseout
       // DOM events (PreHandleEvent above), but not mousemove DOM events.
       if (!IsSynthesizedMouseMove(aEvent)) {
@@ -5994,7 +5979,7 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
 
       // 3. Give event to event manager for post event state changes and
       //    generation of synthetic events.
-      if (!mIsDestroying && NS_SUCCEEDED(rv)) {
+      if (NS_SUCCEEDED(rv)) {
         rv = manager->PostHandleEvent(mPresContext, aEvent,
                                       GetCurrentEventFrame(), aStatus,
                                       weakView.GetView());
