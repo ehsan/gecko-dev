@@ -321,7 +321,7 @@ describe("loop.roomViews", function () {
           view = mountTestComponent();
 
           TestUtils.findRenderedComponentWithType(view,
-            loop.conversationViews.GenericFailureView);
+            loop.conversation.GenericFailureView);
         });
 
       it("should render the GenericFailureView if the roomState is `FULL`",
@@ -331,7 +331,7 @@ describe("loop.roomViews", function () {
           view = mountTestComponent();
 
           TestUtils.findRenderedComponentWithType(view,
-            loop.conversationViews.GenericFailureView);
+            loop.conversation.GenericFailureView);
         });
 
       it("should render the DesktopRoomInvitationView if roomState is `JOINED`",

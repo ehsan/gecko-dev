@@ -1024,12 +1024,12 @@ EventListenerManager::GetDocShellForTarget()
   return docShell;
 }
 
-class EventTimelineMarker : public TimelineMarker
+class EventTimelineMarker : public nsDocShell::TimelineMarker
 {
 public:
   EventTimelineMarker(nsDocShell* aDocShell, TracingMetadata aMetaData,
                       uint16_t aPhase, const nsAString& aCause)
-    : TimelineMarker(aDocShell, "DOMEvent", aMetaData, aCause)
+    : nsDocShell::TimelineMarker(aDocShell, "DOMEvent", aMetaData, aCause)
     , mPhase(aPhase)
   {
   }
@@ -1114,7 +1114,7 @@ EventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
               (*aDOMEvent)->GetType(typeStr);
               uint16_t phase;
               (*aDOMEvent)->GetEventPhase(&phase);
-              mozilla::UniquePtr<TimelineMarker> marker =
+              mozilla::UniquePtr<nsDocShell::TimelineMarker> marker =
                 MakeUnique<EventTimelineMarker>(ds, TRACING_INTERVAL_START,
                                                 phase, typeStr);
               ds->AddProfileTimelineMarker(marker);

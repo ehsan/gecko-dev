@@ -8,31 +8,28 @@
  * Copyright © 2013 Deutsche Telekom, Inc.
  */
 
-/**
- * The enumeration of NFC Tag technologies.
- */
 enum NFCTechType {
-  "NFC-A",  // NFCForum-TS-DigitalProtocol-1.1 NFC-A.
-  "NFC-B",  // NFCForum-TS-DigitalProtocol-1.1 NFC-B.
-  "NFC-F",  // NFCForum-TS-DigitalProtocol-1.1 NFC-F.
-  "NFC-V",  // ISO 15693.
-  "ISO-DEP",  // NFCForum-TS-DigitalProtocol-1.1 ISO-DEP.
-  "MIFARE-Classic",  // MIFARE Classic from NXP.
-  "MIFARE-Ultralight",  // MIFARE Ultralight from NXP.
-  "NFC-Barcode" // NFC Barcode from Kovio.
+  "NFC_A",
+  "NFC_B",
+  "NFC_F",
+  "NFC_V",
+  "NFC_ISO_DEP",
+  "MIFARE_CLASSIC",
+  "MIFARE_ULTRALIGHT",
+  "NFC_BARCODE"
 };
 
 /**
  * The enumeration of the types of the tag, the type of a tag could be either
- * one of those types defined in NFC Forum Tag Types (Type1 ~ Type 4), or it
- * could be a NXP-specific tag, like MIFARE Classic.
+ * one of those types defined in NFC Forum (type1 ~ type 4), or it could be a
+ * NXP-specific tag, like Mifare Classic.
  */
 enum NFCTagType {
-  "Type1",
-  "Type2",
-  "Type3",
-  "Type4",
-  "MIFARE-Classic"
+  "type1",
+  "type2",
+  "type3",
+  "type4",
+  "mifare_classic"
 };
 
 [JSImplementation="@mozilla.org/nfc/tag;1", AvailableIn="PrivilegedApps"]
@@ -73,11 +70,6 @@ interface MozNFCTag {
   readonly attribute boolean? canBeMadeReadOnly;
 
   /**
-   * Indicate if this tag is already lost.
-   */
-  readonly attribute boolean isLost;
-
-  /**
    * Read current NDEF data on the tag.
    */
   [Throws]
@@ -107,6 +99,8 @@ partial interface MozNFCTag {
   [ChromeOnly]
   attribute DOMString session;
 
-  [ChromeOnly]
-  void notifyLost();
+  /**
+   * Indicate if this tag is already lost.
+   */
+  readonly attribute boolean isLost;
 };
