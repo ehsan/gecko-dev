@@ -3009,9 +3009,8 @@ nsPkcs11::AddModule(const nsAString& aModuleName,
   case SECSuccess:
     return NS_OK;
   case SECFailure:
-    return NS_ERROR_FAILURE;
   case -2:
-    return NS_ERROR_ILLEGAL_VALUE;
+    return NS_ERROR_FAILURE;
   }
   NS_ASSERTION(0,"Bogus return value, this should never happen");
   return NS_ERROR_FAILURE;

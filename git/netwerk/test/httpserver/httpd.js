@@ -3332,13 +3332,6 @@ function Response(connection)
    * to this may be made.
    */
   this._finished = false;
-
-  /**
-   * True iff powerSeized() has been called on this, signaling that this
-   * response is to be handled manually by the response handler (which may then
-   * send arbitrary data in response, even non-HTTP responses).
-   */
-  this._powerSeized = false;
 }
 Response.prototype =
 {
@@ -3358,7 +3351,7 @@ Response.prototype =
                           null);
       this._bodyOutputStream = pipe.outputStream;
       this._bodyInputStream = pipe.inputStream;
-      if (this._processAsync || this._powerSeized)
+      if (this._processAsync)
         this._startAsyncProcessor();
     }
 
@@ -3382,7 +3375,7 @@ Response.prototype =
   //
   setStatusLine: function(httpVersion, code, description)
   {
-    if (!this._headers || this._finished || this._powerSeized)
+    if (!this._headers || this._finished)
       throw Cr.NS_ERROR_NOT_AVAILABLE;
     this._ensureAlive();
 
@@ -3427,7 +3420,7 @@ Response.prototype =
   //
   setHeader: function(name, value, merge)
   {
-    if (!this._headers || this._finished || this._powerSeized)
+    if (!this._headers || this._finished)
       throw Cr.NS_ERROR_NOT_AVAILABLE;
     this._ensureAlive();
 
@@ -3441,11 +3434,8 @@ Response.prototype =
   {
     if (this._finished)
       throw Cr.NS_ERROR_UNEXPECTED;
-    if (this._powerSeized)
-      throw Cr.NS_ERROR_NOT_AVAILABLE;
     if (this._processAsync)
       return;
-    this._ensureAlive();
 
     dumpn("*** processing connection " + this._connection.number + " async");
     this._processAsync = true;
@@ -3468,58 +3458,21 @@ Response.prototype =
   },
 
   //
-  // see nsIHttpResponse.seizePower
-  //
-  seizePower: function()
-  {
-    if (this._processAsync)
-      throw Cr.NS_ERROR_NOT_AVAILABLE;
-    if (this._finished)
-      throw Cr.NS_ERROR_UNEXPECTED;
-    if (this._powerSeized)
-      return;
-    this._ensureAlive();
-
-    dumpn("*** forcefully seizing power over connection " +
-          this._connection.number + "...");
-
-    // Purge any already-written data without sending it.  We could as easily
-    // swap out the streams entirely, but that makes it possible to acquire and
-    // unknowingly use a stale reference, so we require there only be one of
-    // each stream ever for any response to avoid this complication.
-    if (this._asyncCopier)
-      this._asyncCopier.cancel(Cr.NS_BINDING_ABORTED);
-    this._asyncCopier = null;
-    if (this._bodyOutputStream)
-    {
-      var input = new BinaryInputStream(this._bodyInputStream);
-      var avail;
-      while ((avail = input.available()) > 0)
-        input.readByteArray(avail);
-    }
-
-    this._powerSeized = true;
-    if (this._bodyOutputStream)
-      this._startAsyncProcessor();
-  },
-
-  //
   // see nsIHttpResponse.finish
   //
   finish: function()
   {
-    if (!this._processAsync && !this._powerSeized)
+    if (!this._processAsync)
       throw Cr.NS_ERROR_UNEXPECTED;
     if (this._finished)
       return;
 
-    dumpn("*** finishing connection " + this._connection.number);
+    dumpn("*** finishing async connection " + this._connection.number);
     this._startAsyncProcessor(); // in case bodyOutputStream was never accessed
     if (this._bodyOutputStream)
       this._bodyOutputStream.close();
     this._finished = true;
   },
-
 
   // POST-CONSTRUCTION API (not exposed externally)
 
@@ -3579,9 +3532,8 @@ Response.prototype =
 
   /**
    * Determines whether this response may be abandoned in favor of a newly
-   * constructed response.  A response may be abandoned only if it is not being
-   * sent asynchronously and if raw control over it has not been taken from the
-   * server.
+   * constructed response, as determined by whether any of this response's data
+   * has been written to the network.
    *
    * @returns boolean
    *   true iff no data has been written to the network
@@ -3589,7 +3541,7 @@ Response.prototype =
   partiallySent: function()
   {
     dumpn("*** partiallySent()");
-    return this._processAsync || this._powerSeized;
+    return this._headers === null;
   },
 
   /**
@@ -3599,12 +3551,8 @@ Response.prototype =
   complete: function()
   {
     dumpn("*** complete()");
-    if (this._processAsync || this._powerSeized)
-    {
-      NS_ASSERT(this._processAsync ^ this._powerSeized,
-                "can't both send async and relinquish power");
+    if (this._processAsync)
       return;
-    }
 
     NS_ASSERT(!this.partiallySent(), "completing a partially-sent response?");
 
@@ -3618,11 +3566,9 @@ Response.prototype =
   /**
    * Abruptly ends processing of this response, usually due to an error in an
    * incoming request but potentially due to a bad error handler.  Since we
-   * cannot handle the error in the usual way (giving an HTTP error page in
-   * response) because data may already have been sent (or because the response
-   * might be expected to have been generated asynchronously or completely from
-   * scratch by the handler), we stop processing this response and abruptly
-   * close the connection.
+   * cannot handle the error in the usual way (giving an HTTP error page in response)
+   * because data may already have been sent, we stop processing this response
+   * and abruptly close the connection.
    *
    * @param e : Error
    *   the exception which precipitated this abort, or null if no such exception
@@ -3633,34 +3579,11 @@ Response.prototype =
     dumpn("*** abort(<" + e + ">)");
 
     // This response will be ended by the processor if one was created.
-    var copier = this._asyncCopier;
-    if (copier)
-    {
-      // We dispatch asynchronously here so that any pending writes of data to
-      // the connection will be deterministically written.  This makes it easier
-      // to specify exact behavior, and it makes observable behavior more
-      // predictable for clients.  Note that the correctness of this depends on
-      // callbacks in response to _waitForData in WriteThroughCopier happening
-      // asynchronously with respect to the actual writing of data to
-      // bodyOutputStream, as they currently do; if they happened synchronously,
-      // an event which ran before this one could write more data to the
-      // response body before we get around to canceling the copier.  We have
-      // tests for this in test_seizepower.js, however, and I can't think of a
-      // way to handle both cases without removing bodyOutputStream access and
-      // moving its effective write(data, length) method onto Response, which
-      // would be slower and require more code than this anyway.
-      gThreadManager.currentThread.dispatch({
-        run: function()
-        {
-          dumpn("*** canceling copy asynchronously...");
-          copier.cancel(Cr.NS_ERROR_UNEXPECTED);
-        }
-      }, Ci.nsIThreadManager.DISPATCH_NORMAL);
-    }
+    var processor = this._asyncCopier;
+    if (processor)
+      processor.cancel(Cr.NS_BINDING_ABORTED);
     else
-    {
       this.end();
-    }
   },
 
   /**
@@ -3693,7 +3616,6 @@ Response.prototype =
     dumpn("*** _sendHeaders()");
 
     NS_ASSERT(this._headers);
-    NS_ASSERT(!this._powerSeized);
 
     // request-line
     var statusLine = "HTTP/" + this.httpVersion + " " +
@@ -3787,13 +3709,8 @@ Response.prototype =
 
     // Send headers if they haven't been sent already.
     if (this._headers)
-    {
-      if (this._powerSeized)
-        this._headers = null;
-      else
-        this._sendHeaders();
-      NS_ASSERT(this._headers === null, "_sendHeaders() failed?");
-    }
+      this._sendHeaders();
+    NS_ASSERT(this._headers === null, "flushHeaders() failed?");
 
     var response = this;
     var connection = this._connection;
@@ -3815,19 +3732,15 @@ Response.prototype =
 
         onStopRequest: function(request, cx, statusCode)
         {
-          dumpn("*** onStopRequest [status=0x" + statusCode.toString(16) + "]");
+          dumpn("*** onStopRequest [status=" + statusCode.toString(16) + "]");
 
-          if (statusCode === Cr.NS_BINDING_ABORTED)
+          if (!Components.isSuccessCode(statusCode))
           {
-            dumpn("*** terminating copy observer without ending the response");
+            dumpn("*** WARNING: non-success statusCode in onStopRequest: " +
+                  statusCode);
           }
-          else
-          {
-            if (!Components.isSuccessCode(statusCode))
-              dumpn("*** WARNING: non-success statusCode in onStopRequest");
 
-            response.end();
-          }
+          response.end();
         },
 
         QueryInterface: function(aIID)
@@ -3871,9 +3784,8 @@ function notImplemented()
  * @param input : nsIAsyncInputStream
  *   the stream from which data is to be read
  * @param output : nsIOutputStream
- *   the stream to which data is to be copied
  * @param observer : nsIRequestObserver
- *   an observer which will be notified when the copy starts and finishes
+ *   an observer which will be notified when
  * @param context : nsISupports
  *   context passed to observer when notified of start/stop
  * @throws NS_ERROR_NULL_POINTER
@@ -3935,10 +3847,7 @@ WriteThroughCopier.prototype =
     dumpn("*** cancel(" + status.toString(16) + ")");
 
     if (this._completed)
-    {
-      dumpn("*** ignoring cancel on already-canceled copier...");
       return;
-    }
 
     this._completed = true;
     this.status = status;
@@ -3981,16 +3890,13 @@ WriteThroughCopier.prototype =
    * Receives a more-data-in-input notification and writes the corresponding
    * data to the output.
    */
-  onInputStreamReady: function(input)
+  onInputStreamReady: function()
   {
     dumpn("*** onInputStreamReady");
     if (this._completed)
-    {
-      dumpn("*** ignoring stream-ready callback on a canceled copier...");
       return;
-    }
 
-    input = new BinaryInputStream(input);
+    var input = new BinaryInputStream(this._input);
     try
     {
       var avail = input.available();
@@ -4025,19 +3931,6 @@ WriteThroughCopier.prototype =
   {
     dumpn("*** _waitForData");
     this._input.asyncWait(this, 0, 1, gThreadManager.mainThread);
-  },
-
-  /** nsISupports implementation */
-  QueryInterface: function(iid)
-  {
-    if (iid.equals(Ci.nsIRequest) ||
-        iid.equals(Ci.nsISupports) ||
-        iid.equals(Ci.nsIInputStreamCallback))
-    {
-      return this;
-    }
-
-    throw Cr.NS_ERROR_NO_INTERFACE;
   }
 };
 

@@ -98,13 +98,9 @@ const WINDOW_HIDEABLE_FEATURES = [
 docShell capabilities to (re)store
 Restored in restoreHistory()
 eg: browser.docShell["allow" + aCapability] = false;
-
-XXX keep these in sync with all the attributes starting
-    with "allow" in /docshell/base/nsIDocShell.idl
 */
 const CAPABILITIES = [
-  "Subframes", "Plugins", "Javascript", "MetaRedirects", "Images",
-  "DNSPrefetch", "Auth"
+  "Subframes", "Plugins", "Javascript", "MetaRedirects", "Images"
 ];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -515,9 +511,7 @@ SessionStoreService.prototype = {
           this.onTabAdd(aEvent.currentTarget.ownerDocument.defaultView, tabpanel);
         }
         else {
-          // aEvent.detail determines if the tab was closed by moving to a different window
-          if (!aEvent.detail)
-            this.onTabClose(aEvent.currentTarget.ownerDocument.defaultView, aEvent.originalTarget);
+          this.onTabClose(aEvent.currentTarget.ownerDocument.defaultView, aEvent.originalTarget);
           this.onTabRemove(aEvent.currentTarget.ownerDocument.defaultView, tabpanel);
         }
         break;
@@ -646,12 +640,9 @@ SessionStoreService.prototype = {
         this._updateCookies([winData]);
       }
       
-      // save the window if it has multiple tabs or a single tab with entries
-      if (winData.tabs.length > 1 ||
-          (winData.tabs.length == 1 && winData.tabs[0].entries.length > 0)) {
-        this._closedWindows.unshift(winData);
-        this._capClosedWindows();
-      }
+      // store closed-window data for undo
+      this._closedWindows.unshift(winData);
+      this._capClosedWindows();
       
       // clear this window from the list
       delete this._windows[aWindow.__SSi];
@@ -1294,18 +1285,8 @@ SessionStoreService.prototype = {
 
       let storage, storageItemCount = 0;
       try {
-        var principal = Cc["@mozilla.org/scriptsecuritymanager;1"].
-                        getService(Ci.nsIScriptSecurityManager).
-                        getCodebasePrincipal(uri);
-
-        // Using getSessionStorageForPrincipal instead of getSessionStorageForURI
-        // just to be able to pass aCreate = false, that avoids creation of the
-        // sessionStorage object for the page earlier than the page really
-        // requires it. It was causing problems while accessing a storage when
-        // a page later changed its domain.
-        storage = aDocShell.getSessionStorageForPrincipal(principal, false);
-        if (storage)
-          storageItemCount = storage.length;
+        storage = aDocShell.getSessionStorageForURI(uri);
+        storageItemCount = storage.length;
       }
       catch (ex) { /* sessionStorage might throw if it's turned off, see bug 458954 */ }
       if (storageItemCount == 0)

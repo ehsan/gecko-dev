@@ -116,8 +116,6 @@ public:
   }
 #endif
 
-  virtual PRBool HonorPrintBackgroundSettings() { return PR_FALSE; }
-
   // nsIFormControlFrame
   void SetFocus(PRBool aOn, PRBool aRepaint);
   virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue);
