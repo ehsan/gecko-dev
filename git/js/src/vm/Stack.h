@@ -544,7 +544,7 @@ class StackFrame
 
     Value &varSlot(unsigned i) {
         JS_ASSERT(i < script()->nfixed);
-        JS_ASSERT_IF(maybeFun(), i < script()->bindings.numVars());
+        JS_ASSERT_IF(maybeFun(), i < script()->bindings.countVars());
         return slots()[i];
     }
 
@@ -725,8 +725,6 @@ class StackFrame
     template <class Op>
     inline bool forEachCanonicalActualArg(Op op, unsigned start = 0, unsigned count = unsigned(-1));
     template <class Op> inline bool forEachFormalArg(Op op);
-
-    /* XXX: all these argsObj functions will be removed with bug 659577. */
 
     bool hasArgsObj() const {
         /*

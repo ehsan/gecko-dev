@@ -64,7 +64,7 @@ SettingsDB.prototype = {
     }
 
     let self = this;
-    debug("try to open database:" + DB_NAME + " " + DB_VERSION + " " + this.db);
+    debug("try to open database:" + DB_NAME + " " + DB_VERSION + " " + this._indexedDB);
     let req = aGlobal.mozIndexedDB.open(DB_NAME, DB_VERSION);
     req.onsuccess = function (event) {
       debug("Opened database:", DB_NAME, DB_VERSION);
@@ -113,6 +113,10 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+
+XPCOMUtils.defineLazyGetter(Services, "DOMRequest", function() {
+  return Cc["@mozilla.org/dom/dom-request-service;1"].getService(Ci.nsIDOMRequestService);
+});
 
 const nsIClassInfo            = Ci.nsIClassInfo;
 const SETTINGSLOCK_CONTRACTID = "@mozilla.org/settingsLock;1";

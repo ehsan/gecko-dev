@@ -46,4 +46,5 @@ public class InvalidRequestException extends SyncException {
   public InvalidRequestException(Exception ex) {
     super(ex);
   }
+
 }

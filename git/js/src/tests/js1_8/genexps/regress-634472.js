@@ -55,15 +55,12 @@ function error(str) {
   }
 }
 
-const JSMSG_GENEXP_YIELD         = error("(function(){((yield) for (x in []))})").message;
-const JSMSG_GENEXP_ARGUMENTS     = error("(function(){(arguments for (x in []))})").message;
-const JSMSG_TOP_YIELD            = error("yield").message;
-const JSMSG_YIELD_PAREN          = error("(function(){yield, 1})").message;
-const JSMSG_GENERIC              = error("(for)").message;
-const JSMSG_GENEXP_PAREN         = error("print(1, x for (x in []))").message;
-const JSMSG_BAD_GENERATOR_SYNTAX = error("(1, arguments for (x in []))").message;
-
-const JSMSG_GENEXP_MIX = { simple: JSMSG_BAD_GENERATOR_SYNTAX, call: JSMSG_GENEXP_ARGUMENTS };
+const JSMSG_GENEXP_YIELD     = error("(function(){((yield) for (x in []))})").message;
+const JSMSG_GENEXP_ARGUMENTS = error("(function(){(arguments for (x in []))})").message;
+const JSMSG_TOP_YIELD        = error("yield").message;
+const JSMSG_YIELD_PAREN      = error("(function(){yield, 1})").message;
+const JSMSG_GENERIC          = error("(for)").message;
+const JSMSG_GENEXP_PAREN     = error("print(1, x for (x in []))").message;
 
 const cases = [
   // yield expressions
@@ -118,11 +115,11 @@ const cases = [
 
   // arguments in generator expressions
   { expr: "(arguments for (x in []))",         top: JSMSG_GENEXP_ARGUMENTS, fun: JSMSG_GENEXP_ARGUMENTS, gen: JSMSG_GENEXP_ARGUMENTS, desc: "simple arguments in genexp" },
-  { expr: "(1, arguments for (x in []))",      top: JSMSG_GENEXP_MIX,       fun: JSMSG_GENEXP_MIX,       gen: JSMSG_GENEXP_MIX,       desc: "arguments in list in genexp" },
+  { expr: "(1, arguments for (x in []))",      top: JSMSG_GENEXP_ARGUMENTS, fun: JSMSG_GENEXP_ARGUMENTS, gen: JSMSG_GENEXP_ARGUMENTS, desc: "arguments in list in genexp" },
   { expr: "((arguments) for (x in []))",       top: JSMSG_GENEXP_ARGUMENTS, fun: JSMSG_GENEXP_ARGUMENTS, gen: JSMSG_GENEXP_ARGUMENTS, desc: "arguments, parenthesized in genexp" },
-  { expr: "(1, (arguments) for (x in []))",    top: JSMSG_GENEXP_MIX,       fun: JSMSG_GENEXP_MIX,       gen: JSMSG_GENEXP_MIX,       desc: "arguments, parenthesized in list in genexp" },
+  { expr: "(1, (arguments) for (x in []))",    top: JSMSG_GENEXP_ARGUMENTS, fun: JSMSG_GENEXP_ARGUMENTS, gen: JSMSG_GENEXP_ARGUMENTS, desc: "arguments, parenthesized in list in genexp" },
   { expr: "((1, arguments) for (x in []))",    top: JSMSG_GENEXP_ARGUMENTS, fun: JSMSG_GENEXP_ARGUMENTS, gen: JSMSG_GENEXP_ARGUMENTS, desc: "arguments in list, parenthesized in genexp" },
-  { expr: "(1, (2, arguments) for (x in []))", top: JSMSG_GENEXP_MIX,       fun: JSMSG_GENEXP_MIX,       gen: JSMSG_GENEXP_MIX,       desc: "arguments in list, parenthesized in list in genexp" },
+  { expr: "(1, (2, arguments) for (x in []))", top: JSMSG_GENEXP_ARGUMENTS, fun: JSMSG_GENEXP_ARGUMENTS, gen: JSMSG_GENEXP_ARGUMENTS, desc: "arguments in list, parenthesized in list in genexp" },
 
   // deeply nested arguments in generator expressions
   { expr: "((((1, arguments))) for (x in []))",               top: JSMSG_GENEXP_ARGUMENTS, fun: JSMSG_GENEXP_ARGUMENTS, gen: JSMSG_GENEXP_ARGUMENTS, desc: "deeply nested arguments in genexp" },
@@ -149,8 +146,7 @@ function splitKeyword(str) {
 function expectError1(err, ctx, msg) {
   reportCompare('object', typeof err,     'exn for: ' + msg);
   reportCompare(ctx,      err.message,    'exn message for: ' + msg);
-  if (ctx !== JSMSG_BAD_GENERATOR_SYNTAX)
-      reportCompare(2,    err.lineNumber, 'exn token for: ' + msg);
+  reportCompare(2,        err.lineNumber, 'exn token for: ' + msg);
 }
 
 function expectError(expr, call, wrapCtx, expect, msg) {

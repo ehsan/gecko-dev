@@ -56,7 +56,6 @@ import org.mozilla.gecko.gfx.Layer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 
 public final class Tab {
@@ -457,17 +456,10 @@ public final class Tab {
     }
 
     public void removeTransientDoorHangers() {
-        // Make a temporary set to avoid a ConcurrentModificationException
-        final HashSet<String> valuesToRemove = new HashSet<String>(); 
-
         for (String value : mDoorHangers.keySet()) {
             DoorHanger dh = mDoorHangers.get(value);
             if (dh.shouldRemove())
-                valuesToRemove.add(value);
-        }
-
-        for (String value : valuesToRemove) {
-            mDoorHangers.remove(value);
+                mDoorHangers.remove(value);
         }
     }
 

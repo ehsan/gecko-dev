@@ -15,6 +15,10 @@ let EXPORTED_SYMBOLS = ["DOMRequestIpcHelper"];
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
+XPCOMUtils.defineLazyGetter(Services, "rs", function() {
+  return Cc["@mozilla.org/dom/dom-request-service;1"].getService(Ci.nsIDOMRequestService);
+});
+
 XPCOMUtils.defineLazyGetter(this, "cpmm", function() {
   return Cc["@mozilla.org/childprocessmessagemanager;1"].getService(Ci.nsIFrameMessageManager);
 });
@@ -79,6 +83,6 @@ DOMRequestIpcHelper.prototype = {
   },
 
   createRequest: function() {
-    return Services.DOMRequest.createRequest(this._window);
+    return Services.rs.createRequest(this._window);
   }
 }

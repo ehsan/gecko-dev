@@ -50,8 +50,7 @@ function testSteps()
     ok(false, "Bound keyRange with backwards args should throw!");
   }
   catch (e) {
-    is(e.name, "DataError", "Threw correct exception");
-    is(e.code, 0, "Threw with correct code");
+    is(e.code, IDBDatabaseException.DATA_ERR, "Threw correct exception");
   }
 
   try {
@@ -67,8 +66,7 @@ function testSteps()
     ok(false, "Bound keyRange with same arg and open should throw!");
   }
   catch (e) {
-    is(e.name, "DataError", "Threw correct exception");
-    is(e.code, 0, "Threw with correct code");
+    is(e.code, IDBDatabaseException.DATA_ERR, "Threw correct exception");
   }
 
   try {
@@ -76,8 +74,7 @@ function testSteps()
     ok(false, "Bound keyRange with same arg and open should throw!");
   }
   catch (e) {
-    is(e.name, "DataError", "Threw correct exception");
-    is(e.code, 0, "Threw with correct code");
+    is(e.code, IDBDatabaseException.DATA_ERR, "Threw correct exception");
   }
 
   objectStore = db.transaction(osName).objectStore(osName);
@@ -103,10 +100,9 @@ function testSteps()
     ok(false, "Get with null should have thrown");
   }
   catch(e) {
-    is(e instanceof DOMException, true,
+    is(e instanceof IDBDatabaseException, true,
        "Got right kind of exception");
-    is(e.name, "DataError", "Correct error.");
-    is(e.code, 0, "Correct code.");
+    is(e.code, IDBDatabaseException.DATA_ERR, "Correct error code.");
   }
 
   objectStore.get(data[2].ssn).onsuccess = grabEventAndContinueHandler;
@@ -180,10 +176,9 @@ function testSteps()
     ok(false, "Delete with null should have thrown");
   }
   catch(e) {
-    is(e instanceof DOMException, true,
+    is(e instanceof IDBDatabaseException, true,
        "Got right kind of exception");
-    is(e.name, "DataError", "Correct error.");
-    is(e.code, 0, "Correct code.");
+    is(e.code, IDBDatabaseException.DATA_ERR, "Correct error code.");
   }
 
   objectStore.count().onsuccess = grabEventAndContinueHandler;
@@ -1264,10 +1259,9 @@ function testSteps()
     ok(false, "Get with null should have thrown");
   }
   catch(e) {
-    is(e instanceof DOMException, true,
+    is(e instanceof IDBDatabaseException, true,
        "Got right kind of exception");
-    is(e.name, "DataError", "Correct error.");
-    is(e.code, 0, "Correct code.");
+    is(e.code, IDBDatabaseException.DATA_ERR, "Correct error code.");
   }
 
   index.get(data[0].weight).onsuccess = grabEventAndContinueHandler;
@@ -1376,10 +1370,9 @@ function testSteps()
     ok(false, "Get with null should have thrown");
   }
   catch(e) {
-    is(e instanceof DOMException, true,
+    is(e instanceof IDBDatabaseException, true,
        "Got right kind of exception");
-    is(e.name, "DataError", "Correct error.");
-    is(e.code, 0, "Correct code.");
+    is(e.code, IDBDatabaseException.DATA_ERR, "Correct error code.");
   }
 
   index.getKey(data[0].weight).onsuccess = grabEventAndContinueHandler;

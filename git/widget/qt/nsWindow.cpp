@@ -2643,13 +2643,6 @@ nsPopupWindow::~nsPopupWindow()
 {
 }
 
-NS_IMETHODIMP_(bool)
-nsWindow::HasGLContext()
-{
-    QGraphicsView *view = qobject_cast<QGraphicsView*>(GetViewWidget());
-    return view && qobject_cast<QGLWidget*>(view->viewport());
-}
-
 MozQWidget*
 nsWindow::createQWidget(MozQWidget *parent,
                         nsNativeWidget nativeParent,
@@ -2718,7 +2711,8 @@ nsWindow::createQWidget(MozQWidget *parent,
 #ifdef MOZ_PLATFORM_MAEMO
         if (GetShouldAccelerate()) {
             // Only create new OGL widget if it is not yet installed
-            if (!HasGLContext()) {
+            QGLWidget *glWidget = qobject_cast<QGLWidget*>(newView->viewport());
+            if (!glWidget) {
                 newView->setViewport(new QGLWidget());
             }
         }

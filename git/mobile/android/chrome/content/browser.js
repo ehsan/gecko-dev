@@ -249,7 +249,6 @@ var BrowserApp = {
     // Init FormHistory
     Cc["@mozilla.org/satchel/form-history;1"].getService(Ci.nsIFormHistory2);
 
-    let loadParams = {};
     let url = "about:home";
     let forceRestore = false;
     if ("arguments" in window) {
@@ -262,9 +261,6 @@ var BrowserApp = {
       if (window.arguments[3])
         gScreenHeight = window.arguments[3];
     }
-
-    if (url == "about:empty")
-      loadParams.flags = Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_HISTORY;
 
     // XXX maybe we don't do this if the launch was kicked off from external
     Services.io.offline = false;
@@ -288,7 +284,7 @@ var BrowserApp = {
 
       // Open any commandline URLs, except the homepage
       if (url && url != "about:home") {
-        this.addTab(url, loadParams);
+        this.addTab(url);
       } else {
         // Let the session make a restored tab active
         restoreToFront = true;
@@ -317,8 +313,7 @@ var BrowserApp = {
       // Start the restore
       ss.restoreLastSession(restoreToFront, forceRestore);
     } else {
-      loadParams.showProgress = (url != "about:home");
-      this.addTab(url, loadParams);
+      this.addTab(url, { showProgress: url != "about:home" });
 
       // show telemetry door hanger if we aren't restoring a session
       this._showTelemetryPrompt();
@@ -1945,10 +1940,7 @@ Tab.prototype = {
       case "PluginClickToPlay": {
         let plugin = aEvent.target;
 
-        // Check if plugins have already been activated for this page, or if the user
-        // has set a permission to always play plugins on the site
-        if (this.clickToPlayPluginsActivated ||
-            Services.perms.testPermission(this.browser.currentURI, "plugins") == Services.perms.ALLOW_ACTION) {
+        if (this.clickToPlayPluginsActivated) {
           PluginHelper.playPlugin(plugin);
           return;
         }

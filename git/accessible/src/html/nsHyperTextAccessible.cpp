@@ -207,7 +207,11 @@ nsIntRect nsHyperTextAccessible::GetBoundsForString(nsIFrame *aFrame, PRUint32 a
                                              &startContentOffsetInFrame, &frame);
   NS_ENSURE_SUCCESS(rv, screenRect);
 
-  nsPresContext* context = mDoc->PresContext();
+  NS_ENSURE_TRUE(mDoc, screenRect);
+  nsIPresShell* shell = mDoc->PresShell();
+  NS_ENSURE_TRUE(shell, screenRect);
+
+  nsPresContext *context = shell->GetPresContext();
 
   while (frame && startContentOffset < endContentOffset) {
     // Start with this frame's screen rect, which we will 
@@ -1290,10 +1294,13 @@ nsHyperTextAccessible::GetOffsetAtPoint(PRInt32 aX, PRInt32 aY,
                                         PRUint32 aCoordType, PRInt32 *aOffset)
 {
   *aOffset = -1;
-
-  if (IsDefunct())
+  if (!mDoc)
     return NS_ERROR_FAILURE;
 
+  nsIPresShell* shell = mDoc->PresShell();
+  if (!shell) {
+    return NS_ERROR_FAILURE;
+  }
   nsIFrame *hyperFrame = GetFrame();
   if (!hyperFrame) {
     return NS_ERROR_FAILURE;
@@ -1312,7 +1319,8 @@ nsHyperTextAccessible::GetOffsetAtPoint(PRInt32 aX, PRInt32 aY,
   }
   nsIntPoint pxInHyperText(coords.x - frameScreenRect.x,
                            coords.y - frameScreenRect.y);
-  nsPresContext* context = mDoc->PresContext();
+  nsPresContext *context = GetPresContext();
+  NS_ENSURE_TRUE(context, NS_ERROR_FAILURE);
   nsPoint pointInHyperText(context->DevPixelsToAppUnits(pxInHyperText.x),
                            context->DevPixelsToAppUnits(pxInHyperText.y));
 

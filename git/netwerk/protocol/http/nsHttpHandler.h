@@ -237,22 +237,6 @@ public:
     {
         *outVal = mMaxPipelineObjectSize;
     }
-
-    bool GetPipelineEnabled()
-    {
-        return mCapabilities & NS_HTTP_ALLOW_PIPELINING;
-    }
-
-    bool GetPipelineRescheduleOnTimeout()
-    {
-        return mPipelineRescheduleOnTimeout;
-    }
-
-    PRIntervalTime GetPipelineRescheduleTimeout()
-    {
-        return mPipelineRescheduleTimeout;
-    }
-    
     PRIntervalTime GetPipelineTimeout()   { return mPipelineReadTimeout; }
 
 private:
@@ -315,8 +299,7 @@ private:
     PRUint16 mMaxOptimisticPipelinedRequests;
     bool     mPipelineAggressive;
     PRInt64  mMaxPipelineObjectSize;
-    bool     mPipelineRescheduleOnTimeout;
-    PRIntervalTime mPipelineRescheduleTimeout;
+
     PRIntervalTime mPipelineReadTimeout;
 
     PRUint8  mRedirectionLimit;

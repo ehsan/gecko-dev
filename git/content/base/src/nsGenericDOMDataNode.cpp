@@ -307,7 +307,10 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
 
   // Make sure the text fragment can hold the new data.
   if (aLength > aCount && !mText.CanGrowBy(aLength - aCount)) {
-    return NS_ERROR_OUT_OF_MEMORY;
+    // This exception isn't per spec, but the spec doesn't actually
+    // say what to do here.
+
+    return NS_ERROR_DOM_DOMSTRING_SIZE_ERR;
   }
 
   nsIDocument *document = GetCurrentDoc();

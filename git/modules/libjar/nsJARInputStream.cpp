@@ -276,9 +276,6 @@ nsJARInputStream::IsNonBlocking(bool *aNonBlocking)
 NS_IMETHODIMP
 nsJARInputStream::Close()
 {
-    if (mMode == MODE_INFLATE) {
-        inflateEnd(&mZs);
-    }
     mMode = MODE_CLOSED;
     mFd = nsnull;
     return NS_OK;

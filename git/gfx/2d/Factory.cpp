@@ -48,7 +48,7 @@
 #include "ScaledFontFreetype.h"
 #endif
 
-#if defined(WIN32) && defined(USE_SKIA)
+#ifdef WIN32
 #include "ScaledFontWin.h"
 #endif
 

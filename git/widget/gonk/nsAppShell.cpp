@@ -279,8 +279,7 @@ public:
     GeckoInputReaderPolicy() {}
 
     virtual void getReaderConfiguration(InputReaderConfiguration* outConfig);
-    virtual sp<PointerControllerInterface> obtainPointerController(int32_t
-deviceId) { return NULL; };
+
     void setDisplayInfo();
 
 protected:

@@ -89,9 +89,8 @@ function testSteps()
               }
               catch (ex) {
                 ok(true, "did throw" + test);
-                ok(ex instanceof DOMException, "Got a DOMException" + test);
-                is(ex.name, "DataError", "expect a DataError" + test);
-                is(ex.code, 0, "expect zero" + test);
+                ok(ex instanceof IDBDatabaseException, "Got a IDBDatabaseException" + test);
+                is(ex.code, IDBDatabaseException.DATA_ERR, "expect a DATA_ERR" + test);
                 is(JSON.stringify(value), valueJSON, "call didn't modify value" + test);
               }
               continue;

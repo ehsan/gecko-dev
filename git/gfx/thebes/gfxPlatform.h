@@ -455,8 +455,6 @@ public:
      */
     static PRLogModuleInfo* GetLog(eGfxLog aWhichLog);
 
-    bool WorkAroundDriverBugs() const { return mWorkAroundDriverBugs; }
-
 protected:
     gfxPlatform();
     virtual ~gfxPlatform();
@@ -495,7 +493,6 @@ private:
     nsCOMPtr<nsIObserver> mSRGBOverrideObserver;
     nsCOMPtr<nsIObserver> mFontPrefsObserver;
     mozilla::widget::GfxInfoCollector<gfxPlatform> mAzureBackendCollector;
-    bool mWorkAroundDriverBugs;
 };
 
 #endif /* GFX_PLATFORM_H */

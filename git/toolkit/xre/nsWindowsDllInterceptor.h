@@ -41,34 +41,7 @@
 #include <winternl.h>
 
 /*
- * Simple function interception.
- *
- * We have two separate mechanisms for intercepting a function: We can use the
- * built-in nop space, if it exists, or we can create a detour.
- *
- * Using the built-in nop space works as follows: On x86-32, DLL functions
- * begin with a two-byte nop (mov edi, edi) and are preceeded by five bytes of
- * NOP instructions.
- *
- * When we detect a function with this prelude, we do the following:
- *
- * 1. Write a long jump to our interceptor function into the five bytes of NOPs
- *    before the function.
- *
- * 2. Write a short jump -5 into the two-byte nop at the beginning of the function.
- *
- * This mechanism is nice because it's thread-safe.  It's even safe to do if
- * another thread is currently running the function we're modifying!
- *
- * When the WindowsDllNopSpacePatcher is destroyed, we overwrite the short jump
- * but not the long jump, so re-intercepting the same function won't work,
- * because its prelude won't match.
- *
- *
- * Unfortunately nop space patching doesn't work on functions which don't have
- * this magic prelude (and in particular, x86-64 never has the prelude).  So
- * when we can't use the built-in nop space, we fall back to using a detour,
- * which works as follows:
+ * Simple trampoline interception
  *
  * 1. Save first N bytes of OrigFunction to trampoline, where N is a
  *    number of bytes >= 5 that are instruction aligned.
@@ -82,175 +55,27 @@
  * 4. Hook function needs to call the trampoline during its execution,
  *    to invoke the original function (so address of trampoline is
  *    returned).
- *
- * When the WindowsDllDetourPatcher object is destructed, OrigFunction is
- * patched again to jump directly to the trampoline instead of going through
- * the hook function. As such, re-intercepting the same function won't work, as
- * jump instructions are not supported.
- *
- * Note that this is not thread-safe.  Sad day.
- *
+ * 
+ * When the WindowsDllInterceptor class is destructed, OrigFunction is
+ * patched again to jump directly to the trampoline instead of going
+ * through the hook function. As such, re-intercepting the same function
+ * won't work, as jump instructions are not supported.
  */
 
-#include <mozilla/StandardInteger.h>
-
-namespace mozilla {
-namespace internal {
-
-class WindowsDllNopSpacePatcher
+class WindowsDllInterceptor
 {
   typedef unsigned char *byteptr_t;
-  HMODULE mModule;
-
-  // Dumb array for remembering the addresses of functions we've patched.
-  // (This should be nsTArray, but non-XPCOM code uses this class.)
-  static const size_t maxPatchedFns = 128;
-  byteptr_t mPatchedFns[maxPatchedFns];
-  int mPatchedFnsLen;
-
 public:
-  WindowsDllNopSpacePatcher()
+  WindowsDllInterceptor() 
     : mModule(0)
-    , mPatchedFnsLen(0)
-  {}
-
-  ~WindowsDllNopSpacePatcher()
-  {
-    // Restore the mov edi, edi to the beginning of each function we patched.
-
-    for (int i = 0; i < mPatchedFnsLen; i++) {
-      byteptr_t fn = mPatchedFns[i];
-
-      // Ensure we can write to the code.
-      DWORD op;
-      if (!VirtualProtectEx(GetCurrentProcess(), fn, 2, PAGE_EXECUTE_READWRITE, &op)) {
-        // printf("VirtualProtectEx failed! %d\n", GetLastError());
-        continue;
-      }
-
-      // mov edi, edi
-      *((uint16_t*)fn) = 0xff8b;
-
-      // Restore the old protection.
-      VirtualProtectEx(GetCurrentProcess(), fn, 2, op, &op);
-
-      // I don't think this is actually necessary, but it can't hurt.
-      FlushInstructionCache(GetCurrentProcess(),
-                            /* ignored */ NULL,
-                            /* ignored */ 0);
-    }
-  }
-
-  void Init(const char *modulename)
-  {
-    mModule = LoadLibraryExA(modulename, NULL, 0);
-    if (!mModule) {
-      //printf("LoadLibraryEx for '%s' failed\n", modulename);
-      return;
-    }
-  }
-
-#if defined(_M_IX86)
-  bool AddHook(const char *pname, intptr_t hookDest, void **origFunc)
-  {
-    if (!mModule)
-      return false;
-
-    if (mPatchedFnsLen == maxPatchedFns) {
-      // printf ("No space for hook in mPatchedFns.\n");
-      return false;
-    }
-
-    byteptr_t fn = reinterpret_cast<byteptr_t>(GetProcAddress(mModule, pname));
-    if (!fn) {
-      //printf ("GetProcAddress failed\n");
-      return false;
-    }
-  
-    // Ensure we can read and write starting at fn - 5 (for the long jmp we're
-    // going to write) and ending at fn + 2 (for the short jmp up to the long
-    // jmp).
-    DWORD op;
-    if (!VirtualProtectEx(GetCurrentProcess(), fn - 5, 7, PAGE_EXECUTE_READWRITE, &op)) {
-      //printf ("VirtualProtectEx failed! %d\n", GetLastError());
-      return false;
-    }
-
-    bool rv = WriteHook(fn, hookDest, origFunc);
-    
-    // Re-protect, and we're done.
-    VirtualProtectEx(GetCurrentProcess(), fn - 5, 7, op, &op);
-
-    if (rv) {
-      mPatchedFns[mPatchedFnsLen] = fn;
-      mPatchedFnsLen++;
-    }
-
-    return rv;
-  }
-
-  bool WriteHook(byteptr_t fn, intptr_t hookDest, void **origFunc)
-  {
-    // Check that the 5 bytes before fn are NOP's, and that the 2 bytes after
-    // fn are mov(edi, edi).
-    //
-    // It's safe to read fn[-5] because we set it to PAGE_EXECUTE_READWRITE
-    // before calling WriteHook.
-
-    for (int i = -5; i <= -1; i++) {
-      if (fn[i] != 0x90) // nop
-        return false;
-    }
-
-    // mov edi, edi.  Yes, there are two ways to encode the same thing:
-    //
-    //   0x89ff == mov r/m, r
-    //   0x8bff == mov r, r/m
-    //
-    // where "r" is register and "r/m" is register or memory.  Windows seems to
-    // use 8bff; I include 89ff out of paranoia.
-    if ((fn[0] != 0x8b && fn[0] != 0x89) || fn[1] != 0xff) {
-      return false;
-    }
-
-    // Write a long jump into the space above the function.
-    fn[-5] = 0xe9; // jmp
-    *((intptr_t*)(fn - 4)) = hookDest - (uintptr_t)(fn); // target displacement
-
-    // Set origFunc here, because after this point, hookDest might be called,
-    // and hookDest might use the origFunc pointer.
-    *origFunc = fn + 2;
-
-    // Short jump up into our long jump.
-    *((uint16_t*)(fn)) = 0xf9eb; // jmp $-5
-
-    // I think this routine is safe without this, but it can't hurt.
-    FlushInstructionCache(GetCurrentProcess(),
-                          /* ignored */ NULL,
-                          /* ignored */ 0);
-
-    return true;
-  }
-#else
-  bool AddHook(const char *pname, intptr_t hookDest, void **origFunc)
-  {
-    // Not implemented except on x86-32.
-    return false;
-  }
-#endif
-};
-
-class WindowsDllDetourPatcher
-{
-  typedef unsigned char *byteptr_t;
-public:
-  WindowsDllDetourPatcher() 
-    : mModule(0), mHookPage(0), mMaxHooks(0), mCurHooks(0)
   {
   }
 
-  ~WindowsDllDetourPatcher()
-  {
+  WindowsDllInterceptor(const char *modulename, int nhooks = 0) {
+    Init(modulename, nhooks);
+  }
+
+  ~WindowsDllInterceptor() {
     int i;
     byteptr_t p;
     for (i = 0, p = mHookPage; i < mCurHooks; i++, p += kHookSize) {
@@ -283,8 +108,7 @@ public:
     }
   }
 
-  void Init(const char *modulename, int nhooks = 0)
-  {
+  void Init(const char *modulename, int nhooks = 0) {
     if (mModule)
       return;
 
@@ -299,6 +123,7 @@ public:
       nhooks = hooksPerPage;
 
     mMaxHooks = nhooks + (hooksPerPage % nhooks);
+    mCurHooks = 0;
 
     mHookPage = (byteptr_t) VirtualAllocEx(GetCurrentProcess(), NULL, mMaxHooks * kHookSize,
              MEM_COMMIT | MEM_RESERVE,
@@ -310,13 +135,7 @@ public:
     }
   }
 
-  bool Initialized()
-  {
-    return !!mModule;
-  }
-
-  void LockHooks()
-  {
+  void LockHooks() {
     if (!mModule)
       return;
 
@@ -326,7 +145,9 @@ public:
     mModule = 0;
   }
 
-  bool AddHook(const char *pname, intptr_t hookDest, void **origFunc)
+  bool AddHook(const char *pname,
+         intptr_t hookDest,
+         void **origFunc)
   {
     if (!mModule)
       return false;
@@ -337,11 +158,13 @@ public:
       return false;
     }
 
-    CreateTrampoline(pAddr, hookDest, origFunc);
-    if (!*origFunc) {
+    void *tramp = CreateTrampoline(pAddr, hookDest);
+    if (!tramp) {
       //printf ("CreateTrampoline failed\n");
       return false;
     }
+
+    *origFunc = tramp;
 
     return true;
   }
@@ -355,15 +178,12 @@ protected:
   int mMaxHooks;
   int mCurHooks;
 
-  void CreateTrampoline(void *origFunction,
-                        intptr_t dest,
-                        void **outTramp)
+  byteptr_t CreateTrampoline(void *origFunction,
+           intptr_t dest)
   {
-    *outTramp = NULL;
-
     byteptr_t tramp = FindTrampolineSpace();
     if (!tramp)
-      return;
+      return 0;
 
     byteptr_t origBytes = (byteptr_t) origFunction;
 
@@ -391,7 +211,7 @@ protected:
           nBytes += 3;
         } else {
           // complex MOV, bail
-          return;
+          return 0;
         }
       } else if (origBytes[nBytes] == 0x83) {
         // ADD|ODR|ADC|SBB|AND|SUB|XOR|CMP r/m, imm8
@@ -401,7 +221,7 @@ protected:
           nBytes += 3;
         } else {
           // bail
-          return;
+          return 0;
         }
       } else if (origBytes[nBytes] == 0x68) {
         // PUSH with 4-byte operand
@@ -418,7 +238,7 @@ protected:
         nBytes += 5;
       } else {
         //printf ("Unknown x86 instruction byte 0x%02x, aborting trampoline\n", origBytes[nBytes]);
-        return;
+        return 0;
       }
     }
 #elif defined(_M_X64)
@@ -427,7 +247,7 @@ protected:
       // if found JMP 32bit offset, next bytes must be NOP 
       if (pJmp32 >= 0) {
         if (origBytes[nBytes++] != 0x90)
-          return;
+          return 0;
 
         continue;
       } 
@@ -443,7 +263,7 @@ protected:
           // mov r32, imm32
           nBytes += 5;
         } else {
-          return;
+          return 0;
         }
       } else if (origBytes[nBytes] == 0x45) {
         // REX.R & REX.B
@@ -453,7 +273,7 @@ protected:
           // xor r32, r32
           nBytes += 2;
         } else {
-          return;
+          return 0;
         }
       } else if ((origBytes[nBytes] & 0xfb) == 0x48) {
         // REX.W | REX.WR
@@ -487,11 +307,11 @@ protected:
             nBytes += 2;
           } else {
             // complex MOV
-            return;
+            return 0;
           }
         } else {
           // not support yet!
-          return;
+          return 0;
         }
       } else if ((origBytes[nBytes] & 0xf0) == 0x50) {
         // 1-byte push/pop
@@ -509,10 +329,10 @@ protected:
           // push r64
           nBytes++;
         } else {
-          return;
+          return 0;
         }
       } else {
-        return;
+        return 0;
       }
     }
 #else
@@ -521,7 +341,7 @@ protected:
 
     if (nBytes > 100) {
       //printf ("Too big!");
-      return;
+      return 0;
     }
 
     // We keep the address of the original function in the first bytes of
@@ -571,14 +391,11 @@ protected:
     }
 #endif
 
-    // The trampoline is now valid.
-    *outTramp = tramp;
-
     // ensure we can modify the original code
     DWORD op;
     if (!VirtualProtectEx(GetCurrentProcess(), origFunction, nBytes, PAGE_EXECUTE_READWRITE, &op)) {
       //printf ("VirtualProtectEx failed! %d\n", GetLastError());
-      return;
+      return 0;
     }
 
 #if defined(_M_IX86)
@@ -600,10 +417,11 @@ protected:
 
     // restore protection; if this fails we can't really do anything about it
     VirtualProtectEx(GetCurrentProcess(), origFunction, nBytes, op, &op);
+
+    return tramp;
   }
 
-  byteptr_t FindTrampolineSpace()
-  {
+  byteptr_t FindTrampolineSpace() {
     if (mCurHooks >= mMaxHooks)
       return 0;
 
@@ -615,65 +433,5 @@ protected:
   }
 };
 
-} // namespace internal
-
-class WindowsDllInterceptor
-{
-  internal::WindowsDllNopSpacePatcher mNopSpacePatcher;
-  internal::WindowsDllDetourPatcher mDetourPatcher;
-
-  const char *mModuleName;
-  int mNHooks;
-
-public:
-  WindowsDllInterceptor()
-    : mModuleName(NULL)
-    , mNHooks(0)
-  {}
-
-  void Init(const char *moduleName, int nhooks = 0)
-  {
-    if (mModuleName) {
-      return;
-    }
-
-    mModuleName = moduleName;
-    mNHooks = nhooks;
-    mNopSpacePatcher.Init(moduleName);
-
-    // Lazily initialize mDetourPatcher, since it allocates memory and we might
-    // not need it.
-  }
-
-  void LockHooks()
-  {
-    if (mDetourPatcher.Initialized())
-      mDetourPatcher.LockHooks();
-  }
-
-  bool AddHook(const char *pname, intptr_t hookDest, void **origFunc)
-  {
-    if (!mModuleName) {
-      // printf("AddHook before initialized?\n");
-      return false;
-    }
-
-    if (mNopSpacePatcher.AddHook(pname, hookDest, origFunc)) {
-      // printf("nopSpacePatcher succeeded.\n");
-      return true;
-    }
-
-    if (!mDetourPatcher.Initialized()) {
-      // printf("Initializing detour patcher.\n");
-      mDetourPatcher.Init(mModuleName, mNHooks);
-    }
-
-    bool rv = mDetourPatcher.AddHook(pname, hookDest, origFunc);
-    // printf("detourPatcher returned %d\n", rv);
-    return rv;
-  }
-};
-
-} // namespace mozilla
 
 #endif /* NS_WINDOWS_DLL_INTERCEPTOR_H_ */

@@ -13,6 +13,22 @@ const Ci = Components.interfaces;
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 
 /**
+ * The default width for page thumbnails.
+ *
+ * Hint: This is the default value because the 'New Tab Page' is the only
+ *       client for now.
+ */
+const THUMBNAIL_WIDTH = 400;
+
+/**
+ * The default height for page thumbnails.
+ *
+ * Hint: This is the default value because the 'New Tab Page' is the only
+ *       client for now.
+ */
+const THUMBNAIL_HEIGHT = 225;
+
+/**
  * The default background color for page thumbnails.
  */
 const THUMBNAIL_BG_COLOR = "#fff";
@@ -30,13 +46,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
  * accessing them if already cached.
  */
 let PageThumbs = {
-
-  /**
-   * The calculated width and height of the thumbnails.
-   */
-  _thumbnailWidth : 0,
-  _thumbnailHeight : 0,
-
   /**
    * The scheme to use for thumbnail urls.
    */
@@ -162,16 +171,15 @@ let PageThumbs = {
     let sw = aWindow.innerWidth;
     let sh = aWindow.innerHeight;
 
-    let [thumbnailWidth, thumbnailHeight] = this._getThumbnailSize();
-    let scale = Math.max(thumbnailWidth / sw, thumbnailHeight / sh);
+    let scale = Math.max(THUMBNAIL_WIDTH / sw, THUMBNAIL_HEIGHT / sh);
     let scaledWidth = sw * scale;
     let scaledHeight = sh * scale;
 
-    if (scaledHeight > thumbnailHeight)
-      sh -= Math.floor(Math.abs(scaledHeight - thumbnailHeight) * scale);
+    if (scaledHeight > THUMBNAIL_HEIGHT)
+      sh -= Math.floor(Math.abs(scaledHeight - THUMBNAIL_HEIGHT) * scale);
 
-    if (scaledWidth > thumbnailWidth)
-      sw -= Math.floor(Math.abs(scaledWidth - thumbnailWidth) * scale);
+    if (scaledWidth > THUMBNAIL_WIDTH)
+      sw -= Math.floor(Math.abs(scaledWidth - THUMBNAIL_WIDTH) * scale);
 
     return [sw, sh, scale];
   },
@@ -185,26 +193,9 @@ let PageThumbs = {
     let canvas = doc.createElementNS(HTML_NAMESPACE, "canvas");
     canvas.mozOpaque = true;
     canvas.mozImageSmoothingEnabled = true;
-    let [thumbnailWidth, thumbnailHeight] = this._getThumbnailSize();
-    canvas.width = thumbnailWidth;
-    canvas.height = thumbnailHeight;
+    canvas.width = THUMBNAIL_WIDTH;
+    canvas.height = THUMBNAIL_HEIGHT;
     return canvas;
-  },
-
-  /**
-   * Calculates the thumbnail size based on current desktop's dimensions.
-   * @return The calculated thumbnail size or a default if unable to calculate.
-   */
-  _getThumbnailSize: function PageThumbs_getThumbnailSize() {
-    if (!this._thumbnailWidth || !this._thumbnailHeight) {
-      let screenManager = Cc["@mozilla.org/gfx/screenmanager;1"]
-                            .getService(Ci.nsIScreenManager);
-      let left = {}, top = {}, width = {}, height = {};
-      screenManager.primaryScreen.GetRect(left, top, width, height);
-      this._thumbnailWidth = Math.round(width.value / 3);
-      this._thumbnailHeight = Math.round(height.value / 3);
-    }
-    return [this._thumbnailWidth, this._thumbnailHeight];
   }
 };
 

@@ -2700,8 +2700,10 @@ static DWORD InitDwriteBG(LPVOID lpdwThreadParam)
 }
 #endif
 
-#ifdef USE_GLX_TEST
+#ifdef MOZ_X11
+#ifndef MOZ_PLATFORM_MAEMO
 bool fire_glxtest_process();
+#endif
 #endif
 
 #include "sampler.h"
@@ -2788,7 +2790,8 @@ XREMain::XRE_mainInit(const nsXREAppData* aAppData, bool* aExitFlag)
     NS_BREAK();
 #endif
 
-#ifdef USE_GLX_TEST
+#ifdef MOZ_X11
+#ifndef MOZ_PLATFORM_MAEMO
   // bug 639842 - it's very important to fire this process BEFORE we set up
   // error handling. indeed, this process is expected to be crashy, and we
   // don't want the user to see its crashes. That's the whole reason for
@@ -2797,6 +2800,7 @@ XREMain::XRE_mainInit(const nsXREAppData* aAppData, bool* aExitFlag)
     *aExitFlag = true;
     return 0;
   }
+#endif
 #endif
 
 #ifdef XP_WIN

@@ -24,9 +24,6 @@ public:
   NS_DECL_NSIDOMDOMERROR
 
   static already_AddRefed<nsIDOMDOMError>
-  CreateForNSResult(nsresult rv);
-
-  static already_AddRefed<nsIDOMDOMError>
   CreateForDOMExceptionCode(PRUint16 aDOMExceptionCode);
 
   static already_AddRefed<nsIDOMDOMError>

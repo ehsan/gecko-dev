@@ -56,8 +56,6 @@
 
 #include "nsWindowsDllInterceptor.h"
 
-using namespace mozilla;
-
 #if defined(MOZ_CRASHREPORTER) && !defined(NO_BLOCKLIST_CRASHREPORTER)
 #include "nsExceptionHandler.h"
 #endif

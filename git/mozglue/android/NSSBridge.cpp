@@ -15,6 +15,8 @@
 #include "ElfLoader.h"
 #endif
 
+#define DEBUG 1
+
 #ifdef DEBUG
 #define LOG(x...) __android_log_print(ANDROID_LOG_INFO, "GeckoJNI", x)
 #else

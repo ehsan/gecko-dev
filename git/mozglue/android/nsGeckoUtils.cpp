@@ -36,15 +36,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include <jni.h>
-
-#ifdef MOZ_MEMORY
 // Wrap malloc and free to use jemalloc
 #define malloc __wrap_malloc
 #define free __wrap_free
-#endif
-
 #include <stdlib.h>
-
 
 extern "C"
 __attribute__ ((visibility("default")))

@@ -108,14 +108,6 @@ Bindings::add(JSContext *cx, JSAtom *name, BindingKind kind)
     if (!ensureShape(cx))
         return false;
 
-    if (nargs + nvars == BINDING_COUNT_LIMIT) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                             (kind == ARGUMENT)
-                             ? JSMSG_TOO_MANY_FUN_ARGS
-                             : JSMSG_TOO_MANY_LOCALS);
-        return false;
-    }
-
     /*
      * We still follow 10.2.3 of ES3 and make argument and variable properties
      * of the Call objects enumerable. ES5 reformulated all of its Clause 10 to
@@ -143,6 +135,14 @@ Bindings::add(JSContext *cx, JSAtom *name, BindingKind kind)
         if (kind == CONSTANT)
             attrs |= JSPROP_READONLY;
         slot += nargs + nvars;
+    }
+
+    if (*indexp == BINDING_COUNT_LIMIT) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+                             (kind == ARGUMENT)
+                             ? JSMSG_TOO_MANY_FUN_ARGS
+                             : JSMSG_TOO_MANY_LOCALS);
+        return false;
     }
 
     jsid id;
@@ -217,12 +217,12 @@ bool
 Bindings::getLocalNameArray(JSContext *cx, Vector<JSAtom *> *namesp)
 {
     JS_ASSERT(lastBinding);
-    JS_ASSERT(count() > 0);
+    JS_ASSERT(hasLocalNames());
 
     Vector<JSAtom *> &names = *namesp;
     JS_ASSERT(names.empty());
 
-    unsigned n = count();
+    unsigned n = countLocalNames();
     if (!names.growByUninitialized(n))
         return false;
 
@@ -397,12 +397,11 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
         NoScriptRval,
         SavedCallerFun,
         StrictModeCode,
-        ContainsDynamicNameAccess,
-        ArgumentsHasLocalBinding,
+        UsesEval,
+        MayNeedArgsObj,
         NeedsArgsObj,
         OwnFilename,
-        ParentFilename,
-        IsGenerator
+        ParentFilename
     };
 
     uint32_t length, lineno, nslots;
@@ -430,8 +429,8 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
         /* Should not XDR scripts optimized for a single global object. */
         JS_ASSERT(!JSScript::isValidOffset(script->globalsOffset));
 
-        nargs = script->bindings.numArgs();
-        nvars = script->bindings.numVars();
+        nargs = script->bindings.countArgs();
+        nvars = script->bindings.countVars();
         argsVars = (nargs << 16) | nvars;
     }
     if (!xdr->codeUint32(&argsVars))
@@ -553,19 +552,23 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
             scriptBits |= (1 << SavedCallerFun);
         if (script->strictModeCode)
             scriptBits |= (1 << StrictModeCode);
-        if (script->bindingsAccessedDynamically)
-            scriptBits |= (1 << ContainsDynamicNameAccess);
-        if (script->argumentsHasLocalBinding())
-            scriptBits |= (1 << ArgumentsHasLocalBinding);
-        if (script->analyzedArgsUsage() && script->needsArgsObj())
-            scriptBits |= (1 << NeedsArgsObj);
+        if (script->usesEval)
+            scriptBits |= (1 << UsesEval);
+        if (script->mayNeedArgsObj()) {
+            scriptBits |= (1 << MayNeedArgsObj);
+            /*
+             * In some cases, the front-end calls setNeedsArgsObj when the
+             * script definitely needsArgsObj; preserve this information which
+             * would otherwise be lost.
+             */
+            if (script->analyzedArgsUsage() && script->needsArgsObj())
+                scriptBits |= (1 << NeedsArgsObj);
+        }
         if (script->filename) {
             scriptBits |= (parentScript && parentScript->filename == script->filename)
                           ? (1 << ParentFilename)
                           : (1 << OwnFilename);
         }
-        if (script->isGenerator)
-            scriptBits |= (1 << IsGenerator);
 
         JS_ASSERT(!script->compileAndGo);
         JS_ASSERT(!script->hasSingletons);
@@ -626,19 +629,15 @@ js::XDRScript(XDRState<mode> *xdr, JSScript **scriptp, JSScript *parentScript)
             script->savedCallerFun = true;
         if (scriptBits & (1 << StrictModeCode))
             script->strictModeCode = true;
-        if (scriptBits & (1 << ContainsDynamicNameAccess))
-            script->bindingsAccessedDynamically = true;
-        if (scriptBits & (1 << ArgumentsHasLocalBinding)) {
-            PropertyName *arguments = cx->runtime->atomState.argumentsAtom;
-            unsigned slot;
-            DebugOnly<BindingKind> kind = script->bindings.lookup(cx, arguments, &slot);
-            JS_ASSERT(kind == VARIABLE || kind == CONSTANT);
-            script->setArgumentsHasLocalBinding(slot);
+        if (scriptBits & (1 << UsesEval))
+            script->usesEval = true;
+        if (scriptBits & (1 << MayNeedArgsObj)) {
+            script->setMayNeedArgsObj();
+            if (scriptBits & (1 << NeedsArgsObj))
+                script->setNeedsArgsObj(true);
+        } else {
+            JS_ASSERT(!(scriptBits & (1 << NeedsArgsObj)));
         }
-        if (scriptBits & (1 << NeedsArgsObj))
-            script->setNeedsArgsObj(true);
-        if (scriptBits & (1 << IsGenerator))
-            script->isGenerator = true;
     }
 
     JS_STATIC_ASSERT(sizeof(jsbytecode) == 1);
@@ -786,7 +785,7 @@ js::XDRScript(XDRState<XDR_DECODE> *xdr, JSScript **scriptp, JSScript *parentScr
 bool
 JSScript::initScriptCounts(JSContext *cx)
 {
-    JS_ASSERT(!hasScriptCounts);
+    JS_ASSERT(!scriptCounts);
 
     size_t n = 0;
 
@@ -801,21 +800,8 @@ JSScript::initScriptCounts(JSContext *cx)
     if (!cursor)
         return false;
 
-    /* Create compartment's scriptCountsMap if necessary. */
-    ScriptCountsMap *map = compartment()->scriptCountsMap;
-    if (!map) {
-        map = cx->new_<ScriptCountsMap>();
-        if (!map || !map->init()) {
-            cx->free_(cursor);
-            cx->delete_(map);
-            return false;
-        }
-        compartment()->scriptCountsMap = map;
-    }
-
     DebugOnly<char *> base = cursor;
 
-    ScriptCounts scriptCounts;
     scriptCounts.pcCountsVector = (PCCounts *) cursor;
     cursor += length * sizeof(PCCounts);
 
@@ -829,13 +815,6 @@ JSScript::initScriptCounts(JSContext *cx)
         next = pc + GetBytecodeLength(pc);
     }
 
-    if (!map->putNew(this, scriptCounts)) {
-        cx->free_(cursor);
-        cx->delete_(map);
-        return false;
-    }
-    hasScriptCounts = true; // safe to set this;  we can't fail after this point
-
     JS_ASSERT(size_t(cursor - base) == bytes);
 
     /* Enable interrupts in any interpreter frames running on this script. */
@@ -846,94 +825,13 @@ JSScript::initScriptCounts(JSContext *cx)
     return true;
 }
 
-js::PCCounts
-JSScript::getPCCounts(jsbytecode *pc) {
-    JS_ASSERT(hasScriptCounts);
-    JS_ASSERT(size_t(pc - code) < length);
-    ScriptCountsMap *map = compartment()->scriptCountsMap;
-    JS_ASSERT(map);
-    ScriptCountsMap::Ptr p = map->lookup(this);
-    JS_ASSERT(p);
-    return p->value.pcCountsVector[pc - code];
-}
-
-ScriptCounts
-JSScript::releaseScriptCounts()
-{
-    JS_ASSERT(hasScriptCounts);
-    ScriptCountsMap *map = compartment()->scriptCountsMap;
-    JS_ASSERT(map);
-    ScriptCountsMap::Ptr p = map->lookup(this);
-    JS_ASSERT(p);
-    ScriptCounts counts = p->value;
-    map->remove(p);
-    hasScriptCounts = false;
-    return counts;
-}
-
 void
 JSScript::destroyScriptCounts(FreeOp *fop)
 {
-    if (hasScriptCounts) {
-        ScriptCounts scriptCounts = releaseScriptCounts();
+    if (scriptCounts) {
         fop->free_(scriptCounts.pcCountsVector);
+        scriptCounts.pcCountsVector = NULL;
     }
-}
-
-bool
-JSScript::setSourceMap(JSContext *cx, jschar *sourceMap)
-{
-    JS_ASSERT(!hasSourceMap);
-
-    /* Create compartment's sourceMapMap if necessary. */
-    SourceMapMap *map = compartment()->sourceMapMap;
-    if (!map) {
-        map = cx->new_<SourceMapMap>();
-        if (!map || !map->init()) {
-            cx->delete_(map);
-            return false;
-        }
-        compartment()->sourceMapMap = map;
-    }
-
-    if (!map->putNew(this, sourceMap)) {
-        cx->delete_(map);
-        return false;
-    }
-    hasSourceMap = true; // safe to set this;  we can't fail after this point
-
-    return true;
-}
-
-jschar *
-JSScript::getSourceMap() {
-    JS_ASSERT(hasSourceMap);
-    SourceMapMap *map = compartment()->sourceMapMap;
-    JS_ASSERT(map);
-    SourceMapMap::Ptr p = map->lookup(this);
-    JS_ASSERT(p);
-    return p->value;
-}
-
-jschar *
-JSScript::releaseSourceMap()
-{
-    JS_ASSERT(hasSourceMap);
-    SourceMapMap *map = compartment()->sourceMapMap;
-    JS_ASSERT(map);
-    SourceMapMap::Ptr p = map->lookup(this);
-    JS_ASSERT(p);
-    jschar *sourceMap = p->value;
-    map->remove(p);
-    hasSourceMap = false;
-    return sourceMap;
-}
-
-void
-JSScript::destroySourceMap(FreeOp *fop)
-{
-    if (hasSourceMap)
-        fop->free_(releaseSourceMap());
 }
 
 /*
@@ -1312,7 +1210,7 @@ JSScript::NewScriptFromEmitter(JSContext *cx, BytecodeEmitter *bce)
     script->mainOffset = prologLength;
     PodCopy<jsbytecode>(script->code, bce->prologBase(), prologLength);
     PodCopy<jsbytecode>(script->main(), bce->base(), mainLength);
-    nfixed = bce->inFunction() ? bce->bindings.numVars() : 0;
+    nfixed = bce->inFunction() ? bce->bindings.countVars() : 0;
     JS_ASSERT(nfixed < SLOTNO_LIMIT);
     script->nfixed = uint16_t(nfixed);
     InitAtomMap(cx, bce->atomIndices.getMap(), script->atoms);
@@ -1343,13 +1241,7 @@ JSScript::NewScriptFromEmitter(JSContext *cx, BytecodeEmitter *bce)
     if (script->originPrincipals)
         JS_HoldPrincipals(script->originPrincipals);
 
-    jschar *sourceMap = (jschar *) bce->parser->tokenStream.releaseSourceMap();
-    if (sourceMap) {
-        if (!script->setSourceMap(cx, sourceMap)) {
-            cx->free_(sourceMap);
-            return NULL;
-        }
-    }
+    script->sourceMap = (jschar *) bce->parser->tokenStream.releaseSourceMap();
 
     if (!FinishTakingSrcNotes(cx, bce, script->notes()))
         return NULL;
@@ -1371,17 +1263,23 @@ JSScript::NewScriptFromEmitter(JSContext *cx, BytecodeEmitter *bce)
         if (fp && fp->isFunctionFrame())
             script->savedCallerFun = true;
     }
-    if (bce->bindingsAccessedDynamically())
-        script->bindingsAccessedDynamically = true;
+    if (bce->callsEval())
+        script->usesEval = true;
     if (bce->flags & TCF_HAS_SINGLETONS)
         script->hasSingletons = true;
-    if (bce->flags & TCF_FUN_IS_GENERATOR)
-        script->isGenerator = true;
 
-    if (bce->argumentsHasLocalBinding()) {
-        script->setArgumentsHasLocalBinding(bce->argumentsLocalSlot());
-        if (bce->definitelyNeedsArgsObj())
-            script->setNeedsArgsObj(true);
+    /*
+     * The arguments-usage analysis in analyzeSSA only looks at
+     * JSOP_ARGUMENTS use. Therefore, anything else that definitely requires an
+     * arguments object needs to be accounted for here.
+     */
+    if (bce->inFunction()) {
+        bool needsArgsObj = bce->mayOverwriteArguments() || bce->needsEagerArguments();
+        if (needsArgsObj || bce->usesArguments()) {
+            script->setMayNeedArgsObj();
+            if (needsArgsObj)
+                script->setNeedsArgsObj(true);
+        }
     }
 
     if (bce->globalUses.length()) {
@@ -1520,8 +1418,22 @@ JSScript::finalize(FreeOp *fop)
 #endif
 
     destroyScriptCounts(fop);
-    destroySourceMap(fop);
-    destroyDebugScript(fop);
+
+    if (sourceMap)
+        fop->free_(sourceMap);
+
+    if (debug) {
+        jsbytecode *end = code + length;
+        for (jsbytecode *pc = code; pc < end; pc++) {
+            if (BreakpointSite *site = getBreakpointSite(pc)) {
+                /* Breakpoints are swept before finalization. */
+                JS_ASSERT(site->firstBreakpoint() == NULL);
+                site->clearTrap(fop, NULL, NULL);
+                JS_ASSERT(getBreakpointSite(pc) == NULL);
+            }
+        }
+        fop->free_(debug);
+    }
 
     JS_POISON(data, 0xdb, computedSizeOfData());
     fop->free_(data);
@@ -1758,77 +1670,16 @@ js::CloneScript(JSContext *cx, JSScript *script)
     return newScript;
 }
 
-DebugScript *
-JSScript::debugScript()
-{
-    JS_ASSERT(hasDebugScript);
-    DebugScriptMap *map = compartment()->debugScriptMap;
-    JS_ASSERT(map);
-    DebugScriptMap::Ptr p = map->lookup(this);
-    JS_ASSERT(p);
-    return p->value;
-}
-
-DebugScript *
-JSScript::releaseDebugScript()
-{
-    JS_ASSERT(hasDebugScript);
-    DebugScriptMap *map = compartment()->debugScriptMap;
-    JS_ASSERT(map);
-    DebugScriptMap::Ptr p = map->lookup(this);
-    JS_ASSERT(p);
-    DebugScript *debug = p->value;
-    map->remove(p);
-    hasDebugScript = false;
-    return debug;
-}
-
-void
-JSScript::destroyDebugScript(FreeOp *fop)
-{
-    if (hasDebugScript) {
-        jsbytecode *end = code + length;
-        for (jsbytecode *pc = code; pc < end; pc++) {
-            if (BreakpointSite *site = getBreakpointSite(pc)) {
-                /* Breakpoints are swept before finalization. */
-                JS_ASSERT(site->firstBreakpoint() == NULL);
-                site->clearTrap(fop, NULL, NULL);
-                JS_ASSERT(getBreakpointSite(pc) == NULL);
-            }
-        }
-        fop->free_(releaseDebugScript());
-    }
-}
-
 bool
-JSScript::ensureHasDebugScript(JSContext *cx)
+JSScript::ensureHasDebug(JSContext *cx)
 {
-    if (hasDebugScript)
+    if (debug)
         return true;
 
     size_t nbytes = offsetof(DebugScript, breakpoints) + length * sizeof(BreakpointSite*);
-    DebugScript *debug = (DebugScript *) cx->calloc_(nbytes);
+    debug = (DebugScript *) cx->calloc_(nbytes);
     if (!debug)
         return false;
-
-    /* Create compartment's debugScriptMap if necessary. */
-    DebugScriptMap *map = compartment()->debugScriptMap;
-    if (!map) {
-        map = cx->new_<DebugScriptMap>();
-        if (!map || !map->init()) {
-            cx->free_(debug);
-            cx->delete_(map);
-            return false;
-        }
-        compartment()->debugScriptMap = map;
-    }
-
-    if (!map->putNew(this, debug)) {
-        cx->free_(debug);
-        cx->delete_(map);
-        return false;
-    }
-    hasDebugScript = true; // safe to set this;  we can't fail after this point
 
     /*
      * Ensure that any Interpret() instances running on this script have
@@ -1856,9 +1707,8 @@ JSScript::recompileForStepMode(FreeOp *fop)
 bool
 JSScript::tryNewStepMode(JSContext *cx, uint32_t newValue)
 {
-    JS_ASSERT(hasDebugScript);
+    JS_ASSERT(debug);
 
-    DebugScript *debug = debugScript();
     uint32_t prior = debug->stepMode;
     debug->stepMode = newValue;
 
@@ -1866,8 +1716,10 @@ JSScript::tryNewStepMode(JSContext *cx, uint32_t newValue)
         /* Step mode has been enabled or disabled. Alert the methodjit. */
         recompileForStepMode(cx->runtime->defaultFreeOp());
 
-        if (!stepModeEnabled() && !debug->numSites)
-            cx->free_(releaseDebugScript());
+        if (!stepModeEnabled() && !debug->numSites) {
+            cx->free_(debug);
+            debug = NULL;
+        }
     }
 
     return true;
@@ -1876,23 +1728,21 @@ JSScript::tryNewStepMode(JSContext *cx, uint32_t newValue)
 bool
 JSScript::setStepModeFlag(JSContext *cx, bool step)
 {
-    if (!ensureHasDebugScript(cx))
+    if (!ensureHasDebug(cx))
         return false;
 
-    return tryNewStepMode(cx, (debugScript()->stepMode & stepCountMask) |
-                               (step ? stepFlagMask : 0));
+    return tryNewStepMode(cx, (debug->stepMode & stepCountMask) | (step ? stepFlagMask : 0));
 }
 
 bool
 JSScript::changeStepModeCount(JSContext *cx, int delta)
 {
-    if (!ensureHasDebugScript(cx))
+    if (!ensureHasDebug(cx))
         return false;
 
     assertSameCompartment(cx, this);
     JS_ASSERT_IF(delta > 0, cx->compartment->debugMode());
 
-    DebugScript *debug = debugScript();
     uint32_t count = debug->stepMode & stepCountMask;
     JS_ASSERT(((count + delta) & stepCountMask) == count + delta);
     return tryNewStepMode(cx,
@@ -1906,10 +1756,9 @@ JSScript::getOrCreateBreakpointSite(JSContext *cx, jsbytecode *pc,
 {
     JS_ASSERT(size_t(pc - code) < length);
 
-    if (!ensureHasDebugScript(cx))
+    if (!ensureHasDebug(cx))
         return NULL;
 
-    DebugScript *debug = debugScript();
     BreakpointSite *&site = debug->breakpoints[pc - code];
 
     if (!site) {
@@ -1934,15 +1783,16 @@ JSScript::destroyBreakpointSite(FreeOp *fop, jsbytecode *pc)
 {
     JS_ASSERT(unsigned(pc - code) < length);
 
-    DebugScript *debug = debugScript();
     BreakpointSite *&site = debug->breakpoints[pc - code];
     JS_ASSERT(site);
 
     fop->delete_(site);
     site = NULL;
 
-    if (--debug->numSites == 0 && !stepModeEnabled())
-        fop->free_(releaseDebugScript());
+    if (--debug->numSites == 0 && !stepModeEnabled()) {
+        fop->free_(debug);
+        debug = NULL;
+    }
 }
 
 void
@@ -2020,7 +1870,7 @@ JSScript::markChildren(JSTracer *trc)
 
     if (hasAnyBreakpointsOrStepMode()) {
         for (unsigned i = 0; i < length; i++) {
-            BreakpointSite *site = debugScript()->breakpoints[i];
+            BreakpointSite *site = debug->breakpoints[i];
             if (site && site->trapHandler)
                 MarkValue(trc, &site->trapClosure, "trap closure");
         }
@@ -2028,19 +1878,10 @@ JSScript::markChildren(JSTracer *trc)
 }
 
 void
-JSScript::setArgumentsHasLocalBinding(uint16_t slot)
-{
-    argsHasLocalBinding_ = true;
-    argsSlot_ = slot;
-    needsArgsAnalysis_ = true;
-}
-
-void
 JSScript::setNeedsArgsObj(bool needsArgsObj)
 {
-    JS_ASSERT(!analyzedArgsUsage());
-    JS_ASSERT_IF(needsArgsObj, argumentsHasLocalBinding());
-    needsArgsAnalysis_ = false;
+    JS_ASSERT(!analyzedArgsUsage_);
+    analyzedArgsUsage_ = true;
     needsArgsObj_ = needsArgsObj;
 }
 
@@ -2048,11 +1889,8 @@ bool
 JSScript::applySpeculationFailed(JSContext *cx)
 {
     JS_ASSERT(analyzedArgsUsage());
-    JS_ASSERT(argumentsHasLocalBinding());
     JS_ASSERT(!needsArgsObj());
     needsArgsObj_ = true;
-
-    const unsigned slot = argumentsLocalSlot();
 
     /*
      * By design, the apply-arguments optimization is only made when there
@@ -2069,18 +1907,14 @@ JSScript::applySpeculationFailed(JSContext *cx)
     for (AllFramesIter i(cx->stack.space()); !i.done(); ++i) {
         StackFrame *fp = i.fp();
         if (fp->isFunctionFrame() && fp->script() == this) {
-            if (!fp->hasArgsObj()) {
-                ArgumentsObject *obj = ArgumentsObject::create(cx, fp);
-                if (!obj) {
-                    /*
-                     * We can't leave stack frames where script->needsArgsObj
-                     * and !fp->hasArgsObj. It is, however, safe to leave frames
-                     * where fp->hasArgsObj and !fp->script->needsArgsObj.
-                     */
-                    needsArgsObj_ = false;
-                    return false;
-                }
-                fp->localSlot(slot) = ObjectValue(*obj);
+            if (!fp->hasArgsObj() && !ArgumentsObject::create(cx, fp)) {
+                /*
+                 * We can't leave stack frames where fp->script->needsArgsObj
+                 * and !fp->hasArgsObj. It is, however, safe to leave frames
+                 * where fp->hasArgsObj and !fp->script->needsArgsObj.
+                 */
+                needsArgsObj_ = false;
+                return false;
             }
         }
     }
@@ -2094,54 +1928,14 @@ JSScript::applySpeculationFailed(JSContext *cx)
 
     if (hasAnalysis() && analysis()->ranInference()) {
         types::AutoEnterTypeInference enter(cx);
-        types::TypeScript::MonitorUnknown(cx, this, argumentsBytecode());
+        for (unsigned off = 0; off < length; off += GetBytecodeLength(code + off)) {
+            if (code[off] == JSOP_ARGUMENTS) {
+                types::TypeSet *set = analysis()->pushedTypes(off, 0);
+                JS_ASSERT(set->isLazyArguments(cx));
+                set->addType(cx, types::Type::UnknownType());
+            }
+        }
     }
 
     return true;
 }
-
-#ifdef DEBUG
-bool
-JSScript::varIsAliased(unsigned varSlot)
-{
-    if (bindingsAccessedDynamically)
-        return true;
-
-    for (uint32_t i = 0; i < numClosedVars(); ++i) {
-        if (closedVars()->vector[i] == varSlot) {
-            JS_ASSERT(function()->isHeavyweight());
-            return true;
-        }
-    }
-
-    return false;
-}
-
-bool
-JSScript::argIsAliased(unsigned argSlot)
-{
-    return argLivesInCallObject(argSlot) || needsArgsObj();
-}
-
-bool
-JSScript::argLivesInArgumentsObject(unsigned argSlot)
-{
-    return needsArgsObj() && !argLivesInCallObject(argSlot);
-}
-
-bool
-JSScript::argLivesInCallObject(unsigned argSlot)
-{
-    if (bindingsAccessedDynamically)
-        return true;
-
-    for (uint32_t i = 0; i < numClosedArgs(); ++i) {
-        if (closedArgs()->vector[i] == argSlot) {
-            JS_ASSERT(function()->isHeavyweight());
-            return true;
-        }
-    }
-
-    return false;
-}
-#endif

@@ -1895,7 +1895,7 @@ nsOfflineCacheDevice::GetMatchingNamespace(const nsCString &clientID,
 
   bool found = false;
   nsCString nsSpec;
-  PRInt32 nsType = 0;
+  PRInt32 nsType;
   nsCString nsData;
 
   while (hasRows)

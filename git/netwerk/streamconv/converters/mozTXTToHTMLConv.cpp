@@ -804,7 +804,7 @@ mozTXTToHTMLConv::GlyphHit(const PRUnichar * aInString, PRInt32 aInLength, bool 
   // temporary variable used to store the glyph html text
   nsAutoString outputHTML;
   bool bTestSmilie;
-  bool bArg = false;
+  bool bArg;
   int i;
 
   // refactor some of this mess to avoid code duplication and speed execution a bit

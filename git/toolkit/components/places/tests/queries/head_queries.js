@@ -112,17 +112,14 @@ function populateDB(aArray) {
             // as redirects and get hidden state, the API doesn't have that
             // power (And actually doesn't make much sense to add redirects
             // through the API).
-            // This must be async cause otherwise the updateFrecency call
-            // done by addVisits may randomly happen after it, overwriting the
-            // value.
-            let stmt = DBConn().createAsyncStatement(
+            let stmt = DBConn().createStatement(
               "UPDATE moz_places SET hidden = 1 WHERE url = :url");
             stmt.params.url = qdata.uri;
             try {
-              stmt.executeAsync();
+              stmt.execute();
             }
             catch (ex) {
-              print("Error while setting hidden.");
+              print("Error while setting visit_count.");
             }
             finally {
               stmt.finalize();

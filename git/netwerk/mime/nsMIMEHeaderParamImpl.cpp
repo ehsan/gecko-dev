@@ -1,5 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set sw=4 ts=8 et tw=80 : */
+/* vim:expandtab:shiftwidth=2:tabstop=4:
+ */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -922,7 +923,7 @@ static const char especials[] = "()<>@,;:\\\"/[]?.=";
 nsresult DecodeRFC2047Str(const char *aHeader, const char *aDefaultCharset, 
                           bool aOverrideCharset, nsACString &aResult)
 {
-  const char *p, *q = nsnull, *r;
+  const char *p, *q, *r;
   char *decodedText;
   const char *begin; // tracking pointer for where we are in the input buffer
   PRInt32 isLastEncodedWord = 0;
@@ -1058,3 +1059,4 @@ nsresult DecodeRFC2047Str(const char *aHeader, const char *aDefaultCharset,
 
   return NS_OK;
 }
+
