@@ -83,7 +83,14 @@ ProxyObject::initHandler(const BaseProxyHandler *handler)
 static void
 NukeSlot(ProxyObject *proxy, uint32_t slot)
 {
-    proxy->setReservedSlot(slot, NullValue());
+    Value old = proxy->getSlot(slot);
+    if (old.isMarkable()) {
+        Zone *zone = ZoneOfValue(old);
+        AutoMarkInDeadZone amd(zone);
+        proxy->setReservedSlot(slot, NullValue());
+    } else {
+        proxy->setReservedSlot(slot, NullValue());
+    }
 }
 
 void

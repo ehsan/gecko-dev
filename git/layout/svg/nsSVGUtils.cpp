@@ -372,6 +372,10 @@ nsSVGUtils::GetCanvasTM(nsIFrame *aFrame, uint32_t aFor,
   // XXX yuck, we really need a common interface for GetCanvasTM
 
   if (!aFrame->IsFrameOfType(nsIFrame::eSVG)) {
+    if (aFor == nsISVGChildFrame::FOR_HIT_TESTING &&
+        NS_SVGDisplayListHitTestingEnabled()) {
+      return gfxMatrix();
+    }
     return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(aFrame);
   }
 
@@ -380,6 +384,10 @@ nsSVGUtils::GetCanvasTM(nsIFrame *aFrame, uint32_t aFor,
     if (aFor == nsISVGChildFrame::FOR_PAINTING &&
         NS_SVGDisplayListPaintingEnabled()) {
       return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(aFrame);
+    }
+    if (aFor == nsISVGChildFrame::FOR_HIT_TESTING &&
+        NS_SVGDisplayListHitTestingEnabled()) {
+      return gfxMatrix();
     }
   }
 
@@ -686,7 +694,7 @@ nsSVGUtils::PaintFrameWithEffects(nsRenderingContext *aContext,
 }
 
 bool
-nsSVGUtils::HitTestClip(nsIFrame *aFrame, const gfxPoint &aPoint)
+nsSVGUtils::HitTestClip(nsIFrame *aFrame, const nsPoint &aPoint)
 {
   nsSVGEffects::EffectProperties props =
     nsSVGEffects::GetEffectProperties(aFrame);
@@ -705,28 +713,13 @@ nsSVGUtils::HitTestClip(nsIFrame *aFrame, const gfxPoint &aPoint)
     return true;
   }
 
-  return clipPathFrame->PointIsInsideClipPath(aFrame, aPoint);
+  return clipPathFrame->ClipHitTest(aFrame, GetCanvasTM(aFrame,
+                                    nsISVGChildFrame::FOR_HIT_TESTING), aPoint);
 }
 
 nsIFrame *
-nsSVGUtils::HitTestChildren(nsSVGDisplayContainerFrame* aFrame,
-                            const gfxPoint& aPoint)
+nsSVGUtils::HitTestChildren(nsIFrame *aFrame, const nsPoint &aPoint)
 {
-  // First we transform aPoint into the coordinate space established by aFrame
-  // for its children (e.g. take account of any 'viewBox' attribute):
-  gfxPoint point = aPoint;
-  if (aFrame->GetContent()->IsSVG()) { // must check before cast
-    gfxMatrix m = static_cast<const nsSVGElement*>(aFrame->GetContent())->
-                    PrependLocalTransformsTo(gfxMatrix(),
-                                             nsSVGElement::eChildToUserSpace);
-    if (!m.IsIdentity()) {
-      if (!m.Invert()) {
-        return nullptr;
-      }
-      point = m.Transform(point);
-    }
-  }
-
   // Traverse the list in reverse order, so that if we get a hit we know that's
   // the topmost frame that intersects the point; then we can just return it.
   nsIFrame* result = nullptr;
@@ -740,21 +733,7 @@ nsSVGUtils::HitTestChildren(nsSVGDisplayContainerFrame* aFrame,
           !static_cast<const nsSVGElement*>(content)->HasValidDimensions()) {
         continue;
       }
-      // GetFrameForPoint() expects a point in its frame's SVG user space, so
-      // we need to convert to that space:
-      gfxPoint p = point;
-      if (content->IsSVG()) { // must check before cast
-        gfxMatrix m = static_cast<const nsSVGElement*>(content)->
-                        PrependLocalTransformsTo(gfxMatrix(),
-                                                 nsSVGElement::eUserSpaceToParent);
-        if (!m.IsIdentity()) {
-          if (!m.Invert()) {
-            continue;
-          }
-          p = m.Transform(p);
-        }
-      }
-      result = SVGFrame->GetFrameForPoint(p);
+      result = SVGFrame->GetFrameForPoint(aPoint);
       if (result)
         break;
     }

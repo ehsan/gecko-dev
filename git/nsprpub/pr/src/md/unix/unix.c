@@ -21,10 +21,6 @@
 #include <poll.h>
 #endif
 
-#if defined(ANDROID)
-#include <android/api-level.h>
-#endif
-
 /* To get FIONREAD */
 #if defined(UNIXWARE)
 #include <sys/filio.h>
@@ -2713,8 +2709,8 @@ static void* _MD_Unix_mmap64(
 }  /* _MD_Unix_mmap64 */
 #endif /* defined(_PR_NO_LARGE_FILES) || defined(SOLARIS2_5) */
 
-/* Android <= 19 doesn't have mmap64. */
-#if defined(ANDROID) && __ANDROID_API__ <= 19
+/* Android doesn't have mmap64. */
+#if defined(ANDROID)
 extern void *__mmap2(void *, size_t, int, int, int, size_t);
 
 #define ANDROID_PAGE_SIZE 4096

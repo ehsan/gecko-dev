@@ -22,6 +22,8 @@ BRANDPATH = $(abspath $(DIST)/xpi-stage/$(XPI_NAME)/chrome/$(AB_CD)/locale/brand
 endif
 $(warnIfEmpty,AB_CD) # todo: $(errorIfEmpty )
 
+DEFINES += -DAB_CD=$(AB_CD)
+
 dir-res-values := ../res/values
 strings-xml    := $(dir-res-values)/strings.xml
 strings-xml-in := $(srcdir)/../strings.xml.in

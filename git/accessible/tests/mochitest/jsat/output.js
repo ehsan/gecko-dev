@@ -22,7 +22,7 @@ function testContextOutput(expected, aAccOrElmOrID, aOldAccOrElmOrID, aGenerator
   var oldAccessible = aOldAccOrElmOrID !== null ?
 	getAccessible(aOldAccOrElmOrID || 'root') : null;
   var context = new PivotContext(accessible, oldAccessible);
-  var output = aGenerator.genForContext(context);
+  var output = aGenerator.genForContext(context).output;
 
   // Create a version of the output that has null members where we have
   // null members in the expected output. Those are indexes that are not testable
@@ -33,15 +33,14 @@ function testContextOutput(expected, aAccOrElmOrID, aOldAccOrElmOrID, aGenerator
     if (expected[i] === null) {
       masked_output.push(null);
     } else {
-      masked_output[i] = typeof output[i] === "string" ? output[i].trim() :
-        output[i];
+      masked_output[i] = output[i];
     }
   }
 
   isDeeply(masked_output, expected,
            "Context output is correct for " + aAccOrElmOrID +
-           " (output: " + JSON.stringify(output) + ") ==" +
-           " (expected: " + JSON.stringify(expected) + ")");
+           " (output: " + output.join(", ") + ") ==" +
+           " (expected: " + expected.join(", ") + ")");
 }
 
 /**
@@ -54,9 +53,6 @@ function testContextOutput(expected, aAccOrElmOrID, aOldAccOrElmOrID, aGenerator
  */
 function testObjectOutput(aAccOrElmOrID, aGenerator) {
   var accessible = getAccessible(aAccOrElmOrID);
-  if (!accessible.name || !accessible.name.trim()) {
-    return;
-  }
   var context = new PivotContext(accessible);
   var output = aGenerator.genForObject(accessible, context);
   var outputOrder;

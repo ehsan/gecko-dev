@@ -29,7 +29,7 @@ echo-tiers:
 	@echo $(TIERS)
 
 echo-tier-dirs:
-	@$(foreach tier,$(TIERS),echo '$(tier):'; echo '  dirs: $(tier_$(tier)_dirs)')
+	@$(foreach tier,$(TIERS),echo '$(tier):'; echo '  dirs: $(tier_$(tier)_dirs)'; $(if $(tier_$(tier)_staticdirs),echo '  staticdirs: $(tier_$(tier)_staticdirs)';) )
 
 echo-dirs:
 	@echo $(call shell_quote,$(DIRS))

@@ -6896,7 +6896,6 @@ PresShell::HandleEvent(nsIFrame* aFrame,
       NS_WARNING(warning.get());
     }
 #endif
-    nsContentUtils::WarnScriptWasIgnored(GetDocument());
     return NS_OK;
   }
 

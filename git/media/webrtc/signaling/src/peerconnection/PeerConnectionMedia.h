@@ -362,10 +362,8 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
   void AddTransportFlow(int aIndex, bool aRtcp,
                         const mozilla::RefPtr<mozilla::TransportFlow> &aFlow);
   void ConnectDtlsListener_s(const mozilla::RefPtr<mozilla::TransportFlow>& aFlow);
-  void DtlsConnected_s(mozilla::TransportLayer* aFlow,
-                       mozilla::TransportLayer::State state);
-  static void DtlsConnected_m(const std::string& aParentHandle,
-                              bool aPrivacyRequested);
+  void DtlsConnected(mozilla::TransportLayer* aFlow,
+                     mozilla::TransportLayer::State state);
 
   mozilla::RefPtr<mozilla::MediaSessionConduit> GetConduit(int aStreamIndex, bool aReceive) {
     int index_inner = aStreamIndex * 2 + (aReceive ? 0 : 1);
@@ -408,8 +406,6 @@ class PeerConnectionMedia : public sigslot::has_slots<> {
 
   // The parent PC
   PeerConnectionImpl *mParent;
-  // and a loose handle on it for event driven stuff
-  std::string mParentHandle;
 
   // A list of streams returned from GetUserMedia
   // This is only accessed on the main thread (with one special exception)

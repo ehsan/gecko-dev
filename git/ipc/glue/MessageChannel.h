@@ -89,13 +89,6 @@ class MessageChannel : HasResultCodes
         mAbortOnError = true;
     }
 
-    void BlockScripts();
-
-    bool ShouldBlockScripts() const
-    {
-        return mBlockScripts;
-    }
-
     // Asynchronously send a message to the other side of the channel
     bool Send(Message* aMsg);
 
@@ -646,13 +639,7 @@ class MessageChannel : HasResultCodes
     // Should the channel abort the process from the I/O thread when
     // a channel error occurs?
     bool mAbortOnError;
-
-    // Should we prevent scripts from running while dispatching urgent messages?
-    bool mBlockScripts;
 };
-
-bool
-ProcessingUrgentMessages();
 
 } // namespace ipc
 } // namespace mozilla

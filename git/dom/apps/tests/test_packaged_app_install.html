@@ -244,7 +244,7 @@ var steps = [
           PackagedTestHelper.gApp.cancelDownload();
           // And only do this once.
           PackagedTestHelper.gApp.onprogress = null;
-        }, 10);
+        }, 40);
       };
 
       var alreadyCanceled = false;
@@ -261,24 +261,18 @@ var steps = [
 
       PackagedTestHelper.gApp.ondownloadsuccess = function() {
         info("App downloaded");
-
-        // Sometimes we can't cancel in time (since setting a high timer on the
-        // sjs just doesn't work). Let's fail gracefully in that case, and just
-        // give a warning here.
-        if (!alreadyCanceled) {
-          todo(alreadyCanceled, "The app download wasn't cancelled in time!");
-        }
+        // We could try also applying the download we just made.
         var expected = {
           name: PackagedTestHelper.gAppName,
           manifestURL: miniManifestURL,
           installOrigin: PackagedTestHelper.gInstallOrigin,
           progress: 0,
-          installState: alreadyCanceled?"pending":"installed",
+          installState: "pending",
           downloadAvailable: false,
           downloading: false,
           downloadSize: 0,
           size: 0,
-          readyToApplyDownload: alreadyCanceled
+          readyToApplyDownload: true
         };
         PackagedTestHelper.checkAppState(PackagedTestHelper.gApp, 3, expected,
                                          true, false, function() {});

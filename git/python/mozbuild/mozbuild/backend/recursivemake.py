@@ -33,7 +33,6 @@ from ..frontend.data import (
     Defines,
     DirectoryTraversal,
     Exports,
-    ExternalLibrary,
     GeneratedInclude,
     HostLibrary,
     HostProgram,
@@ -142,26 +141,38 @@ class RecursiveMakeTraversal(object):
     from Makefiles.
 
     Each directory may have one or more types of subdirectories:
+        - parallel
+        - static
         - (normal) dirs
         - tests
+
+    The "traditional" recursive make backend recurses through those by first
+    building the current directory, followed by parallel directories (in
+    parallel), then static directories, dirs, tests and tools (all
+    sequentially).
     """
-    SubDirectoryCategories = ['dirs', 'tests']
+    SubDirectoryCategories = ['parallel', 'static', 'dirs', 'tests']
     SubDirectoriesTuple = namedtuple('SubDirectories', SubDirectoryCategories)
     class SubDirectories(SubDirectoriesTuple):
         def __new__(self):
-            return RecursiveMakeTraversal.SubDirectoriesTuple.__new__(self, [], [])
+            return RecursiveMakeTraversal.SubDirectoriesTuple.__new__(self, [], [], [], [])
 
     def __init__(self):
         self._traversal = {}
 
-    def add(self, dir, dirs=[], tests=[]):
+    def add(self, dir, **kargs):
         """
+        Function signature is, in fact:
+            def add(self, dir, parallel=[], static=[], dirs=[],
+                               tests=[], tools=[])
+        but it's done with **kargs to avoid repetitive code.
+
         Adds a directory to traversal, registering its subdirectories,
         sorted by categories. If the directory was already added to
         traversal, adds the new subdirectories to the already known lists.
         """
         subdirs = self._traversal.setdefault(dir, self.SubDirectories())
-        for key, value in (('dirs', dirs), ('tests', tests)):
+        for key, value in kargs.items():
             assert(key in self.SubDirectoryCategories)
             getattr(subdirs, key).extend(value)
 
@@ -170,7 +181,8 @@ class RecursiveMakeTraversal(object):
         """
         Default filter for use with compute_dependencies and traverse.
         """
-        return current, [], subdirs.dirs + subdirs.tests
+        return current, subdirs.parallel, \
+               subdirs.static + subdirs.dirs + subdirs.tests
 
     def call_filter(self, current, filter):
         """
@@ -311,6 +323,7 @@ class RecursiveMakeBackend(CommonBackend):
 
         self._traversal = RecursiveMakeTraversal()
         self._compile_graph = defaultdict(set)
+        self._triggers = defaultdict(set)
 
         self._may_skip = {
             'export': set(),
@@ -499,7 +512,8 @@ class RecursiveMakeBackend(CommonBackend):
 
         # Traverse directories in parallel, and skip static dirs
         def parallel_filter(current, subdirs):
-            all_subdirs = subdirs.dirs + subdirs.tests
+            all_subdirs = subdirs.parallel + subdirs.dirs + \
+                          subdirs.tests
             if current in self._may_skip[tier] \
                     or current.startswith('subtiers/'):
                 current = None
@@ -512,7 +526,8 @@ class RecursiveMakeBackend(CommonBackend):
             if current in self._may_skip['libs'] \
                     or current.startswith('subtiers/'):
                 current = None
-            return current, [], subdirs.dirs + subdirs.tests
+            return current, [], subdirs.parallel + \
+                subdirs.dirs + subdirs.tests
 
         # Because of bug 925236 and possible other unknown race conditions,
         # don't parallelize the tools tier. There aren't many directories for
@@ -521,7 +536,8 @@ class RecursiveMakeBackend(CommonBackend):
             if current not in self._no_skip['tools'] \
                     or current.startswith('subtiers/'):
                 current = None
-            return current, [], subdirs.dirs + subdirs.tests
+            return current, [], subdirs.parallel + \
+                subdirs.dirs + subdirs.tests
 
         filters = [
             ('export', parallel_filter),
@@ -702,6 +718,12 @@ class RecursiveMakeBackend(CommonBackend):
                 self._create_makefile(obj, stub=stub)
                 with open(obj.output_path) as fh:
                     content = fh.read()
+                    for trigger, targets in self._triggers.items():
+                        if trigger.encode('ascii') in content:
+                            for target in targets:
+                                t = '%s/target' % mozpath.relpath(objdir,
+                                    self.environment.topobjdir)
+                                self._compile_graph[t].add(target)
                     # Skip every directory but those with a Makefile
                     # containing a tools target, or XPI_PKGNAME or
                     # INSTALL_EXTENSION_ID.
@@ -806,7 +828,18 @@ class RecursiveMakeBackend(CommonBackend):
                 self._traversal.add('subtiers/%s' % tier,
                                     dirs=relativize(dirs))
 
+            # tier_static_dirs should have the same keys as tier_dirs.
+            if obj.tier_static_dirs[tier]:
+                fh.write('staticdirs += %s\n' % (
+                    ' '.join(obj.tier_static_dirs[tier])))
+                self._traversal.add('subtiers/%s' % tier,
+                                    static=relativize(obj.tier_static_dirs[tier]))
+
             self._traversal.add('', dirs=['subtiers/%s' % tier])
+
+            for d in dirs + obj.tier_static_dirs[tier]:
+                if d.trigger:
+                    self._triggers[d.trigger].add('%s/target' % d)
 
         if obj.dirs:
             fh.write('DIRS := %s\n' % ' '.join(obj.dirs))
@@ -1029,6 +1062,11 @@ class RecursiveMakeBackend(CommonBackend):
     def _process_simple_program(self, obj, backend_file):
         if obj.is_unit_test:
             backend_file.write('CPP_UNIT_TESTS += %s\n' % obj.program)
+            # config.mk adds a dependency on NSPR_LIBS for CPP_UNIT_TESTS
+            # Add it here until moz.build land handles this.
+            if 'NSPR_LIBS' in self._triggers:
+                self._compile_graph[self._build_target_for_obj(obj)] |= \
+                    self._triggers['NSPR_LIBS']
         else:
             backend_file.write('SIMPLE_PROGRAMS += %s\n' % obj.program)
 
@@ -1194,9 +1232,8 @@ class RecursiveMakeBackend(CommonBackend):
             self._compile_graph[build_target].add('build/stlport/target')
 
         for lib in obj.linked_libraries:
-            if not isinstance(lib, ExternalLibrary):
-                self._compile_graph[build_target].add(
-                    self._build_target_for_obj(lib))
+            self._compile_graph[build_target].add(
+                self._build_target_for_obj(lib))
             relpath = pretty_relpath(lib)
             if isinstance(obj, Library):
                 if isinstance(lib, StaticLibrary):

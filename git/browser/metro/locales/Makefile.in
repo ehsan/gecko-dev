@@ -7,6 +7,8 @@ relativesrcdir = browser/metro/locales
 
 include $(topsrcdir)/config/config.mk
 
+DEFINES += -DAB_CD=$(AB_CD)
+
 include $(topsrcdir)/config/rules.mk
 
 #########################################

@@ -104,6 +104,7 @@ class DirectoryTraversal(SandboxDerived):
         'dirs',
         'test_dirs',
         'tier_dirs',
+        'tier_static_dirs',
     )
 
     def __init__(self, sandbox):
@@ -112,6 +113,7 @@ class DirectoryTraversal(SandboxDerived):
         self.dirs = []
         self.test_dirs = []
         self.tier_dirs = OrderedDict()
+        self.tier_static_dirs = OrderedDict()
 
 
 class BaseConfigSubstitution(SandboxDerived):
@@ -495,20 +497,6 @@ class SharedLibrary(Library):
             )
         else:
             self.soname = self.lib_name
-
-
-class ExternalLibrary(object):
-    """Empty mixin for libraries built by an external build system."""
-
-
-class ExternalStaticLibrary(StaticLibrary, ExternalLibrary):
-    """Sandbox container for static libraries built by an external build
-    system."""
-
-
-class ExternalSharedLibrary(SharedLibrary, ExternalLibrary):
-    """Sandbox container for shared libraries built by an external build
-    system."""
 
 
 class HostLibrary(BaseLibrary):

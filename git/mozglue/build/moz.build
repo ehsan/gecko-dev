@@ -75,9 +75,9 @@ USE_LIBS += [
     'mfbt',
 ]
 
-if CONFIG['MOZ_LINKER']:
+if CONFIG['ZLIB_IN_MOZGLUE'] and not CONFIG['MOZ_NATIVE_ZLIB']:
     USE_LIBS += [
-        'zlib',
+        'mozz',
     ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':

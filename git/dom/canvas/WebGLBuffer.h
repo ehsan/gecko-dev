@@ -10,7 +10,6 @@
 #include "mozilla/LinkedList.h"
 #include "mozilla/MemoryReporting.h"
 #include "nsWrapperCache.h"
-#include "WebGLBindableName.h"
 #include "WebGLObjectModel.h"
 #include "WebGLTypes.h"
 
@@ -20,7 +19,6 @@ class WebGLElementArrayCache;
 
 class WebGLBuffer MOZ_FINAL
     : public nsWrapperCache
-    , public WebGLBindableName
     , public WebGLRefCountedObject<WebGLBuffer>
     , public LinkedListElement<WebGLBuffer>
     , public WebGLContextBoundObject
@@ -32,9 +30,15 @@ public:
 
     size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
+    bool HasEverBeenBound() { return mHasEverBeenBound; }
+    void SetHasEverBeenBound(bool x) { mHasEverBeenBound = x; }
+    GLuint GLName() const { return mGLName; }
     WebGLsizeiptr ByteLength() const { return mByteLength; }
+    GLenum Target() const { return mTarget; }
 
     void SetByteLength(WebGLsizeiptr byteLength) { mByteLength = byteLength; }
+
+    void SetTarget(GLenum target);
 
     bool ElementArrayCacheBufferData(const void* ptr, size_t buffer_size_in_bytes);
 
@@ -57,9 +61,10 @@ public:
 protected:
     ~WebGLBuffer();
 
-    virtual void OnTargetChanged() MOZ_OVERRIDE;
-
+    GLuint mGLName;
+    bool mHasEverBeenBound;
     WebGLsizeiptr mByteLength;
+    GLenum mTarget;
 
     nsAutoPtr<WebGLElementArrayCache> mCache;
 };

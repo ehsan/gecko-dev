@@ -271,7 +271,7 @@ nsSVGDisplayContainerFrame::PaintSVG(nsRenderingContext* aContext,
 }
 
 nsIFrame*
-nsSVGDisplayContainerFrame::GetFrameForPoint(const gfxPoint& aPoint)
+nsSVGDisplayContainerFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
   NS_ASSERTION(!NS_SVGDisplayListHitTestingEnabled() ||
                (mState & NS_FRAME_IS_NONDISPLAY),

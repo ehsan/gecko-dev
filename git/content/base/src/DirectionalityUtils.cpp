@@ -317,7 +317,6 @@ GetDirectionFromText(const char16_t* aText, const uint32_t aLength,
         start < end &&
         NS_IS_LOW_SURROGATE(*start)) {
       ch = SURROGATE_TO_UCS4(ch, *start++);
-      current++;
     }
 
     Directionality dir = GetDirectionFromChar(ch);
@@ -824,27 +823,26 @@ void SetAncestorDirectionIfAuto(nsINode* aTextNode, Directionality aDir,
   }
 }
 
-bool
-TextNodeWillChangeDirection(nsIContent* aTextNode, Directionality* aOldDir,
-                            uint32_t aOffset)
+void
+SetDirectionFromChangedTextNode(nsIContent* aTextNode, uint32_t aOffset,
+                                const char16_t* aBuffer, uint32_t aLength,
+                                bool aNotify)
 {
   if (!NodeAffectsDirAutoAncestor(aTextNode)) {
     nsTextNodeDirectionalityMap::EnsureMapIsClearFor(aTextNode);
-    return false;
+    return;
   }
 
   uint32_t firstStrong;
-  *aOldDir = GetDirectionFromText(aTextNode->GetText(), &firstStrong);
-  return (aOffset <= firstStrong);
-}
+  Directionality oldDir = GetDirectionFromText(aTextNode->GetText(),
+                                               &firstStrong);
+  if (aOffset > firstStrong) {
+    return;
+  }
 
-void
-TextNodeChangedDirection(nsIContent* aTextNode, Directionality aOldDir,
-                         bool aNotify)
-{
-  Directionality newDir = GetDirectionFromText(aTextNode->GetText());
+  Directionality newDir = GetDirectionFromText(aBuffer, aLength);
   if (newDir == eDir_NotSet) {
-    if (aOldDir != eDir_NotSet && aTextNode->HasTextNodeDirectionalityMap()) {
+    if (oldDir != eDir_NotSet && aTextNode->HasTextNodeDirectionalityMap()) {
       // This node used to have a strong directional character but no
       // longer does. ResetTextNodeDirection() will re-resolve the
       // directionality of any elements whose directionality was
