@@ -50,15 +50,14 @@ CPPSRCS		= proxytests.cpp \
 		proxy-create-threadsafety.cpp \
 		$(NULL)
 
-CPP_UNIT_TESTS += \
+CPP_UNIT_TESTS += \ 
   proxytests.cpp \
   proxy-create-threadsafety.cpp \
   $(NULL)
 
-XPIDLSRCS  = \
+XPIDLSRCS  = \ 
   nsITestProxy.idl \
-  nsITestProxyOrig.idl \
-  $(NULL)
+  nsITestProxyOrig.idl
 
 SIMPLE_PROGRAMS	= $(CPPSRCS:.cpp=$(BIN_SUFFIX)) 
 
