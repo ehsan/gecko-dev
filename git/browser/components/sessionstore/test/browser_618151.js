@@ -40,7 +40,7 @@ const testState = {
   windows: [{
     tabs: [
       { entries: [{ url: "about:blank" }] },
-      { entries: [{ url: "about:mozilla" }] }
+      { entries: [{ url: "about:robots" }] }
     ]
   }]
 };

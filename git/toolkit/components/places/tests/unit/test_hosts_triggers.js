@@ -37,15 +37,18 @@ function isHostInMozHosts(aURI, aTyped)
   let stmt = DBConn().createStatement(
     "SELECT host, typed "
     + "FROM moz_hosts "
-    + "WHERE host = fixup_url(:host)"
+    + "WHERE host = :host"
   );
   let result = false;
   stmt.params.host = aURI.host;
-  if (stmt.executeStep()) {
-    if (aTyped != null)
-      result = aTyped == stmt.row.typed;
-    else
-      result = true;
+  while(stmt.executeStep()) {
+    if (stmt.row.host == aURI.host) {
+      if (aTyped != null)
+        result = aTyped == stmt.row.typed;
+      else
+        result = true;
+      break;
+    }
   }
   stmt.finalize();
   return result;
@@ -97,7 +100,9 @@ function test_moz_hosts_update()
     handleCompletion: function () {
       do_check_true(isHostInMozHosts(urls[0].uri, urls[0].typed));
       do_check_true(isHostInMozHosts(urls[1].uri, urls[1].typed));
-      do_check_true(isHostInMozHosts(urls[2].uri, urls[2].typed));
+      // strip the WWW from the url before testing...
+      do_check_true(isHostInMozHosts(NetUtil.newURI("http://foo.mozilla.org"),
+                                     urls[2].typed));
       run_next_test();
     }
   });
@@ -175,41 +180,6 @@ function test_moz_hosts_typed_update()
   });
 }
 
-function test_moz_hosts_www_remove()
-{
-  function test_removal(aURIToRemove, aURIToKeep, aCallback) {
-    let places = [{ uri: aURIToRemove
-                  , title: "test for " + aURIToRemove.spec
-                  , visits: [ new VisitInfo() ]
-                  },
-                  { uri: aURIToKeep
-                  , title: "test for " + aURIToKeep.spec
-                  , visits: [ new VisitInfo() ]
-                  }];
-
-    gHistory.updatePlaces(places, {
-      handleResult: function () {
-      },
-      handleError: function () {
-        do_throw("gHistory.updatePlaces() failed");
-      },
-      handleCompletion: function () {
-        PlacesUtils.history.removePage(aURIToRemove);
-        do_check_true(isHostInMozHosts(aURIToKeep));
-        waitForClearHistory(aCallback);
-      }
-    });
-  }
-
-  const TEST_URI = NetUtil.newURI("http://rem.mozilla.com");
-  const TEST_WWW_URI = NetUtil.newURI("http://www.rem.mozilla.com");
-  test_removal(TEST_URI, TEST_WWW_URI, function() {
-    test_removal(TEST_WWW_URI, TEST_URI, function() {
-      waitForClearHistory(run_next_test);
-    });
-  });
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Test Runner
 
@@ -219,7 +189,6 @@ function test_moz_hosts_www_remove()
   test_bookmark_changes,
   test_bookmark_removal,
   test_moz_hosts_typed_update,
-  test_moz_hosts_www_remove,
 ].forEach(add_test);
 
 function run_test()

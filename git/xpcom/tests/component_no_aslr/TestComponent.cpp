@@ -1,3 +1,4 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -11,19 +12,19 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is the PKIX-C library.
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Sun Microsystems, Inc.
- * Portions created by the Initial Developer are
- * Copyright 2004-2007 Sun Microsystems, Inc.  All Rights Reserved.
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Sun Microsystems, Inc.
+ *   Suresh Duddu <dp@netscape.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -34,26 +35,31 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/*
- * pkix_pl_error.c
- *
- * PL error functions
- *
- */
 
-#include "pkix_pl_common.h"
+#include "mozilla/ModuleUtils.h"
 
-#undef PKIX_ERRORENTRY
+#define NS_TESTING_CID \
+{ 0x335fb596, 0xe52d, 0x418f, \
+  { 0xb0, 0x1c, 0x1b, 0xf1, 0x6c, 0xe5, 0xe7, 0xe4 } }
 
-#define PKIX_ERRORENTRY(name,desc,plerr) plerr
+NS_DEFINE_NAMED_CID(NS_TESTING_CID);
 
-const SECErrorCodes PKIX_PLErrorIndex[] =
+static nsresult
+DummyConstructorFunc(nsISupports* aOuter, const nsIID& aIID, void** aResult)
 {
-#include "pkix_errorstrings.h"
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+static const mozilla::Module::CIDEntry kTestCIDs[] = {
+  { &kNS_TESTING_CID, false, NULL, DummyConstructorFunc },
+  { NULL }
 };
 
-int
-PKIX_PL_GetPLErrorCode()
-{
-    return PORT_GetError();
-}
+static const mozilla::Module kTestModule = {
+  mozilla::Module::kVersion,
+  kTestCIDs
+};
+
+NSMODULE_DEFN(dummy) = &kTestModule;
+
+  

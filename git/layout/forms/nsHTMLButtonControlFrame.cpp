@@ -115,8 +115,9 @@ nsHTMLButtonControlFrame::CreateAccessible()
 {
   nsAccessibilityService* accService = nsIPresShell::AccService();
   if (accService) {
-    return accService->CreateHTMLButtonAccessible(mContent,
-                                                  PresContext()->PresShell()); 
+    return IsInput() ?
+      accService->CreateHTMLButtonAccessible(mContent, PresContext()->PresShell()) :
+      accService->CreateHTML4ButtonAccessible(mContent, PresContext()->PresShell());
   }
 
   return nsnull;

@@ -103,11 +103,7 @@
   "BEGIN " \
     "DELETE FROM moz_hosts " \
     "WHERE host = fixup_url(get_unreversed_host(OLD.rev_host)) " \
-      "AND NOT EXISTS(" \
-        "SELECT 1 FROM moz_places " \
-          "WHERE rev_host = get_unreversed_host(host || '.') || '.' " \
-             "OR rev_host = get_unreversed_host(host || '.') || '.www.' " \
-      "); " \
+      "AND NOT EXISTS(SELECT 1 FROM moz_places WHERE rev_host = OLD.rev_host); " \
   "END" \
 )
 
@@ -126,8 +122,8 @@
   "BEGIN " \
     "UPDATE moz_hosts " \
     "SET frecency = (SELECT MAX(frecency) FROM moz_places " \
-                    "WHERE rev_host = get_unreversed_host(host || '.') || '.' " \
-                       "OR rev_host = get_unreversed_host(host || '.') || '.www.') " \
+                    "WHERE rev_host = NEW.rev_host " \
+                       "OR rev_host = NEW.rev_host || 'www.') " \
     "WHERE host = fixup_url(get_unreversed_host(NEW.rev_host)); " \
   "END" \
 )

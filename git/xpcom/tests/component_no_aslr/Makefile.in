@@ -15,12 +15,12 @@
 # The Original Code is mozilla.org code.
 #
 # The Initial Developer of the Original Code is
-# Mozilla Corporation.
-# Portions created by the Initial Developer are Copyright (C) 2010
+# Netscape Communications Corporation.
+# Portions created by the Initial Developer are Copyright (C) 1998
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Alexander Surkov <surkov.alexander@gmail.com> (original author)
+#   Benjamin Smedberg <benjamin@smedbergs.us>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -36,29 +36,46 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH		= ../../../..
+DEPTH		= ../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
-relativesrcdir  = accessible/actions
 
 include $(DEPTH)/config/autoconf.mk
-include $(topsrcdir)/config/rules.mk
 
-_TEST_FILES =\
-		test_anchors.html \
-		test_aria.html \
-		test_general.html \
-		test_general.xul \
-		test_inputs.html \
-		test_keys_menu.xul \
-		test_keys.html \
-		test_link.html \
-		test_media.html \
-		test_select.html \
-		test_tree.xul \
-		test_treegrid.xul \
+LIBRARY_NAME	= testcompnoaslr
+IS_COMPONENT	= 1
+CPPSRCS	= TestComponent.cpp
+NO_DIST_INSTALL = 1
+FORCE_SHARED_LIB = 1
+
+include $(topsrcdir)/config/config.mk
+
+MANIFEST_FILE = testcompnoaslr.manifest
+
+EXTRA_DSO_LDOPTS = \
+		$(DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \
+		$(XPCOM_FROZEN_LDOPTS) \
+		$(NSPR_LIBS) \
 		$(NULL)
 
-libs:: $(_TEST_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/a11y/$(relativesrcdir)
+# Need to link with CoreFoundation on Mac
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+EXTRA_DSO_LDOPTS += \
+		$(TK_LIBS) \
+		$(NULL)
+endif
+
+include $(topsrcdir)/config/rules.mk
+
+LDFLAGS := $(filter-out -DYNAMICBASE,$(LDFLAGS)) -DYNAMICBASE:NO
+
+DEFINES += -DLIBRARY_FILENAME="$(SHARED_LIBRARY)"
+
+unittestlocation = xpcom/tests/unit
+
+libs:: $(SHARED_LIBRARY)
+	$(INSTALL) $^ $(testxpcobjdir)/$(unittestlocation)
+
+libs:: $(MANIFEST_FILE)
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) $< > $(testxpcobjdir)/$(unittestlocation)/$(<F)

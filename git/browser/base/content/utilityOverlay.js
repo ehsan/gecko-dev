@@ -403,8 +403,7 @@ function getShellService()
   try {
     shell = Components.classes["@mozilla.org/browser/shell-service;1"]
       .getService(Components.interfaces.nsIShellService);
-  } catch (e) {
-  }
+  } catch (e) {dump("*** e = " + e + "\n");}
   return shell;
 }
 
