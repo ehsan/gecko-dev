@@ -22,7 +22,7 @@ const Test = routine => () => {
 // Returns promise for the observer notification subject for
 // the given topic. If `receive("foo")` is called `n` times
 // nth promise is resolved on an `nth` "foo" notification.
-const receive = (topic, p, syncCallback) => {
+const receive = (topic, p) => {
   const { promise, resolve, reject } = Promise.defer();
   const { queue } = receive;
   const timeout = () => {
@@ -43,10 +43,6 @@ const receive = (topic, p, syncCallback) => {
         removeObserver(observer, topic);
         clearTimeout(id, reject);
         queue.splice(index, 2);
-        // Some tests need to be executed synchronously when the event is fired.
-        if (syncCallback) {
-          syncCallback(subject);
-        }
         resolve(subject);
       }
     }
@@ -77,11 +73,7 @@ const uri3 = "data:text/html;charset=utf-8,<h1>3</h1>";
 const uri4 = "chrome://browser/content/license.html";
 
 const test = Test(function*() {
-  let documentInteractive = receive("content-document-interactive", isData, d => {
-    // This test is executed synchronously when the event is received.
-    is(d.readyState, "interactive", "document is interactive");
-    is(d.URL, uri1, "document.URL matches tab url");
-  });
+  let documentInteractive = receive("content-document-interactive", isData);
   let documentLoaded = receive("content-document-loaded", isData);
   let pageShown = receive("content-page-shown", isData);
 
@@ -90,6 +82,8 @@ const test = Test(function*() {
   const browser1 = gBrowser.getBrowserForTab(tab1);
 
   let interactiveDocument1 = yield documentInteractive;
+  is(interactiveDocument1.readyState, "interactive", "document is interactive");
+  is(interactiveDocument1.URL, uri1, "document.URL matches tab url");
 
   let loadedDocument1 = yield documentLoaded;
   is(loadedDocument1.readyState, "complete", "document is loaded");
@@ -103,11 +97,7 @@ const test = Test(function*() {
 
   info("load uri#2");
 
-  documentInteractive = receive("content-document-interactive", isData, d => {
-    // This test is executed synchronously when the event is received.
-    is(d.readyState, "interactive", "document is interactive");
-    is(d.URL, uri2, "document.URL matches URL loaded");
-  });
+  documentInteractive = receive("content-document-interactive", isData);
   documentLoaded = receive("content-document-loaded", isData);
   pageShown = receive("content-page-shown", isData);
   let pageHidden = receive("content-page-hidden", isData);
@@ -118,6 +108,8 @@ const test = Test(function*() {
   is(interactiveDocument1, hiddenPage, "loaded document is hidden");
 
   let interactiveDocument2 = yield documentInteractive;
+  is(interactiveDocument2.readyState, "interactive", "document is interactive");
+  is(interactiveDocument2.URL, uri2, "document.URL matches URL loaded");
 
   let loadedDocument2 = yield documentLoaded;
   is(loadedDocument2.readyState, "complete", "document is loaded");
@@ -129,11 +121,7 @@ const test = Test(function*() {
   info("go back to uri#1");
 
 
-  documentInteractive = receive("content-document-interactive", isData, d => {
-    // This test is executed synchronously when the event is received.
-    is(d.readyState, "interactive", "document is interactive");
-    is(d.URL, uri3, "document.URL matches URL loaded");
-  });
+  documentInteractive = receive("content-document-interactive", isData);
   documentLoaded = receive("content-document-loaded", isData);
   pageShown = receive("content-page-shown", isData);
   pageHidden = receive("content-page-hidden", isData);
@@ -151,6 +139,8 @@ const test = Test(function*() {
   pageShown = receive("content-page-shown", isData);
 
   let interactiveDocument3 = yield documentInteractive;
+  is(interactiveDocument3.readyState, "interactive", "document is interactive");
+  is(interactiveDocument3.URL, uri3, "document.URL matches URL loaded");
 
   let loadedDocument3 = yield documentLoaded;
   is(loadedDocument3.readyState, "complete", "document is loaded");
@@ -164,15 +154,13 @@ const test = Test(function*() {
   info("load chrome uri");
 
   const tab2 = openTab(uri4);
-  documentInteractive = receive("chrome-document-interactive", null, d => {
-    // This test is executed synchronously when the event is received.
-    is(d.readyState, "interactive", "document is interactive");
-    is(d.URL, uri4, "document.URL matches URL loaded");
-  });
+  documentInteractive = receive("chrome-document-interactive");
   documentLoaded = receive("chrome-document-loaded");
   pageShown = receive("chrome-page-shown");
 
   const interactiveDocument4 = yield documentInteractive;
+  is(interactiveDocument4.readyState, "interactive", "document is interactive");
+  is(interactiveDocument4.URL, uri4, "document.URL matches URL loaded");
 
   let loadedDocument4 = yield documentLoaded;
   is(loadedDocument4.readyState, "complete", "document is loaded");

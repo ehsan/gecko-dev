@@ -133,7 +133,8 @@ public class CrashReporter extends Activity
 
         // Set the flag that indicates we were stopped as expected, as
         // we will send a crash report, so it is not a silent OOM crash.
-        SharedPreferences prefs = GeckoSharedPrefs.forApp(this);
+        SharedPreferences prefs =
+            getSharedPreferences(GeckoApp.PREFS_NAME, 0);
         SharedPreferences.Editor editor = prefs.edit();
         editor.putBoolean(GeckoApp.PREFS_WAS_STOPPED, true);
         editor.commit();
@@ -230,7 +231,8 @@ public class CrashReporter extends Activity
     }
 
     private void savePrefs() {
-        SharedPreferences.Editor editor = GeckoSharedPrefs.forApp(this).edit();
+        SharedPreferences prefs = getSharedPreferences(GeckoApp.PREFS_NAME, 0);
+        SharedPreferences.Editor editor = prefs.edit();
                   
         final boolean allowContact = ((CheckBox) findViewById(R.id.allow_contact)).isChecked();
         final boolean includeUrl   = ((CheckBox) findViewById(R.id.include_url)).isChecked();

@@ -121,9 +121,6 @@ public :
     if (mAudioEncoder) {
       mAudioEncoder->NotifyCancel();
     }
-    if (mVideoEncoder) {
-      mVideoEncoder->NotifyCancel();
-    }
   }
 
   bool HasError()
