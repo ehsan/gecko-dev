@@ -161,16 +161,14 @@ static PRLogModuleInfo* gJSDiagnostics;
 #define NS_MIN_CC_INTERVAL          10000 // ms
 // If previous cycle collection collected more than this number of objects,
 // the next collection will happen somewhat soon.
-// Also, if there are more than this number suspected objects, GC will be called
-// right before CC, if it wasn't called after last CC.
 #define NS_COLLECTED_OBJECTS_LIMIT  5000
 // CC will be called if GC has been called at least this number of times and
 // there are at least NS_MIN_SUSPECT_CHANGES new suspected objects.
 #define NS_MAX_GC_COUNT             5
-#define NS_MIN_SUSPECT_CHANGES      100
+#define NS_MIN_SUSPECT_CHANGES      10
 // CC will be called if there are at least NS_MAX_SUSPECT_CHANGES new suspected
 // objects.
-#define NS_MAX_SUSPECT_CHANGES      1000
+#define NS_MAX_SUSPECT_CHANGES      100
 
 // if you add statics here, add them to the list in nsJSRuntime::Startup
 
@@ -261,7 +259,7 @@ nsUserActivityObserver::Observe(nsISupports* aSubject, const char* aTopic,
     if (sUserIsActive) {
       sUserIsActive = PR_FALSE;
       if (!sGCTimer) {
-        nsJSContext::MaybeCC(PR_FALSE);
+        nsJSContext::IntervalCC();
         return NS_OK;
       }
     }
@@ -301,7 +299,7 @@ NS_IMETHODIMP
 nsCCMemoryPressureObserver::Observe(nsISupports* aSubject, const char* aTopic,
                                     const PRUnichar* aData)
 {
-  nsJSContext::CC(nsnull, PR_TRUE);
+  nsJSContext::CC(nsnull);
   return NS_OK;
 }
 
@@ -3368,24 +3366,9 @@ nsJSContext::ScriptExecuted()
   return NS_OK;
 }
 
-static inline uint32
-GetGCRunsSinceLastCC()
-{
-    // To avoid crash if nsJSRuntime is not properly initialized.
-    // See the bug 474586
-    if (!nsJSRuntime::sRuntime)
-        return 0;
-
-    // Since JS_GetGCParameter() and sSavedGCCount are unsigned, the following
-    // gives the correct result even when the GC counter wraps around
-    // UINT32_MAX since the last call to JS_GetGCParameter(). 
-    return JS_GetGCParameter(nsJSRuntime::sRuntime, JSGC_NUMBER) -
-           sSavedGCCount;
-}
-
 //static
 void
-nsJSContext::CC(nsICycleCollectorListener *aListener, PRBool aForceGC)
+nsJSContext::CC(nsICycleCollectorListener *aListener)
 {
   NS_TIME_FUNCTION_MIN(1.0);
 
@@ -3399,10 +3382,7 @@ nsJSContext::CC(nsICycleCollectorListener *aListener, PRBool aForceGC)
   sCCSuspectChanges = 0;
   // nsCycleCollector_collect() no longer forces a JS garbage collection,
   // so we have to do it ourselves here.
-  if (nsContentUtils::XPConnect() &&
-      (aForceGC ||
-       (!GetGCRunsSinceLastCC() &&
-        sCCSuspectedCount > NS_COLLECTED_OBJECTS_LIMIT))) {
+  if (nsContentUtils::XPConnect()) {
     nsContentUtils::XPConnect()->GarbageCollect();
   }
   sCollectedObjectsCounts = nsCycleCollector_collect(aListener);
@@ -3415,6 +3395,21 @@ nsJSContext::CC(nsICycleCollectorListener *aListener, PRBool aForceGC)
          sCollectedObjectsCounts, sCCSuspectedCount,
          (PR_Now() - sPreviousCCTime) / PR_USEC_PER_MSEC);
 #endif
+}
+
+static inline uint32
+GetGCRunsSinceLastCC()
+{
+    // To avoid crash if nsJSRuntime is not properly initialized.
+    // See the bug 474586
+    if (!nsJSRuntime::sRuntime)
+        return 0;
+
+    // Since JS_GetGCParameter() and sSavedGCCount are unsigned, the following
+    // gives the correct result even when the GC counter wraps around
+    // UINT32_MAX since the last call to JS_GetGCParameter(). 
+    return JS_GetGCParameter(nsJSRuntime::sRuntime, JSGC_NUMBER) -
+           sSavedGCCount;
 }
 
 //static
@@ -3474,7 +3469,7 @@ nsJSContext::CCIfUserInactive()
   if (sUserIsActive) {
     MaybeCC(PR_TRUE);
   } else {
-    IntervalCC(PR_TRUE);
+    IntervalCC();
   }
 }
 
@@ -3489,11 +3484,11 @@ nsJSContext::MaybeCCIfUserInactive()
 
 //static
 PRBool
-nsJSContext::IntervalCC(PRBool aForceGC)
+nsJSContext::IntervalCC()
 {
   if ((PR_Now() - sPreviousCCTime) >=
       PRTime(NS_MIN_CC_INTERVAL * PR_USEC_PER_MSEC)) {
-    nsJSContext::CC(nsnull, aForceGC);
+    nsJSContext::CC(nsnull);
     return PR_TRUE;
   }
 #ifdef DEBUG_smaug

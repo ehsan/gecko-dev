@@ -59,7 +59,7 @@ getLinkCB(AtkHypertext *aText, gint aLinkIndex)
     if (!accWrap)
         return nsnull;
 
-    nsHyperTextAccessible* hyperText = accWrap->AsHyperText();
+    nsRefPtr<nsHyperTextAccessible> hyperText = do_QueryObject(accWrap);
     NS_ENSURE_TRUE(hyperText, nsnull);
 
     nsAccessible* hyperLink = hyperText->GetLinkAt(aLinkIndex);
@@ -82,7 +82,7 @@ getLinkCountCB(AtkHypertext *aText)
     if (!accWrap)
         return -1;
 
-    nsHyperTextAccessible* hyperText = accWrap->AsHyperText();
+    nsRefPtr<nsHyperTextAccessible> hyperText = do_QueryObject(accWrap);
     NS_ENSURE_TRUE(hyperText, -1);
 
     return hyperText->GetLinkCount();
@@ -95,7 +95,7 @@ getLinkIndexCB(AtkHypertext *aText, gint aCharIndex)
     if (!accWrap)
         return -1;
 
-    nsHyperTextAccessible* hyperText = accWrap->AsHyperText();
+    nsRefPtr<nsHyperTextAccessible> hyperText = do_QueryObject(accWrap);
     NS_ENSURE_TRUE(hyperText, -1);
 
     PRInt32 index = -1;

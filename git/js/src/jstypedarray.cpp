@@ -820,22 +820,21 @@ class TypedArrayTemplate
             cx->destroy<ThisTypeArray>(tarray);
     }
 
-    /* subarray(start[, end]) */
+    /* slice(start[, end]) */
     static JSBool
-    fun_subarray(JSContext *cx, uintN argc, Value *vp)
+    fun_slice(JSContext *cx, uintN argc, Value *vp)
     {
-        JSObject *obj = ToObject(cx, &vp[1]);
-        if (!obj)
-            return false;
+        Value *argv = JS_ARGV(cx, vp);
+        JSObject *obj = ComputeThisFromVp(cx, vp);
 
-        if (!InstanceOf(cx, obj, ThisTypeArray::fastClass(), vp + 2))
+        if (!InstanceOf(cx, obj, ThisTypeArray::fastClass(), vp+2))
             return false;
 
         if (obj->getClass() != fastClass()) {
-            // someone tried to apply this subarray() to the wrong class
+            // someone tried to apply this slice() to the wrong class
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                                  JSMSG_INCOMPATIBLE_METHOD,
-                                 fastClass()->name, "subarray", obj->getClass()->name);
+                                 fastClass()->name, "slice", obj->getClass()->name);
             return false;
         }
 
@@ -848,7 +847,6 @@ class TypedArrayTemplate
         int32_t length = int32(tarray->length);
 
         if (argc > 0) {
-            Value *argv = JS_ARGV(cx, vp);
             if (!ValueToInt32(cx, argv[0], &begin))
                 return false;
             if (begin < 0) {
@@ -875,7 +873,7 @@ class TypedArrayTemplate
         if (begin > end)
             begin = end;
 
-        ThisTypeArray *ntarray = tarray->subarray(cx, begin, end);
+        ThisTypeArray *ntarray = tarray->slice(cx, begin, end);
         if (!ntarray) {
             // this should rarely ever happen
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
@@ -900,11 +898,10 @@ class TypedArrayTemplate
     static JSBool
     fun_set(JSContext *cx, uintN argc, Value *vp)
     {
-        JSObject *obj = ToObject(cx, &vp[1]);
-        if (!obj)
-            return false;
+        Value *argv = JS_ARGV(cx, vp);
+        JSObject *obj = ComputeThisFromVp(cx, vp);
 
-        if (!InstanceOf(cx, obj, ThisTypeArray::fastClass(), vp + 2))
+        if (!InstanceOf(cx, obj, ThisTypeArray::fastClass(), vp+2))
             return false;
 
         if (obj->getClass() != fastClass()) {
@@ -922,7 +919,6 @@ class TypedArrayTemplate
         // these are the default values
         int32_t offset = 0;
 
-        Value *argv = JS_ARGV(cx, vp);
         if (argc > 1) {
             if (!ValueToInt32(cx, argv[1], &offset))
                 return false;
@@ -982,7 +978,7 @@ class TypedArrayTemplate
         return reinterpret_cast<ThisTypeArray*>(obj->getPrivate());
     }
 
-    // helper used by both the constructor and Subarray()
+    // helper used by both the constructor and Slice()
     static bool
     makeFastWithPrivate(JSContext *cx, JSObject *obj, ThisTypeArray *tarray)
     {
@@ -1093,7 +1089,7 @@ class TypedArrayTemplate
     inline void copyIndexToValue(JSContext *cx, uint32 index, Value *vp);
 
     ThisTypeArray *
-    subarray(JSContext *cx, uint32 begin, uint32 end)
+    slice(JSContext *cx, uint32 begin, uint32 end)
     {
         if (begin > length || end > length)
             return NULL;
@@ -1484,7 +1480,7 @@ JSPropertySpec TypedArray::jsprops[] = {
 
 #define IMPL_TYPED_ARRAY_STATICS(_typedArray)                                  \
 template<> JSFunctionSpec _typedArray::jsfuncs[] = {                           \
-    JS_FN("subarray", _typedArray::fun_subarray, 2, 0),                            \
+    JS_FN("slice", _typedArray::fun_slice, 2, 0),                              \
     JS_FN("set", _typedArray::fun_set, 2, 0),                                  \
     JS_FS_END                                                                  \
 }

@@ -1487,15 +1487,6 @@ JS_FRIEND_API(JSBool) js_obj_defineSetter(JSContext *cx, uintN argc, js::Value *
 extern JSObject *
 js_InitObjectClass(JSContext *cx, JSObject *obj);
 
-namespace js {
-JSObject *
-DefineConstructorAndPrototype(JSContext *cx, JSObject *obj, JSProtoKey key, JSAtom *atom,
-                              JSObject *protoProto, Class *clasp,
-                              Native constructor, uintN nargs,
-                              JSPropertySpec *ps, JSFunctionSpec *fs,
-                              JSPropertySpec *static_ps, JSFunctionSpec *static_fs);
-}
-
 extern JSObject *
 js_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
              js::Class *clasp, js::Native constructor, uintN nargs,
@@ -1786,25 +1777,6 @@ js_PrimitiveToObject(JSContext *cx, js::Value *vp);
  */
 extern JSBool
 js_ValueToObjectOrNull(JSContext *cx, const js::Value &v, JSObject **objp);
-
-namespace js {
-
-/*
- * Invokes the ES5 ToObject algorithm on *vp, writing back the object to vp.
- * If *vp might already be an object, use ToObject.
- */
-extern JSObject *
-ToObjectSlow(JSContext *cx, js::Value *vp);
-
-JS_ALWAYS_INLINE JSObject *
-ToObject(JSContext *cx, js::Value *vp)
-{
-    if (vp->isObject())
-        return &vp->toObject();
-    return ToObjectSlow(cx, vp);
-}
-
-}
 
 /*
  * v and vp may alias. On successful return, vp->isObject(). If vp is not

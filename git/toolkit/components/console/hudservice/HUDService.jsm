@@ -4123,7 +4123,7 @@ JSTerm.prototype = {
 
     let panel = propPanel.panel;
     panel.openPopup(aAnchor, "after_pointer", 0, 0, false, false);
-    panel.sizeTo(350, 450);
+    panel.sizeTo(200, 400);
     return propPanel;
   },
 

@@ -161,9 +161,8 @@ class ElfLocation: public ElfValue {
     ElfSection *section;
     unsigned int offset;
 public:
-    enum position { ABSOLUTE, RELATIVE };
     ElfLocation(): section(NULL), offset(0) {};
-    ElfLocation(ElfSection *section, unsigned int off, enum position pos = RELATIVE);
+    ElfLocation(ElfSection *section, unsigned int offset): section(section), offset(offset) {};
     ElfLocation(unsigned int location, Elf *elf);
     unsigned int getValue();
     ElfSection *getSection() { return section; }
@@ -329,22 +328,13 @@ public:
     ElfSection *getPrevious() { return previous; }
 
     virtual bool isRelocatable() {
-        return ((getType() == SHT_SYMTAB) ||
-                (getType() == SHT_STRTAB) ||
-                (getType() == SHT_RELA) ||
-                (getType() == SHT_HASH) ||
-                (getType() == SHT_DYNAMIC) ||
-                (getType() == SHT_NOTE) ||
-                (getType() == SHT_REL) ||
-                (getType() == SHT_DYNSYM) ||
-                (getType() == SHT_GNU_HASH) ||
-                (getType() == SHT_GNU_verdef) ||
-                (getType() == SHT_GNU_verneed) ||
-                (getType() == SHT_GNU_versym)) &&
-                (getFlags() & SHF_ALLOC);
+        return ((getType() != SHT_NULL) &&
+                (getType() != SHT_NOBITS) &&
+                (getType() != SHT_PROGBITS) &&
+                (getFlags() == SHF_ALLOC));
     }
 
-    void insertAfter(ElfSection *section, bool dirty = true) {
+    void insertAfter(ElfSection *section) {
         if (previous != NULL)
             previous->next = next;
         if (next != NULL)
@@ -357,8 +347,7 @@ public:
             next = NULL;
         if (next != NULL)
             next->previous = this;
-        if (dirty)
-            markDirty();
+        markDirty();
     }
 
     void markDirty() {
@@ -439,10 +428,6 @@ public:
         // This may be biased, but should work in most cases
         if ((section->getFlags() & SHF_ALLOC) == 0)
             return false;
-        // Special case for PT_DYNAMIC. Eventually, this should
-        // be better handled than special cases
-        if ((p_type == PT_DYNAMIC) && (section->getType() != SHT_DYNAMIC))
-            return false;
         return (addr >= p_vaddr) &&
                (addr + size <= p_vaddr + p_memsz);
 
@@ -463,7 +448,6 @@ public:
 
     void serialize(std::ofstream &file, char ei_class, char ei_data);
 
-    ElfValue *getValueForType(unsigned int tag);
     ElfSection *getSectionForType(unsigned int tag);
     void setValueForType(unsigned int tag, ElfValue *val);
 private:
@@ -472,23 +456,12 @@ private:
 
 typedef serializable<Elf_Sym_Traits> Elf_Sym;
 
-struct Elf_SymValue {
-    const char *name;
-    unsigned char info;
-    unsigned char other;
-    ElfLocation value;
-    unsigned int size;
-    bool defined;
-};
-
 class ElfSymtab_Section: public ElfSection {
 public:
     ElfSymtab_Section(Elf_Shdr &s, std::ifstream *file, Elf *parent);
 
-    void serialize(std::ofstream &file, char ei_class, char ei_data);
-
 //private: // Until we have a real API
-    std::vector<Elf_SymValue> syms;
+    std::vector<Elf_Sym> syms;
 };
 
 class Elf_Rel: public serializable<Elf_Rel_Traits> {
@@ -593,21 +566,13 @@ inline unsigned int Elf::getSize() {
     return section->getOffset() + section->getSize();
 }
 
-inline ElfLocation::ElfLocation(ElfSection *section, unsigned int off, enum position pos)
-: section(section) {
-    if ((pos == ABSOLUTE) && section)
-        offset = off - section->getAddr();
-    else
-        offset = off;
-}
-
 inline ElfLocation::ElfLocation(unsigned int location, Elf *elf) {
     section = elf->getSectionAt(location);
-    offset = location - (section ? section->getAddr() : 0);
+    offset = location - section->getAddr();
 }
 
 inline unsigned int ElfLocation::getValue() {
-    return (section ? section->getAddr() : 0) + offset;
+    return section->getAddr() + offset;
 }
 
 inline unsigned int ElfSize::getValue() {

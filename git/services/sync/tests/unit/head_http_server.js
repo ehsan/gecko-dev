@@ -123,13 +123,9 @@ ServerWBO.prototype = {
  * 
  * Note that if you want these records to be accessible individually,
  * you need to register their handlers with the server separately!
- * 
- * Passing `true` for acceptNew will allow POSTs of new WBOs to this
- * collection. New WBOs will be created and wired in on the fly.
  */
-function ServerCollection(wbos, acceptNew) {
+function ServerCollection(wbos) {
   this.wbos = wbos || {};
-  this.acceptNew = acceptNew || false;
 }
 ServerCollection.prototype = {
 
@@ -143,9 +139,7 @@ ServerCollection.prototype = {
     let result;
     if (options.full) {
       let data = [wbo.get() for ([id, wbo] in Iterator(this.wbos))
-                            // Drop deleted.
-                            if (wbo.modified &&
-                                this._inResultSet(wbo, options))];
+                            if (this._inResultSet(wbo, options))];
       if (options.limit) {
         data = data.slice(0, options.limit);
       }
@@ -171,11 +165,6 @@ ServerCollection.prototype = {
     // registered with us as successful and all other records as failed.
     for each (let record in input) {
       let wbo = this.wbos[record.id];
-      if (!wbo && this.acceptNew) {
-        _("Creating WBO " + JSON.stringify(record.id) + " on the fly.");
-        wbo = new ServerWBO(record.id);
-        this.wbos[record.id] = wbo;
-      }
       if (wbo) {
         wbo.payload = record.payload;
         wbo.modified = Date.now() / 1000;
@@ -192,7 +181,6 @@ ServerCollection.prototype = {
   delete: function(options) {
     for (let [id, wbo] in Iterator(this.wbos)) {
       if (this._inResultSet(wbo, options)) {
-        _("Deleting " + JSON.stringify(wbo));
         wbo.delete();
       }
     }

@@ -455,12 +455,12 @@ CallThisObjectHook(JSContext *cx, JSObject *obj, Value *argv)
  * The alert should display "true".
  */
 JS_STATIC_INTERPRET bool
-ComputeGlobalThis(JSContext *cx, Value *vp)
+ComputeGlobalThis(JSContext *cx, Value *argv)
 {
-    JSObject *thisp = vp[0].toObject().getGlobal()->thisObject(cx);
+    JSObject *thisp = argv[-2].toObject().getGlobal()->thisObject(cx);
     if (!thisp)
         return false;
-    vp[1].setObject(*thisp);
+    argv[-1].setObject(*thisp);
     return true;
 }
 
@@ -508,25 +508,21 @@ ReportIncompatibleMethod(JSContext *cx, Value *vp, Class *clasp)
 }
 
 bool
-BoxThisForVp(JSContext *cx, Value *vp)
+ComputeThisFromArgv(JSContext *cx, Value *argv)
 {
     /*
      * Check for SynthesizeFrame poisoning and fast constructors which
      * didn't check their vp properly.
      */
-    JS_ASSERT(!vp[1].isMagic());
-#ifdef DEBUG
-    JSFunction *fun = vp[0].toObject().isFunction() ? vp[0].toObject().getFunctionPrivate() : NULL;
-    JS_ASSERT_IF(fun && fun->isInterpreted(), !fun->inStrictMode());
-#endif
+    JS_ASSERT(!argv[-1].isMagic());
 
-    if (vp[1].isNullOrUndefined())
-        return ComputeGlobalThis(cx, vp);
+    if (argv[-1].isNullOrUndefined())
+        return ComputeGlobalThis(cx, argv);
 
-    if (!vp[1].isObject())
-        return !!js_PrimitiveToObject(cx, &vp[1]);
+    if (!argv[-1].isObject())
+        return !!js_PrimitiveToObject(cx, &argv[-1]);
 
-    JS_ASSERT(IsSaneThisObject(vp[1].toObject()));
+    JS_ASSERT(IsSaneThisObject(argv[-1].toObject()));
     return true;
 }
 
@@ -899,7 +895,7 @@ ExternalGetOrSet(JSContext *cx, JSObject *obj, jsid id, const Value &fval,
      */
     JS_CHECK_RECURSION(cx, return JS_FALSE);
 
-    return ExternalInvoke(cx, ObjectValue(*obj), fval, argc, argv, rval);
+    return ExternalInvoke(cx, obj, fval, argc, argv, rval);
 }
 
 bool

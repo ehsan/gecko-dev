@@ -72,7 +72,6 @@
 #include "nsIDocument.h"
 #include "nsIDeviceContext.h"
 #include "nsCSSPseudoElements.h"
-#include "nsCSSFrameConstructor.h"
 #include "nsCompatibility.h"
 #include "nsCSSColorUtils.h"
 #include "nsLayoutUtils.h"
@@ -104,7 +103,7 @@
 
 #include "nsIServiceManager.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsAutoPtr.h"
 
@@ -3547,7 +3546,8 @@ nsTextFrame::CreateAccessible()
     }
   }
 
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
+
   if (accService) {
     return accService->CreateHTMLTextAccessible(mContent,
                                                 PresContext()->PresShell());
@@ -6318,29 +6318,6 @@ nsTextFrame::SetLength(PRInt32 aLength, nsLineLayout* aLineLayout)
 
   if (end < f->mContentOffset) {
     // Our frame is shrinking. Give the text to our next in flow.
-    if (aLineLayout &&
-        GetStyleText()->WhiteSpaceIsSignificant() &&
-        HasTerminalNewline() &&
-        GetParent()->GetType() != nsGkAtoms::letterFrame) {
-      // Whatever text we hand to our next-in-flow will end up in a frame all of
-      // its own, since it ends in a forced linebreak.  Might as well just put
-      // it in a separate frame now.  This is important to prevent text run
-      // churn; if we did not do that, then we'd likely end up rebuilding
-      // textruns for all our following continuations.
-      // We skip this optimization when the parent is a first-letter frame
-      // because it doesn't deal well with more than one child frame.
-      nsPresContext* presContext = PresContext();
-      nsIFrame* newFrame;
-      nsresult rv = presContext->PresShell()->FrameConstructor()->
-        CreateContinuingFrame(presContext, this, GetParent(), &newFrame);
-      if (NS_SUCCEEDED(rv)) {
-        nsTextFrame* next = static_cast<nsTextFrame*>(newFrame);
-        nsFrameList temp(next, next);
-        GetParent()->InsertFrames(nsGkAtoms::nextBidi, this, temp);
-        f = next;
-      }
-    }
-
     f->mContentOffset = end;
     if (f->GetTextRun() != mTextRun) {
       ClearTextRun(nsnull);
@@ -6359,24 +6336,7 @@ nsTextFrame::SetLength(PRInt32 aLength, nsLineLayout* aLineLayout)
       ClearTextRun(nsnull);
       f->ClearTextRun(nsnull);
     }
-    nsTextFrame* next = static_cast<nsTextFrame*>(f->GetNextInFlow());
-    // Note: the "f->GetNextSibling() == next" check below is to restrict
-    // this optimization to the case where they are on the same child list.
-    // Otherwise we might remove the only child of a nsFirstLetterFrame
-    // for example and it can't handle that.  See bug 597627 for details.
-    if (next && next->mContentOffset <= end && f->GetNextSibling() == next) {
-      // |f| is now empty.  We may as well remove it, instead of copying all
-      // the text from |next| into it instead; the latter leads to use
-      // rebuilding textruns for all following continuations.  We have to be
-      // careful here, though, because some RemoveFrame implementations remove
-      // and destroy not only the passed-in frame but also all its following
-      // in-flows (and sometimes all its following continuations in general).
-      // So we remove |f| from the flow first, to make sure that only |f| is
-      // destroyed.
-      nsSplittableFrame::RemoveFromFlow(f);
-      f->GetParent()->RemoveFrame(nsGkAtoms::nextBidi, f);
-    }
-    f = next;
+    f = static_cast<nsTextFrame*>(f->GetNextInFlow());
   }
 
 #ifdef DEBUG
@@ -6948,14 +6908,6 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
   printf(": desiredSize=%d,%d(b=%d) status=%x\n",
          aMetrics.width, aMetrics.height, aMetrics.ascent,
          aStatus);
-#endif
-
-#ifdef ACCESSIBILITY
-  // Schedule the update of accessible tree when rendered text might be changed.
-  nsAccessibilityService* accService = nsIPresShell::AccService();
-  if (accService) {
-    accService->UpdateText(presContext->PresShell(), mContent);
-  }
 #endif
 }
 

@@ -421,11 +421,8 @@ XrayWrapper<Base>::resolveOwnProperty(JSContext *cx, JSObject *wrapper, jsid id,
     JSPropertyDescriptor *desc = Jsvalify(desc_in);
 
     if (id == nsXPConnect::GetRuntimeInstance()->GetStringID(XPCJSRuntime::IDX_WRAPPED_JSOBJECT)) {
-        bool status;
-        JSWrapper::Action action = set ? JSWrapper::SET : JSWrapper::GET;
-        desc->obj = NULL; // default value
-        if (!this->enter(cx, wrapper, id, action, &status))
-            return status;
+        if (!this->enter(cx, wrapper, id, set ? JSWrapper::SET : JSWrapper::GET))
+            return false;
 
         AutoLeaveHelper<Base> helper(*this, cx, wrapper);
 
@@ -496,11 +493,8 @@ XrayWrapper<Base>::getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid 
         return true;
     }
 
-    bool status;
-    JSWrapper::Action action = set ? JSWrapper::SET : JSWrapper::GET;
-    desc->obj = NULL; // default value
-    if (!this->enter(cx, wrapper, id, action, &status))
-        return status;
+    if (!this->enter(cx, wrapper, id, set ? JSWrapper::SET : JSWrapper::GET))
+        return false;
 
     AutoLeaveHelper<Base> helper(*this, cx, wrapper);
 
@@ -564,11 +558,8 @@ XrayWrapper<Base>::getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, js
         return true;
     }
 
-    bool status;
-    JSWrapper::Action action = set ? JSWrapper::SET : JSWrapper::GET;
-    desc->obj = NULL; // default value
-    if (!this->enter(cx, wrapper, id, action, &status))
-        return status;
+    if (!this->enter(cx, wrapper, id, set ? JSWrapper::SET : JSWrapper::GET))
+        return false;
 
     AutoLeaveHelper<Base> helper(*this, cx, wrapper);
 

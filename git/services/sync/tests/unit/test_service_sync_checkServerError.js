@@ -45,9 +45,10 @@ function setUp() {
   new FakeCryptoService();
 }
 
-function test_backoff500(next) {
+function test_backoff500() {
   _("Test: HTTP 500 sets backoff status.");
   let server = sync_httpd_setup();
+  do_test_pending();
   setUp();
 
   Engines.register(CatapultEngine);
@@ -66,16 +67,17 @@ function test_backoff500(next) {
     Service.sync();
     do_check_true(Status.enforceBackoff);
   } finally {
+    server.stop(do_test_finished);
     Engines.unregister("catapult");
     Status.resetBackoff();
     Service.startOver();
-    server.stop(next);
   }
 }
 
-function test_backoff503(next) {
+function test_backoff503() {
   _("Test: HTTP 503 with Retry-After header leads to backoff notification and sets backoff status.");
   let server = sync_httpd_setup();
+  do_test_pending();
   setUp();
 
   const BACKOFF = 42;
@@ -99,16 +101,17 @@ function test_backoff503(next) {
     do_check_true(Status.enforceBackoff);
     do_check_eq(backoffInterval, BACKOFF);
   } finally {
+    server.stop(do_test_finished);
     Engines.unregister("catapult");
     Status.resetBackoff();
     Service.startOver();
-    server.stop(next);
   }
 }
 
-function test_overQuota(next) {
+function test_overQuota() {
   _("Test: HTTP 400 with body error code 14 means over quota.");
   let server = sync_httpd_setup();
+  do_test_pending();
   setUp();
 
   Engines.register(CatapultEngine);
@@ -125,38 +128,10 @@ function test_overQuota(next) {
 
     do_check_eq(Status.sync, OVER_QUOTA);
   } finally {
+    server.stop(do_test_finished);
     Engines.unregister("catapult");
     Status.resetSync();
     Service.startOver();
-    server.stop(next);
-  }
-}
-
-// Slightly misplaced test as it doesn't actually test checkServerError,
-// but the observer for "weave:engine:sync:apply-failed".
-function test_engine_applyFailed(next) {
-  let server = sync_httpd_setup();
-  setUp();
-
-  Engines.register(CatapultEngine);
-  let engine = Engines.get("catapult");
-  engine.enabled = true;
-  engine.sync = function sync() {
-    Svc.Obs.notify("weave:engine:sync:apply-failed", {}, "steam");
-  };
-
-  try {
-    do_check_eq(Status.engines["steam"], undefined);
-
-    Service.login();
-    Service.sync();
-
-    do_check_eq(Status.engines["steam"], ENGINE_APPLY_FAIL);
-  } finally {
-    Engines.unregister("catapult");
-    Status.resetSync();
-    Service.startOver();
-    server.stop(next);
   }
 }
 
@@ -164,10 +139,7 @@ function run_test() {
   if (DISABLE_TESTS_BUG_604565)
     return;
 
-  do_test_pending();
-  asyncChainTests(test_backoff500,
-                  test_backoff503,
-                  test_overQuota,
-                  test_engine_applyFailed,
-                  do_test_finished)();
+  test_backoff500();
+  test_backoff503();
+  test_overQuota();
 }

@@ -108,9 +108,8 @@ CrossOriginWrapper::construct(JSContext *cx, JSObject *wrapper,
 }
 
 bool
-NoWaiverWrapper::enter(JSContext *cx, JSObject *wrapper, jsid id, Action act, bool *bp)
+NoWaiverWrapper::enter(JSContext *cx, JSObject *wrapper, jsid id, Action act)
 {
-    *bp = true; // always allowed
     nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
     if (!ssm) {
         return true;

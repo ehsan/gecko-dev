@@ -80,7 +80,7 @@
 #include "nsIScrollableFrame.h"
 #ifdef ACCESSIBILITY
 #include "nsIDOMHTMLDocument.h"
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
@@ -6329,7 +6329,8 @@ nsBlockFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 already_AddRefed<nsAccessible>
 nsBlockFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = 
+    do_GetService("@mozilla.org/accessibilityService;1");
   if (!accService) {
     return nsnull;
   }

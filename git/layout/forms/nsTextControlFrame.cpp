@@ -100,7 +100,7 @@
 #include "nsIDOMRange.h" //for selection setting helper func
 #include "nsPIDOMWindow.h" //needed for notify selection changed to update the menus ect.
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsIServiceManager.h"
 #include "nsIDOMNode.h"
@@ -145,7 +145,8 @@ NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
 already_AddRefed<nsAccessible>
 nsTextControlFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
+
   if (accService) {
     return accService->CreateHTMLTextFieldAccessible(mContent,
                                                      PresContext()->PresShell());
@@ -1409,20 +1410,6 @@ nsTextControlFrame::SetValueChanged(PRBool aValueChanged)
 {
   nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
   NS_ASSERTION(txtCtrl, "Content not a text control element");
-
-  if (mUsePlaceholder && !nsContentUtils::IsFocusedContent(mContent)) {
-    // If the content is focused, we don't care about the changes because
-    // the placeholder is going to be hidden/shown on blur.
-    PRInt32 textLength;
-    GetTextLength(&textLength);
-
-    nsWeakFrame weakFrame(this);
-    txtCtrl->SetPlaceholderClass(!textLength, PR_TRUE);
-    if (!weakFrame.IsAlive()) {
-      return;
-    }
-  }
-
   txtCtrl->SetValueChanged(aValueChanged);
 }
 
