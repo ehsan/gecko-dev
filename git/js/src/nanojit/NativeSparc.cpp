@@ -365,11 +365,9 @@ namespace nanojit
 
     void Assembler::asm_load64(LInsp ins)
     {
-        NanoAssert(!ins->isop(LIR_ldq) && !ins->isop(LIR_ldqc));
-
         switch (ins->opcode()) {
-            case LIR_ldf:
-            case LIR_ldfc:
+            case LIR_ldq:
+            case LIR_ldqc:
                 // handled by mainline code below for now
                 break;
             case LIR_ld32f:
@@ -412,10 +410,8 @@ namespace nanojit
 
     void Assembler::asm_store64(LOpcode op, LInsp value, int dr, LInsp base)
     {
-        NanoAssert(op != LIR_stqi);
-
         switch (op) {
-            case LIR_stfi:
+            case LIR_stqi:
                 // handled by mainline code below for now
                 break;
             case LIR_st32f:
@@ -439,7 +435,7 @@ namespace nanojit
                 return;
             }
 
-        if (value->isop(LIR_ldf) || value->isop(LIR_ldfc) || value->isop(LIR_qjoin))
+        if (value->isop(LIR_ldq) || value->isop(LIR_ldqc) || value->isop(LIR_qjoin))
             {
                 // value is 64bit struct or int64_t, or maybe a double.
                 // it may be live in an FPU reg.  Either way, don't
@@ -462,7 +458,6 @@ namespace nanojit
                 return;
             }
 
-        NanoAssert(!value->isop(LIR_ldq) || !value->isop(LIR_ldqc));
         Register rb;
         if (base->isop(LIR_alloc)) {
             rb = FP;

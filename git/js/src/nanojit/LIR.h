@@ -565,13 +565,12 @@ namespace nanojit
         // Note, this assumes that loads will never fault and hence cannot
         // affect the control flow.
         bool isStmt() {
-            NanoAssert(!isop(LIR_start) && !isop(LIR_skip));
-            // All instructions with Void retType are statements.  And some
-            // calls are statements too.
-            if (isCall())
-                return !isCse();
-            else
-                return retTypes[opcode()] == LTy_Void;
+            return isGuard() || isBranch() ||
+                   (isCall() && !isCse()) ||
+                   isStore() ||
+                   isop(LIR_label) || isop(LIR_live) || isop(LIR_flive) ||
+                   isop(LIR_regfence) ||
+                   isRet();
         }
 
         inline void* constvalp() const

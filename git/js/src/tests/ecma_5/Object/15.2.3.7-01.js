@@ -84,24 +84,16 @@ Object.defineProperties(o, 5); // ToObject only throws for null/undefined
 assertEq("foo" in o, false, "foo is not an enumerable own property");
 Object.defineProperties(o, false);
 assertEq("bar" in o, false, "bar is not an enumerable own property");
-Object.defineProperties(o, "");
-assertEq("quux" in o, false, "quux is not an enumerable own property");
 
-error = "before";
-try
+/*
+ * There's potential ambiguity over whether indexes should show up as enumerable
+ * own properties here, so don't run this bit yet until correctness is verified.
+ */
+if (false)
 {
-  Object.defineProperties(o, "1");
+  Object.defineProperties(o, "baz");
+  assertEq("quux" in o, false, "quux is not an enumerable own property");
 }
-catch (e)
-{
-  if (e instanceof TypeError)
-    error = "typeerror";
-  else
-    error = "bad exception: " + e;
-}
-assertEq(error, "typeerror",
-         "should throw on Properties == '1' due to '1'[0] not being a " +
-         "property descriptor");
 
 error = "before";
 try

@@ -884,16 +884,7 @@ namespace nanojit
 
     LIns* LirWriter::insStorei(LIns* value, LIns* base, int32_t d)
     {
-        // Determine which kind of store should be used for 'value' based on
-        // its type.
-        LOpcode op = LOpcode(0);
-        switch (retTypes[value->opcode()]) {
-        case LTy_I32:   op = LIR_sti;   break;
-        case LTy_I64:   op = LIR_stqi;  break;
-        case LTy_F64:   op = LIR_stfi;  break;
-        case LTy_Void:  NanoAssert(0);  break; 
-        default:        NanoAssert(0);  break;
-        }
+        LOpcode op = value->isQuad() ? LIR_stqi : LIR_sti;
         return insStore(op, value, base, d);
     }
 
@@ -1518,8 +1509,6 @@ namespace nanojit
                 case LIR_ldc:
                 case LIR_ldq:
                 case LIR_ldqc:
-                case LIR_ldf:
-                case LIR_ldfc:
                 case LIR_ldzb:
                 case LIR_ldzs:
                 case LIR_ldcb:
@@ -1550,13 +1539,11 @@ namespace nanojit
                 case LIR_u2q:
                 case LIR_i2f:
                 case LIR_u2f:
-                case LIR_mod:
                     live.add(ins->oprnd1(), ins);
                     break;
 
                 case LIR_sti:
                 case LIR_stqi:
-                case LIR_stfi:
                 case LIR_stb:
                 case LIR_sts:
                 case LIR_eq:
@@ -1594,6 +1581,7 @@ namespace nanojit
                 case LIR_sub:
                 case LIR_mul:
                 case LIR_div:
+                case LIR_mod:
                 case LIR_fadd:
                 case LIR_fsub:
                 case LIR_fmul:
@@ -1937,8 +1925,6 @@ namespace nanojit
             case LIR_ldc:
             case LIR_ldq:
             case LIR_ldqc:
-            case LIR_ldf:
-            case LIR_ldfc:
             case LIR_ldzb:
             case LIR_ldzs:
             case LIR_ldcb:
@@ -1956,7 +1942,6 @@ namespace nanojit
 
             case LIR_sti:
             case LIR_stqi:
-            case LIR_stfi:
             case LIR_stb:
             case LIR_sts:
             case LIR_st32f:
@@ -1967,7 +1952,7 @@ namespace nanojit
                 break;
 
             default:
-                NanoAssertMsgf(0, "Can't handle opcode %s\n", lirNames[op]);
+                VMPI_sprintf(s, "?");
                 break;
         }
         NanoAssert(VMPI_strlen(sbuf) < sizeof(sbuf)-1);
@@ -2288,7 +2273,6 @@ namespace nanojit
             {
                 case LIR_ld:
                 case LIR_ldq:
-                case LIR_ldf:
                 case LIR_ld32f:
                 case LIR_ldsb:
                 case LIR_ldss:

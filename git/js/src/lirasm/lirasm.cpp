@@ -991,7 +991,6 @@ FragmentAssembler::assembleFragment(LirTokenStream &in, bool implicitBegin, cons
 #endif
           case LIR_sti:
           case LIR_stqi:
-          case LIR_stfi:
             need(3);
             ins = mLir->insStore(mOpcode, ref(mTokens[0]),
                                   ref(mTokens[1]),
@@ -1012,8 +1011,6 @@ FragmentAssembler::assembleFragment(LirTokenStream &in, bool implicitBegin, cons
           case LIR_ldc:
           case LIR_ldq:
           case LIR_ldqc:
-          case LIR_ldf:
-          case LIR_ldfc:
           case LIR_ldcb:
           case LIR_ldcs:
             ins = assemble_load();
@@ -1360,7 +1357,7 @@ FragmentAssembler::assembleRandomFragment(int nIns)
     F_II_ops.push_back(LIR_qjoin);
 
     vector<LOpcode> I_loads;
-    I_loads.push_back(LIR_ld);          // weight LIR_ld more heavily
+    I_loads.push_back(LIR_ld);          // weight LIR_ld the heaviest
     I_loads.push_back(LIR_ld);
     I_loads.push_back(LIR_ld);
     I_loads.push_back(LIR_ldc);
@@ -1375,20 +1372,14 @@ FragmentAssembler::assembleRandomFragment(int nIns)
     I_loads.push_back(LIR_ldcss);
 #endif
 
-    vector<LOpcode> Q_loads;
-    Q_loads.push_back(LIR_ldq);      // weight LIR_ld more heavily
-    Q_loads.push_back(LIR_ldq);
-    Q_loads.push_back(LIR_ldqc);
-
-    vector<LOpcode> F_loads;
-    F_loads.push_back(LIR_ldf);      // weight LIR_ldf more heavily
-    F_loads.push_back(LIR_ldf);
-    F_loads.push_back(LIR_ldfc);
+    vector<LOpcode> QorF_loads;
+    QorF_loads.push_back(LIR_ldq);      // weight LIR_ldq the heaviest
+    QorF_loads.push_back(LIR_ldq);
+    QorF_loads.push_back(LIR_ldqc);
 #if NJ_EXPANDED_LOADSTORE_SUPPORTED
     // this loads a 32-bit float and expands to 64-bit float
-    F_loads.push_back(LIR_ld32f);    // weight LIR_ld32f more heavily
-    F_loads.push_back(LIR_ld32f); 
-    F_loads.push_back(LIR_ldc32f);
+    QorF_loads.push_back(LIR_ld32f); 
+    QorF_loads.push_back(LIR_ldc32f);
 #endif
 
     enum LInsClass {
@@ -1709,23 +1700,15 @@ FragmentAssembler::assembleRandomFragment(int nIns)
             break;
         }
 
-        case LLD_Q:
+        case LLD_QorF: {
             if (!M8ps.empty()) {
                 LIns* base = rndPick(M8ps);
-                ins = mLir->insLoad(rndPick(Q_loads), base, rndOffset64(base->size()));
-                addOrReplace(Qs, ins);
+                ins = mLir->insLoad(rndPick(QorF_loads), base, rndOffset64(base->size()));
+                addOrReplace((rnd(2) ? Qs : Fs), ins);
                 n++;
             }
             break;
-
-        case LLD_F:
-            if (!M8ps.empty()) {
-                LIns* base = rndPick(M8ps);
-                ins = mLir->insLoad(rndPick(F_loads), base, rndOffset64(base->size()));
-                addOrReplace(Fs, ins);
-                n++;
-            }
-            break;
+        }
 
         case LST_I: {
             vector<LIns*> Ms = rnd(2) ? M4s : M8ps;
@@ -1737,21 +1720,14 @@ FragmentAssembler::assembleRandomFragment(int nIns)
             break;
         }
 
-        case LST_Q:
-            if (!M8ps.empty() && !Qs.empty()) {
-                LIns* base = rndPick(M8ps);
-                mLir->insStorei(rndPick(Qs), base, rndOffset64(base->size()));
-                n++;
-            }
-            break;
-
-        case LST_F:
+        case LST_QorF: {
             if (!M8ps.empty() && !Fs.empty()) {
                 LIns* base = rndPick(M8ps);
                 mLir->insStorei(rndPick(Fs), base, rndOffset64(base->size()));
                 n++;
             }
             break;
+        }
 
         case LCALL_I_I1:
             if (!Is.empty()) {

@@ -1205,8 +1205,6 @@ namespace nanojit
                 case LIR_ldc32f:
                 case LIR_ldq:
                 case LIR_ldqc:
-                case LIR_ldf:
-                case LIR_ldfc:
                 {
                     countlir_ldq();
                     asm_load64(ins);
@@ -1302,15 +1300,14 @@ namespace nanojit
                 }
                 case LIR_st32f:
                 case LIR_stqi:
-                case LIR_stfi:
                 {
                     countlir_stq();
                     LIns* value = ins->oprnd1();
                     LIns* base = ins->oprnd2();
                     int dr = ins->disp();
-                    if (value->isop(LIR_qjoin) && op == LIR_stfi)
+                    if (value->isop(LIR_qjoin) && op != LIR_st32f)
                     {
-                        // This is correct for little-endian only.
+                        // this is correct for little-endian only
                         asm_store32(LIR_sti, value->oprnd1(), dr, base);
                         asm_store32(LIR_sti, value->oprnd2(), dr+4, base);
                     }
@@ -1956,25 +1953,18 @@ namespace nanojit
 
     /**
      * Merge the current regstate with a previously stored version.
-     *
-     * Situation                            Change to _allocator
-     * ---------                            --------------------
-     * !current & !saved
-     * !current &  saved                    add saved
-     *  current & !saved                    evict current (unionRegisterState does nothing)
-     *  current &  saved & current==saved
-     *  current &  saved & current!=saved   evict current, add saved
+     * current == saved    skip
+     * current & saved     evict current, keep saved
+     * current & !saved    evict current  (unionRegisterState would keep)
+     * !current & saved    keep saved
      */
     void Assembler::intersectRegisterState(RegAlloc& saved)
     {
-        Register regsTodo[LastReg + 1];
-        LIns* insTodo[LastReg + 1];
-        int nTodo = 0;
-
-        // Do evictions and pops first.
+        // evictions and pops first
+        RegisterMask skip = 0;
         verbose_only(bool shouldMention=false; )
         // The obvious thing to do here is to iterate from FirstReg to LastReg.
-        // viz: for (Register r = FirstReg; r <= LastReg; r = nextreg(r)) ...
+        // viz: for (Register r=FirstReg; r <= LastReg; r = nextreg(r)) ...
         // However, on ARM that causes lower-numbered integer registers
         // to be be saved at higher addresses, which inhibits the formation
         // of load/store multiple instructions.  Hence iterate the loop the
@@ -1984,18 +1974,18 @@ namespace nanojit
         // Note, the loop var is deliberately typed as int (*not* Register)
         // to outsmart compilers that will otherwise report
         // "error: comparison is always true due to limited range of data type".
-        for (int ri = LastReg; ri >= FirstReg && ri <= LastReg; ri = int(prevreg(Register(ri))))
+        for (int ri=LastReg; ri >= FirstReg && ri <= LastReg; ri = int(prevreg(Register(ri))))
         {
             Register const r = Register(ri);
-            LIns* curins = _allocator.getActive(r);
-            LIns* savedins = saved.getActive(r);
-            if (curins != savedins)
+            LIns * curins = _allocator.getActive(r);
+            LIns * savedins = saved.getActive(r);
+            if (curins == savedins)
             {
-                if (savedins) {
-                    regsTodo[nTodo] = r;
-                    insTodo[nTodo] = savedins;
-                    nTodo++;
-                }
+                //verbose_only( if (curins) verbose_outputf("                                              skip %s", regNames[r]); )
+                skip |= rmask(r);
+            }
+            else
+            {
                 if (curins) {
                     //_nvprof("intersect-evict",1);
                     verbose_only( shouldMention=true; )
@@ -2011,46 +2001,37 @@ namespace nanojit
                 #endif
             }
         }
-        // Now reassign mainline registers.
-        for (int i = 0; i < nTodo; i++) {
-            findSpecificRegFor(insTodo[i], regsTodo[i]);
-        }
+        assignSaved(saved, skip);
         verbose_only(
             if (shouldMention)
-                verbose_outputf("## merging registers (intersect) with existing edge");
+                verbose_outputf("## merging registers (intersect) "
+                                "with existing edge");
         )
     }
 
     /**
      * Merge the current state of the registers with a previously stored version.
-     *
-     * Situation                            Change to _allocator
-     * ---------                            --------------------
-     * !current & !saved                    none
-     * !current &  saved                    add saved
-     *  current & !saved                    none (intersectRegisterState evicts current)
-     *  current &  saved & current==saved   none
-     *  current &  saved & current!=saved   evict current, add saved
+     * current == saved    skip
+     * current & saved     evict current, keep saved
+     * current & !saved    keep current (intersectRegisterState would evict)
+     * !current & saved    keep saved
      */
     void Assembler::unionRegisterState(RegAlloc& saved)
     {
-        Register regsTodo[LastReg + 1];
-        LIns* insTodo[LastReg + 1];
-        int nTodo = 0;
-
-        // Do evictions and pops first.
+        // evictions and pops first
         verbose_only(bool shouldMention=false; )
-        for (Register r = FirstReg; r <= LastReg; r = nextreg(r))
+        RegisterMask skip = 0;
+        for (Register r=FirstReg; r <= LastReg; r = nextreg(r))
         {
-            LIns* curins = _allocator.getActive(r);
-            LIns* savedins = saved.getActive(r);
-            if (curins != savedins)
+            LIns * curins = _allocator.getActive(r);
+            LIns * savedins = saved.getActive(r);
+            if (curins == savedins)
             {
-                if (savedins) {
-                    regsTodo[nTodo] = r;
-                    insTodo[nTodo] = savedins;
-                    nTodo++;
-                }
+                //verbose_only( if (curins) verbose_outputf("                                              skip %s", regNames[r]); )
+                skip |= rmask(r);
+            }
+            else
+            {
                 if (curins && savedins) {
                     //_nvprof("union-evict",1);
                     verbose_only( shouldMention=true; )
@@ -2063,24 +2044,29 @@ namespace nanojit
                     if (savedins) {
                         FSTP(r);
                     }
-                    else if (curins) {
+                    else {
                         // saved state did not have fpu reg allocated,
                         // so we must evict here to keep x87 stack balanced.
-                        evict(curins);
+                        evictIfActive(r);
                     }
                     verbose_only( shouldMention=true; )
                 }
                 #endif
             }
         }
-        // Now reassign mainline registers.
-        for (int i = 0; i < nTodo; i++) {
-            findSpecificRegFor(insTodo[i], regsTodo[i]);
+        assignSaved(saved, skip);
+        verbose_only( if (shouldMention) verbose_outputf("                                              merging registers (union) with existing edge");  )
+    }
+
+    void Assembler::assignSaved(RegAlloc &saved, RegisterMask skip)
+    {
+        // now reassign mainline registers
+        for (Register r=FirstReg; r <= LastReg; r = nextreg(r))
+        {
+            LIns *ins = saved.getActive(r);
+            if (ins && !(skip & rmask(r)))
+                findSpecificRegFor(ins, r);
         }
-        verbose_only(
-            if (shouldMention)
-                verbose_outputf("## merging registers (union) with existing edge");
-        )
     }
 
     // Scan table for instruction with the lowest priority, meaning it is used
