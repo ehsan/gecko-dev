@@ -279,10 +279,8 @@ nsImageFrame::UpdateIntrinsicSize(imgIContainer* aImage)
   
   if (aImage) {
     nsIntSize imageSizeInPx;
-    if (NS_FAILED(aImage->GetWidth(&imageSizeInPx.width)) ||
-        NS_FAILED(aImage->GetHeight(&imageSizeInPx.height))) {
-      imageSizeInPx.SizeTo(0, 0);
-    }
+    aImage->GetWidth(&imageSizeInPx.width);
+    aImage->GetHeight(&imageSizeInPx.height);
     nsSize newSize(nsPresContext::CSSPixelsToAppUnits(imageSizeInPx.width),
                    nsPresContext::CSSPixelsToAppUnits(imageSizeInPx.height));
     if (mIntrinsicSize != newSize) {

@@ -732,10 +732,8 @@ var allTabs = {
           siblingPreview.parentNode.insertBefore(preview, siblingPreview);
         else
           this.container.lastChild.appendChild(preview);
-        if (this.isOpen && !preview.hidden) {
+        if (this.isOpen && !preview.hidden)
           this._reflow();
-          preview.focus();
-        }
         break;
       case "TabClose":
         this._removePreview(preview);

@@ -87,7 +87,6 @@ BrowserStreamChild::StreamConstructed(
 {
   NPError rv = NPERR_NO_ERROR;
 
-  *stype = NP_NORMAL;
   rv = mInstance->mPluginIface->newstream(
     &mInstance->mData, const_cast<char*>(NullableStringGet(mimeType)),
     &mStream, seekable, stype);
