@@ -29,6 +29,8 @@ public:
     MOZ_ASSERT(aTracker);
   }
 
+  virtual ~imgStatusTrackerObserver() {}
+
   void SetTracker(imgStatusTracker* aTracker)
   {
     MOZ_ASSERT(aTracker);
@@ -140,9 +142,6 @@ public:
     if (!tracker) { return; }
     tracker->RecordError();
   }
-
-protected:
-  virtual ~imgStatusTrackerObserver() {}
 
 private:
   WeakPtr<imgStatusTracker> mTracker;
