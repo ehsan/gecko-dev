@@ -43,7 +43,6 @@
 
     window.onerror = function(event) {
       ok(!windowErrorCount++, "Correct number of window.onerror events");
-      setTimeout(function() { testGenerator.next(); }, 0);
     };
 
     function errorEventCounter(event) {
@@ -73,6 +72,7 @@
 
         if (!windowErrorCount) {
           captureCount = bubbleCount = 0;
+          setTimeout(function() { testGenerator.next(); }, 0);
         }
         else {
           // Let window.onerror have a chance to fire
