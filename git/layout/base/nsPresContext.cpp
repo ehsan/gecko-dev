@@ -204,9 +204,7 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
                         NS_FONT_STRETCH_NORMAL, 0, 0),
     mDefaultFantasyFont("fantasy", NS_FONT_STYLE_NORMAL,
                         NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL,
-                        NS_FONT_STRETCH_NORMAL, 0, 0),
-    mCanPaginatedScroll(PR_FALSE),
-    mIsRootPaginatedDocument(PR_FALSE), mSupressResizeReflow(PR_FALSE)
+                        NS_FONT_STRETCH_NORMAL, 0, 0)
 {
   // NOTE! nsPresContext::operator new() zeroes out all members, so don't
   // bother initializing members to 0.
@@ -433,13 +431,19 @@ nsPresContext::GetFontPreferences()
   mDefaultFixedFont.size = CSSPixelsToAppUnits(13);
 
   // the font prefs are based on langGroup, not actual language
-  const char *langGroup = "x-western"; // Assume x-western is safe...
+  nsCAutoString langGroup;
   if (mLanguage && mLangService) {
     nsresult rv;
     nsIAtom *group = mLangService->GetLanguageGroup(mLanguage, &rv);
     if (NS_SUCCEEDED(rv) && group) {
-      group->GetUTF8String(&langGroup);
+      group->ToUTF8String(langGroup);
     }
+    else {
+      langGroup.AssignLiteral("x-western"); // Assume x-western is safe...
+    }
+  }
+  else {
+    langGroup.AssignLiteral("x-western"); // Assume x-western is safe...
   }
 
   nsCAutoString pref;
@@ -1130,8 +1134,8 @@ void
 nsPresContext::SetSMILAnimations(nsIDocument *aDoc, PRUint16 aNewMode,
                                  PRUint16 aOldMode)
 {
-  nsSMILAnimationController *controller = aDoc->GetAnimationController();
-  if (controller) {
+  if (aDoc->HasAnimationController()) {
+    nsSMILAnimationController* controller = aDoc->GetAnimationController();
     switch (aNewMode)
     {
       case imgIContainer::kNormalAnimMode:
@@ -1146,13 +1150,6 @@ nsPresContext::SetSMILAnimations(nsIDocument *aDoc, PRUint16 aNewMode,
         break;
     }
   }
-}
-
-void
-nsPresContext::SMILOverrideStyleChanged(nsIContent* aContent)
-{
-  mShell->FrameConstructor()->PostRestyleEvent(aContent, eReStyle_Self,
-                                               NS_STYLE_HINT_NONE);
 }
 #endif // MOZ_SMIL
 
@@ -2432,11 +2429,6 @@ nsRootPresContext::GetPluginGeometryUpdates(nsIFrame* aChangedSubtree,
   nsRect bounds;
   if (bounds.IntersectRect(closure.mAffectedPluginBounds,
                            closure.mRootFrame->GetRect())) {
-    // It's OK to disable GetUsedX assertions because after a reflow,
-    // any changed geometry will cause UpdatePluginGeometry to happen
-    // again.
-    nsAutoDisableGetUsedXAssertions disableAssertions;
-
     nsDisplayListBuilder builder(closure.mRootFrame, PR_FALSE, PR_FALSE);
     builder.SetAccurateVisibleRegions();
     nsDisplayList list;

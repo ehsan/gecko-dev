@@ -53,9 +53,6 @@
 extern const PRUnichar* kOOPPPluginFocusEventId;
 UINT gOOPPPluginFocusEvent =
     RegisterWindowMessage(kOOPPPluginFocusEventId);
-extern const PRUnichar* kOOPPGetBaseMessageEventId;
-UINT gOOPPGetBaseMessageEvent =
-    RegisterWindowMessage(kOOPPGetBaseMessageEventId);
 UINT gOOPPSpinNativeLoopEvent =
     RegisterWindowMessage(L"SyncChannel Spin Inner Loop Message");
 UINT gOOPPStopNativeLoopEvent =
@@ -368,7 +365,7 @@ PluginInstanceParent::AnswerPStreamNotifyConstructor(PStreamNotifyParent* actor,
     if (!streamDestroyed) {
         static_cast<StreamNotifyParent*>(actor)->ClearDestructionFlag();
         if (*result != NPERR_NO_ERROR)
-            PStreamNotifyParent::Call__delete__(actor, NPERR_GENERIC_ERROR);
+            PStreamNotifyParent::Send__delete__(actor, NPERR_GENERIC_ERROR);
     }
 
     return true;
@@ -433,10 +430,10 @@ PluginInstanceParent::NPP_SetWindow(const NPWindow* aWindow)
     window.colormap = ws_info->colormap;
 #endif
 
-    NPError prv;
-    if (!CallNPP_SetWindow(window, &prv))
+    if (!CallNPP_SetWindow(window))
         return NPERR_GENERIC_ERROR;
-    return prv;
+
+    return NPERR_NO_ERROR;
 }
 
 NPError
@@ -539,7 +536,7 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
             {
                 RECT rect;
                 SharedSurfaceBeforePaint(rect, npremoteevent);
-                CallNPP_HandleEvent(npremoteevent, &handled);
+                CallPaint(npremoteevent, &handled);
                 SharedSurfaceAfterPaint(npevent);
                 return handled;
             }
@@ -563,34 +560,7 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
               }
             }
             break;
-
-            case WM_IME_SETCONTEXT:
-            {
-              // Children can activate the underlying parent browser window
-              // generating nested events that arrive here. Check the base
-              // event this event was triggered by and unlock the child using
-              // ReplyMessage if needed.
-              HWND hwnd = NULL;
-              UINT baseMsg = 0;
-              mNPNIface->getvalue(mNPP, NPNVnetscapeWindow, &hwnd);
-              NS_ASSERTION(GetWindowThreadProcessId(hwnd, nsnull) ==
-                           GetCurrentThreadId(),
-                           "hwnd belongs to another thread!");
-              if (hwnd &&
-                  SendMessage(hwnd, gOOPPGetBaseMessageEvent,
-                              (WPARAM)&baseMsg, 0) &&
-                  baseMsg == WM_ACTIVATE) {
-                  ReplyMessage(0);
-              }
-            }
-            break;
         }
-        if (!CallNPP_HandleEvent(npremoteevent, &handled))
-            return 0;
-    }
-    else {
-        if (!CallNPP_HandleEvent(npremoteevent, &handled))
-            return 0;
     }
 #endif
 
@@ -610,11 +580,13 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
 #  elif defined(MOZ_WIDGET_QT)
         XSync(QX11Info::display(), False);
 #  endif
+
+        return CallPaint(npremoteevent, &handled) ? handled : 0;
     }
+#endif
 
     if (!CallNPP_HandleEvent(npremoteevent, &handled))
         return 0; // no good way to handle errors here...
-#endif
 
     return handled;
 }
@@ -640,7 +612,7 @@ PluginInstanceParent::NPP_NewStream(NPMIMEType type, NPStream* stream,
         return NPERR_GENERIC_ERROR;
 
     if (NPERR_NO_ERROR != err)
-        bs->NPP_DestroyStream(NPERR_GENERIC_ERROR);
+        PBrowserStreamParent::Send__delete__(bs);
 
     return err;
 }
@@ -658,7 +630,8 @@ PluginInstanceParent::NPP_DestroyStream(NPStream* stream, NPReason reason)
         if (sp->mNPP != this)
             NS_RUNTIMEABORT("Mismatched plugin data");
 
-        return sp->NPP_DestroyStream(reason);
+        sp->NPP_DestroyStream(reason);
+        return NPERR_NO_ERROR;
     }
     else {
         PluginStreamParent* sp =
@@ -735,7 +708,7 @@ PluginInstanceParent::DeallocPPluginScriptableObject(
 }
 
 bool
-PluginInstanceParent::AnswerPPluginScriptableObjectConstructor(
+PluginInstanceParent::RecvPPluginScriptableObjectConstructor(
                                           PPluginScriptableObjectParent* aActor)
 {
     // This is only called in response to the child process requesting the
@@ -760,7 +733,7 @@ PluginInstanceParent::NPP_URLNotify(const char* url, NPReason reason,
 
     PStreamNotifyParent* streamNotify =
         static_cast<PStreamNotifyParent*>(notifyData);
-    PStreamNotifyParent::Call__delete__(streamNotify, reason);
+    PStreamNotifyParent::Send__delete__(streamNotify, reason);
 }
 
 bool
@@ -806,7 +779,7 @@ PluginInstanceParent::GetActorForNPObject(NPObject* aObject)
         return nsnull;
     }
 
-    if (!CallPPluginScriptableObjectConstructor(actor)) {
+    if (!SendPPluginScriptableObjectConstructor(actor)) {
         NS_WARNING("Failed to send constructor message!");
         return nsnull;
     }

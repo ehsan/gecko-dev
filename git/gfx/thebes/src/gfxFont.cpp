@@ -162,14 +162,15 @@ gfxFontFamily::HasOtherFamilyNames()
 }
 
 gfxFontEntry*
-gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle, PRBool& aNeedsBold)
+gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle, 
+                                PRBool& aNeedsSyntheticBold)
 {
     if (!mHasStyles)
         FindStyleVariations(); // collect faces for the family, if not already done
 
     NS_ASSERTION(mAvailableFonts.Length() > 0, "font family with no faces!");
 
-    aNeedsBold = PR_FALSE;
+    aNeedsSyntheticBold = PR_FALSE;
 
     PRInt8 baseWeight, weightDistance;
     aFontStyle.ComputeWeightAndOffset(&baseWeight, &weightDistance);
@@ -181,7 +182,7 @@ gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle, PRBool& aNeedsBo
     // If the family has only one face, we simply return it; no further checking needed
     if (mAvailableFonts.Length() == 1) {
         gfxFontEntry *fe = mAvailableFonts[0];
-        aNeedsBold = wantBold && !fe->IsBold();
+        aNeedsSyntheticBold = wantBold && !fe->IsBold();
         return fe;
     }
 
@@ -204,7 +205,7 @@ gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle, PRBool& aNeedsBo
         // if the desired style is available, return it directly
         gfxFontEntry *fe = mAvailableFonts[faceIndex];
         if (fe) {
-            // no need to set aNeedsBold here as we matched the boldness request
+            // no need to set aNeedsSyntheticBold here as we matched the boldness request
             return fe;
         }
 
@@ -226,7 +227,7 @@ gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle, PRBool& aNeedsBo
                         NS_ConvertUTF16toUTF8(mName).get(),
                         aFontStyle.style, aFontStyle.weight, aFontStyle.size,
                         NS_ConvertUTF16toUTF8(fe->Name()).get(), trial));
-                aNeedsBold = wantBold && !fe->IsBold();
+                aNeedsSyntheticBold = wantBold && !fe->IsBold();
                 return fe;
             }
         }
@@ -288,6 +289,13 @@ gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle, PRBool& aNeedsBo
     direction = (weightDistance >= 0) ? 1 : -1;
     PRInt8 i, wghtSteps = 0;
 
+    // synthetic bolding occurs when font itself is not a bold-face and
+    // either the absolute weight is at least 600 or the relative weight
+    // (e.g. 402) implies a darker face than the ones available.
+    // note: this means that (1) lighter styles *never* synthetic bold and
+    // (2) synthetic bolding always occurs at the first bolder step beyond
+    // available faces, no matter how light the boldest face
+
     // account for synthetic bold in lighter case
     // if lighter is applied with an inherited bold weight,
     // and no actual bold faces exist, synthetic bold is used
@@ -305,8 +313,13 @@ gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle, PRBool& aNeedsBo
             break;
     }
 
-    if (weightDistance > 0 && wghtSteps <= absDistance) {
-        aNeedsBold = PR_TRUE;
+    NS_ASSERTION(matchFE, "we should always be able to return something here");
+
+    if (!matchFE->IsBold() &&
+        ((weightDistance == 0 && baseWeight >= 6) ||
+         (weightDistance > 0 && wghtSteps <= absDistance)))
+    {
+        aNeedsSyntheticBold = PR_TRUE;
     }
 
     PR_LOG(gFontSelection, PR_LOG_DEBUG,
@@ -314,7 +327,6 @@ gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle, PRBool& aNeedsBo
             NS_ConvertUTF16toUTF8(mName).get(),
             aFontStyle.style, aFontStyle.weight, aFontStyle.size,
             NS_ConvertUTF16toUTF8(matchFE->Name()).get()));
-    NS_ASSERTION(matchFE, "we should always be able to return something here");
     return matchFE;
 }
 
@@ -796,7 +808,9 @@ gfxFont::RunMetrics::CombineWith(const RunMetrics& aOther, PRBool aOtherIsOnLeft
 }
 
 gfxFont::gfxFont(gfxFontEntry *aFontEntry, const gfxFontStyle *aFontStyle) :
-    mFontEntry(aFontEntry), mIsValid(PR_TRUE), mStyle(*aFontStyle), mSyntheticBoldOffset(0)
+    mFontEntry(aFontEntry), mIsValid(PR_TRUE),
+    mStyle(*aFontStyle), mSyntheticBoldOffset(0),
+    mShaper(nsnull)
 {
 #ifdef DEBUG_TEXT_RUN_STORAGE_METRICS
     ++gFontCount;
@@ -1428,7 +1442,7 @@ gfxFontGroup::BuildFontList()
 {
 // "#if" to be removed once all platforms are moved to gfxPlatformFontList interface
 // and subclasses of gfxFontGroup eliminated
-#if defined(XP_MACOSX) || defined(XP_WIN)
+#if defined(XP_MACOSX) || (defined(XP_WIN) && !defined(WINCE))
     ForEachFont(FindPlatformFont, this);
 
     if (mFonts.Length() == 0) {
@@ -1792,7 +1806,7 @@ gfxFontGroup::MakeTextRun(const PRUint8 *aString, PRUint32 aLength,
     nsAutoString utf16;
     AppendASCIItoUTF16(cString, utf16);
 
-    InitTextRun(textRun, utf16.get(), utf16.Length());
+    InitTextRun(aParams->mContext, textRun, utf16.get(), utf16.Length());
 
     textRun->FetchGlyphExtents(aParams->mContext);
 
@@ -1810,7 +1824,7 @@ gfxFontGroup::MakeTextRun(const PRUnichar *aString, PRUint32 aLength,
 
     gfxPlatform::GetPlatform()->SetupClusterBoundaries(textRun, aString);
 
-    InitTextRun(textRun, aString, aLength);
+    InitTextRun(aParams->mContext, textRun, aString, aLength);
 
     textRun->FetchGlyphExtents(aParams->mContext);
 
@@ -1822,7 +1836,8 @@ gfxFontGroup::MakeTextRun(const PRUnichar *aString, PRUint32 aLength,
                             // without requiring a separate allocation
 
 void
-gfxFontGroup::InitTextRun(gfxTextRun *aTextRun,
+gfxFontGroup::InitTextRun(gfxContext *aContext,
+                          gfxTextRun *aTextRun,
                           const PRUnichar *aString,
                           PRUint32 aLength)
 {
@@ -1845,8 +1860,9 @@ gfxFontGroup::InitTextRun(gfxTextRun *aTextRun,
             // create the glyph run for this range
             aTextRun->AddGlyphRun(matchedFont, runStart, (matchedLength > 0));
 
-            // do glyph layout and record the resulting positioned glyphs in the run
-            matchedFont->InitTextRun(aTextRun, aString, runStart, matchedLength);
+            // do glyph layout and record the resulting positioned glyphs
+            matchedFont->InitTextRun(aContext, aTextRun, aString,
+                                     runStart, matchedLength);
         } else {
             // no font available, so record missing glyph info instead
             if (unmatched == NULL) {

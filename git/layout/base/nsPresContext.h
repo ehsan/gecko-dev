@@ -852,6 +852,16 @@ public:
     mInvalidateRequests.mRequests.Clear();
   }
 
+  PRBool IsProcessingRestyles() const {
+    return mProcessingRestyles;
+  }
+
+  void SetProcessingRestyles(PRBool aProcessing) {
+    NS_ASSERTION(aProcessing != PRBool(mProcessingRestyles),
+                 "should never nest");
+    mProcessingRestyles = aProcessing;
+  }
+
   PRBool IsProcessingAnimationStyleChange() const {
     return mProcessingAnimationStyleChange;
   }
@@ -913,14 +923,6 @@ public:
    * ReflowStarted call. Cannot itself trigger an interrupt check.
    */
   PRBool HasPendingInterrupt() { return mHasPendingInterrupt; }
-
-#ifdef MOZ_SMIL
-  /**
-   * Indicates that the given element's SMIL Override Style has changed,
-   * and as a result, we need to update our display.
-   */
-  void SMILOverrideStyleChanged(nsIContent* aContent);
-#endif // MOZ_SMIL
 
   /**
    * If we have a presshell, and if the given content's current
@@ -1106,6 +1108,7 @@ protected:
 
   unsigned              mIsVisual : 1;
 
+  unsigned              mProcessingRestyles : 1;
   unsigned              mProcessingAnimationStyleChange : 1;
 
 #ifdef DEBUG

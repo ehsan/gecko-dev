@@ -101,8 +101,6 @@
  * A namespace class for static layout utilities.
  */
 
-PRBool nsLayoutUtils::sDisableGetUsedXAssertions = PR_FALSE;
-
 nsIFrame*
 nsLayoutUtils::GetLastContinuationWithChild(nsIFrame* aFrame)
 {
@@ -1113,8 +1111,6 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
                           const nsRegion& aDirtyRegion, nscolor aBackstop,
                           PRUint32 aFlags)
 {
-  nsAutoDisableGetUsedXAssertions disableAssert;
-
   nsDisplayListBuilder builder(aFrame, PR_FALSE, PR_TRUE);
   nsDisplayList list;
   nsRect dirtyRect = aDirtyRegion.GetBounds();
@@ -1192,7 +1188,11 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   }
 #endif
 
-  list.Paint(&builder, aRenderingContext);
+  PRUint32 flags = nsDisplayList::PAINT_DEFAULT;
+  if (aFlags & PAINT_WIDGET_LAYERS) {
+    flags |= nsDisplayList::PAINT_USE_WIDGET_LAYERS;
+  }
+  list.Paint(&builder, aRenderingContext, flags);
   // Flush the list so we don't trigger the IsEmpty-on-destruction assertion
   list.DeleteAll();
   return NS_OK;
@@ -1349,8 +1349,6 @@ nsLayoutUtils::ComputeRepaintRegionForCopy(nsIFrame* aRootFrame,
 {
   NS_ASSERTION(aRootFrame != aMovingFrame,
                "The root frame shouldn't be the one that's moving, that makes no sense");
-
-  nsAutoDisableGetUsedXAssertions disableAssert;
 
   // Build the 'after' display list over the whole area of interest.
   // (We have to build the 'after' display list because the frame/view

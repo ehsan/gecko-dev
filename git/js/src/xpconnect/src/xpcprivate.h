@@ -50,6 +50,14 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <math.h>
+#include "jsapi.h"
+#include "jsdhash.h"
+#include "jsprf.h"
+#include "prprf.h"
+#include "jsinterp.h"
+#include "jscntxt.h"
+#include "jsdbgapi.h"
+#include "jsgc.h"
 #include "nscore.h"
 #include "nsXPCOM.h"
 #include "nsAutoPtr.h"
@@ -74,14 +82,6 @@
 #include "nsIModule.h"
 #include "nsAutoLock.h"
 #include "nsXPTCUtils.h"
-#include "jsapi.h"
-#include "jsdhash.h"
-#include "jsprf.h"
-#include "prprf.h"
-#include "jsinterp.h"
-#include "jscntxt.h"
-#include "jsdbgapi.h"
-#include "jsgc.h"
 #include "xptinfo.h"
 #include "xpcforwards.h"
 #include "xpclog.h"
@@ -1389,6 +1389,24 @@ xpc_TraceForValidWrapper(JSTracer *trc, XPCWrappedNative* wrapper);
 
 /***************************************************************************/
 
+namespace XPCWrapper {
+
+enum WrapperType {
+    UNKNOWN         = 0,
+    NONE            = 0,
+    XPCNW_IMPLICIT  = 1 << 0,
+    XPCNW_EXPLICIT  = 1 << 1,
+    XPCNW           = (XPCNW_IMPLICIT | XPCNW_EXPLICIT),
+    SJOW            = 1 << 2,
+    // SJOW must be the last wrapper type that can be returned to chrome.
+
+    XOW             = 1 << 3,
+    COW             = 1 << 4,
+    SOW             = 1 << 5
+};
+
+}
+
 /***************************************************************************/
 // XPCWrappedNativeScope is one-to-one with a JS global object.
 
@@ -1491,6 +1509,14 @@ public:
 
     JSBool
     IsValid() const {return mRuntime != nsnull;}
+
+    /**
+     * Figures out what type of wrapper to create for obj if it were injected
+     * into 'this's scope.
+     */
+    XPCWrapper::WrapperType
+    GetWrapperFor(JSContext *cx, JSObject *obj, XPCWrapper::WrapperType hint,
+                  XPCWrappedNative **wn);
 
     static JSBool
     IsDyingScope(XPCWrappedNativeScope *scope);

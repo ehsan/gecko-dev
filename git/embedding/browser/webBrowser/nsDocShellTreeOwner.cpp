@@ -68,13 +68,11 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentType.h"
 #include "nsIDOMElement.h"
-#include "nsIDOMHTMLAnchorElement.h"
-#include "nsIDOMHTMLAreaElement.h"
-#include "nsIDOMHTMLLinkElement.h"
+#include "Link.h"
 #ifdef MOZ_SVG
-#include "nsIDOMSVGAElement.h"
 #include "nsIDOMSVGElement.h"
 #include "nsIDOMSVGTitleElement.h"
+#include "nsIDOMSVGForeignObjectElem.h"
 #endif
 #include "nsIDOMEvent.h"
 #include "nsIDOMMouseEvent.h"
@@ -988,6 +986,36 @@ DefaultTooltipTextProvider::DefaultTooltipTextProvider()
     mTag_window       = do_GetAtom("window");   
 }
 
+#ifdef MOZ_SVG
+//
+// UseSVGTitle
+//
+// A helper routine that determines whether we're still interested
+// in SVG titles. We need to stop at the SVG root element; that
+// either has no parent, has a non-SVG parent or has an SVG ForeignObject 
+// parent.
+//
+static PRBool
+UseSVGTitle(nsIDOMElement *currElement)
+{
+  nsCOMPtr<nsIDOMSVGElement> svgContent(do_QueryInterface(currElement));
+  if (!svgContent)
+    return PR_FALSE;
+
+  nsCOMPtr<nsIDOMNode> parent;
+  currElement->GetParentNode(getter_AddRefs(parent));
+  if (!parent)
+    return PR_FALSE;
+
+  nsCOMPtr<nsIDOMSVGForeignObjectElement> parentFOContent(do_QueryInterface(parent));
+  if (parentFOContent)
+    return PR_FALSE;
+
+  nsCOMPtr<nsIDOMSVGElement> parentSVGContent(do_QueryInterface(parent));
+  return (parentSVGContent != nsnull);
+}
+
+#endif
 /* void getNodeText (in nsIDOMNode aNode, out wstring aText); */
 NS_IMETHODIMP
 DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
@@ -998,6 +1026,7 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
     
   nsString outText;
 
+  PRBool lookingForSVGTitle = PR_TRUE;
   PRBool found = PR_FALSE;
   nsCOMPtr<nsIDOMNode> current ( aNode );
   while ( !found && current ) {
@@ -1016,29 +1045,21 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
           else {
             // ...ok, that didn't work, try it in the XLink namespace
             NS_NAMED_LITERAL_STRING(xlinkNS, "http://www.w3.org/1999/xlink");
-            nsCOMPtr<nsIDOMHTMLAnchorElement> anchorContent(do_QueryInterface(currElement));
-            nsCOMPtr<nsIDOMHTMLAreaElement> areaContent(do_QueryInterface(currElement));
-            nsCOMPtr<nsIDOMHTMLLinkElement> linkContent(do_QueryInterface(currElement));
-            PRBool hasHref;
-            currElement->HasAttribute(NS_LITERAL_STRING("href"), &hasHref);
-#ifdef MOZ_SVG
-            nsCOMPtr<nsIDOMSVGAElement> svgAnchorContent(do_QueryInterface(currElement));
-            PRBool hasXlinkHref;
-            currElement->HasAttributeNS(xlinkNS, NS_LITERAL_STRING("href"), &hasXlinkHref);
-
-            if (((anchorContent || areaContent || linkContent) && hasHref) ||
-                (svgAnchorContent && hasXlinkHref)) {
-#else
-            if ((anchorContent || areaContent || linkContent) && hasHref) {
-#endif
-              currElement->GetAttributeNS(xlinkNS, NS_LITERAL_STRING("title"), outText);
-              if ( outText.Length() )
-                found = PR_TRUE;
+            nsCOMPtr<mozilla::dom::Link> linkContent(do_QueryInterface(currElement));
+            if (linkContent) {
+              nsCOMPtr<nsIURI> uri(linkContent->GetURIExternal());
+              if (uri) {
+                currElement->GetAttributeNS(NS_LITERAL_STRING("http://www.w3.org/1999/xlink"), NS_LITERAL_STRING("title"), outText);
+                if ( outText.Length() )
+                  found = PR_TRUE;
+              }
             }
 #ifdef MOZ_SVG
             else {
-              nsCOMPtr<nsIDOMSVGElement> svgContent(do_QueryInterface(currElement));
-              if (svgContent) {
+              if (lookingForSVGTitle) {
+                lookingForSVGTitle = UseSVGTitle(currElement);
+              }
+              if (lookingForSVGTitle) {
                 nsCOMPtr<nsIDOMNodeList>childNodes;
                 aNode->GetChildNodes(getter_AddRefs(childNodes));
                 PRUint32 childNodeCount;

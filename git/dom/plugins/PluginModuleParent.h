@@ -120,7 +120,18 @@ public:
 
     bool EnsureValidNPIdentifier(NPIdentifier aIdentifier);
 
+    bool OkToCleanup() const {
+        return !IsOnCxxStack();
+    }
+
 protected:
+    NS_OVERRIDE
+    virtual mozilla::ipc::RPCChannel::RacyRPCPolicy
+    MediateRPCRace(const Message& parent, const Message& child)
+    {
+        return MediateRace(parent, child);
+    }
+
     NS_OVERRIDE
     virtual bool ShouldContinueFromReplyTimeout();
 
@@ -228,6 +239,7 @@ private:
                              const char* value);
     void CleanupFromTimeout();
     static int TimeoutChanged(const char* aPref, void* aModule);
+    void NotifyPluginCrashed();
 
     nsCString mCrashNotes;
     PluginProcessParent* mSubprocess;
@@ -236,6 +248,8 @@ private:
     nsTHashtable<nsVoidPtrHashKey> mValidIdentifiers;
     nsNPAPIPlugin* mPlugin;
     time_t mProcessStartTime;
+    CancelableTask* mPluginCrashedTask;
+    nsString mDumpID;
 };
 
 } // namespace plugins
