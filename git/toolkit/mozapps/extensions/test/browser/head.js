@@ -393,8 +393,8 @@ CertOverrideListener.prototype = {
   },
 
   notifyCertProblem: function (socketInfo, sslStatus, targetHost) {
-    var cert = sslStatus.QueryInterface(Components.interfaces.nsISSLStatus)
-                        .serverCert;
+    cert = sslStatus.QueryInterface(Components.interfaces.nsISSLStatus)
+                    .serverCert;
     var cos = Cc["@mozilla.org/security/certoverride;1"].
               getService(Ci.nsICertOverrideService);
     cos.rememberValidityOverride(this.host, -1, cert, this.bits, false);

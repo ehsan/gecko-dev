@@ -17,13 +17,13 @@ function getChromeRoot(path) {
 }
 
 function extractChromeRoot(path) {
-  var chromeRootPath = getChromeRoot(path);
-  var jar = getJar(chromeRootPath);
+  var path = getChromeRoot(path);
+  var jar = getJar(path);
   if (jar) {
     var tmpdir = extractJarToTmp(jar);
     return "file://" + tmpdir.path + "/";
   }
-  return chromeRootPath;
+  return path;
 }
 
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
