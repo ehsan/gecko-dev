@@ -184,6 +184,7 @@
           this.moveTabTo(aTab, this._numPinnedTabs);
           aTab.setAttribute("pinned", "true");
           this.tabContainer._positionPinnedTabs();
+          this.tabContainer.adjustTabstrip();
         ]]></body>
       </method>
 
@@ -198,6 +199,7 @@
           aTab.removeAttribute("pinned");
           aTab.style.MozMarginStart = "";
           this.tabContainer._positionPinnedTabs();
+          this.tabContainer.adjustTabstrip();
         ]]></body>
       </method>
 
@@ -2863,6 +2865,15 @@
           // overflowed.
           this.mTabstrip._updateScrollButtonsDisabledState();
         ]]></body>
+      </method>
+      
+      <method name="_canAdvanceToTab">
+        <parameter name="aTab"/>
+        <body>
+        <![CDATA[
+          return this.tabbrowser._removingTabs.indexOf(aTab) == -1;
+        ]]>
+        </body>
       </method>
 
       <!-- Deprecated stuff, implemented for backwards compatibility. -->

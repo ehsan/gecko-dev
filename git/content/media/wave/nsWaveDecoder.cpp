@@ -49,7 +49,7 @@
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
 #include "nsWaveDecoder.h"
-#include "nsHTMLTimeRanges.h"
+#include "nsTimeRanges.h"
 
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
@@ -170,7 +170,7 @@ public:
   // main thread.
   float GetTimeForPositionChange();
 
-  nsresult GetBuffered(nsHTMLTimeRanges* aBuffered);
+  nsresult GetBuffered(nsTimeRanges* aBuffered);
 
 private:
   // Returns PR_TRUE if we're in shutdown state. Threadsafe.
@@ -761,9 +761,12 @@ nsWaveStateMachine::Run()
           NS_NewRunnableMethod(mDecoder, &nsWaveDecoder::PlaybackEnded);
         NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 
-        do {
-          monitor.Wait();
-        } while (mState == STATE_ENDED);
+        // We've finished playback. Shutdown the state machine thread, 
+        // in order to save memory on thread stacks, particuarly on Linux.
+        event = new ShutdownThreadEvent(mDecoder->mPlaybackThread);
+        NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
+        mDecoder->mPlaybackThread = nsnull;
+        return NS_OK;
       }
       break;
 
@@ -1181,7 +1184,7 @@ nsWaveStateMachine::FirePositionChanged(PRBool aCoalesce)
 }
 
 nsresult
-nsWaveStateMachine::GetBuffered(nsHTMLTimeRanges* aBuffered)
+nsWaveStateMachine::GetBuffered(nsTimeRanges* aBuffered)
 {
   PRInt64 startOffset = mStream->GetNextCachedData(mWavePCMOffset);
   while (startOffset >= 0) {
@@ -1258,12 +1261,25 @@ nsWaveDecoder::GetCurrentTime()
 }
 
 nsresult
+nsWaveDecoder::StartStateMachineThread()
+{
+  NS_ASSERTION(mPlaybackStateMachine, "Must have state machine");
+  if (mPlaybackThread) {
+    return NS_OK;
+  }
+  nsresult rv = NS_NewThread(getter_AddRefs(mPlaybackThread));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return mPlaybackThread->Dispatch(mPlaybackStateMachine, NS_DISPATCH_NORMAL);
+}
+
+nsresult
 nsWaveDecoder::Seek(float aTime)
 {
   if (mPlaybackStateMachine) {
     PinForSeek();
     mPlaybackStateMachine->Seek(aTime);
-    return NS_OK;
+    return StartStateMachineThread();
   }
 
   return NS_ERROR_FAILURE;
@@ -1306,7 +1322,7 @@ nsWaveDecoder::Play()
 {
   if (mPlaybackStateMachine) {
     mPlaybackStateMachine->Play();
-    return NS_OK;
+    return StartStateMachineThread();
   }
 
   return NS_ERROR_FAILURE;
@@ -1675,7 +1691,7 @@ nsWaveDecoder::MoveLoadsToBackground()
 }
 
 nsresult
-nsWaveDecoder::GetBuffered(nsHTMLTimeRanges* aBuffered)
+nsWaveDecoder::GetBuffered(nsTimeRanges* aBuffered)
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
   return mPlaybackStateMachine->GetBuffered(aBuffered);

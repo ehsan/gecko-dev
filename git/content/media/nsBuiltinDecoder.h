@@ -294,7 +294,7 @@ public:
   // the decode monitor held.
   virtual void UpdatePlaybackPosition(PRInt64 aTime) = 0;
 
-  virtual nsresult GetBuffered(nsHTMLTimeRanges* aBuffered) = 0;
+  virtual nsresult GetBuffered(nsTimeRanges* aBuffered) = 0;
   
   // Causes the state machine to switch to buffering state, and to
   // immediately stop playback and buffer downloaded data. Must be called
@@ -430,7 +430,7 @@ class nsBuiltinDecoder : public nsMediaDecoder
 
   // Constructs the time ranges representing what segments of the media
   // are buffered and playable.
-  virtual nsresult GetBuffered(nsHTMLTimeRanges* aBuffered) {
+  virtual nsresult GetBuffered(nsTimeRanges* aBuffered) {
     return mDecoderStateMachine->GetBuffered(aBuffered);
   }
 
@@ -533,6 +533,10 @@ class nsBuiltinDecoder : public nsMediaDecoder
 public:
   // Notifies the element that decoding has failed.
   void DecodeError();
+
+  // Ensures the state machine thread is running, starting a new one
+  // if necessary.
+  nsresult StartStateMachineThread();
 
   /******
    * The following members should be accessed with the decoder lock held.
