@@ -24,8 +24,6 @@
 #include "afglobal.c"
 #include "afhints.c"
 
-#include "afranges.c"
-
 #include "afdummy.c"
 #include "aflatin.c"
 #ifdef FT_OPTION_AUTOFIT2
@@ -33,8 +31,6 @@
 #endif
 #include "afcjk.c"
 #include "afindic.c"
-
-#include "hbshim.c"
 
 #include "afloader.c"
 #include "afmodule.c"

@@ -355,10 +355,9 @@
       cidface->num_charmaps = 0;
 
       cidface->face_index = face_index;
-
-      cidface->face_flags |= FT_FACE_FLAG_SCALABLE   | /* scalable outlines */
-                             FT_FACE_FLAG_HORIZONTAL | /* horizontal data   */
-                             FT_FACE_FLAG_HINTER;      /* has native hinter */
+      cidface->face_flags = FT_FACE_FLAG_SCALABLE   | /* scalable outlines */
+                            FT_FACE_FLAG_HORIZONTAL | /* horizontal data   */
+                            FT_FACE_FLAG_HINTER;      /* has native hinter */
 
       if ( info->is_fixed_pitch )
         cidface->face_flags |= FT_FACE_FLAG_FIXED_WIDTH;

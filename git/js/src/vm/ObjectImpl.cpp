@@ -159,7 +159,9 @@ bool
 ObjectImpl::canHaveNonEmptyElements()
 {
     JSObject *obj = static_cast<JSObject *>(this);
-    return isNative() && !obj->is<TypedArrayObject>();
+    if (isNative())
+        return !obj->is<TypedArrayObject>();
+    return obj->is<ArrayBufferObject>() || obj->is<SharedArrayBufferObject>();
 }
 
 #endif // DEBUG

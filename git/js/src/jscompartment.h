@@ -113,6 +113,7 @@ struct TypeInferenceSizes;
 
 namespace js {
 class AutoDebugModeInvalidation;
+class ArrayBufferObject;
 class DebugScopes;
 class WeakMapBase;
 }

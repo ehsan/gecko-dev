@@ -345,12 +345,10 @@ nsPluginDirServiceProvider::GetFile(const char *charProp, bool *persistant,
     }
   }
 
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  if (localFile && NS_SUCCEEDED(rv))
+    return CallQueryInterface(localFile, _retval);
 
-  localFile.forget(_retval);
-  return NS_OK;
+  return rv;
 }
 
 nsresult

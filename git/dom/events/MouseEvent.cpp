@@ -479,7 +479,5 @@ NS_NewDOMMouseEvent(nsIDOMEvent** aInstancePtrResult,
                     WidgetMouseEvent* aEvent)
 {
   MouseEvent* it = new MouseEvent(aOwner, aPresContext, aEvent);
-  NS_ADDREF(it);
-  *aInstancePtrResult = static_cast<Event*>(it);
-  return NS_OK;
+  return CallQueryInterface(it, aInstancePtrResult);
 }

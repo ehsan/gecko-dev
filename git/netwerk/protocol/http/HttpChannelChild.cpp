@@ -786,8 +786,8 @@ HttpChannelChild::Redirect1Begin(const uint32_t& newChannelId,
   mResponseHead = new nsHttpResponseHead(responseHead);
   SetCookie(mResponseHead->PeekHeader(nsHttp::Set_Cookie));
 
-  bool rewriteToGET = HttpBaseChannel::ShouldRewriteRedirectToGET(mResponseHead->Status(),
-                                                                  mRequestHead.ParsedMethod());
+  bool rewriteToGET = nsHttp::ShouldRewriteRedirectToGET(
+                               mResponseHead->Status(), mRequestHead.Method());
 
   rv = SetupReplacementChannel(uri, newChannel, !rewriteToGET);
   if (NS_FAILED(rv)) {

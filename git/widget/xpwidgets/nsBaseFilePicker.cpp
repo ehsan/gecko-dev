@@ -272,11 +272,9 @@ NS_IMETHODIMP nsBaseFilePicker::GetDisplayDirectory(nsIFile **aDirectory)
     return NS_OK;
   nsCOMPtr<nsIFile> directory;
   nsresult rv = mDisplayDirectory->Clone(getter_AddRefs(directory));
-  if (NS_FAILED(rv)) {
+  if (NS_FAILED(rv))
     return rv;
-  }
-  directory.forget(aDirectory);
-  return NS_OK;
+  return CallQueryInterface(directory, aDirectory);
 }
 
 NS_IMETHODIMP

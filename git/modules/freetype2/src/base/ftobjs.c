@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    The FreeType private base classes (body).                            */
 /*                                                                         */
-/*  Copyright 1996-2014 by                                                 */
+/*  Copyright 1996-2013 by                                                 */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -1801,10 +1801,9 @@
     if ( error )
       return error;
 
-    /* POST resources must be sorted to concatenate properly */
     error = FT_Raccess_Get_DataOffsets( library, stream,
                                         map_offset, rdara_pos,
-                                        TTAG_POST, TRUE,
+                                        TTAG_POST,
                                         &data_offsets, &count );
     if ( !error )
     {
@@ -1817,11 +1816,9 @@
       return error;
     }
 
-    /* sfnt resources should not be sorted to preserve the face order by
-       QuickDraw API */
     error = FT_Raccess_Get_DataOffsets( library, stream,
                                         map_offset, rdara_pos,
-                                        TTAG_sfnt, FALSE,
+                                        TTAG_sfnt,
                                         &data_offsets, &count );
     if ( !error )
     {
@@ -3360,7 +3357,6 @@
     FT_UInt   gindex = 0;
 
 
-    /* only do something if we have a charmap, and we have glyphs at all */
     if ( face && face->charmap && face->num_glyphs )
     {
       gindex = FT_Get_Char_Index( face, 0 );
@@ -3947,16 +3943,10 @@
   static void
   ft_remove_renderer( FT_Module  module )
   {
-    FT_Library   library;
-    FT_Memory    memory;
+    FT_Library   library = module->library;
+    FT_Memory    memory  = library->memory;
     FT_ListNode  node;
 
-
-    library = module->library;
-    if ( !library )
-      return;
-
-    memory = library->memory;
 
     node = FT_List_Find( &library->renderers, module );
     if ( node )
@@ -4473,7 +4463,7 @@
   }
 
 
-  static FT_Error
+  FT_Error
   ft_property_do( FT_Library        library,
                   const FT_String*  module_name,
                   const FT_String*  property_name,

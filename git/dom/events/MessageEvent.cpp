@@ -203,7 +203,5 @@ NS_NewDOMMessageEvent(nsIDOMEvent** aInstancePtrResult,
                       WidgetEvent* aEvent) 
 {
   MessageEvent* it = new MessageEvent(aOwner, aPresContext, aEvent);
-  NS_ADDREF(it);
-  *aInstancePtrResult = static_cast<Event*>(it);
-  return NS_OK;
+  return CallQueryInterface(it, aInstancePtrResult);
 }

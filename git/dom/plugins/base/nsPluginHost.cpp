@@ -3394,7 +3394,9 @@ CheckForDisabledWindows()
         nsIWidget* child = widget->GetFirstChild();
         bool enable = true;
         while (child)  {
-          if (child->WindowType() == eWindowType_dialog) {
+          nsWindowType aType;
+          if (NS_SUCCEEDED(child->GetWindowType(aType)) &&
+              aType == eWindowType_dialog) {
             enable = false;
             break;
           }

@@ -367,9 +367,7 @@ this.WebappManager = {
                                 Ci.nsIChannel.LOAD_BYPASS_CACHE |
                                 Ci.nsIChannel.INHIBIT_CACHING;
     request.onload = function() {
-      if (userInitiated) {
-        notification.cancel();
-      }
+      notification.cancel();
       deferred.resolve(JSON.parse(this.response).outdated);
     };
     request.onerror = function() {

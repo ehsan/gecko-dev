@@ -529,7 +529,42 @@ TelephonyProvider.prototype = {
       return;
     }
 
-    this._getClient(aClientId).sendWorkerMessage("holdCall", { callIndex: aCallIndex });
+    let parentId = this._currentCalls[aClientId][aCallIndex].parentId;
+    if (parentId) {
+      this.resumeCall(aClientId, parentId);
+      return;
+    }
+
+    function onCdmaHoldCallSuccess() {
+      let call = this._currentCalls[aClientId][aCallIndex];
+      if (!call) {
+        return;
+      }
+
+      call.state = RIL.CALL_STATE_HOLDING;
+      this.notifyCallStateChanged(aClientId, call);
+
+      if (!call.childId) {
+        return;
+      }
+
+      let childCall = this._currentCalls[aClientId][call.childId];
+      childCall.state = RIL.CALL_STATE_ACTIVE;
+      this.notifyCallStateChanged(aClientId, childCall);
+    };
+
+    this._getClient(aClientId).sendWorkerMessage("holdCall", {
+      callIndex: aCallIndex
+    },(function(response) {
+        if (!response.success) {
+          return false;
+        }
+
+        if (response.isCdma) {
+          onCdmaHoldCallSuccess.call(this);
+        }
+        return false;
+    }).bind(this));
   },
 
   resumeCall: function(aClientId, aCallIndex) {
@@ -540,7 +575,43 @@ TelephonyProvider.prototype = {
       return;
     }
 
-    this._getClient(aClientId).sendWorkerMessage("resumeCall", { callIndex: aCallIndex });
+    let parentId = this._currentCalls[aClientId][aCallIndex].parentId;
+    if (parentId) {
+      this.holdCall(aClientId, parentId);
+      return;
+    }
+
+    function onCdmaResumeCallSuccess() {
+      let call = this._currentCalls[aClientId][aCallIndex];
+      if (!call) {
+        return;
+      }
+
+      call.state = RIL.CALL_STATE_ACTIVE;
+      this.notifyCallStateChanged(aClientId, call);
+
+      let childId = call.childId;
+      if (!childId) {
+        return;
+      }
+
+      let childCall = this._currentCalls[aClientId][childId];
+      childCall.state = RIL.CALL_STATE_HOLDING;
+      this.notifyCallStateChanged(aClientId, childCall);
+    };
+
+    this._getClient(aClientId).sendWorkerMessage("resumeCall", {
+      callIndex: aCallIndex
+    },(function(response) {
+      if (!response.success) {
+        return false;
+      }
+
+      if (response.isCdma) {
+        onCdmaResumeCallSuccess.call(this);
+      }
+      return false;
+    }).bind(this));
   },
 
   conferenceCall: function(aClientId) {

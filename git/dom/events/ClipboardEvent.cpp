@@ -129,7 +129,5 @@ NS_NewDOMClipboardEvent(nsIDOMEvent** aInstancePtrResult,
                         InternalClipboardEvent* aEvent)
 {
   ClipboardEvent* it = new ClipboardEvent(aOwner, aPresContext, aEvent);
-  NS_ADDREF(it);
-  *aInstancePtrResult = static_cast<Event*>(it);
-  return NS_OK;
+  return CallQueryInterface(it, aInstancePtrResult);
 }

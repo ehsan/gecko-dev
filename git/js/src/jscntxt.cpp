@@ -1352,7 +1352,7 @@ JS::AutoCheckRequestDepth::~AutoCheckRequestDepth()
 #endif
 
 #ifdef JS_CRASH_DIAGNOSTICS
-void CompartmentChecker::check(InterpreterFrame *fp)
+void CompartmentChecker::check(StackFrame *fp)
 {
     if (fp)
         check(fp->scopeChain());

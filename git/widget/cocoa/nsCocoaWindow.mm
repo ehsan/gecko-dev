@@ -147,7 +147,8 @@ nsCocoaWindow::~nsCocoaWindow()
   // childView->ResetParent() can change our list of children while it's
   // being iterated, so the way we iterate the list must allow for this.
   for (nsIWidget* kid = mLastChild; kid;) {
-    nsWindowType kidType = kid->WindowType();
+    nsWindowType kidType;
+    kid->GetWindowType(kidType);
     if (kidType == eWindowType_child || kidType == eWindowType_plugin) {
       nsChildView* childView = static_cast<nsChildView*>(kid);
       kid = kid->GetPrevSibling();
@@ -374,7 +375,9 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect &aRect,
       features = WindowMaskForBorderStyle(aBorderStyle);
       break;
     case eWindowType_sheet:
-      if (mParent->WindowType() != eWindowType_invisible &&
+      nsWindowType parentType;
+      mParent->GetWindowType(parentType);
+      if (parentType != eWindowType_invisible &&
           aBorderStyle & eBorderStyle_resizeh) {
         features = NSResizableWindowMask;
       }
@@ -1638,7 +1641,8 @@ NS_IMETHODIMP nsCocoaWindow::GetChildSheet(bool aShown, nsCocoaWindow** _retval)
   nsIWidget* child = GetFirstChild();
 
   while (child) {
-    if (child->WindowType() == eWindowType_sheet) {
+    nsWindowType type;
+    if (NS_SUCCEEDED(child->GetWindowType(type)) && type == eWindowType_sheet) {
       // if it's a sheet, it must be an nsCocoaWindow
       nsCocoaWindow* cocoaWindow = static_cast<nsCocoaWindow*>(child);
       if (cocoaWindow->mWindow &&
