@@ -54,7 +54,6 @@ GonkVideoDecoderManager::GonkVideoDecoderManager(
 		           const mp4_demuxer::VideoDecoderConfig& aConfig)
   : mImageContainer(aImageContainer)
   , mReaderCallback(nullptr)
-  , mMonitor("GonkVideoDecoderManager")
   , mColorConverterBufferSize(0)
   , mNativeWindow(nullptr)
   , mPendingVideoBuffersLock("GonkVideoDecoderManager::mPendingVideoBuffersLock")
@@ -122,50 +121,6 @@ GonkVideoDecoderManager::Init(MediaDataDecoderCallback* aCallback)
   return mDecoder;
 }
 
-void
-GonkVideoDecoderManager::QueueFrameTimeIn(int64_t aPTS, int64_t aDuration)
-{
-  MonitorAutoLock mon(mMonitor);
-  FrameTimeInfo timeInfo = {aPTS, aDuration};
-  mFrameTimeInfo.AppendElement(timeInfo);
-}
-
-nsresult
-GonkVideoDecoderManager::QueueFrameTimeOut(int64_t aPTS, int64_t& aDuration)
-{
-  MonitorAutoLock mon(mMonitor);
-
-  // Set default to 1 here.
-  // During seeking, frames could still in MediaCodec and the mFrameTimeInfo could
-  // be cleared before these frames are out from MediaCodec. This is ok because
-  // these frames are old frame before seeking.
-  aDuration = 1;
-  for (uint32_t i = 0; i < mFrameTimeInfo.Length(); i++) {
-    const FrameTimeInfo& entry = mFrameTimeInfo.ElementAt(i);
-    if (i == 0) {
-      if (entry.pts > aPTS) {
-        // Codec sent a frame with rollbacked PTS time. It could
-        // be codec's problem.
-        ReleaseVideoBuffer();
-        return NS_ERROR_NOT_AVAILABLE;
-      }
-    }
-
-    // Ideally, the first entry in mFrameTimeInfo should be the one we are looking
-    // for. However, MediaCodec could dropped frame and the first entry doesn't
-    // match current decoded frame's PTS.
-    if (entry.pts == aPTS) {
-      aDuration = entry.duration;
-      if (i > 0) {
-        LOG("Frame could be dropped by MediaCodec, %d dropped frames.", i);
-      }
-      mFrameTimeInfo.RemoveElementsAt(0, i+1);
-      break;
-    }
-  }
-  return NS_OK;
-}
-
 nsresult
 GonkVideoDecoderManager::CreateVideoData(int64_t aStreamOffset, VideoData **v)
 {
@@ -183,10 +138,6 @@ GonkVideoDecoderManager::CreateVideoData(int64_t aStreamOffset, VideoData **v)
     ALOG("Decoder did not return frame time");
     return NS_ERROR_UNEXPECTED;
   }
-
-  int64_t duration;
-  nsresult rv = QueueFrameTimeOut(timeUs, duration);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   if (mVideoBuffer->range_length() == 0) {
     // Some decoders may return spurious empty buffers that we just want to ignore
@@ -227,7 +178,7 @@ GonkVideoDecoderManager::CreateVideoData(int64_t aStreamOffset, VideoData **v)
                              mImageContainer,
                              aStreamOffset,
                              timeUs,
-                             duration,
+                             1, // We don't know the duration.
                              textureClient,
                              keyFrame,
                              -1,
@@ -449,8 +400,6 @@ GonkVideoDecoderManager::Input(mp4_demuxer::MP4Sample* aSample)
     mp4_demuxer::AnnexB::ConvertSample(aSample);
     // Forward sample data to the decoder.
 
-    QueueFrameTimeIn(aSample->composition_timestamp, aSample->duration);
-
     const uint8_t* data = reinterpret_cast<const uint8_t*>(aSample->data);
     uint32_t length = aSample->size;
     rv = mDecoder->Input(data, length, aSample->composition_timestamp, 0);
@@ -460,19 +409,6 @@ GonkVideoDecoderManager::Input(mp4_demuxer::MP4Sample* aSample)
     rv = mDecoder->Input(nullptr, 0, 0ll, 0);
   }
   return (rv == OK) ? NS_OK : NS_ERROR_FAILURE;
-}
-
-nsresult
-GonkVideoDecoderManager::Flush()
-{
-  status_t err = mDecoder->flush();
-  if (err != OK) {
-    return NS_ERROR_FAILURE;
-  }
-
-  MonitorAutoLock mon(mMonitor);
-  mFrameTimeInfo.Clear();
-  return NS_OK;
 }
 
 void

@@ -3717,7 +3717,7 @@ nsComputedDOMStyle::DoGetFlexBasis()
   //   }
 
   SetValueToCoord(val, StylePosition()->mFlexBasis, true,
-                  nullptr, nsCSSProps::kWidthKTable);
+                  nullptr, nsCSSProps::kFlexBasisKTable);
   return val;
 }
 

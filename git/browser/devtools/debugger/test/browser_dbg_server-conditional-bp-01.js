@@ -54,55 +54,55 @@ function test() {
 
   function addBreakpoints() {
     return promise.resolve(null)
-      .then(() => gPanel.addBreakpoint({ actor: gSources.selectedValue,
+      .then(() => gPanel.addBreakpoint({ url: gSources.selectedValue,
                                          line: 18,
                                          condition: "undefined"
                                        }))
-      .then(() => gPanel.addBreakpoint({ actor: gSources.selectedValue,
+      .then(() => gPanel.addBreakpoint({ url: gSources.selectedValue,
                                          line: 19,
                                          condition: "null"
                                        }))
-      .then(() => gPanel.addBreakpoint({ actor: gSources.selectedValue,
+      .then(() => gPanel.addBreakpoint({ url: gSources.selectedValue,
                                          line: 20,
                                          condition: "42"
                                        }))
-      .then(() => gPanel.addBreakpoint({ actor: gSources.selectedValue,
+      .then(() => gPanel.addBreakpoint({ url: gSources.selectedValue,
                                          line: 21,
                                          condition: "true"
                                        }))
-      .then(() => gPanel.addBreakpoint({ actor: gSources.selectedValue,
+      .then(() => gPanel.addBreakpoint({ url: gSources.selectedValue,
                                          line: 22,
                                          condition: "'nasu'"
                                        }))
-      .then(() => gPanel.addBreakpoint({ actor: gSources.selectedValue,
+      .then(() => gPanel.addBreakpoint({ url: gSources.selectedValue,
                                          line: 23,
                                          condition: "/regexp/"
                                        }))
-      .then(() => gPanel.addBreakpoint({ actor: gSources.selectedValue,
+      .then(() => gPanel.addBreakpoint({ url: gSources.selectedValue,
                                          line: 24,
                                          condition: "({})"
                                        }))
-      .then(() => gPanel.addBreakpoint({ actor: gSources.selectedValue,
+      .then(() => gPanel.addBreakpoint({ url: gSources.selectedValue,
                                          line: 25,
                                          condition: "(function() {})"
                                        }))
-      .then(() => gPanel.addBreakpoint({ actor: gSources.selectedValue,
+      .then(() => gPanel.addBreakpoint({ url: gSources.selectedValue,
                                          line: 26,
                                          condition: "(function() { return false; })()"
                                        }))
-      .then(() => gPanel.addBreakpoint({ actor: gSources.selectedValue,
+      .then(() => gPanel.addBreakpoint({ url: gSources.selectedValue,
                                          line: 27,
                                          condition: "a"
                                        }))
-      .then(() => gPanel.addBreakpoint({ actor: gSources.selectedValue,
+      .then(() => gPanel.addBreakpoint({ url: gSources.selectedValue,
                                          line: 28,
                                          condition: "a !== undefined"
                                        }))
-      .then(() => gPanel.addBreakpoint({ actor: gSources.selectedValue,
+      .then(() => gPanel.addBreakpoint({ url: gSources.selectedValue,
                                          line: 29,
                                          condition: "a !== null"
                                        }))
-      .then(() => gPanel.addBreakpoint({ actor: gSources.selectedValue,
+      .then(() => gPanel.addBreakpoint({ url: gSources.selectedValue,
                                          line: 30,
                                          condition: "b"
                                        }));
@@ -172,19 +172,19 @@ function test() {
     // Highlight the breakpoint only if required.
     if (aHighlightBreakpoint) {
       let finished = waitForCaretUpdated(gPanel, aLine).then(() => testBreakpoint(aLine));
-      gSources.highlightBreakpoint({ actor: gSources.selectedValue, line: aLine });
+      gSources.highlightBreakpoint({ url: gSources.selectedValue, line: aLine });
       return finished;
     }
 
-    let selectedActor = gSources.selectedValue;
+    let selectedUrl = gSources.selectedValue;
     let selectedBreakpoint = gSources._selectedBreakpointItem;
 
-    ok(selectedActor,
+    ok(selectedUrl,
       "There should be a selected item in the sources pane.");
     ok(selectedBreakpoint,
       "There should be a selected brekapoint in the sources pane.");
 
-    is(selectedBreakpoint.attachment.actor, selectedActor,
+    is(selectedBreakpoint.attachment.url, selectedUrl,
       "The breakpoint on line " + aLine + " wasn't added on the correct source.");
     is(selectedBreakpoint.attachment.line, aLine,
       "The breakpoint on line " + aLine + " wasn't found.");
@@ -196,7 +196,7 @@ function test() {
       "The breakpoint conditional expression popup should not have been shown.");
 
     return gBreakpoints._getAdded(selectedBreakpoint.attachment).then(aBreakpointClient => {
-      is(aBreakpointClient.location.actor, selectedActor,
+      is(aBreakpointClient.location.url, selectedUrl,
         "The breakpoint's client url is correct");
       is(aBreakpointClient.location.line, aLine,
         "The breakpoint's client line is correct");
@@ -209,10 +209,10 @@ function test() {
   }
 
   function testAfterReload() {
-    let selectedActor = getSelectedSourceURL(gSources);
+    let selectedUrl = gSources.selectedValue;
     let selectedBreakpoint = gSources._selectedBreakpointItem;
 
-    ok(selectedActor,
+    ok(selectedUrl,
       "There should be a selected item in the sources pane after reload.");
     ok(!selectedBreakpoint,
       "There should be no selected brekapoint in the sources pane after reload.");

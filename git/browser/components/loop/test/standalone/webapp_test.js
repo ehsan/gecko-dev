@@ -17,6 +17,7 @@ describe("loop.webapp", function() {
       standaloneMedia = loop.standaloneMedia,
       sandbox,
       notifications,
+      feedbackApiClient,
       stubGetPermsAndCacheMedia,
       fakeAudioXHR,
       dispatcher,
@@ -26,6 +27,9 @@ describe("loop.webapp", function() {
     sandbox = sinon.sandbox.create();
     dispatcher = new loop.Dispatcher();
     notifications = new sharedModels.NotificationCollection();
+    feedbackApiClient = new loop.FeedbackAPIClient("http://invalid", {
+      product: "Loop"
+    });
     feedbackStore = new loop.store.FeedbackStore(dispatcher, {
       feedbackClient: {}
     });
@@ -646,15 +650,15 @@ describe("loop.webapp", function() {
     function mountTestComponent() {
       return TestUtils.renderIntoDocument(
         loop.webapp.WebappRootView({
-          client: client,
-          helper: helper,
-          notifications: notifications,
-          sdk: sdk,
-          conversation: conversationModel,
-          standaloneAppStore: standaloneAppStore,
-          activeRoomStore: activeRoomStore,
-          feedbackStore: feedbackStore
-        }));
+        client: client,
+        helper: helper,
+        notifications: notifications,
+        sdk: sdk,
+        conversation: conversationModel,
+        feedbackApiClient: feedbackApiClient,
+        standaloneAppStore: standaloneAppStore,
+        activeRoomStore: activeRoomStore
+      }));
     }
 
     beforeEach(function() {

@@ -9,7 +9,6 @@
 #include "jsapi.h"
 #include "jsfriendapi.h"
 #include "Layers.h"
-#include "mozilla/Assertions.h"
 #include "mozilla/Base64.h"
 #include "mozilla/CheckedInt.h"
 #include "mozilla/dom/CanvasRenderingContext2D.h"
@@ -159,10 +158,6 @@ HTMLCanvasElement::GetWidthHeight()
   {
       size.height = value->GetIntegerValue();
   }
-
-  MOZ_ASSERT(size.width >= 0 && size.height >= 0,
-             "we should've required <canvas> width/height attrs to be "
-             "unsigned (non-negative) values");
 
   return size;
 }

@@ -8,7 +8,6 @@
 #include "nsHTMLCanvasFrame.h"
 
 #include "nsGkAtoms.h"
-#include "mozilla/Assertions.h"
 #include "mozilla/dom/HTMLCanvasElement.h"
 #include "nsDisplayList.h"
 #include "nsLayoutUtils.h"
@@ -21,41 +20,6 @@ using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::layers;
 using namespace mozilla::gfx;
-
-/* Helper for our nsIFrame::GetIntrinsicSize() impl. Takes the result of
- * "GetCanvasSize()" as a parameter, which may help avoid redundant
- * indirect calls to GetCanvasSize().
- *
- * @param aCanvasSizeInPx The canvas's size in CSS pixels, as returned
- *                        by GetCanvasSize().
- * @return The canvas's intrinsic size, as an IntrinsicSize object.
- */
-static IntrinsicSize
-IntrinsicSizeFromCanvasSize(const nsIntSize& aCanvasSizeInPx)
-{
-  IntrinsicSize intrinsicSize;
-  intrinsicSize.width.SetCoordValue(
-    nsPresContext::CSSPixelsToAppUnits(aCanvasSizeInPx.width));
-  intrinsicSize.height.SetCoordValue(
-    nsPresContext::CSSPixelsToAppUnits(aCanvasSizeInPx.height));
-
-  return intrinsicSize;
-}
-
-/* Helper for our nsIFrame::GetIntrinsicRatio() impl. Takes the result of
- * "GetCanvasSize()" as a parameter, which may help avoid redundant
- * indirect calls to GetCanvasSize().
- *
- * @param aCanvasSizeInPx The canvas's size in CSS pixels, as returned
- *                        by GetCanvasSize().
- * @return The canvas's intrinsic ratio, as a nsSize.
- */
-static nsSize
-IntrinsicRatioFromCanvasSize(const nsIntSize& aCanvasSizeInPx)
-{
-  return nsSize(nsPresContext::CSSPixelsToAppUnits(aCanvasSizeInPx.width),
-                nsPresContext::CSSPixelsToAppUnits(aCanvasSizeInPx.height));
-}
 
 class nsDisplayCanvas : public nsDisplayItem {
 public:
@@ -153,9 +117,6 @@ nsHTMLCanvasFrame::GetCanvasSize()
     HTMLCanvasElement::FromContentOrNull(GetContent());
   if (canvas) {
     size = canvas->GetSize();
-    MOZ_ASSERT(size.width >= 0 && size.height >= 0,
-               "we should've required <canvas> width/height attrs to be "
-               "unsigned (non-negative) values");
   } else {
     NS_NOTREACHED("couldn't get canvas size");
   }
@@ -183,16 +144,12 @@ nsHTMLCanvasFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
   return result;
 }
 
-/* virtual */ IntrinsicSize
-nsHTMLCanvasFrame::GetIntrinsicSize()
-{
-  return IntrinsicSizeFromCanvasSize(GetCanvasSize());
-}
-
 /* virtual */ nsSize
 nsHTMLCanvasFrame::GetIntrinsicRatio()
 {
-  return IntrinsicRatioFromCanvasSize(GetCanvasSize());
+  nsIntSize size(GetCanvasSize());
+  return nsSize(nsPresContext::CSSPixelsToAppUnits(size.width),
+                nsPresContext::CSSPixelsToAppUnits(size.height));
 }
 
 /* virtual */

@@ -46,16 +46,15 @@ function test_minified()
     do_check_eq(aEvent, "paused");
     do_check_eq(aPacket.why.type, "debuggerStatement");
 
-    let location = {
+    const location = {
+      url: "http://example.com/foo.js",
       line: 5
     };
 
-    getSource(gThreadClient, "http://example.com/foo.js").then(source => {
-      source.setBreakpoint(location, function (aResponse, bpClient) {
-        do_check_true(!aResponse.error);
-        testHitBreakpoint();
-      });
-    })
+    gThreadClient.setBreakpoint(location, function (aResponse, bpClient) {
+      do_check_true(!aResponse.error);
+      testHitBreakpoint();
+    });
   });
 
   // This is the original foo.js, which was then minified with uglifyjs version

@@ -2126,7 +2126,6 @@ MediaDecoderStateMachine::DecodeFirstFrame()
       mReader->RequestAudioData();
     }
     if (HasVideo()) {
-      mVideoDecodeStartTime = TimeStamp::Now();
       ReentrantMonitorAutoExit unlock(mDecoder->GetReentrantMonitor());
       mReader->RequestVideoData(false, 0);
     }

@@ -15,11 +15,3 @@
 .font.is-local .font-is-local {
   display: inline;
 }
-
-.font-format::before {
-  content: "(";
-}
-
-.font-format::after {
-  content: ")";
-}

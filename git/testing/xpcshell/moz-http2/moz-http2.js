@@ -2,9 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// This module is the stateful server side of test_http2.js and is meant
-// to have node be restarted in between each invocation
-
 var http2 = require('../node-http2');
 var fs = require('fs');
 var url = require('url');
@@ -105,7 +102,6 @@ function handleRequest(req, res) {
 
   if (u.pathname === '/exit') {
     res.setHeader('Content-Type', 'text/plain');
-    res.setHeader('Connection', 'close');
     res.writeHead(200);
     res.end('ok');
     process.exit();
@@ -269,7 +265,7 @@ function handleRequest(req, res) {
   }
 
   else if (u.pathname === "/rstonce") {
-    if (!didRst && req.httpVersionMajor === 2) {
+    if (!didRst) {
       didRst = true;
       rstConnection = req.stream.connection;
       req.stream.reset('REFUSED_STREAM');
@@ -278,24 +274,17 @@ function handleRequest(req, res) {
 
     if (rstConnection === null ||
         rstConnection !== req.stream.connection) {
-      res.setHeader('Connection', 'close');
       res.writeHead(400);
       res.end("WRONG CONNECTION, HOMIE!");
       return;
     }
 
-    if (req.httpVersionMajor != 2) {
-      res.setHeader('Connection', 'close');
-    }
     res.writeHead(200);
     res.end("It's all good.");
     return;
   }
 
   res.setHeader('Content-Type', 'text/html');
-  if (req.httpVersionMajor != 2) {
-    res.setHeader('Connection', 'close');
-  }
   res.writeHead(200);
   res.end(content);
 }

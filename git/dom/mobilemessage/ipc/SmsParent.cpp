@@ -66,7 +66,7 @@ MmsAttachmentDataToJSObject(JSContext* aContext,
     MOZ_ASSERT(global);
 
     nsRefPtr<File> blob = new File(global, blobImpl);
-    if (!GetOrCreateDOMReflector(aContext, blob, &content)) {
+    if (!WrapNewBindingObject(aContext, blob, &content)) {
       return nullptr;
     }
   }

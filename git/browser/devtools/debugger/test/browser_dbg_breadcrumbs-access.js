@@ -18,7 +18,7 @@ function test() {
     gSources = gDebugger.DebuggerView.Sources;
     gFrames = gDebugger.DebuggerView.StackFrames;
 
-    waitForSourceAndCaretAndScopes(gPanel, "-02.js", 6)
+    waitForSourceAndCaretAndScopes(gPanel, "-02.js", 1)
       .then(checkNavigationWhileNotFocused)
       .then(focusCurrentStackFrame)
       .then(checkNavigationWhileFocused)
@@ -31,13 +31,13 @@ function test() {
   });
 
   function checkNavigationWhileNotFocused() {
-    checkState({ frame: 1, source: 1, line: 6 });
+    checkState({ frame: 3, source: 1, line: 1 });
 
     EventUtils.sendKey("DOWN", gDebugger);
-    checkState({ frame: 1, source: 1, line: 7 });
+    checkState({ frame: 3, source: 1, line: 2 });
 
     EventUtils.sendKey("UP", gDebugger);
-    checkState({ frame: 1, source: 1, line: 6 });
+    checkState({ frame: 3, source: 1, line: 1 });
   }
 
   function focusCurrentStackFrame() {
@@ -50,37 +50,45 @@ function test() {
     return Task.spawn(function() {
       yield promise.all([
         waitForDebuggerEvents(gPanel, gDebugger.EVENTS.FETCHED_SCOPES),
-        waitForSourceAndCaret(gPanel, "-01.js", 5),
-        waitForEditorLocationSet(gPanel),
+        EventUtils.sendKey("UP", gDebugger)
+      ]);
+      checkState({ frame: 2, source: 1, line: 1 });
+
+      yield promise.all([
+        waitForDebuggerEvents(gPanel, gDebugger.EVENTS.FETCHED_SCOPES),
+        waitForSourceAndCaret(gPanel, "-01.js", 1),
+        EventUtils.sendKey("UP", gDebugger)
+      ]);
+      checkState({ frame: 1, source: 0, line: 1 });
+
+      yield promise.all([
+        waitForDebuggerEvents(gPanel, gDebugger.EVENTS.FETCHED_SCOPES),
         EventUtils.sendKey("UP", gDebugger)
       ]);
       checkState({ frame: 0, source: 0, line: 5 });
 
       yield promise.all([
         waitForDebuggerEvents(gPanel, gDebugger.EVENTS.FETCHED_SCOPES),
-        waitForSourceAndCaret(gPanel, "-02.js", 6),
-        waitForEditorLocationSet(gPanel),
+        waitForSourceAndCaret(gPanel, "-02.js", 1),
         EventUtils.sendKey("END", gDebugger)
       ]);
-      checkState({ frame: 1, source: 1, line: 6 });
+      checkState({ frame: 3, source: 1, line: 1 });
 
       yield promise.all([
         waitForDebuggerEvents(gPanel, gDebugger.EVENTS.FETCHED_SCOPES),
-        waitForSourceAndCaret(gPanel, "-01.js", 5),
-        waitForEditorLocationSet(gPanel),
+        waitForSourceAndCaret(gPanel, "-01.js", 1),
         EventUtils.sendKey("HOME", gDebugger)
       ]);
-
       checkState({ frame: 0, source: 0, line: 5 });
     });
   }
 
-  function checkState({ frame, source, line, column }) {
+  function checkState({ frame, source, line }) {
     is(gFrames.selectedIndex, frame,
       "The currently selected stackframe is incorrect.");
     is(gSources.selectedIndex, source,
       "The currently selected source is incorrect.");
-    ok(isCaretPos(gPanel, line, column),
+    ok(isCaretPos(gPanel, line),
       "The source editor caret position was incorrect.");
   }
 }

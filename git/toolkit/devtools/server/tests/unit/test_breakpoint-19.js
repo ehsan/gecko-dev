@@ -52,17 +52,16 @@ function setUpCode() {
 }
 
 const testBreakpoint = Task.async(function* () {
-  let source = yield getSource(gThreadClient, URL);
-  let [response, bpClient] = yield setBreakpoint(source, {line: 2});
+  const [response, bpClient] = yield setBreakpoint(gThreadClient, {url: URL, line: 2});
   ok(!response.error);
 
-  let actor = response.actor;
+  const actor = response.actor;
   ok(actor);
 
   yield executeOnNextTickAndWaitForPause(setUpCode, gClient);
   yield resume(gThreadClient);
 
-  let packet = yield executeOnNextTickAndWaitForPause(gDebuggee.test, gClient);
+  const packet = yield executeOnNextTickAndWaitForPause(gDebuggee.test, gClient);
   equal(packet.why.type, "breakpoint")
   notEqual(packet.why.actors.indexOf(actor), -1);
 

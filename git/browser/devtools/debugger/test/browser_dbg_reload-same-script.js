@@ -29,7 +29,7 @@ function test() {
   function performTest() {
     switch (gStep++) {
       case 0:
-        testCurrentSource(FIRST_URL, null);
+        testCurrentSource(FIRST_URL, "");
         reload().then(performTest);
         break;
       case 1:
@@ -61,7 +61,7 @@ function test() {
 
   function switchAndReload(aUrl) {
     let finished = waitForDebuggerEvents(gPanel, gDebugger.EVENTS.SOURCE_SHOWN).then(reload);
-    gSources.selectedValue = getSourceActor(gSources, aUrl);
+    gSources.selectedValue = aUrl;
     return finished;
   }
 
@@ -69,9 +69,9 @@ function test() {
     info("Currently preferred source: '" + gSources.preferredValue + "'.");
     info("Currently selected source: '" + gSources.selectedValue + "'.");
 
-    is(getSourceURL(gSources, gSources.preferredValue), aExpectedUrl,
+    is(gSources.preferredValue, aExpectedUrl,
       "The preferred source url wasn't set correctly (" + gStep + ").");
-    is(getSourceURL(gSources, gSources.selectedValue), aUrl,
+    is(gSources.selectedValue, aUrl,
       "The selected source isn't the correct one (" + gStep + ").");
   }
 }

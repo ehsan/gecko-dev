@@ -28,7 +28,7 @@ namespace jit {
 struct VirtualRegisterGroup : public TempObject
 {
     // All virtual registers in the group.
-    Vector<uint32_t, 2, JitAllocPolicy> registers;
+    Vector<uint32_t, 2, IonAllocPolicy> registers;
 
     // Desired physical register to use for registers in the group.
     LAllocation allocation;

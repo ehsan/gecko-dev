@@ -34,7 +34,7 @@ function test_simple_new_source()
     finishClient(gClient);
   });
 
-  Components.utils.evalInSandbox(function inc(n) {
+  gDebuggee.eval(function inc(n) {
     return n+1;
-  }.toString(), gDebuggee);
+  }.toString());
 }

@@ -9,7 +9,7 @@
 
 #include "mozilla/MathAlgorithms.h"
 
-#include "jit/JitAllocPolicy.h"
+#include "jit/IonAllocPolicy.h"
 
 namespace js {
 namespace jit {

@@ -269,7 +269,7 @@ JSONSpewer::spewMDef(MDefinition *def)
         isTruncated = static_cast<MBinaryArithInstruction*>(def)->isTruncated();
 
     if (def->type() != MIRType_None && def->range()) {
-        Sprinter sp(GetJitContext()->cx);
+        Sprinter sp(GetIonContext()->cx);
         sp.init();
         def->range()->print(sp);
         stringProperty("type", "%s : %s%s", sp.string(), StringFromMIRType(def->type()), (isTruncated ? " (t)" : ""));

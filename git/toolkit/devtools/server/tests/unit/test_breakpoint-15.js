@@ -23,31 +23,34 @@ function run_test()
   do_test_pending();
 }
 
+
 const SOURCE_URL = "http://example.com/source.js";
 
 const testSameBreakpoint = Task.async(function* () {
-  let packet = yield executeOnNextTickAndWaitForPause(evalCode, gClient);
-  let source = gThreadClient.source(packet.frame.where.source);
+  yield executeOnNextTickAndWaitForPause(evalCode, gClient);
 
   // Whole line
+
   let wholeLineLocation = {
+    url: SOURCE_URL,
     line: 2
   };
 
-  let [firstResponse, firstBpClient] = yield setBreakpoint(source, wholeLineLocation);
-  let [secondResponse, secondBpClient] = yield setBreakpoint(source, wholeLineLocation);
+  let [firstResponse, firstBpClient] = yield setBreakpoint(gThreadClient, wholeLineLocation);
+  let [secondResponse, secondBpClient] = yield setBreakpoint(gThreadClient, wholeLineLocation);
 
   do_check_eq(firstBpClient.actor, secondBpClient.actor, "Should get the same actor w/ whole line breakpoints");
 
   // Specific column
 
   let columnLocation = {
+    url: SOURCE_URL,
     line: 2,
     column: 6
   };
 
-  [firstResponse, firstBpClient] = yield setBreakpoint(source, columnLocation);
-  [secondResponse, secondBpClient] = yield setBreakpoint(source, columnLocation);
+  [firstResponse, firstBpClient] = yield setBreakpoint(gThreadClient, columnLocation);
+  [secondResponse, secondBpClient] = yield setBreakpoint(gThreadClient, columnLocation);
 
   do_check_eq(secondBpClient.actor, secondBpClient.actor, "Should get the same actor column breakpoints");
 

@@ -36,12 +36,12 @@ function test(){
       .then(testAutoPrettyPrintOff)
       .then(() => {
         let finished = waitForDebuggerEvents(gPanel, gDebugger.EVENTS.SOURCE_SHOWN);
-        gSources.selectedIndex = 1;
-        return finished;
+          gSources.selectedIndex = 1;
+          return finished;
       })
       .then(testSecondSourceLabel)
       .then(testSourceIsUgly)
-       // Re-enable auto pretty printing for browser_dbg_auto-pretty-print-02.js
+      // Re-enable auto pretty printing for browser_dbg_auto-pretty-print-02.js
       .then(enableAutoPrettyPrint)
       .then(() => closeDebuggerAndFinish(gPanel))
       .then(null, aError => {
@@ -56,8 +56,7 @@ function testSourceIsUgly() {
 }
 
 function testSecondSourceLabel(){
-  let source = gSources.selectedItem.attachment.source;
-  ok(source.url === EXAMPLE_URL + gSecondSourceLabel,
+  ok(gSources.containsValue(EXAMPLE_URL + gSecondSourceLabel),
     "Second source url is correct.");
 }
 

@@ -486,11 +486,8 @@ WebConsole.prototype = {
     }
 
     let showSource = ({ DebuggerView }) => {
-      let item = DebuggerView.Sources.getItemForAttachment(
-        a => a.source.url === aSourceURL
-      );
-      if (item) {
-        DebuggerView.setEditorLocation(item.attachment.source.actor, aSourceLine,
+      if (DebuggerView.Sources.containsValue(aSourceURL)) {
+        DebuggerView.setEditorLocation(aSourceURL, aSourceLine,
                                        { noDebug: true }).then(() => {
           this.ui.emit("source-in-debugger-opened");
         });

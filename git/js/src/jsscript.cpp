@@ -2712,7 +2712,7 @@ JSScript::finalize(FreeOp *fop)
     if (types_)
         types_->destroy();
 
-    jit::DestroyJitScripts(fop, this);
+    jit::DestroyIonScripts(fop, this);
 
     destroyScriptCounts(fop);
     destroyDebugScript(fop);
@@ -3432,7 +3432,7 @@ JSScript::markChildren(JSTracer *trc)
 
     bindings.trace(trc);
 
-    jit::TraceJitScripts(trc, this);
+    jit::TraceIonScripts(trc, this);
 }
 
 void

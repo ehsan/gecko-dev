@@ -810,7 +810,9 @@ protected:
                                          nscoord* aInsideBoxSizing,
                                          nscoord* aOutsideBoxSizing);
 
-  void CalculateBlockSideMargins(nsIAtom* aFrameType);
+  void CalculateBlockSideMargins(nscoord aAvailISize,
+                                 nscoord aComputedISize,
+                                 nsIAtom* aFrameType);
 };
 
 #endif /* nsHTMLReflowState_h___ */

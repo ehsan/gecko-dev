@@ -4,10 +4,8 @@
 
 add_task(function* test_switchtab_override() {
   // This test is only relevant if UnifiedComplete is enabled.
-  if (!Services.prefs.getBoolPref("browser.urlbar.unifiedcomplete")) {
-    todo(false, "Stop supporting old autocomplete components.");
+  if (!Services.prefs.getBoolPref("browser.urlbar.unifiedcomplete"))
     return;
-  }
 
   let testURL = "http://example.org/browser/browser/base/content/test/general/dummy_page.html";
 

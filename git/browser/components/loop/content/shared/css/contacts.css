@@ -28,7 +28,7 @@
 
 .contact,
 .contact-separator {
-  padding: .5rem 1rem;
+  padding: 5px 10px;
   font-size: 13px;
 }
 
@@ -41,6 +41,7 @@
 }
 
 .contact-separator {
+  height: 24px;
   background-color: #eee;
   color: #888;
 }
@@ -122,7 +123,7 @@
 
 .contact > .details > .username > i.icon-google {
   position: absolute;
-  right: 1rem;
+  right: 10px;
   top: 35%;
   width: 14px;
   height: 14px;
@@ -227,5 +228,5 @@
 }
 
 .contact-form > .button-group {
-  margin-top: 1rem;
+  margin-top: 14px;
 }

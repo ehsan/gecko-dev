@@ -1099,7 +1099,6 @@
             }
 
             if (!this._previewMode) {
-              this.mCurrentTab.lastAccessed = Infinity;
               this.mCurrentTab.removeAttribute("unread");
               oldTab.lastAccessed = Date.now();
 
@@ -1639,7 +1638,6 @@
             t.linkedBrowser = b;
             this._tabForBrowser.set(b, t);
             t._tPos = position;
-            t.lastAccessed = Date.now();
             this.tabContainer._setPositionalAttributes();
 
             // Prevent the superfluous initial load of a blank document
@@ -3135,7 +3133,6 @@
           this.mCurrentTab.linkedPanel = uniqueId;
           this.mCurrentTab._tPos = 0;
           this.mCurrentTab._fullyOpen = true;
-          this.mCurrentTab.lastAccessed = Infinity;
           this.mCurrentTab.linkedBrowser = this.mCurrentBrowser;
           this._tabForBrowser.set(this.mCurrentBrowser, this.mCurrentTab);
 
@@ -4947,12 +4944,13 @@
 
       <property name="lastAccessed">
         <getter>
-          return this._lastAccessed == Infinity ? Date.now() : this._lastAccessed;
+          return this.selected ? Date.now() : this._lastAccessed;
         </getter>
         <setter>
           this._lastAccessed = val;
         </setter>
       </property>
+      <field name="_lastAccessed">0</field>
 
       <field name="mOverCloseButton">false</field>
       <field name="mCorrespondingMenuitem">null</field>

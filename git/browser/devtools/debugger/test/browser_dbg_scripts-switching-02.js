@@ -42,9 +42,9 @@ function testSourcesDisplay() {
   is(gSources.itemCount, 2,
     "Found the expected number of sources.");
 
-  ok(getSourceActor(gSources, EXAMPLE_URL + gLabel1),
+  ok(gSources.containsValue(EXAMPLE_URL + gLabel1),
     "First source url is incorrect.");
-  ok(getSourceActor(gSources, EXAMPLE_URL + gLabel2 + gParams),
+  ok(gSources.containsValue(EXAMPLE_URL + gLabel2 + gParams),
     "Second source url is incorrect.");
 
   ok(gSources.getItemForAttachment(e => e.label == gLabel1),
@@ -54,12 +54,12 @@ function testSourcesDisplay() {
 
   ok(gSources.selectedItem,
     "There should be a selected item in the sources pane.");
-  is(getSelectedSourceURL(gSources), EXAMPLE_URL + gLabel2 + gParams,
+  is(gSources.selectedValue, EXAMPLE_URL + gLabel2 + gParams,
     "The selected value is the sources pane is incorrect.");
 
   is(gEditor.getText().search(/firstCall/), -1,
     "The first source is not displayed.");
-  is(gEditor.getText().search(/debugger/), 166,
+  is(gEditor.getText().search(/debugger/), 172,
     "The second source is displayed.");
 
   ok(isCaretPos(gPanel, 1),
@@ -67,9 +67,9 @@ function testSourcesDisplay() {
 
   // The editor's debug location takes a tick to update.
   executeSoon(() => {
-    is(gEditor.getDebugLocation(), 5,
+    is(gEditor.getDebugLocation(), 0,
       "Editor debugger location is correct.");
-    ok(gEditor.hasLineClass(5, "debug-line"),
+    ok(gEditor.hasLineClass(0, "debug-line"),
       "The debugged line is highlighted appropriately.");
 
     waitForDebuggerEvents(gPanel, gDebugger.EVENTS.SOURCE_SHOWN).then(deferred.resolve);
@@ -84,7 +84,7 @@ function testSwitchPaused1() {
 
   ok(gSources.selectedItem,
     "There should be a selected item in the sources pane.");
-  is(getSelectedSourceURL(gSources), EXAMPLE_URL + gLabel1,
+  is(gSources.selectedValue, EXAMPLE_URL + gLabel1,
     "The selected value is the sources pane is incorrect.");
 
   is(gEditor.getText().search(/firstCall/), 118,
@@ -114,26 +114,29 @@ function testSwitchPaused2() {
 
   ok(gSources.selectedItem,
     "There should be a selected item in the sources pane.");
-  is(getSelectedSourceURL(gSources), EXAMPLE_URL + gLabel2 + gParams,
+  is(gSources.selectedValue, EXAMPLE_URL + gLabel2 + gParams,
     "The selected value is the sources pane is incorrect.");
 
   is(gEditor.getText().search(/firstCall/), -1,
     "The first source is not displayed.");
-  is(gEditor.getText().search(/debugger/), 166,
+  is(gEditor.getText().search(/debugger/), 172,
     "The second source is displayed.");
 
   // The editor's debug location takes a tick to update.
   executeSoon(() => {
-    ok(isCaretPos(gPanel, 6),
+    ok(isCaretPos(gPanel, 1),
       "Editor caret location is correct.");
-    is(gEditor.getDebugLocation(), 5,
+    is(gEditor.getDebugLocation(), 0,
       "Editor debugger location is correct.");
-    ok(gEditor.hasLineClass(5, "debug-line"),
+    ok(gEditor.hasLineClass(0, "debug-line"),
       "The debugged line is highlighted appropriately.");
 
     // Step out three times.
     waitForThreadEvents(gPanel, "paused").then(() => {
-      waitForDebuggerEvents(gPanel, gDebugger.EVENTS.SOURCE_SHOWN).then(deferred.resolve);
+      waitForThreadEvents(gPanel, "paused").then(() => {
+        waitForDebuggerEvents(gPanel, gDebugger.EVENTS.SOURCE_SHOWN).then(deferred.resolve);
+        gDebugger.gThreadClient.stepOut();
+      });
       gDebugger.gThreadClient.stepOut();
     });
     gDebugger.gThreadClient.stepOut();
@@ -147,7 +150,7 @@ function testSwitchRunning() {
 
   ok(gSources.selectedItem,
     "There should be a selected item in the sources pane.");
-  is(getSelectedSourceURL(gSources), EXAMPLE_URL + gLabel1,
+  is(gSources.selectedValue, EXAMPLE_URL + gLabel1,
     "The selected value is the sources pane is incorrect.");
 
   is(gEditor.getText().search(/firstCall/), 118,
@@ -157,11 +160,11 @@ function testSwitchRunning() {
 
   // The editor's debug location takes a tick to update.
   executeSoon(() => {
-    ok(isCaretPos(gPanel, 5),
+    ok(isCaretPos(gPanel, 1),
       "Editor caret location is correct.");
-    is(gEditor.getDebugLocation(), 4,
+    is(gEditor.getDebugLocation(), 0,
       "Editor debugger location is correct.");
-    ok(gEditor.hasLineClass(4, "debug-line"),
+    ok(gEditor.hasLineClass(0, "debug-line"),
       "The debugged line is highlighted appropriately.");
 
     deferred.resolve();

@@ -18,15 +18,19 @@ function test() {
     gSources = gDebugger.DebuggerView.Sources;
     gUtils = gDebugger.SourceUtils;
 
-    waitForSourceShown(gPanel, ".html")
-      .then(addSourceAndCheckOrder.bind(null, 1))
-      .then(addSourceAndCheckOrder.bind(null, 2))
-      .then(addSourceAndCheckOrder.bind(null, 3))
-      .then(() => { closeDebuggerAndFinish(gPanel); });
+    waitForSourceShown(gPanel, ".html").then(() => {
+      addSourceAndCheckOrder(1, () => {
+        addSourceAndCheckOrder(2, () => {
+          addSourceAndCheckOrder(3, () => {
+            closeDebuggerAndFinish(gPanel);
+          });
+        });
+      });
+    });
   });
 }
 
-function addSourceAndCheckOrder(aMethod) {
+function addSourceAndCheckOrder(aMethod, aCallback) {
   gSources.empty();
   gSources.suppressSelectionEvents = true;
 
@@ -45,16 +49,13 @@ function addSourceAndCheckOrder(aMethod) {
     return Math.random() - 0.5;
   });
 
-  let id = 0;
-
   switch (aMethod) {
     case 1:
       for (let { href, leaf } of urls) {
         let url = href + leaf;
-        let actor = 'actor' + id++;
         let label = gUtils.getSourceLabel(url);
         let dummy = document.createElement("label");
-        gSources.push([dummy, actor], {
+        gSources.push([dummy, url], {
           staged: true,
           attachment: {
             label: label
@@ -67,10 +68,9 @@ function addSourceAndCheckOrder(aMethod) {
     case 2:
       for (let { href, leaf } of urls) {
         let url = href + leaf;
-        let actor = 'actor' + id++;
         let label = gUtils.getSourceLabel(url);
         let dummy = document.createElement("label");
-        gSources.push([dummy, actor], {
+        gSources.push([dummy, url], {
           staged: false,
           attachment: {
             label: label
@@ -84,10 +84,9 @@ function addSourceAndCheckOrder(aMethod) {
       for (; i < urls.length / 2; i++) {
         let { href, leaf } = urls[i];
         let url = href + leaf;
-        let actor = 'actor' + id++;
         let label = gUtils.getSourceLabel(url);
         let dummy = document.createElement("label");
-        gSources.push([dummy, actor], {
+        gSources.push([dummy, url], {
           staged: true,
           attachment: {
             label: label
@@ -99,10 +98,9 @@ function addSourceAndCheckOrder(aMethod) {
       for (; i < urls.length; i++) {
         let { href, leaf } = urls[i];
         let url = href + leaf;
-        let actor = 'actor' + id++;
         let label = gUtils.getSourceLabel(url);
         let dummy = document.createElement("label");
-        gSources.push([dummy, actor], {
+        gSources.push([dummy, url], {
           staged: false,
           attachment: {
             label: label
@@ -113,6 +111,7 @@ function addSourceAndCheckOrder(aMethod) {
   }
 
   checkSourcesOrder(aMethod);
+  aCallback();
 }
 
 function checkSourcesOrder(aMethod) {

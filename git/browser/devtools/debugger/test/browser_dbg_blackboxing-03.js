@@ -10,7 +10,7 @@ const TAB_URL = EXAMPLE_URL + "doc_blackboxing.html";
 const BLACKBOXME_URL = EXAMPLE_URL + "code_blackboxing_blackboxme.js"
 
 let gTab, gPanel, gDebugger;
-let gFrames, gSources;
+let gFrames;
 
 function test() {
   initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
@@ -18,7 +18,6 @@ function test() {
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
     gFrames = gDebugger.DebuggerView.StackFrames;
-    gSources = gDebugger.DebuggerView.Sources;
 
     waitForSourceAndCaretAndScopes(gPanel, ".html", 21)
       .then(testBlackBoxStack)
@@ -40,7 +39,7 @@ function testBlackBoxStack() {
 }
 
 function testBlackBoxSource() {
-  return toggleBlackBoxing(gPanel, getSourceActor(gSources, BLACKBOXME_URL)).then(aSource => {
+  return toggleBlackBoxing(gPanel, BLACKBOXME_URL).then(aSource => {
     ok(aSource.isBlackBoxed, "The source should be black boxed now.");
 
     is(gFrames.itemCount, 3,
@@ -55,5 +54,4 @@ registerCleanupFunction(function() {
   gPanel = null;
   gDebugger = null;
   gFrames = null;
-  gSources = null;
 });

@@ -40,7 +40,7 @@ __all__ = ['jsmin', 'JavascriptMinify']
 __version__ = '2.0.11'
 
 
-def jsmin(js, **kwargs):
+def jsmin(js):
     """
     returns a minified version of the javascript string
     """
@@ -55,7 +55,7 @@ def jsmin(js, **kwargs):
         klass = io.StringIO
     ins = klass(js)
     outs = klass()
-    JavascriptMinify(ins, outs, **kwargs).minify()
+    JavascriptMinify(ins, outs).minify()
     return outs.getvalue()
 
 
@@ -65,18 +65,17 @@ class JavascriptMinify(object):
     to an output stream
     """
 
-    def __init__(self, instream=None, outstream=None, quote_chars="'\""):
+    def __init__(self, instream=None, outstream=None):
         self.ins = instream
         self.outs = outstream
-        self.quote_chars = quote_chars
 
     def minify(self, instream=None, outstream=None):
         if instream and outstream:
             self.ins, self.outs = instream, outstream
-        
+
         self.is_return = False
         self.return_buf = ''
-        
+
         def write(char):
             # all of this is to support literal regular expressions.
             # sigh
@@ -91,7 +90,7 @@ class JavascriptMinify(object):
 
         space_strings = "abcdefghijklmnopqrstuvwxyz"\
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$\\"
-        starters, enders = '{[(+-', '}])+-' + self.quote_chars
+        starters, enders = '{[(+-', '}])+-"\''
         newlinestart_strings = starters + space_strings
         newlineend_strings = enders + space_strings
         do_newline = False
@@ -103,7 +102,7 @@ class JavascriptMinify(object):
         in_re = False
         in_quote = ''
         quote_buf = []
-        
+
         previous = read(1)
         if previous == '\\':
             escape_slash_count += 1
@@ -121,7 +120,7 @@ class JavascriptMinify(object):
         elif not previous:
             return
         elif previous >= '!':
-            if previous in self.quote_chars:
+            if previous in "'\"":
                 in_quote = previous
             write(previous)
             previous_non_space = previous
@@ -201,7 +200,7 @@ class JavascriptMinify(object):
                     if previous != '\\' or (not escape_slash_count % 2) or next2 in 'gimy':
                         in_re = False
                     write('/')
-                elif next2 == '/':                    
+                elif next2 == '/':
                     doing_single_comment = True
                     previous_before_comment = previous_non_space
                 elif next2 == '*':
@@ -222,7 +221,7 @@ class JavascriptMinify(object):
                     do_newline = False
 
                 write(next1)
-                if not in_re and next1 in self.quote_chars:
+                if not in_re and next1 in "'\"":
                     in_quote = next1
                     quote_buf = []
 

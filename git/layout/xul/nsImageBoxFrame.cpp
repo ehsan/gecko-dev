@@ -343,8 +343,7 @@ nsImageBoxFrame::PaintImage(nsRenderingContext& aRenderingContext,
     nsLayoutUtils::DrawSingleImage(*aRenderingContext.ThebesContext(),
         PresContext(), imgCon,
         nsLayoutUtils::GetGraphicsFilterForFrame(this),
-        rect, dirty, nullptr, aFlags, nullptr,
-        hasSubRect ? &mSubRect : nullptr);
+        rect, dirty, nullptr, aFlags, hasSubRect ? &mSubRect : nullptr);
   }
 }
 

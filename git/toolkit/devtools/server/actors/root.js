@@ -146,9 +146,6 @@ RootActor.prototype = {
     storageInspectorReadOnly: true,
     // Whether conditional breakpoints are supported
     conditionalBreakpoints: true,
-    // Whether the server supports full source actors (breakpoints on
-    // eval scripts, etc)
-    debuggerSourceActors: true,
     bulk: true,
     // Whether the style rule actor implements the modifySelector method
     // that modifies the rule's selector
@@ -161,10 +158,7 @@ RootActor.prototype = {
     // Whether the debugger server supports
     // blackboxing/pretty-printing (not supported in Fever Dream yet)
     noBlackBoxing: false,
-    noPrettyPrinting: false,
-    // Whether the page style actor implements the getUsedFontFaces method
-    // that returns the font faces used on a node
-    getUsedFontFaces: true
+    noPrettyPrinting: false
   },
 
   /**

@@ -204,12 +204,6 @@ GonkAudioDecoderManager::Output(int64_t aStreamOffset,
   return NS_OK;
 }
 
-nsresult
-GonkAudioDecoderManager::Flush()
-{
-  return NS_OK;
-}
-
 void GonkAudioDecoderManager::ReleaseAudioBuffer() {
   if (mAudioBuffer) {
     mDecoder->ReleaseMediaBuffer(mAudioBuffer);

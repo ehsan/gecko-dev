@@ -664,12 +664,10 @@ StackFrames.prototype = {
   _refillFrames: function() {
     // Make sure all the previous stackframes are removed before re-adding them.
     DebuggerView.StackFrames.empty();
-
     for (let frame of this.activeThread.cachedFrames) {
-      let { depth, source, where: { line } } = frame;
-
+      let { depth, where: { url, line }, source } = frame;
       let isBlackBoxed = source ? this.activeThread.source(source).isBlackBoxed : false;
-      let location = NetworkHelper.convertToUnicode(unescape(source.url || source.introductionUrl));
+      let location = NetworkHelper.convertToUnicode(unescape(url));
       let title = StackFrameUtils.getFrameTitle(frame);
       DebuggerView.StackFrames.addFrame(title, location, line, depth, isBlackBoxed);
     }
@@ -764,7 +762,7 @@ StackFrames.prototype = {
     }
 
     // Check if the frame does not represent the evaluation of debuggee code.
-    let { environment, where, source } = frame;
+    let { environment, where } = frame;
     if (!environment) {
       return;
     }
@@ -776,10 +774,10 @@ StackFrames.prototype = {
     let isPopupShown = DebuggerView.VariableBubble.contentsShown();
     if (!isClientEval && !isPopupShown) {
       // Move the editor's caret to the proper url and line.
-      DebuggerView.setEditorLocation(source.actor, where.line);
+      DebuggerView.setEditorLocation(where.url, where.line);
     } else {
       // Highlight the line where the execution is paused in the editor.
-      DebuggerView.setEditorLocation(source.actor, where.line, { noCaret: true });
+      DebuggerView.setEditorLocation(where.url, where.line, { noCaret: true });
     }
 
     // Highlight the breakpoint at the line and column if it exists.
@@ -935,7 +933,6 @@ StackFrames.prototype = {
     if (!breakLocation) {
       return;
     }
-
     let breakpointPromise = DebuggerController.Breakpoints._getAdded(breakLocation);
     if (!breakpointPromise) {
       return;
@@ -1248,8 +1245,8 @@ SourceScripts.prototype = {
   /**
    * Handler for the debugger client's 'blackboxchange' notification.
    */
-  _onBlackBoxChange: function (aEvent, { actor, isBlackBoxed }) {
-    const item = DebuggerView.Sources.getItemByValue(actor);
+  _onBlackBoxChange: function (aEvent, { url, isBlackBoxed }) {
+    const item = DebuggerView.Sources.getItemByValue(url);
     if (item) {
       item.prebuiltNode.classList.toggle("black-boxed", isBlackBoxed);
     }
@@ -1315,13 +1312,13 @@ SourceScripts.prototype = {
 
     const deferred = promise.defer();
     deferred.promise.pretty = wantPretty;
-    this._cache.set(aSource.actor, deferred.promise);
+    this._cache.set(aSource.url, deferred.promise);
 
     const afterToggle = ({ error, message, source: text, contentType }) => {
       if (error) {
         // Revert the rejected promise from the cache, so that the original
         // source's text may be shown when the source is selected.
-        this._cache.set(aSource.actor, textPromise);
+        this._cache.set(aSource.url, textPromise);
         deferred.reject([aSource, message || error]);
         return;
       }
@@ -1363,13 +1360,13 @@ SourceScripts.prototype = {
    */
   getText: function(aSource, aOnTimeout, aDelay = FETCH_SOURCE_RESPONSE_DELAY) {
     // Fetch the source text only once.
-    let textPromise = this._cache.get(aSource.actor);
+    let textPromise = this._cache.get(aSource.url);
     if (textPromise) {
       return textPromise;
     }
 
     let deferred = promise.defer();
-    this._cache.set(aSource.actor, deferred.promise);
+    this._cache.set(aSource.url, deferred.promise);
 
     // If the source text takes a long time to fetch, invoke a callback.
     if (aOnTimeout) {
@@ -1400,9 +1397,9 @@ SourceScripts.prototype = {
    * @return object
    *         A promise that is resolved after source texts have been fetched.
    */
-  getTextForSources: function(aActors) {
+  getTextForSources: function(aUrls) {
     let deferred = promise.defer();
-    let pending = new Set(aActors);
+    let pending = new Set(aUrls);
     let fetched = [];
 
     // Can't use promise.all, because if one fetch operation is rejected, then
@@ -1411,8 +1408,8 @@ SourceScripts.prototype = {
     // would work like a charm here.
 
     // Try to fetch as many sources as possible.
-    for (let actor of aActors) {
-      let sourceItem = DebuggerView.Sources.getItemByValue(actor);
+    for (let url of aUrls) {
+      let sourceItem = DebuggerView.Sources.getItemByValue(url);
       let sourceForm = sourceItem.attachment.source;
       this.getText(sourceForm, onTimeout).then(onFetch, onError);
     }
@@ -1425,17 +1422,17 @@ SourceScripts.prototype = {
     /* Called if fetching a source finishes successfully. */
     function onFetch([aSource, aText, aContentType]) {
       // If fetching the source has previously timed out, discard it this time.
-      if (!pending.has(aSource.actor)) {
+      if (!pending.has(aSource.url)) {
         return;
       }
-      pending.delete(aSource.actor);
-      fetched.push([aSource.actor, aText, aContentType]);
+      pending.delete(aSource.url);
+      fetched.push([aSource.url, aText, aContentType]);
       maybeFinish();
     }
 
     /* Called if fetching a source failed because of an error. */
     function onError([aSource, aError]) {
-      pending.delete(aSource.actor);
+      pending.delete(aSource.url);
       maybeFinish();
     }
 
@@ -1781,7 +1778,7 @@ EventListeners.prototype = {
         const msg = "Error getting function definition site: " + aResponse.message;
         DevToolsUtils.reportException("_getDefinitionSite", msg);
       }
-      deferred.resolve(aResponse.source.url);
+      deferred.resolve(aResponse.url);
     });
 
     return deferred.promise;
@@ -1841,26 +1838,25 @@ Breakpoints.prototype = {
    *        Line number where breakpoint was set.
    */
   _onEditorBreakpointAdd: Task.async(function*(_, aLine) {
-    let actor = DebuggerView.Sources.selectedValue;
-    let location = { actor: actor, line: aLine + 1 };
-
-    // Initialize the breakpoint, but don't update the editor, since this
-    // callback is invoked because a breakpoint was added in the
-    // editor itself.
+    let url = DebuggerView.Sources.selectedValue;
+    let location = { url: url, line: aLine + 1 };
     let breakpointClient = yield this.addBreakpoint(location, { noEditorUpdate: true });
 
-    // If the breakpoint client has a "requestedLocation" attached, then
-    // the original requested placement for the breakpoint wasn't accepted.
-    // In this case, we need to update the editor with the new location.
-    if (breakpointClient.requestedLocation) {
-      DebuggerView.editor.moveBreakpoint(
-        breakpointClient.requestedLocation.line - 1,
-        breakpointClient.location.line - 1
-      );
-    }
-
-    // Notify that we've shown a breakpoint in the source editor.
-    window.emit(EVENTS.BREAKPOINT_SHOWN_IN_EDITOR);
+    // Initialize the breakpoint, but don't update the editor, since this
+    // callback is invoked because a breakpoint was added in the editor itself.
+    this.addBreakpoint(location, { noEditorUpdate: true }).then(aBreakpointClient => {
+      // If the breakpoint client has a "requestedLocation" attached, then
+      // the original requested placement for the breakpoint wasn't accepted.
+      // In this case, we need to update the editor with the new location.
+      if (breakpointClient.requestedLocation) {
+        DebuggerView.editor.moveBreakpoint(
+          breakpointClient.requestedLocation.line - 1,
+          breakpointClient.location.line - 1
+        );
+      }
+      // Notify that we've shown a breakpoint in the source editor.
+      window.emit(EVENTS.BREAKPOINT_SHOWN_IN_EDITOR);
+    });
   }),
 
   /**
@@ -1870,8 +1866,8 @@ Breakpoints.prototype = {
    *        Line number where breakpoint was removed.
    */
   _onEditorBreakpointRemove: Task.async(function*(_, aLine) {
-    let actor = DebuggerView.Sources.selectedValue;
-    let location = { actor: actor, line: aLine + 1 };
+    let url = DebuggerView.Sources.selectedValue;
+    let location = { url: url, line: aLine + 1 };
     yield this.removeBreakpoint(location, { noEditorUpdate: true });
 
     // Notify that we've hidden a breakpoint in the source editor.
@@ -1887,13 +1883,11 @@ Breakpoints.prototype = {
   updateEditorBreakpoints: Task.async(function*() {
     for (let breakpointPromise of this._addedOrDisabled) {
       let breakpointClient = yield breakpointPromise;
-      let location = breakpointClient.location;
-      let currentSourceActor = DebuggerView.Sources.selectedValue;
-      let sourceActor = DebuggerView.Sources.getActorForLocation(location);
+      let currentSourceUrl = DebuggerView.Sources.selectedValue;
+      let breakpointUrl = breakpointClient.location.url;
 
-      // Update the view only if the breakpoint is in the currently
-      // shown source.
-      if (currentSourceActor === sourceActor) {
+      // Update the view only if the breakpoint is in the currently shown source.
+      if (currentSourceUrl == breakpointUrl) {
         yield this._showBreakpoint(breakpointClient, { noPaneUpdate: true });
       }
     }
@@ -1909,10 +1903,10 @@ Breakpoints.prototype = {
     for (let breakpointPromise of this._addedOrDisabled) {
       let breakpointClient = yield breakpointPromise;
       let container = DebuggerView.Sources;
-      let sourceActor = breakpointClient.location.actor;
+      let breakpointUrl = breakpointClient.location.url;
 
       // Update the view only if the breakpoint exists in a known source.
-      if (container.containsValue(sourceActor)) {
+      if (container.containsValue(breakpointUrl)) {
         yield this._showBreakpoint(breakpointClient, { noEditorUpdate: true });
       }
     }
@@ -1962,11 +1956,8 @@ Breakpoints.prototype = {
     let identifier = this.getIdentifier(aLocation);
     this._added.set(identifier, deferred.promise);
 
-    let source = gThreadClient.source(
-      DebuggerView.Sources.getItemByValue(aLocation.actor).attachment.source
-    );
-
-    source.setBreakpoint(aLocation, Task.async(function*(aResponse, aBreakpointClient) {
+    // Try adding the breakpoint.
+    gThreadClient.setBreakpoint(aLocation, Task.async(function*(aResponse, aBreakpointClient) {
       // If the breakpoint response has an "actualLocation" attached, then
       // the original requested placement for the breakpoint wasn't accepted.
       if (aResponse.actualLocation) {
@@ -1997,10 +1988,8 @@ Breakpoints.prototype = {
       if (aResponse.actualLocation) {
         // Store the originally requested location in case it's ever needed
         // and update the breakpoint client with the actual location.
-        let actualLoc = aResponse.actualLocation;
         aBreakpointClient.requestedLocation = aLocation;
-        aBreakpointClient.location = actualLoc;
-        aBreakpointClient.location.actor = actualLoc.source ? actualLoc.source.actor : null;
+        aBreakpointClient.location = aResponse.actualLocation;
       }
 
       // Preserve information about the breakpoint's line text, to display it
@@ -2010,8 +1999,7 @@ Breakpoints.prototype = {
       let line = aBreakpointClient.location.line - 1;
       aBreakpointClient.text = DebuggerView.editor.getText(line).trim();
 
-      // Show the breakpoint in the editor and breakpoints pane, and
-      // resolve.
+      // Show the breakpoint in the editor and breakpoints pane, and resolve.
       yield this._showBreakpoint(aBreakpointClient, aOptions);
 
       // Notify that we've added a breakpoint.
@@ -2154,31 +2142,30 @@ Breakpoints.prototype = {
   /**
    * Update the editor and breakpoints pane to show a specified breakpoint.
    *
-   * @param object aBreakpointClient
-   *        A BreakpointClient instance.
-   *        This object has additional properties dynamically added by
-   *        our code:
+   * @param object aBreakpointData
+   *        Information about the breakpoint to be shown.
+   *        This object must have the following properties:
+   *          - location: the breakpoint's source location and line number
    *          - disabled: the breakpoint's disabled state, boolean
    *          - text: the breakpoint's line text to be displayed
    * @param object aOptions [optional]
    *        @see DebuggerController.Breakpoints.addBreakpoint
    */
-  _showBreakpoint: function(aBreakpointClient, aOptions = {}) {
+  _showBreakpoint: function(aBreakpointData, aOptions = {}) {
     let tasks = [];
-    let currentSourceActor = DebuggerView.Sources.selectedValue;
-    let location = aBreakpointClient.location;
-    let actor = DebuggerView.Sources.getActorForLocation(location);
+    let currentSourceUrl = DebuggerView.Sources.selectedValue;
+    let location = aBreakpointData.location;
 
     // Update the editor if required.
-    if (!aOptions.noEditorUpdate && !aBreakpointClient.disabled) {
-      if (currentSourceActor === actor) {
+    if (!aOptions.noEditorUpdate && !aBreakpointData.disabled) {
+      if (location.url == currentSourceUrl) {
         tasks.push(DebuggerView.editor.addBreakpoint(location.line - 1));
       }
     }
 
     // Update the breakpoints pane if required.
     if (!aOptions.noPaneUpdate) {
-      DebuggerView.Sources.addBreakpoint(aBreakpointClient, aOptions);
+      DebuggerView.Sources.addBreakpoint(aBreakpointData, aOptions);
     }
 
     return promise.all(tasks);
@@ -2193,12 +2180,11 @@ Breakpoints.prototype = {
    *        @see DebuggerController.Breakpoints.addBreakpoint
    */
   _hideBreakpoint: function(aLocation, aOptions = {}) {
-    let currentSourceActor = DebuggerView.Sources.selectedValue;
-    let actor = DebuggerView.Sources.getActorForLocation(aLocation);
+    let currentSourceUrl = DebuggerView.Sources.selectedValue;
 
     // Update the editor if required.
     if (!aOptions.noEditorUpdate) {
-      if (currentSourceActor === actor) {
+      if (aLocation.url == currentSourceUrl) {
         DebuggerView.editor.removeBreakpoint(aLocation.line - 1);
       }
     }
@@ -2247,8 +2233,7 @@ Breakpoints.prototype = {
    *         The identifier string.
    */
   getIdentifier: function(aLocation) {
-    return (aLocation.source ? aLocation.source.actor : aLocation.actor) +
-      ":" + aLocation.line;
+    return aLocation.url + ":" + aLocation.line;
   }
 };
 
@@ -2277,15 +2262,13 @@ function HitCounts() {
 
 HitCounts.prototype = {
   set: function({url, line, column}, aHitCount) {
-    if (url) {
-      if (!this._hitCounts[url]) {
-        this._hitCounts[url] = Object.create(null);
-      }
-      if (!this._hitCounts[url][line]) {
-        this._hitCounts[url][line] = Object.create(null);
-      }
-      this._hitCounts[url][line][column] = aHitCount;
+    if (!this._hitCounts[url]) {
+      this._hitCounts[url] = Object.create(null);
     }
+    if (!this._hitCounts[url][line]) {
+      this._hitCounts[url][line] = Object.create(null);
+    }
+    this._hitCounts[url][line][column] = aHitCount;
   },
 
   /**
@@ -2318,8 +2301,7 @@ HitCounts.prototype = {
 
     // No need to do anything if the counter's source is not being shown in the
     // editor.
-    if (url &&
-        DebuggerView.Sources.selectedItem.attachment.source.url != url) {
+    if (DebuggerView.Sources.selectedValue != url) {
       return;
     }
 

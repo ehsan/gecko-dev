@@ -3,7 +3,7 @@
 
 function secondCall() {
   // This comment is useful: ☺
-  debugger;
+  eval("debugger;");
   function foo() {}
   if (x) {
     foo();

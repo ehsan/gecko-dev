@@ -28,8 +28,6 @@ loop.store.ActiveRoomStore = (function() {
     GATHER: "room-gather",
     // The store has got the room data
     READY: "room-ready",
-    // Obtaining media from the user
-    MEDIA_WAIT: "room-media-wait",
     // The room is known to be joined on the loop-server
     JOINED: "room-joined",
     // The room is connected to the sdk server.
@@ -114,11 +112,10 @@ loop.store.ActiveRoomStore = (function() {
 
       this.setStoreState({
         error: actionData.error,
-        failureReason: getReason(actionData.error.errno)
+        failureReason: getReason(actionData.error.errno),
+        roomState: actionData.error.errno === SERVER_CODES.ROOM_FULL ?
+          ROOM_STATES.FULL : ROOM_STATES.FAILED
       });
-
-      this._leaveRoom(actionData.error.errno === SERVER_CODES.ROOM_FULL ?
-          ROOM_STATES.FULL : ROOM_STATES.FAILED);
     },
 
     /**
@@ -130,7 +127,6 @@ loop.store.ActiveRoomStore = (function() {
         "roomFailure",
         "setupRoomInfo",
         "updateRoomInfo",
-        "gotMediaPermission",
         "joinRoom",
         "joinedRoom",
         "connectedToSdkServers",
@@ -139,8 +135,7 @@ loop.store.ActiveRoomStore = (function() {
         "remotePeerDisconnected",
         "remotePeerConnected",
         "windowUnload",
-        "leaveRoom",
-        "feedbackComplete"
+        "leaveRoom"
       ]);
     },
 
@@ -265,14 +260,6 @@ loop.store.ActiveRoomStore = (function() {
         this.setStoreState({failureReason: undefined});
       }
 
-      this.setStoreState({roomState: ROOM_STATES.MEDIA_WAIT});
-    },
-
-    /**
-     * Handles the action that signifies when media permission has been
-     * granted and starts joining the room.
-     */
-    gotMediaPermission: function() {
       this._mozLoop.rooms.join(this._storeState.roomToken,
         function(error, responseData) {
           if (error) {
@@ -306,21 +293,6 @@ loop.store.ActiveRoomStore = (function() {
 
       this._setRefreshTimeout(actionData.expires);
       this._sdkDriver.connectSession(actionData);
-
-      // If we haven't got a room name yet, go and get one. We typically
-      // need to do this in the case of the standalone window.
-      // XXX When bug 1103331 lands this can be moved to earlier.
-      if (!this._storeState.roomName) {
-        this._mozLoop.rooms.get(this._storeState.roomToken,
-          function(err, result) {
-            if (err) {
-              console.error("Failed to get room data:", err);
-              return;
-            }
-
-            this.dispatcher.dispatch(new sharedActions.UpdateRoomInfo(result));
-        }.bind(this));
-      }
     },
 
     /**
@@ -363,19 +335,23 @@ loop.store.ActiveRoomStore = (function() {
      * Handles recording when a remote peer has connected to the servers.
      */
     remotePeerConnected: function() {
-      this.setStoreState({roomState: ROOM_STATES.HAS_PARTICIPANTS});
+      this.setStoreState({
+        roomState: ROOM_STATES.HAS_PARTICIPANTS
+      });
 
       // We've connected with a third-party, therefore stop displaying the ToS etc.
       this._mozLoop.setLoopPref("seenToS", "seen");
     },
 
     /**
-     * Handles a remote peer disconnecting from the session. As we currently only
-     * support 2 participants, we declare the room as SESSION_CONNECTED as soon as
-     * one participantleaves.
+     * Handles a remote peer disconnecting from the session.
      */
     remotePeerDisconnected: function() {
-      this.setStoreState({roomState: ROOM_STATES.SESSION_CONNECTED});
+      // As we only support two users at the moment, we just set this
+      // back to joined.
+      this.setStoreState({
+        roomState: ROOM_STATES.SESSION_CONNECTED
+      });
     },
 
     /**
@@ -449,16 +425,9 @@ loop.store.ActiveRoomStore = (function() {
           this._storeState.sessionToken);
       }
 
-      this.setStoreState({roomState: nextState || ROOM_STATES.ENDED});
-    },
-
-    /**
-     * When feedback is complete, we reset the room to the initial state.
-     */
-    feedbackComplete: function() {
-      // Note, that we want some values, such as the windowId, so we don't
-      // do a full reset here.
-      this.setStoreState(this.getInitialStoreState());
+      this.setStoreState({
+        roomState: nextState ? nextState : ROOM_STATES.ENDED
+      });
     }
   });
 

@@ -847,8 +847,3 @@ html, .fx-embedded, #main,
 .standalone .room-conversation .conversation-toolbar .btn-hangup-entry {
   display: block;
 }
-
-.standalone .room-conversation-wrapper .ended-conversation {
-  position: relative;
-  height: auto;
-}
