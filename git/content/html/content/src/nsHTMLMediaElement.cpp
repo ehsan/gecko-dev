@@ -96,6 +96,8 @@ public:
 NS_IMPL_URI_ATTR(nsHTMLMediaElement, Src, src)
 NS_IMPL_BOOL_ATTR(nsHTMLMediaElement, Controls, controls)
 NS_IMPL_BOOL_ATTR(nsHTMLMediaElement, Autoplay, autoplay)
+NS_IMPL_FLOAT_ATTR_DEFAULT_VALUE(nsHTMLMediaElement, PlaybackRate, playbackrate, 1.0)
+NS_IMPL_FLOAT_ATTR_DEFAULT_VALUE(nsHTMLMediaElement, DefaultPlaybackRate, defaultplaybackrate, 1.0)
 NS_IMPL_FLOAT_ATTR(nsHTMLMediaElement, Start, start)
 NS_IMPL_FLOAT_ATTR(nsHTMLMediaElement, End, end)
 NS_IMPL_FLOAT_ATTR(nsHTMLMediaElement, LoopStart, loopstart)
@@ -133,48 +135,6 @@ NS_IMETHODIMP nsHTMLMediaElement::GetCurrentSrc(nsAString & aCurrentSrc)
 
   aCurrentSrc = NS_ConvertUTF8toUTF16(src);
 
-  return NS_OK;
-}
-
-/* attribute float defaultPlaybackRate; */
-NS_IMETHODIMP nsHTMLMediaElement::GetDefaultPlaybackRate(float *aDefaultPlaybackRate)
-{
-  *aDefaultPlaybackRate = mDefaultPlaybackRate;
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsHTMLMediaElement::SetDefaultPlaybackRate(float aDefaultPlaybackRate)
-{
-  if (aDefaultPlaybackRate == 0.0) {
-    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
-  }
-
-  mDefaultPlaybackRate = aDefaultPlaybackRate;
-  DispatchAsyncSimpleEvent(NS_LITERAL_STRING("ratechange"));
-
-  return NS_OK;
-}
-
-/* attribute float playbackRate; */
-NS_IMETHODIMP nsHTMLMediaElement::GetPlaybackRate(float *aPlaybackRate)
-{
-  *aPlaybackRate = mPlaybackRate;
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsHTMLMediaElement::SetPlaybackRate(float aPlaybackRate)
-{
-  if (aPlaybackRate == 0.0) {
-    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
-  }
-
-  mPlaybackRate = aPlaybackRate;
-
-  if (mDecoder) {
-    mDecoder->PlaybackRateChanged();
-  }
-
-  DispatchAsyncSimpleEvent(NS_LITERAL_STRING("ratechange"));
   return NS_OK;
 }
 
@@ -390,9 +350,6 @@ NS_IMETHODIMP nsHTMLMediaElement::GetVolume(float *aVolume)
 
 NS_IMETHODIMP nsHTMLMediaElement::SetVolume(float aVolume)
 {
-  if (aVolume < 0.0f || aVolume > 1.0f)
-    return NS_ERROR_DOM_INDEX_SIZE_ERR;
-
   if (mMuted) 
     mMutedVolume = aVolume;
   else {
@@ -437,9 +394,6 @@ nsHTMLMediaElement::nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRBool aFromParse
   : nsGenericHTMLElement(aNodeInfo),
     mNetworkState(nsIDOMHTMLMediaElement::EMPTY),
     mReadyState(nsIDOMHTMLMediaElement::DATA_UNAVAILABLE),
-    mMutedVolume(0.0),
-    mDefaultPlaybackRate(1.0),
-    mPlaybackRate(1.0),
     mBegun(PR_FALSE),
     mEnded(PR_FALSE),
     mLoadedFirstFrame(PR_FALSE),
@@ -447,6 +401,7 @@ nsHTMLMediaElement::nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRBool aFromParse
     mPaused(PR_TRUE),
     mSeeking(PR_FALSE),
     mMuted(PR_FALSE),
+    mMutedVolume(0.0),
     mIsDoneAddingChildren(!aFromParser)
 {
 }
@@ -501,7 +456,9 @@ nsHTMLMediaElement::ParseAttribute(PRInt32 aNamespaceID,
       aResult.SetTo(nsContentUtils::TrimCharsInSet(kWhitespace, aValue));
       return PR_TRUE;
     }
-    else if (aAttribute == nsGkAtoms::loopstart
+    else if (aAttribute == nsGkAtoms::playbackrate
+            || aAttribute == nsGkAtoms::defaultplaybackrate
+            || aAttribute == nsGkAtoms::loopstart
             || aAttribute == nsGkAtoms::loopend
             || aAttribute == nsGkAtoms::start
             || aAttribute == nsGkAtoms::end) {
@@ -527,6 +484,11 @@ nsHTMLMediaElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   if (aNotify && aNameSpaceID == kNameSpaceID_None) {
     if (aName == nsGkAtoms::src) {
       Load();
+    }
+    else if (aName == nsGkAtoms::playbackrate || aName == nsGkAtoms::defaultplaybackrate) {
+      if (mDecoder) 
+        mDecoder->PlaybackRateChanged();
+      DispatchAsyncSimpleEvent(NS_LITERAL_STRING("ratechange"));
     }
   }
 

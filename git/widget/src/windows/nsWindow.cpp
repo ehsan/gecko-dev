@@ -5534,9 +5534,7 @@ DWORD nsWindow::WindowStyle()
 
     case eWindowType_popup:
       if (mTransparencyMode == eTransparencyGlass) {
-        /* Glass seems to need WS_CAPTION or WS_THICKFRAME to work.
-           WS_THICKFRAME has issues with autohiding popups but looks better */
-        style = WS_POPUP | WS_THICKFRAME;
+        style = WS_OVERLAPPED;
       } else {
         style = WS_OVERLAPPED | WS_POPUP;
       }
@@ -5867,8 +5865,6 @@ PRBool nsWindow::OnPaint(HDC aDC)
 #ifdef MOZ_XUL
       nsRefPtr<gfxASurface> targetSurface;
       if (eTransparencyTransparent == mTransparencyMode) {
-        if (mTransparentSurface == nsnull)
-          SetupTranslucentWindowMemoryBitmap(mTransparencyMode);
         targetSurface = mTransparentSurface;
       } else {
         targetSurface = new gfxWindowsSurface(hDC);

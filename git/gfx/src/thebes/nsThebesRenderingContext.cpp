@@ -688,7 +688,8 @@ nsThebesRenderingContext::FillPolygon(const nsPoint twPoints[], PRInt32 aNumPoin
 void*
 nsThebesRenderingContext::GetNativeGraphicData(GraphicDataType aType)
 {
-    if (aType == NATIVE_GDK_DRAWABLE)
+    if (aType == NATIVE_GDK_DRAWABLE &&
+        !gfxPlatform::GetPlatform()->UseGlitz())
     {
         if (mWidget)
             return mWidget->GetNativeData(NS_NATIVE_WIDGET);

@@ -838,7 +838,6 @@ function prepareForStartup() {
   // binding can't fire trusted ones (runs with page privileges).
   gBrowser.addEventListener("PluginNotFound", gMissingPluginInstaller.newMissingPlugin, true, true);
   gBrowser.addEventListener("PluginBlocklisted", gMissingPluginInstaller.newMissingPlugin, true, true);
-  gBrowser.addEventListener("PluginDisabled", gMissingPluginInstaller.newDisabledPlugin, true, true);
   gBrowser.addEventListener("NewPluginInstalled", gMissingPluginInstaller.refreshBrowser, false);
   gBrowser.addEventListener("NewTab", BrowserOpenTab, false);
   window.addEventListener("AppCommand", HandleAppCommandEvent, true);
@@ -4264,7 +4263,7 @@ function displaySecurityInfo()
  * @param commandID a string identifying the sidebar to toggle; see the
  *                  note below. (Optional if a sidebar is already open.)
  * @param forceOpen boolean indicating whether the sidebar should be
- *                  opened regardless of its current state (optional).
+ *                  opened regardless of it's current state (optional).
  * @note
  * We expect to find a xul:broadcaster element with the specified ID.
  * The following attributes on that element may be used and/or modified:
@@ -5427,7 +5426,7 @@ var MailIntegration = {
   }
 };
 
-function BrowserOpenAddonsMgr(aPane)
+function BrowserOpenAddonsMgr()
 {
   const EMTYPE = "Extension:Manager";
   var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
@@ -5435,17 +5434,12 @@ function BrowserOpenAddonsMgr(aPane)
   var theEM = wm.getMostRecentWindow(EMTYPE);
   if (theEM) {
     theEM.focus();
-    if (aPane)
-      theEM.showView(aPane);
     return;
   }
 
   const EMURL = "chrome://mozapps/content/extensions/extensions.xul";
   const EMFEATURES = "chrome,menubar,extra-chrome,toolbar,dialog=no,resizable";
-  if (aPane)
-    window.openDialog(EMURL, "", EMFEATURES, aPane);
-  else
-    window.openDialog(EMURL, "", EMFEATURES);
+  window.openDialog(EMURL, "", EMFEATURES);
 }
 
 function escapeNameValuePair(aName, aValue, aIsFormUrlEncoded)
@@ -5524,6 +5518,9 @@ function SwitchDocumentDirection(aWindow) {
     SwitchDocumentDirection(aWindow.frames[run]);
 }
 
+function missingPluginInstaller(){
+}
+
 function getPluginInfo(pluginElement)
 {
   var tagMimetype;
@@ -5559,9 +5556,6 @@ function getPluginInfo(pluginElement)
   return {mimetype: tagMimetype, pluginsPage: pluginsPage};
 }
 
-function missingPluginInstaller(){
-}
-
 missingPluginInstaller.prototype.installSinglePlugin = function(aEvent){
   var missingPluginsArray = {};
 
@@ -5574,12 +5568,7 @@ missingPluginInstaller.prototype.installSinglePlugin = function(aEvent){
                       {plugins: missingPluginsArray, browser: gBrowser.selectedBrowser});
   }
 
-  aEvent.stopPropagation();
-}
-
-missingPluginInstaller.prototype.managePlugins = function(aEvent){
-  BrowserOpenAddonsMgr("plugins");
-  aEvent.stopPropagation();
+  aEvent.preventDefault();
 }
 
 missingPluginInstaller.prototype.newMissingPlugin = function(aEvent){
@@ -5597,7 +5586,7 @@ missingPluginInstaller.prototype.newMissingPlugin = function(aEvent){
       !(aEvent.target instanceof HTMLObjectElement)) {
     aEvent.target.addEventListener("click",
                                    gMissingPluginInstaller.installSinglePlugin,
-                                   true);
+                                   false);
   }
 
   try {
@@ -5605,8 +5594,17 @@ missingPluginInstaller.prototype.newMissingPlugin = function(aEvent){
       return;
   } catch (ex) {} // if the pref is missing, treat it as false, which shows the infobar
 
-  var browser = gBrowser.getBrowserForDocument(aEvent.target.ownerDocument
-                                                     .defaultView.top.document);
+  const browsers = gBrowser.mPanelContainer.childNodes;
+
+  var contentWindow = aEvent.target.ownerDocument.defaultView.top;
+
+  var i = 0;
+  for (; i < browsers.length; i++) {
+    if (gBrowser.getBrowserAtIndex(i).contentWindow == contentWindow)
+      break;
+  }
+
+  var browser = gBrowser.getBrowserAtIndex(i);
   if (!browser.missingPlugins)
     browser.missingPlugins = {};
 
@@ -5619,23 +5617,22 @@ missingPluginInstaller.prototype.newMissingPlugin = function(aEvent){
   // If there is already a missing plugin notification then do nothing
   if (notificationBox.getNotificationWithValue("missing-plugins"))
     return;
+
+  var bundle_browser = document.getElementById("bundle_browser");
   var blockedNotification = notificationBox.getNotificationWithValue("blocked-plugins");
-  var priority = notificationBox.PRIORITY_WARNING_MEDIUM;
+  const priority = notificationBox.PRIORITY_WARNING_MEDIUM;
+  const iconURL = "chrome://mozapps/skin/plugins/pluginGeneric-16.png";
 
-  if (aEvent.type == "PluginBlocklisted") {
-    if (blockedNotification)
-      return;
-
-    let iconURL = "chrome://mozapps/skin/plugins/pluginBlocked-16.png";
-    let messageString = gNavigatorBundle.getString("blockedpluginsMessage.title");
-    let buttons = [{
-      label: gNavigatorBundle.getString("blockedpluginsMessage.infoButton.label"),
-      accessKey: gNavigatorBundle.getString("blockedpluginsMessage.infoButton.accesskey"),
+  if (aEvent.type == "PluginBlocklisted" && !blockedNotification) {
+    var messageString = bundle_browser.getString("blockedpluginsMessage.title");
+    var buttons = [{
+      label: bundle_browser.getString("blockedpluginsMessage.infoButton.label"),
+      accessKey: bundle_browser.getString("blockedpluginsMessage.infoButton.accesskey"),
       popup: null,
       callback: blocklistInfo
     }, {
-      label: gNavigatorBundle.getString("blockedpluginsMessage.searchButton.label"),
-      accessKey: gNavigatorBundle.getString("blockedpluginsMessage.searchButton.accesskey"),
+      label: bundle_browser.getString("blockedpluginsMessage.searchButton.label"),
+      accessKey: bundle_browser.getString("blockedpluginsMessage.searchButton.accesskey"),
       popup: null,
       callback: pluginsMissing
     }];
@@ -5643,34 +5640,23 @@ missingPluginInstaller.prototype.newMissingPlugin = function(aEvent){
     notificationBox.appendNotification(messageString, "blocked-plugins",
                                        iconURL, priority, buttons);
   }
-  else if (aEvent.type == "PluginNotFound") {
+
+  if (aEvent.type == "PluginNotFound") {
     // Cancel any notification about blocklisting
     if (blockedNotification)
       blockedNotification.close();
 
-    let iconURL = "chrome://mozapps/skin/plugins/pluginGeneric-16.png";
-    let messageString = gNavigatorBundle.getString("missingpluginsMessage.title");
-    let buttons = [{
-      label: gNavigatorBundle.getString("missingpluginsMessage.button.label"),
-      accessKey: gNavigatorBundle.getString("missingpluginsMessage.button.accesskey"),
+    var messageString = bundle_browser.getString("missingpluginsMessage.title");
+    var buttons = [{
+      label: bundle_browser.getString("missingpluginsMessage.button.label"),
+      accessKey: bundle_browser.getString("missingpluginsMessage.button.accesskey"),
       popup: null,
       callback: pluginsMissing
     }];
-  
+
     notificationBox.appendNotification(messageString, "missing-plugins",
                                        iconURL, priority, buttons);
   }
-}
-
-missingPluginInstaller.prototype.newDisabledPlugin = function(aEvent){
-  // Since we are expecting also untrusted events, make sure
-  // that the target is a plugin
-  if (!(aEvent.target instanceof Components.interfaces.nsIObjectLoadingContent))
-    return;
-
-  aEvent.target.addEventListener("click",
-                                 gMissingPluginInstaller.managePlugins,
-                                 true);
 }
 
 missingPluginInstaller.prototype.refreshBrowser = function(aEvent) {

@@ -58,7 +58,6 @@
 
 #include "gfxQuartzSurface.h"
 #include "gfxQuartzFontCache.h"
-#include "gfxUserFontSet.h"
 
 #include "nsUnicodeRange.h"
 
@@ -323,7 +322,7 @@ gfxAtsuiFont::InitMetrics(ATSUFontID aFontID, ATSFontRef aFontRef)
     if (glyphID == 0) // no zero in this font
         mMetrics.zeroOrAveCharWidth = mMetrics.aveCharWidth;
 
-    SanitizeMetrics(&mMetrics, GetFontEntry()->mIsBadUnderlineFont);
+    SanitizeMetrics(&mMetrics, GetFontEntry()->FamilyEntry()->IsBadUnderlineFontFamily());
 
 #if 0
     fprintf (stderr, "Font: %p size: %f (fixed: %d)", this, size, gfxQuartzFontCache::SharedFontCache()->IsFixedPitch(aFontID));
@@ -502,11 +501,9 @@ GetOrMakeFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aStyle, PRBool aNe
     return static_cast<gfxAtsuiFont *>(f);
 }
 
-
 gfxAtsuiFontGroup::gfxAtsuiFontGroup(const nsAString& families,
-                                     const gfxFontStyle *aStyle,
-                                     gfxUserFontSet *aUserFontSet)
-    : gfxFontGroup(families, aStyle, aUserFontSet)
+                                     const gfxFontStyle *aStyle)
+    : gfxFontGroup(families, aStyle)
 {
     ForEachFont(FindATSUFont, this);
 
@@ -539,7 +536,7 @@ gfxAtsuiFontGroup::gfxAtsuiFontGroup(const nsAString& families,
     if (!mStyle.systemFont) {
         for (PRUint32 i = 0; i < mFonts.Length(); ++i) {
             gfxAtsuiFont* font = static_cast<gfxAtsuiFont*>(mFonts[i].get());
-            if (font->GetFontEntry()->mIsBadUnderlineFont) {
+            if (font->GetFontEntry()->FamilyEntry()->IsBadUnderlineFontFamily()) {
                 gfxFloat first = mFonts[0]->GetMetrics().underlineOffset;
                 gfxFloat bad = font->GetMetrics().underlineOffset;
                 mUnderlineOffset = PR_MIN(first, bad);
@@ -557,23 +554,10 @@ gfxAtsuiFontGroup::FindATSUFont(const nsAString& aName,
     gfxAtsuiFontGroup *fontGroup = (gfxAtsuiFontGroup*) closure;
     const gfxFontStyle *fontStyle = fontGroup->GetStyle();
 
+    gfxQuartzFontCache *fc = gfxQuartzFontCache::SharedFontCache();
 
     PRBool needsBold;
-    MacOSFontEntry *fe = nsnull;
-    
-    // first, look up in the user font set
-    gfxUserFontSet *fs = fontGroup->GetUserFontSet();
-    gfxFontEntry *gfe;
-    if (fs && (gfe = fs->FindFontEntry(aName, *fontStyle, needsBold))) {
-        // assume for now platform font if not SVG
-        fe = static_cast<MacOSFontEntry*> (gfe);
-    }
-    
-    // nothing in the user font set ==> check system fonts
-    if (!fe) {
-        gfxQuartzFontCache *fc = gfxQuartzFontCache::SharedFontCache();
-        fe = fc->FindFontForFamily(aName, fontStyle, needsBold);
-    }
+    MacOSFontEntry *fe = fc->FindFontForFamily(aName, fontStyle, needsBold);
 
     if (fe && !fontGroup->HasFont(fe->GetFontID())) {
         nsRefPtr<gfxAtsuiFont> font = GetOrMakeFont(fe, fontStyle, needsBold);
@@ -588,7 +572,7 @@ gfxAtsuiFontGroup::FindATSUFont(const nsAString& aName,
 gfxFontGroup *
 gfxAtsuiFontGroup::Copy(const gfxFontStyle *aStyle)
 {
-    return new gfxAtsuiFontGroup(mFamilies, aStyle, mUserFontSet);
+    return new gfxAtsuiFontGroup(mFamilies, aStyle);
 }
 
 static void
@@ -948,19 +932,6 @@ gfxAtsuiFontGroup::WhichSystemFontSupportsChar(PRUint32 aCh)
 
     return nsnull;
 }
-
-void
-gfxAtsuiFontGroup::UpdateFontList()
-{
-    // if user font set is set, check to see if font list needs updating
-    if (mUserFontSet && mCurrGeneration != GetGeneration()) {
-        // xxx - can probably improve this to detect when all fonts were found, so no need to update list
-        mFonts.Clear();
-        ForEachFont(FindATSUFont, this);
-        mCurrGeneration = GetGeneration();
-    }
-}
-
 
 /**
  * Simple wrapper for ATSU "direct data arrays"
@@ -1421,8 +1392,8 @@ gfxAtsuiFontGroup::InitTextRun(gfxTextRun *aRun,
            ("InitTextRun %p fontgroup %p (%s) lang: %s len %d TEXTRUN \"%s\" ENDTEXTRUN\n",
             aRun, this, families.get(), mStyle.langGroup.get(), aLengthInTextRun, str.get()) );
     PR_LOG(gAtsuiTextRunLog, PR_LOG_DEBUG,
-           ("InitTextRun font: %s user font set: %p (%8.8x)\n",
-            NS_ConvertUTF16toUTF8(firstFont->GetUniqueName()).get(), mUserFontSet, PRUint32(mCurrGeneration)) );
+           ("InitTextRun font: %s\n",
+            NS_ConvertUTF16toUTF8(firstFont->GetUniqueName()).get()) );
 #endif
 
     if (aRun->GetFlags() & TEXT_DISABLE_OPTIONAL_LIGATURES) {

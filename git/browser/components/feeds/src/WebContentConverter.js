@@ -882,10 +882,10 @@ WebContentConverterRegistrar.prototype = {
         getService(Ci.nsIObserverService);
     switch (topic) {
     case "app-startup":
-      os.addObserver(this, "browser-ui-startup-complete", false);
+      os.addObserver(this, "profile-after-change", false);
       break;
-    case "browser-ui-startup-complete":
-      os.removeObserver(this, "browser-ui-startup-complete");
+    case "profile-after-change":
+      os.removeObserver(this, "profile-after-change");
       this._init();
       break;
     }

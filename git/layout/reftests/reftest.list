@@ -17,9 +17,6 @@ include bidi/reftest.list
 # border-image
 include border-image/reftest.list
 
-# border-radius/
-include border-radius/reftest.list
-
 # box-properties/
 include box-properties/reftest.list
 

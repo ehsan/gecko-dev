@@ -517,7 +517,7 @@ var gAdvancedPane = {
    */
   showCRLs: function ()
   {
-    document.documentElement.openWindow("mozilla:crlmanager", 
+    document.documentElement.openWindow("Mozilla:CRLManager", 
                                         "chrome://pippki/content/crlManager.xul",
                                         "", null);
   },

@@ -73,8 +73,7 @@ public:
 class THEBES_API gfxPangoFontGroup : public gfxFontGroup {
 public:
     gfxPangoFontGroup (const nsAString& families,
-                       const gfxFontStyle *aStyle,
-                       gfxUserFontSet *aUserFontSet);
+                       const gfxFontStyle *aStyle);
     virtual ~gfxPangoFontGroup ();
 
     virtual gfxFontGroup *Copy(const gfxFontStyle *aStyle);

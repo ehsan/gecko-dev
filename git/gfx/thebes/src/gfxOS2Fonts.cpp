@@ -457,9 +457,8 @@ already_AddRefed<gfxOS2Font> gfxOS2Font::GetOrMakeFont(const nsAString& aName,
  **********************************************************************/
 
 gfxOS2FontGroup::gfxOS2FontGroup(const nsAString& aFamilies,
-                                 const gfxFontStyle* aStyle,
-                                 gfxUserFontSet *aUserFontSet)
-    : gfxFontGroup(aFamilies, aStyle, aUserFontSet)
+                                 const gfxFontStyle* aStyle)
+    : gfxFontGroup(aFamilies, aStyle)
 {
 #ifdef DEBUG_thebes_2
     printf("gfxOS2FontGroup[%#x]::gfxOS2FontGroup(\"%s\", %#x)\n",
@@ -511,7 +510,7 @@ gfxOS2FontGroup::~gfxOS2FontGroup()
 
 gfxFontGroup *gfxOS2FontGroup::Copy(const gfxFontStyle *aStyle)
 {
-    return new gfxOS2FontGroup(mFamilies, aStyle, mUserFontSet);
+    return new gfxOS2FontGroup(mFamilies, aStyle);
 }
 
 /**

@@ -129,7 +129,9 @@ namespace nanojit
 	#define DECLARE_PLATFORM_ASSEMBLER()	\
         const static Register argRegs[2], retRegs[2]; \
 		bool x87Dirty;						\
-		bool pad[3];\
+        bool sse2;							\
+		bool has_cmov; \
+		bool pad[1];\
 		void nativePageReset();\
 		void nativePageSetup();\
         void asm_farg(LInsp);

@@ -643,16 +643,14 @@ PRBool imgLoader::PutIntoCache(nsIURI *key, imgCacheEntry *entry)
     if (!tmpRequest->IsReusable(cacheId))
       return PR_FALSE;
 
-    // If it already exists, and we're putting the same key into the cache, we
-    // should remove the old version.
-    PR_LOG(gImgLog, PR_LOG_DEBUG,
-           ("[this=%p] imgLoader::PutIntoCache -- Replacing cached element", nsnull));
+    if (gCacheTracker)
+      gCacheTracker->MarkUsed(tmpCacheEntry);
 
-    RemoveFromCache(key);
-  } else {
-    PR_LOG(gImgLog, PR_LOG_DEBUG,
-           ("[this=%p] imgLoader::PutIntoCache -- Element NOT already in the cache", nsnull));
+    return PR_TRUE;
   }
+
+  PR_LOG(gImgLog, PR_LOG_DEBUG,
+         ("[this=%p] imgLoader::PutIntoCache -- Element NOT already in the cache", nsnull));
 
   if (!cache.Put(spec, entry))
     return PR_FALSE;

@@ -78,7 +78,6 @@
 #include "nsIWidget.h"
 #include "gfxMatrix.h"
 #include "gfxTypes.h"
-#include "gfxUserFontSet.h"
 
 #ifdef MOZ_SVG
 #include "nsSVGUtils.h"
@@ -1494,13 +1493,10 @@ nsresult
 nsLayoutUtils::GetFontMetricsForStyleContext(nsStyleContext* aStyleContext,
                                              nsIFontMetrics** aFontMetrics)
 {
-  // pass the user font set object into the device context to pass along to CreateFontGroup
-  gfxUserFontSet* fs = aStyleContext->PresContext()->GetUserFontSet();
-  
-  return aStyleContext->PresContext()->DeviceContext()->GetMetricsFor(
-                  aStyleContext->GetStyleFont()->mFont,
+  return aStyleContext->PresContext()->DeviceContext()->
+    GetMetricsFor(aStyleContext->GetStyleFont()->mFont,
                   aStyleContext->GetStyleVisibility()->mLangGroup,
-                  *aFontMetrics, fs);
+                  *aFontMetrics);
 }
 
 nsIFrame*
@@ -2633,6 +2629,7 @@ nsLayoutUtils::CalculateContentBottom(nsIFrame* aFrame)
       childList = aFrame->GetAdditionalChildListName(nextListID);
       nextListID++;
     } while (childList);
+
   }
 
   return contentBottom;
@@ -2820,14 +2817,13 @@ static PRBool NonZeroStyleCoord(const nsStyleCoord& aCoord)
   }
 }
 
-/* static */ PRBool
-nsLayoutUtils::HasNonZeroCorner(const nsStyleCorners& aCorners)
+/* static */ PRBool 
+nsLayoutUtils::HasNonZeroSide(const nsStyleSides& aSides)
 {
-  NS_FOR_CSS_HALF_CORNERS(corner) {
-    if (NonZeroStyleCoord(aCorners.Get(corner)))
-      return PR_TRUE;
-  }
-  return PR_FALSE;
+  return NonZeroStyleCoord(aSides.GetTop()) ||
+         NonZeroStyleCoord(aSides.GetRight()) ||
+         NonZeroStyleCoord(aSides.GetBottom()) ||
+         NonZeroStyleCoord(aSides.GetLeft());
 }
 
 /* static */ nsTransparencyMode
@@ -2835,7 +2831,7 @@ nsLayoutUtils::GetFrameTransparency(nsIFrame* aFrame) {
   if (aFrame->GetStyleContext()->GetStyleDisplay()->mOpacity < 1.0f)
     return eTransparencyTransparent;
 
-  if (HasNonZeroCorner(aFrame->GetStyleContext()->GetStyleBorder()->mBorderRadius))
+  if (HasNonZeroSide(aFrame->GetStyleContext()->GetStyleBorder()->mBorderRadius))
     return eTransparencyTransparent;
 
   if (aFrame->IsThemed())

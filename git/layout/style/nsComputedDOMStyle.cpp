@@ -1480,32 +1480,29 @@ nsComputedDOMStyle::GetBorderTopColors(nsIDOMCSSValue** aValue)
   return GetBorderColorsFor(NS_SIDE_TOP, aValue);
 }
 
+
 nsresult
 nsComputedDOMStyle::GetBorderRadiusBottomLeft(nsIDOMCSSValue** aValue)
 {
-  return GetEllipseRadii(GetStyleBorder()->mBorderRadius,
-                         NS_CORNER_BOTTOM_LEFT, aValue);
+  return GetBorderRadiusFor(NS_SIDE_LEFT, aValue);
 }
 
 nsresult
 nsComputedDOMStyle::GetBorderRadiusBottomRight(nsIDOMCSSValue** aValue)
 {
-  return GetEllipseRadii(GetStyleBorder()->mBorderRadius,
-                         NS_CORNER_BOTTOM_RIGHT, aValue);
+  return GetBorderRadiusFor(NS_SIDE_BOTTOM, aValue);
 }
 
 nsresult
 nsComputedDOMStyle::GetBorderRadiusTopLeft(nsIDOMCSSValue** aValue)
 {
-  return GetEllipseRadii(GetStyleBorder()->mBorderRadius,
-                         NS_CORNER_TOP_LEFT, aValue);
+  return GetBorderRadiusFor(NS_SIDE_TOP, aValue);
 }
 
 nsresult
 nsComputedDOMStyle::GetBorderRadiusTopRight(nsIDOMCSSValue** aValue)
 {
-  return GetEllipseRadii(GetStyleBorder()->mBorderRadius,
-                         NS_CORNER_TOP_RIGHT, aValue);
+  return GetBorderRadiusFor(NS_SIDE_RIGHT, aValue);
 }
 
 nsresult
@@ -1676,29 +1673,25 @@ nsComputedDOMStyle::GetOutlineOffset(nsIDOMCSSValue** aValue)
 nsresult
 nsComputedDOMStyle::GetOutlineRadiusBottomLeft(nsIDOMCSSValue** aValue)
 {
-  return GetEllipseRadii(GetStyleOutline()->mOutlineRadius,
-                         NS_CORNER_BOTTOM_LEFT, aValue);
+  return GetOutlineRadiusFor(NS_SIDE_LEFT, aValue);
 }
 
 nsresult
 nsComputedDOMStyle::GetOutlineRadiusBottomRight(nsIDOMCSSValue** aValue)
 {
-  return GetEllipseRadii(GetStyleOutline()->mOutlineRadius,
-                         NS_CORNER_BOTTOM_RIGHT, aValue);
+  return GetOutlineRadiusFor(NS_SIDE_BOTTOM, aValue);
 }
 
 nsresult
 nsComputedDOMStyle::GetOutlineRadiusTopLeft(nsIDOMCSSValue** aValue)
 {
-  return GetEllipseRadii(GetStyleOutline()->mOutlineRadius,
-                         NS_CORNER_TOP_LEFT, aValue);
+  return GetOutlineRadiusFor(NS_SIDE_TOP, aValue);
 }
 
 nsresult
 nsComputedDOMStyle::GetOutlineRadiusTopRight(nsIDOMCSSValue** aValue)
 {
-  return GetEllipseRadii(GetStyleOutline()->mOutlineRadius,
-                         NS_CORNER_TOP_RIGHT, aValue);
+  return GetOutlineRadiusFor(NS_SIDE_RIGHT, aValue);
 }
 
 nsresult
@@ -1725,50 +1718,15 @@ nsComputedDOMStyle::GetOutlineColor(nsIDOMCSSValue** aValue)
 }
 
 nsresult
-nsComputedDOMStyle::GetEllipseRadii(const nsStyleCorners& aRadius,
-                                    PRUint8 aFullCorner,
-                                    nsIDOMCSSValue** aValue)
+nsComputedDOMStyle::GetOutlineRadiusFor(PRUint8 aSide, nsIDOMCSSValue** aValue)
 {
-  const nsStyleCoord& radiusX
-    = aRadius.Get(NS_FULL_TO_HALF_CORNER(aFullCorner, PR_FALSE));
-  const nsStyleCoord& radiusY
-    = aRadius.Get(NS_FULL_TO_HALF_CORNER(aFullCorner, PR_TRUE));
-  
-  // for compatibility, return a single value if X and Y are equal
-  if (radiusX == radiusY) {
-    nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
-    NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+  nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
-    SetValueToCoord(val, radiusX,
-                    &nsComputedDOMStyle::GetFrameBorderRectWidth);
+  SetValueToCoord(val, GetStyleOutline()->mOutlineRadius.Get(aSide),
+                  &nsComputedDOMStyle::GetFrameBorderRectWidth);
 
-    return CallQueryInterface(val, aValue);
-  } else {
-    nsDOMCSSValueList *valueList = GetROCSSValueList(PR_FALSE);
-    NS_ENSURE_TRUE(valueList, NS_ERROR_OUT_OF_MEMORY);
-
-    nsROCSSPrimitiveValue *valX = GetROCSSPrimitiveValue();
-    if (!valX || !valueList->AppendCSSValue(valX)) {
-      delete valX;
-      delete valueList;
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-
-    nsROCSSPrimitiveValue *valY = GetROCSSPrimitiveValue();
-    if (!valY || !valueList->AppendCSSValue(valY)) {
-      delete valY;
-      // valX deleted by valueList destructor
-      delete valueList;
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-
-    SetValueToCoord(valX, radiusX,
-                    &nsComputedDOMStyle::GetFrameBorderRectWidth);
-    SetValueToCoord(valY, radiusY,
-                    &nsComputedDOMStyle::GetFrameBorderRectWidth);
-
-    return CallQueryInterface(valueList, aValue);
-  }
+  return CallQueryInterface(val, aValue);
 }
 
 nsresult
@@ -3232,6 +3190,18 @@ nsComputedDOMStyle::GetBorderColorsFor(PRUint8 aSide, nsIDOMCSSValue** aValue)
   NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
 
   val->SetIdent(nsGkAtoms::none);
+
+  return CallQueryInterface(val, aValue);
+}
+
+nsresult
+nsComputedDOMStyle::GetBorderRadiusFor(PRUint8 aSide, nsIDOMCSSValue** aValue)
+{
+  nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
+  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
+
+  SetValueToCoord(val, GetStyleBorder()->mBorderRadius.Get(aSide),
+                  &nsComputedDOMStyle::GetFrameBorderRectWidth);
 
   return CallQueryInterface(val, aValue);
 }

@@ -345,8 +345,6 @@ nsLayoutStatics::Shutdown()
 #ifdef MOZ_OGG
   nsAudioStream::ShutdownLibrary();
 #endif
-
-  nsXMLHttpRequest::ShutdownACCache();
 }
 
 void

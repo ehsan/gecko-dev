@@ -49,9 +49,7 @@
 #include "gfxTypes.h"
 #include "gfxContext.h"
 #include "gfxFontMissingGlyphs.h"
-#include "gfxUserFontSet.h"
 #include "nsMathUtils.h"
-#include "nsBidiUtils.h"
 
 #include "cairo.h"
 #include "gfxFontTest.h"
@@ -76,10 +74,8 @@ static PRUint32 gGlyphExtentsSetupLazyTight = 0;
 static PRUint32 gGlyphExtentsSetupFallBackToTight = 0;
 #endif
 
-gfxFontEntry::~gfxFontEntry() 
-{
-    if (mUserFontData)
-        delete mUserFontData;
+gfxFontEntry::~gfxFontEntry() {
+
 }
 
 
@@ -95,9 +91,7 @@ gfxFontEntry *gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle, PR
 
     aNeedsBold = PR_FALSE;
 
-    PRBool foundWeights = FindWeightsForStyle(weightList, aFontStyle);
-    if (!foundWeights)
-        return nsnull;
+    FindWeightsForStyle(weightList, aFontStyle);
 
     PRInt8 baseWeight, weightDistance;
     aFontStyle.ComputeWeightAndOffset(&baseWeight, &weightDistance);
@@ -862,32 +856,10 @@ gfxGlyphExtents::SetTightGlyphExtents(PRUint32 aGlyphID, const gfxRect& aExtents
     entry->height = aExtentsAppUnits.size.height;
 }
 
-gfxFontGroup::gfxFontGroup(const nsAString& aFamilies, const gfxFontStyle *aStyle, gfxUserFontSet *aUserFontSet)
+gfxFontGroup::gfxFontGroup(const nsAString& aFamilies, const gfxFontStyle *aStyle)
     : mFamilies(aFamilies), mStyle(*aStyle), mUnderlineOffset(UNDERLINE_OFFSET_NOT_SET)
 {
-    mUserFontSet = nsnull;
-    SetUserFontSet(aUserFontSet);
-}
 
-gfxFontGroup::~gfxFontGroup() {
-    mFonts.Clear();
-    SetUserFontSet(nsnull);
-}
-
-
-PRBool 
-gfxFontGroup::IsInvalidChar(PRUnichar ch) {
-    if (ch >= 32) {
-        return ch == 0x0085/*NEL*/ ||
-            ((ch & 0xFF00) == 0x2000 /* Unicode control character */ &&
-             (ch == 0x200B/*ZWSP*/ || ch == 0x2028/*LSEP*/ || ch == 0x2029/*PSEP*/ ||
-              IS_BIDI_CONTROL_CHAR(ch)));
-    }
-    // We could just blacklist all control characters, but it seems better
-    // to only blacklist the ones we know cause problems for native font
-    // engines.
-    return ch == 0x0B || ch == '\t' || ch == '\r' || ch == '\n' || ch == '\f' ||
-        (ch >= 0x1c && ch <= 0x1f);
 }
 
 PRBool
@@ -1017,18 +989,11 @@ gfxFontGroup::ForEachFontInternal(const nsAString& aFamilies,
             NS_LossyConvertUTF16toASCII gf(genericFamily);
             if (aResolveFontName) {
                 ResolveData data(fc, gf, closure);
-                PRBool aborted, needsBold;
-                nsresult rv;
-
-                if (mUserFontSet && mUserFontSet->FindFontEntry(family, mStyle, needsBold)) {
-                    gfxFontGroup::FontResolverProc(family, &data);
-                    rv = NS_OK;
-                } else {
-                    gfxPlatform *pf = gfxPlatform::GetPlatform();
-                    rv = pf->ResolveFontName(family,
+                PRBool aborted;
+                gfxPlatform *pf = gfxPlatform::GetPlatform();
+                nsresult rv = pf->ResolveFontName(family,
                                                   gfxFontGroup::FontResolverProc,
                                                   &data, aborted);
-                }
                 if (NS_FAILED(rv) || aborted)
                     return PR_FALSE;
             }
@@ -1124,7 +1089,7 @@ gfxFontGroup::FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh, PRUint32 aNextCh, 
     // if match, return
     if (selectedFont)
         return selectedFont.forget();
-
+        
     // if character is in Private Use Area, don't do matching against pref or system fonts
     if ((aCh >= 0xE000  && aCh <= 0xF8FF) || (aCh >= 0xF0000 && aCh <= 0x10FFFD))
         return nsnull;
@@ -1202,29 +1167,6 @@ void gfxFontGroup::ComputeRanges(nsTArray<gfxTextRange>& aRanges, const PRUnicha
         }
     }
     aRanges[aRanges.Length()-1].end = len;
-}
-
-gfxUserFontSet* 
-gfxFontGroup::GetUserFontSet()
-{
-    return mUserFontSet;
-}
-
-void 
-gfxFontGroup::SetUserFontSet(gfxUserFontSet *aUserFontSet)
-{
-    NS_IF_RELEASE(mUserFontSet);
-    mUserFontSet = aUserFontSet;
-    NS_IF_ADDREF(mUserFontSet);
-    mCurrGeneration = GetGeneration();
-}
-
-PRUint64
-gfxFontGroup::GetGeneration()
-{
-    if (!mUserFontSet)
-        return 0;
-    return mUserFontSet->GetGeneration();
 }
 
 
@@ -1389,8 +1331,6 @@ gfxTextRun::gfxTextRun(const gfxTextRunFactory::Parameters *aParams, const void 
 #ifdef DEBUG_TEXT_RUN_STORAGE_METRICS
     AccountStorageForTextRun(this, 1);
 #endif
-
-    mUserFontSetGeneration = mFontGroup->GetGeneration();
 }
 
 gfxTextRun::~gfxTextRun()
