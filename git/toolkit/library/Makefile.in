@@ -487,7 +487,6 @@ OS_LIBS += \
   -lsensorservice \
   -ldbus \
   -lstagefright \
-  -lstagefright_foundation \
   -lstagefright_omx \
   -lbinder \
   -lgui \
