@@ -18,27 +18,30 @@
  * @param Interface the interface-type being wrapped
  * @see nsDataHashtable, nsClassHashtable
  */
-template<class KeyClass, class Interface>
-class nsInterfaceHashtable
-  : public nsBaseHashtable<KeyClass, nsCOMPtr<Interface>, Interface*>
+template<class KeyClass,class Interface>
+class nsInterfaceHashtable :
+  public nsBaseHashtable< KeyClass, nsCOMPtr<Interface> , Interface* >
 {
 public:
   typedef typename KeyClass::KeyType KeyType;
   typedef Interface* UserDataType;
-  typedef nsBaseHashtable<KeyClass, nsCOMPtr<Interface>, Interface*> base_type;
+  typedef nsBaseHashtable< KeyClass, nsCOMPtr<Interface> , Interface* >
+          base_type;
 
-  nsInterfaceHashtable() {}
+  nsInterfaceHashtable()
+  {
+  }
   explicit nsInterfaceHashtable(uint32_t aInitSize)
-    : nsBaseHashtable<KeyClass, nsCOMPtr<Interface>, Interface*>(aInitSize)
+    : nsBaseHashtable<KeyClass,nsCOMPtr<Interface>,Interface*>(aInitSize)
   {
   }
 
   /**
    * @copydoc nsBaseHashtable::Get
-   * @param aData This is an XPCOM getter, so aData is already_addrefed.
-   *   If the key doesn't exist, aData will be set to nullptr.
+   * @param pData This is an XPCOM getter, so pData is already_addrefed.
+   *   If the key doesn't exist, pData will be set to nullptr.
    */
-  bool Get(KeyType aKey, UserDataType* aData) const;
+  bool Get(KeyType aKey, UserDataType* pData) const;
 
   /**
    * @copydoc nsBaseHashtable::Get
@@ -54,14 +57,14 @@ public:
   Interface* GetWeak(KeyType aKey, bool* aFound = nullptr) const;
 };
 
-template<typename K, typename T>
+template <typename K, typename T>
 inline void
 ImplCycleCollectionUnlink(nsInterfaceHashtable<K, T>& aField)
 {
   aField.Clear();
 }
 
-template<typename K, typename T>
+template <typename K, typename T>
 inline void
 ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
                             const nsInterfaceHashtable<K, T>& aField,
@@ -70,7 +73,7 @@ ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
 {
   nsBaseHashtableCCTraversalData userData(aCallback, aName, aFlags);
 
-  aField.EnumerateRead(ImplCycleCollectionTraverse_EnumFunc<typename K::KeyType, T*>,
+  aField.EnumerateRead(ImplCycleCollectionTraverse_EnumFunc<typename K::KeyType,T*>,
                        &userData);
 }
 
@@ -78,64 +81,63 @@ ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
 // nsInterfaceHashtable definitions
 //
 
-template<class KeyClass, class Interface>
+template<class KeyClass,class Interface>
 bool
-nsInterfaceHashtable<KeyClass, Interface>::Get(KeyType aKey,
-                                               UserDataType* aInterface) const
+nsInterfaceHashtable<KeyClass,Interface>::Get
+  (KeyType aKey, UserDataType* pInterface) const
 {
   typename base_type::EntryType* ent = this->GetEntry(aKey);
 
-  if (ent) {
-    if (aInterface) {
-      *aInterface = ent->mData;
+  if (ent)
+  {
+    if (pInterface)
+    {
+      *pInterface = ent->mData;
 
-      NS_IF_ADDREF(*aInterface);
+      NS_IF_ADDREF(*pInterface);
     }
 
     return true;
   }
 
-  // if the key doesn't exist, set *aInterface to null
+  // if the key doesn't exist, set *pInterface to null
   // so that it is a valid XPCOM getter
-  if (aInterface) {
-    *aInterface = nullptr;
-  }
+  if (pInterface)
+    *pInterface = nullptr;
 
   return false;
 }
 
 template<class KeyClass, class Interface>
 already_AddRefed<Interface>
-nsInterfaceHashtable<KeyClass, Interface>::Get(KeyType aKey) const
+nsInterfaceHashtable<KeyClass,Interface>::Get(KeyType aKey) const
 {
   typename base_type::EntryType* ent = this->GetEntry(aKey);
-  if (!ent) {
+  if (!ent)
     return nullptr;
-  }
 
   nsCOMPtr<Interface> copy = ent->mData;
   return copy.forget();
 }
 
-template<class KeyClass, class Interface>
+template<class KeyClass,class Interface>
 Interface*
-nsInterfaceHashtable<KeyClass, Interface>::GetWeak(KeyType aKey,
-                                                   bool* aFound) const
+nsInterfaceHashtable<KeyClass,Interface>::GetWeak
+  (KeyType aKey, bool* aFound) const
 {
   typename base_type::EntryType* ent = this->GetEntry(aKey);
 
-  if (ent) {
-    if (aFound) {
+  if (ent)
+  {
+    if (aFound)
       *aFound = true;
-    }
 
     return ent->mData;
   }
 
   // Key does not exist, return nullptr and set aFound to false
-  if (aFound) {
+  if (aFound)
     *aFound = false;
-  }
   return nullptr;
 }
 

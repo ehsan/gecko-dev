@@ -87,10 +87,10 @@ class NS_COM_GLUE GenericClassInfo : public nsIClassInfo
 public:
   struct ClassInfoData
   {
-    typedef NS_CALLBACK(GetInterfacesProc)(uint32_t* aCountP,
-                                           nsIID*** aArray);
-    typedef NS_CALLBACK(GetLanguageHelperProc)(uint32_t aLanguage,
-                                               nsISupports** aHelper);
+    typedef NS_CALLBACK(GetInterfacesProc)(uint32_t* countp,
+                                           nsIID*** array);
+    typedef NS_CALLBACK(GetLanguageHelperProc)(uint32_t language,
+                                               nsISupports** helper);
 
     GetInterfacesProc getinterfaces;
     GetLanguageHelperProc getlanguagehelper;
@@ -101,7 +101,9 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSICLASSINFO
 
-  GenericClassInfo(const ClassInfoData* aData) : mData(aData) {}
+  GenericClassInfo(const ClassInfoData* data)
+    : mData(data)
+  { }
 
 private:
   const ClassInfoData* mData;

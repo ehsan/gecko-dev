@@ -33,12 +33,6 @@ function sleep(ms) {
   return deferred.promise;
 }
 
-// When testing finalization, use this to tell Sqlite.jsm to not throw
-// an uncatchable `Promise.reject`
-function failTestsOnAutoClose(enabled)  {
-  Cu.getGlobalForObject(Sqlite).Debugging.failTestsOnAutoClose = enabled;
-}
-
 function getConnection(dbName, extraOptions={}) {
   let path = dbName + ".sqlite";
   let options = {path: path};
@@ -917,7 +911,6 @@ add_task(function* test_readOnly_clone() {
  * Test finalization
  */
 add_task(function* test_closed_by_witness() {
-  failTestsOnAutoClose(false);
   let c = yield getDummyDatabase("closed_by_witness");
 
   Services.obs.notifyObservers(null, "sqlite-finalization-witness",
@@ -927,11 +920,9 @@ add_task(function* test_closed_by_witness() {
   c._witness.forget();
   yield c._connectionData._deferredClose.promise;
   do_check_false(c._connectionData._open);
-  failTestsOnAutoClose(true);
 });
 
 add_task(function* test_warning_message_on_finalization() {
-  failTestsOnAutoClose(false);
   let c = yield getDummyDatabase("warning_message_on_finalization");
   let connectionIdentifier = c._connectionData._connectionIdentifier;
   let deferred = Promise.defer();
@@ -955,11 +946,9 @@ add_task(function* test_warning_message_on_finalization() {
 
   yield deferred.promise;
   Services.console.unregisterListener(listener);
-  failTestsOnAutoClose(true);
 });
 
 add_task(function* test_error_message_on_unknown_finalization() {
-  failTestsOnAutoClose(false);
   let deferred = Promise.defer();
 
   let listener = {
@@ -976,7 +965,6 @@ add_task(function* test_error_message_on_unknown_finalization() {
 
   yield deferred.promise;
   Services.console.unregisterListener(listener);
-  failTestsOnAutoClose(true);
 });
 
 add_task(function* test_forget_witness_on_close() {
@@ -997,7 +985,6 @@ add_task(function* test_forget_witness_on_close() {
 });
 
 add_task(function* test_close_database_on_gc() {
-  failTestsOnAutoClose(false);
   let deferred = Promise.defer();
 
   for (let i = 0; i < 100; ++i) {
@@ -1016,5 +1003,4 @@ add_task(function* test_close_database_on_gc() {
 
   Components.utils.forceGC();
   yield deferred.promise;
-  failTestsOnAutoClose(true);
 });

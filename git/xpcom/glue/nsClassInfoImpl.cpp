@@ -20,55 +20,53 @@ GenericClassInfo::Release()
 NS_IMPL_QUERY_INTERFACE(GenericClassInfo, nsIClassInfo)
 
 NS_IMETHODIMP
-GenericClassInfo::GetInterfaces(uint32_t* aCount, nsIID*** aArray)
+GenericClassInfo::GetInterfaces(uint32_t* countp, nsIID*** array)
 {
-  return mData->getinterfaces(aCount, aArray);
+  return mData->getinterfaces(countp, array);
 }
 
 NS_IMETHODIMP
-GenericClassInfo::GetHelperForLanguage(uint32_t aLanguage,
-                                       nsISupports** aHelper)
+GenericClassInfo::GetHelperForLanguage(uint32_t language, nsISupports** helper)
 {
-  if (mData->getlanguagehelper) {
-    return mData->getlanguagehelper(aLanguage, aHelper);
-  }
+  if (mData->getlanguagehelper)
+    return mData->getlanguagehelper(language, helper);
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-GenericClassInfo::GetContractID(char** aContractID)
+GenericClassInfo::GetContractID(char** contractid)
 {
   NS_ERROR("GetContractID not implemented");
-  *aContractID = nullptr;
+  *contractid = nullptr;
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-GenericClassInfo::GetClassDescription(char** aDescription)
+GenericClassInfo::GetClassDescription(char** description)
 {
-  *aDescription = nullptr;
+  *description = nullptr;
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-GenericClassInfo::GetClassID(nsCID** aClassID)
+GenericClassInfo::GetClassID(nsCID** classid)
 {
   NS_ERROR("GetClassID not implemented");
-  *aClassID = nullptr;
+  *classid = nullptr;
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-GenericClassInfo::GetImplementationLanguage(uint32_t* aLanguage)
+GenericClassInfo::GetImplementationLanguage(uint32_t* language)
 {
-  *aLanguage = nsIProgrammingLanguage::CPLUSPLUS;
+  *language = nsIProgrammingLanguage::CPLUSPLUS;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-GenericClassInfo::GetFlags(uint32_t* aFlags)
+GenericClassInfo::GetFlags(uint32_t* flags)
 {
-  *aFlags = mData->flags;
+  *flags = mData->flags;
   return NS_OK;
 }
 

@@ -11,28 +11,30 @@
 
 // helper class for do_QueryElementAt
 class NS_COM_GLUE nsQueryArrayElementAt : public nsCOMPtr_helper
-{
-public:
-  nsQueryArrayElementAt(nsIArray* aArray, uint32_t aIndex,
-                        nsresult* aErrorPtr)
-    : mArray(aArray)
-    , mIndex(aIndex)
-    , mErrorPtr(aErrorPtr)
   {
-  }
+    public:
+      nsQueryArrayElementAt(nsIArray* aArray, uint32_t aIndex,
+                            nsresult* aErrorPtr)
+          : mArray(aArray),
+            mIndex(aIndex),
+            mErrorPtr(aErrorPtr)
+        {
+          // nothing else to do here
+        }
 
-  virtual nsresult NS_FASTCALL operator()(const nsIID& aIID, void**) const;
+      virtual nsresult NS_FASTCALL operator()(const nsIID& aIID, void**) const;
 
-private:
-  nsIArray*  mArray;
-  uint32_t   mIndex;
-  nsresult*  mErrorPtr;
-};
+    private:
+      nsIArray*  mArray;
+      uint32_t   mIndex;
+      nsresult*  mErrorPtr;
+  };
 
-inline const nsQueryArrayElementAt
+inline
+const nsQueryArrayElementAt
 do_QueryElementAt(nsIArray* aArray, uint32_t aIndex, nsresult* aErrorPtr = 0)
-{
-  return nsQueryArrayElementAt(aArray, aIndex, aErrorPtr);
-}
+  {
+    return nsQueryArrayElementAt(aArray, aIndex, aErrorPtr);
+  }
 
 #endif // nsArrayUtils_h__

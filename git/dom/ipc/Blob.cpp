@@ -870,7 +870,7 @@ class BlobChild::RemoteBlob::SliceHelper MOZ_FINAL
 {
   mozilla::Monitor mMonitor;
   BlobChild* mActor;
-  nsRefPtr<DOMFileImpl> mSlice;
+  nsCOMPtr<nsIDOMBlob> mSlice;
   uint64_t mStart;
   uint64_t mLength;
   nsString mContentType;
@@ -888,13 +888,14 @@ public:
     MOZ_ASSERT(aActor);
   }
 
-  DOMFileImpl*
+  nsresult
   GetSlice(uint64_t aStart,
            uint64_t aLength,
            const nsAString& aContentType,
-           ErrorResult& aRv)
+           nsIDOMBlob** aSlice)
   {
     // This may be called on any thread.
+    MOZ_ASSERT(aSlice);
     MOZ_ASSERT(mActor);
     MOZ_ASSERT(!mSlice);
     MOZ_ASSERT(!mDone);
@@ -908,15 +909,10 @@ public:
     }
     else {
       nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
-      if (!mainThread) {
-        aRv.Throw(NS_ERROR_FAILURE);
-        return nullptr;
-      }
+      NS_ENSURE_TRUE(mainThread, NS_ERROR_FAILURE);
 
-      aRv = mainThread->Dispatch(this, NS_DISPATCH_NORMAL);
-      if (aRv.Failed()) {
-        return nullptr;
-      }
+      nsresult rv = mainThread->Dispatch(this, NS_DISPATCH_NORMAL);
+      NS_ENSURE_SUCCESS(rv, rv);
 
       {
         MonitorAutoLock lock(mMonitor);
@@ -930,11 +926,11 @@ public:
     MOZ_ASSERT(mDone);
 
     if (!mSlice) {
-      aRv.Throw(NS_ERROR_UNEXPECTED);
-      return nullptr;
+      return NS_ERROR_UNEXPECTED;
     }
 
-    return mSlice;
+    mSlice.forget(aSlice);
+    return NS_OK;
   }
 
   NS_IMETHOD
@@ -977,8 +973,7 @@ private:
     otherSideParams.optionalInputStreamParams() = mozilla::void_t();
 
     if (mActor->Manager()->SendPBlobConstructor(newActor, otherSideParams)) {
-      nsCOMPtr<nsIDOMBlob> blob = newActor->GetBlob();
-      mSlice = static_cast<DOMFile*>(blob.get())->Impl();
+      mSlice = newActor->GetBlob();
     }
 
     mActor = nullptr;
@@ -998,7 +993,7 @@ private:
  * BlobChild::RemoteBlob Implementation
  ******************************************************************************/
 
-NS_IMPL_ISUPPORTS_INHERITED(BlobChild::RemoteBlob, DOMFileImpl, nsIRemoteBlob)
+NS_IMPL_ISUPPORTS_INHERITED(BlobChild::RemoteBlob, DOMFileImplBase, nsIRemoteBlob)
 
 already_AddRefed<nsIDOMBlob>
 BlobChild::
@@ -1012,15 +1007,12 @@ RemoteBlob::CreateSlice(uint64_t aStart,
 
   nsRefPtr<SliceHelper> helper = new SliceHelper(mActor);
 
-  ErrorResult rv;
-  nsRefPtr<DOMFileImpl> slice = helper->GetSlice(aStart, aLength,
-                                                 aContentType, rv);
-  if (rv.Failed()) {
-    return nullptr;
-  }
+  nsCOMPtr<nsIDOMBlob> slice;
+  nsresult rv =
+    helper->GetSlice(aStart, aLength, aContentType, getter_AddRefs(slice));
+  NS_ENSURE_SUCCESS(rv, nullptr);
 
-  nsRefPtr<DOMFile> file = new DOMFile(slice);
-  return file.forget();
+  return slice.forget();
 }
 
 nsresult
@@ -1576,7 +1568,7 @@ class BlobParent::RemoteBlob::SliceHelper MOZ_FINAL
 {
   mozilla::Monitor mMonitor;
   BlobParent* mActor;
-  nsRefPtr<DOMFileImpl> mSlice;
+  nsCOMPtr<nsIDOMBlob> mSlice;
   uint64_t mStart;
   uint64_t mLength;
   nsString mContentType;
@@ -1594,13 +1586,14 @@ public:
     MOZ_ASSERT(aActor);
   }
 
-  DOMFileImpl*
+  nsresult
   GetSlice(uint64_t aStart,
            uint64_t aLength,
            const nsAString& aContentType,
-           ErrorResult& aRv)
+           nsIDOMBlob** aSlice)
   {
     // This may be called on any thread.
+    MOZ_ASSERT(aSlice);
     MOZ_ASSERT(mActor);
     MOZ_ASSERT(!mSlice);
     MOZ_ASSERT(!mDone);
@@ -1614,15 +1607,10 @@ public:
     }
     else {
       nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
-      if (!mainThread) {
-        aRv.Throw(NS_ERROR_FAILURE);
-        return nullptr;
-      }
+      NS_ENSURE_TRUE(mainThread, NS_ERROR_FAILURE);
 
-      aRv = mainThread->Dispatch(this, NS_DISPATCH_NORMAL);
-      if (aRv.Failed()) {
-        return nullptr;
-      }
+      nsresult rv = mainThread->Dispatch(this, NS_DISPATCH_NORMAL);
+      NS_ENSURE_SUCCESS(rv, rv);
 
       {
         MonitorAutoLock lock(mMonitor);
@@ -1636,11 +1624,11 @@ public:
     MOZ_ASSERT(mDone);
 
     if (!mSlice) {
-      aRv.Throw(NS_ERROR_UNEXPECTED);
-      return nullptr;
+      return NS_ERROR_UNEXPECTED;
     }
 
-    return mSlice;
+    mSlice.forget(aSlice);
+    return NS_OK;
   }
 
   NS_IMETHOD
@@ -1685,8 +1673,7 @@ private:
     ChildBlobConstructorParams otherSideParams = slicedParams;
 
     if (mActor->Manager()->SendPBlobConstructor(newActor, otherSideParams)) {
-      nsCOMPtr<nsIDOMBlob> blob =newActor->GetBlob();
-      mSlice = static_cast<DOMFile*>(blob.get())->Impl();
+      mSlice = newActor->GetBlob();
     }
 
     mActor = nullptr;
@@ -1706,7 +1693,8 @@ private:
  * BlobChild::RemoteBlob Implementation
  ******************************************************************************/
 
-NS_IMPL_ISUPPORTS_INHERITED(BlobParent::RemoteBlob, DOMFileImpl, nsIRemoteBlob)
+NS_IMPL_ISUPPORTS_INHERITED(BlobParent::RemoteBlob, DOMFileImplBase,
+                            nsIRemoteBlob)
 
 already_AddRefed<nsIDOMBlob>
 BlobParent::
@@ -1720,15 +1708,12 @@ RemoteBlob::CreateSlice(uint64_t aStart,
 
   nsRefPtr<SliceHelper> helper = new SliceHelper(mActor);
 
-  ErrorResult rv;
-  nsRefPtr<DOMFileImpl> slice = helper->GetSlice(aStart, aLength,
-                                                 aContentType, rv);
-  if (rv.Failed()) {
-    return nullptr;
-  }
+  nsCOMPtr<nsIDOMBlob> slice;
+  nsresult rv =
+    helper->GetSlice(aStart, aLength, aContentType, getter_AddRefs(slice));
+  NS_ENSURE_SUCCESS(rv, nullptr);
 
-  nsRefPtr<DOMFile> file = new DOMFile(slice);
-  return file.forget();
+  return slice.forget();
 }
 
 nsresult

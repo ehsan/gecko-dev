@@ -10,13 +10,11 @@
 #include "nsClassHashtable.h"
 #include "nsNetUtil.h"
 #include "nsIPrincipal.h"
-#include "nsDOMFile.h"
+#include "nsIDOMFile.h"
 #include "nsIDOMMediaStream.h"
 #include "mozilla/dom/MediaSource.h"
 #include "nsIMemoryReporter.h"
 #include "mozilla/Preferences.h"
-
-using mozilla::dom::DOMFileImpl;
 
 // -----------------------------------------------------------------------
 // Hash table
@@ -480,9 +478,8 @@ nsHostObjectProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
   if (!info) {
     return NS_ERROR_DOM_BAD_URI;
   }
-
-  nsCOMPtr<PIDOMFileImpl> blobImpl = do_QueryInterface(info->mObject);
-  if (!blobImpl) {
+  nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(info->mObject);
+  if (!blob) {
     return NS_ERROR_DOM_BAD_URI;
   }
 
@@ -495,7 +492,6 @@ nsHostObjectProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
   }
 #endif
 
-  DOMFileImpl* blob = static_cast<DOMFileImpl*>(blobImpl.get());
   nsCOMPtr<nsIInputStream> stream;
   nsresult rv = blob->GetInternalStream(getter_AddRefs(stream));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -512,9 +508,10 @@ nsHostObjectProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
   rv = blob->GetType(type);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (blob->IsFile()) {
+  nsCOMPtr<nsIDOMFile> file = do_QueryInterface(info->mObject);
+  if (file) {
     nsString filename;
-    rv = blob->GetName(filename);
+    rv = file->GetName(filename);
     NS_ENSURE_SUCCESS(rv, rv);
     channel->SetContentDispositionFilename(filename);
   }
@@ -577,12 +574,11 @@ NS_GetStreamForBlobURI(nsIURI* aURI, nsIInputStream** aStream)
 
   *aStream = nullptr;
 
-  nsCOMPtr<PIDOMFileImpl> blobImpl = do_QueryInterface(GetDataObject(aURI));
-  if (!blobImpl) {
+  nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(GetDataObject(aURI));
+  if (!blob) {
     return NS_ERROR_DOM_BAD_URI;
   }
 
-  DOMFileImpl* blob = static_cast<DOMFileImpl*>(blobImpl.get());
   return blob->GetInternalStream(aStream);
 }
 

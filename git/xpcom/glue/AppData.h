@@ -18,11 +18,7 @@ namespace mozilla {
 class NS_COM_GLUE ScopedAppData : public nsXREAppData
 {
 public:
-  ScopedAppData()
-  {
-    Zero();
-    this->size = sizeof(*this);
-  }
+  ScopedAppData() { Zero(); this->size = sizeof(*this); }
 
   ScopedAppData(const nsXREAppData* aAppData);
 
@@ -32,29 +28,29 @@ public:
 };
 
 /**
- * Given |aStr| is holding a string allocated with NS_Alloc, or null:
- * replace the value in |aStr| with a new value.
+ * Given "str" is holding a string allocated with NS_Alloc, or null:
+ * replace the value in "str" with a new value.
  *
- * @param aNewValue Null is permitted. The string is cloned with NS_strdup.
+ * @param newvalue Null is permitted. The string is cloned with
+ *                 NS_strdup
  */
-void SetAllocatedString(const char*& aStr, const char* aNewValue);
+void SetAllocatedString(const char *&str, const char *newvalue);
 
 /**
  * Given "str" is holding a string allocated with NS_Alloc, or null:
  * replace the value in "str" with a new value.
  *
- * @param aNewValue If |aNewValue| is the empty string, |aStr| will be set
- *                  to null.
+ * @param newvalue If "newvalue" is the empty string, "str" will be set
+ *                 to null.
  */
-void SetAllocatedString(const char*& aStr, const nsACString& aNewValue);
+void SetAllocatedString(const char *&str, const nsACString &newvalue);
 
 template<class T>
-void
-SetStrongPtr(T*& aPtr, T* aNewValue)
+void SetStrongPtr(T *&ptr, T* newvalue)
 {
-  NS_IF_RELEASE(aPtr);
-  aPtr = aNewValue;
-  NS_IF_ADDREF(aPtr);
+  NS_IF_RELEASE(ptr);
+  ptr = newvalue;
+  NS_IF_ADDREF(ptr);
 }
 
 } // namespace mozilla

@@ -2314,7 +2314,7 @@ void nsTimingFunction::AssignFromKeyword(int32_t aTimingFunctionType)
   mFunc.mY2 = timingFunctionValues[aTimingFunctionType][3];
 }
 
-mozilla::StyleTransition::StyleTransition(const StyleTransition& aCopy)
+nsTransition::nsTransition(const nsTransition& aCopy)
   : mTimingFunction(aCopy.mTimingFunction)
   , mDuration(aCopy.mDuration)
   , mDelay(aCopy.mDelay)
@@ -2323,8 +2323,7 @@ mozilla::StyleTransition::StyleTransition(const StyleTransition& aCopy)
 {
 }
 
-void
-mozilla::StyleTransition::SetInitialValues()
+void nsTransition::SetInitialValues()
 {
   mTimingFunction = nsTimingFunction(NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE);
   mDuration = 0.0;
@@ -2332,8 +2331,7 @@ mozilla::StyleTransition::SetInitialValues()
   mProperty = eCSSPropertyExtra_all_properties;
 }
 
-void
-mozilla::StyleTransition::SetUnknownProperty(const nsAString& aUnknownProperty)
+void nsTransition::SetUnknownProperty(const nsAString& aUnknownProperty)
 {
   NS_ASSERTION(nsCSSProps::LookupProperty(aUnknownProperty,
                                           nsCSSProps::eEnabledForAllContent) ==
@@ -2343,7 +2341,7 @@ mozilla::StyleTransition::SetUnknownProperty(const nsAString& aUnknownProperty)
   mUnknownProperty = do_GetAtom(aUnknownProperty);
 }
 
-mozilla::StyleAnimation::StyleAnimation(const mozilla::StyleAnimation& aCopy)
+nsAnimation::nsAnimation(const nsAnimation& aCopy)
   : mTimingFunction(aCopy.mTimingFunction)
   , mDuration(aCopy.mDuration)
   , mDelay(aCopy.mDelay)
@@ -2356,7 +2354,7 @@ mozilla::StyleAnimation::StyleAnimation(const mozilla::StyleAnimation& aCopy)
 }
 
 void
-mozilla::StyleAnimation::SetInitialValues()
+nsAnimation::SetInitialValues()
 {
   mTimingFunction = nsTimingFunction(NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE);
   mDuration = 0.0;

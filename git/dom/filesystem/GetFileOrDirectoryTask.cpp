@@ -77,9 +77,7 @@ GetFileOrDirectoryTask::GetSuccessRequestResult() const
   if (mIsDirectory) {
     return FileSystemDirectoryResponse(mTargetRealPath);
   }
-
-  nsRefPtr<DOMFile> file = new DOMFile(mTargetFileImpl);
-  BlobParent* actor = GetBlobParent(file);
+  BlobParent* actor = GetBlobParent(mTargetFile);
   if (!actor) {
     return FileSystemErrorResponse(NS_ERROR_DOM_FILESYSTEM_UNKNOWN_ERR);
   }
@@ -97,7 +95,7 @@ GetFileOrDirectoryTask::SetSuccessRequestResult(const FileSystemResponseValue& a
       FileSystemFileResponse r = aValue;
       BlobChild* actor = static_cast<BlobChild*>(r.blobChild());
       nsCOMPtr<nsIDOMBlob> blob = actor->GetBlob();
-      mTargetFileImpl = static_cast<DOMFile*>(blob.get())->Impl();
+      mTargetFile = do_QueryInterface(blob);
       mIsDirectory = false;
       break;
     }
@@ -182,7 +180,7 @@ GetFileOrDirectoryTask::Work()
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  mTargetFileImpl = new DOMFileImplFile(file);
+  mTargetFile = DOMFile::CreateFromFile(file);
 
   return NS_OK;
 }
@@ -211,8 +209,7 @@ GetFileOrDirectoryTask::HandlerCallback()
     return;
   }
 
-  nsCOMPtr<nsIDOMFile> file = new DOMFile(mTargetFileImpl);
-  mPromise->MaybeResolve(file);
+  mPromise->MaybeResolve(mTargetFile);
   mPromise = nullptr;
 }
 

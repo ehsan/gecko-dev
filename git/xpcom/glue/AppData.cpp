@@ -13,24 +13,26 @@
 namespace mozilla {
 
 void
-SetAllocatedString(const char*& aStr, const char* aNewValue)
+SetAllocatedString(const char *&str, const char *newvalue)
 {
-  NS_Free(const_cast<char*>(aStr));
-  if (aNewValue) {
-    aStr = NS_strdup(aNewValue);
-  } else {
-    aStr = nullptr;
+  NS_Free(const_cast<char*>(str));
+  if (newvalue) {
+    str = NS_strdup(newvalue);
+  }
+  else {
+    str = nullptr;
   }
 }
 
 void
-SetAllocatedString(const char*& aStr, const nsACString& aNewValue)
+SetAllocatedString(const char *&str, const nsACString &newvalue)
 {
-  NS_Free(const_cast<char*>(aStr));
-  if (aNewValue.IsEmpty()) {
-    aStr = nullptr;
-  } else {
-    aStr = ToNewCString(aNewValue);
+  NS_Free(const_cast<char*>(str));
+  if (newvalue.IsEmpty()) {
+    str = nullptr;
+  }
+  else {
+    str = ToNewCString(newvalue);
   }
 }
 
@@ -77,7 +79,7 @@ ScopedAppData::~ScopedAppData()
 
   NS_IF_RELEASE(this->directory);
 
-  SetStrongPtr(this->xreDirectory, (nsIFile*)nullptr);
+  SetStrongPtr(this->xreDirectory, (nsIFile*) nullptr);
   SetAllocatedString(this->minVersion, nullptr);
   SetAllocatedString(this->maxVersion, nullptr);
 

@@ -167,7 +167,7 @@ TEST_F(pkixder_pki_types_tests, CertificateSerialNumberZeroLength)
   ASSERT_EQ(SEC_ERROR_BAD_DER, PR_GetError());
 }
 
-TEST_F(pkixder_pki_types_tests, OptionalVersionV1ExplicitEncodingAllowed)
+TEST_F(pkixder_pki_types_tests, OptionalVersionV1ExplicitEncodingNotAllowed)
 {
   const uint8_t DER_OPTIONAL_VERSION_V1[] = {
     0xa0, 0x03,                   // context specific 0
@@ -178,14 +178,9 @@ TEST_F(pkixder_pki_types_tests, OptionalVersionV1ExplicitEncodingAllowed)
   ASSERT_EQ(Success, input.Init(DER_OPTIONAL_VERSION_V1,
                                 sizeof DER_OPTIONAL_VERSION_V1));
 
-  // XXX(bug 1031093): We shouldn't accept an explicit encoding of v1, but we
-  // do here for compatibility reasons.
-  // Version version;
-  // ASSERT_EQ(Failure, OptionalVersion(input, version));
-  // ASSERT_EQ(SEC_ERROR_BAD_DER, PR_GetError());
-  Version version = Version::v3;
-  ASSERT_EQ(Success, OptionalVersion(input, version));
-  ASSERT_EQ(Version::v1, version);
+  Version version;
+  ASSERT_EQ(Failure, OptionalVersion(input, version));
+  ASSERT_EQ(SEC_ERROR_BAD_DER, PR_GetError());
 }
 
 TEST_F(pkixder_pki_types_tests, OptionalVersionV2)

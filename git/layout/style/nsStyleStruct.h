@@ -1809,11 +1809,9 @@ private:
   void AssignFromKeyword(int32_t aTimingFunctionType);
 };
 
-namespace mozilla {
-
-struct StyleTransition {
-  StyleTransition() { /* leaves uninitialized; see also SetInitialValues */ }
-  explicit StyleTransition(const StyleTransition& aCopy);
+struct nsTransition {
+  nsTransition() { /* leaves uninitialized; see also SetInitialValues */ }
+  explicit nsTransition(const nsTransition& aCopy);
 
   void SetInitialValues();
 
@@ -1835,7 +1833,7 @@ struct StyleTransition {
       mProperty = aProperty;
     }
   void SetUnknownProperty(const nsAString& aUnknownProperty);
-  void CopyPropertyFrom(const StyleTransition& aOther)
+  void CopyPropertyFrom(const nsTransition& aOther)
     {
       mProperty = aOther.mProperty;
       mUnknownProperty = aOther.mUnknownProperty;
@@ -1852,9 +1850,9 @@ private:
                                       // eCSSProperty_UNKNOWN
 };
 
-struct StyleAnimation {
-  StyleAnimation() { /* leaves uninitialized; see also SetInitialValues */ }
-  explicit StyleAnimation(const StyleAnimation& aCopy);
+struct nsAnimation {
+  nsAnimation() { /* leaves uninitialized; see also SetInitialValues */ }
+  explicit nsAnimation(const nsAnimation& aCopy);
 
   void SetInitialValues();
 
@@ -1892,8 +1890,6 @@ private:
   uint8_t mPlayState;
   float mIterationCount; // mozilla::PositiveInfinity<float>() means infinite
 };
-
-} // namespace mozilla
 
 struct nsStyleDisplay {
   nsStyleDisplay();
@@ -1972,7 +1968,7 @@ struct nsStyleDisplay {
   nsStyleCoord mChildPerspective; // [reset] coord
   nsStyleCoord mPerspectiveOrigin[2]; // [reset] percent, coord, calc
 
-  nsAutoTArray<mozilla::StyleTransition, 1> mTransitions; // [reset]
+  nsAutoTArray<nsTransition, 1> mTransitions; // [reset]
   // The number of elements in mTransitions that are not from repeating
   // a list due to another property being longer.
   uint32_t mTransitionTimingFunctionCount,
@@ -1980,7 +1976,7 @@ struct nsStyleDisplay {
            mTransitionDelayCount,
            mTransitionPropertyCount;
 
-  nsAutoTArray<mozilla::StyleAnimation, 1> mAnimations; // [reset]
+  nsAutoTArray<nsAnimation, 1> mAnimations; // [reset]
   // The number of elements in mAnimations that are not from repeating
   // a list due to another property being longer.
   uint32_t mAnimationTimingFunctionCount,

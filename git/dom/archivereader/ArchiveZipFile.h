@@ -23,8 +23,6 @@ BEGIN_ARCHIVEREADER_NAMESPACE
 class ArchiveZipFileImpl : public DOMFileImplBase
 {
 public:
-  NS_DECL_ISUPPORTS_INHERITED
-
   ArchiveZipFileImpl(const nsAString& aName,
                      const nsAString& aContentType,
                      uint64_t aLength,
@@ -64,11 +62,6 @@ public:
 
   virtual void Unlink() MOZ_OVERRIDE;
   virtual void Traverse(nsCycleCollectionTraversalCallback &aCb) MOZ_OVERRIDE;
-
-  virtual bool IsCCed() const MOZ_OVERRIDE
-  {
-    return true;
-  }
 
 protected:
   virtual already_AddRefed<nsIDOMBlob> CreateSlice(uint64_t aStart,
