@@ -234,10 +234,7 @@ sub do_copyfile
 
   # set the destination path, if alternate destination given, use it.
   if ($flat) {
-    # WebappRuntime has manifests that shouldn't be flattened, even though it
-    # gets packaged with Firefox, which does get flattened, so special-case it.
-    if ($srcsuffix eq ".manifest" && $srcpath =~ m'/(chrome|components)/$' &&
-        $component ne "WebappRuntime") {
+    if ($srcsuffix eq ".manifest" && $srcpath =~ m'/(chrome|components)/$') {
       my $subdir = $1;
       if ($component eq "") {
         die ("Manifest file was not part of a component.");

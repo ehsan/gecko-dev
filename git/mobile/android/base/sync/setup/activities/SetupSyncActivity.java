@@ -157,9 +157,7 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
 
   @Override
   public void onNewIntent(Intent intent) {
-    Logger.debug(LOG_TAG, "Started SetupSyncActivity with new intent.");
     setIntent(intent);
-    onResume();
   }
 
   /* Click Handlers */

@@ -99,6 +99,8 @@
 
 #define PREF_OVERRIDE_DIRNAME "preferences"
 
+#define WEBAPPRT_APPID "webapprt@mozilla.org"
+
 static already_AddRefed<nsILocalFile>
 CloneAndAppend(nsIFile* aFile, const char* name)
 {
@@ -647,6 +649,13 @@ nsXREDirProvider::GetFilesInternal(const char* aProperty,
     LoadDirIntoArray(mXULAppDir, kAppendPrefDir, directories);
     LoadDirsIntoArray(mAppBundleDirectories,
                       kAppendPrefDir, directories);
+
+    // Include the WebappRT-specific prefs dir if we're running WebappRT.
+    if (gAppData && !strcmp(gAppData->ID, WEBAPPRT_APPID)) {
+      const char *const kAppendAppIDPrefDir[] =
+        { "defaults", "pref", gAppData->ID, nsnull };
+      LoadDirIntoArray(mXULAppDir, kAppendAppIDPrefDir, directories);
+    }
 
     rv = NS_NewArrayEnumerator(aResult, directories);
   }

@@ -82,6 +82,7 @@ public final class Tab {
     private boolean mBookmark;
     private HashMap<String, DoorHanger> mDoorHangers;
     private long mFaviconLoadId;
+    private CheckBookmarkTask mCheckBookmarkTask;
     private String mDocumentURI;
     private String mContentType;
     private boolean mHasTouchListeners;
@@ -372,16 +373,17 @@ public final class Tab {
     }
 
     private void updateBookmark() {
-        final String url = getURL();
-        if (url == null)
-            return;
-
-        GeckoBackgroundThread.getHandler().post(new Runnable() {
+        GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
             public void run() {
-                boolean bookmark = BrowserDB.isBookmark(mContentResolver, url);
-                if (url.equals(getURL())) {
-                    mBookmark = bookmark;
-                }
+                if (mCheckBookmarkTask != null)
+                    mCheckBookmarkTask.cancel(false);
+
+                String url = getURL();
+                if (url == null)
+                    return;
+
+                mCheckBookmarkTask = new CheckBookmarkTask(url);
+                mCheckBookmarkTask.execute();
             }
         });
     }
@@ -519,6 +521,40 @@ public final class Tab {
         } else if (event.equals("Purge")) {
             mHistory.clear();
             mHistoryIndex = -1;
+        }
+    }
+
+    private final class CheckBookmarkTask extends AsyncTask<Void, Void, Boolean> {
+        private final String mUrl;
+
+        public CheckBookmarkTask(String url) {
+            mUrl = url;
+        }
+
+        @Override
+        protected Boolean doInBackground(Void... unused) {
+            return BrowserDB.isBookmark(mContentResolver, mUrl);
+        }
+
+        @Override
+        protected void onCancelled() {
+            mCheckBookmarkTask = null;
+        }
+
+        @Override
+        protected void onPostExecute(final Boolean isBookmark) {
+            mCheckBookmarkTask = null;
+
+            GeckoApp.mAppContext.runOnUiThread(new Runnable() {
+                public void run() {
+                    // Ignore this task if it's not about the current
+                    // tab URL anymore.
+                    if (!mUrl.equals(getURL()))
+                        return;
+
+                    mBookmark = isBookmark.booleanValue();
+                }
+            });
         }
     }
 

@@ -172,9 +172,6 @@ endif
 endif
 ifdef MOZ_OMNIJAR
 	@(cd $(STAGEDIST) && $(UNPACK_OMNIJAR))
-ifdef MOZ_WEBAPP_RUNTIME
-	@(cd $(STAGEDIST)/webapprt && $(UNPACK_OMNIJAR_WEBAPP_RUNTIME))
-endif
 endif
 	$(MAKE) clobber-zip AB_CD=$(AB_CD)
 	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)

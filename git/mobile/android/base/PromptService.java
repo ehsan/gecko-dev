@@ -523,7 +523,7 @@ public class PromptService implements OnClickListener, OnCancelListener, OnItemC
         }
 
         private void maybeUpdateCheckedState(int position, PromptListItem item, ViewHolder viewHolder) {
-            if (item.isGroup || mSelected == null)
+            if (item.isGroup)
                 return;
 
             CheckedTextView ct;

@@ -335,8 +335,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
             // If we are OOM killed with the disk cache enabled, the entire
             // cache will be cleared (bug 105843), so shut down the cache here
             // and re-init on resume
-            if (nsCacheService::GlobalInstance())
-                nsCacheService::GlobalInstance()->Shutdown();
+            nsCacheService::GlobalInstance()->Shutdown();
         }
 
         // We really want to send a notification like profile-before-change,
@@ -468,8 +467,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
             // If we are OOM killed with the disk cache enabled, the entire
             // cache will be cleared (bug 105843), so shut down cache on pause
             // and re-init here
-            if (nsCacheService::GlobalInstance())
-                nsCacheService::GlobalInstance()->Init();
+            nsCacheService::GlobalInstance()->Init();
 
             // We didn't return from one of our own activities, so restore
             // to foreground status

@@ -7255,15 +7255,9 @@ var gPluginHandler = {
   _handleClickToPlayEvent: function PH_handleClickToPlayEvent(aPlugin) {
     let doc = aPlugin.ownerDocument;
     let browser = gBrowser.getBrowserForDocument(doc.defaultView.top.document);
-    let pluginsPermission = Services.perms.testPermission(browser.currentURI, "plugins");
-    let overlay = doc.getAnonymousElementByAttribute(aPlugin, "class", "mainBox");
-
     if (browser._clickToPlayPluginsActivated) {
       let objLoadingContent = aPlugin.QueryInterface(Ci.nsIObjectLoadingContent);
       objLoadingContent.playPlugin();
-      return;
-    } else if (pluginsPermission == Ci.nsIPermissionManager.DENY_ACTION) {
-      overlay.style.visibility = "hidden";
       return;
     }
 
@@ -7282,53 +7276,26 @@ var gPluginHandler = {
       return;
 
     let browser = gBrowser.selectedBrowser;
-
-    let pluginsPermission = Services.perms.testPermission(browser.currentURI, "plugins");
-    if (pluginsPermission == Ci.nsIPermissionManager.DENY_ACTION)
-      return;
-
     let contentWindow = browser.contentWindow;
     let cwu = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                            .getInterface(Ci.nsIDOMWindowUtils);
-    let pluginNeedsActivation = cwu.plugins.some(function(plugin) {
-      let objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
-      return !objLoadingContent.activated;
-    });
-    if (pluginNeedsActivation)
+    if (cwu.plugins.length)
       gPluginHandler._showClickToPlayNotification(browser);
   },
 
   _showClickToPlayNotification: function PH_showClickToPlayNotification(aBrowser) {
     aBrowser._clickToPlayDoorhangerShown = true;
     let contentWindow = aBrowser.contentWindow;
-
     let messageString = gNavigatorBundle.getString("activatePluginsMessage.message");
-    let mainAction = {
+    let action = {
       label: gNavigatorBundle.getString("activatePluginsMessage.label"),
       accessKey: gNavigatorBundle.getString("activatePluginsMessage.accesskey"),
       callback: function() { gPluginHandler.activatePlugins(contentWindow); }
     };
-    let secondaryActions = [{
-      label: gNavigatorBundle.getString("activatePluginsMessage.always"),
-      accessKey: gNavigatorBundle.getString("activatePluginsMessage.always.accesskey"),
-      callback: function () {
-        Services.perms.add(aBrowser.currentURI, "plugins", Ci.nsIPermissionManager.ALLOW_ACTION);
-        gPluginHandler.activatePlugins(contentWindow);
-      }
-    },{
-      label: gNavigatorBundle.getString("activatePluginsMessage.never"),
-      accessKey: gNavigatorBundle.getString("activatePluginsMessage.never.accesskey"),
-      callback: function () {
-        Services.perms.add(aBrowser.currentURI, "plugins", Ci.nsIPermissionManager.DENY_ACTION);
-        let notification = PopupNotifications.getNotification("click-to-play-plugins", aBrowser);
-        if (notification)
-          notification.remove();
-      }
-    }];
     let options = { dismissed: true };
     PopupNotifications.show(aBrowser, "click-to-play-plugins",
                             messageString, "plugins-notification-icon",
-                            mainAction, secondaryActions, options);
+                            action, null, options);
   },
 
   // event listener for missing/blocklisted/outdated/carbonFailure plugins.

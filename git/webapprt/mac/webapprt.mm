@@ -32,13 +32,10 @@
 const char WEBAPPRT_EXECUTABLE[] = "webapprt-stub";
 const char FXAPPINI_NAME[] = "application.ini";
 const char WEBAPPINI_NAME[] = "webapp.ini";
-const char WEBRTINI_NAME[] = "application.ini";
+const char WEBRTINI_NAME[] = "webapprt.ini";
 
 //need the correct relative path here
 const char APP_CONTENTS_PATH[] = "/Contents/MacOS/";
-
-//the path to the WebappRT subdir within the Firefox app contents dir
-const char WEBAPPRT_PATH[] = "webapprt/";
 
 void ExecNewBinary(NSString* launchPath);
 
@@ -215,14 +212,10 @@ main(int argc, char **argv)
           @throw MakeException(@"Error", @"Unable to parse environment files for application startup");
         }
 
-        // Get the path to the runtime directory.
-        char rtDir[MAXPATHLEN];
-        snprintf(rtDir, MAXPATHLEN, "%s%s%s", [firefoxPath UTF8String], APP_CONTENTS_PATH, WEBAPPRT_PATH);
-
-        // Get the path to the runtime's INI file.  This is in the runtime
-        // directory.
-        snprintf(rtINIPath, MAXPATHLEN, "%s%s%s%s", [firefoxPath UTF8String], APP_CONTENTS_PATH, WEBAPPRT_PATH, WEBRTINI_NAME);
-        NSLog(@"WebappRT application.ini path: %s", rtINIPath);
+        // Get the path to the runtime's INI file.  This should be in the
+        // same directory as the GRE.
+        snprintf(rtINIPath, MAXPATHLEN, "%s%s%s", [firefoxPath UTF8String], APP_CONTENTS_PATH, WEBRTINI_NAME);
+        NSLog(@"webapprt.ini path: %s", rtINIPath);
         if (![[NSFileManager defaultManager] fileExistsAtPath:[NSString stringWithFormat:@"%s", rtINIPath]]) {
           NSString* msg = [NSString stringWithFormat: @"This copy of Firefox (%@) cannot run web applications, because it is missing important files", firefoxVersion];
           @throw MakeException(@"Missing WebRT Files", msg);
@@ -236,13 +229,13 @@ main(int argc, char **argv)
         }
 
         if (!rtINI) {
-          NSLog(@"Error: missing WebappRT application.ini");
+          NSLog(@"Error: missing webapprt.ini");
           @throw MakeException(@"Error", @"Missing base INI file.");
         }
 
         nsXREAppData *webShellAppData;
         if (NS_FAILED(XRE_CreateAppData(rtINI, &webShellAppData))) {
-          NSLog(@"Couldn't read WebappRT application.ini: %s", rtINIPath);
+          NSLog(@"Couldn't read webapprt.ini: %s", rtINIPath);
           @throw MakeException(@"Error", @"Unable to parse base INI file.");
         }
 
@@ -255,7 +248,7 @@ main(int argc, char **argv)
         SetAllocatedString(webShellAppData->profile, profile);
 
         nsCOMPtr<nsILocalFile> directory;
-        if (NS_FAILED(XRE_GetFileFromPath(rtDir, getter_AddRefs(directory)))) {
+        if (NS_FAILED(XRE_GetFileFromPath(greDir, getter_AddRefs(directory)))) {
           NSLog(@"Unable to open app dir");
           @throw MakeException(@"Error", @"Unable to open application directory.");
         }

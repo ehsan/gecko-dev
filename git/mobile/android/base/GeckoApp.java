@@ -2287,22 +2287,20 @@ abstract public class GeckoApp
         final long currentTime = SystemClock.uptimeMillis();
 
         if (profileDir != null) {
+            Log.i(LOGTAG, "Checking profile migration in: " + profileDir.getAbsolutePath());
             final GeckoApp app = GeckoApp.mAppContext;
+            final ProfileMigrator profileMigrator =
+                new ProfileMigrator(app, profileDir);
 
-            GeckoAppShell.getHandler().post(new Runnable() {
-                public void run() {
-                    Log.i(LOGTAG, "Checking profile migration in: " + profileDir.getAbsolutePath());
+            // Do a migration run on the first start after an upgrade.
+            if (!profileMigrator.hasMigrationRun()) {
+                final SetupScreen setupScreen = new SetupScreen(app);
 
-                    ProfileMigrator profileMigrator =
-                        new ProfileMigrator(app, profileDir);
+                // Don't show unless this take a while.
+                setupScreen.showDelayed(mMainHandler);
 
-                    // Do a migration run on the first start after an upgrade.
-                    if (!profileMigrator.hasMigrationRun()) {
-                        final SetupScreen setupScreen = new SetupScreen(app);
-
-                        // Don't show unless this take a while.
-                        setupScreen.showDelayed(mMainHandler);
-
+                GeckoAppShell.getHandler().post(new Runnable() {
+                    public void run() {
                         profileMigrator.launchPlaces();
                         setupScreen.dismiss();
 
@@ -2312,8 +2310,8 @@ abstract public class GeckoApp
                         // Update about:home with the new information.
                         updateAboutHomeTopSites();
                     }
-                }}
-            );
+                });
+            }
         }
     }
 

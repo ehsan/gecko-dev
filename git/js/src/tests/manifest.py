@@ -297,16 +297,13 @@ def load(location, xul_tester, reldir = ''):
                     'user.js', 'js-test-driver-begin.js', 'js-test-driver-end.js'))
 
     for root, basename in _find_all_js_files(location, location):
-        # Skip js files in the root test directory.
-        if not root:
-            continue
-
         # Skip files that we know are not tests.
         if basename in EXCLUDED:
             continue
 
         # Get the full path and relative location of the file.
-        filename = os.path.join(root, basename)
+        if root:
+            filename = os.path.join(root, basename)
         fullpath = os.path.join(location, filename)
 
         # Skip empty files.

@@ -1553,9 +1553,6 @@ Tab.prototype = {
     this.setBrowserSize(kDefaultCSSViewportWidth, kDefaultCSSViewportHeight);
     BrowserApp.deck.appendChild(this.browser);
 
-    // Must be called after appendChild so the docshell has been created.
-    this.setActive(false);
-
     this.browser.stop();
 
     let frameLoader = this.browser.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader;
@@ -1659,7 +1656,7 @@ Tab.prototype = {
 
   // This should be called to update the browser when the tab gets selected/unselected
   setActive: function setActive(aActive) {
-    if (!this.browser || !this.browser.docShell)
+    if (!this.browser)
       return;
 
     if (aActive) {

@@ -2753,7 +2753,6 @@ struct NS_STACK_CLASS nsCanvasBidiProcessor : public nsBidiPresUtils::BidiProces
 {
     virtual void SetText(const PRUnichar* text, PRInt32 length, nsBidiDirection direction)
     {
-        mFontgrp->UpdateFontList(); // ensure user font generation is current
         mTextRun = mFontgrp->MakeTextRun(text,
                                          length,
                                          mThebes,
@@ -3150,7 +3149,6 @@ nsCanvasRenderingContext2D::MakeTextRun(const PRUnichar* aText,
     gfxFontGroup* currentFontStyle = GetCurrentFontStyle();
     if (!currentFontStyle)
         return nsnull;
-    currentFontStyle->UpdateFontList(); // ensure user font generation is current
     return currentFontStyle->MakeTextRun(aText, aLength,
                                          mThebes, aAppUnitsPerDevUnit, aFlags);
 }
