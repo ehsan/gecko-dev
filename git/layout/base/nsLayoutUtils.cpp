@@ -88,6 +88,7 @@
 #include "imgIRequest.h"
 #include "imgIContainer.h"
 #include "nsIImageLoadingContent.h"
+#include "nsCOMPtr.h"
 
 #ifdef MOZ_SVG
 #include "nsSVGUtils.h"
@@ -1574,7 +1575,7 @@ nsLayoutUtils::GetParentOrPlaceholderFor(nsFrameManager* aFrameManager,
                                          nsIFrame* aFrame)
 {
   if ((aFrame->GetStateBits() & NS_FRAME_OUT_OF_FLOW)
-      && !(aFrame->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER)) {
+      && !aFrame->GetPrevInFlow()) {
     return aFrameManager->GetPlaceholderFrameFor(aFrame);
   }
   return aFrame->GetParent();
@@ -3151,13 +3152,13 @@ nsLayoutUtils::GetDeviceContextForScreenInfo(nsIDocShell* aDocShell)
 
     win->EnsureSizeUpToDate();
 
-    nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(docShell);
-    NS_ENSURE_TRUE(baseWindow, nsnull);
-
-    nsCOMPtr<nsIWidget> mainWidget;
-    baseWindow->GetMainWidget(getter_AddRefs(mainWidget));
-    if (mainWidget) {
-      return mainWidget->GetDeviceContext();
+    nsRefPtr<nsPresContext> presContext;
+    docShell->GetPresContext(getter_AddRefs(presContext));
+    if (presContext) {
+      nsIDeviceContext* context = presContext->DeviceContext();
+      if (context) {
+        return context;
+      }
     }
 
     nsCOMPtr<nsIDocShellTreeItem> curItem = do_QueryInterface(docShell);
