@@ -57,5 +57,3 @@ CPP_SOURCES += [
     'UtfCodec.cpp',
 ]
 
-LIBRARY_NAME = 'mozgraphite2'
-

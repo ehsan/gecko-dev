@@ -21,18 +21,12 @@ import android.net.Uri;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
-import java.util.Set;
-import java.util.HashSet;
-
 public class NotificationHelper implements GeckoEventListener {
-    public static final String NOTIFICATION_ID = "NotificationHelper_ID";
     private static final String LOGTAG = "GeckoNotificationManager";
-    private Context mContext;
-    private Set<String> mShowing;
+	private Context mContext;
 
     public NotificationHelper(Context context) {
         mContext = context;
-        mShowing = new HashSet<String>();
         registerEventListener("Notification:Show");
         registerEventListener("Notification:Hide");
     }
@@ -54,7 +48,7 @@ public class NotificationHelper implements GeckoEventListener {
         NotificationCompat.Builder builder = new NotificationCompat.Builder(mContext);
 
         // These attributes are required
-        final String id;
+        String id;
         try {
             builder.setContentTitle(message.getString("title"));
             builder.setContentText(message.getString("text"));
@@ -97,20 +91,12 @@ public class NotificationHelper implements GeckoEventListener {
         String app = mContext.getClass().getName();
         notificationIntent.setClassName(AppConstants.ANDROID_PACKAGE_NAME, app);
         notificationIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        // if this isn't an ongoing notification, add the id to the intent so that we
-        // can remove the notification from our list of active notifications if its clicked
-        if (!ongoing) {
-            notificationIntent.putExtra(NOTIFICATION_ID, id);
-        }
 
         PendingIntent pi = PendingIntent.getActivity(mContext, 0, notificationIntent, 0);
         builder.setContentIntent(pi);
 
         NotificationManager manager = (NotificationManager) mContext.getSystemService(Context.NOTIFICATION_SERVICE);
         manager.notify(id.hashCode(), builder.build());
-        if (!mShowing.contains(id)) {
-            mShowing.add(id);
-        }
     }
 
     private void hideNotification(JSONObject message) {
@@ -121,23 +107,7 @@ public class NotificationHelper implements GeckoEventListener {
             Log.i(LOGTAG, "Error parsing", ex);
             return;
         }
-
-        hideNotification(id);
-    }
-
-    public void hideNotification(String id) {
         NotificationManager manager = (NotificationManager) mContext.getSystemService(Context.NOTIFICATION_SERVICE);
         manager.cancel(id.hashCode());
-        mShowing.remove(id);
-    }
-
-    private void clearAll() {
-        for (String id : mShowing) {
-            hideNotification(id);
-        }
-    }
-
-    public void destroy() {
-        clearAll();
     }
 }

@@ -32,6 +32,7 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+LIBRARY_NAME   = mozots
 MSVC_ENABLE_PGO := 1
 FORCE_STATIC_LIB = 1
 

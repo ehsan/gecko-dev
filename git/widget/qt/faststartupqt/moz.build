@@ -15,5 +15,3 @@ CPP_SOURCES += [
     'nsQAppInstance.cpp',
 ]
 
-LIBRARY_NAME = 'faststartupqt'
-

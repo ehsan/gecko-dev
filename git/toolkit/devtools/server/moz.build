@@ -16,5 +16,3 @@ CPP_SOURCES += [
     'nsJSInspector.cpp',
 ]
 
-LIBRARY_NAME = 'jsinspector'
-

@@ -34,5 +34,3 @@ CPP_SOURCES += [
     'nsUniversalDetector.cpp',
 ]
 
-LIBRARY_NAME = 'universalchardet_s'
-

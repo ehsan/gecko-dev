@@ -17,5 +17,3 @@ CPP_SOURCES += [
     'nsXPCOMGlue.cpp',
 ]
 
-LIBRARY_NAME = 'xpcomglue'
-

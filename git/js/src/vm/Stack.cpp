@@ -17,7 +17,6 @@
 #endif
 
 #include "vm/Interpreter-inl.h"
-#include "vm/ScopeObject-inl.h"
 #include "vm/Stack-inl.h"
 #include "vm/Probes-inl.h"
 
@@ -246,13 +245,13 @@ AssertDynamicScopeMatchesStaticScope(JSContext *cx, JSScript *script, JSObject *
              * 'with' does not participate in the static scope of the script,
              * but it does in the dynamic scope, so skip them here.
              */
-            while (scope->is<WithObject>())
-                scope = &scope->as<WithObject>().enclosingScope();
+            while (scope->isWith())
+                scope = &scope->asWith().enclosingScope();
 
             switch (i.type()) {
               case StaticScopeIter::BLOCK:
-                JS_ASSERT(i.block() == scope->as<ClonedBlockObject>().staticBlock());
-                scope = &scope->as<ClonedBlockObject>().enclosingScope();
+                JS_ASSERT(i.block() == scope->asClonedBlock().staticBlock());
+                scope = &scope->asClonedBlock().enclosingScope();
                 break;
               case StaticScopeIter::FUNCTION:
                 JS_ASSERT(scope->as<CallObject>().callee().nonLazyScript() == i.funScript());
@@ -266,9 +265,8 @@ AssertDynamicScopeMatchesStaticScope(JSContext *cx, JSScript *script, JSObject *
     }
 
     /*
-     * Ideally, we'd JS_ASSERT(!scope->is<ScopeObject>()) but the enclosing
-     * lexical scope chain stops at eval() boundaries. See StaticScopeIter
-     * comment.
+     * Ideally, we'd JS_ASSERT(!scope->isScope()) but the enclosing lexical
+     * scope chain stops at eval() boundaries. See StaticScopeIter comment.
      */
 #endif
 }
@@ -343,7 +341,7 @@ StackFrame::epilogue(JSContext *cx)
                 DebugScopes::onPopStrictEvalScope(this);
         } else if (isDirectEvalFrame()) {
             if (isDebuggerFrame())
-                JS_ASSERT(!scopeChain()->is<ScopeObject>());
+                JS_ASSERT(!scopeChain()->isScope());
         } else {
             /*
              * Debugger.Object.prototype.evalInGlobal creates indirect eval
@@ -361,7 +359,7 @@ StackFrame::epilogue(JSContext *cx)
     }
 
     if (isGlobalFrame()) {
-        JS_ASSERT(!scopeChain()->is<ScopeObject>());
+        JS_ASSERT(!scopeChain()->isScope());
         return;
     }
 
@@ -411,7 +409,7 @@ StackFrame::popBlock(JSContext *cx)
         DebugScopes::onPopBlock(cx, this);
 
     if (blockChain_->needsClone()) {
-        JS_ASSERT(scopeChain_->as<ClonedBlockObject>().staticBlock() == *blockChain_);
+        JS_ASSERT(scopeChain_->asClonedBlock().staticBlock() == *blockChain_);
         popOffScopeChain();
     }
 
@@ -424,7 +422,7 @@ StackFrame::popWith(JSContext *cx)
     if (cx->compartment()->debugMode())
         DebugScopes::onPopWith(this);
 
-    JS_ASSERT(scopeChain()->is<WithObject>());
+    JS_ASSERT(scopeChain()->isWith());
     popOffScopeChain();
 }
 

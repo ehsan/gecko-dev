@@ -17,5 +17,3 @@ CPP_SOURCES += [
     'RawReader.cpp',
 ]
 
-LIBRARY_NAME = 'gkconraw_s'
-

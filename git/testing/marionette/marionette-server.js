@@ -42,8 +42,6 @@ loader.loadSubScript("resource://gre/modules/devtools/DevToolsUtils.js");
 loader.loadSubScript("resource://gre/modules/devtools/server/transport.js");
 
 let bypassOffline = false;
-let qemu = "0";
-let device = null;
 
 try {
   XPCOMUtils.defineLazyGetter(this, "libcutils", function () {
@@ -51,11 +49,11 @@ try {
     return libcutils;
   });
   if (libcutils) {
-    qemu = libcutils.property_get("ro.kernel.qemu");
+    let qemu = libcutils.property_get("ro.kernel.qemu");
     logger.info("B2G emulator: " + (qemu == "1" ? "yes" : "no"));
-    device = libcutils.property_get("ro.product.device");
-    logger.info("Device detected is " + device);
-    bypassOffline = (qemu == "1" || device == "panda");
+    let platform = libcutils.property_get("ro.product.device");
+    logger.info("Platform detected is " + platform);
+    bypassOffline = (qemu == "1" || platform == "panda");
   }
 }
 catch(e) {}
@@ -579,7 +577,6 @@ MarionetteServerConnection.prototype = {
           'javascriptEnabled': true,
           'nativeEvents': false,
           'platform': Services.appinfo.OS,
-          'device': qemu == "1" ? "qemu" : (!device ? "desktop" : device),
           'rotatable': rotatable,
           'takesScreenshot': false,
           'version': Services.appinfo.version

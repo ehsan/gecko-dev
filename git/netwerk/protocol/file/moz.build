@@ -22,5 +22,3 @@ CPP_SOURCES += [
     'nsFileProtocolHandler.cpp',
 ]
 
-LIBRARY_NAME = 'nkfile_s'
-

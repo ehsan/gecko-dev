@@ -26,7 +26,7 @@
 #include "ChannelSplitterNode.h"
 #include "MediaStreamAudioDestinationNode.h"
 #include "WaveShaperNode.h"
-#include "PeriodicWave.h"
+#include "WaveTable.h"
 #include "ConvolverNode.h"
 #include "nsNetUtil.h"
 
@@ -325,10 +325,10 @@ AudioContext::CreateBiquadFilter()
   return filterNode.forget();
 }
 
-already_AddRefed<PeriodicWave>
-AudioContext::CreatePeriodicWave(const Float32Array& aRealData,
-                                 const Float32Array& aImagData,
-                                 ErrorResult& aRv)
+already_AddRefed<WaveTable>
+AudioContext::CreateWaveTable(const Float32Array& aRealData,
+                              const Float32Array& aImagData,
+                              ErrorResult& aRv)
 {
   if (aRealData.Length() != aImagData.Length() ||
       aRealData.Length() == 0 ||
@@ -337,10 +337,10 @@ AudioContext::CreatePeriodicWave(const Float32Array& aRealData,
     return nullptr;
   }
 
-  nsRefPtr<PeriodicWave> periodicWave =
-    new PeriodicWave(this, aRealData.Data(), aRealData.Length(),
-                     aImagData.Data(), aImagData.Length());
-  return periodicWave.forget();
+  nsRefPtr<WaveTable> waveTable =
+    new WaveTable(this, aRealData.Data(), aRealData.Length(),
+                  aImagData.Data(), aImagData.Length());
+  return waveTable.forget();
 }
 
 AudioListener*

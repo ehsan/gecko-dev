@@ -14,5 +14,3 @@ CPP_SOURCES += [
     'Zip.cpp',
 ]
 
-LIBRARY_NAME = 'linker'
-

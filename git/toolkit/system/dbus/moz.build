@@ -12,5 +12,3 @@ CPP_SOURCES += [
     'nsNetworkManagerListener.cpp',
 ]
 
-LIBRARY_NAME = 'dbusservice'
-

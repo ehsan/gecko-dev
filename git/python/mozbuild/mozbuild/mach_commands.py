@@ -66,22 +66,17 @@ class TerminalLoggingHandler(logging.Handler):
     def emit(self, record):
         msg = self.format(record)
 
-        self.acquire()
+        if self.footer:
+            self.footer.clear()
 
-        try:
-            if self.footer:
-                    self.footer.clear()
+        self.fh.write(msg)
+        self.fh.write('\n')
 
-            self.fh.write(msg)
-            self.fh.write('\n')
+        if self.footer:
+            self.footer.draw()
 
-            if self.footer:
-                self.footer.draw()
-
-            # If we don't flush, the footer may not get drawn.
-            self.fh.flush()
-        finally:
-            self.release()
+        # If we don't flush, the footer may not get drawn.
+        self.flush()
 
 
 class BuildProgressFooter(object):

@@ -11,6 +11,7 @@ relativesrcdir  = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+LIBRARY_NAME = testcrasher
 NO_DIST_INSTALL = 1
 
 FORCE_SHARED_LIB = 1

@@ -16,10 +16,10 @@ namespace js {
 inline NumberObject *
 NumberObject::create(JSContext *cx, double d)
 {
-    JSObject *obj = NewBuiltinClassInstance(cx, &class_);
+    JSObject *obj = NewBuiltinClassInstance(cx, &NumberClass);
     if (!obj)
         return NULL;
-    NumberObject &numobj = obj->as<NumberObject>();
+    NumberObject &numobj = obj->asNumber();
     numobj.setPrimitiveValue(d);
     return &numobj;
 }

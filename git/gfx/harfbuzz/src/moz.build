@@ -49,5 +49,3 @@ CPP_SOURCES += [
     'hb-warning.cc',
 ]
 
-LIBRARY_NAME = 'mozharfbuzz'
-

@@ -10,5 +10,3 @@ CPP_SOURCES += [
     '$(notdir $(wildcard $(STLPORT_SOURCES)/src/*.cpp))',
 ]
 
-LIBRARY_NAME = 'stlport_static'
-

@@ -14,5 +14,3 @@ CPP_SOURCES += [
     'nsTransactionStack.cpp',
 ]
 
-LIBRARY_NAME = 'txmgr'
-

@@ -18,6 +18,3 @@ if CONFIG['MOZ_XUL']:
         'nsXULPrototypeCache.cpp',
         'nsXULPrototypeDocument.cpp',
     ]
-
-LIBRARY_NAME = 'gkconxuldoc_s'
-

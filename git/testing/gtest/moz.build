@@ -59,5 +59,3 @@ CPP_SOURCES += [
     'gtest-all.cc',
 ]
 
-LIBRARY_NAME = 'gtest'
-

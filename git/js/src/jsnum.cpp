@@ -408,7 +408,7 @@ static const JSFunctionSpec number_functions[] = {
     JS_FS_END
 };
 
-Class NumberObject::class_ = {
+Class js::NumberClass = {
     js_Number_str,
     JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_HAS_CACHED_PROTO(JSProto_Number),
     JS_PropertyStub,         /* addProperty */
@@ -447,7 +447,7 @@ Number(JSContext *cx, unsigned argc, Value *vp)
 JS_ALWAYS_INLINE bool
 IsNumber(const Value &v)
 {
-    return v.isNumber() || (v.isObject() && v.toObject().is<NumberObject>());
+    return v.isNumber() || (v.isObject() && v.toObject().hasClass(&NumberClass));
 }
 
 inline double
@@ -455,7 +455,7 @@ Extract(const Value &v)
 {
     if (v.isNumber())
         return v.toNumber();
-    return v.toObject().as<NumberObject>().unbox();
+    return v.toObject().asNumber().unbox();
 }
 
 #if JS_HAS_TOSOURCE
@@ -1129,10 +1129,10 @@ js_InitNumberClass(JSContext *cx, HandleObject obj)
 
     Rooted<GlobalObject*> global(cx, &obj->asGlobal());
 
-    RootedObject numberProto(cx, global->createBlankPrototype(cx, &NumberObject::class_));
+    RootedObject numberProto(cx, global->createBlankPrototype(cx, &NumberClass));
     if (!numberProto)
         return NULL;
-    numberProto->as<NumberObject>().setPrimitiveValue(0);
+    numberProto->asNumber().setPrimitiveValue(0);
 
     RootedFunction ctor(cx);
     ctor = global->createConstructor(cx, Number, cx->names().Number, 1);

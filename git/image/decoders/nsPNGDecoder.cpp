@@ -55,15 +55,15 @@ GetPNGDecoderAccountingLog()
 #define BYTES_NEEDED_FOR_DIMENSIONS (HEIGHT_OFFSET + 4)
 
 nsPNGDecoder::AnimFrameInfo::AnimFrameInfo()
- : mDispose(FrameBlender::kDisposeKeep)
- , mBlend(FrameBlender::kBlendOver)
+ : mDispose(RasterImage::kDisposeKeep)
+ , mBlend(RasterImage::kBlendOver)
  , mTimeout(0)
 {}
 
 #ifdef PNG_APNG_SUPPORTED
 nsPNGDecoder::AnimFrameInfo::AnimFrameInfo(png_structp aPNG, png_infop aInfo)
- : mDispose(FrameBlender::kDisposeKeep)
- , mBlend(FrameBlender::kBlendOver)
+ : mDispose(RasterImage::kDisposeKeep)
+ , mBlend(RasterImage::kBlendOver)
  , mTimeout(0)
 {
   png_uint_16 delay_num, delay_den;
@@ -87,17 +87,17 @@ nsPNGDecoder::AnimFrameInfo::AnimFrameInfo(png_structp aPNG, png_infop aInfo)
   }
 
   if (dispose_op == PNG_DISPOSE_OP_PREVIOUS) {
-    mDispose = FrameBlender::kDisposeRestorePrevious;
+    mDispose = RasterImage::kDisposeRestorePrevious;
   } else if (dispose_op == PNG_DISPOSE_OP_BACKGROUND) {
-    mDispose = FrameBlender::kDisposeClear;
+    mDispose = RasterImage::kDisposeClear;
   } else {
-    mDispose = FrameBlender::kDisposeKeep;
+    mDispose = RasterImage::kDisposeKeep;
   }
 
   if (blend_op == PNG_BLEND_OP_SOURCE) {
-    mBlend = FrameBlender::kBlendSource;
+    mBlend = RasterImage::kBlendSource;
   } else {
-    mBlend = FrameBlender::kBlendOver;
+    mBlend = RasterImage::kBlendOver;
   }
 }
 #endif
@@ -182,11 +182,11 @@ void nsPNGDecoder::EndImageFrame()
 
   mNumFrames++;
 
-  FrameBlender::FrameAlpha alpha;
+  RasterImage::FrameAlpha alpha;
   if (mFrameHasNoAlpha)
-    alpha = FrameBlender::kFrameOpaque;
+    alpha = RasterImage::kFrameOpaque;
   else
-    alpha = FrameBlender::kFrameHasAlpha;
+    alpha = RasterImage::kFrameHasAlpha;
 
 #ifdef PNG_APNG_SUPPORTED
   uint32_t numFrames = GetFrameCount();
