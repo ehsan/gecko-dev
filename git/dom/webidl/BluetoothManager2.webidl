@@ -3,20 +3,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-[CheckPermissions="bluetooth"]
-interface BluetoothManager: EventTarget
-{
-  readonly attribute BluetoothAdapter? defaultAdapter;
+interface BluetoothManager : EventTarget {
+  [Throws]
+  readonly attribute boolean      enabled;
 
-           attribute EventHandler onattributechanged;
+           attribute EventHandler onenabled;
+           attribute EventHandler ondisabled;
            attribute EventHandler onadapteradded;
-           attribute EventHandler onadapterremoved;
 
-  sequence<BluetoothAdapter> getAdapters();
-};
-
-enum BluetoothManagerAttribute
-{
-  "unknown",
-  "defaultAdapter"
+  [Throws]
+  boolean     isConnected(unsigned short aProfile);
+  [NewObject, Throws]
+  DOMRequest? getDefaultAdapter();
 };

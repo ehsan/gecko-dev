@@ -183,8 +183,8 @@ BluetoothParent::RecvPBluetoothRequestConstructor(
 #endif
 
   switch (aRequest.type()) {
-    case Request::TGetAdaptersRequest:
-      return actor->DoRequest(aRequest.get_GetAdaptersRequest());
+    case Request::TDefaultAdapterPathRequest:
+      return actor->DoRequest(aRequest.get_DefaultAdapterPathRequest());
     case Request::TSetPropertyRequest:
       return actor->DoRequest(aRequest.get_SetPropertyRequest());
     case Request::TStartDiscoveryRequest:
@@ -303,12 +303,12 @@ BluetoothRequestParent::RequestComplete()
 }
 
 bool
-BluetoothRequestParent::DoRequest(const GetAdaptersRequest& aRequest)
+BluetoothRequestParent::DoRequest(const DefaultAdapterPathRequest& aRequest)
 {
   MOZ_ASSERT(mService);
-  MOZ_ASSERT(mRequestType == Request::TGetAdaptersRequest);
+  MOZ_ASSERT(mRequestType == Request::TDefaultAdapterPathRequest);
 
-  nsresult rv = mService->GetAdaptersInternal(mReplyRunnable.get());
+  nsresult rv = mService->GetDefaultAdapterPathInternal(mReplyRunnable.get());
   NS_ENSURE_SUCCESS(rv, false);
 
   return true;
