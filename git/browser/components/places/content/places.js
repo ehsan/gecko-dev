@@ -23,6 +23,7 @@
  *   Annie Sullivan <annie.sullivan@gmail.com>
  *   Asaf Romano <mano@mozilla.com>
  *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+ *   Drew Willcoxon <adw@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -199,12 +200,19 @@ var PlacesOrganizer = {
    *          true if the search box should also be reset, false if it should
    *          be left alone.
    */
+  _cachedLeftPaneSelectedNode: null,
   onPlaceSelected: function PO_onPlaceSelected(resetSearchBox) {
     // Don't change the right-hand pane contents when there's no selection
     if (!this._places.hasSelection)
       return;
 
     var node = this._places.selectedNode;
+    // When we invalidate a container we use suppressSelectionEvent, when it is
+    // unset a select event is fired, in many cases the selection did not really
+    // change, so we should check for it, and return early in such a case.
+    if (node == this._cachedLeftPaneSelectedNode)
+      return;
+    this._cachedLeftPaneSelectedNode = node;
     var queries = asQuery(node).getQueries({});
 
     // Items are only excluded on the left pane
@@ -331,7 +339,7 @@ var PlacesOrganizer = {
       this._places.selectPlaceURI(aContainer.uri);
   },
 
-  openSelectedNode: function PU_openSelectedNode(aEvent) {
+  openSelectedNode: function PO_openSelectedNode(aEvent) {
     PlacesUIUtils.openNodeWithEvent(this._content.selectedNode, aEvent);
   },
 
@@ -594,14 +602,10 @@ var PlacesOrganizer = {
      */
     var infoBox = document.getElementById("infoBox");
     var infoBoxExpander = document.getElementById("infoBoxExpander");
-#ifdef XP_WIN
-    var infoBoxExpanderLabel = document.getElementById("infoBoxExpanderLabel");
-#endif
+    var infoBoxExpanderWrapper = document.getElementById("infoBoxExpanderWrapper");
+
     if (!aNode) {
-      infoBoxExpander.hidden = true;
-#ifdef XP_WIN
-      infoBoxExpanderLabel.hidden = true;
-#endif
+      infoBoxExpanderWrapper.hidden = true;
       return;
     }
     if (aNode.itemId != -1 &&
@@ -611,19 +615,13 @@ var PlacesOrganizer = {
       if (infoBox.getAttribute("minimal") == "true")
         infoBox.setAttribute("wasminimal", "true");
       infoBox.removeAttribute("minimal");
-      infoBoxExpander.hidden = true;
-#ifdef XP_WIN
-      infoBoxExpanderLabel.hidden = true;
-#endif
+      infoBoxExpanderWrapper.hidden = true;
     }
     else {
       if (infoBox.getAttribute("wasminimal") == "true")
         infoBox.setAttribute("minimal", "true");
       infoBox.removeAttribute("wasminimal");
-      infoBoxExpander.hidden = false;
-#ifdef XP_WIN
-      infoBoxExpanderLabel.hidden = false;
-#endif
+      infoBoxExpanderWrapper.hidden = false;
     }
   },
 
@@ -766,30 +764,19 @@ var PlacesOrganizer = {
   toggleAdditionalInfoFields: function PO_toggleAdditionalInfoFields() {
     var infoBox = document.getElementById("infoBox");
     var infoBoxExpander = document.getElementById("infoBoxExpander");
-#ifdef XP_WIN
     var infoBoxExpanderLabel = document.getElementById("infoBoxExpanderLabel");
-#endif
+
     if (infoBox.getAttribute("minimal") == "true") {
       infoBox.removeAttribute("minimal");
-#ifdef XP_WIN
       infoBoxExpanderLabel.value = infoBoxExpanderLabel.getAttribute("lesslabel");
       infoBoxExpanderLabel.setAttribute("accesskey", infoBoxExpanderLabel.getAttribute("lessaccesskey"));
       infoBoxExpander.className = "expander-up";
-#else
-      infoBoxExpander.label = infoBoxExpander.getAttribute("lesslabel");
-      infoBoxExpander.accessKey = infoBoxExpander.getAttribute("lessaccesskey");
-#endif
     }
     else {
       infoBox.setAttribute("minimal", "true");
-#ifdef XP_WIN
       infoBoxExpanderLabel.value = infoBoxExpanderLabel.getAttribute("morelabel");
       infoBoxExpanderLabel.setAttribute("accesskey", infoBoxExpanderLabel.getAttribute("moreaccesskey"));
       infoBoxExpander.className = "expander-down";
-#else
-      infoBoxExpander.label = infoBoxExpander.getAttribute("morelabel");
-      infoBoxExpander.accessKey = infoBoxExpander.getAttribute("moreaccesskey");
-#endif
     }
   },
 
@@ -969,9 +956,13 @@ var PlacesSearchBox = {
     return this.searchFilter.getAttribute("collection");
   },
   set filterCollection(collectionName) {
+    if (collectionName == this.filterCollection)
+      return collectionName;
+
     this.searchFilter.setAttribute("collection", collectionName);
     if (this.searchFilter.value)
-      return; // don't overwrite pre-existing search terms
+      return collectionName; // don't overwrite pre-existing search terms
+
     var newGrayText = null;
     if (collectionName == "collection")
       newGrayText = PlacesOrganizer._places.selectedNode.title;
@@ -1749,11 +1740,11 @@ var ViewMenu = {
 
     var columnId;
     if (aColumn) {
-      columnId = aColumn.getAttribute("anonid")
+      columnId = aColumn.getAttribute("anonid");
       if (!aDirection) {
         var sortColumn = this._getSortColumn();
-        aDirection = sortColumn ?
-                     sortColumn.getAttribute("sortDirection") : "descending";
+        if (sortColumn)
+          aDirection = sortColumn.getAttribute("sortDirection");
       }
     }
     else {
@@ -1761,47 +1752,38 @@ var ViewMenu = {
       columnId = sortColumn ? sortColumn.getAttribute("anonid") : "title";
     }
 
-    var sortingMode;
-    var sortingAnnotation = "";
-    const NHQO = Ci.nsINavHistoryQueryOptions;
-    switch (columnId) {
-      case "title":
-        sortingMode = aDirection == "descending" ?
-          NHQO.SORT_BY_TITLE_DESCENDING : NHQO.SORT_BY_TITLE_ASCENDING;
-        break;
-      case "url":
-        sortingMode = aDirection == "descending" ?
-          NHQO.SORT_BY_URI_DESCENDING : NHQO.SORT_BY_URI_ASCENDING;
-        break;
-      case "date":
-        sortingMode = aDirection == "descending" ?
-          NHQO.SORT_BY_DATE_DESCENDING : NHQO.SORT_BY_DATE_ASCENDING;
-        break;
-      case "visitCount":
-        sortingMode = aDirection == "descending" ?
-          NHQO.SORT_BY_VISITCOUNT_DESCENDING : NHQO.SORT_BY_VISITCOUNT_ASCENDING;
-        break;
-      case "keyword":
-        sortingMode = aDirection == "descending" ?
-          NHQO.SORT_BY_KEYWORD_DESCENDING : NHQO.SORT_BY_KEYWORD_ASCENDING;
-        break;
-      case "description":
-        sortingAnnotation = DESCRIPTION_ANNO;
-        sortingMode = aDirection == "descending" ?
-          NHQO.SORT_BY_ANNOTATION_DESCENDING : NHQO.SORT_BY_ANNOTATION_ASCENDING;
-        break;
-      case "dateAdded":
-        sortingMode = aDirection == "descending" ?
-          NHQO.SORT_BY_DATEADDED_DESCENDING : NHQO.SORT_BY_DATEADDED_ASCENDING;
-        break;
-      case "lastModified":
-        sortingMode = aDirection == "descending" ?
-          NHQO.SORT_BY_LASTMODIFIED_DESCENDING : NHQO.SORT_BY_LASTMODIFIED_ASCENDING;
-        break;
-      default:
-        throw("Invalid Column");
-    }
-    result.sortingAnnotation = sortingAnnotation;
-    result.sortingMode = sortingMode;
+    // This maps the possible values of columnId (i.e., anonid's of treecols in
+    // placeContent) to the default sortingMode and sortingAnnotation values for
+    // each column.
+    //   key:  Sort key in the name of one of the
+    //         nsINavHistoryQueryOptions.SORT_BY_* constants
+    //   dir:  Default sort direction to use if none has been specified
+    //   anno: The annotation to sort by, if key is "ANNOTATION"
+    var colLookupTable = {
+      title:        { key: "TITLE",        dir: "ascending"  },
+      tags:         { key: "TAGS",         dir: "ascending"  },
+      url:          { key: "URI",          dir: "ascending"  },
+      date:         { key: "DATE",         dir: "descending" },
+      visitCount:   { key: "VISITCOUNT",   dir: "descending" },
+      keyword:      { key: "KEYWORD",      dir: "ascending"  },
+      dateAdded:    { key: "DATEADDED",    dir: "descending" },
+      lastModified: { key: "LASTMODIFIED", dir: "descending" },
+      description:  { key: "ANNOTATION",
+                      dir: "ascending",
+                      anno: DESCRIPTION_ANNO }
+    };
+
+    // Make sure we have a valid column.
+    if (!colLookupTable.hasOwnProperty(columnId))
+      throw("Invalid column");
+
+    // Use a default sort direction if none has been specified.  If aDirection
+    // is invalid, result.sortingMode will be undefined, which has the effect
+    // of unsorting the tree.
+    aDirection = (aDirection || colLookupTable[columnId].dir).toUpperCase();
+
+    var sortConst = "SORT_BY_" + colLookupTable[columnId].key + "_" + aDirection;
+    result.sortingAnnotation = colLookupTable[columnId].anno || "";
+    result.sortingMode = Ci.nsINavHistoryQueryOptions[sortConst];
   }
 };

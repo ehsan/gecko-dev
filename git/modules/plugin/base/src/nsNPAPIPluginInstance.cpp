@@ -48,6 +48,7 @@
 #include "nsPluginHostImpl.h"
 #include "nsPluginSafety.h"
 #include "nsPluginLogging.h"
+#include "nsIPrivateBrowsingService.h"
 
 #include "nsPIPluginInstancePeer.h"
 #include "nsPIDOMWindow.h"
@@ -841,8 +842,6 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Stop(void)
   }
 
   if (!mStarted) {
-    // Break our cycle with the peer that owns us.
-    mPeer = nsnull;
     return NS_OK;
   }
 
@@ -861,8 +860,6 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Stop(void)
   OnPluginDestroy(&fNPP);
 
   if (fCallbacks->destroy == NULL) {
-    // Break our cycle with the peer that owns us.
-    mPeer = nsnull;
     return NS_ERROR_FAILURE;
   }
 
@@ -889,9 +886,6 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Stop(void)
   ("NPP Destroy called: this=%p, npp=%p, return=%d\n", this, &fNPP, error));
 
   nsJSNPRuntime::OnPluginDestroy(&fNPP);
-
-  // Break our cycle with the peer that owns us.
-  mPeer = nsnull;
 
   if (error != NPERR_NO_ERROR)
     return NS_ERROR_FAILURE;
@@ -1488,4 +1482,29 @@ PRUint16
 nsNPAPIPluginInstance::GetPluginAPIVersion()
 {
   return fCallbacks->version;
+}
+
+nsresult nsNPAPIPluginInstance::PrivateModeStateChanged()
+{
+  if (!mStarted)
+    return NS_OK;
+  
+  PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("nsNPAPIPluginInstance informing plugin of private mode state change this=%p\n",this));
+  
+  if (fCallbacks->setvalue) {
+    PluginDestructionGuard guard(this);
+    
+    nsCOMPtr<nsIPrivateBrowsingService> pbs = do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
+    if (pbs) {
+      PRBool pme = PR_FALSE;
+      nsresult rv = pbs->GetPrivateBrowsingEnabled(&pme);
+      if (NS_FAILED(rv))
+        return rv;
+
+      NPError error;
+      NS_TRY_SAFE_CALL_RETURN(error, (*fCallbacks->setvalue)(&fNPP, NPNVprivateModeBool, &pme), fLibrary, this);
+      return (error == NPERR_NO_ERROR) ? NS_OK : NS_ERROR_FAILURE;
+    }
+  }
+  return NS_ERROR_FAILURE;
 }

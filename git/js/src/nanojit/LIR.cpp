@@ -1882,6 +1882,7 @@ namespace nanojit
 			case LIR_x:
 			case LIR_xt:
 			case LIR_xf:
+			case LIR_xbarrier:
 				formatGuard(i, s);
 				break;
 
@@ -2206,8 +2207,12 @@ namespace nanojit
 
     LabelMap::~LabelMap()
     {
+        clear();
+    }
+
+    void LabelMap::clear()
+    {
         Entry *e;
-        
         while ((e = names.removeLast()) != NULL) {
             core->freeString(e->name);
             NJ_DELETE(e);

@@ -589,6 +589,17 @@ nsTimeout::~nsTimeout()
   MOZ_COUNT_DTOR(nsTimeout);
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsTimeout)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_NATIVE_0(nsTimeout)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsTimeout)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mWindow,
+                                                       nsIScriptGlobalObject)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrincipal)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mScriptHandler)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(nsTimeout, AddRef)
+NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(nsTimeout, Release)
+
   
 //*****************************************************************************
 //***    nsGlobalWindow: Object Management
@@ -1011,6 +1022,13 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGlobalWindow)
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOpenerScriptPrincipal)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mListenerManager)
+
+  for (nsTimeout* timeout = tmp->FirstTimeout();
+       tmp->IsTimeout(timeout);
+       timeout = timeout->Next()) {
+    cb.NoteNativeChild(timeout, &NS_CYCLE_COLLECTION_NAME(nsTimeout));
+  }
+
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSessionStorage)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mApplicationCache)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDocumentPrincipal)
@@ -7754,7 +7772,7 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
         // The timeout still has an OS timer, and it's not an
         // interval, that means that the OS timer could still fire (if
         // it didn't already, i.e. aTimeout == timeout), cancel the OS
-        // timer and release it's reference to the timeout.
+        // timer and release its reference to the timeout.
         timeout->mTimer->Cancel();
         timeout->mTimer = nsnull;
 

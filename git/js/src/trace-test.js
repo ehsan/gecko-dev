@@ -13,6 +13,12 @@ const RECORDLOOP = HOTLOOP;
 // The loop count at which we run the trace
 const RUNLOOP = HOTLOOP + 1;
 
+var gDoMandelbrotTest = true;
+if ("gSkipSlowTests" in this && gSkipSlowTests) {
+    print("** Skipping slow tests");
+    gDoMandelbrotTest = false;
+}
+
 var testName = null;
 if ("arguments" in this && arguments.length > 0)
   testName = arguments[0];
@@ -2094,6 +2100,84 @@ function testArrayPushPop() {
 testArrayPushPop.expected = "55,45";
 test(testArrayPushPop);
 
+function testSlowArrayPop() {
+    var a = [];
+    for (var i = 0; i < RUNLOOP; i++)
+        a[i] = [0];
+    a[RUNLOOP-1].__defineGetter__("0", function () { return 'xyzzy'; });
+
+    var last;
+    for (var i = 0; i < RUNLOOP; i++)
+        last = a[i].pop();  // reenters interpreter in getter
+    return last;
+}
+testSlowArrayPop.expected = 'xyzzy';
+test(testSlowArrayPop);
+
+// Same thing but it needs to reconstruct multiple stack frames (so,
+// multiple functions called inside the loop)
+function testSlowArrayPopMultiFrame() {    
+    var a = [];
+    for (var i = 0; i < RUNLOOP; i++)
+        a[i] = [0];
+    a[RUNLOOP-1].__defineGetter__("0", function () { return 23; });
+
+    function child(a, i) {
+        return a[i].pop();  // reenters interpreter in getter
+    }
+    function parent(a, i) {
+        return child(a, i);
+    }
+    function gramps(a, i) { 
+        return parent(a, i);
+    }
+
+    var last;
+    for (var i = 0; i < RUNLOOP; i++)
+        last = gramps(a, i);
+    return last;
+}
+testSlowArrayPopMultiFrame.expected = 23;
+test(testSlowArrayPopMultiFrame);
+
+// Same thing but nested trees, each reconstructing one or more stack frames 
+// (so, several functions with loops, such that the loops end up being
+// nested though they are not lexically nested)
+
+function testSlowArrayPopNestedTrees() {    
+    var a = [];
+    for (var i = 0; i < RUNLOOP; i++)
+        a[i] = [0];
+    a[RUNLOOP-1].__defineGetter__("0", function () { return 3.14159 });
+
+    function child(a, i, j, k) {
+        var last = 2.71828;
+        for (var l = 0; l < RUNLOOP; l++)
+            if (i == RUNLOOP-1 && j == RUNLOOP-1 && k == RUNLOOP-1)
+                last = a[l].pop();  // reenters interpreter in getter
+        return last;
+    }
+    function parent(a, i, j) {
+        var last;
+        for (var k = 0; k < RUNLOOP; k++)
+            last = child(a, i, j, k);
+        return last;
+    }
+    function gramps(a, i) { 
+        var last;
+        for (var j = 0; j < RUNLOOP; j++)
+            last = parent(a, i, j);
+        return last;
+    }
+
+    var last;
+    for (var i = 0; i < RUNLOOP; i++)
+        last = gramps(a, i);
+    return last;
+}
+testSlowArrayPopNestedTrees.expected = 3.14159;
+test(testSlowArrayPopNestedTrees);
+
 function testResumeOp() {
     var a = [1,"2",3,"4",5,"6",7,"8",9,"10",11,"12",13,"14",15,"16"];
     var x = "";
@@ -2435,11 +2519,11 @@ function testThinLoopDemote() {
 }
 testThinLoopDemote.expected = 100;
 testThinLoopDemote.jitstats = {
-    recorderStarted: 3,
+    recorderStarted: 2,
     recorderAborted: 0,
-    traceCompleted: 1,
-    traceTriggered: 0,
-    unstableLoopVariable: 2
+    traceCompleted: 2,
+    traceTriggered: 1,
+    unstableLoopVariable: 1
 };
 test(testThinLoopDemote);
 
@@ -2482,12 +2566,12 @@ function testWeirdDateParse() {
 }
 testWeirdDateParse.expected = "11,17,2008,11,17,2008,11,17,2008,11,17,2008,11,17,2008";
 testWeirdDateParse.jitstats = {
-    recorderStarted: 10,
+    recorderStarted: 7,
     recorderAborted: 1,
-    traceCompleted: 5,
-    traceTriggered: 13,
-    unstableLoopVariable: 6,
-    noCompatInnerTrees: 1
+    traceCompleted: 6,
+    traceTriggered: 14,
+    unstableLoopVariable: 3,
+    noCompatInnerTrees: 0
 };
 test(testWeirdDateParse);
 
@@ -2544,6 +2628,42 @@ function testApply() {
 }
 testApply.expected = "5,5,5,5,5,5,5,5,5,5";
 test(testApply);
+
+function testNestedForIn() {
+    var a = {x: 1, y: 2, z: 3};
+    var s = '';
+    for (var p1 in a)
+        for (var p2 in a)
+            s += p1 + p2 + ' ';
+    return s;
+}
+testNestedForIn.expected = 'xx xy xz yx yy yz zx zy zz ';
+test(testNestedForIn);
+
+function testForEach() {
+    var r;
+    var a = ["zero", "one", "two", "three"];
+    for (var i = 0; i < RUNLOOP; i++) {
+        r = "";
+        for each (var s in a)
+            r += s + " ";
+    }
+    return r;
+}
+testForEach.expected = "zero one two three ";
+test(testForEach);
+
+function testThinForEach() {
+    var a = ["red"];
+    var n = 0;
+    for (var i = 0; i < 10; i++)
+        for each (var v in a)
+            if (v)
+                n++;
+    return n;
+}
+testThinForEach.expected = 10;
+test(testThinForEach);
 
 function testComparisons()
 {
@@ -3847,7 +3967,7 @@ function testBitOrInconvertibleObjectAny()
   {
     threw = true;
     if (i !== 94)
-      return "expected i === 4, got " + i;
+      return "expected i === 94, got " + i;
     if (q !== 95)
       return "expected q === 95, got " + q;
     if (count !== 95)
@@ -3997,6 +4117,146 @@ function testStringResolve() {
 testStringResolve.expected = 3;
 test(testStringResolve);
 
+//test no multitrees assert
+function testGlobalMultitrees1() {
+    (function() { 
+      for (var j = 0; j < 4; ++j) {
+        for each (e in ['A', 1, 'A']) {
+        }
+      }
+    })();
+    return true;
+}
+testGlobalMultitrees1.expected = true;
+test(testGlobalMultitrees1);
+
+var q = [];
+for each (b in [0x3FFFFFFF, 0x3FFFFFFF, 0x3FFFFFFF]) {
+  for each (let e in [{}, {}, {}, "", {}]) { 
+    b = (b | 0x40000000) + 1;
+    q.push(b);
+  }
+}
+function testLetWithUnstableGlobal() {
+    return q.join(",");
+}
+testLetWithUnstableGlobal.expected = "2147483648,-1073741823,-1073741822,-1073741821,-1073741820,2147483648,-1073741823,-1073741822,-1073741821,-1073741820,2147483648,-1073741823,-1073741822,-1073741821,-1073741820";
+test(testLetWithUnstableGlobal);
+delete b;
+delete q;
+
+for each (testBug474769_b in [1, 1, 1, 1.5, 1, 1]) {
+    (function() { for each (let testBug474769_h in [0, 0, 1.4, ""]) {} })()
+}
+function testBug474769() {
+    return testBug474769_b;
+}
+testBug474769.expected = 1;
+test(testBug474769);
+
+function testReverseArgTypes() {
+    for (var j = 0; j < 4; ++j) ''.replace('', /x/);
+    return 1;
+}
+testReverseArgTypes.expected = 1;
+test(testReverseArgTypes);
+
+function testBug458838() {
+    var a = 1;
+    function g() {
+        var b = 0
+            for (var i = 0; i < 10; ++i) {
+                b += a;
+            }
+        return b;
+    }
+
+    return g();
+}
+testBug458838.expected = 10;
+testBug458838.jitstats = {
+  recorderStarted: 1,
+  recorderAborted: 0,
+  traceCompleted: 1
+};
+test(testBug458838);
+
+function testInterpreterReentry() {
+    this.__defineSetter__('x', function(){})
+    for (var j = 0; j < 5; ++j) { x = 3; }
+    return 1;
+}
+testInterpreterReentry.expected = 1;
+test(testInterpreterReentry);
+
+function testInterpreterReentry2() {
+    var a = false;
+    var b = {};
+    var c = false;
+    var d = {};
+    this.__defineGetter__('e', function(){});
+    for (let f in this) print(f);
+    [1 for each (g in this) for each (h in [])]
+    return 1;
+}
+testInterpreterReentry2.expected = 1;
+test(testInterpreterReentry2);
+
+function testInterpreterReentry3() {
+    for (let i=0;i<5;++i) this["y" + i] = function(){};
+    this.__defineGetter__('e', function (x2) { yield; });
+    [1 for each (a in this) for (b in {})];
+    return 1;
+}
+testInterpreterReentry3.expected = 1;
+test(testInterpreterReentry3);
+
+function testInterpreterReentry4() {
+    var obj = {a:1, b:1, c:1, d:1, get e() 1000 };
+    for (var p in obj)
+        obj[p];
+}
+test(testInterpreterReentry4);
+
+function testInterpreterReentry5() {
+    var arr = [0, 1, 2, 3, 4];
+    arr.__defineGetter__("4", function() 1000);
+    for (var i = 0; i < 5; i++)
+        arr[i];
+    for (var p in arr)
+        arr[p];
+}
+test(testInterpreterReentry5);
+
+function testInterpreterReentry6() {
+    var obj = {a:1, b:1, c:1, d:1, set e(x) { this._e = x; }};
+    for (var p in obj)
+        obj[p] = "grue";
+    return obj._e;
+}
+testInterpreterReentry6.expected = "grue";
+test(testInterpreterReentry6);
+
+function testInterpreterReentry7() {
+    var arr = [0, 1, 2, 3, 4];
+    arr.__defineSetter__("4", function(x) { this._4 = x; });
+    for (var i = 0; i < 5; i++)
+        arr[i] = "grue";
+    var tmp = arr._4;
+    for (var p in arr)
+        arr[p] = "bleen";
+    return tmp + " " + arr._4;
+}
+testInterpreterReentry7.expected = "grue bleen";
+test(testInterpreterReentry7);
+
+// Bug 462027 comment 54.
+function testInterpreterReentery8() {
+    var e = <x><y/></x>;
+    for (var j = 0; j < 4; ++j) { +[e]; }
+}
+test(testInterpreterReentery8);
+
 /*****************************************************************************
  *                                                                           *
  *  _____ _   _  _____ ______ _____ _______                                  *
@@ -4030,6 +4290,7 @@ load("math-trace-tests.js");
 // XXXbz I would dearly like to wrap it up into a function to avoid polluting
 // the global scope, but the function ends up heavyweight, and then we lose on
 // the jit.
+if (gDoMandelbrotTest) {
 load("mandelbrot-results.js");
 //function testMandelbrotAll() {
   // Configuration options that affect which codepaths we follow.
@@ -4273,6 +4534,7 @@ load("mandelbrot-results.js");
   test(createMandelSet);
 //}
 //testMandelbrotAll();
+} /* if (gDoMandelbrotTest) */
 // END MANDELBROT STUFF
 
 /*****************************************************************************

@@ -51,6 +51,7 @@
 #include "gfxSkipChars.h"
 #include "gfxRect.h"
 #include "nsExpirationTracker.h"
+#include "gfxFontConstants.h"
 
 #ifdef DEBUG
 #include <stdio.h>
@@ -64,19 +65,21 @@ class gfxFontGroup;
 class gfxUserFontSet;
 class gfxUserFontData;
 
-#define FONT_STYLE_NORMAL              0
-#define FONT_STYLE_ITALIC              1
-#define FONT_STYLE_OBLIQUE             2
+// We should eliminate these synonyms when it won't cause many merge conflicts.
+#define FONT_STYLE_NORMAL              NS_FONT_STYLE_NORMAL
+#define FONT_STYLE_ITALIC              NS_FONT_STYLE_ITALIC
+#define FONT_STYLE_OBLIQUE             NS_FONT_STYLE_OBLIQUE
 
-#define FONT_WEIGHT_NORMAL             400
-#define FONT_WEIGHT_BOLD               700
+// We should eliminate these synonyms when it won't cause many merge conflicts.
+#define FONT_WEIGHT_NORMAL             NS_FONT_WEIGHT_NORMAL
+#define FONT_WEIGHT_BOLD               NS_FONT_WEIGHT_BOLD
 
 #define FONT_MAX_SIZE                  2000.0
 
 struct THEBES_API gfxFontStyle {
     gfxFontStyle();
-    gfxFontStyle(PRUint8 aStyle, PRUint16 aWeight, gfxFloat aSize,
-                 const nsACString& aLangGroup,
+    gfxFontStyle(PRUint8 aStyle, PRUint16 aWeight, PRInt16 aStretch,
+                 gfxFloat aSize, const nsACString& aLangGroup,
                  float aSizeAdjust, PRPackedBool aSystemFont,
                  PRPackedBool aFamilyNameQuirks,
                  PRPackedBool aPrinterFont);
@@ -103,6 +106,10 @@ struct THEBES_API gfxFontStyle {
     // 400, 700, and 900, a weight of 898 should lead to the weight 400
     // font being used, since it is two weights lighter than 900.
     PRUint16 weight;
+
+    // The stretch of the font (the sum of various NS_FONT_STRETCH_*
+    // constants; see gfxFontConstants.h).
+    PRInt16 stretch;
 
     // The logical size of the font, in pixels
     gfxFloat size;
@@ -140,6 +147,7 @@ struct THEBES_API gfxFontStyle {
             (printerFont == other.printerFont) &&
             (familyNameQuirks == other.familyNameQuirks) &&
             (weight == other.weight) &&
+            (stretch == other.stretch) &&
             (langGroup.Equals(other.langGroup)) &&
             (sizeAdjust == other.sizeAdjust);
     }
@@ -1538,6 +1546,8 @@ public:
         NS_ASSERTION(!mUserFontSet || mCurrGeneration == GetGeneration(),
                      "Whoever was caching this font group should have "
                      "called UpdateFontList on it");
+        NS_ASSERTION(mFonts.Length() > PRUint32(i), 
+                     "Requesting a font index that doesn't exist");
 
         return static_cast<gfxFont*>(mFonts[i]);
     }
