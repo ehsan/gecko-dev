@@ -49,12 +49,10 @@ public:
   {
   }
 
-  virtual bool Recv__delete__(const bool& aAllow,
-                              const InfallibleTArray<PermissionChoice>& choices) MOZ_OVERRIDE
+  virtual bool Recv__delete__(const bool& aAllow) MOZ_OVERRIDE
   {
-    MOZ_ASSERT(choices.IsEmpty(), "DesktopNotification doesn't support permission choice");
     if (aAllow) {
-      (void) Allow(JS::UndefinedHandleValue);
+      (void) Allow();
     } else {
      (void) Cancel();
     }
@@ -181,11 +179,9 @@ DesktopNotification::Init()
     nsRefPtr<DesktopNotificationRequest> copy = request;
 
     nsTArray<PermissionRequest> permArray;
-    nsTArray<nsString> emptyOptions;
     permArray.AppendElement(PermissionRequest(
                             NS_LITERAL_CSTRING("desktop-notification"),
-                            NS_LITERAL_CSTRING("unused"),
-                            emptyOptions));
+                            NS_LITERAL_CSTRING("unused")));
     child->SendPContentPermissionRequestConstructor(copy.forget().get(),
                                                     permArray,
                                                     IPC::Principal(mPrincipal));
@@ -351,9 +347,8 @@ DesktopNotificationRequest::Cancel()
 }
 
 NS_IMETHODIMP
-DesktopNotificationRequest::Allow(JS::HandleValue aChoices)
+DesktopNotificationRequest::Allow()
 {
-  MOZ_ASSERT(aChoices.isUndefined());
   nsresult rv = mDesktopNotification->SetAllow(true);
   mDesktopNotification = nullptr;
   return rv;
@@ -362,10 +357,8 @@ DesktopNotificationRequest::Allow(JS::HandleValue aChoices)
 NS_IMETHODIMP
 DesktopNotificationRequest::GetTypes(nsIArray** aTypes)
 {
-  nsTArray<nsString> emptyOptions;
   return CreatePermissionArray(NS_LITERAL_CSTRING("desktop-notification"),
                                NS_LITERAL_CSTRING("unused"),
-                               emptyOptions,
                                aTypes);
 }
 

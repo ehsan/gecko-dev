@@ -16,6 +16,7 @@ const { Services } = Cu.import("resource://gre/modules/Services.jsm");
 
 let browser = Services.wm.getMostRecentWindow("navigator:browser");
 let shell;
+let test_counts = 0;
 
 function loadShell() {
   if (!browser) {
@@ -30,21 +31,50 @@ function getContentWindow() {
   return shell.contentBrowser.contentWindow;
 }
 
-if (loadShell()) {
+function addChromeEventListener(type, listener) {
   let content = getContentWindow();
-  let eventHandler = function(evt) {
-    if (!evt.detail || evt.detail.type !== "permission-prompt") {
+  content.addEventListener("mozChromeEvent", function chromeListener(evt) {
+    if (!evt.detail || evt.detail.type !== type) {
       return;
     }
 
-    sendAsyncMessage("permission-request", evt.detail.permissions);
-  };
-
-  content.addEventListener("mozChromeEvent", eventHandler);
-
-  // need to remove ChromeEvent listener after test finished.
-  addMessageListener("teardown", function() {
-    content.removeEventListener("mozChromeEvent", eventHandler);
+    let remove = listener(evt);
+    if (remove) {
+      content.removeEventListener("mozChromeEvent", chromeListener);
+    }
   });
 }
 
+function checkPromptEvent(prompt_evt) {
+  let detail = prompt_evt.detail;
+
+  if (detail.permissions) {
+    if ("audio-capture" in detail.permissions) {
+      sendAsyncMessage("permission.granted", "audio-capture");
+      test_counts--;
+    }
+    if ("desktop-notification" in detail.permissions) {
+      sendAsyncMessage("permission.granted", "desktop-notification");
+      test_counts--;
+    }
+    if ("geolocation" in detail.permissions) {
+      sendAsyncMessage("permission.granted", "geolocation");
+      test_counts--;
+    }
+  }
+
+  if (!test_counts) {
+    debug("remove prompt event listener.");
+    return true;
+  }
+
+  return false;
+}
+
+if (loadShell()) {
+  addMessageListener("test.counts", function (counts) {
+    test_counts = counts;
+  });
+
+  addChromeEventListener("permission-prompt", checkPromptEvent);
+}

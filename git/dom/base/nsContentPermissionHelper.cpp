@@ -19,9 +19,6 @@
 #include "nsArrayUtils.h"
 #include "nsIMutableArray.h"
 #include "nsContentPermissionHelper.h"
-#include "nsCxPusher.h"
-#include "nsJSUtils.h"
-#include "nsISupportsPrimitives.h"
 
 using mozilla::unused;          // <snicker>
 using namespace mozilla::dom;
@@ -97,12 +94,10 @@ ContentPermissionRequestParent::IsBeingDestroyed()
 NS_IMPL_ISUPPORTS1(ContentPermissionType, nsIContentPermissionType)
 
 ContentPermissionType::ContentPermissionType(const nsACString& aType,
-                                             const nsACString& aAccess,
-                                             const nsTArray<nsString>& aOptions)
+                                             const nsACString& aAccess)
 {
   mType = aType;
   mAccess = aAccess;
-  mOptions = aOptions;
 }
 
 ContentPermissionType::~ContentPermissionType()
@@ -123,35 +118,6 @@ ContentPermissionType::GetAccess(nsACString& aAccess)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-ContentPermissionType::GetOptions(nsIArray** aOptions)
-{
-  NS_ENSURE_ARG_POINTER(aOptions);
-
-  *aOptions = nullptr;
-
-  nsresult rv;
-  nsCOMPtr<nsIMutableArray> options =
-    do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // copy options into JS array
-  for (uint32_t i = 0; i < mOptions.Length(); ++i) {
-    nsCOMPtr<nsISupportsString> isupportsString =
-      do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = isupportsString->SetData(mOptions[i]);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = options->AppendElement(isupportsString, false);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  NS_ADDREF(*aOptions = options);
-  return NS_OK;
-}
-
 uint32_t
 ConvertPermissionRequestToArray(nsTArray<PermissionRequest>& aSrcArray,
                                 nsIMutableArray* aDesArray)
@@ -159,9 +125,7 @@ ConvertPermissionRequestToArray(nsTArray<PermissionRequest>& aSrcArray,
   uint32_t len = aSrcArray.Length();
   for (uint32_t i = 0; i < len; i++) {
     nsRefPtr<ContentPermissionType> cpt =
-      new ContentPermissionType(aSrcArray[i].type(),
-                                aSrcArray[i].access(),
-                                aSrcArray[i].options());
+      new ContentPermissionType(aSrcArray[i].type(), aSrcArray[i].access());
     aDesArray->AppendElement(cpt, false);
   }
   return len;
@@ -170,13 +134,11 @@ ConvertPermissionRequestToArray(nsTArray<PermissionRequest>& aSrcArray,
 nsresult
 CreatePermissionArray(const nsACString& aType,
                       const nsACString& aAccess,
-                      const nsTArray<nsString>& aOptions,
                       nsIArray** aTypesArray)
 {
   nsCOMPtr<nsIMutableArray> types = do_CreateInstance(NS_ARRAY_CONTRACTID);
   nsRefPtr<ContentPermissionType> permType = new ContentPermissionType(aType,
-                                                                       aAccess,
-                                                                       aOptions);
+                                                                       aAccess);
   types->AppendElement(permType, false);
   types.forget(aTypesArray);
 
@@ -286,15 +248,13 @@ nsContentPermissionRequestProxy::Cancel()
     return NS_ERROR_FAILURE;
   }
 
-  nsTArray<PermissionChoice> emptyChoices;
-
-  unused << ContentPermissionRequestParent::Send__delete__(mParent, false, emptyChoices);
+  unused << ContentPermissionRequestParent::Send__delete__(mParent, false);
   mParent = nullptr;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsContentPermissionRequestProxy::Allow(JS::HandleValue aChoices)
+nsContentPermissionRequestProxy::Allow()
 {
   if (mParent == nullptr) {
     return NS_ERROR_FAILURE;
@@ -322,37 +282,7 @@ nsContentPermissionRequestProxy::Allow(JS::HandleValue aChoices)
   }
 #endif
 
-  nsTArray<PermissionChoice> choices;
-  if (aChoices.isNullOrUndefined()) {
-    // No choice is specified.
-  } else if (aChoices.isObject()) {
-    // Iterate through all permission types.
-    for (uint32_t i = 0; i < mPermissionRequests.Length(); ++i) {
-      nsCString type = mPermissionRequests[i].type();
-
-      mozilla::AutoSafeJSContext cx;
-      JS::Rooted<JSObject*> obj(cx, &aChoices.toObject());
-      JSAutoCompartment ac(cx, obj);
-
-      JS::Rooted<JS::Value> val(cx);
-
-      if (!JS_GetProperty(cx, obj, type.BeginReading(), &val) ||
-          !val.isString()) {
-        // no setting for the permission type, skip it
-      } else {
-        nsDependentJSString choice;
-        if (!choice.init(cx, val)) {
-          return NS_ERROR_FAILURE;
-        }
-        choices.AppendElement(PermissionChoice(type, choice));
-      }
-    }
-  } else {
-    MOZ_ASSERT(false, "SelectedChoices should be undefined or an JS object");
-    return NS_ERROR_FAILURE;
-  }
-
-  unused << ContentPermissionRequestParent::Send__delete__(mParent, true, choices);
+  unused << ContentPermissionRequestParent::Send__delete__(mParent, true);
   mParent = nullptr;
   return NS_OK;
 }

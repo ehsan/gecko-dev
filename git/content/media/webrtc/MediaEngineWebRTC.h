@@ -51,7 +51,6 @@
 #include "ImageContainer.h"
 #include "nsGlobalWindow.h"
 #include "prprf.h"
-#include "mozilla/Hal.h"
 #endif
 
 #include "NullTransport.h"
@@ -84,7 +83,6 @@ class MediaEngineWebRTCVideoSource : public MediaEngineVideoSource
                                    , public nsRunnable
 #ifdef MOZ_B2G_CAMERA
                                    , public CameraControlListener
-                                   , public mozilla::hal::ScreenConfigurationObserver
 #else
                                    , public webrtc::ExternalRenderer
 #endif
@@ -94,8 +92,7 @@ public:
   MediaEngineWebRTCVideoSource(int aIndex)
     : mCameraControl(nullptr)
     , mCallbackMonitor("WebRTCCamera.CallbackMonitor")
-    , mRotation(0)
-    , mBackCamera(false)
+    , mSensorAngle(0)
     , mCaptureIndex(aIndex)
     , mMonitor("WebRTCCamera.Monitor")
     , mWidth(0)
@@ -175,8 +172,7 @@ public:
   void StartImpl(webrtc::CaptureCapability aCapability);
   void StopImpl();
   void SnapshotImpl();
-  void RotateImage(layers::Image* aImage, uint32_t aWidth, uint32_t aHeight);
-  void Notify(const mozilla::hal::ScreenConfiguration& aConfiguration);
+  void RotateImage(layers::Image* aImage);
 #endif
 
   // This runnable is for creating a temporary file on the main thread.
@@ -211,9 +207,7 @@ private:
   nsRefPtr<ICameraControl> mCameraControl;
   mozilla::ReentrantMonitor mCallbackMonitor; // Monitor for camera callback handling
   nsRefPtr<nsIDOMFile> mLastCapture;
-  int mRotation;
-  int mCameraAngle; // See dom/base/ScreenOrientation.h
-  bool mBackCamera;
+  int mSensorAngle;
 #else
   webrtc::VideoEngine* mVideoEngine; // Weak reference, don't free.
   webrtc::ViEBase* mViEBase;

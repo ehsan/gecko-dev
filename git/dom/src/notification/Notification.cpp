@@ -163,8 +163,7 @@ public:
 
   virtual ~NotificationPermissionRequest() {}
 
-  bool Recv__delete__(const bool& aAllow,
-                      const InfallibleTArray<PermissionChoice>& choices);
+  bool Recv__delete__(const bool& aAllow);
   void IPDLRelease() { Release(); }
 
 protected:
@@ -270,11 +269,9 @@ NotificationPermissionRequest::Run()
     AddRef();
 
     nsTArray<PermissionRequest> permArray;
-    nsTArray<nsString> emptyOptions;
     permArray.AppendElement(PermissionRequest(
                             NS_LITERAL_CSTRING("desktop-notification"),
-                            NS_LITERAL_CSTRING("unused"),
-                            emptyOptions));
+                            NS_LITERAL_CSTRING("unused")));
     child->SendPContentPermissionRequestConstructor(this, permArray,
                                                     IPC::Principal(mPrincipal));
 
@@ -321,10 +318,8 @@ NotificationPermissionRequest::Cancel()
 }
 
 NS_IMETHODIMP
-NotificationPermissionRequest::Allow(JS::HandleValue aChoices)
+NotificationPermissionRequest::Allow()
 {
-  MOZ_ASSERT(aChoices.isUndefined());
-
   mPermission = NotificationPermission::Granted;
   return DispatchCallback();
 }
@@ -352,21 +347,16 @@ NotificationPermissionRequest::CallCallback()
 NS_IMETHODIMP
 NotificationPermissionRequest::GetTypes(nsIArray** aTypes)
 {
-  nsTArray<nsString> emptyOptions;
   return CreatePermissionArray(NS_LITERAL_CSTRING("desktop-notification"),
                                NS_LITERAL_CSTRING("unused"),
-                               emptyOptions,
                                aTypes);
 }
 
 bool
-NotificationPermissionRequest::Recv__delete__(const bool& aAllow,
-                                              const InfallibleTArray<PermissionChoice>& choices)
+NotificationPermissionRequest::Recv__delete__(const bool& aAllow)
 {
-  MOZ_ASSERT(choices.IsEmpty(), "Notification doesn't support permission choice");
-
   if (aAllow) {
-    (void) Allow(JS::UndefinedHandleValue);
+    (void) Allow();
   } else {
     (void) Cancel();
   }

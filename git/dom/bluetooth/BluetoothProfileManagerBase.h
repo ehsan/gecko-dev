@@ -72,8 +72,6 @@ public:
 
 #define BT_DECL_PROFILE_MGR_BASE                                                 \
 public:                                                                          \
-  NS_DECL_ISUPPORTS                                                              \
-  NS_DECL_NSIOBSERVER                                                            \
   virtual void OnGetServiceChannel(const nsAString& aDeviceAddress,              \
                                    const nsAString& aServiceUuid,                \
                                    int aChannel) MOZ_OVERRIDE;                   \
