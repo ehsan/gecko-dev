@@ -71,7 +71,7 @@ PrintBytecode(JSContext *cx, JSScript *script, jsbytecode *pc)
 
 inline bool
 ScriptAnalysis::addJump(JSContext *cx, unsigned offset,
-                        unsigned *currentOffset, unsigned *forwardJump, unsigned *forwardLoop,
+                        unsigned *currentOffset, unsigned *forwardJump,
                         unsigned stackDepth)
 {
     JS_ASSERT(offset < script->length);
@@ -93,26 +93,10 @@ ScriptAnalysis::addJump(JSContext *cx, unsigned offset,
         /* Scripts containing loops are never inlined. */
         isInlineable = false;
 
-        if (code->analyzed) {
-            /*
-             * Backedge in a do-while loop, the body has been analyzed. Rewalk
-             * the body to set inLoop bits.
-             */
-            for (unsigned i = offset; i <= *currentOffset; i++) {
-                Bytecode *code = maybeCode(i);
-                if (code)
-                    code->inLoop = true;
-            }
-        } else {
-            /*
-             * Backedge in a while/for loop, whose body has not been analyzed
-             * due to a lack of fallthrough at the loop head. Roll back the
-             * offset to analyze the body.
-             */
+        /* Don't follow back edges to bytecode which has already been analyzed. */
+        if (!code->analyzed) {
             if (*forwardJump == 0)
                 *forwardJump = *currentOffset;
-            if (*forwardLoop == 0)
-                *forwardLoop = *currentOffset;
             *currentOffset = offset;
         }
     } else if (offset > *forwardJump) {
@@ -236,9 +220,6 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
      */
     unsigned forwardJump = 0;
 
-    /* If we are in the middle of a loop, the offset of the highest backedge. */
-    unsigned forwardLoop = 0;
-
     /*
      * If we are in the middle of a try block, the offset of the highest
      * catch/finally/enditer.
@@ -289,16 +270,6 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
         if (!code) {
             /* Haven't found a path by which this bytecode is reachable. */
             continue;
-        }
-
-        /*
-         * Update info about bytecodes inside loops, which may have been
-         * analyzed before the backedge was seen.
-         */
-        if (forwardLoop) {
-            code->inLoop = true;
-            if (forwardLoop <= offset)
-                forwardLoop = 0;
         }
 
         if (code->analyzed) {
@@ -422,7 +393,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             int32_t high = GET_JUMP_OFFSET(pc2);
             pc2 += JUMP_OFFSET_LEN;
 
-            if (!addJump(cx, defaultOffset, &nextOffset, &forwardJump, &forwardLoop, stackDepth))
+            if (!addJump(cx, defaultOffset, &nextOffset, &forwardJump, stackDepth))
                 return;
             getCode(defaultOffset).switchTarget = true;
             getCode(defaultOffset).safePoint = true;
@@ -430,7 +401,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             for (int32_t i = low; i <= high; i++) {
                 unsigned targetOffset = offset + GET_JUMP_OFFSET(pc2);
                 if (targetOffset != offset) {
-                    if (!addJump(cx, targetOffset, &nextOffset, &forwardJump, &forwardLoop, stackDepth))
+                    if (!addJump(cx, targetOffset, &nextOffset, &forwardJump, stackDepth))
                         return;
                 }
                 getCode(targetOffset).switchTarget = true;
@@ -447,7 +418,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             unsigned npairs = GET_UINT16(pc2);
             pc2 += UINT16_LEN;
 
-            if (!addJump(cx, defaultOffset, &nextOffset, &forwardJump, &forwardLoop, stackDepth))
+            if (!addJump(cx, defaultOffset, &nextOffset, &forwardJump, stackDepth))
                 return;
             getCode(defaultOffset).switchTarget = true;
             getCode(defaultOffset).safePoint = true;
@@ -455,7 +426,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             while (npairs) {
                 pc2 += UINT32_INDEX_LEN;
                 unsigned targetOffset = offset + GET_JUMP_OFFSET(pc2);
-                if (!addJump(cx, targetOffset, &nextOffset, &forwardJump, &forwardLoop, stackDepth))
+                if (!addJump(cx, targetOffset, &nextOffset, &forwardJump, stackDepth))
                     return;
                 getCode(targetOffset).switchTarget = true;
                 getCode(targetOffset).safePoint = true;
@@ -485,7 +456,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
                         forwardCatch = catchOffset;
 
                     if (tn->kind != JSTRY_ITER) {
-                        if (!addJump(cx, catchOffset, &nextOffset, &forwardJump, &forwardLoop, stackDepth))
+                        if (!addJump(cx, catchOffset, &nextOffset, &forwardJump, stackDepth))
                             return;
                         getCode(catchOffset).exceptionEntry = true;
                         getCode(catchOffset).safePoint = true;
@@ -667,7 +638,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             }
 
             unsigned targetOffset = offset + GET_JUMP_OFFSET(pc);
-            if (!addJump(cx, targetOffset, &nextOffset, &forwardJump, &forwardLoop, newStackDepth))
+            if (!addJump(cx, targetOffset, &nextOffset, &forwardJump, newStackDepth))
                 return;
         }
 
@@ -699,7 +670,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
     }
 
     JS_ASSERT(!failed());
-    JS_ASSERT(forwardJump == 0 && forwardLoop == 0 && forwardCatch == 0);
+    JS_ASSERT(forwardJump == 0 && forwardCatch == 0);
 
     ranBytecode_ = true;
 

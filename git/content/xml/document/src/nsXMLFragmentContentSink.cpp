@@ -43,6 +43,7 @@
 #include "nsContentSink.h"
 #include "nsIExpatSink.h"
 #include "nsIDTD.h"
+#include "nsIParser.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocumentFragment.h"
 #include "nsIContent.h"

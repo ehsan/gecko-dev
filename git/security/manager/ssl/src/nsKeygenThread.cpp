@@ -59,12 +59,10 @@ nsKeygenThread::nsKeygenThread()
  privateKey(nsnull),
  publicKey(nsnull),
  slot(nsnull),
- flags(0),
- altSlot(nsnull),
- altFlags(0),
- usedSlot(nsnull),
  keyGenMechanism(0),
  params(nsnull),
+ isPerm(false),
+ isSensitive(false),
  wincx(nsnull),
  threadHandle(nsnull)
 {
@@ -72,25 +70,14 @@ nsKeygenThread::nsKeygenThread()
 
 nsKeygenThread::~nsKeygenThread()
 {
-  // clean up in the unlikely case that nobody consumed our results
-  
-  if (privateKey)
-    SECKEY_DestroyPrivateKey(privateKey);
-    
-  if (publicKey)
-    SECKEY_DestroyPublicKey(publicKey);
-    
-  if (usedSlot)
-    PK11_FreeSlot(usedSlot);
 }
 
 void nsKeygenThread::SetParams(
     PK11SlotInfo *a_slot,
-    PK11AttrFlags a_flags,
-    PK11SlotInfo *a_alternative_slot,
-    PK11AttrFlags a_alternative_flags,
     PRUint32 a_keyGenMechanism,
     void *a_params,
+    bool a_isPerm,
+    bool a_isSensitive,
     void *a_wincx )
 {
   nsNSSShutDownPreventionLock locker;
@@ -98,22 +85,25 @@ void nsKeygenThread::SetParams(
  
     if (!alreadyReceivedParams) {
       alreadyReceivedParams = true;
-      slot = (a_slot) ? PK11_ReferenceSlot(a_slot) : nsnull;
-      flags = a_flags;
-      altSlot = (a_alternative_slot) ? PK11_ReferenceSlot(a_alternative_slot) : nsnull;
-      altFlags = a_alternative_flags;
+      if (a_slot) {
+        slot = PK11_ReferenceSlot(a_slot);
+      }
+      else {
+        slot = nsnull;
+      }
       keyGenMechanism = a_keyGenMechanism;
       params = a_params;
+      isPerm = a_isPerm;
+      isSensitive = a_isSensitive;
       wincx = a_wincx;
     }
 }
 
-nsresult nsKeygenThread::ConsumeResult(
-    PK11SlotInfo **a_used_slot,
+nsresult nsKeygenThread::GetParams(
     SECKEYPrivateKey **a_privateKey,
     SECKEYPublicKey **a_publicKey)
 {
-  if (!a_used_slot || !a_privateKey || !a_publicKey) {
+  if (!a_privateKey || !a_publicKey) {
     return NS_ERROR_FAILURE;
   }
 
@@ -128,11 +118,9 @@ nsresult nsKeygenThread::ConsumeResult(
     if (keygenReady) {
       *a_privateKey = privateKey;
       *a_publicKey = publicKey;
-      *a_used_slot = usedSlot;
 
       privateKey = 0;
       publicKey = 0;
-      usedSlot = 0;
       
       rv = NS_OK;
     }
@@ -215,23 +203,10 @@ void nsKeygenThread::Run(void)
     }
   }
 
-  if (canGenerate) {
-    privateKey = PK11_GenerateKeyPairWithFlags(slot, keyGenMechanism,
-                                               params, &publicKey,
-                                               flags, wincx);
-
-    if (privateKey) {
-      usedSlot = PK11_ReferenceSlot(slot);
-    }
-    else if (altSlot) {
-      privateKey = PK11_GenerateKeyPairWithFlags(altSlot, keyGenMechanism,
-                                                 params, &publicKey,
-                                                 altFlags, wincx);
-      if (privateKey) {
-        usedSlot = PK11_ReferenceSlot(altSlot);
-      }
-    }
-  }
+  if (canGenerate)
+    privateKey = PK11_GenerateKeyPair(slot, keyGenMechanism,
+                                         params, &publicKey,
+                                         isPerm, isSensitive, wincx);
   
   // This call gave us ownership over privateKey and publicKey.
   // But as the params structure is owner by our caller,
@@ -250,10 +225,6 @@ void nsKeygenThread::Run(void)
     if (slot) {
       PK11_FreeSlot(slot);
       slot = 0;
-    }
-    if (altSlot) {
-      PK11_FreeSlot(altSlot);
-      altSlot = 0;
     }
     keyGenMechanism = 0;
     params = 0;

@@ -589,12 +589,12 @@ nsDOMStorageManager::RemoveFromStoragesHash(DOMStorageImpl* aStorage)
 nsDOMStorageDBWrapper* DOMStorageImpl::gStorageDB = nsnull;
 
 nsDOMStorageEntry::nsDOMStorageEntry(KeyTypePointer aStr)
-  : nsPtrHashKey<const void>(aStr), mStorage(nsnull)
+  : nsVoidPtrHashKey(aStr), mStorage(nsnull)
 {
 }
 
 nsDOMStorageEntry::nsDOMStorageEntry(const nsDOMStorageEntry& aToCopy)
-  : nsPtrHashKey<const void>(aToCopy), mStorage(nsnull)
+  : nsVoidPtrHashKey(aToCopy), mStorage(nsnull)
 {
   NS_ERROR("DOMStorage horked.");
 }

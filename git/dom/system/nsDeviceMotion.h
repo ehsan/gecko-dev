@@ -82,6 +82,11 @@ private:
   static void TimeoutHandler(nsITimer *aTimer, void *aClosure);
 
  protected:
+  void FireNeedsCalibration();
+
+  void FireNeedsCalibration(nsIDOMDocument *domdoc,
+			    nsIDOMEventTarget *target);
+
   void FireDOMOrientationEvent(class nsIDOMDocument *domDoc, 
                                class nsIDOMEventTarget *target,
                                double alpha,
@@ -100,6 +105,7 @@ private:
 
   bool mEnabled;
   mozilla::TimeStamp mLastDOMMotionEventTime;
+  mozilla::hal::SensorAccuracyType mLastAccuracy;
   nsRefPtr<nsDOMDeviceAcceleration> mLastAcceleration;
   nsRefPtr<nsDOMDeviceAcceleration> mLastAccelerationIncluduingGravity;
   nsRefPtr<nsDOMDeviceRotationRate> mLastRotationRate;

@@ -60,7 +60,7 @@
 #endif
 #include "nsContentUtils.h"
 #include "imgILoader.h"
-#include "nsCharsetSource.h"
+#include "nsIParser.h"
 #include "nsMimeTypes.h"
 
 #include "mozilla/FunctionTimer.h"

@@ -38,7 +38,7 @@
 #define nsIWebShellServices_h___
 
 #include "nsISupports.h"
-#include "nsCharsetSource.h"
+#include "nsIParser.h"
 
 // Interface ID for nsIWebShellServices
 

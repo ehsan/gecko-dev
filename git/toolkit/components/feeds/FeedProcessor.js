@@ -75,7 +75,7 @@ const IO_CONTRACTID = "@mozilla.org/network/io-service;1"
 const BAG_CONTRACTID = "@mozilla.org/hash-property-bag;1"
 const ARRAY_CONTRACTID = "@mozilla.org/array;1";
 const SAX_CONTRACTID = "@mozilla.org/saxparser/xmlreader;1";
-const PARSERUTILS_CONTRACTID = "@mozilla.org/parserutils;1";
+const UNESCAPE_CONTRACTID = "@mozilla.org/feed-unescapehtml;1";
 
 
 var gIoService = null;
@@ -644,16 +644,14 @@ function TextConstruct() {
   this.base = null;
   this.type = "text";
   this.text = null;
-  this.parserUtils = Cc[PARSERUTILS_CONTRACTID].getService(Ci.nsIParserUtils);
+  this.unescapeHTML = Cc[UNESCAPE_CONTRACTID].
+                      getService(Ci.nsIScriptableUnescapeHTML);
 }
 
 TextConstruct.prototype = {
   plainText: function TC_plainText() {
     if (this.type != "text") {
-      return this.parserUtils.convertToPlainText(stripTags(this.text),
-        Ci.nsIDocumentEncoder.OutputSelectionOnly |
-        Ci.nsIDocumentEncoder.OutputAbsoluteLinks,
-        0);
+      return this.unescapeHTML.unescape(stripTags(this.text));
     }
     return this.text;
   },
@@ -674,8 +672,8 @@ TextConstruct.prototype = {
     else
       return null;
 
-    return this.parserUtils.parseFragment(this.text, 0, isXML,
-                                          this.base, element);
+    return this.unescapeHTML.parseFragment(this.text, isXML,
+                                           this.base, element);
   },
  
   // XPCOM stuff

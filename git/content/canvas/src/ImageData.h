@@ -51,6 +51,10 @@ public:
   {
     return mHeight;
   }
+  JS::Value GetData()
+  {
+    return JS::ObjectOrNullValue(GetDataObject());
+  }
   JSObject* GetDataObject()
   {
     xpc_UnmarkGrayObject(mData);

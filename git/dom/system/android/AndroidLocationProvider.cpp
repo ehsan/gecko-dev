@@ -82,11 +82,3 @@ AndroidLocationProvider::Shutdown()
     return NS_OK;
 }
 
-NS_IMETHODIMP
-AndroidLocationProvider::SetHighAccuracy(bool enable)
-{
-    if (!AndroidBridge::Bridge())
-        return NS_ERROR_NOT_IMPLEMENTED;
-    AndroidBridge::Bridge()->EnableLocationHighAccuracy(enable);
-    return NS_OK;
-}

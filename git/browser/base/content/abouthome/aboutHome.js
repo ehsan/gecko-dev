@@ -152,6 +152,8 @@ let gSearchEngine;
 
 document.addEventListener("DOMContentLoaded", function init() {
   setupSearchEngine();
+  document.getElementById("searchText").focus();
+
   loadSnippets();
 });
 window.addEventListener("load", fitToWidth);

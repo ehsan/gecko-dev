@@ -135,8 +135,6 @@ public class GeckoAppShell
     private static Sensor gOrientationSensor = null;
     private static Sensor gProximitySensor = null;
 
-    private static boolean mLocationHighAccuracy = false;
-
     /* The Android-side API: API methods that Android calls */
 
     // Initialization methods
@@ -372,7 +370,6 @@ public class GeckoAppShell
         putLocaleEnv();
     }
 
-    /* This method is referenced by Robocop via reflection. */
     public static void loadSQLiteLibs(Context context, String apkName) {
         if (sSQLiteLibsLoaded)
             return;
@@ -483,7 +480,6 @@ public class GeckoAppShell
         } catch (NoSuchElementException e) {}
     }
 
-    /* This method is referenced by Robocop via reflection. */
     public static void sendEventToGecko(GeckoEvent e) {
         if (GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning)) {
             notifyGeckoOfEvent(e);
@@ -566,19 +562,6 @@ public class GeckoAppShell
 
                     if (enable) {
                         Criteria criteria = new Criteria();
-                        criteria.setSpeedRequired(false);
-                        criteria.setBearingRequired(false);
-                        criteria.setAltitudeRequired(false);
-                        if (mLocationHighAccuracy) {
-                            criteria.setAccuracy(Criteria.ACCURACY_FINE);
-                            criteria.setCostAllowed(true);
-                            criteria.setPowerRequirement(Criteria.POWER_HIGH);
-                        } else {
-                            criteria.setAccuracy(Criteria.ACCURACY_COARSE);
-                            criteria.setCostAllowed(false);
-                            criteria.setPowerRequirement(Criteria.POWER_LOW);
-                        }
-
                         String provider = lm.getBestProvider(criteria, true);
                         if (provider == null)
                             return;
@@ -594,11 +577,6 @@ public class GeckoAppShell
                     }
                 }
             });
-    }
-
-    public static void enableLocationHighAccuracy(final boolean enable) {
-        Log.i(LOGTAG, "Location provider - high accuracy: " + enable);
-        mLocationHighAccuracy = enable;
     }
 
     public static void enableSensor(int aSensortype) {
@@ -1665,7 +1643,6 @@ public class GeckoAppShell
         }
     }
 
-    /* This method is referenced by Robocop via reflection. */
     public static void registerGeckoEventListener(String event, GeckoEventListener listener) {
         if (mEventListeners == null)
             mEventListeners = new HashMap<String, ArrayList<GeckoEventListener>>();
@@ -1695,7 +1672,6 @@ public class GeckoAppShell
         }
     }
 
-    /* This method is referenced by Robocop via reflection. */
     public static void unregisterGeckoEventListener(String event, GeckoEventListener listener) {
         if (mEventListeners == null)
             return;

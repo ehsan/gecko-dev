@@ -173,10 +173,8 @@ public:
    */
   virtual void PresShellActivated(nsIPresShell* aPresShell);
 
-  /**
-   * Recreate an accessible for the given content node in the presshell.
-   */
-  void RecreateAccessible(nsIPresShell* aPresShell, nsIContent* aContent);
+  virtual void RecreateAccessible(nsIPresShell* aPresShell,
+                                  nsIContent* aContent);
 
   virtual void FireAccessibleEvent(PRUint32 aEvent, nsAccessible* aTarget);
 

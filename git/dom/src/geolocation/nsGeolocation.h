@@ -134,9 +134,7 @@ public:
   NS_DECL_NSIGEOLOCATIONUPDATE
   NS_DECL_NSIOBSERVER
 
-  nsGeolocationService() {
-      mHigherAccuracy = false;
-  }
+  nsGeolocationService() {}
 
   nsresult Init();
 
@@ -155,9 +153,6 @@ public:
   
   // create, or reinitalize the callback timer
   void     SetDisconnectTimer();
-
-  // request higher accuracy, if possible
-  void     SetHigherAccuracy(bool aEnable);
 
 private:
 
@@ -178,9 +173,6 @@ private:
 
   // This is the last geo position that we have seen.
   nsCOMPtr<nsIDOMGeoPosition> mLastPosition;
-
-  // Current state of requests for higher accuracy
-  bool mHigherAccuracy;
 };
 
 

@@ -10,22 +10,12 @@ class PixelTest extends BaseTest {
         Actions.RepeatedEventExpecter paintExpecter = mActions.expectPaint();
         loadUrl(url);
         paintExpecter.blockUntilClear(PAINT_CLEAR_DELAY);
-        PaintedSurface p = mDriver.getPaintedSurface();
-        if (p == null) {
-            mAsserter.ok(p != null, "checking that painted surface loaded", 
-                 "painted surface loaded");
-        }
-        return p;
+        return mDriver.getPaintedSurface();
     }
 
     protected final PaintedSurface waitForPaint(Actions.RepeatedEventExpecter expecter) {
         expecter.blockUntilClear(PAINT_CLEAR_DELAY);
-        PaintedSurface p = mDriver.getPaintedSurface();
-        if (p == null) {
-            mAsserter.ok(p != null, "checking that painted surface loaded", 
-                 "painted surface loaded");
-        }
-        return p;
+        return mDriver.getPaintedSurface();
     }
 
     protected final PaintedSurface waitWithNoPaint(Actions.RepeatedEventExpecter expecter) {
@@ -35,22 +25,16 @@ class PixelTest extends BaseTest {
             ie.printStackTrace();
         }
         mAsserter.is(expecter.eventReceived(), false, "Checking gecko didn't draw unnecessarily");
-        PaintedSurface p = mDriver.getPaintedSurface();
-        if (p == null) {
-            mAsserter.ok(p != null, "checking that painted surface loaded", 
-                 "painted surface loaded");
-        }
-        return p;
+        return mDriver.getPaintedSurface();
     }
 
     // this matches the algorithm in robocop_boxes.html
     protected final int[] getBoxColorAt(int x, int y) {
-        int r = ((int)Math.floor(x / 3) % 256);
-        r = r & 0xF8;
-        int g = (x + y) % 256;
-        g = g & 0xFC;
-        int b = ((int)Math.floor(y / 3) % 256);
-        b = b & 0xF8;
+        x -= (x % 100);
+        y -= (y % 100);
+        int r = (x + y) % 255;
+        int g = 255 - (y / 10);
+        int b = 255 - (x / 10);
         return new int[] { r, g, b };
     }
 

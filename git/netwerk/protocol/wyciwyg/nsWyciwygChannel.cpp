@@ -47,7 +47,7 @@
 #include "nsContentUtils.h"
 #include "nsICacheService.h"
 #include "nsICacheSession.h"
-#include "nsCharsetSource.h"
+#include "nsIParser.h"
 #include "nsThreadUtils.h"
 #include "nsProxyRelease.h"
 
@@ -612,12 +612,6 @@ nsWyciwygChannel::OnCacheEntryAvailable(nsICacheEntryDescriptor * aCacheEntry, n
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsWyciwygChannel::OnCacheEntryDoomed(nsresult status)
-{
-    return NS_ERROR_NOT_IMPLEMENTED;
-}
-
 //-----------------------------------------------------------------------------
 // nsWyciwygChannel::nsIStreamListener
 //-----------------------------------------------------------------------------
@@ -715,7 +709,7 @@ nsWyciwygChannel::OpenCacheEntry(const nsACString & aCacheKey,
     rv = cacheSession->OpenCacheEntry(aCacheKey, aAccessMode, false,
                                       getter_AddRefs(mCacheEntry));
   else
-    rv = cacheSession->AsyncOpenCacheEntry(aCacheKey, aAccessMode, this, false);
+    rv = cacheSession->AsyncOpenCacheEntry(aCacheKey, aAccessMode, this);
 
   return rv;
 }

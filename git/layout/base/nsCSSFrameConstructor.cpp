@@ -3770,26 +3770,24 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
 
     if (NS_SUCCEEDED(rv) && (bits & FCDATA_WRAP_KIDS_IN_BLOCKS)) {
       nsFrameItems newItems;
-      nsFrameItems currentBlockItems;
+      nsFrameItems currentBlock;
       nsIFrame* f;
       while ((f = childItems.FirstChild()) != nsnull) {
         bool wrapFrame = IsInlineFrame(f) || IsFrameSpecial(f);
         if (!wrapFrame) {
-          rv = FlushAccumulatedBlock(aState, content, newFrame,
-                                     currentBlockItems, newItems);
+          rv = FlushAccumulatedBlock(aState, content, newFrame, &currentBlock, &newItems);
           if (NS_FAILED(rv))
             break;
         }
 
         childItems.RemoveFrame(f);
         if (wrapFrame) {
-          currentBlockItems.AddChild(f);
+          currentBlock.AddChild(f);
         } else {
           newItems.AddChild(f);
         }
       }
-      rv = FlushAccumulatedBlock(aState, content, newFrame,
-                                 currentBlockItems, newItems);
+      rv = FlushAccumulatedBlock(aState, content, newFrame, &currentBlock, &newItems);
 
       if (childItems.NotEmpty()) {
         // an error must have occurred, delete unprocessed frames
@@ -4571,42 +4569,39 @@ nsresult
 nsCSSFrameConstructor::FlushAccumulatedBlock(nsFrameConstructorState& aState,
                                              nsIContent* aContent,
                                              nsIFrame* aParentFrame,
-                                             nsFrameItems& aBlockItems,
-                                             nsFrameItems& aNewItems)
+                                             nsFrameItems* aBlockItems,
+                                             nsFrameItems* aNewItems)
 {
-  if (aBlockItems.IsEmpty()) {
+  if (aBlockItems->IsEmpty()) {
     // Nothing to do
     return NS_OK;
   }
 
-  nsIAtom* anonPseudo = nsCSSAnonBoxes::mozMathMLAnonymousBlock;
-
   nsStyleContext* parentContext =
     nsFrame::CorrectStyleParentFrame(aParentFrame,
-                                     anonPseudo)->GetStyleContext();
-  nsStyleSet* styleSet = mPresShell->StyleSet();
+                                     nsCSSAnonBoxes::mozMathMLAnonymousBlock)->GetStyleContext(); 
+  nsStyleSet *styleSet = mPresShell->StyleSet();
   nsRefPtr<nsStyleContext> blockContext;
   blockContext = styleSet->
-    ResolveAnonymousBoxStyle(anonPseudo, parentContext);
-
+    ResolveAnonymousBoxStyle(nsCSSAnonBoxes::mozMathMLAnonymousBlock,
+                             parentContext);
 
   // then, create a block frame that will wrap the child frames. Make it a
   // MathML frame so that Get(Absolute/Float)ContainingBlockFor know that this
   // is not a suitable block.
-  nsIFrame* blockFrame =
-      NS_NewMathMLmathBlockFrame(mPresShell, blockContext,
-                                 NS_BLOCK_FLOAT_MGR | NS_BLOCK_MARGIN_ROOT);
+  nsIFrame* blockFrame = NS_NewMathMLmathBlockFrame(mPresShell, blockContext,
+                          NS_BLOCK_FLOAT_MGR | NS_BLOCK_MARGIN_ROOT);
   if (NS_UNLIKELY(!blockFrame))
     return NS_ERROR_OUT_OF_MEMORY;
 
   InitAndRestoreFrame(aState, aContent, aParentFrame, nsnull, blockFrame);
-  ReparentFrames(this, blockFrame, aBlockItems);
+  ReparentFrames(this, blockFrame, *aBlockItems);
   // abs-pos and floats are disabled in MathML children so we don't have to
   // worry about messing up those.
-  blockFrame->SetInitialChildList(kPrincipalList, aBlockItems);
-  NS_ASSERTION(aBlockItems.IsEmpty(), "What happened?");
-  aBlockItems.Clear();
-  aNewItems.AddChild(blockFrame);
+  blockFrame->SetInitialChildList(kPrincipalList, *aBlockItems);
+  NS_ASSERTION(aBlockItems->IsEmpty(), "What happened?");
+  aBlockItems->Clear();
+  aNewItems->AddChild(blockFrame);
   return NS_OK;
 }
 
@@ -4844,7 +4839,7 @@ nsCSSFrameConstructor::FindSVGData(Element* aElement,
     SIMPLE_SVG_CREATE(rect, NS_NewSVGPathGeometryFrame),
     SIMPLE_SVG_CREATE(path, NS_NewSVGPathGeometryFrame),
     SIMPLE_SVG_CREATE(defs, NS_NewSVGContainerFrame),
-    SIMPLE_SVG_CREATE(generic_, NS_NewSVGGenericContainerFrame),
+    SIMPLE_SVG_CREATE(generic, NS_NewSVGGenericContainerFrame),
     { &nsGkAtoms::foreignObject,
       FCDATA_WITH_WRAPPING_BLOCK(FCDATA_DISALLOW_OUT_OF_FLOW,
                                  NS_NewSVGForeignObjectFrame,

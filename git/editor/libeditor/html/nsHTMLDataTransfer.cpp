@@ -76,6 +76,8 @@
 #include "nsIDOMDocumentFragment.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
+#include "nsIParser.h"
+#include "nsParserCIID.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsLinebreakConverter.h"
@@ -130,6 +132,8 @@
 using namespace mozilla;
 
 const PRUnichar nbsp = 160;
+
+static NS_DEFINE_CID(kCParserCID,     NS_PARSER_CID);
 
 #define kInsertCookie  "_moz_Insert Here_moz_"
 

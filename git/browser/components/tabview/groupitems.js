@@ -1078,7 +1078,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     if (dontArrange)
       this._freezeItemSize(count);
 
-    if (this._children.length > 0 && this._activeTab && tabItem.closedManually)
+    if (this._children.length > 0 && this._activeTab)
       UI.setActive(this);
   },
 
