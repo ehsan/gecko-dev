@@ -5808,7 +5808,7 @@ main(int argc, char **argv, char **envp)
         || !op.addStringOption('\0', "ion-range-analysis", "on/off",
                                "Range analysis (default: on, off to disable)")
         || !op.addStringOption('\0', "ion-sink", "on/off",
-                               "Sink code motion (default: off, on to enable)")
+                               "Sink code motion (default: on, off to disable)")
         || !op.addStringOption('\0', "ion-loop-unrolling", "on/off",
                                "Loop unrolling (default: off, on to enable)")
         || !op.addBoolOption('\0', "ion-check-range-analysis",
@@ -5843,8 +5843,6 @@ main(int argc, char **argv, char **envp)
         || !op.addBoolOption('\0', "no-sse3", "Pretend CPU does not support SSE3 instructions and above "
                              "to test JIT codegen (no-op on platforms other than x86 and x64).")
         || !op.addBoolOption('\0', "no-sse4", "Pretend CPU does not support SSE4 instructions"
-                             "to test JIT codegen (no-op on platforms other than x86 and x64).")
-        || !op.addBoolOption('\0', "no-avx", "Pretend CPU does not support AVX instructions"
                              "to test JIT codegen (no-op on platforms other than x86 and x64).")
         || !op.addBoolOption('\0', "fuzzing-safe", "Don't expose functions that aren't safe for "
                              "fuzzers to call")
@@ -5930,10 +5928,6 @@ main(int argc, char **argv, char **envp)
     if (op.getBoolOption("no-sse4")) {
         js::jit::CPUInfo::SetSSE4Disabled();
         PropagateFlagToNestedShells("--no-sse4");
-    }
-    if (op.getBoolOption("no-avx")) {
-        js::jit::CPUInfo::SetAVXDisabled();
-        PropagateFlagToNestedShells("--no-avx");
     }
 #endif
 

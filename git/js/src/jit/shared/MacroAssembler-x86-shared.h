@@ -784,19 +784,16 @@ class MacroAssemblerX86Shared : public Assembler
         xorps(ScratchFloat32Reg, reg); // s ^ 0x80000000
     }
     void addDouble(FloatRegister src, FloatRegister dest) {
-        vaddsd(src, dest, dest);
+        addsd(src, dest);
     }
     void subDouble(FloatRegister src, FloatRegister dest) {
-        vsubsd(src, dest, dest);
+        subsd(src, dest);
     }
     void mulDouble(FloatRegister src, FloatRegister dest) {
-        vmulsd(src, dest, dest);
+        mulsd(src, dest);
     }
     void divDouble(FloatRegister src, FloatRegister dest) {
-        vdivsd(src, dest, dest);
-    }
-    void addFloat32(FloatRegister src, FloatRegister dest) {
-        vaddss(src, dest, dest);
+        divsd(src, dest);
     }
     void convertFloat32ToDouble(FloatRegister src, FloatRegister dest) {
         cvtss2sd(src, dest);
@@ -841,20 +838,8 @@ class MacroAssemblerX86Shared : public Assembler
     void storeAlignedInt32x4(FloatRegister src, const Address &dest) {
         movdqa(src, Operand(dest));
     }
-    void moveInt32x4(FloatRegister src, FloatRegister dest) {
+    void moveAlignedInt32x4(FloatRegister src, FloatRegister dest) {
         movdqa(src, dest);
-    }
-    FloatRegister reusedInputInt32x4(FloatRegister src, FloatRegister dest) {
-        if (HasAVX())
-            return src;
-        moveInt32x4(src, dest);
-        return dest;
-    }
-    FloatRegister reusedInputAlignedInt32x4(const Operand &src, FloatRegister dest) {
-        if (HasAVX() && src.kind() == Operand::FPREG)
-            return FloatRegister::FromCode(src.fpu());
-        loadAlignedInt32x4(src, dest);
-        return dest;
     }
     void loadUnalignedInt32x4(const Address &src, FloatRegister dest) {
         movdqu(Operand(src), dest);
@@ -922,20 +907,8 @@ class MacroAssemblerX86Shared : public Assembler
     void storeAlignedFloat32x4(FloatRegister src, const Address &dest) {
         movaps(src, Operand(dest));
     }
-    void moveFloat32x4(FloatRegister src, FloatRegister dest) {
+    void moveAlignedFloat32x4(FloatRegister src, FloatRegister dest) {
         movaps(src, dest);
-    }
-    FloatRegister reusedInputFloat32x4(FloatRegister src, FloatRegister dest) {
-        if (HasAVX())
-            return src;
-        moveFloat32x4(src, dest);
-        return dest;
-    }
-    FloatRegister reusedInputAlignedFloat32x4(const Operand &src, FloatRegister dest) {
-        if (HasAVX() && src.kind() == Operand::FPREG)
-            return FloatRegister::FromCode(src.fpu());
-        loadAlignedFloat32x4(src, dest);
-        return dest;
     }
     void loadUnalignedFloat32x4(const Address &src, FloatRegister dest) {
         movups(Operand(src), dest);
@@ -950,16 +923,16 @@ class MacroAssemblerX86Shared : public Assembler
         movups(src, dest);
     }
     void packedAddFloat32(const Operand &src, FloatRegister dest) {
-        vaddps(src, dest, dest);
+        addps(src, dest);
     }
     void packedSubFloat32(const Operand &src, FloatRegister dest) {
-        vsubps(src, dest, dest);
+        subps(src, dest);
     }
     void packedMulFloat32(const Operand &src, FloatRegister dest) {
-        vmulps(src, dest, dest);
+        mulps(src, dest);
     }
     void packedDivFloat32(const Operand &src, FloatRegister dest) {
-        vdivps(src, dest, dest);
+        divps(src, dest);
     }
 
     static uint32_t ComputeShuffleMask(uint32_t x = LaneX, uint32_t y = LaneY,
@@ -988,7 +961,7 @@ class MacroAssemblerX86Shared : public Assembler
         // afterwards.
         // Note: this is useAtStart-safe because src isn't read afterwards.
         if (src != dest)
-            moveFloat32x4(src, dest);
+            moveAlignedFloat32x4(src, dest);
         shufps(mask, dest, dest);
     }
     void shuffleMix(uint32_t mask, const Operand &src, FloatRegister dest) {

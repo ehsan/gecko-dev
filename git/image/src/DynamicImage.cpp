@@ -216,8 +216,7 @@ DynamicImage::IsOpaque()
 }
 
 NS_IMETHODIMP
-DynamicImage::GetImageContainer(LayerManager* aManager,
-                                ImageContainer** _retval)
+DynamicImage::GetImageContainer(LayerManager* aManager, ImageContainer** _retval)
 {
   *_retval = nullptr;
   return NS_OK;
@@ -332,9 +331,7 @@ DynamicImage::SetAnimationStartTime(const mozilla::TimeStamp& aTime)
 { }
 
 nsIntSize
-DynamicImage::OptimalImageSizeForDest(const gfxSize& aDest,
-                                      uint32_t aWhichFrame,
-                                      GraphicsFilter aFilter, uint32_t aFlags)
+DynamicImage::OptimalImageSizeForDest(const gfxSize& aDest, uint32_t aWhichFrame, GraphicsFilter aFilter, uint32_t aFlags)
 {
   gfxIntSize size(mDrawable->Size());
   return nsIntSize(size.width, size.height);

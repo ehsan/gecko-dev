@@ -11,7 +11,6 @@
 #include "mozilla/TypeTraits.h"
 
 #include "jsatom.h"
-#include "jsfriendapi.h"
 
 namespace js {
 
@@ -43,12 +42,6 @@ static const uint32_t XDR_BYTECODE_VERSION =
                                                            + 1
 #endif
                                                               ));
-
-static_assert(JSErr_Limit == 368,
-              "GREETINGS, POTENTIAL SUBTRAHEND INCREMENTER! If you added or "
-              "removed MSG_DEFs from js.msg, you should increment "
-              "XDR_BYTECODE_VERSION_SUBTRAHEND and update this assertion's "
-              "expected JSErr_Limit value.");
 
 class XDRBuffer {
   public:

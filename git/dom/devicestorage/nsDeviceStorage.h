@@ -18,6 +18,7 @@ class nsPIDOMWindow;
 #include "nsIContentPermissionPrompt.h"
 #include "nsIDOMWindow.h"
 #include "nsIURI.h"
+#include "nsInterfaceHashtable.h"
 #include "nsIPrincipal.h"
 #include "nsString.h"
 #include "nsWeakPtr.h"

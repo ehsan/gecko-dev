@@ -67,7 +67,7 @@ private:
   nsRefPtr<SourceBufferDecoder> mDecoder;
 };
 
-class MOZ_STACK_CLASS DecodersToInitialize MOZ_FINAL {
+MOZ_STACK_CLASS class DecodersToInitialize MOZ_FINAL {
 public:
   explicit DecodersToInitialize(TrackBuffer* aOwner)
     : mOwner(aOwner)
