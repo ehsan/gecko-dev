@@ -450,9 +450,9 @@ AudioContext::Listener()
 already_AddRefed<Promise>
 AudioContext::DecodeAudioData(const ArrayBuffer& aBuffer,
                               const Optional<OwningNonNull<DecodeSuccessCallback> >& aSuccessCallback,
-                              const Optional<OwningNonNull<DecodeErrorCallback> >& aFailureCallback,
-                              ErrorResult& aRv)
+                              const Optional<OwningNonNull<DecodeErrorCallback> >& aFailureCallback)
 {
+  ErrorResult rv;
   nsCOMPtr<nsIGlobalObject> parentObject = do_QueryInterface(GetParentObject());
   nsRefPtr<Promise> promise;
   AutoJSAPI jsapi;
@@ -460,8 +460,8 @@ AudioContext::DecodeAudioData(const ArrayBuffer& aBuffer,
   JSContext* cx = jsapi.cx();
   JSAutoCompartment ac(cx, aBuffer.Obj());
 
-  promise = Promise::Create(parentObject, aRv);
-  if (aRv.Failed()) {
+  promise = Promise::Create(parentObject, rv);
+  if (rv.Failed()) {
     return nullptr;
   }
 

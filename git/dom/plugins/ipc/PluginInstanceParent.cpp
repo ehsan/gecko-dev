@@ -813,7 +813,7 @@ PluginInstanceParent::CreateBackground(const nsIntSize& aSize)
             gfxImageFormat::RGB24);
     return !!mBackground;
 #else
-    return false;
+    return nullptr;
 #endif
 }
 

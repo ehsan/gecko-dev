@@ -34,7 +34,7 @@ public:
     return mDOMStream;
   }
 
-  virtual const char* NodeType() const MOZ_OVERRIDE
+  virtual const char* NodeType() const
   {
     return "MediaStreamAudioDestinationNode";
   }

@@ -192,8 +192,7 @@ public:
   already_AddRefed<Promise>
   DecodeAudioData(const ArrayBuffer& aBuffer,
                   const Optional<OwningNonNull<DecodeSuccessCallback> >& aSuccessCallback,
-                  const Optional<OwningNonNull<DecodeErrorCallback> >& aFailureCallback,
-                  ErrorResult& aRv);
+                  const Optional<OwningNonNull<DecodeErrorCallback> >& aFailureCallback);
 
   // OfflineAudioContext methods
   already_AddRefed<Promise> StartRendering(ErrorResult& aRv);
@@ -262,7 +261,7 @@ private:
 
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
   NS_IMETHOD CollectReports(nsIHandleReportCallback* aHandleReport,
-                            nsISupports* aData, bool aAnonymize) MOZ_OVERRIDE;
+                            nsISupports* aData, bool aAnonymize);
 
   friend struct ::mozilla::WebAudioDecodeJob;
 

@@ -1024,8 +1024,11 @@ GonkGPSGeolocationProvider::Observe(nsISupports* aSubject,
 
   if (!strcmp(aTopic, kMozSettingsChangedTopic)) {
     // Read changed setting value
-    RootedDictionary<SettingChangeNotification> setting(nsContentUtils::RootingCx());
-    if (!WrappedJSToDictionary(aSubject, setting)) {
+    AutoJSAPI jsapi;
+    jsapi.Init();
+    JSContext* cx = jsapi.cx();
+    RootedDictionary<SettingChangeNotification> setting(cx);
+    if (!WrappedJSToDictionary(cx, aSubject, setting)) {
       return NS_OK;
     }
 

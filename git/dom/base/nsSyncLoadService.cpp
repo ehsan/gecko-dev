@@ -23,7 +23,7 @@
 #include "nsNetUtil.h"
 #include "nsAutoPtr.h"
 #include "nsStreamUtils.h"
-#include "nsCORSListenerProxy.h"
+#include "nsCrossSiteListenerProxy.h"
 #include <algorithm>
 
 using mozilla::net::ReferrerPolicy;

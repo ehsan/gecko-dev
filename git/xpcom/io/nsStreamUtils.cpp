@@ -67,7 +67,7 @@ private:
   }
 
 public:
-  NS_IMETHOD OnInputStreamReady(nsIAsyncInputStream* aStream) MOZ_OVERRIDE
+  NS_IMETHOD OnInputStreamReady(nsIAsyncInputStream* aStream)
   {
     mStream = aStream;
 
@@ -81,7 +81,7 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     if (mCallback) {
       if (mStream) {
@@ -148,7 +148,7 @@ private:
   }
 
 public:
-  NS_IMETHOD OnOutputStreamReady(nsIAsyncOutputStream* aStream) MOZ_OVERRIDE
+  NS_IMETHOD OnOutputStreamReady(nsIAsyncOutputStream* aStream)
   {
     mStream = aStream;
 
@@ -162,7 +162,7 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     if (mCallback) {
       if (mStream) {
@@ -396,20 +396,20 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD OnInputStreamReady(nsIAsyncInputStream* aSource) MOZ_OVERRIDE
+  NS_IMETHOD OnInputStreamReady(nsIAsyncInputStream* aSource)
   {
     PostContinuationEvent();
     return NS_OK;
   }
 
-  NS_IMETHOD OnOutputStreamReady(nsIAsyncOutputStream* aSink) MOZ_OVERRIDE
+  NS_IMETHOD OnOutputStreamReady(nsIAsyncOutputStream* aSink)
   {
     PostContinuationEvent();
     return NS_OK;
   }
 
   // continuation event handler
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     Process();
 

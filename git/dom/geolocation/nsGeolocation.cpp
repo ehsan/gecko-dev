@@ -841,8 +841,11 @@ nsGeolocationService::HandleMozsettingChanged(nsISupports* aSubject)
     // The string that we're interested in will be a JSON string that looks like:
     //  {"key":"gelocation.enabled","value":true}
 
-    RootedDictionary<SettingChangeNotification> setting(nsContentUtils::RootingCxForThread());
-    if (!WrappedJSToDictionary(aSubject, setting)) {
+    AutoJSAPI jsapi;
+    jsapi.Init();
+    JSContext* cx = jsapi.cx();
+    RootedDictionary<SettingChangeNotification> setting(cx);
+    if (!WrappedJSToDictionary(cx, aSubject, setting)) {
       return;
     }
     if (!setting.mKey.EqualsASCII(GEO_SETTINGS_ENABLED)) {
