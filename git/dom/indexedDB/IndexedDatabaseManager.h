@@ -28,7 +28,6 @@ class nsIAtom;
 class nsIFile;
 class nsITimer;
 class nsPIDOMWindow;
-class nsEventChainPostVisitor;
 
 BEGIN_INDEXEDDB_NAMESPACE
 
@@ -197,8 +196,6 @@ public:
   GetDatabaseId(const nsACString& aOrigin,
                 const nsAString& aName);
 
-  static nsresult
-  FireWindowOnError(nsPIDOMWindow* aOwner, nsEventChainPostVisitor& aVisitor);
 private:
   IndexedDatabaseManager();
   ~IndexedDatabaseManager();

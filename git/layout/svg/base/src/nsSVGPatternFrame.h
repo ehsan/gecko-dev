@@ -48,7 +48,7 @@ public:
   typedef mozilla::SVGAnimatedPreserveAspectRatio SVGAnimatedPreserveAspectRatio;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(PRUint32 aFor);
+  virtual gfxMatrix GetCanvasTM();
 
   // nsIFrame interface:
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);

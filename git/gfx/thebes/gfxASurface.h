@@ -6,10 +6,6 @@
 #ifndef GFX_ASURFACE_H
 #define GFX_ASURFACE_H
 
-#ifdef MOZ_DUMP_PAINTING
- #define MOZ_DUMP_IMAGES
-#endif
-
 #include "gfxTypes.h"
 #include "gfxRect.h"
 #include "nsAutoPtr.h"
@@ -95,8 +91,7 @@ public:
     typedef enum {
         CONTENT_COLOR       = 0x1000,
         CONTENT_ALPHA       = 0x2000,
-        CONTENT_COLOR_ALPHA = 0x3000,
-        CONTENT_SENTINEL    = 0xffff
+        CONTENT_COLOR_ALPHA = 0x3000
     } gfxContentType;
 
     /** Wrap the given cairo surface and return a gfxASurface for it.
@@ -218,7 +213,7 @@ public:
 
     virtual const gfxIntSize GetSize() const { return gfxIntSize(-1, -1); }
 
-#ifdef MOZ_DUMP_IMAGES
+#ifdef MOZ_DUMP_PAINTING
     /**
      * Debug functions to encode the current image as a PNG and export it.
      */

@@ -547,8 +547,6 @@ public:
   PRInt32 GetScrollLeft();
   PRInt32 GetScrollHeight();
   PRInt32 GetScrollWidth();
-  PRInt32 GetScrollLeftMax();
-  PRInt32 GetScrollTopMax();
   PRInt32 GetClientTop()
   {
     return nsPresContext::AppUnitsToIntCSSPixels(GetClientAreaRect().y);
@@ -593,16 +591,6 @@ public:
    */
   void FireNodeRemovedForChildren();
 
-  virtual bool OwnedOnlyByTheDOMTree()
-  {
-    PRUint32 rc = mRefCnt.get();
-    if (GetParent()) {
-      --rc;
-    }
-    rc -= mAttrsAndChildren.ChildCount();
-    return rc == 0;
-  }
-
   virtual bool IsPurple()
   {
     return mRefCnt.IsPurple();
@@ -613,7 +601,6 @@ public:
     mRefCnt.RemovePurple();
   }
 
-  static void ClearContentUnbinder();
   static bool CanSkip(nsINode* aNode, bool aRemovingAllowed);
   static bool CanSkipInCC(nsINode* aNode);
   static bool CanSkipThis(nsINode* aNode);
@@ -774,7 +761,7 @@ protected:
    * Copy attributes and state to another element
    * @param aDest the object to copy to
    */
-  nsresult CopyInnerTo(nsGenericElement* aDest);
+  nsresult CopyInnerTo(nsGenericElement* aDest) const;
 
   /**
    * Internal hook for converting an attribute name-string to an atomized name
@@ -1000,7 +987,7 @@ _elementName::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const        \
   }                                                                         \
                                                                             \
   nsCOMPtr<nsINode> kungFuDeathGrip = it;                                   \
-  nsresult rv = const_cast<_elementName*>(this)->CopyInnerTo(it);           \
+  nsresult rv = CopyInnerTo(it);                                            \
   if (NS_SUCCEEDED(rv)) {                                                   \
     kungFuDeathGrip.swap(*aResult);                                         \
   }                                                                         \
@@ -1021,7 +1008,7 @@ _elementName::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const        \
                                                                             \
   nsCOMPtr<nsINode> kungFuDeathGrip = it;                                   \
   nsresult rv = it->Init();                                                 \
-  rv |= const_cast<_elementName*>(this)->CopyInnerTo(it);                   \
+  rv |= CopyInnerTo(it);                                                    \
   if (NS_SUCCEEDED(rv)) {                                                   \
     kungFuDeathGrip.swap(*aResult);                                         \
   }                                                                         \

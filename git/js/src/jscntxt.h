@@ -30,7 +30,6 @@
 #include "js/HashTable.h"
 #include "js/Vector.h"
 #include "vm/Stack.h"
-#include "vm/SPSProfiler.h"
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -173,30 +172,17 @@ class ToSourceCache
     void purge();
 };
 
-struct EvalCacheLookup
+class EvalCache
 {
-    JSLinearString *str;
-    JSFunction *caller;
-    unsigned staticLevel;
-    JSVersion version;
-    JSCompartment *compartment;
+    static const unsigned SHIFT = 6;
+    static const unsigned LENGTH = 1 << SHIFT;
+    JSScript *table_[LENGTH];
 
-    EvalCacheLookup(JSLinearString *str, JSFunction *caller,
-                    unsigned staticLevel, JSVersion version, JSCompartment *compartment)
-        : str(str), caller(caller),
-          staticLevel(staticLevel), version(version), compartment(compartment)
-    {}
+  public:
+    EvalCache() { PodArrayZero(table_); }
+    JSScript **bucket(JSLinearString *str);
+    void purge();
 };
-
-struct EvalCacheHashPolicy
-{
-    typedef EvalCacheLookup Lookup;
-
-    static HashNumber hash(const Lookup &l);
-    static bool match(JSScript *script, const EvalCacheLookup &l);
-};
-
-typedef HashSet<JSScript *, EvalCacheHashPolicy, SystemAllocPolicy> EvalCache;
 
 class NativeIterCache
 {
@@ -293,11 +279,7 @@ class NewObjectCache
     inline bool lookupGlobal(Class *clasp, js::GlobalObject *global, gc::AllocKind kind, EntryIndex *pentry);
     inline bool lookupType(Class *clasp, js::types::TypeObject *type, gc::AllocKind kind, EntryIndex *pentry);
 
-    /*
-     * Return a new object from a cache hit produced by a lookup method, or
-     * NULL if returning the object could possibly trigger GC (does not
-     * indicate failure).
-     */
+    /* Return a new object from a cache hit produced by a lookup method. */
     inline JSObject *newObjectFromHit(JSContext *cx, EntryIndex entry);
 
     /* Fill an entry after a cache miss. */
@@ -505,18 +487,8 @@ struct JSRuntime : js::RuntimeFriendFields
     void                *gcVerifyData;
     bool                gcChunkAllocationSinceLastGC;
     int64_t             gcNextFullGCTime;
-    int64_t             gcLastGCTime;
     int64_t             gcJitReleaseTime;
     JSGCMode            gcMode;
-    bool                gcHighFrequencyGC;
-    uint64_t            gcHighFrequencyTimeThreshold;
-    uint64_t            gcHighFrequencyLowLimitBytes;
-    uint64_t            gcHighFrequencyHighLimitBytes;
-    double              gcHighFrequencyHeapGrowthMax;
-    double              gcHighFrequencyHeapGrowthMin;
-    double              gcLowFrequencyHeapGrowth;
-    bool                gcDynamicHeapGrowth;
-    bool                gcDynamicMarkSlice;
 
     /* During shutdown, the GC needs to clean up every possible object. */
     bool                gcShouldCleanUpEverything;
@@ -606,20 +578,7 @@ struct JSRuntime : js::RuntimeFriendFields
 #endif
 
     bool                gcPoke;
-
-#ifdef DEBUG
-    bool                relaxRootChecks;
-#endif
-
-    enum HeapState {
-        Idle,       // doing nothing with the GC heap
-        Tracing,    // tracing the GC heap without collecting, e.g. IterateCompartments()
-        Collecting  // doing a GC of the heap
-    };
-
-    HeapState           heapState;
-
-    bool isHeapBusy() { return heapState != Idle; }
+    bool                gcRunning;
 
     /*
      * These options control the zealousness of the GC. The fundamental values
@@ -721,9 +680,6 @@ struct JSRuntime : js::RuntimeFriendFields
 
     /* If true, new compartments are initially in debug mode. */
     bool                debugMode;
-
-    /* SPS profiling metadata */
-    js::SPSProfiler     spsProfiler;
 
     /* If true, new scripts must be created with PC counter information. */
     bool                profilingScripts;
@@ -1116,10 +1072,6 @@ struct JSContext : js::ContextFriendFields
     /* True if generating an error, to prevent runaway recursion. */
     bool                generatingError;
 
-#ifdef DEBUG
-    bool                rootingUnnecessary;
-#endif
-
     /* GC heap compartment. */
     JSCompartment       *compartment;
 
@@ -1127,9 +1079,6 @@ struct JSContext : js::ContextFriendFields
 
     /* Current execution stack. */
     js::ContextStack    stack;
-
-    /* Current global. */
-    inline js::Handle<js::GlobalObject*> global() const;
 
     /* ContextStack convenience functions */
     inline bool hasfp() const               { return stack.hasfp(); }
@@ -1408,7 +1357,7 @@ struct AutoResolving {
         WATCH
     };
 
-    AutoResolving(JSContext *cx, HandleObject obj, HandleId id, Kind kind = LOOKUP
+    AutoResolving(JSContext *cx, JSObject *obj, jsid id, Kind kind = LOOKUP
                   JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : context(cx), object(obj), id(id), kind(kind), link(cx->resolvingList)
     {
@@ -1430,8 +1379,8 @@ struct AutoResolving {
     bool alreadyStartedSlow() const;
 
     JSContext           *const context;
-    HandleObject        object;
-    HandleId            id;
+    JSObject            *const object;
+    jsid                const id;
     Kind                const kind;
     AutoResolving       *const link;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
@@ -1809,13 +1758,13 @@ MakeRangeGCSafe(jsid *vec, size_t len)
 }
 
 static JS_ALWAYS_INLINE void
-MakeRangeGCSafe(Shape **beg, Shape **end)
+MakeRangeGCSafe(const Shape **beg, const Shape **end)
 {
     PodZero(beg, end - beg);
 }
 
 static JS_ALWAYS_INLINE void
-MakeRangeGCSafe(Shape **vec, size_t len)
+MakeRangeGCSafe(const Shape **vec, size_t len)
 {
     PodZero(vec, len);
 }
@@ -1859,12 +1808,12 @@ class AutoObjectVector : public AutoVectorRooter<JSObject *>
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class AutoShapeVector : public AutoVectorRooter<Shape *>
+class AutoShapeVector : public AutoVectorRooter<const Shape *>
 {
   public:
     explicit AutoShapeVector(JSContext *cx
                              JS_GUARD_OBJECT_NOTIFIER_PARAM)
-        : AutoVectorRooter<Shape *>(cx, SHAPEVECTOR)
+        : AutoVectorRooter<const Shape *>(cx, SHAPEVECTOR)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }

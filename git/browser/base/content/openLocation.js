@@ -7,7 +7,6 @@
 var browser;
 var dialog = {};
 var pref = null;
-let openLocationModule = {};
 try {
   pref = Components.classes["@mozilla.org/preferences-service;1"]
                    .getService(Components.interfaces.nsIPrefBranch);
@@ -15,8 +14,7 @@ try {
   // not critical, remain silent
 }
 
-Components.utils.import("resource:///modules/openLocationLastURL.jsm", openLocationModule);
-let gOpenLocationLastURL = new openLocationModule.OpenLocationLastURL(window.opener);
+Components.utils.import("resource:///modules/openLocationLastURL.jsm");
 
 function onLoad()
 {

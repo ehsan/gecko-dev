@@ -23,7 +23,6 @@
 #include "client/windows/handler/exception_handler.h"
 #include <DbgHelp.h>
 #include <string.h>
-#include "nsDirectoryServiceUtils.h"
 
 #include "nsWindowsDllInterceptor.h"
 #elif defined(XP_MACOSX)
@@ -41,6 +40,7 @@
 #include <unistd.h>
 #include "mac_utils.h"
 #elif defined(XP_LINUX)
+#include "nsDirectoryServiceUtils.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsIINIParser.h"
 #include "common/linux/linux_libc_support.h"
@@ -62,11 +62,6 @@
 #error "Not yet implemented for this platform"
 #endif // defined(XP_WIN32)
 
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-#include "InjectCrashReporter.h"
-using mozilla::InjectCrashRunnable;
-#endif
-
 #include <stdlib.h>
 #include <time.h>
 #include <prenv.h>
@@ -84,7 +79,6 @@ using mozilla::InjectCrashRunnable;
 #include <vector>
 
 #include "mozilla/mozalloc_oom.h"
-#include "mozilla/mozPoisonWrite.h"
 
 #if defined(XP_MACOSX)
 CFStringRef reporterClientAppID = CFSTR("org.mozilla.crashreporter");
@@ -152,7 +146,6 @@ static const XP_CHAR extraFileExtension[] = {'.', 'e', 'x', 't',
 
 static google_breakpad::ExceptionHandler* gExceptionHandler = nsnull;
 
-static XP_CHAR* pendingDirectory;
 static XP_CHAR* crashReporterPath;
 
 // if this is false, we don't launch the crash reporter
@@ -222,44 +215,8 @@ static const int kMagicChildCrashReportFd = 4;
 
 // |dumpMapLock| must protect all access to |pidToMinidump|.
 static Mutex* dumpMapLock;
-struct ChildProcessData : public nsUint32HashKey
-{
-  ChildProcessData(KeyTypePointer aKey)
-    : nsUint32HashKey(aKey)
-    , sequence(0)
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-    , callback(NULL)
-#endif
-  { }
-
-  nsCOMPtr<nsIFile> minidump;
-  // Each crashing process is assigned an increasing sequence number to
-  // indicate which process crashed first.
-  PRUint32 sequence;
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-  InjectorCrashCallback* callback;
-#endif
-};
-
-typedef nsTHashtable<ChildProcessData> ChildMinidumpMap;
+typedef nsInterfaceHashtable<nsUint32HashKey, nsIFile> ChildMinidumpMap;
 static ChildMinidumpMap* pidToMinidump;
-static PRUint32 crashSequence;
-static bool OOPInitialized();
-
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-static nsIThread* sInjectorThread;
-
-class ReportInjectedCrash : public nsRunnable
-{
-public:
-  ReportInjectedCrash(PRUint32 pid) : mPID(pid) { }
-
-  NS_IMETHOD Run();
-
-private:
-  PRUint32 mPID;
-};
-#endif // MOZ_CRASHREPORTER_INJECTOR
 
 // Crashreporter annotations that we don't send along in subprocess
 // reports
@@ -677,14 +634,6 @@ static bool ShouldReport()
   return !(envvar && *envvar);
 }
 
-namespace {
-  bool Filter(void* context) {
-    mozilla::DisableWritePoisoning();
-    return true;
-  }
-}
-
-
 nsresult SetExceptionHandler(nsIFile* aXREDirectory,
                              bool force/*=false*/)
 {
@@ -734,13 +683,13 @@ nsresult SetExceptionHandler(nsIFile* aXREDirectory,
 
 #ifdef XP_WIN32
   nsString crashReporterPath_temp;
-
   exePath->GetPath(crashReporterPath_temp);
+
   crashReporterPath = ToNewUnicode(crashReporterPath_temp);
 #elif !defined(__ANDROID__)
   nsCString crashReporterPath_temp;
-
   exePath->GetNativePath(crashReporterPath_temp);
+
   crashReporterPath = ToNewCString(crashReporterPath_temp);
 #else
   // On Android, we launch using the application package name
@@ -843,14 +792,14 @@ nsresult SetExceptionHandler(nsIFile* aXREDirectory,
 #ifdef XP_WIN
                      FPEFilter,
 #else
-                     Filter,
+                     nsnull,
 #endif
                      MinidumpCallback,
                      nsnull,
 #if defined(XP_WIN32)
                      google_breakpad::ExceptionHandler::HANDLER_ALL,
                      minidump_type,
-                     (const wchar_t*) NULL,
+                     NULL,
                      NULL);
 #else
                      true
@@ -1152,11 +1101,6 @@ nsresult UnsetExceptionHandler()
 
   delete notesField;
   notesField = nsnull;
-
-  if (pendingDirectory) {
-    NS_Free(pendingDirectory);
-    pendingDirectory = nsnull;
-  }
 
   if (crashReporterPath) {
     NS_Free(crashReporterPath);
@@ -1509,31 +1453,12 @@ static nsresult PrefSubmitReports(bool* aSubmitReports, bool writePref)
   nsCAutoString regPath;
 
   regPath.AppendLiteral("Software\\");
-
-  // We need to ensure the registry keys are created so we can properly
-  // write values to it
-  
-  // Create appVendor key
   if(!appVendor.IsEmpty()) {
     regPath.Append(appVendor);
-    regKey->Create(nsIWindowsRegKey::ROOT_KEY_CURRENT_USER,
-                   NS_ConvertUTF8toUTF16(regPath),
-                   nsIWindowsRegKey::ACCESS_SET_VALUE);
     regPath.AppendLiteral("\\");
   }
-
-  // Create appName key
   regPath.Append(appName);
-  regKey->Create(nsIWindowsRegKey::ROOT_KEY_CURRENT_USER,
-                 NS_ConvertUTF8toUTF16(regPath),
-                 nsIWindowsRegKey::ACCESS_SET_VALUE);
-  regPath.AppendLiteral("\\");
-
-  // Create Crash Reporter key
-  regPath.AppendLiteral("Crash Reporter");
-  regKey->Create(nsIWindowsRegKey::ROOT_KEY_CURRENT_USER,
-                 NS_ConvertUTF8toUTF16(regPath),
-                 nsIWindowsRegKey::ACCESS_SET_VALUE);
+  regPath.AppendLiteral("\\Crash Reporter");
 
   // If we're saving the pref value, just write it to ROOT_KEY_CURRENT_USER
   // and we're done.
@@ -1696,27 +1621,23 @@ nsresult SetSubmitReports(bool aSubmitReports)
 }
 
 // The "pending" dir is Crash Reports/pending, from which minidumps
-// can be submitted. Because this method may be called off the main thread,
-// we store the pending directory as a path.
+// can be submitted
 static bool
 GetPendingDir(nsIFile** dir)
 {
-  MOZ_ASSERT(OOPInitialized());
-  if (!pendingDirectory) {
+  nsCOMPtr<nsIProperties> dirSvc =
+    do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID);
+  if (!dirSvc)
     return false;
-  }
-
-  nsCOMPtr<nsIFile> pending = do_CreateInstance(NS_LOCAL_FILE_CONTRACTID);
-  if (!pending) {
-    NS_WARNING("Can't set up pending directory during shutdown.");
+  nsCOMPtr<nsIFile> pendingDir;
+  if (NS_FAILED(dirSvc->Get("UAppData",
+                            NS_GET_IID(nsIFile),
+                            getter_AddRefs(pendingDir))) ||
+      NS_FAILED(pendingDir->Append(NS_LITERAL_STRING("Crash Reports"))) ||
+      NS_FAILED(pendingDir->Append(NS_LITERAL_STRING("pending"))))
     return false;
-  }
-#ifdef XP_WIN
-  pending->InitWithPath(nsDependentString(pendingDirectory));
-#else
-  pending->InitWithNativePath(nsDependentCString(pendingDirectory));
-#endif
-  pending.swap(*dir);
+  *dir = NULL;
+  pendingDir.swap(*dir);
   return true;
 }
 
@@ -1981,23 +1902,8 @@ OnChildProcessDumpRequested(void* aContext,
       aClientInfo->pid();
 #endif
 
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-    bool runCallback;
-#endif
-    {
-      MutexAutoLock lock(*dumpMapLock);
-      ChildProcessData* pd = pidToMinidump->PutEntry(pid);
-      MOZ_ASSERT(!pd->minidump);
-      pd->minidump = minidump;
-      pd->sequence = ++crashSequence;
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-      runCallback = NULL != pd->callback;
-#endif
-    }
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-    if (runCallback)
-      NS_DispatchToMainThread(new ReportInjectedCrash(pid));
-#endif
+    MutexAutoLock lock(*dumpMapLock);
+    pidToMinidump->Put(pid, minidump);
   }
 }
 
@@ -2007,19 +1913,11 @@ OOPInitialized()
   return pidToMinidump != NULL;
 }
 
-static bool ChildFilter(void *context) {
-  mozilla::DisableWritePoisoning();
-  return true;
-}
-
-void
+static void
 OOPInit()
 {
-  if (OOPInitialized())
-    return;
-
-  MOZ_ASSERT(NS_IsMainThread());
-
+  NS_ABORT_IF_FALSE(!OOPInitialized(),
+                    "OOP crash reporter initialized more than once!");
   NS_ABORT_IF_FALSE(gExceptionHandler != NULL,
                     "attempt to initialize OOP crash reporter before in-process crashreporter!");
 
@@ -2065,8 +1963,6 @@ OOPInit()
 
   crashServer = new CrashGenerationServer(
     childCrashNotifyPipe,
-    ChildFilter,
-    NULL,
     OnChildProcessDumpRequested, NULL,
     NULL, NULL,
     true, // automatically generate dumps
@@ -2080,26 +1976,6 @@ OOPInit()
   pidToMinidump->Init();
 
   dumpMapLock = new Mutex("CrashReporter::dumpMapLock");
-
-  nsCOMPtr<nsIFile> pendingDir;
-  nsresult rv = NS_GetSpecialDirectory("UAppData", getter_AddRefs(pendingDir));
-  if (NS_FAILED(rv)) {
-    NS_WARNING("Couldn't get the user appdata directory, crash dumps will go in an unusual location");
-  }
-  else {
-    pendingDir->Append(NS_LITERAL_STRING("Crash Reports"));
-    pendingDir->Append(NS_LITERAL_STRING("pending"));
-
-#ifdef XP_WIN
-    nsString path;
-    pendingDir->GetPath(path);
-    pendingDirectory = ToNewUnicode(path);
-#else
-    nsCString path;
-    pendingDir->GetNativePath(path);
-    pendingDirectory = ToNewCString(path);
-#endif
-  }
 }
 
 static void
@@ -2109,13 +1985,6 @@ OOPDeinit()
     NS_WARNING("OOPDeinit() without successful OOPInit()");
     return;
   }
-
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-  if (sInjectorThread) {
-    sInjectorThread->Shutdown();
-    NS_RELEASE(sInjectorThread);
-  }
-#endif
 
   delete crashServer;
   crashServer = NULL;
@@ -2140,72 +2009,12 @@ GetChildNotificationPipe()
   if (!GetEnabled())
     return kNullNotifyPipe;
 
-  MOZ_ASSERT(OOPInitialized());
+  if (!OOPInitialized())
+    OOPInit();
 
   return childCrashNotifyPipe;
 }
 #endif
-
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-void
-InjectCrashReporterIntoProcess(DWORD processID, InjectorCrashCallback* cb)
-{
-  if (!GetEnabled())
-    return;
-
-  if (!OOPInitialized())
-    OOPInit();
-
-  if (!sInjectorThread) {
-    if (NS_FAILED(NS_NewThread(&sInjectorThread)))
-      return;
-  }
-
-  {
-    MutexAutoLock lock(*dumpMapLock);
-    ChildProcessData* pd = pidToMinidump->PutEntry(processID);
-    MOZ_ASSERT(!pd->minidump && !pd->callback);
-    pd->callback = cb;
-  }
-
-  nsCOMPtr<nsIRunnable> r = new InjectCrashRunnable(processID);
-  sInjectorThread->Dispatch(r, nsIEventTarget::DISPATCH_NORMAL);
-}
-
-NS_IMETHODIMP
-ReportInjectedCrash::Run()
-{
-  // Crash reporting may have been disabled after this method was dispatched
-  if (!OOPInitialized())
-    return NS_OK;
-
-  InjectorCrashCallback* cb;
-  {
-    MutexAutoLock lock(*dumpMapLock);
-    ChildProcessData* pd = pidToMinidump->GetEntry(mPID);
-    if (!pd || !pd->callback)
-      return NS_OK;
-
-    MOZ_ASSERT(pd->minidump);
-
-    cb = pd->callback;
-  }
-
-  cb->OnCrash(mPID);
-  return NS_OK;
-}
-
-void
-UnregisterInjectorCallback(DWORD processID)
-{
-  if (!OOPInitialized())
-    return;
-
-  MutexAutoLock lock(*dumpMapLock);
-  pidToMinidump->RemoveEntry(processID);
-}
-
-#endif // MOZ_CRASHREPORTER_INJECTOR
 
 #if defined(XP_WIN)
 // Child-side API
@@ -2248,7 +2057,8 @@ CreateNotificationPipeForChild(int* childCrashFd, int* childCrashRemapFd)
     return true;
   }
 
-  MOZ_ASSERT(OOPInitialized());
+  if (!OOPInitialized())
+    OOPInit();
 
   *childCrashFd = clientSocketFd;
   *childCrashRemapFd = kMagicChildCrashReportFd;
@@ -2295,7 +2105,7 @@ SetRemoteExceptionHandler(const nsACString& crashPipe)
 
   gExceptionHandler = new google_breakpad::
     ExceptionHandler("",
-                     Filter,
+                     NULL,    // no filter callback
                      NULL,    // no minidump callback
                      NULL,    // no callback context
                      true,    // install signal handlers
@@ -2308,25 +2118,22 @@ SetRemoteExceptionHandler(const nsACString& crashPipe)
 
 
 bool
-TakeMinidumpForChild(PRUint32 childPid, nsIFile** dump, PRUint32* aSequence)
+TakeMinidumpForChild(PRUint32 childPid, nsIFile** dump)
 {
   if (!GetEnabled())
     return false;
 
   MutexAutoLock lock(*dumpMapLock);
 
-  ChildProcessData* pd = pidToMinidump->GetEntry(childPid);
-  if (!pd)
-    return false;
+  nsCOMPtr<nsIFile> d;
+  bool found = pidToMinidump->Get(childPid, getter_AddRefs(d));
+  if (found)
+    pidToMinidump->Remove(childPid);
 
-  NS_IF_ADDREF(*dump = pd->minidump);
-  if (aSequence) {
-    *aSequence = pd->sequence;
-  }
-  
-  pidToMinidump->RemoveEntry(childPid);
+  *dump = NULL;
+  d.swap(*dump);
 
-  return !!*dump;
+  return found;
 }
 
 //-----------------------------------------------------------------------------

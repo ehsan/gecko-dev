@@ -8,6 +8,7 @@
 #include "nsSVGUseElement.h"
 #include "nsIDOMSVGGElement.h"
 #include "nsGkAtoms.h"
+#include "nsIDOMDocument.h"
 #include "nsSVGSVGElement.h"
 #include "nsIDOMSVGSymbolElement.h"
 #include "nsIDocument.h"
@@ -108,7 +109,7 @@ nsSVGUseElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 
   nsCOMPtr<nsINode> kungFuDeathGrip(it);
   nsresult rv = it->Init();
-  rv |= const_cast<nsSVGUseElement*>(this)->CopyInnerTo(it);
+  rv |= CopyInnerTo(it);
 
   // nsSVGUseElement specific portion - record who we cloned from
   it->mOriginal = const_cast<nsSVGUseElement*>(this);

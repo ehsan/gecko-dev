@@ -44,8 +44,7 @@ function onLoad(aEvent) {
   AppsUI.shortcut = contextmenus.add(gStrings.GetStringFromName("appsContext.shortcut"), contextmenus.SelectorContext("div[mozApp]"),
     function(aTarget) {
       let manifest = aTarget.manifest;
-      let origin = Services.io.newURI(app.origin, null, null);
-      gChromeWin.WebappsUI.createShortcut(manifest.name, manifest.fullLaunchPath(), gChromeWin.WebappsUI.getBiggestIcon(manifest.icons, origin), "webapp");
+      gChromeWin.WebappsUI.createShortcut(manifest.name, manifest.fullLaunchPath(), manifest.iconURLForSize("64"), "webapp");
     });
   AppsUI.uninstall = contextmenus.add(gStrings.GetStringFromName("appsContext.uninstall"), contextmenus.SelectorContext("div[mozApp]"),
     function(aTarget) {
@@ -98,8 +97,7 @@ function addApplication(aApp) {
   container.setAttribute("title", manifest.name);
 
   let img = document.createElement("img");
-  let origin = Services.io.newURI(aApp.origin, null, null);
-  img.src = gChromeWin.WebappsUI.getBiggestIcon(manifest.icons, origin);
+  img.src = manifest.iconURLForSize("64");
   img.setAttribute("title", manifest.name);
 
   let title = document.createElement("div");

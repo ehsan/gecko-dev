@@ -15,6 +15,7 @@
 
 class nsIDOMNode;
 class nsIDOMWindow;
+class nsIDOMDocument;
 class nsIDOMDragEvent;
 class nsISelection;
 class nsITransferable;

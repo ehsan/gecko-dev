@@ -126,9 +126,9 @@ html[dir=rtl] .expander {
 .close:hover,
 .expander:hover,
 .appTabIcon:hover {
-  transition-property: opacity;
-  transition-duration: 0.5s;
-  transition-timing-function: ease-out;
+  -moz-transition-property: opacity;
+  -moz-transition-duration: 0.5s;
+  -moz-transition-timing-function: ease-out;
 }
 
 .favicon img:hover, 

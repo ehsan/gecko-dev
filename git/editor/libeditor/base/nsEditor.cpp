@@ -3,115 +3,87 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <stdio.h>                      // for NULL, stdout
-#include <string.h>                     // for strcmp
-
-#include "ChangeAttributeTxn.h"         // for ChangeAttributeTxn
-#include "CreateElementTxn.h"           // for CreateElementTxn
-#include "DeleteNodeTxn.h"              // for DeleteNodeTxn
-#include "DeleteRangeTxn.h"             // for DeleteRangeTxn
-#include "DeleteTextTxn.h"              // for DeleteTextTxn
-#include "EditAggregateTxn.h"           // for EditAggregateTxn
-#include "EditTxn.h"                    // for EditTxn
-#include "IMETextTxn.h"                 // for IMETextTxn
-#include "InsertElementTxn.h"           // for InsertElementTxn
-#include "InsertTextTxn.h"              // for InsertTextTxn
-#include "JoinElementTxn.h"             // for JoinElementTxn
-#include "PlaceholderTxn.h"             // for PlaceholderTxn
-#include "SplitElementTxn.h"            // for SplitElementTxn
-#include "mozFlushType.h"               // for mozFlushType::Flush_Frames
+#include "pratom.h"
+#include "nsIDOMDocument.h"
+#include "nsIDOMHTMLElement.h"
+#include "nsIDOMNSEvent.h"
+#include "nsIMEStateManager.h"
+#include "nsFocusManager.h"
+#include "nsUnicharUtils.h"
+#include "nsReadableUtils.h"
+#include "nsIObserverService.h"
+#include "mozilla/Services.h"
 #include "mozISpellCheckingEngine.h"
-#include "mozInlineSpellChecker.h"      // for mozInlineSpellChecker
-#include "mozilla/FunctionTimer.h"      // for NS_TIME_FUNCTION
-#include "mozilla/Preferences.h"        // for Preferences
-#include "mozilla/Selection.h"          // for Selection, etc
-#include "mozilla/Services.h"           // for GetObserverService
-#include "mozilla/Util.h"               // for DebugOnly
-#include "mozilla/dom/Element.h"        // for Element, nsINode::AsElement
-#include "mozilla/mozalloc.h"           // for operator new, etc
-#include "nsAString.h"                  // for nsAString_internal::Length, etc
-#include "nsCCUncollectableMarker.h"    // for nsCCUncollectableMarker
-#include "nsCaret.h"                    // for nsCaret, StCaretHider
-#include "nsCaseTreatment.h"
-#include "nsCharTraits.h"               // for NS_IS_HIGH_SURROGATE, etc
-#include "nsComponentManagerUtils.h"    // for do_CreateInstance
-#include "nsComputedDOMStyle.h"         // for nsComputedDOMStyle
-#include "nsContentUtils.h"             // for nsContentUtils
-#include "nsDOMString.h"                // for DOMStringIsNull
-#include "nsDebug.h"                    // for NS_ENSURE_TRUE, etc
-#include "nsEditProperty.h"             // for nsEditProperty, etc
-#include "nsEditor.h"
-#include "nsEditorEventListener.h"      // for nsEditorEventListener
-#include "nsEditorUtils.h"              // for nsAutoRules, etc
-#include "nsError.h"                    // for NS_OK, etc
-#include "nsEvent.h"                    // for nsEventStatus, etc
-#include "nsFocusManager.h"             // for nsFocusManager
-#include "nsFrameSelection.h"           // for nsFrameSelection
-#include "nsGUIEvent.h"                 // for nsKeyEvent, nsEvent, etc
-#include "nsGkAtoms.h"                  // for nsGkAtoms, nsGkAtoms::dir
-#include "nsIAbsorbingTransaction.h"    // for nsIAbsorbingTransaction
-#include "nsIAtom.h"                    // for nsIAtom
-#include "nsIContent.h"                 // for nsIContent
-#include "nsIDOMAttr.h"                 // for nsIDOMAttr
-#include "nsIDOMCharacterData.h"        // for nsIDOMCharacterData
-#include "nsIDOMDocument.h"             // for nsIDOMDocument
-#include "nsIDOMElement.h"              // for nsIDOMElement
-#include "nsIDOMEvent.h"                // for nsIDOMEvent
-#include "nsIDOMEventListener.h"        // for nsIDOMEventListener
-#include "nsIDOMEventTarget.h"          // for nsIDOMEventTarget
-#include "nsIDOMHTMLElement.h"          // for nsIDOMHTMLElement
-#include "nsIDOMKeyEvent.h"             // for nsIDOMKeyEvent, etc
-#include "nsIDOMMouseEvent.h"           // for nsIDOMMouseEvent
-#include "nsIDOMNSEvent.h"              // for nsIDOMNSEvent
-#include "nsIDOMNamedNodeMap.h"         // for nsIDOMNamedNodeMap
-#include "nsIDOMNode.h"                 // for nsIDOMNode, etc
-#include "nsIDOMNodeList.h"             // for nsIDOMNodeList
-#include "nsIDOMRange.h"                // for nsIDOMRange
-#include "nsIDOMText.h"                 // for nsIDOMText
-#include "nsIDocument.h"                // for nsIDocument
-#include "nsIDocumentStateListener.h"   // for nsIDocumentStateListener
-#include "nsIEditActionListener.h"      // for nsIEditActionListener
-#include "nsIEditorObserver.h"          // for nsIEditorObserver
-#include "nsIEditorSpellCheck.h"        // for nsIEditorSpellCheck
-#include "nsIEnumerator.h"              // for nsIEnumerator, etc
-#include "nsIFrame.h"                   // for nsIFrame
-#include "nsIInlineSpellChecker.h"      // for nsIInlineSpellChecker, etc
-#include "nsIMEStateManager.h"          // for nsIMEStateManager
-#include "nsINameSpaceManager.h"        // for kNameSpaceID_None, etc
-#include "nsINode.h"                    // for nsINode, etc
-#include "nsIObserverService.h"         // for nsIObserverService
-#include "nsIPlaintextEditor.h"         // for nsIPlaintextEditor, etc
-#include "nsIPresShell.h"               // for nsIPresShell
-#include "nsIPrivateTextRange.h"        // for nsIPrivateTextRange, etc
-#include "nsISelection.h"               // for nsISelection, etc
-#include "nsISelectionController.h"     // for nsISelectionController, etc
-#include "nsISelectionDisplay.h"        // for nsISelectionDisplay, etc
-#include "nsISelectionPrivate.h"        // for nsISelectionPrivate, etc
-#include "nsISupportsBase.h"            // for nsISupports
-#include "nsISupportsUtils.h"           // for NS_ADDREF, NS_IF_ADDREF
-#include "nsITransaction.h"             // for nsITransaction
-#include "nsITransactionManager.h"
-#include "nsIWeakReference.h"           // for nsISupportsWeakReference
-#include "nsIWidget.h"                  // for nsIWidget, IMEState, etc
-#include "nsPIDOMWindow.h"              // for nsPIDOMWindow
-#include "nsPresContext.h"              // for nsPresContext
-#include "nsRange.h"                    // for nsRange
-#include "nsReadableUtils.h"            // for EmptyString, ToNewCString
-#include "nsString.h"                   // for nsAutoString, nsString, etc
-#include "nsStringFwd.h"                // for nsAFlatString
-#include "nsStyleConsts.h"              // for NS_STYLE_DIRECTION_RTL, etc
-#include "nsStyleContext.h"             // for nsStyleContext
-#include "nsStyleSheetTxns.h"           // for AddStyleSheetTxn, etc
-#include "nsStyleStruct.h"              // for nsStyleDisplay, nsStyleText, etc
-#include "nsStyleStructFwd.h"           // for nsIFrame::GetStyleUIReset, etc
-#include "nsTextEditUtils.h"            // for nsTextEditUtils
-#include "nsThreadUtils.h"              // for nsRunnable
-#include "nsTransactionManager.h"       // for nsTransactionManager
-#include "prtime.h"                     // for PR_Now
+#include "nsIEditorSpellCheck.h"
+#include "mozInlineSpellChecker.h"
 
-class nsIOutputStream;
-class nsIParserService;
-class nsITransferable;
+#include "nsIDOMText.h"
+#include "nsIDOMElement.h"
+#include "nsIDOMAttr.h"
+#include "nsIDOMNode.h"
+#include "nsIDOMDocumentFragment.h"
+#include "nsIDOMNamedNodeMap.h"
+#include "nsIDOMNodeList.h"
+#include "nsIDOMRange.h"
+#include "nsIDOMHTMLBRElement.h"
+#include "nsIDocument.h"
+#include "nsITransactionManager.h"
+#include "nsIAbsorbingTransaction.h"
+#include "nsIPresShell.h"
+#include "nsISelection.h"
+#include "nsISelectionPrivate.h"
+#include "nsISelectionController.h"
+#include "nsIEnumerator.h"
+#include "nsEditProperty.h"
+#include "nsIAtom.h"
+#include "nsCaret.h"
+#include "nsIWidget.h"
+#include "nsIPlaintextEditor.h"
+#include "nsGUIEvent.h"
+
+#include "nsIFrame.h"  // Needed by IME code
+
+#include "nsCSSStyleSheet.h"
+
+#include "nsIContent.h"
+#include "nsDOMString.h"
+#include "nsServiceManagerUtils.h"
+
+// transactions the editor knows how to build
+#include "EditAggregateTxn.h"
+#include "PlaceholderTxn.h"
+#include "ChangeAttributeTxn.h"
+#include "CreateElementTxn.h"
+#include "InsertElementTxn.h"
+#include "DeleteElementTxn.h"
+#include "InsertTextTxn.h"
+#include "DeleteTextTxn.h"
+#include "DeleteRangeTxn.h"
+#include "SplitElementTxn.h"
+#include "JoinElementTxn.h"
+#include "nsStyleSheetTxns.h"
+#include "IMETextTxn.h"
+#include "nsString.h"
+
+#include "nsEditor.h"
+#include "nsEditorUtils.h"
+#include "nsEditorEventListener.h"
+#include "nsISelectionDisplay.h"
+#include "nsIInlineSpellChecker.h"
+#include "nsINameSpaceManager.h"
+#include "nsIHTMLDocument.h"
+#include "nsIParserService.h"
+
+#include "nsITransferable.h"
+#include "nsComputedDOMStyle.h"
+#include "nsTextEditUtils.h"
+#include "nsComputedDOMStyle.h"
+
+#include "mozilla/FunctionTimer.h"
+#include "mozilla/Preferences.h"
+#include "mozilla/dom/Element.h"
+#include "nsContentUtils.h"
+#include "nsCCUncollectableMarker.h"
 
 #define NS_ERROR_EDITOR_NO_SELECTION NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_EDITOR,1)
 #define NS_ERROR_EDITOR_NO_TEXTNODE  NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_EDITOR,2)
@@ -121,7 +93,7 @@ static bool gNoisy = false;
 #endif
 
 #ifdef DEBUG
-#include "nsIDOMHTMLDocument.h"         // for nsIDOMHTMLDocument
+#include "nsIDOMHTMLDocument.h"
 #endif
 
 using namespace mozilla;
@@ -194,7 +166,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsEditor)
  }
  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRootElement)
  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mInlineSpellChecker)
- NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mTxnMgr, nsITransactionManager)
+ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTxnMgr)
  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mIMETextRangeList)
  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mIMETextNode)
  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mActionListeners)
@@ -642,39 +614,61 @@ nsEditor::GetSelection()
   return frameSel->GetSelection(nsISelectionController::SELECTION_NORMAL);
 }
 
-NS_IMETHODIMP
-nsEditor::DoTransaction(nsITransaction* aTxn)
+NS_IMETHODIMP 
+nsEditor::DoTransaction(nsITransaction *aTxn)
 {
-  if (mPlaceHolderBatch && !mPlaceHolderTxn) {
-    nsCOMPtr<nsIAbsorbingTransaction> plcTxn = new PlaceholderTxn();
+#ifdef NS_DEBUG_EDITOR
+  if (gNoisy) { printf("Editor::DoTransaction ----------\n"); }
+#endif
+
+  nsresult result = NS_OK;
+  
+  if (mPlaceHolderBatch && !mPlaceHolderTxn)
+  {
+    // it's pretty darn amazing how many different types of pointers
+    // this transaction goes through here.  I bet this is a record.
+    
+    // We start off with an EditTxn since that's what the factory returns.
+    nsRefPtr<EditTxn> editTxn = new PlaceholderTxn();
+    if (!editTxn) { return NS_ERROR_OUT_OF_MEMORY; }
+
+    // Then we QI to an nsIAbsorbingTransaction to get at placeholder functionality
+    nsCOMPtr<nsIAbsorbingTransaction> plcTxn;
+    editTxn->QueryInterface(NS_GET_IID(nsIAbsorbingTransaction), getter_AddRefs(plcTxn));
+    // have to use line above instead of "plcTxn = do_QueryInterface(editTxn);"
+    // due to our broken interface model for transactions.
 
     // save off weak reference to placeholder txn
     mPlaceHolderTxn = do_GetWeakReference(plcTxn);
     plcTxn->Init(mPlaceHolderName, mSelState, this);
-    // placeholder txn took ownership of this pointer
-    mSelState = nsnull;
+    mSelState = nsnull;  // placeholder txn took ownership of this pointer
 
-    // QI to an nsITransaction since that's what DoTransaction() expects
+    // finally we QI to an nsITransaction since that's what DoTransaction() expects
     nsCOMPtr<nsITransaction> theTxn = do_QueryInterface(plcTxn);
-    // we will recurse, but will not hit this case in the nested call
-    DoTransaction(theTxn);
+    DoTransaction(theTxn);  // we will recurse, but will not hit this case in the nested call
 
-    if (mTxnMgr) {
-      nsCOMPtr<nsITransaction> topTxn = mTxnMgr->PeekUndoStack();
-      if (topTxn) {
+    if (mTxnMgr)
+    {
+      nsCOMPtr<nsITransaction> topTxn;
+      result = mTxnMgr->PeekUndoStack(getter_AddRefs(topTxn));
+      NS_ENSURE_SUCCESS(result, result);
+      if (topTxn)
+      {
         plcTxn = do_QueryInterface(topTxn);
-        if (plcTxn) {
-          // there is a placeholder transaction on top of the undo stack.  It
-          // is either the one we just created, or an earlier one that we are
-          // now merging into.  From here on out remember this placeholder
-          // instead of the one we just created.
+        if (plcTxn)
+        {
+          // there is a palceholder transaction on top of the undo stack.  It is 
+          // either the one we just created, or an earlier one that we are now merging
+          // into.  From here on out remember this placeholder instead of the one
+          // we just created.
           mPlaceHolderTxn = do_GetWeakReference(plcTxn);
         }
       }
     }
   }
 
-  if (aTxn) {
+  if (aTxn)
+  {  
     // XXX: Why are we doing selection specific batching stuff here?
     // XXX: Most entry points into the editor have auto variables that
     // XXX: should trigger Begin/EndUpdateViewBatch() calls that will make
@@ -695,42 +689,56 @@ nsEditor::DoTransaction(nsITransaction* aTxn)
     // XXX: re-entry during initial reflow. - kin
 
     // get the selection and start a batch change
-    nsRefPtr<Selection> selection = GetSelection();
+    nsCOMPtr<nsISelection>selection;
+    result = GetSelection(getter_AddRefs(selection));
+    NS_ENSURE_SUCCESS(result, result);
     NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
+    nsCOMPtr<nsISelectionPrivate>selPrivate(do_QueryInterface(selection));
 
-    selection->StartBatchChanges();
+    selPrivate->StartBatchChanges();
 
-    nsresult res;
     if (mTxnMgr) {
-      res = mTxnMgr->DoTransaction(aTxn);
-    } else {
-      res = aTxn->DoTransaction();
+      result = mTxnMgr->DoTransaction(aTxn);
     }
-    if (NS_SUCCEEDED(res)) {
-      DoAfterDoTransaction(aTxn);
+    else {
+      result = aTxn->DoTransaction();
+    }
+    if (NS_SUCCEEDED(result)) {
+      result = DoAfterDoTransaction(aTxn);
     }
 
-    // no need to check res here, don't lose result of operation
-    selection->EndBatchChanges();
-
-    NS_ENSURE_SUCCESS(res, res);
+    selPrivate->EndBatchChanges(); // no need to check result here, don't lose result of operation
   }
+ 
+  NS_ENSURE_SUCCESS(result, result);
 
-  return NS_OK;
+  return result;
 }
 
 
 NS_IMETHODIMP
 nsEditor::EnableUndo(bool aEnable)
 {
-  if (aEnable) {
-    if (!mTxnMgr) {
-      mTxnMgr = new nsTransactionManager();
+  nsresult result=NS_OK;
+
+  if (true==aEnable)
+  {
+    if (!mTxnMgr)
+    {
+      mTxnMgr = do_CreateInstance(NS_TRANSACTIONMANAGER_CONTRACTID, &result);
+      if (NS_FAILED(result) || !mTxnMgr) {
+        return NS_ERROR_NOT_AVAILABLE;
+      }
     }
-  } else if (mTxnMgr) {
-    // disable the transaction manager if it is enabled
-    mTxnMgr->Clear();
-    mTxnMgr->SetMaxTransactionCount(0);
+    mTxnMgr->SetMaxTransactionCount(-1);
+  }
+  else
+  { // disable the transaction manager if it is enabled
+    if (mTxnMgr)
+    {
+      mTxnMgr->Clear();
+      mTxnMgr->SetMaxTransactionCount(0);
+    }
   }
 
   return NS_OK;
@@ -767,8 +775,7 @@ nsEditor::SetTransactionManager(nsITransactionManager *aTxnManager)
 {
   NS_ENSURE_TRUE(aTxnManager, NS_ERROR_FAILURE);
 
-  // nsITransactionManager is builtinclass, so this is safe
-  mTxnMgr = static_cast<nsTransactionManager*>(aTxnManager);
+  mTxnMgr = aTxnManager;
   return NS_OK;
 }
 
@@ -795,7 +802,8 @@ nsEditor::Undo(PRUint32 aCount)
     nsresult rv = mTxnMgr->UndoTransaction();
     NS_ENSURE_SUCCESS(rv, rv);
 
-    DoAfterUndoTransaction();
+    rv = DoAfterUndoTransaction();
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   return NS_OK;
@@ -838,7 +846,8 @@ nsEditor::Redo(PRUint32 aCount)
     nsresult rv = mTxnMgr->RedoTransaction();
     NS_ENSURE_SUCCESS(rv, rv);
 
-    DoAfterRedoTransaction();
+    rv = DoAfterRedoTransaction();
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   return NS_OK;
@@ -1455,15 +1464,16 @@ nsEditor::JoinNodes(nsIDOMNode * aLeftNode,
                     nsIDOMNode * aRightNode,
                     nsIDOMNode * aParent)
 {
-  PRInt32 i;
+  PRInt32 i, offset;
   nsAutoRules beginRulesSniffing(this, kOpJoinNode, nsIEditor::ePrevious);
 
   // remember some values; later used for saved selection updating.
   // find the offset between the nodes to be joined.
-  PRInt32 offset = GetChildOffset(aRightNode, aParent);
+  nsresult result = GetChildOffset(aRightNode, aParent, offset);
+  NS_ENSURE_SUCCESS(result, result);
   // find the number of children of the lefthand node
   PRUint32 oldLeftNodeLen;
-  nsresult result = GetLengthOfDOMNode(aLeftNode, oldLeftNodeLen);
+  result = GetLengthOfDOMNode(aLeftNode, oldLeftNodeLen);
   NS_ENSURE_SUCCESS(result, result);
 
   for (i = 0; i < mActionListeners.Count(); i++)
@@ -1484,36 +1494,29 @@ nsEditor::JoinNodes(nsIDOMNode * aLeftNode,
 }
 
 
-NS_IMETHODIMP
-nsEditor::DeleteNode(nsIDOMNode* aNode)
+NS_IMETHODIMP nsEditor::DeleteNode(nsIDOMNode * aElement)
 {
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  NS_ENSURE_STATE(node);
-  return DeleteNode(node);
-}
-
-nsresult
-nsEditor::DeleteNode(nsINode* aNode)
-{
+  PRInt32 i, offset;
+  nsCOMPtr<nsIDOMNode> parent;
   nsAutoRules beginRulesSniffing(this, kOpCreateNode, nsIEditor::ePrevious);
 
   // save node location for selection updating code.
-  for (PRInt32 i = 0; i < mActionListeners.Count(); i++) {
-    mActionListeners[i]->WillDeleteNode(aNode->AsDOMNode());
+  nsresult result = GetNodeLocation(aElement, address_of(parent), &offset);
+  NS_ENSURE_SUCCESS(result, result);
+
+  for (i = 0; i < mActionListeners.Count(); i++)
+    mActionListeners[i]->WillDeleteNode(aElement);
+
+  nsRefPtr<DeleteElementTxn> txn;
+  result = CreateTxnForDeleteElement(aElement, getter_AddRefs(txn));
+  if (NS_SUCCEEDED(result))  {
+    result = DoTransaction(txn);  
   }
 
-  nsRefPtr<DeleteNodeTxn> txn;
-  nsresult res = CreateTxnForDeleteNode(aNode, getter_AddRefs(txn));
-  if (NS_SUCCEEDED(res))  {
-    res = DoTransaction(txn);
-  }
+  for (i = 0; i < mActionListeners.Count(); i++)
+    mActionListeners[i]->DidDeleteNode(aElement, result);
 
-  for (PRInt32 i = 0; i < mActionListeners.Count(); i++) {
-    mActionListeners[i]->DidDeleteNode(aNode->AsDOMNode(), res);
-  }
-
-  NS_ENSURE_SUCCESS(res, res);
-  return NS_OK;
+  return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -1619,7 +1622,7 @@ nsEditor::RemoveContainer(nsINode* aNode)
 {
   NS_ENSURE_TRUE(aNode, NS_ERROR_NULL_POINTER);
 
-  nsCOMPtr<nsINode> parent = aNode->GetNodeParent();
+  nsINode* parent = aNode->GetNodeParent();
   NS_ENSURE_STATE(parent);
 
   PRInt32 offset = parent->IndexOf(aNode);
@@ -1632,7 +1635,7 @@ nsEditor::RemoveContainer(nsINode* aNode)
   nsAutoRemoveContainerSelNotify selNotify(mRangeUpdater, aNode, parent, offset, nodeOrigLen);
                                    
   while (aNode->HasChildren()) {
-    nsCOMPtr<nsIContent> child = aNode->GetLastChild();
+    nsIContent* child = aNode->GetLastChild();
     nsresult rv = DeleteNode(child->AsDOMNode());
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1733,10 +1736,10 @@ nsresult
 nsEditor::MoveNode(nsIDOMNode *aNode, nsIDOMNode *aParent, PRInt32 aOffset)
 {
   NS_ENSURE_TRUE(aNode && aParent, NS_ERROR_NULL_POINTER);
-  nsresult res;
 
+  nsCOMPtr<nsIDOMNode> oldParent;
   PRInt32 oldOffset;
-  nsCOMPtr<nsIDOMNode> oldParent = GetNodeLocation(aNode, &oldOffset);
+  nsresult res = GetNodeLocation(aNode, address_of(oldParent), &oldOffset);
   
   if (aOffset == -1)
   {
@@ -1759,11 +1762,10 @@ nsEditor::MoveNode(nsIDOMNode *aNode, nsIDOMNode *aParent, PRInt32 aOffset)
     aOffset--;  // this is because when we delete aNode, it will make the offsets after it off by one
   }
 
-  // Hold a reference so aNode doesn't go away when we remove it (bug 772282)
-  nsCOMPtr<nsIDOMNode> node = aNode;
-  res = DeleteNode(node);
+  // put aNode in new parent
+  res = DeleteNode(aNode);
   NS_ENSURE_SUCCESS(res, res);
-  return InsertNode(node, aParent, aOffset);
+  return InsertNode(aNode, aParent, aOffset);
 }
 
 
@@ -2011,18 +2013,22 @@ nsEditor::BeginIMEComposition()
   return NS_OK;
 }
 
-void
+nsresult
 nsEditor::EndIMEComposition()
 {
-  NS_ENSURE_TRUE(mInIMEMode, ); // nothing to do
+  NS_ENSURE_TRUE(mInIMEMode, NS_OK); // nothing to do
+
+  nsresult rv = NS_OK;
 
   // commit the IME transaction..we can get at it via the transaction mgr.
   // Note that this means IME won't work without an undo stack!
   if (mTxnMgr) {
-    nsCOMPtr<nsITransaction> txn = mTxnMgr->PeekUndoStack();
+    nsCOMPtr<nsITransaction> txn;
+    rv = mTxnMgr->PeekUndoStack(getter_AddRefs(txn));
+    NS_ASSERTION(NS_SUCCEEDED(rv), "PeekUndoStack() failed");
     nsCOMPtr<nsIAbsorbingTransaction> plcTxn = do_QueryInterface(txn);
     if (plcTxn) {
-      DebugOnly<nsresult> rv = plcTxn->Commit();
+      rv = plcTxn->Commit();
       NS_ASSERTION(NS_SUCCEEDED(rv),
                    "nsIAbsorbingTransaction::Commit() failed");
     }
@@ -2037,6 +2043,8 @@ nsEditor::EndIMEComposition()
 
   // notify editor observers of action
   NotifyEditorObservers();
+
+  return rv;
 }
 
 
@@ -2948,8 +2956,11 @@ nsEditor::JoinNodesImpl(nsIDOMNode * aNodeToKeep,
     PRUint32 firstNodeLength;
     result = GetLengthOfDOMNode(leftNode, firstNodeLength);
     NS_ENSURE_SUCCESS(result, result);
-    nsCOMPtr<nsIDOMNode> parent = GetNodeLocation(aNodeToJoin, &joinOffset);
-    parent = GetNodeLocation(aNodeToKeep, &keepOffset);
+    nsCOMPtr<nsIDOMNode> parent;
+    result = GetNodeLocation(aNodeToJoin, address_of(parent), &joinOffset);
+    NS_ENSURE_SUCCESS(result, result);
+    result = GetNodeLocation(aNodeToKeep, address_of(parent), &keepOffset);
+    NS_ENSURE_SUCCESS(result, result);
     
     // if selection endpoint is between the nodes, remember it as being
     // in the one that is going away instead.  This simplifies later selection
@@ -3122,37 +3133,34 @@ nsEditor::JoinNodesImpl(nsIDOMNode * aNodeToKeep,
 }
 
 
-PRInt32
-nsEditor::GetChildOffset(nsIDOMNode* aChild, nsIDOMNode* aParent)
+nsresult 
+nsEditor::GetChildOffset(nsIDOMNode *aChild, nsIDOMNode *aParent, PRInt32 &aOffset)
 {
-  MOZ_ASSERT(aChild && aParent);
+  NS_ASSERTION((aChild && aParent), "bad args");
 
-  nsCOMPtr<nsINode> parent = do_QueryInterface(aParent);
-  nsCOMPtr<nsINode> child = do_QueryInterface(aChild);
-  MOZ_ASSERT(parent && child);
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aParent);
+  nsCOMPtr<nsIContent> cChild = do_QueryInterface(aChild);
+  NS_ENSURE_TRUE(cChild && content, NS_ERROR_NULL_POINTER);
 
-  PRInt32 idx = parent->IndexOf(child);
-  MOZ_ASSERT(idx != -1);
-  return idx;
+  aOffset = content->IndexOf(cChild);
+
+  return NS_OK;
 }
 
-// static
-already_AddRefed<nsIDOMNode>
-nsEditor::GetNodeLocation(nsIDOMNode* aChild, PRInt32* outOffset)
+nsresult 
+nsEditor::GetNodeLocation(nsIDOMNode *inChild, nsCOMPtr<nsIDOMNode> *outParent, PRInt32 *outOffset)
 {
-  MOZ_ASSERT(aChild && outOffset);
-  NS_ENSURE_TRUE(aChild && outOffset, nsnull);
-  *outOffset = -1;
-
-  nsCOMPtr<nsIDOMNode> parent;
-
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-    aChild->GetParentNode(getter_AddRefs(parent))));
-  if (parent) {
-    *outOffset = GetChildOffset(aChild, parent);
+  NS_ASSERTION((inChild && outParent && outOffset), "bad args");
+  nsresult result = NS_ERROR_NULL_POINTER;
+  if (inChild && outParent && outOffset)
+  {
+    result = inChild->GetParentNode(getter_AddRefs(*outParent));
+    if ((NS_SUCCEEDED(result)) && (*outParent))
+    {
+      result = GetChildOffset(inChild, *outParent, *outOffset);
+    }
   }
-
-  return parent.forget();
+  return result;
 }
 
 // returns the number of things inside aNode.  
@@ -3527,15 +3535,18 @@ nsEditor::GetLeftmostChild(nsIDOMNode *aCurrentNode,
   return resultNode.forget();
 }
 
-bool
-nsEditor::IsBlockNode(nsIDOMNode* aNode)
+bool 
+nsEditor::IsBlockNode(nsIDOMNode *aNode)
 {
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  return IsBlockNode(node);
+  // stub to be overridden in nsHTMLEditor.
+  // screwing around with the class hierarchy here in order
+  // to not duplicate the code in GetNextNode/GetPrevNode
+  // across both nsEditor/nsHTMLEditor.  
+  return false;
 }
 
-bool
-nsEditor::IsBlockNode(nsINode* aNode)
+bool 
+nsEditor::IsBlockNode(nsINode *aNode)
 {
   // stub to be overridden in nsHTMLEditor.
   // screwing around with the class hierarchy here in order
@@ -3897,6 +3908,24 @@ nsEditor::AreNodesSameType(nsIContent* aNode1, nsIContent* aNode2)
   MOZ_ASSERT(aNode2);
   return aNode1->Tag() == aNode2->Tag();
 }
+
+
+// IsTextOrElementNode: true if node of dom type element or text
+//               
+bool
+nsEditor::IsTextOrElementNode(nsIDOMNode *aNode)
+{
+  if (!aNode)
+  {
+    NS_NOTREACHED("null node passed to IsTextOrElementNode()");
+    return false;
+  }
+  
+  PRUint16 nodeType;
+  aNode->GetNodeType(&nodeType);
+  return ((nodeType == nsIDOMNode::ELEMENT_NODE) || (nodeType == nsIDOMNode::TEXT_NODE));
+}
+
 
 
 ///////////////////////////////////////////////////////////////////////////
@@ -4419,14 +4448,12 @@ nsEditor::DeleteSelectionAndPrepareToCreateNode()
   nsresult res;
   nsRefPtr<Selection> selection = GetSelection();
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
-  MOZ_ASSERT(selection->GetAnchorFocusRange());
 
-  if (!selection->GetAnchorFocusRange()->Collapsed()) {
+  if (!selection->Collapsed()) {
     res = DeleteSelection(nsIEditor::eNone, nsIEditor::eStrip);
     NS_ENSURE_SUCCESS(res, res);
 
-    MOZ_ASSERT(selection->GetAnchorFocusRange() &&
-               selection->GetAnchorFocusRange()->Collapsed(),
+    MOZ_ASSERT(selection->Collapsed(),
                "Selection not collapsed after delete");
   }
 
@@ -4468,12 +4495,14 @@ nsEditor::DeleteSelectionAndPrepareToCreateNode()
 
 
 
-void
+NS_IMETHODIMP 
 nsEditor::DoAfterDoTransaction(nsITransaction *aTxn)
 {
-  bool isTransientTransaction;
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-    aTxn->GetIsTransient(&isTransientTransaction)));
+  nsresult rv = NS_OK;
+  
+  bool    isTransientTransaction;
+  rv = aTxn->GetIsTransient(&isTransientTransaction);
+  NS_ENSURE_SUCCESS(rv, rv);
   
   if (!isTransientTransaction)
   {
@@ -4486,27 +4515,27 @@ nsEditor::DoAfterDoTransaction(nsITransaction *aTxn)
     if (modCount < 0)
       modCount = -modCount;
         
-    // don't count transient transactions
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-      IncrementModificationCount(1)));
+    rv = IncrementModificationCount(1);    // don't count transient transactions
   }
+  
+  return rv;
 }
 
 
-void
+NS_IMETHODIMP 
 nsEditor::DoAfterUndoTransaction()
 {
-  // all undoable transactions are non-transient
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-    IncrementModificationCount(-1)));
+  nsresult rv = NS_OK;
+
+  rv = IncrementModificationCount(-1);    // all undoable transactions are non-transient
+
+  return rv;
 }
 
-void
+NS_IMETHODIMP 
 nsEditor::DoAfterRedoTransaction()
 {
-  // all redoable transactions are non-transient
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-    IncrementModificationCount(1)));
+  return IncrementModificationCount(1);    // all redoable transactions are non-transient
 }
 
 NS_IMETHODIMP 
@@ -4585,18 +4614,20 @@ NS_IMETHODIMP nsEditor::CreateTxnForInsertElement(nsIDOMNode * aNode,
   return rv;
 }
 
-nsresult
-nsEditor::CreateTxnForDeleteNode(nsINode* aNode, DeleteNodeTxn** aTxn)
+NS_IMETHODIMP nsEditor::CreateTxnForDeleteElement(nsIDOMNode * aElement,
+                                             DeleteElementTxn ** aTxn)
 {
-  NS_ENSURE_TRUE(aNode, NS_ERROR_NULL_POINTER);
+  NS_ENSURE_TRUE(aElement, NS_ERROR_NULL_POINTER);
 
-  nsRefPtr<DeleteNodeTxn> txn = new DeleteNodeTxn();
+  nsRefPtr<DeleteElementTxn> txn = new DeleteElementTxn();
 
-  nsresult res = txn->Init(this, aNode, &mRangeUpdater);
-  NS_ENSURE_SUCCESS(res, res);
+  nsresult rv = txn->Init(this, aElement, &mRangeUpdater);
+  if (NS_SUCCEEDED(rv))
+  {
+    txn.forget(aTxn);
+  }
 
-  txn.forget(aTxn);
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP 
@@ -4788,8 +4819,9 @@ nsEditor::CreateTxnForDeleteInsertionPoint(nsRange*          aRange,
       aTxn->AppendChild(txn);
     } else {
       // priorNode is not chardata, so tell its parent to delete it
-      nsRefPtr<DeleteNodeTxn> txn;
-      res = CreateTxnForDeleteNode(priorNode, getter_AddRefs(txn));
+      nsRefPtr<DeleteElementTxn> txn;
+      res = CreateTxnForDeleteElement(priorNode->AsDOMNode(),
+                                      getter_AddRefs(txn));
       NS_ENSURE_SUCCESS(res, res);
 
       aTxn->AppendChild(txn);
@@ -4824,8 +4856,9 @@ nsEditor::CreateTxnForDeleteInsertionPoint(nsRange*          aRange,
       aTxn->AppendChild(txn);
     } else {
       // nextNode is not chardata, so tell its parent to delete it
-      nsRefPtr<DeleteNodeTxn> txn;
-      res = CreateTxnForDeleteNode(nextNode, getter_AddRefs(txn));
+      nsRefPtr<DeleteElementTxn> txn;
+      res = CreateTxnForDeleteElement(nextNode->AsDOMNode(),
+                                      getter_AddRefs(txn));
       NS_ENSURE_SUCCESS(res, res);
       aTxn->AppendChild(txn);
     }
@@ -4886,8 +4919,9 @@ nsEditor::CreateTxnForDeleteInsertionPoint(nsRange*          aRange,
       *aOffset = delTextTxn->GetOffset();
       *aLength = delTextTxn->GetNumCharsToDelete();
     } else {
-      nsRefPtr<DeleteNodeTxn> delElementTxn;
-      res = CreateTxnForDeleteNode(selectedNode, getter_AddRefs(delElementTxn));
+      nsRefPtr<DeleteElementTxn> delElementTxn;
+      res = CreateTxnForDeleteElement(selectedNode->AsDOMNode(),
+                                      getter_AddRefs(delElementTxn));
       NS_ENSURE_SUCCESS(res, res);
       NS_ENSURE_TRUE(delElementTxn, NS_ERROR_NULL_POINTER);
 
@@ -4923,7 +4957,9 @@ nsEditor::AppendNodeToSelectionAsRange(nsIDOMNode *aNode)
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(parentNode, NS_ERROR_NULL_POINTER);
   
-  PRInt32 offset = GetChildOffset(aNode, parentNode);
+  PRInt32 offset;
+  res = GetChildOffset(aNode, parentNode, offset);
+  NS_ENSURE_SUCCESS(res, res);
   
   nsCOMPtr<nsIDOMRange> range;
   res = CreateRange(parentNode, offset, parentNode, offset+1, getter_AddRefs(range));

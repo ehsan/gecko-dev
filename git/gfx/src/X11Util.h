@@ -10,8 +10,7 @@
 
 // Utilities common to all X clients, regardless of UI toolkit.
 
-#if defined(MOZ_WIDGET_GTK)
-#  include <gdk/gdk.h>
+#if defined(MOZ_WIDGET_GTK2)
 #  include <gdk/gdkx.h>
 #elif defined(MOZ_WIDGET_QT)
 #include "gfxQtPlatform.h"
@@ -34,8 +33,8 @@ namespace mozilla {
 inline Display*
 DefaultXDisplay()
 {
-#if defined(MOZ_WIDGET_GTK)
-  return GDK_DISPLAY_XDISPLAY(gdk_display_get_default());
+#if defined(MOZ_WIDGET_GTK2)
+  return GDK_DISPLAY();
 #elif defined(MOZ_WIDGET_QT)
   return gfxQtPlatform::GetXDisplay();
 #endif

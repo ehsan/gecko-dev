@@ -106,9 +106,6 @@ public:
     }
   }
 
-  const gfxSize& GetResolution() { return mResolution; }
-  void SetResolution(const gfxSize& aResolution) { mResolution = aResolution; }
-
 protected:
   BasicTiledLayerTile ValidateTile(BasicTiledLayerTile aTile,
                                    const nsIntPoint& aTileRect,
@@ -131,7 +128,6 @@ private:
   BasicTiledThebesLayer* mThebesLayer;
   LayerManager::DrawThebesLayerCallback mCallback;
   void* mCallbackData;
-  gfxSize mResolution;
 
   // The buffer we use when UseSinglePaintBuffer() above is true.
   nsRefPtr<gfxImageSurface>     mSinglePaintBuffer;

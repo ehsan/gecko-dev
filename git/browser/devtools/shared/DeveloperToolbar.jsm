@@ -43,6 +43,7 @@ function DeveloperToolbar(aChromeWindow, aToolbarElement)
   this._errorsCount = {};
   this._webConsoleButton = this._doc
                            .getElementById("developer-toolbar-webconsole");
+  this._webConsoleButtonLabel = this._webConsoleButton.label;
 
   try {
     GcliCommands.refreshAutoCommands(aChromeWindow);
@@ -106,20 +107,7 @@ DeveloperToolbar.prototype.toggle = function DT_toggle()
   if (this.visible) {
     this.hide();
   } else {
-    this.show(true);
-  }
-};
-
-/**
- * Called from browser.xul in response to menu-click or keyboard shortcut to
- * toggle the toolbar
- */
-DeveloperToolbar.prototype.focus = function DT_focus()
-{
-  if (this.visible) {
-    this._input.focus();
-  } else {
-    this.show(true);
+    this.show();
   }
 };
 
@@ -136,7 +124,7 @@ DeveloperToolbar.introShownThisSession = false;
  * @param aCallback show events can be asynchronous. If supplied aCallback will
  * be called when the DeveloperToolbar is visible
  */
-DeveloperToolbar.prototype.show = function DT_show(aFocus, aCallback)
+DeveloperToolbar.prototype.show = function DT_show(aCallback)
 {
   if (this._lastState != NOTIFICATIONS.HIDE) {
     return;
@@ -151,7 +139,7 @@ DeveloperToolbar.prototype.show = function DT_show(aFocus, aCallback)
   let checkLoad = function() {
     if (this.tooltipPanel && this.tooltipPanel.loaded &&
         this.outputPanel && this.outputPanel.loaded) {
-      this._onload(aFocus);
+      this._onload();
     }
   }.bind(this);
 
@@ -164,7 +152,7 @@ DeveloperToolbar.prototype.show = function DT_show(aFocus, aCallback)
  * Initializing GCLI can only be done when we've got content windows to write
  * to, so this needs to be done asynchronously.
  */
-DeveloperToolbar.prototype._onload = function DT_onload(aFocus)
+DeveloperToolbar.prototype._onload = function DT_onload()
 {
   this._doc.getElementById("Tools:DevToolbar").setAttribute("checked", "true");
 
@@ -191,9 +179,6 @@ DeveloperToolbar.prototype._onload = function DT_onload(aFocus)
     scratchpad: null
   });
 
-  this.display.focusManager.addMonitoredElement(this.outputPanel._frame);
-  this.display.focusManager.addMonitoredElement(this._element);
-
   this.display.onVisibilityChange.add(this.outputPanel._visibilityChanged, this.outputPanel);
   this.display.onVisibilityChange.add(this.tooltipPanel._visibilityChanged, this.tooltipPanel);
   this.display.onOutput.add(this.outputPanel._outputChanged, this.outputPanel);
@@ -202,14 +187,12 @@ DeveloperToolbar.prototype._onload = function DT_onload(aFocus)
   this._chromeWindow.getBrowser().tabContainer.addEventListener("TabClose", this, false);
   this._chromeWindow.getBrowser().addEventListener("load", this, true);
   this._chromeWindow.getBrowser().addEventListener("beforeunload", this, true);
+  this._chromeWindow.addEventListener("resize", this, false);
 
   this._initErrorsCount(this._chromeWindow.getBrowser().selectedTab);
 
   this._element.hidden = false;
-
-  if (aFocus) {
-    this._input.focus();
-  }
+  this._input.focus();
 
   this._notify(NOTIFICATIONS.SHOW);
   if (this._pendingShowCallback) {
@@ -324,12 +307,10 @@ DeveloperToolbar.prototype.destroy = function DT_destroy()
   this._chromeWindow.getBrowser().tabContainer.removeEventListener("TabSelect", this, false);
   this._chromeWindow.getBrowser().removeEventListener("load", this, true); 
   this._chromeWindow.getBrowser().removeEventListener("beforeunload", this, true);
+  this._chromeWindow.removeEventListener("resize", this, false);
 
   let tabs = this._chromeWindow.getBrowser().tabs;
   Array.prototype.forEach.call(tabs, this._stopErrorsCount, this);
-
-  this.display.focusManager.removeMonitoredElement(this.outputPanel._frame);
-  this.display.focusManager.removeMonitoredElement(this._element);
 
   this.display.onVisibilityChange.remove(this.outputPanel._visibilityChanged, this.outputPanel);
   this.display.onVisibilityChange.remove(this.tooltipPanel._visibilityChanged, this.tooltipPanel);
@@ -386,6 +367,9 @@ DeveloperToolbar.prototype.handleEvent = function DT_handleEvent(aEvent)
         this._initErrorsCount(aEvent.target);
       }
     }
+  }
+  else if (aEvent.type == "resize") {
+    this.outputPanel._resize();
   }
   else if (aEvent.type == "TabClose") {
     this._stopErrorsCount(aEvent.target);
@@ -514,25 +498,11 @@ function DT__updateErrorsCount(aChangedTabId)
   let errors = this._errorsCount[tabId];
 
   if (errors) {
-    this._webConsoleButton.setAttribute("error-count", errors);
-  } else {
-    this._webConsoleButton.removeAttribute("error-count");
+    this._webConsoleButton.label =
+      this._webConsoleButtonLabel + " (" + errors + ")";
   }
-};
-
-/**
- * Reset the errors counter for the given tab.
- *
- * @param nsIDOMElement aTab The xul:tab for which you want to reset the page
- * errors counters.
- */
-DeveloperToolbar.prototype.resetErrorsCount =
-function DT_resetErrorsCount(aTab)
-{
-  let tabId = aTab.linkedPanel;
-  if (tabId in this._errorsCount) {
-    this._errorsCount[tabId] = 0;
-    this._updateErrorsCount(tabId);
+  else {
+    this._webConsoleButton.label = this._webConsoleButtonLabel;
   }
 };
 
@@ -826,7 +796,7 @@ TooltipPanel.prototype._resize = function TP_resize()
   }
 
   let offset = 10 + Math.floor(this._dimensions.start * AVE_CHAR_WIDTH);
-  this._panel.style.marginLeft = offset + "px";
+  this._frame.style.marginLeft = offset + "px";
 
   /*
   // Bug 744906: UX review - Not sure if we want this code to fatten connector

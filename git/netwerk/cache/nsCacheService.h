@@ -20,7 +20,6 @@
 #include "nsRefPtrHashtable.h"
 #include "mozilla/CondVar.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/Telemetry.h"
 
 class nsCacheRequest;
 class nsCacheProfilePrefObserver;
@@ -189,7 +188,7 @@ private:
      * Internal Methods
      */
 
-    static void      Lock(::mozilla::Telemetry::ID mainThreadLockerID);
+    static void      Lock();
     static void      Unlock();
 
     nsresult         CreateDiskDevice();
@@ -198,8 +197,6 @@ private:
                                                PRInt32 aQuota,
                                                nsOfflineCacheDevice **aDevice);
     nsresult         CreateMemoryDevice();
-
-    nsresult         RemoveCustomOfflineDevice(nsOfflineCacheDevice *aDevice);
 
     nsresult         CreateRequest(nsCacheSession *   session,
                                    const nsACString & clientKey,
@@ -314,15 +311,12 @@ private:
  *  nsCacheServiceAutoLock
  ******************************************************************************/
 
-#define LOCK_TELEM(x) \
-  (::mozilla::Telemetry::CACHE_SERVICE_LOCK_WAIT_MAINTHREAD_##x)
-
 // Instantiate this class to acquire the cache service lock for a particular
 // execution scope.
 class nsCacheServiceAutoLock {
 public:
-    nsCacheServiceAutoLock(mozilla::Telemetry::ID mainThreadLockerID) {
-        nsCacheService::Lock(mainThreadLockerID);
+    nsCacheServiceAutoLock() {
+        nsCacheService::Lock();
     }
     ~nsCacheServiceAutoLock() {
         nsCacheService::Unlock();

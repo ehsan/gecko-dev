@@ -18,6 +18,7 @@
 #include "nsIChannel.h"
 #include "nsCOMArray.h"
 #include "nsContentSink.h"
+#include "nsIHTMLDocument.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIInputStream.h"
 #include "nsDetectionConfident.h"
@@ -274,6 +275,11 @@ class nsHtml5Parser : public nsIParser,
     bool                          mDocWriteSpeculativeLastWasCR;
 
     /**
+     * The parser is in the fragment mode
+     */
+    bool                          mFragmentMode;
+
+    /**
      * The parser is blocking on a script
      */
     bool                          mBlocked;
@@ -294,6 +300,9 @@ class nsHtml5Parser : public nsIParser,
     bool                          mDocumentClosed;
 
     bool                          mInDocumentWrite;
+
+    // Gecko integration
+    void*                         mRootContextKey;
 
     // Portable parser objects
     /**

@@ -322,29 +322,16 @@ function CopyPassword() {
                   getService(Components.interfaces.nsIClipboardHelper);
   var row = document.getElementById("signonsTree").currentIndex;
   var password = signonsTreeView.getCellText(row, {id : "passwordCol" });
-  clipboard.copyString(password, document);
-}
-
-function CopyUsername() {
-  // Copy selected signon's username to clipboard
-  var clipboard = Components.classes["@mozilla.org/widget/clipboardhelper;1"].
-                  getService(Components.interfaces.nsIClipboardHelper);
-  var row = document.getElementById("signonsTree").currentIndex;
-  var username = signonsTreeView.getCellText(row, {id : "userCol" });
-  clipboard.copyString(username);
+  clipboard.copyString(password);
 }
 
 function UpdateCopyPassword() {
   var singleSelection = (signonsTreeView.selection.count == 1);
-  var passwordMenuitem = document.getElementById("context-copypassword");
-  var usernameMenuitem = document.getElementById("context-copyusername");
-  if (singleSelection) {
-    usernameMenuitem.removeAttribute("disabled");
-    passwordMenuitem.removeAttribute("disabled");
-  } else {
-    usernameMenuitem.setAttribute("disabled", "true");
-    passwordMenuitem.setAttribute("disabled", "true");
-  }
+  var menuitem = document.getElementById("context-copypassword");
+  if (singleSelection)
+    menuitem.removeAttribute("disabled");
+  else
+    menuitem.setAttribute("disabled", "true");
 }
 
 function masterPasswordLogin(noPasswordCallback) {

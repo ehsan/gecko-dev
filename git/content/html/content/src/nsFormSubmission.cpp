@@ -13,6 +13,7 @@
 #include "nsILinkHandler.h"
 #include "nsIDocument.h"
 #include "nsGkAtoms.h"
+#include "nsIHTMLDocument.h"
 #include "nsIFormControl.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsDOMError.h"

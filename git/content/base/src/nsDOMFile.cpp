@@ -14,6 +14,7 @@
 #include "nsICharsetConverterManager.h"
 #include "nsIConverterInputStream.h"
 #include "nsIDocument.h"
+#include "nsIDOMDocument.h"
 #include "nsIFileStreams.h"
 #include "nsIInputStream.h"
 #include "nsIIPCSerializable.h"

@@ -15,8 +15,7 @@ let gSyncUI = {
          "weave:ui:login:error",
          "weave:ui:sync:error",
          "weave:ui:sync:finish",
-         "weave:ui:clear-error",
-  ],
+         "weave:ui:clear-error"],
 
   _unloaded: false,
 

@@ -14,7 +14,6 @@ Cu.import('resource://gre/modules/Services.jsm');
 Cu.import('resource://gre/modules/ContactService.jsm');
 Cu.import('resource://gre/modules/SettingsChangeNotifier.jsm');
 Cu.import('resource://gre/modules/Webapps.jsm');
-Cu.import('resource://gre/modules/AlarmService.jsm');
 
 XPCOMUtils.defineLazyServiceGetter(Services, 'env',
                                    '@mozilla.org/process/environment;1',
@@ -23,6 +22,10 @@ XPCOMUtils.defineLazyServiceGetter(Services, 'env',
 XPCOMUtils.defineLazyServiceGetter(Services, 'ss',
                                    '@mozilla.org/content/style-sheet-service;1',
                                    'nsIStyleSheetService');
+
+XPCOMUtils.defineLazyServiceGetter(Services, 'idle',
+                                   '@mozilla.org/widget/idleservice;1',
+                                   'nsIIdleService');
 
 #ifdef MOZ_WIDGET_GONK
 XPCOMUtils.defineLazyServiceGetter(Services, 'audioManager',
@@ -43,20 +46,16 @@ XPCOMUtils.defineLazyGetter(this, 'DebuggerServer', function() {
   return DebuggerServer;
 });
 
-function getContentWindow() {
-  return shell.contentBrowser.contentWindow;
-}
-
 // FIXME Bug 707625
 // until we have a proper security model, add some rights to
 // the pre-installed web applications
 // XXX never grant 'content-camera' to non-gaia apps
 function addPermissions(urls) {
   let permissions = [
-    'indexedDB-unlimited', 'webapps-manage', 'offline-app', 'pin-app',
+    'indexedDB', 'indexedDB-unlimited', 'webapps-manage', 'offline-app', 'pin-app',
     'websettings-read', 'websettings-readwrite',
     'content-camera', 'webcontacts-manage', 'wifi-manage', 'desktop-notification',
-    'geolocation', 'device-storage', 'alarms'
+    'geolocation', 'device-storage'
   ];
   urls.forEach(function(url) {
     url = url.trim();
@@ -111,12 +110,6 @@ var shell = {
     browserFrame.setAttribute('style', "overflow: hidden; -moz-box-flex: 1; border: none;");
     browserFrame.setAttribute('src', "data:text/html;charset=utf-8,%3C!DOCTYPE html>%3Cbody style='background:black;");
     document.getElementById('shell').appendChild(browserFrame);
-
-    browserFrame.contentWindow
-                .QueryInterface(Ci.nsIInterfaceRequestor)
-                .getInterface(Ci.nsIWebNavigation)
-                .sessionHistory = Cc["@mozilla.org/browser/shistory;1"]
-                                    .createInstance(Ci.nsISHistory);
 
     ['keydown', 'keypress', 'keyup'].forEach((function listenKey(type) {
       window.addEventListener(type, this, false, true);
@@ -175,6 +168,29 @@ var shell = {
     delete Services.audioManager;
 #endif
   },
+ 
+  changeVolume: function shell_changeVolume(delta) {
+    let steps = 10;
+    try {
+      steps = Services.prefs.getIntPref("media.volume.steps");
+      if (steps <= 0)
+        steps = 1;
+    } catch(e) {}
+
+    let audioManager = Services.audioManager;
+    if (!audioManager)
+      return;
+
+    let currentVolume = audioManager.masterVolume;
+    let newStep = Math.round(steps * Math.sqrt(currentVolume)) + delta;
+    let volume = (newStep / steps) * (newStep / steps);
+
+    if (volume > 1)
+      volume = 1;
+    if (volume < 0)
+      volume = 0;
+    audioManager.masterVolume = volume;
+  },
 
   forwardKeyToContent: function shell_forwardKeyToContent(evt) {
     let content = shell.contentBrowser.contentWindow;
@@ -192,6 +208,20 @@ var shell = {
       case 'keydown':
       case 'keyup':
       case 'keypress':
+        // For debug purposes and because some of the APIs are not yet exposed
+        // to the content, let's react on some of the keyup events.
+        if (evt.type == 'keyup' && evt.eventPhase == evt.BUBBLING_PHASE) {
+          switch (evt.keyCode) {
+            case evt.DOM_VK_PAGE_DOWN:
+              this.changeVolume(-1);
+              break;
+
+            case evt.DOM_VK_PAGE_UP:
+              this.changeVolume(1);
+              break;
+          }
+        }
+
         // Redirect the HOME key to System app and stop the applications from
         // handling it.
         let rootContentEvt = (evt.target.ownerDocument.defaultView == content);
@@ -302,17 +332,6 @@ nsBrowserAccess.prototype = {
   }
 };
 
-// Listen for system messages and relay them to Gaia.
-Services.obs.addObserver(function(aSubject, aTopic, aData) {
-  let msg = JSON.parse(aData);
-  let origin = Services.io.newURI(msg.manifest, null, null).prePath;
-  shell.sendEvent(shell.contentBrowser.contentWindow,
-                  "mozChromeEvent", { type: "open-app",
-                                      url: msg.uri,
-                                      origin: origin,
-                                      manifest: msg.manifest } );
-}, "system-messages-open-app", false);
-
 (function Repl() {
   if (!Services.prefs.getBoolPref('b2g.remote-js.enabled')) {
     return;
@@ -369,7 +388,7 @@ var CustomEventManager = {
 
   handleEvent: function custevt_handleEvent(evt) {
     let detail = evt.detail;
-    dump('XXX FIXME : Got a mozContentEvent: ' + detail.type + "\n");
+    dump('XXX FIXME : Got a mozContentEvent: ' + detail.type);
 
     switch(detail.type) {
       case 'desktop-notification-click':
@@ -410,11 +429,11 @@ var AlertsHelper = {
     return id;
   },
 
-  showAlertNotification: function alert_showAlertNotification(imageUrl, title, text, textClickable,
+  showAlertNotification: function alert_showAlertNotification(imageUrl, title, text, textClickable, 
                                                               cookie, alertListener, name) {
     let id = this.registerListener(cookie, alertListener);
     let content = shell.contentBrowser.contentWindow;
-    shell.sendEvent(content, "mozChromeEvent", { type: "desktop-notification", id: id, icon: imageUrl,
+    shell.sendEvent(content, "mozChromeEvent", { type: "desktop-notification", id: id, icon: imageUrl, 
                                                  title: title, text: text } );
   }
 }
@@ -426,7 +445,6 @@ var WebappsHelper = {
   init: function webapps_init() {
     Services.obs.addObserver(this, "webapps-launch", false);
     Services.obs.addObserver(this, "webapps-ask-install", false);
-    DOMApplicationRegistry.allAppsLaunchable = true;
   },
 
   registerInstaller: function webapps_registerInstaller(data) {
@@ -497,15 +515,86 @@ window.addEventListener('ContentStart', function(evt) {
   }
 });
 
-// This is the backend for Gaia's screenshot feature.  Gaia requests a
-// screenshot by sending a mozContentEvent with detail.type set to
-// 'take-screenshot'.  Then we take a screenshot and send a
-// mozChromeEvent with detail.type set to 'take-screenshot-success'
-// and detail.file set to the an image/png blob
+(function PowerManager() {
+  // This will eventually be moved to content, so use content API as
+  // much as possible here. TODO: Bug 738530
+  let power = navigator.mozPower;
+  let idleHandler = function idleHandler(subject, topic, time) {
+    if (topic !== 'idle')
+      return;
+
+    if (power.getWakeLockState("screen") != "locked-foreground") {
+      navigator.mozPower.screenEnabled = false;
+    }
+  }
+
+  let wakeLockHandler = function(topic, state) {
+    // Turn off the screen when no one needs the it or all of them are
+    // invisible, otherwise turn the screen on. Note that the CPU
+    // might go to sleep as soon as the screen is turned off and
+    // acquiring wake lock will not bring it back (actually the code
+    // is not executed at all).
+    if (topic === 'screen') {
+      if (state != "locked-foreground") {
+        if (Services.idle.idleTime > idleTimeout*1000) {
+          navigator.mozPower.screenEnabled = false;
+        }
+      } else {
+        navigator.mozPower.screenEnabled = true;
+      }
+    } else if (topic == 'cpu') {
+      navigator.mozPower.cpuSleepAllowed = (state != 'locked-foreground' &&
+                                            state != 'locked-background');
+    }
+  }
+
+  let idleTimeout = Services.prefs.getIntPref('power.screen.timeout');
+  if (!('mozSettings' in navigator))
+    return;
+
+  let request = navigator.mozSettings.getLock().get('power.screen.timeout');
+  request.onsuccess = function onSuccess() {
+    idleTimeout = request.result['power.screen.timeout'] || idleTimeout;
+    if (!idleTimeout)
+      return;
+
+    Services.idle.addIdleObserver(idleHandler, idleTimeout);
+    power.addWakeLockListener(wakeLockHandler);
+  };
+
+  request.onerror = function onError() {
+    if (!idleTimeout)
+      return;
+
+    Services.idle.addIdleObserver(idleHandler, idleTimeout);
+    power.addWakeLockListener(wakeLockHandler);
+  };
+
+  SettingsListener.observe('power.screen.timeout', idleTimeout, function(value) {
+    if (!value)
+      return;
+
+    Services.idle.removeIdleObserver(idleHandler, idleTimeout);
+    idleTimeout = value;
+    Services.idle.addIdleObserver(idleHandler, idleTimeout);
+  });
+
+  window.addEventListener('unload', function removeIdleObjects() {
+    Services.idle.removeIdleObserver(idleHandler, idleTimeout);
+    power.removeWakeLockListener(wakeLockHandler);
+  });
+})();
+
+// This is the backend for Gaia's screenshot feature.
+// Gaia requests a screenshot by sending a mozContentEvent with
+// detail.type set to 'save-screenshot'.  Then we take a screenshot
+// save it in device storage (external) and send a mozChromeEvent with
+// detail.type set to 'saved-screenshot' and detail.filename set to
+// the filename.
 window.addEventListener('ContentStart', function ss_onContentStart() {
   let content = shell.contentBrowser.contentWindow;
   content.addEventListener('mozContentEvent', function ss_onMozContentEvent(e) {
-    if (e.detail.type !== 'take-screenshot')
+    if (e.detail.type !== 'save-screenshot')
       return;
 
     try {
@@ -524,14 +613,44 @@ window.addEventListener('ContentStart', function ss_onContentStart() {
       context.drawWindow(window, 0, 0, width, height,
                          'rgb(255,255,255)', flags);
 
+      var filename = 'screenshots/' +
+        new Date().toISOString().slice(0,-5).replace(/[:T]/g, '-') +
+        '.png';
+
+      var file = canvas.mozGetAsFile(filename, 'image/png');
+      var storage = navigator.getDeviceStorage('pictures')[0];
+      if (!storage) { // If we don't have an SD card to save to, send an error
+        shell.sendEvent(content, 'mozChromeEvent', {
+          type: 'save-screenshot-no-card'
+        });
+        return;
+      }
+
+      var saveRequest = storage.addNamed(file, filename);
+      saveRequest.onsuccess = function ss_onsuccess() {
+        try {
+          shell.sendEvent(content, 'mozChromeEvent', {
+            type: 'save-screenshot-success',
+            filename: filename
+          });
+        } catch(e) {
+          dump('exception in onsuccess ' + e + '\n');
+        }
+      };
+      saveRequest.onerror = function ss_onerror() {
+        try {
+          shell.sendEvent(content, 'mozChromeEvent', {
+            type: 'save-screenshot-error',
+            error: saveRequest.error.name
+          });
+        } catch(e) {
+          dump('exception in onerror ' + e + '\n');
+        }
+      };
+    } catch(e) {
+      dump('exception while saving screenshot: ' + e + '\n');
       shell.sendEvent(content, 'mozChromeEvent', {
-          type: 'take-screenshot-success',
-          file: canvas.mozGetAsFile('screenshot', 'image/png')
-      });
-    } catch (e) {
-      dump('exception while creating screenshot: ' + e + '\n');
-      shell.sendEvent(content, 'mozChromeEvent', {
-        type: 'take-screenshot-error',
+        type: 'save-screenshot-error',
         error: String(e)
       });
     }

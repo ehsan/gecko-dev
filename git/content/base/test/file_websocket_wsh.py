@@ -71,13 +71,7 @@ def web_socket_transfer_data(request):
       resp = "server data"
     msgutil.send_message(request, resp.decode('utf-8'))
   elif request.ws_protocol == "test-12":
-    msg = msgutil.receive_message(request)
-    if msg ==  u'a\ufffdb':
-      # converted unpaired surrogate in UTF-16 to UTF-8 OK
-      msgutil.send_message(request, "SUCCESS")
-    else:
-      msgutil.send_message(request, "FAIL got '" + msg 
-          + "' instead of string with replacement char'")
+    msgutil.close_connection(request)
   elif request.ws_protocol == "test-13":
     # first one binary message containing the byte 0x61 ('a')
     request.connection.write('\xff\x01\x61')

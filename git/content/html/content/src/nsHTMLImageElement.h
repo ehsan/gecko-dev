@@ -95,13 +95,14 @@ public:
   virtual nsEventStates IntrinsicState() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  nsresult CopyInnerTo(nsGenericElement* aDest);
+  nsresult CopyInnerTo(nsGenericElement* aDest) const;
 
   void MaybeLoadImage();
   virtual nsXPCClassInfo* GetClassInfo();
   virtual nsIDOMNode* AsDOMNode() { return this; }
 protected:
   nsIntPoint GetXY();
+  nsSize GetWidthHeight();
   virtual void GetItemValueText(nsAString& text);
   virtual void SetItemValueText(const nsAString& text);
 };

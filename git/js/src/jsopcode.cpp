@@ -404,7 +404,7 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
         return true;
     }
 
-    if (cx->runtime->isHeapBusy() || cx->runtime->noGCOrAllocationCheck) {
+    if (cx->runtime->gcRunning || cx->runtime->noGCOrAllocationCheck) {
         char *source = JS_sprintf_append(NULL, "<value>");
         if (!source)
             return false;
@@ -423,7 +423,7 @@ ToDisassemblySource(JSContext *cx, jsval v, JSAutoByteString *bytes)
             Shape::Range::AutoRooter root(cx, &r);
 
             while (!r.empty()) {
-                Rooted<Shape*> shape(cx, &r.front());
+                Rooted<const Shape*> shape(cx, &r.front());
                 JSAtom *atom = JSID_IS_INT(shape->propid())
                                ? cx->runtime->atomState.emptyAtom
                                : JSID_TO_ATOM(shape->propid());
@@ -1762,7 +1762,7 @@ static const char *
 GetLocalInSlot(SprintStack *ss, int i, int slot, JSObject *obj)
 {
     for (Shape::Range r(obj->lastProperty()); !r.empty(); r.popFront()) {
-        Shape &shape = r.front();
+        const Shape &shape = r.front();
 
         if (shape.shortid() == slot) {
             /* Ignore the empty destructuring dummy. */
@@ -2321,7 +2321,7 @@ GetBlockNames(JSContext *cx, StaticBlockObject &blockObj, AtomVector *atoms)
 
     unsigned i = numAtoms;
     for (Shape::Range r = blockObj.lastProperty()->all(); !r.empty(); r.popFront()) {
-        Shape &shape = r.front();
+        const Shape &shape = r.front();
         LOCAL_ASSERT(shape.hasShortID());
         --i;
         LOCAL_ASSERT((unsigned)shape.shortid() == i);
@@ -4850,8 +4850,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                     len = GET_JUMP_OFFSET(pc);
                     if (jp->fun->hasRest()) {
                         // Jump over rest parameter things.
-                        if (pc[len] == JSOP_SETARG || pc[len] == JSOP_SETALIASEDVAR)
-                            len += GetBytecodeLength(pc + len);
+                        len += GetBytecodeLength(pc + len);
                         LOCAL_ASSERT(pc[len] == JSOP_POP);
                         len += GetBytecodeLength(pc + len);
                     }
@@ -5364,13 +5363,10 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
                 pc += GetBytecodeLength(pc);
                 if (*pc == JSOP_UNDEFINED)
                     pc += GetBytecodeLength(pc);
-                if (*pc == JSOP_SETALIASEDVAR || *pc == JSOP_SETARG) {
-                    pc += GetBytecodeLength(pc);
-                    LOCAL_ASSERT(*pc == JSOP_POP);
-                    len = GetBytecodeLength(pc);
-                } else {
-                    len = 0;
-                }
+                LOCAL_ASSERT(*pc == JSOP_SETALIASEDVAR || *pc == JSOP_SETARG);
+                pc += GetBytecodeLength(pc);
+                LOCAL_ASSERT(*pc == JSOP_POP);
+                len = GetBytecodeLength(pc);
                 todo = -2;
                 break;
 
@@ -6383,7 +6379,7 @@ GetPCCountScriptContents(JSContext *cx, size_t index)
 
     {
         JSAutoEnterCompartment ac;
-        if (!ac.enter(cx, &script->global()))
+        if (!ac.enter(cx, script->function() ? (JSObject *) script->function() : script->global()))
             return NULL;
 
         if (!GetPCCountJSON(cx, sac, buf))

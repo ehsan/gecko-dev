@@ -4,25 +4,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/mozalloc.h"           // for operator new
-#include "nsAString.h"
-#include "nsComponentManagerUtils.h"    // for do_CreateInstance
+#include "nsPIDOMWindow.h"
 #include "nsComposerCommandsUpdater.h"
-#include "nsDebug.h"                    // for NS_ENSURE_TRUE, etc
-#include "nsError.h"                    // for NS_OK, NS_ERROR_FAILURE, etc
-#include "nsICommandManager.h"          // for nsICommandManager
-#include "nsID.h"                       // for NS_GET_IID, etc
-#include "nsIDOMWindow.h"               // for nsIDOMWindow
-#include "nsIDocShell.h"                // for nsIDocShell
-#include "nsIInterfaceRequestorUtils.h"  // for do_GetInterface
-#include "nsISelection.h"               // for nsISelection
-#include "nsITransactionManager.h"      // for nsITransactionManager
-#include "nsLiteralString.h"            // for NS_LITERAL_STRING
-#include "nsPICommandUpdater.h"         // for nsPICommandUpdater
-#include "nsPIDOMWindow.h"              // for nsPIDOMWindow
+#include "nsComponentManagerUtils.h"
+#include "nsIDOMDocument.h"
+#include "nsISelection.h"
 
-class nsIDOMDocument;
-class nsITransaction;
+#include "nsIInterfaceRequestorUtils.h"
+#include "nsString.h"
+
+#include "nsICommandManager.h"
+
+#include "nsIDocShell.h"
+#include "nsITransactionManager.h"
 
 nsComposerCommandsUpdater::nsComposerCommandsUpdater()
 :  mDirtyState(eStateUninitialized)

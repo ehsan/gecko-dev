@@ -21,6 +21,8 @@
 #include "nsRenderingContext.h"
 #include "nsGkAtoms.h"
 #include "nsPlaceholderFrame.h"
+#include "nsIDocument.h"
+#include "nsIHTMLDocument.h"
 #include "nsIContent.h"
 #include "nsTextFragment.h"
 #include "nsBidiUtils.h"

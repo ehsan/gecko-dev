@@ -26,6 +26,7 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
@@ -78,13 +79,6 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
     mContext = getApplicationContext();
     Logger.debug(LOG_TAG, "AccountManager.get(" + mContext + ")");
     mAccountManager = AccountManager.get(mContext);
-
-    // Set "screen on" flag for this activity. Screen will not automatically dim as long as this
-    // activity is at the top of the stack.
-    // Attempting to set this flag more than once causes hanging, so we set it here, not in onResume().
-    Window w = getWindow();
-    w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-    Logger.debug(LOG_TAG, "Successfully set screen-on flag.");
   }
 
   @Override
@@ -111,6 +105,11 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
   public void finishResume(Account[] accts) {
     Logger.debug(LOG_TAG, "Finishing Resume after fetching accounts.");
 
+    // Set "screen on" flag.
+    Logger.debug(LOG_TAG, "Setting screen-on flag.");
+    Window w = getWindow();
+    w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
     if (accts.length == 0) { // Start J-PAKE for pairing if no accounts present.
       Logger.debug(LOG_TAG, "No accounts; starting J-PAKE receiver.");
       displayReceiveNoPin();
@@ -135,8 +134,7 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
         return;
       }
     }
-
-    final Activity setupActivity = this;
+    
     runOnUiThread(new Runnable() {
       @Override
       public void run() {
@@ -147,7 +145,10 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
             R.string.sync_notification_oneaccount, Toast.LENGTH_LONG);
         toast.show();
 
-        SyncAccounts.openSyncSettings(setupActivity);
+        Intent intent = new Intent(Settings.ACTION_SYNC_SETTINGS);
+        intent.setFlags(Constants.FLAG_ACTIVITY_REORDER_TO_FRONT_NO_ANIMATION);
+        startActivity(intent);
+
         finish();
       }
     });
@@ -328,9 +329,7 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
     fields.put(Constants.JSON_KEY_PASSWORD, password);
     fields.put(Constants.JSON_KEY_SERVER,   serverURL);
 
-    if (Logger.LOG_PERSONAL_INFORMATION) {
-      Logger.pii(LOG_TAG, "Extracted account data: " + jAccount.toJSONString());
-    }
+    Logger.debug(LOG_TAG, "Extracted account data: " + jAccount.toJSONString());
     return jAccount;
   }
 
@@ -432,10 +431,10 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
       }
     });
   }
-
   /*
    * Helper functions
    */
+
   private void activateButton(Button button, boolean toActivate) {
     button.setEnabled(toActivate);
     button.setClickable(toActivate);
@@ -451,24 +450,19 @@ public class SetupSyncActivity extends AccountAuthenticatorActivity {
    * Displays Sync account setup result to user.
    *
    * @param isSetup
-   *          true if account was set up successfully, false otherwise.
+   *          true is account was set up successfully, false otherwise.
    */
   private void displayResult(boolean isSuccess) {
     Intent intent = null;
     if (isSuccess) {
       intent = new Intent(mContext, SetupSuccessActivity.class);
-      intent.setFlags(Constants.FLAG_ACTIVITY_REORDER_TO_FRONT_NO_ANIMATION);
-      intent.putExtra(Constants.INTENT_EXTRA_IS_SETUP, !pairWithPin);
-      startActivity(intent);
-      finish();
-    } else {
+    }  else {
       intent = new Intent(mContext, SetupFailureActivity.class);
-      intent.putExtra(Constants.INTENT_EXTRA_IS_ACCOUNTERROR, true);
-      intent.setFlags(Constants.FLAG_ACTIVITY_REORDER_TO_FRONT_NO_ANIMATION);
-      intent.putExtra(Constants.INTENT_EXTRA_IS_SETUP, !pairWithPin);
-      startActivity(intent);
-      // Do not finish, so user can retry setup by hitting "back."
     }
+    intent.setFlags(Constants.FLAG_ACTIVITY_REORDER_TO_FRONT_NO_ANIMATION);
+    intent.putExtra(Constants.INTENT_EXTRA_IS_SETUP, !pairWithPin);
+    startActivity(intent);
+    finish();
   }
 
   /**

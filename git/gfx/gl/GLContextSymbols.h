@@ -163,8 +163,6 @@ struct GLContextSymbols
     PFNGLLINKPROGRAMPROC fLinkProgram;
     typedef void (GLAPIENTRY * PFNGLPIXELSTOREIPROC) (GLenum pname, GLint param);
     PFNGLPIXELSTOREIPROC fPixelStorei;
-    typedef void (GLAPIENTRY * PFNGLPOINTPARAMETERFPROC) (GLenum pname, GLfloat param);
-    PFNGLPOINTPARAMETERFPROC fPointParameterf;
     typedef void (GLAPIENTRY * PFNGLPOLYGONOFFSETPROC) (GLfloat factor, GLfloat bias);
     PFNGLPOLYGONOFFSETPROC fPolygonOffset;
     typedef void (GLAPIENTRY * PFNGLREADBUFFERPROC) (GLenum);

@@ -13,7 +13,6 @@ let Cc = Components.classes;
 let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 XPCOMUtils.defineLazyServiceGetter(Services, "fm",
                                    "@mozilla.org/focus-manager;1",
                                    "nsIFocusManager");
@@ -27,9 +26,11 @@ let HTMLOptionElement = Ci.nsIDOMHTMLOptionElement;
 let FormAssistant = {
   init: function fa_init() {
     addEventListener("focus", this, true, false);
-    addEventListener("blur", this, true, false);
     addEventListener("keypress", this, true, false);
+    addEventListener("mousedown", this, true, false);
     addEventListener("resize", this, true, false);
+    addEventListener("click", this, true, false);
+    addEventListener("blur", this, true, false);
     addMessageListener("Forms:Select:Choice", this);
     addMessageListener("Forms:Input:Value", this);
     Services.obs.addObserver(this, "ime-enabled-state-changed", false);
@@ -44,50 +45,48 @@ let FormAssistant = {
 
     switch (evt.type) {
       case "focus":
-        if (this.isKeyboardOpened)
+        this.previousTarget = Services.fm.focusedElement;
+        break;
+
+      case "blur":
+        if (!target)
+          return;
+        this.previousTarget = null;
+
+        if (target instanceof HTMLSelectElement ||
+            (target instanceof HTMLOptionElement && target.parentNode instanceof HTMLSelectElement)) {
+
+          sendAsyncMessage("Forms:Input", { "type": "blur" });
+        }
+        break;
+
+      case 'resize':
+        if (!this.isKeyboardOpened)
+          return;
+
+        Services.fm.focusedElement.scrollIntoView(false);
+        break;
+
+      case "mousedown":
+        if (evt.target != target || this.isKeyboardOpened)
           return;
 
         let ignore = {
           button: true,
-          file: true,
           checkbox: true,
+          file: true,
           radio: true,
           reset: true,
-          submit: true,
-          image: true
+          submit: true
         };
     
-        if (evt.target instanceof HTMLSelectElement) { 
-          content.setTimeout(function showIMEForSelect() {
-            sendAsyncMessage("Forms:Input", getJSON(evt.target));
-          });
-        } else if (evt.target instanceof HTMLOptionElement &&
-                   evt.target.parentNode instanceof HTMLSelectElement) {
-          content.setTimeout(function showIMEForSelect() {
-            sendAsyncMessage("Forms:Input", getJSON(evt.target.parentNode));
-          });
-        } else if ((target instanceof HTMLInputElement && !ignore[target.type]) ||
-                    target instanceof HTMLTextAreaElement) {
-          this.isKeyboardOpened = this.tryShowIme(evt.target);
-          this.previousTarget = evt.target;
-        }
-        break;
-
-      case "blur":
-        if (this.previousTarget) {
-          sendAsyncMessage("Forms:Input", { "type": "blur" });
-          this.previousTarget = null;
-        }
-        break;
-
-      case "resize":
-        if (!this.isKeyboardOpened)
+        if ((target instanceof HTMLInputElement && ignore[target.type]) ||
+            !(target instanceof HTMLInputElement ||
+              target instanceof HTMLTextAreaElement)) {
           return;
-
-        let focusedElement = this.previousTarget;
-        if (focusedElement) {
-          focusedElement.scrollIntoView(false);
         }
+
+        this.isKeyboardOpened = this.tryShowIme(evt.target);
         break;
 
       case "keypress":
@@ -100,14 +99,24 @@ let FormAssistant = {
         evt.preventDefault();
         evt.stopPropagation();
         break;
+
+      case "click":
+        content.setTimeout(function showIMEForSelect() {
+          if (evt.target instanceof HTMLSelectElement) { 
+            sendAsyncMessage("Forms:Input", getJSON(evt.target));
+          } else if (evt.target instanceof HTMLOptionElement &&
+                     evt.target.parentNode instanceof HTMLSelectElement) {
+            sendAsyncMessage("Forms:Input", getJSON(evt.target.parentNode));
+          }
+        });
+        break;
     }
   },
 
   receiveMessage: function fa_receiveMessage(msg) {
-    let target = this.previousTarget;
-    if (!target) {
+    let target = Services.fm.focusedElement;
+    if (!target)
       return;
-    }
 
     let json = msg.json;
     switch (msg.name) {
@@ -157,16 +166,11 @@ let FormAssistant = {
   },
 
   tryShowIme: function(element) {
-    if (!element) {
-      return;
-    }
-
     // FIXME/bug 729623: work around apparent bug in the IME manager
     // in gecko.
     let readonly = element.getAttribute("readonly");
-    if (readonly) {
+    if (readonly)
       return false;
-    }
 
     sendAsyncMessage("Forms:Input", getJSON(element));
     return true;
@@ -177,8 +181,7 @@ FormAssistant.init();
 
 
 function getJSON(element) {
-  let type = element.type || "";
-
+  let type = element.type;
   // FIXME/bug 344616 is input type="number"
   // Until then, let's return 'number' even if the platform returns 'text'
   let attributeType = element.getAttribute("type") || "";

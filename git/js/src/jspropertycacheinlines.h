@@ -31,11 +31,9 @@ JS_ALWAYS_INLINE void
 js::PropertyCache::test(JSContext *cx, jsbytecode *pc, JSObject *&obj,
                         JSObject *&pobj, PropertyCacheEntry *&entry, PropertyName *&name)
 {
-    AssertRootingUnnecessary assert(cx);
-
     JS_ASSERT(this == &JS_PROPERTY_CACHE(cx));
 
-    Shape *kshape = obj->lastProperty();
+    const Shape *kshape = obj->lastProperty();
     entry = &table[hash(pc, kshape)];
     PCMETER(pctestentry = entry);
     PCMETER(tests++);
@@ -66,7 +64,7 @@ js::PropertyCache::testForSet(JSContext *cx, jsbytecode *pc, JSObject *obj,
 {
     JS_ASSERT(this == &JS_PROPERTY_CACHE(cx));
 
-    Shape *kshape = obj->lastProperty();
+    const Shape *kshape = obj->lastProperty();
     PropertyCacheEntry *entry = &table[hash(pc, kshape)];
     *entryp = entry;
     PCMETER(pctestentry = entry);

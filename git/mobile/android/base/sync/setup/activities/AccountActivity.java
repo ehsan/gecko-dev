@@ -253,7 +253,10 @@ public class AccountActivity extends AccountAuthenticatorActivity {
           runOnUiThread(new Runnable() {
             @Override
             public void run() {
-              displayFailure(AuthenticationResult.FAILURE_ACCOUNT);
+              // Use default error.
+              // TODO: Bug 766499: Show specific error message when Android fails on Account creation.
+              Logger.debug(LOG_TAG, "displayFailure()");
+              displayFailure(AuthenticationResult.FAILURE_OTHER);
             }
           });
           return;
@@ -291,7 +294,6 @@ public class AccountActivity extends AccountAuthenticatorActivity {
     runOnUiThread(new Runnable() {
       @Override
       public void run() {
-        Intent intent;
         switch (result) {
         case FAILURE_USERNAME:
           // No such username. Don't leak whether the username exists.
@@ -303,17 +305,11 @@ public class AccountActivity extends AccountAuthenticatorActivity {
           findViewById(R.id.server_error).setVisibility(View.VISIBLE);
           serverInput.requestFocus();
           break;
-        case FAILURE_ACCOUNT:
-          intent = new Intent(mContext, SetupFailureActivity.class);
-          intent.setFlags(Constants.FLAG_ACTIVITY_REORDER_TO_FRONT_NO_ANIMATION);
-          intent.putExtra(Constants.INTENT_EXTRA_IS_ACCOUNTERROR, true);
-          startActivity(intent);
-          break;
         case FAILURE_OTHER:
         default:
           // Display default error screen.
           Logger.debug(LOG_TAG, "displaying default failure.");
-          intent = new Intent(mContext, SetupFailureActivity.class);
+          Intent intent = new Intent(mContext, SetupFailureActivity.class);
           intent.setFlags(Constants.FLAG_ACTIVITY_REORDER_TO_FRONT_NO_ANIMATION);
           startActivity(intent);
         }

@@ -32,9 +32,11 @@
 #include "nsCOMArray.h"
 #include "nsFixedSizeAllocator.h"
 #include "nsIAtom.h"
+#include "nsIContent.h"
 #include "nsIDOMNode.h"
 #include "plhash.h"
 #include "pldhash.h"
+#include "nsCRT.h"
 #include "nsIRDFNode.h"
 
 class nsIRDFResource;

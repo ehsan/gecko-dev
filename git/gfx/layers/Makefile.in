@@ -42,14 +42,7 @@ EXPORTS = \
 
 CPPSRCS = \
         BasicImages.cpp \
-        BasicLayerManager.cpp \
-        BasicCanvasLayer.cpp \
-        BasicColorLayer.cpp \
-        BasicContainerLayer.cpp \
-        BasicImageLayer.cpp \
-        BasicLayersImpl.cpp \
-        BasicThebesLayer.cpp \
-        BasicBuffers.cpp \
+        BasicLayers.cpp \
         BasicTiledThebesLayer.cpp \
         Layers.cpp \
         RenderTrace.cpp \
@@ -138,14 +131,6 @@ endif #}
 ifdef MOZ_ENABLE_D3D10_LAYER
 EXPORTS_mozilla/layers += ShadowLayerUtilsD3D10.h
 DEFINES	+= -DMOZ_ENABLE_D3D10_LAYER
-endif
-
-# NB: Gralloc is available on other platforms that use the android GL
-# libraries, but only Gonk is able to use it reliably because Gecko
-# has full system permissions there.
-ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)
-EXPORTS_mozilla/layers += ShadowLayerUtilsGralloc.h
-CPPSRCS += ShadowLayerUtilsGralloc.cpp
 endif
 
 include $(topsrcdir)/config/rules.mk

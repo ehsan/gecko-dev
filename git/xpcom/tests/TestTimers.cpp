@@ -14,7 +14,6 @@
 #include "nsThreadUtils.h"
 #include "prinrval.h"
 #include "prmon.h"
-#include "mozilla/Attributes.h"
 
 #include "mozilla/ReentrantMonitor.h"
 using namespace mozilla;
@@ -69,7 +68,7 @@ private:
   ReentrantMonitor* mReentrantMonitor;
 };
 
-class TimerCallback MOZ_FINAL : public nsITimerCallback
+class TimerCallback : public nsITimerCallback
 {
 public:
   NS_DECL_ISUPPORTS

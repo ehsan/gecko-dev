@@ -41,6 +41,7 @@ typedef bool (*nsContentListMatchFunc)(nsIContent* aContent,
 
 typedef void (*nsContentListDestroyFunc)(void* aData);
 
+class nsIDocument;
 namespace mozilla {
 namespace dom {
 class Element;

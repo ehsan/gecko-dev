@@ -46,7 +46,7 @@ nsAuthSambaNTLM::Shutdown()
 NS_IMPL_ISUPPORTS1(nsAuthSambaNTLM, nsIAuthModule)
 
 static bool
-SpawnIOChild(char* const* aArgs, PRProcess** aPID,
+SpawnIOChild(char** aArgs, PRProcess** aPID,
              PRFileDesc** aFromChildFD, PRFileDesc** aToChildFD)
 {
     PRFileDesc* toChildPipeRead;
@@ -172,15 +172,15 @@ nsAuthSambaNTLM::SpawnNTLMAuthHelper()
     if (!username)
         return NS_ERROR_FAILURE;
 
-    const char* const args[] = {
+    char* args[] = {
         "ntlm_auth",
         "--helper-protocol", "ntlmssp-client-1",
         "--use-cached-creds",
-        "--username", username,
+        "--username", const_cast<char*>(username),
         nsnull
     };
 
-    bool isOK = SpawnIOChild(const_cast<char* const*>(args), &mChildPID, &mFromChildFD, &mToChildFD);
+    bool isOK = SpawnIOChild(args, &mChildPID, &mFromChildFD, &mToChildFD);
     if (!isOK)  
         return NS_ERROR_FAILURE;
 

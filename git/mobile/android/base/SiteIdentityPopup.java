@@ -61,8 +61,7 @@ public class SiteIdentityPopup extends PopupWindow {
     private void init() {
         setBackgroundDrawable(new BitmapDrawable());
         setOutsideTouchable(true);
-        setWindowLayoutMode(GeckoApp.mAppContext.isTablet() ? LayoutParams.WRAP_CONTENT : LayoutParams.FILL_PARENT,
-                LayoutParams.WRAP_CONTENT);
+        setWindowLayoutMode(LayoutParams.FILL_PARENT, LayoutParams.WRAP_CONTENT);
 
         LayoutInflater inflater = LayoutInflater.from(GeckoApp.mAppContext);
         RelativeLayout layout = (RelativeLayout) inflater.inflate(R.layout.site_identity_popup, null);
@@ -148,21 +147,13 @@ public class SiteIdentityPopup extends PopupWindow {
             mSupplemental.setTextColor(mResources.getColor(R.color.identity_identified));
         }
 
-        int offset = 0;
-        if (GeckoApp.mAppContext.isTablet()) {
-            int popupWidth = mResources.getDimensionPixelSize(R.dimen.site_identity_popup_width);
-            int arrowWidth = mResources.getDimensionPixelSize(R.dimen.doorhanger_arrow_width);
-
-            // Double arrowWidth to leave extra space on the right side of the arrow
-            leftMargin = popupWidth - arrowWidth*2;
-            offset = 0 - popupWidth + arrowWidth*3/2 + v.getWidth()/2;
-        }
-
+        // Position the mArrow according to lock position
         LayoutParams layoutParams = (LayoutParams) mArrow.getLayoutParams();
         LayoutParams newLayoutParams = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
         newLayoutParams.setMargins(leftMargin, layoutParams.topMargin, 0, 0);
         mArrow.setLayoutParams(newLayoutParams);
 
-        showAsDropDown(v, offset, 0);
+        // This will place the popup at the correct vertical position
+        showAsDropDown(v);
     }
 }

@@ -19,6 +19,7 @@
 #include "nsReadableUtils.h"
 #include "nsIPrincipal.h"
 
+#include "nsContentUtils.h"
 #include "mozAutoDocUpdate.h"
 
 namespace css = mozilla::css;

@@ -66,7 +66,9 @@ let notificationsObserver = {
     }
 
     // Check cache.
-    checkCache(URL);
+    do_check_false(cacheExists(URL));
+
+    do_test_finished();
   }
 }
 
@@ -103,10 +105,7 @@ function run_test() {
   });
   print("Add cache.");
   storeCache(URL, "testData");
-}
 
-function run_test_continue()
-{
   print("Simulate and wait shutdown.");
   getDistinctNotifications().forEach(
     function (topic)
@@ -129,46 +128,38 @@ function storeCache(aURL, aContent) {
               getService(Ci.nsICacheService);
   let session = cache.createSession("FTP", Ci.nsICache.STORE_ANYWHERE,
                                     Ci.nsICache.STREAM_BASED);
+  let cacheEntry =
+    session.openCacheEntry(aURL, Ci.nsICache.ACCESS_READ_WRITE, false);
 
-  var storeCacheListener = {
-    onCacheEntryAvailable: function (entry, access, status) {
-      do_check_eq(status, Cr.NS_OK);
+  cacheEntry.setMetaDataElement("servertype", "0");
+  var oStream = cacheEntry.openOutputStream(0);
 
-      entry.setMetaDataElement("servertype", "0");
-      var os = entry.openOutputStream(0);
-
-      var written = os.write(aContent, aContent.length);
-      if (written != aContent.length) {
-        do_throw("os.write has not written all data!\n" +
-                 "  Expected: " + written  + "\n" +
-                 "  Actual: " + aContent.length + "\n");
-      }
-      os.close();
-      entry.close();
-      do_execute_soon(run_test_continue);
-    }
-  };
-
-  session.asyncOpenCacheEntry(aURL,
-                              Ci.nsICache.ACCESS_READ_WRITE,
-                              storeCacheListener);
+  var written = oStream.write(aContent, aContent.length);
+  if (written != aContent.length) {
+    do_throw("oStream.write has not written all data!\n" +
+             "  Expected: " + written  + "\n" +
+             "  Actual: " + aContent.length + "\n");
+  }
+  oStream.close();
+  cacheEntry.close();
 }
 
-
-function checkCache(aURL) {
+function cacheExists(aURL) {
   let cache = Cc["@mozilla.org/network/cache-service;1"].
               getService(Ci.nsICacheService);
   let session = cache.createSession("FTP", Ci.nsICache.STORE_ANYWHERE,
                                     Ci.nsICache.STREAM_BASED);
-
-  var checkCacheListener = {
-    onCacheEntryAvailable: function (entry, access, status) {
-      do_check_eq(status, Cr.NS_ERROR_CACHE_KEY_NOT_FOUND);
-      do_test_finished();
-    }
-  };
-
-  session.asyncOpenCacheEntry(aURL,
-                              Ci.nsICache.ACCESS_READ,
-                              checkCacheListener);
+  try {
+    let cacheEntry =
+      session.openCacheEntry(aURL, Ci.nsICache.ACCESS_READ, true);
+  } catch (e) {
+    if (e.result == Cr.NS_ERROR_CACHE_KEY_NOT_FOUND ||
+        e.result == Cr.NS_ERROR_FAILURE)
+      return false;
+ 
+    // Throw the textual error description.
+    do_throw(e);
+  }
+  cacheEntry.close();
+  return true;
 }

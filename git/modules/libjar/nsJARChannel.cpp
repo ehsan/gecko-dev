@@ -186,8 +186,7 @@ nsJARInputThunk::IsNonBlocking(bool *nonBlocking)
 
 
 nsJARChannel::nsJARChannel()
-    : mAppURI(nsnull)
-    , mContentLength(-1)
+    : mContentLength(-1)
     , mLoadFlags(LOAD_NORMAL)
     , mStatus(NS_OK)
     , mIsPending(false)
@@ -477,12 +476,7 @@ nsJARChannel::SetOriginalURI(nsIURI *aURI)
 NS_IMETHODIMP
 nsJARChannel::GetURI(nsIURI **aURI)
 {
-    if (mAppURI) {
-        NS_IF_ADDREF(*aURI = mAppURI);
-    } else {
-        NS_IF_ADDREF(*aURI = mJarURI);
-    }
-
+    NS_IF_ADDREF(*aURI = mJarURI);
     return NS_OK;
 }
 
@@ -761,20 +755,6 @@ NS_IMETHODIMP
 nsJARChannel::GetIsUnsafe(bool *isUnsafe)
 {
     *isUnsafe = mIsUnsafe;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsJARChannel::SetAppURI(nsIURI *aURI) {
-    NS_ENSURE_ARG_POINTER(aURI);
-
-    nsCAutoString scheme;
-    aURI->GetScheme(scheme);
-    if (!scheme.EqualsLiteral("app")) {
-        return NS_ERROR_INVALID_ARG;
-    }
-
-    mAppURI = aURI;
     return NS_OK;
 }
 

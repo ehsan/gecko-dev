@@ -5,6 +5,7 @@
 
 #include "nsContentCreatorFunctions.h"
 #include "nsGkAtoms.h"
+#include "nsIDocument.h"
 #include "nsMathMLElement.h"
 
 // MathML Element Factory (declared in nsContentCreatorFunctions.h)

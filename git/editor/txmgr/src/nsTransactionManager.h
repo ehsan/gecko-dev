@@ -6,19 +6,16 @@
 #ifndef nsTransactionManager_h__
 #define nsTransactionManager_h__
 
-#include "nsCOMArray.h"
-#include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsISupportsImpl.h"
-#include "nsITransactionManager.h"
-#include "nsTransactionStack.h"
 #include "nsWeakReference.h"
-#include "nscore.h"
-#include "prtypes.h"
+#include "nsITransactionManager.h"
+#include "nsCOMArray.h"
+#include "nsITransactionListener.h"
+#include "nsCycleCollectionParticipant.h"
 
 class nsITransaction;
 class nsITransactionListener;
 class nsTransactionItem;
+class nsTransactionStack;
 
 /** implementation of a transaction manager object.
  *
@@ -55,8 +52,6 @@ public:
   /* nsTransactionManager specific methods. */
   virtual nsresult ClearUndoStack(void);
   virtual nsresult ClearRedoStack(void);
-  already_AddRefed<nsITransaction> PeekUndoStack();
-  already_AddRefed<nsITransaction> PeekRedoStack();
 
   virtual nsresult WillDoNotify(nsITransaction *aTransaction, bool *aInterrupt);
   virtual nsresult DidDoNotify(nsITransaction *aTransaction, nsresult aExecuteResult);

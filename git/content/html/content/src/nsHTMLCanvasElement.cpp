@@ -16,7 +16,6 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsIXPConnect.h"
 #include "jsapi.h"
-#include "jsfriendapi.h"
 #include "nsContentUtils.h"
 #include "nsJSUtils.h"
 #include "nsMathUtils.h"
@@ -124,7 +123,7 @@ nsHTMLCanvasElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 }
 
 nsresult
-nsHTMLCanvasElement::CopyInnerTo(nsGenericElement* aDest)
+nsHTMLCanvasElement::CopyInnerTo(nsGenericElement* aDest) const
 {
   nsresult rv = nsGenericHTMLElement::CopyInnerTo(aDest);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -680,19 +679,6 @@ nsHTMLCanvasElement::InvalidateCanvasContent(const gfxRect* damageRect)
   if (layer) {
     static_cast<CanvasLayer*>(layer)->Updated();
   }
-
-  /*
-   * Treat canvas invalidations as animation activity for JS. Frequently
-   * invalidating a canvas will feed into heuristics and cause JIT code to be
-   * kept around longer, for smoother animations.
-   */
-  nsIScriptGlobalObject *scope = OwnerDoc()->GetScriptGlobalObject();
-  if (scope) {
-    JSObject *obj = scope->GetGlobalJSObject();
-    if (obj) {
-      js::NotifyAnimationActivity(obj);
-    }
-  }
 }
 
 void
@@ -779,8 +765,12 @@ nsresult
 NS_NewCanvasRenderingContext2D(nsIDOMCanvasRenderingContext2D** aResult)
 {
   Telemetry::Accumulate(Telemetry::CANVAS_2D_USED, 1);
-  if (AzureCanvasEnabled()) {
-    return NS_NewCanvasRenderingContext2DAzure(aResult);
+  if (Preferences::GetBool("gfx.canvas.azure.enabled", false)) {
+    nsresult rv = NS_NewCanvasRenderingContext2DAzure(aResult);
+    // If Azure fails, fall back to a classic canvas.
+    if (NS_SUCCEEDED(rv)) {
+      return rv;
+    }
   }
 
   return NS_NewCanvasRenderingContext2DThebes(aResult);

@@ -50,7 +50,9 @@ members = [
     'nsIDOMScreen.width',
     'nsIDOMScreen.left',
     'nsIDOMClientRect.*',
+    'nsIDOMClientRectList.*',
     'nsIDOMPaintRequest.*',
+    'nsIDOMPaintRequestList.*',
     # nsLocationSH has ~ALLOW_PROP_MODS_TO_PROTOTYPE, so don't try.
     #'nsIDOMLocation.hostname',
     #'nsIDOMLocation.href',
@@ -133,11 +135,14 @@ members = [
     'nsIDOMNamedNodeMap.item',
     'nsIDOMNamedNodeMap.length',
     'nsIDOMNode.*',
+    'nsIDOMNodeList.*',
     'nsIDOMNodeSelector.querySelector',
     'nsIDOMNodeSelector.querySelectorAll',
     'nsIDOMText.splitText',
     'nsIDOMDOMImplementation.*',
     'nsIDOMDOMStringList.*',
+    'nsIDOMDOMTokenList.*',
+    'nsIDOMDOMSettableTokenList.*',
     'nsIDOMXULDocument.getBoxObjectFor',
     'nsIDOMMutationRecord.*',
 
@@ -186,6 +191,7 @@ members = [
     'nsIDOMUIEvent.isChar',
 
     'nsIDOMTouch.*',
+    'nsIDOMTouchList.*',
     'nsIDOMTouchEvent.*',
 
     # dom/interfaces/geolocation - None.
@@ -204,6 +210,11 @@ members = [
     'nsIDOMHTMLButtonElement.form',
     'nsIDOMHTMLButtonElement.value',
     'nsIDOMHTMLButtonElement.disabled',
+    'nsIDOMHTMLCollection.item',
+    # This is shadowed by nsIDOMHTMLOptionsCollection.length,
+    # but it is also present in other objects where it isn't shadowed.
+    # Quick stubs handle the shadowing the same as XPConnect.
+    'nsIDOMHTMLCollection.length',
     'nsIDOMHTMLCommandElement.*',
     'nsIDOMHTMLDocument.body',
     'nsIDOMHTMLDocument.getElementsByName',
@@ -293,7 +304,11 @@ members = [
     'nsIDOMHTMLOptionElement.value',
     'nsIDOMHTMLOptionElement.label',
     'nsIDOMHTMLOptionElement.disabled',
+    'nsIDOMHTMLOptionsCollection.item',
+    'nsIDOMHTMLOptionsCollection.length',
     'nsIDOMHTMLProgressElement.*',
+    'nsIDOMHTMLPropertiesCollection.*',
+    'nsIDOMPropertyNodeList.*',
     'nsIDOMHTMLSelectElement.name',
     'nsIDOMHTMLSelectElement.form',
     'nsIDOMHTMLSelectElement.add',
@@ -348,6 +363,8 @@ members = [
     'nsIDOMHTMLCanvasElement.height',
     'nsIDOMHTMLCanvasElement.getContext',
     'nsIDOMHTMLCanvasElement.toDataURL',
+    'nsIDOMHTMLOptionsCollection.selectedIndex',
+    'nsIDOMHTMLOptionsCollection.add',
 
     # dom/interfaces/json - None.
     # All methods of nsIJSON call GetCurrentNativeCallContext.
@@ -522,6 +539,7 @@ customIncludes = [
     'nsINode.h',
     'nsIContent.h',
     'nsIDocument.h',
+    'nsINodeList.h',
     'nsCSSPropertiesQS.h',
     'nsDocument.h',
     'nsDOMTokenList.h',
@@ -665,8 +683,16 @@ customMethodCalls = {
         'code': 'nsString result = self->LocalName();',
         'canFail': False
         },
+    'nsIDOMNodeList_Item': {
+        'thisType': 'nsINodeList',
+        'code': '    nsINode *result = self->GetNodeAt(arg0);',
+        'canFail': False
+        },
     'nsIDOMHTMLDocument_': {
         'thisType': 'nsHTMLDocument'
+        },
+    'nsIDOMNodeList_GetLength': {
+        'thisType': 'nsINodeList'
         },
     'nsIDOMHTMLDocument_Write': {
         'thisType': 'nsHTMLDocument',

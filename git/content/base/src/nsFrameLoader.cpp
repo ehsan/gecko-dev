@@ -296,7 +296,6 @@ nsFrameLoader::nsFrameLoader(Element* aOwner, bool aNetworkCreated)
   , mRemoteFrame(false)
   , mClipSubdocument(true)
   , mClampScrollPosition(true)
-  , mRemoteBrowserInitialized(false)
   , mCurrentRemoteFrame(nsnull)
   , mRemoteBrowser(nsnull)
   , mRenderMode(RENDER_MODE_DEFAULT)
@@ -623,7 +622,7 @@ SetTreeOwnerAndChromeEventHandlerOnDocshellTree(nsIDocShellTreeItem* aItem,
 
 /**
  * Set the type of the treeitem and hook it up to the treeowner.
- * @param aItem the treeitem we're working with
+ * @param aItem the treeitem we're wrking working with
  * @param aOwningContent the content node that owns aItem
  * @param aTreeOwner the relevant treeowner; might be null
  * @param aParentType the nsIDocShellTreeItem::GetType of our parent docshell
@@ -644,8 +643,6 @@ AddTreeItemToTreeOwner(nsIDocShellTreeItem* aItem, nsIContent* aOwningContent,
 
   if (aOwningContent->IsXUL()) {
       aOwningContent->GetAttr(kNameSpaceID_None, nsGkAtoms::type, value);
-  } else {
-      aOwningContent->GetAttr(kNameSpaceID_None, nsGkAtoms::mozframetype, value);
   }
 
   // we accept "content" and "content-xxx" values.
@@ -914,10 +911,9 @@ nsFrameLoader::ShowRemoteFrame(const nsIntSize& size)
     EnsureMessageManager();
 
     nsCOMPtr<nsIObserverService> os = services::GetObserverService();
-    if (OwnerIsBrowserFrame() && os && !mRemoteBrowserInitialized) {
+    if (OwnerIsBrowserFrame() && os) {
       os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
                           "remote-browser-frame-shown", NULL);
-      mRemoteBrowserInitialized = true;
     }
   } else {
     nsRect dimensions;
@@ -1370,37 +1366,10 @@ nsFrameLoader::OwnerIsBrowserFrame()
 }
 
 bool
-nsFrameLoader::OwnerIsAppFrame()
-{
-  nsCOMPtr<nsIMozBrowserFrame> browserFrame = do_QueryInterface(mOwnerContent);
-  bool isApp = false;
-  if (browserFrame) {
-    browserFrame->GetReallyIsApp(&isApp);
-  }
-  return isApp;
-}
-
-void
-nsFrameLoader::GetOwnerAppManifestURL(nsAString& aOut)
-{
-  aOut.Truncate();
-  nsCOMPtr<nsIMozBrowserFrame> browserFrame = do_QueryInterface(mOwnerContent);
-  if (browserFrame) {
-    browserFrame->GetAppManifestURL(aOut);
-  }
-}
-
-bool
 nsFrameLoader::ShouldUseRemoteProcess()
 {
   if (PR_GetEnv("MOZ_DISABLE_OOP_TABS") ||
       Preferences::GetBool("dom.ipc.tabs.disabled", false)) {
-    return false;
-  }
-
-  // If we're inside a content process, don't use a remote process for this
-  // frame; it won't work properly until bug 761935 is fixed.
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
     return false;
   }
 
@@ -1937,12 +1906,7 @@ nsFrameLoader::TryRemoteBrowser()
     return false;
   }
 
-  // If our owner has no app manifest URL, then this is equivalent to
-  // ContentParent::GetNewOrUsed().
-  nsAutoString appManifest;
-  GetOwnerAppManifestURL(appManifest);
-  ContentParent* parent = ContentParent::GetForApp(appManifest);
-
+  ContentParent* parent = ContentParent::GetNewOrUsed();
   NS_ASSERTION(parent->IsAlive(), "Process parent should be alive; something is very wrong!");
   mRemoteBrowser = parent->CreateTab(chromeFlags,
                                      /* aIsBrowserFrame = */ OwnerIsBrowserFrame());
@@ -2275,12 +2239,4 @@ nsFrameLoader::SetRemoteBrowser(nsITabParent* aTabParent)
   MOZ_ASSERT(!mRemoteBrowser);
   MOZ_ASSERT(!mCurrentRemoteFrame);
   mRemoteBrowser = static_cast<TabParent*>(aTabParent);
-
-  EnsureMessageManager();
-  nsCOMPtr<nsIObserverService> os = services::GetObserverService();
-  if (OwnerIsBrowserFrame() && os) {
-    mRemoteBrowserInitialized = true;
-    os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
-                        "remote-browser-frame-shown", NULL);
-  }
 }

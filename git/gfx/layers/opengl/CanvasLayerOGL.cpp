@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ipc/AutoOpenSurface.h"
 #include "mozilla/layers/PLayers.h"
 #include "mozilla/layers/ShadowLayers.h"
 
@@ -306,12 +305,12 @@ ShadowCanvasLayerOGL::Initialize(const Data& aData)
 void
 ShadowCanvasLayerOGL::Init(const CanvasSurface& aNewFront, bool needYFlip)
 {
-  AutoOpenSurface autoSurf(OPEN_READ_ONLY, aNewFront);
+  nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(aNewFront);
 
   mNeedsYFlip = needYFlip;
 
-  mTexImage = gl()->CreateTextureImage(autoSurf.Size(),
-                                       autoSurf.ContentType(),
+  mTexImage = gl()->CreateTextureImage(surf->GetSize(),
+                                       surf->GetContentType(),
                                        LOCAL_GL_CLAMP_TO_EDGE,
                                        mNeedsYFlip ? TextureImage::NeedsYFlip : TextureImage::NoFlags);
 }
@@ -322,14 +321,14 @@ ShadowCanvasLayerOGL::Swap(const CanvasSurface& aNewFront,
                            CanvasSurface* aNewBack)
 {
   if (!mDestroyed) {
-    AutoOpenSurface autoSurf(OPEN_READ_ONLY, aNewFront);
-    gfxIntSize sz = autoSurf.Size();
+    nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(aNewFront);
+    gfxIntSize sz = surf->GetSize();
     if (!mTexImage || mTexImage->GetSize() != sz ||
-        mTexImage->GetContentType() != autoSurf.ContentType()) {
+        mTexImage->GetContentType() != surf->GetContentType()) {
       Init(aNewFront, needYFlip);
     }
     nsIntRegion updateRegion(nsIntRect(0, 0, sz.width, sz.height));
-    mTexImage->DirectUpdate(autoSurf.Get(), updateRegion);
+    mTexImage->DirectUpdate(surf, updateRegion);
   }
 
   *aNewBack = aNewFront;
@@ -366,10 +365,6 @@ void
 ShadowCanvasLayerOGL::RenderLayer(int aPreviousFrameBuffer,
                                   const nsIntPoint& aOffset)
 {
-  if (!mTexImage) {
-    return;
-  }
-
   mOGLManager->MakeCurrent();
 
   ShaderProgramOGL *program =

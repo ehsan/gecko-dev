@@ -11,7 +11,7 @@
 namespace js {
 
 static inline PropertyName *
-GetNameFromBytecode(JSContext *cx, JSScript *script, jsbytecode *pc, JSOp op)
+GetNameFromBytecode(JSContext *cx, jsbytecode *pc, JSOp op)
 {
     if (op == JSOP_LENGTH)
         return cx->runtime->atomState.lengthAtom;
@@ -21,6 +21,7 @@ GetNameFromBytecode(JSContext *cx, JSScript *script, jsbytecode *pc, JSOp op)
     if (op == JSOP_INSTANCEOF)
         return cx->runtime->atomState.classPrototypeAtom;
 
+    JSScript *script = cx->stack.currentScriptWithDiagnostics();
     PropertyName *name;
     GET_NAME_FROM_BYTECODE(script, pc, 0, name);
     return name;

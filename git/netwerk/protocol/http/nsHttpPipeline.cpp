@@ -798,7 +798,6 @@ nsHttpPipeline::Close(nsresult reason)
     if (!mResponseIsPartial &&
         (reason == NS_ERROR_NET_RESET ||
          reason == NS_OK ||
-         reason == NS_ERROR_NET_TIMEOUT ||
          reason == NS_BASE_STREAM_CLOSED)) {
         trans->Close(NS_ERROR_NET_RESET);
     }

@@ -8,6 +8,7 @@
 #include "SVGLength.h"
 #include "nsSVGElement.h"
 #include "nsDOMError.h"
+#include "nsContentUtils.h"
 #include "nsString.h"
 #include "nsSVGUtils.h"
 #include "nsCharSeparatedTokenizer.h"

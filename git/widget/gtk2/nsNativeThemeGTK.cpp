@@ -11,6 +11,7 @@
 #include "nsIServiceManager.h"
 #include "nsIFrame.h"
 #include "nsIPresShell.h"
+#include "nsIDocument.h"
 #include "nsIContent.h"
 #include "nsIViewManager.h"
 #include "nsINameSpaceManager.h"

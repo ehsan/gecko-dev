@@ -24,7 +24,6 @@ LIBRARY_NAME   = hal_s
 FORCE_STATIC_LIB = 1
 LIBXUL_LIBRARY = 1
 EXPORT_LIBRARY = 1
-FAIL_ON_WARNINGS = 1
 
 EXPORTS_NAMESPACES = mozilla
 EXPORTS_mozilla = \
@@ -48,7 +47,6 @@ CPPSRCS += \
   AndroidHal.cpp \
   AndroidSensor.cpp \
   FallbackPower.cpp \
-  FallbackAlarm.cpp \
   $(NULL)
 else ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
 CPPSRCS += \
@@ -64,7 +62,6 @@ CPPSRCS += \
   FallbackScreenConfiguration.cpp \
   FallbackSensor.cpp \
   FallbackVibration.cpp \
-  FallbackAlarm.cpp \
   $(NULL)
 ifdef MOZ_ENABLE_DBUS
 CPPSRCS += UPowerClient.cpp
@@ -78,7 +75,6 @@ CPPSRCS += \
   FallbackVibration.cpp \
   FallbackScreenConfiguration.cpp \
   FallbackPower.cpp \
-  FallbackAlarm.cpp \
   $(NULL)
 else ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 CPPSRCS += \
@@ -86,7 +82,6 @@ CPPSRCS += \
   FallbackVibration.cpp \
   FallbackPower.cpp \
   FallbackScreenConfiguration.cpp \
-  FallbackAlarm.cpp \
   $(NULL)
 CMMSRCS += \
   CocoaSensor.mm \
@@ -98,7 +93,6 @@ CPPSRCS += \
   FallbackVibration.cpp \
   FallbackPower.cpp \
   FallbackScreenConfiguration.cpp \
-  FallbackAlarm.cpp \
   $(NULL)
 ifdef MOZ_ENABLE_DBUS
 CPPSRCS += UPowerClient.cpp
@@ -112,7 +106,6 @@ CPPSRCS += \
   FallbackVibration.cpp \
   FallbackPower.cpp \
   FallbackScreenConfiguration.cpp \
-  FallbackAlarm.cpp \
   $(NULL)
 endif
 

@@ -257,7 +257,6 @@ pref("dom.indexedDB.warningQuota", 5);
 // prevent video elements from preloading too much data
 pref("media.preload.default", 1); // default to preload none
 pref("media.preload.auto", 2);    // preload metadata if preload=auto
-pref("media.cache_size", 4096);    // 4MB media cache
 
 //  0: don't show fullscreen keyboard
 //  1: always show fullscreen keyboard
@@ -378,11 +377,11 @@ pref("dom.sms.enabled", true);
 // Temporary permission hack for WebContacts
 pref("dom.mozContacts.enabled", true);
 
-// WebAlarms
-pref("dom.mozAlarms.enabled", true);
-
 // WebSettings
 pref("dom.mozSettings.enabled", true);
+
+// Ignore X-Frame-Options headers.
+pref("b2g.ignoreXFrameOptions", true);
 
 // controls if we want camera support
 pref("device.camera.enabled", true);
@@ -408,16 +407,6 @@ pref("b2g.keys.menu.enabled", true);
 pref("power.screen.timeout", 60);
 
 pref("full-screen-api.enabled", true);
-
-#ifndef MOZ_WIDGET_GONK
-// If we're not actually on physical hardware, don't make the top level widget
-// fullscreen when transitioning to fullscreen. This means in emulated
-// environments (like the b2g desktop client) we won't make the client window
-// fill the whole screen, we'll just make the content fill the client window,
-// i.e. it won't give the impression to content that the number of device
-// screen pixels changes!
-pref("full-screen-api.ignore-widgets", true);
-#endif
 
 pref("media.volume.steps", 10);
 
@@ -470,9 +459,3 @@ pref("dom.disable_window_showModalDialog", true);
 
 // Turns on gralloc-based direct texturing for Gonk
 pref("gfx.gralloc.enabled", false);
-
-// XXXX REMOVE FOR PRODUCTION. Turns on GC and CC logging 
-pref("javascript.options.mem.log", true);
-
-// Increase mark slice time from 10ms to 30ms
-pref("javascript.options.mem.gc_incremental_slice_ms", 30);

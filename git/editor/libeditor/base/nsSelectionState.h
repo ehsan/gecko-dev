@@ -7,15 +7,13 @@
 #define __selectionstate_h__
 
 #include "nsCOMPtr.h"
-#include "nsIDOMNode.h"
-#include "nsINode.h"
 #include "nsTArray.h"
-#include "nscore.h"
-#include "prtypes.h"
+#include "nsIDOMNode.h"
+#include "nsIDOMRange.h"
+#include "nsCycleCollectionParticipant.h"
+#include "nsINode.h"
 
-class nsCycleCollectionTraversalCallback;
 class nsIDOMCharacterData;
-class nsIDOMRange;
 class nsISelection;
 class nsRange;
 
@@ -32,8 +30,6 @@ struct nsRangeStore
   ~nsRangeStore();
   nsresult StoreRange(nsIDOMRange *aRange);
   nsresult GetRange(nsRange** outRange);
-
-  NS_INLINE_DECL_REFCOUNTING(nsRangeStore)
         
   nsCOMPtr<nsIDOMNode> startNode;
   PRInt32              startOffset;
@@ -59,7 +55,7 @@ class nsSelectionState
     void     MakeEmpty();
     bool     IsEmpty();
   protected:    
-    nsTArray<nsRefPtr<nsRangeStore> > mArray;
+    nsTArray<nsRangeStore> mArray;
     
     friend class nsRangeUpdater;
 };
@@ -83,7 +79,7 @@ class nsRangeUpdater
     // which is not what you want if you know you are reinserting it.
     nsresult SelAdjCreateNode(nsIDOMNode *aParent, PRInt32 aPosition);
     nsresult SelAdjInsertNode(nsIDOMNode *aParent, PRInt32 aPosition);
-    void     SelAdjDeleteNode(nsIDOMNode *aNode);
+    nsresult SelAdjDeleteNode(nsIDOMNode *aNode);
     nsresult SelAdjSplitNode(nsIDOMNode *aOldRightNode, PRInt32 aOffset, nsIDOMNode *aNewLeftNode);
     nsresult SelAdjJoinNodes(nsIDOMNode *aLeftNode, 
                              nsIDOMNode *aRightNode, 
@@ -103,7 +99,7 @@ class nsRangeUpdater
     nsresult WillMoveNode();
     nsresult DidMoveNode(nsIDOMNode *aOldParent, PRInt32 aOldOffset, nsIDOMNode *aNewParent, PRInt32 aNewOffset);
   protected:    
-    nsTArray<nsRefPtr<nsRangeStore> > mArray;
+    nsTArray<nsRangeStore*> mArray;
     bool mLock;
 };
 
@@ -119,26 +115,25 @@ class NS_STACK_CLASS nsAutoTrackDOMPoint
     nsRangeUpdater &mRU;
     nsCOMPtr<nsIDOMNode> *mNode;
     PRInt32 *mOffset;
-    nsRefPtr<nsRangeStore> mRangeItem;
+    nsRangeStore mRangeItem;
   public:
     nsAutoTrackDOMPoint(nsRangeUpdater &aRangeUpdater, nsCOMPtr<nsIDOMNode> *aNode, PRInt32 *aOffset) :
     mRU(aRangeUpdater)
     ,mNode(aNode)
     ,mOffset(aOffset)
     {
-      mRangeItem = new nsRangeStore();
-      mRangeItem->startNode = *mNode;
-      mRangeItem->endNode = *mNode;
-      mRangeItem->startOffset = *mOffset;
-      mRangeItem->endOffset = *mOffset;
-      mRU.RegisterRangeItem(mRangeItem);
+      mRangeItem.startNode = *mNode;
+      mRangeItem.endNode = *mNode;
+      mRangeItem.startOffset = *mOffset;
+      mRangeItem.endOffset = *mOffset;
+      mRU.RegisterRangeItem(&mRangeItem);
     }
     
     ~nsAutoTrackDOMPoint()
     {
-      mRU.DropRangeItem(mRangeItem);
-      *mNode  = mRangeItem->startNode;
-      *mOffset = mRangeItem->startOffset;
+      mRU.DropRangeItem(&mRangeItem);
+      *mNode  = mRangeItem.startNode;
+      *mOffset = mRangeItem.startOffset;
     }
 };
 

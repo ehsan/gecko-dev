@@ -51,6 +51,7 @@
       <field name="mSearchNames">null</field>
       <field name="mIgnoreInput">false</field>
       <field name="mEnterEvent">null</field>
+      <field name="mConsumeRollupEvent">false</field>
 
       <field name="_searchBeginHandler">null</field>
       <field name="_searchCompleteHandler">null</field>
@@ -162,6 +163,9 @@
 
       <property name="searchCount" readonly="true"
                 onget="this.initSearchNames(); return this.mSearchNames.length;"/>
+
+      <property name="consumeRollupEvent" readonly="true"
+                onget="return this.mConsumeRollupEvent;"/>
 
       <!-- This is the maximum number of drop-down rows we get when we
             hit the drop marker beside fields that have it (like the URLbar).-->
@@ -361,7 +365,7 @@
 
       <method name="closePopup">
         <body><![CDATA[
-          this.popup.setAttribute("consumeoutsideclicks", "false");
+          this.mConsumeRollupEvent = false;
           this.popup.closePopup();
         ]]></body>
       </method>
@@ -378,7 +382,7 @@
             input.setAttribute("open", "true");
             function onHide() {
               input.removeAttribute("open");
-              popup.setAttribute("consumeoutsideclicks", "false");
+              input.mConsumeRollupEvent = false;
               popup.removeEventListener("popuphiding", onHide, false);
             }
             popup.addEventListener("popuphiding", onHide, false);
@@ -398,7 +402,7 @@
           // Ensure that we have focus.
           if (!this.focused)
             this.focus();
-          this.popup.setAttribute("consumeoutsideclicks", "true");
+          this.mConsumeRollupEvent = true;
           this.attachController();
           this.mController.startSearch("");
         ]]></body>
@@ -602,7 +606,7 @@
       <stylesheet src="chrome://global/skin/autocomplete.css"/>
     </resources>
 
-    <content ignorekeys="true" level="top" consumeoutsideclicks="false">
+    <content ignorekeys="true" level="top">
       <xul:tree anonid="tree" class="autocomplete-tree plain" hidecolumnpicker="true" flex="1" seltype="single">
         <xul:treecols anonid="treecols">
           <xul:treecol id="treecolAutoCompleteValue" class="autocomplete-treecol" flex="1" overflow="true"/>
@@ -753,6 +757,12 @@
             var popupDirection = aElement.ownerDocument.defaultView.getComputedStyle(aElement).direction;
             this.style.direction = popupDirection;
 
+            // setConsumeRollupEvent() before we call openPopup()
+            var nsIPopupBO = Components.interfaces.nsIPopupBoxObject;
+            this.popupBoxObject.setConsumeRollupEvent(
+              this.mInput.consumeRollupEvent ?
+                nsIPopupBO.ROLLUP_CONSUME :
+                nsIPopupBO.ROLLUP_NO_CONSUME);
             this.openPopup(aElement, "after_start", 0, 0, false, false);
           }
         ]]></body>
@@ -935,7 +945,7 @@
       <stylesheet src="chrome://global/skin/autocomplete.css"/>
     </resources>
 
-    <content ignorekeys="true" level="top" consumeoutsideclicks="false">
+    <content ignorekeys="true" level="top">
       <xul:richlistbox anonid="richlistbox" class="autocomplete-richlistbox" flex="1"/>
       <xul:hbox>
         <children/>
@@ -991,6 +1001,12 @@
             // invalidate() depends on the width attribute
             this._invalidate();
 
+            // setConsumeRollupEvent() before we call openPopup()
+            var nsIPopupBO = Components.interfaces.nsIPopupBoxObject;
+            this.popupBoxObject.setConsumeRollupEvent(
+              this.mInput.consumeRollupEvent ?
+                nsIPopupBO.ROLLUP_CONSUME :
+                nsIPopupBO.ROLLUP_NO_CONSUME);
             this.openPopup(aElement, "after_start", 0, 0, false, false);
           }
         ]]>

@@ -537,7 +537,7 @@ public:
     virtual nsresult FinishTraverse();
     virtual nsCycleCollectionParticipant *GetParticipant();
     virtual bool NeedCollect();
-    virtual void Collect(PRUint32 reason);
+    virtual void Collect(PRUint32 reason, PRUint32 kind);
 
     XPCCallContext *GetCycleCollectionContext()
     {
@@ -763,7 +763,6 @@ public:
 
     nsresult AddJSHolder(void* aHolder, nsScriptObjectTracer* aTracer);
     nsresult RemoveJSHolder(void* aHolder);
-    nsresult TestJSHolder(void* aHolder, bool* aRetval);
 
     static void SuspectWrappedNative(XPCWrappedNative *wrapper,
                                      nsCycleCollectionTraversalCallback &cb);
@@ -2837,7 +2836,7 @@ public:
                 mScriptableInfo->Mark();
         }
         if (HasProto())
-            GetProto()->TraceSelf(trc);
+            GetProto()->TraceJS(trc);
         else
             GetScope()->TraceSelf(trc);
         JSObject* wrapper = GetWrapperPreserveColor();

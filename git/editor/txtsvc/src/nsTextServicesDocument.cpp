@@ -3,40 +3,30 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <stddef.h>                     // for NULL
+#include "mozilla/Util.h"
 
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
-#include "mozilla/mozalloc.h"           // for operator new, etc
-#include "nsAString.h"                  // for nsAString_internal::Length, etc
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsContentUtils.h"             // for nsContentUtils
-#include "nsDebug.h"                    // for NS_ENSURE_TRUE, etc
-#include "nsDependentSubstring.h"       // for Substring
-#include "nsError.h"                    // for NS_OK, NS_ERROR_FAILURE, etc
-#include "nsFilteredContentIterator.h"  // for nsFilteredContentIterator
-#include "nsIContent.h"                 // for nsIContent, etc
-#include "nsIContentIterator.h"         // for nsIContentIterator
-#include "nsID.h"                       // for NS_GET_IID
-#include "nsIDOMDocument.h"             // for nsIDOMDocument
-#include "nsIDOMElement.h"              // for nsIDOMElement
-#include "nsIDOMHTMLDocument.h"         // for nsIDOMHTMLDocument
-#include "nsIDOMHTMLElement.h"          // for nsIDOMHTMLElement
-#include "nsIDOMNode.h"                 // for nsIDOMNode, etc
-#include "nsIDOMRange.h"                // for nsIDOMRange, etc
-#include "nsIEditor.h"                  // for nsIEditor, etc
-#include "nsINode.h"                    // for nsINode
-#include "nsIPlaintextEditor.h"         // for nsIPlaintextEditor
-#include "nsISelection.h"               // for nsISelection
-#include "nsISelectionController.h"     // for nsISelectionController, etc
-#include "nsISupportsBase.h"            // for nsISupports
-#include "nsISupportsUtils.h"           // for NS_IF_ADDREF, NS_ADDREF, etc
-#include "nsITextServicesFilter.h"      // for nsITextServicesFilter
-#include "nsIWordBreaker.h"             // for nsWordRange, nsIWordBreaker
-#include "nsRange.h"                    // for nsRange
-#include "nsStaticAtom.h"               // for NS_STATIC_ATOM, etc
-#include "nsString.h"                   // for nsString, nsAutoString
+#include "nscore.h"
+#include "nsLayoutCID.h"
+#include "nsIAtom.h"
+#include "nsStaticAtom.h"
+#include "nsString.h"
+#include "nsIEnumerator.h"
+#include "nsIContent.h"
+#include "nsIContentIterator.h"
+#include "nsIDOMNodeList.h"
+#include "nsIDOMRange.h"
+#include "nsContentUtils.h"
+#include "nsISelection.h"
+#include "nsIPlaintextEditor.h"
 #include "nsTextServicesDocument.h"
-#include "nscore.h"                     // for nsresult, NS_IMETHODIMP, etc
+#include "nsFilteredContentIterator.h"
+
+#include "nsIDOMElement.h"
+#include "nsIDOMHTMLElement.h"
+#include "nsIDOMHTMLDocument.h"
+
+#include "nsIWordBreaker.h"
+#include "nsIServiceManager.h"
 
 #define LOCK_DOC(doc)
 #define UNLOCK_DOC(doc)
@@ -75,7 +65,7 @@ public:
 };
 
 #define TS_ATOM(name_, value_) nsIAtom* nsTextServicesDocument::name_ = 0;
-#include "nsTSAtomList.h" // IWYU pragma: keep
+#include "nsTSAtomList.h"
 #undef TS_ATOM
 
 nsTextServicesDocument::nsTextServicesDocument()
@@ -96,7 +86,7 @@ nsTextServicesDocument::~nsTextServicesDocument()
 }
 
 #define TS_ATOM(name_, value_) NS_STATIC_ATOM_BUFFER(name_##_buffer, value_)
-#include "nsTSAtomList.h" // IWYU pragma: keep
+#include "nsTSAtomList.h"
 #undef TS_ATOM
 
 /* static */
@@ -105,7 +95,7 @@ nsTextServicesDocument::RegisterAtoms()
 {
   static const nsStaticAtom ts_atoms[] = {
 #define TS_ATOM(name_, value_) NS_STATIC_ATOM(name_##_buffer, &name_),
-#include "nsTSAtomList.h" // IWYU pragma: keep
+#include "nsTSAtomList.h"
 #undef TS_ATOM
   };
 

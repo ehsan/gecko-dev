@@ -21,7 +21,6 @@
 #include "nsWeakReference.h"
 
 #include "nsGkAtoms.h"
-#include "nsIIdleServiceInternal.h"
 
 #ifdef MOZ_LOGGING
 
@@ -325,7 +324,7 @@ private:
     PluginType         mPluginType;
 
     nsRefPtr<gfxASurface> mThebesSurface;
-    nsCOMPtr<nsIIdleServiceInternal> mIdleService;
+    nsCOMPtr<nsIdleService> mIdleService;
 
     bool         mIsTransparent;
  

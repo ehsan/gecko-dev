@@ -1901,7 +1901,6 @@ nsEventStateManager::FireContextClick()
                              type == NS_FORM_INPUT_URL ||
                              type == NS_FORM_INPUT_PASSWORD ||
                              type == NS_FORM_INPUT_FILE ||
-                             type == NS_FORM_INPUT_NUMBER ||
                              type == NS_FORM_TEXTAREA);
       }
       else if (tag == nsGkAtoms::applet ||
@@ -2318,7 +2317,7 @@ nsEventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
   nsIDOMElement* dragImage = aDataTransfer->GetDragImage(&imageX, &imageY);
 
   nsCOMPtr<nsISupportsArray> transArray;
-  aDataTransfer->GetTransferables(getter_AddRefs(transArray), dragTarget);
+  aDataTransfer->GetTransferables(getter_AddRefs(transArray));
   if (!transArray)
     return false;
 

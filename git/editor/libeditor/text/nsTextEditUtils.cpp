@@ -3,22 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Assertions.h"
-#include "mozilla/dom/Element.h"
-#include "nsAString.h"
-#include "nsCOMPtr.h"
-#include "nsCaseTreatment.h"
-#include "nsDebug.h"
-#include "nsEditor.h"
-#include "nsError.h"
-#include "nsGkAtoms.h"
-#include "nsIDOMElement.h"
-#include "nsIDOMNode.h"
-#include "nsINameSpaceManager.h"
-#include "nsLiteralString.h"
-#include "nsPlaintextEditor.h"
-#include "nsString.h"
 #include "nsTextEditUtils.h"
+
+#include "mozilla/dom/Element.h"
+
+#include "nsEditor.h"
+#include "nsPlaintextEditor.h"
+#include "nsEditProperty.h"
 
 using namespace mozilla;
 

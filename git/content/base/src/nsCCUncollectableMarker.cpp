@@ -8,6 +8,7 @@
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsServiceManagerUtils.h"
+#include "nsIDOMDocument.h"
 #include "nsIContentViewer.h"
 #include "nsIDocument.h"
 #include "nsIWindowMediator.h"
@@ -264,8 +265,6 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
                                  const PRUnichar* aData)
 {
   if (!strcmp(aTopic, "xpcom-shutdown")) {
-    nsGenericElement::ClearContentUnbinder();
-
     nsCOMPtr<nsIObserverService> obs =
       mozilla::services::GetObserverService();
     if (!obs)
@@ -290,9 +289,7 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
     !strcmp(aTopic, "cycle-collector-forget-skippable");
 
   bool prepareForCC = !strcmp(aTopic, "cycle-collector-begin");
-  if (prepareForCC) {
-    nsGenericElement::ClearContentUnbinder();
-  }
+    
 
   // Increase generation to effectivly unmark all current objects
   if (!++sGeneration) {

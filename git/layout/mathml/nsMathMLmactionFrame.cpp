@@ -19,7 +19,6 @@
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIDOMElement.h"
-#include "nsTextFragment.h"
 
 #include "nsIDOMEventTarget.h"
 
@@ -27,6 +26,7 @@
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
 #include "nsDisplayList.h"
+#include "nsContentUtils.h"
 
 //
 // <maction> -- bind actions to a subexpression - implementation

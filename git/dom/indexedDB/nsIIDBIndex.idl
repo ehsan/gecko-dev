@@ -38,15 +38,15 @@ interface nsIIDBIndex : nsISupports
   nsIIDBRequest
   getKey(in jsval key);
 
-  [implicit_jscontext, optional_argc, binaryname(GetAll)]
+  [implicit_jscontext, optional_argc]
   nsIIDBRequest
-  mozGetAll([optional /* null */] in jsval key,
-            [optional /* unlimited */] in unsigned long limit);
+  getAll([optional /* null */] in jsval key,
+         [optional /* unlimited */] in unsigned long limit);
 
-  [implicit_jscontext, optional_argc, binaryname(GetAllKeys)]
+  [implicit_jscontext, optional_argc]
   nsIIDBRequest
-  mozGetAllKeys([optional /* null */] in jsval key,
-                [optional /* unlimited */] in unsigned long limit);
+  getAllKeys([optional /* null */] in jsval key,
+             [optional /* unlimited */] in unsigned long limit);
 
   // direction can be "next", "nextunique", "prev" or "prevunique"
   [implicit_jscontext, optional_argc]

@@ -277,6 +277,7 @@ MarionetteDriverActor.prototype = {
       //add this to seenItems so we can guarantee the user will get winId as this window's id
       this.curBrowser.elementManager.seenItems[winId] = win;
     }
+    this.browsers[winId] = browser;
   },
 
   /**
@@ -437,7 +438,7 @@ MarionetteDriverActor.prototype = {
    * @return Sandbox
    *        Returns the sandbox
    */
-  createExecuteSandbox: function MDA_createExecuteSandbox(aWindow, marionette, args, specialPowers) {
+  createExecuteSandbox: function MDA_createExecuteSandbox(aWindow, marionette, args) {
     try {
       args = this.curBrowser.elementManager.convertWrappedArguments(args, aWindow);
     }
@@ -456,14 +457,12 @@ MarionetteDriverActor.prototype = {
       _chromeSandbox[fn] = marionette[fn].bind(marionette);
     });
 
-    if (specialPowers == true) {
-      loader.loadSubScript("chrome://specialpowers/content/specialpowersAPI.js",
-                           _chromeSandbox);
-      loader.loadSubScript("chrome://specialpowers/content/SpecialPowersObserverAPI.js",
-                           _chromeSandbox);
-      loader.loadSubScript("chrome://specialpowers/content/ChromePowers.js",
-                           _chromeSandbox);
-    }
+    loader.loadSubScript("chrome://specialpowers/content/specialpowersAPI.js",
+                         _chromeSandbox);
+    loader.loadSubScript("chrome://specialpowers/content/SpecialPowersObserverAPI.js",
+                         _chromeSandbox);
+    loader.loadSubScript("chrome://specialpowers/content/ChromePowers.js",
+                         _chromeSandbox);
 
     return _chromeSandbox;
   },
@@ -542,7 +541,7 @@ MarionetteDriverActor.prototype = {
 
     let curWindow = this.getCurrentWindow();
     let marionette = new Marionette(this, curWindow, "chrome", this.marionetteLog, this.marionettePerf);
-    let _chromeSandbox = this.createExecuteSandbox(curWindow, marionette, aRequest.args, aRequest.specialPowers);
+    let _chromeSandbox = this.createExecuteSandbox(curWindow, marionette, aRequest.args);
     if (!_chromeSandbox)
       return;
 
@@ -689,7 +688,7 @@ MarionetteDriverActor.prototype = {
       chromeAsyncReturnFunc(marionette.generate_results(), 0);
     }
 
-    let _chromeSandbox = this.createExecuteSandbox(curWindow, marionette, aRequest.args, aRequest.specialPowers);
+    let _chromeSandbox = this.createExecuteSandbox(curWindow, marionette, aRequest.args);
     if (!_chromeSandbox)
       return;
 
@@ -759,13 +758,6 @@ MarionetteDriverActor.prototype = {
   },
 
   /**
-   * Gets the current title of the window
-   */
-  getTitle: function MDA_getTitle() {
-    this.sendAsync("getTitle", {});
-  },
-
-  /**
    * Go back in history
    */
   goBack: function MDA_goBack() {
@@ -830,11 +822,9 @@ MarionetteDriverActor.prototype = {
           //enable Marionette in that browser window
           this.startBrowser(foundWin, false);
         }
-        else {
-          utils.window = foundWin;
-          this.curBrowser = this.browsers[winId];
-        }
+        utils.window = foundWin;
         foundWin.focus();
+        this.curBrowser = this.browsers[winId];
         this.sendOk();
         return;
       }
@@ -1381,7 +1371,6 @@ MarionetteDriverActor.prototype.requestTypes = {
   "isElementSelected": MarionetteDriverActor.prototype.isElementSelected,
   "sendKeysToElement": MarionetteDriverActor.prototype.sendKeysToElement,
   "clearElement": MarionetteDriverActor.prototype.clearElement,
-  "getTitle": MarionetteDriverActor.prototype.getTitle,
   "goUrl": MarionetteDriverActor.prototype.goUrl,
   "getUrl": MarionetteDriverActor.prototype.getUrl,
   "goBack": MarionetteDriverActor.prototype.goBack,

@@ -8,6 +8,7 @@
 #include "nsISupports.h"
 class nsIDOMHTMLFormElement;
 class nsPresState;
+class nsIContent;
 class nsString;
 class nsIFormProcessor;
 class nsFormSubmission;
@@ -53,7 +54,6 @@ enum InputElementTypes {
   NS_FORM_INPUT_HIDDEN,
   NS_FORM_INPUT_RESET,
   NS_FORM_INPUT_IMAGE,
-  NS_FORM_INPUT_NUMBER,
   NS_FORM_INPUT_PASSWORD,
   NS_FORM_INPUT_RADIO,
   NS_FORM_INPUT_SEARCH,
@@ -230,8 +230,6 @@ nsIFormControl::IsSingleLineTextControl(bool aExcludePassword, PRUint32 aType)
          aType == NS_FORM_INPUT_SEARCH ||
          aType == NS_FORM_INPUT_TEL ||
          aType == NS_FORM_INPUT_URL ||
-         // TODO: this is temporary until bug 635240 is fixed.
-         aType == NS_FORM_INPUT_NUMBER ||
          (!aExcludePassword && aType == NS_FORM_INPUT_PASSWORD);
 }
 

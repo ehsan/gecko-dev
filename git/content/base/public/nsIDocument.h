@@ -11,6 +11,8 @@
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
 #include "nsIURI.h"
+#include "nsWeakPtr.h"
+#include "nsIWeakReferenceUtils.h"
 #include "nsILoadGroup.h"
 #include "nsCRT.h"
 #include "mozFlushType.h"
@@ -20,6 +22,7 @@
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 #include "nsNodeInfoManager.h"
+#include "nsIStreamListener.h"
 #include "nsIVariant.h"
 #include "nsIObserver.h"
 #include "nsGkAtoms.h"
@@ -31,12 +34,8 @@
 #include "nsIFrameRequestCallback.h"
 #include "nsEventStates.h"
 #include "nsIStructuredCloneContainer.h"
-#include "nsILoadContext.h"
+#include "nsIBFCacheEntry.h"
 
-class nsIRequest;
-class nsPIDOMWindow;
-class nsIStreamListener;
-class nsIBFCacheEntry;
 class nsIContent;
 class nsPresContext;
 class nsIPresShell;
@@ -886,19 +885,6 @@ public:
       CallQueryReferent(mDocumentContainer.get(), &container);
 
     return container;
-  }
-
-  /**
-   * Get the container's load context for this document.
-   */
-  nsILoadContext* GetLoadContext() const
-  {
-    nsCOMPtr<nsISupports> container = GetContainer();
-    if (container) {
-      nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(container);
-      return loadContext;
-    }
-    return nsnull;
   }
 
   /**

@@ -8,6 +8,7 @@ var testGenerator = testSteps();
 function testSteps()
 {
   const name = this.window ? window.location.pathname : "Splendid Test";
+  const description = "My Test Database";
   const objectStoreName = "People";
 
   const objectStoreData = [
@@ -51,7 +52,7 @@ function testSteps()
     { key: "237-23-7734", value: { name: "Ron", height: 73, weight: 180 } }
   ];
 
-  let request = indexedDB.open(name, 1);
+  let request = mozIndexedDB.open(name, 1, description);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
   request.onsuccess = grabEventAndContinueHandler;
@@ -87,7 +88,7 @@ function testSteps()
   objectStore = db.transaction(objectStoreName)
                   .objectStore(objectStoreName);
 
-  request = objectStore.index("height").mozGetAll(65);
+  request = objectStore.index("height").getAll(65);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
   event = yield;
@@ -107,7 +108,7 @@ function testSteps()
     }
   }
 
-  request = objectStore.index("height").mozGetAll(65, 0);
+  request = objectStore.index("height").getAll(65, 0);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
   event = yield;
@@ -127,7 +128,7 @@ function testSteps()
     }
   }
 
-  request = objectStore.index("height").mozGetAll(65, null);
+  request = objectStore.index("height").getAll(65, null);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
   event = yield;
@@ -147,7 +148,7 @@ function testSteps()
     }
   }
 
-  request = objectStore.index("height").mozGetAll(65, undefined);
+  request = objectStore.index("height").getAll(65, undefined);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
   event = yield;
@@ -167,7 +168,7 @@ function testSteps()
     }
   }
 
-  request = objectStore.index("height").mozGetAll();
+  request = objectStore.index("height").getAll();
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
   event = yield;
@@ -188,7 +189,7 @@ function testSteps()
     }
   }
 
-  request = objectStore.index("height").mozGetAll(null, 4);
+  request = objectStore.index("height").getAll(null, 4);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
   event = yield;
@@ -208,7 +209,7 @@ function testSteps()
     }
   }
 
-  request = objectStore.index("height").mozGetAll(65, 1);
+  request = objectStore.index("height").getAll(65, 1);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
   event = yield;

@@ -14,7 +14,6 @@
 #include "nsLayoutCID.h"
 #include "nsITextControlFrame.h" 
 #include "nsIPlaintextEditor.h"
-#include "nsIDOMCharacterData.h"
 #include "nsIDOMDocument.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsTextControlFrame.h"

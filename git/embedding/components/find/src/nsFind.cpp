@@ -17,6 +17,7 @@
 #include "nsIFormControl.h"
 #include "nsIEditor.h"
 #include "nsIPlaintextEditor.h"
+#include "nsIDocument.h"
 #include "nsTextFragment.h"
 #include "nsString.h"
 #include "nsIAtom.h"

@@ -13,6 +13,7 @@
     function testSteps()
     {
       const name = window.location.pathname;
+      const description = "My Test Database";
       const objectStoreInfo = [
         { name: "1", options: { keyPath: null } },
         { name: "2", options: { keyPath: null, autoIncrement: true } },
@@ -30,7 +31,7 @@
         { name: undefined }
       ];
 
-      let request = indexedDB.open(name, 1);
+      let request = mozIndexedDB.open(name, 1, description);
       request.onerror = errorHandler;
       request.onupgradeneeded = grabEventAndContinueHandler;
       let event = yield;

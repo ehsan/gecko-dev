@@ -9,6 +9,7 @@ function testSteps()
 {
   const IDBObjectStore = Components.interfaces.nsIIDBObjectStore;
   const name = this.window ? window.location.pathname : "Splendid Test";
+  const description = "My Test Database";
 
   var data = [
     { name: "inline key; key generator",
@@ -40,7 +41,7 @@ function testSteps()
   for (let i = 0; i < data.length; i++) {
     let test = data[i];
 
-    let request = indexedDB.open(name, i+1);
+    let request = mozIndexedDB.open(name, i+1, description);
     request.onerror = errorHandler;
     request.onupgradeneeded = grabEventAndContinueHandler;
     let event = yield;

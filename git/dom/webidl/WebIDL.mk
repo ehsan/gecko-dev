@@ -5,20 +5,14 @@
 webidl_base = $(topsrcdir)/dom/webidl
 
 webidl_files = \
-  CanvasRenderingContext2D.webidl \
   Function.webidl \
   EventListener.webidl \
   EventTarget.webidl \
   XMLHttpRequest.webidl \
   XMLHttpRequestEventTarget.webidl \
   XMLHttpRequestUpload.webidl \
-  $(NULL)
-
-ifdef MOZ_WEBGL
-webidl_files += \
   WebGLRenderingContext.webidl \
   $(NULL)
-endif
 
 ifdef ENABLE_TESTS
 test_webidl_files := \

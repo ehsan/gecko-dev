@@ -71,10 +71,7 @@ protected:
 
     void Initialize(); // creates metrics and Cairo fonts
 
-    // Fill the given LOGFONT record according to our style, but don't adjust
-    // the lfItalic field if we're going to use a cairo transform for fake
-    // italics.
-    void FillLogFont(LOGFONTW& aLogFont, gfxFloat aSize, bool aUseGDIFakeItalic);
+    void FillLogFont(LOGFONTW& aLogFont, gfxFloat aSize);
 
     // mPlatformShaper is used for the GDI shaper, mUniscribeShaper
     // for the Uniscribe version if needed

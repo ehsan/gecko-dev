@@ -578,14 +578,14 @@ IntToCString(ToCStringBuf *cbuf, int i, int base = 10)
 static JSString * JS_FASTCALL
 js_NumberToStringWithBase(JSContext *cx, double d, int base);
 
-static JSBool
-num_toString(JSContext *cx, unsigned argc, Value *vp)
+static JS_ALWAYS_INLINE bool
+num_toStringHelper(JSContext *cx, Native native, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
     double d;
     bool ok;
-    if (!BoxedPrimitiveMethodGuard(cx, args, num_toString, &d, &ok))
+    if (!BoxedPrimitiveMethodGuard(cx, args, native, &d, &ok))
         return ok;
 
     int32_t base = 10;
@@ -611,61 +611,62 @@ num_toString(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static JSBool
+num_toString(JSContext *cx, unsigned argc, Value *vp)
+{
+    return num_toStringHelper(cx, num_toString, argc, vp);
+}
+
+static JSBool
 num_toLocaleString(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    double d;
-    bool ok;
-    if (!BoxedPrimitiveMethodGuard(cx, args, num_toLocaleString, &d, &ok))
-        return ok;
-
-    Rooted<JSString*> str(cx, js_NumberToStringWithBase(cx, d, 10));
-    if (!str) {
-        JS_ReportOutOfMemory(cx);
-        return false;
-    }
+    size_t thousandsLength, decimalLength;
+    const char *numGrouping, *tmpGroup;
+    JSRuntime *rt;
+    JSString *str;
+    const char *num, *end, *tmpSrc;
+    char *buf, *tmpDest;
+    const char *nint;
+    int digits, buflen, remainder, nrepeat;
 
     /*
      * Create the string, move back to bytes to make string twiddling
      * a bit easier and so we can insert platform charset seperators.
      */
-    JSAutoByteString numBytes(cx, str);
+    if (!num_toStringHelper(cx, num_toLocaleString, 0, vp))
+        return JS_FALSE;
+    JS_ASSERT(vp->isString());
+    JSAutoByteString numBytes(cx, vp->toString());
     if (!numBytes)
-        return false;
-    const char *num = numBytes.ptr();
+        return JS_FALSE;
+    num = numBytes.ptr();
     if (!num)
-        return false;
+        return JS_FALSE;
 
     /*
      * Find the first non-integer value, whether it be a letter as in
      * 'Infinity', a decimal point, or an 'e' from exponential notation.
      */
-    const char *nint = num;
+    nint = num;
     if (*nint == '-')
         nint++;
     while (*nint >= '0' && *nint <= '9')
         nint++;
-    int digits = nint - num;
-    const char *end = num + digits;
-    if (!digits) {
-        args.rval() = StringValue(str);
-        return true;
-    }
+    digits = nint - num;
+    end = num + digits;
+    if (!digits)
+        return JS_TRUE;
 
-    JSRuntime *rt = cx->runtime;
-    size_t thousandsLength = strlen(rt->thousandsSeparator);
-    size_t decimalLength = strlen(rt->decimalSeparator);
+    rt = cx->runtime;
+    thousandsLength = strlen(rt->thousandsSeparator);
+    decimalLength = strlen(rt->decimalSeparator);
 
     /* Figure out how long resulting string will be. */
-    int buflen = strlen(num);
+    buflen = strlen(num);
     if (*nint == '.')
         buflen += decimalLength - 1; /* -1 to account for existing '.' */
 
-    const char *numGrouping;
-    const char *tmpGroup;
     numGrouping = tmpGroup = rt->numGrouping;
-    int remainder = digits;
+    remainder = digits;
     if (*num == '-')
         remainder--;
 
@@ -676,8 +677,6 @@ num_toLocaleString(JSContext *cx, unsigned argc, Value *vp)
         remainder -= *tmpGroup;
         tmpGroup++;
     }
-
-    int nrepeat;
     if (*tmpGroup == '\0' && *numGrouping != '\0') {
         nrepeat = (remainder - 1) / tmpGroup[-1];
         buflen += thousandsLength * nrepeat;
@@ -687,12 +686,12 @@ num_toLocaleString(JSContext *cx, unsigned argc, Value *vp)
     }
     tmpGroup--;
 
-    char *buf = (char *)cx->malloc_(buflen + 1);
+    buf = (char *)cx->malloc_(buflen + 1);
     if (!buf)
-        return false;
+        return JS_FALSE;
 
-    char *tmpDest = buf;
-    const char *tmpSrc = num;
+    tmpDest = buf;
+    tmpSrc = num;
 
     while (*tmpSrc == '-' || remainder--) {
         JS_ASSERT(tmpDest - buf < buflen);
@@ -722,10 +721,7 @@ num_toLocaleString(JSContext *cx, unsigned argc, Value *vp)
     }
 
     if (cx->localeCallbacks && cx->localeCallbacks->localeToUnicode) {
-        Rooted<Value> v(cx, StringValue(str));
-        bool ok = !!cx->localeCallbacks->localeToUnicode(cx, buf, v.address());
-        if (ok)
-            args.rval() = v;
+        JSBool ok = cx->localeCallbacks->localeToUnicode(cx, buf, vp);
         cx->free_(buf);
         return ok;
     }
@@ -733,10 +729,10 @@ num_toLocaleString(JSContext *cx, unsigned argc, Value *vp)
     str = js_NewStringCopyN(cx, buf, buflen);
     cx->free_(buf);
     if (!str)
-        return false;
+        return JS_FALSE;
 
-    args.rval() = StringValue(str);
-    return true;
+    vp->setString(str);
+    return JS_TRUE;
 }
 
 JSBool
@@ -754,40 +750,49 @@ js_num_valueOf(JSContext *cx, unsigned argc, Value *vp)
 }
 
 
-const unsigned MAX_PRECISION = 100;
+#define MAX_PRECISION 100
 
-static bool
-ComputePrecisionInRange(JSContext *cx, int minPrecision, int maxPrecision, const Value &v,
-                        int *precision)
+static JSBool
+num_to(JSContext *cx, Native native, JSDToStrMode zeroArgMode, JSDToStrMode oneArgMode,
+       int precisionMin, int precisionMax, int precisionOffset,
+       CallArgs args)
 {
-    double prec;
-    if (!ToInteger(cx, v, &prec))
-        return false;
-    if (minPrecision <= prec && prec <= maxPrecision) {
-        *precision = int(prec);
-        return true;
+    /* Use MAX_PRECISION+1 because precisionOffset can be 1. */
+    char buf[DTOSTR_VARIABLE_BUFFER_SIZE(MAX_PRECISION+1)];
+    char *numStr;
+
+    double d;
+    bool ok;
+    if (!BoxedPrimitiveMethodGuard(cx, args, native, &d, &ok))
+        return ok;
+
+    double precision;
+    if (args.length() == 0) {
+        precision = 0.0;
+        oneArgMode = zeroArgMode;
+    } else {
+        if (!ToInteger(cx, args[0], &precision))
+            return false;
+        if (precision < precisionMin || precision > precisionMax) {
+            ToCStringBuf cbuf;
+            numStr = IntToCString(&cbuf, int(precision));
+            JS_ASSERT(numStr);
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_PRECISION_RANGE, numStr);
+            return JS_FALSE;
+        }
     }
-    ToCStringBuf cbuf;
-    char *numStr = IntToCString(&cbuf, *precision);
-    JS_ASSERT(numStr);
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_PRECISION_RANGE, numStr);
-    return false;
-}
 
-static bool
-DToStrResult(JSContext *cx, double d, JSDToStrMode mode, int precision, CallArgs args)
-{
-    char buf[DTOSTR_VARIABLE_BUFFER_SIZE(MAX_PRECISION + 1)];
-    char *numStr = js_dtostr(cx->runtime->dtoaState, buf, sizeof buf, mode, precision, d);
+    numStr = js_dtostr(cx->runtime->dtoaState, buf, sizeof buf,
+                       oneArgMode, (int)precision + precisionOffset, d);
     if (!numStr) {
         JS_ReportOutOfMemory(cx);
-        return false;
+        return JS_FALSE;
     }
     JSString *str = js_NewStringCopyZ(cx, numStr);
     if (!str)
-        return false;
-    args.rval() = StringValue(str);
-    return true;
+        return JS_FALSE;
+    args.rval().setString(str);
+    return JS_TRUE;
 }
 
 /*
@@ -797,80 +802,25 @@ DToStrResult(JSContext *cx, double d, JSDToStrMode mode, int precision, CallArgs
 static JSBool
 num_toFixed(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    double d;
-    bool ok;
-    if (!BoxedPrimitiveMethodGuard(cx, args, num_toFixed, &d, &ok))
-        return ok;
-
-    int precision;
-    if (args.length() == 0) {
-        precision = 0;
-    } else {
-        if (!ComputePrecisionInRange(cx, -20, MAX_PRECISION, args[0], &precision))
-            return false;
-    }
-
-    return DToStrResult(cx, d, DTOSTR_FIXED, precision, args);
+    return num_to(cx, num_toFixed, DTOSTR_FIXED, DTOSTR_FIXED, -20, MAX_PRECISION, 0,
+                  CallArgsFromVp(argc, vp));
 }
 
 static JSBool
 num_toExponential(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    double d;
-    bool ok;
-    if (!BoxedPrimitiveMethodGuard(cx, args, num_toExponential, &d, &ok))
-        return ok;
-
-    JSDToStrMode mode;
-    int precision;
-    if (args.length() == 0) {
-        mode = DTOSTR_STANDARD_EXPONENTIAL;
-        precision = 0;
-    } else {
-        mode = DTOSTR_EXPONENTIAL;
-        if (!ComputePrecisionInRange(cx, 0, MAX_PRECISION, args[0], &precision))
-            return false;
-    }
-
-    return DToStrResult(cx, d, mode, precision + 1, args);
+    return num_to(cx, num_toExponential, DTOSTR_STANDARD_EXPONENTIAL, DTOSTR_EXPONENTIAL, 0,
+                  MAX_PRECISION, 1, CallArgsFromVp(argc, vp));
 }
 
 static JSBool
 num_toPrecision(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-
-    double d;
-    bool ok;
-    if (!BoxedPrimitiveMethodGuard(cx, args, num_toPrecision, &d, &ok))
-        return ok;
-
-    if (!args.hasDefined(0)) {
-        JSString *str = js_NumberToStringWithBase(cx, d, 10);
-        if (!str) {
-            JS_ReportOutOfMemory(cx);
-            return false;
-        }
-        args.rval().setString(str);
-        return true;
-    }
-
-    JSDToStrMode mode;
-    int precision;
-    if (args.length() == 0) {
-        mode = DTOSTR_STANDARD;
-        precision = 0;
-    } else {
-        mode = DTOSTR_PRECISION;
-        if (!ComputePrecisionInRange(cx, 1, MAX_PRECISION, args[0], &precision))
-            return false;
-    }
-
-    return DToStrResult(cx, d, mode, precision, args);
+    if (!args.hasDefined(0))
+        return num_toStringHelper(cx, num_toPrecision, 0, vp);
+    return num_to(cx, num_toPrecision, DTOSTR_STANDARD, DTOSTR_PRECISION, 1, MAX_PRECISION, 0,
+                  args);
 }
 
 static JSFunctionSpec number_methods[] = {
@@ -1106,7 +1056,8 @@ js_InitNumberClass(JSContext *cx, JSObject *obj)
         return NULL;
     numberProto->asNumber().setPrimitiveValue(0);
 
-    RootedFunction ctor(cx, global->createConstructor(cx, Number, CLASS_NAME(cx, Number), 1));
+    RootedFunction ctor(cx);
+    ctor = global->createConstructor(cx, Number, CLASS_NAME(cx, Number), 1);
     if (!ctor)
         return NULL;
 

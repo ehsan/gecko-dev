@@ -72,10 +72,6 @@ protected:
  
   nsTArray<DataStruct> mDataArray;
   nsCOMPtr<nsIFormatConverter> mFormatConv;
-  bool mPrivateData;
-#if DEBUG
-  bool mInitialized;
-#endif
 
 };
 

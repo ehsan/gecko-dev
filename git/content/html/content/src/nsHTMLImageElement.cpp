@@ -13,6 +13,7 @@
 #include "nsMappedAttributes.h"
 #include "nsSize.h"
 #include "nsIDocument.h"
+#include "nsIDOMDocument.h"
 #include "nsIScriptContext.h"
 #include "nsIURL.h"
 #include "nsIIOService.h"
@@ -195,10 +196,49 @@ nsHTMLImageElement::GetY(PRInt32* aY)
   return NS_OK;
 }
 
+nsSize
+nsHTMLImageElement::GetWidthHeight()
+{
+  nsSize size(0,0);
+
+  nsIFrame* frame = GetPrimaryFrame(Flush_Layout);
+
+  if (frame) {
+    size = frame->GetContentRect().Size();
+
+    size.width = nsPresContext::AppUnitsToIntCSSPixels(size.width);
+    size.height = nsPresContext::AppUnitsToIntCSSPixels(size.height);
+  } else {
+    const nsAttrValue* value;
+    nsCOMPtr<imgIContainer> image;
+    if (mCurrentRequest) {
+      mCurrentRequest->GetImage(getter_AddRefs(image));
+    }
+
+    if ((value = GetParsedAttr(nsGkAtoms::width)) &&
+        value->Type() == nsAttrValue::eInteger) {
+      size.width = value->GetIntegerValue();
+    } else if (image) {
+      image->GetWidth(&size.width);
+    }
+
+    if ((value = GetParsedAttr(nsGkAtoms::height)) &&
+        value->Type() == nsAttrValue::eInteger) {
+      size.height = value->GetIntegerValue();
+    } else if (image) {
+      image->GetHeight(&size.height);
+    }
+  }
+
+  NS_ASSERTION(size.width >= 0, "negative width");
+  NS_ASSERTION(size.height >= 0, "negative height");
+  return size;
+}
+
 NS_IMETHODIMP
 nsHTMLImageElement::GetHeight(PRUint32* aHeight)
 {
-  *aHeight = GetWidthHeightForImage(mCurrentRequest).height;
+  *aHeight = GetWidthHeight().height;
 
   return NS_OK;
 }
@@ -206,13 +246,17 @@ nsHTMLImageElement::GetHeight(PRUint32* aHeight)
 NS_IMETHODIMP
 nsHTMLImageElement::SetHeight(PRUint32 aHeight)
 {
-  return nsGenericHTMLElement::SetUnsignedIntAttr(nsGkAtoms::height, aHeight);
+  nsAutoString val;
+  val.AppendInt(aHeight);
+
+  return nsGenericHTMLElement::SetAttr(kNameSpaceID_None, nsGkAtoms::height,
+                                       val, true);
 }
 
 NS_IMETHODIMP
 nsHTMLImageElement::GetWidth(PRUint32* aWidth)
 {
-  *aWidth = GetWidthHeightForImage(mCurrentRequest).width;
+  *aWidth = GetWidthHeight().width;
 
   return NS_OK;
 }
@@ -220,7 +264,11 @@ nsHTMLImageElement::GetWidth(PRUint32* aWidth)
 NS_IMETHODIMP
 nsHTMLImageElement::SetWidth(PRUint32 aWidth)
 {
-  return nsGenericHTMLElement::SetUnsignedIntAttr(nsGkAtoms::width, aWidth);
+  nsAutoString val;
+  val.AppendInt(aWidth);
+
+  return nsGenericHTMLElement::SetAttr(kNameSpaceID_None, nsGkAtoms::width,
+                                       val, true);
 }
 
 bool
@@ -523,7 +571,7 @@ nsHTMLImageElement::GetNaturalWidth(PRUint32* aNaturalWidth)
 }
 
 nsresult
-nsHTMLImageElement::CopyInnerTo(nsGenericElement* aDest)
+nsHTMLImageElement::CopyInnerTo(nsGenericElement* aDest) const
 {
   if (aDest->OwnerDoc()->IsStaticDocument()) {
     CreateStaticImageClone(static_cast<nsHTMLImageElement*>(aDest));

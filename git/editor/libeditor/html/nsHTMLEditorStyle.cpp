@@ -2,56 +2,28 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-#include "TypeInState.h"
-#include "mozilla/Assertions.h"
-#include "mozilla/Selection.h"
-#include "mozilla/dom/Element.h"
-#include "mozilla/mozalloc.h"
-#include "nsAString.h"
-#include "nsAttrName.h"
-#include "nsAutoPtr.h"
-#include "nsCOMArray.h"
-#include "nsCOMPtr.h"
-#include "nsCaseTreatment.h"
-#include "nsComponentManagerUtils.h"
-#include "nsDebug.h"
-#include "nsEditProperty.h"
-#include "nsEditRules.h"
-#include "nsEditor.h"
-#include "nsEditorUtils.h"
-#include "nsError.h"
-#include "nsGkAtoms.h"
-#include "nsHTMLCSSUtils.h"
-#include "nsHTMLEditUtils.h"
+#include "nsUnicharUtils.h"
+
 #include "nsHTMLEditor.h"
-#include "nsIAtom.h"
-#include "nsIContent.h"
-#include "nsIContentIterator.h"
-#include "nsIDOMCharacterData.h"
-#include "nsIDOMElement.h"
-#include "nsIDOMNode.h"
-#include "nsIDOMRange.h"
-#include "nsIEditor.h"
-#include "nsIEditorIMESupport.h"
-#include "nsIEnumerator.h"
-#include "nsINameSpaceManager.h"
-#include "nsINode.h"
+#include "nsHTMLEditRules.h"
+#include "nsTextEditUtils.h"
+#include "nsHTMLEditUtils.h"
+#include "nsIDOMNodeList.h"
+#include "nsIDOMAttr.h"
+#include "nsIDOMMouseEvent.h"
 #include "nsISelection.h"
 #include "nsISelectionPrivate.h"
-#include "nsISupportsImpl.h"
-#include "nsLiteralString.h"
-#include "nsReadableUtils.h"
-#include "nsSelectionState.h"
-#include "nsString.h"
-#include "nsStringFwd.h"
-#include "nsTArray.h"
-#include "nsTextEditRules.h"
-#include "nsTextEditUtils.h"
-#include "nsUnicharUtils.h"
-#include "nscore.h"
-#include "prtypes.h"
+#include "nsIDOMHTMLImageElement.h"
+#include "nsISelectionController.h"
+#include "nsIDocumentObserver.h"
+#include "TypeInState.h"
 
-class nsISupports;
+#include "nsIEnumerator.h"
+#include "nsIContent.h"
+#include "nsIContentIterator.h"
+#include "nsAttrName.h"
+
+#include "mozilla/dom/Element.h"
 
 using namespace mozilla;
 
@@ -965,13 +937,15 @@ nsresult nsHTMLEditor::PromoteRangeIfStartsOrEndsInNamedAnchor(nsIDOMRange *inRa
           !nsTextEditUtils::IsBody(tmp) &&
           !nsHTMLEditUtils::IsNamedAnchor(tmp))
   {
-    parent = GetNodeLocation(tmp, &tmpOffset);
+    res = GetNodeLocation(tmp, address_of(parent), &tmpOffset);
+    NS_ENSURE_SUCCESS(res, res);
     tmp = parent;
   }
   NS_ENSURE_TRUE(tmp, NS_ERROR_NULL_POINTER);
   if (nsHTMLEditUtils::IsNamedAnchor(tmp))
   {
-    parent = GetNodeLocation(tmp, &tmpOffset);
+    res = GetNodeLocation(tmp, address_of(parent), &tmpOffset);
+    NS_ENSURE_SUCCESS(res, res);
     startNode = parent;
     startOffset = tmpOffset;
   }
@@ -981,13 +955,15 @@ nsresult nsHTMLEditor::PromoteRangeIfStartsOrEndsInNamedAnchor(nsIDOMRange *inRa
           !nsTextEditUtils::IsBody(tmp) &&
           !nsHTMLEditUtils::IsNamedAnchor(tmp))
   {
-    parent = GetNodeLocation(tmp, &tmpOffset);
+    res = GetNodeLocation(tmp, address_of(parent), &tmpOffset);
+    NS_ENSURE_SUCCESS(res, res);
     tmp = parent;
   }
   NS_ENSURE_TRUE(tmp, NS_ERROR_NULL_POINTER);
   if (nsHTMLEditUtils::IsNamedAnchor(tmp))
   {
-    parent = GetNodeLocation(tmp, &tmpOffset);
+    res = GetNodeLocation(tmp, address_of(parent), &tmpOffset);
+    NS_ENSURE_SUCCESS(res, res);
     endNode = parent;
     endOffset = tmpOffset + 1;
   }
@@ -1019,7 +995,8 @@ nsresult nsHTMLEditor::PromoteInlineRange(nsIDOMRange *inRange)
           IsEditable(startNode) &&
           IsAtFrontOfNode(startNode, startOffset) )
   {
-    parent = GetNodeLocation(startNode, &startOffset);
+    res = GetNodeLocation(startNode, address_of(parent), &startOffset);
+    NS_ENSURE_SUCCESS(res, res);
     startNode = parent;
   }
   NS_ENSURE_TRUE(startNode, NS_ERROR_NULL_POINTER);
@@ -1029,7 +1006,8 @@ nsresult nsHTMLEditor::PromoteInlineRange(nsIDOMRange *inRange)
           IsEditable(endNode) &&
           IsAtEndOfNode(endNode, endOffset) )
   {
-    parent = GetNodeLocation(endNode, &endOffset);
+    res = GetNodeLocation(endNode, address_of(parent), &endOffset);
+    NS_ENSURE_SUCCESS(res, res);
     endNode = parent;
     endOffset++;  // we are AFTER this node
   }
@@ -1057,7 +1035,8 @@ bool nsHTMLEditor::IsAtFrontOfNode(nsIDOMNode *aNode, PRInt32 aOffset)
     nsCOMPtr<nsIDOMNode> firstNode;
     GetFirstEditableChild(aNode, address_of(firstNode));
     NS_ENSURE_TRUE(firstNode, true); 
-    PRInt32 offset = GetChildOffset(firstNode, aNode);
+    PRInt32 offset;
+    nsEditor::GetChildOffset(firstNode, aNode, offset);
     if (offset < aOffset) return false;
     return true;
   }
@@ -1079,7 +1058,8 @@ bool nsHTMLEditor::IsAtEndOfNode(nsIDOMNode *aNode, PRInt32 aOffset)
     nsCOMPtr<nsIDOMNode> lastNode;
     GetLastEditableChild(aNode, address_of(lastNode));
     NS_ENSURE_TRUE(lastNode, true); 
-    PRInt32 offset = GetChildOffset(lastNode, aNode);
+    PRInt32 offset;
+    nsEditor::GetChildOffset(lastNode, aNode, offset);
     if (offset < aOffset) return true;
     return false;
   }
@@ -1782,15 +1762,19 @@ nsHTMLEditor::RelativeFontChangeHelper(PRInt32 aSizeChange, nsINode* aNode)
   if (aNode->IsElement() && aNode->AsElement()->IsHTML(nsGkAtoms::font) &&
       aNode->AsElement()->HasAttr(kNameSpaceID_None, nsGkAtoms::size)) {
     // Cycle through children and adjust relative font size.
-    for (PRUint32 i = aNode->GetChildCount(); i--; ) {
-      nsresult rv = RelativeFontChangeOnNode(aSizeChange, aNode->GetChildAt(i));
+    for (nsIContent* child = aNode->GetLastChild();
+         child;
+         child = child->GetPreviousSibling()) {
+      nsresult rv = RelativeFontChangeOnNode(aSizeChange, child);
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
 
   // Now cycle through the children.
-  for (PRUint32 i = aNode->GetChildCount(); i--; ) {
-    nsresult rv = RelativeFontChangeHelper(aSizeChange, aNode->GetChildAt(i));
+  for (nsIContent* child = aNode->GetLastChild();
+       child;
+       child = child->GetPreviousSibling()) {
+    nsresult rv = RelativeFontChangeHelper(aSizeChange, child);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -1856,8 +1840,10 @@ nsHTMLEditor::RelativeFontChangeOnNode(PRInt32 aSizeChange, nsINode* aNode)
   // MOOSE: we should group the children together if possible
   // into a single "big" or "small".  For the moment they are
   // each getting their own.  
-  for (PRUint32 i = aNode->GetChildCount(); i--; ) {
-    nsresult rv = RelativeFontChangeOnNode(aSizeChange, aNode->GetChildAt(i));
+  for (nsIContent* child = aNode->GetLastChild();
+       child;
+       child = child->GetPreviousSibling()) {
+    nsresult rv = RelativeFontChangeOnNode(aSizeChange, child);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

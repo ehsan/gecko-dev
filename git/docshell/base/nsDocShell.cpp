@@ -2584,37 +2584,6 @@ nsDocShell::AddSessionStorage(nsIPrincipal* aPrincipal,
     return NS_OK;
 }
 
-static PLDHashOperator
-CloneSessionStorages(nsCStringHashKey::KeyType aKey, nsIDOMStorage* aStorage,
-                     void* aUserArg)
-{
-    nsIDocShell *docShell = static_cast<nsIDocShell*>(aUserArg);
-    nsCOMPtr<nsPIDOMStorage> pistorage = do_QueryInterface(aStorage);
-
-    if (pistorage) {
-        nsCOMPtr<nsIDOMStorage> storage = pistorage->Clone();
-        docShell->AddSessionStorage(pistorage->Principal(), storage);
-    }
-
-    return PL_DHASH_NEXT;
-}
-
-NS_IMETHODIMP
-nsDocShell::CloneSessionStoragesTo(nsIDocShell* aDocShell)
-{
-    aDocShell->ClearSessionStorages();
-    mStorages.EnumerateRead(CloneSessionStorages, aDocShell);
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShell::ClearSessionStorages()
-{
-    mStorages.Clear();
-    return NS_OK;
-}
-
 NS_IMETHODIMP
 nsDocShell::GetCurrentDocumentChannel(nsIChannel** aResult)
 {
@@ -8193,8 +8162,8 @@ nsDocShell::InternalLoad(nsIURI * aURI,
     }
 
     // XXXbz would be nice to know the loading principal here... but we don't
-    nsCOMPtr<nsIPrincipal> loadingPrincipal = do_QueryInterface(aOwner);
-    if (!loadingPrincipal && aReferrer) {
+    nsCOMPtr<nsIPrincipal> loadingPrincipal;
+    if (aReferrer) {
         nsCOMPtr<nsIScriptSecurityManager> secMan =
             do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
         NS_ENSURE_SUCCESS(rv, rv);
@@ -8202,7 +8171,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
         rv = secMan->GetCodebasePrincipal(aReferrer,
                                           getter_AddRefs(loadingPrincipal));
     }
-
+    
     rv = NS_CheckContentLoadPolicy(contentType,
                                    aURI,
                                    loadingPrincipal,
@@ -9890,6 +9859,17 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
 
     } // end of same-origin check
 
+    nsCOMPtr<nsISHistory> sessionHistory = mSessionHistory;
+    if (!sessionHistory) {
+        // Get the handle to SH from the root docshell
+        GetRootSessionHistory(getter_AddRefs(sessionHistory));
+    }
+    NS_ENSURE_TRUE(sessionHistory, NS_ERROR_FAILURE);
+
+    nsCOMPtr<nsISHistoryInternal> shInternal =
+        do_QueryInterface(sessionHistory, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     // Step 3: Create a new entry in the session history. This will erase
     // all SHEntries after the new entry and make this entry the current
     // one.  This operation may modify mOSHE, which we need later, so we
@@ -10018,7 +9998,7 @@ nsDocShell::ShouldAddToSessionHistory(nsIURI * aURI)
     // should just do a spec compare, rather than two gets of the scheme and
     // then the path.  -Gagan
     nsresult rv;
-    nsCAutoString buf, pref;
+    nsCAutoString buf;
 
     rv = aURI->GetScheme(buf);
     if (NS_FAILED(rv))
@@ -10033,14 +10013,7 @@ nsDocShell::ShouldAddToSessionHistory(nsIURI * aURI)
             return false;
         }
     }
-
-    rv = aURI->GetSpec(buf);
-    NS_ENSURE_SUCCESS(rv, true);
-
-    rv = Preferences::GetDefaultCString("browser.newtab.url", &pref);
-    NS_ENSURE_SUCCESS(rv, true);
-
-    return !buf.Equals(pref);
+    return true;
 }
 
 nsresult

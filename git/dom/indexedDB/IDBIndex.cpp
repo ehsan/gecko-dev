@@ -338,12 +338,12 @@ private:
 
 inline
 already_AddRefed<IDBRequest>
-GenerateRequest(IDBIndex* aIndex, JSContext* aCx)
+GenerateRequest(IDBIndex* aIndex)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   IDBTransaction* transaction = aIndex->ObjectStore()->Transaction();
   IDBDatabase* database = transaction->Database();
-  return IDBRequest::Create(aIndex, database, transaction, aCx);
+  return IDBRequest::Create(aIndex, database, transaction);
 }
 
 } // anonymous namespace
@@ -394,10 +394,10 @@ IDBIndex::Create(IDBObjectStore* aObjectStore,
 
 IDBIndex::IDBIndex()
 : mId(LL_MININT),
-  mKeyPath(0),
-  mCachedKeyPath(JSVAL_VOID),
   mActorChild(nsnull),
   mActorParent(nsnull),
+  mKeyPath(0),
+  mCachedKeyPath(JSVAL_VOID),
   mUnique(false),
   mMultiEntry(false),
   mRooted(false)
@@ -423,7 +423,6 @@ IDBIndex::~IDBIndex()
 
 nsresult
 IDBIndex::GetInternal(IDBKeyRange* aKeyRange,
-                      JSContext* aCx,
                       IDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -433,7 +432,7 @@ IDBIndex::GetInternal(IDBKeyRange* aKeyRange,
     return NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this, aCx);
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<GetHelper> helper =
@@ -448,7 +447,6 @@ IDBIndex::GetInternal(IDBKeyRange* aKeyRange,
 
 nsresult
 IDBIndex::GetKeyInternal(IDBKeyRange* aKeyRange,
-                         JSContext* aCx,
                          IDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -458,7 +456,7 @@ IDBIndex::GetKeyInternal(IDBKeyRange* aKeyRange,
     return NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this, aCx);
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<GetKeyHelper> helper =
@@ -474,7 +472,6 @@ IDBIndex::GetKeyInternal(IDBKeyRange* aKeyRange,
 nsresult
 IDBIndex::GetAllInternal(IDBKeyRange* aKeyRange,
                          PRUint32 aLimit,
-                         JSContext* aCx,
                          IDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -484,7 +481,7 @@ IDBIndex::GetAllInternal(IDBKeyRange* aKeyRange,
     return NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this, aCx);
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<GetAllHelper> helper =
@@ -500,7 +497,6 @@ IDBIndex::GetAllInternal(IDBKeyRange* aKeyRange,
 nsresult
 IDBIndex::GetAllKeysInternal(IDBKeyRange* aKeyRange,
                              PRUint32 aLimit,
-                             JSContext* aCx,
                              IDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -510,7 +506,7 @@ IDBIndex::GetAllKeysInternal(IDBKeyRange* aKeyRange,
     return NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this, aCx);
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<GetAllKeysHelper> helper =
@@ -525,7 +521,6 @@ IDBIndex::GetAllKeysInternal(IDBKeyRange* aKeyRange,
 
 nsresult
 IDBIndex::CountInternal(IDBKeyRange* aKeyRange,
-                        JSContext* aCx,
                         IDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -535,7 +530,7 @@ IDBIndex::CountInternal(IDBKeyRange* aKeyRange,
     return NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR;
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this, aCx);
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<CountHelper> helper =
@@ -551,7 +546,6 @@ IDBIndex::CountInternal(IDBKeyRange* aKeyRange,
 nsresult
 IDBIndex::OpenKeyCursorInternal(IDBKeyRange* aKeyRange,
                                 size_t aDirection,
-                                JSContext* aCx,
                                 IDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -564,7 +558,7 @@ IDBIndex::OpenKeyCursorInternal(IDBKeyRange* aKeyRange,
   IDBCursor::Direction direction =
     static_cast<IDBCursor::Direction>(aDirection);
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this, aCx);
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<OpenKeyCursorHelper> helper =
@@ -580,7 +574,6 @@ IDBIndex::OpenKeyCursorInternal(IDBKeyRange* aKeyRange,
 nsresult
 IDBIndex::OpenCursorInternal(IDBKeyRange* aKeyRange,
                              size_t aDirection,
-                             JSContext* aCx,
                              IDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -593,7 +586,7 @@ IDBIndex::OpenCursorInternal(IDBKeyRange* aKeyRange,
   IDBCursor::Direction direction =
     static_cast<IDBCursor::Direction>(aDirection);
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this, aCx);
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<OpenCursorHelper> helper =
@@ -786,7 +779,7 @@ IDBIndex::Get(const jsval& aKey,
   }
 
   nsRefPtr<IDBRequest> request;
-  rv = GetInternal(keyRange, aCx, getter_AddRefs(request));
+  rv = GetInternal(keyRange, getter_AddRefs(request));
   NS_ENSURE_SUCCESS(rv, rv);
 
   request.forget(_retval);
@@ -815,7 +808,7 @@ IDBIndex::GetKey(const jsval& aKey,
   }
 
   nsRefPtr<IDBRequest> request;
-  rv = GetKeyInternal(keyRange, aCx, getter_AddRefs(request));
+  rv = GetKeyInternal(keyRange, getter_AddRefs(request));
   NS_ENSURE_SUCCESS(rv, rv);
 
   request.forget(_retval);
@@ -849,7 +842,7 @@ IDBIndex::GetAll(const jsval& aKey,
   }
 
   nsRefPtr<IDBRequest> request;
-  rv = GetAllInternal(keyRange, aLimit, aCx, getter_AddRefs(request));
+  rv = GetAllInternal(keyRange, aLimit, getter_AddRefs(request));
   NS_ENSURE_SUCCESS(rv, rv);
 
   request.forget(_retval);
@@ -883,7 +876,7 @@ IDBIndex::GetAllKeys(const jsval& aKey,
   }
 
   nsRefPtr<IDBRequest> request;
-  rv = GetAllKeysInternal(keyRange, aLimit, aCx, getter_AddRefs(request));
+  rv = GetAllKeysInternal(keyRange, aLimit, getter_AddRefs(request));
   NS_ENSURE_SUCCESS(rv, rv);
 
   request.forget(_retval);
@@ -919,7 +912,7 @@ IDBIndex::OpenCursor(const jsval& aKey,
     }
   }
 
-  nsRefPtr<IDBRequest> request = GenerateRequest(this, aCx);
+  nsRefPtr<IDBRequest> request = GenerateRequest(this);
   NS_ENSURE_TRUE(request, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<OpenCursorHelper> helper =
@@ -962,8 +955,7 @@ IDBIndex::OpenKeyCursor(const jsval& aKey,
   }
 
   nsRefPtr<IDBRequest> request;
-  rv = OpenKeyCursorInternal(keyRange, direction, aCx,
-                             getter_AddRefs(request));
+  rv = OpenKeyCursorInternal(keyRange, direction, getter_AddRefs(request));
   NS_ENSURE_SUCCESS(rv, rv);
 
   request.forget(_retval);
@@ -990,7 +982,7 @@ IDBIndex::Count(const jsval& aKey,
   }
 
   nsRefPtr<IDBRequest> request;
-  rv = CountInternal(keyRange, aCx, getter_AddRefs(request));
+  rv = CountInternal(keyRange, getter_AddRefs(request));
   NS_ENSURE_SUCCESS(rv, rv);
 
   request.forget(_retval);

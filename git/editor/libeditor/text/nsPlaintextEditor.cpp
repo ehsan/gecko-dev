@@ -4,65 +4,51 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-#include "mozilla/Assertions.h"
-#include "mozilla/FunctionTimer.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/Selection.h"
-#include "mozilla/dom/Element.h"
-#include "mozilla/mozalloc.h"
-#include "nsAString.h"
-#include "nsAutoPtr.h"
-#include "nsCRT.h"
+#include "nsPlaintextEditor.h"
 #include "nsCaret.h"
-#include "nsCharTraits.h"
-#include "nsComponentManagerUtils.h"
-#include "nsContentCID.h"
-#include "nsCopySupport.h"
-#include "nsDebug.h"
-#include "nsDependentSubstring.h"
-#include "nsEditRules.h"
-#include "nsEditorUtils.h"  // nsAutoEditBatch, nsAutoRules
-#include "nsError.h"
-#include "nsGUIEvent.h"
-#include "nsGkAtoms.h"
-#include "nsIClipboard.h"
-#include "nsIContent.h"
-#include "nsIContentIterator.h"
-#include "nsIDOMCharacterData.h"
+#include "nsTextEditUtils.h"
+#include "nsTextEditRules.h"
+#include "nsIEditActionListener.h"
+#include "nsIDOMNodeList.h"
 #include "nsIDOMDocument.h"
-#include "nsIDOMElement.h"
+#include "nsIDocument.h"
 #include "nsIDOMEventTarget.h" 
 #include "nsIDOMKeyEvent.h"
-#include "nsIDOMNode.h"
-#include "nsIDOMNodeList.h"
-#include "nsIDocumentEncoder.h"
-#include "nsIEditorIMESupport.h"
-#include "nsINameSpaceManager.h"
-#include "nsINode.h"
-#include "nsIPresShell.h"
-#include "nsIPrivateTextRange.h"
 #include "nsISelection.h"
-#include "nsISelectionController.h"
 #include "nsISelectionPrivate.h"
-#include "nsISupportsPrimitives.h"
-#include "nsITransferable.h"
-#include "nsIWeakReferenceUtils.h"
-#include "nsInternetCiter.h"
-#include "nsLiteralString.h"
-#include "nsPlaintextEditor.h"
-#include "nsReadableUtils.h"
-#include "nsServiceManagerUtils.h"
-#include "nsString.h"
-#include "nsStringFwd.h"
-#include "nsSubstringTuple.h"
-#include "nsTextEditRules.h"
-#include "nsTextEditUtils.h"
-#include "nsUnicharUtils.h"
-#include "nsXPCOM.h"
+#include "nsISelectionController.h"
+#include "nsGUIEvent.h"
+#include "nsCRT.h"
 
-class nsIOutputStream;
-class nsISupports;
-class nsISupportsArray;
+#include "nsIEnumerator.h"
+#include "nsIContent.h"
+#include "nsIContentIterator.h"
+#include "nsIDOMRange.h"
+#include "nsISupportsArray.h"
+#include "nsIComponentManager.h"
+#include "nsIServiceManager.h"
+#include "nsIDocumentEncoder.h"
+#include "nsIPresShell.h"
+#include "nsISupportsPrimitives.h"
+#include "nsReadableUtils.h"
+
+// Misc
+#include "nsEditorUtils.h"  // nsAutoEditBatch, nsAutoRules
+#include "nsUnicharUtils.h"
+#include "nsContentCID.h"
+#include "nsInternetCiter.h"
+#include "nsEventDispatcher.h"
+#include "nsGkAtoms.h"
+#include "nsDebug.h"
+#include "mozilla/Preferences.h"
+#include "mozilla/dom/Element.h"
+
+// Drag & Drop, Clipboard
+#include "nsIClipboard.h"
+#include "nsITransferable.h"
+#include "nsCopySupport.h"
+
+#include "mozilla/FunctionTimer.h"
 
 using namespace mozilla;
 
@@ -441,10 +427,11 @@ nsPlaintextEditor::CreateBRImpl(nsCOMPtr<nsIDOMNode>* aInOutParent,
   nsCOMPtr<nsIDOMNode> brNode;
   if (nodeAsText)  
   {
+    nsCOMPtr<nsIDOMNode> tmp;
     PRInt32 offset;
     PRUint32 len;
     nodeAsText->GetLength(&len);
-    nsCOMPtr<nsIDOMNode> tmp = GetNodeLocation(node, &offset);
+    GetNodeLocation(node, address_of(tmp), &offset);
     NS_ENSURE_TRUE(tmp, NS_ERROR_FAILURE);
     if (!theOffset)
     {
@@ -460,7 +447,8 @@ nsPlaintextEditor::CreateBRImpl(nsCOMPtr<nsIDOMNode>* aInOutParent,
       // split the text node
       res = SplitNode(node, theOffset, getter_AddRefs(tmp));
       NS_ENSURE_SUCCESS(res, res);
-      tmp = GetNodeLocation(node, &offset);
+      res = GetNodeLocation(node, address_of(tmp), &offset);
+      NS_ENSURE_SUCCESS(res, res);
     }
     // create br
     res = CreateNode(brType, tmp, offset, getter_AddRefs(brNode));
@@ -478,8 +466,10 @@ nsPlaintextEditor::CreateBRImpl(nsCOMPtr<nsIDOMNode>* aInOutParent,
   *outBRNode = brNode;
   if (*outBRNode && (aSelect != eNone))
   {
+    nsCOMPtr<nsIDOMNode> parent;
     PRInt32 offset;
-    nsCOMPtr<nsIDOMNode> parent = GetNodeLocation(*outBRNode, &offset);
+    res = GetNodeLocation(*outBRNode, address_of(parent), &offset);
+    NS_ENSURE_SUCCESS(res, res);
 
     nsCOMPtr<nsISelection> selection;
     res = GetSelection(getter_AddRefs(selection));
@@ -536,7 +526,8 @@ nsPlaintextEditor::InsertBR(nsCOMPtr<nsIDOMNode>* outBRNode)
   NS_ENSURE_SUCCESS(res, res);
     
   // position selection after br
-  selNode = GetNodeLocation(*outBRNode, &selOffset);
+  res = GetNodeLocation(*outBRNode, address_of(selNode), &selOffset);
+  NS_ENSURE_SUCCESS(res, res);
   nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));
   selPriv->SetInterlinePosition(true);
   return selection->Collapse(selNode, selOffset+1);
@@ -1195,7 +1186,7 @@ nsPlaintextEditor::GetAndInitDocEncoder(const nsAString& aFormatType,
   nsresult rv = NS_OK;
 
   nsCAutoString formatType(NS_DOC_ENCODER_CONTRACTID_BASE);
-  LossyAppendUTF16toASCII(aFormatType, formatType);
+  formatType.AppendWithConversion(aFormatType);
   nsCOMPtr<nsIDocumentEncoder> docEncoder (do_CreateInstance(formatType.get(), &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1577,8 +1568,10 @@ nsPlaintextEditor::SelectEntireDocument(nsISelection *aSelection)
   nsCOMPtr<nsIDOMNode> childNode = GetChildAt(selNode, selOffset - 1);
 
   if (childNode && nsTextEditUtils::IsMozBR(childNode)) {
+    nsCOMPtr<nsIDOMNode> parentNode;
     PRInt32 parentOffset;
-    nsCOMPtr<nsIDOMNode> parentNode = GetNodeLocation(childNode, &parentOffset);
+    rv = GetNodeLocation(childNode, address_of(parentNode), &parentOffset);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     return aSelection->Extend(parentNode, parentOffset);
   }

@@ -185,7 +185,7 @@ JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc, JSTrapHandler handle
     if (!CheckDebugMode(cx))
         return false;
 
-    BreakpointSite *site = script->getOrCreateBreakpointSite(cx, pc);
+    BreakpointSite *site = script->getOrCreateBreakpointSite(cx, pc, NULL);
     if (!site)
         return false;
     site->setTrap(cx->runtime->defaultFreeOp(), handler, closure);
@@ -489,22 +489,14 @@ JS_FrameIterator(JSContext *cx, JSStackFrame **iteratorp)
 }
 
 JS_PUBLIC_API(JSScript *)
-JS_GetFrameScript(JSContext *cx, JSStackFrame *fpArg)
+JS_GetFrameScript(JSContext *cx, JSStackFrame *fp)
 {
-    StackFrame *fp = Valueify(fpArg);
-    if (fp->isDummyFrame())
-        return NULL;
-
-    return fp->maybeScript();
+    return Valueify(fp)->maybeScript();
 }
 
 JS_PUBLIC_API(jsbytecode *)
-JS_GetFramePC(JSContext *cx, JSStackFrame *fpArg)
+JS_GetFramePC(JSContext *cx, JSStackFrame *fp)
 {
-    StackFrame *fp = Valueify(fpArg);
-    if (fp->isDummyFrame())
-        return NULL;
-
     /*
      * This API is used to compute the line number for jsd and XPConnect
      * exception handling backtraces. Once the stack gets really deep, the
@@ -512,7 +504,7 @@ JS_GetFramePC(JSContext *cx, JSStackFrame *fpArg)
      * terminated by a slow-script dialog) when content causes infinite
      * recursion and a backtrace.
      */
-    return fp->pcQuadratic(cx->stack, 100);
+    return Valueify(fp)->pcQuadratic(cx->stack, 100);
 }
 
 JS_PUBLIC_API(void *)
@@ -818,6 +810,15 @@ GetPropertyDesc(JSContext *cx, JSObject *obj_, Shape *shape, JSPropertyDesc *pd)
               |  (!shape->writable()  ? JSPD_READONLY  : 0)
               |  (!shape->configurable() ? JSPD_PERMANENT : 0);
     pd->spare = 0;
+    if (shape->setter() == CallObject::setArgOp) {
+        pd->slot = shape->shortid();
+        pd->flags |= JSPD_ARGUMENT;
+    } else if (shape->setter() == CallObject::setVarOp) {
+        pd->slot = shape->shortid();
+        pd->flags |= JSPD_VARIABLE;
+    } else {
+        pd->slot = 0;
+    }
     pd->alias = JSVAL_VOID;
 
     return JS_TRUE;

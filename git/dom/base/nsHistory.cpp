@@ -10,6 +10,7 @@
 #include "nscore.h"
 #include "nsPIDOMWindow.h"
 #include "nsIScriptGlobalObject.h"
+#include "nsIDOMDocument.h"
 #include "nsIDocument.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"

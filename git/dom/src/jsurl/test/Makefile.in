@@ -10,8 +10,9 @@ VPATH		= @srcdir@
 relativesrcdir  = dom/src/jsurl/test
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_FILES = 	pass.html \
+_TEST_FILES = 	pass.html \
 		fail.html \
 		test_bug351633-1.html \
 		form-submit.html \
@@ -25,4 +26,5 @@ MOCHITEST_FILES = 	pass.html \
 		test_bug384981.html \
 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

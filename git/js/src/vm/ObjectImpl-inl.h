@@ -40,29 +40,31 @@ Debug_SetSlotRangeToCrashOnTouch(HeapSlot *begin, HeapSlot *end)
 
 } // namespace js
 
-inline js::Shape *
+inline const js::Shape *
 js::ObjectImpl::nativeLookup(JSContext *cx, PropertyId pid)
 {
     return nativeLookup(cx, pid.asId());
 }
 
-inline js::Shape *
+inline const js::Shape *
 js::ObjectImpl::nativeLookup(JSContext *cx, PropertyName *name)
 {
     return nativeLookup(cx, PropertyId(name));
 }
 
-inline js::Shape *
-js::ObjectImpl::nativeLookupNoAllocation(PropertyId pid)
+#ifdef DEBUG
+inline const js::Shape *
+js::ObjectImpl::nativeLookupNoAllocation(JSContext *cx, PropertyId pid)
 {
-    return nativeLookupNoAllocation(pid.asId());
+    return nativeLookupNoAllocation(cx, pid.asId());
 }
 
-inline js::Shape *
-js::ObjectImpl::nativeLookupNoAllocation(PropertyName *name)
+inline const js::Shape *
+js::ObjectImpl::nativeLookupNoAllocation(JSContext *cx, PropertyName *name)
 {
-    return nativeLookupNoAllocation(PropertyId(name));
+    return nativeLookupNoAllocation(cx, PropertyId(name));
 }
+#endif
 
 inline bool
 js::ObjectImpl::isExtensible() const
@@ -148,6 +150,17 @@ js::ObjectImpl::getSlotRange(uint32_t start, uint32_t length,
 {
     MOZ_ASSERT(slotInRange(start + length, SENTINEL_ALLOWED));
     getSlotRangeUnchecked(start, length, fixedStart, fixedEnd, slotsStart, slotsEnd);
+}
+
+inline bool
+js::ObjectImpl::hasContiguousSlots(uint32_t start, uint32_t count) const
+{
+    /*
+     * Check that the range [start, start+count) is either all inline or all
+     * out of line.
+     */
+    MOZ_ASSERT(slotInRange(start + count, SENTINEL_ALLOWED));
+    return start + count <= numFixedSlots() || start >= numFixedSlots();
 }
 
 inline void
@@ -314,7 +327,7 @@ js::ObjectImpl::readBarrier(ObjectImpl *obj)
 #ifdef JSGC_INCREMENTAL
     JSCompartment *comp = obj->compartment();
     if (comp->needsBarrier()) {
-        MOZ_ASSERT(!comp->rt->isHeapBusy());
+        MOZ_ASSERT(!comp->rt->gcRunning);
         JSObject *tmp = obj->asObjectPtr();
         MarkObjectUnbarriered(comp->barrierTracer(), &tmp, "read barrier");
         MOZ_ASSERT(tmp == obj->asObjectPtr());
@@ -352,7 +365,7 @@ js::ObjectImpl::writeBarrierPre(ObjectImpl *obj)
 
     JSCompartment *comp = obj->compartment();
     if (comp->needsBarrier()) {
-        MOZ_ASSERT(!comp->rt->isHeapBusy());
+        MOZ_ASSERT(!comp->rt->gcRunning);
         JSObject *tmp = obj->asObjectPtr();
         MarkObjectUnbarriered(comp->barrierTracer(), &tmp, "write barrier");
         MOZ_ASSERT(tmp == obj->asObjectPtr());

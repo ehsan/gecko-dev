@@ -506,7 +506,9 @@ struct Shape : public js::gc::Cell
     static inline Shape *search(JSContext *cx, Shape *start, jsid id,
                                 Shape ***pspp, bool adding = false);
 
-    static inline Shape *searchNoAllocation(Shape *start, jsid id);
+#ifdef DEBUG
+    static inline Shape *searchNoAllocation(JSContext *cx, Shape *start, jsid id);
+#endif
 
     inline void removeFromDictionary(JSObject *obj);
     inline void insertIntoDictionary(HeapPtrShape *dictp);
@@ -557,16 +559,16 @@ struct Shape : public js::gc::Cell
     class Range {
       protected:
         friend struct Shape;
-        Shape *cursor;
+        const Shape *cursor;
 
       public:
-        Range(Shape *shape) : cursor(shape) { }
+        Range(const Shape *shape) : cursor(shape) { }
 
         bool empty() const {
             return cursor->isEmptyShape();
         }
 
-        Shape &front() const {
+        const Shape &front() const {
             JS_ASSERT(!empty());
             return *cursor;
         }
@@ -596,7 +598,7 @@ struct Shape : public js::gc::Cell
         };
     };
 
-    Range all() {
+    Range all() const {
         return Range(this);
     }
 
@@ -698,8 +700,8 @@ struct Shape : public js::gc::Cell
                                      uint32_t aslot, unsigned aattrs, unsigned aflags,
                                      int ashortid) const;
 
-    bool get(JSContext* cx, HandleObject receiver, JSObject *obj, JSObject *pobj, js::Value* vp);
-    bool set(JSContext* cx, HandleObject obj, HandleObject receiver, bool strict, js::Value* vp);
+    bool get(JSContext* cx, HandleObject receiver, JSObject *obj, JSObject *pobj, js::Value* vp) const;
+    bool set(JSContext* cx, HandleObject obj, bool strict, js::Value* vp) const;
 
     BaseShape *base() const { return base_; }
 
@@ -845,20 +847,20 @@ struct Shape : public js::gc::Cell
     static Shape *setExtensibleParents(JSContext *cx, Shape *shape);
     bool extensibleParents() const { return !!(base()->flags & BaseShape::EXTENSIBLE_PARENTS); }
 
-    uint32_t entryCount() {
+    uint32_t entryCount() const {
         if (hasTable())
             return table().entryCount;
 
-        js::Shape *shape = this;
+        const js::Shape *shape = this;
         uint32_t count = 0;
         for (js::Shape::Range r = shape->all(); !r.empty(); r.popFront())
             ++count;
         return count;
     }
 
-    bool isBigEnoughForAShapeTable() {
+    bool isBigEnoughForAShapeTable() const {
         JS_ASSERT(!hasTable());
-        js::Shape *shape = this;
+        const js::Shape *shape = this;
         uint32_t count = 0;
         for (js::Shape::Range r = shape->all(); !r.empty(); r.popFront()) {
             ++count;
@@ -876,15 +878,15 @@ struct Shape : public js::gc::Cell
     void finalize(FreeOp *fop);
     void removeChild(js::Shape *child);
 
-    static inline void writeBarrierPre(Shape *shape);
-    static inline void writeBarrierPost(Shape *shape, void *addr);
+    static inline void writeBarrierPre(const Shape *shape);
+    static inline void writeBarrierPost(const Shape *shape, void *addr);
 
     /*
      * All weak references need a read barrier for incremental GC. This getter
      * method implements the read barrier. It's used to obtain initial shapes
      * from the compartment.
      */
-    static inline void readBarrier(Shape *shape);
+    static inline void readBarrier(const Shape *shape);
 
     static inline ThingRootKind rootKind() { return THING_ROOT_SHAPE; }
 
@@ -916,10 +918,7 @@ class AutoRooterGetterSetter
             : AutoGCRooter(cx, GETTERSETTER), attrs(attrs),
               pgetter(pgetter_), psetter(psetter_),
               getterRoot(cx, pgetter_), setterRoot(cx, psetter_)
-        {
-            JS_ASSERT_IF(attrs & JSPROP_GETTER, !IsPoisonedPtr(*pgetter));
-            JS_ASSERT_IF(attrs & JSPROP_SETTER, !IsPoisonedPtr(*psetter));
-        }
+        {}
 
         friend void AutoGCRooter::trace(JSTracer *trc);
 
@@ -1105,14 +1104,6 @@ namespace js {
 inline Shape *
 Shape::search(JSContext *cx, Shape *start, jsid id, Shape ***pspp, bool adding)
 {
-#ifdef DEBUG
-    {
-        SkipRoot skip0(cx, &start);
-        SkipRoot skip1(cx, &id);
-        MaybeCheckStackRoots(cx);
-    }
-#endif
-
     if (start->inDictionary()) {
         *pspp = start->table().search(id, adding);
         return SHAPE_FETCH(*pspp);
@@ -1130,7 +1121,7 @@ Shape::search(JSContext *cx, Shape *start, jsid id, Shape ***pspp, bool adding)
             RootedShape startRoot(cx, start);
             RootedId idRoot(cx, id);
             if (startRoot->hashify(cx)) {
-                Shape **spp = startRoot->table().search(idRoot, adding);
+                Shape **spp = startRoot->table().search(id, adding);
                 return SHAPE_FETCH(spp);
             }
             start = startRoot;
@@ -1153,8 +1144,9 @@ Shape::search(JSContext *cx, Shape *start, jsid id, Shape ***pspp, bool adding)
     return NULL;
 }
 
+#ifdef DEBUG
 /* static */ inline Shape *
-Shape::searchNoAllocation(Shape *start, jsid id)
+Shape::searchNoAllocation(JSContext *cx, Shape *start, jsid id)
 {
     if (start->hasTable()) {
         Shape **spp = start->table().search(id, false);
@@ -1168,9 +1160,7 @@ Shape::searchNoAllocation(Shape *start, jsid id)
 
     return NULL;
 }
-
-void
-MarkNonNativePropertyFound(HandleObject obj, MutableHandleShape propp);
+#endif /* DEBUG */
 
 } // namespace js
 

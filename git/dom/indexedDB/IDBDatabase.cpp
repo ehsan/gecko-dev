@@ -12,6 +12,7 @@
 #include "mozilla/storage.h"
 #include "nsDOMClassInfo.h"
 #include "nsDOMLists.h"
+#include "nsEventDispatcher.h"
 #include "nsJSUtils.h"
 #include "nsProxyRelease.h"
 #include "nsThreadUtils.h"
@@ -28,7 +29,6 @@
 #include "IndexedDatabaseManager.h"
 #include "TransactionThreadPool.h"
 #include "DictionaryHelpers.h"
-#include "nsContentUtils.h"
 
 #include "ipc/IndexedDBChild.h"
 
@@ -311,9 +311,6 @@ void
 IDBDatabase::EnterSetVersionTransaction()
 {
   NS_ASSERTION(!mRunningVersionChange, "How did that happen?");
-
-  mPreviousDatabaseInfo = mDatabaseInfo->Clone();
-
   mRunningVersionChange = true;
 }
 
@@ -321,17 +318,7 @@ void
 IDBDatabase::ExitSetVersionTransaction()
 {
   NS_ASSERTION(mRunningVersionChange, "How did that happen?");
-
-  mPreviousDatabaseInfo = nsnull;
-
   mRunningVersionChange = false;
-}
-
-void
-IDBDatabase::RevertToPreviousState()
-{
-  mDatabaseInfo = mPreviousDatabaseInfo;
-  mPreviousDatabaseInfo = nsnull;
 }
 
 void
@@ -717,7 +704,6 @@ IDBDatabase::Transaction(const jsval& aStoreNames,
 NS_IMETHODIMP
 IDBDatabase::MozCreateFileHandle(const nsAString& aName,
                                  const nsAString& aType,
-                                 JSContext* aCx,
                                  nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -730,7 +716,7 @@ IDBDatabase::MozCreateFileHandle(const nsAString& aName,
     return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
-  nsRefPtr<IDBRequest> request = IDBRequest::Create(nsnull, this, nsnull, aCx);
+  nsRefPtr<IDBRequest> request = IDBRequest::Create(nsnull, this, nsnull);
 
   nsRefPtr<CreateFileHelper> helper =
     new CreateFileHelper(this, request, aName, aType);
@@ -790,7 +776,35 @@ IDBDatabase::UnsetThreadLocals()
 nsresult
 IDBDatabase::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
-  return IndexedDatabaseManager::FireWindowOnError(GetOwner(), aVisitor);
+  NS_ENSURE_TRUE(aVisitor.mDOMEvent, NS_ERROR_UNEXPECTED);
+
+  nsPIDOMWindow* owner = GetOwner();
+  if (!owner) {
+    return NS_OK;
+  }
+
+  if (aVisitor.mEventStatus != nsEventStatus_eConsumeNoDefault) {
+    nsString type;
+    nsresult rv = aVisitor.mDOMEvent->GetType(type);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    if (type.EqualsLiteral(ERROR_EVT_STR)) {
+      nsRefPtr<nsDOMEvent> duplicateEvent =
+        CreateGenericEvent(type, eDoesNotBubble, eNotCancelable);
+      NS_ENSURE_STATE(duplicateEvent);
+
+      nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(owner));
+      NS_ASSERTION(target, "How can this happen?!");
+
+      bool dummy;
+      rv = target->DispatchEvent(duplicateEvent, &dummy);
+      if (NS_FAILED(rv)) {
+        return rv;
+      }
+    }
+  }
+
+  return NS_OK;
 }
 
 HelperBase::ChildProcessSendResult
@@ -819,7 +833,7 @@ void
 NoRequestDatabaseHelper::OnError()
 {
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-  mTransaction->Abort(GetResultCode());
+  mTransaction->AbortWithCode(GetResultCode());
 }
 
 nsresult

@@ -194,12 +194,6 @@ Accessible::SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry)
   mRoleMapEntry = aRoleMapEntry;
 }
 
-bool
-Accessible::Init()
-{
-  return true;
-}
-
 NS_IMETHODIMP
 Accessible::GetDocument(nsIAccessibleDocument** aDocument)
 {
@@ -1533,7 +1527,7 @@ Accessible::ApplyARIAState(PRUint64* aState) const
   dom::Element* element = mContent->AsElement();
 
   // Test for universal states first
-  *aState |= aria::UniversalStatesFor(element);
+  *aState |= nsARIAMap::UniversalStatesFor(element);
 
   if (mRoleMapEntry) {
 

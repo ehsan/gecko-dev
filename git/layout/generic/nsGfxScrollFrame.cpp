@@ -16,7 +16,6 @@
 #include "nsGfxScrollFrame.h"
 #include "nsGkAtoms.h"
 #include "nsINameSpaceManager.h"
-#include "nsContentList.h"
 #include "nsIDocument.h"
 #include "nsFontMetrics.h"
 #include "nsIDocumentObserver.h"
@@ -3190,12 +3189,9 @@ void nsGfxScrollFrameInner::PostOverflowEvent()
     return;
   }
 
-  nsRootPresContext* rpc = mOuter->PresContext()->GetRootPresContext();
-  if (!rpc)
-    return;
-
-  mAsyncScrollPortEvent = new AsyncScrollPortEvent(this);
-  rpc->AddWillPaintObserver(mAsyncScrollPortEvent.get());
+  nsRefPtr<AsyncScrollPortEvent> ev = new AsyncScrollPortEvent(this);
+  if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev)))
+    mAsyncScrollPortEvent = ev;
 }
 
 bool

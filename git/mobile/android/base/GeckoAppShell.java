@@ -8,7 +8,6 @@ package org.mozilla.gecko;
 import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.gfx.IntSize;
 import org.mozilla.gecko.gfx.GeckoLayerClient;
-import org.mozilla.gecko.gfx.GfxInfoThread;
 import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
 import org.mozilla.gecko.gfx.LayerController;
 import org.mozilla.gecko.gfx.LayerView;
@@ -21,8 +20,6 @@ import org.mozilla.gecko.gfx.RectUtils;
 import java.io.*;
 import java.lang.reflect.*;
 import java.nio.*;
-import java.net.URL;
-import java.net.MalformedURLException;
 import java.text.*;
 import java.util.*;
 import java.util.zip.*;
@@ -125,10 +122,6 @@ public class GeckoAppShell
     private static boolean mLocationHighAccuracy = false;
 
     private static Handler sGeckoHandler;
-
-    public static GfxInfoThread sGfxInfoThread = null;
-
-    static ActivityHandlerHelper sActivityHelper = new ActivityHandlerHelper();
 
     /* The Android-side API: API methods that Android calls */
 
@@ -852,35 +845,6 @@ public class GeckoAppShell
         });
     }
 
-    public static void installWebApp(String aTitle, String aURI, String aUniqueURI, String aIconURL) {
-        int index = WebAppAllocator.getInstance(GeckoApp.mAppContext).findAndAllocateIndex(aUniqueURI);
-        GeckoProfile profile = GeckoProfile.get(GeckoApp.mAppContext, "webapp" + index);
-        File prefs = profile.getFile("prefs.js");
-
-        InputStream in = null;
-        OutputStream out = null;
-        try {
-            in = GeckoApp.mAppContext.getResources().openRawResource(R.raw.webapp_prefs_js);
-            out = new FileOutputStream(prefs);
-            byte buf[]=new byte[1024];
-            int len;
-            while ((len = in.read(buf)) > 0) {
-                out.write(buf, 0, len);
-            }
-        } catch(FileNotFoundException ex) {
-        } catch(IOException ex) {
-        } finally {
-            try {
-                if (out != null)
-                    out.close();
-                if (in != null)
-                    in.close();
-            } catch(IOException ex) {
-            }
-        }
-        createShortcut(aTitle, aURI, aUniqueURI, aIconURL, "webapp");
-    }
-
     public static void uninstallWebApp(final String uniqueURI) {
         // On uninstall, we need to do a couple of things:
         //   1. nuke the running app process.
@@ -1057,79 +1021,6 @@ public class GeckoAppShell
         if (subType == null)
             subType = "*";
         return type + "/" + subType;
-    }
-
-    static void safeStreamClose(Closeable stream) {
-        try {
-            if (stream != null)
-                stream.close();
-        } catch (IOException e) {}
-    }
-
-    static void shareImage(String aSrc, String aType) {
-
-        Intent intent = new Intent(Intent.ACTION_SEND);
-        boolean isDataURI = aSrc.startsWith("data:");
-        OutputStream os = null;
-
-        File dir = GeckoApp.getTempDirectory();
-        GeckoApp.deleteTempFiles();
-
-        try {
-            // Create a temporary file for the image
-            File imageFile = File.createTempFile("image",
-                                                 "." + aType.replace("image/",""),
-                                                 dir);
-            os = new FileOutputStream(imageFile);
-
-            if (isDataURI) {
-                // We are dealing with a Data URI
-                int dataStart = aSrc.indexOf(',');
-                byte[] buf = Base64.decode(aSrc.substring(dataStart+1), Base64.DEFAULT);
-                os.write(buf);
-            } else {
-                // We are dealing with a URL
-                InputStream is = null;
-                try {
-                    URL url = new URL(aSrc);
-                    is = url.openStream();
-                    byte[] buf = new byte[2048];
-                    int length;
-
-                    while ((length = is.read(buf)) != -1) {
-                        os.write(buf, 0, length);
-                    }
-                } finally {
-                    safeStreamClose(is);
-                }
-            }
-            intent.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(imageFile));
-
-            // If we were able to determine the image type, send that in the intent. Otherwise,
-            // use a generic type.
-            if (aType.startsWith("image/")) {
-                intent.setType(aType);
-            } else {
-                intent.setType("image/*");
-            }
-        } catch (IOException e) {
-            if (!isDataURI) {
-               // If we failed, at least send through the URL link
-               intent.putExtra(Intent.EXTRA_TEXT, aSrc);
-               intent.setType("text/plain");
-            } else {
-               // Don't fail silently, tell the user that we weren't able to share the image
-               Toast toast = Toast.makeText(GeckoApp.mAppContext,
-                                            GeckoApp.mAppContext.getResources().getString(R.string.share_image_failed),
-                                            Toast.LENGTH_SHORT);
-               toast.show();
-               return;
-            }
-        } finally {
-            safeStreamClose(os);
-        }
-        GeckoApp.mAppContext.startActivity(Intent.createChooser(intent,
-                GeckoApp.mAppContext.getResources().getString(R.string.share_title)));
     }
 
     static boolean openUriExternal(String aUriSpec, String aMimeType, String aPackageName,
@@ -1372,11 +1263,12 @@ public class GeckoAppShell
     }
 
     public static String showFilePickerForExtensions(String aExtensions) {
-        return sActivityHelper.showFilePicker(GeckoApp.mAppContext, getMimeTypeFromExtensions(aExtensions));
+        return GeckoApp.mAppContext.
+            showFilePicker(getMimeTypeFromExtensions(aExtensions));
     }
 
     public static String showFilePickerForMimeType(String aMimeType) {
-        return sActivityHelper.showFilePicker(GeckoApp.mAppContext, aMimeType);
+        return GeckoApp.mAppContext.showFilePicker(aMimeType);
     }
 
     public static void performHapticFeedback(boolean aIsLongPress) {
@@ -1846,7 +1738,7 @@ public class GeckoAppShell
             }
 
             try {
-                sCamera.setPreviewDisplay(GeckoApp.mAppContext.cameraView.getHolder());
+                sCamera.setPreviewDisplay(GeckoApp.cameraView.getHolder());
             } catch(IOException e) {
                 Log.e(LOGTAG, "Error setPreviewDisplay:", e);
             } catch(RuntimeException e) {
@@ -2101,7 +1993,16 @@ public class GeckoAppShell
     }
 
     public static boolean isTablet() {
-        return GeckoApp.mAppContext.isTablet();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD) {
+            Configuration config = GeckoApp.mAppContext.getResources().getConfiguration();
+            // xlarge is defined by android as screens larger than 960dp x 720dp
+            // and should include most devices ~7in and up.
+            // http://developer.android.com/guide/practices/screens_support.html
+            if ((config.screenLayout & Configuration.SCREENLAYOUT_SIZE_MASK) >= Configuration.SCREENLAYOUT_SIZE_XLARGE) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static void viewSizeChanged() {
@@ -2263,10 +2164,9 @@ public class GeckoAppShell
         msg.recycle();
     }
 
-    static class AsyncResultHandler extends FilePickerResultHandler {
+    static class AsyncResultHandler extends GeckoApp.FilePickerResultHandler {
         private long mId;
         AsyncResultHandler(long id) {
-            super(null);
             mId = id;
         }
 
@@ -2280,11 +2180,9 @@ public class GeckoAppShell
 
     /* Called by JNI from AndroidBridge */
     public static void showFilePickerAsync(String aMimeType, long id) {
-        if (!sActivityHelper.showFilePicker(GeckoApp.mAppContext, aMimeType, new AsyncResultHandler(id))) {
+        if (!GeckoApp.mAppContext.showFilePicker(aMimeType, new AsyncResultHandler(id)))
             GeckoAppShell.notifyFilePickerResult("", id);
-        }
     }
-
     public static void screenshotWholePage(Tab tab) {
         ScreenshotHandler.screenshotWholePage(tab);
     }
@@ -2297,13 +2195,6 @@ public class GeckoAppShell
     public static void notifyWakeLockChanged(String topic, String state) {
         GeckoApp.mAppContext.notifyWakeLockChanged(topic, state);
     }
-
-    public static String getGfxInfoData() {
-        String data = sGfxInfoThread.getData();
-        sGfxInfoThread = null;
-        return data;
-    }
-
 }
 
 class ScreenshotHandler {
@@ -2341,12 +2232,7 @@ class ScreenshotHandler {
 
 
             Tab tab = Tabs.getInstance().getSelectedTab();
-            if (tab == null)
-                return;
-            LayerController layerController = GeckoApp.mAppContext.getLayerController();
-            if (layerController == null)
-                return;
-            ImmutableViewportMetrics viewport = layerController.getViewportMetrics();
+            ImmutableViewportMetrics viewport = GeckoApp.mAppContext.getLayerController().getViewportMetrics();
             
             if (RectUtils.fuzzyEquals(sCheckerboardPageRect, viewport.getCssPageRect())) {
                 float width = right - left;
@@ -2448,7 +2334,7 @@ class ScreenshotHandler {
     static void scheduleCheckerboardScreenshotEvent(int tabId, int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, int bw, int bh) {
         float totalSize = sw * sh;
         int numSlices = (int) Math.ceil(totalSize / 100000);
-        if (numSlices == 0 || dw == 0 || dh == 0)
+        if (numSlices == 0)
             return;
         int srcSliceSize = (int) Math.ceil(sh / numSlices);
         int dstSliceSize = (int) Math.ceil(dh / numSlices);

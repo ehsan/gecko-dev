@@ -142,13 +142,6 @@ public class PanZoomController
         GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(MESSAGE_PREFS_GET, prefs.toString()));
     }
 
-    public void destroy() {
-        GeckoAppShell.unregisterGeckoEventListener(MESSAGE_ZOOM_RECT, this);
-        GeckoAppShell.unregisterGeckoEventListener(MESSAGE_ZOOM_PAGE, this);
-        GeckoAppShell.unregisterGeckoEventListener(MESSAGE_PREFS_DATA, this);
-        mSubscroller.destroy();
-    }
-
     // for debugging bug 713011; it can be taken out once that is resolved.
     private void checkMainThread() {
         if (mMainThread != Thread.currentThread()) {
@@ -276,11 +269,11 @@ public class PanZoomController
     }
 
     /** This function must be called on the UI thread. */
-    public void startingNewEventBlock(MotionEvent event, boolean waitingForTouchListeners) {
+    public void waitingForTouchListeners(MotionEvent event) {
         checkMainThread();
-        mSubscroller.cancel();
-        if (waitingForTouchListeners && (event.getAction() & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_DOWN) {
+        if ((event.getAction() & MotionEvent.ACTION_MASK) == MotionEvent.ACTION_DOWN) {
             // this is the first touch point going down, so we enter the pending state
+            mSubscroller.cancel();
             // seting the state will kill any animations in progress, possibly leaving
             // the page in overscroll
             mState = PanZoomState.WAITING_LISTENERS;
@@ -322,6 +315,7 @@ public class PanZoomController
         // user is taking control of movement, so stop
         // any auto-movement we have going
         stopAnimationTimer();
+        mSubscroller.cancel();
 
         switch (mState) {
         case ANIMATED_ZOOM:
@@ -875,7 +869,7 @@ public class PanZoomController
 
     @Override
     public boolean onScale(SimpleScaleGestureDetector detector) {
-        if (GeckoApp.mAppContext == null || GeckoApp.mAppContext.mDOMFullScreen)
+        if (GeckoApp.mDOMFullScreen)
             return false;
 
         if (mState != PanZoomState.PINCHING)
@@ -992,27 +986,26 @@ public class PanZoomController
     @Override
     public boolean onSingleTapUp(MotionEvent motionEvent) {
         // When zooming is enabled, wait to see if there's a double-tap.
-        if (!mController.getAllowZoom()) {
-            sendPointToGecko("Gesture:SingleTap", motionEvent);
-        }
-        // return false because we still want to get the ACTION_UP event that triggers this
-        return false;
+        if (mController.getAllowZoom())
+            return false;
+        sendPointToGecko("Gesture:SingleTap", motionEvent);
+        return true;
     }
 
     @Override
     public boolean onSingleTapConfirmed(MotionEvent motionEvent) {
         // When zooming is disabled, we handle this in onSingleTapUp.
-        if (mController.getAllowZoom()) {
-            sendPointToGecko("Gesture:SingleTap", motionEvent);
-        }
+        if (!mController.getAllowZoom())
+            return false;
+        sendPointToGecko("Gesture:SingleTap", motionEvent);
         return true;
     }
 
     @Override
     public boolean onDoubleTap(MotionEvent motionEvent) {
-        if (mController.getAllowZoom()) {
-            sendPointToGecko("Gesture:DoubleTap", motionEvent);
-        }
+        if (!mController.getAllowZoom())
+            return false;
+        sendPointToGecko("Gesture:DoubleTap", motionEvent);
         return true;
     }
 

@@ -9,7 +9,7 @@
 using namespace mozilla;
 using mozilla::dom::Link;
 
-NS_IMPL_ISUPPORTS2(nsAndroidHistory, IHistory, nsIRunnable)
+NS_IMPL_ISUPPORTS1(nsAndroidHistory, IHistory)
 
 nsAndroidHistory* nsAndroidHistory::sHistory = NULL;
 

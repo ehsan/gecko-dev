@@ -17,7 +17,6 @@
 #include "nsIDOMSVGRect.h"
 #include "nsRenderingContext.h"
 #include "nsSVGEffects.h"
-#include "nsSVGIntegrationUtils.h"
 #include "nsSVGPaintServerFrame.h"
 #include "nsSVGRect.h"
 #include "nsSVGTextPathFrame.h"
@@ -305,13 +304,6 @@ nsSVGGlyphFrame::PaintSVG(nsRenderingContext *aContext,
   if (!GetStyleVisibility()->IsVisible())
     return NS_OK;
 
-  if (GetStyleFont()->mFont.size <= 0) {
-    // Don't even try to paint, or cairo will go into an error state.
-    return NS_OK;
-  }
-
-  AutoCanvasTMForMarker autoCanvasTMFor(this, FOR_PAINTING);
-
   gfxContext *gfx = aContext->ThebesContext();
   PRUint16 renderMode = SVGAutoRenderState::GetRenderMode(aContext);
 
@@ -329,7 +321,7 @@ nsSVGGlyphFrame::PaintSVG(nsRenderingContext *aContext,
                       renderMode == SVGAutoRenderState::CLIP_MASK,
                       "Unknown render mode");
     gfxContextMatrixAutoSaveRestore matrixAutoSaveRestore(gfx);
-    SetupGlobalTransform(gfx, FOR_PAINTING);
+    SetupGlobalTransform(gfx);
 
     CharacterIterator iter(this, true);
     iter.SetInitialMatrix(gfx);
@@ -352,7 +344,7 @@ nsSVGGlyphFrame::PaintSVG(nsRenderingContext *aContext,
   // We are adding patterns or gradients to the context. Save
   // it so we don't leak them into the next object we draw
   gfx->Save();
-  SetupGlobalTransform(gfx, FOR_PAINTING);
+  SetupGlobalTransform(gfx);
 
   CharacterIterator iter(this, true);
   iter.SetInitialMatrix(gfx);
@@ -377,10 +369,8 @@ nsSVGGlyphFrame::GetFrameForPoint(const nsPoint &aPoint)
     return nsnull;
   }
 
-  AutoCanvasTMForMarker autoCanvasTMFor(this, FOR_HIT_TESTING);
-
   nsRefPtr<gfxContext> tmpCtx = MakeTmpCtx();
-  SetupGlobalTransform(tmpCtx, FOR_HIT_TESTING);
+  SetupGlobalTransform(tmpCtx);
   CharacterIterator iter(this, true);
   iter.SetInitialMatrix(tmpCtx);
 
@@ -442,22 +432,44 @@ nsSVGGlyphFrame::UpdateBounds()
 
   mRect.SetEmpty();
 
-  PRUint32 flags = nsSVGUtils::eBBoxIncludeFill |
-                   nsSVGUtils::eBBoxIncludeStroke |
-                   nsSVGUtils::eBBoxIncludeMarkers;
-  // Our "visual" overflow rect needs to be valid for building display lists
-  // for hit testing, which means that for certain values of 'pointer-events'
-  // it needs to include the geometry of the fill or stroke even when the fill/
-  // stroke don't actually render (e.g. when stroke="none" or
-  // stroke-opacity="0"). GetHitTestFlags() accounts for 'pointer-events'.
-  PRUint16 hitTestFlags = GetHitTestFlags();
-  if ((hitTestFlags & SVG_HIT_TEST_FILL)) {
-   flags |= nsSVGUtils::eBBoxIncludeFillGeometry;
+  // XXX here we have tmpCtx use its default identity matrix, but does this
+  // function call anything that will call GetCanvasTM and break things?
+  nsRefPtr<gfxContext> tmpCtx = MakeTmpCtx();
+
+  bool hasStroke = HasStroke();
+  if (hasStroke) {
+    SetupCairoStrokeGeometry(tmpCtx);
+  } else if (GetStyleSVG()->mFill.mType == eStyleSVGPaintType_None) {
+    return;
   }
-  if ((hitTestFlags & SVG_HIT_TEST_STROKE)) {
-   flags |= nsSVGUtils::eBBoxIncludeStrokeGeometry;
+
+  CharacterIterator iter(this, true);
+  iter.SetInitialMatrix(tmpCtx);
+  AddBoundingBoxesToPath(&iter, tmpCtx);
+  tmpCtx->IdentityMatrix();
+
+  // Be careful when replacing the following logic to get the fill and stroke
+  // extents independently (instead of computing the stroke extents from the
+  // path extents). You may think that you can just use the stroke extents if
+  // there is both a fill and a stroke. In reality it's necessary to calculate
+  // both the fill and stroke extents, and take the union of the two. There are
+  // two reasons for this:
+  //
+  // # Due to stroke dashing, in certain cases the fill extents could actually
+  //   extend outside the stroke extents.
+  // # If the stroke is very thin, cairo won't paint any stroke, and so the
+  //   stroke bounds that it will return will be empty.
+  //
+  // Another thing to be aware of is that under AddBoundingBoxesToPath the
+  // gfxContext has SetLineWidth() called on it, so if we want to ask the
+  // gfxContext for *stroke* extents, we'll neet to wrap the
+  // AddBoundingBoxesToPath() call with CurrentLineWidth()/SetLineWidth()
+  // calls to record and then reset the stroke width.
+  gfxRect extent = tmpCtx->GetUserPathExtent();
+  if (hasStroke) {
+    extent =
+      nsSVGUtils::PathExtentsToMaxStrokeExtents(extent, this, gfxMatrix());
   }
-  gfxRect extent = GetBBoxContribution(gfxMatrix(), flags);
 
   if (!extent.IsEmpty()) {
     mRect = nsLayoutUtils::RoundGfxRectToAppRect(extent, 
@@ -466,16 +478,7 @@ nsSVGGlyphFrame::UpdateBounds()
 
   // See bug 614732 comment 32.
   mCoveredRegion = nsSVGUtils::TransformFrameRectToOuterSVG(
-    mRect, GetCanvasTM(FOR_OUTERSVG_TM), PresContext());
-
-  // We only invalidate if we are dirty, if our outer-<svg> has already had its
-  // initial reflow (since if it hasn't, its entire area will be invalidated
-  // when it gets that initial reflow), and if our parent is not dirty (since
-  // if it is, then it will invalidate its entire new area, which will include
-  // our new area).
-  bool invalidate = (mState & NS_FRAME_IS_DIRTY) &&
-    !(GetParent()->GetStateBits() &
-       (NS_FRAME_FIRST_REFLOW | NS_FRAME_IS_DIRTY));
+    mRect, GetCanvasTM(), PresContext());
 
   nsRect overflow = nsRect(nsPoint(0,0), mRect.Size());
   nsOverflowAreas overflowAreas(overflow, overflow);
@@ -484,7 +487,10 @@ nsSVGGlyphFrame::UpdateBounds()
   mState &= ~(NS_FRAME_FIRST_REFLOW | NS_FRAME_IS_DIRTY |
               NS_FRAME_HAS_DIRTY_CHILDREN);
 
-  if (invalidate) {
+  if (!(GetParent()->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
+    // We only invalidate if our outer-<svg> has already had its
+    // initial reflow (since if it hasn't, its entire area will be
+    // invalidated when it gets that initial reflow):
     // XXXSDL Let FinishAndStoreOverflow do this.
     nsSVGUtils::InvalidateBounds(this, true);
   }
@@ -571,7 +577,7 @@ nsSVGGlyphFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
   }
 
   nsRefPtr<gfxContext> tmpCtx = MakeTmpCtx();
-  SetupGlobalTransform(tmpCtx, FOR_OUTERSVG_TM);
+  SetupGlobalTransform(tmpCtx);
   CharacterIterator iter(this, true);
   iter.SetInitialMatrix(tmpCtx);
   AddBoundingBoxesToPath(&iter, tmpCtx);
@@ -581,36 +587,18 @@ nsSVGGlyphFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 
   gfxRect bbox;
 
-  // Be careful when replacing the following logic to get the fill and stroke
-  // extents independently (instead of computing the stroke extents from the
-  // path extents). You may think that you can just use the stroke extents if
-  // there is both a fill and a stroke. In reality it's necessary to calculate
-  // both the fill and stroke extents, and take the union of the two. There are
-  // two reasons for this:
-  //
-  // # Due to stroke dashing, in certain cases the fill extents could actually
-  //   extend outside the stroke extents.
-  // # If the stroke is very thin, cairo won't paint any stroke, and so the
-  //   stroke bounds that it will return will be empty.
-  //
-  // Another thing to be aware of is that under AddBoundingBoxesToPath the
-  // gfxContext has SetLineWidth() called on it, so if we want to ask the
-  // gfxContext for *stroke* extents, we'll need to wrap the
-  // AddBoundingBoxesToPath() call with CurrentLineWidth()/SetLineWidth()
-  // calls to record and then reset the stroke width.
-
   gfxRect pathExtents = tmpCtx->GetUserPathExtent();
 
   // Account for fill:
-  if ((aFlags & nsSVGUtils::eBBoxIncludeFillGeometry) ||
-      ((aFlags & nsSVGUtils::eBBoxIncludeFill) &&
+  if ((aFlags & nsSVGUtils::eBBoxIncludeFill) != 0 &&
+      ((aFlags & nsSVGUtils::eBBoxIgnoreFillIfNone) == 0 ||
        GetStyleSVG()->mFill.mType != eStyleSVGPaintType_None)) {
     bbox = pathExtents;
   }
 
   // Account for stroke:
-  if ((aFlags & nsSVGUtils::eBBoxIncludeStrokeGeometry) ||
-      ((aFlags & nsSVGUtils::eBBoxIncludeStroke) && HasStroke())) {
+  if ((aFlags & nsSVGUtils::eBBoxIncludeStroke) != 0 &&
+      ((aFlags & nsSVGUtils::eBBoxIgnoreStrokeIfNone) == 0 || HasStroke())) {
     bbox =
       bbox.Union(nsSVGUtils::PathExtentsToMaxStrokeExtents(pathExtents,
                                                            this,
@@ -624,19 +612,13 @@ nsSVGGlyphFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 // nsSVGGeometryFrame methods:
 
 gfxMatrix
-nsSVGGlyphFrame::GetCanvasTM(PRUint32 aFor)
+nsSVGGlyphFrame::GetCanvasTM()
 {
   if (mOverrideCanvasTM) {
     return *mOverrideCanvasTM;
   }
-  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
-    if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||
-        (aFor == FOR_HIT_TESTING && NS_SVGDisplayListHitTestingEnabled())) {
-      return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(this);
-    }
-  }
   NS_ASSERTION(mParent, "null parent");
-  return static_cast<nsSVGContainerFrame*>(mParent)->GetCanvasTM(aFor);
+  return static_cast<nsSVGContainerFrame*>(mParent)->GetCanvasTM();
 }
 
 //----------------------------------------------------------------------
@@ -1491,9 +1473,9 @@ nsSVGGlyphFrame::NotifyGlyphMetricsChange()
 }
 
 void
-nsSVGGlyphFrame::SetupGlobalTransform(gfxContext *aContext, PRUint32 aFor)
+nsSVGGlyphFrame::SetupGlobalTransform(gfxContext *aContext)
 {
-  gfxMatrix matrix = GetCanvasTM(aFor);
+  gfxMatrix matrix = GetCanvasTM();
   if (!matrix.IsSingular()) {
     aContext->Multiply(matrix);
   }
@@ -1572,7 +1554,7 @@ nsSVGGlyphFrame::EnsureTextRun(float *aDrawScale, float *aMetricsScale,
     gfxMatrix m;
     if (aForceGlobalTransform ||
         !(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
-      m = GetCanvasTM(mGetCanvasTMForFlag);
+      m = GetCanvasTM();
       if (m.IsSingular())
         return false;
     }

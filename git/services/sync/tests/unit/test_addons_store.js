@@ -42,7 +42,7 @@ function createRecordForThisApp(id, addonId, enabled, deleted) {
 
 function createAndStartHTTPServer(port) {
   try {
-    let server = new HttpServer();
+    let server = new nsHttpServer();
 
     let bootstrap1XPI = ExtensionsTestPath("/addons/test_bootstrap1_1.xpi");
 

@@ -15,6 +15,7 @@
 
 #include "nsContentList.h"
 #include "nsIAccessibleRelation.h"
+#include "nsIDOMDocument.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMNSEditableElement.h"
 #include "nsIDOMHTMLFormElement.h"

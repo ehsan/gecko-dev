@@ -97,6 +97,8 @@ protected:
                                const PRUnichar **aFormatStrings,
                                PRUint32          aFormatStringsLen);
 
+  nsresult ConvertTextToUTF8(const nsString& aMessage, nsCString& buf);
+
   // Get msg info out of JS variable being sent (string, arraybuffer, blob)
   nsresult GetSendParams(nsIVariant *aData, nsCString &aStringOut,
                          nsCOMPtr<nsIInputStream> &aStreamOut,

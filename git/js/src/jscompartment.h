@@ -77,9 +77,9 @@ struct CrossCompartmentKey
         debugger(NULL),
         wrapped((js::gc::Cell *)wrapped.toGCThing()) {}
     CrossCompartmentKey(const RootedValue &wrapped)
-      : kind(wrapped.get().isString() ? StringWrapper : ObjectWrapper),
+      : kind(wrapped.raw().isString() ? StringWrapper : ObjectWrapper),
         debugger(NULL),
-        wrapped((js::gc::Cell *)wrapped.get().toGCThing()) {}
+        wrapped((js::gc::Cell *)wrapped.raw().toGCThing()) {}
     CrossCompartmentKey(Kind kind, JSObject *dbg, js::gc::Cell *wrapped)
       : kind(kind), debugger(dbg), wrapped(wrapped) {}
 };
@@ -117,26 +117,14 @@ struct JSCompartment
     JSPrincipals                 *principals;
 
   private:
-    friend struct JSContext;
     js::GlobalObject             *global_;
   public:
-    // Nb: global_ might be NULL, if (a) it's the atoms compartment, or (b) the
-    // compartment's global has been collected.  The latter can happen if e.g.
-    // a string in a compartment is rooted but no object is, and thus the
-    // global isn't rooted, and thus the global can be finalized while the
-    // compartment lives on.
-    //
-    // In contrast, JSObject::global() is infallible because marking a JSObject
-    // always marks its global as well.
-    // TODO: add infallible JSScript::global()
-    //
-    js::GlobalObject *maybeGlobal() const {
-        JS_ASSERT_IF(global_, global_->compartment() == this);
-        return global_;
+    js::GlobalObject &global() const {
+        JS_ASSERT(global_->compartment() == this);
+        return *global_;
     }
 
     void initGlobal(js::GlobalObject &global) {
-        JS_ASSERT(global.compartment() == this);
         JS_ASSERT(!global_);
         global_ = &global;
     }
@@ -172,7 +160,7 @@ struct JSCompartment
   public:
     bool isCollecting() const {
         /* Allow this if we're in the middle of an incremental GC. */
-        if (rt->isHeapBusy()) {
+        if (rt->gcRunning) {
             return gcState == GCRunning;
         } else {
             JS_ASSERT(gcState != GCRunning);
@@ -193,7 +181,7 @@ struct JSCompartment
     }
 
     void setCollecting(bool collecting) {
-        JS_ASSERT(rt->isHeapBusy());
+        JS_ASSERT(rt->gcRunning);
         if (collecting)
             gcState = GCRunning;
         else
@@ -201,13 +189,13 @@ struct JSCompartment
     }
 
     void scheduleGC() {
-        JS_ASSERT(!rt->isHeapBusy());
+        JS_ASSERT(!rt->gcRunning);
         JS_ASSERT(gcState != GCRunning);
         gcState = GCScheduled;
     }
 
     void unscheduleGC() {
-        JS_ASSERT(!rt->isHeapBusy());
+        JS_ASSERT(!rt->gcRunning);
         JS_ASSERT(gcState != GCRunning);
         gcState = NoGCScheduled;
     }
@@ -223,7 +211,6 @@ struct JSCompartment
     size_t                       gcBytes;
     size_t                       gcTriggerBytes;
     size_t                       gcMaxMallocBytes;
-    double                       gcHeapGrowthFactor;
 
     bool                         hold;
     bool                         isSystemCompartment;
@@ -427,7 +414,7 @@ class js::AutoDebugModeGC
     }
 
     void scheduleGC(JSCompartment *compartment) {
-        JS_ASSERT(!rt->isHeapBusy());
+        JS_ASSERT(!rt->gcRunning);
         PrepareCompartmentForGC(compartment);
         needGC = true;
     }
@@ -438,12 +425,6 @@ JSContext::setCompartment(JSCompartment *compartment)
 {
     this->compartment = compartment;
     this->inferenceEnabled = compartment ? compartment->types.inferenceEnabled : false;
-}
-
-inline js::Handle<js::GlobalObject*>
-JSContext::global() const
-{
-    return js::Handle<js::GlobalObject*>::fromMarkedLocation(&compartment->global_);
 }
 
 namespace js {

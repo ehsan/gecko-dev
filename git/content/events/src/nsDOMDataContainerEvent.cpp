@@ -4,7 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMDataContainerEvent.h"
-#include "nsDOMClassInfoID.h"
+
+#include "nsContentUtils.h"
 
 nsDOMDataContainerEvent::nsDOMDataContainerEvent(nsPresContext *aPresContext,
                                                  nsEvent *aEvent)

@@ -15,6 +15,7 @@
     const READ_WRITE = IDBTransaction.READ_WRITE;
 
     const name = window.location.pathname;
+    const description = "My Test Database";
 
     const objectStoreName = "Blobs";
 
@@ -23,7 +24,7 @@
     const fileData3 = { key: 3, file: getRandomFile("random3.bin", 130000) };
 
     {
-      let request = indexedDB.open(name, 1);
+      let request = mozIndexedDB.open(name, 1, description);
       request.onerror = errorHandler;
       request.onupgradeneeded = grabEventAndContinueHandler;
       request.onsuccess = grabEventAndContinueHandler;
@@ -66,7 +67,7 @@
     ok(hasFileInfo(name, 3), "Correct ref count");
 
     {
-      let request = indexedDB.open(name, 1);
+      let request = mozIndexedDB.open(name, 1, description);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;

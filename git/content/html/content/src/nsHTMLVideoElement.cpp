@@ -13,6 +13,8 @@
 #include "nsGkAtoms.h"
 #include "nsSize.h"
 #include "nsIFrame.h"
+#include "nsIDocument.h"
+#include "nsIDOMDocument.h"
 #include "nsDOMError.h"
 #include "nsNodeInfoManager.h"
 #include "plbase64.h"

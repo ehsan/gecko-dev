@@ -10,8 +10,9 @@ VPATH		= @srcdir@
 relativesrcdir  = editor/composer/test
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_FILES = \
+_TEST_FILES = \
 		test_bug348497.html \
 		test_bug384147.html \
 		test_bug389350.html \
@@ -20,10 +21,14 @@ MOCHITEST_FILES = \
 		test_bug738440.html \
 		$(NULL)
 
-MOCHITEST_CHROME_FILES = \
+_CHROME_TEST_FILES = \
 		test_bug434998.xul \
 		test_bug338427.html \
 		test_bug678842.html \
 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+
+libs:: $(_CHROME_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)

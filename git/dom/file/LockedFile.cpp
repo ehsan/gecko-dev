@@ -30,8 +30,6 @@
 #include "FileStreamWrappers.h"
 #include "MemoryStreams.h"
 #include "MetadataHelper.h"
-#include "nsDOMError.h"
-#include "nsContentUtils.h"
 
 #define STREAM_COPY_BLOCK_SIZE 32768
 
@@ -439,7 +437,7 @@ already_AddRefed<FileRequest>
 LockedFile::GenerateFileRequest()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  return FileRequest::Create(GetOwner(), this, true);
+  return FileRequest::Create(GetOwner(), this);
 }
 
 bool

@@ -126,20 +126,12 @@ GetPrefixInteger(JSContext *cx, const jschar *start, const jschar *end, int base
 JS_ALWAYS_INLINE bool
 ToNumber(JSContext *cx, Value *vp)
 {
-#ifdef DEBUG
-    {
-        SkipRoot skip(cx, vp);
-        MaybeCheckStackRoots(cx);
-    }
-#endif
-
     if (vp->isNumber())
         return true;
     double d;
     extern bool ToNumberSlow(JSContext *cx, js::Value v, double *dp);
     if (!ToNumberSlow(cx, *vp, &d))
         return false;
-
     vp->setNumber(d);
     return true;
 }
@@ -153,13 +145,6 @@ ToNumber(JSContext *cx, Value *vp)
 JS_ALWAYS_INLINE bool
 ToUint32(JSContext *cx, const js::Value &v, uint32_t *out)
 {
-#ifdef DEBUG
-    {
-        SkipRoot skip(cx, &v);
-        MaybeCheckStackRoots(cx);
-    }
-#endif
-
     if (v.isInt32()) {
         *out = (uint32_t)v.toInt32();
         return true;
@@ -176,13 +161,6 @@ ToUint32(JSContext *cx, const js::Value &v, uint32_t *out)
 JS_ALWAYS_INLINE bool
 ValueToUint16(JSContext *cx, const js::Value &v, uint16_t *out)
 {
-#ifdef DEBUG
-    {
-        SkipRoot skip(cx, &v);
-        MaybeCheckStackRoots(cx);
-    }
-#endif
-
     if (v.isInt32()) {
         *out = uint16_t(v.toInt32());
         return true;
@@ -255,13 +233,6 @@ IsDefinitelyIndex(const Value &v, uint32_t *indexp)
 static inline bool
 ToInteger(JSContext *cx, const js::Value &v, double *dp)
 {
-#ifdef DEBUG
-    {
-        SkipRoot skip(cx, &v);
-        MaybeCheckStackRoots(cx);
-    }
-#endif
-
     if (v.isInt32()) {
         *dp = v.toInt32();
         return true;

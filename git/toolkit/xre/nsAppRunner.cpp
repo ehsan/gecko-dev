@@ -24,7 +24,6 @@
 #include "mozilla/dom/ContentChild.h"
 
 #include "mozilla/Util.h"
-#include "mozilla/Attributes.h"
 
 #include "nsAppRunner.h"
 #include "mozilla/AppData.h"
@@ -1181,7 +1180,7 @@ ScopedXPCOMStartup::Initialize()
  * This is a little factory class that serves as a singleton-service-factory
  * for the nativeappsupport object.
  */
-class nsSingletonFactory MOZ_FINAL : public nsIFactory
+class nsSingletonFactory : public nsIFactory
 {
 public:
   NS_DECL_ISUPPORTS
@@ -1797,15 +1796,15 @@ ProfileLockedDialog(nsIToolkitProfile* aProfile, nsIProfileUnlocker* aUnlocker,
   nsresult rv = aProfile->GetRootDir(getter_AddRefs(profileDir));
   if (NS_FAILED(rv)) return rv;
 
-  bool exists;
-  profileDir->Exists(&exists);
-  if (!exists) {
-    return ProfileMissingDialog(aNative);
-  }
-
   nsCOMPtr<nsIFile> profileLocalDir;
   rv = aProfile->GetLocalDir(getter_AddRefs(profileLocalDir));
   if (NS_FAILED(rv)) return rv;
+
+  bool exists;
+  profileLocalDir->Exists(&exists);
+  if (!exists) {
+    return ProfileMissingDialog(aNative);
+  }
 
   return ProfileLockedDialog(profileDir, profileLocalDir, aUnlocker, aNative,
                              aResult);
@@ -3937,9 +3936,7 @@ int
 XRE_main(int argc, char* argv[], const nsXREAppData* aAppData, PRUint32 aFlags)
 {
   XREMain main;
-  int result = main.XRE_main(argc, argv, aAppData);
-  mozilla::RecordShutdownEndTimeStamp();
-  return result;
+  return main.XRE_main(argc, argv, aAppData);
 }
 
 nsresult

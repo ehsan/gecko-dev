@@ -11,13 +11,15 @@ relativesrcdir   = dom/settings/tests
 
 include $(DEPTH)/config/autoconf.mk
 
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_FILES = \
+_TEST_FILES = \
   test_settings_basics.html \
   test_settings_events.html \
   $(NULL)
 
-_CHROMEMOCHITEST_FILES = \
+_CHROME_TEST_FILES = \
   $(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

@@ -56,15 +56,13 @@ public:
 };
 
 
-/**
+/** 
  * A container of tab panels, xul:tabpanels element.
  */
-class XULDeckAccessible : public AccessibleWrap
+class XULTabpanelsAccessible : public AccessibleWrap
 {
 public:
-  XULDeckAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-    AccessibleWrap(aContent, aDoc)
-    { mFlags |= eXULDeckAccessible; }
+  XULTabpanelsAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // Accessible
   virtual a11y::role NativeRole();

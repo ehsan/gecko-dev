@@ -82,7 +82,7 @@ nsPlaceholderFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
   // false.
 
   // ...but push floats onto the list
-  if (mOutOfFlowFrame->GetStyleDisplay()->IsFloating())
+  if (mOutOfFlowFrame->GetStyleDisplay()->mFloats != NS_STYLE_FLOAT_NONE)
     aData->floats.AppendElement(mOutOfFlowFrame);
 }
 
@@ -97,7 +97,7 @@ nsPlaceholderFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
   // false.
 
   // ...but push floats onto the list
-  if (mOutOfFlowFrame->GetStyleDisplay()->IsFloating())
+  if (mOutOfFlowFrame->GetStyleDisplay()->mFloats != NS_STYLE_FLOAT_NONE)
     aData->floats.AppendElement(mOutOfFlowFrame);
 }
 

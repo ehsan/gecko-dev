@@ -27,7 +27,6 @@
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Attributes.h"
-#include "nsIDOMNode.h"
 
 using namespace mozilla;
 

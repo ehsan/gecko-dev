@@ -6,13 +6,10 @@
 #ifndef JoinElementTxn_h__
 #define JoinElementTxn_h__
 
-#include "EditTxn.h"                    // for EditTxn, NS_DECL_EDITTXN
-#include "nsCOMPtr.h"                   // for nsCOMPtr
-#include "nsCycleCollectionParticipant.h"
-#include "nsID.h"                       // for REFNSIID
-#include "nsIDOMNode.h"                 // for nsIDOMNode
-#include "nscore.h"                     // for NS_IMETHOD
-#include "prtypes.h"                    // for PRUint32
+#include "EditTxn.h"
+#include "nsIDOMNode.h"
+#include "nsCOMPtr.h"
+#include "nsIEditor.h"
 
 class nsEditor;
 

@@ -242,17 +242,11 @@ public:
 
   virtual void SetIsFirstPaint() MOZ_OVERRIDE;
 
-  void SetRepeatTransaction() { mRepeatTransaction = true; }
-
 private:
   /**
    * Forward transaction results to the parent context.
    */
   void ForwardTransaction();
-
-  // Used to repeat the transaction right away (to avoid rebuilding
-  // a display list) to support progressive drawing.
-  bool mRepeatTransaction;
 
   LayerRefArray mKeepAlive;
 };
@@ -279,11 +273,11 @@ public:
     NS_RUNTIMEABORT("if this default impl is called, |aBuffer| leaks");
   }
   
-  virtual void SetBackBufferYUVImage(const SurfaceDescriptor& aYBuffer,
-                                     const SurfaceDescriptor& aUBuffer,
-                                     const SurfaceDescriptor& aVBuffer)
+  virtual void SetBackBufferYUVImage(gfxSharedImageSurface* aYBuffer,
+                                     gfxSharedImageSurface* aUBuffer,
+                                     gfxSharedImageSurface* aVBuffer)
   {
-    NS_RUNTIMEABORT("if this default impl is called, the buffers leak");
+    NS_RUNTIMEABORT("if this default impl is called, |aBuffer| leaks");
   }
 
   virtual void Disconnect()

@@ -41,8 +41,6 @@
 
 #include "nsIDOMMouseEvent.h"
 
-#include "nsIIdleServiceInternal.h"
-
 /**
  * Forward class definitions
  */
@@ -431,7 +429,6 @@ private:
   nsTransparencyMode      GetWindowTranslucencyInner() const { return mTransparencyMode; }
   void                    ResizeTranslucentWindow(PRInt32 aNewWidth, PRInt32 aNewHeight, bool force = false);
   nsresult                UpdateTranslucentWindow();
-  void                    ClearTranslucentWindow();
   void                    SetupTranslucentWindowMemoryBitmap(nsTransparencyMode aMode);
   void                    UpdateGlass();
 protected:
@@ -482,8 +479,6 @@ protected:
   WindowHook            mWindowHook;
   DWORD                 mAssumeWheelIsZoomUntil;
   PRUint32              mPickerDisplayCount;
-  HICON                 mIconSmall;
-  HICON                 mIconBig;
   static bool           sDropShadowEnabled;
   static PRUint32       sInstanceCount;
   static TriStateBool   sCanQuit;
@@ -519,7 +514,7 @@ protected:
   // Height of the caption plus border
   PRInt32               mCaptionHeight;
 
-  nsCOMPtr<nsIIdleServiceInternal> mIdleService;
+  nsCOMPtr<nsIdleService> mIdleService;
 
   // Hook Data Memebers for Dropdowns. sProcessHook Tells the
   // hook methods whether they should be processing the hook

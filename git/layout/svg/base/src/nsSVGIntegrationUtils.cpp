@@ -363,13 +363,13 @@ private:
 
 void
 nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
-                                              nsIFrame* aFrame,
+                                              nsIFrame* aEffectsFrame,
                                               const nsRect& aDirtyRect,
                                               nsDisplayListBuilder* aBuilder,
                                               nsDisplayList* aInnerList)
 {
 #ifdef DEBUG
-  nsISVGChildFrame *svgChildFrame = do_QueryFrame(aFrame);
+  nsISVGChildFrame *svgChildFrame = do_QueryFrame(aEffectsFrame);
   NS_ASSERTION(!svgChildFrame, "Should never be called on an SVG frame");
 #endif
 
@@ -387,7 +387,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
    * + Merge opacity and masking if both used together.
    */
 
-  float opacity = aFrame->GetStyleDisplay()->mOpacity;
+  float opacity = aEffectsFrame->GetStyleDisplay()->mOpacity;
   if (opacity == 0.0f) {
     return;
   }
@@ -395,7 +395,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   /* Properties are added lazily and may have been removed by a restyle,
      so make sure all applicable ones are set again. */
   nsIFrame* firstFrame =
-    nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aFrame);
+    nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aEffectsFrame);
   nsSVGEffects::EffectProperties effectProperties =
     nsSVGEffects::GetEffectProperties(firstFrame);
 
@@ -413,14 +413,14 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   gfxContextMatrixAutoSaveRestore matrixAutoSaveRestore(gfx);
 
   PRInt32 appUnitsPerDevPixel = 
-    aFrame->PresContext()->AppUnitsPerDevPixel();
+    aEffectsFrame->PresContext()->AppUnitsPerDevPixel();
   nsPoint firstFrameOffset = GetOffsetToUserSpace(firstFrame);
   nsPoint offset = (aBuilder->ToReferenceFrame(firstFrame) - firstFrameOffset).
                      ToNearestPixels(appUnitsPerDevPixel).
                      ToAppUnits(appUnitsPerDevPixel);
   aCtx->Translate(offset);
 
-  gfxMatrix cssPxToDevPxMatrix = GetCSSPxToDevPxMatrix(aFrame);
+  gfxMatrix cssPxToDevPxMatrix = GetCSSPxToDevPxMatrix(aEffectsFrame);
 
   bool complexEffects = false;
   /* Check if we need to do additional operations on this child's
@@ -428,7 +428,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   if (opacity != 1.0f || maskFrame || (clipPathFrame && !isTrivialClip)) {
     complexEffects = true;
     gfx->Save();
-    aCtx->IntersectClip(aFrame->GetVisualOverflowRect());
+    aCtx->IntersectClip(aEffectsFrame->GetVisualOverflowRect());
     gfx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
   }
 
@@ -437,18 +437,18 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
    */
   if (clipPathFrame && isTrivialClip) {
     gfx->Save();
-    clipPathFrame->ClipPaint(aCtx, aFrame, cssPxToDevPxMatrix);
+    clipPathFrame->ClipPaint(aCtx, aEffectsFrame, cssPxToDevPxMatrix);
   }
 
   /* Paint the child */
   if (filterFrame) {
-    RegularFramePaintCallback callback(aBuilder, aInnerList, aFrame,
+    RegularFramePaintCallback callback(aBuilder, aInnerList, aEffectsFrame,
                                        offset);
     nsRect dirtyRect = aDirtyRect - offset;
-    filterFrame->PaintFilteredFrame(aCtx, aFrame, &callback, &dirtyRect);
+    filterFrame->PaintFilteredFrame(aCtx, aEffectsFrame, &callback, &dirtyRect);
   } else {
     gfx->SetMatrix(matrixAutoSaveRestore.Matrix());
-    aInnerList->PaintForFrame(aBuilder, aCtx, aFrame,
+    aInnerList->PaintForFrame(aBuilder, aCtx, aEffectsFrame,
                               nsDisplayList::PAINT_DEFAULT);
     aCtx->Translate(offset);
   }
@@ -465,14 +465,14 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   gfx->PopGroupToSource();
 
   nsRefPtr<gfxPattern> maskSurface =
-    maskFrame ? maskFrame->ComputeMaskAlpha(aCtx, aFrame,
+    maskFrame ? maskFrame->ComputeMaskAlpha(aCtx, aEffectsFrame,
                                             cssPxToDevPxMatrix, opacity) : nsnull;
 
   nsRefPtr<gfxPattern> clipMaskSurface;
   if (clipPathFrame && !isTrivialClip) {
     gfx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
 
-    nsresult rv = clipPathFrame->ClipPaint(aCtx, aFrame, cssPxToDevPxMatrix);
+    nsresult rv = clipPathFrame->ClipPaint(aCtx, aEffectsFrame, cssPxToDevPxMatrix);
     clipMaskSurface = gfx->PopGroup();
 
     if (NS_SUCCEEDED(rv) && clipMaskSurface) {

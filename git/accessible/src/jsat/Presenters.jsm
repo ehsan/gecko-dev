@@ -91,12 +91,7 @@ Presenter.prototype = {
    * The viewport has changed, either a scroll, pan, zoom, or
    *    landscape/portrait toggle.
    */
-  viewportChanged: function viewportChanged() {},
-
-  /**
-   * We have entered or left text editing mode.
-   */
-  editingModeChanged: function editingModeChanged(aIsEditing) {}
+  viewportChanged: function viewportChanged() {}
 };
 
 /**
@@ -265,11 +260,24 @@ AndroidPresenter.prototype = {
 
     let output = [];
 
-    aContext.newAncestry.forEach(
-      function(acc) {
-        output.push.apply(output, UtteranceGenerator.genForObject(acc));
+    if (isExploreByTouch) {
+      // Just provide the parent for some context, no need to utter the entire
+      // ancestry change since it doesn't make sense in spatial navigation.
+      for (var i = aContext.newAncestry.length - 1; i >= 0; i--) {
+        let utter = UtteranceGenerator.genForObject(aContext.newAncestry[i]);
+        if (utter.length) {
+          output.push.apply(output, utter);
+          break;
+        }
       }
-    );
+    } else {
+      // Utter the entire context change in linear navigation.
+      aContext.newAncestry.forEach(
+        function(acc) {
+          output.push.apply(output, UtteranceGenerator.genForObject(acc));
+        }
+      );
+    }
 
     output.push.apply(output,
                       UtteranceGenerator.genForObject(aContext.accessible));
@@ -308,8 +316,22 @@ AndroidPresenter.prototype = {
 
   tabStateChanged: function AndroidPresenter_tabStateChanged(aDocObj,
                                                              aPageState) {
-    this._appAnnounce(
-      UtteranceGenerator.genForTabStateChange(aDocObj, aPageState));
+    let stateUtterance = UtteranceGenerator.
+      genForTabStateChange(aDocObj, aPageState);
+
+    if (!stateUtterance.length)
+      return;
+
+    this.sendMessageToJava({
+      gecko: {
+        type: 'Accessibility:Event',
+        eventType: this.ANDROID_VIEW_TEXT_CHANGED,
+        text: stateUtterance,
+        addedCount: stateUtterance.join(' ').length,
+        removedCount: 0,
+        fromIndex: 0
+      }
+    });
   },
 
   textChanged: function AndroidPresenter_textChanged(aIsInserted, aStart,
@@ -351,26 +373,6 @@ AndroidPresenter.prototype = {
         scrollY: win.scrollY,
         maxScrollX: win.scrollMaxX,
         maxScrollY: win.scrollMaxY
-      }
-    });
-  },
-
-  editingModeChanged: function AndroidPresenter_editingModeChanged(aIsEditing) {
-    this._appAnnounce(UtteranceGenerator.genForEditingMode(aIsEditing));
-  },
-
-  _appAnnounce: function _appAnnounce(aUtterance) {
-    if (!aUtterance.length)
-      return;
-
-    this.sendMessageToJava({
-      gecko: {
-        type: 'Accessibility:Event',
-        eventType: this.ANDROID_VIEW_TEXT_CHANGED,
-        text: aUtterance,
-        addedCount: aUtterance.join(' ').length,
-        removedCount: 0,
-        fromIndex: 0
       }
     });
   },

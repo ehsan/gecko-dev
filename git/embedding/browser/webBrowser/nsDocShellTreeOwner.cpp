@@ -67,7 +67,6 @@
 #include "nsEventListenerManager.h"
 #include "nsIDOMDragEvent.h"
 #include "nsIConstraintValidation.h"
-#include "mozilla/Attributes.h"
 
 using namespace mozilla;
 
@@ -969,7 +968,7 @@ nsDocShellTreeOwner::GetOwnerRequestor()
 ///////////////////////////////////////////////////////////////////////////////
 // DefaultTooltipTextProvider
 
-class DefaultTooltipTextProvider MOZ_FINAL : public nsITooltipTextProvider
+class DefaultTooltipTextProvider : public nsITooltipTextProvider
 {
 public:
     DefaultTooltipTextProvider();

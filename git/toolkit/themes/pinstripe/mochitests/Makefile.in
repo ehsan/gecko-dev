@@ -10,8 +10,10 @@ VPATH		= @srcdir@
 relativesrcdir  = toolkit/themes/pinstripe/mochitests
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_FILES = 	test_bug510426.xul \
+_TEST_FILES = 	test_bug510426.xul \
 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

@@ -32,8 +32,13 @@ class TestTextChrome(MarionetteTestCase):
     def setUp(self):
         MarionetteTestCase.setUp(self)
         self.marionette.set_context("chrome")
-        self.win = self.marionette.current_window_handle
-        self.marionette.execute_script("window.open('chrome://marionette/content/test.xul', '_blank', 'chrome,centerscreen');")
+        self.win = self.marionette.get_window()
+        #need to get the file:// path for xul
+        unit = os.path.abspath(os.path.join(os.path.realpath(__file__), os.path.pardir))
+        tests = os.path.abspath(os.path.join(unit, os.path.pardir))
+        mpath = os.path.abspath(os.path.join(tests, os.path.pardir))
+        xul = "file://" + os.path.join(mpath, "www", "test.xul")
+        self.marionette.execute_script("window.open('" + xul +"', '_blank', 'chrome,centerscreen');")
 
     def tearDown(self):
         self.marionette.execute_script("window.close();")
@@ -41,7 +46,7 @@ class TestTextChrome(MarionetteTestCase):
         MarionetteTestCase.tearDown(self)
 
     def test_getText(self):
-        wins = self.marionette.window_handles
+        wins = self.marionette.get_windows()
         wins.remove(self.win)
         newWin = wins.pop()
         self.marionette.switch_to_window(newWin)
@@ -49,7 +54,7 @@ class TestTextChrome(MarionetteTestCase):
         self.assertEqual("test", box.text())
 
     def test_clearText(self):
-        wins = self.marionette.window_handles
+        wins = self.marionette.get_windows()
         wins.remove(self.win)
         newWin = wins.pop()
         self.marionette.switch_to_window(newWin)
@@ -59,7 +64,7 @@ class TestTextChrome(MarionetteTestCase):
         self.assertEqual("", box.text())
 
     def test_sendKeys(self):
-        wins = self.marionette.window_handles
+        wins = self.marionette.get_windows()
         wins.remove(self.win)
         newWin = wins.pop()
         self.marionette.switch_to_window(newWin)

@@ -187,28 +187,22 @@ public:
                       IDBRequest** _retval);
 
   nsresult GetInternal(IDBKeyRange* aKeyRange,
-                       JSContext* aCx,
                        IDBRequest** _retval);
 
   nsresult GetAllInternal(IDBKeyRange* aKeyRange,
                           PRUint32 aLimit,
-                          JSContext* aCx,
                           IDBRequest** _retval);
 
   nsresult DeleteInternal(IDBKeyRange* aKeyRange,
-                          JSContext* aCx,
                           IDBRequest** _retval);
 
-  nsresult ClearInternal(JSContext* aCx,
-                         IDBRequest** _retval);
+  nsresult ClearInternal(IDBRequest** _retval);
 
   nsresult CountInternal(IDBKeyRange* aKeyRange,
-                         JSContext* aCx,
                          IDBRequest** _retval);
 
   nsresult OpenCursorInternal(IDBKeyRange* aKeyRange,
                               size_t aDirection,
-                              JSContext* aCx,
                               IDBRequest** _retval);
 
   nsresult OpenCursorFromChildProcess(
@@ -217,9 +211,6 @@ public:
                             const Key& aKey,
                             const SerializedStructuredCloneReadInfo& aCloneInfo,
                             IDBCursor** _retval);
-
-  void
-  SetInfo(ObjectStoreInfo* aInfo);
 
   static JSClass sDummyPropJSClass;
 

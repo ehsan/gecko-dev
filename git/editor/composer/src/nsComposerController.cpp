@@ -3,14 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/mozalloc.h"           // for operator new
-#include "nsComposerCommands.h"         // for nsStyleUpdatingCommand, etc
+#include "nsIControllerCommandTable.h"
 #include "nsComposerController.h"
-#include "nsError.h"                    // for NS_OK
-#include "nsGkAtoms.h"                  // for nsGkAtoms, nsGkAtoms::a, etc
-#include "nsIControllerCommandTable.h"  // for nsIControllerCommandTable
-
-class nsIControllerCommand;
+#include "nsComposerCommands.h"
+#include "nsGkAtoms.h"
 
 #define NS_REGISTER_ONE_COMMAND(_cmdClass, _cmdName)                    \
   {                                                                     \

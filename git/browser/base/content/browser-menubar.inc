@@ -53,8 +53,8 @@
                           key="key_savePage"
                           command="Browser:SavePage"/>
                 <menuitem id="menu_sendLink"
-                          label="&emailPageCmd.label;"
-                          accesskey="&emailPageCmd.accesskey;"
+                          label="&sendPageCmd.label;"
+                          accesskey="&sendPageCmd.accesskey;"
                           command="Browser:SendLink"/>
                 <menuseparator/>
                 <menuitem id="menu_printSetup"

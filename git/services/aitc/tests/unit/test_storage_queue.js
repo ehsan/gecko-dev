@@ -7,7 +7,6 @@ Cu.import("resource://services-common/async.js");
 let queue = null;
 
 function run_test() {
-  initTestLogging();
   queue = new AitcQueue("test", run_next_test);
 }
 
@@ -53,11 +52,8 @@ add_test(function test_queue_multiaddremove() {
   let items = [{test:"object"}, "teststring", 42];
 
   // Two random numbers: how many items to queue and how many to remove.
-  // The next test relies on rem > 0.
-  let num = Math.floor(Math.random() * 100 + 20);
-  let rem = Math.floor(Math.random() * 15 + 5);
-  do_check_true(rem < num);
-  do_check_true(rem > 0);
+  let num = Math.floor(Math.random() * 100 + 1);
+  let rem = Math.floor(Math.random() * num + 1);
 
   // First insert all the items we will remove later.
   for (let i = 0; i < rem; i++) {
@@ -101,6 +97,7 @@ add_test(function test_queue_multiaddremove() {
   });
 });
 
+/* TODO Bug 760905 - Temporarily disabled for orange.
 add_test(function test_queue_writelock() {
   // Queue should not enqueue or dequeue if lock is enabled.
   queue._writeLock = true;
@@ -117,3 +114,4 @@ add_test(function test_queue_writelock() {
     });
   });
 });
+*/

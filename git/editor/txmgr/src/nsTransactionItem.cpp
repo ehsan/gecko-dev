@@ -3,16 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/mozalloc.h"
-#include "nsAutoPtr.h"
-#include "nsCOMPtr.h"
-#include "nsDebug.h"
-#include "nsError.h"
 #include "nsITransaction.h"
-#include "nsTraceRefcnt.h"
-#include "nsTransactionItem.h"
-#include "nsTransactionManager.h"
 #include "nsTransactionStack.h"
+#include "nsTransactionManager.h"
+#include "nsTransactionItem.h"
+#include "nsCOMPtr.h"
+#include "nsAutoPtr.h"
 
 nsTransactionItem::nsTransactionItem(nsITransaction *aTransaction)
     : mTransaction(aTransaction), mUndoStack(0), mRedoStack(0)
@@ -86,11 +82,14 @@ nsTransactionItem::AddChild(nsTransactionItem *aTransactionItem)
   return NS_OK;
 }
 
-already_AddRefed<nsITransaction>
-nsTransactionItem::GetTransaction()
+nsresult
+nsTransactionItem::GetTransaction(nsITransaction **aTransaction)
 {
-  nsCOMPtr<nsITransaction> txn = mTransaction;
-  return txn.forget();
+  NS_ENSURE_TRUE(aTransaction, NS_ERROR_NULL_POINTER);
+
+  NS_IF_ADDREF(*aTransaction = mTransaction);
+
+  return NS_OK;
 }
 
 nsresult
@@ -228,7 +227,13 @@ nsTransactionItem::UndoChildren(nsTransactionManager *aTxMgr)
         return NS_ERROR_FAILURE;
       }
 
-      nsCOMPtr<nsITransaction> t = item->GetTransaction();
+      nsCOMPtr<nsITransaction> t;
+
+      result = item->GetTransaction(getter_AddRefs(t));
+
+      if (NS_FAILED(result)) {
+        return result;
+      }
 
       bool doInterrupt = false;
 
@@ -301,7 +306,13 @@ nsTransactionItem::RedoChildren(nsTransactionManager *aTxMgr)
       return NS_ERROR_FAILURE;
     }
 
-    nsCOMPtr<nsITransaction> t = item->GetTransaction();
+    nsCOMPtr<nsITransaction> t;
+
+    result = item->GetTransaction(getter_AddRefs(t));
+
+    if (NS_FAILED(result)) {
+      return result;
+    }
 
     bool doInterrupt = false;
 

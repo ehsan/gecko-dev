@@ -15,7 +15,9 @@ DIRS = \
   extensions \
   $(NULL)
 
-MOCHITEST_FILES = \
+include $(topsrcdir)/config/rules.mk
+
+_TEST_FILES = \
   test_404.html \
   test_atob.html \
   atob_worker.js \
@@ -92,13 +94,13 @@ MOCHITEST_FILES = \
   test_blobConstructor.html \
   $(NULL)
 
-_SUBDIRMOCHITEST_FILES = \
+_SUBDIR_TEST_FILES = \
   relativeLoad_sub_worker.js \
   relativeLoad_sub_worker2.js \
   relativeLoad_sub_import.js \
   $(NULL)
 
-MOCHITEST_CHROME_FILES = \
+_CHROME_TEST_FILES = \
   test_chromeWorker.xul \
   test_chromeWorkerJSM.xul \
   test_extension.xul \
@@ -131,7 +133,11 @@ MOCHITEST_CHROME_FILES = \
   dom_worker_helper.js \
   $(NULL)
 
-libs:: $(_SUBDIRMOCHITEST_FILES)
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+
+libs:: $(_SUBDIR_TEST_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)/subdir
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_CHROME_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)

@@ -15,13 +15,14 @@
     const READ_WRITE = IDBTransaction.READ_WRITE;
 
     const name = window.location.pathname;
+    const description = "My Test Database";
 
     const objectStoreName = "Blobs";
 
     const blobData = { key: 1, blob: getRandomBlob(10000) };
     const fileData = { key: 2, file: getRandomFile("random.bin", 100000) };
 
-    let request = indexedDB.open(name, 1);
+    let request = mozIndexedDB.open(name, 1, description);
     request.onerror = errorHandler;
     request.onupgradeneeded = grabEventAndContinueHandler;
     request.onsuccess = grabEventAndContinueHandler;

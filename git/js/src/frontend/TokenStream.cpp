@@ -94,24 +94,24 @@ js::FindKeyword(const jschar *s, size_t length)
     return NULL;
 }
 
-bool
+JSBool
 js::IsIdentifier(JSLinearString *str)
 {
     const jschar *chars = str->chars();
     size_t length = str->length();
 
     if (length == 0)
-        return false;
+        return JS_FALSE;
     jschar c = *chars;
     if (!IsIdentifierStart(c))
-        return false;
+        return JS_FALSE;
     const jschar *end = chars + length;
     while (++chars != end) {
         c = *chars;
         if (!IsIdentifierPart(c))
-            return false;
+            return JS_FALSE;
     }
-    return true;
+    return JS_TRUE;
 }
 
 #ifdef _MSC_VER
@@ -396,118 +396,76 @@ bool
 TokenStream::reportStrictModeErrorNumberVA(ParseNode *pn, unsigned errorNumber, va_list args)
 {
     /* In strict mode code, this is an error, not merely a warning. */
-    unsigned flags = JSREPORT_STRICT;
-    if (strictModeState() != StrictMode::NOTSTRICT)
-        flags |= JSREPORT_ERROR;
+    unsigned flags;
+    if (isStrictMode())
+        flags = JSREPORT_ERROR;
     else if (cx->hasStrictOption())
-        flags |= JSREPORT_WARNING;
+        flags = JSREPORT_WARNING;
     else
         return true;
- 
+
     return reportCompileErrorNumberVA(pn, flags, errorNumber, args);
-}
-
-void
-CompileError::throwError()
-{
-    /*
-     * If there's a runtime exception type associated with this error
-     * number, set that as the pending exception.  For errors occuring at
-     * compile time, this is very likely to be a JSEXN_SYNTAXERR.
-     *
-     * If an exception is thrown but not caught, the JSREPORT_EXCEPTION
-     * flag will be set in report.flags.  Proper behavior for an error
-     * reporter is to ignore a report with this flag for all but top-level
-     * compilation errors.  The exception will remain pending, and so long
-     * as the non-top-level "load", "eval", or "compile" native function
-     * returns false, the top-level reporter will eventually receive the
-     * uncaught exception report.
-     */
-    if (!js_ErrorToException(cx, message, &report, NULL, NULL)) {
-        /*
-         * If debugErrorHook is present then we give it a chance to veto
-         * sending the error on to the regular error reporter.
-         */
-        bool reportError = true;
-        if (JSDebugErrorHook hook = cx->runtime->debugHooks.debugErrorHook) {
-            reportError = hook(cx, message, &report, cx->runtime->debugHooks.debugErrorHookData);
-        }
-
-        /* Report the error */
-        if (reportError && cx->errorReporter)
-            cx->errorReporter(cx, message, &report);
-    }
-}
-
-CompileError::~CompileError()
-{
-    cx->free_((void*)report.uclinebuf);
-    cx->free_((void*)report.linebuf);
-    cx->free_((void*)report.ucmessage);
-    cx->free_(message);
-    message = NULL;
-
-    if (report.messageArgs) {
-        if (hasCharArgs) {
-            unsigned i = 0;
-            while (report.messageArgs[i])
-                cx->free_((void*)report.messageArgs[i++]);
-        }
-        cx->free_(report.messageArgs);
-    }
-
-    PodZero(&report);
 }
 
 bool
 TokenStream::reportCompileErrorNumberVA(ParseNode *pn, unsigned flags, unsigned errorNumber,
                                         va_list args)
 {
-    bool strict = JSREPORT_IS_STRICT(flags);
-    bool warning = JSREPORT_IS_WARNING(flags);
+    class ReportManager
+    {
+        JSContext *cx;
+        JSErrorReport *report;
+        bool hasCharArgs;
 
-    // Avoid reporting JSMSG_STRICT_CODE_WITH as a warning. See the comment in
-    // Parser::withStatement.
-    if (strict && warning && (!cx->hasStrictOption() || errorNumber == JSMSG_STRICT_CODE_WITH))
+      public:
+        char *message;
+
+        ReportManager(JSContext *cx, JSErrorReport *report, bool hasCharArgs)
+          : cx(cx), report(report), hasCharArgs(hasCharArgs), message(NULL)
+        {}
+
+        ~ReportManager() {
+            cx->free_((void*)report->uclinebuf);
+            cx->free_((void*)report->linebuf);
+            cx->free_(message);
+            cx->free_((void*)report->ucmessage);
+
+            if (report->messageArgs) {
+                if (hasCharArgs) {
+                    unsigned i = 0;
+                    while (report->messageArgs[i])
+                        cx->free_((void *)report->messageArgs[i++]);
+                }
+                cx->free_((void *)report->messageArgs);
+            }
+        }
+    };
+
+    if (JSREPORT_IS_STRICT(flags) && !cx->hasStrictOption())
         return true;
 
+    bool warning = JSREPORT_IS_WARNING(flags);
     if (warning && cx->hasWErrorOption()) {
         flags &= ~JSREPORT_WARNING;
         warning = false;
     }
 
-    CompileError normalError(cx);
-    CompileError *err = &normalError;
-    if (strict && !warning && strictModeState() == StrictMode::UNKNOWN) {
-        if (strictModeGetter->queuedStrictModeError()) {
-            // Avoid reporting JSMSG_STRICT_CODE_WITH as a warning. See the
-            // comment in Parser::withStatement.
-            if (cx->hasStrictOption() && errorNumber != JSMSG_STRICT_CODE_WITH) {
-                flags |= JSREPORT_WARNING;
-                warning = true;
-            } else {
-                return true;
-            }
-        } else {
-            err = cx->new_<CompileError, JSContext *>(cx);
-            if (!err)
-                return false;
-            strictModeGetter->setQueuedStrictModeError(err);
-        }
-    }
-
     const TokenPos *const tp = pn ? &pn->pn_pos : &currentToken().pos;
 
-    err->report.flags = flags;
-    err->report.errorNumber = errorNumber;
-    err->report.filename = filename;
-    err->report.originPrincipals = originPrincipals;
-    err->report.lineno = tp->begin.lineno;
+    JSErrorReport report;
+    PodZero(&report);
+    report.flags = flags;
+    report.errorNumber = errorNumber;
+    report.filename = filename;
+    report.originPrincipals = originPrincipals;
+    report.lineno = tp->begin.lineno;
 
-    err->hasCharArgs = !(flags & JSREPORT_UC);
+    bool hasCharArgs = !(flags & JSREPORT_UC);
 
-    if (!js_ExpandErrorArguments(cx, js_GetErrorMessage, NULL, errorNumber, &err->message, &err->report,
-                                 err->hasCharArgs, args)) {
+    ReportManager mgr(cx, &report, hasCharArgs);
+
+    if (!js_ExpandErrorArguments(cx, js_GetErrorMessage, NULL, errorNumber, &mgr.message, &report,
+                                 hasCharArgs, args)) {
         return false;
     }
 
@@ -521,7 +479,7 @@ TokenStream::reportCompileErrorNumberVA(ParseNode *pn, unsigned flags, unsigned 
      * means that any error involving a multi-line token (eg. an unterminated
      * multi-line string literal) won't have a context printed.
      */
-    if (err->report.lineno == lineno) {
+    if (report.lineno == lineno) {
         const jschar *tokptr = linebase + tp->begin.index;
 
         // We show only a portion (a "window") of the line around the erroneous
@@ -550,23 +508,47 @@ TokenStream::reportCompileErrorNumberVA(ParseNode *pn, unsigned flags, unsigned 
 
         // Unicode and char versions of the window into the offending source
         // line, without final \n.
-        err->report.uclinebuf = windowBuf.extractWellSized();
-        if (!err->report.uclinebuf)
+        report.uclinebuf = windowBuf.extractWellSized();
+        if (!report.uclinebuf)
             return false;
-        err->report.linebuf = DeflateString(cx, err->report.uclinebuf, windowLength);
-        if (!err->report.linebuf)
+        report.linebuf = DeflateString(cx, report.uclinebuf, windowLength);
+        if (!report.linebuf)
             return false;
 
         // The lineno check above means we should only see single-line tokens here.
         JS_ASSERT(tp->begin.lineno == tp->end.lineno);
-        err->report.tokenptr = err->report.linebuf + windowIndex;
-        err->report.uctokenptr = err->report.uclinebuf + windowIndex;
+        report.tokenptr = report.linebuf + windowIndex;
+        report.uctokenptr = report.uclinebuf + windowIndex;
     }
 
-    if (err == &normalError)
-        err->throwError();
-    else
-        return true;
+    /*
+     * If there's a runtime exception type associated with this error
+     * number, set that as the pending exception.  For errors occuring at
+     * compile time, this is very likely to be a JSEXN_SYNTAXERR.
+     *
+     * If an exception is thrown but not caught, the JSREPORT_EXCEPTION
+     * flag will be set in report.flags.  Proper behavior for an error
+     * reporter is to ignore a report with this flag for all but top-level
+     * compilation errors.  The exception will remain pending, and so long
+     * as the non-top-level "load", "eval", or "compile" native function
+     * returns false, the top-level reporter will eventually receive the
+     * uncaught exception report.
+     */
+    if (!js_ErrorToException(cx, mgr.message, &report, NULL, NULL)) {
+        /*
+         * If debugErrorHook is present then we give it a chance to veto
+         * sending the error on to the regular error reporter.
+         */
+        bool reportError = true;
+        if (JSDebugErrorHook hook = cx->runtime->debugHooks.debugErrorHook) {
+            reportError = hook(cx, mgr.message, &report,
+                               cx->runtime->debugHooks.debugErrorHookData);
+        }
+
+        /* Report the error */
+        if (reportError && cx->errorReporter)
+            cx->errorReporter(cx, mgr.message, &report);
+    }
 
     return warning;
 }
@@ -619,7 +601,7 @@ TokenStream::getXMLEntity()
 {
     ptrdiff_t offset, length, i;
     int c, d;
-    bool ispair;
+    JSBool ispair;
     jschar *bp, digit;
     char *bytes;
     JSErrNum msg;
@@ -800,7 +782,7 @@ TokenStream::getXMLTextOrTag(TokenKind *ttp, Token **tpp)
 
         tokenbuf.clear();
         if (IsXMLNamespaceStart(c)) {
-            bool sawColon = false;
+            JSBool sawColon = JS_FALSE;
 
             if (!tokenbuf.append(c))
                 goto error;
@@ -815,7 +797,7 @@ TokenStream::getXMLTextOrTag(TokenKind *ttp, Token **tpp)
                         reportError(JSMSG_BAD_XML_QNAME);
                         goto error;
                     }
-                    sawColon = true;
+                    sawColon = JS_TRUE;
                 }
 
                 if (!tokenbuf.append(c))
@@ -1342,7 +1324,9 @@ TokenStream::checkForKeyword(const jschar *s, size_t length, TokenKind *ttp, JSO
     }
 
     /* Strict reserved word. */
-    return reportStrictModeError(JSMSG_RESERVED_ID, kw->chars);
+    if (isStrictMode())
+        return reportStrictModeError(JSMSG_RESERVED_ID, kw->chars);
+    return reportStrictWarning(JSMSG_RESERVED_ID, kw->chars);
 }
 
 enum FirstCharKind {
@@ -1627,6 +1611,7 @@ TokenStream::getTokenInternal()
                             if (val != 0 || JS7_ISDEC(c)) {
                                 if (!reportStrictModeError(JSMSG_DEPRECATED_OCTAL))
                                     goto error;
+                                setOctalCharacterEscape();
                             }
                             if ('0' <= c && c < '8') {
                                 val = 8 * val + JS7_UNDEC(c);
@@ -2142,13 +2127,13 @@ JS_FRIEND_API(int)
 js_fgets(char *buf, int size, FILE *file)
 {
     int n, i, c;
-    bool crflag;
+    JSBool crflag;
 
     n = size - 1;
     if (n < 0)
         return -1;
 
-    crflag = false;
+    crflag = JS_FALSE;
     for (i = 0; i < n && (c = fast_getc(file)) != EOF; i++) {
         buf[i] = c;
         if (c == '\n') {        /* any \n ends a line */

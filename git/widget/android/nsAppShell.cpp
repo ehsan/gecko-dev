@@ -24,7 +24,6 @@
 #include "nsIDOMClientRect.h"
 #include "nsIDOMWakeLockListener.h"
 #include "nsIPowerManagerService.h"
-#include "nsFrameManager.h"
 
 #include "mozilla/Services.h"
 #include "mozilla/unused.h"
@@ -71,7 +70,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsAppShell, nsBaseAppShell, nsIObserver)
 class ScreenshotRunnable : public nsRunnable {
 public:
     ScreenshotRunnable(nsIAndroidBrowserApp* aBrowserApp, int aTabId, nsTArray<nsIntPoint>& aPoints, int aToken, RefCountedJavaObject* aBuffer):
-        mBrowserApp(aBrowserApp), mPoints(aPoints), mTabId(aTabId), mToken(aToken), mBuffer(aBuffer) {}
+        mBrowserApp(aBrowserApp), mTabId(aTabId), mPoints(aPoints), mToken(aToken), mBuffer(aBuffer) {}
 
     virtual nsresult Run() {
         nsCOMPtr<nsIDOMWindow> domWindow;
@@ -118,15 +117,6 @@ class AfterPaintListener : public nsIDOMEventListener {
     }
 
     virtual nsresult HandleEvent(nsIDOMEvent* aEvent) {
-        PRUint32 generation = nsFrameManager::GetGlobalGenerationNumber();
-        if (mLastGeneration == generation) {
-            // the frame tree has not changed since our last AfterPaint
-            // so we can drop this event.
-            return NS_OK;
-        }
-
-        mLastGeneration = generation;
-
         nsCOMPtr<nsIDOMNotifyPaintEvent> paintEvent = do_QueryInterface(aEvent);
         if (!paintEvent)
             return NS_OK;
@@ -149,7 +139,6 @@ class AfterPaintListener : public nsIDOMEventListener {
     }
 
   private:
-    PRUint32 mLastGeneration;
     nsCOMPtr<nsIDOMEventTarget> mEventTarget;
 };
 
@@ -691,7 +680,7 @@ nsAppShell::PostEvent(AndroidGeckoEvent *ae)
         case AndroidGeckoEvent::COMPOSITOR_RESUME:
             // Give priority to these events, but maintain their order wrt each other.
             {
-                PRUint32 i = 0;
+                int i = 0;
                 while (i < mEventQueue.Length() &&
                        (mEventQueue[i]->Type() == AndroidGeckoEvent::COMPOSITOR_PAUSE ||
                         mEventQueue[i]->Type() == AndroidGeckoEvent::COMPOSITOR_RESUME)) {
