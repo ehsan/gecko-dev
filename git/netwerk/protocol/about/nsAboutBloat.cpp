@@ -9,7 +9,6 @@
 #ifdef NS_BUILD_REFCNT_LOGGING
 
 #include "nsAboutBloat.h"
-#include "nsContentUtils.h"
 #include "nsStringStream.h"
 #include "nsDOMString.h"
 #include "nsIURI.h"
@@ -110,12 +109,7 @@ nsAboutBloat::NewChannel(nsIURI *aURI, nsIChannel **result)
     }
 
     nsIChannel* channel = nullptr;
-    rv = NS_NewInputStreamChannel(&channel,
-                                  aURI,
-                                  inStr,
-                                  nsContentUtils::GetSystemPrincipal(),
-                                  nsILoadInfo::SEC_NORMAL,
-                                  nsIContentPolicy::TYPE_OTHER,
+    rv = NS_NewInputStreamChannel(&channel, aURI, inStr,
                                   NS_LITERAL_CSTRING("text/plain"),
                                   NS_LITERAL_CSTRING("utf-8"));
     if (NS_FAILED(rv)) return rv;

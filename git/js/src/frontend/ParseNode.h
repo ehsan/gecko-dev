@@ -124,7 +124,6 @@ class UpvarCookie
     F(FINALLY) \
     F(THROW) \
     F(DEBUGGER) \
-    F(GENERATOR) \
     F(YIELD) \
     F(YIELD_STAR) \
     F(GENEXP) \
@@ -423,9 +422,6 @@ enum ParseNodeKind
  *
  * PNK_LEXICALSCOPE name    pn_objbox: block object in ObjectBox holder
  *                          pn_expr: block body
- * PNK_GENERATOR    nullary
- * PNK_YIELD,       binary  pn_left: expr or null; pn_right: generator object
- * PNK_YIELD_STAR
  * PNK_ARRAYCOMP    list    pn_count: 1
  *                          pn_head: list of 1 element, which is block
  *                          enclosing for loop(s) and optionally
@@ -777,9 +773,8 @@ class ParseNode
         MOZ_ASSERT(isKind(PNK_GENEXP));
         ParseNode *callee = this->pn_head;
         ParseNode *body = callee->pn_body;
-        MOZ_ASSERT(body->isKind(PNK_STATEMENTLIST));
-        MOZ_ASSERT(body->last()->isKind(PNK_LEXICALSCOPE) || body->last()->isKind(PNK_FOR));
-        return body->last();
+        MOZ_ASSERT(body->isKind(PNK_LEXICALSCOPE) || body->isKind(PNK_FOR));
+        return body;
     }
 #endif
 

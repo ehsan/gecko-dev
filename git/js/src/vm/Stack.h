@@ -19,6 +19,7 @@
 #endif
 
 struct JSCompartment;
+struct JSGenerator;
 
 namespace js {
 
@@ -187,6 +188,7 @@ class AbstractFramePtr
 
     inline bool hasCallObj() const;
     inline bool isGeneratorFrame() const;
+    inline bool isYielding() const;
     inline bool isFunctionFrame() const;
     inline bool isGlobalFrame() const;
     inline bool isEvalFrame() const;
@@ -291,7 +293,17 @@ class InterpreterFrame
         GENERATOR          =       0x10,  /* frame is associated with a generator */
         CONSTRUCTING       =       0x20,  /* frame is for a constructor invocation */
 
-        /* (0x40 and 0x80 are unused) */
+        /*
+         * Generator frame state
+         *
+         * YIELDING and SUSPENDED are similar, but there are differences. After
+         * a generator yields, SendToGenerator immediately clears the YIELDING
+         * flag, but the frame will still have the SUSPENDED flag. Also, when the
+         * generator returns but before it's GC'ed, YIELDING is not set but
+         * SUSPENDED is.
+         */
+        YIELDING           =       0x40,  /* Interpret dispatched JSOP_YIELD */
+        SUSPENDED          =       0x80,  /* Generator is not running. */
 
         /* Function prologue state */
         HAS_CALL_OBJ       =      0x100,  /* CallObject created for heavyweight fun */
@@ -789,12 +801,28 @@ class InterpreterFrame
         flags_ |= GENERATOR;
     }
 
-    void resumeGeneratorFrame(HandleObject scopeChain) {
-        MOZ_ASSERT(!isGeneratorFrame());
-        MOZ_ASSERT(isNonEvalFunctionFrame());
-        flags_ |= GENERATOR | HAS_CALL_OBJ | HAS_SCOPECHAIN;
-        scopeChain_ = scopeChain;
+    Value *generatorArgsSnapshotBegin() const {
+        MOZ_ASSERT(isGeneratorFrame());
+        return argv() - 2;
     }
+
+    Value *generatorArgsSnapshotEnd() const {
+        MOZ_ASSERT(isGeneratorFrame());
+        return argv() + js::Max(numActualArgs(), numFormalArgs());
+    }
+
+    Value *generatorSlotsSnapshotBegin() const {
+        MOZ_ASSERT(isGeneratorFrame());
+        return (Value *)(this + 1);
+    }
+
+    enum TriggerPostBarriers {
+        DoPostBarrier = true,
+        NoPostBarrier = false
+    };
+    template <TriggerPostBarriers doPostBarrier>
+    void copyFrameAndValues(JSContext *cx, Value *vp, InterpreterFrame *otherfp,
+                            const Value *othervp, Value *othersp);
 
     /*
      * Other flags
@@ -854,6 +882,33 @@ class InterpreterFrame
 
     void setPrevUpToDate() {
         flags_ |= PREV_UP_TO_DATE;
+    }
+
+    bool isYielding() {
+        return !!(flags_ & YIELDING);
+    }
+
+    void setYielding() {
+        flags_ |= YIELDING;
+    }
+
+    void clearYielding() {
+        flags_ &= ~YIELDING;
+    }
+
+    bool isSuspended() const {
+        MOZ_ASSERT(isGeneratorFrame());
+        return flags_ & SUSPENDED;
+    }
+
+    void setSuspended() {
+        MOZ_ASSERT(isGeneratorFrame());
+        flags_ |= SUSPENDED;
+    }
+
+    void clearSuspended() {
+        MOZ_ASSERT(isGeneratorFrame());
+        flags_ &= ~SUSPENDED;
     }
 
   public:
@@ -996,10 +1051,6 @@ class InterpreterStack
                          HandleScript script, InitialFrameFlags initial);
 
     void popInlineFrame(InterpreterRegs &regs);
-
-    bool resumeGeneratorCallFrame(JSContext *cx, InterpreterRegs &regs,
-                                  HandleFunction callee, HandleValue thisv,
-                                  HandleObject scopeChain);
 
     inline void purge(JSRuntime *rt);
 
@@ -1184,9 +1235,6 @@ class InterpreterActivation : public Activation
     inline bool pushInlineFrame(const CallArgs &args, HandleScript script,
                                 InitialFrameFlags initial);
     inline void popInlineFrame(InterpreterFrame *frame);
-
-    inline bool resumeGeneratorFrame(HandleFunction callee, HandleValue thisv,
-                                     HandleObject scopeChain);
 
     InterpreterFrame *current() const {
         return regs_.fp();

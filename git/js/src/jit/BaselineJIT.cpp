@@ -323,13 +323,16 @@ jit::CanEnterBaselineMethod(JSContext *cx, RunState &state)
 
         if (!state.maybeCreateThisForConstructor(cx))
             return Method_Skipped;
-    } else {
-        MOZ_ASSERT(state.isExecute());
+    } else if (state.isExecute()) {
         ExecuteType type = state.asExecute()->type();
         if (type == EXECUTE_DEBUG || type == EXECUTE_DEBUG_GLOBAL) {
             JitSpew(JitSpew_BaselineAbort, "debugger frame");
             return Method_CantCompile;
         }
+    } else {
+        MOZ_ASSERT(state.isGenerator());
+        JitSpew(JitSpew_BaselineAbort, "generator frame");
+        return Method_CantCompile;
     }
 
     RootedScript script(cx, state.script());

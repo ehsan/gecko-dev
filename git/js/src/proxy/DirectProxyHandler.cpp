@@ -218,8 +218,7 @@ DirectProxyHandler::set(JSContext *cx, HandleObject proxy, HandleObject receiver
 }
 
 bool
-DirectProxyHandler::getOwnEnumerablePropertyKeys(JSContext *cx, HandleObject proxy,
-                                                 AutoIdVector &props) const
+DirectProxyHandler::keys(JSContext *cx, HandleObject proxy, AutoIdVector &props) const
 {
     assertEnteredPolicy(cx, proxy, JSID_VOID, ENUMERATE);
     RootedObject target(cx, proxy->as<ProxyObject>().target());
