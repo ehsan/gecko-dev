@@ -100,7 +100,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitIntToString(LIntToString *lir);
     bool visitDoubleToString(LDoubleToString *lir);
     bool visitValueToString(LValueToString *lir);
-    bool visitValueToObjectOrNull(LValueToObjectOrNull *lir);
     bool visitInteger(LInteger *lir);
     bool visitRegExp(LRegExp *lir);
     bool visitRegExpExec(LRegExpExec *lir);
@@ -156,7 +155,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitNewObjectVMCall(LNewObject *lir);
     bool visitNewObject(LNewObject *lir);
     bool visitOutOfLineNewObject(OutOfLineNewObject *ool);
-    bool visitNewTypedObject(LNewTypedObject *lir);
     bool visitNewDeclEnvObject(LNewDeclEnvObject *lir);
     bool visitNewCallObject(LNewCallObject *lir);
     bool visitNewSingletonCallObject(LNewSingletonCallObject *lir);
@@ -252,7 +250,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitStoreElementV(LStoreElementV *lir);
     bool visitStoreElementHoleT(LStoreElementHoleT *lir);
     bool visitStoreElementHoleV(LStoreElementHoleV *lir);
-    bool visitStoreUnboxedPointer(LStoreUnboxedPointer *lir);
     bool emitArrayPopShift(LInstruction *lir, const MArrayPopShift *mir, Register obj,
                            Register elementsTemp, Register lengthTemp, TypedOrValueRegister out);
     bool visitArrayPopShiftV(LArrayPopShiftV *lir);

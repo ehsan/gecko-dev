@@ -451,11 +451,6 @@ class IonBuilder
                                 types::TemporaryTypeSet *objTypes);
     bool setPropTryTypedObject(bool *emitted, MDefinition *obj,
                                PropertyName *name, MDefinition *value);
-    bool setPropTryReferencePropOfTypedObject(bool *emitted,
-                                              MDefinition *obj,
-                                              int32_t fieldOffset,
-                                              MDefinition *value,
-                                              TypedObjectPrediction fieldPrediction);
     bool setPropTryScalarPropOfTypedObject(bool *emitted,
                                            MDefinition *obj,
                                            int32_t fieldOffset,
@@ -486,10 +481,6 @@ class IonBuilder
     MDefinition *typeObjectForElementFromArrayStructType(MDefinition *typedObj);
     MDefinition *typeObjectForFieldFromStructType(MDefinition *type,
                                                   size_t fieldIndex);
-    bool storeReferenceTypedObjectValue(MDefinition *typedObj,
-                                        MDefinition *byteOffset,
-                                        ReferenceTypeDescr::Type type,
-                                        MDefinition *value);
     bool storeScalarTypedObjectValue(MDefinition *typedObj,
                                      MDefinition *offset,
                                      ScalarTypeDescr::Type type,
@@ -524,12 +515,6 @@ class IonBuilder
                              MDefinition *index, MDefinition *value);
     bool setElemTryCache(bool *emitted, MDefinition *object,
                          MDefinition *index, MDefinition *value);
-    bool setElemTryReferenceElemOfTypedObject(bool *emitted,
-                                              MDefinition *obj,
-                                              MDefinition *index,
-                                              TypedObjectPrediction objPrediction,
-                                              MDefinition *value,
-                                              TypedObjectPrediction elemPrediction);
     bool setElemTryScalarElemOfTypedObject(bool *emitted,
                                            MDefinition *obj,
                                            MDefinition *index,
@@ -691,7 +676,7 @@ class IonBuilder
 
     // Oracles.
     InliningDecision canInlineTarget(JSFunction *target, CallInfo &callInfo);
-    InliningDecision makeInliningDecision(JSObject *target, CallInfo &callInfo);
+    InliningDecision makeInliningDecision(JSFunction *target, CallInfo &callInfo);
     bool selectInliningTargets(ObjectVector &targets, CallInfo &callInfo,
                                BoolVector &choiceSet, uint32_t *numInlineable);
 
@@ -761,12 +746,11 @@ class IonBuilder
     // ForkJoin intrinsics
     InliningStatus inlineForkJoinGetSlice(CallInfo &callInfo);
 
-    // TypedObject intrinsics and natives.
+    // TypedObject intrinsics.
     InliningStatus inlineObjectIsTypeDescr(CallInfo &callInfo);
     InliningStatus inlineSetTypedObjectOffset(CallInfo &callInfo);
     bool elementAccessIsTypedObjectArrayOfScalarType(MDefinition* obj, MDefinition* id,
                                                      ScalarTypeDescr::Type *arrayType);
-    InliningStatus inlineConstructTypedObject(CallInfo &callInfo, SizedTypeDescr *target);
 
     // Utility intrinsics.
     InliningStatus inlineIsCallable(CallInfo &callInfo);
@@ -793,9 +777,8 @@ class IonBuilder
     // Main inlining functions
     InliningStatus inlineNativeCall(CallInfo &callInfo, JSFunction *target);
     InliningStatus inlineNativeGetter(CallInfo &callInfo, JSFunction *target);
-    InliningStatus inlineNonFunctionCall(CallInfo &callInfo, JSObject *target);
     bool inlineScriptedCall(CallInfo &callInfo, JSFunction *target);
-    InliningStatus inlineSingleCall(CallInfo &callInfo, JSObject *target);
+    InliningStatus inlineSingleCall(CallInfo &callInfo, JSFunction *target);
 
     // Call functions
     InliningStatus inlineCallsite(ObjectVector &targets, ObjectVector &originals,

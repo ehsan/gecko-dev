@@ -705,10 +705,6 @@ class JSObject : public js::gc::Cell
 
     static bool swap(JSContext *cx, JS::HandleObject a, JS::HandleObject b);
 
-  private:
-    void fixDictionaryShapeAfterSwap();
-
-  public:
     inline void initArrayClass();
 
     /*

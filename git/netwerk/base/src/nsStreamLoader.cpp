@@ -9,15 +9,16 @@
 #include "nsError.h"
 #include "GeckoProfiler.h"
 
-#include <limits>
-
 nsStreamLoader::nsStreamLoader()
-  : mData()
+  : mData(nullptr),
+    mAllocated(0),
+    mLength(0)
 {
 }
 
 nsStreamLoader::~nsStreamLoader()
 {
+  ReleaseData();
 }
 
 NS_IMETHODIMP
@@ -48,7 +49,7 @@ NS_IMPL_ISUPPORTS(nsStreamLoader, nsIStreamLoader,
 NS_IMETHODIMP 
 nsStreamLoader::GetNumBytesRead(uint32_t* aNumBytes)
 {
-  *aNumBytes = mData.length();
+  *aNumBytes = mLength;
   return NS_OK;
 }
 
@@ -60,7 +61,7 @@ nsStreamLoader::GetRequest(nsIRequest **aRequest)
   return NS_OK;
 }
 
-NS_IMETHODIMP
+NS_IMETHODIMP 
 nsStreamLoader::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
 {
   nsCOMPtr<nsIChannel> chan( do_QueryInterface(request) );
@@ -68,21 +69,25 @@ nsStreamLoader::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
     int64_t contentLength = -1;
     chan->GetContentLength(&contentLength);
     if (contentLength >= 0) {
-      if (uint64_t(contentLength) > std::numeric_limits<size_t>::max()) {
-        // Too big to fit into size_t, so let's bail.
+      if (contentLength > UINT32_MAX) {
+        // Too big to fit into uint32, so let's bail.
+        // XXX we should really make mAllocated and mLength 64-bit instead.
         return NS_ERROR_OUT_OF_MEMORY;
       }
+      uint32_t contentLength32 = uint32_t(contentLength);
       // preallocate buffer
-      if (!mData.initCapacity(contentLength)) {
+      mData = static_cast<uint8_t*>(moz_malloc(contentLength32));
+      if (!mData) {
         return NS_ERROR_OUT_OF_MEMORY;
       }
+      mAllocated = contentLength32;
     }
   }
   mContext = ctxt;
   return NS_OK;
 }
 
-NS_IMETHODIMP
+NS_IMETHODIMP 
 nsStreamLoader::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
                               nsresult aStatus)
 {
@@ -92,14 +97,12 @@ nsStreamLoader::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
   if (mObserver) {
     // provide nsIStreamLoader::request during call to OnStreamComplete
     mRequest = request;
-    size_t length = mData.length();
-    uint8_t* elems = mData.extractRawBuffer();
     nsresult rv = mObserver->OnStreamComplete(this, mContext, aStatus,
-                                              length, elems);
-    if (rv != NS_SUCCESS_ADOPTED_DATA) {
-      // The observer didn't take ownership of the extracted data buffer, so
-      // put it back into mData.
-      mData.replaceRawBuffer(elems, length);
+                                              mLength, mData);
+    if (rv == NS_SUCCESS_ADOPTED_DATA) {
+      // the observer now owns the data buffer, and the loader must
+      // not deallocate it
+      mData = nullptr;
     }
     // done.. cleanup
     ReleaseData();
@@ -120,10 +123,22 @@ nsStreamLoader::WriteSegmentFun(nsIInputStream *inStr,
 {
   nsStreamLoader *self = (nsStreamLoader *) closure;
 
-  if (!self->mData.append(fromSegment, count)) {
-    self->mData.clearAndFree();
-    return NS_ERROR_OUT_OF_MEMORY;
+  if (count > UINT32_MAX - self->mLength) {
+    return NS_ERROR_ILLEGAL_VALUE; // is there a better error to use here?
   }
+
+  if (self->mLength + count > self->mAllocated) {
+    self->mData = static_cast<uint8_t*>(moz_realloc(self->mData,
+                                                    self->mLength + count));
+    if (!self->mData) {
+      self->ReleaseData();
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    self->mAllocated = self->mLength + count;
+  }
+
+  ::memcpy(self->mData + self->mLength, fromSegment, count);
+  self->mLength += count;
 
   *writeCount = count;
 
@@ -142,5 +157,10 @@ nsStreamLoader::OnDataAvailable(nsIRequest* request, nsISupports *ctxt,
 void
 nsStreamLoader::ReleaseData()
 {
-  mData.clearAndFree();
+  if (mData) {
+    moz_free(mData);
+    mData = nullptr;
+  }
+  mLength = 0;
+  mAllocated = 0;
 }

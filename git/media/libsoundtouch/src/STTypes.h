@@ -56,7 +56,7 @@ typedef unsigned long   ulong;
 
 #include "soundtouch_config.h"
 
-#if defined(WIN32) && defined(GKMEDIAS_SHARED_LIBRARY)
+#ifdef WIN32
 #ifdef BUILDING_SOUNDTOUCH
 #define EXPORT __declspec(dllexport)
 #else
