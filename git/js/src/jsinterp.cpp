@@ -1151,6 +1151,7 @@ js_Invoke(JSContext *cx, uintN argc, jsval *vp, uintN flags)
         /*
          * XXX this makes no sense -- why convert to function if clasp->call?
          * XXX better to call that hook without converting
+         * XXX the only thing that needs fixing is liveconnect
          *
          * FIXME bug 408416: try converting to function, for API compatibility
          * if there is a call op defined.

@@ -108,7 +108,7 @@ typedef enum JSAccessMode {
 
                                 /* 
                                  * enum value #2 formerly called JSACC_IMPORT, 
-                                 * gap preserved for ABI compatibility.
+                                 * gap preserved for liveconnect ABI compatibility.
                                  */
 
     JSACC_WATCH  = 3,           /* a watchpoint on object foo for id 'bar' */
