@@ -129,12 +129,6 @@ protected:
   DoRequest(const GetAdaptersRequest& aRequest);
 
   bool
-  DoRequest(const StartBluetoothRequest& aRequest);
-
-  bool
-  DoRequest(const StopBluetoothRequest& aRequest);
-
-  bool
   DoRequest(const SetPropertyRequest& aRequest);
 
   bool

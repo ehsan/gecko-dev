@@ -268,7 +268,6 @@ let DirectoryLinksProvider = {
     this._readDirectoryLinksFile().then(rawLinks => {
       // all directory links have a frecency of DIRECTORY_FRECENCY
       aCallback(rawLinks.map((link, position) => {
-        link.directoryIndex = position;
         link.frecency = DIRECTORY_FRECENCY;
         link.lastVisitDate = rawLinks.length - position;
         return link;
