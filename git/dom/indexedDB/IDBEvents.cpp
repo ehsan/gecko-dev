@@ -103,10 +103,9 @@ mozilla::dom::indexedDB::CreateGenericEventRunnable(const nsAString& aType,
 }
 
 // static
-already_AddRefed<nsDOMEvent>
+already_AddRefed<nsIDOMEvent>
 IDBVersionChangeEvent::CreateInternal(const nsAString& aType,
-                                      PRUint64 aOldVersion,
-                                      PRUint64 aNewVersion)
+                                      const nsAString& aVersion)
 {
   nsRefPtr<IDBVersionChangeEvent> event(new IDBVersionChangeEvent());
 
@@ -116,8 +115,7 @@ IDBVersionChangeEvent::CreateInternal(const nsAString& aType,
   rv = event->SetTrusted(true);
   NS_ENSURE_SUCCESS(rv, nsnull);
 
-  event->mOldVersion = aOldVersion;
-  event->mNewVersion = aNewVersion;
+  event->mVersion = aVersion;
 
   nsDOMEvent* result;
   event.forget(&result);
@@ -127,12 +125,10 @@ IDBVersionChangeEvent::CreateInternal(const nsAString& aType,
 // static
 already_AddRefed<nsIRunnable>
 IDBVersionChangeEvent::CreateRunnableInternal(const nsAString& aType,
-                                              PRUint64 aOldVersion,
-                                              PRUint64 aNewVersion,
+                                              const nsAString& aVersion,
                                               nsIDOMEventTarget* aTarget)
 {
-  nsRefPtr<nsDOMEvent> event =
-    CreateInternal(aType, aOldVersion, aNewVersion);
+  nsCOMPtr<nsIDOMEvent> event = CreateInternal(aType, aVersion);
   NS_ENSURE_TRUE(event, nsnull);
 
   nsCOMPtr<nsIRunnable> runnable(new EventFiringRunnable(aTarget, event));
@@ -150,17 +146,8 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 DOMCI_DATA(IDBVersionChangeEvent, IDBVersionChangeEvent)
 
 NS_IMETHODIMP
-IDBVersionChangeEvent::GetOldVersion(PRUint64* aOldVersion)
+IDBVersionChangeEvent::GetVersion(nsAString& aVersion)
 {
-  NS_ENSURE_ARG_POINTER(aOldVersion);
-  *aOldVersion = mOldVersion;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-IDBVersionChangeEvent::GetNewVersion(PRUint64* aNewVersion)
-{
-  NS_ENSURE_ARG_POINTER(aNewVersion);
-  *aNewVersion = mNewVersion;
+  aVersion.Assign(mVersion);
   return NS_OK;
 }

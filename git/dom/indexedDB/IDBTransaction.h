@@ -65,15 +65,6 @@ class CommitHelper;
 struct ObjectStoreInfo;
 class TransactionThreadPool;
 
-class IDBTransactionListener
-{
-public:
-  NS_IMETHOD_(nsrefcnt) AddRef() = 0;
-  NS_IMETHOD_(nsrefcnt) Release() = 0;
-
-  virtual nsresult NotifyTransactionComplete(IDBTransaction* aTransaction) = 0;
-};
-
 class IDBTransaction : public nsDOMEventTargetHelper,
                        public nsIIDBTransaction,
                        public nsIThreadObserver
@@ -103,8 +94,6 @@ public:
 
   void OnNewRequest();
   void OnRequestFinished();
-
-  void SetTransactionListener(IDBTransactionListener* aListener);
 
   bool StartSavepoint();
   nsresult ReleaseSavepoint();
@@ -200,8 +189,6 @@ private:
   nsInterfaceHashtable<nsCStringHashKey, mozIStorageStatement>
     mCachedStatements;
 
-  nsRefPtr<IDBTransactionListener> mListener;
-
   // Only touched on the database thread.
   nsCOMPtr<mozIStorageConnection> mConnection;
 
@@ -224,8 +211,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
-  CommitHelper(IDBTransaction* aTransaction,
-               IDBTransactionListener* aListener);
+  CommitHelper(IDBTransaction* aTransaction);
   ~CommitHelper();
 
   template<class T>
@@ -243,11 +229,10 @@ public:
 
 private:
   nsRefPtr<IDBTransaction> mTransaction;
-  nsRefPtr<IDBTransactionListener> mListener;
   nsCOMPtr<mozIStorageConnection> mConnection;
   nsAutoTArray<nsCOMPtr<nsISupports>, 10> mDoomedObjects;
 
-  PRUint64 mOldVersion;
+  nsString mOldVersion;
   nsTArray<nsAutoPtr<ObjectStoreInfo> > mOldObjectStores;
 
   bool mAborted;

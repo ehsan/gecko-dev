@@ -67,7 +67,6 @@ CPPSRCS = \
   IDBFactory.cpp \
   IndexedDatabaseManager.cpp \
   LazyIdleThread.cpp \
-  OpenDatabaseHelper.cpp \
   TransactionThreadPool.cpp \
   $(NULL)
 
@@ -111,7 +110,7 @@ XPIDLSRCS = \
   nsIIDBRequest.idl \
   nsIIDBTransaction.idl \
   nsIIDBVersionChangeEvent.idl \
-  nsIIDBOpenDBRequest.idl \
+  nsIIDBVersionChangeRequest.idl \
   nsIIndexedDatabaseManager.idl \
   $(NULL)
 

@@ -2980,8 +2980,7 @@ nsFocusManager::GetRootForFocus(nsPIDOMWindow* aWindow,
 TabParent*
 nsFocusManager::GetRemoteForContent(nsIContent* aContent) {
   if (!aContent ||
-      (aContent->Tag() != nsGkAtoms::browser &&
-       aContent->Tag() != nsGkAtoms::iframe) ||
+      aContent->Tag() != nsGkAtoms::browser ||
       !aContent->IsXUL() ||
       !aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::Remote,
                              nsGkAtoms::_true, eIgnoreCase))
