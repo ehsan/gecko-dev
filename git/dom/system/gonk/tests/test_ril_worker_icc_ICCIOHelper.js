@@ -123,7 +123,7 @@ add_test(function test_icc_io_get_response_for_transparent_structure() {
     buf.writeStringDelimiter(strLen);
 
     let options = {fileId: ICC_EF_ICCID,
-                   structure: EF_STRUCTURE_TRANSPARENT};
+                   type: EF_TYPE_TRANSPARENT};
     iccioHelper.processICCIOGetResponse(options);
 
     do_check_eq(options.fileSize, 0x0A);
@@ -161,7 +161,7 @@ add_test(function test_icc_io_get_response_for_linear_fixed_structure() {
     buf.writeStringDelimiter(strLen);
 
     let options = {fileId: ICC_EF_MSISDN,
-                   structure: EF_STRUCTURE_LINEAR_FIXED};
+                   type: EF_TYPE_LINEAR_FIXED};
     iccioHelper.processICCIOGetResponse(options);
 
     do_check_eq(options.fileSize, 0x1A);

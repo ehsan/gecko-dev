@@ -741,10 +741,10 @@ class MacroAssemblerX86Shared : public Assembler
         store32(src, dest);
     }
     void loadDouble(const Address &src, FloatRegister dest) {
-        vmovsd(src, dest);
+        movsd(src, dest);
     }
     void loadDouble(const BaseIndex &src, FloatRegister dest) {
-        vmovsd(src, dest);
+        movsd(src, dest);
     }
     void loadDouble(const Operand &src, FloatRegister dest) {
         switch (src.kind()) {
@@ -759,10 +759,10 @@ class MacroAssemblerX86Shared : public Assembler
         }
     }
     void storeDouble(FloatRegister src, const Address &dest) {
-        vmovsd(src, dest);
+        movsd(src, dest);
     }
     void storeDouble(FloatRegister src, const BaseIndex &dest) {
-        vmovsd(src, dest);
+        movsd(src, dest);
     }
     void storeDouble(FloatRegister src, const Operand &dest) {
         switch (dest.kind()) {
@@ -777,8 +777,8 @@ class MacroAssemblerX86Shared : public Assembler
         }
     }
     void moveDouble(FloatRegister src, FloatRegister dest) {
-        // Use vmovapd instead of vmovsd to avoid dependencies.
-        vmovapd(src, dest);
+        // Use movapd instead of movsd to avoid dependencies.
+        movapd(src, dest);
     }
     void zeroDouble(FloatRegister reg) {
         vxorpd(reg, reg, reg);
@@ -789,14 +789,14 @@ class MacroAssemblerX86Shared : public Assembler
     void negateDouble(FloatRegister reg) {
         // From MacroAssemblerX86Shared::maybeInlineDouble
         vpcmpeqw(ScratchDoubleReg, ScratchDoubleReg, ScratchDoubleReg);
-        vpsllq(Imm32(63), ScratchDoubleReg, ScratchDoubleReg);
+        psllq(Imm32(63), ScratchDoubleReg);
 
         // XOR the float in a float register with -0.0.
         vxorpd(ScratchDoubleReg, reg, reg); // s ^ 0x80000000000000
     }
     void negateFloat(FloatRegister reg) {
         vpcmpeqw(ScratchFloat32Reg, ScratchFloat32Reg, ScratchFloat32Reg);
-        vpsllq(Imm32(31), ScratchFloat32Reg, ScratchFloat32Reg);
+        psllq(Imm32(31), ScratchFloat32Reg);
 
         // XOR the float in a float register with -0.0.
         vxorps(ScratchFloat32Reg, reg, reg); // s ^ 0x80000000
@@ -857,16 +857,16 @@ class MacroAssemblerX86Shared : public Assembler
     }
 
     void loadAlignedInt32x4(const Address &src, FloatRegister dest) {
-        vmovdqa(Operand(src), dest);
+        movdqa(Operand(src), dest);
     }
     void loadAlignedInt32x4(const Operand &src, FloatRegister dest) {
-        vmovdqa(src, dest);
+        movdqa(src, dest);
     }
     void storeAlignedInt32x4(FloatRegister src, const Address &dest) {
-        vmovdqa(src, Operand(dest));
+        movdqa(src, Operand(dest));
     }
     void moveInt32x4(FloatRegister src, FloatRegister dest) {
-        vmovdqa(src, dest);
+        movdqa(src, dest);
     }
     FloatRegister reusedInputInt32x4(FloatRegister src, FloatRegister dest) {
         if (HasAVX())
@@ -881,16 +881,16 @@ class MacroAssemblerX86Shared : public Assembler
         return dest;
     }
     void loadUnalignedInt32x4(const Address &src, FloatRegister dest) {
-        vmovdqu(Operand(src), dest);
+        movdqu(Operand(src), dest);
     }
     void loadUnalignedInt32x4(const Operand &src, FloatRegister dest) {
-        vmovdqu(src, dest);
+        movdqu(src, dest);
     }
     void storeUnalignedInt32x4(FloatRegister src, const Address &dest) {
-        vmovdqu(src, Operand(dest));
+        movdqu(src, Operand(dest));
     }
     void storeUnalignedInt32x4(FloatRegister src, const Operand &dest) {
-        vmovdqu(src, dest);
+        movdqu(src, dest);
     }
     void packedEqualInt32x4(const Operand &src, FloatRegister dest) {
         vpcmpeqd(src, dest, dest);
@@ -919,35 +919,35 @@ class MacroAssemblerX86Shared : public Assembler
     }
 
     void packedLeftShiftByScalar(FloatRegister src, FloatRegister dest) {
-        vpslld(src, dest, dest);
+        pslld(src, dest);
     }
     void packedLeftShiftByScalar(Imm32 count, FloatRegister dest) {
-        vpslld(count, dest, dest);
+        pslld(count, dest);
     }
     void packedRightShiftByScalar(FloatRegister src, FloatRegister dest) {
-        vpsrad(src, dest, dest);
+        psrad(src, dest);
     }
     void packedRightShiftByScalar(Imm32 count, FloatRegister dest) {
-        vpsrad(count, dest, dest);
+        psrad(count, dest);
     }
     void packedUnsignedRightShiftByScalar(FloatRegister src, FloatRegister dest) {
-        vpsrld(src, dest, dest);
+        psrld(src, dest);
     }
     void packedUnsignedRightShiftByScalar(Imm32 count, FloatRegister dest) {
-        vpsrld(count, dest, dest);
+        psrld(count, dest);
     }
 
     void loadAlignedFloat32x4(const Address &src, FloatRegister dest) {
-        vmovaps(Operand(src), dest);
+        movaps(Operand(src), dest);
     }
     void loadAlignedFloat32x4(const Operand &src, FloatRegister dest) {
-        vmovaps(src, dest);
+        movaps(src, dest);
     }
     void storeAlignedFloat32x4(FloatRegister src, const Address &dest) {
-        vmovaps(src, Operand(dest));
+        movaps(src, Operand(dest));
     }
     void moveFloat32x4(FloatRegister src, FloatRegister dest) {
-        vmovaps(src, dest);
+        movaps(src, dest);
     }
     FloatRegister reusedInputFloat32x4(FloatRegister src, FloatRegister dest) {
         if (HasAVX())
@@ -962,16 +962,16 @@ class MacroAssemblerX86Shared : public Assembler
         return dest;
     }
     void loadUnalignedFloat32x4(const Address &src, FloatRegister dest) {
-        vmovups(Operand(src), dest);
+        movups(Operand(src), dest);
     }
     void loadUnalignedFloat32x4(const Operand &src, FloatRegister dest) {
-        vmovups(src, dest);
+        movups(src, dest);
     }
     void storeUnalignedFloat32x4(FloatRegister src, const Address &dest) {
-        vmovups(src, Operand(dest));
+        movups(src, Operand(dest));
     }
     void storeUnalignedFloat32x4(FloatRegister src, const Operand &dest) {
-        vmovups(src, dest);
+        movups(src, dest);
     }
     void packedAddFloat32(const Operand &src, FloatRegister dest) {
         vaddps(src, dest, dest);
@@ -996,7 +996,7 @@ class MacroAssemblerX86Shared : public Assembler
     }
 
     void shuffleInt32(uint32_t mask, FloatRegister src, FloatRegister dest) {
-        vpshufd(mask, src, dest);
+        pshufd(mask, src, dest);
     }
     void moveLowInt32(FloatRegister src, Register dest) {
         vmovd(src, dest);
@@ -1013,12 +1013,12 @@ class MacroAssemblerX86Shared : public Assembler
         // Note: this is useAtStart-safe because src isn't read afterwards.
         if (src != dest)
             moveFloat32x4(src, dest);
-        vshufps(mask, dest, dest, dest);
+        shufps(mask, dest, dest);
     }
     void shuffleMix(uint32_t mask, const Operand &src, FloatRegister dest) {
-        // Note this uses vshufps, which is a cross-domain penaly on CPU where it
+        // Note this uses shufps, which is a cross-domain penaly on CPU where it
         // applies, but that's the way clang and gcc do it.
-        vshufps(mask, src, dest, dest);
+        shufps(mask, src, dest);
     }
 
     void moveFloatAsDouble(Register src, FloatRegister dest) {
@@ -1026,11 +1026,11 @@ class MacroAssemblerX86Shared : public Assembler
         vcvtss2sd(dest, dest, dest);
     }
     void loadFloatAsDouble(const Address &src, FloatRegister dest) {
-        vmovss(src, dest);
+        movss(src, dest);
         vcvtss2sd(dest, dest, dest);
     }
     void loadFloatAsDouble(const BaseIndex &src, FloatRegister dest) {
-        vmovss(src, dest);
+        movss(src, dest);
         vcvtss2sd(dest, dest, dest);
     }
     void loadFloatAsDouble(const Operand &src, FloatRegister dest) {
@@ -1038,10 +1038,10 @@ class MacroAssemblerX86Shared : public Assembler
         vcvtss2sd(dest, dest, dest);
     }
     void loadFloat32(const Address &src, FloatRegister dest) {
-        vmovss(src, dest);
+        movss(src, dest);
     }
     void loadFloat32(const BaseIndex &src, FloatRegister dest) {
-        vmovss(src, dest);
+        movss(src, dest);
     }
     void loadFloat32(const Operand &src, FloatRegister dest) {
         switch (src.kind()) {
@@ -1056,10 +1056,10 @@ class MacroAssemblerX86Shared : public Assembler
         }
     }
     void storeFloat32(FloatRegister src, const Address &dest) {
-        vmovss(src, dest);
+        movss(src, dest);
     }
     void storeFloat32(FloatRegister src, const BaseIndex &dest) {
-        vmovss(src, dest);
+        movss(src, dest);
     }
     void storeFloat32(FloatRegister src, const Operand &dest) {
         switch (dest.kind()) {
@@ -1074,8 +1074,8 @@ class MacroAssemblerX86Shared : public Assembler
         }
     }
     void moveFloat32(FloatRegister src, FloatRegister dest) {
-        // Use vmovaps instead of vmovss to avoid dependencies.
-        vmovaps(src, dest);
+        // Use movaps instead of movss to avoid dependencies.
+        movaps(src, dest);
     }
 
     // Checks whether a double is representable as a 32-bit integer. If so, the
@@ -1134,7 +1134,7 @@ class MacroAssemblerX86Shared : public Assembler
         }
 
         // It is also possible to load several common constants using vpcmpeqw
-        // to get all ones and then vpsllq and vpsrlq to get zeros at the ends,
+        // to get all ones and then psllq and psrlq to get zeros at the ends,
         // as described in "13.4 Generating constants" of
         // "2. Optimizing subroutines in assembly language" by Agner Fog, and as
         // previously implemented here. However, with x86 and x64 both using
