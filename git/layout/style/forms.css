@@ -515,8 +515,6 @@ button {
   /* Buttons should lay out like "normal" html, mostly */
   white-space: inherit;
   text-indent: 0;
-  /* But no text-decoration reaching inside, by default */
-  display: inline-block;
 }
 
 *|*::-moz-button-content {

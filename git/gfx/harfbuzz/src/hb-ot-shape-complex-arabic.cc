@@ -25,12 +25,11 @@
  */
 
 #include "hb-ot-shape-complex-private.hh"
-#include "hb-ot-shape-private.hh"
 
 
 
 /* buffer var allocations */
-#define arabic_shaping_action() complex_var_temporary_u8() /* arabic shaping action */
+#define arabic_shaping_action() complex_var_temporary_u16() /* arabic shaping action */
 
 
 /*
@@ -165,8 +164,7 @@ static const struct arabic_state_table_entry {
 
 
 void
-_hb_ot_shape_complex_collect_features_arabic (hb_ot_map_builder_t *map,
-					      const hb_segment_properties_t *props)
+_hb_ot_shape_complex_collect_features_arabic (hb_ot_map_builder_t *map, const hb_segment_properties_t  *props)
 {
   /* For Language forms (in ArabicOT speak), we do the iso/fina/medi/init together,
    * then rlig and calt each in their own stage.  This makes IranNastaliq's ALLAH
@@ -223,8 +221,8 @@ arabic_fallback_shape (hb_font_t *font, hb_buffer_t *buffer)
   /* Mandatory ligatures */
   buffer->clear_output ();
   for (buffer->idx = 0; buffer->idx + 1 < count;) {
-    hb_codepoint_t ligature = get_ligature (buffer->cur().codepoint,
-					    buffer->cur(+1).codepoint);
+    uint16_t ligature = get_ligature (buffer->info[buffer->idx].codepoint,
+				      buffer->info[buffer->idx + 1].codepoint);
     if (likely (!ligature) || !(hb_font_get_glyph (font, ligature, 0, &glyph))) {
       buffer->next_glyph ();
       continue;
@@ -241,9 +239,7 @@ arabic_fallback_shape (hb_font_t *font, hb_buffer_t *buffer)
 }
 
 void
-_hb_ot_shape_complex_setup_masks_arabic (hb_ot_map_t *map,
-					 hb_buffer_t *buffer,
-					 hb_font_t *font)
+_hb_ot_shape_complex_setup_masks_arabic (hb_ot_map_t *map, hb_buffer_t *buffer, hb_font_t *font)
 {
   unsigned int count = buffer->len;
   unsigned int prev = 0, state = 0;
@@ -252,7 +248,7 @@ _hb_ot_shape_complex_setup_masks_arabic (hb_ot_map_t *map,
 
   for (unsigned int i = 0; i < count; i++)
   {
-    unsigned int this_type = get_joining_type (buffer->info[i].codepoint, _hb_glyph_info_get_general_category (&buffer->info[i]));
+    unsigned int this_type = get_joining_type (buffer->info[i].codepoint, (hb_unicode_general_category_t) buffer->info[i].general_category());
 
     if (unlikely (this_type == JOINING_TYPE_T)) {
       buffer->info[i].arabic_shaping_action() = NONE;

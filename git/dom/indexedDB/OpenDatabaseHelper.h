@@ -48,13 +48,7 @@ public:
     mResultCode = rv;
   }
 
-  virtual ChildProcessSendResult
-  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE
-  {
-    return Success_NotSent;
-  }
-
-  virtual nsresult GetResultCode() MOZ_OVERRIDE
+  nsresult GetResultCode()
   {
     return mResultCode;
   }
@@ -85,15 +79,16 @@ protected:
   nsresult EnsureSuccessResult();
   nsresult StartSetVersion();
   nsresult StartDelete();
-  virtual nsresult GetSuccessResult(JSContext* aCx,
-                                    jsval* aVal) MOZ_OVERRIDE;
+  nsresult GetSuccessResult(JSContext* aCx,
+                          jsval* aVal);
   void DispatchSuccessEvent();
   void DispatchErrorEvent();
-  virtual void ReleaseMainThreadObjects() MOZ_OVERRIDE;
+  void ReleaseMainThreadObjects();
 
   // Methods only called on the DB thread
   nsresult DoDatabaseWork();
 
+private:
   // In-params.
   nsRefPtr<IDBOpenDBRequest> mOpenDBRequest;
   nsString mName;

@@ -48,9 +48,6 @@ protected:
                                       const bool& isFirstPaint,
                                       EditReplyArray* reply);
 
-  NS_OVERRIDE virtual bool RecvDrawToSurface(const SurfaceDescriptor& surfaceIn,
-                                             SurfaceDescriptor* surfaceOut);
-
   NS_OVERRIDE virtual bool RecvUpdateNoSwap(const EditArray& cset,
                                             const bool& isFirstPaint);
 

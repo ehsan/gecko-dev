@@ -62,12 +62,6 @@ public:
 
   void SetSelectedInternal(bool aValue, bool aNotify);
 
-  virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
-                              nsIContent* aBindingParent,
-                              bool aCompileEventHandlers);
-  virtual void UnbindFromTree(bool aDeep = true,
-                              bool aNullParent = true);
-
   // nsIContent
   virtual nsEventStates IntrinsicState() const;
 

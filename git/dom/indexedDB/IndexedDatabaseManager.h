@@ -145,16 +145,6 @@ public:
   static nsresult
   GetASCIIOriginFromWindow(nsPIDOMWindow* aWindow, nsCString& aASCIIOrigin);
 
-  static bool
-  IsMainProcess()
-#ifdef DEBUG
-  ;
-#else
-  {
-    return sIsMainProcess;
-  }
-#endif
-
   already_AddRefed<FileManager>
   GetOrCreateFileManager(const nsACString& aOrigin,
                          const nsAString& aDatabaseName);
@@ -188,10 +178,6 @@ public:
 
     return mgr->mFileMutex;
   }
-
-  static already_AddRefed<nsIAtom>
-  GetDatabaseId(const nsACString& aOrigin,
-                const nsAString& aName);
 
 private:
   IndexedDatabaseManager();
@@ -382,8 +368,6 @@ private:
   mozilla::Mutex mFileMutex;
 
   nsString mDatabaseBasePath;
-
-  static bool sIsMainProcess;
 };
 
 class AutoEnterWindow

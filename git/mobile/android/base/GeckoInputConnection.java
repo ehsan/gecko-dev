@@ -531,7 +531,7 @@ public class GeckoInputConnection
         }
     }
 
-    protected void resetCompositionState() {
+    public void reset() {
         mCompositionStart = NO_COMPOSITION_STRING;
         mBatchMode = false;
         mUpdateRequest = null;
@@ -782,14 +782,7 @@ public class GeckoInputConnection
                                    | EditorInfo.IME_FLAG_NO_FULLSCREEN;
         }
 
-        // onCreateInputConnection() can be called during composition when input focus
-        // is restored from a VKB popup window (such as for entering accented characters)
-        // back to our IME. We want to commit our active composition string. Bug 756429
-        if (hasCompositionString()) {
-            endComposition();
-        }
-
-        resetCompositionState();
+        reset();
         return this;
     }
 
@@ -938,9 +931,9 @@ public class GeckoInputConnection
         case NOTIFY_IME_RESETINPUTSTATE:
             if (DEBUG) Log.d(LOGTAG, ". . . notifyIME: reset");
 
-            // Gecko just cancelled the current composition from underneath us,
-            // so abandon our active composition string WITHOUT committing it!
-            resetCompositionState();
+            // Composition event is already fired from widget.
+            // So reset IME flags.
+            reset();
 
             // Don't use IMEStateUpdater for reset.
             // Because IME may not work showSoftInput()
@@ -1066,11 +1059,12 @@ public class GeckoInputConnection
         Selection.setSelection(mEditable, contents.length());
     }
 
-    protected final boolean hasCompositionString() {
+    private boolean hasCompositionString() {
         return mCompositionStart != NO_COMPOSITION_STRING;
     }
+}
 
-private static final class DebugGeckoInputConnection extends GeckoInputConnection {
+class DebugGeckoInputConnection extends GeckoInputConnection {
     public DebugGeckoInputConnection(View targetView) {
         super(targetView);
     }
@@ -1201,12 +1195,9 @@ private static final class DebugGeckoInputConnection extends GeckoInputConnectio
     }
 
     @Override
-    protected void resetCompositionState() {
-        Log.d(LOGTAG, "IME: resetCompositionState");
-        if (hasCompositionString()) {
-            Log.d(LOGTAG, "resetCompositionState() is abandoning an active composition string");
-        }
-        super.resetCompositionState();
+    public void reset() {
+        Log.d(LOGTAG, "IME: reset");
+        super.reset();
     }
 
     @Override
@@ -1271,6 +1262,11 @@ private static final class DebugGeckoInputConnection extends GeckoInputConnectio
         Log.d(LOGTAG, String.format("IME: >notifyIME(type=%d, state=%d)", type, state));
         super.notifyIME(type, state);
     }
-}
 
+    @Override
+    public void notifyIMEChange(String text, int start, int end, int newEnd) {
+        Log.d(LOGTAG, String.format("IME: >notifyIMEChange(\"%s\", start=%d, end=%d, newEnd=%d)",
+                                    text, start, end, newEnd));
+        super.notifyIMEChange(text, start, end, newEnd);
+    }
 }

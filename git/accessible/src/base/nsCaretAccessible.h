@@ -7,6 +7,7 @@
 #define __nsCaretAccessible_h__
 
 #include "HyperTextAccessible.h"
+#include "NotificationController.h"
 
 #include "nsISelectionListener.h"
 

@@ -235,11 +235,6 @@ protected:
 
     bool DispatchWidgetEvent(nsGUIEvent& event);
 
-    virtual PIndexedDBChild* AllocPIndexedDB(const nsCString& aASCIIOrigin,
-                                             bool* /* aAllowed */);
-
-    virtual bool DeallocPIndexedDB(PIndexedDBChild* actor);
-
 private:
     void ActorDestroy(ActorDestroyReason why);
 

@@ -6,15 +6,15 @@
 #ifndef _nsHTMLAreaAccessible_H_
 #define _nsHTMLAreaAccessible_H_
 
-#include "ImageAccessibleWrap.h"
 #include "nsHTMLLinkAccessible.h"
+#include "nsHTMLImageAccessibleWrap.h"
 
 #include "nsIDOMHTMLMapElement.h"
 
 /**
  * Used for HTML image maps.
  */
-class nsHTMLImageMapAccessible : public mozilla::a11y::ImageAccessibleWrap
+class nsHTMLImageMapAccessible : public nsHTMLImageAccessibleWrap
 {
 public:
   nsHTMLImageMapAccessible(nsIContent* aContent, DocAccessible* aDoc);
@@ -82,4 +82,4 @@ protected:
   virtual void CacheChildren();
 };
 
-#endif
+#endif  

@@ -631,9 +631,7 @@ DocAccessible::Shutdown()
   RemoveEventListeners();
 
   // Mark the document as shutdown before AT is notified about the document
-  // removal from its container (valid for root documents on ATK and due to
-  // some reason for MSAA, refer to bug 757392 for details).
-  mFlags |= eIsDefunct;
+  // removal from its container (valid for root documents on ATK).
   nsCOMPtr<nsIDocument> kungFuDeathGripDoc = mDocument;
   mDocument = nsnull;
 
@@ -1838,21 +1836,6 @@ DocAccessible::UpdateTree(Accessible* aContainer, nsIContent* aChildNode,
 
   // If child node is not accessible then look for its accessible children.
   Accessible* child = GetAccessible(aChildNode);
-#ifdef DEBUG
-  if (logging::IsEnabled(logging::eTree)) {
-    logging::MsgBegin("TREE", "process content %s",
-                      (aIsInsert ? "insertion" : "removal"));
-    logging::Node("container", aContainer->GetNode());
-    logging::Node("child", aChildNode);
-    if (child)
-      logging::Address("child", child);
-    else
-      logging::MsgEntry("child accessible: null");
-
-    logging::MsgEnd();
-  }
-#endif
-
   if (child) {
     updateFlags |= UpdateTreeInternal(child, aIsInsert);
 
@@ -2045,12 +2028,8 @@ DocAccessible::IsLoadEventTarget() const
 
   // Return true if it's not a root document (either tab document or
   // frame/iframe document) and its parent document is not in loading state.
-  // Note: we can get notifications while document is loading (and thus
-  // while there's no parent document yet).
-  if (parentTreeItem) {
-    DocAccessible* parentDoc = ParentDocument();
-    return parentDoc && parentDoc->HasLoadState(eCompletelyLoaded);
-  }
+  if (parentTreeItem)
+    return ParentDocument()->HasLoadState(eCompletelyLoaded);
 
   // It's content (not chrome) root document.
   PRInt32 contentType;

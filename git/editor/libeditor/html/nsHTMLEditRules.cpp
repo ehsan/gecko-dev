@@ -521,6 +521,8 @@ nsHTMLEditRules::WillDoAction(nsTypedSelection* aSelection,
                               bool* aHandled)
 {
   MOZ_ASSERT(aInfo && aCancel && aHandled);
+  // Nothing to do if there's no selection to act on
+  NS_ENSURE_TRUE(aSelection->GetRangeCount(), NS_OK);
 
   *aCancel = false;
   *aHandled = false;
@@ -535,12 +537,6 @@ nsHTMLEditRules::WillDoAction(nsTypedSelection* aSelection,
       info->action == nsEditor::kOpRedo) {
     return nsTextEditRules::WillDoAction(aSelection, aInfo, aCancel, aHandled);
   }
-
-  // Nothing to do if there's no selection to act on
-  if (!aSelection) {
-    return NS_OK;
-  }
-  NS_ENSURE_TRUE(aSelection->GetRangeCount(), NS_OK);
 
   nsRefPtr<nsRange> range = aSelection->GetRangeAt(0);
   nsCOMPtr<nsINode> selStartNode = range->GetStartParent();

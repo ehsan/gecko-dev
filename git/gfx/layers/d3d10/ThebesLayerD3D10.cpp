@@ -568,7 +568,7 @@ ShadowThebesLayerD3D10::Swap(
 
   // The content process tracks back/front buffers on its own, so
   // the newBack is in essence unused.
-  *aNewBack = aNewFront;
+  aNewBack->get_ThebesBuffer().buffer() = aNewFront.buffer();
 
   // The content process doesn't need to read back from the front
   // buffer (yet).
