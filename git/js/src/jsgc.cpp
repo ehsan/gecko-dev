@@ -836,10 +836,13 @@ PickChunk(JSCompartment *comp)
 }
 
 JS_FRIEND_API(bool)
-IsAboutToBeFinalized(const Cell *thing)
+IsAboutToBeFinalized(JSContext *cx, const Cell *thing)
 {
+    JS_ASSERT(cx);
+
     JSCompartment *thingCompartment = reinterpret_cast<const Cell *>(thing)->compartment();
-    JSRuntime *rt = thingCompartment->rt;
+    JSRuntime *rt = cx->runtime;
+    JS_ASSERT(rt == thingCompartment->rt);
     if (rt->gcCurrentCompartment != NULL && rt->gcCurrentCompartment != thingCompartment)
         return false;
 
@@ -847,10 +850,10 @@ IsAboutToBeFinalized(const Cell *thing)
 }
 
 bool
-IsAboutToBeFinalized(const Value &v)
+IsAboutToBeFinalized(JSContext *cx, const Value &v)
 {
     JS_ASSERT(v.isMarkable());
-    return IsAboutToBeFinalized((Cell *)v.toGCThing());
+    return IsAboutToBeFinalized(cx, (Cell *)v.toGCThing());
 }
 
 /* Lifetime for type sets attached to scripts containing observed types. */
@@ -2748,10 +2751,10 @@ SweepPhase(JSContext *cx, GCMarker *gcmarker, JSGCInvocationKind gckind)
     /* Finalize unreachable (key,value) pairs in all weak maps. */
     WeakMapBase::sweepAll(gcmarker);
 
-    js_SweepAtomState(rt);
+    js_SweepAtomState(cx);
 
     /* Collect watch points associated with unreachable objects. */
-    WatchpointMap::sweepAll(rt);
+    WatchpointMap::sweepAll(cx);
 
     if (!rt->gcCurrentCompartment)
         Debugger::sweepAll(cx);

@@ -43,7 +43,6 @@
 #include "nsTextEquivUtils.h"
 #include "Role.h"
 #include "States.h"
-#include "Statistics.h"
 
 #include "nscore.h"
 #include "nsServiceManagerUtils.h"
@@ -71,7 +70,6 @@ nsXFormsAccessibleBase::nsXFormsAccessibleBase()
     if (NS_FAILED(rv))
       NS_WARNING("No XForms utility service.");
   }
-  statistics::XFormsAccessibleUsed();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,7 +213,7 @@ nsXFormsAccessible::Description(nsString& aDescription)
 }
 
 bool
-nsXFormsAccessible::CanHaveAnonChildren()
+nsXFormsAccessible::GetAllowsAnonChildAccessibles()
 {
   return false;
 }
@@ -238,7 +236,7 @@ nsXFormsContainerAccessible::NativeRole()
 }
 
 bool
-nsXFormsContainerAccessible::CanHaveAnonChildren()
+nsXFormsContainerAccessible::GetAllowsAnonChildAccessibles()
 {
   return true;
 }

@@ -1024,7 +1024,7 @@ NS_IMETHODIMP nsXULListitemAccessible::GetActionName(PRUint8 aIndex, nsAString& 
 }
 
 bool
-nsXULListitemAccessible::CanHaveAnonChildren()
+nsXULListitemAccessible::GetAllowsAnonChildAccessibles()
 {
   // That indicates we should walk anonymous children for listitems
   return true;

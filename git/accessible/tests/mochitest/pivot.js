@@ -75,6 +75,7 @@ function virtualCursorChangedChecker(aDocAcc, aIdOrNameOrAcc, aTextOffsets)
   this.check = function virtualCursorChangedChecker_check(aEvent)
   {
     var position = aDocAcc.virtualCursor.position;
+    position.QueryInterface(nsIAccessNode);
 
     var idMatches = position.DOMNode.id == aIdOrNameOrAcc;
     var nameMatches = position.name == aIdOrNameOrAcc;

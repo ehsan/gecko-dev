@@ -130,17 +130,6 @@ public:
   virtual void Description(nsString& aDescription);
 
   /**
-   * Return DOM node associated with this accessible.
-   */
-  inline already_AddRefed<nsIDOMNode> DOMNode() const
-  {
-    nsIDOMNode *DOMNode = nsnull;
-    if (GetNode())
-      CallQueryInterface(GetNode(), &DOMNode);
-    return DOMNode;
-  }
-
-  /**
    * Returns the accessible name specified by ARIA.
    */
   nsresult GetARIAName(nsAString& aName);
@@ -399,9 +388,9 @@ public:
   virtual nsresult HandleAccEvent(AccEvent* aAccEvent);
 
   /**
-   * Return true if this accessible allows accessible children from anonymous subtree.
+   * Return true if there are accessible children in anonymous content
    */
-  virtual bool CanHaveAnonChildren();
+  virtual bool GetAllowsAnonChildAccessibles();
 
   /**
    * Returns text of accessible if accessible has text role otherwise empty

@@ -1148,7 +1148,7 @@ nsHyperTextAccessible::GetTextAttributes(bool aIncludeDefAttrs,
   // Compute spelling attributes on text accessible only.
   nsIFrame *offsetFrame = accAtOffset->GetFrame();
   if (offsetFrame && offsetFrame->GetType() == nsGkAtoms::textFrame) {
-    nsCOMPtr<nsIDOMNode> node = accAtOffset->DOMNode();
+    nsCOMPtr<nsIDOMNode> node = accAtOffset->GetDOMNode();
 
     PRInt32 nodeOffset = 0;
     nsresult rv = RenderedToContentOffset(offsetFrame, offsetInAcc,
@@ -1560,17 +1560,12 @@ nsHyperTextAccessible::GetAssociatedEditor(nsIEditor **aEditor)
 nsresult
 nsHyperTextAccessible::SetSelectionRange(PRInt32 aStartPos, PRInt32 aEndPos)
 {
-  bool isFocusable = State() & states::FOCUSABLE;
-
-  // If accessible is focusable then focus it before setting the selection to
-  // neglect control's selection changes on focus if any (for example, inputs
-  // that do select all on focus).
-  // some input controls
-  if (isFocusable)
-    TakeFocus();
+  nsresult rv = TakeFocus();
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Set the selection
   SetSelectionBounds(0, aStartPos, aEndPos);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // If range 0 was successfully set, clear any additional selection 
   // ranges remaining from previous selection
@@ -1590,12 +1585,7 @@ nsHyperTextAccessible::SetSelectionRange(PRInt32 aStartPos, PRInt32 aEndPos)
     domSel->RemoveRange(range);
   }
 
-  // When selection is done, move the focus to the selection if accessible is
-  // not focusable. That happens when selection is set within hypertext
-  // accessible.
-  if (isFocusable)
-    return NS_OK;
-
+  // Now that selection is done, move the focus to the selection.
   nsFocusManager* DOMFocusManager = nsFocusManager::GetFocusManager();
   if (DOMFocusManager) {
     nsCOMPtr<nsIPresShell> shell = GetPresShell();
@@ -2265,8 +2255,10 @@ nsHyperTextAccessible::GetDOMPointByFrameOffset(nsIFrame *aFrame,
   if (!aFrame) {
     // If the given frame is null then set offset after the DOM node of the
     // given accessible.
+    nsCOMPtr<nsIAccessNode> accessNode(do_QueryInterface(aAccessible));
+
     nsCOMPtr<nsIDOMNode> DOMNode;
-    aAccessible->GetDOMNode(getter_AddRefs(DOMNode));
+    accessNode->GetDOMNode(getter_AddRefs(DOMNode));
     nsCOMPtr<nsIContent> content(do_QueryInterface(DOMNode));
     NS_ENSURE_STATE(content);
 

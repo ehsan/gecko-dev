@@ -203,7 +203,7 @@ class Debugger {
     static JSFunctionSpec methods[];
 
     JSObject *getHook(Hook hook) const;
-    bool hasAnyLiveHooks() const;
+    bool hasAnyLiveHooks(JSContext *cx) const;
 
     static JSTrapStatus slowPathOnEnterFrame(JSContext *cx, Value *vp);
     static void slowPathOnLeaveFrame(JSContext *cx);

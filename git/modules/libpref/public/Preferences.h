@@ -82,11 +82,6 @@ public:
   nsresult Init();
 
   /**
-   * Reset loaded user prefs then read them
-   */
-  static nsresult ResetAndReadUserPrefs();
-
-  /**
    * Returns the singleton instance which is addreffed.
    */
   static Preferences* GetInstanceForService();

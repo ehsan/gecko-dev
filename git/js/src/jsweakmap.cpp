@@ -81,7 +81,7 @@ WeakMapBase::sweepAll(JSTracer *tracer)
 void
 WeakMapBase::traceAllMappings(WeakMapTracer *tracer)
 {
-    JSRuntime *rt = tracer->runtime;
+    JSRuntime *rt = tracer->context->runtime;
     for (WeakMapBase *m = rt->gcWeakMapList; m; m = m->next)
         m->traceMappings(tracer);
 }

@@ -59,7 +59,6 @@ HISTOGRAM_BOOLEAN(A11Y_INSTANTIATED, "has accessibility support been instantiate
 HISTOGRAM(A11Y_CONSUMERS, 1, 6, 7, LINEAR, "Accessibility client by enum id")
 HISTOGRAM_BOOLEAN(ISIMPLE_DOM_USAGE, "have the ISimpleDOM* accessibility interfaces been used")
 HISTOGRAM_BOOLEAN(IACCESSIBLE_TABLE_USAGE, "has the IAccessibleTable accessibility interface been used")
-HISTOGRAM_BOOLEAN(XFORMS_ACCESSIBLE_USED, "has XForms accessibility been instantiated")
 
 /**
  * Cycle collector telemetry
@@ -290,11 +289,6 @@ HISTOGRAM(PLACES_EXPIRATION_STEPS_TO_CLEAN, 1, 10, 10, LINEAR, "PLACES: Expirati
 HISTOGRAM(PLACES_AUTOCOMPLETE_1ST_RESULT_TIME_MS, 50, 500, 10, EXPONENTIAL, "PLACES: Time for first autocomplete result if > 50ms (ms)")
 HISTOGRAM(PLACES_IDLE_FRECENCY_DECAY_TIME_MS, 50, 10000, 10, EXPONENTIAL, "PLACES: Time to decay all frecencies values on idle (ms)")
 HISTOGRAM(PLACES_IDLE_MAINTENANCE_TIME_MS, 1000, 30000, 10, EXPONENTIAL, "PLACES: Time to execute maintenance tasks on idle (ms)")
-HISTOGRAM(PLACES_ANNOS_BOOKMARKS_COUNT, 50, 5000, 10, EXPONENTIAL, "PLACES: Number of bookmarks annotations")
-HISTOGRAM(PLACES_ANNOS_BOOKMARKS_SIZE_KB, 10, 10000, 10, EXPONENTIAL, "PLACES: Size of bookmarks annotations (KB)")
-HISTOGRAM(PLACES_ANNOS_PAGES_COUNT, 50, 5000, 10, EXPONENTIAL, "PLACES: Number of pages annotations")
-HISTOGRAM(PLACES_ANNOS_PAGES_SIZE_KB, 10, 10000, 10, EXPONENTIAL, "PLACES: Size of pages annotations (KB)")
-HISTOGRAM(PLACES_FRECENCY_CALC_TIME_MS, 1, 100, 10, EXPONENTIAL, "PLACES: Time to calculate frecency of a page (ms)")
 
 /**
  * Updater telemetry.

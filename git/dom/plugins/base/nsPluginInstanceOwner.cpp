@@ -3221,8 +3221,6 @@ nsresult nsPluginInstanceOwner::Init(nsIContent* aContent)
     // is destroyed. Here we make sure the plugin instance in the old
     // document is destroyed before we try to create the new one.
     objFrame->PresContext()->EnsureVisible();
-  } else {
-    return NS_ERROR_FAILURE;
   }
 
   // register context menu listener

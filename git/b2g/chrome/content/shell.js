@@ -79,10 +79,9 @@ function startupHttpd(baseDir, port) {
 // FIXME Bug 707625
 // until we have a proper security model, add some rights to
 // the pre-installed web applications
-// XXX never grant 'content-camera' to non-gaia apps
 function addPermissions(urls) {
   let permissions = [
-    'indexedDB', 'indexedDB-unlimited', 'webapps-manage', 'offline-app', 'content-camera'
+    'indexedDB', 'indexedDB-unlimited', 'webapps-manage', 'offline-app'
   ];
   urls.forEach(function(url) {
     let uri = Services.io.newURI(url, null, null);
@@ -134,7 +133,6 @@ var shell = {
     window.controllers.appendController(this);
     window.addEventListener('keypress', this);
     window.addEventListener('MozApplicationManifest', this);
-    window.addEventListener("AppCommand", this);
     this.contentBrowser.addEventListener('load', this, true);
 
     try {
@@ -223,13 +221,6 @@ var shell = {
             if (evt.defaultPrevented)
               return;
             this.doCommand('cmd_close');
-            break;
-        }
-        break;
-      case 'AppCommand':
-        switch (evt.command) {
-          case 'Menu':
-            this.sendEvent(content, 'menu');
             break;
         }
         break;

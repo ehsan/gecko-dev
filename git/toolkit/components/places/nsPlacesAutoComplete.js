@@ -1262,8 +1262,6 @@ nsPlacesAutoComplete.prototype = {
 
   classID: Components.ID("d0272978-beab-4adc-a3d4-04b76acfa4e7"),
 
-  _xpcom_factory: XPCOMUtils.generateSingletonFactory(nsPlacesAutoComplete),
-
   QueryInterface: XPCOMUtils.generateQI([
     Ci.nsIAutoCompleteSearch,
     Ci.nsIAutoCompleteSimpleResultListener,
@@ -1579,8 +1577,6 @@ urlInlineComplete.prototype = {
   //// nsISupports
 
   classID: Components.ID("c88fae2d-25cf-4338-a1f4-64a320ea7440"),
-
-  _xpcom_factory: XPCOMUtils.generateSingletonFactory(urlInlineComplete),
 
   QueryInterface: XPCOMUtils.generateQI([
     Ci.nsIAutoCompleteSearch,

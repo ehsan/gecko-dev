@@ -38,7 +38,6 @@
 #include "nsIHTMLDocument.h"
 #include "nsIDOMEventTarget.h"
 #include "nsEventStateManager.h"
-#include "nsEventStates.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
@@ -1811,8 +1810,6 @@ nsHTMLFormElement::UpdateValidity(bool aElementValidity)
       mControls->mNotInElements[i]->UpdateState(true);
     }
   }
-
-  UpdateState(true);
 }
 
 // nsIWebProgressListener
@@ -2136,19 +2133,6 @@ nsHTMLFormElement::SetValueMissingState(const nsAString& aName, bool aValue)
   mValueMissingRadioGroups.Put(aName, aValue);
 }
 
-nsEventStates
-nsHTMLFormElement::IntrinsicState() const
-{
-  nsEventStates state = nsGenericHTMLElement::IntrinsicState();
-
-  if (mInvalidElementsCount) {
-    state |= NS_EVENT_STATE_INVALID;
-  } else {
-      state |= NS_EVENT_STATE_VALID;
-  }
-
-  return state;
-}
 
 //----------------------------------------------------------------------
 // nsFormControlList implementation, this could go away if there were

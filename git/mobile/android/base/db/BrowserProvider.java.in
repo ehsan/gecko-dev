@@ -209,7 +209,7 @@ public class BrowserProvider extends ContentProvider {
     }
 
     public static String generateGuid() {
-        byte[] encodedBytes = GeckoAppShell.encodeBase64(generateRandomBytes(9), GeckoAppShell.BASE64_URL_SAFE);
+        byte[] encodedBytes = GeckoAppShell.encodeBase64(generateRandomBytes(9));
         return new String(encodedBytes);
     }
 

@@ -371,6 +371,10 @@ JSDependentString::undepend(JSContext *cx)
     return &this->asFixed();
 }
 
+JSStringFinalizeOp JSExternalString::str_finalizers[JSExternalString::TYPE_LIMIT] = {
+    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+};
+
 bool
 JSFlatString::isIndex(uint32_t *indexp) const
 {

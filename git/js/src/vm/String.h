@@ -174,10 +174,11 @@ class JSString : public js::gc::Cell
                     JSLinearString *base;               /* JSDependentString */
                     JSString       *right;              /* JSRope */
                     size_t         capacity;            /* JSFlatString (extensible) */
-                    const JSStringFinalizer *externalFinalizer;/* JSExternalString */
+                    size_t         externalType;        /* JSExternalString */
                 } u2;
                 union {
                     JSString       *parent;             /* JSRope (temporary) */
+                    void           *externalClosure;    /* JSExternalString */
                     size_t         reserved;            /* may use for bug 615290 */
                 } u3;
             } s;
@@ -627,27 +628,55 @@ class JSShortString : public JSInlineString
 
 JS_STATIC_ASSERT(sizeof(JSShortString) == 2 * sizeof(JSString));
 
+/*
+ * The externalClosure stored in an external string is a black box to the JS
+ * engine; see JS_NewExternalStringWithClosure.
+ */
 class JSExternalString : public JSFixedString
 {
-    void init(const jschar *chars, size_t length, const JSStringFinalizer *fin);
+    static void staticAsserts() {
+        JS_STATIC_ASSERT(TYPE_LIMIT == 8);
+    }
+
+    void init(const jschar *chars, size_t length, intN type, void *closure);
 
     /* Vacuous and therefore unimplemented. */
     bool isExternal() const MOZ_DELETE;
     JSExternalString &asExternal() const MOZ_DELETE;
 
   public:
-    static inline JSExternalString *new_(JSContext *cx, const jschar *chars, size_t length,
-                                         const JSStringFinalizer *fin);
+    static inline JSExternalString *new_(JSContext *cx, const jschar *chars,
+                                         size_t length, intN type, void *closure);
 
-    const JSStringFinalizer *externalFinalizer() const {
+    intN externalType() const {
         JS_ASSERT(JSString::isExternal());
-        return d.s.u2.externalFinalizer;
+        JS_ASSERT(d.s.u2.externalType < TYPE_LIMIT);
+        return intN(d.s.u2.externalType);
+    }
+
+    void *externalClosure() const {
+        JS_ASSERT(JSString::isExternal());
+        return d.s.u3.externalClosure;
+    }
+
+    static const uintN TYPE_LIMIT = 8;
+    static JSStringFinalizeOp str_finalizers[TYPE_LIMIT];
+
+    static intN changeFinalizer(JSStringFinalizeOp oldop,
+                                JSStringFinalizeOp newop) {
+        for (uintN i = 0; i < mozilla::ArrayLength(str_finalizers); i++) {
+            if (str_finalizers[i] == oldop) {
+                str_finalizers[i] = newop;
+                return intN(i);
+            }
+        }
+        return -1;
     }
 
     /* Only called by the GC for strings with the FINALIZE_EXTERNAL_STRING kind. */
 
-    inline void finalize(JSContext *cx, bool background);
-    inline void finalize();
+    void finalize(JSContext *cx, bool background);
+    void finalize();
 };
 
 JS_STATIC_ASSERT(sizeof(JSExternalString) == sizeof(JSString));

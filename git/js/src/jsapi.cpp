@@ -2897,11 +2897,11 @@ JS_SetGCCallbackRT(JSRuntime *rt, JSGCCallback cb)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_IsAboutToBeFinalized(void *thing)
+JS_IsAboutToBeFinalized(JSContext *cx, void *thing)
 {
-    gc::Cell *t = static_cast<gc::Cell *>(thing);
-    JS_ASSERT(!t->compartment()->rt->gcIncrementalTracer);
-    return IsAboutToBeFinalized(t);
+    JS_ASSERT(thing);
+    JS_ASSERT(!cx->runtime->gcIncrementalTracer);
+    return IsAboutToBeFinalized(cx, (gc::Cell *)thing);
 }
 
 JS_PUBLIC_API(void)
@@ -2966,27 +2966,51 @@ JS_FlushCaches(JSContext *cx)
 {
 }
 
+JS_PUBLIC_API(intN)
+JS_AddExternalStringFinalizer(JSStringFinalizeOp finalizer)
+{
+    return JSExternalString::changeFinalizer(NULL, finalizer);
+}
+
+JS_PUBLIC_API(intN)
+JS_RemoveExternalStringFinalizer(JSStringFinalizeOp finalizer)
+{
+    return JSExternalString::changeFinalizer(finalizer, NULL);
+}
+
 JS_PUBLIC_API(JSString *)
-JS_NewExternalString(JSContext *cx, const jschar *chars, size_t length,
-                     const JSStringFinalizer *fin)
+JS_NewExternalString(JSContext *cx, const jschar *chars, size_t length, intN type)
 {
     AssertNoGC(cx);
     CHECK_REQUEST(cx);
-    JSString *s = JSExternalString::new_(cx, chars, length, fin);
+    JSString *s = JSExternalString::new_(cx, chars, length, type, NULL);
     Probes::createString(cx, s, length);
     return s;
 }
 
-extern JS_PUBLIC_API(JSBool)
-JS_IsExternalString(JSString *str)
+extern JS_PUBLIC_API(JSString *)
+JS_NewExternalStringWithClosure(JSContext *cx, const jschar *chars, size_t length,
+                                intN type, void *closure)
 {
+    AssertNoGC(cx);
+    CHECK_REQUEST(cx);
+    return JSExternalString::new_(cx, chars, length, type, closure);
+}
+
+extern JS_PUBLIC_API(JSBool)
+JS_IsExternalString(JSContext *cx, JSString *str)
+{
+    AssertNoGC(cx);
+    CHECK_REQUEST(cx);
     return str->isExternal();
 }
 
-extern JS_PUBLIC_API(const JSStringFinalizer *)
-JS_GetExternalStringFinalizer(JSString *str)
+extern JS_PUBLIC_API(void *)
+JS_GetExternalStringClosure(JSContext *cx, JSString *str)
 {
-    return str->asExternal().externalFinalizer();
+    AssertNoGCOrFlatString(cx, str);
+    CHECK_REQUEST(cx);
+    return str->asExternal().externalClosure();
 }
 
 JS_PUBLIC_API(void)
@@ -2995,7 +3019,7 @@ JS_SetNativeStackQuota(JSRuntime *rt, size_t stackSize)
     rt->nativeStackQuota = stackSize;
     if (!rt->nativeStackBase)
         return;
-
+    
 #if JS_STACK_GROWTH_DIRECTION > 0
     if (stackSize == 0) {
         rt->nativeStackLimit = UINTPTR_MAX;
@@ -4384,22 +4408,6 @@ JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp)
         }
     }
     return JS_TRUE;
-}
-
-JS_PUBLIC_API(JSObject *)
-JS_NewElementIterator(JSContext *cx, JSObject *obj)
-{
-    AssertNoGC(cx);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj);
-    return ElementIteratorObject::create(cx, obj);
-}
-
-JS_PUBLIC_API(JSObject *)
-JS_ElementIteratorStub(JSContext *cx, JSObject *obj, JSBool keysonly)
-{
-    JS_ASSERT(!keysonly);
-    return JS_NewElementIterator(cx, obj);
 }
 
 JS_PUBLIC_API(JSBool)

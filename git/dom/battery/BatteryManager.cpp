@@ -42,7 +42,6 @@
 #include "Constants.h"
 #include "nsDOMEvent.h"
 #include "mozilla/Preferences.h"
-#include "nsDOMEventTargetHelper.h"
 
 /**
  * We have to use macros here because our leak analysis tool things we are
@@ -62,7 +61,7 @@ namespace battery {
 NS_IMPL_CYCLE_COLLECTION_CLASS(BatteryManager)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(BatteryManager,
-                                                  nsDOMEventTargetHelper)
+                                                  nsDOMEventTargetWrapperCache)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(levelchange)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(chargingchange)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(chargingtimechange)
@@ -70,7 +69,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(BatteryManager,
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(BatteryManager,
-                                                nsDOMEventTargetHelper)
+                                                nsDOMEventTargetWrapperCache)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(levelchange)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(chargingchange)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(chargingtimechange)
@@ -80,10 +79,10 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(BatteryManager)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMozBatteryManager)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MozBatteryManager)
-NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetWrapperCache)
 
-NS_IMPL_ADDREF_INHERITED(BatteryManager, nsDOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(BatteryManager, nsDOMEventTargetHelper)
+NS_IMPL_ADDREF_INHERITED(BatteryManager, nsDOMEventTargetWrapperCache)
+NS_IMPL_RELEASE_INHERITED(BatteryManager, nsDOMEventTargetWrapperCache)
 
 BatteryManager::BatteryManager()
   : mLevel(kDefaultLevel)

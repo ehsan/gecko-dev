@@ -2299,7 +2299,6 @@ JSFunctionSpec _typedArray::jsfuncs[] = {                                      \
     #_typedArray,                                                              \
     JSCLASS_HAS_RESERVED_SLOTS(TypedArray::FIELD_MAX) |                        \
     JSCLASS_HAS_PRIVATE |                                                      \
-    JSCLASS_FOR_OF_ITERATION |                                                 \
     Class::NON_NATIVE,                                                         \
     JS_PropertyStub,         /* addProperty */                                 \
     JS_PropertyStub,         /* delProperty */                                 \
@@ -2316,14 +2315,7 @@ JSFunctionSpec _typedArray::jsfuncs[] = {                                      \
     NULL,                    /* xdrObject   */                                 \
     NULL,                    /* hasInstance */                                 \
     _typedArray::obj_trace,  /* trace       */                                 \
-    {                                                                          \
-        NULL,       /* equality    */                                          \
-        NULL,       /* outerObject */                                          \
-        NULL,       /* innerObject */                                          \
-        JS_ElementIteratorStub,                                                \
-        NULL,       /* unused      */                                          \
-        false,      /* isWrappedNative */                                      \
-    },                                                                         \
+    JS_NULL_CLASS_EXT,                                                         \
     {                                                                          \
         _typedArray::obj_lookupGeneric,                                        \
         _typedArray::obj_lookupProperty,                                       \

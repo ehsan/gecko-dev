@@ -472,13 +472,9 @@ TaggingService.prototype = {
   onBeginUpdateBatch: function () {},
   onEndUpdateBatch: function () {},
 
-  //////////////////////////////////////////////////////////////////////////////
-  //// nsISupports
-
+  // nsISupports
   classID: Components.ID("{bbc23860-2553-479d-8b78-94d9038334f7}"),
-
-  _xpcom_factory: XPCOMUtils.generateSingletonFactory(TaggingService),
-
+  
   QueryInterface: XPCOMUtils.generateQI([
     Ci.nsITaggingService
   , Ci.nsINavBookmarkObserver
@@ -701,16 +697,12 @@ TagAutoCompleteSearch.prototype = {
     this._stopped = true;
   },
 
-  //////////////////////////////////////////////////////////////////////////////
-  //// nsISupports
-
-  classID: Components.ID("{1dcc23b0-d4cb-11dc-9ad6-479d56d89593}"),
-
-  _xpcom_factory: XPCOMUtils.generateSingletonFactory(TagAutoCompleteSearch),
-
+  // nsISupports
   QueryInterface: XPCOMUtils.generateQI([
     Ci.nsIAutoCompleteSearch
-  ])
+  ]),
+
+  classID: Components.ID("{1dcc23b0-d4cb-11dc-9ad6-479d56d89593}")
 };
 
 let component = [TaggingService, TagAutoCompleteSearch];

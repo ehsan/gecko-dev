@@ -52,14 +52,11 @@
 #include "nsAccessibilityService.h"
 #include "nsAccTreeWalker.h"
 #include "nsIAccessibleRelation.h"
-#include "nsRootAccessible.h"
 #include "nsTextEquivUtils.h"
 #include "Relation.h"
 #include "Role.h"
 #include "States.h"
 
-#include "nsIDOMCSSValue.h"
-#include "nsIDOMCSSPrimitiveValue.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentXBL.h"
@@ -230,92 +227,6 @@ void
 nsAccessible::SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry)
 {
   mRoleMapEntry = aRoleMapEntry;
-}
-
-NS_IMETHODIMP
-nsAccessible::GetComputedStyleValue(const nsAString& aPseudoElt,
-                                    const nsAString& aPropertyName,
-                                    nsAString& aValue)
-{
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
-  nsCOMPtr<nsIDOMCSSStyleDeclaration> styleDecl =
-    nsCoreUtils::GetComputedStyleDeclaration(aPseudoElt, mContent);
-  NS_ENSURE_TRUE(styleDecl, NS_ERROR_FAILURE);
-
-  return styleDecl->GetPropertyValue(aPropertyName, aValue);
-}
-
-NS_IMETHODIMP
-nsAccessible::GetComputedStyleCSSValue(const nsAString& aPseudoElt,
-                                       const nsAString& aPropertyName,
-                                       nsIDOMCSSPrimitiveValue **aCSSValue) {
-  NS_ENSURE_ARG_POINTER(aCSSValue);
-  *aCSSValue = nsnull;
-
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
-  nsCOMPtr<nsIDOMCSSStyleDeclaration> styleDecl =
-    nsCoreUtils::GetComputedStyleDeclaration(aPseudoElt, mContent);
-  NS_ENSURE_STATE(styleDecl);
-
-  nsCOMPtr<nsIDOMCSSValue> cssValue;
-  styleDecl->GetPropertyCSSValue(aPropertyName, getter_AddRefs(cssValue));
-  NS_ENSURE_TRUE(cssValue, NS_ERROR_FAILURE);
-
-  return CallQueryInterface(cssValue, aCSSValue);
-}
-
-NS_IMETHODIMP
-nsAccessible::GetDocument(nsIAccessibleDocument **aDocument)
-{
-  NS_ENSURE_ARG_POINTER(aDocument);
-
-  NS_IF_ADDREF(*aDocument = GetDocAccessible());
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAccessible::GetDOMNode(nsIDOMNode **aDOMNode)
-{
-  NS_ENSURE_ARG_POINTER(aDOMNode);
-  *aDOMNode = nsnull;
-
-  nsINode *node = GetNode();
-  if (node)
-    CallQueryInterface(node, aDOMNode);
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAccessible::GetRootDocument(nsIAccessibleDocument **aRootDocument)
-{
-  NS_ENSURE_ARG_POINTER(aRootDocument);
-
-  nsRootAccessible* rootDocument = RootAccessible();
-  NS_IF_ADDREF(*aRootDocument = rootDocument);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAccessible::GetInnerHTML(nsAString& aInnerHTML)
-{
-  aInnerHTML.Truncate();
-
-  nsCOMPtr<nsIDOMHTMLElement> htmlElement = do_QueryInterface(mContent);
-  NS_ENSURE_TRUE(htmlElement, NS_ERROR_NULL_POINTER);
-
-  return htmlElement->GetInnerHTML(aInnerHTML);
-}
-
-NS_IMETHODIMP
-nsAccessible::GetLanguage(nsAString& aLanguage)
-{
-  Language(aLanguage);
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -640,7 +551,7 @@ nsAccessible::GetChildren(nsIArray **aOutChildren)
 }
 
 bool
-nsAccessible::CanHaveAnonChildren()
+nsAccessible::GetAllowsAnonChildAccessibles()
 {
   return true;
 }
@@ -2289,32 +2200,6 @@ nsAccessible::DispatchClickEvent(nsIContent *aContent, PRUint32 aActionIndex)
   nsCoreUtils::DispatchMouseEvent(NS_MOUSE_BUTTON_UP, presShell, aContent);
 }
 
-NS_IMETHODIMP
-nsAccessible::ScrollTo(PRUint32 aHow)
-{
-  nsAccessNode::ScrollTo(aHow);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAccessible::ScrollToPoint(PRUint32 aCoordinateType, PRInt32 aX, PRInt32 aY)
-{
-  nsIFrame *frame = GetFrame();
-  if (!frame)
-    return NS_ERROR_FAILURE;
-
-  nsIntPoint coords;
-  nsresult rv = nsAccUtils::ConvertToScreenCoords(aX, aY, aCoordinateType,
-                                                  this, &coords);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsIFrame *parentFrame = frame;
-  while ((parentFrame = parentFrame->GetParent()))
-    nsCoreUtils::ScrollFrameToPoint(parentFrame, frame, coords);
-
-  return NS_OK;
-}
-
 // nsIAccessibleSelectable
 NS_IMETHODIMP nsAccessible::GetSelectedChildren(nsIArray **aSelectedAccessibles)
 {
@@ -3079,7 +2964,7 @@ nsAccessible::ContainerWidget() const
 void
 nsAccessible::CacheChildren()
 {
-  nsAccTreeWalker walker(mWeakShell, mContent, CanHaveAnonChildren());
+  nsAccTreeWalker walker(mWeakShell, mContent, GetAllowsAnonChildAccessibles());
 
   nsAccessible* child = nsnull;
   while ((child = walker.NextChild()) && AppendChild(child));

@@ -196,10 +196,11 @@ WatchpointMap::markAllIteratively(JSTracer *trc)
 bool
 WatchpointMap::markIteratively(JSTracer *trc)
 {
+    JSContext *cx = trc->context;
     bool marked = false;
     for (Map::Range r = map.all(); !r.empty(); r.popFront()) {
         Map::Entry &e = r.front();
-        bool objectIsLive = !IsAboutToBeFinalized(e.key.object);
+        bool objectIsLive = !IsAboutToBeFinalized(cx, e.key.object);
         if (objectIsLive || e.value.held) {
             if (!objectIsLive) {
                 MarkObject(trc, e.key.object, "held Watchpoint object");
@@ -210,7 +211,7 @@ WatchpointMap::markIteratively(JSTracer *trc)
             JS_ASSERT(JSID_IS_STRING(id) || JSID_IS_INT(id));
             MarkId(trc, id, "WatchKey::id");
 
-            if (e.value.closure && IsAboutToBeFinalized(e.value.closure)) {
+            if (e.value.closure && IsAboutToBeFinalized(cx, e.value.closure)) {
                 MarkObject(trc, e.value.closure, "Watchpoint::closure");
                 marked = true;
             }
@@ -235,25 +236,26 @@ WatchpointMap::markAll(JSTracer *trc)
 }
 
 void
-WatchpointMap::sweepAll(JSRuntime *rt)
+WatchpointMap::sweepAll(JSContext *cx)
 {
+    JSRuntime *rt = cx->runtime;
     if (rt->gcCurrentCompartment) {
         if (WatchpointMap *wpmap = rt->gcCurrentCompartment->watchpointMap)
-            wpmap->sweep();
+            wpmap->sweep(cx);
     } else {
         for (CompartmentsIter c(rt); !c.done(); c.next()) {
             if (WatchpointMap *wpmap = c->watchpointMap)
-                wpmap->sweep();
+                wpmap->sweep(cx);
         }
     }
 }
 
 void
-WatchpointMap::sweep()
+WatchpointMap::sweep(JSContext *cx)
 {
     for (Map::Enum r(map); !r.empty(); r.popFront()) {
         Map::Entry &e = r.front();
-        if (IsAboutToBeFinalized(e.key.object)) {
+        if (IsAboutToBeFinalized(cx, e.key.object)) {
             JS_ASSERT(!e.value.held);
             r.removeFront();
         }
@@ -263,7 +265,7 @@ WatchpointMap::sweep()
 void
 WatchpointMap::traceAll(WeakMapTracer *trc)
 {
-    JSRuntime *rt = trc->runtime;
+    JSRuntime *rt = trc->context->runtime;
     for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
         if (WatchpointMap *wpmap = (*c)->watchpointMap)
             wpmap->trace(trc);
