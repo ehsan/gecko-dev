@@ -54,9 +54,7 @@ function test()
  
   jit(true);
 
-  var cyclic = [];
-  cyclic[0] = cyclic;
-  ({__proto__: cyclic})
+  ({__proto__: #1=[#1#]})
     for (var y = 0; y < 3; ++y) { for each (let z in ['', function(){}]) { let x =
                                                1, c = []; } }
 

@@ -57,11 +57,11 @@ void
 PrintBytecode(JSContext *cx, JSScript *script, jsbytecode *pc)
 {
     printf("#%u:", script->id());
-    Sprinter sprinter(cx);
-    if (!sprinter.init())
-        return;
+    LifoAlloc lifoAlloc(1024);
+    Sprinter sprinter;
+    INIT_SPRINTER(cx, &sprinter, &lifoAlloc, 0);
     js_Disassemble1(cx, script, pc, pc - script->code, true, &sprinter);
-    fprintf(stdout, "%s", sprinter.string());
+    fprintf(stdout, "%s", sprinter.base);
 }
 #endif
 
@@ -815,7 +815,7 @@ ScriptAnalysis::analyzeLifetimes(JSContext *cx)
 
                     jsbytecode *entrypc = script->code + entry;
 
-                    if (JSOp(*entrypc) == JSOP_GOTO || JSOp(*entrypc) == JSOP_FILTER)
+                    if (JSOp(*entrypc) == JSOP_GOTO)
                         loop->entry = entry + GET_JUMP_OFFSET(entrypc);
                     else
                         loop->entry = targetOffset;
@@ -823,8 +823,6 @@ ScriptAnalysis::analyzeLifetimes(JSContext *cx)
                     /* Do-while loop at the start of the script. */
                     loop->entry = targetOffset;
                 }
-                JS_ASSERT(script->code[loop->entry] == JSOP_LOOPHEAD ||
-                          script->code[loop->entry] == JSOP_LOOPENTRY);
             } else {
                 for (unsigned i = 0; i < savedCount; i++) {
                     LifetimeVariable &var = *saved[i];

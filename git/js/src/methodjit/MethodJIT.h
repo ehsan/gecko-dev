@@ -309,6 +309,9 @@ enum RejoinState {
     /* State is coherent for the start of the next (fallthrough) bytecode. */
     REJOIN_FALLTHROUGH,
 
+    /* State is coherent for the start of the bytecode returned by the call. */
+    REJOIN_JUMP,
+
     /*
      * As for REJOIN_FALLTHROUGH, but holds a reference on the compartment's
      * orphaned native pools which needs to be reclaimed by InternalInterpret.
@@ -719,8 +722,8 @@ struct JITChunk
 
     void nukeScriptDependentICs();
 
-    size_t computedSizeOfIncludingThis();
-    size_t sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf);
+    /* |mallocSizeOf| can be NULL here, in which case the fallback size computation will be used. */
+    size_t scriptDataSize(JSMallocSizeOfFun mallocSizeOf);
 
     ~JITChunk();
 
@@ -842,7 +845,7 @@ struct JITScript
 
     jsbytecode *nativeToPC(void *returnAddress, CallSite **pinline);
 
-    size_t sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf);
+    size_t scriptDataSize(JSMallocSizeOfFun mallocSizeOf);
 
     void destroy(JSContext *cx);
     void destroyChunk(JSContext *cx, unsigned chunkIndex, bool resetUses = true);

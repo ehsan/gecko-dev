@@ -41,12 +41,10 @@
 #include "nsIScriptRuntime.h"
 #include "nsCOMPtr.h"
 #include "jsapi.h"
-#include "jsfriendapi.h"
 #include "nsIObserver.h"
 #include "nsIXPCScriptNotify.h"
 #include "prtime.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsIXPConnect.h"
 
 class nsIXPConnectJSObjectHolder;
 class nsRootedJSValueArray;
@@ -181,11 +179,11 @@ public:
   static void LoadStart();
   static void LoadEnd();
 
-  static void GarbageCollectNow(js::gcreason::Reason reason, PRUint32 gckind = nsGCNormal);
+  static void GarbageCollectNow(bool shrinkingGC = false);
   static void ShrinkGCBuffersNow();
   static void CycleCollectNow(nsICycleCollectorListener *aListener = nsnull);
 
-  static void PokeGC(js::gcreason::Reason aReason);
+  static void PokeGC();
   static void KillGCTimer();
 
   static void PokeShrinkGCBuffers();
@@ -195,15 +193,8 @@ public:
   static void MaybePokeCC();
   static void KillCCTimer();
 
-  virtual void GC(js::gcreason::Reason aReason);
+  virtual void GC();
 
-  nsIScriptGlobalObject* GetCachedGlobalObject()
-  {
-    // Verify that we have a global so that this
-    // does always return a null when GetGlobalObject() is null.
-    JSObject* global = JS_GetGlobalObject(mContext);
-    return global ? mGlobalObjectRef.get() : nsnull;
-  }
 protected:
   nsresult InitializeExternalClasses();
 

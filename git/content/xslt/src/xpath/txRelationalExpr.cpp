@@ -119,7 +119,7 @@ RelationalExpr::compareResults(txIEvalContext* aContext, txAExprResult* aLeft,
                  rtype == txAExprResult::NUMBER) {
             double lval = aLeft->numberValue();
             double rval = aRight->numberValue();
-            result = (lval == rval);
+            result = DOUBLE_COMPARE(lval, ==, rval);
         }
 
         // Otherwise compare as strings. Try to use the stringobject in
@@ -154,19 +154,19 @@ RelationalExpr::compareResults(txIEvalContext* aContext, txAExprResult* aLeft,
     switch (mOp) {
         case LESS_THAN:
         {
-            return (leftDbl < rightDbl);
+            return DOUBLE_COMPARE(leftDbl, <, rightDbl);
         }
         case LESS_OR_EQUAL:
         {
-            return (leftDbl <= rightDbl);
+            return DOUBLE_COMPARE(leftDbl, <=, rightDbl);
         }
         case GREATER_THAN:
         {
-            return (leftDbl > rightDbl);
+            return DOUBLE_COMPARE(leftDbl, >, rightDbl);
         }
         case GREATER_OR_EQUAL:
         {
-            return (leftDbl >= rightDbl);
+            return DOUBLE_COMPARE(leftDbl, >=, rightDbl);
         }
         default:
         {

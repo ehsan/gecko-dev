@@ -797,7 +797,8 @@ RuleHash::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 size_t
 RuleHash::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
-  return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
+  return aMallocSizeOf(this, sizeof(RuleHash)) +
+         SizeOfExcludingThis(aMallocSizeOf);
 }
 
 //--------------------------------
@@ -959,7 +960,7 @@ SizeOfSelectorsEntry(PLDHashEntryHdr* aHdr, nsMallocSizeOfFun aMallocSizeOf, voi
 size_t
 RuleCascadeData::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
-  size_t n = aMallocSizeOf(this);
+  size_t n = aMallocSizeOf(this, sizeof(RuleCascadeData));
 
   n += mRuleHash.SizeOfExcludingThis(aMallocSizeOf);
   for (PRUint32 i = 0; i < ArrayLength(mPseudoElementRuleHashes); ++i) {
@@ -2587,7 +2588,8 @@ nsCSSRuleProcessor::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 /* virtual */ size_t
 nsCSSRuleProcessor::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
-  return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
+  return aMallocSizeOf(this, sizeof(nsCSSRuleProcessor)) +
+         SizeOfExcludingThis(aMallocSizeOf);
 }
 
 // Append all the currently-active font face rules to aArray.  Return

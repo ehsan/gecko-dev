@@ -367,7 +367,7 @@ StartupCache::HeapSizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
     // This function could measure more members, but they haven't been found by
     // DMD to be significant.  They can be added later if necessary.
-    return aMallocSizeOf(this) +
+    return aMallocSizeOf(this, sizeof(StartupCache)) +
            mTable.SizeOfExcludingThis(SizeOfEntryExcludingThis, aMallocSizeOf);
 }
 

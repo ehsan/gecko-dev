@@ -324,7 +324,6 @@ public:
   virtual bool TagCanContainTag(const nsAString& aParentTag, const nsAString& aChildTag);
   
   /** returns true if aNode is a container */
-  virtual bool IsContainer(nsINode* aNode);
   virtual bool IsContainer(nsIDOMNode *aNode);
 
   /** make the given selection span the entire document */
@@ -388,18 +387,14 @@ public:
 
   virtual bool IsTextInDirtyFrameVisible(nsIContent *aNode);
 
-  nsresult IsVisTextNode(nsIContent* aNode,
-                         bool* outIsEmptyNode,
-                         bool aSafeToAskFrames);
+  nsresult IsVisTextNode( nsIDOMNode *aNode, 
+                          bool *outIsEmptyNode, 
+                          bool aSafeToAskFrames);
   nsresult IsEmptyNode(nsIDOMNode *aNode, bool *outIsEmptyBlock, 
                        bool aMozBRDoesntCount = false,
                        bool aListOrCellNotEmpty = false,
                        bool aSafeToAskFrames = false);
-  nsresult IsEmptyNode(nsINode* aNode, bool* outIsEmptyBlock,
-                       bool aMozBRDoesntCount = false,
-                       bool aListOrCellNotEmpty = false,
-                       bool aSafeToAskFrames = false);
-  nsresult IsEmptyNodeImpl(nsINode* aNode,
+  nsresult IsEmptyNodeImpl(nsIDOMNode *aNode,
                            bool *outIsEmptyBlock, 
                            bool aMozBRDoesntCount,
                            bool aListOrCellNotEmpty,

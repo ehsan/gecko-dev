@@ -105,14 +105,12 @@
 #include "nsIFileChannel.h"
 #include "mozilla/Telemetry.h"
 #include "sampler.h"
-#include "nsWrapperCacheInlines.h"
 
 using namespace mozilla;
 
 #define LOAD_STR "load"
 #define ERROR_STR "error"
 #define ABORT_STR "abort"
-#define TIMEOUT_STR "timeout"
 #define LOADSTART_STR "loadstart"
 #define PROGRESS_STR "progress"
 #define UPLOADPROGRESS_STR "uploadprogress"
@@ -144,7 +142,6 @@ using namespace mozilla;
 #define XML_HTTP_REQUEST_USE_XSITE_AC   (1 << 15) // Internal
 #define XML_HTTP_REQUEST_NEED_AC_PREFLIGHT (1 << 16) // Internal
 #define XML_HTTP_REQUEST_AC_WITH_CREDENTIALS (1 << 17) // Internal
-#define XML_HTTP_REQUEST_TIMED_OUT (1 << 18) // Internal
 
 #define XML_HTTP_REQUEST_LOADSTATES         \
   (XML_HTTP_REQUEST_UNSENT |                \
@@ -307,7 +304,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXHREventTarget,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnLoadStartListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnProgressListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnLoadendListener)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnTimeoutListener)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXHREventTarget,
@@ -318,7 +314,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXHREventTarget,
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnLoadStartListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnProgressListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnLoadendListener)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnTimeoutListener)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsXHREventTarget)
@@ -393,19 +388,6 @@ nsXHREventTarget::SetOnprogress(nsIDOMEventListener* aOnprogress)
                                 mOnProgressListener, aOnprogress);
 }
 
-/* attribute nsIDOMEventListener ontimeout; */
-NS_IMETHODIMP
-nsXHREventTarget::GetOntimeout(nsIDOMEventListener * *aOntimeout)
-{
-  return GetInnerEventListener(mOnTimeoutListener, aOntimeout);
-}
-NS_IMETHODIMP
-nsXHREventTarget::SetOntimeout(nsIDOMEventListener *aOntimeout)
-{
-  return RemoveAddEventListener(NS_LITERAL_STRING(TIMEOUT_STR),
-                                mOnTimeoutListener, aOntimeout);
-}
-
 NS_IMETHODIMP
 nsXHREventTarget::GetOnloadend(nsIDOMEventListener** aOnLoadend)
 {
@@ -443,13 +425,13 @@ nsXMLHttpRequest::nsXMLHttpRequest()
     mUploadTransferred(0), mUploadTotal(0), mUploadComplete(true),
     mProgressSinceLastProgressEvent(false),
     mUploadProgress(0), mUploadProgressMax(0),
-    mRequestSentTime(0), mTimeoutMilliseconds(0),
-    mErrorLoad(false), mProgressTimerIsActive(false),
+    mErrorLoad(false), mTimerIsActive(false),
     mProgressEventWasDelayed(false),
+    mLoadLengthComputable(false),
     mIsHtml(false),
     mWarnAboutMultipartHtml(false),
     mWarnAboutSyncHtml(false),
-    mLoadLengthComputable(false), mLoadTotal(0),
+    mLoadTotal(0),
     mFirstStartRequestSeen(false),
     mInLoadProgressEvent(false),
     mResultJSON(JSVAL_VOID),
@@ -595,31 +577,6 @@ nsXMLHttpRequest::SetRequestObserver(nsIRequestObserver* aObserver)
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXMLHttpRequest)
-
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsXMLHttpRequest)
-  if (tmp->IsBlack()) {
-    if (tmp->mListenerManager) {
-      tmp->mListenerManager->UnmarkGrayJSListeners();
-      NS_UNMARK_LISTENER_WRAPPER(Load)
-      NS_UNMARK_LISTENER_WRAPPER(Error)
-      NS_UNMARK_LISTENER_WRAPPER(Abort)
-      NS_UNMARK_LISTENER_WRAPPER(LoadStart)
-      NS_UNMARK_LISTENER_WRAPPER(Progress)
-      NS_UNMARK_LISTENER_WRAPPER(Loadend)
-      NS_UNMARK_LISTENER_WRAPPER(UploadProgress)
-      NS_UNMARK_LISTENER_WRAPPER(Readystatechange)
-    }
-    return true;
-  }
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
-
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsXMLHttpRequest)
-  return tmp->IsBlack();
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
-
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsXMLHttpRequest)
-  return tmp->IsBlack();
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXMLHttpRequest,
                                                   nsXHREventTarget)
@@ -1210,9 +1167,9 @@ nsXMLHttpRequest::GetStatusText(nsACString& aStatusText)
   return NS_OK;
 }
 
-void
-nsXMLHttpRequest::CloseRequestWithError(const nsAString& aType,
-                                        const PRUint32 aFlag)
+/* void abort (); */
+NS_IMETHODIMP
+nsXMLHttpRequest::Abort()
 {
   if (mReadRequest) {
     mReadRequest->Cancel(NS_BINDING_ABORTED);
@@ -1223,12 +1180,9 @@ nsXMLHttpRequest::CloseRequestWithError(const nsAString& aType,
   if (mCORSPreflightChannel) {
     mCORSPreflightChannel->Cancel(NS_BINDING_ABORTED);
   }
-  if (mTimeoutTimer) {
-    mTimeoutTimer->Cancel();
-  }
   PRUint32 responseLength = mResponseBody.Length();
   ResetResponse();
-  mState |= aFlag;
+  mState |= XML_HTTP_REQUEST_ABORTED;
   
   if (!(mState & (XML_HTTP_REQUEST_UNSENT |
                   XML_HTTP_REQUEST_OPENED |
@@ -1236,11 +1190,12 @@ nsXMLHttpRequest::CloseRequestWithError(const nsAString& aType,
     ChangeState(XML_HTTP_REQUEST_DONE, true);
 
     if (!(mState & XML_HTTP_REQUEST_SYNCLOOPING)) {
-      DispatchProgressEvent(this, aType, mLoadLengthComputable, responseLength,
+      NS_NAMED_LITERAL_STRING(abortStr, ABORT_STR);
+      DispatchProgressEvent(this, abortStr, mLoadLengthComputable, responseLength,
                             mLoadTotal);
       if (mUpload && !mUploadComplete) {
         mUploadComplete = true;
-        DispatchProgressEvent(mUpload, aType, true, mUploadTransferred,
+        DispatchProgressEvent(mUpload, abortStr, true, mUploadTransferred,
                               mUploadTotal);
       }
     }
@@ -1254,13 +1209,7 @@ nsXMLHttpRequest::CloseRequestWithError(const nsAString& aType,
   }
 
   mState &= ~XML_HTTP_REQUEST_SYNCLOOPING;
-}
 
-/* void abort (); */
-NS_IMETHODIMP
-nsXMLHttpRequest::Abort()
-{
-  CloseRequestWithError(NS_LITERAL_STRING(ABORT_STR), XML_HTTP_REQUEST_ABORTED);
   return NS_OK;
 }
 
@@ -1438,7 +1387,6 @@ nsXMLHttpRequest::DispatchProgressEvent(nsDOMEventTargetHelper* aTarget,
 
   bool dispatchLoadend = aType.EqualsLiteral(LOAD_STR) ||
                            aType.EqualsLiteral(ERROR_STR) ||
-                           aType.EqualsLiteral(TIMEOUT_STR) ||
                            aType.EqualsLiteral(ABORT_STR);
   
   nsCOMPtr<nsIDOMEvent> event;
@@ -1570,13 +1518,9 @@ nsXMLHttpRequest::Open(const nsACString& method, const nsACString& url,
   // in window context
   if (!async && mOwner &&
       (mState & XML_HTTP_REQUEST_AC_WITH_CREDENTIALS ||
-       mTimeoutMilliseconds ||
        mResponseType != XML_HTTP_RESPONSE_TYPE_DEFAULT)) {
     if (mState & XML_HTTP_REQUEST_AC_WITH_CREDENTIALS) {
       LogMessage("WithCredentialsSyncXHRWarning", mOwner);
-    }
-    if (mTimeoutMilliseconds) {
-      LogMessage("TimeoutSyncXHRWarning", mOwner);
     }
     if (mResponseType != XML_HTTP_RESPONSE_TYPE_DEFAULT) {
       LogMessage("ResponseTypeSyncXHRWarning", mOwner);
@@ -1586,6 +1530,7 @@ nsXMLHttpRequest::Open(const nsACString& method, const nsACString& url,
 
   nsresult rv;
   nsCOMPtr<nsIURI> uri;
+  bool authp = false;
 
   if (mState & (XML_HTTP_REQUEST_OPENED |
                 XML_HTTP_REQUEST_HEADERS_RECEIVED |
@@ -1602,8 +1547,14 @@ nsXMLHttpRequest::Open(const nsACString& method, const nsACString& url,
     //     why things didn't work.
   }
 
-  // Unset any pre-existing aborted and timed-out states.
-  mState &= ~XML_HTTP_REQUEST_ABORTED & ~XML_HTTP_REQUEST_TIMED_OUT;
+  if (mState & XML_HTTP_REQUEST_ABORTED) {
+    // Something caused this request to abort (e.g the current request
+    // was caceled, channels closed etc), most likely the abort()
+    // function was called by script. Unset our aborted state, and
+    // proceed as normal
+
+    mState &= ~XML_HTTP_REQUEST_ABORTED;
+  }
 
   if (async) {
     mState |= XML_HTTP_REQUEST_ASYNC;
@@ -1655,6 +1606,7 @@ nsXMLHttpRequest::Open(const nsACString& method, const nsACString& url,
       AppendUTF16toUTF8(password, userpass);
     }
     uri->SetUserPass(userpass);
+    authp = true;
   }
 
   // When we are called from JS we can find the load group for the page,
@@ -1868,7 +1820,6 @@ IsSameOrBaseChannel(nsIRequest* aPossibleBase, nsIChannel* aChannel)
 NS_IMETHODIMP
 nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
 {
-  SAMPLE_LABEL("nsXMLHttpRequest", "OnStartRequest");
   nsresult rv = NS_OK;
   if (!mFirstStartRequestSeen && mRequestObserver) {
     mFirstStartRequestSeen = true;
@@ -1883,17 +1834,10 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
   if (mState & XML_HTTP_REQUEST_UNSENT)
     return NS_OK;
 
-  /* Apparently, Abort() should set XML_HTTP_REQUEST_UNSENT.  See bug 361773.
-     XHR2 spec says this is correct. */
   if (mState & XML_HTTP_REQUEST_ABORTED) {
     NS_ERROR("Ugh, still getting data on an aborted XMLHttpRequest!");
 
     return NS_ERROR_UNEXPECTED;
-  }
-
-  // Don't do anything if we have timed out.
-  if (mState & XML_HTTP_REQUEST_TIMED_OUT) {
-    return NS_OK;
   }
 
   nsCOMPtr<nsIChannel> channel(do_QueryInterface(request));
@@ -1920,8 +1864,8 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
 
   if (mUpload && !mUploadComplete && !mErrorLoad &&
       (mState & XML_HTTP_REQUEST_ASYNC)) {
-    if (mProgressTimerIsActive) {
-      mProgressTimerIsActive = false;
+    if (mTimerIsActive) {
+      mTimerIsActive = false;
       mProgressNotifier->Cancel();
     }
     MaybeDispatchProgressEvents(true);
@@ -2108,9 +2052,7 @@ nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult
 
   // make sure to notify the listener if we were aborted
   // XXX in fact, why don't we do the cleanup below in this case??
-  // XML_HTTP_REQUEST_UNSENT is for abort calls.  See OnStartRequest above.
-  if ((mState & XML_HTTP_REQUEST_UNSENT) ||
-      (mState & XML_HTTP_REQUEST_TIMED_OUT)) {
+  if (mState & XML_HTTP_REQUEST_UNSENT) {
     if (mXMLParserStreamListener)
       (void) mXMLParserStreamListener->OnStopRequest(request, ctxt, status);
     return NS_OK;
@@ -2219,11 +2161,7 @@ nsXMLHttpRequest::ChangeStateToDone()
     // do it's job synchronously.
     MaybeDispatchProgressEvents(true);
   }
-
   ChangeState(XML_HTTP_REQUEST_DONE, true);
-  if (mTimeoutTimer) {
-    mTimeoutTimer->Cancel();
-  }
 
   NS_NAMED_LITERAL_STRING(errorStr, ERROR_STR);
   NS_NAMED_LITERAL_STRING(loadStr, LOAD_STR);
@@ -2689,10 +2627,6 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
   // ignoring return value, as this is not critical
   mChannel->SetContentType(NS_LITERAL_CSTRING("application/xml"));
 
-  // We're about to send the request.  Start our timeout.
-  mRequestSentTime = PR_Now();
-  StartTimeoutTimer();
-
   // Set up the preflight if needed
   if (mState & XML_HTTP_REQUEST_NEED_AC_PREFLIGHT) {
     // Check to see if this initial OPTIONS request has already been cached
@@ -2884,60 +2818,6 @@ nsXMLHttpRequest::SetRequestHeader(const nsACString& header,
   return rv;
 }
 
-/* attribute unsigned long timeout; */
-NS_IMETHODIMP
-nsXMLHttpRequest::GetTimeout(PRUint32 *aTimeout)
-{
-  *aTimeout = mTimeoutMilliseconds;
-  return NS_OK;
-}
-NS_IMETHODIMP
-nsXMLHttpRequest::SetTimeout(PRUint32 aTimeout)
-{
-  if ((mState & (XML_HTTP_REQUEST_ASYNC | XML_HTTP_REQUEST_UNSENT)) || !mOwner) {
-    mTimeoutMilliseconds = aTimeout;
-    if (mRequestSentTime) {
-      StartTimeoutTimer();
-    }
-    return NS_OK;
-  }
-
-  /* Timeout is not supported for synchronous requests with an owning window,
-     per XHR2 spec. */
-  LogMessage("TimeoutSyncXHRWarning", mOwner);
-  return NS_ERROR_DOM_INVALID_ACCESS_ERR;
-}
-
-void
-nsXMLHttpRequest::StartTimeoutTimer()
-{
-  NS_ABORT_IF_FALSE(mRequestSentTime,
-                    "StartTimeoutTimer mustn't be called before the request was sent!");
-  if (mState & XML_HTTP_REQUEST_DONE) {
-    // do nothing!
-    return;
-  }
-
-  if (mTimeoutTimer) {
-    mTimeoutTimer->Cancel();
-  }
-
-  if (!mTimeoutMilliseconds) {
-    return;
-  }
-
-  if (!mTimeoutTimer) {
-    mTimeoutTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
-  }
-  PRUint32 elapsed =
-    (PRUint32)((PR_Now() - mRequestSentTime) / PR_USEC_PER_MSEC);
-  mTimeoutTimer->InitWithCallback(
-    this,
-    mTimeoutMilliseconds > elapsed ? mTimeoutMilliseconds - elapsed : 0,
-    nsITimer::TYPE_ONE_SHOT
-  );
-}
-
 /* readonly attribute long readyState; */
 NS_IMETHODIMP
 nsXMLHttpRequest::GetReadyState(PRUint16 *aState)
@@ -3080,7 +2960,7 @@ nsXMLHttpRequest::ChangeState(PRUint32 aState, bool aBroadcast)
 
   if (mProgressNotifier &&
       !(aState & (XML_HTTP_REQUEST_HEADERS_RECEIVED | XML_HTTP_REQUEST_LOADING))) {
-    mProgressTimerIsActive = false;
+    mTimerIsActive = false;
     mProgressNotifier->Cancel();
   }
 
@@ -3231,12 +3111,12 @@ nsXMLHttpRequest::OnRedirectVerifyCallback(nsresult result)
 void
 nsXMLHttpRequest::MaybeDispatchProgressEvents(bool aFinalProgress)
 {
-  if (aFinalProgress && mProgressTimerIsActive) {
-    mProgressTimerIsActive = false;
+  if (aFinalProgress && mTimerIsActive) {
+    mTimerIsActive = false;
     mProgressNotifier->Cancel();
   }
 
-  if (mProgressTimerIsActive ||
+  if (mTimerIsActive ||
       !mProgressSinceLastProgressEvent ||
       mErrorLoad ||
       !(mState & XML_HTTP_REQUEST_ASYNC)) {
@@ -3434,44 +3314,15 @@ nsXMLHttpRequest::GetUpload(nsIXMLHttpRequestUpload** aUpload)
   return NS_OK;
 }
 
-void
-nsXMLHttpRequest::HandleTimeoutCallback()
-{
-  if (mState & XML_HTTP_REQUEST_DONE) {
-    NS_NOTREACHED("nsXMLHttpRequest::HandleTimeoutCallback with completed request");
-    // do nothing!
-    return;
-  }
-
-  CloseRequestWithError(NS_LITERAL_STRING(TIMEOUT_STR),
-                        XML_HTTP_REQUEST_TIMED_OUT);
-}
-
 NS_IMETHODIMP
 nsXMLHttpRequest::Notify(nsITimer* aTimer)
 {
-  if (mProgressNotifier == aTimer) {
-    HandleProgressTimerCallback();
-    return NS_OK;
-  }
-
-  if (mTimeoutTimer == aTimer) {
-    HandleTimeoutCallback();
-    return NS_OK;
-  }
-
-  // Just in case some JS user wants to QI to nsITimerCallback and play with us...
-  NS_WARNING("Unexpected timer!");
-  return NS_ERROR_INVALID_POINTER;
-}
-
-void
-nsXMLHttpRequest::HandleProgressTimerCallback()
-{
-  mProgressTimerIsActive = false;
+  mTimerIsActive = false;
   if (!(XML_HTTP_REQUEST_MPART_HEADERS & mState)) {
     MaybeDispatchProgressEvents(false);
   }
+
+  return NS_OK;
 }
 
 void
@@ -3482,7 +3333,7 @@ nsXMLHttpRequest::StartProgressEventTimer()
   }
   if (mProgressNotifier) {
     mProgressEventWasDelayed = false;
-    mProgressTimerIsActive = true;
+    mTimerIsActive = true;
     mProgressNotifier->Cancel();
     mProgressNotifier->InitWithCallback(this, NS_PROGRESS_EVENT_INTERVAL,
                                         nsITimer::TYPE_ONE_SHOT);

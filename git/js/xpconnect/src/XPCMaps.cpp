@@ -141,7 +141,7 @@ size_t
 JSObject2WrappedJSMap::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
-    n += mallocSizeOf(this);
+    n += mallocSizeOf(this, sizeof(JSObject2WrappedJSMap));
     n += mTable ? JS_DHashTableSizeOfIncludingThis(mTable, SizeOfEntryExcludingThis, mallocSizeOf) : 0;
     return n;
 }
@@ -150,7 +150,8 @@ JSObject2WrappedJSMap::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 JSObject2WrappedJSMap::SizeOfEntryExcludingThis(JSDHashEntryHdr *hdr,
                                                 JSMallocSizeOfFun mallocSizeOf, void *)
 {
-    return mallocSizeOf(((JSObject2WrappedJSMap::Entry*)hdr)->value);
+    return mallocSizeOf(((JSObject2WrappedJSMap::Entry*)hdr)->value,
+                        sizeof(nsXPCWrappedJS));
 }
 
 /***************************************************************************/
@@ -183,7 +184,7 @@ size_t
 Native2WrappedNativeMap::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
-    n += mallocSizeOf(this);
+    n += mallocSizeOf(this, sizeof(Native2WrappedNativeMap));
     n += mTable ? JS_DHashTableSizeOfIncludingThis(mTable, SizeOfEntryExcludingThis, mallocSizeOf) : 0;
     return n;
 }
@@ -192,7 +193,8 @@ Native2WrappedNativeMap::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 Native2WrappedNativeMap::SizeOfEntryExcludingThis(JSDHashEntryHdr *hdr,
                                                   JSMallocSizeOfFun mallocSizeOf, void *)
 {
-    return mallocSizeOf(((Native2WrappedNativeMap::Entry*)hdr)->value);
+    return mallocSizeOf(((Native2WrappedNativeMap::Entry*)hdr)->value,
+                         sizeof(XPCWrappedNative));
 }
 
 /***************************************************************************/
@@ -272,7 +274,7 @@ size_t
 IID2NativeInterfaceMap::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
-    n += mallocSizeOf(this);
+    n += mallocSizeOf(this, sizeof(IID2NativeInterfaceMap));
     n += mTable ? JS_DHashTableSizeOfIncludingThis(mTable, SizeOfEntryExcludingThis, mallocSizeOf) : 0;
     return n;
 }
@@ -315,7 +317,7 @@ size_t
 ClassInfo2NativeSetMap::ShallowSizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
-    n += mallocSizeOf(this);
+    n += mallocSizeOf(this, sizeof(ClassInfo2NativeSetMap));
     // The second arg is NULL because this is a "shallow" measurement of the map.
     n += mTable ? JS_DHashTableSizeOfIncludingThis(mTable, NULL, mallocSizeOf) : 0;
     return n;
@@ -351,7 +353,7 @@ size_t
 ClassInfo2WrappedNativeProtoMap::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
-    n += mallocSizeOf(this);
+    n += mallocSizeOf(this, sizeof(ClassInfo2WrappedNativeProtoMap));
     n += mTable ? JS_DHashTableSizeOfIncludingThis(mTable, SizeOfEntryExcludingThis, mallocSizeOf) : 0;
     return n;
 }
@@ -360,7 +362,8 @@ ClassInfo2WrappedNativeProtoMap::SizeOfIncludingThis(nsMallocSizeOfFun mallocSiz
 ClassInfo2WrappedNativeProtoMap::SizeOfEntryExcludingThis(JSDHashEntryHdr *hdr,
                                                           JSMallocSizeOfFun mallocSizeOf, void *)
 {
-    return mallocSizeOf(((ClassInfo2WrappedNativeProtoMap::Entry*)hdr)->value);
+    return mallocSizeOf(((ClassInfo2WrappedNativeProtoMap::Entry*)hdr)->value,
+                        sizeof(XPCWrappedNativeProto));
 }
 
 /***************************************************************************/
@@ -475,7 +478,7 @@ size_t
 NativeSetMap::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
-    n += mallocSizeOf(this);
+    n += mallocSizeOf(this, sizeof(NativeSetMap));
     n += mTable ? JS_DHashTableSizeOfIncludingThis(mTable, SizeOfEntryExcludingThis, mallocSizeOf) : 0;
     return n;
 }

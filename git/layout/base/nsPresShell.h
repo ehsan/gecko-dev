@@ -138,10 +138,10 @@ public:
     size_t n = 0;
     StackBlock *block = mBlocks;
     while (block) {
-      n += aMallocSizeOf(block);
+      n += aMallocSizeOf(block, sizeof(StackBlock));
       block = block->mNext;
     }
-    n += aMallocSizeOf(mMarks);
+    n += aMallocSizeOf(mMarks, mMarkLength * sizeof(StackMark));
     return n;
   }
 
@@ -366,8 +366,6 @@ public:
   NS_IMETHOD CompleteMove(bool aForward, bool aExtend);
   NS_IMETHOD SelectAll();
   NS_IMETHOD CheckVisibility(nsIDOMNode *node, PRInt16 startOffset, PRInt16 EndOffset, bool *_retval);
-  virtual nsresult CheckVisibilityContent(nsIContent* aNode, PRInt16 aStartOffset,
-                                          PRInt16 aEndOffset, bool* aRetval);
 
   // nsIDocumentObserver
   NS_DECL_NSIDOCUMENTOBSERVER_BEGINUPDATE
@@ -904,7 +902,7 @@ public:
   size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
     size_t n = 0;
 
-    n += aMallocSizeOf(this);
+    n += aMallocSizeOf(this, sizeof(PresShell));
     n += mStackArena.SizeOfExcludingThis(aMallocSizeOf);
     n += mFrameArena.SizeOfExcludingThis(aMallocSizeOf);
 

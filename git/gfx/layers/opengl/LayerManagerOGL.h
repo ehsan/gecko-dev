@@ -308,7 +308,6 @@ public:
    * texture types.
    */
   void CreateFBOWithTexture(const nsIntRect& aRect, InitMode aInit,
-                            GLuint aCurrentFrameBuffer,
                             GLuint *aFBO, GLuint *aTexture);
 
   GLuint QuadVBO() { return mQuadVBO; }

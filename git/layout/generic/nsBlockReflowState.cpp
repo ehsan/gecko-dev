@@ -62,7 +62,6 @@
 #endif
 
 using namespace mozilla;
-using namespace mozilla::layout;
 
 nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
                                        nsPresContext* aPresContext,
@@ -598,7 +597,6 @@ FloatMarginWidth(const nsHTMLReflowState& aCBReflowState,
                  nsIFrame *aFloat,
                  const nsCSSOffsetState& aFloatOffsetState)
 {
-  AutoMaybeNullInflationContainer an(aFloat);
   return aFloat->ComputeSize(
     aCBReflowState.rendContext,
     nsSize(aCBReflowState.ComputedWidth(),

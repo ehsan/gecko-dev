@@ -76,7 +76,6 @@
 #include "nsCSSProps.h"
 
 using namespace mozilla;
-using namespace mozilla::layout;
 
 /********************************************************************************
  ** nsTableReflowState                                                         **
@@ -1513,10 +1512,6 @@ nsTableFrame::ComputeSize(nsRenderingContext *aRenderingContext,
     nsContainerFrame::ComputeSize(aRenderingContext, aCBSize, aAvailableWidth,
                                   aMargin, aBorder, aPadding, aShrinkWrap);
 
-  // If we're a container for font size inflation, then shrink
-  // wrapping inside of us should not apply font size inflation.
-  AutoMaybeNullInflationContainer an(this);
-
   // Tables never shrink below their min width.
   nscoord minWidth = GetMinWidth(aRenderingContext);
   if (minWidth > result.width)
@@ -1529,10 +1524,6 @@ nscoord
 nsTableFrame::TableShrinkWidthToFit(nsRenderingContext *aRenderingContext,
                                     nscoord aWidthInCB)
 {
-  // If we're a container for font size inflation, then shrink
-  // wrapping inside of us should not apply font size inflation.
-  AutoMaybeNullInflationContainer an(this);
-
   nscoord result;
   nscoord minWidth = GetMinWidth(aRenderingContext);
   if (minWidth > aWidthInCB) {

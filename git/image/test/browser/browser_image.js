@@ -141,7 +141,7 @@ function testSharedContainers() {
     }, true);
     yield;
 
-    var chances = 120;
+    chances = 120;
     do {
       gTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
       gTimer.initWithCallback(function() {

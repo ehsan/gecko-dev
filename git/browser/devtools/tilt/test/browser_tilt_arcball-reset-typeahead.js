@@ -16,7 +16,6 @@ function test() {
     return;
   }
 
-  requestLongerTimeout(10);
   waitForExplicitFinish();
   Services.prefs.setBoolPref("accessibility.typeaheadfind", true);
 
@@ -65,10 +64,6 @@ function performTest(canvas, arcball, callback) {
 
       executeSoon(function() {
         info("Synthesizing arcball reset key press.");
-
-        arcball.onResetStart = function() {
-          info("Starting arcball reset animation.");
-        };
 
         arcball.onResetFinish = function() {
           ok(isApproxVec(arcball._lastRot, [0, 0, 0, 1]),

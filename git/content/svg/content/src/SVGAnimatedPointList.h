@@ -37,13 +37,11 @@
 #ifndef MOZILLA_SVGANIMATEDPOINTLIST_H__
 #define MOZILLA_SVGANIMATEDPOINTLIST_H__
 
-#include "nsAutoPtr.h"
-#include "nsISMILAttr.h"
 #include "SVGPointList.h"
 
-class nsISMILAnimationElement;
-class nsSMILValue;
 class nsSVGElement;
+
+#include "nsISMILAttr.h"
 
 namespace mozilla {
 

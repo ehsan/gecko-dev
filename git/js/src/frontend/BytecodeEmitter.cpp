@@ -48,6 +48,7 @@
 #include <string.h>
 
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 #include "jsprf.h"
 #include "jsapi.h"
@@ -375,6 +376,43 @@ TreeContext::inStatement(StmtType type)
 }
 
 bool
+TreeContext::ensureSharpSlots()
+{
+#if JS_HAS_SHARP_VARS
+    JS_STATIC_ASSERT(SHARP_NSLOTS == 2);
+
+    if (sharpSlotBase >= 0) {
+        JS_ASSERT(flags & TCF_HAS_SHARPS);
+        return true;
+    }
+
+    JS_ASSERT(!(flags & TCF_HAS_SHARPS));
+    if (inFunction()) {
+        JSContext *cx = parser->context;
+        JSAtom *sharpArrayAtom = js_Atomize(cx, "#array", 6);
+        JSAtom *sharpDepthAtom = js_Atomize(cx, "#depth", 6);
+        if (!sharpArrayAtom || !sharpDepthAtom)
+            return false;
+
+        sharpSlotBase = bindings.countVars();
+        if (!bindings.addVariable(cx, sharpArrayAtom))
+            return false;
+        if (!bindings.addVariable(cx, sharpDepthAtom))
+            return false;
+    } else {
+        /*
+         * js::frontend::CompileScript will rebase immediate operands
+         * indexing the sharp slots to come at the end of the global script's
+         * |nfixed| slots storage, after gvars and regexps.
+         */
+        sharpSlotBase = 0;
+    }
+    flags |= TCF_HAS_SHARPS;
+#endif
+    return true;
+}
+
+bool
 TreeContext::skipSpansGenerator(unsigned skip)
 {
     TreeContext *tc = this;
@@ -501,7 +539,7 @@ UpdateLineNumberNotes(JSContext *cx, BytecodeEmitter *bce, uintN line)
 }
 
 static ptrdiff_t
-EmitLoopHead(JSContext *cx, BytecodeEmitter *bce, ParseNode *nextpn)
+EmitTraceOp(JSContext *cx, BytecodeEmitter *bce, ParseNode *nextpn)
 {
     if (nextpn) {
         /*
@@ -517,21 +555,6 @@ EmitLoopHead(JSContext *cx, BytecodeEmitter *bce, ParseNode *nextpn)
     }
 
     return Emit1(cx, bce, JSOP_LOOPHEAD);
-}
-
-static bool
-EmitLoopEntry(JSContext *cx, BytecodeEmitter *bce, ParseNode *nextpn)
-{
-    if (nextpn) {
-        /* Update the line number, as for LOOPHEAD. */
-        JS_ASSERT_IF(nextpn->isKind(PNK_STATEMENTLIST), nextpn->isArity(PN_LIST));
-        if (nextpn->isKind(PNK_STATEMENTLIST) && nextpn->pn_head)
-            nextpn = nextpn->pn_head;
-        if (!UpdateLineNumberNotes(cx, bce, nextpn->pn_pos.begin.lineno))
-            return false;
-    }
-
-    return Emit1(cx, bce, JSOP_LOOPENTRY) >= 0;
 }
 
 /*
@@ -977,29 +1000,6 @@ EmitObjectOp(JSContext *cx, ObjectBox *objbox, JSOp op, BytecodeEmitter *bce)
     return EmitIndexOp(cx, op, bce->objectList.index(objbox), bce);
 }
 
-static bool
-EmitIndex32(JSContext *cx, JSOp op, uint32_t index, BytecodeEmitter *bce)
-{
-    const size_t len = 1 + UINT32_INDEX_LEN;
-    ptrdiff_t offset = EmitCheck(cx, bce, len);
-    if (offset < 0)
-        return false;
-
-    jsbytecode *next = bce->next();
-    next[0] = jsbytecode(op);
-    SET_UINT32_INDEX(next, index);
-    bce->current->next = next + len;
-    UpdateDepth(cx, bce, offset);
-    CheckTypeSet(cx, bce, op);
-    return true;
-}
-
-static bool
-EmitRegExp(JSContext *cx, uint32_t index, BytecodeEmitter *bce)
-{
-    return EmitIndex32(cx, JSOP_REGEXP, index, bce);
-}
-
 /*
  * What good are ARGNO_LEN and SLOTNO_LEN, you ask?  The answer is that, apart
  * from EmitSlotIndexOp, they abstract out the detail that both are 2, and in
@@ -1017,7 +1017,8 @@ EmitSlotIndexOp(JSContext *cx, JSOp op, uintN slot, uintN index, BytecodeEmitter
     ptrdiff_t off;
     jsbytecode *pc;
 
-    JS_ASSERT(JOF_OPTYPE(op) == JOF_SLOTOBJECT);
+    JS_ASSERT(JOF_OPTYPE(op) == JOF_SLOTATOM ||
+              JOF_OPTYPE(op) == JOF_SLOTOBJECT);
     bigSuffix = EmitBigIndexPrefix(cx, bce, index);
     if (bigSuffix == JSOP_FALSE)
         return JS_FALSE;
@@ -1770,10 +1771,10 @@ CheckSideEffects(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, JSBool *ans
 
           default:
             /*
-             * All of PNK_INC, PNK_DEC, PNK_THROW, and PNK_YIELD have direct
-             * effects. Of the remaining unary-arity node types, we can't
-             * easily prove that the operand never denotes an object with a
-             * toString or valueOf method.
+             * All of PNK_INC, PNK_DEC, PNK_THROW, PNK_YIELD, and PNK_DEFSHARP
+             * have direct effects. Of the remaining unary-arity node types,
+             * we can't easily prove that the operand never denotes an object
+             * with a toString or valueOf method.
              */
             *answer = JS_TRUE;
             break;
@@ -3219,7 +3220,7 @@ EmitDestructuringOpsHelper(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn,
                 JS_ASSERT((bce->stackDepth - bce->stackDepth) >= -1);
                 uintN pickDistance = (uintN)((bce->stackDepth + 1) - depthBefore);
                 if (pickDistance > 0) {
-                    if (pickDistance > UINT8_MAX) {
+                    if (pickDistance > jsbytecode(-1)) {
                         ReportCompileErrorNumber(cx, bce->tokenStream(), pn3, JSREPORT_ERROR,
                                                  JSMSG_TOO_MANY_LOCALS);
                         return JS_FALSE;
@@ -3908,12 +3909,33 @@ EmitFunctionDefNop(JSContext *cx, BytecodeEmitter *bce, uintN index)
 }
 
 static bool
-EmitNewInit(JSContext *cx, BytecodeEmitter *bce, JSProtoKey key, ParseNode *pn)
+EmitNewInit(JSContext *cx, BytecodeEmitter *bce, JSProtoKey key, ParseNode *pn, int sharpnum)
 {
     if (Emit3(cx, bce, JSOP_NEWINIT, (jsbytecode) key, 0) < 0)
         return false;
     CheckTypeSet(cx, bce, JSOP_NEWINIT);
+#if JS_HAS_SHARP_VARS
+    if (bce->hasSharps()) {
+        if (pn->pn_count != 0)
+            EMIT_UINT16_IMM_OP(JSOP_SHARPINIT, bce->sharpSlotBase);
+        if (sharpnum >= 0)
+            EMIT_UINT16PAIR_IMM_OP(JSOP_DEFSHARP, bce->sharpSlotBase, sharpnum);
+    } else {
+        JS_ASSERT(sharpnum < 0);
+    }
+#endif
     return true;
+}
+
+static bool
+EmitEndInit(JSContext *cx, BytecodeEmitter *bce, uint32_t count)
+{
+#if JS_HAS_SHARP_VARS
+    /* Emit an op for sharp array cleanup and decompilation. */
+    if (bce->hasSharps() && count != 0)
+        EMIT_UINT16_IMM_OP(JSOP_SHARPINIT, bce->sharpSlotBase);
+#endif
+    return Emit1(cx, bce, JSOP_ENDINIT) >= 0;
 }
 
 bool
@@ -4809,7 +4831,7 @@ EmitForIn(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
 
     top = bce->offset();
     SET_STATEMENT_TOP(&stmtInfo, top);
-    if (EmitLoopHead(cx, bce, NULL) < 0)
+    if (EmitTraceOp(cx, bce, NULL) < 0)
         return false;
 
 #ifdef DEBUG
@@ -4852,8 +4874,6 @@ EmitForIn(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
      * Fixup the goto that starts the loop to jump down to JSOP_MOREITER.
      */
     SetJumpOffsetAt(bce, jmp);
-    if (!EmitLoopEntry(cx, bce, NULL))
-        return false;
     if (Emit1(cx, bce, JSOP_MOREITER) < 0)
         return false;
     ptrdiff_t beq = EmitJump(cx, bce, JSOP_IFNE, top - bce->offset());
@@ -4958,9 +4978,7 @@ EmitNormalFor(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
     SET_STATEMENT_TOP(&stmtInfo, top);
 
     /* Emit code for the loop body. */
-    if (EmitLoopHead(cx, bce, forBody) < 0)
-        return false;
-    if (jmp == -1 && !EmitLoopEntry(cx, bce, forBody))
+    if (EmitTraceOp(cx, bce, forBody) < 0)
         return false;
     if (!EmitTree(cx, bce, forBody))
         return false;
@@ -5008,8 +5026,6 @@ EmitNormalFor(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
         /* Fix up the goto from top to target the loop condition. */
         JS_ASSERT(jmp >= 0);
         SetJumpOffsetAt(bce, jmp);
-        if (!EmitLoopEntry(cx, bce, forHead->pn_kid2))
-            return false;
 
         if (!EmitTree(cx, bce, forHead->pn_kid2))
             return false;
@@ -5080,6 +5096,13 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         bce2->flags = pn->pn_funbox->tcflags | TCF_COMPILING | TCF_IN_FUNCTION |
                      (bce->flags & TCF_FUN_MIGHT_ALIAS_LOCALS);
         bce2->bindings.transfer(cx, &pn->pn_funbox->bindings);
+#if JS_HAS_SHARP_VARS
+        if (bce2->flags & TCF_HAS_SHARPS) {
+            bce2->sharpSlotBase = bce2->bindings.sharpSlotBase(cx);
+            if (bce2->sharpSlotBase < 0)
+                return false;
+        }
+#endif
         bce2->setFunction(fun);
         bce2->funbox = pn->pn_funbox;
         bce2->parent = bce;
@@ -5168,10 +5191,8 @@ EmitDo(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         return false;
 
     /* Compile the loop body. */
-    ptrdiff_t top = EmitLoopHead(cx, bce, pn->pn_left);
+    ptrdiff_t top = EmitTraceOp(cx, bce, pn->pn_left);
     if (top < 0)
-        return false;
-    if (!EmitLoopEntry(cx, bce, NULL))
         return false;
 
     StmtInfo stmtInfo;
@@ -5238,7 +5259,7 @@ EmitWhile(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
     if (jmp < 0)
         return false;
 
-    top = EmitLoopHead(cx, bce, pn->pn_right);
+    top = EmitTraceOp(cx, bce, pn->pn_right);
     if (top < 0)
         return false;
 
@@ -5246,8 +5267,6 @@ EmitWhile(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
         return false;
 
     SetJumpOffsetAt(bce, jmp);
-    if (!EmitLoopEntry(cx, bce, pn->pn_left))
-        return false;
     if (!EmitTree(cx, bce, pn->pn_left))
         return false;
 
@@ -5925,7 +5944,7 @@ EmitConditionalExpression(JSContext *cx, BytecodeEmitter *bce, ConditionalExpres
 }
 
 static bool
-EmitObject(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
+EmitObject(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, jsint sharpnum)
 {
 #if JS_HAS_DESTRUCTURING_SHORTHAND
     if (pn->pn_xflags & PNX_DESTRUCT) {
@@ -5935,8 +5954,11 @@ EmitObject(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     }
 #endif
 
-    if (!(pn->pn_xflags & PNX_NONCONST) && pn->pn_head && bce->checkSingletonContext())
+    if (!bce->hasSharps() && !(pn->pn_xflags & PNX_NONCONST) && pn->pn_head &&
+        bce->checkSingletonContext())
+    {
         return EmitSingletonInitialiser(cx, bce, pn);
+    }
 
     /*
      * Emit code for {p:a, '%q':b, 2:c} that is equivalent to constructing
@@ -5947,7 +5969,7 @@ EmitObject(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
      * property is added, as JSOP_SETELEM/JSOP_SETPROP would do.
      */
     ptrdiff_t offset = bce->next() - bce->base();
-    if (!EmitNewInit(cx, bce, JSProto_Object, pn))
+    if (!EmitNewInit(cx, bce, JSProto_Object, pn, sharpnum))
         return false;
 
     /*
@@ -5955,7 +5977,7 @@ EmitObject(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
      * JSOP_NEWOBJECT with the final shape instead.
      */
     JSObject *obj = NULL;
-    if (bce->compileAndGo()) {
+    if (!bce->hasSharps() && bce->compileAndGo()) {
         gc::AllocKind kind = GuessObjectGCKind(pn->pn_count);
         obj = NewBuiltinClassInstance(cx, &ObjectClass, kind);
         if (!obj)
@@ -6034,7 +6056,7 @@ EmitObject(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         }
     }
 
-    if (Emit1(cx, bce, JSOP_ENDINIT) < 0)
+    if (!EmitEndInit(cx, bce, pn->pn_count))
         return false;
 
     if (obj) {
@@ -6054,7 +6076,7 @@ EmitObject(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 }
 
 static bool
-EmitArray(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
+EmitArray(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, jsint sharpnum)
 {
     /*
      * Emit code for [a, b, c] that is equivalent to constructing a new
@@ -6067,7 +6089,7 @@ EmitArray(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
 #if JS_HAS_GENERATORS
     if (pn->isKind(PNK_ARRAYCOMP)) {
-        if (!EmitNewInit(cx, bce, JSProto_Array, pn))
+        if (!EmitNewInit(cx, bce, JSProto_Array, pn, sharpnum))
             return false;
 
         /*
@@ -6083,19 +6105,30 @@ EmitArray(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         bce->arrayCompDepth = saveDepth;
 
         /* Emit the usual op needed for decompilation. */
-        return Emit1(cx, bce, JSOP_ENDINIT) >= 0;
+        if (!EmitEndInit(cx, bce, 1))
+            return false;
+        return true;
     }
 #endif /* JS_HAS_GENERATORS */
 
-    if (!(pn->pn_xflags & PNX_NONCONST) && pn->pn_head && bce->checkSingletonContext())
+    if (!bce->hasSharps() && !(pn->pn_xflags & PNX_NONCONST) && pn->pn_head &&
+        bce->checkSingletonContext())
+    {
         return EmitSingletonInitialiser(cx, bce, pn);
+    }
 
-    ptrdiff_t off = EmitN(cx, bce, JSOP_NEWARRAY, 3);
-    if (off < 0)
-        return false;
-    CheckTypeSet(cx, bce, JSOP_NEWARRAY);
-    jsbytecode *pc = bce->code(off);
-    SET_UINT24(pc, pn->pn_count);
+    /* Use the slower NEWINIT for arrays in scripts containing sharps. */
+    if (bce->hasSharps()) {
+        if (!EmitNewInit(cx, bce, JSProto_Array, pn, sharpnum))
+            return false;
+    } else {
+        ptrdiff_t off = EmitN(cx, bce, JSOP_NEWARRAY, 3);
+        if (off < 0)
+            return false;
+        CheckTypeSet(cx, bce, JSOP_NEWARRAY);
+        jsbytecode *pc = bce->code(off);
+        SET_UINT24(pc, pn->pn_count);
+    }
 
     ParseNode *pn2 = pn->pn_head;
     jsatomid atomIndex;
@@ -6120,8 +6153,11 @@ EmitArray(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             return false;
     }
 
-    /* Emit an op to finish the array and aid in decompilation. */
-    return Emit1(cx, bce, JSOP_ENDINIT) >= 0;
+    /*
+     * Emit an op to finish the array and, secondarily, to aid in sharp
+     * array cleanup (if JS_HAS_SHARP_VARS) and decompilation.
+     */
+    return EmitEndInit(cx, bce, atomIndex);
 }
 
 static bool
@@ -6461,14 +6497,12 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         ptrdiff_t jmp = EmitJump(cx, bce, JSOP_FILTER, 0);
         if (jmp < 0)
             return JS_FALSE;
-        top = EmitLoopHead(cx, bce, pn->pn_right);
+        top = EmitTraceOp(cx, bce, pn->pn_right);
         if (top < 0)
             return JS_FALSE;
         if (!EmitTree(cx, bce, pn->pn_right))
             return JS_FALSE;
         SetJumpOffsetAt(bce, jmp);
-        if (!EmitLoopEntry(cx, bce, NULL))
-            return false;
         if (EmitJump(cx, bce, JSOP_ENDFILTER, top - bce->offset()) < 0)
             return JS_FALSE;
         break;
@@ -6538,12 +6572,46 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 #if JS_HAS_GENERATORS
       case PNK_ARRAYCOMP:
 #endif
-        ok = EmitArray(cx, bce, pn);
+        ok = EmitArray(cx, bce, pn, -1);
         break;
 
       case PNK_RC:
-        ok = EmitObject(cx, bce, pn);
+        ok = EmitObject(cx, bce, pn, -1);
         break;
+
+#if JS_HAS_SHARP_VARS
+      case PNK_DEFSHARP:
+      {
+        JS_ASSERT(bce->hasSharps());
+        jsint sharpnum = pn->asDefSharpExpression().number();
+        pn = pn->pn_kid;
+        if (pn->isKind(PNK_RB)) {
+            ok = EmitArray(cx, bce, pn, sharpnum);
+            break;
+        }
+# if JS_HAS_GENERATORS
+        if (pn->isKind(PNK_ARRAYCOMP)) {
+            ok = EmitArray(cx, bce, pn, sharpnum);
+            break;
+        }
+# endif
+        if (pn->isKind(PNK_RC)) {
+            ok = EmitObject(cx, bce, pn, sharpnum);
+            break;
+        }
+
+        if (!EmitTree(cx, bce, pn))
+            return JS_FALSE;
+        EMIT_UINT16PAIR_IMM_OP(JSOP_DEFSHARP, bce->sharpSlotBase, jsatomid(sharpnum));
+        break;
+      }
+
+      case PNK_USESHARP:
+        JS_ASSERT(bce->hasSharps());
+        EMIT_UINT16PAIR_IMM_OP(JSOP_USESHARP, bce->sharpSlotBase,
+                               jsatomid(pn->asUseSharpExpression().number()));
+        break;
+#endif /* JS_HAS_SHARP_VARS */
 
       case PNK_NAME:
         /*
@@ -6576,7 +6644,7 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
       case PNK_REGEXP:
         JS_ASSERT(pn->isOp(JSOP_REGEXP));
-        ok = EmitRegExp(cx, bce->regexpList.index(pn->pn_objbox), bce);
+        ok = EmitIndexOp(cx, JSOP_REGEXP, bce->regexpList.index(pn->pn_objbox), bce);
         break;
 
 #if JS_HAS_XML_SUPPORT

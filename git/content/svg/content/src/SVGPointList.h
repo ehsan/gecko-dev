@@ -37,16 +37,10 @@
 #ifndef MOZILLA_SVGPOINTLIST_H__
 #define MOZILLA_SVGPOINTLIST_H__
 
-#include "nsCOMPtr.h"
-#include "nsDebug.h"
-#include "nsIContent.h"
-#include "nsINode.h"
-#include "nsIWeakReferenceUtils.h"
-#include "nsSVGElement.h"
-#include "nsTArray.h"
 #include "SVGPoint.h"
-
-#include <string.h>
+#include "nsTArray.h"
+#include "nsSVGElement.h"
+#include "nsIWeakReferenceUtils.h"
 
 namespace mozilla {
 

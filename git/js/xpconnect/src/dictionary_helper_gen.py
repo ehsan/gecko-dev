@@ -82,10 +82,9 @@ def findIDL(includePath, interfaceFileName):
                         % (interfaceFileName, includePath))
 
 def loadIDL(parser, includePath, filename):
-    idlFile = findIDL(includePath, filename)
-    if not idlFile in make_dependencies:
-        make_dependencies.append(idlFile)
-    idl = p.parse(open(idlFile).read(), idlFile)
+    if not filename in make_dependencies:
+        make_dependencies.append(filename)
+    idl = p.parse(open(findIDL(includePath, filename)).read(), filename)
     idl.resolve(includePath, p)
     return idl
 

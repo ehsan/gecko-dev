@@ -1705,7 +1705,7 @@ History::SizeOfEntryExcludingThis(KeyClass* aEntry, nsMallocSizeOfFun aMallocSiz
 size_t
 History::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOfThis)
 {
-  return aMallocSizeOfThis(this) +
+  return aMallocSizeOfThis(this, sizeof(History)) +
          mObservers.SizeOfExcludingThis(SizeOfEntryExcludingThis, aMallocSizeOfThis);
 }
 
@@ -1750,8 +1750,7 @@ History::GetDBConn()
 void
 History::Shutdown()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(!mShuttingDown && "Shutdown was called more than once!");
+  NS_ASSERTION(!mShuttingDown, "Shutdown was called more than once!");
 
   mShuttingDown = true;
 

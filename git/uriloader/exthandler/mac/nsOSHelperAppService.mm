@@ -275,15 +275,14 @@ static CFArrayRef GetMIMETypesHandledByApp(FSRef *aAppRef)
     return NULL;
   }
   CFTypeRef cfObject = ::CFDictionaryGetValue(infoDict, CFSTR("CFBundleDocumentTypes"));
+  ::CFRelease(infoDict);
   if (!cfObject || (::CFGetTypeID(cfObject) != ::CFArrayGetTypeID())) {
-    ::CFRelease(infoDict);
     return NULL;
   }
 
   CFArrayRef docTypes = static_cast<CFArrayRef>(cfObject);
   CFIndex docTypesCount = ::CFArrayGetCount(docTypes);
   if (docTypesCount == 0) {
-    ::CFRelease(infoDict);
     return NULL;
   }
 
@@ -313,7 +312,6 @@ static CFArrayRef GetMIMETypesHandledByApp(FSRef *aAppRef)
                        ::CFRangeMake(0, ::CFArrayGetCount(mimeTypeHolder)));
   }
 
-  ::CFRelease(infoDict);
   if (!::CFArrayGetCount(mimeTypes)) {
     ::CFRelease(mimeTypes);
     mimeTypes = NULL;

@@ -539,7 +539,7 @@ public:
                         nsCycleCollectionTraversalCallback &cb);
 
     // nsCycleCollectionLanguageRuntime
-    virtual bool NotifyLeaveMainThread();
+    virtual void NotifyLeaveMainThread();
     virtual void NotifyEnterCycleCollectionThread();
     virtual void NotifyLeaveCycleCollectionThread();
     virtual void NotifyEnterMainThread();
@@ -549,7 +549,7 @@ public:
     virtual nsresult FinishCycleCollection();
     virtual nsCycleCollectionParticipant *ToParticipant(void *p);
     virtual bool NeedCollect();
-    virtual void Collect(PRUint32 reason, PRUint32 kind);
+    virtual void Collect(bool shrinkingGC=false);
 #ifdef DEBUG_CC
     virtual void PrintAllReferencesTo(void *p);
 #endif
@@ -1654,10 +1654,10 @@ private:
     // default parent for the XPCWrappedNatives that have us as the scope,
     // unless a PreCreate hook overrides it.  Note that this _may_ be null (see
     // constructor).
-    js::ObjectPtr                    mGlobalJSObject;
+    JS::HeapPtrObject                mGlobalJSObject;
 
     // Cached value of Object.prototype
-    js::ObjectPtr                    mPrototypeJSObject;
+    JS::HeapPtrObject                mPrototypeJSObject;
     // Prototype to use for wrappers with no helper.
     JSObject*                        mPrototypeNoHelper;
 
@@ -2306,12 +2306,6 @@ public:
             mScriptableInfo->Mark();
     }
 
-    void WriteBarrierPre(JSRuntime* rt)
-    {
-        if (js::IsIncrementalBarrierNeeded(rt) && mJSProtoObject)
-            mJSProtoObject.writeBarrierPre(rt);
-    }
-
     // NOP. This is just here to make the AutoMarkingPtr code compile.
     inline void AutoTrace(JSTracer* trc) {}
 
@@ -2354,7 +2348,7 @@ private:
     }
 
     XPCWrappedNativeScope*   mScope;
-    js::ObjectPtr            mJSProtoObject;
+    JS::HeapPtrObject        mJSProtoObject;
     nsCOMPtr<nsIClassInfo>   mClassInfo;
     PRUint32                 mClassInfoFlags;
     XPCNativeSet*            mSet;
@@ -2743,9 +2737,8 @@ public:
     }
     void SetWrapper(JSObject *obj)
     {
-        js::IncrementalReferenceBarrier(GetWrapperPreserveColor());
         PRWord newval = PRWord(obj) | (mWrapperWord & FLAG_MASK);
-        mWrapperWord = newval;
+        JS_ModifyReference((void **)&mWrapperWord, (void *)newval);
     }
 
     void NoteTearoffs(nsCycleCollectionTraversalCallback& cb);
@@ -3665,7 +3658,9 @@ public:
             JS_Assert("NS_IsMainThread()", __FILE__, __LINE__);
 
         if (cx) {
-            if (js::GetOwnerThread(cx) == sMainJSThread)
+            NS_ASSERTION(js::GetContextThread(cx), "Uh, JS context w/o a thread?");
+
+            if (js::GetContextThread(cx) == sMainJSThread)
                 return sMainThreadData;
         } else if (sMainThreadData && sMainThreadData->mThread == PR_GetCurrentThread()) {
             return sMainThreadData;
@@ -3768,7 +3763,7 @@ public:
         {sMainJSThread = nsnull; sMainThreadData = nsnull;}
 
     static bool IsMainThread(JSContext *cx)
-        { return js::GetOwnerThread(cx) == sMainJSThread; }
+        { return js::GetContextThread(cx) == sMainJSThread; }
 
 private:
     XPCPerThreadData();
@@ -4279,22 +4274,6 @@ public:
                                   nsIVariant* variant,
                                   nsresult* pErr, jsval* pJSVal);
 
-    bool IsPurple()
-    {
-        return mRefCnt.IsPurple();
-    }
-
-    void RemovePurple()
-    {
-        mRefCnt.RemovePurple();
-    }
-
-    void SetCCGeneration(PRUint32 aGen)
-    {
-        mCCGeneration = aGen;
-    }
-
-    PRUint32 CCGeneration() { return mCCGeneration; }
 protected:
     virtual ~XPCVariant() { }
 
@@ -4303,8 +4282,7 @@ protected:
 protected:
     nsDiscriminatedUnion mData;
     jsval                mJSVal;
-    bool                 mReturnRawObject : 1;
-    PRUint32             mCCGeneration : 31;
+    JSBool               mReturnRawObject;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(XPCVariant, XPCVARIANT_IID)

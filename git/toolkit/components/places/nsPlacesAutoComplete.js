@@ -39,8 +39,6 @@
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
-                                  "resource://gre/modules/PlacesUtils.jsm");
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Constants
@@ -785,7 +783,6 @@ nsPlacesAutoComplete.prototype = {
     // Clear our state
     delete this._originalSearchString;
     delete this._currentSearchString;
-    delete this._strippedPrefix;
     delete this._searchTokens;
     delete this._listener;
     delete this._result;
@@ -1381,11 +1378,6 @@ urlInlineComplete.prototype = {
     this._originalSearchString = aSearchString;
     this._currentSearchString =
       fixupSearchText(this._originalSearchString.toLowerCase());
-    // The protocol and the domain are lowercased by nsIURI, so it's fine to
-    // lowercase the typed prefix to add it back to the results later.
-    this._strippedPrefix = this._originalSearchString.slice(
-      0, this._originalSearchString.length - this._currentSearchString.length
-    ).toLowerCase();
 
     let result = Cc["@mozilla.org/autocomplete/simple-result;1"].
                  createInstance(Ci.nsIAutoCompleteSimpleResult);
@@ -1395,12 +1387,7 @@ urlInlineComplete.prototype = {
     this._result = result;
     this._listener = aListener;
 
-    // Don't autoFill if the search term is recognized as a keyword, otherwise
-    // it will override default keywords behavior.  Note that keywords are
-    // hashed on first use, so while the first query may delay a little bit,
-    // next ones will just hit the memory hash.
-    if (this._currentSearchString.length == 0 || !this._db ||
-        PlacesUtils.bookmarks.getURIForKeyword(this._currentSearchString)) {
+    if (this._currentSearchString.length == 0 || !this._db) {
       this._finishSearch();
       return;
     }
@@ -1425,7 +1412,8 @@ urlInlineComplete.prototype = {
 
       if (hasDomainResult) {
         // We got a match for a domain, we can add it immediately.
-        result.appendMatch(this._strippedPrefix + domain, "");
+        let appendResult = domain.slice(this._currentSearchString.length);
+        result.appendMatch(aSearchString + appendResult, "");
 
         this._finishSearch();
         return;
@@ -1498,18 +1486,17 @@ urlInlineComplete.prototype = {
     let url = fixupSearchText(row.getResultByIndex(0));
 
     // We must complete the URL up to the next separator (which is /, ? or #).
-    let separatorIndex = url.slice(this._currentSearchString.length)
-                            .search(/[\/\?\#]/);
+    let appendText = url.slice(this._currentSearchString.length);
+    let separatorIndex = appendText.search(/[\/\?\#]/);
     if (separatorIndex != -1) {
-      separatorIndex += this._currentSearchString.length;
-      if (url[separatorIndex] == "/") {
+      if (appendText[separatorIndex] == "/") {
         separatorIndex++; // Include the "/" separator
       }
-      url = url.slice(0, separatorIndex);
+      appendText = appendText.slice(0, separatorIndex);
     }
 
     // Add the result
-    this._result.appendMatch(this._strippedPrefix + url, "");
+    this._result.appendMatch(this._originalSearchString + appendText, "");
 
     // handleCompletion() will cause the result listener to be called, and
     // will display the result in the UI.
