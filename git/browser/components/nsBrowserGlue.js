@@ -358,13 +358,9 @@ BrowserGlue.prototype = {
 #ifdef XP_WIN
 #ifndef WINCE
     // For windows seven, initialize the jump list module.
-    const WINTASKBAR_CONTRACTID = "@mozilla.org/windows-taskbar;1";
-    if (WINTASKBAR_CONTRACTID in Cc &&
-        Cc[WINTASKBAR_CONTRACTID].getService(Ci.nsIWinTaskbar).available) {
-      let temp = {};
-      Cu.import("resource://gre/modules/WindowsJumpLists.jsm", temp);
-      temp.WinTaskbarJumpList.startup();
-    }
+    let temp = {};
+    Cu.import("resource://gre/modules/WindowsJumpLists.jsm", temp);
+    temp.WinTaskbarJumpList.startup();
 #endif
 #endif
   },
