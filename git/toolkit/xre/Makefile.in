@@ -92,7 +92,6 @@ endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 CPPSRCS += nsNativeAppSupportWin.cpp
 DEFINES += -DWIN32_LEAN_AND_MEAN -DUNICODE -D_UNICODE
-EXPORTS = nsWindowsDllInterceptor.h
 else
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 CMMSRCS = nsNativeAppSupportCocoa.mm
@@ -106,11 +105,7 @@ else
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 CPPSRCS += nsNativeAppSupportUnix.cpp
 else
-ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
-CPPSRCS += nsNativeAppSupportQt.cpp
-else
 CPPSRCS += nsNativeAppSupportDefault.cpp
-endif
 endif
 endif
 endif
@@ -124,10 +119,6 @@ OS_CXXFLAGS += -fexceptions
 endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 CMMSRCS += MacApplicationDelegate.mm
-endif
-
-ifdef MOZ_X11
-CPPSRCS += nsX11ErrorHandler.cpp
 endif
 
 SHARED_LIBRARY_LIBS += ../profile/src/$(LIB_PREFIX)profile_s.$(LIB_SUFFIX)

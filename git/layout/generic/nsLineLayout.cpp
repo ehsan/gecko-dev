@@ -203,7 +203,6 @@ nsLineLayout::BeginLineReflow(nscoord aX, nscoord aY,
   SetFlag(LL_IMPACTEDBYFLOATS, aImpactedByFloats);
   mTotalPlacedFrames = 0;
   SetFlag(LL_LINEISEMPTY, PR_TRUE);
-  SetFlag(LL_LINEATSTART, PR_TRUE);
   SetFlag(LL_LINEENDSINBR, PR_FALSE);
   mSpanDepth = 0;
   mMaxTopBoxHeight = mMaxBottomBoxHeight = 0;
@@ -934,7 +933,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
         pfd->SetFlag(PFD_ISLETTERFRAME, PR_TRUE);
       }
       if (pfd->mSpan) {
-        isEmpty = !pfd->mSpan->mHasNonemptyContent && pfd->mFrame->IsSelfEmpty();
+        isEmpty = !pfd->mSpan->mHasNonemptyContent;
       } else {
         isEmpty = pfd->mFrame->IsEmpty();
       }
@@ -1021,10 +1020,6 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
       if (!isEmpty) {
         psd->mHasNonemptyContent = PR_TRUE;
         SetFlag(LL_LINEISEMPTY, PR_FALSE);
-        if (!pfd->mSpan) {
-          // nonempty leaf content has been placed
-          SetFlag(LL_LINEATSTART, PR_FALSE);
-        }
       }
 
       // Place the frame, updating aBounds with the final size and

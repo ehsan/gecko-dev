@@ -22,7 +22,6 @@
 # Contributor(s):
 #   Alec Flett <alecf@netscape.com>
 #   Ehsan Akhgari <ehsan.akhgari@gmail.com>
-#   Gavin Sharp <gavin@gavinsharp.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -38,8 +37,10 @@
 #
 # ***** END LICENSE BLOCK *****
 
-// Services = object with smart getters for common XPCOM services
-Components.utils.import("resource://gre/modules/Services.jsm");
+/**
+ * Communicator Shared Utility Library
+ * for shared application glue for the Communicator suite of applications
+ **/
 
 var TAB_DROP_TYPE = "application/x-moz-tabbrowser-tab";
 
@@ -68,7 +69,9 @@ function goToggleToolbar( id, elementID )
 
 function getTopWin()
 {
-  return Services.wm.getMostRecentWindow("navigator:browser");
+  var windowManager = Components.classes['@mozilla.org/appshell/window-mediator;1']
+                                .getService(Components.interfaces.nsIWindowMediator);
+  return windowManager.getMostRecentWindow("navigator:browser");
 }
 
 function openTopWin( url )
@@ -76,10 +79,12 @@ function openTopWin( url )
   openUILink(url, {})
 }
 
-function getBoolPref(prefname, def)
+function getBoolPref ( prefname, def )
 {
-  try {
-    return Services.prefs.getBoolPref(prefname);
+  try { 
+    var pref = Components.classes["@mozilla.org/preferences-service;1"]
+                       .getService(Components.interfaces.nsIPrefBranch);
+    return pref.getBoolPref(prefname);
   }
   catch(er) {
     return def;
@@ -226,7 +231,7 @@ function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI
     return;
   }
 
-  var loadInBackground = getBoolPref("browser.tabs.loadBookmarksInBackground");
+  var loadInBackground = getBoolPref("browser.tabs.loadBookmarksInBackground", false);
 
   switch (where) {
   case "current":
@@ -370,35 +375,30 @@ function isBidiEnabled() {
       case "ur-":
       case "syr":
         rv = true;
-        Services.prefs.setBoolPref("bidi.browser.ui", true);
+        var pref = Components.classes["@mozilla.org/preferences-service;1"]
+                             .getService(Components.interfaces.nsIPrefBranch);
+        pref.setBoolPref("bidi.browser.ui", true);
     }
   } catch (e) {}
 
   return rv;
 }
 
-function openAboutDialog() {
-  var enumerator = Services.wm.getEnumerator("Browser:About");
-  while (enumerator.hasMoreElements()) {
-    let win = enumerator.getNext();
-#ifdef XP_WIN
-    if (win.opener != window)
-      continue;
-#endif
-    win.focus();
-    return;
-  }
-
+function openAboutDialog()
+{
 #ifdef XP_MACOSX
-  var features = "chrome,resizable=no,minimizable=no";
+  var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                     .getService(Components.interfaces.nsIWindowMediator);
+  var win = wm.getMostRecentWindow("Browser:About");
+  if (win)
+    win.focus();
+  else {
+    window.openDialog("chrome://browser/content/aboutDialog.xul", "About",
+                      "chrome, resizable=no, minimizable=no");
+  }
 #else
-#ifdef XP_WIN
-  var features = "chrome,centerscreen,dependent";
-#else
-  var features = "chrome,centerscreen";
+  window.openDialog("chrome://browser/content/aboutDialog.xul", "About", "centerscreen,chrome,resizable=no");
 #endif
-#endif
-  window.openDialog("chrome://browser/content/aboutDialog.xul", "", features);
 }
 
 function openPreferences(paneID, extraArgs)
@@ -406,7 +406,9 @@ function openPreferences(paneID, extraArgs)
   var instantApply = getBoolPref("browser.preferences.instantApply", false);
   var features = "chrome,titlebar,toolbar,centerscreen" + (instantApply ? ",dialog=no" : ",modal");
 
-  var win = Services.wm.getMostRecentWindow("Browser:Preferences");
+  var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                     .getService(Components.interfaces.nsIWindowMediator);
+  var win = wm.getMostRecentWindow("Browser:Preferences");
   if (win) {
     win.focus();
     if (paneID) {
@@ -585,7 +587,17 @@ function openNewTabWith(aURL, aDocument, aPostData, aEvent,
   if (aDocument)
     urlSecurityCheck(aURL, aDocument.nodePrincipal);
 
-  var loadInBackground = getBoolPref("browser.tabs.loadInBackground");
+  var prefSvc = Components.classes["@mozilla.org/preferences-service;1"]
+                          .getService(Components.interfaces.nsIPrefService);
+  prefSvc = prefSvc.getBranch(null);
+
+  // should we open it in a new tab?
+  var loadInBackground = true;
+  try {
+    loadInBackground = prefSvc.getBoolPref("browser.tabs.loadInBackground");
+  }
+  catch(ex) {
+  }
 
   if (aEvent && aEvent.shiftKey)
     loadInBackground = !loadInBackground;
@@ -676,9 +688,12 @@ function openHelpLink(aHelpTopic, aCalledFromModal) {
 }
 
 function openPrefsHelp() {
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"]
+                        .getService(Components.interfaces.nsIPrefBranch2);
+
   // non-instant apply prefwindows are usually modal, so we can't open in the topmost window, 
   // since its probably behind the window.
-  var instantApply = getBoolPref("browser.preferences.instantApply");
+  var instantApply = prefs.getBoolPref("browser.preferences.instantApply");
 
   var helpTopic = document.getElementsByTagName("prefwindow")[0].currentPane.helpTopic;
   openHelpLink(helpTopic, !instantApply);

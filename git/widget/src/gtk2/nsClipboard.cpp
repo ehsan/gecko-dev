@@ -373,9 +373,8 @@ nsClipboard::GetData(nsITransferable *aTransferable, PRInt32 aWhichClipboard)
                     // Convert text/html into our unicode format
                     ConvertHTMLtoUCS2((guchar *)selectionData->data, length,
                                       &htmlBody, htmlBodyLen);
-                    // Try next data format?
                     if (!htmlBodyLen)
-                        continue;
+                        break;
                     data = (guchar *)htmlBody;
                     length = htmlBodyLen * 2;
                 } else {

@@ -24,11 +24,6 @@ protected:
     virtual bool ShouldContinueFromReplyTimeout();
 
     NS_OVERRIDE
-    virtual bool RecvNonce() {
-        return true;
-    }
-
-    NS_OVERRIDE
     virtual bool AnswerStackFrame();
 
     NS_OVERRIDE
@@ -40,11 +35,8 @@ protected:
         QuitParent();
     }
 
-    void CleanUp();
-
     // XXX hack around lack of State()
     int mFramesToGo;
-    bool mDetectedHang;
 };
 
 
@@ -57,17 +49,10 @@ public:
 
 protected:
     NS_OVERRIDE
-    virtual bool RecvStart() {
-        if (!SendNonce())
-            fail("sending Nonce");
-        return true;
-    }
-
-    NS_OVERRIDE
     virtual bool AnswerStackFrame()
     {
-        if (CallStackFrame())
-            fail("should have failed");
+        if (!CallStackFrame())
+            fail("shouldn't be able to observe this failure");
         return true;
     }
 
@@ -77,9 +62,7 @@ protected:
     NS_OVERRIDE
     virtual void ActorDestroy(ActorDestroyReason why)
     {
-        if (AbnormalShutdown != why)
-            fail("unexpected destruction!");
-        QuitChild();
+        fail("should have been mercilessly killed");
     }
 };
 

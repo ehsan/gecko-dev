@@ -483,12 +483,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
     nsresult rv = NS_ERROR_FAILURE;
     if (target->GetContextForEventHandlers(&rv) ||
         NS_FAILED(rv)) {
-      nsCOMPtr<nsINode> node = do_QueryInterface(target);
-      if (node && nsContentUtils::IsChromeDoc(node->GetOwnerDoc())) {
-        NS_WARNING("Fix the caller!");
-      } else {
-        NS_ERROR("This is unsafe! Fix the caller!");
-      }
+      NS_ERROR("This is unsafe!");
     }
   }
 
@@ -507,7 +502,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
 
   // If we have a PresContext, make sure it doesn't die before
   // event dispatching is finished.
-  nsRefPtr<nsPresContext> kungFuDeathGrip(aPresContext);
+  nsCOMPtr<nsPresContext> kungFuDeathGrip(aPresContext);
   ChainItemPool pool;
   NS_ENSURE_TRUE(pool.GetPool(), NS_ERROR_OUT_OF_MEMORY);
 

@@ -52,7 +52,6 @@
 #include "nsMemory.h"
 #include "pratom.h"
 #include "prprf.h"
-#include "nsStaticAtom.h"
 
 // ---------------------------------------------------------------------------
 

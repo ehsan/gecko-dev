@@ -111,15 +111,8 @@ public:
   // Use Release() to destroy this
   virtual ~nsNPAPIPluginInstance();
 
-  // Indicates whether the plugin is running normally.
-  bool IsRunning() {
-    return RUNNING == mRunning;
-  }
-
-  // Indicates whether the plugin is running normally or being shut down
-  bool CanFireNotifications() {
-    return mRunning == RUNNING || mRunning == DESTROYING;
-  }
+  // returns the state of mStarted
+  PRBool IsRunning();
 
   // return is only valid when the plugin is not running
   mozilla::TimeStamp LastStopTime();
@@ -161,18 +154,12 @@ protected:
   NPDrawingModel mDrawingModel;
 #endif
 
-  enum {
-    NOT_STARTED,
-    RUNNING,
-    DESTROYING,
-    DESTROYED
-  } mRunning;
-
   // these are used to store the windowless properties
   // which the browser will later query
   PRPackedBool mWindowless;
   PRPackedBool mWindowlessLocal;
   PRPackedBool mTransparent;
+  PRPackedBool mRunning;
   PRPackedBool mCached;
   PRPackedBool mWantsAllNetworkStreams;
 

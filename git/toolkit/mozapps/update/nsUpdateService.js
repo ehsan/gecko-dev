@@ -49,24 +49,22 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 
-const PREF_APP_UPDATE_AUTO                = "app.update.auto";
-const PREF_APP_UPDATE_BACKGROUND_INTERVAL = "app.update.download.backgroundInterval";
-const PREF_APP_UPDATE_CHANNEL             = "app.update.channel";
 const PREF_APP_UPDATE_ENABLED             = "app.update.enabled";
-const PREF_APP_UPDATE_IDLETIME            = "app.update.idletime";
-const PREF_APP_UPDATE_INCOMPATIBLE_MODE   = "app.update.incompatible.mode";
-const PREF_APP_UPDATE_INTERVAL            = "app.update.interval";
-const PREF_APP_UPDATE_LOG                 = "app.update.log";
+const PREF_APP_UPDATE_AUTO                = "app.update.auto";
 const PREF_APP_UPDATE_MODE                = "app.update.mode";
-const PREF_APP_UPDATE_NEVER_BRANCH        = "app.update.never.";
-const PREF_APP_UPDATE_POSTUPDATE          = "app.update.postupdate";
-const PREF_APP_UPDATE_PROMPTWAITTIME      = "app.update.promptWaitTime";
-const PREF_APP_UPDATE_SHOW_INSTALLED_UI   = "app.update.showInstalledUI";
 const PREF_APP_UPDATE_SILENT              = "app.update.silent";
+const PREF_APP_UPDATE_INTERVAL            = "app.update.interval";
+const PREF_APP_UPDATE_IDLETIME            = "app.update.idletime";
+const PREF_APP_UPDATE_LOG                 = "app.update.log";
+const PREF_APP_UPDATE_PROMPTWAITTIME      = "app.update.promptWaitTime";
 const PREF_APP_UPDATE_URL                 = "app.update.url";
-const PREF_APP_UPDATE_URL_DETAILS         = "app.update.url.details";
 const PREF_APP_UPDATE_URL_OVERRIDE        = "app.update.url.override";
-
+const PREF_APP_UPDATE_URL_DETAILS         = "app.update.url.details";
+const PREF_APP_UPDATE_CHANNEL             = "app.update.channel";
+const PREF_APP_UPDATE_BACKGROUND_INTERVAL = "app.update.download.backgroundInterval";
+const PREF_APP_UPDATE_SHOW_INSTALLED_UI   = "app.update.showInstalledUI";
+const PREF_APP_UPDATE_INCOMPATIBLE_MODE   = "app.update.incompatible.mode";
+const PREF_UPDATE_NEVER_BRANCH            = "app.update.never.";
 const PREF_PARTNER_BRANCH                 = "app.partner.";
 const PREF_APP_DISTRIBUTION               = "distribution.id";
 const PREF_APP_DISTRIBUTION_VERSION       = "distribution.version";
@@ -476,7 +474,7 @@ function writeStatusFile(dir, state) {
 /**
 #  Writes the update's application version to a file in the patch directory. If
 #  the update doesn't provide application version information via the
-#  appVersion attribute the string "null" will be written to the file.
+#  extensionVersion attribute the string "null" will be written to the file.
 #  This value is compared during startup (in nsUpdateDriver.cpp) to determine if
 #  the update should be applied. Note that this won't provide protection from
 #  downgrade of the application for the nightly user case where the application
@@ -486,7 +484,8 @@ function writeStatusFile(dir, state) {
 #           written.
 #  @param   version
 #           The version value to write. Will be the string "null" when the
-#           update doesn't provide the appVersion attribute in the update xml.
+#           update doesn't provide the extensionVersion attribute in the update
+#           xml.
  */
 function writeVersionFile(dir, version) {
   var versionFile = dir.clone();
@@ -825,10 +824,8 @@ UpdatePatch.prototype = {
 function Update(update) {
   this._properties = {};
   this._patches = [];
+  this.installDate = 0;
   this.isCompleteUpdate = false;
-  this.showPrompt = false;
-  this.showSurvey = false;
-  this.showNeverForVersion = false;
   this.channel = "default"
 
   // Null <update>, assume this is a message container and do no
@@ -858,65 +855,19 @@ function Update(update) {
   for (var i = 0; i < update.attributes.length; ++i) {
     var attr = update.attributes.item(i);
     attr.QueryInterface(Ci.nsIDOMAttr);
-    if (attr.value == "undefined")
-      continue;
-    else if (attr.name == "detailsURL")
-      this._detailsURL = attr.value;
-    else if (attr.name == "extensionVersion") {
-      // Prevent extensionVersion from replacing appVersion if appVersion is
-      // present in the update xml.
-      if (!this.appVersion)
-        this.appVersion = attr.value;
-    }
-    else if (attr.name == "installDate" && attr.value)
+    if (attr.name == "installDate" && attr.value)
       this.installDate = parseInt(attr.value);
     else if (attr.name == "isCompleteUpdate")
       this.isCompleteUpdate = attr.value == "true";
     else if (attr.name == "isSecurityUpdate")
       this.isSecurityUpdate = attr.value == "true";
-    else if (attr.name == "showNeverForVersion")
-      this.showNeverForVersion = attr.value == "true";
-    else if (attr.name == "showPrompt")
-      this.showPrompt = attr.value == "true";
-    else if (attr.name == "showSurvey")
-      this.showSurvey = attr.value == "true";
-    else if (attr.name == "version") {
-      // Prevent version from replacing displayVersion if displayVersion is
-      // present in the update xml.
-      if (!this.displayVersion)
-        this.displayVersion = attr.value;
-    }
-    else {
+    else if (attr.name == "detailsURL")
+      this._detailsURL = attr.value;
+    else if (attr.name == "channel")
+      this.channel = attr.value;
+    else
       this[attr.name] = attr.value;
-
-      switch (attr.name) {
-      case "appVersion":
-      case "billboardURL":
-      case "buildID":
-      case "channel":
-      case "displayVersion":
-      case "licenseURL":
-      case "name":
-      case "platformVersion":
-      case "previousAppVersion":
-      case "serviceURL":
-      case "statusText":
-      case "type":
-        break;
-      default:
-        // Save custom attributes when serializing to the local xml file but
-        // don't use this method for the expected attributes which are already
-        // handled in serialize.
-        this.setProperty(attr.name, attr.value);
-        break;
-      };
-    }
   }
-
-  // Set the initial value with the current time when it doesn't already have a
-  // value or the value is already set to 0 (bug 316328).
-  if (!this.installDate && this.installDate != 0)
-    this.installDate = (new Date()).getTime();
 
   // The Update Name is either the string provided by the <update> element, or
   // the string: "<App Name> <Update App Version>"
@@ -929,7 +880,7 @@ function Update(update) {
                       createBundle(URI_BRAND_PROPERTIES);
     var appName = brandBundle.GetStringFromName("brandShortName");
     name = gUpdateBundle.formatStringFromName("updateName",
-                                              [appName, this.displayVersion], 2);
+                                              [appName, this.version], 2);
   }
   this.name = name;
 }
@@ -1008,36 +959,19 @@ Update.prototype = {
    */
   serialize: function Update_serialize(updates) {
     var update = updates.createElementNS(URI_UPDATE_NS, "update");
-    update.setAttribute("appVersion", this.appVersion);
-    update.setAttribute("buildID", this.buildID);
-    update.setAttribute("channel", this.channel);
-    update.setAttribute("displayVersion", this.displayVersion);
-    // for backwards compatibility in case the user downgrades
-    update.setAttribute("extensionVersion", this.appVersion);
-    update.setAttribute("installDate", this.installDate);
-    update.setAttribute("isCompleteUpdate", this.isCompleteUpdate);
-    update.setAttribute("name", this.name);
-    update.setAttribute("serviceURL", this.serviceURL);
-    update.setAttribute("showNeverForVersion", this.showNeverForVersion);
-    update.setAttribute("showPrompt", this.showPrompt);
-    update.setAttribute("showSurvey", this.showSurvey);
     update.setAttribute("type", this.type);
-    // for backwards compatibility in case the user downgrades
-
-    // Optional attributes
-    update.setAttribute("version", this.displayVersion);
-    if (this.billboardURL)
-      update.setAttribute("billboardURL", this.billboardURL);
-    if (this.detailsURL)
-      update.setAttribute("detailsURL", this.detailsURL);
-    if (this.licenseURL)
-      update.setAttribute("licenseURL", this.licenseURL);
-    if (this.platformVersion)
-      update.setAttribute("platformVersion", this.platformVersion);
-    if (this.previousAppVersion)
-      update.setAttribute("previousAppVersion", this.previousAppVersion);
-    if (this.statusText)
-      update.setAttribute("statusText", this.statusText);
+    update.setAttribute("name", this.name);
+    update.setAttribute("version", this.version);
+    update.setAttribute("platformVersion", this.platformVersion);
+    update.setAttribute("extensionVersion", this.extensionVersion);
+    update.setAttribute("detailsURL", this.detailsURL);
+    update.setAttribute("licenseURL", this.licenseURL);
+    update.setAttribute("serviceURL", this.serviceURL);
+    update.setAttribute("installDate", this.installDate);
+    update.setAttribute("statusText", this.statusText);
+    update.setAttribute("buildID", this.buildID);
+    update.setAttribute("isCompleteUpdate", this.isCompleteUpdate);
+    update.setAttribute("channel", this.channel);
     updates.documentElement.appendChild(update);
 
     for (var p in this._properties) {
@@ -1087,7 +1021,8 @@ Update.prototype = {
    * See nsIPropertyBag.idl
    */
   getProperty: function Update_getProperty(name) {
-    if (name in this._properties && this._properties[name].present)
+    if (name in this._properties &&
+        this._properties[name].present)
       return this._properties[name].data;
     throw Cr.NS_ERROR_FAILURE;
   },
@@ -1218,7 +1153,7 @@ UpdateService.prototype = {
 
       // Update the patch's metadata.
       um.activeUpdate = update;
-      gPref.setBoolPref(PREF_APP_UPDATE_POSTUPDATE, true);
+
       prompter.showUpdateInstalled();
 
       // Done with this update. Clean it up.
@@ -1236,12 +1171,12 @@ UpdateService.prototype = {
         if (update.errorCode == WRITE_ERROR) {
           prompter.showUpdateError(update);
           writeStatusFile(getUpdatesDir(), update.state = STATE_PENDING);
-          writeVersionFile(getUpdatesDir(), update.appVersion);
+          writeVersionFile(getUpdatesDir(), update.extensionVersion);
           return;
         }
         else if (update.errorCode == ELEVATION_CANCELED) {
           writeStatusFile(getUpdatesDir(), update.state = STATE_PENDING);
-          writeVersionFile(getUpdatesDir(), update.appVersion);
+          writeVersionFile(getUpdatesDir(), update.extensionVersion);
           return;
         }
       }
@@ -1252,7 +1187,7 @@ UpdateService.prototype = {
       update.statusText = gUpdateBundle.GetStringFromName("patchApplyFailure");
       var oldType = update.selectedPatch ? update.selectedPatch.type
                                          : "complete";
-      if (update.selectedPatch && oldType == "partial" && update.patchCount == 2) {
+      if (update.selectedPatch && oldType == "partial") {
         // Partial patch application failed, try downloading the complete
         // update in the background instead.
         LOG("UpdateService:_postUpdateProcessing - install of partial patch " +
@@ -1323,13 +1258,13 @@ UpdateService.prototype = {
 
     for (var i = 0; i < updates.length; ++i) {
       // Ignore updates for older versions of the application
-      if (gVC.compare(updates[i].appVersion, gApp.version) < 0)
+      if (gVC.compare(updates[i].extensionVersion, gApp.version) < 0)
         continue;
       if (updates[i].type == "major" &&
-          gVC.compare(newestMajor.appVersion, updates[i].appVersion) <= 0)
+          gVC.compare(newestMajor.version, updates[i].version) <= 0)
         majorUpdate = newestMajor = updates[i];
       if (updates[i].type == "minor" &&
-          gVC.compare(newestMinor.appVersion, updates[i].appVersion) <= 0)
+          gVC.compare(newestMinor.version, updates[i].version) <= 0)
         minorUpdate = newestMinor = updates[i];
     }
 
@@ -1390,17 +1325,28 @@ UpdateService.prototype = {
 #         a scenario where this could potentially be an issue.
      */
 
-    var neverPrefName = PREF_APP_UPDATE_NEVER_BRANCH + update.appVersion;
-    if (getPref("getBoolPref", neverPrefName, false)) {
-      LOG("Checker:_selectAndInstallUpdate - not prompting because the " +
-          "preference " + neverPrefName + " is true");
+    // Encode version since it could be a non-ascii string (bug 359093)
+    var neverPrefName = PREF_UPDATE_NEVER_BRANCH +
+                        encodeURIComponent(update.version);
+
+    if (!gCanApplyUpdates) {
+      if (getPref("getBoolPref", neverPrefName, false)) {
+        LOG("Checker:_selectAndInstallUpdate - the user is unable to apply " +
+            "updates. Not prompting because the preference " + neverPrefName + 
+            " is true");
+      }
+      else {
+        LOG("Checker:_selectAndInstallUpdate - the user is unable to apply " +
+            "updates... prompting");
+        this._showPrompt(update);
+      }
       return;
     }
 
-    if (!gCanApplyUpdates) {
-      LOG("Checker:_selectAndInstallUpdate - the user is unable to apply " +
-          "updates... prompting");
-      this._showPrompt(update);
+    if (update.type == "major" &&
+        getPref("getBoolPref", neverPrefName, false)) {
+      LOG("Checker:_selectAndInstallUpdate - not prompting because this is a " +
+          "major update and the preference " + neverPrefName + " is true");
       return;
     }
 
@@ -1422,9 +1368,9 @@ UpdateService.prototype = {
 #      Minor            1 or 2      Yes                    Notify
 #      Minor            1 or 2      No                     Auto Install
      */
-    if (update.showPrompt) {
-      LOG("Checker:_selectAndInstallUpdate - prompting because the update " +
-          "snippet specified showPrompt");
+    if (update.type == "major") {
+      LOG("Checker:_selectAndInstallUpdate - prompting because it is a major " +
+          "update");
       this._showPrompt(update);
       return;
     }
@@ -1447,7 +1393,8 @@ UpdateService.prototype = {
     }
 
     // Only check add-on compatibility when the version changes.
-    if (update.appVersion && gVC.compare(update.appVersion, gApp.version) != 0) {
+    if (update.extensionVersion &&
+        gVC.compare(update.extensionVersion, gApp.version) != 0) {
       this._update = update;
       this._checkAddonCompatibility();
     }
@@ -1471,7 +1418,7 @@ UpdateService.prototype = {
                getService(Ci.nsIExtensionManager);
     // Get the add-ons that are incompatible with the update's application
     // version and toolkit version.
-    var currentAddons = em.getIncompatibleItemList(this._update.appVersion,
+    var currentAddons = em.getIncompatibleItemList(this._update.extensionVersion,
                                                    this._update.platformVersion,
                                                    Ci.nsIUpdateItem.TYPE_ANY,
                                                    false);
@@ -1522,7 +1469,7 @@ UpdateService.prototype = {
                                              Ci.nsIExtensionManager.UPDATE_NOTIFY_NEWVERSION;
       em.update(currentAddons, currentAddons.length, mode, this,
                 Ci.nsIExtensionManager.UPDATE_WHEN_NEW_APP_DETECTED,
-                this._update.appVersion, this._update.platformVersion);
+                this._update.extensionVersion, this._update.platformVersion);
     }
     else {
       LOG("UpdateService:_checkAddonCompatibility - no need to show prompt, " +
@@ -1639,14 +1586,14 @@ UpdateService.prototype = {
     // current application's version or the update's version is the same as the
     // application's version and the build ID is the same as the application's
     // build ID.
-    if (update.appVersion &&
-        (gVC.compare(update.appVersion, gApp.version) < 0 ||
+    if (update.extensionVersion &&
+        (gVC.compare(update.extensionVersion, gApp.version) < 0 ||
          update.buildID && update.buildID == gApp.appBuildID &&
-         update.appVersion == gApp.version)) {
+         update.extensionVersion == gApp.version)) {
       LOG("UpdateService:downloadUpdate - canceling download of update since " +
           "it is for an earlier or same application version and build ID.\n" +
           "current application version: " + gApp.version + "\n" +
-          "update application version : " + update.appVersion + "\n" +
+          "update application version : " + update.extensionVersion + "\n" +
           "current build ID: " + gApp.appBuildID + "\n" +
           "update build ID : " + update.buildID);
       cleanupActiveUpdate();
@@ -1662,8 +1609,6 @@ UpdateService.prototype = {
       }
       this._downloader.cancel();
     }
-    // Set the previous application version prior to downloading the update.
-    update.previousAppVersion = gApp.version;
     this._downloader = new Downloader(background);
     return this._downloader.downloadUpdate(update);
   },
@@ -1731,28 +1676,6 @@ UpdateManager.prototype = {
    * The current actively downloading/installing update, as a nsIUpdate object.
    */
   _activeUpdate: null,
-
-  /**
-   * Handle Observer Service notifications
-   * @param   subject
-   *          The subject of the notification
-   * @param   topic
-   *          The notification name
-   * @param   data
-   *          Additional data
-   */
-  observe: function UM_observe(subject, topic, data) {
-    // Hack to be able to run and cleanup tests by reloading the update data.
-    if (topic == "um-reload-update-data") {
-      this._updates = this._loadXMLFileIntoArray(getUpdateFile(
-                        [FILE_UPDATES_DB]));
-      this._activeUpdate = null;
-      var updates = this._loadXMLFileIntoArray(getUpdateFile(
-                      [FILE_UPDATE_ACTIVE]));
-      if (updates.length > 0)
-        this._activeUpdate = updates[0];
-    }
-  },
 
   /**
    * Loads an updates.xml formatted file into an array of nsIUpdate items.
@@ -1875,7 +1798,7 @@ UpdateManager.prototype = {
     if (this._updates) {
       for (var i = 0; i < this._updates.length; ++i) {
         if (this._updates[i] &&
-            this._updates[i].appVersion == update.appVersion &&
+            this._updates[i].version == update.version &&
             this._updates[i].buildID == update.buildID) {
           // Replace the existing entry with the new value, updating
           // all metadata.
@@ -1954,7 +1877,7 @@ UpdateManager.prototype = {
   classDescription: "Update Manager",
   contractID: "@mozilla.org/updates/update-manager;1",
   classID: Components.ID("{093C2356-4843-4C65-8709-D7DBCBBE7DFB}"),
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIUpdateManager, Ci.nsIObserver])
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIUpdateManager])
 };
 
 /**
@@ -2237,8 +2160,10 @@ Downloader.prototype = {
    * Cancels the active download.
    */
   cancel: function Downloader_cancel() {
-    if (this._request && this._request instanceof Ci.nsIRequest)
-      this._request.cancel(Cr.NS_BINDING_ABORTED);
+    if (this._request && this._request instanceof Ci.nsIRequest) {
+      const NS_BINDING_ABORTED = 0x804b0002;
+      this._request.cancel(NS_BINDING_ABORTED);
+    }
   },
 
   /**
@@ -2506,7 +2431,8 @@ Downloader.prototype = {
    */
   onProgress: function Downloader_onProgress(request, context, progress,
                                              maxProgress) {
-    LOG("Downloader:onProgress - progress: " + progress + "/" + maxProgress);
+    LOG("Downloader.onProgress:onProgress - progress: " + progress + "/" +
+        maxProgress);
 
     var listenerCount = this._listeners.length;
     for (var i = 0; i < listenerCount; ++i) {
@@ -2556,6 +2482,8 @@ Downloader.prototype = {
     var state = this._patch.state;
     var shouldShowPrompt = false;
     var deleteActiveUpdate = false;
+    const NS_BINDING_ABORTED = 0x804b0002;
+    const NS_ERROR_ABORT = 0x80004004;
     if (Components.isSuccessCode(status)) {
       if (this._verifyDownload()) {
         state = STATE_PENDING;
@@ -2568,7 +2496,7 @@ Downloader.prototype = {
 
         // Tell the updater.exe we're ready to apply.
         writeStatusFile(getUpdatesDir(), state);
-        writeVersionFile(getUpdatesDir(), this._update.appVersion);
+        writeVersionFile(getUpdatesDir(), this._update.extensionVersion);
         this._update.installDate = (new Date()).getTime();
         this._update.statusText = gUpdateBundle.GetStringFromName("installPending");
       }
@@ -2591,8 +2519,8 @@ Downloader.prototype = {
         cleanUpUpdatesDir();
       }
     }
-    else if (status != Cr.NS_BINDING_ABORTED &&
-             status != Cr.NS_ERROR_ABORT) {
+    else if (status != NS_BINDING_ABORTED &&
+             status != NS_ERROR_ABORT) {
       LOG("Downloader:onStopRequest - non-verification failure");
       // Some sort of other failure, log this in the |statusText| property
       state = STATE_DOWNLOAD_FAILED;
@@ -2882,8 +2810,7 @@ UpdatePrompt.prototype = {
             this.updatePrompt._showUI(parent, uri, features, name, page, update);
             // fall thru
           case "quit-application":
-            if (this.timer)
-              this.timer.cancel();
+            this.timer.cancel();
             this.service.removeObserver(this, "quit-application");
             break;
         }

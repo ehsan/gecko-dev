@@ -168,7 +168,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNSEvent)
   NS_INTERFACE_MAP_ENTRY(nsIPrivateDOMEvent)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Event)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(Event)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMEvent)
@@ -231,7 +231,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMEvent)
         break;
     }
   }
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mPresContext.get(), nsPresContext)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPresContext)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTmpRealOriginalTarget)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mExplicitOriginalTarget)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -250,7 +250,9 @@ NS_METHOD nsDOMEvent::GetType(nsAString& aType)
     mCachedType = aType;
     return NS_OK;
   } else if (mEvent->message == NS_USER_DEFINED_EVENT && mEvent->userType) {
-    aType = Substring(nsDependentAtomString(mEvent->userType), 2); // Remove "on"
+    nsAutoString name;
+    mEvent->userType->ToString(name);
+    aType = Substring(name, 2, name.Length() - 2); // Remove "on"
     mCachedType = aType;
     return NS_OK;
   }

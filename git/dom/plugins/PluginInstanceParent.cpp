@@ -57,11 +57,7 @@ UINT gOOPPSpinNativeLoopEvent =
     RegisterWindowMessage(L"SyncChannel Spin Inner Loop Message");
 UINT gOOPPStopNativeLoopEvent =
     RegisterWindowMessage(L"SyncChannel Stop Inner Loop Message");
-#elif defined(MOZ_WIDGET_GTK2)
-#include <gdk/gdk.h>
-#elif defined(XP_MACOSX)
-#include <ApplicationServices/ApplicationServices.h>
-#endif // defined(XP_MACOSX)
+#endif
 
 using namespace mozilla::plugins;
 
@@ -75,12 +71,7 @@ PluginInstanceParent::PluginInstanceParent(PluginModuleParent* parent,
 #if defined(OS_WIN)
     , mPluginHWND(NULL)
     , mPluginWndProc(NULL)
-    , mNestedEventState(false)
 #endif // defined(XP_WIN)
-#if defined(XP_MACOSX)
-    , mShWidth(0)
-    , mShHeight(0)
-#endif
 {
 }
 
@@ -140,8 +131,10 @@ NPError
 PluginInstanceParent::Destroy()
 {
     NPError retval;
-    if (!CallNPP_Destroy(&retval))
-        retval = NPERR_GENERIC_ERROR;
+    if (!CallNPP_Destroy(&retval)) {
+        NS_WARNING("Failed to send message!");
+        return NPERR_GENERIC_ERROR;
+    }
 
 #if defined(OS_WIN)
     SharedSurfaceRelease();
@@ -194,16 +187,6 @@ PluginInstanceParent::DeallocPPluginStream(PPluginStreamParent* stream)
     return true;
 }
 
-#ifdef MOZ_X11
-static Display* GetXDisplay() {
-#  ifdef MOZ_WIDGET_GTK2
-        return GDK_DISPLAY();
-#  elif defined(MOZ_WIDGET_QT)
-        return QX11Info::display();
-#  endif
-}
-#endif
-
 bool
 PluginInstanceParent::AnswerNPN_GetValue_NPNVjavascriptEnabledBool(
                                                        bool* value,
@@ -233,10 +216,8 @@ PluginInstanceParent::AnswerNPN_GetValue_NPNVnetscapeWindow(NativeWindowHandle* 
     HWND id;
 #elif defined(MOZ_X11)
     XID id;
-#elif defined(XP_MACOSX)
-    intptr_t id;
 #else
-#warning Implement me
+    return false;
 #endif
 
     *result = mNPNIface->getvalue(mNPP, NPNVnetscapeWindow, &id);
@@ -299,6 +280,7 @@ PluginInstanceParent::AnswerNPN_GetValue_NPNVprivateModeBool(bool* value,
     return true;
 }
 
+
 bool
 PluginInstanceParent::AnswerNPN_SetValue_NPPVpluginWindow(
     const bool& windowed, NPError* result)
@@ -319,33 +301,6 @@ PluginInstanceParent::AnswerNPN_SetValue_NPPVpluginTransparent(
     return true;
 }
 
-bool
-PluginInstanceParent::AnswerNPN_SetValue_NPPVpluginDrawingModel(
-    const int& drawingModel, NPError* result)
-{
-#ifdef XP_MACOSX
-    *result = mNPNIface->setvalue(mNPP, NPPVpluginDrawingModel,
-                                  (void*)drawingModel);
-    return true;
-#else
-    *result = NPERR_GENERIC_ERROR;
-    return true;
-#endif
-}
-
-bool
-PluginInstanceParent::AnswerNPN_SetValue_NPPVpluginEventModel(
-    const int& eventModel, NPError* result)
-{
-#ifdef XP_MACOSX
-    *result = mNPNIface->setvalue(mNPP, NPPVpluginEventModel,
-                                  (void*)eventModel);
-    return true;
-#else
-    *result = NPERR_GENERIC_ERROR;
-    return true;
-#endif
-}
 
 bool
 PluginInstanceParent::AnswerNPN_GetURL(const nsCString& url,
@@ -412,7 +367,7 @@ PluginInstanceParent::AnswerPStreamNotifyConstructor(PStreamNotifyParent* actor,
     if (!streamDestroyed) {
         static_cast<StreamNotifyParent*>(actor)->ClearDestructionFlag();
         if (*result != NPERR_NO_ERROR)
-            PStreamNotifyParent::Send__delete__(actor, NPERR_GENERIC_ERROR);
+            PStreamNotifyParent::Call__delete__(actor, NPERR_GENERIC_ERROR);
     }
 
     return true;
@@ -470,20 +425,6 @@ PluginInstanceParent::NPP_SetWindow(const NPWindow* aWindow)
     window.type = aWindow->type;
 #endif
 
-#if defined(XP_MACOSX)
-    if (mShWidth * mShHeight != window.width * window.height) {
-        // XXX: benwa: OMG MEMORY LEAK! 
-        //      There is currently no way dealloc the shmem
-        //      so for now we will leak the memory and will fix this ASAP!
-        if (!AllocShmem(window.width * window.height * 4, &mShSurface)) {
-            PLUGIN_LOG_DEBUG(("Shared memory could not be allocated."));
-            return NPERR_GENERIC_ERROR;
-        }
-        mShWidth = window.width;
-        mShHeight = window.height;
-    }
-#endif
-
 #if defined(MOZ_X11) && defined(XP_UNIX) && !defined(XP_MACOSX)
     const NPSetWindowCallbackStruct* ws_info =
       static_cast<NPSetWindowCallbackStruct*>(aWindow->ws_info);
@@ -491,10 +432,10 @@ PluginInstanceParent::NPP_SetWindow(const NPWindow* aWindow)
     window.colormap = ws_info->colormap;
 #endif
 
-    if (!CallNPP_SetWindow(window))
+    NPError prv;
+    if (!CallNPP_SetWindow(window, &prv))
         return NPERR_GENERIC_ERROR;
-
-    return NPERR_NO_ERROR;
+    return prv;
 }
 
 NPError
@@ -585,11 +526,7 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
 
-#if defined(XP_MACOSX)
-    NPCocoaEvent* npevent = reinterpret_cast<NPCocoaEvent*>(event);
-#else
     NPEvent* npevent = reinterpret_cast<NPEvent*>(event);
-#endif
     NPRemoteEvent npremoteevent;
     npremoteevent.event = *npevent;
     int16_t handled = 0;
@@ -601,9 +538,8 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
             {
                 RECT rect;
                 SharedSurfaceBeforePaint(rect, npremoteevent);
-                CallPaint(npremoteevent, &handled);
+                CallNPP_HandleEvent(npremoteevent, &handled);
                 SharedSurfaceAfterPaint(npevent);
-                return handled;
             }
             break;
 
@@ -623,25 +559,23 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
                   !wcscmp(szClass, L"ShockwaveFlashFullScreen")) {
                   return 0;
               }
+              // intentional fall through
             }
-            break;
 
-            case WM_WINDOWPOSCHANGED:
-            {
-                // We send this in nsObjectFrame just before painting
-                SendWindowPosChanged(npremoteevent);
-                // nsObjectFrame doesn't care whether we handle this
-                // or not, just returning 1 for good hygiene
-                return 1;
-            }
+            default:
+                if (!CallNPP_HandleEvent(npremoteevent, &handled))
+                    return 0;
             break;
         }
+    }
+    else {
+        if (!CallNPP_HandleEvent(npremoteevent, &handled))
+            return 0;
     }
 #endif
 
 #if defined(MOZ_X11)
-    switch (npevent->type) {
-    case GraphicsExpose:
+    if (GraphicsExpose == npevent->type) {
         PLUGIN_LOG_DEBUG(("  schlepping drawable 0x%lx across the pipe\n",
                           npevent->xgraphicsexpose.drawable));
         // Make sure the X server has created the Drawable and completes any
@@ -651,75 +585,16 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
         // process does not need to wait; the child is the process that needs
         // to wait.  A possibly-slightly-better alternative would be to send
         // an X event to the child that the child would wait for.
-        XSync(GetXDisplay(), False);
-        break;
-    case ButtonPress:
-        // Release any active pointer grab so that the plugin X client can
-        // grab the pointer if it wishes.
-        Display *dpy = GetXDisplay();
 #  ifdef MOZ_WIDGET_GTK2
-        // GDK attempts to (asynchronously) track whether there is an active
-        // grab so ungrab through GDK.
-        gdk_pointer_ungrab(npevent->xbutton.time);
-#  else
-        XUngrabPointer(dpy, npevent->xbutton.time);
+        XSync(GDK_DISPLAY(), False);
+#  elif defined(MOZ_WIDGET_QT)
+        XSync(QX11Info::display(), False);
 #  endif
-        // Wait for the ungrab to complete.
-        XSync(dpy, False);
-        break;
-
-        return CallPaint(npremoteevent, &handled) ? handled : 0;
     }
-#endif
-
-#ifdef XP_MACOSX
-    if (npevent->type == NPCocoaEventDrawRect) {
-        if (mShWidth == 0 && mShHeight == 0) {
-            PLUGIN_LOG_DEBUG(("NPCocoaEventDrawRect on window of size 0."));
-            return false;
-        }
-        if (!mShSurface.IsReadable()) {
-            PLUGIN_LOG_DEBUG(("Shmem is not readable."));
-            return false;
-        }
-
-        if (!CallNPP_HandleEvent_Shmem(npremoteevent, mShSurface, &handled, &mShSurface)) 
-            return false; // no good way to handle errors here...
-
-        if (!mShSurface.IsReadable()) {
-            PLUGIN_LOG_DEBUG(("Shmem not returned. Either the plugin crashed or we have a bug."));
-            return false;
-        }
-
-        char* shContextByte = mShSurface.get<char>();
-
-        CGColorSpaceRef cSpace = ::CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB);
-        if (!cSpace) {
-            PLUGIN_LOG_DEBUG(("Could not allocate ColorSpace."));
-            return true;
-        } 
-        CGContextRef shContext = ::CGBitmapContextCreate(shContextByte, 
-                                mShWidth, mShHeight, 8, mShWidth*4, cSpace, 
-                                kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
-        ::CGColorSpaceRelease(cSpace);
-        if (!shContext) {
-            PLUGIN_LOG_DEBUG(("Could not allocate CGBitmapContext."));
-            return true;
-        }
-
-        CGImageRef shImage = ::CGBitmapContextCreateImage(shContext);
-        if (shImage) {
-            CGContextRef cgContext = npevent->data.draw.context;
-            ::CGContextDrawImage(cgContext, CGRectMake(0,0,mShWidth,mShHeight), shImage);
-            ::CGImageRelease(shImage);
-        }
-        ::CGContextRelease(shContext);
-        return handled;
-    }
-#endif
 
     if (!CallNPP_HandleEvent(npremoteevent, &handled))
         return 0; // no good way to handle errors here...
+#endif
 
     return handled;
 }
@@ -745,7 +620,7 @@ PluginInstanceParent::NPP_NewStream(NPMIMEType type, NPStream* stream,
         return NPERR_GENERIC_ERROR;
 
     if (NPERR_NO_ERROR != err)
-        PBrowserStreamParent::Send__delete__(bs);
+        PBrowserStreamParent::Call__delete__(bs, NPERR_GENERIC_ERROR, true);
 
     return err;
 }
@@ -763,7 +638,7 @@ PluginInstanceParent::NPP_DestroyStream(NPStream* stream, NPReason reason)
         if (sp->mNPP != this)
             NS_RUNTIMEABORT("Mismatched plugin data");
 
-        sp->NPP_DestroyStream(reason);
+        PBrowserStreamParent::Call__delete__(sp, reason, false);
         return NPERR_NO_ERROR;
     }
     else {
@@ -841,7 +716,7 @@ PluginInstanceParent::DeallocPPluginScriptableObject(
 }
 
 bool
-PluginInstanceParent::RecvPPluginScriptableObjectConstructor(
+PluginInstanceParent::AnswerPPluginScriptableObjectConstructor(
                                           PPluginScriptableObjectParent* aActor)
 {
     // This is only called in response to the child process requesting the
@@ -866,7 +741,7 @@ PluginInstanceParent::NPP_URLNotify(const char* url, NPReason reason,
 
     PStreamNotifyParent* streamNotify =
         static_cast<PStreamNotifyParent*>(notifyData);
-    PStreamNotifyParent::Send__delete__(streamNotify, reason);
+    PStreamNotifyParent::Call__delete__(streamNotify, reason);
 }
 
 bool
@@ -912,7 +787,7 @@ PluginInstanceParent::GetActorForNPObject(NPObject* aObject)
         return nsnull;
     }
 
-    if (!SendPPluginScriptableObjectConstructor(actor)) {
+    if (!CallPPluginScriptableObjectConstructor(actor)) {
         NS_WARNING("Failed to send constructor message!");
         return nsnull;
     }
@@ -922,16 +797,17 @@ PluginInstanceParent::GetActorForNPObject(NPObject* aObject)
 }
 
 bool
-PluginInstanceParent::AnswerNPN_PushPopupsEnabledState(const bool& aState)
+PluginInstanceParent::AnswerNPN_PushPopupsEnabledState(const bool& aState,
+                                                       bool* aSuccess)
 {
-    mNPNIface->pushpopupsenabledstate(mNPP, aState ? 1 : 0);
+    *aSuccess = mNPNIface->pushpopupsenabledstate(mNPP, aState ? 1 : 0);
     return true;
 }
 
 bool
-PluginInstanceParent::AnswerNPN_PopPopupsEnabledState()
+PluginInstanceParent::AnswerNPN_PopPopupsEnabledState(bool* aSuccess)
 {
-    mNPNIface->poppopupsenabledstate(mNPP);
+    *aSuccess = mNPNIface->poppopupsenabledstate(mNPP);
     return true;
 }
 
@@ -990,32 +866,13 @@ PluginInstanceParent::AnswerNPN_GetAuthenticationInfo(const nsCString& protocol,
     return true;
 }
 
-bool
-PluginInstanceParent::AnswerNPN_ConvertPoint(const double& sourceX,
-                                             const double& sourceY,
-                                             const NPCoordinateSpace& sourceSpace,
-                                             const NPCoordinateSpace& destSpace,
-                                             double *destX,
-                                             bool *ignoreDestX,
-                                             double *destY,
-                                             bool *ignoreDestY,
-                                             bool *result)
-{
-    *result = mNPNIface->convertpoint(mNPP, sourceX, sourceY, sourceSpace,
-                                      ignoreDestX ? nsnull : destX,
-                                      ignoreDestY ? nsnull : destY,
-                                      destSpace);
-
-    return true;
-}
-
 #if defined(OS_WIN)
 
 /*
   plugin focus changes between processes
 
   focus from dom -> child:
-    Focus manager calls on widget to set the focus on the window.
+    Focs manager calls on widget to set the focus on the window.
     We pick up the resulting wm_setfocus event here, and forward
     that over ipc to the child which calls set focus on itself. 
 
@@ -1046,8 +903,11 @@ PluginInstanceParent::PluginWindowHookProc(HWND hWnd,
 
     switch (message) {
         case WM_SETFOCUS:
-        // Let the child plugin window know it should take focus.
-        self->CallSetPluginFocus();
+        // Widget may be calling us back from AnswerPluginGotFocus(), make
+        // sure we don't end up sending this back over. If we're not in
+        // SendMessage, this is coming from the dom / focus manager.
+        if ((::InSendMessageEx(NULL) & (ISMEX_SEND|ISMEX_REPLIED)) != ISMEX_SEND)
+            self->CallSetPluginFocus();
         break;
 
         case WM_CLOSE:

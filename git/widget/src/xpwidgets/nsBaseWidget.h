@@ -49,7 +49,6 @@
 
 class nsIContent;
 class nsAutoRollup;
-class gfxContext;
 
 /**
  * Common widget implementation used as base class for native
@@ -106,9 +105,9 @@ public:
   virtual void            SetShowsToolbarButton(PRBool aShow) {}
   NS_IMETHOD              HideWindowChrome(PRBool aShouldHide);
   NS_IMETHOD              MakeFullScreen(PRBool aFullScreen);
+  virtual nsIRenderingContext* GetRenderingContext();
   virtual nsIDeviceContext* GetDeviceContext();
-  virtual nsIToolkit*     GetToolkit();
-  virtual LayerManager*   GetLayerManager();
+  virtual nsIToolkit*     GetToolkit();  
   virtual gfxASurface*    GetThebesSurface();
   NS_IMETHOD              SetModal(PRBool aModal); 
   NS_IMETHOD              SetWindowClass(const nsAString& xulWinType);
@@ -141,20 +140,6 @@ public:
   NS_IMETHOD              OnIMESelectionChange(void) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnDefaultButtonLoaded(const nsIntRect &aButtonRect) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta, PRBool aIsHorizontal, PRInt32 &aOverriddenDelta);
-
-  /**
-   * Use this when GetLayerManager() returns a BasicLayerManager
-   * (nsBaseWidget::GetLayerManager() does). This sets up the widget's
-   * layer manager to temporarily render into aTarget.
-   */
-  class AutoLayerManagerSetup {
-  public:
-    AutoLayerManagerSetup(nsBaseWidget* aWidget, gfxContext* aTarget);
-    ~AutoLayerManagerSetup();
-  private:
-    nsBaseWidget* mWidget;
-  };
-  friend class AutoLayerManagerSetup;
 
 protected:
 
@@ -194,9 +179,8 @@ protected:
 protected: 
   void*             mClientData;
   EVENT_CALLBACK    mEventCallback;
-  nsIDeviceContext* mContext;
-  nsIToolkit*       mToolkit;
-  nsRefPtr<LayerManager> mLayerManager;
+  nsIDeviceContext  *mContext;
+  nsIToolkit        *mToolkit;
   nscolor           mBackground;
   nscolor           mForeground;
   nsCursor          mCursor;

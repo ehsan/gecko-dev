@@ -761,10 +761,8 @@ nsMathMLContainerFrame::ReLayoutChildren(nsIFrame* aParentFrame)
   if (!parent)
     return NS_OK;
 
-  frame->PresContext()->PresShell()->
+  return frame->PresContext()->PresShell()->
     FrameNeedsReflow(frame, nsIPresShell::eStyleChange, NS_FRAME_IS_DIRTY);
-
-  return NS_OK;
 }
 
 // There are precise rules governing children of a MathML frame,
@@ -841,10 +839,9 @@ nsMathMLContainerFrame::AttributeChanged(PRInt32         aNameSpaceID,
   // XXX Since they are numerous MathML attributes that affect layout, and
   // we can't check all of them here, play safe by requesting a reflow.
   // XXXldb This should only do work for attributes that cause changes!
-  PresContext()->PresShell()->
-    FrameNeedsReflow(this, nsIPresShell::eStyleChange, NS_FRAME_IS_DIRTY);
-
-  return NS_OK;
+  return PresContext()->PresShell()->
+           FrameNeedsReflow(this, nsIPresShell::eStyleChange,
+                            NS_FRAME_IS_DIRTY);
 }
 
 void

@@ -371,6 +371,9 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
                                            aResult);
       }
     }
+    else if (eCSSProperty_transition_property == aProperty) {
+      AppendASCIItoUTF16(nsCSSProps::GetStringValue((nsCSSProperty) aValue.GetIntValue()), aResult);
+    }
     else {
       const nsAFlatCString& name = nsCSSProps::LookupPropertyValue(aProperty, aValue.GetIntValue());
       AppendASCIItoUTF16(name, aResult);

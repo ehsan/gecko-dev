@@ -1258,9 +1258,12 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 
   // XXX what on EARTH is this code for?
+  PRInt16 displaySelection = 0;
   nsresult result;
   nsPresContext* presContext = PresContext();
-  PRInt16 displaySelection = presContext->PresShell()->GetSelectionFlags();
+  result = presContext->PresShell()->GetSelectionFlags(&displaySelection);
+  if (NS_FAILED(result))
+    return result;
   if (!(displaySelection & nsISelectionDisplay::DISPLAY_IMAGES))
     return NS_OK;//no need to check the blue border, we cannot be drawn selected
 //insert hook here for image selection drawing

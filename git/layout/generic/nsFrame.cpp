@@ -24,7 +24,7 @@
  *   Pierre Phaneuf <pp@ludusdesign.com>
  *   Uri Bernstein <uriber@gmail.com>
  *   Eli Friedman <sharparrow1@yahoo.com>
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -528,45 +528,6 @@ nsFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
         break;
       }
     }
-
-    // If we detect a change on margin, padding or border, we store the old
-    // values on the frame itself between now and reflow, so if someone
-    // calls GetUsed(Margin|Border|Padding)() before the next reflow, we
-    // can give an accurate answer.
-    // We don't want to set the property if one already exists.
-    nsMargin oldValue(0, 0, 0, 0);
-    nsMargin newValue(0, 0, 0, 0);
-    const nsStyleMargin* oldMargin = aOldStyleContext->PeekStyleMargin();
-    if (oldMargin && oldMargin->GetMargin(oldValue)) {
-      if ((!GetStyleMargin()->GetMargin(newValue) || oldValue != newValue) &&
-          !GetProperty(nsGkAtoms::usedMarginProperty)) {
-        SetProperty(nsGkAtoms::usedMarginProperty,
-                    new nsMargin(oldValue),
-                    nsCSSOffsetState::DestroyMarginFunc);
-      }
-    }
-
-    const nsStylePadding* oldPadding = aOldStyleContext->PeekStylePadding();
-    if (oldPadding && oldPadding->GetPadding(oldValue)) {
-      if ((!GetStylePadding()->GetPadding(newValue) || oldValue != newValue) &&
-          !GetProperty(nsGkAtoms::usedPaddingProperty)) {
-        SetProperty(nsGkAtoms::usedPaddingProperty,
-                    new nsMargin(oldValue),
-                    nsCSSOffsetState::DestroyMarginFunc);
-      }
-    }
-
-    const nsStyleBorder* oldBorder = aOldStyleContext->PeekStyleBorder();
-    if (oldBorder) {
-      oldValue = oldBorder->GetActualBorder();
-      newValue = GetStyleBorder()->GetActualBorder();
-      if (oldValue != newValue &&
-          !GetProperty(nsGkAtoms::usedBorderProperty)) {
-        SetProperty(nsGkAtoms::usedBorderProperty,
-                    new nsMargin(oldValue),
-                    nsCSSOffsetState::DestroyMarginFunc);
-      }
-    }
   }
 
   imgIRequest *oldBorderImage = aOldStyleContext
@@ -602,21 +563,20 @@ nsFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 /* virtual */ nsMargin
 nsIFrame::GetUsedMargin() const
 {
-  nsMargin margin(0, 0, 0, 0);
-  if ((mState & NS_FRAME_FIRST_REFLOW) &&
-      !(mState & NS_FRAME_IN_REFLOW))
-    return margin;
+  NS_ASSERTION(nsLayoutUtils::sDisableGetUsedXAssertions ||
+               !NS_SUBTREE_DIRTY(this) ||
+               (GetStateBits() & NS_FRAME_IN_REFLOW),
+               "cannot call GetUsedMargin on a dirty frame not currently "
+               "being reflowed");
 
-  nsMargin *m = static_cast<nsMargin*>
-                           (GetProperty(nsGkAtoms::usedMarginProperty));
-  if (m) {
-    margin = *m;
-  } else {
-#ifdef DEBUG
-    PRBool hasMargin = 
-#endif
-    GetStyleMargin()->GetMargin(margin);
-    NS_ASSERTION(hasMargin, "We should have a margin here! (out of memory?)");
+  nsMargin margin(0, 0, 0, 0);
+  if (!GetStyleMargin()->GetMargin(margin)) {
+    nsMargin *m = static_cast<nsMargin*>
+                             (GetProperty(nsGkAtoms::usedMarginProperty));
+    NS_ASSERTION(m, "used margin property missing (out of memory?)");
+    if (m) {
+      margin = *m;
+    }
   }
   return margin;
 }
@@ -624,10 +584,11 @@ nsIFrame::GetUsedMargin() const
 /* virtual */ nsMargin
 nsIFrame::GetUsedBorder() const
 {
-  nsMargin border(0, 0, 0, 0);
-  if ((mState & NS_FRAME_FIRST_REFLOW) &&
-      !(mState & NS_FRAME_IN_REFLOW))
-    return border;
+  NS_ASSERTION(nsLayoutUtils::sDisableGetUsedXAssertions ||
+               !NS_SUBTREE_DIRTY(this) ||
+               (GetStateBits() & NS_FRAME_IN_REFLOW),
+               "cannot call GetUsedBorder on a dirty frame not currently "
+               "being reflowed");
 
   // Theme methods don't use const-ness.
   nsIFrame *mutable_this = const_cast<nsIFrame*>(this);
@@ -639,30 +600,25 @@ nsIFrame::GetUsedBorder() const
     presContext->GetTheme()->GetWidgetBorder(presContext->DeviceContext(),
                                              mutable_this, disp->mAppearance,
                                              &result);
-    border.left = presContext->DevPixelsToAppUnits(result.left);
-    border.top = presContext->DevPixelsToAppUnits(result.top);
-    border.right = presContext->DevPixelsToAppUnits(result.right);
-    border.bottom = presContext->DevPixelsToAppUnits(result.bottom);
-    return border;
+    return nsMargin(presContext->DevPixelsToAppUnits(result.left),
+                    presContext->DevPixelsToAppUnits(result.top),
+                    presContext->DevPixelsToAppUnits(result.right),
+                    presContext->DevPixelsToAppUnits(result.bottom));
   }
 
-  nsMargin *b = static_cast<nsMargin*>
-                           (GetProperty(nsGkAtoms::usedBorderProperty));
-  if (b) {
-    border = *b;
-  } else {
-    border = GetStyleBorder()->GetActualBorder();
-  }
-  return border;
+  return GetStyleBorder()->GetActualBorder();
 }
 
 /* virtual */ nsMargin
 nsIFrame::GetUsedPadding() const
 {
+  NS_ASSERTION(nsLayoutUtils::sDisableGetUsedXAssertions ||
+               !NS_SUBTREE_DIRTY(this) ||
+               (GetStateBits() & NS_FRAME_IN_REFLOW),
+               "cannot call GetUsedPadding on a dirty frame not currently "
+               "being reflowed");
+
   nsMargin padding(0, 0, 0, 0);
-  if ((mState & NS_FRAME_FIRST_REFLOW) &&
-      !(mState & NS_FRAME_IN_REFLOW))
-    return padding;
 
   // Theme methods don't use const-ness.
   nsIFrame *mutable_this = const_cast<nsIFrame*>(this);
@@ -682,17 +638,13 @@ nsIFrame::GetUsedPadding() const
       return padding;
     }
   }
-
-  nsMargin *p = static_cast<nsMargin*>
-                           (GetProperty(nsGkAtoms::usedPaddingProperty));
-  if (p) {
-    padding = *p;
-  } else {
-#ifdef DEBUG
-    PRBool hasPadding = 
-#endif
-    GetStylePadding()->GetPadding(padding);
-    NS_ASSERTION(hasPadding, "We should have padding here! (out of memory?)");
+  if (!GetStylePadding()->GetPadding(padding)) {
+    nsMargin *p = static_cast<nsMargin*>
+                             (GetProperty(nsGkAtoms::usedPaddingProperty));
+    NS_ASSERTION(p, "used padding property missing (out of memory?)");
+    if (p) {
+      padding = *p;
+    }
   }
   return padding;
 }
@@ -908,7 +860,10 @@ nsFrame::DisplaySelectionOverlay(nsDisplayListBuilder*   aBuilder,
   if (!shell)
     return NS_OK;
 
-  PRInt16 displaySelection = shell->GetSelectionFlags();
+  PRInt16 displaySelection;
+  nsresult rv = shell->GetSelectionFlags(&displaySelection);
+  if (NS_FAILED(rv))
+    return rv;
   if (!(displaySelection & aContentType))
     return NS_OK;
 
@@ -1661,7 +1616,7 @@ nsFrame::FireDOMEvent(const nsAString& aDOMEventName, nsIContent *aContent)
 
   if (target) {
     nsRefPtr<nsPLDOMEvent> event =
-      new nsPLDOMEvent(target, aDOMEventName, PR_TRUE, PR_FALSE);
+      new nsPLDOMEvent(target, aDOMEventName, PR_FALSE);
     if (!event || NS_FAILED(event->PostDOMEvent()))
       NS_WARNING("Failed to dispatch nsPLDOMEvent");
   }
@@ -1700,7 +1655,10 @@ nsFrame::GetDataForTableSelection(const nsFrameSelection *aFrameSelection,
   *aContentOffset = 0;
   *aTarget = 0;
 
-  PRInt16 displaySelection = aPresShell->GetSelectionFlags();
+  PRInt16 displaySelection;
+  nsresult result = aPresShell->GetSelectionFlags(&displaySelection);
+  if (NS_FAILED(result))
+    return result;
 
   PRBool selectingTableCells = aFrameSelection->GetTableCellSelection();
 
@@ -1742,7 +1700,9 @@ nsFrame::GetDataForTableSelection(const nsFrameSelection *aFrameSelection,
   //PRBool selectColumn = PR_FALSE;
   //PRBool selectRow = PR_FALSE;
   
-  while (frame)
+  result = NS_OK;
+
+  while (frame && NS_SUCCEEDED(result))
   {
     // Check for a table cell by querying to a known CellFrame interface
     nsITableCellLayout *cellElement = do_QueryFrame(frame);
@@ -1767,6 +1727,7 @@ nsFrame::GetDataForTableSelection(const nsFrameSelection *aFrameSelection,
         break;
       } else {
         frame = frame->GetParent();
+        result = NS_OK;
         // Stop if we have hit the selection's limiting content node
         if (frame && frame->GetContent() == limiter)
           break;
@@ -1901,8 +1862,9 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
   // if we are in Navigator and the click is in a draggable node, we don't want
   // to start selection because we don't want to interfere with a potential
   // drag of said node and steal all its glory.
-  PRInt16 isEditor = shell->GetSelectionFlags();
-  //weaaak. only the editor can display frame selection not just text and images
+  PRInt16 isEditor = 0;
+  shell->GetSelectionFlags ( &isEditor );
+  //weaaak. only the editor can display frame selction not just text and images
   isEditor = isEditor == nsISelectionDisplay::DISPLAY_ALL;
 
   nsInputEvent* keyEvent = (nsInputEvent*)aEvent;
@@ -3620,22 +3582,9 @@ NS_IMETHODIMP nsFrame::GetOffsetFromView(nsPoint&  aOffset,
 /* virtual */ PRBool
 nsIFrame::AreAncestorViewsVisible() const
 {
-  const nsIFrame* parent;
-  for (const nsIFrame* f = this; f; f = parent) {
-    nsIView* view = f->GetView();
-    if (view && view->GetVisibility() == nsViewVisibility_kHide) {
+  for (nsIView* view = GetClosestView(); view; view = view->GetParent()) {
+    if (view->GetVisibility() == nsViewVisibility_kHide) {
       return PR_FALSE;
-    }
-    parent = f->GetParent();
-    if (!parent) {
-      parent = nsLayoutUtils::GetCrossDocParentFrame(f);
-      if (parent && parent->PresContext()->IsChrome() &&
-          !f->PresContext()->IsChrome()) {
-        // Don't look beyond chrome/content boundary ... if the chrome
-        // has hidden a content docshell, the content in the content
-        // docshell shouldn't be affected (e.g. it should remain focusable).
-        break;
-      }
     }
   }
   return PR_TRUE;
@@ -3645,17 +3594,6 @@ nsIWidget*
 nsIFrame::GetWindow() const
 {
   return GetClosestView()->GetNearestWidget(nsnull);
-}
-
-nsIWidget*
-nsIFrame::GetWindowOffset(nsPoint& aOffset) const
-{
-  nsPoint offsetToView;
-  nsPoint offsetToWidget;
-  nsIWidget* widget =
-    GetClosestView(&offsetToView)->GetNearestWidget(&offsetToWidget);
-  aOffset = offsetToView + offsetToWidget;
-  return widget;
 }
 
 nsIAtom*
@@ -4501,8 +4439,7 @@ NS_IMETHODIMP
 nsFrame::GetPointFromOffset(PRInt32 inOffset, nsPoint* outPoint)
 {
   NS_PRECONDITION(outPoint != nsnull, "Null parameter");
-  nsRect contentRect = GetContentRect() - GetPosition();
-  nsPoint pt = contentRect.TopLeft();
+  nsPoint bottomLeft(0, 0);
   if (mContent)
   {
     nsIContent* newContent = mContent->GetParent();
@@ -4511,12 +4448,11 @@ nsFrame::GetPointFromOffset(PRInt32 inOffset, nsPoint* outPoint)
 
       PRBool isRTL = (NS_GET_EMBEDDING_LEVEL(this) & 1) == 1;
       if ((!isRTL && inOffset > newOffset) ||
-          (isRTL && inOffset <= newOffset)) {
-        pt = contentRect.TopRight();
-      }
+          (isRTL && inOffset <= newOffset))
+        bottomLeft.x = GetRect().width;
     }
   }
-  *outPoint = pt;
+  *outPoint = bottomLeft;
   return NS_OK;
 }
 
@@ -4673,12 +4609,13 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
 
         //special check. if we allow non-text selection then we can allow a hit location to fall before a table. 
         //otherwise there is no way to get and click signal to fall before a table (it being a line iterator itself)
+        PRInt16 isEditor = 0;
         nsIPresShell *shell = aPresContext->GetPresShell();
         if (!shell)
           return NS_ERROR_FAILURE;
-        PRInt16 isEditor = shell->GetSelectionFlags();
+        shell->GetSelectionFlags ( &isEditor );
         isEditor = isEditor == nsISelectionDisplay::DISPLAY_ALL;
-        if ( isEditor )
+        if ( isEditor ) 
         {
           if (resultFrame->GetType() == nsGkAtoms::tableOuterFrame)
           {
@@ -6217,27 +6154,24 @@ nsFrame::GetPrefSize(nsBoxLayoutState& aState)
   // be depending on, then we just return the cached size.
   nsBoxLayoutMetrics *metrics = BoxMetrics();
   if (!DoesNeedRecalc(metrics->mPrefSize)) {
-    return metrics->mPrefSize;
+    size = metrics->mPrefSize;
+    return size;
   }
 
   if (IsCollapsed(aState))
     return size;
 
   // get our size in CSS.
-  PRBool widthSet, heightSet;
-  PRBool completelyRedefined = nsIBox::AddCSSPrefSize(this, size, widthSet, heightSet);
+  PRBool completelyRedefined = nsIBox::AddCSSPrefSize(aState, this, size);
 
   // Refresh our caches with new sizes.
   if (!completelyRedefined) {
     RefreshSizeCache(aState);
-    nsSize blockSize = metrics->mBlockPrefSize;
+    size = metrics->mBlockPrefSize;
 
     // notice we don't need to add our borders or padding
     // in. That's because the block did it for us.
-    if (!widthSet)
-      size.width = blockSize.width;
-    if (!heightSet)
-      size.height = blockSize.height;
+    nsIBox::AddCSSPrefSize(aState, this, size);
   }
 
   metrics->mPrefSize = size;
@@ -6260,19 +6194,13 @@ nsFrame::GetMinSize(nsBoxLayoutState& aState)
     return size;
 
   // get our size in CSS.
-  PRBool widthSet, heightSet;
-  PRBool completelyRedefined =
-    nsIBox::AddCSSMinSize(aState, this, size, widthSet, heightSet);
+  PRBool completelyRedefined = nsIBox::AddCSSMinSize(aState, this, size);
 
   // Refresh our caches with new sizes.
   if (!completelyRedefined) {
     RefreshSizeCache(aState);
-    nsSize blockSize = metrics->mBlockMinSize;
-
-    if (!widthSet)
-      size.width = blockSize.width;
-    if (!heightSet)
-      size.height = blockSize.height;
+    size = metrics->mBlockMinSize;
+    nsIBox::AddCSSMinSize(aState, this, size);
   }
 
   metrics->mMinSize = size;
@@ -6743,13 +6671,11 @@ static void
 GetTagName(nsFrame* aFrame, nsIContent* aContent, PRIntn aResultSize,
            char* aResult)
 {
+  const char *nameStr = "";
   if (aContent) {
-    PR_snprintf(aResult, aResultSize, "%s@%p",
-                nsAtomCString(aContent->Tag()).get(), aFrame);
+    aContent->Tag()->GetUTF8String(&nameStr);
   }
-  else {
-    PR_snprintf(aResult, aResultSize, "@%p", aFrame);
-  }
+  PR_snprintf(aResult, aResultSize, "%s@%p", nameStr, aFrame);
 }
 
 void

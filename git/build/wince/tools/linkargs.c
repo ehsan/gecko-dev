@@ -49,7 +49,7 @@ void addLinkArgs(int k, int s, int *i, int *j, char** args, char** argv) {
   args[(*i)++] = "mmtimer.lib";
 
   if (k==0)
-    args[(*i)++] = "/ENTRY:mainACRTStartup";
+    args[(*i)++] = "/ENTRY:main";
 
   if (s==0){
     args[(*i)++] = "/subsystem:\"WINDOWSCE,5.02\"";

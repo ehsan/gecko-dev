@@ -58,23 +58,16 @@
 #include "ft2build.h"
 #include FT_FREETYPE_H
 #include "gfxFT2Fonts.h"
-#include "gfxFT2FontList.h"
 #include "cairo-ft.h"
 #include "nsAppDirectoryServiceDefs.h"
+#include "gfxFT2FontList.h"
 #else
+#include "gfxWindowsFonts.h"
 #include "gfxGDIFontList.h"
-#include "gfxGDIFont.h"
-#ifdef CAIRO_HAS_DWRITE_FONT
-#include "gfxDWriteFontList.h"
-#include "gfxDWriteFonts.h"
-#include "gfxDWriteCommon.h"
-#include <dwrite.h>
-#endif
 #endif
 
-#ifdef CAIRO_HAS_D2D_SURFACE
-#include "gfxD2DSurface.h"
-#endif
+/*XXX to get CAIRO_HAS_DDRAW_SURFACE */
+#include "cairo.h"
 
 #ifdef WINCE
 #include <shlwapi.h>
@@ -90,16 +83,6 @@
 
 #ifdef MOZ_FT2_FONTS
 static FT_Library gPlatformFTLibrary = NULL;
-#endif
-
-#ifdef CAIRO_HAS_DWRITE_FONT
-// DirectWrite is not available on all platforms, we need to use the function
-// pointer.
-typedef HRESULT (WINAPI*DWriteCreateFactoryFunc)(
-  __in   DWRITE_FACTORY_TYPE factoryType,
-  __in   REFIID iid,
-  __out  IUnknown **factory
-);
 #endif
 
 static __inline void
@@ -131,61 +114,13 @@ gfxWindowsPlatform::gfxWindowsPlatform()
 
     nsCOMPtr<nsIPrefBranch2> pref = do_GetService(NS_PREFSERVICE_CONTRACTID);
 
-#ifdef CAIRO_HAS_DWRITE_FONT
-    nsresult rv;
-    PRBool useDirectWrite = PR_FALSE;
-
-    rv = pref->GetBoolPref(
-        "gfx.font_rendering.directwrite.enabled", &useDirectWrite);
-    if (NS_FAILED(rv)) {
-        useDirectWrite = PR_FALSE;
-    }
-            
-    if (useDirectWrite) {
-        DWriteCreateFactoryFunc createDWriteFactory = (DWriteCreateFactoryFunc)
-            GetProcAddress(LoadLibraryW(L"dwrite.dll"), "DWriteCreateFactory");
-
-        if (createDWriteFactory) {
-            /**
-             * I need a direct pointer to be able to cast to IUnknown**, I also
-             * need to remember to release this because the nsRefPtr will
-             * AddRef it.
-             */
-            IDWriteFactory *factory;
-            HRESULT hr = createDWriteFactory(
-                DWRITE_FACTORY_TYPE_SHARED,
-                __uuidof(IDWriteFactory),
-                reinterpret_cast<IUnknown**>(&factory));
-            mDWriteFactory = factory;
-            factory->Release();
-        }
-    }
-#endif
-
     PRInt32 rmode;
     if (NS_SUCCEEDED(pref->GetIntPref("mozilla.widget.render-mode", &rmode))) {
-        if (rmode >= 0 && rmode < RENDER_MODE_MAX) {
+        if (rmode >= 0 || rmode < RENDER_MODE_MAX) {
 #ifndef CAIRO_HAS_DDRAW_SURFACE
             if (rmode == RENDER_DDRAW || rmode == RENDER_DDRAW_GL)
                 rmode = RENDER_IMAGE_STRETCH24;
 #endif
-            if (rmode == RENDER_DIRECT2D) {
-#ifndef CAIRO_HAS_D2D_SURFACE
-                return;
-#else
-                if (!cairo_d2d_has_support()) {
-                    return;
-                }
-#ifdef CAIRO_HAS_DWRITE_FONT
-                if (!GetDWriteFactory()) {
-#endif
-                    // D2D doesn't work without DirectWrite.
-                    return;
-#ifdef CAIRO_HAS_DWRITE_FONT
-                }
-#endif
-#endif
-            }
             mRenderMode = (RenderMode) rmode;
         }
     }
@@ -203,18 +138,10 @@ gfxWindowsPlatform::CreatePlatformFontList()
 #ifdef MOZ_FT2_FONTS
     return new gfxFT2FontList();
 #else
-#ifdef CAIRO_HAS_DWRITE_FONT
-    if (!GetDWriteFactory()) {
-#endif
-        return new gfxGDIFontList();
-#ifdef CAIRO_HAS_DWRITE_FONT
-    } else {
-        return new gfxDWriteFontList();
-    }
-#endif
+    return new gfxGDIFontList();
 #endif
 }
-
+ 
 already_AddRefed<gfxASurface>
 gfxWindowsPlatform::CreateOffscreenSurface(const gfxIntSize& size,
                                            gfxASurface::gfxImageFormat imageFormat)
@@ -231,11 +158,6 @@ gfxWindowsPlatform::CreateOffscreenSurface(const gfxIntSize& size,
         surf = new gfxWindowsSurface(size, imageFormat);
 #endif
 
-#ifdef CAIRO_HAS_D2D_SURFACE
-    if (mRenderMode == RENDER_DIRECT2D)
-        surf = new gfxD2DSurface(size, imageFormat);
-#endif
-
     if (surf == nsnull)
         surf = new gfxImageSurface(size, imageFormat);
 
@@ -245,7 +167,7 @@ gfxWindowsPlatform::CreateOffscreenSurface(const gfxIntSize& size,
 }
 
 nsresult
-gfxWindowsPlatform::GetFontList(nsIAtom *aLangGroup,
+gfxWindowsPlatform::GetFontList(const nsACString& aLangGroup,
                                 const nsACString& aGenericFamily,
                                 nsTArray<nsString>& aListOfFonts)
 {
@@ -261,6 +183,7 @@ RemoveCharsetFromFontSubstitute(nsAString &aName)
     if (comma >= 0)
         aName.Truncate(comma);
 }
+
 
 nsresult
 gfxWindowsPlatform::UpdateFontList()
@@ -286,8 +209,7 @@ struct ResolveData {
 nsresult
 gfxWindowsPlatform::ResolveFontName(const nsAString& aFontName,
                                     FontResolverCallback aCallback,
-                                    void *aClosure,
-                                    PRBool& aAborted)
+                                    void *aClosure, PRBool& aAborted)
 {
     nsAutoString resolvedName;
     if (!gfxPlatformFontList::PlatformFontList()->
@@ -314,15 +236,7 @@ gfxWindowsPlatform::CreateFontGroup(const nsAString &aFamilies,
 #ifdef MOZ_FT2_FONTS
     return new gfxFT2FontGroup(aFamilies, aStyle);
 #else
-#ifdef CAIRO_HAS_DWRITE_FONT
-    if (GetDWriteFactory()) {
-        return new gfxDWriteFontGroup(aFamilies, aStyle, aUserFontSet);
-    } else {
-#endif
-        return new gfxFontGroup(aFamilies, aStyle, aUserFontSet);
-#ifdef CAIRO_HAS_DWRITE_FONT
-    }
-#endif
+    return new gfxWindowsFontGroup(aFamilies, aStyle, aUserFontSet);
 #endif
 }
 
@@ -443,6 +357,67 @@ gfxWindowsPlatform::GetFTLibrary()
 }
 #endif
 
+#ifndef MOZ_FT2_FONTS
+void
+gfxWindowsPlatform::SetupClusterBoundaries(gfxTextRun *aTextRun,
+                                           const PRUnichar *aString)
+{
+    NS_ABORT_IF_FALSE(sizeof(WCHAR) == sizeof(PRUnichar),
+                      "WCHAR/PRUnichar not compatible");
+
+    PRUint32 length = aTextRun->GetLength();
+
+    nsAutoTArray<SCRIPT_ITEM,4> items;
+    PRUint32 maxItems = 4;
+    int numItems;
+    HRESULT result;
+    PRUint32 i, j;
+
+    do {
+        items.SetLength(maxItems);
+        result = ::ScriptItemize(aString, length,
+                                 maxItems - 1,
+                                 NULL,
+                                 NULL,
+                                 items.Elements(),
+                                 &numItems);
+        maxItems <<= 1;
+        if (maxItems > INT_MAX)
+            break;
+    } while (result == E_OUTOFMEMORY);
+
+    if (result != 0) {
+        return;
+    }
+
+    nsTArray<SCRIPT_LOGATTR> attrs;
+    for (i = 0; i < PRUint32(numItems); ++i) {
+        PRUint32 offset = items[i].iCharPos;
+        length = items[i + 1].iCharPos - offset;
+        if (attrs.Length() < length) {
+            attrs.SetLength(length);
+        }
+        result = ::ScriptBreak(aString + offset, length,
+                               &items[i].a,
+                               attrs.Elements());
+        if (result != 0) {
+            break;
+        }
+        for (j = 1; j < length; ++j) {
+            if (!attrs[j].fCharStop) {
+                gfxTextRun::CompressedGlyph g;
+                // Remember that this character is not the start of a cluster
+                // by setting its glyph data to "not a cluster start",
+                // "is a ligature start", with no glyphs.
+                aTextRun->SetGlyphs(offset + j,
+                                    g.SetComplex(PR_FALSE, PR_TRUE, 0),
+                                    nsnull);
+            }
+        }
+    }
+}
+#endif
+
 void
 gfxWindowsPlatform::InitDisplayCaps()
 {
@@ -452,3 +427,4 @@ gfxWindowsPlatform::InitDisplayCaps()
 
     ReleaseDC((HWND)nsnull, dc);
 }
+

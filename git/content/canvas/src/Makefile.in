@@ -47,7 +47,6 @@ LIBRARY_NAME	= gkconcvs_s
 LIBXUL_LIBRARY  = 1
 
 EXPORTS = \
-	CustomQS_Canvas2D.h \
 	CustomQS_WebGL.h \
 	$(NULL)
 
@@ -92,6 +91,7 @@ CPPSRCS += \
 	glwrap.cpp \
 	nsGLPbuffer.cpp \
 	nsGLPbufferOSMesa.cpp \
+	SimpleBuffer.cpp \
 	$(NULL)
 
 CPPSRCS += nsGLPbuffer$(WEBGL_PLATFORM).cpp

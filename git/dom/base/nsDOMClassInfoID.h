@@ -90,7 +90,8 @@ enum nsDOMClassInfoID {
   // HTML classes
   eDOMClassInfo_HTMLDocument_id,
   eDOMClassInfo_HTMLOptionsCollection_id,
-  eDOMClassInfo_HTMLCollection_id,
+  eDOMClassInfo_HTMLFormControlCollection_id,
+  eDOMClassInfo_HTMLGenericCollection_id,
 
   // HTML element classes
   eDOMClassInfo_HTMLAnchorElement_id,
@@ -477,8 +478,6 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_EventListenerInfo_id,
 
   eDOMClassInfo_TransitionEvent_id,
-
-  eDOMClassInfo_FormData_id,
 
   // This one better be the last one in this list
   eDOMClassInfoIDCount

@@ -39,9 +39,7 @@
 // NOTE: alphabetically ordered
 #include "nsTextAccessibleWrap.h"
 #include "ISimpleDOMText_i.c"
-
-#include "nsDocAccessible.h"
-
+#include "nsIAccessibleDocument.h"
 #include "nsIFontMetrics.h"
 #include "nsIFrame.h"
 #include "nsPresContext.h"
@@ -122,11 +120,11 @@ __try {
     return rv;
   }
 
-  nsDocAccessible *docAccessible = GetDocAccessible();
-  NS_ASSERTION(docAccessible,
-               "There must always be a doc accessible, but there isn't. Crash!");
+  nsCOMPtr<nsIAccessibleDocument> docAccessible(GetDocAccessible());
+  nsCOMPtr<nsIAccessible> accessible(do_QueryInterface(docAccessible));
+  NS_ASSERTION(accessible, "There must always be a doc accessible, but there isn't");
 
-  docAccessible->GetBounds(&docX, &docY, &docWidth, &docHeight);
+  accessible->GetBounds(&docX, &docY, &docWidth, &docHeight);
 
   nsIntRect unclippedRect(x, y, width, height);
   nsIntRect docRect(docX, docY, docWidth, docHeight);
@@ -263,7 +261,7 @@ __try {
 
   const nsStyleVisibility *visibility = frame->GetStyleVisibility();
 
-  if (NS_FAILED(rc->SetFont(font->mFont, visibility->mLanguage,
+  if (NS_FAILED(rc->SetFont(font->mFont, visibility->mLangGroup,
                             presShell->GetPresContext()->GetUserFontSet()))) {
     return E_FAIL;
   }

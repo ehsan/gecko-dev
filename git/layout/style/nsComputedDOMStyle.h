@@ -308,7 +308,6 @@ private:
   nsresult GetOverflow(nsIDOMCSSValue** aValue);
   nsresult GetOverflowX(nsIDOMCSSValue** aValue);
   nsresult GetOverflowY(nsIDOMCSSValue** aValue);
-  nsresult GetResize(nsIDOMCSSValue** aValue);
   nsresult GetPageBreakAfter(nsIDOMCSSValue** aValue);
   nsresult GetPageBreakBefore(nsIDOMCSSValue** aValue);
   nsresult GetMozTransform(nsIDOMCSSValue** aValue);

@@ -40,7 +40,6 @@
 #include "gfxPlatform.h"
 #include "nsSVGFilterPaintCallback.h"
 #include "nsSVGFilterElement.h"
-#include "nsLayoutUtils.h"
 
 static double Square(double aX)
 {
@@ -165,7 +164,7 @@ nsSVGFilterInstance::BuildSources()
   gfxRect sourceBounds = UserSpaceToFilterSpace(mTargetBBox);
   sourceBounds.RoundOut();
   // Detect possible float->int overflow
-  if (NS_FAILED(nsLayoutUtils::GfxRectToIntRect(sourceBounds, &sourceBoundsInt)))
+  if (NS_FAILED(nsSVGUtils::GfxRectToIntRect(sourceBounds, &sourceBoundsInt)))
     return NS_ERROR_FAILURE;
 
   mSourceColorAlpha.mResultBoundingBox = sourceBoundsInt;
@@ -356,7 +355,7 @@ nsSVGFilterInstance::BuildSourceImages()
     r = m.TransformBounds(r);
     r.RoundOut();
     nsIntRect dirty;
-    nsresult rv = nsLayoutUtils::GfxRectToIntRect(r, &dirty);
+    nsresult rv = nsSVGUtils::GfxRectToIntRect(r, &dirty);
     if (NS_FAILED(rv))
       return rv;
 

@@ -160,9 +160,7 @@ public:
   void RemoveIdleTimeTarget(nsIPluginInstanceOwner* objectFrame);
 
 #ifdef MOZ_IPC
-  void PluginCrashed(nsNPAPIPlugin* plugin,
-                     const nsAString& pluginDumpID,
-                     const nsAString& browserDumpID);
+  void PluginCrashed(nsNPAPIPlugin* plugin, const nsAString& dumpID);
 #endif
 
   nsPluginInstanceTag *FindInstanceTag(nsIPluginInstance *instance);

@@ -247,7 +247,13 @@ AsyncChannel::OnDispatchMessage(const Message& msg)
 bool
 AsyncChannel::OnSpecialMessage(uint16 id, const Message& msg)
 {
-    return false;
+    switch (id) {
+    case GOODBYE_MESSAGE_TYPE:
+        return ProcessGoodbyeMessage();
+
+    default:
+        return false;
+    }
 }
 
 void
@@ -260,30 +266,18 @@ AsyncChannel::SendSpecialMessage(Message* msg)
         NewRunnableMethod(this, &AsyncChannel::OnSend, msg));
 }
 
-void
-AsyncChannel::OnNotifyMaybeChannelError()
+bool
+AsyncChannel::ProcessGoodbyeMessage()
 {
-    AssertWorkerThread();
-    mMutex.AssertNotCurrentThreadOwns();
+    MutexAutoLock lock(mMutex);
+    // TODO sort out Close() on this side racing with Close() on the
+    // other side
+    mChannelState = ChannelClosing;
 
-    // OnChannelError holds mMutex when it posts this task and this
-    // task cannot be allowed to run until OnChannelError has
-    // exited. We enforce that order by grabbing the mutex here which
-    // should only continue once OnChannelError has completed.
-    {
-        MutexAutoLock lock(mMutex);
-        // nothing to do here
-    }
+    printf("NOTE: %s process received `Goodbye', closing down\n",
+           mChild ? "child" : "parent");
 
-    if (ShouldDeferNotifyMaybeError()) {
-        mChannelErrorTask =
-            NewRunnableMethod(this, &AsyncChannel::OnNotifyMaybeChannelError);
-        // 10 ms delay is completely arbitrary
-        mWorkerLoop->PostDelayedTask(FROM_HERE, mChannelErrorTask, 10);
-        return;
-    }
-
-    NotifyMaybeChannelError();
+    return true;
 }
 
 void
@@ -305,6 +299,15 @@ void
 AsyncChannel::NotifyMaybeChannelError()
 {
     mMutex.AssertNotCurrentThreadOwns();
+
+    // OnChannelError holds mMutex when it posts this task and this task cannot
+    // be allowed to run until OnChannelError has exited. We enforce that order
+    // by grabbing the mutex here which should only continue once OnChannelError
+    // has completed.
+    {
+        MutexAutoLock lock(mMutex);
+        // Nothing to do here!
+    }
 
     // TODO sort out Close() on this side racing with Close() on the
     // other side
@@ -410,13 +413,10 @@ AsyncChannel::OnMessageReceived(const Message& msg)
     AssertIOThread();
     NS_ASSERTION(mChannelState != ChannelError, "Shouldn't get here!");
 
-    MutexAutoLock lock(mMutex);
-
-    if (!MaybeInterceptSpecialIOMessage(msg))
-        // wake up the worker, there's work to do
-        mWorkerLoop->PostTask(
-            FROM_HERE,
-            NewRunnableMethod(this, &AsyncChannel::OnDispatchMessage, msg));
+    // wake up the worker, there's work to do
+    mWorkerLoop->PostTask(
+        FROM_HERE,
+        NewRunnableMethod(this, &AsyncChannel::OnDispatchMessage, msg));
 }
 
 void
@@ -444,23 +444,16 @@ AsyncChannel::OnChannelError()
 
     MutexAutoLock lock(mMutex);
 
+    // NB: this can race with the `Goodbye' event being processed by
+    // the worker thread
     if (ChannelClosing != mChannelState)
         mChannelState = ChannelError;
-
-    PostErrorNotifyTask();
-}
-
-void
-AsyncChannel::PostErrorNotifyTask()
-{
-    AssertIOThread();
-    mMutex.AssertCurrentThreadOwns();
 
     NS_ASSERTION(!mChannelErrorTask, "OnChannelError called twice?");
 
     // This must be the last code that runs on this thread!
     mChannelErrorTask =
-        NewRunnableMethod(this, &AsyncChannel::OnNotifyMaybeChannelError);
+        NewRunnableMethod(this, &AsyncChannel::NotifyMaybeChannelError);
     mWorkerLoop->PostTask(FROM_HERE, mChannelErrorTask);
 }
 
@@ -482,34 +475,6 @@ AsyncChannel::OnCloseChannel()
     MutexAutoLock lock(mMutex);
     mChannelState = ChannelClosed;
     mCvar.Notify();
-}
-
-bool
-AsyncChannel::MaybeInterceptSpecialIOMessage(const Message& msg)
-{
-    AssertIOThread();
-    mMutex.AssertCurrentThreadOwns();
-
-    if (MSG_ROUTING_NONE == msg.routing_id()
-        && GOODBYE_MESSAGE_TYPE == msg.type()) {
-        ProcessGoodbyeMessage();
-        return true;
-    }
-    return false;
-}
-
-void
-AsyncChannel::ProcessGoodbyeMessage()
-{
-    AssertIOThread();
-    mMutex.AssertCurrentThreadOwns();
-
-    // TODO sort out Close() on this side racing with Close() on the
-    // other side
-    mChannelState = ChannelClosing;
-
-    printf("NOTE: %s process received `Goodbye', closing down\n",
-           mChild ? "child" : "parent");
 }
 
 

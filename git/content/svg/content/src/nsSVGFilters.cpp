@@ -132,7 +132,8 @@ nsSVGFE::ScaleInfo
 nsSVGFE::SetupScalingFilter(nsSVGFilterInstance *aInstance,
                             const Image *aSource, const Image *aTarget,
                             const nsIntRect& aDataRect,
-                            nsSVGNumber2 *aUnitX, nsSVGNumber2 *aUnitY)
+                            nsSVGNumber2 *aUnitX, nsSVGNumber2 *aUnitY,
+                            nsSVGElement *aElement)
 {
   ScaleInfo result;
   result.mRescaling = HasAttr(kNameSpaceID_None, nsGkAtoms::kernelUnitLength);
@@ -146,11 +147,11 @@ nsSVGFE::SetupScalingFilter(nsSVGFilterInstance *aInstance,
   float kernelX, kernelY;
   nsSVGLength2 val;
   val.Init(nsSVGUtils::X, 0xff,
-           aUnitX->GetAnimValue(),
+           aUnitX->GetAnimValue(aElement),
            nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER);
   kernelX = aInstance->GetPrimitiveLength(&val);
   val.Init(nsSVGUtils::Y, 0xff,
-           aUnitY->GetAnimValue(),
+           aUnitY->GetAnimValue(aElement),
            nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER);
   kernelY = aInstance->GetPrimitiveLength(&val);
 #ifdef DEBUG_tor
@@ -175,7 +176,7 @@ nsSVGFE::SetupScalingFilter(nsSVGFilterInstance *aInstance,
   r.Scale(scaledSize.width/aTarget->mImage->Width(),
           scaledSize.height/aTarget->mImage->Height());
   r.RoundOut();
-  if (NS_FAILED(nsLayoutUtils::GfxRectToIntRect(r, &result.mDataRect)))
+  if (NS_FAILED(nsSVGUtils::GfxRectToIntRect(r, &result.mDataRect)))
     return result;
   
 #ifdef DEBUG_tor
@@ -435,7 +436,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEGaussianBlurElement)
                            nsIDOMElement, nsIDOMSVGElement,
                            nsIDOMSVGFilterPrimitiveStandardAttributes,
                            nsIDOMSVGFEGaussianBlurElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEGaussianBlurElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEGaussianBlurElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFEGaussianBlurElementBase)
 
 //----------------------------------------------------------------------
@@ -909,7 +910,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEBlendElement)
                            nsIDOMSVGElement,
                            nsIDOMSVGFilterPrimitiveStandardAttributes,
                            nsIDOMSVGFEBlendElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEBlendElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEBlendElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFEBlendElementBase)
 
 //----------------------------------------------------------------------
@@ -951,7 +952,7 @@ nsSVGFEBlendElement::Filter(nsSVGFilterInstance* aInstance,
   PRUint8* targetData = aTarget->mImage->Data();
   PRUint32 stride = aTarget->mImage->Stride();
 
-  PRUint16 mode = mEnumAttributes[MODE].GetAnimValue();
+  PRUint16 mode = mEnumAttributes[MODE].GetAnimValue(this);
 
   for (PRInt32 x = rect.x; x < rect.XMost(); x++) {
     for (PRInt32 y = rect.y; y < rect.YMost(); y++) {
@@ -1110,7 +1111,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEColorMatrixElement)
                            nsIDOMSVGElement,
                            nsIDOMSVGFilterPrimitiveStandardAttributes,
                            nsIDOMSVGFEColorMatrixElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEColorMatrixElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEColorMatrixElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFEColorMatrixElementBase)
 
 //----------------------------------------------------------------------
@@ -1184,7 +1185,7 @@ nsSVGFEColorMatrixElement::Filter(nsSVGFilterInstance *instance,
   PRUint8* targetData = aTarget->mImage->Data();
   PRUint32 stride = aTarget->mImage->Stride();
 
-  PRUint16 type = mEnumAttributes[TYPE].GetAnimValue();
+  PRUint16 type = mEnumAttributes[TYPE].GetAnimValue(this);
 
   nsCOMPtr<nsIDOMSVGNumberList> list;
   mValues->GetAnimVal(getter_AddRefs(list));
@@ -1448,7 +1449,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFECompositeElement)
                            nsIDOMSVGElement,
                            nsIDOMSVGFilterPrimitiveStandardAttributes,
                            nsIDOMSVGFECompositeElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFECompositeElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFECompositeElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFECompositeElementBase)
 
 //----------------------------------------------------------------------
@@ -1519,7 +1520,7 @@ nsSVGFECompositeElement::Filter(nsSVGFilterInstance *instance,
                                 const Image* aTarget,
                                 const nsIntRect& rect)
 {
-  PRUint16 op = mEnumAttributes[OPERATOR].GetAnimValue();
+  PRUint16 op = mEnumAttributes[OPERATOR].GetAnimValue(this);
 
   // Cairo does not support arithmetic operator
   if (op == nsSVGFECompositeElement::SVG_OPERATOR_ARITHMETIC) {
@@ -1592,7 +1593,7 @@ nsIntRect
 nsSVGFECompositeElement::ComputeTargetBBox(const nsTArray<nsIntRect>& aSourceBBoxes,
         const nsSVGFilterInstance& aInstance)
 {
-  PRUint16 op = mEnumAttributes[OPERATOR].GetAnimValue();
+  PRUint16 op = mEnumAttributes[OPERATOR].GetAnimValue(this);
 
   if (op == nsSVGFECompositeElement::SVG_OPERATOR_ARITHMETIC) {
     // "arithmetic" operator can produce non-zero alpha values even where
@@ -1707,7 +1708,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEComponentTransferElement)
                            nsIDOMElement, nsIDOMSVGElement,
                            nsIDOMSVGFilterPrimitiveStandardAttributes,
                            nsIDOMSVGFEComponentTransferElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEComponentTransferElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEComponentTransferElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFEComponentTransferElementBase)
 
 //----------------------------------------------------------------------
@@ -1952,7 +1953,7 @@ NS_IMETHODIMP nsSVGComponentTransferFunctionElement::GetOffset(nsIDOMSVGAnimated
 void
 nsSVGComponentTransferFunctionElement::GenerateLookupTable(PRUint8 *aTable)
 {
-  PRUint16 type = mEnumAttributes[TYPE].GetAnimValue();
+  PRUint16 type = mEnumAttributes[TYPE].GetAnimValue(this);
 
   float slope, intercept, amplitude, exponent, offset;
   GetAnimatedNumberValues(&slope, &intercept, &amplitude, 
@@ -2092,7 +2093,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEFuncRElement)
                            nsIDOMSVGElement,
                            nsIDOMSVGComponentTransferFunctionElement,
                            nsIDOMSVGFEFuncRElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEFuncRElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEFuncRElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGComponentTransferFunctionElement)
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FEFuncR)
@@ -2133,7 +2134,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEFuncGElement)
                            nsIDOMSVGElement,
                            nsIDOMSVGComponentTransferFunctionElement,
                            nsIDOMSVGFEFuncGElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEFuncGElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEFuncGElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGComponentTransferFunctionElement)
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FEFuncG)
@@ -2174,7 +2175,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEFuncBElement)
                            nsIDOMSVGElement,
                            nsIDOMSVGComponentTransferFunctionElement,
                            nsIDOMSVGFEFuncBElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEFuncBElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEFuncBElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGComponentTransferFunctionElement)
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FEFuncB)
@@ -2215,7 +2216,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEFuncAElement)
                            nsIDOMSVGElement,
                            nsIDOMSVGComponentTransferFunctionElement,
                            nsIDOMSVGFEFuncAElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEFuncAElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEFuncAElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGComponentTransferFunctionElement)
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(FEFuncA)
@@ -2327,7 +2328,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEMergeElement)
                            nsIDOMSVGElement,
                            nsIDOMSVGFilterPrimitiveStandardAttributes,
                            nsIDOMSVGFEMergeElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEMergeElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEMergeElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFEMergeElementBase)
 
 //----------------------------------------------------------------------
@@ -2400,7 +2401,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEMergeNodeElement)
    if ( aIID.Equals(NS_GET_IID(nsSVGFEMergeNodeElement)) )
      foundInterface = static_cast<nsISupports*>(static_cast<void*>(this));
    else
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEMergeNodeElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEMergeNodeElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFEMergeNodeElementBase)
 
 //----------------------------------------------------------------------
@@ -2510,7 +2511,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEOffsetElement)
                            nsIDOMSVGElement,
                            nsIDOMSVGFilterPrimitiveStandardAttributes,
                            nsIDOMSVGFEOffsetElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEOffsetElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEOffsetElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFEOffsetElementBase)
 
 //----------------------------------------------------------------------
@@ -2698,7 +2699,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEFloodElement)
                            nsIDOMSVGElement,
                            nsIDOMSVGFilterPrimitiveStandardAttributes,
                            nsIDOMSVGFEFloodElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEFloodElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEFloodElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFEFloodElementBase)
 
 //----------------------------------------------------------------------
@@ -2837,7 +2838,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFETileElement)
                            nsIDOMSVGElement,
                            nsIDOMSVGFilterPrimitiveStandardAttributes,
                            nsIDOMSVGFETileElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFETileElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFETileElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFETileElementBase)
 
 //----------------------------------------------------------------------
@@ -2908,7 +2909,7 @@ nsSVGFETileElement::Filter(nsSVGFilterInstance *instance,
   // but nothing clips mFilterPrimitiveSubregion so this should be changed.
 
   nsIntRect tile;
-  nsresult res = nsLayoutUtils::GfxRectToIntRect(aSources[0]->mFilterPrimitiveSubregion, &tile);
+  nsresult res = nsSVGUtils::GfxRectToIntRect(aSources[0]->mFilterPrimitiveSubregion, &tile);
 
   NS_ENSURE_SUCCESS(res, res); // asserts on failure (not 
   if (tile.IsEmpty())
@@ -3141,7 +3142,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFETurbulenceElement)
                            nsIDOMSVGElement,
                            nsIDOMSVGFilterPrimitiveStandardAttributes,
                            nsIDOMSVGFETurbulenceElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFETurbulenceElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFETurbulenceElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFETurbulenceElementBase)
 
 //----------------------------------------------------------------------
@@ -3208,9 +3209,9 @@ nsSVGFETurbulenceElement::Filter(nsSVGFilterInstance *instance,
 #endif
 
   float fX, fY, seed;
-  PRInt32 octaves = mIntegerAttributes[OCTAVES].GetAnimValue();
-  PRUint16 type = mEnumAttributes[TYPE].GetAnimValue();
-  PRUint16 stitch = mEnumAttributes[STITCHTILES].GetAnimValue();
+  PRInt32 octaves = mIntegerAttributes[OCTAVES].GetAnimValue(this);
+  PRUint16 type = mEnumAttributes[TYPE].GetAnimValue(this);
+  PRUint16 stitch = mEnumAttributes[STITCHTILES].GetAnimValue(this);
 
   GetAnimatedNumberValues(&fX, &fY, &seed, nsnull);
 
@@ -3577,7 +3578,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEMorphologyElement)
                            nsIDOMSVGElement,
                            nsIDOMSVGFilterPrimitiveStandardAttributes,
                            nsIDOMSVGFEMorphologyElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEMorphologyElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEMorphologyElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFEMorphologyElementBase)
 
 //----------------------------------------------------------------------
@@ -3707,7 +3708,7 @@ nsSVGFEMorphologyElement::Filter(nsSVGFilterInstance *instance,
   PRUint32 stride = aTarget->mImage->Stride();
   PRUint32 xExt[4], yExt[4];  // X, Y indices of RGBA extrema
   PRUint8 extrema[4];         // RGBA magnitude of extrema
-  PRUint16 op = mEnumAttributes[OPERATOR].GetAnimValue();
+  PRUint16 op = mEnumAttributes[OPERATOR].GetAnimValue(this);
 
   /* Scan the kernel for each pixel to determine max/min RGBA values.  Note that
    * as we advance in the x direction, each kernel overlaps the previous kernel.
@@ -3843,7 +3844,7 @@ public:
 
 protected:
   virtual PRBool OperatesOnPremultipledAlpha() {
-    return !mBooleanAttributes[PRESERVEALPHA].GetAnimValue();
+    return !mBooleanAttributes[PRESERVEALPHA].GetAnimValue(this);
   }
 
   virtual NumberAttributesInfo GetNumberInfo();
@@ -3931,7 +3932,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEConvolveMatrixElement)
                            nsIDOMElement, nsIDOMSVGElement,
                            nsIDOMSVGFilterPrimitiveStandardAttributes,
                            nsIDOMSVGFEConvolveMatrixElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEConvolveMatrixElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEConvolveMatrixElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFEConvolveMatrixElementBase)
 
 //----------------------------------------------------------------------
@@ -4188,7 +4189,7 @@ nsSVGFEConvolveMatrixElement::Filter(nsSVGFilterInstance *instance,
 
   float divisor;
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::divisor)) {
-    divisor = mNumberAttributes[DIVISOR].GetAnimValue();
+    divisor = mNumberAttributes[DIVISOR].GetAnimValue(this);
     if (divisor == 0)
       return NS_ERROR_FAILURE;
   } else {
@@ -4201,16 +4202,17 @@ nsSVGFEConvolveMatrixElement::Filter(nsSVGFilterInstance *instance,
 
   ScaleInfo info = SetupScalingFilter(instance, aSources[0], aTarget, rect,
                                       &mNumberAttributes[KERNEL_UNIT_LENGTH_X],
-                                      &mNumberAttributes[KERNEL_UNIT_LENGTH_Y]);
+                                      &mNumberAttributes[KERNEL_UNIT_LENGTH_Y],
+                                      this);
   if (!info.mTarget)
     return NS_ERROR_FAILURE;
 
-  PRUint16 edgeMode = mEnumAttributes[EDGEMODE].GetAnimValue();
-  PRBool preserveAlpha = mBooleanAttributes[PRESERVEALPHA].GetAnimValue();
+  PRUint16 edgeMode = mEnumAttributes[EDGEMODE].GetAnimValue(this);
+  PRBool preserveAlpha = mBooleanAttributes[PRESERVEALPHA].GetAnimValue(this);
 
   float bias = 0;
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::bias)) {
-    bias = mNumberAttributes[BIAS].GetAnimValue();
+    bias = mNumberAttributes[BIAS].GetAnimValue(this);
   }
 
   const nsIntRect& dataRect = info.mDataRect;
@@ -4323,7 +4325,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEDistantLightElement)
   NS_NODE_INTERFACE_TABLE4(nsSVGFEDistantLightElement, nsIDOMNode,
                            nsIDOMElement, nsIDOMSVGElement,
                            nsIDOMSVGFEDistantLightElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEDistantLightElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEDistantLightElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFEDistantLightElementBase)
 
 //----------------------------------------------------------------------
@@ -4409,7 +4411,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEPointLightElement)
   NS_NODE_INTERFACE_TABLE4(nsSVGFEPointLightElement, nsIDOMNode,
                            nsIDOMElement, nsIDOMSVGElement,
                            nsIDOMSVGFEPointLightElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEPointLightElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEPointLightElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFEPointLightElementBase)
 
 //----------------------------------------------------------------------
@@ -4505,7 +4507,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFESpotLightElement)
   NS_NODE_INTERFACE_TABLE4(nsSVGFESpotLightElement, nsIDOMNode,
                            nsIDOMElement, nsIDOMSVGElement,
                            nsIDOMSVGFESpotLightElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFESpotLightElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFESpotLightElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFESpotLightElementBase)
 
 //----------------------------------------------------------------------
@@ -4786,7 +4788,8 @@ nsSVGFELightingElement::Filter(nsSVGFilterInstance *instance,
 {
   ScaleInfo info = SetupScalingFilter(instance, aSources[0], aTarget, rect,
                                       &mNumberAttributes[KERNEL_UNIT_LENGTH_X],
-                                      &mNumberAttributes[KERNEL_UNIT_LENGTH_Y]);
+                                      &mNumberAttributes[KERNEL_UNIT_LENGTH_Y],
+                                      this);
   if (!info.mTarget)
     return NS_ERROR_FAILURE;
 
@@ -4859,7 +4862,7 @@ nsSVGFELightingElement::Filter(nsSVGFilterInstance *instance,
     }
   }
 
-  float surfaceScale = mNumberAttributes[SURFACE_SCALE].GetAnimValue();
+  float surfaceScale = mNumberAttributes[SURFACE_SCALE].GetAnimValue(this);
 
   const nsIntRect& dataRect = info.mDataRect;
   PRInt32 stride = info.mSource->Stride();
@@ -4979,7 +4982,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEDiffuseLightingElement)
                            nsIDOMElement, nsIDOMSVGElement,
                            nsIDOMSVGFilterPrimitiveStandardAttributes,
                            nsIDOMSVGFEDiffuseLightingElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEDiffuseLightingElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEDiffuseLightingElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFEDiffuseLightingElementBase)
 
 //----------------------------------------------------------------------
@@ -5032,7 +5035,7 @@ nsSVGFEDiffuseLightingElement::LightPixel(const float *N, const float *L,
                                           nscolor color, PRUint8 *targetData)
 {
   float diffuseNL =
-    mNumberAttributes[DIFFUSE_CONSTANT].GetAnimValue() * DOT(N, L);
+    mNumberAttributes[DIFFUSE_CONSTANT].GetAnimValue(this) * DOT(N, L);
 
   if (diffuseNL > 0) {
     targetData[GFX_ARGB32_OFFSET_B] =
@@ -5101,7 +5104,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFESpecularLightingElement)
                            nsIDOMElement, nsIDOMSVGElement,
                            nsIDOMSVGFilterPrimitiveStandardAttributes,
                            nsIDOMSVGFESpecularLightingElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFESpecularLightingElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFESpecularLightingElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFESpecularLightingElementBase)
 
 //----------------------------------------------------------------------
@@ -5162,7 +5165,7 @@ nsSVGFESpecularLightingElement::Filter(nsSVGFilterInstance *instance,
                                        const Image* aTarget,
                                        const nsIntRect& rect)
 {
-  float specularExponent = mNumberAttributes[SPECULAR_EXPONENT].GetAnimValue();
+  float specularExponent = mNumberAttributes[SPECULAR_EXPONENT].GetAnimValue(this);
 
   // specification defined range (15.22)
   if (specularExponent < 1 || specularExponent > 128)
@@ -5182,12 +5185,12 @@ nsSVGFESpecularLightingElement::LightPixel(const float *N, const float *L,
   H[2] = L[2] + 1;
   NORMALIZE(H);
 
-  float kS = mNumberAttributes[SPECULAR_CONSTANT].GetAnimValue();
+  float kS = mNumberAttributes[SPECULAR_CONSTANT].GetAnimValue(this);
   float dotNH = DOT(N, H);
 
   if (dotNH > 0 && kS > 0) {
     float specularNH =
-      kS * pow(dotNH, mNumberAttributes[SPECULAR_EXPONENT].GetAnimValue());
+      kS * pow(dotNH, mNumberAttributes[SPECULAR_EXPONENT].GetAnimValue(this));
 
     targetData[GFX_ARGB32_OFFSET_B] =
       NS_MIN(PRUint32(specularNH * NS_GET_B(color)), 255U);
@@ -5310,7 +5313,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEImageElement)
                            nsIDOMSVGFilterPrimitiveStandardAttributes,
                            nsIDOMSVGFEImageElement, nsIDOMSVGURIReference,
                            imgIDecoderObserver, nsIImageLoadingContent)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEImageElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEImageElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFEImageElementBase)
 
 //----------------------------------------------------------------------
@@ -5682,7 +5685,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGFEDisplacementMapElement)
                            nsIDOMElement, nsIDOMSVGElement,
                            nsIDOMSVGFilterPrimitiveStandardAttributes,
                            nsIDOMSVGFEDisplacementMapElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGFEDisplacementMapElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFEDisplacementMapElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFEDisplacementMapElementBase)
 
 //----------------------------------------------------------------------
@@ -5734,7 +5737,7 @@ nsSVGFEDisplacementMapElement::Filter(nsSVGFilterInstance *instance,
           rect.x, rect.y, rect.width, rect.height);
 #endif
 
-  float scale = mNumberAttributes[SCALE].GetAnimValue();
+  float scale = mNumberAttributes[SCALE].GetAnimValue(this);
   if (scale == 0.0f) {
     CopyRect(aTarget, aSources[0], rect);
     return NS_OK;
@@ -5758,8 +5761,8 @@ nsSVGFEDisplacementMapElement::Filter(nsSVGFilterInstance *instance,
                              GFX_ARGB32_OFFSET_G,
                              GFX_ARGB32_OFFSET_B,
                              GFX_ARGB32_OFFSET_A };
-  PRUint16 xChannel = channelMap[mEnumAttributes[CHANNEL_X].GetAnimValue()];
-  PRUint16 yChannel = channelMap[mEnumAttributes[CHANNEL_Y].GetAnimValue()];
+  PRUint16 xChannel = channelMap[mEnumAttributes[CHANNEL_X].GetAnimValue(this)];
+  PRUint16 yChannel = channelMap[mEnumAttributes[CHANNEL_Y].GetAnimValue(this)];
 
   double scaleOver255 = scale / 255.0;
   double scaleAdjustment = 0.5 - 0.5 * scale;

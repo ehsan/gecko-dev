@@ -1031,7 +1031,7 @@ js_IsDelegate(JSContext *cx, JSObject *obj, jsval v, JSBool *bp);
  * If protoKey is not JSProto_Null, then clasp is ignored. If protoKey is
  * JSProto_Null, clasp must non-null.
  */
-extern JS_FRIEND_API(JSBool)
+extern JSBool
 js_GetClassPrototype(JSContext *cx, JSObject *scope, JSProtoKey protoKey,
                      JSObject **protop,  JSClass *clasp = NULL);
 
@@ -1099,10 +1099,6 @@ js_CheckScopeChainValidity(JSContext *cx, JSObject *scopeobj, const char *caller
 extern JSBool
 js_CheckPrincipalsAccess(JSContext *cx, JSObject *scopeobj,
                          JSPrincipals *principals, JSAtom *caller);
-
-/* For CSP -- checks if eval() and friends are allowed to run. */
-extern JSBool
-js_CheckContentSecurityPolicy(JSContext *cx);
 
 /* Infallible -- returns its argument if there is no wrapped object. */
 extern JSObject *

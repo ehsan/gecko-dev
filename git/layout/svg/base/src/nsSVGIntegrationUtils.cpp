@@ -209,7 +209,7 @@ public:
   {
     nsIRenderingContext* ctx = aContext->GetRenderingContext(aTarget);
     nsIRenderingContext::AutoPushTranslation push(ctx, -mOffset.x, -mOffset.y);
-    mInnerList->Paint(mBuilder, ctx, nsDisplayList::PAINT_DEFAULT);
+    mInnerList->Paint(mBuilder, ctx);
   }
 
 private:
@@ -302,7 +302,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsIRenderingContext* aCtx,
     filterFrame->FilterPaint(&svgContext, aEffectsFrame, &paint, &r);
   } else {
     gfx->SetMatrix(savedCTM);
-    aInnerList->Paint(aBuilder, aCtx, nsDisplayList::PAINT_DEFAULT);
+    aInnerList->Paint(aBuilder, aCtx);
     aCtx->Translate(userSpaceRect.x, userSpaceRect.y);
   }
 

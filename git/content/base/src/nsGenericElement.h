@@ -431,7 +431,7 @@ public:
   virtual void SaveSubtreeState();
 
 #ifdef MOZ_SMIL
-  virtual nsISMILAttr* GetAnimatedAttr(nsIAtom* /*aName*/)
+  virtual nsISMILAttr* GetAnimatedAttr(const nsIAtom* /*aName*/)
   {
     return nsnull;
   }
@@ -493,21 +493,12 @@ public:
                          const nsAString& aVersion, PRBool* aReturn);
   NS_IMETHOD HasAttributes(PRBool* aHasAttributes);
   NS_IMETHOD HasChildNodes(PRBool* aHasChildNodes);
-  nsresult InsertBefore(nsIDOMNode* aNewChild, nsIDOMNode* aRefChild,
-                        nsIDOMNode** aReturn)
-  {
-    return ReplaceOrInsertBefore(PR_FALSE, aNewChild, aRefChild, aReturn);
-  }
-  nsresult ReplaceChild(nsIDOMNode* aNewChild, nsIDOMNode* aOldChild,
-                        nsIDOMNode** aReturn)
-  {
-    return ReplaceOrInsertBefore(PR_TRUE, aNewChild, aOldChild, aReturn);
-  }
-  nsresult RemoveChild(nsIDOMNode* aOldChild, nsIDOMNode** aReturn)
-  {
-    return nsINode::RemoveChild(aOldChild, aReturn);
-  }
-  nsresult AppendChild(nsIDOMNode* aNewChild, nsIDOMNode** aReturn)
+  NS_IMETHOD InsertBefore(nsIDOMNode* aNewChild, nsIDOMNode* aRefChild,
+                          nsIDOMNode** aReturn);
+  NS_IMETHOD ReplaceChild(nsIDOMNode* aNewChild, nsIDOMNode* aOldChild,
+                          nsIDOMNode** aReturn);
+  NS_IMETHOD RemoveChild(nsIDOMNode* aOldChild, nsIDOMNode** aReturn);
+  NS_IMETHOD AppendChild(nsIDOMNode* aNewChild, nsIDOMNode** aReturn)
   {
     return InsertBefore(aNewChild, nsnull, aReturn);
   }
@@ -597,6 +588,39 @@ public:
     GetDOMFeatureFactory(const nsAString& aFeature, const nsAString& aVersion);
 
   static PRBool ShouldBlur(nsIContent *aContent);
+
+  /**
+   * Actual implementation of the DOM InsertBefore and ReplaceChild methods.
+   * Shared by nsDocument. When called from nsDocument, aParent will be null.
+   *
+   * @param aReplace  True if aNewChild should replace aRefChild. False if
+   *                  aNewChild should be inserted before aRefChild.
+   * @param aNewChild The child to insert
+   * @param aRefChild The child to insert before or replace
+   * @param aParent The parent to use for the new child
+   * @param aDocument The document to use for the new child.
+   *                  Must be non-null, if aParent is null and must match
+   *                  aParent->GetCurrentDoc() if aParent is not null.
+   * @param aReturn [out] the child we insert
+   */
+  static nsresult doReplaceOrInsertBefore(PRBool aReplace, nsIDOMNode* aNewChild, nsIDOMNode* aRefChild,
+                                          nsIContent* aParent, nsIDocument* aDocument,
+                                          nsIDOMNode** aReturn);
+
+  /**
+   * Actual implementation of the DOM RemoveChild method.  Shared by
+   * nsDocument.  When called from nsDocument, aParent will be null.
+   *
+   * @param aOldChild The child to remove
+   * @param aParent The parent to use for the new child
+   * @param aDocument The document to use for the new child.
+   *                  Must be non-null if aParent is null and must match
+   *                  aParent->GetCurrentDoc() if aParent is not null.
+   * @param aReturn [out] the child we remove
+   */
+  static nsresult doRemoveChild(nsIDOMNode* aOldChild,
+                                nsIContent* aParent, nsIDocument* aDocument,
+                                nsIDOMNode** aReturn);
 
   /**
    * Most of the implementation of the nsINode InsertChildAt method.  Shared by
@@ -730,10 +754,7 @@ public:
 protected:
   /**
    * Set attribute and (if needed) notify documentobservers and fire off
-   * mutation events.  This will send the AttributeChanged notification.
-   * Callers of this method are responsible for calling AttributeWillChange,
-   * since that needs to happen before the new attr value has been set, and
-   * in particular before it has been parsed.
+   * mutation events.
    *
    * @param aNamespaceID  namespace of attribute
    * @param aAttribute    local-name of attribute
@@ -741,7 +762,7 @@ protected:
    * @param aOldValue     previous value of attribute. Only needed if
    *                      aFireMutation is true.
    * @param aParsedValue  parsed new value of attribute
-   * @param aModType      nsIDOMMutationEvent::MODIFICATION or ADDITION.  Only
+   * @param aModification is this a attribute-modification or addition. Only
    *                      needed if aFireMutation or aNotify is true.
    * @param aFireMutation should mutation-events be fired?
    * @param aNotify       should we notify document-observers?
@@ -753,7 +774,7 @@ protected:
                             nsIAtom* aPrefix,
                             const nsAString& aOldValue,
                             nsAttrValue& aParsedValue,
-                            PRUint8 aModType,
+                            PRBool aModification,
                             PRBool aFireMutation,
                             PRBool aNotify,
                             const nsAString* aValueForAfterSetAttr);
@@ -795,9 +816,8 @@ protected:
   /**
    * Hook that is called by nsGenericElement::SetAttr to allow subclasses to
    * deal with attribute sets.  This will only be called after we verify that
-   * we're actually doing an attr set and will be called before
-   * AttributeWillChange and before ParseAttribute and hence before we've set
-   * the new value.
+   * we're actually doing an attr set and will be called before ParseAttribute
+   * and hence before we've set the new value.
    *
    * @param aNamespaceID the namespace of the attr being set
    * @param aName the localname of the attribute being set
@@ -816,8 +836,7 @@ protected:
   /**
    * Hook that is called by nsGenericElement::SetAttr to allow subclasses to
    * deal with attribute sets.  This will only be called after we have called
-   * SetAndTakeAttr and AttributeChanged (that is, after we have actually set
-   * the attr).
+   * SetAndTakeAttr (that is, after we have actually set the attr).
    *
    * @param aNamespaceID the namespace of the attr being set
    * @param aName the localname of the attribute being set

@@ -48,7 +48,7 @@
 #include "nsIDocumentObserver.h"
 #include "imgILoader.h"
 #include "imgIRequest.h"
-#include "nsCSSLoader.h"
+#include "nsICSSLoader.h"
 #include "nsIXBLDocumentInfo.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
@@ -112,7 +112,7 @@ nsXBLResourceLoader::LoadResources(PRBool* aResult)
   nsCOMPtr<nsIDocument> doc;
   mBinding->XBLDocumentInfo()->GetDocument(getter_AddRefs(doc));
 
-  mozilla::css::Loader* cssLoader = doc->CSSLoader();
+  nsICSSLoader* cssLoader = doc->CSSLoader();
   nsIURI *docURL = doc->GetDocumentURI();
   nsIPrincipal* docPrincipal = doc->NodePrincipal();
 

@@ -44,6 +44,7 @@
 #include "nsIDocument.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsContentUtils.h"
+#include "nsPLDOMEvent.h"
 
 class nsHTMLTitleElement : public nsGenericHTMLElement,
                            public nsIDOMHTMLTitleElement,

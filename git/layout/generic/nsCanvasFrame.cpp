@@ -81,6 +81,22 @@ NS_QUERYFRAME_HEAD(nsCanvasFrame)
   NS_QUERYFRAME_ENTRY(nsCanvasFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 
+NS_IMETHODIMP
+nsCanvasFrame::Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow)
+{
+  nsresult rv = nsHTMLContainerFrame::Init(aContent, aParent, aPrevInFlow);
+
+  nsIScrollableFrame* sf =
+    PresContext()->GetPresShell()->GetRootScrollFrameAsScrollable();
+  if (sf) {
+    sf->AddScrollPositionListener(this);
+  }
+
+  return rv;
+}
+
 void
 nsCanvasFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
@@ -110,20 +126,13 @@ nsCanvasFrame::SetHasFocus(PRBool aHasFocus)
   if (mDoPaintFocus != aHasFocus) {
     mDoPaintFocus = aHasFocus;
     PresContext()->FrameManager()->GetRootFrame()->InvalidateOverflowRect();
-
-    if (!mAddedScrollPositionListener) {
-      mAddedScrollPositionListener = PR_TRUE;
-      nsIScrollableFrame* sf =
-        PresContext()->GetPresShell()->GetRootScrollFrameAsScrollable();
-      sf->AddScrollPositionListener(this);
-    }
   }
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsCanvasFrame::SetInitialChildList(nsIAtom*        aListName,
-                                   nsFrameList&    aChildList)
+                                 nsFrameList&    aChildList)
 {
   if (nsGkAtoms::absoluteList == aListName)
     return mAbsoluteContainer.SetInitialChildList(this, aListName, aChildList);
@@ -135,8 +144,10 @@ nsCanvasFrame::SetInitialChildList(nsIAtom*        aListName,
 
 NS_IMETHODIMP
 nsCanvasFrame::AppendFrames(nsIAtom*        aListName,
-                            nsFrameList&    aFrameList)
+                          nsFrameList&    aFrameList)
 {
+  nsresult  rv;
+
   if (nsGkAtoms::absoluteList == aListName)
     return mAbsoluteContainer.AppendFrames(this, aListName, aFrameList);
 
@@ -144,50 +155,57 @@ nsCanvasFrame::AppendFrames(nsIAtom*        aListName,
   NS_PRECONDITION(mFrames.IsEmpty(), "already have a child frame");
   if (aListName) {
     // We only support unnamed principal child list
-    return NS_ERROR_INVALID_ARG;
-  }
+    rv = NS_ERROR_INVALID_ARG;
 
-  if (!mFrames.IsEmpty()) {
+  } else if (!mFrames.IsEmpty()) {
     // We only allow a single child frame
-    return NS_ERROR_INVALID_ARG;
+    rv = NS_ERROR_FAILURE;
+
+  } else {
+    // Insert the new frames
+    NS_ASSERTION(aFrameList.FirstChild() == aFrameList.LastChild(),
+                 "Only one principal child frame allowed");
+#ifdef NS_DEBUG
+    nsFrame::VerifyDirtyBitSet(aFrameList);
+#endif
+    mFrames.AppendFrames(nsnull, aFrameList);
+
+    rv = PresContext()->PresShell()->
+           FrameNeedsReflow(this, nsIPresShell::eTreeChange,
+                            NS_FRAME_HAS_DIRTY_CHILDREN);
   }
 
-  // Insert the new frames
-  NS_ASSERTION(aFrameList.FirstChild() == aFrameList.LastChild(),
-               "Only one principal child frame allowed");
-#ifdef NS_DEBUG
-  nsFrame::VerifyDirtyBitSet(aFrameList);
-#endif
-  mFrames.AppendFrames(nsnull, aFrameList);
-
-  PresContext()->PresShell()->
-    FrameNeedsReflow(this, nsIPresShell::eTreeChange,
-                     NS_FRAME_HAS_DIRTY_CHILDREN);
-
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP
 nsCanvasFrame::InsertFrames(nsIAtom*        aListName,
-                            nsIFrame*       aPrevFrame,
-                            nsFrameList&    aFrameList)
+                          nsIFrame*       aPrevFrame,
+                          nsFrameList&    aFrameList)
 {
+  nsresult  rv;
+
   if (nsGkAtoms::absoluteList == aListName)
     return mAbsoluteContainer.InsertFrames(this, aListName, aPrevFrame, aFrameList);
 
   // Because we only support a single child frame inserting is the same
   // as appending
   NS_PRECONDITION(!aPrevFrame, "unexpected previous sibling frame");
-  if (aPrevFrame)
-    return NS_ERROR_UNEXPECTED;
+  if (aPrevFrame) {
+    rv = NS_ERROR_UNEXPECTED;
+  } else {
+    rv = AppendFrames(aListName, aFrameList);
+  }
 
-  return AppendFrames(aListName, aFrameList);
+  return rv;
 }
 
 NS_IMETHODIMP
 nsCanvasFrame::RemoveFrame(nsIAtom*        aListName,
-                           nsIFrame*       aOldFrame)
+                         nsIFrame*       aOldFrame)
 {
+  nsresult  rv;
+
   if (nsGkAtoms::absoluteList == aListName) {
     mAbsoluteContainer.RemoveFrame(this, aListName, aOldFrame);
     return NS_OK;
@@ -196,25 +214,26 @@ nsCanvasFrame::RemoveFrame(nsIAtom*        aListName,
   NS_ASSERTION(!aListName, "unexpected child list name");
   if (aListName) {
     // We only support the unnamed principal child list
-    return NS_ERROR_INVALID_ARG;
+    rv = NS_ERROR_INVALID_ARG;
+  
+  } else if (aOldFrame == mFrames.FirstChild()) {
+    // It's our one and only child frame
+    // Damage the area occupied by the deleted frame
+    // The child of the canvas probably can't have an outline, but why bother
+    // thinking about that?
+    Invalidate(aOldFrame->GetOverflowRect() + aOldFrame->GetPosition());
+
+    // Remove the frame and destroy it
+    mFrames.DestroyFrame(aOldFrame);
+
+    rv = PresContext()->PresShell()->
+           FrameNeedsReflow(this, nsIPresShell::eTreeChange,
+                            NS_FRAME_HAS_DIRTY_CHILDREN);
+  } else {
+    rv = NS_ERROR_FAILURE;
   }
 
-  if (aOldFrame != mFrames.FirstChild())
-    return NS_ERROR_FAILURE;
-
-  // It's our one and only child frame
-  // Damage the area occupied by the deleted frame
-  // The child of the canvas probably can't have an outline, but why bother
-  // thinking about that?
-  Invalidate(aOldFrame->GetOverflowRect() + aOldFrame->GetPosition());
-
-  // Remove the frame and destroy it
-  mFrames.DestroyFrame(aOldFrame);
-
-  PresContext()->PresShell()->
-    FrameNeedsReflow(this, nsIPresShell::eTreeChange,
-                     NS_FRAME_HAS_DIRTY_CHILDREN);
-  return NS_OK;
+  return rv;
 }
 
 nsIAtom*
@@ -311,8 +330,8 @@ public:
 
 NS_IMETHODIMP
 nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists)
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists)
 {
   nsresult rv;
 

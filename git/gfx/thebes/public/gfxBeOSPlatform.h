@@ -58,7 +58,7 @@ public:
                                PRUint32 height,
                                gfxASurface::gfxImageFormat imageFormat);
 
-    nsresult GetFontList(nsIAtom *aLangGroup,
+    nsresult GetFontList(const nsACString& aLangGroup,
                          const nsACString& aGenericFamily,
                          nsTArray<nsString>& aListOfFonts);
 

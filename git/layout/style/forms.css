@@ -127,7 +127,6 @@ textarea {
   letter-spacing: normal;
   vertical-align: text-bottom;
   cursor: text;
-  -moz-resize: both;
   -moz-binding: url("chrome://global/content/platformHTMLBindings.xml#textAreas");
   -moz-appearance: textfield-multiline;
   text-indent: 0;
@@ -152,7 +151,6 @@ input > .anonymous-div {
      but it's needed to make 'text-decoration' "work" on text inputs. */
   text-decoration: inherit;
   ime-mode: inherit;
-  -moz-resize: inherit;
 }
 
 textarea > .anonymous-div.wrap,
@@ -162,23 +160,6 @@ input > .anonymous-div.wrap {
 textarea > .anonymous-div.inherit-overflow,
 input > .anonymous-div.inherit-overflow {
   overflow: inherit;
-}
-
-input > .placeholder,
-textarea > .placeholder {
-  color: GrayText;
-  overflow: hidden;
-  pointer-events: none;
-  -moz-resize: none;
-}
-
-textarea > .placeholder {
-  white-space: pre-wrap;
-}
-
-input > .placeholder.hidden,
-textarea > .placeholder.hidden {
-  visibility: hidden;
 }
 
 input:-moz-read-write,
@@ -425,7 +406,6 @@ input[type="file"] > input[type="button"] {
   height: inherit;
   font-size: inherit;
   letter-spacing: inherit;
-  cursor: inherit;
 }
 
 /* radio buttons */

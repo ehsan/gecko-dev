@@ -5,7 +5,6 @@
    Originator:	<andreast@gcc.gnu.org> 20030828	 */
 
 /* { dg-do run } */
-/* { dg-options "-Wno-format" { target alpha*-dec-osf* } } */
 #include "ffitest.h"
 
 static void cls_ret_ulonglong_fn(ffi_cif* cif __UNUSED__, void* resp,

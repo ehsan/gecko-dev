@@ -102,8 +102,9 @@ public:
    * in the cache then create and cache it.
    *
    * @param aRow         [in] the given row index
+   * @param aAccessible  [out] tree item accessible
    */
-  nsAccessible* GetTreeItemAccessible(PRInt32 aRow);
+  void GetTreeItemAccessible(PRInt32 aRow, nsIAccessible **aAccessible);
 
   /**
    * Invalidates the number of cached treeitem accessibles.
@@ -136,11 +137,12 @@ protected:
   /**
    * Creates tree item accessible for the given row index.
    */
-  virtual already_AddRefed<nsAccessible> CreateTreeItemAccessible(PRInt32 aRow);
+  virtual void CreateTreeItemAccessible(PRInt32 aRowIndex,
+                                        nsAccessNode** aAccessNode);
 
   nsCOMPtr<nsITreeBoxObject> mTree;
   nsCOMPtr<nsITreeView> mTreeView;
-  nsAccessibleHashtable mAccessibleCache;
+  nsAccessNodeHashtable mAccessNodeCache;
 
   NS_IMETHOD ChangeSelection(PRInt32 aIndex, PRUint8 aMethod, PRBool *aSelState);
 };
@@ -213,8 +215,9 @@ public:
    * Return cell accessible for the given column. If XUL tree accessible is not
    * accessible table then return null.
    */
-  virtual nsAccessible* GetCellAccessible(nsITreeColumn *aColumn)
-    { return nsnull; }
+  virtual void GetCellAccessible(nsITreeColumn *aColumn,
+                                 nsIAccessible **aCellAcc)
+    { *aCellAcc = nsnull; }
 
   /**
    * Proccess row invalidation. Used to fires name change events.
@@ -226,8 +229,8 @@ protected:
 
   // nsAccessible
   virtual void DispatchClickEvent(nsIContent *aContent, PRUint32 aActionIndex);
-  virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                           nsresult *aError = nsnull);
+  virtual nsIAccessible* GetSiblingAtOffset(PRInt32 aOffset,
+                                            nsresult* aError = nsnull);
 
   // nsXULTreeItemAccessibleBase
 
@@ -290,8 +293,7 @@ public:
 protected:
 
   // nsAccessible
-  virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                           nsresult *aError = nsnull);
+  nsIAccessible* GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError = nsnull);
 };
 
 #endif

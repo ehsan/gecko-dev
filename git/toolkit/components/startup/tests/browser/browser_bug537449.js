@@ -91,13 +91,15 @@ var Watcher = {
 function test() {
   waitForExplicitFinish();
 
-  Services.wm.addListener(Watcher);
+  var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                     .getService(Components.interfaces.nsIWindowMediator);
+  wm.addListener(Watcher);
 
   gBrowser.selectedTab = gBrowser.addTab(TEST_URL);
-  gBrowser.selectedBrowser.addEventListener("DOMContentLoaded", function() {
+  gBrowser.addEventListener("load", function() {
     if (window.content.location.href != TEST_URL)
       return;
-    gBrowser.selectedBrowser.removeEventListener("DOMContentLoaded", arguments.callee, false);
+    gBrowser.removeEventListener("load", arguments.callee, false);
     Watcher.seen = false;
     var appStartup = Cc['@mozilla.org/toolkit/app-startup;1'].
                      getService(Ci.nsIAppStartup);
@@ -117,6 +119,8 @@ function test() {
 }
 
 function finish_test() {
-  Services.wm.removeListener(Watcher);
+  var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                     .getService(Components.interfaces.nsIWindowMediator);
+  wm.removeListener(Watcher);
   finish();
 }

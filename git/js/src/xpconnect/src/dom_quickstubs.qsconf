@@ -87,11 +87,17 @@ members = [
 
     # dom/interfaces/canvas
     #
-    # nsIDOMCanvasRenderingContext2D and friends
+    # nsIDOMCanvasRenderingContext2D
     'nsIDOMCanvasRenderingContext2D.*',
+    # NOTE: attributes strokeStyle and fillStyle are nsIVariant
+    # NOTE: createImageDate(), getImageData(), and putImageData() use
+    #       GetCurrentNativeCallContext
+    '-nsIDOMCanvasRenderingContext2D.strokeStyle',
+    '-nsIDOMCanvasRenderingContext2D.fillStyle',
+    '-nsIDOMCanvasRenderingContext2D.createImageData',
+    '-nsIDOMCanvasRenderingContext2D.getImageData',
+    '-nsIDOMCanvasRenderingContext2D.putImageData',
     'nsIDOMTextMetrics.*',
-    'nsIDOMCanvasGradient.*',
-    'nsIDOMCanvasPattern.*',
 
     # dom/interfaces/core
     'nsIDOMCharacterData.data',
@@ -358,7 +364,6 @@ members = [
     'nsIDOMNSHTMLDocument.getSelection',
     'nsIDOMNSHTMLDocument.designMode',
     'nsIDOMNSHTMLElement.contentEditable',
-    'nsIDOMNSHTMLElement.isContentEditable',
     'nsIDOMNSHTMLElement.offsetParent',
     'nsIDOMNSHTMLElement.innerHTML',
     'nsIDOMNSHTMLElement.offsetLeft',
@@ -496,13 +501,7 @@ customIncludes = [
     ]
 
 customQuickStubs = [
-    'CustomQS_WebGL.h',
-    'CustomQS_Canvas2D.h'
-    ]
-
-customReturnInterfaces = [
-    'nsIDOMCanvasPattern',
-    'nsIDOMCanvasGradient',
+    'CustomQS_WebGL.h'
     ]
 
 nsIDOMNode_GetChildNodes_customMethodCallCode = """
@@ -595,11 +594,7 @@ customMethodCalls = {
         },
     'nsIDOMStorage_Clear': {
         'code': nsIDOMStorage_Clear_customMethodCallCode
-        },
-    'nsIDOMCanvasRenderingContext2D_StrokeStyle': { 'skipgen': True },
-    'nsIDOMCanvasRenderingContext2D_StrokeStyle': { 'skipgen': True },
-    'nsIDOMCanvasRenderingContext2D_FillStyle': { 'skipgen': True },
-    'nsIDOMCanvasRenderingContext2D_FillStyle': { 'skipgen': True },
+       }, 
     'nsIDOMCSS2Properties_': CSS2Properties_,
     'nsIDOMNSCSS2Properties_': CSS2Properties_,
     # WebGL
@@ -621,10 +616,6 @@ customMethodCalls = {
     'nsICanvasRenderingContextWebGL_VertexAttrib1fv': CUSTOM_QS,
     'nsICanvasRenderingContextWebGL_VertexAttrib2fv': CUSTOM_QS,
     'nsICanvasRenderingContextWebGL_VertexAttrib3fv': CUSTOM_QS,
-    'nsICanvasRenderingContextWebGL_VertexAttrib4fv': CUSTOM_QS,
-    # Canvas 2D
-    'nsIDOMCanvasRenderingContext2D_CreateImageData': CUSTOM_QS,
-    'nsIDOMCanvasRenderingContext2D_GetImageData': CUSTOM_QS,
-    'nsIDOMCanvasRenderingContext2D_PutImageData': CUSTOM_QS,
+    'nsICanvasRenderingContextWebGL_VertexAttrib4fv': CUSTOM_QS
     }
 

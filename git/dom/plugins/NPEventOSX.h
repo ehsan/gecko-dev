@@ -41,18 +41,17 @@
 
 
 #include "npapi.h"
+#include "IPC/IPCMessageUtils.h"
+
+#warning This is only a stub implementation IMPLEMENT ME
 
 namespace mozilla {
-
 namespace plugins {
-
 struct NPRemoteEvent {
-    NPCocoaEvent event;
+    NPEvent event;
 };
-
-} // namespace plugins
-
-} // namespace mozilla
+}
+}
 
 namespace IPC {
 
@@ -63,55 +62,15 @@ struct ParamTraits<mozilla::plugins::NPRemoteEvent>
 
     static void Write(Message* aMsg, const paramType& aParam)
     {
-        // Make a non-const copy of aParam so that we can muck with
-        // its insides for transport
-        paramType paramCopy;
-
-        paramCopy.event = aParam.event;
-
-        switch (paramCopy.event.type) {
-            case NPCocoaEventMouseDown:
-            case NPCocoaEventMouseUp:
-            case NPCocoaEventMouseMoved:
-            case NPCocoaEventMouseEntered:
-            case NPCocoaEventMouseExited:
-            case NPCocoaEventMouseDragged:
-            case NPCocoaEventFocusChanged:
-            case NPCocoaEventWindowFocusChanged:
-            case NPCocoaEventScrollWheel:
-                // Nothing special to do for these events.
-                break;
-            case NPCocoaEventDrawRect:
-                // Don't serialize the context pointer
-                paramCopy.event.data.draw.context = NULL;
-                break;
-            case NPCocoaEventKeyDown:
-            case NPCocoaEventKeyUp:
-            case NPCocoaEventFlagsChanged:
-            case NPCocoaEventTextInput:
-            default:
-                // ignore any events we don't expect
-                return; 
-        }
-
-        aMsg->WriteBytes(&paramCopy, sizeof(paramType));
     }
 
     static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
     {
-        const char* bytes = 0;
-
-        if (!aMsg->ReadBytes(aIter, &bytes, sizeof(paramType))) {
-            return false;
-        }
-        memcpy(aResult, bytes, sizeof(paramType));
-
         return true;
     }
 
     static void Log(const paramType& aParam, std::wstring* aLog)
     {
-        aLog->append(L"(NPCocoaEvent)");
     }
 };
 

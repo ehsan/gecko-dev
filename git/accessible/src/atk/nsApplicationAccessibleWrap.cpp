@@ -446,11 +446,11 @@ mai_util_get_root(void)
         return nsnull;
     }
 
-    nsApplicationAccessible *applicationAcc =
+    nsRefPtr<nsApplicationAccessibleWrap> root =
         nsAccessNode::GetApplicationAccessible();
 
-    if (applicationAcc)
-        return applicationAcc->GetAtkObject();
+    if (root)
+        return root->GetAtkObject();
 
     return nsnull;
 }

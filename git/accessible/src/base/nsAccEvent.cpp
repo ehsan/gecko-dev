@@ -37,10 +37,12 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsAccEvent.h"
-
+#include "nsAccessibilityAtoms.h"
 #include "nsApplicationAccessibleWrap.h"
-#include "nsDocAccessible.h"
-
+#include "nsCoreUtils.h"
+#include "nsIAccessibilityService.h"
+#include "nsIAccessNode.h"
+#include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIEventStateManager.h"
 #include "nsIPersistentProperties2.h"
@@ -61,7 +63,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccEvent. nsISupports
 
-NS_IMPL_CYCLE_COLLECTION_1(nsAccEvent, mAccessible)
+NS_IMPL_CYCLE_COLLECTION_2(nsAccEvent, mAccessible, mDocAccessible)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsAccEvent)
   NS_INTERFACE_MAP_ENTRY(nsIAccessibleEvent)
@@ -136,8 +138,15 @@ nsAccEvent::GetDOMNode(nsIDOMNode **aDOMNode)
   NS_ENSURE_ARG_POINTER(aDOMNode);
   *aDOMNode = nsnull;
 
-  if (!mNode)
-    mNode = GetNode();
+  if (!mNode) {
+    nsCOMPtr<nsIAccessNode> accessNode(do_QueryInterface(mAccessible));
+    NS_ENSURE_TRUE(accessNode, NS_ERROR_FAILURE);
+
+    nsCOMPtr<nsIDOMNode> DOMNode;
+    accessNode->GetDOMNode(getter_AddRefs(DOMNode));
+
+    mNode = do_QueryInterface(DOMNode);
+  }
 
   if (mNode)
     CallQueryInterface(mNode, aDOMNode);
@@ -149,39 +158,21 @@ NS_IMETHODIMP
 nsAccEvent::GetAccessibleDocument(nsIAccessibleDocument **aDocAccessible)
 {
   NS_ENSURE_ARG_POINTER(aDocAccessible);
+  *aDocAccessible = nsnull;
 
-  NS_IF_ADDREF(*aDocAccessible = GetDocAccessible());
-  return NS_OK;
-}
+  if (!mDocAccessible) {
+    if (!mAccessible) {
+      nsCOMPtr<nsIAccessible> accessible;
+      GetAccessible(getter_AddRefs(accessible));
+    }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsAccEvent: public methods
-
-nsINode*
-nsAccEvent::GetNode()
-{
-  if (!mNode) {
     nsCOMPtr<nsIAccessNode> accessNode(do_QueryInterface(mAccessible));
-    if (!accessNode)
-      return nsnull;
-
-    nsCOMPtr<nsIDOMNode> DOMNode;
-    accessNode->GetDOMNode(getter_AddRefs(DOMNode));
-
-    mNode = do_QueryInterface(DOMNode);
+    NS_ENSURE_TRUE(accessNode, NS_ERROR_FAILURE);
+    accessNode->GetAccessibleDocument(getter_AddRefs(mDocAccessible));
   }
 
-  return mNode;
-}
-
-nsDocAccessible*
-nsAccEvent::GetDocAccessible()
-{
-  nsINode *node = GetNode();
-  if (node)
-    return nsAccessNode::GetDocAccessibleFor(node->GetOwnerDoc());
-
-  return nsnull;
+  NS_IF_ADDREF(*aDocAccessible = mDocAccessible);
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -222,7 +213,7 @@ nsAccEvent::GetAccessibleByNode()
         nsRefPtr<nsXULTreeAccessible> treeAcc =
           nsAccUtils::QueryAccessibleTree(accessible);
         if (treeAcc)
-          accessible = treeAcc->GetTreeItemAccessible(treeIndex);
+          treeAcc->GetTreeItemAccessible(treeIndex, getter_AddRefs(accessible));
       }
     }
   }
@@ -242,10 +233,10 @@ nsAccEvent::CaptureIsFromUserInput(EIsFromUserInput aIsFromUserInput)
     // XXX: remove this hack during reorganization of 506907. Meanwhile we
     // want to get rid an assertion for application accessible events which
     // don't have DOM node (see bug 506206).
-    nsApplicationAccessible *applicationAcc =
+    nsRefPtr<nsApplicationAccessibleWrap> applicationAcc =
       nsAccessNode::GetApplicationAccessible();
 
-    if (mAccessible != static_cast<nsIAccessible*>(applicationAcc))
+    if (mAccessible != static_cast<nsIAccessible*>(applicationAcc.get()))
       NS_ASSERTION(targetNode, "There should always be a DOM node for an event");
   }
 #endif

@@ -106,20 +106,7 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
           if (!frameToResize)
             break;
 
-          // cache the content rectangle for the frame to resize
-          // GetScreenRectInAppUnits returns the border box rectangle, so
-          // adjust to get the desired content rectangle.
-          nsRect rect = frameToResize->GetScreenRectInAppUnits();
-          switch (frameToResize->GetStylePosition()->mBoxSizing) {
-            case NS_STYLE_BOX_SIZING_CONTENT:
-              rect -= frameToResize->GetUsedPadding();
-            case NS_STYLE_BOX_SIZING_PADDING:
-              rect -= frameToResize->GetUsedBorder();
-            default:
-              break;
-          }
-
-          mMouseDownRect = rect.ToNearestPixels(aPresContext->AppUnitsPerDevPixel());
+          mMouseDownRect = frameToResize->GetScreenRect();
         }
         else {
           // ask the widget implementation to begin a resize drag if it can
@@ -192,17 +179,23 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
       nsIntPoint screenPoint(aEvent->refPoint + aEvent->widget->WidgetToScreenOffset());
       nsIntPoint mouseMove(screenPoint - mMouseDownPoint);
 
-      // Determine which direction to resize by checking the dir attribute.
-      // For windows and menus, ensure that it can be resized in that direction.
-      Direction direction = GetDirection();
+      // what direction should we go in? For content resizing, always use
+      // 'bottomend'. For other windows, check the dir attribute.
+      Direction direction;
       if (window || menuPopupFrame) {
+        direction = GetDirection();
         if (menuPopupFrame) {
           menuPopupFrame->CanAdjustEdges(
             (direction.mHorizontal == -1) ? NS_SIDE_LEFT : NS_SIDE_RIGHT,
             (direction.mVertical == -1) ? NS_SIDE_TOP : NS_SIDE_BOTTOM, mouseMove);
         }
       }
-      else if (!contentToResize) {
+      else if (contentToResize) {
+        direction.mHorizontal =
+          GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL ? -1 : 1;
+        direction.mVertical = 1;
+      }
+      else {
         break; // don't do anything if there's nothing to resize
       }
 
@@ -240,16 +233,9 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
       }
 
       if (contentToResize) {
-        // convert the rectangle into css pixels. When changing the size in a
-        // direction, don't allow the new size to be less that the resizer's
-        // size. This ensures that content isn't resized too small as to make
-        // the resizer invisible.
-        nsRect appUnitsRect = rect.ToAppUnits(aPresContext->AppUnitsPerDevPixel());
-        if (appUnitsRect.width < mRect.width && mouseMove.x)
-          appUnitsRect.width = mRect.width;
-        if (appUnitsRect.height < mRect.height && mouseMove.y)
-          appUnitsRect.height = mRect.height;
-        nsIntRect cssRect = appUnitsRect.ToInsidePixels(nsPresContext::AppUnitsPerCSSPixel());
+        nsIntRect cssRect =
+          rect.ToAppUnits(aPresContext->AppUnitsPerDevPixel())
+              .ToInsidePixels(nsPresContext::AppUnitsPerCSSPixel());
 
         nsAutoString widthstr, heightstr;
         widthstr.AppendInt(cssRect.width);
@@ -267,13 +253,8 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
               widget->GetScreenBounds(oldRect);
           }
 
-          // only set the property if the element could have changed in that direction
-          if (direction.mHorizontal) {
-            contentToResize->SetAttr(kNameSpaceID_None, nsGkAtoms::width, widthstr, PR_TRUE);
-          }
-          if (direction.mVertical) {
-            contentToResize->SetAttr(kNameSpaceID_None, nsGkAtoms::height, heightstr, PR_TRUE);
-          }
+          contentToResize->SetAttr(kNameSpaceID_None, nsGkAtoms::width, widthstr, PR_TRUE);
+          contentToResize->SetAttr(kNameSpaceID_None, nsGkAtoms::height, heightstr, PR_TRUE);
 
           if (weakFrame.IsAlive() &&
               (oldRect.x != rect.x || oldRect.y != rect.y)) {
@@ -287,18 +268,13 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
           nsCOMPtr<nsIDOMElementCSSInlineStyle> inlineStyleContent =
             do_QueryInterface(contentToResize);
           if (inlineStyleContent) {
+            widthstr += NS_LITERAL_STRING("px");
+            heightstr += NS_LITERAL_STRING("px");
+
             nsCOMPtr<nsIDOMCSSStyleDeclaration> decl;
             inlineStyleContent->GetStyle(getter_AddRefs(decl));
-
-            // only set the property if the element could have changed in that direction
-            if (direction.mHorizontal) {
-              widthstr.AppendLiteral("px");
-              decl->SetProperty(NS_LITERAL_STRING("width"), widthstr, EmptyString());
-            }
-            if (direction.mVertical) {
-              heightstr.AppendLiteral("px");
-              decl->SetProperty(NS_LITERAL_STRING("height"), heightstr, EmptyString());
-            }
+            decl->SetProperty(NS_LITERAL_STRING("width"), widthstr, EmptyString());
+            decl->SetProperty(NS_LITERAL_STRING("height"), heightstr, EmptyString());
           }
         }
       }
@@ -377,9 +353,7 @@ nsResizerFrame::GetContentToResize(nsIPresShell* aPresShell, nsIBaseWindow** aWi
   }
 
   if (elementid.EqualsLiteral("_parent")) {
-    // return the parent, but skip over native anonymous content
-    nsIContent* parent = mContent->GetParent();
-    return parent ? parent->FindFirstNonNativeAnonymous() : nsnull;
+    return mContent->GetParent();
   }
 
   nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(aPresShell->GetDocument());

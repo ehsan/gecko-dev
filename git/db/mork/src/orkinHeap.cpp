@@ -51,8 +51,6 @@
 #include "morkEnv.h"
 #endif
 
-#include <stdlib.h>
-
 //3456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789
 
 
@@ -89,7 +87,7 @@ orkinHeap::Alloc(nsIMdbEnv* mev, // allocate a piece of memory
 
   MORK_USED_1(mev);
   mdb_err outErr = 0;
-  void* block = malloc(inSize);
+  void* block = ::operator new(inSize);
   if ( !block )
     outErr = morkEnv_kOutOfMemoryError;
 #ifdef MORK_DEBUG_HEAP_STATS
@@ -165,7 +163,7 @@ orkinHeap::Free(nsIMdbEnv* mev, // free block allocated earlier by Alloc()
     }
 #endif /*MORK_DEBUG_HEAP_STATS*/
     
-    free(inBlock);
+    ::operator delete(inBlock);
   }
   return 0;
 }

@@ -263,12 +263,12 @@ gfxPlatformFontList::ResolveFontName(const nsAString& aFontName, nsAString& aRes
 }
 
 struct FontListData {
-    FontListData(nsIAtom *aLangGroup,
+    FontListData(const nsACString& aLangGroup,
                  const nsACString& aGenericFamily,
                  nsTArray<nsString>& aListOfFonts) :
         mLangGroup(aLangGroup), mGenericFamily(aGenericFamily),
         mListOfFonts(aListOfFonts) {}
-    nsIAtom *mLangGroup;
+    const nsACString& mLangGroup;
     const nsACString& mGenericFamily;
     nsTArray<nsString>& mListOfFonts;
 };
@@ -284,7 +284,7 @@ gfxPlatformFontList::HashEnumFuncForFamilies(nsStringHashKey::KeyType aKey,
     // for all the variations and should probably be moved up to
     // the Family
     gfxFontStyle style;
-    style.language = data->mLangGroup;
+    style.langGroup = data->mLangGroup;
     PRBool needsBold;
     nsRefPtr<gfxFontEntry> aFontEntry = aFamilyEntry->FindFontForStyle(style, needsBold);
     NS_ASSERTION(aFontEntry, "couldn't find any font entry in family");
@@ -306,7 +306,7 @@ gfxPlatformFontList::HashEnumFuncForFamilies(nsStringHashKey::KeyType aKey,
 }
 
 void
-gfxPlatformFontList::GetFontList(nsIAtom *aLangGroup,
+gfxPlatformFontList::GetFontList (const nsACString& aLangGroup,
                                  const nsACString& aGenericFamily,
                                  nsTArray<nsString>& aListOfFonts)
 {

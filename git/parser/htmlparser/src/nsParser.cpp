@@ -72,6 +72,8 @@
 #include "nsIThreadPool.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsICSSStyleSheet.h"
+#include "nsICSSLoaderObserver.h"
+#include "nsICSSLoader.h"
 #include "nsMimeTypes.h"
 
 #ifdef MOZ_VIEW_SOURCE
@@ -293,6 +295,21 @@ private:
   PRBool mTerminated;
 };
 
+/**
+ * Used if we need to pass an nsICSSLoaderObserver as parameter,
+ * but don't really need its services
+ */
+class nsDummyCSSLoaderObserver : public nsICSSLoaderObserver {
+public:
+  NS_IMETHOD
+  StyleSheetLoaded(nsICSSStyleSheet* aSheet, PRBool aWasAlternate, nsresult aStatus) {
+      return NS_OK;
+  }
+  NS_DECL_ISUPPORTS
+};
+
+NS_IMPL_ISUPPORTS1(nsDummyCSSLoaderObserver, nsICSSLoaderObserver)
+
 class nsPreloadURIs : public nsIRunnable {
 public:
   nsPreloadURIs(nsAutoTArray<nsSpeculativeScriptThread::PrefetchEntry, 5> &aURIs,
@@ -369,9 +386,13 @@ nsPreloadURIs::PreloadURIs(const nsAutoTArray<nsSpeculativeScriptThread::Prefetc
       case nsSpeculativeScriptThread::IMAGE:
         doc->MaybePreLoadImage(uri);
         break;
-      case nsSpeculativeScriptThread::STYLESHEET:
-        doc->PreloadStyle(uri, pe.charset);
+      case nsSpeculativeScriptThread::STYLESHEET: {
+        nsCOMPtr<nsICSSLoaderObserver> obs = new nsDummyCSSLoaderObserver();
+        doc->CSSLoader()->LoadSheet(uri, doc->NodePrincipal(),
+                                    NS_LossyConvertUTF16toASCII(pe.charset),
+                                    obs);
         break;
+      }
       case nsSpeculativeScriptThread::NONE:
         NS_NOTREACHED("Uninitialized preload entry?");
         break;

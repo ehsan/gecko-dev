@@ -70,7 +70,7 @@ datepicker, timepicker {
 }
 
 html|*.datetimepicker-input {
-  text-align: end;
+  text-align: right;
 }
 
 .datetimepicker-separator {

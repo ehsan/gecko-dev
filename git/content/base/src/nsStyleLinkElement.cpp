@@ -46,7 +46,7 @@
 #include "nsStyleLinkElement.h"
 
 #include "nsIContent.h"
-#include "nsCSSLoader.h"
+#include "nsICSSLoader.h"
 #include "nsICSSStyleSheet.h"
 #include "nsIDocument.h"
 #include "nsIDOMComment.h"
@@ -240,11 +240,18 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
 
   nsCOMPtr<nsIDocument> doc = thisContent->GetDocument();
 
-  if (!doc || !doc->CSSLoader()->GetEnabled()) {
+  if (!doc) {
+    return NS_OK;
+  }
+
+  PRBool enabled = PR_FALSE;
+  doc->CSSLoader()->GetEnabled(&enabled);
+  if (!enabled) {
     return NS_OK;
   }
 
   PRBool isInline;
+  
   nsCOMPtr<nsIURI> uri = GetStyleSheetURL(&isInline);
 
   if (!aForceUpdate && mStyleSheet && !isInline && uri) {

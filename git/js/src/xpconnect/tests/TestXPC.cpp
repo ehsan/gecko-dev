@@ -44,9 +44,6 @@
 #include <ctype.h>
 #include <stdarg.h>
 
-#include "jsapi.h"
-#include "jscntxt.h"
-
 #include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIXPConnect.h"
@@ -62,6 +59,9 @@
 #include "nsIVariant.h"
 #include "nsStringAPI.h"
 #include "nsEmbedString.h"
+
+#include "jsapi.h"
+#include "jscntxt.h"
 
 #include "xpctest.h"
 

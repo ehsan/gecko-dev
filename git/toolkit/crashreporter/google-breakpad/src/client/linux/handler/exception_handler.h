@@ -1,4 +1,4 @@
-// Copyright (c) 2010 Google Inc.
+// Copyright (c) 2009, Google Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -34,7 +34,6 @@
 #include <string>
 
 #include <signal.h>
-#include <stdio.h>
 
 #include "client/linux/crash_generation/crash_generation_client.h"
 #include "processor/scoped_ptr.h"
@@ -42,8 +41,6 @@
 struct sigaction;
 
 namespace google_breakpad {
-
-class ExceptionHandler;
 
 // ExceptionHandler
 //
@@ -160,29 +157,13 @@ class ExceptionHandler {
                             MinidumpCallback callback,
                             void *callback_context);
 
-  // Write a minidump of |child| immediately.  This can be used to
-  // capture the execution state of |child| independently of a crash.
-  //
-  // WARNING: the return of this function *must* be ordered
-  // happens-before the code that will eventually reap |child|.
-  // Otherwise there's a pernicious race condition in which |child|
-  // exits, is reaped, another process created with its pid, then that
-  // new process dumped.
-  static bool WriteMinidumpForChild(pid_t child,
-                                    const std::string &dump_path,
-                                    MinidumpCallback callback,
-                                    void *callback_context);
-
   // This structure is passed to minidump_writer.h:WriteMinidump via an opaque
   // blob. It shouldn't be needed in any user code.
   struct CrashContext {
     siginfo_t siginfo;
     pid_t tid;  // the crashing thread.
     struct ucontext context;
-#if !defined(__ARM_EABI__)
-    // #ifdef this out because FP state is not part of user ABI for Linux ARM.
     struct _libc_fpstate float_state;
-#endif
   };
 
   // Returns whether out-of-process dump generation is used or not.

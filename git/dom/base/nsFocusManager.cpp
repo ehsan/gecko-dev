@@ -1017,7 +1017,7 @@ nsFocusManager::SetFocusInner(nsIContent* aNewContent, PRInt32 aFlags,
   // if the element is already focused, just return. Note that this happens
   // after the frame check above so that we compare the element that will be
   // focused rather than the frame it is in.
-  if (!newWindow || (newWindow == mFocusedWindow && contentToFocus == mFocusedContent))
+  if (!newWindow || newWindow == mFocusedWindow && contentToFocus == mFocusedContent)
     return;
 
   // don't allow focus to be placed in docshells or descendants of docshells
@@ -1671,7 +1671,7 @@ public:
 
   nsCOMPtr<nsISupports>   mTarget;
   PRUint32                mType;
-  nsRefPtr<nsPresContext> mContext;
+  nsCOMPtr<nsPresContext> mContext;
   PRBool                  mWindowRaised;
 };
 
@@ -1974,6 +1974,7 @@ nsFocusManager::GetSelectionLocation(nsIDocument* aDocument,
     nsCOMPtr<nsIDOMRange> domRange;
     rv = domSelection->GetRangeAt(0, getter_AddRefs(domRange));
     if (domRange) {
+      PRInt32 startOffset;
       domRange->GetStartContainer(getter_AddRefs(startNode));
       domRange->GetEndContainer(getter_AddRefs(endNode));
       domRange->GetStartOffset(&startOffset);
@@ -2057,21 +2058,19 @@ nsFocusManager::GetSelectionLocation(nsIDocument* aDocument,
             nsRefPtr<nsCaret> caret;
             aPresShell->GetCaret(getter_AddRefs(caret));
             nsRect caretRect;
-            nsIFrame *frame = caret->GetGeometry(domSelection, &caretRect);
-            if (frame) {
-              nsPoint caretWindowOffset;
-              nsIWidget *window = frame->GetWindowOffset(caretWindowOffset);
-              caretRect.MoveBy(caretWindowOffset);
-              nsPoint newCaretOffset;
-              nsIWidget *newCaretWindow = newCaretFrame->GetWindowOffset(newCaretOffset);
-              if (window == newCaretWindow && caretRect.y == newCaretOffset.y &&
-                  caretRect.x == newCaretOffset.x) {
-                // The caret is at the start of the new element.
-                startFrame = newCaretFrame;
-                startContent = newCaretContent;
-                if (endOfSelectionInStartNode) {
-                  endContent = newCaretContent; // Ensure end of selection is not before start
-                }
+            nsIView *caretView;
+            caret->GetCaretCoordinates(nsCaret::eClosestViewCoordinates, 
+                                       domSelection, &caretRect,
+                                       &isCollapsed, &caretView);
+            nsPoint framePt;
+            nsIView *frameClosestView = newCaretFrame->GetClosestView(&framePt);
+            if (caretView == frameClosestView && caretRect.y == framePt.y &&
+                caretRect.x == framePt.x) {
+              // The caret is at the start of the new element.
+              startFrame = newCaretFrame;
+              startContent = newCaretContent;
+              if (endOfSelectionInStartNode) {
+                endContent = newCaretContent; // Ensure end of selection is not before start
               }
             }
           }
@@ -2150,7 +2149,7 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindow* aWindow,
                                   PR_FALSE, 0, PR_FALSE, aNextContent);
   }
 
-  PRBool forward = (aType == MOVEFOCUS_FORWARD || aType == MOVEFOCUS_CARET);
+  PRBool forward = (aType == MOVEFOCUS_FORWARD);
   PRBool doNavigation = PR_TRUE;
   PRBool ignoreTabIndex = PR_FALSE;
   // when a popup is open, we want to ensure that tab navigation occurs only
@@ -2232,18 +2231,13 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindow* aWindow,
             startContent = nsnull;
         }
 
-        if (aType == MOVEFOCUS_CARET) {
-          // GetFocusInSelection finds a focusable link near the caret.
-          // If there is no start content though, don't do this to avoid
-          // focusing something unexpected.
-          if (startContent) {
+        if (startContent) {
+          if (aType == MOVEFOCUS_CARET) {
             GetFocusInSelection(aWindow, startContent,
                                 endSelectionContent, aNextContent);
+            return NS_OK;
           }
-          return NS_OK;
-        }
 
-        if (startContent) {
           // when starting from a selection, we always want to find the next or
           // previous element in the document. So the tabindex on elements
           // should be ignored.

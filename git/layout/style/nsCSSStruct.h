@@ -372,7 +372,6 @@ struct nsCSSDisplay : public nsCSSStruct  {
   nsCSSRect  mClip;
   nsCSSValue mOverflowX;
   nsCSSValue mOverflowY;
-  nsCSSValue mResize;
   nsCSSValue mPointerEvents;
   nsCSSValue mVisibility;
   nsCSSValue mOpacity;

@@ -117,7 +117,7 @@ nsImageBoxFrameEvent::Run()
     return NS_OK;
   }
 
-  nsRefPtr<nsPresContext> pres_context = pres_shell->GetPresContext();
+  nsCOMPtr<nsPresContext> pres_context = pres_shell->GetPresContext();
   if (!pres_context) {
     return NS_OK;
   }
@@ -457,8 +457,7 @@ nsImageBoxFrame::GetPrefSize(nsBoxLayoutState& aState)
   else
     size = mImageSize;
   AddBorderAndPadding(size);
-  PRBool widthSet, heightSet;
-  nsIBox::AddCSSPrefSize(this, size, widthSet, heightSet);
+  nsIBox::AddCSSPrefSize(aState, this, size);
 
   nsSize minSize = GetMinSize(aState);
   nsSize maxSize = GetMaxSize(aState);  
@@ -473,8 +472,7 @@ nsImageBoxFrame::GetMinSize(nsBoxLayoutState& aState)
   nsSize size(0,0);
   DISPLAY_MIN_SIZE(this, size);
   AddBorderAndPadding(size);
-  PRBool widthSet, heightSet;
-  nsIBox::AddCSSMinSize(aState, this, size, widthSet, heightSet);
+  nsIBox::AddCSSMinSize(aState, this, size);
   return size;
 }
 

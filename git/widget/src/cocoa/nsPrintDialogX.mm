@@ -107,8 +107,13 @@ nsPrintDialogServiceX::Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings,
   NSPrintPanel* panel = [NSPrintPanel printPanel];
   PrintPanelAccessoryController* viewController =
     [[PrintPanelAccessoryController alloc] initWithSettings:aSettings];
+#ifdef NS_LEOPARD_AND_LATER
   [panel addAccessoryController:viewController];
   [viewController release];
+#else
+  [panel setAccessoryView:[viewController view]];
+  [[viewController view] release];
+#endif
 
   // Show the dialog.
   nsCocoaUtils::PrepareForNativeAppModalDialog();
@@ -593,6 +598,7 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
           [mFooterRightList titleOfSelectedItem]]]]];
 }
 
+#ifdef NS_LEOPARD_AND_LATER
 - (NSArray*)localizedSummaryItems
 {
   return [NSArray arrayWithObjects:
@@ -619,6 +625,7 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
       [self footerSummaryValue], NSPrintPanelAccessorySummaryItemDescriptionKey, nil],
     nil];
 }
+#endif
 
 @end
 
@@ -628,8 +635,11 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
 
 - (id)initWithSettings:(nsIPrintSettings*)aSettings
 {
+#ifdef NS_LEOPARD_AND_LATER
   [super initWithNibName:nil bundle:nil];
-
+#else
+  [super init];
+#endif
   NSView* accView = [[PrintPanelAccessoryView alloc] initWithSettings:aSettings];
   [self setView:accView];
   [accView release];
@@ -641,9 +651,27 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
   return [(PrintPanelAccessoryView*)[self view] exportSettings];
 }
 
+#ifdef NS_LEOPARD_AND_LATER
 - (NSArray *)localizedSummaryItems
 {
   return [(PrintPanelAccessoryView*)[self view] localizedSummaryItems];
 }
+#else
+- (void)setView:(NSView*)aView
+{
+  mView = [aView retain];
+}
+
+- (NSView*)view
+{
+  return mView;
+}
+
+- (void)dealloc
+{
+  [mView release];
+  [super dealloc];
+}
+#endif
 
 @end

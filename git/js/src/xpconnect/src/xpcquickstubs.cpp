@@ -295,8 +295,7 @@ LookupGetterOrSetter(JSContext *cx, JSBool wantGetter, uintN argc, jsval *vp)
     if(!name ||
        !IS_PROTO_CLASS(STOBJ_GET_CLASS(desc.obj)) ||
        (desc.attrs & (JSPROP_GETTER | JSPROP_SETTER)) ||
-       !(desc.getter || desc.setter) ||
-       desc.setter == STOBJ_GET_CLASS(desc.obj)->setProperty)
+       !(desc.getter || desc.setter))
     {
         JS_SET_RVAL(cx, vp, JSVAL_VOID);
         return JS_TRUE;

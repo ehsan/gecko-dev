@@ -38,12 +38,13 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsAccessible.h"
-
-#include "nsIXBLAccessible.h"
-
-#include "nsAccTreeWalker.h"
 #include "nsAccessibleRelation.h"
-#include "nsDocAccessible.h"
+#include "nsHyperTextAccessibleWrap.h"
+
+#include "nsIAccessibleDocument.h"
+#include "nsIAccessibleHyperText.h"
+#include "nsIXBLAccessible.h"
+#include "nsAccTreeWalker.h"
 
 #include "nsIDOMElement.h"
 #include "nsIDOMDocument.h"
@@ -881,10 +882,15 @@ nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY, PRBool aDeepestChild,
   // therefore accessible for containing block may be different from accessible
   // for DOM parent but GetFrameForPoint() should be called for containing block
   // to get an out of flow element.
-  nsDocAccessible *accDocument = GetDocAccessible();
+  nsCOMPtr<nsIAccessibleDocument> accDocument;
+  rv = GetAccessibleDocument(getter_AddRefs(accDocument));
+  NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(accDocument, NS_ERROR_FAILURE);
 
-  nsIFrame *frame = accDocument->GetFrame();
+  nsRefPtr<nsAccessNode> docAccessNode =
+    nsAccUtils::QueryAccessNode(accDocument);
+
+  nsIFrame *frame = docAccessNode->GetFrame();
   NS_ENSURE_STATE(frame);
 
   nsPresContext *presContext = frame->PresContext();
@@ -1485,8 +1491,9 @@ nsAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
     const nsAttrName *attr = content->GetAttrNameAt(count);
     if (attr && attr->NamespaceEquals(kNameSpaceID_None)) {
       nsIAtom *attrAtom = attr->Atom();
-      nsDependentAtomString attrStr(attrAtom);
-      if (!StringBeginsWith(attrStr, NS_LITERAL_STRING("aria-"))) 
+      const char *attrStr;
+      attrAtom->GetUTF8String(&attrStr);
+      if (PL_strncmp(attrStr, "aria-", 5)) 
         continue; // Not ARIA
       PRUint8 attrFlags = nsAccUtils::GetAttributeCharacteristics(attrAtom);
       if (attrFlags & ATTR_BYPASSOBJ)
@@ -1496,7 +1503,7 @@ nsAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
         continue; // only expose token based attributes if they are defined
       nsAutoString value;
       if (content->GetAttr(kNameSpaceID_None, attrAtom, value)) {
-        attributes->SetStringProperty(NS_ConvertUTF16toUTF8(Substring(attrStr, 5)), value, oldValueUnused);
+        attributes->SetStringProperty(nsDependentCString(attrStr + 5), value, oldValueUnused);
       }
     }
   }
@@ -2491,7 +2498,7 @@ nsAccessible::DoCommand(nsIContent *aContent, PRUint32 aActionIndex)
 {
   nsCOMPtr<nsIContent> content = aContent;
   if (!content)
-    content = nsCoreUtils::GetRoleContent(mDOMNode);
+    content = do_QueryInterface(mDOMNode);
 
   NS_DISPATCH_RUNNABLEMETHOD_ARG2(DispatchClickEvent, this,
                                   content, aActionIndex)
@@ -2894,7 +2901,7 @@ nsAccessible::GetParent()
   if (mParent)
     return mParent;
 
-  nsDocAccessible *docAccessible = GetDocAccessible();
+  nsCOMPtr<nsIAccessibleDocument> docAccessible(GetDocAccessible());
   NS_ASSERTION(docAccessible, "No document accessible for valid accessible!");
 
   if (!docAccessible)
@@ -2994,15 +3001,20 @@ void
 nsAccessible::TestChildCache(nsAccessible *aCachedChild)
 {
 #ifdef DEBUG
+  // All cached accessible nodes should be in the parent
+  // It will assert if not all the children were created
+  // when they were first cached, and no invalidation
+  // ever corrected parent accessible's child cache.
   PRUint32 childCount = mChildren.Length();
   if (childCount == 0) {
-    NS_ASSERTION(!mAreChildrenInitialized, "No children but initialized!");
+    NS_ASSERTION(mAreChildrenInitialized,
+                 "Children are stored but not initialized!");
     return;
   }
 
-  nsAccessible *child = nsnull;
+  nsAccessible *child;
   for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
-    child = mChildren[childIdx];
+    child = GetChildAt(childIdx);
     if (child == aCachedChild)
       break;
   }
@@ -3029,7 +3041,7 @@ nsAccessible::EnsureChildren()
   return PR_FALSE;
 }
 
-nsAccessible*
+nsIAccessible*
 nsAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
 {
   if (IsDefunct()) {

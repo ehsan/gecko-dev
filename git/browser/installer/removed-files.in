@@ -731,6 +731,7 @@ components/layout_xul_tree.xpt
 components/locale.xpt
 components/loginmgr.xpt
 components/lwbrk.xpt
+components/microsummaries.xpt
 components/migration.xpt
 components/mimetype.xpt
 components/mozbrwsr.xpt
@@ -801,6 +802,8 @@ components/firefox.xpt
 greprefs/all.js
 greprefs/security-prefs.js
 greprefs/xpinstall.js
+run-mozilla.sh
+firefox
 components/nsProgressDialog.js
 libwidget.rsrc
 #endif
@@ -841,4 +844,3 @@ components/nsUpdateServiceStub.js
 #endif
 @DLL_PREFIX@sqlite3@DLL_SUFFIX@
 old-homepage-default.properties
-components/microsummaries.xpt

@@ -40,7 +40,9 @@
 
 function run_test() {
   removeUpdateDirsAndFiles();
-  setUpdateChannel();
+  var defaults = getPrefBranch().QueryInterface(AUS_Ci.nsIPrefService).
+                 getDefaultBranch(null);
+  defaults.setCharPref("app.update.channel", "bogus_channel");
 
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(""), false);
   var patches = getLocalPatchString(null, null, null, null, null, null,
@@ -55,7 +57,7 @@ function run_test() {
   log.append(FILE_UPDATE_LOG);
   writeFile(log, "Last Update Log");
 
-  standardInit();
+  startAUS();
 
   dump("Testing: " + FILE_UPDATE_LOG + " doesn't exist\n");
   do_check_false(log.exists());

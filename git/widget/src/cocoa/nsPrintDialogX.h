@@ -36,8 +36,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsPrintDialog_h_
-#define nsPrintDialog_h_
+#ifndef nsPrintDialog_h__
+#define nsPrintDialog_h__
 
 #include "nsIPrintDialogService.h"
 #include "nsCOMPtr.h"
@@ -88,7 +88,18 @@ public:
 
 @end
 
+#ifdef NS_LEOPARD_AND_LATER
 @interface PrintPanelAccessoryController : NSViewController <NSPrintPanelAccessorizing>
+#else
+@interface PrintPanelAccessoryController : NSObject
+{
+  NSView* mView;
+}
+
+- (void)setView:(NSView*)aView;
+
+- (NSView*)view;
+#endif
 
 - (id)initWithSettings:(nsIPrintSettings*)aSettings;
 
@@ -96,4 +107,4 @@ public:
 
 @end
 
-#endif // nsPrintDialog_h_
+#endif

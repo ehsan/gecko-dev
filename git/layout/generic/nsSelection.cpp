@@ -21,7 +21,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -795,21 +795,17 @@ nsFrameSelection::FetchDesiredX(nscoord &aDesiredX) //the x position requested b
   if (!caret)
     return NS_ERROR_NULL_POINTER;
 
+  nsRect coord;
+  PRBool  collapsed;
   PRInt8 index = GetIndexFromSelectionType(nsISelectionController::SELECTION_NORMAL);
   result = caret->SetCaretDOMSelection(mDomSelections[index]);
   if (NS_FAILED(result))
     return result;
 
-  nsRect coord;
-  nsIFrame* caretFrame = caret->GetGeometry(mDomSelections[index], &coord);
-  if (!caretFrame)
-    return NS_ERROR_FAILURE;
-  nsPoint viewOffset(0, 0);
-  nsIView* view = nsnull;
-  caretFrame->GetOffsetFromView(viewOffset, &view);
-  if (view)
-    coord.x += viewOffset.x;
-
+  result = caret->GetCaretCoordinates(nsCaret::eClosestViewCoordinates, mDomSelections[index], &coord, &collapsed, nsnull);
+  if (NS_FAILED(result))
+    return result;
+   
   aDesiredX = coord.x;
   return NS_OK;
 }
@@ -1828,7 +1824,10 @@ nsFrameSelection::TakeFocus(nsIContent *aNewFocus,
     // BUT only do this in an editor
 
     NS_ENSURE_STATE(mShell);
-    PRInt16 displaySelection = mShell->GetSelectionFlags();
+    PRInt16 displaySelection;
+    nsresult result = mShell->GetSelectionFlags(&displaySelection);
+    if (NS_FAILED(result))
+      return result;
 
     // Editor has DISPLAY_ALL selection type
     if (displaySelection == nsISelectionDisplay::DISPLAY_ALL)
@@ -3411,7 +3410,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTypedSelection)
   NS_INTERFACE_MAP_ENTRY(nsISelectionPrivate)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISelection)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Selection)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(Selection)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTypedSelection)
@@ -4690,7 +4689,7 @@ nsTypedSelection::RemoveAllRanges()
 {
   if (!mFrameSelection)
     return NS_OK;//nothing to do
-  nsRefPtr<nsPresContext>  presContext;
+  nsCOMPtr<nsPresContext>  presContext;
   GetPresContext(getter_AddRefs(presContext));
 
 
@@ -4741,7 +4740,7 @@ nsTypedSelection::AddRange(nsIRange* aRange)
   if (mType == nsISelectionController::SELECTION_NORMAL)
     SetInterlinePosition(PR_TRUE);
 
-  nsRefPtr<nsPresContext>  presContext;
+  nsCOMPtr<nsPresContext>  presContext;
   GetPresContext(getter_AddRefs(presContext));
   selectFrames(presContext, aRange, PR_TRUE);        
 
@@ -4798,7 +4797,7 @@ nsTypedSelection::RemoveRange(nsIRange* aRange)
   }
 
   // clear the selected bit from the removed range's frames
-  nsRefPtr<nsPresContext>  presContext;
+  nsCOMPtr<nsPresContext>  presContext;
   GetPresContext(getter_AddRefs(presContext));
   selectFrames(presContext, aRange, PR_FALSE);
 
@@ -4855,7 +4854,7 @@ nsTypedSelection::Collapse(nsINode* aParentNode, PRInt32 aOffset)
     return NS_ERROR_FAILURE;
   nsresult result;
   // Delete all of the current ranges
-  nsRefPtr<nsPresContext>  presContext;
+  nsCOMPtr<nsPresContext>  presContext;
   GetPresContext(getter_AddRefs(presContext));
   Clear(presContext);
 
@@ -4882,8 +4881,9 @@ nsTypedSelection::Collapse(nsINode* aParentNode, PRInt32 aOffset)
     if (!content)
       return NS_ERROR_FAILURE;
 
-    printf ("Sel. Collapse to %p %s %d\n", content.get(),
-            nsAtomCString(content->Tag()).get(), aOffset);
+    const char *tagString;
+    content->Tag()->GetUTF8String(&tagString);
+    printf ("Sel. Collapse to %p %s %d\n", content.get(), tagString, aOffset);
   }
   else {
     printf ("Sel. Collapse set to null parent.\n");
@@ -5022,7 +5022,7 @@ nsTypedSelection::CopyRangeToAnchorFocus(nsIRange *aRange)
 void
 nsTypedSelection::ReplaceAnchorFocusRange(nsIRange *aRange)
 {
-  nsRefPtr<nsPresContext> presContext;
+  nsCOMPtr<nsPresContext> presContext;
   GetPresContext(getter_AddRefs(presContext));
   if (presContext) {
     selectFrames(presContext, mAnchorFocusRange, PR_FALSE);
@@ -5124,7 +5124,7 @@ nsTypedSelection::Extend(nsINode* aParentNode, PRInt32 aOffset)
   if (result2 == 0) //not selecting anywhere
     return NS_OK;
 
-  nsRefPtr<nsPresContext>  presContext;
+  nsCOMPtr<nsPresContext>  presContext;
   GetPresContext(getter_AddRefs(presContext));
   if ((result1 == 0 && result3 < 0) || (result1 <= 0 && result2 < 0)){//a1,2  a,1,2
     //select from 1 to 2 unless they are collapsed
@@ -5274,8 +5274,9 @@ nsTypedSelection::Extend(nsINode* aParentNode, PRInt32 aOffset)
     nsCOMPtr<nsIContent>content;
     content = do_QueryInterface(aParentNode);
 
-    printf ("Sel. Extend to %p %s %d\n", content.get(),
-            nsAtomCString(content->Tag()).get(), aOffset);
+    const char *tagString;
+    content->Tag()->GetUTF8String(&tagString);
+    printf ("Sel. Extend to %p %s %d\n", content.get(), tagString, aOffset);
   }
   else {
     printf ("Sel. Extend set to null parent.\n");
@@ -5693,7 +5694,7 @@ nsTypedSelection::SelectionLanguageChange(PRBool aLangRTL)
 
   PRInt32 frameStart, frameEnd;
   focusFrame->GetOffsets(frameStart, frameEnd);
-  nsRefPtr<nsPresContext> context;
+  nsCOMPtr<nsPresContext> context;
   PRUint8 levelBefore, levelAfter;
   result = GetPresContext(getter_AddRefs(context));
   if (NS_FAILED(result) || !context)

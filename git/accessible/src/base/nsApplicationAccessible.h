@@ -44,10 +44,7 @@
 #define __NS_APPLICATION_ACCESSIBLE_H__
 
 #include "nsAccessibleWrap.h"
-#include "nsIAccessibleApplication.h"
-
 #include "nsIMutableArray.h"
-#include "nsIXULAppInfo.h"
 
 /**
  * nsApplicationAccessible is for the whole application of Mozilla.
@@ -59,8 +56,7 @@
  * the nsApplicationAccessible instance.
  */
 
-class nsApplicationAccessible: public nsAccessibleWrap,
-                               public nsIAccessibleApplication
+class nsApplicationAccessible: public nsAccessibleWrap
 {
 public:
   nsApplicationAccessible();
@@ -76,13 +72,9 @@ public:
 
   NS_IMETHOD GetParent(nsIAccessible **aAccessible);
 
-  // nsIAccessibleApplication
-  NS_DECL_NSIACCESSIBLEAPPLICATION
-
   // nsAccessNode
   virtual PRBool IsDefunct();
   virtual nsresult Init();
-  virtual nsresult Shutdown();
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
@@ -99,11 +91,8 @@ protected:
 
   // nsAccessible
   virtual void CacheChildren();
-  virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                           nsresult *aError = nsnull);
-
-private:
-  nsCOMPtr<nsIXULAppInfo> mAppInfo;
+  virtual nsIAccessible* GetSiblingAtOffset(PRInt32 aOffset,
+                                            nsresult *aError = nsnull);
 };
 
 #endif

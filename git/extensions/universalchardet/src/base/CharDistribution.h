@@ -42,12 +42,10 @@
 
 #define ENOUGH_DATA_THRESHOLD 1024
  
-#define MINIMUM_DATA_THRESHOLD  4
-
 class CharDistributionAnalysis
 {
 public:
-  CharDistributionAnalysis() {Reset(PR_FALSE);}
+  CharDistributionAnalysis() {Reset();}
 
   //feed a block of data and do distribution analysis
   void HandleData(const char* aBuf, PRUint32 aLen) {}
@@ -73,15 +71,14 @@ public:
   }
 
   //return confidence base on existing data
-  float GetConfidence(void);
+  float GetConfidence(PRBool aIsPreferredLanguage);
 
   //Reset analyser, clear any state 
-  void      Reset(PRBool aIsPreferredLanguage) 
+  void      Reset(void) 
   {
     mDone = PR_FALSE;
     mTotalChars = 0;
     mFreqChars = 0;
-    mDataThreshold = aIsPreferredLanguage ? 0 : MINIMUM_DATA_THRESHOLD;
   }
 
   //This function is for future extension. Caller can use this function to control
@@ -106,9 +103,6 @@ protected:
 
   //Total character encounted.
   PRUint32 mTotalChars;
-
-  //Number of hi-byte characters needed to trigger detection
-  PRUint32 mDataThreshold;
 
   //Mapping table to get frequency order from char order (get from GetOrder())
   const PRInt16  *mCharToFreqOrder;

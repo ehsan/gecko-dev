@@ -1782,7 +1782,8 @@ nsAccessibleWrap::GetHWNDFor(nsIAccessible *aAccessible)
 
   if (!hWnd) {
     void* handle = nsnull;
-    nsDocAccessible *accessibleDoc = accessNode->GetDocAccessible();
+    nsCOMPtr<nsIAccessibleDocument> accessibleDoc;
+    accessNode->GetAccessibleDocument(getter_AddRefs(accessibleDoc));
     if (!accessibleDoc)
       return 0;
 
