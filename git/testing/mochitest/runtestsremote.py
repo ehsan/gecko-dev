@@ -414,7 +414,7 @@ def main():
             try:
                 retVal = mochitest.runTests(options)
             except:
-                print "TEST-UNEXPECTED-ERROR | %s | Exception caught while running robocop tests." % sys.exc_info()[1]
+                print "TEST-UNEXPECTED-FAIL | %s | Exception caught while running robocop tests." % sys.exc_info()[1]
                 mochitest.stopWebServer(options)
                 mochitest.stopWebSocketServer(options)
                 try:
@@ -429,7 +429,7 @@ def main():
       try:
         retVal = mochitest.runTests(options)
       except:
-        print "TEST-UNEXPECTED-ERROR | %s | Exception caught while running tests." % sys.exc_info()[1]
+        print "TEST-UNEXPECTED-FAIL | %s | Exception caught while running tests." % sys.exc_info()[1]
         mochitest.stopWebServer(options)
         mochitest.stopWebSocketServer(options)
         try:
