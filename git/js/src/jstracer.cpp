@@ -142,16 +142,19 @@ Tracker::has(const void *v) const
     struct Tracker::Page* p = findPage(v);
     if (!p)
         return false;
-    return p->map[(jsuword(v) & 0xfff) >> 2] != NULL;
+    LIns* i = p->map[(jsuword(v) & 0xfff) >> 2];
+    if (i == 0)
+        return false;
+    return true;
 }
 
 LIns*
 Tracker::get(const void* v) const
 {
     struct Tracker::Page* p = findPage(v);
-    JS_ASSERT(p); /* we must have a page for the slot we are looking for */
+    JS_ASSERT(p != 0); /* we must have a page for the slot we are looking for */
     LIns* i = p->map[(jsuword(v) & 0xfff) >> 2];
-    JS_ASSERT(i);
+    JS_ASSERT(i != 0);
     return i;
 }
 
@@ -209,19 +212,19 @@ static LIns* demote(LirWriter *out, LInsp i)
     return out->insImm(ci);
 }
 
-static bool isPromoteInt(LIns *i)
+static bool isPromoteInt(LIns* i)
 {
     jsdouble d;
     return i->isop(LIR_i2f) || (i->isconstq() && ((d = i->constvalf()) == (jsdouble)(jsint)d));
 }
 
-static bool isPromoteUint(LIns *i)
+static bool isPromoteUint(LIns* i)
 {
     jsdouble d;
     return i->isop(LIR_u2f) || (i->isconstq() && ((d = i->constvalf()) == (jsdouble)(jsuint)d));
 }
 
-static bool isPromote(LIns *i)
+static bool isPromote(LIns* i)
 {
     return isPromoteInt(i) || isPromoteUint(i);
 }
@@ -230,7 +233,7 @@ class FuncFilter: public LirWriter
 {
     TraceRecorder& recorder;
 public:
-    FuncFilter(LirWriter *out, TraceRecorder& _recorder):
+    FuncFilter(LirWriter* out, TraceRecorder& _recorder):
         LirWriter(out), recorder(_recorder)
     {
     }
@@ -295,6 +298,13 @@ public:
     {
         LInsp s0 = args[0];
         switch (fid) {
+          case F_doubleToUint32:
+            if (s0->isconstq())
+                return out->insImm(js_DoubleToECMAUint32(s0->constvalf()));
+            if (s0->isop(LIR_i2f) || s0->isop(LIR_u2f)) {
+                return s0->oprnd1();
+            }
+            break;
           case F_doubleToInt32:
             if (s0->isconstq())
                 return out->insImm(js_DoubleToECMAInt32(s0->constvalf()));
@@ -449,7 +459,7 @@ TraceRecorder::TraceRecorder(JSContext* cx, GuardRecord* _anchor,
     this->fragment = _fragment;
     this->lirbuf = _fragment->lirbuf;
     this->fragmentInfo = (VMFragmentInfo*)_fragment->root->vmprivate;
-    JS_ASSERT(fragmentInfo);
+    JS_ASSERT(fragmentInfo != NULL);
     this->entryFrame = fragmentInfo->entryFrame;
     this->entryRegs = &fragmentInfo->entryRegs;
     this->atoms = cx->fp->script->atomMap.vector;
@@ -581,15 +591,15 @@ findInternableGlobals(JSContext* cx, JSStackFrame* fp, uint16* slots)
     unsigned n;
     JSAtom** atoms = fp->script->atomMap.vector;
     unsigned natoms = fp->script->atomMap.length;
-    bool FIXME_bug445262_sawMath = false;
+    bool omfgHack_sawMath = false;
     for (n = 0; n < natoms + 1; ++n) {
         JSAtom* atom;
         if (n < natoms) {
             atom = atoms[n];
             if (atom == CLASS_ATOM(cx, Math))
-                FIXME_bug445262_sawMath = true;
+                omfgHack_sawMath = true;
         } else {
-            if (FIXME_bug445262_sawMath)
+            if (omfgHack_sawMath)
                 break;
             atom = CLASS_ATOM(cx, Math);
         }
@@ -1118,11 +1128,12 @@ js_IsLoopExit(JSContext* cx, JSScript* script, jsbytecode* pc)
         JS_ASSERT(js_CodeSpec[*pc].length == 1);
         pc++;
         /* FALL THROUGH */
-
+      case JSOP_IFEQ:
       case JSOP_IFNE:
-      case JSOP_IFNEX:
-        return GET_JUMP_OFFSET(pc) < 0;
-
+        ptrdiff_t offset = GET_JUMP_OFFSET(pc);
+        if (offset < 0)
+            return true;
+         break;
       default:;
     }
     return false;
@@ -1273,7 +1284,7 @@ js_LoopEdge(JSContext* cx, jsbytecode* oldpc)
     JS_ASSERT(*(uint64*)&native[fi->maxNativeFrameSlots] == 0xdeadbeefdeadbeefLL);
 
     AUDIT(sideExitIntoInterpreter);
-
+    
     /* if the side exit terminates the loop, don't try to attach a trace here */
     if (js_IsLoopExit(cx, cx->fp->script, cx->fp->regs->pc))
         return false;
@@ -1436,32 +1447,24 @@ bool TraceRecorder::ifop()
 bool
 TraceRecorder::inc(jsval& v, jsint incr, bool pre)
 {
-    LIns* v_ins = get(&v);
-    if (!inc(v, v_ins, incr, pre))
-        return false;
-    set(&v, v_ins);
-    return true;
+    return inc(v, get(&v), incr, pre);
 }
 
-/* 
- * On exit, v_ins is the incremented unboxed value, and the appropriate
- * value (pre- or post-increment as described by pre) is stacked.
- */
 bool
-TraceRecorder::inc(jsval& v, LIns*& v_ins, jsint incr, bool pre)
+TraceRecorder::inc(jsval& v, LIns* v_before, jsint incr, bool pre)
 {
     if (!isNumber(v))
-        ABORT_TRACE("can only inc numbers");
+        return false;
 
     jsdpun u;
     u.d = jsdouble(incr);
 
-    LIns* v_after = lir->ins2(LIR_fadd, v_ins, lir->insImmq(u.u64));
+    LIns* v_after = lir->ins2(LIR_fadd, v_before, lir->insImmq(u.u64));
+    set(&v, v_after);
 
     const JSCodeSpec& cs = js_CodeSpec[*cx->fp->regs->pc];
     JS_ASSERT(cs.ndefs == 1);
-    stack(-cs.nuses, pre ? v_after : v_ins);
-    v_ins = v_after;
+    stack(-cs.nuses, pre ? v_after : v_before);
     return true;
 }
 
@@ -1484,30 +1487,26 @@ TraceRecorder::incProp(jsint incr, bool pre)
     if (!inc(v, v_ins, incr, pre))
         return false;
 
-    if (!box_jsval(v, v_ins))
+    LIns* boxed_ins = get(&v);
+    if (!box_jsval(v, boxed_ins))
         return false;
 
     LIns* dslots_ins = NULL;
-    stobj_set_slot(obj_ins, slot, dslots_ins, v_ins);
+    stobj_set_slot(obj_ins, slot, dslots_ins, boxed_ins);
     return true;
 }
 
 bool
 TraceRecorder::incElem(jsint incr, bool pre)
 {
+    return false;
     jsval& r = stackval(-1);
     jsval& l = stackval(-2);
     jsval* vp;
     LIns* v_ins;
-    LIns* addr_ins;
-    if (!elem(l, r, vp, v_ins, addr_ins))
+    if (!elem(l, r, vp, v_ins))
         return false;
-    if (!inc(*vp, v_ins, incr, pre))
-        return false;
-    if (!box_jsval(*vp, v_ins))
-        return false;
-    lir->insStorei(v_ins, addr_ins, 0);
-    return true;
+    return inc(*vp, v_ins, incr, pre);
 }
 
 bool
@@ -2179,8 +2178,7 @@ bool TraceRecorder::record_JSOP_GETELEM()
     jsval& l = stackval(-2);
     jsval* vp;
     LIns* v_ins;
-    LIns* addr_ins;
-    if (!elem(l, r, vp, v_ins, addr_ins))
+    if (!elem(l, r, vp, v_ins))
         return false;
     set(&l, v_ins);
     return true;
@@ -2372,7 +2370,7 @@ TraceRecorder::prop(JSObject* obj, LIns* obj_ins, uint32& slot, LIns*& v_ins)
 }
 
 bool
-TraceRecorder::elem(jsval& l, jsval& r, jsval*& vp, LIns*& v_ins, LIns*& addr_ins)
+TraceRecorder::elem(jsval& l, jsval& r, jsval*& vp, LIns*& v_ins)
 {
     /* no guards for type checks, trace specialized this already */
     if (!JSVAL_IS_INT(r) || JSVAL_IS_PRIMITIVE(l))
@@ -2404,10 +2402,11 @@ TraceRecorder::elem(jsval& l, jsval& r, jsval*& vp, LIns*& v_ins, LIns*& addr_in
         return false;
     vp = &obj->dslots[idx];
 
-    addr_ins = lir->ins2(LIR_add, dslots_ins,
-                         lir->ins2i(LIR_lsh, idx_ins, sizeof(jsval) == 4 ? 2 : 3));
     /* load the value, check the type (need to check JSVAL_HOLE only for booleans) */
-    v_ins = lir->insLoad(LIR_ld, addr_ins, 0);
+    v_ins = lir->insLoad(LIR_ld,
+                         lir->ins2(LIR_add, dslots_ins,
+                                   lir->ins2i(LIR_lsh, idx_ins, sizeof(jsval) == 4 ? 2 : 3)),
+                         0);
     return unbox_jsval(*vp, v_ins);
 }
 

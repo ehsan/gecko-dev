@@ -2751,7 +2751,7 @@ js_Interpret(JSContext *cx)
 
 #else /* !JS_TRACER */
 
-#define MONITOR_BRANCH(oldpc) ((void) 0)
+#define MONITOR_BRANCH(oldpc) do { } while(0)
 
 #endif /* !JS_TRACER */
 
@@ -4979,11 +4979,9 @@ js_Interpret(JSContext *cx)
                     newifp->frame.regs = &regs;
                     cx->fp = fp = &newifp->frame;
 
-#ifdef JS_TRACER
                     if (JS_TRACE_MONITOR(cx).recorder)
                         RECORD(EnterFrame);
-#endif
-
+                    
                     inlineCallCount++;
                     JS_RUNTIME_METER(rt, inlineCalls);
 
