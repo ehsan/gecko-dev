@@ -55,7 +55,6 @@
 
 #include "prmjtime.h"
 
-#include "js/Class.h"
 #include "vm/GlobalObject.h"
 #include "vm/SharedTypedArrayObject.h"
 #include "vm/TypedArrayObject.h"

@@ -3,7 +3,7 @@
 // test actual update scenarios with a SJS test.
 onmessage = function(e) {
   self.update();
-  clients.matchAll().then(function(c) {
+  clients.getServiced().then(function(c) {
     if (c.length == 0) {
       // We cannot proceed.
       return;

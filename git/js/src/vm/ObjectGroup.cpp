@@ -14,6 +14,7 @@
 #include "vm/ArrayObject.h"
 #include "vm/UnboxedObject.h"
 
+#include "jsgcinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;
