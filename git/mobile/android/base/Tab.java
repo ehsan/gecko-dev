@@ -644,9 +644,9 @@ public class Tab {
         return !AboutPages.isAboutPage(url);
     }
 
-    void handleDocumentStart(boolean restoring, String url) {
+    void handleDocumentStart(boolean showProgress, String url) {
         setLoadProgress(LOAD_PROGRESS_START);
-        setState((!restoring && shouldShowProgress(url)) ? STATE_LOADING : STATE_SUCCESS);
+        setState(showProgress ? STATE_LOADING : STATE_SUCCESS);
         updateIdentityData(null);
         setReaderEnabled(false);
     }

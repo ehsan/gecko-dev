@@ -31,7 +31,6 @@
 #include "mozilla/ipc/UnixSocket.h"
 #include "mozilla/StaticMutex.h"
 #include "mozilla/StaticPtr.h"
-#include "mozilla/unused.h"
 
 using namespace mozilla;
 using namespace mozilla::ipc;
@@ -802,7 +801,7 @@ BluetoothServiceBluedroid::GetDefaultAdapterPathInternal(
   nsAutoString replyError;
   DispatchBluetoothReply(runnable.get(), v, replyError);
 
-  unused << runnable.forget(); // picked up in DispatchBluetoothReply
+  runnable.forget();
 
   return NS_OK;
 }
