@@ -293,6 +293,13 @@ ImageClientSingle::CreateBufferTextureClient(gfx::SurfaceFormat aFormat, Texture
   return CompositableClient::CreateBufferTextureClient(aFormat, mTextureFlags | aFlags);
 }
 
+TemporaryRef<BufferTextureClient>
+ImageClientSingle::CreateBufferTextureClient(gfx::SurfaceFormat aFormat)
+{
+  return CompositableClient::CreateBufferTextureClient(aFormat,
+    mTextureFlags | TEXTURE_FLAGS_DEFAULT);
+}
+
 void
 ImageClientSingle::OnDetach()
 {

@@ -31,7 +31,6 @@
 #include "AudioManager.h"
 #endif
 #include "mozilla/ipc/Ril.h"
-#include "mozilla/ipc/KeyStore.h"
 #include "nsIObserverService.h"
 #include "nsCxPusher.h"
 #include "nsServiceManagerUtils.h"
@@ -342,8 +341,6 @@ SystemWorkerManager::Init()
     return rv;
   }
 
-  InitKeyStore(cx);
-
 #ifdef MOZ_WIDGET_GONK
   InitAutoMounter();
   InitializeTimeZoneSettingObserver();
@@ -545,13 +542,6 @@ SystemWorkerManager::InitWifi(JSContext *cx)
   NS_ENSURE_TRUE(worker, NS_ERROR_FAILURE);
 
   mWifiWorker = worker;
-  return NS_OK;
-}
-
-nsresult
-SystemWorkerManager::InitKeyStore(JSContext *cx)
-{
-  mKeyStore = new KeyStore();
   return NS_OK;
 }
 

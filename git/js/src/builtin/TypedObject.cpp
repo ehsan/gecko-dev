@@ -486,7 +486,7 @@ SetupAndGetPrototypeObjectForComplexTypeInstance(JSContext *cx,
     RootedValue complexTypePrototypePrototypeVal(cx);
 
     if (!JSObject::getProperty(cx, complexTypeGlobal, complexTypeGlobal,
-                               cx->names().prototype, &complexTypePrototypeVal))
+                               cx->names().classPrototype, &complexTypePrototypeVal))
         return nullptr;
 
     JS_ASSERT(complexTypePrototypeVal.isObject()); // immutable binding
@@ -495,7 +495,7 @@ SetupAndGetPrototypeObjectForComplexTypeInstance(JSContext *cx,
 
     if (!JSObject::getProperty(cx, complexTypePrototypeObj,
                                complexTypePrototypeObj,
-                               cx->names().prototype,
+                               cx->names().classPrototype,
                                &complexTypePrototypePrototypeVal))
         return nullptr;
 
@@ -1333,7 +1333,7 @@ GlobalObject::initDataObject(JSContext *cx, Handle<GlobalObject *> global)
                                        DataCtor, DataProto))
         return false;
 
-    global->setConstructor(JSProto_Data, ObjectValue(*DataCtor));
+    global->setReservedSlot(JSProto_Data, ObjectValue(*DataCtor));
     return true;
 }
 
@@ -1358,7 +1358,7 @@ GlobalObject::initTypeObject(JSContext *cx, Handle<GlobalObject *> global)
                                        TypeCtor, TypeProto))
         return false;
 
-    global->setConstructor(JSProto_Type, ObjectValue(*TypeCtor));
+    global->setReservedSlot(JSProto_Type, ObjectValue(*TypeCtor));
     return true;
 }
 
@@ -1369,7 +1369,7 @@ GlobalObject::initArrayTypeObject(JSContext *cx, Handle<GlobalObject *> global)
         global->createConstructor(cx, ArrayType::construct,
                                   cx->names().ArrayType, 2));
 
-    global->setConstructor(JSProto_ArrayTypeObject, ObjectValue(*ctor));
+    global->setReservedSlot(JSProto_ArrayTypeObject, ObjectValue(*ctor));
     return true;
 }
 
@@ -1393,7 +1393,7 @@ SetupComplexHeirarchy(JSContext *cx, Handle<GlobalObject*> global, JSProtoKey pr
 
     RootedValue DataProtoVal(cx);
     if (!JSObject::getProperty(cx, DataObject, DataObject,
-                               cx->names().prototype, &DataProtoVal))
+                               cx->names().classPrototype, &DataProtoVal))
         return nullptr;
 
     RootedObject DataProto(cx, &DataProtoVal.toObject());
@@ -1443,7 +1443,7 @@ InitType(JSContext *cx, HandleObject globalObj)
 
     RootedValue protoVal(cx);
     if (!JSObject::getProperty(cx, ctor, ctor,
-                               cx->names().prototype, &protoVal))
+                               cx->names().classPrototype, &protoVal))
         return false;
 
     JS_ASSERT(protoVal.isObject());
@@ -1686,7 +1686,7 @@ BinaryBlock::createNull(JSContext *cx, HandleObject type, HandleValue owner)
 
     RootedValue protoVal(cx);
     if (!JSObject::getProperty(cx, type, type,
-                               cx->names().prototype, &protoVal))
+                               cx->names().classPrototype, &protoVal))
         return nullptr;
 
     RootedObject obj(cx,

@@ -274,7 +274,7 @@ struct BaselineScript
 inline bool
 IsBaselineEnabled(JSContext *cx)
 {
-    return cx->options().baseline();
+    return cx->hasOption(JSOPTION_BASELINE);
 }
 
 MethodStatus

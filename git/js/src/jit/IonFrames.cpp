@@ -554,7 +554,7 @@ HandleException(ResumeFromException *rfe)
                 // the function has exited, so invoke the probe that a function
                 // is exiting.
                 JSScript *script = frames.script();
-                probes::ExitScript(cx, script, script->function(), nullptr);
+                Probes::exitScript(cx, script, script->function(), nullptr);
                 if (!frames.more())
                     break;
                 ++frames;
@@ -574,7 +574,7 @@ HandleException(ResumeFromException *rfe)
 
             // Unwind profiler pseudo-stack
             JSScript *script = iter.script();
-            probes::ExitScript(cx, script, script->function(), iter.baselineFrame());
+            Probes::exitScript(cx, script, script->function(), iter.baselineFrame());
             // After this point, any pushed SPS frame would have been popped if it needed
             // to be.  Unset the flag here so that if we call DebugEpilogue below,
             // it doesn't try to pop the SPS frame again.

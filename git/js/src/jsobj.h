@@ -1251,6 +1251,12 @@ HasOwnProperty(JSContext *cx, LookupGenericOp lookup,
                typename MaybeRooted<JSObject*, allowGC>::MutableHandleType objp,
                typename MaybeRooted<Shape*, allowGC>::MutableHandleType propp);
 
+bool
+IsStandardClassResolved(JSObject *obj, const js::Class *clasp);
+
+void
+MarkStandardClassInitializedNoProto(JSObject *obj, const js::Class *clasp);
+
 typedef JSObject *(*ClassInitializerOp)(JSContext *cx, JS::HandleObject obj);
 
 } /* namespace js */

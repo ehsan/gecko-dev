@@ -19,7 +19,7 @@ namespace js {
  */
 
 inline bool
-probes::CallTrackingActive(JSContext *cx)
+Probes::callTrackingActive(JSContext *cx)
 {
 #ifdef INCLUDE_MOZILLA_DTRACE
     if (JAVASCRIPT_FUNCTION_ENTRY_ENABLED() || JAVASCRIPT_FUNCTION_RETURN_ENABLED())
@@ -33,14 +33,14 @@ probes::CallTrackingActive(JSContext *cx)
 }
 
 inline bool
-probes::WantNativeAddressInfo(JSContext *cx)
+Probes::wantNativeAddressInfo(JSContext *cx)
 {
     return (cx->reportGranularity >= JITREPORT_GRANULARITY_FUNCTION &&
             JITGranularityRequested(cx) >= JITREPORT_GRANULARITY_FUNCTION);
 }
 
 inline bool
-probes::EnterScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
+Probes::enterScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
                     StackFrame *fp)
 {
     bool ok = true;
@@ -63,7 +63,7 @@ probes::EnterScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
 }
 
 inline bool
-probes::ExitScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
+Probes::exitScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
                    AbstractFramePtr fp)
 {
     bool ok = true;
@@ -88,14 +88,14 @@ probes::ExitScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
 }
 
 inline bool
-probes::ExitScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
+Probes::exitScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
                    StackFrame *fp)
 {
-    return probes::ExitScript(cx, script, maybeFun, fp ? AbstractFramePtr(fp) : AbstractFramePtr());
+    return Probes::exitScript(cx, script, maybeFun, fp ? AbstractFramePtr(fp) : AbstractFramePtr());
 }
 
 inline bool
-probes::StartExecution(JSScript *script)
+Probes::startExecution(JSScript *script)
 {
     bool ok = true;
 
@@ -109,7 +109,7 @@ probes::StartExecution(JSScript *script)
 }
 
 inline bool
-probes::StopExecution(JSScript *script)
+Probes::stopExecution(JSScript *script)
 {
     bool ok = true;
 

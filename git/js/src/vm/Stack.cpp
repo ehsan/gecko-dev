@@ -264,12 +264,12 @@ StackFrame::prologue(JSContext *cx)
             pushOnScopeChain(*callobj);
             flags_ |= HAS_CALL_OBJ;
         }
-        probes::EnterScript(cx, script, nullptr, this);
+        Probes::enterScript(cx, script, nullptr, this);
         return true;
     }
 
     if (isGlobalFrame()) {
-        probes::EnterScript(cx, script, nullptr, this);
+        Probes::enterScript(cx, script, nullptr, this);
         return true;
     }
 
@@ -287,7 +287,7 @@ StackFrame::prologue(JSContext *cx)
         functionThis() = ObjectValue(*obj);
     }
 
-    probes::EnterScript(cx, script, script->function(), this);
+    Probes::enterScript(cx, script, script->function(), this);
     return true;
 }
 
@@ -298,7 +298,7 @@ StackFrame::epilogue(JSContext *cx)
     JS_ASSERT(!hasBlockChain());
 
     RootedScript script(cx, this->script());
-    probes::ExitScript(cx, script, script->function(), this);
+    Probes::exitScript(cx, script, script->function(), this);
 
     if (isEvalFrame()) {
         if (isStrictEvalFrame()) {

@@ -85,8 +85,10 @@ public:
                                 gfxContentType aContentType = GFX_CONTENT_SENTINEL);
 
   virtual TemporaryRef<BufferTextureClient>
-  CreateBufferTextureClient(gfx::SurfaceFormat aFormat,
-                            TextureFlags aFlags = TEXTURE_FLAGS_DEFAULT);
+  CreateBufferTextureClient(gfx::SurfaceFormat aFormat, TextureFlags aFlags);
+
+  virtual TemporaryRef<BufferTextureClient>
+  CreateBufferTextureClient(gfx::SurfaceFormat aFormat);
 
   virtual void SetDescriptorFromReply(TextureIdentifier aTextureId,
                                       const SurfaceDescriptor& aDescriptor)

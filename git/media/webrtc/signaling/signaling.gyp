@@ -199,8 +199,7 @@
           ],
           'defines' : [
             'NO_CHROMIUM_LOGGING',
-            'USE_FAKE_MEDIA_STREAMS',
-            'USE_FAKE_PCOBSERVER'
+            'USE_FAKE_MEDIA_STREAMS'
           ],
         }],
         ['(OS=="linux") or (OS=="android")', {

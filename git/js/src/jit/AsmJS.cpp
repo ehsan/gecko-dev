@@ -6540,7 +6540,7 @@ js::IsAsmJSCompilationAvailable(JSContext *cx, unsigned argc, Value *vp)
     bool available = JSC::MacroAssembler::supportsFloatingPoint() &&
                      cx->gcSystemPageSize() == AsmJSPageSize &&
                      !cx->compartment()->debugMode() &&
-                     cx->options().asmJS();
+                     cx->hasOption(JSOPTION_ASMJS);
 
     args.rval().set(BooleanValue(available));
     return true;
