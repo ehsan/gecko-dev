@@ -51,7 +51,7 @@
 #include "nsITransferable.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
-#include "IEnumFE.h"
+#include "IENUMFE.H"
 #include "nsCOMPtr.h"
 #include "nsIComponentManager.h"
 #include "nsPrimitiveHelpers.h"

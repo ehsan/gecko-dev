@@ -37,6 +37,7 @@
 #include "nsSVGFilterInstance.h"
 #include "nsSVGUtils.h"
 #include "nsIDOMSVGUnitTypes.h"
+#include "gfxContext.h"
 #include "nsSVGMatrix.h"
 
 static double Square(double aX)
@@ -348,7 +349,8 @@ nsSVGFilterInstance::BuildSourceImages()
   if (!sourceColorAlpha)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  nsSVGRenderState tmpState(sourceColorAlpha);
+  gfxContext tmpContext(sourceColorAlpha);
+  nsSVGRenderState tmpState(&tmpContext);
   nsresult rv = mTargetFrame->PaintSVG(&tmpState, nsnull);
   if (NS_FAILED(rv))
     return rv;

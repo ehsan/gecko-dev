@@ -69,7 +69,6 @@ CPPSRCS		= \
 		nsSVGAFrame.cpp \
 		nsSVGClipPathFrame.cpp \
 		nsSVGContainerFrame.cpp \
-		nsSVGEffects.cpp \
 		nsSVGFilterFrame.cpp \
 		nsSVGFilterInstance.cpp \
 		nsSVGGFrame.cpp \

@@ -609,15 +609,41 @@ function jsTestDriverBrowserInit()
     gczeal(zeal);
   }
 
-  var versionmatches = /version=([.0-9]*)/.exec(value);
-
-  if (!versionmatches)
+  if (value.indexOf('1.1') != -1)
+  {
+    gVersion = 110;
+  }
+  else if (value.indexOf('1.2') != -1)
+  {
+    gVersion = 120;
+  }
+  else if (value.indexOf('1.3') != -1)
+  {
+    gVersion = 130;
+  }
+  else if (value.indexOf('1.4') != -1)
+  {
+    gVersion = 140;
+  }
+  else if(value.indexOf('1.5') != -1)
   {
     gVersion = 150;
   }
-  else
+  else if(value.indexOf('1.6') != -1)
   {
-    gVersion = 10*parseInt(versionmatches[1].replace(/\./g, ''));
+    gVersion = 160;
+  }
+  else if(value.indexOf('1.7') != -1)
+  {
+    gVersion = 170;
+  }
+  else if(value.indexOf('1.8') != -1)
+  {
+    gVersion = 180;
+  }
+  else if(value.indexOf('1.9') != -1)
+  {
+    gVersion = 190;
   }
 
   var testpathparts = testpath.split(/\//);
@@ -631,6 +657,16 @@ function jsTestDriverBrowserInit()
   var subsuite = testpathparts[testpathparts.length - 2];
   var test     = testpathparts[testpathparts.length - 1];
 
+  // should be set in the test file from now on
+  //gTestfile = test;
+
+/*
+ * loaded in the js-test-driver-*.html now
+ outputscripttag('shell.js', attribute, value,
+ false);
+ outputscripttag('browser.js', attribute, value,
+ false);
+*/
   outputscripttag(suitepath + '/shell.js', attribute, value,
                   ise4x);
   outputscripttag(suitepath + '/browser.js', attribute, value,

@@ -1100,7 +1100,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
             nsIWidget *widget = mRootView->GetWidget();
             PRBool transparentWindow = PR_FALSE;
             if (widget)
-                transparentWindow = widget->GetTransparencyMode() == eTransparencyTransparent;
+                widget->GetHasTransparentBackground(transparentWindow);
 
             if (rootVM->mScrollCnt == 0 && !transparentWindow) {
               nsIViewObserver* observer = GetViewObserver();
@@ -1350,6 +1350,10 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus *aS
             case NS_COMPOSITION_QUERY:
               ConvertRectAppUnitsToIntPixels(
                 ((nsCompositionEvent*)aEvent)->theReply.mCursorPosition, p2a);
+              break;
+            case NS_QUERYCARETRECT:
+              ConvertRectAppUnitsToIntPixels(
+                ((nsQueryCaretRectEvent*)aEvent)->theReply.mCaretRect, p2a);
               break;
             case NS_QUERY_CHARACTER_RECT:
             case NS_QUERY_CARET_RECT:
