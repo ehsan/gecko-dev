@@ -1040,7 +1040,7 @@ NewCompartment(JSContext *cx, JSPrincipals *principals);
 inline JSCompartment *
 JSObject::getCompartment() const
 {
-    return compartment();
+    return ((Cell *)this)->compartment();
 }
 
 #endif /* jsgc_h___ */
