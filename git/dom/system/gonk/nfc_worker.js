@@ -367,7 +367,7 @@ NfcWorker[NFC_NOTIFICATION_INITIALIZED] = function NFC_NOTIFICATION_INITIALIZED 
 
 NfcWorker[NFC_NOTIFICATION_TECH_DISCOVERED] = function NFC_NOTIFICATION_TECH_DISCOVERED() {
   debug("NFC_NOTIFICATION_TECH_DISCOVERED");
-  let techList  = [];
+  let techs     = [];
   let ndefMsgs  = [];
 
   let sessionId = Buf.readInt32();
@@ -375,7 +375,7 @@ NfcWorker[NFC_NOTIFICATION_TECH_DISCOVERED] = function NFC_NOTIFICATION_TECH_DIS
   for (let count = 0; count < techCount; count++) {
     let tech = NFC_TECHS[Buf.readUint8()];
     if (tech) {
-      techList.push(tech);
+      techs.push(tech);
     }
   }
 
@@ -390,7 +390,7 @@ NfcWorker[NFC_NOTIFICATION_TECH_DISCOVERED] = function NFC_NOTIFICATION_TECH_DIS
   }
   this.sendDOMMessage({type: "techDiscovered",
                        sessionId: sessionId,
-                       techList: techList,
+                       tech: techs,
                        ndef: ndefMsgs
                        });
 };

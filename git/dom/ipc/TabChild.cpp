@@ -1623,9 +1623,8 @@ TabChild::RecvHandleLongTap(const CSSIntPoint& aPoint)
     return true;
   }
 
-  mContextMenuHandled =
-      DispatchMouseEvent(NS_LITERAL_STRING("contextmenu"), aPoint, 2, 1, 0, false,
-                         nsIDOMMouseEvent::MOZ_SOURCE_TOUCH);
+  DispatchMouseEvent(NS_LITERAL_STRING("contextmenu"), aPoint, 2, 1, 0, false,
+                     nsIDOMMouseEvent::MOZ_SOURCE_TOUCH);
 
   return true;
 }

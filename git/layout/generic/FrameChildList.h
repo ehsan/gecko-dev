@@ -96,6 +96,9 @@ protected:
   nsAutoTArray<FrameChildList,4> mLists;
 };
 
+} // namespace layout
+} // namespace mozilla
+
 inline mozilla::layout::FrameChildListIDs
 operator|(mozilla::layout::FrameChildListID aLeftOp,
           mozilla::layout::FrameChildListID aRightOp)
@@ -110,9 +113,6 @@ operator|(mozilla::layout::FrameChildListID aLeftOp,
 {
   return mozilla::layout::FrameChildListIDs(aLeftOp) | aRightOp;
 }
-
-} // namespace layout
-} // namespace mozilla
 
 inline void nsFrameList::AppendIfNonempty(
          nsTArray<mozilla::layout::FrameChildList>* aLists,
