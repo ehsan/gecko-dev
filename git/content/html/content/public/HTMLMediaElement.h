@@ -90,6 +90,7 @@ public:
   }
 
   HTMLMediaElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  virtual ~HTMLMediaElement();
 
   /**
    * This is used when the browser is constructing a video element to play
@@ -596,8 +597,6 @@ public:
   }
 
 protected:
-  virtual ~HTMLMediaElement();
-
   class MediaLoadListener;
   class StreamListener;
 

@@ -453,10 +453,6 @@ nsCORSListenerProxy::nsCORSListenerProxy(nsIStreamListener* aOuter,
   mPreflightHeaders.Sort();
 }
 
-nsCORSListenerProxy::~nsCORSListenerProxy()
-{
-}
-
 nsresult
 nsCORSListenerProxy::Init(nsIChannel* aChannel, bool aAllowDataURI)
 {

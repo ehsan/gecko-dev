@@ -59,7 +59,6 @@ public:
   virtual Accessible* AsAccessible() { return this; }
 
 protected:
-  virtual ~ARIAGridAccessible() {}
 
   /**
    * Return true if the given row index is valid.
@@ -118,7 +117,6 @@ public:
   virtual already_AddRefed<nsIPersistentProperties> NativeAttributes() MOZ_OVERRIDE;
 
 protected:
-  virtual ~ARIAGridCellAccessible() {}
 
   /**
    * Return a containing row.

@@ -25,6 +25,7 @@ public:
   {
     SetHasWeirdParserInsertionMode();
   }
+  virtual ~HTMLTableCellElement();
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -156,8 +157,6 @@ public:
   virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
 protected:
-  virtual ~HTMLTableCellElement();
-
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
 
   HTMLTableElement* GetTable() const;

@@ -52,7 +52,6 @@ protected:
 
   nsSVGFE(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : nsSVGFEBase(aNodeInfo) {}
-  virtual ~nsSVGFE() {}
 
 public:
   typedef mozilla::gfx::AttributeMap AttributeMap;
@@ -176,8 +175,6 @@ class nsSVGFELightingElement : public nsSVGFELightingElementBase
 protected:
   nsSVGFELightingElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : nsSVGFELightingElementBase(aNodeInfo) {}
-
-  virtual ~nsSVGFELightingElement() {}
 
 public:
   // interfaces:

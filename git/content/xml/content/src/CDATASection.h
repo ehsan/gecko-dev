@@ -23,8 +23,6 @@ private:
                       "Bad NodeType in aNodeInfo");
   }
 
-  virtual ~CDATASection();
-
 public:
   CDATASection(already_AddRefed<mozilla::dom::NodeInfo> aNodeInfo)
     : Text(aNodeInfo)
@@ -39,6 +37,8 @@ public:
   {
     Init();
   }
+
+  virtual ~CDATASection();
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED

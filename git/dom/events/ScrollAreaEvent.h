@@ -77,8 +77,6 @@ public:
   }
 
 protected:
-  ~ScrollAreaEvent() {}
-
   DOMRect mClientArea;
 };
 

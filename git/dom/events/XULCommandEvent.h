@@ -63,8 +63,6 @@ public:
   }
 
 protected:
-  ~XULCommandEvent() {}
-
   nsCOMPtr<nsIDOMEvent> mSourceEvent;
 };
 

@@ -53,10 +53,6 @@ SVGIFrameElement::SVGIFrameElement(already_AddRefed<mozilla::dom::NodeInfo>& aNo
 {
 }
 
-SVGIFrameElement::~SVGIFrameElement()
-{
-}
-
 //----------------------------------------------------------------------
 // nsSVGElement methods
 

@@ -38,6 +38,7 @@ class nsInProcessTabChildGlobal : public mozilla::DOMEventTargetHelper,
 public:
   nsInProcessTabChildGlobal(nsIDocShell* aShell, nsIContent* aOwner,
                             nsFrameMessageManager* aChrome);
+  virtual ~nsInProcessTabChildGlobal();
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsInProcessTabChildGlobal,
                                            mozilla::DOMEventTargetHelper)
@@ -154,8 +155,6 @@ public:
     return mGlobal->GetJSObject();
   }
 protected:
-  virtual ~nsInProcessTabChildGlobal();
-
   nsresult Init();
   nsresult InitTabChildGlobal();
   nsCOMPtr<nsIContentFrameMessageManager> mMessageManager;

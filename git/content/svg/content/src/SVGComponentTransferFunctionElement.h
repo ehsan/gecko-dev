@@ -32,8 +32,6 @@ protected:
   {
   }
 
-  virtual ~SVGComponentTransferFunctionElement() {}
-
 public:
   typedef gfx::AttributeMap AttributeMap;
 

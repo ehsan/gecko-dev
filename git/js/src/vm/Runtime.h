@@ -14,7 +14,6 @@
 #include "mozilla/PodOperations.h"
 #include "mozilla/Scoped.h"
 #include "mozilla/ThreadLocal.h"
-#include "mozilla/UniquePtr.h"
 
 #include <setjmp.h>
 
@@ -1010,7 +1009,7 @@ struct JSRuntime : public JS::shadow::Runtime,
         return !contextList.isEmpty();
     }
 
-    mozilla::UniquePtr<js::SourceHook> sourceHook;
+    mozilla::ScopedDeletePtr<js::SourceHook> sourceHook;
 
     /* Per runtime debug hooks -- see js/OldDebugAPI.h. */
     JSDebugHooks        debugHooks;

@@ -39,7 +39,6 @@ public:
   virtual bool RemoveChild(Accessible* aChild) MOZ_OVERRIDE MOZ_FINAL;
 
 protected:
-  virtual ~LeafAccessible() {}
 
   // Accessible
   virtual void CacheChildren();
@@ -78,8 +77,6 @@ public:
   virtual already_AddRefed<nsIURI> AnchorURIAt(uint32_t aAnchorIndex);
 
 protected:
-  virtual ~LinkableAccessible() {}
-
   // Accessible
   virtual void BindToParent(Accessible* aParent, uint32_t aIndexInParent);
   virtual void UnbindFromParent();
@@ -100,6 +97,7 @@ class EnumRoleAccessible : public AccessibleWrap
 public:
   EnumRoleAccessible(nsIContent* aContent, DocAccessible* aDoc, 
                      a11y::role aRole);
+  virtual ~EnumRoleAccessible() { }
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -107,8 +105,6 @@ public:
   virtual a11y::role NativeRole();
 
 protected:
-  virtual ~EnumRoleAccessible() { }
-
   a11y::role mRole;
 };
 

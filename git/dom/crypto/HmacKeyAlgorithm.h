@@ -40,6 +40,9 @@ public:
     }
   }
 
+  ~HmacKeyAlgorithm()
+  {}
+
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
   KeyAlgorithm* Hash() const
@@ -57,9 +60,6 @@ public:
                               JSStructuredCloneReader* aReader);
 
 protected:
-  ~HmacKeyAlgorithm()
-  {}
-
   nsRefPtr<KeyAlgorithm> mHash;
   uint32_t mLength;
 };

@@ -175,7 +175,6 @@ CacheEntry::CacheEntry(const nsACString& aStorageID,
 , mRegistration(NEVERREGISTERED)
 , mWriter(nullptr)
 , mPredictedDataSize(0)
-, mUseCount(0)
 , mReleaseThread(NS_GetCurrentThread())
 {
   MOZ_COUNT_CTOR(CacheEntry);
@@ -212,12 +211,12 @@ char const * CacheEntry::StateString(uint32_t aState)
 
 #endif
 
-nsresult CacheEntry::HashingKeyWithStorage(nsACString &aResult) const
+nsresult CacheEntry::HashingKeyWithStorage(nsACString &aResult)
 {
   return HashingKey(mStorageID, mEnhanceID, mURI, aResult);
 }
 
-nsresult CacheEntry::HashingKey(nsACString &aResult) const
+nsresult CacheEntry::HashingKey(nsACString &aResult)
 {
   return HashingKey(EmptyCString(), mEnhanceID, mURI, aResult);
 }
@@ -363,14 +362,10 @@ bool CacheEntry::Load(bool aTruncate, bool aPriority)
   BackgroundOp(Ops::REGISTER);
 
   bool directLoad = aTruncate || !mUseDisk;
-  if (directLoad) {
+  if (directLoad)
     mFileStatus = NS_OK;
-    // mLoadStart will be used to calculate telemetry of life-time of this entry.
-    // Low resulution is then enough.
-    mLoadStart = TimeStamp::NowLoRes();
-  } else {
+  else
     mLoadStart = TimeStamp::Now();
-  }
 
   {
     mozilla::MutexAutoUnlock unlock(mLock);
@@ -1519,8 +1514,6 @@ void CacheEntry::BackgroundOp(uint32_t aOperations, bool aForceAsync)
     MOZ_ASSERT(CacheStorageService::IsOnManagementThread());
 
     if (aOperations & Ops::FRECENCYUPDATE) {
-      ++mUseCount;
-
       #ifndef M_LN2
       #define M_LN2 0.69314718055994530942
       #endif

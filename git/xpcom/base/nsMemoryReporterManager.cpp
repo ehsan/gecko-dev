@@ -522,8 +522,6 @@ PrivateDistinguishedAmount(int64_t* aN)
 #ifdef HAVE_VSIZE_MAX_CONTIGUOUS_REPORTER
 class VsizeMaxContiguousReporter MOZ_FINAL : public nsIMemoryReporter
 {
-  ~VsizeMaxContiguousReporter() {}
-
 public:
   NS_DECL_ISUPPORTS
 
@@ -545,8 +543,6 @@ NS_IMPL_ISUPPORTS(VsizeMaxContiguousReporter, nsIMemoryReporter)
 #ifdef HAVE_PRIVATE_REPORTER
 class PrivateReporter MOZ_FINAL : public nsIMemoryReporter
 {
-  ~PrivateReporter() {}
-
 public:
   NS_DECL_ISUPPORTS
 

@@ -531,7 +531,7 @@ Statistics::beginGC()
     sccTimes.clearAndFree();
     nonincrementalReason = nullptr;
 
-    preBytes = runtime->gc.bytesAllocated();
+    preBytes = runtime->gc.bytes;
 }
 
 void

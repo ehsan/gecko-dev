@@ -59,8 +59,6 @@ public:
   }
 
 private:
-  ~SVGZoomEvent();
-
   float mPreviousScale;
   float mNewScale;
   nsRefPtr<DOMSVGPoint> mPreviousTranslate;

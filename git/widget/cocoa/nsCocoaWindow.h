@@ -236,6 +236,7 @@ private:
 public:
 
     nsCocoaWindow();
+    virtual ~nsCocoaWindow();
 
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_NSPIWIDGETCOCOA
@@ -351,7 +352,6 @@ public:
 
     NS_IMETHOD         ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
-  virtual ~nsCocoaWindow();
 
   nsresult             CreateNativeWindow(const NSRect &aRect,
                                           nsBorderStyle aBorderStyle,

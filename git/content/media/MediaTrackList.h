@@ -64,6 +64,7 @@ class MediaTrackList : public DOMEventTargetHelper
 {
 public:
   MediaTrackList(nsPIDOMWindow* aOwnerWindow, HTMLMediaElement* aMediaElement);
+  virtual ~MediaTrackList();
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(MediaTrackList, DOMEventTargetHelper)
@@ -116,8 +117,6 @@ public:
   friend class VideoTrack;
 
 protected:
-  virtual ~MediaTrackList();
-
   void CreateAndDispatchTrackEventRunner(MediaTrack* aTrack,
                                          const nsAString& aEventName);
 

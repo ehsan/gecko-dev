@@ -21,6 +21,7 @@ public:
     : nsGenericHTMLElement(aNodeInfo)
   {
   }
+  virtual ~HTMLHeadingElement();
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -40,8 +41,6 @@ public:
   // use from WebIDL.
 
 protected:
-  virtual ~HTMLHeadingElement();
-
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
 
 private:

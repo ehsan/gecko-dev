@@ -26,7 +26,6 @@ protected:
   friend nsresult (::NS_NewSVGSymbolElement(nsIContent **aResult,
                                             already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
   SVGSymbolElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
-  ~SVGSymbolElement();
   virtual JSObject* WrapNode(JSContext *cx) MOZ_OVERRIDE;
 
 public:

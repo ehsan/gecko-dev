@@ -23,6 +23,7 @@ public:
                       uint32_t aBufferSize,
                       uint32_t aNumberOfInputChannels,
                       uint32_t aNumberOfOutputChannels);
+  virtual ~ScriptProcessorNode();
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -95,9 +96,6 @@ public:
 
   virtual size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
   virtual size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
-
-protected:
-  virtual ~ScriptProcessorNode();
 
 private:
   nsAutoPtr<SharedBuffers> mSharedBuffers;

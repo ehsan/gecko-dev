@@ -36,9 +36,6 @@ public:
     return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
   }
 
-protected:
-  virtual ~ChannelMergerNode();
-
 private:
   const uint16_t mInputCount;
 };

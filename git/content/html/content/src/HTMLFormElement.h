@@ -633,13 +633,6 @@ protected:
 };
 
 } // namespace dom
-
-template<>
-struct HasDangerousPublicDestructor<dom::HTMLFormElement>
-{
-  static const bool value = true;
-};
-
 } // namespace mozilla
 
 #endif // mozilla_dom_HTMLFormElement_h

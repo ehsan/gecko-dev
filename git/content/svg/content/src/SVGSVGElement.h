@@ -67,9 +67,6 @@ public:
   virtual nsISupports* GetParentObject() MOZ_OVERRIDE;
 
   nsRefPtr<SVGSVGElement> mElement;
-
-private:
-  ~DOMSVGTranslatePoint() {}
 };
 
 class svgFloatSize {

@@ -209,13 +209,6 @@ protected:
 };
 
 }
-
-template<>
-struct HasDangerousPublicDestructor<dom::DOMRect>
-{
-  static const bool value = true;
-};
-
 }
 
 #endif /*MOZILLA_DOMRECT_H_*/

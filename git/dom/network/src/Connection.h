@@ -49,8 +49,6 @@ public:
   IMPL_EVENT_HANDLER(typechange)
 
 private:
-  ~Connection() {}
-
   /**
    * Update the connection information stored in the object using a
    * NetworkInformation object.

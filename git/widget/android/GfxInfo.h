@@ -12,7 +12,7 @@
 #include "GfxDriverInfo.h"
 
 #include "nsString.h"
-#include "mozilla/UniquePtr.h"
+#include "mozilla/Scoped.h"
 
 namespace mozilla {
 
@@ -82,7 +82,7 @@ private:
   bool mInitialized;
 
   class GLStrings;
-  UniquePtr<GLStrings> mGLStrings;
+  ScopedDeletePtr<GLStrings> mGLStrings;
 
   nsCString mAdapterDescription;
 

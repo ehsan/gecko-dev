@@ -55,10 +55,9 @@ public:
 
   WrapperPromiseCallback(Promise* aNextPromise, JS::Handle<JSObject*> aGlobal,
                          AnyCallback* aCallback);
-
-private:
   ~WrapperPromiseCallback();
 
+private:
   nsRefPtr<Promise> mNextPromise;
   JS::Heap<JSObject*> mGlobal;
   nsRefPtr<AnyCallback> mCallback;
@@ -77,10 +76,9 @@ public:
             JS::Handle<JS::Value> aValue) MOZ_OVERRIDE;
 
   ResolvePromiseCallback(Promise* aPromise, JS::Handle<JSObject*> aGlobal);
-
-private:
   ~ResolvePromiseCallback();
 
+private:
   nsRefPtr<Promise> mPromise;
   JS::Heap<JSObject*> mGlobal;
 };
@@ -98,10 +96,9 @@ public:
             JS::Handle<JS::Value> aValue) MOZ_OVERRIDE;
 
   RejectPromiseCallback(Promise* aPromise, JS::Handle<JSObject*> aGlobal);
-
-private:
   ~RejectPromiseCallback();
 
+private:
   nsRefPtr<Promise> mPromise;
   JS::Heap<JSObject*> mGlobal;
 };
@@ -119,10 +116,9 @@ public:
 
   NativePromiseCallback(PromiseNativeHandler* aHandler,
                         Promise::PromiseState aState);
-
-private:
   ~NativePromiseCallback();
 
+private:
   nsRefPtr<PromiseNativeHandler> mHandler;
   Promise::PromiseState mState;
 };

@@ -29,6 +29,7 @@ class nsNativeThemeCocoa : private nsNativeTheme,
 {
 public:
   nsNativeThemeCocoa();
+  virtual ~nsNativeThemeCocoa();
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -68,8 +69,7 @@ public:
                     bool inIsIndeterminate, bool inIsHorizontal,
                     double inValue, double inMaxValue, nsIFrame* aFrame);
 
-protected:
-  virtual ~nsNativeThemeCocoa();
+protected:  
 
   nsIntMargin RTLAwareMargin(const nsIntMargin& aMargin, nsIFrame* aFrame);
   nsIFrame* SeparatorResponsibility(nsIFrame* aBefore, nsIFrame* aAfter);

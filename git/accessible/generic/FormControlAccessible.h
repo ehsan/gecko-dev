@@ -43,9 +43,6 @@ public:
 
   // Widgets
   virtual bool IsWidget() const;
-
-protected:
-  virtual ~ProgressMeterAccessible() {}
 };
 
 /**

@@ -9,11 +9,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <cstdio>
-
 #include "Mappable.h"
-
-#include "mozilla/UniquePtr.h"
-
 #ifdef ANDROID
 #include <linux/ashmem.h>
 #endif
@@ -67,28 +63,28 @@ MappableExtractFile::Create(const char *name, Zip *zip, Zip::Stream *stream)
         "not extracting");
     return nullptr;
   }
-  mozilla::UniquePtr<char[]> path;
-  path.reset(new char[strlen(cachePath) + strlen(name) + 2]);
-  sprintf(path.get(), "%s/%s", cachePath, name);
+  mozilla::ScopedDeleteArray<char> path;
+  path = new char[strlen(cachePath) + strlen(name) + 2];
+  sprintf(path, "%s/%s", cachePath, name);
   struct stat cacheStat;
-  if (stat(path.get(), &cacheStat) == 0) {
+  if (stat(path, &cacheStat) == 0) {
     struct stat zipStat;
     stat(zip->GetName(), &zipStat);
     if (cacheStat.st_mtime > zipStat.st_mtime) {
-      DEBUG_LOG("Reusing %s", static_cast<char *>(path.get()));
-      return MappableFile::Create(path.get());
+      DEBUG_LOG("Reusing %s", static_cast<char *>(path));
+      return MappableFile::Create(path);
     }
   }
-  DEBUG_LOG("Extracting to %s", static_cast<char *>(path.get()));
+  DEBUG_LOG("Extracting to %s", static_cast<char *>(path));
   AutoCloseFD fd;
-  fd = open(path.get(), O_TRUNC | O_RDWR | O_CREAT | O_NOATIME,
-                        S_IRUSR | S_IWUSR);
+  fd = open(path, O_TRUNC | O_RDWR | O_CREAT | O_NOATIME,
+                  S_IRUSR | S_IWUSR);
   if (fd == -1) {
     ERROR("Couldn't open %s to decompress library", path.get());
     return nullptr;
   }
   AutoUnlinkFile file;
-  file = path.release();
+  file = path.forget();
   if (stream->GetType() == Zip::Stream::DEFLATE) {
     if (ftruncate(fd, stream->GetUncompressedSize()) == -1) {
       ERROR("Couldn't ftruncate %s to decompress library", file.get());
@@ -579,7 +575,8 @@ MappableSeekableZStream::stats(const char *when, const char *name) const
             name, when, static_cast<size_t>(chunkAvailNum), nEntries);
 
   size_t len = 64;
-  mozilla::UniquePtr<char[]> map(new char[len + 3]);
+  mozilla::ScopedDeleteArray<char> map;
+  map = new char[len + 3];
   map[0] = '[';
 
   for (size_t i = 0, j = 1; i < nEntries; i++, j++) {
@@ -587,7 +584,7 @@ MappableSeekableZStream::stats(const char *when, const char *name) const
     if ((j == len) || (i == nEntries - 1)) {
       map[j + 1] = ']';
       map[j + 2] = '\0';
-      DEBUG_LOG("%s", static_cast<char *>(map.get()));
+      DEBUG_LOG("%s", static_cast<char *>(map));
       j = 0;
     }
   }

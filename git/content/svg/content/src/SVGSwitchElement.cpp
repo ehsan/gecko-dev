@@ -43,10 +43,6 @@ SVGSwitchElement::SVGSwitchElement(already_AddRefed<mozilla::dom::NodeInfo>& aNo
 {
 }
 
-SVGSwitchElement::~SVGSwitchElement()
-{
-}
-
 void
 SVGSwitchElement::MaybeInvalidate()
 {

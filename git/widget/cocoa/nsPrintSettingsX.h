@@ -20,6 +20,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   nsPrintSettingsX();
+  virtual ~nsPrintSettingsX();
   nsresult Init();
   NSPrintInfo* GetCocoaPrintInfo() { return mPrintInfo; }
   void SetCocoaPrintInfo(NSPrintInfo* aPrintInfo);
@@ -32,8 +33,6 @@ public:
   void SetPMPageFormat(PMPageFormat aPageFormat);
 
 protected:
-  virtual ~nsPrintSettingsX();
-
   nsPrintSettingsX(const nsPrintSettingsX& src);
   nsPrintSettingsX& operator=(const nsPrintSettingsX& rhs);
 

@@ -133,10 +133,6 @@ GainNode::GainNode(AudioContext* aContext)
   engine->SetSourceStream(static_cast<AudioNodeStream*> (mStream.get()));
 }
 
-GainNode::~GainNode()
-{
-}
-
 size_t
 GainNode::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
 {

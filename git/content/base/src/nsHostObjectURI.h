@@ -25,6 +25,7 @@ public:
   nsHostObjectURI(nsIPrincipal* aPrincipal) :
       nsSimpleURI(), mPrincipal(aPrincipal)
   {}
+  virtual ~nsHostObjectURI() {}
 
   // For use only from deserialization
   nsHostObjectURI() : nsSimpleURI() {}
@@ -46,9 +47,6 @@ public:
   { return new nsHostObjectURI(); }
 
   nsCOMPtr<nsIPrincipal> mPrincipal;
-
-protected:
-  virtual ~nsHostObjectURI() {}
 };
 
 #define NS_HOSTOBJECTURI_CID \

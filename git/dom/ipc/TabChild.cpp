@@ -2836,10 +2836,6 @@ TabChildGlobal::TabChildGlobal(TabChildBase* aTabChild)
 {
 }
 
-TabChildGlobal::~TabChildGlobal()
-{
-}
-
 void
 TabChildGlobal::Init()
 {

@@ -83,9 +83,6 @@ public:
 
   void InputMuted(bool aInputMuted);
 
-protected:
-  virtual ~AudioDestinationNode();
-
 private:
   bool CheckAudioChannelPermissions(AudioChannel aValue);
   void CreateAudioChannelAgent();

@@ -57,8 +57,6 @@ public:
 
 protected:
 
-  virtual ~GfxInfo() {}
-
   virtual nsresult GetFeatureStatusImpl(int32_t aFeature, 
                                         int32_t *aStatus, 
                                         nsAString & aSuggestedDriverVersion, 

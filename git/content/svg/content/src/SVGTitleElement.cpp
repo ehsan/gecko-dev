@@ -34,10 +34,6 @@ SVGTitleElement::SVGTitleElement(already_AddRefed<mozilla::dom::NodeInfo>& aNode
   AddMutationObserver(this);
 }
 
-SVGTitleElement::~SVGTitleElement()
-{
-}
-
 void
 SVGTitleElement::CharacterDataChanged(nsIDocument *aDocument,
                                       nsIContent *aContent,

@@ -64,7 +64,6 @@ public:
   virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
 
 protected:
-  virtual ~HTMLLabelAccessible() {}
   virtual ENameValueFlag NativeName(nsString& aName) MOZ_OVERRIDE;
 };
 
@@ -84,9 +83,6 @@ public:
   virtual a11y::role NativeRole();
   virtual already_AddRefed<nsIPersistentProperties> NativeAttributes() MOZ_OVERRIDE;
   virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
-
-protected:
-  virtual ~HTMLOutputAccessible() {}
 };
 
 } // namespace a11y

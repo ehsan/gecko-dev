@@ -30,6 +30,7 @@ public:
     : nsXMLElement(aNodeInfo)
   {
   }
+  ~XBLChildrenElement();
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -133,9 +134,6 @@ public:
   {
     return mInsertedChildren[aIndex];
   }
-
-protected:
-  ~XBLChildrenElement();
 
 private:
   nsTArray<nsIContent*> mInsertedChildren; // WEAK

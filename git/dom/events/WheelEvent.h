@@ -50,9 +50,6 @@ public:
   double DeltaZ();
   uint32_t DeltaMode();
 
-protected:
-  ~WheelEvent() {}
-
 private:
   int32_t mAppUnitsPerDevPixel;
 };

@@ -23,6 +23,7 @@ class HTMLTableElement MOZ_FINAL : public nsGenericHTMLElement,
 {
 public:
   HTMLTableElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  virtual ~HTMLTableElement();
 
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLTableElement, table)
 
@@ -200,8 +201,6 @@ public:
   nsMappedAttributes* GetAttributesMappedForCell();
 
 protected:
-  virtual ~HTMLTableElement();
-
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
 
   nsIContent* GetChild(nsIAtom *aTag) const

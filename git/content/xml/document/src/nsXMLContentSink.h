@@ -48,6 +48,7 @@ class nsXMLContentSink : public nsContentSink,
 {
 public:
   nsXMLContentSink();
+  virtual ~nsXMLContentSink();
 
   NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
 
@@ -90,7 +91,6 @@ public:
                           bool &aIsAlternate);
 
 protected:
-  virtual ~nsXMLContentSink();
 
   nsIParser* GetParser();
 

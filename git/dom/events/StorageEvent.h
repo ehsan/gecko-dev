@@ -29,10 +29,9 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(StorageEvent, Event)
 
   StorageEvent(EventTarget* aOwner);
-
-protected:
   virtual ~StorageEvent();
 
+protected:
   nsString mKey;
   nsString mOldValue;
   nsString mNewValue;

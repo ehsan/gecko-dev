@@ -29,7 +29,6 @@ EXPORTS += [
     'DecomposeIntoNoRepeatTriangles.h',
     'ForceDiscreteGPUHelperCGL.h',
     'GfxTexturesReporter.h',
-    'GLBlitHelper.h',
     'GLBlitTextureImageHelper.h',
     'GLConsts.h',
     'GLContext.h',

@@ -39,7 +39,6 @@ public:
   NS_IMETHOD RedoTransaction();
 
 protected:
-  virtual ~DeleteNodeTxn();
 
   /** the element to delete */
   nsCOMPtr<nsINode> mNode;

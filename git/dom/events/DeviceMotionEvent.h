@@ -136,8 +136,6 @@ public:
               ErrorResult& aRv);
 
 protected:
-  ~DeviceMotionEvent() {}
-
   nsRefPtr<DeviceAcceleration> mAcceleration;
   nsRefPtr<DeviceAcceleration> mAccelerationIncludingGravity;
   nsRefPtr<DeviceRotationRate> mRotationRate;

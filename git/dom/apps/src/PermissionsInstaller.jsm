@@ -167,7 +167,7 @@ this.PermissionsInstaller = {
             // If it's not a system update, then we should keep the prompt
             // permissions that have been granted or denied previously.
             permValue =
-              PermissionSettingsModule.getPermission(expandedPermNames[idx],
+              PermissionSettingsModule.getPermission(permName,
                                                      aApp.manifestURL,
                                                      aApp.origin,
                                                      false);

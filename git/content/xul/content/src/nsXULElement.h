@@ -615,7 +615,6 @@ public:
     }
 
 protected:
-    ~nsXULElement();
 
     // This can be removed if EnsureContentsGenerated dies.
     friend class nsNSElementTearoff;

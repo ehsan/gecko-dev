@@ -23,8 +23,6 @@ private:
                       "Bad NodeType in aNodeInfo");
   }
 
-  virtual ~Comment();
-
 public:
   Comment(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo)
     : nsGenericDOMDataNode(aNodeInfo)
@@ -37,6 +35,8 @@ public:
   {
     Init();
   }
+
+  virtual ~Comment();
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED

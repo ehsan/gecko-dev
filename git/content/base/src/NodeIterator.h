@@ -33,6 +33,7 @@ public:
     NodeIterator(nsINode *aRoot,
                  uint32_t aWhatToShow,
                  const NodeFilterHolder &aFilter);
+    virtual ~NodeIterator();
 
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
@@ -72,8 +73,6 @@ public:
     JSObject* WrapObject(JSContext *cx);
 
 private:
-    virtual ~NodeIterator();
-
     struct NodePointer {
         NodePointer() : mNode(nullptr) {}
         NodePointer(nsINode *aNode, bool aBeforeNode);
@@ -116,6 +115,12 @@ private:
 };
 
 } // namespace dom
+
+template<>
+struct HasDangerousPublicDestructor<dom::NodeIterator>
+{
+  static const bool value = true;
+};
 
 } // namespace mozilla
 
