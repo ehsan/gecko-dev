@@ -3112,11 +3112,7 @@ class MUnbox : public MUnaryInstruction, public BoxInputsPolicy
       : MUnaryInstruction(ins),
         mode_(mode)
     {
-        // Only allow unboxing a non MIRType_Value when input and output types
-        // don't match. This is often used to force a bailout. Boxing happens
-        // during type analysis.
-        JS_ASSERT_IF(ins->type() != MIRType_Value, type != ins->type());
-
+        JS_ASSERT(ins->type() == MIRType_Value);
         JS_ASSERT(type == MIRType_Boolean ||
                   type == MIRType_Int32   ||
                   type == MIRType_Double  ||
@@ -3843,9 +3839,7 @@ class MToInt32
 
 // Converts a value or typed input to a truncated int32, for use with bitwise
 // operations. This is an infallible ValueToECMAInt32.
-class MTruncateToInt32
-  : public MUnaryInstruction,
-    public ToInt32Policy
+class MTruncateToInt32 : public MUnaryInstruction
 {
     explicit MTruncateToInt32(MDefinition *def)
       : MUnaryInstruction(def)
@@ -3856,6 +3850,7 @@ class MTruncateToInt32
         // An object might have "valueOf", which means it is effectful.
         // ToInt32(symbol) throws.
         MOZ_ASSERT(def->type() != MIRType_Object);
+        MOZ_ASSERT(def->type() != MIRType_Symbol);
         if (def->mightBeType(MIRType_Object) || def->mightBeType(MIRType_Symbol))
             setGuard();
     }
@@ -3885,10 +3880,6 @@ class MTruncateToInt32
         return true;
     }
 #endif
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
 
     ALLOW_CLONE(MTruncateToInt32)
 };
@@ -6109,7 +6100,6 @@ class MStringReplace
     bool congruentTo(const MDefinition *ins) const {
         return congruentIfOperandsEqual(ins);
     }
-
     AliasSet getAliasSet() const {
         return AliasSet::None();
     }
@@ -7569,13 +7559,13 @@ class MStoreTypedArrayElement
         return arrayType_;
     }
     bool isByteArray() const {
-        return arrayType_ == Scalar::Int8 ||
-               arrayType_ == Scalar::Uint8 ||
-               arrayType_ == Scalar::Uint8Clamped;
+        return (arrayType_ == Scalar::Int8 ||
+                arrayType_ == Scalar::Uint8 ||
+                arrayType_ == Scalar::Uint8Clamped);
     }
     bool isFloatArray() const {
-        return arrayType_ == Scalar::Float32 ||
-               arrayType_ == Scalar::Float64;
+        return (arrayType_ == Scalar::Float32 ||
+                arrayType_ == Scalar::Float64);
     }
     TypePolicy *typePolicy() {
         return this;
@@ -7642,13 +7632,13 @@ class MStoreTypedArrayElementHole
         return arrayType_;
     }
     bool isByteArray() const {
-        return arrayType_ == Scalar::Int8 ||
-               arrayType_ == Scalar::Uint8 ||
-               arrayType_ == Scalar::Uint8Clamped;
+        return (arrayType_ == Scalar::Int8 ||
+                arrayType_ == Scalar::Uint8 ||
+                arrayType_ == Scalar::Uint8Clamped);
     }
     bool isFloatArray() const {
-        return arrayType_ == Scalar::Float32 ||
-               arrayType_ == Scalar::Float64;
+        return (arrayType_ == Scalar::Float32 ||
+                arrayType_ == Scalar::Float64);
     }
     TypePolicy *typePolicy() {
         return this;
@@ -7705,8 +7695,8 @@ class MStoreTypedArrayElementStatic :
         return typedArray_->type();
     }
     bool isFloatArray() const {
-        return viewType() == Scalar::Float32 ||
-               viewType() == Scalar::Float64;
+        return (viewType() == Scalar::Float32 ||
+                viewType() == Scalar::Float64);
     }
 
     void *base() const;

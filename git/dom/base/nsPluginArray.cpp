@@ -81,13 +81,6 @@ GetPluginMimeTypes(const nsTArray<nsRefPtr<nsPluginElement> >& aPlugins,
   }
 }
 
-static bool
-operator<(const nsRefPtr<nsMimeType>& lhs, const nsRefPtr<nsMimeType>& rhs)
-{
-  // Sort MIME types alphabetically by type name.
-  return lhs->Type() < rhs->Type();
-}
-
 void
 nsPluginArray::GetMimeTypes(nsTArray<nsRefPtr<nsMimeType> >& aMimeTypes,
                             nsTArray<nsRefPtr<nsMimeType> >& aHiddenMimeTypes)
@@ -103,10 +96,6 @@ nsPluginArray::GetMimeTypes(nsTArray<nsRefPtr<nsMimeType> >& aMimeTypes,
 
   GetPluginMimeTypes(mPlugins, aMimeTypes);
   GetPluginMimeTypes(mHiddenPlugins, aHiddenMimeTypes);
-
-  // Alphabetize the enumeration order of non-hidden MIME types to reduce
-  // fingerprintable entropy based on plugins' installation file times.
-  aMimeTypes.Sort();
 }
 
 nsPluginElement*
@@ -308,14 +297,6 @@ IsPluginEnumerable(const nsTArray<nsCString>& enumerableNames,
   return false; // hide plugin!
 }
 
-static bool
-operator<(const nsRefPtr<nsPluginElement>& lhs,
-          const nsRefPtr<nsPluginElement>& rhs)
-{
-  // Sort plugins alphabetically by name.
-  return lhs->PluginTag()->mName < rhs->PluginTag()->mName;
-}
-
 void
 nsPluginArray::EnsurePlugins()
 {
@@ -364,10 +345,6 @@ nsPluginArray::EnsurePlugins()
 
     pluginArray.AppendElement(new nsPluginElement(mWindow, pluginTag));
   }
-
-  // Alphabetize the enumeration order of non-hidden plugins to reduce
-  // fingerprintable entropy based on plugins' installation file times.
-  mPlugins.Sort();
 }
 
 // nsPluginElement implementation.

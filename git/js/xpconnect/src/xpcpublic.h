@@ -437,17 +437,25 @@ nsISupports *
 UnwrapReflectorToISupports(JSObject *reflector);
 
 /**
- * Singleton scopes for stuff that really doesn't fit anywhere else.
- *
- * If you find yourself wanting to use these compartments, you're probably doing
+ * In some cases a native object does not really belong to any compartment (XBL,
+ * document created from by XHR of a worker, etc.). But when for some reason we
+ * have to wrap these natives (because of an event for example) instead of just
+ * wrapping them into some random compartment we find on the context stack (like
+ * we did previously) a default compartment is used. This function returns that
+ * compartment's global. It is a singleton on the runtime.
+ * If you find yourself wanting to use this compartment, you're probably doing
  * something wrong. Callers MUST consult with the XPConnect module owner before
  * using this compartment. If you don't, bholley will hunt you down.
  */
 JSObject *
-UnprivilegedJunkScope();
+GetJunkScope();
 
-JSObject *
-PrivilegedJunkScope();
+/**
+ * Returns the native global of the junk scope. See comment of GetJunkScope
+ * about the conditions of using it.
+ */
+nsIGlobalObject *
+GetJunkScopeGlobal();
 
 /**
  * Shared compilation scope for XUL prototype documents and XBL
@@ -455,7 +463,7 @@ PrivilegedJunkScope();
  * it is invisible to the debugger.
  */
 JSObject *
-CompilationScope();
+GetCompilationScope();
 
 /**
  * If |aObj| is a window, returns the associated nsGlobalWindow.
@@ -463,6 +471,13 @@ CompilationScope();
  */
 nsGlobalWindow*
 WindowOrNull(JSObject *aObj);
+
+/*
+ * Returns the dummy global associated with the SafeJSContext. Callers MUST
+ * consult with the XPConnect module owner before using this function.
+ */
+JSObject *
+GetSafeJSContextGlobal();
 
 /**
  * If |aObj| has a window for a global, returns the associated nsGlobalWindow.

@@ -350,7 +350,6 @@ public:
                                        "IOInterposer", false)
   {
     mStart = TimeStamp::Now();
-    mEnd = mStart;
   }
 };
 

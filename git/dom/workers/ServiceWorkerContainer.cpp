@@ -9,7 +9,6 @@
 #include "nsIDocument.h"
 #include "nsIServiceWorkerManager.h"
 #include "nsPIDOMWindow.h"
-#include "mozilla/Services.h"
 
 #include "nsCycleCollectionParticipant.h"
 #include "nsServiceManagerUtils.h"
@@ -61,9 +60,10 @@ ServiceWorkerContainer::Register(const nsAString& aScriptURL,
 {
   nsCOMPtr<nsISupports> promise;
 
-  nsCOMPtr<nsIServiceWorkerManager> swm = mozilla::services::GetServiceWorkerManager();
-  if (!swm) {
-    aRv.Throw(NS_ERROR_FAILURE);
+  nsresult rv;
+  nsCOMPtr<nsIServiceWorkerManager> swm = do_GetService(SERVICEWORKERMANAGER_CONTRACTID, &rv);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    aRv.Throw(rv);
     return nullptr;
   }
 
@@ -83,9 +83,10 @@ ServiceWorkerContainer::Unregister(const nsAString& aScope,
 {
   nsCOMPtr<nsISupports> promise;
 
-  nsCOMPtr<nsIServiceWorkerManager> swm = mozilla::services::GetServiceWorkerManager();
-  if (!swm) {
-    aRv.Throw(NS_ERROR_FAILURE);
+  nsresult rv;
+  nsCOMPtr<nsIServiceWorkerManager> swm = do_GetService(SERVICEWORKERMANAGER_CONTRACTID, &rv);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    aRv.Throw(rv);
     return nullptr;
   }
 
@@ -137,8 +138,8 @@ ServiceWorkerContainer::GetController()
 {
   if (!mControllerWorker) {
     nsresult rv;
-    nsCOMPtr<nsIServiceWorkerManager> swm = mozilla::services::GetServiceWorkerManager();
-    if (!swm) {
+    nsCOMPtr<nsIServiceWorkerManager> swm = do_GetService(SERVICEWORKERMANAGER_CONTRACTID, &rv);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
       return nullptr;
     }
 
@@ -176,7 +177,7 @@ ServiceWorkerContainer::GetReady(ErrorResult& aRv)
 void
 ServiceWorkerContainer::StartListeningForEvents()
 {
-  nsCOMPtr<nsIServiceWorkerManager> swm = mozilla::services::GetServiceWorkerManager();
+  nsCOMPtr<nsIServiceWorkerManager> swm = do_GetService(SERVICEWORKERMANAGER_CONTRACTID);
   if (swm) {
     swm->AddContainerEventListener(mWindow->GetDocumentURI(), this);
   }
@@ -185,7 +186,7 @@ ServiceWorkerContainer::StartListeningForEvents()
 void
 ServiceWorkerContainer::StopListeningForEvents()
 {
-  nsCOMPtr<nsIServiceWorkerManager> swm = mozilla::services::GetServiceWorkerManager();
+  nsCOMPtr<nsIServiceWorkerManager> swm = do_GetService(SERVICEWORKERMANAGER_CONTRACTID);
   if (swm) {
     swm->RemoveContainerEventListener(mWindow->GetDocumentURI(), this);
   }
@@ -211,8 +212,8 @@ already_AddRefed<workers::ServiceWorker>
 ServiceWorkerContainer::GetWorkerReference(WhichServiceWorker aWhichOne)
 {
   nsresult rv;
-  nsCOMPtr<nsIServiceWorkerManager> swm = mozilla::services::GetServiceWorkerManager();
-  if (!swm) {
+  nsCOMPtr<nsIServiceWorkerManager> swm = do_GetService(SERVICEWORKERMANAGER_CONTRACTID, &rv);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
     return nullptr;
   }
 
@@ -253,9 +254,10 @@ ServiceWorkerContainer::GetScopeForUrl(const nsAString& aUrl,
                                        nsString& aScope,
                                        ErrorResult& aRv)
 {
-  nsCOMPtr<nsIServiceWorkerManager> swm = mozilla::services::GetServiceWorkerManager();
-  if (!swm) {
-    aRv.Throw(NS_ERROR_FAILURE);
+  nsresult rv;
+  nsCOMPtr<nsIServiceWorkerManager> swm = do_GetService(SERVICEWORKERMANAGER_CONTRACTID, &rv);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    aRv.Throw(rv);
     return;
   }
 

@@ -9,7 +9,6 @@
 
 #include "jsobj.h"
 
-#include "builtin/MapObject.h"
 #include "builtin/TypedObject.h"
 #include "vm/ArrayObject.h"
 #include "vm/DateObject.h"
@@ -1026,7 +1025,6 @@ ObjectClassIs(HandleObject obj, ESClassValue classValue, JSContext *cx)
         return Proxy::objectClassIs(obj, classValue, cx);
 
     switch (classValue) {
-      case ESClass_Object: return obj->is<JSObject>();
       case ESClass_Array: return obj->is<ArrayObject>();
       case ESClass_Number: return obj->is<NumberObject>();
       case ESClass_String: return obj->is<StringObject>();
@@ -1035,8 +1033,6 @@ ObjectClassIs(HandleObject obj, ESClassValue classValue, JSContext *cx)
       case ESClass_ArrayBuffer:
         return obj->is<ArrayBufferObject>() || obj->is<SharedArrayBufferObject>();
       case ESClass_Date: return obj->is<DateObject>();
-      case ESClass_Set: return obj->is<SetObject>();
-      case ESClass_Map: return obj->is<MapObject>();
     }
     MOZ_CRASH("bad classValue");
 }
@@ -1048,24 +1044,6 @@ IsObjectWithClass(const Value &v, ESClassValue classValue, JSContext *cx)
         return false;
     RootedObject obj(cx, &v.toObject());
     return ObjectClassIs(obj, classValue, cx);
-}
-
-inline bool
-Unbox(JSContext *cx, HandleObject obj, MutableHandleValue vp)
-{
-    if (MOZ_UNLIKELY(obj->is<ProxyObject>()))
-        return Proxy::boxedValue_unbox(cx, obj, vp);
-
-    if (obj->is<BooleanObject>())
-        vp.setBoolean(obj->as<BooleanObject>().unbox());
-    else if (obj->is<NumberObject>())
-        vp.setNumber(obj->as<NumberObject>().unbox());
-    else if (obj->is<StringObject>())
-        vp.setString(obj->as<StringObject>().unbox());
-    else
-        vp.setUndefined();
-
-    return true;
 }
 
 static MOZ_ALWAYS_INLINE bool

@@ -21,7 +21,6 @@
 #include "nsIURI.h"
 #include "nsJSUtils.h"
 #include "nsNetUtil.h"
-#include "nsNullPrincipal.h"
 #include "nsPrincipal.h"
 #include "nsXMLHttpRequest.h"
 #include "WrapperFactory.h"
@@ -814,13 +813,19 @@ xpc::CreateSandboxObject(JSContext *cx, MutableHandleValue vp, nsISupports *prin
         if (sop) {
             principal = sop->GetPrincipal();
         } else {
-            nsRefPtr<nsNullPrincipal> nullPrin = new nsNullPrincipal();
-            rv = nullPrin->Init();
-            NS_ENSURE_SUCCESS(rv, rv);
-            principal = nullPrin;
+            principal = do_CreateInstance("@mozilla.org/nullprincipal;1", &rv);
+            MOZ_ASSERT(NS_FAILED(rv) || principal, "Bad return from do_CreateInstance");
+
+            if (!principal || NS_FAILED(rv)) {
+                if (NS_SUCCEEDED(rv)) {
+                    rv = NS_ERROR_FAILURE;
+                }
+
+                return rv;
+            }
         }
+        MOZ_ASSERT(principal);
     }
-    MOZ_ASSERT(principal);
 
     JS::CompartmentOptions compartmentOptions;
     if (options.sameZoneAs)
@@ -906,7 +911,7 @@ xpc::CreateSandboxObject(JSContext *cx, MutableHandleValue vp, nsISupports *prin
         // Don't try to mirror the properties that are set below.
         AutoSkipPropertyMirroring askip(CompartmentPrivate::Get(sandbox));
 
-        bool allowComponents = principal == nsXPConnect::SystemPrincipal() ||
+        bool allowComponents = nsContentUtils::IsSystemPrincipal(principal) ||
                                nsContentUtils::IsExpandedPrincipal(principal);
         if (options.wantComponents && allowComponents &&
             !ObjectScope(sandbox)->AttachComponentsObject(cx))
@@ -933,10 +938,8 @@ xpc::CreateSandboxObject(JSContext *cx, MutableHandleValue vp, nsISupports *prin
             return NS_ERROR_XPC_UNEXPECTED;
     }
 
-    // We handle the case where the context isn't in a compartment for the
-    // benefit of InitSingletonScopes.
     vp.setObject(*sandbox);
-    if (js::GetContextCompartment(cx) && !JS_WrapValue(cx, vp))
+    if (!JS_WrapValue(cx, vp))
         return NS_ERROR_UNEXPECTED;
 
     // Set the location information for the new global, so that tools like
