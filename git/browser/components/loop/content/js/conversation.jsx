@@ -391,8 +391,7 @@ loop.conversation = (function(mozL10n) {
       if (progressData.state !== "terminated")
         return;
 
-      if (progressData.reason === "cancel" ||
-          progressData.reason === "closed") {
+      if (progressData.reason === "cancel") {
         this._abortIncomingCall();
         return;
       }
