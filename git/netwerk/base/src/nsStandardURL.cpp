@@ -622,7 +622,7 @@ nsStandardURL::BuildNormalizedSpec(const char *spec)
 }
 
 PRBool
-nsStandardURL::SegmentIs(const URLSegment &seg, const char *val, PRBool ignoreCase)
+nsStandardURL::SegmentIs(const URLSegment &seg, const char *val)
 {
     // one or both may be null
     if (!val || mSpec.IsEmpty())
@@ -631,16 +631,12 @@ nsStandardURL::SegmentIs(const URLSegment &seg, const char *val, PRBool ignoreCa
         return PR_FALSE;
     // if the first |seg.mLen| chars of |val| match, then |val| must
     // also be null terminated at |seg.mLen|.
-    if (ignoreCase)
-        return !PL_strncasecmp(mSpec.get() + seg.mPos, val, seg.mLen)
-            && (val[seg.mLen] == '\0');
-    else
-        return !strncmp(mSpec.get() + seg.mPos, val, seg.mLen)
-            && (val[seg.mLen] == '\0');
+    return !strncmp(mSpec.get() + seg.mPos, val, seg.mLen)
+        && (val[seg.mLen] == '\0');
 }
 
 PRBool
-nsStandardURL::SegmentIs(const char* spec, const URLSegment &seg, const char *val, PRBool ignoreCase)
+nsStandardURL::SegmentIs(const char* spec, const URLSegment &seg, const char *val)
 {
     // one or both may be null
     if (!val || !spec)
@@ -649,25 +645,18 @@ nsStandardURL::SegmentIs(const char* spec, const URLSegment &seg, const char *va
         return PR_FALSE;
     // if the first |seg.mLen| chars of |val| match, then |val| must
     // also be null terminated at |seg.mLen|.
-    if (ignoreCase)
-        return !PL_strncasecmp(spec + seg.mPos, val, seg.mLen)
-            && (val[seg.mLen] == '\0');
-    else
-        return !strncmp(spec + seg.mPos, val, seg.mLen)
-            && (val[seg.mLen] == '\0');
+    return !strncmp(spec + seg.mPos, val, seg.mLen)
+        && (val[seg.mLen] == '\0');
 }
 
 PRBool
-nsStandardURL::SegmentIs(const URLSegment &seg1, const char *val, const URLSegment &seg2, PRBool ignoreCase)
+nsStandardURL::SegmentIs(const URLSegment &seg1, const char *val, const URLSegment &seg2)
 {
     if (seg1.mLen != seg2.mLen)
         return PR_FALSE;
     if (seg1.mLen == -1 || (!val && mSpec.IsEmpty()))
         return PR_TRUE; // both are empty
-    if (ignoreCase)
-        return !PL_strncasecmp(mSpec.get() + seg1.mPos, val + seg2.mPos, seg1.mLen); 
-    else
-        return !strncmp(mSpec.get() + seg1.mPos, val + seg2.mPos, seg1.mLen); 
+    return !strncmp(mSpec.get() + seg1.mPos, val + seg2.mPos, seg1.mLen); 
 }
 
 PRInt32
@@ -1703,7 +1692,7 @@ nsStandardURL::Resolve(const nsACString &in, nsACString &out)
     if (scheme.mLen >= 0) {
         // add some flags to coalesceFlag if it is an ftp-url
         // need this later on when coalescing the resulting URL
-        if (SegmentIs(relpath, scheme, "ftp", PR_TRUE)) {
+        if (SegmentIs(relpath, scheme, "ftp")) {
             coalesceFlag = (netCoalesceFlags) (coalesceFlag 
                                         | NET_COALESCE_ALLOW_RELATIVE_ROOT
                                         | NET_COALESCE_DOUBLE_SLASH_IS_ROOT);
@@ -1711,7 +1700,7 @@ nsStandardURL::Resolve(const nsACString &in, nsACString &out)
         }
         // this URL appears to be absolute
         // but try to find out more
-        if (SegmentIs(mScheme, relpath, scheme, PR_TRUE)) {
+        if (SegmentIs(mScheme,relpath,scheme)) {
             // mScheme and Scheme are the same 
             // but this can still be relative
             if (nsCRT::strncmp(relpath + scheme.mPos + scheme.mLen,

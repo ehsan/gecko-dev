@@ -62,7 +62,7 @@ function testtag_tree(treeid, treerowinfoid, seltype, columnstype, testid)
   is(tree.editingRow, -1, testid + " initial editingRow");
   is(tree.editingColumn, null, testid + " initial editingColumn");
 
-  testtag_tree_UI_editing(tree, testid, rowInfo);
+  testtag_tree_UI_editing(tree, testid);
 
   var ecolumn = tree.columns[0];
   tree.startEditing(1, ecolumn);
@@ -577,49 +577,23 @@ function testtag_tree_TreeSelection_UI(tree, testid, multiple)
     testtag_tree_TreeSelection_State(tree, testid + "mouse on row", 1, [1], 0,
                                      tree.selType == "cell" ? tree.columns[1] : null);
   }
-
-  // restore the scroll position to the start of the page
-  synthesizeKey("VK_HOME", {});
 }
 
-function testtag_tree_UI_editing(tree, testid, rowInfo)
+function testtag_tree_UI_editing(tree, testid)
 {
   testid += " editing UI ";
 
   // check editing UI
-  var ecolumn = tree.columns[0];
-  var rowIndex = 2;
+  var ecolumn = tree.columns[1];
   var inputField = tree.inputField;
-
-  // temporary make the tree editable to test mouse double click
-  var wasEditable = tree.editable;
-  if (!wasEditable)
-    tree.editable = true;
-
-  // if this is a container save its current open status
-  var row = rowInfo.rows[rowIndex];
-  var wasOpen = null;
-  if (tree.view.isContainer(row))
-    wasOpen = tree.view.isContainerOpen(row);
-
-  mouseDblClickOnCell(tree, rowIndex, ecolumn, testid + "edit on double click");
-  is(tree.editingColumn, ecolumn, testid + "editing column");
-  is(tree.editingRow, rowIndex, testid + "editing row");
-
-  // ensure that we don't expand an expandable container on edit
-  if (wasOpen != null)
-    is(tree.view.isContainerOpen(row), wasOpen, testid + "opened container node on edit");
-
-  // ensure to restore editable attribute
-  if (!wasEditable)
-    tree.editable = false;
+  tree.startEditing(0, ecolumn);
 
   var ci = tree.currentIndex;
 
   // cursor navigation should not change the selection while editing
   var testKey = function(key) {
     synthesizeKeyExpectEvent(key, {}, tree, "!select", "key " + key + " with editing");
-    is(tree.editingRow == rowIndex && tree.editingColumn == ecolumn && tree.currentIndex == ci,
+    is(tree.editingRow == 0 && tree.editingColumn == ecolumn && tree.currentIndex == ci,
                   true, testid + "key " + key + " while editing");
   }
 
@@ -826,9 +800,6 @@ function testtag_tree_TreeSelection_UI_cell(tree, testid, rowInfo)
     testtag_tree_TreeSelection_State(tree, testid + "key up unselectable cell",
                                      3, [3], 3, secondcolumn);
   }
-
-  // restore the scroll position to the start of the page
-  synthesizeKey("VK_HOME", {});
 }
 
 function testtag_tree_TreeView(tree, testid, rowInfo)
@@ -1193,23 +1164,9 @@ function checkColumns(aTree, aReference, aMessage)
 function mouseOnCell(tree, row, column, testname)
 {
   var x = {}, y = {}, width = {}, height = {};
-  tree.boxObject.getCoordsForCellItem(row, column, "text", x, y, width, height);
+  tree.boxObject.getCoordsForCellItem(row, column, "cell", x, y, width, height);
 
-  synthesizeMouseExpectEvent(tree.body, x.value, y.value, {}, tree, "select", testname);
-}
-
-function mouseDblClickOnCell(tree, row, column, testname)
-{
-  // select the row we will edit
-  var selection = tree.view.selection;
-  selection.select(row);
-  tree.treeBoxObject.ensureRowIsVisible(row);
-
-  // get cell coordinates
-  var x = {}, y = {}, width = {}, height = {};
-  tree.treeBoxObject.getCoordsForCellItem(row, column, "text", x, y, width, height);
-
-  synthesizeMouse(tree.body, x.value, y.value, { clickCount: 2 }, null);
+  synthesizeMouseExpectEvent(tree.body, x.value + 2, y.value + 2, {}, tree, "select", testname);
 }
 
 function compareArrays(arr1, arr2)
