@@ -60,6 +60,7 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIPlaintextEditor.h"
 #include "nsIScrollableFrame.h"
+#include "nsISelection2.h"
 #include "nsISelectionPrivate.h"
 #include "nsIServiceManager.h"
 #include "nsTextFragment.h"
@@ -1790,7 +1791,8 @@ nsHyperTextAccessible::GetSelections(PRInt16 aType,
   }
 
   if (aRanges) {
-    nsCOMPtr<nsISelectionPrivate> privSel(do_QueryInterface(domSel));
+    nsCOMPtr<nsISelection2> selection2(do_QueryInterface(domSel));
+    NS_ENSURE_TRUE(selection2, NS_ERROR_FAILURE);
 
     nsCOMPtr<nsINode> startNode = GetNode();
     if (peditor) {
@@ -1802,7 +1804,7 @@ nsHyperTextAccessible::GetSelections(PRInt16 aType,
 
     PRUint32 childCount = startNode->GetChildCount();
     nsCOMPtr<nsIDOMNode> startDOMNode(do_QueryInterface(startNode));
-    nsresult rv = privSel->
+    nsresult rv = selection2->
       GetRangesForIntervalCOMArray(startDOMNode, 0, startDOMNode, childCount,
                                    PR_TRUE, aRanges);
     NS_ENSURE_SUCCESS(rv, rv);

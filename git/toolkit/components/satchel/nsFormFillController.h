@@ -55,11 +55,6 @@
 #include "nsILoginManager.h"
 #include "nsIMutationObserver.h"
 
-// X.h defines KeyPress
-#ifdef KeyPress
-#undef KeyPress
-#endif
-
 class nsFormHistory;
 
 class nsFormFillController : public nsIFormFillController,

@@ -628,16 +628,12 @@ class HashTable : private AllocPolicy
         return !entryCount;
     }
 
-    uint32 count() const {
+    uint32 count() const{
         return entryCount;
     }
 
     uint32 generation() const {
         return gen;
-    }
-
-    size_t tableSize() const {
-        return tableCapacity * sizeof(Entry);
     }
 
     Ptr lookup(const Lookup &l) const {
@@ -1068,7 +1064,6 @@ class HashMap
     typedef typename Impl::Range Range;
     Range all() const                                 { return impl.all(); }
     size_t count() const                              { return impl.count(); }
-    size_t tableSize() const                          { return impl.tableSize(); }
 
     /*
      * Typedef for the enumeration class. An Enum may be used to examine and
@@ -1267,7 +1262,6 @@ class HashSet
     typedef typename Impl::Range Range;
     Range all() const                                 { return impl.all(); }
     size_t count() const                              { return impl.count(); }
-    size_t tableSize() const                          { return impl.tableSize(); }
 
     /*
      * Typedef for the enumeration class. An Enum may be used to examine and

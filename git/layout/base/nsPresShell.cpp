@@ -135,7 +135,7 @@
 #include "nsDisplayList.h"
 #include "nsRegion.h"
 #include "nsRenderingContext.h"
-#include "nsAutoLayoutPhase.h"
+
 #ifdef MOZ_REFLOW_PERF
 #include "nsFontMetrics.h"
 #endif
@@ -6662,7 +6662,7 @@ PresShell::HandleEvent(nsIView         *aView,
           ignoreRootScrollFrame = static_cast<nsMouseEvent*>(aEvent)->ignoreRootScrollFrame;
         }
         nsIFrame* target = nsLayoutUtils::GetFrameForPoint(frame, eventPoint,
-                                                           PR_TRUE, ignoreRootScrollFrame);
+                                                           PR_FALSE, ignoreRootScrollFrame);
         if (target) {
           frame = target;
         }

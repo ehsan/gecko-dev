@@ -48,6 +48,7 @@
 #include "mozilla/css/Declaration.h"
 #include "nsIHTMLDocument.h"
 #include "nsIDocument.h"
+#include "nsTPtrArray.h"
 #include "nsContentUtils.h"
 #include "nsReadableUtils.h"
 #include "prprf.h"
@@ -58,7 +59,7 @@ namespace css = mozilla::css;
 #define MISC_STR_PTR(_cont) \
   reinterpret_cast<void*>((_cont)->mStringBits & NS_ATTRVALUE_POINTERVALUE_MASK)
 
-nsTArray<const nsAttrValue::EnumTable*>* nsAttrValue::sEnumTableArray = nsnull;
+nsTPtrArray<const nsAttrValue::EnumTable>* nsAttrValue::sEnumTableArray = nsnull;
 
 nsAttrValue::nsAttrValue()
     : mBits(0)
@@ -106,7 +107,7 @@ nsAttrValue::Init()
 {
   NS_ASSERTION(!sEnumTableArray, "nsAttrValue already initialized");
 
-  sEnumTableArray = new nsTArray<const EnumTable*>;
+  sEnumTableArray = new nsTPtrArray<const EnumTable>;
   NS_ENSURE_TRUE(sEnumTableArray, NS_ERROR_OUT_OF_MEMORY);
   
   return NS_OK;

@@ -291,16 +291,16 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate)
 
 class WorkerMemoryReporter : public nsIMemoryMultiReporter
 {
-  WorkerPrivate* mWorkerPrivate;
+  JSRuntime* mRuntime;
   nsCString mPathPrefix;
 
 public:
   NS_DECL_ISUPPORTS
 
-  WorkerMemoryReporter(WorkerPrivate* aWorkerPrivate)
-  : mWorkerPrivate(aWorkerPrivate)
+  WorkerMemoryReporter(WorkerPrivate* aWorkerPrivate, JSRuntime* aRuntime)
+  : mRuntime(aRuntime)
   {
-    aWorkerPrivate->AssertIsOnWorkerThread();
+    NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
 
     nsCString escapedDomain(aWorkerPrivate->Domain());
     escapedDomain.ReplaceChar('/', '\\');
@@ -331,8 +331,10 @@ public:
   {
     AssertIsOnMainThread();
 
+    JS_TriggerAllOperationCallbacks(mRuntime);
+
     IterateData data;
-    if (!mWorkerPrivate->BlockAndCollectRuntimeStats(&data)) {
+    if (!CollectCompartmentStatsForRuntime(mRuntime, &data)) {
       return NS_ERROR_FAILURE;
     }
 
@@ -370,17 +372,16 @@ public:
       return NS_ERROR_FAILURE;
     }
 
+    JSRuntime* rt = JS_GetRuntime(cx);
+
     nsRefPtr<WorkerMemoryReporter> reporter =
-      new WorkerMemoryReporter(workerPrivate);
+      new WorkerMemoryReporter(workerPrivate, rt);
     if (NS_FAILED(NS_RegisterMemoryMultiReporter(reporter))) {
       NS_WARNING("Failed to register memory reporter!");
       reporter = nsnull;
     }
 
-    {
-      JSAutoRequest ar(cx);
-      workerPrivate->DoRunLoop(cx);
-    }
+    workerPrivate->DoRunLoop(cx);
 
     if (reporter) {
       if (NS_FAILED(NS_UnregisterMemoryMultiReporter(reporter))) {
@@ -388,8 +389,6 @@ public:
       }
       reporter = nsnull;
     }
-
-    JSRuntime* rt = JS_GetRuntime(cx);
 
     // XXX Bug 666963 - CTypes can create another JSContext for use with
     // closures, and then it holds that context in a reserved slot on the CType

@@ -5,10 +5,7 @@
       android:installLocation="auto"
       android:versionCode="@ANDROID_VERSION_CODE@"
       android:versionName="@MOZ_APP_VERSION@"
-#ifdef MOZ_ANDROID_SHARED_ID
-      android:sharedUserId="@MOZ_ANDROID_SHARED_ID@"
-#endif
-      >
+      android:sharedUserId="@MOZ_ANDROID_SHARED_ID@">
     <uses-sdk android:minSdkVersion="5"
               android:targetSdkVersion="5"/>
 

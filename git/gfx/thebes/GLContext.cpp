@@ -861,7 +861,7 @@ nsIntRect TiledTextureImage::GetTileRect()
     nsIntRect rect = mImages[mCurrentImage]->GetTileRect();
     unsigned int xPos = (mCurrentImage % mColumns) * mTileSize;
     unsigned int yPos = (mCurrentImage / mColumns) * mTileSize;
-    rect.MoveBy(xPos, yPos);
+    rect.MoveTo(xPos, yPos);
     return rect;
 }
 

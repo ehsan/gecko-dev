@@ -285,10 +285,8 @@ EVENT(select,
       NS_FORM_SELECTED,
       EventNameType_HTMLXUL,
       NS_EVENT)
-EVENT(show,
-      NS_SHOW_EVENT,
-      EventNameType_HTML,
-      NS_EVENT)
+// Not supported yet
+// EVENT(show)
 EVENT(stalled,
       NS_STALLED,
       EventNameType_HTML,

@@ -142,6 +142,7 @@
 #include "mozAutoDocUpdate.h"
 
 #include "nsCSSParser.h"
+#include "nsTPtrArray.h"
 #include "prprf.h"
 
 #include "nsSVGFeatures.h"
@@ -755,7 +756,7 @@ nsINode::CompareDocPosition(nsINode* aOtherNode)
     return 0;
   }
 
-  nsAutoTArray<nsINode*, 32> parents1, parents2;
+  nsAutoTPtrArray<nsINode, 32> parents1, parents2;
 
   nsINode *node1 = aOtherNode, *node2 = this;
 
@@ -1124,6 +1125,26 @@ nsINode::DispatchDOMEvent(nsEvent* aEvent,
 {
   return nsEventDispatcher::DispatchDOMEvent(this, aEvent, aDOMEvent,
                                              aPresContext, aEventStatus);
+}
+
+nsresult
+nsINode::AddEventListenerByIID(nsIDOMEventListener *aListener,
+                               const nsIID& aIID)
+{
+  nsEventListenerManager* elm = GetListenerManager(PR_TRUE);
+  NS_ENSURE_STATE(elm);
+  return elm->AddEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+}
+
+nsresult
+nsINode::RemoveEventListenerByIID(nsIDOMEventListener *aListener,
+                                  const nsIID& aIID)
+{
+  nsEventListenerManager* elm = GetListenerManager(PR_FALSE);
+  if (elm) {
+    elm->RemoveEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+  }
+  return NS_OK;
 }
 
 nsEventListenerManager*

@@ -55,6 +55,10 @@ LOCAL_INCLUDES	= \
 		-I$(srcdir)/../build \
 		$(NULL)
 
+CSRCS		= \
+		$(XPCOM_GLUE_SRC_LCSRCS) \
+		$(NULL)  
+
 CPPSRCS		= \
 		$(XPCOM_GLUE_SRC_LCPPSRCS) \
 		$(XPCOM_GLUENS_SRC_LCPPSRCS) \
@@ -97,6 +101,7 @@ SDK_HEADERS = \
 		nsTArray-inl.h \
 		nsTHashtable.h \
 		nsTObserverArray.h \
+		nsTPtrArray.h \
 		nsTWeakRef.h \
 		nsTextFormatter.h \
 		nsTraceRefcnt.h \

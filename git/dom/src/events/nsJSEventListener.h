@@ -40,7 +40,7 @@
 
 #include "nsIDOMKeyEvent.h"
 #include "nsIJSEventListener.h"
-#include "nsIDOMEventListener.h"
+#include "nsIDOMMouseListener.h"
 #include "jsapi.h"
 #include "nsCOMPtr.h"
 #include "nsIAtom.h"

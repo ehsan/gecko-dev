@@ -48,12 +48,11 @@ function createGroupItemWithBlankTabs(win, width, height, padding, numNewTabs, a
 
 // ----------
 function closeGroupItem(groupItem, callback) {
-  if (callback) {
-    groupItem.addSubscriber("close", function onClose() {
-      groupItem.removeSubscriber("close", onClose);
+  groupItem.addSubscriber("close", function onClose() {
+    groupItem.removeSubscriber("close", onClose);
+    if ("function" == typeof callback)
       executeSoon(callback);
-    });
-  }
+  });
 
   if (groupItem.getChildren().length) {
     groupItem.addSubscriber("groupHidden", function onHide() {
@@ -141,10 +140,9 @@ function showTabView(callback, win) {
     return;
   }
 
-  whenTabViewIsShown(function () {
+  whenTabViewIsShown(function() {
     waitForFocus(callback, win);
   }, win);
-
   win.TabView.show();
 }
 
@@ -153,14 +151,11 @@ function hideTabView(callback, win) {
   win = win || window;
 
   if (!win.TabView.isVisible()) {
-    if (callback)
-      callback();
+    callback();
     return;
   }
 
-  if (callback)
-    whenTabViewIsHidden(callback, win);
-
+  whenTabViewIsHidden(callback, win);
   win.TabView.hide();
 }
 
@@ -195,19 +190,30 @@ function whenTabViewIsShown(callback, win) {
 }
 
 // ----------
+function showSearch(callback, win) {
+  win = win || window;
+
+  let contentWindow = win.TabView.getContentWindow();
+  if (contentWindow.isSearchEnabled()) {
+    callback();
+    return;
+  }
+
+  whenSearchIsEnabled(callback, win);
+  contentWindow.performSearch();
+}
+
+// ----------
 function hideSearch(callback, win) {
   win = win || window;
 
   let contentWindow = win.TabView.getContentWindow();
   if (!contentWindow.isSearchEnabled()) {
-    if (callback)
-      callback();
+    callback();
     return;
   }
 
-  if (callback)
-    whenSearchIsDisabled(callback, win);
-
+  whenSearchIsDisabled(callback, win);
   contentWindow.hideSearch();
 }
 
@@ -247,36 +253,28 @@ function whenSearchIsDisabled(callback, win) {
 // ----------
 function hideGroupItem(groupItem, callback) {
   if (groupItem.hidden) {
-    if (callback)
-      callback();
+    callback();
     return;
   }
 
-  if (callback) {
-    groupItem.addSubscriber("groupHidden", function onHide() {
-      groupItem.removeSubscriber("groupHidden", onHide);
-      callback();
-    });
-  }
-
+  groupItem.addSubscriber("groupHidden", function onHide() {
+    groupItem.removeSubscriber("groupHidden", onHide);
+    callback();
+  });
   groupItem.closeAll();
 }
 
 // ----------
 function unhideGroupItem(groupItem, callback) {
   if (!groupItem.hidden) {
-    if (callback)
-      callback();
+    callback();
     return;
   }
 
-  if (callback) {
-    groupItem.addSubscriber("groupShown", function onShown() {
-      groupItem.removeSubscriber("groupShown", onShown);
-      callback();
-    });
-  }
-
+  groupItem.addSubscriber("groupShown", function onShown() {
+    groupItem.removeSubscriber("groupShown", onShown);
+    callback();
+  });
   groupItem._unhide();
 }
 
@@ -353,19 +351,4 @@ function restoreTab(callback, index, win) {
     tab._tabViewTabItem.removeSubscriber("reconnected", onReconnected);
     finalize();
   });
-}
-
-// ----------
-function togglePrivateBrowsing(callback) {
-  let topic = "private-browsing-transition-complete";
-
-  Services.obs.addObserver(function observe() {
-    Services.obs.removeObserver(observe, topic);
-    afterAllTabsLoaded(callback);
-  }, topic, false);
-
-  let pb = Cc["@mozilla.org/privatebrowsing;1"].
-           getService(Ci.nsIPrivateBrowsingService);
-
-  pb.privateBrowsingEnabled = !pb.privateBrowsingEnabled;
 }

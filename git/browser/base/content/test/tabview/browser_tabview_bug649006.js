@@ -8,7 +8,7 @@ function test() {
   waitForExplicitFinish();
 
   registerCleanupFunction(function () {
-    hideTabView();
+    hideTabView(function () {});
   });
 
   showTabView(function() {

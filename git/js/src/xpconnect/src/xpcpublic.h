@@ -49,7 +49,6 @@
 #include "nsIPrincipal.h"
 #include "nsWrapperCache.h"
 #include "nsStringGlue.h"
-#include "nsTArray.h"
 
 class nsIPrincipal;
 
@@ -225,8 +224,7 @@ struct CompartmentStats
 struct IterateData
 {
     IterateData()
-      : atomsTableSize(0),
-        stackSize(0),
+      : stackSize(0),
         gcHeapChunkTotal(0),
         gcHeapChunkCleanUnused(0),
         gcHeapChunkDirtyUnused(0),
@@ -236,7 +234,6 @@ struct IterateData
         compartmentStatsVector(),
         currCompartmentStats(NULL) { }
 
-    PRInt64 atomsTableSize;
     PRInt64 stackSize;
     PRInt64 gcHeapChunkTotal;
     PRInt64 gcHeapChunkCleanUnused;
@@ -245,7 +242,7 @@ struct IterateData
     PRInt64 gcHeapChunkAdmin;
     PRInt64 gcHeapUnusedPercentage;
 
-    nsTArray<CompartmentStats> compartmentStatsVector;
+    js::Vector<CompartmentStats, 0, js::SystemAllocPolicy> compartmentStatsVector;
     CompartmentStats *currCompartmentStats;
 };
 

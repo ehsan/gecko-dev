@@ -25,6 +25,7 @@
 #include "nsISupports.h"
 
 #include "nsTArray.h"
+#include "nsTPtrArray.h"
 #include "nsTWeakRef.h"
 
 #include "nsCOMPtr.h"
