@@ -264,7 +264,7 @@ mozStorageConnection::Close()
 
     int srv = sqlite3_close(mDBConn);
     if (srv != SQLITE_OK)
-        NS_ERROR("sqlite3_close failed. There are probably outstanding statements that are listed above!");
+        NS_WARNING("sqlite3_close failed. There are probably outstanding statements that are listed above!");
 
     mDBConn = NULL;
     return ConvertResultCode(srv);
