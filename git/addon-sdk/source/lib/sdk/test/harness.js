@@ -253,8 +253,6 @@ function cleanup() {
     consoleListener.errorsLogged = 0;
     loader = null;
 
-    consoleListener.unregister();
-
     memory.gc();
   }
   catch (e) {
@@ -356,7 +354,7 @@ function getPotentialLeaks() {
       return;
     }
 
-    if ((matches = windowRegexp.exec(path))) {
+    if (matches = windowRegexp.exec(path)) {
       if (matches[1] in windows)
         return;
 
@@ -442,24 +440,7 @@ var POINTLESS_ERRORS = [
 ];
 
 var consoleListener = {
-  registered: false,
-
-  register: function() {
-    if (this.registered)
-      return;
-    cService.registerListener(this);
-    this.registered = true;
-  },
-
-  unregister: function() {
-    if (!this.registered)
-      return;
-    cService.unregisterListener(this);
-    this.registered = false;
-  },
-
   errorsLogged: 0,
-
   observe: function(object) {
     if (!(object instanceof Ci.nsIScriptError))
       return;
@@ -591,7 +572,7 @@ var runTests = exports.runTests = function runTests(options) {
   findAndRunTests = options.findAndRunTests;
 
   try {
-    consoleListener.register();
+    cService.registerListener(consoleListener);
     print("Running tests on " + system.name + " " + system.version +
           "/Gecko " + system.platformVersion + " (" +
           system.id + ") under " +
@@ -611,8 +592,7 @@ var runTests = exports.runTests = function runTests(options) {
     // memory when we check later
     require("../deprecated/unit-test");
     require("../deprecated/unit-test-finder");
-    if (profileMemory)
-      startLeaks = getPotentialLeaks();
+    startLeaks = getPotentialLeaks();
 
     nextIteration();
   } catch (e) {
@@ -641,4 +621,4 @@ var runTests = exports.runTests = function runTests(options) {
   }
 };
 
-unload(_ => consoleListener.unregister());
+unload(_ => cService.unregisterListener(consoleListener));

@@ -707,8 +707,6 @@ var CustomEventManager = {
     switch(detail.type) {
       case 'webapps-install-granted':
       case 'webapps-install-denied':
-      case 'webapps-uninstall-granted':
-      case 'webapps-uninstall-denied':
         WebappsHelper.handleEvent(detail);
         break;
       case 'select-choicechange':
@@ -751,7 +749,6 @@ var WebappsHelper = {
   init: function webapps_init() {
     Services.obs.addObserver(this, "webapps-launch", false);
     Services.obs.addObserver(this, "webapps-ask-install", false);
-    Services.obs.addObserver(this, "webapps-ask-uninstall", false);
     Services.obs.addObserver(this, "webapps-close", false);
   },
 
@@ -774,20 +771,12 @@ var WebappsHelper = {
       case "webapps-install-denied":
         DOMApplicationRegistry.denyInstall(installer);
         break;
-      case "webapps-uninstall-granted":
-        DOMApplicationRegistry.confirmUninstall(installer);
-        break;
-      case "webapps-uninstall-denied":
-        DOMApplicationRegistry.denyUninstall(installer);
-        break;
     }
   },
 
   observe: function webapps_observe(subject, topic, data) {
     let json = JSON.parse(data);
     json.mm = subject;
-
-    let id;
 
     switch(topic) {
       case "webapps-launch":
@@ -806,17 +795,9 @@ var WebappsHelper = {
         });
         break;
       case "webapps-ask-install":
-        id = this.registerInstaller(json);
+        let id = this.registerInstaller(json);
         shell.sendChromeEvent({
           type: "webapps-ask-install",
-          id: id,
-          app: json.app
-        });
-        break;
-      case "webapps-ask-uninstall":
-        id = this.registerInstaller(json);
-        shell.sendChromeEvent({
-          type: "webapps-ask-uninstall",
           id: id,
           app: json.app
         });

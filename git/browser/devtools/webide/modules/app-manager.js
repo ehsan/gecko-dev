@@ -337,7 +337,7 @@ exports.AppManager = AppManager = {
       try {
         this.selectedRuntime.connect(this.connection).then(
           () => {},
-          deferred.reject.bind(deferred));
+          () => {deferred.reject()});
       } catch(e) {
         console.error(e);
         deferred.reject();

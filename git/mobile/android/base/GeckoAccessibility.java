@@ -15,7 +15,7 @@ import org.json.JSONObject;
 import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UIAsyncTask;
+import org.mozilla.gecko.util.UiAsyncTask;
 
 import android.app.ActivityManager;
 import android.app.ActivityManager.RunningServiceInfo;
@@ -56,9 +56,9 @@ public class GeckoAccessibility {
                 }));
 
     public static void updateAccessibilitySettings (final Context context) {
-        new UIAsyncTask.WithoutParams<Void>(ThreadUtils.getBackgroundHandler()) {
+        new UiAsyncTask<Void, Void, Void>(ThreadUtils.getBackgroundHandler()) {
                 @Override
-                public Void doInBackground() {
+                public Void doInBackground(Void... args) {
                     JSONObject ret = new JSONObject();
                     sEnabled = false;
                     AccessibilityManager accessibilityManager =

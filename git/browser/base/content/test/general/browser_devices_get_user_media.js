@@ -185,7 +185,7 @@ function closeStream(aAlreadyClosed) {
   if (!aAlreadyClosed)
     expectObserverCalled("recording-window-ended");
 
-  assertWebRTCIndicatorStatus(null);
+  assertWebRTCIndicatorStatus(false);
 }
 
 function checkDeviceSelectors(aAudio, aVideo) {
@@ -202,10 +202,10 @@ function checkDeviceSelectors(aAudio, aVideo) {
     ok(cameraSelector.hidden, "camera selector hidden");
 }
 
-function checkSharingUI(aExpected) {
+function checkSharingUI() {
   yield promisePopupNotification("webRTC-sharingDevices");
 
-  assertWebRTCIndicatorStatus(aExpected);
+  assertWebRTCIndicatorStatus(true);
 }
 
 function checkNotSharing() {
@@ -214,7 +214,7 @@ function checkNotSharing() {
   ok(!PopupNotifications.getNotification("webRTC-sharingDevices"),
      "no webRTC-sharingDevices popup notification");
 
-  assertWebRTCIndicatorStatus(null);
+  assertWebRTCIndicatorStatus(false);
 }
 
 let gTests = [
@@ -242,7 +242,7 @@ let gTests = [
     is(getMediaCaptureState(), "CameraAndMicrophone",
        "expected camera and microphone to be shared");
 
-    yield checkSharingUI({audio: true, video: true});
+    yield checkSharingUI();
     yield closeStream();
   }
 },
@@ -269,7 +269,7 @@ let gTests = [
     expectObserverCalled("recording-device-events");
     is(getMediaCaptureState(), "Microphone", "expected microphone to be shared");
 
-    yield checkSharingUI({audio: true});
+    yield checkSharingUI();
     yield closeStream();
   }
 },
@@ -296,7 +296,7 @@ let gTests = [
     expectObserverCalled("recording-device-events");
     is(getMediaCaptureState(), "Camera", "expected camera to be shared");
 
-    yield checkSharingUI({video: true});
+    yield checkSharingUI();
     yield closeStream();
   }
 },
@@ -326,7 +326,7 @@ let gTests = [
     is(getMediaCaptureState(), "Microphone",
        "expected microphone to be shared");
 
-    yield checkSharingUI({audio: true});
+    yield checkSharingUI();
     yield closeStream();
   }
 },
@@ -356,7 +356,7 @@ let gTests = [
     is(getMediaCaptureState(), "Camera",
        "expected microphone to be shared");
 
-    yield checkSharingUI({video: true});
+    yield checkSharingUI();
     yield closeStream();
   }
 },
@@ -427,7 +427,7 @@ let gTests = [
     is(getMediaCaptureState(), "CameraAndMicrophone",
        "expected camera and microphone to be shared");
 
-    yield checkSharingUI({video: true, audio: true});
+    yield checkSharingUI();
 
     PopupNotifications.getNotification("webRTC-sharingDevices").reshow();
     activateSecondaryAction(kActionDeny);
@@ -692,7 +692,7 @@ let gTests = [
       expectObserverCalled("getUserMedia:request");
       expectObserverCalled("getUserMedia:response:allow");
       expectObserverCalled("recording-device-events");
-      yield checkSharingUI({video: aRequestVideo, audio: aRequestAudio});
+      yield checkSharingUI();
 
       PopupNotifications.getNotification("webRTC-sharingDevices").reshow();
       let expectedIcon = "webRTC-sharingDevices";
@@ -743,46 +743,6 @@ let gTests = [
     yield stopAndCheckPerm(true, false);
     info("request video, stop sharing resets video only");
     yield stopAndCheckPerm(false, true);
-  }
-},
-
-{
-  desc: "test showSharingDoorhanger",
-  run: function checkShowSharingDoorhanger() {
-    yield promisePopupNotificationShown("webRTC-shareDevices", () => {
-      info("requesting devices");
-      content.wrappedJSObject.requestDevice(false, true);
-    });
-    expectObserverCalled("getUserMedia:request");
-    checkDeviceSelectors(false, true);
-
-    yield promiseMessage("ok", () => {
-      PopupNotifications.panel.firstChild.button.click();
-    });
-    expectObserverCalled("getUserMedia:response:allow");
-    expectObserverCalled("recording-device-events");
-    is(getMediaCaptureState(), "Camera", "expected camera to be shared");
-
-    yield checkSharingUI({video: true});
-
-    yield promisePopupNotificationShown("webRTC-sharingDevices", () => {
-      if ("nsISystemStatusBar" in Ci) {
-        let activeStreams = gWebRTCUI.getActiveStreams(true, false, false);
-        gWebRTCUI.showSharingDoorhanger(activeStreams[0], "Devices");
-      }
-      else {
-        let win =
-          Services.wm.getMostRecentWindow("Browser:WebRTCGlobalIndicator");
-        let elt = win.document.getElementById("audioVideoButton");
-        EventUtils.synthesizeMouseAtCenter(elt, {}, win);
-      }
-    });
-
-    PopupNotifications.panel.firstChild.button.click();
-    ok(!PopupNotifications.isPanelOpen, "notification panel closed");
-    expectNoObserverCalled();
-
-    yield closeStream();
   }
 },
 

@@ -8,10 +8,10 @@ module.metadata = {
 };
 
 const { Ci } = require("chrome");
-const { dispatcher } = require("../util/dispatcher");
+const method = require("../../method/core");
 const { add, remove, iterator } = require("../lang/weak-set");
 
-let getTargetWindow = dispatcher("getTargetWindow");
+let getTargetWindow = method("getTargetWindow");
 
 getTargetWindow.define(function (target) {
   if (target instanceof Ci.nsIDOMWindow)
@@ -24,10 +24,10 @@ getTargetWindow.define(function (target) {
 
 exports.getTargetWindow = getTargetWindow;
 
-let attachTo = dispatcher("attachTo");
+let attachTo = method("attachTo");
 exports.attachTo = attachTo;
 
-let detachFrom = dispatcher("detatchFrom");
+let detachFrom = method("detatchFrom");
 exports.detachFrom = detachFrom;
 
 function attach(modification, target) {
