@@ -503,43 +503,41 @@ PrivateBrowsingService.prototype = {
     if (this._currentStatus != STATE_IDLE)
       throw Cr.NS_ERROR_FAILURE;
 
-    if (val == this._inPrivateBrowsing)
-      return;
-
     try {
-      if (val) {
-        if (!this._canEnterPrivateBrowsingMode())
-          return;
-      }
-      else {
-        if (!this._canLeavePrivateBrowsingMode())
-          return;
-      }
-
-      this._ensureCanCloseWindows();
-
-      // start the transition now that we know that we can
       this._currentStatus = STATE_TRANSITION_STARTED;
 
-      this._autoStarted = this._prefs.getBoolPref("browser.privatebrowsing.autostart");
-      this._inPrivateBrowsing = val != false;
+      if (val != this._inPrivateBrowsing) {
+        if (val) {
+          if (!this._canEnterPrivateBrowsingMode())
+            return;
+        }
+        else {
+          if (!this._canLeavePrivateBrowsingMode())
+            return;
+        }
 
-      let data = val ? "enter" : "exit";
+        this._ensureCanCloseWindows();
 
-      let quitting = Cc["@mozilla.org/supports-PRBool;1"].
-                     createInstance(Ci.nsISupportsPRBool);
-      quitting.data = this._quitting;
+        this._autoStarted = this._prefs.getBoolPref("browser.privatebrowsing.autostart");
+        this._inPrivateBrowsing = val != false;
 
-      // notify observers of the pending private browsing mode change
-      this._obs.notifyObservers(quitting, "private-browsing-change-granted", data);
+        let data = val ? "enter" : "exit";
 
-      // destroy the current session and start initial cleanup
-      this._onBeforePrivateBrowsingModeChange();
+        let quitting = Cc["@mozilla.org/supports-PRBool;1"].
+                       createInstance(Ci.nsISupportsPRBool);
+        quitting.data = this._quitting;
 
-      this._obs.notifyObservers(quitting, "private-browsing", data);
+        // notify observers of the pending private browsing mode change
+        this._obs.notifyObservers(quitting, "private-browsing-change-granted", data);
 
-      // load the appropriate session
-      this._onAfterPrivateBrowsingModeChange();
+        // destroy the current session and start initial cleanup
+        this._onBeforePrivateBrowsingModeChange();
+
+        this._obs.notifyObservers(quitting, "private-browsing", data);
+
+        // load the appropriate session
+        this._onAfterPrivateBrowsingModeChange();
+      }
     } catch (ex) {
       // We aborted the transition to/from private browsing, we must restore the
       // beforeunload handling on all the windows for which we switched it off.
