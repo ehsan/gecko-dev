@@ -44,6 +44,8 @@
 #include "gfxQuartzFontCache.h"
 #elif defined(MOZ_WIDGET_GTK2)
 #include "gfxPlatformGtk.h"
+#elif defined(MOZ_WIDGET_QT)
+#include "gfxQtPlatform.h"
 #elif defined(XP_BEOS)
 #include "gfxBeOSPlatform.h"
 #elif defined(XP_OS2)
@@ -138,6 +140,8 @@ gfxPlatform::Init()
     gPlatform = new gfxPlatformMac;
 #elif defined(MOZ_WIDGET_GTK2)
     gPlatform = new gfxPlatformGtk;
+#elif defined(MOZ_WIDGET_QT)
+    gPlatform = new gfxQtPlatform;
 #elif defined(XP_BEOS)
     gPlatform = new gfxBeOSPlatform;
 #elif defined(XP_OS2)
@@ -562,7 +566,7 @@ gfxPlatform::GetCMSOutputProfile()
 
         /* Precache the LUT16 Interpolations for the output profile. See 
            bug 444661 for details. */
-        cmsPrecacheProfile(gCMSOutputProfile, CMS_PRECACHE_LI1616_REVERSE);
+        cmsPrecacheProfile(gCMSOutputProfile, CMS_PRECACHE_LI168_REVERSE);
     }
 
     return gCMSOutputProfile;
@@ -578,7 +582,7 @@ gfxPlatform::GetCMSsRGBProfile()
 
         /* Precache the Fixed-point Interpolations for sRGB as an input
            profile. See bug 444661 for details. */
-        cmsPrecacheProfile(gCMSsRGBProfile, CMS_PRECACHE_LI16W_FORWARD);
+        cmsPrecacheProfile(gCMSsRGBProfile, CMS_PRECACHE_LI16F_FORWARD);
     }
     return gCMSsRGBProfile;
 }
@@ -596,7 +600,7 @@ gfxPlatform::GetCMSRGBTransform()
 
         gCMSRGBTransform = cmsCreateTransform(inProfile, TYPE_RGB_8,
                                               outProfile, TYPE_RGB_8,
-                                              INTENT_PERCEPTUAL, 0);
+                                              INTENT_PERCEPTUAL, cmsFLAGS_FLOATSHAPER);
     }
 
     return gCMSRGBTransform;
@@ -615,7 +619,7 @@ gfxPlatform::GetCMSInverseRGBTransform()
 
         gCMSInverseRGBTransform = cmsCreateTransform(inProfile, TYPE_RGB_8,
                                                      outProfile, TYPE_RGB_8,
-                                                     INTENT_PERCEPTUAL, 0);
+                                                     INTENT_PERCEPTUAL, cmsFLAGS_FLOATSHAPER);
     }
 
     return gCMSInverseRGBTransform;
