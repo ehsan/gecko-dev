@@ -2,7 +2,6 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 #include "BorrowedContext.h"
 #include "DataSurfaceHelpers.h"
 #include "DrawTargetCG.h"
@@ -16,9 +15,8 @@
 #include "MacIOSurface.h"
 #include "FilterNodeSoftware.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/FloatingPoint.h"
 #include "mozilla/Types.h" // for decltype
-#include "mozilla/Vector.h"
+#include "mozilla/FloatingPoint.h"
 
 using namespace std;
 
@@ -1345,16 +1343,11 @@ DrawTargetCG::FillGlyphs(ScaledFont *aFont, const GlyphBuffer &aBuffer, const Pa
 
   ScaledFontMac* macFont = static_cast<ScaledFontMac*>(aFont);
 
-  // This code can execute millions of times in short periods, so we want to
-  // avoid heap allocation whenever possible. So we use an inline vector
-  // capacity of 64 elements, which is enough to typically avoid heap
-  // allocation in ~99% of cases.
-  Vector<CGGlyph, 64> glyphs;
-  Vector<CGPoint, 64> positions;
-  if (!glyphs.resizeUninitialized(aBuffer.mNumGlyphs) ||
-      !positions.resizeUninitialized(aBuffer.mNumGlyphs)) {
-    MOZ_CRASH("glyphs/positions allocation failed");
-  }
+  //XXX: we should use a stack vector here when we have a class like that
+  std::vector<CGGlyph> glyphs;
+  std::vector<CGPoint> positions;
+  glyphs.resize(aBuffer.mNumGlyphs);
+  positions.resize(aBuffer.mNumGlyphs);
 
   // Handle the flip
   CGContextScaleCTM(cg, 1, -1);
@@ -1377,19 +1370,19 @@ DrawTargetCG::FillGlyphs(ScaledFont *aFont, const GlyphBuffer &aBuffer, const Pa
     if (ScaledFontMac::CTFontDrawGlyphsPtr != nullptr) {
       CGRect *bboxes = new CGRect[aBuffer.mNumGlyphs];
       CTFontGetBoundingRectsForGlyphs(macFont->mCTFont, kCTFontDefaultOrientation,
-                                      glyphs.begin(), bboxes, aBuffer.mNumGlyphs);
-      extents = ComputeGlyphsExtents(bboxes, positions.begin(), aBuffer.mNumGlyphs, 1.0f);
-      ScaledFontMac::CTFontDrawGlyphsPtr(macFont->mCTFont, glyphs.begin(),
-                                         positions.begin(), aBuffer.mNumGlyphs, cg);
+                                      &glyphs.front(), bboxes, aBuffer.mNumGlyphs);
+      extents = ComputeGlyphsExtents(bboxes, &positions.front(), aBuffer.mNumGlyphs, 1.0f);
+      ScaledFontMac::CTFontDrawGlyphsPtr(macFont->mCTFont, &glyphs.front(),
+                                         &positions.front(), aBuffer.mNumGlyphs, cg);
       delete[] bboxes;
     } else {
       CGRect *bboxes = new CGRect[aBuffer.mNumGlyphs];
-      CGFontGetGlyphBBoxes(macFont->mFont, glyphs.begin(), aBuffer.mNumGlyphs, bboxes);
-      extents = ComputeGlyphsExtents(bboxes, positions.begin(), aBuffer.mNumGlyphs, macFont->mSize);
+      CGFontGetGlyphBBoxes(macFont->mFont, &glyphs.front(), aBuffer.mNumGlyphs, bboxes);
+      extents = ComputeGlyphsExtents(bboxes, &positions.front(), aBuffer.mNumGlyphs, macFont->mSize);
 
       CGContextSetFont(cg, macFont->mFont);
       CGContextSetFontSize(cg, macFont->mSize);
-      CGContextShowGlyphsAtPositions(cg, glyphs.begin(), positions.begin(),
+      CGContextShowGlyphsAtPositions(cg, &glyphs.front(), &positions.front(),
                                      aBuffer.mNumGlyphs);
       delete[] bboxes;
     }
@@ -1401,13 +1394,13 @@ DrawTargetCG::FillGlyphs(ScaledFont *aFont, const GlyphBuffer &aBuffer, const Pa
     CGContextSetTextDrawingMode(cg, kCGTextFill);
     SetFillFromPattern(cg, mColorSpace, aPattern);
     if (ScaledFontMac::CTFontDrawGlyphsPtr != nullptr) {
-      ScaledFontMac::CTFontDrawGlyphsPtr(macFont->mCTFont, glyphs.begin(),
-                                         positions.begin(),
+      ScaledFontMac::CTFontDrawGlyphsPtr(macFont->mCTFont, &glyphs.front(),
+                                         &positions.front(),
                                          aBuffer.mNumGlyphs, cg);
     } else {
       CGContextSetFont(cg, macFont->mFont);
       CGContextSetFontSize(cg, macFont->mSize);
-      CGContextShowGlyphsAtPositions(cg, glyphs.begin(), positions.begin(),
+      CGContextShowGlyphsAtPositions(cg, &glyphs.front(), &positions.front(),
                                      aBuffer.mNumGlyphs);
     }
   }

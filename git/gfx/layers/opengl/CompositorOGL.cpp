@@ -175,8 +175,6 @@ CompositorOGL::CleanupResources()
     mQuadVBO = 0;
   }
 
-  DestroyVR(ctx);
-
   mGLContext->MakeCurrent();
 
   mBlitTextureImageHelper = nullptr;
@@ -384,13 +382,6 @@ CompositorOGL::Initialize()
     else
       msg += NS_LITERAL_STRING("TEXTURE_RECTANGLE");
     console->LogStringMessage(msg.get());
-  }
-
-  mVR.mInitialized = false;
-  if (gfxPrefs::VREnabled()) {
-    if (!InitializeVR()) {
-      NS_WARNING("Failed to initialize VR in CompositorOGL");
-    }
   }
 
   reporter.SetSuccessful();
@@ -897,11 +888,6 @@ CompositorOGL::DrawQuad(const Rect& aRect,
 
   MOZ_ASSERT(mFrameInProgress, "frame not started");
   MOZ_ASSERT(mCurrentRenderTarget, "No destination");
-
-  if (aEffectChain.mPrimaryEffect->mType == EffectTypes::VR_DISTORTION) {
-    DrawVRDistortion(aRect, aClipRect, aEffectChain, aOpacity, aTransform);
-    return;
-  }
 
   Rect clipRect = aClipRect;
   // aClipRect is in destination coordinate space (after all

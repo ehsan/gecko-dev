@@ -79,11 +79,10 @@ class ChannelOpened : public IPC::Message
 public:
   ChannelOpened(TransportDescriptor aDescriptor,
                 ProcessId aOtherProcess,
-                ProtocolId aProtocol,
-                PriorityValue aPriority = PRIORITY_NORMAL)
+                ProtocolId aProtocol)
     : IPC::Message(MSG_ROUTING_CONTROL, // these only go to top-level actors
                    CHANNEL_OPENED_MESSAGE_TYPE,
-                   aPriority)
+                   PRIORITY_NORMAL)
   {
     IPC::WriteParam(this, aDescriptor);
     IPC::WriteParam(this, aOtherProcess);
@@ -126,12 +125,10 @@ Bridge(const PrivateIPDLInterface&,
 
   if (!aParentChannel->Send(new ChannelOpened(parentSide,
                                               childId,
-                                              aProtocol,
-                                              IPC::Message::PRIORITY_URGENT)) ||
+                                              aProtocol)) ||
       !aChildChannel->Send(new ChannelOpened(childSide,
                                              parentId,
-                                             aChildProtocol,
-                                             IPC::Message::PRIORITY_URGENT))) {
+                                             aChildProtocol))) {
     CloseDescriptor(parentSide);
     CloseDescriptor(childSide);
     return false;

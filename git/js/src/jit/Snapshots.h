@@ -54,10 +54,7 @@ class RValueAllocation
         UNTYPED_REG         = 0x06,
         UNTYPED_STACK       = 0x07,
 #endif
-
-        // Recover instructions.
         RECOVER_INSTRUCTION = 0x0a,
-        RI_WITH_DEFAULT_CST = 0x0b,
 
         // The JSValueType is packed in the Mode.
         TYPED_REG_MIN       = 0x10,
@@ -68,17 +65,6 @@ class RValueAllocation
         TYPED_STACK_MIN     = 0x20,
         TYPED_STACK_MAX     = 0x2f,
         TYPED_STACK = TYPED_STACK_MIN,
-
-        // This mask can be used with any other valid mode. When this flag is
-        // set on the mode, this inform the snapshot iterator that even if the
-        // allocation is readable, the content of if might be incomplete unless
-        // all side-effects are executed.
-        RECOVER_SIDE_EFFECT_MASK = 0x80,
-
-        // This mask represents the set of bits which can be used to encode a
-        // value in a snapshot. The mode is used to determine how to interpret
-        // the union of values and how to pack the value in memory.
-        MODE_MASK           = 0x17f,
 
         INVALID = 0x100,
     };
@@ -274,16 +260,6 @@ class RValueAllocation
     static RValueAllocation RecoverInstruction(uint32_t index) {
         return RValueAllocation(RECOVER_INSTRUCTION, payloadOfIndex(index));
     }
-    static RValueAllocation RecoverInstruction(uint32_t riIndex, uint32_t cstIndex) {
-        return RValueAllocation(RI_WITH_DEFAULT_CST,
-                                payloadOfIndex(riIndex),
-                                payloadOfIndex(cstIndex));
-    }
-
-    void setNeedSideEffect() {
-        MOZ_ASSERT(!needSideEffect() && mode_ != INVALID);
-        mode_ = Mode(mode_ | RECOVER_SIDE_EFFECT_MASK);
-    }
 
     void writeHeader(CompactBufferWriter &writer, JSValueType type, uint32_t regCode) const;
   public:
@@ -292,10 +268,7 @@ class RValueAllocation
 
   public:
     Mode mode() const {
-        return Mode(mode_ & MODE_MASK);
-    }
-    bool needSideEffect() const {
-        return mode_ & RECOVER_SIDE_EFFECT_MASK;
+        return mode_;
     }
 
     uint32_t index() const {
@@ -320,10 +293,6 @@ class RValueAllocation
         return arg1_.type;
     }
 
-    uint32_t index2() const {
-        MOZ_ASSERT(layoutFromMode(mode()).type2 == PAYLOAD_INDEX);
-        return arg2_.index;
-    }
     int32_t stackOffset2() const {
         MOZ_ASSERT(layoutFromMode(mode()).type2 == PAYLOAD_STACK_OFFSET);
         return arg2_.stackOffset;

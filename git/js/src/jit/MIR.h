@@ -101,15 +101,6 @@ MIRType MIRTypeFromValue(const js::Value &vp)
      */                                                                         \
     _(RecoveredOnBailout)                                                       \
                                                                                 \
-    /* Some instructions might represent an object, but the memory of these
-     * objects might be incomplete if we have not recovered all the stores which
-     * were supposed to happen before. This flag is used to annotate
-     * instructions which might return a pointer to a memory area which is not
-     * yet fully initialized. This flag is used to ensure that stores are
-     * executed before returning the value.
-     */                                                                         \
-    _(IncompleteObject)                                                         \
-                                                                                \
     /* The current instruction got discarded from the MIR Graph. This is useful
      * when we want to iterate over resume points and instructions, while
      * handling instructions which are discarded without reporting to the
@@ -3008,9 +2999,21 @@ class MArrayState
   private:
     uint32_t numElements_;
 
-    explicit MArrayState(MDefinition *arr);
+    explicit MArrayState(MDefinition *arr)
+    {
+        // This instruction is only used as a summary for bailout paths.
+        setResultType(MIRType_Object);
+        setRecoveredOnBailout();
+        numElements_ = arr->toNewArray()->count();
+    }
 
-    bool init(TempAllocator &alloc, MDefinition *obj, MDefinition *len);
+    bool init(TempAllocator &alloc, MDefinition *obj, MDefinition *len) {
+        if (!MVariadicInstruction::init(alloc, numElements() + 2))
+            return false;
+        initOperand(0, obj);
+        initOperand(1, len);
+        return true;
+    }
 
     void initElement(uint32_t index, MDefinition *def) {
         initOperand(index + 2, def);
@@ -3020,8 +3023,27 @@ class MArrayState
     INSTRUCTION_HEADER(ArrayState)
 
     static MArrayState *New(TempAllocator &alloc, MDefinition *arr, MDefinition *undefinedVal,
-                            MDefinition *initLength);
-    static MArrayState *Copy(TempAllocator &alloc, MArrayState *state);
+                            MDefinition *initLength)
+    {
+        MArrayState *res = new(alloc) MArrayState(arr);
+        if (!res || !res->init(alloc, arr, initLength))
+            return nullptr;
+        for (size_t i = 0; i < res->numElements(); i++)
+            res->initElement(i, undefinedVal);
+        return res;
+    }
+
+    static MArrayState *Copy(TempAllocator &alloc, MArrayState *state)
+    {
+        MDefinition *arr = state->array();
+        MDefinition *len = state->initializedLength();
+        MArrayState *res = new(alloc) MArrayState(arr);
+        if (!res || !res->init(alloc, arr, len))
+            return nullptr;
+        for (size_t i = 0; i < res->numElements(); i++)
+            res->initElement(i, state->getElement(i));
+        return res;
+    }
 
     MDefinition *array() const {
         return getOperand(0);
@@ -7018,39 +7040,32 @@ struct LambdaFunctionInfo
 };
 
 class MLambda
-  : public MBinaryInstruction,
+  : public MUnaryInstruction,
     public SingleObjectPolicy::Data
 {
     LambdaFunctionInfo info_;
 
-    MLambda(types::CompilerConstraintList *constraints, MDefinition *scopeChain, MConstant *cst)
-      : MBinaryInstruction(scopeChain, cst), info_(&cst->value().toObject().as<JSFunction>())
+    MLambda(types::CompilerConstraintList *constraints, MDefinition *scopeChain, JSFunction *fun)
+      : MUnaryInstruction(scopeChain), info_(fun)
     {
         setResultType(MIRType_Object);
-        if (!info().fun->hasSingletonType() && !types::UseNewTypeForClone(info().fun))
-            setResultTypeSet(MakeSingletonTypeSet(constraints, info().fun));
+        if (!fun->hasSingletonType() && !types::UseNewTypeForClone(fun))
+            setResultTypeSet(MakeSingletonTypeSet(constraints, fun));
     }
 
   public:
     INSTRUCTION_HEADER(Lambda)
 
     static MLambda *New(TempAllocator &alloc, types::CompilerConstraintList *constraints,
-                        MDefinition *scopeChain, MConstant *fun)
+                        MDefinition *scopeChain, JSFunction *fun)
     {
         return new(alloc) MLambda(constraints, scopeChain, fun);
     }
     MDefinition *scopeChain() const {
         return getOperand(0);
     }
-    MConstant *functionOperand() const {
-        return getOperand(1)->toConstant();
-    }
     const LambdaFunctionInfo &info() const {
         return info_;
-    }
-    bool writeRecoverData(CompactBufferWriter &writer) const;
-    bool canRecoverOnBailout() const {
-        return true;
     }
 };
 
@@ -11673,19 +11688,6 @@ class MNewDenseArrayPar : public MBinaryInstruction
     }
 };
 
-// This is an element of a spaghetti stack which is used to represent the memory
-// context which has to be restored in case of a bailout.
-struct MStoreToRecover : public TempObject, public InlineSpaghettiStackNode<MStoreToRecover>
-{
-    MDefinition *operand;
-
-    explicit MStoreToRecover(MDefinition *operand)
-      : operand(operand)
-    { }
-};
-
-typedef InlineSpaghettiStack<MStoreToRecover> MStoresToRecoverList;
-
 // A resume point contains the information needed to reconstruct the Baseline
 // state from a position in the JIT. See the big comment near resumeAfter() in
 // IonBuilder.cpp.
@@ -11706,14 +11708,7 @@ class MResumePoint MOZ_FINAL :
     friend class MBasicBlock;
     friend void AssertBasicGraphCoherency(MIRGraph &graph);
 
-    // List of stack slots needed to reconstruct the frame corresponding to the
-    // function which is compiled by IonBuilder.
     FixedList<MUse> operands_;
-
-    // List of stores needed to reconstruct the content of objects which are
-    // emulated by EmulateStateOf variants.
-    MStoresToRecoverList stores_;
-
     jsbytecode *pc_;
     MResumePoint *caller_;
     MInstruction *instruction_;
@@ -11742,21 +11737,16 @@ class MResumePoint MOZ_FINAL :
   public:
     static MResumePoint *New(TempAllocator &alloc, MBasicBlock *block, jsbytecode *pc,
                              MResumePoint *parent, Mode mode);
-    static MResumePoint *New(TempAllocator &alloc, MBasicBlock *block, MResumePoint *model,
+    static MResumePoint *New(TempAllocator &alloc, MBasicBlock *block, jsbytecode *pc,
+                             MResumePoint *parent, Mode mode,
                              const MDefinitionVector &operands);
     static MResumePoint *Copy(TempAllocator &alloc, MResumePoint *src);
 
     MNode::Kind kind() const {
         return MNode::ResumePoint;
     }
-    size_t numAllocatedOperands() const {
-        return operands_.length();
-    }
-    uint32_t stackDepth() const {
-        return numAllocatedOperands();
-    }
     size_t numOperands() const {
-        return numAllocatedOperands();
+        return operands_.length();
     }
     size_t indexOf(const MUse *u) const MOZ_FINAL MOZ_OVERRIDE {
         MOZ_ASSERT(u >= &operands_[0]);
@@ -11780,6 +11770,9 @@ class MResumePoint MOZ_FINAL :
     }
     jsbytecode *pc() const {
         return pc_;
+    }
+    uint32_t stackDepth() const {
+        return operands_.length();
     }
     MResumePoint *caller() const {
         return caller_;
@@ -11814,26 +11807,13 @@ class MResumePoint MOZ_FINAL :
     }
 
     void releaseUses() {
-        for (size_t i = 0, e = numOperands(); i < e; i++) {
+        for (size_t i = 0; i < operands_.length(); i++) {
             if (operands_[i].hasProducer())
                 operands_[i].releaseProducer();
         }
     }
 
     bool writeRecoverData(CompactBufferWriter &writer) const;
-
-    // Register a store instruction on the current resume point. This
-    // instruction would be recovered when we are bailing out. The |cache|
-    // argument can be any resume point, it is used to share memory if we are
-    // doing the same modification.
-    void addStore(TempAllocator &alloc, MDefinition *store, const MResumePoint *cache = nullptr);
-
-    MStoresToRecoverList::iterator storesBegin() const {
-        return stores_.begin();
-    }
-    MStoresToRecoverList::iterator storesEnd() const {
-        return stores_.end();
-    }
 
     virtual void dump(FILE *fp) const;
     virtual void dump() const;

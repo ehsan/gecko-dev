@@ -639,10 +639,12 @@ NS_IMETHODIMP
 nsLineIterator::GetLine(int32_t aLineNumber,
                         nsIFrame** aFirstFrameOnLine,
                         int32_t* aNumFramesOnLine,
-                        nsRect& aLineBounds)
+                        nsRect& aLineBounds,
+                        uint32_t* aLineFlags)
 {
   NS_ENSURE_ARG_POINTER(aFirstFrameOnLine);
   NS_ENSURE_ARG_POINTER(aNumFramesOnLine);
+  NS_ENSURE_ARG_POINTER(aLineFlags);
 
   if ((aLineNumber < 0) || (aLineNumber >= mNumLines)) {
     *aFirstFrameOnLine = nullptr;
@@ -654,6 +656,16 @@ nsLineIterator::GetLine(int32_t aLineNumber,
   *aFirstFrameOnLine = line->mFirstChild;
   *aNumFramesOnLine = line->GetChildCount();
   aLineBounds = line->GetPhysicalBounds();
+
+  uint32_t flags = 0;
+  if (line->IsBlock()) {
+    flags |= NS_LINE_FLAG_IS_BLOCK;
+  }
+  else {
+    if (line->HasBreakAfter())
+      flags |= NS_LINE_FLAG_ENDS_IN_BREAK;
+  }
+  *aLineFlags = flags;
 
   return NS_OK;
 }

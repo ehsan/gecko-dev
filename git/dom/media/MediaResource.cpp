@@ -1009,13 +1009,6 @@ ChannelMediaResource::CacheClientNotifyPrincipalChanged()
   mDecoder->NotifyPrincipalChanged();
 }
 
-void
-ChannelMediaResource::CacheClientNotifySuspendedStatusChanged()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Don't call on non-main thread");
-  mDecoder->NotifySuspendedStatusChanged();
-}
-
 nsresult
 ChannelMediaResource::CacheClientSeek(int64_t aOffset, bool aResume)
 {
@@ -1074,6 +1067,8 @@ nsresult
 ChannelMediaResource::CacheClientSuspend()
 {
   Suspend(false);
+
+  mDecoder->NotifySuspendedStatusChanged();
   return NS_OK;
 }
 
@@ -1081,6 +1076,8 @@ nsresult
 ChannelMediaResource::CacheClientResume()
 {
   Resume();
+
+  mDecoder->NotifySuspendedStatusChanged();
   return NS_OK;
 }
 

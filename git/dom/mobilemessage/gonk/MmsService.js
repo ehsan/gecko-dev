@@ -13,8 +13,8 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/PhoneNumberUtils.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
 
-const GONK_MMSSERVICE_CONTRACTID = "@mozilla.org/mms/gonkmmsservice;1";
-const GONK_MMSSERVICE_CID = Components.ID("{9b069b8c-8697-11e4-a406-474f5190272b}");
+const RIL_MMSSERVICE_CONTRACTID = "@mozilla.org/mms/rilmmsservice;1";
+const RIL_MMSSERVICE_CID = Components.ID("{217ddd76-75db-4210-955d-8806cd8d87f9}");
 
 let DEBUG = false;
 function debug(s) {
@@ -144,8 +144,8 @@ XPCOMUtils.defineLazyServiceGetter(this, "gUUIDGenerator",
                                    "nsIUUIDGenerator");
 
 XPCOMUtils.defineLazyServiceGetter(this, "gMobileMessageDatabaseService",
-                                   "@mozilla.org/mobilemessage/gonkmobilemessagedatabaseservice;1",
-                                   "nsIGonkMobileMessageDatabaseService");
+                                   "@mozilla.org/mobilemessage/rilmobilemessagedatabaseservice;1",
+                                   "nsIRilMobileMessageDatabaseService");
 
 XPCOMUtils.defineLazyServiceGetter(this, "gMobileMessageService",
                                    "@mozilla.org/mobilemessage/mobilemessageservice;1",
@@ -1536,7 +1536,7 @@ function MmsService() {
 }
 MmsService.prototype = {
 
-  classID:   GONK_MMSSERVICE_CID,
+  classID:   RIL_MMSSERVICE_CID,
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIMmsService,
                                          Ci.nsIWapPushApplication,
                                          Ci.nsIObserver]),

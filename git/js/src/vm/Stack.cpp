@@ -30,8 +30,8 @@ using mozilla::PodCopy;
 /*****************************************************************************/
 
 void
-InterpreterFrame::initExecuteFrame(JSContext *cx, HandleScript script, AbstractFramePtr evalInFramePrev,
-                                   const Value &thisv, HandleObject scopeChain, ExecuteType type)
+InterpreterFrame::initExecuteFrame(JSContext *cx, JSScript *script, AbstractFramePtr evalInFramePrev,
+                                   const Value &thisv, JSObject &scopeChain, ExecuteType type)
 {
     /*
      * See encoding of ExecuteType. When GLOBAL isn't set, we are executing a
@@ -55,7 +55,7 @@ InterpreterFrame::initExecuteFrame(JSContext *cx, HandleScript script, AbstractF
             MOZ_ASSERT(iter.isFunctionFrame() || iter.isGlobalFrame());
             MOZ_ASSERT(!iter.isAsmJS());
             if (iter.isFunctionFrame()) {
-                callee = iter.callee(cx);
+                callee = iter.callee();
                 flags_ |= FUNCTION;
             } else {
                 flags_ |= GLOBAL;
@@ -79,7 +79,7 @@ InterpreterFrame::initExecuteFrame(JSContext *cx, HandleScript script, AbstractF
 #endif
     }
 
-    scopeChain_ = scopeChain.get();
+    scopeChain_ = &scopeChain;
     prev_ = nullptr;
     prevpc_ = nullptr;
     prevsp_ = nullptr;
@@ -458,7 +458,7 @@ InterpreterStack::pushExecuteFrame(JSContext *cx, HandleScript script, const Val
 
     InterpreterFrame *fp = reinterpret_cast<InterpreterFrame *>(buffer + 2 * sizeof(Value));
     fp->mark_ = mark;
-    fp->initExecuteFrame(cx, script, evalInFrame, thisv, scopeChain, type);
+    fp->initExecuteFrame(cx, script, evalInFrame, thisv, *scopeChain, type);
     fp->initLocals();
 
     return fp;
@@ -864,7 +864,7 @@ FrameIter::functionDisplayAtom() const
         break;
       case INTERP:
       case JIT:
-        return calleeTemplate()->displayAtom();
+        return callee()->displayAtom();
       case ASMJS:
         return data_.asmJSFrames_.functionDisplayAtom();
     }
@@ -1062,7 +1062,7 @@ FrameIter::updatePcQuadratic()
 }
 
 JSFunction *
-FrameIter::calleeTemplate() const
+FrameIter::callee() const
 {
     switch (data_.state_) {
       case DONE:
@@ -1075,61 +1075,25 @@ FrameIter::calleeTemplate() const
         if (data_.jitFrames_.isBaselineJS())
             return data_.jitFrames_.callee();
         MOZ_ASSERT(data_.jitFrames_.isIonScripted());
-        return ionInlineFrames_.calleeTemplate();
+        return ionInlineFrames_.callee();
     }
     MOZ_CRASH("Unexpected state");
 }
 
-JSFunction *
-FrameIter::callee(JSContext *cx) const
+Value
+FrameIter::calleev() const
 {
     switch (data_.state_) {
       case DONE:
       case ASMJS:
         break;
       case INTERP:
-        return calleeTemplate();
+        MOZ_ASSERT(isFunctionFrame());
+        return interpFrame()->calleev();
       case JIT:
-        if (data_.jitFrames_.isIonScripted()) {
-            jit::MaybeReadFallback recover(cx, activation()->asJit(), &data_.jitFrames_);
-            return ionInlineFrames_.callee(recover);
-        }
-        MOZ_ASSERT(data_.jitFrames_.isBaselineJS());
-        return calleeTemplate();
+        return ObjectValue(*callee());
     }
     MOZ_CRASH("Unexpected state");
-}
-
-bool
-FrameIter::matchCallee(JSContext *cx, HandleFunction fun) const
-{
-    RootedFunction currentCallee(cx, calleeTemplate());
-
-    // As we do not know if the calleeTemplate is the real function, or the
-    // template from which it would be cloned, we compare properties which are
-    // stable across the cloning of JSFunctions.
-    if (((currentCallee->flags() ^ fun->flags()) & JSFunction::STABLE_ACROSS_CLONES) != 0 ||
-        currentCallee->nargs() != fun->nargs())
-    {
-        return false;
-    }
-
-    // Only some lambdas are optimized in a way which cannot be recovered without
-    // invalidating the frame. Thus, if one of the function is not a lambda we can just
-    // compare it against the calleeTemplate.
-    if (!fun->isLambda() || !currentCallee->isLambda())
-        return currentCallee == fun;
-
-    // Use the same condition as |js::CloneFunctionObject|, to know if we should
-    // expect both functions to have the same JSScript. If so, and if they are
-    // different, then they cannot be equal.
-    bool useSameScript = CloneFunctionObjectUseSameScript(fun->compartment(), currentCallee);
-    if (useSameScript && currentCallee->nonLazyScript() != fun->nonLazyScript())
-        return false;
-
-    // If none of the previous filters worked, then take the risk of
-    // invalidating the frame to identify the JSFunction.
-    return callee(cx) == fun;
 }
 
 unsigned
@@ -1165,17 +1129,15 @@ FrameIter::unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing) const
 }
 
 JSObject *
-FrameIter::scopeChain(JSContext *cx) const
+FrameIter::scopeChain() const
 {
     switch (data_.state_) {
       case DONE:
       case ASMJS:
         break;
       case JIT:
-        if (data_.jitFrames_.isIonScripted()) {
-            jit::MaybeReadFallback recover(cx, activation()->asJit(), &data_.jitFrames_);
-            return ionInlineFrames_.scopeChain(recover);
-        }
+        if (data_.jitFrames_.isIonScripted())
+            return ionInlineFrames_.scopeChain();
         return data_.jitFrames_.baselineFrame()->scopeChain();
       case INTERP:
         return interpFrame()->scopeChain();
@@ -1184,11 +1146,11 @@ FrameIter::scopeChain(JSContext *cx) const
 }
 
 CallObject &
-FrameIter::callObj(JSContext *cx) const
+FrameIter::callObj() const
 {
-    MOZ_ASSERT(calleeTemplate()->isHeavyweight());
+    MOZ_ASSERT(callee()->isHeavyweight());
 
-    JSObject *pobj = scopeChain(cx);
+    JSObject *pobj = scopeChain();
     while (!pobj->is<CallObject>())
         pobj = pobj->enclosingScope();
     return pobj->as<CallObject>();
@@ -1211,7 +1173,7 @@ bool
 FrameIter::computeThis(JSContext *cx) const
 {
     MOZ_ASSERT(!done() && !isAsmJS());
-    assertSameCompartment(cx, scopeChain(cx));
+    assertSameCompartment(cx, scopeChain());
     return ComputeThis(cx, abstractFramePtr());
 }
 
@@ -1222,7 +1184,7 @@ FrameIter::computedThisValue() const
 }
 
 Value
-FrameIter::thisv(JSContext *cx) const
+FrameIter::thisv(JSContext *cx)
 {
     switch (data_.state_) {
       case DONE:
@@ -1364,7 +1326,7 @@ AbstractFramePtr::evalPrevScopeChain(JSContext *cx) const
     while (iter.isIon() || iter.abstractFramePtr() != *this)
         ++iter;
     ++iter;
-    return iter.scopeChain(cx);
+    return iter.scopeChain();
 }
 
 bool

@@ -214,7 +214,7 @@ ComputeTouchSensitiveRegion(GeckoContentController* aController,
     // this approximation may not be accurate in the presence of a css-driven
     // resolution.
     LayoutDeviceToParentLayerScale parentCumulativeResolution =
-          aMetrics.GetCumulativeResolution()
+          aMetrics.mCumulativeResolution
         / ParentLayerToLayerScale(aMetrics.mPresShellResolution);
     visible = visible.Intersect(touchSensitiveRegion
                                 * aMetrics.GetDevPixelsPerCSSPixel()
@@ -561,7 +561,7 @@ APZCTreeManager::UpdatePanZoomControllerTree(TreeBuildingState& aState,
         // resolution; this approximation may not be accurate in the presence of
         // a css-driven resolution.
         LayoutDeviceToParentLayerScale parentCumulativeResolution =
-            aLayer.Metrics().GetCumulativeResolution()
+            aLayer.Metrics().mCumulativeResolution
             / ParentLayerToLayerScale(aLayer.Metrics().mPresShellResolution);
         subtreeEventRegions.AndWith(ParentLayerIntRect::ToUntyped(
             RoundedIn(touchSensitiveRegion
@@ -1010,13 +1010,6 @@ APZCTreeManager::SetTargetAPZC(uint64_t aInputBlockId,
     nsRefPtr<AsyncPanZoomController> apzc2 = GetTargetAPZC(aTargets[i]);
     target = GetMultitouchTarget(target, apzc2);
   }
-  mInputQueue->SetConfirmedTargetApzc(aInputBlockId, target);
-}
-
-void
-APZCTreeManager::SetTargetAPZC(uint64_t aInputBlockId, const ScrollableLayerGuid& aTarget)
-{
-  nsRefPtr<AsyncPanZoomController> target = GetTargetAPZC(aTarget);
   mInputQueue->SetConfirmedTargetApzc(aInputBlockId, target);
 }
 

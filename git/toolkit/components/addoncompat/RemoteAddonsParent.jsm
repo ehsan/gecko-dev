@@ -112,14 +112,14 @@ let ContentPolicyParent = {
     this._policies = new Map();
   },
 
-  addContentPolicy: function(addon, name, cid) {
+  addContentPolicy: function(name, cid) {
     this._policies.set(name, cid);
-    NotificationTracker.add(["content-policy", addon]);
+    NotificationTracker.add(["content-policy"]);
   },
 
-  removeContentPolicy: function(addon, name) {
+  removeContentPolicy: function(name) {
     this._policies.delete(name);
-    NotificationTracker.remove(["content-policy", addon]);
+    NotificationTracker.remove(["content-policy"]);
   },
 
   receiveMessage: function (aMessage) {
@@ -169,7 +169,7 @@ let CategoryManagerInterposition = new Interposition("CategoryManagerInterpositi
 CategoryManagerInterposition.methods.addCategoryEntry =
   function(addon, target, category, entry, value, persist, replace) {
     if (category == "content-policy") {
-      ContentPolicyParent.addContentPolicy(addon, entry, value);
+      ContentPolicyParent.addContentPolicy(entry, value);
     }
 
     target.addCategoryEntry(category, entry, value, persist, replace);
@@ -178,7 +178,7 @@ CategoryManagerInterposition.methods.addCategoryEntry =
 CategoryManagerInterposition.methods.deleteCategoryEntry =
   function(addon, target, category, entry, persist) {
     if (category == "content-policy") {
-      ContentPolicyParent.removeContentPolicy(addon, entry);
+      ContentPolicyParent.removeContentPolicy(entry);
     }
 
     target.deleteCategoryEntry(category, entry, persist);
@@ -196,15 +196,15 @@ let AboutProtocolParent = {
     this._protocols = [];
   },
 
-  registerFactory: function(addon, class_, className, contractID, factory) {
+  registerFactory: function(class_, className, contractID, factory) {
     this._protocols.push({contractID: contractID, factory: factory});
-    NotificationTracker.add(["about-protocol", contractID, addon]);
+    NotificationTracker.add(["about-protocol", contractID]);
   },
 
-  unregisterFactory: function(addon, class_, factory) {
+  unregisterFactory: function(class_, factory) {
     for (let i = 0; i < this._protocols.length; i++) {
       if (this._protocols[i].factory == factory) {
-        NotificationTracker.remove(["about-protocol", this._protocols[i].contractID, addon]);
+        NotificationTracker.remove(["about-protocol", this._protocols[i].contractID]);
         this._protocols.splice(i, 1);
         break;
       }
@@ -240,8 +240,12 @@ let AboutProtocolParent = {
     let module = Cc[contractID].getService(Ci.nsIAboutModule);
     try {
       let channel = module.newChannel(uri, null);
-      channel.notificationCallbacks = null;
-      channel.loadGroup = null;
+      channel.notificationCallbacks = msg.objects.notificationCallbacks;
+      if (msg.objects.loadGroupNotificationCallbacks) {
+        channel.loadGroup = {notificationCallbacks: msg.objects.loadGroupNotificationCallbacks};
+      } else {
+        channel.loadGroup = null;
+      }
       let stream = channel.open();
       let data = NetUtil.readInputStreamToString(stream, stream.available(), {});
       return {
@@ -260,7 +264,7 @@ let ComponentRegistrarInterposition = new Interposition("ComponentRegistrarInter
 ComponentRegistrarInterposition.methods.registerFactory =
   function(addon, target, class_, className, contractID, factory) {
     if (contractID && contractID.startsWith("@mozilla.org/network/protocol/about;1?")) {
-      AboutProtocolParent.registerFactory(addon, class_, className, contractID, factory);
+      AboutProtocolParent.registerFactory(class_, className, contractID, factory);
     }
 
     target.registerFactory(class_, className, contractID, factory);
@@ -268,7 +272,7 @@ ComponentRegistrarInterposition.methods.registerFactory =
 
 ComponentRegistrarInterposition.methods.unregisterFactory =
   function(addon, target, class_, factory) {
-    AboutProtocolParent.unregisterFactory(addon, class_, factory);
+    AboutProtocolParent.unregisterFactory(class_, factory);
     target.unregisterFactory(class_, factory);
   };
 
@@ -288,14 +292,14 @@ let ObserverParent = {
     ppmm.addMessageListener("Addons:Observer:Run", this);
   },
 
-  addObserver: function(addon, observer, topic, ownsWeak) {
+  addObserver: function(observer, topic, ownsWeak) {
     Services.obs.addObserver(observer, "e10s-" + topic, ownsWeak);
-    NotificationTracker.add(["observer", topic, addon]);
+    NotificationTracker.add(["observer", topic]);
   },
 
-  removeObserver: function(addon, observer, topic) {
+  removeObserver: function(observer, topic) {
     Services.obs.removeObserver(observer, "e10s-" + topic);
-    NotificationTracker.remove(["observer", topic, addon]);
+    NotificationTracker.remove(["observer", topic]);
   },
 
   receiveMessage: function(msg) {
@@ -331,7 +335,7 @@ let ObserverInterposition = new Interposition("ObserverInterposition");
 ObserverInterposition.methods.addObserver =
   function(addon, target, observer, topic, ownsWeak) {
     if (TOPIC_WHITELIST.indexOf(topic) >= 0) {
-      ObserverParent.addObserver(addon, observer, topic);
+      ObserverParent.addObserver(observer, topic);
     }
 
     target.addObserver(observer, topic, ownsWeak);
@@ -340,7 +344,7 @@ ObserverInterposition.methods.addObserver =
 ObserverInterposition.methods.removeObserver =
   function(addon, target, observer, topic) {
     if (TOPIC_WHITELIST.indexOf(topic) >= 0) {
-      ObserverParent.removeObserver(addon, observer, topic);
+      ObserverParent.removeObserver(observer, topic);
     }
 
     target.removeObserver(observer, topic);
@@ -400,7 +404,7 @@ let EventTargetParent = {
     return [browser, window];
   },
 
-  addEventListener: function(addon, target, type, listener, useCapture, wantsUntrusted) {
+  addEventListener: function(target, type, listener, useCapture, wantsUntrusted) {
     let newTarget = this.redirectEventTarget(target);
     if (!newTarget) {
       return;
@@ -409,7 +413,7 @@ let EventTargetParent = {
     useCapture = useCapture || false;
     wantsUntrusted = wantsUntrusted || false;
 
-    NotificationTracker.add(["event", type, useCapture, addon]);
+    NotificationTracker.add(["event", type, useCapture]);
 
     let listeners = this._listeners.get(newTarget);
     if (!listeners) {
@@ -421,20 +425,16 @@ let EventTargetParent = {
     // If there's already an identical listener, don't do anything.
     for (let i = 0; i < forType.length; i++) {
       if (forType[i].listener === listener &&
-          forType[i].target === target &&
           forType[i].useCapture === useCapture &&
           forType[i].wantsUntrusted === wantsUntrusted) {
         return;
       }
     }
 
-    forType.push({listener: listener,
-                  target: target,
-                  wantsUntrusted: wantsUntrusted,
-                  useCapture: useCapture});
+    forType.push({listener: listener, wantsUntrusted: wantsUntrusted, useCapture: useCapture});
   },
 
-  removeEventListener: function(addon, target, type, listener, useCapture) {
+  removeEventListener: function(target, type, listener, useCapture) {
     let newTarget = this.redirectEventTarget(target);
     if (!newTarget) {
       return;
@@ -449,11 +449,9 @@ let EventTargetParent = {
     let forType = setDefault(listeners, type, []);
 
     for (let i = 0; i < forType.length; i++) {
-      if (forType[i].listener === listener &&
-          forType[i].target === target &&
-          forType[i].useCapture === useCapture) {
+      if (forType[i].listener === listener && forType[i].useCapture === useCapture) {
         forType.splice(i, 1);
-        NotificationTracker.remove(["event", type, useCapture, addon]);
+        NotificationTracker.remove(["event", type, useCapture]);
         break;
       }
     }
@@ -479,29 +477,18 @@ let EventTargetParent = {
 
       // Make a copy in case they call removeEventListener in the listener.
       let handlers = [];
-      for (let {listener, target, wantsUntrusted, useCapture} of forType) {
+      for (let {listener, wantsUntrusted, useCapture} of forType) {
         if ((wantsUntrusted || isTrusted) && useCapture == capturing) {
-          handlers.push([listener, target]);
+          handlers.push(listener);
         }
       }
 
-      for (let [handler, target] of handlers) {
-        let EventProxy = {
-          get: function(actualEvent, name) {
-            if (name == "currentTarget") {
-              return target;
-            } else {
-              return actualEvent[name];
-            }
-          }
-        };
-        let proxyEvent = new Proxy(event, EventProxy);
-
+      for (let handler of handlers) {
         try {
           if ("handleEvent" in handler) {
-            handler.handleEvent(proxyEvent);
+            handler.handleEvent(event);
           } else {
-            handler.call(event.target, proxyEvent);
+            handler.call(event.target, event);
           }
         } catch (e) {
           Cu.reportError(e);
@@ -554,13 +541,13 @@ let EventTargetInterposition = new Interposition("EventTargetInterposition");
 
 EventTargetInterposition.methods.addEventListener =
   function(addon, target, type, listener, useCapture, wantsUntrusted) {
-    EventTargetParent.addEventListener(addon, target, type, listener, useCapture, wantsUntrusted);
+    EventTargetParent.addEventListener(target, type, listener, useCapture, wantsUntrusted);
     target.addEventListener(type, makeFilteringListener(type, listener), useCapture, wantsUntrusted);
   };
 
 EventTargetInterposition.methods.removeEventListener =
   function(addon, target, type, listener, useCapture) {
-    EventTargetParent.removeEventListener(addon, target, type, listener, useCapture);
+    EventTargetParent.removeEventListener(target, type, listener, useCapture);
     target.removeEventListener(type, makeFilteringListener(type, listener), useCapture);
   };
 

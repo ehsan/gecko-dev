@@ -470,17 +470,5 @@ ClientTiledPaintedLayer::RenderLayer()
   EndPaint();
 }
 
-void
-ClientTiledPaintedLayer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
-{
-  PaintedLayer::PrintInfo(aStream, aPrefix);
-  if (mContentClient) {
-    aStream << "\n";
-    nsAutoCString pfx(aPrefix);
-    pfx += "  ";
-    mContentClient->PrintInfo(aStream, pfx.get());
-  }
-}
-
 } // mozilla
 } // layers

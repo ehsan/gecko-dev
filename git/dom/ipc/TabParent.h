@@ -461,18 +461,6 @@ private:
     nsCOMPtr<nsILoadContext> mLoadContext;
 
     TabId mTabId;
-
-private:
-    // This is used when APZ needs to find the TabParent associated with a layer
-    // to dispatch events.
-    typedef nsDataHashtable<nsUint64HashKey, TabParent*> LayerToTabParentTable;
-    static LayerToTabParentTable* sLayerToTabParentTable;
-
-    static void AddTabParentToTable(uint64_t aLayersId, TabParent* aTabParent);
-    static void RemoveTabParentFromTable(uint64_t aLayersId);
-
-public:
-    static TabParent* GetTabParentFromLayersId(uint64_t aLayersId);
 };
 
 } // namespace dom

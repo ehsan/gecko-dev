@@ -492,8 +492,8 @@ class CompileInfo
         if (!funMaybeLazy())
             return true;
 
-        // The |this| and the |scopeChain| values can be recovered.
-        if (slot == thisSlot() || slot == scopeChainSlot())
+        // The |this| can be recovered.
+        if (slot == thisSlot())
             return true;
 
         if (isObservableFrameSlot(slot))
