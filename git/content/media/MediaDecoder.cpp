@@ -1569,9 +1569,9 @@ int64_t MediaDecoder::VideoQueueMemoryInUse() {
   return 0;
 }
 
-size_t MediaDecoder::SizeOfAudioQueue() {
+int64_t MediaDecoder::AudioQueueMemoryInUse() {
   if (mDecoderStateMachine) {
-    return mDecoderStateMachine->SizeOfAudioQueue();
+    return mDecoderStateMachine->AudioQueueMemoryInUse();
   }
   return 0;
 }
@@ -1826,7 +1826,7 @@ MediaMemoryTracker::CollectReports(nsIHandleReportCallback* aHandleReport,
   DecodersArray& decoders = Decoders();
   for (size_t i = 0; i < decoders.Length(); ++i) {
     video += decoders[i]->VideoQueueMemoryInUse();
-    audio += decoders[i]->SizeOfAudioQueue();
+    audio += decoders[i]->AudioQueueMemoryInUse();
   }
 
 #define REPORT(_path, _amount, _desc)                                         \

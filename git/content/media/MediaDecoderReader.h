@@ -13,7 +13,6 @@
 #include "AudioSampleFormat.h"
 #include "AbstractMediaDecoder.h"
 #include "ImageTypes.h"
-#include "nsIMemoryReporter.h"
 
 struct nsIntRect;
 
@@ -153,14 +152,6 @@ public:
   ~AudioData()
   {
     MOZ_COUNT_DTOR(AudioData);
-  }
-
-  size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const {
-    size_t size = aMallocSizeOf(this) + aMallocSizeOf(mAudioData);
-    if (mAudioBuffer) {
-      size += mAudioBuffer->SizeOfIncludingThis(aMallocSizeOf);
-    }
-    return size;
   }
 
   // If mAudioBuffer is null, creates it from mAudioData.
@@ -591,23 +582,21 @@ public:
 
   class AudioQueueMemoryFunctor : public nsDequeFunctor {
   public:
-    AudioQueueMemoryFunctor() : mSize(0) {}
-
-    MOZ_DEFINE_MALLOC_SIZE_OF(MallocSizeOf);
+    AudioQueueMemoryFunctor() : mResult(0) {}
 
     virtual void* operator()(void* anObject) {
       const AudioData* audioData = static_cast<const AudioData*>(anObject);
-      mSize += audioData->SizeOfIncludingThis(MallocSizeOf);
+      mResult += audioData->mFrames * audioData->mChannels * sizeof(AudioDataValue);
       return nullptr;
     }
 
-    size_t mSize;
+    int64_t mResult;
   };
 
-  size_t SizeOfAudioQueue() {
+  virtual int64_t AudioQueueMemoryInUse() {
     AudioQueueMemoryFunctor functor;
     mAudioQueue.LockedForEach(functor);
-    return functor.mSize;
+    return functor.mResult;
   }
 
   // Only used by WebMReader and MediaOmxReader for now, so stub here rather

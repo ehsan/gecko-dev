@@ -43,10 +43,6 @@ public:
     return p.forget();
   }
 
-  size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const {
-    return aMallocSizeOf(this);
-  }
-
 private:
   SharedBuffer() {}
 };
