@@ -10,11 +10,9 @@
 #include "gfxContext.h"
 #include "nsGkAtoms.h"
 #include "nsRenderingContext.h"
-#include "mozilla/dom/SVGClipPathElement.h"
+#include "nsSVGClipPathElement.h"
 #include "nsSVGEffects.h"
 #include "nsSVGUtils.h"
-
-using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
 // Implementation
@@ -315,13 +313,13 @@ nsSVGClipPathFrame::GetType() const
 gfxMatrix
 nsSVGClipPathFrame::GetCanvasTM(uint32_t aFor)
 {
-  SVGClipPathElement *content = static_cast<SVGClipPathElement*>(mContent);
+  nsSVGClipPathElement *content = static_cast<nsSVGClipPathElement*>(mContent);
 
   gfxMatrix tm =
     content->PrependLocalTransformsTo(mClipParentMatrix ?
                                       *mClipParentMatrix : gfxMatrix());
 
   return nsSVGUtils::AdjustMatrixForUnits(tm,
-                                          &content->mEnumAttributes[SVGClipPathElement::CLIPPATHUNITS],
+                                          &content->mEnumAttributes[nsSVGClipPathElement::CLIPPATHUNITS],
                                           mClipParent);
 }

@@ -708,7 +708,7 @@ exn_toSource(JSContext *cx, unsigned argc, Value *vp)
     RootedValue messageVal(cx);
     RootedString message(cx);
     if (!JSObject::getProperty(cx, obj, obj, cx->names().message, &messageVal) ||
-        !(message = ValueToSource(cx, messageVal)))
+        !(message = js_ValueToSource(cx, messageVal)))
     {
         return false;
     }
@@ -716,7 +716,7 @@ exn_toSource(JSContext *cx, unsigned argc, Value *vp)
     RootedValue filenameVal(cx);
     RootedString filename(cx);
     if (!JSObject::getProperty(cx, obj, obj, cx->names().fileName, &filenameVal) ||
-        !(filename = ValueToSource(cx, filenameVal)))
+        !(filename = js_ValueToSource(cx, filenameVal)))
     {
         return false;
     }
@@ -1147,7 +1147,7 @@ js_CopyErrorObject(JSContext *cx, HandleObject errobj, HandleObject scope)
     size_t size = offsetof(JSExnPrivate, stackElems) +
                   priv->stackDepth * sizeof(JSStackTraceElem);
 
-    ScopedJSFreePtr<JSExnPrivate> copy(static_cast<JSExnPrivate *>(cx->malloc_(size)));
+    js::ScopedFreePtr<JSExnPrivate> copy(static_cast<JSExnPrivate *>(cx->malloc_(size)));
     if (!copy)
         return NULL;
 
@@ -1158,7 +1158,7 @@ js_CopyErrorObject(JSContext *cx, HandleObject errobj, HandleObject scope)
     } else {
         copy->errorReport = NULL;
     }
-    ScopedJSFreePtr<JSErrorReport> autoFreeErrorReport(copy->errorReport);
+    js::ScopedFreePtr<JSErrorReport> autoFreeErrorReport(copy->errorReport);
 
     copy->message.init(priv->message);
     if (!cx->compartment->wrap(cx, &copy->message))

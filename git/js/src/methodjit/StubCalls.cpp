@@ -586,13 +586,14 @@ stubs::Add(VMFrame &f)
 {
     JSContext *cx = f.cx;
     FrameRegs &regs = f.regs;
-    Value &rval = regs.sp[-1];
-    Value &lval = regs.sp[-2];
+    RootedValue rval_(cx, regs.sp[-1]);
+    RootedValue lval_(cx, regs.sp[-2]);
+    Value &rval = rval_.get(), &lval = lval_.get();
 
     /* The string + string case is easily the hottest;  try it first. */
     bool lIsString = lval.isString();
     bool rIsString = rval.isString();
-    JSString *lstr, *rstr;
+    RootedString lstr(cx), rstr(cx);
     if (lIsString && rIsString) {
         lstr = lval.toString();
         rstr = rval.toString();
@@ -623,16 +624,15 @@ stubs::Add(VMFrame &f)
                 lstr = ToString(cx, lval);
                 if (!lstr)
                     THROW();
+                regs.sp[-2].setString(lstr);
             }
             if (rIsString) {
                 rstr = rval.toString();
             } else {
-                // Save/restore lstr in case of GC activity under ToString.
-                regs.sp[-2].setString(lstr);
                 rstr = ToString(cx, rval);
                 if (!rstr)
                     THROW();
-                lstr = regs.sp[-2].toString();
+                regs.sp[-1].setString(rstr);
             }
             if (lIsObject || rIsObject) {
                 RootedScript fscript(cx, f.script());
@@ -645,25 +645,19 @@ stubs::Add(VMFrame &f)
             if (!ToNumber(cx, lval, &l) || !ToNumber(cx, rval, &r))
                 THROW();
             l += r;
-            Value nres = NumberValue(l);
-            if (nres.isDouble() &&
+            if (!regs.sp[-2].setNumber(l) &&
                 (lIsObject || rIsObject || (!lval.isDouble() && !rval.isDouble()))) {
                 RootedScript fscript(cx, f.script());
                 TypeScript::MonitorOverflow(cx, fscript, f.pc());
             }
-            regs.sp[-2] = nres;
         }
     }
     return;
 
   string_concat:
-    JSString *str = ConcatStringsNoGC(cx, lstr, rstr);
-    if (!str) {
-        RootedString nlstr(cx, lstr), nrstr(cx, rstr);
-        str = js_ConcatStrings(cx, nlstr, nrstr);
-        if (!str)
-            THROW();
-    }
+    JSString *str = js_ConcatStrings(cx, lstr, rstr);
+    if (!str)
+        THROW();
     regs.sp[-2].setString(str);
     regs.sp--;
 }
@@ -1522,7 +1516,7 @@ stubs::TypeBarrierHelper(VMFrame &f, uint32_t which)
      */
     RootedScript fscript(f.cx, f.script());
     if (fscript->hasAnalysis() && fscript->analysis()->ranInference()) {
-        AutoEnterAnalysis enter(f.cx);
+        AutoEnterTypeInference enter(f.cx);
         fscript->analysis()->breakTypeBarriers(f.cx, f.pc() - fscript->code, false);
     }
 
@@ -1536,7 +1530,7 @@ stubs::StubTypeHelper(VMFrame &f, int32_t which)
 
     RootedScript fscript(f.cx, f.script());
     if (fscript->hasAnalysis() && fscript->analysis()->ranInference()) {
-        AutoEnterAnalysis enter(f.cx);
+        AutoEnterTypeInference enter(f.cx);
         fscript->analysis()->breakTypeBarriers(f.cx, f.pc() - fscript->code, false);
     }
 
@@ -1572,7 +1566,7 @@ stubs::CheckArgumentTypes(VMFrame &f)
 
     {
         /* Postpone recompilations until all args have been updated. */
-        types::AutoEnterAnalysis enter(f.cx);
+        types::AutoEnterTypeInference enter(f.cx);
 
         if (!f.fp()->isConstructing())
             TypeScript::SetThis(f.cx, fscript, fp->thisValue());

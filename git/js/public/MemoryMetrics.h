@@ -120,7 +120,22 @@ struct HugeStringInfo
 // compartments within it.
 struct RuntimeSizes
 {
-    RuntimeSizes() { memset(this, 0, sizeof(RuntimeSizes)); }
+    RuntimeSizes()
+      : object(0)
+      , atomsTable(0)
+      , contexts(0)
+      , dtoa(0)
+      , temporary(0)
+      , jaegerCode(0)
+      , ionCode(0)
+      , regexpCode(0)
+      , unusedCode(0)
+      , stack(0)
+      , gcMarker(0)
+      , mathCache(0)
+      , scriptFilenames(0)
+      , scriptSources(0)
+    {}
 
     size_t object;
     size_t atomsTable;
@@ -131,7 +146,6 @@ struct RuntimeSizes
     size_t ionCode;
     size_t regexpCode;
     size_t unusedCode;
-    size_t regexpData;
     size_t stack;
     size_t gcMarker;
     size_t mathCache;

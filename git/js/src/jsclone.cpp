@@ -121,7 +121,7 @@ SwapBytes(uint64_t u)
 }
 
 bool
-js::WriteStructuredClone(JSContext *cx, HandleValue v, uint64_t **bufp, size_t *nbytesp,
+js::WriteStructuredClone(JSContext *cx, const Value &v, uint64_t **bufp, size_t *nbytesp,
                          const JSStructuredCloneCallbacks *cb, void *cbClosure,
                          jsval transferable)
 {
@@ -466,7 +466,7 @@ JSStructuredCloneWriter::parseTransferable()
         return false;
     }
 
-    RootedObject array(context(), &transferable.toObject());
+    JSObject* array = &transferable.toObject();
     if (!JS_IsArrayObject(context(), array)) {
         reportErrorTransferable();
         return false;
@@ -477,10 +477,9 @@ JSStructuredCloneWriter::parseTransferable()
         return false;
     }
 
-    RootedValue v(context());
-
     for (uint32_t i = 0; i < length; ++i) {
-        if (!JS_GetElement(context(), array, i, v.address())) {
+        Value v;
+        if (!JS_GetElement(context(), array, i, &v)) {
             return false;
         }
 

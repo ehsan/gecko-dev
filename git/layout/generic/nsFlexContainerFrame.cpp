@@ -2211,8 +2211,9 @@ nsFlexContainerFrame::Reflow(nsPresContext*           aPresContext,
 
       // XXXdholbert Might need to actually set the correct margins in the
       // reflow state at some point, so that they can be saved on the frame for
-      // UsedMarginProperty().  Maybe doesn't matter though...?
+      // UsedMarginPropeorty().  Maybe doesn't matter though...?
 
+      // XXXdholbert Assuming horizontal
       nscoord mainPosn = curItem.GetMainPosition();
       nscoord crossPosn = curItem.GetCrossPosition();
       if (!AxisGrowsInPositiveDirection(axisTracker.GetMainAxis())) {

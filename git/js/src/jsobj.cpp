@@ -46,7 +46,6 @@
 #include "jsxml.h"
 
 #include "builtin/MapObject.h"
-#include "builtin/Module.h"
 #include "builtin/ParallelArray.h"
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/Parser.h"
@@ -1892,8 +1891,8 @@ JSObject::TradeGuts(JSContext *cx, JSObject *a, JSObject *b, TradeGutsReserved &
          */
         JSCompartment *comp = cx->compartment;
         for (size_t i = 0; i < a->numFixedSlots(); ++i) {
-            HeapSlot::writeBarrierPost(comp, a, HeapSlot::Slot, i);
-            HeapSlot::writeBarrierPost(comp, b, HeapSlot::Slot, i);
+            HeapSlot::writeBarrierPost(comp, a, i);
+            HeapSlot::writeBarrierPost(comp, b, i);
         }
 #endif
     } else {
@@ -2349,7 +2348,7 @@ JSObject::growSlots(JSContext *cx, HandleObject obj, uint32_t oldCount, uint32_t
         gc::AllocKind kind = obj->type()->newScript->allocKind;
         unsigned newScriptSlots = gc::GetGCKindSlots(kind);
         if (newScriptSlots == obj->numFixedSlots() && gc::TryIncrementAllocKind(&kind)) {
-            AutoEnterAnalysis enter(cx);
+            AutoEnterTypeInference enter(cx);
 
             Rooted<TypeObject*> typeObj(cx, obj->type());
             RootedShape shape(cx, typeObj->newScript->shape);

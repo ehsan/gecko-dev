@@ -888,7 +888,7 @@ nsTSubstring_CharT::SizeOfExcludingThisMustBeUnshared(
   if (mFlags & F_SHARED) {
     return nsStringBuffer::FromData(mData)->
              SizeOfIncludingThisMustBeUnshared(mallocSizeOf);
-  }
+  } 
   if (mFlags & F_OWNED) {
     return mallocSizeOf(mData);
   }
@@ -921,22 +921,6 @@ nsTSubstring_CharT::SizeOfExcludingThisIfUnshared(
 }
 
 size_t
-nsTSubstring_CharT::SizeOfExcludingThisEvenIfShared(
-    nsMallocSizeOfFun mallocSizeOf) const
-{
-  // This is identical to SizeOfExcludingThisMustBeUnshared except for the
-  // F_SHARED case.
-  if (mFlags & F_SHARED) {
-    return nsStringBuffer::FromData(mData)->
-             SizeOfIncludingThisEvenIfShared(mallocSizeOf);
-  }
-  if (mFlags & F_OWNED) {
-    return mallocSizeOf(mData);
-  }
-  return 0;
-}
-
-size_t
 nsTSubstring_CharT::SizeOfIncludingThisMustBeUnshared(
     nsMallocSizeOfFun mallocSizeOf) const
 {
@@ -948,12 +932,5 @@ nsTSubstring_CharT::SizeOfIncludingThisIfUnshared(
     nsMallocSizeOfFun mallocSizeOf) const
 {
   return mallocSizeOf(this) + SizeOfExcludingThisIfUnshared(mallocSizeOf);
-}
-
-size_t
-nsTSubstring_CharT::SizeOfIncludingThisEvenIfShared(
-    nsMallocSizeOfFun mallocSizeOf) const
-{
-  return mallocSizeOf(this) + SizeOfExcludingThisEvenIfShared(mallocSizeOf);
 }
 

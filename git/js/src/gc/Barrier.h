@@ -499,7 +499,7 @@ class HeapSlot : public EncapsulatedValue
  * single step.
  */
 inline void
-DenseRangeWriteBarrierPost(JSCompartment *comp, JSObject *obj, uint32_t start, uint32_t count);
+SlotRangeWriteBarrierPost(JSCompartment *comp, JSObject *obj, uint32_t start, uint32_t count);
 
 /*
  * This is a post barrier for HashTables whose key can be moved during a GC.

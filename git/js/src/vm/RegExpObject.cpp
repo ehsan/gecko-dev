@@ -599,7 +599,6 @@ RegExpShared::executeMatchOnly(JSContext *cx, StableCharPtr chars, size_t length
         start = 0;
     }
 
-#ifndef _WIN64 /* Temporary stopgap: see Bug 831884 */
 #if ENABLE_YARR_JIT
     if (!codeBlock.isFallBack()) {
         MatchResult result = codeBlock.execute(chars.get(), start, length);
@@ -612,7 +611,6 @@ RegExpShared::executeMatchOnly(JSContext *cx, StableCharPtr chars, size_t length
         return RegExpRunStatus_Success;
     }
 #endif
-#endif /* _WIN64 */
 
     /*
      * The JIT could not be used, so fall back to the Yarr interpreter.
@@ -652,7 +650,8 @@ RegExpCompartment::~RegExpCompartment()
      * RegExpStatics may have prevented a single RegExpShared from
      * being collected during RegExpCompartment::sweep().
      */
-    for (PendingSet::Enum e(inUse_); !e.empty(); e.popFront()) {
+    if (!inUse_.empty()) {
+        PendingSet::Enum e(inUse_);
         RegExpShared *shared = e.front();
         JS_ASSERT(shared->activeUseCount == 0);
         js_delete(shared);
@@ -703,7 +702,7 @@ RegExpCompartment::get(JSContext *cx, JSAtom *source, RegExpFlag flags, RegExpGu
         return true;
     }
 
-    ScopedJSDeletePtr<RegExpShared> shared(cx->new_<RegExpShared>(cx->runtime, source, flags));
+    ScopedDeletePtr<RegExpShared> shared(cx->new_<RegExpShared>(cx->runtime, source, flags));
     if (!shared)
         return false;
 

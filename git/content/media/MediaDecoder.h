@@ -326,6 +326,11 @@ public:
   // called.
   virtual nsresult Play();
 
+  // Called by the element when the playback rate has been changed.
+  // Adjust the speed of the playback, optionally with pitch correction,
+  // when this is called.
+  virtual nsresult PlaybackRateChanged();
+
   // Pause video playback.
   virtual void Pause();
   // Adjust the speed of the playback, optionally with pitch correction,

@@ -134,8 +134,6 @@ JSRuntime::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, RuntimeSizes *rtS
         rtSizes->unusedCode = 0;
     }
 
-    rtSizes->regexpData = bumpAlloc_ ? bumpAlloc_->sizeOfNonHeapData() : 0;
-
     rtSizes->stack = stackSpace.sizeOf();
 
     rtSizes->gcMarker = gcMarker.sizeOfExcludingThis(mallocSizeOf);
@@ -150,18 +148,15 @@ JSRuntime::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, RuntimeSizes *rtS
 size_t
 JSRuntime::sizeOfExplicitNonHeap()
 {
-    size_t n = stackSpace.sizeOf();
+    size_t size = stackSpace.sizeOf();
 
     if (execAlloc_) {
         size_t jaegerCode, ionCode, regexpCode, unusedCode;
         execAlloc_->sizeOfCode(&jaegerCode, &ionCode, &regexpCode, &unusedCode);
-        n += jaegerCode + ionCode + regexpCode + unusedCode;
+        size += jaegerCode + ionCode + regexpCode + unusedCode;
     }
 
-    if (bumpAlloc_)
-        n += bumpAlloc_->sizeOfNonHeapData();
-
-    return n;
+    return size;
 }
 
 void
@@ -642,8 +637,8 @@ js::ReportUsageError(JSContext *cx, HandleObject callee, const char *msg)
     JS_ASSERT(!shape->writable());
     JS_ASSERT(shape->hasDefaultGetter());
 
-    RootedValue usage(cx);
-    if (!JS_LookupProperty(cx, callee, "usage", usage.address()))
+    jsval usage;
+    if (!JS_LookupProperty(cx, callee, "usage", &usage))
         return;
 
     if (JSVAL_IS_VOID(usage)) {
@@ -1086,7 +1081,7 @@ js_ReportValueErrorFlags(JSContext *cx, unsigned flags, const unsigned errorNumb
     return ok;
 }
 
-const JSErrorFormatString js_ErrorFormatString[JSErr_Limit] = {
+JSErrorFormatString js_ErrorFormatString[JSErr_Limit] = {
 #define MSG_DEF(name, number, count, exception, format) \
     { format, count, exception } ,
 #include "js.msg"

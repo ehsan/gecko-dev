@@ -539,7 +539,7 @@ mjit::Compiler::performCompilation()
     outerScript->debugMode = debugMode();
 #endif
 
-    JS_ASSERT(cx->compartment->activeAnalysis);
+    JS_ASSERT(cx->compartment->activeInference);
 
     {
         types::AutoEnterCompilation enter(cx, types::CompilerOutput::MethodJIT);
@@ -1091,7 +1091,7 @@ mjit::CanMethodJIT(JSContext *cx, HandleScript script, jsbytecode *pc,
 
     CompileStatus status;
     {
-        types::AutoEnterAnalysis enter(cx);
+        types::AutoEnterTypeInference enter(cx, true);
 
         Compiler cc(cx, script, chunkIndex, construct);
         status = cc.compile();

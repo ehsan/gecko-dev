@@ -748,8 +748,6 @@ DownloadElementShell.prototype = {
    * appropriately (_fetchTargetFileInfo() calls goUpdateDownloadCommands).
    */
   onSelect: function DES_onSelect() {
-    if (!this.active)
-      return;
     if (!this._targetFileInfoFetched)
       this._fetchTargetFileInfo();
   }
@@ -886,7 +884,7 @@ DownloadsPlacesView.prototype = {
   function DPV_addDownloadData(aDataItem, aPlacesNode, aNewest = false,
                                aDocumentFragment = null) {
     let downloadURI = aPlacesNode ? aPlacesNode.uri : aDataItem.uri;
-    let shellsForURI = this._downloadElementsShellsForURI.get(downloadURI);
+    let shellsForURI = this._downloadElementsShellsForURI.get(downloadURI, null);
     if (!shellsForURI) {
       shellsForURI = new Set();
       this._downloadElementsShellsForURI.set(downloadURI, shellsForURI);
@@ -998,7 +996,7 @@ DownloadsPlacesView.prototype = {
   _removeHistoryDownloadFromView:
   function DPV__removeHistoryDownloadFromView(aPlacesNode) {
     let downloadURI = aPlacesNode.uri;
-    let shellsForURI = this._downloadElementsShellsForURI.get(downloadURI);
+    let shellsForURI = this._downloadElementsShellsForURI.get(downloadURI, null);
     if (shellsForURI) {
       for (let shell of shellsForURI) {
         if (shell.dataItem) {
@@ -1016,7 +1014,7 @@ DownloadsPlacesView.prototype = {
 
   _removeSessionDownloadFromView:
   function DPV__removeSessionDownloadFromView(aDataItem) {
-    let shells = this._downloadElementsShellsForURI.get(aDataItem.uri);
+    let shells = this._downloadElementsShellsForURI.get(aDataItem.uri, null);
     if (shells.size == 0)
       throw new Error("Should have had at leaat one shell for this uri");
 
@@ -1171,14 +1169,9 @@ DownloadsPlacesView.prototype = {
     if (!aContainer.containerOpen)
       throw new Error("Root container for the downloads query cannot be closed");
 
-    let suppressOnSelect = this._richlistbox.suppressOnSelect;
-    this._richlistbox.suppressOnSelect = true;
-
     // Remove the invalidated history downloads from the list and unset the
     // places node for data downloads.
-    // Loop backwards since _removeHistoryDownloadFromView may removeChild().
-    for (let i = this._richlistbox.childNodes.length - 1; i >= 0; --i) {
-      let element = this._richlistbox.childNodes[i];
+    for (let element of this._richlistbox.childNodes) {
       if (element._shell.placesNode)
         this._removeHistoryDownloadFromView(element._shell.placesNode);
     }
@@ -1196,8 +1189,6 @@ DownloadsPlacesView.prototype = {
 
     this._appendDownloadsFragment(elementsToAppendFragment);
     this._ensureVisibleElementsAreActive();
-
-    this._richlistbox.suppressOnSelect = suppressOnSelect;
     goUpdateDownloadCommands();
   },
 

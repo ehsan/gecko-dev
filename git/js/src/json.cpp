@@ -340,8 +340,7 @@ PreprocessValue(JSContext *cx, HandleObject holder, KeyType key, MutableHandleVa
                 return false;
             vp.set(StringValue(str));
         } else if (ObjectClassIs(obj, ESClass_Boolean, cx)) {
-            RootedObject nobj(cx, &obj);
-            if (!BooleanGetPrimitiveValue(cx, nobj, vp.address()))
+            if (!BooleanGetPrimitiveValue(cx, obj, vp.address()))
                 return false;
             JS_ASSERT(vp.get().isBoolean());
         }

@@ -20,6 +20,7 @@
 #include "Composer2D.h"
 #include "HWComposer.h"
 #include "Layers.h"
+#include "nsIScreen.h"
 
 namespace mozilla {
 
@@ -47,11 +48,12 @@ public:
 
 private:
     bool ReallocLayerList();
-    bool PrepareLayerList(layers::Layer* aContainer, const nsIntRect& aClip,
-          const gfxMatrix& aParentTransform, const gfxMatrix& aGLWorldTransform);
+    bool PrepareLayerList(layers::Layer* aContainer, const nsIntRect& aClip);
+    int GetRotation();
 
     hwc_layer_list_t*       mList;
-    nsIntRect               mScreenRect;
+    nsCOMPtr<nsIScreen>     mScreen;
+    int                     mScreenWidth, mScreenHeight;
     int                     mMaxLayerCount;
     bool                    mColorFill;
 };

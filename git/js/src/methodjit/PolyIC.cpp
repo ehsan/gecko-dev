@@ -415,7 +415,7 @@ class SetPropCompiler : public PICStubCompiler
             return false;
 
         if (!type->unknownProperties()) {
-            types::AutoEnterAnalysis enter(cx);
+            types::AutoEnterTypeInference enter(cx);
             types::TypeSet *types = type->getProperty(cx, types::MakeTypeId(cx, id), true);
             if (!types)
                 return false;

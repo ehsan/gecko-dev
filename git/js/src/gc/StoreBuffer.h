@@ -9,13 +9,6 @@
 #ifndef jsgc_storebuffer_h___
 #define jsgc_storebuffer_h___
 
-#ifndef JSGC_USE_EXACT_ROOTING
-# error "Generational GC requires exact rooting."
-#endif
-#ifdef JSGC_HAS_XML_SUPPORT
-# error "E4X must be disabled to enable generational GC."
-#endif
-
 #include "jsgc.h"
 #include "jsalloc.h"
 
@@ -287,25 +280,22 @@ class StoreBuffer
 
         JSObject *object;
         uint32_t offset;
-        HeapSlot::Kind kind;
 
-        SlotEdge(JSObject *object, HeapSlot::Kind kind, uint32_t offset)
-          : object(object), offset(offset), kind(kind)
-        {}
+        SlotEdge(JSObject *object, uint32_t offset) : object(object), offset(offset) {}
 
         bool operator==(const SlotEdge &other) const {
-            return object == other.object && offset == other.offset && kind == other.kind;
+            return object == other.object && offset == other.offset;
         }
 
         bool operator!=(const SlotEdge &other) const {
-            return object != other.object || offset != other.offset || kind != other.kind;
+            return object != other.object || offset != other.offset;
         }
 
         HeapSlot *slotLocation() const {
-            if (kind == HeapSlot::Element) {
-                if (offset >= object->getDenseInitializedLength())
+            if (object->isDenseArray()) {
+                if (offset >= object->getDenseArrayInitializedLength())
                     return NULL;
-                return (HeapSlot *)&object->getDenseElement(offset);
+                return (HeapSlot *)&object->getDenseArrayElement(offset);
             }
             if (offset >= object->slotSpan())
                 return NULL;
@@ -371,8 +361,8 @@ class StoreBuffer
     void putCell(Cell **o) {
         bufferCell.put(o);
     }
-    void putSlot(JSObject *obj, HeapSlot::Kind kind, uint32_t slot) {
-        bufferSlot.put(SlotEdge(obj, kind, slot));
+    void putSlot(JSObject *obj, uint32_t slot) {
+        bufferSlot.put(SlotEdge(obj, slot));
     }
 
     /* Insert or update a single edge in the Relocatable buffer. */

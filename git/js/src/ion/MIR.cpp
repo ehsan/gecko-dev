@@ -837,12 +837,6 @@ MDiv::updateForReplacement(MDefinition *ins_)
     return true;
 }
 
-bool
-MDiv::fallible()
-{
-    return !isTruncated();
-}
-
 static inline MDefinition *
 TryFold(MDefinition *original, MDefinition *replacement)
 {
@@ -861,31 +855,6 @@ MMod::foldsTo(bool useValueNumbers)
         return folded;
 
     return this;
-}
-
-void
-MMod::analyzeTruncateBackward()
-{
-    if (!isTruncated())
-        setTruncated(js::ion::EdgeCaseAnalysis::AllUsesTruncate(this));
-}
-
-bool
-MMod::updateForReplacement(MDefinition *ins_)
-{
-    JS_ASSERT(ins_->isMod());
-    MMod *ins = ins_->toMod();
-    if (isTruncated() && ins->isTruncated())
-        setTruncated(Max(isTruncated(), ins->isTruncated()));
-    else
-        setTruncated(0);
-    return true;
-}
-
-bool
-MMod::fallible()
-{
-    return !isTruncated();
 }
 
 void

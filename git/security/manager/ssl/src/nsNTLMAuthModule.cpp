@@ -5,11 +5,19 @@
 
 #include "prlog.h"
 
-#include "nsNTLMAuthModule.h"
+#include <stdlib.h>
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
+#include "nsServiceManagerUtils.h"
+#include "nsCOMPtr.h"
 #include "nsNSSShutDown.h"
+#include "nsNTLMAuthModule.h"
 #include "nsNativeCharsetUtils.h"
+#include "nsReadableUtils.h"
+#include "nsString.h"
 #include "prsystem.h"
-#include "pk11pub.h"
+#include "nss.h"
+#include "pk11func.h"
 #include "md4.h"
 #include "mozilla/Likely.h"
 
@@ -97,12 +105,15 @@ static const char NTLM_TYPE3_MARKER[] = { 0x03, 0x00, 0x00, 0x00 };
 
 //-----------------------------------------------------------------------------
 
-static bool sendLM = false;
-
-/*static*/ void
-nsNTLMAuthModule::SetSendLM(bool newSendLM)
+static bool SendLM()
 {
-  sendLM = newSendLM;
+  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  if (!prefs)
+    return false;
+
+  bool val;
+  nsresult rv = prefs->GetBoolPref("network.ntlm.send-lm-response", &val);
+  return NS_SUCCEEDED(rv) && val;
 }
 
 //-----------------------------------------------------------------------------
@@ -680,7 +691,7 @@ GenerateType3Msg(const nsString &domain,
     NTLM_Hash(password, ntlmHash);
     LM_Response(ntlmHash, msg.challenge, ntlmResp);
 
-    if (sendLM)
+    if (SendLM())
     {
       uint8_t lmHash[LM_HASH_LEN];
       LM_Hash(password, lmHash);

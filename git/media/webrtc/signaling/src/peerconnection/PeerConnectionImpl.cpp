@@ -167,18 +167,13 @@ public:
 
       case REMOTESTREAMADD:
         {
-          nsDOMMediaStream* stream = nullptr;
+          nsDOMMediaStream* stream;
           uint32_t hint;
 
           if (!mRemoteStream) {
             CSFLogErrorS(logTag, __FUNCTION__ << " GetRemoteStream returned NULL");
           } else {
             stream = mRemoteStream->GetMediaStream();
-          }
-
-          if (!stream) {
-            CSFLogErrorS(logTag, __FUNCTION__ << " GetMediaStream returned NULL");
-          } else {
             hint = stream->GetHintContents();
             if (hint == nsDOMMediaStream::HINT_CONTENTS_AUDIO) {
               mObserver->OnAddStream(stream, "audio");
@@ -227,9 +222,7 @@ PeerConnectionImpl::PeerConnectionImpl()
   , mIdentity(NULL)
   , mSTSThread(NULL)
   , mMedia(new PeerConnectionMedia(this)) {
-#ifdef MOZILLA_INTERNAL_API
   MOZ_ASSERT(NS_IsMainThread());
-#endif
 }
 
 PeerConnectionImpl::~PeerConnectionImpl()
@@ -295,13 +288,10 @@ NS_IMETHODIMP
 PeerConnectionImpl::Initialize(IPeerConnectionObserver* aObserver,
                                nsIDOMWindow* aWindow,
                                nsIThread* aThread) {
-#ifdef MOZILLA_INTERNAL_API
   MOZ_ASSERT(NS_IsMainThread());
-#endif
   MOZ_ASSERT(aObserver);
   MOZ_ASSERT(aThread);
-
-  mPCObserver = do_GetWeakReference(aObserver);
+  mPCObserver = aObserver;
 
   nsresult res;
 
@@ -531,12 +521,8 @@ PeerConnectionImpl::NotifyConnection()
   CSFLogDebugS(logTag, __FUNCTION__);
 
 #ifdef MOZILLA_INTERNAL_API
-  nsCOMPtr<IPeerConnectionObserver> pco = do_QueryReferent(mPCObserver);
-  if (!pco) {
-    return;
-  }
   RUN_ON_THREAD(mThread,
-                WrapRunnable(pco,
+                WrapRunnable(mPCObserver,
                              &IPeerConnectionObserver::NotifyConnection),
                 NS_DISPATCH_NORMAL);
 #endif
@@ -550,13 +536,10 @@ PeerConnectionImpl::NotifyClosedConnection()
   CSFLogDebugS(logTag, __FUNCTION__);
 
 #ifdef MOZILLA_INTERNAL_API
-  nsCOMPtr<IPeerConnectionObserver> pco = do_QueryReferent(mPCObserver);
-  if (!pco) {
-    return;
-  }
   RUN_ON_THREAD(mThread,
-    WrapRunnable(pco, &IPeerConnectionObserver::NotifyClosedConnection),
-    NS_DISPATCH_NORMAL);
+                WrapRunnable(mPCObserver,
+                             &IPeerConnectionObserver::NotifyClosedConnection),
+                NS_DISPATCH_NORMAL);
 #endif
 }
 
@@ -582,20 +565,15 @@ PeerConnectionImpl::NotifyDataChannel(already_AddRefed<mozilla::DataChannel> aCh
   CSFLogDebugS(logTag, __FUNCTION__ << ": channel: " << static_cast<void*>(aChannel.get()));
 
 #ifdef MOZILLA_INTERNAL_API
-  nsCOMPtr<nsIDOMDataChannel> domchannel;
-  nsresult rv = NS_NewDOMDataChannel(aChannel, mWindow,
-                                     getter_AddRefs(domchannel));
+   nsCOMPtr<nsIDOMDataChannel> domchannel;
+   nsresult rv = NS_NewDOMDataChannel(aChannel, mWindow,
+                                      getter_AddRefs(domchannel));
   NS_ENSURE_SUCCESS_VOID(rv);
-
-  nsCOMPtr<IPeerConnectionObserver> pco = do_QueryReferent(mPCObserver);
-  if (!pco) {
-    return;
-  }
 
   RUN_ON_THREAD(mThread,
                 WrapRunnableNM(NotifyDataChannel_m,
                                domchannel.get(),
-                               pco),
+                               mPCObserver),
                 NS_DISPATCH_NORMAL);
 #endif
 }
@@ -615,62 +593,51 @@ nsresult
 PeerConnectionImpl::ConvertConstraints(
   const JS::Value& aConstraints, MediaConstraints* aObj, JSContext* aCx)
 {
+  size_t i;
   jsval mandatory, optional;
   JSObject& constraints = aConstraints.toObject();
 
-  // Mandatory constraints.  Note that we only care if the constraint array exists
-  if (!JS_GetProperty(aCx, &constraints, "mandatory", &mandatory)) {
-    return NS_ERROR_FAILURE;
-  }
-  if (!mandatory.isNullOrUndefined()) {
-    if (!mandatory.isObject()) {
-      return NS_ERROR_FAILURE;
-    }
+  // Mandatory constraints.
+  if (JS_GetProperty(aCx, &constraints, "mandatory", &mandatory)) {
+    if (mandatory.isObject()) {
+      JSObject* opts = JSVAL_TO_OBJECT(mandatory);
+      JS::AutoIdArray mandatoryOpts(aCx, JS_Enumerate(aCx, opts));
 
-    JSObject* opts = JSVAL_TO_OBJECT(mandatory);
-    JS::AutoIdArray mandatoryOpts(aCx, JS_Enumerate(aCx, opts));
-
-    // Iterate over each property.
-    for (size_t i = 0; i < mandatoryOpts.length(); i++) {
-      jsval option, optionName;
-      if (!JS_GetPropertyById(aCx, opts, mandatoryOpts[i], &option) ||
-          !JS_IdToValue(aCx, mandatoryOpts[i], &optionName) ||
-          // We only support boolean constraints for now.
-          !JSVAL_IS_BOOLEAN(option)) {
-        return NS_ERROR_FAILURE;
+      // Iterate over each property.
+      for (i = 0; i < mandatoryOpts.length(); i++) {
+        jsval option, optionName;
+        if (JS_GetPropertyById(aCx, opts, mandatoryOpts[i], &option)) {
+          if (JS_IdToValue(aCx, mandatoryOpts[i], &optionName)) {
+            // We only support boolean constraints for now.
+            if (JSVAL_IS_BOOLEAN(option)) {
+              JSString* optionNameString = JS_ValueToString(aCx, optionName);
+              NS_ConvertUTF16toUTF8 stringVal(JS_GetStringCharsZ(aCx, optionNameString));
+              aObj->setBooleanConstraint(stringVal.get(), JSVAL_TO_BOOLEAN(option), true);
+            }
+          }
+        }
       }
-      JSString* optionNameString = JS_ValueToString(aCx, optionName);
-      if (!optionNameString) {
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
-      NS_ConvertUTF16toUTF8 stringVal(JS_GetStringCharsZ(aCx, optionNameString));
-      aObj->setBooleanConstraint(stringVal.get(), JSVAL_TO_BOOLEAN(option), true);
     }
   }
 
   // Optional constraints.
-  if (!JS_GetProperty(aCx, &constraints, "optional", &optional)) {
-    return NS_ERROR_FAILURE;
-  }
-  if (!optional.isNullOrUndefined()) {
-    if (!optional.isObject()) {
-      return NS_ERROR_FAILURE;
-    }
-
-    JSObject* opts = JSVAL_TO_OBJECT(optional);
-    uint32_t length;
-    if (!JS_IsArrayObject(aCx, opts) ||
-        !JS_GetArrayLength(aCx, opts, &length)) {
-      return NS_ERROR_FAILURE;
-    }
-    for (size_t i = 0; i < length; i++) {
-      jsval val;
-      if (!JS_GetElement(aCx, opts, i, &val) ||
-          !val.isObject()) {
-        return NS_ERROR_FAILURE;
+  if (JS_GetProperty(aCx, &constraints, "optional", &optional)) {
+    if (optional.isObject()) {
+      JSObject* opts = JSVAL_TO_OBJECT(optional);
+      if (JS_IsArrayObject(aCx, opts)) {
+        uint32_t length;
+        if (!JS_GetArrayLength(aCx, opts, &length)) {
+          return NS_ERROR_FAILURE;
+        }
+        for (i = 0; i < length; i++) {
+          jsval val;
+          JS_GetElement(aCx, opts, i, &val);
+          if (val.isObject()) {
+            // Extract name & value and store.
+            // FIXME: MediaConstraints does not support optional constraints?
+          }
+        }
       }
-      // Extract name & value and store.
-      // FIXME: MediaConstraints does not support optional constraints?
     }
   }
 
@@ -1029,20 +996,16 @@ PeerConnectionImpl::onCallEvent(ccapi_call_event_e aCallEvent,
       break;
   }
 
-  nsCOMPtr<IPeerConnectionObserver> pco = do_QueryReferent(mPCObserver);
-  if (!pco) {
-    return;
-  }
+  if (mPCObserver) {
+    PeerConnectionObserverDispatch* runnable =
+        new PeerConnectionObserverDispatch(aInfo, this, mPCObserver);
 
-  PeerConnectionObserverDispatch* runnable =
-      new PeerConnectionObserverDispatch(aInfo, this, pco);
-
-  if (mThread) {
-    mThread->Dispatch(runnable, NS_DISPATCH_NORMAL);
-    return;
+    if (mThread) {
+      mThread->Dispatch(runnable, NS_DISPATCH_NORMAL);
+      return;
+    }
+    runnable->Run();
   }
-  runnable->Run();
-  delete runnable;
 }
 
 void
@@ -1053,11 +1016,7 @@ PeerConnectionImpl::ChangeReadyState(PeerConnectionImpl::ReadyState aReadyState)
 
   // Note that we are passing an nsRefPtr<IPeerConnectionObserver> which
   // keeps the observer live.
-  nsCOMPtr<IPeerConnectionObserver> pco = do_QueryReferent(mPCObserver);
-  if (!pco) {
-    return;
-  }
-  RUN_ON_THREAD(mThread, WrapRunnable(pco,
+  RUN_ON_THREAD(mThread, WrapRunnable(mPCObserver,
                                       &IPeerConnectionObserver::OnStateChange,
                                       // static_cast needed to work around old Android NDK r5c compiler
                                       static_cast<int>(IPeerConnectionObserver::kReadyState)),
@@ -1111,16 +1070,14 @@ PeerConnectionImpl::IceGatheringCompleted_m(NrIceCtx *aCtx)
   mIceState = kIceWaiting;
 
 #ifdef MOZILLA_INTERNAL_API
-  nsCOMPtr<IPeerConnectionObserver> pco = do_QueryReferent(mPCObserver);
-  if (!pco) {
-    return NS_OK;
+  if (mPCObserver) {
+    RUN_ON_THREAD(mThread,
+                  WrapRunnable(mPCObserver,
+                               &IPeerConnectionObserver::OnStateChange,
+                               // static_cast required to work around old C++ compiler on Android NDK r5c
+                               static_cast<int>(IPeerConnectionObserver::kIceState)),
+                  NS_DISPATCH_NORMAL);
   }
-  RUN_ON_THREAD(mThread,
-                WrapRunnable(pco,
-                             &IPeerConnectionObserver::OnStateChange,
-                             // static_cast required to work around old C++ compiler on Android NDK r5c
-                             static_cast<int>(IPeerConnectionObserver::kIceState)),
-                NS_DISPATCH_NORMAL);
 #endif
   return NS_OK;
 }
@@ -1148,16 +1105,14 @@ PeerConnectionImpl::IceCompleted_m(NrIceCtx *aCtx)
   mIceState = kIceConnected;
 
 #ifdef MOZILLA_INTERNAL_API
-  nsCOMPtr<IPeerConnectionObserver> pco = do_QueryReferent(mPCObserver);
-  if (!pco) {
-    return NS_OK;
+  if (mPCObserver) {
+    RUN_ON_THREAD(mThread,
+                  WrapRunnable(mPCObserver,
+                               &IPeerConnectionObserver::OnStateChange,
+                               // static_cast required to work around old C++ compiler on Android NDK r5c
+			       static_cast<int>(IPeerConnectionObserver::kIceState)),
+                  NS_DISPATCH_NORMAL);
   }
-  RUN_ON_THREAD(mThread,
-                WrapRunnable(pco,
-                             &IPeerConnectionObserver::OnStateChange,
-                             // static_cast required to work around old C++ compiler on Android NDK r5c
-                             static_cast<int>(IPeerConnectionObserver::kIceState)),
-                NS_DISPATCH_NORMAL);
 #endif
   return NS_OK;
 }

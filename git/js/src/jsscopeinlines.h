@@ -417,7 +417,7 @@ Shape::writeBarrierPre(UnrootedShape shape)
 }
 
 inline void
-Shape::writeBarrierPost(RawShape shape, void *addr)
+Shape::writeBarrierPost(UnrootedShape shape, void *addr)
 {
 }
 

@@ -511,28 +511,28 @@ private:
   {
     if (RefLayer* ref = aLayer->AsRefLayer()) {
       if (const LayerTreeState* state = GetIndirectShadowTree(ref->GetReferentId())) {
-        if (Layer* referent = state->mRoot) {
-          if (!ref->GetVisibleRegion().IsEmpty()) {
-            ScreenOrientation chromeOrientation = mTargetConfig.orientation();
-            ScreenOrientation contentOrientation = state->mTargetConfig.orientation();
-            if (!IsSameDimension(chromeOrientation, contentOrientation) &&
-                ContentMightReflowOnOrientationChange(mTargetConfig.clientBounds())) {
-              mReadyForCompose = false;
-            }
-          }
+        Layer* referent = state->mRoot;
 
-          if (OP == Resolve) {
-            ref->ConnectReferentLayer(referent);
-            if (AsyncPanZoomController* apzc = state->mController) {
-              referent->SetUserData(&sPanZoomUserDataKey,
-                                    new PanZoomUserData(apzc));
-            } else {
-              CompensateForContentScrollOffset(ref, referent);
-            }
-          } else {
-            ref->DetachReferentLayer(referent);
-            referent->RemoveUserData(&sPanZoomUserDataKey);
+        if (!ref->GetVisibleRegion().IsEmpty()) {
+          ScreenOrientation chromeOrientation = mTargetConfig.orientation();
+          ScreenOrientation contentOrientation = state->mTargetConfig.orientation();
+          if (!IsSameDimension(chromeOrientation, contentOrientation) &&
+              ContentMightReflowOnOrientationChange(mTargetConfig.clientBounds())) {
+            mReadyForCompose = false;
           }
+        }
+
+        if (OP == Resolve) {
+          ref->ConnectReferentLayer(referent);
+          if (AsyncPanZoomController* apzc = state->mController) {
+            referent->SetUserData(&sPanZoomUserDataKey,
+                                  new PanZoomUserData(apzc));
+          } else {
+            CompensateForContentScrollOffset(ref, referent);
+          }
+        } else {
+          ref->DetachReferentLayer(referent);
+          referent->RemoveUserData(&sPanZoomUserDataKey);
         }
       }
     }

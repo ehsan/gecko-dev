@@ -2015,7 +2015,7 @@ CrossScriptSSA::foldValue(const CrossSSAValue &cv)
 void
 ScriptAnalysis::printSSA(JSContext *cx)
 {
-    types::AutoEnterAnalysis enter(cx);
+    AutoEnterAnalysis enter(cx);
 
     printf("\n");
 

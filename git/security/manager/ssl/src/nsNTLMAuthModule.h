@@ -20,7 +20,6 @@ public:
 
   nsresult InitTest();
 
-  static void SetSendLM(bool sendLM);
 private:
   nsString mDomain;
   nsString mUsername;

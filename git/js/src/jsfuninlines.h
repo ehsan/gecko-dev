@@ -157,10 +157,10 @@ ClassMethodIsNative(JSContext *cx, HandleObject obj, Class *clasp, HandleId meth
     JS_ASSERT(!obj->isProxy());
     JS_ASSERT(obj->getClass() == clasp);
 
-    RootedValue v(cx);
-    if (!HasDataProperty(cx, obj, methodid, v.address())) {
+    Value v;
+    if (!HasDataProperty(cx, obj, methodid, &v)) {
         RootedObject proto(cx, obj->getProto());
-        if (!proto || proto->getClass() != clasp || !HasDataProperty(cx, proto, methodid, v.address()))
+        if (!proto || proto->getClass() != clasp || !HasDataProperty(cx, proto, methodid, &v))
             return false;
     }
 
