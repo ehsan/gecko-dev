@@ -1,4 +1,4 @@
-public static class WebApp@APPNUM@ extends Webapp {
+public static class WebApp@APPNUM@ extends WebApp {
     @Override
     protected int getIndex() { return @APPNUM@; }
 }

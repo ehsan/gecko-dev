@@ -42,8 +42,8 @@ import android.view.animation.AnimationUtils;
 import android.widget.ImageView;
 import android.widget.TextView;
 
-public class WebappImpl extends GeckoApp implements InstallCallback {
-    private static final String LOGTAG = "GeckoWebappImpl";
+public class WebAppImpl extends GeckoApp implements InstallCallback {
+    private static final String LOGTAG = "GeckoWebAppImpl";
 
     private URL mOrigin;
     private TextView mTitlebarText = null;
@@ -127,7 +127,7 @@ public class WebappImpl extends GeckoApp implements InstallCallback {
             }
             return;
         } else {
-            launchWebapp(origin, mApkResources.getManifestUrl(), mApkResources.getAppName());
+            launchWebApp(origin, mApkResources.getManifestUrl(), mApkResources.getAppName());
         }
 
         setTitle(mApkResources.getAppName());
@@ -290,9 +290,9 @@ public class WebappImpl extends GeckoApp implements InstallCallback {
             return;
         }
 
-        if (event.equals("Webapps:Postinstall")) {
+        if (event.equals("WebApps:PostInstall")) {
             String origin = message.optString("origin");
-            launchWebapp(origin, mApkResources.getManifestUrl(), mApkResources.getAppName());
+            launchWebApp(origin, mApkResources.getManifestUrl(), mApkResources.getAppName());
         }
     }
 
@@ -301,7 +301,7 @@ public class WebappImpl extends GeckoApp implements InstallCallback {
         Log.e(LOGTAG, "Install errored", exception);
     }
 
-    public void launchWebapp(String origin, String manifestUrl, String name) {
+    public void launchWebApp(String origin, String manifestUrl, String name) {
         try {
             mOrigin = new URL(origin);
         } catch (java.net.MalformedURLException ex) {

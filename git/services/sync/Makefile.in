@@ -20,7 +20,6 @@ sync_modules := \
   addonutils.js \
   browserid_identity.js \
   engines.js \
-  healthreport.jsm \
   identity.js \
   jpakeclient.js \
   keys.js \

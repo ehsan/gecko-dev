@@ -105,8 +105,8 @@ protected:
       return mImageClientTypeContainer;
     }
 
-    RefPtr<gfx::SourceSurface> surface;
-    AutoLockImage autoLock(mContainer, &surface);
+    nsRefPtr<gfxASurface> surface;
+    AutoLockImage autoLock(mContainer, getter_AddRefs(surface));
 
     mImageClientTypeContainer = autoLock.GetImage() ?
                                   BUFFER_IMAGE_SINGLE : BUFFER_UNKNOWN;

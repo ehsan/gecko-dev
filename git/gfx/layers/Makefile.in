@@ -13,6 +13,3 @@ CXXFLAGS += \
         $(NULL)
 
 CXXFLAGS += $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)
-
-PremultiplyTables.h: $(srcdir)/genTables.py
-	$(PYTHON) $(srcdir)/genTables.py

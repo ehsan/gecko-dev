@@ -168,7 +168,7 @@ if test -z "$BUILDING_JS" -o -n "$JS_STANDALONE"; then
     	    WINNT)
     		ICU_TARGET=MSYS/MSVC
     		;;
-            DragonFly|FreeBSD|NetBSD|OpenBSD|GNU_kFreeBSD)
+    	    *bsd*|dragonfly*)
     		ICU_TARGET=BSD
     		;;
     	esac

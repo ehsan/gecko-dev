@@ -617,9 +617,9 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
     case REQUEST_TO_COMMIT_COMPOSITION: {
       nsCOMPtr<nsIWidget> widget(aWidget);
       nsEventStatus status = nsEventStatus_eIgnore;
-      if (!composition->LastData().IsEmpty()) {
+      if (!composition->GetLastData().IsEmpty()) {
         WidgetTextEvent textEvent(true, NS_TEXT_TEXT, widget);
-        textEvent.theText = composition->LastData();
+        textEvent.theText = composition->GetLastData();
         textEvent.mFlags.mIsSynthesizedForTests = true;
         widget->DispatchEvent(&textEvent, status);
         if (widget->Destroyed()) {
@@ -629,7 +629,7 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
 
       status = nsEventStatus_eIgnore;
       WidgetCompositionEvent endEvent(true, NS_COMPOSITION_END, widget);
-      endEvent.data = composition->LastData();
+      endEvent.data = composition->GetLastData();
       endEvent.mFlags.mIsSynthesizedForTests = true;
       widget->DispatchEvent(&endEvent, status);
 
@@ -638,9 +638,9 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
     case REQUEST_TO_CANCEL_COMPOSITION: {
       nsCOMPtr<nsIWidget> widget(aWidget);
       nsEventStatus status = nsEventStatus_eIgnore;
-      if (!composition->LastData().IsEmpty()) {
+      if (!composition->GetLastData().IsEmpty()) {
         WidgetCompositionEvent updateEvent(true, NS_COMPOSITION_UPDATE, widget);
-        updateEvent.data = composition->LastData();
+        updateEvent.data = composition->GetLastData();
         updateEvent.mFlags.mIsSynthesizedForTests = true;
         widget->DispatchEvent(&updateEvent, status);
         if (widget->Destroyed()) {
@@ -649,7 +649,7 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
 
         status = nsEventStatus_eIgnore;
         WidgetTextEvent textEvent(true, NS_TEXT_TEXT, widget);
-        textEvent.theText = composition->LastData();
+        textEvent.theText = composition->GetLastData();
         textEvent.mFlags.mIsSynthesizedForTests = true;
         widget->DispatchEvent(&textEvent, status);
         if (widget->Destroyed()) {
@@ -659,7 +659,7 @@ nsIMEStateManager::NotifyIME(NotificationToIME aNotification,
 
       status = nsEventStatus_eIgnore;
       WidgetCompositionEvent endEvent(true, NS_COMPOSITION_END, widget);
-      endEvent.data = composition->LastData();
+      endEvent.data = composition->GetLastData();
       endEvent.mFlags.mIsSynthesizedForTests = true;
       widget->DispatchEvent(&endEvent, status);
 
@@ -1126,23 +1126,9 @@ nsIMEStateManager::GetFocusSelectionAndRoot(nsISelection** aSel,
   return NS_OK;
 }
 
-// static
-already_AddRefed<TextComposition>
+TextComposition*
 nsIMEStateManager::GetTextCompositionFor(nsIWidget* aWidget)
 {
-  if (!sTextCompositions) {
-    return nullptr;
-  }
-  nsRefPtr<TextComposition> textComposition =
-    sTextCompositions->GetCompositionFor(aWidget);
-  return textComposition.forget();
-}
-
-// static
-already_AddRefed<TextComposition>
-nsIMEStateManager::GetTextCompositionFor(WidgetGUIEvent* aEvent)
-{
-  MOZ_ASSERT(aEvent->AsCompositionEvent() || aEvent->AsTextEvent(),
-             "aEvent has to be WidgetCompositionEvent or WidgetTextEvent");
-  return GetTextCompositionFor(aEvent->widget);
+  return sTextCompositions ?
+    sTextCompositions->GetCompositionFor(aWidget) : nullptr;
 }

@@ -18,9 +18,6 @@ UNIFIED_SOURCES += [
     'WMFDecoder.cpp',
     'WMFReader.cpp',
     'WMFSourceReaderCallback.cpp',
-]
-
-SOURCES += [
     'WMFUtils.cpp',
 ]
 

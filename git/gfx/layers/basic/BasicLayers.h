@@ -197,6 +197,13 @@ protected:
   bool mCompositorMightResample;
 };
 
+void
+PaintContext(gfxPattern* aPattern,
+             const nsIntRegion& aVisible,
+             float aOpacity,
+             gfxContext* aContext,
+             Layer* aMaskLayer);
+
 }
 }
 

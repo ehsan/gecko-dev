@@ -717,14 +717,8 @@ add_test(function test_timeout() {
     do_check_eq(error.result, Cr.NS_ERROR_NET_TIMEOUT);
     do_check_eq(this.status, this.ABORTED);
 
-    // server_connection is undefined on the Android emulator for reasons
-    // unknown. Yet, we still get here. If this test is refactored, we should
-    // investigate the reason why the above callback is behaving differently.
-    if (server_connection) {
-      _("Closing connection.");
-      server_connection.close();
-    }
-
+    _("Closing connection.");
+    server_connection.close();
     _("Shutting down server.");
     server.stop(run_next_test);
   });

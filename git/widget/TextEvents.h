@@ -236,16 +236,6 @@ public:
     // Currently, we don't need to copy the other members because they are
     // for internal use only (not available from JS).
   }
-
-  bool IsComposing() const
-  {
-    for (uint32_t i = 0; i < rangeCount; i++) {
-      if (rangeArray[i].IsClause()) {
-        return true;
-      }
-    }
-    return false;
-  }
 };
 
 /******************************************************************************

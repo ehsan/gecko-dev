@@ -7,12 +7,12 @@
 package @ANDROID_PACKAGE_NAME@;
 
 #ifdef MOZ_ANDROID_SYNTHAPKS
-import org.mozilla.gecko.webapp.WebappImpl;
+import org.mozilla.gecko.webapp.WebAppImpl;
 #else
-import org.mozilla.gecko.WebappImpl;
+import org.mozilla.gecko.WebAppImpl;
 #endif
 
 /**
- * This class serves only as a namespace wrapper for WebappImpl.
+ * This class serves only as a namespace wrapper for WebAppImpl.
  */
-public class Webapp extends WebappImpl {}
+public class WebApp extends WebAppImpl {}

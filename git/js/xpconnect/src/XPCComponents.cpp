@@ -3041,7 +3041,7 @@ nsXPCComponents_Utils::CreateArrayIn(HandleValue vobj, JSContext *cx,
     RootedObject obj(cx);
     {
         JSAutoCompartment ac(cx, scope);
-        obj =  JS_NewArrayObject(cx, 0);
+        obj =  JS_NewArrayObject(cx, 0, nullptr);
         if (!obj)
             return NS_ERROR_FAILURE;
     }
