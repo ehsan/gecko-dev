@@ -103,9 +103,7 @@ def cxxfilt(sym):
                                                       '--format', 'gnu-v3'],
                                                      stdin=subprocess.PIPE,
                                                      stdout=subprocess.PIPE)
-    # strip underscores ourselves (works better than c++filt's
-    # --strip-underscores)
-    cxxfilt_proc.stdin.write(sym[1:] + "\n")
+    cxxfilt_proc.stdin.write(sym + "\n")
     return cxxfilt_proc.stdout.readline().rstrip("\n")
 
 line_re = re.compile("^([ \|0-9-]*)(.*) ?\[([^ ]*) \+(0x[0-9A-F]{1,8})\](.*)$")
