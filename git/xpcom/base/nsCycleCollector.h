@@ -58,8 +58,7 @@ already_AddRefed<nsICycleCollectorLogSink> nsCycleCollector_createLogSink();
 
 void nsCycleCollector_collect(nsICycleCollectorListener* aManualListener);
 
-void nsCycleCollector_collectSlice(js::SliceBudget& budget,
-                                   bool aPreferShorterSlices = false);
+void nsCycleCollector_collectSlice(js::SliceBudget& budget);
 
 uint32_t nsCycleCollector_suspectedCount();
 void nsCycleCollector_shutdown();

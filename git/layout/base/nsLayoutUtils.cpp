@@ -4354,27 +4354,27 @@ nsLayoutUtils::ComputeCBDependentValue(nscoord aPercentBasis,
 }
 
 /* static */ nscoord
-nsLayoutUtils::ComputeISizeValue(
+nsLayoutUtils::ComputeWidthValue(
                  nsRenderingContext* aRenderingContext,
                  nsIFrame*            aFrame,
-                 nscoord              aContainingBlockISize,
+                 nscoord              aContainingBlockWidth,
                  nscoord              aContentEdgeToBoxSizing,
                  nscoord              aBoxSizingToMarginEdge,
                  const nsStyleCoord&  aCoord)
 {
   NS_PRECONDITION(aFrame, "non-null frame expected");
   NS_PRECONDITION(aRenderingContext, "non-null rendering context expected");
-  NS_WARN_IF_FALSE(aContainingBlockISize != NS_UNCONSTRAINEDSIZE,
-                   "have unconstrained inline-size; this should only result from "
-                   "very large sizes, not attempts at intrinsic inline-size "
+  NS_WARN_IF_FALSE(aContainingBlockWidth != NS_UNCONSTRAINEDSIZE,
+                   "have unconstrained width; this should only result from "
+                   "very large sizes, not attempts at intrinsic width "
                    "calculation");
-  NS_PRECONDITION(aContainingBlockISize >= 0,
-                  "inline-size less than zero");
+  NS_PRECONDITION(aContainingBlockWidth >= 0,
+                  "width less than zero");
 
   nscoord result;
   if (aCoord.IsCoordPercentCalcUnit()) {
     result = nsRuleNode::ComputeCoordPercentCalc(aCoord, 
-                                                 aContainingBlockISize);
+                                                 aContainingBlockWidth);
     // The result of a calc() expression might be less than 0; we
     // should clamp at runtime (below).  (Percentages and coords that
     // are less than 0 have already been dropped by the parser.)
@@ -4389,24 +4389,24 @@ nsLayoutUtils::ComputeISizeValue(
     switch (val) {
       case NS_STYLE_WIDTH_MAX_CONTENT:
         result = aFrame->GetPrefISize(aRenderingContext);
-        NS_ASSERTION(result >= 0, "inline-size less than zero");
+        NS_ASSERTION(result >= 0, "width less than zero");
         break;
       case NS_STYLE_WIDTH_MIN_CONTENT:
         result = aFrame->GetMinISize(aRenderingContext);
-        NS_ASSERTION(result >= 0, "inline-size less than zero");
+        NS_ASSERTION(result >= 0, "width less than zero");
         break;
       case NS_STYLE_WIDTH_FIT_CONTENT:
         {
           nscoord pref = aFrame->GetPrefISize(aRenderingContext),
                    min = aFrame->GetMinISize(aRenderingContext),
-                  fill = aContainingBlockISize -
+                  fill = aContainingBlockWidth -
                          (aBoxSizingToMarginEdge + aContentEdgeToBoxSizing);
           result = std::max(min, std::min(pref, fill));
-          NS_ASSERTION(result >= 0, "inline-size less than zero");
+          NS_ASSERTION(result >= 0, "width less than zero");
         }
         break;
       case NS_STYLE_WIDTH_AVAILABLE:
-        result = aContainingBlockISize -
+        result = aContainingBlockWidth -
                  (aBoxSizingToMarginEdge + aContentEdgeToBoxSizing);
     }
   }
@@ -4415,28 +4415,28 @@ nsLayoutUtils::ComputeISizeValue(
 }
 
 /* static */ nscoord
-nsLayoutUtils::ComputeBSizeDependentValue(
-                 nscoord              aContainingBlockBSize,
+nsLayoutUtils::ComputeHeightDependentValue(
+                 nscoord              aContainingBlockHeight,
                  const nsStyleCoord&  aCoord)
 {
-  // XXXldb Some callers explicitly check aContainingBlockBSize
+  // XXXldb Some callers explicitly check aContainingBlockHeight
   // against NS_AUTOHEIGHT *and* unit against eStyleUnit_Percent or
   // calc()s containing percents before calling this function.
   // However, it would be much more likely to catch problems without
   // the unit conditions.
   // XXXldb Many callers pass a non-'auto' containing block height when
   // according to CSS2.1 they should be passing 'auto'.
-  NS_PRECONDITION(NS_AUTOHEIGHT != aContainingBlockBSize ||
+  NS_PRECONDITION(NS_AUTOHEIGHT != aContainingBlockHeight ||
                   !aCoord.HasPercent(),
-                  "unexpected containing block block-size");
+                  "unexpected containing block height");
 
   if (aCoord.IsCoordPercentCalcUnit()) {
-    return nsRuleNode::ComputeCoordPercentCalc(aCoord, aContainingBlockBSize);
+    return nsRuleNode::ComputeCoordPercentCalc(aCoord, aContainingBlockHeight);
   }
 
   NS_ASSERTION(aCoord.GetUnit() == eStyleUnit_None ||
                aCoord.GetUnit() == eStyleUnit_Auto,
-               "unexpected block-size value");
+               "unexpected height value");
   return 0;
 }
 
@@ -4499,11 +4499,10 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(WritingMode aWM,
   const nsStylePosition* stylePos = aFrame->StylePosition();
 
   // If we're a flex item, we'll compute our size a bit differently.
-  bool isVertical = aWM.IsVertical();
   const nsStyleCoord* inlineStyleCoord =
-    isVertical ? &stylePos->mHeight : &stylePos->mWidth;
+    aWM.IsVertical() ? &stylePos->mHeight : &stylePos->mWidth;
   const nsStyleCoord* blockStyleCoord =
-    isVertical ? &stylePos->mWidth : &stylePos->mHeight;
+    aWM.IsVertical() ? &stylePos->mWidth : &stylePos->mHeight;
 
   bool isFlexItem = aFrame->IsFlexItem();
   bool isInlineFlexItem = false;
@@ -4549,7 +4548,7 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(WritingMode aWM,
   // or (a * b) / c (which are equivalent).
 
   const bool isAutoISize = inlineStyleCoord->GetUnit() == eStyleUnit_Auto;
-  const bool isAutoBSize = IsAutoBSize(*blockStyleCoord, aCBSize.BSize(aWM));
+  const bool isAutoBSize = IsAutoHeight(*blockStyleCoord, aCBSize.BSize(aWM));
 
   LogicalSize boxSizingAdjust(aWM);
   switch (stylePos->mBoxSizing) {
@@ -4566,19 +4565,16 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(WritingMode aWM,
   nscoord iSize, minISize, maxISize, bSize, minBSize, maxBSize;
 
   if (!isAutoISize) {
-    iSize = nsLayoutUtils::ComputeISizeValue(aRenderingContext,
+    iSize = nsLayoutUtils::ComputeWidthValue(aRenderingContext,
               aFrame, aCBSize.ISize(aWM), boxSizingAdjust.ISize(aWM),
               boxSizingToMarginEdgeISize, *inlineStyleCoord);
   }
 
-  const nsStyleCoord& maxISizeCoord =
-    isVertical ? stylePos->mMaxHeight : stylePos->mMaxWidth;
-
-  if (maxISizeCoord.GetUnit() != eStyleUnit_None &&
+  if (stylePos->mMaxWidth.GetUnit() != eStyleUnit_None &&
       !(isFlexItem && isInlineFlexItem)) {
-    maxISize = nsLayoutUtils::ComputeISizeValue(aRenderingContext,
+    maxISize = nsLayoutUtils::ComputeWidthValue(aRenderingContext,
                  aFrame, aCBSize.ISize(aWM), boxSizingAdjust.ISize(aWM),
-                 boxSizingToMarginEdgeISize, maxISizeCoord);
+                 boxSizingToMarginEdgeISize, stylePos->mMaxWidth);
   } else {
     maxISize = nscoord_MAX;
   }
@@ -4586,15 +4582,11 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(WritingMode aWM,
   // NOTE: Flex items ignore their min & max sizing properties in their
   // flex container's main-axis.  (Those properties get applied later in
   // the flexbox algorithm.)
-
-  const nsStyleCoord& minISizeCoord =
-    isVertical ? stylePos->mMinHeight : stylePos->mMinWidth;
-
-  if (minISizeCoord.GetUnit() != eStyleUnit_Auto &&
+  if (stylePos->mMinWidth.GetUnit() != eStyleUnit_Auto &&
       !(isFlexItem && isInlineFlexItem)) {
-    minISize = nsLayoutUtils::ComputeISizeValue(aRenderingContext,
+    minISize = nsLayoutUtils::ComputeWidthValue(aRenderingContext,
                  aFrame, aCBSize.ISize(aWM), boxSizingAdjust.ISize(aWM),
-                 boxSizingToMarginEdgeISize, minISizeCoord);
+                 boxSizingToMarginEdgeISize, stylePos->mMinWidth);
   } else {
     // Treat "min-width: auto" as 0.
     // NOTE: Technically, "auto" is supposed to behave like "min-content" on
@@ -4605,29 +4597,25 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(WritingMode aWM,
   }
 
   if (!isAutoBSize) {
-    bSize = nsLayoutUtils::ComputeBSizeValue(aCBSize.BSize(aWM),
+    bSize = nsLayoutUtils::ComputeHeightValue(aCBSize.BSize(aWM),
                 boxSizingAdjust.BSize(aWM),
                 *blockStyleCoord);
   }
 
-  const nsStyleCoord& maxBSizeCoord =
-    isVertical ? stylePos->mMaxWidth : stylePos->mMaxHeight;
-
-  if (!IsAutoBSize(maxBSizeCoord, aCBSize.BSize(aWM)) &&
+  if (!IsAutoHeight(stylePos->mMaxHeight, aCBSize.BSize(aWM)) &&
       !(isFlexItem && !isInlineFlexItem)) {
-    maxBSize = nsLayoutUtils::ComputeBSizeValue(aCBSize.BSize(aWM),
-                  boxSizingAdjust.BSize(aWM), maxBSizeCoord);
+    maxBSize = nsLayoutUtils::ComputeHeightValue(aCBSize.BSize(aWM),
+                  boxSizingAdjust.BSize(aWM),
+                  stylePos->mMaxHeight);
   } else {
     maxBSize = nscoord_MAX;
   }
 
-  const nsStyleCoord& minBSizeCoord =
-    isVertical ? stylePos->mMinWidth : stylePos->mMinHeight;
-
-  if (!IsAutoBSize(minBSizeCoord, aCBSize.BSize(aWM)) &&
+  if (!IsAutoHeight(stylePos->mMinHeight, aCBSize.BSize(aWM)) &&
       !(isFlexItem && !isInlineFlexItem)) {
-    minBSize = nsLayoutUtils::ComputeBSizeValue(aCBSize.BSize(aWM),
-                  boxSizingAdjust.BSize(aWM), minBSizeCoord);
+    minBSize = nsLayoutUtils::ComputeHeightValue(aCBSize.BSize(aWM),
+                  boxSizingAdjust.BSize(aWM),
+                  stylePos->mMinHeight);
   } else {
     minBSize = 0;
   }
@@ -4637,10 +4625,10 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(WritingMode aWM,
   NS_ASSERTION(aCBSize.ISize(aWM) != NS_UNCONSTRAINEDSIZE,
                "Our containing block must not have unconstrained inline-size!");
 
-  const nsStyleCoord& isizeCoord =
-    isVertical ? aIntrinsicSize.height : aIntrinsicSize.width;
-  const nsStyleCoord& bsizeCoord =
-    isVertical ? aIntrinsicSize.width : aIntrinsicSize.height;
+  const nsStyleCoord& isizeCoord(aWM.IsVertical() ?
+    aIntrinsicSize.height : aIntrinsicSize.width);
+  const nsStyleCoord& bsizeCoord(aWM.IsVertical() ?
+    aIntrinsicSize.width : aIntrinsicSize.height);
 
   bool hasIntrinsicISize, hasIntrinsicBSize;
   nscoord intrinsicISize, intrinsicBSize;

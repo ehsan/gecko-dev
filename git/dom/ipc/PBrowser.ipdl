@@ -442,8 +442,6 @@ child:
 
     Deactivate();
 
-    ParentActivated(bool aActivated);
-
     /**
      * @see nsIDOMWindowUtils sendMouseEvent.
      */

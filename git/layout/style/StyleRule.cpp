@@ -978,13 +978,10 @@ ImportantRule::MapRuleInfoInto(nsRuleData* aRuleData)
 ImportantRule::List(FILE* out, int32_t aIndent) const
 {
   // Indent
-  nsAutoCString str;
-  for (int32_t index = aIndent; --index >= 0; ) {
-    str.AppendLiteral("  ");
-  }
+  for (int32_t index = aIndent; --index >= 0; ) fputs("  ", out);
 
-  str.AppendLiteral("! important rule\n");
-  fprintf_stderr(out, "%s", str.get());
+  fprintf(out, "! Important declaration=%p\n",
+          static_cast<void*>(mDeclaration));
 }
 #endif
 
@@ -1474,30 +1471,22 @@ StyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
 /* virtual */ void
 StyleRule::List(FILE* out, int32_t aIndent) const
 {
-  nsAutoCString str;
   // Indent
-  for (int32_t index = aIndent; --index >= 0; ) {
-    str.AppendLiteral("  ");
-  }
+  for (int32_t index = aIndent; --index >= 0; ) fputs("  ", out);
 
   nsAutoString buffer;
-  if (mSelector) {
+  if (mSelector)
     mSelector->ToString(buffer, GetStyleSheet());
-    AppendUTF16toUTF8(buffer, str);
-    str.Append(' ');
-  }
 
+  buffer.Append(' ');
+  fputs(NS_LossyConvertUTF16toASCII(buffer).get(), out);
   if (nullptr != mDeclaration) {
-    str.AppendLiteral("{ ");
-    mDeclaration->ToString(buffer);
-    AppendUTF16toUTF8(buffer, str);
-    str.Append('}');
+    mDeclaration->List(out);
   }
   else {
-    str.AppendLiteral("{ null declaration }");
+    fputs("{ null declaration }", out);
   }
-  str.Append('\n');
-  fprintf_stderr(out, "%s", str.get());
+  fputs("\n", out);
 }
 #endif
 

@@ -503,8 +503,6 @@ protected:
 
     virtual bool RecvRequestNotifyAfterRemotePaint();
 
-    virtual bool RecvParentActivated(const bool& aActivated) MOZ_OVERRIDE;
-
 #ifdef MOZ_WIDGET_GONK
     void MaybeRequestPreinitCamera();
 #endif
