@@ -7,6 +7,7 @@
 }
 
 #options-panel {
+  overflow-y: auto;
   display: block;
 }
 
@@ -22,7 +23,7 @@
 .options-vertical-pane {
   margin: 5px;
   width: calc(50% - 30px);
-  min-width: 350px;
+  min-width: 400px;
   -moz-padding-start: 5px;
 }
 

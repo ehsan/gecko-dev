@@ -1916,12 +1916,7 @@ TabParent::InjectTouchEvent(const nsAString& aType,
     return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget) {
-    return NS_ERROR_FAILURE;
-  }
-
-  WidgetTouchEvent event(true, msg, widget);
+  WidgetTouchEvent event(true, msg, nullptr);
   event.modifiers = aModifiers;
   event.time = PR_IntervalNow();
 
@@ -1932,11 +1927,6 @@ TabParent::InjectTouchEvent(const nsAString& aType,
                                   nsIntPoint(aRxs[i], aRys[i]),
                                   aRotationAngles[i],
                                   aForces[i]);
-
-    // Consider all injected touch events as changedTouches. For more details
-    // about the meaning of changedTouches for each event, see
-    // https://developer.mozilla.org/docs/Web/API/TouchEvent.changedTouches
-    t->mChanged = true;
     event.touches.AppendElement(t);
   }
 

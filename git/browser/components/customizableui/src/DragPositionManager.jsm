@@ -126,7 +126,7 @@ AreaPositionManager.prototype = {
    * they would have if we had inserted something before aBefore. We use CSS
    * transforms for this, which are CSS transitioned.
    */
-  insertPlaceholder: function(aContainer, aBefore, aWide, aSize, aIsFromThisArea) {
+  insertPlaceholder: function(aContainer, aBefore, aWide, aSize) {
     let isShifted = false;
     let shiftDown = aWide;
     for (let child of aContainer.children) {
@@ -157,7 +157,7 @@ AreaPositionManager.prototype = {
         if (this.__moveDown) {
           shiftDown = true;
         }
-        if (aIsFromThisArea && !this._lastPlaceholderInsertion) {
+        if (!this._lastPlaceholderInsertion) {
           child.setAttribute("notransition", "true");
         }
         // Determine the CSS transform based on the next node:
@@ -167,8 +167,7 @@ AreaPositionManager.prototype = {
         child.style.transform = "";
       }
     }
-    if (aContainer.lastChild && aIsFromThisArea &&
-        !this._lastPlaceholderInsertion) {
+    if (aContainer.lastChild && !this._lastPlaceholderInsertion) {
       // Flush layout:
       aContainer.lastChild.getBoundingClientRect();
       // then remove all the [notransition]

@@ -708,7 +708,6 @@
                        type="menu-button"
                        label="&bookmarksMenuButton.label;"
                        tooltiptext="&bookmarksMenuButton.tooltip;"
-                       anchor="dropmarker"
                        ondragenter="PlacesMenuDNDHandler.onDragEnter(event);"
                        ondragover="PlacesMenuDNDHandler.onDragOver(event);"
                        ondragleave="PlacesMenuDNDHandler.onDragLeave(event);"
@@ -719,6 +718,7 @@
                      placespopup="true"
                      context="placesContext"
                      openInTabs="children"
+                     anonanchorclass="toolbarbutton-menubutton-dropmarker"
                      oncommand="BookmarksEventHandler.onCommand(event, this.parentNode._placesView);"
                      onclick="BookmarksEventHandler.onClick(event, this.parentNode._placesView);"
                      onpopupshowing="BookmarkingUI.onPopupShowing(event);
@@ -832,11 +832,12 @@
 
       <toolbaritem id="PanelUI-button"
                    class="chromeclass-toolbar-additional"
-                   removable="false">
+                   removable="false"
+                   title="&appmenu.title;">
         <toolbarbutton id="PanelUI-menu-button"
                        class="toolbarbutton-1"
                        label="&brandShortName;"
-                       tooltiptext="&appmenu.tooltip;"/>
+                       tooltiptext="&appmenu.title;"/>
       </toolbaritem>
 
       <hbox id="window-controls" hidden="true" pack="end" skipintoolbarset="true"

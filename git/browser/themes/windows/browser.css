@@ -810,6 +810,7 @@ menuitem.bookmark-item {
 }
 
 #urlbar {
+  width: 7em;
   -moz-padding-end: 2px;
 }
 

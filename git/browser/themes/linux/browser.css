@@ -680,6 +680,7 @@ menuitem:not([type]):not(.menuitem-tooltip):not(.menuitem-iconic-tooltip) {
 
 /* Location bar */
 #urlbar {
+  width: 7em;
   -moz-appearance: textfield;
   padding: 0;
 }
