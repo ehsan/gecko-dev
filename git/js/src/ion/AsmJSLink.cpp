@@ -253,7 +253,7 @@ DynamicallyLinkModule(JSContext *cx, CallArgs args, AsmJSModule &module)
     return true;
 }
 
-AsmJSActivation::AsmJSActivation(JSContext *cx, const AsmJSModule &module)
+AsmJSActivation::AsmJSActivation(JSContext *cx, AsmJSModule &module)
   : cx_(cx),
     module_(module),
     errorRejoinSP_(NULL),
@@ -261,8 +261,12 @@ AsmJSActivation::AsmJSActivation(JSContext *cx, const AsmJSModule &module)
     resumePC_(NULL)
 {
     if (cx->runtime()->spsProfiler.enabled()) {
+        // Use a profiler string that matches jsMatch regex in
+        // browser/devtools/profiler/cleopatra/js/parserWorker.js.
+        // (For now use a single static string to avoid further slowing down
+        // calls into asm.js.)
         profiler_ = &cx->runtime()->spsProfiler;
-        profiler_->enterNative("asm.js code", this);
+        profiler_->enterNative("asm.js code :0", this);
     }
 
     prev_ = cx_->runtime()->mainThread.asmJSActivationStack_;
@@ -297,7 +301,7 @@ js::CallAsmJS(JSContext *cx, unsigned argc, Value *vp)
     //  - a pointer to the module from which it was returned
     //  - its index in the ordered list of exported functions
     RootedObject moduleObj(cx, &callee->getExtendedSlot(ASM_MODULE_SLOT).toObject());
-    const AsmJSModule &module = AsmJSModuleObjectToModule(moduleObj);
+    AsmJSModule &module = AsmJSModuleObjectToModule(moduleObj);
 
     // An exported function points to the code as well as the exported
     // function's signature, which implies the dynamic coercions performed on
@@ -386,11 +390,10 @@ HandleDynamicLinkFailure(JSContext *cx, CallArgs args, AsmJSModule &module, Hand
 
     const AsmJSModule::PostLinkFailureInfo &info = module.postLinkFailureInfo();
 
-    uint32_t length = info.bufEnd_ - info.bufStart_;
-    Rooted<JSStableString*> src(cx, info.scriptSource_->substring(cx, info.bufStart_, info.bufEnd_));
+    uint32_t length = info.bufEnd - info.bufStart;
+    Rooted<JSStableString*> src(cx, info.scriptSource->substring(cx, info.bufStart, info.bufEnd));
     if (!src)
         return false;
-    const jschar *chars = src->chars().get();
 
     RootedFunction fun(cx, NewFunction(cx, NullPtr(), NULL, 0, JSFunction::INTERPRETED,
                                        cx->global(), name, JSFunction::FinalizeKind,
@@ -407,8 +410,13 @@ HandleDynamicLinkFailure(JSContext *cx, CallArgs args, AsmJSModule &module, Hand
     if (module.bufferArgumentName())
         formals.infallibleAppend(module.bufferArgumentName());
 
-    if (!frontend::CompileFunctionBody(cx, &fun, info.options_, formals, chars, length,
-                                       /* isAsmJSRecompile = */ true))
+    CompileOptions options(cx);
+    options.setPrincipals(cx->compartment()->principals)
+           .setOriginPrincipals(info.originPrincipals)
+           .setCompileAndGo(false)
+           .setNoScriptRval(false);
+
+    if (!frontend::CompileFunctionBody(cx, &fun, options, formals, src->chars().get(), length))
         return false;
 
     // Call the function we just recompiled.
