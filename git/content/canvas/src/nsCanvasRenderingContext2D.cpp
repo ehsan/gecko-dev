@@ -220,14 +220,10 @@ public:
     NS_IMETHOD AddColorStop (float offset,
                              const nsAString& colorstr)
     {
-        nscolor color;
-
-        if (!FloatValidate(offset))
-            return NS_ERROR_DOM_SYNTAX_ERR;
-
-        if (offset < 0.0 || offset > 1.0)
+        if (!FloatValidate(offset) || offset < 0.0 || offset > 1.0)
             return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
+        nscolor color;
         nsCSSParser parser;
         nsresult rv = parser.ParseColorString(nsString(colorstr),
                                               nsnull, 0, &color);
@@ -776,8 +772,8 @@ protected:
     friend struct nsCanvasBidiProcessor;
 };
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsCanvasRenderingContext2D, nsIDOMCanvasRenderingContext2D)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsCanvasRenderingContext2D, nsIDOMCanvasRenderingContext2D)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsCanvasRenderingContext2D)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsCanvasRenderingContext2D)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsCanvasRenderingContext2D)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsCanvasRenderingContext2D)
