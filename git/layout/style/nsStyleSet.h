@@ -97,16 +97,9 @@ class nsStyleSet
   already_AddRefed<nsStyleContext>
   ResolveStyleFor(nsIContent* aContent, nsStyleContext* aParentContext);
 
-  // Get a style context (with the given parent and pseudo-tag) for a
-  // sequence of style rules consisting of the concatenation of:
-  //  (1) the rule sequence represented by aRuleNode (which is the empty
-  //      sequence if aRuleNode is null or the root of the rule tree), and
-  //  (2) the rules in the |aRules| array.
+  // get a style context from some rules
   already_AddRefed<nsStyleContext>
-  ResolveStyleForRules(nsStyleContext* aParentContext,
-                       nsIAtom* aPseudoTag,
-                       nsRuleNode *aRuleNode,
-                       const nsCOMArray<nsIStyleRule> &aRules);
+  ResolveStyleForRules(nsStyleContext* aParentContext, const nsCOMArray<nsIStyleRule> &rules);
 
   // Get a style context for a non-element (which no rules will match),
   // such as text nodes, placeholder frames, and the nsFirstLetterFrame

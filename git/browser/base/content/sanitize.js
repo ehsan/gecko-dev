@@ -460,10 +460,13 @@ Sanitizer.showUI = function(aParentWindow)
 /** 
  * Deletes privacy sensitive data in a batch, optionally showing the 
  * sanitize UI, according to user preferences
+ *
+ * @returns  null (displayed UI, which should handle errors)
  */
 Sanitizer.sanitize = function(aParentWindow) 
 {
   Sanitizer.showUI(aParentWindow);
+  return null;
 };
 
 Sanitizer.onStartup = function() 

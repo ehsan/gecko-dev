@@ -132,7 +132,7 @@
           else
             loadURI(url, null, postData, true /* allow third party fixup */);
 
-          gBrowser.selectedBrowser.focus();
+          focusElement(content);
         ]]></body>
       </method>
 

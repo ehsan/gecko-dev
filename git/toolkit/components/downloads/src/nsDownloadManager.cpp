@@ -86,6 +86,7 @@
 #define PREF_BDM_SCANWHENDONE "browser.download.manager.scanWhenDone"
 #define PREF_BDM_RESUMEONWAKEDELAY "browser.download.manager.resumeOnWakeDelay"
 #define PREF_BH_DELETETEMPFILEONEXIT "browser.helperApps.deleteTempFileOnExit"
+#define PREF_BDM_ALERTONEXEOPEN "browser.download.manager.alertOnEXEOpen"
 
 static const PRInt64 gUpdateInterval = 400 * PR_USEC_PER_MSEC;
 
@@ -128,10 +129,7 @@ nsDownloadManager::GetSingleton()
 nsDownloadManager::~nsDownloadManager()
 {
 #ifdef DOWNLOAD_SCANNER
-  if (mScanner) {
-    delete mScanner;
-    mScanner = nsnull;
-  }
+  mScanner = nsnull;
 #endif
   gDownloadManagerService = nsnull;
 }
@@ -853,10 +851,8 @@ nsDownloadManager::Init()
   if (!mScanner)
     return NS_ERROR_OUT_OF_MEMORY;
   rv = mScanner->Init();
-  if (NS_FAILED(rv)) {
-    delete mScanner;
+  if (NS_FAILED(rv))
     mScanner = nsnull;
-  }
 #endif
 
   // Do things *after* initializing various download manager properties such as
@@ -2212,6 +2208,39 @@ nsDownload::SetState(DownloadState aState)
 
           if (addToRecentDocs)
             ::SHAddToRecentDocs(SHARD_PATHW, path.get());
+        }
+
+        // On Vista and up, we rely on native security prompting when users
+        // open executable content. If the option is set, add meta data to the
+        // 'Zone.Identifier' resource fork of the file which indicates this
+        // content came from the internet.
+        {
+          nsCOMPtr<nsIPrefBranch> pref =
+            do_GetService(NS_PREFSERVICE_CONTRACTID);
+          PRBool alert = PR_TRUE;
+          if (pref)
+            (void)pref->GetBoolPref(PREF_BDM_ALERTONEXEOPEN, &alert);
+          nsAutoString forkPath = path;
+          forkPath.AppendLiteral(":Zone.Identifier");
+
+          if (alert) {
+            HANDLE hFile = CreateFileW(forkPath.get(), GENERIC_WRITE,
+                                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                       NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+            if (hFile != INVALID_HANDLE_VALUE) {
+              nsAutoString metaData;
+              metaData.AppendLiteral("[ZoneTransfer]\nZoneId=3");
+              DWORD writeLen = 0;
+              (void)WriteFile(hFile, metaData.get(), metaData.Length()*2, &writeLen,
+                              NULL);
+              CloseHandle(hFile);
+            }
+          }
+          else {
+            // Virus scanning will often add the resource fork to the file, but since
+            // the user doesn't want to be prompted, delete it.
+            DeleteFileW(forkPath.get());
+          }
         }
       }
 

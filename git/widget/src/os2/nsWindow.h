@@ -57,6 +57,7 @@
 #include "nsWidgetDefs.h"
 #include "nsBaseWidget.h"
 #include "nsToolkit.h"
+#include "nsSwitchToUIThread.h"
 #include "gfxOS2Surface.h"
 #include "gfxContext.h"
 
@@ -94,7 +95,8 @@ class imgIContainer;
 MRESULT EXPENTRY fnwpNSWindow( HWND, ULONG, MPARAM, MPARAM);
 MRESULT EXPENTRY fnwpFrame( HWND, ULONG, MPARAM, MPARAM);
 
-class nsWindow : public nsBaseWidget
+class nsWindow : public nsBaseWidget,
+                 public nsSwitchToUIThread
 {
  public:
    // Scaffolding
@@ -177,6 +179,9 @@ class nsWindow : public nsBaseWidget
    virtual void  *GetNativeData( PRUint32 aDataType);
    virtual void   FreeNativeData( void *aDatum, PRUint32 aDataType);
    virtual HWND   GetMainWindow() const           { return mWnd; }
+
+   // nsSwitchToPMThread interface
+   virtual BOOL CallMethod(MethodInfo *info);
 
    // PM methods which need to be public (menus, etc)
    ULONG  GetNextID()    { return mNextID++; }

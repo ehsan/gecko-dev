@@ -1279,15 +1279,8 @@ nsHttpChannel::DoReplaceWithProxy(nsIProxyInfo* pi)
         return rv;
 
     mStatus = NS_BINDING_REDIRECTED;
-
-    // disconnect from the old listeners...
     mListener = nsnull;
     mListenerContext = nsnull;
-
-    // ...and the old callbacks
-    mCallbacks = nsnull;
-    mProgressSink = nsnull;
-
     return rv;
 }
 
@@ -5271,8 +5264,8 @@ nsHttpChannel::OnDataAvailable(nsIRequest *request, nsISupports *ctxt,
         // of a byte range request, the content length stored in the cached
         // response headers is what we want to use here.
 
-        PRUint64 progressMax(PRUint64(mResponseHead->ContentLength()));
-        PRUint64 progress = mLogicalOffset + PRUint64(count);
+        nsUint64 progressMax(PRUint64(mResponseHead->ContentLength()));
+        nsUint64 progress = mLogicalOffset + nsUint64(count);
         NS_ASSERTION(progress <= progressMax, "unexpected progress values");
 
         OnTransportStatus(nsnull, transportStatus, progress, progressMax);

@@ -186,9 +186,6 @@ public:
 
   nsITreeBoxObject* GetTreeBoxObject() const { return mTreeBoxObject; }
 
-  PRBool GetVerticalOverflow() const { return mVerticalOverflow; }
-  PRBool GetHorizontalOverflow() const {return mHorizontalOverflow; }
-
 protected:
   friend class nsOverflowChecker;
 

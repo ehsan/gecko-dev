@@ -47,10 +47,6 @@
 #include "readstrings.h"
 #include "errors.h"
 
-#ifdef WINCE
-#include "updater_wince.h"
-#endif
-
 #define TIMER_ID 1
 #define TIMER_INTERVAL 100
 
@@ -65,13 +61,10 @@
 
 #define MOVE_WINDOW(hwnd, dx, dy) \
   { \
-    RECT rc; \
-    POINT pt; \
-    GetWindowRect(hwnd, &rc); \
-    pt.x = rc.left; \
-    pt.y = rc.top; \
-    ScreenToClient(GetParent(hwnd), &pt); \
-    SetWindowPos(hwnd, 0, pt.x + dx, pt.y + dy, 0, 0, \
+    WINDOWPLACEMENT windowPos; \
+    windowPos.length = sizeof(windowPos); \
+    GetWindowPlacement(hwnd, &windowPos); \
+    SetWindowPos(hwnd, 0, windowPos.rcNormalPosition.left + dx, windowPos.rcNormalPosition.top + dy, 0, 0, \
                  SWP_NOSIZE | SWP_NOZORDER); \
   }
 
@@ -96,8 +89,53 @@ static void
 UpdateDialog(HWND hDlg)
 {
   int pos = int(sProgress + 0.5f);
-  HWND hWndPro = GetDlgItem(hDlg, IDC_PROGRESS);
-  SendMessage(hWndPro, PBM_SETPOS, pos, 0L);
+  SendDlgItemMessage(hDlg, IDC_PROGRESS, PBM_SETPOS, pos, 0L);
+}
+
+static void
+ResizeDialogToFit(HWND hDlg)
+{
+  WCHAR text[MAX_TEXT_LEN];
+  RECT infoSize, textSize;
+  HFONT hInfoFont, hOldFont;
+
+  HWND hWndInfo = GetDlgItem(hDlg, IDC_INFO);
+  HWND hWndPro  = GetDlgItem(hDlg, IDC_PROGRESS);
+
+  // Get the text that is displayed - this is what we're going to make fit.
+  if (!GetWindowText(hWndInfo, text, sizeof(text)))
+    return;
+
+  // We need the current size and font to calculate the adjustment.
+  GetClientRect(hWndInfo, &infoSize);
+  HDC hDCInfo = GetDC(hWndInfo);
+  hInfoFont = (HFONT)SendMessage(hWndInfo, WM_GETFONT, 0, 0);
+  if (hInfoFont)
+    hOldFont = (HFONT)SelectObject(hDCInfo, hInfoFont);
+
+  // Measure the space needed for the text - DT_CALCRECT means nothing is drawn.
+  if (DrawText(hDCInfo, text, -1, &textSize,
+               DT_CALCRECT | DT_NOCLIP | DT_SINGLELINE)) {
+    SIZE extra;
+    extra.cx = (textSize.right - textSize.left) - (infoSize.right - infoSize.left);
+    extra.cy = (textSize.bottom - textSize.top) - (infoSize.bottom - infoSize.top);
+    if (extra.cx < 0)
+      extra.cx = 0;
+    if (extra.cy < 0)
+      extra.cy = 0;
+
+    if ((extra.cx > 0) || (extra.cy > 0)) {
+      RESIZE_WINDOW(hDlg, extra.cx, extra.cy);
+      RESIZE_WINDOW(hWndInfo, extra.cx, extra.cy);
+      RESIZE_WINDOW(hWndPro, extra.cx, 0);
+      MOVE_WINDOW(hWndPro, 0, extra.cy);
+    }
+  }
+
+  if (hOldFont)
+    SelectObject(hDCInfo, hOldFont);
+
+  ReleaseDC(hWndInfo, hDCInfo);
 }
 
 // The code in this function is from MSDN:
@@ -161,45 +199,10 @@ InitDialog(HWND hDlg)
   if (hIcon)
     SendMessage(hDlg, WM_SETICON, ICON_BIG, (LPARAM) hIcon);
 
-  HWND hWndPro = GetDlgItem(hDlg, IDC_PROGRESS);
-  SendMessage(hWndPro, PBM_SETRANGE, 0, MAKELPARAM(0, 100));
+  SendDlgItemMessage(hDlg, IDC_PROGRESS, PBM_SETRANGE, 0, MAKELPARAM(0, 100));
 
-  // Resize the dialog to fit all of the text if necessary.
-  RECT infoSize, textSize;
-  HWND hWndInfo = GetDlgItem(hDlg, IDC_INFO);
-
-  // We need the current size and font to calculate the adjustment.
-  GetClientRect(hWndInfo, &infoSize);
-
-  HDC hDCInfo = GetDC(hWndInfo);
-  HFONT hInfoFont, hOldFont;
-  hInfoFont = (HFONT)SendMessage(hWndInfo, WM_GETFONT, 0, 0);
-
-  if (hInfoFont)
-    hOldFont = (HFONT)SelectObject(hDCInfo, hInfoFont);
-
-  // Measure the space needed for the text - DT_CALCRECT means nothing is drawn.
-  if (DrawText(hDCInfo, szwInfo, wcslen(szwInfo) + 1, &textSize,
-               DT_CALCRECT | DT_NOCLIP | DT_SINGLELINE)) {
-    SIZE extra;
-    extra.cx = (textSize.right - textSize.left) - (infoSize.right - infoSize.left);
-    extra.cy = (textSize.bottom - textSize.top) - (infoSize.bottom - infoSize.top);
-    if (extra.cx < 0)
-      extra.cx = 0;
-    if (extra.cy < 0)
-      extra.cy = 0;
-    if ((extra.cx > 0) || (extra.cy > 0)) {
-      RESIZE_WINDOW(hDlg, extra.cx, extra.cy);
-      RESIZE_WINDOW(hWndInfo, extra.cx, extra.cy);
-      RESIZE_WINDOW(hWndPro, extra.cx, 0);
-      MOVE_WINDOW(hWndPro, 0, extra.cy);
-    }
-  }
-
-  if (hOldFont)
-    SelectObject(hDCInfo, hOldFont);
-
-  ReleaseDC(hWndInfo, hDCInfo);
+  // Resize dialog to fit all the text.
+  ResizeDialogToFit(hDlg);
 
   CenterDialog(hDlg);  // make dialog appear in the center of the screen
 

@@ -2769,8 +2769,7 @@ XPCWrappedNative::CallMethod(XPCCallContext& ccx,
 
         if(isArray)
         {
-            XPCLazyCallContext lccx(ccx);
-            if(!XPCConvert::NativeArray2JS(lccx, &v, (const void**)&dp->val,
+            if(!XPCConvert::NativeArray2JS(ccx, &v, (const void**)&dp->val,
                                            datum_type, &param_iid,
                                            array_count, ccx.GetCurrentJSObject(),
                                            &err))
@@ -3759,7 +3758,8 @@ static PRUint32 sSlimWrappers;
 
 JSBool
 ConstructSlimWrapper(XPCCallContext &ccx, nsISupports *p, nsWrapperCache *cache,
-                     XPCWrappedNativeScope* xpcScope, jsval *rval)
+                     XPCNativeInterface *iface, XPCWrappedNativeScope* xpcScope,
+                     jsval *rval)
 {
     nsCOMPtr<nsISupports> identityObj = do_QueryInterface(p);
 

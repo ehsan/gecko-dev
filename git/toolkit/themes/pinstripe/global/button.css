@@ -92,10 +92,6 @@ button[type="menu-button"] {
   margin: 1px;
 }
 
-.button-menu-dropmarker {
-  display: none;
-}
-
 /* ::::: plain buttons ::::: */
 
 button.plain {

@@ -93,8 +93,6 @@ class nsNativeTheme
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::_default);
   }
 
-  PRBool IsButtonTypeMenu(nsIFrame* aFrame);
-
   // checkbox:
   PRBool IsChecked(nsIFrame* aFrame) {
     return GetCheckedOrSelected(aFrame, PR_FALSE);

@@ -93,7 +93,7 @@ protected:
   nsCString               mContentType;
   nsCString               mContentCharset;
   nsCString               mContentDisposition;
-  PRUint64                mContentLength;
+  nsUint64                mContentLength;
 
   PRBool                  mIsByteRangeRequest;
   nsInt64                 mByteRangeStart;
@@ -174,11 +174,11 @@ protected:
     nsCOMPtr<nsISupports> mContext;
     nsCString           mContentType;
     nsCString           mContentDisposition;
-    PRUint64            mContentLength;
+    nsUint64            mContentLength;
     
     char                *mBuffer;
     PRUint32            mBufLen;
-    PRUint64            mTotalSent;
+    nsUint64            mTotalSent;
     PRBool              mFirstOnData;   // used to determine if we're in our first OnData callback.
 
     // The following members are for tracking the byte ranges in

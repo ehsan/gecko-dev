@@ -47,9 +47,6 @@ include css-gradients/reftest.list
 # css media queries (tests for print mode)
 include css-mediaqueries/reftest.list
 
-# css namespaces
-include css-namespace/reftest.list
-
 # css values and units
 include css-valuesandunits/reftest.list
 
@@ -173,9 +170,6 @@ include text-transform/reftest.list
 
 # -moz-transform/
 include transform/reftest.list
-
-# widget/
-include ../../widget/reftests/reftest.list
 
 # xml-stylesheet/
 include ../../content/test/reftest/xml-stylesheet/reftest.list

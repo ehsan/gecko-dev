@@ -1484,11 +1484,7 @@ file_copyTo(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     fileInitiallyOpen = file->isOpen;
     JSFILE_CHECK_READ;
 
-    JSString *str = JS_ValueToString(cx, argv[0]);
-    if (!str)
-        goto out;
-
-    dest = JS_GetStringBytes(str);
+    dest = JS_GetStringBytes(JS_ValueToString(cx, argv[0]));
 
     /* make sure we are not reading a file open for writing */
     if (file->isOpen && !js_canRead(cx, file)) {
@@ -1577,11 +1573,7 @@ file_renameTo(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval
     JSFILE_CHECK_NATIVE("renameTo");
     JSFILE_CHECK_CLOSED("renameTo");
 
-    JSString *str = JS_ValueToString(cx, argv[0]);
-    if (!str)
-        goto out;
-
-    dest = RESOLVE_PATH(cx, JS_GetStringBytes(str));
+    dest = RESOLVE_PATH(cx, JS_GetStringBytes(JS_ValueToString(cx, argv[0])));
 
     if (PR_Rename(file->path, dest)==PR_SUCCESS){
         /* copy the new filename */
@@ -2032,11 +2024,7 @@ file_mkdir(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 		else
             goto out;
     }else{
-        JSString *str = JS_ValueToString(cx, argv[0]);
-        if (!str)
-            goto out;
-
-        char *dirName = JS_GetStringBytes(str);
+        char *dirName = JS_GetStringBytes(JS_ValueToString(cx, argv[0]));
         char *fullName;
 
         fullName = js_combinePath(cx, file->path, dirName);
@@ -2682,11 +2670,7 @@ file_currentDirSetter(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
         JSObject *rhsObject;
         char     *path;
 
-        JSString *str = JS_ValueToString(cx, *vp);
-        if (!str)
-            return JS_FALSE;
-
-        path      = JS_GetStringBytes(str);
+        path      = JS_GetStringBytes(JS_ValueToString(cx, *vp));
         rhsObject = js_NewFileObject(cx, path);
         if (!rhsObject)
             return JS_FALSE;

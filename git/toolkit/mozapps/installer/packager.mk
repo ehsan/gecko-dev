@@ -48,12 +48,12 @@ ifndef MOZ_PKG_FORMAT
 ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 MOZ_PKG_FORMAT  = DMG
 else
-ifeq (,$(filter-out OS2 WINNT WINCE BeOS, $(OS_ARCH)))
+ifeq (,$(filter-out OS2 WINNT BeOS, $(OS_ARCH)))
 MOZ_PKG_FORMAT  = ZIP
 ifeq ($(OS_ARCH),OS2)
 INSTALLER_DIR   = os2
 else
-ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
+ifeq ($(OS_ARCH), WINNT)
 INSTALLER_DIR   = windows
 endif
 endif
@@ -64,7 +64,11 @@ else
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 MOZ_PKG_FORMAT  = BZ2
 else
+ifeq (,$(filter-out WINCE, $(OS_ARCH)))
+MOZ_PKG_FORMAT  = ZIP
+else
 MOZ_PKG_FORMAT  = TGZ
+endif
 endif
 endif
 INSTALLER_DIR   = unix
@@ -198,7 +202,6 @@ endif
 
 SOFTOKN		= $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/$(DLL_PREFIX)softokn3$(NSS_DLL_SUFFIX)
 FREEBL		= $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/$(DLL_PREFIX)freebl3$(NSS_DLL_SUFFIX)
-NSSDBM		= $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/$(DLL_PREFIX)nssdbm3$(NSS_DLL_SUFFIX)
 FREEBL_32FPU	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/$(DLL_PREFIX)freebl_32fpu_3$(DLL_SUFFIX)
 FREEBL_32INT	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/$(DLL_PREFIX)freebl_32int_3$(DLL_SUFFIX)
 FREEBL_32INT64	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/$(DLL_PREFIX)freebl_32int64_3$(DLL_SUFFIX)
@@ -207,7 +210,6 @@ FREEBL_64INT	= $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/$(DLL_PREFIX)freebl
 
 SIGN_NSS	+= $(SIGN_CMD) $(SOFTOKN); \
 	if test -f $(FREEBL); then $(SIGN_CMD) $(FREEBL); fi; \
-	if test -f $(NSSDBM); then $(SIGN_CMD) $(NSSDBM); fi; \
 	if test -f $(FREEBL_32FPU); then $(SIGN_CMD) $(FREEBL_32FPU); fi; \
 	if test -f $(FREEBL_32INT); then $(SIGN_CMD) $(FREEBL_32INT); fi; \
 	if test -f $(FREEBL_32INT64); then $(SIGN_CMD) $(FREEBL_32INT64); fi; \
@@ -238,6 +240,7 @@ NO_PKG_FILES += \
 	msmap* \
 	nm2tsv* \
 	nsinstall* \
+	nspr-config \
 	rebasedlls* \
 	res/samples \
 	res/throbber \
@@ -288,7 +291,7 @@ STRIP_FLAGS	=
 PLATFORM_EXCLUDE_LIST = ! -name "*.ico" ! -name "$(MOZ_PKG_APPNAME).exe"
 endif
 
-ifneq (,$(filter WINNT WINCE OS2,$(OS_ARCH)))
+ifneq (,$(filter WINNT OS2,$(OS_ARCH)))
 PKGCP_OS = dos
 else
 PKGCP_OS = unix
@@ -415,7 +418,7 @@ make-package: stage-package $(PACKAGE_XULRUNNER)
 # dist/sdk/lib -> prefix/lib/appname-devel-version/lib
 # prefix/lib/appname-devel-version/* symlinks to the above directories
 install:: stage-package
-ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
+ifneq (,$(filter WINNT,$(OS_ARCH)))
 	$(error "make install" is not supported on this platform. Use "make package" instead.)
 endif
 ifeq (bundle,$(MOZ_FS_LAYOUT))

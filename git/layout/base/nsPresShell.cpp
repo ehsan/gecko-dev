@@ -3061,10 +3061,15 @@ NS_IMETHODIMP
 PresShell::PageMove(PRBool aForward, PRBool aExtend)
 {
   nsresult result;
-  nsIScrollableView *scrollableView = GetViewToScroll(nsLayoutUtils::eVertical);
-  if (!scrollableView)
+  nsIViewManager* viewManager = GetViewManager();
+  nsIScrollableView *scrollableView;
+  if (!viewManager) 
     return NS_ERROR_UNEXPECTED;
-
+  result = viewManager->GetRootScrollableView(&scrollableView);
+  if (NS_FAILED(result)) 
+    return result;
+  if (!scrollableView) 
+    return NS_ERROR_UNEXPECTED;
   nsIView *scrolledView;
   result = scrollableView->GetScrolledView(scrolledView);
   mSelection->CommonPageMove(aForward, aExtend, scrollableView);
@@ -4946,7 +4951,7 @@ PresShell::CharacterDataChanged(nsIDocument *aDocument,
       mFrameConstructor->RestyleForInsertOrChange(container, aContent);
   }
 
-  mFrameConstructor->CharacterDataChanged(aContent, aInfo);
+  mFrameConstructor->CharacterDataChanged(aContent, aInfo->mAppend);
   VERIFY_STYLE_TREE;
 }
 
@@ -5972,7 +5977,10 @@ PresShell::HandleEvent(nsIView         *aView,
 #endif
 
   // key and IME events must be targeted at the presshell for the focused frame
-  if (!sDontRetargetEvents && NS_IsEventTargetedAtFocusedWindow(aEvent)) {
+  if (!sDontRetargetEvents &&
+      (NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_EVENT(aEvent) ||
+       NS_IS_QUERY_CONTENT_EVENT(aEvent) || NS_IS_SELECTION_EVENT(aEvent) ||
+       NS_IS_CONTEXT_MENU_KEY(aEvent))) {
     nsIFocusManager* fm = nsFocusManager::GetFocusManager();
     if (!fm)
       return NS_ERROR_FAILURE;
@@ -6057,7 +6065,10 @@ PresShell::HandleEvent(nsIView         *aView,
 
   nsIFrame* frame = static_cast<nsIFrame*>(aView->GetClientData());
 
-  PRBool dispatchUsingCoordinates = NS_IsEventUsingCoordinates(aEvent);
+  PRBool dispatchUsingCoordinates =
+      !NS_IS_KEY_EVENT(aEvent) && !NS_IS_IME_EVENT(aEvent) &&
+      !NS_IS_CONTEXT_MENU_KEY(aEvent) && !NS_IS_FOCUS_EVENT(aEvent) &&
+      !NS_IS_PLUGIN_EVENT(aEvent);
 
   // if this event has no frame, we need to retarget it at a parent
   // view that has a frame.
@@ -6308,36 +6319,6 @@ IsSynthesizedMouseMove(nsEvent* aEvent)
          static_cast<nsMouseEvent*>(aEvent)->reason != nsMouseEvent::eReal;
 }
 
-static PRBool CanHandleContextMenuEvent(nsMouseEvent* aMouseEvent,
-                                        nsIFrame* aFrame)
-{
-#if defined(XP_MACOSX) && defined(MOZ_XUL)
-  nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (pm) {
-    nsIFrame* popupFrame = pm->GetTopPopup(ePopupTypeMenu);
-    if (popupFrame) {
-      // context menus should not be opened while another menu is open on Mac,
-      // so return false so that the event is not fired.
-      if (aMouseEvent->context == nsMouseEvent::eContextMenuKey) {
-        return PR_FALSE;
-      } else if (aMouseEvent->widget) {
-         nsWindowType windowType;
-         aMouseEvent->widget->GetWindowType(windowType);
-         if (windowType == eWindowType_popup) {
-           for (nsIFrame* current = aFrame; current;
-                current = nsLayoutUtils::GetCrossDocParentFrame(current)) {
-             if (current->GetType() == nsGkAtoms::menuPopupFrame) {
-               return PR_FALSE;
-             }
-           }
-         }
-      }
-    }
-  }
-#endif
-  return PR_TRUE;
-}
-
 nsresult
 PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
                                nsEventStatus* aStatus)
@@ -6388,16 +6369,11 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
       }
     }
 
-    if (aEvent->message == NS_CONTEXTMENU) {
-      nsMouseEvent* me = static_cast<nsMouseEvent*>(aEvent);
-      if (!CanHandleContextMenuEvent(me, GetCurrentEventFrame())) {
+    if (aEvent->message == NS_CONTEXTMENU &&
+        static_cast<nsMouseEvent*>(aEvent)->context == nsMouseEvent::eContextMenuKey) {
+      if (!AdjustContextMenuKeyEvent(static_cast<nsMouseEvent*>(aEvent)))
         return NS_OK;
-      }
-      if (me->context == nsMouseEvent::eContextMenuKey &&
-          !AdjustContextMenuKeyEvent(me)) {
-        return NS_OK;
-      }
-    }                                
+    }
 
     nsAutoHandlingUserInputStatePusher userInpStatePusher(isHandlingUserInput);
 
@@ -6495,11 +6471,18 @@ PRBool
 PresShell::AdjustContextMenuKeyEvent(nsMouseEvent* aEvent)
 {
 #ifdef MOZ_XUL
-  // if a menu is open, open the context menu relative to the active item on the menu. 
+  // if a menu is open, open the context menu relative to the active item on the menu.
+  // XXXndeakin Mac doesn't fire mouse-triggered context menus while another
+  // menu is open. Maybe we should prevent keyboard-tiggered context menu events too. 
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm) {
     nsIFrame* popupFrame = pm->GetTopPopup(ePopupTypeMenu);
     if (popupFrame) {
+#ifdef XP_MACOSX
+      // context menus should not be opened while another menu is open on Mac,
+      // so return false so that the event is not fired.
+      return PR_FALSE;
+#else
       nsIFrame* itemFrame = 
         (static_cast<nsMenuPopupFrame *>(popupFrame))->GetCurrentMenuItem();
       if (!itemFrame)
@@ -6514,6 +6497,7 @@ PresShell::AdjustContextMenuKeyEvent(nsMouseEvent* aEvent)
       mCurrentEventFrame = itemFrame;
 
       return PR_TRUE;
+#endif
     }
   }
 #endif
@@ -7217,8 +7201,6 @@ PresShell::DoReflow(nsIFrame* target, PRBool aInterruptible)
   nsContainerFrame::SyncFrameViewAfterReflow(mPresContext, target,
                                              target->GetView(),
                                              &desiredSize.mOverflowArea);
-  nsContainerFrame::SyncWindowProperties(mPresContext, target,
-                                         target->GetView());
 
   target->DidReflow(mPresContext, nsnull, NS_FRAME_REFLOW_FINISHED);
   if (target == rootFrame && size.height == NS_UNCONSTRAINEDSIZE) {

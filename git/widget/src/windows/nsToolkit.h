@@ -55,6 +55,7 @@
 #define GET_Y_LPARAM(pt) (short(HIWORD(pt)))
 #endif
 
+struct MethodInfo;
 class nsIEventQueue;
 class MouseTrailer;
 
@@ -82,6 +83,11 @@ class nsToolkit : public nsIToolkit
 
                             nsToolkit();
             NS_IMETHOD      Init(PRThread *aThread);
+            void            CallMethod(MethodInfo *info);
+            // Return whether the current thread is the application's Gui thread.  
+            PRBool          IsGuiThread(void)      { return (PRBool)(mGuiThread == PR_GetCurrentThread());}
+            PRThread*       GetGuiThread(void)       { return mGuiThread;   }
+            HWND            GetDispatchWindow(void)  { return mDispatchWnd; }
             void            CreateInternalWindow(PRThread *aThread);
 
 private:
@@ -112,6 +118,14 @@ public:
 
     static MouseTrailer *gMouseTrailer;
 };
+
+#define WM_CALLMETHOD   (WM_USER+1)
+
+inline void nsToolkit::CallMethod(MethodInfo *info)
+{
+    NS_PRECONDITION(::IsWindow(mDispatchWnd), "Invalid window handle");
+    ::SendMessage(mDispatchWnd, WM_CALLMETHOD, (WPARAM)0, (LPARAM)info);
+}
 
 class  nsWindow;
 

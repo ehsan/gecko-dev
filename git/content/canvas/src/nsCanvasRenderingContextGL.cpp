@@ -59,11 +59,13 @@
 
 #include "imgIRequest.h"
 #include "imgIContainer.h"
+#include "gfxIImageFrame.h"
 #include "nsIDOMHTMLCanvasElement.h"
 #include "nsICanvasElement.h"
 #include "nsIDOMHTMLImageElement.h"
 #include "nsIImageLoadingContent.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIImage.h"
 #include "nsDOMError.h"
 #include "nsIJSRuntimeService.h"
 

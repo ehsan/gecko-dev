@@ -553,7 +553,11 @@ var PlacesOrganizer = {
     var backupsDir = dirSvc.get("Desk", Ci.nsILocalFile);
     fp.displayDirectory = backupsDir;
 
-    fp.defaultString = PlacesUtils.getBackupFilename();
+    // Use YYYY-MM-DD (ISO 8601) as it doesn't contain illegal characters
+    // and makes the alphabetical order of multiple backup files more useful.
+    var date = (new Date).toLocaleFormat("%Y-%m-%d");
+    fp.defaultString = PlacesUIUtils.getFormattedString("bookmarksBackupFilenameJSON",
+                                                        [date]);
 
     if (fp.show() != Ci.nsIFilePicker.returnCancel) {
       PlacesUtils.backupBookmarksToFile(fp.file);
@@ -562,7 +566,9 @@ var PlacesOrganizer = {
       var latestBackup = PlacesUtils.getMostRecentBackup();
       if (!latestBackup || latestBackup != fp.file) {
         latestBackup.remove(false);
-        var name = PlacesUtils.getBackupFilename();
+        var date = new Date().toLocaleFormat("%Y-%m-%d");
+        var name = PlacesUtils.getFormattedString("bookmarksArchiveFilename",
+                                                  [date]);
         fp.file.copyTo(this.bookmarksBackupDir, name);
       }
     }

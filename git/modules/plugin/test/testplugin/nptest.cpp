@@ -73,8 +73,6 @@ static bool startWatchingInstanceCount(NPObject* npobj, const NPVariant* args, u
 static bool getInstanceCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool stopWatchingInstanceCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool unscheduleAllTimers(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getLastMouseX(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getLastMouseY(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 
 static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "setUndefinedValueTest",
@@ -90,8 +88,6 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "getInstanceCount",
   "stopWatchingInstanceCount",
   "unscheduleAllTimers",
-  "getLastMouseX",
-  "getLastMouseY",
 };
 static NPIdentifier sPluginMethodIdentifiers[ARRAY_LENGTH(sPluginMethodIdentifierNames)];
 static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMethodIdentifierNames)] = {
@@ -108,8 +104,6 @@ static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMetho
   getInstanceCount,
   stopWatchingInstanceCount,
   unscheduleAllTimers,
-  getLastMouseX,
-  getLastMouseY,
 };
 
 static bool sIdentifiersInitialized = false;
@@ -346,7 +340,6 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
   }
 
   instanceData->lastReportedPrivateModeState = false;
-  instanceData->lastMouseX = instanceData->lastMouseY = -1;
 
   // do platform-specific initialization
   NPError err = pluginInstanceInit(instanceData);
@@ -881,29 +874,5 @@ unscheduleAllTimers(NPObject* npobj, const NPVariant* args, uint32_t argCount, N
   NPN_UnscheduleTimer(npp, id->timerID2);
   id->timerID2 = 0;
 
-  return true;
-}
-
-static bool
-getLastMouseX(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (argCount != 0)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  INT32_TO_NPVARIANT(id->lastMouseX, *result);
-  return true;
-}
-
-static bool
-getLastMouseY(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (argCount != 0)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  INT32_TO_NPVARIANT(id->lastMouseY, *result);
   return true;
 }

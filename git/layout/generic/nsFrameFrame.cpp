@@ -185,9 +185,7 @@ public:
   virtual void ReflowCallbackCanceled();
 
 protected:
-  // Helper method to look up the HTML marginwidth & marginheight attributes
-  nsIntSize GetMarginAttributes();
-
+  nsIntSize GetMargin();
   PRBool IsInline() { return mIsInline; }
   nsresult ShowDocShell();
   nsresult CreateViewAndWidget(nsContentType aContentType);
@@ -804,8 +802,7 @@ nsSubDocumentFrame::HideViewer()
   }
 }
 
-nsIntSize
-nsSubDocumentFrame::GetMarginAttributes()
+nsIntSize nsSubDocumentFrame::GetMargin()
 {
   nsIntSize result(-1, -1);
   nsGenericHTMLElement *content = nsGenericHTMLElement::FromContent(mContent);
@@ -921,7 +918,7 @@ nsSubDocumentFrame::ShowDocShell()
 
   // pass along marginwidth, marginheight, scrolling so sub document
   // can use it
-  nsIntSize margin = GetMarginAttributes();
+  nsIntSize margin = GetMargin();
   docShell->SetMarginWidth(margin.width);
   docShell->SetMarginHeight(margin.height);
 

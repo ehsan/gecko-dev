@@ -46,6 +46,7 @@
 #include "nsICharsetConverterManager.h"
 #include "nsEncoderDecoderUtils.h"
 #include "nsIStringBundle.h"
+#include "nsILocaleService.h"
 #include "nsUConvDll.h"
 #include "prmem.h"
 #include "nsCRT.h"

@@ -86,8 +86,7 @@ public:
 #if defined(WINCE_HAVE_SOFTKB)
   static void ToggleSoftKB(PRBool show);
   static void CreateSoftKeyMenuBar(HWND wnd);
-  static void NotifySoftKbObservers(LPRECT = NULL);
-  static PRBool sSIPInTransition;
+  static void NotifySoftKbObservers();
   static TriStateBool sShowSIPButton;
 #endif
 };

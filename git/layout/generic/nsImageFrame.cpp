@@ -101,6 +101,14 @@
 #include "nsBidiUtils.h"
 #include "nsBidiPresUtils.h"
 
+#ifdef DEBUG
+#undef NOISY_IMAGE_LOADING
+#undef NOISY_ICON_LOADING
+#else
+#undef NOISY_IMAGE_LOADING
+#undef NOISY_ICON_LOADING
+#endif
+
 // sizes (pixels) for image icon, padding and border frame
 #define ICON_SIZE        (16)
 #define ICON_PADDING     (3)
@@ -165,8 +173,7 @@ NS_NewImageFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 nsImageFrame::nsImageFrame(nsStyleContext* aContext) :
   ImageFrameSuper(aContext),
   mComputedSize(0, 0),
-  mIntrinsicSize(0, 0),
-  mDisplayingIcon(PR_FALSE)
+  mIntrinsicSize(0, 0)
 {
   // We assume our size is not constrained and we haven't gotten an
   // initial reflow yet, so don't touch those flags.
@@ -215,10 +222,6 @@ nsImageFrame::Destroy()
   }
   
   mListener = nsnull;
-
-  // If we were displaying an icon, take ourselves off the list
-  if (mDisplayingIcon)
-    gIconLoad->RemoveIconObserver(this);
 
   nsSplittableFrame::Destroy();
 }
@@ -470,6 +473,11 @@ nsImageFrame::OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage)
 {
   if (!aImage) return NS_ERROR_INVALID_ARG;
 
+  // handle iconLoads first...
+  if (HandleIconLoads(aRequest, PR_FALSE)) {
+    return NS_OK;
+  }
+
   /* Get requested animation policy from the pres context:
    *   normal = 0
    *   one frame = 1
@@ -531,6 +539,13 @@ nsImageFrame::OnDataAvailable(imgIRequest *aRequest,
   // image scaling!
   nsRect r = SourceRectToDest(*aRect);
 
+  // handle iconLoads first...
+  if (HandleIconLoads(aRequest, PR_FALSE)) {
+    // Image changed, invalidate
+    Invalidate(r);
+    return NS_OK;
+  }
+
   if (IsPendingLoad(aRequest)) {
     // We don't care
     return NS_OK;
@@ -560,6 +575,11 @@ nsImageFrame::OnStopDecode(imgIRequest *aRequest,
   nsPresContext *presContext = PresContext();
   nsIPresShell *presShell = presContext->GetPresShell();
   NS_ASSERTION(presShell, "No PresShell.");
+
+  // handle iconLoads first...
+  if (HandleIconLoads(aRequest, NS_SUCCEEDED(aStatus))) {
+    return NS_OK;
+  }
 
   // Check what request type we're dealing with
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
@@ -628,23 +648,19 @@ nsImageFrame::EnsureIntrinsicSize(nsPresContext* aPresContext)
   // if mIntrinsicSize.width and height are 0, then we should
   // check to see if the size is already known by the image container.
   if (mIntrinsicSize.width == 0 && mIntrinsicSize.height == 0) {
-
-    // Jump through all the hoops to get the status of the request
     nsCOMPtr<imgIRequest> currentRequest;
     nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
-    if (imageLoader)
+    if (imageLoader) {
       imageLoader->GetRequest(nsIImageLoadingContent::CURRENT_REQUEST,
                               getter_AddRefs(currentRequest));
-    PRUint32 status = 0;
-    if (currentRequest)
-      currentRequest->GetImageStatus(&status);
+    }
+    nsCOMPtr<imgIContainer> currentContainer;
+    if (currentRequest) {
+      currentRequest->GetImage(getter_AddRefs(currentContainer));
+    }
 
-    // If we know the size, we can grab it and use it for an update
-    if (status & imgIRequest::STATUS_SIZE_AVAILABLE) {
-      nsCOMPtr<imgIContainer> imgCon;
-      currentRequest->GetImage(getter_AddRefs(imgCon));
-      NS_ABORT_IF_FALSE(imgCon, "SIZE_AVAILABLE, but no imgContainer?");
-      UpdateIntrinsicSize(imgCon);
+    if (currentContainer) {
+      UpdateIntrinsicSize(currentContainer);
     } else {
       // image request is null or image size not known, probably an
       // invalid image specified
@@ -982,12 +998,6 @@ nsImageFrame::DisplayAltFeedback(nsIRenderingContext& aRenderingContext,
                                  imgIRequest*         aRequest,
                                  nsPoint              aPt)
 {
-  // We should definitely have a gIconLoad here.
-  NS_ABORT_IF_FALSE(gIconLoad, "How did we succeed in Init then?");
-
-  // We always call this function with an image
-  NS_ABORT_IF_FALSE(aRequest, "Calling DisplayAltFeedback without an image");
-
   // Calculate the inner area
   nsRect  inner = GetInnerArea() + aPt;
 
@@ -1023,39 +1033,34 @@ nsImageFrame::DisplayAltFeedback(nsIRenderingContext& aRenderingContext,
   aRenderingContext.PushState();
   aRenderingContext.SetClipRect(inner, nsClipCombine_kIntersect);
 
+  PRBool dispIcon = gIconLoad ? gIconLoad->mPrefShowPlaceholders : PR_TRUE;
+
   // Check if we should display image placeholders
-  if (gIconLoad->mPrefShowPlaceholders) {
+  if (dispIcon) {
     const nsStyleVisibility* vis = GetStyleVisibility();
     nscoord size = nsPresContext::CSSPixelsToAppUnits(ICON_SIZE);
 
     PRBool iconUsed = PR_FALSE;
 
-    // If we weren't previously displaying an icon, register ourselves
-    // as an observer for load and animation updates and flag that we're
-    // doing so now.
-    if (!mDisplayingIcon) {
-      gIconLoad->AddIconObserver(this);
-      mDisplayingIcon = PR_TRUE;
-    }
-
-
-    // If the image in question is loaded and decoded, draw it
-    PRUint32 imageStatus;
-    aRequest->GetImageStatus(&imageStatus);
-    if (imageStatus & imgIRequest::STATUS_FRAME_COMPLETE) {
+    // see if the icon images are present...
+    if (gIconLoad && gIconLoad->mIconsLoaded) {
+      // pick the correct image
       nsCOMPtr<imgIContainer> imgCon;
-      aRequest->GetImage(getter_AddRefs(imgCon));
-      NS_ABORT_IF_FALSE(imgCon, "Frame Complete, but no image container?");
-      nsRect dest((vis->mDirection == NS_STYLE_DIRECTION_RTL) ?
-                  inner.XMost() - size : inner.x,
-                  inner.y, size, size);
-      nsLayoutUtils::DrawSingleImage(&aRenderingContext, imgCon,
-        nsLayoutUtils::GetGraphicsFilterForFrame(this), dest, aDirtyRect);
-      iconUsed = PR_TRUE;
+      if (aRequest) {
+        aRequest->GetImage(getter_AddRefs(imgCon));
+      }
+      if (imgCon) {
+        // draw it
+        nsRect dest((vis->mDirection == NS_STYLE_DIRECTION_RTL) ?
+                    inner.XMost() - size : inner.x,
+                    inner.y, size, size);
+        nsLayoutUtils::DrawSingleImage(&aRenderingContext, imgCon,
+          nsLayoutUtils::GetGraphicsFilterForFrame(this), dest, aDirtyRect);
+        iconUsed = PR_TRUE;
+      }
     }
 
-    // if we could not draw the icon, flag that we're waiting for it and
-    // just draw some graffiti in the mean time
+    // if we could not draw the image, then just draw some graffiti
     if (!iconUsed) {
       nscolor oldColor;
       nscoord iconXPos = (vis->mDirection ==   NS_STYLE_DIRECTION_RTL) ?
@@ -1209,18 +1214,7 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       currentRequest->GetImage(getter_AddRefs(imgCon));
     }
 
-    // Determine if the size is available
-    PRBool haveSize = PR_FALSE;
-    PRUint32 imageStatus = 0;
-    if (currentRequest)
-      currentRequest->GetImageStatus(&imageStatus);
-    if (imageStatus & imgIRequest::STATUS_SIZE_AVAILABLE)
-      haveSize = PR_TRUE;
-
-    // We should never have the size and not have an image container
-    NS_ABORT_IF_FALSE(!haveSize || imgCon, "Have size but not container?");
-
-    if (!imageOK || !haveSize) {
+    if (!imageOK || !imgCon) {
       // No image yet, or image load failed. Draw the alt-text and an icon
       // indicating the status
       rv = aLists.Content()->AppendNewToTop(new (aBuilder)
@@ -1231,13 +1225,6 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       rv = aLists.Content()->AppendNewToTop(new (aBuilder)
           nsDisplayImage(this, imgCon));
       NS_ENSURE_SUCCESS(rv, rv);
-
-      // If we were previously displaying an icon, we're not anymore
-      if (mDisplayingIcon) {
-        gIconLoad->RemoveIconObserver(this);
-        mDisplayingIcon = PR_FALSE;
-      }
-
         
 #ifdef DEBUG
       if (GetShowFrameBorders() && GetImageMap(PresContext())) {
@@ -1641,7 +1628,7 @@ nsImageFrame::LoadIcon(const nsAString& aSpec,
                                        apply to icons. */
                        nsnull,      /* referrer (not relevant for icons) */
                        loadGroup,
-                       gIconLoad,
+                       mListener,
                        nsnull,      /* Not associated with any particular document */
                        loadFlags,
                        nsnull,
@@ -1701,7 +1688,7 @@ nsresult nsImageFrame::LoadIcons(nsPresContext *aPresContext)
   NS_NAMED_LITERAL_STRING(loadingSrc,"resource://gre/res/loading-image.png");
   NS_NAMED_LITERAL_STRING(brokenSrc,"resource://gre/res/broken-image.png");
 
-  gIconLoad = new IconLoad();
+  gIconLoad = new IconLoad(mListener);
   if (!gIconLoad) 
     return NS_ERROR_OUT_OF_MEMORY;
   NS_ADDREF(gIconLoad);
@@ -1711,6 +1698,11 @@ nsresult nsImageFrame::LoadIcons(nsPresContext *aPresContext)
   rv = LoadIcon(loadingSrc,
                 aPresContext,
                 getter_AddRefs(gIconLoad->mLoadingImage));
+#ifdef NOISY_ICON_LOADING
+  printf("Loading request %p, rv=%u\n",
+         gIconLoad->mLoadingImage.get(), rv);
+#endif
+
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -1718,18 +1710,56 @@ nsresult nsImageFrame::LoadIcons(nsPresContext *aPresContext)
   rv = LoadIcon(brokenSrc,
                 aPresContext,
                 getter_AddRefs(gIconLoad->mBrokenImage));
+#ifdef NOISY_ICON_LOADING
+  printf("Loading request %p, rv=%u\n",
+         gIconLoad->mBrokenImage.get(), rv);
+#endif
+
+  // ImageLoader will callback into OnStartContainer, which will
+  // handle the mIconsLoaded flag
+
   return rv;
 }
 
-NS_IMPL_ISUPPORTS2(nsImageFrame::IconLoad, nsIObserver,
-                   imgIDecoderObserver)
+PRBool nsImageFrame::HandleIconLoads(imgIRequest* aRequest, PRBool aLoaded)
+{
+  PRBool result = PR_FALSE;
+
+  if (gIconLoad) {
+    // check which image it is
+    if (aRequest == gIconLoad->mLoadingImage ||
+        aRequest == gIconLoad->mBrokenImage) {
+      result = PR_TRUE;
+      if (aLoaded && (++gIconLoad->mIconsLoaded == 2))
+        gIconLoad->mLoadObserver = nsnull;
+    }
+
+#ifdef NOISY_ICON_LOADING
+    if (gIconLoad->mIconsLoaded && result) {
+      printf( "Icons Loaded: request for %s\n",
+              aRequest == gIconLoad->mLoadingImage
+                ? "mLoadingImage" : "mBrokenImage" );
+    }
+#endif
+  }
+  
+#ifdef NOISY_ICON_LOADING
+  printf( "HandleIconLoads returned %s (%p)\n", result ? "TRUE" : "FALSE", this);
+#endif
+
+  return result;
+}
+
+NS_IMPL_ISUPPORTS1(nsImageFrame::IconLoad, nsIObserver)
 
 static const char kIconLoadPrefs[][40] = {
   "browser.display.force_inline_alttext",
   "browser.display.show_image_placeholders"
 };
 
-nsImageFrame::IconLoad::IconLoad()
+nsImageFrame::IconLoad::IconLoad(imgIDecoderObserver *aObserver)
+  : mLoadObserver(aObserver),
+    mIconsLoaded(0)
 {
   nsCOMPtr<nsIPrefBranch2> prefBranch =
     do_QueryInterface(nsContentUtils::GetPrefBranch());
@@ -1769,94 +1799,6 @@ void nsImageFrame::IconLoad::GetPrefs()
     nsContentUtils::GetBoolPref("browser.display.show_image_placeholders",
                                 PR_TRUE);
 }
-
-
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnStartRequest(imgIRequest *aRequest)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnStartDecode(imgIRequest *aRequest)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnStartContainer(imgIRequest *aRequest,
-                                         imgIContainer *aContainer)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnStartFrame(imgIRequest *aRequest,
-                                     PRUint32 aFrame)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnDataAvailable(imgIRequest *aRequest,
-                                        PRBool aCurrentFrame,
-                                        const nsIntRect * aRect)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnStopFrame(imgIRequest *aRequest,
-                                    PRUint32 aFrame)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnStopContainer(imgIRequest *aRequest,
-                                        imgIContainer *aContainer)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnStopDecode(imgIRequest *aRequest,
-                                     nsresult status,
-                                     const PRUnichar *statusArg)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::OnStopRequest(imgIRequest *aRequest,
-                                      PRBool aIsLastPart)
-{
-  nsTObserverArray<nsImageFrame*>::ForwardIterator iter(mIconObservers);
-  nsImageFrame *frame;
-  while (iter.HasMore()) {
-    frame = iter.GetNext();
-    frame->Invalidate(frame->GetRect());
-  }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsImageFrame::IconLoad::FrameChanged(imgIContainer *aContainer,
-                                     nsIntRect * aDirtyRect)
-{
-  nsTObserverArray<nsImageFrame*>::ForwardIterator iter(mIconObservers);
-  nsImageFrame *frame;
-  while (iter.HasMore()) {
-    frame = iter.GetNext();
-    frame->Invalidate(frame->GetRect());
-  }
-
-  return NS_OK;
-}
-
-
 
 NS_IMPL_ISUPPORTS2(nsImageListener, imgIDecoderObserver, imgIContainerObserver)
 

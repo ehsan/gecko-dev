@@ -90,7 +90,9 @@ public:
   NS_IMETHOD GetCursor(const nsPoint& aPoint,
                        nsIFrame::Cursor& aCursor);
   
-  NS_IMETHOD CharacterDataChanged(CharacterDataChangeInfo* aInfo);
+  NS_IMETHOD CharacterDataChanged(nsPresContext* aPresContext,
+                                  nsIContent*     aChild,
+                                  PRBool          aAppend);
                                   
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
   

@@ -53,6 +53,8 @@
 #include "nsIURI.h"
 #include "nsNetUtil.h"
 
+static NS_DEFINE_CID(kInspectorCSSUtilsCID, NS_INSPECTORCSSUTILS_CID);
+
 ///////////////////////////////////////////////////////////////////////////////
 inCSSValueSearch::inCSSValueSearch()
   : mResults(nsnull),
@@ -64,15 +66,14 @@ inCSSValueSearch::inCSSValueSearch()
     mReturnRelativeURLs(PR_TRUE),
     mNormalizeChromeURLs(PR_FALSE)
 {
-  nsCSSProps::AddRefTable();
   mProperties = new nsCSSProperty[100];
+  mCSSUtils = do_GetService(kInspectorCSSUtilsCID);
 }
 
 inCSSValueSearch::~inCSSValueSearch()
 {
   delete[] mProperties;
   delete mResults;
-  nsCSSProps::ReleaseTable();
 }
 
 NS_IMPL_ISUPPORTS2(inCSSValueSearch, inISearchProcess, inICSSValueSearch)
@@ -258,8 +259,8 @@ inCSSValueSearch::SetNormalizeChromeURLs(PRBool aNormalizeChromeURLs)
 NS_IMETHODIMP 
 inCSSValueSearch::AddPropertyCriteria(const PRUnichar *aPropName)
 {
-  nsCSSProperty prop =
-    nsCSSProps::LookupProperty(nsDependentString(aPropName));
+  nsCSSProperty prop;
+  mCSSUtils->LookupCSSProperty(nsDependentString(aPropName), &prop);
   mProperties[mPropertyCount] = prop;
   mPropertyCount++;
   return NS_OK;

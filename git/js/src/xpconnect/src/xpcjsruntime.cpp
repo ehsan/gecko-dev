@@ -120,6 +120,7 @@ static JSDHashOperator
 NativeInterfaceSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
                        uint32 number, void *arg)
 {
+    CX_AND_XPCRT_Data* data = (CX_AND_XPCRT_Data*) arg;
     XPCNativeInterface* iface = ((IID2NativeInterfaceMap::Entry*)hdr)->value;
     if(iface->IsMarked())
     {
@@ -132,7 +133,7 @@ NativeInterfaceSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
             JS_GetStringBytes(JSVAL_TO_STRING(iface->GetName())));
 #endif
 
-    XPCNativeInterface::DestroyInstance(iface);
+    XPCNativeInterface::DestroyInstance(data->cx, data->rt, iface);
     return JS_DHASH_REMOVE;
 }
 
@@ -644,8 +645,10 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
                 self->mNativeSetMap->
                     Enumerate(NativeSetSweeper, nsnull);
 
+                CX_AND_XPCRT_Data data = {cx, self};
+
                 self->mIID2NativeInterfaceMap->
-                    Enumerate(NativeInterfaceSweeper, nsnull);
+                    Enumerate(NativeInterfaceSweeper, &data);
 
 #ifdef DEBUG
                 XPCWrappedNativeScope::ASSERT_NoInterfaceSetsAreMarked();

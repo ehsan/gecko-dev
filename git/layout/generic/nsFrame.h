@@ -212,7 +212,9 @@ public:
    */
   static nsIFrame* GetNearestCapturingFrame(nsIFrame* aFrame);
 
-  NS_IMETHOD  CharacterDataChanged(CharacterDataChangeInfo* aInfo);
+  NS_IMETHOD  CharacterDataChanged(nsPresContext* aPresContext,
+                                   nsIContent*     aChild,
+                                   PRBool          aAppend);
   NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
                                nsIAtom*        aAttribute,
                                PRInt32         aModType);

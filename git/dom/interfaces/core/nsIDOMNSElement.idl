@@ -39,7 +39,9 @@
 
 #include "domstubs.idl"
 
-[scriptable, uuid(df86b1a8-02c3-47be-a76b-856620f925df)]
+interface nsIDOMNodeList;
+
+[scriptable, uuid(f0aef489-18c5-4de6-99d5-58b3758b098c)]
 interface nsIDOMNSElement : nsISupports
 {
   /*
@@ -147,9 +149,4 @@ interface nsIDOMNSElement : nsISupports
    * Returns a live nsIDOMNodeList of the current child elements.
    */
   readonly attribute nsIDOMNodeList children;
-
-  /**
-   * Returns a DOMTokenList object reflecting the class attribute.
-   */
-  readonly attribute nsIDOMDOMTokenList classList;
 };

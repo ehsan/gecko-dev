@@ -38,8 +38,7 @@
 #include "plbase64.h"
 #include "prlog.h" /* For PR_NOT_REACHED */
 #include "prmem.h" /* for malloc / PR_MALLOC */
-
-#include <string.h> /* for strlen */
+#include "plstr.h" /* for PL_strlen */
 
 static unsigned char *base = (unsigned char *)"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -151,13 +150,7 @@ PL_Base64Encode
 {
     if( 0 == srclen )
     {
-        size_t len = strlen(src);
-        srclen = len;
-        /* Detect truncation. */
-        if( srclen != len )
-        {
-            return (char *)0;
-        }
+        srclen = PL_strlen(src);
     }
 
     if( (char *)0 == dest )
@@ -396,13 +389,7 @@ PL_Base64Decode
 
     if( 0 == srclen )
     {
-        size_t len = strlen(src);
-        srclen = len;
-        /* Detect truncation. */
-        if( srclen != len )
-        {
-            return (char *)0;
-        }
+        srclen = PL_strlen(src);
     }
 
     if( srclen && (0 == (srclen & 3)) )
@@ -423,7 +410,8 @@ PL_Base64Decode
     if( (char *)0 == dest )
     {
         /* The following computes ((srclen * 3) / 4) without overflow. */
-        PRUint32 destlen = (srclen / 4) * 3 + ((srclen % 4) * 3) / 4;
+        PRUint32 rem = srclen % 4;
+        PRUint32 destlen = (srclen / 4) * 3 + (rem * 3) / 4;
         dest = (char *)PR_MALLOC(destlen + 1);
         if( (char *)0 == dest )
         {

@@ -76,7 +76,9 @@ public:
   NS_DECL_QUERYFRAME
 
   // nsIFrame interface:
-  NS_IMETHOD  CharacterDataChanged(CharacterDataChangeInfo* aInfo);
+  NS_IMETHOD  CharacterDataChanged(nsPresContext*  aPresContext,
+                                   nsIContent*     aChild,
+                                   PRBool          aAppend);
 
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 

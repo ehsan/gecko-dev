@@ -130,7 +130,6 @@ CPPSRCS		= \
 		nsDOMLists.cpp \
 		nsDOMParser.cpp \
 		nsDOMSerializer.cpp \
-		nsDOMTokenList.cpp \
 		nsDocument.cpp \
 		nsDocumentEncoder.cpp \
 		nsDocumentFragment.cpp \

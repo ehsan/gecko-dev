@@ -853,11 +853,6 @@ InitSystemMetrics()
   if (NS_SUCCEEDED(rv) && metricResult) {
     sSystemMetrics->AppendElement(do_GetAtom("windows-classic"));
   }
-
-  rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_TouchEnabled, metricResult);
-  if (NS_SUCCEEDED(rv) && metricResult) {
-    sSystemMetrics->AppendElement(do_GetAtom("touch-enabled"));
-  }
  
   return PR_TRUE;
 }

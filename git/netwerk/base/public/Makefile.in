@@ -72,6 +72,7 @@ XPIDLSRCS	= \
 		nsIAuthPromptAdapterFactory.idl \
 		nsIAuthPromptCallback.idl \
 		nsIAsyncStreamCopier.idl \
+		nsISafeOutputStream.idl \
 		nsIBufferedStreams.idl \
 		nsICancelable.idl \
 		nsICryptoHash.idl \

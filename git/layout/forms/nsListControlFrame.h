@@ -271,11 +271,6 @@ public:
    */
   PRBool IsInDropDownMode() const;
 
-  /**
-   * Frees statics owned by this class.
-   */
-  static void Shutdown();
-
 #ifdef ACCESSIBILITY
   /**
    * Post a custom DOM event for the change, so that accessibility can
@@ -447,7 +442,6 @@ protected:
   nsRefPtr<nsListEventListener> mEventListener;
 
   static nsListControlFrame * mFocused;
-  static nsString * sIncrementalString;
   
 #ifdef DO_REFLOW_COUNTER
   PRInt32 mReflowId;

@@ -1063,7 +1063,7 @@ nsMathMLContainerFrame::GetIntrinsicWidth(nsIRenderingContext* aRenderingContext
 
   // Measure
   nsHTMLReflowMetrics desiredSize;
-  nsresult rv = MeasureForWidth(*aRenderingContext, desiredSize);
+  nsresult rv = MeasureChildFrames(*aRenderingContext, desiredSize);
   if (NS_FAILED(rv)) {
     ReflowError(*aRenderingContext, desiredSize);
   }
@@ -1074,8 +1074,8 @@ nsMathMLContainerFrame::GetIntrinsicWidth(nsIRenderingContext* aRenderingContext
 }
 
 /* virtual */ nsresult
-nsMathMLContainerFrame::MeasureForWidth(nsIRenderingContext& aRenderingContext,
-                                        nsHTMLReflowMetrics& aDesiredSize)
+nsMathMLContainerFrame::MeasureChildFrames(nsIRenderingContext& aRenderingContext,
+                                           nsHTMLReflowMetrics& aDesiredSize)
 {
   return Place(aRenderingContext, PR_FALSE, aDesiredSize);
 }

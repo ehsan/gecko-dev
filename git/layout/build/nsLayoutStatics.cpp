@@ -86,7 +86,6 @@
 #include "nsCrossSiteListenerProxy.h"
 #include "nsFocusManager.h"
 #include "nsFrameList.h"
-#include "nsListControlFrame.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -354,7 +353,6 @@ nsLayoutStatics::Shutdown()
   nsGlobalWindow::ShutDown();
   nsDOMClassInfo::ShutDown();
   nsTextControlFrame::ShutDown();
-  nsListControlFrame::Shutdown();
   nsXBLWindowKeyHandler::ShutDown();
   nsAutoCopyListener::Shutdown();
 

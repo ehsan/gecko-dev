@@ -56,6 +56,7 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIX509Cert.h"
 #include "nsIX509CertDB.h"
+#include "nsILocaleService.h"
 #include "nsIDateTimeFormat.h"
 #include "nsDateTimeFormatCID.h"
 #include "nsPromiseFlatString.h"

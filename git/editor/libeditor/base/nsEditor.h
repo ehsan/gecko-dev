@@ -79,6 +79,7 @@ class DeleteTextTxn;
 class SplitElementTxn;
 class JoinElementTxn;
 class EditAggregateTxn;
+class nsILocale;
 class IMETextTxn;
 class AddStyleSheetTxn;
 class RemoveStyleSheetTxn;

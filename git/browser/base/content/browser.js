@@ -1211,9 +1211,9 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   window.addEventListener("fullscreen", onFullScreen, true);
 
   if (isLoadingBlank && gURLBar && isElementVisible(gURLBar))
-    gURLBar.focus();
+    focusElement(gURLBar);
   else
-    gBrowser.selectedBrowser.focus();
+    focusElement(content);
 
   if (gURLBar)
     gURLBar.emptyText = gURLBarEmptyText.value;
@@ -6861,8 +6861,7 @@ function getNavToolbox() gNavToolbox;
 let gPrivateBrowsingUI = {
   _observerService: null,
   _privateBrowsingService: null,
-  _searchBarValue: null,
-  _findBarValue: null,
+  _privateBrowsingAutoStarted: false,
 
   init: function PBUI_init() {
     this._observerService = Cc["@mozilla.org/observer-service;1"].
@@ -6947,12 +6946,6 @@ let gPrivateBrowsingUI = {
   },
 
   onEnterPrivateBrowsing: function PBUI_onEnterPrivateBrowsing() {
-    if (BrowserSearch.searchBar)
-      this._searchBarValue = BrowserSearch.searchBar.textbox.value;
-
-    if (gFindBar)
-      this._findBarValue = gFindBar.getElement("findbar-textbox").value;
-
     this._setPBMenuTitle("stop");
 
     document.getElementById("menu_import").setAttribute("disabled", "true");
@@ -6961,7 +6954,9 @@ let gPrivateBrowsingUI = {
     // temporary fix until bug 463607 is fixed
     document.getElementById("Tools:Sanitize").setAttribute("disabled", "true");
 
-    if (this._privateBrowsingService.autoStarted) {
+    this._privateBrowsingAutoStarted = this._privateBrowsingService.autoStarted;
+
+    if (this._privateBrowsingAutoStarted) {
       // Disable the menu item in auto-start mode
       document.getElementById("privateBrowsingItem")
               .setAttribute("disabled", "true");
@@ -6976,7 +6971,6 @@ let gPrivateBrowsingUI = {
       docElement.setAttribute("titlemodifier",
         docElement.getAttribute("titlemodifier_privatebrowsing"));
       docElement.setAttribute("browsingmode", "private");
-      gBrowser.updateTitlebar();
     }
 
     setTimeout(function () {
@@ -6985,14 +6979,8 @@ let gPrivateBrowsingUI = {
   },
 
   onExitPrivateBrowsing: function PBUI_onExitPrivateBrowsing() {
-    if (BrowserSearch.searchBar) {
-      let searchBox = BrowserSearch.searchBar.textbox;
-      searchBox.reset();
-      if (this._searchBarValue) {
-        searchBox.value = this._searchBarValue;
-        this._searchBarValue = null;
-      }
-    }
+    if (BrowserSearch.searchBar)
+      BrowserSearch.searchBar.textbox.reset();
 
     document.getElementById("menu_import").removeAttribute("disabled");
 
@@ -7000,14 +6988,8 @@ let gPrivateBrowsingUI = {
     // temporary fix until bug 463607 is fixed
     document.getElementById("Tools:Sanitize").removeAttribute("disabled");
 
-    if (gFindBar) {
-      let findbox = gFindBar.getElement("findbar-textbox");
-      findbox.reset();
-      if (this._findBarValue) {
-        findbox.value = this._findBarValue;
-        this._findBarValue = null;
-      }
-    }
+    if (gFindBar)
+      gFindBar.getElement("findbar-textbox").reset();
 
     this._setPBMenuTitle("start");
 
@@ -7026,6 +7008,8 @@ let gPrivateBrowsingUI = {
             .removeAttribute("disabled");
     document.getElementById("Tools:PrivateBrowsing")
             .removeAttribute("disabled");
+
+    this._privateBrowsingAutoStarted = false;
 
     gLastOpenDirectory.reset();
 

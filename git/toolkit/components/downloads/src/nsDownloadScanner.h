@@ -47,8 +47,12 @@ enum AVCheckPolicyState
 class nsDownloadScannerWatchdog;
 class nsDownload;
 
-class nsDownloadScanner
+class nsDownloadScanner : public nsIObserver
 {
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIOBSERVER
+
 public:
   nsDownloadScanner();
   ~nsDownloadScanner();
@@ -57,7 +61,9 @@ public:
   AVCheckPolicyState CheckPolicy(nsIURI *aSource, nsIURI *aTarget);
 
 private:
+  PRBool mOAVExists;
   PRBool mAESExists;
+  PRBool mUseAttachmentExecute;
   nsTArray<CLSID> mScanCLSID;
   PRBool IsAESAvailable();
   PRBool EnumerateOAVProviders();

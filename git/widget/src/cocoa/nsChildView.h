@@ -147,6 +147,11 @@ enum {
 
   // needed for NSTextInput implementation
   NSRange mMarkedRange;
+
+  BOOL mInHandScroll; // true for as long as we are hand scrolling
+  // hand scroll locations
+  NSPoint mHandScrollStartMouseLoc;
+  nscoord mHandScrollStartScrollX, mHandScrollStartScrollY;
   
   // when mouseDown: is called, we store its event here (strong)
   NSEvent* mLastMouseDownEvent;

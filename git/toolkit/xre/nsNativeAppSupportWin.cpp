@@ -594,13 +594,7 @@ struct MessageWindow {
         };
         // Bring the already running Mozilla process to the foreground.
         // nsWindow will restore the window (if minimized) and raise it.
-#ifdef WINCE
-        // for activating the existing window on wince we need "| 0x01"
-        // see http://msdn.microsoft.com/en-us/library/ms940024.aspx for details
-        ::SetForegroundWindow( (HWND)(((ULONG) mHandle) | 0x01) );
-#else
         ::SetForegroundWindow( mHandle );
-#endif
         ::SendMessage( mHandle, WM_COPYDATA, 0, (LPARAM)&cds );
         return NS_OK;
     }

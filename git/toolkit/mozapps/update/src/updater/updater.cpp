@@ -978,7 +978,7 @@ PatchFile::Prepare()
 int
 PatchFile::Execute()
 {
-  LOG(("EXECUTE PATCH 2 " LOG_S "\n", mDestFile));
+  LOG(("EXECUTE PATCH %s\n", mDestFile));
 
   // Create backup copy of the destination file before proceeding.
 
@@ -1004,7 +1004,7 @@ PatchFile::Execute()
 void
 PatchFile::Finish(int status)
 {
-  LOG(("FINISH PATCH " LOG_S "\n", mDestFile));
+  LOG(("FINISH PATCH %s\n", mDestFile));
 
   backup_finish(mDestFile, status);
 }
@@ -1312,7 +1312,9 @@ UpdateThreadFunc(void *param)
 
 int NS_main(int argc, NS_tchar **argv)
 {
+#ifndef WINCE
   InitProgressUI(&argc, &argv);
+#endif
   // The updater command line consists of the directory path containing the
   // updater.mar file to process followed by the PID of the calling process.
   // The updater will wait on the parent process to exit if the PID is non-

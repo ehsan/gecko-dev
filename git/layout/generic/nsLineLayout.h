@@ -155,8 +155,7 @@ protected:
 #define LL_INFIRSTLINE                 0x00000800
 #define LL_GOTLINEBOX                  0x00001000
 #define LL_INFIRSTLETTER               0x00002000
-#define LL_HASBULLET                   0x00004000
-#define LL_LASTFLAG                    LL_HASBULLET
+#define LL_LASTFLAG                    LL_INFIRSTLETTER
 
   void SetFlag(PRUint32 aFlag, PRBool aValue)
   {

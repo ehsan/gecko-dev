@@ -431,14 +431,7 @@ main(int argc, char **argv)
 
   rv = XPCOMGlueStartup(greDir);
   if (NS_FAILED(rv)) {
-    if (rv == NS_ERROR_OUT_OF_MEMORY) {
-      char applicationName[2000] = "this application";
-      parser.GetString("App", "Name", applicationName, sizeof(applicationName));
-      Output(PR_TRUE, "Not enough memory available to start %s.\n",
-             applicationName);
-    } else {
-      Output(PR_TRUE, "Couldn't load XPCOM.\n");
-    }
+    Output(PR_TRUE, "Couldn't load XPCOM.\n");
     return 1;
   }
 

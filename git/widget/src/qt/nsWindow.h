@@ -113,8 +113,6 @@ public:
     // nsIWidget
     //
 
-    NS_IMETHOD         ConfigureChildren(const nsTArray<nsIWidget::Configuration>&);
-
     NS_IMETHOD         Create(nsIWidget        *aParent,
                               const nsIntRect     &aRect,
                               EVENT_CALLBACK   aHandleEventFunction,
@@ -170,9 +168,9 @@ public:
     NS_IMETHOD         Invalidate(const nsIntRect &aRect,
                                   PRBool        aIsSynchronous);
     NS_IMETHOD         Update();
-    void               Scroll(const nsIntPoint&,
-                              const nsIntRect&,
-                              const nsTArray<nsIWidget::Configuration>&);
+    NS_IMETHOD         Scroll(PRInt32  aDx,
+                              PRInt32  aDy,
+                              nsIntRect  *aClipRect);
 
     NS_IMETHOD         PreCreateWidget(nsWidgetInitData *aWidgetInitData);
 

@@ -75,7 +75,7 @@
       function openSanitizeDialog() {
         let browserGlue = Cc["@mozilla.org/browser/browserglue;1"].
                           getService(Ci.nsIBrowserGlue);
-        browserGlue.sanitize(mainWindow);
+        browserGlue.sanitize(mainWindow || null);
       }
 
       function setFavIcon(url) {
@@ -116,7 +116,7 @@
 
         // Focus the location bar
         if (mainWindow.gURLBar)
-          mainWindow.gURLBar.focus();
+          mainWindow.focusElement(mainWindow.gURLBar);
       }
     ]]></script>
   </head>

@@ -440,9 +440,6 @@ NS_METHOD nsSound::Play(nsIURL *aURL)
 
 NS_IMETHODIMP nsSound::PlayEventSound(PRUint32 aEventId)
 {
-    if (!mInited)
-        Init();
-
     if (!libcanberra)
         return NS_OK;
 
@@ -506,6 +503,9 @@ NS_IMETHODIMP nsSound::PlayEventSound(PRUint32 aEventId)
 
 NS_IMETHODIMP nsSound::PlaySystemSound(const nsAString &aSoundAlias)
 {
+    if (!mInited)
+        Init();
+
     if (NS_IsMozAliasSound(aSoundAlias)) {
         NS_WARNING("nsISound::playSystemSound is called with \"_moz_\" events, they are obsolete, use nsISound::playEventSound instead");
         PRUint32 eventId;
