@@ -119,7 +119,7 @@ nsNativeThemeWin::~nsNativeThemeWin() {
   nsUXThemeData::Invalidate();
 }
 
-static void GetNativeRect(const nsIntRect& aSrc, RECT& aDst)
+static void GetNativeRect(const nsRect& aSrc, RECT& aDst) 
 {
   aDst.top = aSrc.y;
   aDst.bottom = aSrc.y + aSrc.height;
@@ -1195,7 +1195,7 @@ NS_IMETHODIMP
 nsNativeThemeWin::GetWidgetBorder(nsIDeviceContext* aContext, 
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
-                                  nsIntMargin* aResult)
+                                  nsMargin* aResult)
 {
   HANDLE theme = GetTheme(aWidgetType);
   if (!theme)
@@ -1244,7 +1244,7 @@ nsNativeThemeWin::GetWidgetBorder(nsIDeviceContext* aContext,
     return NS_ERROR_FAILURE;
 
   // Now compute the delta in each direction and place it in our
-  // nsIntMargin struct.
+  // nsMargin struct.
   aResult->top = contentRect.top - outerRect.top;
   aResult->bottom = outerRect.bottom - contentRect.bottom;
   aResult->left = contentRect.left - outerRect.left;
@@ -1279,7 +1279,7 @@ PRBool
 nsNativeThemeWin::GetWidgetPadding(nsIDeviceContext* aContext, 
                                    nsIFrame* aFrame,
                                    PRUint8 aWidgetType,
-                                   nsIntMargin* aResult)
+                                   nsMargin* aResult)
 {
   switch (aWidgetType) {
     // Radios and checkboxes return a fixed size in GetMinimumWidgetSize
@@ -1423,7 +1423,7 @@ nsNativeThemeWin::GetWidgetOverflow(nsIDeviceContext* aContext,
 NS_IMETHODIMP
 nsNativeThemeWin::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                        PRUint8 aWidgetType,
-                                       nsIntSize* aResult, PRBool* aIsOverridable)
+                                       nsSize* aResult, PRBool* aIsOverridable)
 {
   (*aResult).width = (*aResult).height = 0;
   *aIsOverridable = PR_TRUE;
@@ -1752,7 +1752,7 @@ nsresult
 nsNativeThemeWin::ClassicGetWidgetBorder(nsIDeviceContext* aContext, 
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
-                                  nsIntMargin* aResult)
+                                  nsMargin* aResult)
 {
   switch (aWidgetType) {
     case NS_THEME_BUTTON:
@@ -1829,7 +1829,7 @@ nsNativeThemeWin::ClassicGetWidgetBorder(nsIDeviceContext* aContext,
 nsresult
 nsNativeThemeWin::ClassicGetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                        PRUint8 aWidgetType,
-                                       nsIntSize* aResult, PRBool* aIsOverridable)
+                                       nsSize* aResult, PRBool* aIsOverridable)
 {
   (*aResult).width = (*aResult).height = 0;
   *aIsOverridable = PR_TRUE;

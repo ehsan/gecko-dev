@@ -552,6 +552,10 @@ private:
 
 };
 
+#if defined(XP_WIN) || (defined(DO_DIRTY_INTERSECT) && defined(XP_MACOSX)) || defined(XP_OS2)
+static void ConvertAppUnitsToPixels(const nsPresContext& aPresContext, const nsRect& aTwipsRect, nsIntRect& aPixelRect);
+#endif
+
   // Mac specific code to fix up port position and clip during paint
 #ifdef XP_MACOSX
 
@@ -928,7 +932,7 @@ nsObjectFrame::FixupWindow(const nsSize& aSize)
 
   PRBool windowless = (window->type == nsPluginWindowType_Drawable);
 
-  nsIntPoint origin = GetWindowOriginInPixels(windowless);
+  nsPoint origin = GetWindowOriginInPixels(windowless);
 
   window->x = origin.x;
   window->y = origin.y;
@@ -975,7 +979,7 @@ nsObjectFrame::CallSetWindow()
 
   PRBool windowless = (window->type == nsPluginWindowType_Drawable);
 
-  nsIntPoint origin = GetWindowOriginInPixels(windowless);
+  nsPoint origin = GetWindowOriginInPixels(windowless);
 
   window->x = origin.x;
   window->y = origin.y;
@@ -1028,7 +1032,7 @@ nsObjectFrame::IsHidden(PRBool aCheckVisibilityStyle) const
   return PR_FALSE;
 }
 
-nsIntPoint nsObjectFrame::GetWindowOriginInPixels(PRBool aWindowless)
+nsPoint nsObjectFrame::GetWindowOriginInPixels(PRBool aWindowless)
 {
   nsIView * parentWithView;
   nsPoint origin(0,0);
@@ -1057,8 +1061,10 @@ nsIntPoint nsObjectFrame::GetWindowOriginInPixels(PRBool aWindowless)
     }  
   }
 
-  return nsIntPoint(PresContext()->AppUnitsToDevPixels(origin.x),
-                    PresContext()->AppUnitsToDevPixels(origin.y));
+  origin.x = PresContext()->AppUnitsToDevPixels(origin.x);
+  origin.y = PresContext()->AppUnitsToDevPixels(origin.y);
+
+  return origin;
 }
 
 NS_IMETHODIMP
@@ -1483,7 +1489,7 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
           // and we can safely use this message to tell the plugin exactly where it is in all cases.
 
           nsIntPoint origin = GetWindowOriginInPixels(PR_TRUE);
-          nsIntRect winlessRect = nsIntRect(origin, nsIntSize(window->width, window->height));
+          nsRect winlessRect = nsRect(origin, nsSize(window->width, window->height));
           // XXX I don't think we can be certain that the location wrt to
           // the window only changes when the location wrt to the drawable
           // changes, but the hdc probably changes on every paint so
@@ -1566,7 +1572,7 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
       // check if we need to call SetWindow with updated parameters
       PRBool doupdatewindow = PR_FALSE;
       // the offset of the DC
-      nsIntPoint origin;
+      nsPoint origin;
 
       /*
        * Layout now has an optimized way of painting. Now we always get
@@ -3791,8 +3797,8 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
         const nsMouseEvent& mouseEvent =
           static_cast<const nsMouseEvent&>(anEvent);
         // Get reference point relative to screen:
-        nsIntRect windowRect(anEvent.refPoint, nsIntSize(1, 1));
-        nsIntRect rootPoint(-1,-1,1,1);
+        nsRect windowRect(anEvent.refPoint, nsSize(1, 1));
+        nsRect rootPoint(-1,-1,1,1);
         if (widget)
           widget->WidgetToScreen(windowRect, rootPoint);
 #ifdef MOZ_WIDGET_GTK2
@@ -4070,8 +4076,12 @@ void nsPluginInstanceOwner::Paint(const nsRect& aDirtyRect)
   // Convert dirty rect relative coordinates to absolute and also get the containerWidget
   ConvertRelativeToWindowAbsolute(mOwner, rel, abs, *getter_AddRefs(containerWidget));
 
+  nsRect absDirtyRect = nsRect(abs.x, abs.y, aDirtyRect.width, aDirtyRect.height);
+
   // Convert to absolute pixel values for the dirty rect
-  nsIntRect absDirtyRect = nsRect::ToOutsidePixels(nsRect(abs, aDirtyRect.Size()), *mOwner->GetPresContext()->AppUnitsPerDevPixel());
+  nsIntRect absDirtyRectInPixels;
+  ConvertAppUnitsToPixels(*mOwner->GetPresContext(), absDirtyRect,
+                          absDirtyRectInPixels);
 #endif
 
   nsCOMPtr<nsIPluginWidget> pluginWidget = do_QueryInterface(mWidget);
@@ -4115,15 +4125,18 @@ void nsPluginInstanceOwner::Paint(const nsRect& aDirtyRect, HPS aHPS)
 
   nsPluginWindow * window;
   GetWindow(window);
-  nsIntRect relDirtyRect = nsRect::ToOutsidePixels(aDirtyRect, mOwner->PresContext()->AppUnitsPerDevicePixel());
+  nsRect relDirtyRect = nsRect(aDirtyRect.x, aDirtyRect.y, aDirtyRect.width, aDirtyRect.height);
+  nsIntRect relDirtyRectInPixels;
+  ConvertAppUnitsToPixels(*mOwner->PresContext(), relDirtyRect,
+                          relDirtyRectInPixels);
 
   // we got dirty rectangle in relative window coordinates, but we
   // need it in absolute units and in the (left, top, right, bottom) form
   RECTL rectl;
-  rectl.xLeft   = relDirtyRect.x + window->x;
-  rectl.yBottom = relDirtyRect.y + window->y;
-  rectl.xRight  = rectl.xLeft + relDirtyRect.width;
-  rectl.yTop    = rectl.yBottom + relDirtyRect.height;
+  rectl.xLeft   = relDirtyRectInPixels.x + window->x;
+  rectl.yBottom = relDirtyRectInPixels.y + window->y;
+  rectl.xRight  = rectl.xLeft + relDirtyRectInPixels.width;
+  rectl.yTop    = rectl.yBottom + relDirtyRectInPixels.height;
 
   nsPluginEvent pluginEvent;
   pluginEvent.event = WM_PAINT;
@@ -4616,6 +4629,17 @@ void nsPluginInstanceOwner::SetPluginHost(nsIPluginHost* aHost)
   mPluginHost = aHost;
 }
 
+#if defined(XP_WIN) || (defined(DO_DIRTY_INTERSECT) && defined(XP_MACOSX)) || defined(XP_OS2)
+// convert frame coordinates from twips to pixels
+static void ConvertAppUnitsToPixels(const nsPresContext& aPresContext, const nsRect& aTwipsRect, nsIntRect& aPixelRect)
+{
+  aPixelRect.x = aPresContext.AppUnitsToDevPixels(aTwipsRect.x);
+  aPixelRect.y = aPresContext.AppUnitsToDevPixels(aTwipsRect.y);
+  aPixelRect.width = aPresContext.AppUnitsToDevPixels(aTwipsRect.width);
+  aPixelRect.height = aPresContext.AppUnitsToDevPixels(aTwipsRect.height);
+}
+#endif
+
   // Mac specific code to fix up the port location and clipping region
 #ifdef XP_MACOSX
 
@@ -4678,8 +4702,8 @@ WindowRef nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
 
   nsCOMPtr<nsIPluginWidget> pluginWidget = do_QueryInterface(mWidget);
   
-  nsIntPoint pluginOrigin;
-  nsIntRect widgetClip;
+  nsPoint pluginOrigin;
+  nsRect widgetClip;
   PRBool widgetVisible;
   pluginWidget->GetPluginClipRect(widgetClip, pluginOrigin, /* out */ widgetVisible);
   
@@ -4703,13 +4727,13 @@ WindowRef nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
     // use its native widget (an obj-c object) we have to go
     // from the widget's screen coordinates to its window coords
     // instead of straight to window coords.
-    nsIntRect geckoBounds;
+    nsRect geckoBounds;
     mWidget->GetBounds(geckoBounds);
     // we need a rect that is the entire *internal* rect, so the
     // x and y coords are 0, width is the same.
     geckoBounds.x = 0;
     geckoBounds.y = 0;
-    nsIntRect geckoScreenCoords;
+    nsRect geckoScreenCoords;
     mWidget->WidgetToScreen(geckoBounds, geckoScreenCoords);
 
     Rect windowRect;
