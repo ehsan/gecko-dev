@@ -138,16 +138,8 @@ function mockGetTabState (tab) {
   return tab;
 }
 
-function mockGetWindowEnumerator(url, numWindows, numTabs, indexes, moreURLs) {
+function mockGetWindowEnumerator(url, numWindows, numTabs) {
   let elements = [];
-
-  function url2entry(url) {
-    return {
-      url: ((typeof url == "function") ? url() : url),
-      title: "title"
-    };
-  }
-
   for (let w = 0; w < numWindows; ++w) {
     let tabs = [];
     let win = {
@@ -161,8 +153,11 @@ function mockGetWindowEnumerator(url, numWindows, numTabs, indexes, moreURLs) {
 
     for (let t = 0; t < numTabs; ++t) {
       tabs.push(TestingUtils.deepCopy({
-        index: indexes ? indexes() : 1,
-        entries: (moreURLs ? [url].concat(moreURLs()) : [url]).map(url2entry),
+        index: 1,
+        entries: [{
+          url: ((typeof url == "string") ? url : url()),
+          title: "title"
+        }],
         attributes: {
           image: "image"
         },
