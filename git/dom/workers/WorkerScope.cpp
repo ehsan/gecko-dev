@@ -53,13 +53,11 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(WorkerGlobalScope)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(WorkerGlobalScope,
                                                   DOMEventTargetHelper)
   tmp->mWorkerPrivate->AssertIsOnWorkerThread();
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mConsole)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(WorkerGlobalScope,
                                                 DOMEventTargetHelper)
   tmp->mWorkerPrivate->AssertIsOnWorkerThread();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mConsole)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(WorkerGlobalScope,
@@ -82,16 +80,17 @@ WorkerGlobalScope::WrapObject(JSContext* aCx)
   MOZ_CRASH("We should never get here!");
 }
 
-Console*
+already_AddRefed<Console>
 WorkerGlobalScope::GetConsole()
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
   if (!mConsole) {
     mConsole = new Console(nullptr);
+    MOZ_ASSERT(mConsole);
   }
 
-  return mConsole;
+  return mConsole.forget();
 }
 
 already_AddRefed<WorkerLocation>

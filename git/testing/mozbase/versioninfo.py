@@ -18,7 +18,6 @@ import sys
 
 import setup_development
 
-here = os.path.abspath(os.path.dirname(__file__))
 
 def run_hg(command):
     command = command[:]
@@ -26,7 +25,7 @@ def run_hg(command):
         command = command.split()
     command.insert(0, 'hg')
     try:
-        output = subprocess.check_output(command, cwd=here)
+        output = subprocess.check_output(command)
     except subprocess.CalledProcessError:
         sys.exit(1)
     return output

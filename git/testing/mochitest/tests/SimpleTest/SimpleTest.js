@@ -23,13 +23,8 @@ var parentRunner = null;
 // the primary window.  In single test runs, if there is no parent and there
 // is no opener then it is the primary window.
 var isSingleTestRun = (parent == window && !opener)
-try {
-  var isPrimaryTestWindow = !!parent.TestRunner || isSingleTestRun;
-} catch(e) {
-  dump("TEST-UNEXPECTED-FAIL, Exception caught: " + e.message +
-                ", at: " + e.fileName + " (" + e.lineNumber +
-                "), location: " + window.location.href + "\n");
-}
+var isPrimaryTestWindow = !!parent.TestRunner || isSingleTestRun;
+
 // Finds the TestRunner for this test run and the SpecialPowers object (in
 // case it is not defined) from a parent/opener window.
 //

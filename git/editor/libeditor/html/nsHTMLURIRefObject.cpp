@@ -126,7 +126,10 @@ nsHTMLURIRefObject::GetNextURI(nsAString & aURI)
     NS_ENSURE_TRUE(mAttributeCnt, NS_ERROR_FAILURE);
     mCurAttrIndex = 0;
   }
-
+#ifdef DEBUG_akkana
+  printf("Looking at tag '%s'\n",
+         NS_LossyConvertUTF16toASCII(tagName).get());
+#endif
   while (mCurAttrIndex < mAttributeCnt)
   {
     nsCOMPtr<nsIDOMAttr> attrNode;
@@ -138,6 +141,10 @@ nsHTMLURIRefObject::GetNextURI(nsAString & aURI)
     NS_ENSURE_SUCCESS(rv, rv);
 
     // href >> A, AREA, BASE, LINK
+#ifdef DEBUG_akkana
+    printf("Trying to match attribute '%s'\n",
+           NS_LossyConvertUTF16toASCII(curAttr).get());
+#endif
     if (MATCHES(curAttr, "href"))
     {
       if (!MATCHES(tagName, "a") && !MATCHES(tagName, "area")
@@ -241,6 +248,9 @@ nsHTMLURIRefObject::RewriteAllURIs(const nsAString & aOldPat,
                             const nsAString & aNewPat,
                             bool aMakeRel)
 {
+#ifdef DEBUG_akkana
+  printf("Can't rewrite URIs yet\n");
+#endif
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 

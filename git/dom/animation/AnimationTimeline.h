@@ -21,7 +21,7 @@ namespace dom {
 class AnimationTimeline MOZ_FINAL : public nsWrapperCache
 {
 public:
-  explicit AnimationTimeline(nsIDocument* aDocument)
+  AnimationTimeline(nsIDocument* aDocument)
     : mDocument(aDocument)
   {
     SetIsDOMBinding();

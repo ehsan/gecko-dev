@@ -598,8 +598,7 @@ void
 nsXBLPrototypeBinding::EnsureAttributeTable()
 {
   if (!mAttributeTable) {
-    mAttributeTable =
-        new nsClassHashtable<nsUint32HashKey, InnerAttributeTable>(2);
+    mAttributeTable = new nsClassHashtable<nsUint32HashKey, InnerAttributeTable>(4);
   }
 }
 
@@ -610,7 +609,7 @@ nsXBLPrototypeBinding::AddToAttributeTable(int32_t aSourceNamespaceID, nsIAtom* 
 {
     InnerAttributeTable* attributesNS = mAttributeTable->Get(aSourceNamespaceID);
     if (!attributesNS) {
-      attributesNS = new InnerAttributeTable(2);
+      attributesNS = new InnerAttributeTable(4);
       mAttributeTable->Put(aSourceNamespaceID, attributesNS);
     }
 

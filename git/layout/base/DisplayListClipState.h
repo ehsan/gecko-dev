@@ -131,7 +131,7 @@ private:
  */
 class DisplayListClipState::AutoSaveRestore {
 public:
-  explicit AutoSaveRestore(nsDisplayListBuilder* aBuilder);
+  AutoSaveRestore(nsDisplayListBuilder* aBuilder);
   void Restore()
   {
     mState = mSavedState;
@@ -227,7 +227,7 @@ public:
  */
 class DisplayListClipState::AutoClipMultiple : public AutoSaveRestore {
 public:
-  explicit AutoClipMultiple(nsDisplayListBuilder* aBuilder)
+  AutoClipMultiple(nsDisplayListBuilder* aBuilder)
     : AutoSaveRestore(aBuilder)
     , mExtraClipUsed(false)
   {}

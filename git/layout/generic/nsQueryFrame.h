@@ -77,13 +77,7 @@ public:
 class do_QueryFrame
 {
 public:
-  explicit do_QueryFrame(nsQueryFrame *s) : mRawPtr(s) { }
-
-  // The return and argument types here are arbitrarily selected so no
-  // corresponding member function exists.
-  typedef void (do_QueryFrame::* MatchNullptr)(double, float);
-  // Implicit constructor for nullptr, trick borrowed from already_AddRefed.
-  MOZ_IMPLICIT do_QueryFrame(MatchNullptr aRawPtr) : mRawPtr(nullptr) {}
+  do_QueryFrame(nsQueryFrame *s) : mRawPtr(s) { }
 
   template<class Dest>
   operator Dest*() {

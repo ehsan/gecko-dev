@@ -363,7 +363,7 @@ struct MOZ_STACK_CLASS nsCSSGridTemplateAreaToken {
 // Scanner for the grid-template-areas micro-syntax
 class nsCSSGridTemplateAreaScanner {
 public:
-  explicit nsCSSGridTemplateAreaScanner(const nsAString& aBuffer);
+  nsCSSGridTemplateAreaScanner(const nsAString& aBuffer);
 
   // Get the next token.  Return false on EOF.
   // aTokenResult is filled in with the data for the token.

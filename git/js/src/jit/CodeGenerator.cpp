@@ -3124,11 +3124,10 @@ CodeGenerator::maybeCreateScriptCounts()
             // Find a PC offset in the outermost script to use. If this block
             // is from an inlined script, find a location in the outer script
             // to associate information about the inlining with.
-            if (MResumePoint *resume = block->entryResumePoint()) {
-                while (resume->caller())
-                    resume = resume->caller();
-                offset = script->pcToOffset(resume->pc());
-            }
+            MResumePoint *resume = block->entryResumePoint();
+            while (resume->caller())
+                resume = resume->caller();
+            offset = script->pcToOffset(resume->pc());
         }
 
         if (!counts->block(i).init(block->id(), offset, block->numSuccessors())) {

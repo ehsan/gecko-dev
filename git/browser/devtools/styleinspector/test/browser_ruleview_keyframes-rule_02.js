@@ -36,26 +36,24 @@ function* testPacman(inspector, view) {
     "Keyframe pacman (100%) property is correct"
   );
 
-  // Dynamic changes test disabled because of Bug 1050940
+  info("Test dynamic changes to keyframe rule for #pacman");
 
-  // info("Test dynamic changes to keyframe rule for #pacman");
+  let defaultView = element.ownerDocument.defaultView;
+  let ruleEditor = view.element.children[5].childNodes[0]._ruleEditor;
+  ruleEditor.addProperty("opacity", "0");
 
-  // let defaultView = element.ownerDocument.defaultView;
-  // let ruleEditor = view.element.children[5].childNodes[0]._ruleEditor;
-  // ruleEditor.addProperty("opacity", "0");
+  yield ruleEditor._applyingModifications;
+  yield once(element, "animationend");
 
-  // yield ruleEditor._applyingModifications;
-  // yield once(element, "animationend");
+  is
+  (
+    convertTextPropsToString(rules.keyframeRules[1].textProps),
+    "left: 750px; opacity: 0",
+    "Keyframe pacman (100%) property is correct"
+  );
 
-  // is
-  // (
-  //   convertTextPropsToString(rules.keyframeRules[1].textProps),
-  //   "left: 750px; opacity: 0",
-  //   "Keyframe pacman (100%) property is correct"
-  // );
-
-  // is(defaultView.getComputedStyle(element).getPropertyValue("opacity"), "0",
-  //   "Added opacity property should have been used.");
+  is(defaultView.getComputedStyle(element).getPropertyValue("opacity"), "0",
+    "Added opacity property should have been used.");
 }
 
 function* testBoxy(inspector, view) {

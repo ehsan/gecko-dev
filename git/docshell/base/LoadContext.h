@@ -92,7 +92,7 @@ public:
   {}
 
   // Constructor taking reserved appId for the safebrowsing cookie.
-  explicit LoadContext(uint32_t aAppId)
+  LoadContext(uint32_t aAppId)
     : mTopFrameElement(nullptr)
     , mNestedFrameId(0)
     , mAppId(aAppId)

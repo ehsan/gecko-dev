@@ -1096,7 +1096,7 @@ public:
     if (gTestPBackground) {
       // Randomize value to validate workers are not cross-posting messages.
       uint32_t testValue;
-      size_t randomSize = PR_GetRandomNoise(&testValue, sizeof(testValue));
+      PRSize randomSize = PR_GetRandomNoise(&testValue, sizeof(testValue));
       MOZ_RELEASE_ASSERT(randomSize == sizeof(testValue));
       nsCString testStr;
       testStr.AppendInt(testValue);

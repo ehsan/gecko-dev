@@ -28,7 +28,7 @@ public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZISTORAGEBINDINGPARAMSARRAY
 
-  explicit BindingParamsArray(StorageBaseStatementInternal *aOwningStatement);
+  BindingParamsArray(StorageBaseStatementInternal *aOwningStatement);
 
   typedef array_type::size_type size_type;
 

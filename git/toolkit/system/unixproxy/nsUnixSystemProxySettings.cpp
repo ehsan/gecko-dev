@@ -26,7 +26,7 @@ public:
   NS_DECL_NSISYSTEMPROXYSETTINGS
 
   nsUnixSystemProxySettings()
-    : mSchemeProxySettings(4)
+    : mSchemeProxySettings(5)
   {
   }
   nsresult Init();

@@ -400,8 +400,10 @@ nsNativeCharsetConverter::GlobalInit()
 void
 nsNativeCharsetConverter::GlobalShutdown()
 {
-  delete gLock;
-  gLock = nullptr;
+  if (gLock) {
+    delete gLock;
+    gLock = nullptr;
+  }
 
   if (gNativeToUnicode != INVALID_ICONV_T) {
     iconv_close(gNativeToUnicode);

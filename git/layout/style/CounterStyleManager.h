@@ -104,7 +104,7 @@ class CounterStyleManager MOZ_FINAL
 private:
   ~CounterStyleManager();
 public:
-  explicit CounterStyleManager(nsPresContext* aPresContext);
+  CounterStyleManager(nsPresContext* aPresContext);
 
   static void InitializeBuiltinCounterStyles();
 

@@ -108,28 +108,6 @@ using dom::OwningBooleanOrMediaTrackConstraints;
 using dom::SupportedAudioConstraints;
 using dom::SupportedVideoConstraints;
 
-static bool
-HostInDomain(const nsCString &aHost, const nsCString &aPattern)
-{
-  PRInt32 patternOffset = 0;
-  PRInt32 hostOffset = 0;
-
-  // Act on '*.' wildcard in the left-most position in a domain pattern.
-  if (aPattern.Length() > 2 && aPattern[0] == '*' && aPattern[1] == '.') {
-    patternOffset = 2;
-
-    // Ignore the lowest level sub-domain for the hostname.
-    hostOffset = aHost.FindChar('.') + 1;
-
-    if (hostOffset <= 1) {
-      // Reject a match between a wildcard and a TLD or '.foo' form.
-      return false;
-    }
-  }
-
-  nsDependentCString hostRoot(aHost, hostOffset);
-  return hostRoot.EqualsIgnoreCase(aPattern.BeginReading() + patternOffset);
-}
 
 static bool
 HostHasPermission(nsIURI &docURI)
@@ -152,17 +130,17 @@ HostHasPermission(nsIURI &docURI)
     return false;
   }
 
-  uint32_t begin = 0;
-  uint32_t end = 0;
+  PRUint32 begin = 0;
+  PRUint32 end = 0;
   nsCString domainName;
-  /*
+  /* 
      Test each domain name in the comma separated list
      after converting from UTF8 to ASCII. Each domain
      must match exactly: no wildcards are used.
   */
   do {
     end = domainWhiteList.FindChar(',', begin);
-    if (end == (uint32_t)-1) {
+    if (end == (PRUint32)-1) {
       // Last or only domain name in the comma separated list
       end = domainWhiteList.Length();
     }
@@ -170,7 +148,7 @@ HostHasPermission(nsIURI &docURI)
     rv = idnService->ConvertUTF8toACE(Substring(domainWhiteList, begin, end - begin),
                                       domainName);
     if (NS_SUCCEEDED(rv)) {
-      if (HostInDomain(hostName, domainName)) {
+      if (hostName.EqualsIgnoreCase(domainName.Data(), domainName.Length())) {
         return true;
       }
     } else {

@@ -565,7 +565,7 @@ gfxProxyFontEntry::LoadFont(gfxMixedFontFamily *aFamily,
 }
 
 gfxUserFontSet::gfxUserFontSet()
-    : mFontFamilies(4), mLocalRulesUsed(false)
+    : mFontFamilies(5), mLocalRulesUsed(false)
 {
     IncrementGeneration();
     gfxPlatformFontList *fp = gfxPlatformFontList::PlatformFontList();

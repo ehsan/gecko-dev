@@ -60,7 +60,7 @@ static PRDescIdentity transport_layer_identity = PR_INVALID_IO_LAYER;
 // All of this stuff is assumed to happen solely in a single thread
 // (generally the SocketTransportService thread)
 struct Packet {
-  Packet() : data_(nullptr), len_(0) {}
+  Packet() : data_(nullptr), len_(0), offset_(0) {}
 
   void Assign(const void *data, int32_t len) {
     data_.reset(new uint8_t[len]);
@@ -70,6 +70,7 @@ struct Packet {
 
   UniquePtr<uint8_t[]> data_;
   int32_t len_;
+  int32_t offset_;
 };
 
 void TransportLayerNSPRAdapter::PacketReceived(const void *data, int32_t len) {
@@ -77,26 +78,23 @@ void TransportLayerNSPRAdapter::PacketReceived(const void *data, int32_t len) {
   input_.back()->Assign(data, len);
 }
 
-int32_t TransportLayerNSPRAdapter::Recv(void *buf, int32_t buflen) {
+int32_t TransportLayerNSPRAdapter::Read(void *data, int32_t len) {
   if (input_.empty()) {
     PR_SetError(PR_WOULD_BLOCK_ERROR, 0);
-    return -1;
+    return TE_WOULDBLOCK;
   }
 
   Packet* front = input_.front();
-  if (buflen < front->len_) {
-    MOZ_ASSERT(false, "Not enough buffer space to receive into");
-    PR_SetError(PR_BUFFER_OVERFLOW_ERROR, 0);
-    return -1;
+  int32_t to_read = std::min(len, front->len_ - front->offset_);
+  memcpy(data, front->data_.get(), to_read);
+  front->offset_ += to_read;
+
+  if (front->offset_ == front->len_) {
+    input_.pop();
+    delete front;
   }
 
-  int32_t count = front->len_;
-  memcpy(buf, front->data_.get(), count);
-
-  input_.pop();
-  delete front;
-
-  return count;
+  return to_read;
 }
 
 int32_t TransportLayerNSPRAdapter::Write(const void *buf, int32_t length) {
@@ -123,8 +121,8 @@ static PRStatus TransportLayerClose(PRFileDesc *f) {
 }
 
 static int32_t TransportLayerRead(PRFileDesc *f, void *buf, int32_t length) {
-  UNIMPLEMENTED;
-  return -1;
+  TransportLayerNSPRAdapter *io = reinterpret_cast<TransportLayerNSPRAdapter *>(f->secret);
+  return io->Read(buf, length);
 }
 
 static int32_t TransportLayerWrite(PRFileDesc *f, const void *buf, int32_t length) {
@@ -202,8 +200,8 @@ static PRStatus TransportLayerShutdown(PRFileDesc *f, int32_t how) {
   return PR_FAILURE;
 }
 
-// This function does not support peek, or waiting until `to`
-static int32_t TransportLayerRecv(PRFileDesc *f, void *buf, int32_t buflen,
+// This function does not support peek.
+static int32_t TransportLayerRecv(PRFileDesc *f, void *buf, int32_t amount,
                                   int32_t flags, PRIntervalTime to) {
   MOZ_ASSERT(flags == 0);
   if (flags != 0) {
@@ -211,8 +209,7 @@ static int32_t TransportLayerRecv(PRFileDesc *f, void *buf, int32_t buflen,
     return -1;
   }
 
-  TransportLayerNSPRAdapter *io = reinterpret_cast<TransportLayerNSPRAdapter *>(f->secret);
-  return io->Recv(buf, buflen);
+  return TransportLayerRead(f, buf, amount);
 }
 
 // Note: this is always nonblocking and assumes a zero timeout.
@@ -456,7 +453,13 @@ bool TransportLayerDtls::Setup() {
     return false;
   pr_fd->secret = reinterpret_cast<PRFilePrivate *>(nspr_io_adapter_.get());
 
-  ScopedPRFileDesc ssl_fd(DTLS_ImportFD(nullptr, pr_fd));
+  ScopedPRFileDesc ssl_fd;
+  if (mode_ == DGRAM) {
+    ssl_fd = DTLS_ImportFD(nullptr, pr_fd);
+  } else {
+    ssl_fd = SSL_ImportFD(nullptr, pr_fd);
+  }
+
   MOZ_ASSERT(ssl_fd != nullptr);  // This should never happen
   if (!ssl_fd) {
     return false;
@@ -774,22 +777,28 @@ void TransportLayerDtls::Handshake() {
     int32_t err = PR_GetError();
     switch(err) {
       case SSL_ERROR_RX_MALFORMED_HANDSHAKE:
-        MOZ_MTLOG(ML_ERROR, LAYER_INFO << "Malformed DTLS message; ignoring");
-        // If this were TLS (and not DTLS), this would be fatal, but
-        // here we're required to ignore bad messages, so fall through
+        if (mode_ != DGRAM) {
+          MOZ_MTLOG(ML_ERROR, LAYER_INFO << "Malformed TLS message");
+          TL_SET_STATE(TS_ERROR);
+        } else {
+          MOZ_MTLOG(ML_ERROR, LAYER_INFO << "Malformed DTLS message; ignoring");
+        }
+        // Fall through
       case PR_WOULD_BLOCK_ERROR:
         MOZ_MTLOG(ML_NOTICE, LAYER_INFO << "Handshake would have blocked");
-        PRIntervalTime timeout;
-        rv = DTLS_GetHandshakeTimeout(ssl_fd_, &timeout);
-        if (rv == SECSuccess) {
-          uint32_t timeout_ms = PR_IntervalToMilliseconds(timeout);
+        if (mode_ == DGRAM) {
+          PRIntervalTime timeout;
+          rv = DTLS_GetHandshakeTimeout(ssl_fd_, &timeout);
+          if (rv == SECSuccess) {
+            uint32_t timeout_ms = PR_IntervalToMilliseconds(timeout);
 
-          MOZ_MTLOG(ML_DEBUG,
-                    LAYER_INFO << "Setting DTLS timeout to " << timeout_ms);
-          timer_->SetTarget(target_);
-          timer_->InitWithFuncCallback(TimerCallback,
-                                       this, timeout_ms,
-                                       nsITimer::TYPE_ONE_SHOT);
+            MOZ_MTLOG(ML_DEBUG, LAYER_INFO << "Setting DTLS timeout to " <<
+                 timeout_ms);
+            timer_->SetTarget(target_);
+            timer_->InitWithFuncCallback(TimerCallback,
+                                         this, timeout_ms,
+                                         nsITimer::TYPE_ONE_SHOT);
+          }
         }
         break;
       default:

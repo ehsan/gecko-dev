@@ -237,6 +237,19 @@ class BaseMarionetteOptions(OptionParser):
         OptionParser.__init__(self, **kwargs)
         self.parse_args_handlers = [] # Used by mixins
         self.verify_usage_handlers = [] # Used by mixins
+        self.add_option('--autolog',
+                        action='store_true',
+                        dest='autolog',
+                        default=False,
+                        help='send test results to autolog')
+        self.add_option('--revision',
+                        action='store',
+                        dest='revision',
+                        help='git revision for autolog submissions')
+        self.add_option('--testgroup',
+                        action='store',
+                        dest='testgroup',
+                        help='testgroup names for autolog submissions')
         self.add_option('--emulator',
                         action='store',
                         dest='emulator',
@@ -438,13 +451,15 @@ class BaseMarionetteTestRunner(object):
 
     def __init__(self, address=None, emulator=None, emulator_binary=None,
                  emulator_img=None, emulator_res='480x800', homedir=None,
-                 app=None, app_args=None, binary=None, profile=None,
-                 logger=None, no_window=False, logdir=None, xml_output=None,
-                 repeat=0, testvars=None, tree=None, type=None,
-                 device_serial=None, symbols_path=None, timeout=None,
-                 shuffle=False, shuffle_seed=random.randint(0, sys.maxint),
-                 sdcard=None, this_chunk=1, total_chunks=1, sources=None,
-                 server_root=None, gecko_log=None, **kwargs):
+                 app=None, app_args=None, binary=None, profile=None, autolog=False,
+                 revision=None, logger=None, testgroup="marionette", no_window=False,
+                 logdir=None, xml_output=None, repeat=0,
+                 testvars=None, tree=None, type=None, device_serial=None,
+                 symbols_path=None, timeout=None, shuffle=False,
+                 shuffle_seed=random.randint(0, sys.maxint), sdcard=None,
+                 this_chunk=1, total_chunks=1, sources=None, server_root=None,
+                 gecko_log=None,
+                 **kwargs):
         self.address = address
         self.emulator = emulator
         self.emulator_binary = emulator_binary
@@ -455,6 +470,9 @@ class BaseMarionetteTestRunner(object):
         self.app_args = app_args or []
         self.bin = binary
         self.profile = profile
+        self.autolog = autolog
+        self.testgroup = testgroup
+        self.revision = revision
         self.logger = logger
         self.no_window = no_window
         self.httpd = None
@@ -638,14 +656,6 @@ class BaseMarionetteTestRunner(object):
 
         self.logger.suite_start(self.tests)
 
-        for test in self.manifest_skipped_tests:
-            name = os.path.basename(test['path'])
-            self.logger.test_start(name)
-            self.logger.test_end(name,
-                                 'SKIP',
-                                 message=test['disabled'])
-            self.todo += 1
-
         counter = self.repeat
         while counter >=0:
             round = self.repeat - counter
@@ -751,6 +761,13 @@ class BaseMarionetteTestRunner(object):
                 if test['path'] not in [x['path'] for x in target_tests]:
                     test.setdefault('disabled', 'filtered by type (%s)' % self.type)
                     self.manifest_skipped_tests.append(test)
+
+            for test in self.manifest_skipped_tests:
+                self.logger.test_start(os.path.basename(test['path']))
+                self.logger.test_end(os.path.basename(test['path']),
+                                     'SKIP',
+                                     message=test['disabled'])
+                self.todo += 1
 
             for i in target_tests:
                 if not os.path.exists(i["path"]):

@@ -15,10 +15,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/TimeRanges.h"
 
-#ifdef MOZ_EME
-#include "mozilla/CDMProxy.h"
-#endif
-
 using mozilla::layers::Image;
 using mozilla::layers::LayerManager;
 using mozilla::layers::LayersBackend;
@@ -208,7 +204,6 @@ MP4Reader::Init(MediaDecoderReader* aCloneDonor)
   return NS_OK;
 }
 
-#ifdef MOZ_EME
 class DispatchKeyNeededEvent : public nsRunnable {
 public:
   DispatchKeyNeededEvent(AbstractMediaDecoder* aDecoder,
@@ -234,17 +229,9 @@ private:
   nsTArray<uint8_t> mInitData;
   nsString mInitDataType;
 };
-#endif
 
-bool MP4Reader::IsWaitingOnCodecResource() {
-#ifdef MOZ_GONK_MEDIACODEC
-  return mVideo.mDecoder && mVideo.mDecoder->IsWaitingMediaResources();
-#endif
-  return false;
-}
-
-bool MP4Reader::IsWaitingOnCDMResource() {
-#ifdef MOZ_EME
+bool MP4Reader::IsWaitingMediaResources()
+{
   nsRefPtr<CDMProxy> proxy;
   {
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
@@ -264,18 +251,6 @@ bool MP4Reader::IsWaitingOnCDMResource() {
     LOG("MP4Reader::IsWaitingMediaResources() capsKnown=%d", caps.AreCapsKnown());
     return !caps.AreCapsKnown();
   }
-#else
-  return false;
-#endif
-}
-
-bool MP4Reader::IsWaitingMediaResources()
-{
-  // IsWaitingOnCDMResource() *must* come first, because we don't know whether
-  // we can create a decoder until the CDM is initialized and it has told us
-  // whether *it* will decode, or whether we need to create a PDM to do the
-  // decoding
-  return IsWaitingOnCDMResource() || IsWaitingOnCodecResource();
 }
 
 void
@@ -319,14 +294,8 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
     // an encrypted stream and we need to wait for a CDM to be set, we don't
     // need to reinit the demuxer.
     mDemuxerInitialized = true;
-  } else if (mPlatform && !IsWaitingMediaResources()) {
-    *aInfo = mInfo;
-    *aTags = nullptr;
-    return NS_OK;
   }
-
   if (mDemuxer->Crypto().valid) {
-#ifdef MOZ_EME
     if (!sIsEMEEnabled) {
       // TODO: Need to signal DRM/EME required somehow...
       return NS_ERROR_FAILURE;
@@ -361,10 +330,6 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
                                                         HasVideo(),
                                                         GetTaskQueue());
     NS_ENSURE_TRUE(mPlatform, NS_ERROR_FAILURE);
-#else
-    // EME not supported.
-    return NS_ERROR_FAILURE;
-#endif
   } else {
     mPlatform = PlatformDecoderModule::Create();
     NS_ENSURE_TRUE(mPlatform, NS_ERROR_FAILURE);
@@ -768,38 +733,6 @@ MP4Reader::GetBuffered(dom::TimeRanges* aBuffered, int64_t aStartTime)
   }
 
   return NS_OK;
-}
-
-bool MP4Reader::IsDormantNeeded()
-{
-#ifdef MOZ_GONK_MEDIACODEC
-  return mVideo.mDecoder && mVideo.mDecoder->IsDormantNeeded();
-#endif
-  return false;
-}
-
-void MP4Reader::ReleaseMediaResources()
-{
-#ifdef MOZ_GONK_MEDIACODEC
-  // Before freeing a video codec, all video buffers needed to be released
-  // even from graphics pipeline.
-  VideoFrameContainer* container = mDecoder->GetVideoFrameContainer();
-  if (container) {
-    container->ClearCurrentFrame();
-  }
-  if (mVideo.mDecoder) {
-    mVideo.mDecoder->ReleaseMediaResources();
-  }
-#endif
-}
-
-void MP4Reader::NotifyResourcesStatusChanged()
-{
-#ifdef MOZ_GONK_MEDIACODEC
-  if (mDecoder) {
-    mDecoder->NotifyWaitingForResourcesStatusChanged();
-  }
-#endif
 }
 
 } // namespace mozilla

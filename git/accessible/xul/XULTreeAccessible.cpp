@@ -42,7 +42,7 @@ XULTreeAccessible::
   XULTreeAccessible(nsIContent* aContent, DocAccessible* aDoc,
                     nsTreeBodyFrame* aTreeFrame) :
   AccessibleWrap(aContent, aDoc),
-  mAccessibleCache(kDefaultTreeCacheLength)
+  mAccessibleCache(kDefaultTreeCacheSize)
 {
   mType = eXULTreeType;
   mGenericTypes |= eSelect;

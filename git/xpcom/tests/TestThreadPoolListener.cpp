@@ -122,8 +122,10 @@ public:
   }
 
   ~AutoCreateAndDestroyReentrantMonitor() {
-    delete *mReentrantMonitorPtr;
-    *mReentrantMonitorPtr = nullptr;
+    if (*mReentrantMonitorPtr) {
+      delete *mReentrantMonitorPtr;
+      *mReentrantMonitorPtr = nullptr;
+    }
   }
 
 private:

@@ -20,11 +20,7 @@ protected:
     PLDHashTable mTable;
 
     void
-    Init()
-    {
-        PL_DHashTableInit(&mTable, PL_DHashGetStubOps(), nullptr,
-                          sizeof(Entry));
-    }
+    Init() { PL_DHashTableInit(&mTable, PL_DHashGetStubOps(), nullptr, sizeof(Entry), PL_DHASH_MIN_SIZE); }
 
     void
     Finish() { PL_DHashTableFinish(&mTable); }

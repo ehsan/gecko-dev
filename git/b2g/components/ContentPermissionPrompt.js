@@ -237,6 +237,7 @@ ContentPermissionPrompt.prototype = {
     return false;
   },
 
+  _id: 0,
   prompt: function(request) {
     // Initialize the typesInfo and set the default value.
     let typesInfo = [];
@@ -293,9 +294,10 @@ ContentPermissionPrompt.prototype = {
     });
 
     let frame = request.element;
+    let requestId = this._id++;
 
     if (!frame) {
-      this.delegatePrompt(request, typesInfo);
+      this.delegatePrompt(request, requestId, typesInfo);
       return;
     }
 
@@ -310,7 +312,7 @@ ContentPermissionPrompt.prototype = {
       if (evt.detail.visible === true)
         return;
 
-      self.cancelPrompt(request, typesInfo);
+      self.cancelPrompt(request, requestId, typesInfo);
       cancelRequest();
     }
 
@@ -327,7 +329,7 @@ ContentPermissionPrompt.prototype = {
       // away but the request is still here.
       frame.addEventListener("mozbrowservisibilitychange", onVisibilityChange);
 
-      self.delegatePrompt(request, typesInfo, function onCallback() {
+      self.delegatePrompt(request, requestId, typesInfo, function onCallback() {
         frame.removeEventListener("mozbrowservisibilitychange", onVisibilityChange);
       });
     };
@@ -338,13 +340,14 @@ ContentPermissionPrompt.prototype = {
     }
   },
 
-  cancelPrompt: function(request, typesInfo) {
-    this.sendToBrowserWindow("cancel-permission-prompt", request,
+  cancelPrompt: function(request, requestId, typesInfo) {
+    this.sendToBrowserWindow("cancel-permission-prompt", request, requestId,
                              typesInfo);
   },
 
-  delegatePrompt: function(request, typesInfo, callback) {
-    this.sendToBrowserWindow("permission-prompt", request, typesInfo,
+  delegatePrompt: function(request, requestId, typesInfo, callback) {
+
+    this.sendToBrowserWindow("permission-prompt", request, requestId, typesInfo,
                              function(type, remember, choices) {
       if (type == "permission-allow") {
         rememberPermission(typesInfo, request.principal, !remember);
@@ -368,26 +371,16 @@ ContentPermissionPrompt.prototype = {
                                           0);
         }
       }
-      try {
-        // This will trow if we are canceling because the remote process died.
-        // Just eat the exception and call the callback that will cleanup the
-        // visibility event listener.
-        typesInfo.forEach(addDenyPermission);
-      } catch(e) { }
+      typesInfo.forEach(addDenyPermission);
 
       if (callback) {
         callback();
       }
-
-      try {
-        request.cancel();
-      } catch(e) { }
+      request.cancel();
     });
   },
 
-  sendToBrowserWindow: function(type, request, typesInfo, callback) {
-    let requestId = Cc["@mozilla.org/uuid-generator;1"]
-                  .getService(Ci.nsIUUIDGenerator).generateUUID().toString();
+  sendToBrowserWindow: function(type, request, requestId, typesInfo, callback) {
     if (callback) {
       SystemAppProxy.addEventListener("mozContentEvent", function contentEvent(evt) {
         let detail = evt.detail;

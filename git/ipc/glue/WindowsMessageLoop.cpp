@@ -642,11 +642,6 @@ MessageChannel::SyncStackFrame::SyncStackFrame(MessageChannel* channel, bool int
   , mPrev(mChannel->mTopFrame)
   , mStaticPrev(sStaticTopFrame)
 {
-  // Only track stack frames when we are on the gui thread.
-  if (GetCurrentThreadId() != gUIThreadId) {
-    return;
-  }
-
   mChannel->mTopFrame = this;
   sStaticTopFrame = this;
 
@@ -659,10 +654,6 @@ MessageChannel::SyncStackFrame::SyncStackFrame(MessageChannel* channel, bool int
 
 MessageChannel::SyncStackFrame::~SyncStackFrame()
 {
-  if (GetCurrentThreadId() != gUIThreadId) {
-    return;
-  }
-
   NS_ASSERTION(this == mChannel->mTopFrame,
                "Mismatched interrupt stack frames");
   NS_ASSERTION(this == sStaticTopFrame,
@@ -701,8 +692,6 @@ MessageChannel::NotifyGeckoEventDispatch()
 void
 MessageChannel::ProcessNativeEventsInInterruptCall()
 {
-  NS_ASSERTION(GetCurrentThreadId() == gUIThreadId,
-               "Shouldn't be on a non-main thread in here!");
   if (!mTopFrame) {
     NS_ERROR("Spin logic error: no Interrupt frame");
     return;
@@ -786,10 +775,6 @@ MessageChannel::WaitForSyncNotify()
 
   MOZ_ASSERT(gUIThreadId, "InitUIThread was not called!");
 
-  // We jump through a lot of unique hoops in dealing with Windows message
-  // trapping to prevent re-entrancy when we are blocked waiting on a sync
-  // reply or new rpc in-call. However none of this overhead is needed when
-  // we aren't on the main (gui) thread. 
   if (GetCurrentThreadId() != gUIThreadId) {
     PRIntervalTime timeout = (kNoTimeout == mTimeoutMs) ?
                              PR_INTERVAL_NO_TIMEOUT :
@@ -810,12 +795,8 @@ MessageChannel::WaitForSyncNotify()
 
     // If the timeout didn't expire, we know we received an event. The
     // converse is not true.
-    return WaitResponse(timeout == PR_INTERVAL_NO_TIMEOUT ?
-                        false : IsTimeoutExpired(waitStart, timeout));
+    return WaitResponse(timeout == PR_INTERVAL_NO_TIMEOUT ? false : IsTimeoutExpired(waitStart, timeout));
   }
-
-  NS_ASSERTION(GetCurrentThreadId() == gUIThreadId,
-               "Shouldn't be on a non-main thread in here!");
 
   NS_ASSERTION(mTopFrame && !mTopFrame->mInterrupt,
                "Top frame is not a sync frame!");
@@ -938,15 +919,9 @@ MessageChannel::WaitForInterruptNotify()
 
   MOZ_ASSERT(gUIThreadId, "InitUIThread was not called!");
 
-  // Re-use sync notification wait code when we aren't on the
-  // gui thread, which bypasses the gui thread hoops we jump
-  // through in dealing with Windows messaging.
   if (GetCurrentThreadId() != gUIThreadId) {
     return WaitForSyncNotify();
   }
-
-  NS_ASSERTION(GetCurrentThreadId() == gUIThreadId,
-               "Shouldn't be on a non-main thread in here!");
 
   if (!InterruptStackDepth()) {
     // There is currently no way to recover from this condition.

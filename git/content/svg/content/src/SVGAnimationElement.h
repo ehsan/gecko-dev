@@ -27,7 +27,7 @@ class SVGAnimationElement : public SVGAnimationElementBase,
                             public SVGTests
 {
 protected:
-  explicit SVGAnimationElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  SVGAnimationElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
   nsresult Init();
   virtual ~SVGAnimationElement();
 
@@ -94,7 +94,7 @@ public:
 
   class TargetReference : public nsReferencedElement {
   public:
-    explicit TargetReference(SVGAnimationElement* aAnimationElement) :
+    TargetReference(SVGAnimationElement* aAnimationElement) :
       mAnimationElement(aAnimationElement) {}
   protected:
     // We need to be notified when target changes, in order to request a

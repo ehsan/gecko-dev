@@ -466,17 +466,25 @@ Shutdown()
 
   RecordBatch::DeleteLog();
 
-  delete gMonitor;
-  gMonitor = nullptr;
+  if (gMonitor) {
+    delete gMonitor;
+    gMonitor = nullptr;
+  }
 
-  delete gEventFilter;
-  gEventFilter = nullptr;
+  if (gEventFilter) {
+    delete gEventFilter;
+    gEventFilter = nullptr;
+  }
 
-  delete gProfilerStart;
-  gProfilerStart = nullptr;
+  if (gProfilerStart) {
+    delete gProfilerStart;
+    gProfilerStart = nullptr;
+  }
 
-  delete gMaxBacklogTime;
-  gMaxBacklogTime = nullptr;
+  if (gMaxBacklogTime) {
+    delete gMaxBacklogTime;
+    gMaxBacklogTime = nullptr;
+  }
 #endif
 }
 

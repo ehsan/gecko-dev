@@ -158,7 +158,7 @@ namespace {
 class CallbackEvent : public nsRunnable
 {
 public:
-  explicit CallbackEvent(mozIStorageCompletionCallback *aCallback)
+  CallbackEvent(mozIStorageCompletionCallback *aCallback)
   : mCallback(aCallback)
   {
   }

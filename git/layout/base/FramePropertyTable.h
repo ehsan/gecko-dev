@@ -192,7 +192,7 @@ protected:
   class Entry : public nsPtrHashKey<nsIFrame>
   {
   public:
-    explicit Entry(KeyTypePointer aKey) : nsPtrHashKey<nsIFrame>(aKey) {}
+    Entry(KeyTypePointer aKey) : nsPtrHashKey<nsIFrame>(aKey) {}
     Entry(const Entry &toCopy) :
       nsPtrHashKey<nsIFrame>(toCopy), mProp(toCopy.mProp) {}
 

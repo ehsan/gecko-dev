@@ -513,7 +513,7 @@ private:
 class AutoEnterWindow
 {
 public:
-  explicit AutoEnterWindow(nsPIDOMWindow* aWindow)
+  AutoEnterWindow(nsPIDOMWindow* aWindow)
   {
     QuotaManager::SetCurrentWindow(aWindow);
   }

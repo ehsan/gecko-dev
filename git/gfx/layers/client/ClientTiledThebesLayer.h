@@ -103,7 +103,6 @@ private:
    * This function returns true if it updated the paint buffer.
    */
   bool RenderHighPrecision(nsIntRegion& aInvalidRegion,
-                           const nsIntRegion& aVisibleRegion,
                            LayerManager::DrawThebesLayerCallback aCallback,
                            void* aCallbackData);
 
@@ -112,7 +111,6 @@ private:
    * This function returns true if it updated the paint buffer.
    */
   bool RenderLowPrecision(nsIntRegion& aInvalidRegion,
-                          const nsIntRegion& aVisibleRegion,
                           LayerManager::DrawThebesLayerCallback aCallback,
                           void* aCallbackData);
 

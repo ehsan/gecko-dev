@@ -351,8 +351,7 @@ nsPNGEncoder::ParseOptions(const nsAString& aOptions,
 
   while (char* token = nsCRT::strtok(options, ";", &options)) {
     // If there's an '=' character, split the token around it.
-    char* equals = token;
-    char* value = nullptr;
+    char* equals = token, *value = nullptr;
     while(*equals != '=' && *equals) {
       ++equals;
     }

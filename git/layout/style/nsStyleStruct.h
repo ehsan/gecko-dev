@@ -65,7 +65,7 @@ class imgIContainer;
 struct nsStyleFont {
   nsStyleFont(const nsFont& aFont, nsPresContext *aPresContext);
   nsStyleFont(const nsStyleFont& aStyleFont);
-  explicit nsStyleFont(nsPresContext *aPresContext);
+  nsStyleFont(nsPresContext *aPresContext);
 private:
   void Init(nsPresContext *aPresContext);
 public:
@@ -309,7 +309,7 @@ private:
 };
 
 struct nsStyleColor {
-  explicit nsStyleColor(nsPresContext* aPresContext);
+  nsStyleColor(nsPresContext* aPresContext);
   nsStyleColor(const nsStyleColor& aOther);
   ~nsStyleColor(void) {
     MOZ_COUNT_DTOR(nsStyleColor);
@@ -657,7 +657,7 @@ struct nsBorderColors {
   nscolor mColor;
 
   nsBorderColors() : mNext(nullptr), mColor(NS_RGB(0,0,0)) {}
-  explicit nsBorderColors(const nscolor& aColor) : mNext(nullptr), mColor(aColor) {}
+  nsBorderColors(const nscolor& aColor) : mNext(nullptr), mColor(aColor) {}
   ~nsBorderColors();
 
   nsBorderColors* Clone() const { return Clone(true); }
@@ -724,7 +724,7 @@ class nsCSSShadowArray MOZ_FINAL {
                             (aArrayLen - 1) * sizeof(nsCSSShadowItem));
     }
 
-    explicit nsCSSShadowArray(uint32_t aArrayLen) :
+    nsCSSShadowArray(uint32_t aArrayLen) :
       mLength(aArrayLen)
     {
       MOZ_COUNT_CTOR(nsCSSShadowArray);
@@ -803,7 +803,7 @@ static bool IsVisibleBorderStyle(uint8_t aStyle)
 }
 
 struct nsStyleBorder {
-  explicit nsStyleBorder(nsPresContext* aContext);
+  nsStyleBorder(nsPresContext* aContext);
   nsStyleBorder(const nsStyleBorder& aBorder);
   ~nsStyleBorder();
 
@@ -1029,7 +1029,7 @@ private:
 
 
 struct nsStyleOutline {
-  explicit nsStyleOutline(nsPresContext* aPresContext);
+  nsStyleOutline(nsPresContext* aPresContext);
   nsStyleOutline(const nsStyleOutline& aOutline);
   ~nsStyleOutline(void) {
     MOZ_COUNT_DTOR(nsStyleOutline);
@@ -1126,7 +1126,7 @@ protected:
 
 
 struct nsStyleList {
-  explicit nsStyleList(nsPresContext* aPresContext);
+  nsStyleList(nsPresContext* aPresContext);
   nsStyleList(const nsStyleList& aStyleList);
   ~nsStyleList(void);
 
@@ -1724,7 +1724,7 @@ protected:
 };
 
 struct nsStyleVisibility {
-  explicit nsStyleVisibility(nsPresContext* aPresContext);
+  nsStyleVisibility(nsPresContext* aPresContext);
   nsStyleVisibility(const nsStyleVisibility& aVisibility);
   ~nsStyleVisibility() {
     MOZ_COUNT_DTOR(nsStyleVisibility);
@@ -2196,7 +2196,7 @@ struct nsStyleTable {
 };
 
 struct nsStyleTableBorder {
-  explicit nsStyleTableBorder(nsPresContext* aContext);
+  nsStyleTableBorder(nsPresContext* aContext);
   nsStyleTableBorder(const nsStyleTableBorder& aOther);
   ~nsStyleTableBorder(void);
 
@@ -2619,7 +2619,7 @@ struct nsStyleXUL {
 };
 
 struct nsStyleColumn {
-  explicit nsStyleColumn(nsPresContext* aPresContext);
+  nsStyleColumn(nsPresContext* aPresContext);
   nsStyleColumn(const nsStyleColumn& aSource);
   ~nsStyleColumn();
 

@@ -894,10 +894,9 @@ URL::RevokeObjectURL(const GlobalObject& aGlobal, const nsAString& aUrl)
 }
 
 void
-URL::URLSearchParamsUpdated(URLSearchParams* aSearchParams)
+URL::URLSearchParamsUpdated()
 {
   MOZ_ASSERT(mSearchParams);
-  MOZ_ASSERT(mSearchParams == aSearchParams);
 
   nsString search;
   mSearchParams->Serialize(search);

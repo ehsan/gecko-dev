@@ -167,9 +167,6 @@ private:
   // GMP thread only.
   void gmp_Init(uint32_t aPromiseId);
 
-  // GMP thread only.
-  void gmp_Shutdown();
-
   // Main thread only.
   void OnCDMCreated(uint32_t aPromiseId);
 
