@@ -14,13 +14,6 @@ class MacIOSurface;
 namespace mozilla {
 namespace gfx {
 
-CGImageRef
-CreateCGImage(void *aInfo,
-              const void *aData,
-              const IntSize &aSize,
-              int32_t aStride,
-              SurfaceFormat aFormat);
-
 class DrawTargetCG;
 
 class SourceSurfaceCG : public SourceSurface

@@ -357,8 +357,7 @@ nsTextControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 
     nsRefPtr<nsStyleContext> placeholderStyleContext =
       PresContext()->StyleSet()->ResolvePseudoElementStyle(
-          mContent->AsElement(), pseudoType, StyleContext(),
-          placeholderNode->AsElement());
+          mContent->AsElement(), pseudoType, StyleContext());
 
     if (!aElements.AppendElement(ContentInfo(placeholderNode,
                                  placeholderStyleContext))) {

@@ -618,10 +618,8 @@ js::GetIterator(JSContext *cx, HandleObject obj, unsigned flags, MutableHandleVa
                     if (!pobj->isNative() ||
                         !pobj->hasEmptyElements() ||
                         pobj->hasUncacheableProto() ||
-                        pobj->getOps()->enumerate ||
-                        pobj->getClass()->enumerate != JS_EnumerateStub ||
-                        pobj->nativeContainsPure(cx->names().iteratorIntrinsic))
-                    {
+                        obj->getOps()->enumerate ||
+                        pobj->getClass()->enumerate != JS_EnumerateStub) {
                         shapes.clear();
                         goto miss;
                     }

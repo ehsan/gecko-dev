@@ -6,10 +6,8 @@
 
 /* Implementation of xptiInterfaceInfoManager. */
 
-#include "mozilla/XPTInterfaceInfoManager.h"
-
-#include "mozilla/FileUtils.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/XPTInterfaceInfoManager.h"
 
 #include "xptiprivate.h"
 #include "nsDependentString.h"
@@ -17,14 +15,13 @@
 #include "nsISupportsArray.h"
 #include "nsArrayEnumerator.h"
 #include "nsDirectoryService.h"
+#include "mozilla/FileUtils.h"
 #include "nsIMemoryReporter.h"
 
 using namespace mozilla;
 
-NS_IMPL_ISUPPORTS_INHERITED1(
-  XPTInterfaceInfoManager,
-  MemoryUniReporter,
-  nsIInterfaceInfoManager)
+NS_IMPL_ISUPPORTS1(XPTInterfaceInfoManager,
+                   nsIInterfaceInfoManager)
 
 static XPTInterfaceInfoManager* gInterfaceInfoManager = nullptr;
 #ifdef DEBUG
@@ -32,7 +29,7 @@ static int gCallCount = 0;
 #endif
 
 size_t
-XPTInterfaceInfoManager::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
+XPTInterfaceInfoManager::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
 {
     size_t n = aMallocSizeOf(this);
     ReentrantMonitorAutoEnter monitor(mWorkingSet.mTableReentrantMonitor);
@@ -43,18 +40,28 @@ XPTInterfaceInfoManager::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf
     return n;
 }
 
-int64_t
-XPTInterfaceInfoManager::Amount()
+class XPTIWorkingSetReporter MOZ_FINAL : public MemoryUniReporter
 {
-    size_t n = SizeOfIncludingThis(MallocSizeOf);
+public:
+    XPTIWorkingSetReporter()
+      : MemoryUniReporter("explicit/xpti-working-set", KIND_HEAP, UNITS_BYTES,
+                           "Memory used by the XPCOM typelib system.")
+    {}
+private:
+    int64_t Amount() MOZ_OVERRIDE
+    {
+        size_t n = gInterfaceInfoManager
+                 ? gInterfaceInfoManager->SizeOfIncludingThis(MallocSizeOf)
+                 : 0;
 
-    // Measure gXPTIStructArena here, too.  This is a bit grotty because it
-    // doesn't belong to the XPTIInterfaceInfoManager, but there's no
-    // obviously better place to measure it.
-    n += XPT_SizeOfArena(gXPTIStructArena, MallocSizeOf);
+        // Measure gXPTIStructArena here, too.  This is a bit grotty because it
+        // doesn't belong to the xptiInterfaceInfoManager, but there's no
+        // obviously better place to measure it.
+        n += XPT_SizeOfArena(gXPTIStructArena, MallocSizeOf);
 
-    return n;
-}
+        return n;
+    }
+};
 
 // static
 XPTInterfaceInfoManager*
@@ -63,7 +70,6 @@ XPTInterfaceInfoManager::GetSingleton()
     if (!gInterfaceInfoManager) {
         gInterfaceInfoManager = new XPTInterfaceInfoManager();
         NS_ADDREF(gInterfaceInfoManager);
-        gInterfaceInfoManager->InitMemoryReporter();
     }
     return gInterfaceInfoManager;
 }
@@ -75,11 +81,11 @@ XPTInterfaceInfoManager::FreeInterfaceInfoManager()
 }
 
 XPTInterfaceInfoManager::XPTInterfaceInfoManager()
-    :   MemoryUniReporter("explicit/xpti-working-set", KIND_HEAP, UNITS_BYTES,
-                          "Memory used by the XPCOM typelib system."),
-        mWorkingSet(),
+    :   mWorkingSet(),
         mResolveLock("XPTInterfaceInfoManager.mResolveLock")
 {
+    mReporter = new XPTIWorkingSetReporter();
+    NS_RegisterMemoryReporter(mReporter);
 }
 
 XPTInterfaceInfoManager::~XPTInterfaceInfoManager()
@@ -87,18 +93,12 @@ XPTInterfaceInfoManager::~XPTInterfaceInfoManager()
     // We only do this on shutdown of the service.
     mWorkingSet.InvalidateInterfaceInfos();
 
-    UnregisterWeakMemoryReporter(this);
+    NS_UnregisterMemoryReporter(mReporter);
 
     gInterfaceInfoManager = nullptr;
 #ifdef DEBUG
     gCallCount = 0;
 #endif
-}
-
-void
-XPTInterfaceInfoManager::InitMemoryReporter()
-{
-    RegisterWeakMemoryReporter(this);
 }
 
 void

@@ -82,7 +82,7 @@ protected:
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix) MOZ_OVERRIDE;
 
 private:
-  CSSToScreenScale GetEffectiveResolution();
+  gfxSize GetEffectiveResolution();
 
   RefPtr<ContentHost> mBuffer;
   bool mRequiresTiledProperties;

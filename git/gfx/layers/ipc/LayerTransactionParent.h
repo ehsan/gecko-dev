@@ -110,20 +110,6 @@ protected:
               CompositableParent* aCompositable,
               bool aIsAsyncVideo);
 
-  void AddIPDLReference() {
-    MOZ_ASSERT(mIPCOpen == false);
-    mIPCOpen = true;
-    AddRef();
-  }
-  void ReleaseIPDLReference() {
-    MOZ_ASSERT(mIPCOpen == true);
-    mIPCOpen = false;
-    Release();
-  }
-  friend class CompositorParent;
-  friend class CrossProcessCompositorParent;
-  friend class layout::RenderFrameParent;
-
 private:
   nsRefPtr<LayerManagerComposite> mLayerManager;
   ShadowLayersManager* mShadowLayersManager;
@@ -149,8 +135,6 @@ private:
   // vice versa.  In both cases though, we want to ignore shadow-layer
   // transactions posted by the child.
   bool mDestroyed;
-
-  bool mIPCOpen;
 };
 
 } // namespace layers

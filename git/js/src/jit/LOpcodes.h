@@ -234,7 +234,6 @@
     _(IteratorMore)                 \
     _(IteratorEnd)                  \
     _(ArrayLength)                  \
-    _(SetArrayLength)               \
     _(TypedArrayLength)             \
     _(TypedArrayElements)           \
     _(TypedObjectElements)          \

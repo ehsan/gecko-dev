@@ -459,10 +459,10 @@ BufferTextureHost::Upload(nsIntRegion *aRegion)
   return true;
 }
 
-TemporaryRef<gfx::DataSourceSurface>
+already_AddRefed<gfxImageSurface>
 BufferTextureHost::GetAsSurface()
 {
-  RefPtr<gfx::DataSourceSurface> result;
+  nsRefPtr<gfxImageSurface> result;
   if (mFormat == gfx::FORMAT_UNKNOWN) {
     NS_WARNING("BufferTextureHost: unsupported format!");
     return nullptr;
@@ -471,13 +471,17 @@ BufferTextureHost::GetAsSurface()
     if (!yuvDeserializer.IsValid()) {
       return nullptr;
     }
-    result = yuvDeserializer.ToDataSourceSurface();
+    result = new gfxImageSurface(yuvDeserializer.GetYData(),
+                                 yuvDeserializer.GetYSize(),
+                                 yuvDeserializer.GetYStride(),
+                                 gfxImageFormatA8);
   } else {
     ImageDataDeserializer deserializer(GetBuffer());
     if (!deserializer.IsValid()) {
       return nullptr;
     }
-    result = deserializer.GetAsSurface();
+    RefPtr<gfxImageSurface> surf = deserializer.GetAsThebesSurface();
+    result = surf.get();
   }
   return result.forget();
 }

@@ -6,10 +6,9 @@
 #include "mozilla/dom/SVGFEMergeElement.h"
 #include "mozilla/dom/SVGFEMergeElementBinding.h"
 #include "mozilla/dom/SVGFEMergeNodeElement.h"
+#include "gfxContext.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(FEMerge)
-
-using namespace mozilla::gfx;
 
 namespace mozilla {
 namespace dom {
@@ -27,12 +26,20 @@ nsSVGElement::StringInfo SVGFEMergeElement::sStringInfo[1] =
 
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEMergeElement)
 
-FilterPrimitiveDescription
-SVGFEMergeElement::GetPrimitiveDescription(nsSVGFilterInstance* aInstance,
-                                           const IntRect& aFilterSubregion,
-                                           nsTArray<RefPtr<SourceSurface>>& aInputImages)
+nsresult
+SVGFEMergeElement::Filter(nsSVGFilterInstance *instance,
+                          const nsTArray<const Image*>& aSources,
+                          const Image* aTarget,
+                          const nsIntRect& rect)
 {
-  return FilterPrimitiveDescription(FilterPrimitiveDescription::eMerge);
+  gfxContext ctx(aTarget->mImage);
+  ctx.Clip(aTarget->mFilterPrimitiveSubregion);
+
+  for (uint32_t i = 0; i < aSources.Length(); i++) {
+    ctx.SetSource(aSources[i]->mImage);
+    ctx.Paint();
+  }
+  return NS_OK;
 }
 
 void

@@ -570,7 +570,14 @@ class ShutdownLeaks(object):
       self.seenShutdown = True
 
   def process(self):
-    for test in self._parseLeakingTests():
+    leakingTests = self._parseLeakingTests()
+
+    if leakingTests:
+      totalWindows = sum(len(test["leakedWindows"]) for test in leakingTests)
+      totalDocShells = sum(len(test["leakedDocShells"]) for test in leakingTests)
+      self.logger("TEST-UNEXPECTED-FAIL | ShutdownLeaks | leaked %d DOMWindow(s) and %d DocShell(s) until shutdown", totalWindows, totalDocShells)
+
+    for test in leakingTests:
       for url, count in self._zipLeakedWindows(test["leakedWindows"]):
         self.logger("TEST-UNEXPECTED-FAIL | %s | leaked %d window(s) until shutdown [url = %s]", test["fileName"], count, url)
 

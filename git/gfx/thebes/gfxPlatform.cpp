@@ -58,7 +58,6 @@
 #include "nsTArray.h"
 #include "nsILocaleService.h"
 #include "nsIObserverService.h"
-#include "MainThreadUtils.h"
 
 #include "nsWeakReference.h"
 
@@ -502,7 +501,7 @@ gfxPlatform::Init()
         obs->AddObserver(gPlatform->mMemoryPressureObserver, "memory-pressure", false);
     }
 
-    RegisterStrongMemoryReporter(new GfxMemoryImageReporter());
+    NS_RegisterMemoryReporter(new GfxMemoryImageReporter());
 }
 
 void
@@ -2050,12 +2049,6 @@ InitLayersAccelerationPrefs()
 {
   if (!sLayersAccelerationPrefsInitialized)
   {
-    // If this is called for the first time on a non-main thread, we're screwed.
-    // At the moment there's no explicit guarantee that the main thread calls
-    // this before the compositor thread, but let's at least make the assumption
-    // explicit.
-    MOZ_ASSERT(NS_IsMainThread(), "can only initialize prefs on the main thread");
-
     sPrefLayersOffMainThreadCompositionEnabled = Preferences::GetBool("layers.offmainthreadcomposition.enabled", false);
     sPrefLayersOffMainThreadCompositionTestingEnabled = Preferences::GetBool("layers.offmainthreadcomposition.testing.enabled", false);
     sPrefLayersOffMainThreadCompositionForceEnabled = Preferences::GetBool("layers.offmainthreadcomposition.force-enabled", false);

@@ -16,6 +16,8 @@
 #include "nsPrintfCString.h"            // for nsPrintfCString
 #include "nsString.h"                   // for nsAutoCString
 
+class gfxImageSurface;
+
 namespace mozilla {
 namespace gfx {
 class Matrix4x4;
@@ -844,7 +846,7 @@ ContentHostBase::GetRenderState()
 }
 
 #ifdef MOZ_DUMP_PAINTING
-TemporaryRef<gfx::DataSourceSurface>
+already_AddRefed<gfxImageSurface>
 ContentHostBase::GetAsSurface()
 {
   return mDeprecatedTextureHost->GetAsSurface();

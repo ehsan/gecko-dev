@@ -915,15 +915,13 @@ RenderFrameParent::AllocPLayerTransactionParent()
     return nullptr;
   }
   nsRefPtr<LayerManager> lm = GetFrom(mFrameLoader);
-  LayerTransactionParent* result = new LayerTransactionParent(lm->AsLayerManagerComposite(), this, 0);
-  result->AddIPDLReference();
-  return result;
+  return new LayerTransactionParent(lm->AsLayerManagerComposite(), this, 0);
 }
 
 bool
 RenderFrameParent::DeallocPLayerTransactionParent(PLayerTransactionParent* aLayers)
 {
-  static_cast<LayerTransactionParent*>(aLayers)->ReleaseIPDLReference();
+  delete aLayers;
   return true;
 }
 

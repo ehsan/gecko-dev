@@ -6,6 +6,7 @@
 #include "CanvasLayerComposite.h"
 #include "composite/CompositableHost.h"  // for CompositableHost
 #include "gfx2DGlue.h"                  // for ToFilter, ToMatrix4x4
+#include "gfxImageSurface.h"            // for gfxImageSurface
 #include "GraphicsFilter.h"             // for GraphicsFilter
 #include "gfxUtils.h"                   // for gfxUtils, etc
 #include "mozilla/gfx/Matrix.h"         // for Matrix4x4
@@ -70,13 +71,7 @@ CanvasLayerComposite::RenderLayer(const nsIntRect& aClipRect)
 
 #ifdef MOZ_DUMP_PAINTING
   if (gfxUtils::sDumpPainting) {
-    RefPtr<gfx::DataSourceSurface> dSurf = mImageHost->GetAsSurface();
-    gfxPlatform *platform = gfxPlatform::GetPlatform();
-    RefPtr<gfx::DrawTarget> dt = platform->CreateDrawTargetForData(dSurf->GetData(),
-                                                                   dSurf->GetSize(),
-                                                                   dSurf->Stride(),
-                                                                   dSurf->GetFormat());
-    nsRefPtr<gfxASurface> surf = platform->GetThebesSurfaceForDrawTarget(dt);
+    nsRefPtr<gfxImageSurface> surf = mImageHost->GetAsSurface();
     WriteSnapshotToDumpFile(this, surf);
   }
 #endif

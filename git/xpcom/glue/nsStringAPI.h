@@ -143,9 +143,6 @@ public:
 
   NS_HIDDEN_(void) Append( char_type c )                                                              { Replace(size_type(-1), 0, c); }
   NS_HIDDEN_(void) Append( const char_type* data, size_type length = size_type(-1) )                  { Replace(size_type(-1), 0, data, length); }
-#ifdef MOZ_USE_CHAR16_WRAPPER
-  NS_HIDDEN_(void) Append( char16ptr_t data, size_type length = size_type(-1) )                       { Append(static_cast<const char16_t*>(data), length); }
-#endif
   NS_HIDDEN_(void) Append( const self_type& readable )                                                { Replace(size_type(-1), 0, readable); }
   NS_HIDDEN_(void) AppendLiteral( const char *aASCIIStr );
   NS_HIDDEN_(void) AppendASCII( const char *aASCIIStr )                                               { AppendLiteral(aASCIIStr); }
@@ -811,21 +808,15 @@ public:
   {
     NS_StringContainerInit2(*this, aData, aLength, 0);
   }
-
-#ifdef MOZ_USE_CHAR16_WRAPPER
-  explicit
-  nsString(char16ptr_t aData, size_type aLength = UINT32_MAX)
-    : nsString(static_cast<const char16_t*>(aData), aLength) {}
-#endif
   
   ~nsString()
   {
     NS_StringContainerFinish(*this);
   }
 
-  char16ptr_t get() const
+  const char_type* get() const
   {
-    return char16ptr_t(BeginReading());
+    return BeginReading();
   }
 
   self_type& operator=(const self_type& aString)              { Assign(aString);   return *this; }
@@ -925,13 +916,6 @@ public:
   nsDependentString(const char_type* aData, size_type aLength = UINT32_MAX)
     : nsString(aData, aLength, NS_CSTRING_CONTAINER_INIT_DEPEND)
   {}
-
-#ifdef MOZ_USE_CHAR16_WRAPPER
-  explicit
-  nsDependentString(char16ptr_t aData, size_type aLength = UINT32_MAX)
-    : nsDependentString(static_cast<const char16_t*>(aData), aLength)
-  {}
-#endif
 
   void Rebind(const char_type* aData, size_type aLength = UINT32_MAX)
   {

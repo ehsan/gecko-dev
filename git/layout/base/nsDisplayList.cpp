@@ -2872,9 +2872,6 @@ RequiredLayerStateForChildrenInternal(nsDisplayListBuilder* aBuilder,
         state > result) {
       result = state;
     }
-    if (state == LAYER_ACTIVE_EMPTY && state > result) {
-      result = LAYER_ACTIVE_FORCE;
-    }
     if (state == LAYER_NONE) {
       nsDisplayList* list = i->GetSameCoordinateSystemChildren();
       if (list) {

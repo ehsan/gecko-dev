@@ -6,7 +6,6 @@
 #include "WebGLContext.h"
 #include "WebGLTexture.h"
 #include "GLContext.h"
-#include "ScopedGLHelpers.h"
 #include "WebGLTexelConversions.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 #include <algorithm>
