@@ -101,8 +101,6 @@ protected:
   inline nsIDOMWindow *GetWindowForDocShell(nsIDocShell *aDocShell);
   inline PRInt32 GetIndexOfDocShell(nsIDocShell *aDocShell);
 
-  void MaybeRemoveMutationObserver(nsINode* aNode);
-
   static PLDHashOperator RemoveForDocumentEnumerator(const nsINode* aKey,
                                                      bool& aEntry,
                                                      void* aUserData);

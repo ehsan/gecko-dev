@@ -94,21 +94,13 @@ void fail(const char* msg, ...)
 }
 
 /**
- * Prints the given success message and arguments using printf, prepending
- * "TEST-PASS " for the benefit of the test harness and
- * appending "\n" to eliminate having to type it at each call site.
+ * Prints the given string prepending "TEST-PASS | " for the benefit of
+ * the test harness and with "\n" at the end, to be used at the end of a
+ * successful test function.
  */
-void passed(const char* msg, ...)
+void passed(const char* test)
 {
-  va_list ap;
-
-  printf("TEST-PASS | ");
-
-  va_start(ap, msg);
-  vprintf(msg, ap);
-  va_end(ap);
-
-  putchar('\n');
+  printf("TEST-PASS | %s\n", test);
 }
 
 //-----------------------------------------------------------------------------

@@ -556,7 +556,7 @@ nsObjectLoadingContent::nsObjectLoadingContent()
   , mNetworkCreated(true)
   // If plugins.click_to_play is false, plugins should always play
   , mShouldPlay(!mozilla::Preferences::GetBool("plugins.click_to_play", false))
-  , mSrcStreamLoading(false)
+  , mSrcStreamLoadInitiated(false)
   , mFallbackReason(ePluginOtherState)
 {
 }
@@ -691,6 +691,8 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
                                        nsISupports *aContext)
 {
   SAMPLE_LABEL("nsObjectLoadingContent", "OnStartRequest");
+
+  mSrcStreamLoadInitiated = true;
 
   if (aRequest != mChannel || !aRequest) {
     // This is a bit of an edge case - happens when a new load starts before the
@@ -881,7 +883,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
       if (!pluginHost) {
         return NS_ERROR_NOT_AVAILABLE;
       }
-      pluginHost->CreateListenerForChannel(chan, this, getter_AddRefs(mFinalListener));
+      pluginHost->InstantiatePluginForChannel(chan, this, getter_AddRefs(mFinalListener));
       break;
     }
     case eType_Loading:
@@ -904,25 +906,20 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
 
   if (mFinalListener) {
     mType = newType;
-
-    mSrcStreamLoading = true;
     rv = mFinalListener->OnStartRequest(aRequest, aContext);
-    mSrcStreamLoading = false;
-
-    if (NS_SUCCEEDED(rv)) {
-      // Plugins need to set up for NPRuntime.
-      if (mType == eType_Plugin) {
-        NotifyContentObjectWrapper();
-      }
-    } else {
-      // Plugins don't fall back if there is an error here.
-      if (mType == eType_Plugin) {
-        rv = NS_OK; // this is necessary to avoid auto-fallback
+    if (NS_FAILED(rv)) {
+#ifdef XP_MACOSX
+      // Shockwave on Mac is special and returns an error here even when it
+      // handles the content
+      if (mContentType.EqualsLiteral("application/x-director")) {
+        rv = NS_OK; // otherwise, the AutoFallback will make us fall back
         return NS_BINDING_ABORTED;
       }
+#endif
       Fallback(false);
+    } else if (mType == eType_Plugin) {
+      NotifyContentObjectWrapper();
     }
-
     return rv;
   }
 
@@ -2114,6 +2111,7 @@ nsObjectLoadingContent::PlayPlugin()
   if (!nsContentUtils::IsCallerChrome())
     return NS_OK;
 
+  mSrcStreamLoadInitiated = false;
   mShouldPlay = true;
   return LoadObject(mURI, true, mContentType, true);
 }

@@ -128,8 +128,8 @@ function ruleViewOpened2()
   is(prop.name, "background-color", "First prop is the background color prop.");
   ok(!prop.enabled, "First prop should be disabled.");
 
-  InspectorUI.closeInspectorUI();
   gBrowser.removeCurrentTab();
+  InspectorUI.closeInspectorUI();
   finish();
 }
 
