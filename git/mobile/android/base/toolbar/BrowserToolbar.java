@@ -678,7 +678,6 @@ public abstract class BrowserToolbar extends ThemedRelativeLayout
         urlEditLayout.setOnFilterListener(listener);
     }
 
-    @Override
     public void setOnFocusChangeListener(OnFocusChangeListener listener) {
         focusChangeListener = listener;
     }

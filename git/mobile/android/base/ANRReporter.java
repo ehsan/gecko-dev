@@ -250,8 +250,7 @@ public final class ANRReporter extends BroadcastReceiver
                 Log.d(LOGTAG, "uptime " + String.valueOf(uptimeMins));
             }
             return uptimeMins;
-        }
-        if (DEBUG) {
+        } else if (DEBUG) {
             Log.d(LOGTAG, "could not get uptime");
         }
         return 0L;

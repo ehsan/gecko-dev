@@ -173,7 +173,7 @@ public class FormHistoryRepositorySession extends
           }
         }
 
-        String guidsArray[] = guids.toArray(new String[guids.size()]);
+        String guidsArray[] = guids.toArray(new String[0]);
         delegate.onGuidsSinceSucceeded(guidsArray);
       }
     };
@@ -466,7 +466,7 @@ public class FormHistoryRepositorySession extends
   protected void flushInsertQueue() throws RemoteException {
     synchronized (recordsBufferMonitor) {
       if (recordsBuffer.size() > 0) {
-        final ContentValues[] outgoing = recordsBuffer.toArray(new ContentValues[recordsBuffer.size()]);
+        final ContentValues[] outgoing = recordsBuffer.toArray(new ContentValues[0]);
         recordsBuffer = new ArrayList<ContentValues>();
 
         if (outgoing == null || outgoing.length == 0) {

@@ -10,7 +10,6 @@ public class GeckoViewChrome implements GeckoView.ChromeDelegate {
     * Tell the host application that Gecko is ready to handle requests.
     * @param view The GeckoView that initiated the callback.
     */
-    @Override
     public void onReady(GeckoView view) {}
 
     /**
@@ -21,7 +20,6 @@ public class GeckoViewChrome implements GeckoView.ChromeDelegate {
     * @param result A PromptResult used to send back the result without blocking.
     * Defaults to cancel requests.
     */
-    @Override
     public void onAlert(GeckoView view, GeckoView.Browser browser, String message, GeckoView.PromptResult result) {
         result.cancel();
     }
@@ -34,7 +32,6 @@ public class GeckoViewChrome implements GeckoView.ChromeDelegate {
     * @param result A PromptResult used to send back the result without blocking.
     * Defaults to cancel requests.
     */
-    @Override
     public void onConfirm(GeckoView view, GeckoView.Browser browser, String message, GeckoView.PromptResult result) {
         result.cancel();
     }
@@ -48,7 +45,6 @@ public class GeckoViewChrome implements GeckoView.ChromeDelegate {
     * @param result A PromptResult used to send back the result without blocking.
     * Defaults to cancel requests.
     */
-    @Override
     public void onPrompt(GeckoView view, GeckoView.Browser browser, String message, String defaultValue, GeckoView.PromptResult result) {
         result.cancel();
     }
@@ -59,7 +55,6 @@ public class GeckoViewChrome implements GeckoView.ChromeDelegate {
     * @param result A PromptResult used to send back the result without blocking.
     * Defaults to cancel requests.
     */
-    @Override
     public void onDebugRequest(GeckoView view, GeckoView.PromptResult result) {
         result.cancel();
     }

@@ -71,7 +71,6 @@ public class GeckoJavaSampler {
             mSampleCount = aSampleCount;
         }
 
-        @Override
         public void run() {
             synchronized (GeckoJavaSampler.class) {
                 mSamples.put(0, new Sample[mSampleCount]);

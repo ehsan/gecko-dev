@@ -46,12 +46,10 @@ public class JSONRecordFetcher {
       return authHeaderProvider;
     }
 
-    @Override
     public String ifUnmodifiedSince() {
       return null;
     }
 
-    @Override
     public void handleRequestSuccess(SyncStorageResponse response) {
       if (response.wasSuccessful()) {
         try {

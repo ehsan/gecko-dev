@@ -171,9 +171,7 @@ public class FxAccountStatusActivity extends LocaleAwareFragmentActivity {
     if (itemId == android.R.id.home) {
       finish();
       return true;
-    }
-
-    if (itemId == R.id.remove_account) {
+    } else if (itemId == R.id.remove_account) {
       maybeDeleteAndroidAccount(FirefoxAccounts.getFirefoxAccount(this));
       return true;
     }

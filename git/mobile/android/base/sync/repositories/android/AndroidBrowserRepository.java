@@ -38,7 +38,6 @@ public abstract class AndroidBrowserRepository extends Repository {
       this.context = context;
     }
 
-    @Override
     public void run() {
       try {
         getDataAccessor(context).purgeDeleted();
@@ -68,7 +67,6 @@ public abstract class AndroidBrowserRepository extends Repository {
       this.context = context;
     }
 
-    @Override
     public void run() {
       sessionCreator(delegate, context);
     }
