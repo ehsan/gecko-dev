@@ -1046,10 +1046,9 @@ OnDebuggerStatement(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, bool *m
 }
 
 bool
-GlobalHasLiveOnDebuggerStatement(JSContext *cx)
+IsCompartmentDebuggee(JSContext *cx)
 {
-    return cx->compartment()->isDebuggee() &&
-           Debugger::hasLiveHook(cx->global(), Debugger::OnDebuggerStatement);
+    return cx->compartment()->isDebuggee();
 }
 
 bool

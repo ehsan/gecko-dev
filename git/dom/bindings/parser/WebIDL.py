@@ -1572,7 +1572,7 @@ class IDLType(IDLObject):
         'any',
         'domstring',
         'bytestring',
-        'usvstring',
+        'scalarvaluestring',
         'object',
         'date',
         'void',
@@ -1625,7 +1625,7 @@ class IDLType(IDLObject):
     def isDOMString(self):
         return False
 
-    def isUSVString(self):
+    def isScalarValueString(self):
         return False
 
     def isVoid(self):
@@ -1811,8 +1811,8 @@ class IDLNullableType(IDLType):
     def isDOMString(self):
         return self.inner.isDOMString()
 
-    def isUSVString(self):
-        return self.inner.isUSVString()
+    def isScalarValueString(self):
+        return self.inner.isScalarValueString()
 
     def isFloat(self):
         return self.inner.isFloat()
@@ -1939,7 +1939,7 @@ class IDLSequenceType(IDLType):
     def isDOMString(self):
         return False
 
-    def isUSVString(self):
+    def isScalarValueString(self):
         return False
 
     def isVoid(self):
@@ -2213,7 +2213,7 @@ class IDLArrayType(IDLType):
     def isDOMString(self):
         return False
 
-    def isUSVString(self):
+    def isScalarValueString(self):
         return False
 
     def isVoid(self):
@@ -2311,8 +2311,8 @@ class IDLTypedefType(IDLType, IDLObjectWithIdentifier):
     def isDOMString(self):
         return self.inner.isDOMString()
 
-    def isUSVString(self):
-        return self.inner.isUSVString()
+    def isScalarValueString(self):
+        return self.inner.isScalarValueString()
 
     def isVoid(self):
         return self.inner.isVoid()
@@ -2412,7 +2412,7 @@ class IDLWrapperType(IDLType):
     def isDOMString(self):
         return False
 
-    def isUSVString(self):
+    def isScalarValueString(self):
         return False
 
     def isVoid(self):
@@ -2566,7 +2566,7 @@ class IDLBuiltinType(IDLType):
         'any',
         'domstring',
         'bytestring',
-        'usvstring',
+        'scalarvaluestring',
         'object',
         'date',
         'void',
@@ -2601,7 +2601,7 @@ class IDLBuiltinType(IDLType):
             Types.any: IDLType.Tags.any,
             Types.domstring: IDLType.Tags.domstring,
             Types.bytestring: IDLType.Tags.bytestring,
-            Types.usvstring: IDLType.Tags.usvstring,
+            Types.scalarvaluestring: IDLType.Tags.scalarvaluestring,
             Types.object: IDLType.Tags.object,
             Types.date: IDLType.Tags.date,
             Types.void: IDLType.Tags.void,
@@ -2635,7 +2635,7 @@ class IDLBuiltinType(IDLType):
     def isString(self):
         return self._typeTag == IDLBuiltinType.Types.domstring or \
                self._typeTag == IDLBuiltinType.Types.bytestring or \
-               self._typeTag == IDLBuiltinType.Types.usvstring
+               self._typeTag == IDLBuiltinType.Types.scalarvaluestring
 
     def isByteString(self):
         return self._typeTag == IDLBuiltinType.Types.bytestring
@@ -2643,8 +2643,8 @@ class IDLBuiltinType(IDLType):
     def isDOMString(self):
         return self._typeTag == IDLBuiltinType.Types.domstring
 
-    def isUSVString(self):
-        return self._typeTag == IDLBuiltinType.Types.usvstring
+    def isScalarValueString(self):
+        return self._typeTag == IDLBuiltinType.Types.scalarvaluestring
 
     def isInteger(self):
         return self._typeTag <= IDLBuiltinType.Types.unsigned_long_long
@@ -2798,9 +2798,9 @@ BuiltinTypes = {
       IDLBuiltinType.Types.bytestring:
           IDLBuiltinType(BuiltinLocation("<builtin type>"), "ByteString",
                          IDLBuiltinType.Types.bytestring),
-      IDLBuiltinType.Types.usvstring:
-          IDLBuiltinType(BuiltinLocation("<builtin type>"), "USVString",
-                         IDLBuiltinType.Types.usvstring),
+      IDLBuiltinType.Types.scalarvaluestring:
+          IDLBuiltinType(BuiltinLocation("<builtin type>"), "ScalarValueString",
+                         IDLBuiltinType.Types.scalarvaluestring),
       IDLBuiltinType.Types.object:
           IDLBuiltinType(BuiltinLocation("<builtin type>"), "Object",
                          IDLBuiltinType.Types.object),
@@ -2935,10 +2935,10 @@ class IDLValue(IDLObject):
                 raise WebIDLError("Trying to convert unrestricted value %s to non-unrestricted"
                                   % self.value, [location]);
             return self
-        elif self.type.isString() and type.isUSVString():
-            # Allow USVStrings to use default value just like
+        elif self.type.isString() and type.isScalarValueString():
+            # Allow ScalarValueStrings to use default value just like
             # DOMString.  No coercion is required in this case as Codegen.py
-            # treats USVString just like DOMString, but with an
+            # treats ScalarValueString just like DOMString, but with an
             # extra normalization step.
             assert self.type.isDOMString()
             return self
@@ -4168,7 +4168,7 @@ class Tokenizer(object):
         "Date": "DATE",
         "DOMString": "DOMSTRING",
         "ByteString": "BYTESTRING",
-        "USVString": "USVSTRING",
+        "ScalarValueString": "SCALARVALUESTRING",
         "any": "ANY",
         "boolean": "BOOLEAN",
         "byte": "BYTE",
@@ -5132,7 +5132,7 @@ class Parser(Tokenizer):
                   | DATE
                   | DOMSTRING
                   | BYTESTRING
-                  | USVSTRING
+                  | SCALARVALUESTRING
                   | ANY
                   | ATTRIBUTE
                   | BOOLEAN
@@ -5405,11 +5405,11 @@ class Parser(Tokenizer):
         """
         p[0] = IDLBuiltinType.Types.bytestring
 
-    def p_PrimitiveOrStringTypeUSVString(self, p):
+    def p_PrimitiveOrStringTypeScalarValueString(self, p):
         """
-            PrimitiveOrStringType : USVSTRING
+            PrimitiveOrStringType : SCALARVALUESTRING
         """
-        p[0] = IDLBuiltinType.Types.usvstring
+        p[0] = IDLBuiltinType.Types.scalarvaluestring
 
     def p_UnsignedIntegerTypeUnsigned(self, p):
         """

@@ -83,8 +83,6 @@ already_AddRefed<FakeTracedTask> CreateFakeTracedTask(int* aVptr);
 // where nsThread and base::thread release themselves.
 void FreeTraceInfo();
 
-const char* GetJSLabelPrefix();
-
 } // namespace tasktracer
 } // namespace mozilla.
 

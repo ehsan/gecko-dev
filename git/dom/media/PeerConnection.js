@@ -1302,7 +1302,8 @@ PeerConnectionObserver.prototype = {
   onStateChange: function(state) {
     switch (state) {
       case "SignalingState":
-        this.dispatchEvent(new this._win.Event("signalingstatechange"));
+        this._dompc.callCB(this._dompc.onsignalingstatechange,
+                           this._dompc.signalingState);
         break;
 
       case "IceConnectionState":

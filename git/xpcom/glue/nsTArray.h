@@ -2003,13 +2003,6 @@ public:
   {
   }
 
-  template<typename Allocator>
-  self_type& operator=(const nsTArray_Impl<E, Allocator>& other)
-  {
-    Base::operator=(other);
-    return *this;
-  }
-
   operator const AutoFallibleTArray<E, N>&() const
   {
     return *reinterpret_cast<const AutoFallibleTArray<E, N>*>(this);
@@ -2038,13 +2031,6 @@ public:
   explicit AutoFallibleTArray(nsTArray_Impl<E, Allocator>&& aOther)
     : Base(mozilla::Move(aOther))
   {
-  }
-
-  template<typename Allocator>
-  self_type& operator=(const nsTArray_Impl<E, Allocator>& other)
-  {
-    Base::operator=(other);
-    return *this;
   }
 
   operator const nsAutoTArray<E, N>&() const

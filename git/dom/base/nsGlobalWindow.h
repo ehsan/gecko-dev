@@ -110,7 +110,7 @@ class Navigator;
 class OwningExternalOrWindowProxy;
 class Promise;
 struct RequestInit;
-class RequestOrUSVString;
+class RequestOrScalarValueString;
 class Selection;
 class SpeechSynthesis;
 class WakeLock;
@@ -857,7 +857,7 @@ public:
   void Alert(mozilla::ErrorResult& aError);
   void Alert(const nsAString& aMessage, mozilla::ErrorResult& aError);
   bool Confirm(const nsAString& aMessage, mozilla::ErrorResult& aError);
-  already_AddRefed<mozilla::dom::Promise> Fetch(const mozilla::dom::RequestOrUSVString& aInput,
+  already_AddRefed<mozilla::dom::Promise> Fetch(const mozilla::dom::RequestOrScalarValueString& aInput,
                                                 const mozilla::dom::RequestInit& aInit,
                                                 mozilla::ErrorResult& aRv);
   void Prompt(const nsAString& aMessage, const nsAString& aInitial,

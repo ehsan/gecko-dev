@@ -34,7 +34,6 @@ public:
   virtual nsresult Output(int64_t aStreamOffset,
                           nsRefPtr<MediaData>& aOutput) = 0;
 
-  virtual void ReleaseMediaResources() {};
 };
 
 // Samples are decoded using the GonkDecoder (MediaCodec)
