@@ -72,8 +72,7 @@ function refreshJSONPayload() {
 }
 
 function onOptInClick() {
-  policy.recordHealthReportUploadEnabled(true,
-                                         "Clicked opt in button on about page.");
+  policy.healthReportUploadEnabled = true;
   refreshWithDataSubmissionFlag(true);
 }
 
@@ -89,8 +88,8 @@ function onOptOutClick() {
     return;
   }
 
-  policy.recordHealthReportUploadEnabled(false,
-                                         "Clicked opt out button on about page.");
+  policy.healthReportUploadEnabled = false;
+  reporter.requestDeleteRemoteData("Clicked opt out button on about page.");
   refreshWithDataSubmissionFlag(false);
   updateView("disabled");
 }

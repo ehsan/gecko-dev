@@ -10,7 +10,6 @@ this.EXPORTED_SYMBOLS = [
   "AppInfoProvider",
   "CrashesProvider",
   "Metrics",
-  "PlacesProvider",
   "ProfileMetadataProvider",
   "SessionsProvider",
   "SysInfoProvider",
