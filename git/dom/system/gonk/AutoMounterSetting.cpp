@@ -191,10 +191,7 @@ public:
     NS_ENSURE_TRUE(settingsService, NS_ERROR_FAILURE);
     nsCOMPtr<nsISettingsServiceLock> lock;
     settingsService->CreateLock(getter_AddRefs(lock));
-    // lock may be null if this gets called during shutdown.
-    if (lock) {
-      lock->Set(UMS_STATUS, INT_TO_JSVAL(mStatus), nullptr, nullptr);
-    }
+    lock->Set(UMS_STATUS, INT_TO_JSVAL(mStatus), nullptr, nullptr);
     return NS_OK;
   }
 
