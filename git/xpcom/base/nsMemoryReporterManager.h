@@ -5,11 +5,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsIMemoryReporter.h"
+#include "nsCOMArray.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/Attributes.h"
 #include "nsString.h"
-#include "nsTHashtable.h"
-#include "nsHashKeys.h"
 
 using mozilla::Mutex;
 
@@ -23,9 +22,9 @@ public:
   virtual ~nsMemoryReporterManager();
 
 private:
-  nsTHashtable<nsISupportsHashKey> mReporters;
-  nsTHashtable<nsISupportsHashKey> mMultiReporters;
-  Mutex mMutex;
+  nsCOMArray<nsIMemoryReporter>      mReporters;
+  nsCOMArray<nsIMemoryMultiReporter> mMultiReporters;
+  Mutex                              mMutex;
 };
 
 #define NS_MEMORY_REPORTER_MANAGER_CID \

@@ -49,17 +49,15 @@ public final class EventDispatcher {
     }
 
     public String dispatchEvent(String message) {
-        // {
-        //   "type": "value",
-        //   "event_specific": "value",
-        //   ...
+        //
+        //        {"gecko": {
+        //                "type": "value",
+        //                "event_specific": "value",
+        //                ....
         try {
             JSONObject json = new JSONObject(message);
-            if (json.has("gecko")) {
-                Log.w(LOGTAG, "The 'gecko' property of the sendMessageToJava parameter is deprecated.");
-                json = json.getJSONObject("gecko");
-            }
-            String type = json.getString("type");
+            final JSONObject geckoObject = json.getJSONObject("gecko");
+            String type = geckoObject.getString("type");
 
             CopyOnWriteArrayList<GeckoEventListener> listeners;
             synchronized (mEventListeners) {
@@ -72,7 +70,7 @@ public final class EventDispatcher {
             String response = null;
 
             for (GeckoEventListener listener : listeners) {
-                listener.handleMessage(type, json);
+                listener.handleMessage(type, geckoObject);
                 if (listener instanceof GeckoEventResponder) {
                     String newResponse = ((GeckoEventResponder)listener).getResponse();
                     if (response != null && newResponse != null) {

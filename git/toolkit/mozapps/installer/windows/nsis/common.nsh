@@ -69,9 +69,10 @@
 !endif
 
 ; When including WinVer.nsh check if ___WINVER__NSH___ is defined to prevent
-; loading the file a second time.
+; loading the file a second time. NSIS versions prior to 2.21 didn't include
+; WinVer.nsh so include it with the /NOFATAL option.
 !ifndef ___WINVER__NSH___
-  !include WinVer.nsh
+  !include /NONFATAL WinVer.nsh
 !endif
 
 !include x64.nsh

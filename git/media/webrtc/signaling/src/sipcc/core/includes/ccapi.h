@@ -93,6 +93,8 @@ typedef enum {
     CC_FEATURE_CREATEANSWER,
     CC_FEATURE_SETLOCALDESC,
     CC_FEATURE_SETREMOTEDESC,
+    CC_FEATURE_LOCALDESC,
+    CC_FEATURE_REMOTEDESC,
     CC_FEATURE_SETPEERCONNECTION,
     CC_FEATURE_ADDSTREAM,
     CC_FEATURE_REMOVESTREAM,
@@ -158,6 +160,8 @@ static const char *const cc_feature_names[] = {
     "CREATEANSWER",
     "SETLOCALDESC",
     "SETREMOTEDESC",
+    "LOCALDESC",
+    "REMOTEDESC",
     "SETPEERCONNECTION",
     "ADDSTREAM",
     "REMOVESTREAM",
@@ -231,6 +235,8 @@ typedef enum cc_msgs_t_ {
     CC_MSG_CREATEANSWER,
     CC_MSG_SETLOCALDESC,
     CC_MSG_SETREMOTEDESC,
+    CC_MSG_REMOTEDESC,
+    CC_MSG_LOCALDESC,
     CC_MSG_SETPEERCONNECTION,
     CC_MSG_ADDSTREAM,
     CC_MSG_REMOVESTREAM,
@@ -270,6 +276,8 @@ static const char *const cc_msg_names[] = {
     "CREATEANSWER",
     "SETLOCALDESC",
     "SETREMOTEDESC",
+    "REMOTEDESC",
+    "LOCALDESC",
     "SETPEERCONNECTION",
     "ADDSTREAM",
     "REMOVESTREAM",
@@ -1187,6 +1195,12 @@ void cc_setlocaldesc (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id, line
 
 void cc_setremotedesc (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id, line_t line,
                     cc_features_t feature_id, cc_jsep_action_t action, string_t sdp, cc_feature_data_t *data);
+
+void cc_localdesc (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id, line_t line,
+                    cc_features_t feature_id, cc_feature_data_t *data);
+
+void cc_remotedesc (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id, line_t line,
+                    cc_features_t feature_id, cc_feature_data_t *data);
 
 void cc_int_feature_ack(cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id,
                         line_t line, cc_features_t feature_id,

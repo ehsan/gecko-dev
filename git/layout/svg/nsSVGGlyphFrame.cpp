@@ -1046,13 +1046,10 @@ nsSVGGlyphFrame::SetupInheritablePaint(gfxContext *aContext,
                                                         aFillOrStroke);
     aTargetPaint.SetColor(color);
 
-    nsRefPtr<gfxPattern> pattern =
-      new gfxPattern(gfxRGBA(NS_GET_R(color) / 255.0,
-                             NS_GET_G(color) / 255.0,
-                             NS_GET_B(color) / 255.0,
-                             NS_GET_A(color) / 255.0 * aOpacity));
-
-    aContext->SetPattern(pattern);
+    aContext->SetPattern(new gfxPattern(gfxRGBA(NS_GET_R(color) / 255.0,
+                                                NS_GET_G(color) / 255.0,
+                                                NS_GET_B(color) / 255.0,
+                                                NS_GET_A(color) / 255.0 * aOpacity)));
   }
 }
 

@@ -22,15 +22,17 @@ NS_IMPL_RELEASE_INHERITED(BiquadFilterNode, AudioNode)
 static float
 Nyquist(AudioContext* aContext)
 {
-  return 0.5f * aContext->SampleRate();
+  // TODO: Replace the hardcoded 44100 here with AudioContext::SampleRate()
+  // when we implement that.
+  return 0.5f * 44100;
 }
 
 BiquadFilterNode::BiquadFilterNode(AudioContext* aContext)
   : AudioNode(aContext)
   , mType(BiquadTypeEnum::LOWPASS)
-  , mFrequency(new AudioParam(this, Callback, 350.f, 10.f, Nyquist(aContext)))
-  , mQ(new AudioParam(this, Callback, 1.f, 0.0001f, 1000.f))
-  , mGain(new AudioParam(this, Callback, 0.f, -40.f, 40.f))
+  , mFrequency(new AudioParam(aContext, 350.f, 10.f, Nyquist(aContext)))
+  , mQ(new AudioParam(aContext, 1.f, 0.0001f, 1000.f))
+  , mGain(new AudioParam(aContext, 0.f, -40.f, 40.f))
 {
 }
 

@@ -16,11 +16,6 @@ namespace mozilla {
 class AudioStream;
 
 /**
- * For auto-arrays etc, guess this as the common number of channels.
- */
-const int GUESS_AUDIO_CHANNELS = 2;
-
-/**
  * An AudioChunk represents a multi-channel buffer of audio samples.
  * It references an underlying ThreadSharedObject which manages the lifetime
  * of the buffer. An AudioChunk maintains its own duration and channel data
@@ -92,12 +87,30 @@ class AudioSegment : public MediaSegmentBase<AudioSegment, AudioChunk> {
 public:
   typedef mozilla::AudioSampleFormat SampleFormat;
 
-  AudioSegment() : MediaSegmentBase<AudioSegment, AudioChunk>(AUDIO) {}
+  AudioSegment() : MediaSegmentBase<AudioSegment, AudioChunk>(AUDIO), mChannels(0) {}
 
+  bool IsInitialized()
+  {
+    return mChannels > 0;
+  }
+  void Init(int32_t aChannels)
+  {
+    NS_ASSERTION(aChannels > 0, "Bad number of channels");
+    NS_ASSERTION(!IsInitialized(), "Already initialized");
+    mChannels = aChannels;
+  }
+  int32_t GetChannels()
+  {
+    NS_ASSERTION(IsInitialized(), "Not initialized");
+    return mChannels;
+  }
   void AppendFrames(already_AddRefed<ThreadSharedObject> aBuffer,
                     const nsTArray<const float*>& aChannelData,
                     int32_t aDuration)
   {
+    NS_ASSERTION(mChannels > 0, "Not initialized");
+    NS_ASSERTION(!aBuffer.get() || aChannelData.Length() == uint32_t(mChannels),
+                 "Wrong number of channels");
     AudioChunk* chunk = AppendChunk(aDuration);
     chunk->mBuffer = aBuffer;
     for (uint32_t channel = 0; channel < aChannelData.Length(); ++channel) {
@@ -110,6 +123,9 @@ public:
                     const nsTArray<const int16_t*>& aChannelData,
                     int32_t aDuration)
   {
+    NS_ASSERTION(mChannels > 0, "Not initialized");
+    NS_ASSERTION(!aBuffer.get() || aChannelData.Length() == uint32_t(mChannels),
+                 "Wrong number of channels");
     AudioChunk* chunk = AppendChunk(aDuration);
     chunk->mBuffer = aBuffer;
     for (uint32_t channel = 0; channel < aChannelData.Length(); ++channel) {
@@ -118,21 +134,27 @@ public:
     chunk->mVolume = 1.0f;
     chunk->mBufferFormat = AUDIO_FORMAT_S16;
   }
-  // Consumes aChunk, and returns a pointer to the persistent copy of aChunk
-  // in the segment.
-  AudioChunk* AppendAndConsumeChunk(AudioChunk* aChunk)
-  {
-    AudioChunk* chunk = AppendChunk(aChunk->mDuration);
-    chunk->mBuffer = aChunk->mBuffer.forget();
-    chunk->mChannelData.SwapElements(aChunk->mChannelData);
-    chunk->mVolume = aChunk->mVolume;
-    chunk->mBufferFormat = aChunk->mBufferFormat;
-    return chunk;
-  }
   void ApplyVolume(float aVolume);
+  /**
+   * aOutput must have a matching number of channels, but we will automatically
+   * convert sample formats.
+   */
   void WriteTo(AudioStream* aOutput);
 
+  // Segment-generic methods not in MediaSegmentBase
+  void InitFrom(const AudioSegment& aOther)
+  {
+    NS_ASSERTION(mChannels == 0, "Channels already set");
+    mChannels = aOther.mChannels;
+  }
+  void CheckCompatible(const AudioSegment& aOther) const
+  {
+    NS_ASSERTION(aOther.mChannels == mChannels, "Non-matching channels");
+  }
   static Type StaticType() { return AUDIO; }
+
+protected:
+  int32_t mChannels;
 };
 
 }

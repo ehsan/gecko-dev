@@ -656,6 +656,13 @@ int32_t nsHTMLFramesetFrame::GetBorderWidth(nsPresContext* aPresContext,
   return nsPresContext::CSSPixelsToAppUnits(DEFAULT_BORDER_WIDTH_PX);
 }
 
+
+int
+nsHTMLFramesetFrame::GetSkipSides() const
+{
+  return 0;
+}
+
 void
 nsHTMLFramesetFrame::GetDesiredSize(nsPresContext*           aPresContext,
                                     const nsHTMLReflowState& aReflowState,

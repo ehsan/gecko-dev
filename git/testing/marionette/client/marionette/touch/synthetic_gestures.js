@@ -286,9 +286,9 @@ var SyntheticGestures = (function() {
   // If not specified then the center of the target is used. t is the
   // optional amount of time between touchstart and touchend event.
   function tap(target, then, x, y, t, sendAll) {
-    if (!SyntheticGestures.touchSupported || !target.ownerDocument.createTouch) {
+    if (!SyntheticGestures.touchSupported) {
       console.warn('tap: touch events not supported; using mouse instead');
-      return mousetap(target, then, x, y, t, true);
+      return mousetap(target, then, x, y, t);
     }
 
     if (x == null)

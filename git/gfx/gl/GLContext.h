@@ -27,7 +27,6 @@
 #include "gfx3DMatrix.h"
 #include "nsISupportsImpl.h"
 #include "prlink.h"
-#include "plstr.h"
 
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
@@ -1380,7 +1379,7 @@ public:
                 }
 
                 for (int i = 0; extList[i]; ++i) {
-                    if (PL_strcasecmp(cur, extList[i]) == 0) {
+                    if (strcmp(cur, extList[i]) == 0) {
                         if (verbose)
                             printf_stderr("Found extension %s\n", cur);
                         extensions[i] = 1;

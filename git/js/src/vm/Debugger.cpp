@@ -249,9 +249,9 @@ BreakpointSite::recompile(FreeOp *fop)
 void
 BreakpointSite::inc(FreeOp *fop)
 {
-    enabledCount++;
-    if (enabledCount == 1 && !trapHandler)
+    if (enabledCount == 0 && !trapHandler)
         recompile(fop);
+    enabledCount++;
 }
 
 void
@@ -266,11 +266,10 @@ BreakpointSite::dec(FreeOp *fop)
 void
 BreakpointSite::setTrap(FreeOp *fop, JSTrapHandler handler, const Value &closure)
 {
-    trapHandler = handler;
-    trapClosure = closure;
-
     if (enabledCount == 0)
         recompile(fop);
+    trapHandler = handler;
+    trapClosure = closure;
 }
 
 void

@@ -242,9 +242,11 @@ function copyRawDataToClipboard(button) {
 #ifdef ANDROID
       // Present a toast notification.
       let message = {
-        type: "Toast:Show",
-        message: stringBundle().GetStringFromName("rawDataCopied"),
-        duration: "short"
+        gecko: {
+          type: "Toast:Show",
+          message: stringBundle().GetStringFromName("rawDataCopied"),
+          duration: "short"
+        }
       };
       Cc["@mozilla.org/android/bridge;1"].
         getService(Ci.nsIAndroidBridge).
@@ -298,9 +300,11 @@ function copyContentsToClipboard() {
 #ifdef ANDROID
   // Present a toast notification.
   let message = {
-    type: "Toast:Show",
-    message: stringBundle().GetStringFromName("textCopied"),
-    duration: "short"
+    gecko: {
+      type: "Toast:Show",
+      message: stringBundle().GetStringFromName("textCopied"),
+      duration: "short"
+    }
   };
   Cc["@mozilla.org/android/bridge;1"].
     getService(Ci.nsIAndroidBridge).

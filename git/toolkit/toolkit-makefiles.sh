@@ -449,7 +449,6 @@ MAKEFILES_embedding="
 "
 
 MAKEFILES_xulapp="
-  addon-sdk/Makefile
   toolkit/Makefile
   toolkit/library/Makefile
   toolkit/crashreporter/client/Makefile
@@ -720,7 +719,6 @@ fi
 
 if [ "$ENABLE_TESTS" ]; then
   add_makefiles "
-    addon-sdk/test/Makefile
     caps/tests/mochitest/Makefile
     chrome/test/Makefile
     content/base/test/Makefile
@@ -1207,7 +1205,6 @@ fi
 if [ "$MOZ_B2G_RIL" ]; then
   add_makefiles "
     dom/telephony/Makefile
-    dom/voicemail/Makefile
     dom/wifi/Makefile
     ipc/ril/Makefile
   "
@@ -1462,8 +1459,9 @@ if [ "$MOZ_XUL" ]; then
     content/xul/templates/Makefile
     content/xul/templates/public/Makefile
     content/xul/templates/src/Makefile
-    layout/xul/grid/Makefile
-    layout/xul/tree/Makefile
+    layout/xul/base/src/grid/Makefile
+    layout/xul/base/src/tree/public/Makefile
+    layout/xul/base/src/tree/src/Makefile
     toolkit/components/autocomplete/Makefile
     toolkit/components/satchel/Makefile
   "

@@ -216,7 +216,8 @@ public:
   virtual void InvalidateFrameForRemoval() MOZ_OVERRIDE { InvalidateFrameSubtree(); }
 
 protected:
-  virtual int GetSkipSides() const MOZ_OVERRIDE;
+  /** implement abstract method on nsContainerFrame */
+  virtual int GetSkipSides() const;
 
   /**
    * GetBorderOverflow says how far the cell's own borders extend

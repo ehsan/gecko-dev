@@ -13,8 +13,6 @@
 #include "VideoUtils.h"
 #include "MediaOmxDecoder.h"
 #include "AbstractMediaDecoder.h"
-#include "OmxDecoder.h"
-#include "MPAPI.h"
 
 #define MAX_DROPPED_FRAMES 25
 

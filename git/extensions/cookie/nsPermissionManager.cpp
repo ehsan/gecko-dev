@@ -29,7 +29,6 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsIAppsService.h"
 #include "mozIApplication.h"
-#include "nsIEffectiveTLDService.h"
 
 static nsPermissionManager *gPermissionManager = nullptr;
 
@@ -87,14 +86,9 @@ GetPrincipal(const nsACString& aHost, uint32_t aAppId, bool aIsInBrowserElement,
   NS_ENSURE_TRUE(secMan, NS_ERROR_FAILURE);
 
   nsCOMPtr<nsIURI> uri;
-  nsresult rv = NS_NewURI(getter_AddRefs(uri), aHost);
-  if (NS_FAILED(rv)) {
-    // NOTE: most callers will end up here because we don't append "http://" for
-    // hosts. It's fine to arbitrary use "http://" because, for those entries,
-    // we will actually just use the host.
-    rv = NS_NewURI(getter_AddRefs(uri), NS_LITERAL_CSTRING("http://") + aHost);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
+  // NOTE: we use "http://" as a protocal but we will just use the host so it
+  // doesn't really matter.
+  NS_NewURI(getter_AddRefs(uri), NS_LITERAL_CSTRING("http://") + aHost);
 
   return secMan->GetAppCodebasePrincipal(uri, aAppId, aIsInBrowserElement, aPrincipal);
 }
@@ -125,38 +119,11 @@ GetHostForPrincipal(nsIPrincipal* aPrincipal, nsACString& aHost)
   NS_ENSURE_TRUE(uri, NS_ERROR_FAILURE);
 
   rv = uri->GetAsciiHost(aHost);
-  if (NS_SUCCEEDED(rv) && !aHost.IsEmpty()) {
-    return NS_OK;
+  if (NS_FAILED(rv) || aHost.IsEmpty()) {
+    return NS_ERROR_UNEXPECTED;
   }
 
-  // Some entries like "file://" uses the origin.
-  rv = aPrincipal->GetOrigin(getter_Copies(aHost));
-  if (NS_SUCCEEDED(rv) && !aHost.IsEmpty()) {
-    return NS_OK;
-  }
-
-  return NS_ERROR_UNEXPECTED;
-}
-
-nsCString
-GetNextSubDomainForHost(const nsACString& aHost)
-{
-  nsCOMPtr<nsIEffectiveTLDService> tldService =
-    do_GetService(NS_EFFECTIVETLDSERVICE_CONTRACTID);
-  if (!tldService) {
-    NS_ERROR("Should have a tld service!");
-    return EmptyCString();
-  }
-
-  nsCString subDomain;
-  nsresult rv = tldService->GetNextSubDomain(aHost, subDomain);
-  // We can fail if there is no more subdomain or if the host can't have a
-  // subdomain.
-  if (NS_FAILED(rv)) {
-    return EmptyCString();
-  }
-
-  return subDomain;
+  return NS_OK;
 }
 
 class AppClearDataObserver MOZ_FINAL : public nsIObserver {
@@ -1029,9 +996,26 @@ nsPermissionManager::CommonTestPermission(nsIPrincipal* aPrincipal,
   // set the default
   *aPermission = nsIPermissionManager::UNKNOWN_ACTION;
 
-  nsAutoCString host;
-  nsresult rv = GetHostForPrincipal(aPrincipal, host);
+  nsCOMPtr<nsIURI> uri;
+  nsresult rv = aPrincipal->GetURI(getter_AddRefs(uri));
   NS_ENSURE_SUCCESS(rv, rv);
+
+  nsAutoCString host;
+  rv = GetHostForPrincipal(aPrincipal, host);
+
+  // No host doesn't mean an error. Just return the default. Unless this is
+  // a file uri. In that case use a magic host.
+  if (NS_FAILED(rv)) {
+    bool isFile;
+    rv = uri->SchemeIs("file", &isFile);
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (isFile) {
+      host.AssignLiteral("<file>");
+    }
+    else {
+      return NS_OK;
+    }
+  }
 
   int32_t typeIndex = GetTypeIndex(aType, false);
   // If type == -1, the type isn't known,
@@ -1075,55 +1059,42 @@ nsPermissionManager::GetPermissionHashKey(const nsACString& aHost,
                                           uint32_t aType,
                                           bool aExactHostMatch)
 {
-  PermissionHashKey* entry = nullptr;
+  uint32_t offset = 0;
+  PermissionHashKey* entry;
+  int64_t now = PR_Now() / 1000;
 
-  nsRefPtr<PermissionKey> key = new PermissionKey(aHost, aAppId, aIsInBrowserElement);
-  entry = mPermissionTable.GetEntry(key);
+  do {
+    nsRefPtr<PermissionKey> key = new PermissionKey(Substring(aHost, offset), aAppId, aIsInBrowserElement);
+    entry = mPermissionTable.GetEntry(key);
 
-  if (entry) {
-    PermissionEntry permEntry = entry->GetPermission(aType);
+    if (entry) {
+      PermissionEntry permEntry = entry->GetPermission(aType);
 
-    // if the entry is expired, remove and keep looking for others.
-    if (permEntry.mExpireType == nsIPermissionManager::EXPIRE_TIME &&
-        permEntry.mExpireTime <= (PR_Now() / 1000)) {
-      nsCOMPtr<nsIPrincipal> principal;
-      if (NS_FAILED(GetPrincipal(aHost, aAppId, aIsInBrowserElement, getter_AddRefs(principal)))) {
-        return nullptr;
+      // if the entry is expired, remove and keep looking for others.
+      if (permEntry.mExpireType == nsIPermissionManager::EXPIRE_TIME &&
+          permEntry.mExpireTime <= now) {
+        nsCOMPtr<nsIPrincipal> principal;
+        if (NS_FAILED(GetPrincipal(aHost, aAppId, aIsInBrowserElement, getter_AddRefs(principal)))) {
+          return nullptr;
+        }
+
+        RemoveFromPrincipal(principal, mTypeArray[aType].get());
+      } else if (permEntry.mPermission != nsIPermissionManager::UNKNOWN_ACTION) {
+        break;
       }
 
-      entry = nullptr;
-      RemoveFromPrincipal(principal, mTypeArray[aType].get());
-    } else if (permEntry.mPermission == nsIPermissionManager::UNKNOWN_ACTION) {
+      // reset entry, to be able to return null on failure
       entry = nullptr;
     }
-  }
+    if (aExactHostMatch)
+      break; // do not try super domains
 
-  if (entry) {
-    return entry;
-  }
+    offset = aHost.FindChar('.', offset) + 1;
 
-  // If we haven't found an entry, depending on the host, we could try a bit
-  // harder.
-  // If this is a file:// URI, we can check for the presence of the magic entry
-  // <file> which gives permission to all file://. This hack might disappear,
-  // see bug 817007. Note that we don't require aExactHostMatch to be true for
-  // that to keep retro-compatibility.
-  // If this is not a file:// URI, and that aExactHostMatch wasn't true, we can
-  // check if the base domain has a permission entry.
-
-  if (StringBeginsWith(aHost, NS_LITERAL_CSTRING("file://"))) {
-    return GetPermissionHashKey(NS_LITERAL_CSTRING("<file>"), aAppId, aIsInBrowserElement, aType, true);
-  }
-
-  if (!aExactHostMatch) {
-    nsCString domain = GetNextSubDomainForHost(aHost);
-    if (!domain.IsEmpty()) {
-      return GetPermissionHashKey(domain, aAppId, aIsInBrowserElement, aType, aExactHostMatch);
-    }
-  }
-
-  // No entry, really...
-  return nullptr;
+  // walk up the domaintree (we stop as soon as we find a match,
+  // which will be the most specific domain we have an entry for).
+  } while (offset > 0);
+  return entry;
 }
 
 // helper struct for passing arguments into hash enumeration callback.
@@ -1483,10 +1454,7 @@ nsPermissionManager::Read()
     // convert into int64_t value (milliseconds)
     expireTime = stmt->AsInt64(5);
 
-    if (stmt->AsInt64(6) < 0) {
-      readError = true;
-      continue;
-    }
+    MOZ_ASSERT(stmt->AsInt64(6) >= 0);
     appId = static_cast<uint32_t>(stmt->AsInt64(6));
     isInBrowserElement = static_cast<bool>(stmt->AsInt32(7));
 

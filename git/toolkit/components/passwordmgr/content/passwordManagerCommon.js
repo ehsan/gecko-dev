@@ -57,6 +57,9 @@ var signonReloadDisplay = {
             return;
           }
           signons.length = 0;
+          if (lastSignonSortColumn == "hostname") {
+            lastSignonSortAscending = !lastSignonSortAscending; // prevents sort from being reversed
+          }
           LoadSignons();
           // apply the filter if needed
           if (document.getElementById("filter") && document.getElementById("filter").value != "") {

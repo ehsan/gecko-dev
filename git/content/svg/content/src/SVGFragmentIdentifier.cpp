@@ -8,7 +8,6 @@
 #include "mozilla/dom/SVGSVGElement.h"
 #include "mozilla/dom/SVGViewElement.h"
 #include "SVGAnimatedTransformList.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla;
 

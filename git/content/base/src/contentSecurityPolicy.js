@@ -199,9 +199,7 @@ ContentSecurityPolicy.prototype = {
 
     // save the document URI (minus <fragment>) and referrer for reporting
     let uri = aChannel.URI.cloneIgnoringRef();
-    try { // GetUserPass throws for some protocols without userPass
-      uri.userPass = '';
-    } catch (ex) {}
+    uri.userPass = '';
     this._request = uri.asciiSpec;
     this._requestOrigin = uri;
 
@@ -211,9 +209,7 @@ ContentSecurityPolicy.prototype = {
 
     if (aChannel.referrer) {
       let referrer = aChannel.referrer.cloneIgnoringRef();
-      try { // GetUserPass throws for some protocols without userPass
-        referrer.userPass = '';
-      } catch (ex) {}
+      referrer.userPass = '';
       this._referrer = referrer.asciiSpec;
     }
   },
@@ -436,12 +432,7 @@ ContentSecurityPolicy.prototype = {
         if (it.currentURI.scheme === "chrome") {
           break;
         }
-        // delete any userpass
-        let ancestor = it.currentURI.cloneIgnoringRef();
-        try { // GetUserPass throws for some protocols without userPass
-          ancestor.userPass = '';
-        } catch (ex) {}
-
+        let ancestor = it.currentURI;
         CSPdebug(" found frame ancestor " + ancestor.asciiSpec);
         ancestors.push(ancestor);
       }
@@ -452,7 +443,7 @@ ContentSecurityPolicy.prototype = {
     // so don't need to differentiate here.
     let cspContext = CSPRep.SRC_DIRECTIVES_NEW.FRAME_ANCESTORS;
     for (let i in ancestors) {
-      let ancestor = ancestors[i];
+      let ancestor = ancestors[i].prePath;
       if (!this._policy.permits(ancestor, cspContext)) {
         // report the frame-ancestor violation
         let directive = this._policy._directives[cspContext];

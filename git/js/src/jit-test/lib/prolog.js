@@ -35,3 +35,6 @@ if (!("verifypostbarriers" in this)) {
 if (!("gcPreserveCode" in this)) {
   gcPreserveCode = function() { }
 }
+
+if ("options" in this)
+    options("allow_xml");

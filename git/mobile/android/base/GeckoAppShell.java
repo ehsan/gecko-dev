@@ -93,6 +93,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.StringTokenizer;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.SynchronousQueue;
 import java.net.ProxySelector;
 import java.net.Proxy;
@@ -132,14 +133,9 @@ public class GeckoAppShell
     static private int sFreeSpace = -1;
     static File sHomeDir = null;
     static private int sDensityDpi = 0;
-
-    private static final Object sLibLoadingLock = new Object();
-    // Must hold sLibLoadingLock while accessing the following boolean variables.
-    private static boolean sSQLiteLibsLoaded;
-    private static boolean sNSSLibsLoaded;
-    private static boolean sMozGlueLoaded;
-    private static boolean sLibsSetup;
-
+    private static Boolean sSQLiteLibsLoaded = false;
+    private static Boolean sNSSLibsLoaded = false;
+    private static Boolean sLibsSetup = false;
     private static File sGREDir = null;
     private static final EventDispatcher sEventDispatcher = new EventDispatcher();
 
@@ -338,12 +334,8 @@ public class GeckoAppShell
 
     // java-side stuff
     public static void loadLibsSetup(Context context) {
-        synchronized (sLibLoadingLock) {
-            if (sLibsSetup) {
-                return;
-            }
-            sLibsSetup = true;
-        }
+        if (sLibsSetup)
+            return;
 
         // The package data lib directory isn't placed in ld.so's
         // search path, so we have to manually load libraries that
@@ -370,6 +362,8 @@ public class GeckoAppShell
                 cacheDir.setReadable(true, false);
             }
         }
+
+        sLibsSetup = true;
     }
 
     private static void setupPluginEnvironment(GeckoApp context) {
@@ -475,40 +469,33 @@ public class GeckoAppShell
 
     /* This method is referenced by Robocop via reflection. */
     public static void loadSQLiteLibs(Context context, String apkName) {
-        synchronized (sLibLoadingLock) {
-            if (sSQLiteLibsLoaded) {
+        if (sSQLiteLibsLoaded)
+            return;
+        synchronized(sSQLiteLibsLoaded) {
+            if (sSQLiteLibsLoaded)
                 return;
-            }
+            loadMozGlue(context);
+            // the extract libs parameter is being removed in bug 732069
+            loadLibsSetup(context);
+            loadSQLiteLibsNative(apkName, false);
             sSQLiteLibsLoaded = true;
         }
-
-        loadMozGlue(context);
-        // the extract libs parameter is being removed in bug 732069
-        loadLibsSetup(context);
-        loadSQLiteLibsNative(apkName, false);
     }
 
     public static void loadNSSLibs(Context context, String apkName) {
-        synchronized (sLibLoadingLock) {
-            if (sNSSLibsLoaded) {
+        if (sNSSLibsLoaded)
+            return;
+        synchronized(sNSSLibsLoaded) {
+            if (sNSSLibsLoaded)
                 return;
-            }
+            loadMozGlue(context);
+            loadLibsSetup(context);
+            loadNSSLibsNative(apkName, false);
             sNSSLibsLoaded = true;
         }
-
-        loadMozGlue(context);
-        loadLibsSetup(context);
-        loadNSSLibsNative(apkName, false);
     }
 
     public static void loadMozGlue(Context context) {
-        synchronized (sLibLoadingLock) {
-            if (sMozGlueLoaded) {
-                return;
-            }
-            sMozGlueLoaded = true;
-        }
-
         System.loadLibrary("mozglue");
 
         // When running TestPasswordProvider, we're being called with
@@ -643,49 +630,34 @@ public class GeckoAppShell
         }
     }
 
-    private static final GeckoEvent sSyncEvent = GeckoEvent.createSyncEvent();
-    private static boolean sWaitingForSyncAck;
+    private static CountDownLatch sGeckoPendingAcks = null;
 
     // Block the current thread until the Gecko event loop is caught up
-    public static void geckoEventSync() {
+    synchronized public static void geckoEventSync() {
         long time = SystemClock.uptimeMillis();
-        boolean isMainThread = (GeckoApp.mAppContext.getMainLooper().getThread() == Thread.currentThread());
 
-        synchronized (sSyncEvent) {
-            if (sWaitingForSyncAck) {
-                // should never happen since we always leave it as false when we exit this function.
-                Log.e(LOGTAG, "geckoEventSync() may have been called twice concurrently!", new Exception());
-                // fall through for graceful handling
-            }
+        sGeckoPendingAcks = new CountDownLatch(1);
+        GeckoAppShell.sendEventToGecko(GeckoEvent.createSyncEvent());
+        while (sGeckoPendingAcks.getCount() != 0) {
+            try {
+                sGeckoPendingAcks.await();
+            } catch(InterruptedException e) {}
+        }
+        sGeckoPendingAcks = null;
 
-            GeckoAppShell.sendEventToGecko(sSyncEvent);
-            sWaitingForSyncAck = true;
-            while (true) {
-                try {
-                    sSyncEvent.wait(100);
-                } catch (InterruptedException ie) {
-                }
-                if (!sWaitingForSyncAck) {
-                    // response received
-                    break;
-                }
-                long waited = SystemClock.uptimeMillis() - time;
-                Log.d(LOGTAG, "Gecko event sync taking too long: " + waited + "ms");
-                if (isMainThread && waited >= 4000) {
-                    Log.w(LOGTAG, "Gecko event sync took too long, aborting!", new Exception());
-                    sWaitingForSyncAck = false;
-                    break;
-                }
-            }
+        time = SystemClock.uptimeMillis() - time;
+        if (time > 500) {
+            Log.w(LOGTAG, "Gecko event sync took too long! (" + time + " ms)", new Exception());
+        } else {
+            Log.d(LOGTAG, "Gecko event sync took " + time + " ms");
         }
     }
 
     // Signal the Java thread that it's time to wake up
     public static void acknowledgeEventSync() {
-        synchronized (sSyncEvent) {
-            sWaitingForSyncAck = false;
-            sSyncEvent.notifyAll();
-        }
+        CountDownLatch tmp = sGeckoPendingAcks;
+        if (tmp != null)
+            tmp.countDown();
     }
 
     public static void enableLocation(final boolean enable) {
@@ -1241,140 +1213,62 @@ public class GeckoAppShell
         return true;
     }
 
-    /**
-     * Given the inputs to <code>getOpenURIIntent</code>, plus an optional
-     * package name and class name, create and fire an intent to open the
-     * provided URI.
-     *
-     * @param targetURI the string spec of the URI to open.
-     * @param mimeType an optional MIME type string.
-     * @param action an Android action specifier, such as
-     *               <code>Intent.ACTION_SEND</code>.
-     * @param title the title to use in <code>ACTION_SEND</code> intents.
-     * @return true if the activity started successfully; false otherwise.
-     */
-    static boolean openUriExternal(String targetURI,
-                                   String mimeType,
-                                   String packageName,
-                                   String className,
-                                   String action,
-                                   String title) {
-        final Context context = GeckoApp.mAppContext;
-        final Intent intent = getOpenURIIntent(context, targetURI,
-                                               mimeType, action, title);
-
-        if (intent == null) {
-            return false;
+    static boolean openUriExternal(String aUriSpec, String aMimeType, String aPackageName,
+                                   String aClassName, String aAction, String aTitle) {
+        Intent intent = getIntentForActionString(aAction);
+        if (aAction.equalsIgnoreCase(Intent.ACTION_SEND)) {
+            Intent shareIntent = getIntentForActionString(aAction);
+            shareIntent.putExtra(Intent.EXTRA_TEXT, aUriSpec);
+            shareIntent.putExtra(Intent.EXTRA_SUBJECT, aTitle);
+            if (aMimeType != null && aMimeType.length() > 0)
+                shareIntent.setType(aMimeType);
+            intent = Intent.createChooser(shareIntent, GeckoApp.mAppContext.getResources().getString(R.string.share_title)); 
+        } else if (aMimeType.length() > 0) {
+            intent.setDataAndType(Uri.parse(aUriSpec), aMimeType);
+        } else {
+            Uri uri = Uri.parse(aUriSpec);
+            if (isUriSafeForScheme(uri) == false) {
+                return false;
+            }
+            
+            final String scheme = uri.getScheme();
+            if ("sms".equals(scheme)) {
+                // Have a special handling for the SMS, as the message body
+                // is not extracted from the URI automatically
+                final String query = uri.getEncodedQuery();
+                if (query != null && query.length() > 0) {
+                    final String[] fields = query.split("&");
+                    boolean foundBody = false;
+                    String resultQuery = "";
+                    for (int i = 0; i < fields.length; i++) {
+                        final String field = fields[i];
+                        if (field.length() > 5 && "body=".equals(field.substring(0, 5))) {
+                            final String body = Uri.decode(field.substring(5));
+                            intent.putExtra("sms_body", body);
+                            foundBody = true;
+                        } else {
+                            resultQuery = resultQuery.concat(resultQuery.length() > 0 ? "&" + field : field);
+                        }
+                    }
+                    if (foundBody) {
+                        // Put the query without the body field back into the URI
+                        final String prefix = aUriSpec.substring(0, aUriSpec.indexOf('?'));
+                        uri = Uri.parse(resultQuery.length() > 0 ? prefix + "?" + resultQuery : prefix);
+                    }
+                }
+            }
+            intent.setData(uri);
         }
-
-        if (packageName.length() > 0 && className.length() > 0) {
-            intent.setClassName(packageName, className);
-        }
+        if (aPackageName.length() > 0 && aClassName.length() > 0)
+            intent.setClassName(aPackageName, aClassName);
 
         intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         try {
-            context.startActivity(intent);
+            GeckoApp.mAppContext.startActivity(intent);
             return true;
-        } catch (ActivityNotFoundException e) {
+        } catch(ActivityNotFoundException e) {
             return false;
         }
-    }
-
-    /**
-     * Given a URI, a MIME type, an Android intent "action", and a title,
-     * produce an intent which can be used to start an activity to open
-     * the specified URI.
-     *
-     * @param context a <code>Context</code> instance.
-     * @param targetURI the string spec of the URI to open.
-     * @param mimeType an optional MIME type string.
-     * @param action an Android action specifier, such as
-     *               <code>Intent.ACTION_SEND</code>.
-     * @param title the title to use in <code>ACTION_SEND</code> intents.
-     * @return an <code>Intent</code>, or <code>null</code> if none could be
-     *         produced.
-     */
-    static Intent getOpenURIIntent(final Context context,
-                                   final String targetURI,
-                                   final String mimeType,
-                                   final String action,
-                                   final String title) {
-
-        if (action.equalsIgnoreCase(Intent.ACTION_SEND)) {
-            Intent shareIntent = getIntentForActionString(action);
-            shareIntent.putExtra(Intent.EXTRA_TEXT, targetURI);
-            shareIntent.putExtra(Intent.EXTRA_SUBJECT, title);
-
-            // Note that EXTRA_TITLE is intended to be used for share dialog
-            // titles. Common usage (e.g., Pocket) suggests that it's sometimes
-            // interpreted as an alternate to EXTRA_SUBJECT, so we include it.
-            shareIntent.putExtra(Intent.EXTRA_TITLE, title);
-
-            if (mimeType != null && mimeType.length() > 0) {
-                shareIntent.setType(mimeType);
-            }
-
-            return Intent.createChooser(shareIntent,
-                                        context.getResources().getString(R.string.share_title)); 
-        }
-
-        if (mimeType.length() > 0) {
-            Intent intent = getIntentForActionString(action);
-            intent.setDataAndType(Uri.parse(targetURI), mimeType);
-            return intent;
-        }
-
-        final Uri uri = Uri.parse(targetURI);
-        if (!isUriSafeForScheme(uri)) {
-            return null;
-        }
-        
-        final String scheme = uri.getScheme();
-        final Intent intent = getIntentForActionString(action);
-
-        // Start with the original URI. If we end up modifying it,
-        // we'll overwrite it.
-        intent.setDataAndNormalize(uri);
-
-        // Have a special handling for the SMS, as the message body
-        // is not extracted from the URI automatically.
-        if (!"sms".equals(scheme)) {
-            return intent;
-        }
-
-        final String query = uri.getEncodedQuery();
-        if (TextUtils.isEmpty(query)) {
-            return intent;
-        }
-
-        final String[] fields = query.split("&");
-        boolean foundBody = false;
-        String resultQuery = "";
-        for (String field : fields) {
-            if (foundBody || !field.startsWith("body=")) {
-                resultQuery = resultQuery.concat(resultQuery.length() > 0 ? "&" + field : field);
-                continue;
-            }
-
-            // Found the first body param. Put it into the intent.
-            final String body = Uri.decode(field.substring(5));
-            intent.putExtra("sms_body", body);
-            foundBody = true;
-        }
-
-        if (!foundBody) {
-            // No need to rewrite the URI, then.
-            return intent;
-        }
-
-        // Form a new URI without the body field in the query part, and
-        // push that into the new Intent.
-        final String prefix = targetURI.substring(0, targetURI.indexOf('?'));
-        final String newQuery = resultQuery.length() > 0 ? "?" + resultQuery : "";
-        final Uri pruned = Uri.parse(prefix + newQuery);
-        intent.setDataAndNormalize(pruned);
-
-        return intent;
     }
 
     static SynchronousQueue<String> sClipboardQueue =

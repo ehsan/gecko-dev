@@ -33,8 +33,6 @@
 
 namespace mozilla {
 
-class WebrtcAudioConduit;
-
 /**
  * Concrete class for Video session. Hooks up
  *  - media-source and target to external transport
@@ -48,11 +46,6 @@ public:
 
   //VoiceEngine defined constant for Payload Name Size.
   static const unsigned int CODEC_PLNAME_SIZE;
-
-  /**
-   * Set up A/V sync between this (incoming) VideoConduit and an audio conduit.
-   */
-  void SyncTo(WebrtcAudioConduit *aConduit);
 
   /**
    * Function to attach Renderer end-point for the Media-Video conduit.
@@ -213,8 +206,6 @@ private:
   int mCapId;   // Capturer for this conduit
   RecvCodecList    mRecvCodecList;
   VideoCodecConfig* mCurSendCodecConfig;
-
-  mozilla::RefPtr<WebrtcAudioConduit> mSyncedTo;
 };
 
 

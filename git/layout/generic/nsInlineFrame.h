@@ -10,8 +10,7 @@
 
 #include "mozilla/Attributes.h"
 #include "nsContainerFrame.h"
-
-class nsLineLayout;
+#include "nsLineLayout.h"
 
 /**  In Bidi left (or right) margin/padding/border should be applied to left
  *  (or right) most frame (or a continuation frame).
@@ -131,7 +130,7 @@ protected:
 
   nsInlineFrame(nsStyleContext* aContext) : nsContainerFrame(aContext) {}
 
-  virtual int GetSkipSides() const MOZ_OVERRIDE;
+  virtual int GetSkipSides() const;
 
   nsresult ReflowFrames(nsPresContext* aPresContext,
                         const nsHTMLReflowState& aReflowState,

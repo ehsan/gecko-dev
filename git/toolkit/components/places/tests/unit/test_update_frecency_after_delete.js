@@ -53,7 +53,7 @@ add_test(function removed_but_visited_bookmark()
     do_log_info("Bookmarked => frecency of URI should be != 0");
     do_check_neq(frecencyForUrl(TEST_URI), 0);
 
-    promiseAddVisits(TEST_URI).then(function () {
+    addVisits(TEST_URI, function () {
       PlacesUtils.bookmarks.removeItem(id);
 
       promiseAsyncUpdates().then(function ()
@@ -113,7 +113,7 @@ add_test(function cleared_parent_of_visited_bookmark()
     do_log_info("Bookmarked => frecency of URI should be != 0");
     do_check_neq(frecencyForUrl(TEST_URI), 0);
 
-    promiseAddVisits(TEST_URI).then(function () {
+    addVisits(TEST_URI, function () {
       PlacesUtils.bookmarks.removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
 
       promiseAsyncUpdates().then(function ()

@@ -90,7 +90,7 @@ over (uint32_t src,
     return dest;
 }
 
-static force_inline uint32_t
+static uint32_t
 in (uint32_t x,
     uint8_t  y)
 {
@@ -1480,7 +1480,7 @@ fast_composite_tiled_repeat (pixman_implementation_t *imp,
 	mask_flags = FAST_PATH_IS_OPAQUE;
     }
 
-    if (_pixman_implementation_lookup_composite (
+    if (_pixman_lookup_composite_function (
 	    imp->toplevel, info->op,
 	    src_image->common.extended_format_code, src_flags,
 	    mask_format, mask_flags,
@@ -1518,8 +1518,7 @@ fast_composite_tiled_repeat (pixman_implementation_t *imp,
 
 	    /* Initialize/validate stack-allocated temporary image */
 	    _pixman_bits_image_init (&extended_src_image, src_image->bits.format,
-				     src_width, 1, &extended_src[0], src_stride,
-				     FALSE);
+				     src_width, 1, &extended_src[0], src_stride);
 	    _pixman_image_validate (&extended_src_image);
 
 	    info2.src_image = &extended_src_image;
@@ -1681,7 +1680,7 @@ fetch_nearest (pixman_repeat_t src_repeat,
 {
     if (repeat (src_repeat, &x, src_width))
     {
-	if (format == PIXMAN_x8r8g8b8 || format == PIXMAN_x8b8g8r8)
+	if (format == PIXMAN_x8r8g8b8)
 	    return *(src + x) | 0xff000000;
 	else
 	    return *(src + x);
@@ -2419,7 +2418,9 @@ fast_path_fill (pixman_implementation_t *imp,
 	break;
 
     default:
-	return FALSE;
+	return _pixman_implementation_fill (
+	    imp->delegate, bits, stride, bpp, x, y, width, height, xor);
+	break;
     }
 
     return TRUE;

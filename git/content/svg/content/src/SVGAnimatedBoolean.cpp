@@ -6,7 +6,6 @@
 #include "SVGAnimatedBoolean.h"
 #include "nsSVGBoolean.h"
 #include "mozilla/dom/SVGAnimatedBooleanBinding.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

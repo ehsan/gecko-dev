@@ -1425,9 +1425,7 @@
 
             // If we just created a new tab that loads the default
             // newtab url, swap in a preloaded page if possible.
-            // Do nothing if we're a private window.
-            if (aURI == BROWSER_NEW_TAB_URL &&
-                !PrivateBrowsingUtils.isWindowPrivate(window)) {
+            if (aURI == BROWSER_NEW_TAB_URL) {
               gBrowserNewTabPreloader.newTab(t);
             }
 
@@ -4057,6 +4055,7 @@
 
       <field name="mOverCloseButton">false</field>
       <field name="mCorrespondingMenuitem">null</field>
+      <field name="_fullyOpen">false</field>
       <field name="closing">false</field>
       <field name="lastAccessed">0</field>
     </implementation>

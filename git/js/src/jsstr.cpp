@@ -3072,10 +3072,8 @@ str_concat(JSContext *cx, unsigned argc, Value *vp)
             str = strRoot;
         }
 
-        JSString *next = ConcatStrings<NoGC>(cx, str, argStr);
-        if (next) {
-            str = next;
-        } else {
+        str = ConcatStrings<NoGC>(cx, str, argStr);
+        if (!str) {
             RootedString strRoot(cx, str), argStrRoot(cx, argStr);
             str = ConcatStrings<CanGC>(cx, strRoot, argStrRoot);
             if (!str)

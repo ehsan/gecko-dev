@@ -6,6 +6,7 @@
 #include "nsGenericHTMLFrameElement.h"
 #include "nsIDOMHTMLIFrameElement.h"
 #include "nsIDOMGetSVGDocument.h"
+#include "nsContentUtils.h"
 
 class nsHTMLIFrameElement : public nsGenericHTMLFrameElement
                           , public nsIDOMHTMLIFrameElement
@@ -52,7 +53,17 @@ public:
                                 const nsAttrValue* aValue,
                                 bool aNotify);
 
-  uint32_t GetSandboxFlags();
+  uint32_t GetSandboxFlags()
+  {
+    nsAutoString sandboxAttr;
+
+    if (GetAttr(kNameSpaceID_None, nsGkAtoms::sandbox, sandboxAttr)) {
+      return nsContentUtils::ParseSandboxAttributeToFlags(sandboxAttr);
+    }
+
+    // No sandbox attribute, no sandbox flags.
+    return 0;
+  }
 
 protected:
   virtual void GetItemValueText(nsAString& text);

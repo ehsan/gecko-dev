@@ -104,6 +104,12 @@ public:
   }
 
   // Segment-generic methods not in MediaSegmentBase
+  void InitFrom(const VideoSegment& aOther)
+  {
+  }
+  void CheckCompatible(const VideoSegment& aOther) const
+  {
+  }
   static Type StaticType() { return VIDEO; }
 };
 

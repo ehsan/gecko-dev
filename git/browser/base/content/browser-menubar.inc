@@ -178,8 +178,7 @@
 
             <menu id="view-menu" label="&viewMenu.label;"
                   accesskey="&viewMenu.accesskey;">
-              <menupopup id="menu_viewPopup"
-                         onpopupshowing="updateCharacterEncodingMenuState();">
+              <menupopup id="menu_viewPopup">
                 <menu id="viewToolbarsMenu"
                       label="&viewToolbarsMenu.label;"
                       accesskey="&viewToolbarsMenu.accesskey;">
@@ -366,11 +365,7 @@
                           key="showAllHistoryKb"
 #endif
                           command="Browser:ShowAllHistory"/>
-                <menuitem id="sanitizeItem"
-                          label="&clearRecentHistory.label;"
-                          key="key_sanitize"
-                          command="Tools:Sanitize"/>
-                <menuseparator id="sanitizeSeparator"/>
+                <menuseparator id="showAllHistorySeparator"/>
 #ifdef MOZ_SERVICES_SYNC
                 <menuitem id="sync-tabs-menuitem"
                           class="syncTabsMenuItem"
@@ -602,6 +597,12 @@
                         key="key_viewInfo"
 #endif
                         command="View:PageInfo"/>
+              <menuseparator id="sanitizeSeparator"/>
+              <menuitem id="sanitizeItem"
+                        accesskey="&clearRecentHistory.accesskey;"
+                        label="&clearRecentHistory.label;"
+                        key="key_sanitize"
+                        command="Tools:Sanitize"/>
 #ifndef XP_UNIX
               <menuseparator id="prefSep"/>
               <menuitem id="menu_preferences"

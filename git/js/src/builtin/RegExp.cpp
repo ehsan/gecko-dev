@@ -559,34 +559,20 @@ js::ExecuteRegExp(JSContext *cx, HandleObject regexp, HandleString string, Match
     /* Step 4. */
     Value lastIndex = reobj->getLastIndex();
 
-    StableCharPtr chars = stableInput->chars();
-    size_t length = stableInput->length();
-
     /* Step 5. */
-    int i;
-    if (lastIndex.isInt32()) {
-        /* Aggressively avoid doubles. */
-        i = lastIndex.toInt32();
-    } else {
-        double d;
-        if (!ToInteger(cx, lastIndex, &d))
-            return RegExpRunStatus_Error;
-
-        /* Inlined steps 6, 7, 9a with doubles to detect failure case. */
-        if ((re->global() || re->sticky()) && (d < 0 || d > length)) {
-            reobj->zeroLastIndex();
-            return RegExpRunStatus_Success_NotFound;
-        }
-
-        i = int(d);
-    }
+    double i;
+    if (!ToInteger(cx, lastIndex, &i))
+        return RegExpRunStatus_Error;
 
     /* Steps 6-7 (with sticky extension). */
     if (!re->global() && !re->sticky())
         i = 0;
 
+    StableCharPtr chars = stableInput->chars();
+    size_t length = stableInput->length();
+
     /* Step 9a. */
-    if (i < 0 || size_t(i) > length) {
+    if (i < 0 || i > length) {
         reobj->zeroLastIndex();
         return RegExpRunStatus_Success_NotFound;
     }

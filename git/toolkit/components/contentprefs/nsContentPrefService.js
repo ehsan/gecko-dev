@@ -9,25 +9,6 @@ const Cu = Components.utils;
 
 const CACHE_MAX_GROUP_ENTRIES = 100;
 
-
-// We have a whitelist for getting/setting. This is because
-// there are potential privacy issues with a compromised
-// content process checking the user's content preferences
-// and using that to discover all the websites visited, etc.
-// Also there are both potential race conditions (if two processes
-// set more than one value in succession, and the values
-// only make sense together), as well as security issues, if
-// a compromised content process can send arbitrary setPref
-// messages. The whitelist contains only those settings that
-// are not at risk for either.
-// We currently whitelist saving/reading the last directory of file
-// uploads, and the last current spellchecker dictionary which are so far
-// the only need we have identified.
-const REMOTE_WHITELIST = [
-  "browser.upload.lastDir",
-  "spellcheck.lang",
-];
-
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 /**
@@ -45,15 +26,25 @@ function electrolify(service) {
       Ci.nsIXULRuntime.PROCESS_TYPE_DEFAULT) {
     // Parent process
 
-    service.messageManager = Cc["@mozilla.org/parentprocessmessagemanager;1"].
-                             getService(Ci.nsIMessageBroadcaster);
-
     // Setup listener for child messages. We don't need to call
     // addMessageListener as the wakeup service will do that for us.
     service.receiveMessage = function(aMessage) {
       var json = aMessage.json;
-
-      if (REMOTE_WHITELIST.indexOf(json.name) == -1)
+      // We have a whitelist for getting/setting. This is because
+      // there are potential privacy issues with a compromised
+      // content process checking the user's content preferences
+      // and using that to discover all the websites visited, etc.
+      // Also there are both potential race conditions (if two processes
+      // set more than one value in succession, and the values
+      // only make sense together), as well as security issues, if
+      // a compromised content process can send arbitrary setPref
+      // messages. The whitelist contains only those settings that
+      // are not at risk for either.
+      // We currently whitelist saving/reading the last directory of file
+      // uploads, and the last current spellchecker dictionary which are so far
+      // the only need we have identified.
+      const NAME_WHITELIST = ["browser.upload.lastDir", "spellcheck.lang"];
+      if (NAME_WHITELIST.indexOf(json.name) == -1)
         return { succeeded: false };
 
       switch (aMessage.name) {
@@ -97,19 +88,6 @@ function electrolify(service) {
         return ret.value;
       };
     });
-
-    // Listen to preference change notifications from the parent and notify
-    // observers in the child process according to the change
-    service.messageManager.addMessageListener("ContentPref:notifyPrefSet",
-      function(aMessage) {
-        var json = aMessage.json;
-        service._notifyPrefSet(json.group, json.name, json.value);
-      });
-    service.messageManager.addMessageListener("ContentPref:notifyPrefRemoved",
-      function(aMessage) {
-        var json = aMessage.json;
-        service._notifyPrefRemoved(json.group, json.name);
-      });
   }
 }
 
@@ -350,7 +328,7 @@ ContentPrefService.prototype = {
 
     if (aContext && aContext.usePrivateBrowsing) {
       this._privModeStorage.setWithCast(group, aName, aValue);
-      this._broadcastPrefSet(group, aName, aValue);
+      this._notifyPrefSet(group, aName, aValue);
       return;
     }
 
@@ -372,7 +350,8 @@ ContentPrefService.prototype = {
       this._insertPref(groupID, settingID, aValue);
 
     this._cache.setWithCast(group, aName, aValue);
-    this._broadcastPrefSet(group, aName, aValue);
+
+    this._notifyPrefSet(group, aName, aValue);
   },
 
   hasPref: function ContentPrefService_hasPref(aGroup, aName, aContext) {
@@ -400,7 +379,7 @@ ContentPrefService.prototype = {
 
     if (aContext && aContext.usePrivateBrowsing) {
       this._privModeStorage.remove(group, aName);
-      this._broadcastPrefRemoved(group, aName);
+      this._notifyPrefRemoved(group, aName);
       return;
     }
 
@@ -423,7 +402,7 @@ ContentPrefService.prototype = {
       this._deleteGroupIfUnused(groupID);
 
     this._cache.remove(group, aName);
-    this._broadcastPrefRemoved(group, aName);
+    this._notifyPrefRemoved(group, aName);
   },
 
   removeGroupedPrefs: function ContentPrefService_removeGroupedPrefs(aContext) {
@@ -458,7 +437,7 @@ ContentPrefService.prototype = {
       for (let [group, name, ] in this._privModeStorage) {
         if (name === aName) {
           this._privModeStorage.remove(group, aName);
-          this._broadcastPrefRemoved(group, aName);
+          this._notifyPrefRemoved(group, aName);
         }
       }
     }
@@ -500,7 +479,7 @@ ContentPrefService.prototype = {
       if (groupNames[i]) // ie. not null, which will be last (and i == groupIDs.length)
         this._deleteGroupIfUnused(groupIDs[i]);
       if (!aContext || !aContext.usePrivateBrowsing) {
-        this._broadcastPrefRemoved(groupNames[i], aName);
+        this._notifyPrefRemoved(groupNames[i], aName);
       }
     }
   },
@@ -590,10 +569,7 @@ ContentPrefService.prototype = {
 
     return observers;
   },
-
-  /**
-   * Notify all observers about the removal of a preference.
-   */
+  
   _notifyPrefRemoved: function ContentPrefService__notifyPrefRemoved(aGroup, aName) {
     for each (var observer in this._getObservers(aName)) {
       try {
@@ -605,9 +581,6 @@ ContentPrefService.prototype = {
     }
   },
 
-  /**
-   * Notify all observers about a preference change.
-   */
   _notifyPrefSet: function ContentPrefService__notifyPrefSet(aGroup, aName, aValue) {
     for each (var observer in this._getObservers(aName)) {
       try {
@@ -616,38 +589,6 @@ ContentPrefService.prototype = {
       catch(ex) {
         Cu.reportError(ex);
       }
-    }
-  },
-
-  /**
-   * Notify all observers in the current process about the removal of a
-   * preference and send a message to all other processes so that they can in
-   * turn notify their observers about the change. This is meant to be called
-   * only in the parent process. Only whitelisted preferences are broadcast to
-   * the child processes.
-   */
-  _broadcastPrefRemoved: function ContentPrefService__broadcastPrefRemoved(aGroup, aName) {
-    this._notifyPrefRemoved(aGroup, aName);
-
-    if (REMOTE_WHITELIST.indexOf(aName) != -1) {
-      this.messageManager.broadcastAsyncMessage('ContentPref:notifyPrefRemoved',
-        { "group": aGroup, "name": aName } );
-    }
-  },
-
-  /**
-   * Notify all observers in the current process about a preference change and
-   * send a message to all other processes so that they can in turn notify
-   * their observers about the change. This is meant to be called only in the
-   * parent process. Only whitelisted preferences are broadcast to the child
-   * processes.
-   */
-  _broadcastPrefSet: function ContentPrefService__broadcastPrefSet(aGroup, aName, aValue) {
-    this._notifyPrefSet(aGroup, aName, aValue);
-
-    if (REMOTE_WHITELIST.indexOf(aName) != -1) {
-      this.messageManager.broadcastAsyncMessage('ContentPref:notifyPrefSet',
-        { "group": aGroup, "name": aName, "value": aValue } );
     }
   },
 

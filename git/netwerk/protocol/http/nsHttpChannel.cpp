@@ -1350,8 +1350,6 @@ nsHttpChannel::ContinueProcessResponse(nsresult rv)
     }
 
     if (NS_SUCCEEDED(rv)) {
-        UpdateInhibitPersistentCachingFlag();
-
         InitCacheEntry();
         CloseCacheEntry(false);
 

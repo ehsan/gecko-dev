@@ -35,7 +35,7 @@
 #include "mozilla/dom/sms/Types.h"
 #include "mozilla/dom/sms/PSms.h"
 #include "mozilla/dom/sms/SmsParent.h"
-#include "nsIMobileMessageDatabaseService.h"
+#include "nsISmsDatabaseService.h"
 #include "nsPluginInstanceOwner.h"
 #include "nsSurfaceTexture.h"
 

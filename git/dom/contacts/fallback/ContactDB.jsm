@@ -18,7 +18,7 @@ Cu.import("resource://gre/modules/IndexedDBHelper.jsm");
 Cu.import("resource://gre/modules/PhoneNumberUtils.jsm");
 
 const DB_NAME = "contacts";
-const DB_VERSION = 7;
+const DB_VERSION = 6;
 const STORE_NAME = "contacts";
 
 this.ContactDB = function ContactDB(aGlobal) {
@@ -47,16 +47,27 @@ ContactDB.prototype = {
          * }
          */
         if (DEBUG) debug("create schema");
-        objectStore = db.createObjectStore(STORE_NAME, {keyPath: "id"});
+        objectStore = db.createObjectStore(this.dbStoreName, {keyPath: "id"});
+
+        // Metadata indexes
+        objectStore.createIndex("published", "published", { unique: false });
+        objectStore.createIndex("updated",   "updated",   { unique: false });
 
         // Properties indexes
-        objectStore.createIndex("familyName", "properties.familyName", { multiEntry: true });
-        objectStore.createIndex("givenName",  "properties.givenName",  { multiEntry: true });
+        objectStore.createIndex("nickname",   "properties.nickname",   { unique: false, multiEntry: true });
+        objectStore.createIndex("name",       "properties.name",       { unique: false, multiEntry: true });
+        objectStore.createIndex("familyName", "properties.familyName", { unique: false, multiEntry: true });
+        objectStore.createIndex("givenName",  "properties.givenName",  { unique: false, multiEntry: true });
+        objectStore.createIndex("email",      "properties.email",      { unique: false, multiEntry: true });
+        objectStore.createIndex("note",       "properties.note",       { unique: false, multiEntry: true });
 
-        objectStore.createIndex("familyNameLowerCase", "search.familyName", { multiEntry: true });
-        objectStore.createIndex("givenNameLowerCase",  "search.givenName",  { multiEntry: true });
-        objectStore.createIndex("telLowerCase",        "search.tel",        { multiEntry: true });
-        objectStore.createIndex("emailLowerCase",      "search.email",      { multiEntry: true });
+        objectStore.createIndex("nicknameLowerCase",   "search.nickname",   { unique: false, multiEntry: true });
+        objectStore.createIndex("nameLowerCase",       "search.name",       { unique: false, multiEntry: true });
+        objectStore.createIndex("familyNameLowerCase", "search.familyName", { unique: false, multiEntry: true });
+        objectStore.createIndex("givenNameLowerCase",  "search.givenName",  { unique: false, multiEntry: true });
+        objectStore.createIndex("telLowerCase",        "search.tel",        { unique: false, multiEntry: true });
+        objectStore.createIndex("emailLowerCase",      "search.email",      { unique: false, multiEntry: true });
+        objectStore.createIndex("noteLowerCase",       "search.note",       { unique: false, multiEntry: true });
       } else if (currVersion == 1) {
         if (DEBUG) debug("upgrade 1");
 
@@ -85,20 +96,17 @@ ContactDB.prototype = {
         };
 
         // Create new searchable indexes.
-        objectStore.createIndex("tel", "search.tel", { multiEntry: true });
-        objectStore.createIndex("category", "properties.category", { multiEntry: true });
+        objectStore.createIndex("tel", "search.tel", { unique: false, multiEntry: true });
+        objectStore.createIndex("category", "properties.category", { unique: false, multiEntry: true });
       } else if (currVersion == 2) {
         if (DEBUG) debug("upgrade 2");
-        // Create a new scheme for the email field. We move from an array of emailaddresses to an array of
+        // Create a new scheme for the email field. We move from an array of emailaddresses to an array of 
         // ContactEmail.
         if (!objectStore) {
           objectStore = aTransaction.objectStore(STORE_NAME);
         }
-
         // Delete old email index.
-        if (objectStore.indexNames.contains("email")) {
-          objectStore.deleteIndex("email");
-        }
+        objectStore.deleteIndex("email");
 
         // Upgrade existing email field in the DB.
         objectStore.openCursor().onsuccess = function(event) {
@@ -116,7 +124,7 @@ ContactDB.prototype = {
         };
 
         // Create new searchable indexes.
-        objectStore.createIndex("email", "search.email", { multiEntry: true });
+        objectStore.createIndex("email", "search.email", { unique: false, multiEntry: true });
       } else if (currVersion == 3) {
         if (DEBUG) debug("upgrade 3");
 
@@ -167,12 +175,10 @@ ContactDB.prototype = {
                 function(duple) {
                   let parsedNumber = PhoneNumberUtils.parse(duple.value.toString());
                   if (parsedNumber) {
-                    if (DEBUG) {
-                      debug("InternationalFormat: " + parsedNumber.internationalFormat);
-                      debug("InternationalNumber: " + parsedNumber.internationalNumber);
-                      debug("NationalNumber: " + parsedNumber.nationalNumber);
-                      debug("NationalFormat: " + parsedNumber.nationalFormat);
-                    }
+                    debug("InternationalFormat: " + parsedNumber.internationalFormat);
+                    debug("InternationalNumber: " + parsedNumber.internationalNumber);
+                    debug("NationalNumber: " + parsedNumber.nationalNumber);
+                    debug("NationalFormat: " + parsedNumber.nationalFormat);
                     if (duple.value.toString() !== parsedNumber.internationalNumber) {
                       cursor.value.search.tel.push(parsedNumber.internationalNumber);
                     }
@@ -199,7 +205,7 @@ ContactDB.prototype = {
         }
 
         // Create new index for "equals" searches
-        objectStore.createIndex("tel", "search.exactTel", { multiEntry: true });
+        objectStore.createIndex("tel", "search.exactTel", { unique: false, multiEntry: true });
 
         objectStore.openCursor().onsuccess = function(event) {
           let cursor = event.target.result;
@@ -225,19 +231,6 @@ ContactDB.prototype = {
             cursor.continue();
           }
         };
-      } else if (currVersion == 6) {
-        if (!objectStore) {
-          objectStore = aTransaction.objectStore(STORE_NAME);
-        }
-        let names = objectStore.indexNames;
-        let blackList = ["tel", "familyName", "givenName",  "familyNameLowerCase",
-                         "givenNameLowerCase", "telLowerCase", "category", "email",
-                         "emailLowerCase"];
-        for (var i = 0; i < names.length; i++) {
-          if (blackList.indexOf(names[i]) < 0) {
-            objectStore.deleteIndex(names[i]);
-          }
-        }
       }
     }
   },
@@ -269,12 +262,21 @@ ContactDB.prototype = {
     };
 
     contact.search = {
+      name:            [],
+      honorificPrefix: [],
       givenName:       [],
+      additionalName:  [],
       familyName:      [],
+      honorificSuffix: [],
+      nickname:        [],
       email:           [],
       category:        [],
       tel:             [],
-      exactTel:        []
+      exactTel:        [],
+      org:             [],
+      jobTitle:        [],
+      note:            [],
+      impp:            []
     };
 
     for (let field in aContact.properties) {
@@ -306,12 +308,10 @@ ContactDB.prototype = {
                 if (DEBUG) debug("lookup: " + JSON.stringify(contact.search[field]));
                 let parsedNumber = PhoneNumberUtils.parse(number.toString());
                 if (parsedNumber) {
-                  if (DEBUG) {
-                    debug("InternationalFormat: " + parsedNumber.internationalFormat);
-                    debug("InternationalNumber: " + parsedNumber.internationalNumber);
-                    debug("NationalNumber: " + parsedNumber.nationalNumber);
-                    debug("NationalFormat: " + parsedNumber.nationalFormat);
-                  }
+                  debug("InternationalFormat: " + parsedNumber.internationalFormat);
+                  debug("InternationalNumber: " + parsedNumber.internationalNumber);
+                  debug("NationalNumber: " + parsedNumber.nationalNumber);
+                  debug("NationalFormat: " + parsedNumber.nationalFormat);
                   if (parsedNumber.internationalNumber &&
                       number.toString() !== parsedNumber.internationalNumber) {
                     contact.search.exactTel.push(parsedNumber.internationalNumber);
@@ -384,7 +384,7 @@ ContactDB.prototype = {
 
   saveContact: function saveContact(aContact, successCb, errorCb) {
     let contact = this.makeImport(aContact);
-    this.newTxn("readwrite", STORE_NAME, function (txn, store) {
+    this.newTxn("readwrite", function (txn, store) {
       if (DEBUG) debug("Going to update" + JSON.stringify(contact));
 
       // Look up the existing record and compare the update timestamp.
@@ -413,14 +413,14 @@ ContactDB.prototype = {
   },
 
   removeContact: function removeContact(aId, aSuccessCb, aErrorCb) {
-    this.newTxn("readwrite", STORE_NAME, function (txn, store) {
+    this.newTxn("readwrite", function (txn, store) {
       if (DEBUG) debug("Going to delete" + aId);
       store.delete(aId);
     }, aSuccessCb, aErrorCb);
   },
 
   clear: function clear(aSuccessCb, aErrorCb) {
-    this.newTxn("readwrite", STORE_NAME, function (txn, store) {
+    this.newTxn("readwrite", function (txn, store) {
       if (DEBUG) debug("Going to clear all!");
       store.clear();
     }, aSuccessCb, aErrorCb);
@@ -441,7 +441,7 @@ ContactDB.prototype = {
   find: function find(aSuccessCb, aFailureCb, aOptions) {
     if (DEBUG) debug("ContactDB:find val:" + aOptions.filterValue + " by: " + aOptions.filterBy + " op: " + aOptions.filterOp + "\n");
     let self = this;
-    this.newTxn("readonly", STORE_NAME, function (txn, store) {
+    this.newTxn("readonly", function (txn, store) {
       if (aOptions && (aOptions.filterOp == "equals" || aOptions.filterOp == "contains")) {
         self._findWithIndex(txn, store, aOptions);
       } else {
@@ -527,6 +527,6 @@ ContactDB.prototype = {
   },
 
   init: function init(aGlobal) {
-      this.initDBHelper(DB_NAME, DB_VERSION, [STORE_NAME], aGlobal);
+      this.initDBHelper(DB_NAME, DB_VERSION, STORE_NAME, aGlobal);
   }
 };

@@ -47,7 +47,6 @@ public:
                  const nsACString& aAddress)
     : mConsumer(aConsumer)
     , mIOLoop(nullptr)
-    , mTask(nullptr)
     , mFd(-1)
     , mConnector(aConnector)
     , mCurrentTaskIsCanceled(false)
@@ -655,7 +654,7 @@ UnixSocketImpl::OnFileCanReadWithoutBlocking(int aFd)
     if (!mIncoming) {
       uint8_t data[MAX_READ_SIZE];
       ssize_t ret = read(aFd, data, MAX_READ_SIZE);
-      if (ret < 0) {
+      if (ret <= 0) {
         if (ret == -1) {
           if (errno == EINTR) {
             continue; // retry system call when interrupted
@@ -676,13 +675,11 @@ UnixSocketImpl::OnFileCanReadWithoutBlocking(int aFd)
         NS_DispatchToMainThread(t);
         return;
       }
-      if (ret) {
-        mIncoming = new UnixSocketRawData(ret);
-        memcpy(mIncoming->mData, data, ret);
-        nsRefPtr<SocketReceiveTask> t =
-          new SocketReceiveTask(this, mIncoming.forget());
-        NS_DispatchToMainThread(t);
-      }
+      mIncoming = new UnixSocketRawData(ret);
+      memcpy(mIncoming->mData, data, ret);
+      nsRefPtr<SocketReceiveTask> t =
+        new SocketReceiveTask(this, mIncoming.forget());
+      NS_DispatchToMainThread(t);
       if (ret < ssize_t(MAX_READ_SIZE)) {
         return;
       }
@@ -772,8 +769,7 @@ UnixSocketConsumer::NotifyDisconnect()
 
 bool
 UnixSocketConsumer::ConnectSocket(UnixSocketConnector* aConnector,
-                                  const char* aAddress,
-                                  int aDelayMs)
+                                  const char* aAddress)
 {
   MOZ_ASSERT(aConnector);
   MOZ_ASSERT(NS_IsMainThread());
@@ -784,12 +780,8 @@ UnixSocketConsumer::ConnectSocket(UnixSocketConnector* aConnector,
   nsCString addr;
   addr.Assign(aAddress);
   mImpl = new UnixSocketImpl(this, aConnector, addr);
-  MessageLoop* ioLoop = XRE_GetIOMessageLoop();
-  if (aDelayMs > 0) {
-    ioLoop->PostDelayedTask(FROM_HERE, new SocketConnectTask(mImpl), aDelayMs);
-  } else {
-    ioLoop->PostTask(FROM_HERE, new SocketConnectTask(mImpl));
-  }
+  XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
+                                   new SocketConnectTask(mImpl));
   mConnectionStatus = SOCKET_CONNECTING;
   return true;
 }

@@ -952,6 +952,8 @@ function WatchExpressionsView() {
   this._onClose = this._onClose.bind(this);
   this._onBlur = this._onBlur.bind(this);
   this._onKeyPress = this._onKeyPress.bind(this);
+  this._onMouseOver = this._onMouseOver.bind(this);
+  this._onMouseOut = this._onMouseOut.bind(this);
 }
 
 create({ constructor: WatchExpressionsView, proto: MenuContainer.prototype }, {
@@ -995,7 +997,7 @@ create({ constructor: WatchExpressionsView, proto: MenuContainer.prototype }, {
       unsorted: true,
       relaxed: true,
       attachment: {
-        currentExpression: "",
+        expression: "",
         initialExpression: aExpression,
         id: this._generateId()
       }
@@ -1044,7 +1046,7 @@ create({ constructor: WatchExpressionsView, proto: MenuContainer.prototype }, {
    */
   switchExpression: function DVWE_switchExpression(aVar, aExpression) {
     let expressionItem =
-      [i for (i of this._cache) if (i.attachment.currentExpression == aVar.name)][0];
+      [i for (i of this._cache) if (i.attachment.expression == aVar.name)][0];
 
     // Remove the watch expression if it's going to be a duplicate.
     if (!aExpression || this.getExpressions().indexOf(aExpression) != -1) {
@@ -1053,7 +1055,7 @@ create({ constructor: WatchExpressionsView, proto: MenuContainer.prototype }, {
     }
 
     // Save the watch expression code string.
-    expressionItem.attachment.currentExpression = aExpression;
+    expressionItem.attachment.expression = aExpression;
     expressionItem.target.inputNode.value = aExpression;
 
     // Synchronize with the controller's watch expressions store.
@@ -1068,7 +1070,7 @@ create({ constructor: WatchExpressionsView, proto: MenuContainer.prototype }, {
    */
   deleteExpression: function DVWE_deleteExpression(aVar) {
     let expressionItem =
-      [i for (i of this._cache) if (i.attachment.currentExpression == aVar.name)][0];
+      [i for (i of this._cache) if (i.attachment.expression == aVar.name)][0];
 
     // Remove the watch expression at its respective index.
     this.removeExpressionAt(this._cache.indexOf(expressionItem));
@@ -1086,7 +1088,7 @@ create({ constructor: WatchExpressionsView, proto: MenuContainer.prototype }, {
    *         The watch expression code string.
    */
   getExpression: function DVWE_getExpression(aIndex) {
-    return this._cache[aIndex].attachment.currentExpression;
+    return this._cache[aIndex].attachment.expression;
   },
 
   /**
@@ -1096,7 +1098,7 @@ create({ constructor: WatchExpressionsView, proto: MenuContainer.prototype }, {
    *         The watch expressions code strings.
    */
   getExpressions: function DVWE_getExpressions() {
-    return [item.attachment.currentExpression for (item of this._cache)];
+    return [item.attachment.expression for (item of this._cache)];
   },
 
   /**
@@ -1118,6 +1120,8 @@ create({ constructor: WatchExpressionsView, proto: MenuContainer.prototype }, {
     closeNode.addEventListener("click", this._onClose, false);
     inputNode.addEventListener("blur", this._onBlur, false);
     inputNode.addEventListener("keypress", this._onKeyPress, false);
+    aElementNode.addEventListener("mouseover", this._onMouseOver, false);
+    aElementNode.addEventListener("mouseout", this._onMouseOut, false);
 
     aElementNode.appendChild(arrowNode);
     aElementNode.appendChild(inputNode);
@@ -1183,7 +1187,7 @@ create({ constructor: WatchExpressionsView, proto: MenuContainer.prototype }, {
    */
   _onBlur: function DVWE__onBlur({ target: textbox }) {
     let expressionItem = this.getItemForElement(textbox);
-    let oldExpression = expressionItem.attachment.currentExpression;
+    let oldExpression = expressionItem.attachment.expression;
     let newExpression = textbox.value.trim();
 
     // Remove the watch expression if it's empty.
@@ -1196,7 +1200,10 @@ create({ constructor: WatchExpressionsView, proto: MenuContainer.prototype }, {
     }
     // Expression is eligible.
     else {
-      expressionItem.attachment.currentExpression = newExpression;
+      // Save the watch expression code string.
+      expressionItem.attachment.expression = newExpression;
+      // Make sure the close button is hidden when the textbox is unfocused.
+      expressionItem.target.closeNode.hidden = true;
     }
 
     // Synchronize with the controller's watch expressions store.
@@ -1214,6 +1221,20 @@ create({ constructor: WatchExpressionsView, proto: MenuContainer.prototype }, {
         DebuggerView.editor.focus();
         return;
     }
+  },
+
+  /**
+   * The mouse over listener for a watch expression.
+   */
+  _onMouseOver: function DVWE__onMouseOver({ target: element }) {
+    this.getItemForElement(element).target.closeNode.hidden = false;
+  },
+
+  /**
+   * The mouse out listener for a watch expression.
+   */
+  _onMouseOut: function DVWE__onMouseOut({ target: element }) {
+    this.getItemForElement(element).target.closeNode.hidden = true;
   },
 
   /**

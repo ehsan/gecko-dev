@@ -36,7 +36,7 @@ function getException(f) {
 function thrower2(x) {
     if (x > 90)
         throw x;
-    with ({}) {}; // Abort compilation...(?)
+    with (<a>foo</a>) {}; // Abort compilation...
 }
 function test2() {
     for (var i = 0; i < 100; i++) {

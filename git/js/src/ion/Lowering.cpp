@@ -586,19 +586,6 @@ LIRGenerator::visitCompare(MCompare *comp)
         return assignSafepoint(lir, comp);
     }
 
-    // Strict compare between value and string
-    if (comp->compareType() == MCompare::Compare_StrictString) {
-        JS_ASSERT(left->type() == MIRType_Value);
-        JS_ASSERT(right->type() == MIRType_String);
-
-        LCompareStrictS *lir = new LCompareStrictS(useRegister(right), temp(), temp());
-        if (!useBox(lir, LCompareStrictS::Lhs, left))
-            return false;
-        if (!define(lir, comp))
-            return false;
-        return assignSafepoint(lir, comp);
-    }
-
     // Unknown/unspecialized compare use a VM call.
     if (comp->compareType() == MCompare::Compare_Unknown) {
         LCompareVM *lir = new LCompareVM();
@@ -1234,7 +1221,7 @@ LIRGenerator::visitToDouble(MToDouble *convert)
       default:
         // Objects might be effectful.
         // Strings are complicated - we don't handle them yet.
-        JS_NOT_REACHED("unexpected type");
+        JS_ASSERT(!"unexpected type");
         return false;
     }
 }
@@ -1281,7 +1268,7 @@ LIRGenerator::visitToInt32(MToInt32 *convert)
         return false;
 
       default:
-        JS_NOT_REACHED("unexpected type");
+        JS_ASSERT(!"unexpected type");
         return false;
     }
 }
@@ -1314,7 +1301,7 @@ LIRGenerator::visitTruncateToInt32(MTruncateToInt32 *truncate)
       default:
         // Objects might be effectful.
         // Strings are complicated - we don't handle them yet.
-        JS_NOT_REACHED("unexpected type");
+        JS_ASSERT(!"unexpected type");
         return false;
     }
 }
@@ -1329,7 +1316,7 @@ LIRGenerator::visitToString(MToString *ins)
       case MIRType_Null:
       case MIRType_Undefined:
       case MIRType_Boolean:
-        JS_NOT_REACHED("NYI: Lower MToString");
+        JS_ASSERT(!"NYI: Lower MToString");
         return false;
 
       case MIRType_Int32: {
@@ -1342,7 +1329,7 @@ LIRGenerator::visitToString(MToString *ins)
 
       default:
         // Objects might be effectful. (see ToPrimitive)
-        JS_NOT_REACHED("unexpected type");
+        JS_ASSERT(!"unexpected type");
         return false;
     }
 }
@@ -1425,7 +1412,7 @@ LIRGenerator::visitLoadSlot(MLoadSlot *ins)
 
       case MIRType_Undefined:
       case MIRType_Null:
-        JS_NOT_REACHED("typed load must have a payload");
+        JS_ASSERT(!"typed load must have a payload");
         return false;
 
       default:
@@ -1577,7 +1564,7 @@ LIRGenerator::visitNot(MNot *ins)
       }
 
       default:
-        JS_NOT_REACHED("Unexpected MIRType.");
+        JS_ASSERT(!"Unexpected MIRType.");
         return false;
     }
 }
@@ -1638,7 +1625,7 @@ LIRGenerator::visitLoadElement(MLoadElement *ins)
       }
       case MIRType_Undefined:
       case MIRType_Null:
-        JS_NOT_REACHED("typed load must have a payload");
+        JS_ASSERT(!"typed load must have a payload");
         return false;
 
       default:
@@ -1739,7 +1726,7 @@ LIRGenerator::visitArrayPopShift(MArrayPopShift *ins)
       }
       case MIRType_Undefined:
       case MIRType_Null:
-        JS_NOT_REACHED("typed load must have a payload");
+        JS_ASSERT(!"typed load must have a payload");
         return false;
 
       default:
@@ -1835,7 +1822,7 @@ LIRGenerator::visitClampToUint8(MClampToUint8 *ins)
       }
 
       default:
-        JS_NOT_REACHED("unexpected type");
+        JS_ASSERT(!"unexpected type");
         return false;
     }
 }

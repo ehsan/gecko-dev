@@ -136,16 +136,50 @@ class DestroyWidgetRunnable : public nsRunnable {
 public:
   NS_DECL_NSIRUNNABLE
 
-  explicit DestroyWidgetRunnable(nsIWidget* aWidget) : mWidget(aWidget) {}
+  explicit DestroyWidgetRunnable(nsIContent* aCombobox) :
+    mCombobox(aCombobox),
+    mWidget(GetWidget())
+  {
+  }
 
 private:
-  nsCOMPtr<nsIWidget> mWidget;
+  nsIWidget* GetWidget(nsView** aOutView = nullptr) const;
+
+private:
+  nsCOMPtr<nsIContent> mCombobox;
+  nsIWidget* mWidget;
 };
 
 NS_IMETHODIMP DestroyWidgetRunnable::Run()
 {
-  mWidget = nullptr;
+  nsView* view = nullptr;
+  nsIWidget* currentWidget = GetWidget(&view);
+  // Make sure that we are destroying the same widget as what was requested
+  // when the event was fired.
+  if (view && mWidget && mWidget == currentWidget) {
+    view->DestroyWidget();
+  }
   return NS_OK;
+}
+
+nsIWidget* DestroyWidgetRunnable::GetWidget(nsView** aOutView) const
+{
+  nsIFrame* primaryFrame = mCombobox->GetPrimaryFrame();
+  nsIComboboxControlFrame* comboboxFrame = do_QueryFrame(primaryFrame);
+  if (comboboxFrame) {
+    nsIFrame* dropdown = comboboxFrame->GetDropDown();
+    if (dropdown) {
+      nsView* view = dropdown->GetView();
+      NS_ASSERTION(view, "nsComboboxControlFrame view is null");
+      if (aOutView) {
+        *aOutView = view;
+      }
+      if (view) {
+        return view->GetWidget();
+      }
+    }
+  }
+  return nullptr;
 }
 
 }
@@ -350,8 +384,12 @@ nsComboboxControlFrame::ShowPopup(bool aShowPopup)
 bool
 nsComboboxControlFrame::ShowList(bool aShowList)
 {
-  nsView* view = mDropdownFrame->GetView();
+  nsCOMPtr<nsIPresShell> shell = PresContext()->GetPresShell();
+
+  nsWeakFrame weakFrame(this);
+
   if (aShowList) {
+    nsView* view = mDropdownFrame->GetView();
     NS_ASSERTION(!view->HasWidget(),
                  "We shouldn't have a widget before we need to display the popup");
 
@@ -362,38 +400,42 @@ nsComboboxControlFrame::ShowList(bool aShowList)
     widgetData.mWindowType  = eWindowType_popup;
     widgetData.mBorderStyle = eBorderStyle_default;
     view->CreateWidgetForPopup(&widgetData);
-  } else {
-    nsIWidget* widget = view->GetWidget();
-    if (widget) {
-      // We must do this before ShowPopup in case it destroys us (bug 813442).
-      widget->CaptureRollupEvents(this, false);
-    }
   }
 
-  nsWeakFrame weakFrame(this);
   ShowPopup(aShowList);  // might destroy us
   if (!weakFrame.IsAlive()) {
     return false;
   }
 
   mDroppedDown = aShowList;
-  nsIWidget* widget = view->GetWidget();
   if (mDroppedDown) {
     // The listcontrol frame will call back to the nsComboboxControlFrame's
     // ListWasSelected which will stop the capture.
     mListControlFrame->AboutToDropDown();
     mListControlFrame->CaptureMouseEvents(true);
-    if (widget) {
-      widget->CaptureRollupEvents(this, true);
-    }
-  } else {
-    if (widget) {
-      nsCOMPtr<nsIRunnable> widgetDestroyer =
-        new DestroyWidgetRunnable(widget);
-      // 'widgetDestroyer' now has a strong ref on the widget so calling
-      // DestroyWidget here will not *delete* it.
-      view->DestroyWidget();
-      NS_DispatchToMainThread(widgetDestroyer);
+  }
+
+  // XXXbz so why do we need to flush here, exactly?
+  shell->GetDocument()->FlushPendingNotifications(Flush_Layout);
+  if (!weakFrame.IsAlive()) {
+    return false;
+  }
+
+  nsIFrame* listFrame = do_QueryFrame(mListControlFrame);
+  if (listFrame) {
+    nsView* view = listFrame->GetView();
+    NS_ASSERTION(view, "nsComboboxControlFrame view is null");
+    if (view) {
+      nsIWidget* widget = view->GetWidget();
+      if (widget) {
+        widget->CaptureRollupEvents(this, mDroppedDown);
+
+        if (!aShowList) {
+          nsCOMPtr<nsIRunnable> widgetDestroyer =
+            new DestroyWidgetRunnable(GetContent());
+          NS_DispatchToMainThread(widgetDestroyer);
+        }
+      }
     }
   }
 
@@ -1413,12 +1455,16 @@ nsComboboxControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), false);
 
   if (mDroppedDown) {
-    MOZ_ASSERT(mDropdownFrame, "mDroppedDown without frame");
-    nsView* view = mDropdownFrame->GetView();
-    MOZ_ASSERT(view);
-    nsIWidget* widget = view->GetWidget();
-    if (widget) {
-      widget->CaptureRollupEvents(this, false);
+    // Get parent view
+    nsIFrame * listFrame = do_QueryFrame(mListControlFrame);
+    if (listFrame) {
+      nsView* view = listFrame->GetView();
+      NS_ASSERTION(view, "nsComboboxControlFrame view is null");
+      if (view) {
+        nsIWidget* widget = view->GetWidget();
+        if (widget)
+          widget->CaptureRollupEvents(this, false);
+      }
     }
   }
 
@@ -1491,7 +1537,11 @@ nsComboboxControlFrame::Rollup(uint32_t aCount, nsIContent** aLastRolledUp)
 nsIWidget*
 nsComboboxControlFrame::GetRollupWidget()
 {
-  nsView* view = mDropdownFrame->GetView();
+  nsIFrame* listFrame = do_QueryFrame(mListControlFrame);
+  if (!listFrame)
+    return nullptr;
+
+  nsView* view = listFrame->GetView();
   MOZ_ASSERT(view);
   return view->GetWidget();
 }

@@ -9,17 +9,8 @@ from mozpack.unify import (
 import mozunit
 from mozpack.test.test_files import TestWithTmpDir
 from mozpack.copier import ensure_parent_dir
-from mozpack.files import FileFinder
-from mozpack.mozjar import JarWriter
-from mozpack.test.test_files import MockDest
-from cStringIO import StringIO
 import os
-import sys
-from mozpack.errors import (
-    ErrorMessage,
-    AccumulatedErrors,
-    errors,
-)
+from mozpack.errors import ErrorMessage
 
 
 class TestUnified(TestWithTmpDir):
@@ -45,8 +36,7 @@ class TestUnifiedFinder(TestUnified):
         self.create_one('b', 'test/foo', 'b\nc\na\n')
         self.create_both('test/bar', 'a\nb\nc\n')
 
-        finder = UnifiedFinder(FileFinder(self.tmppath('a')),
-                               FileFinder(self.tmppath('b')),
+        finder = UnifiedFinder(self.tmppath('a'), self.tmppath('b'),
                                sorted=['test'])
         self.assertEqual(sorted([(f, c.open().read())
                                  for f, c in finder.find('foo')]),
@@ -83,8 +73,7 @@ class TestUnifiedBuildFinder(TestUnified):
                             '</body>',
                             '</html>',
                         ]))
-        finder = UnifiedBuildFinder(FileFinder(self.tmppath('a')),
-                                    FileFinder(self.tmppath('b')))
+        finder = UnifiedBuildFinder(self.tmppath('a'), self.tmppath('b'))
         self.assertEqual(sorted([(f, c.open().read()) for f, c in
                                  finder.find('**/chrome.manifest')]),
                          [('chrome.manifest', 'a\nb\nc\n'),
@@ -102,25 +91,6 @@ class TestUnifiedBuildFinder(TestUnified):
                              '</body>',
                              '</html>',
                          ]))])
-
-        xpi = MockDest()
-        with JarWriter(fileobj=xpi, compress=True) as jar:
-            jar.add('foo', 'foo')
-            jar.add('bar', 'bar')
-        foo_xpi = xpi.read()
-        self.create_both('foo.xpi', foo_xpi)
-
-        with JarWriter(fileobj=xpi, compress=True) as jar:
-            jar.add('foo', 'bar')
-        self.create_one('a', 'bar.xpi', foo_xpi)
-        self.create_one('b', 'bar.xpi', xpi.read())
-
-        errors.out = StringIO()
-        with self.assertRaises(AccumulatedErrors), errors.accumulate():
-            self.assertEqual([(f, c.open().read()) for f, c in
-                              finder.find('*.xpi')],
-                             [('foo.xpi', foo_xpi)])
-        errors.out = sys.stderr
 
 
 if __name__ == '__main__':

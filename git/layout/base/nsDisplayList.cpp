@@ -2010,8 +2010,11 @@ nsDisplayBackgroundImage::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
       (!mFrame->GetPrevContinuation() && !mFrame->GetNextContinuation())) {
     const nsStyleBackground::Layer& layer = mBackgroundStyle->mLayers[mLayer];
     if (layer.mImage.IsOpaque()) {
+      nsRect borderBox = nsRect(ToReferenceFrame(), mFrame->GetSize());
       nsPresContext* presContext = mFrame->PresContext();
-      result = GetInsideClipRegion(this, presContext, layer.mClip, mBounds, aSnap);
+      nsRect r = nsCSSRendering::GetBackgroundLayerRect(presContext, mFrame,
+          borderBox, *mBackgroundStyle, layer);
+      result = GetInsideClipRegion(this, presContext, layer.mClip, r, aSnap);
     }
   }
 
@@ -2062,9 +2065,6 @@ nsDisplayBackgroundImage::IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* a
 nsRect
 nsDisplayBackgroundImage::GetPositioningArea()
 {
-  if (mIsThemed) {
-    return nsRect(ToReferenceFrame(), mFrame->GetSize());
-  }
   if (!mBackgroundStyle) {
     return nsRect();
   }
@@ -2138,7 +2138,7 @@ void nsDisplayBackgroundImage::ComputeInvalidationRegion(nsDisplayListBuilder* a
                                                          const nsDisplayItemGeometry* aGeometry,
                                                          nsRegion* aInvalidRegion)
 {
-  if (!mIsThemed && !mBackgroundStyle) {
+  if (!mBackgroundStyle) {
     return;
   }
 
@@ -2190,14 +2190,9 @@ nsDisplayBackgroundImage::GetBoundsInternal() {
   }
 
   nsRect borderBox = nsRect(ToReferenceFrame(), mFrame->GetSize());
-  nsRect clipRect = borderBox;
-  if (mFrame->GetType() == nsGkAtoms::canvasFrame) {
-    nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
-    clipRect = frame->CanvasArea() + ToReferenceFrame();
-  }
   const nsStyleBackground::Layer& layer = mBackgroundStyle->mLayers[mLayer];
   return nsCSSRendering::GetBackgroundLayerRect(presContext, mFrame,
-                                                borderBox, clipRect, *mBackgroundStyle, layer);
+                                                borderBox, *mBackgroundStyle, layer);
 }
 
 uint32_t

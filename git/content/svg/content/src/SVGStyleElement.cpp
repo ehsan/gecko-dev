@@ -9,6 +9,8 @@
 #include "nsStubMutationObserver.h"
 #include "mozilla/dom/SVGStyleElementBinding.h"
 
+DOMCI_NODE_DATA(SVGStyleElement, mozilla::dom::SVGStyleElement)
+
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(Style)
 
 namespace mozilla {
@@ -27,10 +29,11 @@ NS_IMPL_ADDREF_INHERITED(SVGStyleElement, SVGStyleElementBase)
 NS_IMPL_RELEASE_INHERITED(SVGStyleElement, SVGStyleElementBase)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(SVGStyleElement)
-  NS_NODE_INTERFACE_TABLE6(SVGStyleElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement,
+  NS_NODE_INTERFACE_TABLE7(SVGStyleElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement, nsIDOMSVGStyleElement,
                            nsIDOMLinkStyle, nsIStyleSheetLinkingElement,
                            nsIMutationObserver)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGStyleElement)
 NS_INTERFACE_MAP_END_INHERITING(SVGStyleElementBase)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(SVGStyleElement,
@@ -191,61 +194,56 @@ SVGStyleElement::ContentChanged(nsIContent* aContent)
 }
 
 //----------------------------------------------------------------------
+// nsIDOMSVGStyleElement methods
 
-void
-SVGStyleElement::GetXmlspace(nsAString & aXmlspace)
+/* attribute DOMString xmlspace; */
+NS_IMETHODIMP SVGStyleElement::GetXmlspace(nsAString & aXmlspace)
 {
   GetAttr(kNameSpaceID_XML, nsGkAtoms::space, aXmlspace);
-}
 
+  return NS_OK;
+}
+NS_IMETHODIMP SVGStyleElement::SetXmlspace(const nsAString & aXmlspace)
+{
+  return SetAttr(kNameSpaceID_XML, nsGkAtoms::space, aXmlspace, true);
+}
 void
 SVGStyleElement::SetXmlspace(const nsAString & aXmlspace, ErrorResult& rv)
 {
   rv = SetAttr(kNameSpaceID_XML, nsGkAtoms::space, aXmlspace, true);
 }
 
-void
-SVGStyleElement::GetMedia(nsAString & aMedia)
-{
-  GetAttr(kNameSpaceID_None, nsGkAtoms::media, aMedia);
-}
-
+/* attribute DOMString media; */
+NS_IMPL_STRING_ATTR(SVGStyleElement, Media, media)
 void
 SVGStyleElement::SetMedia(const nsAString& aMedia, ErrorResult& rv)
 {
   rv = SetAttr(kNameSpaceID_None, nsGkAtoms::media, aMedia, true);
 }
 
+/* attribute boolean scoped; */
+NS_IMPL_BOOL_ATTR(SVGStyleElement, Scoped, scoped)
 bool
 SVGStyleElement::Scoped() const
 {
   return GetBoolAttr(nsGkAtoms::scoped);
 }
-
 void
 SVGStyleElement::SetScoped(bool aScoped, ErrorResult& rv)
 {
   rv = SetBoolAttr(nsGkAtoms::scoped, aScoped);
 }
 
-void
-SVGStyleElement::GetType(nsAString & aType)
-{
-  GetAttr(kNameSpaceID_None, nsGkAtoms::type, aType);
-}
-
+/* attribute DOMString type; */
+NS_IMPL_STRING_ATTR(SVGStyleElement, Type, type)
 void
 SVGStyleElement::SetType(const nsAString& aType, ErrorResult& rv)
 {
   rv = SetAttr(kNameSpaceID_None, nsGkAtoms::type, aType, true);
 }
 
-void
-SVGStyleElement::GetTitle(nsAString & aTitle)
-{
-  GetAttr(kNameSpaceID_None, nsGkAtoms::title, aTitle);
-}
-
+/* attribute DOMString title; */
+NS_IMPL_STRING_ATTR(SVGStyleElement, Title, title)
 void
 SVGStyleElement::SetTitle(const nsAString& aTitle, ErrorResult& rv)
 {

@@ -32,7 +32,6 @@
 #include "base/thread.h"
 #include "prenv.h"
 #include "mozilla/Attributes.h"
-#include "nsContentUtils.h"
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"

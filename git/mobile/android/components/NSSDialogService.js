@@ -38,7 +38,7 @@ NSSDialogs.prototype = {
       buttons: aButtons,
       inputs: aInputs
     };
-    let data = Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge).handleGeckoMessage(JSON.stringify(msg));
+    let data = Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge).handleGeckoMessage(JSON.stringify({ gecko: msg }));
     return JSON.parse(data);
   },
 

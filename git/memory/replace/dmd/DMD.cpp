@@ -601,16 +601,14 @@ class LocationService
 
   struct Entry
   {
-    static const void* const kUnused;
-
-    const void* mPc;        // if mPc==kUnused, the entry is unused
+    const void* mPc;        // the entry is unused if this is null
     char*       mFunction;  // owned by the Entry;  may be null
     const char* mLibrary;   // owned by mLibraryStrings;  never null
                             //   in a non-empty entry is in use
     ptrdiff_t   mLOffset;
 
     Entry()
-      : mPc(kUnused), mFunction(nullptr), mLibrary(nullptr), mLOffset(0)
+      : mPc(nullptr), mFunction(nullptr), mLibrary(nullptr), mLOffset(0)
     {}
 
     ~Entry()
@@ -667,7 +665,7 @@ public:
     MOZ_ASSERT(index < kNumEntries);
     Entry& entry = mEntries[index];
 
-    MOZ_ASSERT(aPc != Entry::kUnused);
+    MOZ_ASSERT(aPc);    // important, because null represents an empty entry
     if (entry.mPc != aPc) {
       mNumCacheMisses++;
 
@@ -734,7 +732,7 @@ public:
   {
     size_t n = 0;
     for (size_t i = 0; i < kNumEntries; i++) {
-      if (mEntries[i].mPc != Entry::kUnused) {
+      if (mEntries[i].mPc) {
         n++;
       }
     }
@@ -744,10 +742,6 @@ public:
   size_t NumCacheHits()   const { return mNumCacheHits; }
   size_t NumCacheMisses() const { return mNumCacheMisses; }
 };
-
-// We can't use 0 because that sometimes shows up as a PC in stack traces.
-const void* const LocationService::Entry::kUnused =
-  reinterpret_cast<const void* const>(intptr_t(-1));
 
 //---------------------------------------------------------------------------
 // Stack traces

@@ -150,6 +150,7 @@ public class Tab {
             boolean sizeChange = mThumbnailBitmap.getWidth() != width
                               || mThumbnailBitmap.getHeight() != height;
             if (honeycomb || sizeChange) {
+                mThumbnailBitmap.recycle();
                 mThumbnailBitmap = null;
             }
         }

@@ -3131,9 +3131,7 @@ IonBuilder::makeInliningDecision(AutoObjectVector &targets, uint32_t argc)
         if (targetScript->length > js_IonOptions.smallFunctionMaxBytecodeLength)
             allFunctionsAreSmall = false;
 
-        if (targetScript->length > 1 && // Always inline the empty script.
-            calleeUses * js_IonOptions.inlineUseCountRatio < callerUses)
-        {
+        if (calleeUses * js_IonOptions.inlineUseCountRatio < callerUses) {
             IonSpew(IonSpew_Inlining, "Not inlining, callee is not hot");
             return false;
         }
@@ -5435,11 +5433,11 @@ IonBuilder::jsop_getelem_dense()
     bool loadDouble = !barrier &&
                       loopDepth_ &&
                       !readOutOfBounds &&
-                      !needsHoleCheck &&
-                      knownType == JSVAL_TYPE_DOUBLE &&
                       oracle->elementReadShouldAlwaysLoadDoubles(script(), pc);
-    if (loadDouble)
+    if (loadDouble) {
+        JS_ASSERT(!needsHoleCheck && knownType == JSVAL_TYPE_DOUBLE);
         elements = addConvertElementsToDoubles(elements);
+    }
 
     MInitializedLength *initLength = MInitializedLength::New(elements);
     current->add(initLength);

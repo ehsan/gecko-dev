@@ -3,7 +3,7 @@ function TestCase(n, d, e, a) {
   this.bugnumber = typeof(BUGNUMER) != 'undefined' ? BUGNUMBER : '';
   this.type = (typeof window == 'undefined' ? 'shell' : 'browser');
   gTestcases[gTc++] = this;
-  if (optionName) {}
+  if (optionName && optionName != "allow_xml") {}
   {} {} {} // Seems to be required to crash
 }
 function f() {}

@@ -54,10 +54,6 @@ ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 CPPSRCS		+= nsMacUtilsImpl.cpp
 endif
 
-CSRCS = \
-		nsErrorAssertsC.c \
-		$(NULL)
-
 EXPORTS		= \
 		nsAgg.h \
 		nsAutoRef.h \

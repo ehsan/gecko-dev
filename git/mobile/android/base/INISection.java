@@ -48,9 +48,10 @@ public class INISection {
     public int getIntProperty(String key) {
         Object val = getProperty(key);
         if (val == null)
-            return -1;
+          return -1;
 
-        return Integer.parseInt(val.toString());
+        Integer i = new Integer(val.toString());
+        return i.intValue();
     }
 
     // get a global property out of the hash table. will return null if the property doesn't exist

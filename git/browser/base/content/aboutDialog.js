@@ -282,10 +282,17 @@ appUpdater.prototype =
 
   /**
    * Implements nsIUpdateCheckListener. The methods implemented by
-   * nsIUpdateCheckListener are in a different scope from nsIIncrementalDownload
-   * to make it clear which are used by each interface.
+   * nsIUpdateCheckListener have to be in a different scope from
+   * nsIIncrementalDownload because both nsIUpdateCheckListener and
+   * nsIIncrementalDownload implement onProgress.
    */
   updateCheckListener: {
+    /**
+     * See nsIUpdateService.idl
+     */
+    onProgress: function(aRequest, aPosition, aTotalSize) {
+    },
+
     /**
      * See nsIUpdateService.idl
      */

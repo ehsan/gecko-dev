@@ -75,7 +75,7 @@ this.DOMApplicationRegistry = {
                      "Webapps:GetSelf", "Webapps:CheckInstalled",
                      "Webapps:GetInstalled", "Webapps:GetNotInstalled",
                      "Webapps:Launch", "Webapps:GetAll",
-                     "Webapps:InstallPackage",
+                     "Webapps:InstallPackage", "Webapps:GetAppInfo",
                      "Webapps:GetList", "Webapps:RegisterForMessages",
                      "Webapps:UnregisterForMessages",
                      "Webapps:CancelDownload", "Webapps:CheckForUpdate",
@@ -110,48 +110,40 @@ this.DOMApplicationRegistry = {
           this.webapps = aData;
           let appDir = FileUtils.getDir(DIRECTORY_NAME, ["webapps"], false);
           for (let id in this.webapps) {
-            let app = this.webapps[id];
 
-            app.id = id;
+            this.webapps[id].id = id;
 
             // Make sure we have a localId
-            if (app.localId === undefined) {
-              app.localId = this._nextLocalId();
+            if (this.webapps[id].localId === undefined) {
+              this.webapps[id].localId = this._nextLocalId();
             }
 
-            if (app.basePath === undefined) {
-              app.basePath = appDir.path;
+            if (this.webapps[id].basePath === undefined) {
+              this.webapps[id].basePath = appDir.path;
             }
 
             // Default to removable apps.
-            if (app.removable === undefined) {
-              app.removable = true;
+            if (this.webapps[id].removable === undefined) {
+              this.webapps[id].removable = true;
             }
 
             // Default to a non privileged status.
-            if (app.appStatus === undefined) {
-              app.appStatus = Ci.nsIPrincipal.APP_STATUS_INSTALLED;
+            if (this.webapps[id].appStatus === undefined) {
+              this.webapps[id].appStatus = Ci.nsIPrincipal.APP_STATUS_INSTALLED;
             }
 
             // Default to NO_APP_ID and not in browser.
-            if (app.installerAppId === undefined) {
-              app.installerAppId = Ci.nsIScriptSecurityManager.NO_APP_ID;
+            if (this.webapps[id].installerAppId === undefined) {
+              this.webapps[id].installerAppId = Ci.nsIScriptSecurityManager.NO_APP_ID;
             }
-            if (app.installerIsBrowser === undefined) {
-              app.installerIsBrowser = false;
-            }
-
-            // Default installState to "installed", and reset if we shutdown
-            // during an update.
-            if (app.installState === undefined ||
-                app.installState === "updating") {
-              app.installState = "installed";
+            if (this.webapps[id].installerIsBrowser === undefined) {
+              this.webapps[id].installerIsBrowser = false;
             }
 
-            // At startup we can't be downloading, and the $TMP directory
-            // will be empty so we can't just apply a staged update.
-            app.downloading = false;
-            app.readyToApplyDownload = false;
+            // Default installState to "installed".
+            if (this.webapps[id].installState === undefined) {
+              this.webapps[id].installState = "installed";
+            }
           };
         }
         aNext();
@@ -273,7 +265,6 @@ this.DOMApplicationRegistry = {
         file.copyTo(destDir, aFile);
       });
 
-    app.installState = "installed";
     app.basePath = FileUtils.getDir(DIRECTORY_NAME, ["webapps"], true, true)
                             .path;
 
@@ -461,15 +452,7 @@ this.DOMApplicationRegistry = {
       let messageName;
       if (typeof(aMessage) === "object" && Object.keys(aMessage).length === 1) {
         messageName = Object.keys(aMessage)[0];
-        let uri;
-        try {
-          uri = manifest.resolveFromOrigin(aMessage[messageName]);
-        } catch(e) {
-          debug("system message url (" + aMessage[messageName] + ") is invalid, skipping. " +
-                "Error is: " + e);
-          return;
-        }
-        href = Services.io.newURI(uri, null, null);
+        href = Services.io.newURI(manifest.resolveFromOrigin(aMessage[messageName]), null, null);
       } else {
         messageName = aMessage;
       }
@@ -514,17 +497,7 @@ this.DOMApplicationRegistry = {
       if (!description.href) {
         description.href = manifest.launch_path;
       }
-
-      try {
-        description.href = manifest.resolveFromOrigin(description.href);
-      } catch (e) {
-        debug("Activity href (" + description.href + ") is invalid, skipping. " +
-              "Error is: " + e);
-        continue;
-      }
-
-      debug('_createActivitiesToRegister: ' + aApp.manifestURL + ', activity ' +
-          activity + ', description.href is ' + description.href);
+      description.href = manifest.resolveFromOrigin(description.href);
 
       if (aRunUpdate) {
         activitiesToRegister.push({ "manifest": aApp.manifestURL,
@@ -817,6 +790,14 @@ this.DOMApplicationRegistry = {
       case "Webapps:InstallPackage":
         this.doInstallPackage(msg, mm);
         break;
+      case "Webapps:GetAppInfo":
+        if (!this.webapps[msg.id]) {
+          debug("No webapp for " + msg.id);
+          return null;
+        }
+        return { "basePath":  this.webapps[msg.id].basePath + "/",
+                 "isCoreApp": !this.webapps[msg.id].removable };
+        break;
       case "Webapps:RegisterForMessages":
         this.addMessageListener(msg, mm);
         break;
@@ -845,15 +826,6 @@ this.DOMApplicationRegistry = {
         this.notifyAppsRegistryReady();
         break;
     }
-  },
-
-  getAppInfo: function getAppInfo(aAppId) {
-    if (!this.webapps[aAppId]) {
-      debug("No webapp for " + aAppId);
-      return null;
-    }
-    return { "basePath":  this.webapps[aAppId].basePath + "/",
-             "isCoreApp": !this.webapps[aAppId].removable };
   },
 
   // Some messages can be listened by several content processes:
@@ -965,17 +937,6 @@ this.DOMApplicationRegistry = {
     let app = this.webapps[id];
     if (!app) {
       debug("startDownload: No app found for " + aManifestURL);
-      return;
-    }
-
-    // If the caller is trying to start a download but we have nothing to
-    // download, send an error.
-    if (!app.downloadAvailable) {
-      this.broadcastMessage("Webapps:PackageEvent",
-                            { type: "canceled",
-                              manifestURL: app.manifestURL,
-                              app: app,
-                              error: "NO_DOWNLOAD_AVAILABLE" });
       return;
     }
 
@@ -2139,17 +2100,9 @@ this.DOMApplicationRegistry = {
             return;
           }
 
-          // If we get a 4XX or a 5XX http status, bail out like if we had a
-          // network error.
-          let responseStatus = requestChannel.responseStatus;
-          if (responseStatus >= 400 && responseStatus <= 599) {
-            cleanup("NETWORK_ERROR");
-            return;
-          }
-
           self.computeFileHash(zipFile, function onHashComputed(aHash) {
             debug("packageHash=" + aHash);
-            let newPackage = (responseStatus != 304) &&
+            let newPackage = (requestChannel.responseStatus != 304) &&
                              (aHash != app.packageHash);
 
             if (!newPackage) {
@@ -2275,17 +2228,13 @@ this.DOMApplicationRegistry = {
                   if (!app.staged) {
                     app.staged = { };
                   }
-                  try {
-                    app.staged.packageEtag =
-                      requestChannel.getResponseHeader("Etag");
-                  } catch(e) { }
+                  app.staged.packageEtag =
+                    requestChannel.getResponseHeader("Etag");
                   app.staged.packageHash = aHash;
                   app.staged.appStatus =
                     AppsUtils.getAppManifestStatus(manifest);
                 } else {
-                  try {
-                    app.packageEtag = requestChannel.getResponseHeader("Etag");
-                  } catch(e) { }
+                  app.packageEtag = requestChannel.getResponseHeader("Etag");
                   app.packageHash = aHash;
                   app.appStatus = AppsUtils.getAppManifestStatus(manifest);
                 }

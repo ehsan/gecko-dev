@@ -13,8 +13,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 const XRE_OS_UPDATE_APPLY_TO_DIR = "OSUpdApplyToD"
 const UPDATE_ARCHIVE_DIR = "UpdArchD"
 const LOCAL_DIR = "/data/local";
-const UPDATES_DIR = "updates/0";
-const FOTA_DIR = "updates/fota";
 
 XPCOMUtils.defineLazyServiceGetter(Services, "env",
                                    "@mozilla.org/process/environment;1",
@@ -66,17 +64,10 @@ DirectoryProvider.prototype = {
       persistent.value = true;
       return file;
     }
-    if (prop == UPDATE_ARCHIVE_DIR) {
-      // getUpdateDir will set persistent to false since it may toggle between
-      // /data/local/ and /mnt/sdcard based on free space and/or availability
-      // of the sdcard.
-      return this.getUpdateDir(persistent, UPDATES_DIR);
-    }
-    if (prop == XRE_OS_UPDATE_APPLY_TO_DIR) {
-      // getUpdateDir will set persistent to false since it may toggle between
-      // /data/local/ and /mnt/sdcard based on free space and/or availability
-      // of the sdcard.
-      return this.getUpdateDir(persistent, FOTA_DIR);
+    if (prop == XRE_OS_UPDATE_APPLY_TO_DIR ||
+        prop == UPDATE_ARCHIVE_DIR) {
+      let file = this.getUpdateDir(persistent);
+      return file;
     }
 #endif
     return null;
@@ -101,14 +92,14 @@ DirectoryProvider.prototype = {
     return requiredSpace <= stat.freeBytes;
   },
 
-  findUpdateDirWithFreeSpace: function dp_findUpdateDirWithFreeSpace(requiredSpace, subdir) {
+  findUpdateDirWithFreeSpace: function dp_findUpdateDirWithFreeSpace(requiredSpace) {
     if (!Services.volumeService) {
-      return this.createUpdatesDir(LOCAL_DIR, subdir);
+      return this.createUpdatesDir(LOCAL_DIR);
     }
     let activeUpdate = Services.um.activeUpdate;
     if (gUseSDCard) {
       if (this.volumeHasFreeSpace(gExtStorage, requiredSpace)) {
-        let extUpdateDir = this.createUpdatesDir(gExtStorage, subdir);
+        let extUpdateDir = this.createUpdatesDir(gExtStorage);
         if (extUpdateDir !== null) {
           return extUpdateDir;
         }
@@ -118,7 +109,7 @@ DirectoryProvider.prototype = {
     }
 
     if (this.volumeHasFreeSpace(LOCAL_DIR, requiredSpace)) {
-      let localUpdateDir = this.createUpdatesDir(LOCAL_DIR, subdir);
+      let localUpdateDir = this.createUpdatesDir(LOCAL_DIR);
       if (localUpdateDir !== null) {
         return localUpdateDir;
       }
@@ -129,7 +120,7 @@ DirectoryProvider.prototype = {
     return null;
   },
 
-  getUpdateDir: function dp_getUpdateDir(persistent, subdir) {
+  getUpdateDir: function dp_getUpdateDir(persistent) {
     let defaultUpdateDir = this.getDefaultUpdateDir();
     persistent.value = false;
 
@@ -148,7 +139,7 @@ DirectoryProvider.prototype = {
     }
 
     let requiredSpace = selectedPatch.size * 2;
-    let updateDir = this.findUpdateDirWithFreeSpace(requiredSpace, subdir);
+    let updateDir = this.findUpdateDirWithFreeSpace(requiredSpace, persistent);
     if (updateDir) {
       return updateDir;
     }
@@ -161,25 +152,24 @@ DirectoryProvider.prototype = {
     throw Cr.NS_ERROR_FILE_TOO_BIG;
   },
 
-  createUpdatesDir: function dp_createUpdatesDir(root, subdir) {
+  createUpdatesDir: function dp_createUpdatesDir(root) {
       let dir = Cc["@mozilla.org/file/local;1"]
                    .createInstance(Ci.nsILocalFile);
       dir.initWithPath(root);
       if (!dir.isWritable()) {
-        log("Error: " + dir.path + " isn't writable");
         return null;
       }
-      dir.appendRelativePath(subdir);
+      dir.appendRelativePath("updates/0");
       if (dir.exists()) {
         if (dir.isDirectory() && dir.isWritable()) {
           return dir;
         }
-        // subdir is either a file or isn't writable. In either case we
+        // updates/0 is either a file or isn't writable. In either case we
         // can't use it.
         log("Error: " + dir.path + " is a file or isn't writable");
         return null;
       }
-      // subdir doesn't exist, and the parent is writable, so try to
+      // updates/0 doesn't exist, and the parent is writable, so try to
       // create it. This can fail if a file named updates exists.
       try {
         dir.create(Ci.nsIFile.DIRECTORY_TYPE, 0770);

@@ -15,9 +15,7 @@ from mozpack.executables import (
 from mozpack.chrome.manifest import ManifestEntry
 from io import BytesIO
 from mozpack.errors import ErrorMessage
-from mozpack.mozjar import JarReader
 import mozpack.path
-from collections import OrderedDict
 
 
 class Dest(object):
@@ -61,13 +59,12 @@ class BaseFile(object):
     their own copy function, or rely on BaseFile.copy using the open() member
     function and/or the path property.
     '''
-    def copy(self, dest, skip_if_older=True):
+    def copy(self, dest):
         '''
         Copy the BaseFile content to the destination given as a string or a
         Dest instance. Avoids replacing existing files if the BaseFile content
         matches that of the destination, or in case of plain files, if the
-        destination is newer than the original file. This latter behaviour is
-        disabled when skip_if_older is False.
+        destination is newer than the original file.
         Returns whether a copy was actually performed (True) or not (False).
         '''
         if isinstance(dest, basestring):
@@ -83,7 +80,7 @@ class BaseFile(object):
             # the microsecond. But microsecond is too precise because
             # shutil.copystat only copies milliseconds, and seconds is not
             # enough precision.
-            if skip_if_older and int(os.path.getmtime(self.path) * 1000) \
+            if int(os.path.getmtime(self.path) * 1000) \
                     <= int(os.path.getmtime(dest.path) * 1000):
                 return False
             elif os.path.getsize(self.path) != os.path.getsize(dest.path):
@@ -140,14 +137,9 @@ class ExecutableFile(File):
     File class for executable and library files on OS/2, OS/X and ELF systems.
     (see mozpack.executables.is_executable documentation).
     '''
-    def copy(self, dest, skip_if_older=True):
+    def copy(self, dest):
         assert isinstance(dest, basestring)
-        # If File.copy didn't actually copy because dest is newer, check the
-        # file sizes. If dest is smaller, it means it is already stripped and
-        # elfhacked, so we can skip.
-        if not File.copy(self, dest, skip_if_older) and \
-                os.path.getsize(self.path) > os.path.getsize(dest):
-            return False
+        File.copy(self, dest)
         try:
             if may_strip(dest):
                 strip(dest)
@@ -210,13 +202,12 @@ class XPTFile(GeneratedFile):
         assert isinstance(xpt, BaseFile)
         self._files.remove(xpt)
 
-    def copy(self, dest, skip_if_older=True):
+    def copy(self, dest):
         '''
         Link the registered XPTs and place the resulting linked XPT at the
         destination given as a string or a Dest instance. Avoids an expensive
         XPT linking if the interfaces in an existing destination match those of
         the individual XPTs to link.
-        skip_if_older is ignored.
         '''
         if isinstance(dest, basestring):
             dest = Dest(dest)
@@ -297,7 +288,7 @@ class ManifestFile(BaseFile):
         the manifest.
         '''
         return BytesIO(''.join('%s\n' % e.rebase(self._base)
-                               for e in self._entries))
+                                for e in self._entries))
 
     def __iter__(self):
         '''
@@ -327,13 +318,16 @@ class MinifiedProperties(BaseFile):
         the properties file.
         '''
         return BytesIO(''.join(l for l in self._file.open().readlines()
-                               if not l.startswith('#')))
+                                if not l.startswith('#')))
 
 
-class BaseFinder(object):
+class FileFinder(object):
+    '''
+    Helper to get appropriate BaseFile instances from the file system.
+    '''
     def __init__(self, base, minify=False):
         '''
-        Initializes the instance with a reference base directory. The
+        Create a FileFinder for files under the given base directory. The
         optional minify argument specifies whether file types supporting
         minification (currently only "*.properties") should be minified.
         '''
@@ -345,65 +339,18 @@ class BaseFinder(object):
         Yield path, BaseFile_instance pairs for all files under the base
         directory and its subdirectories that match the given pattern. See the
         mozpack.path.match documentation for a description of the handled
-        patterns.
+        patterns. Note all files with a name starting with a '.' are ignored
+        when scanning directories, but are not ignored when explicitely
+        requested.
         '''
         while pattern.startswith('/'):
             pattern = pattern[1:]
-        for p, f in self._find(pattern):
-            yield p, self._minify_file(p, f)
-
-    def __iter__(self):
-        '''
-        Iterates over all files under the base directory (excluding files
-        starting with a '.' and files at any level under a directory starting
-        with a '.').
-            for path, file in finder:
-                ...
-        '''
-        return self.find('')
-
-    def __contains__(self, pattern):
-        raise RuntimeError("'in' operator forbidden for %s. Use contains()." %
-                           self.__class__.__name__)
-
-    def contains(self, pattern):
-        '''
-        Return whether some files under the base directory match the given
-        pattern. See the mozpack.path.match documentation for a description of
-        the handled patterns.
-        '''
-        return any(self.find(pattern))
-
-    def _minify_file(self, path, file):
-        '''
-        Return an appropriate MinifiedSomething wrapper for the given BaseFile
-        instance (file), according to the file type (determined by the given
-        path), if the FileFinder was created with minification enabled.
-        Otherwise, just return the given BaseFile instance.
-        Currently, only "*.properties" files are handled.
-        '''
-        if self._minify and not isinstance(file, ExecutableFile):
-            if path.endswith('.properties'):
-                return MinifiedProperties(file)
-        return file
-
-
-class FileFinder(BaseFinder):
-    '''
-    Helper to get appropriate BaseFile instances from the file system.
-    '''
-    def __init__(self, base, **kargs):
-        '''
-        Create a FileFinder for files under the given base directory.
-        '''
-        BaseFinder.__init__(self, base, **kargs)
+        return self._find(pattern)
 
     def _find(self, pattern):
         '''
         Actual implementation of FileFinder.find(), dispatching to specialized
         member functions depending on what kind of pattern was given.
-        Note all files with a name starting with a '.' are ignored when
-        scanning directories, but are not ignored when explicitely requested.
         '''
         if '*' in pattern:
             return self._find_glob('', mozpack.path.split(pattern))
@@ -437,7 +384,7 @@ class FileFinder(BaseFinder):
         if is_executable(srcpath):
             yield path, ExecutableFile(srcpath)
         else:
-            yield path, File(srcpath)
+            yield path, self._minify_file(srcpath, File(srcpath))
 
     def _find_glob(self, base, pattern):
         '''
@@ -471,35 +418,37 @@ class FileFinder(BaseFinder):
                                         pattern[1:]):
                 yield p, f
 
+    def __iter__(self):
+        '''
+        Iterates over all files under the base directory (excluding files
+        starting with a '.' and files at any level under a directory starting
+        with a '.').
+            for path, file in finder:
+                ...
+        '''
+        return self.find('')
 
-class JarFinder(BaseFinder):
-    '''
-    Helper to get appropriate DeflatedFile instances from a JarReader.
-    '''
-    def __init__(self, base, reader, **kargs):
-        '''
-        Create a JarFinder for files in the given JarReader. The base argument
-        is used as an indication of the Jar file location.
-        '''
-        assert isinstance(reader, JarReader)
-        BaseFinder.__init__(self, base, **kargs)
-        self._files = OrderedDict((f.filename, f) for f in reader)
+    def __contains__(self, pattern):
+        raise RuntimeError("'in' operator forbidden for %s. Use contains()." %
+                           self.__class__.__name__)
 
-    def _find(self, pattern):
+    def contains(self, pattern):
         '''
-        Actual implementation of JarFinder.find(), dispatching to specialized
-        member functions depending on what kind of pattern was given.
+        Return whether some files under the base directory match the given
+        pattern. See the mozpack.path.match documentation for a description of
+        the handled patterns.
         '''
-        if '*' in pattern:
-            for p in self._files:
-                if mozpack.path.match(p, pattern):
-                    yield p, DeflatedFile(self._files[p])
-        elif pattern == '':
-            for p in self._files:
-                yield p, DeflatedFile(self._files[p])
-        elif pattern in self._files:
-            yield pattern, DeflatedFile(self._files[pattern])
-        else:
-            for p in self._files:
-                if mozpack.path.basedir(p, [pattern]) == pattern:
-                    yield p, DeflatedFile(self._files[p])
+        return any(self.find(pattern))
+
+    def _minify_file(self, path, file):
+        '''
+        Return an appropriate MinifiedSomething wrapper for the given BaseFile
+        instance (file), according to the file type (determined by the given
+        path), if the FileFinder was created with minification enabled.
+        Otherwise, just return the given BaseFile instance.
+        Currently, only "*.properties" files are handled.
+        '''
+        if self._minify:
+            if path.endswith('.properties'):
+                return MinifiedProperties(file)
+        return file

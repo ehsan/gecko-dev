@@ -32,7 +32,6 @@ EXPORTS_NAMESPACES = mozilla/dom
 EXPORTS_mozilla/dom = \
 		HTMLAnchorElement.h \
 		HTMLBodyElement.h \
-		HTMLBRElement.h \
 		HTMLDataListElement.h \
 		HTMLDivElement.h \
 		HTMLFontElement.h \
@@ -46,7 +45,6 @@ EXPORTS_mozilla/dom = \
 		HTMLScriptElement.h \
 		HTMLSharedListElement.h \
 		HTMLSpanElement.h \
-		HTMLStyleElement.h \
 		HTMLTableCaptionElement.h \
 		HTMLTableCellElement.h \
 		HTMLTableColElement.h \
@@ -70,7 +68,7 @@ CPPSRCS		= \
 		HTMLElement.cpp \
 		HTMLAnchorElement.cpp \
 		nsHTMLAreaElement.cpp \
-		HTMLBRElement.cpp \
+		nsHTMLBRElement.cpp \
 		HTMLBodyElement.cpp \
 		nsHTMLButtonElement.cpp \
 		HTMLCanvasElement.cpp \
@@ -109,7 +107,7 @@ CPPSRCS		= \
 		nsHTMLSharedElement.cpp \
 		HTMLSpanElement.cpp \
 		HTMLSharedListElement.cpp \
-		HTMLStyleElement.cpp \
+		nsHTMLStyleElement.cpp \
 		HTMLTableElement.cpp \
 		HTMLTableCaptionElement.cpp \
 		HTMLTableCellElement.cpp \

@@ -15,6 +15,7 @@
 
 #include "nsImageLoadingContent.h"
 #include "nsIStreamListener.h"
+#include "nsFrameLoader.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIChannelEventSink.h"
 #include "nsIObjectLoadingContent.h"
@@ -22,7 +23,6 @@
 #include "nsPluginInstanceOwner.h"
 #include "nsIThreadInternal.h"
 #include "nsIFrame.h"
-#include "nsIFrameLoader.h"
 
 class nsAsyncInstantiateEvent;
 class nsStopPluginRunnable;
@@ -30,7 +30,6 @@ class AutoNotifier;
 class AutoFallback;
 class AutoSetInstantiatingToFalse;
 class nsObjectFrame;
-class nsFrameLoader;
 
 class nsObjectLoadingContent : public nsImageLoadingContent
                              , public nsIStreamListener

@@ -6,7 +6,6 @@
 #include "WebGLContext.h"
 #include "WebGLProgram.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla;
 

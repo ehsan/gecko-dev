@@ -35,9 +35,6 @@ Cu.import("resource:///modules/source-editor.jsm");
 Cu.import("resource:///modules/devtools/LayoutHelpers.jsm");
 Cu.import("resource:///modules/devtools/VariablesView.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this,
-  "Reflect", "resource://gre/modules/reflect.jsm");
-
 /**
  * Object defining the debugger controller components.
  */
@@ -429,9 +426,6 @@ function StackFrames() {
   this._onFrames = this._onFrames.bind(this);
   this._onFramesCleared = this._onFramesCleared.bind(this);
   this._afterFramesCleared = this._afterFramesCleared.bind(this);
-  this._fetchScopeVariables = this._fetchScopeVariables.bind(this);
-  this._fetchVarProperties = this._fetchVarProperties.bind(this);
-  this._addVarExpander = this._addVarExpander.bind(this);
   this.evaluate = this.evaluate.bind(this);
 }
 
@@ -690,7 +684,7 @@ StackFrames.prototype = {
       // Handle additions to the innermost scope.
       if (environment == frame.environment) {
         this._insertScopeFrameReferences(scope, frame);
-        this._addScopeExpander(scope, environment);
+        this._fetchScopeVariables(scope, environment);
         // Always expand the innermost scope by default.
         scope.expand();
       }
@@ -716,12 +710,12 @@ StackFrames.prototype = {
    *        The scope's environment.
    */
   _addScopeExpander: function SF__addScopeExpander(aScope, aEnv) {
-    aScope._sourceEnvironment = aEnv;
+    let callback = this._fetchScopeVariables.bind(this, aScope, aEnv);
 
     // It's a good idea to be prepared in case of an expansion.
-    aScope.addEventListener("mouseover", this._fetchScopeVariables, false);
+    aScope.addEventListener("mouseover", callback, false);
     // Make sure that variables are always available on expansion.
-    aScope.onexpand = this._fetchScopeVariables;
+    aScope.onexpand = callback;
   },
 
   /**
@@ -738,15 +732,15 @@ StackFrames.prototype = {
     if (VariablesView.isPrimitive({ value: aGrip })) {
       return;
     }
-    aVar._sourceGrip = aGrip;
+    let callback = this._fetchVarProperties.bind(this, aVar, aGrip);
 
     // Some variables are likely to contain a very large number of properties.
     // It's a good idea to be prepared in case of an expansion.
     if (aVar.name == "window" || aVar.name == "this") {
-      aVar.addEventListener("mouseover", this._fetchVarProperties, false);
+      aVar.addEventListener("mouseover", callback, false);
     }
     // Make sure that properties are always available on expansion.
-    aVar.onexpand = this._fetchVarProperties;
+    aVar.onexpand = callback;
   },
 
   /**
@@ -794,20 +788,21 @@ StackFrames.prototype = {
    *
    * @param Scope aScope
    *        The scope where the variables will be placed into.
+   * @param object aEnv
+   *        The scope's environment.
    */
-  _fetchScopeVariables: function SF__fetchScopeVariables(aScope) {
+  _fetchScopeVariables: function SF__fetchScopeVariables(aScope, aEnv) {
     // Fetch the variables only once.
     if (aScope._fetched) {
       return;
     }
     aScope._fetched = true;
-    let env = aScope._sourceEnvironment;
 
-    switch (env.type) {
+    switch (aEnv.type) {
       case "with":
       case "object":
         // Add nodes for every variable in scope.
-        this.activeThread.pauseGrip(env.object).getPrototypeAndProperties(function(aResponse) {
+        this.activeThread.pauseGrip(aEnv.object).getPrototypeAndProperties(function(aResponse) {
           this._insertScopeVariables(aResponse.ownProperties, aScope);
 
           // Signal that variables have been fetched.
@@ -818,15 +813,15 @@ StackFrames.prototype = {
       case "block":
       case "function":
         // Add nodes for every argument and every other variable in scope.
-        this._insertScopeArguments(env.bindings.arguments, aScope);
-        this._insertScopeVariables(env.bindings.variables, aScope);
+        this._insertScopeArguments(aEnv.bindings.arguments, aScope);
+        this._insertScopeVariables(aEnv.bindings.variables, aScope);
 
         // No need to signal that variables have been fetched, since
         // the scope arguments and variables are already attached to the
         // environment bindings, so pausing the active thread is unnecessary.
         break;
       default:
-        Cu.reportError("Unknown Debugger.Environment type: " + env.type);
+        Cu.reportError("Unknown Debugger.Environment type: " + aEnv.type);
         break;
     }
   },
@@ -904,27 +899,27 @@ StackFrames.prototype = {
    *
    * @param Variable aVar
    *        The variable where the properties will be placed into.
+   * @param any aGrip
+   *        The grip of the variable.
    */
-  _fetchVarProperties: function SF__fetchVarProperties(aVar) {
+  _fetchVarProperties: function SF__fetchVarProperties(aVar, aGrip) {
     // Fetch the properties only once.
     if (aVar._fetched) {
       return;
     }
     aVar._fetched = true;
-    let grip = aVar._sourceGrip;
 
-    this.activeThread.pauseGrip(grip).getPrototypeAndProperties(function(aResponse) {
+    this.activeThread.pauseGrip(aGrip).getPrototypeAndProperties(function(aResponse) {
       let { ownProperties, prototype } = aResponse;
-      let sortable = VARIABLES_VIEW_NON_SORTABLE.indexOf(grip.class) == -1;
+      let sortable = VARIABLES_VIEW_NON_SORTABLE.indexOf(aGrip.class) == -1;
 
       // Add all the variable properties.
       if (ownProperties) {
-        aVar.addProperties(ownProperties, {
-          // Not all variables need to force sorted properties.
-          sorted: sortable,
-          // Expansion handlers must be set after the properties are added.
-          callback: this._addVarExpander
-        });
+        aVar.addProperties(ownProperties, { sorted: sortable });
+        // Expansion handlers must be set after the properties are added.
+        for (let name in ownProperties) {
+          this._addVarExpander(aVar.get(name), ownProperties[name].value);
+        }
       }
 
       // Add the variable's __proto__.
@@ -1007,37 +1002,17 @@ StackFrames.prototype = {
   syncWatchExpressions: function SF_syncWatchExpressions() {
     let list = DebuggerView.WatchExpressions.getExpressions();
 
-    // Sanity check all watch expressions before syncing them. To avoid
-    // having the whole watch expressions array throw because of a single
-    // faulty expression, simply convert it to a string describing the error.
-    // There's no other information necessary to be offered in such cases.
-    let sanitizedExpressions = list.map(function(str) {
-      // Reflect.parse throws when encounters a syntax error.
-      try {
-        Reflect.parse(str);
-        return str; // Watch expression can be executed safely.
-      } catch (e) {
-        return "\"" + e.name + ": " + e.message + "\""; // Syntax error.
-      }
-    });
-
-    if (sanitizedExpressions.length) {
+    if (list.length) {
       this.syncedWatchExpressions =
-        this.currentWatchExpressions =
-          "[" +
-            sanitizedExpressions.map(function(str)
-              "eval(\"" +
-                "try {" +
-                  // Make sure all quotes are escaped in the expression's syntax,
-                  // and add a newline after the statement to avoid comments
-                  // breaking the code integrity inside the eval block.
-                  str.replace(/"/g, "\\$&") + "\" + " + "'\\n'" + " + \"" +
-                "} catch (e) {" +
-                  "e.name + ': ' + e.message;" + // FIXME: bug 812765, 812764
-                "}" +
-              "\")"
-            ).join(",") +
-          "]";
+        this.currentWatchExpressions = "[" + list.map(function(str)
+          // Avoid yielding an empty pseudo-array when evaluating `arguments`,
+          // since they're overridden by the expression's closure scope.
+          "(function(arguments) {" +
+            // Make sure all the quotes are escaped in the expression's syntax.
+            "try { return eval(\"" + str.replace(/"/g, "\\$&") + "\"); }" +
+            "catch(e) { return e.name + ': ' + e.message; }" +
+          "})(arguments)"
+        ).join(",") + "]";
     } else {
       this.syncedWatchExpressions =
         this.currentWatchExpressions = null;

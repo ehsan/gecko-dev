@@ -15,7 +15,6 @@ namespace js {
 namespace ion {
 
 class OutOfLineBailout;
-class OutOfLineTableSwitch;
 
 class CodeGeneratorARM : public CodeGeneratorShared
 {
@@ -108,7 +107,6 @@ class CodeGeneratorARM : public CodeGeneratorShared
 
     // Out of line visitors.
     bool visitOutOfLineBailout(OutOfLineBailout *ool);
-    bool visitOutOfLineTableSwitch(OutOfLineTableSwitch *ool);
 
   protected:
     ValueOperand ToValue(LInstruction *ins, size_t pos);

@@ -7,7 +7,7 @@
 #define mozilla_dom_sms_SmsIPCService_h
 
 #include "nsISmsService.h"
-#include "nsIMobileMessageDatabaseService.h"
+#include "nsISmsDatabaseService.h"
 #include "mozilla/Attributes.h"
 
 namespace mozilla {
@@ -17,12 +17,12 @@ namespace sms {
 class PSmsChild;
 
 class SmsIPCService MOZ_FINAL : public nsISmsService
-                              , public nsIMobileMessageDatabaseService
+                              , public nsISmsDatabaseService
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSISMSSERVICE
-  NS_DECL_NSIMOBILEMESSAGEDATABASESERVICE
+  NS_DECL_NSISMSDATABASESERVICE
 
 private:
   static PSmsChild* GetSmsChild();

@@ -1251,17 +1251,10 @@ let ContentArea = {
   },
 
   get currentView() PlacesUIUtils.getViewForNode(this._deck.selectedPanel),
-  set currentView(aNewView) {
-    let oldView = this.currentView;
-    if (oldView != aNewView) {
-      this._deck.selectedPanel = aNewView.associatedElement;
-
-      // If the content area inactivated view was focused, move focus
-      // to the new view.
-      if (document.activeElement == oldView.associatedElement)
-        aNewView.associatedElement.focus();
-    }
-    return aNewView;
+  set currentView(aView) {
+    if (this.currentView != aView)
+      this._deck.selectedPanel = aView.associatedElement;
+    return aView;
   },
 
   get currentPlace() this.currentView.place,

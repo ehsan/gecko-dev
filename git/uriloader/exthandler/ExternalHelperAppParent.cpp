@@ -111,10 +111,6 @@ ExternalHelperAppParent::~ExternalHelperAppParent()
 NS_IMETHODIMP
 ExternalHelperAppParent::GetName(nsACString& aResult)
 {
-  if (!mURI) {
-    aResult.Truncate();
-    return NS_ERROR_NOT_AVAILABLE;
-  }
   mURI->GetAsciiSpec(aResult);
   return NS_OK;
 }

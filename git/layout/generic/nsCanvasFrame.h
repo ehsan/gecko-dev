@@ -109,6 +109,8 @@ public:
   nsRect CanvasArea() const;
 
 protected:
+  virtual int GetSkipSides() const;
+
   // Data members
   bool                      mDoPaintFocus;
   bool                      mAddedScrollPositionListener;

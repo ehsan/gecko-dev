@@ -14,7 +14,6 @@ EXPORTS_mozilla += \
   BloomFilter.h \
   Char16.h \
   CheckedInt.h \
-  Compiler.h \
   Constants.h \
   DebugOnly.h \
   EnumSet.h \
@@ -34,9 +33,8 @@ EXPORTS_mozilla += \
   SplayTree.h \
   StandardInteger.h \
   ThreadLocal.h \
-  TypedEnum.h \
-  Types.h \
   TypeTraits.h \
+  Types.h \
   Util.h \
   WeakPtr.h \
   $(NULL)

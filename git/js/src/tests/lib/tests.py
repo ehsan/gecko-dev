@@ -121,6 +121,8 @@ class TestCase(Test):
             ans += ', slow'
         if '-d' in self.options:
             ans += ', debugMode'
+        if 'options("allow_xml");' in self.options:
+            ans += ', pref(javascript.options.xml.content,true)'
         return ans
 
     @classmethod

@@ -357,24 +357,16 @@ class nsStyleSet
                           ElementDependentRuleProcessorData* aData,
                           bool aWalkAllXBLStylesheets);
 
-  /**
-   * Bit-flags that can be passed to GetContext() in its parameter 'aFlags'.
-   */
-  enum {
-    eNoFlags =          0,
-    eIsLink =           1 << 0,
-    eIsVisitedLink =    1 << 1,
-    eDoAnimation =      1 << 2
-  };
-
   already_AddRefed<nsStyleContext>
   GetContext(nsStyleContext* aParentContext,
              nsRuleNode* aRuleNode,
              nsRuleNode* aVisitedRuleNode,
+             bool aIsLink,
+             bool aIsVisitedLink,
              nsIAtom* aPseudoTag,
              nsCSSPseudoElements::Type aPseudoType,
-             mozilla::dom::Element* aElementForAnimation,
-             uint32_t aFlags);
+             bool aDoAnimation,
+             mozilla::dom::Element* aElementForAnimation);
 
   nsPresContext* PresContext() { return mRuleTree->GetPresContext(); }
 

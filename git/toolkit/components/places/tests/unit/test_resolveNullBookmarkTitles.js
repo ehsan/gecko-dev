@@ -12,10 +12,10 @@ add_test(function test_resolveNullBookmarkTitles() {
   let uri1 = uri("http://foo.tld/");
   let uri2 = uri("https://bar.tld/");
 
-  promiseAddVisits([
+  addVisits([
     { uri: uri1, title: "foo title" },
     { uri: uri2, title: "bar title" }
-  ]).then(function () {
+  ], function () {
     PlacesUtils.bookmarks.insertBookmark(PlacesUtils.bookmarksMenuFolderId,
                                          uri1,
                                          PlacesUtils.bookmarks.DEFAULT_INDEX,

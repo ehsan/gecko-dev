@@ -205,19 +205,6 @@ nsEffectiveTLDService::GetBaseDomainFromHost(const nsACString &aHostname,
   return GetBaseDomainInternal(normHostname, aAdditionalParts + 1, aBaseDomain);
 }
 
-NS_IMETHODIMP
-nsEffectiveTLDService::GetNextSubDomain(const nsACString& aHostname,
-                                        nsACString&       aBaseDomain)
-{
-  // Create a mutable copy of the hostname and normalize it to ACE.
-  // This will fail if the hostname includes invalid characters.
-  nsAutoCString normHostname(aHostname);
-  nsresult rv = NormalizeHostname(normHostname);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return GetBaseDomainInternal(normHostname, -1, aBaseDomain);
-}
-
 // Finds the base domain for a host, with requested number of additional parts.
 // This will fail, generating an error, if the host is an IPv4/IPv6 address,
 // if more subdomain parts are requested than are available, or if the hostname
@@ -225,7 +212,7 @@ nsEffectiveTLDService::GetNextSubDomain(const nsACString& aHostname,
 // on the host string and the result will be in UTF8.
 nsresult
 nsEffectiveTLDService::GetBaseDomainInternal(nsCString  &aHostname,
-                                             int32_t    aAdditionalParts,
+                                             uint32_t    aAdditionalParts,
                                              nsACString &aBaseDomain)
 {
   if (aHostname.IsEmpty())
@@ -293,33 +280,17 @@ nsEffectiveTLDService::GetBaseDomainInternal(nsCString  &aHostname,
     nextDot = strchr(currDomain, '.');
   }
 
-  const char *begin, *iter;
-  if (aAdditionalParts < 0) {
-    NS_ASSERTION(aAdditionalParts == -1,
-                 "aAdditionalParts should can't be negative and different from -1");
+  // count off the number of requested domains.
+  const char *begin = aHostname.get();
+  const char *iter = eTLD;
+  while (1) {
+    if (iter == begin)
+      break;
 
-    for (iter = aHostname.get(); iter != eTLD && *iter != '.'; iter++);
-
-    if (iter != eTLD) {
-      iter++;
-    }
-    if (iter != eTLD) {
-      aAdditionalParts = 0;
-    }
-  } else {
-    // count off the number of requested domains.
-    begin = aHostname.get();
-    iter = eTLD;
-
-    while (1) {
-      if (iter == begin)
-        break;
-
-      if (*(--iter) == '.' && aAdditionalParts-- == 0) {
-        ++iter;
-        ++aAdditionalParts;
-        break;
-      }
+    if (*(--iter) == '.' && aAdditionalParts-- == 0) {
+      ++iter;
+      ++aAdditionalParts;
+      break;
     }
   }
 

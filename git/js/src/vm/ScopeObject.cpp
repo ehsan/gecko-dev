@@ -242,17 +242,16 @@ CallObject::createForFunction(JSContext *cx, AbstractFramePtr frame)
 }
 
 CallObject *
-CallObject::createForStrictEval(JSContext *cx, AbstractFramePtr frame)
+CallObject::createForStrictEval(JSContext *cx, StackFrame *fp)
 {
     AssertCanGC();
-    JS_ASSERT(frame.isStrictEvalFrame());
-    JS_ASSERT_IF(frame.isStackFrame(), cx->fp() == frame.asStackFrame());
-    JS_ASSERT_IF(frame.isStackFrame(), cx->regs().pc == frame.script()->code);
+    JS_ASSERT(fp->isStrictEvalFrame());
+    JS_ASSERT(cx->fp() == fp);
+    JS_ASSERT(cx->regs().pc == fp->script()->code);
 
     RootedFunction callee(cx);
-    RootedScript script(cx, frame.script());
-    RootedObject scopeChain(cx, frame.scopeChain());
-    return create(cx, script, scopeChain, callee);
+    RootedScript script(cx, fp->script());
+    return create(cx, script, fp->scopeChain(), callee);
 }
 
 JS_PUBLIC_DATA(Class) js::CallClass = {

@@ -339,12 +339,6 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
                   new String[] { String.valueOf(id) });
     }
 
-    public void removeHistoryEntry(ContentResolver cr, String url) {
-        int deleted = cr.delete(mHistoryUriWithProfile,
-                  History.URL + " = ?",
-                  new String[] { url });
-    }
-
     public void clearHistory(ContentResolver cr) {
         cr.delete(mHistoryUriWithProfile, null, null);
     }
@@ -1161,22 +1155,5 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
                   new String[] {
                       String.valueOf(Bookmarks.FIXED_PINNED_LIST_ID)
                   });
-    }
-
-    public boolean isVisited(ContentResolver cr, String uri) {
-        int count = 0;
-        try {
-            Cursor c = cr.query(historyUriWithLimit(1),
-                                new String[] { History._ID },
-                                History.URL + " = ?",
-                                new String[] { uri },
-                                History.URL);
-            count = c.getCount();
-            c.close();
-        } catch (NullPointerException e) {
-            Log.e(LOGTAG, "NullPointerException in isVisited");
-        }
-
-        return (count > 0);
     }
 }

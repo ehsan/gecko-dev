@@ -66,14 +66,13 @@ AudioChannelServiceChild::GetMuted(AudioChannelAgent* aAgent, bool aElementHidde
 
   ContentChild *cc = ContentChild::GetSingleton();
   bool muted = true;
-  bool oldElementHidden = data->mElementHidden;
+
+  if (cc) {
+    cc->SendAudioChannelGetMuted(data->mType, aElementHidden, data->mElementHidden, &muted);
+  }
 
   // Update visibility.
   data->mElementHidden = aElementHidden;
-
-  if (cc) {
-    cc->SendAudioChannelGetMuted(data->mType, aElementHidden, oldElementHidden, &muted);
-  }
   data->mMuted = muted;
 
   if (cc) {

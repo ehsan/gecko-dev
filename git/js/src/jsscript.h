@@ -368,7 +368,7 @@ class JSScript : public js::gc::Cell
     const char      *filename;  /* source filename or null */
     js::HeapPtrAtom *atoms;     /* maps immediate index to literal struct */
 
-    void            *principalsPad;
+    JSPrincipals    *principals;/* principals for this script */
     JSPrincipals    *originPrincipals; /* see jsapi.h 'originPrincipals' comment */
 
     /* Persistent type information retained across GCs. */
@@ -528,8 +528,6 @@ class JSScript : public js::gc::Cell
     static bool fullyInitTrivial(JSContext *cx, JS::Handle<JSScript*> script);  // inits a JSOP_STOP-only script
     static bool fullyInitFromEmitter(JSContext *cx, JS::Handle<JSScript*> script,
                                      js::frontend::BytecodeEmitter *bce);
-
-    inline JSPrincipals *principals();
 
     void setVersion(JSVersion v) { version = v; }
 
@@ -881,7 +879,7 @@ class JSScript : public js::gc::Cell
     void destroyDebugScript(js::FreeOp *fop);
 
   public:
-    bool hasBreakpointsAt(jsbytecode *pc);
+    bool hasBreakpointsAt(jsbytecode *pc) { return !!getBreakpointSite(pc); }
     bool hasAnyBreakpointsOrStepMode() { return hasDebugScript; }
 
     js::BreakpointSite *getBreakpointSite(jsbytecode *pc)
@@ -1055,10 +1053,10 @@ struct ScriptSource
         data.source = NULL;
     }
     void incref() { refs++; }
-    void decref() {
+    void decref(JSRuntime *rt) {
         JS_ASSERT(refs != 0);
         if (--refs == 0)
-            destroy();
+            destroy(rt);
     }
     bool setSourceCopy(JSContext *cx,
                        StableCharPtr src,
@@ -1091,7 +1089,7 @@ struct ScriptSource
     bool hasSourceMap() const { return sourceMap_ != NULL; }
 
   private:
-    void destroy();
+    void destroy(JSRuntime *rt);
     bool compressed() const { return compressedLength_ != 0; }
     size_t computedSizeOfData() const {
         return compressed() ? compressedLength_ : sizeof(jschar) * length_;
@@ -1101,16 +1099,18 @@ struct ScriptSource
 
 class ScriptSourceHolder
 {
+    JSRuntime *rt;
     ScriptSource *ss;
   public:
-    explicit ScriptSourceHolder(ScriptSource *ss)
-      : ss(ss)
+    ScriptSourceHolder(JSRuntime *rt, ScriptSource *ss)
+      : rt(rt),
+        ss(ss)
     {
         ss->incref();
     }
     ~ScriptSourceHolder()
     {
-        ss->decref();
+        ss->decref(rt);
     }
 };
 
@@ -1157,7 +1157,7 @@ class SourceCompressorThread
     static void compressorThread(void *arg);
 
   public:
-    explicit SourceCompressorThread()
+    explicit SourceCompressorThread(JSRuntime *rt)
     : state(IDLE),
       tok(NULL),
       thread(NULL),

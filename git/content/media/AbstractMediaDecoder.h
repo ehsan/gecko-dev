@@ -25,10 +25,6 @@ class TimedMetadata;
 
 typedef nsDataHashtable<nsCStringHashKey, nsCString> MetadataTags;
 
-static inline bool IsCurrentThread(nsIThread* aThread) {
-  return NS_GetCurrentThread() == aThread;
-}
-
 /**
  * The AbstractMediaDecoder class describes the public interface for a media decoder
  * and is used by the MediaReader classes.
@@ -85,8 +81,8 @@ public:
   // Return true if the transport layer supports seeking.
   virtual bool IsMediaSeekable() = 0;
 
-  virtual void MetadataLoaded(int aChannels, int aRate, bool aHasAudio, bool aHasVideo, MetadataTags* aTags) = 0;
-  virtual void QueueMetadata(int64_t aTime, int aChannels, int aRate, bool aHasAudio, bool aHasVideo, MetadataTags* aTags) = 0;
+  virtual void MetadataLoaded(int aChannels, int aRate, bool aHasAudio, MetadataTags* aTags) = 0;
+  virtual void QueueMetadata(int64_t aTime, int aChannels, int aRate, bool aHasAudio, MetadataTags* aTags) = 0;
 
   // Set the media end time in microseconds
   virtual void SetMediaEndTime(int64_t aTime) = 0;
@@ -123,25 +119,23 @@ class AudioMetadataEventRunner : public nsRunnable
   private:
     nsRefPtr<AbstractMediaDecoder> mDecoder;
   public:
-    AudioMetadataEventRunner(AbstractMediaDecoder* aDecoder, int aChannels, int aRate, bool aHasAudio, bool aHasVideo, MetadataTags* aTags)
+    AudioMetadataEventRunner(AbstractMediaDecoder* aDecoder, int aChannels, int aRate, bool aHasAudio, MetadataTags* aTags)
       : mDecoder(aDecoder),
         mChannels(aChannels),
         mRate(aRate),
         mHasAudio(aHasAudio),
-        mHasVideo(aHasVideo),
         mTags(aTags)
   {}
 
   NS_IMETHOD Run()
   {
-    mDecoder->MetadataLoaded(mChannels, mRate, mHasAudio, mHasVideo, mTags);
+    mDecoder->MetadataLoaded(mChannels, mRate, mHasAudio, mTags);
     return NS_OK;
   }
 
   int mChannels;
   int mRate;
   bool mHasAudio;
-  bool mHasVideo;
   MetadataTags* mTags;
 };
 

@@ -26,6 +26,14 @@ var Utilities = {
     return this.bookmarksObserver;
   },
 
+  get livemarks() {
+    let livemarks = Cc["@mozilla.org/browser/livemark-service;2"].
+                    getService[Ci.mozIAsyncLivemarks].
+                    QueryInterface(Ci.nsILivemarkService);
+    this.__defineGetter__("livemarks", function() livemarks);
+    return this.livemarks;
+  },
+
   get annotations() {
     let annotations = Cc["@mozilla.org/browser/annotation-service;1"].
                       getService(Ci.nsIAnnotationService);
@@ -57,6 +65,7 @@ var Utilities = {
   free: function fuelutil_free() {
     delete this.bookmarks;
     delete this.bookmarksObserver;
+    delete this.livemarks
     delete this.annotations;
     delete this.history;
     delete this.windowMediator;

@@ -9,7 +9,6 @@
 #include "nsHTMLFormElement.h"
 #include "mozilla/dom/FormDataBinding.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

@@ -8,7 +8,6 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
-const Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -96,6 +95,11 @@ UpdateCheckListener.prototype = {
 
     Services.aus.QueryInterface(Ci.nsIUpdateCheckListener);
     Services.aus.onError(request, update);
+  },
+
+  onProgress: function UCL_onProgress(request, position, totalSize) {
+    Services.aus.QueryInterface(Ci.nsIUpdateCheckListener);
+    Services.aus.onProgress(request, position, totalSize);
   }
 };
 
@@ -370,21 +374,16 @@ UpdatePrompt.prototype = {
   },
 
   finishOSUpdate: function UP_finishOSUpdate(aOsUpdatePath) {
+    let recoveryService = Cc["@mozilla.org/recovery-service;1"]
+                            .getService(Ci.nsIRecoveryService);
+
     log("Rebooting into recovery to apply FOTA update: " + aOsUpdatePath);
 
     try {
-      let recoveryService = Cc["@mozilla.org/recovery-service;1"]
-                            .getService(Ci.nsIRecoveryService);
       recoveryService.installFotaUpdate(aOsUpdatePath);
     } catch(e) {
       log("Error: Couldn't reboot into recovery to apply FOTA update " +
           aOsUpdatePath);
-      aUpdate = Services.um.activeUpdate;
-      if (aUpdate) {
-        aUpdate.errorCode = Cr.NS_ERROR_FAILURE;
-        aUpdate.statusText = "fota-reboot-failed";
-        this.showUpdateError(aUpdate);
-      }
     }
   },
 

@@ -125,10 +125,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             layout.setVisibility(mLayout.getVisibility());
         }
         mLayout = layout;
-        mLayout.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-            }
-        });
 
         mShowSiteSecurity = false;
         mShowReader = false;

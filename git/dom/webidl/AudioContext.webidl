@@ -10,9 +10,6 @@
  * liability, trademark and document use rules apply.
  */
 
-callback DecodeSuccessCallback = void (AudioBuffer decodedData);
-callback DecodeErrorCallback = void ();
-
 [Constructor, PrefControlled]
 interface AudioContext {
 
@@ -25,10 +22,6 @@ interface AudioContext {
 
     // [Creator, Throws]
     // AudioBuffer createBuffer(ArrayBuffer buffer, boolean mixToMono);
-
-    void decodeAudioData(ArrayBuffer audioData,
-                         DecodeSuccessCallback successCallback,
-                         optional DecodeErrorCallback errorCallback);
 
     // AudioNode creation 
     [Creator]

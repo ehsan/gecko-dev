@@ -2369,7 +2369,7 @@ nsXULDocument::PrepareToWalk()
 
     if (mState == eState_Master) {
         // Add the root element
-        rv = CreateElementFromPrototype(proto, getter_AddRefs(root), true);
+        rv = CreateElementFromPrototype(proto, getter_AddRefs(root));
         if (NS_FAILED(rv)) return rv;
 
         rv = AppendChildTo(root, false);
@@ -2874,8 +2874,7 @@ nsXULDocument::ResumeWalk()
 
                 if (!processingOverlayHookupNodes) {
                     rv = CreateElementFromPrototype(protoele,
-                                                    getter_AddRefs(child),
-                                                    false);
+                                                    getter_AddRefs(child));
                     if (NS_FAILED(rv)) return rv;
 
                     // ...and append it to the content model.
@@ -3570,8 +3569,7 @@ nsXULDocument::ExecuteScript(nsXULPrototypeScript *aScript)
 
 nsresult
 nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
-                                          Element** aResult,
-                                          bool aIsRoot)
+                                          Element** aResult)
 {
     // Create a content model element from a prototype element.
     NS_PRECONDITION(aPrototype != nullptr, "null ptr");
@@ -3594,7 +3592,7 @@ nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
     if (aPrototype->mNodeInfo->NamespaceEquals(kNameSpaceID_XUL)) {
         // If it's a XUL element, it'll be lightweight until somebody
         // monkeys with it.
-        rv = nsXULElement::Create(aPrototype, this, true, aIsRoot, getter_AddRefs(result));
+        rv = nsXULElement::Create(aPrototype, this, true, getter_AddRefs(result));
         if (NS_FAILED(rv)) return rv;
     }
     else {
@@ -3633,7 +3631,7 @@ nsXULDocument::CreateOverlayElement(nsXULPrototypeElement* aPrototype,
     nsresult rv;
 
     nsRefPtr<Element> element;
-    rv = CreateElementFromPrototype(aPrototype, getter_AddRefs(element), false);
+    rv = CreateElementFromPrototype(aPrototype, getter_AddRefs(element));
     if (NS_FAILED(rv)) return rv;
 
     OverlayForwardReference* fwdref =

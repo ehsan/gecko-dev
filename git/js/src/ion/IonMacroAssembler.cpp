@@ -172,7 +172,7 @@ template void MacroAssembler::loadFromTypedArray(int arrayType, const BaseIndex 
 template<typename T>
 void
 MacroAssembler::loadFromTypedArray(int arrayType, const T &src, const ValueOperand &dest,
-                                   bool allowDouble, Register temp, Label *fail)
+                                   bool allowDouble, Label *fail)
 {
     switch (arrayType) {
       case TypedArray::TYPE_INT8:
@@ -185,28 +185,27 @@ MacroAssembler::loadFromTypedArray(int arrayType, const T &src, const ValueOpera
         tagValue(JSVAL_TYPE_INT32, dest.scratchReg(), dest);
         break;
       case TypedArray::TYPE_UINT32:
-        // Don't clobber dest when we could fail, instead use temp.
-        load32(src, temp);
-        test32(temp, temp);
+        load32(src, dest.scratchReg());
+        test32(dest.scratchReg(), dest.scratchReg());
         if (allowDouble) {
             // If the value fits in an int32, store an int32 type tag.
             // Else, convert the value to double and box it.
             Label done, isDouble;
             j(Assembler::Signed, &isDouble);
             {
-                tagValue(JSVAL_TYPE_INT32, temp, dest);
+                tagValue(JSVAL_TYPE_INT32, dest.scratchReg(), dest);
                 jump(&done);
             }
             bind(&isDouble);
             {
-                convertUInt32ToDouble(temp, ScratchFloatReg);
+                convertUInt32ToDouble(dest.scratchReg(), ScratchFloatReg);
                 boxDouble(ScratchFloatReg, dest);
             }
             bind(&done);
         } else {
             // Bailout if the value does not fit in an int32.
             j(Assembler::Signed, fail);
-            tagValue(JSVAL_TYPE_INT32, temp, dest);
+            tagValue(JSVAL_TYPE_INT32, dest.scratchReg(), dest);
         }
         break;
       case TypedArray::TYPE_FLOAT32:
@@ -221,9 +220,9 @@ MacroAssembler::loadFromTypedArray(int arrayType, const T &src, const ValueOpera
 }
 
 template void MacroAssembler::loadFromTypedArray(int arrayType, const Address &src, const ValueOperand &dest,
-                                                 bool allowDouble, Register temp, Label *fail);
+                                                 bool allowDouble, Label *fail);
 template void MacroAssembler::loadFromTypedArray(int arrayType, const BaseIndex &src, const ValueOperand &dest,
-                                                 bool allowDouble, Register temp, Label *fail);
+                                                 bool allowDouble, Label *fail);
 
 // Note: this function clobbers the input register.
 void

@@ -630,24 +630,21 @@ add_test(function test_delete_remote_data_in_progress_upload() {
 
 add_test(function test_polling() {
   let [policy, policyPrefs, hrPrefs, listener] = getPolicy("polling");
-  let intended = 500;
 
   // Ensure checkStateAndTrigger is called at a regular interval.
-  let then = Date.now();
-  print("Starting run: " + then);
+  let now = new Date();
   Object.defineProperty(policy, "POLL_INTERVAL_MSEC", {
-    value: intended,
+    value: 500,
   });
   let count = 0;
 
   Object.defineProperty(policy, "checkStateAndTrigger", {
     value: function fakeCheckStateAndTrigger() {
-      let now = Date.now();
-      let after = now - then;
+      let now2 = new Date();
       count++;
 
-      print("Polled at " + now + " after " + after + "ms, intended " + intended);
-      do_check_true(after >= intended);
+      do_check_true(now2.getTime() - now.getTime() >= 500);
+      now = now2;
       DataReportingPolicy.prototype.checkStateAndTrigger.call(policy);
 
       if (count >= 2) {
@@ -658,14 +655,6 @@ add_test(function test_polling() {
 
         run_next_test();
       }
-
-      // "Specified timer period will be at least the time between when
-      // processing for last firing the callback completes and when the next
-      // firing occurs."
-      //
-      // That means we should set 'then' at the *end* of our handler, not
-      // earlier.
-      then = Date.now();
     }
   });
   policy.startPolling();

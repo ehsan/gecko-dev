@@ -8,15 +8,11 @@
 #include "SmsService.h"
 #include "SmsIPCService.h"
 #ifndef MOZ_B2G_RIL
-#include "MobileMessageDatabaseService.h"
+#include "SmsDatabaseService.h"
 #endif
 #include "nsServiceManagerUtils.h"
 
-#define RIL_MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID "@mozilla.org/mobilemessage/rilmobilemessagedatabaseservice;1"
-
-#ifndef MOZ_B2G_RIL
-using namespace mozilla::dom::mobilemessage;
-#endif
+#define RIL_SMS_DATABASE_SERVICE_CONTRACTID "@mozilla.org/sms/rilsmsdatabaseservice;1"
 
 namespace mozilla {
 namespace dom {
@@ -36,21 +32,21 @@ SmsServicesFactory::CreateSmsService()
   return smsService.forget();
 }
 
-/* static */ already_AddRefed<nsIMobileMessageDatabaseService>
-SmsServicesFactory::CreateMobileMessageDatabaseService()
+/* static */ already_AddRefed<nsISmsDatabaseService>
+SmsServicesFactory::CreateSmsDatabaseService()
 {
-  nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService;
+  nsCOMPtr<nsISmsDatabaseService> smsDBService;
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    mobileMessageDBService = new SmsIPCService();
+    smsDBService = new SmsIPCService();
   } else {
 #ifdef MOZ_B2G_RIL
-    mobileMessageDBService = do_GetService(RIL_MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
+    smsDBService = do_GetService(RIL_SMS_DATABASE_SERVICE_CONTRACTID);
 #else
-    mobileMessageDBService = new MobileMessageDatabaseService();
+    smsDBService = new SmsDatabaseService();
 #endif
   }
 
-  return mobileMessageDBService.forget();
+  return smsDBService.forget();
 }
 
 } // namespace sms

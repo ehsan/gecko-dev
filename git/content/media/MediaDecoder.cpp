@@ -157,34 +157,28 @@ void MediaDecoder::ConnectDecodedStreamToOutputStream(OutputStreamData* aStream)
 }
 
 MediaDecoder::DecodedStreamData::DecodedStreamData(MediaDecoder* aDecoder,
-                                                   int64_t aInitialTime,
-                                                   SourceMediaStream* aStream)
+                                                       int64_t aInitialTime,
+                                                       SourceMediaStream* aStream)
   : mLastAudioPacketTime(-1),
     mLastAudioPacketEndTime(-1),
     mAudioFramesWritten(0),
     mInitialTime(aInitialTime),
     mNextVideoTime(aInitialTime),
-    mDecoder(aDecoder),
     mStreamInitialized(false),
     mHaveSentFinish(false),
     mHaveSentFinishAudio(false),
     mHaveSentFinishVideo(false),
     mStream(aStream),
+    mMainThreadListener(new DecodedStreamMainThreadListener(aDecoder)),
     mHaveBlockedForPlayState(false)
 {
-  mStream->AddMainThreadListener(this);
+  mStream->AddMainThreadListener(mMainThreadListener);
 }
 
 MediaDecoder::DecodedStreamData::~DecodedStreamData()
 {
-  mStream->RemoveMainThreadListener(this);
+  mStream->RemoveMainThreadListener(mMainThreadListener);
   mStream->Destroy();
-}
-
-void
-MediaDecoder::DecodedStreamData::NotifyMainThreadStateChanged()
-{
-  mDecoder->NotifyDecodedStreamMainThreadStateChanged();
 }
 
 void MediaDecoder::DestroyDecodedStream()
@@ -658,12 +652,12 @@ void MediaDecoder::QueueMetadata(int64_t aPublishTime,
                                  int aChannels,
                                  int aRate,
                                  bool aHasAudio,
-                                 bool aHasVideo,
                                  MetadataTags* aTags)
 {
-  NS_ASSERTION(OnDecodeThread(), "Should be on decode thread.");
+  NS_ASSERTION(mDecoderStateMachine->OnDecodeThread(),
+               "Should be on decode thread.");
   GetReentrantMonitor().AssertCurrentThreadIn();
-  mDecoderStateMachine->QueueMetadata(aPublishTime, aChannels, aRate, aHasAudio, aHasVideo, aTags);
+  mDecoderStateMachine->QueueMetadata(aPublishTime, aChannels, aRate, aHasAudio, aTags);
 }
 
 bool
@@ -676,7 +670,7 @@ MediaDecoder::IsDataCachedToEndOfResource()
           mResource->IsDataCachedToEndOfResource(mDecoderPosition));
 }
 
-void MediaDecoder::MetadataLoaded(int aChannels, int aRate, bool aHasAudio, bool aHasVideo, MetadataTags* aTags)
+void MediaDecoder::MetadataLoaded(int aChannels, int aRate, bool aHasAudio, MetadataTags* aTags)
 {
   MOZ_ASSERT(NS_IsMainThread());
   if (mShuttingDown) {
@@ -698,7 +692,7 @@ void MediaDecoder::MetadataLoaded(int aChannels, int aRate, bool aHasAudio, bool
     // Make sure the element and the frame (if any) are told about
     // our new size.
     Invalidate();
-    mOwner->MetadataLoaded(aChannels, aRate, aHasAudio, aHasVideo, aTags);
+    mOwner->MetadataLoaded(aChannels, aRate, aHasAudio, aTags);
   }
 
   if (!mCalledResourceLoaded) {
@@ -1004,7 +998,7 @@ void MediaDecoder::NotifyBytesConsumed(int64_t aBytes)
 {
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   NS_ENSURE_TRUE_VOID(mDecoderStateMachine);
-  MOZ_ASSERT(OnStateMachineThread() || OnDecodeThread());
+  MOZ_ASSERT(OnStateMachineThread() || mDecoderStateMachine->OnDecodeThread());
   if (!mIgnoreProgressData) {
     mDecoderPosition += aBytes;
     mPlaybackStatistics.AddBytes(aBytes);
@@ -1412,7 +1406,6 @@ void MediaDecoder::SetPreservesPitch(bool aPreservesPitch)
 }
 
 bool MediaDecoder::OnDecodeThread() const {
-  NS_WARN_IF_FALSE(mDecoderStateMachine, "mDecoderStateMachine is null");
   return mDecoderStateMachine ? mDecoderStateMachine->OnDecodeThread() : false;
 }
 

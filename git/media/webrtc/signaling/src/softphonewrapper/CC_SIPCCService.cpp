@@ -474,17 +474,11 @@ bool CC_SIPCCService::isStarted()
 	return bStarted;
 }
 
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 CC_DevicePtr CC_SIPCCService::getActiveDevice()
 {
     return CC_SIPCCDevice::wrap(CCAPI_Device_getDeviceID());
 }
 
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 vector<CC_DevicePtr> CC_SIPCCService::getDevices()
 {
 	vector<CC_DevicePtr> devices;
@@ -498,9 +492,6 @@ vector<CC_DevicePtr> CC_SIPCCService::getDevices()
     return devices;
 }
 
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 AudioControlPtr CC_SIPCCService::getAudioControl ()
 {
 	if(audioControlWrapper != NULL)
@@ -514,9 +505,6 @@ AudioControlPtr CC_SIPCCService::getAudioControl ()
 	}
 }
 
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 VideoControlPtr CC_SIPCCService::getVideoControl ()
 {
 	if(videoControlWrapper != NULL)
@@ -549,9 +537,6 @@ void CC_SIPCCService::applyLoggingMask (int newMask)
     }
 }
 
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 void CC_SIPCCService::endAllActiveCalls()
 {
 	CC_DevicePtr device = getActiveDevice();
@@ -603,8 +588,6 @@ void CC_SIPCCService::onDeviceEvent(ccapi_device_event_e type, cc_device_handle_
         return;
     }
 
-    mozilla::MutexAutoLock lock(_self->m_lock);
-
     CC_SIPCCDevicePtr devicePtr = CC_SIPCCDevice::wrap(handle);
     if (devicePtr == NULL)
     {
@@ -632,8 +615,6 @@ void CC_SIPCCService::onFeatureEvent(ccapi_device_event_e type, cc_deviceinfo_re
          CSFLogErrorS( logTag, "CC_SIPCCService::_self is NULL. Unable to notify observers of device event.");
          return;
      }
-
-     mozilla::MutexAutoLock lock(_self->m_lock);
 
      cc_device_handle_t hDevice = CCAPI_Device_getDeviceID();
      CC_DevicePtr devicePtr = CC_SIPCCDevice::wrap(hDevice);
@@ -663,8 +644,6 @@ void CC_SIPCCService::onLineEvent(ccapi_line_event_e eventType, cc_lineid_t line
         return;
     }
 
-    mozilla::MutexAutoLock lock(_self->m_lock);
-
     CC_LinePtr linePtr = CC_SIPCCLine::wrap(line);
     if (linePtr == NULL)
     {
@@ -691,8 +670,6 @@ void CC_SIPCCService::onCallEvent(ccapi_call_event_e eventType, cc_call_handle_t
         CSFLogErrorS( logTag, "CC_SIPCCService::_self is NULL. Unable to notify observers of call event.");
         return;
     }
-
-    mozilla::MutexAutoLock lock(_self->m_lock);
 
     CC_SIPCCCallPtr callPtr = CC_SIPCCCall::wrap(handle);
     if (callPtr == NULL)
@@ -737,7 +714,7 @@ void CC_SIPCCService::removeCCObserver ( CC_Observer * observer )
 //Notify Observers
 void CC_SIPCCService::notifyDeviceEventObservers (ccapi_device_event_e eventType, CC_DevicePtr devicePtr, CC_DeviceInfoPtr info)
 {
-  // m_lock must be held by the function that called us
+	mozilla::MutexAutoLock lock(m_lock);
 	set<CC_Observer*>::const_iterator it = ccObservers.begin();
 	for ( ; it != ccObservers.end(); it++ )
     {
@@ -747,7 +724,7 @@ void CC_SIPCCService::notifyDeviceEventObservers (ccapi_device_event_e eventType
 
 void CC_SIPCCService::notifyFeatureEventObservers (ccapi_device_event_e eventType, CC_DevicePtr devicePtr, CC_FeatureInfoPtr info)
 {
-  // m_lock must be held by the function that called us
+	mozilla::MutexAutoLock lock(m_lock);
 	set<CC_Observer*>::const_iterator it = ccObservers.begin();
 	for ( ; it != ccObservers.end(); it++ )
     {
@@ -757,7 +734,7 @@ void CC_SIPCCService::notifyFeatureEventObservers (ccapi_device_event_e eventTyp
 
 void CC_SIPCCService::notifyLineEventObservers (ccapi_line_event_e eventType, CC_LinePtr linePtr, CC_LineInfoPtr info)
 {
-  // m_lock must be held by the function that called us
+	mozilla::MutexAutoLock lock(m_lock);
 	set<CC_Observer*>::const_iterator it = ccObservers.begin();
 	for ( ; it != ccObservers.end(); it++ )
     {
@@ -767,7 +744,7 @@ void CC_SIPCCService::notifyLineEventObservers (ccapi_line_event_e eventType, CC
 
 void CC_SIPCCService::notifyCallEventObservers (ccapi_call_event_e eventType, CC_CallPtr callPtr, CC_CallInfoPtr info)
 {
-  // m_lock must be held by the function that called us
+	mozilla::MutexAutoLock lock(m_lock);
 	set<CC_Observer*>::const_iterator it = ccObservers.begin();
 	for ( ; it != ccObservers.end(); it++ )
     {
@@ -777,10 +754,6 @@ void CC_SIPCCService::notifyCallEventObservers (ccapi_call_event_e eventType, CC
 
 // This is called when the SIP stack has caused a new stream to be allocated. This function will
 // find the call associated with that stream so that the call can store the streamId.
-
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 void CC_SIPCCService::registerStream(cc_call_handle_t call, int streamId, bool isVideo)
 {
     CSFLogDebugS( logTag, "registerStream for call: " << call << " strId=" << streamId << " video=" << isVideo);
@@ -796,9 +769,6 @@ void CC_SIPCCService::registerStream(cc_call_handle_t call, int streamId, bool i
     }
 }
 
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 void CC_SIPCCService::deregisterStream(cc_call_handle_t call, int streamId)
 {
 	// get the object corresponding to the handle
@@ -813,9 +783,6 @@ void CC_SIPCCService::deregisterStream(cc_call_handle_t call, int streamId)
     }
 }
 
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 void CC_SIPCCService::dtmfBurst(int digit, int direction, int duration)
 {
 	// We haven't a clue what stream to use.  Search for a call which has an audio stream.
@@ -866,9 +833,6 @@ void CC_SIPCCService::dtmfBurst(int digit, int direction, int duration)
     }
 }
 
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 void CC_SIPCCService::sendIFrame(cc_call_handle_t call_handle)
 {
 	CC_SIPCCCallPtr callPtr = CC_SIPCCCall::wrap(call_handle);
@@ -922,9 +886,6 @@ void CC_SIPCCService::onVideoModeChanged( bool enable )
 {
 }
 
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 void CC_SIPCCService::onKeyFrameRequested( int stream )
 // This is called when the Video Provider indicates that it needs to send a request for new key frame to the sender
 {
