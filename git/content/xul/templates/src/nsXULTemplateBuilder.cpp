@@ -1580,7 +1580,7 @@ nsXULTemplateBuilder::ParseAttribute(const nsAString& aAttributeValue,
 }
 
 
-struct NS_STACK_CLASS SubstituteTextClosure {
+struct SubstituteTextClosure {
     SubstituteTextClosure(nsIXULTemplateResult* aResult, nsAString& aString)
         : result(aResult), str(aString) {}
 

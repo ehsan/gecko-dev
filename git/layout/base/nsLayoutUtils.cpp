@@ -1291,13 +1291,13 @@ nsLayoutUtils::GetTextShadowRectsUnion(const nsRect& aTextAndDecorationsRect,
                                        nsIFrame* aFrame)
 {
   const nsStyleText* textStyle = aFrame->GetStyleText();
-  if (!textStyle->mTextShadow)
+  if (!textStyle->mShadowArray)
     return aTextAndDecorationsRect;
 
   nsRect resultRect = aTextAndDecorationsRect;
-  for (PRUint32 i = 0; i < textStyle->mTextShadow->Length(); ++i) {
+  for (PRUint32 i = 0; i < textStyle->mShadowArray->Length(); ++i) {
     nsRect tmpRect(aTextAndDecorationsRect);
-    nsCSSShadowItem* shadow = textStyle->mTextShadow->ShadowAt(i);
+    nsTextShadowItem* shadow = textStyle->mShadowArray->ShadowAt(i);
     nscoord xOffset = shadow->mXOffset.GetCoordValue();
     nscoord yOffset = shadow->mYOffset.GetCoordValue();
     nscoord blurRadius = shadow->mRadius.GetCoordValue();

@@ -94,7 +94,7 @@ gfxAtsuiFont::gfxAtsuiFont(MacOSFontEntry *aFontEntry,
                            const gfxFontStyle *fontStyle, PRBool aNeedsBold)
     : gfxFont(aFontEntry->Name(), fontStyle),
       mFontStyle(fontStyle), mATSUStyle(nsnull), mFontEntry(aFontEntry),
-      mValid(PR_TRUE), mHasMirroring(PR_FALSE), mHasMirroringLookedUp(PR_FALSE), mAdjustedSize(0.0f)
+      mHasMirroring(PR_FALSE), mHasMirroringLookedUp(PR_FALSE), mAdjustedSize(0.0f)
 {
     ATSUFontID fontID = mFontEntry->GetFontID();
     ATSFontRef fontRef = FMGetATSFontRefFromFont(fontID);
@@ -149,17 +149,8 @@ gfxAtsuiFont::gfxAtsuiFont(MacOSFontEntry *aFontEntry,
     
     mScaledFont = cairo_scaled_font_create(mFontFace, &sizeMatrix, &ctm, fontOptions);
     cairo_font_options_destroy(fontOptions);
-
-    cairo_status_t cairoerr = cairo_scaled_font_status(mScaledFont);
-    if (cairoerr != CAIRO_STATUS_SUCCESS) {
-        mValid = PR_FALSE;
-
-#ifdef DEBUG        
-        char warnBuf[1024];
-        sprintf(warnBuf, "Failed to create scaled font: %s status: %d", NS_ConvertUTF16toUTF8(mName).get(), cairoerr);
-        NS_WARNING(warnBuf);
-#endif
-    }
+    NS_ASSERTION(cairo_scaled_font_status(mScaledFont) == CAIRO_STATUS_SUCCESS,
+                 "Failed to create scaled font");
 }
 
 
@@ -424,7 +415,6 @@ gfxAtsuiFont::HasMirroringInfo()
 }
 
 PRBool gfxAtsuiFont::TestCharacterMap(PRUint32 aCh) {
-    if (!mValid) return PR_FALSE;
     return mFontEntry->TestCharacterMap(aCh);
 }
 
@@ -446,14 +436,9 @@ GetOrMakeFont(MacOSFontEntry *aFontEntry, const gfxFontStyle *aStyle, PRBool aNe
     // the font entry name is the psname, not the family name
     nsRefPtr<gfxFont> font = gfxFontCache::GetCache()->Lookup(aFontEntry->Name(), aStyle);
     if (!font) {
-        gfxAtsuiFont *newFont = new gfxAtsuiFont(aFontEntry, aStyle, aNeedsBold);
-        if (!newFont)
+        font = new gfxAtsuiFont(aFontEntry, aStyle, aNeedsBold);
+        if (!font)
             return nsnull;
-        if (!newFont->Valid()) {
-            delete newFont;
-            return nsnull;
-        }
-        font = newFont;
         gfxFontCache::GetCache()->AddNew(font);
     }
     gfxFont *f = nsnull;
@@ -850,7 +835,6 @@ gfxAtsuiFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
             // if ch in cmap, create and return a gfxFont
             if (fe && fe->TestCharacterMap(aCh)) {
                 nsRefPtr<gfxAtsuiFont> prefFont = GetOrMakeFont(fe, &mStyle, needsBold);
-                if (!prefFont) continue;
                 mLastPrefFamily = family;
                 mLastPrefFont = prefFont;
                 mLastPrefLang = charLang;

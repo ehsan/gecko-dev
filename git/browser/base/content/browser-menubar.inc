@@ -402,7 +402,7 @@
         ondragover="nsDragAndDrop.dragOver(event, BookmarksMenuDropHandler);">
     <menupopup id="bookmarksMenuPopup"
                type="places"
-               place="place:folder=BOOKMARKS_MENU"
+               place="place:folder=BOOKMARKS_MENU&amp;expandQueries=1"
                context="placesContext"
                openInTabs="children"
                oncommand="BookmarksEventHandler.onCommand(event);"
@@ -432,11 +432,9 @@
       <menuseparator id="organizeBookmarksSeparator"/>
       <menu id="bookmarksToolbarFolderMenu"
             class="menu-iconic bookmark-item"
-            label="&personalbarCmd.label;"
             container="true">
         <menupopup id="bookmarksToolbarFolderPopup"
                    type="places"
-                   place="place:folder=TOOLBAR"
                    context="placesContext"
                    onpopupshowing="BookmarksEventHandler.onPopupShowing(event);"/>
       </menu>

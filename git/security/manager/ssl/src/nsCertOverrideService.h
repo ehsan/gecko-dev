@@ -109,7 +109,6 @@ class nsCertOverrideEntry : public PLDHashEntryHdr
     nsCertOverrideEntry(const nsCertOverrideEntry& toCopy)
     {
       mSettings = toCopy.mSettings;
-      mHostWithPort = toCopy.mHostWithPort;
     }
 
     ~nsCertOverrideEntry()

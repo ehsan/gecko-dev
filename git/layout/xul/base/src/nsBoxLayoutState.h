@@ -56,7 +56,7 @@ struct nsHTMLReflowMetrics;
 class nsString;
 class nsHTMLReflowCommand;
 
-class NS_STACK_CLASS nsBoxLayoutState
+class nsBoxLayoutState
 {
 public:
   nsBoxLayoutState(nsPresContext* aPresContext, nsIRenderingContext* aRenderingContext = nsnull,

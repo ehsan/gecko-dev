@@ -181,11 +181,17 @@ PR_BEGIN_EXTERN_C
   static void* NP_CALLBACK
   _memalloc (uint32 size);
 
-  static void* /* OJI type: JRIEnv* */ NP_CALLBACK
+#ifdef OJI
+  static JRIEnv* NP_CALLBACK
   _getJavaEnv(void);
 
-  static void* /* OJI type: jref */ NP_CALLBACK
+#if 1
+
+  static jref NP_CALLBACK
   _getJavaPeer(NPP npp);
+
+#endif
+#endif /* OJI */
 
 PR_END_EXTERN_C
 
@@ -306,11 +312,13 @@ ns4xPlugin::CheckClassInitialized(void)
   CALLBACKS.reloadplugins =
     NewNPN_ReloadPluginsProc(FP2TV(_reloadplugins));
 
+#ifdef OJI
   CALLBACKS.getJavaEnv =
     NewNPN_GetJavaEnvProc(FP2TV(_getJavaEnv));
 
   CALLBACKS.getJavaPeer =
     NewNPN_GetJavaPeerProc(FP2TV(_getJavaPeer));
+#endif
 
   CALLBACKS.geturlnotify =
     NewNPN_GetURLNotifyProc(FP2TV(_geturlnotify));
@@ -2512,12 +2520,14 @@ _requestread(NPStream *pstream, NPByteRange *rangeList)
 }
 
 ////////////////////////////////////////////////////////////////////////
-void* /* OJI type: JRIEnv* */ NP_CALLBACK
+#ifdef OJI
+JRIEnv* NP_CALLBACK
 _getJavaEnv(void)
 {
   NPN_PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("NPN_GetJavaEnv\n"));
   return NULL;
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////
 const char * NP_CALLBACK
@@ -2553,13 +2563,16 @@ _memalloc (uint32 size)
   return nsMemory::Alloc(size);
 }
 
+#ifdef OJI
 ////////////////////////////////////////////////////////////////////////
-void* /* OJI type: jref */ NP_CALLBACK
+jref NP_CALLBACK
 _getJavaPeer(NPP npp)
 {
   NPN_PLUGIN_LOG(PLUGIN_LOG_NORMAL, ("NPN_GetJavaPeer: npp=%p\n", (void*)npp));
   return NULL;
 }
+
+#endif /* OJI */
 
 void NP_CALLBACK
 _pushpopupsenabledstate(NPP npp, NPBool enabled)

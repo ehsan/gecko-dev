@@ -8440,7 +8440,7 @@ nsDocShell::WalkHistoryEntries(nsISHEntry *aRootEntry,
 }
 
 // callback data for WalkHistoryEntries
-struct NS_STACK_CLASS CloneAndReplaceData
+struct CloneAndReplaceData
 {
     CloneAndReplaceData(PRUint32 aCloneID, nsISHEntry *aReplaceEntry,
                         nsISHEntry *aDestTreeParent)

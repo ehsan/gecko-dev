@@ -79,7 +79,7 @@
   * filters.  PLEASE NOTE that nsSVGFilterResource should ONLY be used on the
   * stack because it has nsAutoString member.
   */
-class NS_STACK_CLASS nsSVGFilterResource
+class nsSVGFilterResource
 {
 public:
   nsSVGFilterResource(nsSVGFE *aFilter, nsSVGFilterInstance* aInstance);
@@ -528,6 +528,9 @@ public:
   NS_FORWARD_NSIDOMNODE(nsSVGFEGaussianBlurElementBase::)
   NS_FORWARD_NSIDOMELEMENT(nsSVGFEGaussianBlurElementBase::)
 
+  virtual PRBool ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                const nsAString& aValue,
+                                nsAttrValue& aResult);
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
 protected:
@@ -545,6 +548,16 @@ protected:
 private:
   nsresult GetDXY(PRUint32 *aDX, PRUint32 *aDY, const nsSVGFilterInstance& aInstance);
   void InflateRectForBlur(nsRect* aRect, const nsSVGFilterInstance& aInstance);
+
+  PRUint8 *SetupPredivide(PRUint32 size) const;
+
+  void BoxBlurH(PRUint8 *aInput, PRUint8 *aOutput,
+                PRInt32 aStride, const nsRect& aRegion,
+                PRUint32 leftLobe, PRUint32 rightLobe, const PRUint8 *prediv);
+
+  void BoxBlurV(PRUint8 *aInput, PRUint8 *aOutput,
+                PRInt32 aStride, const nsRect& aRegion,
+                PRUint32 topLobe, PRUint32 bottomLobe, const PRUint8 *prediv);
 
   void GaussianBlur(PRUint8 *aInput, PRUint8 *aOutput,
                     nsSVGFilterResource *aFilterResource,
@@ -618,108 +631,113 @@ nsSVGFEGaussianBlurElement::SetStdDeviation(float stdDeviationX, float stdDeviat
   return NS_OK;
 }
 
-/**
- * We want to speed up 1/N integer divisions --- integer division is
- * often rather slow.
- * We know that our input numerators V are constrained to be <= 255*N,
- * so the result of dividing by N always fits in 8 bits.
- * So we can try approximating the division V/N as V*K/(2^24) (integer
- * division, 32-bit multiply). Dividing by 2^24 is a simple shift so it's
- * fast. The main problem is choosing a value for K; this function returns
- * K's value.
- * 
- * If the result is correct for the extrema, V=0 and V=255*N, then we'll
- * be in good shape since both the original function and our approximation
- * are linear. V=0 always gives 0 in both cases, no problem there.
- * For V=255*N, let's choose the largest K that doesn't cause overflow
- * and ensure that it gives the right answer. The constraints are
- *     (1)   255*N*K < 2^32
- * and (2)   255*N*K >= 255*(2^24)
- * 
- * From (1) we find the best value of K is floor((2^32 - 1)/(255*N)).
- * (2) tells us when this will be valid:
- *    N*floor((2^32 - 1)/(255*N)) >= 2^24
- * Now, floor(X) > X - 1, so (2) holds if
- *    N*((2^32 - 1)/(255*N) - 1) >= 2^24
- *         (2^32 - 1)/255 - 2^24 >= N
- *                             N <= 65793
- * 
- * If all that math confuses you, this should convince you:
- * > perl -e 'for($N=1;(255*$N*int(0xFFFFFFFF/(255*$N)))>>24==255;++$N){}print"$N\n"'
- * 66052
- * 
- * So this is fine for all reasonable values of N. For larger values of N
- * we may as well just use the same approximation and accept the fact that
- * the output channel values will be a little low.
- */
-static PRUint32 ComputeScaledDivisor(PRUint32 aDivisor)
+PRBool
+nsSVGFEGaussianBlurElement::ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                           const nsAString& aValue,
+                                           nsAttrValue& aResult)
 {
-  return PR_UINT32_MAX/(255*aDivisor);
+  if (aName == nsGkAtoms::stdDeviation && aNameSpaceID == kNameSpaceID_None) {
+    return ParseNumberOptionalNumber(aName, aValue,
+                                     STD_DEV_X, STD_DEV_Y,
+                                     aResult);
+  }
+  return nsSVGFEGaussianBlurElementBase::ParseAttribute(aNameSpaceID, aName,
+                                                        aValue, aResult);
 }
-  
-static void
-BoxBlur(const PRUint8 *aInput, PRUint8 *aOutput,
-        PRInt32 aStrideMinor, PRInt32 aStartMinor, PRInt32 aEndMinor,
-        PRUint32 aLeftLobe, PRUint32 aRightLobe)
+
+void
+nsSVGFEGaussianBlurElement::BoxBlurH(PRUint8 *aInput, PRUint8 *aOutput,
+                                     PRInt32 aStride, const nsRect &aRegion,
+                                     PRUint32 leftLobe, PRUint32 rightLobe,
+                                     const PRUint8 *prediv)
 {
-  PRUint32 boxSize = aLeftLobe + aRightLobe + 1;
-  PRUint32 scaledDivisor = ComputeScaledDivisor(boxSize);
-  PRUint32 sums[4] = {0, 0, 0, 0};
+  PRInt32 boxSize = leftLobe + rightLobe + 1;
+  PRInt32 posStart = aRegion.x - leftLobe;
 
-  for (PRUint32 i=0; i < boxSize; i++) {
-    PRInt32 pos = aStartMinor - aLeftLobe + i;
-    pos = PR_MAX(pos, aStartMinor);
-    pos = PR_MIN(pos, aEndMinor - 1);
-#define SUM(j)     sums[j] += aInput[aStrideMinor*pos + j];
-    SUM(0); SUM(1); SUM(2); SUM(3);
-#undef SUM
-  }
-
-  aOutput += aStrideMinor*aStartMinor;
-  if (aStartMinor + boxSize <= aEndMinor) {
-    const PRUint8 *lastInput = aInput + aStartMinor*aStrideMinor;
-    const PRUint8 *nextInput = aInput + (aStartMinor + aRightLobe + 1)*aStrideMinor;
-#define OUTPUT(j)     aOutput[j] = (sums[j]*scaledDivisor) >> 24;
-#define SUM(j)        sums[j] += nextInput[j] - lastInput[j];
-    for (PRInt32 minor = aStartMinor; minor < aStartMinor + aLeftLobe; minor++) {
-      OUTPUT(0); OUTPUT(1); OUTPUT(2); OUTPUT(3);
-      SUM(0); SUM(1); SUM(2); SUM(3);
-      nextInput += aStrideMinor;
-      aOutput += aStrideMinor;
-      }
-    for (PRInt32 minor = aStartMinor + aLeftLobe; minor < aEndMinor - aRightLobe - 1; minor++) {
-      OUTPUT(0); OUTPUT(1); OUTPUT(2); OUTPUT(3);
-      SUM(0); SUM(1); SUM(2); SUM(3);
-      lastInput += aStrideMinor;
-      nextInput += aStrideMinor;
-      aOutput += aStrideMinor;
+  for (PRInt32 y = aRegion.y; y < aRegion.YMost(); y++) {
+    PRUint32 sums[4] = {0, 0, 0, 0};
+    PRInt32 lineIndex = aStride * y;
+    for (PRInt32 i = 0; i < boxSize; i++) {
+      PRInt32 pos = posStart + i;
+      pos = PR_MAX(pos, aRegion.x);
+      pos = PR_MIN(pos, aRegion.XMost() - 1);
+      PRInt32 index = lineIndex + (pos << 2);
+      sums[0] += aInput[index    ];
+      sums[1] += aInput[index + 1];
+      sums[2] += aInput[index + 2];
+      sums[3] += aInput[index + 3];
     }
-    // nextInput is now aInput + aEndMinor*aStrideMinor. Set it back to
-    // aInput + (aEndMinor - 1)*aStrideMinor so we read the last pixel in every
-    // iteration of the next loop.
-    nextInput -= aStrideMinor;
-    for (PRInt32 minor = aEndMinor - aRightLobe - 1; minor < aEndMinor; minor++) {
-      OUTPUT(0); OUTPUT(1); OUTPUT(2); OUTPUT(3);
-      SUM(0); SUM(1); SUM(2); SUM(3);
-      lastInput += aStrideMinor;
-      aOutput += aStrideMinor;
-#undef SUM
-    }
-  } else {
-    for (PRInt32 minor = aStartMinor; minor < aEndMinor; minor++) {
-      PRInt32 tmp = minor - aLeftLobe;
-      PRInt32 last = PR_MAX(tmp, aStartMinor);
-      PRInt32 next = PR_MIN(tmp + boxSize, aEndMinor - 1);
+    for (PRInt32 x = aRegion.x; x < aRegion.XMost(); x++) {
+      PRInt32 index = lineIndex + (x << 2);
+      aOutput[index    ] = prediv[sums[0]];
+      aOutput[index + 1] = prediv[sums[1]];
+      aOutput[index + 2] = prediv[sums[2]];
+      aOutput[index + 3] = prediv[sums[3]];
 
-      OUTPUT(0); OUTPUT(1); OUTPUT(2); OUTPUT(3);
-#define SUM(j)     sums[j] += aInput[aStrideMinor*next + j] - \
-                              aInput[aStrideMinor*last + j];
-      SUM(0); SUM(1); SUM(2); SUM(3);
-      aOutput += aStrideMinor;
-#undef SUM
-#undef OUTPUT
+      PRInt32 tmp = x - leftLobe;
+      PRInt32 last = PR_MAX(tmp, aRegion.x);
+      PRInt32 next = PR_MIN(tmp + boxSize, aRegion.XMost() - 1);
+      PRInt32 index2 = lineIndex + (next << 2);
+      PRInt32 index3 = lineIndex + (last << 2);
+      sums[0] += aInput[index2    ] - aInput[index3    ];
+      sums[1] += aInput[index2 + 1] - aInput[index3 + 1];
+      sums[2] += aInput[index2 + 2] - aInput[index3 + 2];
+      sums[3] += aInput[index2 + 3] - aInput[index3 + 3];
     }
   }
+}
+
+void
+nsSVGFEGaussianBlurElement::BoxBlurV(PRUint8 *aInput, PRUint8 *aOutput,
+                                     PRInt32 aStride, const nsRect &aRegion,
+                                     PRUint32 topLobe, PRUint32 bottomLobe,
+                                     const PRUint8 *prediv)
+{
+  PRInt32 boxSize = topLobe + bottomLobe + 1;
+  PRInt32 posStart = aRegion.y - topLobe;
+
+  for (PRInt32 x = aRegion.x; x < aRegion.XMost(); x++) {
+    PRUint32 sums[4] = {0, 0, 0, 0};
+    PRInt32 fourX = x << 2;
+    for (PRInt32 i = 0; i < boxSize; i++) {
+      PRInt32 pos = posStart + i;
+      pos = PR_MAX(pos, aRegion.y);
+      pos = PR_MIN(pos, aRegion.YMost() - 1);
+      PRInt32 index = aStride * pos + fourX;
+      sums[0] += aInput[index    ];
+      sums[1] += aInput[index + 1];
+      sums[2] += aInput[index + 2];
+      sums[3] += aInput[index + 3];
+    }
+    for (PRInt32 y = aRegion.y; y < aRegion.YMost(); y++) {
+      PRInt32 index = aStride * y + fourX;
+      aOutput[index    ] = prediv[sums[0]];
+      aOutput[index + 1] = prediv[sums[1]];
+      aOutput[index + 2] = prediv[sums[2]];
+      aOutput[index + 3] = prediv[sums[3]];
+
+      PRInt32 tmp = y - topLobe;
+      PRInt32 last = PR_MAX(tmp, aRegion.y);
+      PRInt32 next = PR_MIN(tmp + boxSize, aRegion.YMost() - 1);
+      PRInt32 index2 = aStride * next + fourX;
+      PRInt32 index3 = aStride * last + fourX;
+      sums[0] += aInput[index2    ] - aInput[index3    ];
+      sums[1] += aInput[index2 + 1] - aInput[index3 + 1];
+      sums[2] += aInput[index2 + 2] - aInput[index3 + 2];
+      sums[3] += aInput[index2 + 3] - aInput[index3 + 3];
+    }
+  }
+}
+
+PRUint8 *
+nsSVGFEGaussianBlurElement::SetupPredivide(PRUint32 size) const
+{
+  PRUint8 *tmp = new PRUint8[size * 256];
+  if (tmp) {
+    for (PRUint32 i = 0; i < 256; i++)
+      memset(tmp + i * size, i, size);
+  }
+  return tmp;
 }
 
 nsresult
@@ -752,11 +770,12 @@ nsSVGFEGaussianBlurElement::GaussianBlur(PRUint8 *aInput, PRUint8 *aOutput,
                                          nsSVGFilterResource *aFilterResource,
                                          PRUint32 aDX, PRUint32 aDY)
 {
+  NS_ASSERTION(aDX > 0 && aDY > 0, "Invalid stdDeviation!");
+
   nsAutoArrayPtr<PRUint8> tmp(new PRUint8[aFilterResource->GetDataSize()]);
   if (!tmp)
     return;
   memset(tmp, 0, aFilterResource->GetDataSize());
-
   nsRect rect = aFilterResource->GetSurfaceRect();
 #ifdef DEBUG_tor
   fprintf(stderr, "FILTER GAUSS rect: %d,%d  %dx%d\n",
@@ -765,29 +784,53 @@ nsSVGFEGaussianBlurElement::GaussianBlur(PRUint8 *aInput, PRUint8 *aOutput,
 
   PRUint32 stride = aFilterResource->GetDataStride();
 
-  if (aDX == 0) {
-    aFilterResource->CopyImageSubregion(tmp, aInput);
+  if (aDX & 1) {
+    // odd
+    nsAutoArrayPtr<PRUint8> prediv(SetupPredivide(2 * (aDX / 2) + 1));
+    if (!prediv)
+      return;
+
+    BoxBlurH(aInput, tmp,  stride, rect, aDX/2, aDX/2, prediv);
+    BoxBlurH(tmp, aOutput, stride, rect, aDX/2, aDX/2, prediv);
+    BoxBlurH(aOutput, tmp, stride, rect, aDX/2, aDX/2, prediv);
   } else {
-    PRInt32 longLobe = aDX/2;
-    PRInt32 shortLobe = (aDX & 1) ? longLobe : longLobe - 1;
-    for (PRInt32 major = rect.y; major < rect.YMost(); ++major) {
-      PRInt32 ms = major*stride;
-      BoxBlur(aInput + ms, tmp + ms, 4, rect.x, rect.XMost(), longLobe, shortLobe);
-      BoxBlur(tmp + ms, aOutput + ms, 4, rect.x, rect.XMost(), shortLobe, longLobe);
-      BoxBlur(aOutput + ms, tmp + ms, 4, rect.x, rect.XMost(), longLobe, longLobe);
+    // even
+    if (aDX == 0) {
+      aFilterResource->CopyImageSubregion(tmp, aInput);
+    } else {
+      nsAutoArrayPtr<PRUint8> prediv(SetupPredivide(2 * (aDX / 2) + 1));
+      nsAutoArrayPtr<PRUint8> prediv2(SetupPredivide(2 * (aDX / 2)));
+      if (!prediv || !prediv2)
+        return;
+
+      BoxBlurH(aInput, tmp,  stride, rect, aDX/2,     aDX/2 - 1, prediv2);
+      BoxBlurH(tmp, aOutput, stride, rect, aDX/2 - 1, aDX/2, prediv2);
+      BoxBlurH(aOutput, tmp, stride, rect, aDX/2,     aDX/2, prediv);
     }
   }
 
-  if (aDY == 0) {
-    aFilterResource->CopyImageSubregion(aOutput, tmp);
+  if (aDY & 1) {
+    // odd
+    nsAutoArrayPtr<PRUint8> prediv(SetupPredivide(2 * (aDY / 2) + 1));
+    if (!prediv)
+      return;
+
+    BoxBlurV(tmp, aOutput, stride, rect, aDY/2, aDY/2, prediv);
+    BoxBlurV(aOutput, tmp, stride, rect, aDY/2, aDY/2, prediv);
+    BoxBlurV(tmp, aOutput, stride, rect, aDY/2, aDY/2, prediv);
   } else {
-    PRInt32 longLobe = aDY/2;
-    PRInt32 shortLobe = (aDY & 1) ? longLobe : longLobe - 1;
-    for (PRInt32 major = rect.x; major < rect.XMost(); ++major) {
-      PRInt32 ms = major*4;
-      BoxBlur(tmp + ms, aOutput + ms, stride, rect.y, rect.YMost(), longLobe, shortLobe);
-      BoxBlur(aOutput + ms, tmp + ms, stride, rect.y, rect.YMost(), shortLobe, longLobe);
-      BoxBlur(tmp + ms, aOutput + ms, stride, rect.y, rect.YMost(), longLobe, longLobe);
+    // even
+    if (aDY == 0) {
+      aFilterResource->CopyImageSubregion(aOutput, tmp);
+    } else {
+      nsAutoArrayPtr<PRUint8> prediv(SetupPredivide(2 * (aDY / 2) + 1));
+      nsAutoArrayPtr<PRUint8> prediv2(SetupPredivide(2 * (aDY / 2)));
+      if (!prediv || !prediv2)
+        return;
+
+      BoxBlurV(tmp, aOutput, stride, rect, aDY/2,     aDY/2 - 1, prediv2);
+      BoxBlurV(aOutput, tmp, stride, rect, aDY/2 - 1, aDY/2, prediv2);
+      BoxBlurV(tmp, aOutput, stride, rect, aDY/2,     aDY/2, prediv);
     }
   }
 }
@@ -3067,6 +3110,9 @@ public:
   NS_FORWARD_NSIDOMNODE(nsSVGFETurbulenceElementBase::)
   NS_FORWARD_NSIDOMELEMENT(nsSVGFETurbulenceElementBase::)
 
+  virtual PRBool ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                const nsAString& aValue,
+                                nsAttrValue& aResult);
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
 protected:
@@ -3259,6 +3305,20 @@ NS_IMETHODIMP nsSVGFETurbulenceElement::GetStitchTiles(nsIDOMSVGAnimatedEnumerat
 NS_IMETHODIMP nsSVGFETurbulenceElement::GetType(nsIDOMSVGAnimatedEnumeration * *aType)
 {
   return mEnumAttributes[TYPE].ToDOMAnimatedEnum(aType, this);
+}
+
+PRBool
+nsSVGFETurbulenceElement::ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                         const nsAString& aValue,
+                                         nsAttrValue& aResult)
+{
+  if (aName == nsGkAtoms::baseFrequency && aNameSpaceID == kNameSpaceID_None) {
+    return ParseNumberOptionalNumber(aName, aValue,
+                                     BASE_FREQ_X, BASE_FREQ_Y,
+                                     aResult);
+  }
+  return nsSVGFETurbulenceElementBase::ParseAttribute(aNameSpaceID, aName,
+                                                      aValue, aResult);
 }
 
 nsresult
@@ -3578,6 +3638,9 @@ public:
   NS_FORWARD_NSIDOMNODE(nsSVGFEMorphologyElementBase::)
   NS_FORWARD_NSIDOMELEMENT(nsSVGFEMorphologyElementBase::)
 
+  virtual PRBool ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                const nsAString& aValue,
+                                nsAttrValue& aResult);
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
 protected:
@@ -3686,6 +3749,20 @@ nsSVGFEMorphologyElement::SetRadius(float rx, float ry)
   mNumberAttributes[RADIUS_X].SetBaseValue(rx, this, PR_TRUE);
   mNumberAttributes[RADIUS_Y].SetBaseValue(ry, this, PR_TRUE);
   return NS_OK;
+}
+
+PRBool
+nsSVGFEMorphologyElement::ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                         const nsAString& aValue,
+                                         nsAttrValue& aResult)
+{
+  if (aName == nsGkAtoms::radius && aNameSpaceID == kNameSpaceID_None) {
+    return ParseNumberOptionalNumber(aName, aValue,
+                                     RADIUS_X, RADIUS_Y,
+                                     aResult);
+  }
+  return nsSVGFEMorphologyElementBase::ParseAttribute(aNameSpaceID, aName,
+                                                      aValue, aResult);
 }
 
 void
@@ -3895,6 +3972,9 @@ public:
   NS_FORWARD_NSIDOMNODE(nsSVGFEConvolveMatrixElementBase::)
   NS_FORWARD_NSIDOMELEMENT(nsSVGFEConvolveMatrixElementBase::)
 
+  virtual PRBool ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                const nsAString& aValue,
+                                nsAttrValue& aResult);
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
 protected:
@@ -4115,6 +4195,28 @@ nsSVGFEConvolveMatrixElement::ComputeNeededSourceBBoxes(const nsRect& aTargetBBo
   // XXX Precise results are possible but we're going to skip that work
   // for now. Do nothing, which means the needed-box remains the
   // source's output bounding box.
+}
+
+PRBool
+nsSVGFEConvolveMatrixElement::ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                             const nsAString& aValue,
+                                             nsAttrValue& aResult)
+{
+  if (aNameSpaceID == kNameSpaceID_None) {
+    if (aName == nsGkAtoms::order) {
+      return ParseIntegerOptionalInteger(aName, aValue,
+                                         ORDER_X, ORDER_Y,
+                                         aResult);
+    }
+    if (aName == nsGkAtoms::kernelUnitLength) {
+      return ParseNumberOptionalNumber(aName, aValue,
+                                       KERNEL_UNIT_LENGTH_X, KERNEL_UNIT_LENGTH_Y,
+                                       aResult);
+    }
+  }
+
+  return nsSVGFEConvolveMatrixElementBase::ParseAttribute(aNameSpaceID, aName,
+                                                          aValue, aResult);
 }
 
 static PRInt32 BoundInterval(PRInt32 aVal, PRInt32 aMax)
@@ -4668,6 +4770,9 @@ public:
 
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
+  virtual PRBool ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                const nsAString& aValue,
+                                nsAttrValue& aResult);
 protected:
   virtual void
   LightPixel(const float *N, const float *L,
@@ -4723,6 +4828,21 @@ nsSVGFELightingElement::IsAttributeMapped(const nsIAtom* name) const
 
   return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
     nsSVGFELightingElementBase::IsAttributeMapped(name);
+}
+
+PRBool
+nsSVGFELightingElement::ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                       const nsAString& aValue,
+                                       nsAttrValue& aResult)
+{
+  if (aName == nsGkAtoms::kernelUnitLength && aNameSpaceID == kNameSpaceID_None) {
+    return ParseNumberOptionalNumber(aName, aValue,
+                                     KERNEL_UNIT_LENGTH_X, KERNEL_UNIT_LENGTH_Y,
+                                     aResult);
+
+  }
+  return nsSVGFELightingElementBase::ParseAttribute(aNameSpaceID, aName,
+                                                    aValue, aResult);
 }
 
 void

@@ -1977,7 +1977,7 @@ static PRBool IsInBounds(const gfxSkipCharsIterator& aStart, PRInt32 aContentLen
 }
 #endif
 
-class NS_STACK_CLASS PropertyProvider : public gfxTextRun::PropertyProvider {
+class PropertyProvider : public gfxTextRun::PropertyProvider {
 public:
   /**
    * Use this constructor for reflow, when we don't know what text is
@@ -3961,7 +3961,7 @@ PRBool SelectionIterator::GetNextSegment(gfxFloat* aXOffset,
 
 void
 nsTextFrame::PaintOneShadow(PRUint32 aOffset, PRUint32 aLength,
-                            nsCSSShadowItem* aShadowDetails,
+                            nsTextShadowItem* aShadowDetails,
                             PropertyProvider* aProvider, const gfxRect& aDirtyRect,
                             const gfxPoint& aFramePt, const gfxPoint& aTextBaselinePt,
                             gfxContext* aCtx, const nscolor& aForegroundColor)
@@ -4268,13 +4268,13 @@ nsTextFrame::PaintText(nsIRenderingContext* aRenderingContext, nsPoint aPt,
 
   // Paint the text shadow before doing any foreground stuff
   const nsStyleText* textStyle = GetStyleText();
-  if (textStyle->mTextShadow) {
+  if (textStyle->mShadowArray) {
     // Text shadow happens with the last value being painted at the back,
     // ie. it is painted first.
-    for (PRUint32 i = textStyle->mTextShadow->Length(); i > 0; --i) {
+    for (PRUint32 i = textStyle->mShadowArray->Length(); i > 0; --i) {
       PaintOneShadow(provider.GetStart().GetSkippedOffset(),
                      ComputeTransformedLength(provider),
-                     textStyle->mTextShadow->ShadowAt(i - 1), &provider,
+                     textStyle->mShadowArray->ShadowAt(i - 1), &provider,
                      dirtyRect, framePt, textBaselinePt, ctx,
                      textPaintStyle.GetTextColor());
     }
@@ -4710,7 +4710,7 @@ nsTextFrame::PeekOffsetNoAmount(PRBool aForward, PRInt32* aOffset)
  * is interpreted according to aDirection, so if aDirection is -1, "before"
  * means actually *after* the cluster content.)
  */
-class NS_STACK_CLASS ClusterIterator {
+class ClusterIterator {
 public:
   ClusterIterator(nsTextFrame* aTextFrame, PRInt32 aPosition, PRInt32 aDirection,
                   nsString& aContext);
@@ -4993,28 +4993,6 @@ nsTextFrame::GetOffsets(PRInt32 &start, PRInt32 &end) const
   return NS_OK;
 }
 
-static PRInt32
-FindEndOfPunctuationRun(const nsTextFragment* aFrag,
-                        gfxTextRun* aTextRun,
-                        gfxSkipCharsIterator* aIter,
-                        PRInt32 aOffset,
-                        PRInt32 aStart,
-                        PRInt32 aEnd)
-{
-  PRInt32 i;
-
-  for (i = aStart; i < aEnd - aOffset; ++i) {
-    if (nsContentUtils::IsPunctuationMarkAt(aFrag, aOffset + i)) {
-      aIter->SetOriginalOffset(aOffset + i);
-      FindClusterEnd(aTextRun, aEnd, aIter);
-      i = aIter->GetOriginalOffset() - aOffset;
-    } else {
-      break;
-    }
-  }
-  return i;
-}
-
 /**
  * Returns PR_TRUE if this text frame completes the first-letter, PR_FALSE
  * if it does not contain a true "letter".
@@ -5026,7 +5004,7 @@ FindEndOfPunctuationRun(const nsTextFragment* aFrag,
  * 
  * @param aLength an in/out parameter: on entry contains the maximum length to
  * return, on exit returns length of the first-letter fragment (which may
- * include leading and trailing punctuation, for example)
+ * include leading punctuation, for example)
  */
 static PRBool
 FindFirstLetterRange(const nsTextFragment* aFrag,
@@ -5034,36 +5012,28 @@ FindFirstLetterRange(const nsTextFragment* aFrag,
                      PRInt32 aOffset, const gfxSkipCharsIterator& aIter,
                      PRInt32* aLength)
 {
+  // Find first non-whitespace, non-punctuation cluster, and stop after it
   PRInt32 i;
   PRInt32 length = *aLength;
-  PRInt32 endOffset = aOffset + length;
-  gfxSkipCharsIterator iter(aIter);
+  for (i = 0; i < length; ++i) {
+    if (!IsTrimmableSpace(aFrag, aOffset + i) &&
+        !nsContentUtils::IsPunctuationMark(aFrag->CharAt(aOffset + i)))
+      break;
+  }
 
-  // skip leading whitespace, then consume clusters that start with punctuation
-  i = FindEndOfPunctuationRun(aFrag, aTextRun, &iter, aOffset, 
-                              GetTrimmableWhitespaceCount(aFrag, aOffset, length, 1),
-                              endOffset);
   if (i == length)
     return PR_FALSE;
 
-  // If the next character is not a letter or number, there is no first-letter.
-  // Return PR_TRUE so that we don't go on looking, but set aLength to 0.
-  if (!nsContentUtils::IsAlphanumericAt(aFrag, aOffset + i)) {
-    *aLength = 0;
-    return PR_TRUE;
+  // Advance to the end of the cluster
+  gfxSkipCharsIterator iter(aIter);
+  PRInt32 nextClusterStart;
+  for (nextClusterStart = i + 1; nextClusterStart < length; ++nextClusterStart) {
+    iter.SetOriginalOffset(aOffset + nextClusterStart);
+    if (iter.IsOriginalCharSkipped() ||
+        aTextRun->IsClusterStart(iter.GetSkippedOffset()))
+      break;
   }
-
-  // consume another cluster (the actual first letter)
-  iter.SetOriginalOffset(aOffset + i);
-  FindClusterEnd(aTextRun, endOffset, &iter);
-  i = iter.GetOriginalOffset() - aOffset;
-  if (i + 1 == length)
-    return PR_TRUE;
-
-  // consume clusters that start with punctuation
-  i = FindEndOfPunctuationRun(aFrag, aTextRun, &iter, aOffset, i + 1, endOffset);
-  if (i < length)
-    *aLength = i;
+  *aLength = nextClusterStart;
   return PR_TRUE;
 }
 
@@ -5551,10 +5521,8 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
   // Restrict to just the first-letter if necessary
   PRBool completedFirstLetter = PR_FALSE;
   if (lineLayout.GetFirstLetterStyleOK()) {
+    AddStateBits(TEXT_FIRST_LETTER);
     completedFirstLetter = FindFirstLetterRange(frag, mTextRun, offset, iter, &length);
-    if (length) {
-      AddStateBits(TEXT_FIRST_LETTER);
-    }
   }
 
   /////////////////////////////////////////////////////////////////////
@@ -5563,9 +5531,7 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
   
   iter.SetOriginalOffset(offset);
   nscoord xOffsetForTabs = (mTextRun->GetFlags() & nsTextFrameUtils::TEXT_HAS_TAB) ?
-    (lineLayout.GetCurrentFrameXDistanceFromBlock() -
-       lineContainer->GetUsedBorderAndPadding().left)
-    : -1;
+         lineLayout.GetCurrentFrameXDistanceFromBlock() : -1;
   PropertyProvider provider(mTextRun, textStyle, frag, this, iter, length,
       lineContainer, xOffsetForTabs);
 
@@ -5714,10 +5680,7 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
   // Disallow negative widths
   aMetrics.width = NSToCoordCeil(PR_MAX(0, textMetrics.mAdvanceWidth));
 
-  if (transformedCharsFit == 0) {
-    aMetrics.ascent = 0;
-    aMetrics.height = 0;
-  } else if (needTightBoundingBox) {
+  if (needTightBoundingBox) {
     // Use actual text metrics for floating first letter frame.
     aMetrics.ascent = NSToCoordCeil(textMetrics.mAscent);
     aMetrics.height = aMetrics.ascent + NSToCoordCeil(textMetrics.mDescent);

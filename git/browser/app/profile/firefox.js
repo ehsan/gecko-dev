@@ -239,7 +239,9 @@ pref("browser.download.manager.showAlertOnComplete", true);
 pref("browser.download.manager.showAlertInterval", 2000);
 pref("browser.download.manager.retention", 2);
 pref("browser.download.manager.showWhenStarting", true);
+pref("browser.download.manager.useWindow", true);
 pref("browser.download.manager.closeWhenDone", false);
+pref("browser.download.manager.openDelay", 0);
 pref("browser.download.manager.focusWhenStarting", false);
 pref("browser.download.manager.flashCount", 2);
 pref("browser.download.manager.addToRecentDocs", true);
@@ -633,15 +635,8 @@ pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
 // the database.
 pref("urlclassifier.confirm-age", 2700);
 
-#ifdef MOZ_WIDGET_GTK2
-#define RESTRICT_CACHEMAX
-#endif
-#ifdef XP_OS2
-#define RESTRICT_CACHEMAX
-#endif
-
 // Maximum size of the sqlite3 cache during an update, in bytes
-#ifdef RESTRICT_CACHEMAX
+#ifdef MOZ_WIDGET_GTK2
 pref("urlclassifier.updatecachemax", 104857600);
 #else
 pref("urlclassifier.updatecachemax", -1);

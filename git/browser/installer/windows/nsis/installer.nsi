@@ -489,13 +489,11 @@ Section "-InstallEndCleanup"
   DetailPrint "$(STATUS_CLEANUP)"
   SetDetailsPrint none
 
-  ${Unless} ${Silent}
-    ${MUI_INSTALLOPTIONS_READ} $0 "options.ini" "Field 6" "State"
-    ${If} "$0" == "1"
-      ${LogHeader} "Setting as the default browser"
-      ${SetAsDefaultAppUser}
-    ${EndIf}
-  ${EndUnless}
+  ${MUI_INSTALLOPTIONS_READ} $0 "options.ini" "Field 6" "State"
+  ${If} "$0" == "1"
+    ${LogHeader} "Setting as the default browser"
+    ${SetAsDefaultAppUser}
+  ${EndIf}
 
   ${LogHeader} "Updating Uninstall Log With Previous Uninstall Log"
 

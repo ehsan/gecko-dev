@@ -52,7 +52,7 @@ $SCRIPT -p product -b branch  -x executablepath [-d datafiles]
 variable            description
 ===============     ============================================================
 -p product          required. firefox|thunderbird
--b branch           required. 1.8.0|1.8.1|1.9.0|1.9.1
+-b branch           required. 1.8.0|1.8.1|1.9.0
 -x executablepath   required. directory where build is installed
 -d datafiles        optional. one or more filenames of files containing 
                     environment variable definitions to be included.
@@ -80,7 +80,12 @@ while getopts $options optname ;
 done
 
 # include environment variables
-loaddata $datafiles
+if [[ -n "$datafiles" ]]; then
+    for datafile in $datafiles; do 
+        cat $datafile | sed 's|^|data: |'
+        source $datafile
+    done
+fi
 
 if [[ -z "$product" || -z "$branch" || -z "$executablepath" ]]
     then
@@ -94,9 +99,13 @@ fi
 
 executable=`get_executable $product $branch $executablepath`
 
+if [[ -z "$executable" ]]; then
+    exit 0
+fi
+
 executabledir=`dirname $executable`
 
-if [[ $OSID == "nt" ]]; then
+if [[ $OSID == "win32" ]]; then
     # see http://nsis.sourceforge.net/Docs/Chapter3.html
 
     # if the directory already exists, attempt to uninstall
@@ -104,7 +113,7 @@ if [[ $OSID == "nt" ]]; then
 
     if [[ -d "$executabledir/uninstall" ]]; then
 
-        if [[ "$branch" == "1.8.0" ]]; then
+        if [[ $branch == "1.8.0" ]]; then
             uninstallexe="$executabledir/uninstall/uninstall.exe"
             uninstallini="$executabledir/uninstall/uninstall.ini"
             if [[ -n "$uninstallexe"  && -e "$uninstallexe" ]]; then
@@ -117,7 +126,7 @@ if [[ $OSID == "nt" ]]; then
                     fi
                 fi
             fi
-        elif [[ "$branch" == "1.8.1" || "$branch" == "1.9.0" || "$branch" == "1.9.1" ]]; then
+        elif [[ $branch == "1.8.1" || $branch == "1.9.0" ]]; then
             uninstalloldexe="$executabledir/uninstall/uninst.exe"
             uninstallnewexe="$executabledir/uninstall/helper.exe"
             if [[ -n "$uninstallnewexe" && -e "$uninstallnewexe" ]]; then

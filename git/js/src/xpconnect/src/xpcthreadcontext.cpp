@@ -272,7 +272,7 @@ XPCJSContextStack::SetSafeJSContext(JSContext * aSafeJSContext)
        mOwnSafeJSContext == mSafeJSContext &&
        mOwnSafeJSContext != aSafeJSContext)
     {
-        JS_DestroyContextNoGC(mOwnSafeJSContext);
+        JS_DestroyContext(mOwnSafeJSContext);
         mOwnSafeJSContext = nsnull;
         SyncJSContexts();
     }

@@ -88,8 +88,6 @@
 #include "jsdtracef.h"
 #endif
 
-#include "jsautooplen.h"
-
 #ifdef JS_THREADSAFE
 #define NATIVE_DROP_PROPERTY js_DropProperty
 
@@ -1215,12 +1213,14 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     if (caller && !caller->varobj && !js_GetCallObject(cx, caller, NULL))
         return JS_FALSE;
 
-    /* eval no longer takes an optional trailing argument. */
-    if (argc >= 2 &&
-        !JS_ReportErrorFlagsAndNumber(cx, JSREPORT_WARNING | JSREPORT_STRICT,
-                                      js_GetErrorMessage, NULL,
-                                      JSMSG_EVAL_ARITY)) {
-        return JS_FALSE;
+    /*
+     * Script.prototype.compile/exec and Object.prototype.eval all take an
+     * optional trailing argument that overrides the scope object.
+     */
+    if (argc >= 2) {
+        if (!js_ValueToObject(cx, argv[1], &scopeobj))
+            return JS_FALSE;
+        argv[1] = OBJECT_TO_JSVAL(scopeobj);
     }
 
     /* From here on, control must exit through label out with ok set. */
@@ -1432,9 +1432,6 @@ obj_watch(JSContext *cx, uintN argc, jsval *vp)
     if (attrs & JSPROP_READONLY)
         return JS_TRUE;
     *vp = JSVAL_VOID;
-
-    if (OBJ_IS_DENSE_ARRAY(cx, obj) && !js_MakeArraySlow(cx, obj))
-        return JS_FALSE;
     return JS_SetWatchPoint(cx, obj, userid, obj_watch_handler, callable);
 }
 
@@ -1952,6 +1949,10 @@ js_CloneBlockObject(JSContext *cx, JSObject *proto, JSObject *parent,
     return clone;
 }
 
+static JSBool
+js_ReallocSlots(JSContext *cx, JSObject *obj, uint32 nslots,
+                JSBool exactAllocation);
+
 JSBool
 js_PutBlockObject(JSContext *cx, JSBool normalUnwind)
 {
@@ -2301,7 +2302,7 @@ FreeSlots(JSContext *cx, JSObject *obj)
 #define DYNAMIC_WORDS_TO_SLOTS(words)                                         \
   (JS_ASSERT((words) > 1), (words) - 1 + JS_INITIAL_NSLOTS)
 
-JSBool
+static JSBool
 js_ReallocSlots(JSContext *cx, JSObject *obj, uint32 nslots,
                 JSBool exactAllocation)
 {
@@ -2891,7 +2892,7 @@ js_AllocSlot(JSContext *cx, JSObject *obj, uint32 *slotp)
     }
 
     /* js_ReallocSlots or js_FreeSlot should set the free slots to void. */
-    JS_ASSERT(JSVAL_IS_VOID(STOBJ_GET_SLOT(obj, map->freeslot)));
+    JS_ASSERT(STOBJ_GET_SLOT(obj, map->freeslot) == JSVAL_VOID);
     *slotp = map->freeslot++;
     return JS_TRUE;
 }
@@ -3340,8 +3341,7 @@ js_LookupPropertyWithFlags(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                         /* Resolved: juggle locks and lookup id again. */
                         if (obj2 != obj) {
                             JS_UNLOCK_OBJ(cx, obj);
-                            if (OBJ_IS_NATIVE(obj2))
-                                JS_LOCK_OBJ(cx, obj2);
+                            JS_LOCK_OBJ(cx, obj2);
                         }
                         protoIndex = 0;
                         for (proto = start; proto && proto != obj2;
@@ -3352,6 +3352,7 @@ js_LookupPropertyWithFlags(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                         if (!MAP_IS_NATIVE(&scope->map)) {
                             /* Whoops, newresolve handed back a foreign obj2. */
                             JS_ASSERT(obj2 != obj);
+                            JS_UNLOCK_OBJ(cx, obj2);
                             ok = OBJ_LOOKUP_PROPERTY(cx, obj2, id, objp, propp);
                             if (!ok || *propp)
                                 goto cleanup;
@@ -3372,8 +3373,7 @@ js_LookupPropertyWithFlags(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                             JS_ASSERT(obj2 == scope->object);
                             obj = obj2;
                         } else if (obj2 != obj) {
-                            if (OBJ_IS_NATIVE(obj2))
-                                JS_UNLOCK_OBJ(cx, obj2);
+                            JS_UNLOCK_OBJ(cx, obj2);
                             JS_LOCK_OBJ(cx, obj);
                         }
                     }
@@ -4126,18 +4126,38 @@ out:
     return JS_TRUE;
 }
 
-/*
- * Private type used to enumerate properties of a native JS object. It is not
- * allocated when there are no enumerable properties in the object. Instead
- * for empty enumerators the code uses JSVAL_ZERO as the enumeration state.
- */
-struct JSNativeEnumerator {
-    uint32              cursor;         /* index into ids array, runs from
-                                           length down to 0 */
-    uint32              length;         /* length of ids array */
-    JSNativeEnumerator  *next;          /* double-linked list support */
-    JSNativeEnumerator  **prevp;
-    jsid                ids[1];         /* enumeration id array */
+JSIdArray *
+js_NewIdArray(JSContext *cx, jsint length)
+{
+    JSIdArray *ida;
+
+    ida = (JSIdArray *)
+          JS_malloc(cx, sizeof(JSIdArray) + (length-1) * sizeof(jsval));
+    if (ida)
+        ida->length = length;
+    return ida;
+}
+
+JSIdArray *
+js_SetIdArrayLength(JSContext *cx, JSIdArray *ida, jsint length)
+{
+    JSIdArray *rida;
+
+    rida = (JSIdArray *)
+           JS_realloc(cx, ida, sizeof(JSIdArray) + (length-1) * sizeof(jsval));
+    if (!rida)
+        JS_DestroyIdArray(cx, ida);
+    else
+        rida->length = length;
+    return rida;
+}
+
+/* Private type used to iterate over all properties of a native JS object */
+struct JSNativeIteratorState {
+    jsint                   next_index; /* index into jsid array */
+    JSIdArray               *ida;       /* all property ids in enumeration */
+    JSNativeIteratorState   *next;      /* double-linked list support */
+    JSNativeIteratorState   **prevp;
 };
 
 /*
@@ -4149,14 +4169,17 @@ JSBool
 js_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
              jsval *statep, jsid *idp)
 {
+    JSRuntime *rt;
+    JSObject *proto;
     JSClass *clasp;
     JSEnumerateOp enumerate;
-    JSNativeEnumerator *ne;
-    uint32 length;
+    JSScopeProperty *sprop, *lastProp;
+    jsint i, length;
     JSScope *scope;
-    JSScopeProperty *sprop;
-    jsid *ids;
+    JSIdArray *ida;
+    JSNativeIteratorState *state;
 
+    rt = cx->runtime;
     clasp = OBJ_GET_CLASS(cx, obj);
     enumerate = clasp->enumerate;
     if (clasp->flags & JSCLASS_NEW_ENUMERATE) {
@@ -4168,30 +4191,32 @@ js_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
       case JSENUMERATE_INIT:
         if (!enumerate(cx, obj))
             return JS_FALSE;
+        length = 0;
 
         /*
-         * The set of all property ids is pre-computed when the iterator is
-         * initialized to avoid problems caused by properties being deleted
-         * during the iteration.
-         *
-         * Use a do-while(0) loop to avoid too many nested ifs. If ne is null
-         * after the loop, it indicates an empty enumerator.
+         * The set of all property ids is pre-computed when the iterator
+         * is initialized so as to avoid problems with properties being
+         * deleted during the iteration.
          */
-        ne = NULL;
-        length = 0;
         JS_LOCK_OBJ(cx, obj);
         scope = OBJ_SCOPE(obj);
-        do {
-            /*
-             * If this object shares a scope with its prototype, don't
-             * enumerate its properties. Otherwise they will be enumerated
-             * a second time when the prototype object is enumerated.
-             */
-            if (scope->object != obj)
-                break;
 
-            /* Count all enumerable properties in object's scope. */
-            for (sprop = SCOPE_LAST_PROP(scope); sprop; sprop = sprop->parent) {
+        /*
+         * If this object shares a scope with its prototype, don't enumerate
+         * its properties.  Otherwise they will be enumerated a second time
+         * when the prototype object is enumerated.
+         */
+        proto = OBJ_GET_PROTO(cx, obj);
+        if (proto && scope == OBJ_SCOPE(proto)) {
+            ida = js_NewIdArray(cx, 0);
+            if (!ida) {
+                JS_UNLOCK_OBJ(cx, obj);
+                return JS_FALSE;
+            }
+        } else {
+            /* Object has a private scope; Enumerate all props in scope. */
+            for (sprop = lastProp = SCOPE_LAST_PROP(scope); sprop;
+                 sprop = sprop->parent) {
                 if ((sprop->attrs & JSPROP_ENUMERATE) &&
                     !(sprop->flags & SPROP_IS_ALIAS) &&
                     (!SCOPE_HAD_MIDDLE_DELETE(scope) ||
@@ -4199,70 +4224,71 @@ js_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
                     length++;
                 }
             }
-            if (length == 0)
-                break;
-
-            ne = (JSNativeEnumerator *)
-                 JS_malloc(cx, offsetof(JSNativeEnumerator, ids) +
-                           length * sizeof(jsid));
-            if (!ne) {
-                JS_UNLOCK_SCOPE(cx, scope);
+            ida = js_NewIdArray(cx, length);
+            if (!ida) {
+                JS_UNLOCK_OBJ(cx, obj);
                 return JS_FALSE;
             }
-            ne->cursor = length;
-            ne->length = length;
-            ids = ne->ids;
-            for (sprop = SCOPE_LAST_PROP(scope); sprop; sprop = sprop->parent) {
+            i = length;
+            for (sprop = lastProp; sprop; sprop = sprop->parent) {
                 if ((sprop->attrs & JSPROP_ENUMERATE) &&
                     !(sprop->flags & SPROP_IS_ALIAS) &&
                     (!SCOPE_HAD_MIDDLE_DELETE(scope) ||
                      SCOPE_HAS_PROPERTY(scope, sprop))) {
-                    JS_ASSERT(ids < ne->ids + length);
-                    *ids++ = sprop->id;
+                    JS_ASSERT(i > 0);
+                    ida->vector[--i] = sprop->id;
                 }
             }
-            JS_ASSERT(ids == ne->ids + length);
-        } while (0);
-        JS_UNLOCK_SCOPE(cx, scope);
+        }
+        JS_UNLOCK_OBJ(cx, obj);
 
+        state = (JSNativeIteratorState *)
+            JS_malloc(cx, sizeof(JSNativeIteratorState));
+        if (!state) {
+            JS_DestroyIdArray(cx, ida);
+            return JS_FALSE;
+        }
+        state->ida = ida;
+        state->next_index = 0;
+
+        JS_LOCK_RUNTIME(rt);
+        state->next = rt->nativeIteratorStates;
+        if (state->next)
+            state->next->prevp = &state->next;
+        state->prevp = &rt->nativeIteratorStates;
+        *state->prevp = state;
+        JS_UNLOCK_RUNTIME(rt);
+
+        *statep = PRIVATE_TO_JSVAL(state);
         if (idp)
             *idp = INT_TO_JSVAL(length);
-        if (!ne) {
-            JS_ASSERT(length == 0);
-            *statep = JSVAL_ZERO;
-        } else {
-            JS_ASSERT(length != 0);
-            JS_LOCK_GC(cx->runtime);
-            ne->next = cx->runtime->nativeEnumerators;
-            if (ne->next)
-                ne->next->prevp = &ne->next;
-            ne->prevp = &cx->runtime->nativeEnumerators;
-            *ne->prevp = ne;
-            JS_UNLOCK_GC(cx->runtime);
-            *statep = PRIVATE_TO_JSVAL(ne);
-        }
         break;
 
       case JSENUMERATE_NEXT:
-      case JSENUMERATE_DESTROY:
-        if (*statep != JSVAL_ZERO) {
-            ne = (JSNativeEnumerator *) JSVAL_TO_PRIVATE(*statep);
-            JS_ASSERT(ne->length >= 1);
-            if (ne->cursor != 0 && enum_op == JSENUMERATE_NEXT) {
-                *idp = ne->ids[--ne->cursor];
-                break;
-            }
-            JS_LOCK_GC(cx->runtime);
-            JS_ASSERT(cx->runtime->nativeEnumerators);
-            JS_ASSERT(*ne->prevp == ne);
-            if (ne->next) {
-                JS_ASSERT(ne->next->prevp == &ne->next);
-                ne->next->prevp = ne->prevp;
-            }
-            *ne->prevp = ne->next;
-            JS_UNLOCK_GC(cx->runtime);
-            JS_free(cx, ne);
+        state = (JSNativeIteratorState *) JSVAL_TO_PRIVATE(*statep);
+        ida = state->ida;
+        length = ida->length;
+        if (state->next_index != length) {
+            *idp = ida->vector[state->next_index++];
+            break;
         }
+        /* FALL THROUGH */
+
+      case JSENUMERATE_DESTROY:
+        state = (JSNativeIteratorState *) JSVAL_TO_PRIVATE(*statep);
+
+        JS_LOCK_RUNTIME(rt);
+        JS_ASSERT(rt->nativeIteratorStates);
+        JS_ASSERT(*state->prevp == state);
+        if (state->next) {
+            JS_ASSERT(state->next->prevp == &state->next);
+            state->next->prevp = state->prevp;
+        }
+        *state->prevp = state->next;
+        JS_UNLOCK_RUNTIME(rt);
+
+        JS_DestroyIdArray(cx, state->ida);
+        JS_free(cx, state);
         *statep = JSVAL_NULL;
         break;
     }
@@ -4270,18 +4296,24 @@ js_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
 }
 
 void
-js_TraceNativeEnumerators(JSTracer *trc)
+js_TraceNativeIteratorStates(JSTracer *trc)
 {
-    JSNativeEnumerator *ne;
-    jsid *cursor, *end;
+    JSNativeIteratorState *state;
+    jsid *cursor, *end, id;
 
-    for (ne = trc->context->runtime->nativeEnumerators; ne; ne = ne->next) {
-        JS_ASSERT(ne->length >= 1);
-        JS_ASSERT(*ne->prevp == ne);
-        end = ne->ids + ne->length;
-        for (cursor = ne->ids; cursor != end; ++cursor)
-            TRACE_ID(trc, *cursor);
-    }
+    state = trc->context->runtime->nativeIteratorStates;
+    if (!state)
+        return;
+
+    do {
+        JS_ASSERT(*state->prevp == state);
+        cursor = state->ida->vector;
+        end = cursor + state->ida->length;
+        for (; cursor != end; ++cursor) {
+            id = *cursor;
+            TRACE_ID(trc, id);
+        }
+    } while ((state = state->next) != NULL);
 }
 
 JSBool
@@ -4657,7 +4689,7 @@ js_PrimitiveToObject(JSContext *cx, jsval *vp)
     };
 
     JS_ASSERT(!JSVAL_IS_OBJECT(*vp));
-    JS_ASSERT(!JSVAL_IS_VOID(*vp));
+    JS_ASSERT(*vp != JSVAL_VOID);
     clasp = PrimitiveClasses[JSVAL_TAG(*vp) - 1];
     obj = js_NewObject(cx, clasp, NULL, NULL, 0);
     if (!obj)

@@ -152,7 +152,6 @@ CPPSRCS		= \
 		nsPlainTextSerializer.cpp \
 		nsPropertyTable.cpp \
 		nsRange.cpp \
-		nsReferencedElement.cpp \
 		nsScriptElement.cpp \
 		nsScriptEventManager.cpp \
 		nsScriptLoader.cpp \
