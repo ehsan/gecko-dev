@@ -6005,7 +6005,7 @@ nsContentUtils::ReparentClonedObjectToScope(JSContext* cx,
 }
 
 struct ClassMatchingInfo {
-  nsAttrValue::AtomArray mClasses;
+  nsCOMArray<nsIAtom> mClasses;
   nsCaseTreatment mCaseTreatment;
 };
 
@@ -6021,14 +6021,14 @@ MatchClassNames(nsIContent* aContent, PRInt32 aNamespaceID, nsIAtom* aAtom,
   
   // need to match *all* of the classes
   ClassMatchingInfo* info = static_cast<ClassMatchingInfo*>(aData);
-  PRUint32 length = info->mClasses.Length();
+  PRInt32 length = info->mClasses.Count();
   if (!length) {
     // If we actually had no classes, don't match.
     return PR_FALSE;
   }
-  PRUint32 i;
+  PRInt32 i;
   for (i = 0; i < length; ++i) {
-    if (!classAttr->Contains(info->mClasses[i],
+    if (!classAttr->Contains(info->mClasses.ObjectAt(i),
                              info->mCaseTreatment)) {
       return PR_FALSE;
     }
@@ -6055,9 +6055,9 @@ AllocClassMatchingInfo(nsINode* aRootNode,
   NS_ENSURE_TRUE(info, nsnull);
 
   if (attrValue.Type() == nsAttrValue::eAtomArray) {
-    info->mClasses.SwapElements(*(attrValue.GetAtomArrayValue()));
+    info->mClasses.AppendObjects(*(attrValue.GetAtomArrayValue()));
   } else if (attrValue.Type() == nsAttrValue::eAtom) {
-    info->mClasses.AppendElement(attrValue.GetAtomValue());
+    info->mClasses.AppendObject(attrValue.GetAtomValue());
   }
 
   info->mCaseTreatment =
