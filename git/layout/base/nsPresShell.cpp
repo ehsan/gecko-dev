@@ -957,8 +957,6 @@ public:
 
   virtual nscolor ComputeBackstopColor(nsIView* aDisplayRoot);
 
-  virtual NS_HIDDEN_(nsresult) SetIsActive(PRBool aIsActive);
-
 protected:
   virtual ~PresShell();
 
@@ -1365,7 +1363,6 @@ public:
 
 protected:
   void QueryIsActive();
-  nsresult UpdateImageLockingState();
 };
 
 class nsAutoCauseReflowNotifier
@@ -1600,7 +1597,6 @@ PresShell::PresShell()
   mSelectionFlags = nsISelectionDisplay::DISPLAY_TEXT | nsISelectionDisplay::DISPLAY_IMAGES;
   mIsThemeSupportDisabled = PR_FALSE;
   mIsActive = PR_TRUE;
-  mFrozen = PR_FALSE;
 #ifdef DEBUG
   mPresArenaAllocCount = 0;
 #endif
@@ -7306,9 +7302,6 @@ PresShell::Freeze()
       presContext->RefreshDriver()->PresContext() == presContext) {
     presContext->RefreshDriver()->Freeze();
   }
-
-  mFrozen = PR_TRUE;
-  UpdateImageLockingState();
 }
 
 void
@@ -7374,10 +7367,6 @@ PresShell::Thaw()
   // Get the activeness of our presshell, as this might have changed
   // while we were in the bfcache
   QueryIsActive();
-
-  // We're now unfrozen
-  mFrozen = PR_FALSE;
-  UpdateImageLockingState();
 }
 
 //--------------------------------------------------------
@@ -9013,22 +9002,4 @@ void PresShell::QueryIsActive()
     if (NS_SUCCEEDED(rv))
       SetIsActive(isActive);
   }
-}
-
-nsresult
-PresShell::SetIsActive(PRBool aIsActive)
-{
-  mIsActive = aIsActive;
-  return UpdateImageLockingState();
-}
-
-/*
- * Determines the current image locking state. Called when one of the
- * dependent factors changes.
- */
-nsresult
-PresShell::UpdateImageLockingState()
-{
-  // We're locked if we're both thawed and active.
-  return mDocument->SetImageLockingState(!mFrozen && mIsActive);
 }
