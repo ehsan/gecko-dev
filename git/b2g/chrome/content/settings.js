@@ -78,12 +78,14 @@ SettingsListener.observe('language.current', 'en-US', function(value) {
   Services.prefs.setCharPref('general.useragent.locale', value);
 
   let prefName = 'intl.accept_languages';
-  let defaultBranch = Services.prefs.getDefaultBranch(null);
+  if (Services.prefs.prefHasUserValue(prefName)) {
+    Services.prefs.clearUserPref(prefName);
+  }
 
   let intl = '';
   try {
-    intl = defaultBranch.getComplexValue(prefName,
-                                         Ci.nsIPrefLocalizedString).data;
+    intl = Services.prefs.getComplexValue(prefName,
+                                          Ci.nsIPrefLocalizedString).data;
   } catch(e) {}
 
   // Bug 830782 - Homescreen is in English instead of selected locale after
@@ -471,13 +473,6 @@ SettingsListener.observe('debugger.remote-mode', false, function(value) {
   AdbController.setRemoteDebuggerState(value != 'disabled');
 #endif
 });
-
-// If debug access to certified apps is allowed, we need to preserve system
-// sources so that they are visible in the debugger.
-let forbidCertified =
-  Services.prefs.getBoolPref('devtools.debugger.forbid-certified-apps');
-Services.prefs.setBoolPref('javascript.options.discardSystemSource',
-                           forbidCertified);
 
 // =================== Device Storage ====================
 SettingsListener.observe('device.storage.writable.name', 'sdcard', function(value) {

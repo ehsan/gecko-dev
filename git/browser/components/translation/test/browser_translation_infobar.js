@@ -6,8 +6,6 @@
 
 Components.utils.import("resource:///modules/translation/Translation.jsm");
 
-const kShowUIPref = "browser.translation.ui.show";
-
 function waitForCondition(condition, nextTest, errorMsg) {
   var tries = 0;
   var interval = setInterval(function() {
@@ -70,7 +68,6 @@ function hasTranslationInfoBar() {
 function test() {
   waitForExplicitFinish();
 
-  Services.prefs.setBoolPref(kShowUIPref, true);
   let tab = gBrowser.addTab();
   gBrowser.selectedTab = tab;
   tab.linkedBrowser.addEventListener("load", function onload() {
@@ -78,7 +75,6 @@ function test() {
     TranslationStub.browser = gBrowser.selectedBrowser;
     registerCleanupFunction(function () {
       gBrowser.removeTab(tab);
-      Services.prefs.clearUserPref(kShowUIPref);
     });
     run_tests(() => {
       finish();
