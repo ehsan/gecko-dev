@@ -113,6 +113,7 @@ endif
 CPPSRCS		= \
 		nsAbsoluteContainingBlock.cpp \
 		nsBRFrame.cpp \
+		nsBlockBandData.cpp \
 		nsBlockFrame.cpp \
 		nsBlockReflowContext.cpp \
 		nsBlockReflowState.cpp \
@@ -120,7 +121,6 @@ CPPSRCS		= \
 		nsColumnSetFrame.cpp \
 		nsContainerFrame.cpp \
 		nsFirstLetterFrame.cpp \
-		nsFloatManager.cpp \
 		nsFrame.cpp \
 		nsFrameFrame.cpp \
 		nsFrameList.cpp \
@@ -144,6 +144,7 @@ CPPSRCS		= \
 		nsPlaceholderFrame.cpp \
 		nsSelection.cpp \
 		nsSimplePageSequence.cpp \
+		nsSpaceManager.cpp \
 		nsSpacerFrame.cpp \
 		nsSplittableFrame.cpp \
 		nsTextFrameThebes.cpp \

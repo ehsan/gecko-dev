@@ -42,10 +42,11 @@
 #include "nsQuickSort.h"
 
 #include <winuser.h>
-
 #ifndef WINABLEAPI
 #include <winable.h>
 #endif
+
+#ifndef WINCE
 
 struct DeadKeyEntry
 {
@@ -204,32 +205,48 @@ PRUint32 VirtualKey::GetNativeUniChars (PRUint8 aShiftState, PRUnichar* aUniChar
     return cnt;
   }
 }
+#endif
+
+
 
 KeyboardLayout::KeyboardLayout () :
   mKeyboardLayout(0), mCodePage(0)
 {
+#ifndef WINCE
   mDeadKeyTableListHead = nsnull;
+#endif
 
   LoadLayout (::GetKeyboardLayout(0));
 }
 
 KeyboardLayout::~KeyboardLayout ()
 {
+#ifndef WINCE
   ReleaseDeadKeyTables ();
+#endif
 }
 
 PRBool KeyboardLayout::IsPrintableCharKey (PRUint8 aVirtualKey)
 {
+#ifndef WINCE
   return GetKeyIndex (aVirtualKey) >= 0;
+#else
+  return PR_FALSE;
+#endif
 }
 
 PRBool KeyboardLayout::IsNumpadKey (PRUint8 aVirtualKey)
 {
+#ifndef WINCE
   return VK_NUMPAD0 <= aVirtualKey && aVirtualKey <= VK_DIVIDE;
+#else
+  return PR_FALSE;
+#endif
 }
 
 void KeyboardLayout::OnKeyDown (PRUint8 aVirtualKey)
 {
+#ifndef WINCE
   mLastVirtualKeyIndex = GetKeyIndex (aVirtualKey);
 
   if (mLastVirtualKeyIndex < 0)
@@ -302,16 +319,21 @@ void KeyboardLayout::OnKeyDown (PRUint8 aVirtualKey)
       }
     }
   }
+#endif
 }
 
 PRUint32 KeyboardLayout::GetUniChars (PRUnichar* aUniChars, PRUint8* aShiftStates, PRUint32 aMaxChars) const
 {
+#ifndef WINCE
   PRUint32 chars = PR_MIN (mNumOfChars, aMaxChars);
 
   memcpy (aUniChars, mChars, chars * sizeof (PRUnichar));
   memcpy (aShiftStates, mShiftStates, chars);
 
   return chars;
+#else
+  return 0;
+#endif
 }
 
 PRUint32
@@ -320,6 +342,7 @@ KeyboardLayout::GetUniCharsWithShiftState(PRUint8 aVirtualKey,
                                           PRUnichar* aUniChars,
                                           PRUint32 aMaxChars) const
 {
+#ifndef WINCE
   PRInt32 key = GetKeyIndex(aVirtualKey);
   if (key < 0)
     return 0;
@@ -332,6 +355,9 @@ KeyboardLayout::GetUniCharsWithShiftState(PRUint8 aVirtualKey,
   memcpy(aUniChars, uniChars, chars * sizeof (PRUnichar));
 
   return chars;
+#else
+  return 0;
+#endif
 }
 
 void KeyboardLayout::LoadLayout (HKL aLayout)
@@ -342,6 +368,7 @@ void KeyboardLayout::LoadLayout (HKL aLayout)
   mKeyboardLayout = aLayout;
   mIMEProperty = ::ImmGetProperty(aLayout, IGP_PROPERTY);
 
+#ifndef WINCE
   WORD langID = LOWORD(aLayout);
   ::GetLocaleInfoA(MAKELCID(langID, SORT_DEFAULT),
                    LOCALE_IDEFAULTANSICODEPAGE | LOCALE_RETURN_NUMBER,
@@ -436,9 +463,13 @@ void KeyboardLayout::LoadLayout (HKL aLayout)
   }
 
   ::SetKeyboardState (originalKbdState);
+#else
+  mCodePage = ::GetACP();
+#endif
 }
 
 
+#ifndef WINCE
 PRUint8 KeyboardLayout::GetShiftState (const PBYTE aKbdState)
 {
   PRBool isShift = (aKbdState [VK_SHIFT] & 0x80) != 0;
@@ -707,3 +738,5 @@ PRUnichar DeadKeyTable::GetCompositeChar (PRUnichar aBaseChar) const
 
   return 0;
 }
+
+#endif

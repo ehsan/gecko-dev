@@ -40,6 +40,7 @@
 
 #ifdef MOZ_PLATFORM_HILDON
 #define MAEMO_CHANGES
+#include <gtk/gtkimcontext.h>
 #endif
 
 #include "prlink.h"
@@ -60,7 +61,7 @@
 #include "nsGtkKeyUtils.h"
 #include "nsGtkCursors.h"
 
-#include <gtk/gtk.h>
+#include <gtk/gtkwindow.h>
 #ifdef MOZ_X11
 #include <gdk/gdkx.h>
 #include <X11/XF86keysym.h>

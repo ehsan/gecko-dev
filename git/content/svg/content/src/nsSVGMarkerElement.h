@@ -43,7 +43,6 @@
 #include "nsSVGLength2.h"
 #include "nsSVGEnum.h"
 #include "nsSVGAngle.h"
-#include "nsSVGPreserveAspectRatio.h"
 
 class nsSVGOrientType
 {
@@ -131,7 +130,6 @@ public:
 
   // nsSVGElement specializations:
   virtual void DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr);
-  virtual void DidChangePreserveAspectRatio(PRBool aDoSetAttr);
 
   // public helpers
   nsresult GetMarkerTransform(float aStrokeWidth,
@@ -152,7 +150,6 @@ protected:
   virtual LengthAttributesInfo GetLengthInfo();
   virtual AngleAttributesInfo GetAngleInfo();
   virtual EnumAttributesInfo GetEnumInfo();
-  virtual nsSVGPreserveAspectRatio *GetPreserveAspectRatio();
 
   enum { REFX, REFY, MARKERWIDTH, MARKERHEIGHT };
   nsSVGLength2 mLengthAttributes[4];
@@ -167,13 +164,12 @@ protected:
   nsSVGAngle mAngleAttributes[1];
   static AngleInfo sAngleInfo[1];
 
-  nsSVGPreserveAspectRatio mPreserveAspectRatio;
-
   // derived properties (from 'orient') handled separately
   nsSVGOrientType                        mOrientType;
 
   nsSVGSVGElement                       *mCoordCtx;
   nsCOMPtr<nsIDOMSVGAnimatedRect>        mViewBox;
+  nsCOMPtr<nsIDOMSVGAnimatedPreserveAspectRatio> mPreserveAspectRatio;
   nsCOMPtr<nsIDOMSVGMatrix>         mViewBoxToViewportTransform;
 };
 

@@ -4682,13 +4682,13 @@ nsGlobalWindow::ClearInterval()
 }
 
 NS_IMETHODIMP
-nsGlobalWindow::SetTimeout(PRInt32 *_retval)
+nsGlobalWindow::SetTimeout(PRBool *_retval)
 {
   return SetTimeoutOrInterval(PR_FALSE, _retval);
 }
 
 NS_IMETHODIMP
-nsGlobalWindow::SetInterval(PRInt32 *_retval)
+nsGlobalWindow::SetInterval(PRBool *_retval)
 {
   return SetTimeoutOrInterval(PR_TRUE, _retval);
 }

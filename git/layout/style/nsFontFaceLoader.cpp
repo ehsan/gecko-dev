@@ -126,14 +126,9 @@ nsFontFaceLoader::OnStreamComplete(nsIStreamLoader* aLoader,
   }
 
   // whether an error occurred or not, notify the user font set of the completion
-  gfxUserFontSet *userFontSet = ctx->GetUserFontSet();
-  if (!userFontSet) {
-    return aStatus;
-  }
-  
-  fontUpdate = userFontSet->OnLoadComplete(mFontEntry, aLoader,
-                                           aString, aStringLen,
-                                           aStatus);
+  fontUpdate = ctx->GetUserFontSet()->OnLoadComplete(mFontEntry, aLoader,
+                                                     aString, aStringLen,
+                                                     aStatus);
 
   // when new font loaded, need to reflow
   if (fontUpdate) {

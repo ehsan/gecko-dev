@@ -932,9 +932,8 @@ GetStr(SprintStack *ss, uintN i)
  * JSOP_SETPROP, and JSOP_SETELEM, respectively.  They are never stored in
  * bytecode, so they don't preempt valid opcodes.
  */
-#define JSOP_GETPROP2   JSOP_LIMIT
-#define JSOP_GETELEM2   JSOP_LIMIT + 1
-JS_STATIC_ASSERT(JSOP_GETELEM2 <= 255);
+#define JSOP_GETPROP2   256
+#define JSOP_GETELEM2   257
 
 static void
 AddParenSlop(SprintStack *ss)

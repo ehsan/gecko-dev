@@ -938,7 +938,7 @@ nsEditor::EndPlaceHolderTransaction()
   if (mPlaceHolderBatch == 1)
   {
     nsCOMPtr<nsISelection>selection;
-    GetSelection(getter_AddRefs(selection));
+    nsresult rv = GetSelection(getter_AddRefs(selection));
 
     nsCOMPtr<nsISelectionPrivate>selPrivate(do_QueryInterface(selection));
 

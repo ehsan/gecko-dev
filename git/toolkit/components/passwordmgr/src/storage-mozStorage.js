@@ -139,6 +139,8 @@ LoginManagerStorage_mozStorage.prototype = {
     _signonsFile  : null,  // nsIFile for "signons.sqlite"
     _importFile   : null,  // nsIFile for import from legacy
     _debug        : false, // mirrors signon.debug
+    _initialized  : false, // have we initialized properly (for import failure)
+    _initializing : false, // prevent concurrent initializations
 
 
     /*
@@ -199,7 +201,27 @@ LoginManagerStorage_mozStorage.prototype = {
             token.initPassword("");
         }
 
+        // Most of the real work is done in _deferredInit, which will get
+        // called upon first use of storage
+    },
+
+
+    /*
+     * _deferredInit
+     *
+     * Tries to initialize the module. Adds protection layer so initialization
+     * from different places will not conflict.  Also, ensures that we will try
+     * to import again if import failed, specifically on cancellation of master
+     * password.
+     */
+    _deferredInit : function () {
         let isFirstRun;
+        // Check that we are not already in an initializing state
+        if (this._initializing)
+            throw "Already initializing";
+
+        // Mark that we are initializing
+        this._initializing = true;
         try {
             // If initWithFile is calling us, _signonsFile may already be set.
             if (!this._signonsFile) {
@@ -226,6 +248,24 @@ LoginManagerStorage_mozStorage.prototype = {
             if (isFirstRun && e == "Import failed")
                 this._dbCleanup(false);
             throw "Initialization failed";
+        } finally {
+            this._initializing = false;
+        }
+    },
+
+
+    /*
+     * _checkInitializationState
+     *
+     * This snippet is needed in all the public methods. It's essentially only
+     * needed when we try to import a legacy file and the user refuses to enter
+     * the master password. We don't want to start saving new info if there is
+     * old info to import. Throws if attempt to initialize fails.
+     */
+    _checkInitializationState : function () {
+        if (!this._initialized) {
+            this.log("Trying to initialize.");
+            this._deferredInit();
         }
     },
 
@@ -235,7 +275,8 @@ LoginManagerStorage_mozStorage.prototype = {
      *
      */
     addLogin : function (login) {
-        this._addLogin(login, false);
+        this._checkInitializationState();
+        this._addLogin(login);
     },
 
 
@@ -244,20 +285,14 @@ LoginManagerStorage_mozStorage.prototype = {
      *
      * Private function wrapping core addLogin functionality.
      */
-    _addLogin : function (login, isEncrypted) {
-        let userCanceled, encUsername, encPassword;
-
+    _addLogin : function (login) {
         // Throws if there are bogus values.
         this._checkLoginValues(login);
 
-        if (isEncrypted) {
-            [encUsername, encPassword] = [login.username, login.password];
-        } else {
-            // Get the encrypted value of the username and password.
-            [encUsername, encPassword, userCanceled] = this._encryptLogin(login);
-            if (userCanceled)
-                throw "User canceled master password entry, login not added.";
-        }
+        // Get the encrypted value of the username and password.
+        let [encUsername, encPassword, userCanceled] = this._encryptLogin(login);
+        if (userCanceled)
+            throw "User canceled master password entry, login not added.";
 
         let query =
             "INSERT INTO moz_logins " +
@@ -294,6 +329,8 @@ LoginManagerStorage_mozStorage.prototype = {
      *
      */
     removeLogin : function (login) {
+        this._checkInitializationState();
+
         let idToDelete = this._getIdForLogin(login);
         if (!idToDelete)
             throw "No matching logins";
@@ -319,6 +356,8 @@ LoginManagerStorage_mozStorage.prototype = {
      *
      */
     modifyLogin : function (oldLogin, newLogin) {
+        this._checkInitializationState();
+
         // Throws if there are bogus values.
         this._checkLoginValues(newLogin);
 
@@ -372,6 +411,8 @@ LoginManagerStorage_mozStorage.prototype = {
      * Returns an array of nsAccountInfo.
      */
     getAllLogins : function (count) {
+        this._checkInitializationState();
+
         let userCanceled;
         let [logins, ids] = this._queryLogins("", "", "");
 
@@ -393,6 +434,8 @@ LoginManagerStorage_mozStorage.prototype = {
      * Removes all logins from storage.
      */
     removeAllLogins : function () {
+        this._checkInitializationState();
+
         this.log("Removing all logins");
         // Delete any old, unused files.
         this._removeOldSignonsFiles();
@@ -417,6 +460,8 @@ LoginManagerStorage_mozStorage.prototype = {
      *
      */
     getAllDisabledHosts : function (count) {
+        this._checkInitializationState();
+
         let disabledHosts = this._queryDisabledHosts(null);
 
         this.log("_getAllDisabledHosts: returning " + disabledHosts.length + " disabled hosts.");
@@ -430,6 +475,8 @@ LoginManagerStorage_mozStorage.prototype = {
      *
      */
     getLoginSavingEnabled : function (hostname) {
+        this._checkInitializationState();
+
         this.log("Getting login saving is enabled for " + hostname);
         return this._queryDisabledHosts(hostname).length == 0
     },
@@ -440,6 +487,7 @@ LoginManagerStorage_mozStorage.prototype = {
      *
      */
     setLoginSavingEnabled : function (hostname, enabled) {
+        this._checkInitializationState();
         this._setLoginSavingEnabled(hostname, enabled);
     },
 
@@ -481,6 +529,8 @@ LoginManagerStorage_mozStorage.prototype = {
      *
      */
     findLogins : function (count, hostname, formSubmitURL, httpRealm) {
+        this._checkInitializationState();
+
         let userCanceled;
         let [logins, ids] =
             this._queryLogins(hostname, formSubmitURL, httpRealm);
@@ -505,6 +555,8 @@ LoginManagerStorage_mozStorage.prototype = {
      *
      */
     countLogins : function (hostname, formSubmitURL, httpRealm) {
+        this._checkInitializationState();
+
         // Do checks for null and empty strings, adjust conditions and params
         let [conditions, params] =
             this._buildConditionsAndParams(hostname, formSubmitURL, httpRealm);
@@ -761,9 +813,9 @@ LoginManagerStorage_mozStorage.prototype = {
                 legacy.init();
 
             // Import logins and disabledHosts
-            let logins = legacy.getAllEncryptedLogins({});
+            let logins = legacy.getAllLogins({});
             for each (let login in logins)
-                this._addLogin(login, true);
+                this._addLogin(login);
             let disabledHosts = legacy.getAllDisabledHosts({});
             for each (let hostname in disabledHosts)
                 this._setLoginSavingEnabled(hostname, false);
@@ -854,7 +906,7 @@ LoginManagerStorage_mozStorage.prototype = {
                 break;
 
             // If decryption failed (corrupt entry?) skip it.
-            // Note that we allow password-only logins, so username can be "".
+            // Note that we allow password-only logins, so username con be "".
             if (decryptedUsername == null || !decryptedPassword)
                 continue;
 
@@ -919,15 +971,7 @@ LoginManagerStorage_mozStorage.prototype = {
         let plainText = null, userCanceled = false;
 
         try {
-            let plainOctet;
-            if (cipherText.charAt(0) == '~') {
-                // The old Wallet file format obscured entries by
-                // base64-encoding them. These entries are signaled by a
-                // leading '~' character.
-                plainOctet = atob(cipherText.substring(1));
-            } else {
-                plainOctet = this._decoderRing.decryptString(cipherText);
-            }
+            let plainOctet = this._decoderRing.decryptString(cipherText);
             plainText = this._utfConverter.ConvertToUnicode(plainOctet);
         } catch (e) {
             this.log("Failed to decrypt string: " + cipherText +

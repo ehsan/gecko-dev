@@ -35,7 +35,14 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include <gtk/gtk.h>
+#include <gtk/gtkwindow.h>
+#include <gtk/gtkdialog.h>
+#include <gtk/gtkstock.h>
+#include <gtk/gtkmessagedialog.h>
+#include <gtk/gtkimage.h>
+#include <gtk/gtkfilechooser.h>
+#include <gtk/gtkfilechooserdialog.h>
+#include <gtk/gtkmisc.h>
 
 #include "nsIFileURL.h"
 #include "nsIURI.h"

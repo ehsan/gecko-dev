@@ -57,57 +57,63 @@
 #include "nsIWindowMediatorListener.h"
 #include "nsXPIDLString.h"
 
+// Interfaces Needed
 #include "nsIDocShell.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIXULWindow.h"
 
-static nsresult GetDOMWindow(nsIXULWindow* inWindow,
-                             nsCOMPtr< nsIDOMWindowInternal>& outDOMWindow);
+
+static nsresult GetDOMWindow( nsIXULWindow* inWindow,
+                  nsCOMPtr< nsIDOMWindowInternal>& outDOMWindow);
 
 static PRBool notifyOpenWindow(nsISupports *aElement, void* aData);
 static PRBool notifyCloseWindow(nsISupports *aElement, void* aData);
 static PRBool notifyWindowTitleChange(nsISupports *aElement, void* aData);
 
 // for notifyWindowTitleChange
-struct WindowTitleData {
+struct windowData {
   nsIXULWindow* mWindow;
   const PRUnichar *mTitle;
 };
 
+
 nsresult
-GetDOMWindow(nsIXULWindow* inWindow, nsCOMPtr<nsIDOMWindowInternal>& outDOMWindow)
+GetDOMWindow( nsIXULWindow* inWindow, nsCOMPtr< nsIDOMWindowInternal>& outDOMWindow)
 {
   nsCOMPtr<nsIDocShell> docShell;
 
   inWindow->GetDocShell(getter_AddRefs(docShell));
-  outDOMWindow = do_GetInterface(docShell);
-  return outDOMWindow ? NS_OK : NS_ERROR_FAILURE;
+   outDOMWindow = do_GetInterface(docShell);
+   return outDOMWindow ? NS_OK : NS_ERROR_FAILURE;
 }
 
+PRInt32   nsWindowMediator::gRefCnt = 0;
+
 nsWindowMediator::nsWindowMediator() :
-  mEnumeratorList(), mOldestWindow(nsnull), mTopmostWindow(nsnull),
-  mTimeStamp(0), mSortingZOrder(PR_FALSE), mListLock(nsnull)
+  mEnumeratorList(), mOldestWindow(0), mTopmostWindow(0),
+  mTimeStamp(0), mSortingZOrder(PR_FALSE), mListLock(0)
 {
+   // This should really be done in the static constructor fn.
+   nsresult rv;
+   rv = Init();
+   NS_ASSERTION(NS_SUCCEEDED(rv), "uh oh, couldn't Init() for some reason");
 }
 
 nsWindowMediator::~nsWindowMediator()
 {
-  while (mOldestWindow)
-    UnregisterWindow(mOldestWindow);
-  
-  if (mListLock)
-    PR_DestroyLock(mListLock);
+  if (--gRefCnt == 0) {
+
+    // Delete data
+    while (mOldestWindow)
+      UnregisterWindow(mOldestWindow);
+
+    if (mListLock)
+      PR_DestroyLock(mListLock);
+  }
 }
 
-nsresult nsWindowMediator::Init()
-{
-  mListLock = PR_NewLock();
-  if (!mListLock)
-    return NS_ERROR_OUT_OF_MEMORY;
 
-  return NS_OK;
-}
 
 NS_IMETHODIMP nsWindowMediator::RegisterWindow(nsIXULWindow* inWindow)
 {
@@ -119,23 +125,25 @@ NS_IMETHODIMP nsWindowMediator::RegisterWindow(nsIXULWindow* inWindow)
   mTimeStamp++;
 
   // Create window info struct and add to list of windows
-  nsWindowInfo* windowInfo = new nsWindowInfo(inWindow, mTimeStamp);
-  if (!windowInfo)
+  nsWindowInfo* windowInfo = new nsWindowInfo (inWindow, mTimeStamp);
+  if (windowInfo == NULL)
     return NS_ERROR_OUT_OF_MEMORY;
 
   if (mListeners) {
-    WindowTitleData winData = { inWindow, nsnull };
+    windowData winData = { inWindow, nsnull };
     mListeners->EnumerateForwards(notifyOpenWindow, (void*)&winData);
   }
   
   nsAutoLock lock(mListLock);
   if (mOldestWindow)
-    windowInfo->InsertAfter(mOldestWindow->mOlder, nsnull);
+    windowInfo->InsertAfter(mOldestWindow->mOlder, 0);
   else
     mOldestWindow = windowInfo;
 
   return NS_OK;
 }
+
+
 
 NS_IMETHODIMP
 nsWindowMediator::UnregisterWindow(nsIXULWindow* inWindow)
@@ -147,7 +155,9 @@ nsWindowMediator::UnregisterWindow(nsIXULWindow* inWindow)
   return NS_ERROR_INVALID_ARG;
 }
 
-nsresult
+
+
+NS_IMETHODIMP
 nsWindowMediator::UnregisterWindow(nsWindowInfo *inInfo)
 {
   // Inform the iterators
@@ -156,7 +166,7 @@ nsWindowMediator::UnregisterWindow(nsWindowInfo *inInfo)
     ((nsAppShellWindowEnumerator*)mEnumeratorList[index])->WindowRemoved(inInfo);
   
   if (mListeners) {
-    WindowTitleData winData = { inInfo->mWindow.get(), nsnull };
+    windowData winData = {inInfo->mWindow.get(), nsnull };
     mListeners->EnumerateForwards(notifyCloseWindow, (void*)&winData);
   }
 
@@ -167,45 +177,45 @@ nsWindowMediator::UnregisterWindow(nsWindowInfo *inInfo)
     mTopmostWindow = inInfo->mLower;
   inInfo->Unlink(PR_TRUE, PR_TRUE);
   if (inInfo == mOldestWindow)
-    mOldestWindow = nsnull;
+    mOldestWindow = 0;
   if (inInfo == mTopmostWindow)
-    mTopmostWindow = nsnull;
+    mTopmostWindow = 0;
   delete inInfo;  
 
   return NS_OK;
 }
 
-nsWindowInfo*
+nsWindowInfo *
 nsWindowMediator::GetInfoFor(nsIXULWindow *aWindow)
 {
   nsWindowInfo *info,
                *listEnd;
 
   if (!aWindow)
-    return nsnull;
+    return 0;
 
   info = mOldestWindow;
-  listEnd = nsnull;
+  listEnd = 0;
   while (info != listEnd) {
     if (info->mWindow.get() == aWindow)
       return info;
     info = info->mYounger;
     listEnd = mOldestWindow;
   }
-  return nsnull;
+  return 0;
 }
 
-nsWindowInfo*
+nsWindowInfo *
 nsWindowMediator::GetInfoFor(nsIWidget *aWindow)
 {
   nsWindowInfo *info,
                *listEnd;
 
   if (!aWindow)
-    return nsnull;
+    return 0;
 
   info = mOldestWindow;
-  listEnd = nsnull;
+  listEnd = 0;
 
   nsCOMPtr<nsIWidget> scanWidget;
   while (info != listEnd) {
@@ -217,13 +227,13 @@ nsWindowMediator::GetInfoFor(nsIWidget *aWindow)
     info = info->mYounger;
     listEnd = mOldestWindow;
   }
-  return nsnull;
+  return 0;
 }
 
-NS_IMETHODIMP
-nsWindowMediator::GetEnumerator(const PRUnichar* inType, nsISimpleEnumerator** outEnumerator)
+NS_METHOD
+nsWindowMediator::GetEnumerator( const PRUnichar* inType, nsISimpleEnumerator** outEnumerator)
 {
-  if (!outEnumerator)
+  if (outEnumerator == NULL)
     return NS_ERROR_INVALID_ARG;
 
   nsAutoLock lock(mListLock);
@@ -234,21 +244,25 @@ nsWindowMediator::GetEnumerator(const PRUnichar* inType, nsISimpleEnumerator** o
   return NS_ERROR_OUT_OF_MEMORY;
 }
 
-NS_IMETHODIMP
+
+
+NS_METHOD
 nsWindowMediator::GetXULWindowEnumerator(const PRUnichar* inType, nsISimpleEnumerator** outEnumerator)
 {
-  if (!outEnumerator)
+  if (outEnumerator == NULL)
     return NS_ERROR_INVALID_ARG;
 
   nsAutoLock lock(mListLock);
   nsAppShellWindowEnumerator *enumerator = new nsASXULWindowEarlyToLateEnumerator(inType, *this);
   if (enumerator)
-    return enumerator->QueryInterface(NS_GET_IID(nsISimpleEnumerator) , (void**)outEnumerator);
+    return enumerator->QueryInterface( NS_GET_IID(nsISimpleEnumerator) , (void**)outEnumerator);
 
   return NS_ERROR_OUT_OF_MEMORY;
-}
+} 
 
-NS_IMETHODIMP
+
+
+NS_METHOD
 nsWindowMediator::GetZOrderDOMWindowEnumerator(
             const PRUnichar *aWindowType, PRBool aFrontToBack,
             nsISimpleEnumerator **_retval)
@@ -263,12 +277,14 @@ nsWindowMediator::GetZOrderDOMWindowEnumerator(
   else
     enumerator = new nsASDOMWindowBackToFrontEnumerator(aWindowType, *this);
   if (enumerator)
-    return CallQueryInterface(enumerator, _retval);
+    return enumerator->QueryInterface(NS_GET_IID(nsISimpleEnumerator), (void**) _retval);
 
   return NS_ERROR_OUT_OF_MEMORY;
 }
 
-NS_IMETHODIMP
+
+
+NS_METHOD
 nsWindowMediator::GetZOrderXULWindowEnumerator(
             const PRUnichar *aWindowType, PRBool aFrontToBack,
             nsISimpleEnumerator **_retval)
@@ -283,10 +299,12 @@ nsWindowMediator::GetZOrderXULWindowEnumerator(
   else
     enumerator = new nsASXULWindowBackToFrontEnumerator(aWindowType, *this);
   if (enumerator)
-    return CallQueryInterface(enumerator, _retval);
+    return enumerator->QueryInterface(NS_GET_IID(nsISimpleEnumerator), (void**) _retval);
 
   return NS_ERROR_OUT_OF_MEMORY;
 }
+
+
 
 PRInt32
 nsWindowMediator::AddEnumerator(nsAppShellWindowEnumerator * inEnumerator)
@@ -294,19 +312,25 @@ nsWindowMediator::AddEnumerator(nsAppShellWindowEnumerator * inEnumerator)
   return mEnumeratorList.AppendElement(inEnumerator);
 }
 
+
+
 PRInt32
-nsWindowMediator::RemoveEnumerator(nsAppShellWindowEnumerator * inEnumerator)
+nsWindowMediator::RemoveEnumerator( nsAppShellWindowEnumerator * inEnumerator)
 {
   return mEnumeratorList.RemoveElement(inEnumerator);
 }
 
-// Returns the window of type inType ( if null return any window type ) which has the most recent
-// time stamp
+
+
+/*
+  Returns the window of type inType ( if null return any window type ) which has the most recent
+  time stamp
+*/
 NS_IMETHODIMP
-nsWindowMediator::GetMostRecentWindow(const PRUnichar* inType, nsIDOMWindowInternal** outWindow)
+nsWindowMediator::GetMostRecentWindow( const PRUnichar* inType, nsIDOMWindowInternal** outWindow)
 {
   NS_ENSURE_ARG_POINTER(outWindow);
-  *outWindow = nsnull;
+  *outWindow = NULL;
 
   // Find the most window with the highest time stamp that matches
   // the requested type
@@ -315,8 +339,8 @@ nsWindowMediator::GetMostRecentWindow(const PRUnichar* inType, nsIDOMWindowInter
   nsWindowInfo *info = MostRecentWindowInfo(inType);
 
   if (info && info->mWindow) {
-    nsCOMPtr<nsIDOMWindowInternal> DOMWindow;
-    if (NS_SUCCEEDED(GetDOMWindow(info->mWindow, DOMWindow))) {  
+    nsCOMPtr <nsIDOMWindowInternal> DOMWindow;
+    if(NS_SUCCEEDED(GetDOMWindow(info->mWindow, DOMWindow))) {  
       *outWindow = DOMWindow;
       NS_ADDREF(*outWindow);
       return NS_OK;
@@ -327,7 +351,9 @@ nsWindowMediator::GetMostRecentWindow(const PRUnichar* inType, nsIDOMWindowInter
   return NS_OK;
 }
 
-nsWindowInfo*
+
+
+nsWindowInfo *
 nsWindowMediator::MostRecentWindowInfo(const PRUnichar* inType)
 {
   PRInt32       lastTimeStamp = -1;
@@ -338,10 +364,10 @@ nsWindowMediator::MostRecentWindowInfo(const PRUnichar* inType)
   // the requested type
   nsWindowInfo *searchInfo,
                *listEnd,
-               *foundInfo = nsnull;
+               *foundInfo = 0;
 
   searchInfo = mOldestWindow;
-  listEnd = nsnull;
+  listEnd = 0;
   while (searchInfo != listEnd) {
     if ((allWindows || searchInfo->TypeEquals(typeString)) &&
         searchInfo->mTimeStamp >= lastTimeStamp) {
@@ -355,8 +381,10 @@ nsWindowMediator::MostRecentWindowInfo(const PRUnichar* inType)
   return foundInfo;
 }
 
+
+
 NS_IMETHODIMP
-nsWindowMediator::UpdateWindowTimeStamp(nsIXULWindow* inWindow)
+nsWindowMediator::UpdateWindowTimeStamp( nsIXULWindow* inWindow)
 {
   nsAutoLock lock(mListLock);
   nsWindowInfo *info = GetInfoFor(inWindow);
@@ -368,18 +396,22 @@ nsWindowMediator::UpdateWindowTimeStamp(nsIXULWindow* inWindow)
   return NS_ERROR_FAILURE; 
 }
 
+
+
 NS_IMETHODIMP
-nsWindowMediator::UpdateWindowTitle(nsIXULWindow* inWindow,
-                                    const PRUnichar* inTitle)
+nsWindowMediator::UpdateWindowTitle( nsIXULWindow* inWindow,
+                                     const PRUnichar* inTitle )
 {
   nsAutoLock lock(mListLock);
   if (mListeners && GetInfoFor(inWindow)) {
-    WindowTitleData winData = { inWindow, inTitle };
-    mListeners->EnumerateForwards(notifyWindowTitleChange, (void*)&winData);
+    windowData winData = { inWindow, inTitle };
+    mListeners->EnumerateForwards(notifyWindowTitleChange, (void *)&winData);
   }
 
   return NS_OK;
 }
+
+
 
 /* This method's plan is to intervene only when absolutely necessary.
    We will get requests to place our windows behind unknown windows.
@@ -394,12 +426,12 @@ nsWindowMediator::CalculateZPosition(
                 nsIWidget      *inBelow,
                 PRUint32       *outPosition,
                 nsIWidget     **outBelow,
-                PRBool         *outAltered)
-{
+                PRBool         *outAltered) {
+
   if (!outBelow)
     return NS_ERROR_NULL_POINTER;
 
-  *outBelow = nsnull;
+  *outBelow = 0;
 
   if (!inWindow || !outPosition || !outAltered)
     return NS_ERROR_NULL_POINTER;
@@ -407,13 +439,14 @@ nsWindowMediator::CalculateZPosition(
   if (inPosition != nsIWindowMediator::zLevelTop &&
       inPosition != nsIWindowMediator::zLevelBottom &&
       inPosition != nsIWindowMediator::zLevelBelow)
+
     return NS_ERROR_INVALID_ARG;
 
   nsWindowInfo *info = mTopmostWindow;
-  nsIXULWindow *belowWindow = nsnull;
+  nsIXULWindow *belowWindow = 0;
   PRBool        found = PR_FALSE;
   nsresult      result = NS_OK;
-
+  
   *outPosition = inPosition;
   *outAltered = PR_FALSE;
 
@@ -429,6 +462,7 @@ nsWindowMediator::CalculateZPosition(
   nsAutoLock lock(mListLock);
 
   if (inPosition == nsIWindowMediator::zLevelBelow) {
+
     // locate inBelow. use topmost if it can't be found or isn't in the
     // z-order list
     info = GetInfoFor(inBelow);
@@ -449,6 +483,7 @@ nsWindowMediator::CalculateZPosition(
 
   if (inPosition == nsIWindowMediator::zLevelTop) {
     if (mTopmostWindow && mTopmostWindow->mZLevel > inZ) {
+
       // asked for topmost, can't have it. locate highest allowed position.
       do {
         if (info->mZLevel <= inZ)
@@ -459,9 +494,11 @@ nsWindowMediator::CalculateZPosition(
       *outPosition = nsIWindowMediator::zLevelBelow;
       belowWindow = info->mHigher->mWindow;
       *outAltered = PR_TRUE;
+
     }
   } else if (inPosition == nsIWindowMediator::zLevelBottom) {
     if (mTopmostWindow && mTopmostWindow->mHigher->mZLevel < inZ) {
+
       // asked for bottommost, can't have it. locate lowest allowed position.
       do {
         info = info->mHigher;
@@ -474,6 +511,7 @@ nsWindowMediator::CalculateZPosition(
       *outAltered = PR_TRUE;
     }
   } else {
+
     unsigned long relativeZ;
 
     // check that we're in the right z-plane
@@ -481,8 +519,10 @@ nsWindowMediator::CalculateZPosition(
       belowWindow = info->mWindow;
       relativeZ = info->mZLevel;
       if (relativeZ > inZ) {
+
         // might be OK. is lower window, if any, lower?
         if (info->mLower != info && info->mLower->mZLevel > inZ) {
+
           do {
             if (info->mZLevel <= inZ)
               break;
@@ -493,6 +533,7 @@ nsWindowMediator::CalculateZPosition(
           *outAltered = PR_TRUE;
         }
       } else if (relativeZ < inZ) {
+
         // nope. look for a higher window to be behind.
         do {
           info = info->mHigher;
@@ -505,6 +546,7 @@ nsWindowMediator::CalculateZPosition(
         else
           *outPosition = nsIWindowMediator::zLevelTop;
         *outAltered = PR_TRUE;
+
       } // else they're equal, so it's OK
     }
   }
@@ -520,21 +562,26 @@ nsWindowMediator::CalculateZPosition(
   return result;
 }
 
+
+
 NS_IMETHODIMP
 nsWindowMediator::SetZPosition(
                 nsIXULWindow *inWindow,
                 PRUint32      inPosition,
-                nsIXULWindow *inBelow)
-{
+                nsIXULWindow *inBelow) {
+
   nsWindowInfo *inInfo,
                *belowInfo;
 
   if (inPosition != nsIWindowMediator::zLevelTop &&
       inPosition != nsIWindowMediator::zLevelBottom &&
       inPosition != nsIWindowMediator::zLevelBelow ||
-      !inWindow) {
+
+      !inWindow)
+
+//    inPosition == nsIWindowMediator::zLevelBelow && !inBelow)
+
     return NS_ERROR_INVALID_ARG;
-  }
 
   if (mSortingZOrder) // don't fight SortZOrder()
     return NS_OK;
@@ -554,23 +601,21 @@ nsWindowMediator::SetZPosition(
     belowInfo = GetInfoFor(inBelow);
     // it had better also be in the z-order list
     if (belowInfo &&
-        belowInfo->mYounger != belowInfo && belowInfo->mLower == belowInfo) {
-      belowInfo = nsnull;
-    }
-    if (!belowInfo) {
+        belowInfo->mYounger != belowInfo && belowInfo->mLower == belowInfo)
+      belowInfo = 0;
+    if (!belowInfo)
       if (inBelow)
         return NS_ERROR_INVALID_ARG;
       else
         inPosition = nsIWindowMediator::zLevelTop;
-    }
   }
   if (inPosition == nsIWindowMediator::zLevelTop ||
       inPosition == nsIWindowMediator::zLevelBottom)
-    belowInfo = mTopmostWindow ? mTopmostWindow->mHigher : nsnull;
+    belowInfo = mTopmostWindow ? mTopmostWindow->mHigher : 0;
 
   if (inInfo != belowInfo) {
     inInfo->Unlink(PR_FALSE, PR_TRUE);
-    inInfo->InsertAfter(nsnull, belowInfo);
+    inInfo->InsertAfter(0, belowInfo);
   }
   if (inPosition == nsIWindowMediator::zLevelTop)
     mTopmostWindow = inInfo;
@@ -579,14 +624,14 @@ nsWindowMediator::SetZPosition(
 }
 
 NS_IMETHODIMP
-nsWindowMediator::GetZLevel(nsIXULWindow *aWindow, PRUint32 *_retval)
-{
+nsWindowMediator::GetZLevel(nsIXULWindow *aWindow, PRUint32 *_retval) {
+
   NS_ENSURE_ARG_POINTER(_retval);
   *_retval = nsIXULWindow::normalZ;
   nsWindowInfo *info = GetInfoFor(aWindow);
-  if (info) {
+  if (info)
     *_retval = info->mZLevel;
-  } else {
+  else {
     NS_WARNING("getting z level of unregistered window");
     // this goes off during window destruction
   }
@@ -594,8 +639,8 @@ nsWindowMediator::GetZLevel(nsIXULWindow *aWindow, PRUint32 *_retval)
 }
 
 NS_IMETHODIMP
-nsWindowMediator::SetZLevel(nsIXULWindow *aWindow, PRUint32 aZLevel)
-{
+nsWindowMediator::SetZLevel(nsIXULWindow *aWindow, PRUint32 aZLevel) {
+
   nsAutoLock lock(mListLock);
 
   nsWindowInfo *info = GetInfoFor(aWindow);
@@ -627,8 +672,8 @@ nsWindowMediator::SetZLevel(nsIXULWindow *aWindow, PRUint32 aZLevel)
    was moved.
 */
 void
-nsWindowMediator::SortZOrderFrontToBack()
-{
+nsWindowMediator::SortZOrderFrontToBack() {
+
   nsWindowInfo *scan,   // scans list looking for problems
                *search, // searches for correct placement for scan window
                *prev,   // previous search element
@@ -659,7 +704,7 @@ nsWindowMediator::SortZOrderFrontToBack()
         if (scan == mTopmostWindow)
           mTopmostWindow = scan->mLower;
         scan->Unlink(PR_FALSE, PR_TRUE);
-        scan->InsertAfter(nsnull, prev);
+        scan->InsertAfter(0, prev);
 
         // fix actual window order
         nsCOMPtr<nsIBaseWindow> base;
@@ -686,8 +731,8 @@ nsWindowMediator::SortZOrderFrontToBack()
 
 // see comment for SortZOrderFrontToBack
 void
-nsWindowMediator::SortZOrderBackToFront()
-{
+nsWindowMediator::SortZOrderBackToFront() {
+
   nsWindowInfo *scan,   // scans list looking for problems
                *search, // searches for correct placement for scan window
                *lowest; // bottom-most window in list
@@ -708,14 +753,14 @@ nsWindowMediator::SortZOrderBackToFront()
       PRUint32 scanZ = scan->mZLevel;
       if (scanZ > scan->mHigher->mZLevel) { // out of order
         search = scan;
-        do {
+        do
           search = search->mHigher;
-        } while (search != lowest && scanZ > search->mZLevel);
+        while (search != lowest && scanZ > search->mZLevel);
 
         // reposition |scan| within the list
         if (scan != search && scan != search->mLower) {
           scan->Unlink(PR_FALSE, PR_TRUE);
-          scan->InsertAfter(nsnull, search);
+          scan->InsertAfter(0, search);
         }
         if (search == lowest)
           mTopmostWindow = scan;
@@ -734,6 +779,7 @@ nsWindowMediator::SortZOrderBackToFront()
         }
         if (scanWidget)
           scanWidget->PlaceBehind(eZPlacementBelow, searchWidget, PR_FALSE);
+
         finished = PR_FALSE;
         break;
       }
@@ -744,9 +790,23 @@ nsWindowMediator::SortZOrderBackToFront()
   mSortingZOrder = PR_FALSE;
 }
 
-NS_IMPL_ADDREF(nsWindowMediator)
+// COM
+NS_IMPL_ADDREF( nsWindowMediator )
 NS_IMPL_QUERY_INTERFACE1(nsWindowMediator, nsIWindowMediator)
 NS_IMPL_RELEASE(nsWindowMediator)
+
+nsresult
+nsWindowMediator::Init()
+{
+  if (gRefCnt++ == 0)
+  {
+    mListLock = PR_NewLock();
+    if (!mListLock)
+        return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  return NS_OK;
+}
 
 NS_IMETHODIMP
 nsWindowMediator::AddListener(nsIWindowMediatorListener* aListener)
@@ -769,43 +829,43 @@ nsWindowMediator::RemoveListener(nsIWindowMediatorListener* aListener)
 {
   NS_ENSURE_ARG_POINTER(aListener);
 
-  if (!mListeners)
-    return NS_OK;
+  if (!mListeners) return NS_OK;
 
   mListeners->RemoveElement(aListener);
   
   return NS_OK;
 }
 
-PRBool
-notifyOpenWindow(nsISupports *aElement, void* aData)
+PRBool notifyOpenWindow(nsISupports *aElement, void* aData)
 {
   nsIWindowMediatorListener* listener =
     reinterpret_cast<nsIWindowMediatorListener*>(aElement);
-  WindowTitleData* winData = static_cast<WindowTitleData*>(aData);
+  windowData* winData = (windowData*) aData;
+
   listener->OnOpenWindow(winData->mWindow);
-
   return PR_TRUE;
 }
 
-PRBool
-notifyCloseWindow(nsISupports *aElement, void* aData)
+PRBool notifyCloseWindow(nsISupports *aElement, void* aData)
 {
   nsIWindowMediatorListener* listener =
     reinterpret_cast<nsIWindowMediatorListener*>(aElement);
-  WindowTitleData* winData = static_cast<WindowTitleData*>(aData);
+  windowData* winData = (windowData*) aData;
+  
   listener->OnCloseWindow(winData->mWindow);
-
   return PR_TRUE;
 }
 
-PRBool 
-notifyWindowTitleChange(nsISupports *aElement, void* aData)
+PRBool notifyWindowTitleChange(nsISupports *aElement, void* aData)
 {
   nsIWindowMediatorListener* listener =
     reinterpret_cast<nsIWindowMediatorListener*>(aElement);
-  WindowTitleData* titleData = reinterpret_cast<WindowTitleData*>(aData);
-  listener->OnWindowTitleChange(titleData->mWindow, titleData->mTitle);
+
+  windowData* titleData =
+    reinterpret_cast<windowData*>(aData);
+  listener->OnWindowTitleChange(titleData->mWindow,
+                                titleData->mTitle);
 
   return PR_TRUE;
 }
+
