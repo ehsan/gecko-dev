@@ -283,8 +283,7 @@ stubs::CompileFunction(VMFrame &f, uint32 nactual)
     }
 
     /* Finish frame initialization. */
-    if (!fp->initJitFrameLatePrologue(cx, &f.stackLimit))
-        THROWV(NULL);
+    fp->initJitFrameLatePrologue();
 
     /* These would have been initialized by the prologue. */
     f.regs.prepareToRun(*fp, script);

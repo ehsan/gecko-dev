@@ -796,7 +796,8 @@ nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
 
               /*
                * If there is a newline in the frame, break the frame after the
-               * newline, do bidi resolution and repeat until the last sibling
+               * newline, do bidi resolution and repeat until the end of the
+               * element.
                */
               ++endLine;
 
@@ -804,18 +805,17 @@ nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
                * If the frame ends before the new line, save the text and move
                * into the next continuation
                */
-              mBuffer.Append(Substring(text, start,
-                                       PR_MIN(end, endLine) - start));
               while (end < endLine && nextSibling) { 
+                mBuffer.Append(Substring(text, start, end - start));
+
                 AdvanceAndAppendFrame(&frame, aLineIter, &nextSibling);
                 NS_ASSERTION(frame, "Premature end of continuation chain");
                 frame->GetOffsets(start, end);
-                mBuffer.Append(Substring(text, start,
-                                         PR_MIN(end, endLine) - start));
               }
+              mBuffer.Append(Substring(text, start, endLine - start));
 
               PRBool createdContinuation = PR_FALSE;
-              if (end >= endLine && PRUint32(endLine) < text.Length()) {
+              if (PRUint32(endLine) < text.Length()) {
                 /*
                  * Timing is everything here: if the frame already has a bidi
                  * continuation, we need to make the continuation fluid *before*

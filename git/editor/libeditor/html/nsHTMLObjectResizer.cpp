@@ -130,7 +130,7 @@ ResizerSelectionListener::NotifySelectionChanged(nsIDOMDocument *, nsISelection 
 // ResizerMouseMotionListener
 // ==================================================================
 
-NS_IMPL_ISUPPORTS1(ResizerMouseMotionListener, nsIDOMEventListener)
+NS_IMPL_ISUPPORTS2(ResizerMouseMotionListener, nsIDOMEventListener, nsIDOMMouseMotionListener)
 
 ResizerMouseMotionListener::ResizerMouseMotionListener(nsIHTMLEditor * aEditor)
 {
@@ -141,8 +141,9 @@ ResizerMouseMotionListener::~ResizerMouseMotionListener()
 {
 }
 
+
 NS_IMETHODIMP
-ResizerMouseMotionListener::HandleEvent(nsIDOMEvent* aMouseEvent)
+ResizerMouseMotionListener::MouseMove(nsIDOMEvent* aMouseEvent)
 {
   nsCOMPtr<nsIDOMMouseEvent> mouseEvent ( do_QueryInterface(aMouseEvent) );
   if (!mouseEvent) {
@@ -158,6 +159,18 @@ ResizerMouseMotionListener::HandleEvent(nsIDOMEvent* aMouseEvent)
     objectResizer->MouseMove(aMouseEvent);
   }
 
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+ResizerMouseMotionListener::HandleEvent(nsIDOMEvent* aMouseEvent)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+ResizerMouseMotionListener::DragMove(nsIDOMEvent* aMouseEvent)
+{
   return NS_OK;
 }
 
