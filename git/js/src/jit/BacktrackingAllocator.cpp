@@ -1168,13 +1168,13 @@ BacktrackingAllocator::populateSafepoints()
 void
 BacktrackingAllocator::dumpRegisterGroups()
 {
-    fprintf(stderr, "Register groups:\n");
+    printf("Register groups:\n");
     for (size_t i = 0; i < graph.numVirtualRegisters(); i++) {
         VirtualRegisterGroup *group = vregs[i].group();
         if (group && i == group->canonicalReg()) {
             for (size_t j = 0; j < group->registers.length(); j++)
-                fprintf(stderr, " v%u", group->registers[j]);
-            fprintf(stderr, "\n");
+                printf(" v%u", group->registers[j]);
+            printf("\n");
         }
     }
 }
@@ -1183,70 +1183,68 @@ void
 BacktrackingAllocator::dumpLiveness()
 {
 #ifdef DEBUG
-    fprintf(stderr, "Virtual Registers:\n");
+    printf("Virtual Registers:\n");
 
     for (size_t blockIndex = 0; blockIndex < graph.numBlocks(); blockIndex++) {
         LBlock *block = graph.getBlock(blockIndex);
         MBasicBlock *mir = block->mir();
 
-        fprintf(stderr, "\nBlock %lu", static_cast<unsigned long>(blockIndex));
+        printf("\nBlock %lu", static_cast<unsigned long>(blockIndex));
         for (size_t i = 0; i < mir->numSuccessors(); i++)
-            fprintf(stderr, " [successor %u]", mir->getSuccessor(i)->id());
-        fprintf(stderr, "\n");
+            printf(" [successor %u]", mir->getSuccessor(i)->id());
+        printf("\n");
 
         for (size_t i = 0; i < block->numPhis(); i++) {
             LPhi *phi = block->getPhi(i);
 
-            fprintf(stderr, "[%u,%u Phi v%u <-",
-                    inputOf(phi).pos(), outputOf(phi).pos(),
-                    phi->getDef(0)->virtualRegister());
+            printf("Phi v%u <-", phi->getDef(0)->virtualRegister());
             for (size_t j = 0; j < phi->numOperands(); j++)
-                fprintf(stderr, " v%u", phi->getOperand(j)->toUse()->virtualRegister());
-            fprintf(stderr, "]\n");
+                printf(" v%u", phi->getOperand(j)->toUse()->virtualRegister());
+            printf("\n");
         }
 
         for (LInstructionIterator iter = block->begin(); iter != block->end(); iter++) {
             LInstruction *ins = *iter;
 
-            fprintf(stderr, "[%u,%u %s]", inputOf(ins).pos(), outputOf(ins).pos(), ins->opName());
+            printf("[%u,%u %s]", inputOf(ins).pos(), outputOf(ins).pos(), ins->opName());
 
             for (size_t i = 0; i < ins->numTemps(); i++) {
                 LDefinition *temp = ins->getTemp(i);
                 if (!temp->isBogusTemp())
-                    fprintf(stderr, " [temp v%u]", temp->virtualRegister());
+                    printf(" [temp v%u]", temp->virtualRegister());
             }
 
             for (size_t i = 0; i < ins->numDefs(); i++) {
                 LDefinition *def = ins->getDef(i);
-                fprintf(stderr, " [def v%u]", def->virtualRegister());
+                printf(" [def v%u]", def->virtualRegister());
             }
 
             for (LInstruction::InputIterator alloc(*ins); alloc.more(); alloc.next()) {
                 if (alloc->isUse())
-                    fprintf(stderr, " [use v%u]", alloc->toUse()->virtualRegister());
+                    printf(" [use v%u]", alloc->toUse()->virtualRegister());
             }
 
-            fprintf(stderr, "\n");
+            printf("\n");
         }
     }
 
-    fprintf(stderr, "\nLive Ranges:\n\n");
+    printf("\nLive Ranges:\n\n");
 
     for (size_t i = 0; i < AnyRegister::Total; i++)
-        fprintf(stderr, "reg %s: %s\n", AnyRegister::FromCode(i).name(), IntervalString(fixedIntervals[i]));
+        printf("reg %s: %s\n", AnyRegister::FromCode(i).name(), IntervalString(fixedIntervals[i]));
 
     for (size_t i = 0; i < graph.numVirtualRegisters(); i++) {
-        fprintf(stderr, "v%lu:", static_cast<unsigned long>(i));
+        printf("v%lu:", static_cast<unsigned long>(i));
         VirtualRegister &vreg = vregs[i];
         for (size_t j = 0; j < vreg.numIntervals(); j++) {
             if (j)
-                fprintf(stderr, " *");
-            fprintf(stderr, "%s", IntervalString(vreg.getInterval(j)));
+                printf(" *");
+            printf("%s", IntervalString(vreg.getInterval(j)));
         }
-        fprintf(stderr, "\n");
+        printf("\n");
     }
 
-    fprintf(stderr, "\n");
+    printf("\n");
 #endif // DEBUG
 }
 
@@ -1256,7 +1254,7 @@ struct BacktrackingAllocator::PrintLiveIntervalRange
     void operator()(const AllocatedRange &item)
     {
         if (item.range == item.interval->getRange(0)) {
-            fprintf(stderr, "  v%u: %s\n",
+            printf("  v%u: %s\n",
                    item.interval->hasVreg() ? item.interval->vreg() : 0,
                    IntervalString(item.interval));
         }
@@ -1268,28 +1266,28 @@ void
 BacktrackingAllocator::dumpAllocations()
 {
 #ifdef DEBUG
-    fprintf(stderr, "Allocations:\n");
+    printf("Allocations:\n");
 
     for (size_t i = 0; i < graph.numVirtualRegisters(); i++) {
-        fprintf(stderr, "v%lu:", static_cast<unsigned long>(i));
+        printf("v%lu:", static_cast<unsigned long>(i));
         VirtualRegister &vreg = vregs[i];
         for (size_t j = 0; j < vreg.numIntervals(); j++) {
             if (j)
-                fprintf(stderr, " *");
+                printf(" *");
             LiveInterval *interval = vreg.getInterval(j);
-            fprintf(stderr, "%s :: %s", IntervalString(interval), interval->getAllocation()->toString());
+            printf("%s :: %s", IntervalString(interval), interval->getAllocation()->toString());
         }
-        fprintf(stderr, "\n");
+        printf("\n");
     }
 
-    fprintf(stderr, "\n");
+    printf("\n");
 
     for (size_t i = 0; i < AnyRegister::Total; i++) {
-        fprintf(stderr, "reg %s:\n", AnyRegister::FromCode(i).name());
+        printf("reg %s:\n", AnyRegister::FromCode(i).name());
         registers[i].allocations.forEach(PrintLiveIntervalRange());
     }
 
-    fprintf(stderr, "\n");
+    printf("\n");
 #endif // DEBUG
 }
 

@@ -630,7 +630,7 @@ class AsmJSModule
     const jit::AsmJSHeapAccess &heapAccess(unsigned i) const {
         return heapAccesses_[i];
     }
-    void initHeap(Handle<ArrayBufferObject*> heap, JSContext *cx);
+    void patchHeapAccesses(ArrayBufferObject *heap, JSContext *cx);
 
     void requireHeapLengthToBeAtLeast(uint32_t len) {
         if (len > minHeapLength_)
@@ -655,9 +655,11 @@ class AsmJSModule
         return operationCallbackExit_;
     }
 
-    void setIsLinked() {
+    void setIsLinked(Handle<ArrayBufferObject*> maybeHeap) {
         JS_ASSERT(!linked_);
         linked_ = true;
+        maybeHeap_ = maybeHeap;
+        heapDatum() = maybeHeap_ ? maybeHeap_->dataPointer() : NULL;
     }
     bool isLinked() const {
         return linked_;

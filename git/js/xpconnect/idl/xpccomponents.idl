@@ -4,6 +4,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsISupports.idl"
+#include "xpcexception.idl"
+#include "xpcjsid.idl"
+#include "nsIComponentManager.idl"
 
 %{C++
 #include "jspubtd.h"
@@ -11,10 +14,6 @@
 
 interface xpcIJSWeakReference;
 interface nsIClassInfo;
-interface nsIComponentManager;
-interface nsIJSCID;
-interface nsIJSIID;
-interface nsIStackFrame;
 
 /**
 * interface of Components.interfacesByID
