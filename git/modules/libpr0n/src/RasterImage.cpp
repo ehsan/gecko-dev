@@ -389,10 +389,8 @@ RasterImage::GetWidth(PRInt32 *aWidth)
 {
   NS_ENSURE_ARG_POINTER(aWidth);
 
-  if (mError) {
-    *aWidth = 0;
+  if (mError)
     return NS_ERROR_FAILURE;
-  }
 
   *aWidth = mSize.width;
   return NS_OK;
@@ -405,10 +403,8 @@ RasterImage::GetHeight(PRInt32 *aHeight)
 {
   NS_ENSURE_ARG_POINTER(aHeight);
 
-  if (mError) {
-    *aHeight = 0;
+  if (mError)
     return NS_ERROR_FAILURE;
-  }
 
   *aHeight = mSize.height;
   return NS_OK;

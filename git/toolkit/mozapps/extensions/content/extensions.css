@@ -108,7 +108,7 @@ xhtml|link {
 }
 
 #detail-view {
-  overflow: auto;
+  overflow-y: auto;
 }
 
 .addon:not([notification="warning"]) .warning,

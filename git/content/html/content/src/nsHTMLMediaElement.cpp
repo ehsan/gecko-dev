@@ -121,6 +121,8 @@ static PRLogModuleInfo* gMediaElementEventsLog;
 #include "nsIChannelPolicy.h"
 #include "nsChannelPolicy.h"
 
+#define MS_PER_SECOND 1000
+
 using namespace mozilla::layers;
 
 // Under certain conditions there may be no-one holding references to
@@ -691,7 +693,7 @@ void nsHTMLMediaElement::NotifyLoadError()
 
 void nsHTMLMediaElement::NotifyAudioAvailable(float* aFrameBuffer,
                                               PRUint32 aFrameBufferLength,
-                                              float aTime)
+                                              PRUint64 aTime)
 {
   // Auto manage the memory for the frame buffer, so that if we add an early
   // return-on-error here in future, we won't forget to release the memory.
@@ -756,8 +758,7 @@ void nsHTMLMediaElement::LoadFromSourceChildren()
     }
 
     // If we have a type attribute, it must be a supported type.
-    if (child->HasAttr(kNameSpaceID_None, nsGkAtoms::type) &&
-        child->GetAttr(kNameSpaceID_None, nsGkAtoms::type, type) &&
+    if (child->GetAttr(kNameSpaceID_None, nsGkAtoms::type, type) &&
         GetCanPlay(type) == CANPLAY_NO)
     {
       DispatchAsyncSourceError(child);
@@ -1828,7 +1829,7 @@ nsresult nsHTMLMediaElement::InitializeDecoderAsClone(nsMediaDecoder* aOriginal)
 
   mNetworkState = nsIDOMHTMLMediaElement::NETWORK_LOADING;
 
-  nsresult rv = decoder->Load(stream, nsnull, aOriginal);
+  nsresult rv = decoder->Load(stream, nsnull);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -1855,7 +1856,7 @@ nsresult nsHTMLMediaElement::InitializeDecoderForChannel(nsIChannel *aChannel,
   if (!stream)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  nsresult rv = decoder->Load(stream, aListener, nsnull);
+  nsresult rv = decoder->Load(stream, aListener);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -1976,18 +1977,7 @@ void nsHTMLMediaElement::NetworkError()
 
 void nsHTMLMediaElement::DecodeError()
 {
-  if (!mIsLoadingFromSrcAttribute) {
-    NS_ASSERTION(mSourceLoadCandidate, "Must know the source we were loading from!");
-    if (mDecoder) {
-      mDecoder->Shutdown();
-      mDecoder = nsnull;
-    }
-    mError = nsnull;
-    DispatchAsyncSourceError(mSourceLoadCandidate);
-    QueueLoadFromSourceTask();
-  } else {
-    Error(nsIDOMMediaError::MEDIA_ERR_DECODE);
-  }
+  Error(nsIDOMMediaError::MEDIA_ERR_DECODE);
 }
 
 void nsHTMLMediaElement::LoadAborted()
@@ -2216,7 +2206,7 @@ ImageContainer* nsHTMLMediaElement::GetImageContainer()
 
 nsresult nsHTMLMediaElement::DispatchAudioAvailableEvent(float* aFrameBuffer,
                                                          PRUint32 aFrameBufferLength,
-                                                         float aTime)
+                                                         PRUint64 aTime)
 {
   // Auto manage the memory for the frame buffer. If we fail and return
   // an error, this ensures we free the memory in the frame buffer. Otherwise
@@ -2236,7 +2226,7 @@ nsresult nsHTMLMediaElement::DispatchAudioAvailableEvent(float* aFrameBuffer,
 
   rv = audioavailableEvent->InitAudioAvailableEvent(NS_LITERAL_STRING("MozAudioAvailable"),
                                                     PR_TRUE, PR_TRUE, frameBuffer.forget(), aFrameBufferLength,
-                                                    aTime, mAllowAudioData);
+                                                    (float)aTime / MS_PER_SECOND, mAllowAudioData);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool dummy;

@@ -42,8 +42,6 @@
 #define GLCONTEXT_H_
 
 #include <stdio.h>
-#include <string.h>
-#include <ctype.h>
 
 #ifdef WIN32
 #include <windows.h>
@@ -365,7 +363,6 @@ public:
 #endif
         mIsGlobalSharedContext(PR_FALSE),
         mWindowOriginBottomLeft(PR_FALSE),
-        mVendor(-1),
         mCreationFormat(aFormat),
         mSharedContext(aSharedContext),
         mOffscreenTexture(0),
@@ -454,13 +451,7 @@ public:
     PRBool IsGLES2() {
         return mIsGLES2;
     }
-
-    enum { VendorIntel, VendorNVIDIA, VendorATI, VendorOther };
-
-    PRBool Vendor() const {
-        return mVendor;
-    }
-
+ 
     /**
      * Returns PR_TRUE if the window coordinate origin is the bottom
      * left corener.  If PR_FALSE, it is the top left corner.
@@ -710,8 +701,6 @@ protected:
     PRPackedBool mIsGLES2;
     PRPackedBool mIsGlobalSharedContext;
     PRPackedBool mWindowOriginBottomLeft;
-
-    int mVendor;
 
     ContextFormat mCreationFormat;
     nsRefPtr<GLContext> mSharedContext;
@@ -1342,7 +1331,7 @@ public:
     nsTArray<NamedResource> mTrackedRenderbuffers;
     nsTArray<NamedResource> mTrackedBuffers;
 #endif
-
+    
 };
 
 inline void
@@ -1360,27 +1349,6 @@ GLDebugPrintError(GLContext* aCx, const char* const aFile, int aLine)
 #else
 #  define DEBUG_GL_ERROR_CHECK(cx) do { } while (0)
 #endif
-
-inline PRBool
-DoesVendorStringMatch(const char* aVendorString, const char *aWantedVendor)
-{
-    const char *occurrence = strstr(aVendorString, aWantedVendor);
-
-    // aWantedVendor not found
-    if (!occurrence)
-        return PR_FALSE;
-
-    // aWantedVendor preceded by alpha character
-    if (occurrence != aVendorString && isalpha(*(occurrence-1)))
-        return PR_FALSE;
-
-    // aWantedVendor followed by alpha character
-    const char *afterOccurrence = occurrence + strlen(aWantedVendor);
-    if (isalpha(*afterOccurrence))
-        return PR_FALSE;
-
-    return PR_TRUE;
-}
 
 } /* namespace gl */
 } /* namespace mozilla */

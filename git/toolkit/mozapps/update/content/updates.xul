@@ -104,9 +104,7 @@
               onpageshow="gManualUpdatePage.onPageShow();">
     <updateheader label="&manualUpdate.title;"/>
     <vbox class="update-content" flex="1">
-      <label id="manualUpdateDesc">&manualUpdate.desc;</label>
-      <label id="manualUpdateSpaceDesc"
-             hidden="true">&manualUpdate.space.desc;</label>
+      <label>&manualUpdate.desc;</label>
       <separator class="thin"/>
       <label>&manualUpdateGetMsg.label;</label>
       <hbox>
