@@ -593,6 +593,9 @@ __try {
  
 void nsAccessNodeWrap::InitAccessibility()
 {
+  NS_ASSERTION(!gIsAccessibilityActive,
+               "Accessibility was initialized already!");
+
   nsCOMPtr<nsIPrefBranch> prefBranch(do_GetService(NS_PREFSERVICE_CONTRACTID));
   if (prefBranch) {
     prefBranch->GetBoolPref("accessibility.disableenumvariant", &gIsEnumVariantSupportDisabled);
@@ -618,6 +621,8 @@ void nsAccessNodeWrap::ShutdownAccessibility()
 {
   NS_IF_RELEASE(gTextEvent);
   ::DestroyCaret();
+
+  NS_ASSERTION(gIsAccessibilityActive, "Accessibility was shutdown already!");
 
   nsAccessNode::ShutdownXPAccessibility();
 }

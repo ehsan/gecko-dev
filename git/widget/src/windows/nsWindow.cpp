@@ -106,8 +106,6 @@
 
 #ifdef MOZ_IPC
 #include "mozilla/ipc/SyncChannel.h"
-#include "mozilla/plugins/PluginInstanceParent.h"
-using mozilla::plugins::PluginInstanceParent;
 #endif
 
 #include "nsWindow.h"
@@ -211,6 +209,10 @@ using mozilla::plugins::PluginInstanceParent;
 #include "nsGfxCIID.h"
 #endif
 
+// A magic APP message that can be sent to quit, sort of like a QUERYENDSESSION/ENDSESSION,
+// but without the query.
+#define MOZ_WM_APP_QUIT (WM_APP+0x0300)
+
 /**************************************************************
  **************************************************************
  **
@@ -280,13 +282,6 @@ LPFNLRESULTFROMOBJECT
                 nsWindow::sLresultFromObject      = 0;
 #endif // ACCESSIBILITY
 
-#ifdef MOZ_IPC
-// Used in OOPP plugin focus processing.
-const PRUnichar* kOOPPPluginFocusEventId   = L"OOPP Plugin Focus Widget Event";
-PRUint32        nsWindow::sOOPPPluginFocusEvent   =
-                  RegisterWindowMessageW(kOOPPPluginFocusEventId);
-#endif
-
 /**************************************************************
  *
  * SECTION: globals variables
@@ -334,6 +329,7 @@ static void UpdateLastInputEventTime() {
   if (is)
     is->IdleTimeWasModified();
 }
+
 
 // Global user preference for disabling native theme. Used
 // in NativeWindowTheme.
@@ -2109,7 +2105,7 @@ NS_METHOD nsWindow::Invalidate(PRBool aIsSynchronous)
     VERIFY(::InvalidateRect(mWnd, NULL, FALSE));
 
     if (aIsSynchronous) {
-      UpdateWindowInternal(mWnd);
+      VERIFY(::UpdateWindow(mWnd));
     }
   }
   return NS_OK;
@@ -2143,7 +2139,7 @@ NS_METHOD nsWindow::Invalidate(const nsIntRect & aRect, PRBool aIsSynchronous)
     VERIFY(::InvalidateRect(mWnd, &rect, FALSE));
 
     if (aIsSynchronous) {
-      UpdateWindowInternal(mWnd);
+      VERIFY(::UpdateWindow(mWnd));
     }
   }
   return NS_OK;
@@ -2156,7 +2152,7 @@ nsWindow::MakeFullScreen(PRBool aFullScreen)
   RECT rc;
   if (aFullScreen) {
     SetForegroundWindow(mWnd);
-    SHFullScreen(mWnd, SHFS_HIDETASKBAR | SHFS_HIDESTARTICON | SHFS_HIDESIPBUTTON);
+    SHFullScreen(mWnd, SHFS_HIDETASKBAR | SHFS_HIDESTARTICON);
     SetRect(&rc, 0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
   }
   else {
@@ -2187,7 +2183,7 @@ NS_IMETHODIMP nsWindow::Update()
   // updates can come through for windows no longer holding an mWnd during
   // deletes triggered by JavaScript in buttons with mouse feedback
   if (mWnd)
-    UpdateWindowInternal(mWnd);
+    VERIFY(::UpdateWindow(mWnd));
 
   return rv;
 }
@@ -3148,12 +3144,7 @@ BOOL CALLBACK nsWindow::DispatchStarvedPaints(HWND aWnd, LPARAM aMsg)
     // invalidated rect. If it does. Dispatch a synchronous
     // paint.
     if (GetUpdateRect(aWnd, NULL, FALSE)) {
-      nsWindow* win = GetNSWindowPtr(aWnd);
-      if (win)
-        win->UpdateWindowInternal(aWnd);
-      else
-        // Bad, this could hang a plugin process. Is this possible?
-        VERIFY(::UpdateWindow(aWnd));
+      VERIFY(::UpdateWindow(aWnd));
     }
   }
   return TRUE;
@@ -4219,7 +4210,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 #if defined(WINCE_HAVE_SOFTKB)
         if (mIsTopWidgetWindow && sSoftKeyboardState)
           nsWindowCE::ToggleSoftKB(mWnd, fActive);
-        if (nsWindowCE::sShowSIPButton == TRI_FALSE && WA_INACTIVE != fActive) {
+        if (nsWindowCE::sShowSIPButton != TRI_TRUE && WA_INACTIVE != fActive) {
           HWND hWndSIPB = FindWindowW(L"MS_SIPBUTTON", NULL ); 
           if (hWndSIPB)
             ShowWindow(hWndSIPB, SW_HIDE);
@@ -4357,9 +4348,10 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       getWheelInfo = PR_TRUE;
 #else
       switch (wParam) {
+        case SPI_SIPMOVE:
         case SPI_SETSIPINFO:
         case SPI_SETCURRENTIM:
-          nsWindowCE::OnSoftKbSettingsChange(mWnd);
+          nsWindowCE::NotifySoftKbObservers(mWnd);
           break;
         case SETTINGCHANGE_RESET:
           if (mWindowType == eWindowType_invisible) {
@@ -4614,15 +4606,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
       if (msg == nsAppShell::GetTaskbarButtonCreatedMessage())
         SetHasTaskbarIconBeenCreated();
-#endif
-#ifdef MOZ_IPC
-    if (msg == sOOPPPluginFocusEvent) {
-      // With OOPP, the plugin window exists in another process and is a child of
-      // this window. This window is a placeholder plugin window for the dom. We
-      // receive this event when the child window receives focus. (sent from
-      // PluginInstanceParent.cpp)
-      ::SendMessage(mWnd, WM_MOUSEACTIVATE, 0, 0); // See nsPluginNativeWindowWin.cpp
-    } 
 #endif
     }
     break;
@@ -5975,11 +5958,6 @@ void nsWindow::OnDestroy()
     SetupTranslucentWindowMemoryBitmap(eTransparencyOpaque);
 #endif
 
-#if defined(WINCE_HAVE_SOFTKB)
-  // Revert the changes made for the software keyboard settings
-  nsWindowCE::ResetSoftKB(mWnd);
-#endif
-
   // Clear the main HWND.
   mWnd = NULL;
 }
@@ -7115,30 +7093,6 @@ LPARAM nsWindow::lParamToClient(LPARAM lParam)
   pt.y = GET_Y_LPARAM(lParam);
   ::ScreenToClient(mWnd, &pt);
   return MAKELPARAM(pt.x, pt.y);
-}
-
-// If this window hosts a plugin window from another process then we cannot use
-// the windows UpdateWindow function to update it. Doing so sends a synchronous
-// WM_PAINT message to the plugin process which may call back to this process
-// in response. As this process is waiting for the UpdateWindow call to return
-// we deadlock. To work around this we issue an IPC call to the plugin process
-// to force the redraw since the IPC call handles reentrancy properly.
-void nsWindow::UpdateWindowInternal(HWND aWnd)
-{
-  if (aWnd) {
-#ifdef MOZ_IPC
-    if (mWindowType == eWindowType_plugin) {
-      PluginInstanceParent* instance = reinterpret_cast<PluginInstanceParent*>(
-        ::GetPropW(aWnd, L"PluginInstanceParentProperty"));
-      if (instance) {
-        if (!instance->CallUpdateWindow())
-          NS_ERROR("Failed to send message!");
-        return;
-      }
-    }
-#endif
-    VERIFY(::UpdateWindow(aWnd));
-  }
 }
 
 /**************************************************************

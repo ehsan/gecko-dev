@@ -76,10 +76,6 @@
 #endif
 #endif
 
-#ifdef XP_MACOSX
-#include <CoreFoundation/CoreFoundation.h>
-#endif
-
 #define DOWNLOAD_MANAGER_BUNDLE "chrome://mozapps/locale/downloads/downloads.properties"
 #define DOWNLOAD_MANAGER_ALERT_ICON "chrome://mozapps/skin/downloads/downloadIcon.png"
 #define PREF_BDM_SHOWALERTONCOMPLETE "browser.download.manager.showAlertOnComplete"
@@ -2197,7 +2193,7 @@ nsDownload::SetState(DownloadState aState)
             }
         }
       }
-#if (defined(XP_WIN) && !defined(WINCE)) || defined(XP_MACOSX)
+#if defined(XP_WIN) && !defined(WINCE)
       nsCOMPtr<nsIFileURL> fileURL = do_QueryInterface(mTarget);
       nsCOMPtr<nsIFile> file;
       nsAutoString path;
@@ -2207,7 +2203,6 @@ nsDownload::SetState(DownloadState aState)
           file &&
           NS_SUCCEEDED(file->GetPath(path))) {
 
-#ifdef XP_WIN
         // On windows, add the download to the system's "recent documents"
         // list, with a pref to disable.
         {
@@ -2219,20 +2214,8 @@ nsDownload::SetState(DownloadState aState)
               !nsDownloadManager::gDownloadManagerService->mInPrivateBrowsing)
             ::SHAddToRecentDocs(SHARD_PATHW, path.get());
         }
-#endif
-#ifdef XP_MACOSX
-        // On OS X, make the downloads stack bounce.
-        CFStringRef observedObject = ::CFStringCreateWithCString(kCFAllocatorDefault,
-                                             NS_ConvertUTF16toUTF8(path).get(),
-                                             kCFStringEncodingUTF8);
-        CFNotificationCenterRef center = ::CFNotificationCenterGetDistributedCenter();
-        ::CFNotificationCenterPostNotification(center, CFSTR("com.apple.DownloadFileFinished"),
-                                               observedObject, NULL, TRUE);
-        ::CFRelease(observedObject);
-#endif
       }
 
-#ifdef XP_WIN
       // Adjust file attributes so that by default, new files are indexed
       // by desktop search services. Skip off those that land in the temp
       // folder.
@@ -2249,7 +2232,6 @@ nsDownload::SetState(DownloadState aState)
       if (!isTemp && localFileWin)
         (void)localFileWin->SetFileAttributesWin(nsILocalFileWin::WFA_SEARCH_INDEXED);
 
-#endif
 #endif
       // Now remove the download if the user's retention policy is "Remove when Done"
       if (mDownloadManager->GetRetentionBehavior() == 0)

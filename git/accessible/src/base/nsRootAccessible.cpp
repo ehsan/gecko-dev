@@ -489,7 +489,7 @@ nsRootAccessible::FireAccessibleFocusEvent(nsIAccessible *aAccessible,
     }
   }
   else if (mCurrentARIAMenubar) {
-    nsRefPtr<nsAccEvent> menuEndEvent =
+    nsCOMPtr<nsIAccessibleEvent> menuEndEvent =
       new nsAccEvent(nsIAccessibleEvent::EVENT_MENU_END, mCurrentARIAMenubar,
                      PR_FALSE, aIsFromUserInput, nsAccEvent::eAllowDupes);
     if (menuEndEvent) {
@@ -1141,11 +1141,8 @@ nsRootAccessible::HandlePopupHidingEvent(nsIDOMNode *aNode,
   // DOMMenuItemActive events inside of a combo box that closes. The real focus
   // is on the combo box. It's also the case when a popup gets focus in ATK --
   // when it closes we need to fire an event to restore focus to where it was.
-  nsCOMPtr<nsINode> node(do_QueryInterface(aNode));
-  nsCOMPtr<nsINode> lastFocusedNode(do_QueryInterface(gLastFocusedNode));
-
   if (gLastFocusedNode &&
-      nsCoreUtils::IsAncestorOf(node, lastFocusedNode)) {
+      nsCoreUtils::IsAncestorOf(aNode, gLastFocusedNode)) {
     // Focus was on or inside of a popup that's being hidden
     FireCurrentFocusEvent();
   }
@@ -1171,6 +1168,7 @@ nsRootAccessible::HandlePopupHidingEvent(nsIDOMNode *aNode,
                                 PR_FALSE, PR_FALSE);
     NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
 
+    nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(comboboxAcc));
     nsEventShell::FireEvent(event);
     return NS_OK;
   }

@@ -153,7 +153,6 @@ ACCESSIBILITY_ATOM(toolbarspring, "toolbarspring")   // XUL
 ACCESSIBILITY_ATOM(toolbarspacer, "toolbarspacer")   // XUL
 ACCESSIBILITY_ATOM(tooltip, "tooltip")   // XUL
 ACCESSIBILITY_ATOM(tr, "tr")
-ACCESSIBILITY_ATOM(tree, "tree")
 ACCESSIBILITY_ATOM(ul, "ul")
 
   // Alphabetical list of attributes (DOM)
