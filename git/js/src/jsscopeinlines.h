@@ -58,6 +58,27 @@
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
 
+inline bool
+JSObject::maybeSetIndexed(JSContext *cx, jsid id)
+{
+    jsuint index;
+    if (js_IdIsIndex(id, &index)) {
+        if (!setIndexed(cx))
+            return false;
+    }
+    return true;
+}
+
+inline bool
+JSObject::extend(JSContext *cx, const js::Shape *shape, bool isDefinitelyAtom)
+{
+    if (!isDefinitelyAtom && !maybeSetIndexed(cx, shape->propid()))
+        return false;
+    if (!setLastProperty(cx, shape))
+        return false;
+    return true;
+}
+
 namespace js {
 
 inline
@@ -98,7 +119,7 @@ BaseShape::matchesGetterSetter(PropertyOp rawGetter, StrictPropertyOp rawSetter)
 }
 
 inline void
-BaseShape::setObjectParent(JSObject *obj)
+BaseShape::setParent(JSObject *obj)
 {
     parent = obj;
 }
@@ -111,18 +132,19 @@ BaseShape::adoptUnowned(UnownedBaseShape *other)
      * unowned base shape of a new last property.
      */
     JS_ASSERT(isOwned());
-    DebugOnly<uint32_t> flags = getObjectFlags();
-    JS_ASSERT((flags & other->getObjectFlags()) == flags);
+
+    JSObject *parent = this->parent;
+    uint32_t flags = (this->flags & OBJECT_FLAG_MASK);
 
     uint32_t span = slotSpan();
     PropertyTable *table = &this->table();
 
     *this = *other;
     setOwned(other);
+    this->parent = parent;
+    this->flags |= flags;
     setTable(table);
     setSlotSpan(span);
-
-    assertConsistency();
 }
 
 inline void
@@ -130,22 +152,6 @@ BaseShape::setOwned(UnownedBaseShape *unowned)
 {
     flags |= OWNED_SHAPE;
     this->unowned_ = unowned;
-}
-
-inline void
-BaseShape::assertConsistency()
-{
-#ifdef DEBUG
-    if (isOwned()) {
-        UnownedBaseShape *unowned = baseUnowned();
-        JS_ASSERT(hasGetterObject() == unowned->hasGetterObject());
-        JS_ASSERT(hasSetterObject() == unowned->hasSetterObject());
-        JS_ASSERT_IF(hasGetterObject(), getterObject() == unowned->getterObject());
-        JS_ASSERT_IF(hasSetterObject(), setterObject() == unowned->setterObject());
-        JS_ASSERT(getObjectParent() == unowned->getObjectParent());
-        JS_ASSERT(getObjectFlags() == unowned->getObjectFlags());
-    }
-#endif
 }
 
 inline

@@ -331,7 +331,7 @@ void TableTicker::Tick(TickSample* sample)
   }
 
   if (!sLastTracerEvent.IsNull()) {
-    TimeDuration delta = sample->timestamp - sLastTracerEvent;
+    TimeDuration delta = TimeStamp::Now() - sLastTracerEvent;
     mProfile.addTag(ProfileEntry('r', delta.ToMilliseconds()));
   }
 }

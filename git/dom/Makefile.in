@@ -84,10 +84,7 @@ DIRS += \
   $(NULL)
 
 ifdef MOZ_B2G_RIL #{
-DIRS += \
-  telephony \
-  wifi \
-  $(NULL)
+DIRS += telephony
 endif #}
 
 ifdef ENABLE_TESTS

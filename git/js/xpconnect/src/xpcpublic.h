@@ -41,7 +41,6 @@
 #define xpcpublic_h
 
 #include "jsapi.h"
-#include "js/MemoryMetrics.h"
 #include "jsclass.h"
 #include "jsfriendapi.h"
 #include "jsgc.h"
@@ -56,10 +55,6 @@
 
 class nsIPrincipal;
 struct nsDOMClassInfoData;
-
-#ifndef BAD_TLS_INDEX
-#define BAD_TLS_INDEX ((PRUint32) -1)
-#endif
 
 nsresult
 xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
@@ -86,10 +81,8 @@ xpc_LocalizeContext(JSContext *cx);
 nsresult
 xpc_MorphSlimWrapper(JSContext *cx, nsISupports *tomorph);
 
-static inline bool IS_WRAPPER_CLASS(js::Class* clazz)
-{
-    return clazz->ext.isWrappedNative;
-}
+#define IS_WRAPPER_CLASS(clazz)                                               \
+    ((clazz)->ext.isWrappedNative)
 
 inline JSBool
 DebugCheckWrapperClass(JSObject* obj)
@@ -194,21 +187,6 @@ xpc_UnmarkGrayObject(JSObject *obj)
 NS_EXPORT_(void)
 xpc_ActivateDebugMode();
 
-namespace xpc {
-
-// If these functions return false, then an exception will be set on cx.
-bool Base64Encode(JSContext *cx, JS::Value val, JS::Value *out);
-bool Base64Decode(JSContext *cx, JS::Value val, JS::Value *out);
-
-/**
- * Convert an nsString to jsval, returning true on success.
- * Note, the ownership of the string buffer may be moved from str to rval.
- * If that happens, str will point to an empty string after this call.
- */
-bool StringToJsval(JSContext *cx, nsString &str, JS::Value *rval);
-
-} // namespace xpc
-
 class nsIMemoryMultiReporterCallback;
 
 namespace mozilla {
@@ -246,7 +224,7 @@ struct CompartmentStats
     PRInt64 mjitCode;
     PRInt64 mjitData;
 #endif
-    JS::TypeInferenceMemoryStats typeInferenceMemory;
+    TypeInferenceMemoryStats typeInferenceMemory;
 };
 
 struct IterateData

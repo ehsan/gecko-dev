@@ -302,7 +302,6 @@ class HeapValue
     inline ~HeapValue();
 
     inline void init(const Value &v);
-    inline void init(JSCompartment *comp, const Value &v);
 
     inline HeapValue &operator=(const Value &v);
     inline HeapValue &operator=(const HeapValue &v);

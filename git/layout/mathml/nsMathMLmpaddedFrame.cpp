@@ -133,11 +133,10 @@ nsMathMLmpaddedFrame::ProcessAttributes()
   }
 
   // lspace
-  mLeadingSpaceSign = NS_MATHML_SIGN_INVALID;
+  mLeftSpaceSign = NS_MATHML_SIGN_INVALID;
   GetAttribute(mContent, nsnull, nsGkAtoms::lspace_, value);
   if (!value.IsEmpty()) {
-    ParseAttribute(value, mLeadingSpaceSign, mLeadingSpace,
-                   mLeadingSpacePseudoUnit);
+    ParseAttribute(value, mLeftSpaceSign, mLeftSpace, mLeftSpacePseudoUnit);
   }
 
   // voffset
@@ -381,28 +380,23 @@ nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
 
   nscoord height = mBoundingMetrics.ascent;
   nscoord depth  = mBoundingMetrics.descent;
-  // The REC says:
+  // In MathML2 (http://www.w3.org/TR/MathML2/chapter3.html#presm.mpadded),
+  // lspace is "the amount of space between the left edge of a bounding box
+  // and the start of the rendering of its contents' bounding box" and the
+  // default is zero.
   //
-  // "The lspace attribute ('leading' space) specifies the horizontal location
-  // of the positioning point of the child content with respect to the
-  // positioning point of the mpadded element. By default they coincide, and
-  // therefore absolute values for lspace have the same effect as relative
-  // values."
+  // In MathML3 draft
+  // http://www.w3.org/TR/2007/WD-MathML3-20070427/chapter3.html#id.3.3.6.2,
+  // lspace is "the amount of space between the left edge of the bounding box
+  // and the positioning poin [sic] of the mpadded element" and the default is
+  // "same as content".
   //
-  // "MathML renderers should ensure that, except for the effects of the
-  // attributes, the relative spacing between the contents of the mpadded
-  // element and surrounding MathML elements would not be modified by replacing
-  // an mpadded element with an mrow element with the same content, even if
-  // linebreaking occurs within the mpadded element."
-  //
-  // (http://www.w3.org/TR/MathML/chapter3.html#presm.mpadded)
-  // 
-  // "In those discussions, the terms leading and trailing are used to specify
-  // a side of an object when which side to use depends on the directionality;
-  // ie. leading means left in LTR but right in RTL."
-  // (http://www.w3.org/TR/MathML/chapter3.html#presm.bidi.math)
+  // In both cases, "MathML renderers should ensure that, except for the
+  // effects of the attributes, relative spacing between the contents of
+  // mpadded and surrounding MathML elements is not modified by replacing an
+  // mpadded element with an mrow element with the same content."
   nscoord lspace = 0;
-  // In MathML3, "width" will be the bounding box width and "advancewidth" will
+  // In MATHML3, "width" will be the bounding box width and "advancewidth" will
   // refer "to the horizontal distance between the positioning point of the
   // mpadded and the positioning point for the following content".  MathML2
   // doesn't make the distinction.
@@ -410,7 +404,6 @@ nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
   nscoord voffset = 0;
 
   PRInt32 pseudoUnit;
-  nscoord initialWidth = width;
 
   // update width
   pseudoUnit = (mWidthPseudoUnit == NS_MATHML_PSEUDO_UNIT_ITSELF)
@@ -434,9 +427,9 @@ nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
   depth = NS_MAX(0, depth);
 
   // update lspace
-  if (mLeadingSpacePseudoUnit != NS_MATHML_PSEUDO_UNIT_ITSELF) {
-    pseudoUnit = mLeadingSpacePseudoUnit;
-    UpdateValue(mLeadingSpaceSign, pseudoUnit, mLeadingSpace,
+  if (mLeftSpacePseudoUnit != NS_MATHML_PSEUDO_UNIT_ITSELF) {
+    pseudoUnit = mLeftSpacePseudoUnit;
+    UpdateValue(mLeftSpaceSign, pseudoUnit, mLeftSpace,
                 mBoundingMetrics, lspace);
   }
 
@@ -452,25 +445,20 @@ nsMathMLmpaddedFrame::Place(nsRenderingContext& aRenderingContext,
   // attributes, tweak our metrics and move children to achieve the desired visual
   // effects.
 
-  if ((NS_MATHML_IS_RTL(mPresentationData.flags) ?
-       mWidthSign : mLeadingSpaceSign) != NS_MATHML_SIGN_INVALID) {
-    // there was padding on the left. dismiss the left italic correction now
-    // (so that our parent won't correct us)
+  if (mLeftSpaceSign != NS_MATHML_SIGN_INVALID) { // there was padding on the left
+    // dismiss the left italic correction now (so that our parent won't correct us)
     mBoundingMetrics.leftBearing = 0;
   }
 
-  if ((NS_MATHML_IS_RTL(mPresentationData.flags) ?
-       mLeadingSpaceSign : mWidthSign) != NS_MATHML_SIGN_INVALID) {
-    // there was padding on the right. dismiss the right italic correction now
-    // (so that our parent won't correct us)
+  if (mWidthSign != NS_MATHML_SIGN_INVALID) { // there was padding on the right
+    // dismiss the right italic correction now (so that our parent won't correct us)
     mBoundingMetrics.width = width;
     mBoundingMetrics.rightBearing = mBoundingMetrics.width;
   }
 
   nscoord dy = height - mBoundingMetrics.ascent;
-  nscoord dx = NS_MATHML_IS_RTL(mPresentationData.flags) ?
-    width - initialWidth - lspace : lspace;
-    
+  nscoord dx = lspace;
+
   aDesiredSize.ascent += dy;
   aDesiredSize.width = mBoundingMetrics.width;
   aDesiredSize.height += dy + depth - mBoundingMetrics.descent;

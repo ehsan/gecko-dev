@@ -1375,9 +1375,8 @@ nsAccessibleWrap::FireAtkTextChangedEvent(AccEvent* aEvent,
     char* signal_name = nsnull;
 
   if (gAvailableAtkSignals == eUnknown)
-    gAvailableAtkSignals =
-      g_signal_lookup("text-insert", G_OBJECT_TYPE(aObject)) ?
-        eHaveNewAtkTextSignals : eNoNewAtkSignals;
+    gAvailableAtkSignals = g_signal_lookup("text-insert", ATK_TYPE_TEXT) ?
+      eHaveNewAtkTextSignals : eNoNewAtkSignals;
 
   if (gAvailableAtkSignals == eNoNewAtkSignals) {
     // XXX remove this code and the gHaveNewTextSignals check when we can

@@ -192,6 +192,7 @@ COMPONENT_LIBS += \
   appcomps \
   jsreflect \
   composer \
+  jetpack_s \
   telemetry \
   jsdebugger \
   storagecomps \
@@ -423,7 +424,6 @@ ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
 OS_LIBS += \
   -lui \
   -lmedia \
-  -lhardware_legacy \
   $(NULL)
 endif
 

@@ -84,7 +84,7 @@
 #include "nsIScrollableFrame.h"
 #include "nsWidgetsCID.h"
 #include "nsCSSAnonBoxes.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
 #include "nsITheme.h"

@@ -127,7 +127,7 @@ nsWebSocket::PrintErrorOnConsole(const char *aBundleURI,
     do_GetService(NS_CONSOLESERVICE_CONTRACTID, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIScriptError> errorObject(
+  nsCOMPtr<nsIScriptError2> errorObject(
     do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -142,15 +142,15 @@ nsWebSocket::PrintErrorOnConsole(const char *aBundleURI,
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = errorObject->InitWithWindowID(message.get(),
-                                     NS_ConvertUTF8toUTF16(mScriptFile).get(),
-                                     nsnull, mScriptLine, 0,
-                                     nsIScriptError::errorFlag, "Web Socket",
-                                     mInnerWindowID);
-  NS_ENSURE_SUCCESS(rv, rv);
+  errorObject->InitWithWindowID(message.get(),
+                                NS_ConvertUTF8toUTF16(mScriptFile).get(),
+                                nsnull, mScriptLine, 0,
+                                nsIScriptError::errorFlag, "Web Socket",
+                                mInnerWindowID);
 
   // print the error message directly to the JS console
-  rv = console->LogMessage(errorObject);
+  nsCOMPtr<nsIScriptError> logError(do_QueryInterface(errorObject));
+  rv = console->LogMessage(logError);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;

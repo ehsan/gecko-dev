@@ -42,8 +42,6 @@
 #ifndef Debugger_h__
 #define Debugger_h__
 
-#include "mozilla/Attributes.h"
-
 #include "jsapi.h"
 #include "jsclist.h"
 #include "jscntxt.h"
@@ -350,8 +348,9 @@ class Debugger {
     JSObject *wrapScript(JSContext *cx, JSScript *script);
 
   private:
-    Debugger(const Debugger &) MOZ_DELETE;
-    Debugger & operator=(const Debugger &) MOZ_DELETE;
+    /* Prohibit copying. */
+    Debugger(const Debugger &);
+    Debugger & operator=(const Debugger &);
 };
 
 class BreakpointSite {

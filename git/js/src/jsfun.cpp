@@ -1726,8 +1726,7 @@ JSFunction::initBoundFunction(JSContext *cx, const Value &thisArg,
     if (!toDictionaryMode(cx))
         return false;
 
-    if (!setFlag(cx, BaseShape::BOUND_FUNCTION))
-        return false;
+    lastProperty()->base()->setObjectFlag(BaseShape::BOUND_FUNCTION);
 
     if (!setSlotSpan(cx, BOUND_FUNCTION_RESERVED_SLOTS + argslen))
         return false;
@@ -1735,7 +1734,7 @@ JSFunction::initBoundFunction(JSContext *cx, const Value &thisArg,
     setSlot(JSSLOT_BOUND_FUNCTION_THIS, thisArg);
     setSlot(JSSLOT_BOUND_FUNCTION_ARGS_COUNT, PrivateUint32Value(argslen));
 
-    initSlotRange(BOUND_FUNCTION_RESERVED_SLOTS, args, argslen);
+    copySlotRange(BOUND_FUNCTION_RESERVED_SLOTS, args, argslen, false);
 
     return true;
 }
@@ -2200,18 +2199,16 @@ js_CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
 
     clone->nargs = fun->nargs;
     clone->flags = fun->flags & ~JSFUN_EXTENDED;
-    if (fun->isInterpreted()) {
-        clone->initScript(fun->script());
-        clone->initEnvironment(parent);
-    } else {
-        clone->u.n = fun->u.n;
-    }
+    clone->u = fun->toFunction()->u;
     clone->atom = fun->atom;
 
     if (kind == JSFunction::ExtendedFinalizeKind) {
         clone->flags |= JSFUN_EXTENDED;
         clone->initializeExtended();
     }
+
+    if (clone->isInterpreted())
+        clone->setEnvironment(parent);
 
     if (cx->compartment == fun->compartment()) {
         /*
@@ -2282,7 +2279,7 @@ js_AllocFlatClosure(JSContext *cx, JSFunction *fun, JSObject *scopeChain)
 }
 
 JSFunction *
-js_NewFlatClosure(JSContext *cx, JSFunction *fun)
+js_NewFlatClosure(JSContext *cx, JSFunction *fun, JSOp op, size_t oplen)
 {
     /*
      * Flat closures cannot yet be partial, that is, all upvars must be copied,

@@ -42,7 +42,6 @@
 EXPORTS_NAMESPACES += mozilla
 
 EXPORTS_mozilla += \
-  Assertions.h \
   Attributes.h \
   GuardObjects.h \
   MSStdInt.h \

@@ -177,7 +177,6 @@ InlineReturn(VMFrame &f)
 {
     JS_ASSERT(f.fp() != f.entryfp);
     JS_ASSERT(!IsActiveWithOrBlock(f.cx, f.fp()->scopeChain(), 0));
-    JS_ASSERT(!f.fp()->hasBlockChain());
     f.cx->stack.popInlineFrame(f.regs);
 
     DebugOnly<JSOp> op = JSOp(*f.regs.pc);
@@ -639,7 +638,6 @@ js_InternalThrow(VMFrame &f)
         cx->clearPendingException();
         cx->regs().sp++;
         cx->regs().pc = pc + JSOP_ENTERBLOCK_LENGTH + JSOP_EXCEPTION_LENGTH;
-        cx->regs().fp()->setBlockChain(obj);
     }
 
     *f.oldregs = f.regs;

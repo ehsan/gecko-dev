@@ -11,7 +11,7 @@ var gProvider;
 const SETTINGS_ROWS = 8;
 
 var MockFilePicker = SpecialPowers.MockFilePicker;
-MockFilePicker.init();
+MockFilePicker.reset();
 
 var observer = {
   lastData: null,
@@ -91,7 +91,7 @@ function end_test() {
   Services.prefs.clearUserPref("extensions.inlinesettings3.radioString");
   Services.prefs.clearUserPref("extensions.inlinesettings3.menulist");
 
-  MockFilePicker.cleanup();
+  MockFilePicker.reset();
 
   close_manager(gManagerWindow, function() {
     AddonManager.getAddonByID("inlinesettings1@tests.mozilla.org", function(aAddon) {

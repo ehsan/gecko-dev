@@ -695,9 +695,6 @@ JS_XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
         fstate.filename = fun->script()->filename;
     }
 
-    if (!JS_XDRCStringOrNull(xdr, (char **) &fstate.filename))
-        return false;
-
     return js_XDRFunctionObject(xdr, objp);
 }
 

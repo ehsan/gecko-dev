@@ -79,9 +79,6 @@
 #include "Worker.h"
 #include "WorkerFeature.h"
 #include "WorkerScope.h"
-#ifdef ANDROID
-#include <android/log.h>
-#endif
 
 #include "WorkerInlines.h"
 
@@ -1112,31 +1109,36 @@ public:
     }
 
     // Otherwise log an error to the error console.
-    nsCOMPtr<nsIScriptError> scriptError =
+    nsCOMPtr<nsIScriptError2> scriptError =
       do_CreateInstance(NS_SCRIPTERROR_CONTRACTID);
-    NS_WARN_IF_FALSE(scriptError, "Failed to create script error!");
+    NS_WARN_IF_FALSE(scriptError, "Faild to create script error!");
+
+    nsCOMPtr<nsIConsoleMessage> consoleMessage;
 
     if (scriptError) {
-      if (NS_FAILED(scriptError->InitWithWindowID(aMessage.get(),
-                                                  aFilename.get(),
-                                                  aLine.get(), aLineNumber,
-                                                  aColumnNumber, aFlags,
-                                                  "Web Worker",
-                                                  aInnerWindowId))) {
+      if (NS_SUCCEEDED(scriptError->InitWithWindowID(aMessage.get(),
+                                                     aFilename.get(),
+                                                     aLine.get(), aLineNumber,
+                                                     aColumnNumber, aFlags,
+                                                     "Web Worker",
+                                                     aInnerWindowId))) {
+        consoleMessage = do_QueryInterface(scriptError);
+        NS_ASSERTION(consoleMessage, "This should never fail!");
+      }
+      else {
         NS_WARNING("Failed to init script error!");
-        scriptError = nsnull;
       }
     }
 
     nsCOMPtr<nsIConsoleService> consoleService =
       do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-    NS_WARN_IF_FALSE(consoleService, "Failed to get console service!");
+    NS_WARN_IF_FALSE(consoleService, "Faild to get console service!");
 
     bool logged = false;
 
     if (consoleService) {
-      if (scriptError) {
-        if (NS_SUCCEEDED(consoleService->LogMessage(scriptError))) {
+      if (consoleMessage) {
+        if (NS_SUCCEEDED(consoleService->LogMessage(consoleMessage))) {
           logged = true;
         }
         else {
@@ -1152,11 +1154,7 @@ public:
     }
 
     if (!logged) {
-      NS_ConvertUTF16toUTF8 msg(aMessage);
-#ifdef ANDROID
-      __android_log_print(ANDROID_LOG_INFO, "Gecko", msg.get());
-#endif
-      fputs(msg.get(), stderr);
+      fputs(NS_ConvertUTF16toUTF8(aMessage).get(), stderr);
       fflush(stderr);
     }
 

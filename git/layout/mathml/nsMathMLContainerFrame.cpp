@@ -74,7 +74,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsMathMLContainerFrame)
 
 NS_QUERYFRAME_HEAD(nsMathMLContainerFrame)
   NS_QUERYFRAME_ENTRY(nsMathMLFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
+NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 
 // =============================================================================
 
@@ -445,13 +445,11 @@ nsMathMLContainerFrame::Stretch(nsRenderingContext& aRenderingContext,
           nsEmbellishData coreData;
           GetEmbellishDataFrom(mEmbellishData.coreFrame, coreData);
 
-          mBoundingMetrics.width +=
-            coreData.leadingSpace + coreData.trailingSpace;
+          mBoundingMetrics.width += coreData.leftSpace + coreData.rightSpace;
           aDesiredStretchSize.width = mBoundingMetrics.width;
           aDesiredStretchSize.mBoundingMetrics.width = mBoundingMetrics.width;
 
-          nscoord dx = (NS_MATHML_IS_RTL(mPresentationData.flags) ?
-                        coreData.trailingSpace : coreData.leadingSpace);
+          nscoord dx = coreData.leftSpace;
           if (dx != 0) {
             mBoundingMetrics.leftBearing += dx;
             mBoundingMetrics.rightBearing += dx;
@@ -898,7 +896,7 @@ nsMathMLContainerFrame::ReflowChild(nsIFrame*                aChildFrame,
   NS_ASSERTION(!inlineFrame, "Inline frames should be wrapped in blocks");
 #endif
   
-  nsresult rv = nsContainerFrame::
+  nsresult rv = nsHTMLContainerFrame::
          ReflowChild(aChildFrame, aPresContext, aDesiredSize, aReflowState,
                      0, 0, NS_FRAME_NO_MOVE_FRAME, aStatus);
 
@@ -1195,21 +1193,20 @@ class nsMathMLContainerFrame::RowChildFrameIterator {
 public:
   explicit RowChildFrameIterator(nsMathMLContainerFrame* aParentFrame) :
     mParentFrame(aParentFrame),
+    mChildFrame(aParentFrame->mFrames.FirstChild()),
     mX(0),
     mCarrySpace(0),
-    mFromFrameType(eMathMLFrameType_UNKNOWN),
-    mRTL(NS_MATHML_IS_RTL(aParentFrame->mPresentationData.flags))
+    mFromFrameType(eMathMLFrameType_UNKNOWN)
   {
-    if (!mRTL) {
-      mChildFrame = aParentFrame->mFrames.FirstChild();
-    } else {
-      mChildFrame = aParentFrame->mFrames.LastChild();
-    }
-
     if (!mChildFrame)
       return;
 
     InitMetricsForChild();
+    // Remove left correction in <msqrt> because the sqrt glyph itself is
+    // there first.
+    if (mParentFrame->GetContent()->Tag() == nsGkAtoms::msqrt_) {
+      mX = 0;
+    }
   }
 
   RowChildFrameIterator& operator++()
@@ -1217,12 +1214,7 @@ public:
     // add child size + italic correction
     mX += mSize.mBoundingMetrics.width + mItalicCorrection;
 
-    if (!mRTL) {
-      mChildFrame = mChildFrame->GetNextSibling();
-    } else {
-      mChildFrame = mChildFrame->GetPrevSibling();
-    }
-
+    mChildFrame = mChildFrame->GetNextSibling();
     if (!mChildFrame)
       return *this;
 
@@ -1259,29 +1251,16 @@ private:
   PRInt32 mCarrySpace;
   eMathMLFrameType mFromFrameType;
 
-  bool mRTL;
-
   void InitMetricsForChild()
   {
     GetReflowAndBoundingMetricsFor(mChildFrame, mSize, mSize.mBoundingMetrics,
                                    &mChildFrameType);
-    nscoord leftCorrection, rightCorrection;
-    GetItalicCorrection(mSize.mBoundingMetrics,
-                        leftCorrection, rightCorrection);
-    if (!mChildFrame->GetPrevSibling() &&
-        mParentFrame->GetContent()->Tag() == nsGkAtoms::msqrt_) {
-      // Remove leading correction in <msqrt> because the sqrt glyph itself is
-      // there first.
-      if (!mRTL) {
-        leftCorrection = 0;
-      } else {
-        rightCorrection = 0;
-      }
-    }
+    nscoord leftCorrection;
+    GetItalicCorrection(mSize.mBoundingMetrics, leftCorrection,
+                        mItalicCorrection);
     // add left correction -- this fixes the problem of the italic 'f'
     // e.g., <mo>q</mo> <mi>f</mi> <mo>I</mo> 
     mX += leftCorrection;
-    mItalicCorrection = rightCorrection;
   }
 };
 
@@ -1530,8 +1509,8 @@ nsMathMLContainerFrame::TransmitAutomaticDataForMrowLikeElement()
     mEmbellishData.flags = 0;
     mEmbellishData.coreFrame = nsnull;
     mEmbellishData.direction = NS_STRETCH_DIRECTION_UNSUPPORTED;
-    mEmbellishData.leadingSpace = 0;
-    mEmbellishData.trailingSpace = 0;
+    mEmbellishData.leftSpace = 0;
+    mEmbellishData.rightSpace = 0;
   }
 
   if (childFrame || embellishedOpFound) {

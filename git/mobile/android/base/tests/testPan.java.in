@@ -68,13 +68,11 @@ public class testPan extends ActivityInstrumentationTestCase2 {
 
   public void testPan() {
     // TODO: find a better way to not hardcode this url
-    String url = "http://mochi.test:8888/tests/robocop/pantest.html";
-    actions.waitForGeckoEvent("Gecko:Ready");
+    String url = "http://mochi.test:8888/tests/robocop/robocop.html";
     Element awesomebar = driver.findElement("awesome_bar");
     awesomebar.click();
 
     Element urlbar = driver.findElement("awesomebar_text");
-    getInstrumentation().waitForIdleSync();
     actions.sendKeys(url);
     driver.is(url, urlbar.getText(),"Asserting Awesomebar typing works");
 

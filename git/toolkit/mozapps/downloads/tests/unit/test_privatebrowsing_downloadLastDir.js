@@ -57,7 +57,7 @@ let launcher = {
 };
 
 Cu.import("resource://test/MockFilePicker.jsm");
-MockFilePicker.init();
+MockFilePicker.reset();
 MockFilePicker.returnValue = Ci.nsIFilePicker.returnOK;
 
 function run_test()
@@ -143,5 +143,5 @@ function run_test()
   prefsService.clearUserPref("browser.privatebrowsing.keep_current_session");
   [dir1, dir2, dir3].forEach(function(dir) dir.remove(true));
 
-  MockFilePicker.cleanup();
+  MockFilePicker.reset();
 }

@@ -203,12 +203,10 @@ nsMathMLmsubFrame::PlaceSubScript (nsPresContext*      aPresContext,
   if (aPlaceOrigin) {
     nscoord dx, dy;
     // now place the base ...
-    dx = aFrame->MirrorIfRTL(aDesiredSize.width, baseSize.width, 0);
-    dy = aDesiredSize.ascent - baseSize.ascent;
+    dx = 0; dy = aDesiredSize.ascent - baseSize.ascent;
     FinishReflowChild (baseFrame, aPresContext, nsnull, baseSize, dx, dy, 0);
     // ... and subscript
-    dx = aFrame->MirrorIfRTL(aDesiredSize.width, subScriptSize.width,
-                             bmBase.width);
+    dx = bmBase.width; 
     dy = aDesiredSize.ascent - (subScriptSize.ascent - actualSubScriptShift);
     FinishReflowChild (subScriptFrame, aPresContext, nsnull, subScriptSize, dx, dy, 0);
   }

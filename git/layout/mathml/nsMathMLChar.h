@@ -112,7 +112,6 @@ public:
     mUnscaledAscent = 0;
     mScaleX = mScaleY = 1.0;
     mDrawNormal = true;
-    mMirrored = false;
   }
 
   ~nsMathMLChar() { // not a virtual destructor: this class is not intended to be subclassed
@@ -147,8 +146,7 @@ public:
           nsStretchDirection       aStretchDirection,
           const nsBoundingMetrics& aContainerSize,
           nsBoundingMetrics&       aDesiredStretchSize,
-          PRUint32                 aStretchHint,
-          bool                     aRTL);
+          PRUint32                 aStretchHint = NS_STRETCH_NORMAL);
 
   void
   SetData(nsPresContext* aPresContext,
@@ -260,8 +258,6 @@ private:
   float              mScaleX, mScaleY;
   // mDrawNormal indicates whether we use special glyphs or not.
   bool               mDrawNormal;
-  // mMirrored indicates whether the character is mirrored. 
-  bool               mMirrored;
 
   class StretchEnumContext;
   friend class StretchEnumContext;

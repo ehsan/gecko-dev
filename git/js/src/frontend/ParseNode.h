@@ -75,10 +75,8 @@ enum ParseNodeKind {
     PNK_STAR,
     PNK_DIV,
     PNK_MOD,
-    PNK_PREINCREMENT,
-    PNK_POSTINCREMENT,
-    PNK_PREDECREMENT,
-    PNK_POSTDECREMENT,
+    PNK_INC,
+    PNK_DEC,
     PNK_DOT,
     PNK_LB,
     PNK_RB,
@@ -349,10 +347,8 @@ enum ParseNodeKind {
  * PNK_VOID,
  * PNK_NOT,
  * PNK_BITNOT
- * PNK_PREINCREMENT, unary  pn_kid: MEMBER expr
- * PNK_POSTINCREMENT,
- * PNK_PREDECREMENT,
- * PNK_POSTDECREMENT
+ * PNK_INC,     unary       pn_kid: MEMBER expr
+ * PNK_DEC
  * PNK_NEW      list        pn_head: list of ctor, arg1, arg2, ... argN
  *                          pn_count: 1 + N (where N is number of args)
  *                          ctor is a MEMBER expr
@@ -849,11 +845,6 @@ struct ParseNode {
     /* Return true if this node appears in a Directive Prologue. */
     bool isDirectivePrologueMember() const { return pn_prologue; }
 
-#ifdef JS_HAS_DESTRUCTURING
-    /* Return true if this represents a hole in an array literal. */
-    bool isArrayHole() const { return isKind(PNK_COMMA) && isArity(PN_NULLARY); }
-#endif
-
 #ifdef JS_HAS_GENERATOR_EXPRS
     /*
      * True if this node is a desugared generator expression.
@@ -1302,6 +1293,8 @@ struct ObjectBox {
     ObjectBox           *traceLink;
     ObjectBox           *emitLink;
     JSObject            *object;
+    ObjectBox           *parent;
+    uintN               index;
     bool                isFunctionBox;
 };
 

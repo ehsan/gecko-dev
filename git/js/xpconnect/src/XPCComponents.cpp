@@ -2692,7 +2692,7 @@ nsXPCComponents_Utils::ReportError(const JS::Value &error, JSContext *cx)
 
     nsCOMPtr<nsIConsoleService> console(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
 
-    nsCOMPtr<nsIScriptError> scripterr(do_CreateInstance(NS_SCRIPTERROR_CONTRACTID));
+    nsCOMPtr<nsIScriptError2> scripterr(do_CreateInstance(NS_SCRIPTERROR_CONTRACTID));
 
     if (!scripterr || !console)
         return NS_OK;
@@ -2715,7 +2715,8 @@ nsXPCComponents_Utils::ReportError(const JS::Value &error, JSContext *cx)
                 column, err->flags, "XPConnect JavaScript", innerWindowID);
         NS_ENSURE_SUCCESS(rv, NS_OK);
 
-        console->LogMessage(scripterr);
+        nsCOMPtr<nsIScriptError> logError = do_QueryInterface(scripterr);
+        console->LogMessage(logError);
         return NS_OK;
     }
 
@@ -2747,7 +2748,8 @@ nsXPCComponents_Utils::ReportError(const JS::Value &error, JSContext *cx)
             nsnull, lineNo, 0, 0, "XPConnect JavaScript", innerWindowID);
     NS_ENSURE_SUCCESS(rv, NS_OK);
 
-    console->LogMessage(scripterr);
+    nsCOMPtr<nsIScriptError> logError = do_QueryInterface(scripterr);
+    console->LogMessage(logError);
     return NS_OK;
 }
 

@@ -44,8 +44,6 @@
 #ifndef mozilla_css_Declaration_h
 #define mozilla_css_Declaration_h
 
-#include "mozilla/Attributes.h"
-
 // This header is in EXPORTS because it's used in several places in content/,
 // but it's not really a public interface.
 #ifndef _IMPL_NS_LAYOUT
@@ -241,8 +239,9 @@ public:
 #endif
 
 private:
-  Declaration& operator=(const Declaration& aCopy) MOZ_DELETE;
-  bool operator==(const Declaration& aCopy) const MOZ_DELETE;
+  // Not implemented, and not supported.
+  Declaration& operator=(const Declaration& aCopy);
+  bool operator==(const Declaration& aCopy) const;
 
   static void AppendImportanceToString(bool aIsImportant, nsAString& aString);
   // return whether there was a value in |aValue| (i.e., it had a non-null unit)

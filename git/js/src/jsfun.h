@@ -48,6 +48,7 @@
 #include "jsatom.h"
 #include "jsscript.h"
 #include "jsstr.h"
+#include "jsopcode.h"
 
 #include "gc/Barrier.h"
 
@@ -321,7 +322,7 @@ extern JSFunction * JS_FASTCALL
 js_AllocFlatClosure(JSContext *cx, JSFunction *fun, JSObject *scopeChain);
 
 extern JSFunction *
-js_NewFlatClosure(JSContext *cx, JSFunction *fun);
+js_NewFlatClosure(JSContext *cx, JSFunction *fun, JSOp op, size_t oplen);
 
 extern JSFunction *
 js_DefineFunction(JSContext *cx, JSObject *obj, jsid id, JSNative native,

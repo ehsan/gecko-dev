@@ -697,7 +697,8 @@ class nsTAdoptingString_CharT : public nsTXPIDLString_CharT
       self_type& operator=( const self_type& str );
 
     private:
-      self_type& operator=( const char_type* data ) MOZ_DELETE;
-      self_type& operator=( char_type* data ) MOZ_DELETE;
+        // NOT TO BE IMPLEMENTED.
+      self_type& operator=( const char_type* data );
+      self_type& operator=( char_type* data );
   };
 

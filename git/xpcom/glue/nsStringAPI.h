@@ -50,8 +50,6 @@
 #ifndef nsStringAPI_h__
 #define nsStringAPI_h__
 
-#include "mozilla/Attributes.h"
-
 #include "nsXPCOMStrings.h"
 #include "nsISupportsImpl.h"
 #include "prlog.h"
@@ -943,7 +941,7 @@ public:
   }
   
 private:
-  self_type& operator=(const self_type& aString) MOZ_DELETE;
+  self_type& operator=(const self_type& aString); // NOT IMPLEMENTED
 };
 
 class nsDependentCString : public nsCString
@@ -966,7 +964,7 @@ public:
   }
   
 private:
-  self_type& operator=(const self_type& aString) MOZ_DELETE;
+  self_type& operator=(const self_type& aString); // NOT IMPLEMENTED
 };
 
 
@@ -1020,7 +1018,7 @@ public:
   }
 
 private:
-  self_type& operator=(const self_type& aString) MOZ_DELETE;
+  self_type& operator=(const self_type& aString); // NOT IMPLEMENTED
 };
 
 class NS_ConvertUTF8toUTF16 : public nsString
@@ -1042,7 +1040,7 @@ public:
   }
 
 private:
-  self_type& operator=(const self_type& aString) MOZ_DELETE;
+  self_type& operator=(const self_type& aString); // NOT IMPLEMENTED
 };
 
 class NS_ConvertUTF16toUTF8 : public nsCString
@@ -1064,7 +1062,7 @@ public:
   }
 
 private:
-  self_type& operator=(const self_type& aString) MOZ_DELETE;
+  self_type& operator=(const self_type& aString); // NOT IMPLEMENTED
 };
 
 class NS_LossyConvertUTF16toASCII : public nsCString
@@ -1086,7 +1084,7 @@ public:
   }
 
 private:
-  self_type& operator=(const self_type& aString) MOZ_DELETE;
+  self_type& operator=(const self_type& aString); // NOT IMPLEMENTED
 };
 
 
@@ -1258,7 +1256,7 @@ public:
   }
 
 private:
-  self_type& operator=(const self_type& aString) MOZ_DELETE;
+  self_type& operator=(const self_type& aString); // NOT IMPLEMENTED
 };
 
 class NS_COM_GLUE nsDependentCSubstring : public nsCStringContainer
@@ -1298,7 +1296,7 @@ public:
   }
 
 private:
-  self_type& operator=(const self_type& aString) MOZ_DELETE;
+  self_type& operator=(const self_type& aString); // NOT IMPLEMENTED
 };
 
 

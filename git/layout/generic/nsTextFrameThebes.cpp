@@ -1755,6 +1755,7 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
   const void* textPtr = aTextBuffer;
   bool anySmallcapsStyle = false;
   bool anyTextTransformStyle = false;
+  PRInt32 endOfLastContent = 0;
   PRUint32 textFlags = nsTextFrameUtils::TEXT_NO_BREAKS;
 
   if (mCurrentRunContextInfo & nsTextFrameUtils::INCOMING_WHITESPACE) {
@@ -1873,6 +1874,8 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
 
     currentTransformedTextOffset =
       (static_cast<const PRUint8*>(aTextBuffer) - static_cast<const PRUint8*>(textPtr)) >> mDoubleByteText;
+
+    endOfLastContent = contentEnd;
   }
 
   // Check for out-of-memory in gfxSkipCharsBuilder
@@ -7050,7 +7053,7 @@ class NS_STACK_CLASS ReflowTextA11yNotifier
 {
 public:
   ReflowTextA11yNotifier(nsPresContext* aPresContext, nsIContent* aContent) :
-    mContent(aContent), mPresContext(aPresContext)
+    mPresContext(aPresContext), mContent(aContent)
   {
   }
   ~ReflowTextA11yNotifier()
@@ -7944,7 +7947,7 @@ nsTextFrame::List(FILE* out, PRInt32 aIndent) const
 
   // Output the rect and state
   fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
-  fprintf(out, " [state=%016llx]", (unsigned long long)mState);
+  fprintf(out, " [state=%016llx]", mState);
   if (IsSelected()) {
     fprintf(out, " SELECTED");
   }

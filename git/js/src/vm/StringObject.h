@@ -41,8 +41,6 @@
 #ifndef StringObject_h___
 #define StringObject_h___
 
-#include "mozilla/Attributes.h"
-
 #include "jsobj.h"
 #include "jsstr.h"
 
@@ -97,8 +95,8 @@ class StringObject : public ::JSObject
     Shape *assignInitialShape(JSContext *cx);
 
   private:
-    StringObject() MOZ_DELETE;
-    StringObject &operator=(const StringObject &so) MOZ_DELETE;
+    StringObject();
+    StringObject &operator=(const StringObject &so);
 };
 
 } // namespace js

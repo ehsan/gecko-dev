@@ -217,6 +217,7 @@ typedef enum JSShellErrNum {
 #include "jsshell.msg"
 #undef MSG_DEF
     JSShellErr_Limit
+#undef MSGDEF
 } JSShellErrNum;
 
 static JSContext *
@@ -2333,9 +2334,16 @@ DumpScope(JSContext *cx, JSObject *obj, FILE *fp)
 static JSBool
 DumpStats(JSContext *cx, uintN argc, jsval *vp)
 {
+    uintN i;
+    JSString *str;
+    jsid id;
+    JSObject *obj2;
+    JSProperty *prop;
+    Value value;
+
     jsval *argv = JS_ARGV(cx, vp);
-    for (uintN i = 0; i < argc; i++) {
-        JSString *str = JS_ValueToString(cx, argv[i]);
+    for (i = 0; i < argc; i++) {
+        str = JS_ValueToString(cx, argv[i]);
         if (!str)
             return JS_FALSE;
         argv[i] = STRING_TO_JSVAL(str);
@@ -2347,10 +2355,24 @@ DumpStats(JSContext *cx, uintN argc, jsval *vp)
         } else if (JS_FlatStringEqualsAscii(flatStr, "global")) {
             DumpScope(cx, cx->globalObject, stdout);
         } else {
-            fputs("js: invalid stats argument ", gErrFile);
-            JS_FileEscapedString(gErrFile, str, 0);
-            putc('\n', gErrFile);
-            continue;
+            if (!JS_ValueToId(cx, STRING_TO_JSVAL(str), &id))
+                return JS_FALSE;
+            JSObject *obj;
+            if (!js_FindProperty(cx, id, false, &obj, &obj2, &prop))
+                return JS_FALSE;
+            if (prop) {
+                if (!obj->getGeneric(cx, id, &value))
+                    return JS_FALSE;
+            }
+            if (!prop || !value.isObjectOrNull()) {
+                fputs("js: invalid stats argument ", gErrFile);
+                JS_FileEscapedString(gErrFile, str, 0);
+                putc('\n', gErrFile);
+                continue;
+            }
+            obj = value.toObjectOrNull();
+            if (obj)
+                DumpScope(cx, obj, stdout);
         }
     }
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
@@ -2629,7 +2651,7 @@ ConvertArgs(JSContext *cx, uintN argc, jsval *vp)
         strBytes.encode(cx, str);
     JSString *tmpstr = JS_DecompileFunction(cx, fun, 4);
     JSAutoByteString func;
-    if (!tmpstr || !func.encode(cx, tmpstr))
+    if (!tmpstr || !func.encode(cx, tmpstr));
         ReportException(cx);
     fprintf(gOutFile,
             "d %g, I %g, S %s, W %s, obj %s, fun %s\n"
@@ -3803,9 +3825,11 @@ MJitCodeStats(JSContext *cx, uintN argc, jsval *vp)
 #ifdef JS_METHODJIT
     JSRuntime *rt = cx->runtime;
     AutoLockGC lock(rt);
-    size_t n = 0;
-    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
-        n += (*c)->sizeOfMjitCode();
+    size_t n = 0, method, regexp, unused;
+    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
+    {
+        (*c)->sizeOfCode(&method, &regexp, &unused);
+        n += method + regexp + unused;
     }
     JS_SET_RVAL(cx, vp, INT_TO_JSVAL(n));
 #else
@@ -4096,7 +4120,7 @@ static const char *const shell_help_messages[] = {
 "  Interface to JS_DumpHeap with output sent to file",
 "dumpObject()             Dump an internal representation of an object",
 "notes([fun])             Show source notes for functions",
-"stats([string ...])      Dump 'atom' or 'global' stats",
+"stats([string ...])      Dump 'arena', 'atom', 'global' stats",
 "findReferences(target)\n"
 "  Walk the entire heap, looking for references to |target|, and return a\n"
 "  \"references object\" describing what we found.\n"
@@ -4546,7 +4570,7 @@ its_setter(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp)
     return JS_TRUE;
 }
 
-JSErrorFormatString jsShell_ErrorFormatString[JSShellErr_Limit] = {
+JSErrorFormatString jsShell_ErrorFormatString[JSErr_Limit] = {
 #define MSG_DEF(name, number, count, exception, format) \
     { format, count, JSEXN_ERR } ,
 #include "jsshell.msg"
@@ -4556,10 +4580,9 @@ JSErrorFormatString jsShell_ErrorFormatString[JSShellErr_Limit] = {
 static const JSErrorFormatString *
 my_GetErrorMessage(void *userRef, const char *locale, const uintN errorNumber)
 {
-    if (errorNumber == 0 || errorNumber >= JSShellErr_Limit)
-        return NULL;
-
-    return &jsShell_ErrorFormatString[errorNumber];
+    if ((errorNumber > 0) && (errorNumber < JSShellErr_Limit))
+        return &jsShell_ErrorFormatString[errorNumber];
+    return NULL;
 }
 
 static void

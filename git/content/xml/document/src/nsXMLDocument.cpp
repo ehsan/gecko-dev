@@ -401,7 +401,7 @@ nsXMLDocument::Load(const nsAString& aUrl, bool *aReturn)
       nsAutoString error;
       error.AssignLiteral("Cross site loading using document.load is no "
                           "longer supported. Use XMLHttpRequest instead.");
-      nsCOMPtr<nsIScriptError> errorObject =
+      nsCOMPtr<nsIScriptError2> errorObject =
           do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv);
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -416,8 +416,9 @@ nsXMLDocument::Load(const nsAString& aUrl, bool *aReturn)
 
       nsCOMPtr<nsIConsoleService> consoleService =
         do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-      if (consoleService) {
-        consoleService->LogMessage(errorObject);
+      nsCOMPtr<nsIScriptError> logError = do_QueryInterface(errorObject);
+      if (consoleService && logError) {
+        consoleService->LogMessage(logError);
       }
 
       return NS_ERROR_DOM_SECURITY_ERR;

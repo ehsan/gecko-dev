@@ -4227,7 +4227,7 @@ nsLayoutUtils::GetFontFacesForFrames(nsIFrame* aFrame,
   while (aFrame) {
     nsIFrame::ChildListID childLists[] = { nsIFrame::kPrincipalList,
                                            nsIFrame::kPopupList };
-    for (size_t i = 0; i < ArrayLength(childLists); ++i) {
+    for (int i = 0; i < ArrayLength(childLists); ++i) {
       nsFrameList children(aFrame->GetChildList(childLists[i]));
       for (nsFrameList::Enumerator e(children); !e.AtEnd(); e.Next()) {
         nsIFrame* child = e.get();
@@ -4506,14 +4506,9 @@ MinimumFontSizeFor(nsPresContext* aPresContext, nscoord aContainerWidth)
   if (sFontSizeInflationEmPerLine == 0 && sFontSizeInflationMinTwips == 0) {
     return 0;
   }
-
-  // Clamp the container width to the device dimensions
-  nscoord iFrameWidth = aPresContext->GetVisibleArea().width;
-  nscoord effectiveContainerWidth = NS_MIN(iFrameWidth, aContainerWidth);
-
   nscoord byLine = 0, byInch = 0;
   if (sFontSizeInflationEmPerLine != 0) {
-    byLine = effectiveContainerWidth / sFontSizeInflationEmPerLine;
+    byLine = aContainerWidth / sFontSizeInflationEmPerLine;
   }
   if (sFontSizeInflationMinTwips != 0) {
     // REVIEW: Is this giving us app units and sizes *not* counting
@@ -4523,7 +4518,7 @@ MinimumFontSizeFor(nsPresContext* aPresContext, nscoord aContainerWidth)
     dx->GetClientRect(clientRect); // FIXME: GetClientRect looks expensive
     float deviceWidthInches =
       float(clientRect.width) / float(dx->AppUnitsPerPhysicalInch());
-    byInch = NSToCoordRound(effectiveContainerWidth /
+    byInch = NSToCoordRound(aContainerWidth /
                             (deviceWidthInches * 1440 /
                              sFontSizeInflationMinTwips ));
   }
@@ -4590,9 +4585,6 @@ nsLayoutUtils::IsContainerForFontSizeInflation(const nsIFrame *aFrame)
    * them, so they and their anonymous content should also not be a
    * container.
    *
-   * However, because we can't reliably compute sizes across XUL during
-   * reflow, any XUL frame with a XUL parent is always a container.
-   *
    * There are contexts where it would be nice if some blocks didn't
    * count as a container, so that, for example, an indented quotation
    * didn't end up with a smaller font size.  However, it's hard to
@@ -4600,12 +4592,9 @@ nsLayoutUtils::IsContainerForFontSizeInflation(const nsIFrame *aFrame)
    * thing to count as a container, so we don't try, and blocks are
    * always containers.
    */
-  bool isInline = (aFrame->GetStyleDisplay()->mDisplay ==
-                     NS_STYLE_DISPLAY_INLINE ||
-                   (aFrame->GetContent() &&
-                    aFrame->GetContent()->IsInNativeAnonymousSubtree())) &&
-                  !(aFrame->IsBoxFrame() && aFrame->GetParent() &&
-                    aFrame->GetParent()->IsBoxFrame());
+  bool isInline = aFrame->GetStyleDisplay()->mDisplay ==
+                    NS_STYLE_DISPLAY_INLINE ||
+                  aFrame->GetContent()->IsInNativeAnonymousSubtree();
   NS_ASSERTION(!aFrame->IsFrameOfType(nsIFrame::eLineParticipant) || isInline,
                "line participants must not be containers");
   NS_ASSERTION(aFrame->GetType() != nsGkAtoms::bulletFrame || isInline,
@@ -4634,26 +4623,10 @@ nsLayoutUtils::InflationMinFontSizeFor(const nsHTMLReflowState &aReflowState)
 #ifdef DEBUG
   {
     const nsHTMLReflowState *rs = &aReflowState;
-    nsIFrame *f = aReflowState.frame;
+    const nsIFrame *f = aReflowState.frame;
     for (; rs; rs = rs->parentReflowState, f = f->GetParent()) {
       NS_ABORT_IF_FALSE(rs->frame == f,
                         "reflow state parentage must match frame parentage");
-      nsIScrollableFrame *sf;
-      NS_ABORT_IF_FALSE(rs->parentReflowState ||
-                        IsContainerForFontSizeInflation(f) ||
-                        // OK if NS_FRAME_IN_REFLOW is not set on
-                        // (non-null) parent, since its ancestors have a
-                        // real size.  (Do we set NS_FRAME_IN_REFLOW
-                        // correctly for xul?)
-                        !(f->GetParent()->GetStateBits() &
-                          NS_FRAME_IN_REFLOW) ||
-                        // ugly exception, but ok because the
-                        // child is a container
-                        (f->GetType() == nsGkAtoms::scrollFrame &&
-                         (sf = do_QueryFrame(f)) &&
-                         (IsContainerForFontSizeInflation(
-                            sf->GetScrolledFrame()))),
-                        "must hit container at top of reflow state chain");
     }
   }
 #endif

@@ -39,7 +39,7 @@
 #define nsHTMLButtonControlFrame_h___
 
 #include "nsCOMPtr.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsHTMLParts.h"
 
@@ -54,7 +54,7 @@
 class nsRenderingContext;
 class nsPresContext;
 
-class nsHTMLButtonControlFrame : public nsContainerFrame,
+class nsHTMLButtonControlFrame : public nsHTMLContainerFrame,
                                  public nsIFormControlFrame 
 {
 public:
@@ -127,7 +127,7 @@ public:
 
   virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
-    return nsContainerFrame::IsFrameOfType(aFlags &
+    return nsHTMLContainerFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
 

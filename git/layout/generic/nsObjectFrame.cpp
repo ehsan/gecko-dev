@@ -1420,8 +1420,6 @@ nsObjectFrame::PrintPlugin(nsRenderingContext& aRenderingContext,
   /* XXX this just flat-out doesn't work in a thebes world --
    * RenderEPS is a no-op.  So don't bother to do any work here.
    */
-  (void)window;
-  (void)npprint;
 
 #elif defined(XP_OS2)
   void *hps = GetPSFromRC(aRenderingContext);

@@ -324,7 +324,7 @@ JSObject::scopeChain() const
 }
 
 inline JSObject *
-JSObject::staticBlockScopeChain() const
+JSObject::getStaticBlockScopeChain() const
 {
     JS_ASSERT(isStaticBlock());
     return getFixedSlot(SCOPE_CHAIN_SLOT).toObjectOrNull();
@@ -634,18 +634,16 @@ inline void
 JSObject::copyDenseArrayElements(uintN dstStart, const js::Value *src, uintN count)
 {
     JS_ASSERT(dstStart + count <= getDenseArrayCapacity());
-    JSCompartment *comp = compartment();
     for (unsigned i = 0; i < count; ++i)
-        elements[dstStart + i].set(comp, src[i]);
+        elements[dstStart + i] = src[i];
 }
 
 inline void
 JSObject::initDenseArrayElements(uintN dstStart, const js::Value *src, uintN count)
 {
     JS_ASSERT(dstStart + count <= getDenseArrayCapacity());
-    JSCompartment *comp = compartment();
     for (unsigned i = 0; i < count; ++i)
-        elements[dstStart + i].init(comp, src[i]);
+        elements[dstStart + i].init(src[i]);
 }
 
 inline void
@@ -895,6 +893,11 @@ inline bool JSObject::setDelegate(JSContext *cx)
     return setFlag(cx, js::BaseShape::DELEGATE, GENERATE_SHAPE);
 }
 
+inline bool JSObject::setIndexed(JSContext *cx)
+{
+    return setFlag(cx, js::BaseShape::INDEXED);
+}
+
 inline bool JSObject::isVarObj() const
 {
     return lastProperty()->hasObjectFlag(js::BaseShape::VAROBJ);
@@ -1139,11 +1142,17 @@ JSObject::slotSpan() const
     return lastProperty()->slotSpan();
 }
 
+inline bool
+JSObject::containsSlot(uint32_t slot) const
+{
+    return slot < slotSpan();
+}
+
 inline js::HeapValue &
 JSObject::nativeGetSlotRef(uintN slot)
 {
     JS_ASSERT(isNative());
-    JS_ASSERT(slot < slotSpan());
+    JS_ASSERT(containsSlot(slot));
     return getSlotRef(slot);
 }
 
@@ -1151,7 +1160,7 @@ inline const js::Value &
 JSObject::nativeGetSlot(uintN slot) const
 {
     JS_ASSERT(isNative());
-    JS_ASSERT(slot < slotSpan());
+    JS_ASSERT(containsSlot(slot));
     return getSlot(slot);
 }
 
@@ -1175,7 +1184,7 @@ inline void
 JSObject::nativeSetSlot(uintN slot, const js::Value &value)
 {
     JS_ASSERT(isNative());
-    JS_ASSERT(slot < slotSpan());
+    JS_ASSERT(containsSlot(slot));
     return setSlot(slot, value);
 }
 

@@ -21,7 +21,8 @@ let TestObserver = {
 
   observe: function test_observe(aSubject)
   {
-    if (!(aSubject instanceof Ci.nsIScriptError)) {
+    if (!(aSubject instanceof Ci.nsIScriptError) ||
+        !(aSubject instanceof Ci.nsIScriptError2)) {
       return;
     }
 

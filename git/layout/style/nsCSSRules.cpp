@@ -38,8 +38,6 @@
 
 /* rules in a CSS stylesheet other than style rules (e.g., @import rules) */
 
-#include "mozilla/Attributes.h"
-
 #include "nsCSSRules.h"
 #include "nsCSSValue.h"
 #include "mozilla/css/ImportRule.h"
@@ -122,7 +120,7 @@ Rule::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
 // Style Rule List for group rules
 //
 
-class GroupRuleRuleList MOZ_FINAL : public nsICSSRuleList
+class GroupRuleRuleList : public nsICSSRuleList
 {
 public:
   GroupRuleRuleList(GroupRule *aGroupRule);

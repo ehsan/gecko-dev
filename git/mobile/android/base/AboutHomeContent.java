@@ -62,7 +62,6 @@ import android.text.SpannableString;
 import android.text.style.UnderlineSpan;
 import android.util.AttributeSet;
 import android.util.Log;
-import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.AdapterView;
@@ -98,8 +97,6 @@ public class AboutHomeContent extends ScrollView {
 
     public AboutHomeContent(Context context, AttributeSet attrs) {
         super(context, attrs);
-        setScrollContainer(true);
-        setBackgroundResource(R.drawable.abouthome_bg_repeat);
     }
 
     @Override
@@ -218,67 +215,70 @@ public class AboutHomeContent extends ScrollView {
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
-        if (mTopSitesGrid != null) 
-            mTopSitesGrid.setNumColumns(getNumberOfColumns());
-        if (mTopSitesAdapter != null)
-            mTopSitesAdapter.notifyDataSetChanged();
+        mTopSitesGrid.setNumColumns(getNumberOfColumns());
+        mTopSitesAdapter.notifyDataSetChanged();
 
         super.onConfigurationChanged(newConfig);
+    }
+
+    InputStream getProfileRecommendedAddonsStream() {
+        try {
+            File profileDir = GeckoApp.mAppContext.getProfileDir();
+            if (profileDir == null)
+                return null;
+            File recommendedAddonsFile = new File(profileDir, "recommended-addons.json");
+            if (!recommendedAddonsFile.exists())
+                return null;
+            return new FileInputStream(recommendedAddonsFile);
+        } catch (FileNotFoundException fnfe) {
+            // ignore
+        }
+        return null;
+    }
+
+    InputStream getRecommendedAddonsStream(Activity activity) throws Exception{
+        InputStream is = getProfileRecommendedAddonsStream();
+        if (is != null)
+            return is;
+        File applicationPackage = new File(activity.getApplication().getPackageResourcePath());
+        ZipFile zip = null;
+        try {
+            zip = new ZipFile(applicationPackage);
+            if (zip == null)
+                return null;
+            ZipEntry fileEntry = zip.getEntry("recommended-addons.json");
+            if (fileEntry == null)
+                return null;
+            return zip.getInputStream(fileEntry);
+        } finally {
+            if (zip != null)
+                zip.close();
+        }
     }
 
     void readRecommendedAddons(final Activity activity) {
         GeckoAppShell.getHandler().post(new Runnable() {
             public void run() {
-                byte[] buf = new byte[32768];
-                InputStream fileStream = null;
-                ZipFile zip = null;
-                StringBuffer jsonString = null;
-                File profileDir = GeckoApp.mAppContext.getProfileDir();
                 try {
-                    if (profileDir != null) {
-                        try {
-                            File recommendedAddonsFile = new File(profileDir, "recommended-addons.json");
-                            if (recommendedAddonsFile.exists()) {
-                                fileStream = new FileInputStream(recommendedAddonsFile);
-                            }
-                        } catch (FileNotFoundException fnfe) {}
-                    }
-                    if (fileStream == null) {
-                        Log.i("Addons", "filestream is null");
-                        File applicationPackage = new File(activity.getApplication().getPackageResourcePath());
-                        zip = new ZipFile(applicationPackage);
-                        if (zip == null)
-                            return;
-                        ZipEntry fileEntry = zip.getEntry("recommended-addons.json");
-                        if (fileEntry == null)
-                            return;
-                        fileStream = zip.getInputStream(fileEntry);
-                    }
-
+                    byte[] buf = new byte[32768];
+                    InputStream fileStream = getRecommendedAddonsStream(activity);
                     if (fileStream == null)
                         return;
-                    jsonString = new StringBuffer();
-                    int read = 0;
-                    while ((read = fileStream.read(buf, 0, 32768)) != -1) {
-                        jsonString.append(new String(buf, 0, read));
-                    }
-                } catch (IOException ioe) {
-                    Log.i(LOGTAG, "error reading recommended addons file", ioe);
-                } finally {
+                    StringBuffer jsonString = new StringBuffer();
                     try {
-                        if (fileStream != null)
+                        int read = 0;
+                        while ((read = fileStream.read(buf, 0, 32768)) != -1) {
+                            jsonString.append(new String(buf, 0, read));
+                        }
+                    } finally {
+                        try {
                             fileStream.close();
-                        if (zip != null)
-                            zip.close();
-                    } catch (IOException ioe) {
-                        // catch this here because we can continue even if the
-                        // close failed
-                        Log.i(LOGTAG, "error closing json file", ioe);
+                        } catch (IOException ioe) {
+                            // catch this here because we can continue even if the
+                            // close failed
+                            Log.i(LOGTAG, "error closing json file", ioe);
+                        }
                     }
-                } 
-                if (jsonString == null)
-                    return;
-                try {
                     final JSONArray array = new JSONObject(jsonString.toString()).getJSONArray("addons");
                     GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
                         public void run() {
@@ -301,41 +301,16 @@ public class AboutHomeContent extends ScrollView {
     }
 
     public static class TopSitesGridView extends GridView {
-        /** From layout xml:
-         *  80dip image height 
-         * + 2dip image paddingTop
-         * + 1dip image padding (for bottom)
-         * + 3dip marginTop on the TextView
-         * +15dip TextView height
-         * + 8dip vertical spacing in the GridView
-         * ------
-         * 109dip total height per top site grid item
-         */
-        private static final int kTopSiteItemHeight = 109;
-        float mDisplayDensity ;
-
         public TopSitesGridView(Context context, AttributeSet attrs) {
             super(context, attrs);
-            DisplayMetrics dm = new DisplayMetrics();
-            GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(dm);
-            mDisplayDensity = dm.density;
         }
 
         @Override
         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-            int numCols;
-            int numRows;
-            Configuration config = getContext().getResources().getConfiguration();
-            if (config.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-                numCols = NUMBER_OF_COLS_LANDSCAPE;
-                numRows = NUMBER_OF_TOP_SITES_LANDSCAPE / NUMBER_OF_COLS_LANDSCAPE;
-            } else {
-                numCols = NUMBER_OF_COLS_PORTRAIT;
-                numRows = NUMBER_OF_TOP_SITES_PORTRAIT / NUMBER_OF_COLS_PORTRAIT;
-            }
-            int expandedHeightSpec = 
-                MeasureSpec.makeMeasureSpec((int)(mDisplayDensity * numRows * kTopSiteItemHeight),
-                                            MeasureSpec.EXACTLY);
+            // This is to ensure that the GridView always has a size that shows
+            // all items with no need for scrolling.
+            int expandedHeightSpec = MeasureSpec.makeMeasureSpec(Integer.MAX_VALUE >> 2,
+                                                                 MeasureSpec.AT_MOST);
             super.onMeasure(widthMeasureSpec, expandedHeightSpec);
         }
     }

@@ -76,9 +76,8 @@ public class Tabs implements GeckoEventListener {
         String url = params.getString("uri");
         Boolean external = params.getBoolean("external");
         int parentId = params.getInt("parentId");
-        String title = params.getString("title");
 
-        Tab tab = new Tab(id, url, external, parentId, title);
+        Tab tab = new Tab(id, url, external, parentId);
         tabs.put(id, tab);
         order.add(tab);
         Log.i(LOGTAG, "Added a tab with id: " + id + ", url: " + url);
@@ -141,7 +140,7 @@ public class Tabs implements GeckoEventListener {
 
     /** Close tab and then select nextTab */
     public void closeTab(Tab tab, Tab nextTab) {
-        if (tab == null || nextTab == null)
+        if (tab == null)
             return;
 
         GeckoAppShell.sendEventToGecko(new GeckoEvent("Tab:Select", String.valueOf(nextTab.getId())));

@@ -1035,14 +1035,6 @@ Navigator::SizeOf() const
   return size;
 }
 
-void
-Navigator::SetWindow(nsPIDOMWindow *aInnerWindow)
-{
-  NS_ASSERTION(aInnerWindow->IsInnerWindow(),
-               "Navigator must get an inner window!");
-  mWindow = do_GetWeakReference(aInnerWindow);
-}
-
 } // namespace dom
 } // namespace mozilla
 

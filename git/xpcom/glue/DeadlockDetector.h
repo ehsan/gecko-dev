@@ -39,8 +39,6 @@
 #ifndef mozilla_DeadlockDetector_h
 #define mozilla_DeadlockDetector_h
 
-#include "mozilla/Attributes.h"
-
 #include <stdlib.h>
 
 #include "plhash.h"
@@ -568,9 +566,8 @@ public:
      */
     PRLock* mLock;
 
-private:
-    DeadlockDetector(const DeadlockDetector& aDD) MOZ_DELETE;
-    DeadlockDetector& operator=(const DeadlockDetector& aDD) MOZ_DELETE;
+    DeadlockDetector(const DeadlockDetector& aDD);
+    DeadlockDetector& operator=(const DeadlockDetector& aDD);
 };
 
 

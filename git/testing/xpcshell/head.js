@@ -334,16 +334,7 @@ function _execute_test() {
     // possible that this will mask an NS_ERROR_ABORT that happens after a
     // do_check failure though.
     if (!_quit || e != Components.results.NS_ERROR_ABORT) {
-      msg = "TEST-UNEXPECTED-FAIL | ";
-      if ('fileName' in e) {
-        msg += e.fileName;
-        if ('lineNumber' in e) {
-          msg += ":" + e.lineNumber;
-        }
-      } else {
-        msg += "xpcshell/head.js";
-      }
-      msg += " | " + e;
+      msg = "TEST-UNEXPECTED-FAIL | (xpcshell/head.js) | " + e;
       if (e.stack) {
         _dump(msg + " - See following stack:\n");
         _dump_exception_stack(e.stack);

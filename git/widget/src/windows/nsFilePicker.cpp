@@ -888,8 +888,7 @@ nsFilePicker::ShowFilePicker(const nsString& aInitialDir)
   // options
 
   FILEOPENDIALOGOPTIONS fos = 0;
-  fos |= FOS_SHAREAWARE | FOS_OVERWRITEPROMPT |
-         FOS_NOREADONLYRETURN | FOS_FORCEFILESYSTEM;
+  fos |= FOS_SHAREAWARE | FOS_OVERWRITEPROMPT | FOS_NOREADONLYRETURN;
 
   // Handle add to recent docs settings
   if (IsPrivacyModeEnabled() || !mAddToRecentDocs) {

@@ -2515,7 +2515,7 @@ CallMethodHelper::QueryInterfaceFastPath() const
     uintN err;
     JSBool success =
         XPCConvert::NativeData2JS(mCallContext, &v, &qiresult,
-                                  nsXPTType::T_INTERFACE_IS,
+                                  nsXPTType::T_INTERFACE_IS | XPT_TDP_POINTER,
                                   iid, &err);
     NS_IF_RELEASE(qiresult);
 
@@ -3683,7 +3683,7 @@ ConstructSlimWrapper(XPCCallContext &ccx,
         return false;
     }
 
-    if (!js::IsObjectInContextCompartment(parent, ccx.GetJSContext())) {
+    if (ccx.GetJSContext()->compartment != js::GetObjectCompartment(parent)) {
         SLIM_LOG_NOT_CREATED(ccx, identityObj, "wrong compartment");
 
         return false;

@@ -39,9 +39,6 @@
 #ifndef nsTArray_h__
 #define nsTArray_h__
 
-#include "mozilla/Assertions.h"
-#include "mozilla/Util.h"
-
 #include <string.h>
 
 #include "prtypes.h"
@@ -50,6 +47,7 @@
 #include "nsQuickSort.h"
 #include "nsDebug.h"
 #include "nsTraceRefcnt.h"
+#include "mozilla/Util.h"
 #include NEW_H
 
 //
@@ -1318,9 +1316,9 @@ private:
   friend class nsTArray_base;
 
   void Init() {
-    MOZ_STATIC_ASSERT(MOZ_ALIGNOF(elem_type) <= 8,
-                      "can't handle alignments greater than 8, "
-                      "see nsTArray_base::UsesAutoArrayBuffer()");
+    // We can't handle alignments greater than 8; see
+    // nsTArray_base::UsesAutoArrayBuffer().
+    PR_STATIC_ASSERT(MOZ_ALIGNOF(elem_type) <= 8);
 
     *base_type::PtrToHdr() = reinterpret_cast<Header*>(&mAutoBuf);
     base_type::Hdr()->mLength = 0;
@@ -1369,10 +1367,8 @@ public:
 // 64-bit system, where the compiler inserts 4 bytes of padding at the end of
 // the auto array to make its size a multiple of alignof(void*) == 8 bytes.
 
-MOZ_STATIC_ASSERT(sizeof(nsAutoTArray<PRUint32, 2>) ==
-                  sizeof(void*) + sizeof(nsTArrayHeader) + sizeof(PRUint32) * 2,
-                  "nsAutoTArray shouldn't contain any extra padding, "
-                  "see the comment");
+PR_STATIC_ASSERT(sizeof(nsAutoTArray<PRUint32, 2>) ==
+                 sizeof(void*) + sizeof(nsTArrayHeader) + sizeof(PRUint32) * 2);
 
 template<class E, PRUint32 N>
 class AutoFallibleTArray : public nsAutoArrayBase<FallibleTArray<E>, N>

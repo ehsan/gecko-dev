@@ -40,8 +40,6 @@
 #ifndef nsCSSValue_h___
 #define nsCSSValue_h___
 
-#include "mozilla/Attributes.h"
-
 #include "nsCOMPtr.h"
 #include "nsCRTGlue.h"
 #include "nsCSSKeywords.h"
@@ -497,8 +495,9 @@ public:
   private:
     mutable bool mURIResolved;
 
-    URL(const URL& aOther) MOZ_DELETE;
-    URL& operator=(const URL& aOther) MOZ_DELETE;
+    // not to be implemented
+    URL(const URL& aOther);
+    URL& operator=(const URL& aOther);
   };
 
   struct Image : public URL {
@@ -645,8 +644,9 @@ private:
 #undef CSSVALUE_LIST_FOR_EXTRA_VALUES
 
 private:
-  Array(const Array& aOther) MOZ_DELETE;
-  Array& operator=(const Array& aOther) MOZ_DELETE;
+  // not to be implemented
+  Array(const Array& aOther);
+  Array& operator=(const Array& aOther);
 };
 
 // Prefer nsCSSValue::Array for lists of fixed size.
@@ -763,14 +763,14 @@ struct nsCSSRect_heap : public nsCSSRect {
 inline nsCSSRect&
 nsCSSValue::GetRectValue()
 {
-  NS_ABORT_IF_FALSE(mUnit == eCSSUnit_Rect, "not a rect value");
+  NS_ABORT_IF_FALSE(mUnit == eCSSUnit_Rect, "not a pair value");
   return *mValue.mRect;
 }
 
 inline const nsCSSRect&
 nsCSSValue::GetRectValue() const
 {
-  NS_ABORT_IF_FALSE(mUnit == eCSSUnit_Rect, "not a rect value");
+  NS_ABORT_IF_FALSE(mUnit == eCSSUnit_Rect, "not a pair value");
   return *mValue.mRect;
 }
 
@@ -1073,8 +1073,9 @@ struct nsCSSValueGradient {
   NS_INLINE_DECL_REFCOUNTING(nsCSSValueGradient)
 
 private:
-  nsCSSValueGradient(const nsCSSValueGradient& aOther) MOZ_DELETE;
-  nsCSSValueGradient& operator=(const nsCSSValueGradient& aOther) MOZ_DELETE;
+  // not to be implemented
+  nsCSSValueGradient(const nsCSSValueGradient& aOther);
+  nsCSSValueGradient& operator=(const nsCSSValueGradient& aOther);
 };
 
 struct nsCSSCornerSizes {

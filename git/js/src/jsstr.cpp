@@ -48,9 +48,6 @@
  * of rooting things that might lose their newborn root due to subsequent GC
  * allocations in the same native method.
  */
-
-#include "mozilla/Attributes.h"
-
 #include <stdlib.h>
 #include <string.h>
 #include "jstypes.h"
@@ -1361,8 +1358,8 @@ class RegExpPair
  */
 class RegExpGuard
 {
-    RegExpGuard(const RegExpGuard &) MOZ_DELETE;
-    void operator=(const RegExpGuard &) MOZ_DELETE;
+    RegExpGuard(const RegExpGuard &);
+    void operator=(const RegExpGuard &);
 
     JSContext   *cx;
     RegExpPair  rep;

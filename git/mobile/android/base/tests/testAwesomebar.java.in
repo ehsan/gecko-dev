@@ -67,15 +67,14 @@ public class testAwesomebar extends ActivityInstrumentationTestCase2 {
   public void testAwesomebar() {
     // TODO: find a better way to not hardcode this url
     String url = "http://mochi.test:8888/tests/robocop/robocop.html";
-    actions.waitForGeckoEvent("Gecko:Ready");
     Element awesomebar = driver.findElement("awesome_bar");
     awesomebar.click();
 
     Element urlbar = driver.findElement("awesomebar_text");
-    getInstrumentation().waitForIdleSync();
     actions.sendKeys(url);
-    driver.is(urlbar.getText(), url, "Awesomebar URL Typed Properly");
-    actions.sendSpecialKey(Actions.SpecialKey.ENTER);
+    driver.is(url, urlbar.getText(), "Awesomebar URL Typed Properly");
+    //could also use: urlbar.clickSpecialKey(Element.SpecialKey.ENTER)
+    actions.sendKeys("\n");
     //wait for screen to load
     actions.waitForGeckoEvent("DOMContentLoaded");
     driver.setupScrollHandling();
@@ -93,8 +92,7 @@ public class testAwesomebar extends ActivityInstrumentationTestCase2 {
     }
     //Click the awesomebar again 
     awesomebar.click();
-    getInstrumentation().waitForIdleSync();
-    driver.is(urlbar.getText(), url, "Aweosmebar URL stayed the same");
+    driver.is(url, urlbar.getText(), "Aweosmebar URL stayed the same");
   }	
   
   @Override	

@@ -42,8 +42,6 @@
 #ifndef nsHTMLCSSStyleSheet_h_
 #define nsHTMLCSSStyleSheet_h_
 
-#include "mozilla/Attributes.h"
-
 #include "nsIStyleSheet.h"
 #include "nsIStyleRuleProcessor.h"
 
@@ -92,8 +90,9 @@ public:
     SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
 private: 
-  nsHTMLCSSStyleSheet(const nsHTMLCSSStyleSheet& aCopy) MOZ_DELETE;
-  nsHTMLCSSStyleSheet& operator=(const nsHTMLCSSStyleSheet& aCopy) MOZ_DELETE;
+  // These are not supported and are not implemented! 
+  nsHTMLCSSStyleSheet(const nsHTMLCSSStyleSheet& aCopy); 
+  nsHTMLCSSStyleSheet& operator=(const nsHTMLCSSStyleSheet& aCopy); 
 
 protected:
   nsCOMPtr<nsIURI> mURL;

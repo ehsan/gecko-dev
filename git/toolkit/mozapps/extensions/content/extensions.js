@@ -377,8 +377,7 @@ var gEventManager = {
   shutdown: function() {
     Services.prefs.removeObserver(PREF_CHECK_COMPATIBILITY, this);
     Services.prefs.removeObserver(PREF_CHECK_UPDATE_SECURITY, this);
-    Services.prefs.removeObserver(PREF_UPDATE_ENABLED, this);
-    Services.prefs.removeObserver(PREF_AUTOUPDATE_DEFAULT, this);
+    Services.prefs.removeObserver(PREF_AUTOUPDATE_DEFAULT, this, false);
 
     AddonManager.removeInstallListener(this);
     AddonManager.removeAddonListener(this);

@@ -641,8 +641,7 @@ resultConvTemplates = {
         "    return JS_TRUE;\n",
 
     'long':
-        "    ${jsvalRef} = INT_TO_JSVAL(result);\n"
-        "    return JS_TRUE;\n",
+        "    return xpc_qsInt32ToJsval(cx, result, ${jsvalPtr});\n",
 
     'long long':
         "    return xpc_qsInt64ToJsval(cx, result, ${jsvalPtr});\n",
@@ -652,8 +651,7 @@ resultConvTemplates = {
         "    return JS_TRUE;\n",
 
     'unsigned long':
-        "    ${jsvalRef} = UINT_TO_JSVAL(result);\n"
-        "    return JS_TRUE;\n",
+        "    return xpc_qsUint32ToJsval(cx, result, ${jsvalPtr});\n",
 
     'unsigned long long':
         "    return xpc_qsUint64ToJsval(cx, result, ${jsvalPtr});\n",
@@ -669,10 +667,10 @@ resultConvTemplates = {
         "    return JS_TRUE;\n",
 
     '[astring]':
-        "    return xpc::StringToJsval(cx, result, ${jsvalPtr});\n",
+        "    return xpc_qsStringToJsval(cx, result, ${jsvalPtr});\n",
 
     '[domstring]':
-        "    return xpc::StringToJsval(cx, result, ${jsvalPtr});\n",
+        "    return xpc_qsStringToJsval(cx, result, ${jsvalPtr});\n",
 
     '[jsval]':
         # Here there's nothing to convert, because the result has already been

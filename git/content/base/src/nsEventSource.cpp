@@ -1091,7 +1091,7 @@ nsEventSource::PrintErrorOnConsole(const char *aBundleURI,
     do_GetService(NS_CONSOLESERVICE_CONTRACTID, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIScriptError> errObj(
+  nsCOMPtr<nsIScriptError2> errObj(
     do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1106,16 +1106,16 @@ nsEventSource::PrintErrorOnConsole(const char *aBundleURI,
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = errObj->InitWithWindowID(message.get(),
-                                mScriptFile.get(),
-                                nsnull,
-                                mScriptLine, 0,
-                                nsIScriptError::errorFlag,
-                                "Event Source", mInnerWindowID);
-  NS_ENSURE_SUCCESS(rv, rv);
+  errObj->InitWithWindowID(message.get(),
+                           mScriptFile.get(),
+                           nsnull,
+                           mScriptLine, 0,
+                           nsIScriptError::errorFlag,
+                           "Event Source", mInnerWindowID);
 
   // print the error message directly to the JS console
-  rv = console->LogMessage(errObj);
+  nsCOMPtr<nsIScriptError> logError = do_QueryInterface(errObj);
+  rv = console->LogMessage(logError);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;

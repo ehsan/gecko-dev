@@ -615,8 +615,11 @@ struct JSObject : js::gc::Cell
     /* Whether method shapes can be added to this object. */
     inline bool canHaveMethodBarrier() const;
 
-    /* Whether there may be indexed properties on this object. */
     inline bool isIndexed() const;
+    inline bool setIndexed(JSContext *cx);
+
+    /* Set the indexed flag on this object if id is an indexed property. */
+    inline bool maybeSetIndexed(JSContext *cx, jsid id);
 
     /*
      * Return true if this object is a native one that has been converted from
@@ -639,14 +642,6 @@ struct JSObject : js::gc::Cell
 
   private:
     inline js::HeapValue* fixedSlots() const;
-
-    /*
-     * Get internal pointers to the range of values starting at start and
-     * running for length.
-     */
-    void getSlotRange(size_t start, size_t length,
-                      js::HeapValue **fixedStart, js::HeapValue **fixedEnd,
-                      js::HeapValue **slotsStart, js::HeapValue **slotsEnd);
   public:
 
     /* Accessors for properties. */
@@ -698,6 +693,7 @@ struct JSObject : js::gc::Cell
     inline bool updateSlotsForSpan(JSContext *cx, size_t oldSpan, size_t newSpan);
 
   public:
+
     /*
      * Trigger the write barrier on a range of slots that will no longer be
      * reachable.
@@ -706,18 +702,16 @@ struct JSObject : js::gc::Cell
     inline void prepareElementRangeForOverwrite(size_t start, size_t end);
 
     /*
-     * Initialize a flat array of slots to this object at a start slot.  The
-     * caller must ensure that are enough slots.
-     */
-    void initSlotRange(size_t start, const js::Value *vector, size_t length);
-
-    /*
      * Copy a flat array of slots to this object at a start slot. Caller must
-     * ensure there are enough slots in this object.
+     * ensure there are enough slots in this object. If |valid|, then the slots
+     * being overwritten hold valid data and must be invalidated for the write
+     * barrier.
      */
-    void copySlotRange(size_t start, const js::Value *vector, size_t length);
+    void copySlotRange(size_t start, const js::Value *vector, size_t length, bool valid);
 
     inline uint32_t slotSpan() const;
+
+    inline bool containsSlot(uint32_t slot) const;
 
     void rollbackProperties(JSContext *cx, uint32_t slotSpan);
 
@@ -796,6 +790,9 @@ struct JSObject : js::gc::Cell
 
     inline void setFixedSlot(uintN slot, const js::Value &value);
     inline void initFixedSlot(uintN slot, const js::Value &value);
+
+    /* Extend this object to have shape as its last-added property. */
+    inline bool extend(JSContext *cx, const js::Shape *shape, bool isDefinitelyAtom = false);
 
     /*
      * Whether this is the only object which has its specified type. This
@@ -913,7 +910,7 @@ struct JSObject : js::gc::Cell
      * on scope chains but mirror their structure, and can have a NULL
      * scope chain.
      */
-    inline JSObject *staticBlockScopeChain() const;
+    inline JSObject *getStaticBlockScopeChain() const;
     inline void setStaticBlockScopeChain(JSObject *obj);
 
     /* Common fixed slot for the scope chain of internal scope objects. */
@@ -1346,7 +1343,7 @@ struct JSObject : js::gc::Cell
 
     bool swap(JSContext *cx, JSObject *other);
 
-    const js::Shape *defineBlockVariable(JSContext *cx, jsid id, intN index, bool *redeclared);
+    const js::Shape *defineBlockVariable(JSContext *cx, jsid id, intN index);
 
     inline bool isArguments() const;
     inline bool isArrayBuffer() const;
@@ -1905,6 +1902,14 @@ CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
 
 extern bool
 js_IsDelegate(JSContext *cx, JSObject *obj, const js::Value &v);
+
+/*
+ * If protoKey is not JSProto_Null, then clasp is ignored. If protoKey is
+ * JSProto_Null, clasp must non-null.
+ */
+extern JS_FRIEND_API(JSBool)
+js_GetClassPrototype(JSContext *cx, JSObject *scope, JSProtoKey protoKey,
+                     JSObject **protop, js::Class *clasp = NULL);
 
 /*
  * Wrap boolean, number or string as Boolean, Number or String object.

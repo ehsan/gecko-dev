@@ -40,7 +40,6 @@
 #include "Logging.h"
 #include "assembler/jit/ExecutableAllocator.h"
 #include "assembler/assembler/RepatchBuffer.h"
-#include "js/MemoryMetrics.h"
 #include "jsgcmark.h"
 #include "BaseAssembler.h"
 #include "Compiler.h"
@@ -1311,12 +1310,6 @@ JSScript::jitDataSize(JSMallocSizeOfFun mallocSizeOf)
     if (jitCtor)
         n += jitCtor->scriptDataSize(mallocSizeOf); 
     return n;
-}
-
-JS_PUBLIC_API(size_t)
-JS::SizeOfScriptJitData(JSScript *script, JSMallocSizeOfFun mallocSizeOf)
-{
-    return script->jitDataSize(mallocSizeOf);
 }
 
 /* Please keep in sync with Compiler::finishThisUp! */

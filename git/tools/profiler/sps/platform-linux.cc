@@ -34,6 +34,7 @@
 #include <strings.h>    // index
 #include <errno.h>
 #include <stdarg.h>
+#include "v8-support.h"
 #include "platform.h"
 
 #include <string.h>
@@ -187,7 +188,6 @@ static void ProfilerSignalHandler(int signal, siginfo_t* info, void* context) {
     // Implement this on MIPS.
     UNIMPLEMENTED();
 #endif
-    sample->timestamp = mozilla::TimeStamp::Now();
   }
 #endif
   sActiveSampler->Tick(sample);

@@ -84,8 +84,7 @@ nsAppShell::nsAppShell()
     : mQueueLock("nsAppShell.mQueueLock"),
       mCondLock("nsAppShell.mCondLock"),
       mQueueCond(mCondLock, "nsAppShell.mQueueCond"),
-      mNumDraws(0),
-      mNumViewports(0)
+      mNumDraws(0)
 {
     gAppShell = this;
 }
@@ -243,15 +242,6 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         int curType = curEvent->Type();
         int nextType = nextEvent->Type();
 
-        while (nextType == AndroidGeckoEvent::VIEWPORT && mNumViewports > 1) {
-            // Skip this viewport change, as there's another one later and
-            // processing this one will only cause more unnecessary work
-            PopNextEvent();
-            delete nextEvent;
-            nextEvent = PeekNextEvent();
-            nextType = nextEvent->Type();
-        }
-
         while (nextType == AndroidGeckoEvent::DRAW && mLastDrawEvent &&
                mNumDraws > 1)
         {
@@ -395,7 +385,6 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         break;
     }
 
-    case AndroidGeckoEvent::VIEWPORT:
     case AndroidGeckoEvent::BROADCAST: {
 
         if (curEvent->Characters().Length() == 0)
@@ -472,8 +461,6 @@ nsAppShell::PopNextEvent()
         if (ae->Type() == AndroidGeckoEvent::DRAW) {
             if (--mNumDraws == 0)
                 mLastDrawEvent = nsnull;
-        } else if (ae->Type() == AndroidGeckoEvent::VIEWPORT) {
-            mNumViewports--;
         }
     }
 
@@ -516,8 +503,6 @@ nsAppShell::PostEvent(AndroidGeckoEvent *ae)
         if (ae->Type() == AndroidGeckoEvent::DRAW) {
             mNumDraws++;
             mLastDrawEvent = ae;
-        } else if (ae->Type() == AndroidGeckoEvent::VIEWPORT) {
-            mNumViewports++;
         }
     }
     NotifyNativeEvent();

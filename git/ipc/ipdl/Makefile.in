@@ -63,6 +63,7 @@ IPDLDIRS =  \
   hal/sandbox \
   ipc/testshell  \
   js/ipc  \
+  js/jetpack \
   layout/ipc \
   netwerk/ipc  \
   netwerk/protocol/ftp \

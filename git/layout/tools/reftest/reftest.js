@@ -36,11 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#if BOOTSTRAP
-var EXPORTED_SYMBOLS = ["OnRefTestLoad"];
-#endif
-
-
 const CC = Components.classes;
 const CI = Components.interfaces;
 const CR = Components.results;
@@ -150,13 +145,6 @@ const EXPECTED_FAIL = 1;
 const EXPECTED_RANDOM = 2;
 const EXPECTED_DEATH = 3;  // test must be skipped to avoid e.g. crash/hang
 
-// types of preference value we might want to set for a specific test
-const PREF_BOOLEAN = 0;
-const PREF_STRING  = 1;
-const PREF_INTEGER = 2;
-
-var gPrefsToRestore = [];
-
 const gProtocolRE = /^\w+:/;
 
 var HTTP_SERVER_PORT = 4444;
@@ -231,7 +219,7 @@ function IDForEventTarget(event)
     }
 }
 
-function OnRefTestLoad(win)
+function OnRefTestLoad()
 {
     gCrashDumpDir = CC[NS_DIRECTORY_SERVICE_CONTRACTID]
                     .getService(CI.nsIProperties)
@@ -250,11 +238,8 @@ function OnRefTestLoad(win)
         gBrowserIsRemote = false;
     }
     
-    if (win === undefined || win == null) {
-      win = window;
-    }
-    if (gContainingWindow == null && win != null) {
-      gContainingWindow = win;
+    if (gContainingWindow == null && window != null) {
+      gContainingWindow = window;
     }
 
     gBrowser = gContainingWindow.document.createElementNS(XUL_NS, "xul:browser");
@@ -265,15 +250,7 @@ function OnRefTestLoad(win)
     // what size our window is
     gBrowser.setAttribute("style", "min-width: 800px; min-height: 1000px; max-width: 800px; max-height: 1000px");
 
-#if BOOTSTRAP
-    var doc = gContainingWindow.document.getElementById('main-window');
-    while (doc.hasChildNodes()) {
-      doc.removeChild(doc.firstChild);
-    }
-    doc.appendChild(gBrowser);
-#else
     document.getElementById("reftest-window").appendChild(gBrowser);
-#endif
 
     gBrowserMessageManager = gBrowser.QueryInterface(CI.nsIFrameLoaderOwner)
                              .frameLoader.messageManager;
@@ -308,11 +285,7 @@ function InitAndStartRefTests()
                 var mfl = FileUtils.openFileOutputStream(f, FileUtils.MODE_WRONLY | FileUtils.MODE_CREATE);  
                 // Set to mirror to stdout as well as the file
                 gDumpLog = function (msg) {
-#if BOOTSTRAP
-                    //NOTE: on android-xul, we have a libc crash if we do a dump with %7s in the string
-#else
                     dump(msg); 
-#endif
                     mfl.write(msg, msg.length);
                 };
             }
@@ -400,38 +373,6 @@ function StartHTTPServer()
 
 function StartTests()
 {
-#if BOOTSTRAP
-    /* These prefs are optional, so we don't need to spit an error to the log */
-    try {
-        var prefs = Components.classes["@mozilla.org/preferences-service;1"].
-                    getService(Components.interfaces.nsIPrefBranch2);
-    } catch(e) {
-        gDumpLog("REFTEST TEST-UNEXPECTED-FAIL | | EXCEPTION: " + e + "\n");
-    }
-    
-    try {
-        gNoCanvasCache = prefs.getIntPref("reftest.nocache");
-    } catch(e) { 
-        gNoCanvasCache = false;
-    }
-
-    try {
-        gRunSlowTests = prefs.getIntPref("reftest.skipslowtests");
-    } catch(e) { 
-        gRunSlowTests = false;
-    }
-
-    try {
-        uri = prefs.getCharPref("reftest.uri");
-    } catch(e) { 
-        uri = "";
-    }
-
-    if (uri == "") {
-        gDumpLog("REFTEST TEST-UNEXPECTED-FAIL | | Unable to find reftest.uri pref.  Please ensure your profile is setup properly\n");
-        DoneTests();
-    }
-#else
     try {
         // Need to read the manifest once we have the final HTTP_SERVER_PORT.
         var args = window.arguments[0].wrappedJSObject;
@@ -442,25 +383,16 @@ function StartTests()
         if ("skipslowtests" in args && args.skipslowtests)
             gRunSlowTests = false;
 
-        uri = args.uri;
-    } catch (e) {
-        ++gTestResults.Exception;
-        gDumpLog("REFTEST TEST-UNEXPECTED-FAIL | | EXCEPTION: " + ex + "\n");
-        DoneTests();
-    }
-#endif
-
-    try {
-        ReadTopManifest(uri);
+        ReadTopManifest(args.uri);
         BuildUseCounts();
 
         if (gTotalChunks > 0 && gThisChunk > 0) {
-            var testsPerChunk = gURLs.length / gTotalChunks;
-            var start = Math.round((gThisChunk-1) * testsPerChunk);
-            var end = Math.round(gThisChunk * testsPerChunk);
-            gURLs = gURLs.slice(start, end);
-            gDumpLog("REFTEST INFO | Running chunk " + gThisChunk + " out of " + gTotalChunks + " chunks.  ")
-            gDumpLog("tests " + (start+1) + "-" + end + "/" + gURLs.length + "\n");
+          var testsPerChunk = gURLs.length / gTotalChunks;
+          var start = Math.round((gThisChunk-1) * testsPerChunk);
+          var end = Math.round(gThisChunk * testsPerChunk);
+          gURLs = gURLs.slice(start, end);
+          gDumpLog("REFTEST INFO | Running chunk " + gThisChunk + " out of " + gTotalChunks + " chunks.  ")
+          gDumpLog("tests " + (start+1) + "-" + end + "/" + gURLs.length + "\n");
         }
         gTotalTests = gURLs.length;
 
@@ -485,17 +417,17 @@ function OnRefTestUnload()
 // as a string.
 function getStreamContent(inputStream)
 {
-    var streamBuf = "";
-    var sis = CC["@mozilla.org/scriptableinputstream;1"].
-                  createInstance(CI.nsIScriptableInputStream);
-    sis.init(inputStream);
+  var streamBuf = "";
+  var sis = CC["@mozilla.org/scriptableinputstream;1"].
+                createInstance(CI.nsIScriptableInputStream);
+  sis.init(inputStream);
 
-    var available;
-    while ((available = sis.available()) != 0) {
-        streamBuf += sis.read(available);
-    }
-
-    return streamBuf;
+  var available;
+  while ((available = sis.available()) != 0) {
+    streamBuf += sis.read(available);
+  }
+  
+  return streamBuf;
 }
 
 // Build the sandbox for fails-if(), etc., condition evaluation.
@@ -508,16 +440,16 @@ function BuildConditionSandbox(aURL) {
     // xr.XPCOMABI throws exception for configurations without full ABI
     // support (mobile builds on ARM)
     try {
-        sandbox.xulRuntime.XPCOMABI = xr.XPCOMABI;
+      sandbox.xulRuntime.XPCOMABI = xr.XPCOMABI;
     } catch(e) {
-        sandbox.xulRuntime.XPCOMABI = "";
+      sandbox.xulRuntime.XPCOMABI = "";
     }
   
     try {
-        // nsIGfxInfo is currently only implemented on Windows
-        sandbox.d2d = (NS_GFXINFO_CONTRACTID in CC) && CC[NS_GFXINFO_CONTRACTID].getService(CI.nsIGfxInfo).D2DEnabled;
+      // nsIGfxInfo is currently only implemented on Windows
+      sandbox.d2d = (NS_GFXINFO_CONTRACTID in CC) && CC[NS_GFXINFO_CONTRACTID].getService(CI.nsIGfxInfo).D2DEnabled;
     } catch(e) {
-        sandbox.d2d = false;
+      sandbox.d2d = false;
     }
 
     sandbox.layersGPUAccelerated =
@@ -583,7 +515,7 @@ function BuildConditionSandbox(aURL) {
 
     sandbox.testPluginIsOOP = function () {
         try {
-            netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+          netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
         } catch (ex) {}
 
         var prefservice = Components.classes["@mozilla.org/preferences-service;1"]
@@ -634,7 +566,7 @@ function ReadTopManifest(aFileURL)
     gURLs = new Array();
     var url = gIOService.newURI(aFileURL, null, null);
     if (!url)
-        throw "Expected a file or http URL for the manifest.";
+      throw "Expected a file or http URL for the manifest.";
     ReadManifest(url, EXPECTED_PASS);
 }
 
@@ -688,9 +620,8 @@ function ReadManifest(aURL, inherited_status)
         var maxAsserts = 0;
         var needs_focus = false;
         var slow = false;
-        var prefSettings = [];
         
-        while (items[0].match(/^(fails|needs-focus|random|skip|asserts|slow|require-or|silentfail|pref)/)) {
+        while (items[0].match(/^(fails|needs-focus|random|skip|asserts|slow|require-or|silentfail)/)) {
             var item = items.shift();
             var stat;
             var cond;
@@ -752,24 +683,6 @@ function ReadManifest(aURL, inherited_status)
             } else if (item == "silentfail") {
                 cond = false;
                 allow_silent_fail = true;
-            } else if ((m = item.match(/^pref\((.+?),(.*)\)$/))) {
-                cond = false;
-                var prefName = m[1];
-                var prefVal = Components.utils.evalInSandbox("(" + m[2] + ")", sandbox);
-                var prefType;
-                var valType = typeof(prefVal);
-                if (valType == "boolean") {
-                    prefType = PREF_BOOLEAN;
-                } else if (valType == "string") {
-                    prefType = PREF_STRING;
-                } else if (valType == "number" && (parseInt(prefVal) == prefVal)) {
-                    prefType = PREF_INTEGER;
-                } else {
-                    throw "Error in pref value in manifest file " + aURL.spec + " line " + lineNo;
-                }
-                prefSettings.push( { name: prefName,
-                                     type: prefType,
-                                     value: prefVal } );
             } else {
                 throw "Error 1 in manifest file " + aURL.spec + " line " + lineNo;
             }
@@ -848,7 +761,6 @@ function ReadManifest(aURL, inherited_status)
                           maxAsserts: maxAsserts,
                           needsFocus: needs_focus,
                           slow: slow,
-                          prefSettings: prefSettings,
                           url1: testURI,
                           url2: null } );
         } else if (items[0] == TYPE_SCRIPT) {
@@ -871,7 +783,6 @@ function ReadManifest(aURL, inherited_status)
                           maxAsserts: maxAsserts,
                           needsFocus: needs_focus,
                           slow: slow,
-                          prefSettings: prefSettings,
                           url1: testURI,
                           url2: null } );
         } else if (items[0] == TYPE_REFTEST_EQUAL || items[0] == TYPE_REFTEST_NOTEQUAL) {
@@ -897,7 +808,6 @@ function ReadManifest(aURL, inherited_status)
                           maxAsserts: maxAsserts,
                           needsFocus: needs_focus,
                           slow: slow,
-                          prefSettings: prefSettings,
                           url1: testURI,
                           url2: refURI } );
         } else {
@@ -926,8 +836,7 @@ function BuildUseCounts()
         var url = gURLs[i];
         if (url.expected != EXPECTED_DEATH &&
             (url.type == TYPE_REFTEST_EQUAL ||
-             url.type == TYPE_REFTEST_NOTEQUAL) &&
-            url.prefSettings.length == 0) {
+             url.type == TYPE_REFTEST_NOTEQUAL)) {
             AddURIUseCount(gURLs[i].url1);
             AddURIUseCount(gURLs[i].url2);
         }
@@ -998,8 +907,6 @@ function StartCurrentTest()
 {
     gTestLog = [];
 
-    RestoreChangedPreferences();
-
     // make sure we don't run tests that are expected to kill the browser
     while (gURLs.length > 0) {
         var test = gURLs[0];
@@ -1015,77 +922,6 @@ function StartCurrentTest()
             ++gTestResults.Slow;
             gDumpLog("REFTEST TEST-KNOWN-SLOW | " + test.url1.spec + " | (SLOW)\n");
             gURLs.shift();
-        } else if (gURLs[0].prefSettings.length > 0) {
-            var prefs = Components.classes["@mozilla.org/preferences-service;1"].
-                        getService(Components.interfaces.nsIPrefBranch2);
-            var badPref = undefined;
-            try {
-                gURLs[0].prefSettings.forEach(function(ps) {
-                    var oldVal;
-                    if (ps.type == PREF_BOOLEAN) {
-                        try {
-                            oldVal = prefs.getBoolPref(ps.name);
-                        } catch (e) {
-                            badPref = "boolean preference '" + ps.name + "'";
-                            throw "bad pref";
-                        }
-                    } else if (ps.type == PREF_STRING) {
-                        try {
-                            oldVal = prefs.getCharPref(ps.name);
-                        } catch (e) {
-                            badPref = "string preference '" + ps.name + "'";
-                            throw "bad pref";
-                        }
-                    } else if (ps.type == PREF_INTEGER) {
-                        try {
-                            oldVal = prefs.getIntPref(ps.name);
-                        } catch (e) {
-                            badPref = "integer preference '" + ps.name + "'";
-                            throw "bad pref";
-                        }
-                    } else {
-                        throw "internal error - unknown preference type";
-                    }
-                    if (oldVal != ps.value) {
-                        gPrefsToRestore.push( { name: ps.name,
-                                                type: ps.type,
-                                                value: oldVal } );
-                        var value = ps.value;
-                        if (ps.type == PREF_BOOLEAN) {
-                            prefs.setBoolPref(ps.name, value);
-                        } else if (ps.type == PREF_STRING) {
-                            prefs.setCharPref(ps.name, value);
-                            value = '"' + value + '"';
-                        } else if (ps.type == PREF_INTEGER) {
-                            prefs.setIntPref(ps.name, value);
-                        }
-                        gDumpLog("SET PREFERENCE pref(" + ps.name + "," + value + ")\n");
-                    }
-                });
-            } catch (e) {
-                if (e == "bad pref") {
-                    if (test.expected == EXPECTED_FAIL) {
-                        gDumpLog("REFTEST TEST-KNOWN-FAIL | " + test.url1.spec +
-                                 " | (SKIPPED; " + badPref + " not known or wrong type)\n");
-                        ++gTestResults.Skip;
-                    } else {
-                        gDumpLog("REFTEST TEST-UNEXPECTED-FAIL | " + test.url1.spec +
-                                 " | " + badPref + " not known or wrong type\n");
-                        ++gTestResults.UnexpectedFail;
-                    }
-                } else {
-                    throw e;
-                }
-            }
-            if (badPref != undefined) {
-                // undo anything we changed
-                RestoreChangedPreferences();
-
-                // skip the test that had a bad preference
-                gURLs.shift();
-            } else {
-                break;
-            }
         } else {
             break;
         }
@@ -1107,8 +943,7 @@ function StartCurrentURI(aState)
     gState = aState;
     gCurrentURL = gURLs[0]["url" + aState].spec;
 
-    if (gURLs[0].prefSettings.length == 0 &&
-        gURICanvases[gCurrentURL] &&
+    if (gURICanvases[gCurrentURL] &&
         (gURLs[0].type == TYPE_REFTEST_EQUAL ||
          gURLs[0].type == TYPE_REFTEST_NOTEQUAL) &&
         gURLs[0].maxAsserts == 0) {
@@ -1368,8 +1203,7 @@ function RecordResult(testRunTime, errorMsg, scriptResults)
         return;
     }
 
-    if (gURLs[0].prefSettings.length == 0 &&
-        gURICanvases[gCurrentURL]) {
+    if (gURICanvases[gCurrentURL]) {
         gCurrentCanvas = gURICanvases[gCurrentURL];
     }
     if (gCurrentCanvas == null) {
@@ -1448,10 +1282,8 @@ function RecordResult(testRunTime, errorMsg, scriptResults)
                 FlushTestLog();
             }
 
-            if (gURLs[0].prefSettings.length == 0) {
-                UpdateCanvasCache(gURLs[0].url1, gCanvas1);
-                UpdateCanvasCache(gURLs[0].url2, gCanvas2);
-            }
+            UpdateCanvasCache(gURLs[0].url1, gCanvas1);
+            UpdateCanvasCache(gURLs[0].url2, gCanvas2);
 
             CleanUpCrashDumpFiles();
             FinishTestItem();
@@ -1579,27 +1411,6 @@ function ResetRenderingState()
 {
     SendResetRenderingState();
     // We would want to clear any viewconfig here, if we add support for it
-}
-
-function RestoreChangedPreferences()
-{
-    if (gPrefsToRestore.length > 0) {
-        var prefs = Components.classes["@mozilla.org/preferences-service;1"].
-                    getService(Components.interfaces.nsIPrefBranch2);
-        gPrefsToRestore.forEach(function(ps) {
-            var value = ps.value;
-            if (ps.type == PREF_BOOLEAN) {
-                prefs.setBoolPref(ps.name, value);
-            } else if (ps.type == PREF_STRING) {
-                prefs.setCharPref(ps.name, value);
-                value = '"' + value + '"';
-            } else if (ps.type == PREF_INTEGER) {
-                prefs.setIntPref(ps.name, value);
-            }
-            gDumpLog("RESTORE PREFERENCE pref(" + ps.name + "," + value + ")\n");
-        });
-        gPrefsToRestore = [];
-    }
 }
 
 function RegisterMessageListenersAndLoadContentScript()

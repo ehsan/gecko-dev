@@ -313,7 +313,7 @@ if test -n "$gonkdir" ; then
     STLPORT_CPPFLAGS="-I$gonkdir/ndk/sources/cxx-stl/stlport/stlport/"
     STLPORT_LIBS="-lstlport"
 
-    CPPFLAGS="-DANDROID -I$gonkdir/bionic/libc/include/ -I$gonkdir/bionic/libc/kernel/common -I$gonkdir/bionic/libc/arch-arm/include -I$gonkdir/bionic/libc/kernel/arch-arm -I$gonkdir/bionic/libm/include -I$gonkdir/frameworks/base/opengl/include -I$gonkdir/frameworks/base/native/include -I$gonkdir/hardware/libhardware/include -I$gonkdir/hardware/libhardware_legacy/include -I$gonkdir/system/core/include -I$gonkdir/bionic -I$gonkdir/frameworks/base/include $STLPORT_CPPFLAGS $CPPFLAGS"
+    CPPFLAGS="-DANDROID -I$gonkdir/bionic/libc/include/ -I$gonkdir/bionic/libc/kernel/common -I$gonkdir/bionic/libc/arch-arm/include -I$gonkdir/bionic/libc/kernel/arch-arm -I$gonkdir/bionic/libm/include -I$gonkdir/frameworks/base/opengl/include -I$gonkdir/frameworks/base/native/include -I$gonkdir/hardware/libhardware/include -I$gonkdir/system/core/include -I$gonkdir/bionic -I$gonkdir/frameworks/base/include $STLPORT_CPPFLAGS $CPPFLAGS"
     CFLAGS="-mandroid -fno-short-enums -fno-exceptions $CFLAGS"
     CXXFLAGS="-mandroid -fno-short-enums -fno-exceptions $CXXFLAGS"
     LIBS="$LIBS $STLPORT_LIBS"
@@ -1864,20 +1864,15 @@ if test "$GNU_CC"; then
     _MOZ_RTTI_FLAGS_ON=-frtti
     _MOZ_RTTI_FLAGS_OFF=-fno-rtti
 
-    # Turn on GNU-specific warnings:
-    # -Wall - turn on a lot of warnings
-    # -pedantic - this is turned on below
-    # -Wpointer-arith - enabled with -pedantic, but good to have even if not
-    # -Werror=declaration-after-statement - MSVC doesn't like these
-    # -Wempty-body - catches bugs, e.g. "if (c); foo();", few false positives
-    #
-    _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -Wall -Wpointer-arith -Wdeclaration-after-statement -Wempty-body"
-    
-    # Turn off the following warnings that -Wall/-pedantic turn on:
-    # -Woverlength-strings - we exceed the minimum maximum length all the time
-    #
-    _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -Wno-overlength-strings"
-
+    # Turn on GNU specific features
+    # -Wall - turn on all warnings
+    # -pedantic - make compiler warn about non-ANSI stuff, and
+    #             be a little bit stricter
+    # -Wdeclaration-after-statement - MSVC doesn't like these
+    # Warnings slamm took out for now (these were giving more noise than help):
+    # -Wbad-function-cast - warns when casting a function to a new return type
+    # -Wshadow - removed because it generates more noise than help --pete
+    _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -Wall -W -Wno-unused -Wpointer-arith -Wdeclaration-after-statement"
     if test -z "$INTEL_CC" -a -z "$CLANG_CC"; then
        # Don't use -Wcast-align with ICC or clang
        case "$CPU_ARCH" in
@@ -1893,26 +1888,12 @@ if test "$GNU_CC"; then
     dnl Turn pedantic on but disable the warnings for long long
     _PEDANTIC=1
 
+    if test -z "$INTEL_CC"; then
+      _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -W"
+    fi
+
     _DEFINES_CFLAGS='-include $(DEPTH)/mozilla-config.h -DMOZILLA_CLIENT'
     _USE_CPP_INCLUDE_FLAG=1
-
-    AC_CACHE_CHECK(whether the compiler supports -Wtype-limits,
-                   ac_cc_has_wtype_limits,
-        [
-            AC_LANG_SAVE
-            AC_LANG_C
-            _SAVE_CFLAGS="$CFLAGS"
-            CFLAGS="$CFLAGS -Wtype-limits"
-            AC_TRY_COMPILE([],
-                           [return(0);],
-                           ac_cc_has_wtype_limits="yes",
-                           ac_cc_has_wtype_limits="no")
-            CFLAGS="$_SAVE_CFLAGS"
-            AC_LANG_RESTORE
-        ])
-    if test "$ac_cc_has_wtype_limits" = "yes"; then
-        _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -Wtype-limits"
-    fi
 elif test "$SOLARIS_SUNPRO_CC"; then
     DSO_CFLAGS=''
     if test "$CPU_ARCH" = "sparc"; then
@@ -1940,22 +1921,8 @@ fi
 if test "$GNU_CXX"; then
     # FIXME: Let us build with strict aliasing. bug 414641.
     CXXFLAGS="$CXXFLAGS -fno-exceptions -fno-strict-aliasing"
-
-    # Turn on GNU-specific warnings:
-    # -Wall - turn on a lot of warnings
-    # -pedantic - this is turned on below
-    # -Wpointer-arith - enabled with -pedantic, but good to have even if not
-    # -Woverloaded-virtual - ???
-    # -Wempty-body - catches bugs, e.g. "if (c); foo();", few false positives
-    #
-    _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Wall -Wpointer-arith -Woverloaded-virtual -Wempty-body"
-
-    # Turn off the following warnings that -Wall/-pedantic turn on:
-    # -Woverlength-strings - we exceed the minimum maximum length all the time
-    # -Wctor-dtor-privacy - ???
-    #
-    _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Wno-overlength-strings -Wno-ctor-dtor-privacy"
-
+    # Turn on GNU specific features
+    _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Wall -Wpointer-arith -Woverloaded-virtual -Wsynth -Wno-ctor-dtor-privacy -Wno-non-virtual-dtor"
     if test -z "$INTEL_CXX" -a -z "$CLANG_CXX"; then
        # Don't use -Wcast-align with ICC or clang
        case "$CPU_ARCH" in
@@ -2054,24 +2021,6 @@ if test "$GNU_CXX"; then
         ])
     if test "$ac_has_werror_return_type" = "yes"; then
         _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Werror=return-type"
-    fi
-
-    AC_CACHE_CHECK(whether the compiler supports -Wtype-limits,
-                   ac_has_wtype_limits,
-        [
-            AC_LANG_SAVE
-            AC_LANG_CPLUSPLUS
-            _SAVE_CXXFLAGS="$CXXFLAGS"
-            CXXFLAGS="$CXXFLAGS -Wtype-limits"
-            AC_TRY_COMPILE([],
-                           [return(0);],
-                           ac_has_wtype_limits="yes",
-                           ac_has_wtype_limits="no")
-            CXXFLAGS="$_SAVE_CXXFLAGS"
-            AC_LANG_RESTORE
-        ])
-    if test "$ac_has_wtype_limits" = "yes"; then
-        _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Wtype-limits"
     fi
 
 else
@@ -5088,7 +5037,6 @@ then
     if test -z "$QTDIR"; then
         PKG_CHECK_MODULES(MOZ_QT, QtGui QtNetwork QtCore QtOpenGL)
         AC_CHECK_PROGS(HOST_MOC, $MOC moc, "")
-        AC_CHECK_PROGS(HOST_RCC, $RCC rcc, "")
     else
         MOZ_QT_LIBS="-L$QTDIR/lib/ -lQtGui -lQtNetwork -lQtCore -lQtXml -lQtOpenGL"
 
@@ -5100,19 +5048,12 @@ then
         MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS -I$QTDIR/include/QtNetwork"
         MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS -I$QTDIR/include/QtXml"
         HOST_MOC="$QTDIR/bin/moc"
-        HOST_RCC="$QTDIR/bin/rcc"
     fi
     if test -z "$HOST_MOC"; then
         AC_MSG_ERROR([No acceptable moc preprocessor found. Qt SDK is not installed or --with-qt is
 incorrect])
     fi
-    if test -z "$HOST_RCC"; then
-        AC_MSG_ERROR([No acceptable rcc preprocessor found. Qt SDK is not installed or --with-qt is
-incorrect])
-    fi
-
     MOC=$HOST_MOC
-    RCC=$HOST_RCC
 
     MOZ_ENABLE_QMSYSTEM2=
     PKG_CHECK_MODULES(_QMSYSTEM2, qmsystem2,
@@ -5175,7 +5116,6 @@ AC_SUBST(MOZ_QT_CFLAGS)
 AC_SUBST(MOZ_QT_LIBS)
 
 AC_SUBST(MOC)
-AC_SUBST(RCC)
 
 AC_SUBST(MOZ_DFB)
 AC_SUBST(MOZ_X11)
@@ -8081,7 +8021,7 @@ dnl ========================================================
 dnl Graphics checks.
 dnl ========================================================
 
-if test "${OS_ARCH}" = "Darwin" -o "${MOZ_WIDGET_TOOLKIT}" = "android"; then
+if test "${OS_ARCH}" = "Darwin" -o "${OS_TARGET}" = "Android"; then
 MOZ_ENABLE_SKIA=1
 else
 MOZ_ENABLE_SKIA=

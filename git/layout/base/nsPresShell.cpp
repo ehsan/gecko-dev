@@ -2408,12 +2408,7 @@ PresShell::CharacterExtendForBackspace()
 NS_IMETHODIMP 
 PresShell::WordMove(bool aForward, bool aExtend)
 {
-  nsresult result = mSelection->WordMove(aForward, aExtend);
-// if we can't go down/up any more we must then move caret completely to
-// end/beginning respectively.
-  if (NS_FAILED(result))
-    result = CompleteMove(aForward, aExtend);
-  return result;
+  return mSelection->WordMove(aForward, aExtend);  
 }
 
 NS_IMETHODIMP 
@@ -5818,28 +5813,7 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
         return NS_OK;
 
       if (presShell != this) {
-        nsIFrame* frame = presShell->GetRootFrame();
-        if (!frame) {
-          if (aEvent->message == NS_QUERY_TEXT_CONTENT ||
-              NS_IS_CONTENT_COMMAND_EVENT(aEvent)) {
-            return NS_OK;
-          }
-
-          nsIView* view = presShell->GetViewManager()->GetRootView();
-          while (view && !view->GetFrame()) {
-            view = view->GetParent();
-          }
-
-          if (view) {
-            frame = view->GetFrame();
-          }
-        }
-
-        if (!frame)
-          return NS_OK;
-
-        nsCOMPtr<nsIPresShell> shell = frame->PresContext()->GetPresShell();
-        return shell->HandleEvent(frame, aEvent, true, aEventStatus);
+        return presShell->HandleEvent(presShell->GetRootFrame(), aEvent, true, aEventStatus);
       }
     }
   }

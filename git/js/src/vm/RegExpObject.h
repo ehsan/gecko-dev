@@ -41,8 +41,6 @@
 #ifndef RegExpObject_h__
 #define RegExpObject_h__
 
-#include "mozilla/Attributes.h"
-
 #include <stddef.h>
 #include "jsobj.h"
 
@@ -202,8 +200,8 @@ class RegExpObject : public ::JSObject
      */
     Shape *assignInitialShape(JSContext *cx);
 
-    RegExpObject() MOZ_DELETE;
-    RegExpObject &operator=(const RegExpObject &reo) MOZ_DELETE;
+    RegExpObject();
+    RegExpObject &operator=(const RegExpObject &reo);
 }; /* class RegExpObject */
 
 /* Either builds a new RegExpObject or re-initializes an existing one. */

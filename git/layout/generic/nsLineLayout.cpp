@@ -52,7 +52,7 @@
 #include "nsBlockFrame.h"
 #include "nsInlineFrame.h"
 #include "nsStyleConsts.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsFloatManager.h"
 #include "nsStyleContext.h"
 #include "nsPresContext.h"
@@ -999,7 +999,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
         // Remove all of the childs next-in-flows. Make sure that we ask
         // the right parent to do the removal (it's possible that the
         // parent is not this because we are executing pullup code)
-        nsContainerFrame* parent = static_cast<nsContainerFrame*>
+        nsHTMLContainerFrame* parent = static_cast<nsHTMLContainerFrame*>
                                                   (kidNextInFlow->GetParent());
         parent->DeleteNextInFlowChild(mPresContext, kidNextInFlow, true);
       }
@@ -1801,17 +1801,20 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
 
     // Compute the logical height of the frame
     nscoord logicalHeight;
+    nscoord topLeading;
     PerSpanData* frameSpan = pfd->mSpan;
     if (frameSpan) {
       // For span frames the logical-height and top-leading was
       // pre-computed when the span was reflowed.
       logicalHeight = frameSpan->mLogicalHeight;
+      topLeading = frameSpan->mTopLeading;
     }
     else {
       // For other elements the logical height is the same as the
       // frames height plus its margins.
       logicalHeight = pfd->mBounds.height + pfd->mMargin.top +
         pfd->mMargin.bottom;
+      topLeading = 0;
     }
 
     // Get vertical-align property
@@ -2039,7 +2042,7 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
                pfd->mAscent, pfd->mBounds.height,
                pfd->mBorderPadding.top, pfd->mBorderPadding.bottom,
                logicalHeight,
-               frameSpan ? frameSpan->mTopLeading : 0,
+               pfd->mSpan ? topLeading : 0,
                pfd->mBounds.y, minY, maxY);
 #endif
       }

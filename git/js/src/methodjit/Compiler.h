@@ -486,6 +486,8 @@ private:
         return callSites[index].inlinepc;
     }
 
+    bool arrayPrototypeHasIndexedProperty();
+
     bool activeFrameHasMultipleExits() {
         ActiveFrame *na = a;
         while (na->parent) {

@@ -628,12 +628,7 @@ XPC_WN_NoHelper_Finalize(JSContext *cx, JSObject *obj)
         nsWrapperCache* cache;
         CallQueryInterface(p, &cache);
         cache->ClearWrapper();
-
-        XPCJSRuntime *rt = nsXPConnect::GetRuntimeInstance();
-        if(rt)
-            rt->DeferredRelease(p);
-        else
-            NS_RELEASE(p);
+        NS_RELEASE(p);
         return;
     }
 

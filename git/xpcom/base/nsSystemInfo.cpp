@@ -53,7 +53,7 @@
 #include "AndroidBridge.h"
 
 extern "C" {
-NS_EXPORT int android_sdk_version;
+extern int android_sdk_version;
 }
 #endif
 

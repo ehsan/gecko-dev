@@ -319,7 +319,7 @@ AndroidGeckoSoftwareLayerClient::InitGeckoSoftwareLayerClientClass(JNIEnv *jEnv)
 
     jLockBufferMethod = getMethod("lockBuffer", "()Ljava/nio/ByteBuffer;");
     jUnlockBufferMethod = getMethod("unlockBuffer", "()V");
-    jBeginDrawingMethod = getMethod("beginDrawing", "(II)V");
+    jBeginDrawingMethod = getMethod("beginDrawing", "()V");
     jEndDrawingMethod = getMethod("endDrawing", "(IIIILjava/lang/String;)V");
 #endif
 }
@@ -480,7 +480,6 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
             break;
         }
 
-        case VIEWPORT:
         case BROADCAST: {
             ReadCharactersField(jenv);
             ReadCharactersExtraField(jenv);
@@ -604,11 +603,11 @@ AndroidGeckoSoftwareLayerClient::UnlockBuffer()
 }
 
 void
-AndroidGeckoSoftwareLayerClient::BeginDrawing(int aWidth, int aHeight)
+AndroidGeckoSoftwareLayerClient::BeginDrawing()
 {
     NS_ASSERTION(!isNull(), "BeginDrawing() called on null software layer client!");
     AndroidBridge::AutoLocalJNIFrame(1);
-    return JNI()->CallVoidMethod(wrapped_obj, jBeginDrawingMethod, aWidth, aHeight);
+    return JNI()->CallVoidMethod(wrapped_obj, jBeginDrawingMethod);
 }
 
 void

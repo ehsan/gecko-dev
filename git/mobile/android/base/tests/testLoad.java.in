@@ -67,25 +67,20 @@ public class testLoad extends ActivityInstrumentationTestCase2 {
   public void testLoad(){
     // TODO: find a better way to not hardcode this url
     String url = "http://mochi.test:8888/tests/robocop/robocop.html";
-
-    actions.waitForGeckoEvent("Gecko:Ready");
     Element awesomebar = driver.findElement("awesome_bar");
     awesomebar.click();
 
     Element urlbar = driver.findElement("awesomebar_text");
-    getInstrumentation().waitForIdleSync();
     actions.sendKeys(url);
-    getInstrumentation().waitForIdleSync();
-    driver.is(urlbar.getText(), url, "Awesomebar URL Correct");
+    driver.is(url, urlbar.getText(),"Awesomebar URL Correct");
 
     //Select top item in the list.
     actions.sendSpecialKey(Actions.SpecialKey.DOWN);
-    actions.sendSpecialKey(Actions.SpecialKey.ENTER);
+    actions.sendKeys("\n");    
     actions.waitForGeckoEvent("DOMContentLoaded");
 
     awesomebar.click();
-    getInstrumentation().waitForIdleSync();
-    driver.is(urlbar.getText(), url, "Awesomebar URL is still correct");
+    driver.is(url, urlbar.getText(), "Awesomebar URL is still correct");
   }
 
   @Override	
