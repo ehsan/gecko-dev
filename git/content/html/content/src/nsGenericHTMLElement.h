@@ -71,7 +71,7 @@ public:
                              void **aInstancePtr);
 
   // From nsGenericElement
-  nsresult CopyInnerTo(nsGenericElement* aDest) const;
+  nsresult CopyInnerTo(nsGenericElement* aDest);
 
   // Implementation for nsIDOMElement
   NS_METHOD SetAttribute(const nsAString& aName,
@@ -146,6 +146,11 @@ public:
   // Callback for destructor of of dataset to ensure to null out weak pointer.
   nsresult ClearDataset();
   nsresult GetContextMenu(nsIDOMHTMLMenuElement** aContextMenu);
+
+  /**
+   * Get width and height, using given image request if attributes are unset.
+   */
+  nsSize GetWidthHeightForImage(imgIRequest *aImageRequest);
 
 protected:
   nsresult GetMarkup(bool aIncludeSelf, nsAString& aMarkup);

@@ -17,6 +17,8 @@
 
 #include "vm/String-inl.h"
 
+void * const js::NullPtr::constNullValue = NULL;
+
 /*
  * There are two mostly separate mark paths. The first is a fast path used
  * internally in the GC. The second is a slow path used for root marking and
@@ -170,8 +172,10 @@ MarkRootRange(JSTracer *trc, size_t len, T **vec, const char *name)
 {
     JS_ROOT_MARKING_ASSERT(trc);
     for (size_t i = 0; i < len; ++i) {
-        JS_SET_TRACING_INDEX(trc, name, i);
-        MarkInternal(trc, &vec[i]);
+        if (vec[i]) {
+            JS_SET_TRACING_INDEX(trc, name, i);
+            MarkInternal(trc, &vec[i]);
+        }
     }
 }
 
@@ -380,6 +384,22 @@ MarkValueRoot(JSTracer *trc, Value *v, const char *name)
     JS_ROOT_MARKING_ASSERT(trc);
     JS_SET_TRACING_NAME(trc, name);
     MarkValueInternal(trc, v);
+}
+
+void
+MarkTypeRoot(JSTracer *trc, types::Type *v, const char *name)
+{
+    JS_ROOT_MARKING_ASSERT(trc);
+    JS_SET_TRACING_NAME(trc, name);
+    if (v->isSingleObject()) {
+        JSObject *obj = v->singleObject();
+        MarkInternal(trc, &obj);
+        *v = types::Type::ObjectType(obj);
+    } else if (v->isTypeObject()) {
+        types::TypeObject *typeObj = v->typeObject();
+        MarkInternal(trc, &typeObj);
+        *v = types::Type::ObjectType(typeObj);
+    }
 }
 
 void
@@ -616,8 +636,11 @@ ScanBaseShape(GCMarker *gcmarker, BaseShape *base)
     if (base->hasSetterObject())
         PushMarkStack(gcmarker, base->setterObject());
 
-    if (JSObject *parent = base->getObjectParent())
+    if (JSObject *parent = base->getObjectParent()) {
         PushMarkStack(gcmarker, parent);
+    } else if (GlobalObject *global = base->compartment()->maybeGlobal()) {
+        PushMarkStack(gcmarker, global);
+    }
 
     /*
      * All children of the owned base shape are consistent with its

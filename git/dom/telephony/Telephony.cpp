@@ -6,7 +6,6 @@
 
 #include "Telephony.h"
 
-#include "nsIDocument.h"
 #include "nsIURI.h"
 #include "nsIURL.h"
 #include "nsPIDOMWindow.h"
@@ -419,6 +418,10 @@ Telephony::CallStateChanged(PRUint32 aCallIndex, PRUint16 aCallState,
         mActiveCall = nsnull;
       } else {
         mActiveCall = modifiedCall;
+      }
+    } else {
+      if (mActiveCall && mActiveCall->CallIndex() == aCallIndex) {
+        mActiveCall = nsnull;
       }
     }
 

@@ -308,6 +308,8 @@ nsWindow::nsWindow() : nsBaseWidget()
   }
 #endif
 
+  mIconSmall            = nsnull;
+  mIconBig              = nsnull;
   mWnd                  = nsnull;
   mPaintDC              = nsnull;
   mPrevWndProc          = nsnull;
@@ -389,6 +391,13 @@ nsWindow::~nsWindow()
   // XXX How could this happen???
   if (NULL != mWnd)
     Destroy();
+
+  // Free app icon resources.  This must happen after `OnDestroy` (see bug 708033).
+  if (mIconSmall)
+    ::DestroyIcon(mIconSmall);
+
+  if (mIconBig)
+    ::DestroyIcon(mIconBig);
 
   sInstanceCount--;
 
@@ -1146,6 +1155,11 @@ NS_METHOD nsWindow::Show(bool bState)
         ::SendMessageW(mWnd, WM_CHANGEUISTATE, MAKEWPARAM(UIS_INITIALIZE, UISF_HIDEFOCUS | UISF_HIDEACCEL), 0);
       }
     } else {
+      // Clear contents to avoid ghosting of old content if we display
+      // this window again.
+      if (wasVisible && mTransparencyMode == eTransparencyTransparent) {
+        ClearTranslucentWindow();
+      }
       if (mWindowType != eWindowType_dialog) {
         ::ShowWindow(mWnd, SW_HIDE);
       } else {
@@ -2824,6 +2838,7 @@ NS_METHOD nsWindow::SetIcon(const nsAString& aIconSpec)
     HICON icon = (HICON) ::SendMessageW(mWnd, WM_SETICON, (WPARAM)ICON_BIG, (LPARAM)bigIcon);
     if (icon)
       ::DestroyIcon(icon);
+    mIconBig = bigIcon;
   }
 #ifdef DEBUG_SetIcon
   else {
@@ -2837,6 +2852,7 @@ NS_METHOD nsWindow::SetIcon(const nsAString& aIconSpec)
     HICON icon = (HICON) ::SendMessageW(mWnd, WM_SETICON, (WPARAM)ICON_SMALL, (LPARAM)smallIcon);
     if (icon)
       ::DestroyIcon(icon);
+    mIconSmall = smallIcon;
   }
 #ifdef DEBUG_SetIcon
   else {
@@ -6131,7 +6147,7 @@ void nsWindow::UserActivity()
 
   // Check that we now have the idle service.
   if (mIdleService) {
-    mIdleService->ResetIdleTimeOut();
+    mIdleService->ResetIdleTimeOut(0);
   }
 }
 
@@ -6945,15 +6961,6 @@ void nsWindow::OnDestroy()
     mBrush = NULL;
   }
 
-  // Free app icon resources.
-  HICON icon;
-  icon = (HICON) ::SendMessageW(mWnd, WM_SETICON, (WPARAM)ICON_BIG, (LPARAM) 0);
-  if (icon)
-    ::DestroyIcon(icon);
-
-  icon = (HICON) ::SendMessageW(mWnd, WM_SETICON, (WPARAM)ICON_SMALL, (LPARAM) 0);
-  if (icon)
-    ::DestroyIcon(icon);
 
   // Destroy any custom cursor resources.
   if (mCursor == -1)
@@ -7450,6 +7457,16 @@ void nsWindow::SetupTranslucentWindowMemoryBitmap(nsTransparencyMode aMode)
     mTransparentSurface = nsnull;
     mMemoryDC = NULL;
   }
+}
+
+void nsWindow::ClearTranslucentWindow()
+{
+  if (mTransparentSurface) {
+    nsRefPtr<gfxContext> thebesContext = new gfxContext(mTransparentSurface);
+    thebesContext->SetOperator(gfxContext::OPERATOR_CLEAR);
+    thebesContext->Paint();
+    UpdateTranslucentWindow();
+ }
 }
 
 nsresult nsWindow::UpdateTranslucentWindow()

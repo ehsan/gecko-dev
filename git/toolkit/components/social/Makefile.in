@@ -10,7 +10,10 @@ VPATH     = @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 EXTRA_JS_MODULES = \
+  FrameWorker.jsm \
   SocialService.jsm \
+  SocialProvider.jsm \
+  WorkerAPI.jsm \
   $(NULL)
 
 TEST_DIRS += \

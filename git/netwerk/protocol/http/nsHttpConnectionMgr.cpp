@@ -1379,7 +1379,7 @@ nsHttpConnectionMgr::IsUnderPressure(nsConnectionEntry *ent,
     // favor existing pipelines over more parallelism so as to reserve any
     // unused parallel connections for types that don't have existing pipelines.
     //
-    // The defintion of connection pressure is a pretty liberal one here - that
+    // The definition of connection pressure is a pretty liberal one here - that
     // is why we are using the more restrictive maxPersist* counters.
     //
     // Pipelines are also favored when the requested classification is already
@@ -1389,7 +1389,7 @@ nsHttpConnectionMgr::IsUnderPressure(nsConnectionEntry *ent,
     
     PRInt32 currentConns = ent->mActiveConns.Length();
     PRInt32 maxConns =
-        (ent->mConnInfo->UsingHttpProxy() && !ent->mConnInfo->UsingSSL()) ?
+        (ent->mConnInfo->UsingHttpProxy() && !ent->mConnInfo->UsingConnect()) ?
         mMaxPersistConnsPerProxy : mMaxPersistConnsPerHost;
 
     // Leave room for at least 3 distinct types to operate concurrently,
@@ -2861,7 +2861,7 @@ nsConnectionEntry::OnPipelineFeedbackInfo(
     
     if (mPipelineState == PS_GREEN && info == GoodCompletedOK) {
         PRInt32 depth = data;
-        LOG(("Transaction completed at pipeline depty of %d. Host = %s\n",
+        LOG(("Transaction completed at pipeline depth of %d. Host = %s\n",
              depth, mConnInfo->Host()));
 
         if (depth >= 3)

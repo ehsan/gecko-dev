@@ -470,7 +470,7 @@ public:
    * child SVG frame, container SVG frame, or a regular frame.
    * For regular frames, we just return an identity matrix.
    */
-  static gfxMatrix GetCanvasTM(nsIFrame* aFrame);
+  static gfxMatrix GetCanvasTM(nsIFrame* aFrame, PRUint32 aFor);
 
   /**
    * Returns the transform from aFrame's user space to canvas space. Only call
@@ -481,7 +481,7 @@ public:
    * space. Specifically, it does not include any other transforms introduced
    * by the frame such as x/y offsets and viewBox attributes.
    */
-  static gfxMatrix GetUserToCanvasTM(nsIFrame* aFrame);
+  static gfxMatrix GetUserToCanvasTM(nsIFrame* aFrame, PRUint32 aFor);
 
   /**
    * Notify the descendants of aFrame of a change to one of their ancestors
@@ -591,17 +591,18 @@ public:
                        nsIFrame *aFrame);
 
   enum BBoxFlags {
-    eBBoxIncludeFill          = 1 << 0,
-    eBBoxIgnoreFillIfNone     = 1 << 1,
-    eBBoxIncludeStroke        = 1 << 2,
-    eBBoxIgnoreStrokeIfNone   = 1 << 3,
-    eBBoxIncludeMarkers       = 1 << 4
+    eBBoxIncludeFill           = 1 << 0,
+    eBBoxIncludeFillGeometry   = 1 << 1,
+    eBBoxIncludeStroke         = 1 << 2,
+    eBBoxIncludeStrokeGeometry = 1 << 3,
+    eBBoxIncludeMarkers        = 1 << 4
   };
   /**
    * Get the SVG bbox (the SVG spec's simplified idea of bounds) of aFrame in
    * aFrame's userspace.
    */
-  static gfxRect GetBBox(nsIFrame *aFrame, PRUint32 aFlags = eBBoxIncludeFill);
+  static gfxRect GetBBox(nsIFrame *aFrame,
+                         PRUint32 aFlags = eBBoxIncludeFillGeometry);
 
   /**
    * Convert a userSpaceOnUse/objectBoundingBoxUnits rectangle that's specified

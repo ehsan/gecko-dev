@@ -17,7 +17,6 @@
 #include "nsIWindowWatcher.h"
 #include "nsIDOMWindow.h"
 #include "nsIObserverService.h"
-#include "nsContentUtils.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsServiceManagerUtils.h"
@@ -128,7 +127,8 @@ MemoryReportRequestParent::~MemoryReportRequestParent()
     MOZ_COUNT_DTOR(MemoryReportRequestParent);
 }
 
-nsTArray<ContentParent*>* ContentParent::gContentParents;
+nsDataHashtable<nsStringHashKey, ContentParent*>* ContentParent::gAppContentParents;
+nsTArray<ContentParent*>* ContentParent::gNonAppContentParents;
 nsTArray<ContentParent*>* ContentParent::gPrivateContent;
 
 // The first content child has ID 1, so the chrome process can have ID 0.
@@ -137,34 +137,72 @@ static PRUint64 gContentChildID = 1;
 ContentParent*
 ContentParent::GetNewOrUsed()
 {
-    if (!gContentParents)
-        gContentParents = new nsTArray<ContentParent*>();
+    if (!gNonAppContentParents)
+        gNonAppContentParents = new nsTArray<ContentParent*>();
 
     PRInt32 maxContentProcesses = Preferences::GetInt("dom.ipc.processCount", 1);
     if (maxContentProcesses < 1)
         maxContentProcesses = 1;
 
-    if (gContentParents->Length() >= PRUint32(maxContentProcesses)) {
-        ContentParent* p = (*gContentParents)[rand() % gContentParents->Length()];
-        NS_ASSERTION(p->IsAlive(), "Non-alive contentparent in gContentParents?");
+    if (gNonAppContentParents->Length() >= PRUint32(maxContentProcesses)) {
+        PRUint32 idx = rand() % gNonAppContentParents->Length();
+        ContentParent* p = (*gNonAppContentParents)[idx];
+        NS_ASSERTION(p->IsAlive(), "Non-alive contentparent in gNonAppContentParents?");
         return p;
     }
         
-    nsRefPtr<ContentParent> p = new ContentParent();
+    nsRefPtr<ContentParent> p =
+        new ContentParent(/* appManifestURL = */ EmptyString());
     p->Init();
-    gContentParents->AppendElement(p);
+    gNonAppContentParents->AppendElement(p);
     return p;
+}
+
+ContentParent*
+ContentParent::GetForApp(const nsAString& aAppManifestURL)
+{
+    if (aAppManifestURL.IsEmpty()) {
+        return GetNewOrUsed();
+    }
+
+    if (!gAppContentParents) {
+        gAppContentParents =
+            new nsDataHashtable<nsStringHashKey, ContentParent*>();
+        gAppContentParents->Init();
+    }
+
+    // Each app gets its own ContentParent instance.
+    ContentParent* p = gAppContentParents->Get(aAppManifestURL);
+    if (!p) {
+        p = new ContentParent(aAppManifestURL);
+        p->Init();
+        gAppContentParents->Put(aAppManifestURL, p);
+    }
+
+    return p;
+}
+
+static PLDHashOperator
+AppendToTArray(const nsAString& aKey, ContentParent* aValue, void* aArray)
+{
+    nsTArray<ContentParent*> *array =
+        static_cast<nsTArray<ContentParent*>*>(aArray);
+    array->AppendElement(aValue);
+    return PL_DHASH_NEXT;
 }
 
 void
 ContentParent::GetAll(nsTArray<ContentParent*>& aArray)
 {
-    if (!gContentParents) {
-        aArray.Clear();
-        return;
+    aArray.Clear();
+
+    if (gNonAppContentParents) {
+        aArray.AppendElements(*gNonAppContentParents);
     }
 
-    aArray = *gContentParents;
+    if (gAppContentParents) {
+        gAppContentParents->EnumerateRead(&AppendToTArray, &aArray);
+    }
 }
 
 void
@@ -300,11 +338,17 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     if (mRunToCompletionDepth)
         mRunToCompletionDepth = 0;
 
-    if (gContentParents) {
-        gContentParents->RemoveElement(this);
-        if (!gContentParents->Length()) {
-            delete gContentParents;
-            gContentParents = NULL;
+    if (!mAppManifestURL.IsEmpty()) {
+        gAppContentParents->Remove(mAppManifestURL);
+        if (!gAppContentParents->Count()) {
+            delete gAppContentParents;
+            gAppContentParents = NULL;
+        }
+    } else {
+        gNonAppContentParents->RemoveElement(this);
+        if (!gNonAppContentParents->Length()) {
+            delete gNonAppContentParents;
+            gNonAppContentParents = NULL;
         }
     }
 
@@ -381,12 +425,13 @@ ContentParent::GetTestShellSingleton()
     return static_cast<TestShellParent*>(ManagedPTestShellParent()[0]);
 }
 
-ContentParent::ContentParent()
+ContentParent::ContentParent(const nsAString& aAppManifestURL)
     : mGeolocationWatchID(-1)
     , mRunToCompletionDepth(0)
     , mShouldCallUnblockChild(false)
     , mIsAlive(true)
     , mSendPermissionUpdates(false)
+    , mAppManifestURL(aAppManifestURL)
 {
     // From this point on, NS_WARNING, NS_ASSERTION, etc. should print out the
     // PID along with the warning.
@@ -419,8 +464,16 @@ ContentParent::~ContentParent()
         base::CloseProcessHandle(OtherProcess());
 
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    NS_ASSERTION(!gContentParents || !gContentParents->Contains(this),
-                 "Should have been removed in ActorDestroy");
+
+    // We should be removed from all these lists in ActorDestroy.
+    MOZ_ASSERT(!gPrivateContent || !gPrivateContent->Contains(this));
+    if (mAppManifestURL.IsEmpty()) {
+        MOZ_ASSERT(!gNonAppContentParents ||
+                   !gNonAppContentParents->Contains(this));
+    } else {
+        MOZ_ASSERT(!gAppContentParents ||
+                   !gAppContentParents->Get(mAppManifestURL));
+    }
 }
 
 bool
@@ -507,6 +560,7 @@ ContentParent::RecvSetClipboardText(const nsString& text, const PRInt32& whichCl
     
     nsCOMPtr<nsITransferable> trans = do_CreateInstance("@mozilla.org/widget/transferable;1", &rv);
     NS_ENSURE_SUCCESS(rv, true);
+    trans->Init(nsnull);
     
     // If our data flavor has already been added, this will fail. But we don't care
     trans->AddDataFlavor(kUnicodeMime);
@@ -531,6 +585,7 @@ ContentParent::RecvGetClipboardText(const PRInt32& whichClipboard, nsString* tex
 
     nsCOMPtr<nsITransferable> trans = do_CreateInstance("@mozilla.org/widget/transferable;1", &rv);
     NS_ENSURE_SUCCESS(rv, true);
+    trans->Init(nsnull);
     
     clipboard->GetData(trans, whichClipboard);
     nsCOMPtr<nsISupports> tmp;
@@ -1200,7 +1255,7 @@ bool
 ContentParent::RecvPrivateDocShellsExist(const bool& aExist)
 {
   if (!gPrivateContent)
-    gPrivateContent = new nsTArray<ContentParent*>;
+    gPrivateContent = new nsTArray<ContentParent*>();
   if (aExist) {
     gPrivateContent->AppendElement(this);
   } else {

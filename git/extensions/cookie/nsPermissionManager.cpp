@@ -19,7 +19,9 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "prprf.h"
 #include "mozilla/storage.h"
+#include "mozilla/Attributes.h"
 #include "nsXULAppAPI.h"
+#include "nsIPrincipal.h"
 
 static nsPermissionManager *gPermissionManager = nsnull;
 
@@ -114,7 +116,7 @@ nsHostEntry::nsHostEntry(const nsHostEntry& toCopy)
  * Note: Once the callback has been called this DeleteFromMozHostListener cannot
  * be reused.
  */
-class CloseDatabaseListener : public mozIStorageCompletionCallback
+class CloseDatabaseListener MOZ_FINAL : public mozIStorageCompletionCallback
 {
 public:
   NS_DECL_ISUPPORTS
@@ -163,7 +165,7 @@ CloseDatabaseListener::Complete()
  * Note: Once the callback has been called this DeleteFromMozHostListener cannot
  * be reused.
  */
-class DeleteFromMozHostListener : public mozIStorageStatementCallback
+class DeleteFromMozHostListener MOZ_FINAL : public mozIStorageStatementCallback
 {
 public:
   NS_DECL_ISUPPORTS
@@ -502,6 +504,19 @@ nsPermissionManager::Add(nsIURI     *aURI,
                      aExpireType, aExpireTime, eNotify, eWriteToDB);
 }
 
+NS_IMETHODIMP
+nsPermissionManager::AddFromPrincipal(nsIPrincipal* aPrincipal,
+                                      const char* aType, PRUint32 aPermission,
+                                      PRUint32 aExpireType, PRInt64 aExpireTime)
+{
+  NS_ENSURE_ARG_POINTER(aPrincipal);
+
+  nsCOMPtr<nsIURI> uri;
+  aPrincipal->GetURI(getter_AddRefs(uri));
+
+  return Add(uri, aType, aPermission, aExpireType, aExpireTime);
+}
+
 nsresult
 nsPermissionManager::AddInternal(const nsAFlatCString &aHost,
                                  const nsAFlatCString &aType,
@@ -681,6 +696,22 @@ nsPermissionManager::Remove(const nsACString &aHost,
 }
 
 NS_IMETHODIMP
+nsPermissionManager::RemoveFromPrincipal(nsIPrincipal* aPrincipal,
+                                         const char* aType)
+{
+  NS_ENSURE_ARG_POINTER(aPrincipal);
+
+  nsCOMPtr<nsIURI> uri;
+  aPrincipal->GetURI(getter_AddRefs(uri));
+  NS_ENSURE_TRUE(uri, NS_ERROR_FAILURE);
+
+  nsCAutoString host;
+  uri->GetHost(host);
+
+  return Remove(host, aType);
+}
+
+NS_IMETHODIMP
 nsPermissionManager::RemoveAll()
 {
   ENSURE_NOT_CHILD_PROCESS;
@@ -750,6 +781,32 @@ nsPermissionManager::TestPermission(nsIURI     *aURI,
                                     PRUint32   *aPermission)
 {
   return CommonTestPermission(aURI, aType, aPermission, false);
+}
+
+NS_IMETHODIMP
+nsPermissionManager::TestPermissionFromPrincipal(nsIPrincipal* aPrincipal,
+                                                 const char* aType,
+                                                 PRUint32* aPermission)
+{
+  NS_ENSURE_ARG_POINTER(aPrincipal);
+
+  nsCOMPtr<nsIURI> uri;
+  aPrincipal->GetURI(getter_AddRefs(uri));
+
+  return TestPermission(uri, aType, aPermission);
+}
+
+NS_IMETHODIMP
+nsPermissionManager::TestExactPermissionFromPrincipal(nsIPrincipal* aPrincipal,
+                                                      const char* aType,
+                                                      PRUint32* aPermission)
+{
+  NS_ENSURE_ARG_POINTER(aPrincipal);
+
+  nsCOMPtr<nsIURI> uri;
+  aPrincipal->GetURI(getter_AddRefs(uri));
+
+  return TestExactPermission(uri, aType, aPermission);
 }
 
 nsresult

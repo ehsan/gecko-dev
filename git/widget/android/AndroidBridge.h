@@ -174,7 +174,7 @@ public:
 
     void ScheduleRestart();
 
-    void SetLayerClient(jobject jobj);
+    void SetLayerClient(JNIEnv* env, jobject jobj);
     AndroidGeckoLayerClient &GetLayerClient() { return *mLayerClient; }
 
     void SetSurfaceView(jobject jobj);
@@ -260,7 +260,7 @@ public:
     void *CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoSurfaceView& surfaceView);
 
     // Switch Java to composite with the Gecko Compositor thread
-    void RegisterCompositor();
+    void RegisterCompositor(JNIEnv* env = NULL, bool resetting = false);
     EGLSurface ProvideEGLSurface();
 
     bool GetStaticStringField(const char *classID, const char *field, nsAString &result, JNIEnv* env = nsnull);
@@ -356,6 +356,8 @@ public:
     void PumpMessageLoop();
 
     void NotifyWakeLockChanged(const nsAString& topic, const nsAString& state);
+
+    void GetGfxInfoData(nsACString& aRet);
 
 protected:
     static AndroidBridge *sBridge;
@@ -477,6 +479,9 @@ protected:
     jmethodID jUnlockScreenOrientation;
     jmethodID jPumpMessageLoop;
     jmethodID jNotifyWakeLockChanged;
+
+    // for GfxInfo (gfx feature detection and blacklisting)
+    jmethodID jGetGfxInfoData;
 
     // For native surface stuff
     jclass jSurfaceClass;

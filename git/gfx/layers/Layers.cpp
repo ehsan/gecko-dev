@@ -467,8 +467,10 @@ ContainerLayer::DefaultComputeEffectiveTransforms(const gfx3DMatrix& aTransformT
           /* We can't (easily) forward our transform to children with a non-empty clip
            * rect since it would need to be adjusted for the transform. See
            * the calculations performed by CalculateScissorRect above.
+           * Nor for a child with a mask layer.
            */
-          if (clipRect && !clipRect->IsEmpty() && !child->GetVisibleRegion().IsEmpty()) {
+          if ((clipRect && !clipRect->IsEmpty() && !child->GetVisibleRegion().IsEmpty()) ||
+              child->GetMaskLayer()) {
             useIntermediateSurface = true;
             break;
           }
@@ -767,12 +769,12 @@ LayerManager::Dump(FILE* aFile, const char* aPrefix)
  
   fprintf(file, "<ul><li><a ");
 #ifdef MOZ_DUMP_PAINTING
-  WriteSnapshotLinkToDumpFile(this, aFile);
+  WriteSnapshotLinkToDumpFile(this, file);
 #endif
   fprintf(file, ">");
   DumpSelf(file, aPrefix);
 #ifdef MOZ_DUMP_PAINTING
-  fprintf(aFile, "</a>");
+  fprintf(file, "</a>");
 #endif
 
   nsCAutoString pfx(aPrefix);

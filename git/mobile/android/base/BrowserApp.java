@@ -170,7 +170,7 @@ abstract public class BrowserApp extends GeckoApp
         mMainHandler.post(new Runnable() {
             public void run() {
                 if (Tabs.getInstance().isSelectedTab(tab))
-                    mBrowserToolbar.setReaderVisibility(tab.getReaderEnabled());
+                    mBrowserToolbar.setReaderMode(tab.getReaderEnabled());
             }
         });
     }
@@ -297,9 +297,7 @@ abstract public class BrowserApp extends GeckoApp
             int index = mMainLayout.indexOfChild(mBrowserToolbar.getLayout());
             mMainLayout.removeViewAt(index);
 
-            LinearLayout actionBar = (LinearLayout) LayoutInflater.from(mAppContext).inflate(R.layout.browser_toolbar, null);
-            actionBar.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.FILL_PARENT,
-                                                                    (int) mAppContext.getResources().getDimension(R.dimen.browser_toolbar_height)));
+            LinearLayout actionBar = (LinearLayout) getBrowserToolbar();
             mMainLayout.addView(actionBar, index);
             mBrowserToolbar.from(actionBar);
             mBrowserToolbar.refresh();
@@ -307,6 +305,26 @@ abstract public class BrowserApp extends GeckoApp
 
         invalidateOptionsMenu();
         mTabsPanel.refresh();
+    }
+
+    @Override
+    public boolean isBrowserToolbarSupported() {
+        return true;
+    }
+
+    @Override
+    public View getBrowserToolbar() {
+        int actionBarRes;
+
+        if (GeckoApp.mAppContext.hasPermanentMenuKey())
+           actionBarRes = R.layout.browser_toolbar_menu;
+        else
+           actionBarRes = R.layout.browser_toolbar;
+
+        LinearLayout actionBar = (LinearLayout) LayoutInflater.from(GeckoApp.mAppContext).inflate(actionBarRes, null);
+        actionBar.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.FILL_PARENT,
+                                                                (int) mAppContext.getResources().getDimension(R.dimen.browser_toolbar_height)));
+        return actionBar;
     }
 
     void addTab() {
@@ -348,6 +366,9 @@ abstract public class BrowserApp extends GeckoApp
     public void onTabsLayoutChange(int width, int height) {
         if (mMainLayoutAnimator != null)
             mMainLayoutAnimator.stop();
+
+        if (mTabsPanel.isShown())
+            mTabsPanel.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
 
         mMainLayoutAnimator = new PropertyAnimator(150);
         mMainLayoutAnimator.setPropertyAnimationListener(this);
@@ -397,8 +418,10 @@ abstract public class BrowserApp extends GeckoApp
                     mGeckoLayout.requestLayout();
                 }
 
-                if (!mTabsPanel.isShown())
+                if (!mTabsPanel.isShown()) {
                     mBrowserToolbar.updateTabs(false);
+                    mTabsPanel.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+                }
             }
         });
     }
@@ -586,7 +609,7 @@ abstract public class BrowserApp extends GeckoApp
             return true;
         }
 
-        bookmark.setEnabled(true);
+        bookmark.setEnabled(!tab.getURL().startsWith("about:reader"));
         bookmark.setCheckable(true);
         
         if (tab.isBookmark()) {
@@ -621,8 +644,7 @@ abstract public class BrowserApp extends GeckoApp
                                tab.getContentType().equals("application/vnd.mozilla.xul+xml")));
 
         // Disable find in page for about:home, since it won't work on Java content
-        if (!tab.getURL().equals("about:home"))
-            findInPage.setEnabled(true);
+        findInPage.setEnabled(!tab.getURL().equals("about:home"));
 
         charEncoding.setVisible(GeckoPreferences.getCharEncodingState());
 

@@ -28,7 +28,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessibleTable
-  NS_DECL_OR_FORWARD_NSIACCESSIBLETABLE_WITH_XPCACCESSIBLETABLE
+  NS_FORWARD_NSIACCESSIBLETABLE(xpcAccessibleTable::)
 
   // TableAccessible
   virtual PRUint32 ColCount();
@@ -41,6 +41,7 @@ public:
   virtual PRUint32 SelectedCellCount();
   virtual PRUint32 SelectedColCount();
   virtual PRUint32 SelectedRowCount();
+  virtual void SelectedCells(nsTArray<Accessible*>* aCells);
   virtual void SelectedCellIndices(nsTArray<PRUint32>* aCells);
   virtual void SelectedColIndices(nsTArray<PRUint32>* aCols);
   virtual void SelectedRowIndices(nsTArray<PRUint32>* aRows);

@@ -8,19 +8,6 @@
 @namespace url("http://www.w3.org/1999/xhtml");
 @namespace xul url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 
-/* make clicking on links stand out a bit (bug 532206) */
-* > *:not(embed):focus, * > *:focus > font {
-  outline: 2px solid @color_background_highlight@ !important;
-  /*
-    XXX How do I preserve mac focusring without blowing focus color on other platforms?
-    outline-color: -moz-mac-focusring !important;
-  */
-}
-
-*:-moz-any-link:focus {
-  outline-offset: -2px;
-}
-
 ::-moz-selection {
   background-color: @color_background_highlight@;
   color: @color_text_highlight@;
@@ -351,14 +338,11 @@ xul|menulist {
 .moz-fennec-selection-handle {
   position: absolute;
   z-index: 999999;
-  min-width: 35px;
-  min-height: 64px;
-  width: 35px;
-  height: 64px;
   padding: 0 20px 20px 20px; /* Add padding to make touch target larger */
   margin: 0;
   background-repeat: no-repeat;
   background-position: center;
+  background-size: contain;
 }
 
 .moz-fennec-selection-handle:not([showing]) {

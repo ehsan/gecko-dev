@@ -23,6 +23,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.db.BrowserDB.URLColumns;
+import org.mozilla.gecko.sync.setup.SyncAccounts;
 import org.mozilla.gecko.sync.setup.activities.SetupSyncActivity;
 
 import android.accounts.Account;
@@ -108,7 +109,7 @@ public class AboutHomeContent extends ScrollView
     }
 
     public void init() {
-        Context context = getContext();
+        final Context context = getContext();
         mInflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         mInflater.inflate(R.layout.abouthome_content, this);
 
@@ -118,7 +119,7 @@ public class AboutHomeContent extends ScrollView
         mAccountManager.addOnAccountsUpdatedListener(mAccountListener = new OnAccountsUpdateListener() {
             public void onAccountsUpdated(Account[] accounts) {
                 final GeckoApp.StartupMode startupMode = GeckoApp.mAppContext.getStartupMode();
-                final boolean syncIsSetup = isSyncSetup();
+                final boolean syncIsSetup = SyncAccounts.syncAccountsExist(context);
 
                 GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
                     public void run() {
@@ -263,11 +264,6 @@ public class AboutHomeContent extends ScrollView
         syncContainer.setBackgroundResource(background);
     }
 
-    private boolean isSyncSetup() {
-        Account[] accounts = mAccountManager.getAccountsByType("org.mozilla.firefox_sync");
-        return accounts.length > 0;
-    }
-
     private void updateLayout(GeckoApp.StartupMode startupMode, boolean syncIsSetup) {
         // The idea here is that we only show the sync invitation
         // on the very first run. Show sync banner below the top
@@ -295,9 +291,9 @@ public class AboutHomeContent extends ScrollView
         // the top sites section layout in main thread.
         final GeckoApp.StartupMode startupMode = GeckoApp.mAppContext.getStartupMode();
 
-        // The isSyncSetup method should not be called on
+        // The SyncAccounts.syncAccountsExist method should not be called on
         // UI thread as it touches disk to access a sqlite DB.
-        final boolean syncIsSetup = isSyncSetup();
+        final boolean syncIsSetup = SyncAccounts.syncAccountsExist(activity);
 
         final ContentResolver resolver = GeckoApp.mAppContext.getContentResolver();
         final Cursor oldCursor = mCursor;
@@ -557,7 +553,7 @@ public class AboutHomeContent extends ScrollView
                     if (favicon != null)
                         ((ImageView) container.findViewById(R.id.last_tab_favicon)).setImageDrawable(favicon);
 
-                    container.findViewById(R.id.last_tab_row).setOnClickListener(new View.OnClickListener() {
+                    container.setOnClickListener(new View.OnClickListener() {
                         public void onClick(View v) {
                             GeckoApp.mAppContext.loadUrlInTab(url);
                         }
@@ -589,7 +585,7 @@ public class AboutHomeContent extends ScrollView
     }
 
     private void loadRemoteTabs(final Activity activity) {
-        if (!isSyncSetup()) {
+        if (!SyncAccounts.syncAccountsExist(activity)) {
             GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
                 public void run() {
                     mRemoteTabs.hide();
@@ -619,8 +615,8 @@ public class AboutHomeContent extends ScrollView
             else if (!TextUtils.equals(client, tab.name))
                 break;
 
-            final TextView row = (TextView) mInflater.inflate(R.layout.abouthome_remote_tab_row, mRemoteTabs.getItemsContainer(), false);
-            row.setText(TextUtils.isEmpty(tab.title) ? tab.url : tab.title);
+            final RelativeLayout row = (RelativeLayout) mInflater.inflate(R.layout.abouthome_remote_tab_row, mRemoteTabs.getItemsContainer(), false);
+            ((TextView) row.findViewById(R.id.remote_tab_title)).setText(TextUtils.isEmpty(tab.title) ? tab.url : tab.title);
             row.setTag(tab.url);
             mRemoteTabs.addItem(row);
             row.setOnClickListener(mRemoteTabClickListener);

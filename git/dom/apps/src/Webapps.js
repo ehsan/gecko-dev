@@ -51,8 +51,10 @@ WebappsRegistry.prototype = {
   __proto__: DOMRequestIpcHelper.prototype,
   __exposedProps__: {
                       install: 'r',
+                      installPackage: 'r',
                       getSelf: 'r',
                       getInstalled: 'r',
+                      getNotInstalled: 'r',
                       mgmt: 'r'
                      },
 
@@ -60,7 +62,6 @@ WebappsRegistry.prototype = {
    * only the name property is mandatory
    */
   checkManifest: function(aManifest, aInstallOrigin) {
-    // TODO : check for install_allowed_from
     if (aManifest.name == undefined)
       return false;
 
@@ -86,7 +87,7 @@ WebappsRegistry.prototype = {
                                                                      app.installOrigin, app.installTime));
         break;
       case "Webapps:Install:Return:KO":
-        Services.DOMRequest.fireError(req, "DENIED");
+        Services.DOMRequest.fireError(req, msg.error || "DENIED");
         break;
       case "Webapps:GetSelf:Return:OK":
         if (msg.apps.length) {
@@ -100,8 +101,10 @@ WebappsRegistry.prototype = {
       case "Webapps:GetInstalled:Return:OK":
         Services.DOMRequest.fireSuccess(req, convertAppsArray(msg.apps, this._window));
         break;
+      case "Webapps:GetNotInstalled:Return:OK":
+        Services.DOMRequest.fireSuccess(req, convertAppsArray(msg.apps, this._window));
+        break;
       case "Webapps:GetSelf:Return:KO":
-      case "Webapps:GetInstalled:Return:KO":
         Services.DOMRequest.fireError(req, "ERROR");
         break;
     }
@@ -116,6 +119,8 @@ WebappsRegistry.prototype = {
   // mozIDOMApplicationRegistry implementation
   
   install: function(aURL, aParams) {
+    let installURL = this._window.location.href;
+    let installOrigin = this._getOrigin(installURL);
     let request = this.createRequest();
     let requestID = this.getRequestId(request);
     let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].createInstance(Ci.nsIXMLHttpRequest);
@@ -124,7 +129,6 @@ WebappsRegistry.prototype = {
     xhr.addEventListener("load", (function() {
       if (xhr.status == 200) {
         try {
-          let installOrigin = this._getOrigin(this._window.location.href);
           let manifest = JSON.parse(xhr.responseText, installOrigin);
           if (!this.checkManifest(manifest, installOrigin)) {
             Services.DOMRequest.fireError(request, "INVALID_MANIFEST");
@@ -135,7 +139,7 @@ WebappsRegistry.prototype = {
                                                               manifestURL: aURL,
                                                               manifest: manifest,
                                                               receipts: receipts },
-                                                              from: this._window.location.href,
+                                                              from: installURL,
                                                               oid: this._id,
                                                               requestID: requestID });
           }
@@ -172,6 +176,29 @@ WebappsRegistry.prototype = {
     return request;
   },
 
+  getNotInstalled: function() {
+    let request = this.createRequest();
+    cpmm.sendAsyncMessage("Webapps:GetNotInstalled", { origin: this._getOrigin(this._window.location.href),
+                                                       oid: this._id,
+                                                       requestID: this.getRequestId(request) });
+    return request;
+  },
+
+  installPackage: function(aPackageURL, aParams) {
+    let request = this.createRequest();
+    let requestID = this.getRequestId(request);
+
+    let receipts = (aParams && aParams.receipts &&
+                    Array.isArray(aParams.receipts)) ? aParams.receipts : [];
+    cpmm.sendAsyncMessage("Webapps:InstallPackage", { url: aPackageURL,
+                                                      receipts: receipts,
+                                                      requestID: requestID,
+                                                      oid: this._id,
+                                                      from: this._window.location.href,
+                                                      installOrigin: this._getOrigin(this._window.location.href) });
+    return request;
+  },
+
   get mgmt() {
     if (!this._mgmt)
       this._mgmt = new WebappsApplicationMgmt(this._window);
@@ -185,7 +212,7 @@ WebappsRegistry.prototype = {
   // nsIDOMGlobalPropertyInitializer implementation
   init: function(aWindow) {
     this.initHelper(aWindow, ["Webapps:Install:Return:OK", "Webapps:Install:Return:KO",
-                              "Webapps:GetInstalled:Return:OK", "Webapps:GetInstalled:Return:KO",
+                              "Webapps:GetInstalled:Return:OK", "Webapps:GetNotInstalled:Return:OK",
                               "Webapps:GetSelf:Return:OK", "Webapps:GetSelf:Return:KO"]);
 
     let util = this._window.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);

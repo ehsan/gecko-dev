@@ -15,7 +15,7 @@
 #include "gfxD2DSurface.h"
 #elif defined(XP_MACOSX)
 #include "gfxPlatformMac.h"
-#elif defined(MOZ_WIDGET_GTK2)
+#elif defined(MOZ_WIDGET_GTK)
 #include "gfxPlatformGtk.h"
 #elif defined(MOZ_WIDGET_QT)
 #include "gfxQtPlatform.h"
@@ -259,7 +259,7 @@ gfxPlatform::Init()
     gPlatform = new gfxWindowsPlatform;
 #elif defined(XP_MACOSX)
     gPlatform = new gfxPlatformMac;
-#elif defined(MOZ_WIDGET_GTK2)
+#elif defined(MOZ_WIDGET_GTK)
     gPlatform = new gfxPlatformGtk;
 #elif defined(MOZ_WIDGET_QT)
     gPlatform = new gfxQtPlatform;
@@ -1081,6 +1081,22 @@ gfxPlatform::AppendPrefLang(eFontPrefLang aPrefLangs[], PRUint32& aLen, eFontPre
 }
 
 bool
+gfxPlatform::UseProgressiveTilePainting()
+{
+  static bool sUseProgressiveTilePainting;
+  static bool sUseProgressiveTilePaintingPrefCached = false;
+
+  if (!sUseProgressiveTilePaintingPrefCached) {
+    sUseProgressiveTilePaintingPrefCached = true;
+    mozilla::Preferences::AddBoolVarCache(&sUseProgressiveTilePainting,
+                                          "layers.progressive-paint",
+                                          false);
+  }
+
+  return sUseProgressiveTilePainting;
+}
+
+bool
 gfxPlatform::UseAzureContentDrawing()
 {
   static bool sAzureContentDrawingEnabled;
@@ -1088,7 +1104,7 @@ gfxPlatform::UseAzureContentDrawing()
 
   if (!sAzureContentDrawingPrefCached) {
     sAzureContentDrawingPrefCached = true;
-    mozilla::Preferences::AddBoolVarCache(&sAzureContentDrawingEnabled, 
+    mozilla::Preferences::AddBoolVarCache(&sAzureContentDrawingEnabled,
                                           "gfx.content.azure.enabled");
   }
 

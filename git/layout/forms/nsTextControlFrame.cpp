@@ -15,13 +15,13 @@
 #include "nsIDocumentEncoder.h"
 #include "nsCaret.h"
 #include "nsISelectionListener.h"
-#include "nsISelectionPrivate.h"
 #include "nsIController.h"
 #include "nsIControllers.h"
 #include "nsIControllerContext.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIEditorIMESupport.h"
 #include "nsIPhonetic.h"
+#include "nsTextFragment.h"
 #include "nsIEditorObserver.h"
 #include "nsEditProperty.h"
 #include "nsIDOMHTMLTextAreaElement.h"
@@ -40,7 +40,6 @@
 #include "nsIViewManager.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMElement.h"
-#include "nsIDOMDocument.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIPresShell.h"
 
@@ -74,6 +73,7 @@
 #include "nsPresState.h"
 
 #include "mozilla/FunctionTimer.h"
+#include "mozilla/Selection.h"
 
 #define DEFAULT_COLUMN_WIDTH 20
 

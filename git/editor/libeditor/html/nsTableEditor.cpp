@@ -3,33 +3,44 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nscore.h"
-#include "nsIDOMDocument.h"
+#include <stdio.h>
+
+#include "mozilla/Assertions.h"
+#include "mozilla/dom/Element.h"
+#include "nsAString.h"
+#include "nsAlgorithm.h"
+#include "nsCOMPtr.h"
+#include "nsDebug.h"
+#include "nsEditProperty.h"
 #include "nsEditor.h"
+#include "nsEditorUtils.h"
+#include "nsError.h"
+#include "nsGkAtoms.h"
+#include "nsHTMLEditUtils.h"
+#include "nsHTMLEditor.h"
+#include "nsIAtom.h"
+#include "nsIContent.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMNode.h"
-#include "nsIDOMNodeList.h"
 #include "nsIDOMRange.h"
+#include "nsIEditor.h"
 #include "nsIFrame.h"
+#include "nsIHTMLEditor.h"
+#include "nsINode.h"
 #include "nsIPresShell.h"
 #include "nsISelection.h"
-#include "nsISelectionPrivate.h"
-#include "nsLayoutCID.h"
-#include "nsIContent.h"
-#include "nsIContentIterator.h"
-#include "nsIAtom.h"
-#include "nsITableCellLayout.h" // For efficient access to table cell
-#include "nsITableLayout.h"     //  data owned by the table and cell frames
-#include "nsHTMLEditor.h"
 #include "nsISelectionPrivate.h"  // For nsISelectionPrivate::TABLESELECTION_ defines
-#include "nsTArray.h"
-
-#include "nsEditorUtils.h"
-#include "nsTextEditUtils.h"
-#include "nsHTMLEditUtils.h"
+#include "nsISupportsUtils.h"
+#include "nsITableCellLayout.h" // For efficient access to table cell
+#include "nsITableEditor.h"
+#include "nsITableLayout.h"     //  data owned by the table and cell frames
 #include "nsLayoutErrors.h"
-
-#include "mozilla/dom/Element.h"
+#include "nsLiteralString.h"
+#include "nsQueryFrame.h"
+#include "nsString.h"
+#include "nsTArray.h"
+#include "nscore.h"
+#include "prtypes.h"
 
 using namespace mozilla;
 
@@ -98,10 +109,7 @@ nsHTMLEditor::InsertCell(nsIDOMElement *aCell, PRInt32 aRowSpan, PRInt32 aColSpa
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(cellParent, NS_ERROR_NULL_POINTER);
 
-
-  PRInt32 cellOffset;
-  res = GetChildOffset(aCell, cellParent, cellOffset);
-  NS_ENSURE_SUCCESS(res, res);
+  PRInt32 cellOffset = GetChildOffset(aCell, cellParent);
 
   nsCOMPtr<nsIDOMElement> newCell;
   if (aIsHeader)
@@ -661,8 +669,7 @@ nsHTMLEditor::InsertTableRow(PRInt32 aNumber, bool aAfter)
       parentRow->GetParentNode(getter_AddRefs(parentOfRow));
       NS_ENSURE_TRUE(parentOfRow, NS_ERROR_NULL_POINTER);
 
-      res = GetChildOffset(parentRow, parentOfRow, newRowOffset);
-      NS_ENSURE_SUCCESS(res, res);
+      newRowOffset = GetChildOffset(parentRow, parentOfRow);
       
       // Adjust for when adding past the end 
       if (aAfter && startRowIndex >= rowCount)
@@ -2871,8 +2878,9 @@ nsHTMLEditor::GetCellContext(nsISelection **aSelection,
     *aCellParent = cellParent.get();
     NS_ADDREF(*aCellParent);
 
-    if (aCellOffset)
-      res = GetChildOffset(cell, cellParent, *aCellOffset);
+    if (aCellOffset) {
+      *aCellOffset = GetChildOffset(cell, cellParent);
+    }
   }
 
   return res;
@@ -3140,12 +3148,11 @@ nsHTMLEditor::SetSelectionAfterTableEdit(nsIDOMElement* aTable, PRInt32 aRow, PR
   // We didn't find a cell
   // Set selection to just before the table
   nsCOMPtr<nsIDOMNode> tableParent;
-  PRInt32 tableOffset;
   res = aTable->GetParentNode(getter_AddRefs(tableParent));
   if(NS_SUCCEEDED(res) && tableParent)
   {
-    if(NS_SUCCEEDED(GetChildOffset(aTable, tableParent, tableOffset)))
-      return selection->Collapse(tableParent, tableOffset);
+    PRInt32 tableOffset = GetChildOffset(aTable, tableParent);
+    return selection->Collapse(tableParent, tableOffset);
   }
   // Last resort: Set selection to start of doc
   // (it's very bad to not have a valid selection!)

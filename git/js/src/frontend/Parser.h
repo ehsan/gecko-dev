@@ -87,7 +87,8 @@ struct Parser : private AutoGCRooter
      */
     ObjectBox *newObjectBox(JSObject *obj);
 
-    FunctionBox *newFunctionBox(JSObject *obj, ParseNode *fn, TreeContext *tc);
+    FunctionBox *newFunctionBox(JSObject *obj, ParseNode *fn, TreeContext *tc,
+                                StrictMode::StrictModeState sms);
 
     /*
      * Create a new function object given tree context (tc) and a name (which
@@ -136,7 +137,7 @@ struct Parser : private AutoGCRooter
 
     /* Public entry points for parsing. */
     ParseNode *statement();
-    bool recognizeDirectivePrologue(ParseNode *pn, bool *isDirectivePrologueMember);
+    bool processDirectives(ParseNode *stringsAtStart);
 
     /*
      * Parse a function body.  Pass StatementListBody if the body is a list of
@@ -200,9 +201,9 @@ struct Parser : private AutoGCRooter
     ParseNode *mulExpr1i();
     ParseNode *mulExpr1n();
     ParseNode *unaryExpr();
-    ParseNode *memberExpr(JSBool allowCallSyntax);
+    ParseNode *memberExpr(bool allowCallSyntax);
     ParseNode *primaryExpr(TokenKind tt, bool afterDoubleDot);
-    ParseNode *parenExpr(JSBool *genexp = NULL);
+    ParseNode *parenExpr(bool *genexp = NULL);
 
     /*
      * Additional JS parsers.
@@ -218,7 +219,7 @@ struct Parser : private AutoGCRooter
     ParseNode *comprehensionTail(ParseNode *kid, unsigned blockid, bool isGenexp,
                                  ParseNodeKind kind = PNK_SEMI, JSOp op = JSOP_NOP);
     ParseNode *generatorExpr(ParseNode *kid);
-    JSBool argumentList(ParseNode *listNode);
+    bool argumentList(ParseNode *listNode);
     ParseNode *bracketedExpr();
     ParseNode *letBlock(LetContext letContext);
     ParseNode *returnOrYield(bool useAssignExpr);
@@ -229,8 +230,18 @@ struct Parser : private AutoGCRooter
     ParseNode *identifierName(bool afterDoubleDot);
 
 #if JS_HAS_XML_SUPPORT
-    // True if E4X syntax is allowed in the current syntactic context.
-    bool allowsXML() const { return !tc->sc->inStrictMode() && tokenStream.allowsXML(); }
+    // True if E4X syntax is allowed in the current syntactic context. Note this
+    // function may be false while TokenStream::allowsXML() is true!
+    // Specifically, when strictModeState is not STRICT, Parser::allowsXML()
+    // will be false, where TokenStream::allowsXML() is only false when
+    // strictModeState is STRICT. The reason for this is when we are parsing the
+    // directive prologue, the tokenizer looks ahead into the body of the
+    // function. So, we have to be lenient in case the function is not
+    // strict. This also effectively bans XML in function defaults. See bug
+    // 772691.
+    bool allowsXML() const {
+        return tc->sc->strictModeState == StrictMode::NOTSTRICT && tokenStream.allowsXML();
+    }
 
     ParseNode *endBracketedExpr();
 
@@ -238,17 +249,18 @@ struct Parser : private AutoGCRooter
     ParseNode *qualifiedSuffix(ParseNode *pn);
     ParseNode *qualifiedIdentifier();
     ParseNode *attributeIdentifier();
-    ParseNode *xmlExpr(JSBool inTag);
+    ParseNode *xmlExpr(bool inTag);
     ParseNode *xmlNameExpr();
     ParseNode *xmlTagContent(ParseNodeKind tagkind, JSAtom **namep);
-    JSBool xmlElementContent(ParseNode *pn);
-    ParseNode *xmlElementOrList(JSBool allowList);
-    ParseNode *xmlElementOrListRoot(JSBool allowList);
+    bool xmlElementContent(ParseNode *pn);
+    ParseNode *xmlElementOrList(bool allowList);
+    ParseNode *xmlElementOrListRoot(bool allowList);
 
     ParseNode *starOrAtPropertyIdentifier(TokenKind tt);
     ParseNode *propertyQualifiedIdentifier();
 #endif /* JS_HAS_XML_SUPPORT */
 
+    bool setStrictMode(bool strictMode);
     bool setAssignmentLhsOps(ParseNode *pn, JSOp op);
     bool matchInOrOf(bool *isForOfp);
 };

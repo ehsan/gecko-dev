@@ -4,6 +4,10 @@
 
 package org.mozilla.gecko.sync;
 
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -11,6 +15,7 @@ import java.net.URLDecoder;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -440,5 +445,63 @@ public class Utils {
       }
       bundle.putString(Constants.EXTRAS_KEY_STAGES_TO_SKIP, o.toJSONString());
     }
+  }
+
+  /**
+   * Read contents of file as a string.
+   *
+   * @param context Android context.
+   * @param filename name of file to read; must not be null.
+   * @return <code>String</code> instance.
+   */
+  public static String readFile(final Context context, final String filename) {
+    if (filename == null) {
+      throw new IllegalArgumentException("Passed null filename in readFile.");
+    }
+
+    FileInputStream fis = null;
+    InputStreamReader isr = null;
+    BufferedReader br = null;
+
+    try {
+      fis = context.openFileInput(filename);
+      isr = new InputStreamReader(fis);
+      br = new BufferedReader(isr);
+      StringBuilder sb = new StringBuilder();
+      String line;
+      while ((line = br.readLine()) != null) {
+        sb.append(line);
+      }
+      return sb.toString();
+    } catch (Exception e) {
+      return null;
+    } finally {
+      if (isr != null) {
+        try {
+          isr.close();
+        } catch (IOException e) {
+          // Ignore.
+        }
+      }
+      if (fis != null) {
+        try {
+          fis.close();
+        } catch (IOException e) {
+          // Ignore.
+        }
+      }
+    }
+  }
+
+  /**
+   * Format a duration as a string, like "0.56 seconds".
+   *
+   * @param startMillis start time in milliseconds.
+   * @param endMillis end time in milliseconds.
+   * @return formatted string.
+   */
+  public static String formatDuration(long startMillis, long endMillis) {
+    final long duration = endMillis - startMillis;
+    return new DecimalFormat("#0.00 seconds").format(((double) duration) / 1000);
   }
 }

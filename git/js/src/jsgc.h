@@ -457,6 +457,9 @@ MaybeGC(JSContext *cx);
 extern void
 ShrinkGCBuffers(JSRuntime *rt);
 
+extern void
+ReleaseAllJITCode(FreeOp *op);
+
 extern JS_FRIEND_API(void)
 PrepareForFullGC(JSRuntime *rt);
 
@@ -476,6 +479,9 @@ GC(JSRuntime *rt, JSGCInvocationKind gckind, js::gcreason::Reason reason);
 
 extern void
 GCSlice(JSRuntime *rt, JSGCInvocationKind gckind, js::gcreason::Reason reason);
+
+extern void
+GCFinalSlice(JSRuntime *rt, JSGCInvocationKind gckind, js::gcreason::Reason reason);
 
 extern void
 GCDebugSlice(JSRuntime *rt, bool limit, int64_t objCount);
@@ -1034,6 +1040,12 @@ IterateChunks(JSRuntime *rt, void *data, IterateChunkCallback chunkCallback);
 extern JS_FRIEND_API(void)
 IterateCells(JSRuntime *rt, JSCompartment *compartment, gc::AllocKind thingKind,
              void *data, IterateCellCallback cellCallback);
+
+/*
+ * Invoke cellCallback on every gray JS_OBJECT in the given compartment.
+ */
+extern JS_FRIEND_API(void)
+IterateGrayObjects(JSCompartment *compartment, GCThingCallback *cellCallback, void *data);
 
 } /* namespace js */
 

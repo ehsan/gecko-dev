@@ -600,7 +600,7 @@ struct ParseNode {
         } binary;
         struct {                        /* one kid if unary */
             ParseNode   *kid;
-            JSBool      hidden;         /* hidden genexp-induced JSOP_YIELD
+            bool        hidden;         /* hidden genexp-induced JSOP_YIELD
                                            or directive prologue member (as
                                            pn_prologue) */
         } unary;
@@ -736,6 +736,10 @@ struct ParseNode {
                                            optimizable via an upvar opcode */
 #define PND_CLOSED      0x200           /* variable is closed over */
 #define PND_DEFAULT     0x400           /* definition is an arg with a default */
+#define PND_IMPLICITARGUMENTS 0x800     /* the definition is a placeholder for
+                                           'arguments' that has been converted
+                                           into a definition after the function
+                                           body has been parsed. */
 
 /* Flags to propagate from uses to definition. */
 #define PND_USE2DEF_FLAGS (PND_ASSIGNED | PND_CLOSED)
@@ -782,6 +786,7 @@ struct ParseNode {
     bool isDeoptimized() const  { return test(PND_DEOPTIMIZED); }
     bool isAssigned() const     { return test(PND_ASSIGNED); }
     bool isClosed() const       { return test(PND_CLOSED); }
+    bool isImplicitArguments() const { return test(PND_IMPLICITARGUMENTS); }
 
     /*
      * True iff this definition creates a top-level binding in the overall
@@ -807,48 +812,6 @@ struct ParseNode {
                isKind(PNK_TRUE) ||
                isKind(PNK_FALSE) ||
                isKind(PNK_NULL);
-    }
-
-    /*
-     * True if this statement node could be a member of a Directive Prologue: an
-     * expression statement consisting of a single string literal.
-     *
-     * This considers only the node and its children, not its context. After
-     * parsing, check the node's pn_prologue flag to see if it is indeed part of
-     * a directive prologue.
-     *
-     * Note that a Directive Prologue can contain statements that cannot
-     * themselves be directives (string literals that include escape sequences
-     * or escaped newlines, say). This member function returns true for such
-     * nodes; we use it to determine the extent of the prologue.
-     * isEscapeFreeStringLiteral, below, checks whether the node itself could be
-     * a directive.
-     */
-    bool isStringExprStatement() const {
-        if (getKind() == PNK_SEMI) {
-            JS_ASSERT(pn_arity == PN_UNARY);
-            ParseNode *kid = pn_kid;
-            return kid && kid->getKind() == PNK_STRING && !kid->pn_parens;
-        }
-        return false;
-    }
-
-    /*
-     * Return true if this node, known to be an unparenthesized string literal,
-     * could be the string of a directive in a Directive Prologue. Directive
-     * strings never contain escape sequences or line continuations.
-     */
-    bool isEscapeFreeStringLiteral() const {
-        JS_ASSERT(isKind(PNK_STRING) && !pn_parens);
-
-        /*
-         * If the string's length in the source code is its length as a value,
-         * accounting for the quotes, then it must not contain any escape
-         * sequences or line continuations.
-         */
-        JSString *str = pn_atom;
-        return (pn_pos.begin.lineno == pn_pos.end.lineno &&
-                pn_pos.begin.index + str->length() + 2 == pn_pos.end.index);
     }
 
     /* Return true if this node appears in a Directive Prologue. */
@@ -1037,9 +1000,9 @@ struct FunctionNode : public ParseNode {
 };
 
 struct NameNode : public ParseNode {
-    static NameNode *create(ParseNodeKind kind, JSAtom *atom, Parser *parser, SharedContext *sc);
+    static NameNode *create(ParseNodeKind kind, JSAtom *atom, Parser *parser, TreeContext *tc);
 
-    inline void initCommon(SharedContext *sc);
+    inline void initCommon(TreeContext *tc);
 
 #ifdef DEBUG
     inline void dump(int indent);
@@ -1513,6 +1476,7 @@ struct FunctionBox : public ObjectBox
     Bindings        bindings;               /* bindings for this function */
     uint16_t        level;
     uint16_t        ndefaults;
+    StrictMode::StrictModeState strictModeState;
     bool            inLoop:1;               /* in a loop in parent function */
     bool            inWith:1;               /* some enclosing scope is a with-statement
                                                or E4X filter-expression */
@@ -1520,7 +1484,8 @@ struct FunctionBox : public ObjectBox
 
     ContextFlags    cxFlags;
 
-    FunctionBox(ObjectBox* traceListHead, JSObject *obj, ParseNode *fn, TreeContext *tc);
+    FunctionBox(ObjectBox* traceListHead, JSObject *obj, ParseNode *fn, TreeContext *tc,
+                StrictMode::StrictModeState sms);
 
     bool funIsHeavyweight()      const { return cxFlags.funIsHeavyweight; }
     bool funIsGenerator()        const { return cxFlags.funIsGenerator; }
@@ -1535,6 +1500,8 @@ struct FunctionBox : public ObjectBox
      * filter-expression, or a function that uses direct eval.
      */
     bool inAnyDynamicScope() const;
+
+    void recursivelySetStrictMode(StrictMode::StrictModeState strictness);
 };
 
 } /* namespace js */
