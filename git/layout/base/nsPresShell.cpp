@@ -4460,6 +4460,13 @@ PresShell::RenderDocument(const nsRect& aRect, PRUint32 aFlags,
 
   NS_ENSURE_TRUE(!(aFlags & RENDER_IS_UNTRUSTED), NS_ERROR_NOT_IMPLEMENTED);
 
+  nsRootPresContext* rootPresContext = mPresContext->GetRootPresContext();
+  if (rootPresContext) {
+    rootPresContext->FlushWillPaintObservers();
+    if (mIsDestroying)
+      return NS_OK;
+  }
+
   nsAutoScriptBlocker blockScripts;
 
   // Set up the rectangle as the path in aThebesContext
@@ -5244,8 +5251,11 @@ static nsIView* FindFloatingViewContaining(nsIView* aView, nsPoint aPt)
     return nsnull;
 
   nsIFrame* frame = static_cast<nsIFrame*>(aView->GetClientData());
-  if (frame && !frame->PresContext()->PresShell()->IsActive()) {
-    return nsnull;
+  if (frame) {
+    if (!frame->IsVisibleConsideringAncestors(nsIFrame::VISIBILITY_CROSS_CHROME_CONTENT_BOUNDARY) ||
+        !frame->PresContext()->PresShell()->IsActive()) {
+      return nsnull;
+    }
   }
 
   for (nsIView* v = aView->GetFirstChild(); v; v = v->GetNextSibling()) {
@@ -5278,8 +5288,11 @@ static nsIView* FindViewContaining(nsIView* aView, nsPoint aPt)
   }
 
   nsIFrame* frame = static_cast<nsIFrame*>(aView->GetClientData());
-  if (frame && !frame->PresContext()->PresShell()->IsActive()) {
-    return nsnull;
+  if (frame) {
+    if (!frame->IsVisibleConsideringAncestors(nsIFrame::VISIBILITY_CROSS_CHROME_CONTENT_BOUNDARY) ||
+        !frame->PresContext()->PresShell()->IsActive()) {
+      return nsnull;
+    }
   }
 
   for (nsIView* v = aView->GetFirstChild(); v; v = v->GetNextSibling()) {
@@ -6857,19 +6870,21 @@ PresShell::WillPaint(bool aWillSendDidPaint)
 {
   // Don't bother doing anything if some viewmanager in our tree is painting
   // while we still have painting suppressed or we are not active.
-  if (mPaintingSuppressed || !mIsActive) {
+  if (mPaintingSuppressed || !mIsActive || !IsVisible()) {
     return;
   }
 
-  if (!aWillSendDidPaint) {
-    nsRootPresContext* rootPresContext = mPresContext->GetRootPresContext();
-    if (!rootPresContext) {
-      return;
-    }
-    if (rootPresContext == mPresContext) {
-      rootPresContext->UpdatePluginGeometry();
-    }
+  nsRootPresContext* rootPresContext = mPresContext->GetRootPresContext();
+  if (!rootPresContext) {
+    return;
   }
+
+  if (!aWillSendDidPaint && rootPresContext == mPresContext) {
+    rootPresContext->UpdatePluginGeometry();
+  }
+  rootPresContext->FlushWillPaintObservers();
+  if (mIsDestroying)
+    return;
 
   // Process reflows, if we have them, to reduce flicker due to invalidates and
   // reflow being interspersed.  Note that we _do_ allow this to be
@@ -6881,7 +6896,7 @@ PresShell::WillPaint(bool aWillSendDidPaint)
 NS_IMETHODIMP_(void)
 PresShell::DidPaint()
 {
-  if (mPaintingSuppressed || !mIsActive) {
+  if (mPaintingSuppressed || !mIsActive || !IsVisible()) {
     return;
   }
 
@@ -6892,6 +6907,33 @@ PresShell::DidPaint()
   if (rootPresContext == mPresContext) {
     rootPresContext->UpdatePluginGeometry();
   }
+}
+
+NS_IMETHODIMP_(bool)
+PresShell::IsVisible()
+{
+  if (!mViewManager)
+    return false;
+
+  nsIView* view = mViewManager->GetRootView();
+  if (!view)
+    return true;
+
+  // inner view of subdoc frame
+  view = view->GetParent();
+  if (!view)
+    return true;
+  
+  // subdoc view
+  view = view->GetParent();
+  if (!view)
+    return true;
+
+  nsIFrame* frame = static_cast<nsIFrame*>(view->GetClientData());
+  if (!frame)
+    return true;
+
+  return frame->IsVisibleConsideringAncestors(nsIFrame::VISIBILITY_CROSS_CHROME_CONTENT_BOUNDARY);
 }
 
 nsresult
