@@ -330,21 +330,15 @@ int nr_ice_component_initialize(struct nr_ice_ctx_ *ctx,nr_ice_component *compon
     return(_status);
   }
 
-static int nr_ice_any_peer_paired(nr_ice_candidate* cand) {
-  nr_ice_peer_ctx* pctx=STAILQ_FIRST(&cand->ctx->peers);
-  while(pctx && pctx->state == NR_ICE_PEER_STATE_UNPAIRED){
-    /* Is it worth actually looking through the check lists? Probably not. */
-    pctx=STAILQ_NEXT(pctx,entry);
-  }
-  return pctx != NULL;
-}
-
 /*
   Compare this newly initialized candidate against the other initialized
   candidates and discard the lower-priority one if they are redundant.
 
    This algorithm combined with the other algorithms, favors
    host > srflx > relay
+
+   This actually won't prune relayed in the very rare
+   case that relayed is the same. Not relevant in practice.
  */
 int nr_ice_component_maybe_prune_candidate(nr_ice_ctx *ctx, nr_ice_component *comp, nr_ice_candidate *c1, int *was_pruned)
   {
@@ -363,13 +357,12 @@ int nr_ice_component_maybe_prune_candidate(nr_ice_ctx *ctx, nr_ice_component *co
            (c2->type==HOST && c1->type == SERVER_REFLEXIVE)){
 
           /*
-             These are redundant. Remove the lower pri one, or if pairing has
-             already occurred, remove the newest one.
+             These are redundant. Remove the lower pri one.
 
              Since this algorithmis run whenever a new candidate
              is initialized, there should at most one duplicate.
            */
-          if ((c1->priority <= c2->priority) || nr_ice_any_peer_paired(c2)) {
+          if (c1->priority < c2->priority) {
             tmp = c1;
             *was_pruned = 1;
           }
@@ -526,7 +519,8 @@ static int nr_ice_component_process_incoming_check(nr_ice_component *comp, nr_tr
           ABORT(R_BAD_DATA);
         }
         pcand->priority=attr->u.priority;
-        pcand->state=NR_ICE_CAND_PEER_CANDIDATE_PAIRED;
+        pcand->state=NR_ICE_CAND_PEER_CANDIDATE_PAIRED;;
+        TAILQ_INSERT_TAIL(&comp->candidates,pcand,entry_comp);
 
         if(r=nr_ice_candidate_pair_create(comp->stream->pctx,cand,pcand,
              &pair)) {
@@ -540,8 +534,6 @@ static int nr_ice_component_process_incoming_check(nr_ice_component *comp, nr_tr
           ABORT(r);
         }
 
-        /* Do this last, since any call to ABORT will destroy pcand */
-        TAILQ_INSERT_TAIL(&comp->candidates,pcand,entry_comp);
         pcand=0;
       }
       else{
@@ -800,7 +792,7 @@ int nr_ice_component_nominated_pair(nr_ice_component *comp, nr_ice_cand_pair *pa
     if(comp->nominated){
       if(comp->nominated->priority > pair->priority)
         return(0);
-      r_log(LOG_ICE,LOG_DEBUG,"ICE-PEER(%s)/STREAM(%s)/COMP(%d)/CAND-PAIR(%s): replacing pair %s with CAND-PAIR(%s)",comp->stream->pctx->label,comp->stream->label,comp->component_id,comp->nominated->codeword,comp->nominated->as_string,pair->codeword);
+      r_log(LOG_ICE,LOG_INFO,"ICE-PEER(%s)/STREAM(%s)/COMP(%d)/CAND-PAIR(%s): replacing pair %s with CAND-PAIR(%s)",comp->stream->pctx->label,comp->stream->label,comp->component_id,comp->nominated->codeword,comp->nominated->as_string,pair->codeword);
     }
 
     /* Set the new nominated pair */
@@ -809,7 +801,7 @@ int nr_ice_component_nominated_pair(nr_ice_component *comp, nr_ice_cand_pair *pa
     comp->nominated=pair;
     comp->active=pair;
 
-    r_log(LOG_ICE,LOG_DEBUG,"ICE-PEER(%s)/STREAM(%s)/COMP(%d)/CAND-PAIR(%s): cancelling all pairs but %s",comp->stream->pctx->label,comp->stream->label,comp->component_id,pair->codeword,pair->as_string);
+    r_log(LOG_ICE,LOG_INFO,"ICE-PEER(%s)/STREAM(%s)/COMP(%d)/CAND-PAIR(%s): cancelling all pairs but %s",comp->stream->pctx->label,comp->stream->label,comp->component_id,pair->codeword,pair->as_string);
 
     /* Cancel checks in WAITING and FROZEN per ICE S 8.1.2 */
     p2=TAILQ_FIRST(&comp->stream->check_list);
@@ -818,7 +810,7 @@ int nr_ice_component_nominated_pair(nr_ice_component *comp, nr_ice_cand_pair *pa
          (p2->remote->component->component_id == comp->component_id) &&
          ((p2->state == NR_ICE_PAIR_STATE_FROZEN) ||
 	  (p2->state == NR_ICE_PAIR_STATE_WAITING))) {
-        r_log(LOG_ICE,LOG_DEBUG,"ICE-PEER(%s)/STREAM(%s)/COMP(%d)/CAND-PAIR(%s): cancelling FROZEN/WAITING pair %s because CAND-PAIR(%s) was nominated.",comp->stream->pctx->label,comp->stream->label,comp->component_id,p2->codeword,p2->as_string,pair->codeword);
+        r_log(LOG_ICE,LOG_INFO,"ICE-PEER(%s)/STREAM(%s)/COMP(%d)/CAND-PAIR(%s): cancelling FROZEN/WAITING pair %s because CAND-PAIR(%s) was nominated.",comp->stream->pctx->label,comp->stream->label,comp->component_id,p2->codeword,p2->as_string,pair->codeword);
 
         if(r=nr_ice_candidate_pair_cancel(pair->pctx,p2))
           ABORT(r);

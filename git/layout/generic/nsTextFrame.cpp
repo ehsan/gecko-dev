@@ -41,7 +41,6 @@
 #include "nsPlaceholderFrame.h"
 #include "nsTextFrameUtils.h"
 #include "nsTextRunTransformations.h"
-#include "nsTextFrameTextRunCache.h"
 #include "nsExpirationTracker.h"
 #include "nsUnicodeProperties.h"
 
@@ -78,6 +77,10 @@
 #else
 #undef NOISY_REFLOW
 #undef NOISY_TRIM
+#endif
+
+#ifdef DrawText
+#undef DrawText
 #endif
 
 using namespace mozilla;

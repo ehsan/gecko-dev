@@ -72,12 +72,15 @@ var gPluginHandler = {
     if (aName == "Shockwave Flash")
       return "Adobe Flash";
 
-    // Clean up the plugin name by stripping off any trailing version numbers
-    // or "plugin". EG, "Foo Bar Plugin 1.23_02" --> "Foo Bar"
+    // Clean up the plugin name by stripping off parenthetical clauses,
+    // trailing version numbers or "plugin".
+    // EG, "Foo Bar (Linux) Plugin 1.23_02" --> "Foo Bar"
     // Do this by first stripping the numbers, etc. off the end, and then
     // removing "Plugin" (and then trimming to get rid of any whitespace).
     // (Otherwise, something like "Java(TM) Plug-in 1.7.0_07" gets mangled)
-    let newName = aName.replace(/[\s\d\.\-\_\(\)]+$/, "").replace(/\bplug-?in\b/i, "").trim();
+    let newName = aName.replace(/\(.*?\)/g, "").
+                        replace(/[\s\d\.\-\_\(\)]+$/, "").
+                        replace(/\bplug-?in\b/i, "").trim();
     return newName;
   },
 
@@ -728,11 +731,6 @@ var gPluginHandler = {
       let principal = contentWindow.document.nodePrincipal;
       Services.perms.addFromPrincipal(principal, aPluginInfo.permissionString,
                                       permission, expireType, expireTime);
-
-      if (aNewState == "block") {
-        this._setPluginNotificationIcon(browser);
-        return;
-      }
     }
 
     // Manually activate the plugins that would have been automatically
@@ -750,23 +748,25 @@ var gPluginHandler = {
       }
       if (aPluginInfo.permissionString == pluginHost.getPermissionStringForType(plugin.actualType)) {
         pluginFound = true;
-        if (gPluginHandler.canActivatePlugin(plugin)) {
-          let overlay = this.getPluginUI(plugin, "main");
-          if (overlay) {
-            overlay.removeEventListener("click", gPluginHandler._overlayClickListener, true);
+        if (aNewState == "block") {
+          plugin.reload(true);
+        } else {
+          if (gPluginHandler.canActivatePlugin(plugin)) {
+            let overlay = this.getPluginUI(plugin, "main");
+            if (overlay) {
+              overlay.removeEventListener("click", gPluginHandler._overlayClickListener, true);
+            }
+            plugin.playPlugin();
           }
-          plugin.playPlugin();
         }
       }
     }
 
     // If there are no instances of the plugin on the page any more, what the
     // user probably needs is for us to allow and then refresh.
-    if (!pluginFound) {
+    if (aNewState != "block" && !pluginFound) {
       browser.reload();
     }
-
-    this._setPluginNotificationIcon(browser);
   },
 
   _showClickToPlayNotification: function PH_showClickToPlayNotification(aBrowser, aPlugin, aShowNow) {
@@ -963,9 +963,6 @@ var gPluginHandler = {
         return;
       }
 
-      Services.telemetry.getHistogramById("PLUGINS_INFOBAR_SHOWN").
-        add(true);
-
       let message;
       // Icons set directly cannot be manipulated using moz-image-region, so
       // we use CSS classes instead.
@@ -1010,9 +1007,6 @@ var gPluginHandler = {
           label: gNavigatorBundle.getString("pluginBlockNow.label"),
           accessKey: gNavigatorBundle.getString("pluginBlockNow.accesskey"),
           callback: function() {
-            Services.telemetry.getHistogramById("PLUGINS_INFOBAR_BLOCK").
-              add(true);
-
             Services.perms.addFromPrincipal(aBrowser.contentDocument.nodePrincipal,
                                             "plugin-hidden-notification",
                                             Services.perms.DENY_ACTION);
@@ -1022,9 +1016,6 @@ var gPluginHandler = {
           label: gNavigatorBundle.getString("offlineApps.allow"),
           accessKey: gNavigatorBundle.getString("offlineApps.allowAccessKey"),
           callback: function() {
-            Services.telemetry.getHistogramById("PLUGINS_INFOBAR_ALLOW").
-              add(true);
-
             let curNotification =
               PopupNotifications.getNotification("click-to-play-plugins",
                                                  aBrowser);

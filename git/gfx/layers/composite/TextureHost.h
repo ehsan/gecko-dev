@@ -384,10 +384,8 @@ public:
 
   virtual void SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData);
 
-#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char *Name() { return "TextureHost"; }
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix);
-#endif
 
 protected:
   uint64_t mID;
@@ -469,7 +467,7 @@ class ShmemTextureHost : public BufferTextureHost
 {
 public:
   ShmemTextureHost(uint64_t aID,
-                   const ipc::Shmem& aShmem,
+                   const mozilla::ipc::Shmem& aShmem,
                    gfx::SurfaceFormat aFormat,
                    ISurfaceAllocator* aDeallocator,
                    TextureFlags aFlags);
@@ -480,12 +478,10 @@ public:
 
   virtual uint8_t* GetBuffer() MOZ_OVERRIDE;
 
-#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char *Name() MOZ_OVERRIDE { return "ShmemTextureHost"; }
-#endif
 
 protected:
-  ipc::Shmem* mShmem;
+  mozilla::ipc::Shmem* mShmem;
   ISurfaceAllocator* mDeallocator;
 };
 
@@ -509,9 +505,7 @@ public:
 
   virtual uint8_t* GetBuffer() MOZ_OVERRIDE;
 
-#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char *Name() MOZ_OVERRIDE { return "MemoryTextureHost"; }
-#endif
 
 protected:
   uint8_t* mBuffer;
@@ -664,10 +658,8 @@ public:
 
   virtual already_AddRefed<gfxImageSurface> GetAsSurface() = 0;
 
-#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char *Name() = 0;
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix);
-#endif
 
   /**
    * TEMPORARY.
@@ -799,11 +791,19 @@ private:
 class CompositingRenderTarget : public TextureSource
 {
 public:
+  CompositingRenderTarget(const gfx::IntPoint& aOrigin)
+    : mOrigin(aOrigin)
+  {}
   virtual ~CompositingRenderTarget() {}
 
 #ifdef MOZ_DUMP_PAINTING
   virtual already_AddRefed<gfxImageSurface> Dump(Compositor* aCompositor) { return nullptr; }
 #endif
+
+  const gfx::IntPoint& GetOrigin() { return mOrigin; }
+
+private:
+  gfx::IntPoint mOrigin;
 };
 
 /**

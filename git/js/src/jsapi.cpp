@@ -242,22 +242,19 @@ JS_ConvertArgumentsVA(JSContext *cx, unsigned argc, jsval *argv, const char *for
         RootedValue arg(cx, *sp);
         switch (c) {
           case 'b':
-            *va_arg(ap, bool *) = ToBoolean(*sp);
+            *va_arg(ap, bool *) = ToBoolean(arg);
             break;
           case 'c':
-            if (!JS_ValueToUint16(cx, *sp, va_arg(ap, uint16_t *)))
+            if (!ToUint16(cx, arg, va_arg(ap, uint16_t *)))
                 return false;
             break;
           case 'i':
+          case 'j': // "j" was broken, you should not use it.
             if (!ToInt32(cx, arg, va_arg(ap, int32_t *)))
                 return false;
             break;
           case 'u':
-            if (!JS_ValueToECMAUint32(cx, *sp, va_arg(ap, uint32_t *)))
-                return false;
-            break;
-          case 'j':
-            if (!JS_ValueToInt32(cx, *sp, va_arg(ap, int32_t *)))
+            if (!ToUint32(cx, arg, va_arg(ap, uint32_t *)))
                 return false;
             break;
           case 'd':
@@ -410,16 +407,6 @@ JS_ValueToConstructor(JSContext *cx, HandleValue value)
 }
 
 JS_PUBLIC_API(JSString *)
-JS_ValueToString(JSContext *cx, jsval valueArg)
-{
-    RootedValue value(cx, valueArg);
-    AssertHeapIsIdle(cx);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, value);
-    return ToString<CanGC>(cx, value);
-}
-
-JS_PUBLIC_API(JSString *)
 JS_ValueToSource(JSContext *cx, jsval valueArg)
 {
     RootedValue value(cx, valueArg);
@@ -445,76 +432,6 @@ JS_PUBLIC_API(uint32_t)
 JS_DoubleToUint32(double d)
 {
     return ToUint32(d);
-}
-
-
-JS_PUBLIC_API(bool)
-JS_ValueToECMAUint32(JSContext *cx, jsval valueArg, uint32_t *ip)
-{
-    RootedValue value(cx, valueArg);
-    return JS::ToUint32(cx, value, ip);
-}
-
-JS_PUBLIC_API(bool)
-JS_ValueToInt64(JSContext *cx, jsval valueArg, int64_t *ip)
-{
-    RootedValue value(cx, valueArg);
-    return JS::ToInt64(cx, value, ip);
-}
-
-JS_PUBLIC_API(bool)
-JS_ValueToUint64(JSContext *cx, jsval valueArg, uint64_t *ip)
-{
-    RootedValue value(cx, valueArg);
-    return JS::ToUint64(cx, value, ip);
-}
-
-JS_PUBLIC_API(bool)
-JS_ValueToInt32(JSContext *cx, jsval vArg, int32_t *ip)
-{
-    AssertHeapIsIdle(cx);
-    CHECK_REQUEST(cx);
-
-    RootedValue v(cx, vArg);
-    assertSameCompartment(cx, v);
-
-    if (v.isInt32()) {
-        *ip = v.toInt32();
-        return true;
-    }
-
-    double d;
-    if (v.isDouble()) {
-        d = v.toDouble();
-    } else if (!ToNumberSlow(cx, v, &d)) {
-        return false;
-    }
-
-    if (mozilla::IsNaN(d) || d <= -2147483649.0 || 2147483648.0 <= d) {
-        js_ReportValueError(cx, JSMSG_CANT_CONVERT,
-                            JSDVG_SEARCH_STACK, v, NullPtr());
-        return false;
-    }
-
-    *ip = (int32_t) floor(d + 0.5);  /* Round to nearest */
-    return true;
-}
-
-JS_PUBLIC_API(bool)
-JS_ValueToUint16(JSContext *cx, jsval valueArg, uint16_t *ip)
-{
-    RootedValue value(cx, valueArg);
-    return ToUint16(cx, value, ip);
-}
-
-JS_PUBLIC_API(bool)
-JS_ValueToBoolean(JSContext *cx, jsval value, bool *bp)
-{
-    AssertHeapIsIdle(cx);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, value);
-    *bp = ToBoolean(value);
-    return true;
 }
 
 JS_PUBLIC_API(JSType)
@@ -1741,52 +1658,52 @@ JS_PUBLIC_API(void)
 JS_RemoveValueRoot(JSContext *cx, jsval *vp)
 {
     CHECK_REQUEST(cx);
-    js_RemoveRoot(cx->runtime(), (void *)vp);
+    RemoveRoot(cx->runtime(), (void *)vp);
 }
 
 JS_PUBLIC_API(void)
 JS_RemoveStringRoot(JSContext *cx, JSString **rp)
 {
     CHECK_REQUEST(cx);
-    js_RemoveRoot(cx->runtime(), (void *)rp);
+    RemoveRoot(cx->runtime(), (void *)rp);
 }
 
 JS_PUBLIC_API(void)
 JS_RemoveObjectRoot(JSContext *cx, JSObject **rp)
 {
     CHECK_REQUEST(cx);
-    js_RemoveRoot(cx->runtime(), (void *)rp);
+    RemoveRoot(cx->runtime(), (void *)rp);
 }
 
 JS_PUBLIC_API(void)
 JS_RemoveScriptRoot(JSContext *cx, JSScript **rp)
 {
     CHECK_REQUEST(cx);
-    js_RemoveRoot(cx->runtime(), (void *)rp);
+    RemoveRoot(cx->runtime(), (void *)rp);
 }
 
 JS_PUBLIC_API(void)
 JS_RemoveValueRootRT(JSRuntime *rt, jsval *vp)
 {
-    js_RemoveRoot(rt, (void *)vp);
+    RemoveRoot(rt, (void *)vp);
 }
 
 JS_PUBLIC_API(void)
 JS_RemoveStringRootRT(JSRuntime *rt, JSString **rp)
 {
-    js_RemoveRoot(rt, (void *)rp);
+    RemoveRoot(rt, (void *)rp);
 }
 
 JS_PUBLIC_API(void)
 JS_RemoveObjectRootRT(JSRuntime *rt, JSObject **rp)
 {
-    js_RemoveRoot(rt, (void *)rp);
+    RemoveRoot(rt, (void *)rp);
 }
 
 JS_PUBLIC_API(void)
 JS_RemoveScriptRootRT(JSRuntime *rt, JSScript **rp)
 {
-    js_RemoveRoot(rt, (void *)rp);
+    RemoveRoot(rt, (void *)rp);
 }
 
 JS_NEVER_INLINE JS_PUBLIC_API(void)
@@ -2579,6 +2496,36 @@ class AutoHoldZone
 
 } /* anonymous namespace */
 
+bool
+JS::CompartmentOptions::baseline(JSContext *cx) const
+{
+    return baselineOverride_.get(cx->options().baseline());
+}
+
+bool
+JS::CompartmentOptions::typeInference(const ExclusiveContext *cx) const
+{
+    /* Unlike the other options that can be overriden on a per compartment
+     * basis, the default value for the typeInference option is stored on the
+     * compartment's type zone, rather than the current JSContext. Type zones
+     * copy this default value over from the current JSContext when they are
+     * created.
+     */
+    return typeInferenceOverride_.get(cx->compartment()->zone()->types.inferenceEnabled);
+}
+
+bool
+JS::CompartmentOptions::ion(JSContext *cx) const
+{
+    return ionOverride_.get(cx->options().ion());
+}
+
+bool
+JS::CompartmentOptions::asmJS(JSContext *cx) const
+{
+    return asmJSOverride_.get(cx->options().asmJS());
+}
+
 JS::CompartmentOptions &
 JS::CompartmentOptions::setZone(ZoneSpecifier spec)
 {
@@ -2591,6 +2538,18 @@ JS::CompartmentOptions::setSameZoneAs(JSObject *obj)
 {
     zone_.pointer = static_cast<void *>(obj->zone());
     return *this;
+}
+
+JS::CompartmentOptions &
+JS::CompartmentOptionsRef(JSCompartment *compartment)
+{
+    return compartment->options();
+}
+
+JS::CompartmentOptions &
+JS::CompartmentOptionsRef(JSContext *cx)
+{
+    return cx->compartment()->options();
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -2839,7 +2798,7 @@ JS_LookupElement(JSContext *cx, JSObject *objArg, uint32_t index, MutableHandleV
     RootedObject obj(cx, objArg);
     CHECK_REQUEST(cx);
     RootedId id(cx);
-    if (!IndexToId(cx, index, &id))
+    if (!IndexToId(cx, index, id.address()))
         return false;
     return JS_LookupPropertyById(cx, obj, id, vp);
 }
@@ -2857,7 +2816,7 @@ JS_LookupUCProperty(JSContext *cx, JSObject *objArg, const jschar *name, size_t 
                     MutableHandleValue vp)
 {
     RootedObject obj(cx, objArg);
-    JSAtom *atom = AtomizeChars<CanGC>(cx, name, AUTO_NAMELEN(name, namelen));
+    JSAtom *atom = AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen));
     return atom && JS_LookupPropertyById(cx, obj, AtomToId(atom), vp);
 }
 
@@ -2914,7 +2873,7 @@ JS_HasElement(JSContext *cx, JSObject *objArg, uint32_t index, bool *foundp)
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     RootedId id(cx);
-    if (!IndexToId(cx, index, &id))
+    if (!IndexToId(cx, index, id.address()))
         return false;
     return JS_HasPropertyById(cx, obj, id, foundp);
 }
@@ -2931,7 +2890,7 @@ JS_PUBLIC_API(bool)
 JS_HasUCProperty(JSContext *cx, JSObject *objArg, const jschar *name, size_t namelen, bool *foundp)
 {
     RootedObject obj(cx, objArg);
-    JSAtom *atom = AtomizeChars<CanGC>(cx, name, AUTO_NAMELEN(name, namelen));
+    JSAtom *atom = AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen));
     return atom && JS_HasPropertyById(cx, obj, AtomToId(atom), foundp);
 }
 
@@ -2970,7 +2929,7 @@ JS_AlreadyHasOwnElement(JSContext *cx, JSObject *objArg, uint32_t index, bool *f
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     RootedId id(cx);
-    if (!IndexToId(cx, index, &id))
+    if (!IndexToId(cx, index, id.address()))
         return false;
     return JS_AlreadyHasOwnPropertyById(cx, obj, id, foundp);
 }
@@ -2988,7 +2947,7 @@ JS_AlreadyHasOwnUCProperty(JSContext *cx, JSObject *objArg, const jschar *name, 
                            bool *foundp)
 {
     RootedObject obj(cx, objArg);
-    JSAtom *atom = AtomizeChars<CanGC>(cx, name, AUTO_NAMELEN(name, namelen));
+    JSAtom *atom = AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen));
     return atom && JS_AlreadyHasOwnPropertyById(cx, obj, AtomToId(atom), foundp);
 }
 
@@ -3112,7 +3071,7 @@ JS_DefineElement(JSContext *cx, JSObject *objArg, uint32_t index, jsval valueArg
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     RootedId id(cx);
-    if (!IndexToId(cx, index, &id))
+    if (!IndexToId(cx, index, id.address()))
         return false;
     return DefinePropertyById(cx, obj, id, value, GetterWrapper(getter),
                               SetterWrapper(setter), attrs, 0, 0);
@@ -3168,7 +3127,7 @@ DefineUCProperty(JSContext *cx, HandleObject obj, const jschar *name, size_t nam
 {
     RootedValue value(cx, value_);
     AutoRooterGetterSetter gsRoot(cx, attrs, &getter, &setter);
-    JSAtom *atom = AtomizeChars<CanGC>(cx, name, AUTO_NAMELEN(name, namelen));
+    JSAtom *atom = AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen));
     if (!atom)
         return false;
     RootedId id(cx, AtomToId(atom));
@@ -3430,7 +3389,7 @@ JS_GetUCProperty(JSContext *cx, JSObject *objArg, const jschar *name, size_t nam
                  MutableHandleValue vp)
 {
     RootedObject obj(cx, objArg);
-    JSAtom *atom = AtomizeChars<CanGC>(cx, name, AUTO_NAMELEN(name, namelen));
+    JSAtom *atom = AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen));
     return atom && JS_GetPropertyById(cx, obj, AtomToId(atom), vp);
 }
 
@@ -3473,7 +3432,7 @@ JS_SetUCProperty(JSContext *cx, JSObject *objArg, const jschar *name, size_t nam
                  HandleValue v)
 {
     RootedObject obj(cx, objArg);
-    JSAtom *atom = AtomizeChars<CanGC>(cx, name, AUTO_NAMELEN(name, namelen));
+    JSAtom *atom = AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen));
     return atom && JS_SetPropertyById(cx, obj, AtomToId(atom), v);
 }
 
@@ -3548,7 +3507,7 @@ JS_DeleteUCProperty2(JSContext *cx, JSObject *objArg, const jschar *name, size_t
     assertSameCompartment(cx, obj);
     JSAutoResolveFlags rf(cx, 0);
 
-    JSAtom *atom = AtomizeChars<CanGC>(cx, name, AUTO_NAMELEN(name, namelen));
+    JSAtom *atom = AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen));
     if (!atom)
         return false;
 
@@ -4213,7 +4172,7 @@ JS_DefineUCFunction(JSContext *cx, JSObject *objArg,
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
-    JSAtom *atom = AtomizeChars<CanGC>(cx, name, AUTO_NAMELEN(name, namelen));
+    JSAtom *atom = AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen));
     if (!atom)
         return nullptr;
     Rooted<jsid> id(cx, AtomToId(atom));
@@ -4340,39 +4299,116 @@ AutoFile::open(JSContext *cx, const char *filename)
     return true;
 }
 
+JSObject * const JS::ReadOnlyCompileOptions::nullObjectPtr = nullptr;
 
-JS::CompileOptions::CompileOptions(JSContext *cx, JSVersion version)
-    : principals_(nullptr),
-      originPrincipals_(nullptr),
-      version(version != JSVERSION_UNKNOWN ? version : cx->findVersion()),
-      versionSet(false),
-      utf8(false),
-      filename(nullptr),
-      sourceMapURL(nullptr),
-      lineno(1),
-      column(0),
-      element(NullPtr()),
-      compileAndGo(cx->options().compileAndGo()),
-      forEval(false),
-      noScriptRval(cx->options().noScriptRval()),
-      selfHostingMode(false),
-      canLazilyParse(true),
-      strictOption(cx->options().strictMode()),
-      extraWarningsOption(cx->options().extraWarnings()),
-      werrorOption(cx->options().werror()),
-      asmJSOption(cx->options().asmJS()),
-      sourcePolicy(SAVE_SOURCE)
+void
+JS::ReadOnlyCompileOptions::copyPODOptions(const ReadOnlyCompileOptions &rhs)
 {
+    version = rhs.version;
+    versionSet = rhs.versionSet;
+    utf8 = rhs.utf8;
+    lineno = rhs.lineno;
+    column = rhs.column;
+    compileAndGo = rhs.compileAndGo;
+    forEval = rhs.forEval;
+    noScriptRval = rhs.noScriptRval;
+    selfHostingMode = rhs.selfHostingMode;
+    canLazilyParse = rhs.canLazilyParse;
+    strictOption = rhs.strictOption;
+    extraWarningsOption = rhs.extraWarningsOption;
+    werrorOption = rhs.werrorOption;
+    asmJSOption = rhs.asmJSOption;
+    sourcePolicy = rhs.sourcePolicy;
 }
 
 JSPrincipals *
-CompileOptions::originPrincipals() const
+JS::ReadOnlyCompileOptions::originPrincipals() const
 {
     return NormalizeOriginPrincipals(principals_, originPrincipals_);
 }
 
+JS::OwningCompileOptions::OwningCompileOptions(JSContext *cx)
+    : ReadOnlyCompileOptions(),
+      runtime(GetRuntime(cx)),
+      elementRoot(cx)
+{
+}
+
+JS::OwningCompileOptions::~OwningCompileOptions()
+{
+    if (principals_)
+        JS_DropPrincipals(runtime, principals_);
+    if (originPrincipals_)
+        JS_DropPrincipals(runtime, originPrincipals_);
+
+    // OwningCompileOptions always owns these, so these casts are okay.
+    js_free(const_cast<char *>(filename_));
+    js_free(const_cast<jschar *>(sourceMapURL_));
+}
+
+bool
+JS::OwningCompileOptions::copy(JSContext *cx, const ReadOnlyCompileOptions &rhs)
+{
+    copyPODOptions(rhs);
+
+    setPrincipals(rhs.principals());
+    setOriginPrincipals(rhs.originPrincipals());
+    setElement(rhs.element());
+
+    return (setFileAndLine(cx, rhs.filename(), rhs.lineno) &&
+            setSourceMapURL(cx, rhs.sourceMapURL()));
+}
+
+bool
+JS::OwningCompileOptions::setFileAndLine(JSContext *cx, const char *f, unsigned l)
+{
+    char *copy = nullptr;
+    if (f) {
+        copy = JS_strdup(cx, f);
+        if (!copy)
+            return false;
+    }
+
+    // OwningCompileOptions always owns filename_, so this cast is okay.
+    js_free(const_cast<char *>(filename_));
+
+    filename_ = copy;
+    lineno = l;
+    return true;
+}
+
+bool
+JS::OwningCompileOptions::setSourceMapURL(JSContext *cx, const jschar *s)
+{
+    jschar *copy = nullptr;
+    if (s) {
+        copy = js_strdup(cx, s);
+        if (!copy)
+            return false;
+    }
+
+    // OwningCompileOptions always owns sourceMapURL_, so this cast is okay.
+    js_free(const_cast<jschar *>(sourceMapURL_));
+
+    sourceMapURL_ = copy;
+    return true;
+}
+
+JS::CompileOptions::CompileOptions(JSContext *cx, JSVersion version)
+    : ReadOnlyCompileOptions(), elementRoot(cx)
+{
+    this->version = (version != JSVERSION_UNKNOWN) ? version : cx->findVersion();
+
+    compileAndGo = cx->options().compileAndGo();
+    noScriptRval = cx->options().noScriptRval();
+    strictOption = cx->options().strictMode();
+    extraWarningsOption = cx->options().extraWarnings();
+    werrorOption = cx->options().werror();
+    asmJSOption = cx->options().asmJS();
+}
+
 JSScript *
-JS::Compile(JSContext *cx, HandleObject obj, CompileOptions options,
+JS::Compile(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &options,
             const jschar *chars, size_t length)
 {
     JS_ASSERT(!cx->runtime()->isAtomsCompartment(cx->compartment()));
@@ -4386,7 +4422,7 @@ JS::Compile(JSContext *cx, HandleObject obj, CompileOptions options,
 }
 
 JSScript *
-JS::Compile(JSContext *cx, HandleObject obj, CompileOptions options,
+JS::Compile(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &options,
             const char *bytes, size_t length)
 {
     jschar *chars;
@@ -4403,7 +4439,7 @@ JS::Compile(JSContext *cx, HandleObject obj, CompileOptions options,
 }
 
 JSScript *
-JS::Compile(JSContext *cx, HandleObject obj, CompileOptions options, FILE *fp)
+JS::Compile(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &options, FILE *fp)
 {
     FileContents buffer(cx);
     if (!ReadCompleteFile(cx, fp, buffer))
@@ -4414,18 +4450,19 @@ JS::Compile(JSContext *cx, HandleObject obj, CompileOptions options, FILE *fp)
 }
 
 JSScript *
-JS::Compile(JSContext *cx, HandleObject obj, CompileOptions options, const char *filename)
+JS::Compile(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &optionsArg, const char *filename)
 {
     AutoFile file;
     if (!file.open(cx, filename))
         return nullptr;
+    CompileOptions options(cx, optionsArg);
     options.setFileAndLine(filename, 1);
     JSScript *script = Compile(cx, obj, options, file.fp());
     return script;
 }
 
 JS_PUBLIC_API(bool)
-JS::CanCompileOffThread(JSContext *cx, const CompileOptions &options)
+JS::CanCompileOffThread(JSContext *cx, const ReadOnlyCompileOptions &options)
 {
 #ifdef JS_WORKER_THREADS
     if (!cx->runtime()->useHelperThreads() || !cx->runtime()->helperThreadCount())
@@ -4441,25 +4478,6 @@ JS::CanCompileOffThread(JSContext *cx, const CompileOptions &options)
     if (cx->runtime()->activeGCInAtomsZone())
         return false;
 
-    // Blacklist filenames which cause mysterious assertion failures in
-    // graphics code on OS X. These seem to tickle some preexisting race
-    // condition unrelated to off thread compilation. See bug 897655.
-    static const char *blacklist[] = {
-#ifdef XP_MACOSX
-        "chrome://browser/content/places/editBookmarkOverlay.js",
-        "chrome://browser/content/nsContextMenu.js",
-        "chrome://browser/content/newtab/newTab.js",
-        "chrome://browser/content/places/browserPlacesViews.js",
-#endif
-        nullptr
-    };
-
-    const char *filename = options.filename;
-    for (const char **ptest = blacklist; *ptest; ptest++) {
-        if (!strcmp(*ptest, filename))
-            return false;
-    }
-
     return true;
 #else
     return false;
@@ -4467,7 +4485,7 @@ JS::CanCompileOffThread(JSContext *cx, const CompileOptions &options)
 }
 
 JS_PUBLIC_API(bool)
-JS::CompileOffThread(JSContext *cx, Handle<JSObject*> obj, CompileOptions options,
+JS::CompileOffThread(JSContext *cx, Handle<JSObject*> obj, const ReadOnlyCompileOptions &options,
                      const jschar *chars, size_t length,
                      OffThreadCompileCallback callback, void *callbackData)
 {
@@ -4595,7 +4613,7 @@ JS_GetGlobalFromScript(JSScript *script)
 }
 
 JS_PUBLIC_API(JSFunction *)
-JS::CompileFunction(JSContext *cx, HandleObject obj, CompileOptions options,
+JS::CompileFunction(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &options,
                     const char *name, unsigned nargs, const char *const *argnames,
                     const jschar *chars, size_t length)
 {
@@ -4639,7 +4657,7 @@ JS::CompileFunction(JSContext *cx, HandleObject obj, CompileOptions options,
 }
 
 JS_PUBLIC_API(JSFunction *)
-JS::CompileFunction(JSContext *cx, HandleObject obj, CompileOptions options,
+JS::CompileFunction(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &options,
                     const char *name, unsigned nargs, const char *const *argnames,
                     const char *bytes, size_t length)
 {
@@ -4780,9 +4798,10 @@ JS_ExecuteScriptVersion(JSContext *cx, JSObject *objArg, JSScript *script, jsval
 static const unsigned LARGE_SCRIPT_LENGTH = 500*1024;
 
 extern JS_PUBLIC_API(bool)
-JS::Evaluate(JSContext *cx, HandleObject obj, CompileOptions options,
+JS::Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &optionsArg,
              const jschar *chars, size_t length, jsval *rval)
 {
+    CompileOptions options(cx, optionsArg);
     JS_ASSERT(!cx->runtime()->isAtomsCompartment(cx->compartment()));
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
@@ -4821,7 +4840,7 @@ JS::Evaluate(JSContext *cx, HandleObject obj, CompileOptions options,
 }
 
 extern JS_PUBLIC_API(bool)
-JS::Evaluate(JSContext *cx, HandleObject obj, CompileOptions options,
+JS::Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &options,
              const char *bytes, size_t length, jsval *rval)
 {
     jschar *chars;
@@ -4838,7 +4857,7 @@ JS::Evaluate(JSContext *cx, HandleObject obj, CompileOptions options,
 }
 
 extern JS_PUBLIC_API(bool)
-JS::Evaluate(JSContext *cx, HandleObject obj, CompileOptions options,
+JS::Evaluate(JSContext *cx, HandleObject obj, const ReadOnlyCompileOptions &optionsArg,
              const char *filename, jsval *rval)
 {
     FileContents buffer(cx);
@@ -4848,6 +4867,7 @@ JS::Evaluate(JSContext *cx, HandleObject obj, CompileOptions options,
             return false;
     }
 
+    CompileOptions options(cx, optionsArg);
     options.setFileAndLine(filename, 1);
     return Evaluate(cx, obj, options, buffer.begin(), buffer.length(), rval);
 }
@@ -5179,7 +5199,7 @@ JS_InternJSString(JSContext *cx, HandleString str)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    JSAtom *atom = AtomizeString<CanGC>(cx, str, InternAtom);
+    JSAtom *atom = AtomizeString(cx, str, InternAtom);
     JS_ASSERT_IF(atom, JS_StringHasBeenInterned(cx, atom));
     return atom;
 }
@@ -5231,7 +5251,7 @@ JS_InternUCStringN(JSContext *cx, const jschar *s, size_t length)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    JSAtom *atom = AtomizeChars<CanGC>(cx, s, length, InternAtom);
+    JSAtom *atom = AtomizeChars(cx, s, length, InternAtom);
     JS_ASSERT_IF(atom, JS_StringHasBeenInterned(cx, atom));
     return atom;
 }
@@ -6079,13 +6099,13 @@ BOOL WINAPI DllMain (HINSTANCE hDLL, DWORD dwReason, LPVOID lpReserved)
 JS_PUBLIC_API(bool)
 JS_IndexToId(JSContext *cx, uint32_t index, MutableHandleId id)
 {
-    return IndexToId(cx, index, id);
+    return IndexToId(cx, index, id.address());
 }
 
 JS_PUBLIC_API(bool)
 JS_CharsToId(JSContext* cx, JS::TwoByteChars chars, MutableHandleId idp)
 {
-    RootedAtom atom(cx, AtomizeChars<CanGC>(cx, chars.start().get(), chars.length()));
+    RootedAtom atom(cx, AtomizeChars(cx, chars.start().get(), chars.length()));
     if (!atom)
         return false;
 #ifdef DEBUG

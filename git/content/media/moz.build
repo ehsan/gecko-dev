@@ -26,9 +26,6 @@ if CONFIG['MOZ_WEBM']:
 if CONFIG['MOZ_GSTREAMER']:
     PARALLEL_DIRS += ['gstreamer']
 
-if CONFIG['MOZ_DASH']:
-    PARALLEL_DIRS += ['dash']
-
 if CONFIG['MOZ_DIRECTSHOW']:
     PARALLEL_DIRS += ['directshow']
 
@@ -160,4 +157,20 @@ MSVC_ENABLE_PGO = True
 LIBRARY_NAME = 'gkconmedia_s'
 
 include('/ipc/chromium/chromium-config.mozbuild')
+
+LOCAL_INCLUDES += [
+    '/content/base/src',
+    '/layout/generic',
+    '/layout/xul/base/src',
+]
+
+if CONFIG['MOZ_DIRECTSHOW']:
+    LOCAL_INCLUDES += [
+        '/media/webrtc/trunk/webrtc/modules/video_capture/windows',
+    ]
+
+DEFINES['MOZILLA_INTERNAL_API'] = True
+
+if CONFIG['MOZ_OMX_DECODER']:
+    DEFINES['MOZ_OMX_DECODER'] = True
 

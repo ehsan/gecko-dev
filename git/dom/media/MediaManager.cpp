@@ -110,7 +110,7 @@ static nsresult CompareDictionaries(JSContext* aCx, JSObject *aA,
       bool success = JS_IdToValue(aCx, props[i], nameval.address());
       NS_ENSURE_TRUE(success, NS_ERROR_UNEXPECTED);
 
-      JS::Rooted<JSString*> namestr(aCx, JS_ValueToString(aCx, nameval));
+      JS::Rooted<JSString*> namestr(aCx, JS::ToString(aCx, nameval));
       NS_ENSURE_TRUE(namestr, NS_ERROR_UNEXPECTED);
       aDifference->Assign(JS_GetStringCharsZ(aCx, namestr));
       return NS_OK;
@@ -129,8 +129,8 @@ static nsresult ValidateTrackConstraints(
     nsString *aOutUnknownConstraint)
 {
   // First find raw mMandatory member (use MediaTrackConstraints as helper)
-  dom::RootedDictionary<MediaTrackConstraints> track(aCx);
   JS::Rooted<JS::Value> rawval(aCx, JS::ObjectValue(*aRaw));
+  dom::RootedDictionary<MediaTrackConstraints> track(aCx);
   bool success = track.Init(aCx, rawval);
   NS_ENSURE_TRUE(success, NS_ERROR_FAILURE);
 
@@ -623,7 +623,6 @@ public:
     // when the page is invalidated (on navigation or close).
     mListener->Activate(stream.forget(), mAudioSource, mVideoSource);
 
-    // Note: includes JS callbacks; must be released on MainThread
     TracksAvailableCallback* tracksAvailableCallback =
       new TracksAvailableCallback(mManager, mSuccess, mWindowID, trackunion);
 
@@ -1277,19 +1276,17 @@ MediaManager::GetUserMedia(JSContext* aCx, bool aPrivileged,
 
   if (!unknownConstraintFound.IsEmpty()) {
     // An unsupported mandatory constraint was found.
-    //
-    // We continue to ignore these for now, because we implement just
-    // facingMode, which means all existing uses of mandatory width/height would
-    // fail on Firefox only otherwise, which is undesirable.
-    //
-    // There's also basis for always ignoring them in a new proposal.
-    // TODO(jib): This is a super-low-risk fix for backport. Clean up later.
+    // Things are set up enough here that we can fire Error callback.
 
     LOG(("Unsupported mandatory constraint: %s\n",
           NS_ConvertUTF16toUTF8(unknownConstraintFound).get()));
 
-    // unknown constraints existed in aRawConstraints only, which is unused
-    // from here, so continuing here effectively ignores them, as is desired.
+    nsString errormsg(NS_LITERAL_STRING("NOT_SUPPORTED_ERR: "));
+    errormsg.Append(unknownConstraintFound);
+    NS_DispatchToMainThread(new ErrorCallbackRunnable(onSuccess.forget(),
+                                                      onError.forget(),
+                                                      errormsg, windowID));
+    return NS_OK;
   }
 
   // Ensure there's a thread for gum to proxy to off main thread

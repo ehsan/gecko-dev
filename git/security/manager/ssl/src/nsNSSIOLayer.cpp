@@ -46,8 +46,6 @@
 #include "secder.h"
 #include "keyhi.h"
 
-#include <algorithm>
-
 using namespace mozilla;
 using namespace mozilla::psm;
 
@@ -921,8 +919,9 @@ retryDueToTLSIntolerance(PRErrorCode err, nsNSSSocketInfo* socketInfo)
   // be used to conclude server is TLS intolerant.
   // Note this only happens during the initial SSL handshake.
 
-  uint32_t reason;
+  SSLVersionRange range = socketInfo->GetTLSVersionRange();
 
+  uint32_t reason;
   switch (err)
   {
     case SSL_ERROR_BAD_MAC_ALERT: reason = 1; break;
@@ -950,9 +949,15 @@ retryDueToTLSIntolerance(PRErrorCode err, nsNSSSocketInfo* socketInfo)
       // to retry without TLS.
 
       // Don't allow STARTTLS connections to fall back on connection resets or
-      // EOF.
+      // EOF. Also, don't fall back from TLS 1.0 to SSL 3.0 for those errors,
+      // because connection resets and EOF have too many false positives,
+      // and we want to maximize how often we send TLS 1.0+ with extensions
+      // if at all reasonable. Unfortunately, it appears we have to allow
+      // fallback from TLS 1.2 and TLS 1.1 for those errors due to bad
+      // intermediaries.
     conditional:
-      if (socketInfo->GetHasCleartextPhase()) {
+      if (range.max <= SSL_LIBRARY_VERSION_TLS_1_0 ||
+          socketInfo->GetHasCleartextPhase()) {
         return false;
       }
       break;
@@ -963,7 +968,6 @@ retryDueToTLSIntolerance(PRErrorCode err, nsNSSSocketInfo* socketInfo)
 
   Telemetry::ID pre;
   Telemetry::ID post;
-  SSLVersionRange range = socketInfo->GetTLSVersionRange();
   switch (range.max) {
     case SSL_LIBRARY_VERSION_TLS_1_2:
       pre = Telemetry::SSL_TLS12_INTOLERANCE_REASON_PRE;
@@ -2049,9 +2053,9 @@ private:
  * - socket: SSL socket we're dealing with
  * - caNames: list of CA names
  * - pRetCert: returns a pointer to a pointer to a valid certificate if
- *			   successful; otherwise NULL
+ *			   successful; otherwise nullptr
  * - pRetKey: returns a pointer to a pointer to the corresponding key if
- *			  successful; otherwise NULL
+ *			  successful; otherwise nullptr
  * - returns: SECSuccess if successful; error code otherwise
  */
 SECStatus nsNSS_SSLGetClientAuthData(void* arg, PRFileDesc* socket,
@@ -2523,6 +2527,7 @@ nsSSLIOLayerImportFD(PRFileDesc *fd,
   }
   SSL_SetPKCS11PinArg(sslSock, (nsIInterfaceRequestor*)infoObject);
   SSL_HandshakeCallback(sslSock, HandshakeCallback, infoObject);
+  SSL_SetCanFalseStartCallback(sslSock, CanFalseStartCallback, infoObject);
 
   // Disable this hook if we connect anonymously. See bug 466080.
   uint32_t flags = 0;

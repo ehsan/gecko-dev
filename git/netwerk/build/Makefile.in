@@ -18,10 +18,6 @@ SHARED_LIBRARY_LIBS = \
   ../ipc/$(LIB_PREFIX)neckoipc_s.$(LIB_SUFFIX) \
   $(NULL)
 
-ifdef MOZ_RTSP
-SHARED_LIBRARY_LIBS += ../protocol/rtsp/$(LIB_PREFIX)nkrtsp_s.$(LIB_SUFFIX)
-endif
-
 ifdef MOZ_SRTP
 SHARED_LIBRARY_LIBS += \
   ../srtp/src/$(LIB_PREFIX)nksrtp_s.$(LIB_SUFFIX) \
@@ -55,11 +51,6 @@ ifeq (android,$(MOZ_WIDGET_TOOLKIT))
         ../system/android/$(LIB_PREFIX)neckosystem_s.$(LIB_SUFFIX)
 endif
 
-ifdef MOZ_DASH
-    SHARED_LIBRARY_LIBS += \
-        ../dash/mpd/$(LIB_PREFIX)nkdashmpd_s.$(LIB_SUFFIX)
-endif
-
 LOCAL_INCLUDES = \
   -I$(srcdir)/../base/src \
   -I$(srcdir)/../dns \
@@ -69,6 +60,7 @@ LOCAL_INCLUDES = \
   -I$(srcdir)/../mime \
   -I$(srcdir)/../cache \
   -I$(srcdir)/../protocol/about \
+  -I$(srcdir)/../protocol/app \
   -I../dns \
   $(foreach d,$(filter-out about,$(NECKO_PROTOCOLS)), \
     -I$(srcdir)/../protocol/$(d)) \
@@ -103,10 +95,6 @@ SHARED_LIBRARY_LIBS += \
   $(NULL)
 LOCAL_INCLUDES += -I$(srcdir)/../wifi
 
-endif
-
-ifdef MOZ_RTSP
-    LOCAL_INCLUDES += -I$(srcdir)/../protocol/rtsp
 endif
 
 include $(topsrcdir)/config/rules.mk

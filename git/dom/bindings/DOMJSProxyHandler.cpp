@@ -154,7 +154,8 @@ bool
 DOMProxyHandler::preventExtensions(JSContext *cx, JS::Handle<JSObject*> proxy)
 {
   // Throw a TypeError, per WebIDL.
-  JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_CHANGE_EXTENSIBILITY);
+  JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+                       JSMSG_CANT_CHANGE_EXTENSIBILITY);
   return false;
 }
 
@@ -192,7 +193,7 @@ DOMProxyHandler::defineProperty(JSContext* cx, JS::Handle<JSObject*> proxy, JS::
     return JS_ReportErrorFlagsAndNumber(cx,
                                         JSREPORT_WARNING | JSREPORT_STRICT |
                                         JSREPORT_STRICT_MODE_ERROR,
-                                        js_GetErrorMessage, NULL,
+                                        js_GetErrorMessage, nullptr,
                                         JSMSG_GETTER_ONLY);
   }
 
@@ -279,7 +280,7 @@ DOMProxyHandler::has(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid
 int32_t
 IdToInt32(JSContext* cx, JS::Handle<jsid> id)
 {
-  JS::RootedValue idval(cx);
+  JS::Rooted<JS::Value> idval(cx);
   double array_index;
   int32_t i;
   if (!::JS_IdToValue(cx, id, idval.address()) ||

@@ -2320,7 +2320,6 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
       // tile with the overall area we're supposed to be filling
       gfxRect fillRect =
         forceRepeatToCoverTiles ? areaToFill : tileRect.Intersect(areaToFill);
-      ctx->NewPath();
       // Try snapping the fill rect. Snap its top-left and bottom-right
       // independently to preserve the orientation.
       gfxPoint snappedFillRectTopLeft = fillRect.TopLeft();
@@ -2346,6 +2345,7 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
             snappedFillRectBottomRight);
         ctx->SetMatrix(transform);
       }
+      ctx->NewPath();
       ctx->Rectangle(fillRect);
       ctx->Translate(tileRect.TopLeft());
       ctx->SetPattern(gradientPattern);
@@ -2561,10 +2561,18 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
         nsBackgroundLayerState state = PrepareBackgroundLayer(aPresContext, aForFrame,
             aFlags, aBorderArea, clipState.mBGClipArea, *bg, layer);
         if (!state.mFillArea.IsEmpty()) {
+          if (state.mCompositingOp != gfxContext::OPERATOR_OVER) {
+            NS_ASSERTION(ctx->CurrentOperator() == gfxContext::OPERATOR_OVER,
+                         "It is assumed the initial operator is OPERATOR_OVER, when it is restored later");
+            ctx->SetOperator(state.mCompositingOp);
+          }
           state.mImageRenderer.DrawBackground(aPresContext, aRenderingContext,
                                               state.mDestArea, state.mFillArea,
                                               state.mAnchor + aBorderArea.TopLeft(),
                                               clipState.mDirtyRect);
+          if (state.mCompositingOp != gfxContext::OPERATOR_OVER) {
+            ctx->SetOperator(gfxContext::OPERATOR_OVER);
+          }
         }
       }
     }
@@ -2856,6 +2864,7 @@ nsCSSRendering::PrepareBackgroundLayer(nsPresContext* aPresContext,
    *   background-origin
    *   background-size
    *   background-break (-moz-background-inline-policy)
+   *   background-blend-mode
    *
    * (background-color applies to the entire element and not to individual
    * layers, so it is irrelevant to this method.)
@@ -2978,6 +2987,9 @@ nsCSSRendering::PrepareBackgroundLayer(nsPresContext* aPresContext,
     state.mFillArea.height = bgClipRect.height;
   }
   state.mFillArea.IntersectRect(state.mFillArea, bgClipRect);
+
+  state.mCompositingOp = GetGFXBlendMode(aLayer.mBlendMode);
+
   return state;
 }
 

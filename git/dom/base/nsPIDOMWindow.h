@@ -189,6 +189,8 @@ public:
     return mDoc;
   }
 
+  virtual NS_HIDDEN_(bool) IsRunningTimeout() = 0;
+
 protected:
   // Lazily instantiate an about:blank document if necessary, and if
   // we have what it takes to do so.
@@ -323,6 +325,15 @@ public:
   bool IsInnerWindow() const
   {
     return mIsInnerWindow;
+  }
+
+  // Returns true if this object has an outer window and it is the current inner
+  // window of that outer. Only call this on inner windows.
+  bool IsCurrentInnerWindow() const
+  {
+    MOZ_ASSERT(IsInnerWindow(),
+               "It doesn't make sense to call this on outer windows.");
+    return mOuterWindow && mOuterWindow->GetCurrentInnerWindow() == this;
   }
 
   bool IsOuterWindow() const

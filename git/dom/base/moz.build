@@ -34,7 +34,6 @@ EXPORTS += [
     'nsIScriptContext.h',
     'nsIScriptExternalNameSet.h',
     'nsIScriptGlobalObject.h',
-    'nsIScriptGlobalObjectOwner.h',
     'nsIScriptNameSpaceManager.h',
     'nsIScriptObjectPrincipal.h',
     'nsIScriptTimeoutHandler.h',
@@ -128,7 +127,6 @@ LIBRARY_NAME = 'jsdombase_s'
 LOCAL_INCLUDES += [
     '../battery',
     '../bluetooth',
-    '../icc/src',
     '../media',
     '../network/src',
     '../src/geolocation',
@@ -144,10 +142,17 @@ LOCAL_INCLUDES += [
     '/layout/xul/base/src',
 ]
 
-if CONFIG['MOZ_B2G_RIL']:
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
     LOCAL_INCLUDES += [
         '../fmradio',
         '../system/gonk',
     ]
 
 include('/ipc/chromium/chromium-config.mozbuild')
+
+LOCAL_INCLUDES += [
+    '/js/xpconnect/src',
+    '/js/xpconnect/wrappers',
+    '/xpcom/ds',
+]
+

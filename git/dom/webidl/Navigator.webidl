@@ -256,15 +256,8 @@ partial interface Navigator {
 
 #ifdef MOZ_B2G_RIL
 partial interface Navigator {
-  [Throws, Func="Navigator::HasTelephonySupport"]
-  readonly attribute Telephony? mozTelephony;
-};
-
-// nsIMozNavigatorMobileConnection
-interface MozMobileConnection;
-partial interface Navigator {
   [Throws, Func="Navigator::HasMobileConnectionSupport"]
-  readonly attribute MozMobileConnection mozMobileConnection;
+  readonly attribute MozMobileConnectionArray mozMobileConnections;
 };
 
 partial interface Navigator {
@@ -284,6 +277,11 @@ partial interface Navigator {
   readonly attribute MozIccManager? mozIccManager;
 };
 #endif // MOZ_B2G_RIL
+
+partial interface Navigator {
+  [Throws, Func="Navigator::HasTelephonySupport"]
+  readonly attribute Telephony? mozTelephony;
+};
 
 #ifdef MOZ_GAMEPAD
 // https://dvcs.w3.org/hg/gamepad/raw-file/default/gamepad.html#navigator-interface-extension

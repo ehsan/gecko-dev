@@ -25,6 +25,9 @@ from .data import (
     GeneratedEventWebIDLFile,
     GeneratedInclude,
     GeneratedWebIDLFile,
+    HeaderFileSubstitution,
+    HostProgram,
+    HostSimpleProgram,
     InstallationTarget,
     IPDLFile,
     LocalInclude,
@@ -33,6 +36,7 @@ from .data import (
     Program,
     ReaderSummary,
     SandboxWrapped,
+    SimpleProgram,
     TestWebIDLFile,
     TestManifest,
     VariablePassthru,
@@ -79,6 +83,8 @@ class TreeMetadataEmitter(LoggingMixin):
             if isinstance(out, MozbuildSandbox):
                 for o in self.emit_from_sandbox(out):
                     yield o
+                    if not o._ack:
+                        raise Exception('Unhandled object of type %s' % type(o))
 
                 # Update the stats.
                 file_count += len(out.all_paths)
@@ -99,14 +105,12 @@ class TreeMetadataEmitter(LoggingMixin):
         for o in self._emit_directory_traversal_from_sandbox(sandbox): yield o
 
         for path in sandbox['CONFIGURE_SUBST_FILES']:
-            if os.path.isabs(path):
-                path = path[1:]
+            yield self._create_substitution(ConfigFileSubstitution, sandbox,
+                path)
 
-            sub = ConfigFileSubstitution(sandbox)
-            sub.input_path = os.path.join(sandbox['SRCDIR'], '%s.in' % path)
-            sub.output_path = os.path.join(sandbox['OBJDIR'], path)
-            sub.relpath = path
-            yield sub
+        for path in sandbox['CONFIGURE_DEFINE_FILES']:
+            yield self._create_substitution(HeaderFileSubstitution, sandbox,
+                path)
 
         # XPIDL source files get processed and turned into .h and .xpt files.
         # If there are multiple XPIDL files in a directory, they get linked
@@ -129,7 +133,7 @@ class TreeMetadataEmitter(LoggingMixin):
             yield XPIDLFile(sandbox, mozpath.join(sandbox['SRCDIR'], idl),
                 xpidl_module)
 
-        for symbol in ('SOURCES', 'GTEST_SOURCES', 'HOST_SOURCES'):
+        for symbol in ('SOURCES', 'GTEST_SOURCES', 'HOST_SOURCES', 'UNIFIED_SOURCES'):
             for src in (sandbox[symbol] or []):
                 if not os.path.exists(os.path.join(sandbox['SRCDIR'], src)):
                     raise SandboxValidationError('Reference to a file that '
@@ -165,29 +169,57 @@ class TreeMetadataEmitter(LoggingMixin):
             OS_LIBS='OS_LIBS',
             SDK_LIBRARY='SDK_LIBRARY',
             SHARED_LIBRARY_LIBS='SHARED_LIBRARY_LIBS',
-            SIMPLE_PROGRAMS='SIMPLE_PROGRAMS',
         )
         for mak, moz in varmap.items():
             if sandbox[moz]:
                 passthru.variables[mak] = sandbox[moz]
 
+        # NO_VISIBILITY_FLAGS is slightly different
+        if sandbox['NO_VISIBILITY_FLAGS']:
+            passthru.variables['VISIBILITY_FLAGS'] = ''
+
         varmap = dict(
-            ASFILES=('SOURCES', ('.s', '.asm')),
-            CSRCS=('SOURCES', '.c'),
-            CMMSRCS=('SOURCES', '.mm'),
-            CPPSRCS=('SOURCES', ('.cc', '.cpp')),
-            SSRCS=('SOURCES', '.S'),
-            HOST_CPPSRCS=('HOST_SOURCES', ('.cc', '.cpp')),
-            HOST_CSRCS=('HOST_SOURCES', '.c'),
-            GTEST_CMMSRCS=('GTEST_SOURCES', '.mm'),
-            GTEST_CPPSRCS=('GTEST_SOURCES', ('.cc', '.cpp')),
-            GTEST_CSRCS=('GTEST_SOURCES', '.c'),
+            SOURCES={
+                '.s': 'ASFILES',
+                '.asm': 'ASFILES',
+                '.c': 'CSRCS',
+                '.m': 'CMSRCS',
+                '.mm': 'CMMSRCS',
+                '.cc': 'CPPSRCS',
+                '.cpp': 'CPPSRCS',
+                '.S': 'SSRCS',
+            },
+            HOST_SOURCES={
+                '.c': 'HOST_CSRCS',
+                '.mm': 'HOST_CMMSRCS',
+                '.cc': 'HOST_CPPSRCS',
+                '.cpp': 'HOST_CPPSRCS',
+            },
+            GTEST_SOURCES={
+                '.c': 'GTEST_CSRCS',
+                '.mm': 'GTEST_CMMSRCS',
+                '.cc': 'GTEST_CPPSRCS',
+                '.cpp': 'GTEST_CPPSRCS',
+            },
+            UNIFIED_SOURCES={
+                '.c': 'UNIFIED_CSRCS',
+                '.mm': 'UNIFIED_CMMSRCS',
+                '.cc': 'UNIFIED_CPPSRCS',
+                '.cpp': 'UNIFIED_CPPSRCS',
+            }
         )
-        for mak, (moz, ext) in varmap.items():
-            if sandbox[moz]:
-                filtered = [f for f in sandbox[moz] if f.endswith(ext)]
-                if filtered:
-                    passthru.variables[mak] = filtered
+        varmap.update(dict(('GENERATED_%s' % k, v) for k, v in varmap.items()
+                           if k in ('SOURCES', 'UNIFIED_SOURCES')))
+        for variable, mapping in varmap.items():
+            for f in sandbox[variable]:
+                ext = os.path.splitext(f)[1]
+                if ext not in mapping:
+                    raise SandboxValidationError('%s has an unknown file type in %s' % (f, sandbox['RELATIVEDIR']))
+                l = passthru.variables.setdefault(mapping[ext], [])
+                l.append(f)
+                if variable.startswith('GENERATED_'):
+                    l = passthru.variables.setdefault('GARBAGE', [])
+                    l.append(f)
 
         if passthru.variables:
             yield passthru
@@ -204,6 +236,16 @@ class TreeMetadataEmitter(LoggingMixin):
         program = sandbox.get('PROGRAM')
         if program:
             yield Program(sandbox, program, sandbox['CONFIG']['BIN_SUFFIX'])
+
+        program = sandbox.get('HOST_PROGRAM')
+        if program:
+            yield HostProgram(sandbox, program, sandbox['CONFIG']['HOST_BIN_SUFFIX'])
+
+        for program in sandbox['SIMPLE_PROGRAMS']:
+            yield SimpleProgram(sandbox, program, sandbox['CONFIG']['BIN_SUFFIX'])
+
+        for program in sandbox['HOST_SIMPLE_PROGRAMS']:
+            yield HostSimpleProgram(sandbox, program, sandbox['CONFIG']['HOST_BIN_SUFFIX'])
 
         simple_lists = [
             ('GENERATED_EVENTS_WEBIDL_FILES', GeneratedEventWebIDLFile),
@@ -261,6 +303,17 @@ class TreeMetadataEmitter(LoggingMixin):
 
         for name, jar in sandbox.get('JAVA_JAR_TARGETS', {}).items():
             yield SandboxWrapped(sandbox, jar)
+
+    def _create_substitution(self, cls, sandbox, path):
+        if os.path.isabs(path):
+            path = path[1:]
+
+        sub = cls(sandbox)
+        sub.input_path = os.path.join(sandbox['SRCDIR'], '%s.in' % path)
+        sub.output_path = os.path.join(sandbox['OBJDIR'], path)
+        sub.relpath = path
+
+        return sub
 
     def _process_test_manifest(self, sandbox, info, manifest_path):
         flavor, install_prefix, filter_inactive = info

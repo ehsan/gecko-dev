@@ -56,6 +56,10 @@ const kEventConstructors = {
                                                           return new CallEvent(aName, aProps);
                                                        },
                                              },
+  CallGroupErrorEvent:                       { create: function (aName, aProps) {
+                                                          return new CallGroupErrorEvent(aName, aProps);
+                                                       },
+                                             },
   CFStateChangeEvent:                        { create: function (aName, aProps) {
                                                           return new CFStateChangeEvent(aName, aProps);
                                                        },
@@ -246,7 +250,9 @@ const kEventConstructors = {
                                                          return new MozSmsEvent(aName, aProps);
                                                        },
                                              },
-  MozStkCommandEvent:                        { create: null, // Cannot create untrusted event from JS.
+  MozStkCommandEvent:                        { create: function (aName, aProps) {
+                                                          return new MozStkCommandEvent(aName, aProps);
+                                                       },
                                              },
   MozVoicemailEvent:                         { create: function (aName, aProps) {
                                                           return new MozVoicemailEvent(aName, aProps);

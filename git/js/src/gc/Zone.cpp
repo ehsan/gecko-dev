@@ -38,6 +38,7 @@ JS::Zone::Zone(JSRuntime *rt)
     scheduledForDestruction(false),
     maybeAlive(true),
     gcMallocBytes(0),
+    gcMallocGCTriggered(false),
     gcGrayRoots(),
     data(nullptr),
     types(this)
@@ -112,6 +113,7 @@ void
 Zone::resetGCMallocBytes()
 {
     gcMallocBytes = ptrdiff_t(gcMaxMallocBytes);
+    gcMallocGCTriggered = false;
 }
 
 void
@@ -128,7 +130,8 @@ Zone::setGCMaxMallocBytes(size_t value)
 void
 Zone::onTooMuchMalloc()
 {
-    TriggerZoneGC(this, gcreason::TOO_MUCH_MALLOC);
+    if (!gcMallocGCTriggered)
+        gcMallocGCTriggered = TriggerZoneGC(this, JS::gcreason::TOO_MUCH_MALLOC);
 }
 
 void
@@ -223,10 +226,23 @@ Zone::discardJitCode(FreeOp *fop)
             script->resetUseCount();
         }
 
-        for (CompartmentsInZoneIter comp(this); !comp.done(); comp.next())
-            jit::FinishDiscardJitCode(fop, comp);
+        for (CompartmentsInZoneIter comp(this); !comp.done(); comp.next()) {
+            /* Free optimized baseline stubs. */
+            if (comp->jitCompartment())
+                comp->jitCompartment()->optimizedStubSpace()->free();
+
+            comp->types.clearCompilerOutputs(fop);
+        }
     }
 #endif
+}
+
+uint64_t
+Zone::gcNumber()
+{
+    // Zones in use by exclusive threads are not collected, and threads using
+    // them cannot access the main runtime's gcNumber without racing.
+    return usedByExclusiveThread ? 0 : runtimeFromMainThread()->gcNumber;
 }
 
 JS::Zone *

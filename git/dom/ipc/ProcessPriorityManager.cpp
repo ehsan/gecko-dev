@@ -43,7 +43,9 @@
 //
 // (Wow, our logging story is a huge mess.)
 
-// #define ENABLE_LOGGING 1
+#ifndef HAVE_64BIT_OS
+#define ENABLE_LOGGING 1
+#endif
 
 #if defined(ANDROID) && defined(ENABLE_LOGGING)
 #  include <android/log.h>
@@ -1050,9 +1052,7 @@ ParticularProcessPriorityManager::ShutDown()
     mResetPriorityTimer = nullptr;
   }
 
-  if (mPriority == PROCESS_PRIORITY_BACKGROUND && !IsPreallocated()) {
-    ProcessPriorityManager::RemoveFromBackgroundLRUPool(mContentParent);
-  }
+  ProcessPriorityManager::RemoveFromBackgroundLRUPool(mContentParent);
 
   mContentParent = nullptr;
 }

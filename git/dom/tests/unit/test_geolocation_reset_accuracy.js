@@ -32,7 +32,6 @@ var provider = {
     this._isHigh = enable;
     if (enable) {
       this._seenHigh = true;
-      do_execute_soon(stop_high_accuracy_watch);
     }
   },
   _isHigh: false,
@@ -59,9 +58,6 @@ function errorCallback()
   do_test_finished();
 }
 
-var geolocation;
-var watchID2;
-
 function run_test()
 {
   if (runningInParent) {
@@ -82,21 +78,18 @@ function run_test()
     prefs.setBoolPref("geo.wifi.scan", false);
   }
 
+  let geolocation = Cc["@mozilla.org/geolocation;1"].createInstance(Ci.nsISupports);
+
   do_test_pending();
 
-  geolocation = Cc["@mozilla.org/geolocation;1"].createInstance(Ci.nsISupports);
   let watchID1 = geolocation.watchPosition(successCallback, errorCallback);
-  watchID2 = geolocation.watchPosition(successCallback, errorCallback,
-                                       {enableHighAccuracy: true});
+  let watchID2 = geolocation.watchPosition(successCallback, errorCallback,
+                                           {enableHighAccuracy: true});
 
-  if (!runningInParent) {
-    do_await_remote_message('high_acc_enabled', stop_high_accuracy_watch);
-  }
-}
-
-function stop_high_accuracy_watch() {
+  do_timeout(5000, function() {
     geolocation.clearWatch(watchID2);
-    check_results();
+    do_timeout(1000, check_results);
+  });
 }
 
 function check_results()

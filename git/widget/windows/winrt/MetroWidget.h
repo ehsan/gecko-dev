@@ -22,7 +22,6 @@
 #endif
 #include "mozilla/EventForwards.h"
 #include "mozilla/layers/CompositorParent.h"
-#include "mozilla/layers/APZCTreeManager.h"
 #include "mozilla/layers/LayerManagerComposite.h"
 #include "nsDeque.h"
 #include "APZController.h"
@@ -57,6 +56,7 @@ class MetroWidget : public nsWindowBase,
   typedef ABI::Windows::UI::Core::ICharacterReceivedEventArgs ICharacterReceivedEventArgs;
   typedef mozilla::widget::winrt::FrameworkView FrameworkView;
   typedef mozilla::widget::winrt::APZController APZController;
+  typedef mozilla::layers::ScrollableLayerGuid ScrollableLayerGuid;
 
   static LRESULT CALLBACK
   StaticWindowProcedure(HWND aWnd, UINT aMsg, WPARAM aWParan, LPARAM aLParam);
@@ -85,6 +85,7 @@ public:
 
   // nsBaseWidget
   virtual CompositorParent* NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight);
+  virtual void SetWidgetListener(nsIWidgetListener* aWidgetListener);
 
   // nsIWidget interface
   NS_IMETHOD    Create(nsIWidget *aParent,
@@ -198,15 +199,23 @@ public:
   virtual void SetTransparencyMode(nsTransparencyMode aMode);
   virtual nsTransparencyMode GetTransparencyMode();
 
-  // APZ related apis
-  void ApzContentConsumingTouch();
-  void ApzContentIgnoringTouch();
-  nsEventStatus ApzReceiveInputEvent(mozilla::WidgetInputEvent* aEvent);
+  // apzc controller related api
+
+  // Hit test a point to see if an apzc would consume input there
+  bool ApzHitTest(mozilla::ScreenIntPoint& pt);
+  // Transforms a coord so that it properly targets gecko content based
+  // on apzc transforms currently applied.
+  void ApzTransformGeckoCoordinate(const mozilla::ScreenIntPoint& pt,
+                                   mozilla::LayoutDeviceIntPoint* aRefPointOut);
+  // send ContentRecievedTouch calls to the apz with appropriate preventDefault params
+  void ApzContentConsumingTouch(const ScrollableLayerGuid& aGuid);
+  void ApzContentIgnoringTouch(const ScrollableLayerGuid& aGuid);
+  // Input handling
+  nsEventStatus ApzReceiveInputEvent(mozilla::WidgetInputEvent* aEvent,
+                                     ScrollableLayerGuid* aOutTargetGuid);
   nsEventStatus ApzReceiveInputEvent(mozilla::WidgetInputEvent* aInEvent,
+                                     ScrollableLayerGuid* aOutTargetGuid,
                                      mozilla::WidgetInputEvent* aOutEvent);
-  bool HitTestAPZC(mozilla::ScreenPoint& pt);
-  nsresult RequestContentScroll();
-  void RequestContentRepaintImplMainThread();
 
 protected:
   friend class FrameworkView;
@@ -235,10 +244,6 @@ protected:
   void DispatchAsyncScrollEvent(DispatchMsg* aEvent);
   void DeliverNextScrollEvent();
   void DeliverNextKeyboardEvent();
-  DispatchMsg* CreateDispatchMsg(UINT aMsg, WPARAM aWParam, LPARAM aLParam);
-
-public:
-  static nsRefPtr<mozilla::layers::APZCTreeManager> sAPZC;
 
 protected:
   OleInitializeWrapper mOleInitializeWrapper;

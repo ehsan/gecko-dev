@@ -291,38 +291,6 @@ IsTypedDatumOfKind(JSObject &obj, TypeRepresentation::Kind kind)
     return repr->kind() == kind;
 }
 
-static bool
-TypeEquivalent(JSContext *cx, unsigned int argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    RootedObject thisObj(cx, ToObjectIfObject(args.thisv()));
-    if (!thisObj || !IsTypeObject(*thisObj)) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
-                             JSMSG_INCOMPATIBLE_PROTO,
-                             "Type", "equivalent",
-                             InformalValueTypeName(args.thisv()));
-        return false;
-    }
-
-    if (args.length() < 1) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
-                             "Type.equivalent", "1", "s");
-        return false;
-    }
-
-    RootedObject otherObj(cx, ToObjectIfObject(args[0]));
-    if (!otherObj || !IsTypeObject(*otherObj)) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_TYPEDOBJECT_NOT_TYPE_OBJECT);
-        return false;
-    }
-
-    TypeRepresentation *thisRepr = typeRepresentation(*thisObj);
-    TypeRepresentation *otherRepr = typeRepresentation(*otherObj);
-    args.rval().setBoolean(thisRepr == otherRepr);
-    return true;
-}
-
 #define BINARYDATA_NUMERIC_CLASSES(constant_, type_, name_)                   \
 {                                                                             \
     #name_,                                                                   \
@@ -343,7 +311,8 @@ TypeEquivalent(JSContext *cx, unsigned int argc, Value *vp)
 },
 
 static const JSFunctionSpec NumericTypeObjectMethods[] = {
-    {"handle", {NULL, NULL}, 2, 0, "HandleCreate"},
+    {"handle", {nullptr, nullptr}, 2, 0, "HandleCreate"},
+    {"equivalent", {nullptr, nullptr}, 1, 0, "TypeObjectEquivalent"},
     JS_FS_END
 };
 
@@ -546,9 +515,10 @@ const JSPropertySpec ArrayType::typeObjectProperties[] = {
 };
 
 const JSFunctionSpec ArrayType::typeObjectMethods[] = {
-    {"handle", {NULL, NULL}, 2, 0, "HandleCreate"},
+    {"handle", {nullptr, nullptr}, 2, 0, "HandleCreate"},
     JS_FN("repeat", ArrayType::repeat, 1, 0),
     JS_FN("toSource", ArrayType::toSource, 0, 0),
+    {"equivalent", {nullptr, nullptr}, 1, 0, "TypeObjectEquivalent"},
     JS_FS_END
 };
 
@@ -559,6 +529,7 @@ const JSPropertySpec ArrayType::typedObjectProperties[] = {
 const JSFunctionSpec ArrayType::typedObjectMethods[] = {
     JS_FN("subarray", ArrayType::subarray, 2, 0),
     {"forEach", {nullptr, nullptr}, 1, 0, "ArrayForEach"},
+    {"redimension", {nullptr, nullptr}, 1, 0, "TypedArrayRedimension"},
     JS_FS_END
 };
 
@@ -790,13 +761,6 @@ InitializeCommonTypeDescriptorProperties(JSContext *cx,
     TypeRepresentation *typeRepr =
         TypeRepresentation::fromOwnerObject(*typeReprOwnerObj);
 
-    // equivalent()
-    if (!JS_DefineFunction(cx, obj, "equivalent",
-                           TypeEquivalent, 1, 0))
-    {
-        return false;
-    }
-
     // byteLength
     RootedValue typeByteLength(cx, NumberValue(typeRepr->size()));
     if (!JSObject::defineProperty(cx, obj, cx->names().byteLength,
@@ -978,8 +942,9 @@ const JSPropertySpec StructType::typeObjectProperties[] = {
 };
 
 const JSFunctionSpec StructType::typeObjectMethods[] = {
-    {"handle", {NULL, NULL}, 2, 0, "HandleCreate"},
+    {"handle", {nullptr, nullptr}, 2, 0, "HandleCreate"},
     JS_FN("toSource", StructType::toSource, 0, 0),
+    {"equivalent", {nullptr, nullptr}, 1, 0, "TypeObjectEquivalent"},
     JS_FS_END
 };
 
@@ -1081,9 +1046,9 @@ StructType::layout(JSContext *cx, HandleObject structType, HandleObject fields)
     // fieldOffsets : { string: integer, ... }
     // fieldTypes : { string: Type, ... }
     RootedObject fieldOffsets(
-        cx, NewObjectWithClassProto(cx, &JSObject::class_, NULL, NULL));
+        cx, NewObjectWithClassProto(cx, &JSObject::class_, nullptr, nullptr));
     RootedObject fieldTypes(
-        cx, NewObjectWithClassProto(cx, &JSObject::class_, NULL, NULL));
+        cx, NewObjectWithClassProto(cx, &JSObject::class_, nullptr, nullptr));
     for (size_t i = 0; i < typeRepr->fieldCount(); i++) {
         const StructField &field = typeRepr->field(i);
         RootedId fieldId(cx, field.id);
@@ -1285,6 +1250,8 @@ js_InitTypedObjectClass(JSContext *cx, HandleObject obj)
 
     RootedObject module(cx, NewObjectWithClassProto(cx, &JSObject::class_,
                                                     objProto, global));
+    if (!module)
+        return nullptr;
 
     // Define TypedObject global.
 
@@ -1330,26 +1297,25 @@ js_InitTypedObjectClass(JSContext *cx, HandleObject obj)
                                   nullptr, nullptr,
                                   0))
         return nullptr;
-    global->setReservedSlot(JSProto_TypedObject, moduleValue);
+    global->setConstructor(JSProto_TypedObject, moduleValue);
     global->setArrayType(arrayType);
-    global->markStandardClassInitializedNoProto(&TypedObjectClass);
 
     //  Handle
 
     RootedObject handle(cx, NewBuiltinClassInstance(cx, &JSObject::class_));
     if (!module)
-        return NULL;
+        return nullptr;
 
     if (!JS_DefineFunctions(cx, handle, TypedHandle::handleStaticMethods))
-        return NULL;
+        return nullptr;
 
     RootedValue handleValue(cx, ObjectValue(*handle));
     if (!JSObject::defineProperty(cx, module, cx->names().Handle,
                                   handleValue,
-                                  NULL, NULL,
+                                  nullptr, nullptr,
                                   JSPROP_READONLY | JSPROP_PERMANENT))
     {
-        return NULL;
+        return nullptr;
     }
 
     return module;
@@ -1427,7 +1393,7 @@ TypedDatum::createUnattached(JSContext *cx,
 
     RootedObject obj(cx, createUnattachedWithClass(cx, &T::class_, type));
     if (!obj)
-        return NULL;
+        return nullptr;
 
     return &obj->as<T>();
 }
@@ -1457,9 +1423,9 @@ TypedDatum::createUnattachedWithClass(JSContext *cx,
     }
 
     RootedObject obj(
-        cx, NewObjectWithClassProto(cx, clasp, &*proto, NULL));
+        cx, NewObjectWithClassProto(cx, clasp, &*proto, nullptr));
     if (!obj)
-        return NULL;
+        return nullptr;
 
     obj->setPrivate(nullptr);
     obj->initReservedSlot(JS_DATUM_SLOT_TYPE_OBJ, ObjectValue(*type));
@@ -1542,7 +1508,7 @@ ReportDatumTypeError(JSContext *cx,
     if (!typeReprStr)
         return false;
 
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
                          errorNumber, typeReprStr);
 
     JS_free(cx, (void *) typeReprStr);
@@ -2042,7 +2008,7 @@ TypedDatum::obj_deleteElement(JSContext *cx, HandleObject obj, uint32_t index,
                                bool *succeeded)
 {
     RootedId id(cx);
-    if (!IndexToId(cx, index, &id))
+    if (!IndexToId(cx, index, id.address()))
         return false;
 
     if (IsOwnId(cx, obj, id))
@@ -2174,10 +2140,10 @@ const Class TypedObject::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     TypedDatum::obj_finalize,
-    NULL,           /* checkAccess */
-    NULL,           /* call        */
-    NULL,           /* construct   */
-    NULL,           /* hasInstance */
+    nullptr,        /* checkAccess */
+    nullptr,        /* call        */
+    nullptr,        /* construct   */
+    nullptr,        /* hasInstance */
     TypedDatum::obj_trace,
     JS_NULL_CLASS_EXT,
     {
@@ -2205,7 +2171,7 @@ const Class TypedObject::class_ = {
         TypedDatum::obj_deleteSpecial,
         nullptr, nullptr, // watch/unwatch
         TypedDatum::obj_enumerate,
-        NULL, /* thisObject */
+        nullptr, /* thisObject */
     }
 };
 
@@ -2214,13 +2180,13 @@ TypedObject::createZeroed(JSContext *cx, HandleObject type)
 {
     Rooted<TypedObject*> obj(cx, createUnattached<TypedObject>(cx, type));
     if (!obj)
-        return NULL;
+        return nullptr;
 
     TypeRepresentation *typeRepr = typeRepresentation(*type);
     size_t memsize = typeRepr->size();
     void *memory = JS_malloc(cx, memsize);
     if (!memory)
-        return NULL;
+        return nullptr;
     memset(memory, 0, memsize);
     obj->attach(memory);
     return obj;
@@ -2265,10 +2231,10 @@ const Class TypedHandle::class_ = {
     JS_ResolveStub,
     JS_ConvertStub,
     TypedDatum::obj_finalize,
-    NULL,           /* checkAccess */
-    NULL,           /* call        */
-    NULL,           /* construct   */
-    NULL,           /* hasInstance */
+    nullptr,        /* checkAccess */
+    nullptr,        /* call        */
+    nullptr,        /* construct   */
+    nullptr,        /* hasInstance */
     TypedDatum::obj_trace,
     JS_NULL_CLASS_EXT,
     {
@@ -2296,15 +2262,15 @@ const Class TypedHandle::class_ = {
         TypedDatum::obj_deleteSpecial,
         nullptr, nullptr, // watch/unwatch
         TypedDatum::obj_enumerate,
-        NULL, /* thisObject */
+        nullptr, /* thisObject */
     }
 };
 
 const JSFunctionSpec TypedHandle::handleStaticMethods[] = {
-    {"move", {NULL, NULL}, 3, 0, "HandleMove"},
-    {"get", {NULL, NULL}, 1, 0, "HandleGet"},
-    {"set", {NULL, NULL}, 2, 0, "HandleSet"},
-    {"isHandle", {NULL, NULL}, 1, 0, "HandleTest"},
+    {"move", {nullptr, nullptr}, 3, 0, "HandleMove"},
+    {"get", {nullptr, nullptr}, 1, 0, "HandleGet"},
+    {"set", {nullptr, nullptr}, 2, 0, "HandleSet"},
+    {"isHandle", {nullptr, nullptr}, 1, 0, "HandleTest"},
     JS_FS_END
 };
 
@@ -2428,7 +2394,7 @@ js::IsAttached(ThreadSafeContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     JS_ASSERT(args[0].isObject() && IsTypedDatum(args[0].toObject()));
-    args.rval().setBoolean(TypedMem(args[0].toObject()) != NULL);
+    args.rval().setBoolean(TypedMem(args[0].toObject()) != nullptr);
     return true;
 }
 

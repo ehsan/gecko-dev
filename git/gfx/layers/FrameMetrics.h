@@ -142,7 +142,8 @@ public:
   // instead.
   //
   // This value is valid for nested scrollable layers as well, and is still
-  // relative to the layer tree origin.
+  // relative to the layer tree origin. This value is provided by Gecko at
+  // layout/paint time.
   ScreenIntRect mCompositionBounds;
 
   // ---------------------------------------------------------------------------
@@ -226,23 +227,20 @@ public:
   // The following metrics are dimensionless.
   //
 
-  // The resolution that the current frame has been painted at.
-  //
-  // Every time this frame is composited and the compositor samples its
-  // transform, this metric is used to create a transform which is
-  // post-multiplied into the parent's transform. Since this only happens when
-  // we walk the layer tree, the resulting transform isn't stored here. Thus the
-  // resolution of parent layers is opaque to this metric.
+  // The incremental resolution that the current frame has been painted at
+  // relative to the parent frame's resolution. This information is provided
+  // by Gecko at layout/paint time.
   ParentLayerToLayerScale mResolution;
 
   // The cumulative resolution that the current frame has been painted at.
   // This is the product of our mResolution and the mResolutions of our parent frames.
+  // This information is provided by Gecko at layout/paint time.
   LayoutDeviceToLayerScale mCumulativeResolution;
 
   // The "user zoom". Content is painted by gecko at mResolution * mDevPixelsPerCSSPixel,
   // but will be drawn to the screen at mZoom. In the steady state, the
   // two will be the same, but during an async zoom action the two may
-  // diverge.
+  // diverge. This information is initialized in Gecko but updated in the APZC.
   CSSToScreenScale mZoom;
 
   // The conversion factor between CSS pixels and device pixels for this frame.
@@ -255,6 +253,72 @@ public:
   bool mMayHaveTouchListeners;
 
   uint32_t mPresShellId;
+};
+
+/**
+ * This class allows us to uniquely identify a scrollable layer. The
+ * mLayersId identifies the layer tree (corresponding to a child process
+ * and/or tab) that the scrollable layer belongs to. The mPresShellId
+ * is a temporal identifier (corresponding to the document loaded that
+ * contains the scrollable layer, which may change over time). The
+ * mScrollId corresponds to the actual frame that is scrollable.
+ */
+struct ScrollableLayerGuid {
+  uint64_t mLayersId;
+  uint32_t mPresShellId;
+  FrameMetrics::ViewID mScrollId;
+
+  ScrollableLayerGuid()
+    : mLayersId(0)
+    , mPresShellId(0)
+    , mScrollId(0)
+  {
+    MOZ_COUNT_CTOR(ScrollableLayerGuid);
+  }
+
+  ScrollableLayerGuid(uint64_t aLayersId, uint32_t aPresShellId,
+                      FrameMetrics::ViewID aScrollId)
+    : mLayersId(aLayersId)
+    , mPresShellId(aPresShellId)
+    , mScrollId(aScrollId)
+  {
+    MOZ_COUNT_CTOR(ScrollableLayerGuid);
+  }
+
+  ScrollableLayerGuid(uint64_t aLayersId, const FrameMetrics& aMetrics)
+    : mLayersId(aLayersId)
+    , mPresShellId(aMetrics.mPresShellId)
+    , mScrollId(aMetrics.mScrollId)
+  {
+    MOZ_COUNT_CTOR(ScrollableLayerGuid);
+  }
+
+  ScrollableLayerGuid(uint64_t aLayersId)
+    : mLayersId(aLayersId)
+    , mPresShellId(0)
+    , mScrollId(FrameMetrics::ROOT_SCROLL_ID)
+  {
+    MOZ_COUNT_CTOR(ScrollableLayerGuid);
+    // TODO: get rid of this constructor once all callers know their
+    // presShellId and scrollId
+  }
+
+  ~ScrollableLayerGuid()
+  {
+    MOZ_COUNT_DTOR(ScrollableLayerGuid);
+  }
+
+  bool operator==(const ScrollableLayerGuid& other) const
+  {
+    return mLayersId == other.mLayersId
+        && mPresShellId == other.mPresShellId
+        && mScrollId == other.mScrollId;
+  }
+
+  bool operator!=(const ScrollableLayerGuid& other) const
+  {
+    return !(*this == other);
+  }
 };
 
 }

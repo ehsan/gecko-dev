@@ -746,10 +746,6 @@ BaselineScript::toggleDebugTraps(JSScript *script, jsbytecode *pc)
 {
     JS_ASSERT(script->baselineScript() == this);
 
-    // Only scripts compiled for debug mode have toggled calls.
-    if (!debugMode())
-        return;
-
     SrcNoteLineScanner scanner(script->notes(), script->lineno);
 
     JSRuntime *rt = script->runtimeFromMainThread();
@@ -908,7 +904,7 @@ jit::AddSizeOfBaselineData(JSScript *script, mozilla::MallocSizeOf mallocSizeOf,
 void
 jit::ToggleBaselineSPS(JSRuntime *runtime, bool enable)
 {
-    for (ZonesIter zone(runtime); !zone.done(); zone.next()) {
+    for (ZonesIter zone(runtime, SkipAtoms); !zone.done(); zone.next()) {
         for (gc::CellIter i(zone, gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
             JSScript *script = i.get<JSScript>();
             if (!script->hasBaselineScript())

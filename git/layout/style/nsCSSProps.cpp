@@ -48,7 +48,7 @@ const char* const kCSSRawProperties[eCSSProperty_COUNT_with_aliases] = {
 
 using namespace mozilla;
 
-static int32_t gTableRefCount;
+static int32_t gPropertyTableRefCount;
 static nsStaticCaseInsensitiveNameTable* gPropertyTable;
 static nsStaticCaseInsensitiveNameTable* gFontDescTable;
 
@@ -96,7 +96,7 @@ static nsCSSProperty gAliases[eCSSAliasCount != 0 ? eCSSAliasCount : 1] = {
 void
 nsCSSProps::AddRefTable(void)
 {
-  if (0 == gTableRefCount++) {
+  if (0 == gPropertyTableRefCount++) {
     NS_ABORT_IF_FALSE(!gPropertyTable, "pre existing array!");
     NS_ABORT_IF_FALSE(!gFontDescTable, "pre existing array!");
 
@@ -336,7 +336,7 @@ nsCSSProps::BuildShorthandsContainingTable()
 void
 nsCSSProps::ReleaseTable(void)
 {
-  if (0 == --gTableRefCount) {
+  if (0 == --gPropertyTableRefCount) {
     delete gPropertyTable;
     gPropertyTable = nullptr;
 
@@ -929,7 +929,7 @@ const int32_t nsCSSProps::kDirectionKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-int32_t nsCSSProps::kDisplayKTable[] = {
+const int32_t nsCSSProps::kDisplayKTable[] = {
   eCSSKeyword_none,               NS_STYLE_DISPLAY_NONE,
   eCSSKeyword_inline,             NS_STYLE_DISPLAY_INLINE,
   eCSSKeyword_block,              NS_STYLE_DISPLAY_BLOCK,
@@ -960,7 +960,6 @@ int32_t nsCSSProps::kDisplayKTable[] = {
   eCSSKeyword__moz_popup,         NS_STYLE_DISPLAY_POPUP,
   eCSSKeyword__moz_groupbox,      NS_STYLE_DISPLAY_GROUPBOX,
 #endif
-  // The next two entries are controlled by the layout.css.flexbox.enabled pref.
   eCSSKeyword_flex,               NS_STYLE_DISPLAY_FLEX,
   eCSSKeyword_inline_flex,        NS_STYLE_DISPLAY_INLINE_FLEX,
   eCSSKeyword_UNKNOWN,-1

@@ -116,6 +116,10 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/ipc/URIUtils.h"
 
+#ifdef MOZ_WIDGET_GONK
+#include "nsDeviceStorage.h"
+#endif
+
 using namespace mozilla;
 using namespace mozilla::ipc;
 
@@ -328,6 +332,32 @@ static nsresult GetDownloadDirectory(nsIFile **_directory)
                                          getter_AddRefs(dir));
     NS_ENSURE_SUCCESS(rv, rv);
   }
+#elif defined(MOZ_WIDGET_GONK)
+  // On Gonk, store the files on the sdcard in the downloads directory.
+  // We need to check with the volume manager which storage point is
+  // available.
+
+  // Pick the default storage in case multiple (internal and external) ones
+  // are available.
+  nsString storageName;
+  nsDOMDeviceStorage::GetDefaultStorageName(NS_LITERAL_STRING("sdcard"),
+                                            storageName);
+  NS_ENSURE_TRUE(!storageName.IsEmpty(), NS_ERROR_FAILURE);
+
+  DeviceStorageFile dsf(NS_LITERAL_STRING("sdcard"),
+                        storageName,
+                        NS_LITERAL_STRING("downloads"));
+  NS_ENSURE_TRUE(dsf.mFile, NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(dsf.IsAvailable(), NS_ERROR_FAILURE);
+
+  bool alreadyThere;
+  nsresult rv = dsf.mFile->Exists(&alreadyThere);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!alreadyThere) {
+    rv = dsf.mFile->Create(nsIFile::DIRECTORY_TYPE, 0770);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+  dir = dsf.mFile;
 #elif defined(ANDROID)
   // On mobile devices, we are avoiding exposing users to the file
   // system, and don't save downloads to temp directories
@@ -412,9 +442,6 @@ static nsDefaultMimeTypeEntry defaultMimeEntries [] =
   { VIDEO_WEBM, "webm" },
   { AUDIO_WEBM, "webm" },
 #endif
-#ifdef MOZ_DASH
-  { APPLICATION_DASH, "mpd" },
-#endif
 #if defined(MOZ_GSTREAMER) || defined(MOZ_WMF)
   { VIDEO_MP4, "mp4" },
   { AUDIO_MP4, "m4a" },
@@ -497,9 +524,6 @@ static nsExtraMimeTypeEntry extraMimeEntries [] =
 #endif
   { VIDEO_WEBM, "webm", "Web Media Video" },
   { AUDIO_WEBM, "webm", "Web Media Audio" },
-#ifdef MOZ_DASH
-  { APPLICATION_DASH, "mpd", "DASH Media Presentation Description" },
-#endif
   { AUDIO_MP3, "mp3", "MPEG Audio" },
   { VIDEO_MP4, "mp4", "MPEG-4 Video" },
   { AUDIO_MP4, "m4a", "MPEG-4 Audio" },
@@ -1348,7 +1372,7 @@ nsresult nsExternalAppHandler::SetUpTempFile(nsIChannel * aChannel)
   rv = mTempFile->Append(NS_ConvertUTF8toUTF16(tempLeafName));
   // make this file unique!!!
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = mTempFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0644);
+  rv = mTempFile->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Now save the temp leaf name, minus the ".part" bit, so we can use it later.
@@ -2174,7 +2198,7 @@ NS_IMETHODIMP nsExternalAppHandler::LaunchWithApplication(nsIFile * aApplication
   fileToUse->Append(mSuggestedFileName);  
 #endif
 
-  nsresult rv = fileToUse->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0644);
+  nsresult rv = fileToUse->CreateUnique(nsIFile::NORMAL_FILE_TYPE, 0600);
   if(NS_SUCCEEDED(rv))
   {
     mFinalFileDestination = do_QueryInterface(fileToUse);

@@ -51,7 +51,9 @@ class Requirement
     Requirement(LAllocation fixed)
       : kind_(FIXED),
         allocation_(fixed)
-    { }
+    {
+        JS_ASSERT(fixed == LAllocation() || !fixed.isUse());
+    }
 
     // Only useful as a hint, encodes where the fixed requirement is used to
     // avoid allocating a fixed register too early.
@@ -59,7 +61,9 @@ class Requirement
       : kind_(FIXED),
         allocation_(fixed),
         position_(at)
-    { }
+    {
+        JS_ASSERT(fixed == LAllocation() || !fixed.isUse());
+    }
 
     Requirement(uint32_t vreg, CodePosition at)
       : kind_(SAME_AS_OTHER),
@@ -78,6 +82,7 @@ class Requirement
 
     uint32_t virtualRegister() const {
         JS_ASSERT(allocation_.isUse());
+        JS_ASSERT(kind() == SAME_AS_OTHER);
         return allocation_.toUse()->virtualRegister();
     }
 
@@ -383,13 +388,15 @@ class VirtualRegister
     VirtualRegister(const VirtualRegister &) MOZ_DELETE;
 
   public:
-    bool init(LBlock *block, LInstruction *ins, LDefinition *def, bool isTemp) {
+    bool init(TempAllocator &alloc, LBlock *block, LInstruction *ins, LDefinition *def,
+              bool isTemp)
+    {
         JS_ASSERT(block && !block_);
         block_ = block;
         ins_ = ins;
         def_ = def;
         isTemp_ = isTemp;
-        LiveInterval *initial = new LiveInterval(def->virtualRegister(), 0);
+        LiveInterval *initial = new(alloc) LiveInterval(def->virtualRegister(), 0);
         if (!initial)
             return false;
         return intervals_.append(initial);
@@ -618,6 +625,17 @@ class LiveRangeAllocator : public RegisterAllocator
         return addMove(moves, from, to);
     }
 
+    size_t findFirstNonCallSafepoint(CodePosition from) const
+    {
+        size_t i = 0;
+        for (; i < graph.numNonCallSafepoints(); i++) {
+            const LInstruction *ins = graph.getNonCallSafepoint(i);
+            if (from <= (forLSRA ? inputOf(ins) : outputOf(ins)))
+                break;
+        }
+        return i;
+    }
+
     void addLiveRegistersForInterval(VirtualRegister *reg, LiveInterval *interval)
     {
         // Fill in the live register sets for all non-call safepoints.
@@ -633,7 +651,7 @@ class LiveRangeAllocator : public RegisterAllocator
         size_t i = findFirstNonCallSafepoint(start);
         for (; i < graph.numNonCallSafepoints(); i++) {
             LInstruction *ins = graph.getNonCallSafepoint(i);
-            CodePosition pos = inputOf(ins);
+            CodePosition pos = forLSRA ? inputOf(ins) : outputOf(ins);
 
             // Safepoints are sorted, so we can shortcut out of this loop
             // if we go out of range.

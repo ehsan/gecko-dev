@@ -73,8 +73,8 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsSocketTransportService, Init)
 #include "nsServerSocket.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsServerSocket)
 
-#include "nsUDPServerSocket.h"
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsUDPServerSocket)
+#include "nsUDPSocket.h"
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsUDPSocket)
 
 #include "nsUDPSocketProvider.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsUDPSocketProvider)
@@ -244,6 +244,7 @@ namespace net {
   NS_GENERIC_FACTORY_CONSTRUCTOR(Dashboard)
 }
 }
+#include "AppProtocolHandler.h"
 
 #ifdef NECKO_PROTOCOL_res
 // resource
@@ -318,7 +319,7 @@ WEB_SOCKET_HANDLER_CONSTRUCTOR(WebSocketSSLChannel, true)
 } // namespace mozilla
 #endif
 
-#ifdef MOZ_RTSP
+#ifdef NECKO_PROTOCOL_rtsp
 #include "RtspHandler.h"
 namespace mozilla {
 namespace net {
@@ -681,7 +682,7 @@ NS_DEFINE_NAMED_CID(NS_IOSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_STREAMTRANSPORTSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_SOCKETTRANSPORTSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_SERVERSOCKET_CID);
-NS_DEFINE_NAMED_CID(NS_UDPSERVERSOCKET_CID);
+NS_DEFINE_NAMED_CID(NS_UDPSOCKET_CID);
 NS_DEFINE_NAMED_CID(NS_SOCKETPROVIDERSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_DNSSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_IDNSERVICE_CID);
@@ -773,6 +774,7 @@ NS_DEFINE_NAMED_CID(NS_CACHESERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_APPLICATIONCACHESERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_APPLICATIONCACHENAMESPACE_CID);
 NS_DEFINE_NAMED_CID(NS_APPLICATIONCACHE_CID);
+NS_DEFINE_NAMED_CID(NS_APPPROTOCOLHANDLER_CID);
 #ifdef NECKO_COOKIES
 NS_DEFINE_NAMED_CID(NS_COOKIEMANAGER_CID);
 NS_DEFINE_NAMED_CID(NS_COOKIESERVICE_CID);
@@ -796,7 +798,7 @@ NS_DEFINE_NAMED_CID(NS_WYCIWYGPROTOCOLHANDLER_CID);
 NS_DEFINE_NAMED_CID(NS_WEBSOCKETPROTOCOLHANDLER_CID);
 NS_DEFINE_NAMED_CID(NS_WEBSOCKETSSLPROTOCOLHANDLER_CID);
 #endif
-#ifdef MOZ_RTSP
+#ifdef NECKO_PROTOCOL_rtsp
 NS_DEFINE_NAMED_CID(NS_RTSPPROTOCOLHANDLER_CID);
 #endif
 #if defined(XP_WIN)
@@ -818,7 +820,7 @@ static const mozilla::Module::CIDEntry kNeckoCIDs[] = {
     { &kNS_STREAMTRANSPORTSERVICE_CID, false, nullptr, nsStreamTransportServiceConstructor },
     { &kNS_SOCKETTRANSPORTSERVICE_CID, false, nullptr, nsSocketTransportServiceConstructor },
     { &kNS_SERVERSOCKET_CID, false, nullptr, nsServerSocketConstructor },
-    { &kNS_UDPSERVERSOCKET_CID, false, nullptr, nsUDPServerSocketConstructor },
+    { &kNS_UDPSOCKET_CID, false, nullptr, nsUDPSocketConstructor },
     { &kNS_SOCKETPROVIDERSERVICE_CID, false, nullptr, nsSocketProviderService::Create },
     { &kNS_DNSSERVICE_CID, false, nullptr, nsDNSServiceConstructor },
     { &kNS_IDNSERVICE_CID, false, nullptr, nsIDNServiceConstructor },
@@ -912,6 +914,7 @@ static const mozilla::Module::CIDEntry kNeckoCIDs[] = {
     { &kNS_APPLICATIONCACHESERVICE_CID, false, nullptr, nsApplicationCacheServiceConstructor },
     { &kNS_APPLICATIONCACHENAMESPACE_CID, false, nullptr, nsApplicationCacheNamespaceConstructor },
     { &kNS_APPLICATIONCACHE_CID, false, nullptr, nsApplicationCacheConstructor },
+    { &kNS_APPPROTOCOLHANDLER_CID, false, nullptr, AppProtocolHandler::Create },
 #ifdef NECKO_COOKIES
     { &kNS_COOKIEMANAGER_CID, false, nullptr, nsICookieServiceConstructor },
     { &kNS_COOKIESERVICE_CID, false, nullptr, nsICookieServiceConstructor },
@@ -937,7 +940,7 @@ static const mozilla::Module::CIDEntry kNeckoCIDs[] = {
     { &kNS_WEBSOCKETSSLPROTOCOLHANDLER_CID, false, nullptr,
       mozilla::net::WebSocketSSLChannelConstructor },
 #endif
-#ifdef MOZ_RTSP
+#ifdef NECKO_PROTOCOL_rtsp
     { &kNS_RTSPPROTOCOLHANDLER_CID, false, nullptr, mozilla::net::RtspHandlerConstructor },
 #endif
 #if defined(XP_WIN)
@@ -952,7 +955,7 @@ static const mozilla::Module::CIDEntry kNeckoCIDs[] = {
     { &kNS_SERIALIZATION_HELPER_CID, false, nullptr, nsSerializationHelperConstructor },
     { &kNS_REDIRECTCHANNELREGISTRAR_CID, false, nullptr, RedirectChannelRegistrarConstructor },
     { &kNS_CACHE_STORAGE_SERVICE_CID, false, nullptr, CacheStorageServiceConstructor },
-    { &kNS_NETWORKSEER_CID, false, NULL, mozilla::net::Seer::Create },
+    { &kNS_NETWORKSEER_CID, false, nullptr, mozilla::net::Seer::Create },
     { nullptr }
 };
 
@@ -962,7 +965,7 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
     { NS_STREAMTRANSPORTSERVICE_CONTRACTID, &kNS_STREAMTRANSPORTSERVICE_CID },
     { NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &kNS_SOCKETTRANSPORTSERVICE_CID },
     { NS_SERVERSOCKET_CONTRACTID, &kNS_SERVERSOCKET_CID },
-    { NS_UDPSERVERSOCKET_CONTRACTID, &kNS_UDPSERVERSOCKET_CID },
+    { NS_UDPSOCKET_CONTRACTID, &kNS_UDPSOCKET_CID },
     { NS_SOCKETPROVIDERSERVICE_CONTRACTID, &kNS_SOCKETPROVIDERSERVICE_CID },
     { NS_DNSSERVICE_CONTRACTID, &kNS_DNSSERVICE_CID },
     { NS_IDNSERVICE_CONTRACTID, &kNS_IDNSERVICE_CID },
@@ -1058,6 +1061,7 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
     { NS_APPLICATIONCACHESERVICE_CONTRACTID, &kNS_APPLICATIONCACHESERVICE_CID },
     { NS_APPLICATIONCACHENAMESPACE_CONTRACTID, &kNS_APPLICATIONCACHENAMESPACE_CID },
     { NS_APPLICATIONCACHE_CONTRACTID, &kNS_APPLICATIONCACHE_CID },
+    { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "app", &kNS_APPPROTOCOLHANDLER_CID },
 #ifdef NECKO_COOKIES
     { NS_COOKIEMANAGER_CONTRACTID, &kNS_COOKIEMANAGER_CID },
     { NS_COOKIESERVICE_CONTRACTID, &kNS_COOKIESERVICE_CID },
@@ -1081,7 +1085,7 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
     { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "ws", &kNS_WEBSOCKETPROTOCOLHANDLER_CID },
     { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "wss", &kNS_WEBSOCKETSSLPROTOCOLHANDLER_CID },
 #endif
-#ifdef MOZ_RTSP
+#ifdef NECKO_PROTOCOL_rtsp
     { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "rtsp", &kNS_RTSPPROTOCOLHANDLER_CID },
 #endif
 #if defined(XP_WIN)

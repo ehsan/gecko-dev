@@ -115,12 +115,11 @@ builtins_attrmatch
     /* match a decoded serial number */
     if ((a->type == CKA_SERIAL_NUMBER) && (a->ulValueLen < b->size)) {
 	int len;
-	unsigned char *data = NULL;
+	unsigned char *data;
 
 	len = builtins_derUnwrapInt(b->data,b->size,&data);
-	if (data &&
-	    (len == a->ulValueLen) && 
-	    nsslibc_memequal(a->pValue, data, len, (PRStatus *)NULL)) {
+	if ((len == a->ulValueLen) && 
+		nsslibc_memequal(a->pValue, data, len, (PRStatus *)NULL)) {
 	    return CK_TRUE;
 	}
     }

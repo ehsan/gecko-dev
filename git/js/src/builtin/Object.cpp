@@ -552,6 +552,15 @@ obj_watch(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
+    RootedObject obj(cx, ToObject(cx, args.thisv()));
+    if (!obj)
+        return false;
+
+#if 0 /* pending addressing Firebug's use of this method */
+    if (!GlobalObject::warnOnceAboutWatch(cx, obj))
+        return false;
+#endif
+
     if (args.length() <= 1) {
         js_ReportMissingArg(cx, args.calleev(), 1);
         return false;
@@ -563,10 +572,6 @@ obj_watch(JSContext *cx, unsigned argc, Value *vp)
 
     RootedId propid(cx);
     if (!ValueToId<CanGC>(cx, args[0], &propid))
-        return false;
-
-    RootedObject obj(cx, ToObject(cx, args.thisv()));
-    if (!obj)
         return false;
 
     RootedValue tmp(cx);
@@ -589,9 +594,14 @@ obj_unwatch(JSContext *cx, unsigned argc, Value *vp)
     RootedObject obj(cx, ToObject(cx, args.thisv()));
     if (!obj)
         return false;
-    args.rval().setUndefined();
+
+#if 0 /* pending addressing Firebug's use of this method */
+    if (!GlobalObject::warnOnceAboutWatch(cx, obj))
+        return false;
+#endif
+
     RootedId id(cx);
-    if (argc != 0) {
+    if (args.length() != 0) {
         if (!ValueToId<CanGC>(cx, args[0], &id))
             return false;
     } else {

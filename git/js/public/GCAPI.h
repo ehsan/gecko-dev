@@ -25,6 +25,7 @@ namespace JS {
     D(TOO_MUCH_MALLOC)                          \
     D(ALLOC_TRIGGER)                            \
     D(DEBUG_GC)                                 \
+    D(DEBUG_MODE_GC)                            \
     D(TRANSPLANT)                               \
     D(RESET)                                    \
     D(OUT_OF_NURSERY)                           \
@@ -212,13 +213,21 @@ WasIncrementalGC(JSRuntime *rt);
 extern JS_FRIEND_API(size_t)
 GetGCNumber();
 
-class AutoAssertNoGC {
+class JS_PUBLIC_API(AutoAssertNoGC)
+{
 #ifdef DEBUG
+    JSRuntime *runtime;
     size_t gcNumber;
 
   public:
     AutoAssertNoGC();
+    AutoAssertNoGC(JSRuntime *rt);
     ~AutoAssertNoGC();
+#else
+  public:
+    /* Prevent unreferenced local warnings in opt builds. */
+    AutoAssertNoGC() {}
+    AutoAssertNoGC(JSRuntime *) {}
 #endif
 };
 

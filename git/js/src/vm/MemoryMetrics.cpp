@@ -95,13 +95,14 @@ InefficientNonFlatteningStringHashPolicy::match(const JSString *const &k, const 
 namespace JS {
 
 NotableStringInfo::NotableStringInfo()
-  : buffer(0)
+    : bufferSize(0),
+      buffer(0)
 {}
 
 NotableStringInfo::NotableStringInfo(JSString *str, const StringInfo &info)
     : StringInfo(info)
 {
-    size_t bufferSize = Min(str->length() + 1, size_t(4096));
+    bufferSize = Min(str->length() + 1, size_t(4096));
     buffer = js_pod_malloc<char>(bufferSize);
     if (!buffer) {
         MOZ_CRASH("oom");
@@ -121,6 +122,17 @@ NotableStringInfo::NotableStringInfo(JSString *str, const StringInfo &info)
     // |str| contains unicode chars.  Since this is just for a memory reporter,
     // we don't care.
     PutEscapedString(buffer, bufferSize, chars, str->length(), /* quote */ 0);
+}
+
+NotableStringInfo::NotableStringInfo(const NotableStringInfo& info)
+    : StringInfo(info),
+      bufferSize(info.bufferSize)
+{
+    buffer = js_pod_malloc<char>(bufferSize);
+    if (!buffer)
+        MOZ_CRASH("oom");
+
+    strcpy(buffer, info.buffer);
 }
 
 NotableStringInfo::NotableStringInfo(MoveRef<NotableStringInfo> info)
@@ -475,7 +487,7 @@ JS::CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats, ObjectPrivateVisit
     JS_ASSERT(totalArenaSize % gc::ArenaSize == 0);
 #endif
 
-    for (CompartmentsIter comp(rt); !comp.done(); comp.next())
+    for (CompartmentsIter comp(rt, WithAtoms); !comp.done(); comp.next())
         comp->compartmentStats = nullptr;
 
     size_t numDirtyChunks =
@@ -500,7 +512,7 @@ JS_PUBLIC_API(size_t)
 JS::SystemCompartmentCount(JSRuntime *rt)
 {
     size_t n = 0;
-    for (CompartmentsIter comp(rt); !comp.done(); comp.next()) {
+    for (CompartmentsIter comp(rt, WithAtoms); !comp.done(); comp.next()) {
         if (comp->isSystem)
             ++n;
     }
@@ -511,7 +523,7 @@ JS_PUBLIC_API(size_t)
 JS::UserCompartmentCount(JSRuntime *rt)
 {
     size_t n = 0;
-    for (CompartmentsIter comp(rt); !comp.done(); comp.next()) {
+    for (CompartmentsIter comp(rt, WithAtoms); !comp.done(); comp.next()) {
         if (!comp->isSystem)
             ++n;
     }
@@ -527,7 +539,7 @@ JS::PeakSizeOfTemporary(const JSRuntime *rt)
 namespace JS {
 
 JS_PUBLIC_API(bool)
-AddSizeOfTab(JSRuntime *rt, JSObject *obj, MallocSizeOf mallocSizeOf, ObjectPrivateVisitor *opv,
+AddSizeOfTab(JSRuntime *rt, HandleObject obj, MallocSizeOf mallocSizeOf, ObjectPrivateVisitor *opv,
              TabSizes *sizes)
 {
     class SimpleJSRuntimeStats : public JS::RuntimeStats
@@ -573,7 +585,7 @@ AddSizeOfTab(JSRuntime *rt, JSObject *obj, MallocSizeOf mallocSizeOf, ObjectPriv
     }
 
     for (CompartmentsInZoneIter comp(zone); !comp.done(); comp.next())
-        comp->compartmentStats = NULL;
+        comp->compartmentStats = nullptr;
 
     rtStats.zTotals.addToTabSizes(sizes);
     rtStats.cTotals.addToTabSizes(sizes);

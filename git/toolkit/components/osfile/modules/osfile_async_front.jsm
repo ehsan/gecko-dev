@@ -171,8 +171,8 @@ let Scheduler = {
         if (error instanceof PromiseWorker.WorkerError) {
           throw OS.File.Error.fromMsg(error.data);
         }
-        // Extract something meaningful from WorkerErrorEvent
-        if (typeof error == "object" && error && error.constructor.name == "WorkerErrorEvent") {
+        // Extract something meaningful from ErrorEvent
+        if (error instanceof ErrorEvent) {
           let message = error.message;
           if (message == "uncaught exception: [object StopIteration]") {
             throw StopIteration;
@@ -364,6 +364,20 @@ File.prototype = {
     return Scheduler.post("File_prototype_stat", [this._fdmsg], this).then(
       File.Info.fromMsg
     );
+  },
+
+  /**
+   * Set the last access and modification date of the file.
+   * The time stamp resolution is 1 second at best, but might be worse
+   * depending on the platform.
+   *
+   * @return {promise}
+   * @rejects {TypeError}
+   * @rejects {OS.File.Error}
+   */
+  setDates: function setDates(accessDate, modificationDate) {
+    return Scheduler.post("File_prototype_setDates",
+                          [this._fdmsg, accessDate, modificationDate], this);
   },
 
   /**
@@ -562,6 +576,22 @@ File.stat = function stat(path) {
   return Scheduler.post(
     "stat", [Type.path.toMsg(path)],
     path).then(File.Info.fromMsg);
+};
+
+
+/**
+ * Set the last access and modification date of the file.
+ * The time stamp resolution is 1 second at best, but might be worse
+ * depending on the platform.
+ *
+ * @return {promise}
+ * @rejects {TypeError}
+ * @rejects {OS.File.Error}
+ */
+File.setDates = function setDates(path, accessDate, modificationDate) {
+  return Scheduler.post("setDates",
+                        [Type.path.toMsg(path), accessDate, modificationDate],
+                        this);
 };
 
 /**

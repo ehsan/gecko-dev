@@ -263,7 +263,7 @@ DefineConstants(JSContext* cx, JS::Handle<JSObject*> obj,
 {
   for (; cs->name; ++cs) {
     bool ok =
-      JS_DefineProperty(cx, obj, cs->name, cs->value, NULL, NULL,
+      JS_DefineProperty(cx, obj, cs->name, cs->value, nullptr, nullptr,
                         JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT);
     if (!ok) {
       return false;
@@ -329,8 +329,8 @@ InterfaceObjectToString(JSContext* cx, unsigned argc, JS::Value *vp)
   JS::Rooted<JSObject*> callee(cx, &args.callee());
 
   if (!args.thisv().isObject()) {
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_CONVERT_TO,
-                         "null", "object");
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+                         JSMSG_CANT_CONVERT_TO, "null", "object");
     return false;
   }
 
@@ -344,7 +344,8 @@ InterfaceObjectToString(JSContext* cx, unsigned argc, JS::Value *vp)
   const jschar* name = JS_GetInternedStringCharsAndLength(jsname, &length);
 
   if (js::GetObjectJSClass(&args.thisv().toObject()) != clasp) {
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INCOMPATIBLE_PROTO,
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+                         JSMSG_INCOMPATIBLE_PROTO,
                          NS_ConvertUTF16toUTF8(name).get(), "toString",
                          "object");
     return false;
@@ -429,7 +430,7 @@ CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
                                     ctorNargs);
   }
   if (!constructor) {
-    return NULL;
+    return nullptr;
   }
 
   if (constructorClass) {
@@ -441,12 +442,12 @@ CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
                                      InterfaceObjectToString,
                                      0, 0));
     if (!toString) {
-      return NULL;
+      return nullptr;
     }
 
     JSString *str = ::JS_InternString(cx, name);
     if (!str) {
-      return NULL;
+      return nullptr;
     }
     JSObject* toStringObj = JS_GetFunctionObject(toString);
     js::SetFunctionNativeReserved(toStringObj, TOSTRING_CLASS_RESERVED_SLOT,
@@ -457,7 +458,7 @@ CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
 
     if (!JS_DefineProperty(cx, constructor, "length", JS::Int32Value(ctorNargs),
                            nullptr, nullptr, JSPROP_READONLY | JSPROP_PERMANENT)) {
-      return NULL;
+      return nullptr;
     }
   }
 
@@ -497,7 +498,7 @@ CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
   }
 
   if (proto && !JS_LinkConstructorAndPrototype(cx, constructor, proto)) {
-    return NULL;
+    return nullptr;
   }
 
   if (defineOnGlobal && !DefineConstructor(cx, global, name, constructor)) {
@@ -531,17 +532,23 @@ CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
 }
 
 bool
-DefineWebIDLBindingPropertiesOnXPCProto(JSContext* cx,
-                                        JS::Handle<JSObject*> proto,
-                                        const NativeProperties* properties)
+DefineWebIDLBindingPropertiesOnXPCObject(JSContext* cx,
+                                         JS::Handle<JSObject*> obj,
+                                         const NativeProperties* properties,
+                                         bool defineUnforgeableAttributes)
 {
   if (properties->methods &&
-      !DefinePrefable(cx, proto, properties->methods)) {
+      !DefinePrefable(cx, obj, properties->methods)) {
     return false;
   }
 
   if (properties->attributes &&
-      !DefinePrefable(cx, proto, properties->attributes)) {
+      !DefinePrefable(cx, obj, properties->attributes)) {
+    return false;
+  }
+
+  if (defineUnforgeableAttributes && properties->unforgeableAttributes &&
+      !DefinePrefable(cx, obj, properties->unforgeableAttributes)) {
     return false;
   }
 
@@ -558,7 +565,7 @@ CreateInterfacePrototypeObject(JSContext* cx, JS::Handle<JSObject*> global,
   JS::Rooted<JSObject*> ourProto(cx,
     JS_NewObjectWithUniqueType(cx, protoClass, parentProto, global));
   if (!ourProto) {
-    return NULL;
+    return nullptr;
   }
 
   if (properties) {
@@ -703,8 +710,8 @@ NativeInterface2JSObjectAndThrowIfFailed(JSContext* aCx,
 
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (!XPCConvert::NativeInterface2JSObject(aRetval, NULL, aHelper, aIID,
-                                            NULL, aAllowNativeWrapper, &rv)) {
+  if (!XPCConvert::NativeInterface2JSObject(aRetval, nullptr, aHelper, aIID,
+                                            nullptr, aAllowNativeWrapper, &rv)) {
     // I can't tell if NativeInterface2JSObject throws JS exceptions
     // or not.  This is a sloppy stab at the right semantics; the
     // method really ought to be fixed to behave consistently.
@@ -740,7 +747,7 @@ TryPreserveWrapper(JSObject* obj)
 // Can only be called with the immediate prototype of the instance object. Can
 // only be called on the prototype of an object known to be a DOM instance.
 bool
-InstanceClassHasProtoAtDepth(JS::Handle<JSObject*> protoObject, uint32_t protoID,
+InstanceClassHasProtoAtDepth(JSObject* protoObject, uint32_t protoID,
                              uint32_t depth)
 {
   const DOMClass* domClass = static_cast<const DOMClass*>(
@@ -2101,7 +2108,7 @@ ConvertJSValueToByteString(JSContext* cx, JS::Handle<JS::Value> v,
       return true;
     }
 
-    s = JS_ValueToString(cx, v);
+    s = JS::ToString(cx, v);
     if (!s) {
       return false;
     }
@@ -2146,10 +2153,38 @@ ConvertJSValueToByteString(JSContext* cx, JS::Handle<JS::Value> v,
 }
 
 bool
-ThreadsafeCheckIsChrome(JSContext* aCx, JSObject* aObj) {
+ThreadsafeCheckIsChrome(JSContext* aCx, JSObject* aObj)
+{
   using mozilla::dom::workers::GetWorkerPrivateFromContext;
   return NS_IsMainThread() ? xpc::AccessCheck::isChrome(aObj):
                              GetWorkerPrivateFromContext(aCx)->IsChromeWorker();
+}
+
+void
+TraceGlobal(JSTracer* aTrc, JSObject* aObj)
+{
+  MOZ_ASSERT(js::GetObjectClass(aObj)->flags & JSCLASS_DOM_GLOBAL);
+  mozilla::dom::TraceProtoAndIfaceCache(aTrc, aObj);
+}
+
+bool
+ResolveGlobal(JSContext* aCx, JS::Handle<JSObject*> aObj,
+              JS::MutableHandle<jsid> aId, unsigned aFlags,
+              JS::MutableHandle<JSObject*> aObjp)
+{
+  bool resolved;
+  if (!JS_ResolveStandardClass(aCx, aObj, aId, &resolved)) {
+    return false;
+  }
+
+  aObjp.set(resolved ? aObj.get() : nullptr);
+  return true;
+}
+
+bool
+EnumerateGlobal(JSContext* aCx, JS::Handle<JSObject*> aObj)
+{
+  return JS_EnumerateStandardClasses(aCx, aObj);
 }
 
 } // namespace dom

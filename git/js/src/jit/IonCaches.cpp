@@ -106,7 +106,7 @@ IonCache::LinkStatus
 IonCache::linkCode(JSContext *cx, MacroAssembler &masm, IonScript *ion, IonCode **code)
 {
     Linker linker(masm);
-    *code = linker.newCode(cx, JSC::ION_CODE);
+    *code = linker.newCode<CanGC>(cx, JSC::ION_CODE);
     if (!*code)
         return LINK_ERROR;
 
@@ -1147,11 +1147,6 @@ CanAttachNativeGetProp(typename GetPropCache::Context cx, const GetPropCache &ca
     if (IsCacheableGetPropReadSlot(obj, holder, shape) ||
         IsCacheableNoProperty(obj, holder, shape, pc, cache.output()))
     {
-        // TI infers the possible types of native object properties. There's one
-        // edge case though: for singleton objects it does not add the initial
-        // "undefined" type, see the propertySet comment in jsinfer.h.
-        if (!cache.canMonitorSingletonUndefinedSlot(holder, shape))
-            return GetPropertyIC::CanAttachNone;
         return GetPropertyIC::CanAttachReadSlot;
     }
 
@@ -1204,17 +1199,6 @@ GetPropertyIC::allowArrayLength(Context cx, HandleObject obj) const
     }
 
     return true;
-}
-
-bool
-GetPropertyIC::canMonitorSingletonUndefinedSlot(HandleObject holder, HandleShape shape) const
-{
-    // We can't monitor the return type inside an idempotent cache,
-    // so we don't handle this case.
-    return !(idempotent() &&
-             holder &&
-             holder->hasSingletonType() &&
-             holder->getSlot(shape->slot()).isUndefined());
 }
 
 bool
@@ -2989,7 +2973,7 @@ EqualStringsHelper(JSString *str1, JSString *str2)
     JS_ASSERT(!str2->isAtom());
     JS_ASSERT(str1->length() == str2->length());
 
-    const jschar *chars = str2->getChars(NULL);
+    const jschar *chars = str2->getChars(nullptr);
     if (!chars)
         return false;
     return mozilla::PodEqual(str1->asAtom().chars(), chars, str1->length());

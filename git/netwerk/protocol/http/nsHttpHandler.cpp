@@ -145,6 +145,9 @@ nsHttpHandler::nsHttpHandler()
     , mProxyHttpVersion(NS_HTTP_VERSION_1_1)
     , mCapabilities(NS_HTTP_ALLOW_KEEPALIVE)
     , mReferrerLevel(0xff) // by default we always send a referrer
+    , mSpoofReferrerSource(false)
+    , mReferrerTrimmingPolicy(0)
+    , mReferrerXOriginPolicy(0)
     , mFastFallbackToIPv4(false)
     , mProxyPipelining(true)
     , mIdleTimeout(PR_SecondsToInterval(10))
@@ -184,7 +187,6 @@ nsHttpHandler::nsHttpHandler()
     , mAllowExperiments(true)
     , mHandlerActive(false)
     , mEnableSpdy(false)
-    , mSpdyV2(true)
     , mSpdyV3(true)
     , mSpdyV31(true)
     , mCoalesceSpdy(true)
@@ -202,7 +204,7 @@ nsHttpHandler::nsHttpHandler()
     , mRequestTokenBucketMinParallelism(6)
     , mRequestTokenBucketHz(100)
     , mRequestTokenBucketBurst(32)
-    , mCritialRequestPrioritization(true)
+    , mCriticalRequestPrioritization(true)
     , mEthernetBytesRead(0)
     , mEthernetBytesWritten(0)
     , mCellBytesRead(0)
@@ -903,6 +905,24 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             mReferrerLevel = (uint8_t) clamped(val, 0, 0xff);
     }
 
+    if (PREF_CHANGED(HTTP_PREF("referer.spoofSource"))) {
+        rv = prefs->GetBoolPref(HTTP_PREF("referer.spoofSource"), &cVar);
+        if (NS_SUCCEEDED(rv))
+            mSpoofReferrerSource = cVar;
+    }
+
+    if (PREF_CHANGED(HTTP_PREF("referer.trimmingPolicy"))) {
+        rv = prefs->GetIntPref(HTTP_PREF("referer.trimmingPolicy"), &val);
+        if (NS_SUCCEEDED(rv))
+            mReferrerTrimmingPolicy = (uint8_t) clamped(val, 0, 0xff);
+    }
+
+    if (PREF_CHANGED(HTTP_PREF("referer.XOriginPolicy"))) {
+        rv = prefs->GetIntPref(HTTP_PREF("referer.XOriginPolicy"), &val);
+        if (NS_SUCCEEDED(rv))
+            mReferrerXOriginPolicy = (uint8_t) clamped(val, 0, 0xff);
+    }
+
     if (PREF_CHANGED(HTTP_PREF("redirection-limit"))) {
         rv = prefs->GetIntPref(HTTP_PREF("redirection-limit"), &val);
         if (NS_SUCCEEDED(rv))
@@ -1128,12 +1148,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             mEnableSpdy = cVar;
     }
 
-    if (PREF_CHANGED(HTTP_PREF("spdy.enabled.v2"))) {
-        rv = prefs->GetBoolPref(HTTP_PREF("spdy.enabled.v2"), &cVar);
-        if (NS_SUCCEEDED(rv))
-            mSpdyV2 = cVar;
-    }
-
     if (PREF_CHANGED(HTTP_PREF("spdy.enabled.v3"))) {
         rv = prefs->GetBoolPref(HTTP_PREF("spdy.enabled.v3"), &cVar);
         if (NS_SUCCEEDED(rv))
@@ -1245,7 +1259,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     if (PREF_CHANGED(HTTP_PREF("rendering-critical-requests-prioritization"))) {
         rv = prefs->GetBoolPref(HTTP_PREF("rendering-critical-requests-prioritization"), &cVar);
         if (NS_SUCCEEDED(rv))
-            mCritialRequestPrioritization = cVar;
+            mCriticalRequestPrioritization = cVar;
     }
 
     // on transition of network.http.diagnostics to true print

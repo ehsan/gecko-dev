@@ -28,7 +28,6 @@ const SIMPLE_CANVAS_URL = EXAMPLE_URL + "doc_simple-canvas.html";
 const SHADER_ORDER_URL = EXAMPLE_URL + "doc_shader-order.html";
 const MULTIPLE_CONTEXTS_URL = EXAMPLE_URL + "doc_multiple-contexts.html";
 const OVERLAPPING_GEOMETRY_CANVAS_URL = EXAMPLE_URL + "doc_overlapping-geometry.html";
-const BLENDED_GEOMETRY_CANVAS_URL = EXAMPLE_URL + "doc_blended-geometry.html";
 
 // All tests are asynchronous.
 waitForExplicitFinish();
@@ -39,11 +38,6 @@ registerCleanupFunction(() => {
   info("finish() was called, cleaning up...");
   Services.prefs.setBoolPref("devtools.debugger.log", gEnableLogging);
   Services.prefs.setBoolPref("devtools.shadereditor.enabled", gToolEnabled);
-
-  // These tests use a lot of memory due to GL contexts, so force a GC to help
-  // fragmentation.
-  info("Forcing GC after shadereditor test.");
-  Cu.forceGC();
 });
 
 function addTab(aUrl, aWindow) {

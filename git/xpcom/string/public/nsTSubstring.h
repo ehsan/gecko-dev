@@ -130,7 +130,7 @@ class nsTSubstring_CharT
       char_iterator BeginWriting()
         {
           if (!EnsureMutable())
-            NS_ABORT_OOM(mLength);
+            NS_RUNTIMEABORT("OOM");
 
           return mData;
         }
@@ -143,7 +143,7 @@ class nsTSubstring_CharT
       char_iterator EndWriting()
         {
           if (!EnsureMutable())
-            NS_ABORT_OOM(mLength);
+            NS_RUNTIMEABORT("OOM");
 
           return mData + mLength;
         }
@@ -445,12 +445,8 @@ class nsTSubstring_CharT
       /**
        * Append the given float to this string 
        */
-      void AppendFloat( float aFloat )
-                      { DoAppendFloat(aFloat, 6); }
-      void AppendFloat( double aFloat )
-                      { DoAppendFloat(aFloat, 15); }
-  private:
-      void NS_FASTCALL DoAppendFloat( double aFloat, int digits );
+      void NS_FASTCALL AppendFloat( float aFloat );
+      void NS_FASTCALL AppendFloat( double aFloat );
   public:
 
     // AppendLiteral must ONLY be applied to an actual literal string.
@@ -521,7 +517,7 @@ class nsTSubstring_CharT
           *data = mData;
           return mLength;
         }
-
+        
         /**
          * Get a pointer to the string's internal buffer, optionally resizing
          * the buffer first.  If size_type(-1) is passed for newLen, then the
@@ -535,7 +531,7 @@ class nsTSubstring_CharT
       size_type GetMutableData( char_type** data, size_type newLen = size_type(-1) )
         {
           if (!EnsureMutable(newLen))
-            NS_ABORT_OOM(newLen == size_type(-1) ? mLength : newLen);
+            NS_RUNTIMEABORT("OOM");
 
           *data = mData;
           return mLength;

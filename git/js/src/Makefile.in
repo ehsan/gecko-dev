@@ -33,13 +33,6 @@ FORCE_SHARED_LIB = 1
 endif
 DIST_INSTALL = 1
 
-###############################################
-# BEGIN include sources for low-level code shared with mfbt
-#
-MFBT_ROOT = $(srcdir)/../../mfbt
-VPATH += $(MFBT_ROOT)
-include $(MFBT_ROOT)/exported_headers.mk
-
 VPATH		+= \
 		$(srcdir) \
 		$(srcdir)/builtin \
@@ -133,8 +126,6 @@ endif
 
 endif # JS_HAS_CTYPES
 
-LOCAL_INCLUDES += -I$(MFBT_ROOT)/double-conversion
-
 # PerfMeasurement is available regardless of low-level support for it;
 # it just doesn't necessarily do anything useful.  There is one
 # implementation source file per supported operating system, plus a stub
@@ -149,21 +140,12 @@ else
 SDK_LIBRARY = $(SHARED_LIBRARY)
 endif
 
-ifeq (,$(MOZ_GLUE_PROGRAM_LDFLAGS))
-# When building standalone, we need to include mfbt sources, and to declare
-# "exported" mfbt symbols on its behalf when we use its headers.
-include $(MFBT_ROOT)/sources.mk
-DEFINES += -DIMPL_MFBT
-endif
-
 EXTRA_DSO_LDOPTS += $(NSPR_LIBS)
 
 # Define keyword generator before rules.mk, see bug 323979 comment 50
 
-HOST_SIMPLE_PROGRAMS += host_jskwgen$(HOST_BIN_SUFFIX)
 GARBAGE += jsautokw.h host_jskwgen$(HOST_BIN_SUFFIX)
 
-HOST_SIMPLE_PROGRAMS += host_jsoplengen$(HOST_BIN_SUFFIX)
 GARBAGE += jsautooplen.h host_jsoplengen$(HOST_BIN_SUFFIX)
 
 GARBAGE += selfhosted.out.h
@@ -197,8 +179,8 @@ ifeq (Linux,$(OS_TARGET))
 EXTRA_DSO_LDOPTS += -Wl,-version-script,symverscript
 
 symverscript: symverscript.in
-	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
-		-DVERSION="$(subst -,_,$(LIBRARY_NAME))" $< > $@
+	$(call py_action,preprocessor, \
+		-DVERSION="$(subst -,_,$(LIBRARY_NAME))" $< -o $@)
 
 EXTRA_DEPS += symverscript
 endif
@@ -369,7 +351,7 @@ DIST_GARBAGE = config.cache config.log config.status* \
    $(JS_CONFIG_NAME) js-config.h js-confdefs.h \
    backend.mk config/backend.mk devtools/backend.mk editline/backend.mk \
    gdb/backend.mk jsapi-tests/backend.mk shell/backend.mk tests/backend.mk \
-   backend.RecursiveMakeBackend.built backend.RecursiveMakeBackend.built.pp \
+   backend.RecursiveMakeBackend backend.RecursiveMakeBackend.pp \
    devtools/rootAnalysis/Makefile
 
 distclean::
@@ -430,14 +412,18 @@ CFLAGS += -fp:precise
 
 ifeq ($(CPU_ARCH),x86)
 # Workaround compiler bug on PGO (Bug 721284)
-MonoIC.$(OBJ_SUFFIX): CXXFLAGS += -GL-
-Compiler.$(OBJ_SUFFIX): CXXFLAGS += -GL-
+NO_PROFILE_GUIDED_OPTIMIZE := \
+  MonoIC.cpp \
+  Compiler.cpp \
+  $(NULL)
 # Ditto (Bug 772303)
-RegExp.$(OBJ_SUFFIX): CXXFLAGS += -GL-
+NO_PROFILE_GUIDED_OPTIMIZE += RegExp.cpp
 endif
 # Ditto (Bug 810661)
 ifeq ($(CPU_ARCH),x86_64)
-CTypes.$(OBJ_SUFFIX): CXXFLAGS += -GL-
+NO_PROFILE_GUIDED_OPTIMIZE := \
+  CTypes.cpp \
+  $(NULL)
 endif
 endif # _MSC_VER
 
@@ -540,14 +526,14 @@ JS_CONFIG_SUBSTITUTIONS=\
 
 $(JS_CONFIG_NAME): js-config.in Makefile $(DEPTH)/config/autoconf.mk $(topsrcdir)/config/config.mk $(topsrcdir)/config/rules.mk
 	$(RM) $@.tmp
-	$(PYTHON) $(topsrcdir)/config/Preprocessor.py --marker % $(JS_CONFIG_SUBSTITUTIONS) $< > $@.tmp \
-	&& mv $@.tmp $@ && chmod +x $@
+	$(call py_action,preprocessor,--marker % $(JS_CONFIG_SUBSTITUTIONS) $< -o $@.tmp)
+	mv $@.tmp $@ && chmod +x $@
 
 SCRIPTS = $(JS_CONFIG_NAME)
 SDK_BINARY = $(JS_CONFIG_NAME)
 
 $(LIBRARY_NAME).pc: js.pc.in
-	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(JS_CONFIG_SUBSTITUTIONS) $< > $@
+	$(call py_action,preprocessor,$(JS_CONFIG_SUBSTITUTIONS) $< -o $@)
 
 install:: $(LIBRARY_NAME).pc
 	$(SYSINSTALL) $^ $(DESTDIR)$(libdir)/pkgconfig
@@ -578,9 +564,6 @@ install:: $(LIBRARY_NAME).pc
 
 install::
 	$(call py_action,process_install_manifest,--no-remove $(DESTDIR)$(includedir)/$(LIBRARY_NAME) _build_manifests/install/dist_include)
-
-install:: $(EXPORTS_mozilla_FILES)
-	$(SYSINSTALL) $^ $(DESTDIR)$(includedir)/$(LIBRARY_NAME)/mozilla
 
 #
 # END SpiderMonkey header installation

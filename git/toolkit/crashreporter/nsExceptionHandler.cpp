@@ -82,7 +82,7 @@ using mozilla::InjectCrashRunnable;
 #include <vector>
 
 #include "mozilla/mozalloc_oom.h"
-#include "mozilla/mozPoisonWrite.h"
+#include "mozilla/LateWriteChecks.h"
 #include "mozilla/WindowsDllBlocklist.h"
 
 #if defined(XP_MACOSX)
@@ -719,18 +719,14 @@ static void* gBreakpadReservedVM;
  * Reserve some VM space. In the event that we crash because VM space is
  * being leaked without leaking memory, freeing this space before taking
  * the minidump will allow us to collect a minidump.
- *
- * This size is bigger than xul.dll plus some extra for MinidumpWriteDump
- * allocations.
  */
-static const SIZE_T kReserveSize = 0x2400000; // 36 MB
+static const SIZE_T kReserveSize = 0xc00000; // 12 MB
 
 static void
 ReserveBreakpadVM()
 {
   if (!gBreakpadReservedVM) {
-    gBreakpadReservedVM = VirtualAlloc(nullptr, kReserveSize, MEM_RESERVE,
-                                       PAGE_NOACCESS);
+    gBreakpadReservedVM = VirtualAlloc(nullptr, kReserveSize, MEM_RESERVE, 0);
   }
 }
 
@@ -738,7 +734,7 @@ static void
 FreeBreakpadVM()
 {
   if (gBreakpadReservedVM) {
-    VirtualFree(gBreakpadReservedVM, 0, MEM_RELEASE);
+    VirtualFree(gBreakpadReservedVM, kReserveSize, MEM_RELEASE);
   }
 }
 
@@ -793,7 +789,7 @@ static bool ShouldReport()
 
 namespace {
   bool Filter(void* context) {
-    mozilla::DisableWritePoisoning();
+    mozilla::StopLateWriteChecks();
     return true;
   }
 }
@@ -2235,7 +2231,7 @@ OOPInitialized()
 
 #ifdef XP_MACOSX
 static bool ChildFilter(void *context) {
-  mozilla::DisableWritePoisoning();
+  mozilla::StopLateWriteChecks();
   return true;
 }
 #endif

@@ -6,7 +6,7 @@
 
 MODULE = 'ogg'
 
-SOURCES += [
+UNIFIED_SOURCES += [
     'ogg_bitwise.c',
     'ogg_framing.c',
 ]
@@ -16,3 +16,6 @@ LIBRARY_NAME = 'ogg'
 MSVC_ENABLE_PGO = True
 
 FORCE_STATIC_LIB = True
+
+if CONFIG['OS_TARGET'] == 'WINNT':
+    NO_VISIBILITY_FLAGS = True

@@ -1231,6 +1231,7 @@ class MOZ_STACK_CLASS ModuleCompiler
 
     char *                         errorString_;
     uint32_t                       errorOffset_;
+    bool                           errorOverRecursed_;
 
     int64_t                        usecBefore_;
     SlowFunctionVector             slowFunctions_;
@@ -1260,6 +1261,7 @@ class MOZ_STACK_CLASS ModuleCompiler
         globalAccesses_(cx),
         errorString_(nullptr),
         errorOffset_(UINT32_MAX),
+        errorOverRecursed_(false),
         usecBefore_(PRMJ_Now()),
         slowFunctions_(cx),
         finishedFunctionBodies_(false)
@@ -1275,6 +1277,8 @@ class MOZ_STACK_CLASS ModuleCompiler
                                                  errorString_);
             js_free(errorString_);
         }
+        if (errorOverRecursed_)
+            js_ReportOverRecursed(cx_);
 
         // Avoid spurious Label assertions on compilation failure.
         if (!stackOverflowLabel_.bound())
@@ -1319,12 +1323,20 @@ class MOZ_STACK_CLASS ModuleCompiler
         JS_ASSERT(errorOffset_ == UINT32_MAX);
         JS_ASSERT(str);
         errorOffset_ = offset;
-        errorString_ = strdup(str);
+        errorString_ = js_strdup(cx_, str);
         return false;
     }
 
     bool fail(ParseNode *pn, const char *str) {
-        return failOffset(pn ? pn->pn_pos.begin : parser_.tokenStream.peekTokenPos().begin, str);
+        if (pn)
+            return failOffset(pn->pn_pos.begin, str);
+
+        // The exact rooting static analysis does not perform dataflow analysis, so it believes
+        // that unrooted things on the stack during compilation may still be accessed after this.
+        // Since pn is typically only null under OOM, this suppression simply forces any GC to be
+        // delayed until the compilation is off the stack and more memory can be freed.
+        gc::AutoSuppressGC nogc(cx_);
+        return failOffset(parser_.tokenStream.peekTokenPos().begin, str);
     }
 
     bool failfVA(ParseNode *pn, const char *fmt, va_list ap) {
@@ -1350,6 +1362,11 @@ class MOZ_STACK_CLASS ModuleCompiler
         JSAutoByteString bytes;
         if (AtomToPrintableString(cx_, name, &bytes))
             failf(pn, fmt, bytes.ptr());
+        return false;
+    }
+
+    bool failOverRecursed() {
+        errorOverRecursed_ = true;
         return false;
     }
 
@@ -1840,6 +1857,7 @@ class FunctionCompiler
     {}
 
     ModuleCompiler &    m() const      { return m_; }
+    TempAllocator &     alloc() const  { return *alloc_; }
     LifoAlloc &         lifo() const   { return lifo_; }
     ParseNode *         fn() const     { return fn_; }
     ExclusiveContext *  cx() const     { return m_.cx(); }
@@ -1921,16 +1939,16 @@ class FunctionCompiler
         if (!newBlock(/* pred = */ nullptr, &curBlock_, fn_))
             return false;
 
-        curBlock_->add(MAsmJSCheckOverRecursed::New(&m_.stackOverflowLabel()));
+        curBlock_->add(MAsmJSCheckOverRecursed::New(alloc(), &m_.stackOverflowLabel()));
 
         for (ABIArgTypeIter i = argTypes; !i.done(); i++) {
-            MAsmJSParameter *ins = MAsmJSParameter::New(*i, i.mirType());
+            MAsmJSParameter *ins = MAsmJSParameter::New(alloc(), *i, i.mirType());
             curBlock_->add(ins);
             curBlock_->initSlot(info().localSlot(i.index()), ins);
         }
         unsigned firstLocalSlot = argTypes.length();
         for (unsigned i = 0; i < varInitializers_.length(); i++) {
-            MConstant *ins = MConstant::New(varInitializers_[i]);
+            MConstant *ins = MConstant::New(alloc(), varInitializers_[i]);
             curBlock_->add(ins);
             curBlock_->initSlot(info().localSlot(firstLocalSlot + i), ins);
         }
@@ -1985,7 +2003,7 @@ class FunctionCompiler
         if (!curBlock_)
             return nullptr;
         JS_ASSERT(v.isNumber());
-        MConstant *constant = MConstant::New(v);
+        MConstant *constant = MConstant::New(alloc(), v);
         curBlock_->add(constant);
         return constant;
     }
@@ -1995,7 +2013,7 @@ class FunctionCompiler
     {
         if (!curBlock_)
             return nullptr;
-        T *ins = T::NewAsmJS(op);
+        T *ins = T::NewAsmJS(alloc(), op);
         curBlock_->add(ins);
         return ins;
     }
@@ -2005,7 +2023,7 @@ class FunctionCompiler
     {
         if (!curBlock_)
             return nullptr;
-        T *ins = T::NewAsmJS(op, type);
+        T *ins = T::NewAsmJS(alloc(), op, type);
         curBlock_->add(ins);
         return ins;
     }
@@ -2015,7 +2033,7 @@ class FunctionCompiler
     {
         if (!curBlock_)
             return nullptr;
-        T *ins = T::New(lhs, rhs);
+        T *ins = T::New(alloc(), lhs, rhs);
         curBlock_->add(ins);
         return ins;
     }
@@ -2025,7 +2043,7 @@ class FunctionCompiler
     {
         if (!curBlock_)
             return nullptr;
-        T *ins = T::NewAsmJS(lhs, rhs, type);
+        T *ins = T::NewAsmJS(alloc(), lhs, rhs, type);
         curBlock_->add(ins);
         return ins;
     }
@@ -2034,7 +2052,7 @@ class FunctionCompiler
     {
         if (!curBlock_)
             return nullptr;
-        MMul *ins = MMul::New(lhs, rhs, type, mode);
+        MMul *ins = MMul::New(alloc(), lhs, rhs, type, mode);
         curBlock_->add(ins);
         return ins;
     }
@@ -2044,7 +2062,7 @@ class FunctionCompiler
     {
         if (!curBlock_)
             return nullptr;
-        T *ins = T::NewAsmJS(lhs, rhs);
+        T *ins = T::NewAsmJS(alloc(), lhs, rhs);
         curBlock_->add(ins);
         return ins;
     }
@@ -2054,7 +2072,7 @@ class FunctionCompiler
     {
         if (!curBlock_)
             return nullptr;
-        T *ins = T::NewAsmJS(op);
+        T *ins = T::NewAsmJS(alloc(), op);
         curBlock_->add(ins);
         return ins;
     }
@@ -2063,7 +2081,7 @@ class FunctionCompiler
     {
         if (!curBlock_)
             return nullptr;
-        MCompare *ins = MCompare::NewAsmJS(lhs, rhs, op, type);
+        MCompare *ins = MCompare::NewAsmJS(alloc(), lhs, rhs, op, type);
         curBlock_->add(ins);
         return ins;
     }
@@ -2079,7 +2097,7 @@ class FunctionCompiler
     {
         if (!curBlock_)
             return nullptr;
-        MAsmJSLoadHeap *load = MAsmJSLoadHeap::New(vt, ptr);
+        MAsmJSLoadHeap *load = MAsmJSLoadHeap::New(alloc(), vt, ptr);
         curBlock_->add(load);
         if (chk == NO_BOUNDS_CHECK)
             load->setSkipBoundsCheck(true);
@@ -2090,7 +2108,7 @@ class FunctionCompiler
     {
         if (!curBlock_)
             return;
-        MAsmJSStoreHeap *store = MAsmJSStoreHeap::New(vt, ptr, v);
+        MAsmJSStoreHeap *store = MAsmJSStoreHeap::New(alloc(), vt, ptr, v);
         curBlock_->add(store);
         if (chk == NO_BOUNDS_CHECK)
             store->setSkipBoundsCheck(true);
@@ -2102,13 +2120,13 @@ class FunctionCompiler
             return nullptr;
         if (global.varIsLitConstant()) {
             JS_ASSERT(global.litConstValue().isNumber());
-            MConstant *constant = MConstant::New(global.litConstValue());
+            MConstant *constant = MConstant::New(alloc(), global.litConstValue());
             curBlock_->add(constant);
             return constant;
         }
         MIRType type = global.varType().toMIRType();
         unsigned globalDataOffset = module().globalVarIndexToGlobalDataOffset(global.varIndex());
-        MAsmJSLoadGlobalVar *load = MAsmJSLoadGlobalVar::New(type, globalDataOffset,
+        MAsmJSLoadGlobalVar *load = MAsmJSLoadGlobalVar::New(alloc(), type, globalDataOffset,
                                                              global.varIsConstant());
         curBlock_->add(load);
         return load;
@@ -2119,7 +2137,7 @@ class FunctionCompiler
         if (!curBlock_)
             return;
         unsigned globalDataOffset = module().globalVarIndexToGlobalDataOffset(global.varIndex());
-        curBlock_->add(MAsmJSStoreGlobalVar::New(globalDataOffset, v));
+        curBlock_->add(MAsmJSStoreGlobalVar::New(alloc(), globalDataOffset, v));
     }
 
     /***************************************************************** Calls */
@@ -2190,7 +2208,8 @@ class FunctionCompiler
 
         ABIArg arg = call->abi_.next(type.toMIRType());
         if (arg.kind() == ABIArg::Stack) {
-            MAsmJSPassStackArg *mir = MAsmJSPassStackArg::New(arg.offsetFromArgBase(), argDef);
+            MAsmJSPassStackArg *mir = MAsmJSPassStackArg::New(alloc(), arg.offsetFromArgBase(),
+                                                              argDef);
             curBlock_->add(mir);
             if (!call->stackArgs_.append(mir))
                 return false;
@@ -2228,7 +2247,8 @@ class FunctionCompiler
             *def = nullptr;
             return true;
         }
-        MAsmJSCall *ins = MAsmJSCall::New(callee, call.regArgs_, returnType, call.spIncrement_);
+        MAsmJSCall *ins = MAsmJSCall::New(alloc(), callee, call.regArgs_, returnType,
+                                          call.spIncrement_);
         if (!ins)
             return false;
         curBlock_->add(ins);
@@ -2251,11 +2271,11 @@ class FunctionCompiler
             return true;
         }
 
-        MConstant *mask = MConstant::New(Int32Value(table.mask()));
+        MConstant *mask = MConstant::New(alloc(), Int32Value(table.mask()));
         curBlock_->add(mask);
-        MBitAnd *maskedIndex = MBitAnd::NewAsmJS(index, mask);
+        MBitAnd *maskedIndex = MBitAnd::NewAsmJS(alloc(), index, mask);
         curBlock_->add(maskedIndex);
-        MAsmJSLoadFuncPtr *ptrFun = MAsmJSLoadFuncPtr::New(table.globalDataOffset(), maskedIndex);
+        MAsmJSLoadFuncPtr *ptrFun = MAsmJSLoadFuncPtr::New(alloc(), table.globalDataOffset(), maskedIndex);
         curBlock_->add(ptrFun);
 
         MIRType returnType = table.sig().retType().toMIRType();
@@ -2272,7 +2292,7 @@ class FunctionCompiler
         JS_STATIC_ASSERT(offsetof(AsmJSModule::ExitDatum, exit) == 0);
         unsigned globalDataOffset = module().exitIndexToGlobalDataOffset(exitIndex);
 
-        MAsmJSLoadFFIFunc *ptrFun = MAsmJSLoadFFIFunc::New(globalDataOffset);
+        MAsmJSLoadFFIFunc *ptrFun = MAsmJSLoadFFIFunc::New(alloc(), globalDataOffset);
         curBlock_->add(ptrFun);
 
         return callPrivate(MAsmJSCall::Callee(ptrFun), call, returnType, def);
@@ -2289,7 +2309,7 @@ class FunctionCompiler
     {
         if (!curBlock_)
             return;
-        MAsmJSReturn *ins = MAsmJSReturn::New(expr);
+        MAsmJSReturn *ins = MAsmJSReturn::New(alloc(), expr);
         curBlock_->end(ins);
         curBlock_ = nullptr;
     }
@@ -2298,7 +2318,7 @@ class FunctionCompiler
     {
         if (!curBlock_)
             return;
-        MAsmJSVoidReturn *ins = MAsmJSVoidReturn::New();
+        MAsmJSVoidReturn *ins = MAsmJSVoidReturn::New(alloc());
         curBlock_->end(ins);
         curBlock_ = nullptr;
     }
@@ -2312,7 +2332,7 @@ class FunctionCompiler
         }
         if (!newBlock(curBlock_, thenBlock, thenPn) || !newBlock(curBlock_, elseBlock, elsePn))
             return false;
-        curBlock_->end(MTest::New(cond, *thenBlock, *elseBlock));
+        curBlock_->end(MTest::New(alloc(), cond, *thenBlock, *elseBlock));
         curBlock_ = *thenBlock;
         return true;
     }
@@ -2329,8 +2349,8 @@ class FunctionCompiler
             return;
         JS_ASSERT_IF(curBlock_, thenBlocks.back() == curBlock_);
         for (size_t i = 0; i < thenBlocks.length(); i++) {
-            thenBlocks[i]->end(MGoto::New(joinBlock));
-            joinBlock->addPredecessor(thenBlocks[i]);
+            thenBlocks[i]->end(MGoto::New(alloc(), joinBlock));
+            joinBlock->addPredecessor(alloc(), thenBlocks[i]);
         }
         curBlock_ = joinBlock;
         mirGraph().moveBlockToEnd(curBlock_);
@@ -2353,11 +2373,11 @@ class FunctionCompiler
         if (!newBlock(pred, &join, pn))
             return false;
         if (curBlock_)
-            curBlock_->end(MGoto::New(join));
+            curBlock_->end(MGoto::New(alloc(), join));
         for (size_t i = 0; i < thenBlocks.length(); i++) {
-            thenBlocks[i]->end(MGoto::New(join));
+            thenBlocks[i]->end(MGoto::New(alloc(), join));
             if (pred == curBlock_ || i > 0)
-                join->addPredecessor(thenBlocks[i]);
+                join->addPredecessor(alloc(), thenBlocks[i]);
         }
         curBlock_ = join;
         return true;
@@ -2395,7 +2415,7 @@ class FunctionCompiler
         mirGraph().addBlock(*loopEntry);
         noteBasicBlockPosition(*loopEntry, bodyStmt);
         (*loopEntry)->setLoopDepth(loopStack_.length());
-        curBlock_->end(MGoto::New(*loopEntry));
+        curBlock_->end(MGoto::New(alloc(), *loopEntry));
         curBlock_ = *loopEntry;
         return true;
     }
@@ -2410,13 +2430,13 @@ class FunctionCompiler
         MBasicBlock *body;
         if (!newBlock(curBlock_, &body, bodyPn))
             return false;
-        if (cond->isConstant() && ToBoolean(cond->toConstant()->value())) {
+        if (cond->isConstant() && cond->toConstant()->valueToBoolean()) {
             *afterLoop = nullptr;
-            curBlock_->end(MGoto::New(body));
+            curBlock_->end(MGoto::New(alloc(), body));
         } else {
             if (!newBlockWithDepth(curBlock_, curBlock_->loopDepth() - 1, afterLoop, afterPn))
                 return false;
-            curBlock_->end(MTest::New(cond, body, *afterLoop));
+            curBlock_->end(MTest::New(alloc(), cond, body, *afterLoop));
         }
         curBlock_ = body;
         return true;
@@ -2446,7 +2466,7 @@ class FunctionCompiler
         JS_ASSERT_IF(afterLoop, afterLoop->loopDepth() == loopStack_.length());
         if (curBlock_) {
             JS_ASSERT(curBlock_->loopDepth() == loopStack_.length() + 1);
-            curBlock_->end(MGoto::New(loopEntry));
+            curBlock_->end(MGoto::New(alloc(), loopEntry));
             if (!loopEntry->setBackedgeAsmJS(curBlock_))
                 return false;
         }
@@ -2468,8 +2488,8 @@ class FunctionCompiler
         if (curBlock_) {
             JS_ASSERT(curBlock_->loopDepth() == loopStack_.length() + 1);
             if (cond->isConstant()) {
-                if (ToBoolean(cond->toConstant()->value())) {
-                    curBlock_->end(MGoto::New(loopEntry));
+                if (cond->toConstant()->valueToBoolean()) {
+                    curBlock_->end(MGoto::New(alloc(), loopEntry));
                     if (!loopEntry->setBackedgeAsmJS(curBlock_))
                         return false;
                     curBlock_ = nullptr;
@@ -2477,14 +2497,14 @@ class FunctionCompiler
                     MBasicBlock *afterLoop;
                     if (!newBlock(curBlock_, &afterLoop, afterLoopStmt))
                         return false;
-                    curBlock_->end(MGoto::New(afterLoop));
+                    curBlock_->end(MGoto::New(alloc(), afterLoop));
                     curBlock_ = afterLoop;
                 }
             } else {
                 MBasicBlock *afterLoop;
                 if (!newBlock(curBlock_, &afterLoop, afterLoopStmt))
                     return false;
-                curBlock_->end(MTest::New(cond, loopEntry, afterLoop));
+                curBlock_->end(MTest::New(alloc(), cond, loopEntry, afterLoop));
                 if (!loopEntry->setBackedgeAsmJS(curBlock_))
                     return false;
                 curBlock_ = afterLoop;
@@ -2531,7 +2551,7 @@ class FunctionCompiler
             *switchBlock = nullptr;
             return true;
         }
-        curBlock_->end(MTableSwitch::New(expr, low, high));
+        curBlock_->end(MTableSwitch::New(alloc(), expr, low, high));
         *switchBlock = curBlock_;
         curBlock_ = nullptr;
         return true;
@@ -2546,8 +2566,8 @@ class FunctionCompiler
         if (!newBlock(switchBlock, next, pn))
             return false;
         if (curBlock_) {
-            curBlock_->end(MGoto::New(*next));
-            (*next)->addPredecessor(curBlock_);
+            curBlock_->end(MGoto::New(alloc(), *next));
+            (*next)->addPredecessor(alloc(), curBlock_);
         }
         curBlock_ = *next;
         return true;
@@ -2580,7 +2600,7 @@ class FunctionCompiler
             MBasicBlock *next;
             if (!newBlock(curBlock_, &next, pn))
                 return false;
-            curBlock_->end(MGoto::New(next));
+            curBlock_->end(MGoto::New(alloc(), next));
             curBlock_ = next;
         }
         return bindUnlabeledBreaks(pn);
@@ -2631,16 +2651,16 @@ class FunctionCompiler
         for (unsigned i = 0; i < preds->length(); i++) {
             MBasicBlock *pred = (*preds)[i];
             if (*createdJoinBlock) {
-                pred->end(MGoto::New(curBlock_));
-                curBlock_->addPredecessor(pred);
+                pred->end(MGoto::New(alloc(), curBlock_));
+                curBlock_->addPredecessor(alloc(), pred);
             } else {
                 MBasicBlock *next;
                 if (!newBlock(pred, &next, pn))
                     return false;
-                pred->end(MGoto::New(next));
+                pred->end(MGoto::New(alloc(), next));
                 if (curBlock_) {
-                    curBlock_->end(MGoto::New(next));
-                    next->addPredecessor(curBlock_);
+                    curBlock_->end(MGoto::New(alloc(), next));
+                    next->addPredecessor(alloc(), curBlock_);
                 }
                 curBlock_ = next;
                 *createdJoinBlock = true;
@@ -3813,7 +3833,7 @@ CheckMathBuiltinCall(FunctionCompiler &f, ParseNode *callNode, AsmJSMathBuiltin 
 static bool
 CheckCall(FunctionCompiler &f, ParseNode *call, RetType retType, MDefinition **def, Type *type)
 {
-    JS_CHECK_RECURSION(f.cx(), return false);
+    JS_CHECK_RECURSION_DONT_REPORT(f.cx(), return f.m().failOverRecursed());
 
     ParseNode *callee = CallCallee(call);
 
@@ -4104,7 +4124,7 @@ static bool
 CheckAddOrSub(FunctionCompiler &f, ParseNode *expr, MDefinition **def, Type *type,
               unsigned *numAddOrSubOut = nullptr)
 {
-    JS_CHECK_RECURSION(f.cx(), return false);
+    JS_CHECK_RECURSION_DONT_REPORT(f.cx(), return f.m().failOverRecursed());
 
     JS_ASSERT(expr->isKind(PNK_ADD) || expr->isKind(PNK_SUB));
     ParseNode *lhs = BinaryLeft(expr);
@@ -4308,7 +4328,7 @@ CheckBitwise(FunctionCompiler &f, ParseNode *bitwise, MDefinition **def, Type *t
 static bool
 CheckExpr(FunctionCompiler &f, ParseNode *expr, MDefinition **def, Type *type)
 {
-    JS_CHECK_RECURSION(f.cx(), return false);
+    JS_CHECK_RECURSION_DONT_REPORT(f.cx(), return f.m().failOverRecursed());
 
     if (!f.mirGen().ensureBallast())
         return false;
@@ -4781,7 +4801,7 @@ CheckStatementList(FunctionCompiler &f, ParseNode *stmtList)
 static bool
 CheckStatement(FunctionCompiler &f, ParseNode *stmt, LabelVector *maybeLabels)
 {
-    JS_CHECK_RECURSION(f.cx(), return false);
+    JS_CHECK_RECURSION_DONT_REPORT(f.cx(), return f.m().failOverRecursed());
 
     if (!f.mirGen().ensureBallast())
         return false;
@@ -5019,7 +5039,7 @@ CheckFunctionsSequential(ModuleCompiler &m)
 
         int64_t before = PRMJ_Now();
 
-        IonContext icx(m.cx(), &mir->temp());
+        IonContext icx(m.cx(), &mir->alloc());
 
         IonSpewNewFunction(&mir->graph(), NullPtr());
 
@@ -5102,7 +5122,6 @@ static AsmJSParallelTask *
 GetFinishedCompilation(ModuleCompiler &m, ParallelGroupState &group)
 {
     AutoLockWorkerThreadState lock(*m.cx()->workerThreadState());
-    AutoPauseCurrentWorkerThread maybePause(m.cx());
 
     while (!group.state.asmJSWorkerFailed()) {
         if (!group.state.asmJSFinishedList.empty()) {
@@ -5128,7 +5147,7 @@ GenerateCodeForFinishedJob(ModuleCompiler &m, ParallelGroupState &group, AsmJSPa
 
     {
         // Perform code generation on the main thread.
-        IonContext ionContext(m.cx(), &task->mir->temp());
+        IonContext ionContext(m.cx(), &task->mir->alloc());
         if (!GenerateCode(m, func, *task->mir, *task->lir))
             return false;
     }
@@ -5136,7 +5155,7 @@ GenerateCodeForFinishedJob(ModuleCompiler &m, ParallelGroupState &group, AsmJSPa
     group.compiledJobs++;
 
     // Clear the LifoAlloc for use by another worker.
-    TempAllocator &tempAlloc = task->mir->temp();
+    TempAllocator &tempAlloc = task->mir->alloc();
     tempAlloc.TempAllocator::~TempAllocator();
     task->lifo.releaseAll();
 
@@ -5226,8 +5245,6 @@ CancelOutstandingJobs(ModuleCompiler &m, ParallelGroupState &group)
 
     // Eliminate tasks that failed without adding to the finished list.
     group.outstandingJobs -= group.state.harvestFailedAsmJSJobs();
-
-    AutoPauseCurrentWorkerThread maybePause(m.cx());
 
     // Any remaining tasks are therefore undergoing active compilation.
     JS_ASSERT(group.outstandingJobs >= 0);
@@ -6520,7 +6537,7 @@ js::IsAsmJSCompilationAvailable(JSContext *cx, unsigned argc, Value *vp)
     bool available = JSC::MacroAssembler::supportsFloatingPoint() &&
                      cx->gcSystemPageSize() == AsmJSPageSize &&
                      !cx->compartment()->debugMode() &&
-                     cx->options().asmJS();
+                     cx->compartment()->options().asmJS(cx);
 
     args.rval().set(BooleanValue(available));
     return true;

@@ -7,9 +7,15 @@
 MODULE = 'dom'
 
 if CONFIG['MOZ_ENABLE_QTMOBILITY']:
-    SOURCES += [
+    GENERATED_SOURCES += [
         'moc_QTMLocationProvider.cpp',
+    ]
+    SOURCES += [
         'QTMLocationProvider.cpp',
+    ]
+
+    LOCAL_INCLUDES += [
+        '/dom/src/geolocation',
     ]
 
 FAIL_ON_WARNINGS = True

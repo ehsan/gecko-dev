@@ -269,18 +269,13 @@ static const struct ParamPair {
 };
 
 static bool
-GCParameter(JSContext *cx, unsigned argc, jsval *vp)
+GCParameter(JSContext *cx, unsigned argc, Value *vp)
 {
-    JSString *str;
-    if (argc == 0) {
-        str = JS_ValueToString(cx, JSVAL_VOID);
-        JS_ASSERT(str);
-    } else {
-        str = JS_ValueToString(cx, vp[2]);
-        if (!str)
-            return false;
-        vp[2] = STRING_TO_JSVAL(str);
-    }
+    CallArgs args = CallArgsFromVp(argc, vp);
+
+    JSString *str = ToString(cx, args.get(0));
+    if (!str)
+        return false;
 
     JSFlatString *flatStr = JS_FlattenString(cx, str);
     if (!flatStr)
@@ -300,24 +295,23 @@ GCParameter(JSContext *cx, unsigned argc, jsval *vp)
     }
     JSGCParamKey param = paramMap[paramIndex].param;
 
-    if (argc == 1) {
+    // Request mode.
+    if (args.length() == 1) {
         uint32_t value = JS_GetGCParameter(cx->runtime(), param);
-        vp[0] = JS_NumberValue(value);
+        args.rval().setNumber(value);
         return true;
     }
 
-    if (param == JSGC_NUMBER ||
-        param == JSGC_BYTES) {
+    if (param == JSGC_NUMBER || param == JSGC_BYTES) {
         JS_ReportError(cx, "Attempt to change read-only parameter %s",
                        paramMap[paramIndex].name);
         return false;
     }
 
     uint32_t value;
-    if (!JS_ValueToECMAUint32(cx, vp[3], &value)) {
-        JS_ReportError(cx,
-                       "the second argument must be convertable to uint32_t "
-                       "with non-zero value");
+    if (!ToUint32(cx, args[1], &value)) {
+        JS_ReportError(cx, "the second argument must be convertable to uint32_t "
+                           "with non-zero value");
         return false;
     }
 
@@ -333,12 +327,12 @@ GCParameter(JSContext *cx, unsigned argc, jsval *vp)
     }
 
     JS_SetGCParameter(cx->runtime(), param, value);
-    *vp = JSVAL_VOID;
+    args.rval().setUndefined();
     return true;
 }
 
 static bool
-IsProxy(JSContext *cx, unsigned argc, jsval *vp)
+IsProxy(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (argc != 1) {
@@ -356,12 +350,13 @@ IsProxy(JSContext *cx, unsigned argc, jsval *vp)
 static bool
 InternalConst(JSContext *cx, unsigned argc, jsval *vp)
 {
-    if (argc != 1) {
+    CallArgs args = CallArgsFromVp(argc, vp);
+    if (args.length() == 0) {
         JS_ReportError(cx, "the function takes exactly one argument");
         return false;
     }
 
-    JSString *str = JS_ValueToString(cx, vp[2]);
+    JSString *str = ToString(cx, args[0]);
     if (!str)
         return false;
     JSFlatString *flat = JS_FlattenString(cx, str);
@@ -396,29 +391,33 @@ GCPreserveCode(JSContext *cx, unsigned argc, jsval *vp)
 
 #ifdef JS_GC_ZEAL
 static bool
-GCZeal(JSContext *cx, unsigned argc, jsval *vp)
+GCZeal(JSContext *cx, unsigned argc, Value *vp)
 {
-    uint32_t zeal, frequency = JS_DEFAULT_ZEAL_FREQ;
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    if (argc > 2) {
+    if (args.length() > 2) {
         RootedObject callee(cx, &args.callee());
         ReportUsageError(cx, callee, "Too many arguments");
         return false;
     }
-    if (!JS_ValueToECMAUint32(cx, argc < 1 ? JSVAL_VOID : args[0], &zeal))
+
+    uint32_t zeal;
+    if (!ToUint32(cx, args.get(0), &zeal))
         return false;
-    if (argc >= 2)
-        if (!JS_ValueToECMAUint32(cx, args[1], &frequency))
+
+    uint32_t frequency = JS_DEFAULT_ZEAL_FREQ;
+    if (args.length() >= 2) {
+        if (!ToUint32(cx, args.get(1), &frequency))
             return false;
+    }
 
     JS_SetGCZeal(cx, (uint8_t)zeal, frequency);
-    *vp = JSVAL_VOID;
+    args.rval().setUndefined();
     return true;
 }
 
 static bool
-ScheduleGC(JSContext *cx, unsigned argc, jsval *vp)
+ScheduleGC(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -440,24 +439,24 @@ ScheduleGC(JSContext *cx, unsigned argc, jsval *vp)
         PrepareZoneForGC(args[0].toString()->zone());
     }
 
-    *vp = JSVAL_VOID;
+    args.rval().setUndefined();
     return true;
 }
 
 static bool
-SelectForGC(JSContext *cx, unsigned argc, jsval *vp)
+SelectForGC(JSContext *cx, unsigned argc, Value *vp)
 {
-    JSRuntime *rt = cx->runtime();
+    CallArgs args = CallArgsFromVp(argc, vp);
 
-    for (unsigned i = 0; i < argc; i++) {
-        Value arg(JS_ARGV(cx, vp)[i]);
-        if (arg.isObject()) {
-            if (!rt->gcSelectedForMarking.append(&arg.toObject()))
+    JSRuntime *rt = cx->runtime();
+    for (unsigned i = 0; i < args.length(); i++) {
+        if (args[i].isObject()) {
+            if (!rt->gcSelectedForMarking.append(&args[i].toObject()))
                 return false;
         }
     }
 
-    *vp = JSVAL_VOID;
+    args.rval().setUndefined();
     return true;
 }
 
@@ -466,13 +465,14 @@ VerifyPreBarriers(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    if (argc) {
+    if (args.length() > 0) {
         RootedObject callee(cx, &args.callee());
         ReportUsageError(cx, callee, "Too many arguments");
         return false;
     }
+
     gc::VerifyBarriers(cx->runtime(), gc::PreBarrierVerifier);
-    *vp = JSVAL_VOID;
+    args.rval().setUndefined();
     return true;
 }
 
@@ -523,40 +523,40 @@ DeterministicGC(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    if (argc != 1) {
+    if (args.length() != 1) {
         RootedObject callee(cx, &args.callee());
         ReportUsageError(cx, callee, "Wrong number of arguments");
         return false;
     }
 
-    gc::SetDeterministicGC(cx, ToBoolean(vp[2]));
-    *vp = JSVAL_VOID;
+    gc::SetDeterministicGC(cx, ToBoolean(args[0]));
+    args.rval().setUndefined();
     return true;
 }
 #endif /* JS_GC_ZEAL */
 
 static bool
-GCSlice(JSContext *cx, unsigned argc, jsval *vp)
+GCSlice(JSContext *cx, unsigned argc, Value *vp)
 {
-    bool limit = true;
-    uint32_t budget = 0;
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    if (argc > 1) {
+    if (args.length() > 1) {
         RootedObject callee(cx, &args.callee());
         ReportUsageError(cx, callee, "Wrong number of arguments");
         return false;
     }
 
-    if (argc == 1) {
-        if (!JS_ValueToECMAUint32(cx, args[0], &budget))
+    bool limit = true;
+    uint32_t budget = 0;
+    if (args.length() == 1) {
+        if (!ToUint32(cx, args[0], &budget))
             return false;
     } else {
         limit = false;
     }
 
     GCDebugSlice(cx->runtime(), limit, budget);
-    *vp = JSVAL_VOID;
+    args.rval().setUndefined();
     return true;
 }
 
@@ -565,14 +565,14 @@ ValidateGC(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    if (argc != 1) {
+    if (args.length() != 1) {
         RootedObject callee(cx, &args.callee());
         ReportUsageError(cx, callee, "Wrong number of arguments");
         return false;
     }
 
-    gc::SetValidateGC(cx, ToBoolean(vp[2]));
-    *vp = JSVAL_VOID;
+    gc::SetValidateGC(cx, ToBoolean(args[0]));
+    args.rval().setUndefined();
     return true;
 }
 
@@ -581,14 +581,14 @@ FullCompartmentChecks(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    if (argc != 1) {
+    if (args.length() != 1) {
         RootedObject callee(cx, &args.callee());
         ReportUsageError(cx, callee, "Wrong number of arguments");
         return false;
     }
 
-    gc::SetFullCompartmentChecks(cx, ToBoolean(vp[2]));
-    *vp = JSVAL_VOID;
+    gc::SetFullCompartmentChecks(cx, ToBoolean(args[0]));
+    args.rval().setUndefined();
     return true;
 }
 
@@ -685,6 +685,8 @@ static const struct TraceKindPair {
 static bool
 CountHeap(JSContext *cx, unsigned argc, jsval *vp)
 {
+    CallArgs args = CallArgsFromVp(argc, vp);
+
     jsval v;
     int32_t traceKind;
     JSString *str;
@@ -693,8 +695,8 @@ CountHeap(JSContext *cx, unsigned argc, jsval *vp)
     size_t counter;
 
     RootedValue startValue(cx, UndefinedValue());
-    if (argc > 0) {
-        v = JS_ARGV(cx, vp)[0];
+    if (args.length() > 0) {
+        v = args[0];
         if (JSVAL_IS_TRACEABLE(v)) {
             startValue = v;
         } else if (!JSVAL_IS_NULL(v)) {
@@ -706,8 +708,8 @@ CountHeap(JSContext *cx, unsigned argc, jsval *vp)
     }
 
     traceKind = -1;
-    if (argc > 1) {
-        str = JS_ValueToString(cx, JS_ARGV(cx, vp)[1]);
+    if (args.length() > 1) {
+        str = ToString(cx, args[0]);
         if (!str)
             return false;
         JSFlatString *flatStr = JS_FlattenString(cx, str);
@@ -774,13 +776,9 @@ OOMAfterAllocations(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    int32_t count;
-    if (!JS_ValueToInt32(cx, args[0], &count))
+    uint32_t count;
+    if (!JS::ToUint32(cx, args[0], &count))
         return false;
-    if (count <= 0) {
-        JS_ReportError(cx, "count argument must be positive");
-        return false;
-    }
 
     OOM_maxAllocations = OOM_counter + count;
     return true;
@@ -1306,7 +1304,7 @@ Deserialize(JSContext *cx, unsigned argc, jsval *vp)
 
     RootedValue deserialized(cx);
     if (!JS_ReadStructuredClone(cx, obj->data(), obj->nbytes(),
-                                JS_STRUCTURED_CLONE_VERSION, &deserialized, NULL, NULL)) {
+                                JS_STRUCTURED_CLONE_VERSION, &deserialized, nullptr, nullptr)) {
         return false;
     }
     args.rval().set(deserialized);
@@ -1331,13 +1329,7 @@ Neuter(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    void *contents;
-    uint8_t *data;
-    if (!JS_StealArrayBufferContents(cx, obj, &contents, &data))
-        return false;
-
-    js_free(contents);
-    return true;
+    return JS_NeuterArrayBuffer(cx, obj);
 }
 
 static const JSFunctionSpecWithHelp TestingFunctions[] = {

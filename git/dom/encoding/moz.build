@@ -10,12 +10,14 @@ MODULE = 'dom'
 
 EXPORTS.mozilla.dom += [
     'EncodingUtils.h',
+    'FallbackEncoding.h',
     'TextDecoder.h',
     'TextEncoder.h',
 ]
 
 SOURCES += [
     'EncodingUtils.cpp',
+    'FallbackEncoding.cpp',
     'TextDecoder.cpp',
     'TextEncoder.cpp',
 ]
@@ -25,4 +27,8 @@ FAIL_ON_WARNINGS = True
 LIBXUL_LIBRARY = True
 
 LIBRARY_NAME = 'domencoding_s'
+
+LOCAL_INCLUDES += [
+    '/intl/locale/src',
+]
 

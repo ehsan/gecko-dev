@@ -85,7 +85,7 @@ public:
    * Finds previously assigned ViewID for the given content element, if any.
    * Returns whether a ViewID was previously assigned.
    */
-  static bool FindIDFor(nsIContent* aContent, ViewID* aOutViewId);
+  static bool FindIDFor(const nsIContent* aContent, ViewID* aOutViewId);
 
   /**
    * Finds previously assigned or generates a unique ViewID for the given
@@ -1631,6 +1631,12 @@ public:
    */
   static bool HasAnimationsForCompositor(nsIContent* aContent,
                                          nsCSSProperty aProperty);
+
+  /**
+   * Returns true if the content node has animations or transitions for the
+   * property.
+   */
+  static bool HasAnimations(nsIContent* aContent, nsCSSProperty aProperty);
 
   /**
    * Checks if off-main-thread animations are enabled.

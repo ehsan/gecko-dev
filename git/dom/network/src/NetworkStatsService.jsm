@@ -38,6 +38,11 @@ XPCOMUtils.defineLazyServiceGetter(this, "networkManager",
                                    "@mozilla.org/network/manager;1",
                                    "nsINetworkManager");
 
+
+XPCOMUtils.defineLazyServiceGetter(this, "networkService",
+                                   "@mozilla.org/network/service;1",
+                                   "nsINetworkService");
+
 XPCOMUtils.defineLazyServiceGetter(this, "appsService",
                                    "@mozilla.org/AppsService;1",
                                    "nsIAppsService");
@@ -45,12 +50,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "appsService",
 XPCOMUtils.defineLazyServiceGetter(this, "gSettingsService",
                                    "@mozilla.org/settingsService;1",
                                    "nsISettingsService");
-
-XPCOMUtils.defineLazyGetter(this, "gRadioInterface", function () {
-  let ril = Cc["@mozilla.org/ril;1"].getService(Ci["nsIRadioInterfaceLayer"]);
-  // TODO: Bug 923382 - B2G Multi-SIM: support multiple SIM cards for network metering.
-  return ril.getRadioInterface(0);
-});
 
 this.NetworkStatsService = {
   init: function() {
@@ -202,10 +201,13 @@ this.NetworkStatsService = {
 
     let id = '0';
     if (aNetwork.type == NET_TYPE_MOBILE) {
-      // Bug 904542 will provide the serviceId to map the iccId with the
-      // nsINetworkInterface of the NetworkManager. Now, lets assume that
-      // network is mapped with the current iccId of the single SIM.
-      id = gRadioInterface.rilContext.iccInfo.iccid;
+      if (!(aNetwork instanceof Ci.nsIRilNetworkInterface)) {
+        debug("Error! Mobile network should be an nsIRilNetworkInterface!");
+        return null;
+      }
+
+      let rilNetwork = aNetwork.QueryInterface(Ci.nsIRilNetworkInterface);
+      id = rilNetwork.iccId;
     }
 
     let netId = this.getNetworkId(id, aNetwork.type);
@@ -271,12 +273,13 @@ this.NetworkStatsService = {
       debug("getstats for network " + network.id + " of type " + network.type);
       debug("appId: " + appId + " from manifestURL: " + manifestURL);
 
-      self._db.find(function onStatsFound(aError, aResult) {
-        mm.sendAsyncMessage("NetworkStats:Get:Return",
-                            { id: msg.id, error: aError, result: aResult });
-      }, network, start, end, appId, manifestURL);
-
-    });
+      this.updateCachedAppStats(function onAppStatsUpdated(aResult, aMessage) {
+        self._db.find(function onStatsFound(aError, aResult) {
+          mm.sendAsyncMessage("NetworkStats:Get:Return",
+                              { id: msg.id, error: aError, result: aResult });
+        }, network, start, end, appId, manifestURL);
+      });
+    }.bind(this));
   },
 
   clearInterfaceStats: function clearInterfaceStats(mm, msg) {
@@ -364,6 +367,7 @@ this.NetworkStatsService = {
       this.updateQueue.push({netId: aNetId, callbacks: [aCallback]});
     } else {
       this.updateQueue[index].callbacks.push(aCallback);
+      return;
     }
 
     // Call the function that process the elements of the queue.
@@ -430,7 +434,7 @@ this.NetworkStatsService = {
     // Request stats to NetworkManager, which will get stats from netd, passing
     // 'networkStatsAvailable' as a callback.
     if (interfaceName) {
-      networkManager.getNetworkInterfaceStats(interfaceName,
+      networkService.getNetworkInterfaceStats(interfaceName,
                 this.networkStatsAvailable.bind(this, aCallback, aNetId));
       return;
     }
@@ -564,6 +568,10 @@ this.NetworkStatsService = {
     let stats = Object.keys(this.cachedAppStats);
     if (stats.length == 0) {
       // |cachedAppStats| is empty, no need to update.
+      if (aCallback) {
+        aCallback(true, "no need to update");
+      }
+
       return;
     }
 

@@ -114,7 +114,7 @@ TypedObjectPointer.prototype.moveTo = function(propName) {
     // the type *object*; this is because some type objects represent
     // unsized arrays and hence do not have a length.
     var index = TO_INT32(propName);
-    if (index === propName && index < REPR_LENGTH(this.typeRepr))
+    if (index === propName && index >= 0 && index < REPR_LENGTH(this.typeRepr))
       return this.moveToElem(index);
     break;
 
@@ -133,7 +133,9 @@ TypedObjectPointer.prototype.moveTo = function(propName) {
 TypedObjectPointer.prototype.moveToElem = function(index) {
   assert(this.kind() == JS_TYPEREPR_ARRAY_KIND,
          "moveToElem invoked on non-array");
-  assert(index < REPR_LENGTH(this.typeRepr),
+  assert(TO_INT32(index) === index,
+         "moveToElem invoked with non-integer index");
+  assert(index >= 0 && index < REPR_LENGTH(this.typeRepr),
          "moveToElem invoked with out-of-bounds index");
 
   var elementTypeObj = this.typeObj.elementType;
@@ -404,6 +406,82 @@ function FillTypedArrayWithValue(destArray, fromValue) {
     Memcpy(destArray, offset, destArray, 0, elementSize);
 }
 
+// Warning: user exposed!
+function TypeObjectEquivalent(otherTypeObj) {
+  if (!IsObject(this) || !ObjectIsTypeObject(this))
+    ThrowError(JSMSG_TYPEDOBJECT_HANDLE_BAD_ARGS, "this", "type object");
+  if (!IsObject(otherTypeObj) || !ObjectIsTypeObject(otherTypeObj))
+    ThrowError(JSMSG_TYPEDOBJECT_HANDLE_BAD_ARGS, "1", "type object");
+  return TYPE_TYPE_REPR(this) === TYPE_TYPE_REPR(otherTypeObj);
+}
+
+// TypedArray.redimension(newArrayType)
+//
+// Method that "repackages" the data from this array into a new typed
+// object whose type is `newArrayType`. Once you strip away all the
+// outer array dimensions, the type of `this` array and `newArrayType`
+// must share the same innermost element type. Moreover, those
+// stripped away dimensions must amount to the same total number of
+// elements.
+//
+// For example, given two equivalent types `T` and `U`, it is legal to
+// interconvert between arrays types like:
+//     T[32]
+//     U[2][16]
+//     U[2][2][8]
+// Because they all share the same total number (32) of equivalent elements.
+// But it would be illegal to convert `T[32]` to `U[31]` or `U[2][17]`, since
+// the number of elements differs. And it's just plain incompatible to convert
+// if the base element types are not equivalent.
+//
+// Warning: user exposed!
+function TypedArrayRedimension(newArrayType) {
+  if (!IsObject(this) || !ObjectIsTypedDatum(this))
+    ThrowError(JSMSG_TYPEDOBJECT_HANDLE_BAD_ARGS, "this", "typed array");
+
+  if (!IsObject(newArrayType) || !ObjectIsTypeObject(newArrayType))
+    ThrowError(JSMSG_TYPEDOBJECT_HANDLE_BAD_ARGS, 1, "type object");
+
+  // Peel away the outermost array layers from the type of `this` to find
+  // the core element type. In the process, count the number of elements.
+  var oldArrayType = DATUM_TYPE_OBJ(this);
+  var oldElementType = oldArrayType;
+  var oldElementCount = 1;
+  while (REPR_KIND(TYPE_TYPE_REPR(oldElementType)) == JS_TYPEREPR_ARRAY_KIND) {
+    oldElementCount *= oldElementType.length;
+    oldElementType = oldElementType.elementType;
+  }
+
+  // Peel away the outermost array layers from `newArrayType`. In the
+  // process, count the number of elements.
+  var newElementType = newArrayType;
+  var newElementCount = 1;
+  while (REPR_KIND(TYPE_TYPE_REPR(newElementType)) == JS_TYPEREPR_ARRAY_KIND) {
+    newElementCount *= newElementType.length;
+    newElementType = newElementType.elementType;
+  }
+
+  // Check that the total number of elements does not change.
+  if (oldElementCount !== newElementCount) {
+    ThrowError(JSMSG_TYPEDOBJECT_HANDLE_BAD_ARGS, 1,
+               "New number of elements does not match old number of elements");
+  }
+
+  // Check that the element types are equivalent.
+  if (TYPE_TYPE_REPR(oldElementType) !== TYPE_TYPE_REPR(newElementType)) {
+    ThrowError(JSMSG_TYPEDOBJECT_HANDLE_BAD_ARGS, 1,
+               "New element type is not equivalent to old element type");
+  }
+
+  // Together, this should imply that the sizes are unchanged.
+  assert(REPR_SIZE(TYPE_TYPE_REPR(oldArrayType)) ==
+         REPR_SIZE(TYPE_TYPE_REPR(newArrayType)),
+         "Byte sizes should be equal");
+
+  // Rewrap the data from `this` in a new type.
+  return NewDerivedTypedDatum(newArrayType, this, 0);
+}
+
 ///////////////////////////////////////////////////////////////////////////
 // Handles
 //
@@ -440,7 +518,7 @@ function HandleMoveInternal(handle, obj, path) {
          "HandleMoveInternal: not typed handle");
 
   if (!IsObject(obj) || !ObjectIsTypedDatum(obj))
-    ThrowError(JSMSG_INCOMPATIBLE_PROTO);
+    ThrowError(JSMSG_INCOMPATIBLE_PROTO, "Handle", "set", "value");
 
   var ptr = TypedObjectPointer.fromTypedDatum(obj);
   for (var i = 0; i < path.length; i++)

@@ -462,7 +462,7 @@ DeserializeName(ExclusiveContext *cx, const uint8_t *cursor, PropertyName **name
     cursor = ReadScalar<uint32_t>(cursor, &length);
 
     if (length == 0) {
-        *name = NULL;
+        *name = nullptr;
         return cursor;
     }
 
@@ -471,16 +471,16 @@ DeserializeName(ExclusiveContext *cx, const uint8_t *cursor, PropertyName **name
     if ((size_t(cursor) & (sizeof(jschar) - 1)) != 0) {
         // Align 'src' for AtomizeChars.
         if (!tmp.resize(length))
-            return NULL;
+            return nullptr;
         memcpy(tmp.begin(), cursor, length * sizeof(jschar));
         src = tmp.begin();
     } else {
         src = (jschar *)cursor;
     }
 
-    JSAtom *atom = AtomizeChars<CanGC>(cx, src, length);
+    JSAtom *atom = AtomizeChars(cx, src, length);
     if (!atom)
-        return NULL;
+        return nullptr;
 
     *name = atom->asPropertyName();
     return cursor + length * sizeof(jschar);
@@ -513,10 +513,10 @@ DeserializeVector(ExclusiveContext *cx, const uint8_t *cursor, Vector<T, 0, Syst
     uint32_t length;
     cursor = ReadScalar<uint32_t>(cursor, &length);
     if (!vec->resize(length))
-        return NULL;
+        return nullptr;
     for (size_t i = 0; i < vec->length(); i++) {
         if (!(cursor = (*vec)[i].deserialize(cx, cursor)))
-            return NULL;
+            return nullptr;
     }
     return cursor;
 }
@@ -546,7 +546,7 @@ DeserializePodVector(ExclusiveContext *cx, const uint8_t *cursor,
     uint32_t length;
     cursor = ReadScalar<uint32_t>(cursor, &length);
     if (!vec->resize(length))
-        return NULL;
+        return nullptr;
     cursor = ReadBytes(cursor, vec->begin(), length * sizeof(T));
     return cursor;
 }
@@ -731,9 +731,11 @@ GetCPUID(uint32_t *cpuId)
 class MachineId
 {
     uint32_t cpuId_;
-    mozilla::Vector<char> buildId_;
+    js::Vector<char> buildId_;
 
   public:
+    MachineId(ExclusiveContext *cx) : buildId_(cx) {}
+
     bool extractCurrentState(ExclusiveContext *cx) {
         if (!cx->asmJSCacheOps().buildId)
             return false;
@@ -776,7 +778,7 @@ struct PropertyNameWrapper
     PropertyName *name;
 
     PropertyNameWrapper()
-      : name(NULL)
+      : name(nullptr)
     {}
     PropertyNameWrapper(PropertyName *name)
       : name(name)
@@ -860,7 +862,8 @@ class ModuleChars
         uint32_t parseBeginOffset = parser.pc->maybeFunction->pn_pos.begin;
         const jschar *parseBegin = parser.tokenStream.rawBase() + parseBeginOffset;
         const jschar *parseLimit = parser.tokenStream.rawLimit();
-        if (parseLimit - parseBegin < length_)
+        JS_ASSERT(parseLimit >= parseBegin);
+        if (uint32_t(parseLimit - parseBegin) < length_)
             return false;
         if (!PodEqual(begin_, parseBegin, length_))
             return false;
@@ -897,7 +900,7 @@ struct ScopedCacheEntryOpenedForWrite
     intptr_t handle;
 
     ScopedCacheEntryOpenedForWrite(ExclusiveContext *cx, size_t serializedSize)
-      : cx(cx), serializedSize(serializedSize), memory(NULL), handle(-1)
+      : cx(cx), serializedSize(serializedSize), memory(nullptr), handle(-1)
     {}
 
     ~ScopedCacheEntryOpenedForWrite() {
@@ -912,7 +915,7 @@ js::StoreAsmJSModuleInCache(AsmJSParser &parser,
                             const AsmJSStaticLinkData &linkData,
                             ExclusiveContext *cx)
 {
-    MachineId machineId;
+    MachineId machineId(cx);
     if (!machineId.extractCurrentState(cx))
         return;
 
@@ -950,7 +953,7 @@ struct ScopedCacheEntryOpenedForRead
     intptr_t handle;
 
     ScopedCacheEntryOpenedForRead(ExclusiveContext *cx)
-      : cx(cx), serializedSize(0), memory(NULL), handle(0)
+      : cx(cx), serializedSize(0), memory(nullptr), handle(0)
     {}
 
     ~ScopedCacheEntryOpenedForRead() {
@@ -967,7 +970,7 @@ js::LookupAsmJSModuleInCache(ExclusiveContext *cx,
 {
     int64_t usecBefore = PRMJ_Now();
 
-    MachineId machineId;
+    MachineId machineId(cx);
     if (!machineId.extractCurrentState(cx))
         return true;
 
@@ -981,7 +984,7 @@ js::LookupAsmJSModuleInCache(ExclusiveContext *cx,
 
     const uint8_t *cursor = entry.memory;
 
-    MachineId cachedMachineId;
+    MachineId cachedMachineId(cx);
     cursor = cachedMachineId.deserialize(cx, cursor);
     if (!cursor)
         return false;

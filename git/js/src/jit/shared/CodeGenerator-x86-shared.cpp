@@ -194,9 +194,13 @@ CodeGeneratorX86Shared::visitCompareD(LCompareD *comp)
     FloatRegister rhs = ToFloatRegister(comp->right());
 
     Assembler::DoubleCondition cond = JSOpToDoubleCondition(comp->mir()->jsop());
+
+    Assembler::NaNCond nanCond = Assembler::NaNCondFromDoubleCondition(cond);
+    if (comp->mir()->operandsAreNeverNaN())
+        nanCond = Assembler::NaN_HandledByCond;
+
     masm.compareDouble(cond, lhs, rhs);
-    masm.emitSet(Assembler::ConditionFromDoubleCondition(cond), ToRegister(comp->output()),
-            Assembler::NaNCondFromDoubleCondition(cond));
+    masm.emitSet(Assembler::ConditionFromDoubleCondition(cond), ToRegister(comp->output()), nanCond);
     return true;
 }
 
@@ -207,9 +211,13 @@ CodeGeneratorX86Shared::visitCompareF(LCompareF *comp)
     FloatRegister rhs = ToFloatRegister(comp->right());
 
     Assembler::DoubleCondition cond = JSOpToDoubleCondition(comp->mir()->jsop());
+
+    Assembler::NaNCond nanCond = Assembler::NaNCondFromDoubleCondition(cond);
+    if (comp->mir()->operandsAreNeverNaN())
+        nanCond = Assembler::NaN_HandledByCond;
+
     masm.compareFloat(cond, lhs, rhs);
-    masm.emitSet(Assembler::ConditionFromDoubleCondition(cond), ToRegister(comp->output()),
-            Assembler::NaNCondFromDoubleCondition(cond));
+    masm.emitSet(Assembler::ConditionFromDoubleCondition(cond), ToRegister(comp->output()), nanCond);
     return true;
 }
 
@@ -226,9 +234,15 @@ CodeGeneratorX86Shared::visitNotD(LNotD *ins)
 {
     FloatRegister opd = ToFloatRegister(ins->input());
 
+    // Not returns true if the input is a NaN. We don't have to worry about
+    // it if we know the input is never NaN though.
+    Assembler::NaNCond nanCond = Assembler::NaN_IsTrue;
+    if (ins->mir()->operandIsNeverNaN())
+        nanCond = Assembler::NaN_HandledByCond;
+
     masm.xorpd(ScratchFloatReg, ScratchFloatReg);
     masm.compareDouble(Assembler::DoubleEqualOrUnordered, opd, ScratchFloatReg);
-    masm.emitSet(Assembler::Equal, ToRegister(ins->output()), Assembler::NaN_IsTrue);
+    masm.emitSet(Assembler::Equal, ToRegister(ins->output()), nanCond);
     return true;
 }
 
@@ -237,9 +251,15 @@ CodeGeneratorX86Shared::visitNotF(LNotF *ins)
 {
     FloatRegister opd = ToFloatRegister(ins->input());
 
+    // Not returns true if the input is a NaN. We don't have to worry about
+    // it if we know the input is never NaN though.
+    Assembler::NaNCond nanCond = Assembler::NaN_IsTrue;
+    if (ins->mir()->operandIsNeverNaN())
+        nanCond = Assembler::NaN_HandledByCond;
+
     masm.xorps(ScratchFloatReg, ScratchFloatReg);
     masm.compareFloat(Assembler::DoubleEqualOrUnordered, opd, ScratchFloatReg);
-    masm.emitSet(Assembler::Equal, ToRegister(ins->output()), Assembler::NaN_IsTrue);
+    masm.emitSet(Assembler::Equal, ToRegister(ins->output()), nanCond);
     return true;
 }
 
@@ -250,9 +270,13 @@ CodeGeneratorX86Shared::visitCompareDAndBranch(LCompareDAndBranch *comp)
     FloatRegister rhs = ToFloatRegister(comp->right());
 
     Assembler::DoubleCondition cond = JSOpToDoubleCondition(comp->mir()->jsop());
+
+    Assembler::NaNCond nanCond = Assembler::NaNCondFromDoubleCondition(cond);
+    if (comp->mir()->operandsAreNeverNaN())
+        nanCond = Assembler::NaN_HandledByCond;
+
     masm.compareDouble(cond, lhs, rhs);
-    emitBranch(Assembler::ConditionFromDoubleCondition(cond), comp->ifTrue(), comp->ifFalse(),
-               Assembler::NaNCondFromDoubleCondition(cond));
+    emitBranch(Assembler::ConditionFromDoubleCondition(cond), comp->ifTrue(), comp->ifFalse(), nanCond);
     return true;
 }
 
@@ -263,9 +287,13 @@ CodeGeneratorX86Shared::visitCompareFAndBranch(LCompareFAndBranch *comp)
     FloatRegister rhs = ToFloatRegister(comp->right());
 
     Assembler::DoubleCondition cond = JSOpToDoubleCondition(comp->mir()->jsop());
+
+    Assembler::NaNCond nanCond = Assembler::NaNCondFromDoubleCondition(cond);
+    if (comp->mir()->operandsAreNeverNaN())
+        nanCond = Assembler::NaN_HandledByCond;
+
     masm.compareFloat(cond, lhs, rhs);
-    emitBranch(Assembler::ConditionFromDoubleCondition(cond), comp->ifTrue(), comp->ifFalse(),
-               Assembler::NaNCondFromDoubleCondition(cond));
+    emitBranch(Assembler::ConditionFromDoubleCondition(cond), comp->ifTrue(), comp->ifFalse(), nanCond);
     return true;
 }
 
@@ -523,19 +551,29 @@ CodeGeneratorX86Shared::visitPowHalfD(LPowHalfD *ins)
 
     Label done, sqrt;
 
-    // Branch if not -Infinity.
-    masm.loadConstantDouble(NegativeInfinity(), ScratchFloatReg);
-    masm.branchDouble(Assembler::DoubleNotEqualOrUnordered, input, ScratchFloatReg, &sqrt);
+    if (!ins->mir()->operandIsNeverNegativeInfinity()) {
+        // Branch if not -Infinity.
+        masm.loadConstantDouble(NegativeInfinity(), ScratchFloatReg);
 
-    // Math.pow(-Infinity, 0.5) == Infinity.
-    masm.xorpd(input, input);
-    masm.subsd(ScratchFloatReg, input);
-    masm.jump(&done);
+        Assembler::DoubleCondition cond = Assembler::DoubleNotEqualOrUnordered;
+        if (ins->mir()->operandIsNeverNaN())
+            cond = Assembler::DoubleNotEqual;
+        masm.branchDouble(cond, input, ScratchFloatReg, &sqrt);
 
-    // Math.pow(-0, 0.5) == 0 == Math.pow(0, 0.5). Adding 0 converts any -0 to 0.
-    masm.bind(&sqrt);
-    masm.xorpd(ScratchFloatReg, ScratchFloatReg);
-    masm.addsd(ScratchFloatReg, input);
+        // Math.pow(-Infinity, 0.5) == Infinity.
+        masm.xorpd(input, input);
+        masm.subsd(ScratchFloatReg, input);
+        masm.jump(&done);
+
+        masm.bind(&sqrt);
+    }
+
+    if (!ins->mir()->operandIsNeverNegativeZero()) {
+        // Math.pow(-0, 0.5) == 0 == Math.pow(0, 0.5). Adding 0 converts any -0 to 0.
+        masm.xorpd(ScratchFloatReg, ScratchFloatReg);
+        masm.addsd(ScratchFloatReg, input);
+    }
+
     masm.sqrtsd(input, input);
 
     masm.bind(&done);
@@ -1436,6 +1474,73 @@ CodeGeneratorX86Shared::visitFloor(LFloor *lir)
             // Test whether the input double was integer-valued.
             masm.convertInt32ToDouble(output, scratch);
             masm.branchDouble(Assembler::DoubleEqualOrUnordered, input, scratch, &end);
+
+            // Input is not integer-valued, so we rounded off-by-one in the
+            // wrong direction. Correct by subtraction.
+            masm.subl(Imm32(1), output);
+            // Cannot overflow: output was already checked against INT_MIN.
+        }
+
+        masm.bind(&end);
+    }
+    return true;
+}
+
+bool
+CodeGeneratorX86Shared::visitFloorF(LFloorF *lir)
+{
+    FloatRegister input = ToFloatRegister(lir->input());
+    FloatRegister scratch = ScratchFloatReg;
+    Register output = ToRegister(lir->output());
+
+    if (AssemblerX86Shared::HasSSE41()) {
+        // Bail on negative-zero.
+        Assembler::Condition bailCond = masm.testNegativeZeroFloat32(input, output);
+        if (!bailoutIf(bailCond, lir->snapshot()))
+            return false;
+
+        // Round toward -Infinity.
+        masm.roundss(input, scratch, JSC::X86Assembler::RoundDown);
+
+        masm.cvttss2si(scratch, output);
+        masm.cmp32(output, Imm32(INT_MIN));
+        if (!bailoutIf(Assembler::Equal, lir->snapshot()))
+            return false;
+    } else {
+        Label negative, end;
+
+        // Branch to a slow path for negative inputs. Doesn't catch NaN or -0.
+        masm.xorps(scratch, scratch);
+        masm.branchFloat(Assembler::DoubleLessThan, input, scratch, &negative);
+
+        // Bail on negative-zero.
+        Assembler::Condition bailCond = masm.testNegativeZeroFloat32(input, output);
+        if (!bailoutIf(bailCond, lir->snapshot()))
+            return false;
+
+        // Input is non-negative, so truncation correctly rounds.
+        masm.cvttss2si(input, output);
+        masm.cmp32(output, Imm32(INT_MIN));
+        if (!bailoutIf(Assembler::Equal, lir->snapshot()))
+            return false;
+
+        masm.jump(&end);
+
+        // Input is negative, but isn't -0.
+        // Negative values go on a comparatively expensive path, since no
+        // native rounding mode matches JS semantics. Still better than callVM.
+        masm.bind(&negative);
+        {
+            // Truncate and round toward zero.
+            // This is off-by-one for everything but integer-valued inputs.
+            masm.cvttss2si(input, output);
+            masm.cmp32(output, Imm32(INT_MIN));
+            if (!bailoutIf(Assembler::Equal, lir->snapshot()))
+                return false;
+
+            // Test whether the input double was integer-valued.
+            masm.convertInt32ToFloat32(output, scratch);
+            masm.branchFloat(Assembler::DoubleEqualOrUnordered, input, scratch, &end);
 
             // Input is not integer-valued, so we rounded off-by-one in the
             // wrong direction. Correct by subtraction.

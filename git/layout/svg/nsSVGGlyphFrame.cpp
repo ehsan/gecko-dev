@@ -12,6 +12,7 @@
 #include "gfxContext.h"
 #include "gfxMatrix.h"
 #include "gfxPlatform.h"
+#include "mozilla/gfx/2D.h"
 #include "mozilla/LookAndFeel.h"
 #include "nsBidiPresUtils.h"
 #include "nsDisplayList.h"
@@ -28,6 +29,7 @@
 #include "SVGLengthList.h"
 
 using namespace mozilla;
+using namespace mozilla::gfx;
 
 struct CharacterPosition {
   gfxPoint pos;
@@ -35,8 +37,9 @@ struct CharacterPosition {
   bool draw;
 };
 
-static gfxContext* MakeTmpCtx() {
-  return new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
+static already_AddRefed<gfxContext> MakeTmpCtx() {
+  nsRefPtr<gfxContext> ctx = new gfxContext(gfxPlatform::GetPlatform()->ScreenReferenceDrawTarget());
+  return ctx.forget();
 }
 
 /**
@@ -520,7 +523,7 @@ nsSVGGlyphFrame::ReflowSVG()
   if ((hitTestFlags & SVG_HIT_TEST_STROKE)) {
    flags |= nsSVGUtils::eBBoxIncludeStrokeGeometry;
   }
-  gfxRect extent = GetBBoxContribution(gfxMatrix(), flags);
+  gfxRect extent = GetBBoxContribution(gfxMatrix(), flags).ToThebesRect();
 
   if (!extent.IsEmpty()) {
     mRect = nsLayoutUtils::RoundGfxRectToAppRect(extent, 
@@ -738,14 +741,16 @@ nsSVGGlyphFrame::GetCharacterPositions(nsTArray<CharacterPosition>* aCharacterPo
   nsSVGTextPathFrame *textPath = FindTextPathParent();
 
   if (textPath) {
-    nsRefPtr<gfxPath> data = textPath->GetPath();
+    RefPtr<Path> path = textPath->GetPath();
 
     // textPath frame, but invalid target
-    if (!data)
+    if (!path)
       return false;
 
     if (!aCharacterPositions->SetLength(strLength))
       return false;
+
+    nsRefPtr<gfxPath> data = new gfxPath(path);
 
     gfxFloat pathScale = textPath->GetOffsetScale();
 

@@ -170,16 +170,13 @@ js::DebugExceptionUnwind(JSContext *cx, AbstractFramePtr frame, jsbytecode *pc)
 JS_FRIEND_API(bool)
 JS_SetDebugModeForAllCompartments(JSContext *cx, bool debug)
 {
-    for (ZonesIter zone(cx->runtime()); !zone.done(); zone.next()) {
-        // Invalidate a zone at a time to avoid doing a zone-wide CellIter
-        // per compartment.
-        AutoDebugModeInvalidation invalidate(zone);
-        for (CompartmentsInZoneIter c(zone); !c.done(); c.next()) {
-            // Ignore special compartments (atoms, JSD compartments)
-            if (c->principals) {
-                if (!c->setDebugModeFromC(cx, !!debug, invalidate))
-                    return false;
-            }
+    AutoDebugModeGC dmgc(cx->runtime());
+
+    for (CompartmentsIter c(cx->runtime(), SkipAtoms); !c.done(); c.next()) {
+        // Ignore special compartments (atoms, JSD compartments)
+        if (c->principals) {
+            if (!c->setDebugModeFromC(cx, !!debug, dmgc))
+                return false;
         }
     }
     return true;
@@ -188,8 +185,8 @@ JS_SetDebugModeForAllCompartments(JSContext *cx, bool debug)
 JS_FRIEND_API(bool)
 JS_SetDebugModeForCompartment(JSContext *cx, JSCompartment *comp, bool debug)
 {
-    AutoDebugModeInvalidation invalidate(comp);
-    return comp->setDebugModeFromC(cx, !!debug, invalidate);
+    AutoDebugModeGC dmgc(cx->runtime());
+    return comp->setDebugModeFromC(cx, !!debug, dmgc);
 }
 
 static bool
@@ -757,10 +754,10 @@ JS_PutPropertyDescArray(JSContext *cx, JSPropertyDescArray *pda)
 
     pd = pda->array;
     for (i = 0; i < pda->length; i++) {
-        js_RemoveRoot(cx->runtime(), &pd[i].id);
-        js_RemoveRoot(cx->runtime(), &pd[i].value);
+        RemoveRoot(cx->runtime(), &pd[i].id);
+        RemoveRoot(cx->runtime(), &pd[i].value);
         if (pd[i].flags & JSPD_ALIAS)
-            js_RemoveRoot(cx->runtime(), &pd[i].alias);
+            RemoveRoot(cx->runtime(), &pd[i].alias);
     }
     js_free(pd);
     pda->array = nullptr;
@@ -1032,11 +1029,19 @@ FormatValue(JSContext *cx, const Value &vArg, JSAutoByteString &bytes)
 {
     RootedValue v(cx, vArg);
 
-    mozilla::Maybe<AutoCompartment> ac;
-    if (v.isObject())
-        ac.construct(cx, &v.toObject());
+    /*
+     * We could use Maybe<AutoCompartment> here, but G++ can't quite follow
+     * that, and warns about uninitialized members being used in the
+     * destructor.
+     */
+    RootedString str(cx);
+    if (v.isObject()) {
+        AutoCompartment ac(cx, &v.toObject());
+        str = ToString<CanGC>(cx, v);
+    } else {
+        str = ToString<CanGC>(cx, v);
+    }
 
-    JSString *str = ToString<CanGC>(cx, v);
     if (!str)
         return nullptr;
     const char *buf = bytes.encodeLatin1(cx, str);
@@ -1119,7 +1124,7 @@ FormatFrame(JSContext *cx, const NonBuiltinScriptFrameIter &iter, char *buf, int
             if (i < bindings.length()) {
                 name = nameBytes.encodeLatin1(cx, bindings[i].name());
                 if (!buf)
-                    return NULL;
+                    return nullptr;
             }
 
             if (value) {

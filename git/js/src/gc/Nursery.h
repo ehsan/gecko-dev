@@ -117,7 +117,10 @@ class Nursery
     static const uint8_t FreshNursery = 0x2a;
     static const uint8_t SweptNursery = 0x2b;
     static const uint8_t AllocatedThing = 0x2c;
-    void enterZealMode() { numActiveChunks_ = NumNurseryChunks; }
+    void enterZealMode() {
+        if (isEnabled())
+            numActiveChunks_ = NumNurseryChunks;
+    }
 #endif
 
   private:
@@ -152,16 +155,17 @@ class Nursery
     static const size_t MaxNurserySlots = 100;
 
     /* The amount of space in the mapped nursery available to allocations. */
-    static const size_t NurseryChunkUsableSize = gc::ChunkSize - sizeof(JSRuntime *);
+    static const size_t NurseryChunkUsableSize = gc::ChunkSize - sizeof(gc::ChunkTrailer);
 
     struct NurseryChunkLayout {
         char data[NurseryChunkUsableSize];
-        JSRuntime *runtime;
+        gc::ChunkTrailer trailer;
         uintptr_t start() { return uintptr_t(&data); }
-        uintptr_t end() { return uintptr_t(&runtime); }
+        uintptr_t end() { return uintptr_t(&trailer); }
     };
+    static_assert(sizeof(NurseryChunkLayout) == gc::ChunkSize,
+                  "Nursery chunk size must match gc::Chunk size.");
     NurseryChunkLayout &chunk(int index) const {
-        JS_STATIC_ASSERT(sizeof(NurseryChunkLayout) == gc::ChunkSize);
         JS_ASSERT(index < NumNurseryChunks);
         JS_ASSERT(start());
         return reinterpret_cast<NurseryChunkLayout *>(start())[index];

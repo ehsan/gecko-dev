@@ -189,6 +189,30 @@
      };
 
      /**
+      * Set the last access and modification date of the file.
+      * The time stamp resolution is 1 second at best, but might be worse
+      * depending on the platform.
+      *
+      * @param {Date,number=} accessDate The last access date. If numeric,
+      * milliseconds since epoch. If omitted or null, then the current date
+      * will be used.
+      * @param {Date,number=} modificationDate The last modification date. If
+      * numeric, milliseconds since epoch. If omitted or null, then the current
+      * date will be used.
+      *
+      * @throws {TypeError} In case of invalid parameters.
+      * @throws {OS.File.Error} In case of I/O error.
+      */
+     File.prototype.setDates = function setDates(accessDate, modificationDate) {
+       accessDate = Date_to_FILETIME("File.prototype.setDates", accessDate);
+       modificationDate = Date_to_FILETIME("File.prototype.setDates",
+                                           modificationDate);
+       throw_on_zero("setDates",
+                     WinFile.SetFileTime(this.fd, null, accessDate.address(),
+                                         modificationDate.address()));
+     };
+
+     /**
       * Flushes the file's buffers and causes all buffered data
       * to be written.
       * Disk flushes are very expensive and therefore should be used carefully,
@@ -358,14 +382,27 @@
       * @throws {OS.File.Error} In case of I/O error.
       */
      File.remove = function remove(path, options = {}) {
-       let result = WinFile.DeleteFile(path);
-       if (!result) {
-         if ((!("ignoreAbsent" in options) || options.ignoreAbsent) &&
-             ctypes.winLastError == Const.ERROR_FILE_NOT_FOUND) {
+       if (WinFile.DeleteFile(path)) {
+         return;
+       }
+
+       if (ctypes.winLastError == Const.ERROR_FILE_NOT_FOUND) {
+         if ((!("ignoreAbsent" in options) || options.ignoreAbsent)) {
            return;
          }
-         throw new File.Error("remove");
+       } else if (ctypes.winLastError == Const.ERROR_ACCESS_DENIED) {
+         let attributes = WinFile.GetFileAttributes(path);
+         if (attributes != Const.INVALID_FILE_ATTRIBUTES &&
+             attributes & Const.FILE_ATTRIBUTE_READONLY) {
+           let newAttributes = attributes & ~Const.FILE_ATTRIBUTE_READONLY;
+           if (WinFile.SetFileAttributes(path, newAttributes) &&
+               WinFile.DeleteFile(path)) {
+             return;
+           }
+         }
        }
+
+       throw new File.Error("remove");
      };
 
      /**
@@ -373,13 +410,13 @@
       *
       * @param {string} path The name of the directory to remove.
       * @param {*=} options Additional options.
-      *   - {bool} ignoreAbsent If |true|, do not fail if the
-      *     directory does not exist yet.
+      *   - {bool} ignoreAbsent If |false|, throw an error if the directory
+      *     does not exist. |true| by default
       */
      File.removeEmptyDir = function removeEmptyDir(path, options = {}) {
        let result = WinFile.RemoveDirectory(path);
        if (!result) {
-         if (options.ignoreAbsent &&
+         if ((!("ignoreAbsent" in options) || options.ignoreAbsent) &&
              ctypes.winLastError == Const.ERROR_FILE_NOT_FOUND) {
            return;
          }
@@ -398,18 +435,19 @@
       * as per winapi function |CreateDirectory|. If unspecified,
       * use the default security descriptor, inherited from the
       * parent directory.
-      * - {bool} ignoreExisting If |true|, do not fail if the
-      * directory already exists.
+      * - {bool} ignoreExisting If |false|, throw an error if the directory
+      * already exists. |true| by default
       */
      File.makeDir = function makeDir(path, options = {}) {
        let security = options.winSecurity || null;
        let result = WinFile.CreateDirectory(path, security);
-       if (result ||
-           options.ignoreExisting &&
-           ctypes.winLastError == Const.ERROR_ALREADY_EXISTS) {
-        return;
+       if (!result) {
+         if ((!("ignoreExisting" in options) || options.ignoreExisting) &&
+             ctypes.winLastError == Const.ERROR_ALREADY_EXISTS) {
+           return;
+         }
+         throw new File.Error("makeDir");
        }
-       throw new File.Error("makeDir");
      };
 
      /**
@@ -505,6 +543,38 @@
                           gSystemTime.wMinute, gSystemTime.wSecond,
                           gSystemTime.wMilliSeconds);
        return new Date(utc);
+     };
+
+     /**
+      * Utility function: convert Javascript Date to FileTime.
+      *
+      * @param {string} fn Name of the calling function.
+      * @param {Date,number} date The date to be converted. If omitted or null,
+      * then the current date will be used. If numeric, assumed to be the date
+      * in milliseconds since epoch.
+      */
+     let Date_to_FILETIME = function Date_to_FILETIME(fn, date) {
+       if (typeof date === "number") {
+         date = new Date(date);
+       } else if (!date) {
+         date = new Date();
+       } else if (typeof date.getUTCFullYear !== "function") {
+         throw new TypeError("|date| parameter of " + fn + " must be a " +
+                             "|Date| instance or number");
+       }
+       gSystemTime.wYear = date.getUTCFullYear();
+       // Windows counts months from 1, JS from 0.
+       gSystemTime.wMonth = date.getUTCMonth() + 1;
+       gSystemTime.wDay = date.getUTCDate();
+       gSystemTime.wHour = date.getUTCHours();
+       gSystemTime.wMinute = date.getUTCMinutes();
+       gSystemTime.wSecond = date.getUTCSeconds();
+       gSystemTime.wMilliseconds = date.getUTCMilliseconds();
+       let result = new OS.Shared.Type.FILETIME.implementation();
+       throw_on_zero("Date_to_FILETIME",
+                     WinFile.SystemTimeToFileTime(gSystemTimePtr,
+                                                  result.address()));
+       return result;
      };
 
      /**
@@ -767,6 +837,50 @@
      const FILE_STAT_OPTIONS = {
        // Directories can be opened neither for reading(!) nor for writing
        winAccess: 0,
+       // Directories can only be opened with backup semantics(!)
+       winFlags: Const.FILE_FLAG_BACKUP_SEMANTICS,
+       winDisposition: Const.OPEN_EXISTING
+     };
+
+     /**
+      * Set the last access and modification date of the file.
+      * The time stamp resolution is 1 second at best, but might be worse
+      * depending on the platform.
+      *
+      * Performance note: if you have opened the file already in write mode,
+      * method |File.prototype.stat| is generally much faster
+      * than method |File.stat|.
+      *
+      * Platform-specific note: under Windows, if the file is
+      * already opened without sharing of the write capability,
+      * this function will fail.
+      *
+      * @param {string} path The full name of the file to set the dates for.
+      * @param {Date,number=} accessDate The last access date. If numeric,
+      * milliseconds since epoch. If omitted or null, then the current date
+      * will be used.
+      * @param {Date,number=} modificationDate The last modification date. If
+      * numeric, milliseconds since epoch. If omitted or null, then the current
+      * date will be used.
+      *
+      * @throws {TypeError} In case of invalid paramters.
+      * @throws {OS.File.Error} In case of I/O error.
+      */
+     File.setDates = function setDates(path, accessDate, modificationDate) {
+       let file = File.open(path, FILE_SETDATES_MODE, FILE_SETDATES_OPTIONS);
+       try {
+         return file.setDates(accessDate, modificationDate);
+       } finally {
+         file.close();
+       }
+     };
+     // All of the following is required to ensure that File.setDates
+     // also works on directories.
+     const FILE_SETDATES_MODE = {
+       write: true
+     };
+     const FILE_SETDATES_OPTIONS = {
+       winAccess: Const.GENERIC_WRITE,
        // Directories can only be opened with backup semantics(!)
        winFlags: Const.FILE_FLAG_BACKUP_SEMANTICS,
        winDisposition: Const.OPEN_EXISTING

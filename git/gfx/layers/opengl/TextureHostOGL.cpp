@@ -30,6 +30,7 @@
 #include "GfxTexturesReporter.h"        // for GfxTexturesReporter
 #ifdef XP_MACOSX
 #include "SharedSurfaceIO.h"
+#include "mozilla/layers/MacIOSurfaceTextureHostOGL.h"
 #endif
 #include "GeckoProfiler.h"
 
@@ -299,8 +300,10 @@ SharedTextureSourceOGL::SharedTextureSourceOGL(CompositorOGL* aCompositor,
                                                GLenum aTarget,
                                                GLenum aWrapMode,
                                                SharedTextureShareType aShareType,
-                                               gfx::IntSize aSize)
-  : mSize(aSize)
+                                               gfx::IntSize aSize,
+                                               const gfx3DMatrix& aTexTransform)
+  : mTextureTransform(aTexTransform)
+  , mSize(aSize)
   , mCompositor(aCompositor)
   , mSharedHandle(aHandle)
   , mFormat(aFormat)
@@ -354,18 +357,6 @@ SharedTextureSourceOGL::gl() const
   return mCompositor ? mCompositor->gl() : nullptr;
 }
 
-gfx3DMatrix
-SharedTextureSourceOGL::GetTextureTransform()
-{
-  GLContext::SharedHandleDetails handleDetails;
-  if (!gl()->GetSharedHandleDetails(mShareType, mSharedHandle, handleDetails)) {
-    NS_WARNING("Could not get shared handle details");
-    return gfx3DMatrix();
-  }
-
-  return handleDetails.mTextureTransform;
-}
-
 SharedTextureHostOGL::SharedTextureHostOGL(uint64_t aID,
                                            TextureFlags aFlags,
                                            gl::SharedTextureShareType aShareType,
@@ -415,7 +406,8 @@ SharedTextureHostOGL::Lock()
                                                 handleDetails.mTarget,
                                                 wrapMode,
                                                 mShareType,
-                                                mSize);
+                                                mSize,
+                                                handleDetails.mTextureTransform);
   }
   return true;
 }
@@ -445,63 +437,6 @@ SharedTextureHostOGL::GetFormat() const
   MOZ_ASSERT(mTextureSource);
   return mTextureSource->GetFormat();
 }
-
-#ifdef XP_MACOSX
-MacIOSurfaceTextureHostOGL::MacIOSurfaceTextureHostOGL(uint64_t aID,
-                                                       TextureFlags aFlags,
-                                                       const SurfaceDescriptorMacIOSurface& aDescriptor)
-  : TextureHost(aID, aFlags)
-{
-  mSurface = MacIOSurface::LookupSurface(aDescriptor.surface(),
-                                         aDescriptor.scaleFactor(),
-                                         aDescriptor.hasAlpha());
-}
-
-bool
-MacIOSurfaceTextureHostOGL::Lock()
-{
-  if (!mCompositor) {
-    return false;
-  }
-
-  if (!mTextureSource) {
-    mTextureSource = new MacIOSurfaceTextureSourceOGL(mCompositor, mSurface);
-  }
-  return true;
-}
-
-void
-MacIOSurfaceTextureHostOGL::SetCompositor(Compositor* aCompositor)
-{
-  CompositorOGL* glCompositor = static_cast<CompositorOGL*>(aCompositor);
-  mCompositor = glCompositor;
-  if (mTextureSource) {
-    mTextureSource->SetCompositor(glCompositor);
-  }
-}
-
-void
-MacIOSurfaceTextureSourceOGL::BindTexture(GLenum aTextureUnit)
-{
-  if (!gl()) {
-    NS_WARNING("Trying to bind a texture without a GLContext");
-    return;
-  }
-  GLuint tex = mCompositor->GetTemporaryTexture(aTextureUnit);
-
-  gl()->fActiveTexture(aTextureUnit);
-  gl()->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, tex);
-  void *nativeGL = gl()->GetNativeData(gl::GLContext::NativeGLContext);
-  mSurface->CGLTexImageIOSurface2D(nativeGL);
-  gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
-}
-
-gl::GLContext*
-MacIOSurfaceTextureSourceOGL::gl() const
-{
-  return mCompositor ? mCompositor->gl() : nullptr;
-}
-#endif
 
 TextureImageDeprecatedTextureHostOGL::~TextureImageDeprecatedTextureHostOGL()
 {
@@ -1078,7 +1013,7 @@ TiledDeprecatedTextureHostOGL::Lock()
 
 #ifdef MOZ_WIDGET_GONK
 static gfx::SurfaceFormat
-SurfaceFormatForAndroidPixelFormat(android::PixelFormat aFormat,
+Deprecated_SurfaceFormatForAndroidPixelFormat(android::PixelFormat aFormat,
                                    bool swapRB = false)
 {
   switch (aFormat) {
@@ -1116,7 +1051,7 @@ SurfaceFormatForAndroidPixelFormat(android::PixelFormat aFormat,
 }
 
 static GLenum
-TextureTargetForAndroidPixelFormat(android::PixelFormat aFormat)
+Deprecated_TextureTargetForAndroidPixelFormat(android::PixelFormat aFormat)
 {
   switch (aFormat) {
   case HAL_PIXEL_FORMAT_YCbCr_422_SP:
@@ -1220,10 +1155,10 @@ GrallocDeprecatedTextureHostOGL::SwapTexturesImpl(const SurfaceDescriptor& aImag
   const SurfaceDescriptorGralloc& desc = aImage.get_SurfaceDescriptorGralloc();
   mGraphicBuffer = GrallocBufferActor::GetFrom(desc);
   mIsRBSwapped = desc.isRBSwapped();
-  mFormat = SurfaceFormatForAndroidPixelFormat(mGraphicBuffer->getPixelFormat(),
+  mFormat = Deprecated_SurfaceFormatForAndroidPixelFormat(mGraphicBuffer->getPixelFormat(),
                                                mIsRBSwapped);
 
-  mTextureTarget = TextureTargetForAndroidPixelFormat(mGraphicBuffer->getPixelFormat());
+  mTextureTarget = Deprecated_TextureTargetForAndroidPixelFormat(mGraphicBuffer->getPixelFormat());
   GLuint tex = GetGLTexture();
   // delete old EGLImage
   DeleteTextures();

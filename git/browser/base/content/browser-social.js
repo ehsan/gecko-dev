@@ -152,7 +152,7 @@ SocialUI = {
 
         // Provider-specific notifications
         case "social:ambient-notification-changed":
-          SocialStatus.updateButton(data);
+          SocialStatus.updateNotification(data);
           if (this._matchesCurrentProvider(data)) {
             SocialToolbar.updateButton();
             SocialMenu.populate();
@@ -162,12 +162,9 @@ SocialUI = {
           // make sure anything that happens here only affects the provider for
           // which the profile is changing, and that anything we call actually
           // needs to change based on profile data.
-          SocialStatus.updateButton(data);
           if (this._matchesCurrentProvider(data)) {
             SocialToolbar.updateProvider();
           }
-          // Refresh the provider menus, as the icons may have changed.
-          SocialToolbar.populateProviderMenus();
           break;
         case "social:frameworker-error":
           if (this.enabled && Social.provider.origin == data) {
@@ -594,6 +591,12 @@ SocialShare = {
       return this.panel.lastChild;
   },
 
+  uninit: function () {
+    if (this.iframe) {
+      this.iframe.remove();
+    }
+  },
+
   _createFrame: function() {
     let panel = this.panel;
     if (!SocialUI.enabled || this.iframe)
@@ -849,22 +852,17 @@ SocialToolbar = {
   // Called when the Social.provider changes
   updateProvider: function () {
     let provider = Social.provider;
-    // If the provider uses the new SocialStatus button, then they do
-    // not get to customize the old toolbar button.  Since the status
-    // button depends on multiple workers, if not enabled we will
-    // ignore this limitation.  That allows a provider to migrate to
-    // the new functionality once we enable multiple workers.
-    if (provider && (!provider.statusURL || !Social.allowMultipleWorkers)) {
+    if (provider) {
       this.button.setAttribute("label", provider.name);
       this.button.setAttribute("tooltiptext", provider.name);
       this.button.style.listStyleImage = "url(" + provider.iconURL + ")";
+
+      this.updateProfile();
     } else {
       this.button.setAttribute("label", gNavigatorBundle.getString("service.toolbarbutton.label"));
       this.button.setAttribute("tooltiptext", gNavigatorBundle.getString("service.toolbarbutton.tooltiptext"));
       this.button.style.removeProperty("list-style-image");
     }
-    if (provider)
-      this.updateProfile();
     this.updateButton();
   },
 
@@ -1034,7 +1032,7 @@ SocialToolbar = {
       if (!toolbarButton) {
         toolbarButton = document.createElement("toolbarbutton");
         toolbarButton.setAttribute("type", "badged");
-        toolbarButton.setAttribute("class", "toolbarbutton-1 chromeclass-toolbar-additional");
+        toolbarButton.classList.add("toolbarbutton-1");
         toolbarButton.setAttribute("id", toolbarButtonId);
         toolbarButton.setAttribute("notificationFrameId", notificationFrameId);
         toolbarButton.addEventListener("mousedown", function (event) {
@@ -1485,7 +1483,7 @@ SocialStatus = {
       return null;
     let palette = document.getElementById("navigator-toolbox").palette;
     let button = document.createElement("toolbarbutton");
-    button.setAttribute("class", "toolbarbutton-1 chromeclass-toolbar-additional social-status-button");
+    button.setAttribute("class", "toolbarbutton-1 social-status-button");
     button.setAttribute("type", "badged");
     button.setAttribute("removable", "true");
     button.setAttribute("image", provider.iconURL);
@@ -1516,6 +1514,7 @@ SocialStatus = {
           "class": "social-panel-frame",
           "id": notificationFrameId,
           "tooltip": "aHTMLTooltip",
+          "context": "contentAreaContextMenu",
 
           // work around bug 793057 - by making the panel roughly the final size
           // we are more likely to have the anchor in the correct position.
@@ -1539,7 +1538,7 @@ SocialStatus = {
     aButton.setAttribute("notificationFrameId", notificationFrameId);
   },
 
-  updateButton: function(origin) {
+  updateNotification: function(origin) {
     if (!Social.allowMultipleWorkers)
       return;
     let provider = Social._getProviderFromOrigin(origin);
@@ -1549,22 +1548,15 @@ SocialStatus = {
       let icons = provider.ambientNotificationIcons;
       let iconNames = Object.keys(icons);
       let notif = icons[iconNames[0]];
-
-      // The image and tooltip need to be updated for both
-      // ambient notification and profile changes.
-      let iconURL, tooltiptext;
-      if (notif) {
-        iconURL = notif.iconURL;
-        tooltiptext = notif.label;
-      }
-      button.setAttribute("image", iconURL || provider.iconURL);
-      button.setAttribute("tooltiptext", tooltiptext || provider.name);
-
       if (!notif) {
         button.setAttribute("badge", "");
         button.setAttribute("aria-label", "");
+        button.setAttribute("tooltiptext", "");
         return;
       }
+
+      button.style.listStyleImage = "url(" + notif.iconURL || provider.iconURL + ")";
+      button.setAttribute("tooltiptext", notif.label);
 
       let badge = notif.counter || "";
       button.setAttribute("badge", badge);
@@ -1775,7 +1767,7 @@ SocialMarks = {
     let palette = document.getElementById("navigator-toolbox").palette;
     let button = document.createElement("toolbarbutton");
     button.setAttribute("type", "socialmark");
-    button.setAttribute("class", "toolbarbutton-1 chromeclass-toolbar-additional social-mark-button");
+    button.setAttribute("class", "toolbarbutton-1 social-mark-button");
     button.style.listStyleImage = "url(" + provider.iconURL + ")";
     button.setAttribute("origin", provider.origin);
     button.setAttribute("id", this._toolbarHelper.idFromOrgin(provider.origin));

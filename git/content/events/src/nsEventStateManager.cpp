@@ -135,7 +135,7 @@ RoundDown(double aDouble)
 static inline bool
 IsMouseEventReal(WidgetEvent* aEvent)
 {
-  NS_ABORT_IF_FALSE(aEvent->IsMouseDerivedEvent(), "Not a mouse event");
+  NS_ABORT_IF_FALSE(aEvent->AsMouseEvent(), "Not a mouse event");
   // Return true if not synthesized.
   return aEvent->AsMouseEvent()->reason == WidgetMouseEvent::eReal;
 }
@@ -1864,8 +1864,9 @@ nsEventStateManager::sClickHoldCallback(nsITimer *aTimer, void* aESM)
 void
 nsEventStateManager::FireContextClick()
 {
-  if (!mGestureDownContent)
+  if (!mGestureDownContent || !mPresContext) {
     return;
+  }
 
 #ifdef XP_MACOSX
   // Hack to ensure that we don't show a context menu when the user

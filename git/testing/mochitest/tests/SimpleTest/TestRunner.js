@@ -213,6 +213,16 @@ TestRunner.error = function(msg) {
     } else {
         dump(msg + "\n");
     }
+
+    if (TestRunner.runUntilFailure) {
+      TestRunner._haltTests = true;
+    }
+
+    if (TestRunner.debugOnFailure) {
+      // You've hit this line because you requested to break into the
+      // debugger upon a testcase failure on your test run.
+      debugger;
+    }
 };
 
 /**
@@ -360,10 +370,7 @@ TestRunner.runNextTest = function() {
              TestRunner.onComplete();
          }
 
-        var failCount = parseInt($("fail-count").innerHTML);
-        var stopLooping = failCount > 0 && TestRunner.runUntilFailure;
-
-        if (TestRunner._currentLoop <= TestRunner.repeat && !stopLooping) {
+        if (TestRunner._currentLoop <= TestRunner.repeat && !TestRunner._haltTests) {
           TestRunner._currentLoop++;
           TestRunner.resetTests(TestRunner._urls);
           TestRunner._loopIsRestarting = true;
@@ -398,8 +405,8 @@ var MEM_STAT_UNSUPPORTED = 1;
 var MEM_STAT_SUPPORTED = 2;
 TestRunner._hasMemoryStatistics = {}
 TestRunner._hasMemoryStatistics.vsize = MEM_STAT_UNKNOWN;
-TestRunner._hasMemoryStatistics.vsizeMaxContiguous = MEM_STAT_UNKNOWN;
 TestRunner._hasMemoryStatistics.heapAllocated = MEM_STAT_UNKNOWN;
+TestRunner._hasMemoryStatistics.largestContiguousVMBlock = MEM_STAT_UNKNOWN;
 
 /**
  * This stub is called by SimpleTest when a test is finished.

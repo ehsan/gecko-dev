@@ -6,10 +6,6 @@
 
 TEST_DIRS += ['test']
 
-XPIDL_SOURCES += [
-    'b2g.idl',
-]
-
 MODULE = 'B2GComponents'
 
 EXTRA_COMPONENTS += [
@@ -19,6 +15,7 @@ EXTRA_COMPONENTS += [
     'ContentHandler.js',
     'ContentPermissionPrompt.js',
     'FilePicker.js',
+    'HelperAppDialog.js',
     'MailtoProtocolHandler.js',
     'PaymentGlue.js',
     'ProcessGlobal.js',

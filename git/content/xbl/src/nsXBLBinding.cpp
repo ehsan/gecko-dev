@@ -1080,24 +1080,12 @@ nsXBLBinding::AllowScripts()
     return false;
   }
 
-  nsCOMPtr<nsIScriptGlobalObject> global = do_QueryInterface(doc->GetWindow());
-  if (!global) {
+  nsCOMPtr<nsIScriptGlobalObject> global = do_QueryInterface(doc->GetInnerWindow());
+  if (!global || !global->GetGlobalJSObject()) {
     return false;
   }
 
-  nsCOMPtr<nsIScriptContext> context = global->GetContext();
-  if (!context) {
-    return false;
-  }
-  
-  AutoPushJSContext cx(context->GetNativeContext());
-
-  nsCOMPtr<nsIDocument> ourDocument =
-    mPrototypeBinding->XBLDocumentInfo()->GetDocument();
-  bool canExecute;
-  nsresult rv =
-    mgr->CanExecuteScripts(cx, ourDocument->NodePrincipal(), &canExecute);
-  return NS_SUCCEEDED(rv) && canExecute;
+  return mgr->ScriptAllowed(global->GetGlobalJSObject());
 }
 
 nsXBLBinding*
@@ -1124,7 +1112,7 @@ nsXBLBinding::ResolveAllFields(JSContext *cx, JS::Handle<JSObject*> obj) const
 }
 
 bool
-nsXBLBinding::LookupMember(JSContext* aCx, JS::HandleId aId,
+nsXBLBinding::LookupMember(JSContext* aCx, JS::Handle<jsid> aId,
                            JS::MutableHandle<JSPropertyDescriptor> aDesc)
 {
   // We should never enter this function with a pre-filled property descriptor.
@@ -1153,7 +1141,7 @@ nsXBLBinding::LookupMember(JSContext* aCx, JS::HandleId aId,
   // Enter the xbl scope and invoke the internal version.
   {
     JSAutoCompartment ac(aCx, xblScope);
-    JS::RootedId id(aCx, aId);
+    JS::Rooted<jsid> id(aCx, aId);
     if (!JS_WrapId(aCx, id.address()) ||
         !LookupMemberInternal(aCx, name, id, aDesc, xblScope))
     {
@@ -1167,7 +1155,7 @@ nsXBLBinding::LookupMember(JSContext* aCx, JS::HandleId aId,
 
 bool
 nsXBLBinding::LookupMemberInternal(JSContext* aCx, nsString& aName,
-                                   JS::HandleId aNameAsId,
+                                   JS::Handle<jsid> aNameAsId,
                                    JS::MutableHandle<JSPropertyDescriptor> aDesc,
                                    JS::Handle<JSObject*> aXBLScope)
 {
@@ -1183,7 +1171,7 @@ nsXBLBinding::LookupMemberInternal(JSContext* aCx, nsString& aName,
 
   // Find our class object. It's in a protected scope and permanent just in case,
   // so should be there no matter what.
-  JS::RootedValue classObject(aCx);
+  JS::Rooted<JS::Value> classObject(aCx);
   if (!JS_GetProperty(aCx, aXBLScope, mJSClass->name, &classObject)) {
     return false;
   }

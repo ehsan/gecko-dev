@@ -105,8 +105,8 @@ class GlobalObject : public JSObject
     static const unsigned NUMBER_FORMAT_PROTO     = COLLATOR_PROTO + 1;
     static const unsigned DATE_TIME_FORMAT_PROTO  = NUMBER_FORMAT_PROTO + 1;
     static const unsigned REGEXP_STATICS          = DATE_TIME_FORMAT_PROTO + 1;
-    static const unsigned FUNCTION_NS             = REGEXP_STATICS + 1;
-    static const unsigned RUNTIME_CODEGEN_ENABLED = FUNCTION_NS + 1;
+    static const unsigned WARNED_WATCH_DEPRECATED = REGEXP_STATICS + 1;
+    static const unsigned RUNTIME_CODEGEN_ENABLED = WARNED_WATCH_DEPRECATED + 1;
     static const unsigned DEBUGGERS               = RUNTIME_CODEGEN_ENABLED + 1;
     static const unsigned INTRINSICS              = DEBUGGERS + 1;
     static const unsigned ARRAY_TYPE              = INTRINSICS + 1;
@@ -114,14 +114,13 @@ class GlobalObject : public JSObject
     /* Total reserved-slot count for global objects. */
     static const unsigned RESERVED_SLOTS = ARRAY_TYPE + 1;
 
-    void staticAsserts() {
-        /*
-         * The slot count must be in the public API for JSCLASS_GLOBAL_FLAGS,
-         * and we aren't going to expose GlobalObject, so just assert that the
-         * two values are synchronized.
-         */
-        JS_STATIC_ASSERT(JSCLASS_GLOBAL_SLOT_COUNT == RESERVED_SLOTS);
-    }
+    /*
+     * The slot count must be in the public API for JSCLASS_GLOBAL_FLAGS, and
+     * we won't expose GlobalObject, so just assert that the two values are
+     * synchronized.
+     */
+    static_assert(JSCLASS_GLOBAL_SLOT_COUNT == RESERVED_SLOTS,
+                  "global object slot counts are inconsistent");
 
     friend JSObject *
     ::js_InitObjectClass(JSContext *cx, js::HandleObject);
@@ -390,6 +389,12 @@ class GlobalObject : public JSObject
         return &self->getPrototype(JSProto_RegExp).toObject();
     }
 
+    JSObject *maybeGetRegExpPrototype() {
+        if (regexpClassInitialized())
+            return &getPrototype(JSProto_RegExp).toObject();
+        return nullptr;
+    }
+
     JSObject *getOrCreateArrayBufferPrototype(JSContext *cx) {
         if (arrayBufferClassInitialized())
             return &getPrototype(JSProto_ArrayBuffer).toObject();
@@ -511,13 +516,23 @@ class GlobalObject : public JSObject
         return &getSlotRef(INTRINSICS).toObject();
     }
 
-    bool getIntrinsicValue(JSContext *cx, HandlePropertyName name, MutableHandleValue value) {
-        RootedObject holder(cx, intrinsicsHolder());
-        RootedId id(cx, NameToId(name));
-        if (HasDataProperty(cx, holder, id, value.address()))
+    bool maybeGetIntrinsicValue(PropertyName *name, Value *vp) {
+        JSObject *holder = intrinsicsHolder();
+        if (Shape *shape = holder->nativeLookupPure(name)) {
+            *vp = holder->getSlot(shape->slot());
             return true;
+        }
+        return false;
+    }
+
+    bool getIntrinsicValue(JSContext *cx, HandlePropertyName name, MutableHandleValue value) {
+        if (maybeGetIntrinsicValue(name, value.address()))
+            return true;
+        Rooted<GlobalObject*> self(cx, this);
         if (!cx->runtime()->cloneSelfHostedValue(cx, name, value))
             return false;
+        RootedObject holder(cx, self->intrinsicsHolder());
+        RootedId id(cx, NameToId(name));
         return JS_DefinePropertyById(cx, holder, id, value, nullptr, nullptr, 0);
     }
 
@@ -558,6 +573,10 @@ class GlobalObject : public JSObject
     }
 
     static bool isRuntimeCodeGenEnabled(JSContext *cx, Handle<GlobalObject*> global);
+
+    // Warn about use of the deprecated watch/unwatch functions in the global
+    // in which |obj| was created, if no prior warning was given.
+    static bool warnOnceAboutWatch(JSContext *cx, HandleObject obj);
 
     const Value &getOriginalEval() const {
         JS_ASSERT(getSlot(EVAL).isObject());

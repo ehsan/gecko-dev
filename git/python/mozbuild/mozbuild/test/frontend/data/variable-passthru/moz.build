@@ -32,8 +32,6 @@ SDK_LIBRARY += ['fans.sdk', 'tans.sdk']
 
 SHARED_LIBRARY_LIBS += ['fans.sll', 'tans.sll']
 
-SIMPLE_PROGRAMS += ['fans.x', 'tans.x']
-
 SOURCES += ['fans.c', 'tans.c']
 
 SOURCES += ['fans.mm', 'tans.mm']
@@ -50,3 +48,4 @@ FORCE_SHARED_LIB = True
 FORCE_STATIC_LIB = True
 EXPORT_LIBRARY = True
 IS_COMPONENT = True
+NO_VISIBILITY_FLAGS = True

@@ -64,6 +64,27 @@ UnwrapArg(JSContext* cx, JS::Handle<JS::Value> v, Interface** ppArg,
   return rv;
 }
 
+inline const ErrNum
+GetInvalidThisErrorForMethod(bool aSecurityError)
+{
+  return aSecurityError ? MSG_METHOD_THIS_UNWRAPPING_DENIED :
+                          MSG_METHOD_THIS_DOES_NOT_IMPLEMENT_INTERFACE;
+}
+
+inline const ErrNum
+GetInvalidThisErrorForGetter(bool aSecurityError)
+{
+  return aSecurityError ? MSG_GETTER_THIS_UNWRAPPING_DENIED :
+                          MSG_GETTER_THIS_DOES_NOT_IMPLEMENT_INTERFACE;
+}
+
+inline const ErrNum
+GetInvalidThisErrorForSetter(bool aSecurityError)
+{
+  return aSecurityError ? MSG_SETTER_THIS_UNWRAPPING_DENIED :
+                          MSG_SETTER_THIS_DOES_NOT_IMPLEMENT_INTERFACE;
+}
+
 bool
 ThrowInvalidThis(JSContext* aCx, const JS::CallArgs& aArgs,
                  const ErrNum aErrorNumber,
@@ -380,9 +401,10 @@ DefineUnforgeableAttributes(JSContext* cx, JS::Handle<JSObject*> obj,
                             const Prefable<const JSPropertySpec>* props);
 
 bool
-DefineWebIDLBindingPropertiesOnXPCProto(JSContext* cx,
-                                        JS::Handle<JSObject*> proto,
-                                        const NativeProperties* properties);
+DefineWebIDLBindingPropertiesOnXPCObject(JSContext* cx,
+                                         JS::Handle<JSObject*> obj,
+                                         const NativeProperties* properties,
+                                         bool defineUnforgeableAttributes);
 
 #ifdef _MSC_VER
 #define HAS_MEMBER_CHECK(_name)                                           \
@@ -878,11 +900,11 @@ EnumValueNotFound<true>(JSContext* cx, const jschar* chars, size_t length,
 
 template<bool InvalidValueFatal>
 inline int
-FindEnumStringIndex(JSContext* cx, JS::Value v, const EnumEntry* values,
+FindEnumStringIndex(JSContext* cx, JS::Handle<JS::Value> v, const EnumEntry* values,
                     const char* type, const char* sourceDescription, bool* ok)
 {
   // JS_StringEqualsAscii is slow as molasses, so don't use it here.
-  JSString* str = JS_ValueToString(cx, v);
+  JSString* str = JS::ToString(cx, v);
   if (!str) {
     *ok = false;
     return 0;
@@ -969,7 +991,7 @@ TryPreserveWrapper(JSObject* obj);
 // Can only be called with the immediate prototype of the instance object. Can
 // only be called on the prototype of an object known to be a DOM instance.
 bool
-InstanceClassHasProtoAtDepth(JS::Handle<JSObject*> protoObject, uint32_t protoID,
+InstanceClassHasProtoAtDepth(JSObject* protoObject, uint32_t protoID,
                              uint32_t depth);
 
 // Only set allowNativeWrapper to false if you really know you need it, if in
@@ -1032,7 +1054,7 @@ inline bool
 WrapObject(JSContext* cx, JS::Handle<JSObject*> scope, T* p,
            JS::MutableHandle<JS::Value> rval)
 {
-  return WrapObject(cx, scope, p, NULL, rval);
+  return WrapObject(cx, scope, p, nullptr, rval);
 }
 
 // Helper to make it possible to wrap directly out of an nsCOMPtr
@@ -1050,7 +1072,7 @@ inline bool
 WrapObject(JSContext* cx, JS::Handle<JSObject*> scope, const nsCOMPtr<T>& p,
            JS::MutableHandle<JS::Value> rval)
 {
-  return WrapObject(cx, scope, p, NULL, rval);
+  return WrapObject(cx, scope, p, nullptr, rval);
 }
 
 // Helper to make it possible to wrap directly out of an nsRefPtr
@@ -1068,7 +1090,7 @@ inline bool
 WrapObject(JSContext* cx, JS::Handle<JSObject*> scope, const nsRefPtr<T>& p,
            JS::MutableHandle<JS::Value> rval)
 {
-  return WrapObject(cx, scope, p, NULL, rval);
+  return WrapObject(cx, scope, p, nullptr, rval);
 }
 
 // Specialization to make it easy to use WrapObject in codegen.
@@ -1528,7 +1550,7 @@ ConvertJSValueToString(JSContext* cx, JS::Handle<JS::Value> v,
       return true;
     }
 
-    s = JS_ValueToString(cx, v);
+    s = JS::ToString(cx, v);
     if (!s) {
       return false;
     }
@@ -2247,6 +2269,62 @@ public:
 
 bool
 ThreadsafeCheckIsChrome(JSContext* aCx, JSObject* aObj);
+
+void
+TraceGlobal(JSTracer* aTrc, JSObject* aObj);
+
+bool
+ResolveGlobal(JSContext* aCx, JS::Handle<JSObject*> aObj,
+              JS::MutableHandle<jsid> aId, unsigned aFlags,
+              JS::MutableHandle<JSObject*> aObjp);
+
+bool
+EnumerateGlobal(JSContext* aCx, JS::Handle<JSObject*> aObj);
+
+template <class T, JS::Handle<JSObject*> (*ProtoGetter)(JSContext*,
+                                                        JS::Handle<JSObject*>)>
+JSObject*
+CreateGlobal(JSContext* aCx, T* aObject, nsWrapperCache* aCache,
+             const JSClass* aClass, JS::CompartmentOptions& aOptions,
+             JSPrincipals* aPrincipal)
+{
+  MOZ_ASSERT(!NS_IsMainThread());
+
+  JS::Rooted<JSObject*> global(aCx,
+    JS_NewGlobalObject(aCx, aClass, aPrincipal, JS::DontFireOnNewGlobalHook,
+                       aOptions));
+  if (!global) {
+    NS_WARNING("Failed to create global");
+    return nullptr;
+  }
+
+  JSAutoCompartment ac(aCx, global);
+
+  dom::AllocateProtoAndIfaceCache(global);
+
+  js::SetReservedSlot(global, DOM_OBJECT_SLOT, PRIVATE_TO_JSVAL(aObject));
+  NS_ADDREF(aObject);
+
+  aCache->SetIsDOMBinding();
+  aCache->SetWrapper(global);
+
+  /* Intl API is broken and makes this fail intermittently, see bug 934889.
+  if (!JS_InitStandardClasses(aCx, global)) {
+    NS_WARNING("Failed to init standard classes");
+    return nullptr;
+  }
+  */
+
+  JS::Handle<JSObject*> proto = ProtoGetter(aCx, global);
+  NS_ENSURE_TRUE(proto, nullptr);
+
+  if (!JS_SetPrototype(aCx, global, proto)) {
+    NS_WARNING("Failed to set proto");
+    return nullptr;
+  }
+
+  return global;
+}
 
 } // namespace dom
 } // namespace mozilla

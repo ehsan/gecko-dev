@@ -31,7 +31,7 @@ bool
 nsJSUtils::GetCallingLocation(JSContext* aContext, const char* *aFilename,
                               uint32_t* aLineno)
 {
-  JS::RootedScript script(aContext);
+  JS::Rooted<JSScript*> script(aContext);
   unsigned lineno = 0;
 
   if (!JS_DescribeScriptedCaller(aContext, &script, &lineno)) {
@@ -156,7 +156,7 @@ nsJSUtils::ReportPendingException(JSContext *aContext)
 
 nsresult
 nsJSUtils::CompileFunction(JSContext* aCx,
-                           JS::HandleObject aTarget,
+                           JS::Handle<JSObject*> aTarget,
                            JS::CompileOptions& aOptions,
                            const nsACString& aName,
                            uint32_t aArgCount,
@@ -241,15 +241,14 @@ nsJSUtils::EvaluateString(JSContext* aCx,
 
   JS::ExposeObjectToActiveJS(aScopeObject);
   nsAutoMicroTask mt;
+  nsresult rv = NS_OK;
 
   JSPrincipals* p = JS_GetCompartmentPrincipals(js::GetObjectCompartment(aScopeObject));
   aCompileOptions.setPrincipals(p);
 
   bool ok = false;
-  nsresult rv = nsContentUtils::GetSecurityManager()->
-                  CanExecuteScripts(aCx, nsJSPrincipals::get(p), &ok);
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(ok, NS_OK);
+  nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
+  NS_ENSURE_TRUE(ssm->ScriptAllowed(js::GetGlobalForObjectCrossCompartment(aScopeObject)), NS_OK);
 
   mozilla::Maybe<AutoDontReportUncaught> dontReport;
   if (!aEvaluateOptions.reportUncaught) {
@@ -263,7 +262,7 @@ nsJSUtils::EvaluateString(JSContext* aCx,
   {
     JSAutoCompartment ac(aCx, aScopeObject);
 
-    JS::RootedObject rootedScope(aCx, aScopeObject);
+    JS::Rooted<JSObject*> rootedScope(aCx, aScopeObject);
     if (aOffThreadToken) {
       JSScript *script = JS::FinishOffThreadScript(aCx, JS_GetRuntime(aCx), *aOffThreadToken);
       *aOffThreadToken = nullptr; // Mark the token as having been finished.
@@ -279,7 +278,8 @@ nsJSUtils::EvaluateString(JSContext* aCx,
     }
 
     if (ok && aEvaluateOptions.coerceToString && !aRetValue->isUndefined()) {
-      JSString* str = JS_ValueToString(aCx, *aRetValue);
+      JS::Rooted<JS::Value> value(aCx, *aRetValue);
+      JSString* str = JS::ToString(aCx, value);
       ok = !!str;
       *aRetValue = ok ? JS::StringValue(str) : JS::UndefinedValue();
     }
@@ -294,7 +294,7 @@ nsJSUtils::EvaluateString(JSContext* aCx,
     } else {
       rv = JS_IsExceptionPending(aCx) ? NS_ERROR_FAILURE
                                       : NS_ERROR_OUT_OF_MEMORY;
-      JS::RootedValue exn(aCx);
+      JS::Rooted<JS::Value> exn(aCx);
       JS_GetPendingException(aCx, &exn);
       if (aRetValue) {
         *aRetValue = exn;

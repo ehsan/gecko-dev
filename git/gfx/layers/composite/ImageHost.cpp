@@ -61,7 +61,6 @@ void
 ImageHost::Composite(EffectChain& aEffectChain,
                      float aOpacity,
                      const gfx::Matrix4x4& aTransform,
-                     const gfx::Point& aOffset,
                      const gfx::Filter& aFilter,
                      const gfx::Rect& aClipRect,
                      const nsIntRegion* aVisibleRegion,
@@ -115,15 +114,15 @@ ImageHost::Composite(EffectChain& aEffectChain,
         effect->mTextureCoords = Rect(0, 0, 1, 1);
       }
       GetCompositor()->DrawQuad(rect, aClipRect, aEffectChain,
-                                aOpacity, aTransform, aOffset);
+                                aOpacity, aTransform);
       GetCompositor()->DrawDiagnostics(DIAGNOSTIC_IMAGE|DIAGNOSTIC_BIGIMAGE,
-                                       rect, aClipRect, aTransform, aOffset);
+                                       rect, aClipRect, aTransform);
     } while (it->NextTile());
     it->EndTileIteration();
     // layer border
     GetCompositor()->DrawDiagnostics(DIAGNOSTIC_IMAGE,
                                      gfxPictureRect, aClipRect,
-                                     aTransform, aOffset);    
+                                     aTransform);
   } else {
     IntSize textureSize = source->GetSize();
     gfx::Rect rect;
@@ -144,15 +143,14 @@ ImageHost::Composite(EffectChain& aEffectChain,
     }
 
     GetCompositor()->DrawQuad(rect, aClipRect, aEffectChain,
-                              aOpacity, aTransform, aOffset);
+                              aOpacity, aTransform);
     GetCompositor()->DrawDiagnostics(DIAGNOSTIC_IMAGE,
                                      rect, aClipRect,
-                                     aTransform, aOffset);
+                                     aTransform);
   }
   mFrontBuffer->Unlock();
 }
 
-#ifdef MOZ_LAYERS_HAVE_LOG
 void
 ImageHost::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
@@ -168,8 +166,6 @@ ImageHost::PrintInfo(nsACString& aTo, const char* aPrefix)
     mFrontBuffer->PrintInfo(aTo, pfx.get());
   }
 }
-#endif
-
 
 #ifdef MOZ_DUMP_PAINTING
 void
@@ -265,7 +261,6 @@ void
 DeprecatedImageHostSingle::Composite(EffectChain& aEffectChain,
                                      float aOpacity,
                                      const gfx::Matrix4x4& aTransform,
-                                     const gfx::Point& aOffset,
                                      const gfx::Filter& aFilter,
                                      const gfx::Rect& aClipRect,
                                      const nsIntRegion* aVisibleRegion,
@@ -303,9 +298,9 @@ DeprecatedImageHostSingle::Composite(EffectChain& aEffectChain,
       nsIntRect tileRect = it->GetTileRect();
       gfx::Rect rect(tileRect.x, tileRect.y, tileRect.width, tileRect.height);
       GetCompositor()->DrawQuad(rect, aClipRect, aEffectChain,
-                                aOpacity, aTransform, aOffset);
+                                aOpacity, aTransform);
       GetCompositor()->DrawDiagnostics(DIAGNOSTIC_IMAGE|DIAGNOSTIC_BIGIMAGE,
-                                       rect, aClipRect, aTransform, aOffset);
+                                       rect, aClipRect, aTransform);
     } while (it->NextTile());
     it->EndTileIteration();
   } else {
@@ -329,15 +324,14 @@ DeprecatedImageHostSingle::Composite(EffectChain& aEffectChain,
     }
 
     GetCompositor()->DrawQuad(rect, aClipRect, aEffectChain,
-                              aOpacity, aTransform, aOffset);
+                              aOpacity, aTransform);
     GetCompositor()->DrawDiagnostics(DIAGNOSTIC_IMAGE,
-                                     rect, aClipRect, aTransform, aOffset);
+                                     rect, aClipRect, aTransform);
   }
 
   mDeprecatedTextureHost->Unlock();
 }
 
-#ifdef MOZ_LAYERS_HAVE_LOG
 void
 DeprecatedImageHostSingle::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
@@ -353,7 +347,6 @@ DeprecatedImageHostSingle::PrintInfo(nsACString& aTo, const char* aPrefix)
     mDeprecatedTextureHost->PrintInfo(aTo, pfx.get());
   }
 }
-#endif
 
 bool
 DeprecatedImageHostBuffered::Update(const SurfaceDescriptor& aImage,

@@ -262,7 +262,6 @@ pref("layers.acceleration.disabled", false);
 pref("layers.offmainthreadcomposition.async-animations", true);
 pref("layers.async-video.enabled", true);
 pref("layers.async-pan-zoom.enabled", true);
-pref("gfx.content.azure.enabled", true);
 pref("gfx.content.azure.backends", "cairo");
 #endif
 
@@ -430,7 +429,7 @@ pref("services.push.requestTimeout", 10000);
 pref("services.push.udp.wakeupEnabled", true);
 
 // NetworkStats
-#ifdef MOZ_B2G_RIL
+#ifdef MOZ_WIDGET_GONK
 pref("dom.mozNetworkStats.enabled", true);
 pref("dom.webapps.firstRunWithSIM", true);
 #endif
@@ -567,6 +566,10 @@ pref("dom.disable_window_showModalDialog", true);
 // Enable new experimental html forms
 pref("dom.experimental_forms", true);
 pref("dom.forms.number", true);
+
+// Don't enable <input type=color> yet as we don't have a color picker
+// implemented for b2g (bug 875751)
+pref("dom.forms.color", false);
 
 // Turns on gralloc-based direct texturing for Gonk
 pref("gfx.gralloc.enabled", false);
@@ -747,7 +750,6 @@ pref("webgl.can-lose-context-in-foreground", false);
 pref("memory_info_dumper.watch_fifo.enabled", true);
 pref("memory_info_dumper.watch_fifo.directory", "/data/local");
 
-pref("general.useragent.enable_overrides", true);
 // See ua-update.json.in for the packaged UA override list
 pref("general.useragent.updates.enabled", true);
 pref("general.useragent.updates.url", "https://dynamicua.cdn.mozilla.net/0/%APP_ID%");
@@ -821,21 +823,8 @@ pref("gfx.canvas.skiagl.dynamic-cache", true);
 // enable fence with readpixels for SurfaceStream
 pref("gfx.gralloc.fence-with-readpixels", true);
 
-// Enable Telephony API
-pref("dom.telephony.enabled", true);
-
 // Cell Broadcast API
-pref("dom.cellbroadcast.enabled", true);
 pref("ril.cellbroadcast.disabled", false);
-
-// ICC API
-pref("dom.icc.enabled", true);
-
-// Mobile Connection API
-pref("dom.mobileconnection.enabled", true);
-
-// Voice Mail API
-pref("dom.voicemail.enabled", true);
 
 // The url of the page used to display network error details.
 pref("b2g.neterror.url", "app://system.gaiamobile.org/net_error.html");

@@ -15,8 +15,6 @@ endif
 ifeq (1_1,$(MOZ_MEMORY)_$(or $(MOZ_NATIVE_JEMALLOC),$(FORCE_SHARED_LIB)))
 SHARED_LIBRARY_LIBS = $(call EXPAND_LIBNAME_PATH,memory,$(DEPTH)/memory/build)
 else
-# Temporary, until bug 662814 lands
-VISIBILITY_FLAGS =
 
 ifneq (,$(filter OS2 WINNT,$(OS_ARCH)))
 SDK_LIBRARY = $(IMPORT_LIBRARY)
@@ -38,7 +36,7 @@ ifeq (WINNT,$(OS_TARGET))
 DEFFILE = mozglue.def
 
 mozglue.def: mozglue.def.in
-	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(if $(MOZ_REPLACE_MALLOC),-DMOZ_REPLACE_MALLOC) $(ACDEFINES) $< > $@
+	$(call py_action,preprocessor,$(if $(MOZ_REPLACE_MALLOC),-DMOZ_REPLACE_MALLOC) $(ACDEFINES) $< -o $@)
 
 GARBAGE += mozglue.def
 
@@ -84,9 +82,6 @@ endif
 endif
 
 ifeq (Android,$(OS_TARGET))
-ifdef MOZ_NUWA_PROCESS
-CPPSRCS += Nuwa.cpp
-endif
 SHARED_LIBRARY_LIBS += $(call EXPAND_LIBNAME_PATH,android,$(DEPTH)/other-licenses/android)
 endif
 

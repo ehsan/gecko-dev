@@ -71,7 +71,7 @@ GCONF_VERSION=1.2.1
 GIO_VERSION=2.20
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
-SQLITE_VERSION=3.8.0.2
+SQLITE_VERSION=3.8.1
 
 MSMANIFEST_TOOL=
 
@@ -223,6 +223,7 @@ if test -n "$gonkdir" ; then
         GONK_INCLUDES="-I$gonkdir/frameworks/base/opengl/include -I$gonkdir/frameworks/base/native/include -I$gonkdir/frameworks/base/include -I$gonkdir/frameworks/base/services/camera -I$gonkdir/frameworks/base/include/media/stagefright -I$gonkdir/frameworks/base/include/media/stagefright/openmax -I$gonkdir/frameworks/base/media/libstagefright/rtsp -I$gonkdir/frameworks/base/media/libstagefright/include -I$gonkdir/external/dbus -I$gonkdir/external/bluetooth/bluez/lib -I$gonkdir/dalvik/libnativehelper/include/nativehelper"
         MOZ_B2G_BT=1
         MOZ_B2G_BT_BLUEZ=1
+        MOZ_NFC=1
         MOZ_B2G_CAMERA=1
         MOZ_OMX_DECODER=1
         AC_SUBST(MOZ_OMX_DECODER)
@@ -239,6 +240,8 @@ if test -n "$gonkdir" ; then
             MOZ_B2G_BT_BLUEDROID=1
         fi
 
+        MOZ_RTSP=1
+        MOZ_NFC=1
         MOZ_B2G_CAMERA=1
         MOZ_OMX_DECODER=1
         AC_SUBST(MOZ_OMX_DECODER)
@@ -306,7 +309,7 @@ dnl to use the cross-compile setup for now
 dnl ========================================================
 
 dnl AR_FLAGS set here so HOST_AR_FLAGS can be set correctly (see bug 538269)
-AR_FLAGS='cr $@'
+AR_FLAGS='crs $@'
 
 if test "$COMPILE_ENVIRONMENT"; then
 
@@ -810,9 +813,26 @@ MOZ_ARG_WITH_STRING(macos-sdk,
 [  --with-macos-sdk=dir    Location of platform SDK to use (Mac OS X only)],
     MACOS_SDK_DIR=$withval)
 
+MACOS_PRIVATE_FRAMEWORKS_DIR_DEFAULTED=
+MOZ_ARG_WITH_STRING(macos-private-frameworks,
+[  --with-macos-private-frameworks=dir    Location of private frameworks to use (Mac OS X only)],
+    MACOS_PRIVATE_FRAMEWORKS_DIR=$withval,
+    MACOS_PRIVATE_FRAMEWORKS_DIR=/System/Library/PrivateFrameworks
+    MACOS_PRIVATE_FRAMEWORKS_DEFAULTED=1)
+
+if test -z "${MACOS_PRIVATE_FRAMEWORKS_DEFAULTED}"; then
+  if test -z "$CROSS_COMPILE"; then
+    AC_MSG_WARN([You should only be using --with-macos-private-frameworks when cross-compiling.])
+  fi
+  if test ! -d "$MACOS_PRIVATE_FRAMEWORKS_DIR"; then
+    AC_MSG_ERROR([PrivateFrameworks directory not found.])
+  fi
+fi
+
 dnl MACOS_SDK_DIR will be set to the SDK location whenever one is in use.
 dnl NEXT_ROOT will be set and exported only if it's needed.
 AC_SUBST(MACOS_SDK_DIR)
+AC_SUBST(MACOS_PRIVATE_FRAMEWORKS_DIR)
 AC_SUBST(NEXT_ROOT)
 
 if test "$MACOS_SDK_DIR"; then
@@ -1943,7 +1963,7 @@ ia64*-hpux*)
     no_x=yes
     if test -n "$gonkdir"; then
         _PLATFORM_DEFAULT_TOOLKIT=cairo-gonk
-        MOZ_B2G_RIL=1
+        _PLATFORM_HAVE_RIL=1
         MOZ_B2G_FM=1
         MOZ_SYNTH_PICO=1
     else
@@ -2062,8 +2082,11 @@ ia64*-hpux*)
         if test "$_CC_SUITE" -ge "12"; then
             dnl VS2013+ requires -FS when parallel building by make -jN.
             dnl If nothing, compiler sometimes causes C1041 error.
-            CFLAGS="$CFLAGS -FS"
-            CXXFLAGS="$CXXFLAGS -FS"
+            dnl
+            dnl Visual Studio 2013 supports -Gw flags
+            dnl http://blogs.msdn.com/b/vcblog/archive/2013/09/11/introducing-gw-compiler-switch.aspx
+            CFLAGS="$CFLAGS -FS -Gw"
+            CXXFLAGS="$CXXFLAGS -FS -Gw"
         fi
         # khuey says we can safely ignore MSVC warning C4251
         # MSVC warning C4244 (implicit type conversion may lose data) warns
@@ -2478,9 +2501,10 @@ esac
 if test -z "$COMPILE_ENVIRONMENT"; then
     SKIP_COMPILER_CHECKS=1
     SKIP_LIBRARY_CHECKS=1
+else
+    MOZ_COMPILER_OPTS
 fi
 
-MOZ_COMPILER_OPTS
 if test -z "$SKIP_COMPILER_CHECKS"; then
 dnl Checks for typedefs, structures, and compiler characteristics.
 dnl ========================================================
@@ -3073,15 +3097,20 @@ fi
 AC_CACHE_CHECK(
     [for res_ninit()],
     ac_cv_func_res_ninit,
-    [AC_TRY_LINK([
-        #ifdef linux
-        #define _BSD_SOURCE 1
-        #endif
-        #include <resolv.h>
-        ],
-        [int foo = res_ninit(&_res);],
-        [ac_cv_func_res_ninit=yes],
-        [ac_cv_func_res_ninit=no])
+    [if test "$OS_TARGET" = NetBSD -o "$OS_TARGET" = OpenBSD; then
+        dnl no need for res_ninit() on NetBSD and OpenBSD
+        ac_cv_func_res_ninit=no
+     else
+        AC_TRY_LINK([
+            #ifdef linux
+            #define _BSD_SOURCE 1
+            #endif
+            #include <resolv.h>
+            ],
+            [int foo = res_ninit(&_res);],
+            [ac_cv_func_res_ninit=yes],
+            [ac_cv_func_res_ninit=no])
+     fi
     ])
 
 if test "$ac_cv_func_res_ninit" = "yes"; then
@@ -3156,13 +3185,10 @@ AC_LANG_C
 
 dnl **********************
 dnl *** va_copy checks ***
-dnl **********************
-dnl we currently check for all three va_copy possibilities, so we get
-dnl all results in config.log for bug reports.
-AC_MSG_CHECKING(for an implementation of va_copy())
-AC_CACHE_VAL(ac_cv_va_copy,[
-    AC_TRY_RUN([
-        #include <stdarg.h>
+AC_CACHE_CHECK([for an implementation of va_copy()],
+               ac_cv_va_copy,
+    [AC_TRY_COMPILE([#include <stdarg.h>
+                     #include <stdlib.h>
         void f (int i, ...) {
             va_list args1, args2;
             va_start (args1, i);
@@ -3170,37 +3196,16 @@ AC_CACHE_VAL(ac_cv_va_copy,[
             if (va_arg (args2, int) != 42 || va_arg (args1, int) != 42)
                 exit (1);
             va_end (args1); va_end (args2);
-        }
-        int main() { f (0, 42); return 0; }],
-        ac_cv_va_copy=yes,
-        ac_cv_va_copy=no,
-        ac_cv_va_copy=no
-    )
-])
-AC_MSG_RESULT($ac_cv_va_copy)
-AC_MSG_CHECKING(for an implementation of __va_copy())
-AC_CACHE_VAL(ac_cv___va_copy,[
-    AC_TRY_RUN([
-        #include <stdarg.h>
-        void f (int i, ...) {
-            va_list args1, args2;
-            va_start (args1, i);
-            __va_copy (args2, args1);
-            if (va_arg (args2, int) != 42 || va_arg (args1, int) != 42)
-                exit (1);
-            va_end (args1); va_end (args2);
-        }
-        int main() { f (0, 42); return 0; }],
-        ac_cv___va_copy=yes,
-        ac_cv___va_copy=no,
-        ac_cv___va_copy=no
-    )
-])
-AC_MSG_RESULT($ac_cv___va_copy)
-AC_MSG_CHECKING(whether va_lists can be copied by value)
-AC_CACHE_VAL(ac_cv_va_val_copy,[
-    AC_TRY_RUN([
-        #include <stdarg.h>
+        }],
+        [f(0, 42); return 0],
+        [ac_cv_va_copy=yes],
+        [ac_cv_va_copy=no]
+    )]
+)
+AC_CACHE_CHECK([whether va_list can be copied by value],
+               ac_cv_va_val_copy,
+    [AC_TRY_COMPILE([#include <stdarg.h>
+                     #include <stdlib.h>
         void f (int i, ...) {
             va_list args1, args2;
             va_start (args1, i);
@@ -3208,25 +3213,20 @@ AC_CACHE_VAL(ac_cv_va_val_copy,[
             if (va_arg (args2, int) != 42 || va_arg (args1, int) != 42)
                 exit (1);
             va_end (args1); va_end (args2);
-        }
-        int main() { f (0, 42); return 0; }],
-        ac_cv_va_val_copy=yes,
-        ac_cv_va_val_copy=no,
-        ac_cv_va_val_copy=yes
-    )
-])
+        }],
+        [f(0, 42); return 0],
+        [ac_cv_va_val_copy=yes],
+        [ac_cv_va_val_copy=no],
+    )]
+)
 if test "x$ac_cv_va_copy" = "xyes"; then
     AC_DEFINE(VA_COPY, va_copy)
-    AC_DEFINE(HAVE_VA_COPY)
-elif test "x$ac_cv___va_copy" = "xyes"; then
-    AC_DEFINE(VA_COPY, __va_copy)
     AC_DEFINE(HAVE_VA_COPY)
 fi
 
 if test "x$ac_cv_va_val_copy" = "xno"; then
    AC_DEFINE(HAVE_VA_LIST_AS_ARRAY)
 fi
-AC_MSG_RESULT($ac_cv_va_val_copy)
 
 dnl ===================================================================
 dnl ========================================================
@@ -3937,7 +3937,6 @@ MOZ_SAMPLE_TYPE_FLOAT32=
 MOZ_SAMPLE_TYPE_S16=
 MOZ_OPUS=1
 MOZ_WEBM=1
-MOZ_DASH=
 MOZ_DIRECTSHOW=
 MOZ_WMF=
 MOZ_WEBRTC=1
@@ -3987,7 +3986,10 @@ MOZ_PDF_PRINTING=
 MOZ_DISABLE_CRYPTOLEGACY=
 NSS_DISABLE_DBM=
 NECKO_COOKIES=1
-NECKO_PROTOCOLS_DEFAULT="about data file ftp http res viewsource websocket wyciwyg device"
+NECKO_PROTOCOLS_DEFAULT="about app data file ftp http res viewsource websocket wyciwyg device"
+if test -n "$MOZ_RTSP"; then
+  NECKO_PROTOCOLS_DEFAULT="$NECKO_PROTOCOLS_DEFAULT rtsp"
+fi
 USE_ARM_KUSER=
 BUILD_CTYPES=1
 MOZ_USE_NATIVE_POPUP_WINDOWS=
@@ -5528,19 +5530,19 @@ if test -n "$MOZ_OPUS"; then
     AC_DEFINE(MOZ_OPUS)
 fi
 
-dnl ========================================================
-dnl = Check alsa availability on Linux if using sydneyaudio
-dnl ========================================================
+dnl ====================================================
+dnl = Check alsa availability on Linux if using libcubeb
+dnl ====================================================
 
-dnl If using sydneyaudio with Linux, ensure that the alsa library is available
+dnl If using libcubeb with Linux, ensure that the alsa library is available
 if test -n "$MOZ_CUBEB" -a "$OS_TARGET" = "Linux"; then
     MOZ_ALSA=1
 fi
 
 MOZ_ARG_ENABLE_BOOL(alsa,
 [  --enable-alsa          Enable Alsa support (default on Linux)],
-MOZ_ALSA=1,
-MOZ_ALSA=)
+   MOZ_ALSA=1,
+   MOZ_ALSA=)
 
 if test -n "$MOZ_ALSA"; then
     AC_DEFINE(MOZ_CUBEB)
@@ -5554,13 +5556,18 @@ AC_SUBST(MOZ_ALSA_CFLAGS)
 AC_SUBST(MOZ_ALSA_LIBS)
 
 dnl ========================================================
-dnl = Enable PulseAudio
+dnl = Disable PulseAudio
 dnl ========================================================
 
-MOZ_ARG_ENABLE_BOOL(pulseaudio,
-[  --enable-pulseaudio          Enable PulseAudio support (experimental)],
-MOZ_PULSEAUDIO=1,
-MOZ_PULSEAUDIO=)
+dnl If using libcubeb with Linux, ensure that the PA library is available
+if test -n "$MOZ_CUBEB" -a "$OS_TARGET" = "Linux" -a -z "$MOZ_B2G"; then
+    MOZ_PULSEAUDIO=1
+fi
+
+MOZ_ARG_DISABLE_BOOL(pulseaudio,
+[  --disable-pulseaudio          Disable PulseAudio support],
+   MOZ_PULSEAUDIO=,
+   MOZ_PULSEAUDIO=1)
 
 if test -n "$MOZ_PULSEAUDIO"; then
     AC_DEFINE(MOZ_CUBEB)
@@ -5570,13 +5577,11 @@ if test -n "$MOZ_PULSEAUDIO"; then
               AC_MSG_ERROR([pulseaudio audio backend requires libpulse development package])])
     else
         MOZ_PULSEAUDIO_CFLAGS="-I$gonkdir/external/pulseaudio/pulseaudio/src"
-        MOZ_PULSEAUDIO_LIBS="-lpulse"
     fi
 fi
 
 AC_SUBST(MOZ_PULSEAUDIO)
 AC_SUBST(MOZ_PULSEAUDIO_CFLAGS)
-AC_SUBST(MOZ_PULSEAUDIO_LIBS)
 
 dnl ========================================================
 dnl = Enable GStreamer
@@ -7185,7 +7190,7 @@ if test "$USE_ELF_HACK" = 1; then
     esac
 fi
 
-if test -n "$USE_ELF_HACK"; then
+if test -n "$COMPILE_ENVIRONMENT" -a -n "$USE_ELF_HACK"; then
     dnl PT_GNU_RELRO segment makes the dynamic linker set a read-only flag on
     dnl memory addresses it maps to. The result is that by the time elfhack
     dnl kicks in, it is not possible to apply relocations because of that,
@@ -7276,9 +7281,14 @@ dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(b2g-ril,
 [  --enable-b2g-ril      Set compile flags necessary for testing B2G Radio Interface Layer via network sockets ],
     MOZ_B2G_RIL=1,
-    MOZ_B2G_RIL= )
+    MOZ_B2G_RIL=,
+    MOZ_B2G_RIL=$_PLATFORM_HAVE_RIL )
 if test -n "$MOZ_B2G_RIL"; then
-    AC_DEFINE(MOZ_B2G_RIL)
+    if test -n "$_PLATFORM_HAVE_RIL"; then
+        AC_DEFINE(MOZ_B2G_RIL)
+    else
+        AC_MSG_ERROR([b2g-ril cannot be enabled because target platform doesn't support it.])
+    fi
 fi
 AC_SUBST(MOZ_B2G_RIL)
 
@@ -7289,14 +7299,6 @@ if test -n "$MOZ_B2G_FM"; then
     AC_DEFINE(MOZ_B2G_FM)
 fi
 AC_SUBST(MOZ_B2G_FM)
-
-dnl ========================================================
-dnl = Enable Rtsp Protocol for B2G (Gonk usually)
-dnl ========================================================
-if test -n "$MOZ_RTSP"; then
-    AC_DEFINE(MOZ_RTSP)
-fi
-AC_SUBST(MOZ_RTSP)
 
 dnl ========================================================
 dnl = Enable Bluetooth Interface for B2G (Gonk usually)
@@ -7311,6 +7313,18 @@ fi
 AC_SUBST(MOZ_B2G_BT)
 AC_SUBST(MOZ_B2G_BT_BLUEZ)
 AC_SUBST(MOZ_B2G_BT_BLUEDROID)
+
+dnl ========================================================
+dnl = Enable NFC Interface for B2G (Gonk usually)
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(b2g-nfc,
+[  --enable-nfc         Set compile flags necessary for compiling NFC API ],
+    MOZ_NFC=1,
+    MOZ_NFC= )
+if test -n "$MOZ_NFC"; then
+   AC_DEFINE(MOZ_NFC)
+fi
+AC_SUBST(MOZ_NFC)
 
 dnl ========================================================
 dnl = Enable Pico Speech Synthesis (Gonk usually)
@@ -7360,6 +7374,14 @@ if test -n "$MOZ_PAY"; then
     AC_DEFINE(MOZ_PAY)
 fi
 AC_SUBST(MOZ_PAY)
+
+dnl ========================================================
+dnl = Enable Browser Support for Activities
+dnl ========================================================
+if test -n "$MOZ_ACTIVITIES"; then
+    AC_DEFINE(MOZ_ACTIVITIES)
+fi
+AC_SUBST(MOZ_ACTIVITIES)
 
 dnl ========================================================
 dnl = Enable Support for AudioChannelManager API
@@ -7875,7 +7897,9 @@ AC_SUBST(MOZ_PIXMAN_CFLAGS)
 AC_SUBST(MOZ_PIXMAN_LIBS)
 
 # Check for headers defining standard int types.
-MOZ_CHECK_HEADERS(stdint.h inttypes.h sys/int_types.h)
+if test -n "$COMPILE_ENVIRONMENT"; then
+    MOZ_CHECK_HEADERS(stdint.h inttypes.h sys/int_types.h)
+fi
 
 if test "$MOZ_TREE_CAIRO"; then
     MOZ_CAIRO_CFLAGS='-I$(LIBXUL_DIST)/include/cairo'
@@ -8096,7 +8120,7 @@ done],
     NECKO_PROTOCOLS="$NECKO_PROTOCOLS_DEFAULT")
 dnl Remove dupes
 NECKO_PROTOCOLS=`${PERL} ${srcdir}/build/unix/uniq.pl ${NECKO_PROTOCOLS}`
-AC_SUBST(NECKO_PROTOCOLS)
+AC_SUBST_SET(NECKO_PROTOCOLS)
 for p in $NECKO_PROTOCOLS; do
     AC_DEFINE_UNQUOTED(NECKO_PROTOCOL_$p)
     _NON_GLOBAL_ACDEFINES="$_NON_GLOBAL_ACDEFINES NECKO_PROTOCOL_$p"
@@ -8631,7 +8655,6 @@ AC_SUBST(MOZ_VORBIS)
 AC_SUBST(MOZ_TREMOR)
 AC_SUBST(MOZ_OPUS)
 AC_SUBST(MOZ_WEBM)
-AC_SUBST(MOZ_DASH)
 AC_SUBST(MOZ_WMF)
 AC_SUBST(MOZ_DIRECTSHOW)
 AC_SUBST(MOZ_MEDIA_PLUGINS)
@@ -8662,6 +8685,7 @@ AC_SUBST(MOZ_FOLD_LIBS)
 AC_SUBST(MOZ_ENABLE_SZIP)
 AC_SUBST(MOZ_SZIP_FLAGS)
 
+if test -n "$COMPILE_ENVIRONMENT"; then
 AC_MSG_CHECKING([for posix_fallocate])
 AC_TRY_LINK([#define _XOPEN_SOURCE 600
   #include <fcntl.h>],
@@ -8677,7 +8701,6 @@ else
 fi
 
 dnl Check for missing components
-if test "$COMPILE_ENVIRONMENT"; then
 if test "$MOZ_X11"; then
     if test "$WITHOUT_X11"; then
         AC_MSG_ERROR([--without-x specified and MOZ_X11 still defined])
@@ -8774,17 +8797,10 @@ HAVE_SYS_VFS_H
 HAVE_SYS_MOUNT_H
 "
 
-# FUTURE? Consider moving all these to moz.build files.
-AC_CONFIG_HEADER(
-netwerk/necko-config.h
-xpcom/xpcom-config.h
-xpcom/xpcom-private.h
-)
-
 AC_SUBST(STLPORT_LIBS)
 
 export WRITE_MOZINFO=1
-AC_OUTPUT([mozilla-config.h])
+AC_OUTPUT()
 unset WRITE_MOZINFO
 
 # Hack around an Apple bug that affects the egrep that comes with OS X 10.7.
@@ -8876,7 +8892,27 @@ dnl so that regeneration via dependencies works correctly
       WEBRTC_CONFIG="${WEBRTC_CONFIG} -D have_ethtool_cmd_speed_hi=0"
    fi
 
-   GYP_WEBRTC_OPTIONS="--format=mozmake ${WEBRTC_CONFIG} -D target_arch=${WEBRTC_TARGET_ARCH} ${EXTRA_GYP_DEFINES} --depth=${srcdir}/media/webrtc/trunk --toplevel-dir=${srcdir} -G OBJDIR=${_objdir}"
+   if test -n "$CROSS_COMPILE"; then
+      case "$target" in
+      *-mingw*)
+      	GYP_MOZMAKE_OPTIONS="-G os=win"
+        ;;
+      *-darwin*)
+        GYP_MOZMAKE_OPTIONS="-G os=mac"
+        if test "$MACOS_SDK_DIR"; then
+           GYP_MOZMAKE_OPTIONS="${GYP_MOZMAKE_OPTIONS} -D mac_sdk_path=$MACOS_SDK_DIR"
+        fi
+        ;;
+      *-*linux*)
+        GYP_MOZMAKE_OPTIONS="-G os=linux"
+        ;;
+      *)
+        AC_MSG_ERROR([Don't know what options to give to WebRTC for cross-compilation])
+    	;;
+      esac
+   fi
+
+   GYP_WEBRTC_OPTIONS="--format=mozmake ${GYP_MOZMAKE_OPTIONS} ${WEBRTC_CONFIG} -D target_arch=${WEBRTC_TARGET_ARCH} ${EXTRA_GYP_DEFINES} --depth=${srcdir}/media/webrtc/trunk --toplevel-dir=${srcdir} -G OBJDIR=${_objdir}"
 
    $PYTHON ${srcdir}/media/webrtc/trunk/build/gyp_chromium \
      $GYP_WEBRTC_OPTIONS \
@@ -9143,16 +9179,10 @@ MOZ_ARG_WITH_STRING(intl-api,
     but doesn't use ICU or expose the API to script.  The third doesn't build
     ICU at all.],
     WITH_INTL="--with-intl-api=$withval"
-])
-
-# NOTE: If you update anything below, you also must update the "Intl" entry in
-#       dom/tests/mochitest/general/test_interfaces.html!
+)
 if test -z "$WITH_INTL"; then
 if test "$MOZ_BUILD_APP" = "browser"; then
-    # Don't build the Intl API til we can update ICU (bug 924839).  Don't take
-    # the smaller step of building but not exposing it, either, as we also
-    # don't want dead code in shipping builds.
-    WITH_INTL="--without-intl-api"
+    WITH_INTL="--with-intl-api"
 else
     # Internationalization isn't built or exposed by default in non-desktop
     # builds.  Bugs to enable:

@@ -7206,19 +7206,10 @@ nsDocument::IsScriptEnabled()
   nsCOMPtr<nsIScriptSecurityManager> sm(do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID));
   NS_ENSURE_TRUE(sm, false);
 
-  nsCOMPtr<nsIScriptGlobalObject> globalObject = do_QueryInterface(GetWindow());
-  NS_ENSURE_TRUE(globalObject, false);
+  nsCOMPtr<nsIScriptGlobalObject> globalObject = do_QueryInterface(GetInnerWindow());
+  NS_ENSURE_TRUE(globalObject && globalObject->GetGlobalJSObject(), false);
 
-  nsIScriptContext *scriptContext = globalObject->GetContext();
-  NS_ENSURE_TRUE(scriptContext, false);
-
-  AutoPushJSContext cx(scriptContext->GetNativeContext());
-  NS_ENSURE_TRUE(cx, false);
-
-  bool enabled;
-  nsresult rv = sm->CanExecuteScripts(cx, NodePrincipal(), &enabled);
-  NS_ENSURE_SUCCESS(rv, false);
-  return enabled;
+  return sm->ScriptAllowed(globalObject->GetGlobalJSObject());
 }
 
 nsRadioGroupStruct*
@@ -8958,7 +8949,13 @@ nsDocument::GetStateObject(nsIVariant** aState)
 
   nsCOMPtr<nsIVariant> stateObj;
   if (!mStateObjectCached && mStateObjectContainer) {
-    AutoPushJSContext cx(nsContentUtils::GetContextFromDocument(this));
+    AutoJSContext cx;
+    nsIGlobalObject* sgo = GetScopeObject();
+    NS_ENSURE_TRUE(sgo, NS_ERROR_UNEXPECTED);
+    JS::Rooted<JSObject*> global(cx, sgo->GetGlobalJSObject());
+    NS_ENSURE_TRUE(global, NS_ERROR_UNEXPECTED);
+    JSAutoCompartment ac(cx, global);
+
     mStateObjectContainer->
       DeserializeToVariant(cx, getter_AddRefs(mStateObjectCached));
   }
@@ -9038,7 +9035,8 @@ void
 nsIDocument::WarnOnceAbout(DeprecatedOperations aOperation,
                            bool asError /* = false */)
 {
-  PR_STATIC_ASSERT(eDeprecatedOperationCount <= 64);
+  static_assert(eDeprecatedOperationCount <= 64,
+                "Too many deprecated operations");
   if (mWarnedAbout & (1ull << aOperation)) {
     return;
   }

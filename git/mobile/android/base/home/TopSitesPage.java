@@ -558,17 +558,6 @@ public class TopSitesPage extends HomeFragment {
          */
         public void updateThumbnails(Map<String, Bitmap> thumbnails) {
             mThumbnails = thumbnails;
-
-            final int count = mGrid.getChildCount();
-            for (int i = 0; i < count; i++) {
-                TopSitesGridItemView gridItem = (TopSitesGridItemView) mGrid.getChildAt(i);
-
-                // All the views have already got their initial state at this point.
-                // This will force each view to load favicons for the missing
-                // thumbnails if necessary.
-                gridItem.markAsDirty();
-            }
-
             notifyDataSetChanged();
         }
 
@@ -589,11 +578,7 @@ public class TopSitesPage extends HomeFragment {
 
             // If there is no url, then show "add bookmark".
             if (TextUtils.isEmpty(url)) {
-                // Wait until thumbnails are loaded before showing anything.
-                if (mThumbnails != null) {
-                    view.blankOut();
-                }
-
+                view.blankOut();
                 return;
             }
 
@@ -604,9 +589,8 @@ public class TopSitesPage extends HomeFragment {
             // fetches.
             final boolean updated = view.updateState(title, url, pinned, thumbnail);
 
-            // If thumbnails are still being loaded, don't try to load favicons
-            // just yet. If we sent in a thumbnail, we're done now.
-            if (mThumbnails == null || thumbnail != null) {
+            // If we sent in a thumbnail, we're done now.
+            if (thumbnail != null) {
                 return;
             }
 
@@ -653,9 +637,7 @@ public class TopSitesPage extends HomeFragment {
 
         @Override
         public void onFaviconLoaded(String url, String faviconURL, Bitmap favicon) {
-            if (TextUtils.equals(this.view.getUrl(), url)) {
-                this.view.displayFavicon(favicon, faviconURL, this.loadId);
-            }
+            this.view.displayFavicon(favicon, faviconURL, this.loadId);
         }
     }
 

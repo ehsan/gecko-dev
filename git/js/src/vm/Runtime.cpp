@@ -66,7 +66,6 @@ PerThreadData::PerThreadData(JSRuntime *runtime)
     asmJSActivationStack_(nullptr),
     dtoaState(nullptr),
     suppressGC(0),
-    gcKeepAtoms(0),
     activeCompilations(0)
 {}
 
@@ -126,7 +125,6 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     exclusiveAccessLock(nullptr),
     exclusiveAccessOwner(nullptr),
     mainThreadHasExclusiveAccess(false),
-    exclusiveThreadsPaused(false),
     numExclusiveThreads(0),
 #endif
     systemZone(nullptr),
@@ -235,6 +233,7 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     gcSliceCallback(nullptr),
     gcFinalizeCallback(nullptr),
     gcMallocBytes(0),
+    gcMallocGCTriggered(false),
     scriptAndCountsVector(nullptr),
     NaNValue(DoubleNaNValue()),
     negativeInfinityValue(DoubleValue(NegativeInfinity())),
@@ -248,6 +247,7 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     haveCreatedContext(false),
     data(nullptr),
     gcLock(nullptr),
+    gcLockOwner(nullptr),
     gcHelperThread(thisFromCtor()),
     signalHandlersInstalled_(false),
     defaultFreeOp_(thisFromCtor(), false),
@@ -264,6 +264,8 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     numGrouping(0),
 #endif
     mathCache_(nullptr),
+    activeCompilations_(0),
+    keepAtoms_(0),
     trustedPrincipals_(nullptr),
     atomsCompartment_(nullptr),
     beingDestroyed_(false),
@@ -332,6 +334,10 @@ JSRuntime::init(uint32_t maxbytes)
     operationCallbackLock = PR_NewLock();
     if (!operationCallbackLock)
         return false;
+
+    gcLock = PR_NewLock();
+    if (!gcLock)
+        return false;
 #endif
 
 #ifdef JS_WORKER_THREADS
@@ -386,9 +392,6 @@ JSRuntime::init(uint32_t maxbytes)
     if (!scriptDataTable_.init())
         return false;
 
-    if (!threadPool.init())
-        return false;
-
     if (!evalCache.init())
         return false;
 
@@ -410,20 +413,20 @@ JSRuntime::~JSRuntime()
     sourceHook = nullptr;
 
     /* Off thread compilation and parsing depend on atoms still existing. */
-    for (CompartmentsIter comp(this); !comp.done(); comp.next())
+    for (CompartmentsIter comp(this, SkipAtoms); !comp.done(); comp.next())
         CancelOffThreadIonCompile(comp, nullptr);
     WaitForOffThreadParsingToFinish(this);
 
 #ifdef JS_WORKER_THREADS
     if (workerThreadState)
-        workerThreadState->cleanup(this);
+        workerThreadState->cleanup();
 #endif
 
     /* Poison common names before final GC. */
     FinishCommonNames(this);
 
     /* Clear debugging state to remove GC roots. */
-    for (CompartmentsIter comp(this); !comp.done(); comp.next()) {
+    for (CompartmentsIter comp(this, SkipAtoms); !comp.done(); comp.next()) {
         comp->clearTraps(defaultFreeOp());
         if (WatchpointMap *wpmap = comp->watchpointMap)
             wpmap->clear();
@@ -459,10 +462,9 @@ JSRuntime::~JSRuntime()
     if (exclusiveAccessLock)
         PR_DestroyLock(exclusiveAccessLock);
 
-    JS_ASSERT(!numExclusiveThreads);
-
     // Avoid bogus asserts during teardown.
-    exclusiveThreadsPaused = true;
+    JS_ASSERT(!numExclusiveThreads);
+    mainThreadHasExclusiveAccess = true;
 #endif
 
 #ifdef JS_THREADSAFE
@@ -715,7 +717,7 @@ JSRuntime::setGCMaxMallocBytes(size_t value)
      */
     gcMaxMallocBytes = (ptrdiff_t(value) >= 0) ? value : size_t(-1) >> 1;
     resetGCMallocBytes();
-    for (ZonesIter zone(this); !zone.done(); zone.next())
+    for (ZonesIter zone(this, WithAtoms); !zone.done(); zone.next())
         zone->setGCMaxMallocBytes(value);
 }
 
@@ -729,10 +731,8 @@ void
 JSRuntime::updateMallocCounter(JS::Zone *zone, size_t nbytes)
 {
     /* We tolerate any thread races when updating gcMallocBytes. */
-    ptrdiff_t oldCount = gcMallocBytes;
-    ptrdiff_t newCount = oldCount - ptrdiff_t(nbytes);
-    gcMallocBytes = newCount;
-    if (JS_UNLIKELY(newCount <= 0 && oldCount > 0))
+    gcMallocBytes -= ptrdiff_t(nbytes);
+    if (JS_UNLIKELY(gcMallocBytes <= 0))
         onTooMuchMalloc();
     else if (zone)
         zone->updateMallocCounter(nbytes);
@@ -741,8 +741,11 @@ JSRuntime::updateMallocCounter(JS::Zone *zone, size_t nbytes)
 JS_FRIEND_API(void)
 JSRuntime::onTooMuchMalloc()
 {
-    if (CurrentThreadCanAccessRuntime(this))
-        TriggerGC(this, JS::gcreason::TOO_MUCH_MALLOC);
+    if (!CurrentThreadCanAccessRuntime(this))
+        return;
+
+    if (!gcMallocGCTriggered)
+        gcMallocGCTriggered = TriggerGC(this, JS::gcreason::TOO_MUCH_MALLOC);
 }
 
 JS_FRIEND_API(void *)
@@ -836,3 +839,30 @@ js::CurrentThreadCanAccessZone(Zone *zone)
 }
 
 #endif
+
+#ifdef DEBUG
+
+void
+JSRuntime::assertCanLock(RuntimeLock which)
+{
+#ifdef JS_THREADSAFE
+    // In the switch below, each case falls through to the one below it. None
+    // of the runtime locks are reentrant, and when multiple locks are acquired
+    // it must be done in the order below.
+    switch (which) {
+      case ExclusiveAccessLock:
+        JS_ASSERT(exclusiveAccessOwner != PR_GetCurrentThread());
+      case WorkerThreadStateLock:
+        JS_ASSERT_IF(workerThreadState, !workerThreadState->isLocked());
+      case OperationCallbackLock:
+        JS_ASSERT(!currentThreadOwnsOperationCallbackLock());
+      case GCLock:
+        JS_ASSERT(gcLockOwner != PR_GetCurrentThread());
+        break;
+      default:
+        MOZ_CRASH();
+    }
+#endif // JS_THREADSAFE
+}
+
+#endif // DEBUG

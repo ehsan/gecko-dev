@@ -68,6 +68,8 @@ enum CPUIDRegister { eax = 0, ebx = 1, ecx = 2, edx = 3 };
 
 #ifdef HAVE_CPUID_H
 
+#if !(defined(__SSE2__) || defined(_M_X64) || \
+     (defined(_M_IX86_FP) && _M_IX86_FP >= 2))
 // cpuid.h is available on gcc 4.3 and higher on i386 and x86_64
 #include <cpuid.h>
 
@@ -78,6 +80,7 @@ HasCPUIDBit(unsigned int level, CPUIDRegister reg, unsigned int bit)
   return __get_cpuid(level, &regs[0], &regs[1], &regs[2], &regs[3]) &&
          (regs[reg] & bit);
 }
+#endif
 
 #define HAVE_CPU_DETECTION
 #else
@@ -227,6 +230,17 @@ Factory::CreateDrawTarget(BackendType aBackend, const IntSize &aSize, SurfaceFor
       break;
     }
 #endif
+#ifdef USE_CAIRO
+  case BACKEND_CAIRO:
+    {
+      RefPtr<DrawTargetCairo> newTarget;
+      newTarget = new DrawTargetCairo();
+      if (newTarget->Init(aSize, aFormat)) {
+        retVal = newTarget;
+      }
+      break;
+    }
+#endif
   default:
     gfxDebug() << "Invalid draw target type specified.";
     return nullptr;
@@ -280,6 +294,17 @@ Factory::CreateDrawTargetForData(BackendType aBackend,
       break;
     }
 #endif
+#ifdef USE_CAIRO
+  case BACKEND_CAIRO:
+    {
+      RefPtr<DrawTargetCairo> newTarget;
+      newTarget = new DrawTargetCairo();
+      if (newTarget->Init(aData, aSize, aStride, aFormat)) {
+        retVal = newTarget;
+      }
+      break;
+    }
+#endif
   default:
     gfxDebug() << "Invalid draw target type specified.";
     return nullptr;
@@ -290,9 +315,11 @@ Factory::CreateDrawTargetForData(BackendType aBackend,
     return recordDT;
   }
 
-  gfxDebug() << "Failed to create DrawTarget, Type: " << aBackend << " Size: " << aSize;
-  // Failed
-  return nullptr;
+  if (!retVal) {
+    gfxDebug() << "Failed to create DrawTarget, Type: " << aBackend << " Size: " << aSize;
+  }
+
+  return retVal;
 }
 
 TemporaryRef<ScaledFont>
@@ -521,6 +548,14 @@ Factory::SetGlobalSkiaCacheLimits(int aCount, int aSizeInBytes)
 }
 #endif // USE_SKIA_GPU
 
+void
+Factory::PurgeTextureCaches()
+{
+#ifdef USE_SKIA_GPU
+  DrawTargetSkia::PurgeTextureCaches();
+#endif
+}
+
 #ifdef USE_SKIA_FREETYPE
 TemporaryRef<GlyphRenderingOptions>
 Factory::CreateCairoGlyphRenderingOptions(FontHinting aHinting, bool aAutoHinting)
@@ -550,6 +585,18 @@ Factory::CreateDrawTargetForCairoSurface(cairo_surface_t* aSurface, const IntSiz
     RefPtr<DrawTarget> recordDT = new DrawTargetRecording(mRecorder, retVal);
     return recordDT;
   }
+#endif
+  return retVal;
+}
+
+TemporaryRef<SourceSurface>
+Factory::CreateSourceSurfaceForCairoSurface(cairo_surface_t* aSurface,
+                                            SurfaceFormat aFormat)
+{
+  RefPtr<SourceSurface> retVal;
+
+#ifdef USE_CAIRO
+  retVal = DrawTargetCairo::CreateSourceSurfaceForCairoSurface(aSurface, aFormat);
 #endif
   return retVal;
 }

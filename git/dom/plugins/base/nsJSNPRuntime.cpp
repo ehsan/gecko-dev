@@ -456,7 +456,7 @@ ThrowJSException(JSContext *cx, const char *message)
                                           ucex.Length());
 
     if (str) {
-      JS::RootedValue exn(cx, JS::StringValue(str));
+      JS::Rooted<JS::Value> exn(cx, JS::StringValue(str));
       ::JS_SetPendingException(cx, exn);
     }
 
@@ -524,7 +524,7 @@ nsJSObjWrapper::NP_Invalidate(NPObject *npobj)
 
   if (jsnpobj && jsnpobj->mJSObj) {
     // Unroot the object's JSObject
-    js_RemoveRoot(sJSRuntime, &jsnpobj->mJSObj);
+    JS_RemoveObjectRootRT(sJSRuntime, &jsnpobj->mJSObj);
 
     if (sJSObjWrappers.ops) {
       // Remove the wrapper from the hash

@@ -33,6 +33,7 @@
 #include "nsRuleProcessorData.h"
 #include "nsIWeakReference.h"
 
+#include "nsWrapperCacheInlines.h"
 #include "nsIXPConnect.h"
 #include "nsDOMCID.h"
 #include "nsIDOMScriptObjectFactory.h"
@@ -1089,7 +1090,7 @@ void
 nsBindingManager::ClearInsertionPointsRecursively(nsIContent* aContent)
 {
   if (aContent->NodeInfo()->Equals(nsGkAtoms::children, kNameSpaceID_XBL)) {
-    static_cast<XBLChildrenElement*>(aContent)->ClearInsertedChildren();
+    static_cast<XBLChildrenElement*>(aContent)->ClearInsertedChildrenAndInsertionParents();
   }
 
   for (nsIContent* child = aContent->GetFirstChild(); child;

@@ -20,6 +20,7 @@
 #include "LayerTreeInvalidation.h"
 #include "nsSVGIntegrationUtils.h"
 #include "ImageContainer.h"
+#include "ActiveLayerTracker.h"
 
 #include "GeckoProfiler.h"
 #include "mozilla/gfx/Tools.h"
@@ -329,7 +330,8 @@ protected:
       mNeedComponentAlpha(false),
       mForceTransparentSurface(false),
       mImage(nullptr),
-      mCommonClipCount(-1) {}
+      mCommonClipCount(-1),
+      mAllDrawingAbove(false) {}
     /**
      * Record that an item has been added to the ThebesLayer, so we
      * need to update our regions.
@@ -357,6 +359,61 @@ protected:
      */
     already_AddRefed<ImageContainer> CanOptimizeImageLayer(nsDisplayListBuilder* aBuilder);
 
+    void AddDrawAboveRegion(const nsIntRegion& aAbove)
+    {
+      if (!mAllDrawingAbove) {
+        mDrawAboveRegion.Or(mDrawAboveRegion, aAbove);
+        mDrawAboveRegion.SimplifyOutward(4);
+      }
+    }
+
+    void AddVisibleAboveRegion(const nsIntRegion& aAbove)
+    {
+      if (!mAllDrawingAbove) {
+        mVisibleAboveRegion.Or(mVisibleAboveRegion, aAbove);
+        mVisibleAboveRegion.SimplifyOutward(4);
+      }
+    }
+
+    void CopyAboveRegion(ThebesLayerData* aOther)
+    {
+      if (aOther->mAllDrawingAbove || mAllDrawingAbove) {
+        SetAllDrawingAbove();
+      } else {
+        mVisibleAboveRegion.Or(mVisibleAboveRegion, aOther->mVisibleAboveRegion);
+        mVisibleAboveRegion.Or(mVisibleAboveRegion, aOther->mVisibleRegion);
+        mVisibleAboveRegion.SimplifyOutward(4);
+        mDrawAboveRegion.Or(mDrawAboveRegion, aOther->mDrawAboveRegion);
+        mDrawAboveRegion.Or(mDrawAboveRegion, aOther->mDrawRegion);
+        mDrawAboveRegion.SimplifyOutward(4);
+     }
+    }
+
+    void SetAllDrawingAbove()
+    {
+      mAllDrawingAbove = true;
+      mDrawAboveRegion.SetEmpty();
+      mVisibleAboveRegion.SetEmpty();
+    }
+
+    bool IsBelow(const nsIntRect& aRect)
+    {
+      return mAllDrawingAbove || mDrawAboveRegion.Intersects(aRect);
+    }
+
+    bool IntersectsVisibleAboveRegion(const nsIntRegion& aVisibleRegion)
+    {
+      if (mAllDrawingAbove) {
+        return true;
+      }
+      nsIntRegion visibleAboveIntersection;
+      visibleAboveIntersection.And(mVisibleAboveRegion, aVisibleRegion);
+      if (visibleAboveIntersection.IsEmpty()) {
+        return false;
+      }
+      return true;
+    }
+
     /**
      * The region of visible content in the layer, relative to the
      * container layer (which is at the snapped top-left of the display
@@ -364,29 +421,12 @@ protected:
      */
     nsIntRegion  mVisibleRegion;
     /**
-     * The region of visible content above the layer and below the
-     * next ThebesLayerData currently in the stack, if any. Note that not
-     * all ThebesLayers for the container are in the ThebesLayerData stack.
-     * Same coordinate system as mVisibleRegion.
-     * This is a conservative approximation: it contains the true region.
-     */
-    nsIntRegion  mVisibleAboveRegion;
-    /**
      * The region containing the bounds of all display items in the layer,
      * regardless of visbility.
      * Same coordinate system as mVisibleRegion.
      * This is a conservative approximation: it contains the true region.
      */
     nsIntRegion  mDrawRegion;
-    /**
-     * The region containing the bounds of all display items (regardless
-     * of visibility) in the layer and below the next ThebesLayerData
-     * currently in the stack, if any.
-     * Note that not all ThebesLayers for the container are in the
-     * ThebesLayerData stack.
-     * Same coordinate system as mVisibleRegion.
-     */
-    nsIntRegion  mDrawAboveRegion;
     /**
      * The region of visible content in the layer that is opaque.
      * Same coordinate system as mVisibleRegion.
@@ -449,6 +489,30 @@ protected:
      * in mItemClip).
      */
     void UpdateCommonClipCount(const DisplayItemClip& aCurrentClip);
+
+  private:
+    /**
+     * The region of visible content above the layer and below the
+     * next ThebesLayerData currently in the stack, if any. Note that not
+     * all ThebesLayers for the container are in the ThebesLayerData stack.
+     * Same coordinate system as mVisibleRegion.
+     * This is a conservative approximation: it contains the true region.
+     */
+    nsIntRegion  mVisibleAboveRegion;
+    /**
+     * The region containing the bounds of all display items (regardless
+     * of visibility) in the layer and below the next ThebesLayerData
+     * currently in the stack, if any.
+     * Note that not all ThebesLayers for the container are in the
+     * ThebesLayerData stack.
+     * Same coordinate system as mVisibleRegion.
+     */
+    nsIntRegion  mDrawAboveRegion;
+    /**
+     * True if mDrawAboveRegion and mVisibleAboveRegion should be treated
+     * as infinite, and all display items should be considered 'above' this layer.
+     */
+    bool mAllDrawingAbove;
   };
   friend class ThebesLayerData;
 
@@ -1395,7 +1459,7 @@ ContainerState::CreateOrRecycleThebesLayer(const nsIFrame* aActiveScrolledRoot,
   return layer.forget();
 }
 
-#ifdef MOZ_DUMP_PAINTING
+#if defined(DEBUG) || defined(MOZ_DUMP_PAINTING)
 /**
  * Returns the appunits per dev pixel for the item's frame
  */
@@ -1452,9 +1516,7 @@ ContainerState::FindOpaqueBackgroundColorFor(int32_t aThebesLayerIndex)
   ThebesLayerData* target = mThebesLayerDataStack[aThebesLayerIndex];
   for (int32_t i = aThebesLayerIndex - 1; i >= 0; --i) {
     ThebesLayerData* candidate = mThebesLayerDataStack[i];
-    nsIntRegion visibleAboveIntersection;
-    visibleAboveIntersection.And(candidate->mVisibleAboveRegion, target->mVisibleRegion);
-    if (!visibleAboveIntersection.IsEmpty()) {
+    if (candidate->IntersectsVisibleAboveRegion(target->mVisibleRegion)) {
       // Some non-Thebes content between target and candidate; this is
       // hopeless
       break;
@@ -1663,16 +1725,7 @@ ContainerState::PopThebesLayerData()
     // mVisibleAboveRegion of the second-to-last item will need to include
     // the regions of the last item.
     ThebesLayerData* nextData = mThebesLayerDataStack[lastIndex - 1];
-    nextData->mVisibleAboveRegion.Or(nextData->mVisibleAboveRegion,
-                                     data->mVisibleAboveRegion);
-    nextData->mVisibleAboveRegion.Or(nextData->mVisibleAboveRegion,
-                                     data->mVisibleRegion);
-    nextData->mVisibleAboveRegion.SimplifyOutward(4);
-    nextData->mDrawAboveRegion.Or(nextData->mDrawAboveRegion,
-                                     data->mDrawAboveRegion);
-    nextData->mDrawAboveRegion.Or(nextData->mDrawAboveRegion,
-                                     data->mDrawRegion);
-    nextData->mDrawAboveRegion.SimplifyOutward(4);
+    nextData->CopyAboveRegion(data);
   }
 
   mThebesLayerDataStack.RemoveElementAt(lastIndex);
@@ -1850,7 +1903,7 @@ ContainerState::FindThebesLayerFor(nsDisplayItem* aItem,
   int32_t topmostLayerWithScrolledRoot = -1;
   for (i = mThebesLayerDataStack.Length() - 1; i >= 0; --i) {
     ThebesLayerData* data = mThebesLayerDataStack[i];
-    if (data->mDrawAboveRegion.Intersects(aVisibleRect)) {
+    if (data->IsBelow(aVisibleRect)) {
       ++i;
       break;
     }
@@ -2160,14 +2213,24 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
       }
       ThebesLayerData* data = GetTopThebesLayerData();
       if (data) {
-        data->mVisibleAboveRegion.Or(data->mVisibleAboveRegion, itemVisibleRect);
-        data->mVisibleAboveRegion.SimplifyOutward(4);
-        // Add the entire bounds rect to the mDrawAboveRegion.
-        // The visible region may be excluding opaque content above the
-        // item, and we need to ensure that that content is not placed
-        // in a ThebesLayer below the item!
-        data->mDrawAboveRegion.Or(data->mDrawAboveRegion, itemDrawRect);
-        data->mDrawAboveRegion.SimplifyOutward(4);
+        // Prerendered transform items can be updated without layer building
+        // (async animations or an empty transaction), so we treat all other
+        // content as being above this so that the transformed layer can correctly
+        // move behind other content.
+        if (item->GetType() == nsDisplayItem::TYPE_TRANSFORM &&
+            nsDisplayTransform::ShouldPrerenderTransformedContent(mBuilder,
+                                                                  item->Frame(),
+                                                                  false)) {
+          data->SetAllDrawingAbove();
+        } else {
+          data->AddVisibleAboveRegion(itemVisibleRect);
+
+          // Add the entire bounds rect to the mDrawAboveRegion.
+          // The visible region may be excluding opaque content above the
+          // item, and we need to ensure that that content is not placed
+          // in a ThebesLayer below the item!
+          data->AddDrawAboveRegion(itemDrawRect);
+        }
       }
       itemVisibleRect.MoveBy(mParameters.mOffset);
       if (setVisibleRegion) {
@@ -2696,7 +2759,7 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
           aContainerFrame->GetContent(), eCSSProperty_transform)) {
       scale = nsLayoutUtils::GetMaximumAnimatedScale(aContainerFrame->GetContent());
     } else {
-      //Scale factors are normalized to a power of 2 to reduce the number of resolution changes
+      // Scale factors are normalized to a power of 2 to reduce the number of resolution changes
       scale = RoundToFloatPrecision(transform2d.ScaleFactors(true));
       // For frames with a changing transform that's not just a translation,
       // round scale factors up to nearest power-of-2 boundary so that we don't
@@ -2705,7 +2768,7 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
       // jaggies. It also ensures we never scale down by more than a factor of 2,
       // avoiding bad downscaling quality.
       gfxMatrix frameTransform;
-      if (aContainerFrame->AreLayersMarkedActive(nsChangeHint_UpdateTransformLayer) &&
+      if (ActiveLayerTracker::IsStyleAnimated(aContainerFrame, eCSSProperty_transform) &&
           aTransform &&
           (!aTransform->Is2D(&frameTransform) || frameTransform.HasNonTranslationOrFlip())) {
         // Don't clamp the scale factor when the new desired scale factor matches the old one
@@ -2746,7 +2809,7 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
     FrameLayerBuilder::ContainerParameters(scale.width, scale.height, -offset, aIncomingScale);
   if (aTransform) {
     aOutgoingScale.mInTransformedSubtree = true;
-    if (aContainerFrame->AreLayersMarkedActive(nsChangeHint_UpdateTransformLayer)) {
+    if (ActiveLayerTracker::IsStyleAnimated(aContainerFrame, eCSSProperty_transform)) {
       aOutgoingScale.mInActiveTransformedSubtree = true;
     }
   }

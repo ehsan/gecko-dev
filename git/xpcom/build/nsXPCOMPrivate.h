@@ -272,6 +272,7 @@ void LogTerm();
 #endif
 
 extern bool gXPCOMShuttingDown;
+extern bool gXPCOMThreadsShutDown;
 
 namespace mozilla {
 namespace services {

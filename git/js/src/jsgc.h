@@ -668,6 +668,9 @@ AddObjectRoot(JSRuntime *rt, JSObject **rp, const char *name);
 extern bool
 AddScriptRoot(JSContext *cx, JSScript **rp, const char *name);
 
+extern void
+RemoveRoot(JSRuntime *rt, void *rp);
+
 } /* namespace js */
 
 extern bool
@@ -687,11 +690,11 @@ extern void
 TraceRuntime(JSTracer *trc);
 
 /* Must be called with GC lock taken. */
-extern void
+extern bool
 TriggerGC(JSRuntime *rt, JS::gcreason::Reason reason);
 
 /* Must be called with GC lock taken. */
-extern void
+extern bool
 TriggerZoneGC(Zone *zone, JS::gcreason::Reason reason);
 
 extern void
@@ -786,6 +789,8 @@ class GCHelperThread {
     PRCondVar         *wakeup;
     PRCondVar         *done;
     volatile State    state;
+
+    void wait(PRCondVar *which);
 
     bool              sweepFlag;
     bool              shrinkFlag;

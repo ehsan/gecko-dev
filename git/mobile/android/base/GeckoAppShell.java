@@ -8,7 +8,6 @@ package org.mozilla.gecko;
 import org.mozilla.gecko.favicons.OnFaviconLoadedListener;
 import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.gfx.GeckoLayerClient;
-import org.mozilla.gecko.gfx.GfxInfoThread;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.gfx.PanZoomController;
 import org.mozilla.gecko.prompts.PromptService;
@@ -1208,7 +1207,7 @@ public class GeckoAppShell
                                         context.getResources().getString(R.string.share_title)); 
         }
 
-        final Uri uri = normalizeUriScheme(Uri.parse(targetURI));
+        final Uri uri = normalizeUriScheme(targetURI.indexOf(':') >= 0 ? Uri.parse(targetURI) : new Uri.Builder().scheme(targetURI).build());
         if (mimeType.length() > 0) {
             Intent intent = getIntentForActionString(action);
             intent.setDataAndType(uri, mimeType);
@@ -2599,11 +2598,6 @@ public class GeckoAppShell
     public static void notifyWakeLockChanged(String topic, String state) {
         if (getGeckoInterface() != null)
             getGeckoInterface().notifyWakeLockChanged(topic, state);
-    }
-
-    @GeneratableAndroidBridgeTarget(stubName = "GetGfxInfoDataWrapper")
-    public static String getGfxInfoData() {
-        return GfxInfoThread.getData();
     }
 
     @GeneratableAndroidBridgeTarget

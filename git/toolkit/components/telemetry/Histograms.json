@@ -255,14 +255,6 @@
     "extended_statistics_ok": true,
     "description": "Virtual memory size (KB)"
   },
-  "MEMORY_VSIZE_MAX_CONTIGUOUS": {
-    "kind": "exponential",
-    "low": "32 * 1024",
-    "high": "16 * 1024 * 1024",
-    "n_buckets": 100,
-    "extended_statistics_ok": true,
-    "description": "Maximum-sized block of contiguous virtual memory (KB)"
-  },
   "MEMORY_JS_COMPARTMENTS_SYSTEM": {
     "kind": "exponential",
     "high": "1000",
@@ -1048,15 +1040,10 @@
     "extended_statistics_ok": true,
     "description": "ms elapsed time of OCSP etc.. that failed"
   },
-  "SSL_KEY_EXCHANGE_ALGORITHM_FULL": {
+  "SSL_KEY_EXCHANGE_ALGORITHM": {
     "kind": "enumerated",
     "n_values": 16,
-    "description": "SSL Handshake Key Exchange Algorithm for full handshake (null=0, rsa=1, dh=2, fortezza=3, ecdh=4)"
-  },
-  "SSL_KEY_EXCHANGE_ALGORITHM_RESUMED": {
-    "kind": "enumerated",
-    "n_values": 16,
-    "description": "SSL Handshake Key Exchange Algorithm for resumed handshake (null=0, rsa=1, dh=2, fortezza=3, ecdh=4)"
+    "description": "SSL Handshake Key Exchange Algorithm (null=0, rsa=1, dh=2, fortezza=3, ecdh=4)"
   },
   "WEBSOCKETS_HANDSHAKE_TYPE": {
     "kind": "enumerated",
@@ -2640,6 +2627,24 @@
     "n_buckets": 20,
     "description": "Gloda: indexing rate (message/s)"
   },
+  "FX_GESTURE_TAKE_SNAPSHOT_OF_PAGE": {
+    "kind": "exponential",
+    "high": "1000",
+    "n_buckets": "30",
+    "description": "Firefox: Time taken to capture the page to a canvas, for reuse while swiping through history (ms)."
+  },
+  "FX_GESTURE_INSTALL_SNAPSHOT_OF_PAGE": {
+    "kind": "exponential",
+    "high": "1000",
+    "n_buckets": "30",
+    "description": "Firefox: Time taken to store the image capture of the page to a canvas, for reuse while swiping through history (ms)."
+  },
+  "FX_GESTURE_COMPRESS_SNAPSHOT_OF_PAGE": {
+    "kind": "exponential",
+    "high": "1000",
+    "n_buckets": "30",
+    "description": "Firefox: Time taken to kick off image compression of the canvas that will be used during swiping through history (ms)."
+  },
   "FX_TAB_ANIM_OPEN_MS": {
     "kind": "exponential",
     "high": "3000",
@@ -2866,6 +2871,118 @@
   "CHARSET_OVERRIDE_USED": {
     "kind": "flag",
     "description": "Whether the character encoding menu was used to override an encoding in this session."
+  },
+  "DECODER_INSTANTIATED_HZ": {
+    "kind": "flag",
+    "description": "Whether the decoder for HZ has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_ISO2022CN": {
+    "kind": "flag",
+    "description": "Whether the decoder for ISO-2022-CN has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_ISO2022KR": {
+    "kind": "flag",
+    "description": "Whether the decoder for ISO-2022-KR has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_ISO2022JP": {
+    "kind": "flag",
+    "description": "Whether the decoder for ISO-2022-JP has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_JOHAB": {
+    "kind": "flag",
+    "description": "Whether the decoder for JOHAB has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_T61": {
+    "kind": "flag",
+    "description": "Whether the decoder for T.61 has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_IBM850": {
+    "kind": "flag",
+    "description": "Whether the decoder for IBM850 has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_IBM852": {
+    "kind": "flag",
+    "description": "Whether the decoder for IBM852 has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_IBM855": {
+    "kind": "flag",
+    "description": "Whether the decoder for IBM855 has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_IBM857": {
+    "kind": "flag",
+    "description": "Whether the decoder for IBM857 has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_IBM862": {
+    "kind": "flag",
+    "description": "Whether the decoder for IBM862 has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_MACGREEK": {
+    "kind": "flag",
+    "description": "Whether the decoder for MACGREEK has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_MACICELANDIC": {
+    "kind": "flag",
+    "description": "Whether the decoder for MACICELANDIC has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_MACCE": {
+    "kind": "flag",
+    "description": "Whether the decoder for MACCE has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_MACHEBREW": {
+    "kind": "flag",
+    "description": "Whether the decoder for MACHEBREW has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_MACARABIC": {
+    "kind": "flag",
+    "description": "Whether the decoder for MACARABIC has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_MACFARSI": {
+    "kind": "flag",
+    "description": "Whether the decoder for MACFARSI has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_MACCROATIAN": {
+    "kind": "flag",
+    "description": "Whether the decoder for MACCROATIAN has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_MACROMANIAN": {
+    "kind": "flag",
+    "description": "Whether the decoder for MACROMANIAN has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_MACTURKISH": {
+    "kind": "flag",
+    "description": "Whether the decoder for MACTURKISH has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_MACDEVANAGARI": {
+    "kind": "flag",
+    "description": "Whether the decoder for MACDEVANAGARI has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_MACGUJARATI": {
+    "kind": "flag",
+    "description": "Whether the decoder for MACGUJARATI has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_MACGURMUKHI": {
+    "kind": "flag",
+    "description": "Whether the decoder for MACGURMUKHI has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_ISOIR111": {
+    "kind": "flag",
+    "description": "Whether the decoder for ISOIR111 has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_ARMSCII8": {
+    "kind": "flag",
+    "description": "Whether the decoder for ARMSCII8 has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_VISCII": {
+    "kind": "flag",
+    "description": "Whether the decoder for VISCII has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_VIETTCVN5712": {
+    "kind": "flag",
+    "description": "Whether the decoder for VIETTCVN5712 has been instantiated in this session."
+  },
+  "DECODER_INSTANTIATED_VIETVPS": {
+    "kind": "flag",
+    "description": "Whether the decoder for VIETVPS has been instantiated in this session."
   },
   "XUL_FOREGROUND_REFLOW_MS": {
     "kind": "exponential",
@@ -3375,13 +3492,6 @@
     "extended_statistics_ok": true,
     "description": "Time (ms) spent to initialize Firefox Health Report service."
   },
-  "HEALTHREPORT_SHUTDOWN_DELAY_MS": {
-    "kind": "exponential",
-    "high": "20000",
-    "n_buckets": 15,
-    "extended_statistics_ok": true,
-    "description": "Time (ms) that Firefox Health Report delays application shutdown by."
-  },
   "HEALTHREPORT_GENERATE_JSON_PAYLOAD_MS": {
     "kind": "exponential",
     "high": "30000",
@@ -3560,18 +3670,6 @@
     "kind": "enumerated",
     "n_values": 3,
     "description": "User actions taken in the plugin notification: 0: allownow 1: allowalways 2: block"
-  },
-  "PLUGINS_INFOBAR_SHOWN": {
-    "kind": "boolean",
-    "description": "Count of when the hidden-plugin infobar was displayed."
-  },
-  "PLUGINS_INFOBAR_BLOCK": {
-    "kind": "boolean",
-    "description": "Count the number of times the user clicked 'block' on the hidden-plugin infobar."
-  },
-  "PLUGINS_INFOBAR_ALLOW": {
-    "kind": "boolean",
-    "description": "Count the number of times the user clicked 'allow' on the hidden-plugin infobar."
   },
   "POPUP_NOTIFICATION_MAINACTION_TRIGGERED_MS": {
     "kind": "linear",
@@ -4438,59 +4536,49 @@
     "n_values": 64,
     "description": "detected symptom of SSL 3.0 intolerance, after considering historical info"
   },
-  "SSL_CIPHER_SUITE_FULL": {
+  "SSL_CIPHER_SUITE": {
     "kind": "enumerated",
     "n_values": 128,
-    "description": "Negotiated cipher suite in full handshake (see key in HandshakeCallback in nsNSSCallbacks.cpp)"
+    "description": "Negotiated cipher suite (see key in HandshakeCallback in nsNSSCallbacks.cpp)"
   },
-  "SSL_CIPHER_SUITE_RESUMED": {
-    "kind": "enumerated",
-    "n_values": 128,
-    "description": "Negotiated cipher suite in resumed handshake (see key in HandshakeCallback in nsNSSCallbacks.cpp)"
-  },
-  "SSL_KEA_RSA_KEY_SIZE_FULL": {
+  "SSL_KEA_RSA_KEY_SIZE": {
     "kind": "enumerated",
     "n_values": 24,
-    "description": "RSA KEA (TLS_RSA_*) key size in full handshake"
+    "description": "RSA KEA (TLS_RSA_*) key size"
   },
-  "SSL_KEA_DHE_KEY_SIZE_FULL": {
+  "SSL_KEA_DHE_KEY_SIZE": {
     "kind": "enumerated",
     "n_values": 24,
-    "description": "DHE KEA (TLS_DHE_*) key size in full handshake"
+    "description": "DHE KEA (TLS_DHE_*) key size"
   },
-  "SSL_KEA_ECDHE_CURVE_FULL": {
+  "SSL_KEA_ECDHE_CURVE": {
     "kind": "enumerated",
     "n_values": "36",
-    "description": "ECDHE KEA (TLS_ECDHE_*) curve (1=P-256, 2=P-384, 3=P-521) in full handshake"
+    "description": "ECDHE KEA (TLS_ECDHE_*) curve (1=P-256, 2=P-384, 3=P-521)"
   },
-  "SSL_AUTH_ALGORITHM_FULL": {
+  "SSL_AUTH_ALGORITHM": {
     "kind": "enumerated",
     "n_values": 16,
-    "description": "SSL Authentication Algorithm (null=0, rsa=1, dsa=2, ecdsa=4) in full handshake"
+    "description": "SSL Authentication Algorithm (null=0, rsa=1, dsa=2, ecdsa=4)"
   },
-  "SSL_AUTH_RSA_KEY_SIZE_FULL": {
+  "SSL_AUTH_RSA_KEY_SIZE": {
     "kind": "enumerated",
     "n_values": 24,
-    "description": "RSA signature key size for TLS_*_RSA_* in full handshake"
+    "description": "RSA signature key size for TLS_*_RSA_*"
   },
-  "SSL_AUTH_DSA_KEY_SIZE_FULL": {
+  "SSL_AUTH_DSA_KEY_SIZE": {
     "kind": "enumerated",
     "n_values": 24,
-    "description": "DSA signature key size for TLS_*_DSS_* in full handshake"
+    "description": "DSA signature key size for TLS_*_DSS_*"
   },
-  "SSL_AUTH_ECDSA_CURVE_FULL": {
+  "SSL_AUTH_ECDSA_CURVE": {
     "kind": "enumerated",
     "n_values": "36",
-    "description": "ECDSA signature curve for TLS_*_ECDSA_* in full handshake (1=P-256, 2=P-384, 3=P-521)"
+    "description": "ECDSA signature curve for TLS_*_ECDSA_* (1=P-256, 2=P-384, 3=P-521)"
   },
-  "SSL_SYMMETRIC_CIPHER_FULL": {
+  "SSL_SYMMETRIC_CIPHER": {
     "kind": "enumerated",
     "n_values": 32,
-    "description": "Symmetric cipher used in full handshake (null=0, rc4=1, 3des=4, aes-cbc=7, camellia=8, seed=9, aes-gcm=10)"
-  },
-  "SSL_SYMMETRIC_CIPHER_RESUMED": {
-    "kind": "enumerated",
-    "n_values": 32,
-    "description": "Symmetric cipher used in resumed handshake (null=0, rc4=1, 3des=4, aes-cbc=7, camellia=8, seed=9, aes-gcm=10)"
+    "description": "Symmetric cipher used (null=0, rc4=1, 3des=4, aes-cbc=7, camellia=8, seed=9, aes-gcm=10)"
   }
 }

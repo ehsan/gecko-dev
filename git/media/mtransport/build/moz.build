@@ -12,9 +12,11 @@ EXPORTS.mtransport += [
     '../nricectx.h',
     '../nricemediastream.h',
     '../nriceresolverfake.h',
+    '../rlogringbuffer.h',
     '../runnable_utils.h',
     '../runnable_utils_generated.h',
     '../sigslot.h',
+    '../simpletokenbucket.h',
     '../transportflow.h',
     '../transportlayer.h',
     '../transportlayerdtls.h',
@@ -71,3 +73,6 @@ elif CONFIG['OS_TARGET'] == 'WINNT':
     LOCAL_INCLUDES += [
         '/media/mtransport/third_party/nrappkit/src/port/win32/include',
     ]
+
+if CONFIG['OS_TARGET'] == 'WINNT':
+    NO_VISIBILITY_FLAGS = True

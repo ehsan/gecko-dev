@@ -60,7 +60,7 @@ js::Nursery::init()
     JS_POISON(heap, FreshNursery, NurserySize);
 #endif
     for (int i = 0; i < NumNurseryChunks; ++i)
-        chunk(i).runtime = rt;
+        chunk(i).trailer.runtime = rt;
 
     JS_ASSERT(isEnabled());
     return true;
@@ -80,6 +80,10 @@ js::Nursery::enable()
     JS_ASSERT_IF(runtime()->gcZeal_ != ZealGenerationalGCValue, position_ == start());
     numActiveChunks_ = 1;
     setCurrentChunk(0);
+#ifdef JS_GC_ZEAL
+    if (runtime()->gcZeal_ == ZealGenerationalGCValue)
+        enterZealMode();
+#endif
 }
 
 void
@@ -95,6 +99,7 @@ js::Nursery::disable()
 void *
 js::Nursery::allocate(size_t size)
 {
+    JS_ASSERT(isEnabled());
     JS_ASSERT(!runtime()->isHeapBusy());
 
     /* Ensure there's enough space to replace the contents with a RelocationOverlay. */
@@ -291,9 +296,9 @@ GetObjectAllocKindForCopy(JSRuntime *rt, JSObject *obj)
         return obj->as<JSFunction>().getAllocKind();
 
     AllocKind kind = GetGCObjectFixedSlotsKind(obj->numFixedSlots());
-    if (CanBeFinalizedInBackground(kind, obj->getClass()))
-        kind = GetBackgroundAllocKind(kind);
-    return kind;
+    JS_ASSERT(!IsBackgroundFinalized(kind));
+    JS_ASSERT(CanBeFinalizedInBackground(kind, obj->getClass()));
+    return GetBackgroundAllocKind(kind);
 }
 
 void *
@@ -594,13 +599,13 @@ js::Nursery::collect(JSRuntime *rt, JS::gcreason::Reason reason)
 
     /* Move objects pointed to by roots from the nursery to the major heap. */
     MinorCollectionTracer trc(rt, this);
+    rt->gcStoreBuffer.mark(&trc); // This must happen first.
     MarkRuntime(&trc);
     Debugger::markAll(&trc);
-    for (CompartmentsIter comp(rt); !comp.done(); comp.next()) {
+    for (CompartmentsIter comp(rt, SkipAtoms); !comp.done(); comp.next()) {
         comp->markAllCrossCompartmentWrappers(&trc);
         comp->markAllInitialShapeTableEntries(&trc);
     }
-    rt->gcStoreBuffer.mark(&trc);
     rt->newObjectCache.clearNurseryObjects(rt);
 
     /*
@@ -643,7 +648,7 @@ js::Nursery::sweep(JSRuntime *rt)
     /* Poison the nursery contents so touching a freed object will crash. */
     JS_POISON((void *)start(), SweptNursery, NurserySize - sizeof(JSRuntime *));
     for (int i = 0; i < NumNurseryChunks; ++i)
-        chunk(i).runtime = runtime();
+        chunk(i).trailer.runtime = runtime();
 
     if (rt->gcZeal_ == ZealGenerationalGCValue) {
         /* Undo any grow or shrink the collection may have done. */

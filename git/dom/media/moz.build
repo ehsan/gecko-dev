@@ -7,7 +7,12 @@
 if CONFIG['MOZ_WEBRTC']:
     DIRS += ['bridge']
 
-TEST_DIRS += ['tests/mochitest']
+    LOCAL_INCLUDES += [
+        '/media/webrtc/signaling/src/common',
+        '/media/webrtc/trunk',
+    ]
+
+TEST_DIRS += ['tests/mochitest', 'tests/ipc']
 
 XPIDL_SOURCES += [
     'nsIDOMMediaStream.idl',

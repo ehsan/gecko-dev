@@ -92,7 +92,7 @@ struct InefficientNonFlatteningStringHashPolicy
 #define ZERO_SIZE(kind, gc, mSize)                      mSize(0),
 #define COPY_OTHER_SIZE(kind, gc, mSize)                mSize(other.mSize),
 #define ADD_OTHER_SIZE(kind, gc, mSize)                 mSize += other.mSize;
-#define ADD_SIZE_TO_N_IF_LIVE_GC_THING(kind, gc, mSize) n += (js::gc == js::IsLiveGCThing) ? mSize : 0;
+#define ADD_SIZE_TO_N_IF_LIVE_GC_THING(kind, gc, mSize) n += (js::gc) ? mSize : 0;
 #define ADD_TO_TAB_SIZES(kind, gc, mSize)               sizes->add(JS::TabSizes::kind, mSize);
 
 // Used to annotate which size_t fields measure live GC things and which don't.
@@ -272,6 +272,7 @@ struct NotableStringInfo : public StringInfo
 {
     NotableStringInfo();
     NotableStringInfo(JSString *str, const StringInfo &info);
+    NotableStringInfo(const NotableStringInfo& info);
     NotableStringInfo(mozilla::MoveRef<NotableStringInfo> info);
     NotableStringInfo &operator=(mozilla::MoveRef<NotableStringInfo> info);
 
@@ -285,10 +286,10 @@ struct NotableStringInfo : public StringInfo
         return js::MemoryReportingSundriesThreshold();
     }
 
+    // The amount of memory we requested for |buffer|; i.e.
+    // buffer = malloc(bufferSize).
+    size_t bufferSize;
     char *buffer;
-
-  private:
-    NotableStringInfo(const NotableStringInfo& info) MOZ_DELETE;
 };
 
 // These measurements relate directly to the JSRuntime, and not to zones and
@@ -535,7 +536,7 @@ extern JS_PUBLIC_API(size_t)
 PeakSizeOfTemporary(const JSRuntime *rt);
 
 extern JS_PUBLIC_API(bool)
-AddSizeOfTab(JSRuntime *rt, JSObject *obj, mozilla::MallocSizeOf mallocSizeOf,
+AddSizeOfTab(JSRuntime *rt, JS::HandleObject obj, mozilla::MallocSizeOf mallocSizeOf,
              ObjectPrivateVisitor *opv, TabSizes *sizes);
 
 } // namespace JS

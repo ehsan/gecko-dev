@@ -56,7 +56,6 @@ void
 ContentHostBase::Composite(EffectChain& aEffectChain,
                            float aOpacity,
                            const gfx::Matrix4x4& aTransform,
-                           const Point& aOffset,
                            const Filter& aFilter,
                            const Rect& aClipRect,
                            const nsIntRegion* aVisibleRegion,
@@ -188,12 +187,12 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
                                           Float(tileRegionRect.y) / texRect.height,
                                           Float(tileRegionRect.width) / texRect.width,
                                           Float(tileRegionRect.height) / texRect.height);
-            GetCompositor()->DrawQuad(rect, aClipRect, aEffectChain, aOpacity, aTransform, aOffset);
+            GetCompositor()->DrawQuad(rect, aClipRect, aEffectChain, aOpacity, aTransform);
             if (usingTiles) {
               DiagnosticTypes diagnostics = DIAGNOSTIC_CONTENT | DIAGNOSTIC_BIGIMAGE;
               diagnostics |= iterOnWhite ? DIAGNOSTIC_COMPONENT_ALPHA : 0;
               GetCompositor()->DrawDiagnostics(diagnostics, rect, aClipRect,
-                                               aTransform, aOffset);
+                                               aTransform);
             }
         }
       }
@@ -213,7 +212,7 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
 
   DiagnosticTypes diagnostics = DIAGNOSTIC_CONTENT;
   diagnostics |= iterOnWhite ? DIAGNOSTIC_COMPONENT_ALPHA : 0;
-  GetCompositor()->DrawDiagnostics(diagnostics, *aVisibleRegion, aClipRect, aTransform, aOffset);
+  GetCompositor()->DrawDiagnostics(diagnostics, *aVisibleRegion, aClipRect, aTransform);
 }
 
 void
@@ -496,6 +495,7 @@ ContentHostIncremental::EnsureDeprecatedTextureHostIncremental(ISurfaceAllocator
   mUpdateList.AppendElement(new TextureCreationRequest(aTextureInfo,
                                                        aBufferRect));
   mDeAllocator = aAllocator;
+  FlushUpdateQueue();
 }
 
 void
@@ -511,6 +511,20 @@ ContentHostIncremental::UpdateIncremental(TextureIdentifier aTextureId,
                                                      aUpdated,
                                                      aBufferRect,
                                                      aBufferRotation));
+  FlushUpdateQueue();
+}
+
+void
+ContentHostIncremental::FlushUpdateQueue()
+{
+  // If we're not compositing for some reason (the window being minimized
+  // is one example), then we never process these updates and it can consume
+  // huge amounts of memory. Instead we forcibly process the updates (during the
+  // transaction) if the list gets too long.
+  static const uint32_t kMaxUpdateCount = 6;
+  if (mUpdateList.Length() >= kMaxUpdateCount) {
+    ProcessTextureUpdates();
+  }
 }
 
 void
@@ -702,7 +716,6 @@ ContentHostIncremental::TextureUpdateRequest::Execute(ContentHostIncremental* aH
   }
 }
 
-#ifdef MOZ_LAYERS_HAVE_LOG
 void
 ContentHostSingleBuffered::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
@@ -749,7 +762,6 @@ ContentHostDoubleBuffered::PrintInfo(nsACString& aTo, const char* aPrefix)
     mBackHost->PrintInfo(aTo, prefix.get());
   }
 }
-#endif
 
 #ifdef MOZ_DUMP_PAINTING
 void

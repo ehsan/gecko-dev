@@ -507,6 +507,25 @@ var SelectionHelperUI = {
   },
 
   /*
+   * Handy debug routines that work independent of selection. They
+   * make use of the selection overlay for drawing points.
+   */
+
+  debugDisplayDebugPoint: function (aLeft, aTop, aSize, aCssColorStr, aFill) {
+    this.overlay.enabled = true;
+    this.overlay.displayDebugLayer = true;
+    this.overlay.addDebugRect(aLeft, aTop, aLeft + aSize, aTop + aSize,
+                              aCssColorStr, aFill);
+  },
+
+  debugClearDebugPoints: function () {
+    this.overlay.displayDebugLayer = false;
+    if (!this._msgTarget) {
+      this.overlay.enabled = false;
+    }
+  },
+
+  /*
    * Init and shutdown
    */
 
@@ -791,6 +810,16 @@ var SelectionHelperUI = {
   /*
    * Event handlers for document events
    */
+
+   urlbarClick: function() {
+    // Workaround for bug 925457: taping browser chrome resets last tap
+    // co-ordinates to 'undefined' so that we know not to shift the browser
+    // when the keyboard is up (in SelectionHandler._calcNewContentPosition())
+    Browser.selectedTab.browser.messageManager.sendAsyncMessage("Browser:ResetLastPos", {
+      xPos: null,
+      yPos: null
+    });
+   },
 
   /*
    * Handles taps that move the current caret around in text edits,

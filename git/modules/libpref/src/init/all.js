@@ -27,10 +27,6 @@ pref("general.useragent.compatMode.firefox", false);
 // overrides by default, don't initialize UserAgentOverrides.jsm.
 pref("general.useragent.site_specific_overrides", true);
 
-// This pref controls whether or not to enable UA overrides in the
-// product code that end users use (as opposed to testing code).
-pref("general.useragent.enable_overrides", false);
-
 pref("general.config.obscure_value", 13); // for MCD .cfg files
 
 pref("general.warnOnAboutConfig", true);
@@ -215,9 +211,6 @@ pref("media.wave.enabled", true);
 #ifdef MOZ_WEBM
 pref("media.webm.enabled", true);
 #endif
-#ifdef MOZ_DASH
-pref("media.dash.enabled", false);
-#endif
 #ifdef MOZ_GSTREAMER
 pref("media.gstreamer.enabled", true);
 #endif
@@ -232,6 +225,7 @@ pref("media.navigator.video.default_fps",30);
 pref("media.navigator.video.default_minfps",10);
 pref("media.navigator.video.max_fs", 0); // unrestricted
 pref("media.navigator.video.max_fr", 0); // unrestricted
+pref("media.navigator.load_adapt", false);
 pref("media.peerconnection.enabled", true);
 pref("media.navigator.permission.disabled", false);
 pref("media.peerconnection.default_iceservers", "[{\"url\": \"stun:stun.services.mozilla.com\"}]");
@@ -281,7 +275,7 @@ pref("media.video-queue.default-size", 10);
 pref("media.video_stats.enabled", true);
 
 // Whether to enable the audio writing APIs on the audio element
-pref("media.audio_data.enabled", true);
+pref("media.audio_data.enabled", false);
 
 // Whether to lock touch scrolling to one axis at a time
 // 0 = FREE (No locking at all)
@@ -348,13 +342,17 @@ pref("gfx.font_rendering.graphite.enabled", true);
 //  SHAPING_THAI      = 0x0040
 // (see http://mxr.mozilla.org/mozilla-central/ident?i=ShapingType)
 // Scripts not listed are grouped in the default category.
-// Set the pref to -1 to have all text shaped via the harfbuzz backend.
+// Set the pref to 255 to have all text shaped via the harfbuzz backend.
 #ifdef XP_WIN
-// use harfbuzz for default (0x01) + arabic (0x02) + hebrew (0x04)
-pref("gfx.font_rendering.harfbuzz.scripts", 7);
+// Use harfbuzz for everything except Hangul (0x08). Harfbuzz doesn't yet
+// have a Hangul shaper, which means that the marks U+302E/302F would not
+// reorder properly in Malgun Gothic or similar fonts.
+pref("gfx.font_rendering.harfbuzz.scripts", 247);
 #else
-// use harfbuzz for all scripts (except when using AAT fonts on OS X)
-pref("gfx.font_rendering.harfbuzz.scripts", -1);
+// Use harfbuzz for all scripts (except when using AAT fonts on OS X).
+// AFAICT, Core Text doesn't support full OpenType Hangul shaping anyway,
+// so there's no benefit to excluding it here.
+pref("gfx.font_rendering.harfbuzz.scripts", 255);
 #endif
 
 #ifdef XP_WIN
@@ -369,13 +367,10 @@ pref("gfx.font_rendering.opentype_svg.enabled", true);
 // e.g., pref("gfx.canvas.azure.backends", "direct2d,skia,cairo");
 pref("gfx.canvas.azure.backends", "direct2d,skia,cairo");
 pref("gfx.content.azure.backends", "direct2d,cairo");
-pref("gfx.content.azure.enabled", true);
 #else
-pref("gfx.content.azure.enabled", false);
 #ifdef XP_MACOSX
 pref("gfx.content.azure.backends", "cg");
 pref("gfx.canvas.azure.backends", "cg");
-pref("gfx.content.azure.enabled", true);
 // Accelerated cg canvas where available (10.7+)
 pref("gfx.canvas.azure.accelerated", false);
 #else
@@ -385,13 +380,11 @@ pref("gfx.content.azure.backends", "cairo");
 #endif
 
 #ifdef MOZ_WIDGET_GTK2
-pref("gfx.content.azure.enabled", true);
 pref("gfx.content.azure.backends", "cairo");
 #endif
 #ifdef ANDROID
 pref("gfx.textures.poweroftwo.force-enabled", false);
 pref("gfx.content.azure.backends", "cairo");
-pref("gfx.content.azure.enabled", true);
 #endif
 
 pref("gfx.work-around-driver-bugs", true);
@@ -419,6 +412,9 @@ pref("ui.scrollToClick", 0);
 // Only on mac tabfocus is expected to handle UI widgets as well as web content
 pref("accessibility.tabfocus_applies_to_xul", true);
 #endif
+
+// provide ability to turn on support for canvas focus rings
+pref("canvas.focusring.enabled", false);
 
 // We want the ability to forcibly disable platform a11y, because
 // some non-a11y-related components attempt to bring it up.  See bug
@@ -853,8 +849,9 @@ pref("dom.min_background_timeout_value", 1000);
 pref("dom.experimental_forms", false);
 pref("dom.forms.number", false);
 
-// Don't enable <input type=color> yet:
-pref("dom.forms.color", false);
+// Enable <input type=color> by default. It will be turned off for remaining
+// platforms which don't have a color picker implemented yet.
+pref("dom.forms.color", true);
 
 // Enables system messages and activities
 pref("dom.sysmsg.enabled", false);
@@ -972,6 +969,14 @@ pref("network.protocol-handler.external.disks", false);
 pref("network.protocol-handler.external.afp", false);
 pref("network.protocol-handler.external.moz-icon", false);
 
+// Don't allow  external protocol handlers for common typos
+pref("network.protocol-handler.external.ttp", false);  // http
+pref("network.protocol-handler.external.ttps", false); // https
+pref("network.protocol-handler.external.tps", false);  // https
+pref("network.protocol-handler.external.ps", false);   // https
+pref("network.protocol-handler.external.ile", false);  // file
+pref("network.protocol-handler.external.le", false);   // file
+
 // An exposed protocol handler is one that can be used in all contexts.  A
 // non-exposed protocol handler is one that can only be used internally by the
 // application.  For example, a non-exposed protocol would not be loaded by the
@@ -1038,7 +1043,16 @@ pref("network.http.request.max-start-delay", 10);
 
 // Headers
 pref("network.http.accept.default", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
-pref("network.http.sendRefererHeader",      2); // 0=don't send any, 1=send only on clicks, 2=send on image requests as well
+
+// Prefs allowing granular control of referers
+// 0=don't send any, 1=send only on clicks, 2=send on image requests as well
+pref("network.http.sendRefererHeader",      2); 
+// false=real referer, true=spoof referer (use target URI as referer)                                              
+pref("network.http.referer.spoofSource", false); 
+// 0=full URI, 1=scheme+host+port+path, 2=scheme+host+port
+pref("network.http.referer.trimmingPolicy", 0); 
+// 0=always send, 1=send iff base domains match, 2=send iff hosts match
+pref("network.http.referer.XOriginPolicy", 0); 
 
 // Controls whether we send HTTPS referres to other HTTPS sites.
 // By default this is enabled for compatibility (see bug 141641)
@@ -1121,7 +1135,6 @@ pref("network.http.bypass-cachelock-threshold", 250);
 
 // Try and use SPDY when using SSL
 pref("network.http.spdy.enabled", true);
-pref("network.http.spdy.enabled.v2", true);
 pref("network.http.spdy.enabled.v3", true);
 pref("network.http.spdy.enabled.v3-1", true);
 pref("network.http.spdy.chunk-size", 4096);
@@ -1519,7 +1532,7 @@ pref("intl.charsetmenu.mailview.cache",     "");
 pref("intl.charsetmenu.composer.cache",     "");
 pref("intl.charsetmenu.browser.cache.size", 5);
 pref("intl.charset.detector",               "chrome://global/locale/intl.properties");
-pref("intl.charset.default",                "chrome://global-platform/locale/intl.properties");
+pref("intl.charset.fallback.override",      "");
 pref("intl.ellipsis",                       "chrome://global-platform/locale/intl.properties");
 pref("intl.locale.matchOS",                 false);
 // fallback charset list for Unicode conversion (converting from Unicode)
@@ -1610,6 +1623,7 @@ pref("security.notification_enable_delay", 500);
 
 pref("security.csp.enable", true);
 pref("security.csp.debug", false);
+pref("security.csp.experimentalEnabled", false);
 
 // Mixed content blocking
 pref("security.mixed_content.block_active_content", false);
@@ -1877,9 +1891,6 @@ pref("layout.css.supports-rule.enabled", true);
 // Is support for CSS Filters enabled?
 pref("layout.css.filters.enabled", false);
 
-// Is support for CSS Flexbox enabled?
-pref("layout.css.flexbox.enabled", true);
-
 // Is support for CSS sticky positioning enabled?
 #ifdef RELEASE_BUILD
 pref("layout.css.sticky.enabled", false);
@@ -1917,6 +1928,13 @@ pref("layout.css.prefixes.animations", true);
 pref("layout.css.scope-pseudo.enabled", false);
 #else
 pref("layout.css.scope-pseudo.enabled", true);
+#endif
+
+// Is support for background-blend-mode enabled?
+#ifdef RELEASE_BUILD
+pref("layout.css.background-blend-mode.enabled", false);
+#else
+pref("layout.css.background-blend-mode.enabled", true);
 #endif
 
 // Is support for CSS vertical text enabled?
@@ -2751,12 +2769,12 @@ pref("font.name-list.serif.ja", "Hiragino Mincho ProN,Hiragino Mincho Pro");
 pref("font.name-list.sans-serif.ja", "Hiragino Kaku Gothic ProN,Hiragino Kaku Gothic Pro");
 pref("font.name-list.monospace.ja", "Osaka-Mono"); 
 
-pref("font.name.serif.ko", "AppleMyungjo"); 
-pref("font.name.sans-serif.ko", "AppleGothic"); 
-pref("font.name.monospace.ko", "AppleGothic"); 
-pref("font.name-list.serif.ko", "AppleMyungjo"); 
-pref("font.name-list.sans-serif.ko", "AppleGothic"); 
-pref("font.name-list.monospace.ko", "AppleGothic"); 
+pref("font.name.serif.ko", "AppleMyungjo");
+pref("font.name.sans-serif.ko", "Apple SD Gothic Neo");
+pref("font.name.monospace.ko", "Apple SD Gothic Neo");
+pref("font.name-list.serif.ko", "AppleMyungjo");
+pref("font.name-list.sans-serif.ko", "Apple SD Gothic Neo,AppleGothic");
+pref("font.name-list.monospace.ko", "Apple SD Gothic Neo,AppleGothic");
 
 pref("font.name.serif.th", "Thonburi");
 pref("font.name.sans-serif.th", "Thonburi");
@@ -4188,6 +4206,7 @@ pref("layers.acceleration.force-enabled", false);
 
 pref("layers.acceleration.draw-fps", false);
 
+pref("layers.dump", false);
 pref("layers.draw-borders", false);
 pref("layers.draw-tile-borders", false);
 pref("layers.draw-bigimage-borders", false);
@@ -4476,6 +4495,9 @@ pref("dom.mms.defaultServiceId", 0);
 // Debug enabler for MMS.
 pref("mms.debugging.enabled", false);
 
+// Request read report while sending MMS.
+pref("dom.mms.requestReadReport", true);
+
 // Number of RadioInterface instances to create.
 pref("ril.numRadioInterfaces", 0);
 
@@ -4513,22 +4535,42 @@ pref("dom.mozInputMethod.enabled", false);
 pref("dom.datastore.enabled", false);
 
 // Telephony API
+#ifdef MOZ_B2G_RIL
+pref("dom.telephony.enabled", true);
+#else
 pref("dom.telephony.enabled", false);
+#endif
 // Numeric default service id for WebTelephony API calls with |serviceId|
 // parameter omitted.
 pref("dom.telephony.defaultServiceId", 0);
 
 // Cell Broadcast API
+#ifdef MOZ_B2G_RIL
+pref("dom.cellbroadcast.enabled", true);
+#else
 pref("dom.cellbroadcast.enabled", false);
+#endif
 
 // ICC API
+#ifdef MOZ_B2G_RIL
+pref("dom.icc.enabled", true);
+#else
 pref("dom.icc.enabled", false);
+#endif
 
 // Mobile Connection API
+#ifdef MOZ_B2G_RIL
+pref("dom.mobileconnection.enabled", true);
+#else
 pref("dom.mobileconnection.enabled", false);
+#endif
 
 // Voice Mail API
+#ifdef MOZ_B2G_RIL
+pref("dom.voicemail.enabled", true);
+#else
 pref("dom.voicemail.enabled", false);
+#endif
 // Numeric default service id for Voice Mail API calls with |serviceId|
 // parameter omitted.
 pref("dom.voicemail.defaultServiceId", 0);
@@ -4539,8 +4581,8 @@ pref("dom.inter-app-communication-api.enabled", false);
 // The tables used for Safebrowsing phishing and malware checks.
 pref("urlclassifier.malware_table", "goog-malware-shavar");
 pref("urlclassifier.phish_table", "goog-phish-shavar");
-pref("urlclassifier.download_block_table", "goog-badbinurl-shavar");
-pref("urlclassifier.download_allow_table", "goog-downloadwhite-digest256");
+pref("urlclassifier.download_block_table", "");
+pref("urlclassifier.download_allow_table", "");
 
 // Turn off Spatial navigation by default.
 pref("snav.enabled", false);

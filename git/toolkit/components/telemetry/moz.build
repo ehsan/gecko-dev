@@ -34,7 +34,6 @@ EXTRA_JS_MODULES += [
     'TelemetryFile.jsm',
     'TelemetryStopwatch.jsm',
     'ThirdPartyCookieProbe.jsm',
-    'UITelemetry.jsm',
 ]
 
 FAIL_ON_WARNINGS = True

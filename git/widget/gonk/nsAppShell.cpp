@@ -83,7 +83,7 @@ using namespace mozilla::services;
 using namespace mozilla::widget;
 
 bool gDrawRequest = false;
-static nsAppShell *gAppShell = NULL;
+static nsAppShell *gAppShell = nullptr;
 static int epollfd = 0;
 static int signalfds[2] = {0};
 static bool sDevInputAudioJack;
@@ -130,6 +130,7 @@ struct UserInputData {
     int32_t action;
     int32_t flags;
     int32_t metaState;
+    int32_t deviceId;
     union {
         struct {
             int32_t keyCode;
@@ -145,7 +146,7 @@ struct UserInputData {
 static void
 sendMouseEvent(uint32_t msg, uint64_t timeMs, int x, int y, bool forwardToChildren)
 {
-    WidgetMouseEvent event(true, msg, NULL,
+    WidgetMouseEvent event(true, msg, nullptr,
                            WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
 
     event.refPoint.x = x;
@@ -198,7 +199,7 @@ sendTouchEvent(UserInputData& data, bool* captured)
         break;
     }
 
-    WidgetTouchEvent event(true, msg, NULL);
+    WidgetTouchEvent event(true, msg, nullptr);
 
     event.time = data.timeMs;
 
@@ -217,12 +218,16 @@ sendTouchEvent(UserInputData& data, bool* captured)
 
 static nsEventStatus
 sendKeyEventWithMsg(uint32_t keyCode,
+                    int16_t charCode,
                     KeyNameIndex keyNameIndex,
                     uint32_t msg,
-                    uint64_t timeMs)
+                    uint64_t timeMs,
+                    bool isRepeat)
 {
-    WidgetKeyboardEvent event(true, msg, NULL);
+    WidgetKeyboardEvent event(true, msg, nullptr);
     event.keyCode = keyCode;
+    event.charCode = charCode;
+    event.mIsRepeat = isRepeat;
     event.mKeyNameIndex = keyNameIndex;
     event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_MOBILE;
     event.time = timeMs;
@@ -230,29 +235,16 @@ sendKeyEventWithMsg(uint32_t keyCode,
 }
 
 static void
-sendKeyEvent(uint32_t keyCode, KeyNameIndex keyNameIndex, bool down,
-             uint64_t timeMs)
+sendKeyEvent(uint32_t keyCode, int16_t charCode, KeyNameIndex keyNameIndex,
+             bool down, uint64_t timeMs, bool isRepeat)
 {
     EventFlags extraFlags;
     nsEventStatus status =
-        sendKeyEventWithMsg(keyCode, keyNameIndex,
-                            down ? NS_KEY_DOWN : NS_KEY_UP, timeMs);
+        sendKeyEventWithMsg(keyCode, charCode, keyNameIndex,
+                            down ? NS_KEY_DOWN : NS_KEY_UP, timeMs, isRepeat);
     if (down && status != nsEventStatus_eConsumeNoDefault) {
-        sendKeyEventWithMsg(keyCode, keyNameIndex, NS_KEY_PRESS, timeMs);
-    }
-}
-
-static void
-maybeSendKeyEvent(int keyCode, bool pressed, uint64_t timeMs)
-{
-    uint32_t DOMKeyCode =
-        (keyCode < ArrayLength(kKeyMapping)) ? kKeyMapping[keyCode] : 0;
-    KeyNameIndex DOMKeyNameIndex = GetKeyNameIndex(keyCode);
-    if (DOMKeyCode || DOMKeyNameIndex != KEY_NAME_INDEX_Unidentified) {
-        sendKeyEvent(DOMKeyCode, DOMKeyNameIndex, pressed, timeMs);
-    } else {
-        VERBOSE_LOG("Got unknown key event code. type 0x%04x code 0x%04x value %d",
-                    keyCode, pressed);
+        sendKeyEventWithMsg(keyCode, charCode, keyNameIndex, NS_KEY_PRESS,
+                            timeMs, isRepeat);
     }
 }
 
@@ -393,7 +385,7 @@ deviceId)
     virtual void notifyInputDevicesChanged(const android::Vector<InputDeviceInfo>& inputDevices) {};
     virtual sp<KeyCharacterMap> getKeyboardLayoutOverlay(const String8& inputDeviceDescriptor)
     {
-        return NULL;
+        return nullptr;
     };
     virtual String8 getDeviceAlias(const InputDeviceIdentifier& identifier)
     {
@@ -408,8 +400,9 @@ protected:
 
 class GeckoInputDispatcher : public InputDispatcherInterface {
 public:
-    GeckoInputDispatcher()
+    GeckoInputDispatcher(sp<EventHub> &aEventHub)
         : mQueueLock("GeckoInputDispatcher::mQueueMutex")
+        , mEventHub(aEventHub)
     {}
 
     virtual void dump(String8& dump);
@@ -453,6 +446,7 @@ private:
     // popped and dispatched on the main thread.
     mozilla::Mutex mQueueLock;
     std::queue<UserInputData> mEventQueue;
+    sp<EventHub> mEventHub;
 };
 
 // GeckoInputReaderPolicy
@@ -550,11 +544,32 @@ GeckoInputDispatcher::dispatchOnce()
                        status != nsEventStatus_eConsumeNoDefault);
         break;
     }
-    case UserInputData::KEY_DATA:
-        maybeSendKeyEvent(data.key.keyCode,
-                          data.action == AKEY_EVENT_ACTION_DOWN,
-                          data.timeMs);
+    case UserInputData::KEY_DATA: {
+        uint32_t DOMKeyCode =
+            (data.key.keyCode < ArrayLength(kKeyMapping)) ?
+            kKeyMapping[data.key.keyCode] : 0;
+        KeyNameIndex DOMKeyNameIndex = GetKeyNameIndex(data.key.keyCode);
+        if (!DOMKeyCode && DOMKeyNameIndex == KEY_NAME_INDEX_Unidentified) {
+            VERBOSE_LOG("Got unknown key event code. "
+                        "type 0x%04x code 0x%04x value %d",
+                        keyCode, pressed);
+            break;
+        }
+
+        bool isPress = data.action == AKEY_EVENT_ACTION_DOWN;
+        bool isRepeat = isPress && (data.flags & AKEY_EVENT_FLAG_LONG_PRESS);
+        int16_t charCode = 0;
+        sp<KeyCharacterMap> kcm = mEventHub->getKeyCharacterMap(data.deviceId);
+        if (kcm.get())
+            charCode = kcm->getCharacter(data.key.keyCode, data.metaState);
+        sendKeyEvent(DOMKeyCode,
+                     charCode,
+                     DOMKeyNameIndex,
+                     isPress,
+                     data.timeMs,
+                     isRepeat);
         break;
+    }
     }
 }
 
@@ -579,6 +594,7 @@ GeckoInputDispatcher::notifyKey(const NotifyKeyArgs* args)
     data.action = args->action;
     data.flags = args->flags;
     data.metaState = args->metaState;
+    data.deviceId = args->deviceId;
     data.key.keyCode = args->keyCode;
     data.key.scanCode = args->scanCode;
     {
@@ -598,6 +614,7 @@ GeckoInputDispatcher::notifyMotion(const NotifyMotionArgs* args)
     data.action = args->action;
     data.flags = args->flags;
     data.metaState = args->metaState;
+    data.deviceId = args->deviceId;
     MOZ_ASSERT(args->pointerCount <= MAX_POINTERS);
     data.motion.touchCount = args->pointerCount;
     for (uint32_t i = 0; i < args->pointerCount; ++i) {
@@ -707,7 +724,7 @@ nsAppShell::~nsAppShell()
         if (result)
             LOG("Could not stop reader thread - %d", result);
     }
-    gAppShell = NULL;
+    gAppShell = nullptr;
 }
 
 nsresult
@@ -790,7 +807,7 @@ nsAppShell::InitInputDevices()
     mEventHub = new EventHub();
     mReaderPolicy = new GeckoInputReaderPolicy();
     mReaderPolicy->setDisplayInfo();
-    mDispatcher = new GeckoInputDispatcher();
+    mDispatcher = new GeckoInputDispatcher(mEventHub);
 
     mReader = new InputReader(mEventHub, mReaderPolicy, mDispatcher);
     mReaderThread = new InputReaderThread(mReader);

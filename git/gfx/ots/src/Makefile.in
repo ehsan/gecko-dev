@@ -26,11 +26,7 @@
 
 
 ifeq (WINNT,$(OS_TARGET))
-VISIBILITY_FLAGS =
 endif
-
-CSRCS =   \
-  $(NULL)
 
 include $(topsrcdir)/config/rules.mk
 

@@ -14,18 +14,30 @@ EXPORTS += [
 ]
 
 if CONFIG['MOZ_WEBRTC']:
-    EXPORTS += ['MediaEngineWebRTC.h']
-    SOURCES += [
+    EXPORTS += ['LoadMonitor.h', 'MediaEngineWebRTC.h']
+    UNIFIED_SOURCES += [
+        'LoadMonitor.cpp',
         'MediaEngineTabVideoSource.cpp',
-        'MediaEngineWebRTC.cpp',
         'MediaEngineWebRTCAudio.cpp',
         'MediaEngineWebRTCVideo.cpp',
     ]
+    # MediaEngineWebRTC.cpp needs to be built separately.
+    SOURCES += [
+        'MediaEngineWebRTC.cpp',
+    ]
+    LOCAL_INCLUDES += [
+        '/dom/base',
+        '/dom/camera',
+        '/media/webrtc/signaling/src/common',
+        '/media/webrtc/signaling/src/common/browser_logging',
+        '/media/webrtc/trunk',
+    ]
+
 XPIDL_SOURCES += [
-        'nsITabSource.idl'
+    'nsITabSource.idl'
 ]
 
-SOURCES += [
+UNIFIED_SOURCES += [
     'MediaEngineDefault.cpp',
 ]
 
@@ -35,3 +47,5 @@ LIBRARY_NAME = 'gkconwebrtc_s'
 
 include('/ipc/chromium/chromium-config.mozbuild')
 
+if CONFIG['OS_ARCH'] == 'WINNT':
+    DEFINES['NOMINMAX'] = True

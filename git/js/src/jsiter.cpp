@@ -1117,7 +1117,7 @@ bool
 js_SuppressDeletedElement(JSContext *cx, HandleObject obj, uint32_t index)
 {
     RootedId id(cx);
-    if (!IndexToId(cx, index, &id))
+    if (!IndexToId(cx, index, id.address()))
         return false;
     return js_SuppressDeletedProperty(cx, obj, id);
 }
@@ -1440,7 +1440,7 @@ GeneratorState::~GeneratorState()
 }
 
 StackFrame *
-GeneratorState::pushInterpreterFrame(JSContext *cx, FrameGuard *)
+GeneratorState::pushInterpreterFrame(JSContext *cx)
 {
     /*
      * Write barrier is needed since the generator stack can be updated,

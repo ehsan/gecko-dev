@@ -210,7 +210,7 @@
 
     <!-- Navigation bar -->
     <appbar id="navbar" mousethrough="never" visible="true">
-      <hbox id="progress-container" layer="true">
+      <hbox id="progress-container" layer="true" observes="bcast_windowState">
         <hbox id="progress-control" />
       </hbox>
 
@@ -238,7 +238,8 @@
                      autocompletesearch="history"
                      autocompletepopup="urlbar-autocomplete"
                      completeselectedindex="true"
-                     placeholder="&urlbar.emptytext;"/>
+                     placeholder="&urlbar.emptytext;"
+                     onclick="SelectionHelperUI.urlbarClick();"/>
 
             <toolbarbutton id="go-button" class="urlbar-button"
                            command="cmd_go"/>
@@ -790,6 +791,9 @@
           </richlistitem>
           <richlistitem id="context-msmetadata" type="ms-meta-data" onclick="ContextCommands.openWindowsStoreLink();">
             <label value="&appbarMSMetaData2.label;"/>
+          </richlistitem>
+          <richlistitem id="context-viewpagesource" type="view-page-source" onclick="ContextCommands.viewPageSource();">
+            <label value="&appbarViewPageSource.label;"/>
           </richlistitem>
         </richlistbox>
       </vbox>

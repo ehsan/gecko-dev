@@ -335,10 +335,10 @@
     {0xab, 0x1d, 0x5e, 0x68, 0xa9, 0xf4, 0x5f, 0x08} \
 }
 
-// component implementing nsIUDPServerSocket
-#define NS_UDPSERVERSOCKET_CONTRACTID \
-    "@mozilla.org/network/server-socket-udp;1"
-#define NS_UDPSERVERSOCKET_CID                       \
+// component implementing nsIUDPSocket
+#define NS_UDPSOCKET_CONTRACTID \
+    "@mozilla.org/network/udp-socket;1"
+#define NS_UDPSOCKET_CID                             \
 { /* c9f74572-7b8e-4fec-bb4a-03c0d3021bd6 */         \
     0xc9f74572,                                      \
     0x7b8e,                                          \
@@ -611,6 +611,18 @@
     0x1f69,                                          \
     0x11d3,                                          \
     {0x93, 0x44, 0x00, 0x10, 0x4b, 0xa0, 0xfd, 0x40} \
+}
+
+/******************************************************************************
+ * netwerk/protocol/app/ classes
+ */
+
+#define NS_APPPROTOCOLHANDLER_CID                    \
+{ /* {B6ED3030-9999-11d3-A178-0050041CAF44} */       \
+    0xb6ed3030,                                      \
+    0x9999,                                          \
+    0x11d3,                                          \
+    {0xa1, 0x78, 0x00, 0x50, 0x04, 0x1c, 0xaf, 0x44} \
 }
 
 /******************************************************************************

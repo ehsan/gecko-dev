@@ -308,15 +308,13 @@ public:
           // Forward mOnTracksAvailableCallback to GetUserMediaNotificationEvent,
           // because mOnTracksAvailableCallback needs to be added to mStream
           // on the main thread.
-          nsIRunnable *event =
+          nsRefPtr<GetUserMediaNotificationEvent> event =
             new GetUserMediaNotificationEvent(GetUserMediaNotificationEvent::STARTING,
                                               mStream.forget(),
                                               mOnTracksAvailableCallback.forget(),
                                               mAudioSource != nullptr,
                                               mVideoSource != nullptr,
                                               mWindowID);
-          // event must always be released on mainthread due to the JS callbacks
-          // in the TracksAvailableCallback
           NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
         }
         break;
@@ -336,14 +334,13 @@ public:
           if (mFinish) {
             source->Finish();
           }
-          nsIRunnable *event =
+          nsRefPtr<GetUserMediaNotificationEvent> event =
             new GetUserMediaNotificationEvent(mListener,
                                               GetUserMediaNotificationEvent::STOPPING,
                                               mAudioSource != nullptr,
                                               mVideoSource != nullptr,
                                               mWindowID);
-          // event must always be released on mainthread due to the JS callbacks
-          // in the TracksAvailableCallback
+
           NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
         }
         break;

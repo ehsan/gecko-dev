@@ -14,8 +14,7 @@ elif toolkit == 'cocoa':
     DIRS += ['mac']
 elif toolkit == 'android':
     DIRS += ['android']
-
-if CONFIG['MOZ_B2G_RIL']:
+elif toolkit == 'gonk':
     DIRS += ['gonk']
 
 TEST_DIRS += ['tests']
@@ -59,3 +58,13 @@ EXPORT_LIBRARY = True
 
 include('/ipc/chromium/chromium-config.mozbuild')
 
+# We fire the nsDOMDeviceAcceleration
+LOCAL_INCLUDES += [
+    '/content/events/src',
+    '/dom/base',
+    '/dom/bindings',
+    '/js/xpconnect/loader',
+]
+
+DEFINES['DLL_PREFIX'] = '"%s"' % CONFIG['DLL_PREFIX']
+DEFINES['DLL_SUFFIX'] = '"%s"' % CONFIG['DLL_SUFFIX']

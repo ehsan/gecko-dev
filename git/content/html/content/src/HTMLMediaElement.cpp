@@ -1401,17 +1401,7 @@ already_AddRefed<TimeRanges>
 HTMLMediaElement::Seekable() const
 {
   nsRefPtr<TimeRanges> ranges = new TimeRanges();
-  if (mMediaSource) {
-    double duration = mMediaSource->Duration();
-    if (IsNaN(duration)) {
-      // Return empty range.
-    } else if (duration > 0 && IsInfinite(duration)) {
-      nsRefPtr<TimeRanges> bufferedRanges = Buffered();
-      ranges->Add(0, bufferedRanges->GetFinalEndTime());
-    } else {
-      ranges->Add(0, duration);
-    }
-  } else if (mDecoder && mReadyState > nsIDOMHTMLMediaElement::HAVE_NOTHING) {
+  if (mDecoder && mReadyState > nsIDOMHTMLMediaElement::HAVE_NOTHING) {
     mDecoder->GetSeekable(ranges);
   }
   ranges->Normalize();
@@ -1591,7 +1581,7 @@ HTMLMediaElement::GetMozSampleRate(uint32_t* aMozSampleRate)
 // Helper struct with arguments for our hash iterator.
 typedef struct MOZ_STACK_CLASS {
   JSContext* cx;
-  JS::HandleObject  tags;
+  JS::Handle<JSObject*> tags;
   bool error;
 } MetadataIterCx;
 
@@ -3601,9 +3591,7 @@ already_AddRefed<TimeRanges>
 HTMLMediaElement::Buffered() const
 {
   nsRefPtr<TimeRanges> ranges = new TimeRanges();
-  if (mMediaSource) {
-    mMediaSource->GetBuffered(ranges);
-  } else if (mDecoder && mReadyState > nsIDOMHTMLMediaElement::HAVE_NOTHING) {
+  if (mDecoder && mReadyState > nsIDOMHTMLMediaElement::HAVE_NOTHING) {
     // If GetBuffered fails we ignore the error result and just return the
     // time ranges we found up till the error.
     mDecoder->GetBuffered(ranges);
@@ -3926,6 +3914,42 @@ HTMLMediaElement::PopulatePendingTextTrackList()
   if (mTextTrackManager) {
     mTextTrackManager->PopulatePendingList();
   }
+}
+
+AudioChannel
+HTMLMediaElement::MozAudioChannelType() const
+{
+  switch (mAudioChannelType) {
+    case AUDIO_CHANNEL_CONTENT:
+      return AudioChannel::Content;
+
+    case AUDIO_CHANNEL_NOTIFICATION:
+      return AudioChannel::Notification;
+
+    case AUDIO_CHANNEL_ALARM:
+      return AudioChannel::Alarm;
+
+    case AUDIO_CHANNEL_TELEPHONY:
+      return AudioChannel::Telephony;
+
+    case AUDIO_CHANNEL_RINGER:
+      return AudioChannel::Ringer;
+
+    case AUDIO_CHANNEL_PUBLICNOTIFICATION:
+      return AudioChannel::Publicnotification;
+
+    default:
+      return AudioChannel::Normal;
+  }
+}
+
+void
+HTMLMediaElement::SetMozAudioChannelType(AudioChannel aValue, ErrorResult& aRv)
+{
+  nsString channel;
+  channel.AssignASCII(AudioChannelValues::strings[uint32_t(aValue)].value,
+                      AudioChannelValues::strings[uint32_t(aValue)].length);
+  SetHTMLAttr(nsGkAtoms::mozaudiochannel, channel, aRv);
 }
 
 } // namespace dom

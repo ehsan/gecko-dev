@@ -56,11 +56,11 @@ class CompositingRenderTargetD3D9 : public CompositingRenderTarget,
 public:
   CompositingRenderTargetD3D9(IDirect3DTexture9* aTexture,
                               SurfaceInitMode aInit,
-                              const gfx::IntSize& aSize);
+                              const gfx::IntRect& aRect);
   // use for rendering to the main window, cannot be rendered as a texture
   CompositingRenderTargetD3D9(IDirect3DSurface9* aSurface,
                               SurfaceInitMode aInit,
-                              const gfx::IntSize& aSize);
+                              const gfx::IntRect& aRect);
   ~CompositingRenderTargetD3D9();
 
   virtual TextureSourceD3D9* AsSourceD3D9() MOZ_OVERRIDE
@@ -148,9 +148,7 @@ protected:
 class DeprecatedTextureHostShmemD3D9 : public DeprecatedTextureHostD3D9
 {
 public:
-#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "DeprecatedTextureHostShmemD3D9"; }
-#endif
 
 protected:
   virtual void UpdateImpl(const SurfaceDescriptor& aSurface,
@@ -161,9 +159,7 @@ protected:
 class DeprecatedTextureHostSystemMemD3D9 : public DeprecatedTextureHostD3D9
 {
 public:
-#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "DeprecatedTextureHostSystemMemD3D9"; }
-#endif
 
 protected:
   virtual void UpdateImpl(const SurfaceDescriptor& aSurface,
@@ -194,12 +190,10 @@ public:
     return nullptr; // TODO: cf bug 872568
   }
 
-#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() MOZ_OVERRIDE
   {
     return "TextureImageDeprecatedTextureHostD3D11";
   }
-#endif
 
 protected:
   virtual void UpdateImpl(const SurfaceDescriptor& aSurface,
@@ -213,9 +207,7 @@ private:
 class DeprecatedTextureHostDIB : public DeprecatedTextureHostD3D9
 {
 public:
-#ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "DeprecatedTextureHostDIB"; }
-#endif
   virtual void SetBuffer(SurfaceDescriptor* aBuffer, ISurfaceAllocator* aAllocator) MOZ_OVERRIDE
   {
     MOZ_ASSERT(aBuffer->type() == SurfaceDescriptor::TSurfaceDescriptorDIB);

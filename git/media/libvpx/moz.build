@@ -36,6 +36,8 @@ if CONFIG['VPX_NEED_OBJ_INT_EXTRACT']:
         'build/make/obj_int_extract.c',
     ]
 
+    HOST_PROGRAM = 'host_obj_int_extract'
+
 LIBRARY_NAME = 'vpx'
 
 SOURCES += [
@@ -93,3 +95,6 @@ SOURCES += [
 MSVC_ENABLE_PGO = True
 
 FORCE_STATIC_LIB = True
+
+if CONFIG['OS_TARGET'] == 'WINNT':
+    NO_VISIBILITY_FLAGS = True

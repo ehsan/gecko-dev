@@ -216,7 +216,7 @@ nsJSON::EncodeInternal(JSContext* cx, const JS::Value& aValue,
       toJSON.isObject() &&
       JS_ObjectIsCallable(cx, &toJSON.toObject())) {
     // If toJSON is implemented, it must not throw
-    if (!JS_CallFunctionValue(cx, obj, toJSON, 0, NULL, val.address())) {
+    if (!JS_CallFunctionValue(cx, obj, toJSON, 0, nullptr, val.address())) {
       if (JS_IsExceptionPending(cx))
         // passing NS_OK will throw the pending exception
         return NS_OK;
@@ -524,7 +524,7 @@ nsJSONListener::OnStopRequest(nsIRequest *aRequest, nsISupports *aContext,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  JS::RootedValue reviver(mCx, JS::NullValue()), value(mCx);
+  JS::Rooted<JS::Value> reviver(mCx, JS::NullValue()), value(mCx);
 
   JS::StableCharPtr chars(reinterpret_cast<const jschar*>(mBufferedChars.Elements()),
                           mBufferedChars.Length());

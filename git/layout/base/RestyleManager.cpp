@@ -34,6 +34,7 @@
 #include "nsIDOMMutationEvent.h"
 #include "nsContentUtils.h"
 #include "nsIFrameInlines.h"
+#include "ActiveLayerTracker.h"
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -224,7 +225,8 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
       // FIXME/bug 796697: we can get away with empty transactions for
       // opacity updates in many cases.
       needInvalidatingPaint = true;
-      aFrame->MarkLayersActive(nsChangeHint_UpdateOpacityLayer);
+
+      ActiveLayerTracker::NotifyRestyle(aFrame, eCSSProperty_opacity);
       if (nsSVGIntegrationUtils::UsingEffectsForFrame(aFrame)) {
         // SVG effects paints the opacity without using
         // nsDisplayOpacity. We need to invalidate manually.
@@ -233,7 +235,7 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
     }
     if ((aChange & nsChangeHint_UpdateTransformLayer) &&
         aFrame->IsTransformed()) {
-      aFrame->MarkLayersActive(nsChangeHint_UpdateTransformLayer);
+      ActiveLayerTracker::NotifyRestyle(aFrame, eCSSProperty_transform);
       // If we're not already going to do an invalidating paint, see
       // if we can get away with only updating the transform on a
       // layer for this frame, and not scheduling an invalidating
@@ -247,7 +249,7 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
       nsIFrame* childFrame =
         GetFrameForChildrenOnlyTransformHint(aFrame)->GetFirstPrincipalChild();
       for ( ; childFrame; childFrame = childFrame->GetNextSibling()) {
-        childFrame->MarkLayersActive(nsChangeHint_UpdateTransformLayer);
+        ActiveLayerTracker::NotifyRestyle(childFrame, eCSSProperty_transform);
       }
     }
     aFrame->SchedulePaint(needInvalidatingPaint ?
@@ -329,21 +331,11 @@ RestyleManager::RecomputePosition(nsIFrame* aFrame)
 
   // For relative positioning, we can simply update the frame rect
   if (display->IsRelativelyPositionedStyle()) {
-    switch (display->mDisplay) {
-      case NS_STYLE_DISPLAY_TABLE_CAPTION:
-      case NS_STYLE_DISPLAY_TABLE_CELL:
-      case NS_STYLE_DISPLAY_TABLE_ROW:
-      case NS_STYLE_DISPLAY_TABLE_ROW_GROUP:
-      case NS_STYLE_DISPLAY_TABLE_HEADER_GROUP:
-      case NS_STYLE_DISPLAY_TABLE_FOOTER_GROUP:
-      case NS_STYLE_DISPLAY_TABLE_COLUMN:
-      case NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP:
-        // We don't currently support relative positioning of inner
-        // table elements.  If we apply offsets to things we haven't
-        // previously offset, we'll get confused.  So bail.
-        return true;
-      default:
-        break;
+    if (display->IsInnerTableStyle()) {
+      // We don't currently support relative positioning of inner table
+      // elements (bug 35168).  If we apply offsets to things we haven't
+      // previously offset, we'll get confused.  So bail.
+      return true;
     }
 
 
@@ -384,59 +376,60 @@ RestyleManager::RecomputePosition(nsIFrame* aFrame)
     return true;
   }
 
-  // For absolute positioning, the width can potentially change if width is
-  // auto and either of left or right are not.  The height can also potentially
-  // change if height is auto and either of top or bottom are not.  In these
-  // cases we fall back to a reflow, and in all other cases, we attempt to
-  // move the frame here.
-  // Note that it is possible for the dimensions to not change in the above
-  // cases, so we should be a little smarter here and only fall back to reflow
-  // when the dimensions will really change (bug 745485).
-  const nsStylePosition* position = aFrame->StylePosition();
-  if (position->mWidth.GetUnit() != eStyleUnit_Auto &&
-      position->mHeight.GetUnit() != eStyleUnit_Auto) {
-    // For the absolute positioning case, set up a fake HTML reflow state for
-    // the frame, and then get the offsets from it.
-    nsRefPtr<nsRenderingContext> rc = aFrame->PresContext()->GetPresShell()->
-      GetReferenceRenderingContext();
+  // For the absolute positioning case, set up a fake HTML reflow state for
+  // the frame, and then get the offsets and size from it. If the frame's size
+  // doesn't need to change, we can simply update the frame position. Otherwise
+  // we fall back to a reflow.
+  nsRefPtr<nsRenderingContext> rc = aFrame->PresContext()->GetPresShell()->
+    GetReferenceRenderingContext();
 
-    // Construct a bogus parent reflow state so that there's a usable
-    // containing block reflow state.
-    nsIFrame* parentFrame = aFrame->GetParent();
-    nsSize parentSize = parentFrame->GetSize();
+  // Construct a bogus parent reflow state so that there's a usable
+  // containing block reflow state.
+  nsIFrame* parentFrame = aFrame->GetParent();
+  nsSize parentSize = parentFrame->GetSize();
 
-    nsFrameState savedState = parentFrame->GetStateBits();
-    nsHTMLReflowState parentReflowState(aFrame->PresContext(), parentFrame,
-                                        rc, parentSize);
-    parentFrame->RemoveStateBits(~nsFrameState(0));
-    parentFrame->AddStateBits(savedState);
+  nsFrameState savedState = parentFrame->GetStateBits();
+  nsHTMLReflowState parentReflowState(aFrame->PresContext(), parentFrame,
+                                      rc, parentSize);
+  parentFrame->RemoveStateBits(~nsFrameState(0));
+  parentFrame->AddStateBits(savedState);
 
-    NS_WARN_IF_FALSE(parentSize.width != NS_INTRINSICSIZE &&
-                     parentSize.height != NS_INTRINSICSIZE,
-                     "parentSize should be valid");
-    parentReflowState.SetComputedWidth(std::max(parentSize.width, 0));
-    parentReflowState.SetComputedHeight(std::max(parentSize.height, 0));
-    parentReflowState.mComputedMargin.SizeTo(0, 0, 0, 0);
-    parentSize.height = NS_AUTOHEIGHT;
+  NS_WARN_IF_FALSE(parentSize.width != NS_INTRINSICSIZE &&
+                   parentSize.height != NS_INTRINSICSIZE,
+                   "parentSize should be valid");
+  parentReflowState.SetComputedWidth(std::max(parentSize.width, 0));
+  parentReflowState.SetComputedHeight(std::max(parentSize.height, 0));
+  parentReflowState.mComputedMargin.SizeTo(0, 0, 0, 0);
 
-    parentReflowState.mComputedPadding = parentFrame->GetUsedPadding();
-    parentReflowState.mComputedBorderPadding =
-      parentFrame->GetUsedBorderAndPadding();
+  parentReflowState.mComputedPadding = parentFrame->GetUsedPadding();
+  parentReflowState.mComputedBorderPadding =
+    parentFrame->GetUsedBorderAndPadding();
+  nsSize availSize(parentSize.width, NS_INTRINSICSIZE);
 
-    nsSize availSize(parentSize.width, NS_INTRINSICSIZE);
-
-    nsSize size = aFrame->GetSize();
-    ViewportFrame* viewport = do_QueryFrame(parentFrame);
-    nsSize cbSize = viewport ?
-      viewport->AdjustReflowStateAsContainingBlock(&parentReflowState).Size()
-      : aFrame->GetContainingBlock()->GetSize();
-    const nsMargin& parentBorder =
-      parentReflowState.mStyleBorder->GetComputedBorder();
-    cbSize -= nsSize(parentBorder.LeftRight(), parentBorder.TopBottom());
-    nsHTMLReflowState reflowState(aFrame->PresContext(), parentReflowState,
-                                  aFrame, availSize, cbSize.width,
-                                  cbSize.height);
-
+  ViewportFrame* viewport = do_QueryFrame(parentFrame);
+  nsSize cbSize = viewport ?
+    viewport->AdjustReflowStateAsContainingBlock(&parentReflowState).Size()
+    : aFrame->GetContainingBlock()->GetSize();
+  const nsMargin& parentBorder =
+    parentReflowState.mStyleBorder->GetComputedBorder();
+  cbSize -= nsSize(parentBorder.LeftRight(), parentBorder.TopBottom());
+  nsHTMLReflowState reflowState(aFrame->PresContext(), parentReflowState,
+                                aFrame, availSize, cbSize.width,
+                                cbSize.height);
+  nsSize computedSize(reflowState.ComputedWidth(), reflowState.ComputedHeight());
+  computedSize.width += reflowState.mComputedBorderPadding.LeftRight();
+  if (computedSize.height != NS_INTRINSICSIZE) {
+    computedSize.height += reflowState.mComputedBorderPadding.TopBottom();
+  }
+  nsSize size = aFrame->GetSize();
+  // The RecomputePosition hint is not used if any offset changed between auto
+  // and non-auto. If computedSize.height == NS_INTRINSICSIZE then the new
+  // element height will be its intrinsic height, and since 'top' and 'bottom''s
+  // auto-ness hasn't changed, the old height must also be its intrinsic
+  // height, which we can assume hasn't changed (or reflow would have
+  // been triggered).
+  if (computedSize.width == size.width &&
+      (computedSize.height == NS_INTRINSICSIZE || computedSize.height == size.height)) {
     // If we're solving for 'left' or 'top', then compute it here, in order to
     // match the reflow code path.
     if (NS_AUTOOFFSET == reflowState.mComputedOffsets.left) {
@@ -700,6 +693,7 @@ RestyleManager::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
         ApplyRenderingChangeToTree(mPresContext, frame, hint);
       }
       if ((hint & nsChangeHint_RecomputePosition) && !didReflowThisFrame) {
+        ActiveLayerTracker::NotifyOffsetRestyle(frame);
         // It is possible for this to fall back to a reflow
         if (!RecomputePosition(frame)) {
           didReflowThisFrame = true;
@@ -2523,11 +2517,11 @@ ElementRestyler::RestyleUndisplayedChildren(nsRestyleHint aChildRestyleHint)
       !(mHintsHandled & nsChangeHint_ReconstructFrame)) {
     UndisplayedNode* undisplayed =
       frameConstructor->GetAllUndisplayedContentIn(undisplayedParent);
-    for (TreeMatchContext::AutoAncestorPusher
-           pushAncestor(undisplayed, mTreeMatchContext,
-                        undisplayedParent ? undisplayedParent->AsElement()
-                                          : nullptr);
-         undisplayed; undisplayed = undisplayed->mNext) {
+    TreeMatchContext::AutoAncestorPusher pusher(mTreeMatchContext);
+    if (undisplayed) {
+      pusher.PushAncestorAndStyleScope(undisplayedParent);
+    }
+    for (; undisplayed; undisplayed = undisplayed->mNext) {
       NS_ASSERTION(undisplayedParent ||
                    undisplayed->mContent ==
                      mPresContext->Document()->GetRootElement(),
@@ -2540,11 +2534,10 @@ ElementRestyler::RestyleUndisplayedChildren(nsRestyleHint aChildRestyleHint)
       // children element. Push the children element as an ancestor here because it does
       // not have a frame and would not otherwise be pushed as an ancestor.
       nsIContent* parent = undisplayed->mContent->GetParent();
-      bool pushInsertionPoint = parent && parent->IsActiveChildrenElement();
-      TreeMatchContext::AutoAncestorPusher
-        insertionPointPusher(pushInsertionPoint,
-                             mTreeMatchContext,
-                             parent && parent->IsElement() ? parent->AsElement() : nullptr);
+      TreeMatchContext::AutoAncestorPusher insertionPointPusher(mTreeMatchContext);
+      if (parent && parent->IsActiveChildrenElement()) {
+        insertionPointPusher.PushAncestorAndStyleScope(parent);
+      }
 
       nsRestyleHint thisChildHint = aChildRestyleHint;
       RestyleTracker::RestyleData undisplayedRestyleData;
@@ -2692,12 +2685,11 @@ ElementRestyler::RestyleContentChildren(nsIFrame* aParent,
                                         nsRestyleHint aChildRestyleHint)
 {
   nsIFrame::ChildListIterator lists(aParent);
-  for (TreeMatchContext::AutoAncestorPusher
-         pushAncestor(!lists.IsDone(),
-                      mTreeMatchContext,
-                      mContent && mContent->IsElement()
-                        ? mContent->AsElement() : nullptr);
-       !lists.IsDone(); lists.Next()) {
+  TreeMatchContext::AutoAncestorPusher ancestorPusher(mTreeMatchContext);
+  if (!lists.IsDone()) {
+    ancestorPusher.PushAncestorAndStyleScope(mContent);
+  }
+  for (; !lists.IsDone(); lists.Next()) {
     nsFrameList::Enumerator childFrames(lists.CurrentList());
     for (; !childFrames.AtEnd(); childFrames.Next()) {
       nsIFrame* child = childFrames.get();
@@ -2713,10 +2705,10 @@ ElementRestyler::RestyleContentChildren(nsIFrame* aParent,
         // Check if the frame has a content because |child| may be a
         // nsPageFrame that does not have a content.
         nsIContent* parent = child->GetContent() ? child->GetContent()->GetParent() : nullptr;
-        bool pushInsertionPoint = parent && parent->IsActiveChildrenElement();
-        TreeMatchContext::AutoAncestorPusher
-          insertionPointPusher(pushInsertionPoint, mTreeMatchContext,
-                               parent && parent->IsElement() ? parent->AsElement() : nullptr);
+        TreeMatchContext::AutoAncestorPusher insertionPointPusher(mTreeMatchContext);
+        if (parent && parent->IsActiveChildrenElement()) {
+          insertionPointPusher.PushAncestorAndStyleScope(parent);
+        }
 
         // only do frames that are in flow
         if (nsGkAtoms::placeholderFrame == child->GetType()) { // placeholder
