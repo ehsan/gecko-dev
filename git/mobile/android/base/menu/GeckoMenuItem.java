@@ -4,7 +4,6 @@
 
 package org.mozilla.gecko.menu;
 
-import org.mozilla.gecko.R;
 import org.mozilla.gecko.widget.GeckoActionProvider;
 
 import android.content.Intent;
@@ -19,26 +18,21 @@ import android.view.View;
 public class GeckoMenuItem implements MenuItem {
     private static final String LOGTAG = "GeckoMenuItem";
 
-    public static final int SHOW_AS_ACTION_NEVER = 0;
-    public static final int SHOW_AS_ACTION_IF_ROOM = 1;
-    public static final int SHOW_AS_ACTION_ALWAYS = 2;
-
     // A View that can show a MenuItem should be able to initialize from 
     // the properties of the MenuItem.
     public static interface Layout {
         public void initialize(GeckoMenuItem item);
-        public void setShowIcon(boolean show);
     }
 
     public static interface OnShowAsActionChangedListener {
         public boolean hasActionItemBar();
-        public void onShowAsActionChanged(GeckoMenuItem item);
+        public void onShowAsActionChanged(GeckoMenuItem item, boolean isActionItem);
     }
 
     private int mId;
     private int mOrder;
     private View mActionView;
-    private int mActionEnum;
+    private boolean mActionItem = false;
     private CharSequence mTitle;
     private CharSequence mTitleCondensed;
     private boolean mCheckable = false;
@@ -83,10 +77,6 @@ public class GeckoMenuItem implements MenuItem {
         }
 
         return (mActionProvider != null);
-    }
-
-    public int getActionEnum() {
-        return mActionEnum;
     }
 
     @Override
@@ -174,7 +164,7 @@ public class GeckoMenuItem implements MenuItem {
     }
 
     public boolean isActionItem() {
-        return (mActionEnum > 0);
+        return mActionItem;
     }
 
     @Override
@@ -211,14 +201,10 @@ public class GeckoMenuItem implements MenuItem {
                 @Override
                 public void onTargetSelected() {
                     mMenu.close();
-
-                    // Refresh the menu item to show the high frequency apps.
-                    mShowAsActionChangedListener.onShowAsActionChanged(GeckoMenuItem.this);
                 }
             });
         }
 
-        mShowAsActionChangedListener.onShowAsActionChanged(this);
         return this;
     }
 
@@ -307,34 +293,27 @@ public class GeckoMenuItem implements MenuItem {
         if (mShowAsActionChangedListener == null)
             return;
 
-        if (mActionEnum == actionEnum)
+        if (mActionItem == (actionEnum > 0))
             return;
 
         if (actionEnum > 0) {
             if (!mShowAsActionChangedListener.hasActionItemBar())
                 return;
 
-            if (!hasActionProvider()) {
-                // Change the type to just an icon
-                MenuItemActionBar actionView;
-                if (style != 0) {
-                    actionView = new MenuItemActionBar(mMenu.getContext(), null, style);
-                } else {
-                    if (actionEnum == SHOW_AS_ACTION_ALWAYS) {
-                        actionView = new MenuItemActionBar(mMenu.getContext());
-                    } else {
-                        actionView = new MenuItemActionBar(mMenu.getContext(), null, R.attr.menuItemSecondaryActionBarStyle);
-                    }
-                }
-
-                actionView.initialize(this);
-                mActionView = actionView;
+            // Change the type to just an icon
+            MenuItemActionBar actionView;
+            if (style != 0) {
+                actionView = new MenuItemActionBar(mMenu.getContext(), null, style);
+            } else {
+                actionView = new MenuItemActionBar(mMenu.getContext());
             }
+            actionView.initialize(this);
+            mActionView = actionView;
 
-            mActionEnum = actionEnum;
+            mActionItem = (actionEnum > 0);
         }
 
-        mShowAsActionChangedListener.onShowAsActionChanged(this);
+        mShowAsActionChangedListener.onShowAsActionChanged(this, mActionItem);
     }
 
     @Override
