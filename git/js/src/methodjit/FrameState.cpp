@@ -194,7 +194,7 @@ FrameState::storeTo(FrameEntry *fe, Address address, bool popped)
         masm.storeData32(fe->data.reg(), address);
     } else {
         JS_ASSERT(fe->data.inMemory());
-        RegisterID reg = popped ? allocReg() : allocReg(fe, RematInfo::DATA, true);
+        RegisterID reg = popped ? alloc() : alloc(fe, RematInfo::DATA, true);
         masm.loadData32(addressOf(fe), reg);
         masm.storeData32(reg, address);
         if (popped)
@@ -209,7 +209,7 @@ FrameState::storeTo(FrameEntry *fe, Address address, bool popped)
         masm.storeTypeTag(fe->type.reg(), address);
     } else {
         JS_ASSERT(fe->type.inMemory());
-        RegisterID reg = popped ? allocReg() : allocReg(fe, RematInfo::TYPE, true);
+        RegisterID reg = popped ? alloc() : alloc(fe, RematInfo::TYPE, true);
         masm.loadTypeTag(addressOf(fe), reg);
         masm.storeTypeTag(reg, address);
         if (popped)
@@ -644,20 +644,63 @@ FrameState::copyData(FrameEntry *fe)
             fe->data.setMemory();
             regstate[reg].fe = NULL;
         } else {
-            RegisterID newReg = allocReg();
+            RegisterID newReg = alloc();
             masm.move(reg, newReg);
             reg = newReg;
         }
         return reg;
     }
 
-    RegisterID reg = allocReg();
+    RegisterID reg = alloc();
 
     if (!freeRegs.empty())
         masm.move(tempRegForData(fe), reg);
     else
         masm.loadData32(addressOf(fe),reg);
 
+    return reg;
+}
+
+JSC::MacroAssembler::RegisterID
+FrameState::ownRegForType(FrameEntry *fe)
+{
+    JS_ASSERT(!fe->type.isConstant());
+
+    RegisterID reg;
+    if (fe->isCopy()) {
+        /* For now, just do an extra move. The reg must be mutable. */
+        FrameEntry *backing = fe->copyOf();
+        if (!backing->type.inRegister()) {
+            JS_ASSERT(backing->type.inMemory());
+            tempRegForType(backing);
+        }
+
+        if (freeRegs.empty()) {
+            /* For now... just steal the register that already exists. */
+            if (!backing->type.synced())
+                syncType(backing, addressOf(backing), masm);
+            reg = backing->type.reg();
+            backing->type.setMemory();
+            moveOwnership(reg, NULL);
+        } else {
+            reg = alloc();
+            masm.move(backing->type.reg(), reg);
+        }
+        return reg;
+    }
+
+    if (fe->type.inRegister()) {
+        reg = fe->type.reg();
+        /* Remove ownership of this register. */
+        JS_ASSERT(regstate[reg].fe == fe);
+        JS_ASSERT(regstate[reg].type == RematInfo::TYPE);
+        regstate[reg].fe = NULL;
+        fe->type.invalidate();
+    } else {
+        JS_ASSERT(fe->type.inMemory());
+        reg = alloc();
+        masm.loadTypeTag(addressOf(fe), reg);
+    }
     return reg;
 }
 
@@ -683,7 +726,7 @@ FrameState::ownRegForData(FrameEntry *fe)
             backing->data.setMemory();
             moveOwnership(reg, NULL);
         } else {
-            reg = allocReg();
+            reg = alloc();
             masm.move(backing->data.reg(), reg);
         }
         return reg;
@@ -692,7 +735,7 @@ FrameState::ownRegForData(FrameEntry *fe)
     if (fe->isCopied()) {
         uncopy(fe);
         if (fe->isCopied()) {
-            reg = allocReg();
+            reg = alloc();
             masm.loadData32(addressOf(fe), reg);
             return reg;
         }
@@ -707,7 +750,7 @@ FrameState::ownRegForData(FrameEntry *fe)
         fe->data.invalidate();
     } else {
         JS_ASSERT(fe->data.inMemory());
-        reg = allocReg();
+        reg = alloc();
         masm.loadData32(addressOf(fe), reg);
     }
     return reg;

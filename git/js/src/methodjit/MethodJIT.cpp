@@ -316,7 +316,7 @@ SYMBOL_STRING(JaegerTrampoline) ":"         "\n"
 "   push    {r11}"                          "\n"   /* inlineCallCount   */
 "   push    {r0}"                           "\n"   /* cx                */
 "   push    {r1}"                           "\n"   /* fp                */
-"   mov     r11, r1"                        "\n"   /* JSFrameReg        */
+"   mov     r11, r1"                        "\n"   /* FpReg             */
 
     /* Leave space for the VMFrame arguments. The largest slot appears to be 8 bytes for 32-bit
      * architectures, though hard-coding this doesn't seem sensible. TODO: Use sizeof here and for
@@ -627,7 +627,6 @@ mjit::ReleaseScriptCode(JSContext *cx, JSScript *script)
 #ifdef DEBUG
         script->jitLength = 0;
 #endif
-        script->npics = 0;
         
 #if defined(ENABLE_PIC) && ENABLE_PIC
         if (script->pics) {
@@ -635,6 +634,7 @@ mjit::ReleaseScriptCode(JSContext *cx, JSScript *script)
             script->pics = NULL;
             JS_METHODJIT_DATA(cx).removeScript(script);
         }
+        script->npics = 0;
 #endif
     }
 
