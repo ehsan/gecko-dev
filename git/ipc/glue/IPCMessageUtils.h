@@ -314,12 +314,6 @@ struct ParamTraits<nsCString> : ParamTraits<nsACString>
   typedef nsCString paramType;
 };
 
-template <>
-struct ParamTraits<nsLiteralCString> : ParamTraits<nsACString>
-{
-  typedef nsLiteralCString paramType;
-};
-
 #ifdef MOZILLA_INTERNAL_API
 
 template<>
@@ -334,12 +328,6 @@ template <>
 struct ParamTraits<nsString> : ParamTraits<nsAString>
 {
   typedef nsString paramType;
-};
-
-template <>
-struct ParamTraits<nsLiteralString> : ParamTraits<nsAString>
-{
-  typedef nsLiteralString paramType;
 };
 
 template <typename E>

@@ -3209,7 +3209,7 @@ TypeObject::clearNewScriptAddendum(ExclusiveContext *cx)
             }
 
             if (!finished) {
-                if (!JSObject::rollbackProperties(cx, obj, numProperties))
+                if (!obj->rollbackProperties(cx, numProperties))
                     cx->compartment()->types.setPendingNukeTypes(cx);
             }
         }
