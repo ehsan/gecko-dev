@@ -352,7 +352,23 @@ LinearScanAllocator::reifyAllocations()
             if (def->policy() == LDefinition::PRESET && def->output()->isRegister()) {
                 AnyRegister fixedReg = def->output()->toRegister();
                 LiveInterval *from = fixedIntervals[fixedReg.code()];
-                if (!moveAfter(outputOf(reg->ins()), from, interval))
+
+                // Insert the move after any OsiPoint or Nop instructions
+                // following this one. See minimalDefEnd for more info.
+                CodePosition defEnd = minimalDefEnd(reg->ins());
+
+                // If we just skipped an OsiPoint, and it uses this vreg, it
+                // should use the fixed register instead.
+                for (UsePositionIterator usePos(interval->usesBegin());
+                     usePos != interval->usesEnd();
+                     usePos++)
+                {
+                    if (usePos->pos > defEnd)
+                        break;
+                    *static_cast<LAllocation *>(usePos->use) = LAllocation(fixedReg);
+                }
+
+                if (!moveAfter(defEnd, from, interval))
                     return false;
                 spillFrom = from->getAllocation();
             } else {
@@ -1349,26 +1365,6 @@ LinearScanAllocator::UnhandledQueue::enqueueForward(LiveInterval *after, LiveInt
         }
     }
     insertBefore(*i, interval);
-}
-
-/*
- * Append to the queue head in O(1).
- */
-void
-LinearScanAllocator::UnhandledQueue::enqueueAtHead(LiveInterval *interval)
-{
-#ifdef DEBUG
-    // Assuming that the queue is in sorted order, assert that order is
-    // maintained by inserting at the back.
-    if (!empty()) {
-        LiveInterval *back = peekBack();
-        JS_ASSERT(back->start() >= interval->start());
-        JS_ASSERT_IF(back->start() == interval->start(),
-                     back->requirement()->priority() >= interval->requirement()->priority());
-    }
-#endif
-
-    pushBack(interval);
 }
 
 void

@@ -13,6 +13,7 @@
 #include "vm/RegExpStatics.h"
 #include "vm/StringBuffer.h"
 #include "vm/Xdr.h"
+#include "yarr/YarrSyntaxChecker.h"
 
 #include "jsobjinlines.h"
 
@@ -678,6 +679,13 @@ RegExpCompartment::sweep(JSRuntime *rt)
             e.removeFront();
         }
     }
+}
+
+void
+RegExpCompartment::clearTables()
+{
+    JS_ASSERT(inUse_.empty());
+    map_.clear();
 }
 
 bool

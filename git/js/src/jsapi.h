@@ -12,7 +12,6 @@
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/RangedPtr.h"
-#include "mozilla/ThreadLocal.h"
 
 #include <stdarg.h>
 #include <stddef.h>
@@ -24,7 +23,6 @@
 #include "jspubtd.h"
 
 #include "js/CallArgs.h"
-#include "js/CharacterEncoding.h"
 #include "js/HashTable.h"
 #include "js/RootingAPI.h"
 #include "js/Utility.h"
@@ -34,6 +32,9 @@
 /************************************************************************/
 
 namespace JS {
+
+class Latin1CharsZ;
+class TwoByteChars;
 
 typedef mozilla::RangedPtr<const jschar> CharPtr;
 
@@ -2783,18 +2784,15 @@ typedef enum JSGCParamKey {
     /* If true, high-frequency GCs will use a longer mark slice. */
     JSGC_DYNAMIC_MARK_SLICE = 18,
 
-    /* Number of megabytes of analysis data to allocate before purging. */
-    JSGC_ANALYSIS_PURGE_TRIGGER = 19,
-
     /* Lower limit after which we limit the heap growth. */
-    JSGC_ALLOCATION_THRESHOLD = 20,
+    JSGC_ALLOCATION_THRESHOLD = 19,
 
     /*
      * We decommit memory lazily. If more than this number of megabytes is
      * available to be decommitted, then JS_MaybeGC will trigger a shrinking GC
      * to decommit it.
      */
-    JSGC_DECOMMIT_THRESHOLD = 21
+    JSGC_DECOMMIT_THRESHOLD = 20
 } JSGCParamKey;
 
 typedef enum JSGCMode {
@@ -4120,6 +4118,33 @@ Compile(JSContext *cx, JS::Handle<JSObject*> obj, CompileOptions options, FILE *
 
 extern JS_PUBLIC_API(JSScript *)
 Compile(JSContext *cx, JS::Handle<JSObject*> obj, CompileOptions options, const char *filename);
+
+extern JS_PUBLIC_API(bool)
+CanCompileOffThread(JSContext *cx, const CompileOptions &options);
+
+/*
+ * Off thread compilation control flow.
+ *
+ * After successfully triggering an off thread compile of a script, the
+ * callback will eventually be invoked with the specified data and the result
+ * script or NULL. The callback will be invoked while off the main thread, so
+ * must ensure that its operations are thread safe. Afterwards,
+ * FinishOffThreadScript must be invoked on the main thread to make the script
+ * usable (correct compartment/zone); this method must be invoked even if the
+ * off thread compilation produced a NULL script.
+ *
+ * The characters passed in to CompileOffThread must remain live until the
+ * callback is invoked, and the resulting script will be rooted until the call
+ * to FinishOffThreadScript.
+ */
+
+extern JS_PUBLIC_API(bool)
+CompileOffThread(JSContext *cx, Handle<JSObject*> obj, CompileOptions options,
+                 const jschar *chars, size_t length,
+                 OffThreadCompileCallback callback, void *callbackData);
+
+extern JS_PUBLIC_API(void)
+FinishOffThreadScript(JSRuntime *rt, JSScript *script);
 
 extern JS_PUBLIC_API(JSFunction *)
 CompileFunction(JSContext *cx, JS::Handle<JSObject*> obj, CompileOptions options,
