@@ -1984,7 +1984,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
     PL_DHashTableEnumerate(tmp->mSubDocuments, SubDocTraverser, &cb);
   }
 
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCSSLoader)
+  if (tmp->mCSSLoader) {
+    tmp->mCSSLoader->TraverseCachedSheets(cb);
+  }
 
   for (uint32_t i = 0; i < tmp->mHostObjectURIs.Length(); ++i) {
     nsHostObjectProtocolHandler::Traverse(tmp->mHostObjectURIs[i], cb);
@@ -2081,7 +2083,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
 
   tmp->mPendingTitleChangeEvent.Revoke();
 
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mCSSLoader)
+  if (tmp->mCSSLoader) {
+    tmp->mCSSLoader->UnlinkCachedSheets();
+  }
 
   for (uint32_t i = 0; i < tmp->mHostObjectURIs.Length(); ++i) {
     nsHostObjectProtocolHandler::RemoveDataEntry(tmp->mHostObjectURIs[i]);

@@ -61,6 +61,7 @@
 
 #include "nsIChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
+#include "nsCycleCollectionParticipant.h"
 
 #include "mozilla/dom/EncodingUtils.h"
 using mozilla::dom::EncodingUtils;
@@ -2453,29 +2454,21 @@ TraverseSheet(URIPrincipalAndCORSModeHashKey*,
   return PL_DHASH_NEXT;
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(Loader)
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Loader)
-  if (tmp->mSheets) {
-    tmp->mSheets->mCompleteSheets.EnumerateRead(TraverseSheet, &cb);
+void
+Loader::TraverseCachedSheets(nsCycleCollectionTraversalCallback& cb)
+{
+  if (mSheets) {
+    mSheets->mCompleteSheets.EnumerateRead(TraverseSheet, &cb);
   }
-  nsTObserverArray<nsCOMPtr<nsICSSLoaderObserver>>::ForwardIterator
-    it(tmp->mObservers);
-  while (it.HasMore()) {
-    ImplCycleCollectionTraverse(cb, it.GetNext(),
-                                "mozilla::css::Loader.mObservers");
-  }
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+}
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Loader)
-  if (tmp->mSheets) {
-    tmp->mSheets->mCompleteSheets.Clear();
+void
+Loader::UnlinkCachedSheets()
+{
+  if (mSheets) {
+    mSheets->mCompleteSheets.Clear();
   }
-  tmp->mObservers.Clear();
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(Loader, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(Loader, Release)
+}
 
 struct SheetMemoryCounter {
   size_t size;

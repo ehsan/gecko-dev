@@ -398,8 +398,6 @@ HTMLBreadcrumbs.prototype = {
     this.separators = null;
 
     this.nodeHierarchy = null;
-
-    this.isDestroyed = true;
   },
 
   /**
@@ -627,10 +625,6 @@ HTMLBreadcrumbs.prototype = {
 
   updateSelectors: function BC_updateSelectors()
   {
-    if (this.isDestroyed) {
-      return;
-    }
-
     for (let i = this.nodeHierarchy.length - 1; i >= 0; i--) {
       let crumb = this.nodeHierarchy[i];
       let button = crumb.button;
@@ -648,10 +642,6 @@ HTMLBreadcrumbs.prototype = {
    */
   update: function BC_update(reason)
   {
-    if (this.isDestroyed) {
-      return;
-    }
-
     if (reason !== "markupmutation") {
       this.inspector.hideNodeMenu();
     }
@@ -698,10 +688,6 @@ HTMLBreadcrumbs.prototype = {
     let doneUpdating = this.inspector.updating("breadcrumbs");
     // Add the first child of the very last node of the breadcrumbs if possible.
     this.ensureFirstChild().then(this.selectionGuard()).then(() => {
-      if (this.isDestroyed) {
-        return;
-      }
-
       this.updateSelectors();
 
       // Make sure the selected node and its neighbours are visible.

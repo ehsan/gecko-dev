@@ -1,69 +1,78 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-"use strict";
+function test() {
 
-// Test that the inspector has the correct pseudo-class locking menu items and
-// that these items actually work
+  let DOMUtils = Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils);
 
-const DOMUtils = Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils);
-const PSEUDOS = ["hover", "active", "focus"];
+  let pseudos = ["hover", "active", "focus"];
 
-let test = asyncTest(function*() {
-  yield addTab("data:text/html,pseudo-class lock node menu tests");
+  let doc;
+  let div;
+  let menu;
+  let inspector;
 
-  info("Creating the test element");
-  let div = content.document.createElement("div");
-  div.textContent = "test div";
-  content.document.body.appendChild(div);
-
-  let {inspector} = yield openInspector();
-  yield selectNode(div, inspector);
-
-  info("Getting the inspector ctx menu and opening it");
-  let menu = inspector.panelDoc.getElementById("inspector-node-popup");
-  yield openMenu(menu);
-
-  yield testMenuItems(div, menu, inspector);
-
-  gBrowser.removeCurrentTab();
-});
-
-function openMenu(menu) {
-  let def = promise.defer();
-
-  menu.addEventListener("popupshowing", function onOpen() {
-    menu.removeEventListener("popupshowing", onOpen, true);
-    def.resolve();
+  ignoreAllUncaughtExceptions();
+  gBrowser.selectedTab = gBrowser.addTab();
+  gBrowser.selectedBrowser.addEventListener("load", function() {
+    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
+    doc = content.document;
+    waitForFocus(createDocument, content);
   }, true);
-  menu.openPopup();
 
-  return def.promise;
-}
+  content.location = "data:text/html,pseudo-class lock node menu tests";
 
-function* testMenuItems(div,menu, inspector) {
-  for (let pseudo of PSEUDOS) {
-    let menuitem = inspector.panelDoc.getElementById("node-menu-pseudo-" + pseudo);
-    ok(menuitem, ":" + pseudo + " menuitem exists");
+  function createDocument()
+  {
+    div = doc.createElement("div");
+    div.textContent = "test div";
 
-    // Give the inspector panels a chance to update when the pseudoclass changes
-    let onPseudo = inspector.selection.once("pseudoclass");
-    let onRefresh = inspector.once("rule-view-refreshed");
-    let onMutations = waitForMutation(inspector);
+    doc.body.appendChild(div);
 
-    menuitem.doCommand();
-
-    yield onPseudo;
-    yield onRefresh;
-    yield onMutations;
-
-    is(DOMUtils.hasPseudoClassLock(div, ":" + pseudo), true,
-      "pseudo-class lock has been applied");
+    openInspector(selectNode);
   }
-}
 
-function waitForMutation(inspector) {
-  let def = promise.defer();
-  inspector.walker.once("mutations", def.resolve);
-  return def.promise;
+  function selectNode(aInspector)
+  {
+    inspector = aInspector;
+    inspector.selection.setNode(div);
+    inspector.once("inspector-updated", performTests);
+  }
+
+  function performTests()
+  {
+    menu = inspector.panelDoc.getElementById("inspector-node-popup");
+    menu.addEventListener("popupshowing", testMenuItems, true);
+    menu.openPopup();
+  }
+
+  function testMenuItems()
+  {
+    menu.removeEventListener("popupshowing", testMenuItems, true);
+
+    var tryNext = () => {
+      if (pseudos.length === 0) {
+        finishUp();
+        return;
+      }
+      let pseudo = pseudos.shift();
+
+      let menuitem = inspector.panelDoc.getElementById("node-menu-pseudo-" + pseudo);
+      ok(menuitem, ":" + pseudo + " menuitem exists");
+
+      menuitem.doCommand();
+      inspector.selection.once("pseudoclass", () => {
+        is(DOMUtils.hasPseudoClassLock(div, ":" + pseudo), true,
+          "pseudo-class lock has been applied");
+        tryNext();
+      });
+    }
+    tryNext();
+  }
+
+  function finishUp()
+  {
+    gBrowser.removeCurrentTab();
+    finish();
+  }
 }

@@ -24,7 +24,7 @@ GfxDriverInfo::GfxDriverInfo()
     mDevices(allDevices),
     mDeleteDevices(false),
     mFeature(allFeatures),
-    mFeatureStatus(nsIGfxInfo::FEATURE_STATUS_OK),
+    mFeatureStatus(nsIGfxInfo::FEATURE_NO_INFO),
     mComparisonOp(DRIVER_COMPARISON_IGNORED),
     mDriverVersion(0),
     mDriverVersionMax(0),

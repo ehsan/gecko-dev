@@ -153,6 +153,44 @@ PhysicalPosFromLogicalPos(nscoord aLogicalPosn,
   return aLogicalContainerSize - aLogicalPosn;
 }
 
+static nscoord
+MarginComponentForSide(const nsMargin& aMargin, mozilla::Side aSide)
+{
+  switch (aSide) {
+    case eSideLeft:
+      return aMargin.left;
+    case eSideRight:
+      return aMargin.right;
+    case eSideTop:
+      return aMargin.top;
+    case eSideBottom:
+      return aMargin.bottom;
+  }
+
+  NS_NOTREACHED("unexpected Side enum");
+  return aMargin.left; // have to return something
+                       // (but something's busted if we got here)
+}
+
+static nscoord&
+MarginComponentForSide(nsMargin& aMargin, mozilla::Side aSide)
+{
+  switch (aSide) {
+    case eSideLeft:
+      return aMargin.left;
+    case eSideRight:
+      return aMargin.right;
+    case eSideTop:
+      return aMargin.top;
+    case eSideBottom:
+      return aMargin.bottom;
+  }
+
+  NS_NOTREACHED("unexpected Side enum");
+  return aMargin.left; // have to return something
+                       // (but something's busted if we got here)
+}
+
 // Helper-macro to let us pick one of two expressions to evaluate
 // (a width expression vs. a height expression), to get a main-axis or
 // cross-axis component.
@@ -378,7 +416,7 @@ public:
 
   // Returns the margin component for a given mozilla::Side
   nscoord GetMarginComponentForSide(mozilla::Side aSide) const
-  { return mMargin.Side(aSide); }
+  { return MarginComponentForSide(mMargin, aSide); }
 
   // Returns the total space occupied by this item's margins in the given axis
   nscoord GetMarginSizeInAxis(AxisOrientationType aAxis) const
@@ -395,7 +433,7 @@ public:
 
   // Returns the border+padding component for a given mozilla::Side
   nscoord GetBorderPaddingComponentForSide(mozilla::Side aSide) const
-  { return mBorderPadding.Side(aSide); }
+  { return MarginComponentForSide(mBorderPadding, aSide); }
 
   // Returns the total space occupied by this item's borders and padding in
   // the given axis
@@ -515,7 +553,7 @@ public:
   void SetMarginComponentForSide(mozilla::Side aSide, nscoord aLength)
   {
     MOZ_ASSERT(mIsFrozen, "main size should be resolved before this");
-    mMargin.Side(aSide) = aLength;
+    MarginComponentForSide(mMargin, aSide) = aLength;
   }
 
   void ResolveStretchedCrossSize(nscoord aLineCrossSize,
@@ -1289,7 +1327,7 @@ public:
   void EnterMargin(const nsMargin& aMargin)
   {
     mozilla::Side side = kAxisOrientationToSidesMap[mAxis][eAxisEdge_Start];
-    mPosition += aMargin.Side(side);
+    mPosition += MarginComponentForSide(aMargin, side);
   }
 
   // Advances our position across the end edge of the given margin, in the axis
@@ -1297,7 +1335,7 @@ public:
   void ExitMargin(const nsMargin& aMargin)
   {
     mozilla::Side side = kAxisOrientationToSidesMap[mAxis][eAxisEdge_End];
-    mPosition += aMargin.Side(side);
+    mPosition += MarginComponentForSide(aMargin, side);
   }
 
   // Advances our current position from the start side of a child frame's
